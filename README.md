@@ -12,6 +12,8 @@ Check the [website](http://get.acquisition.today) for screenshots and video tuto
 
 On Windows you can use either Visual Studio or MinGW version of Qt Creator. Alternatively you can also use Visual Studio with Qt Add-in.
 
+Make sure to have the [Windows 10 SDK](https://developer.microsoft.com/en-us/windows/downloads/windows-10-sdk/) installed as well.
+
 ### Linux
 
 Either open `acquisition.pro` in Qt Creator and build or do `qmake && make`.
