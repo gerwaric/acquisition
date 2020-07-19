@@ -41,6 +41,7 @@ Makefile*
 *.opensdf
 *.aps
 *.pdb
+.vs/
 
 # deployment/installer
 deploy
