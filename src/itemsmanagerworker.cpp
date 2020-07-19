@@ -149,7 +149,7 @@ void ItemsManagerWorker::OnMainPageReceived() {
     } else {
         std::string page(reply->readAll().constData());
 
-        selected_character_ = Util::FindTextBetween(page, "activeCharacter\":{\"name\":\"", "\",\"league");
+        selected_character_ = Util::FindTextBetween(page, "C({\"name\":\"", "\",\"league");
         if (selected_character_.empty()) {
             // QLOG_WARN() << "Couldn't extract currently selected character name from GGG homepage (maintenence?) Text was: " << page.c_str();
         }
