@@ -302,7 +302,10 @@ void MainWindow::OnRefreshSelected() {
     app_->items_manager().Update(TabSelection::Selected, locations);
 }
 
-
+/**
+ * @brief MainWindow::CheckSelected
+ * @param value test
+ */
 void MainWindow::CheckSelected(bool value) {
     auto & bo = app_->buyout_manager();
 
