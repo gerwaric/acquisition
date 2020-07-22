@@ -538,10 +538,10 @@ bool EnchantedFilter::Matches(const std::shared_ptr<Item> &item, FilterData *dat
     return item->enchanted();
 }
 
-bool WarFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data) {
+bool InfluencedFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data) {
     if (!data->checked)
         return true;
-    return item->shaper() || item->elder();
+    return item->hasBaseType();
 }
 
 bool CorruptedFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data) {

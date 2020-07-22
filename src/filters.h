@@ -294,9 +294,9 @@ public:
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
 };
 
-class WarFilter : public BooleanFilter {
+class InfluencedFilter : public BooleanFilter {
 public:
-    WarFilter(QLayout *parent, std::string property, std::string caption):
+    InfluencedFilter(QLayout *parent, std::string property, std::string caption):
         BooleanFilter(parent, property, caption) {}
     using BooleanFilter::BooleanFilter;
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data);

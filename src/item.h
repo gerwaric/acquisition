@@ -65,9 +65,13 @@ public:
     typedef const std::unordered_map<std::string, std::string> CategoryReplaceMap;
 
     enum BASE_TYPES {
-        BASE_NORMAL,
+        NONE,
         BASE_SHAPER,
-        BASE_ELDER
+        BASE_ELDER,
+        BASE_CRUSADER,
+        BASE_REDEEMER,
+        BASE_HUNTER,
+        BASE_WARLORD
     };
 
     explicit Item(const rapidjson::Value &json);
@@ -79,9 +83,10 @@ public:
     bool corrupted() const { return corrupted_; }
     bool crafted() const { return crafted_; }
     bool enchanted() const { return enchanted_; }
-    BASE_TYPES baseType() const { return baseType_; }
-    bool shaper() const { return baseType_ == BASE_SHAPER; }
-    bool elder() const { return baseType_ == BASE_ELDER; }
+    bool hasBaseType(BASE_TYPES type) const { return std::find(baseTypeList_.begin(), baseTypeList_.end(), type) != baseTypeList_.end();}
+    BASE_TYPES baseTypeLeft() const {return baseTypeList_.size() == 0 ? NONE : baseTypeList_[0];}
+    BASE_TYPES baseTypeRight() const {return baseTypeList_.size() == 0 ? NONE : baseTypeList_.size() == 1 ? baseTypeList_[0] : baseTypeList_[1];}
+    bool hasBaseType() const {return !baseTypeList_.empty();}
     int w() const { return w_; }
     int h() const { return h_; }
     int frameType() const { return frameType_; }
@@ -134,7 +139,7 @@ private:
     bool corrupted_;
     bool crafted_;
     bool enchanted_;
-    BASE_TYPES baseType_;
+    std::vector<BASE_TYPES> baseTypeList_;
     int w_, h_;
     int frameType_;
     std::string icon_;

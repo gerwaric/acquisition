@@ -90,7 +90,6 @@ Item::Item(const rapidjson::Value &json) :
     corrupted_(false),
     crafted_(false),
     enchanted_(false),
-    baseType_(BASE_NORMAL),
     w_(0),
     h_(0),
     frameType_(0),
@@ -115,13 +114,19 @@ Item::Item(const rapidjson::Value &json) :
     if (json.HasMember("enchantMods") && json["enchantMods"].IsArray() && !json["enchantMods"].Empty())
         enchanted_ = true;
 
-    if (json.HasMember("shaper") && json["shaper"].IsBool() && json["shaper"].GetBool())
-        baseType_ = BASE_SHAPER;
-    if (json.HasMember("elder") && json["elder"].IsBool() && json["elder"].GetBool()) {
-        if (baseType_ != BASE_NORMAL) {
-            QLOG_WARN() << PrettyName().c_str() << " has multiple conflicting base type attributes.";
-        }
-        baseType_ = BASE_ELDER;
+    if (json.HasMember("influences")) {
+        if (json["influences"].HasMember("shaper"))
+            baseTypeList_.push_back(BASE_SHAPER);
+        if (json["influences"].HasMember("elder"))
+            baseTypeList_.push_back(BASE_ELDER);
+        if (json["influences"].HasMember("crusader"))
+            baseTypeList_.push_back(BASE_CRUSADER);
+        if (json["influences"].HasMember("redeemer"))
+            baseTypeList_.push_back(BASE_REDEEMER);
+        if (json["influences"].HasMember("hunter"))
+            baseTypeList_.push_back(BASE_HUNTER);
+        if (json["influences"].HasMember("warlord"))
+            baseTypeList_.push_back(BASE_WARLORD);
     }
 
     if (json.HasMember("w") && json["w"].IsInt())

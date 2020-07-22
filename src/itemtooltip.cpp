@@ -285,8 +285,8 @@ void UpdateItemTooltip(const Item &item, Ui::MainWindow *ui) {
     std::string suffix = (singleline && (frame == FRAME_TYPE_RARE || frame == FRAME_TYPE_UNIQUE)) ? "SingleLine" : "";
     std::string header_path_prefix = ":/tooltip/ItemsHeader" + key + suffix;
 
-    GenerateItemHeaderSide(ui->itemHeaderLeft, true, header_path_prefix, singleline, item.baseType());
-    GenerateItemHeaderSide(ui->itemHeaderRight, false, header_path_prefix, singleline, item.baseType());
+    GenerateItemHeaderSide(ui->itemHeaderLeft, true, header_path_prefix, singleline, item.baseTypeLeft());
+    GenerateItemHeaderSide(ui->itemHeaderRight, false, header_path_prefix, singleline, item.baseTypeRight());
 
     ui->itemNameContainerWidget->setStyleSheet(("border-radius: 0px; border: 0px; border-image: url(" + header_path_prefix + "Middle.png);").c_str());
 
@@ -384,10 +384,10 @@ QPixmap GenerateItemIcon(const Item &item, const QImage &image) {
     layered.fill(Qt::transparent);
     QPainter layered_painter(&layered);
 
-    if (item.shaper() || item.elder()){
+    if (item.hasBaseType(Item::BASE_SHAPER) || item.hasBaseType(Item::BASE_ELDER)){
         // Assumes width <= 2
         const QImage *background_image = nullptr;
-        if (item.shaper()) {
+        if (item.hasBaseType(Item::BASE_ELDER)) {
             switch(height) {
                 case 1:
                     background_image = width == 1 ? &shaper_1x1 : &shaper_2x1;

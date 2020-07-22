@@ -129,16 +129,27 @@ QVariant EnchantedColumn::value(const Item &item) const {
     return QVariant();
 }
 
-std::string WarColumn::name() const {
-    return "War";
+std::string InfluncedColumn::name() const {
+    return "Inf";
 }
 
-QVariant WarColumn::value(const Item &item) const {
-    if (item.shaper())
-        return "S";
-    if (item.elder())
-        return "E";
-    return QVariant();
+QVariant InfluncedColumn::value(const Item &item) const {
+    QString baseTypesString = "";
+
+    if (item.hasBaseType(Item::BASE_SHAPER))
+        baseTypesString += "S";
+    if (item.hasBaseType(Item::BASE_ELDER))
+        baseTypesString += "E";
+    if (item.hasBaseType(Item::BASE_HUNTER))
+        baseTypesString += "H";
+    if (item.hasBaseType(Item::BASE_WARLORD))
+        baseTypesString += "W";
+    if (item.hasBaseType(Item::BASE_CRUSADER))
+        baseTypesString += "C";
+    if (item.hasBaseType(Item::BASE_REDEEMER))
+        baseTypesString += "R";
+
+    return baseTypesString;
 }
 
 PropertyColumn::PropertyColumn(const std::string &name):
