@@ -544,6 +544,12 @@ bool WarFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data) {
     return item->shaper() || item->elder();
 }
 
+bool CorruptedFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data) {
+    if (!data->checked)
+        return true;
+    return item->corrupted();
+}
+
 double ItemlevelFilter::GetValue(const std::shared_ptr<Item> &item) {
     return item->ilvl();
 }
