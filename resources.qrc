@@ -47,6 +47,10 @@
         <file alias="ItemsHeaderUniqueSingleLineMiddle.png">assets/ItemsHeaderUniqueSingleLineMiddle.png</file>
         <file alias="ElderItemSymbol.png">assets/ElderItemSymbol.png</file>
         <file alias="ShaperItemSymbol.png">assets/ShaperItemSymbol.png</file>
+        <file alias="Crusader-item-symbol.png">assets/Crusader-item-symbol.png</file>
+        <file alias="Hunter-item-symbol.png">assets/Hunter-item-symbol.png</file>
+        <file alias="Redeemer-item-symbol.png">assets/Redeemer-item-symbol.png</file>
+        <file alias="Warlord-item-symbol.png">assets/Warlord-item-symbol.png</file>
     </qresource>
     <qresource prefix="/backgrounds">
         <file alias="ElderBackground_1x1.png">assets/ElderBackground_1x1.png</file>

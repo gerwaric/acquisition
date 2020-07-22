@@ -53,6 +53,10 @@ static const QImage shaper_2x3(":/backgrounds/ShaperBackground_2x3.png");
 static const QImage shaper_2x4(":/backgrounds/ShaperBackground_2x4.png");
 static const QImage shaper_icon(":/tooltip/ShaperItemSymbol.png");
 static const QImage elder_icon(":/tooltip/ElderItemSymbol.png");
+static const QImage crusader_icon(":/tooltip/Crusader-item-symbol.png");
+static const QImage hunter_icon(":/tooltip/Hunter-item-symbol.png");
+static const QImage redeemer_icon(":/tooltip/Redeemer-item-symbol.png");
+static const QImage warlord_icon(":/tooltip/Warlord-item-symbol.png");
 static const int HEADER_SINGLELINE_WIDTH = 29;
 static const int HEADER_SINGLELINE_HEIGHT = 34;
 static const int HEADER_DOUBLELINE_WIDTH = 44;
@@ -249,8 +253,32 @@ void GenerateItemHeaderSide(QLabel *itemHeader, bool leftNotRight, std::string h
     QPainter header_painter(&header_pixmap);
     header_painter.drawImage(0, 0, header);
 
-    if (base == Item::BASE_SHAPER || base == Item::BASE_ELDER) {
-        QImage overlay_image = base == Item::BASE_SHAPER ? shaper_icon : elder_icon;
+    QImage overlay_image;
+
+    if (base != Item::NONE) {
+        switch (base){
+            case Item::BASE_ELDER:
+                overlay_image = elder_icon;
+                break;
+            case Item::BASE_SHAPER:
+                overlay_image = shaper_icon;
+                break;
+            case Item::BASE_HUNTER:
+                overlay_image = hunter_icon;
+                break;
+            case Item::BASE_WARLORD:
+                overlay_image = warlord_icon;
+                break;
+            case Item::BASE_CRUSADER:
+                overlay_image = crusader_icon;
+                break;
+            case Item::BASE_REDEEMER:
+                overlay_image = redeemer_icon;
+                break;
+            case Item::NONE:
+                break;
+        }
+
         overlay_image = overlay_image.scaled(HEADER_OVERLAY_SIZE);
         int overlay_x = singleline ? (leftNotRight ? 2: 1) : (leftNotRight ? 2: 15);
         int overlay_y = (int) ( 0.5 * (header.height() - overlay_image.height()) );
