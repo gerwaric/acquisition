@@ -33,6 +33,7 @@ SOURCES += \
     src/buyoutmanager.cpp \
     src/column.cpp \
     src/currencymanager.cpp \
+    src/influence.cpp \
     src/sqlitedatastore.cpp \
     src/filesystem.cpp \
     src/filters.cpp \
@@ -77,6 +78,7 @@ HEADERS += \
     src/column.h \
     src/currencymanager.h \
     src/datastore.h \
+    src/influence.h \
     src/sqlitedatastore.h \
     src/filesystem.h \
     src/filters.h \

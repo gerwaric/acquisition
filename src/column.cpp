@@ -28,6 +28,7 @@
 
 #include "buyoutmanager.h"
 #include "util.h"
+#include "influence.h"
 
 const double EPS = 1e-6;
 const QRegularExpression sort_double_match("^\\+?([\\d.]+)%?$");
@@ -155,15 +156,43 @@ QVariant InfluncedColumn::value(const Item &item) const {
 }
 
 QVariant InfluncedColumn::icon(const Item &item) const {
-    QIcon *leftIcon = NULL, *rightIcon = NULL;
+    QIcon *leftIcon, *rightIcon;
 
     if (item.baseTypeLeft() != Item::NONE) {
-        leftIcon = new QIcon();
+        switch (item.baseTypeLeft()) {
+            case Item::BASE_ELDER: leftIcon = new QIcon(elder_symbol_Link); break;
+            case Item::BASE_SHAPER: leftIcon = new QIcon(shaper_symbol_Link); break;
+            case Item::BASE_CRUSADER: leftIcon = new QIcon(crusader_symbol_Link); break;
+            case Item::BASE_HUNTER: leftIcon = new QIcon(hunter_symbol_Link); break;
+            case Item::BASE_REDEEMER: leftIcon = new QIcon(redeemer_symbol_Link); break;
+            case Item::BASE_WARLORD: leftIcon = new QIcon(warlord_symbol_Link); break;
+            case Item::NONE: break;
+        }
+        if(!item.baseTypeRight() || item.baseTypeLeft() == item.baseTypeRight()) {
+            rightIcon = NULL;
+        } else {
+            switch (item.baseTypeRight()) {
+                case Item::BASE_ELDER: rightIcon = new QIcon(elder_symbol_Link); break;
+                case Item::BASE_SHAPER: rightIcon = new QIcon(shaper_symbol_Link); break;
+                case Item::BASE_CRUSADER: rightIcon = new QIcon(crusader_symbol_Link); break;
+                case Item::BASE_HUNTER: rightIcon = new QIcon(hunter_symbol_Link); break;
+                case Item::BASE_REDEEMER: rightIcon = new QIcon(redeemer_symbol_Link); break;
+                case Item::BASE_WARLORD: rightIcon = new QIcon(warlord_symbol_Link); break;
+                case Item::NONE: break;
+            }
+        }
+    } else {
+        leftIcon = NULL;
+        rightIcon = NULL;
     }
 
-    //TODO finish
-
-    return Util::combineInflunceIcons(QIcon(":/tooltip/ElderItemSymbol.png"), QIcon(":/tooltip/ShaperItemSymbol.png"));
+    if (leftIcon != NULL)
+        if (rightIcon != NULL)
+            return Influence::combineInflunceIcons(*leftIcon, *rightIcon);
+        else
+            return *leftIcon;
+    else
+        return NULL;
 }
 
 
