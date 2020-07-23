@@ -104,4 +104,6 @@ std::string Capitalise(const std::string &str);
 std::string TimeAgoInWords(const QDateTime buyout_time);
 
 std::string Decode(const std::string &entity);
+
+QIcon combineInflunceIcons(const QIcon leftIcon, const QIcon rightIcon);
 }

@@ -24,6 +24,7 @@
 #include <QRegularExpression>
 #include <QApplication>
 #include <QPalette>
+#include <QIcon>
 
 #include "buyoutmanager.h"
 #include "util.h"
@@ -149,8 +150,23 @@ QVariant InfluncedColumn::value(const Item &item) const {
     if (item.hasBaseType(Item::BASE_REDEEMER))
         baseTypesString += "R";
 
-    return baseTypesString;
+    //TODO maybe add an option to toggle whether to send an icon or text for an influence?
+    return "";
 }
+
+QVariant InfluncedColumn::icon(const Item &item) const {
+    QIcon *leftIcon = NULL, *rightIcon = NULL;
+
+    if (item.baseTypeLeft() != Item::NONE) {
+        leftIcon = new QIcon();
+    }
+
+    //TODO finish
+
+    return Util::combineInflunceIcons(QIcon(":/tooltip/ElderItemSymbol.png"), QIcon(":/tooltip/ShaperItemSymbol.png"));
+}
+
+
 
 PropertyColumn::PropertyColumn(const std::string &name):
     name_(name),

@@ -110,6 +110,8 @@ QVariant ItemsModel::data(const QModelIndex &index, int role) const {
         return column->value(item);
     else if (role == Qt::ForegroundRole)
         return column->color(item);
+    else if (role == Qt::DecorationRole)
+        return column->icon(item);
     return QVariant();
 }
 

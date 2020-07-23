@@ -28,6 +28,7 @@
 #include <QFontMetrics>
 #include <QNetworkReply>
 #include <QTextDocument>
+#include <QPainter>
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include <sstream>
@@ -222,6 +223,20 @@ std::string Util::Decode(const std::string &entity) {
     QTextDocument text;
     text.setHtml(entity.c_str());
     return text.toPlainText().toStdString();
+}
+
+QIcon Util::combineInflunceIcons(const QIcon leftIcon, const QIcon rightIcon) {
+    const int width = 54;
+    const int height = 27;
+
+    QPixmap layered(width, height);
+    layered.fill(Qt::transparent);
+    QPainter layered_painter(&layered);
+
+    layered_painter.drawPixmap(0, 0, leftIcon.pixmap(27, 27));
+    layered_painter.drawPixmap(27, 0, rightIcon.pixmap(27, 27));
+
+    return QIcon(layered);
 }
 
 QDebug &operator<<(QDebug &os, const RefreshReason::Type &obj)
