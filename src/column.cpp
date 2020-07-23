@@ -156,43 +156,39 @@ QVariant InfluncedColumn::value(const Item &item) const {
 }
 
 QVariant InfluncedColumn::icon(const Item &item) const {
-    QIcon *leftIcon, *rightIcon;
+    QIcon leftIcon, rightIcon;
 
-    if (item.baseTypeLeft() != Item::NONE) {
+    Item::BASE_TYPES leftInf = item.baseTypeLeft();
+    Item::BASE_TYPES rightInf = item.baseTypeRight();
+
+    int numInfluences = rightInf != Item::NONE && rightInf != leftInf ? 2 : item.baseTypeLeft() != Item::NONE ? 1 : 0;
+
+    if (numInfluences > 0) {
         switch (item.baseTypeLeft()) {
-            case Item::BASE_ELDER: leftIcon = new QIcon(elder_symbol_Link); break;
-            case Item::BASE_SHAPER: leftIcon = new QIcon(shaper_symbol_Link); break;
-            case Item::BASE_CRUSADER: leftIcon = new QIcon(crusader_symbol_Link); break;
-            case Item::BASE_HUNTER: leftIcon = new QIcon(hunter_symbol_Link); break;
-            case Item::BASE_REDEEMER: leftIcon = new QIcon(redeemer_symbol_Link); break;
-            case Item::BASE_WARLORD: leftIcon = new QIcon(warlord_symbol_Link); break;
+            case Item::BASE_ELDER: leftIcon.addFile(elder_symbol_Link); break;
+            case Item::BASE_SHAPER: leftIcon.addFile(shaper_symbol_Link); break;
+            case Item::BASE_CRUSADER: leftIcon.addFile(crusader_symbol_Link); break;
+            case Item::BASE_HUNTER: leftIcon.addFile(hunter_symbol_Link); break;
+            case Item::BASE_REDEEMER: leftIcon.addFile(redeemer_symbol_Link); break;
+            case Item::BASE_WARLORD: leftIcon.addFile(warlord_symbol_Link); break;
             case Item::NONE: break;
         }
-        if(!item.baseTypeRight() || item.baseTypeLeft() == item.baseTypeRight()) {
-            rightIcon = NULL;
-        } else {
+        if(numInfluences == 2) {
             switch (item.baseTypeRight()) {
-                case Item::BASE_ELDER: rightIcon = new QIcon(elder_symbol_Link); break;
-                case Item::BASE_SHAPER: rightIcon = new QIcon(shaper_symbol_Link); break;
-                case Item::BASE_CRUSADER: rightIcon = new QIcon(crusader_symbol_Link); break;
-                case Item::BASE_HUNTER: rightIcon = new QIcon(hunter_symbol_Link); break;
-                case Item::BASE_REDEEMER: rightIcon = new QIcon(redeemer_symbol_Link); break;
-                case Item::BASE_WARLORD: rightIcon = new QIcon(warlord_symbol_Link); break;
+                case Item::BASE_ELDER: rightIcon.addFile(elder_symbol_Link); break;
+                case Item::BASE_SHAPER: rightIcon.addFile(shaper_symbol_Link); break;
+                case Item::BASE_CRUSADER: rightIcon.addFile(crusader_symbol_Link); break;
+                case Item::BASE_HUNTER: rightIcon.addFile(hunter_symbol_Link); break;
+                case Item::BASE_REDEEMER: rightIcon.addFile(redeemer_symbol_Link); break;
+                case Item::BASE_WARLORD: rightIcon.addFile(warlord_symbol_Link); break;
                 case Item::NONE: break;
             }
-        }
-    } else {
-        leftIcon = NULL;
-        rightIcon = NULL;
-    }
 
-    if (leftIcon != NULL)
-        if (rightIcon != NULL)
-            return Influence::combineInflunceIcons(*leftIcon, *rightIcon);
-        else
-            return *leftIcon;
-    else
-        return NULL;
+            return Influence::combineInflunceIcons(leftIcon, rightIcon);
+        }
+        return leftIcon;
+    }
+    return NULL;
 }
 
 
