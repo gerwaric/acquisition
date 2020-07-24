@@ -44,6 +44,8 @@ const char *kStashItemsUrl = "https://www.pathofexile.com/character-window/get-s
 const char *kCharacterItemsUrl = "https://www.pathofexile.com/character-window/get-items";
 const char *kGetCharactersUrl = "https://www.pathofexile.com/character-window/get-characters";
 const char *kMainPage = "https://www.pathofexile.com/";
+//While the page does say "get passive skills", it seems to only send socketed jewels
+const char *kCharacterSocketedJewels = "https://www.pathofexile.com/character-window/get-passive-skills";
 
 ItemsManagerWorker::ItemsManagerWorker(Application &app, QThread *thread) :
     data_(app.data()),
@@ -75,6 +77,8 @@ ItemsManagerWorker::~ItemsManagerWorker() {
 
 void ItemsManagerWorker::Init() {
     items_.clear();
+
+    //Get cached items
     std::string items = data_.Get("items");
     if (items.size() != 0) {
         rapidjson::Document doc;
@@ -84,6 +88,8 @@ void ItemsManagerWorker::Init() {
     }
 
     tabs_.clear();
+
+    //Get cached tabs (item tabs not search tabs)
     std::string tabs = data_.Get("tabs");
     tabs_signature_ = CreateTabsSignatureVector(tabs);
     if (tabs.size() != 0) {
@@ -104,6 +110,8 @@ void ItemsManagerWorker::Init() {
                 tabs_.push_back(ItemLocation(index, tab["n"].GetString()));
         }
     }
+
+    //let ItemManager know that the retrieval of cached items/tabs has been completed (calls ItemsManager::OnItemsRefreshed method)
     emit ItemsRefreshed(items_, tabs_, true);
 }
 
@@ -151,7 +159,7 @@ void ItemsManagerWorker::OnMainPageReceived() {
 
         selected_character_ = Util::FindTextBetween(page, "C({\"name\":\"", "\",\"league");
         if (selected_character_.empty()) {
-            // QLOG_WARN() << "Couldn't extract currently selected character name from GGG homepage (maintenence?) Text was: " << page.c_str();
+            QLOG_WARN() << "Couldn't extract currently selected character name from GGG homepage (maintenence?) Text was: " << page.c_str();
         }
     }
 
@@ -200,7 +208,11 @@ void ItemsManagerWorker::OnCharacterListReceived() {
             ItemLocation location;
             location.set_type(ItemLocationType::CHARACTER);
             location.set_character(name);
+            //Queue request for items on character in character's stash
             QueueRequest(MakeCharacterRequest(name, location), location);
+
+            //Queue request for jewels in character's passive tree
+            QueueRequest(MakeCharacterPassivesRequest(name, location), location);
         }
     }
     CurrentStatusUpdate status;
@@ -263,6 +275,17 @@ QNetworkRequest ItemsManagerWorker::MakeCharacterRequest(const std::string &name
     query.addQueryItem("accountName", account_name_.c_str());
 
     QUrl url(kCharacterItemsUrl);
+    url.setQuery(query);
+
+    return Request(url, location, TabCache::None);
+}
+
+QNetworkRequest ItemsManagerWorker::MakeCharacterPassivesRequest(const std::string &name, const ItemLocation &location) {
+    QUrlQuery query;
+    query.addQueryItem("character", name.c_str());
+    query.addQueryItem("accountName", account_name_.c_str());
+
+    QUrl url(kCharacterSocketedJewels);
     url.setQuery(query);
 
     return Request(url, location, TabCache::None);
