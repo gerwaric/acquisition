@@ -166,6 +166,10 @@ void Search::FilterItems(const Items &items) {
     model_->SetSorted(false);
 }
 
+void Search::RenameCaption(const std::string newName){
+    caption_ = newName;
+}
+
 QString Search::GetCaption() {
     return QString("%1 [%2]").arg(caption_.c_str()).arg(GetItemsCount());
 }

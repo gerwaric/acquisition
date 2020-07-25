@@ -423,9 +423,8 @@ void MainWindow::OnStatusUpdate(const CurrentStatusUpdate &status) {
 bool MainWindow::eventFilter(QObject *o, QEvent *e) {
     if (o == tab_bar_ && e->type() == QEvent::MouseButtonPress) {
         QMouseEvent *mouse_event = static_cast<QMouseEvent *>(e);
+        int index = tab_bar_->tabAt(mouse_event->pos());
         if (mouse_event->button() == Qt::MidButton) {
-            // middle button pressed on a tab
-            int index = tab_bar_->tabAt(mouse_event->pos());
             // remove tab and Search if it's not "+"
             if (index >= 0 && index < tab_bar_->count() - 1) {
                 tab_bar_->removeTab(index);
@@ -444,9 +443,33 @@ bool MainWindow::eventFilter(QObject *o, QEvent *e) {
                 tab_bar_->setTabText(tab_bar_->count() - 1, "+");
             }
             return true;
+        } else if(mouse_event->button() == Qt::RightButton){
+            rightClickedTabIndex = index;
+
+            if (rightClickedTabIndex >= 0 && rightClickedTabIndex < tab_bar_->count() - 1) {
+                class TabRightClickMenu:public QMenu{};
+                TabRightClickMenu rcMenu;
+
+                rcMenu.addAction("Rename Tab", this, SLOT(OnRenameTabClicked()));
+                rcMenu.exec(QCursor::pos());
+            }
+
+            rightClickedTabIndex = -1;
         }
     }
     return QMainWindow::eventFilter(o, e);
+}
+
+void MainWindow::OnRenameTabClicked(){
+    bool ok;
+    QString name = QInputDialog::getText(this, "Rename Tab",
+        "Rename Tab here",
+        QLineEdit::Normal, "", &ok);
+
+    if (ok && !name.isEmpty()){
+        searches_[rightClickedTabIndex]->RenameCaption(name.toStdString());
+        tab_bar_->setTabText(rightClickedTabIndex, searches_[rightClickedTabIndex]->GetCaption());
+    }
 }
 
 void MainWindow::OnImageFetched(QNetworkReply *reply) {
@@ -502,6 +525,7 @@ void MainWindow::ModelViewRefresh() {
         current_search_->RestoreViewProperties();
         ResizeTreeColumns();
     }
+
     tab_bar_->setTabText(tab_bar_->currentIndex(), current_search_->GetCaption());
 }
 
@@ -624,6 +648,9 @@ void MainWindow::NewSearch() {
     current_search_->SetRefreshReason(RefreshReason::TabCreated);
 
     tab_bar_->setTabText(tab_bar_->count() - 1, current_search_->GetCaption());
+    //TODO find out how to connect a right click to the current tab (if it doesn't have one), and the new '+' tab that gets created
+    //Use a signal map
+
     tab_bar_->addTab("+");
     // this can't be done in ctor because it'll call OnSearchFormChange slot
     // and remove all previous search data

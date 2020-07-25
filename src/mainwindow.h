@@ -100,6 +100,7 @@ public slots:
     void OnUncheckAll();
     void OnCheckSelected() { CheckSelected(true); };
     void OnUncheckSelected() { CheckSelected(false); };
+    void OnRenameTabClicked();
     void OnRefreshSelected();
     void OnUpdateAvailable();
     void OnOnlineUpdate(bool online);
@@ -168,6 +169,9 @@ private:
     QTimer delayed_search_form_change_;
     QStringListModel *category_string_model_;
     QStringListModel *rarity_search_model_;
+
+    int rightClickedTabIndex = -1;
+
 #ifdef Q_OS_WIN32
     QWinTaskbarButton *taskbar_button_;
 #endif

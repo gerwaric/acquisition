@@ -52,6 +52,7 @@ public:
     const Items &items() const { return items_; }
     const std::vector<std::unique_ptr<Column>> &columns() const { return columns_; }
     const std::vector<std::unique_ptr<Bucket>> &buckets() const;
+    void RenameCaption(const std::string newName);
     QString GetCaption();
     uint GetItemsCount();
     bool IsAnyFilterActive() const;
