@@ -53,8 +53,8 @@ void TestItemsManager::BuyoutForNewItem() {
 
 // Tests that buyouts are propagated when a user sets tab buyout
 void TestItemsManager::BuyoutPropagation() {
-    ItemLocation first_tab(1, "first");
-    ItemLocation second_tab(2, "second");
+    ItemLocation first_tab(1, "1", "first");
+    ItemLocation second_tab(2, "2", "second");
     auto first = std::make_shared<Item>("First item", first_tab);
     auto second = std::make_shared<Item>("Second item", second_tab);
 
@@ -77,7 +77,7 @@ void TestItemsManager::BuyoutPropagation() {
 
 // Tests that a user-set buyout has priority over a tab buyout
 void TestItemsManager::UserSetBuyoutPropagation() {
-    ItemLocation first_tab(1, "first");
+    ItemLocation first_tab(1, "1", "first");
     auto first = std::make_shared<Item>("First item", first_tab);
     auto second = std::make_shared<Item>("Second item", first_tab);
 
@@ -106,8 +106,8 @@ void TestItemsManager::UserSetBuyoutPropagation() {
 // Tests moving an item without a buyout from a tab without a buyout to a tab with a buyout
 // NoBo => Bo
 void TestItemsManager::MoveItemNoBoToBo() {
-    ItemLocation first_tab(1, "first");
-    ItemLocation second_tab(2, "second");
+    ItemLocation first_tab(1, "1", "first");
+    ItemLocation second_tab(2, "2", "second");
     auto item_before = std::make_shared<Item>("First item", first_tab);
     auto item_after = std::make_shared<Item>("First item", second_tab);
 
@@ -135,8 +135,8 @@ void TestItemsManager::MoveItemNoBoToBo() {
 
 // Bo => NoBo, check that the buyout is reset
 void TestItemsManager::MoveItemBoToNoBo() {
-    ItemLocation first_tab(1, "first");
-    ItemLocation second_tab(2, "second");
+    ItemLocation first_tab(1, "1", "first");
+    ItemLocation second_tab(2, "2", "second");
     auto item_before = std::make_shared<Item>("First item", first_tab);
     auto item_after = std::make_shared<Item>("First item", second_tab);
 
@@ -164,8 +164,8 @@ void TestItemsManager::MoveItemBoToNoBo() {
 
 // Bo => Bo, check that the buyout is updated
 void TestItemsManager::MoveItemBoToBo() {
-    ItemLocation first_tab(1, "first");
-    ItemLocation second_tab(2, "second");
+    ItemLocation first_tab(1, "1", "first");
+    ItemLocation second_tab(2, "2", "second");
     auto item_before = std::make_shared<Item>("First item", first_tab);
     auto item_after = std::make_shared<Item>("First item", second_tab);
 

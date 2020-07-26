@@ -111,10 +111,7 @@ void ItemsManagerWorker::Init() {
                 int g = tab["colour"]["g"].GetInt();
                 int b = tab["colour"]["b"].GetInt();
 
-                ItemLocation newTab(index, tab["n"].GetString(), ItemLocationType::STASH);
-                newTab.SetBackgroundColor(r, g, b);
-
-                tabs_.push_back(newTab);
+                tabs_.push_back(ItemLocation(index, tab["id"].GetString(), tab["n"].GetString(), ItemLocationType::STASH, r, g, b));
             }
         }
     }
@@ -131,7 +128,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 
     selected_tabs_.clear();
     for (auto const &tab: locations) {
-        selected_tabs_.insert(tab.GetHeader());
+        selected_tabs_.insert(tab.get_tab_uniq_id());
     }
 
     tab_selection_ = type;
@@ -249,7 +246,7 @@ void ItemsManagerWorker::OnCharacterListReceived() {
     // If we're refreshing a manual selection of tabs choose one of them to save a tab fetch
     if (tab_selection_ == TabSelection::Selected) {
         for (auto const &tab : tabs_) {
-            if (selected_tabs_.count(tab.GetHeader())) {
+            if (selected_tabs_.count(tab.get_tab_uniq_id())) {
                 first_fetch_tab_ = tab.get_tab_id();
                 break;
             }
@@ -309,7 +306,7 @@ QNetworkRequest ItemsManagerWorker::Request(QUrl url, const ItemLocation &locati
             flags |= TabCache::Refresh;
         break;
     case TabSelection::Selected:
-        if (!location.IsValid() || selected_tabs_.count(location.GetHeader()))
+        if (!location.IsValid() || selected_tabs_.count(location.get_tab_uniq_id()))
             flags |= TabCache::Refresh;
         break;
     }
@@ -395,9 +392,7 @@ void ItemsManagerWorker::OnFirstTabReceived() {
             int g = tab["colour"]["g"].GetInt();
             int b = tab["colour"]["b"].GetInt();
 
-            ItemLocation newTab = ItemLocation(index, label, ItemLocationType::STASH);
-            newTab.SetBackgroundColor(r, g, b);
-            tabs_.push_back(newTab);
+            tabs_.push_back(ItemLocation(index, tab["id"].GetString(), label, ItemLocationType::STASH, r, g, b));
         }
     }
 

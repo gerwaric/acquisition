@@ -17,7 +17,7 @@ class ItemLocation {
 public:
     ItemLocation();
     explicit ItemLocation(const rapidjson::Value &root);
-    ItemLocation(int tab_id, std::string name, ItemLocationType = ItemLocationType::STASH);
+    ItemLocation(int tab_id, std::string tab_unique_id, std::string name, ItemLocationType = ItemLocationType::STASH, int r = 0, int g = 0, int b = 0);
     void ToItemJson(rapidjson::Value *root, rapidjson_allocator &alloc);
     void FromItemJson(const rapidjson::Value &root);
     std::string GetHeader() const;
@@ -35,16 +35,21 @@ public:
     bool socketed() const { return socketed_; }
     void set_socketed(bool socketed) { socketed_ = socketed; }
     int get_tab_id() const { return tab_id_; }
-    int getR() const {return r_;}
-    int getG() const {return g_;}
-    int getB() const {return b_;}
-    void SetBackgroundColor(const int r, const int g, const int b);
+    int getR() const {return red_;}
+    int getG() const {return green_;}
+    int getB() const {return blue_;}
+    void SetBackgroundColor(int r, int g, int b);
+    std::string get_tab_uniq_id() const {return type_ == ItemLocationType::STASH ? std::string(tab_unique_id_) : character_;}
 private:
     int x_, y_, w_, h_;
-    int r_, g_, b_;
+    int red_, green_, blue_;
     bool socketed_;
     ItemLocationType type_;
     int tab_id_{0};
+
+    //this would be the value "tabs -> id", which seems to be a hashed value generated on their end
+    std::string tab_unique_id_;
+
     std::string tab_label_;
     std::string character_;
     std::string inventory_id_;

@@ -79,8 +79,8 @@ static std::string fixup_name(const std::string &name) {
 }
 
 Item::Item(const std::string &name, const ItemLocation &location) :
-    name_(name),
-    location_(location),
+    name_{name},
+    location_{location},
     hash_(Util::Md5(name)) // Unique enough for tests
 {}
 

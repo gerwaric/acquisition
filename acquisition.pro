@@ -39,6 +39,7 @@ SOURCES += \
     src/filters.cpp \
     src/flowlayout.cpp \
     src/imagecache.cpp \
+    src/influence.cpp \
     src/item.cpp \
     src/itemlocation.cpp \
     src/items_model.cpp \
@@ -84,6 +85,7 @@ HEADERS += \
     src/filters.h \
     src/flowlayout.h \
     src/imagecache.h \
+    src/influence.h \
     src/item.h \
     src/itemconstants.h \
     src/itemlocation.h \
@@ -122,7 +124,7 @@ FORMS += \
     forms/logindialog.ui \
     forms/steamlogindialog.ui
 
-CONFIG += c++11
+#CONFIG += c++11
 
 DEPENDPATH *= $${INCLUDEPATH}
 

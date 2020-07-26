@@ -5,7 +5,7 @@
 #include "rapidjson_util.h"
 
 ItemLocation::ItemLocation():
-    x_(0), y_(0), w_(0), h_(0),
+    x_(0), y_(0), w_(0), h_(0), red_(0), green_(0), blue_(0),
     socketed_(false),
     type_(ItemLocationType::STASH)
 {}
@@ -16,8 +16,10 @@ ItemLocation::ItemLocation(const rapidjson::Value &root):
     FromItemJson(root);
 }
 
-ItemLocation::ItemLocation(int tab_id, std::string name, ItemLocationType type) :
-    ItemLocation()
+ItemLocation::ItemLocation(int tab_id, std::string tab_unique_id, std::string name, ItemLocationType type, int r, int g, int b) :
+    x_(0), y_(0), w_(0), h_(0), red_(r), green_(g), blue_(b),
+    socketed_(false),
+    type_(ItemLocationType::STASH)
 {
     type_ = type;
     tab_id_ = tab_id;
@@ -25,6 +27,17 @@ ItemLocation::ItemLocation(int tab_id, std::string name, ItemLocationType type) 
         tab_label_ = name;
     else
         character_ = name;
+    //r_ = r;
+    //g_ = g;
+    //b_ = b;
+
+    tab_unique_id_ = tab_unique_id;
+}
+
+void ItemLocation::SetBackgroundColor(int r, int g, int b) {
+    red_ = r;
+    green_ = g;
+    blue_ = b;
 }
 
 void ItemLocation::FromItemJson(const rapidjson::Value &root) {
@@ -141,8 +154,10 @@ bool ItemLocation::operator<(const ItemLocation &rhs) const {
         return std::tie(type_,character_) < std::tie(rhs.type_,rhs.character_);
 }
 
+/*
 void ItemLocation::SetBackgroundColor(const int r, const int g, const int b) {
     r_ = r;
     g_ = g;
     b_ = b;
 }
+*/
