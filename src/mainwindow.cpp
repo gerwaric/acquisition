@@ -904,8 +904,17 @@ void MainWindow::on_actionExport_currency_triggered() {
     app_->currency_manager().ExportCurrency();
 }
 
-void MainWindow::closeEvent() {
-    auto_online_.SendOnlineUpdate(false);
+void MainWindow::closeEvent(QCloseEvent *event) {
+    QMessageBox::StandardButton resBtn = QMessageBox::question( this, "Acquisition",
+                                                                tr("Are you sure you want to quit?\n"),
+                                                                QMessageBox::No | QMessageBox::Yes,
+                                                                QMessageBox::Yes);
+    if (resBtn != QMessageBox::Yes) {
+        auto_online_.SendOnlineUpdate(false);
+        event->ignore();
+    } else {
+        event->accept();
+    }
 }
 
 void MainWindow::on_uploadTooltipButton_clicked() {

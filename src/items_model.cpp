@@ -102,6 +102,12 @@ QVariant ItemsModel::data(const QModelIndex &index, int role) const {
                 title += QString(" [%1]").arg(bo.AsText().c_str());
             return title;
         }
+        if (role == Qt::BackgroundRole && location.IsValid() && location.get_type() == ItemLocationType::STASH){
+            QColor color(location.getR(), location.getG(), location.getB());
+            if (color.isValid())
+                return color;
+        }
+
         return QVariant();
     }
     auto &column = search_.columns()[index.column()];

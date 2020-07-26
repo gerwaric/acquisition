@@ -106,8 +106,16 @@ void ItemsManagerWorker::Init() {
             }
             auto index = tab["i"].GetInt();
             // Index 0 is 'hidden' so we don't want to display
-            if (index != 0)
-                tabs_.push_back(ItemLocation(index, tab["n"].GetString()));
+            if (index != 0){
+                int r = tab["colour"]["r"].GetInt();
+                int g = tab["colour"]["g"].GetInt();
+                int b = tab["colour"]["b"].GetInt();
+
+                ItemLocation newTab(index, tab["n"].GetString(), ItemLocationType::STASH);
+                newTab.SetBackgroundColor(r, g, b);
+
+                tabs_.push_back(newTab);
+            }
         }
     }
 
@@ -382,8 +390,15 @@ void ItemsManagerWorker::OnFirstTabReceived() {
         std::string label = tab["n"].GetString();
         auto index = tab["i"].GetInt();
         // Ignore hidden locations
-        if (!doc["tabs"][index].HasMember("hidden") || !doc["tabs"][index]["hidden"].GetBool())
-            tabs_.push_back(ItemLocation(index, label, ItemLocationType::STASH));
+        if (!doc["tabs"][index].HasMember("hidden") || !doc["tabs"][index]["hidden"].GetBool()){
+            int r = tab["colour"]["r"].GetInt();
+            int g = tab["colour"]["g"].GetInt();
+            int b = tab["colour"]["b"].GetInt();
+
+            ItemLocation newTab = ItemLocation(index, label, ItemLocationType::STASH);
+            newTab.SetBackgroundColor(r, g, b);
+            tabs_.push_back(newTab);
+        }
     }
 
     // Immediately parse items received from this tab (first_fetch_tab_) and Queue requests for the others

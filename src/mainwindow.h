@@ -141,7 +141,7 @@ private:
     void UpdateBuyoutWidgets(const Buyout &bo);
     void ExpandCollapse(TreeState state);
     void UpdateOnlineGui();
-    void closeEvent();
+    void closeEvent(QCloseEvent *event);
     void CheckSelected(bool value);
 
     std::unique_ptr<Application> app_;

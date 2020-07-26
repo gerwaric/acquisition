@@ -1,10 +1,12 @@
 #pragma once
 
 #include <QRectF>
+#include <QColor>
 #include "rapidjson/document.h"
 
 #include "itemconstants.h"
 #include "rapidjson_util.h"
+#include "QsLog.h"
 
 enum class ItemLocationType {
     STASH,
@@ -33,8 +35,13 @@ public:
     bool socketed() const { return socketed_; }
     void set_socketed(bool socketed) { socketed_ = socketed; }
     int get_tab_id() const { return tab_id_; }
+    int getR() const {return r_;}
+    int getG() const {return g_;}
+    int getB() const {return b_;}
+    void SetBackgroundColor(const int r, const int g, const int b);
 private:
     int x_, y_, w_, h_;
+    int r_, g_, b_;
     bool socketed_;
     ItemLocationType type_;
     int tab_id_{0};

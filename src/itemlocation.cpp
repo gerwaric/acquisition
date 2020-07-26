@@ -140,3 +140,9 @@ bool ItemLocation::operator<(const ItemLocation &rhs) const {
     else
         return std::tie(type_,character_) < std::tie(rhs.type_,rhs.character_);
 }
+
+void ItemLocation::SetBackgroundColor(const int r, const int g, const int b) {
+    r_ = r;
+    g_ = g;
+    b_ = b;
+}
