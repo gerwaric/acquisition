@@ -6,7 +6,7 @@ Bucket::Bucket()
 {}
 
 Bucket::Bucket(const ItemLocation &location):
-    location_{location}
+    location_(location)
 {}
 
 void Bucket::AddItem(const std::shared_ptr<Item> & item) {

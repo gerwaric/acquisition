@@ -648,8 +648,6 @@ void MainWindow::NewSearch() {
     current_search_->SetRefreshReason(RefreshReason::TabCreated);
 
     tab_bar_->setTabText(tab_bar_->count() - 1, current_search_->GetCaption());
-    //TODO find out how to connect a right click to the current tab (if it doesn't have one), and the new '+' tab that gets created
-    //Use a signal map
 
     tab_bar_->addTab("+");
     // this can't be done in ctor because it'll call OnSearchFormChange slot

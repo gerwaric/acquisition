@@ -5,7 +5,8 @@
 #include "rapidjson_util.h"
 
 ItemLocation::ItemLocation():
-    x_(0), y_(0), w_(0), h_(0), red_(0), green_(0), blue_(0),
+    //x_(0), y_(0), w_(0), h_(0), red_(0), green_(0), blue_(0),
+    x_(0), y_(0), w_(0), h_(0),
     socketed_(false),
     type_(ItemLocationType::STASH)
 {}
