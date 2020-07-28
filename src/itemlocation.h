@@ -2,6 +2,7 @@
 
 #include <QRectF>
 #include <QColor>
+#include <set>
 #include "rapidjson/document.h"
 
 #include "itemconstants.h"
@@ -26,6 +27,7 @@ public:
     std::string GetUniqueHash() const;
     bool IsValid() const;
     bool operator<(const ItemLocation &other) const;
+    bool operator==(const ItemLocation &other) const;
     void set_type(const ItemLocationType type) { type_ = type; }
     ItemLocationType get_type() const { return type_; }
     void set_character(const std::string &character) { character_ = character; }
@@ -39,13 +41,16 @@ public:
     int getG() const {return green_;}
     int getB() const {return blue_;}
     void SetBackgroundColor(int r, int g, int b);
-    std::string get_tab_uniq_id() const {return type_ == ItemLocationType::STASH ? std::string(tab_unique_id_) : character_;}
+    std::string get_tab_uniq_id() const {return type_ == ItemLocationType::STASH ? tab_unique_id_ : character_;}
+    void set_json(rapidjson::Value &value, rapidjson_allocator &alloc);
+    std::string get_json() const{return json_;}
 private:
     int x_, y_, w_, h_;
     int red_, green_, blue_;
     bool socketed_;
     ItemLocationType type_;
     int tab_id_{0};
+    std::string json_;
 
     //this would be the value "tabs -> id", which seems to be a hashed value generated on their end
     std::string tab_unique_id_;
@@ -54,3 +59,5 @@ private:
     std::string character_;
     std::string inventory_id_;
 };
+
+static std::set<std::string> tab_id_index_;

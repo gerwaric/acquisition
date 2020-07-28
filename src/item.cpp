@@ -84,8 +84,8 @@ Item::Item(const std::string &name, const ItemLocation &location) :
     hash_(Util::Md5(name)) // Unique enough for tests
 {}
 
-Item::Item(const rapidjson::Value &json) :
-    location_(ItemLocation(json)),
+Item::Item(const rapidjson::Value &json, const ItemLocation &loc) :
+    location_(loc),
     identified_(true),
     corrupted_(false),
     crafted_(false),

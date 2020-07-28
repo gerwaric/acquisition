@@ -80,7 +80,7 @@ private:
     QNetworkRequest MakeCharacterRequest(const std::string &name, const ItemLocation &location);
     QNetworkRequest MakeCharacterPassivesRequest(const std::string &name, const ItemLocation &location);
     void QueueRequest(const QNetworkRequest &request, const ItemLocation &location);
-    void ParseItems(rapidjson::Value *value_ptr, const ItemLocation &base_location, rapidjson_allocator &alloc);
+    void ParseItems(rapidjson::Value *value_ptr, ItemLocation base_location, rapidjson_allocator &alloc);
     std::vector<std::pair<std::string, std::string> > CreateTabsSignatureVector(std::string tabs);
 
     QNetworkRequest Request(QUrl url, const ItemLocation &location, TabCache::Flags flags = TabCache::None);
@@ -105,7 +105,7 @@ private:
     int queue_id_;
     std::string selected_character_;
 
-    int first_fetch_tab_{1};
+    std::string first_fetch_tab_{""};
     TabCache *tab_cache_{new TabCache()};
     const BuyoutManager &bo_manager_;
     std::string account_name_;

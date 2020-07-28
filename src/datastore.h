@@ -23,12 +23,17 @@
 #include <vector>
 
 #include "currencymanager.h"
+#include "itemlocation.h"
 
 class DataStore {
 public:
     virtual ~DataStore() {};
     virtual void Set(const std::string &key, const std::string &value) = 0;
+    virtual void SetTabs(const ItemLocationType &type, const std::string &value) = 0;
+    virtual void SetItems(const ItemLocation &loc, const std::string &value) = 0;
     virtual std::string Get(const std::string &key, const std::string &default_value = "") = 0;
+    virtual std::string GetTabs(const ItemLocationType &type, const std::string &default_value = "") = 0;
+    virtual std::string GetItems(const ItemLocation &loc, const std::string &default_value = "") = 0;
     virtual void InsertCurrencyUpdate(const CurrencyUpdate &update) = 0;
     virtual std::vector<CurrencyUpdate> GetAllCurrency() = 0;
     virtual void SetBool(const std::string &key, bool value) = 0;

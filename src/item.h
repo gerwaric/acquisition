@@ -74,7 +74,7 @@ public:
         BASE_WARLORD
     };
 
-    explicit Item(const rapidjson::Value &json);
+    explicit Item(const rapidjson::Value &json, const ItemLocation &loc);
     Item(const std::string &name, const ItemLocation &location); // used by tests
     std::string name() const { return name_; }
     std::string typeLine() const { return typeLine_; }

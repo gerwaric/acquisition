@@ -3,6 +3,7 @@
 #include <QString>
 
 #include "rapidjson_util.h"
+#include "util.h"
 
 ItemLocation::ItemLocation():
     //x_(0), y_(0), w_(0), h_(0), red_(0), green_(0), blue_(0),
@@ -148,6 +149,14 @@ std::string ItemLocation::GetUniqueHash() const {
         return "character:" + character_;
 }
 
+void ItemLocation::set_json(rapidjson::Value &value, rapidjson_allocator &alloc) {
+    if(type_ == ItemLocationType::CHARACTER){
+        value.AddMember("i", tab_id_, alloc);
+    }
+
+    json_ = Util::RapidjsonSerialize(value);
+}
+
 bool ItemLocation::operator<(const ItemLocation &rhs) const {
     if (type_ == ItemLocationType::STASH)
         return std::tie(type_,tab_id_) < std::tie(rhs.type_,rhs.tab_id_);
@@ -155,10 +164,6 @@ bool ItemLocation::operator<(const ItemLocation &rhs) const {
         return std::tie(type_,character_) < std::tie(rhs.type_,rhs.character_);
 }
 
-/*
-void ItemLocation::SetBackgroundColor(const int r, const int g, const int b) {
-    r_ = r;
-    g_ = g;
-    b_ = b;
+bool ItemLocation::operator==(const ItemLocation &other) const {
+    return get_tab_uniq_id() == other.get_tab_uniq_id();
 }
-*/

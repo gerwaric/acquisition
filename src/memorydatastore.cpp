@@ -28,8 +28,30 @@ std::string MemoryDataStore::Get(const std::string &key, const std::string &defa
     return i->second;
 }
 
+std::string MemoryDataStore::GetTabs(const ItemLocationType &type, const std::string &default_value) {
+    auto i = tabs_.find(type);
+    if (i == tabs_.end())
+        return default_value;
+    return i->second;
+}
+
+std::string MemoryDataStore::GetItems(const ItemLocation &loc, const std::string &default_value) {
+    auto i = items_.find(loc.get_tab_uniq_id());
+    if (i == items_.end())
+        return default_value;
+    return i->second;
+}
+
 void MemoryDataStore::Set(const std::string &key, const std::string &value) {
     data_[key] = value;
+}
+
+void MemoryDataStore::SetTabs(const ItemLocationType &type, const std::string &value) {
+    tabs_[type] = value;
+}
+
+void MemoryDataStore::SetItems(const ItemLocation &loc, const std::string &value) {
+    items_[loc.get_tab_uniq_id()] = value;
 }
 
 void MemoryDataStore::InsertCurrencyUpdate(const CurrencyUpdate &update) {

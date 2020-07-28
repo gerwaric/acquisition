@@ -76,43 +76,76 @@ ItemsManagerWorker::~ItemsManagerWorker() {
 }
 
 void ItemsManagerWorker::Init() {
+    tabs_.clear();
+    tab_id_index_.clear();
+
+    //Get cached tabs (item tabs not search tabs)
+    for(ItemLocationType type : {ItemLocationType::STASH, ItemLocationType::CHARACTER}){
+        std::string tabs = data_.GetTabs(type);
+        tabs_signature_ = CreateTabsSignatureVector(tabs);
+        if (tabs.size() != 0) {
+            rapidjson::Document doc;
+            if (doc.Parse(tabs.c_str()).HasParseError()) {
+                QLOG_ERROR() << "Malformed tabs data:" << tabs.c_str() << "The error was"
+                    << rapidjson::GetParseError_En(doc.GetParseError());
+                continue;
+            }
+            for (auto &tab : doc) {
+                //constructor values to fill in
+                int index;
+                std::string tabUniqueId, name;
+                int r, g, b;
+
+                if(type == ItemLocationType::STASH){
+                    if(tab_id_index_.count(tab["id"].GetString())){
+                       continue;
+                    }
+                    if (!tab.HasMember("n") || !tab["n"].IsString()) {
+                        QLOG_ERROR() << "Malformed tabs data:" << tabs.c_str() << "Tab doesn't contain its name (field 'n').";
+                        continue;
+                    }
+
+                    index = tab["i"].GetInt();
+                    tabUniqueId = tab["id"].GetString();
+                    name = tab["n"].GetString();
+                    r = tab["colour"]["r"].GetInt();
+                    g = tab["colour"]["g"].GetInt();
+                    b = tab["colour"]["b"].GetInt();
+                } else {
+                    if(tab_id_index_.count(tab["name"].GetString())){
+                       continue;
+                    }
+
+                    if(tab.HasMember("i"))
+                        index = tab["i"].GetInt();
+                    else
+                        index = tabs_.size();
+
+                    tabUniqueId = tab["name"].GetString();
+                    name = tab["name"].GetString();
+                    r = 0;
+                    g = 0;
+                    b = 0;
+                }
+
+                ItemLocation loc(index, tabUniqueId, name, type, r, g, b);
+                loc.set_json(tab, doc.GetAllocator());
+                tabs_.push_back(loc);
+                tab_id_index_.insert(loc.get_tab_uniq_id());
+            }
+        }
+    }
+
     items_.clear();
 
     //Get cached items
-    std::string items = data_.Get("items");
-    if (items.size() != 0) {
-        rapidjson::Document doc;
-        doc.Parse(items.c_str());
-        for (auto item = doc.Begin(); item != doc.End(); ++item)
-            items_.push_back(std::make_shared<Item>(*item));
-    }
-
-    tabs_.clear();
-
-    //Get cached tabs (item tabs not search tabs)
-    std::string tabs = data_.Get("tabs");
-    tabs_signature_ = CreateTabsSignatureVector(tabs);
-    if (tabs.size() != 0) {
-        rapidjson::Document doc;
-        if (doc.Parse(tabs.c_str()).HasParseError()) {
-            QLOG_ERROR() << "Malformed tabs data:" << tabs.c_str() << "The error was"
-                << rapidjson::GetParseError_En(doc.GetParseError());
-            return;
-        }
-        for (auto &tab : doc) {
-            if (!tab.HasMember("n") || !tab["n"].IsString()) {
-                QLOG_ERROR() << "Malformed tabs data:" << tabs.c_str() << "Tab doesn't contain its name (field 'n').";
-                continue;
-            }
-            auto index = tab["i"].GetInt();
-            // Index 0 is 'hidden' so we don't want to display
-            if (index != 0){
-                int r = tab["colour"]["r"].GetInt();
-                int g = tab["colour"]["g"].GetInt();
-                int b = tab["colour"]["b"].GetInt();
-
-                tabs_.push_back(ItemLocation(index, tab["id"].GetString(), tab["n"].GetString(), ItemLocationType::STASH, r, g, b));
-            }
+    for (auto tab : tabs_){
+        std::string items = data_.GetItems(tab);
+        if (items.size() != 0) {
+            rapidjson::Document doc;
+            doc.Parse(items.c_str());
+            for (auto item = doc.Begin(); item != doc.End(); ++item)
+                items_.push_back(std::make_shared<Item>(*item, tab));
         }
     }
 
@@ -201,6 +234,16 @@ void ItemsManagerWorker::OnCharacterListReceived() {
     }
 
     QLOG_DEBUG() << "Received character list, there are" << doc.Size() << "characters";
+
+    //clear out ItemLocationType::CHARACTER tabs from tabs_
+    std::vector<ItemLocation> tmpLocs = tabs_;
+    for(auto &tab : tmpLocs){
+        if(tab.get_type() == ItemLocationType::CHARACTER){
+            tabs_.erase(std::remove(tabs_.begin(), tabs_.end(), tab), tabs_.end());
+            tab_id_index_.erase(tab.get_tab_uniq_id());
+        }
+    }
+
     auto char_count = 0;
     for (auto &character : doc) {
         if (!character.HasMember("league") || !character.HasMember("name") || !character["league"].IsString() || !character["name"].IsString()) {
@@ -213,6 +256,8 @@ void ItemsManagerWorker::OnCharacterListReceived() {
             ItemLocation location;
             location.set_type(ItemLocationType::CHARACTER);
             location.set_character(name);
+            location.set_json(character, doc.GetAllocator());
+            tabs_.push_back(location);
             //Queue request for items on character in character's stash
             QueueRequest(MakeCharacterRequest(name, location), location);
 
@@ -234,11 +279,13 @@ void ItemsManagerWorker::OnCharacterListReceived() {
     // Fetch a single tab and also request tabs list.  We can fetch any tab here with tabs list
     // appended, so prefer one that the user has already 'checked'.  Default to index '1' which is
     // first user visible tab.
-    first_fetch_tab_ = 1;
+    first_fetch_tab_ = "";
+    ItemLocation tabToReq;
     if (tab_selection_ == TabSelection::Checked) {
         for (auto const &tab : tabs_) {
             if (bo_manager_.GetRefreshChecked(tab)) {
-                first_fetch_tab_ = tab.get_tab_id();
+                first_fetch_tab_ = tab.get_tab_uniq_id();
+                tabToReq = tab;
                 break;
             }
         }
@@ -247,13 +294,14 @@ void ItemsManagerWorker::OnCharacterListReceived() {
     if (tab_selection_ == TabSelection::Selected) {
         for (auto const &tab : tabs_) {
             if (selected_tabs_.count(tab.get_tab_uniq_id())) {
-                first_fetch_tab_ = tab.get_tab_id();
+                first_fetch_tab_ = tab.get_tab_uniq_id();
+                tabToReq = tab;
                 break;
             }
         }
     }
 
-    QNetworkReply *first_tab = network_manager_.get(MakeTabRequest(first_fetch_tab_, ItemLocation(), true, true));
+    QNetworkReply *first_tab = network_manager_.get(MakeTabRequest(tabToReq.get_tab_id(), ItemLocation(), true, true));
     connect(first_tab, SIGNAL(finished()), this, SLOT(OnFirstTabReceived()));
     reply->deleteLater();
 }
@@ -262,7 +310,7 @@ QNetworkRequest ItemsManagerWorker::MakeTabRequest(int tab_index, const ItemLoca
     QUrlQuery query;
     query.addQueryItem("league", league_.c_str());
     query.addQueryItem("tabs", tabs ? "1" : "0");
-    query.addQueryItem("tabIndex", QString::number(tab_index));
+    query.addQueryItem("tabIndex", std::to_string(tab_index).c_str());
     query.addQueryItem("accountName", account_name_.c_str());
 
     QUrl url(kStashItemsUrl);
@@ -380,7 +428,15 @@ void ItemsManagerWorker::OnFirstTabReceived() {
         // Remember old tab headers before clearing tabs
         old_tab_headers.insert(tab.GetHeader());
     }
-    tabs_.clear();
+
+    //clear out ItemLocationType::STASH tabs from tabs_
+    std::vector<ItemLocation> tmpLocs = tabs_;
+    for(auto &tab : tmpLocs){
+        if(tab.get_type() == ItemLocationType::STASH){
+            tabs_.erase(std::remove(tabs_.begin(), tabs_.end(), tab), tabs_.end());
+            tab_id_index_.erase(tab.get_tab_uniq_id());
+        }
+    }
 
     // Create tab location objects
     for (auto &tab : doc["tabs"]) {
@@ -392,7 +448,10 @@ void ItemsManagerWorker::OnFirstTabReceived() {
             int g = tab["colour"]["g"].GetInt();
             int b = tab["colour"]["b"].GetInt();
 
-            tabs_.push_back(ItemLocation(index, tab["id"].GetString(), label, ItemLocationType::STASH, r, g, b));
+            ItemLocation loc(index, tab["id"].GetString(), label, ItemLocationType::STASH, r, g, b);
+            loc.set_json(tab, doc.GetAllocator());
+            tabs_.push_back(loc);
+            tab_id_index_.insert(tab["id"].GetString());
         }
     }
 
@@ -400,7 +459,7 @@ void ItemsManagerWorker::OnFirstTabReceived() {
     for (auto const &tab: tabs_) {
         bool refresh = false;
 
-        auto index = tab.get_tab_id();
+        std::string index = tab.get_tab_uniq_id();
         if (index == first_fetch_tab_) {
             ParseItems(&doc["items"], tab, doc.GetAllocator());
         } else {
@@ -410,7 +469,8 @@ void ItemsManagerWorker::OnFirstTabReceived() {
                 QLOG_DEBUG() << "Forcing refresh of moved or renamed tab: " << tab.GetHeader().c_str();
                 refresh = true;
             }
-            QueueRequest(MakeTabRequest(index, tab, true, refresh), tab);
+            if(tab.get_type() == ItemLocationType::STASH)
+                QueueRequest(MakeTabRequest(tab.get_tab_id(), tab, true, refresh), tab);
         }
     }
 
@@ -424,16 +484,19 @@ void ItemsManagerWorker::OnFirstTabReceived() {
     reply->deleteLater();
 }
 
-void ItemsManagerWorker::ParseItems(rapidjson::Value *value_ptr, const ItemLocation &base_location, rapidjson_allocator &alloc) {
+void ItemsManagerWorker::ParseItems(rapidjson::Value *value_ptr, ItemLocation base_location, rapidjson_allocator &alloc) {
     auto &value = *value_ptr;
+
+    std::string test = Util::RapidjsonSerialize(value);
+
     for (auto &item : value) {
-        ItemLocation location(base_location);
-        location.FromItemJson(item);
-        location.ToItemJson(&item, alloc);
-        items_.push_back(std::make_shared<Item>(item));
-        location.set_socketed(true);
+        //ItemLocation location(base_location);
+        base_location.FromItemJson(item);
+        base_location.ToItemJson(&item, alloc);
+        items_.push_back(std::make_shared<Item>(item, base_location));
+        base_location.set_socketed(true);
         if (item.HasMember("socketedItems") && item["socketedItems"].IsArray())
-            ParseItems(&item["socketedItems"], location, alloc);
+            ParseItems(&item["socketedItems"], base_location, alloc);
     }
 }
 
@@ -574,18 +637,33 @@ void ItemsManagerWorker::OnTabReceived(int request_id) {
             return *a < *b;
         });
 
-        QStringList tmp;
-        for (auto const &item: items_) {
-            tmp.push_back(item->json().c_str());
+        std::map<ItemLocationType, QStringList> tabsPerType;
+        //categorize tabs by tab type
+        for(auto const tab : tabs_){
+            tabsPerType[tab.get_type()].push_back(tab.get_json().c_str());
         }
-        auto items_as_string = std::string("[") + tmp.join(",").toStdString() + "]";
+
+        //loop through each item, put it in a set that equals its location
+        std::map<ItemLocation, QStringList> itemsPerLoc;
+        for (auto const &item: items_) {
+            itemsPerLoc[item->location()].push_back(item->json().c_str());
+        }
+
+        //save tabs
+        std::map<ItemLocationType, QStringList>::iterator tabIter;
+        for ( tabIter = tabsPerType.begin(); tabIter != tabsPerType.end(); tabIter++ ){
+           data_.SetTabs(tabIter->first, std::string("[") + tabIter->second.join(",").toStdString() + "]");
+        }
+
+        //save items
+        std::map<ItemLocation, QStringList>::iterator itemIter;
+        for ( itemIter = itemsPerLoc.begin(); itemIter != itemsPerLoc.end(); itemIter++ )
+        {
+           data_.SetItems(itemIter->first, std::string("[") + itemIter->second.join(",").toStdString() + "]");
+        }
 
         // all requests completed
         emit ItemsRefreshed(items_, tabs_, false);
-
-        // DataStore is thread safe so it's ok to call it here
-        data_.Set("items", items_as_string);
-        data_.Set("tabs", tabs_as_string_);
 
         updating_ = false;
         QLOG_DEBUG() << "Finished updating stash.";
