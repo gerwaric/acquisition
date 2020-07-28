@@ -257,6 +257,7 @@ void ItemsManagerWorker::OnCharacterListReceived() {
             location.set_type(ItemLocationType::CHARACTER);
             location.set_character(name);
             location.set_json(character, doc.GetAllocator());
+            location.set_tab_id(tabs_.size());
             tabs_.push_back(location);
             //Queue request for items on character in character's stash
             QueueRequest(MakeCharacterRequest(name, location), location);
