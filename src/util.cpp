@@ -225,6 +225,19 @@ std::string Util::Decode(const std::string &entity) {
     return text.toPlainText().toStdString();
 }
 
+QColor Util::recommendedForegroundTextColor(const QColor& backgroundColor){
+    float R = (float) backgroundColor.red() / 255.0f;
+    float G = (float) backgroundColor.green() / 255.0f;
+    float B = (float) backgroundColor.blue() / 255.0f;
+
+    const float gamma = 2.2;
+    float L = 0.2126 * pow(R, gamma)
+            + 0.7152 * pow(G, gamma)
+            + 0.0722 * pow(B, gamma);
+
+    return ( L > 0.5 ) ? QColor(QColorConstants::Black) : QColor(QColorConstants::White);
+}
+
 QDebug &operator<<(QDebug &os, const RefreshReason::Type &obj)
 {
     const QMetaObject *meta = &RefreshReason::staticMetaObject;

@@ -488,6 +488,9 @@ void ItemsManagerWorker::ParseItems(rapidjson::Value *value_ptr, ItemLocation ba
     auto &value = *value_ptr;
 
     std::string test = Util::RapidjsonSerialize(value);
+    if(base_location.get_type() == ItemLocationType::CHARACTER){
+       // QLOG_DEBUG() << test.c_str();
+    }
 
     for (auto &item : value) {
         //ItemLocation location(base_location);
@@ -495,8 +498,9 @@ void ItemsManagerWorker::ParseItems(rapidjson::Value *value_ptr, ItemLocation ba
         base_location.ToItemJson(&item, alloc);
         items_.push_back(std::make_shared<Item>(item, base_location));
         base_location.set_socketed(true);
-        if (item.HasMember("socketedItems") && item["socketedItems"].IsArray())
+        if (item.HasMember("socketedItems") && item["socketedItems"].IsArray()){
             ParseItems(&item["socketedItems"], base_location, alloc);
+        }
     }
 }
 
