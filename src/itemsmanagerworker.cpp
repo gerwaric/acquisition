@@ -362,7 +362,7 @@ QNetworkRequest ItemsManagerWorker::Request(QUrl url, const ItemLocation &locati
 }
 
 void ItemsManagerWorker::QueueRequest(const QNetworkRequest &request, const ItemLocation &location) {
-    QLOG_DEBUG() << "Queued" << location.GetHeader().c_str();
+    QLOG_DEBUG() << "Queued (" << queue_id_ + 1 << ") -- " << location.GetHeader().c_str();
     ItemsRequest items_request;
     items_request.network_request = request;
     items_request.id = queue_id_++;
@@ -455,27 +455,22 @@ void ItemsManagerWorker::OnFirstTabReceived() {
         }
     }
 
-    // Immediately parse items received from this tab (first_fetch_tab_) and Queue requests for the others
+    // Queue requests for Stash tabs
     for (auto const &tab: tabs_) {
         bool refresh = false;
 
-        std::string index = tab.get_tab_uniq_id();
-        if (index == first_fetch_tab_) {
-            ParseItems(&doc["items"], tab, doc.GetAllocator());
-        } else {
-            // Force refreshes for any tabs that were moved or renamed regardless of what user
-            // requests for refresh.
-            if (!old_tab_headers.count(tab.GetHeader())) {
-                QLOG_DEBUG() << "Forcing refresh of moved or renamed tab: " << tab.GetHeader().c_str();
-                refresh = true;
-            }
-            if(tab.get_type() == ItemLocationType::STASH)
-                QueueRequest(MakeTabRequest(tab.get_tab_id(), tab, true, refresh), tab);
+        // Force refreshes for any tabs that were moved or renamed regardless of what user
+        // requests for refresh.
+        if (!old_tab_headers.count(tab.GetHeader())) {
+            QLOG_DEBUG() << "Forcing refresh of moved or renamed tab: " << tab.GetHeader().c_str();
+            refresh = true;
         }
+        if(tab.get_type() == ItemLocationType::STASH)
+            QueueRequest(MakeTabRequest(tab.get_tab_id(), tab, true, refresh), tab);
     }
 
-    total_needed_ = queue_.size() + 1;
-    total_completed_ = 1;
+    total_needed_ = queue_.size();
+    total_completed_ = 0;
     total_cached_ = reply->attribute(QNetworkRequest::SourceIsFromCacheAttribute).toBool() ? 1:0;
 
     FetchItems(kThrottleRequests - 1);
