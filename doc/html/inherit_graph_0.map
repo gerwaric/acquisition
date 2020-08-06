@@ -1,0 +1,12 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="node1" title=" " alt="" coords="5,208,76,235"/>
+<area shape="rect" id="node2" href="$class_application.html" title=" " alt="" coords="162,5,249,32"/>
+<area shape="rect" id="node3" href="$class_auto_online.html" title=" " alt="" coords="162,56,249,83"/>
+<area shape="rect" id="node4" href="$class_items_manager.html" title=" " alt="" coords="153,107,257,133"/>
+<area shape="rect" id="node5" href="$class_items_manager_worker.html" title=" " alt="" coords="132,157,279,184"/>
+<area shape="rect" id="node6" href="$class_log_panel_signal_handler.html" title=" " alt="" coords="127,208,283,235"/>
+<area shape="rect" id="node7" href="$class_mods_filter_signal_handler.html" title=" " alt="" coords="124,259,287,285"/>
+<area shape="rect" id="node8" href="$class_q_reply_timeout.html" title=" " alt="" coords="150,309,261,336"/>
+<area shape="rect" id="node9" href="$class_shop.html" title=" " alt="" coords="179,360,231,387"/>
+<area shape="rect" id="node10" href="$class_update_checker.html" title=" " alt="" coords="150,411,261,437"/>
+</map>

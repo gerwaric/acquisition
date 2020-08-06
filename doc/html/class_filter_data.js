@@ -8,7 +8,6 @@ var class_filter_data =
     [ "b", "class_filter_data.html#a0c415ce0555f4def989de85524129bec", null ],
     [ "b_filled", "class_filter_data.html#aebc723de8a5e2edee3af80c2106ec72c", null ],
     [ "checked", "class_filter_data.html#af23de38f032fab0af80973464e38029a", null ],
-    [ "filter_", "class_filter_data.html#a679375ea500dc70fdc19f5e09b1c5959", null ],
     [ "g", "class_filter_data.html#a5eb3b33b3ea69bc8dfa0fc063e6d34f3", null ],
     [ "g_filled", "class_filter_data.html#ab6a9b68698d6c22d06f9411a79ff58a0", null ],
     [ "max", "class_filter_data.html#a2e5606a58e98f527b6cb3295f49e9b8e", null ],

@@ -14,12 +14,12 @@ var hierarchy =
       [ "eDPSColumn", "classe_d_p_s_column.html", null ],
       [ "ElementalDamageColumn", "class_elemental_damage_column.html", null ],
       [ "EnchantedColumn", "class_enchanted_column.html", null ],
+      [ "InfluncedColumn", "class_influnced_column.html", null ],
       [ "ItemlevelColumn", "class_itemlevel_column.html", null ],
       [ "NameColumn", "class_name_column.html", null ],
       [ "pDPSColumn", "classp_d_p_s_column.html", null ],
       [ "PriceColumn", "class_price_column.html", null ],
-      [ "PropertyColumn", "class_property_column.html", null ],
-      [ "WarColumn", "class_war_column.html", null ]
+      [ "PropertyColumn", "class_property_column.html", null ]
     ] ],
     [ "Currency", "struct_currency.html", null ],
     [ "CurrencyItem", "struct_currency_item.html", null ],
@@ -37,11 +37,12 @@ var hierarchy =
     [ "Filter", "class_filter.html", [
       [ "BooleanFilter", "class_boolean_filter.html", [
         [ "AltartFilter", "class_altart_filter.html", null ],
+        [ "CorruptedFilter", "class_corrupted_filter.html", null ],
         [ "CraftedFilter", "class_crafted_filter.html", null ],
         [ "EnchantedFilter", "class_enchanted_filter.html", null ],
+        [ "InfluencedFilter", "class_influenced_filter.html", null ],
         [ "PricedFilter", "class_priced_filter.html", null ],
-        [ "UnidentifiedFilter", "class_unidentified_filter.html", null ],
-        [ "WarFilter", "class_war_filter.html", null ]
+        [ "UnidentifiedFilter", "class_unidentified_filter.html", null ]
       ] ],
       [ "CategorySearchFilter", "class_category_search_filter.html", null ],
       [ "MinMaxFilter", "class_min_max_filter.html", [
@@ -63,6 +64,7 @@ var hierarchy =
     ] ],
     [ "FilterData", "class_filter_data.html", null ],
     [ "ImageCache", "class_image_cache.html", null ],
+    [ "Influence", "class_influence.html", null ],
     [ "Item", "class_item.html", null ],
     [ "ItemLocation", "class_item_location.html", null ],
     [ "ItemProperty", "struct_item_property.html", null ],

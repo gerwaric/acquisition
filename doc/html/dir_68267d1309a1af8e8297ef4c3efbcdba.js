@@ -21,7 +21,7 @@ var dir_68267d1309a1af8e8297ef4c3efbcdba =
       [ "CorruptedColumn", "class_corrupted_column.html", "class_corrupted_column" ],
       [ "CraftedColumn", "class_crafted_column.html", "class_crafted_column" ],
       [ "EnchantedColumn", "class_enchanted_column.html", "class_enchanted_column" ],
-      [ "WarColumn", "class_war_column.html", "class_war_column" ],
+      [ "InfluncedColumn", "class_influnced_column.html", "class_influnced_column" ],
       [ "PropertyColumn", "class_property_column.html", "class_property_column" ],
       [ "DPSColumn", "class_d_p_s_column.html", "class_d_p_s_column" ],
       [ "pDPSColumn", "classp_d_p_s_column.html", "classp_d_p_s_column" ],
@@ -63,7 +63,8 @@ var dir_68267d1309a1af8e8297ef4c3efbcdba =
       [ "UnidentifiedFilter", "class_unidentified_filter.html", "class_unidentified_filter" ],
       [ "CraftedFilter", "class_crafted_filter.html", "class_crafted_filter" ],
       [ "EnchantedFilter", "class_enchanted_filter.html", "class_enchanted_filter" ],
-      [ "WarFilter", "class_war_filter.html", "class_war_filter" ],
+      [ "InfluencedFilter", "class_influenced_filter.html", "class_influenced_filter" ],
+      [ "CorruptedFilter", "class_corrupted_filter.html", "class_corrupted_filter" ],
       [ "ItemlevelFilter", "class_itemlevel_filter.html", "class_itemlevel_filter" ]
     ] ],
     [ "flowlayout.cpp", "flowlayout_8cpp.html", null ],
@@ -74,6 +75,8 @@ var dir_68267d1309a1af8e8297ef4c3efbcdba =
     [ "imagecache.h", "imagecache_8h.html", [
       [ "ImageCache", "class_image_cache.html", "class_image_cache" ]
     ] ],
+    [ "influence.cpp", "influence_8cpp.html", null ],
+    [ "influence.h", "influence_8h.html", "influence_8h" ],
     [ "item.cpp", "item_8cpp.html", "item_8cpp" ],
     [ "item.h", "item_8h.html", "item_8h" ],
     [ "itemconstants.h", "itemconstants_8h.html", "itemconstants_8h" ],

@@ -1,6 +1,10 @@
 var searchData=
 [
-  ['old_5fhash_5f_1879',['old_hash_',['../class_item.html#a6d34b074561c28732db5cddb7dfbb0bb',1,'Item']]],
-  ['online_5flabel_5f_1880',['online_label_',['../class_main_window.html#a06754788aaf42daf2c5fb7b86b9f4f01',1,'MainWindow']]],
-  ['output_5f_1881',['output_',['../class_log_panel.html#adf46fdc6685f8b858e1c5b86181bc58f',1,'LogPanel']]]
+  ['text_5fquery_1380',['text_query',['../class_filter_data.html#a95b84121eacc24bf4a70a48c53bea70a',1,'FilterData']]],
+  ['textbox_5fb_5f_1381',['textbox_b_',['../class_sockets_colors_filter.html#ac274f353804df8ff95c386404c22dfd7',1,'SocketsColorsFilter']]],
+  ['textbox_5fg_5f_1382',['textbox_g_',['../class_sockets_colors_filter.html#a9ad68132efd3612a2e9e3567a6785a56',1,'SocketsColorsFilter']]],
+  ['textbox_5fr_5f_1383',['textbox_r_',['../class_sockets_colors_filter.html#a52f1e4dcd01d3dacc912bdf6ab5f6e44',1,'SocketsColorsFilter']]],
+  ['timestamp_1384',['timestamp',['../struct_currency_update.html#a4084d060cf2d596e0f44433bbd189265',1,'CurrencyUpdate']]],
+  ['total_1385',['total',['../struct_current_status_update.html#aea34cd643ff9aa6c06626628951b2c4d',1,'CurrentStatusUpdate']]],
+  ['type_1386',['type',['../struct_currency.html#ae49ccbb77e3b6f21f6310405c445748c',1,'Currency::type()'],['../struct_buyout.html#a9b2a5a7a9a6ec03c7927561aa494565f',1,'Buyout::type()'],['../struct_item_property_value.html#aa9742fd2931d36691f37ebcb23420124',1,'ItemPropertyValue::type()']]]
 ];

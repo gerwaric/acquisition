@@ -84,8 +84,6 @@ $(document).ready(function(){initNavTree('class_search.html',''); initResizable(
   <div class="summary">
 <a href="#pub-types">Public Types</a> &#124;
 <a href="#pub-methods">Public Member Functions</a> &#124;
-<a href="#pri-methods">Private Member Functions</a> &#124;
-<a href="#pri-attribs">Private Attributes</a> &#124;
 <a href="class_search-members.html">List of all members</a>  </div>
   <div class="headertitle">
 <div class="title">Search Class Reference</div>  </div>
@@ -121,6 +119,8 @@ Public Member Functions</h2></td></tr>
 <tr class="separator:aa3cbd5179f1edd1e33001676357da603"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a519ab912db6d15bf28a35350a7d9ef1d"><td class="memItemLeft" align="right" valign="top">const std::vector&lt; std::unique_ptr&lt; <a class="el" href="class_bucket.html">Bucket</a> &gt; &gt; &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#a519ab912db6d15bf28a35350a7d9ef1d">buckets</a> () const</td></tr>
 <tr class="separator:a519ab912db6d15bf28a35350a7d9ef1d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a57e488df30f324e996d406265cdd3db5"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#a57e488df30f324e996d406265cdd3db5">RenameCaption</a> (const std::string newName)</td></tr>
+<tr class="separator:a57e488df30f324e996d406265cdd3db5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2d79a9c550633f221edd81ab5c92ea34"><td class="memItemLeft" align="right" valign="top">QString&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#a2d79a9c550633f221edd81ab5c92ea34">GetCaption</a> ()</td></tr>
 <tr class="separator:a2d79a9c550633f221edd81ab5c92ea34"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:afae0159ab44bc21fb9b36975550dcbb3"><td class="memItemLeft" align="right" valign="top">uint&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#afae0159ab44bc21fb9b36975550dcbb3">GetItemsCount</a> ()</td></tr>
@@ -143,42 +143,6 @@ Public Member Functions</h2></td></tr>
 <tr class="separator:a4212b81062e2a8f851dd88b73d20a43f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adc48f6d303b728ef823221e50dd2810c"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#adc48f6d303b728ef823221e50dd2810c">SetRefreshReason</a> (<a class="el" href="class_refresh_reason.html#a176902b63e9a578f6e8b7b1501bd7237">RefreshReason::Type</a> reason)</td></tr>
 <tr class="separator:adc48f6d303b728ef823221e50dd2810c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pri-methods"></a>
-Private Member Functions</h2></td></tr>
-<tr class="memitem:a1d84442a0449fb68a72d7bed486f3320"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#a1d84442a0449fb68a72d7bed486f3320">UpdateItemCounts</a> (const <a class="el" href="item_8h.html#a175a25f0a9aa01587d97b5daefa2db13">Items</a> &amp;<a class="el" href="class_search.html#aa1bd17dca233ff7b22774b7f23712350">items</a>)</td></tr>
-<tr class="separator:a1d84442a0449fb68a72d7bed486f3320"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pri-attribs"></a>
-Private Attributes</h2></td></tr>
-<tr class="memitem:ac8aa3fa18fe47eb95a3b9518d498028c"><td class="memItemLeft" align="right" valign="top">std::vector&lt; std::unique_ptr&lt; <a class="el" href="class_filter_data.html">FilterData</a> &gt; &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#ac8aa3fa18fe47eb95a3b9518d498028c">filters_</a></td></tr>
-<tr class="separator:ac8aa3fa18fe47eb95a3b9518d498028c"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:acb6d7b603fa7eeab01168d1197dd9a8b"><td class="memItemLeft" align="right" valign="top">std::vector&lt; std::unique_ptr&lt; <a class="el" href="class_column.html">Column</a> &gt; &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#acb6d7b603fa7eeab01168d1197dd9a8b">columns_</a></td></tr>
-<tr class="separator:acb6d7b603fa7eeab01168d1197dd9a8b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5393c74832697663d5fdcb65256eebe8"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#a5393c74832697663d5fdcb65256eebe8">caption_</a></td></tr>
-<tr class="separator:a5393c74832697663d5fdcb65256eebe8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad38c575aa22360d1419ee8c3a07f49f2"><td class="memItemLeft" align="right" valign="top"><a class="el" href="item_8h.html#a175a25f0a9aa01587d97b5daefa2db13">Items</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#ad38c575aa22360d1419ee8c3a07f49f2">items_</a></td></tr>
-<tr class="separator:ad38c575aa22360d1419ee8c3a07f49f2"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:adc633addf5f19c0c32a5c247d3d4aaca"><td class="memItemLeft" align="right" valign="top">QTreeView *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#adc633addf5f19c0c32a5c247d3d4aaca">view_</a> {nullptr}</td></tr>
-<tr class="separator:adc633addf5f19c0c32a5c247d3d4aaca"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a1af0d78b5a1e01479afecdb1de8e3478"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_buyout_manager.html">BuyoutManager</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#a1af0d78b5a1e01479afecdb1de8e3478">bo_manager_</a></td></tr>
-<tr class="separator:a1af0d78b5a1e01479afecdb1de8e3478"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a7085c1b797b53e3a7489165694b1326b"><td class="memItemLeft" align="right" valign="top">std::unique_ptr&lt; <a class="el" href="class_items_model.html">ItemsModel</a> &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#a7085c1b797b53e3a7489165694b1326b">model_</a></td></tr>
-<tr class="separator:a7085c1b797b53e3a7489165694b1326b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac4e8278ea3812a2461dde2e97117ad92"><td class="memItemLeft" align="right" valign="top">std::vector&lt; std::unique_ptr&lt; <a class="el" href="class_bucket.html">Bucket</a> &gt; &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#ac4e8278ea3812a2461dde2e97117ad92">buckets_</a></td></tr>
-<tr class="separator:ac4e8278ea3812a2461dde2e97117ad92"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a21910c03ae8cdf751dbc02d729020a64"><td class="memItemLeft" align="right" valign="top">std::vector&lt; std::unique_ptr&lt; <a class="el" href="class_bucket.html">Bucket</a> &gt; &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#a21910c03ae8cdf751dbc02d729020a64">bucket_</a></td></tr>
-<tr class="separator:a21910c03ae8cdf751dbc02d729020a64"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac63304eec4f426fbff3f4597301f71fa"><td class="memItemLeft" align="right" valign="top">uint&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#ac63304eec4f426fbff3f4597301f71fa">unfiltered_item_count_</a> {0}</td></tr>
-<tr class="separator:ac63304eec4f426fbff3f4597301f71fa"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af3c5e35b71643d76130eabf8a497b3ed"><td class="memItemLeft" align="right" valign="top">uint&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#af3c5e35b71643d76130eabf8a497b3ed">filtered_item_count_total_</a> {0}</td></tr>
-<tr class="separator:af3c5e35b71643d76130eabf8a497b3ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a54cf7075333fbe626c2fe8e726cc32f7"><td class="memItemLeft" align="right" valign="top">std::set&lt; std::string &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#a54cf7075333fbe626c2fe8e726cc32f7">expanded_property_</a></td></tr>
-<tr class="separator:a54cf7075333fbe626c2fe8e726cc32f7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a40f88fe3ba2e14d38739b880cc9713ed"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_search.html#adf28b6ba9b468df2f07a5d8e682c9e91">ViewMode</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#a40f88fe3ba2e14d38739b880cc9713ed">current_mode_</a> {<a class="el" href="class_search.html#adf28b6ba9b468df2f07a5d8e682c9e91aef60128fbd5c463ba15dad5d22abf0fa">ByTab</a>}</td></tr>
-<tr class="separator:a40f88fe3ba2e14d38739b880cc9713ed"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:af6cbac320b5b3ea5aa3ddd8b62b8d0c4"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_refresh_reason.html#a176902b63e9a578f6e8b7b1501bd7237">RefreshReason::Type</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_search.html#af6cbac320b5b3ea5aa3ddd8b62b8d0c4">refresh_reason_</a> {<a class="el" href="class_refresh_reason.html#a176902b63e9a578f6e8b7b1501bd7237a7ff55d3dc51b41371ad6c2de62d3a74d">RefreshReason::Unknown</a>}</td></tr>
-<tr class="separator:af6cbac320b5b3ea5aa3ddd8b62b8d0c4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock">
@@ -244,6 +208,16 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00034">34</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_ac45852c1d3d2feb7f6feb7f7716f2bfa_cgraph.png" border="0" usemap="#class_search_ac45852c1d3d2feb7f6feb7f7716f2bfa_cgraph" alt=""/></div>
+<map name="class_search_ac45852c1d3d2feb7f6feb7f7716f2bfa_cgraph" id="class_search_ac45852c1d3d2feb7f6feb7f7716f2bfa_cgraph">
+<area shape="rect" title=" " alt="" coords="5,31,117,57"/>
+<area shape="rect" href="namespacerapidjson.html#a6d2ef85ad23e526c1f8f12eead509c0c" title=" " alt="" coords="165,5,279,32"/>
+<area shape="rect" href="namespacerapidjson.html#a70ef97b812a7a70a3679caa10e91ff1f" title=" " alt="" coords="171,56,273,83"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -264,7 +238,20 @@ Private Attributes</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00208">208</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00212">212</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_a41bea114ddb6fd50cc125232892deccf_cgraph.png" border="0" usemap="#class_search_a41bea114ddb6fd50cc125232892deccf_cgraph" alt=""/></div>
+<map name="class_search_a41bea114ddb6fd50cc125232892deccf_cgraph" id="class_search_a41bea114ddb6fd50cc125232892deccf_cgraph">
+<area shape="rect" title=" " alt="" coords="5,122,123,149"/>
+<area shape="rect" href="class_search.html#a4b123a939246aa71ba63dd56b3c3995c" title=" " alt="" coords="171,71,303,98"/>
+<area shape="rect" href="class_search.html#aa1bd17dca233ff7b22774b7f23712350" title=" " alt="" coords="398,122,501,149"/>
+<area shape="rect" href="class_search.html#ac17f9ae62a37fbafe1528c2a398e998b" title=" " alt="" coords="171,173,302,199"/>
+<area shape="rect" href="class_buyout_manager.html#a757950b2574eb7351f94ec487af553f8" title=" " alt="" coords="351,5,548,47"/>
+<area shape="rect" href="class_search.html#aead0025b45fe1e7ae15de795c632c51b" title=" " alt="" coords="365,71,533,98"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -285,6 +272,25 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00099">99</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_a4212b81062e2a8f851dd88b73d20a43f_icgraph.png" border="0" usemap="#class_search_a4212b81062e2a8f851dd88b73d20a43f_icgraph" alt=""/></div>
+<map name="class_search_a4212b81062e2a8f851dd88b73d20a43f_icgraph" id="class_search_a4212b81062e2a8f851dd88b73d20a43f_icgraph">
+<area shape="rect" title=" " alt="" coords="520,208,631,235"/>
+<area shape="rect" href="class_items_model.html#afa1eab89fa14a901de770afdc15a4c4a" title=" " alt="" coords="52,5,175,32"/>
+<area shape="rect" href="class_search.html#a525840f8c386b7d3fa4232a7ed9695c7" title=" " alt="" coords="289,107,452,133"/>
+<area shape="rect" href="class_main_window.html#a4df4c02aaf45a6eb47a3f0427641fec2" title=" " alt="" coords="10,157,217,184"/>
+<area shape="rect" href="class_main_window.html#a4a5f17b5fbaa69bda55cb6008832fdcf" title=" " alt="" coords="275,259,466,285"/>
+<area shape="rect" href="class_search.html#ada81f2053f968b9e720abacfebc73ebb" title=" " alt="" coords="269,360,472,387"/>
+<area shape="rect" href="class_items_model.html#a9d2d76b7aa5b16a785a86ca2d6d3e817" title=" " alt="" coords="295,208,446,235"/>
+<area shape="rect" href="class_search.html#aabdc435edd395f830b51683d86f1d9b4" title=" " alt="" coords="277,309,464,336"/>
+<area shape="rect" href="class_items_model.html#adc0b8a9f5254735b598fa5369344e449" title=" " alt="" coords="51,56,175,83"/>
+<area shape="rect" href="class_main_window.html#a2fe70a0408ca932efb38dae6c722c1e6" title=" " alt="" coords="5,107,221,133"/>
+<area shape="rect" href="class_items_model.html#ac122e0e9ac574fccfd33e1b760a1584c" title=" " alt="" coords="42,208,185,235"/>
+<area shape="rect" href="class_search.html#aec31117c8bfe06274af080b4b924a6ea" title=" " alt="" coords="38,335,189,361"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -304,6 +310,24 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00091">91</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_a519ab912db6d15bf28a35350a7d9ef1d_icgraph.png" border="0" usemap="#class_search_a519ab912db6d15bf28a35350a7d9ef1d_icgraph" alt=""/></div>
+<map name="class_search_a519ab912db6d15bf28a35350a7d9ef1d_icgraph" id="class_search_a519ab912db6d15bf28a35350a7d9ef1d_icgraph">
+<area shape="rect" title=" " alt="" coords="833,240,951,267"/>
+<area shape="rect" href="class_items_model.html#a9a4df90eb3c50688ce03b6c47d32566c" title=" " alt="" coords="628,114,756,140"/>
+<area shape="rect" href="class_items_model.html#a9d2d76b7aa5b16a785a86ca2d6d3e817" title=" " alt="" coords="207,164,358,191"/>
+<area shape="rect" href="class_main_window.html#a40c028ce8f7f756a15aaad431c196869" title=" " alt="" coords="605,240,779,267"/>
+<area shape="rect" href="class_main_window.html#a410d05153c1d3e1416b7e325f1c9486e" title=" " alt="" coords="599,291,785,318"/>
+<area shape="rect" href="class_items_model.html#a5cb16779e245ada603e57b5a3ab7fc74" title=" " alt="" coords="633,342,751,368"/>
+<area shape="rect" href="class_items_model.html#afa1eab89fa14a901de770afdc15a4c4a" title=" " alt="" coords="423,38,545,64"/>
+<area shape="rect" href="class_items_model.html#adc0b8a9f5254735b598fa5369344e449" title=" " alt="" coords="422,88,546,115"/>
+<area shape="rect" href="class_items_model.html#a111ab18c7ce119e98a3672ee3052a38e" title=" " alt="" coords="417,139,551,166"/>
+<area shape="rect" href="class_items_model.html#ac122e0e9ac574fccfd33e1b760a1584c" title=" " alt="" coords="5,63,148,90"/>
+<area shape="rect" href="class_items_model.html#ab93d7bd60a8ce6bd279f6c0448ed097c" title=" " alt="" coords="196,114,369,140"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -358,6 +382,18 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00053">53</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_aa3cbd5179f1edd1e33001676357da603_icgraph.png" border="0" usemap="#class_search_aa3cbd5179f1edd1e33001676357da603_icgraph" alt=""/></div>
+<map name="class_search_aa3cbd5179f1edd1e33001676357da603_icgraph" id="class_search_aa3cbd5179f1edd1e33001676357da603_icgraph">
+<area shape="rect" title=" " alt="" coords="227,81,347,108"/>
+<area shape="rect" href="class_items_model.html#ab93d7bd60a8ce6bd279f6c0448ed097c" title=" " alt="" coords="5,5,179,32"/>
+<area shape="rect" href="class_items_model.html#afa1eab89fa14a901de770afdc15a4c4a" title=" " alt="" coords="31,56,153,83"/>
+<area shape="rect" href="class_items_model.html#a9aa3db0502ff194f319842a90a3c1fa2" title=" " alt="" coords="11,107,173,133"/>
+<area shape="rect" href="class_items_model.html#a5cb16779e245ada603e57b5a3ab7fc74" title=" " alt="" coords="33,157,151,184"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -378,6 +414,26 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00118">118</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_a4b123a939246aa71ba63dd56b3c3995c_cgraph.png" border="0" usemap="#class_search_a4b123a939246aa71ba63dd56b3c3995c_cgraph" alt=""/></div>
+<map name="class_search_a4b123a939246aa71ba63dd56b3c3995c_cgraph" id="class_search_a4b123a939246aa71ba63dd56b3c3995c_cgraph">
+<area shape="rect" title=" " alt="" coords="5,71,137,98"/>
+<area shape="rect" href="class_buyout_manager.html#a757950b2574eb7351f94ec487af553f8" title=" " alt="" coords="185,5,383,47"/>
+<area shape="rect" href="class_search.html#aead0025b45fe1e7ae15de795c632c51b" title=" " alt="" coords="200,71,368,98"/>
+<area shape="rect" href="class_search.html#aa1bd17dca233ff7b22774b7f23712350" title=" " alt="" coords="233,122,335,149"/>
+</map>
+</div>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_a4b123a939246aa71ba63dd56b3c3995c_icgraph.png" border="0" usemap="#class_search_a4b123a939246aa71ba63dd56b3c3995c_icgraph" alt=""/></div>
+<map name="class_search_a4b123a939246aa71ba63dd56b3c3995c_icgraph" id="class_search_a4b123a939246aa71ba63dd56b3c3995c_icgraph">
+<area shape="rect" title=" " alt="" coords="171,5,303,32"/>
+<area shape="rect" href="class_search.html#a41bea114ddb6fd50cc125232892deccf" title=" " alt="" coords="5,5,123,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -397,6 +453,15 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00076">76</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_ac17f9ae62a37fbafe1528c2a398e998b_icgraph.png" border="0" usemap="#class_search_ac17f9ae62a37fbafe1528c2a398e998b_icgraph" alt=""/></div>
+<map name="class_search_ac17f9ae62a37fbafe1528c2a398e998b_icgraph" id="class_search_ac17f9ae62a37fbafe1528c2a398e998b_icgraph">
+<area shape="rect" title=" " alt="" coords="171,5,301,32"/>
+<area shape="rect" href="class_search.html#a41bea114ddb6fd50cc125232892deccf" title=" " alt="" coords="5,5,123,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -415,7 +480,16 @@ Private Attributes</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00169">169</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00173">173</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_a2d79a9c550633f221edd81ab5c92ea34_cgraph.png" border="0" usemap="#class_search_a2d79a9c550633f221edd81ab5c92ea34_cgraph" alt=""/></div>
+<map name="class_search_a2d79a9c550633f221edd81ab5c92ea34_cgraph" id="class_search_a2d79a9c550633f221edd81ab5c92ea34_cgraph">
+<area shape="rect" title=" " alt="" coords="5,5,141,32"/>
+<area shape="rect" href="class_search.html#afae0159ab44bc21fb9b36975550dcbb3" title=" " alt="" coords="189,5,348,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -434,7 +508,16 @@ Private Attributes</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00204">204</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00208">208</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_afae0159ab44bc21fb9b36975550dcbb3_icgraph.png" border="0" usemap="#class_search_afae0159ab44bc21fb9b36975550dcbb3_icgraph" alt=""/></div>
+<map name="class_search_afae0159ab44bc21fb9b36975550dcbb3_icgraph" id="class_search_afae0159ab44bc21fb9b36975550dcbb3_icgraph">
+<area shape="rect" title=" " alt="" coords="189,5,348,32"/>
+<area shape="rect" href="class_search.html#a2d79a9c550633f221edd81ab5c92ea34" title=" " alt="" coords="5,5,141,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -454,7 +537,29 @@ Private Attributes</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00173">173</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00177">177</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_a525840f8c386b7d3fa4232a7ed9695c7_cgraph.png" border="0" usemap="#class_search_a525840f8c386b7d3fa4232a7ed9695c7_cgraph" alt=""/></div>
+<map name="class_search_a525840f8c386b7d3fa4232a7ed9695c7_cgraph" id="class_search_a525840f8c386b7d3fa4232a7ed9695c7_cgraph">
+<area shape="rect" title=" " alt="" coords="5,5,168,32"/>
+<area shape="rect" href="class_search.html#a4212b81062e2a8f851dd88b73d20a43f" title=" " alt="" coords="216,5,327,32"/>
+</map>
+</div>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_a525840f8c386b7d3fa4232a7ed9695c7_icgraph.png" border="0" usemap="#class_search_a525840f8c386b7d3fa4232a7ed9695c7_icgraph" alt=""/></div>
+<map name="class_search_a525840f8c386b7d3fa4232a7ed9695c7_icgraph" id="class_search_a525840f8c386b7d3fa4232a7ed9695c7_icgraph">
+<area shape="rect" title=" " alt="" coords="269,107,432,133"/>
+<area shape="rect" href="class_items_model.html#afa1eab89fa14a901de770afdc15a4c4a" title=" " alt="" coords="52,5,175,32"/>
+<area shape="rect" href="class_items_model.html#adc0b8a9f5254735b598fa5369344e449" title=" " alt="" coords="51,56,175,83"/>
+<area shape="rect" href="class_main_window.html#a4df4c02aaf45a6eb47a3f0427641fec2" title=" " alt="" coords="10,107,217,133"/>
+<area shape="rect" href="class_main_window.html#a2fe70a0408ca932efb38dae6c722c1e6" title=" " alt="" coords="5,157,221,184"/>
+<area shape="rect" href="class_items_model.html#ac122e0e9ac574fccfd33e1b760a1584c" title=" " alt="" coords="42,208,185,235"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -481,7 +586,7 @@ Private Attributes</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00064">64</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00065">65</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
 
 </div>
 </div>
@@ -500,7 +605,17 @@ Private Attributes</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00243">243</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00247">247</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_aead0025b45fe1e7ae15de795c632c51b_icgraph.png" border="0" usemap="#class_search_aead0025b45fe1e7ae15de795c632c51b_icgraph" alt=""/></div>
+<map name="class_search_aead0025b45fe1e7ae15de795c632c51b_icgraph" id="class_search_aead0025b45fe1e7ae15de795c632c51b_icgraph">
+<area shape="rect" title=" " alt="" coords="351,5,519,32"/>
+<area shape="rect" href="class_search.html#a4b123a939246aa71ba63dd56b3c3995c" title=" " alt="" coords="171,5,303,32"/>
+<area shape="rect" href="class_search.html#a41bea114ddb6fd50cc125232892deccf" title=" " alt="" coords="5,5,123,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -528,6 +643,36 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00052">52</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_aa1bd17dca233ff7b22774b7f23712350_icgraph.png" border="0" usemap="#class_search_aa1bd17dca233ff7b22774b7f23712350_icgraph" alt=""/></div>
+<map name="class_search_aa1bd17dca233ff7b22774b7f23712350_icgraph" id="class_search_aa1bd17dca233ff7b22774b7f23712350_icgraph">
+<area shape="rect" title=" " alt="" coords="351,5,453,32"/>
+<area shape="rect" href="class_search.html#a41bea114ddb6fd50cc125232892deccf" title=" " alt="" coords="5,5,123,32"/>
+<area shape="rect" href="class_search.html#a4b123a939246aa71ba63dd56b3c3995c" title=" " alt="" coords="171,31,303,57"/>
+</map>
+</div>
+
+</div>
+</div>
+<a id="a57e488df30f324e996d406265cdd3db5"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a57e488df30f324e996d406265cdd3db5">&#9670;&nbsp;</a></span>RenameCaption()</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">void Search::RenameCaption </td>
+          <td>(</td>
+          <td class="paramtype">const std::string&#160;</td>
+          <td class="paramname"><em>newName</em></td><td>)</td>
+          <td></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00169">169</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
 
 </div>
 </div>
@@ -565,7 +710,25 @@ Private Attributes</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00228">228</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00232">232</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_ada81f2053f968b9e720abacfebc73ebb_cgraph.png" border="0" usemap="#class_search_ada81f2053f968b9e720abacfebc73ebb_cgraph" alt=""/></div>
+<map name="class_search_ada81f2053f968b9e720abacfebc73ebb_cgraph" id="class_search_ada81f2053f968b9e720abacfebc73ebb_cgraph">
+<area shape="rect" title=" " alt="" coords="5,5,208,32"/>
+<area shape="rect" href="class_search.html#a4212b81062e2a8f851dd88b73d20a43f" title=" " alt="" coords="256,5,367,32"/>
+</map>
+</div>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_ada81f2053f968b9e720abacfebc73ebb_icgraph.png" border="0" usemap="#class_search_ada81f2053f968b9e720abacfebc73ebb_icgraph" alt=""/></div>
+<map name="class_search_ada81f2053f968b9e720abacfebc73ebb_icgraph" id="class_search_ada81f2053f968b9e720abacfebc73ebb_icgraph">
+<area shape="rect" title=" " alt="" coords="204,5,407,32"/>
+<area shape="rect" href="class_search.html#aec31117c8bfe06274af080b4b924a6ea" title=" " alt="" coords="5,5,156,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -584,7 +747,25 @@ Private Attributes</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00217">217</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00221">221</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_aabdc435edd395f830b51683d86f1d9b4_cgraph.png" border="0" usemap="#class_search_aabdc435edd395f830b51683d86f1d9b4_cgraph" alt=""/></div>
+<map name="class_search_aabdc435edd395f830b51683d86f1d9b4_cgraph" id="class_search_aabdc435edd395f830b51683d86f1d9b4_cgraph">
+<area shape="rect" title=" " alt="" coords="5,5,192,32"/>
+<area shape="rect" href="class_search.html#a4212b81062e2a8f851dd88b73d20a43f" title=" " alt="" coords="240,5,351,32"/>
+</map>
+</div>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_aabdc435edd395f830b51683d86f1d9b4_icgraph.png" border="0" usemap="#class_search_aabdc435edd395f830b51683d86f1d9b4_icgraph" alt=""/></div>
+<map name="class_search_aabdc435edd395f830b51683d86f1d9b4_icgraph" id="class_search_aabdc435edd395f830b51683d86f1d9b4_icgraph">
+<area shape="rect" title=" " alt="" coords="204,5,391,32"/>
+<area shape="rect" href="class_search.html#aec31117c8bfe06274af080b4b924a6ea" title=" " alt="" coords="5,5,156,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -612,7 +793,18 @@ Private Attributes</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00066">66</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00067">67</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_adc48f6d303b728ef823221e50dd2810c_icgraph.png" border="0" usemap="#class_search_adc48f6d303b728ef823221e50dd2810c_icgraph" alt=""/></div>
+<map name="class_search_adc48f6d303b728ef823221e50dd2810c_icgraph" id="class_search_adc48f6d303b728ef823221e50dd2810c_icgraph">
+<area shape="rect" title=" " alt="" coords="472,42,651,69"/>
+<area shape="rect" href="class_main_window.html#a435d0e41b088c522e8d1c707b1c9ce7f" title=" " alt="" coords="232,5,424,47"/>
+<area shape="rect" href="class_main_window.html#a906ca60ae8b6cdd16bc6a13be3dadafb" title=" " alt="" coords="235,71,421,98"/>
+<area shape="rect" href="class_main_window.html#a4594fe31d9bf1f07ea79102929b98602" title=" " alt="" coords="5,13,184,39"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -632,7 +824,18 @@ Private Attributes</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00187">187</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00191">191</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_aec31117c8bfe06274af080b4b924a6ea_cgraph.png" border="0" usemap="#class_search_aec31117c8bfe06274af080b4b924a6ea_cgraph" alt=""/></div>
+<map name="class_search_aec31117c8bfe06274af080b4b924a6ea_cgraph" id="class_search_aec31117c8bfe06274af080b4b924a6ea_cgraph">
+<area shape="rect" title=" " alt="" coords="5,31,156,57"/>
+<area shape="rect" href="class_search.html#ada81f2053f968b9e720abacfebc73ebb" title=" " alt="" coords="204,5,407,32"/>
+<area shape="rect" href="class_search.html#aabdc435edd395f830b51683d86f1d9b4" title=" " alt="" coords="212,56,399,83"/>
+<area shape="rect" href="class_search.html#a4212b81062e2a8f851dd88b73d20a43f" title=" " alt="" coords="455,31,565,57"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -652,371 +855,17 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00081">81</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
-
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_search_a6887e269bab897b3c907860239f1c7b0_icgraph.png" border="0" usemap="#class_search_a6887e269bab897b3c907860239f1c7b0_icgraph" alt=""/></div>
+<map name="class_search_a6887e269bab897b3c907860239f1c7b0_icgraph" id="class_search_a6887e269bab897b3c907860239f1c7b0_icgraph">
+<area shape="rect" title=" " alt="" coords="491,31,605,57"/>
+<area shape="rect" href="class_main_window.html#a3d7715c8259705991dba970a327c911e" title=" " alt="" coords="232,5,443,32"/>
+<area shape="rect" href="class_main_window.html#a906ca60ae8b6cdd16bc6a13be3dadafb" title=" " alt="" coords="244,56,431,83"/>
+<area shape="rect" href="class_main_window.html#a4594fe31d9bf1f07ea79102929b98602" title=" " alt="" coords="5,5,184,32"/>
+</map>
 </div>
-</div>
-<a id="a1d84442a0449fb68a72d7bed486f3320"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1d84442a0449fb68a72d7bed486f3320">&#9670;&nbsp;</a></span>UpdateItemCounts()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">void Search::UpdateItemCounts </td>
-          <td>(</td>
-          <td class="paramtype">const <a class="el" href="item_8h.html#a175a25f0a9aa01587d97b5daefa2db13">Items</a> &amp;&#160;</td>
-          <td class="paramname"><em>items</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="search_8cpp_source.html#l00247">247</a> of file <a class="el" href="search_8cpp_source.html">search.cpp</a>.</p>
-
-</div>
-</div>
-<h2 class="groupheader">Member Data Documentation</h2>
-<a id="a1af0d78b5a1e01479afecdb1de8e3478"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a1af0d78b5a1e01479afecdb1de8e3478">&#9670;&nbsp;</a></span>bo_manager_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="class_buyout_manager.html">BuyoutManager</a>&amp; Search::bo_manager_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00075">75</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
-
-</div>
-</div>
-<a id="a21910c03ae8cdf751dbc02d729020a64"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a21910c03ae8cdf751dbc02d729020a64">&#9670;&nbsp;</a></span>bucket_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">std::vector&lt;std::unique_ptr&lt;<a class="el" href="class_bucket.html">Bucket</a>&gt; &gt; Search::bucket_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00078">78</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
-
-</div>
-</div>
-<a id="ac4e8278ea3812a2461dde2e97117ad92"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac4e8278ea3812a2461dde2e97117ad92">&#9670;&nbsp;</a></span>buckets_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">std::vector&lt;std::unique_ptr&lt;<a class="el" href="class_bucket.html">Bucket</a>&gt; &gt; Search::buckets_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00077">77</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
-
-</div>
-</div>
-<a id="a5393c74832697663d5fdcb65256eebe8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5393c74832697663d5fdcb65256eebe8">&#9670;&nbsp;</a></span>caption_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">std::string Search::caption_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00072">72</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
-
-</div>
-</div>
-<a id="acb6d7b603fa7eeab01168d1197dd9a8b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#acb6d7b603fa7eeab01168d1197dd9a8b">&#9670;&nbsp;</a></span>columns_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">std::vector&lt;std::unique_ptr&lt;<a class="el" href="class_column.html">Column</a>&gt; &gt; Search::columns_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00071">71</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
-
-</div>
-</div>
-<a id="a40f88fe3ba2e14d38739b880cc9713ed"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a40f88fe3ba2e14d38739b880cc9713ed">&#9670;&nbsp;</a></span>current_mode_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="class_search.html#adf28b6ba9b468df2f07a5d8e682c9e91">ViewMode</a> Search::current_mode_ {<a class="el" href="class_search.html#adf28b6ba9b468df2f07a5d8e682c9e91aef60128fbd5c463ba15dad5d22abf0fa">ByTab</a>}</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00082">82</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
-
-</div>
-</div>
-<a id="a54cf7075333fbe626c2fe8e726cc32f7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a54cf7075333fbe626c2fe8e726cc32f7">&#9670;&nbsp;</a></span>expanded_property_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">std::set&lt;std::string&gt; Search::expanded_property_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00081">81</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
-
-</div>
-</div>
-<a id="af3c5e35b71643d76130eabf8a497b3ed"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af3c5e35b71643d76130eabf8a497b3ed">&#9670;&nbsp;</a></span>filtered_item_count_total_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">uint Search::filtered_item_count_total_ {0}</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00080">80</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
-
-</div>
-</div>
-<a id="ac8aa3fa18fe47eb95a3b9518d498028c"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac8aa3fa18fe47eb95a3b9518d498028c">&#9670;&nbsp;</a></span>filters_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">std::vector&lt;std::unique_ptr&lt;<a class="el" href="class_filter_data.html">FilterData</a>&gt; &gt; Search::filters_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00070">70</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
-
-</div>
-</div>
-<a id="ad38c575aa22360d1419ee8c3a07f49f2"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ad38c575aa22360d1419ee8c3a07f49f2">&#9670;&nbsp;</a></span>items_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="item_8h.html#a175a25f0a9aa01587d97b5daefa2db13">Items</a> Search::items_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00073">73</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
-
-</div>
-</div>
-<a id="a7085c1b797b53e3a7489165694b1326b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a7085c1b797b53e3a7489165694b1326b">&#9670;&nbsp;</a></span>model_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">std::unique_ptr&lt;<a class="el" href="class_items_model.html">ItemsModel</a>&gt; Search::model_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00076">76</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
-
-</div>
-</div>
-<a id="af6cbac320b5b3ea5aa3ddd8b62b8d0c4"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af6cbac320b5b3ea5aa3ddd8b62b8d0c4">&#9670;&nbsp;</a></span>refresh_reason_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="class_refresh_reason.html#a176902b63e9a578f6e8b7b1501bd7237">RefreshReason::Type</a> Search::refresh_reason_ {<a class="el" href="class_refresh_reason.html#a176902b63e9a578f6e8b7b1501bd7237a7ff55d3dc51b41371ad6c2de62d3a74d">RefreshReason::Unknown</a>}</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00083">83</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
-
-</div>
-</div>
-<a id="ac63304eec4f426fbff3f4597301f71fa"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac63304eec4f426fbff3f4597301f71fa">&#9670;&nbsp;</a></span>unfiltered_item_count_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">uint Search::unfiltered_item_count_ {0}</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00079">79</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
-
-</div>
-</div>
-<a id="adc633addf5f19c0c32a5c247d3d4aaca"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#adc633addf5f19c0c32a5c247d3d4aaca">&#9670;&nbsp;</a></span>view_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">QTreeView* Search::view_ {nullptr}</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="search_8h_source.html#l00074">74</a> of file <a class="el" href="search_8h_source.html">search.h</a>.</p>
 
 </div>
 </div>

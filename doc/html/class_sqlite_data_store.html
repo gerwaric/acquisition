@@ -84,8 +84,6 @@ $(document).ready(function(){initNavTree('class_sqlite_data_store.html',''); ini
   <div class="summary">
 <a href="#pub-methods">Public Member Functions</a> &#124;
 <a href="#pub-static-methods">Static Public Member Functions</a> &#124;
-<a href="#pri-methods">Private Member Functions</a> &#124;
-<a href="#pri-attribs">Private Attributes</a> &#124;
 <a href="class_sqlite_data_store-members.html">List of all members</a>  </div>
   <div class="headertitle">
 <div class="title">SqliteDataStore Class Reference</div>  </div>
@@ -96,23 +94,40 @@ $(document).ready(function(){initNavTree('class_sqlite_data_store.html',''); ini
 <div class="dynheader">
 Inheritance diagram for SqliteDataStore:</div>
 <div class="dyncontent">
- <div class="center">
-  <img src="class_sqlite_data_store.png" usemap="#SqliteDataStore_map" alt=""/>
-  <map id="SqliteDataStore_map" name="SqliteDataStore_map">
-<area href="class_data_store.html" alt="DataStore" shape="rect" coords="0,0,98,24"/>
-  </map>
-</div></div>
+<div class="center"><img src="class_sqlite_data_store__inherit__graph.png" border="0" usemap="#_sqlite_data_store_inherit__map" alt="Inheritance graph"/></div>
+<map name="_sqlite_data_store_inherit__map" id="_sqlite_data_store_inherit__map">
+<area shape="rect" title=" " alt="" coords="5,80,119,107"/>
+<area shape="rect" href="class_data_store.html" title=" " alt="" coords="22,5,102,32"/>
+</map>
+<center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
+<div class="dynheader">
+Collaboration diagram for SqliteDataStore:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_sqlite_data_store__coll__graph.png" border="0" usemap="#_sqlite_data_store_coll__map" alt="Collaboration graph"/></div>
+<map name="_sqlite_data_store_coll__map" id="_sqlite_data_store_coll__map">
+<area shape="rect" title=" " alt="" coords="5,80,119,107"/>
+<area shape="rect" href="class_data_store.html" title=" " alt="" coords="22,5,102,32"/>
+</map>
+<center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
-<tr class="memitem:a15668b9d97b414db37205822bf61c8fe"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_sqlite_data_store.html#a15668b9d97b414db37205822bf61c8fe">SqliteDataStore</a> (const std::string &amp;<a class="el" href="class_sqlite_data_store.html#aefa2635b0359f502c1176e520665c2bf">filename_</a>)</td></tr>
+<tr class="memitem:a15668b9d97b414db37205822bf61c8fe"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_sqlite_data_store.html#a15668b9d97b414db37205822bf61c8fe">SqliteDataStore</a> (const std::string &amp;filename_)</td></tr>
 <tr class="separator:a15668b9d97b414db37205822bf61c8fe"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a7c2be095dff5fa90aa11e01d115a2e23"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_sqlite_data_store.html#a7c2be095dff5fa90aa11e01d115a2e23">~SqliteDataStore</a> ()</td></tr>
 <tr class="separator:a7c2be095dff5fa90aa11e01d115a2e23"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a24e2bbe084e80440934363b9cbd92b0a"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_sqlite_data_store.html#a24e2bbe084e80440934363b9cbd92b0a">Set</a> (const std::string &amp;key, const std::string &amp;value)</td></tr>
 <tr class="separator:a24e2bbe084e80440934363b9cbd92b0a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ad775b27de22b953b519bdcea0b6289d2"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_sqlite_data_store.html#ad775b27de22b953b519bdcea0b6289d2">SetTabs</a> (const <a class="el" href="itemlocation_8h.html#a120dffc8b6df01fbf1f1df9df7729e98">ItemLocationType</a> &amp;type, const std::string &amp;value)</td></tr>
+<tr class="separator:ad775b27de22b953b519bdcea0b6289d2"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ab0b0f260875d516259194d64cf0fa79c"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_sqlite_data_store.html#ab0b0f260875d516259194d64cf0fa79c">SetItems</a> (const <a class="el" href="class_item_location.html">ItemLocation</a> &amp;loc, const std::string &amp;value)</td></tr>
+<tr class="separator:ab0b0f260875d516259194d64cf0fa79c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:adc498b00414749235746768bd39ff054"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_sqlite_data_store.html#adc498b00414749235746768bd39ff054">Get</a> (const std::string &amp;key, const std::string &amp;default_value=&quot;&quot;)</td></tr>
 <tr class="separator:adc498b00414749235746768bd39ff054"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aed74b042dc21035ff88a32214bd4a7bb"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_sqlite_data_store.html#aed74b042dc21035ff88a32214bd4a7bb">GetTabs</a> (const <a class="el" href="itemlocation_8h.html#a120dffc8b6df01fbf1f1df9df7729e98">ItemLocationType</a> &amp;type, const std::string &amp;default_value=&quot;&quot;)</td></tr>
+<tr class="separator:aed74b042dc21035ff88a32214bd4a7bb"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:abd17e0a377eb3e47294e31cb14a83728"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_sqlite_data_store.html#abd17e0a377eb3e47294e31cb14a83728">GetItems</a> (const <a class="el" href="class_item_location.html">ItemLocation</a> &amp;loc, const std::string &amp;default_value=&quot;&quot;)</td></tr>
+<tr class="separator:abd17e0a377eb3e47294e31cb14a83728"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a48f37b0062e9ac2fcc6db1a897848802"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_sqlite_data_store.html#a48f37b0062e9ac2fcc6db1a897848802">InsertCurrencyUpdate</a> (const <a class="el" href="struct_currency_update.html">CurrencyUpdate</a> &amp;update)</td></tr>
 <tr class="separator:a48f37b0062e9ac2fcc6db1a897848802"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a16112d3c5757f6bb41f2768477c09c61"><td class="memItemLeft" align="right" valign="top">std::vector&lt; <a class="el" href="struct_currency_update.html">CurrencyUpdate</a> &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_sqlite_data_store.html#a16112d3c5757f6bb41f2768477c09c61">GetAllCurrency</a> ()</td></tr>
@@ -133,18 +148,6 @@ Public Member Functions</h2></td></tr>
 Static Public Member Functions</h2></td></tr>
 <tr class="memitem:a71d651f5d62ad3b1dcde04c55d4f616d"><td class="memItemLeft" align="right" valign="top">static std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_sqlite_data_store.html#a71d651f5d62ad3b1dcde04c55d4f616d">MakeFilename</a> (const std::string &amp;name, const std::string &amp;league)</td></tr>
 <tr class="separator:a71d651f5d62ad3b1dcde04c55d4f616d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pri-methods"></a>
-Private Member Functions</h2></td></tr>
-<tr class="memitem:aacb152180b59814b08882b6d6c5cf11e"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_sqlite_data_store.html#aacb152180b59814b08882b6d6c5cf11e">CreateTable</a> (const std::string &amp;name, const std::string &amp;fields)</td></tr>
-<tr class="separator:aacb152180b59814b08882b6d6c5cf11e"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pri-attribs"></a>
-Private Attributes</h2></td></tr>
-<tr class="memitem:aefa2635b0359f502c1176e520665c2bf"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_sqlite_data_store.html#aefa2635b0359f502c1176e520665c2bf">filename_</a></td></tr>
-<tr class="separator:aefa2635b0359f502c1176e520665c2bf"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a89c4427be498be5c6b7d70484544cbd6"><td class="memItemLeft" align="right" valign="top">sqlite3 *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_sqlite_data_store.html#a89c4427be498be5c6b7d70484544cbd6">db_</a></td></tr>
-<tr class="separator:a89c4427be498be5c6b7d70484544cbd6"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock">
@@ -185,49 +188,11 @@ Private Attributes</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00113">113</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00159">159</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
 
 </div>
 </div>
 <h2 class="groupheader">Member Function Documentation</h2>
-<a id="aacb152180b59814b08882b6d6c5cf11e"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aacb152180b59814b08882b6d6c5cf11e">&#9670;&nbsp;</a></span>CreateTable()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">void SqliteDataStore::CreateTable </td>
-          <td>(</td>
-          <td class="paramtype">const std::string &amp;&#160;</td>
-          <td class="paramname"><em>name</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">const std::string &amp;&#160;</td>
-          <td class="paramname"><em>fields</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00043">43</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
-
-</div>
-</div>
 <a id="adc498b00414749235746768bd39ff054"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#adc498b00414749235746768bd39ff054">&#9670;&nbsp;</a></span>Get()</h2>
 
@@ -264,7 +229,17 @@ Private Attributes</h2></td></tr>
 
 <p>Implements <a class="el" href="class_data_store.html#a37dee618e5a602650a2eace7d8bc141e">DataStore</a>.</p>
 
-<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00050">50</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00052">52</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_sqlite_data_store_adc498b00414749235746768bd39ff054_icgraph.png" border="0" usemap="#class_sqlite_data_store_adc498b00414749235746768bd39ff054_icgraph" alt=""/></div>
+<map name="class_sqlite_data_store_adc498b00414749235746768bd39ff054_icgraph" id="class_sqlite_data_store_adc498b00414749235746768bd39ff054_icgraph">
+<area shape="rect" title=" " alt="" coords="425,5,568,32"/>
+<area shape="rect" href="class_sqlite_data_store.html#a28db7abeb03cf771cbf6577c91245a96" title=" " alt="" coords="221,5,377,32"/>
+<area shape="rect" href="class_sqlite_data_store.html#a460a11c4a31abb201cf361b6270b0a52" title=" " alt="" coords="5,5,173,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -293,7 +268,7 @@ Private Attributes</h2></td></tr>
 
 <p>Implements <a class="el" href="class_data_store.html#a2a7d190d5d7f8cbafc1d57c3df90022b">DataStore</a>.</p>
 
-<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00082">82</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00128">128</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
 
 </div>
 </div>
@@ -333,7 +308,17 @@ Private Attributes</h2></td></tr>
 
 <p>Implements <a class="el" href="class_data_store.html#ab73cbbe81dd05984ea60a8260ee381f4">DataStore</a>.</p>
 
-<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00101">101</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00147">147</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_sqlite_data_store_a460a11c4a31abb201cf361b6270b0a52_cgraph.png" border="0" usemap="#class_sqlite_data_store_a460a11c4a31abb201cf361b6270b0a52_cgraph" alt=""/></div>
+<map name="class_sqlite_data_store_a460a11c4a31abb201cf361b6270b0a52_cgraph" id="class_sqlite_data_store_a460a11c4a31abb201cf361b6270b0a52_cgraph">
+<area shape="rect" title=" " alt="" coords="5,5,173,32"/>
+<area shape="rect" href="class_sqlite_data_store.html#a28db7abeb03cf771cbf6577c91245a96" title=" " alt="" coords="221,5,377,32"/>
+<area shape="rect" href="class_sqlite_data_store.html#adc498b00414749235746768bd39ff054" title=" " alt="" coords="425,5,568,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -373,7 +358,114 @@ Private Attributes</h2></td></tr>
 
 <p>Implements <a class="el" href="class_data_store.html#ad9b69bc967c515625ccb8b108b57ede7">DataStore</a>.</p>
 
-<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00109">109</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00155">155</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_sqlite_data_store_a28db7abeb03cf771cbf6577c91245a96_cgraph.png" border="0" usemap="#class_sqlite_data_store_a28db7abeb03cf771cbf6577c91245a96_cgraph" alt=""/></div>
+<map name="class_sqlite_data_store_a28db7abeb03cf771cbf6577c91245a96_cgraph" id="class_sqlite_data_store_a28db7abeb03cf771cbf6577c91245a96_cgraph">
+<area shape="rect" title=" " alt="" coords="5,5,161,32"/>
+<area shape="rect" href="class_sqlite_data_store.html#adc498b00414749235746768bd39ff054" title=" " alt="" coords="209,5,352,32"/>
+</map>
+</div>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_sqlite_data_store_a28db7abeb03cf771cbf6577c91245a96_icgraph.png" border="0" usemap="#class_sqlite_data_store_a28db7abeb03cf771cbf6577c91245a96_icgraph" alt=""/></div>
+<map name="class_sqlite_data_store_a28db7abeb03cf771cbf6577c91245a96_icgraph" id="class_sqlite_data_store_a28db7abeb03cf771cbf6577c91245a96_icgraph">
+<area shape="rect" title=" " alt="" coords="221,5,377,32"/>
+<area shape="rect" href="class_sqlite_data_store.html#a460a11c4a31abb201cf361b6270b0a52" title=" " alt="" coords="5,5,173,32"/>
+</map>
+</div>
+
+</div>
+</div>
+<a id="abd17e0a377eb3e47294e31cb14a83728"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#abd17e0a377eb3e47294e31cb14a83728">&#9670;&nbsp;</a></span>GetItems()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">std::string SqliteDataStore::GetItems </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="class_item_location.html">ItemLocation</a> &amp;&#160;</td>
+          <td class="paramname"><em>loc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const std::string &amp;&#160;</td>
+          <td class="paramname"><em>default_value</em> = <code>&quot;&quot;</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Implements <a class="el" href="class_data_store.html#aed0a2b80db5c3ac2a05ab4375beb8b4e">DataStore</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00076">76</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_sqlite_data_store_abd17e0a377eb3e47294e31cb14a83728_cgraph.png" border="0" usemap="#class_sqlite_data_store_abd17e0a377eb3e47294e31cb14a83728_cgraph" alt=""/></div>
+<map name="class_sqlite_data_store_abd17e0a377eb3e47294e31cb14a83728_cgraph" id="class_sqlite_data_store_abd17e0a377eb3e47294e31cb14a83728_cgraph">
+<area shape="rect" title=" " alt="" coords="5,13,180,39"/>
+<area shape="rect" href="class_item_location.html#af39237b4fdfd1fa5614b696b7f64192c" title=" " alt="" coords="228,5,375,47"/>
+</map>
+</div>
+
+</div>
+</div>
+<a id="aed74b042dc21035ff88a32214bd4a7bb"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aed74b042dc21035ff88a32214bd4a7bb">&#9670;&nbsp;</a></span>GetTabs()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">std::string SqliteDataStore::GetTabs </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="itemlocation_8h.html#a120dffc8b6df01fbf1f1df9df7729e98">ItemLocationType</a> &amp;&#160;</td>
+          <td class="paramname"><em>type</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const std::string &amp;&#160;</td>
+          <td class="paramname"><em>default_value</em> = <code>&quot;&quot;</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Implements <a class="el" href="class_data_store.html#a098461047d7befbf2a8745253c7c975e">DataStore</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00064">64</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
 
 </div>
 </div>
@@ -403,7 +495,7 @@ Private Attributes</h2></td></tr>
 
 <p>Implements <a class="el" href="class_data_store.html#a9e65496b512c8fb921ab8d142ec14996">DataStore</a>.</p>
 
-<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00072">72</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00118">118</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
 
 </div>
 </div>
@@ -441,7 +533,25 @@ Private Attributes</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00117">117</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00163">163</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_sqlite_data_store_a71d651f5d62ad3b1dcde04c55d4f616d_cgraph.png" border="0" usemap="#class_sqlite_data_store_a71d651f5d62ad3b1dcde04c55d4f616d_cgraph" alt=""/></div>
+<map name="class_sqlite_data_store_a71d651f5d62ad3b1dcde04c55d4f616d_cgraph" id="class_sqlite_data_store_a71d651f5d62ad3b1dcde04c55d4f616d_cgraph">
+<area shape="rect" title=" " alt="" coords="5,5,212,32"/>
+<area shape="rect" href="namespace_util.html#a875b9cb18270958b414538f74e503410" title=" " alt="" coords="260,5,335,32"/>
+</map>
+</div>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_sqlite_data_store_a71d651f5d62ad3b1dcde04c55d4f616d_icgraph.png" border="0" usemap="#class_sqlite_data_store_a71d651f5d62ad3b1dcde04c55d4f616d_icgraph" alt=""/></div>
+<map name="class_sqlite_data_store_a71d651f5d62ad3b1dcde04c55d4f616d_icgraph" id="class_sqlite_data_store_a71d651f5d62ad3b1dcde04c55d4f616d_icgraph">
+<area shape="rect" title=" " alt="" coords="196,5,403,32"/>
+<area shape="rect" href="class_application.html#a805db2cf3b190ca4c231b4320fc9a458" title=" " alt="" coords="5,5,148,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -481,7 +591,17 @@ Private Attributes</h2></td></tr>
 
 <p>Implements <a class="el" href="class_data_store.html#a865d17ce186d8d9048124017bd447cb1">DataStore</a>.</p>
 
-<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00062">62</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00088">88</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_sqlite_data_store_a24e2bbe084e80440934363b9cbd92b0a_icgraph.png" border="0" usemap="#class_sqlite_data_store_a24e2bbe084e80440934363b9cbd92b0a_icgraph" alt=""/></div>
+<map name="class_sqlite_data_store_a24e2bbe084e80440934363b9cbd92b0a_icgraph" id="class_sqlite_data_store_a24e2bbe084e80440934363b9cbd92b0a_icgraph">
+<area shape="rect" title=" " alt="" coords="423,5,564,32"/>
+<area shape="rect" href="class_sqlite_data_store.html#a277c781b4e22f15ebd5ae9b561ceff36" title=" " alt="" coords="220,5,375,32"/>
+<area shape="rect" href="class_sqlite_data_store.html#a29b05cadffc69440e2724185af9b74d2" title=" " alt="" coords="5,5,172,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -521,7 +641,17 @@ Private Attributes</h2></td></tr>
 
 <p>Implements <a class="el" href="class_data_store.html#ad7f5c4310b9f1c57be606212451561a4">DataStore</a>.</p>
 
-<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00097">97</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00143">143</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_sqlite_data_store_a29b05cadffc69440e2724185af9b74d2_cgraph.png" border="0" usemap="#class_sqlite_data_store_a29b05cadffc69440e2724185af9b74d2_cgraph" alt=""/></div>
+<map name="class_sqlite_data_store_a29b05cadffc69440e2724185af9b74d2_cgraph" id="class_sqlite_data_store_a29b05cadffc69440e2724185af9b74d2_cgraph">
+<area shape="rect" title=" " alt="" coords="5,5,172,32"/>
+<area shape="rect" href="class_sqlite_data_store.html#a277c781b4e22f15ebd5ae9b561ceff36" title=" " alt="" coords="220,5,375,32"/>
+<area shape="rect" href="class_sqlite_data_store.html#a24e2bbe084e80440934363b9cbd92b0a" title=" " alt="" coords="423,5,564,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -561,13 +691,30 @@ Private Attributes</h2></td></tr>
 
 <p>Implements <a class="el" href="class_data_store.html#acbee4caa5a924cd5236acda3e9d9a2eb">DataStore</a>.</p>
 
-<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00105">105</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00151">151</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_sqlite_data_store_a277c781b4e22f15ebd5ae9b561ceff36_cgraph.png" border="0" usemap="#class_sqlite_data_store_a277c781b4e22f15ebd5ae9b561ceff36_cgraph" alt=""/></div>
+<map name="class_sqlite_data_store_a277c781b4e22f15ebd5ae9b561ceff36_cgraph" id="class_sqlite_data_store_a277c781b4e22f15ebd5ae9b561ceff36_cgraph">
+<area shape="rect" title=" " alt="" coords="5,5,160,32"/>
+<area shape="rect" href="class_sqlite_data_store.html#a24e2bbe084e80440934363b9cbd92b0a" title=" " alt="" coords="208,5,349,32"/>
+</map>
+</div>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_sqlite_data_store_a277c781b4e22f15ebd5ae9b561ceff36_icgraph.png" border="0" usemap="#class_sqlite_data_store_a277c781b4e22f15ebd5ae9b561ceff36_icgraph" alt=""/></div>
+<map name="class_sqlite_data_store_a277c781b4e22f15ebd5ae9b561ceff36_icgraph" id="class_sqlite_data_store_a277c781b4e22f15ebd5ae9b561ceff36_icgraph">
+<area shape="rect" title=" " alt="" coords="220,5,375,32"/>
+<area shape="rect" href="class_sqlite_data_store.html#a29b05cadffc69440e2724185af9b74d2" title=" " alt="" coords="5,5,172,32"/>
+</map>
+</div>
 
 </div>
 </div>
-<h2 class="groupheader">Member Data Documentation</h2>
-<a id="a89c4427be498be5c6b7d70484544cbd6"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a89c4427be498be5c6b7d70484544cbd6">&#9670;&nbsp;</a></span>db_</h2>
+<a id="ab0b0f260875d516259194d64cf0fa79c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ab0b0f260875d516259194d64cf0fa79c">&#9670;&nbsp;</a></span>SetItems()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -576,22 +723,47 @@ Private Attributes</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">sqlite3* SqliteDataStore::db_</td>
+          <td class="memname">void SqliteDataStore::SetItems </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="class_item_location.html">ItemLocation</a> &amp;&#160;</td>
+          <td class="paramname"><em>loc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const std::string &amp;&#160;</td>
+          <td class="paramname"><em>value</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
         </tr>
       </table>
   </td>
   <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
+<span class="mlabels"><span class="mlabel">virtual</span></span>  </td>
   </tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8h_source.html#l00048">48</a> of file <a class="el" href="sqlitedatastore_8h_source.html">sqlitedatastore.h</a>.</p>
+<p>Implements <a class="el" href="class_data_store.html#af50bf12ccb2fdd661f4fa04682594e5f">DataStore</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00108">108</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_sqlite_data_store_ab0b0f260875d516259194d64cf0fa79c_cgraph.png" border="0" usemap="#class_sqlite_data_store_ab0b0f260875d516259194d64cf0fa79c_cgraph" alt=""/></div>
+<map name="class_sqlite_data_store_ab0b0f260875d516259194d64cf0fa79c_cgraph" id="class_sqlite_data_store_ab0b0f260875d516259194d64cf0fa79c_cgraph">
+<area shape="rect" title=" " alt="" coords="5,13,179,39"/>
+<area shape="rect" href="class_item_location.html#af39237b4fdfd1fa5614b696b7f64192c" title=" " alt="" coords="227,5,373,47"/>
+</map>
+</div>
 
 </div>
 </div>
-<a id="aefa2635b0359f502c1176e520665c2bf"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aefa2635b0359f502c1176e520665c2bf">&#9670;&nbsp;</a></span>filename_</h2>
+<a id="ad775b27de22b953b519bdcea0b6289d2"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#ad775b27de22b953b519bdcea0b6289d2">&#9670;&nbsp;</a></span>SetTabs()</h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -600,17 +772,33 @@ Private Attributes</h2></td></tr>
   <td class="mlabels-left">
       <table class="memname">
         <tr>
-          <td class="memname">std::string SqliteDataStore::filename_</td>
+          <td class="memname">void SqliteDataStore::SetTabs </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="itemlocation_8h.html#a120dffc8b6df01fbf1f1df9df7729e98">ItemLocationType</a> &amp;&#160;</td>
+          <td class="paramname"><em>type</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const std::string &amp;&#160;</td>
+          <td class="paramname"><em>value</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
         </tr>
       </table>
   </td>
   <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
+<span class="mlabels"><span class="mlabel">virtual</span></span>  </td>
   </tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8h_source.html#l00047">47</a> of file <a class="el" href="sqlitedatastore_8h_source.html">sqlitedatastore.h</a>.</p>
+<p>Implements <a class="el" href="class_data_store.html#a6c442ff81dd556c4b7db1d58a579c75a">DataStore</a>.</p>
+
+<p class="definition">Definition at line <a class="el" href="sqlitedatastore_8cpp_source.html#l00098">98</a> of file <a class="el" href="sqlitedatastore_8cpp_source.html">sqlitedatastore.cpp</a>.</p>
 
 </div>
 </div>

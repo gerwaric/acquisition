@@ -1,6 +1,8 @@
 var searchData=
 [
-  ['g_1790',['g',['../class_filter_data.html#a5eb3b33b3ea69bc8dfa0fc063e6d34f3',1,'FilterData::g()'],['../struct_item_socket_group.html#aaf627785bcfc3083e8d36396fd1445b6',1,'ItemSocketGroup::g()']]],
-  ['g_5ffilled_1791',['g_filled',['../class_filter_data.html#ab6a9b68698d6c22d06f9411a79ff58a0',1,'FilterData']]],
-  ['group_1792',['group',['../struct_item_socket.html#a216c054b83109eabe3a92ec9ae0bccb1',1,'ItemSocket']]]
+  ['id_1320',['id',['../struct_items_request.html#a3d0af5fb9c0a3b6bbff058f1cca46c4e',1,'ItemsRequest']]],
+  ['inherited_1321',['inherited',['../struct_buyout.html#a792b68e6365878650ac6229163073343',1,'Buyout']]],
+  ['inventory_5fslots_1322',['INVENTORY_SLOTS',['../itemconstants_8h.html#a193cb9e63b57400e98bfc8ffc2dd2bc3',1,'itemconstants.h']]],
+  ['item_1323',['item',['../struct_augmented_item.html#aa5353b530e4cf49227d90864141435dd',1,'AugmentedItem']]],
+  ['item_5fmod_5ftypes_1324',['ITEM_MOD_TYPES',['../item_8cpp.html#af4018aa2d99ac0cf4929fd089197d165',1,'ITEM_MOD_TYPES():&#160;item.cpp'],['../item_8h.html#af4018aa2d99ac0cf4929fd089197d165',1,'ITEM_MOD_TYPES():&#160;item.cpp']]]
 ];

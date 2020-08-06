@@ -84,8 +84,6 @@ $(document).ready(function(){initNavTree('class_currency_manager.html',''); init
   <div class="summary">
 <a href="#pub-slots">Public Slots</a> &#124;
 <a href="#pub-methods">Public Member Functions</a> &#124;
-<a href="#pri-methods">Private Member Functions</a> &#124;
-<a href="#pri-attribs">Private Attributes</a> &#124;
 <a href="class_currency_manager-members.html">List of all members</a>  </div>
   <div class="headertitle">
 <div class="title">CurrencyManager Class Reference</div>  </div>
@@ -96,9 +94,21 @@ $(document).ready(function(){initNavTree('class_currency_manager.html',''); init
 <div class="dynheader">
 Inheritance diagram for CurrencyManager:</div>
 <div class="dyncontent">
- <div class="center">
-  <img src="class_currency_manager.png" alt=""/>
- </div></div>
+<div class="center"><img src="class_currency_manager__inherit__graph.png" border="0" usemap="#_currency_manager_inherit__map" alt="Inheritance graph"/></div>
+<map name="_currency_manager_inherit__map" id="_currency_manager_inherit__map">
+<area shape="rect" title=" " alt="" coords="5,80,129,107"/>
+<area shape="rect" title=" " alt="" coords="31,5,104,32"/>
+</map>
+<center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
+<div class="dynheader">
+Collaboration diagram for CurrencyManager:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_currency_manager__coll__graph.png" border="0" usemap="#_currency_manager_coll__map" alt="Collaboration graph"/></div>
+<map name="_currency_manager_coll__map" id="_currency_manager_coll__map">
+<area shape="rect" title=" " alt="" coords="5,80,129,107"/>
+<area shape="rect" title=" " alt="" coords="31,5,104,32"/>
+</map>
+<center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-slots"></a>
 Public Slots</h2></td></tr>
@@ -129,36 +139,6 @@ Public Member Functions</h2></td></tr>
 <tr class="separator:af9a84bff5c8bcd339000be03a3f06859"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a79e5e3a5b7e05f3aa6f1de5785e4c5bc"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_currency_manager.html#a79e5e3a5b7e05f3aa6f1de5785e4c5bc">ExportCurrency</a> ()</td></tr>
 <tr class="separator:a79e5e3a5b7e05f3aa6f1de5785e4c5bc"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pri-methods"></a>
-Private Member Functions</h2></td></tr>
-<tr class="memitem:a57a8abfadd611987df9378a7211a521d"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_currency_manager.html#a57a8abfadd611987df9378a7211a521d">FirstInitCurrency</a> ()</td></tr>
-<tr class="separator:a57a8abfadd611987df9378a7211a521d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a63cbf2959eeb67aa61f439186ad47c50"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_currency_manager.html#a63cbf2959eeb67aa61f439186ad47c50">MigrateCurrency</a> ()</td></tr>
-<tr class="separator:a63cbf2959eeb67aa61f439186ad47c50"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a73f10ccb950967f64568c184cb53a029"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_currency_manager.html#a73f10ccb950967f64568c184cb53a029">InitCurrency</a> ()</td></tr>
-<tr class="separator:a73f10ccb950967f64568c184cb53a029"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a596c28117eb1234265eac5c7946beef7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_currency_manager.html#a596c28117eb1234265eac5c7946beef7">SaveCurrencyItems</a> ()</td></tr>
-<tr class="separator:a596c28117eb1234265eac5c7946beef7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a6159886611731c4e88583dd233787c29"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_currency_manager.html#a6159886611731c4e88583dd233787c29">Serialize</a> (const std::vector&lt; std::shared_ptr&lt; <a class="el" href="struct_currency_item.html">CurrencyItem</a> &gt;&gt; &amp;<a class="el" href="class_currency_manager.html#a9c241a6985066543c709c9261f1e2305">currencies</a>)</td></tr>
-<tr class="separator:a6159886611731c4e88583dd233787c29"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a63c9b389f7e3852810279bc6db934a66"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_currency_manager.html#a63c9b389f7e3852810279bc6db934a66">Deserialize</a> (const std::string &amp;data, std::vector&lt; std::shared_ptr&lt; <a class="el" href="struct_currency_item.html">CurrencyItem</a> &gt;&gt; *<a class="el" href="class_currency_manager.html#a9c241a6985066543c709c9261f1e2305">currencies</a>)</td></tr>
-<tr class="separator:a63c9b389f7e3852810279bc6db934a66"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:adc52f0a01a9ae9427238fa378d24efd7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_currency_manager.html#adc52f0a01a9ae9427238fa378d24efd7">Save</a> ()</td></tr>
-<tr class="separator:adc52f0a01a9ae9427238fa378d24efd7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pri-attribs"></a>
-Private Attributes</h2></td></tr>
-<tr class="memitem:adf3d871aeb77a1905048436a193580cd"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_application.html">Application</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_currency_manager.html#adf3d871aeb77a1905048436a193580cd">app_</a></td></tr>
-<tr class="separator:adf3d871aeb77a1905048436a193580cd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a3f380115b37fcb6f922b1a07c9715486"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_data_store.html">DataStore</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_currency_manager.html#a3f380115b37fcb6f922b1a07c9715486">data_</a></td></tr>
-<tr class="separator:a3f380115b37fcb6f922b1a07c9715486"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa5235fd4e54bc22d677b9c39a29a75cc"><td class="memItemLeft" align="right" valign="top">std::vector&lt; std::shared_ptr&lt; <a class="el" href="struct_currency_item.html">CurrencyItem</a> &gt; &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_currency_manager.html#aa5235fd4e54bc22d677b9c39a29a75cc">currencies_</a></td></tr>
-<tr class="separator:aa5235fd4e54bc22d677b9c39a29a75cc"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa7f78cb4670471be593a4db2c730a744"><td class="memItemLeft" align="right" valign="top">std::vector&lt; int &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_currency_manager.html#aa7f78cb4670471be593a4db2c730a744">wisdoms_</a></td></tr>
-<tr class="separator:aa7f78cb4670471be593a4db2c730a744"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ac5662397205c3117728c4e88b1e94c95"><td class="memItemLeft" align="right" valign="top">std::shared_ptr&lt; <a class="el" href="class_currency_dialog.html">CurrencyDialog</a> &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_currency_manager.html#ac5662397205c3117728c4e88b1e94c95">dialog_</a></td></tr>
-<tr class="separator:ac5662397205c3117728c4e88b1e94c95"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock">
@@ -189,6 +169,16 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="currencymanager_8cpp_source.html#l00039">39</a> of file <a class="el" href="currencymanager_8cpp_source.html">currencymanager.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_currency_manager_a2acfe5af5ba3485f777f737c1b00b2b0_cgraph.png" border="0" usemap="#class_currency_manager_a2acfe5af5ba3485f777f737c1b00b2b0_cgraph" alt=""/></div>
+<map name="class_currency_manager_a2acfe5af5ba3485f777f737c1b00b2b0_cgraph" id="class_currency_manager_a2acfe5af5ba3485f777f737c1b00b2b0_cgraph">
+<area shape="rect" title=" " alt="" coords="5,23,189,65"/>
+<area shape="rect" href="class_data_store.html#a37dee618e5a602650a2eace7d8bc141e" title=" " alt="" coords="250,5,359,32"/>
+<area shape="rect" href="class_data_store.html#ab73cbbe81dd05984ea60a8260ee381f4" title=" " alt="" coords="237,56,372,83"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -228,6 +218,15 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="currencymanager_8cpp_source.html#l00105">105</a> of file <a class="el" href="currencymanager_8cpp_source.html">currencymanager.cpp</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_currency_manager_a8fa6e7140dc774a7c80de985e79f98ca_icgraph.png" border="0" usemap="#class_currency_manager_a8fa6e7140dc774a7c80de985e79f98ca_icgraph" alt=""/></div>
+<map name="class_currency_manager_a8fa6e7140dc774a7c80de985e79f98ca_icgraph" id="class_currency_manager_a8fa6e7140dc774a7c80de985e79f98ca_icgraph">
+<area shape="rect" title=" " alt="" coords="227,5,441,32"/>
+<area shape="rect" href="class_currency_manager.html#af9a84bff5c8bcd339000be03a3f06859" title=" " alt="" coords="5,5,179,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -255,44 +254,15 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="currencymanager_8h_source.html#l00171">171</a> of file <a class="el" href="currencymanager_8h_source.html">currencymanager.h</a>.</p>
-
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_currency_manager_a9c241a6985066543c709c9261f1e2305_icgraph.png" border="0" usemap="#class_currency_manager_a9c241a6985066543c709c9261f1e2305_icgraph" alt=""/></div>
+<map name="class_currency_manager_a9c241a6985066543c709c9261f1e2305_icgraph" id="class_currency_manager_a9c241a6985066543c709c9261f1e2305_icgraph">
+<area shape="rect" title=" " alt="" coords="224,13,416,39"/>
+<area shape="rect" href="class_currency_dialog.html#a9e5a1b853a9147cac377c63ae18b79dd" title=" " alt="" coords="5,5,176,47"/>
+</map>
 </div>
-</div>
-<a id="a63c9b389f7e3852810279bc6db934a66"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a63c9b389f7e3852810279bc6db934a66">&#9670;&nbsp;</a></span>Deserialize()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">void CurrencyManager::Deserialize </td>
-          <td>(</td>
-          <td class="paramtype">const std::string &amp;&#160;</td>
-          <td class="paramname"><em>data</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">std::vector&lt; std::shared_ptr&lt; <a class="el" href="struct_currency_item.html">CurrencyItem</a> &gt;&gt; *&#160;</td>
-          <td class="paramname"><em>currencies</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="currencymanager_8cpp_source.html#l00166">166</a> of file <a class="el" href="currencymanager_8cpp_source.html">currencymanager.cpp</a>.</p>
 
 </div>
 </div>
@@ -331,87 +301,15 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="currencymanager_8cpp_source.html#l00216">216</a> of file <a class="el" href="currencymanager_8cpp_source.html">currencymanager.cpp</a>.</p>
-
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_currency_manager_a79e5e3a5b7e05f3aa6f1de5785e4c5bc_cgraph.png" border="0" usemap="#class_currency_manager_a79e5e3a5b7e05f3aa6f1de5785e4c5bc_cgraph" alt=""/></div>
+<map name="class_currency_manager_a79e5e3a5b7e05f3aa6f1de5785e4c5bc_cgraph" id="class_currency_manager_a79e5e3a5b7e05f3aa6f1de5785e4c5bc_cgraph">
+<area shape="rect" title=" " alt="" coords="5,5,228,32"/>
+<area shape="rect" href="class_data_store.html#a2a7d190d5d7f8cbafc1d57c3df90022b" title=" " alt="" coords="276,5,452,32"/>
+</map>
 </div>
-</div>
-<a id="a57a8abfadd611987df9378a7211a521d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a57a8abfadd611987df9378a7211a521d">&#9670;&nbsp;</a></span>FirstInitCurrency()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">void CurrencyManager::FirstInitCurrency </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="currencymanager_8cpp_source.html#l00123">123</a> of file <a class="el" href="currencymanager_8cpp_source.html">currencymanager.cpp</a>.</p>
-
-</div>
-</div>
-<a id="a73f10ccb950967f64568c184cb53a029"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a73f10ccb950967f64568c184cb53a029">&#9670;&nbsp;</a></span>InitCurrency()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">void CurrencyManager::InitCurrency </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="currencymanager_8cpp_source.html#l00113">113</a> of file <a class="el" href="currencymanager_8cpp_source.html">currencymanager.cpp</a>.</p>
-
-</div>
-</div>
-<a id="a63cbf2959eeb67aa61f439186ad47c50"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a63cbf2959eeb67aa61f439186ad47c50">&#9670;&nbsp;</a></span>MigrateCurrency()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">void CurrencyManager::MigrateCurrency </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="currencymanager_8cpp_source.html#l00139">139</a> of file <a class="el" href="currencymanager_8cpp_source.html">currencymanager.cpp</a>.</p>
 
 </div>
 </div>
@@ -432,60 +330,26 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="currencymanager_8cpp_source.html#l00245">245</a> of file <a class="el" href="currencymanager_8cpp_source.html">currencymanager.cpp</a>.</p>
-
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_currency_manager_a065f3c4569bf7077b3ae9d01cb8bb8ab_cgraph.png" border="0" usemap="#class_currency_manager_a065f3c4569bf7077b3ae9d01cb8bb8ab_cgraph" alt=""/></div>
+<map name="class_currency_manager_a065f3c4569bf7077b3ae9d01cb8bb8ab_cgraph" id="class_currency_manager_a065f3c4569bf7077b3ae9d01cb8bb8ab_cgraph">
+<area shape="rect" title=" " alt="" coords="5,56,232,83"/>
+<area shape="rect" href="class_item.html#aa15856e760ec68fc310cbf08236be351" title=" " alt="" coords="307,5,394,32"/>
+<area shape="rect" href="currencymanager_8h.html#a2a6b76a16b4ba7a2cb4c501a03ae2f7e" title=" " alt="" coords="280,56,421,83"/>
+<area shape="rect" href="class_item.html#a04b4bf4cfc945ff22fb92e9b2aafb6f1" title=" " alt="" coords="289,107,413,133"/>
+</map>
 </div>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_currency_manager_a065f3c4569bf7077b3ae9d01cb8bb8ab_icgraph.png" border="0" usemap="#class_currency_manager_a065f3c4569bf7077b3ae9d01cb8bb8ab_icgraph" alt=""/></div>
+<map name="class_currency_manager_a065f3c4569bf7077b3ae9d01cb8bb8ab_icgraph" id="class_currency_manager_a065f3c4569bf7077b3ae9d01cb8bb8ab_icgraph">
+<area shape="rect" title=" " alt="" coords="227,5,453,32"/>
+<area shape="rect" href="class_currency_manager.html#af9a84bff5c8bcd339000be03a3f06859" title=" " alt="" coords="5,5,179,32"/>
+</map>
 </div>
-<a id="adc52f0a01a9ae9427238fa378d24efd7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#adc52f0a01a9ae9427238fa378d24efd7">&#9670;&nbsp;</a></span>Save()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">void CurrencyManager::Save </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="currencymanager_8cpp_source.html#l00061">61</a> of file <a class="el" href="currencymanager_8cpp_source.html">currencymanager.cpp</a>.</p>
-
-</div>
-</div>
-<a id="a596c28117eb1234265eac5c7946beef7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a596c28117eb1234265eac5c7946beef7">&#9670;&nbsp;</a></span>SaveCurrencyItems()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">void CurrencyManager::SaveCurrencyItems </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="currencymanager_8cpp_source.html#l00191">191</a> of file <a class="el" href="currencymanager_8cpp_source.html">currencymanager.cpp</a>.</p>
 
 </div>
 </div>
@@ -513,34 +377,27 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="currencymanager_8cpp_source.html#l00195">195</a> of file <a class="el" href="currencymanager_8cpp_source.html">currencymanager.cpp</a>.</p>
-
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_currency_manager_a551d8cdaae15633d287cd0f9c3354ce1_cgraph.png" border="0" usemap="#class_currency_manager_a551d8cdaae15633d287cd0f9c3354ce1_cgraph" alt=""/></div>
+<map name="class_currency_manager_a551d8cdaae15633d287cd0f9c3354ce1_cgraph" id="class_currency_manager_a551d8cdaae15633d287cd0f9c3354ce1_cgraph">
+<area shape="rect" title=" " alt="" coords="5,86,217,127"/>
+<area shape="rect" href="class_data_store.html#a37dee618e5a602650a2eace7d8bc141e" title=" " alt="" coords="313,5,422,32"/>
+<area shape="rect" href="class_data_store.html#a9e65496b512c8fb921ab8d142ec14996" title=" " alt="" coords="281,57,453,98"/>
+<area shape="rect" href="class_data_store.html#a865d17ce186d8d9048124017bd447cb1" title=" " alt="" coords="313,123,421,149"/>
+<area shape="rect" href="class_currency_manager.html#acd70579014f58f5f63fd140fb9d8d126" title=" " alt="" coords="265,174,469,215"/>
+</map>
 </div>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_currency_manager_a551d8cdaae15633d287cd0f9c3354ce1_icgraph.png" border="0" usemap="#class_currency_manager_a551d8cdaae15633d287cd0f9c3354ce1_icgraph" alt=""/></div>
+<map name="class_currency_manager_a551d8cdaae15633d287cd0f9c3354ce1_icgraph" id="class_currency_manager_a551d8cdaae15633d287cd0f9c3354ce1_icgraph">
+<area shape="rect" title=" " alt="" coords="227,5,439,47"/>
+<area shape="rect" href="class_currency_manager.html#af9a84bff5c8bcd339000be03a3f06859" title=" " alt="" coords="5,13,179,39"/>
+</map>
 </div>
-<a id="a6159886611731c4e88583dd233787c29"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a6159886611731c4e88583dd233787c29">&#9670;&nbsp;</a></span>Serialize()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">std::string CurrencyManager::Serialize </td>
-          <td>(</td>
-          <td class="paramtype">const std::vector&lt; std::shared_ptr&lt; <a class="el" href="struct_currency_item.html">CurrencyItem</a> &gt;&gt; &amp;&#160;</td>
-          <td class="paramname"><em>currencies</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="currencymanager_8cpp_source.html#l00150">150</a> of file <a class="el" href="currencymanager_8cpp_source.html">currencymanager.cpp</a>.</p>
 
 </div>
 </div>
@@ -560,6 +417,17 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="currencymanager_8cpp_source.html#l00088">88</a> of file <a class="el" href="currencymanager_8cpp_source.html">currencymanager.cpp</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_currency_manager_aa745f796f4e6464b89b52d2569414748_icgraph.png" border="0" usemap="#class_currency_manager_aa745f796f4e6464b89b52d2569414748_icgraph" alt=""/></div>
+<map name="class_currency_manager_aa745f796f4e6464b89b52d2569414748_icgraph" id="class_currency_manager_aa745f796f4e6464b89b52d2569414748_icgraph">
+<area shape="rect" title=" " alt="" coords="665,5,863,47"/>
+<area shape="rect" href="class_currency_dialog.html#a0a9f9041d5c68dbbab0ed50734e989ae" title=" " alt="" coords="431,5,617,47"/>
+<area shape="rect" href="class_currency_dialog.html#a9e5a1b853a9147cac377c63ae18b79dd" title=" " alt="" coords="5,5,176,47"/>
+<area shape="rect" href="class_currency_dialog.html#a74e7d46082e415228686f79e605509be" title=" " alt="" coords="224,38,383,65"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -579,6 +447,19 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="currencymanager_8cpp_source.html#l00079">79</a> of file <a class="el" href="currencymanager_8cpp_source.html">currencymanager.cpp</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_currency_manager_acd70579014f58f5f63fd140fb9d8d126_icgraph.png" border="0" usemap="#class_currency_manager_acd70579014f58f5f63fd140fb9d8d126_icgraph" alt=""/></div>
+<map name="class_currency_manager_acd70579014f58f5f63fd140fb9d8d126_icgraph" id="class_currency_manager_acd70579014f58f5f63fd140fb9d8d126_icgraph">
+<area shape="rect" title=" " alt="" coords="705,39,909,80"/>
+<area shape="rect" href="class_currency_manager.html#a551d8cdaae15633d287cd0f9c3354ce1" title=" " alt="" coords="445,5,657,47"/>
+<area shape="rect" href="class_currency_dialog.html#a0a9f9041d5c68dbbab0ed50734e989ae" title=" " alt="" coords="458,71,645,112"/>
+<area shape="rect" href="class_currency_manager.html#af9a84bff5c8bcd339000be03a3f06859" title=" " alt="" coords="224,13,397,39"/>
+<area shape="rect" href="class_currency_dialog.html#a9e5a1b853a9147cac377c63ae18b79dd" title=" " alt="" coords="5,88,176,129"/>
+<area shape="rect" href="class_currency_dialog.html#a74e7d46082e415228686f79e605509be" title=" " alt="" coords="231,121,390,147"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -598,6 +479,15 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="currencymanager_8cpp_source.html#l00097">97</a> of file <a class="el" href="currencymanager_8cpp_source.html">currencymanager.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_currency_manager_aed94b8d6f32ef257d67326e8421fb3c5_cgraph.png" border="0" usemap="#class_currency_manager_aed94b8d6f32ef257d67326e8421fb3c5_cgraph" alt=""/></div>
+<map name="class_currency_manager_aed94b8d6f32ef257d67326e8421fb3c5_cgraph" id="class_currency_manager_aed94b8d6f32ef257d67326e8421fb3c5_cgraph">
+<area shape="rect" title=" " alt="" coords="5,5,213,47"/>
+<area shape="rect" href="currencymanager_8h.html#a59c6e8b1cce360b5df9f848067be4352" title=" " alt="" coords="261,13,416,39"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -617,127 +507,26 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="currencymanager_8cpp_source.html#l00069">69</a> of file <a class="el" href="currencymanager_8cpp_source.html">currencymanager.cpp</a>.</p>
-
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_currency_manager_af9a84bff5c8bcd339000be03a3f06859_cgraph.png" border="0" usemap="#class_currency_manager_af9a84bff5c8bcd339000be03a3f06859_cgraph" alt=""/></div>
+<map name="class_currency_manager_af9a84bff5c8bcd339000be03a3f06859_cgraph" id="class_currency_manager_af9a84bff5c8bcd339000be03a3f06859_cgraph">
+<area shape="rect" title=" " alt="" coords="5,115,179,141"/>
+<area shape="rect" href="class_currency_manager.html#a8fa6e7140dc774a7c80de985e79f98ca" title=" " alt="" coords="233,5,447,32"/>
+<area shape="rect" href="class_items_manager.html#a20ace7ed0fcaa907bc2dbae37c3578d8" title=" " alt="" coords="268,56,412,83"/>
+<area shape="rect" href="class_application.html#ad2d2ceb2d550afa9246a0134b194afab" title=" " alt="" coords="277,107,403,149"/>
+<area shape="rect" href="class_currency_manager.html#a065f3c4569bf7077b3ae9d01cb8bb8ab" title=" " alt="" coords="227,173,453,200"/>
+<area shape="rect" href="class_currency_manager.html#a551d8cdaae15633d287cd0f9c3354ce1" title=" " alt="" coords="234,301,446,342"/>
+<area shape="rect" href="class_item.html#aa15856e760ec68fc310cbf08236be351" title=" " alt="" coords="560,97,647,124"/>
+<area shape="rect" href="currencymanager_8h.html#a2a6b76a16b4ba7a2cb4c501a03ae2f7e" title=" " alt="" coords="533,148,674,175"/>
+<area shape="rect" href="class_item.html#a04b4bf4cfc945ff22fb92e9b2aafb6f1" title=" " alt="" coords="541,199,665,225"/>
+<area shape="rect" href="class_data_store.html#a37dee618e5a602650a2eace7d8bc141e" title=" " alt="" coords="549,249,658,276"/>
+<area shape="rect" href="class_data_store.html#a9e65496b512c8fb921ab8d142ec14996" title=" " alt="" coords="517,301,689,342"/>
+<area shape="rect" href="class_data_store.html#a865d17ce186d8d9048124017bd447cb1" title=" " alt="" coords="549,367,657,393"/>
+<area shape="rect" href="class_currency_manager.html#acd70579014f58f5f63fd140fb9d8d126" title=" " alt="" coords="501,418,705,459"/>
+</map>
 </div>
-</div>
-<h2 class="groupheader">Member Data Documentation</h2>
-<a id="adf3d871aeb77a1905048436a193580cd"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#adf3d871aeb77a1905048436a193580cd">&#9670;&nbsp;</a></span>app_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="class_application.html">Application</a>&amp; CurrencyManager::app_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="currencymanager_8h_source.html#l00181">181</a> of file <a class="el" href="currencymanager_8h_source.html">currencymanager.h</a>.</p>
-
-</div>
-</div>
-<a id="aa5235fd4e54bc22d677b9c39a29a75cc"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa5235fd4e54bc22d677b9c39a29a75cc">&#9670;&nbsp;</a></span>currencies_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">std::vector&lt;std::shared_ptr&lt;<a class="el" href="struct_currency_item.html">CurrencyItem</a>&gt; &gt; CurrencyManager::currencies_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="currencymanager_8h_source.html#l00183">183</a> of file <a class="el" href="currencymanager_8h_source.html">currencymanager.h</a>.</p>
-
-</div>
-</div>
-<a id="a3f380115b37fcb6f922b1a07c9715486"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a3f380115b37fcb6f922b1a07c9715486">&#9670;&nbsp;</a></span>data_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="class_data_store.html">DataStore</a>&amp; CurrencyManager::data_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="currencymanager_8h_source.html#l00182">182</a> of file <a class="el" href="currencymanager_8h_source.html">currencymanager.h</a>.</p>
-
-</div>
-</div>
-<a id="ac5662397205c3117728c4e88b1e94c95"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac5662397205c3117728c4e88b1e94c95">&#9670;&nbsp;</a></span>dialog_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">std::shared_ptr&lt;<a class="el" href="class_currency_dialog.html">CurrencyDialog</a>&gt; CurrencyManager::dialog_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="currencymanager_8h_source.html#l00186">186</a> of file <a class="el" href="currencymanager_8h_source.html">currencymanager.h</a>.</p>
-
-</div>
-</div>
-<a id="aa7f78cb4670471be593a4db2c730a744"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa7f78cb4670471be593a4db2c730a744">&#9670;&nbsp;</a></span>wisdoms_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">std::vector&lt;int&gt; CurrencyManager::wisdoms_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="currencymanager_8h_source.html#l00185">185</a> of file <a class="el" href="currencymanager_8h_source.html">currencymanager.h</a>.</p>
 
 </div>
 </div>

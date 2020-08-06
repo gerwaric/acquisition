@@ -93,13 +93,13 @@ $(document).ready(function(){initNavTree('class_data_store.html',''); initResiza
 <div class="dynheader">
 Inheritance diagram for DataStore:</div>
 <div class="dyncontent">
- <div class="center">
-  <img src="class_data_store.png" usemap="#DataStore_map" alt=""/>
-  <map id="DataStore_map" name="DataStore_map">
-<area href="class_memory_data_store.html" alt="MemoryDataStore" shape="rect" coords="0,56,114,80"/>
-<area href="class_sqlite_data_store.html" alt="SqliteDataStore" shape="rect" coords="124,56,238,80"/>
-  </map>
-</div></div>
+<div class="center"><img src="class_data_store__inherit__graph.png" border="0" usemap="#_data_store_inherit__map" alt="Inheritance graph"/></div>
+<map name="_data_store_inherit__map" id="_data_store_inherit__map">
+<area shape="rect" title=" " alt="" coords="101,5,181,32"/>
+<area shape="rect" href="class_memory_data_store.html" title=" " alt="" coords="5,80,132,107"/>
+<area shape="rect" href="class_sqlite_data_store.html" title=" " alt="" coords="156,80,269,107"/>
+</map>
+<center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
@@ -107,8 +107,16 @@ Public Member Functions</h2></td></tr>
 <tr class="separator:a560be468ae8436792c8fbd57be03c50d"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a865d17ce186d8d9048124017bd447cb1"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_data_store.html#a865d17ce186d8d9048124017bd447cb1">Set</a> (const std::string &amp;key, const std::string &amp;value)=0</td></tr>
 <tr class="separator:a865d17ce186d8d9048124017bd447cb1"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6c442ff81dd556c4b7db1d58a579c75a"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_data_store.html#a6c442ff81dd556c4b7db1d58a579c75a">SetTabs</a> (const <a class="el" href="itemlocation_8h.html#a120dffc8b6df01fbf1f1df9df7729e98">ItemLocationType</a> &amp;type, const std::string &amp;value)=0</td></tr>
+<tr class="separator:a6c442ff81dd556c4b7db1d58a579c75a"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:af50bf12ccb2fdd661f4fa04682594e5f"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_data_store.html#af50bf12ccb2fdd661f4fa04682594e5f">SetItems</a> (const <a class="el" href="class_item_location.html">ItemLocation</a> &amp;loc, const std::string &amp;value)=0</td></tr>
+<tr class="separator:af50bf12ccb2fdd661f4fa04682594e5f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a37dee618e5a602650a2eace7d8bc141e"><td class="memItemLeft" align="right" valign="top">virtual std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_data_store.html#a37dee618e5a602650a2eace7d8bc141e">Get</a> (const std::string &amp;key, const std::string &amp;default_value=&quot;&quot;)=0</td></tr>
 <tr class="separator:a37dee618e5a602650a2eace7d8bc141e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a098461047d7befbf2a8745253c7c975e"><td class="memItemLeft" align="right" valign="top">virtual std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_data_store.html#a098461047d7befbf2a8745253c7c975e">GetTabs</a> (const <a class="el" href="itemlocation_8h.html#a120dffc8b6df01fbf1f1df9df7729e98">ItemLocationType</a> &amp;type, const std::string &amp;default_value=&quot;&quot;)=0</td></tr>
+<tr class="separator:a098461047d7befbf2a8745253c7c975e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aed0a2b80db5c3ac2a05ab4375beb8b4e"><td class="memItemLeft" align="right" valign="top">virtual std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_data_store.html#aed0a2b80db5c3ac2a05ab4375beb8b4e">GetItems</a> (const <a class="el" href="class_item_location.html">ItemLocation</a> &amp;loc, const std::string &amp;default_value=&quot;&quot;)=0</td></tr>
+<tr class="separator:aed0a2b80db5c3ac2a05ab4375beb8b4e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9e65496b512c8fb921ab8d142ec14996"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_data_store.html#a9e65496b512c8fb921ab8d142ec14996">InsertCurrencyUpdate</a> (const <a class="el" href="struct_currency_update.html">CurrencyUpdate</a> &amp;update)=0</td></tr>
 <tr class="separator:a9e65496b512c8fb921ab8d142ec14996"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a2a7d190d5d7f8cbafc1d57c3df90022b"><td class="memItemLeft" align="right" valign="top">virtual std::vector&lt; <a class="el" href="struct_currency_update.html">CurrencyUpdate</a> &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_data_store.html#a2a7d190d5d7f8cbafc1d57c3df90022b">GetAllCurrency</a> ()=0</td></tr>
@@ -124,7 +132,7 @@ Public Member Functions</h2></td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock">
-<p class="definition">Definition at line <a class="el" href="datastore_8h_source.html#l00027">27</a> of file <a class="el" href="datastore_8h_source.html">datastore.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="datastore_8h_source.html#l00028">28</a> of file <a class="el" href="datastore_8h_source.html">datastore.h</a>.</p>
 </div><h2 class="groupheader">Constructor &amp; Destructor Documentation</h2>
 <a id="a560be468ae8436792c8fbd57be03c50d"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a560be468ae8436792c8fbd57be03c50d">&#9670;&nbsp;</a></span>~DataStore()</h2>
@@ -149,7 +157,7 @@ Public Member Functions</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="datastore_8h_source.html#l00029">29</a> of file <a class="el" href="datastore_8h_source.html">datastore.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="datastore_8h_source.html#l00030">30</a> of file <a class="el" href="datastore_8h_source.html">datastore.h</a>.</p>
 
 </div>
 </div>
@@ -189,6 +197,22 @@ Public Member Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p>Implemented in <a class="el" href="class_sqlite_data_store.html#adc498b00414749235746768bd39ff054">SqliteDataStore</a>, and <a class="el" href="class_memory_data_store.html#a35bdcfedfe12511259858804f37a2ab4">MemoryDataStore</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_data_store_a37dee618e5a602650a2eace7d8bc141e_icgraph.png" border="0" usemap="#class_data_store_a37dee618e5a602650a2eace7d8bc141e_icgraph" alt=""/></div>
+<map name="class_data_store_a37dee618e5a602650a2eace7d8bc141e_icgraph" id="class_data_store_a37dee618e5a602650a2eace7d8bc141e_icgraph">
+<area shape="rect" title=" " alt="" coords="525,151,635,178"/>
+<area shape="rect" href="class_currency_manager.html#a2acfe5af5ba3485f777f737c1b00b2b0" title=" " alt="" coords="279,5,463,47"/>
+<area shape="rect" href="class_items_manager.html#ad4bbb31f5d96b992d52872f6a8ca4ba4" title=" " alt="" coords="274,71,469,98"/>
+<area shape="rect" href="class_buyout_manager.html#a607fe418d022cdb8595ecfbc5f3100dc" title=" " alt="" coords="297,122,446,149"/>
+<area shape="rect" href="class_currency_manager.html#a551d8cdaae15633d287cd0f9c3354ce1" title=" " alt="" coords="265,173,477,215"/>
+<area shape="rect" href="class_shop.html#a5b800a98f52f7d21501c38453698dd80" title=" " alt="" coords="326,239,417,266"/>
+<area shape="rect" href="class_shop.html#a4520a6a4dcf4b3bee0b0515b9f2fcb93" title=" " alt="" coords="280,290,463,317"/>
+<area shape="rect" href="class_buyout_manager.html#ad3997f0e41f6f3dd956e3f6c77771f95" title=" " alt="" coords="5,122,217,149"/>
+<area shape="rect" href="class_currency_manager.html#af9a84bff5c8bcd339000be03a3f06859" title=" " alt="" coords="25,181,198,207"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -216,6 +240,15 @@ Public Member Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p>Implemented in <a class="el" href="class_sqlite_data_store.html#a16112d3c5757f6bb41f2768477c09c61">SqliteDataStore</a>, and <a class="el" href="class_memory_data_store.html#a2c31700ec8b69aef674625edabd3dfff">MemoryDataStore</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_data_store_a2a7d190d5d7f8cbafc1d57c3df90022b_icgraph.png" border="0" usemap="#class_data_store_a2a7d190d5d7f8cbafc1d57c3df90022b_icgraph" alt=""/></div>
+<map name="class_data_store_a2a7d190d5d7f8cbafc1d57c3df90022b_icgraph" id="class_data_store_a2a7d190d5d7f8cbafc1d57c3df90022b_icgraph">
+<area shape="rect" title=" " alt="" coords="276,5,452,32"/>
+<area shape="rect" href="class_currency_manager.html#a79e5e3a5b7e05f3aa6f1de5785e4c5bc" title=" " alt="" coords="5,5,228,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -254,6 +287,17 @@ Public Member Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p>Implemented in <a class="el" href="class_sqlite_data_store.html#a460a11c4a31abb201cf361b6270b0a52">SqliteDataStore</a>, and <a class="el" href="class_memory_data_store.html#a9b9557ba46e1cb2302e19b58604e624f">MemoryDataStore</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_data_store_ab73cbbe81dd05984ea60a8260ee381f4_icgraph.png" border="0" usemap="#class_data_store_ab73cbbe81dd05984ea60a8260ee381f4_icgraph" alt=""/></div>
+<map name="class_data_store_ab73cbbe81dd05984ea60a8260ee381f4_icgraph" id="class_data_store_ab73cbbe81dd05984ea60a8260ee381f4_icgraph">
+<area shape="rect" title=" " alt="" coords="248,71,383,98"/>
+<area shape="rect" href="class_currency_manager.html#a2acfe5af5ba3485f777f737c1b00b2b0" title=" " alt="" coords="11,5,195,47"/>
+<area shape="rect" href="class_items_manager.html#ad4bbb31f5d96b992d52872f6a8ca4ba4" title=" " alt="" coords="5,71,200,98"/>
+<area shape="rect" href="class_shop.html#a5b800a98f52f7d21501c38453698dd80" title=" " alt="" coords="57,122,148,149"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -295,6 +339,82 @@ Public Member Functions</h2></td></tr>
 
 </div>
 </div>
+<a id="aed0a2b80db5c3ac2a05ab4375beb8b4e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#aed0a2b80db5c3ac2a05ab4375beb8b4e">&#9670;&nbsp;</a></span>GetItems()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">virtual std::string DataStore::GetItems </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="class_item_location.html">ItemLocation</a> &amp;&#160;</td>
+          <td class="paramname"><em>loc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const std::string &amp;&#160;</td>
+          <td class="paramname"><em>default_value</em> = <code>&quot;&quot;</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">pure virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Implemented in <a class="el" href="class_sqlite_data_store.html#abd17e0a377eb3e47294e31cb14a83728">SqliteDataStore</a>, and <a class="el" href="class_memory_data_store.html#a675528c004566004425c7f61d28c4af3">MemoryDataStore</a>.</p>
+
+</div>
+</div>
+<a id="a098461047d7befbf2a8745253c7c975e"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a098461047d7befbf2a8745253c7c975e">&#9670;&nbsp;</a></span>GetTabs()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">virtual std::string DataStore::GetTabs </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="itemlocation_8h.html#a120dffc8b6df01fbf1f1df9df7729e98">ItemLocationType</a> &amp;&#160;</td>
+          <td class="paramname"><em>type</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const std::string &amp;&#160;</td>
+          <td class="paramname"><em>default_value</em> = <code>&quot;&quot;</code>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">pure virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Implemented in <a class="el" href="class_sqlite_data_store.html#aed74b042dc21035ff88a32214bd4a7bb">SqliteDataStore</a>, and <a class="el" href="class_memory_data_store.html#a72bd52bc3f7fb387c17ced41cdba0d6e">MemoryDataStore</a>.</p>
+
+</div>
+</div>
 <a id="a9e65496b512c8fb921ab8d142ec14996"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a9e65496b512c8fb921ab8d142ec14996">&#9670;&nbsp;</a></span>InsertCurrencyUpdate()</h2>
 
@@ -320,6 +440,16 @@ Public Member Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p>Implemented in <a class="el" href="class_sqlite_data_store.html#a48f37b0062e9ac2fcc6db1a897848802">SqliteDataStore</a>, and <a class="el" href="class_memory_data_store.html#ad3aa6db8ecdc9ebce912d93ff5224153">MemoryDataStore</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_data_store_a9e65496b512c8fb921ab8d142ec14996_icgraph.png" border="0" usemap="#class_data_store_a9e65496b512c8fb921ab8d142ec14996_icgraph" alt=""/></div>
+<map name="class_data_store_a9e65496b512c8fb921ab8d142ec14996_icgraph" id="class_data_store_a9e65496b512c8fb921ab8d142ec14996_icgraph">
+<area shape="rect" title=" " alt="" coords="487,5,659,47"/>
+<area shape="rect" href="class_currency_manager.html#a551d8cdaae15633d287cd0f9c3354ce1" title=" " alt="" coords="227,5,439,47"/>
+<area shape="rect" href="class_currency_manager.html#af9a84bff5c8bcd339000be03a3f06859" title=" " alt="" coords="5,13,179,39"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -358,6 +488,24 @@ Public Member Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p>Implemented in <a class="el" href="class_sqlite_data_store.html#a24e2bbe084e80440934363b9cbd92b0a">SqliteDataStore</a>, and <a class="el" href="class_memory_data_store.html#a283549b1b8ca65a16b0b5981d7a0a4e0">MemoryDataStore</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_data_store_a865d17ce186d8d9048124017bd447cb1_icgraph.png" border="0" usemap="#class_data_store_a865d17ce186d8d9048124017bd447cb1_icgraph" alt=""/></div>
+<map name="class_data_store_a865d17ce186d8d9048124017bd447cb1_icgraph" id="class_data_store_a865d17ce186d8d9048124017bd447cb1_icgraph">
+<area shape="rect" title=" " alt="" coords="513,188,621,215"/>
+<area shape="rect" href="class_buyout_manager.html#ae461f62d381463f89a1fb334061eb183" title=" " alt="" coords="285,5,434,32"/>
+<area shape="rect" href="class_currency_manager.html#a551d8cdaae15633d287cd0f9c3354ce1" title=" " alt="" coords="253,57,465,98"/>
+<area shape="rect" href="class_items_manager.html#a4f4791ba6429cacae28418ed0fa5866a" title=" " alt="" coords="259,122,459,163"/>
+<area shape="rect" href="class_auto_online.html#ac4d658933f8e66872dfffb2c5fef631b" title=" " alt="" coords="263,188,456,215"/>
+<area shape="rect" href="class_shop.html#a6ee44b7c43bd86d052b434c1ec580b45" title=" " alt="" coords="278,239,441,265"/>
+<area shape="rect" href="class_shop.html#a48baeeb1796da6f729f3f5102199d3da" title=" " alt="" coords="300,289,419,316"/>
+<area shape="rect" href="class_auto_online.html#ac7711c40b66fe3d5b0abcd099593373c" title=" " alt="" coords="294,340,425,367"/>
+<area shape="rect" href="class_currency_manager.html#af9a84bff5c8bcd339000be03a3f06859" title=" " alt="" coords="19,64,192,91"/>
+<area shape="rect" href="class_items_manager.html#ad4bbb31f5d96b992d52872f6a8ca4ba4" title=" " alt="" coords="8,123,203,149"/>
+<area shape="rect" href="class_items_manager.html#a7913336cfbd260a8adab5851372385d8" title=" " alt="" coords="5,173,205,200"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -396,6 +544,17 @@ Public Member Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p>Implemented in <a class="el" href="class_sqlite_data_store.html#a29b05cadffc69440e2724185af9b74d2">SqliteDataStore</a>, and <a class="el" href="class_memory_data_store.html#ab4c721658fff390aa1afe4f70f7e13cc">MemoryDataStore</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_data_store_ad7f5c4310b9f1c57be606212451561a4_icgraph.png" border="0" usemap="#class_data_store_ad7f5c4310b9f1c57be606212451561a4_icgraph" alt=""/></div>
+<map name="class_data_store_ad7f5c4310b9f1c57be606212451561a4_icgraph" id="class_data_store_ad7f5c4310b9f1c57be606212451561a4_icgraph">
+<area shape="rect" title=" " alt="" coords="253,56,388,83"/>
+<area shape="rect" href="class_items_manager.html#a7913336cfbd260a8adab5851372385d8" title=" " alt="" coords="5,5,205,32"/>
+<area shape="rect" href="class_shop.html#aad8689c146df86ace0c87ae562cbddc8" title=" " alt="" coords="31,56,179,83"/>
+<area shape="rect" href="class_auto_online.html#a77615665ceb0fc17199afe05687f2271" title=" " alt="" coords="25,107,186,133"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -434,6 +593,100 @@ Public Member Functions</h2></td></tr>
 </div><div class="memdoc">
 
 <p>Implemented in <a class="el" href="class_sqlite_data_store.html#a277c781b4e22f15ebd5ae9b561ceff36">SqliteDataStore</a>, and <a class="el" href="class_memory_data_store.html#a82120cca72f26240c08ffafea793ef9d">MemoryDataStore</a>.</p>
+
+</div>
+</div>
+<a id="af50bf12ccb2fdd661f4fa04682594e5f"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#af50bf12ccb2fdd661f4fa04682594e5f">&#9670;&nbsp;</a></span>SetItems()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">virtual void DataStore::SetItems </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="class_item_location.html">ItemLocation</a> &amp;&#160;</td>
+          <td class="paramname"><em>loc</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const std::string &amp;&#160;</td>
+          <td class="paramname"><em>value</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">pure virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Implemented in <a class="el" href="class_sqlite_data_store.html#ab0b0f260875d516259194d64cf0fa79c">SqliteDataStore</a>, and <a class="el" href="class_memory_data_store.html#affbfec92806ac84d77ad9ee921f3a6ba">MemoryDataStore</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_data_store_af50bf12ccb2fdd661f4fa04682594e5f_icgraph.png" border="0" usemap="#class_data_store_af50bf12ccb2fdd661f4fa04682594e5f_icgraph" alt=""/></div>
+<map name="class_data_store_af50bf12ccb2fdd661f4fa04682594e5f_icgraph" id="class_data_store_af50bf12ccb2fdd661f4fa04682594e5f_icgraph">
+<area shape="rect" title=" " alt="" coords="200,13,340,39"/>
+<area shape="rect" href="class_items_manager_worker.html#a6b5ae52cc0be355183fb65ab08dc86ad" title=" " alt="" coords="5,5,152,47"/>
+</map>
+</div>
+
+</div>
+</div>
+<a id="a6c442ff81dd556c4b7db1d58a579c75a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6c442ff81dd556c4b7db1d58a579c75a">&#9670;&nbsp;</a></span>SetTabs()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">virtual void DataStore::SetTabs </td>
+          <td>(</td>
+          <td class="paramtype">const <a class="el" href="itemlocation_8h.html#a120dffc8b6df01fbf1f1df9df7729e98">ItemLocationType</a> &amp;&#160;</td>
+          <td class="paramname"><em>type</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const std::string &amp;&#160;</td>
+          <td class="paramname"><em>value</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">pure virtual</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p>Implemented in <a class="el" href="class_sqlite_data_store.html#ad775b27de22b953b519bdcea0b6289d2">SqliteDataStore</a>, and <a class="el" href="class_memory_data_store.html#a8e5cf80b502cd2b50a419a18391b79be">MemoryDataStore</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_data_store_a6c442ff81dd556c4b7db1d58a579c75a_icgraph.png" border="0" usemap="#class_data_store_a6c442ff81dd556c4b7db1d58a579c75a_icgraph" alt=""/></div>
+<map name="class_data_store_a6c442ff81dd556c4b7db1d58a579c75a_icgraph" id="class_data_store_a6c442ff81dd556c4b7db1d58a579c75a_icgraph">
+<area shape="rect" title=" " alt="" coords="200,13,336,39"/>
+<area shape="rect" href="class_items_manager_worker.html#a6b5ae52cc0be355183fb65ab08dc86ad" title=" " alt="" coords="5,5,152,47"/>
+</map>
+</div>
 
 </div>
 </div>

@@ -85,8 +85,6 @@ $(document).ready(function(){initNavTree('class_items_manager.html',''); initRes
 <a href="#pub-slots">Public Slots</a> &#124;
 <a href="#signals">Signals</a> &#124;
 <a href="#pub-methods">Public Member Functions</a> &#124;
-<a href="#pri-methods">Private Member Functions</a> &#124;
-<a href="#pri-attribs">Private Attributes</a> &#124;
 <a href="class_items_manager-members.html">List of all members</a>  </div>
   <div class="headertitle">
 <div class="title">ItemsManager Class Reference</div>  </div>
@@ -97,9 +95,21 @@ $(document).ready(function(){initNavTree('class_items_manager.html',''); initRes
 <div class="dynheader">
 Inheritance diagram for ItemsManager:</div>
 <div class="dyncontent">
- <div class="center">
-  <img src="class_items_manager.png" alt=""/>
- </div></div>
+<div class="center"><img src="class_items_manager__inherit__graph.png" border="0" usemap="#_items_manager_inherit__map" alt="Inheritance graph"/></div>
+<map name="_items_manager_inherit__map" id="_items_manager_inherit__map">
+<area shape="rect" title=" " alt="" coords="5,80,109,107"/>
+<area shape="rect" title=" " alt="" coords="22,5,93,32"/>
+</map>
+<center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
+<div class="dynheader">
+Collaboration diagram for ItemsManager:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager__coll__graph.png" border="0" usemap="#_items_manager_coll__map" alt="Collaboration graph"/></div>
+<map name="_items_manager_coll__map" id="_items_manager_coll__map">
+<area shape="rect" title=" " alt="" coords="5,80,109,107"/>
+<area shape="rect" title=" " alt="" coords="22,5,93,32"/>
+</map>
+<center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-slots"></a>
 Public Slots</h2></td></tr>
@@ -149,36 +159,6 @@ Public Member Functions</h2></td></tr>
 <tr class="separator:ac4664b160e38ce76ec0aa1cffa780390"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ab62007d34cf96cee12a58e954a7e6002"><td class="memItemLeft" align="right" valign="top">const QSet&lt; QString &gt; &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_items_manager.html#ab62007d34cf96cee12a58e954a7e6002">categories</a> () const</td></tr>
 <tr class="separator:ab62007d34cf96cee12a58e954a7e6002"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pri-methods"></a>
-Private Member Functions</h2></td></tr>
-<tr class="memitem:a2f00253d9d664a678efb7d65e2076afb"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_items_manager.html#a2f00253d9d664a678efb7d65e2076afb">MigrateBuyouts</a> ()</td></tr>
-<tr class="separator:a2f00253d9d664a678efb7d65e2076afb"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pri-attribs"></a>
-Private Attributes</h2></td></tr>
-<tr class="memitem:a6ac01271193f0a54817be0602a240fe7"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_items_manager.html#a6ac01271193f0a54817be0602a240fe7">auto_update_</a></td></tr>
-<tr class="separator:a6ac01271193f0a54817be0602a240fe7"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a151f4088ef6ccf809acdeceddf20fbe3"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_items_manager.html#a151f4088ef6ccf809acdeceddf20fbe3">auto_update_interval_</a></td></tr>
-<tr class="separator:a151f4088ef6ccf809acdeceddf20fbe3"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a98a6ddc7822cc9040c8116b93134f450"><td class="memItemLeft" align="right" valign="top">std::unique_ptr&lt; QTimer &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_items_manager.html#a98a6ddc7822cc9040c8116b93134f450">auto_update_timer_</a></td></tr>
-<tr class="separator:a98a6ddc7822cc9040c8116b93134f450"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aca2bcdfa0ea2d05595ba3048dae63b83"><td class="memItemLeft" align="right" valign="top">std::unique_ptr&lt; <a class="el" href="class_items_manager_worker.html">ItemsManagerWorker</a> &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_items_manager.html#aca2bcdfa0ea2d05595ba3048dae63b83">worker_</a></td></tr>
-<tr class="separator:aca2bcdfa0ea2d05595ba3048dae63b83"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:afb6cf8d64498d5e252bc8ef1c376f798"><td class="memItemLeft" align="right" valign="top">std::unique_ptr&lt; QThread &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_items_manager.html#afb6cf8d64498d5e252bc8ef1c376f798">thread_</a></td></tr>
-<tr class="separator:afb6cf8d64498d5e252bc8ef1c376f798"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab174ea96b96f86611b4fce6637af56ef"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_data_store.html">DataStore</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_items_manager.html#ab174ea96b96f86611b4fce6637af56ef">data_</a></td></tr>
-<tr class="separator:ab174ea96b96f86611b4fce6637af56ef"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad08492e5448560161aa148acc76199a6"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_buyout_manager.html">BuyoutManager</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_items_manager.html#ad08492e5448560161aa148acc76199a6">bo_manager_</a></td></tr>
-<tr class="separator:ad08492e5448560161aa148acc76199a6"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a20d77aa221b26969f7f09558f51e600b"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_shop.html">Shop</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_items_manager.html#a20d77aa221b26969f7f09558f51e600b">shop_</a></td></tr>
-<tr class="separator:a20d77aa221b26969f7f09558f51e600b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aad0f3723b02f842652d126e80938a3da"><td class="memItemLeft" align="right" valign="top"><a class="el" href="class_application.html">Application</a> &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_items_manager.html#aad0f3723b02f842652d126e80938a3da">app_</a></td></tr>
-<tr class="separator:aad0f3723b02f842652d126e80938a3da"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5caecb45e873ef4e3a194fac11f78268"><td class="memItemLeft" align="right" valign="top"><a class="el" href="item_8h.html#a175a25f0a9aa01587d97b5daefa2db13">Items</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_items_manager.html#a5caecb45e873ef4e3a194fac11f78268">items_</a></td></tr>
-<tr class="separator:a5caecb45e873ef4e3a194fac11f78268"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ad96ee22d3cb403db44155ce6b505878f"><td class="memItemLeft" align="right" valign="top">QSet&lt; QString &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_items_manager.html#ad96ee22d3cb403db44155ce6b505878f">categories_</a></td></tr>
-<tr class="separator:ad96ee22d3cb403db44155ce6b505878f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock">
@@ -209,6 +189,20 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="itemsmanager_8cpp_source.html#l00036">36</a> of file <a class="el" href="itemsmanager_8cpp_source.html">itemsmanager.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_ad4bbb31f5d96b992d52872f6a8ca4ba4_cgraph.png" border="0" usemap="#class_items_manager_ad4bbb31f5d96b992d52872f6a8ca4ba4_cgraph" alt=""/></div>
+<map name="class_items_manager_ad4bbb31f5d96b992d52872f6a8ca4ba4_cgraph" id="class_items_manager_ad4bbb31f5d96b992d52872f6a8ca4ba4_cgraph">
+<area shape="rect" title=" " alt="" coords="5,85,200,112"/>
+<area shape="rect" href="class_data_store.html#a37dee618e5a602650a2eace7d8bc141e" title=" " alt="" coords="293,5,403,32"/>
+<area shape="rect" href="class_data_store.html#ab73cbbe81dd05984ea60a8260ee381f4" title=" " alt="" coords="281,56,415,83"/>
+<area shape="rect" href="class_items_manager.html#a828b3af29e69d52036c31795b21fe844" title=" " alt="" coords="248,107,448,149"/>
+<area shape="rect" href="class_items_manager.html#a4f4791ba6429cacae28418ed0fa5866a" title=" " alt="" coords="248,173,448,214"/>
+<area shape="rect" href="class_items_manager.html#aaf2656ddfdcd924fdab828e7d3b790d2" title=" " alt="" coords="496,115,649,141"/>
+<area shape="rect" href="class_data_store.html#a865d17ce186d8d9048124017bd447cb1" title=" " alt="" coords="519,180,627,207"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -248,6 +242,27 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="itemsmanager_8cpp_source.html#l00090">90</a> of file <a class="el" href="itemsmanager_8cpp_source.html">itemsmanager.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_ad828b1c2d00d84c1994c3f0658f58463_cgraph.png" border="0" usemap="#class_items_manager_ad828b1c2d00d84c1994c3f0658f58463_cgraph" alt=""/></div>
+<map name="class_items_manager_ad828b1c2d00d84c1994c3f0658f58463_cgraph" id="class_items_manager_ad828b1c2d00d84c1994c3f0658f58463_cgraph">
+<area shape="rect" title=" " alt="" coords="5,35,203,76"/>
+<area shape="rect" href="class_application.html#a5bc6751842bdfe296b245347d0335f73" title=" " alt="" coords="251,5,384,47"/>
+<area shape="rect" href="struct_buyout.html#a58469a93328aab4b6e12050252c65e73" title=" " alt="" coords="259,71,375,98"/>
+<area shape="rect" href="struct_buyout.html#a173c60c2adf365128ccb1cc6bc6354ec" title=" " alt="" coords="432,71,543,98"/>
+</map>
+</div>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_ad828b1c2d00d84c1994c3f0658f58463_icgraph.png" border="0" usemap="#class_items_manager_ad828b1c2d00d84c1994c3f0658f58463_icgraph" alt=""/></div>
+<map name="class_items_manager_ad828b1c2d00d84c1994c3f0658f58463_icgraph" id="class_items_manager_ad828b1c2d00d84c1994c3f0658f58463_icgraph">
+<area shape="rect" title=" " alt="" coords="460,5,657,47"/>
+<area shape="rect" href="class_items_manager.html#a58ff3e59ef264f9bb542760747811757" title=" " alt="" coords="193,13,412,39"/>
+<area shape="rect" href="class_items_manager.html#adeabba1943cf8b820f81dc2e98377f71" title=" " alt="" coords="5,13,145,39"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -267,6 +282,28 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="itemsmanager_8cpp_source.html#l00069">69</a> of file <a class="el" href="itemsmanager_8cpp_source.html">itemsmanager.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_aeeee9145182985df9575d3c31dac8968_cgraph.png" border="0" usemap="#class_items_manager_aeeee9145182985df9575d3c31dac8968_cgraph" alt=""/></div>
+<map name="class_items_manager_aeeee9145182985df9575d3c31dac8968_cgraph" id="class_items_manager_aeeee9145182985df9575d3c31dac8968_cgraph">
+<area shape="rect" title=" " alt="" coords="5,71,199,112"/>
+<area shape="rect" href="class_application.html#a5bc6751842bdfe296b245347d0335f73" title=" " alt="" coords="279,5,412,47"/>
+<area shape="rect" href="class_buyout_manager.html#a757950b2574eb7351f94ec487af553f8" title=" " alt="" coords="247,71,444,112"/>
+<area shape="rect" href="struct_buyout.html#a58469a93328aab4b6e12050252c65e73" title=" " alt="" coords="287,137,403,163"/>
+<area shape="rect" href="struct_buyout.html#a173c60c2adf365128ccb1cc6bc6354ec" title=" " alt="" coords="492,137,603,163"/>
+</map>
+</div>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_aeeee9145182985df9575d3c31dac8968_icgraph.png" border="0" usemap="#class_items_manager_aeeee9145182985df9575d3c31dac8968_icgraph" alt=""/></div>
+<map name="class_items_manager_aeeee9145182985df9575d3c31dac8968_icgraph" id="class_items_manager_aeeee9145182985df9575d3c31dac8968_icgraph">
+<area shape="rect" title=" " alt="" coords="460,5,653,47"/>
+<area shape="rect" href="class_items_manager.html#a58ff3e59ef264f9bb542760747811757" title=" " alt="" coords="193,13,412,39"/>
+<area shape="rect" href="class_items_manager.html#adeabba1943cf8b820f81dc2e98377f71" title=" " alt="" coords="5,13,145,39"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -375,6 +412,20 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="itemsmanager_8h_source.html#l00053">53</a> of file <a class="el" href="itemsmanager_8h_source.html">itemsmanager.h</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_a20ace7ed0fcaa907bc2dbae37c3578d8_icgraph.png" border="0" usemap="#class_items_manager_a20ace7ed0fcaa907bc2dbae37c3578d8_icgraph" alt=""/></div>
+<map name="class_items_manager_a20ace7ed0fcaa907bc2dbae37c3578d8_icgraph" id="class_items_manager_a20ace7ed0fcaa907bc2dbae37c3578d8_icgraph">
+<area shape="rect" title=" " alt="" coords="503,56,647,83"/>
+<area shape="rect" href="class_items_manager.html#a58ff3e59ef264f9bb542760747811757" title=" " alt="" coords="236,5,455,32"/>
+<area shape="rect" href="class_shop.html#a4b4cc5df43961b4b1ec8cae07bbe1f92" title=" " alt="" coords="295,56,396,83"/>
+<area shape="rect" href="class_currency_manager.html#af9a84bff5c8bcd339000be03a3f06859" title=" " alt="" coords="259,107,432,133"/>
+<area shape="rect" href="class_items_manager.html#adeabba1943cf8b820f81dc2e98377f71" title=" " alt="" coords="27,5,167,32"/>
+<area shape="rect" href="class_shop.html#adbdc0d7a77e2d56ad59870b231947de2" title=" " alt="" coords="17,56,176,83"/>
+<area shape="rect" href="class_shop.html#a4520a6a4dcf4b3bee0b0515b9f2fcb93" title=" " alt="" coords="5,107,188,133"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -401,33 +452,18 @@ Private Attributes</h2></td></tr>
   </tr>
 </table>
 </div><div class="memdoc">
-
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_ad01db80f823b92fc327b3bde33cb11ee_icgraph.png" border="0" usemap="#class_items_manager_ad01db80f823b92fc327b3bde33cb11ee_icgraph" alt=""/></div>
+<map name="class_items_manager_ad01db80f823b92fc327b3bde33cb11ee_icgraph" id="class_items_manager_ad01db80f823b92fc327b3bde33cb11ee_icgraph">
+<area shape="rect" title=" " alt="" coords="460,81,663,108"/>
+<area shape="rect" href="class_application.html#a805db2cf3b190ca4c231b4320fc9a458" title=" " alt="" coords="231,5,374,32"/>
+<area shape="rect" href="class_main_window.html#a4594fe31d9bf1f07ea79102929b98602" title=" " alt="" coords="213,56,392,83"/>
+<area shape="rect" href="class_items_manager.html#a58ff3e59ef264f9bb542760747811757" title=" " alt="" coords="193,107,412,133"/>
+<area shape="rect" href="class_items_manager.html#adeabba1943cf8b820f81dc2e98377f71" title=" " alt="" coords="5,132,145,159"/>
+</map>
 </div>
-</div>
-<a id="a2f00253d9d664a678efb7d65e2076afb"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a2f00253d9d664a678efb7d65e2076afb">&#9670;&nbsp;</a></span>MigrateBuyouts()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">void ItemsManager::MigrateBuyouts </td>
-          <td>(</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="itemsmanager_8cpp_source.html#l00193">193</a> of file <a class="el" href="itemsmanager_8cpp_source.html">itemsmanager.cpp</a>.</p>
 
 </div>
 </div>
@@ -455,6 +491,24 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="itemsmanager_8cpp_source.html#l00189">189</a> of file <a class="el" href="itemsmanager_8cpp_source.html">itemsmanager.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_a828b3af29e69d52036c31795b21fe844_cgraph.png" border="0" usemap="#class_items_manager_a828b3af29e69d52036c31795b21fe844_cgraph" alt=""/></div>
+<map name="class_items_manager_a828b3af29e69d52036c31795b21fe844_cgraph" id="class_items_manager_a828b3af29e69d52036c31795b21fe844_cgraph">
+<area shape="rect" title=" " alt="" coords="5,5,205,47"/>
+<area shape="rect" href="class_items_manager.html#aaf2656ddfdcd924fdab828e7d3b790d2" title=" " alt="" coords="253,13,407,39"/>
+</map>
+</div>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_a828b3af29e69d52036c31795b21fe844_icgraph.png" border="0" usemap="#class_items_manager_a828b3af29e69d52036c31795b21fe844_icgraph" alt=""/></div>
+<map name="class_items_manager_a828b3af29e69d52036c31795b21fe844_icgraph" id="class_items_manager_a828b3af29e69d52036c31795b21fe844_icgraph">
+<area shape="rect" title=" " alt="" coords="248,5,448,47"/>
+<area shape="rect" href="class_items_manager.html#ad4bbb31f5d96b992d52872f6a8ca4ba4" title=" " alt="" coords="5,13,200,39"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -499,6 +553,37 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="itemsmanager_8cpp_source.html#l00142">142</a> of file <a class="el" href="itemsmanager_8cpp_source.html">itemsmanager.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_a58ff3e59ef264f9bb542760747811757_cgraph.png" border="0" usemap="#class_items_manager_a58ff3e59ef264f9bb542760747811757_cgraph" alt=""/></div>
+<map name="class_items_manager_a58ff3e59ef264f9bb542760747811757_cgraph" id="class_items_manager_a58ff3e59ef264f9bb542760747811757_cgraph">
+<area shape="rect" title=" " alt="" coords="5,225,224,251"/>
+<area shape="rect" href="class_items_manager.html#ad828b1c2d00d84c1994c3f0658f58463" title=" " alt="" coords="281,123,478,164"/>
+<area shape="rect" href="class_items_manager.html#aeeee9145182985df9575d3c31dac8968" title=" " alt="" coords="283,57,476,99"/>
+<area shape="rect" href="class_items_manager.html#a20ace7ed0fcaa907bc2dbae37c3578d8" title=" " alt="" coords="307,254,451,281"/>
+<area shape="rect" href="class_items_manager.html#a12cb8ae6379b4d2b686d5cf101655b8b" title=" " alt="" coords="283,188,475,229"/>
+<area shape="rect" href="class_buyout_manager.html#af6ba848b7b47e8a936f7cb8aa7d81646" title=" " alt="" coords="281,305,477,347"/>
+<area shape="rect" href="class_items_manager.html#ac4664b160e38ce76ec0aa1cffa780390" title=" " alt="" coords="272,371,487,398"/>
+<area shape="rect" href="class_application.html#a5bc6751842bdfe296b245347d0335f73" title=" " alt="" coords="567,123,700,164"/>
+<area shape="rect" href="struct_buyout.html#a58469a93328aab4b6e12050252c65e73" title=" " alt="" coords="575,71,691,98"/>
+<area shape="rect" href="struct_buyout.html#a173c60c2adf365128ccb1cc6bc6354ec" title=" " alt="" coords="796,71,907,98"/>
+<area shape="rect" href="class_buyout_manager.html#a757950b2574eb7351f94ec487af553f8" title=" " alt="" coords="535,5,732,47"/>
+<area shape="rect" href="class_buyout_manager.html#a89cb043cad0443cf5da9dfc441b7954d" title=" " alt="" coords="536,188,731,229"/>
+<area shape="rect" href="class_item_location.html#a7e685353d8de074c3190740006216073" title=" " alt="" coords="536,254,731,281"/>
+<area shape="rect" href="class_item.html#a605bd0f487d9ddb5735f35cec6a2cd3c" title=" " alt="" coords="583,305,683,331"/>
+<area shape="rect" href="class_item_location.html#a657fe8c5736ffc7338e61dc4ba613e07" title=" " alt="" coords="780,254,923,281"/>
+</map>
+</div>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_a58ff3e59ef264f9bb542760747811757_icgraph.png" border="0" usemap="#class_items_manager_a58ff3e59ef264f9bb542760747811757_icgraph" alt=""/></div>
+<map name="class_items_manager_a58ff3e59ef264f9bb542760747811757_icgraph" id="class_items_manager_a58ff3e59ef264f9bb542760747811757_icgraph">
+<area shape="rect" title=" " alt="" coords="193,5,412,32"/>
+<area shape="rect" href="class_items_manager.html#adeabba1943cf8b820f81dc2e98377f71" title=" " alt="" coords="5,5,145,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -527,6 +612,15 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="itemsmanager_8cpp_source.html#l00065">65</a> of file <a class="el" href="itemsmanager_8cpp_source.html">itemsmanager.cpp</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_a01e6dab4558f115f849288695774885b_icgraph.png" border="0" usemap="#class_items_manager_a01e6dab4558f115f849288695774885b_icgraph" alt=""/></div>
+<map name="class_items_manager_a01e6dab4558f115f849288695774885b_icgraph" id="class_items_manager_a01e6dab4558f115f849288695774885b_icgraph">
+<area shape="rect" title=" " alt="" coords="193,5,401,32"/>
+<area shape="rect" href="class_items_manager.html#adeabba1943cf8b820f81dc2e98377f71" title=" " alt="" coords="5,5,145,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -546,6 +640,29 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="itemsmanager_8cpp_source.html#l00113">113</a> of file <a class="el" href="itemsmanager_8cpp_source.html">itemsmanager.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_a12cb8ae6379b4d2b686d5cf101655b8b_cgraph.png" border="0" usemap="#class_items_manager_a12cb8ae6379b4d2b686d5cf101655b8b_cgraph" alt=""/></div>
+<map name="class_items_manager_a12cb8ae6379b4d2b686d5cf101655b8b_cgraph" id="class_items_manager_a12cb8ae6379b4d2b686d5cf101655b8b_cgraph">
+<area shape="rect" title=" " alt="" coords="5,100,197,141"/>
+<area shape="rect" href="class_application.html#a5bc6751842bdfe296b245347d0335f73" title=" " alt="" coords="276,5,409,47"/>
+<area shape="rect" href="class_buyout_manager.html#a89cb043cad0443cf5da9dfc441b7954d" title=" " alt="" coords="245,71,440,112"/>
+<area shape="rect" href="class_item_location.html#a7e685353d8de074c3190740006216073" title=" " alt="" coords="245,137,440,163"/>
+<area shape="rect" href="class_item.html#a605bd0f487d9ddb5735f35cec6a2cd3c" title=" " alt="" coords="293,187,393,214"/>
+<area shape="rect" href="class_item_location.html#a657fe8c5736ffc7338e61dc4ba613e07" title=" " alt="" coords="488,137,631,163"/>
+</map>
+</div>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_a12cb8ae6379b4d2b686d5cf101655b8b_icgraph.png" border="0" usemap="#class_items_manager_a12cb8ae6379b4d2b686d5cf101655b8b_icgraph" alt=""/></div>
+<map name="class_items_manager_a12cb8ae6379b4d2b686d5cf101655b8b_icgraph" id="class_items_manager_a12cb8ae6379b4d2b686d5cf101655b8b_icgraph">
+<area shape="rect" title=" " alt="" coords="460,5,652,47"/>
+<area shape="rect" href="class_items_manager.html#a58ff3e59ef264f9bb542760747811757" title=" " alt="" coords="193,13,412,39"/>
+<area shape="rect" href="class_items_manager.html#adeabba1943cf8b820f81dc2e98377f71" title=" " alt="" coords="5,13,145,39"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -566,6 +683,17 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="itemsmanager_8cpp_source.html#l00172">172</a> of file <a class="el" href="itemsmanager_8cpp_source.html">itemsmanager.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_a7913336cfbd260a8adab5851372385d8_cgraph.png" border="0" usemap="#class_items_manager_a7913336cfbd260a8adab5851372385d8_cgraph" alt=""/></div>
+<map name="class_items_manager_a7913336cfbd260a8adab5851372385d8_cgraph" id="class_items_manager_a7913336cfbd260a8adab5851372385d8_cgraph">
+<area shape="rect" title=" " alt="" coords="5,42,205,69"/>
+<area shape="rect" href="class_items_manager.html#a4f4791ba6429cacae28418ed0fa5866a" title=" " alt="" coords="253,5,453,47"/>
+<area shape="rect" href="class_data_store.html#ad7f5c4310b9f1c57be606212451561a4" title=" " alt="" coords="286,71,421,98"/>
+<area shape="rect" href="class_data_store.html#a865d17ce186d8d9048124017bd447cb1" title=" " alt="" coords="501,13,609,39"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -586,6 +714,25 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="itemsmanager_8cpp_source.html#l00182">182</a> of file <a class="el" href="itemsmanager_8cpp_source.html">itemsmanager.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_a4f4791ba6429cacae28418ed0fa5866a_cgraph.png" border="0" usemap="#class_items_manager_a4f4791ba6429cacae28418ed0fa5866a_cgraph" alt=""/></div>
+<map name="class_items_manager_a4f4791ba6429cacae28418ed0fa5866a_cgraph" id="class_items_manager_a4f4791ba6429cacae28418ed0fa5866a_cgraph">
+<area shape="rect" title=" " alt="" coords="5,5,205,47"/>
+<area shape="rect" href="class_data_store.html#a865d17ce186d8d9048124017bd447cb1" title=" " alt="" coords="253,13,361,39"/>
+</map>
+</div>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_a4f4791ba6429cacae28418ed0fa5866a_icgraph.png" border="0" usemap="#class_items_manager_a4f4791ba6429cacae28418ed0fa5866a_icgraph" alt=""/></div>
+<map name="class_items_manager_a4f4791ba6429cacae28418ed0fa5866a_icgraph" id="class_items_manager_a4f4791ba6429cacae28418ed0fa5866a_icgraph">
+<area shape="rect" title=" " alt="" coords="253,23,453,65"/>
+<area shape="rect" href="class_items_manager.html#ad4bbb31f5d96b992d52872f6a8ca4ba4" title=" " alt="" coords="8,5,203,32"/>
+<area shape="rect" href="class_items_manager.html#a7913336cfbd260a8adab5851372385d8" title=" " alt="" coords="5,56,205,83"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -605,6 +752,34 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="itemsmanager_8cpp_source.html#l00054">54</a> of file <a class="el" href="itemsmanager_8cpp_source.html">itemsmanager.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_adeabba1943cf8b820f81dc2e98377f71_cgraph.png" border="0" usemap="#class_items_manager_adeabba1943cf8b820f81dc2e98377f71_cgraph" alt=""/></div>
+<map name="class_items_manager_adeabba1943cf8b820f81dc2e98377f71_cgraph" id="class_items_manager_adeabba1943cf8b820f81dc2e98377f71_cgraph">
+<area shape="rect" title=" " alt="" coords="5,271,145,297"/>
+<area shape="rect" href="namespace_filesystem.html#aa83b8ee3d389a168110a36f830386a16" title=" " alt="" coords="247,56,358,83"/>
+<area shape="rect" href="class_items_manager.html#a58ff3e59ef264f9bb542760747811757" title=" " alt="" coords="193,245,412,272"/>
+<area shape="rect" href="class_items_manager.html#a01e6dab4558f115f849288695774885b" title=" " alt="" coords="199,296,407,323"/>
+<area shape="rect" href="class_items_manager.html#aaf2656ddfdcd924fdab828e7d3b790d2" title=" " alt="" coords="226,347,379,373"/>
+<area shape="rect" href="namespaceporting.html#a76942f1dc334a5e44a9f9ef009c7f4be" title=" " alt="" coords="491,5,643,32"/>
+<area shape="rect" href="namespace_filesystem.html#a7a3baa9ce694be540ac9ee4326a3862d" title=" " alt="" coords="489,56,646,83"/>
+<area shape="rect" href="class_items_manager.html#ad828b1c2d00d84c1994c3f0658f58463" title=" " alt="" coords="469,173,666,214"/>
+<area shape="rect" href="class_items_manager.html#aeeee9145182985df9575d3c31dac8968" title=" " alt="" coords="471,107,664,149"/>
+<area shape="rect" href="class_items_manager.html#a20ace7ed0fcaa907bc2dbae37c3578d8" title=" " alt="" coords="495,304,639,331"/>
+<area shape="rect" href="class_items_manager.html#a12cb8ae6379b4d2b686d5cf101655b8b" title=" " alt="" coords="471,238,663,279"/>
+<area shape="rect" href="class_buyout_manager.html#af6ba848b7b47e8a936f7cb8aa7d81646" title=" " alt="" coords="469,355,665,397"/>
+<area shape="rect" href="class_items_manager.html#ac4664b160e38ce76ec0aa1cffa780390" title=" " alt="" coords="460,421,675,448"/>
+<area shape="rect" href="class_application.html#a5bc6751842bdfe296b245347d0335f73" title=" " alt="" coords="755,173,888,214"/>
+<area shape="rect" href="struct_buyout.html#a58469a93328aab4b6e12050252c65e73" title=" " alt="" coords="763,121,879,148"/>
+<area shape="rect" href="struct_buyout.html#a173c60c2adf365128ccb1cc6bc6354ec" title=" " alt="" coords="984,121,1095,148"/>
+<area shape="rect" href="class_buyout_manager.html#a757950b2574eb7351f94ec487af553f8" title=" " alt="" coords="723,55,920,97"/>
+<area shape="rect" href="class_buyout_manager.html#a89cb043cad0443cf5da9dfc441b7954d" title=" " alt="" coords="724,238,919,279"/>
+<area shape="rect" href="class_item_location.html#a7e685353d8de074c3190740006216073" title=" " alt="" coords="724,304,919,331"/>
+<area shape="rect" href="class_item.html#a605bd0f487d9ddb5735f35cec6a2cd3c" title=" " alt="" coords="771,355,871,381"/>
+<area shape="rect" href="class_item_location.html#a657fe8c5736ffc7338e61dc4ba613e07" title=" " alt="" coords="968,304,1111,331"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -631,6 +806,17 @@ Private Attributes</h2></td></tr>
   </tr>
 </table>
 </div><div class="memdoc">
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_a287acfcd8a0ab82bca830ca29a23a57c_icgraph.png" border="0" usemap="#class_items_manager_a287acfcd8a0ab82bca830ca29a23a57c_icgraph" alt=""/></div>
+<map name="class_items_manager_a287acfcd8a0ab82bca830ca29a23a57c_icgraph" id="class_items_manager_a287acfcd8a0ab82bca830ca29a23a57c_icgraph">
+<area shape="rect" title=" " alt="" coords="449,31,640,57"/>
+<area shape="rect" href="class_main_window.html#a4594fe31d9bf1f07ea79102929b98602" title=" " alt="" coords="208,5,387,32"/>
+<area shape="rect" href="class_items_manager.html#a01e6dab4558f115f849288695774885b" title=" " alt="" coords="193,56,401,83"/>
+<area shape="rect" href="class_items_manager.html#adeabba1943cf8b820f81dc2e98377f71" title=" " alt="" coords="5,56,145,83"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -661,6 +847,17 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="itemsmanager_8cpp_source.html#l00168">168</a> of file <a class="el" href="itemsmanager_8cpp_source.html">itemsmanager.cpp</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_aaf2656ddfdcd924fdab828e7d3b790d2_icgraph.png" border="0" usemap="#class_items_manager_aaf2656ddfdcd924fdab828e7d3b790d2_icgraph" alt=""/></div>
+<map name="class_items_manager_aaf2656ddfdcd924fdab828e7d3b790d2_icgraph" id="class_items_manager_aaf2656ddfdcd924fdab828e7d3b790d2_icgraph">
+<area shape="rect" title=" " alt="" coords="496,42,649,69"/>
+<area shape="rect" href="class_items_manager.html#a828b3af29e69d52036c31795b21fe844" title=" " alt="" coords="248,5,448,47"/>
+<area shape="rect" href="class_items_manager.html#adeabba1943cf8b820f81dc2e98377f71" title=" " alt="" coords="278,71,418,98"/>
+<area shape="rect" href="class_items_manager.html#ad4bbb31f5d96b992d52872f6a8ca4ba4" title=" " alt="" coords="5,13,200,39"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -680,6 +877,16 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="itemsmanager_8cpp_source.html#l00155">155</a> of file <a class="el" href="itemsmanager_8cpp_source.html">itemsmanager.cpp</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_ac4664b160e38ce76ec0aa1cffa780390_icgraph.png" border="0" usemap="#class_items_manager_ac4664b160e38ce76ec0aa1cffa780390_icgraph" alt=""/></div>
+<map name="class_items_manager_ac4664b160e38ce76ec0aa1cffa780390_icgraph" id="class_items_manager_ac4664b160e38ce76ec0aa1cffa780390_icgraph">
+<area shape="rect" title=" " alt="" coords="460,5,675,32"/>
+<area shape="rect" href="class_items_manager.html#a58ff3e59ef264f9bb542760747811757" title=" " alt="" coords="193,5,412,32"/>
+<area shape="rect" href="class_items_manager.html#adeabba1943cf8b820f81dc2e98377f71" title=" " alt="" coords="5,5,145,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -716,271 +923,18 @@ Private Attributes</h2></td></tr>
   </tr>
 </table>
 </div><div class="memdoc">
-
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_items_manager_abc7c712a98ed1cb6216c5a022c639acf_icgraph.png" border="0" usemap="#class_items_manager_abc7c712a98ed1cb6216c5a022c639acf_icgraph" alt=""/></div>
+<map name="class_items_manager_abc7c712a98ed1cb6216c5a022c639acf_icgraph" id="class_items_manager_abc7c712a98ed1cb6216c5a022c639acf_icgraph">
+<area shape="rect" title=" " alt="" coords="697,31,887,57"/>
+<area shape="rect" href="class_items_manager.html#adeabba1943cf8b820f81dc2e98377f71" title=" " alt="" coords="278,5,418,32"/>
+<area shape="rect" href="class_items_manager.html#aaf2656ddfdcd924fdab828e7d3b790d2" title=" " alt="" coords="496,56,649,83"/>
+<area shape="rect" href="class_items_manager.html#a828b3af29e69d52036c31795b21fe844" title=" " alt="" coords="248,57,448,98"/>
+<area shape="rect" href="class_items_manager.html#ad4bbb31f5d96b992d52872f6a8ca4ba4" title=" " alt="" coords="5,64,200,91"/>
+</map>
 </div>
-</div>
-<h2 class="groupheader">Member Data Documentation</h2>
-<a id="aad0f3723b02f842652d126e80938a3da"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aad0f3723b02f842652d126e80938a3da">&#9670;&nbsp;</a></span>app_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="class_application.html">Application</a>&amp; ItemsManager::app_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="itemsmanager_8h_source.html#l00082">82</a> of file <a class="el" href="itemsmanager_8h_source.html">itemsmanager.h</a>.</p>
-
-</div>
-</div>
-<a id="a6ac01271193f0a54817be0602a240fe7"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a6ac01271193f0a54817be0602a240fe7">&#9670;&nbsp;</a></span>auto_update_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">bool ItemsManager::auto_update_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="itemsmanager_8h_source.html#l00073">73</a> of file <a class="el" href="itemsmanager_8h_source.html">itemsmanager.h</a>.</p>
-
-</div>
-</div>
-<a id="a151f4088ef6ccf809acdeceddf20fbe3"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a151f4088ef6ccf809acdeceddf20fbe3">&#9670;&nbsp;</a></span>auto_update_interval_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">int ItemsManager::auto_update_interval_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="itemsmanager_8h_source.html#l00075">75</a> of file <a class="el" href="itemsmanager_8h_source.html">itemsmanager.h</a>.</p>
-
-</div>
-</div>
-<a id="a98a6ddc7822cc9040c8116b93134f450"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a98a6ddc7822cc9040c8116b93134f450">&#9670;&nbsp;</a></span>auto_update_timer_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">std::unique_ptr&lt;QTimer&gt; ItemsManager::auto_update_timer_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="itemsmanager_8h_source.html#l00076">76</a> of file <a class="el" href="itemsmanager_8h_source.html">itemsmanager.h</a>.</p>
-
-</div>
-</div>
-<a id="ad08492e5448560161aa148acc76199a6"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ad08492e5448560161aa148acc76199a6">&#9670;&nbsp;</a></span>bo_manager_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="class_buyout_manager.html">BuyoutManager</a>&amp; ItemsManager::bo_manager_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="itemsmanager_8h_source.html#l00080">80</a> of file <a class="el" href="itemsmanager_8h_source.html">itemsmanager.h</a>.</p>
-
-</div>
-</div>
-<a id="ad96ee22d3cb403db44155ce6b505878f"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ad96ee22d3cb403db44155ce6b505878f">&#9670;&nbsp;</a></span>categories_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">QSet&lt;QString&gt; ItemsManager::categories_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="itemsmanager_8h_source.html#l00084">84</a> of file <a class="el" href="itemsmanager_8h_source.html">itemsmanager.h</a>.</p>
-
-</div>
-</div>
-<a id="ab174ea96b96f86611b4fce6637af56ef"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab174ea96b96f86611b4fce6637af56ef">&#9670;&nbsp;</a></span>data_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="class_data_store.html">DataStore</a>&amp; ItemsManager::data_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="itemsmanager_8h_source.html#l00079">79</a> of file <a class="el" href="itemsmanager_8h_source.html">itemsmanager.h</a>.</p>
-
-</div>
-</div>
-<a id="a5caecb45e873ef4e3a194fac11f78268"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a5caecb45e873ef4e3a194fac11f78268">&#9670;&nbsp;</a></span>items_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="item_8h.html#a175a25f0a9aa01587d97b5daefa2db13">Items</a> ItemsManager::items_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="itemsmanager_8h_source.html#l00083">83</a> of file <a class="el" href="itemsmanager_8h_source.html">itemsmanager.h</a>.</p>
-
-</div>
-</div>
-<a id="a20d77aa221b26969f7f09558f51e600b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a20d77aa221b26969f7f09558f51e600b">&#9670;&nbsp;</a></span>shop_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname"><a class="el" href="class_shop.html">Shop</a>&amp; ItemsManager::shop_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="itemsmanager_8h_source.html#l00081">81</a> of file <a class="el" href="itemsmanager_8h_source.html">itemsmanager.h</a>.</p>
-
-</div>
-</div>
-<a id="afb6cf8d64498d5e252bc8ef1c376f798"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#afb6cf8d64498d5e252bc8ef1c376f798">&#9670;&nbsp;</a></span>thread_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">std::unique_ptr&lt;QThread&gt; ItemsManager::thread_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="itemsmanager_8h_source.html#l00078">78</a> of file <a class="el" href="itemsmanager_8h_source.html">itemsmanager.h</a>.</p>
-
-</div>
-</div>
-<a id="aca2bcdfa0ea2d05595ba3048dae63b83"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aca2bcdfa0ea2d05595ba3048dae63b83">&#9670;&nbsp;</a></span>worker_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">std::unique_ptr&lt;<a class="el" href="class_items_manager_worker.html">ItemsManagerWorker</a>&gt; ItemsManager::worker_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="itemsmanager_8h_source.html#l00077">77</a> of file <a class="el" href="itemsmanager_8h_source.html">itemsmanager.h</a>.</p>
 
 </div>
 </div>

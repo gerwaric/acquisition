@@ -1,0 +1,11 @@
+<map id="BooleanFilter" name="BooleanFilter">
+<area shape="rect" id="node1" title=" " alt="" coords="104,157,203,184"/>
+<area shape="rect" id="node3" href="$class_altart_filter.html" title=" " alt="" coords="269,5,351,32"/>
+<area shape="rect" id="node4" href="$class_corrupted_filter.html" title=" " alt="" coords="257,56,363,83"/>
+<area shape="rect" id="node5" href="$class_crafted_filter.html" title=" " alt="" coords="264,107,356,133"/>
+<area shape="rect" id="node6" href="$class_enchanted_filter.html" title=" " alt="" coords="253,157,367,184"/>
+<area shape="rect" id="node7" href="$class_influenced_filter.html" title=" " alt="" coords="255,208,365,235"/>
+<area shape="rect" id="node8" href="$class_priced_filter.html" title=" " alt="" coords="266,259,354,285"/>
+<area shape="rect" id="node9" href="$class_unidentified_filter.html" title=" " alt="" coords="251,309,369,336"/>
+<area shape="rect" id="node2" href="$class_filter.html" title=" " alt="" coords="5,157,56,184"/>
+</map>

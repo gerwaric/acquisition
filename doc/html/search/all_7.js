@@ -1,19 +1,10 @@
 var searchData=
 [
-  ['h_352',['h',['../class_item.html#a91972d348e517d553034b451f5bd32a6',1,'Item']]],
-  ['h_5f_353',['h_',['../class_item.html#ad4f330739f5941240cff9375621b3077',1,'Item::h_()'],['../class_item_location.html#adc7bd252bfb2271b652d0f3d14f879f9',1,'ItemLocation::h_()']]],
-  ['hash_354',['hash',['../class_item.html#a0d2f1cff2e2bad04dce8ed7011ee6dae',1,'Item']]],
-  ['hash_5f_355',['hash_',['../class_item.html#a8074c3d9afdd4a3c18a6a5d44e580d45',1,'Item']]],
-  ['hasheightforwidth_356',['hasHeightForWidth',['../class_flow_layout.html#a0c68d3428ecabc989a0fe737db00d8ee',1,'FlowLayout']]],
-  ['header_5fdoubleline_5fheight_357',['HEADER_DOUBLELINE_HEIGHT',['../itemtooltip_8cpp.html#a2884170f0fc3772728b3146debc1bbc0',1,'itemtooltip.cpp']]],
-  ['header_5fdoubleline_5fsize_358',['HEADER_DOUBLELINE_SIZE',['../itemtooltip_8cpp.html#a84e9ab71e0fd804475e0b42c36261430',1,'itemtooltip.cpp']]],
-  ['header_5fdoubleline_5fwidth_359',['HEADER_DOUBLELINE_WIDTH',['../itemtooltip_8cpp.html#abf1ef57e21e66d8632a680c89b51e6e6',1,'itemtooltip.cpp']]],
-  ['header_5foverlay_5fsize_360',['HEADER_OVERLAY_SIZE',['../itemtooltip_8cpp.html#a4419dfb0809b08de5b5a9e876230862a',1,'itemtooltip.cpp']]],
-  ['header_5fsingleline_5fheight_361',['HEADER_SINGLELINE_HEIGHT',['../itemtooltip_8cpp.html#a7dab0fefdf57965d6d673fa418f8d5b9',1,'itemtooltip.cpp']]],
-  ['header_5fsingleline_5fsize_362',['HEADER_SINGLELINE_SIZE',['../itemtooltip_8cpp.html#a41c84cd5ca7ad2ec688b1528bea8cfbb',1,'itemtooltip.cpp']]],
-  ['header_5fsingleline_5fwidth_363',['HEADER_SINGLELINE_WIDTH',['../itemtooltip_8cpp.html#aa9b45ac2b14c6d8457228b17b0f8bbeb',1,'itemtooltip.cpp']]],
-  ['headerdata_364',['headerData',['../class_items_model.html#a9aa3db0502ff194f319842a90a3c1fa2',1,'ItemsModel']]],
-  ['headers_5f_365',['headers_',['../class_currency_dialog.html#a284793aa431fba6d536348f29f2d0ad0',1,'CurrencyDialog']]],
-  ['heightforwidth_366',['heightForWidth',['../class_flow_layout.html#a2684b676bf42073ec5fe4a16c20d75c2',1,'FlowLayout']]],
-  ['horizontalspacing_367',['horizontalSpacing',['../class_flow_layout.html#a05a9929bf2d7749c8d45afe1fc15b27e',1,'FlowLayout']]]
+  ['h_258',['h',['../class_item.html#a91972d348e517d553034b451f5bd32a6',1,'Item']]],
+  ['hasbasetype_259',['hasBaseType',['../class_item.html#afbfe2002fb10517dd8b1ef431768c260',1,'Item::hasBaseType(BASE_TYPES type) const'],['../class_item.html#a616e58efe1824ed0bdf9af5a2c37e41d',1,'Item::hasBaseType() const']]],
+  ['hash_260',['hash',['../class_item.html#a0d2f1cff2e2bad04dce8ed7011ee6dae',1,'Item']]],
+  ['hasheightforwidth_261',['hasHeightForWidth',['../class_flow_layout.html#a0c68d3428ecabc989a0fe737db00d8ee',1,'FlowLayout']]],
+  ['headerdata_262',['headerData',['../class_items_model.html#a9aa3db0502ff194f319842a90a3c1fa2',1,'ItemsModel']]],
+  ['heightforwidth_263',['heightForWidth',['../class_flow_layout.html#a2684b676bf42073ec5fe4a16c20d75c2',1,'FlowLayout']]],
+  ['horizontalspacing_264',['horizontalSpacing',['../class_flow_layout.html#a05a9929bf2d7749c8d45afe1fc15b27e',1,'FlowLayout']]]
 ];

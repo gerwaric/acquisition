@@ -88,12 +88,6 @@ $(document).ready(function(){initNavTree('functions_func_g.html',''); initResiza
 : <a class="el" href="class_mod_generator.html#ab31e44f64240569ed8eb5ef81f90cfcc">ModGenerator</a>
 , <a class="el" href="class_sum_mod_generator.html#af10b191f3645b655f688589c5fb531e4">SumModGenerator</a>
 </li>
-<li>GenerateLayout()
-: <a class="el" href="class_currency_dialog.html#a35741646fb18756a443a74916c9667bb">CurrencyDialog</a>
-</li>
-<li>GenerateMods()
-: <a class="el" href="class_item.html#a1c957213b5eacf9b3e8e58367cc64365">Item</a>
-</li>
 <li>Get()
 : <a class="el" href="class_buyout_manager.html#af00c6e500d64bdeb096086a08b024cfa">BuyoutManager</a>
 , <a class="el" href="class_data_store.html#a37dee618e5a602650a2eace7d8bc141e">DataStore</a>
@@ -101,11 +95,17 @@ $(document).ready(function(){initNavTree('functions_func_g.html',''); initResiza
 , <a class="el" href="class_memory_data_store.html#a35bdcfedfe12511259858804f37a2ab4">MemoryDataStore</a>
 , <a class="el" href="class_sqlite_data_store.html#adc498b00414749235746768bd39ff054">SqliteDataStore</a>
 </li>
+<li>get_json()
+: <a class="el" href="class_item_location.html#a6ec8b853afc69b74a2df518fb06abcc6">ItemLocation</a>
+</li>
 <li>get_tab_id()
 : <a class="el" href="class_item_location.html#ad524e7aca7a154f09262da8da9781bcb">ItemLocation</a>
 </li>
 <li>get_tab_label()
 : <a class="el" href="class_item_location.html#a816f4b05c38b5b2f654379186a4ade5d">ItemLocation</a>
+</li>
+<li>get_tab_uniq_id()
+: <a class="el" href="class_item_location.html#af39237b4fdfd1fa5614b696b7f64192c">ItemLocation</a>
 </li>
 <li>get_type()
 : <a class="el" href="class_item_location.html#a6bf5e10a942b7d5d22422f0ccf0cc8f6">ItemLocation</a>
@@ -114,6 +114,9 @@ $(document).ready(function(){initNavTree('functions_func_g.html',''); initResiza
 : <a class="el" href="class_data_store.html#a2a7d190d5d7f8cbafc1d57c3df90022b">DataStore</a>
 , <a class="el" href="class_memory_data_store.html#a2c31700ec8b69aef674625edabd3dfff">MemoryDataStore</a>
 , <a class="el" href="class_sqlite_data_store.html#a16112d3c5757f6bb41f2768477c09c61">SqliteDataStore</a>
+</li>
+<li>getB()
+: <a class="el" href="class_item_location.html#aa7ab046c3b28b3dea171775353e304d9">ItemLocation</a>
 </li>
 <li>GetBool()
 : <a class="el" href="class_data_store.html#ab73cbbe81dd05984ea60a8260ee381f4">DataStore</a>
@@ -126,6 +129,9 @@ $(document).ready(function(){initNavTree('functions_func_g.html',''); initResiza
 <li>GetForumCode()
 : <a class="el" href="class_item_location.html#a114a6a1f3c581695579255130b4a7572">ItemLocation</a>
 </li>
+<li>getG()
+: <a class="el" href="class_item_location.html#acfbd5b8c3745b81b44ef7a1e93a1d006">ItemLocation</a>
+</li>
 <li>GetHeader()
 : <a class="el" href="class_item_location.html#af5842d8f7dc00b00a7b4658834420062">ItemLocation</a>
 </li>
@@ -134,11 +140,16 @@ $(document).ready(function(){initNavTree('functions_func_g.html',''); initResiza
 , <a class="el" href="class_memory_data_store.html#a39a004af91a6e4d26c962a1d38152375">MemoryDataStore</a>
 , <a class="el" href="class_sqlite_data_store.html#a28db7abeb03cf771cbf6577c91245a96">SqliteDataStore</a>
 </li>
+<li>GetItems()
+: <a class="el" href="class_data_store.html#aed0a2b80db5c3ac2a05ab4375beb8b4e">DataStore</a>
+, <a class="el" href="class_memory_data_store.html#a675528c004566004425c7f61d28c4af3">MemoryDataStore</a>
+, <a class="el" href="class_sqlite_data_store.html#abd17e0a377eb3e47294e31cb14a83728">SqliteDataStore</a>
+</li>
 <li>GetItemsCount()
 : <a class="el" href="class_search.html#afae0159ab44bc21fb9b36975550dcbb3">Search</a>
 </li>
-<li>GetPath()
-: <a class="el" href="class_image_cache.html#a8873d00686c57faf71489c25e3cac658">ImageCache</a>
+<li>getR()
+: <a class="el" href="class_item_location.html#a36015bbafa76b1008cc52e4778789fd9">ItemLocation</a>
 </li>
 <li>GetRect()
 : <a class="el" href="class_item_location.html#a536a1afd5f05b58d869e8fe19dbd7e3d">ItemLocation</a>
@@ -164,16 +175,19 @@ $(document).ready(function(){initNavTree('functions_func_g.html',''); initResiza
 <li>GetTabLocation()
 : <a class="el" href="class_search.html#a525840f8c386b7d3fa4232a7ed9695c7">Search</a>
 </li>
+<li>GetTabs()
+: <a class="el" href="class_data_store.html#a098461047d7befbf2a8745253c7c975e">DataStore</a>
+, <a class="el" href="class_memory_data_store.html#a72bd52bc3f7fb387c17ced41cdba0d6e">MemoryDataStore</a>
+, <a class="el" href="class_sqlite_data_store.html#aed74b042dc21035ff88a32214bd4a7bb">SqliteDataStore</a>
+</li>
 <li>GetUniqueHash()
 : <a class="el" href="class_item_location.html#a7e685353d8de074c3190740006216073">ItemLocation</a>
 </li>
 <li>GetValue()
 : <a class="el" href="class_default_property_filter.html#a1d7f19ef06cca86aeff4393becbe3a8d">DefaultPropertyFilter</a>
 , <a class="el" href="class_itemlevel_filter.html#ab947f02bd4c1c9c08a6f20f493c0e983">ItemlevelFilter</a>
-, <a class="el" href="class_item_method_filter.html#a9ac1abb9991e0ebd0a060b8c64bca3b5">ItemMethodFilter</a>
 , <a class="el" href="class_links_filter.html#ade64bb49a802fba70c937365da9dc0c2">LinksFilter</a>
 , <a class="el" href="class_min_max_filter.html#a324e9e7b67d192e89d2cb6b26f0a6bd5">MinMaxFilter</a>
-, <a class="el" href="class_required_stat_filter.html#ade0a13f62f3e16a9956d1e6094c61d38">RequiredStatFilter</a>
 , <a class="el" href="class_simple_property_filter.html#ac7bd30a56cd2aeadf191228ed1edcf35">SimplePropertyFilter</a>
 , <a class="el" href="class_sockets_filter.html#a55d85254e62cdcec2db76a453d3f7897">SocketsFilter</a>
 </li>

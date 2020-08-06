@@ -1,0 +1,14 @@
+<map id="Shop::Update" name="Shop::Update">
+<area shape="rect" id="node1" title=" " alt="" coords="5,231,107,258"/>
+<area shape="rect" id="node2" href="$class_application.html#a5bc6751842bdfe296b245347d0335f73" title=" " alt="" coords="160,5,293,47"/>
+<area shape="rect" id="node3" href="$class_buyout_manager.html#af00c6e500d64bdeb096086a08b024cfa" title=" " alt="" coords="155,71,298,98"/>
+<area shape="rect" id="node5" href="$struct_buyout.html#ae6fee47be3f38e6b631ad75022022501" title=" " alt="" coords="161,122,293,149"/>
+<area shape="rect" id="node7" href="$class_items_manager.html#a20ace7ed0fcaa907bc2dbae37c3578d8" title=" " alt="" coords="155,173,299,199"/>
+<area shape="rect" id="node8" href="$class_application.html#ad2d2ceb2d550afa9246a0134b194afab" title=" " alt="" coords="163,224,290,265"/>
+<area shape="rect" id="node9" href="$class_application.html#ad5d9dbb71d1bce18db13a5267b6b30cf" title=" " alt="" coords="161,290,293,317"/>
+<area shape="rect" id="node10" href="$namespace_util.html#a875b9cb18270958b414538f74e503410" title=" " alt="" coords="189,341,264,367"/>
+<area shape="rect" id="node11" href="$namespace_util.html#a20b825d2eb20d2155a7ee41005cff89e" title=" " alt="" coords="173,391,280,418"/>
+<area shape="rect" id="node12" href="$namespace_util.html#a54c1ec6d73ba18e921eeb42725a6a00d" title=" " alt="" coords="161,442,292,469"/>
+<area shape="rect" id="node4" href="$class_item.html#a0d2f1cff2e2bad04dce8ed7011ee6dae" title=" " alt="" coords="365,71,447,98"/>
+<area shape="rect" id="node6" href="$struct_buyout.html#a86c989a487714ae4b833a9442c25d842" title=" " alt="" coords="347,122,465,149"/>
+</map>

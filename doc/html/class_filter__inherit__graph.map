@@ -1,0 +1,25 @@
+<map id="Filter" name="Filter">
+<area shape="rect" id="node1" title=" " alt="" coords="5,512,56,539"/>
+<area shape="rect" id="node2" href="$class_boolean_filter.html" title=" " alt="" coords="127,183,225,209"/>
+<area shape="rect" id="node10" href="$class_category_search_filter.html" title=" " alt="" coords="104,411,248,437"/>
+<area shape="rect" id="node11" href="$class_min_max_filter.html" title=" " alt="" coords="127,461,225,488"/>
+<area shape="rect" id="node19" href="$class_mods_filter.html" title=" " alt="" coords="135,512,217,539"/>
+<area shape="rect" id="node20" href="$class_name_search_filter.html" title=" " alt="" coords="113,563,239,589"/>
+<area shape="rect" id="node21" href="$class_rarity_search_filter.html" title=" " alt="" coords="113,613,239,640"/>
+<area shape="rect" id="node22" href="$class_sockets_colors_filter.html" title=" " alt="" coords="108,664,244,691"/>
+<area shape="rect" id="node3" href="$class_altart_filter.html" title=" " alt="" coords="325,5,407,32"/>
+<area shape="rect" id="node4" href="$class_corrupted_filter.html" title=" " alt="" coords="313,56,419,83"/>
+<area shape="rect" id="node5" href="$class_crafted_filter.html" title=" " alt="" coords="320,107,412,133"/>
+<area shape="rect" id="node6" href="$class_enchanted_filter.html" title=" " alt="" coords="309,157,423,184"/>
+<area shape="rect" id="node7" href="$class_influenced_filter.html" title=" " alt="" coords="311,208,421,235"/>
+<area shape="rect" id="node8" href="$class_priced_filter.html" title=" " alt="" coords="322,259,410,285"/>
+<area shape="rect" id="node9" href="$class_unidentified_filter.html" title=" " alt="" coords="307,309,425,336"/>
+<area shape="rect" id="node12" href="$class_itemlevel_filter.html" title=" " alt="" coords="315,360,417,387"/>
+<area shape="rect" id="node13" href="$class_item_method_filter.html" title=" " alt="" coords="307,411,425,437"/>
+<area shape="rect" id="node14" href="$class_links_filter.html" title=" " alt="" coords="325,461,407,488"/>
+<area shape="rect" id="node15" href="$class_required_stat_filter.html" title=" " alt="" coords="303,512,429,539"/>
+<area shape="rect" id="node16" href="$class_simple_property_filter.html" title=" " alt="" coords="296,563,436,589"/>
+<area shape="rect" id="node18" href="$class_sockets_filter.html" title=" " alt="" coords="317,613,415,640"/>
+<area shape="rect" id="node17" href="$class_default_property_filter.html" title=" " alt="" coords="484,563,624,589"/>
+<area shape="rect" id="node23" href="$class_links_colors_filter.html" title=" " alt="" coords="307,664,425,691"/>
+</map>

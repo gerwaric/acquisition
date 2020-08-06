@@ -115,246 +115,260 @@ $(document).ready(function(){initNavTree('util_8cpp_source.html',''); initResiza
 <div class="line"><a name="l00028"></a><span class="lineno">   28</span>&#160;<span class="preprocessor">#include &lt;QFontMetrics&gt;</span></div>
 <div class="line"><a name="l00029"></a><span class="lineno">   29</span>&#160;<span class="preprocessor">#include &lt;QNetworkReply&gt;</span></div>
 <div class="line"><a name="l00030"></a><span class="lineno">   30</span>&#160;<span class="preprocessor">#include &lt;QTextDocument&gt;</span></div>
-<div class="line"><a name="l00031"></a><span class="lineno">   31</span>&#160;<span class="preprocessor">#include &quot;rapidjson/document.h&quot;</span></div>
-<div class="line"><a name="l00032"></a><span class="lineno">   32</span>&#160;<span class="preprocessor">#include &quot;rapidjson/writer.h&quot;</span></div>
-<div class="line"><a name="l00033"></a><span class="lineno">   33</span>&#160;<span class="preprocessor">#include &lt;sstream&gt;</span></div>
-<div class="line"><a name="l00034"></a><span class="lineno">   34</span>&#160; </div>
-<div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160;<span class="preprocessor">#include &quot;<a class="code" href="buyoutmanager_8h.html">buyoutmanager.h</a>&quot;</span></div>
-<div class="line"><a name="l00036"></a><span class="lineno">   36</span>&#160;<span class="preprocessor">#include &quot;<a class="code" href="porting_8h.html">porting.h</a>&quot;</span></div>
-<div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;<span class="preprocessor">#include &lt;boost/algorithm/string/join.hpp&gt;</span></div>
-<div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;<span class="preprocessor">#include &lt;QMetaEnum&gt;</span></div>
-<div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160; </div>
-<div class="line"><a name="l00040"></a><span class="lineno"><a class="line" href="namespace_util.html#a875b9cb18270958b414538f74e503410">   40</a></span>&#160;std::string <a class="code" href="namespace_util.html#a875b9cb18270958b414538f74e503410">Util::Md5</a>(<span class="keyword">const</span> std::string &amp;value) {</div>
-<div class="line"><a name="l00041"></a><span class="lineno">   41</span>&#160;    QString hash = QString(QCryptographicHash::hash(value.c_str(), <a class="code" href="namespace_util.html#a875b9cb18270958b414538f74e503410">QCryptographicHash::Md5</a>).toHex());</div>
-<div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160;    <span class="keywordflow">return</span> hash.toUtf8().constData();</div>
-<div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;}</div>
-<div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160; </div>
-<div class="line"><a name="l00045"></a><span class="lineno"><a class="line" href="namespace_util.html#a7c6f5072068335e61a1f85082cf03dbc">   45</a></span>&#160;<span class="keywordtype">double</span> <a class="code" href="namespace_util.html#a7c6f5072068335e61a1f85082cf03dbc">Util::AverageDamage</a>(<span class="keyword">const</span> std::string &amp;s) {</div>
-<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;    <span class="keywordtype">size_t</span> x = s.find(<span class="stringliteral">&quot;-&quot;</span>);</div>
-<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;    <span class="keywordflow">if</span> (x == std::string::npos)</div>
-<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;        <span class="keywordflow">return</span> 0;</div>
-<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;    <span class="keywordflow">return</span> (std::stod(s.substr(0, x)) + std::stod(s.substr(x + 1))) / 2;</div>
-<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;}</div>
-<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160; </div>
-<div class="line"><a name="l00052"></a><span class="lineno"><a class="line" href="namespace_util.html#abad13df8e4f637add410963b0192ac1a">   52</a></span>&#160;<span class="keywordtype">void</span> <a class="code" href="namespace_util.html#abad13df8e4f637add410963b0192ac1a">Util::PopulateBuyoutTypeComboBox</a>(QComboBox *combobox) {</div>
-<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;    combobox-&gt;addItems(QStringList({<span class="stringliteral">&quot;[Ignore]&quot;</span>, <span class="stringliteral">&quot;Buyout&quot;</span>, <span class="stringliteral">&quot;Fixed price&quot;</span>, <span class="stringliteral">&quot;Current Offer&quot;</span>, <span class="stringliteral">&quot;No price&quot;</span>, <span class="stringliteral">&quot;[Inherit]&quot;</span>}));</div>
-<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;    combobox-&gt;setCurrentIndex(5);</div>
-<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160;}</div>
-<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160; </div>
-<div class="line"><a name="l00057"></a><span class="lineno"><a class="line" href="namespace_util.html#a24a06f856bc9bb23d131a1eb512b4a96">   57</a></span>&#160;<span class="keywordtype">void</span> <a class="code" href="namespace_util.html#a24a06f856bc9bb23d131a1eb512b4a96">Util::PopulateBuyoutCurrencyComboBox</a>(QComboBox *combobox) {</div>
-<div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;    <span class="keywordflow">for</span> (<span class="keyword">auto</span> type : <a class="code" href="struct_currency.html#a8ae5e935889a18c29d0ed8d5dad2f21a">Currency::Types</a>())</div>
-<div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;        combobox-&gt;addItem(QString(<a class="code" href="struct_currency.html">Currency</a>(type).AsString().c_str()));</div>
-<div class="line"><a name="l00060"></a><span class="lineno">   60</span>&#160;}</div>
-<div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160; </div>
-<div class="line"><a name="l00062"></a><span class="lineno"><a class="line" href="util_8cpp.html#aba20464e3985b6963fc1f1f09d63e2aa">   62</a></span>&#160;<span class="keyword">static</span> std::vector&lt;std::string&gt; <a class="code" href="util_8cpp.html#aba20464e3985b6963fc1f1f09d63e2aa">width_strings</a> = {</div>
-<div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160;    <span class="stringliteral">&quot;max#&quot;</span>,</div>
-<div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;    <span class="stringliteral">&quot;Map Tier&quot;</span>,</div>
-<div class="line"><a name="l00065"></a><span class="lineno">   65</span>&#160;    <span class="stringliteral">&quot;R##&quot;</span>,</div>
-<div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;    <span class="stringliteral">&quot;Defense&quot;</span>,</div>
-<div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160;    <span class="stringliteral">&quot;Master-crafted&quot;</span></div>
-<div class="line"><a name="l00068"></a><span class="lineno">   68</span>&#160;};</div>
-<div class="line"><a name="l00069"></a><span class="lineno">   69</span>&#160; </div>
-<div class="line"><a name="l00070"></a><span class="lineno"><a class="line" href="namespace_util.html#a8aebbd3bcfbbbf253a16e7da22ae074a">   70</a></span>&#160;<span class="keywordtype">int</span> <a class="code" href="namespace_util.html#a8aebbd3bcfbbbf253a16e7da22ae074a">Util::TextWidth</a>(<a class="code" href="util_8h.html#ad66dcf31c1e91e58016f505e90395667">TextWidthId</a> <span class="keywordtype">id</span>) {</div>
-<div class="line"><a name="l00071"></a><span class="lineno">   71</span>&#160;    <span class="keyword">static</span> <span class="keywordtype">bool</span> calculated = <span class="keyword">false</span>;</div>
-<div class="line"><a name="l00072"></a><span class="lineno">   72</span>&#160;    <span class="keyword">static</span> std::vector&lt;int&gt; result;</div>
-<div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160; </div>
-<div class="line"><a name="l00074"></a><span class="lineno">   74</span>&#160;    <span class="keywordflow">if</span> (!calculated) {</div>
-<div class="line"><a name="l00075"></a><span class="lineno">   75</span>&#160;        calculated = <span class="keyword">true</span>;</div>
-<div class="line"><a name="l00076"></a><span class="lineno">   76</span>&#160;        result.resize(<a class="code" href="util_8cpp.html#aba20464e3985b6963fc1f1f09d63e2aa">width_strings</a>.size());</div>
-<div class="line"><a name="l00077"></a><span class="lineno">   77</span>&#160;        QLineEdit textbox;</div>
-<div class="line"><a name="l00078"></a><span class="lineno">   78</span>&#160;        QFontMetrics fm(textbox.fontMetrics());</div>
-<div class="line"><a name="l00079"></a><span class="lineno">   79</span>&#160;        <span class="keywordflow">for</span> (<span class="keywordtype">size_t</span> i = 0; i &lt; <a class="code" href="util_8cpp.html#aba20464e3985b6963fc1f1f09d63e2aa">width_strings</a>.size(); ++i)</div>
-<div class="line"><a name="l00080"></a><span class="lineno">   80</span>&#160;            result[i] = fm.width(<a class="code" href="util_8cpp.html#aba20464e3985b6963fc1f1f09d63e2aa">width_strings</a>[i].c_str());</div>
-<div class="line"><a name="l00081"></a><span class="lineno">   81</span>&#160;    }</div>
-<div class="line"><a name="l00082"></a><span class="lineno">   82</span>&#160;    <span class="keywordflow">return</span> result[<span class="keyword">static_cast&lt;</span><span class="keywordtype">int</span><span class="keyword">&gt;</span>(id)];</div>
-<div class="line"><a name="l00083"></a><span class="lineno">   83</span>&#160;}</div>
-<div class="line"><a name="l00084"></a><span class="lineno">   84</span>&#160; </div>
-<div class="line"><a name="l00085"></a><span class="lineno"><a class="line" href="namespace_util.html#a4b2c8d27c52d78afe95297bf9883d4ec">   85</a></span>&#160;<span class="keywordtype">void</span> <a class="code" href="namespace_util.html#a4b2c8d27c52d78afe95297bf9883d4ec">Util::ParseJson</a>(QNetworkReply *reply, rapidjson::Document *doc) {</div>
-<div class="line"><a name="l00086"></a><span class="lineno">   86</span>&#160;    QByteArray bytes = reply-&gt;readAll();</div>
-<div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160;    doc-&gt;Parse(bytes.constData());</div>
-<div class="line"><a name="l00088"></a><span class="lineno">   88</span>&#160;}</div>
-<div class="line"><a name="l00089"></a><span class="lineno">   89</span>&#160; </div>
-<div class="line"><a name="l00090"></a><span class="lineno"><a class="line" href="namespace_util.html#a4b268ba6e2b0fe096dbdfe2a3985792c">   90</a></span>&#160;std::string <a class="code" href="namespace_util.html#a4b268ba6e2b0fe096dbdfe2a3985792c">Util::GetCsrfToken</a>(<span class="keyword">const</span> std::string &amp;page, <span class="keyword">const</span> std::string &amp;name) {</div>
-<div class="line"><a name="l00091"></a><span class="lineno">   91</span>&#160;    std::string needle = <span class="stringliteral">&quot;name=\&quot;&quot;</span> + name + <span class="stringliteral">&quot;\&quot; value=\&quot;&quot;</span>;</div>
-<div class="line"><a name="l00092"></a><span class="lineno">   92</span>&#160;    <span class="keyword">auto</span> pos = page.find(needle);</div>
-<div class="line"><a name="l00093"></a><span class="lineno">   93</span>&#160;    <span class="keywordflow">if</span> (pos == std::string::npos)</div>
-<div class="line"><a name="l00094"></a><span class="lineno">   94</span>&#160;        <span class="keywordflow">return</span> <span class="stringliteral">&quot;&quot;</span>;</div>
-<div class="line"><a name="l00095"></a><span class="lineno">   95</span>&#160;    <span class="keyword">auto</span> start = pos + needle.size();  <span class="comment">// Right after the opening &quot;</span></div>
-<div class="line"><a name="l00096"></a><span class="lineno">   96</span>&#160;    <span class="keyword">auto</span> <a class="code" href="namespacerapidjson.html#a70ef97b812a7a70a3679caa10e91ff1f">end</a> = page.find(<span class="stringliteral">&quot;\&quot;&quot;</span>, start); <span class="comment">// Closing &quot;</span></div>
-<div class="line"><a name="l00097"></a><span class="lineno">   97</span>&#160;    <span class="keywordflow">if</span> (<a class="code" href="namespacerapidjson.html#a70ef97b812a7a70a3679caa10e91ff1f">end</a> == std::string::npos)</div>
-<div class="line"><a name="l00098"></a><span class="lineno">   98</span>&#160;        <span class="keywordflow">return</span> <span class="stringliteral">&quot;&quot;</span>;</div>
-<div class="line"><a name="l00099"></a><span class="lineno">   99</span>&#160;    <span class="keywordflow">return</span> page.substr(start, <a class="code" href="namespacerapidjson.html#a70ef97b812a7a70a3679caa10e91ff1f">end</a> - start);</div>
-<div class="line"><a name="l00100"></a><span class="lineno">  100</span>&#160;}</div>
-<div class="line"><a name="l00101"></a><span class="lineno">  101</span>&#160; </div>
-<div class="line"><a name="l00102"></a><span class="lineno"><a class="line" href="namespace_util.html#aa80553a773bd1c560ba651524dc37e58">  102</a></span>&#160;std::string <a class="code" href="namespace_util.html#aa80553a773bd1c560ba651524dc37e58">Util::FindTextBetween</a>(<span class="keyword">const</span> std::string &amp;page, <span class="keyword">const</span> std::string &amp;left, <span class="keyword">const</span> std::string &amp;right) {</div>
-<div class="line"><a name="l00103"></a><span class="lineno">  103</span>&#160;    <span class="keywordtype">size_t</span> first = page.find(left);</div>
-<div class="line"><a name="l00104"></a><span class="lineno">  104</span>&#160;    <span class="keywordtype">size_t</span> last = page.find(right, first);</div>
-<div class="line"><a name="l00105"></a><span class="lineno">  105</span>&#160;    <span class="keywordflow">if</span> (first == std::string::npos || last == std::string::npos || first &gt; last)</div>
-<div class="line"><a name="l00106"></a><span class="lineno">  106</span>&#160;        <span class="keywordflow">return</span> <span class="stringliteral">&quot;&quot;</span>;</div>
-<div class="line"><a name="l00107"></a><span class="lineno">  107</span>&#160;    <span class="keywordflow">return</span> page.substr(first + left.size(), last - first - left.size());</div>
-<div class="line"><a name="l00108"></a><span class="lineno">  108</span>&#160;}</div>
-<div class="line"><a name="l00109"></a><span class="lineno">  109</span>&#160; </div>
-<div class="line"><a name="l00110"></a><span class="lineno"><a class="line" href="namespace_util.html#a84697889b6f670fa36567d89a9b83718">  110</a></span>&#160;std::string <a class="code" href="namespace_util.html#a84697889b6f670fa36567d89a9b83718">Util::RapidjsonSerialize</a>(<span class="keyword">const</span> rapidjson::Value &amp;val) {</div>
-<div class="line"><a name="l00111"></a><span class="lineno">  111</span>&#160;    rapidjson::StringBuffer buffer;</div>
-<div class="line"><a name="l00112"></a><span class="lineno">  112</span>&#160;    rapidjson::Writer&lt;rapidjson::StringBuffer&gt; writer(buffer);</div>
-<div class="line"><a name="l00113"></a><span class="lineno">  113</span>&#160;    val.Accept(writer);</div>
-<div class="line"><a name="l00114"></a><span class="lineno">  114</span>&#160;    <span class="keywordflow">return</span> buffer.GetString();</div>
-<div class="line"><a name="l00115"></a><span class="lineno">  115</span>&#160;}</div>
-<div class="line"><a name="l00116"></a><span class="lineno">  116</span>&#160; </div>
-<div class="line"><a name="l00117"></a><span class="lineno"><a class="line" href="namespace_util.html#ab6b36e345744aaea96346598d4dd020d">  117</a></span>&#160;<span class="keywordtype">void</span> <a class="code" href="namespace_util.html#ab6b36e345744aaea96346598d4dd020d">Util::RapidjsonAddConstString</a>(rapidjson::Value *<span class="keywordtype">object</span>, <span class="keyword">const</span> <span class="keywordtype">char</span> *<span class="keyword">const</span> name, <span class="keyword">const</span> std::string &amp;value, rapidjson::MemoryPoolAllocator&lt;rapidjson::CrtAllocator&gt; &amp;alloc) {</div>
-<div class="line"><a name="l00118"></a><span class="lineno">  118</span>&#160;    rapidjson::Value rjson_name;</div>
-<div class="line"><a name="l00119"></a><span class="lineno">  119</span>&#160;    rjson_name.SetString(name, strlen(name));</div>
-<div class="line"><a name="l00120"></a><span class="lineno">  120</span>&#160;    rapidjson::Value rjson_val;</div>
-<div class="line"><a name="l00121"></a><span class="lineno">  121</span>&#160;    rjson_val.SetString(value.c_str(), value.size());</div>
-<div class="line"><a name="l00122"></a><span class="lineno">  122</span>&#160;    <span class="keywordtype">object</span>-&gt;AddMember(rjson_name, rjson_val, alloc);</div>
-<div class="line"><a name="l00123"></a><span class="lineno">  123</span>&#160;}</div>
-<div class="line"><a name="l00124"></a><span class="lineno">  124</span>&#160; </div>
-<div class="line"><a name="l00125"></a><span class="lineno"><a class="line" href="namespace_util.html#a54c1ec6d73ba18e921eeb42725a6a00d">  125</a></span>&#160;std::string <a class="code" href="namespace_util.html#a54c1ec6d73ba18e921eeb42725a6a00d">Util::StringReplace</a>(<span class="keyword">const</span> std::string &amp;haystack, <span class="keyword">const</span> std::string &amp;needle, <span class="keyword">const</span> std::string &amp;replace) {</div>
-<div class="line"><a name="l00126"></a><span class="lineno">  126</span>&#160;    std::string out = haystack;</div>
-<div class="line"><a name="l00127"></a><span class="lineno">  127</span>&#160;    <span class="keywordflow">for</span> (<span class="keywordtype">size_t</span> pos = 0; ; pos += replace.length()) {</div>
-<div class="line"><a name="l00128"></a><span class="lineno">  128</span>&#160;        pos = out.find(needle, pos);</div>
-<div class="line"><a name="l00129"></a><span class="lineno">  129</span>&#160;        <span class="keywordflow">if</span> (pos == std::string::npos)</div>
-<div class="line"><a name="l00130"></a><span class="lineno">  130</span>&#160;            <span class="keywordflow">break</span>;</div>
-<div class="line"><a name="l00131"></a><span class="lineno">  131</span>&#160;        out.erase(pos, needle.length());</div>
-<div class="line"><a name="l00132"></a><span class="lineno">  132</span>&#160;        out.insert(pos, replace);</div>
-<div class="line"><a name="l00133"></a><span class="lineno">  133</span>&#160;    }</div>
-<div class="line"><a name="l00134"></a><span class="lineno">  134</span>&#160;    <span class="keywordflow">return</span> out;</div>
-<div class="line"><a name="l00135"></a><span class="lineno">  135</span>&#160;}</div>
-<div class="line"><a name="l00136"></a><span class="lineno">  136</span>&#160; </div>
-<div class="line"><a name="l00137"></a><span class="lineno"><a class="line" href="namespace_util.html#a20b825d2eb20d2155a7ee41005cff89e">  137</a></span>&#160;std::string <a class="code" href="namespace_util.html#a20b825d2eb20d2155a7ee41005cff89e">Util::StringJoin</a>(<span class="keyword">const</span> std::vector&lt;std::string&gt; &amp;arr, <span class="keyword">const</span> std::string &amp;separator) {</div>
-<div class="line"><a name="l00138"></a><span class="lineno">  138</span>&#160;    <span class="keywordflow">return</span> boost::join(arr, separator);</div>
-<div class="line"><a name="l00139"></a><span class="lineno">  139</span>&#160;}</div>
-<div class="line"><a name="l00140"></a><span class="lineno">  140</span>&#160; </div>
-<div class="line"><a name="l00141"></a><span class="lineno"><a class="line" href="namespace_util.html#ac09731ff9181114c9157eabf198d9283">  141</a></span>&#160;std::vector&lt;std::string&gt; <a class="code" href="namespace_util.html#ac09731ff9181114c9157eabf198d9283">Util::StringSplit</a>(<span class="keyword">const</span> std::string &amp;str, <span class="keywordtype">char</span> delim) {</div>
-<div class="line"><a name="l00142"></a><span class="lineno">  142</span>&#160;    std::vector&lt;std::string&gt; elems;</div>
-<div class="line"><a name="l00143"></a><span class="lineno">  143</span>&#160;    std::stringstream ss(str);</div>
-<div class="line"><a name="l00144"></a><span class="lineno">  144</span>&#160;    std::string item;</div>
-<div class="line"><a name="l00145"></a><span class="lineno">  145</span>&#160;    <span class="keywordflow">while</span> (std::getline(ss, item, delim)) {</div>
-<div class="line"><a name="l00146"></a><span class="lineno">  146</span>&#160;        elems.push_back(item);</div>
-<div class="line"><a name="l00147"></a><span class="lineno">  147</span>&#160;    }</div>
-<div class="line"><a name="l00148"></a><span class="lineno">  148</span>&#160;    <span class="keywordflow">return</span> elems;</div>
-<div class="line"><a name="l00149"></a><span class="lineno">  149</span>&#160;}</div>
-<div class="line"><a name="l00150"></a><span class="lineno">  150</span>&#160; </div>
-<div class="line"><a name="l00151"></a><span class="lineno"><a class="line" href="namespace_util.html#a9ab8098783c5bf9d811183f29120334f">  151</a></span>&#160;<span class="keywordtype">bool</span> <a class="code" href="namespace_util.html#a9ab8098783c5bf9d811183f29120334f">Util::MatchMod</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *match, <span class="keyword">const</span> <span class="keywordtype">char</span> *mod, <span class="keywordtype">double</span> *output) {</div>
-<div class="line"><a name="l00152"></a><span class="lineno">  152</span>&#160;    <span class="keywordtype">double</span> result = 0.0;</div>
-<div class="line"><a name="l00153"></a><span class="lineno">  153</span>&#160;    <span class="keyword">auto</span> pmatch = match;</div>
-<div class="line"><a name="l00154"></a><span class="lineno">  154</span>&#160;    <span class="keyword">auto</span> pmod = mod;</div>
-<div class="line"><a name="l00155"></a><span class="lineno">  155</span>&#160;    <span class="keywordtype">int</span> cnt = 0;</div>
-<div class="line"><a name="l00156"></a><span class="lineno">  156</span>&#160; </div>
-<div class="line"><a name="l00157"></a><span class="lineno">  157</span>&#160;    <span class="keywordflow">while</span> (*pmatch &amp;&amp; *pmod) {</div>
-<div class="line"><a name="l00158"></a><span class="lineno">  158</span>&#160;        <span class="keywordflow">if</span> (*pmatch == <span class="charliteral">&#39;#&#39;</span>) {</div>
-<div class="line"><a name="l00159"></a><span class="lineno">  159</span>&#160;            ++cnt;</div>
-<div class="line"><a name="l00160"></a><span class="lineno">  160</span>&#160;            <span class="keyword">auto</span> prev = pmod;</div>
-<div class="line"><a name="l00161"></a><span class="lineno">  161</span>&#160;            <span class="keywordflow">while</span> ((*pmod &gt;= <span class="charliteral">&#39;0&#39;</span> &amp;&amp; *pmod &lt;= <span class="charliteral">&#39;9&#39;</span>) || *pmod == <span class="charliteral">&#39;.&#39;</span>)</div>
-<div class="line"><a name="l00162"></a><span class="lineno">  162</span>&#160;                ++pmod;</div>
-<div class="line"><a name="l00163"></a><span class="lineno">  163</span>&#160;            result += std::strtod(prev, NULL);</div>
-<div class="line"><a name="l00164"></a><span class="lineno">  164</span>&#160;            ++pmatch;</div>
-<div class="line"><a name="l00165"></a><span class="lineno">  165</span>&#160;        } <span class="keywordflow">else</span> <span class="keywordflow">if</span> (*pmatch == *pmod) {</div>
-<div class="line"><a name="l00166"></a><span class="lineno">  166</span>&#160;            ++pmatch;</div>
-<div class="line"><a name="l00167"></a><span class="lineno">  167</span>&#160;            ++pmod;</div>
-<div class="line"><a name="l00168"></a><span class="lineno">  168</span>&#160;        } <span class="keywordflow">else</span> {</div>
-<div class="line"><a name="l00169"></a><span class="lineno">  169</span>&#160;            <span class="keywordflow">return</span> <span class="keyword">false</span>;</div>
-<div class="line"><a name="l00170"></a><span class="lineno">  170</span>&#160;        }</div>
-<div class="line"><a name="l00171"></a><span class="lineno">  171</span>&#160;    }</div>
-<div class="line"><a name="l00172"></a><span class="lineno">  172</span>&#160;    *output = result / cnt;</div>
-<div class="line"><a name="l00173"></a><span class="lineno">  173</span>&#160;    <span class="keywordflow">return</span> !*pmatch &amp;&amp; !*pmod;</div>
-<div class="line"><a name="l00174"></a><span class="lineno">  174</span>&#160;}</div>
-<div class="line"><a name="l00175"></a><span class="lineno">  175</span>&#160; </div>
-<div class="line"><a name="l00176"></a><span class="lineno"><a class="line" href="namespace_util.html#a29b1e69dd305b91cfb2fe3df076995d2">  176</a></span>&#160;std::string <a class="code" href="namespace_util.html#a29b1e69dd305b91cfb2fe3df076995d2">Util::Capitalise</a>(<span class="keyword">const</span> std::string &amp;str) {</div>
-<div class="line"><a name="l00177"></a><span class="lineno">  177</span>&#160;    std::string capitalised = str;</div>
-<div class="line"><a name="l00178"></a><span class="lineno">  178</span>&#160;    capitalised[0] = <span class="keyword">static_cast&lt;</span>std::string::value_type<span class="keyword">&gt;</span>(toupper(capitalised[0]));   <span class="comment">//  Set the first character to upper case</span></div>
-<div class="line"><a name="l00179"></a><span class="lineno">  179</span>&#160;    <span class="keywordflow">return</span> capitalised;</div>
-<div class="line"><a name="l00180"></a><span class="lineno">  180</span>&#160;}</div>
-<div class="line"><a name="l00181"></a><span class="lineno">  181</span>&#160; </div>
-<div class="line"><a name="l00182"></a><span class="lineno"><a class="line" href="namespace_util.html#acc9926e62d8c8cac043a0a4b324bae36">  182</a></span>&#160;std::string <a class="code" href="namespace_util.html#acc9926e62d8c8cac043a0a4b324bae36">Util::TimeAgoInWords</a>(<span class="keyword">const</span> QDateTime buyout_time){</div>
-<div class="line"><a name="l00183"></a><span class="lineno">  183</span>&#160;    QDateTime current_date = QDateTime::currentDateTime();</div>
-<div class="line"><a name="l00184"></a><span class="lineno">  184</span>&#160;    qint64 secs = buyout_time.secsTo(current_date);</div>
-<div class="line"><a name="l00185"></a><span class="lineno">  185</span>&#160;    qint64 days = secs / 60 / 60 / 24;</div>
-<div class="line"><a name="l00186"></a><span class="lineno">  186</span>&#160;    qint64 hours = (secs / 60 / 60) % 24;</div>
-<div class="line"><a name="l00187"></a><span class="lineno">  187</span>&#160;    qint64 minutes = (secs / 60) % 60;</div>
-<div class="line"><a name="l00188"></a><span class="lineno">  188</span>&#160; </div>
-<div class="line"><a name="l00189"></a><span class="lineno">  189</span>&#160;    <span class="comment">// YEARS</span></div>
-<div class="line"><a name="l00190"></a><span class="lineno">  190</span>&#160;    <span class="keywordflow">if</span> (days &gt; 365){</div>
-<div class="line"><a name="l00191"></a><span class="lineno">  191</span>&#160;        <span class="keywordtype">int</span> years = (days / 365);</div>
-<div class="line"><a name="l00192"></a><span class="lineno">  192</span>&#160;        <span class="keywordflow">if</span> (days % 365 != 0)</div>
-<div class="line"><a name="l00193"></a><span class="lineno">  193</span>&#160;            years++;</div>
-<div class="line"><a name="l00194"></a><span class="lineno">  194</span>&#160;        <span class="keywordflow">return</span> QString(<span class="stringliteral">&quot;%1 %2 ago&quot;</span>).arg(years).arg(years == 1 ? <span class="stringliteral">&quot;year&quot;</span> : <span class="stringliteral">&quot;years&quot;</span>).toStdString();</div>
-<div class="line"><a name="l00195"></a><span class="lineno">  195</span>&#160;    }</div>
-<div class="line"><a name="l00196"></a><span class="lineno">  196</span>&#160;    <span class="comment">// MONTHS</span></div>
-<div class="line"><a name="l00197"></a><span class="lineno">  197</span>&#160;    <span class="keywordflow">if</span> (days &gt; 30){</div>
-<div class="line"><a name="l00198"></a><span class="lineno">  198</span>&#160;        <span class="keywordtype">int</span> months = (days / 365);</div>
-<div class="line"><a name="l00199"></a><span class="lineno">  199</span>&#160;        <span class="keywordflow">if</span> (days % 30 != 0)</div>
-<div class="line"><a name="l00200"></a><span class="lineno">  200</span>&#160;            months++;</div>
-<div class="line"><a name="l00201"></a><span class="lineno">  201</span>&#160;        <span class="keywordflow">return</span> QString(<span class="stringliteral">&quot;%1 %2 ago&quot;</span>).arg(months).arg(months == 1 ? <span class="stringliteral">&quot;month&quot;</span> : <span class="stringliteral">&quot;months&quot;</span>).toStdString();</div>
-<div class="line"><a name="l00202"></a><span class="lineno">  202</span>&#160;    <span class="comment">// DAYS</span></div>
-<div class="line"><a name="l00203"></a><span class="lineno">  203</span>&#160;    }<span class="keywordflow">else</span> <span class="keywordflow">if</span> (days &gt; 0){</div>
-<div class="line"><a name="l00204"></a><span class="lineno">  204</span>&#160;        <span class="keywordflow">return</span> QString(<span class="stringliteral">&quot;%1 %2 ago&quot;</span>).arg(days).arg(days == 1 ? <span class="stringliteral">&quot;day&quot;</span> : <span class="stringliteral">&quot;days&quot;</span>).toStdString();</div>
-<div class="line"><a name="l00205"></a><span class="lineno">  205</span>&#160;    <span class="comment">// HOURS</span></div>
-<div class="line"><a name="l00206"></a><span class="lineno">  206</span>&#160;    }<span class="keywordflow">else</span> <span class="keywordflow">if</span> (hours &gt; 0){</div>
-<div class="line"><a name="l00207"></a><span class="lineno">  207</span>&#160;        <span class="keywordflow">return</span> QString(<span class="stringliteral">&quot;%1 %2 ago&quot;</span>).arg(hours).arg(hours == 1 ? <span class="stringliteral">&quot;hour&quot;</span> : <span class="stringliteral">&quot;hours&quot;</span>).toStdString();</div>
-<div class="line"><a name="l00208"></a><span class="lineno">  208</span>&#160;    <span class="comment">//MINUTES</span></div>
-<div class="line"><a name="l00209"></a><span class="lineno">  209</span>&#160;    }<span class="keywordflow">else</span> <span class="keywordflow">if</span> (minutes &gt; 0){</div>
-<div class="line"><a name="l00210"></a><span class="lineno">  210</span>&#160;        <span class="keywordflow">return</span> QString(<span class="stringliteral">&quot;%1 %2 ago&quot;</span>).arg(minutes).arg(minutes == 1 ? <span class="stringliteral">&quot;minute&quot;</span> : <span class="stringliteral">&quot;minutes&quot;</span>).toStdString();</div>
-<div class="line"><a name="l00211"></a><span class="lineno">  211</span>&#160;    <span class="comment">// SECONDS</span></div>
-<div class="line"><a name="l00212"></a><span class="lineno">  212</span>&#160;    }<span class="keywordflow">else</span> <span class="keywordflow">if</span> (secs &gt; 5){</div>
-<div class="line"><a name="l00213"></a><span class="lineno">  213</span>&#160;        <span class="keywordflow">return</span> QString(<span class="stringliteral">&quot;%1 %2 ago&quot;</span>).arg(secs).arg(<span class="stringliteral">&quot;seconds&quot;</span>).toStdString();</div>
-<div class="line"><a name="l00214"></a><span class="lineno">  214</span>&#160;    }<span class="keywordflow">else</span> <span class="keywordflow">if</span> (secs &lt; 5){</div>
-<div class="line"><a name="l00215"></a><span class="lineno">  215</span>&#160;        <span class="keywordflow">return</span> QString(<span class="stringliteral">&quot;just now&quot;</span>).toStdString();</div>
-<div class="line"><a name="l00216"></a><span class="lineno">  216</span>&#160;    }<span class="keywordflow">else</span>{</div>
-<div class="line"><a name="l00217"></a><span class="lineno">  217</span>&#160;        <span class="keywordflow">return</span> <span class="stringliteral">&quot;&quot;</span>;</div>
-<div class="line"><a name="l00218"></a><span class="lineno">  218</span>&#160;    }</div>
-<div class="line"><a name="l00219"></a><span class="lineno">  219</span>&#160;}</div>
-<div class="line"><a name="l00220"></a><span class="lineno">  220</span>&#160; </div>
-<div class="line"><a name="l00221"></a><span class="lineno"><a class="line" href="namespace_util.html#a0557a8babdf8a6620c2014b092fde8ef">  221</a></span>&#160;std::string <a class="code" href="namespace_util.html#a0557a8babdf8a6620c2014b092fde8ef">Util::Decode</a>(<span class="keyword">const</span> std::string &amp;entity) {</div>
-<div class="line"><a name="l00222"></a><span class="lineno">  222</span>&#160;    QTextDocument text;</div>
-<div class="line"><a name="l00223"></a><span class="lineno">  223</span>&#160;    text.setHtml(entity.c_str());</div>
-<div class="line"><a name="l00224"></a><span class="lineno">  224</span>&#160;    <span class="keywordflow">return</span> text.toPlainText().toStdString();</div>
-<div class="line"><a name="l00225"></a><span class="lineno">  225</span>&#160;}</div>
-<div class="line"><a name="l00226"></a><span class="lineno">  226</span>&#160; </div>
-<div class="line"><a name="l00227"></a><span class="lineno"><a class="line" href="util_8h.html#a9a56936fb9fc625b5137d2900cde0633">  227</a></span>&#160;QDebug &amp;<a class="code" href="util_8cpp.html#a9a56936fb9fc625b5137d2900cde0633">operator&lt;&lt;</a>(QDebug &amp;os, <span class="keyword">const</span> <a class="code" href="class_refresh_reason.html#a176902b63e9a578f6e8b7b1501bd7237">RefreshReason::Type</a> &amp;obj)</div>
-<div class="line"><a name="l00228"></a><span class="lineno">  228</span>&#160;{</div>
-<div class="line"><a name="l00229"></a><span class="lineno">  229</span>&#160;    <span class="keyword">const</span> QMetaObject *meta = &amp;RefreshReason::staticMetaObject;</div>
-<div class="line"><a name="l00230"></a><span class="lineno">  230</span>&#160;    os &lt;&lt; meta-&gt;enumerator(meta-&gt;indexOfEnumerator(<span class="stringliteral">&quot;Type&quot;</span>)).key(obj);</div>
-<div class="line"><a name="l00231"></a><span class="lineno">  231</span>&#160;    <span class="keywordflow">return</span> os;</div>
-<div class="line"><a name="l00232"></a><span class="lineno">  232</span>&#160;}</div>
-<div class="line"><a name="l00233"></a><span class="lineno">  233</span>&#160; </div>
-<div class="line"><a name="l00234"></a><span class="lineno"><a class="line" href="util_8h.html#a48b11ca73af29879bbdeb297c532dd94">  234</a></span>&#160;QDebug &amp;<a class="code" href="util_8cpp.html#a9a56936fb9fc625b5137d2900cde0633">operator&lt;&lt;</a>(QDebug &amp;os, <span class="keyword">const</span> <a class="code" href="class_tab_selection.html#ab58277e003fc45ecc9bcc73ff27df167">TabSelection::Type</a> &amp;obj)</div>
-<div class="line"><a name="l00235"></a><span class="lineno">  235</span>&#160;{</div>
-<div class="line"><a name="l00236"></a><span class="lineno">  236</span>&#160;    <span class="keyword">const</span> QMetaObject *meta = &amp;TabSelection::staticMetaObject;</div>
-<div class="line"><a name="l00237"></a><span class="lineno">  237</span>&#160;    os &lt;&lt; meta-&gt;enumerator(meta-&gt;indexOfEnumerator(<span class="stringliteral">&quot;Type&quot;</span>)).key(obj);</div>
-<div class="line"><a name="l00238"></a><span class="lineno">  238</span>&#160;    <span class="keywordflow">return</span> os;</div>
+<div class="line"><a name="l00031"></a><span class="lineno">   31</span>&#160;<span class="preprocessor">#include &lt;QPainter&gt;</span></div>
+<div class="line"><a name="l00032"></a><span class="lineno">   32</span>&#160;<span class="preprocessor">#include &quot;rapidjson/document.h&quot;</span></div>
+<div class="line"><a name="l00033"></a><span class="lineno">   33</span>&#160;<span class="preprocessor">#include &quot;rapidjson/writer.h&quot;</span></div>
+<div class="line"><a name="l00034"></a><span class="lineno">   34</span>&#160;<span class="preprocessor">#include &lt;sstream&gt;</span></div>
+<div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160; </div>
+<div class="line"><a name="l00036"></a><span class="lineno">   36</span>&#160;<span class="preprocessor">#include &quot;<a class="code" href="buyoutmanager_8h.html">buyoutmanager.h</a>&quot;</span></div>
+<div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;<span class="preprocessor">#include &quot;<a class="code" href="porting_8h.html">porting.h</a>&quot;</span></div>
+<div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;<span class="preprocessor">#include &lt;boost/algorithm/string/join.hpp&gt;</span></div>
+<div class="line"><a name="l00039"></a><span class="lineno">   39</span>&#160;<span class="preprocessor">#include &lt;QMetaEnum&gt;</span></div>
+<div class="line"><a name="l00040"></a><span class="lineno">   40</span>&#160; </div>
+<div class="line"><a name="l00041"></a><span class="lineno"><a class="line" href="namespace_util.html#a875b9cb18270958b414538f74e503410">   41</a></span>&#160;std::string <a class="code" href="namespace_util.html#a875b9cb18270958b414538f74e503410">Util::Md5</a>(<span class="keyword">const</span> std::string &amp;value) {</div>
+<div class="line"><a name="l00042"></a><span class="lineno">   42</span>&#160;    QString hash = QString(QCryptographicHash::hash(value.c_str(), <a class="code" href="namespace_util.html#a875b9cb18270958b414538f74e503410">QCryptographicHash::Md5</a>).toHex());</div>
+<div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;    <span class="keywordflow">return</span> hash.toUtf8().constData();</div>
+<div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;}</div>
+<div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160; </div>
+<div class="line"><a name="l00046"></a><span class="lineno"><a class="line" href="namespace_util.html#a7c6f5072068335e61a1f85082cf03dbc">   46</a></span>&#160;<span class="keywordtype">double</span> <a class="code" href="namespace_util.html#a7c6f5072068335e61a1f85082cf03dbc">Util::AverageDamage</a>(<span class="keyword">const</span> std::string &amp;s) {</div>
+<div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;    <span class="keywordtype">size_t</span> x = s.find(<span class="stringliteral">&quot;-&quot;</span>);</div>
+<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;    <span class="keywordflow">if</span> (x == std::string::npos)</div>
+<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;        <span class="keywordflow">return</span> 0;</div>
+<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;    <span class="keywordflow">return</span> (std::stod(s.substr(0, x)) + std::stod(s.substr(x + 1))) / 2;</div>
+<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;}</div>
+<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160; </div>
+<div class="line"><a name="l00053"></a><span class="lineno"><a class="line" href="namespace_util.html#abad13df8e4f637add410963b0192ac1a">   53</a></span>&#160;<span class="keywordtype">void</span> <a class="code" href="namespace_util.html#abad13df8e4f637add410963b0192ac1a">Util::PopulateBuyoutTypeComboBox</a>(QComboBox *combobox) {</div>
+<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;    combobox-&gt;addItems(QStringList({<span class="stringliteral">&quot;[Ignore]&quot;</span>, <span class="stringliteral">&quot;Buyout&quot;</span>, <span class="stringliteral">&quot;Fixed price&quot;</span>, <span class="stringliteral">&quot;Current Offer&quot;</span>, <span class="stringliteral">&quot;No price&quot;</span>, <span class="stringliteral">&quot;[Inherit]&quot;</span>}));</div>
+<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160;    combobox-&gt;setCurrentIndex(5);</div>
+<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;}</div>
+<div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160; </div>
+<div class="line"><a name="l00058"></a><span class="lineno"><a class="line" href="namespace_util.html#a24a06f856bc9bb23d131a1eb512b4a96">   58</a></span>&#160;<span class="keywordtype">void</span> <a class="code" href="namespace_util.html#a24a06f856bc9bb23d131a1eb512b4a96">Util::PopulateBuyoutCurrencyComboBox</a>(QComboBox *combobox) {</div>
+<div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;    <span class="keywordflow">for</span> (<span class="keyword">auto</span> type : <a class="code" href="struct_currency.html#a8ae5e935889a18c29d0ed8d5dad2f21a">Currency::Types</a>())</div>
+<div class="line"><a name="l00060"></a><span class="lineno">   60</span>&#160;        combobox-&gt;addItem(QString(<a class="code" href="struct_currency.html">Currency</a>(type).AsString().c_str()));</div>
+<div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160;}</div>
+<div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160; </div>
+<div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160;<span class="keyword">static</span> std::vector&lt;std::string&gt; width_strings = {</div>
+<div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;    <span class="stringliteral">&quot;max#&quot;</span>,</div>
+<div class="line"><a name="l00065"></a><span class="lineno">   65</span>&#160;    <span class="stringliteral">&quot;Map Tier&quot;</span>,</div>
+<div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;    <span class="stringliteral">&quot;R##&quot;</span>,</div>
+<div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160;    <span class="stringliteral">&quot;Defense&quot;</span>,</div>
+<div class="line"><a name="l00068"></a><span class="lineno">   68</span>&#160;    <span class="stringliteral">&quot;Master-crafted&quot;</span></div>
+<div class="line"><a name="l00069"></a><span class="lineno">   69</span>&#160;};</div>
+<div class="line"><a name="l00070"></a><span class="lineno">   70</span>&#160; </div>
+<div class="line"><a name="l00071"></a><span class="lineno"><a class="line" href="namespace_util.html#a8aebbd3bcfbbbf253a16e7da22ae074a">   71</a></span>&#160;<span class="keywordtype">int</span> <a class="code" href="namespace_util.html#a8aebbd3bcfbbbf253a16e7da22ae074a">Util::TextWidth</a>(<a class="code" href="util_8h.html#ad66dcf31c1e91e58016f505e90395667">TextWidthId</a> <span class="keywordtype">id</span>) {</div>
+<div class="line"><a name="l00072"></a><span class="lineno">   72</span>&#160;    <span class="keyword">static</span> <span class="keywordtype">bool</span> calculated = <span class="keyword">false</span>;</div>
+<div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160;    <span class="keyword">static</span> std::vector&lt;int&gt; result;</div>
+<div class="line"><a name="l00074"></a><span class="lineno">   74</span>&#160; </div>
+<div class="line"><a name="l00075"></a><span class="lineno">   75</span>&#160;    <span class="keywordflow">if</span> (!calculated) {</div>
+<div class="line"><a name="l00076"></a><span class="lineno">   76</span>&#160;        calculated = <span class="keyword">true</span>;</div>
+<div class="line"><a name="l00077"></a><span class="lineno">   77</span>&#160;        result.resize(width_strings.size());</div>
+<div class="line"><a name="l00078"></a><span class="lineno">   78</span>&#160;        QLineEdit textbox;</div>
+<div class="line"><a name="l00079"></a><span class="lineno">   79</span>&#160;        QFontMetrics fm(textbox.fontMetrics());</div>
+<div class="line"><a name="l00080"></a><span class="lineno">   80</span>&#160;        <span class="keywordflow">for</span> (<span class="keywordtype">size_t</span> i = 0; i &lt; width_strings.size(); ++i)</div>
+<div class="line"><a name="l00081"></a><span class="lineno">   81</span>&#160;            result[i] = fm.width(width_strings[i].c_str());</div>
+<div class="line"><a name="l00082"></a><span class="lineno">   82</span>&#160;    }</div>
+<div class="line"><a name="l00083"></a><span class="lineno">   83</span>&#160;    <span class="keywordflow">return</span> result[<span class="keyword">static_cast&lt;</span><span class="keywordtype">int</span><span class="keyword">&gt;</span>(id)];</div>
+<div class="line"><a name="l00084"></a><span class="lineno">   84</span>&#160;}</div>
+<div class="line"><a name="l00085"></a><span class="lineno">   85</span>&#160; </div>
+<div class="line"><a name="l00086"></a><span class="lineno"><a class="line" href="namespace_util.html#a4b2c8d27c52d78afe95297bf9883d4ec">   86</a></span>&#160;<span class="keywordtype">void</span> <a class="code" href="namespace_util.html#a4b2c8d27c52d78afe95297bf9883d4ec">Util::ParseJson</a>(QNetworkReply *reply, rapidjson::Document *doc) {</div>
+<div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160;    QByteArray bytes = reply-&gt;readAll();</div>
+<div class="line"><a name="l00088"></a><span class="lineno">   88</span>&#160;    doc-&gt;Parse(bytes.constData());</div>
+<div class="line"><a name="l00089"></a><span class="lineno">   89</span>&#160;}</div>
+<div class="line"><a name="l00090"></a><span class="lineno">   90</span>&#160; </div>
+<div class="line"><a name="l00091"></a><span class="lineno"><a class="line" href="namespace_util.html#a4b268ba6e2b0fe096dbdfe2a3985792c">   91</a></span>&#160;std::string <a class="code" href="namespace_util.html#a4b268ba6e2b0fe096dbdfe2a3985792c">Util::GetCsrfToken</a>(<span class="keyword">const</span> std::string &amp;page, <span class="keyword">const</span> std::string &amp;name) {</div>
+<div class="line"><a name="l00092"></a><span class="lineno">   92</span>&#160;    std::string needle = <span class="stringliteral">&quot;name=\&quot;&quot;</span> + name + <span class="stringliteral">&quot;\&quot; value=\&quot;&quot;</span>;</div>
+<div class="line"><a name="l00093"></a><span class="lineno">   93</span>&#160;    <span class="keyword">auto</span> pos = page.find(needle);</div>
+<div class="line"><a name="l00094"></a><span class="lineno">   94</span>&#160;    <span class="keywordflow">if</span> (pos == std::string::npos)</div>
+<div class="line"><a name="l00095"></a><span class="lineno">   95</span>&#160;        <span class="keywordflow">return</span> <span class="stringliteral">&quot;&quot;</span>;</div>
+<div class="line"><a name="l00096"></a><span class="lineno">   96</span>&#160;    <span class="keyword">auto</span> start = pos + needle.size();  <span class="comment">// Right after the opening &quot;</span></div>
+<div class="line"><a name="l00097"></a><span class="lineno">   97</span>&#160;    <span class="keyword">auto</span> <a class="code" href="namespacerapidjson.html#a70ef97b812a7a70a3679caa10e91ff1f">end</a> = page.find(<span class="stringliteral">&quot;\&quot;&quot;</span>, start); <span class="comment">// Closing &quot;</span></div>
+<div class="line"><a name="l00098"></a><span class="lineno">   98</span>&#160;    <span class="keywordflow">if</span> (<a class="code" href="namespacerapidjson.html#a70ef97b812a7a70a3679caa10e91ff1f">end</a> == std::string::npos)</div>
+<div class="line"><a name="l00099"></a><span class="lineno">   99</span>&#160;        <span class="keywordflow">return</span> <span class="stringliteral">&quot;&quot;</span>;</div>
+<div class="line"><a name="l00100"></a><span class="lineno">  100</span>&#160;    <span class="keywordflow">return</span> page.substr(start, <a class="code" href="namespacerapidjson.html#a70ef97b812a7a70a3679caa10e91ff1f">end</a> - start);</div>
+<div class="line"><a name="l00101"></a><span class="lineno">  101</span>&#160;}</div>
+<div class="line"><a name="l00102"></a><span class="lineno">  102</span>&#160; </div>
+<div class="line"><a name="l00103"></a><span class="lineno"><a class="line" href="namespace_util.html#aa80553a773bd1c560ba651524dc37e58">  103</a></span>&#160;std::string <a class="code" href="namespace_util.html#aa80553a773bd1c560ba651524dc37e58">Util::FindTextBetween</a>(<span class="keyword">const</span> std::string &amp;page, <span class="keyword">const</span> std::string &amp;left, <span class="keyword">const</span> std::string &amp;right) {</div>
+<div class="line"><a name="l00104"></a><span class="lineno">  104</span>&#160;    <span class="keywordtype">size_t</span> first = page.find(left);</div>
+<div class="line"><a name="l00105"></a><span class="lineno">  105</span>&#160;    <span class="keywordtype">size_t</span> last = page.find(right, first);</div>
+<div class="line"><a name="l00106"></a><span class="lineno">  106</span>&#160;    <span class="keywordflow">if</span> (first == std::string::npos || last == std::string::npos || first &gt; last)</div>
+<div class="line"><a name="l00107"></a><span class="lineno">  107</span>&#160;        <span class="keywordflow">return</span> <span class="stringliteral">&quot;&quot;</span>;</div>
+<div class="line"><a name="l00108"></a><span class="lineno">  108</span>&#160;    <span class="keywordflow">return</span> page.substr(first + left.size(), last - first - left.size());</div>
+<div class="line"><a name="l00109"></a><span class="lineno">  109</span>&#160;}</div>
+<div class="line"><a name="l00110"></a><span class="lineno">  110</span>&#160; </div>
+<div class="line"><a name="l00111"></a><span class="lineno"><a class="line" href="namespace_util.html#a84697889b6f670fa36567d89a9b83718">  111</a></span>&#160;std::string <a class="code" href="namespace_util.html#a84697889b6f670fa36567d89a9b83718">Util::RapidjsonSerialize</a>(<span class="keyword">const</span> rapidjson::Value &amp;val) {</div>
+<div class="line"><a name="l00112"></a><span class="lineno">  112</span>&#160;    rapidjson::StringBuffer buffer;</div>
+<div class="line"><a name="l00113"></a><span class="lineno">  113</span>&#160;    rapidjson::Writer&lt;rapidjson::StringBuffer&gt; writer(buffer);</div>
+<div class="line"><a name="l00114"></a><span class="lineno">  114</span>&#160;    val.Accept(writer);</div>
+<div class="line"><a name="l00115"></a><span class="lineno">  115</span>&#160;    <span class="keywordflow">return</span> buffer.GetString();</div>
+<div class="line"><a name="l00116"></a><span class="lineno">  116</span>&#160;}</div>
+<div class="line"><a name="l00117"></a><span class="lineno">  117</span>&#160; </div>
+<div class="line"><a name="l00118"></a><span class="lineno"><a class="line" href="namespace_util.html#ab6b36e345744aaea96346598d4dd020d">  118</a></span>&#160;<span class="keywordtype">void</span> <a class="code" href="namespace_util.html#ab6b36e345744aaea96346598d4dd020d">Util::RapidjsonAddConstString</a>(rapidjson::Value *<span class="keywordtype">object</span>, <span class="keyword">const</span> <span class="keywordtype">char</span> *<span class="keyword">const</span> name, <span class="keyword">const</span> std::string &amp;value, rapidjson::MemoryPoolAllocator&lt;rapidjson::CrtAllocator&gt; &amp;alloc) {</div>
+<div class="line"><a name="l00119"></a><span class="lineno">  119</span>&#160;    rapidjson::Value rjson_name;</div>
+<div class="line"><a name="l00120"></a><span class="lineno">  120</span>&#160;    rjson_name.SetString(name, strlen(name));</div>
+<div class="line"><a name="l00121"></a><span class="lineno">  121</span>&#160;    rapidjson::Value rjson_val;</div>
+<div class="line"><a name="l00122"></a><span class="lineno">  122</span>&#160;    rjson_val.SetString(value.c_str(), value.size());</div>
+<div class="line"><a name="l00123"></a><span class="lineno">  123</span>&#160;    <span class="keywordtype">object</span>-&gt;AddMember(rjson_name, rjson_val, alloc);</div>
+<div class="line"><a name="l00124"></a><span class="lineno">  124</span>&#160;}</div>
+<div class="line"><a name="l00125"></a><span class="lineno">  125</span>&#160; </div>
+<div class="line"><a name="l00126"></a><span class="lineno"><a class="line" href="namespace_util.html#a54c1ec6d73ba18e921eeb42725a6a00d">  126</a></span>&#160;std::string <a class="code" href="namespace_util.html#a54c1ec6d73ba18e921eeb42725a6a00d">Util::StringReplace</a>(<span class="keyword">const</span> std::string &amp;haystack, <span class="keyword">const</span> std::string &amp;needle, <span class="keyword">const</span> std::string &amp;replace) {</div>
+<div class="line"><a name="l00127"></a><span class="lineno">  127</span>&#160;    std::string out = haystack;</div>
+<div class="line"><a name="l00128"></a><span class="lineno">  128</span>&#160;    <span class="keywordflow">for</span> (<span class="keywordtype">size_t</span> pos = 0; ; pos += replace.length()) {</div>
+<div class="line"><a name="l00129"></a><span class="lineno">  129</span>&#160;        pos = out.find(needle, pos);</div>
+<div class="line"><a name="l00130"></a><span class="lineno">  130</span>&#160;        <span class="keywordflow">if</span> (pos == std::string::npos)</div>
+<div class="line"><a name="l00131"></a><span class="lineno">  131</span>&#160;            <span class="keywordflow">break</span>;</div>
+<div class="line"><a name="l00132"></a><span class="lineno">  132</span>&#160;        out.erase(pos, needle.length());</div>
+<div class="line"><a name="l00133"></a><span class="lineno">  133</span>&#160;        out.insert(pos, replace);</div>
+<div class="line"><a name="l00134"></a><span class="lineno">  134</span>&#160;    }</div>
+<div class="line"><a name="l00135"></a><span class="lineno">  135</span>&#160;    <span class="keywordflow">return</span> out;</div>
+<div class="line"><a name="l00136"></a><span class="lineno">  136</span>&#160;}</div>
+<div class="line"><a name="l00137"></a><span class="lineno">  137</span>&#160; </div>
+<div class="line"><a name="l00138"></a><span class="lineno"><a class="line" href="namespace_util.html#a20b825d2eb20d2155a7ee41005cff89e">  138</a></span>&#160;std::string <a class="code" href="namespace_util.html#a20b825d2eb20d2155a7ee41005cff89e">Util::StringJoin</a>(<span class="keyword">const</span> std::vector&lt;std::string&gt; &amp;arr, <span class="keyword">const</span> std::string &amp;separator) {</div>
+<div class="line"><a name="l00139"></a><span class="lineno">  139</span>&#160;    <span class="keywordflow">return</span> boost::join(arr, separator);</div>
+<div class="line"><a name="l00140"></a><span class="lineno">  140</span>&#160;}</div>
+<div class="line"><a name="l00141"></a><span class="lineno">  141</span>&#160; </div>
+<div class="line"><a name="l00142"></a><span class="lineno"><a class="line" href="namespace_util.html#ac09731ff9181114c9157eabf198d9283">  142</a></span>&#160;std::vector&lt;std::string&gt; <a class="code" href="namespace_util.html#ac09731ff9181114c9157eabf198d9283">Util::StringSplit</a>(<span class="keyword">const</span> std::string &amp;str, <span class="keywordtype">char</span> delim) {</div>
+<div class="line"><a name="l00143"></a><span class="lineno">  143</span>&#160;    std::vector&lt;std::string&gt; elems;</div>
+<div class="line"><a name="l00144"></a><span class="lineno">  144</span>&#160;    std::stringstream ss(str);</div>
+<div class="line"><a name="l00145"></a><span class="lineno">  145</span>&#160;    std::string item;</div>
+<div class="line"><a name="l00146"></a><span class="lineno">  146</span>&#160;    <span class="keywordflow">while</span> (std::getline(ss, item, delim)) {</div>
+<div class="line"><a name="l00147"></a><span class="lineno">  147</span>&#160;        elems.push_back(item);</div>
+<div class="line"><a name="l00148"></a><span class="lineno">  148</span>&#160;    }</div>
+<div class="line"><a name="l00149"></a><span class="lineno">  149</span>&#160;    <span class="keywordflow">return</span> elems;</div>
+<div class="line"><a name="l00150"></a><span class="lineno">  150</span>&#160;}</div>
+<div class="line"><a name="l00151"></a><span class="lineno">  151</span>&#160; </div>
+<div class="line"><a name="l00152"></a><span class="lineno"><a class="line" href="namespace_util.html#a9ab8098783c5bf9d811183f29120334f">  152</a></span>&#160;<span class="keywordtype">bool</span> <a class="code" href="namespace_util.html#a9ab8098783c5bf9d811183f29120334f">Util::MatchMod</a>(<span class="keyword">const</span> <span class="keywordtype">char</span> *match, <span class="keyword">const</span> <span class="keywordtype">char</span> *mod, <span class="keywordtype">double</span> *output) {</div>
+<div class="line"><a name="l00153"></a><span class="lineno">  153</span>&#160;    <span class="keywordtype">double</span> result = 0.0;</div>
+<div class="line"><a name="l00154"></a><span class="lineno">  154</span>&#160;    <span class="keyword">auto</span> pmatch = match;</div>
+<div class="line"><a name="l00155"></a><span class="lineno">  155</span>&#160;    <span class="keyword">auto</span> pmod = mod;</div>
+<div class="line"><a name="l00156"></a><span class="lineno">  156</span>&#160;    <span class="keywordtype">int</span> cnt = 0;</div>
+<div class="line"><a name="l00157"></a><span class="lineno">  157</span>&#160; </div>
+<div class="line"><a name="l00158"></a><span class="lineno">  158</span>&#160;    <span class="keywordflow">while</span> (*pmatch &amp;&amp; *pmod) {</div>
+<div class="line"><a name="l00159"></a><span class="lineno">  159</span>&#160;        <span class="keywordflow">if</span> (*pmatch == <span class="charliteral">&#39;#&#39;</span>) {</div>
+<div class="line"><a name="l00160"></a><span class="lineno">  160</span>&#160;            ++cnt;</div>
+<div class="line"><a name="l00161"></a><span class="lineno">  161</span>&#160;            <span class="keyword">auto</span> prev = pmod;</div>
+<div class="line"><a name="l00162"></a><span class="lineno">  162</span>&#160;            <span class="keywordflow">while</span> ((*pmod &gt;= <span class="charliteral">&#39;0&#39;</span> &amp;&amp; *pmod &lt;= <span class="charliteral">&#39;9&#39;</span>) || *pmod == <span class="charliteral">&#39;.&#39;</span>)</div>
+<div class="line"><a name="l00163"></a><span class="lineno">  163</span>&#160;                ++pmod;</div>
+<div class="line"><a name="l00164"></a><span class="lineno">  164</span>&#160;            result += std::strtod(prev, NULL);</div>
+<div class="line"><a name="l00165"></a><span class="lineno">  165</span>&#160;            ++pmatch;</div>
+<div class="line"><a name="l00166"></a><span class="lineno">  166</span>&#160;        } <span class="keywordflow">else</span> <span class="keywordflow">if</span> (*pmatch == *pmod) {</div>
+<div class="line"><a name="l00167"></a><span class="lineno">  167</span>&#160;            ++pmatch;</div>
+<div class="line"><a name="l00168"></a><span class="lineno">  168</span>&#160;            ++pmod;</div>
+<div class="line"><a name="l00169"></a><span class="lineno">  169</span>&#160;        } <span class="keywordflow">else</span> {</div>
+<div class="line"><a name="l00170"></a><span class="lineno">  170</span>&#160;            <span class="keywordflow">return</span> <span class="keyword">false</span>;</div>
+<div class="line"><a name="l00171"></a><span class="lineno">  171</span>&#160;        }</div>
+<div class="line"><a name="l00172"></a><span class="lineno">  172</span>&#160;    }</div>
+<div class="line"><a name="l00173"></a><span class="lineno">  173</span>&#160;    *output = result / cnt;</div>
+<div class="line"><a name="l00174"></a><span class="lineno">  174</span>&#160;    <span class="keywordflow">return</span> !*pmatch &amp;&amp; !*pmod;</div>
+<div class="line"><a name="l00175"></a><span class="lineno">  175</span>&#160;}</div>
+<div class="line"><a name="l00176"></a><span class="lineno">  176</span>&#160; </div>
+<div class="line"><a name="l00177"></a><span class="lineno"><a class="line" href="namespace_util.html#a29b1e69dd305b91cfb2fe3df076995d2">  177</a></span>&#160;std::string <a class="code" href="namespace_util.html#a29b1e69dd305b91cfb2fe3df076995d2">Util::Capitalise</a>(<span class="keyword">const</span> std::string &amp;str) {</div>
+<div class="line"><a name="l00178"></a><span class="lineno">  178</span>&#160;    std::string capitalised = str;</div>
+<div class="line"><a name="l00179"></a><span class="lineno">  179</span>&#160;    capitalised[0] = <span class="keyword">static_cast&lt;</span>std::string::value_type<span class="keyword">&gt;</span>(toupper(capitalised[0]));   <span class="comment">//  Set the first character to upper case</span></div>
+<div class="line"><a name="l00180"></a><span class="lineno">  180</span>&#160;    <span class="keywordflow">return</span> capitalised;</div>
+<div class="line"><a name="l00181"></a><span class="lineno">  181</span>&#160;}</div>
+<div class="line"><a name="l00182"></a><span class="lineno">  182</span>&#160; </div>
+<div class="line"><a name="l00183"></a><span class="lineno"><a class="line" href="namespace_util.html#acc9926e62d8c8cac043a0a4b324bae36">  183</a></span>&#160;std::string <a class="code" href="namespace_util.html#acc9926e62d8c8cac043a0a4b324bae36">Util::TimeAgoInWords</a>(<span class="keyword">const</span> QDateTime buyout_time){</div>
+<div class="line"><a name="l00184"></a><span class="lineno">  184</span>&#160;    QDateTime current_date = QDateTime::currentDateTime();</div>
+<div class="line"><a name="l00185"></a><span class="lineno">  185</span>&#160;    qint64 secs = buyout_time.secsTo(current_date);</div>
+<div class="line"><a name="l00186"></a><span class="lineno">  186</span>&#160;    qint64 days = secs / 60 / 60 / 24;</div>
+<div class="line"><a name="l00187"></a><span class="lineno">  187</span>&#160;    qint64 hours = (secs / 60 / 60) % 24;</div>
+<div class="line"><a name="l00188"></a><span class="lineno">  188</span>&#160;    qint64 minutes = (secs / 60) % 60;</div>
+<div class="line"><a name="l00189"></a><span class="lineno">  189</span>&#160; </div>
+<div class="line"><a name="l00190"></a><span class="lineno">  190</span>&#160;    <span class="comment">// YEARS</span></div>
+<div class="line"><a name="l00191"></a><span class="lineno">  191</span>&#160;    <span class="keywordflow">if</span> (days &gt; 365){</div>
+<div class="line"><a name="l00192"></a><span class="lineno">  192</span>&#160;        <span class="keywordtype">int</span> years = (days / 365);</div>
+<div class="line"><a name="l00193"></a><span class="lineno">  193</span>&#160;        <span class="keywordflow">if</span> (days % 365 != 0)</div>
+<div class="line"><a name="l00194"></a><span class="lineno">  194</span>&#160;            years++;</div>
+<div class="line"><a name="l00195"></a><span class="lineno">  195</span>&#160;        <span class="keywordflow">return</span> QString(<span class="stringliteral">&quot;%1 %2 ago&quot;</span>).arg(years).arg(years == 1 ? <span class="stringliteral">&quot;year&quot;</span> : <span class="stringliteral">&quot;years&quot;</span>).toStdString();</div>
+<div class="line"><a name="l00196"></a><span class="lineno">  196</span>&#160;    }</div>
+<div class="line"><a name="l00197"></a><span class="lineno">  197</span>&#160;    <span class="comment">// MONTHS</span></div>
+<div class="line"><a name="l00198"></a><span class="lineno">  198</span>&#160;    <span class="keywordflow">if</span> (days &gt; 30){</div>
+<div class="line"><a name="l00199"></a><span class="lineno">  199</span>&#160;        <span class="keywordtype">int</span> months = (days / 365);</div>
+<div class="line"><a name="l00200"></a><span class="lineno">  200</span>&#160;        <span class="keywordflow">if</span> (days % 30 != 0)</div>
+<div class="line"><a name="l00201"></a><span class="lineno">  201</span>&#160;            months++;</div>
+<div class="line"><a name="l00202"></a><span class="lineno">  202</span>&#160;        <span class="keywordflow">return</span> QString(<span class="stringliteral">&quot;%1 %2 ago&quot;</span>).arg(months).arg(months == 1 ? <span class="stringliteral">&quot;month&quot;</span> : <span class="stringliteral">&quot;months&quot;</span>).toStdString();</div>
+<div class="line"><a name="l00203"></a><span class="lineno">  203</span>&#160;    <span class="comment">// DAYS</span></div>
+<div class="line"><a name="l00204"></a><span class="lineno">  204</span>&#160;    }<span class="keywordflow">else</span> <span class="keywordflow">if</span> (days &gt; 0){</div>
+<div class="line"><a name="l00205"></a><span class="lineno">  205</span>&#160;        <span class="keywordflow">return</span> QString(<span class="stringliteral">&quot;%1 %2 ago&quot;</span>).arg(days).arg(days == 1 ? <span class="stringliteral">&quot;day&quot;</span> : <span class="stringliteral">&quot;days&quot;</span>).toStdString();</div>
+<div class="line"><a name="l00206"></a><span class="lineno">  206</span>&#160;    <span class="comment">// HOURS</span></div>
+<div class="line"><a name="l00207"></a><span class="lineno">  207</span>&#160;    }<span class="keywordflow">else</span> <span class="keywordflow">if</span> (hours &gt; 0){</div>
+<div class="line"><a name="l00208"></a><span class="lineno">  208</span>&#160;        <span class="keywordflow">return</span> QString(<span class="stringliteral">&quot;%1 %2 ago&quot;</span>).arg(hours).arg(hours == 1 ? <span class="stringliteral">&quot;hour&quot;</span> : <span class="stringliteral">&quot;hours&quot;</span>).toStdString();</div>
+<div class="line"><a name="l00209"></a><span class="lineno">  209</span>&#160;    <span class="comment">//MINUTES</span></div>
+<div class="line"><a name="l00210"></a><span class="lineno">  210</span>&#160;    }<span class="keywordflow">else</span> <span class="keywordflow">if</span> (minutes &gt; 0){</div>
+<div class="line"><a name="l00211"></a><span class="lineno">  211</span>&#160;        <span class="keywordflow">return</span> QString(<span class="stringliteral">&quot;%1 %2 ago&quot;</span>).arg(minutes).arg(minutes == 1 ? <span class="stringliteral">&quot;minute&quot;</span> : <span class="stringliteral">&quot;minutes&quot;</span>).toStdString();</div>
+<div class="line"><a name="l00212"></a><span class="lineno">  212</span>&#160;    <span class="comment">// SECONDS</span></div>
+<div class="line"><a name="l00213"></a><span class="lineno">  213</span>&#160;    }<span class="keywordflow">else</span> <span class="keywordflow">if</span> (secs &gt; 5){</div>
+<div class="line"><a name="l00214"></a><span class="lineno">  214</span>&#160;        <span class="keywordflow">return</span> QString(<span class="stringliteral">&quot;%1 %2 ago&quot;</span>).arg(secs).arg(<span class="stringliteral">&quot;seconds&quot;</span>).toStdString();</div>
+<div class="line"><a name="l00215"></a><span class="lineno">  215</span>&#160;    }<span class="keywordflow">else</span> <span class="keywordflow">if</span> (secs &lt; 5){</div>
+<div class="line"><a name="l00216"></a><span class="lineno">  216</span>&#160;        <span class="keywordflow">return</span> QString(<span class="stringliteral">&quot;just now&quot;</span>).toStdString();</div>
+<div class="line"><a name="l00217"></a><span class="lineno">  217</span>&#160;    }<span class="keywordflow">else</span>{</div>
+<div class="line"><a name="l00218"></a><span class="lineno">  218</span>&#160;        <span class="keywordflow">return</span> <span class="stringliteral">&quot;&quot;</span>;</div>
+<div class="line"><a name="l00219"></a><span class="lineno">  219</span>&#160;    }</div>
+<div class="line"><a name="l00220"></a><span class="lineno">  220</span>&#160;}</div>
+<div class="line"><a name="l00221"></a><span class="lineno">  221</span>&#160; </div>
+<div class="line"><a name="l00222"></a><span class="lineno"><a class="line" href="namespace_util.html#a0557a8babdf8a6620c2014b092fde8ef">  222</a></span>&#160;std::string <a class="code" href="namespace_util.html#a0557a8babdf8a6620c2014b092fde8ef">Util::Decode</a>(<span class="keyword">const</span> std::string &amp;entity) {</div>
+<div class="line"><a name="l00223"></a><span class="lineno">  223</span>&#160;    QTextDocument text;</div>
+<div class="line"><a name="l00224"></a><span class="lineno">  224</span>&#160;    text.setHtml(entity.c_str());</div>
+<div class="line"><a name="l00225"></a><span class="lineno">  225</span>&#160;    <span class="keywordflow">return</span> text.toPlainText().toStdString();</div>
+<div class="line"><a name="l00226"></a><span class="lineno">  226</span>&#160;}</div>
+<div class="line"><a name="l00227"></a><span class="lineno">  227</span>&#160; </div>
+<div class="line"><a name="l00228"></a><span class="lineno"><a class="line" href="namespace_util.html#a8e7b22b43ced5d1b1d7eb043d1999992">  228</a></span>&#160;QColor <a class="code" href="namespace_util.html#a8e7b22b43ced5d1b1d7eb043d1999992">Util::recommendedForegroundTextColor</a>(<span class="keyword">const</span> QColor&amp; backgroundColor){</div>
+<div class="line"><a name="l00229"></a><span class="lineno">  229</span>&#160;    <span class="keywordtype">float</span> R = (float) backgroundColor.red() / 255.0f;</div>
+<div class="line"><a name="l00230"></a><span class="lineno">  230</span>&#160;    <span class="keywordtype">float</span> G = (float) backgroundColor.green() / 255.0f;</div>
+<div class="line"><a name="l00231"></a><span class="lineno">  231</span>&#160;    <span class="keywordtype">float</span> B = (float) backgroundColor.blue() / 255.0f;</div>
+<div class="line"><a name="l00232"></a><span class="lineno">  232</span>&#160; </div>
+<div class="line"><a name="l00233"></a><span class="lineno">  233</span>&#160;    <span class="keyword">const</span> <span class="keywordtype">float</span> gamma = 2.2;</div>
+<div class="line"><a name="l00234"></a><span class="lineno">  234</span>&#160;    <span class="keywordtype">float</span> L = 0.2126 * pow(R, gamma)</div>
+<div class="line"><a name="l00235"></a><span class="lineno">  235</span>&#160;            + 0.7152 * pow(G, gamma)</div>
+<div class="line"><a name="l00236"></a><span class="lineno">  236</span>&#160;            + 0.0722 * pow(B, gamma);</div>
+<div class="line"><a name="l00237"></a><span class="lineno">  237</span>&#160; </div>
+<div class="line"><a name="l00238"></a><span class="lineno">  238</span>&#160;    <span class="keywordflow">return</span> ( L &gt; 0.5 ) ? QColor(QColorConstants::Black) : QColor(QColorConstants::White);</div>
 <div class="line"><a name="l00239"></a><span class="lineno">  239</span>&#160;}</div>
 <div class="line"><a name="l00240"></a><span class="lineno">  240</span>&#160; </div>
+<div class="line"><a name="l00241"></a><span class="lineno"><a class="line" href="util_8h.html#a9a56936fb9fc625b5137d2900cde0633">  241</a></span>&#160;QDebug &amp;<a class="code" href="util_8cpp.html#a9a56936fb9fc625b5137d2900cde0633">operator&lt;&lt;</a>(QDebug &amp;os, <span class="keyword">const</span> <a class="code" href="class_refresh_reason.html#a176902b63e9a578f6e8b7b1501bd7237">RefreshReason::Type</a> &amp;obj)</div>
+<div class="line"><a name="l00242"></a><span class="lineno">  242</span>&#160;{</div>
+<div class="line"><a name="l00243"></a><span class="lineno">  243</span>&#160;    <span class="keyword">const</span> QMetaObject *meta = &amp;RefreshReason::staticMetaObject;</div>
+<div class="line"><a name="l00244"></a><span class="lineno">  244</span>&#160;    os &lt;&lt; meta-&gt;enumerator(meta-&gt;indexOfEnumerator(<span class="stringliteral">&quot;Type&quot;</span>)).key(obj);</div>
+<div class="line"><a name="l00245"></a><span class="lineno">  245</span>&#160;    <span class="keywordflow">return</span> os;</div>
+<div class="line"><a name="l00246"></a><span class="lineno">  246</span>&#160;}</div>
+<div class="line"><a name="l00247"></a><span class="lineno">  247</span>&#160; </div>
+<div class="line"><a name="l00248"></a><span class="lineno"><a class="line" href="util_8h.html#a48b11ca73af29879bbdeb297c532dd94">  248</a></span>&#160;QDebug &amp;<a class="code" href="util_8cpp.html#a9a56936fb9fc625b5137d2900cde0633">operator&lt;&lt;</a>(QDebug &amp;os, <span class="keyword">const</span> <a class="code" href="class_tab_selection.html#ab58277e003fc45ecc9bcc73ff27df167">TabSelection::Type</a> &amp;obj)</div>
+<div class="line"><a name="l00249"></a><span class="lineno">  249</span>&#160;{</div>
+<div class="line"><a name="l00250"></a><span class="lineno">  250</span>&#160;    <span class="keyword">const</span> QMetaObject *meta = &amp;TabSelection::staticMetaObject;</div>
+<div class="line"><a name="l00251"></a><span class="lineno">  251</span>&#160;    os &lt;&lt; meta-&gt;enumerator(meta-&gt;indexOfEnumerator(<span class="stringliteral">&quot;Type&quot;</span>)).key(obj);</div>
+<div class="line"><a name="l00252"></a><span class="lineno">  252</span>&#160;    <span class="keywordflow">return</span> os;</div>
+<div class="line"><a name="l00253"></a><span class="lineno">  253</span>&#160;}</div>
+<div class="line"><a name="l00254"></a><span class="lineno">  254</span>&#160; </div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
-<div class="ttc" id="anamespace_util_html_a29b1e69dd305b91cfb2fe3df076995d2"><div class="ttname"><a href="namespace_util.html#a29b1e69dd305b91cfb2fe3df076995d2">Util::Capitalise</a></div><div class="ttdeci">std::string Capitalise(const std::string &amp;str)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00176">util.cpp:176</a></div></div>
-<div class="ttc" id="anamespace_util_html_a875b9cb18270958b414538f74e503410"><div class="ttname"><a href="namespace_util.html#a875b9cb18270958b414538f74e503410">Util::Md5</a></div><div class="ttdeci">std::string Md5(const std::string &amp;value)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00040">util.cpp:40</a></div></div>
+<div class="ttc" id="anamespace_util_html_a29b1e69dd305b91cfb2fe3df076995d2"><div class="ttname"><a href="namespace_util.html#a29b1e69dd305b91cfb2fe3df076995d2">Util::Capitalise</a></div><div class="ttdeci">std::string Capitalise(const std::string &amp;str)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00177">util.cpp:177</a></div></div>
+<div class="ttc" id="anamespace_util_html_a875b9cb18270958b414538f74e503410"><div class="ttname"><a href="namespace_util.html#a875b9cb18270958b414538f74e503410">Util::Md5</a></div><div class="ttdeci">std::string Md5(const std::string &amp;value)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00041">util.cpp:41</a></div></div>
 <div class="ttc" id="autil_8h_html_ad66dcf31c1e91e58016f505e90395667"><div class="ttname"><a href="util_8h.html#ad66dcf31c1e91e58016f505e90395667">TextWidthId</a></div><div class="ttdeci">TextWidthId</div><div class="ttdef"><b>Definition:</b> <a href="util_8h_source.html#l00035">util.h:35</a></div></div>
-<div class="ttc" id="anamespace_util_html_a8aebbd3bcfbbbf253a16e7da22ae074a"><div class="ttname"><a href="namespace_util.html#a8aebbd3bcfbbbf253a16e7da22ae074a">Util::TextWidth</a></div><div class="ttdeci">int TextWidth(TextWidthId id)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00070">util.cpp:70</a></div></div>
-<div class="ttc" id="anamespace_util_html_a9ab8098783c5bf9d811183f29120334f"><div class="ttname"><a href="namespace_util.html#a9ab8098783c5bf9d811183f29120334f">Util::MatchMod</a></div><div class="ttdeci">bool MatchMod(const char *match, const char *mod, double *output)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00151">util.cpp:151</a></div></div>
-<div class="ttc" id="anamespace_util_html_a54c1ec6d73ba18e921eeb42725a6a00d"><div class="ttname"><a href="namespace_util.html#a54c1ec6d73ba18e921eeb42725a6a00d">Util::StringReplace</a></div><div class="ttdeci">std::string StringReplace(const std::string &amp;haystack, const std::string &amp;needle, const std::string &amp;replace)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00125">util.cpp:125</a></div></div>
+<div class="ttc" id="anamespace_util_html_a8aebbd3bcfbbbf253a16e7da22ae074a"><div class="ttname"><a href="namespace_util.html#a8aebbd3bcfbbbf253a16e7da22ae074a">Util::TextWidth</a></div><div class="ttdeci">int TextWidth(TextWidthId id)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00071">util.cpp:71</a></div></div>
+<div class="ttc" id="anamespace_util_html_a9ab8098783c5bf9d811183f29120334f"><div class="ttname"><a href="namespace_util.html#a9ab8098783c5bf9d811183f29120334f">Util::MatchMod</a></div><div class="ttdeci">bool MatchMod(const char *match, const char *mod, double *output)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00152">util.cpp:152</a></div></div>
+<div class="ttc" id="anamespace_util_html_a54c1ec6d73ba18e921eeb42725a6a00d"><div class="ttname"><a href="namespace_util.html#a54c1ec6d73ba18e921eeb42725a6a00d">Util::StringReplace</a></div><div class="ttdeci">std::string StringReplace(const std::string &amp;haystack, const std::string &amp;needle, const std::string &amp;replace)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00126">util.cpp:126</a></div></div>
 <div class="ttc" id="anamespacerapidjson_html_a70ef97b812a7a70a3679caa10e91ff1f"><div class="ttname"><a href="namespacerapidjson.html#a70ef97b812a7a70a3679caa10e91ff1f">rapidjson::end</a></div><div class="ttdeci">GenericValue&lt; Encoding, Allocator &gt;::ValueIterator end(GenericValue&lt; Encoding, Allocator &gt; &amp;v)</div><div class="ttdef"><b>Definition:</b> <a href="rapidjson__util_8h_source.html#l00014">rapidjson_util.h:14</a></div></div>
 <div class="ttc" id="abuyoutmanager_8h_html"><div class="ttname"><a href="buyoutmanager_8h.html">buyoutmanager.h</a></div></div>
-<div class="ttc" id="anamespace_util_html_acc9926e62d8c8cac043a0a4b324bae36"><div class="ttname"><a href="namespace_util.html#acc9926e62d8c8cac043a0a4b324bae36">Util::TimeAgoInWords</a></div><div class="ttdeci">std::string TimeAgoInWords(const QDateTime buyout_time)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00182">util.cpp:182</a></div></div>
-<div class="ttc" id="anamespace_util_html_ab6b36e345744aaea96346598d4dd020d"><div class="ttname"><a href="namespace_util.html#ab6b36e345744aaea96346598d4dd020d">Util::RapidjsonAddConstString</a></div><div class="ttdeci">void RapidjsonAddConstString(rapidjson::Value *object, const char *const name, const std::string &amp;value, rapidjson::MemoryPoolAllocator&lt; rapidjson::CrtAllocator &gt; &amp;alloc)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00117">util.cpp:117</a></div></div>
-<div class="ttc" id="autil_8cpp_html_a9a56936fb9fc625b5137d2900cde0633"><div class="ttname"><a href="util_8cpp.html#a9a56936fb9fc625b5137d2900cde0633">operator&lt;&lt;</a></div><div class="ttdeci">QDebug &amp; operator&lt;&lt;(QDebug &amp;os, const RefreshReason::Type &amp;obj)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00227">util.cpp:227</a></div></div>
-<div class="ttc" id="anamespace_util_html_a0557a8babdf8a6620c2014b092fde8ef"><div class="ttname"><a href="namespace_util.html#a0557a8babdf8a6620c2014b092fde8ef">Util::Decode</a></div><div class="ttdeci">std::string Decode(const std::string &amp;entity)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00221">util.cpp:221</a></div></div>
-<div class="ttc" id="anamespace_util_html_a20b825d2eb20d2155a7ee41005cff89e"><div class="ttname"><a href="namespace_util.html#a20b825d2eb20d2155a7ee41005cff89e">Util::StringJoin</a></div><div class="ttdeci">std::string StringJoin(const std::vector&lt; std::string &gt; &amp;array, const std::string &amp;separator)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00137">util.cpp:137</a></div></div>
-<div class="ttc" id="anamespace_util_html_a84697889b6f670fa36567d89a9b83718"><div class="ttname"><a href="namespace_util.html#a84697889b6f670fa36567d89a9b83718">Util::RapidjsonSerialize</a></div><div class="ttdeci">std::string RapidjsonSerialize(const rapidjson::Value &amp;val)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00110">util.cpp:110</a></div></div>
-<div class="ttc" id="anamespace_util_html_a7c6f5072068335e61a1f85082cf03dbc"><div class="ttname"><a href="namespace_util.html#a7c6f5072068335e61a1f85082cf03dbc">Util::AverageDamage</a></div><div class="ttdeci">double AverageDamage(const std::string &amp;s)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00045">util.cpp:45</a></div></div>
-<div class="ttc" id="anamespace_util_html_abad13df8e4f637add410963b0192ac1a"><div class="ttname"><a href="namespace_util.html#abad13df8e4f637add410963b0192ac1a">Util::PopulateBuyoutTypeComboBox</a></div><div class="ttdeci">void PopulateBuyoutTypeComboBox(QComboBox *combobox)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00052">util.cpp:52</a></div></div>
-<div class="ttc" id="anamespace_util_html_aa80553a773bd1c560ba651524dc37e58"><div class="ttname"><a href="namespace_util.html#aa80553a773bd1c560ba651524dc37e58">Util::FindTextBetween</a></div><div class="ttdeci">std::string FindTextBetween(const std::string &amp;page, const std::string &amp;left, const std::string &amp;right)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00102">util.cpp:102</a></div></div>
+<div class="ttc" id="anamespace_util_html_acc9926e62d8c8cac043a0a4b324bae36"><div class="ttname"><a href="namespace_util.html#acc9926e62d8c8cac043a0a4b324bae36">Util::TimeAgoInWords</a></div><div class="ttdeci">std::string TimeAgoInWords(const QDateTime buyout_time)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00183">util.cpp:183</a></div></div>
+<div class="ttc" id="anamespace_util_html_ab6b36e345744aaea96346598d4dd020d"><div class="ttname"><a href="namespace_util.html#ab6b36e345744aaea96346598d4dd020d">Util::RapidjsonAddConstString</a></div><div class="ttdeci">void RapidjsonAddConstString(rapidjson::Value *object, const char *const name, const std::string &amp;value, rapidjson::MemoryPoolAllocator&lt; rapidjson::CrtAllocator &gt; &amp;alloc)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00118">util.cpp:118</a></div></div>
+<div class="ttc" id="autil_8cpp_html_a9a56936fb9fc625b5137d2900cde0633"><div class="ttname"><a href="util_8cpp.html#a9a56936fb9fc625b5137d2900cde0633">operator&lt;&lt;</a></div><div class="ttdeci">QDebug &amp; operator&lt;&lt;(QDebug &amp;os, const RefreshReason::Type &amp;obj)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00241">util.cpp:241</a></div></div>
+<div class="ttc" id="anamespace_util_html_a0557a8babdf8a6620c2014b092fde8ef"><div class="ttname"><a href="namespace_util.html#a0557a8babdf8a6620c2014b092fde8ef">Util::Decode</a></div><div class="ttdeci">std::string Decode(const std::string &amp;entity)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00222">util.cpp:222</a></div></div>
+<div class="ttc" id="anamespace_util_html_a20b825d2eb20d2155a7ee41005cff89e"><div class="ttname"><a href="namespace_util.html#a20b825d2eb20d2155a7ee41005cff89e">Util::StringJoin</a></div><div class="ttdeci">std::string StringJoin(const std::vector&lt; std::string &gt; &amp;array, const std::string &amp;separator)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00138">util.cpp:138</a></div></div>
+<div class="ttc" id="anamespace_util_html_a84697889b6f670fa36567d89a9b83718"><div class="ttname"><a href="namespace_util.html#a84697889b6f670fa36567d89a9b83718">Util::RapidjsonSerialize</a></div><div class="ttdeci">std::string RapidjsonSerialize(const rapidjson::Value &amp;val)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00111">util.cpp:111</a></div></div>
+<div class="ttc" id="anamespace_util_html_a7c6f5072068335e61a1f85082cf03dbc"><div class="ttname"><a href="namespace_util.html#a7c6f5072068335e61a1f85082cf03dbc">Util::AverageDamage</a></div><div class="ttdeci">double AverageDamage(const std::string &amp;s)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00046">util.cpp:46</a></div></div>
+<div class="ttc" id="anamespace_util_html_abad13df8e4f637add410963b0192ac1a"><div class="ttname"><a href="namespace_util.html#abad13df8e4f637add410963b0192ac1a">Util::PopulateBuyoutTypeComboBox</a></div><div class="ttdeci">void PopulateBuyoutTypeComboBox(QComboBox *combobox)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00053">util.cpp:53</a></div></div>
+<div class="ttc" id="anamespace_util_html_aa80553a773bd1c560ba651524dc37e58"><div class="ttname"><a href="namespace_util.html#aa80553a773bd1c560ba651524dc37e58">Util::FindTextBetween</a></div><div class="ttdeci">std::string FindTextBetween(const std::string &amp;page, const std::string &amp;left, const std::string &amp;right)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00103">util.cpp:103</a></div></div>
 <div class="ttc" id="aclass_tab_selection_html_ab58277e003fc45ecc9bcc73ff27df167"><div class="ttname"><a href="class_tab_selection.html#ab58277e003fc45ecc9bcc73ff27df167">TabSelection::Type</a></div><div class="ttdeci">Type</div><div class="ttdef"><b>Definition:</b> <a href="util_8h_source.html#l00064">util.h:64</a></div></div>
-<div class="ttc" id="anamespace_util_html_a4b2c8d27c52d78afe95297bf9883d4ec"><div class="ttname"><a href="namespace_util.html#a4b2c8d27c52d78afe95297bf9883d4ec">Util::ParseJson</a></div><div class="ttdeci">void ParseJson(QNetworkReply *reply, rapidjson::Document *doc)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00085">util.cpp:85</a></div></div>
+<div class="ttc" id="anamespace_util_html_a4b2c8d27c52d78afe95297bf9883d4ec"><div class="ttname"><a href="namespace_util.html#a4b2c8d27c52d78afe95297bf9883d4ec">Util::ParseJson</a></div><div class="ttdeci">void ParseJson(QNetworkReply *reply, rapidjson::Document *doc)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00086">util.cpp:86</a></div></div>
 <div class="ttc" id="astruct_currency_html_a8ae5e935889a18c29d0ed8d5dad2f21a"><div class="ttname"><a href="struct_currency.html#a8ae5e935889a18c29d0ed8d5dad2f21a">Currency::Types</a></div><div class="ttdeci">static std::vector&lt; CurrencyType &gt; Types()</div><div class="ttdef"><b>Definition:</b> <a href="buyoutmanager_8cpp_source.html#l00610">buyoutmanager.cpp:610</a></div></div>
 <div class="ttc" id="aclass_refresh_reason_html_a176902b63e9a578f6e8b7b1501bd7237"><div class="ttname"><a href="class_refresh_reason.html#a176902b63e9a578f6e8b7b1501bd7237">RefreshReason::Type</a></div><div class="ttdeci">Type</div><div class="ttdef"><b>Definition:</b> <a href="util_8h_source.html#l00048">util.h:48</a></div></div>
-<div class="ttc" id="autil_8cpp_html_aba20464e3985b6963fc1f1f09d63e2aa"><div class="ttname"><a href="util_8cpp.html#aba20464e3985b6963fc1f1f09d63e2aa">width_strings</a></div><div class="ttdeci">static std::vector&lt; std::string &gt; width_strings</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00062">util.cpp:62</a></div></div>
 <div class="ttc" id="aporting_8h_html"><div class="ttname"><a href="porting_8h.html">porting.h</a></div></div>
+<div class="ttc" id="anamespace_util_html_a8e7b22b43ced5d1b1d7eb043d1999992"><div class="ttname"><a href="namespace_util.html#a8e7b22b43ced5d1b1d7eb043d1999992">Util::recommendedForegroundTextColor</a></div><div class="ttdeci">QColor recommendedForegroundTextColor(const QColor &amp;backgroundColor)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00228">util.cpp:228</a></div></div>
 <div class="ttc" id="astruct_currency_html"><div class="ttname"><a href="struct_currency.html">Currency</a></div><div class="ttdef"><b>Definition:</b> <a href="buyoutmanager_8h_source.html#l00067">buyoutmanager.h:67</a></div></div>
-<div class="ttc" id="anamespace_util_html_a24a06f856bc9bb23d131a1eb512b4a96"><div class="ttname"><a href="namespace_util.html#a24a06f856bc9bb23d131a1eb512b4a96">Util::PopulateBuyoutCurrencyComboBox</a></div><div class="ttdeci">void PopulateBuyoutCurrencyComboBox(QComboBox *combobox)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00057">util.cpp:57</a></div></div>
+<div class="ttc" id="anamespace_util_html_a24a06f856bc9bb23d131a1eb512b4a96"><div class="ttname"><a href="namespace_util.html#a24a06f856bc9bb23d131a1eb512b4a96">Util::PopulateBuyoutCurrencyComboBox</a></div><div class="ttdeci">void PopulateBuyoutCurrencyComboBox(QComboBox *combobox)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00058">util.cpp:58</a></div></div>
 <div class="ttc" id="autil_8h_html"><div class="ttname"><a href="util_8h.html">util.h</a></div></div>
-<div class="ttc" id="anamespace_util_html_ac09731ff9181114c9157eabf198d9283"><div class="ttname"><a href="namespace_util.html#ac09731ff9181114c9157eabf198d9283">Util::StringSplit</a></div><div class="ttdeci">std::vector&lt; std::string &gt; StringSplit(const std::string &amp;str, char delim)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00141">util.cpp:141</a></div></div>
-<div class="ttc" id="anamespace_util_html_a4b268ba6e2b0fe096dbdfe2a3985792c"><div class="ttname"><a href="namespace_util.html#a4b268ba6e2b0fe096dbdfe2a3985792c">Util::GetCsrfToken</a></div><div class="ttdeci">std::string GetCsrfToken(const std::string &amp;page, const std::string &amp;name)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00090">util.cpp:90</a></div></div>
+<div class="ttc" id="anamespace_util_html_ac09731ff9181114c9157eabf198d9283"><div class="ttname"><a href="namespace_util.html#ac09731ff9181114c9157eabf198d9283">Util::StringSplit</a></div><div class="ttdeci">std::vector&lt; std::string &gt; StringSplit(const std::string &amp;str, char delim)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00142">util.cpp:142</a></div></div>
+<div class="ttc" id="anamespace_util_html_a4b268ba6e2b0fe096dbdfe2a3985792c"><div class="ttname"><a href="namespace_util.html#a4b268ba6e2b0fe096dbdfe2a3985792c">Util::GetCsrfToken</a></div><div class="ttdeci">std::string GetCsrfToken(const std::string &amp;page, const std::string &amp;name)</div><div class="ttdef"><b>Definition:</b> <a href="util_8cpp_source.html#l00091">util.cpp:91</a></div></div>
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>

@@ -10,7 +10,5 @@ var class_min_max_filter =
     [ "ResetForm", "class_min_max_filter.html#a8d93a8728b3fd05ed27cff353f7cd2b2", null ],
     [ "ToForm", "class_min_max_filter.html#aea3d11eacb5eea29ab0f11c1cbd30819", null ],
     [ "caption_", "class_min_max_filter.html#a2aaea450ececf882416034c3d6a9ec97", null ],
-    [ "property_", "class_min_max_filter.html#a278d32e012978dcbf0849ef8c03b44e1", null ],
-    [ "textbox_max_", "class_min_max_filter.html#a7172b862103cea4b86df659532899c95", null ],
-    [ "textbox_min_", "class_min_max_filter.html#a3db9f5c6ed98803753206fd610c7e890", null ]
+    [ "property_", "class_min_max_filter.html#a278d32e012978dcbf0849ef8c03b44e1", null ]
 ];

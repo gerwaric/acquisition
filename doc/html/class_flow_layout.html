@@ -83,8 +83,6 @@ $(document).ready(function(){initNavTree('class_flow_layout.html',''); initResiz
 <div class="header">
   <div class="summary">
 <a href="#pub-methods">Public Member Functions</a> &#124;
-<a href="#pri-methods">Private Member Functions</a> &#124;
-<a href="#pri-attribs">Private Attributes</a> &#124;
 <a href="class_flow_layout-members.html">List of all members</a>  </div>
   <div class="headertitle">
 <div class="title">FlowLayout Class Reference</div>  </div>
@@ -95,9 +93,21 @@ $(document).ready(function(){initNavTree('class_flow_layout.html',''); initResiz
 <div class="dynheader">
 Inheritance diagram for FlowLayout:</div>
 <div class="dyncontent">
- <div class="center">
-  <img src="class_flow_layout.png" alt=""/>
- </div></div>
+<div class="center"><img src="class_flow_layout__inherit__graph.png" border="0" usemap="#_flow_layout_inherit__map" alt="Inheritance graph"/></div>
+<map name="_flow_layout_inherit__map" id="_flow_layout_inherit__map">
+<area shape="rect" title=" " alt="" coords="5,80,93,107"/>
+<area shape="rect" title=" " alt="" coords="14,5,85,32"/>
+</map>
+<center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
+<div class="dynheader">
+Collaboration diagram for FlowLayout:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_flow_layout__coll__graph.png" border="0" usemap="#_flow_layout_coll__map" alt="Collaboration graph"/></div>
+<map name="_flow_layout_coll__map" id="_flow_layout_coll__map">
+<area shape="rect" title=" " alt="" coords="5,80,93,107"/>
+<area shape="rect" title=" " alt="" coords="14,5,85,32"/>
+</map>
+<center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
@@ -131,22 +141,6 @@ Public Member Functions</h2></td></tr>
 <tr class="separator:a77fd6daff67bdd0cacdfd33783d2e46f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a55dad3061f24ea01069d6496e55d4aab"><td class="memItemLeft" align="right" valign="top">QLayoutItem *&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_flow_layout.html#a55dad3061f24ea01069d6496e55d4aab">takeAt</a> (int index)</td></tr>
 <tr class="separator:a55dad3061f24ea01069d6496e55d4aab"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pri-methods"></a>
-Private Member Functions</h2></td></tr>
-<tr class="memitem:af0e17c24ac7b5f82511658507ac9a2ac"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_flow_layout.html#af0e17c24ac7b5f82511658507ac9a2ac">doLayout</a> (const QRect &amp;rect, bool testOnly) const</td></tr>
-<tr class="separator:af0e17c24ac7b5f82511658507ac9a2ac"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:aa8c99ccccc834c47f125040205f1aac8"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_flow_layout.html#aa8c99ccccc834c47f125040205f1aac8">smartSpacing</a> (QStyle::PixelMetric pm) const</td></tr>
-<tr class="separator:aa8c99ccccc834c47f125040205f1aac8"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pri-attribs"></a>
-Private Attributes</h2></td></tr>
-<tr class="memitem:ac0439e82402e53445451edfece8a499d"><td class="memItemLeft" align="right" valign="top">QList&lt; QLayoutItem * &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_flow_layout.html#ac0439e82402e53445451edfece8a499d">itemList</a></td></tr>
-<tr class="separator:ac0439e82402e53445451edfece8a499d"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a4ca5e85c50060f2cf19d88d1e3bf9cd5"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_flow_layout.html#a4ca5e85c50060f2cf19d88d1e3bf9cd5">m_hSpace</a></td></tr>
-<tr class="separator:a4ca5e85c50060f2cf19d88d1e3bf9cd5"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ab24b23dbcc261472940b3755ba63a4c0"><td class="memItemLeft" align="right" valign="top">int&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_flow_layout.html#ab24b23dbcc261472940b3755ba63a4c0">m_vSpace</a></td></tr>
-<tr class="separator:ab24b23dbcc261472940b3755ba63a4c0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock">
@@ -246,6 +240,15 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="flowlayout_8cpp_source.html#l00057">57</a> of file <a class="el" href="flowlayout_8cpp_source.html">flowlayout.cpp</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_flow_layout_abcbfd03a4758b98bcf13d44f5e673551_cgraph.png" border="0" usemap="#class_flow_layout_abcbfd03a4758b98bcf13d44f5e673551_cgraph" alt=""/></div>
+<map name="class_flow_layout_abcbfd03a4758b98bcf13d44f5e673551_cgraph" id="class_flow_layout_abcbfd03a4758b98bcf13d44f5e673551_cgraph">
+<area shape="rect" title=" " alt="" coords="5,5,176,32"/>
+<area shape="rect" href="class_flow_layout.html#a55dad3061f24ea01069d6496e55d4aab" title=" " alt="" coords="224,5,359,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -286,44 +289,6 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="flowlayout_8cpp_source.html#l00087">87</a> of file <a class="el" href="flowlayout_8cpp_source.html">flowlayout.cpp</a>.</p>
-
-</div>
-</div>
-<a id="af0e17c24ac7b5f82511658507ac9a2ac"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#af0e17c24ac7b5f82511658507ac9a2ac">&#9670;&nbsp;</a></span>doLayout()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">int FlowLayout::doLayout </td>
-          <td>(</td>
-          <td class="paramtype">const QRect &amp;&#160;</td>
-          <td class="paramname"><em>rect</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">bool&#160;</td>
-          <td class="paramname"><em>testOnly</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td> const</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="flowlayout_8cpp_source.html#l00143">143</a> of file <a class="el" href="flowlayout_8cpp_source.html">flowlayout.cpp</a>.</p>
 
 </div>
 </div>
@@ -440,6 +405,15 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="flowlayout_8cpp_source.html#l00132">132</a> of file <a class="el" href="flowlayout_8cpp_source.html">flowlayout.cpp</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_flow_layout_a4c2dc45b6380bdef863ac979e9b5597a_icgraph.png" border="0" usemap="#class_flow_layout_a4c2dc45b6380bdef863ac979e9b5597a_icgraph" alt=""/></div>
+<map name="class_flow_layout_a4c2dc45b6380bdef863ac979e9b5597a_icgraph" id="class_flow_layout_a4c2dc45b6380bdef863ac979e9b5597a_icgraph">
+<area shape="rect" title=" " alt="" coords="196,5,371,32"/>
+<area shape="rect" href="class_flow_layout.html#a77fd6daff67bdd0cacdfd33783d2e46f" title=" " alt="" coords="5,5,148,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -479,34 +453,15 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="flowlayout_8cpp_source.html#l00127">127</a> of file <a class="el" href="flowlayout_8cpp_source.html">flowlayout.cpp</a>.</p>
-
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_flow_layout_a77fd6daff67bdd0cacdfd33783d2e46f_cgraph.png" border="0" usemap="#class_flow_layout_a77fd6daff67bdd0cacdfd33783d2e46f_cgraph" alt=""/></div>
+<map name="class_flow_layout_a77fd6daff67bdd0cacdfd33783d2e46f_cgraph" id="class_flow_layout_a77fd6daff67bdd0cacdfd33783d2e46f_cgraph">
+<area shape="rect" title=" " alt="" coords="5,5,148,32"/>
+<area shape="rect" href="class_flow_layout.html#a4c2dc45b6380bdef863ac979e9b5597a" title=" " alt="" coords="196,5,371,32"/>
+</map>
 </div>
-</div>
-<a id="aa8c99ccccc834c47f125040205f1aac8"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aa8c99ccccc834c47f125040205f1aac8">&#9670;&nbsp;</a></span>smartSpacing()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">int FlowLayout::smartSpacing </td>
-          <td>(</td>
-          <td class="paramtype">QStyle::PixelMetric&#160;</td>
-          <td class="paramname"><em>pm</em></td><td>)</td>
-          <td> const</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="flowlayout_8cpp_source.html#l00179">179</a> of file <a class="el" href="flowlayout_8cpp_source.html">flowlayout.cpp</a>.</p>
 
 </div>
 </div>
@@ -527,6 +482,15 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="flowlayout_8cpp_source.html#l00097">97</a> of file <a class="el" href="flowlayout_8cpp_source.html">flowlayout.cpp</a>.</p>
+<div class="dynheader">
+Here is the caller graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_flow_layout_a55dad3061f24ea01069d6496e55d4aab_icgraph.png" border="0" usemap="#class_flow_layout_a55dad3061f24ea01069d6496e55d4aab_icgraph" alt=""/></div>
+<map name="class_flow_layout_a55dad3061f24ea01069d6496e55d4aab_icgraph" id="class_flow_layout_a55dad3061f24ea01069d6496e55d4aab_icgraph">
+<area shape="rect" title=" " alt="" coords="224,5,359,32"/>
+<area shape="rect" href="class_flow_layout.html#abcbfd03a4758b98bcf13d44f5e673551" title=" " alt="" coords="5,5,176,32"/>
+</map>
+</div>
 
 </div>
 </div>
@@ -546,79 +510,6 @@ Private Attributes</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="flowlayout_8cpp_source.html#l00078">78</a> of file <a class="el" href="flowlayout_8cpp_source.html">flowlayout.cpp</a>.</p>
-
-</div>
-</div>
-<h2 class="groupheader">Member Data Documentation</h2>
-<a id="ac0439e82402e53445451edfece8a499d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ac0439e82402e53445451edfece8a499d">&#9670;&nbsp;</a></span>itemList</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">QList&lt;QLayoutItem *&gt; FlowLayout::itemList</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="flowlayout_8h_source.html#l00110">110</a> of file <a class="el" href="flowlayout_8h_source.html">flowlayout.h</a>.</p>
-
-</div>
-</div>
-<a id="a4ca5e85c50060f2cf19d88d1e3bf9cd5"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a4ca5e85c50060f2cf19d88d1e3bf9cd5">&#9670;&nbsp;</a></span>m_hSpace</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">int FlowLayout::m_hSpace</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="flowlayout_8h_source.html#l00111">111</a> of file <a class="el" href="flowlayout_8h_source.html">flowlayout.h</a>.</p>
-
-</div>
-</div>
-<a id="ab24b23dbcc261472940b3755ba63a4c0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ab24b23dbcc261472940b3755ba63a4c0">&#9670;&nbsp;</a></span>m_vSpace</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">int FlowLayout::m_vSpace</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="flowlayout_8h_source.html#l00112">112</a> of file <a class="el" href="flowlayout_8h_source.html">flowlayout.h</a>.</p>
 
 </div>
 </div>

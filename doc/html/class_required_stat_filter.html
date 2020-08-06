@@ -83,7 +83,6 @@ $(document).ready(function(){initNavTree('class_required_stat_filter.html',''); 
 <div class="header">
   <div class="summary">
 <a href="#pub-methods">Public Member Functions</a> &#124;
-<a href="#pri-methods">Private Member Functions</a> &#124;
 <a href="class_required_stat_filter-members.html">List of all members</a>  </div>
   <div class="headertitle">
 <div class="title">RequiredStatFilter Class Reference</div>  </div>
@@ -94,13 +93,23 @@ $(document).ready(function(){initNavTree('class_required_stat_filter.html',''); 
 <div class="dynheader">
 Inheritance diagram for RequiredStatFilter:</div>
 <div class="dyncontent">
- <div class="center">
-  <img src="class_required_stat_filter.png" usemap="#RequiredStatFilter_map" alt=""/>
-  <map id="RequiredStatFilter_map" name="RequiredStatFilter_map">
-<area href="class_min_max_filter.html" alt="MinMaxFilter" shape="rect" coords="0,56,112,80"/>
-<area href="class_filter.html" alt="Filter" shape="rect" coords="0,0,112,24"/>
-  </map>
-</div></div>
+<div class="center"><img src="class_required_stat_filter__inherit__graph.png" border="0" usemap="#_required_stat_filter_inherit__map" alt="Inheritance graph"/></div>
+<map name="_required_stat_filter_inherit__map" id="_required_stat_filter_inherit__map">
+<area shape="rect" title=" " alt="" coords="5,155,132,181"/>
+<area shape="rect" href="class_min_max_filter.html" title=" " alt="" coords="20,80,117,107"/>
+<area shape="rect" href="class_filter.html" title=" " alt="" coords="43,5,94,32"/>
+</map>
+<center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
+<div class="dynheader">
+Collaboration diagram for RequiredStatFilter:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_required_stat_filter__coll__graph.png" border="0" usemap="#_required_stat_filter_coll__map" alt="Collaboration graph"/></div>
+<map name="_required_stat_filter_coll__map" id="_required_stat_filter_coll__map">
+<area shape="rect" title=" " alt="" coords="5,155,132,181"/>
+<area shape="rect" href="class_min_max_filter.html" title=" " alt="" coords="20,80,117,107"/>
+<area shape="rect" href="class_filter.html" title=" " alt="" coords="43,5,94,32"/>
+</map>
+<center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
@@ -128,13 +137,6 @@ Public Member Functions</h2></td></tr>
 <tr class="separator:aa37dc017d133404b3a326f363ce36b8a inherit pub_methods_class_filter"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a5ad90b53d75a6f474cd70962e2eb748a inherit pub_methods_class_filter"><td class="memItemLeft" align="right" valign="top">std::unique_ptr&lt; <a class="el" href="class_filter_data.html">FilterData</a> &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_filter.html#a5ad90b53d75a6f474cd70962e2eb748a">CreateData</a> ()</td></tr>
 <tr class="separator:a5ad90b53d75a6f474cd70962e2eb748a inherit pub_methods_class_filter"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pri-methods"></a>
-Private Member Functions</h2></td></tr>
-<tr class="memitem:a0ac56d7736df6855ef7a344730c8b389"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_required_stat_filter.html#a0ac56d7736df6855ef7a344730c8b389">IsValuePresent</a> (const std::shared_ptr&lt; <a class="el" href="class_item.html">Item</a> &gt; &amp;)</td></tr>
-<tr class="separator:a0ac56d7736df6855ef7a344730c8b389"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:ade0a13f62f3e16a9956d1e6094c61d38"><td class="memItemLeft" align="right" valign="top">double&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_required_stat_filter.html#ade0a13f62f3e16a9956d1e6094c61d38">GetValue</a> (const std::shared_ptr&lt; <a class="el" href="class_item.html">Item</a> &gt; &amp;item)</td></tr>
-<tr class="separator:ade0a13f62f3e16a9956d1e6094c61d38"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="inherited"></a>
 Additional Inherited Members</h2></td></tr>
@@ -227,67 +229,6 @@ Additional Inherited Members</h2></td></tr>
 </div><div class="memdoc">
 
 <p class="definition">Definition at line <a class="el" href="filters_8h_source.html#l00184">184</a> of file <a class="el" href="filters_8h_source.html">filters.h</a>.</p>
-
-</div>
-</div>
-<h2 class="groupheader">Member Function Documentation</h2>
-<a id="ade0a13f62f3e16a9956d1e6094c61d38"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#ade0a13f62f3e16a9956d1e6094c61d38">&#9670;&nbsp;</a></span>GetValue()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">double RequiredStatFilter::GetValue </td>
-          <td>(</td>
-          <td class="paramtype">const std::shared_ptr&lt; <a class="el" href="class_item.html">Item</a> &gt; &amp;&#160;</td>
-          <td class="paramname"><em>item</em></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span><span class="mlabel">virtual</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p>Implements <a class="el" href="class_min_max_filter.html#a324e9e7b67d192e89d2cb6b26f0a6bd5">MinMaxFilter</a>.</p>
-
-<p class="definition">Definition at line <a class="el" href="filters_8cpp_source.html#l00301">301</a> of file <a class="el" href="filters_8cpp_source.html">filters.cpp</a>.</p>
-
-</div>
-</div>
-<a id="a0ac56d7736df6855ef7a344730c8b389"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a0ac56d7736df6855ef7a344730c8b389">&#9670;&nbsp;</a></span>IsValuePresent()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">bool RequiredStatFilter::IsValuePresent </td>
-          <td>(</td>
-          <td class="paramtype">const std::shared_ptr&lt; <a class="el" href="class_item.html">Item</a> &gt; &amp;&#160;</td>
-          <td class="paramname"></td><td>)</td>
-          <td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">private</span><span class="mlabel">virtual</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p>Implements <a class="el" href="class_min_max_filter.html#aa07d9e6b2d8f67712fe5ea3904302205">MinMaxFilter</a>.</p>
-
-<p class="definition">Definition at line <a class="el" href="filters_8h_source.html#l00187">187</a> of file <a class="el" href="filters_8h_source.html">filters.h</a>.</p>
 
 </div>
 </div>

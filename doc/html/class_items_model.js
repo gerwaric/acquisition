@@ -13,10 +13,5 @@ var class_items_model =
     [ "setData", "class_items_model.html#ac122e0e9ac574fccfd33e1b760a1584c", null ],
     [ "SetSorted", "class_items_model.html#ac303769d1214cef7b1655c268f722847", null ],
     [ "sort", "class_items_model.html#ab4db545cc1bc2bb933f26c4bec69a3a7", null ],
-    [ "sort", "class_items_model.html#a5cb16779e245ada603e57b5a3ab7fc74", null ],
-    [ "bo_manager_", "class_items_model.html#a11c1355e07d4abb68e277ae66261d0fc", null ],
-    [ "search_", "class_items_model.html#a740916ebf9c9814f33194d9239c7b52b", null ],
-    [ "sort_column_", "class_items_model.html#a0a7a8efe3ae640068c2884ee805a5279", null ],
-    [ "sort_order_", "class_items_model.html#a08dfebf71e83fe8abfd842215e83d023", null ],
-    [ "sorted_", "class_items_model.html#a891a2872a2fbe70494e4fb9a8b1ebacf", null ]
+    [ "sort", "class_items_model.html#a5cb16779e245ada603e57b5a3ab7fc74", null ]
 ];

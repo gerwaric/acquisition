@@ -13,6 +13,7 @@ var annotated_dup =
     [ "ChaosDamageColumn", "class_chaos_damage_column.html", "class_chaos_damage_column" ],
     [ "Column", "class_column.html", "class_column" ],
     [ "CorruptedColumn", "class_corrupted_column.html", "class_corrupted_column" ],
+    [ "CorruptedFilter", "class_corrupted_filter.html", "class_corrupted_filter" ],
     [ "CraftedColumn", "class_crafted_column.html", "class_crafted_column" ],
     [ "CraftedFilter", "class_crafted_filter.html", "class_crafted_filter" ],
     [ "Currency", "struct_currency.html", "struct_currency" ],
@@ -36,6 +37,9 @@ var annotated_dup =
     [ "FilterData", "class_filter_data.html", "class_filter_data" ],
     [ "FlowLayout", "class_flow_layout.html", "class_flow_layout" ],
     [ "ImageCache", "class_image_cache.html", "class_image_cache" ],
+    [ "Influence", "class_influence.html", null ],
+    [ "InfluencedFilter", "class_influenced_filter.html", "class_influenced_filter" ],
+    [ "InfluncedColumn", "class_influnced_column.html", "class_influnced_column" ],
     [ "Item", "class_item.html", "class_item" ],
     [ "ItemlevelColumn", "class_itemlevel_column.html", "class_itemlevel_column" ],
     [ "ItemlevelFilter", "class_itemlevel_filter.html", "class_itemlevel_filter" ],
@@ -89,7 +93,5 @@ var annotated_dup =
     [ "TabSelection", "class_tab_selection.html", "class_tab_selection" ],
     [ "UnidentifiedFilter", "class_unidentified_filter.html", "class_unidentified_filter" ],
     [ "UpdateChecker", "class_update_checker.html", "class_update_checker" ],
-    [ "VerticalScrollArea", "class_vertical_scroll_area.html", "class_vertical_scroll_area" ],
-    [ "WarColumn", "class_war_column.html", "class_war_column" ],
-    [ "WarFilter", "class_war_filter.html", "class_war_filter" ]
+    [ "VerticalScrollArea", "class_vertical_scroll_area.html", "class_vertical_scroll_area" ]
 ];

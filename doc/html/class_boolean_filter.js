@@ -7,6 +7,5 @@ var class_boolean_filter =
     [ "ResetForm", "class_boolean_filter.html#ac7fbe172cfb8281f730f6b4d1ac9ded3", null ],
     [ "ToForm", "class_boolean_filter.html#a3e7e19e85ee8c7198c3edc6a668d6d47", null ],
     [ "caption_", "class_boolean_filter.html#a7d3bedf8f33ef01ae4168ae4ab8be5e7", null ],
-    [ "checkbox_", "class_boolean_filter.html#a7f826d3d79e8c56743a18a3e6f2906f6", null ],
     [ "property_", "class_boolean_filter.html#aab8935219e59c96577d3e1abe2323b49", null ]
 ];

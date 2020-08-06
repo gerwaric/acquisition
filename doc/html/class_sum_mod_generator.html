@@ -83,8 +83,6 @@ $(document).ready(function(){initNavTree('class_sum_mod_generator.html',''); ini
 <div class="header">
   <div class="summary">
 <a href="#pub-methods">Public Member Functions</a> &#124;
-<a href="#pri-methods">Private Member Functions</a> &#124;
-<a href="#pri-attribs">Private Attributes</a> &#124;
 <a href="class_sum_mod_generator-members.html">List of all members</a>  </div>
   <div class="headertitle">
 <div class="title">SumModGenerator Class Reference</div>  </div>
@@ -95,12 +93,21 @@ $(document).ready(function(){initNavTree('class_sum_mod_generator.html',''); ini
 <div class="dynheader">
 Inheritance diagram for SumModGenerator:</div>
 <div class="dyncontent">
- <div class="center">
-  <img src="class_sum_mod_generator.png" usemap="#SumModGenerator_map" alt=""/>
-  <map id="SumModGenerator_map" name="SumModGenerator_map">
-<area href="class_mod_generator.html" alt="ModGenerator" shape="rect" coords="0,0,118,24"/>
-  </map>
-</div></div>
+<div class="center"><img src="class_sum_mod_generator__inherit__graph.png" border="0" usemap="#_sum_mod_generator_inherit__map" alt="Inheritance graph"/></div>
+<map name="_sum_mod_generator_inherit__map" id="_sum_mod_generator_inherit__map">
+<area shape="rect" title=" " alt="" coords="5,80,136,107"/>
+<area shape="rect" href="class_mod_generator.html" title=" " alt="" coords="19,5,123,32"/>
+</map>
+<center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
+<div class="dynheader">
+Collaboration diagram for SumModGenerator:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_sum_mod_generator__coll__graph.png" border="0" usemap="#_sum_mod_generator_coll__map" alt="Collaboration graph"/></div>
+<map name="_sum_mod_generator_coll__map" id="_sum_mod_generator_coll__map">
+<area shape="rect" title=" " alt="" coords="5,80,136,107"/>
+<area shape="rect" href="class_mod_generator.html" title=" " alt="" coords="19,5,123,32"/>
+</map>
+<center><span class="legend">[<a target="top" href="graph_legend.html">legend</a>]</span></center></div>
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
@@ -108,18 +115,6 @@ Public Member Functions</h2></td></tr>
 <tr class="separator:a678f52e2f857efe272e5b81019aa127f"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:af10b191f3645b655f688589c5fb531e4"><td class="memItemLeft" align="right" valign="top">virtual void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_sum_mod_generator.html#af10b191f3645b655f688589c5fb531e4">Generate</a> (const rapidjson::Value &amp;json, <a class="el" href="item_8h.html#a11bf4c7f769aaf1506431cef915c25a6">ModTable</a> *output)</td></tr>
 <tr class="separator:af10b191f3645b655f688589c5fb531e4"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pri-methods"></a>
-Private Member Functions</h2></td></tr>
-<tr class="memitem:a8715ff6bd31b7df4d1e178a711610ebd"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_sum_mod_generator.html#a8715ff6bd31b7df4d1e178a711610ebd">Match</a> (const char *mod, double *output)</td></tr>
-<tr class="separator:a8715ff6bd31b7df4d1e178a711610ebd"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pri-attribs"></a>
-Private Attributes</h2></td></tr>
-<tr class="memitem:a225919299a4595acb785ac78ff8644c0"><td class="memItemLeft" align="right" valign="top">std::string&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_sum_mod_generator.html#a225919299a4595acb785ac78ff8644c0">name_</a></td></tr>
-<tr class="separator:a225919299a4595acb785ac78ff8644c0"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:abb8bf8569f72b97db6d7881860492ffd"><td class="memItemLeft" align="right" valign="top">std::vector&lt; std::string &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="class_sum_mod_generator.html#abb8bf8569f72b97db6d7881860492ffd">matches_</a></td></tr>
-<tr class="separator:abb8bf8569f72b97db6d7881860492ffd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock">
@@ -193,93 +188,6 @@ Private Attributes</h2></td></tr>
 <p>Implements <a class="el" href="class_mod_generator.html#ab31e44f64240569ed8eb5ef81f90cfcc">ModGenerator</a>.</p>
 
 <p class="definition">Definition at line <a class="el" href="modlist_8cpp_source.html#l00165">165</a> of file <a class="el" href="modlist_8cpp_source.html">modlist.cpp</a>.</p>
-
-</div>
-</div>
-<a id="a8715ff6bd31b7df4d1e178a711610ebd"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a8715ff6bd31b7df4d1e178a711610ebd">&#9670;&nbsp;</a></span>Match()</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">bool SumModGenerator::Match </td>
-          <td>(</td>
-          <td class="paramtype">const char *&#160;</td>
-          <td class="paramname"><em>mod</em>, </td>
-        </tr>
-        <tr>
-          <td class="paramkey"></td>
-          <td></td>
-          <td class="paramtype">double *&#160;</td>
-          <td class="paramname"><em>output</em>&#160;</td>
-        </tr>
-        <tr>
-          <td></td>
-          <td>)</td>
-          <td></td><td></td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="modlist_8cpp_source.html#l00151">151</a> of file <a class="el" href="modlist_8cpp_source.html">modlist.cpp</a>.</p>
-
-</div>
-</div>
-<h2 class="groupheader">Member Data Documentation</h2>
-<a id="abb8bf8569f72b97db6d7881860492ffd"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#abb8bf8569f72b97db6d7881860492ffd">&#9670;&nbsp;</a></span>matches_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">std::vector&lt;std::string&gt; SumModGenerator::matches_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="modlist_8h_source.html#l00049">49</a> of file <a class="el" href="modlist_8h_source.html">modlist.h</a>.</p>
-
-</div>
-</div>
-<a id="a225919299a4595acb785ac78ff8644c0"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a225919299a4595acb785ac78ff8644c0">&#9670;&nbsp;</a></span>name_</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">std::string SumModGenerator::name_</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">private</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-
-<p class="definition">Definition at line <a class="el" href="modlist_8h_source.html#l00048">48</a> of file <a class="el" href="modlist_8h_source.html">modlist.h</a>.</p>
 
 </div>
 </div>

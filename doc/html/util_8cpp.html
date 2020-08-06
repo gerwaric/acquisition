@@ -82,8 +82,7 @@ $(document).ready(function(){initNavTree('util_8cpp.html',''); initResizable(); 
 
 <div class="header">
   <div class="summary">
-<a href="#func-members">Functions</a> &#124;
-<a href="#var-members">Variables</a>  </div>
+<a href="#func-members">Functions</a>  </div>
   <div class="headertitle">
 <div class="title">util.cpp File Reference</div>  </div>
 </div><!--header-->
@@ -98,6 +97,7 @@ $(document).ready(function(){initNavTree('util_8cpp.html',''); initResizable(); 
 <code>#include &lt;QFontMetrics&gt;</code><br />
 <code>#include &lt;QNetworkReply&gt;</code><br />
 <code>#include &lt;QTextDocument&gt;</code><br />
+<code>#include &lt;QPainter&gt;</code><br />
 <code>#include &quot;rapidjson/document.h&quot;</code><br />
 <code>#include &quot;rapidjson/writer.h&quot;</code><br />
 <code>#include &lt;sstream&gt;</code><br />
@@ -105,6 +105,49 @@ $(document).ready(function(){initNavTree('util_8cpp.html',''); initResizable(); 
 <code>#include &quot;<a class="el" href="porting_8h_source.html">porting.h</a>&quot;</code><br />
 <code>#include &lt;boost/algorithm/string/join.hpp&gt;</code><br />
 <code>#include &lt;QMetaEnum&gt;</code><br />
+</div><div class="textblock"><div class="dynheader">
+Include dependency graph for util.cpp:</div>
+<div class="dyncontent">
+<div class="center"><img src="util_8cpp__incl.png" border="0" usemap="#src_2util_8cpp" alt=""/></div>
+<map name="src_2util_8cpp" id="src_2util_8cpp">
+<area shape="rect" title=" " alt="" coords="1429,5,1516,32"/>
+<area shape="rect" href="util_8h.html" title=" " alt="" coords="566,87,616,114"/>
+<area shape="rect" title=" " alt="" coords="635,393,782,420"/>
+<area shape="rect" title=" " alt="" coords="988,87,1084,114"/>
+<area shape="rect" title=" " alt="" coords="1109,87,1252,114"/>
+<area shape="rect" title=" " alt="" coords="847,169,914,196"/>
+<area shape="rect" title=" " alt="" coords="1276,87,1362,114"/>
+<area shape="rect" title=" " alt="" coords="1386,87,1465,114"/>
+<area shape="rect" title=" " alt="" coords="1489,87,1552,114"/>
+<area shape="rect" title=" " alt="" coords="1576,87,1678,114"/>
+<area shape="rect" title=" " alt="" coords="1702,87,1814,114"/>
+<area shape="rect" title=" " alt="" coords="1838,87,1954,114"/>
+<area shape="rect" title=" " alt="" coords="1978,87,2052,114"/>
+<area shape="rect" title=" " alt="" coords="2076,87,2196,114"/>
+<area shape="rect" title=" " alt="" coords="2220,87,2290,114"/>
+<area shape="rect" href="buyoutmanager_8h.html" title=" " alt="" coords="327,87,450,114"/>
+<area shape="rect" href="porting_8h.html" title=" " alt="" coords="791,87,863,114"/>
+<area shape="rect" title=" " alt="" coords="2314,80,2460,121"/>
+<area shape="rect" title=" " alt="" coords="2485,87,2580,114"/>
+<area shape="rect" title=" " alt="" coords="573,244,628,271"/>
+<area shape="rect" title=" " alt="" coords="394,169,481,196"/>
+<area shape="rect" title=" " alt="" coords="556,169,626,196"/>
+<area shape="rect" title=" " alt="" coords="650,169,721,196"/>
+<area shape="rect" href="item_8h.html" title=" " alt="" coords="311,169,370,196"/>
+<area shape="rect" title=" " alt="" coords="652,244,722,271"/>
+<area shape="rect" title=" " alt="" coords="53,393,100,420"/>
+<area shape="rect" title=" " alt="" coords="37,244,148,271"/>
+<area shape="rect" title=" " alt="" coords="172,244,223,271"/>
+<area shape="rect" title=" " alt="" coords="247,244,303,271"/>
+<area shape="rect" href="itemconstants_8h.html" title=" " alt="" coords="98,319,212,345"/>
+<area shape="rect" href="itemlocation_8h.html" title=" " alt="" coords="378,244,481,271"/>
+<area shape="rect" title=" " alt="" coords="516,319,583,345"/>
+<area shape="rect" title=" " alt="" coords="608,319,670,345"/>
+<area shape="rect" title=" " alt="" coords="34,319,74,345"/>
+<area shape="rect" href="rapidjson__util_8h.html" title=" " alt="" coords="383,319,492,345"/>
+<area shape="rect" title=" " alt="" coords="288,319,358,345"/>
+</map>
+</div>
 </div>
 <p><a href="util_8cpp_source.html">Go to the source code of this file.</a></p>
 <table class="memberdecls">
@@ -114,11 +157,6 @@ Functions</h2></td></tr>
 <tr class="separator:a9a56936fb9fc625b5137d2900cde0633"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a48b11ca73af29879bbdeb297c532dd94"><td class="memItemLeft" align="right" valign="top">QDebug &amp;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="util_8cpp.html#a48b11ca73af29879bbdeb297c532dd94">operator&lt;&lt;</a> (QDebug &amp;os, const <a class="el" href="class_tab_selection.html#ab58277e003fc45ecc9bcc73ff27df167">TabSelection::Type</a> &amp;obj)</td></tr>
 <tr class="separator:a48b11ca73af29879bbdeb297c532dd94"><td class="memSeparator" colspan="2">&#160;</td></tr>
-</table><table class="memberdecls">
-<tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="var-members"></a>
-Variables</h2></td></tr>
-<tr class="memitem:aba20464e3985b6963fc1f1f09d63e2aa"><td class="memItemLeft" align="right" valign="top">static std::vector&lt; std::string &gt;&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="util_8cpp.html#aba20464e3985b6963fc1f1f09d63e2aa">width_strings</a></td></tr>
-<tr class="separator:aba20464e3985b6963fc1f1f09d63e2aa"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <h2 class="groupheader">Function Documentation</h2>
 <a id="a9a56936fb9fc625b5137d2900cde0633"></a>
@@ -147,7 +185,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="util_8cpp_source.html#l00227">227</a> of file <a class="el" href="util_8cpp_source.html">util.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="util_8cpp_source.html#l00241">241</a> of file <a class="el" href="util_8cpp_source.html">util.cpp</a>.</p>
 
 </div>
 </div>
@@ -177,39 +215,7 @@ Variables</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="util_8cpp_source.html#l00234">234</a> of file <a class="el" href="util_8cpp_source.html">util.cpp</a>.</p>
-
-</div>
-</div>
-<h2 class="groupheader">Variable Documentation</h2>
-<a id="aba20464e3985b6963fc1f1f09d63e2aa"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#aba20464e3985b6963fc1f1f09d63e2aa">&#9670;&nbsp;</a></span>width_strings</h2>
-
-<div class="memitem">
-<div class="memproto">
-<table class="mlabels">
-  <tr>
-  <td class="mlabels-left">
-      <table class="memname">
-        <tr>
-          <td class="memname">std::vector&lt;std::string&gt; width_strings</td>
-        </tr>
-      </table>
-  </td>
-  <td class="mlabels-right">
-<span class="mlabels"><span class="mlabel">static</span></span>  </td>
-  </tr>
-</table>
-</div><div class="memdoc">
-<b>Initial value:</b><div class="fragment"><div class="line">= {</div>
-<div class="line">    <span class="stringliteral">&quot;max#&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;Map Tier&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;R##&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;Defense&quot;</span>,</div>
-<div class="line">    <span class="stringliteral">&quot;Master-crafted&quot;</span></div>
-<div class="line">}</div>
-</div><!-- fragment -->
-<p class="definition">Definition at line <a class="el" href="util_8cpp_source.html#l00062">62</a> of file <a class="el" href="util_8cpp_source.html">util.cpp</a>.</p>
+<p class="definition">Definition at line <a class="el" href="util_8cpp_source.html#l00248">248</a> of file <a class="el" href="util_8cpp_source.html">util.cpp</a>.</p>
 
 </div>
 </div>

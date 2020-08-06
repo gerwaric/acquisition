@@ -9,7 +9,6 @@ var class_items_manager =
     [ "categories", "class_items_manager.html#ab62007d34cf96cee12a58e954a7e6002", null ],
     [ "items", "class_items_manager.html#a20ace7ed0fcaa907bc2dbae37c3578d8", null ],
     [ "ItemsRefreshed", "class_items_manager.html#ad01db80f823b92fc327b3bde33cb11ee", null ],
-    [ "MigrateBuyouts", "class_items_manager.html#a2f00253d9d664a678efb7d65e2076afb", null ],
     [ "OnAutoRefreshTimer", "class_items_manager.html#a828b3af29e69d52036c31795b21fe844", null ],
     [ "OnItemsRefreshed", "class_items_manager.html#a58ff3e59ef264f9bb542760747811757", null ],
     [ "OnStatusUpdate", "class_items_manager.html#a01e6dab4558f115f849288695774885b", null ],
@@ -20,16 +19,5 @@ var class_items_manager =
     [ "StatusUpdate", "class_items_manager.html#a287acfcd8a0ab82bca830ca29a23a57c", null ],
     [ "Update", "class_items_manager.html#aaf2656ddfdcd924fdab828e7d3b790d2", null ],
     [ "UpdateCategories", "class_items_manager.html#ac4664b160e38ce76ec0aa1cffa780390", null ],
-    [ "UpdateSignal", "class_items_manager.html#abc7c712a98ed1cb6216c5a022c639acf", null ],
-    [ "app_", "class_items_manager.html#aad0f3723b02f842652d126e80938a3da", null ],
-    [ "auto_update_", "class_items_manager.html#a6ac01271193f0a54817be0602a240fe7", null ],
-    [ "auto_update_interval_", "class_items_manager.html#a151f4088ef6ccf809acdeceddf20fbe3", null ],
-    [ "auto_update_timer_", "class_items_manager.html#a98a6ddc7822cc9040c8116b93134f450", null ],
-    [ "bo_manager_", "class_items_manager.html#ad08492e5448560161aa148acc76199a6", null ],
-    [ "categories_", "class_items_manager.html#ad96ee22d3cb403db44155ce6b505878f", null ],
-    [ "data_", "class_items_manager.html#ab174ea96b96f86611b4fce6637af56ef", null ],
-    [ "items_", "class_items_manager.html#a5caecb45e873ef4e3a194fac11f78268", null ],
-    [ "shop_", "class_items_manager.html#a20d77aa221b26969f7f09558f51e600b", null ],
-    [ "thread_", "class_items_manager.html#afb6cf8d64498d5e252bc8ef1c376f798", null ],
-    [ "worker_", "class_items_manager.html#aca2bcdfa0ea2d05595ba3048dae63b83", null ]
+    [ "UpdateSignal", "class_items_manager.html#abc7c712a98ed1cb6216c5a022c639acf", null ]
 ];

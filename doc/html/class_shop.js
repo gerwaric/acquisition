@@ -11,20 +11,8 @@ var class_shop =
     [ "SetThread", "class_shop.html#a48baeeb1796da6f729f3f5102199d3da", null ],
     [ "shop_data", "class_shop.html#ae8e258d76da540da2d4b5ad822222d6b", null ],
     [ "shop_template", "class_shop.html#a168286e72ef7bdd94a65fe484d6e3a8d", null ],
-    [ "ShopEditUrl", "class_shop.html#a6314e6537686d0165829009cad80cd64", null ],
-    [ "SpoilerBuyout", "class_shop.html#a2446a62d6936d199e8d132d20a0871e2", null ],
     [ "StatusUpdate", "class_shop.html#a8da3e8ad9660c1c23d13242a086058da", null ],
     [ "SubmitShopToForum", "class_shop.html#a4520a6a4dcf4b3bee0b0515b9f2fcb93", null ],
-    [ "SubmitSingleShop", "class_shop.html#a6fb1dcd6b069d111fb21cd39b6b50871", null ],
     [ "threads", "class_shop.html#a335d36adabbfa5b3f71c14ad4079cb92", null ],
-    [ "Update", "class_shop.html#a4b4cc5df43961b4b1ec8cae07bbe1f92", null ],
-    [ "app_", "class_shop.html#ad785ea695fdc19ea2f63bac3f0ef1c31", null ],
-    [ "auto_update_", "class_shop.html#a6802d0b492c95d92c8ec3c02b4495e44", null ],
-    [ "requests_completed_", "class_shop.html#addb9e7cce81bcf8b9efc41e66e352df7", null ],
-    [ "shop_data_", "class_shop.html#a451d60d7419b4f063d24455e1c154774", null ],
-    [ "shop_data_outdated_", "class_shop.html#aa5f0709bfeea5d3503678db166c38d48", null ],
-    [ "shop_hash_", "class_shop.html#a82c1ed1c95a2c88aff2c8e653c23af78", null ],
-    [ "shop_template_", "class_shop.html#a7e27ee474a32f650bf2bf605821389c6", null ],
-    [ "submitting_", "class_shop.html#aac5063968a2374538c4841f49db95282", null ],
-    [ "threads_", "class_shop.html#a67c3c5a6a7a1cc5ee25f3b16e1546ff6", null ]
+    [ "Update", "class_shop.html#a4b4cc5df43961b4b1ec8cae07bbe1f92", null ]
 ];

@@ -175,7 +175,7 @@ $(document).ready(function(){initNavTree('tabcache_8cpp_source.html',''); initRe
 <div class="line"><a name="l00088"></a><span class="lineno">   88</span>&#160; </div>
 <div class="line"><a name="l00089"></a><span class="lineno">   89</span>&#160;    <span class="comment">// Need to set some reasonable length of time in which our cache entries</span></div>
 <div class="line"><a name="l00090"></a><span class="lineno">   90</span>&#160;    <span class="comment">// will expire.  It&#39;s possible we&#39;ll want to allow users to customize this.</span></div>
-<div class="line"><a name="l00091"></a><span class="lineno">   91</span>&#160;    local.setExpirationDate(QDateTime().currentDateTime().addDays(<a class="code" href="class_tab_cache.html#a11fc7dc5ad81714befefc9e027704e88">kCacheExpireInDays</a>));</div>
+<div class="line"><a name="l00091"></a><span class="lineno">   91</span>&#160;    local.setExpirationDate(QDateTime().currentDateTime().addDays(kCacheExpireInDays));</div>
 <div class="line"><a name="l00092"></a><span class="lineno">   92</span>&#160; </div>
 <div class="line"><a name="l00093"></a><span class="lineno">   93</span>&#160;    QNetworkCacheMetaData::RawHeaderList headers;</div>
 <div class="line"><a name="l00094"></a><span class="lineno">   94</span>&#160; </div>
@@ -198,7 +198,6 @@ $(document).ready(function(){initNavTree('tabcache_8cpp_source.html',''); initRe
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <div class="ttc" id="aclass_tab_cache_html_a7e809f42aaafe67c11a836fb3a10c760a774fd913cab6e3608cc873da5d2f3e58"><div class="ttname"><a href="class_tab_cache.html#a7e809f42aaafe67c11a836fb3a10c760a774fd913cab6e3608cc873da5d2f3e58">TabCache::Refresh</a></div><div class="ttdeci">@ Refresh</div><div class="ttdef"><b>Definition:</b> <a href="tabcache_8h_source.html#l00017">tabcache.h:16</a></div></div>
-<div class="ttc" id="aclass_tab_cache_html_a11fc7dc5ad81714befefc9e027704e88"><div class="ttname"><a href="class_tab_cache.html#a11fc7dc5ad81714befefc9e027704e88">TabCache::kCacheExpireInDays</a></div><div class="ttdeci">const int kCacheExpireInDays</div><div class="ttdef"><b>Definition:</b> <a href="tabcache_8h_source.html#l00030">tabcache.h:30</a></div></div>
 <div class="ttc" id="aclass_tab_cache_html_a25d2189445913ccf5e6c75179373c0b4"><div class="ttname"><a href="class_tab_cache.html#a25d2189445913ccf5e6c75179373c0b4">TabCache::Request</a></div><div class="ttdeci">QNetworkRequest Request(const QUrl &amp;url, Flags flags=None)</div><div class="ttdef"><b>Definition:</b> <a href="tabcache_8cpp_source.html#l00061">tabcache.cpp:61</a></div></div>
 <div class="ttc" id="aclass_tab_cache_html_ac1f25da99149f03619ee263184f26373"><div class="ttname"><a href="class_tab_cache.html#ac1f25da99149f03619ee263184f26373">TabCache::prepare</a></div><div class="ttdeci">QIODevice * prepare(const QNetworkCacheMetaData &amp;metaData)</div><div class="ttdef"><b>Definition:</b> <a href="tabcache_8cpp_source.html#l00079">tabcache.cpp:79</a></div></div>
 <div class="ttc" id="atabcache_8h_html"><div class="ttname"><a href="tabcache_8h.html">tabcache.h</a></div></div>

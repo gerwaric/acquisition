@@ -130,16 +130,16 @@ $(document).ready(function(){initNavTree('steamlogindialog_8cpp_source.html','')
 <div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;    QDialog(parent),</div>
 <div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;    ui(new <a class="code" href="namespace_ui.html">Ui</a>::<a class="code" href="class_steam_login_dialog.html">SteamLoginDialog</a>)</div>
 <div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;{</div>
-<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;    <a class="code" href="class_steam_login_dialog.html#a4aa51dbd1f8dcb8682d35f70b5130537">ui</a>-&gt;setupUi(<span class="keyword">this</span>);</div>
+<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;    ui-&gt;setupUi(<span class="keyword">this</span>);</div>
 <div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160;<span class="preprocessor">#ifndef NO_WEBENGINE</span></div>
-<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;    <a class="code" href="class_steam_login_dialog.html#ab7283b25591978c323f429a7c01a0d52">webView</a> = <span class="keyword">new</span> QWebEngineView();</div>
-<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;    <a class="code" href="class_steam_login_dialog.html#a4aa51dbd1f8dcb8682d35f70b5130537">ui</a>-&gt;verticalLayout-&gt;addWidget(<a class="code" href="class_steam_login_dialog.html#ab7283b25591978c323f429a7c01a0d52">webView</a>);</div>
+<div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;    webView = <span class="keyword">new</span> QWebEngineView();</div>
+<div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;    ui-&gt;verticalLayout-&gt;addWidget(webView);</div>
 <div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160; </div>
-<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;    connect(<a class="code" href="class_steam_login_dialog.html#ab7283b25591978c323f429a7c01a0d52">webView</a>, &amp;QWebEngineView::loadProgress, [<span class="keyword">this</span>](<span class="keywordtype">int</span> progress) {</div>
+<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;    connect(webView, &amp;QWebEngineView::loadProgress, [<span class="keyword">this</span>](<span class="keywordtype">int</span> progress) {</div>
 <div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;        <span class="keywordflow">if</span> (progress &gt; 0 &amp;&amp; progress &lt; 100) {</div>
 <div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;            setWindowTitle(QString(<span class="stringliteral">&quot;Loading...  (%2%)&quot;</span>).arg(progress));</div>
 <div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;        } <span class="keywordflow">else</span> {</div>
-<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160;            setWindowTitle(<a class="code" href="class_steam_login_dialog.html#ab7283b25591978c323f429a7c01a0d52">webView</a>-&gt;title());</div>
+<div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160;            setWindowTitle(webView-&gt;title());</div>
 <div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;        }</div>
 <div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160;    });</div>
 <div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160; </div>
@@ -157,27 +157,27 @@ $(document).ready(function(){initNavTree('steamlogindialog_8cpp_source.html','')
 <div class="line"><a name="l00070"></a><span class="lineno">   70</span>&#160;}</div>
 <div class="line"><a name="l00071"></a><span class="lineno">   71</span>&#160; </div>
 <div class="line"><a name="l00072"></a><span class="lineno"><a class="line" href="class_steam_login_dialog.html#ad999dfd1ec61d1a5d0c84df335d497a0">   72</a></span>&#160;<a class="code" href="class_steam_login_dialog.html#ad999dfd1ec61d1a5d0c84df335d497a0">SteamLoginDialog::~SteamLoginDialog</a>() {</div>
-<div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160;    <span class="keyword">delete</span> <a class="code" href="class_steam_login_dialog.html#a4aa51dbd1f8dcb8682d35f70b5130537">ui</a>;</div>
+<div class="line"><a name="l00073"></a><span class="lineno">   73</span>&#160;    <span class="keyword">delete</span> ui;</div>
 <div class="line"><a name="l00074"></a><span class="lineno">   74</span>&#160;}</div>
 <div class="line"><a name="l00075"></a><span class="lineno">   75</span>&#160; </div>
 <div class="line"><a name="l00076"></a><span class="lineno"><a class="line" href="class_steam_login_dialog.html#ad71f5e15b1b061249c6180da98bfb81f">   76</a></span>&#160;<span class="keywordtype">void</span> <a class="code" href="class_steam_login_dialog.html#ad71f5e15b1b061249c6180da98bfb81f">SteamLoginDialog::closeEvent</a>(QCloseEvent *e) {</div>
-<div class="line"><a name="l00077"></a><span class="lineno">   77</span>&#160;    <span class="keywordflow">if</span> (!<a class="code" href="class_steam_login_dialog.html#a53e06d96757fbdef5f2e6fd9fb89061a">completed_</a>)</div>
+<div class="line"><a name="l00077"></a><span class="lineno">   77</span>&#160;    <span class="keywordflow">if</span> (!completed_)</div>
 <div class="line"><a name="l00078"></a><span class="lineno">   78</span>&#160;        emit <a class="code" href="class_steam_login_dialog.html#a80db5b21b5c27b7768e0bce05a105ea7">Closed</a>();</div>
 <div class="line"><a name="l00079"></a><span class="lineno">   79</span>&#160;    QDialog::closeEvent(e);</div>
 <div class="line"><a name="l00080"></a><span class="lineno">   80</span>&#160;}</div>
 <div class="line"><a name="l00081"></a><span class="lineno">   81</span>&#160; </div>
 <div class="line"><a name="l00082"></a><span class="lineno"><a class="line" href="class_steam_login_dialog.html#aaaf92ba872d82c2df3ba78c4b7d6037e">   82</a></span>&#160;<span class="keywordtype">void</span> <a class="code" href="class_steam_login_dialog.html#aaaf92ba872d82c2df3ba78c4b7d6037e">SteamLoginDialog::Init</a>() {</div>
-<div class="line"><a name="l00083"></a><span class="lineno">   83</span>&#160;    <a class="code" href="class_steam_login_dialog.html#a53e06d96757fbdef5f2e6fd9fb89061a">completed_</a> = <span class="keyword">false</span>;</div>
+<div class="line"><a name="l00083"></a><span class="lineno">   83</span>&#160;    completed_ = <span class="keyword">false</span>;</div>
 <div class="line"><a name="l00084"></a><span class="lineno">   84</span>&#160;<span class="preprocessor">#ifndef NO_WEBENGINE</span></div>
 <div class="line"><a name="l00085"></a><span class="lineno">   85</span>&#160;    QByteArray data(<span class="stringliteral">&quot;x=0&amp;y=0&quot;</span>);</div>
 <div class="line"><a name="l00086"></a><span class="lineno">   86</span>&#160;    QNetworkRequest request(QUrl(<span class="stringliteral">&quot;https://www.pathofexile.com/login/steam&quot;</span>));</div>
 <div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160;    request.setHeader(QNetworkRequest::ContentTypeHeader, <span class="stringliteral">&quot;application/x-www-form-urlencoded&quot;</span>);</div>
-<div class="line"><a name="l00088"></a><span class="lineno">   88</span>&#160;    QNetworkReply *reply = <a class="code" href="class_steam_login_dialog.html#a8b4e84d8097ecd6e815bb0d87f193c1c">network_manager_</a>.post(request, data);</div>
+<div class="line"><a name="l00088"></a><span class="lineno">   88</span>&#160;    QNetworkReply *reply = network_manager_.post(request, data);</div>
 <div class="line"><a name="l00089"></a><span class="lineno">   89</span>&#160; </div>
 <div class="line"><a name="l00090"></a><span class="lineno">   90</span>&#160;    <span class="keyword">auto</span> conn = std::shared_ptr&lt;QMetaObject::Connection&gt;(<span class="keyword">new</span> QMetaObject::Connection());</div>
 <div class="line"><a name="l00091"></a><span class="lineno">   91</span>&#160;    *conn = connect(reply, &amp;QNetworkReply::finished, [<span class="keyword">this</span>, reply, conn] {</div>
 <div class="line"><a name="l00092"></a><span class="lineno">   92</span>&#160;        <span class="keyword">auto</span> attr = reply-&gt;attribute(QNetworkRequest::RedirectionTargetAttribute);</div>
-<div class="line"><a name="l00093"></a><span class="lineno">   93</span>&#160;        <a class="code" href="class_steam_login_dialog.html#ab7283b25591978c323f429a7c01a0d52">webView</a>-&gt;load(attr.toUrl());</div>
+<div class="line"><a name="l00093"></a><span class="lineno">   93</span>&#160;        webView-&gt;load(attr.toUrl());</div>
 <div class="line"><a name="l00094"></a><span class="lineno">   94</span>&#160;        reply-&gt;deleteLater();</div>
 <div class="line"><a name="l00095"></a><span class="lineno">   95</span>&#160;        disconnect(*conn);</div>
 <div class="line"><a name="l00096"></a><span class="lineno">   96</span>&#160;    });</div>
@@ -186,16 +186,12 @@ $(document).ready(function(){initNavTree('steamlogindialog_8cpp_source.html','')
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <div class="ttc" id="afilesystem_8h_html"><div class="ttname"><a href="filesystem_8h.html">filesystem.h</a></div></div>
-<div class="ttc" id="aclass_steam_login_dialog_html_a8b4e84d8097ecd6e815bb0d87f193c1c"><div class="ttname"><a href="class_steam_login_dialog.html#a8b4e84d8097ecd6e815bb0d87f193c1c">SteamLoginDialog::network_manager_</a></div><div class="ttdeci">QNetworkAccessManager network_manager_</div><div class="ttdef"><b>Definition:</b> <a href="steamlogindialog_8h_source.html#l00053">steamlogindialog.h:53</a></div></div>
 <div class="ttc" id="aclass_steam_login_dialog_html"><div class="ttname"><a href="class_steam_login_dialog.html">SteamLoginDialog</a></div><div class="ttdef"><b>Definition:</b> <a href="steamlogindialog_8h_source.html#l00036">steamlogindialog.h:36</a></div></div>
-<div class="ttc" id="aclass_steam_login_dialog_html_ab7283b25591978c323f429a7c01a0d52"><div class="ttname"><a href="class_steam_login_dialog.html#ab7283b25591978c323f429a7c01a0d52">SteamLoginDialog::webView</a></div><div class="ttdeci">QWebEngineView * webView</div><div class="ttdef"><b>Definition:</b> <a href="steamlogindialog_8h_source.html#l00051">steamlogindialog.h:51</a></div></div>
-<div class="ttc" id="aclass_steam_login_dialog_html_a53e06d96757fbdef5f2e6fd9fb89061a"><div class="ttname"><a href="class_steam_login_dialog.html#a53e06d96757fbdef5f2e6fd9fb89061a">SteamLoginDialog::completed_</a></div><div class="ttdeci">bool completed_</div><div class="ttdef"><b>Definition:</b> <a href="steamlogindialog_8h_source.html#l00049">steamlogindialog.h:49</a></div></div>
 <div class="ttc" id="aclass_steam_login_dialog_html_ad71f5e15b1b061249c6180da98bfb81f"><div class="ttname"><a href="class_steam_login_dialog.html#ad71f5e15b1b061249c6180da98bfb81f">SteamLoginDialog::closeEvent</a></div><div class="ttdeci">virtual void closeEvent(QCloseEvent *e)</div><div class="ttdef"><b>Definition:</b> <a href="steamlogindialog_8cpp_source.html#l00076">steamlogindialog.cpp:76</a></div></div>
 <div class="ttc" id="asteamlogindialog_8cpp_html_a89313c42d750db217b41b9275958886c"><div class="ttname"><a href="steamlogindialog_8cpp.html#a89313c42d750db217b41b9275958886c">POE_COOKIE_NAME</a></div><div class="ttdeci">const char * POE_COOKIE_NAME</div><div class="ttdef"><b>Definition:</b> <a href="logindialog_8cpp_source.html#l00056">logindialog.cpp:56</a></div></div>
 <div class="ttc" id="asteamlogindialog_8h_html"><div class="ttname"><a href="steamlogindialog_8h.html">steamlogindialog.h</a></div></div>
 <div class="ttc" id="aclass_steam_login_dialog_html_ad999dfd1ec61d1a5d0c84df335d497a0"><div class="ttname"><a href="class_steam_login_dialog.html#ad999dfd1ec61d1a5d0c84df335d497a0">SteamLoginDialog::~SteamLoginDialog</a></div><div class="ttdeci">~SteamLoginDialog()</div><div class="ttdef"><b>Definition:</b> <a href="steamlogindialog_8cpp_source.html#l00072">steamlogindialog.cpp:72</a></div></div>
 <div class="ttc" id="anamespace_ui_html"><div class="ttname"><a href="namespace_ui.html">Ui</a></div><div class="ttdef"><b>Definition:</b> <a href="logindialog_8h_source.html#l00037">logindialog.h:37</a></div></div>
-<div class="ttc" id="aclass_steam_login_dialog_html_a4aa51dbd1f8dcb8682d35f70b5130537"><div class="ttname"><a href="class_steam_login_dialog.html#a4aa51dbd1f8dcb8682d35f70b5130537">SteamLoginDialog::ui</a></div><div class="ttdeci">Ui::SteamLoginDialog * ui</div><div class="ttdef"><b>Definition:</b> <a href="steamlogindialog_8h_source.html#l00048">steamlogindialog.h:48</a></div></div>
 <div class="ttc" id="aclass_steam_login_dialog_html_a1d5f13014bbda99ee0c0cb77018c274e"><div class="ttname"><a href="class_steam_login_dialog.html#a1d5f13014bbda99ee0c0cb77018c274e">SteamLoginDialog::SteamLoginDialog</a></div><div class="ttdeci">SteamLoginDialog(QWidget *parent=0)</div><div class="ttdef"><b>Definition:</b> <a href="steamlogindialog_8cpp_source.html#l00042">steamlogindialog.cpp:42</a></div></div>
 <div class="ttc" id="aclass_steam_login_dialog_html_a80db5b21b5c27b7768e0bce05a105ea7"><div class="ttname"><a href="class_steam_login_dialog.html#a80db5b21b5c27b7768e0bce05a105ea7">SteamLoginDialog::Closed</a></div><div class="ttdeci">void Closed()</div></div>
 <div class="ttc" id="aclass_steam_login_dialog_html_aaaf92ba872d82c2df3ba78c4b7d6037e"><div class="ttname"><a href="class_steam_login_dialog.html#aaaf92ba872d82c2df3ba78c4b7d6037e">SteamLoginDialog::Init</a></div><div class="ttdeci">void Init()</div><div class="ttdef"><b>Definition:</b> <a href="steamlogindialog_8cpp_source.html#l00082">steamlogindialog.cpp:82</a></div></div>

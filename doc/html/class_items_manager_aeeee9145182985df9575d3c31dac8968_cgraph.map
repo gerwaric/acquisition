@@ -1,0 +1,7 @@
+<map id="ItemsManager::ApplyAutoTabBuyouts" name="ItemsManager::ApplyAutoTabBuyouts">
+<area shape="rect" id="node1" title=" " alt="" coords="5,71,199,112"/>
+<area shape="rect" id="node2" href="$class_application.html#a5bc6751842bdfe296b245347d0335f73" title=" " alt="" coords="279,5,412,47"/>
+<area shape="rect" id="node3" href="$class_buyout_manager.html#a757950b2574eb7351f94ec487af553f8" title=" " alt="" coords="247,71,444,112"/>
+<area shape="rect" id="node4" href="$struct_buyout.html#a58469a93328aab4b6e12050252c65e73" title=" " alt="" coords="287,137,403,163"/>
+<area shape="rect" id="node5" href="$struct_buyout.html#a173c60c2adf365128ccb1cc6bc6354ec" title=" " alt="" coords="492,137,603,163"/>
+</map>

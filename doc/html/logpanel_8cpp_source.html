@@ -119,7 +119,7 @@ $(document).ready(function(){initNavTree('logpanel_8cpp_source.html',''); initRe
 <div class="line"><a name="l00032"></a><span class="lineno"><a class="line" href="struct_message_type.html#a98081c1071ca9451c8861fd76a21b074">   32</a></span>&#160;    std::string <a class="code" href="struct_message_type.html#a98081c1071ca9451c8861fd76a21b074">desc</a>;</div>
 <div class="line"><a name="l00033"></a><span class="lineno">   33</span>&#160;};</div>
 <div class="line"><a name="l00034"></a><span class="lineno">   34</span>&#160; </div>
-<div class="line"><a name="l00035"></a><span class="lineno"><a class="line" href="logpanel_8cpp.html#a90efd26ab842633c1c97a4c645780715">   35</a></span>&#160;<span class="keyword">static</span> std::vector&lt;MessageType&gt; <a class="code" href="logpanel_8cpp.html#a90efd26ab842633c1c97a4c645780715">message_types</a>{</div>
+<div class="line"><a name="l00035"></a><span class="lineno">   35</span>&#160;<span class="keyword">static</span> std::vector&lt;MessageType&gt; message_types{</div>
 <div class="line"><a name="l00036"></a><span class="lineno">   36</span>&#160;    { QColor(), <span class="stringliteral">&quot;message&quot;</span> },</div>
 <div class="line"><a name="l00037"></a><span class="lineno">   37</span>&#160;    { QColor(174, 141, 28), <span class="stringliteral">&quot;warning&quot;</span> },</div>
 <div class="line"><a name="l00038"></a><span class="lineno">   38</span>&#160;    { QColor(255, 0, 0), <span class="stringliteral">&quot;error&quot;</span> }</div>
@@ -130,30 +130,30 @@ $(document).ready(function(){initNavTree('logpanel_8cpp_source.html',''); initRe
 <div class="line"><a name="l00043"></a><span class="lineno">   43</span>&#160;    output_(new QTextEdit),</div>
 <div class="line"><a name="l00044"></a><span class="lineno">   44</span>&#160;    signal_handler_(*this)</div>
 <div class="line"><a name="l00045"></a><span class="lineno">   45</span>&#160;{</div>
-<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;    <a class="code" href="class_log_panel.html#a9b6845edbf25c630d37ab9b7a0a1dccd">num_messages_</a>.resize(<a class="code" href="logpanel_8cpp.html#a90efd26ab842633c1c97a4c645780715">message_types</a>.size());</div>
+<div class="line"><a name="l00046"></a><span class="lineno">   46</span>&#160;    num_messages_.resize(message_types.size());</div>
 <div class="line"><a name="l00047"></a><span class="lineno">   47</span>&#160; </div>
 <div class="line"><a name="l00048"></a><span class="lineno">   48</span>&#160;    QFont font(<span class="stringliteral">&quot;Monospace&quot;</span>);</div>
 <div class="line"><a name="l00049"></a><span class="lineno">   49</span>&#160;    font.setStyleHint(QFont::TypeWriter);</div>
-<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;    <a class="code" href="class_log_panel.html#adf46fdc6685f8b858e1c5b86181bc58f">output_</a>-&gt;setReadOnly(<span class="keyword">true</span>);</div>
-<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;    <a class="code" href="class_log_panel.html#adf46fdc6685f8b858e1c5b86181bc58f">output_</a>-&gt;setFont(font);</div>
-<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;    <a class="code" href="class_log_panel.html#adf46fdc6685f8b858e1c5b86181bc58f">output_</a>-&gt;setMaximumHeight(250); <span class="comment">// TODO(xyz): remove magic numbers</span></div>
-<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;    <a class="code" href="class_log_panel.html#adf46fdc6685f8b858e1c5b86181bc58f">output_</a>-&gt;insertPlainText(<span class="stringliteral">&quot;Errors and warnings will be printed here\n&quot;</span>);</div>
-<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;    <a class="code" href="class_log_panel.html#adf46fdc6685f8b858e1c5b86181bc58f">output_</a>-&gt;hide();</div>
+<div class="line"><a name="l00050"></a><span class="lineno">   50</span>&#160;    output_-&gt;setReadOnly(<span class="keyword">true</span>);</div>
+<div class="line"><a name="l00051"></a><span class="lineno">   51</span>&#160;    output_-&gt;setFont(font);</div>
+<div class="line"><a name="l00052"></a><span class="lineno">   52</span>&#160;    output_-&gt;setMaximumHeight(250); <span class="comment">// TODO(xyz): remove magic numbers</span></div>
+<div class="line"><a name="l00053"></a><span class="lineno">   53</span>&#160;    output_-&gt;insertPlainText(<span class="stringliteral">&quot;Errors and warnings will be printed here\n&quot;</span>);</div>
+<div class="line"><a name="l00054"></a><span class="lineno">   54</span>&#160;    output_-&gt;hide();</div>
 <div class="line"><a name="l00055"></a><span class="lineno">   55</span>&#160; </div>
-<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;    <a class="code" href="class_log_panel.html#acafceaa0bbdb0ec5457ccabbd72359d2">status_button_</a>-&gt;setFlat(<span class="keyword">true</span>);</div>
-<div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160;    window-&gt;statusBar()-&gt;addPermanentWidget(<a class="code" href="class_log_panel.html#acafceaa0bbdb0ec5457ccabbd72359d2">status_button_</a>);</div>
-<div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;    <a class="code" href="class_log_panel.html#aeec04094c0da6c3d0f513f155db99da1">UpdateStatusLabel</a>();</div>
-<div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;    QObject::connect(<a class="code" href="class_log_panel.html#acafceaa0bbdb0ec5457ccabbd72359d2">status_button_</a>, SIGNAL(clicked()), &amp;<a class="code" href="class_log_panel.html#a9dfca26af089c219823024aca922fffa">signal_handler_</a>, SLOT(OnStatusLabelClicked()));</div>
+<div class="line"><a name="l00056"></a><span class="lineno">   56</span>&#160;    status_button_-&gt;setFlat(<span class="keyword">true</span>);</div>
+<div class="line"><a name="l00057"></a><span class="lineno">   57</span>&#160;    window-&gt;statusBar()-&gt;addPermanentWidget(status_button_);</div>
+<div class="line"><a name="l00058"></a><span class="lineno">   58</span>&#160;    UpdateStatusLabel();</div>
+<div class="line"><a name="l00059"></a><span class="lineno">   59</span>&#160;    QObject::connect(status_button_, SIGNAL(clicked()), &amp;signal_handler_, SLOT(OnStatusLabelClicked()));</div>
 <div class="line"><a name="l00060"></a><span class="lineno">   60</span>&#160; </div>
-<div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160;    ui-&gt;mainLayout-&gt;addWidget(<a class="code" href="class_log_panel.html#adf46fdc6685f8b858e1c5b86181bc58f">output_</a>);</div>
+<div class="line"><a name="l00061"></a><span class="lineno">   61</span>&#160;    ui-&gt;mainLayout-&gt;addWidget(output_);</div>
 <div class="line"><a name="l00062"></a><span class="lineno">   62</span>&#160;}</div>
 <div class="line"><a name="l00063"></a><span class="lineno">   63</span>&#160; </div>
-<div class="line"><a name="l00064"></a><span class="lineno"><a class="line" href="class_log_panel.html#aeec04094c0da6c3d0f513f155db99da1">   64</a></span>&#160;<span class="keywordtype">void</span> <a class="code" href="class_log_panel.html#aeec04094c0da6c3d0f513f155db99da1">LogPanel::UpdateStatusLabel</a>() {</div>
+<div class="line"><a name="l00064"></a><span class="lineno">   64</span>&#160;<span class="keywordtype">void</span> LogPanel::UpdateStatusLabel() {</div>
 <div class="line"><a name="l00065"></a><span class="lineno">   65</span>&#160;    QString stylesheet;</div>
 <div class="line"><a name="l00066"></a><span class="lineno">   66</span>&#160;    QString text = <span class="stringliteral">&quot;Event Log&quot;</span>;</div>
-<div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160;    <span class="keywordflow">for</span> (<span class="keywordtype">int</span> i = <a class="code" href="class_log_panel.html#a9b6845edbf25c630d37ab9b7a0a1dccd">num_messages_</a>.size() - 1; i &gt;= 0; --i) {</div>
-<div class="line"><a name="l00068"></a><span class="lineno">   68</span>&#160;        <span class="keywordtype">int</span> num = <a class="code" href="class_log_panel.html#a9b6845edbf25c630d37ab9b7a0a1dccd">num_messages_</a>[i];</div>
-<div class="line"><a name="l00069"></a><span class="lineno">   69</span>&#160;        <span class="keyword">auto</span> &amp;type = <a class="code" href="logpanel_8cpp.html#a90efd26ab842633c1c97a4c645780715">message_types</a>[i];</div>
+<div class="line"><a name="l00067"></a><span class="lineno">   67</span>&#160;    <span class="keywordflow">for</span> (<span class="keywordtype">int</span> i = num_messages_.size() - 1; i &gt;= 0; --i) {</div>
+<div class="line"><a name="l00068"></a><span class="lineno">   68</span>&#160;        <span class="keywordtype">int</span> num = num_messages_[i];</div>
+<div class="line"><a name="l00069"></a><span class="lineno">   69</span>&#160;        <span class="keyword">auto</span> &amp;type = message_types[i];</div>
 <div class="line"><a name="l00070"></a><span class="lineno">   70</span>&#160;        <span class="keywordflow">if</span> (num &gt; 0) {</div>
 <div class="line"><a name="l00071"></a><span class="lineno">   71</span>&#160;            text = QString(<span class="stringliteral">&quot;%1 &quot;</span> + QString(type.desc.c_str())).arg(num) + (num &gt; 1 ? <span class="stringliteral">&quot;s&quot;</span> : <span class="stringliteral">&quot;&quot;</span>);</div>
 <div class="line"><a name="l00072"></a><span class="lineno">   72</span>&#160;            stylesheet = <span class="stringliteral">&quot;font-weight: bold; color: &quot;</span> + type.color.name();</div>
@@ -161,18 +161,18 @@ $(document).ready(function(){initNavTree('logpanel_8cpp_source.html',''); initRe
 <div class="line"><a name="l00074"></a><span class="lineno">   74</span>&#160;        }</div>
 <div class="line"><a name="l00075"></a><span class="lineno">   75</span>&#160;    }</div>
 <div class="line"><a name="l00076"></a><span class="lineno">   76</span>&#160; </div>
-<div class="line"><a name="l00077"></a><span class="lineno">   77</span>&#160;    <a class="code" href="class_log_panel.html#acafceaa0bbdb0ec5457ccabbd72359d2">status_button_</a>-&gt;setStyleSheet(stylesheet);</div>
-<div class="line"><a name="l00078"></a><span class="lineno">   78</span>&#160;    <a class="code" href="class_log_panel.html#acafceaa0bbdb0ec5457ccabbd72359d2">status_button_</a>-&gt;setText(text);</div>
+<div class="line"><a name="l00077"></a><span class="lineno">   77</span>&#160;    status_button_-&gt;setStyleSheet(stylesheet);</div>
+<div class="line"><a name="l00078"></a><span class="lineno">   78</span>&#160;    status_button_-&gt;setText(text);</div>
 <div class="line"><a name="l00079"></a><span class="lineno">   79</span>&#160;}</div>
 <div class="line"><a name="l00080"></a><span class="lineno">   80</span>&#160; </div>
 <div class="line"><a name="l00081"></a><span class="lineno"><a class="line" href="class_log_panel.html#af3212e6626daa77d0b667b5840f337d7">   81</a></span>&#160;<span class="keywordtype">void</span> <a class="code" href="class_log_panel.html#af3212e6626daa77d0b667b5840f337d7">LogPanel::write</a>(<span class="keyword">const</span> QString&amp; message, QsLogging::Level level) {</div>
 <div class="line"><a name="l00082"></a><span class="lineno">   82</span>&#160;    <span class="comment">// this is done like this because write() can be called from different threads,</span></div>
 <div class="line"><a name="l00083"></a><span class="lineno">   83</span>&#160;    <span class="comment">// so we let Qt signals/slots system take care of boring synchronization stuff</span></div>
-<div class="line"><a name="l00084"></a><span class="lineno">   84</span>&#160;    QMetaObject::invokeMethod(&amp;<a class="code" href="class_log_panel.html#a9dfca26af089c219823024aca922fffa">signal_handler_</a>, <span class="stringliteral">&quot;OnMessage&quot;</span>, Qt::QueuedConnection, </div>
+<div class="line"><a name="l00084"></a><span class="lineno">   84</span>&#160;    QMetaObject::invokeMethod(&amp;signal_handler_, <span class="stringliteral">&quot;OnMessage&quot;</span>, Qt::QueuedConnection, </div>
 <div class="line"><a name="l00085"></a><span class="lineno">   85</span>&#160;        Q_ARG(QString, message), Q_ARG(QsLogging::Level, level));</div>
 <div class="line"><a name="l00086"></a><span class="lineno">   86</span>&#160;}</div>
 <div class="line"><a name="l00087"></a><span class="lineno">   87</span>&#160; </div>
-<div class="line"><a name="l00088"></a><span class="lineno"><a class="line" href="class_log_panel.html#a04ab0b51c767ff40f7e04c1cbf579685">   88</a></span>&#160;<span class="keywordtype">void</span> <a class="code" href="class_log_panel.html#a04ab0b51c767ff40f7e04c1cbf579685">LogPanel::AddLine</a>(<span class="keyword">const</span> QString &amp;message, QsLogging::Level level) {</div>
+<div class="line"><a name="l00088"></a><span class="lineno">   88</span>&#160;<span class="keywordtype">void</span> LogPanel::AddLine(<span class="keyword">const</span> QString &amp;message, QsLogging::Level level) {</div>
 <div class="line"><a name="l00089"></a><span class="lineno">   89</span>&#160;    QColor color;</div>
 <div class="line"><a name="l00090"></a><span class="lineno">   90</span>&#160;    <span class="keywordtype">int</span> type;</div>
 <div class="line"><a name="l00091"></a><span class="lineno">   91</span>&#160;    <span class="keywordflow">switch</span> (level) {</div>
@@ -189,60 +189,51 @@ $(document).ready(function(){initNavTree('logpanel_8cpp_source.html',''); initRe
 <div class="line"><a name="l00102"></a><span class="lineno">  102</span>&#160;        <span class="keywordflow">return</span>;</div>
 <div class="line"><a name="l00103"></a><span class="lineno">  103</span>&#160;    }</div>
 <div class="line"><a name="l00104"></a><span class="lineno">  104</span>&#160; </div>
-<div class="line"><a name="l00105"></a><span class="lineno">  105</span>&#160;    <a class="code" href="class_log_panel.html#a9b6845edbf25c630d37ab9b7a0a1dccd">num_messages_</a>[type]++;</div>
-<div class="line"><a name="l00106"></a><span class="lineno">  106</span>&#160;    color = <a class="code" href="logpanel_8cpp.html#a90efd26ab842633c1c97a4c645780715">message_types</a>[type].color;</div>
+<div class="line"><a name="l00105"></a><span class="lineno">  105</span>&#160;    num_messages_[type]++;</div>
+<div class="line"><a name="l00106"></a><span class="lineno">  106</span>&#160;    color = message_types[type].color;</div>
 <div class="line"><a name="l00107"></a><span class="lineno">  107</span>&#160; </div>
-<div class="line"><a name="l00108"></a><span class="lineno">  108</span>&#160;    <a class="code" href="class_log_panel.html#adf46fdc6685f8b858e1c5b86181bc58f">output_</a>-&gt;moveCursor(QTextCursor::End);</div>
-<div class="line"><a name="l00109"></a><span class="lineno">  109</span>&#160;    <a class="code" href="class_log_panel.html#adf46fdc6685f8b858e1c5b86181bc58f">output_</a>-&gt;setTextColor(color);</div>
-<div class="line"><a name="l00110"></a><span class="lineno">  110</span>&#160;    <a class="code" href="class_log_panel.html#adf46fdc6685f8b858e1c5b86181bc58f">output_</a>-&gt;insertPlainText(message + <span class="stringliteral">&quot;\n&quot;</span>);</div>
-<div class="line"><a name="l00111"></a><span class="lineno">  111</span>&#160;    <a class="code" href="class_log_panel.html#adf46fdc6685f8b858e1c5b86181bc58f">output_</a>-&gt;ensureCursorVisible();</div>
+<div class="line"><a name="l00108"></a><span class="lineno">  108</span>&#160;    output_-&gt;moveCursor(QTextCursor::End);</div>
+<div class="line"><a name="l00109"></a><span class="lineno">  109</span>&#160;    output_-&gt;setTextColor(color);</div>
+<div class="line"><a name="l00110"></a><span class="lineno">  110</span>&#160;    output_-&gt;insertPlainText(message + <span class="stringliteral">&quot;\n&quot;</span>);</div>
+<div class="line"><a name="l00111"></a><span class="lineno">  111</span>&#160;    output_-&gt;ensureCursorVisible();</div>
 <div class="line"><a name="l00112"></a><span class="lineno">  112</span>&#160; </div>
-<div class="line"><a name="l00113"></a><span class="lineno">  113</span>&#160;    <span class="keywordflow">if</span> (<a class="code" href="class_log_panel.html#adf46fdc6685f8b858e1c5b86181bc58f">output_</a>-&gt;isVisible()) {</div>
-<div class="line"><a name="l00114"></a><span class="lineno">  114</span>&#160;        <a class="code" href="class_log_panel.html#a9b6845edbf25c630d37ab9b7a0a1dccd">num_messages_</a>.clear();</div>
-<div class="line"><a name="l00115"></a><span class="lineno">  115</span>&#160;        <a class="code" href="class_log_panel.html#a9b6845edbf25c630d37ab9b7a0a1dccd">num_messages_</a>.resize(<a class="code" href="logpanel_8cpp.html#a90efd26ab842633c1c97a4c645780715">message_types</a>.size());</div>
+<div class="line"><a name="l00113"></a><span class="lineno">  113</span>&#160;    <span class="keywordflow">if</span> (output_-&gt;isVisible()) {</div>
+<div class="line"><a name="l00114"></a><span class="lineno">  114</span>&#160;        num_messages_.clear();</div>
+<div class="line"><a name="l00115"></a><span class="lineno">  115</span>&#160;        num_messages_.resize(message_types.size());</div>
 <div class="line"><a name="l00116"></a><span class="lineno">  116</span>&#160;    }</div>
-<div class="line"><a name="l00117"></a><span class="lineno">  117</span>&#160;    <a class="code" href="class_log_panel.html#aeec04094c0da6c3d0f513f155db99da1">UpdateStatusLabel</a>();</div>
+<div class="line"><a name="l00117"></a><span class="lineno">  117</span>&#160;    UpdateStatusLabel();</div>
 <div class="line"><a name="l00118"></a><span class="lineno">  118</span>&#160;}</div>
 <div class="line"><a name="l00119"></a><span class="lineno">  119</span>&#160; </div>
-<div class="line"><a name="l00120"></a><span class="lineno"><a class="line" href="class_log_panel.html#ae4ac05fabbe0fdc3be0f157847915378">  120</a></span>&#160;<span class="keywordtype">void</span> <a class="code" href="class_log_panel.html#ae4ac05fabbe0fdc3be0f157847915378">LogPanel::ToggleOutputVisibility</a>() {</div>
-<div class="line"><a name="l00121"></a><span class="lineno">  121</span>&#160;    <span class="keywordflow">if</span> (<a class="code" href="class_log_panel.html#adf46fdc6685f8b858e1c5b86181bc58f">output_</a>-&gt;isVisible()) {</div>
-<div class="line"><a name="l00122"></a><span class="lineno">  122</span>&#160;        <a class="code" href="class_log_panel.html#adf46fdc6685f8b858e1c5b86181bc58f">output_</a>-&gt;hide();</div>
+<div class="line"><a name="l00120"></a><span class="lineno">  120</span>&#160;<span class="keywordtype">void</span> LogPanel::ToggleOutputVisibility() {</div>
+<div class="line"><a name="l00121"></a><span class="lineno">  121</span>&#160;    <span class="keywordflow">if</span> (output_-&gt;isVisible()) {</div>
+<div class="line"><a name="l00122"></a><span class="lineno">  122</span>&#160;        output_-&gt;hide();</div>
 <div class="line"><a name="l00123"></a><span class="lineno">  123</span>&#160;    } <span class="keywordflow">else</span> {</div>
-<div class="line"><a name="l00124"></a><span class="lineno">  124</span>&#160;        <a class="code" href="class_log_panel.html#adf46fdc6685f8b858e1c5b86181bc58f">output_</a>-&gt;show();</div>
-<div class="line"><a name="l00125"></a><span class="lineno">  125</span>&#160;        <a class="code" href="class_log_panel.html#a9b6845edbf25c630d37ab9b7a0a1dccd">num_messages_</a>.clear();</div>
-<div class="line"><a name="l00126"></a><span class="lineno">  126</span>&#160;        <a class="code" href="class_log_panel.html#a9b6845edbf25c630d37ab9b7a0a1dccd">num_messages_</a>.resize(<a class="code" href="logpanel_8cpp.html#a90efd26ab842633c1c97a4c645780715">message_types</a>.size());</div>
-<div class="line"><a name="l00127"></a><span class="lineno">  127</span>&#160;        <a class="code" href="class_log_panel.html#aeec04094c0da6c3d0f513f155db99da1">UpdateStatusLabel</a>();</div>
+<div class="line"><a name="l00124"></a><span class="lineno">  124</span>&#160;        output_-&gt;show();</div>
+<div class="line"><a name="l00125"></a><span class="lineno">  125</span>&#160;        num_messages_.clear();</div>
+<div class="line"><a name="l00126"></a><span class="lineno">  126</span>&#160;        num_messages_.resize(message_types.size());</div>
+<div class="line"><a name="l00127"></a><span class="lineno">  127</span>&#160;        UpdateStatusLabel();</div>
 <div class="line"><a name="l00128"></a><span class="lineno">  128</span>&#160;    }</div>
 <div class="line"><a name="l00129"></a><span class="lineno">  129</span>&#160;}</div>
 <div class="line"><a name="l00130"></a><span class="lineno">  130</span>&#160; </div>
 <div class="line"><a name="l00131"></a><span class="lineno"><a class="line" href="class_log_panel_signal_handler.html#ab26e429eb39577d1d12e6d9280853c21">  131</a></span>&#160;<span class="keywordtype">void</span> <a class="code" href="class_log_panel_signal_handler.html#ab26e429eb39577d1d12e6d9280853c21">LogPanelSignalHandler::OnStatusLabelClicked</a>() {</div>
-<div class="line"><a name="l00132"></a><span class="lineno">  132</span>&#160;    <a class="code" href="class_log_panel_signal_handler.html#a0b34be5f66c85cd54f45a3c0c0a0daaa">parent_</a>.<a class="code" href="class_log_panel.html#ae4ac05fabbe0fdc3be0f157847915378">ToggleOutputVisibility</a>();</div>
+<div class="line"><a name="l00132"></a><span class="lineno">  132</span>&#160;    parent_.ToggleOutputVisibility();</div>
 <div class="line"><a name="l00133"></a><span class="lineno">  133</span>&#160;}</div>
 <div class="line"><a name="l00134"></a><span class="lineno">  134</span>&#160; </div>
 <div class="line"><a name="l00135"></a><span class="lineno"><a class="line" href="class_log_panel_signal_handler.html#a1411a308d4266d62098ba06aa73b54a8">  135</a></span>&#160;<span class="keywordtype">void</span> <a class="code" href="class_log_panel_signal_handler.html#a1411a308d4266d62098ba06aa73b54a8">LogPanelSignalHandler::OnMessage</a>(<span class="keyword">const</span> QString &amp;message, <span class="keyword">const</span> QsLogging::Level level) {</div>
-<div class="line"><a name="l00136"></a><span class="lineno">  136</span>&#160;    <a class="code" href="class_log_panel_signal_handler.html#a0b34be5f66c85cd54f45a3c0c0a0daaa">parent_</a>.<a class="code" href="class_log_panel.html#a04ab0b51c767ff40f7e04c1cbf579685">AddLine</a>(message, level);</div>
+<div class="line"><a name="l00136"></a><span class="lineno">  136</span>&#160;    parent_.AddLine(message, level);</div>
 <div class="line"><a name="l00137"></a><span class="lineno">  137</span>&#160;}</div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
-<div class="ttc" id="aclass_log_panel_html_ae4ac05fabbe0fdc3be0f157847915378"><div class="ttname"><a href="class_log_panel.html#ae4ac05fabbe0fdc3be0f157847915378">LogPanel::ToggleOutputVisibility</a></div><div class="ttdeci">void ToggleOutputVisibility()</div><div class="ttdef"><b>Definition:</b> <a href="logpanel_8cpp_source.html#l00120">logpanel.cpp:120</a></div></div>
-<div class="ttc" id="aclass_log_panel_signal_handler_html_a0b34be5f66c85cd54f45a3c0c0a0daaa"><div class="ttname"><a href="class_log_panel_signal_handler.html#a0b34be5f66c85cd54f45a3c0c0a0daaa">LogPanelSignalHandler::parent_</a></div><div class="ttdeci">LogPanel &amp; parent_</div><div class="ttdef"><b>Definition:</b> <a href="logpanel_8h_source.html#l00047">logpanel.h:47</a></div></div>
-<div class="ttc" id="aclass_log_panel_html_adf46fdc6685f8b858e1c5b86181bc58f"><div class="ttname"><a href="class_log_panel.html#adf46fdc6685f8b858e1c5b86181bc58f">LogPanel::output_</a></div><div class="ttdeci">QTextEdit * output_</div><div class="ttdef"><b>Definition:</b> <a href="logpanel_8h_source.html#l00062">logpanel.h:62</a></div></div>
 <div class="ttc" id="astruct_message_type_html_a0939d965c4cd066a64587b05d69e47d8"><div class="ttname"><a href="struct_message_type.html#a0939d965c4cd066a64587b05d69e47d8">MessageType::color</a></div><div class="ttdeci">QColor color</div><div class="ttdef"><b>Definition:</b> <a href="logpanel_8cpp_source.html#l00031">logpanel.cpp:31</a></div></div>
-<div class="ttc" id="aclass_log_panel_html_a9dfca26af089c219823024aca922fffa"><div class="ttname"><a href="class_log_panel.html#a9dfca26af089c219823024aca922fffa">LogPanel::signal_handler_</a></div><div class="ttdeci">LogPanelSignalHandler signal_handler_</div><div class="ttdef"><b>Definition:</b> <a href="logpanel_8h_source.html#l00064">logpanel.h:64</a></div></div>
-<div class="ttc" id="aclass_log_panel_html_a04ab0b51c767ff40f7e04c1cbf579685"><div class="ttname"><a href="class_log_panel.html#a04ab0b51c767ff40f7e04c1cbf579685">LogPanel::AddLine</a></div><div class="ttdeci">void AddLine(const QString &amp;message, QsLogging::Level level)</div><div class="ttdef"><b>Definition:</b> <a href="logpanel_8cpp_source.html#l00088">logpanel.cpp:88</a></div></div>
 <div class="ttc" id="astruct_message_type_html_a98081c1071ca9451c8861fd76a21b074"><div class="ttname"><a href="struct_message_type.html#a98081c1071ca9451c8861fd76a21b074">MessageType::desc</a></div><div class="ttdeci">std::string desc</div><div class="ttdef"><b>Definition:</b> <a href="logpanel_8cpp_source.html#l00032">logpanel.cpp:32</a></div></div>
 <div class="ttc" id="aclass_log_panel_signal_handler_html_ab26e429eb39577d1d12e6d9280853c21"><div class="ttname"><a href="class_log_panel_signal_handler.html#ab26e429eb39577d1d12e6d9280853c21">LogPanelSignalHandler::OnStatusLabelClicked</a></div><div class="ttdeci">void OnStatusLabelClicked()</div><div class="ttdef"><b>Definition:</b> <a href="logpanel_8cpp_source.html#l00131">logpanel.cpp:131</a></div></div>
-<div class="ttc" id="aclass_log_panel_html_aeec04094c0da6c3d0f513f155db99da1"><div class="ttname"><a href="class_log_panel.html#aeec04094c0da6c3d0f513f155db99da1">LogPanel::UpdateStatusLabel</a></div><div class="ttdeci">void UpdateStatusLabel()</div><div class="ttdef"><b>Definition:</b> <a href="logpanel_8cpp_source.html#l00064">logpanel.cpp:64</a></div></div>
 <div class="ttc" id="aclass_log_panel_html_abe6ce0f908f1fbf8db76b372c1f392c8"><div class="ttname"><a href="class_log_panel.html#abe6ce0f908f1fbf8db76b372c1f392c8">LogPanel::LogPanel</a></div><div class="ttdeci">LogPanel(MainWindow *window, Ui::MainWindow *ui)</div><div class="ttdef"><b>Definition:</b> <a href="logpanel_8cpp_source.html#l00041">logpanel.cpp:41</a></div></div>
-<div class="ttc" id="alogpanel_8cpp_html_a90efd26ab842633c1c97a4c645780715"><div class="ttname"><a href="logpanel_8cpp.html#a90efd26ab842633c1c97a4c645780715">message_types</a></div><div class="ttdeci">static std::vector&lt; MessageType &gt; message_types</div><div class="ttdef"><b>Definition:</b> <a href="logpanel_8cpp_source.html#l00035">logpanel.cpp:35</a></div></div>
 <div class="ttc" id="astruct_message_type_html"><div class="ttname"><a href="struct_message_type.html">MessageType</a></div><div class="ttdef"><b>Definition:</b> <a href="logpanel_8cpp_source.html#l00030">logpanel.cpp:30</a></div></div>
 <div class="ttc" id="aclass_log_panel_signal_handler_html_a1411a308d4266d62098ba06aa73b54a8"><div class="ttname"><a href="class_log_panel_signal_handler.html#a1411a308d4266d62098ba06aa73b54a8">LogPanelSignalHandler::OnMessage</a></div><div class="ttdeci">void OnMessage(const QString &amp;message, QsLogging::Level level)</div><div class="ttdef"><b>Definition:</b> <a href="logpanel_8cpp_source.html#l00135">logpanel.cpp:135</a></div></div>
 <div class="ttc" id="alogpanel_8h_html"><div class="ttname"><a href="logpanel_8h.html">logpanel.h</a></div></div>
 <div class="ttc" id="aclass_log_panel_html_af3212e6626daa77d0b667b5840f337d7"><div class="ttname"><a href="class_log_panel.html#af3212e6626daa77d0b667b5840f337d7">LogPanel::write</a></div><div class="ttdeci">virtual void write(const QString &amp;message, QsLogging::Level level)</div><div class="ttdef"><b>Definition:</b> <a href="logpanel_8cpp_source.html#l00081">logpanel.cpp:81</a></div></div>
 <div class="ttc" id="aclass_main_window_html"><div class="ttname"><a href="class_main_window.html">MainWindow</a></div><div class="ttdef"><b>Definition:</b> <a href="mainwindow_8h_source.html#l00081">mainwindow.h:81</a></div></div>
-<div class="ttc" id="aclass_log_panel_html_a9b6845edbf25c630d37ab9b7a0a1dccd"><div class="ttname"><a href="class_log_panel.html#a9b6845edbf25c630d37ab9b7a0a1dccd">LogPanel::num_messages_</a></div><div class="ttdeci">std::vector&lt; int &gt; num_messages_</div><div class="ttdef"><b>Definition:</b> <a href="logpanel_8h_source.html#l00063">logpanel.h:63</a></div></div>
 <div class="ttc" id="amainwindow_8h_html"><div class="ttname"><a href="mainwindow_8h.html">mainwindow.h</a></div></div>
-<div class="ttc" id="aclass_log_panel_html_acafceaa0bbdb0ec5457ccabbd72359d2"><div class="ttname"><a href="class_log_panel.html#acafceaa0bbdb0ec5457ccabbd72359d2">LogPanel::status_button_</a></div><div class="ttdeci">QPushButton * status_button_</div><div class="ttdef"><b>Definition:</b> <a href="logpanel_8h_source.html#l00061">logpanel.h:61</a></div></div>
 <!-- start footer part -->
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>

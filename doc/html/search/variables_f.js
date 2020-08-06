@@ -1,20 +1,7 @@
 var searchData=
 [
-  ['parent_5f_1882',['parent_',['../class_log_panel_signal_handler.html#a0b34be5f66c85cd54f45a3c0c0a0daaa',1,'LogPanelSignalHandler::parent_()'],['../class_mods_filter_signal_handler.html#ab18a0ce5ecc6674ef00f7ef94184c866',1,'ModsFilterSignalHandler::parent_()']]],
-  ['pixels_5fper_5fminimap_5fslot_1883',['PIXELS_PER_MINIMAP_SLOT',['../itemconstants_8h.html#a91dc343c40f441a72c049e1310e7349c',1,'itemconstants.h']]],
-  ['pixels_5fper_5fslot_1884',['PIXELS_PER_SLOT',['../itemconstants_8h.html#a7588d3270f86f05852fa14260258c509',1,'itemconstants.h']]],
-  ['poe_5fcookie_5fname_1885',['POE_COOKIE_NAME',['../logindialog_8cpp.html#a89313c42d750db217b41b9275958886c',1,'POE_COOKIE_NAME():&#160;logindialog.cpp'],['../steamlogindialog_8cpp.html#a89313c42d750db217b41b9275958886c',1,'POE_COOKIE_NAME():&#160;logindialog.cpp']]],
-  ['poe_5fleague_5flist_5furl_1886',['POE_LEAGUE_LIST_URL',['../logindialog_8cpp.html#a41fb8c2f68af37cc84bc0b4beb18b953',1,'logindialog.cpp']]],
-  ['poe_5flogin_5fcheck_5furl_1887',['POE_LOGIN_CHECK_URL',['../logindialog_8cpp.html#a02ab5aa5003c09728cf015cdbfcd806b',1,'logindialog.cpp']]],
-  ['poe_5flogin_5furl_1888',['POE_LOGIN_URL',['../logindialog_8cpp.html#a086db08ba13fd21ce15668582ed9b657',1,'logindialog.cpp']]],
-  ['poe_5fmain_5fpage_1889',['POE_MAIN_PAGE',['../logindialog_8cpp.html#ab5cb108d94df205a28c3a854872bbc52',1,'logindialog.cpp']]],
-  ['poe_5fmy_5faccount_1890',['POE_MY_ACCOUNT',['../logindialog_8cpp.html#a7113d1904879ec9e3ed5228c27af2a53',1,'logindialog.cpp']]],
-  ['poe_5fwebcdn_1891',['POE_WEBCDN',['../mainwindow_8cpp.html#a49298f17bc1db1ccc617e5a492fda839',1,'mainwindow.cpp']]],
-  ['pos_5fmap_1892',['POS_MAP',['../itemconstants_8h.html#a321d1e96f222d609ba5b236d9c7cb8ec',1,'itemconstants.h']]],
-  ['previous_5fsearch_5f_1893',['previous_search_',['../class_main_window.html#a2785df7020b07e56a25b8d7d6dfb49a0',1,'MainWindow']]],
-  ['previous_5fstatus_5f_1894',['previous_status_',['../class_auto_online.html#ae2248fdc94ff2e3aceea8b949544f00a',1,'AutoOnline']]],
-  ['process_5fscript_5f_1895',['process_script_',['../class_auto_online.html#aaa81850c22ba12e7b979f96b040e9e71',1,'AutoOnline']]],
-  ['progress_1896',['progress',['../struct_current_status_update.html#a0bdde4e21b9aee996739e24f55a7ef16',1,'CurrentStatusUpdate']]],
-  ['properties_5f_1897',['properties_',['../class_item.html#a89b3ab32643d0841ab824fe757704142',1,'Item']]],
-  ['property_5f_1898',['property_',['../class_property_column.html#a3439fc7244d97662f77942c7e3ce7bc9',1,'PropertyColumn::property_()'],['../class_min_max_filter.html#a278d32e012978dcbf0849ef8c03b44e1',1,'MinMaxFilter::property_()'],['../class_boolean_filter.html#aab8935219e59c96577d3e1abe2323b49',1,'BooleanFilter::property_()']]]
+  ['update_5fcheck_5furl_1387',['UPDATE_CHECK_URL',['../version_8cpp.html#a3ac05d090d9a497d79e93055d0bb525b',1,'UPDATE_CHECK_URL():&#160;version.cpp'],['../version_8h.html#a3ac05d090d9a497d79e93055d0bb525b',1,'UPDATE_CHECK_URL():&#160;version.cpp']]],
+  ['update_5fdownload_5flocation_1388',['UPDATE_DOWNLOAD_LOCATION',['../version_8cpp.html#ae78b37b5ac2b75bdf563e79ab0b76785',1,'UPDATE_DOWNLOAD_LOCATION():&#160;version.cpp'],['../version_8h.html#ae78b37b5ac2b75bdf563e79ab0b76785',1,'UPDATE_DOWNLOAD_LOCATION():&#160;version.cpp']]],
+  ['url_5fvalid_5fprefixes_1389',['url_valid_prefixes',['../autoonline_8cpp.html#ab4b0f9ac073043ac0d3266ca0940bfb3',1,'autoonline.cpp']]],
+  ['user_5fdir_1390',['user_dir',['../filesystem_8cpp.html#aa22a0b45acd24c6457ecc29208b38f1c',1,'filesystem.cpp']]]
 ];

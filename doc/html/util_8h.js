@@ -24,6 +24,7 @@ var util_8h =
     [ "PopulateBuyoutTypeComboBox", "util_8h.html#abad13df8e4f637add410963b0192ac1a", null ],
     [ "RapidjsonAddConstString", "util_8h.html#ab6b36e345744aaea96346598d4dd020d", null ],
     [ "RapidjsonSerialize", "util_8h.html#a84697889b6f670fa36567d89a9b83718", null ],
+    [ "recommendedForegroundTextColor", "util_8h.html#a8e7b22b43ced5d1b1d7eb043d1999992", null ],
     [ "StringJoin", "util_8h.html#a20b825d2eb20d2155a7ee41005cff89e", null ],
     [ "StringReplace", "util_8h.html#a54c1ec6d73ba18e921eeb42725a6a00d", null ],
     [ "StringSplit", "util_8h.html#ac09731ff9181114c9157eabf198d9283", null ],

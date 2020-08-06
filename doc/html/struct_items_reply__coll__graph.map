@@ -1,0 +1,5 @@
+<map id="ItemsReply" name="ItemsReply">
+<area shape="rect" id="node1" title=" " alt="" coords="13,184,100,211"/>
+<area shape="rect" id="node2" href="$struct_items_request.html" title=" " alt="" coords="5,95,108,121"/>
+<area shape="rect" id="node3" href="$class_item_location.html" title=" " alt="" coords="9,5,105,32"/>
+</map>

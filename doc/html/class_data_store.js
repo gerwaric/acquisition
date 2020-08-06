@@ -5,8 +5,12 @@ var class_data_store =
     [ "GetAllCurrency", "class_data_store.html#a2a7d190d5d7f8cbafc1d57c3df90022b", null ],
     [ "GetBool", "class_data_store.html#ab73cbbe81dd05984ea60a8260ee381f4", null ],
     [ "GetInt", "class_data_store.html#ad9b69bc967c515625ccb8b108b57ede7", null ],
+    [ "GetItems", "class_data_store.html#aed0a2b80db5c3ac2a05ab4375beb8b4e", null ],
+    [ "GetTabs", "class_data_store.html#a098461047d7befbf2a8745253c7c975e", null ],
     [ "InsertCurrencyUpdate", "class_data_store.html#a9e65496b512c8fb921ab8d142ec14996", null ],
     [ "Set", "class_data_store.html#a865d17ce186d8d9048124017bd447cb1", null ],
     [ "SetBool", "class_data_store.html#ad7f5c4310b9f1c57be606212451561a4", null ],
-    [ "SetInt", "class_data_store.html#acbee4caa5a924cd5236acda3e9d9a2eb", null ]
+    [ "SetInt", "class_data_store.html#acbee4caa5a924cd5236acda3e9d9a2eb", null ],
+    [ "SetItems", "class_data_store.html#af50bf12ccb2fdd661f4fa04682594e5f", null ],
+    [ "SetTabs", "class_data_store.html#a6c442ff81dd556c4b7db1d58a579c75a", null ]
 ];
