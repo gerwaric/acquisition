@@ -1,6 +1,0 @@
-<map id="LoginDialog::OnLoginButtonClicked" name="LoginDialog::OnLoginButtonClicked">
-<area shape="rect" id="node1" title=" " alt="" coords="5,5,188,47"/>
-<area shape="rect" id="node2" href="$class_login_dialog.html#ade475e7d632783dc40bcbfa93420fcb7" title=" " alt="" coords="236,5,411,47"/>
-<area shape="rect" id="node3" href="$namespace_util.html#a4b268ba6e2b0fe096dbdfe2a3985792c" title=" " alt="" coords="459,13,587,39"/>
-<area shape="rect" id="node4" href="$namespacerapidjson.html#a70ef97b812a7a70a3679caa10e91ff1f" title=" " alt="" coords="635,13,737,39"/>
-</map>

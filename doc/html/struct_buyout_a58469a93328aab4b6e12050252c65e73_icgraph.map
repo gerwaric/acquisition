@@ -1,9 +1,0 @@
-<map id="Buyout::IsActive" name="Buyout::IsActive">
-<area shape="rect" id="node1" title=" " alt="" coords="705,107,821,134"/>
-<area shape="rect" id="node2" href="$class_items_manager.html#ad828b1c2d00d84c1994c3f0658f58463" title=" " alt="" coords="460,5,657,47"/>
-<area shape="rect" id="node5" href="$class_items_manager.html#aeeee9145182985df9575d3c31dac8968" title=" " alt="" coords="462,71,655,112"/>
-<area shape="rect" id="node6" href="$class_priced_filter.html#a06d87b2d434eb6eb5060d30c216fdbac" title=" " alt="" coords="485,137,632,163"/>
-<area shape="rect" id="node7" href="$class_date_column.html#a378f632177ac3c0fe6ee0d8cfcf00915" title=" " alt="" coords="493,187,624,214"/>
-<area shape="rect" id="node3" href="$class_items_manager.html#a58ff3e59ef264f9bb542760747811757" title=" " alt="" coords="193,46,412,73"/>
-<area shape="rect" id="node4" href="$class_items_manager.html#adeabba1943cf8b820f81dc2e98377f71" title=" " alt="" coords="5,46,145,73"/>
-</map>

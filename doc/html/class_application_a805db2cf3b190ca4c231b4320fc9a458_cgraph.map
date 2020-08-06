@@ -1,9 +1,0 @@
-<map id="Application::InitLogin" name="Application::InitLogin">
-<area shape="rect" id="node1" title=" " alt="" coords="5,107,148,133"/>
-<area shape="rect" id="node2" href="$class_application.html#aa7963f44723832ad93aaff527f939775" title=" " alt="" coords="237,5,362,32"/>
-<area shape="rect" id="node3" href="$class_application.html#ad5d9dbb71d1bce18db13a5267b6b30cf" title=" " alt="" coords="233,56,365,83"/>
-<area shape="rect" id="node4" href="$class_sqlite_data_store.html#a71d651f5d62ad3b1dcde04c55d4f616d" title=" " alt="" coords="196,107,403,133"/>
-<area shape="rect" id="node6" href="$class_application.html#a6befb9e8d81535ec379d1a0e97548faf" title=" " alt="" coords="199,157,400,184"/>
-<area shape="rect" id="node7" href="$namespace_filesystem.html#aa00f0f6ecaadd04e903e3efc7020c2b6" title=" " alt="" coords="231,208,368,235"/>
-<area shape="rect" id="node5" href="$namespace_util.html#a875b9cb18270958b414538f74e503410" title=" " alt="" coords="451,107,525,133"/>
-</map>

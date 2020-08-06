@@ -1,8 +1,0 @@
-<map id="Shop::SetThread" name="Shop::SetThread">
-<area shape="rect" id="node1" title=" " alt="" coords="5,107,124,133"/>
-<area shape="rect" id="node2" href="$class_application.html#af85de4b2a009cf4ec1d5c6211e6cf2ad" title=" " alt="" coords="190,5,309,32"/>
-<area shape="rect" id="node3" href="$class_shop.html#abe9a5e04725df20bd0e7f3f0a8d5668a" title=" " alt="" coords="172,56,327,83"/>
-<area shape="rect" id="node4" href="$class_data_store.html#a865d17ce186d8d9048124017bd447cb1" title=" " alt="" coords="195,107,303,133"/>
-<area shape="rect" id="node5" href="$namespace_util.html#a20b825d2eb20d2155a7ee41005cff89e" title=" " alt="" coords="196,157,303,184"/>
-<area shape="rect" id="node6" href="$class_shop.html#a335d36adabbfa5b3f71c14ad4079cb92" title=" " alt="" coords="198,208,301,235"/>
-</map>

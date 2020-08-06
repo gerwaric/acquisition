@@ -1,7 +1,0 @@
-<map id="Buyout::AsText" name="Buyout::AsText">
-<area shape="rect" id="node1" title=" " alt="" coords="5,56,117,83"/>
-<area shape="rect" id="node2" href="$struct_buyout.html#a8b1b327d39cbc9b3d23601f6ec026650" title=" " alt="" coords="165,5,343,32"/>
-<area shape="rect" id="node3" href="$struct_buyout.html#a9577966adb8a979c3d8eae26b2800950" title=" " alt="" coords="174,56,334,83"/>
-<area shape="rect" id="node5" href="$struct_buyout.html#a86c989a487714ae4b833a9442c25d842" title=" " alt="" coords="195,107,313,133"/>
-<area shape="rect" id="node4" href="$struct_currency.html#a61a8d56efb74a4fe3ba5051b772a5f35" title=" " alt="" coords="391,56,509,83"/>
-</map>

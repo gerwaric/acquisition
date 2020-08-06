@@ -1,8 +1,0 @@
-<map id="ItemLocation::get_tab_uniq_id" name="ItemLocation::get_tab_uniq_id">
-<area shape="rect" id="node1" title=" " alt="" coords="241,99,388,141"/>
-<area shape="rect" id="node2" href="$class_memory_data_store.html#a675528c004566004425c7f61d28c4af3" title=" " alt="" coords="5,5,193,32"/>
-<area shape="rect" id="node3" href="$class_sqlite_data_store.html#abd17e0a377eb3e47294e31cb14a83728" title=" " alt="" coords="12,56,187,83"/>
-<area shape="rect" id="node4" href="$class_item_location.html#a0ce565a38414273746c81f3a4693cb1b" title=" " alt="" coords="16,107,183,133"/>
-<area shape="rect" id="node5" href="$class_memory_data_store.html#affbfec92806ac84d77ad9ee921f3a6ba" title=" " alt="" coords="6,157,193,184"/>
-<area shape="rect" id="node6" href="$class_sqlite_data_store.html#ab0b0f260875d516259194d64cf0fa79c" title=" " alt="" coords="13,208,186,235"/>
-</map>

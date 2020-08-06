@@ -1,7 +1,0 @@
-<map id="Shop::SetShopTemplate" name="Shop::SetShopTemplate">
-<area shape="rect" id="node1" title=" " alt="" coords="5,81,168,108"/>
-<area shape="rect" id="node2" href="$class_application.html#af85de4b2a009cf4ec1d5c6211e6cf2ad" title=" " alt="" coords="234,5,353,32"/>
-<area shape="rect" id="node3" href="$class_shop.html#abe9a5e04725df20bd0e7f3f0a8d5668a" title=" " alt="" coords="216,56,371,83"/>
-<area shape="rect" id="node4" href="$class_data_store.html#a865d17ce186d8d9048124017bd447cb1" title=" " alt="" coords="239,107,347,133"/>
-<area shape="rect" id="node5" href="$class_shop.html#a168286e72ef7bdd94a65fe484d6e3a8d" title=" " alt="" coords="221,157,366,184"/>
-</map>
