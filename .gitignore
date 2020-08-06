@@ -44,8 +44,11 @@ Makefile*
 .vs/
 
 # deployment/installer
-deploy
-Output
+deploy/
+Output/
 
 acquisition
 CppProperties.json
+
+# doc
+doc/
