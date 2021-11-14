@@ -48,6 +48,8 @@
 #include "util.h"
 #include "version.h"
 
+#include "openssl/aes.h"
+
 const char* POE_LEAGUE_LIST_URL = "http://api.pathofexile.com/leagues?type=main&compact=1";
 const char* POE_LOGIN_URL = "https://www.pathofexile.com/login";
 const char* POE_MAIN_PAGE = "https://www.pathofexile.com/";
@@ -234,7 +236,7 @@ void LoginDialog::OnLoginPageFinished() {
 
 void LoginDialog::FinishLogin(QNetworkReply *reply) {
     QList<QNetworkCookie> cookies = reply->manager()->cookieJar()->cookiesForUrl(QUrl(POE_MAIN_PAGE));
-    for (auto &cookie : cookies)
+    for (QNetworkCookie &cookie : cookies)
         if (QString(cookie.name()) == POE_COOKIE_NAME)
             session_id_ = cookie.value();
 

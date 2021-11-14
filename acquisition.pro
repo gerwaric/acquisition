@@ -23,7 +23,7 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 include(deps/QsLog/QsLog.pri)
 
-INCLUDEPATH += src deps deps/boost-header-only
+INCLUDEPATH += src deps deps/boost-header-only "C:\Qt\Tools\OpenSSL\Win_x64\include"
 
 SOURCES += \
     deps/sqlite/sqlite3.c \
