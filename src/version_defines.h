@@ -1,7 +1,7 @@
 #pragma once
 
 #define VER_CODE                    41
-#define VER_STR                     "0.8c"
+#define VER_STR                     "0.8d"
 #define VER_FILEVERSION             0,8,3,0
 #define VER_FILEVERSION_STR         "0.8.3.0"
 
