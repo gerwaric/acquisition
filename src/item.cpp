@@ -294,7 +294,7 @@ std::string Item::PrettyName() const {
 void Item::CalculateCategories(const rapidjson::Value &json) {
     // Derive item type 'category' hierarchy from icon path.
     std::smatch sm;
-    if (std::regex_search(icon_, sm, std::regex("Art/.*?/(.*)/"))) {
+    if (std::regex_search(icon_, sm, std::regex("image/.*?/.*?/([^0-9]*)"))) {
         std::string match = sm.str(1);
         boost::split(category_vector_,match,boost::is_any_of("/"));
         //Compress terms with redundant identifiers
