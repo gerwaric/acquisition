@@ -46,9 +46,11 @@ Makefile*
 # deployment/installer
 deploy/
 Output/
+deploy_qt_installer/
 
 acquisition
 CppProperties.json
 
 # doc
 doc/
+deploy.ps1

@@ -8,8 +8,8 @@ cd .\data
 
 #Get copy acquisition.exe and generate its dependencies
 Copy-Item "..\..\..\..\..\build-acquisition-Desktop_Qt_5_15_2_MSVC2019_64bit-Release\release\acquisition.exe" -Destination ".\acquisition.exe"
-Copy-Item "C:\Qt\Tools\OpenSSL\Win_x64\bin\libcrypto-1_1-x64.dll" -Destination ".\libcrypto-1_1-x64.dll"
-Copy-Item "C:\Qt\Tools\OpenSSL\Win_x64\bin\libssl-1_1-x64.dll" -Destination ".\libssl-1_1-x64.dll"
+Copy-Item "C:\Program Files\OpenSSL-Win64\bin\libcrypto-1_1-x64.dll" -Destination ".\libcrypto-1_1-x64.dll"
+Copy-Item "C:\Program Files\OpenSSL-Win64\bin\libssl-1_1-x64.dll" -Destination ".\libssl-1_1-x64.dll"
 & 'C:\Qt\5.15.2\msvc2019_64\bin\windeployqt.exe' ".\acquisition.exe" --release --no-compiler-runtime --dir .
 
 cd ..\..\..

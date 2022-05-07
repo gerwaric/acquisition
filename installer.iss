@@ -8,12 +8,16 @@
 AppId={{53E25C0C-0305-47BB-9884-F0F202297AF4}
 AppName={#AppName}
 AppVersion={#AppVersion}
-DefaultDirName={pf}\{#AppName}
+DefaultDirName={commonpf}\{#AppName}
 DefaultGroupName={#AppName}
 LicenseFile=COPYING
 OutputBaseFilename=acquisition_setup_{#AppVersion}
-Compression=lzma
+Compression=lzma2/ultra64
 SolidCompression=yes
+LZMAUseSeparateProcess=yes
+LZMADictionarySize=1048576
+LZMANumFastBytes=273
+LZMANumBlockThreads=6
 DisableDirPage=auto
 
 [Languages]

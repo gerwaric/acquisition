@@ -54,57 +54,58 @@
 // always appear as if we request all the tabs.
 
 TabCache::TabCache(QObject* parent)
-    :QNetworkDiskCache(parent)
+	:QNetworkDiskCache(parent)
 {
 }
 
 QNetworkRequest TabCache::Request(const QUrl &url, Flags flags) {
-    QNetworkRequest request{url};
-    bool evicted = false;
+	QNetworkRequest request{url};
+	bool evicted = false;
 
-    if (flags.testFlag(Refresh)) {
-        remove(url);
-        evicted = true;
-    }
+	if (flags.testFlag(Refresh)) {
+		remove(url);
+		evicted = true;
+	}
 
-    // At this point we've evicted any request that should be refreshed, so we always
-    // tell the 'real' request to prefer but not require the entry be in the cache.
-    // If it is not in the cache it will be fetched from the network regardless.
-    request.setAttribute(QNetworkRequest::CacheSaveControlAttribute, QNetworkRequest::PreferCache);
-    QLOG_DEBUG() << "Evicted:" << evicted << ":" << url.toDisplayString();
+	// At this point we've evicted any request that should be refreshed, so we always
+	// tell the 'real' request to prefer but not require the entry be in the cache.
+	// If it is not in the cache it will be fetched from the network regardless.
+	request.setAttribute(QNetworkRequest::CacheSaveControlAttribute, QNetworkRequest::PreferCache);
+	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
+	QLOG_DEBUG() << "Evicted:" << evicted << ":" << url.toDisplayString();
 
-    return request;
+	return request;
 }
 
 QIODevice *TabCache::prepare(const QNetworkCacheMetaData &metaData) {
-    QNetworkCacheMetaData local{metaData};
+	QNetworkCacheMetaData local{metaData};
 
-    //Default policy based on received HTTP headers is to not save to disk.
-    //Override here, and set proper expiration so items are put in cache
-    //(setSaveToDisk) and valid when retrieved using metaData call -
-    //(setExpirationDate)
+	//Default policy based on received HTTP headers is to not save to disk.
+	//Override here, and set proper expiration so items are put in cache
+	//(setSaveToDisk) and valid when retrieved using metaData call -
+	//(setExpirationDate)
 
-    local.setSaveToDisk(true);
+	local.setSaveToDisk(true);
 
-    // Need to set some reasonable length of time in which our cache entries
-    // will expire.  It's possible we'll want to allow users to customize this.
-    local.setExpirationDate(QDateTime().currentDateTime().addDays(kCacheExpireInDays));
+	// Need to set some reasonable length of time in which our cache entries
+	// will expire.  It's possible we'll want to allow users to customize this.
+	local.setExpirationDate(QDateTime().currentDateTime().addDays(kCacheExpireInDays));
 
-    QNetworkCacheMetaData::RawHeaderList headers;
+	QNetworkCacheMetaData::RawHeaderList headers;
 
-    for (auto &header: local.rawHeaders()) {
-        // Modify Cache-Control headers - basically need to drop 'no-store'
-        // as we want to store to cache and 'must-revalidate' as we don't have
-        // ETag or last modified headers available to attempt re-validation. To
-        // be on the safe side though just drop Cache-Control and Pragma headers.
+	for (auto &header: local.rawHeaders()) {
+		// Modify Cache-Control headers - basically need to drop 'no-store'
+		// as we want to store to cache and 'must-revalidate' as we don't have
+		// ETag or last modified headers available to attempt re-validation. To
+		// be on the safe side though just drop Cache-Control and Pragma headers.
 
-        if (header.first == "Cache-Control") continue;
-        if (header.first == "Pragma") continue;
+		if (header.first == "Cache-Control") continue;
+		if (header.first == "Pragma") continue;
 
-        headers.push_back(header);
-    }
-    local.setRawHeaders(headers);
+		headers.push_back(header);
+	}
+	local.setRawHeaders(headers);
 
-    return QNetworkDiskCache::prepare(local);
+	return QNetworkDiskCache::prepare(local);
 }
 
