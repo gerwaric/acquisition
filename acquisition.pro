@@ -25,6 +25,8 @@ include(deps/QsLog/QsLog.pri)
 
 INCLUDEPATH += src deps deps/boost-header-only "C:\Program Files\OpenSSL-Win64\include"
 
+LIBS += -L"C:\Program Files\OpenSSL-Win64\lib" -llibcrypto -llibssl
+
 SOURCES += \
 	deps/sqlite/sqlite3.c \
 	src/application.cpp \

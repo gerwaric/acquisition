@@ -24,6 +24,7 @@ Makefile*
 *-build-*
 
 # QtCreator
+.qtc_clangd/
 
 *.autosave
 

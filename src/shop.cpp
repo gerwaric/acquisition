@@ -98,8 +98,7 @@ void Shop::Update() {
 
 		if (!tmp.bo.IsPostable())
 			continue;
-		if (item->location().socketed())
-			continue;
+
 		aug_items.push_back(tmp);
 	}
 	if (aug_items.size() == 0)

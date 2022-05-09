@@ -113,6 +113,10 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 	settings_path_ = Filesystem::UserDir() + "/settings.ini";
 	LoadSettings();
 
+	QLOG_DEBUG() << "Supports SSL: " << QSslSocket::supportsSsl();
+	QLOG_DEBUG() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
+	QLOG_DEBUG() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
+
 	login_manager_ = std::make_unique<QNetworkAccessManager>();
 	connect(ui->proxyCheckBox, SIGNAL(clicked(bool)), this, SLOT(OnProxyCheckBoxClicked(bool)));
 	connect(ui->loginButton, SIGNAL(clicked()), this, SLOT(OnLoginButtonClicked()));
