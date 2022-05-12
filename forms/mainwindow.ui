@@ -418,11 +418,18 @@
     <addaction name="actionDark"/>
     <addaction name="actionLight"/>
    </widget>
+   <widget class="QMenu" name="menuMods">
+    <property name="title">
+     <string>Mods</string>
+    </property>
+    <addaction name="actionRefresh_Mod_List"/>
+   </widget>
    <addaction name="menuItems"/>
    <addaction name="menuShop"/>
    <addaction name="menuAuto_online"/>
    <addaction name="menuCurrency"/>
    <addaction name="menuTheme"/>
+   <addaction name="menuMods"/>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
   <action name="actionForum_shop_thread">
@@ -524,6 +531,11 @@
    </property>
    <property name="text">
     <string>Light</string>
+   </property>
+  </action>
+  <action name="actionRefresh_Mod_List">
+   <property name="text">
+    <string>Refresh Mod List</string>
    </property>
   </action>
  </widget>

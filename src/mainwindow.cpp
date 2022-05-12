@@ -401,6 +401,9 @@ void MainWindow::OnStatusUpdate(const CurrentStatusUpdate &status) {
 	case ProgramState::UpdateCancelled:
 		title = QString("Shop updated cancelled due to tab movement or rename mid-update");
 		break;
+	case ProgramState::ItemsRetrieved:
+		title = QString("Parsing item mods in tabs, %1/%2").arg(status.progress).arg(status.total);
+		break;
 	default:
 		title = "Unknown";
 	}
@@ -796,6 +799,10 @@ void MainWindow::OnOnlineUpdate(bool online) {
 		online_label_.setStyleSheet("color: red");
 online_label_.setText("Offline");
 	}
+}
+
+void MainWindow::on_actionRefresh_Mod_List_triggered() {
+	app_->items_manager().RefreshModList();
 }
 
 void MainWindow::on_actionCopy_shop_data_to_clipboard_triggered() {

@@ -1,20 +1,20 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+	Copyright 2014 Ilya Zhuravlev
 
-    This file is part of Acquisition.
+	This file is part of Acquisition.
 
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+	Acquisition is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
 
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+	Acquisition is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
+	You should have received a copy of the GNU General Public License
+	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #pragma once
@@ -33,43 +33,44 @@ class QNetworkReply;
 struct Buyout;
 
 enum class TextWidthId {
-    WIDTH_MIN_MAX,
-    WIDTH_LABEL,
-    WIDTH_RGB,
-    WIDTH_GROUP,    // Unused?
-    WIDTH_BOOL_LABEL
+	WIDTH_MIN_MAX,
+	WIDTH_LABEL,
+	WIDTH_RGB,
+	WIDTH_GROUP,    // Unused?
+	WIDTH_BOOL_LABEL
 };
 
 // Reflection example for an ENUM in QT 5.4.x
 class RefreshReason {
-    Q_GADGET
-    Q_ENUMS(Type)
+	Q_GADGET
+	Q_ENUMS(Type)
 public:
-    enum Type {
-        Unknown,
-        ItemsChanged,
-        SearchFormChanged,
-        TabCreated,
-        TabChanged
-    };
+	enum Type {
+		Unknown,
+		ItemsChanged,
+		SearchFormChanged,
+		TabCreated,
+		TabChanged
+	};
 private:
-    Type type;
+	Type type;
 };
 QDebug& operator<<(QDebug& os, const RefreshReason::Type& obj);
 
 class TabSelection {
-    Q_GADGET
-    Q_ENUMS(Type)
+	Q_GADGET
+	Q_ENUMS(Type)
 public:
-    enum Type {
-        All,
-        Checked,
-        Selected,
-    };
+	enum Type {
+		All,
+		Checked,
+		Selected,
+	};
 private:
-    Type type;
+	Type type;
 };
 QDebug& operator<<(QDebug& os, const TabSelection::Type& obj);
+
 
 namespace Util {
 std::string Md5(const std::string &value);
@@ -94,9 +95,9 @@ std::vector<std::string> StringSplit(const std::string &str, char delim);
 QColor recommendedForegroundTextColor(const QColor& backgroundColor);
 
 /*
-    Example usage:
-        MatchMod("+# to Life", "+12.3 to Life", &result);
-    Will return true if matches and save average value to output.
+	Example usage:
+		MatchMod("+# to Life", "+12.3 to Life", &result);
+	Will return true if matches and save average value to output.
 */
 bool MatchMod(const char *match, const char *mod, double *output);
 
@@ -105,4 +106,6 @@ std::string Capitalise(const std::string &str);
 std::string TimeAgoInWords(const QDateTime buyout_time);
 
 std::string Decode(const std::string &entity);
+
+void unique_elements(std::vector<std::string>& vec);
 }

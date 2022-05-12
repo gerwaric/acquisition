@@ -30,6 +30,7 @@
 #include <algorithm>
 #include "rapidjson/document.h"
 #include "rapidjson/error/en.h"
+#include <boost/algorithm/string.hpp>
 
 #include "application.h"
 #include "datastore.h"
@@ -39,6 +40,7 @@
 #include "mainwindow.h"
 #include "buyoutmanager.h"
 #include "filesystem.h"
+#include "modlist.h"
 
 const char *kStashItemsUrl = "https://www.pathofexile.com/character-window/get-stash-items";
 const char *kCharacterItemsUrl = "https://www.pathofexile.com/character-window/get-items";
@@ -46,6 +48,10 @@ const char *kGetCharactersUrl = "https://www.pathofexile.com/character-window/ge
 const char *kMainPage = "https://www.pathofexile.com/";
 //While the page does say "get passive skills", it seems to only send socketed jewels
 const char *kCharacterSocketedJewels = "https://www.pathofexile.com/character-window/get-passive-skills";
+
+const char *kPOE_trade_stats = "https://www.pathofexile.com/api/trade/data/stats";
+
+const char *kRePoE_stat_translations = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/stat_translations.min.json";
 
 ItemsManagerWorker::ItemsManagerWorker(Application &app, QThread *thread) :
 	data_(app.data()),
@@ -139,7 +145,9 @@ void ItemsManagerWorker::Init() {
 	items_.clear();
 
 	//Get cached items
-	for (auto tab : tabs_){
+	for (int i = 0; i < tabs_.size(); i++){
+		auto tab = tabs_[i];
+
 		std::string items = data_.GetItems(tab);
 		if (items.size() != 0) {
 			rapidjson::Document doc;
@@ -147,10 +155,127 @@ void ItemsManagerWorker::Init() {
 			for (auto item = doc.Begin(); item != doc.End(); ++item)
 				items_.push_back(std::make_shared<Item>(*item, tab));
 		}
+
+		CurrentStatusUpdate status;
+		status.state = ProgramState::ItemsRetrieved;
+		status.progress = i + 1;
+		status.total = tabs_.size();
+
+		emit StatusUpdate(status);
 	}
 
 	//let ItemManager know that the retrieval of cached items/tabs has been completed (calls ItemsManager::OnItemsRefreshed method)
 	emit ItemsRefreshed(items_, tabs_, true);
+}
+
+void ItemsManagerWorker::UpdateModList(){
+	if (updating_) {
+		QLOG_WARN() << "ItemsManagerWorker::UpdateModtList() called while updating, skipping Mod List Update";
+		return;
+	}
+
+	modsUpdating_ = true;
+
+	QNetworkRequest PoE_stat_translations_request = QNetworkRequest(QUrl(QString(kRePoE_stat_translations)));
+	//PoE_stats_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
+	QNetworkReply *PoE_stats_reply = network_manager_.get(PoE_stat_translations_request);
+	connect(PoE_stats_reply, &QNetworkReply::finished, this, &ItemsManagerWorker::OnStatTranslationsReceived);
+}
+
+void ItemsManagerWorker::OnStatTranslationsReceived(){
+	QNetworkReply *reply = qobject_cast<QNetworkReply *>(QObject::sender());
+
+	if (reply->error()) {
+		QLOG_ERROR() << "Couldn't fetch RePoE Stat Translations: " << reply->url().toDisplayString()
+					<< " due to error: " << reply->errorString() << " Aborting update.";
+		modsUpdating_ = false;
+		return;
+	} else {
+		QByteArray bytes = reply->readAll();
+		rapidjson::Document doc;
+		doc.Parse(bytes.constData());
+
+		if (doc.HasParseError()) {
+			QLOG_ERROR() << "Couldn't properly parse Stat Translations from RePoE, canceling Mods Update";
+			modsUpdating_ = false;
+			return;
+		}
+
+		std::set<std::string> stat_strings;
+
+		for (auto &translation : doc){
+			for (auto &stat : translation["English"]){
+				std::vector<std::string> formats;
+				for (auto &format : stat["format"])
+					formats.push_back(format.GetString());
+
+				std::string stat_string = stat["string"].GetString();
+				if(formats[0].compare("ignore") != 0){
+					for (int i = 0; i < formats.size(); i++) {
+						std::string searchString = "{" + std::to_string(i) + "}";
+						boost::replace_all(stat_string, searchString, formats[i]);
+					}
+				}
+
+				if (stat_string.length() > 0)
+					stat_strings.insert(stat_string);
+			}
+		}
+
+		for (std::string stat_string : stat_strings) {
+			mods.push_back({ stat_string });
+		}
+
+		InitModlist();
+	}
+
+	Init();
+
+	modsUpdating_ = false;
+
+	if (updateRequest_){
+		updateRequest_ = false;
+		Update(type_, locations_);
+	}
+
+	reply->deleteLater();
+}
+
+void ItemsManagerWorker::OnStatsReceived(){
+	QNetworkReply *reply = qobject_cast<QNetworkReply *>(QObject::sender());
+
+	if (reply->error()) {
+		QLOG_ERROR() << "Couldn't fetch item mods: " << reply->url().toDisplayString()
+					<< " due to error: " << reply->errorString() << " Aborting update.";
+		updating_ = false;
+		return;
+	} else {
+		QByteArray bytes = reply->readAll();
+		rapidjson::Document doc;
+		doc.Parse(bytes.constData());
+
+		if (doc.HasParseError()) {
+			QLOG_ERROR() << "Couldn't properly parse Stats from PoE Trade Site, canceling Mods Update";
+			updating_ = false;
+			return;
+		}
+
+		for (auto &modCat : doc["result"]) {
+			std::string modCatLabel = modCat["label"].GetString();
+
+			if(modCatLabel.compare("Pseudo") == 0) {
+				for (auto &mod : modCat["entries"]) {
+					pseudoMods.push_back({ mod["text"].GetString() });
+				}
+			}
+		}
+
+		InitModlist();
+	}
+
+	updating_ = false;
+
+	reply->deleteLater();
 }
 
 void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemLocation> &locations) {
