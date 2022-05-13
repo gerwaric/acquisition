@@ -57,6 +57,7 @@ public:
 	ItemsManagerWorker(Application &app, QThread *thread);
 	~ItemsManagerWorker();
 	bool isModsUpdating(){ return modsUpdating_; }
+	volatile bool initialModUpdateCompleted_;
 	void UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation> &locations) { updateRequest_ = true; type_ = type, locations_ = locations; }
 public slots:
 	void Init();
@@ -106,9 +107,9 @@ private:
 	std::string tabs_as_string_;
 	std::string league_;
 	// set to true if updating right now
-	bool updating_;
+	volatile bool updating_;
 
-	bool modsUpdating_;
+	volatile bool modsUpdating_;
 	bool updateRequest_;
 	TabSelection::Type type_;
 	std::vector<ItemLocation> locations_;

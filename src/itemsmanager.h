@@ -84,4 +84,5 @@ private:
 	Application &app_;
 	Items items_;
 	QSet<QString> categories_;
+
 };

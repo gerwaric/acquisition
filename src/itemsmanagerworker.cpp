@@ -170,7 +170,7 @@ void ItemsManagerWorker::Init() {
 
 void ItemsManagerWorker::UpdateModList(){
 	if (updating_) {
-		QLOG_WARN() << "ItemsManagerWorker::UpdateModtList() called while updating, skipping Mod List Update";
+		QLOG_WARN() << "ItemsManagerWorker::UpdateModList() called while updating, skipping Mod List Update";
 		return;
 	}
 
@@ -201,6 +201,7 @@ void ItemsManagerWorker::OnStatTranslationsReceived(){
 			return;
 		}
 
+		mods.clear();
 		std::set<std::string> stat_strings;
 
 		for (auto &translation : doc){
@@ -232,8 +233,9 @@ void ItemsManagerWorker::OnStatTranslationsReceived(){
 	Init();
 
 	modsUpdating_ = false;
+	initialModUpdateCompleted_ = true;
 
-	if (updateRequest_){
+	if (updateRequest_ && !updating_){
 		updateRequest_ = false;
 		Update(type_, locations_);
 	}

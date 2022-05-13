@@ -54,6 +54,7 @@ ItemsManager::~ItemsManager() {
 void ItemsManager::Start() {
 	thread_ = std::make_unique<QThread>();
 	worker_ = std::make_unique<ItemsManagerWorker>(app_, thread_.get());
+	worker_->initialModUpdateCompleted_ = false;
 	connect(thread_.get(), SIGNAL(started()), worker_.get(), SLOT(UpdateModList()));
 	connect(this, SIGNAL(UpdateSignal(TabSelection::Type, const std::vector<ItemLocation> &)), worker_.get(), SLOT(Update(TabSelection::Type, const std::vector<ItemLocation> &)));
 	connect(worker_.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
@@ -143,6 +144,8 @@ void ItemsManager::PropagateTabBuyouts() {
 void ItemsManager::OnItemsRefreshed(const Items &items, const std::vector<ItemLocation> &tabs, bool initial_refresh) {
 	items_ = items;
 
+	QLOG_DEBUG() << "Number of items refreshed: " << items_.size() << "; Number of tabs refreshed: " << tabs.size() << "; Initial Refresh: " << initial_refresh;
+
 	bo_manager_.SetStashTabLocations(tabs);
 	MigrateBuyouts();
 	ApplyAutoTabBuyouts();
@@ -167,9 +170,10 @@ void ItemsManager::UpdateCategories() {
 }
 
 void ItemsManager::Update(TabSelection::Type type, const std::vector<ItemLocation> &locations) {
-	if(worker_.get()->isModsUpdating()){
-		//tell ItemsManagerWorker to run an Update()
+	if(worker_.get()->isModsUpdating() || !worker_->initialModUpdateCompleted_){
+		//tell ItemsManagerWorker to run an Update() after it's finished updating mods
 		worker_.get()->UpdateRequest(type, locations);
+		QLOG_DEBUG() << "Update deferred until item mods parsing is complete";
 	} else {
 		emit UpdateSignal(type, locations);
 	}
