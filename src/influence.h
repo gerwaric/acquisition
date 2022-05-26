@@ -30,11 +30,11 @@ static const QString warlord_symbol_Link = ":/tooltip/Warlord-item-symbol.png";
 class Influence {
 
 
-    public:
-        static QIcon combineInflunceIcons(const QIcon leftIcon, const QIcon rightIcon);
+	public:
+		static QIcon combineInflunceIcons(const QIcon leftIcon, const QIcon rightIcon);
 
-    private:
-        Influence() {}
+	private:
+		Influence() {}
 };
 
 #endif // INFLUENCE_H

@@ -6,11 +6,11 @@
 
 class TestShop : public QObject
 {
-    Q_OBJECT
+	Q_OBJECT
 private slots:
-    void initTestCase();
-    void SocketedGemsNotLinked();
-    void TemplatedShopGeneration();
+	void initTestCase();
+	void SocketedGemsNotLinked();
+	void TemplatedShopGeneration();
 private:
-    Application app_;
+	Application app_;
 };

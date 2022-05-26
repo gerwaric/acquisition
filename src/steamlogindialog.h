@@ -1,20 +1,20 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+	Copyright 2014 Ilya Zhuravlev
 
-    This file is part of Acquisition.
+	This file is part of Acquisition.
 
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+	Acquisition is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
 
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+	Acquisition is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
+	You should have received a copy of the GNU General Public License
+	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #pragma once
@@ -34,21 +34,21 @@ class SteamLoginDialog;
 class QCloseEvent;
 
 class SteamLoginDialog : public QDialog {
-    Q_OBJECT
+	Q_OBJECT
 public:
-    explicit SteamLoginDialog(QWidget *parent = 0);
-    ~SteamLoginDialog();
-    void Init();
+	explicit SteamLoginDialog(QWidget *parent = 0);
+	~SteamLoginDialog();
+	void Init();
 signals:
-    void CookieReceived(const QString &cookie);
-    void Closed();
+	void CookieReceived(const QString &cookie);
+	void Closed();
 protected:
-    virtual void closeEvent(QCloseEvent *e);
+	virtual void closeEvent(QCloseEvent *e);
 private:
-    Ui::SteamLoginDialog *ui;
-    bool completed_;
+	Ui::SteamLoginDialog *ui;
+	bool completed_;
 #ifndef NO_WEBENGINE
-    QWebEngineView* webView;
+	QWebEngineView* webView;
 #endif
-    QNetworkAccessManager network_manager_;
+	QNetworkAccessManager network_manager_;
 };

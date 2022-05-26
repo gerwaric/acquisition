@@ -5,11 +5,11 @@
 #include <QtCore/QTimer>
 
 class QReplyTimeout : public QObject {
-    Q_OBJECT
+	Q_OBJECT
 public:
-    QReplyTimeout(QNetworkReply* reply, const int timeout);
+	QReplyTimeout(QNetworkReply* reply, const int timeout);
 private slots:
-    void timeout();
+	void timeout();
 };
 
 const int kEditThreadTimeout = 300000; // 5 minutes, pathofexile.com can be very slow
