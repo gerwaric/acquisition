@@ -83,10 +83,10 @@ public:
 	bool corrupted() const { return corrupted_; }
 	bool crafted() const { return crafted_; }
 	bool enchanted() const { return enchanted_; }
-	bool hasBaseType(BASE_TYPES type) const { return std::find(baseTypeList_.begin(), baseTypeList_.end(), type) != baseTypeList_.end();}
-	BASE_TYPES baseTypeLeft() const {return baseTypeList_.size() == 0 ? NONE : baseTypeList_[0];}
-	BASE_TYPES baseTypeRight() const {return baseTypeList_.size() == 0 ? NONE : baseTypeList_.size() == 1 ? baseTypeList_[0] : baseTypeList_[1];}
-	bool hasBaseType() const {return !baseTypeList_.empty();}
+	bool hasBaseType(BASE_TYPES type) const { return std::find(influenceList_.begin(), influenceList_.end(), type) != influenceList_.end();}
+	BASE_TYPES baseTypeLeft() const {return influenceList_.size() == 0 ? NONE : influenceList_[0];}
+	BASE_TYPES baseTypeRight() const {return influenceList_.size() == 0 ? NONE : influenceList_.size() == 1 ? influenceList_[0] : influenceList_[1];}
+	bool hasBaseType() const {return !influenceList_.empty();}
 	int w() const { return w_; }
 	int h() const { return h_; }
 	int frameType() const { return frameType_; }
@@ -133,13 +133,14 @@ private:
 	std::string name_;
 	ItemLocation location_;
 	std::string typeLine_;
+	std::string baseType_;
 	std::string category_;
 	std::vector<std::string> category_vector_;
 	bool identified_;
 	bool corrupted_;
 	bool crafted_;
 	bool enchanted_;
-	std::vector<BASE_TYPES> baseTypeList_;
+	std::vector<BASE_TYPES> influenceList_;
 	int w_, h_;
 	int frameType_;
 	std::string icon_;

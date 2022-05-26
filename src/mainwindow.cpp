@@ -801,10 +801,6 @@ online_label_.setText("Offline");
 	}
 }
 
-void MainWindow::on_actionRefresh_Mod_List_triggered() {
-	app_->items_manager().RefreshModList();
-}
-
 void MainWindow::on_actionCopy_shop_data_to_clipboard_triggered() {
 	app_->shop().CopyToClipboard();
 }

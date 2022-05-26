@@ -60,7 +60,7 @@ public:
 	volatile bool initialModUpdateCompleted_;
 	void UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation> &locations) { updateRequest_ = true; type_ = type, locations_ = locations; }
 public slots:
-	void Init();
+	void ParseItemMods();
 	void Update(TabSelection::Type type, const std::vector<ItemLocation> &tab_names = std::vector<ItemLocation>());
 public slots:
 	void OnMainPageReceived();
@@ -74,12 +74,17 @@ public slots:
 	*/
 	void FetchItems(int limit = kThrottleRequests);
 	void PreserveSelectedCharacter();
-	void UpdateModList();
+	void Init();
+
 	void OnStatsReceived();
 	void OnStatTranslationsReceived();
+	void OnItemClassesReceived();
+	void OnItemBaseTypesReceived();
 signals:
 	void ItemsRefreshed(const Items &items, const std::vector<ItemLocation> &tabs, bool initial_refresh);
 	void StatusUpdate(const CurrentStatusUpdate &status);
+	void ItemClassesUpdate(const QByteArray &classes);
+	void ItemBaseTypesUpdate(const QByteArray &baseTypes);
 private:
 
 	QNetworkRequest MakeTabRequest(int tab_index, const ItemLocation &location, bool tabs = false, bool refresh = false);
@@ -88,6 +93,7 @@ private:
 	void QueueRequest(const QNetworkRequest &request, const ItemLocation &location);
 	void ParseItems(rapidjson::Value *value_ptr, ItemLocation base_location, rapidjson_allocator &alloc);
 	std::vector<std::pair<std::string, std::string> > CreateTabsSignatureVector(std::string tabs);
+	void UpdateModList();
 
 	QNetworkRequest Request(QUrl url, const ItemLocation &location, TabCache::Flags flags = TabCache::None);
 	DataStore &data_;

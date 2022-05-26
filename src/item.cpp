@@ -31,6 +31,7 @@
 #include "util.h"
 #include "porting.h"
 #include "itemlocation.h"
+#include "itemcategories.h"
 
 const std::array<Item::CategoryReplaceMap, Item::k_CategoryLevels> Item::replace_map_ = {
 	// Category hierarchy 0 replacement map
@@ -103,6 +104,8 @@ Item::Item(const rapidjson::Value &json, const ItemLocation &loc) :
 		name_ = fixup_name(json["name"].GetString());
 	if (json.HasMember("typeLine") && json["typeLine"].IsString())
 		typeLine_ = fixup_name(json["typeLine"].GetString());
+	if(json.HasMember("baseType") && json["baseType"].IsString())
+		baseType_ = fixup_name(json["baseType"].GetString());
 
 	if (json.HasMember("identified") && json["identified"].IsBool())
 		identified_ = json["identified"].GetBool();
@@ -116,17 +119,17 @@ Item::Item(const rapidjson::Value &json, const ItemLocation &loc) :
 
 	if (json.HasMember("influences")) {
 		if (json["influences"].HasMember("shaper"))
-			baseTypeList_.push_back(BASE_SHAPER);
+			influenceList_.push_back(BASE_SHAPER);
 		if (json["influences"].HasMember("elder"))
-			baseTypeList_.push_back(BASE_ELDER);
+			influenceList_.push_back(BASE_ELDER);
 		if (json["influences"].HasMember("crusader"))
-			baseTypeList_.push_back(BASE_CRUSADER);
+			influenceList_.push_back(BASE_CRUSADER);
 		if (json["influences"].HasMember("redeemer"))
-			baseTypeList_.push_back(BASE_REDEEMER);
+			influenceList_.push_back(BASE_REDEEMER);
 		if (json["influences"].HasMember("hunter"))
-			baseTypeList_.push_back(BASE_HUNTER);
+			influenceList_.push_back(BASE_HUNTER);
 		if (json["influences"].HasMember("warlord"))
-			baseTypeList_.push_back(BASE_WARLORD);
+			influenceList_.push_back(BASE_WARLORD);
 	}
 
 	if (json.HasMember("w") && json["w"].IsInt())
@@ -157,11 +160,7 @@ Item::Item(const rapidjson::Value &json, const ItemLocation &loc) :
 	// quad stashes, currency stashes, etc
 	boost::replace_last(icon_, "scaleIndex=", "scaleIndex=0&");
 
-	/*
-	 * DISABLING FOR NOW, since we'll rely on the list of categories being generated when the mods
-	 * are refreshed. Using the RePoE list of item classes and base items to determine this
-	 */
-	//CalculateCategories(json);
+	CalculateCategories(json);
 
 	if (json.HasMember("talismanTier") && json["talismanTier"].IsUint()) {
 	   talisman_tier_ = json["talismanTier"].GetUint();
@@ -296,6 +295,7 @@ std::string Item::PrettyName() const {
 }
 
 void Item::CalculateCategories(const rapidjson::Value &json) {
+	/*
 	// Derive item type 'category' hierarchy from icon path.
 	std::smatch sm;
 	if (std::regex_search(icon_, sm, std::regex("image/.*?/.*?/([^0-9]*)"))) {
@@ -386,7 +386,17 @@ void Item::CalculateCategories(const rapidjson::Value &json) {
 
 	category_ = boost::join(category_vector_, ".");
 	boost::to_lower(category_);
+*/
 
+	auto rslt = itemBaseType_NameToClass.find(baseType_);
+	if (rslt != itemBaseType_NameToClass.end()) {
+		std::string step1 = rslt->second;
+		rslt = itemClassKeyToValue.find(step1);
+		if (rslt != itemClassKeyToValue.end()) {
+			category_ = rslt->second;
+			boost::to_lower(category_);
+		}
+	}
 }
 
 double Item::DPS() const {

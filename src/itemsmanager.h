@@ -63,6 +63,8 @@ public slots:
 	// Used to glue Worker's signals to MainWindow
 	void OnStatusUpdate(const CurrentStatusUpdate &status);
 	void OnItemsRefreshed(const Items &items, const std::vector<ItemLocation> &tabs, bool initial_refresh);
+	void OnItemClassesUpdate(const QByteArray &classes);
+	void OnItemBaseTypesUpdate(const QByteArray &baseTypes);
 signals:
 	void UpdateSignal(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 	void ItemsRefreshed(bool initial_refresh);
@@ -84,5 +86,4 @@ private:
 	Application &app_;
 	Items items_;
 	QSet<QString> categories_;
-
 };

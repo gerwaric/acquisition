@@ -36,6 +36,7 @@ SOURCES += \
 	src/column.cpp \
 	src/currencymanager.cpp \
 	src/influence.cpp \
+	src/itemcategories.cpp \
 	src/sqlitedatastore.cpp \
 	src/filesystem.cpp \
 	src/filters.cpp \
@@ -82,6 +83,7 @@ HEADERS += \
 	src/currencymanager.h \
 	src/datastore.h \
 	src/influence.h \
+	src/itemcategories.h \
 	src/sqlitedatastore.h \
 	src/filesystem.h \
 	src/filters.h \

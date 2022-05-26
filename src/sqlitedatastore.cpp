@@ -76,10 +76,14 @@ std::string SqliteDataStore::GetTabs(const ItemLocationType &type, const std::st
 std::string SqliteDataStore::GetItems(const ItemLocation &loc, const std::string &default_value) {
 	std::string query = "SELECT value FROM items WHERE loc = ?";
 	sqlite3_stmt *stmt;
-	sqlite3_prepare(db_, query.c_str(), -1, &stmt, 0);
+	//sqlite3_prepare(db_, query.c_str(), -1, &stmt, 0);
+	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
 	sqlite3_bind_text(stmt, 1, loc.get_tab_uniq_id().c_str(), -1, SQLITE_STATIC);
 	std::string result(default_value);
-	if (sqlite3_step(stmt) == SQLITE_ROW)
+
+	auto rslt = sqlite3_step(stmt);
+
+	if (rslt == SQLITE_ROW)
 		result = std::string(static_cast<const char*>(sqlite3_column_blob(stmt, 0)), sqlite3_column_bytes(stmt, 0));
 	sqlite3_finalize(stmt);
 	return result;

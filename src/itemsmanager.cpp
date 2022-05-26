@@ -32,6 +32,7 @@
 #include "util.h"
 #include "mainwindow.h"
 #include "filters.h"
+#include "itemcategories.h"
 
 ItemsManager::ItemsManager(Application &app) :
 	auto_update_timer_(std::make_unique<QTimer>()),
@@ -55,17 +56,58 @@ void ItemsManager::Start() {
 	thread_ = std::make_unique<QThread>();
 	worker_ = std::make_unique<ItemsManagerWorker>(app_, thread_.get());
 	worker_->initialModUpdateCompleted_ = false;
-	connect(thread_.get(), SIGNAL(started()), worker_.get(), SLOT(UpdateModList()));
+	connect(thread_.get(), SIGNAL(started()), worker_.get(), SLOT(Init()));
 	connect(this, SIGNAL(UpdateSignal(TabSelection::Type, const std::vector<ItemLocation> &)), worker_.get(), SLOT(Update(TabSelection::Type, const std::vector<ItemLocation> &)));
 	connect(worker_.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
 	connect(worker_.get(), SIGNAL(ItemsRefreshed(Items, std::vector<ItemLocation>, bool)), this, SLOT(OnItemsRefreshed(Items, std::vector<ItemLocation>, bool)));
-	connect(this, SIGNAL(UpdateModListSignal()), worker_.get(), SLOT(UpdateModList()));
+	connect(worker_.get(), &ItemsManagerWorker::ItemClassesUpdate, this, &ItemsManager::OnItemClassesUpdate);
+	connect(worker_.get(), &ItemsManagerWorker::ItemBaseTypesUpdate, this, &ItemsManager::OnItemBaseTypesUpdate);
 	worker_->moveToThread(thread_.get());
 	thread_->start();
 }
 
 void ItemsManager::OnStatusUpdate(const CurrentStatusUpdate &status) {
 	emit StatusUpdate(status);
+}
+
+void ItemsManager::OnItemClassesUpdate(const QByteArray &classes) {
+	rapidjson::Document doc;
+	doc.Parse(classes.constData());
+
+	if (doc.HasParseError()) {
+		QLOG_ERROR() << "Couldn't properly parse Item Classes from RePoE, The type dropdown will remain empty.";
+	} else {
+		categories_.clear();
+		itemClassKeyToValue.clear();
+		itemClassValueToKey.clear();
+
+		for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
+			std::string key = itr->name.GetString();
+			std::string value = itr->value.FindMember("name")->value.GetString();
+			categories_.insert(value.c_str());
+			itemClassKeyToValue.insert(std::make_pair(key, value));
+			itemClassValueToKey.insert(std::make_pair(value, key));
+		}
+
+		categories_.insert(CategorySearchFilter::k_Default.c_str());
+	}
+}
+
+void ItemsManager::OnItemBaseTypesUpdate(const QByteArray &baseTypes) {
+	rapidjson::Document doc;
+	doc.Parse(baseTypes.constData());
+
+	if (doc.HasParseError()) {
+		QLOG_ERROR() << "Couldn't properly parse Item Base Types from RePoE, The type dropdown will remain empty.";
+	} else {
+		itemBaseType_NameToClass.clear();
+
+		for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
+			std::string item_class = itr->value.FindMember("item_class")->value.GetString();
+			std::string name = itr->value.FindMember("name")->value.GetString();
+			itemBaseType_NameToClass.insert(std::make_pair(name, item_class));
+		}
+	}
 }
 
 void ItemsManager::ApplyAutoTabBuyouts() {
@@ -151,22 +193,8 @@ void ItemsManager::OnItemsRefreshed(const Items &items, const std::vector<ItemLo
 	ApplyAutoTabBuyouts();
 	ApplyAutoItemBuyouts();
 	PropagateTabBuyouts();
-	UpdateCategories();
 
 	emit ItemsRefreshed(initial_refresh);
-}
-
-void ItemsManager::UpdateCategories() {
-	categories_.clear();
-	for (auto const &item: items_) {
-		QString tmp;
-		for (auto const &level: item->category_vector()) {
-			tmp = tmp.isEmpty() ? level.c_str(): tmp + "." + level.c_str();
-			categories_.insert(tmp);
-		}
-	}
-	// Need a 'default' string option for unconstrained search
-	categories_.insert(CategorySearchFilter::k_Default.c_str());
 }
 
 void ItemsManager::Update(TabSelection::Type type, const std::vector<ItemLocation> &locations) {
@@ -177,10 +205,6 @@ void ItemsManager::Update(TabSelection::Type type, const std::vector<ItemLocatio
 	} else {
 		emit UpdateSignal(type, locations);
 	}
-}
-
-void ItemsManager::RefreshModList(){
-	emit UpdateModListSignal();
 }
 
 void ItemsManager::SetAutoUpdate(bool update) {

@@ -52,6 +52,8 @@ const char *kCharacterSocketedJewels = "https://www.pathofexile.com/character-wi
 const char *kPOE_trade_stats = "https://www.pathofexile.com/api/trade/data/stats";
 
 const char *kRePoE_stat_translations = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/stat_translations.min.json";
+const char *kRePoE_item_classes = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/item_classes.min.json";
+const char *kRePoE_item_base_types = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/base_items.min.json";
 
 ItemsManagerWorker::ItemsManagerWorker(Application &app, QThread *thread) :
 	data_(app.data()),
@@ -81,7 +83,50 @@ ItemsManagerWorker::~ItemsManagerWorker() {
 		delete signal_mapper_;
 }
 
-void ItemsManagerWorker::Init() {
+void ItemsManagerWorker::Init(){
+	if (updating_) {
+		QLOG_WARN() << "ItemsManagerWorker::Init() called while updating, skipping Mod List Update";
+		return;
+	}
+
+	updating_ = true;
+
+	QNetworkRequest PoE_item_classes_request = QNetworkRequest(QUrl(QString(kRePoE_item_classes)));
+	QNetworkReply *PoE_item_classes_reply = network_manager_.get(PoE_item_classes_request);
+	connect(PoE_item_classes_reply, &QNetworkReply::finished, this, &ItemsManagerWorker::OnItemClassesReceived);
+}
+
+void ItemsManagerWorker::OnItemClassesReceived(){
+	QNetworkReply *reply = qobject_cast<QNetworkReply *>(QObject::sender());
+
+	if (reply->error()) {
+		QLOG_ERROR() << "Couldn't fetch RePoE Item Classes: " << reply->url().toDisplayString()
+					<< " due to error: " << reply->errorString() << " The type dropdown will remain empty.";
+	} else {
+		QByteArray bytes = reply->readAll();
+		emit ItemClassesUpdate(bytes);
+	}
+
+	QNetworkRequest PoE_item_base_types_request = QNetworkRequest(QUrl(QString(kRePoE_item_base_types)));
+	QNetworkReply *PoE_item_base_types_reply = network_manager_.get(PoE_item_base_types_request);
+	connect(PoE_item_base_types_reply, &QNetworkReply::finished, this, &ItemsManagerWorker::OnItemBaseTypesReceived);
+}
+
+void ItemsManagerWorker::OnItemBaseTypesReceived(){
+	QNetworkReply *reply = qobject_cast<QNetworkReply *>(QObject::sender());
+
+	if (reply->error()) {
+		QLOG_ERROR() << "Couldn't fetch RePoE Item Base Types: " << reply->url().toDisplayString()
+					<< " due to error: " << reply->errorString() << " The type dropdown will remain empty.";
+	} else {
+		QByteArray bytes = reply->readAll();
+		emit ItemBaseTypesUpdate(bytes);
+	}
+
+	UpdateModList();
+}
+
+void ItemsManagerWorker::ParseItemMods() {
 	tabs_.clear();
 	tab_id_index_.clear();
 
@@ -169,15 +214,9 @@ void ItemsManagerWorker::Init() {
 }
 
 void ItemsManagerWorker::UpdateModList(){
-	if (updating_) {
-		QLOG_WARN() << "ItemsManagerWorker::UpdateModList() called while updating, skipping Mod List Update";
-		return;
-	}
-
 	modsUpdating_ = true;
 
 	QNetworkRequest PoE_stat_translations_request = QNetworkRequest(QUrl(QString(kRePoE_stat_translations)));
-	//PoE_stats_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
 	QNetworkReply *PoE_stats_reply = network_manager_.get(PoE_stat_translations_request);
 	connect(PoE_stats_reply, &QNetworkReply::finished, this, &ItemsManagerWorker::OnStatTranslationsReceived);
 }
@@ -230,12 +269,13 @@ void ItemsManagerWorker::OnStatTranslationsReceived(){
 		InitModlist();
 	}
 
-	Init();
+	ParseItemMods();
 
 	modsUpdating_ = false;
 	initialModUpdateCompleted_ = true;
+	updating_ = false;
 
-	if (updateRequest_ && !updating_){
+	if (updateRequest_){
 		updateRequest_ = false;
 		Update(type_, locations_);
 	}

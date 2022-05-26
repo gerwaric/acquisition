@@ -125,7 +125,6 @@ private slots:
 	void on_actionExport_currency_triggered();
 	void on_uploadTooltipButton_clicked();
 	void on_pobTooltipButton_clicked();
-	void on_actionRefresh_Mod_List_triggered();
 
 private:
 	void ModelViewRefresh();
