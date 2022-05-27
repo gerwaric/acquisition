@@ -64,14 +64,18 @@ class Item {
 public:
 	typedef const std::unordered_map<std::string, std::string> CategoryReplaceMap;
 
-	enum BASE_TYPES {
+	enum INFLUENCE_TYPES {
 		NONE,
-		BASE_SHAPER,
-		BASE_ELDER,
-		BASE_CRUSADER,
-		BASE_REDEEMER,
-		BASE_HUNTER,
-		BASE_WARLORD
+		SHAPER,
+		ELDER,
+		CRUSADER,
+		REDEEMER,
+		HUNTER,
+		WARLORD,
+		SYNTHESISED,
+		FRACTURED,
+		SEARING_EXARCH,
+		EATER_OF_WORLDS
 	};
 
 	explicit Item(const rapidjson::Value &json, const ItemLocation &loc);
@@ -83,10 +87,10 @@ public:
 	bool corrupted() const { return corrupted_; }
 	bool crafted() const { return crafted_; }
 	bool enchanted() const { return enchanted_; }
-	bool hasBaseType(BASE_TYPES type) const { return std::find(influenceList_.begin(), influenceList_.end(), type) != influenceList_.end();}
-	BASE_TYPES baseTypeLeft() const {return influenceList_.size() == 0 ? NONE : influenceList_[0];}
-	BASE_TYPES baseTypeRight() const {return influenceList_.size() == 0 ? NONE : influenceList_.size() == 1 ? influenceList_[0] : influenceList_[1];}
-	bool hasBaseType() const {return !influenceList_.empty();}
+	bool hasInfluence(INFLUENCE_TYPES type) const { return std::find(influenceList_.begin(), influenceList_.end(), type) != influenceList_.end();}
+	INFLUENCE_TYPES influenceLeft() const {return influenceList_.size() == 0 ? NONE : influenceList_[0];}
+	INFLUENCE_TYPES influenceRight() const {return influenceList_.size() == 0 ? NONE : influenceList_.size() == 1 ? influenceList_[0] : influenceList_[1];}
+	bool hasInfluence() const {return !influenceList_.empty();}
 	int w() const { return w_; }
 	int h() const { return h_; }
 	int frameType() const { return frameType_; }
@@ -140,7 +144,7 @@ private:
 	bool corrupted_;
 	bool crafted_;
 	bool enchanted_;
-	std::vector<BASE_TYPES> influenceList_;
+	std::vector<INFLUENCE_TYPES> influenceList_;
 	int w_, h_;
 	int frameType_;
 	std::string icon_;

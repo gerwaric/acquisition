@@ -26,6 +26,10 @@ static const QString crusader_symbol_Link = ":/tooltip/Crusader-item-symbol.png"
 static const QString hunter_symbol_Link = ":/tooltip/Hunter-item-symbol.png";
 static const QString redeemer_symbol_Link = ":/tooltip/Redeemer-item-symbol.png";
 static const QString warlord_symbol_Link = ":/tooltip/Warlord-item-symbol.png";
+static const QString synthesised_symbol_Link = ":/tooltip/Synthesised-item-symbol.png";
+static const QString fractured_symbol_Link = ":/tooltip/Fractured-item-symbol.png";
+static const QString searing_exarch_symbol_Link = ":/tooltip/Searing-exarch-item-symbol.png";
+static const QString eater_of_worlds_symbol_Link = ":/tooltip/Eater-of-worlds-item-symbol.png";
 
 class Influence {
 

@@ -136,20 +136,20 @@ std::string InfluncedColumn::name() const {
 }
 
 QVariant InfluncedColumn::value(const Item &item) const {
-	QString baseTypesString = "";
+	QString influencesString = "";
 
-	if (item.hasBaseType(Item::BASE_SHAPER))
-		baseTypesString += "S";
-	if (item.hasBaseType(Item::BASE_ELDER))
-		baseTypesString += "E";
-	if (item.hasBaseType(Item::BASE_HUNTER))
-		baseTypesString += "H";
-	if (item.hasBaseType(Item::BASE_WARLORD))
-		baseTypesString += "W";
-	if (item.hasBaseType(Item::BASE_CRUSADER))
-		baseTypesString += "C";
-	if (item.hasBaseType(Item::BASE_REDEEMER))
-		baseTypesString += "R";
+	if (item.hasInfluence(Item::SHAPER))
+		influencesString += "S";
+	if (item.hasInfluence(Item::ELDER))
+		influencesString += "E";
+	if (item.hasInfluence(Item::HUNTER))
+		influencesString += "H";
+	if (item.hasInfluence(Item::WARLORD))
+		influencesString += "W";
+	if (item.hasInfluence(Item::CRUSADER))
+		influencesString += "C";
+	if (item.hasInfluence(Item::REDEEMER))
+		influencesString += "R";
 
 	//TODO maybe add an option to toggle whether to send an icon or text for an influence?
 	return "";
@@ -158,29 +158,37 @@ QVariant InfluncedColumn::value(const Item &item) const {
 QVariant InfluncedColumn::icon(const Item &item) const {
 	QIcon leftIcon, rightIcon;
 
-	Item::BASE_TYPES leftInf = item.baseTypeLeft();
-	Item::BASE_TYPES rightInf = item.baseTypeRight();
+	Item::INFLUENCE_TYPES leftInf = item.influenceLeft();
+	Item::INFLUENCE_TYPES rightInf = item.influenceRight();
 
-	int numInfluences = rightInf != Item::NONE && rightInf != leftInf ? 2 : item.baseTypeLeft() != Item::NONE ? 1 : 0;
+	int numInfluences = rightInf != Item::NONE && rightInf != leftInf ? 2 : item.influenceLeft() != Item::NONE ? 1 : 0;
 
 	if (numInfluences > 0) {
-		switch (item.baseTypeLeft()) {
-			case Item::BASE_ELDER: leftIcon.addFile(elder_symbol_Link); break;
-			case Item::BASE_SHAPER: leftIcon.addFile(shaper_symbol_Link); break;
-			case Item::BASE_CRUSADER: leftIcon.addFile(crusader_symbol_Link); break;
-			case Item::BASE_HUNTER: leftIcon.addFile(hunter_symbol_Link); break;
-			case Item::BASE_REDEEMER: leftIcon.addFile(redeemer_symbol_Link); break;
-			case Item::BASE_WARLORD: leftIcon.addFile(warlord_symbol_Link); break;
+		switch (item.influenceLeft()) {
+			case Item::ELDER: leftIcon.addFile(elder_symbol_Link); break;
+			case Item::SHAPER: leftIcon.addFile(shaper_symbol_Link); break;
+			case Item::CRUSADER: leftIcon.addFile(crusader_symbol_Link); break;
+			case Item::HUNTER: leftIcon.addFile(hunter_symbol_Link); break;
+			case Item::REDEEMER: leftIcon.addFile(redeemer_symbol_Link); break;
+			case Item::WARLORD: leftIcon.addFile(warlord_symbol_Link); break;
+			case Item::SYNTHESISED: leftIcon.addFile(synthesised_symbol_Link); break;
+			case Item::FRACTURED: leftIcon.addFile(fractured_symbol_Link); break;
+			case Item::SEARING_EXARCH: leftIcon.addFile(searing_exarch_symbol_Link); break;
+			case Item::EATER_OF_WORLDS: leftIcon.addFile(eater_of_worlds_symbol_Link); break;
 			case Item::NONE: break;
 		}
 		if(numInfluences == 2) {
-			switch (item.baseTypeRight()) {
-				case Item::BASE_ELDER: rightIcon.addFile(elder_symbol_Link); break;
-				case Item::BASE_SHAPER: rightIcon.addFile(shaper_symbol_Link); break;
-				case Item::BASE_CRUSADER: rightIcon.addFile(crusader_symbol_Link); break;
-				case Item::BASE_HUNTER: rightIcon.addFile(hunter_symbol_Link); break;
-				case Item::BASE_REDEEMER: rightIcon.addFile(redeemer_symbol_Link); break;
-				case Item::BASE_WARLORD: rightIcon.addFile(warlord_symbol_Link); break;
+			switch (item.influenceRight()) {
+				case Item::ELDER: rightIcon.addFile(elder_symbol_Link); break;
+				case Item::SHAPER: rightIcon.addFile(shaper_symbol_Link); break;
+				case Item::CRUSADER: rightIcon.addFile(crusader_symbol_Link); break;
+				case Item::HUNTER: rightIcon.addFile(hunter_symbol_Link); break;
+				case Item::REDEEMER: rightIcon.addFile(redeemer_symbol_Link); break;
+				case Item::WARLORD: rightIcon.addFile(warlord_symbol_Link); break;
+				case Item::SYNTHESISED: rightIcon.addFile(synthesised_symbol_Link); break;
+				case Item::FRACTURED: rightIcon.addFile(fractured_symbol_Link); break;
+				case Item::SEARING_EXARCH: rightIcon.addFile(searing_exarch_symbol_Link); break;
+				case Item::EATER_OF_WORLDS: rightIcon.addFile(eater_of_worlds_symbol_Link); break;
 				case Item::NONE: break;
 			}
 

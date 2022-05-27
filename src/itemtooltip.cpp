@@ -57,6 +57,10 @@ static const QImage crusader_icon(":/tooltip/Crusader-item-symbol.png");
 static const QImage hunter_icon(":/tooltip/Hunter-item-symbol.png");
 static const QImage redeemer_icon(":/tooltip/Redeemer-item-symbol.png");
 static const QImage warlord_icon(":/tooltip/Warlord-item-symbol.png");
+static const QImage synthesised_icon(":/tooltip/Synthesised-item-symbol.png");
+static const QImage fractured_icon(":/tooltip/Fractured-item-symbol.png");
+static const QImage searing_exarch_icon(":/tooltip/Searing-exarch-item-symbol.png");
+static const QImage eater_of_worlds_icon(":/tooltip/Eater-of-worlds-item-symbol.png");
 static const int HEADER_SINGLELINE_WIDTH = 29;
 static const int HEADER_SINGLELINE_HEIGHT = 34;
 static const int HEADER_DOUBLELINE_WIDTH = 44;
@@ -243,7 +247,7 @@ static void UpdateMinimap(const Item &item, Ui::MainWindow *ui) {
 	ui->minimapLabel->setPixmap(pixmap);
 }
 
-void GenerateItemHeaderSide(QLabel *itemHeader, bool leftNotRight, std::string header_path_prefix, bool singleline, Item::BASE_TYPES base) {
+void GenerateItemHeaderSide(QLabel *itemHeader, bool leftNotRight, std::string header_path_prefix, bool singleline, Item::INFLUENCE_TYPES base) {
 	QImage header(QString::fromStdString(header_path_prefix + (leftNotRight ? "Left.png" : "Right.png")));
 	QSize header_size = singleline ? HEADER_SINGLELINE_SIZE : HEADER_DOUBLELINE_SIZE;
 	header = header.scaled(header_size);
@@ -257,23 +261,35 @@ void GenerateItemHeaderSide(QLabel *itemHeader, bool leftNotRight, std::string h
 
 	if (base != Item::NONE) {
 		switch (base){
-			case Item::BASE_ELDER:
+			case Item::ELDER:
 				overlay_image = elder_icon;
 				break;
-			case Item::BASE_SHAPER:
+			case Item::SHAPER:
 				overlay_image = shaper_icon;
 				break;
-			case Item::BASE_HUNTER:
+			case Item::HUNTER:
 				overlay_image = hunter_icon;
 				break;
-			case Item::BASE_WARLORD:
+			case Item::WARLORD:
 				overlay_image = warlord_icon;
 				break;
-			case Item::BASE_CRUSADER:
+			case Item::CRUSADER:
 				overlay_image = crusader_icon;
 				break;
-			case Item::BASE_REDEEMER:
+			case Item::REDEEMER:
 				overlay_image = redeemer_icon;
+				break;
+			case Item::SYNTHESISED:
+				overlay_image = synthesised_icon;
+				break;
+			case Item::FRACTURED:
+				overlay_image = fractured_icon;
+				break;
+			case Item::SEARING_EXARCH:
+				overlay_image = searing_exarch_icon;
+				break;
+			case Item::EATER_OF_WORLDS:
+				overlay_image = eater_of_worlds_icon;
 				break;
 			case Item::NONE:
 				break;
@@ -313,8 +329,8 @@ void UpdateItemTooltip(const Item &item, Ui::MainWindow *ui) {
 	std::string suffix = (singleline && (frame == FRAME_TYPE_RARE || frame == FRAME_TYPE_UNIQUE)) ? "SingleLine" : "";
 	std::string header_path_prefix = ":/tooltip/ItemsHeader" + key + suffix;
 
-	GenerateItemHeaderSide(ui->itemHeaderLeft, true, header_path_prefix, singleline, item.baseTypeLeft());
-	GenerateItemHeaderSide(ui->itemHeaderRight, false, header_path_prefix, singleline, item.baseTypeRight());
+	GenerateItemHeaderSide(ui->itemHeaderLeft, true, header_path_prefix, singleline, item.influenceLeft());
+	GenerateItemHeaderSide(ui->itemHeaderRight, false, header_path_prefix, singleline, item.influenceRight());
 
 	ui->itemNameContainerWidget->setStyleSheet(("border-radius: 0px; border: 0px; border-image: url(" + header_path_prefix + "Middle.png);").c_str());
 
@@ -412,10 +428,10 @@ QPixmap GenerateItemIcon(const Item &item, const QImage &image) {
 	layered.fill(Qt::transparent);
 	QPainter layered_painter(&layered);
 
-	if (item.hasBaseType(Item::BASE_SHAPER) || item.hasBaseType(Item::BASE_ELDER)){
+	if (item.hasInfluence(Item::SHAPER) || item.hasInfluence(Item::ELDER)){
 		// Assumes width <= 2
 		const QImage *background_image = nullptr;
-		if (item.hasBaseType(Item::BASE_ELDER)) {
+		if (item.hasInfluence(Item::ELDER)) {
 			switch(height) {
 				case 1:
 					background_image = width == 1 ? &shaper_1x1 : &shaper_2x1;

@@ -119,18 +119,30 @@ Item::Item(const rapidjson::Value &json, const ItemLocation &loc) :
 
 	if (json.HasMember("influences")) {
 		if (json["influences"].HasMember("shaper"))
-			influenceList_.push_back(BASE_SHAPER);
+			influenceList_.push_back(SHAPER);
 		if (json["influences"].HasMember("elder"))
-			influenceList_.push_back(BASE_ELDER);
+			influenceList_.push_back(ELDER);
 		if (json["influences"].HasMember("crusader"))
-			influenceList_.push_back(BASE_CRUSADER);
+			influenceList_.push_back(CRUSADER);
 		if (json["influences"].HasMember("redeemer"))
-			influenceList_.push_back(BASE_REDEEMER);
+			influenceList_.push_back(REDEEMER);
 		if (json["influences"].HasMember("hunter"))
-			influenceList_.push_back(BASE_HUNTER);
+			influenceList_.push_back(HUNTER);
 		if (json["influences"].HasMember("warlord"))
-			influenceList_.push_back(BASE_WARLORD);
+			influenceList_.push_back(WARLORD);
 	}
+
+	if (json.HasMember("synthesised") && json["synthesised"].IsBool() && json["synthesised"].GetBool())
+		influenceList_.push_back(SYNTHESISED);
+
+	if (json.HasMember("fractured") && json["fractured"].IsBool() && json["fractured"].GetBool())
+		influenceList_.push_back(FRACTURED);
+
+	if (json.HasMember("searing") && json["searing"].IsBool() && json["searing"].GetBool())
+		influenceList_.push_back(SEARING_EXARCH);
+
+	if (json.HasMember("tangled") && json["tangled"].IsBool() && json["tangled"].GetBool())
+		influenceList_.push_back(EATER_OF_WORLDS);
 
 	if (json.HasMember("w") && json["w"].IsInt())
 		w_ = json["w"].GetInt();
