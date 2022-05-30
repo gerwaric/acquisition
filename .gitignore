@@ -43,6 +43,7 @@ Makefile*
 *.aps
 *.pdb
 .vs/
+enc_temp_folder/
 
 # deployment/installer
 deploy/
