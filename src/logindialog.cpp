@@ -129,20 +129,8 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 	});
 
 	QNetworkRequest leagues_request = QNetworkRequest(QUrl(QString(POE_LEAGUE_LIST_URL)));
-	//QSslConfiguration newSslConfig = QSslConfiguration(leagues_request.sslConfiguration());
-	//newSslConfig.setProtocol(QSsl::TlsV1_3OrLater);
-	//leagues_request.setSslConfiguration(newSslConfig);
-
 	leagues_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
-
 	QNetworkReply *leagues_reply = login_manager_->get(leagues_request);
-
-	/*
-	QSslConfiguration reply_config = QSslConfiguration(leagues_reply->sslConfiguration());
-	reply_config.setProtocol(QSsl::TlsV1_3OrLater);
-	leagues_reply->setSslConfiguration(reply_config);
-	QLOG_DEBUG() << "leagues_reply Protocol: " << reply_config.protocol();
-	*/
 
 	connect(leagues_reply, &QNetworkReply::errorOccurred, this, &LoginDialog::errorOccurred);
 	connect(leagues_reply, &QNetworkReply::sslErrors, this, &LoginDialog::sslErrorOccurred);

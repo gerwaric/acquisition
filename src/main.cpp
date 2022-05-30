@@ -76,8 +76,6 @@ int main(int argc, char *argv[])
 	CrAutoInstallHelper cr_install_helper(&info);
 #endif
 
-	InitModlist();
-
 	QApplication a(argc, argv);
 	Filesystem::Init();
 
