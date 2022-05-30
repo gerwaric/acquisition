@@ -33,7 +33,6 @@
 // Actual list of mods is computed at runtime
 QStringList mod_string_list;
 
-std::vector<std::vector<std::string>> pseudoMods;
 std::vector<std::vector<std::string>> mods;
 
 // These are just summed, and the mod named as the first element of a vector is generated with value equaling the sum.
@@ -141,23 +140,6 @@ std::vector<std::unique_ptr<ModGenerator>> mod_generators;
 void InitModlist() {
 	mod_string_list.clear();
 	mod_generators.clear();
-
-	//For now stop using the fixed "simple_sum" mod list, and use the list popuplated, by the PoE trade search "Stat Filters"
-	/*
-	for (auto &list : simple_sum) {
-		mod_string_list.push_back(list[0].c_str());
-
-		mod_generators.push_back(std::make_unique<SumModGenerator>(list[0], list));
-	}
-	*/
-
-	/*
-	for (auto &list : pseudoMods) {
-		mod_string_list.push_back(list[0].c_str());
-
-		mod_generators.push_back(std::make_unique<SumModGenerator>(list[0], list));
-	}
-	*/
 
 	for (auto &list : mods) {
 		mod_string_list.push_back(list[0].c_str());

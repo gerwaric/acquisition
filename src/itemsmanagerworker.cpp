@@ -283,43 +283,6 @@ void ItemsManagerWorker::OnStatTranslationsReceived(){
 	reply->deleteLater();
 }
 
-void ItemsManagerWorker::OnStatsReceived(){
-	QNetworkReply *reply = qobject_cast<QNetworkReply *>(QObject::sender());
-
-	if (reply->error()) {
-		QLOG_ERROR() << "Couldn't fetch item mods: " << reply->url().toDisplayString()
-					<< " due to error: " << reply->errorString() << " Aborting update.";
-		updating_ = false;
-		return;
-	} else {
-		QByteArray bytes = reply->readAll();
-		rapidjson::Document doc;
-		doc.Parse(bytes.constData());
-
-		if (doc.HasParseError()) {
-			QLOG_ERROR() << "Couldn't properly parse Stats from PoE Trade Site, canceling Mods Update";
-			updating_ = false;
-			return;
-		}
-
-		for (auto &modCat : doc["result"]) {
-			std::string modCatLabel = modCat["label"].GetString();
-
-			if(modCatLabel.compare("Pseudo") == 0) {
-				for (auto &mod : modCat["entries"]) {
-					pseudoMods.push_back({ mod["text"].GetString() });
-				}
-			}
-		}
-
-		InitModlist();
-	}
-
-	updating_ = false;
-
-	reply->deleteLater();
-}
-
 void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemLocation> &locations) {
 	if (updating_) {
 		QLOG_WARN() << "ItemsManagerWorker::Update called while updating";

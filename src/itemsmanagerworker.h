@@ -76,7 +76,6 @@ public slots:
 	void PreserveSelectedCharacter();
 	void Init();
 
-	void OnStatsReceived();
 	void OnStatTranslationsReceived();
 	void OnItemClassesReceived();
 	void OnItemBaseTypesReceived();
