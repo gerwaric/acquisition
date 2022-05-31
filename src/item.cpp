@@ -445,11 +445,6 @@ double Item::cDPS() const {
 }
 
 void Item::GenerateMods(const rapidjson::Value& json) {
-    /*
-    for (auto &generator : mod_generators)
-        generator->Generate(json, &mod_table_);
-    */
-
     bool mod_present = false;
     double sum = 0;
     for (auto& type : { "implicitMods", "explicitMods", "craftedMods" }) {
@@ -464,7 +459,7 @@ void Item::GenerateMods(const rapidjson::Value& json) {
             mod_s = std::regex_replace(mod_s, rep, "#");
             auto rslt = mods_map.find(mod_s);
             if (rslt != mods_map.end()) {
-                SumModGenerator* gen = mods_map.find(mod_s)->second;
+                SumModGenerator* gen = rslt->second;
                 gen->Generate(mod, &mod_table_);
             }
         }
