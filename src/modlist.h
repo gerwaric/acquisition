@@ -29,6 +29,7 @@
 class Item;
 typedef std::unordered_map<std::string, double> ModTable;
 
+
 // This generates regular expressions for mods and does other setup, should be called when the app starts, perhaps in main()
 // Maybe this is not needed and constexpr could do the trick, but VS doesn't support it right now.
 void InitModlist();
@@ -49,7 +50,10 @@ private:
 	std::vector<std::string> matches_;
 };
 
+typedef std::shared_ptr<SumModGenerator> SumModGen;
+
 extern QStringList mod_string_list;
-extern std::vector<std::unique_ptr<ModGenerator>> mod_generators;
+extern std::vector<SumModGen> mod_generators;
 extern std::vector<std::vector<std::string>> pseudoMods;
 extern std::vector<std::vector<std::string>> mods;
+extern std::unordered_map<std::string, SumModGenerator*> mods_map;

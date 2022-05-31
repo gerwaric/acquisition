@@ -30,10 +30,13 @@
 #include "porting.h"
 #include "util.h"
 
+
+
 // Actual list of mods is computed at runtime
 QStringList mod_string_list;
 
 std::vector<std::vector<std::string>> mods;
+std::unordered_map<std::string, SumModGenerator*> mods_map;
 
 // These are just summed, and the mod named as the first element of a vector is generated with value equaling the sum.
 // Both implicit and explicit fields are considered.
@@ -135,16 +138,21 @@ const std::vector<std::vector<std::string>> simple_sum = {
 	{ "* Leo's Level-28-capped-rolls mod", "Cannot roll Mods with Required Level above #" },
 };
 
-std::vector<std::unique_ptr<ModGenerator>> mod_generators;
+std::vector<SumModGen> mod_generators;
 
 void InitModlist() {
 	mod_string_list.clear();
 	mod_generators.clear();
+	mods_map.clear();
 
 	for (auto &list : mods) {
 		mod_string_list.push_back(list[0].c_str());
 
-		mod_generators.push_back(std::make_unique<SumModGenerator>(list[0], list));
+		SumModGen gen = std::make_shared<SumModGenerator>(list[0], list);
+
+		mods_map.insert(std::make_pair<std::string, SumModGenerator*>(list[0].c_str(), gen.get()));
+
+		mod_generators.push_back(gen);
 	}
 }
 
@@ -167,22 +175,13 @@ bool SumModGenerator::Match(const char *mod, double *output) {
 	return found;
 }
 
-void SumModGenerator::Generate(const rapidjson::Value &json, ModTable *output) {
+void SumModGenerator::Generate(const rapidjson::Value &mod, ModTable *output) {
 	bool mod_present = false;
 	double sum = 0;
-	for (auto &type : { "implicitMods", "explicitMods", "craftedMods" }) {
-		if (!json.HasMember(type) || !json[type].IsArray())
-			continue;
-		for (auto &mod : json[type]) {
-			if (!mod.IsString())
-				continue;
-
-			double result;
-			if (Match(mod.GetString(), &result)) {
-				sum += result;
-				mod_present = true;
-			}
-		}
+	double result;
+	if (Match(mod.GetString(), &result)) {
+		sum += result;
+		mod_present = true;
 	}
 
 	if (mod_present)
