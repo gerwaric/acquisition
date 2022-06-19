@@ -54,7 +54,7 @@ const std::array<Item::CategoryReplaceMap, Item::k_CategoryLevels> Item::replace
 };
 
 const std::vector<std::string> ITEM_MOD_TYPES = {
-    "implicitMods", "enchantMods", "explicitMods", "craftedMods"
+    "implicitMods", "enchantMods", "explicitMods", "craftedMods", "fracturedMods"
 };
 
 static std::string item_unique_properties(const rapidjson::Value& json, const std::string& name) {
@@ -447,7 +447,7 @@ double Item::cDPS() const {
 void Item::GenerateMods(const rapidjson::Value& json) {
     bool mod_present = false;
     double sum = 0;
-    for (auto& type : { "implicitMods", "explicitMods", "craftedMods" }) {
+    for (auto& type : { "implicitMods", "explicitMods", "craftedMods", "fracturedMods"}) {
         if (!json.HasMember(type) || !json[type].IsArray())
             continue;
         for (auto& mod : json[type]) {
