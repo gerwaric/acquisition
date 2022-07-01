@@ -47,6 +47,7 @@ public:
 	static std::string MakeFilename(const std::string &name, const std::string &league);
 private:
 	void CreateTable(const std::string &name, const std::string &fields);
+	void CleanItemsTable();
 
 	std::string filename_;
 	sqlite3 *db_;

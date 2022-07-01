@@ -40,6 +40,8 @@ SqliteDataStore::SqliteDataStore(const std::string &filename) :
 	CreateTable("tabs", "type INT PRIMARY KEY, value BLOB");
 	CreateTable("items", "loc TEXT PRIMARY KEY, value BLOB");
 	CreateTable("currency", "timestamp INTEGER PRIMARY KEY, value TEXT");
+
+	CleanItemsTable();
 }
 
 void SqliteDataStore::CreateTable(const std::string &name, const std::string &fields) {
@@ -49,10 +51,15 @@ void SqliteDataStore::CreateTable(const std::string &name, const std::string &fi
 	}
 }
 
+void SqliteDataStore::CleanItemsTable() {
+	std::string query = "DELETE FROM items WHERE loc IS NULL";
+	sqlite3_exec(db_, query.c_str(), 0, 0, 0);
+}
+
 std::string SqliteDataStore::Get(const std::string &key, const std::string &default_value) {
 	std::string query = "SELECT value FROM data WHERE key = ?";
 	sqlite3_stmt *stmt;
-	sqlite3_prepare(db_, query.c_str(), -1, &stmt, 0);
+	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
 	sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_STATIC);
 	std::string result(default_value);
 	if (sqlite3_step(stmt) == SQLITE_ROW)
@@ -64,7 +71,7 @@ std::string SqliteDataStore::Get(const std::string &key, const std::string &defa
 std::string SqliteDataStore::GetTabs(const ItemLocationType &type, const std::string &default_value) {
 	std::string query = "SELECT value FROM tabs WHERE type = ?";
 	sqlite3_stmt *stmt;
-	sqlite3_prepare(db_, query.c_str(), -1, &stmt, 0);
+	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
 	sqlite3_bind_int(stmt, 1, (int) type);
 	std::string result(default_value);
 	if (sqlite3_step(stmt) == SQLITE_ROW)
@@ -93,7 +100,7 @@ std::string SqliteDataStore::GetItems(const ItemLocation &loc, const std::string
 void SqliteDataStore::Set(const std::string &key, const std::string &value) {
 	std::string query = "INSERT OR REPLACE INTO data (key, value) VALUES (?, ?)";
 	sqlite3_stmt *stmt;
-	sqlite3_prepare(db_, query.c_str(), -1, &stmt, 0);
+	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
 	sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_STATIC);
 	sqlite3_bind_blob(stmt, 2, value.c_str(), value.size(), SQLITE_STATIC);
 	sqlite3_step(stmt);
@@ -103,7 +110,7 @@ void SqliteDataStore::Set(const std::string &key, const std::string &value) {
 void SqliteDataStore::SetTabs(const ItemLocationType &type, const std::string &value) {
 	std::string query = "INSERT OR REPLACE INTO tabs (type, value) VALUES (?, ?)";
 	sqlite3_stmt *stmt;
-	sqlite3_prepare(db_, query.c_str(), -1, &stmt, 0);
+	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
 	sqlite3_bind_int(stmt, 1, (int) type);
 	sqlite3_bind_blob(stmt, 2, value.c_str(), value.size(), SQLITE_STATIC);
 	sqlite3_step(stmt);
@@ -111,9 +118,12 @@ void SqliteDataStore::SetTabs(const ItemLocationType &type, const std::string &v
 }
 
 void SqliteDataStore::SetItems(const ItemLocation &loc, const std::string &value) {
+	if (loc.get_tab_uniq_id().empty())
+		return;
+
 	std::string query = "INSERT OR REPLACE INTO items (loc, value) VALUES (?, ?)";
 	sqlite3_stmt *stmt;
-	sqlite3_prepare(db_, query.c_str(), -1, &stmt, 0);
+	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
 	sqlite3_bind_text(stmt, 1, loc.get_tab_uniq_id().c_str(), -1, SQLITE_STATIC);
 	sqlite3_bind_blob(stmt, 2, value.c_str(), value.size(), SQLITE_STATIC);
 	sqlite3_step(stmt);
@@ -123,7 +133,7 @@ void SqliteDataStore::SetItems(const ItemLocation &loc, const std::string &value
 void SqliteDataStore::InsertCurrencyUpdate(const CurrencyUpdate &update) {
 	std::string query = "INSERT INTO currency (timestamp, value) VALUES (?, ?)";
 	sqlite3_stmt *stmt;
-	sqlite3_prepare(db_, query.c_str(), -1, &stmt, 0);
+	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
 	sqlite3_bind_int64(stmt, 1, update.timestamp);
 	sqlite3_bind_text(stmt, 2, update.value.c_str(), -1, SQLITE_STATIC);
 	sqlite3_step(stmt);
@@ -133,7 +143,7 @@ void SqliteDataStore::InsertCurrencyUpdate(const CurrencyUpdate &update) {
 std::vector<CurrencyUpdate> SqliteDataStore::GetAllCurrency() {
 	std::string query = "SELECT timestamp, value FROM currency ORDER BY timestamp ASC";
 	sqlite3_stmt* stmt;
-	sqlite3_prepare(db_, query.c_str(), -1, &stmt, 0);
+	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
 	std::vector<CurrencyUpdate> result;
 	while (sqlite3_step(stmt) == SQLITE_ROW) {
 		CurrencyUpdate update = CurrencyUpdate();
