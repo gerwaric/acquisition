@@ -43,6 +43,8 @@ SqliteDataStore::SqliteDataStore(const std::string &filename) :
 	CreateTable("currency", "timestamp INTEGER PRIMARY KEY, value TEXT");
 
 	CleanItemsTable();
+
+	sqlite3_exec(db_, "VACUUM", 0, 0, 0);
 }
 
 void SqliteDataStore::CreateTable(const std::string &name, const std::string &fields) {
