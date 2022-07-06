@@ -28,6 +28,11 @@ class Application;
 struct CurrencyUpdate;
 struct sqlite3;
 
+struct blob_info {
+	byte* info;
+	int len;
+};
+
 class SqliteDataStore : public DataStore {
 public:
 	SqliteDataStore(const std::string &filename_);

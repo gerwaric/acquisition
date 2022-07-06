@@ -32,10 +32,12 @@
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include <sstream>
+#include <iomanip>
 
 #include "buyoutmanager.h"
 #include "porting.h"
 #include <boost/algorithm/string/join.hpp>
+#include <boost/algorithm/string.hpp>
 #include <QMetaEnum>
 
 std::string Util::Md5(const std::string &value) {
@@ -236,6 +238,20 @@ QColor Util::recommendedForegroundTextColor(const QColor& backgroundColor){
 			+ 0.0722 * pow(B, gamma);
 
 	return ( L > 0.5 ) ? QColor(QColorConstants::Black) : QColor(QColorConstants::White);
+}
+
+std::string Util::hexStr(const uint8_t* data, int len)
+{
+	std::stringstream ss;
+	ss << std::hex;
+
+	for (int i(0); i < len; ++i)
+		ss << std::setw(2) << std::setfill('0') << (int)data[i];
+
+	std::string temp = ss.str();
+	boost::to_upper(temp);
+
+	return temp;
 }
 
 QDebug &operator<<(QDebug &os, const RefreshReason::Type &obj)

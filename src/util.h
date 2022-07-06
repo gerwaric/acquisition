@@ -93,6 +93,7 @@ std::string StringReplace(const std::string &haystack, const std::string &needle
 std::string StringJoin(const std::vector<std::string> &array, const std::string &separator);
 std::vector<std::string> StringSplit(const std::string &str, char delim);
 QColor recommendedForegroundTextColor(const QColor& backgroundColor);
+std::string hexStr(const uint8_t* data, int len);
 
 /*
 	Example usage:

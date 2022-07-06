@@ -26,6 +26,7 @@
 #include <stdexcept>
 
 #include "currencymanager.h"
+#include "util.h"
 
 SqliteDataStore::SqliteDataStore(const std::string &filename) :
 	filename_(filename)
@@ -54,6 +55,85 @@ void SqliteDataStore::CreateTable(const std::string &name, const std::string &fi
 void SqliteDataStore::CleanItemsTable() {
 	std::string query = "DELETE FROM items WHERE loc IS NULL";
 	sqlite3_exec(db_, query.c_str(), 0, 0, 0);
+
+	//If tabs table contains two records which are not empty or NULL (i.e. type column is equal to 0 or 1 for the two records)
+	//  * check all "db.items" record keys against 'id' or 'name' values in the "db.tabs" data,
+	//    remove record from 'items' if not anywhere in either 'tabs' record.
+	std::string stashTabData = GetTabs(ItemLocationType::STASH, "NOT FOUND");
+	std::string charsData = GetTabs(ItemLocationType::CHARACTER, "NOT FOUND");
+
+	if (stashTabData.compare("NOT FOUND") != 0 && charsData.compare("NOT FOUND") != 0) {
+		std::vector<std::string> locs;
+		std::vector<blob_info> locs_byte;
+
+		query = "SELECT loc FROM items";
+		sqlite3_stmt* stmt;
+		auto prepareResults = sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, NULL);
+		while (sqlite3_step(stmt) == SQLITE_ROW) {
+			int value_type = sqlite3_column_type(stmt, 0);
+			std::string locStr(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0)));
+			locs.push_back(locStr);
+
+			blob_info blobI;
+			blobI.len = sqlite3_column_bytes(stmt, 0);
+			blobI.info = (byte*) malloc(blobI.len);
+			memcpy(blobI.info, (byte*)sqlite3_column_blob(stmt, 0), blobI.len);
+			
+			locs_byte.push_back(blobI);
+		}
+		sqlite3_finalize(stmt);
+
+		for (int i = 0; i < locs.size(); i++) {
+			const std::string loc = locs[i];
+			const blob_info loc_blob = locs_byte[i];
+
+			rapidjson::Document doc;
+			bool foundLoc = false;
+
+			//check stash tabs
+			doc.Parse(stashTabData.c_str());
+			for (const rapidjson::Value const *tab = doc.Begin(); tab != doc.End(); ++tab) {
+				if (tab->HasMember("id") && (*tab)["id"].IsString()) {
+					std::string tabLoc((*tab)["id"].GetString());
+					if (tabLoc.compare(loc) == 0) {
+						foundLoc = true;
+						break;
+					}
+				}
+			}
+
+			//check character tabs
+			if (!foundLoc) {
+				doc.Parse(charsData.c_str());
+				for (const rapidjson::Value const* tab = doc.Begin(); tab != doc.End(); ++tab) {
+					if (tab->HasMember("name") && (*tab)["name"].IsString()) {
+						std::string tabLoc((*tab)["name"].GetString());
+						if (tabLoc.compare(loc) == 0) {
+							foundLoc = true;
+							break;
+						}
+					}
+				}
+			}
+
+			//loc not found in either tab storage, delete record from 'items'
+			if (!foundLoc) {
+				query = "DELETE FROM items WHERE hex(loc) = ?";
+				sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
+				sqlite3_bind_text(stmt, 1, Util::hexStr(loc_blob.info, loc_blob.len).c_str(), -1, SQLITE_TRANSIENT);
+
+				std::string sqlQry(sqlite3_sql(stmt));
+				std::string sqlExtQry(sqlite3_expanded_sql(stmt));
+
+				sqlite3_step(stmt);
+				sqlite3_finalize(stmt);
+			}
+		}
+
+		for (blob_info b : locs_byte) {
+			free(b.info);
+		}
+	}
 }
 
 std::string SqliteDataStore::Get(const std::string &key, const std::string &default_value) {
