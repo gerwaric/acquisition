@@ -35,6 +35,7 @@
 #include "util.h"
 #include "mainwindow.h"
 #include "replytimeout.h"
+#include "network_info.h"
 
 const std::string kPoeEditThread = "https://www.pathofexile.com/forum/edit-thread/";
 const std::string kShopTemplateItems = "[items]";
@@ -179,7 +180,7 @@ void Shop::SubmitSingleShop() {
 	} else {
 		// first, get to the edit-thread page to grab CSRF token
 		QNetworkRequest request = QNetworkRequest(QUrl(ShopEditUrl(requests_completed_).c_str()));
-		request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
+		request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 		QNetworkReply *fetched = app_.logged_in_nm().get(request);
 		new QReplyTimeout(fetched, kEditThreadTimeout);
 		connect(fetched, SIGNAL(finished()), this, SLOT(OnEditPageFinished()));
@@ -220,7 +221,7 @@ void Shop::OnEditPageFinished() {
 	QByteArray data(query.query().toUtf8());
 	QNetworkRequest request((QUrl(ShopEditUrl(requests_completed_).c_str())));
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
+	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	QNetworkReply *submitted = app_.logged_in_nm().post(request, data);
 	new QReplyTimeout(submitted, kEditThreadTimeout);
 	connect(submitted, SIGNAL(finished()), this, SLOT(OnShopSubmitted()));
@@ -239,7 +240,7 @@ void Shop::OnShopSubmitted() {
 
 	// now let's hope that shop was submitted successfully and notify poe.trade
 	QNetworkRequest request(QUrl(("http://verify.poe.trade/" + threads_[requests_completed_] + "/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").c_str()));
-	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
+	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	app_.logged_in_nm().get(request);
 
 	++requests_completed_;

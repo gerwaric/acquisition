@@ -47,6 +47,7 @@
 #include "steamlogindialog.h"
 #include "util.h"
 #include "version.h"
+#include "network_info.h"
 
 #include "openssl/aes.h"
 
@@ -129,7 +130,7 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 	});
 
 	QNetworkRequest leagues_request = QNetworkRequest(QUrl(QString(POE_LEAGUE_LIST_URL)));
-	leagues_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
+	leagues_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	QNetworkReply *leagues_reply = login_manager_->get(leagues_request);
 
 	connect(leagues_reply, &QNetworkReply::errorOccurred, this, &LoginDialog::errorOccurred);
@@ -247,7 +248,7 @@ void LoginDialog::OnLoginPageFinished() {
 	QByteArray data(query.query().toUtf8());
 	QNetworkRequest request(url);
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
+	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	QNetworkReply *logged_in = login_manager_->post(request, data);
 	connect(logged_in, SIGNAL(finished()), this, SLOT(OnLoggedIn()));
 }
@@ -260,7 +261,7 @@ void LoginDialog::FinishLogin(QNetworkReply *reply) {
 
 	// we need one more request to get account name
 	QNetworkRequest main_page_request = QNetworkRequest(QUrl(POE_MY_ACCOUNT));
-	main_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
+	main_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	QNetworkReply *main_page = login_manager_->get(main_page_request);
 	connect(main_page, SIGNAL(finished()), this, SLOT(OnMainPageFinished()));
 }
@@ -310,7 +311,7 @@ void LoginDialog::LoginWithCookie(const QString &cookie) {
 	login_manager_->cookieJar()->insertCookie(poeCookie);
 
 	QNetworkRequest login_page_request = QNetworkRequest(QUrl(POE_LOGIN_CHECK_URL));
-	login_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
+	login_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	QNetworkReply *login_page = login_manager_->get(login_page_request);
 	connect(login_page, SIGNAL(finished()), this, SLOT(LoggedInCheck()));
 }

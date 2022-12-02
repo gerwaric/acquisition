@@ -36,6 +36,7 @@
 #include <QFile>
 
 #include "filesystem.h"
+#include "network_info.h"
 
 extern const char* POE_COOKIE_NAME;
 
@@ -85,7 +86,7 @@ void SteamLoginDialog::Init() {
 	QByteArray data("x=0&y=0");
 	QNetworkRequest request(QUrl("https://www.pathofexile.com/login/steam"));
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
+	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	QNetworkReply *reply = network_manager_.post(request, data);
 
 	auto conn = std::shared_ptr<QMetaObject::Connection>(new QMetaObject::Connection());

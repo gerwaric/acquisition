@@ -41,6 +41,7 @@
 #include "buyoutmanager.h"
 #include "filesystem.h"
 #include "modlist.h"
+#include "network_info.h"
 
 const char *kStashItemsUrl = "https://www.pathofexile.com/character-window/get-stash-items";
 const char *kCharacterItemsUrl = "https://www.pathofexile.com/character-window/get-items";
@@ -314,7 +315,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 
 	// first, download the main page because it's the only way to know which character is selected
 	QNetworkRequest main_page_request = Request(QUrl(kMainPage), ItemLocation(), TabCache::Refresh);
-	main_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
+	main_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	QNetworkReply *main_page = network_manager_.get(main_page_request);
 	connect(main_page, &QNetworkReply::finished, this, &ItemsManagerWorker::OnMainPageReceived);
 }
@@ -335,7 +336,7 @@ void ItemsManagerWorker::OnMainPageReceived() {
 
 	// now get character list
 	QNetworkRequest characters_request = Request(QUrl(kGetCharactersUrl), ItemLocation(), TabCache::Refresh);
-	characters_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
+	characters_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	QNetworkReply *characters = network_manager_.get(characters_request);
 	connect(characters, &QNetworkReply::finished, this, &ItemsManagerWorker::OnCharacterListReceived);
 
@@ -455,7 +456,7 @@ QNetworkRequest ItemsManagerWorker::MakeTabRequest(int tab_index, const ItemLoca
 	TabCache::Flags flags = (refresh) ? TabCache::Refresh : TabCache::None;
 
 	QNetworkRequest tab_request = Request(url, location, flags);
-	tab_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
+	tab_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	return tab_request;
 }
 
@@ -515,7 +516,7 @@ void ItemsManagerWorker::FetchItems(int limit) {
 		queue_.pop();
 
 		QNetworkRequest fetch_request = request.network_request;
-		fetch_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
+		fetch_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 		QNetworkReply *fetched = network_manager_.get(fetch_request);
 		signal_mapper_->setMapping(fetched, request.id);
 		connect(fetched, SIGNAL(finished()), signal_mapper_, SLOT(map()));

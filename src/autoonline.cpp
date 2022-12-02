@@ -30,6 +30,7 @@
 #include "QsLog.h"
 #include "datastore.h"
 #include "version.h"
+#include "network_info.h"
 
 namespace {
 
@@ -120,7 +121,7 @@ void AutoOnline::SendOnlineUpdate(bool online) {
 	QNetworkRequest request(QUrl(url.c_str()));
 	QByteArray data;
 	request.setHeader(QNetworkRequest::UserAgentHeader, (std::string("Acquisition ") + VERSION_NAME).c_str());
-	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
+	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	nm_.post(request, data);
 }
 

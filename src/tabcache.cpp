@@ -1,5 +1,6 @@
 #include "tabcache.h"
 #include "QsLog.h"
+#include "network_info.h"
 
 #include <QDir>
 #include <QDateTime>
@@ -71,7 +72,7 @@ QNetworkRequest TabCache::Request(const QUrl &url, Flags flags) {
 	// tell the 'real' request to prefer but not require the entry be in the cache.
 	// If it is not in the cache it will be fetched from the network regardless.
 	request.setAttribute(QNetworkRequest::CacheSaveControlAttribute, QNetworkRequest::PreferCache);
-	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
+	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	QLOG_DEBUG() << "Evicted:" << evicted << ":" << url.toDisplayString();
 
 	return request;

@@ -58,6 +58,7 @@
 #include "shop.h"
 #include "util.h"
 #include "verticalscrollarea.h"
+#include "network_info.h"
 
 const std::string POE_WEBCDN = "http://webcdn.pathofexile.com"; // Should be updated to https://web.poecdn.com ?
 
@@ -697,7 +698,7 @@ void MainWindow::UpdateCurrentItem() {
 		icon = POE_WEBCDN + icon;
 	if (!image_cache_->Exists(icon)){
 		QNetworkRequest request = QNetworkRequest(QUrl(icon.c_str()));
-		request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
+		request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 		image_network_manager_->get(request);
 	} else
 		ui->imageLabel->setPixmap(GenerateItemIcon(*current_item_, image_cache_->Get(icon)));
@@ -935,7 +936,7 @@ void MainWindow::on_uploadTooltipButton_clicked() {
 	QNetworkRequest request(QUrl("https://api.imgur.com/3/upload/"));
 	request.setRawHeader("Authorization", "Client-ID d6d2d8a0437a90f");
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
+	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	QByteArray data = "image=" + QUrl::toPercentEncoding(bytes.toBase64());
 	QNetworkReply *reply = network_manager_->post(request, data);
 	new QReplyTimeout(reply, kImgurUploadTimeout);

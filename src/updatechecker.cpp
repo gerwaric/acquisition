@@ -26,6 +26,7 @@
 #include <QUrl>
 
 #include "version.h"
+#include "network_info.h"
 
 // Check for updates every hour
 const int kUpdateCheckInterval = 60 * 60 * 1000;
@@ -39,7 +40,7 @@ UpdateChecker::UpdateChecker() {
 
 void UpdateChecker::CheckForUpdates() {
 	QNetworkRequest request = QNetworkRequest(QUrl(UPDATE_CHECK_URL));
-	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, "Acquisition");
+	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	QNetworkReply *version_check = nm_.get(request);
 	connect(version_check, &QNetworkReply::finished, this, &UpdateChecker::OnUpdateCheckCompleted);
 }
