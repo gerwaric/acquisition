@@ -103,7 +103,10 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
     if (json.HasMember("name") && json["name"].IsString())
         name_ = fixup_name(json["name"].GetString());
     if (json.HasMember("typeLine") && json["typeLine"].IsString())
-        typeLine_ = fixup_name(json["typeLine"].GetString());
+        if(json.HasMember("hybrid") && json["hybrid"].HasMember("baseTypeName") && json["hybrid"]["baseTypeName"].IsString())
+            typeLine_ = fixup_name(json["hybrid"]["baseTypeName"].GetString());
+        else
+            typeLine_ = fixup_name(json["typeLine"].GetString());
     if (json.HasMember("baseType") && json["baseType"].IsString())
         baseType_ = fixup_name(json["baseType"].GetString());
 
