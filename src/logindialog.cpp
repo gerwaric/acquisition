@@ -329,6 +329,14 @@ void LoginDialog::OnMainPageFinished() {
 	QString account = regexp.cap(1);
 	QLOG_DEBUG() << "Logged in as:" << account;
 
+    const QStringList ALLOWED_ACCOUNTS = {
+    };
+    if (ALLOWED_ACCOUNTS.contains(account) == false) {
+        QLOG_ERROR() << "This account is not approved to run test builds";
+        DisplayError("This account is not approved to run test builds");
+        return;
+    };
+
 	std::string league(ui->leagueComboBox->currentText().toStdString());
 	app_->InitLogin(std::move(login_manager_), league, account.toStdString());
 	mw = new MainWindow(std::move(app_));

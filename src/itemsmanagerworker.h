@@ -27,6 +27,7 @@
 #include "util.h"
 #include "item.h"
 #include "mainwindow.h"
+#include "ratelimit.h"
 
 class Application;
 class DataStore;
@@ -36,8 +37,8 @@ class QTimer;
 class BuyoutManager;
 class TabCache;
 
-const int kThrottleRequests = 45;
-const int kThrottleSleep = 60;
+const int kThrottleRequests = 1000000;
+const int kThrottleSleep = 1;
 const int kMaxCacheSize = (1000*1024*1024); // 1GB
 
 struct ItemsRequest {
@@ -63,10 +64,10 @@ public slots:
 	void ParseItemMods();
 	void Update(TabSelection::Type type, const std::vector<ItemLocation> &tab_names = std::vector<ItemLocation>());
 public slots:
-	void OnMainPageReceived();
-	void OnCharacterListReceived();
-	void OnFirstTabReceived();
-	void OnTabReceived(int index);
+	void OnMainPageReceived(QNetworkReply* reply);
+	void OnCharacterListReceived(QNetworkReply* reply);
+	void OnFirstTabReceived(QNetworkReply* reply);
+	void OnTabReceived(QNetworkReply* reply, int index, ItemLocation location);
 	/*
 	* Makes 45 requests at once, should be called every minute.
 	* These values are approximated (GGG throttles requests)
@@ -76,9 +77,9 @@ public slots:
 	void PreserveSelectedCharacter();
 	void Init();
 
-	void OnStatTranslationsReceived();
-	void OnItemClassesReceived();
-	void OnItemBaseTypesReceived();
+	void OnStatTranslationsReceived(QNetworkReply* reply);
+	void OnItemClassesReceived(QNetworkReply* reply);
+	void OnItemBaseTypesReceived(QNetworkReply* reply);
 signals:
 	void ItemsRefreshed(const Items &items, const std::vector<ItemLocation> &tabs, bool initial_refresh);
 	void StatusUpdate(const CurrentStatusUpdate &status);
@@ -97,7 +98,6 @@ private:
 	QNetworkRequest Request(QUrl url, const ItemLocation &location, TabCache::Flags flags = TabCache::None);
 	DataStore &data_;
 	QNetworkAccessManager network_manager_;
-	QSignalMapper *signal_mapper_;
 	std::vector<ItemLocation> tabs_;
 	std::queue<ItemsRequest> queue_;
 	std::map<int, ItemsReply> replies_;
@@ -128,4 +128,8 @@ private:
 	std::string account_name_;
 	TabSelection::Type tab_selection_;
 	std::set<std::string> selected_tabs_;
+
+    RateLimit::RateLimiter& rate_limiter_;
+
+    void ItemsManagerWorker::CheckForViolation(QNetworkReply* reply);
 };

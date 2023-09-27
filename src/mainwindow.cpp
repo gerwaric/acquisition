@@ -52,6 +52,7 @@
 #include "itemsmanager.h"
 #include "logpanel.h"
 #include "modsfilter.h"
+#include "ratelimitpanel.h"
 #include "replytimeout.h"
 #include "search.h"
 #include "selfdestructingreply.h"
@@ -81,9 +82,12 @@ MainWindow::MainWindow(std::unique_ptr<Application> app):
 	image_cache_ = new ImageCache(Filesystem::UserDir() + "/cache");
 
 	InitializeUi();
-	InitializeLogging();
+    InitializeRateLimitPanel();
+    InitializeLogging();
 	InitializeSearchForm();
 	NewSearch();
+
+
 
 	image_network_manager_ = new QNetworkAccessManager;
 	connect(image_network_manager_, SIGNAL(finished(QNetworkReply*)),
@@ -106,8 +110,13 @@ MainWindow::MainWindow(std::unique_ptr<Application> app):
 
 }
 
+void MainWindow::InitializeRateLimitPanel() {
+    RateLimitPanel* rate_panel = new RateLimitPanel(this, ui);
+    connect(&app_->rate_limiter(), &RateLimit::RateLimiter::StatusUpdate, rate_panel, &RateLimitPanel::OnStatusUpdate);
+}
+
 void MainWindow::InitializeLogging() {
-	LogPanel *log_panel = new LogPanel(this, ui);
+    LogPanel *log_panel = new LogPanel(this, ui);
 	QsLogging::DestinationPtr log_panel_ptr(log_panel);
 	QsLogging::Logger::instance().addDestination(log_panel_ptr);
 
@@ -160,7 +169,7 @@ void MainWindow::InitializeUi() {
 	ui->buyoutValueLineEdit->setEnabled(false);
 	ui->buyoutCurrencyComboBox->setEnabled(false);
 
-	ui->actionAutomatically_refresh_items->setChecked(app_->items_manager().auto_update());
+	//ui->actionAutomatically_refresh_items->setChecked(app_->items_manager().auto_update());
 	UpdateShopMenu();
 
 	search_form_layout_ = new QVBoxLayout;
@@ -404,6 +413,18 @@ void MainWindow::OnStatusUpdate(const CurrentStatusUpdate &status) {
 		break;
 	case ProgramState::ItemsRetrieved:
 		title = QString("Parsing item mods in tabs, %1/%2").arg(status.progress).arg(status.total);
+		break;
+	case ProgramState::RateLimitPause:
+	case ProgramState::RateLimitViolation:
+		{
+			title = status_bar_label_->text();
+			const qsizetype ratelimit_loc = title.indexOf(" ... RATE LIMIT ");
+			if (ratelimit_loc >= 0)
+			{
+				title.truncate(ratelimit_loc);
+			};
+			title.append(" ... RATE LIMIT " + status.message);
+		};
 		break;
 	default:
 		title = "Unknown";

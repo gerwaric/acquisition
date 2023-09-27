@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <QtGlobal>
 #include <QColor>
 #include <string>
 #include <QVariant>
@@ -44,28 +45,28 @@ public:
 	std::string name() const;
 	QVariant value(const Item &item) const;
 	QColor color(const Item &item) const;
-	QVariant icon(const Item &item) const {return NULL;}
+    QVariant icon(const Item& item) const { Q_UNUSED(item); return NULL; }
 };
 
 class CorruptedColumn : public Column {
 public:
 	std::string name() const;
 	QVariant value(const Item &item) const;
-	QVariant icon(const Item &item) const {return NULL;}
+	QVariant icon(const Item &item) const { Q_UNUSED(item); return NULL;}
 };
 
 class CraftedColumn : public Column {
 public:
 	std::string name() const;
 	QVariant value(const Item &item) const;
-	QVariant icon(const Item &item) const {return NULL;}
+	QVariant icon(const Item &item) const { Q_UNUSED(item); return NULL;}
 };
 
 class EnchantedColumn : public Column {
 public:
 	std::string name() const;
 	QVariant value(const Item &item) const;
-	QVariant icon(const Item &item) const {return NULL;}
+	QVariant icon(const Item &item) const { Q_UNUSED(item); return NULL;}
 };
 
 class InfluncedColumn : public Column {
@@ -82,7 +83,7 @@ public:
 	PropertyColumn(const std::string &name, const std::string &property);
 	std::string name() const;
 	QVariant value(const Item &item) const;
-	QVariant icon(const Item &item) const {return NULL;}
+	QVariant icon(const Item &item) const { Q_UNUSED(item); return NULL;}
 private:
 	std::string name_;
 	std::string property_;
@@ -92,21 +93,21 @@ class DPSColumn : public Column {
 public:
 	std::string name() const;
 	QVariant value(const Item &item) const;
-	QVariant icon(const Item &item) const {return NULL;}
+	QVariant icon(const Item &item) const { Q_UNUSED(item); return NULL;}
 };
 
 class pDPSColumn : public Column {
 public:
 	std::string name() const;
 	QVariant value(const Item &item) const;
-	QVariant icon(const Item &item) const {return NULL;}
+	QVariant icon(const Item &item) const { Q_UNUSED(item); return NULL;}
 };
 
 class eDPSColumn : public Column {
 public:
 	std::string name() const;
 	QVariant value(const Item &item) const;
-	QVariant icon(const Item &item) const {return NULL;}
+	QVariant icon(const Item &item) const { Q_UNUSED(item); return NULL;}
 };
 
 class ElementalDamageColumn : public Column {
@@ -115,7 +116,7 @@ public:
 	std::string name() const;
 	QVariant value(const Item &item) const;
 	QColor color(const Item &item) const;
-	QVariant icon(const Item &item) const {return NULL;}
+	QVariant icon(const Item &item) const { Q_UNUSED(item); return NULL;}
 private:
 	size_t index_;
 };
@@ -125,14 +126,14 @@ public:
 	std::string name() const;
 	QVariant value(const Item &item) const;
 	QColor color(const Item &item) const;
-	QVariant icon(const Item &item) const {return NULL;}
+	QVariant icon(const Item &item) const { Q_UNUSED(item); return NULL;}
 };
 
 class cDPSColumn : public Column {
 public:
 	std::string name() const;
 	QVariant value(const Item &item) const;
-	QVariant icon(const Item &item) const {return NULL;}
+	QVariant icon(const Item &item) const { Q_UNUSED(item); return NULL;}
 };
 
 class PriceColumn : public Column {
@@ -142,7 +143,7 @@ public:
 	QVariant value(const Item &item) const;
 	QColor color(const Item &item) const;
 	bool lt(const Item *lhs, const Item *rhs) const;
-	QVariant icon(const Item &item) const {return NULL;}
+	QVariant icon(const Item &item) const { Q_UNUSED(item); return NULL;}
 private:
 	std::tuple<int, double, const Item&> multivalue(const Item *item) const;
 	const BuyoutManager &bo_manager_;
@@ -154,7 +155,7 @@ public:
 	std::string name() const;
 	QVariant value(const Item &item) const;
 	bool lt(const Item *lhs, const Item *rhs) const;
-	QVariant icon(const Item &item) const {return NULL;}
+	QVariant icon(const Item &item) const { Q_UNUSED(item); return NULL;}
 private:
 	const BuyoutManager &bo_manager_;
 };
@@ -163,5 +164,5 @@ class ItemlevelColumn : public Column {
 public:
 	std::string name() const;
 	QVariant value(const Item &item) const;
-	QVariant icon(const Item &item) const {return NULL;}
+	QVariant icon(const Item &item) const { Q_UNUSED(item); return NULL;}
 };

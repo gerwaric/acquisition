@@ -71,12 +71,15 @@ enum class ProgramState {
 	ShopSubmitting,
 	ShopCompleted,
 	UpdateCancelled,
-	ItemsRetrieved
+	ItemsRetrieved,
+	RateLimitPause,
+	RateLimitViolation
 };
 
 struct CurrentStatusUpdate {
 	ProgramState state;
 	int progress{}, total{}, cached{};
+	QString message;
 };
 
 class MainWindow : public QMainWindow {
@@ -133,6 +136,7 @@ private:
 	void UpdateCurrentBuyout();
 	void NewSearch();
 	void SetCurrentSearch(Search *search);
+    void InitializeRateLimitPanel();
 	void InitializeLogging();
 	void InitializeSearchForm();
 	void InitializeUi();

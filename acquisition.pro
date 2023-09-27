@@ -57,7 +57,9 @@ SOURCES += \
 	src/modlist.cpp \
 	src/modsfilter.cpp \
 	src/porting.cpp \
-	src/replytimeout.cpp \
+        src/ratelimit.cpp \
+        src/ratelimitpanel.cpp \
+        src/replytimeout.cpp \
 	src/search.cpp \
 	src/shop.cpp \
 	src/steamlogindialog.cpp \
@@ -75,6 +77,7 @@ SOURCES += \
 
 HEADERS += \
 	deps/sqlite/sqlite3.h \
+    network_info.h \
 	src/application.h \
 	src/autoonline.h \
 	src/bucket.h \
@@ -104,7 +107,9 @@ HEADERS += \
 	src/modlist.h \
 	src/modsfilter.h \
 	src/porting.h \
-	src/rapidjson_util.h \
+        src/ratelimit.h \
+        src/ratelimitpanel.h \
+        src/rapidjson_util.h \
 	src/replytimeout.h \
 	src/search.h \
 	src/selfdestructingreply.h \

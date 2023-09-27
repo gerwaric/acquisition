@@ -31,6 +31,7 @@
 #include "shop.h"
 #include "QsLog.h"
 #include "version.h"
+#include "ratelimit.h"
 
 Application::Application() {}
 
@@ -55,13 +56,23 @@ void Application::InitLogin(std::unique_ptr<QNetworkAccessManager> login_manager
 		sensitive_data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/sensitive_data/" + data_file);
 		SaveDbOnNewVersion();
 	}
-	buyout_manager_ = std::make_unique<BuyoutManager>(*data_);
+
+    // Initialize the rate limiter here. Other parts of acquisition will use different
+    // QNetworkAccessManager objects, which will be passed to the rate_limiter's Submit()
+    // method. However, rate limits are only tied to account and ip as of September 2023,
+    // so we don't need to keep track of which access manager is sending which requests
+    // as long as they are all logged into the same account, which is assumed.
+    //
+    // WARNING: Breaking the above assumption may lead to rate limit violations.
+    rate_limiter_ = std::make_unique<RateLimit::RateLimiter>(*logged_in_nm_);
+
+    buyout_manager_ = std::make_unique<BuyoutManager>(*data_);
 	shop_ = std::make_unique<Shop>(*this);
 	items_manager_ = std::make_unique<ItemsManager>(*this);
 	currency_manager_ = std::make_unique<CurrencyManager>(*this);
 	connect(items_manager_.get(), &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
 	items_manager_->Start();
-	items_manager_->Update(TabSelection::Checked);
+	//items_manager_->Update(TabSelection::Checked);
 }
 
 void Application::OnItemsRefreshed(bool initial_refresh) {
@@ -69,6 +80,14 @@ void Application::OnItemsRefreshed(bool initial_refresh) {
 	shop_->Update();
 	if (!initial_refresh && shop_->auto_update())
 		shop_->SubmitShopToForum();
+}
+
+void Application::FatalError(const QString message) {
+    QLOG_ERROR() << "FATAL ERROR:" << message;
+    QMessageBox msgbox;
+    msgbox.setText("FATAL ERROR:\n\n" + message);
+    msgbox.exec();
+    QCoreApplication::exit(EXIT_FAILURE);
 }
 
 void Application::SaveDbOnNewVersion() {
