@@ -28,7 +28,6 @@
 #include "currencymanager.h"
 #include "itemsmanager.h"
 #include "item.h"
-#include "porting.h"
 #include "util.h"
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"

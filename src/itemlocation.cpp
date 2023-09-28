@@ -2,6 +2,8 @@
 
 #include <QString>
 
+#include <boost/algorithm/string/predicate.hpp>
+
 #include "rapidjson_util.h"
 #include "util.h"
 
@@ -9,7 +11,8 @@ ItemLocation::ItemLocation():
 	//x_(0), y_(0), w_(0), h_(0), red_(0), green_(0), blue_(0),
 	x_(0), y_(0), w_(0), h_(0),
 	socketed_(false),
-	type_(ItemLocationType::STASH)
+	type_(ItemLocationType::STASH),
+    remove_only_(false)
 {}
 
 ItemLocation::ItemLocation(const rapidjson::Value &root):
@@ -25,10 +28,13 @@ ItemLocation::ItemLocation(int tab_id, std::string tab_unique_id, std::string na
 {
 	type_ = type;
 	tab_id_ = tab_id;
-	if (type_ == ItemLocationType::STASH)
-		tab_label_ = name;
-	else
-		character_ = name;
+    if (type_ == ItemLocationType::STASH) {
+        tab_label_ = name;
+        remove_only_ = boost::algorithm::ends_with(tab_label_, "(Remove-only)");
+    }
+    else {
+        character_ = name;
+    };
 	//r_ = r;
 	//g_ = g;
 	//b_ = b;

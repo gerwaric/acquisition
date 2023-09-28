@@ -17,9 +17,6 @@
 	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-// Add file name and line number to the logging outputs.
-#define QS_LOG_LINE_NUMBERS
-
 #include "logindialog.h"
 
 #include <QApplication>

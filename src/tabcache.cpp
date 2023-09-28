@@ -4,6 +4,7 @@
 
 #include <QDir>
 #include <QDateTime>
+#include <QUrl>
 
 // TabCache
 //
@@ -71,8 +72,10 @@ QNetworkRequest TabCache::Request(const QUrl &url, Flags flags) {
 	// At this point we've evicted any request that should be refreshed, so we always
 	// tell the 'real' request to prefer but not require the entry be in the cache.
 	// If it is not in the cache it will be fetched from the network regardless.
+    request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::PreferCache);
 	request.setAttribute(QNetworkRequest::CacheSaveControlAttribute, QNetworkRequest::PreferCache);
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+    request.setRawHeader("Cache-Control", "max-age=3600");
 	QLOG_DEBUG() << "Evicted:" << evicted << ":" << url.toDisplayString();
 
 	return request;
@@ -90,7 +93,7 @@ QIODevice *TabCache::prepare(const QNetworkCacheMetaData &metaData) {
 
 	// Need to set some reasonable length of time in which our cache entries
 	// will expire.  It's possible we'll want to allow users to customize this.
-	local.setExpirationDate(QDateTime().currentDateTime().addDays(kCacheExpireInDays));
+	local.setExpirationDate(QDateTime::currentDateTime().addDays(kCacheExpireInDays));
 
 	QNetworkCacheMetaData::RawHeaderList headers;
 
@@ -102,6 +105,13 @@ QIODevice *TabCache::prepare(const QNetworkCacheMetaData &metaData) {
 
 		if (header.first == "Cache-Control") continue;
 		if (header.first == "Pragma") continue;
+
+        // GGG has switched to Cloudflare, so we need to remove these headers now.
+        if (header.first == "CF-Cache-Status") continue;
+        if (header.first == "CF-RAY") continue;
+
+        // Remove rate limiting information from the metadata since it will be stale.
+        if (header.first.startsWith("X-Rate-Limit")) continue;
 
 		headers.push_back(header);
 	}

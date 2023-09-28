@@ -19,52 +19,38 @@
 
 #include "ratelimitpanel.h"
 
-#include <QObject>
-#include <QPushButton>
-#include <QTextEdit>
-
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
-RateLimitPanel::RateLimitPanel(MainWindow *window, Ui::MainWindow *ui):
+RateLimitStatusPanel::RateLimitStatusPanel(MainWindow *window, Ui::MainWindow *ui):
 	status_button_(new QPushButton),
-	output_(new QTextEdit),
-	signal_handler_(*this)
+	output_(new QTextEdit)
 {
 	QFont font("Monospace");
 	font.setStyleHint(QFont::TypeWriter);
 	output_->setReadOnly(true);
 	output_->setFont(font);
-	output_->setMaximumHeight(250); // TODO(xyz): remove magic numbers
-	output_->insertPlainText("Rate limit status will be displayed here.\n");
+	output_->setMaximumHeight(200); // TODO(xyz): remove magic numbers
+	output_->setText("Rate limit status will be displayed here.\n");
 	output_->hide();
 
 	status_button_->setFlat(true);
+    status_button_->setText("Rate Limit Status");
 	window->statusBar()->addPermanentWidget(status_button_);
-	UpdateStatusLabel();
-	QObject::connect(status_button_, SIGNAL(clicked()), &signal_handler_, SLOT(OnStatusLabelClicked()));
+    QObject::connect(status_button_, SIGNAL(clicked()), this, SLOT(OnStatusLabelClicked()));
 
 	ui->mainLayout->addWidget(output_);
 }
 
-void RateLimitPanel::OnStatusUpdate(const QString message) {
-    output_->setText(message);
-}
-
-void RateLimitPanel::UpdateStatusLabel() {
-	status_button_->setText("Rate Limit Status");
-}
-
-void RateLimitPanel::ToggleOutputVisibility() {
-	if (output_->isVisible()) {
-		output_->hide();
+void RateLimitStatusPanel::OnStatusLabelClicked() {
+    if (output_->isVisible()) {
+        output_->hide();
     }
     else {
         output_->show();
-        UpdateStatusLabel();
     };
 }
 
-void RateLimitPanelSignalHandler::OnStatusLabelClicked() {
-	parent_.ToggleOutputVisibility();
+void RateLimitStatusPanel::OnStatusUpdate(const QString message) {
+    output_->setText(message);
 }

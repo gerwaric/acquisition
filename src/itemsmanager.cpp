@@ -33,6 +33,7 @@
 #include "mainwindow.h"
 #include "filters.h"
 #include "itemcategories.h"
+#include "itemlocation.h"
 
 ItemsManager::ItemsManager(Application &app) :
 	auto_update_timer_(std::make_unique<QTimer>()),
@@ -41,8 +42,8 @@ ItemsManager::ItemsManager(Application &app) :
 	shop_(app.shop()),
 	app_(app)
 {
-	auto_update_interval_ = std::stoi(data_.Get("autoupdate_interval", "30"));
-	auto_update_ = data_.GetBool("autoupdate", true);
+    auto_update_interval_ = std::stoi(data_.Get("autoupdate_interval", "120"));
+    auto_update_ = data_.GetBool("autoupdate", false);
 	SetAutoUpdateInterval(auto_update_interval_);
 	connect(auto_update_timer_.get(), SIGNAL(timeout()), this, SLOT(OnAutoRefreshTimer()));
 }
@@ -119,11 +120,14 @@ void ItemsManager::ApplyAutoTabBuyouts() {
 	// Loop over all tabs, create buyout based on tab name which applies auto-pricing policies
 	auto &bo = app_.buyout_manager();
 	for (auto const &loc: bo_manager_.GetStashTabLocations()) {
-		auto tab_label = loc.get_tab_label();
-		Buyout buyout = bo.StringToBuyout(tab_label);
-		if (buyout.IsActive()) {
-			bo.SetTab(loc.GetUniqueHash(), buyout);
-		}
+        // Don't set buyouts on items in remove-only tabs.           
+        if (loc.IsRemoveOnly() == false) {
+            auto tab_label = loc.get_tab_label();
+            Buyout buyout = bo.StringToBuyout(tab_label);
+            if (buyout.IsActive()) {
+                bo.SetTab(loc.GetUniqueHash(), buyout);
+            }
+        }
 	}
 
 	// Need to compress tab buyouts here, as the tab names change we accumulate and save BO's
@@ -135,16 +139,19 @@ void ItemsManager::ApplyAutoItemBuyouts() {
 	// Loop over all items, check for note field with pricing and apply
 	auto &bo = app_.buyout_manager();
 	for (auto const& item: items_) {
-		auto const &note = item->note();
-		if (!note.empty()) {
-			Buyout buyout = bo.StringToBuyout(note);
-			// This line may look confusing, buyout returns an active buyout if game
-			// pricing was found or a default buyout (inherit) if it was not.
-			// If there is a currently valid note we want to apply OR if
-			// old note no longer is valid (so basically clear pricing)
-			if (buyout.IsActive() || bo.Get(*item).IsGameSet()) {
-				bo.Set(*item, buyout);
-			}
+        // Don't set buyouts on remove-only items.
+        if (item->location().IsRemoveOnly() == false) {
+		    auto const &note = item->note();
+            if (!note.empty()) {
+                Buyout buyout = bo.StringToBuyout(note);
+                // This line may look confusing, buyout returns an active buyout if game
+                // pricing was found or a default buyout (inherit) if it was not.
+                // If there is a currently valid note we want to apply OR if
+                // old note no longer is valid (so basically clear pricing)
+                if (buyout.IsActive() || bo.Get(*item).IsGameSet()) {
+                    bo.Set(*item, buyout);
+                }
+            }
 		}
 	}
 
@@ -159,6 +166,10 @@ void ItemsManager::PropagateTabBuyouts() {
 	bo.ClearRefreshLocks();
 	for (auto &item_ptr : items_) {
 		Item &item = *item_ptr;
+        // Skip items in remove-only tabs.
+        if (item.location().IsRemoveOnly() == true) {
+            continue;
+        };
 		std::string hash = item.location().GetUniqueHash();
 		auto item_bo = bo.Get(item);
 		auto tab_bo = bo.GetTab(hash);

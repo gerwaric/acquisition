@@ -21,12 +21,10 @@
 
 #include <boost/circular_buffer.hpp>
 
-#include <QList>
 #include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QObject>
-#include <QString>
 #include <QTimer>
 
 //--------------------------------------------------------------------------
@@ -109,6 +107,8 @@ namespace RateLimit
         "https://www.pathofexile.com/character-window/get-passive-skills",
         "https://api.pathofexile.com/leagues"};
     
+    static const int BORDERLINE_REQUEST_BUFFER = 2;
+
     // This HTTP status code means there was a rate limit violation.
     static const int RATE_LIMIT_VIOLATION_STATUS = 429;
 
@@ -131,9 +131,6 @@ namespace RateLimit
 
     // Request callback function
     typedef std::function<void(QNetworkReply*)> Callback;
-
-    // The ACTIVE_WAITING state is used to update the status bar. The others aren't used yet.
-    enum class RequestState { CREATED, QUEUED, ACTIVE, WAITING, SENT, REPLIED, DISPATCHED, FINISHED };
 
     struct RateLimitedRequest {
 
@@ -164,6 +161,9 @@ namespace RateLimit
 
         // The HTTP status of the reply.
         int reply_status;
+
+        // True is the reply came from the network cache
+        bool reply_cached;
 
     private:
 
@@ -197,7 +197,7 @@ namespace RateLimit
 
     struct RuleItemData {
         RuleItemData();
-        RuleItemData(int hits_, int period_, int restriction_);
+        RuleItemData(const QByteArray& header_fragment);
         int hits;
         int period;
         int restriction;
@@ -215,8 +215,6 @@ namespace RateLimit
     // more likely to result in unintended consequences.
 
     struct RuleItem {
-        RuleItem();
-        RuleItem(int hits, int period, int restriction);
         RuleItemData limit;
         RuleItemData state;
         operator QString() const;
@@ -224,28 +222,29 @@ namespace RateLimit
 
     struct PolicyRule {
         PolicyRule();
-        PolicyRule(QString name_, std::vector<RuleItem> items_);
+        PolicyRule(const QByteArray& rule_name, QNetworkReply* const reply);
         QString name;
         std::vector<RuleItem> items;
         operator QString() const;
     };
 
-    enum class PolicyState { UNKNOWN, INVALID, OK, BORDERLINE, VIOLATION };
-    static std::map<PolicyState, QString> POLICY_STATE = {
-        {PolicyState::UNKNOWN,    "UNKNOWN"},
-        {PolicyState::INVALID,    "INVALID"},
-        {PolicyState::OK,         "OK"},
-        {PolicyState::BORDERLINE, "BORDERLINE"},
-        {PolicyState::VIOLATION,  "VIOLATION"}};
+    enum class PolicyStatus { UNKNOWN, INVALID, OK, BORDERLINE, VIOLATION };
+    static std::map<PolicyStatus, QString> POLICY_STATE = {
+        {PolicyStatus::UNKNOWN,    "UNKNOWN"},
+        {PolicyStatus::INVALID,    "INVALID"},
+        {PolicyStatus::OK,         "OK"},
+        {PolicyStatus::BORDERLINE, "BORDERLINE"},
+        {PolicyStatus::VIOLATION,  "VIOLATION"}};
 
     struct Policy {
-        Policy(QString name_);
+        Policy(const QString& name_);
         Policy(QNetworkReply* const reply);
         QString name;
-        QDateTime timestamp;
         std::vector<PolicyRule> rules;
-        PolicyState state;
+        PolicyStatus status;
         size_t max_period;
+    private:
+        void CheckStatus();
     };
 
     //=========================================================================================
@@ -361,20 +360,19 @@ namespace RateLimit
 
     private:
 
-
         void DispatchRequest(std::unique_ptr<RateLimitedRequest> request);
-
         void SendInitRequest();
         void ReceiveInitReply();
         void FinishInit();
 
         bool initialized;
-
         QNetworkAccessManager& initial_manager;
         std::vector<QString> initial_endpoints;
         std::vector<QNetworkReply*> initial_replies;
         int initial_replies_received;
 
+        // Save requests that are submitted before the policy managers
+        // have been created.
         std::vector<std::unique_ptr<RateLimitedRequest>> staged_requests;
 
         // One manager for each rate limit policy.
@@ -387,7 +385,6 @@ namespace RateLimit
         QTimer status_updater;
 
         // Called by the timer to emit status updates.
-        void UpdateStatus();
+        void DoStatusUpdate();
     };
-
 }

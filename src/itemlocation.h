@@ -26,6 +26,7 @@ public:
 	std::string GetForumCode(const std::string &league) const;
 	std::string GetUniqueHash() const;
 	bool IsValid() const;
+    bool IsRemoveOnly() const { return remove_only_; };
 	bool operator<(const ItemLocation &other) const;
 	bool operator==(const ItemLocation &other) const;
 	void set_type(const ItemLocationType type) { type_ = type; }
@@ -51,6 +52,7 @@ private:
 	ItemLocationType type_;
 	int tab_id_{0};
 	std::string json_;
+    bool remove_only_;
 
 	//this would be the value "tabs -> id", which seems to be a hashed value generated on their end
 	std::string tab_unique_id_;

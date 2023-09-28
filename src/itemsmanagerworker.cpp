@@ -317,7 +317,11 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 
 	tab_selection_ = type;
 
-	QLOG_DEBUG() <<  "Updating" << tab_selection_ << "stash tabs";
+    switch (tab_selection_) {
+    case TabSelection::Type::All: QLOG_DEBUG() << "Updating all stash tabs"; break;
+    case TabSelection::Type::Checked: QLOG_DEBUG() << "Updating checked stash tabs"; break;
+    case TabSelection::Type::Selected: QLOG_DEBUG() << "Updating selected stash tabs"; break;
+    };
 	updating_ = true;
 
 	cancel_update_ = false;
@@ -336,7 +340,6 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 		[=](QNetworkReply* reply) {
 			OnMainPageReceived(reply);
 		});
-
 }
 
 void ItemsManagerWorker::OnMainPageReceived(QNetworkReply* reply) {
