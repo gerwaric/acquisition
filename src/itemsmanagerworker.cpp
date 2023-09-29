@@ -406,10 +406,10 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 			location.set_tab_id(tabs_.size());
 			tabs_.push_back(location);
 			//Queue request for items on character in character's stash
-			QueueRequest(MakeCharacterRequest(name, location), location);
+			QueueRequest(MakeCharacterRequest(name), location);
 
 			//Queue request for jewels in character's passive tree
-			QueueRequest(MakeCharacterPassivesRequest(name, location), location);
+			QueueRequest(MakeCharacterPassivesRequest(name), location);
 		}
 	}
 	CurrentStatusUpdate status;
@@ -448,7 +448,7 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 		}
 	}
 
-	QNetworkRequest tab_request = MakeTabRequest(tabToReq.get_tab_id(), ItemLocation(), true);
+	QNetworkRequest tab_request = MakeTabRequest(tabToReq.get_tab_id(), true);
 	rate_limiter_.Submit(network_manager_, tab_request,
 		[=](QNetworkReply* reply) {
 			OnFirstTabReceived(reply);
@@ -456,7 +456,7 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 
 }
 
-QNetworkRequest ItemsManagerWorker::MakeTabRequest(int tab_index, const ItemLocation &location, bool tabs) {
+QNetworkRequest ItemsManagerWorker::MakeTabRequest(int tab_index, bool tabs) {
 	QUrlQuery query;
 	query.addQueryItem("league", league_.c_str());
 	query.addQueryItem("tabs", tabs ? "1" : "0");
@@ -470,7 +470,7 @@ QNetworkRequest ItemsManagerWorker::MakeTabRequest(int tab_index, const ItemLoca
 	return tab_request;
 }
 
-QNetworkRequest ItemsManagerWorker::MakeCharacterRequest(const std::string &name, const ItemLocation &location) {
+QNetworkRequest ItemsManagerWorker::MakeCharacterRequest(const std::string &name) {
 	QUrlQuery query;
 	query.addQueryItem("character", name.c_str());
 	query.addQueryItem("accountName", account_name_.c_str());
@@ -481,7 +481,7 @@ QNetworkRequest ItemsManagerWorker::MakeCharacterRequest(const std::string &name
     return QNetworkRequest(url);
 }
 
-QNetworkRequest ItemsManagerWorker::MakeCharacterPassivesRequest(const std::string &name, const ItemLocation &location) {
+QNetworkRequest ItemsManagerWorker::MakeCharacterPassivesRequest(const std::string &name) {
 	QUrlQuery query;
 	query.addQueryItem("character", name.c_str());
 	query.addQueryItem("accountName", account_name_.c_str());
@@ -612,7 +612,7 @@ void ItemsManagerWorker::OnFirstTabReceived(QNetworkReply* reply) {
 
         if (refresh) {
             if (tab.get_type() == ItemLocationType::STASH) {
-                QueueRequest(MakeTabRequest(tab.get_tab_id(), tab, true), tab);
+                QueueRequest(MakeTabRequest(tab.get_tab_id(), true), tab);
             }
         }
 	}
@@ -781,7 +781,7 @@ void ItemsManagerWorker::OnTabReceived(QNetworkReply* network_reply, int request
 void ItemsManagerWorker::PreserveSelectedCharacter() {
 	if (selected_character_.empty())
 		return;
-	QNetworkRequest character_request = MakeCharacterRequest(selected_character_, ItemLocation());
+	QNetworkRequest character_request = MakeCharacterRequest(selected_character_);
 	rate_limiter_.Submit(network_manager_, character_request, [](QNetworkReply*) {});
 }
 
