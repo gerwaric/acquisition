@@ -391,13 +391,13 @@ void MainWindow::OnStatusUpdate(const CurrentStatusUpdate &status) {
 		break;
 	case ProgramState::ItemsReceive:
 	case ProgramState::ItemsPaused:
-		title = QString("Receiving stash data, %1/%2 [%3 from cache]").arg(status.progress).arg(status.total).arg(status.cached);
+		title = QString("Receiving stash data, %1/%2").arg(status.progress).arg(status.total);
 		if (status.state == ProgramState::ItemsPaused)
 			title += " (throttled, sleeping 60 seconds)";
 		need_progress = true;
 		break;
 	case ProgramState::ItemsCompleted:
-		title = QString("Received %1 tabs [%2 from cache]").arg(status.total).arg(status.cached);
+		title = QString("Received %1 tabs").arg(status.total);
 		QLOG_INFO() << title;
 		break;
 	case ProgramState::ShopSubmitting:
@@ -413,18 +413,6 @@ void MainWindow::OnStatusUpdate(const CurrentStatusUpdate &status) {
 		break;
 	case ProgramState::ItemsRetrieved:
 		title = QString("Parsing item mods in tabs, %1/%2").arg(status.progress).arg(status.total);
-		break;
-	case ProgramState::RateLimitPause:
-	case ProgramState::RateLimitViolation:
-		{
-			title = status_bar_label_->text();
-			const qsizetype ratelimit_loc = title.indexOf(" ... RATE LIMIT ");
-			if (ratelimit_loc >= 0)
-			{
-				title.truncate(ratelimit_loc);
-			};
-			title.append(" ... RATE LIMIT " + status.message);
-		};
 		break;
 	default:
 		title = "Unknown";

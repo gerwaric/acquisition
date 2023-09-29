@@ -36,8 +36,6 @@
 #include "items_model.h"
 #include "porting.h"
 #include "updatechecker.h"
-#include "tabcache.h"
-
 
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -71,14 +69,12 @@ enum class ProgramState {
 	ShopSubmitting,
 	ShopCompleted,
 	UpdateCancelled,
-	ItemsRetrieved,
-	RateLimitPause,
-	RateLimitViolation
+	ItemsRetrieved
 };
 
 struct CurrentStatusUpdate {
 	ProgramState state;
-	int progress{}, total{}, cached{};
+    int progress{}, total{};
 	QString message;
 };
 

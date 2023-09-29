@@ -37,10 +37,6 @@ class QTimer;
 class BuyoutManager;
 class TabCache;
 
-const int kThrottleRequests = 1000000;
-const int kThrottleSleep = 1;
-const int kMaxCacheSize = (1000*1024*1024); // 1GB
-
 struct ItemsRequest {
 	int id;
 	QNetworkRequest network_request;
@@ -73,7 +69,7 @@ public slots:
 	* These values are approximated (GGG throttles requests)
 	* based on some quick testing.
 	*/
-	void FetchItems(int limit = kThrottleRequests);
+	void FetchItems();
 	void PreserveSelectedCharacter();
 	void Init();
 
@@ -87,7 +83,7 @@ signals:
 	void ItemBaseTypesUpdate(const QByteArray &baseTypes);
 private:
 
-	QNetworkRequest MakeTabRequest(int tab_index, const ItemLocation &location, bool tabs = false, bool refresh = false);
+    QNetworkRequest MakeTabRequest(int tab_index, const ItemLocation& location, bool tabs = false);
 	QNetworkRequest MakeCharacterRequest(const std::string &name, const ItemLocation &location);
 	QNetworkRequest MakeCharacterPassivesRequest(const std::string &name, const ItemLocation &location);
 	void QueueRequest(const QNetworkRequest &request, const ItemLocation &location);
@@ -95,19 +91,16 @@ private:
 	std::vector<std::pair<std::string, std::string> > CreateTabsSignatureVector(std::string tabs);
 	void UpdateModList();
 
-	QNetworkRequest Request(QUrl url, const ItemLocation &location, TabCache::Flags flags = TabCache::None);
 	DataStore &data_;
 	QNetworkAccessManager network_manager_;
 	std::vector<ItemLocation> tabs_;
 	std::queue<ItemsRequest> queue_;
-	std::map<int, ItemsReply> replies_;
 	// tabs_signature_ captures <"n", "id"> from JSON tab list, used as consistency check
 	std::vector<std::pair<std::string, std::string> > tabs_signature_;
 	bool cancel_update_{false};
 	Items items_;
-	int total_completed_, total_needed_, total_cached_;
+    int total_completed_, total_needed_;
 	int requests_completed_, requests_needed_;
-	int cached_requests_completed_{0};
 
 	std::string tabs_as_string_;
 	std::string league_;
@@ -123,7 +116,6 @@ private:
 	std::string selected_character_;
 
 	std::string first_fetch_tab_{""};
-	TabCache *tab_cache_{new TabCache()};
 	const BuyoutManager &bo_manager_;
 	std::string account_name_;
 	TabSelection::Type tab_selection_;

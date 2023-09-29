@@ -520,6 +520,10 @@ void PolicyManager::ReceiveReply() {
 
 	} else if (active_request->network_reply->error() != QNetworkReply::NoError) {
 
+        if (active_request->reply_cached) {
+            QLOG_ERROR() << "VIOLATION detected in a reponse with an error";
+        };
+
 		// Some other HTTP error was encountered.
 		QLOG_ERROR() << "policy manager for" << policy->name
 			<< "request" << active_request->id
@@ -549,6 +553,10 @@ void PolicyManager::ResendAfterViolation()
 	// Set the violation flag now. It will be unset when a reply is received that doesn't
 	// indicat a violation.
 	violation = true;
+
+    if (active_request->reply_cached) {
+        QLOG_ERROR() << "VIOLATION detected in a cached response.";
+    };
 
 	// Determine how long we need to wait.
 	const int delay_sec = active_request->network_reply->rawHeader("Retry-After").toInt();
@@ -712,8 +720,10 @@ RateLimiter::RateLimiter(QNetworkAccessManager& network_manager) :
     QObject::connect(&status_updater, &QTimer::timeout, [=]() { DoStatusUpdate(); });
 }
 
-void RateLimiter::Submit(QNetworkAccessManager& network_manager, QNetworkRequest& network_request, Callback request_callback)
+void RateLimiter::Submit(QNetworkAccessManager& network_manager, QNetworkRequest network_request, Callback request_callback)
 {
+    network_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+
     // Create a new rate-limited request.
     std::unique_ptr<RateLimitedRequest> request = std::make_unique<RateLimitedRequest>(
         network_manager, network_request, request_callback);

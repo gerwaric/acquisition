@@ -35,7 +35,6 @@
 #include "application.h"
 #include "datastore.h"
 #include "util.h"
-#include "tabcache.h"
 #include "mainwindow.h"
 #include "buyoutmanager.h"
 #include "filesystem.h"
@@ -65,16 +64,6 @@ ItemsManagerWorker::ItemsManagerWorker(Application &app, QThread *thread) :
     rate_limiter_(app.rate_limiter())
 {
 	QUrl poe(kMainPage);
-
-	QDir cache_path{std::string{Filesystem::UserDir() + "/tabcache/" + account_name_ + "/" + league_}.c_str()};
-
-	QLOG_DEBUG() << "Cache directory: " << cache_path.path();
-
-	tab_cache_->setCacheDirectory(cache_path.path());
-	tab_cache_->setMaximumCacheSize(kMaxCacheSize);
-
-	// setCache takes ownership of tab_cache ptr so we don't need to destruct it
-	network_manager_.setCache(tab_cache_);
 	network_manager_.cookieJar()->setCookiesFromUrl(app.logged_in_nm().cookieJar()->cookiesForUrl(poe), poe);
 	network_manager_.moveToThread(thread);
 }
@@ -300,8 +289,6 @@ void ItemsManagerWorker::OnStatTranslationsReceived(QNetworkReply* reply){
 		updateRequest_ = false;
 		Update(type_, locations_);
 	}
-
-	reply->deleteLater();
 }
 
 void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemLocation> &locations) {
@@ -328,14 +315,12 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 	// remove all pending requests
 	queue_ = std::queue<ItemsRequest>();
 	queue_id_ = 0;
-	replies_.clear();
 	items_.clear();
 	tabs_as_string_ = "";
 	selected_character_ = "";
 
 	// first, download the main page because it's the only way to know which character is selected
-	QNetworkRequest main_page_request = Request(QUrl(kMainPage), ItemLocation(), TabCache::Refresh);
-	main_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+    QNetworkRequest main_page_request = QNetworkRequest(QUrl(kMainPage));
 	rate_limiter_.Submit(network_manager_, main_page_request,
 		[=](QNetworkReply* reply) {
 			OnMainPageReceived(reply);
@@ -359,8 +344,7 @@ void ItemsManagerWorker::OnMainPageReceived(QNetworkReply* reply) {
 	}
 
 	// now get character list
-	QNetworkRequest characters_request = Request(QUrl(kGetCharactersUrl), ItemLocation(), TabCache::Refresh);
-	characters_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+    QNetworkRequest characters_request = QNetworkRequest(QUrl(kGetCharactersUrl));
 	rate_limiter_.Submit(network_manager_, characters_request,
 		[=](QNetworkReply* reply) {
 			OnCharacterListReceived(reply);
@@ -464,7 +448,7 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 		}
 	}
 
-	QNetworkRequest tab_request = MakeTabRequest(tabToReq.get_tab_id(), ItemLocation(), true, true);
+	QNetworkRequest tab_request = MakeTabRequest(tabToReq.get_tab_id(), ItemLocation(), true);
 	rate_limiter_.Submit(network_manager_, tab_request,
 		[=](QNetworkReply* reply) {
 			OnFirstTabReceived(reply);
@@ -472,7 +456,7 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 
 }
 
-QNetworkRequest ItemsManagerWorker::MakeTabRequest(int tab_index, const ItemLocation &location, bool tabs, bool refresh) {
+QNetworkRequest ItemsManagerWorker::MakeTabRequest(int tab_index, const ItemLocation &location, bool tabs) {
 	QUrlQuery query;
 	query.addQueryItem("league", league_.c_str());
 	query.addQueryItem("tabs", tabs ? "1" : "0");
@@ -482,11 +466,7 @@ QNetworkRequest ItemsManagerWorker::MakeTabRequest(int tab_index, const ItemLoca
 	QUrl url(kStashItemsUrl);
 	url.setQuery(query);
 
-	// If refresh is explicity request then force unconditionally
-	TabCache::Flags flags = (refresh) ? TabCache::Refresh : TabCache::None;
-
-	QNetworkRequest tab_request = Request(url, location, flags);
-	tab_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+    QNetworkRequest tab_request = QNetworkRequest(url);
 	return tab_request;
 }
 
@@ -498,7 +478,7 @@ QNetworkRequest ItemsManagerWorker::MakeCharacterRequest(const std::string &name
 	QUrl url(kCharacterItemsUrl);
 	url.setQuery(query);
 
-	return Request(url, location, TabCache::None);
+    return QNetworkRequest(url);
 }
 
 QNetworkRequest ItemsManagerWorker::MakeCharacterPassivesRequest(const std::string &name, const ItemLocation &location) {
@@ -509,24 +489,7 @@ QNetworkRequest ItemsManagerWorker::MakeCharacterPassivesRequest(const std::stri
 	QUrl url(kCharacterSocketedJewels);
 	url.setQuery(query);
 
-	return Request(url, location, TabCache::None);
-}
-
-QNetworkRequest ItemsManagerWorker::Request(QUrl url, const ItemLocation &location, TabCache::Flags flags) {
-	switch (tab_selection_) {
-	case TabSelection::All:
-		flags |= TabCache::Refresh;
-		break;
-	case TabSelection::Checked:
-		if (!location.IsValid() || bo_manager_.GetRefreshChecked(location))
-			flags |= TabCache::Refresh;
-		break;
-	case TabSelection::Selected:
-		if (!location.IsValid() || selected_tabs_.count(location.get_tab_uniq_id()))
-			flags |= TabCache::Refresh;
-		break;
-	}
-	return tab_cache_->Request(url, flags);
+    return QNetworkRequest(url);
 }
 
 void ItemsManagerWorker::QueueRequest(const QNetworkRequest &request, const ItemLocation &location) {
@@ -538,15 +501,14 @@ void ItemsManagerWorker::QueueRequest(const QNetworkRequest &request, const Item
 	queue_.push(items_request);
 }
 
-void ItemsManagerWorker::FetchItems(int limit) {
+void ItemsManagerWorker::FetchItems() {
 	std::string tab_titles;
-	int count = std::min(limit, static_cast<int>(queue_.size()));
+    int count = queue_.size();
 	for (int i = 0; i < count; ++i) {
 		ItemsRequest request = queue_.front();
 		queue_.pop();
 
 		QNetworkRequest fetch_request = request.network_request;
-		fetch_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 		int id = request.id;
 		ItemLocation location = request.location;
 		rate_limiter_.Submit(network_manager_, fetch_request,
@@ -554,17 +516,11 @@ void ItemsManagerWorker::FetchItems(int limit) {
 				OnTabReceived(reply, id, location);
 			});
 
-		ItemsReply reply;
-		reply.network_reply = nullptr;
-		reply.request = request;
-		replies_[request.id] = reply;
-
 		tab_titles += request.location.GetHeader() + " ";
 	}
 	QLOG_DEBUG() << "Created" << count << "requests:" << tab_titles.c_str();
 	requests_needed_ = count;
 	requests_completed_ = 0;
-	cached_requests_completed_ = 0;
 }
 
 void ItemsManagerWorker::OnFirstTabReceived(QNetworkReply* reply) {
@@ -634,23 +590,37 @@ void ItemsManagerWorker::OnFirstTabReceived(QNetworkReply* reply) {
 	// Queue requests for Stash tabs
 	for (auto const &tab: tabs_) {
 		bool refresh = false;
-
+        switch (tab_selection_) {
+        case TabSelection::All:
+            refresh = true;
+            break;
+        case TabSelection::Checked:
+            if (!tab.IsValid() || bo_manager_.GetRefreshChecked(tab))
+                refresh = true;
+            break;
+        case TabSelection::Selected:
+            if (!tab.IsValid() || selected_tabs_.count(tab.get_tab_uniq_id()))
+                refresh = true;
+            break;
+        }
 		// Force refreshes for any tabs that were moved or renamed regardless of what user
 		// requests for refresh.
 		if (!old_tab_headers.count(tab.GetHeader())) {
 			QLOG_DEBUG() << "Forcing refresh of moved or renamed tab: " << tab.GetHeader().c_str();
 			refresh = true;
 		}
-		if(tab.get_type() == ItemLocationType::STASH)
-			QueueRequest(MakeTabRequest(tab.get_tab_id(), tab, true, refresh), tab);
+
+        if (refresh) {
+            if (tab.get_type() == ItemLocationType::STASH) {
+                QueueRequest(MakeTabRequest(tab.get_tab_id(), tab, true), tab);
+            }
+        }
 	}
 
 	total_needed_ = queue_.size();
 	total_completed_ = 0;
-	total_cached_ = reply->attribute(QNetworkRequest::SourceIsFromCacheAttribute).toBool() ? 1:0;
 
-	FetchItems(kThrottleRequests - 1);
-
+    FetchItems();
 }
 
 void ItemsManagerWorker::ParseItems(rapidjson::Value *value_ptr, ItemLocation base_location, rapidjson_allocator &alloc) {
@@ -678,20 +648,7 @@ void ItemsManagerWorker::OnTabReceived(QNetworkReply* network_reply, int request
     QLOG_TRACE() << "Tab received:" << location.GetHeader().c_str();
     CheckForViolation(network_reply);
 
-	if (!replies_.count(request_id)) {
-		QLOG_WARN() << "Received a reply for request" << request_id << "that was not requested.";
-		return;
-	}
-
-	bool reply_from_cache = network_reply->attribute(QNetworkRequest::SourceIsFromCacheAttribute).toBool();
-
-	if (reply_from_cache) {
-		QLOG_DEBUG() << "Received a cached reply for" << location.GetHeader().c_str();
-		++cached_requests_completed_;
-		++total_cached_;
-	} else {
-		QLOG_DEBUG() << "Received a reply for" << location.GetHeader().c_str();
-	}
+	QLOG_DEBUG() << "Received a reply for" << location.GetHeader().c_str();
 
 	QByteArray bytes = network_reply->readAll();
 	rapidjson::Document doc;
@@ -721,43 +678,29 @@ void ItemsManagerWorker::OnTabReceived(QNetworkReply* network_reply, int request
 
 			auto tab_id = location.get_tab_id();
 			if (tabs_signature_[tab_id] != tabs_signature_current[tab_id]) {
-				if (reply_from_cache) {
-					// Here we unexpectedly are seeing a cached document that is out-of-sync with current tab state
-					// This is not fatal but unexpected as we shouldn't get here if everything else is done right.
-					// If we do see, set 'error' condition which causes us to flush from catch and re-fetch from server.
-					QLOG_WARN() << "Unexpected hit on stale cached tab.  Flushing and re-fetching request: "
-								<< network_reply->request().url().toDisplayString();
-					error = true;
-					// Isn't really cached since we're erroring out and replaying so fix up stats
-					total_cached_--;
-				} else {
-					std::string reason;
-					if (tabs_signature_current.size() != tabs_signature_.size())
-						reason += "[Tab size mismatch:" + std::to_string(tabs_signature_current.size()) + " != "
-								+ std::to_string(tabs_signature_.size()) + "]";
+				std::string reason;
+				if (tabs_signature_current.size() != tabs_signature_.size())
+					reason += "[Tab size mismatch:" + std::to_string(tabs_signature_current.size()) + " != "
+							+ std::to_string(tabs_signature_.size()) + "]";
 
-					auto &x = tabs_signature_current[tab_id];
-					auto &y = tabs_signature_[tab_id];
-					reason += "[tab_index=" + std::to_string(tab_id) + "/" + std::to_string(tabs_signature_current.size()) + "(#" + std::to_string(tab_id+1) + ")]";
-					if (x.first != y.first)
-						reason += "[name:" + x.first + " != " + y.first + "]";
-					if (x.second != y.second)
-						reason += "[id:" + x.second + " != " + y.second + "]";
+				auto &x = tabs_signature_current[tab_id];
+				auto &y = tabs_signature_[tab_id];
+				reason += "[tab_index=" + std::to_string(tab_id) + "/" + std::to_string(tabs_signature_current.size()) + "(#" + std::to_string(tab_id+1) + ")]";
+				if (x.first != y.first)
+					reason += "[name:" + x.first + " != " + y.first + "]";
+				if (x.second != y.second)
+					reason += "[id:" + x.second + " != " + y.second + "]";
 
-					QLOG_ERROR() << "You renamed or re-ordered tabs in game while acquisition was in the middle of the update,"
-								 << " aborting to prevent synchronization problems and pricing data loss. Mismatch reason(s) -> "
-								 << reason.c_str() << ". For request: " << network_reply->request().url().toDisplayString();
-					cancel_update_ = true;
-				}
+				QLOG_ERROR() << "You renamed or re-ordered tabs in game while acquisition was in the middle of the update,"
+								<< " aborting to prevent synchronization problems and pricing data loss. Mismatch reason(s) -> "
+								<< reason.c_str() << ". For request: " << network_reply->request().url().toDisplayString();
+				cancel_update_ = true;
 			}
 		}
 	}
 
 	// re-queue a failed request
 	if (error) {
-		// We can 'cache' error response document so make sure we remove it
-		// before reque
-		tab_cache_->remove(network_reply->request().url());
 		QueueRequest(network_reply->request(), location);
 	}
 
@@ -771,24 +714,12 @@ void ItemsManagerWorker::OnTabReceived(QNetworkReply* network_reply, int request
 	if (requests_completed_ == requests_needed_) {
 		if (cancel_update_) {
 			updating_ = false;
-		} else if (queue_.size() > 0) {
-			if (cached_requests_completed_ > 0) {
-				// We basically don't want cached requests to count against throttle limit
-				// so if we did get any cached requests fetch up to that number without a
-				// large delay
-				QTimer::singleShot(1, [&]() { FetchItems(cached_requests_completed_); });
-			} else {
-				throttled = true;
-				QLOG_DEBUG() << "Sleeping one minute to prevent throttling.";
-				QTimer::singleShot(kThrottleSleep * 1000, this, SLOT(FetchItems()));
-			}
 		}
 	}
 	CurrentStatusUpdate status = CurrentStatusUpdate();
 	status.state = throttled ? ProgramState::ItemsPaused : ProgramState::ItemsReceive;
 	status.progress = total_completed_;
 	status.total = total_needed_;
-	status.cached = total_cached_;
 	if (total_completed_ == total_needed_)
 		status.state = ProgramState::ItemsCompleted;
 	if (cancel_update_)
@@ -843,11 +774,7 @@ void ItemsManagerWorker::OnTabReceived(QNetworkReply* network_reply, int request
 		updating_ = false;
 		QLOG_DEBUG() << "Finished updating stash.";
 
-		// if we're at the verge of getting throttled, sleep so we don't
-		if (requests_completed_ == kThrottleRequests)
-			QTimer::singleShot(kThrottleSleep, this, SLOT(PreserveSelectedCharacter()));
-		else
-			PreserveSelectedCharacter();
+		PreserveSelectedCharacter();
 	}
 }
 

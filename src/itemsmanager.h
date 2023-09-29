@@ -24,7 +24,6 @@
 
 #include "item.h"
 #include "itemsmanagerworker.h"
-#include "tabcache.h"
 
 struct CurrentStatusUpdate;
 class QThread;

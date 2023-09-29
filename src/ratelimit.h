@@ -349,8 +349,9 @@ namespace RateLimit
         // Creat a rate limiter.
         RateLimiter(QNetworkAccessManager& manager);
 
-        // Submit a request/callback to the rate limiter.
-        void Submit(QNetworkAccessManager& manager, QNetworkRequest& request, Callback callback);
+        // Submit a request/callback to the rate limiter. Requets will be deleted
+        // after the callback is triggered.
+        void Submit(QNetworkAccessManager& manager, QNetworkRequest request, Callback callback);
 
     public slots:
         void OnTimerStarted();
