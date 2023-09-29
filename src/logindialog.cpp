@@ -51,6 +51,8 @@
 
 #include "openssl/aes.h"
 
+#include "../../ALLOWED_ACCOUNTS.h"
+
 const char* POE_LEAGUE_LIST_URL = "https://api.pathofexile.com/leagues?type=main&compact=1";
 const char* POE_LOGIN_URL = "https://www.pathofexile.com/login";
 const char* POE_MAIN_PAGE = "https://www.pathofexile.com/";
@@ -329,8 +331,6 @@ void LoginDialog::OnMainPageFinished() {
 	QString account = regexp.cap(1);
 	QLOG_DEBUG() << "Logged in as:" << account;
 
-    const QStringList ALLOWED_ACCOUNTS = {
-    };
     if (ALLOWED_ACCOUNTS.contains(account) == false) {
         QLOG_ERROR() << "This account is not approved to run test builds";
         DisplayError("This account is not approved to run test builds");
