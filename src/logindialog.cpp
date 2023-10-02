@@ -51,7 +51,7 @@
 
 #include "openssl/aes.h"
 
-#include "../../ALLOWED_ACCOUNTS.h"
+const QDateTime BUILD_EXPIRATION = QDateTime::fromString("2023-10-15", "yyyy-MM-dd");
 
 const char* POE_LEAGUE_LIST_URL = "https://api.pathofexile.com/leagues?type=main&compact=1";
 const char* POE_LOGIN_URL = "https://www.pathofexile.com/login";
@@ -196,6 +196,17 @@ void LoginDialog::OnLeaguesRequestFinished() {
 	if (reply->error())
 		return LeaguesApiError(reply->errorString(), bytes);
 
+    // Check the date on the HTTP response (which the user cannot easily change) to see if this build has expired.
+    const QDateTime reply_date = QDateTime::fromString(QString(reply->rawHeader("Date")), Qt::RFC2822Date);
+    if (reply_date > BUILD_EXPIRATION) {
+        QLOG_ERROR() << "Leagues request reply on" << reply_date.toString();
+        QLOG_ERROR() << "This build expired on" << BUILD_EXPIRATION.toString();
+        DisplayError("This test build has expired.");
+        return;
+    };
+    QLOG_WARN() << "This test build will expire on" << BUILD_EXPIRATION.toString();
+    DisplayError("This test build will expire on " + BUILD_EXPIRATION.toString());
+
 	rapidjson::Document doc;
 	doc.Parse(bytes.constData());
 
@@ -330,12 +341,6 @@ void LoginDialog::OnMainPageFinished() {
 	}
 	QString account = regexp.cap(1);
 	QLOG_DEBUG() << "Logged in as:" << account;
-
-    if (ALLOWED_ACCOUNTS.contains(account) == false) {
-        QLOG_ERROR() << "This account is not approved to run test builds";
-        DisplayError("This account is not approved to run test builds");
-        return;
-    };
 
 	std::string league(ui->leagueComboBox->currentText().toStdString());
 	app_->InitLogin(std::move(login_manager_), league, account.toStdString());
