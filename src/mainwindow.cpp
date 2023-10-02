@@ -61,6 +61,9 @@
 #include "verticalscrollarea.h"
 #include "network_info.h"
 
+using Util::TabSelection;
+using Util::RefreshReason;
+
 const std::string POE_WEBCDN = "http://webcdn.pathofexile.com"; // Should be updated to https://web.poecdn.com ?
 
 MainWindow::MainWindow(std::unique_ptr<Application> app):

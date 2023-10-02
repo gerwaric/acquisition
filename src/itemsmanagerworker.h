@@ -29,6 +29,8 @@
 #include "mainwindow.h"
 #include "ratelimit.h"
 
+using Util::TabSelection;
+
 class Application;
 class DataStore;
 class QNetworkReply;
@@ -55,10 +57,10 @@ public:
 	~ItemsManagerWorker();
 	bool isModsUpdating(){ return modsUpdating_; }
 	volatile bool initialModUpdateCompleted_;
-	void UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation> &locations) { updateRequest_ = true; type_ = type, locations_ = locations; }
+	void UpdateRequest(TabSelection type, const std::vector<ItemLocation> &locations) { updateRequest_ = true; type_ = type, locations_ = locations; }
 public slots:
 	void ParseItemMods();
-	void Update(TabSelection::Type type, const std::vector<ItemLocation> &tab_names = std::vector<ItemLocation>());
+	void Update(TabSelection type, const std::vector<ItemLocation> &tab_names = std::vector<ItemLocation>());
 public slots:
 	void OnMainPageReceived(QNetworkReply* reply);
 	void OnCharacterListReceived(QNetworkReply* reply);
@@ -105,7 +107,7 @@ private:
 
 	volatile bool modsUpdating_;
 	bool updateRequest_;
-	TabSelection::Type type_;
+	TabSelection type_;
 	std::vector<ItemLocation> locations_;
 
 	int queue_id_;
@@ -115,7 +117,7 @@ private:
     int first_fetch_tab_id_;
 	const BuyoutManager &bo_manager_;
 	std::string account_name_;
-	TabSelection::Type tab_selection_;
+	TabSelection tab_selection_;
 	std::set<std::string> selected_tabs_;
 
     RateLimit::RateLimiter& rate_limiter_;

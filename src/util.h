@@ -24,6 +24,7 @@
 #include "rapidjson/document.h"
 #include <QDebug>
 #include <QObject>
+#include <QMetaEnum>
 
 #include "item.h"
 
@@ -40,38 +41,25 @@ enum class TextWidthId {
 	WIDTH_BOOL_LABEL
 };
 
-class RefreshReason {
-	Q_GADGET
-public:
-	enum Type {
-		Unknown,
-		ItemsChanged,
-		SearchFormChanged,
-		TabCreated,
-		TabChanged
-	};
-    Q_ENUM(Type)
-private:
-	Type type;
-};
-QDebug& operator<<(QDebug& os, const RefreshReason::Type& obj);
+namespace Util {
+    Q_NAMESPACE
 
-class TabSelection {
-	Q_GADGET
-public:
-	enum Type {
+    enum class RefreshReason {
+        Unknown,
+        ItemsChanged,
+        SearchFormChanged,
+        TabCreated,
+        TabChanged
+    };
+    Q_ENUM_NS(RefreshReason);
+
+    enum class TabSelection {
 		All,
 		Checked,
 		Selected
 	};
-    Q_ENUM(Type)
-private:
-	Type type;
-};
-QDebug& operator<<(QDebug& os, const TabSelection::Type& obj);
+    Q_ENUM_NS(TabSelection);
 
-
-namespace Util {
     std::string Md5(const std::string &value);
     double AverageDamage(const std::string &s);
     void PopulateBuyoutTypeComboBox(QComboBox *combobox);

@@ -75,11 +75,11 @@ ItemsManagerWorker::ItemsManagerWorker(Application &app, QThread *thread) :
     updating_(false),
     modsUpdating_(false),
     updateRequest_(false),
-    type_(TabSelection::Type::All),
+    type_(TabSelection::All),
     queue_id_(-999),
     bo_manager_(app.buyout_manager()),
     account_name_(app.email()),
-    tab_selection_(TabSelection::Type::All),
+    tab_selection_(TabSelection::All),
     first_fetch_tab_id_(-1),
     rate_limiter_(app.rate_limiter())
 {
@@ -309,7 +309,7 @@ void ItemsManagerWorker::OnStatTranslationsReceived(QNetworkReply* reply){
 	}
 }
 
-void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemLocation> &locations) {
+void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocation> &locations) {
 	if (updating_) {
 		QLOG_WARN() << "ItemsManagerWorker::Update called while updating";
 		return;
@@ -349,13 +349,13 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
     first_fetch_tab_id_ = -1;
     while ((tab != tabs_.end()) && (save_tab != save_tabs.end())) {
         switch (type) {
-        case TabSelection::Type::All:
+        case TabSelection::All:
             *save_tab = false;
             break;
-        case TabSelection::Type::Checked:
+        case TabSelection::Checked:
             *save_tab = (tab->IsValid()) && (bo_manager_.GetRefreshChecked(*tab) == false);
             break;
-        case TabSelection::Type::Selected:
+        case TabSelection::Selected:
             *save_tab = (tab->IsValid()) && (selected_tab_ids.count(tab->get_tab_uniq_id()) == 0);
             break;
         default:
@@ -404,13 +404,13 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
     while ((item != items_.end()) && (save_item != save_items.end())) {
         const ItemLocation& item_location = item->get()->location();
         switch (type) {
-        case TabSelection::Type::All:
+        case TabSelection::All:
             *save_item = false;
             break;
-        case TabSelection::Type::Checked:
+        case TabSelection::Checked:
             *save_item = (item_location.IsValid()) && (bo_manager_.GetRefreshChecked(item_location) == false);
             break;
-        case TabSelection::Type::Selected:
+        case TabSelection::Selected:
             *save_item = (item_location.IsValid()) && (selected_tab_ids.count(item_location.get_tab_uniq_id()) == 0);
             break;
         default:
@@ -780,27 +780,28 @@ void ItemsManagerWorker::OnFirstTabReceived(QNetworkReply* reply) {
         };
     };
 
-    // Tabs not in the tabs_ variable need to be requested.
-
-	// Create tab location objects
+    // Queue stash tab requests.
     for (auto& tab : doc["tabs"]) {
         std::string label = tab["n"].GetString();
         const int index = tab["i"].GetInt();
-        // Ignore hidden locations
+        // Skip hidden tabs.
         if (doc["tabs"][index].HasMember("hidden") && doc["tabs"][index]["hidden"].GetBool()) {
             continue;
         };
+        // Skip any tabs that are already in the index. These are the tabs that are not
+        // being refreshed.
         const char* tab_id = tab["id"].GetString();
-        if (tab_id_index_.count(tab_id) == 0) {
-            const int r = tab["colour"]["r"].GetInt();
-            const int g = tab["colour"]["g"].GetInt();
-            const int b = tab["colour"]["b"].GetInt();
-            ItemLocation location(index, tab["id"].GetString(), label, ItemLocationType::STASH, r, g, b);
-            location.set_json(tab, doc.GetAllocator());
-            tabs_.push_back(location);
-            tab_id_index_.insert(tab["id"].GetString());
-            QueueRequest(MakeTabRequest(location.get_tab_id(), true), location);
+        if (tab_id_index_.count(tab_id) > 0) {
+            continue;
         };
+        const int r = tab["colour"]["r"].GetInt();
+        const int g = tab["colour"]["g"].GetInt();
+        const int b = tab["colour"]["b"].GetInt();
+        ItemLocation location(index, tab["id"].GetString(), label, ItemLocationType::STASH, r, g, b);
+        location.set_json(tab, doc.GetAllocator());
+        tabs_.push_back(location);
+        tab_id_index_.insert(tab["id"].GetString());
+        QueueRequest(MakeTabRequest(location.get_tab_id(), true), location);
     };
 
 	total_needed_ = queue_.size();
@@ -811,11 +812,6 @@ void ItemsManagerWorker::OnFirstTabReceived(QNetworkReply* reply) {
 
 void ItemsManagerWorker::ParseItems(rapidjson::Value *value_ptr, ItemLocation base_location, rapidjson_allocator &alloc) {
 	auto &value = *value_ptr;
-
-	std::string test = Util::RapidjsonSerialize(value);
-	if(base_location.get_type() == ItemLocationType::CHARACTER){
-	   // QLOG_DEBUG() << test.c_str();
-	}
 
 	for (auto &item : value) {
 		//ItemLocation location(base_location);

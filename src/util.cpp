@@ -255,15 +255,11 @@ std::string Util::hexStr(const uint8_t* data, int len)
 	return temp;
 }
 
-
-QDebug &operator<<(QDebug &os, const RefreshReason::Type &obj)
+template <class T>
+QDebug& operator<<(QDebug& os, const T& obj)
 {
-    os << QMetaEnum::fromType<RefreshReason::Type>().valueToKey(obj);
-	return os;
+    os << QMetaEnum::fromType<T>().valueToKey(static_cast<int>(obj));
+    return os;
 }
 
-QDebug &operator<<(QDebug &os, const TabSelection::Type &obj)
-{
-    os << QMetaEnum::fromType<TabSelection::Type>().valueToKey(obj);
-	return os;
-}
+

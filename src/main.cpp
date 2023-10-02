@@ -38,10 +38,13 @@
 #include "version.h"
 #include "../test/testmain.h"
 #include "tabcache.h"
+#include "util.h"
 
 #ifdef CRASHRPT
 #include "CrashRpt.h"
 #endif
+
+using Util::TabSelection;
 
 int main(int argc, char *argv[])
 {
@@ -50,7 +53,7 @@ int main(int argc, char *argv[])
 	qRegisterMetaType<std::vector<std::string>>("std::vector<std::string>");
 	qRegisterMetaType<std::vector<ItemLocation>>("std::vector<ItemLocation>");
 	qRegisterMetaType<QsLogging::Level>("QsLogging::Level");
-	qRegisterMetaType<TabSelection::Type>("TabSelection::Type");
+	qRegisterMetaType<TabSelection>("TabSelection");
 
 	QLocale::setDefault(QLocale::C);
 	std::setlocale(LC_ALL, "C");

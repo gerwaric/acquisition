@@ -24,6 +24,9 @@
 
 #include "item.h"
 #include "itemsmanagerworker.h"
+#include "util.h"
+
+using Util::TabSelection;
 
 struct CurrentStatusUpdate;
 class QThread;
@@ -44,7 +47,7 @@ public:
 	~ItemsManager();
 	// Creates and starts the worker
 	void Start();
-	void Update(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
+	void Update(TabSelection type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 	void RefreshModList();
 	void SetAutoUpdateInterval(int minutes);
 	void SetAutoUpdate(bool update);
@@ -65,7 +68,7 @@ public slots:
 	void OnItemClassesUpdate(const QByteArray &classes);
 	void OnItemBaseTypesUpdate(const QByteArray &baseTypes);
 signals:
-	void UpdateSignal(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
+	void UpdateSignal(TabSelection type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 	void ItemsRefreshed(bool initial_refresh);
 	void StatusUpdate(const CurrentStatusUpdate &status);
 	void UpdateModListSignal();

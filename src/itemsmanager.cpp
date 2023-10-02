@@ -33,6 +33,8 @@
 #include "itemcategories.h"
 #include "itemlocation.h"
 
+using Util::TabSelection;
+
 ItemsManager::ItemsManager(Application &app) :
 	auto_update_timer_(std::make_unique<QTimer>()),
 	data_(app.data()),
@@ -55,7 +57,7 @@ void ItemsManager::Start() {
 	thread_ = std::make_unique<QThread>();
 	worker_ = std::make_unique<ItemsManagerWorker>(app_, thread_.get());
 	connect(thread_.get(), SIGNAL(started()), worker_.get(), SLOT(Init()));
-	connect(this, SIGNAL(UpdateSignal(TabSelection::Type, const std::vector<ItemLocation> &)), worker_.get(), SLOT(Update(TabSelection::Type, const std::vector<ItemLocation> &)));
+	connect(this, SIGNAL(UpdateSignal(TabSelection, const std::vector<ItemLocation> &)), worker_.get(), SLOT(Update(TabSelection, const std::vector<ItemLocation> &)));
 	connect(worker_.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
 	connect(worker_.get(), SIGNAL(ItemsRefreshed(Items, std::vector<ItemLocation>, bool)), this, SLOT(OnItemsRefreshed(Items, std::vector<ItemLocation>, bool)));
 	connect(worker_.get(), &ItemsManagerWorker::ItemClassesUpdate, this, &ItemsManager::OnItemClassesUpdate);
@@ -205,7 +207,7 @@ void ItemsManager::OnItemsRefreshed(const Items &items, const std::vector<ItemLo
 	emit ItemsRefreshed(initial_refresh);
 }
 
-void ItemsManager::Update(TabSelection::Type type, const std::vector<ItemLocation> &locations) {
+void ItemsManager::Update(TabSelection type, const std::vector<ItemLocation> &locations) {
 	if(worker_.get()->isModsUpdating() || !worker_->initialModUpdateCompleted_){
 		//tell ItemsManagerWorker to run an Update() after it's finished updating mods
 		worker_.get()->UpdateRequest(type, locations);
