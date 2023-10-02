@@ -26,8 +26,6 @@
 #include "buyoutmanager.h"
 #include "datastore.h"
 #include "itemsmanagerworker.h"
-#include "porting.h"
-#include "rapidjson_util.h"
 #include "shop.h"
 #include "util.h"
 #include "mainwindow.h"
@@ -56,7 +54,6 @@ ItemsManager::~ItemsManager() {
 void ItemsManager::Start() {
 	thread_ = std::make_unique<QThread>();
 	worker_ = std::make_unique<ItemsManagerWorker>(app_, thread_.get());
-	worker_->initialModUpdateCompleted_ = false;
 	connect(thread_.get(), SIGNAL(started()), worker_.get(), SLOT(Init()));
 	connect(this, SIGNAL(UpdateSignal(TabSelection::Type, const std::vector<ItemLocation> &)), worker_.get(), SLOT(Update(TabSelection::Type, const std::vector<ItemLocation> &)));
 	connect(worker_.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);

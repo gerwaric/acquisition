@@ -73,7 +73,7 @@ enum class ProgramState {
 };
 
 struct CurrentStatusUpdate {
-	ProgramState state;
+    ProgramState state{ ProgramState::Unknown };
     int progress{}, total{};
 	QString message;
 };

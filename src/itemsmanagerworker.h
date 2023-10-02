@@ -38,7 +38,7 @@ class BuyoutManager;
 class TabCache;
 
 struct ItemsRequest {
-	int id;
+    int id{ -999 };
 	QNetworkRequest network_request;
 	ItemLocation location;
 };
@@ -64,11 +64,6 @@ public slots:
 	void OnCharacterListReceived(QNetworkReply* reply);
 	void OnFirstTabReceived(QNetworkReply* reply);
 	void OnTabReceived(QNetworkReply* reply, int index, ItemLocation location);
-	/*
-	* Makes 45 requests at once, should be called every minute.
-	* These values are approximated (GGG throttles requests)
-	* based on some quick testing.
-	*/
 	void FetchItems();
 	void PreserveSelectedCharacter();
 	void Init();
@@ -102,6 +97,7 @@ private:
     int total_completed_, total_needed_;
 	int requests_completed_, requests_needed_;
 
+    std::set<std::string> tab_id_index_;
 	std::string tabs_as_string_;
 	std::string league_;
 	// set to true if updating right now
@@ -116,6 +112,7 @@ private:
 	std::string selected_character_;
 
 	std::string first_fetch_tab_{""};
+    int first_fetch_tab_id_;
 	const BuyoutManager &bo_manager_;
 	std::string account_name_;
 	TabSelection::Type tab_selection_;

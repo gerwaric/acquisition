@@ -11,7 +11,8 @@
 
 enum class ItemLocationType {
 	STASH,
-	CHARACTER
+	CHARACTER,
+    NONE
 };
 
 class ItemLocation {
@@ -46,20 +47,21 @@ public:
 	void set_json(rapidjson::Value &value, rapidjson_allocator &alloc);
 	std::string get_json() const{return json_;}
 private:
-	int x_, y_, w_, h_;
-	int red_, green_, blue_;
-	bool socketed_;
-	ItemLocationType type_;
+    std::string tab_label_{ "" };
+    std::string character_{ "" };
+    std::string tab_unique_id_{ "" };
+
+    int x_{ -1 }, y_{ -1 };
+    int w_{ -1 }, h_{ -1 };
+    int red_{ -1 }, green_{ -1 }, blue_{ -1 };
+    bool socketed_{ false };
+    ItemLocationType type_{ ItemLocationType::NONE };
 	int tab_id_{0};
-	std::string json_;
-    bool remove_only_;
+    std::string json_{ "" };
+    bool remove_only_{ false };
 
-	//this would be the value "tabs -> id", which seems to be a hashed value generated on their end
-	std::string tab_unique_id_;
-
-	std::string tab_label_;
-	std::string character_;
-	std::string inventory_id_;
+	std::string inventory_id_{ "" };
 };
 
-static std::set<std::string> tab_id_index_;
+// Moves to ItemsManagerWorker
+//static std::set<std::string> tab_id_index_;
