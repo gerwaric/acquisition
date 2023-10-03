@@ -201,6 +201,7 @@ QModelIndex ItemsModel::parent(const QModelIndex &index) const {
 QModelIndex ItemsModel::index(int row, int column, const QModelIndex &parent) const {
 	if (parent.isValid()) {
 		if (parent.row() >= (signed)search_.buckets().size()) {
+            // TBD: This has been seen happening as of 0.9.9-rc2
 			QLOG_WARN() << "Should not happen: Index request parent contains invalid row";
 			return QModelIndex();
 		}
