@@ -80,6 +80,8 @@ signals:
 	void ItemBaseTypesUpdate(const QByteArray &baseTypes);
 private:
 
+    void RemoveUpdatingTabs(const std::set<std::string>& tab_ids);
+    void RemoveUpdatingItems(const std::set<std::string>& tab_ids);
     QNetworkRequest MakeTabRequest(int tab_index, bool tabs = false);
 	QNetworkRequest MakeCharacterRequest(const std::string &name);
 	QNetworkRequest MakeCharacterPassivesRequest(const std::string &name);
@@ -117,8 +119,6 @@ private:
     int first_fetch_tab_id_;
 	const BuyoutManager &bo_manager_;
 	std::string account_name_;
-	TabSelection tab_selection_;
-	std::set<std::string> selected_tabs_;
 
     RateLimit::RateLimiter& rate_limiter_;
 

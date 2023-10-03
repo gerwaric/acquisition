@@ -79,7 +79,6 @@ ItemsManagerWorker::ItemsManagerWorker(Application &app, QThread *thread) :
     queue_id_(-999),
     bo_manager_(app.buyout_manager()),
     account_name_(app.email()),
-    tab_selection_(TabSelection::All),
     first_fetch_tab_id_(-1),
     rate_limiter_(app.rate_limiter())
 {
@@ -117,8 +116,7 @@ void ItemsManagerWorker::CheckForViolation(QNetworkReply* reply) {
 
 void ItemsManagerWorker::OnItemClassesReceived(QNetworkReply *reply){
 
-    QLOG_TRACE() << "Item classes received.";
-    CheckForViolation(reply);
+    QLOG_DEBUG() << "Item classes received.";
 
 	if (reply->error()) {
 		QLOG_ERROR() << "Couldn't fetch RePoE Item Classes: " << reply->url().toDisplayString()
@@ -137,8 +135,7 @@ void ItemsManagerWorker::OnItemClassesReceived(QNetworkReply *reply){
 
 void ItemsManagerWorker::OnItemBaseTypesReceived(QNetworkReply* reply){
 
-    QLOG_TRACE() << "Item base types received.";
-    CheckForViolation(reply);
+    QLOG_DEBUG() << "Item base types received.";
 
 	if (reply->error()) {
 		QLOG_ERROR() << "Couldn't fetch RePoE Item Base Types: " << reply->url().toDisplayString()
@@ -152,16 +149,20 @@ void ItemsManagerWorker::OnItemBaseTypesReceived(QNetworkReply* reply){
 }
 
 void ItemsManagerWorker::ParseItemMods() {
+
+    InitModlist();
+
 	tabs_.clear();
 	tab_id_index_.clear();
 
-	//Get cached tabs (item tabs not search tabs)
+	// Get cached stash tabs.
 	for(ItemLocationType type : {ItemLocationType::STASH, ItemLocationType::CHARACTER}){
 		std::string tabs = data_.GetTabs(type);
 		tabs_signature_ = CreateTabsSignatureVector(tabs);
 		if (tabs.size() != 0) {
 			rapidjson::Document doc;
-			if (doc.Parse(tabs.c_str()).HasParseError()) {
+            doc.Parse(tabs.c_str());
+			if (doc.HasParseError()) {
 				QLOG_ERROR() << "Malformed tabs data:" << tabs.c_str() << "The error was"
 					<< rapidjson::GetParseError_En(doc.GetParseError());
 				continue;
@@ -172,9 +173,11 @@ void ItemsManagerWorker::ParseItemMods() {
 				std::string tabUniqueId, name;
 				int r, g, b;
 
-				if(type == ItemLocationType::STASH){
+				if (type == ItemLocationType::STASH) {
+                    // Stash tab
 					if(tab_id_index_.count(tab["id"].GetString())){
-					   continue;
+                        QLOG_ERROR() << "Duplicated tab found while loading data:" << tab["id"].GetString();
+					    continue;
 					}
 					if (!tab.HasMember("n") || !tab["n"].IsString()) {
 						QLOG_ERROR() << "Malformed tabs data:" << tabs.c_str() << "Tab doesn't contain its name (field 'n').";
@@ -188,11 +191,11 @@ void ItemsManagerWorker::ParseItemMods() {
 					g = tab["colour"]["g"].GetInt();
 					b = tab["colour"]["b"].GetInt();
 				} else {
+                    // Character
 					if(tab_id_index_.count(tab["name"].GetString())){
 					   continue;
 					}
-
-					if(tab.HasMember("i"))
+					if (tab.HasMember("i"))
 						index = tab["i"].GetInt();
 					else
 						index = tabs_.size();
@@ -216,14 +219,18 @@ void ItemsManagerWorker::ParseItemMods() {
 
 	//Get cached items
     int i = 0;
+    int j = 0;
+    int k = 0;
     for (auto& tab : tabs_) {
 		std::string items = data_.GetItems(tab);
-		if (items.size() != 0) {
-			rapidjson::Document doc;
-			doc.Parse(items.c_str());
-			for (auto item = doc.Begin(); item != doc.End(); ++item)
-				items_.push_back(std::make_shared<Item>(*item, tab));
-		}
+        if (items.size() != 0) {
+            rapidjson::Document doc;
+            doc.Parse(items.c_str());
+            k = j + doc.Size();
+            for (auto item = doc.Begin(); item != doc.End(); ++item) {
+                items_.push_back(std::make_shared<Item>(*item, tab));
+            };
+        };
 
 		CurrentStatusUpdate status;
 		status.state = ProgramState::ItemsRetrieved;
@@ -235,6 +242,15 @@ void ItemsManagerWorker::ParseItemMods() {
 
 	//let ItemManager know that the retrieval of cached items/tabs has been completed (calls ItemsManager::OnItemsRefreshed method)
 	emit ItemsRefreshed(items_, tabs_, true);
+
+    modsUpdating_ = false;
+    initialModUpdateCompleted_ = true;
+    updating_ = false;
+
+    if (updateRequest_) {
+        updateRequest_ = false;
+        Update(type_, locations_);
+    }
 }
 
 void ItemsManagerWorker::UpdateModList(){
@@ -295,18 +311,12 @@ void ItemsManagerWorker::OnStatTranslationsReceived(QNetworkReply* reply){
 		mods.push_back({ stat_string });
 	}
 
-	InitModlist();
-
-	ParseItemMods();
-
-	modsUpdating_ = false;
-	initialModUpdateCompleted_ = true;
-	updating_ = false;
-
-	if (updateRequest_){
-		updateRequest_ = false;
-		Update(type_, locations_);
-	}
+    // Create a separate thread to load the items, which allows the UI to
+    // update the status bar while items are being parsed. This operation
+    // can take tens of seconds or longer depending on the nubmer of tabs
+    // and items.
+    QThread* parser = QThread::create([=]() { ParseItemMods(); });
+    parser->start();
 }
 
 void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocation> &locations) {
@@ -316,157 +326,57 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
 	}
 
     QLOG_DEBUG() << "Updating" << type << "stash tabs";
-    tab_selection_ = type;
     updating_ = true;
-
 	cancel_update_ = false;
-	// remove all pending requests
+
+    // remove all pending requests
 	queue_ = std::queue<ItemsRequest>();
 	queue_id_ = 0;
-	//items_.clear();
+
 	tabs_as_string_ = "";
 	selected_character_ = "";
 
-    selected_tabs_.clear();
-    for (auto const& tab : locations) {
-        selected_tabs_.insert(tab.get_tab_uniq_id());
-    }
-
-    std::set<std::string> selected_tab_ids;
-    for (auto const& location : locations) {
-        selected_tab_ids.insert(location.get_tab_uniq_id());
-    };
-
-    // Determine which tabs to save.
-    std::vector<bool> save_tabs(tabs_.size());
-    auto tab = tabs_.begin();
-    auto save_tab = save_tabs.begin();
-    int save_stash_count = 0;
-    int save_character_count = 0;
-    int update_stash_count = 0;
-    int update_character_count = 0;
     first_fetch_tab_ = "";
     first_fetch_tab_id_ = -1;
-    while ((tab != tabs_.end()) && (save_tab != save_tabs.end())) {
+
+    if (type == TabSelection::All) {
+        QLOG_DEBUG() << "Updating all tabs and items.";
+        tabs_.clear();
+        tab_id_index_.clear();
+        items_.clear();
+    }
+    else {
+        // Build a list of tabs to update.
+        std::set<std::string> tabs_to_update = {};
         switch (type) {
-        case TabSelection::All:
-            *save_tab = false;
-            break;
         case TabSelection::Checked:
-            *save_tab = (tab->IsValid()) && (bo_manager_.GetRefreshChecked(*tab) == false);
+            // Use the buyout manager to determine which tabs are check.
+            for (auto const& tab : tabs_) {
+                if ((tab.IsValid()) && (bo_manager_.GetRefreshChecked(tab) == true)) {
+                    tabs_to_update.insert(tab.get_tab_uniq_id());
+                };
+            };
             break;
         case TabSelection::Selected:
-            *save_tab = (tab->IsValid()) && (selected_tab_ids.count(tab->get_tab_uniq_id()) == 0);
-            break;
-        default:
-            QLOG_ERROR() << "Invalid tab selection type:" << type;
-            break;
-        };
-        if (*save_tab == true) {
-            switch (tab->get_type()) {
-            case ItemLocationType::STASH:
-                ++save_stash_count;
-                break;
-            case ItemLocationType::CHARACTER:
-                ++save_character_count;
-                break;
+            // Use the function argument to determine which tabs were selected.
+            for (auto const& tab : locations) {
+                if (tab.IsValid()) {
+                    tabs_to_update.insert(tab.get_tab_uniq_id());
+                };
             };
-        }
-        else {
-            switch (tab->get_type()) {
-            case ItemLocationType::STASH:
-                ++update_stash_count;
-                break;
-            case ItemLocationType::CHARACTER:
-                ++update_character_count;
-                break;
-            }
-            first_fetch_tab_ = tab->get_tab_uniq_id();
-            first_fetch_tab_id_ = tab->get_tab_id();
+            break;
         };
-        ++tab;
-        ++save_tab;
+        // Remove the tabs that will be updated, and all the items linked to those tabs.
+        QLOG_DEBUG() << "Updating" << tabs_to_update.size() << " tabs.";
+        RemoveUpdatingTabs(tabs_to_update);
+        RemoveUpdatingItems(tabs_to_update);
     };
-    if (first_fetch_tab_ == "") {
+
+    if (first_fetch_tab_id_ < 0) {
         QLOG_WARN() << "Requesting tab index 0 because there are no known tabs to update.";
         first_fetch_tab_ = "<UNKNOWN>";
         first_fetch_tab_id_ = 0;
-    }
-    QLOG_DEBUG() << "Keeping" << save_stash_count << "known stash tab(s) and" << save_character_count << "character(s)";
-    QLOG_DEBUG() << "Updating" << update_stash_count << "known stash tab(s) and" << update_character_count << "character(s)";
-       
-    // Determine which items to save.
-    std::vector<bool> save_items(items_.size());
-    auto item = items_.begin();
-    auto save_item = save_items.begin();
-    int keep_item_count = 0;
-    int remove_item_count = 0;
-    while ((item != items_.end()) && (save_item != save_items.end())) {
-        const ItemLocation& item_location = item->get()->location();
-        switch (type) {
-        case TabSelection::All:
-            *save_item = false;
-            break;
-        case TabSelection::Checked:
-            *save_item = (item_location.IsValid()) && (bo_manager_.GetRefreshChecked(item_location) == false);
-            break;
-        case TabSelection::Selected:
-            *save_item = (item_location.IsValid()) && (selected_tab_ids.count(item_location.get_tab_uniq_id()) == 0);
-            break;
-        default:
-            QLOG_ERROR() << "Invalid tab selection type:" << type;
-            break;
-        }
-        if (*save_item) {
-            ++keep_item_count;
-        }
-        else {
-            ++remove_item_count;
-        }
-        ++item;
-        ++save_item;
     };
-    QLOG_DEBUG() << "Keeping" << keep_item_count << "items and removing" << remove_item_count;
-
-    // Keep tabs that are not going to be updated.
-    std::vector<ItemLocation> current_tabs = tabs_;
-    tabs_.clear();
-    tabs_.reserve(current_tabs.size());
-    tab_id_index_.clear();
-    tab = current_tabs.begin();
-    save_tab = save_tabs.begin();
-    while ((tab != current_tabs.end()) && (save_tab != save_tabs.end())) {
-        const std::string& tab_id = tab->get_tab_uniq_id();
-        const std::string& tab_label = tab->get_tab_label();
-        if (*save_tab == true) {
-            QLOG_TRACE() << "Saving" << tab_id.c_str() << tab_label.c_str();
-            tabs_.push_back(*tab);
-            tab_id_index_.insert(tab_id);
-        }
-        else {
-            QLOG_TRACE() << "DROPPING --->" << tab_id.c_str() << tab_label.c_str();
-        };
-        ++tab;
-        ++save_tab;
-    };
-    save_tabs.clear();
-    tabs_.shrink_to_fit();
-
-    // Keep items that are not going to be updated.
-    Items current_items = items_;
-    items_.clear();
-    items_.reserve(current_items.size());
-    item = current_items.begin();
-    save_item = save_items.begin();
-    while ((item != current_items.end()) && (save_item != save_items.end())) {
-        if (*save_item == true) {
-            items_.push_back(*item);
-        };
-        ++item;
-        ++save_item;
-    };
-    save_items.clear();
-    items_.shrink_to_fit();
 
 	// first, download the main page because it's the only way to know which character is selected
     QNetworkRequest main_page_request = QNetworkRequest(QUrl(kMainPage));
@@ -476,6 +386,53 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
 		});
 }
 
+void ItemsManagerWorker::RemoveUpdatingTabs(const std::set<std::string>& tab_ids) {
+
+    if (tab_ids.empty()) {
+        QLOG_ERROR() << "No tabs to remove.";
+        return;
+    };
+
+    // Keep tabs that are not being updated.
+    std::vector<ItemLocation> current_tabs = tabs_;
+    bool need_first = true;
+    tabs_.clear();
+    tab_id_index_.clear();
+    for (auto& tab : current_tabs) {
+        const std::string tab_id = tab.get_tab_uniq_id();
+        bool save_tab = (tab_ids.count(tab.get_tab_uniq_id()) == 0);
+        if (save_tab) {
+            tabs_.push_back(tab);
+            tab_id_index_.insert(tab.get_tab_uniq_id());
+        }
+        else if (need_first) {
+            first_fetch_tab_ = tab.get_tab_uniq_id();
+            first_fetch_tab_id_ = tab.get_tab_id();
+            need_first = false;
+        };
+    };
+    QLOG_DEBUG() << "Keeping" << tabs_.size() << "tabs and culling" << (current_tabs.size() - tabs_.size());
+}
+
+void ItemsManagerWorker::RemoveUpdatingItems(const std::set<std::string>& tab_ids) {
+
+    // Keep items with locations that are not being updated.
+    if (tab_ids.empty()) {
+        QLOG_ERROR() << "No tabs to remove items from.";
+        return;
+    };
+    Items current_items = items_;
+    items_.clear();
+    for (auto const& item : current_items) {
+        const ItemLocation& tab = item.get()->location();
+        bool save_item = (tab_ids.count(tab.get_tab_uniq_id()) == 0);
+        if (save_item) {
+            items_.push_back(item); 
+        };
+    };
+    QLOG_DEBUG() << "Keeping" << items_.size() << "items and culling" << (current_items.size() - items_.size());
+}
+
 void ItemsManagerWorker::OnMainPageReceived(QNetworkReply* reply) {
 
     QLOG_TRACE() << "Main page received.";
@@ -483,14 +440,14 @@ void ItemsManagerWorker::OnMainPageReceived(QNetworkReply* reply) {
 
 	if (reply->error()) {
 		QLOG_WARN() << "Couldn't fetch main page: " << reply->url().toDisplayString() << " due to error: " << reply->errorString();
-	} else {
-		std::string page(reply->readAll().constData());
-
-		selected_character_ = Util::FindTextBetween(page, "C({\"name\":\"", "\",\"class");
-		if (selected_character_.empty()) {
-			QLOG_WARN() << "Couldn't extract currently selected character name from GGG homepage (maintenence?) Text was: " << page.c_str();
-		}
-	}
+    }
+    else {
+        std::string page(reply->readAll().constData());
+        selected_character_ = Util::FindTextBetween(page, "C({\"name\":\"", "\",\"class");
+        if (selected_character_.empty()) {
+            QLOG_WARN() << "Couldn't extract currently selected character name from GGG homepage (maintenence?) Text was: " << page.c_str();
+        };
+    };
 
 	// now get character list
     QNetworkRequest characters_request = QNetworkRequest(QUrl(kGetCharactersUrl));
@@ -529,17 +486,6 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 	}
 	
 	QLOG_DEBUG() << "Received character list, there are" << doc.Size() << "characters across all leagues.";
-
-	//clear out ItemLocationType::CHARACTER tabs from tabs_
-    /*
-	std::vector<ItemLocation> tmpLocs = tabs_;
-	for(auto &tab : tmpLocs){
-		if(tab.get_type() == ItemLocationType::CHARACTER){
-			tabs_.erase(std::remove(tabs_.begin(), tabs_.end(), tab), tabs_.end());
-			tab_id_index_.erase(tab.get_tab_uniq_id());
-		}
-	}
-    */
 
     int total_character_count = 0;
 	int requested_character_count = 0;
@@ -580,40 +526,6 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 
 	emit StatusUpdate(status);
 
-	/*
-    if (char_count == 0) {
-		updating_ = false;
-		return;
-	}
-    */
-
-    /*
-	// Fetch a single tab and also request tabs list.  We can fetch any tab here with tabs list
-	// appended, so prefer one that the user has already 'checked'.  Default to index '1' which is
-	// first user visible tab.
-	//first_fetch_tab_ = "";
-	ItemLocation tabToReq;
-	if (tab_selection_ == TabSelection::Checked) {
-		for (auto const &tab : tabs_) {
-			if (bo_manager_.GetRefreshChecked(tab)) {
-				//first_fetch_tab_ = tab.get_tab_uniq_id();
-				tabToReq = tab;
-				break;
-			}
-		}
-	}
-	// If we're refreshing a manual selection of tabs choose one of them to save a tab fetch
-	if (tab_selection_ == TabSelection::Selected) {
-		for (auto const &tab : tabs_) {
-			if (selected_tabs_.count(tab.get_tab_uniq_id()) > 0) {
-				//first_fetch_tab_ = tab.get_tab_uniq_id();
-				tabToReq = tab;
-				break;
-			}
-		}
-	}
-    */
-
 	QNetworkRequest tab_request = MakeTabRequest(first_fetch_tab_id_, true);
 	rate_limiter_.Submit(network_manager_, tab_request,
 		[=](QNetworkReply* reply) {
@@ -632,8 +544,7 @@ QNetworkRequest ItemsManagerWorker::MakeTabRequest(int tab_index, bool tabs) {
 	QUrl url(kStashItemsUrl);
 	url.setQuery(query);
 
-    QNetworkRequest tab_request = QNetworkRequest(url);
-	return tab_request;
+	return QNetworkRequest(url);
 }
 
 QNetworkRequest ItemsManagerWorker::MakeCharacterRequest(const std::string &name) {
@@ -722,58 +633,13 @@ void ItemsManagerWorker::OnFirstTabReceived(QNetworkReply* reply) {
 	QLOG_DEBUG() << "Received tabs list, there are" << doc["tabs"].Size() << "tabs";
 
 	std::set<std::string> old_tab_headers;
-	for (auto const &tab: tabs_) {
-		// Remember old tab headers before clearing tabs
-		old_tab_headers.insert(tab.GetHeader());
-	}
-
-    /*
-	//clear out ItemLocationType::STASH tabs from tabs_
-	std::vector<ItemLocation> saved_tabs;
-    saved_tabs.reserve(tabs_.size());
-    for(auto &tab : tabs_){
-        if (tab.get_type() != ItemLocationType::STASH) {
-            continue;
-        };
-        bool refresh_tab = false;
-        switch (tab_selection_) {
-        case TabSelection::All:
-            refresh_tab = true;
-            break;
-        case TabSelection::Checked:
-            if ((!tab.IsValid()) || bo_manager_.GetRefreshChecked(tab))
-                refresh_tab = true;
-            break;
-        case TabSelection::Selected:
-            if ((!tab.IsValid()) || (selected_tabs_.count(tab.get_tab_uniq_id()) > 0))
-                refresh_tab = true;
-            break;
-        }
-        // Force refreshes for any tabs that were moved or renamed regardless of what user
-        // requests for refresh.
-        if (old_tab_headers.count(tab.GetHeader()) == 0) {
-            QLOG_DEBUG() << "Forcing refresh of moved or renamed tab: " << tab.GetHeader().c_str();
-            refresh_tab = true;
-        }
-
-        if (refresh_tab) {
-            //tabs_.erase(std::remove(tabs_.begin(), tabs_.end(), tab), tabs_.end());
-            tab_id_index_.erase(tab.get_tab_uniq_id());
-        }
-        else {
-            saved_tabs.push_back(tab);
-            //tabs_.emplace_back(ItemLocation(tab));
-        };
-    };
-    tabs_ = saved_tabs;
-    tabs_.shrink_to_fit();
-    saved_tabs.clear();
-    */
-
-    // Queue requests for Stash tabs
     for (auto const& tab : tabs_) {
-        // Force refreshes for any tabs that were moved or renamed regardless of what user
-        // requests for refresh.
+        // Remember old tab headers before clearing tabs
+        old_tab_headers.insert(tab.GetHeader());
+    };
+
+    // Force refreshes for any stash tabs that were moved or renamed.
+    for (auto const& tab : tabs_) {
         if (!old_tab_headers.count(tab.GetHeader())) {
             QLOG_DEBUG() << "Forcing refresh of moved or renamed tab: " << tab.GetHeader().c_str();
             QueueRequest(MakeTabRequest(tab.get_tab_id(), true), tab);
@@ -797,10 +663,10 @@ void ItemsManagerWorker::OnFirstTabReceived(QNetworkReply* reply) {
         const int r = tab["colour"]["r"].GetInt();
         const int g = tab["colour"]["g"].GetInt();
         const int b = tab["colour"]["b"].GetInt();
-        ItemLocation location(index, tab["id"].GetString(), label, ItemLocationType::STASH, r, g, b);
+        ItemLocation location(index, tab_id, label, ItemLocationType::STASH, r, g, b);
         location.set_json(tab, doc.GetAllocator());
         tabs_.push_back(location);
-        tab_id_index_.insert(tab["id"].GetString());
+        tab_id_index_.insert(tab_id);
         QueueRequest(MakeTabRequest(location.get_tab_id(), true), location);
     };
 
@@ -827,10 +693,8 @@ void ItemsManagerWorker::ParseItems(rapidjson::Value *value_ptr, ItemLocation ba
 
 void ItemsManagerWorker::OnTabReceived(QNetworkReply* network_reply, int request_id, ItemLocation location) {
 
-    QLOG_TRACE() << "Tab received:" << location.GetHeader().c_str();
+    QLOG_DEBUG() << "Received a reply for" << location.GetHeader().c_str();
     CheckForViolation(network_reply);
-
-	QLOG_DEBUG() << "Received a reply for" << location.GetHeader().c_str();
 
 	QByteArray bytes = network_reply->readAll();
 	rapidjson::Document doc;
@@ -838,11 +702,11 @@ void ItemsManagerWorker::OnTabReceived(QNetworkReply* network_reply, int request
 
 	bool error = false;
 	if (!doc.IsObject()) {
-		QLOG_WARN() << request_id << "got a non-object response";
+		QLOG_WARN() << "Got a non-object response";
 		error = true;
 	} else if (doc.HasMember("error")) {
 		// this can happen if user is browsing stash in background and we can't know about it
-		QLOG_WARN() << request_id << "got 'error' instead of stash tab contents: " << Util::RapidjsonSerialize(doc["error"]).c_str();
+		QLOG_WARN() << "Got 'error' instead of stash tab contents: " << Util::RapidjsonSerialize(doc["error"]).c_str();
 		error = true;
 	}
 
@@ -925,36 +789,41 @@ void ItemsManagerWorker::OnTabReceived(QNetworkReply* network_reply, int request
 			return *a < *b;
 		});
 
-		std::map<ItemLocationType, QStringList> tabsPerType;
-		//categorize tabs by tab type
-		for(auto const tab : tabs_){
-			tabsPerType[tab.get_type()].push_back(tab.get_json().c_str());
+		// Maps location type (CHARACTER or STASH) to a list of all the tabs of that type
+        std::map<ItemLocationType, QStringList> tabsPerType;
+        for(auto const tab : tabs_){
+            const auto& tab_type = tab.get_type();
+            const auto& tab_json = tab.get_json().c_str();
+			tabsPerType[tab_type].push_back(tab_json);
 		}
 
-		//loop through each item, put it in a set that equals its location
+		// Map locations to a list of items in that location.
 		std::map<ItemLocation, QStringList> itemsPerLoc;
-		for (auto const &item: items_) {
-			itemsPerLoc[item->location()].push_back(item->json().c_str());
-		}
+        for (auto const& item : items_) {
+            const auto& item_location = item->location();
+            const auto& item_json = item->json().c_str();
+            itemsPerLoc[item_location].push_back(item_json);
+        };
 
-		//save tabs
-		std::map<ItemLocationType, QStringList>::iterator tabIter;
-		for ( tabIter = tabsPerType.begin(); tabIter != tabsPerType.end(); tabIter++ ){
-		   data_.SetTabs(tabIter->first, std::string("[") + tabIter->second.join(",").toStdString() + "]");
-		}
+		// Save tabs by tab type.
+        for (auto const& tab : tabsPerType) {
+            const auto& tab_type = tab.first;
+            const auto& tab_json = std::string("[") + tab.second.join(",").toStdString() + "]";
+            data_.SetTabs(tab_type, tab_json);
+        };
 
-		//save items
-		std::map<ItemLocation, QStringList>::iterator itemIter;
-		for ( itemIter = itemsPerLoc.begin(); itemIter != itemsPerLoc.end(); itemIter++ )
-		{
-		   data_.SetItems(itemIter->first, std::string("[") + itemIter->second.join(",").toStdString() + "]");
-		}
+		// Save items by location.
+        for (auto const& item : itemsPerLoc) {
+            const auto& item_location = item.first;
+            const auto& item_json = std::string("[") + item.second.join(",").toStdString() + "]";
+            data_.SetItems(item_location, item_json);
+        };
 
-		// all requests completed
+		// Let everyone know the update is done.
 		emit ItemsRefreshed(items_, tabs_, false);
 
 		updating_ = false;
-		QLOG_DEBUG() << "Finished updating stash.";
+		QLOG_DEBUG() << "Update finished.";
 
 		PreserveSelectedCharacter();
 	}
