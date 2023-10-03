@@ -78,9 +78,9 @@ public:
 	// Various types of data for various filters
 	// It's probably not a very elegant solution but it works.
 	std::string text_query;
-	double min, max;
+    double min{ 0 }, max{ 0 };
 	bool min_filled, max_filled;
-	int r, g, b;
+    int r{ 0 }, g{ 0 }, b{ 0 };
 	bool r_filled, g_filled, b_filled;
 	bool checked;
 	std::vector<ModFilterData> mod_data;
