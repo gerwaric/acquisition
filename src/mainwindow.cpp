@@ -71,7 +71,7 @@ MainWindow::MainWindow(std::unique_ptr<Application> app):
 	ui(new Ui::MainWindow),
 	current_search_(nullptr),
 	search_count_(0),
-	auto_online_(app_->data(), app_->sensitive_data()),
+	//auto_online_(app_->data(), app_->sensitive_data()),
 	network_manager_(new QNetworkAccessManager)
 {
 #ifdef Q_OS_WIN32
@@ -100,7 +100,7 @@ MainWindow::MainWindow(std::unique_ptr<Application> app):
 	connect(&app_->items_manager(), &ItemsManager::StatusUpdate, this, &MainWindow::OnStatusUpdate);
 	connect(&app_->shop(), &Shop::StatusUpdate, this, &MainWindow::OnStatusUpdate);
 	connect(&update_checker_, &UpdateChecker::UpdateAvailable, this, &MainWindow::OnUpdateAvailable);
-	connect(&auto_online_, &AutoOnline::Update, this, &MainWindow::OnOnlineUpdate);
+	//connect(&auto_online_, &AutoOnline::Update, this, &MainWindow::OnOnlineUpdate);
 	connect(&delayed_update_current_item_, &QTimer::timeout, [&](){UpdateCurrentItem();delayed_update_current_item_.stop();});
 	connect(&delayed_search_form_change_, &QTimer::timeout, [&](){OnSearchFormChange();delayed_search_form_change_.stop();});
 
@@ -422,6 +422,7 @@ void MainWindow::OnStatusUpdate(const CurrentStatusUpdate &status) {
 	}
 
 	status_bar_label_->setText(title);
+    status_bar_label_->update();
 
 #ifdef Q_OS_WIN32
 	QWinTaskbarProgress *progress = taskbar_button_->progress();
@@ -791,11 +792,11 @@ void MainWindow::UpdateShopMenu() {
 }
 
 void MainWindow::UpdateOnlineGui() {
-	online_label_.setVisible(auto_online_.enabled());
-	ui->actionAutomatically_refresh_online_status->setChecked(auto_online_.enabled());
+	//online_label_.setVisible(auto_online_.enabled());
+	//ui->actionAutomatically_refresh_online_status->setChecked(auto_online_.enabled());
 	std::string action_label = "control.poe.trade URL...";
-	if (auto_online_.IsUrlSet())
-		action_label += " [******]";
+	//if (auto_online_.IsUrlSet())
+	//	action_label += " [******]";
 	ui->actionControl_poe_xyz_is_URL->setText(action_label.c_str());
 }
 
@@ -859,8 +860,8 @@ void MainWindow::on_actionControl_poe_xyz_is_URL_triggered() {
 	QString url = QInputDialog::getText(this, "control.poe.trade URL",
 		"Copy and paste your whole control.poe.trade URL here",
 		QLineEdit::Normal, "", &ok);
-	if (ok && !url.isEmpty())
-		auto_online_.SetUrl(url.toStdString());
+	//if (ok && !url.isEmpty())
+	//	auto_online_.SetUrl(url.toStdString());
 	UpdateOnlineGui();
 }
 
@@ -869,13 +870,13 @@ void MainWindow::on_actionRemoteScript_triggered() {
 	QString path = QInputDialog::getText(this, "Remote Process List Script",
 		"Path to the script for listing the running processes of your gaming machine",
 		QLineEdit::Normal, "", &ok);
-	if (ok && !path.isEmpty())
-		auto_online_.SetRemoteScript(path.toStdString());
+	//if (ok && !path.isEmpty())
+	//	auto_online_.SetRemoteScript(path.toStdString());
 	UpdateOnlineGui();
 }
 
 void MainWindow::on_actionAutomatically_refresh_online_status_triggered() {
-	auto_online_.SetEnabled(ui->actionAutomatically_refresh_online_status->isChecked());
+	//auto_online_.SetEnabled(ui->actionAutomatically_refresh_online_status->isChecked());
 	UpdateOnlineGui();
 }
 
@@ -926,7 +927,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 																QMessageBox::No | QMessageBox::Yes,
 																QMessageBox::Yes);
 	if (resBtn != QMessageBox::Yes) {
-		auto_online_.SendOnlineUpdate(false);
+		//auto_online_.SendOnlineUpdate(false);
 		event->ignore();
 	} else {
 		event->accept();

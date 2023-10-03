@@ -30,7 +30,6 @@ LIBS += -L"C:\Program Files\OpenSSL-Win64\lib" -llibcrypto -llibssl
 SOURCES += \
 	deps/sqlite/sqlite3.c \
 	src/application.cpp \
-	src/autoonline.cpp \
 	src/bucket.cpp \
 	src/buyoutmanager.cpp \
 	src/column.cpp \
@@ -63,7 +62,6 @@ SOURCES += \
 	src/search.cpp \
 	src/shop.cpp \
 	src/steamlogindialog.cpp \
-	src/tabcache.cpp \
 	src/updatechecker.cpp \
 	src/util.cpp \
 	src/version.cpp \
@@ -79,7 +77,6 @@ HEADERS += \
 	deps/sqlite/sqlite3.h \
     network_info.h \
 	src/application.h \
-	src/autoonline.h \
 	src/bucket.h \
 	src/buyoutmanager.h \
 	src/column.h \
@@ -115,7 +112,6 @@ HEADERS += \
 	src/selfdestructingreply.h \
 	src/shop.h \
 	src/steamlogindialog.h \
-	src/tabcache.h \
 	src/updatechecker.h \
 	src/util.h \
 	src/version.h \
