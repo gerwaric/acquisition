@@ -135,18 +135,19 @@ std::string ItemLocation::GetForumCode(const std::string &league) const {
 }
 
 bool ItemLocation::IsValid() const {
-	return ( (!tab_label_.empty() && type_ == ItemLocationType::STASH)
-			||(!character_.empty() && type_ == ItemLocationType::CHARACTER));
+    // Stash tabs can have empty labels, but character tabs must have a name.
+	return (type_ == ItemLocationType::STASH) || ((type_ == ItemLocationType::CHARACTER) && !character_.empty());
 }
 
 std::string ItemLocation::GetUniqueHash() const {
-	if (!IsValid())
-		return "";
-
-	if (type_ == ItemLocationType::STASH)
-		return "stash:" + tab_label_;
-	else
-		return "character:" + character_;
+    // Use the unique tab id because it never be empty.
+    return IsValid() ? tab_unique_id_ : "";
+    //if (!IsValid())
+    //	return "";
+    //if (type_ == ItemLocationType::STASH)
+	//	return "stash:" + tab_label_;
+	//else
+	//	return "character:" + character_;
 }
 
 void ItemLocation::set_json(rapidjson::Value &value, rapidjson_allocator &alloc) {
