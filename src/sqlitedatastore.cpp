@@ -70,9 +70,12 @@ void SqliteDataStore::CleanItemsTable() {
 
 		query = "SELECT loc FROM items";
 		sqlite3_stmt* stmt;
-		auto prepareResults = sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, NULL);
+		int prepareResults = sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, NULL);
+        if (prepareResults != SQLITE_OK) {
+            QLOG_ERROR() << "CleanItemsTable: sqlite3_prepare_v2 returned error:" << prepareResults;
+            return;
+        };
 		while (sqlite3_step(stmt) == SQLITE_ROW) {
-			int value_type = sqlite3_column_type(stmt, 0);
 			std::string locStr(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0)));
 			locs.push_back(locStr);
 
@@ -94,7 +97,7 @@ void SqliteDataStore::CleanItemsTable() {
 
 			//check stash tabs
 			doc.Parse(stashTabData.c_str());
-			for (const rapidjson::Value const *tab = doc.Begin(); tab != doc.End(); ++tab) {
+			for (const rapidjson::Value* tab = doc.Begin(); tab != doc.End(); ++tab) {
 				if (tab->HasMember("id") && (*tab)["id"].IsString()) {
 					std::string tabLoc((*tab)["id"].GetString());
 					if (tabLoc.compare(loc) == 0) {
@@ -107,7 +110,7 @@ void SqliteDataStore::CleanItemsTable() {
 			//check character tabs
 			if (!foundLoc) {
 				doc.Parse(charsData.c_str());
-				for (const rapidjson::Value const* tab = doc.Begin(); tab != doc.End(); ++tab) {
+				for (const rapidjson::Value* tab = doc.Begin(); tab != doc.End(); ++tab) {
 					if (tab->HasMember("name") && (*tab)["name"].IsString()) {
 						std::string tabLoc((*tab)["name"].GetString());
 						if (tabLoc.compare(loc) == 0) {
@@ -167,8 +170,16 @@ std::string SqliteDataStore::GetItems(const ItemLocation &loc, const std::string
 	std::string location = loc.get_tab_uniq_id();
 
 	sqlite3_stmt *stmt;
-	auto prepareResults = sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, NULL);
-	auto bindResults = sqlite3_bind_text(stmt, 1, location.c_str(), -1, SQLITE_STATIC);
+	int prepareResults = sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, NULL);
+    if (prepareResults != SQLITE_OK) {
+        QLOG_ERROR() << "GetItems: sqlite3_prepare_v2 returned error:" << prepareResults;
+        return "";
+    };
+	int bindResults = sqlite3_bind_text(stmt, 1, location.c_str(), -1, SQLITE_STATIC);
+    if (bindResults != SQLITE_OK) {
+        QLOG_ERROR() << "GetItems: sqlite3_bind_text returned error:" << bindResults;
+        return "";
+    };
 	std::string result(default_value);
 
 	auto rslt = sqlite3_step(stmt);
@@ -180,34 +191,47 @@ std::string SqliteDataStore::GetItems(const ItemLocation &loc, const std::string
 }
 
 void SqliteDataStore::Set(const std::string &key, const std::string &value) {
+    if (value.size() > INT_MAX) {
+        QLOG_ERROR() << "SqliteDataStore::Set(): value is too long";
+        return;
+    };
 	std::string query = "INSERT OR REPLACE INTO data (key, value) VALUES (?, ?)";
 	sqlite3_stmt *stmt;
 	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
 	sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_STATIC);
-	sqlite3_bind_blob(stmt, 2, value.c_str(), value.size(), SQLITE_STATIC);
+	sqlite3_bind_blob(stmt, 2, value.c_str(), static_cast<int>(value.size()), SQLITE_STATIC);
 	sqlite3_step(stmt);
 	sqlite3_finalize(stmt);
 }
 
 void SqliteDataStore::SetTabs(const ItemLocationType &type, const std::string &value) {
+    if (value.size() > INT_MAX) {
+        QLOG_ERROR() << "SqliteDataStore::SetTabs(): value is too long";
+        return;
+    };
 	std::string query = "INSERT OR REPLACE INTO tabs (type, value) VALUES (?, ?)";
 	sqlite3_stmt *stmt;
 	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
 	sqlite3_bind_int(stmt, 1, (int) type);
-	sqlite3_bind_blob(stmt, 2, value.c_str(), value.size(), SQLITE_STATIC);
+	sqlite3_bind_blob(stmt, 2, value.c_str(), static_cast<int>(value.size()), SQLITE_STATIC);
 	sqlite3_step(stmt);
 	sqlite3_finalize(stmt);
 }
 
 void SqliteDataStore::SetItems(const ItemLocation &loc, const std::string &value) {
-	if (loc.get_tab_uniq_id().empty())
-		return;
-
+    if (loc.get_tab_uniq_id().empty()) {
+        QLOG_ERROR() << "SqliteDataStore::SetItems(): location is empty";
+        return;
+    };
+    if (value.size() > INT_MAX) {
+        QLOG_ERROR() << "SqliteDataStore::SetItems(): value is too long";
+        return;
+    };
 	std::string query = "INSERT OR REPLACE INTO items (loc, value) VALUES (?, ?)";
 	sqlite3_stmt *stmt;
 	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
 	sqlite3_bind_text(stmt, 1, loc.get_tab_uniq_id().c_str(), -1, SQLITE_TRANSIENT);
-	sqlite3_bind_blob(stmt, 2, value.c_str(), value.size(), SQLITE_STATIC);
+	sqlite3_bind_blob(stmt, 2, value.c_str(), static_cast<int>(value.size()), SQLITE_STATIC);
 	sqlite3_step(stmt);
 	sqlite3_finalize(stmt);
 }
