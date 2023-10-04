@@ -792,31 +792,31 @@ void ItemsManagerWorker::OnTabReceived(QNetworkReply* network_reply, int request
 		// Maps location type (CHARACTER or STASH) to a list of all the tabs of that type
         std::map<ItemLocationType, QStringList> tabsPerType;
         for(auto const tab : tabs_){
-            const auto& tab_type = tab.get_type();
-            const auto& tab_json = tab.get_json().c_str();
+            const ItemLocationType& tab_type = tab.get_type();
+            const QString tab_json = QString(tab.get_json().c_str());
 			tabsPerType[tab_type].push_back(tab_json);
 		}
 
 		// Map locations to a list of items in that location.
 		std::map<ItemLocation, QStringList> itemsPerLoc;
         for (auto const& item : items_) {
-            const auto& item_location = item->location();
-            const auto& item_json = item->json().c_str();
+            const ItemLocation& item_location = item->location();
+            const QString item_json = QString(item->json().c_str());
             itemsPerLoc[item_location].push_back(item_json);
         };
 
 		// Save tabs by tab type.
         for (auto const& tab : tabsPerType) {
-            const auto& tab_type = tab.first;
-            const auto& tab_json = std::string("[") + tab.second.join(",").toStdString() + "]";
-            data_.SetTabs(tab_type, tab_json);
+            const ItemLocationType& tab_type = tab.first;
+            const QString tab_json = "[" + tab.second.join(",") + "]";
+            data_.SetTabs(tab_type, tab_json.toStdString());
         };
 
 		// Save items by location.
         for (auto const& item : itemsPerLoc) {
-            const auto& item_location = item.first;
-            const auto& item_json = std::string("[") + item.second.join(",").toStdString() + "]";
-            data_.SetItems(item_location, item_json);
+            const ItemLocation& item_location = item.first;
+            const QString item_json = "[" + item.second.join(",") + "]";
+            data_.SetItems(item_location, item_json.toStdString());
         };
 
 		// Let everyone know the update is done.

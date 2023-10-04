@@ -37,7 +37,6 @@ class QNetworkReply;
 class QSignalMapper;
 class QTimer;
 class BuyoutManager;
-class TabCache;
 
 struct ItemsRequest {
     int id{ -999 };
