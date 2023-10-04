@@ -31,7 +31,6 @@
 #include <QWinTaskbarProgress>
 #endif
 
-//#include "autoonline.h"
 #include "bucket.h"
 #include "items_model.h"
 #include "porting.h"
@@ -163,7 +162,6 @@ private:
 	UpdateChecker update_checker_;
 	QPushButton update_button_;
 	QPushButton refresh_button_;
-	//AutoOnline auto_online_;
 	QLabel online_label_;
 	QNetworkAccessManager *network_manager_;
 	QTimer delayed_update_current_item_;

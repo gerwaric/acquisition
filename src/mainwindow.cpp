@@ -71,7 +71,6 @@ MainWindow::MainWindow(std::unique_ptr<Application> app):
 	ui(new Ui::MainWindow),
 	current_search_(nullptr),
 	search_count_(0),
-	//auto_online_(app_->data(), app_->sensitive_data()),
 	network_manager_(new QNetworkAccessManager)
 {
 #ifdef Q_OS_WIN32
@@ -100,7 +99,6 @@ MainWindow::MainWindow(std::unique_ptr<Application> app):
 	connect(&app_->items_manager(), &ItemsManager::StatusUpdate, this, &MainWindow::OnStatusUpdate);
 	connect(&app_->shop(), &Shop::StatusUpdate, this, &MainWindow::OnStatusUpdate);
 	connect(&update_checker_, &UpdateChecker::UpdateAvailable, this, &MainWindow::OnUpdateAvailable);
-	//connect(&auto_online_, &AutoOnline::Update, this, &MainWindow::OnOnlineUpdate);
 	connect(&delayed_update_current_item_, &QTimer::timeout, [&](){UpdateCurrentItem();delayed_update_current_item_.stop();});
 	connect(&delayed_search_form_change_, &QTimer::timeout, [&](){OnSearchFormChange();delayed_search_form_change_.stop();});
 

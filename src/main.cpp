@@ -37,7 +37,6 @@
 #include "porting.h"
 #include "version.h"
 #include "../test/testmain.h"
-#include "tabcache.h"
 #include "util.h"
 
 #ifdef CRASHRPT
