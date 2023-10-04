@@ -175,7 +175,7 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
     // quad stashes, currency stashes, etc
     boost::replace_last(icon_, "scaleIndex=", "scaleIndex=0&");
 
-    CalculateCategories(json);
+    CalculateCategories();
 
     if (json.HasMember("talismanTier") && json["talismanTier"].IsUint()) {
         talisman_tier_ = json["talismanTier"].GetUint();
@@ -310,7 +310,7 @@ std::string Item::PrettyName() const {
     return typeLine_;
 }
 
-void Item::CalculateCategories(const rapidjson::Value& json) {
+void Item::CalculateCategories() {
     /*
     // Derive item type 'category' hierarchy from icon path.
     std::smatch sm;
@@ -448,8 +448,6 @@ double Item::cDPS() const {
 }
 
 void Item::GenerateMods(const rapidjson::Value& json) {
-    bool mod_present = false;
-    double sum = 0;
     for (auto& type : { "implicitMods", "explicitMods", "craftedMods", "fracturedMods"}) {
         if (!json.HasMember(type) || !json[type].IsArray())
             continue;
@@ -458,7 +456,7 @@ void Item::GenerateMods(const rapidjson::Value& json) {
                 continue;
 
             std::string mod_s = mod.GetString();
-            std::regex rep("([0-9\.]+)");
+            std::regex rep("([0-9\\.]+)");
             mod_s = std::regex_replace(mod_s, rep, "#");
             auto rslt = mods_map.find(mod_s);
             if (rslt != mods_map.end()) {
