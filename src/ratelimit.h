@@ -100,6 +100,7 @@ namespace RateLimit
     // Constants
     //=========================================================================================
 
+    // The API endpoints used by acquisition that need to be checked for rate limits.
     const QStringList KNOWN_ENDPOINTS = {
         "https://www.pathofexile.com/character-window/get-stash-items",
         "https://www.pathofexile.com/character-window/get-items",
@@ -107,6 +108,7 @@ namespace RateLimit
         "https://www.pathofexile.com/character-window/get-passive-skills",
         "https://api.pathofexile.com/leagues"};
     
+    // Consider a policy "borderline" when there are this many requests left before violation.
     static const int BORDERLINE_REQUEST_BUFFER = 2;
 
     // This HTTP status code means there was a rate limit violation.
@@ -354,9 +356,11 @@ namespace RateLimit
         void Submit(QNetworkAccessManager& manager, QNetworkRequest request, Callback callback);
 
     public slots:
+        // Triggered by rate limit policy managers so the rate limiter knows to start status updates.
         void OnTimerStarted();
 
     signals:
+        // Signal sent to the rate-limit status panel so the user can see what's going on.
         void StatusUpdate(const QString message);
 
     private:
