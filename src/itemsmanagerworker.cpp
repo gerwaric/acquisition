@@ -51,6 +51,8 @@ fclose(fp);
 #include "modlist.h"
 #include "ratelimit.h"
 
+using Util::size2int;
+
 const char *kStashItemsUrl = "https://www.pathofexile.com/character-window/get-stash-items";
 const char *kCharacterItemsUrl = "https://www.pathofexile.com/character-window/get-items";
 const char *kGetCharactersUrl = "https://www.pathofexile.com/character-window/get-characters";
@@ -169,7 +171,7 @@ void ItemsManagerWorker::ParseItemMods() {
 			}
 			for (auto &tab : doc) {
 				//constructor values to fill in
-				size_t index;
+				int index;
 				std::string tabUniqueId, name;
 				int r, g, b;
 
@@ -195,10 +197,12 @@ void ItemsManagerWorker::ParseItemMods() {
 					if(tab_id_index_.count(tab["name"].GetString())){
 					   continue;
 					}
-					if (tab.HasMember("i"))
-						index = tab["i"].GetInt();
-					else
-						index = tabs_.size();
+                    if (tab.HasMember("i")) {
+                        index = tab["i"].GetInt();
+                    }
+                    else {
+                        index = size2int(tabs_.size(), "ItemsManagerWorker::ParseItemMods(): too many tabs");
+                    };
 
 					tabUniqueId = tab["name"].GetString();
 					name = tab["name"].GetString();
@@ -235,7 +239,7 @@ void ItemsManagerWorker::ParseItemMods() {
 		CurrentStatusUpdate status;
 		status.state = ProgramState::ItemsRetrieved;
 		status.progress = ++i;
-		status.total = tabs_.size();
+		status.total = size2int(tabs_.size(), "ItemsManagerWorker::ParseItemMods(): too many tabs");
 
 		emit StatusUpdate(status);
 	}
@@ -503,11 +507,12 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
             QLOG_TRACE() << "Skipping" << name.c_str();
             continue;
         };
+        const int tab_count = size2int(tabs_.size(), "ItemsManagerWorker::OnCharacterListReceived(): too many tabs");
         ItemLocation location;
         location.set_type(ItemLocationType::CHARACTER);
         location.set_character(name);
         location.set_json(character, doc.GetAllocator());
-        location.set_tab_id(tabs_.size());
+        location.set_tab_id(tab_count);
         tabs_.push_back(location);
         ++requested_character_count;
 
@@ -580,21 +585,20 @@ void ItemsManagerWorker::QueueRequest(const QNetworkRequest &request, const Item
 
 void ItemsManagerWorker::FetchItems() {
 	std::string tab_titles;
-    int count = queue_.size();
-	for (int i = 0; i < count; ++i) {
-		ItemsRequest request = queue_.front();
-		queue_.pop();
+    int count = size2int(queue_.size(), "ItemsManagerWorker::FetchItems(): too many queued requests");
+    for (int i = 0; i < count; ++i) {
+        ItemsRequest request = queue_.front();
+        queue_.pop();
 
-		QNetworkRequest fetch_request = request.network_request;
-		int id = request.id;
-		ItemLocation location = request.location;
-		rate_limiter_.Submit(network_manager_, fetch_request,
-			[=](QNetworkReply* reply) {
-				OnTabReceived(reply, id, location);
-			});
+        QNetworkRequest fetch_request = request.network_request;
+        ItemLocation location = request.location;
+        rate_limiter_.Submit(network_manager_, fetch_request,
+            [=](QNetworkReply* reply) {
+                OnTabReceived(reply, location);
+            });
 
-		tab_titles += request.location.GetHeader() + " ";
-	}
+        tab_titles += request.location.GetHeader() + " ";
+    };
 	QLOG_DEBUG() << "Created" << count << "requests:" << tab_titles.c_str();
 	requests_needed_ = count;
 	requests_completed_ = 0;
@@ -670,7 +674,7 @@ void ItemsManagerWorker::OnFirstTabReceived(QNetworkReply* reply) {
         QueueRequest(MakeTabRequest(location.get_tab_id(), true), location);
     };
 
-	total_needed_ = queue_.size();
+	total_needed_ = size2int(queue_.size(), "ItemsManagerWorker::OnFirstTabReceived(): too many queued reqeusts");
 	total_completed_ = 0;
 
     FetchItems();
@@ -691,7 +695,7 @@ void ItemsManagerWorker::ParseItems(rapidjson::Value *value_ptr, ItemLocation ba
 	}
 }
 
-void ItemsManagerWorker::OnTabReceived(QNetworkReply* network_reply, int request_id, ItemLocation location) {
+void ItemsManagerWorker::OnTabReceived(QNetworkReply* network_reply, ItemLocation location) {
 
     QLOG_DEBUG() << "Received a reply for" << location.GetHeader().c_str();
     CheckForViolation(network_reply);

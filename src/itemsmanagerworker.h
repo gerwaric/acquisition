@@ -64,7 +64,7 @@ public slots:
 	void OnMainPageReceived(QNetworkReply* reply);
 	void OnCharacterListReceived(QNetworkReply* reply);
 	void OnFirstTabReceived(QNetworkReply* reply);
-	void OnTabReceived(QNetworkReply* reply, int index, ItemLocation location);
+	void OnTabReceived(QNetworkReply* reply, ItemLocation location);
 	void FetchItems();
 	void PreserveSelectedCharacter();
 	void Init();
