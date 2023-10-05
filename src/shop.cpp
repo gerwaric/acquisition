@@ -37,6 +37,8 @@
 #include "replytimeout.h"
 #include "network_info.h"
 
+using Util::size2int;
+
 const std::string kPoeEditThread = "https://www.pathofexile.com/forum/edit-thread/";
 const std::string kShopTemplateItems = "[items]";
 const int kMaxCharactersInPost = 50000;
@@ -172,7 +174,7 @@ void Shop::SubmitSingleShop() {
 	CurrentStatusUpdate status = CurrentStatusUpdate();
 	status.state = ProgramState::ShopSubmitting;
 	status.progress = requests_completed_;
-	status.total = threads_.size();
+	status.total = size2int(threads_.size(), "Shop::SubmitSingleShop(): too many threads");
 	if (requests_completed_ == threads_.size()) {
 		status.state = ProgramState::ShopCompleted;
 		submitting_ = false;

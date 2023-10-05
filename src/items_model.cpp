@@ -27,6 +27,8 @@
 #include "util.h"
 #include "QsLog.h"
 
+using Util::size2int;
+
 ItemsModel::ItemsModel(BuyoutManager &bo_manager, const Search &search) :
 	bo_manager_(bo_manager),
 	search_(search)
@@ -48,26 +50,37 @@ ItemsModel::ItemsModel(BuyoutManager &bo_manager, const Search &search) :
 */
 
 int ItemsModel::rowCount(const QModelIndex &parent) const {
-	// Root element, contains buckets
-	if (!parent.isValid())
-		return search_.buckets().size();
-	// Bucket, contains elements
-	if (parent.isValid() && !parent.parent().isValid()) {
-		return search_.bucket(parent.row())->items().size();
-	}
-	// Element, contains nothing
-	return 0;
+    size_t count;
+    if (!parent.isValid()) {
+        // Root element, contains buckets
+        count = search_.buckets().size();
+    }
+    else if (parent.isValid() && !parent.parent().isValid()) {
+        // Bucket, contains elements
+        count = search_.bucket(parent.row())->items().size();
+    }
+    else {
+        // Element, contains nothing
+        count = 0;
+    };
+    return size2int(count, "ItemsModel::rowCount(): too many rows");
 }
 
-int ItemsModel::columnCount(const QModelIndex &parent) const {
-	// Root element, contains buckets
-	if (!parent.isValid())
-		return search_.columns().size();
-	// Bucket, contains elements
-	if (parent.isValid() && !parent.parent().isValid())
-		return search_.columns().size();
-	// Element, contains nothing
-	return 0;
+int ItemsModel::columnCount(const QModelIndex& parent) const {
+    size_t count;
+    if (!parent.isValid()) {
+        // Root element, contains buckets
+        count = search_.columns().size();
+    }
+    else if (parent.isValid() && !parent.parent().isValid()) {
+        // Bucket, contains elements
+        count = search_.columns().size();
+    }
+    else {
+        // Element, contains nothing
+        count = 0;
+    };
+    return size2int(count, "ItemsModel::columnCount(): too many columns");
 }
 
 QVariant ItemsModel::headerData(int section, Qt::Orientation /* orientation */, int role) const {

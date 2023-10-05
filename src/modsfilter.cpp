@@ -27,6 +27,9 @@
 
 #include "modlist.h"
 #include "porting.h"
+#include "util.h"
+
+using Util::size2int;
 
 SelectedMod::SelectedMod(const std::string &name, double min, double max, bool min_filled, bool max_filled) :
 	data_(name, min, max, min_filled, max_filled),
@@ -189,14 +192,15 @@ void ModsFilter::Refill() {
 	ClearLayout();
 
 	int i = 0;
-	for (auto &mod : mods_) {
-		mod.AddToLayout(layout_.get(), i);
-		mod.CreateSignalMappings(&signal_mapper_, i);
+    for (auto& mod : mods_) {
+        mod.AddToLayout(layout_.get(), i);
+        mod.CreateSignalMappings(&signal_mapper_, i);
+        ++i;
+    };
 
-		++i;
-	}
+    const int row = size2int(2 * mods_.size(), "ModsFilter::Refill(): too many rows");
 
-	layout_->addWidget(add_button_.get(), 2 * mods_.size(), 0, 1, LayoutColumn::kColumnCount);
+	layout_->addWidget(add_button_.get(), row, 0, 1, LayoutColumn::kColumnCount);
 }
 
 void ModsFilterSignalHandler::OnAddButtonClicked() {

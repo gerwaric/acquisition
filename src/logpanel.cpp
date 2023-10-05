@@ -26,6 +26,7 @@
 
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include "util.h"
 
 struct MessageType {
 	QColor color;
@@ -64,7 +65,7 @@ LogPanel::LogPanel(MainWindow *window, Ui::MainWindow *ui):
 void LogPanel::UpdateStatusLabel() {
 	QString stylesheet;
 	QString text = "Event Log";
-	for (int i = num_messages_.size() - 1; i >= 0; --i) {
+	for (int i = static_cast<int>(num_messages_.size()) - 1; i >= 0; --i) {
 		int num = num_messages_[i];
 		auto &type = message_types[i];
 		if (num > 0) {
@@ -73,7 +74,6 @@ void LogPanel::UpdateStatusLabel() {
 			break;
 		}
 	}
-
 	status_button_->setStyleSheet(stylesheet);
 	status_button_->setText(text);
 }
