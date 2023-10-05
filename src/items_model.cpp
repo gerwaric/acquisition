@@ -180,7 +180,7 @@ void ItemsModel::sort(int column, Qt::SortOrder order)
 	for (const auto &bucket: search_.buckets()) {
 		bucket->Sort(*column_obj, order);
 	}
-	layoutChanged();
+	emit layoutChanged();
 	SetSorted(true);
 }
 
