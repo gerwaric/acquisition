@@ -96,4 +96,12 @@ namespace Util {
     std::string Decode(const std::string &entity);
 
     void unique_elements(std::vector<std::string>& vec);
+
+    inline int size2int(const size_t& size, const std::string& message) {
+        if (size > INT_MAX) {
+            QLOG_ERROR() << QString(message.c_str());
+            return -1;
+        };
+        return static_cast<int>(size);
+    };
 }
