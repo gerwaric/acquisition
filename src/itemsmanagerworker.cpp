@@ -79,9 +79,9 @@ ItemsManagerWorker::ItemsManagerWorker(Application &app, QThread *thread) :
     updateRequest_(false),
     type_(TabSelection::All),
     queue_id_(-999),
+    first_fetch_tab_id_(-1),
     bo_manager_(app.buyout_manager()),
     account_name_(app.email()),
-    first_fetch_tab_id_(-1),
     rate_limiter_(app.rate_limiter())
 {
 	QUrl poe(kMainPage);
@@ -223,14 +223,11 @@ void ItemsManagerWorker::ParseItemMods() {
 
 	//Get cached items
     int i = 0;
-    int j = 0;
-    int k = 0;
     for (auto& tab : tabs_) {
 		std::string items = data_.GetItems(tab);
         if (items.size() != 0) {
             rapidjson::Document doc;
             doc.Parse(items.c_str());
-            k = j + doc.Size();
             for (auto item = doc.Begin(); item != doc.End(); ++item) {
                 items_.push_back(std::make_shared<Item>(*item, tab));
             };
@@ -795,7 +792,7 @@ void ItemsManagerWorker::OnTabReceived(QNetworkReply* network_reply, ItemLocatio
 
 		// Maps location type (CHARACTER or STASH) to a list of all the tabs of that type
         std::map<ItemLocationType, QStringList> tabsPerType;
-        for(auto const tab : tabs_){
+        for(auto const& tab : tabs_){
             const ItemLocationType& tab_type = tab.get_type();
             const QString tab_json = QString(tab.get_json().c_str());
 			tabsPerType[tab_type].push_back(tab_json);
