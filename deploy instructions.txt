@@ -1,2 +1,0 @@
-run "deploy-win.sh" in Linux Shell
-open installer.iss, compile, and then run to test installer
