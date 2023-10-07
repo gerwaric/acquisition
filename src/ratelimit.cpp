@@ -728,7 +728,6 @@ void RateLimiter::DispatchRequest(std::unique_ptr<RateLimitedRequest> request) {
 };
 
 void RateLimiter::OnTimerStarted() {
-
 	// Make sure the program status is being updated.
 	if (status_updater.isActive() == false) {
 		QLOG_DEBUG() << "Starting rate limit status updates";

@@ -62,6 +62,9 @@
 #include "network_info.h"
 #include "version.h"
 
+using Util::TabSelection;
+using Util::RefreshReason;
+
 const std::string POE_WEBCDN = "http://webcdn.pathofexile.com"; // Should be updated to https://web.poecdn.com ?
 
 MainWindow::MainWindow(std::unique_ptr<Application> app):
@@ -69,7 +72,6 @@ MainWindow::MainWindow(std::unique_ptr<Application> app):
 	ui(new Ui::MainWindow),
 	current_search_(nullptr),
 	search_count_(0),
-	auto_online_(app_->data(), app_->sensitive_data()),
 	network_manager_(new QNetworkAccessManager)
 {
 #ifdef Q_OS_WIN32
@@ -88,6 +90,8 @@ MainWindow::MainWindow(std::unique_ptr<Application> app):
 	InitializeSearchForm();
 	NewSearch();
 
+
+
 	image_network_manager_ = new QNetworkAccessManager;
 	connect(image_network_manager_, SIGNAL(finished(QNetworkReply*)),
 			this, SLOT(OnImageFetched(QNetworkReply*)));
@@ -96,7 +100,6 @@ MainWindow::MainWindow(std::unique_ptr<Application> app):
 	connect(&app_->items_manager(), &ItemsManager::StatusUpdate, this, &MainWindow::OnStatusUpdate);
 	connect(&app_->shop(), &Shop::StatusUpdate, this, &MainWindow::OnStatusUpdate);
 	connect(&update_checker_, &UpdateChecker::UpdateAvailable, this, &MainWindow::OnUpdateAvailable);
-	connect(&auto_online_, &AutoOnline::Update, this, &MainWindow::OnOnlineUpdate);
 	connect(&delayed_update_current_item_, &QTimer::timeout, [&](){UpdateCurrentItem();delayed_update_current_item_.stop();});
 	connect(&delayed_search_form_change_, &QTimer::timeout, [&](){OnSearchFormChange();delayed_search_form_change_.stop();});
 
@@ -113,8 +116,13 @@ void MainWindow::InitializeRateLimitPanel() {
 	connect(&app_->rate_limiter(), &RateLimit::RateLimiter::StatusUpdate, rate_panel, &RateLimitStatusPanel::OnStatusUpdate);
 }
 
+void MainWindow::InitializeRateLimitPanel() {
+    RateLimitStatusPanel* rate_panel = new RateLimitStatusPanel(this, ui);
+    connect(&app_->rate_limiter(), &RateLimit::RateLimiter::StatusUpdate, rate_panel, &RateLimitStatusPanel::OnStatusUpdate);
+}
+
 void MainWindow::InitializeLogging() {
-	LogPanel *log_panel = new LogPanel(this, ui);
+    LogPanel *log_panel = new LogPanel(this, ui);
 	QsLogging::DestinationPtr log_panel_ptr(log_panel);
 	QsLogging::Logger::instance().addDestination(log_panel_ptr);
 
@@ -170,7 +178,7 @@ void MainWindow::InitializeUi() {
 	ui->buyoutValueLineEdit->setEnabled(false);
 	ui->buyoutCurrencyComboBox->setEnabled(false);
 
-	ui->actionAutomatically_refresh_items->setChecked(app_->items_manager().auto_update());
+	//ui->actionAutomatically_refresh_items->setChecked(app_->items_manager().auto_update());
 	UpdateShopMenu();
 
 	search_form_layout_ = new QVBoxLayout;
@@ -450,8 +458,10 @@ bool MainWindow::eventFilter(QObject *o, QEvent *e) {
 					current_search_ = nullptr;
 				delete searches_[index];
 				searches_.erase(searches_.begin() + index);
-				if (static_cast<size_t>(tab_bar_->currentIndex()) == searches_.size())
-					tab_bar_->setCurrentIndex(searches_.size() - 1);
+                const int current_index = tab_bar_->currentIndex();
+                if (current_index == searches_.size()) {
+                    tab_bar_->setCurrentIndex(current_index - 1);
+                };
 				OnTabChange(tab_bar_->currentIndex());
 				// that's because after removeTab text will be set to previous search's caption
 				// which is because my way of dealing with "+" tab is hacky and should be replaced by something sane
@@ -790,11 +800,11 @@ void MainWindow::UpdateShopMenu() {
 }
 
 void MainWindow::UpdateOnlineGui() {
-	online_label_.setVisible(auto_online_.enabled());
-	ui->actionAutomatically_refresh_online_status->setChecked(auto_online_.enabled());
+	//online_label_.setVisible(auto_online_.enabled());
+	//ui->actionAutomatically_refresh_online_status->setChecked(auto_online_.enabled());
 	std::string action_label = "control.poe.trade URL...";
-	if (auto_online_.IsUrlSet())
-		action_label += " [******]";
+	//if (auto_online_.IsUrlSet())
+	//	action_label += " [******]";
 	ui->actionControl_poe_xyz_is_URL->setText(action_label.c_str());
 }
 
@@ -858,8 +868,8 @@ void MainWindow::on_actionControl_poe_xyz_is_URL_triggered() {
 	QString url = QInputDialog::getText(this, "control.poe.trade URL",
 		"Copy and paste your whole control.poe.trade URL here",
 		QLineEdit::Normal, "", &ok);
-	if (ok && !url.isEmpty())
-		auto_online_.SetUrl(url.toStdString());
+	//if (ok && !url.isEmpty())
+	//	auto_online_.SetUrl(url.toStdString());
 	UpdateOnlineGui();
 }
 
@@ -868,13 +878,13 @@ void MainWindow::on_actionRemoteScript_triggered() {
 	QString path = QInputDialog::getText(this, "Remote Process List Script",
 		"Path to the script for listing the running processes of your gaming machine",
 		QLineEdit::Normal, "", &ok);
-	if (ok && !path.isEmpty())
-		auto_online_.SetRemoteScript(path.toStdString());
+	//if (ok && !path.isEmpty())
+	//	auto_online_.SetRemoteScript(path.toStdString());
 	UpdateOnlineGui();
 }
 
 void MainWindow::on_actionAutomatically_refresh_online_status_triggered() {
-	auto_online_.SetEnabled(ui->actionAutomatically_refresh_online_status->isChecked());
+	//auto_online_.SetEnabled(ui->actionAutomatically_refresh_online_status->isChecked());
 	UpdateOnlineGui();
 }
 
@@ -925,7 +935,7 @@ void MainWindow::closeEvent(QCloseEvent *event) {
 																QMessageBox::No | QMessageBox::Yes,
 																QMessageBox::Yes);
 	if (resBtn != QMessageBox::Yes) {
-		auto_online_.SendOnlineUpdate(false);
+		//auto_online_.SendOnlineUpdate(false);
 		event->ignore();
 	} else {
 		event->accept();

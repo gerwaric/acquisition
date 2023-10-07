@@ -30,7 +30,6 @@ LIBS += -L"C:\Program Files\OpenSSL-Win64\lib" -llibcrypto -llibssl
 SOURCES += \
 	deps/sqlite/sqlite3.c \
 	src/application.cpp \
-	src/autoonline.cpp \
 	src/bucket.cpp \
 	src/buyoutmanager.cpp \
 	src/column.cpp \
@@ -76,8 +75,8 @@ SOURCES += \
 
 HEADERS += \
 	deps/sqlite/sqlite3.h \
+  network_info.h \
 	src/application.h \
-	src/autoonline.h \
 	src/bucket.h \
 	src/buyoutmanager.h \
 	src/column.h \

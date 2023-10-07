@@ -91,6 +91,14 @@ void Application::OnItemsRefreshed(bool initial_refresh) {
 		shop_->SubmitShopToForum();
 }
 
+void Application::FatalError(const QString message) {
+    QLOG_ERROR() << "FATAL ERROR:" << message;
+    QMessageBox msgbox;
+    msgbox.setText("FATAL ERROR:\n\n" + message);
+    msgbox.exec();
+    QCoreApplication::exit(EXIT_FAILURE);
+}
+
 void Application::SaveDbOnNewVersion() {
 	//If user updated from a 0.5c db to a 0.5d, db exists but no "version" in it
 	std::string version = data_->Get("version", "0.5c");

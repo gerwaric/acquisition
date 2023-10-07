@@ -31,7 +31,6 @@
 #include <QWinTaskbarProgress>
 #endif
 
-#include "autoonline.h"
 #include "bucket.h"
 #include "items_model.h"
 #include "porting.h"
@@ -73,8 +72,9 @@ enum class ProgramState {
 };
 
 struct CurrentStatusUpdate {
-	ProgramState state;
-	int progress{}, total{}, cached{};
+    ProgramState state{ ProgramState::Unknown };
+    int progress{}, total{};
+	QString message;
 };
 
 class MainWindow : public QMainWindow {
@@ -162,7 +162,6 @@ private:
 	UpdateChecker update_checker_;
 	QPushButton update_button_;
 	QPushButton refresh_button_;
-	AutoOnline auto_online_;
 	QLabel online_label_;
 	QNetworkAccessManager *network_manager_;
 	QTimer delayed_update_current_item_;

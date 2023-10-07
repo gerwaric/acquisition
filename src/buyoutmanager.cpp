@@ -519,7 +519,7 @@ bool Buyout::IsGameSet() const {
 
 bool Buyout::RequiresRefresh() const
 {
-	return !(type == BUYOUT_TYPE_IGNORE || type == BUYOUT_TYPE_INHERIT);
+    return false; // !(type == BUYOUT_TYPE_IGNORE || type == BUYOUT_TYPE_INHERIT);
 }
 
 BuyoutSource Buyout::TagAsBuyoutSource(std::string tag) {

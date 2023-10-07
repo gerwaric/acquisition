@@ -63,7 +63,7 @@ public slots:
 	void OnItemClassesUpdate(const QByteArray &classes);
 	void OnItemBaseTypesUpdate(const QByteArray &baseTypes);
 signals:
-	void UpdateSignal(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
+	void UpdateSignal(TabSelection type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 	void ItemsRefreshed(bool initial_refresh);
 	void StatusUpdate(const CurrentStatusUpdate &status);
 	void UpdateModListSignal();

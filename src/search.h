@@ -28,6 +28,8 @@
 #include "bucket.h"
 #include "util.h"
 
+using Util::RefreshReason;
+
 class BuyoutManager;
 class Filter;
 class FilterData;
@@ -54,7 +56,7 @@ public:
 	const std::vector<std::unique_ptr<Bucket>> &buckets() const;
 	void RenameCaption(const std::string newName);
 	QString GetCaption();
-	uint GetItemsCount();
+	size_t GetItemsCount();
 	bool IsAnyFilterActive() const;
 	// Sets this search as current, will display items in passed QTreeView.
 	void Activate(const Items &items);
@@ -64,7 +66,7 @@ public:
 	void SetViewMode(ViewMode mode);
 	int GetViewMode() { return current_mode_; }
 	const std::unique_ptr<Bucket> &bucket(int row) const;
-	void SetRefreshReason(RefreshReason::Type reason) { refresh_reason_ = reason;}
+	void SetRefreshReason(RefreshReason reason) { refresh_reason_ = reason;}
 private:
 	void UpdateItemCounts(const Items &items);
 
@@ -77,9 +79,9 @@ private:
 	std::unique_ptr<ItemsModel> model_;
 	std::vector<std::unique_ptr<Bucket>> buckets_;
 	std::vector<std::unique_ptr<Bucket>> bucket_;
-	uint unfiltered_item_count_{0};
-	uint filtered_item_count_total_{0};
+	size_t unfiltered_item_count_{0};
+	size_t filtered_item_count_total_{0};
 	std::set<std::string> expanded_property_;
 	ViewMode current_mode_{ByTab};
-	RefreshReason::Type refresh_reason_{RefreshReason::Unknown};
+	RefreshReason refresh_reason_{RefreshReason::Unknown};
 };

@@ -48,6 +48,10 @@ class BuyoutManager;
 class Shop;
 class CurrencyManager;
 
+namespace RateLimit {
+    class RateLimiter;
+}
+
 class Application : public QObject {
 	Q_OBJECT
 public:
@@ -69,6 +73,7 @@ public:
 	RateLimiter& rate_limiter() const { return *rate_limiter_; }
 public slots:
 	void OnItemsRefreshed(bool initial_refresh);
+    void FatalError(const QString message);
 private:
 	std::string league_;
 	std::string email_;

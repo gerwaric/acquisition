@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <QtGlobal>
 #include <QColor>
 #include <string>
 #include <QVariant>

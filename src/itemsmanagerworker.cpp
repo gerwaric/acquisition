@@ -695,6 +695,7 @@ void ItemsManagerWorker::OnTabReceived(QNetworkReply* network_reply, ItemLocatio
     if (cancel_update_) {
         status.state = ProgramState::UpdateCancelled;
     };
+
 	emit StatusUpdate(status);
 
     if (error) {

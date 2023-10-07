@@ -26,13 +26,14 @@
 #include "buyoutmanager.h"
 #include "datastore.h"
 #include "itemsmanagerworker.h"
-#include "porting.h"
-#include "rapidjson_util.h"
 #include "shop.h"
 #include "util.h"
 #include "mainwindow.h"
 #include "filters.h"
 #include "itemcategories.h"
+#include "itemlocation.h"
+
+using Util::TabSelection;
 
 ItemsManager::ItemsManager(Application &app) :
 	auto_update_timer_(std::make_unique<QTimer>()),
@@ -56,7 +57,7 @@ void ItemsManager::Start() {
 	thread_ = std::make_unique<QThread>();
 	worker_ = std::make_unique<ItemsManagerWorker>(app_, thread_.get());
 	connect(thread_.get(), SIGNAL(started()), worker_.get(), SLOT(Init()));
-	connect(this, SIGNAL(UpdateSignal(TabSelection::Type, const std::vector<ItemLocation> &)), worker_.get(), SLOT(Update(TabSelection::Type, const std::vector<ItemLocation> &)));
+	connect(this, SIGNAL(UpdateSignal(TabSelection, const std::vector<ItemLocation> &)), worker_.get(), SLOT(Update(TabSelection, const std::vector<ItemLocation> &)));
 	connect(worker_.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
 	connect(worker_.get(), SIGNAL(ItemsRefreshed(Items, std::vector<ItemLocation>, bool)), this, SLOT(OnItemsRefreshed(Items, std::vector<ItemLocation>, bool)));
 	connect(worker_.get(), &ItemsManagerWorker::ItemClassesUpdate, this, &ItemsManager::OnItemClassesUpdate);
@@ -135,19 +136,19 @@ void ItemsManager::ApplyAutoTabBuyouts() {
 void ItemsManager::ApplyAutoItemBuyouts() {
 	// Loop over all items, check for note field with pricing and apply
 	auto &bo = app_.buyout_manager();
-    for (auto const& item : items_) {
-        auto const& note = item->note();
-        if (!note.empty()) {
-            Buyout buyout = bo.StringToBuyout(note);
-            // This line may look confusing, buyout returns an active buyout if game
-            // pricing was found or a default buyout (inherit) if it was not.
-            // If there is a currently valid note we want to apply OR if
-            // old note no longer is valid (so basically clear pricing)
-            if (buyout.IsActive() || bo.Get(*item).IsGameSet()) {
-                bo.Set(*item, buyout);
-            };
-        };
+  for (auto const& item : items_) {
+    auto const& note = item->note();
+    if (!note.empty()) {
+      Buyout buyout = bo.StringToBuyout(note);
+      // This line may look confusing, buyout returns an active buyout if game
+      // pricing was found or a default buyout (inherit) if it was not.
+      // If there is a currently valid note we want to apply OR if
+      // old note no longer is valid (so basically clear pricing)
+      if (buyout.IsActive() || bo.Get(*item).IsGameSet()) {
+        bo.Set(*item, buyout);
+      };
     };
+  };
 
 	// Commenting this out for robustness (iss381) to make it as unlikely as possible that users
 	// pricing data will be removed.  Side effect is that stale pricing data will pile up and
@@ -158,32 +159,32 @@ void ItemsManager::ApplyAutoItemBuyouts() {
 void ItemsManager::PropagateTabBuyouts() {
 	auto &bo = app_.buyout_manager();
 	bo.ClearRefreshLocks();
-    for (auto& item_ptr : items_) {
-        Item& item = *item_ptr;
-        std::string hash = item.location().GetUniqueHash();
-        auto item_bo = bo.Get(item);
-        auto tab_bo = bo.GetTab(hash);
+  for (auto& item_ptr : items_) {
+    Item& item = *item_ptr;
+    std::string hash = item.location().GetUniqueHash();
+    auto item_bo = bo.Get(item);
+    auto tab_bo = bo.GetTab(hash);
 
-        if (item_bo.IsInherited()) {
-            if (tab_bo.IsActive()) {
-                // Any propagation from tab price to item price should include this bit set
-                tab_bo.inherited = true;
-                tab_bo.last_update = QDateTime::currentDateTime();
-                bo.Set(item, tab_bo);
-            } else {
-                // This effectively 'clears' buyout by setting back to 'inherit' state.
-                bo.Set(item, Buyout());
-            };
-        };
-
-        // If any savable bo's are set on an item or the tab then lock the refresh state.
-        // Skip remove-only tabs because they are not editable, nor indexed for trade now.
-        if (item.location().removeonly() == false) {
-            if (bo.Get(item).RequiresRefresh() || tab_bo.RequiresRefresh()) {
-                bo.SetRefreshLocked(item.location());
-            };
-        };
+    if (item_bo.IsInherited()) {
+      if (tab_bo.IsActive()) {
+        // Any propagation from tab price to item price should include this bit set
+        tab_bo.inherited = true;
+        tab_bo.last_update = QDateTime::currentDateTime();
+        bo.Set(item, tab_bo);
+      } else {
+        // This effectively 'clears' buyout by setting back to 'inherit' state.
+        bo.Set(item, Buyout());
+      };
     };
+
+    // If any savable bo's are set on an item or the tab then lock the refresh state.
+    // Skip remove-only tabs because they are not editable, nor indexed for trade now.
+    if (item.location().removeonly() == false) {
+      if (bo.Get(item).RequiresRefresh() || tab_bo.RequiresRefresh()) {
+        bo.SetRefreshLocked(item.location());
+      };
+    };
+  };
 }
 
 void ItemsManager::OnItemsRefreshed(const Items &items, const std::vector<ItemLocation> &tabs, bool initial_refresh) {

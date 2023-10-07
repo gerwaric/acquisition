@@ -29,6 +29,8 @@
 #include "mainwindow.h"
 #include "ratelimit.h"
 
+using RateLimit::RateLimiter;
+
 class Application;
 class DataStore;
 class QNetworkReply;
@@ -36,10 +38,8 @@ class QSignalMapper;
 class QTimer;
 class BuyoutManager;
 
-using RateLimit::RateLimiter;
-
 struct ItemsRequest {
-	int id;
+    int id{ -999 };
 	QNetworkRequest network_request;
 	ItemLocation location;
 };
@@ -58,7 +58,7 @@ public:
 	void UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations);
 public slots:
 	void ParseItemMods();
-	void Update(TabSelection::Type type, const std::vector<ItemLocation> &tab_names = std::vector<ItemLocation>());
+	void Update(TabSelection type, const std::vector<ItemLocation> &tab_names = std::vector<ItemLocation>());
 public slots:
 	void OnMainPageReceived(QNetworkReply* reply);
 	void OnCharacterListReceived(QNetworkReply* reply);
@@ -93,7 +93,6 @@ private:
 	QNetworkAccessManager network_manager_;
 	std::vector<ItemLocation> tabs_;
 	std::queue<ItemsRequest> queue_;
-
 	// tabs_signature_ captures <"n", "id"> from JSON tab list, used as consistency check
 	std::vector<std::pair<std::string, std::string> > tabs_signature_;
 	Items items_;
@@ -109,7 +108,7 @@ private:
 
 	bool cancel_update_;
 	bool updateRequest_;
-	TabSelection::Type type_;
+	TabSelection type_;
 	std::vector<ItemLocation> locations_;
 
 	int queue_id_;

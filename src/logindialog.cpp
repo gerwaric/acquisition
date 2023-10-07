@@ -50,6 +50,8 @@
 #include "network_info.h"
 #include "version_defines.h"
 
+const QDateTime BUILD_EXPIRATION = QDateTime::fromString("2023-10-15", "yyyy-MM-dd");
+
 const char* POE_LEAGUE_LIST_URL = "https://api.pathofexile.com/leagues?type=main&compact=1";
 const char* POE_LOGIN_URL = "https://www.pathofexile.com/login";
 const char* POE_MAIN_PAGE = "https://www.pathofexile.com/";
