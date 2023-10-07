@@ -38,7 +38,7 @@ static std::vector<MessageType> message_types{
 	{ QColor(255, 0, 0), "error" }
 };
 
-LogPanel::LogPanel(MainWindow *window, Ui::MainWindow *ui):
+LogPanel::LogPanel(MainWindow* window, Ui::MainWindow* ui) :
 	status_button_(new QPushButton),
 	output_(new QTextEdit),
 	signal_handler_(*this)
@@ -66,7 +66,7 @@ void LogPanel::UpdateStatusLabel() {
 	QString text = "Event Log";
 	for (int i = num_messages_.size() - 1; i >= 0; --i) {
 		int num = num_messages_[i];
-		auto &type = message_types[i];
+		auto& type = message_types[i];
 		if (num > 0) {
 			text = QString("%1 " + QString(type.desc.c_str())).arg(num) + (num > 1 ? "s" : "");
 			stylesheet = "font-weight: bold; color: " + type.color.name();
@@ -85,7 +85,7 @@ void LogPanel::write(const QString& message, QsLogging::Level level) {
 		Q_ARG(QString, message), Q_ARG(QsLogging::Level, level));
 }
 
-void LogPanel::AddLine(const QString &message, QsLogging::Level level) {
+void LogPanel::AddLine(const QString& message, QsLogging::Level level) {
 	QColor color;
 	int type;
 	switch (level) {
@@ -132,6 +132,6 @@ void LogPanelSignalHandler::OnStatusLabelClicked() {
 	parent_.ToggleOutputVisibility();
 }
 
-void LogPanelSignalHandler::OnMessage(const QString &message, const QsLogging::Level level) {
+void LogPanelSignalHandler::OnMessage(const QString& message, const QsLogging::Level level) {
 	parent_.AddLine(message, level);
 }

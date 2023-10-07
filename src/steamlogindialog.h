@@ -28,7 +28,7 @@
 #endif
 
 namespace Ui {
-class SteamLoginDialog;
+	class SteamLoginDialog;
 }
 
 class QCloseEvent;
@@ -36,16 +36,16 @@ class QCloseEvent;
 class SteamLoginDialog : public QDialog {
 	Q_OBJECT
 public:
-	explicit SteamLoginDialog(QWidget *parent = 0);
+	explicit SteamLoginDialog(QWidget* parent = 0);
 	~SteamLoginDialog();
 	void Init();
 signals:
-	void CookieReceived(const QString &cookie);
+	void CookieReceived(const QString& cookie);
 	void Closed();
 protected:
-	virtual void closeEvent(QCloseEvent *e);
+	virtual void closeEvent(QCloseEvent* e);
 private:
-	Ui::SteamLoginDialog *ui;
+	Ui::SteamLoginDialog* ui;
 	bool completed_;
 #ifndef NO_WEBENGINE
 	QWebEngineView* webView;

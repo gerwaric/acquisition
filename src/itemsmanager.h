@@ -40,7 +40,7 @@ class Shop;
 class ItemsManager : public QObject {
 	Q_OBJECT
 public:
-	explicit ItemsManager(Application &app);
+	explicit ItemsManager(Application& app);
 	~ItemsManager();
 	// Creates and starts the worker
 	void Start();
@@ -49,7 +49,7 @@ public:
 	void SetAutoUpdate(bool update);
 	int auto_update_interval() const { return auto_update_interval_; }
 	bool auto_update() const { return auto_update_; }
-	const Items &items() const { return items_; }
+	const Items& items() const { return items_; }
 	void ApplyAutoTabBuyouts();
 	void ApplyAutoItemBuyouts();
 	void PropagateTabBuyouts();
@@ -58,14 +58,14 @@ public slots:
 	// called by auto_update_timer_
 	void OnAutoRefreshTimer();
 	// Used to glue Worker's signals to MainWindow
-	void OnStatusUpdate(const CurrentStatusUpdate &status);
-	void OnItemsRefreshed(const Items &items, const std::vector<ItemLocation> &tabs, bool initial_refresh);
-	void OnItemClassesUpdate(const QByteArray &classes);
-	void OnItemBaseTypesUpdate(const QByteArray &baseTypes);
+	void OnStatusUpdate(const CurrentStatusUpdate& status);
+	void OnItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
+	void OnItemClassesUpdate(const QByteArray& classes);
+	void OnItemBaseTypesUpdate(const QByteArray& baseTypes);
 signals:
 	void UpdateSignal(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 	void ItemsRefreshed(bool initial_refresh);
-	void StatusUpdate(const CurrentStatusUpdate &status);
+	void StatusUpdate(const CurrentStatusUpdate& status);
 	void UpdateModListSignal();
 private:
 	void MigrateBuyouts();
@@ -77,10 +77,10 @@ private:
 	std::unique_ptr<QTimer> auto_update_timer_;
 	std::unique_ptr<ItemsManagerWorker> worker_;
 	std::unique_ptr<QThread> thread_;
-	DataStore &data_;
-	BuyoutManager &bo_manager_;
-	Shop &shop_;
-	Application &app_;
+	DataStore& data_;
+	BuyoutManager& bo_manager_;
+	Shop& shop_;
+	Application& app_;
 	Items items_;
 	QSet<QString> categories_;
 };

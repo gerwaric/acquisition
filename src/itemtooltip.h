@@ -24,5 +24,5 @@
 #include "item.h"
 #include "ui_mainwindow.h"
 
-void UpdateItemTooltip(const Item &item, Ui::MainWindow *ui);
-QPixmap GenerateItemIcon(const Item &item, const QImage &image);
+void UpdateItemTooltip(const Item& item, Ui::MainWindow* ui);
+QPixmap GenerateItemIcon(const Item& item, const QImage& image);

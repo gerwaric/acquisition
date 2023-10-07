@@ -25,16 +25,16 @@ std::string user_dir;
 
 namespace Filesystem {
 
-void Init() {
-	SetUserDir(porting::DefaultUserDir());
-}
+	void Init() {
+		SetUserDir(porting::DefaultUserDir());
+	}
 
-void SetUserDir(const std::string &dir) {
-	user_dir = dir;
-}
+	void SetUserDir(const std::string& dir) {
+		user_dir = dir;
+	}
 
-std::string UserDir() {
-	return user_dir;
-}
+	std::string UserDir() {
+		return user_dir;
+	}
 
 }

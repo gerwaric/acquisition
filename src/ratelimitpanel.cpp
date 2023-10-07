@@ -26,7 +26,7 @@
 #include "ui_mainwindow.h"
 
 // Modeled after LogPanel
-RateLimitStatusPanel::RateLimitStatusPanel(MainWindow *window, Ui::MainWindow *ui):
+RateLimitStatusPanel::RateLimitStatusPanel(MainWindow* window, Ui::MainWindow* ui) :
 	status_button_(new QPushButton),
 	output_(new QTextEdit)
 {

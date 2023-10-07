@@ -36,15 +36,15 @@ void InitModlist();
 
 class ModGenerator {
 public:
-	virtual void Generate(const rapidjson::Value &json, ModTable *output) = 0;
+	virtual void Generate(const rapidjson::Value& json, ModTable* output) = 0;
 };
 
 class SumModGenerator : public ModGenerator {
 public:
-	SumModGenerator(const std::string &name, const std::vector<std::string> &sum);
-	virtual void Generate(const rapidjson::Value &json, ModTable *output);
+	SumModGenerator(const std::string& name, const std::vector<std::string>& sum);
+	virtual void Generate(const rapidjson::Value& json, ModTable* output);
 private:
-	bool Match(const char *mod, double *output);
+	bool Match(const char* mod, double* output);
 
 	std::string name_;
 	std::vector<std::string> matches_;

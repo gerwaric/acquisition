@@ -34,7 +34,7 @@ const double EPS = 1e-6;
 const QRegularExpression sort_double_match("^\\+?([\\d.]+)%?$");
 const QRegularExpression sort_two_values("^(\\d+)([-/])(\\d+)$");
 
-QColor Column::color(const Item & /* item */) const {
+QColor Column::color(const Item& /* item */) const {
 	return QApplication::palette().color(QPalette::WindowText);
 }
 
@@ -72,12 +72,12 @@ std::string NameColumn::name() const {
 	return "Name";
 }
 
-QVariant NameColumn::value(const Item &item) const {
+QVariant NameColumn::value(const Item& item) const {
 	return item.PrettyName().c_str();
 }
 
-QColor NameColumn::color(const Item &item) const {
-	switch(item.frameType()) {
+QColor NameColumn::color(const Item& item) const {
+	switch (item.frameType()) {
 	case FRAME_TYPE_MAGIC:
 		return QColor(0x00, 0x66, 0x99);
 	case FRAME_TYPE_RARE:
@@ -93,7 +93,7 @@ QColor NameColumn::color(const Item &item) const {
 	case FRAME_TYPE_QUEST_ITEM:
 		return QColor(QRgb(0x4ae63a));
 	case FRAME_TYPE_PROPHECY:
-		return QColor(181,75,255);
+		return QColor(181, 75, 255);
 	case FRAME_TYPE_RELIC:
 		return QColor(QRgb(0x82ad6a));
 	default:
@@ -105,7 +105,7 @@ std::string CorruptedColumn::name() const {
 	return "Corr";
 }
 
-QVariant CorruptedColumn::value(const Item &item) const {
+QVariant CorruptedColumn::value(const Item& item) const {
 	if (item.corrupted())
 		return "C";
 	return QVariant();
@@ -115,7 +115,7 @@ std::string CraftedColumn::name() const {
 	return "Mast";
 }
 
-QVariant CraftedColumn::value(const Item &item) const {
+QVariant CraftedColumn::value(const Item& item) const {
 	if (item.crafted())
 		return "M";
 	return QVariant();
@@ -125,7 +125,7 @@ std::string EnchantedColumn::name() const {
 	return "Ench";
 }
 
-QVariant EnchantedColumn::value(const Item &item) const {
+QVariant EnchantedColumn::value(const Item& item) const {
 	if (item.enchanted())
 		return "En";
 	return QVariant();
@@ -135,7 +135,7 @@ std::string InfluncedColumn::name() const {
 	return "Inf";
 }
 
-QVariant InfluncedColumn::value(const Item &item) const {
+QVariant InfluncedColumn::value(const Item& item) const {
 	QString influencesString = "";
 
 	if (item.hasInfluence(Item::SHAPER))
@@ -155,7 +155,7 @@ QVariant InfluncedColumn::value(const Item &item) const {
 	return "";
 }
 
-QVariant InfluncedColumn::icon(const Item &item) const {
+QVariant InfluncedColumn::icon(const Item& item) const {
 	QIcon leftIcon, rightIcon;
 
 	Item::INFLUENCE_TYPES leftInf = item.influenceLeft();
@@ -165,33 +165,32 @@ QVariant InfluncedColumn::icon(const Item &item) const {
 
 	if (numInfluences > 0) {
 		switch (item.influenceLeft()) {
-			case Item::ELDER: leftIcon.addFile(elder_symbol_Link); break;
-			case Item::SHAPER: leftIcon.addFile(shaper_symbol_Link); break;
-			case Item::CRUSADER: leftIcon.addFile(crusader_symbol_Link); break;
-			case Item::HUNTER: leftIcon.addFile(hunter_symbol_Link); break;
-			case Item::REDEEMER: leftIcon.addFile(redeemer_symbol_Link); break;
-			case Item::WARLORD: leftIcon.addFile(warlord_symbol_Link); break;
-			case Item::SYNTHESISED: leftIcon.addFile(synthesised_symbol_Link); break;
-			case Item::FRACTURED: leftIcon.addFile(fractured_symbol_Link); break;
-			case Item::SEARING_EXARCH: leftIcon.addFile(searing_exarch_symbol_Link); break;
-			case Item::EATER_OF_WORLDS: leftIcon.addFile(eater_of_worlds_symbol_Link); break;
-			case Item::NONE: break;
+		case Item::ELDER: leftIcon.addFile(elder_symbol_Link); break;
+		case Item::SHAPER: leftIcon.addFile(shaper_symbol_Link); break;
+		case Item::CRUSADER: leftIcon.addFile(crusader_symbol_Link); break;
+		case Item::HUNTER: leftIcon.addFile(hunter_symbol_Link); break;
+		case Item::REDEEMER: leftIcon.addFile(redeemer_symbol_Link); break;
+		case Item::WARLORD: leftIcon.addFile(warlord_symbol_Link); break;
+		case Item::SYNTHESISED: leftIcon.addFile(synthesised_symbol_Link); break;
+		case Item::FRACTURED: leftIcon.addFile(fractured_symbol_Link); break;
+		case Item::SEARING_EXARCH: leftIcon.addFile(searing_exarch_symbol_Link); break;
+		case Item::EATER_OF_WORLDS: leftIcon.addFile(eater_of_worlds_symbol_Link); break;
+		case Item::NONE: break;
 		}
-		if(numInfluences == 2) {
+		if (numInfluences == 2) {
 			switch (item.influenceRight()) {
-				case Item::ELDER: rightIcon.addFile(elder_symbol_Link); break;
-				case Item::SHAPER: rightIcon.addFile(shaper_symbol_Link); break;
-				case Item::CRUSADER: rightIcon.addFile(crusader_symbol_Link); break;
-				case Item::HUNTER: rightIcon.addFile(hunter_symbol_Link); break;
-				case Item::REDEEMER: rightIcon.addFile(redeemer_symbol_Link); break;
-				case Item::WARLORD: rightIcon.addFile(warlord_symbol_Link); break;
-				case Item::SYNTHESISED: rightIcon.addFile(synthesised_symbol_Link); break;
-				case Item::FRACTURED: rightIcon.addFile(fractured_symbol_Link); break;
-				case Item::SEARING_EXARCH: rightIcon.addFile(searing_exarch_symbol_Link); break;
-				case Item::EATER_OF_WORLDS: rightIcon.addFile(eater_of_worlds_symbol_Link); break;
-				case Item::NONE: break;
+			case Item::ELDER: rightIcon.addFile(elder_symbol_Link); break;
+			case Item::SHAPER: rightIcon.addFile(shaper_symbol_Link); break;
+			case Item::CRUSADER: rightIcon.addFile(crusader_symbol_Link); break;
+			case Item::HUNTER: rightIcon.addFile(hunter_symbol_Link); break;
+			case Item::REDEEMER: rightIcon.addFile(redeemer_symbol_Link); break;
+			case Item::WARLORD: rightIcon.addFile(warlord_symbol_Link); break;
+			case Item::SYNTHESISED: rightIcon.addFile(synthesised_symbol_Link); break;
+			case Item::FRACTURED: rightIcon.addFile(fractured_symbol_Link); break;
+			case Item::SEARING_EXARCH: rightIcon.addFile(searing_exarch_symbol_Link); break;
+			case Item::EATER_OF_WORLDS: rightIcon.addFile(eater_of_worlds_symbol_Link); break;
+			case Item::NONE: break;
 			}
-
 			return Influence::combineInflunceIcons(leftIcon, rightIcon);
 		}
 		return leftIcon;
@@ -201,12 +200,12 @@ QVariant InfluncedColumn::icon(const Item &item) const {
 
 
 
-PropertyColumn::PropertyColumn(const std::string &name):
+PropertyColumn::PropertyColumn(const std::string& name) :
 	name_(name),
 	property_(name)
 {}
 
-PropertyColumn::PropertyColumn(const std::string &name, const std::string &property):
+PropertyColumn::PropertyColumn(const std::string& name, const std::string& property) :
 	name_(name),
 	property_(property)
 {}
@@ -215,7 +214,7 @@ std::string PropertyColumn::name() const {
 	return name_;
 }
 
-QVariant PropertyColumn::value(const Item &item) const {
+QVariant PropertyColumn::value(const Item& item) const {
 	if (item.properties().count(property_))
 		return item.properties().find(property_)->second.c_str();
 	return QVariant();
@@ -225,7 +224,7 @@ std::string DPSColumn::name() const {
 	return "DPS";
 }
 
-QVariant DPSColumn::value(const Item &item) const {
+QVariant DPSColumn::value(const Item& item) const {
 	double dps = item.DPS();
 	if (fabs(dps) < EPS)
 		return QVariant();
@@ -236,7 +235,7 @@ std::string pDPSColumn::name() const {
 	return "pDPS";
 }
 
-QVariant pDPSColumn::value(const Item &item) const {
+QVariant pDPSColumn::value(const Item& item) const {
 	double pdps = item.pDPS();
 	if (fabs(pdps) < EPS)
 		return QVariant();
@@ -247,14 +246,14 @@ std::string eDPSColumn::name() const {
 	return "eDPS";
 }
 
-QVariant eDPSColumn::value(const Item &item) const {
+QVariant eDPSColumn::value(const Item& item) const {
 	double edps = item.eDPS();
 	if (fabs(edps) < EPS)
 		return QVariant();
 	return edps;
 }
 
-ElementalDamageColumn::ElementalDamageColumn(int index):
+ElementalDamageColumn::ElementalDamageColumn(int index) :
 	index_(index)
 {}
 
@@ -264,17 +263,17 @@ std::string ElementalDamageColumn::name() const {
 	return "";
 }
 
-QVariant ElementalDamageColumn::value(const Item &item) const {
+QVariant ElementalDamageColumn::value(const Item& item) const {
 	if (item.elemental_damage().size() > index_) {
-		auto &ed = item.elemental_damage().at(index_);
+		auto& ed = item.elemental_damage().at(index_);
 		return ed.first.c_str();
 	}
 	return QVariant();
 }
 
-QColor ElementalDamageColumn::color(const Item &item) const {
+QColor ElementalDamageColumn::color(const Item& item) const {
 	if (item.elemental_damage().size() > index_) {
-		auto &ed = item.elemental_damage().at(index_);
+		auto& ed = item.elemental_damage().at(index_);
 		switch (ed.second) {
 		case ED_FIRE:
 			return QColor(0xc5, 0x13, 0x13);
@@ -291,13 +290,13 @@ std::string ChaosDamageColumn::name() const {
 	return "CD";
 }
 
-QVariant ChaosDamageColumn::value(const Item &item) const {
+QVariant ChaosDamageColumn::value(const Item& item) const {
 	if (item.properties().count("Chaos Damage"))
 		return item.properties().find("Chaos Damage")->second.c_str();
 	return QVariant();
 }
 
-QColor ChaosDamageColumn::color(const Item &item) const {
+QColor ChaosDamageColumn::color(const Item& item) const {
 	Q_UNUSED(item);
 	return QColor(0xd0, 0x20, 0x90);
 }
@@ -306,14 +305,14 @@ std::string cDPSColumn::name() const {
 	return "cDPS";
 }
 
-QVariant cDPSColumn::value(const Item &item) const {
+QVariant cDPSColumn::value(const Item& item) const {
 	double cdps = item.cDPS();
 	if (fabs(cdps) < EPS)
 		return QVariant();
 	return cdps;
 }
 
-PriceColumn::PriceColumn(const BuyoutManager &bo_manager):
+PriceColumn::PriceColumn(const BuyoutManager& bo_manager) :
 	bo_manager_(bo_manager)
 {}
 
@@ -321,18 +320,18 @@ std::string PriceColumn::name() const {
 	return "Price";
 }
 
-QVariant PriceColumn::value(const Item &item) const {
-	const Buyout &bo = bo_manager_.Get(item);
+QVariant PriceColumn::value(const Item& item) const {
+	const Buyout& bo = bo_manager_.Get(item);
 	return bo.AsText().c_str();
 }
 
-QColor PriceColumn::color(const Item &item) const {
-	const Buyout &bo = bo_manager_.Get(item);
-	return bo.IsInherited() ? QColor(0xaa, 0xaa, 0xaa):QApplication::palette().color(QPalette::WindowText);
+QColor PriceColumn::color(const Item& item) const {
+	const Buyout& bo = bo_manager_.Get(item);
+	return bo.IsInherited() ? QColor(0xaa, 0xaa, 0xaa) : QApplication::palette().color(QPalette::WindowText);
 }
 
 std::tuple<int, double, const Item&> PriceColumn::multivalue(const Item* item) const {
-	const Buyout &bo = bo_manager_.Get(*item);
+	const Buyout& bo = bo_manager_.Get(*item);
 	// forward_as_tuple used to forward item reference properly and avoid ref to temporary
 	// that will be destroyed.  We want item reference because we want to sort based on item
 	// object itself and not the pointer.  I'm not entirely sure I fully understand
@@ -345,7 +344,7 @@ bool PriceColumn::lt(const Item* lhs, const Item* rhs) const {
 	return multivalue(lhs) < multivalue(rhs);
 }
 
-DateColumn::DateColumn(const BuyoutManager &bo_manager):
+DateColumn::DateColumn(const BuyoutManager& bo_manager) :
 	bo_manager_(bo_manager)
 {}
 
@@ -353,23 +352,23 @@ std::string DateColumn::name() const {
 	return "Last Update";
 }
 
-QVariant DateColumn::value(const Item &item) const {
-	const Buyout &bo = bo_manager_.Get(item);
-	return bo.IsActive() ? Util::TimeAgoInWords(bo.last_update).c_str():QVariant();
+QVariant DateColumn::value(const Item& item) const {
+	const Buyout& bo = bo_manager_.Get(item);
+	return bo.IsActive() ? Util::TimeAgoInWords(bo.last_update).c_str() : QVariant();
 }
 
 bool DateColumn::lt(const Item* lhs, const Item* rhs) const {
 	auto lhs_update_time = bo_manager_.Get(*lhs).last_update;
 	auto rhs_update_time = bo_manager_.Get(*rhs).last_update;
 	return (std::tie(lhs_update_time, *lhs) <
-			std::tie(rhs_update_time, *rhs)) ;
+		std::tie(rhs_update_time, *rhs));
 }
 
 std::string ItemlevelColumn::name() const {
 	return "ilvl";
 }
 
-QVariant ItemlevelColumn::value(const Item &item) const {
+QVariant ItemlevelColumn::value(const Item& item) const {
 	if (item.ilvl() > 0)
 		return item.ilvl();
 	return QVariant();

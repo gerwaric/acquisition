@@ -434,7 +434,7 @@ void PolicyManager::ActivateRequest() {
 
 // Send the active request immediately.
 void PolicyManager::SendRequest() {
-    
+
 	if (active_request == nullptr) {
 		QLOG_DEBUG() << "The active request is empty.";
 		return;
@@ -467,7 +467,7 @@ void PolicyManager::ReceiveReply() {
 	QNetworkReply* reply = active_request->network_reply;
 	active_request->reply_time = GetDate(reply);
 	active_request->reply_status = GetStatus(reply);
-    
+
 	QLOG_TRACE() << policy->name
 		<< "received reply for request" << active_request->id
 		<< "with status" << active_request->reply_status;
@@ -493,7 +493,7 @@ void PolicyManager::ReceiveReply() {
 		OnPolicyUpdate();
 
 		emit RateLimitingStarted();
-		
+
 	} else {
 		if (policy->name != "<none>") {
 			QLOG_ERROR() << "policy manager for" << policy->name
@@ -600,7 +600,7 @@ QString PolicyManager::GetCurrentStatus() const {
 	default:
 		break;
 	};
-    
+
 	return lines.join("\n  ");
 }
 
@@ -754,7 +754,7 @@ void RateLimiter::SendInitialRequest(const QString endpoint, QNetworkRequest req
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	QNetworkReply* reply = initial_manager.head(request);
 	connect(reply, &QNetworkReply::finished, [=]() {
-			ReceiveInitialReply(endpoint, reply);
+		ReceiveInitialReply(endpoint, reply);
 		});
 }
 

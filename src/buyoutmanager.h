@@ -69,9 +69,9 @@ struct Currency {
 	typedef std::map<CurrencyType, int> CurrencyRankMap;
 
 	Currency() = default;
-	Currency(CurrencyType in_type): type(in_type) { };
+	Currency(CurrencyType in_type) : type(in_type) { };
 
-	CurrencyType type{CURRENCY_NONE};
+	CurrencyType type{ CURRENCY_NONE };
 
 	static std::vector<CurrencyType> Types();
 	static Currency FromIndex(int i);
@@ -81,9 +81,9 @@ struct Currency {
 	bool operator!=(const Currency& rhs) const { return type != rhs.type; }
 	bool operator<(const Currency& rhs) const { return type < rhs.type; }
 
-	const std::string &AsString() const;
-	const std::string &AsTag() const;
-	const int &AsRank() const;
+	const std::string& AsString() const;
+	const std::string& AsTag() const;
+	const int& AsRank() const;
 
 private:
 	static const std::string currency_type_error_;
@@ -98,12 +98,12 @@ struct Buyout {
 
 	double value;
 	BuyoutType type;
-	BuyoutSource source{BUYOUT_SOURCE_MANUAL};
+	BuyoutSource source{ BUYOUT_SOURCE_MANUAL };
 	Currency currency;
 	QDateTime last_update;
 	bool inherited = false;
-	bool operator==(const Buyout &o) const;
-	bool operator!=(const Buyout &o) const;
+	bool operator==(const Buyout& o) const;
+	bool operator!=(const Buyout& o) const;
 	bool IsValid() const;
 	bool IsActive() const;
 	bool IsInherited() const { return inherited || type == BUYOUT_TYPE_INHERIT; };
@@ -118,10 +118,10 @@ struct Buyout {
 	static BuyoutSource TagAsBuyoutSource(std::string tag);
 
 	std::string AsText() const;
-	const std::string &BuyoutTypeAsTag() const;
-	const std::string &BuyoutTypeAsPrefix() const;
-	const std::string &BuyoutSourceAsTag() const;
-	const std::string &CurrencyAsTag() const;
+	const std::string& BuyoutTypeAsTag() const;
+	const std::string& BuyoutTypeAsPrefix() const;
+	const std::string& BuyoutSourceAsTag() const;
+	const std::string& CurrencyAsTag() const;
 
 	Buyout() :
 		value(0),
@@ -145,23 +145,23 @@ class DataStore;
 
 class BuyoutManager {
 public:
-	explicit BuyoutManager(DataStore &data);
-	void Set(const Item &item, const Buyout &buyout);
-	Buyout Get(const Item &item) const;
+	explicit BuyoutManager(DataStore& data);
+	void Set(const Item& item, const Buyout& buyout);
+	Buyout Get(const Item& item) const;
 
-	void SetTab(const std::string &tab, const Buyout &buyout);
-	Buyout GetTab(const std::string &tab) const;
+	void SetTab(const std::string& tab, const Buyout& buyout);
+	Buyout GetTab(const std::string& tab) const;
 	void CompressTabBuyouts();
-	void CompressItemBuyouts(const Items &items);
+	void CompressItemBuyouts(const Items& items);
 
-	void SetRefreshChecked(const ItemLocation &tab, bool value);
-	bool GetRefreshChecked(const ItemLocation &tab) const;
+	void SetRefreshChecked(const ItemLocation& tab, bool value);
+	bool GetRefreshChecked(const ItemLocation& tab) const;
 
-	bool GetRefreshLocked(const ItemLocation &tab) const;
-	void SetRefreshLocked(const ItemLocation &tab);
+	bool GetRefreshLocked(const ItemLocation& tab) const;
+	void SetRefreshLocked(const ItemLocation& tab);
 	void ClearRefreshLocks();
 
-	void SetStashTabLocations(const std::vector<ItemLocation> &tabs);
+	void SetStashTabLocations(const std::vector<ItemLocation>& tabs);
 	const std::vector<ItemLocation> GetStashTabLocations() const;
 	void Clear();
 
@@ -170,18 +170,18 @@ public:
 	void Save();
 	void Load();
 
-	void MigrateItem(const Item &item);
+	void MigrateItem(const Item& item);
 private:
 	Currency StringToCurrencyType(std::string currency) const;
 	BuyoutType StringToBuyoutType(std::string bo_str) const;
 
-	std::string Serialize(const std::map<std::string, Buyout> &buyouts);
-	void Deserialize(const std::string &data, std::map<std::string, Buyout> *buyouts);
+	std::string Serialize(const std::map<std::string, Buyout>& buyouts);
+	void Deserialize(const std::string& data, std::map<std::string, Buyout>* buyouts);
 
-	std::string Serialize(const std::map<std::string, bool> &obj);
-	void Deserialize(const std::string &data, std::map<std::string, bool> &obj);
+	std::string Serialize(const std::map<std::string, bool>& obj);
+	void Deserialize(const std::string& data, std::map<std::string, bool>& obj);
 
-	DataStore &data_;
+	DataStore& data_;
 	std::map<std::string, Buyout> buyouts_;
 	std::map<std::string, Buyout> tab_buyouts_;
 	std::map<std::string, bool> refresh_checked_;

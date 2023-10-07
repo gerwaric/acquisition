@@ -2,7 +2,7 @@
 
 #include "replytimeout.h"
 
-QReplyTimeout::QReplyTimeout(QNetworkReply* reply, const int timeout):
+QReplyTimeout::QReplyTimeout(QNetworkReply* reply, const int timeout) :
 	QObject(reply)
 {
 	if (reply) {

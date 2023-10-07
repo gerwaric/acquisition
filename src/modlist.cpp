@@ -145,7 +145,7 @@ void InitModlist() {
 	mod_generators.clear();
 	mods_map.clear();
 
-	for (auto &list : mods) {
+	for (auto& list : mods) {
 		mod_string_list.push_back(list[0].c_str());
 
 		SumModGen gen = std::make_shared<SumModGenerator>(list[0], list);
@@ -156,15 +156,15 @@ void InitModlist() {
 	}
 }
 
-SumModGenerator::SumModGenerator(const std::string &name, const std::vector<std::string> &sum):
+SumModGenerator::SumModGenerator(const std::string& name, const std::vector<std::string>& sum) :
 	name_(name),
 	matches_(sum)
 {}
 
-bool SumModGenerator::Match(const char *mod, double *output) {
+bool SumModGenerator::Match(const char* mod, double* output) {
 	bool found = false;
 	*output = 0.0;
-	for (auto &match : matches_) {
+	for (auto& match : matches_) {
 		double result = 0.0;
 		if (Util::MatchMod(match.c_str(), mod, &result)) {
 			*output += result;
@@ -175,7 +175,7 @@ bool SumModGenerator::Match(const char *mod, double *output) {
 	return found;
 }
 
-void SumModGenerator::Generate(const rapidjson::Value &mod, ModTable *output) {
+void SumModGenerator::Generate(const rapidjson::Value& mod, ModTable* output) {
 	bool mod_present = false;
 	double sum = 0;
 	double result;

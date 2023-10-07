@@ -40,7 +40,7 @@
 
 extern const char* POE_COOKIE_NAME;
 
-SteamLoginDialog::SteamLoginDialog(QWidget *parent) :
+SteamLoginDialog::SteamLoginDialog(QWidget* parent) :
 	QDialog(parent),
 	ui(new Ui::SteamLoginDialog)
 {
@@ -55,18 +55,18 @@ SteamLoginDialog::SteamLoginDialog(QWidget *parent) :
 		} else {
 			setWindowTitle(webView->title());
 		}
-	});
+		});
 
 	connect(QWebEngineProfile::defaultProfile()->cookieStore(),
-			&QWebEngineCookieStore::cookieAdded, [this](const QNetworkCookie& cookie) {
-		if (cookie.name() == POE_COOKIE_NAME) {
-			QString session_id = QString(cookie.value());
-			webView->stop();
-			emit CookieReceived(session_id);
-			completed_ = true;
-			close();
-		}
-	});
+		&QWebEngineCookieStore::cookieAdded, [this](const QNetworkCookie& cookie) {
+			if (cookie.name() == POE_COOKIE_NAME) {
+				QString session_id = QString(cookie.value());
+				webView->stop();
+				emit CookieReceived(session_id);
+				completed_ = true;
+				close();
+			}
+		});
 #endif
 }
 
@@ -74,7 +74,7 @@ SteamLoginDialog::~SteamLoginDialog() {
 	delete ui;
 }
 
-void SteamLoginDialog::closeEvent(QCloseEvent *e) {
+void SteamLoginDialog::closeEvent(QCloseEvent* e) {
 	if (!completed_)
 		emit Closed();
 	QDialog::closeEvent(e);
@@ -87,7 +87,7 @@ void SteamLoginDialog::Init() {
 	QNetworkRequest request(QUrl("https://www.pathofexile.com/login/steam"));
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply *reply = network_manager_.post(request, data);
+	QNetworkReply* reply = network_manager_.post(request, data);
 
 	auto conn = std::shared_ptr<QMetaObject::Connection>(new QMetaObject::Connection());
 	*conn = connect(reply, &QNetworkReply::finished, [this, reply, conn] {
@@ -95,6 +95,6 @@ void SteamLoginDialog::Init() {
 		webView->load(attr.toUrl());
 		reply->deleteLater();
 		disconnect(*conn);
-	});
+		});
 #endif
 }

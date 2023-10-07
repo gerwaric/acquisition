@@ -120,17 +120,17 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 	login_manager_ = std::make_unique<QNetworkAccessManager>();
 	connect(ui->proxyCheckBox, SIGNAL(clicked(bool)), this, SLOT(OnProxyCheckBoxClicked(bool)));
 	connect(ui->loginButton, SIGNAL(clicked()), this, SLOT(OnLoginButtonClicked()));
-	connect(&update_checker_, &UpdateChecker::UpdateAvailable, [&](){
+	connect(&update_checker_, &UpdateChecker::UpdateAvailable, [&]() {
 		// Only annoy the user once at the login dialog window, even if it's opened for more than an hour
 		if (asked_to_update_)
 			return;
 		asked_to_update_ = true;
 		UpdateChecker::AskUserToUpdate(this);
-	});
+		});
 
 	QNetworkRequest leagues_request = QNetworkRequest(QUrl(QString(POE_LEAGUE_LIST_URL)));
 	leagues_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply *leagues_reply = login_manager_->get(leagues_request);
+	QNetworkReply* leagues_reply = login_manager_->get(leagues_request);
 
 	connect(leagues_reply, &QNetworkReply::errorOccurred, this, &LoginDialog::errorOccurred);
 	connect(leagues_reply, &QNetworkReply::sslErrors, this, &LoginDialog::sslErrorOccurred);
@@ -138,11 +138,11 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 	new QReplyTimeout(leagues_reply, kPoeApiTimeout);
 }
 
-void LoginDialog::errorOccurred(){
+void LoginDialog::errorOccurred() {
 	QLOG_ERROR() << "League List errorOccured";
 }
 
-void LoginDialog::sslErrorOccurred(){
+void LoginDialog::sslErrorOccurred() {
 	QLOG_ERROR() << "League List sslErrorOccured";
 }
 
@@ -151,23 +151,23 @@ void LoginDialog::OnLoginButtonClicked() {
 	ui->loginButton->setText("Logging in...");
 
 	switch (ui->loginTabs->currentIndex()) {
-		case LOGIN_PASSWORD: {
-			// Get POE_LOGIN_URL to retrieve the csrf token
-			QNetworkReply *login_page = login_manager_->get(QNetworkRequest(QUrl(POE_LOGIN_URL)));
-			connect(login_page, SIGNAL(finished()), this, SLOT(OnLoginPageFinished()));
-			break;
-		}
-		case LOGIN_STEAM: {
-			if (!steam_login_dialog_)
-				InitSteamDialog();
-			steam_login_dialog_->show();
-			steam_login_dialog_->Init();
-			break;
-		}
-		case LOGIN_SESSIONID: {
-			LoginWithCookie(ui->sessionIDLineEdit->text());
-			break;
-		}
+	case LOGIN_PASSWORD: {
+		// Get POE_LOGIN_URL to retrieve the csrf token
+		QNetworkReply* login_page = login_manager_->get(QNetworkRequest(QUrl(POE_LOGIN_URL)));
+		connect(login_page, SIGNAL(finished()), this, SLOT(OnLoginPageFinished()));
+		break;
+	}
+	case LOGIN_STEAM: {
+		if (!steam_login_dialog_)
+			InitSteamDialog();
+		steam_login_dialog_->show();
+		steam_login_dialog_->Init();
+		break;
+	}
+	case LOGIN_SESSIONID: {
+		LoginWithCookie(ui->sessionIDLineEdit->text());
+		break;
+	}
 	}
 }
 
@@ -181,13 +181,13 @@ void LoginDialog::OnSteamDialogClosed() {
 	DisplayError("Login was not completed");
 }
 
-void LoginDialog::LeaguesApiError(const QString &error, const QByteArray &reply) {
+void LoginDialog::LeaguesApiError(const QString& error, const QByteArray& reply) {
 	DisplayError("Leagues API returned malformed data: " + error, true);
 	QLOG_ERROR() << "Leagues API says: " << reply;
 }
 
 void LoginDialog::OnLeaguesRequestFinished() {
-	SelfDestructingReply reply(qobject_cast<QNetworkReply *>(QObject::sender()));
+	SelfDestructingReply reply(qobject_cast<QNetworkReply*>(QObject::sender()));
 	QByteArray bytes = reply->readAll();
 
 	if (reply->error())
@@ -230,7 +230,7 @@ void LoginDialog::OnLeaguesRequestFinished() {
 		return LeaguesApiError("Failed to parse the document", bytes);
 
 	ui->leagueComboBox->clear();
-	for (auto &league : doc) {
+	for (auto& league : doc) {
 		if (!league.IsObject())
 			return LeaguesApiError("Object expected", bytes);
 		if (!league.HasMember("id"))
@@ -252,7 +252,7 @@ static QString EncodeSpecialCharacters(QString s) {
 }
 
 void LoginDialog::OnLoginPageFinished() {
-	QNetworkReply *reply = qobject_cast<QNetworkReply *>(QObject::sender());
+	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
 	if (reply->error()) {
 		DisplayError("Network error: " + reply->errorString() + "\nTry using another login method.");
 		return;
@@ -278,25 +278,25 @@ void LoginDialog::OnLoginPageFinished() {
 	QNetworkRequest request(url);
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply *logged_in = login_manager_->post(request, data);
+	QNetworkReply* logged_in = login_manager_->post(request, data);
 	connect(logged_in, SIGNAL(finished()), this, SLOT(OnLoggedIn()));
 }
 
-void LoginDialog::FinishLogin(QNetworkReply *reply) {
+void LoginDialog::FinishLogin(QNetworkReply* reply) {
 	QList<QNetworkCookie> cookies = reply->manager()->cookieJar()->cookiesForUrl(QUrl(POE_MAIN_PAGE));
-	for (QNetworkCookie &cookie : cookies)
+	for (QNetworkCookie& cookie : cookies)
 		if (QString(cookie.name()) == POE_COOKIE_NAME)
 			session_id_ = cookie.value();
 
 	// we need one more request to get account name
 	QNetworkRequest main_page_request = QNetworkRequest(QUrl(POE_MY_ACCOUNT));
 	main_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply *main_page = login_manager_->get(main_page_request);
+	QNetworkReply* main_page = login_manager_->get(main_page_request);
 	connect(main_page, SIGNAL(finished()), this, SLOT(OnMainPageFinished()));
 }
 
 void LoginDialog::OnLoggedIn() {
-	QNetworkReply *reply = qobject_cast<QNetworkReply *>(QObject::sender());
+	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
 	QByteArray bytes = reply->readAll();
 	int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 	if (status != 302) {
@@ -309,22 +309,22 @@ void LoginDialog::OnLoggedIn() {
 
 // Need a separate check since it's just the /login URL that's filtered
 void LoginDialog::LoggedInCheck() {
-	QNetworkReply *reply = qobject_cast<QNetworkReply *>(QObject::sender());
+	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
 	QByteArray bytes = reply->readAll();
 	int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 	switch (status) {
-		case 302:
-			DisplayError(LOGIN_CHECK_ERROR);
-			return;
-		case 401:
-			DisplayError(LOGIN_CHECK_ERROR);
-			return;
+	case 302:
+		DisplayError(LOGIN_CHECK_ERROR);
+		return;
+	case 401:
+		DisplayError(LOGIN_CHECK_ERROR);
+		return;
 	}
 
 	FinishLogin(reply);
 }
 
-void LoginDialog::OnSteamCookieReceived(const QString &cookie) {
+void LoginDialog::OnSteamCookieReceived(const QString& cookie) {
 	if (cookie.isEmpty()) {
 		DisplayError("Failed to log in, the received cookie is empty.");
 		return;
@@ -332,7 +332,7 @@ void LoginDialog::OnSteamCookieReceived(const QString &cookie) {
 	LoginWithCookie(cookie);
 }
 
-void LoginDialog::LoginWithCookie(const QString &cookie) {
+void LoginDialog::LoginWithCookie(const QString& cookie) {
 	QNetworkCookie poeCookie(POE_COOKIE_NAME, cookie.toUtf8());
 	poeCookie.setPath("/");
 	poeCookie.setDomain(".pathofexile.com");
@@ -341,12 +341,12 @@ void LoginDialog::LoginWithCookie(const QString &cookie) {
 
 	QNetworkRequest login_page_request = QNetworkRequest(QUrl(POE_LOGIN_CHECK_URL));
 	login_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply *login_page = login_manager_->get(login_page_request);
+	QNetworkReply* login_page = login_manager_->get(login_page_request);
 	connect(login_page, SIGNAL(finished()), this, SLOT(LoggedInCheck()));
 }
 
 void LoginDialog::OnMainPageFinished() {
-	QNetworkReply *reply = qobject_cast<QNetworkReply *>(QObject::sender());
+	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
 	QString html(reply->readAll());
 	QRegExp regexp("/account/view-profile/(.*)\"");
 	regexp.setMinimal(true);
@@ -367,7 +367,7 @@ void LoginDialog::OnMainPageFinished() {
 }
 
 void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
-  QNetworkProxyFactory::setUseSystemConfiguration(checked);
+	QNetworkProxyFactory::setUseSystemConfiguration(checked);
 }
 
 void LoginDialog::LoadSettings() {
@@ -414,7 +414,7 @@ void LoginDialog::SaveSettings() {
 #endif
 }
 
-void LoginDialog::DisplayError(const QString &error, bool disable_login) {
+void LoginDialog::DisplayError(const QString& error, bool disable_login) {
 	ui->errorLabel->setText(error);
 	ui->errorLabel->show();
 	ui->loginButton->setEnabled(!disable_login);
@@ -429,7 +429,7 @@ LoginDialog::~LoginDialog() {
 		delete mw;
 }
 
-bool LoginDialog::event(QEvent *e) {
+bool LoginDialog::event(QEvent* e) {
 	if (e->type() == QEvent::LayoutRequest)
 		setFixedSize(sizeHint());
 	return QDialog::event(e);

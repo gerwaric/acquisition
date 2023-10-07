@@ -29,7 +29,7 @@ class UpdateChecker : public QObject {
 	Q_OBJECT
 public:
 	UpdateChecker();
-	static void AskUserToUpdate(QWidget *parent);
+	static void AskUserToUpdate(QWidget* parent);
 public slots:
 	void CheckForUpdates();
 	void OnUpdateCheckCompleted();

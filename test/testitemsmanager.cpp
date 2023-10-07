@@ -60,7 +60,7 @@ void TestItemsManager::BuyoutPropagation() {
 	auto first = std::make_shared<Item>("First item", first_tab);
 	auto second = std::make_shared<Item>("Second item", second_tab);
 
-	auto &bo = app_.buyout_manager();
+	auto& bo = app_.buyout_manager();
 	Buyout buyout(123.0, BUYOUT_TYPE_BUYOUT, CURRENCY_ORB_OF_ALTERATION, QDateTime::currentDateTime());
 	bo.SetTab(first_tab.GetUniqueHash(), buyout);
 
@@ -83,7 +83,7 @@ void TestItemsManager::UserSetBuyoutPropagation() {
 	auto first = std::make_shared<Item>("First item", first_tab);
 	auto second = std::make_shared<Item>("Second item", first_tab);
 
-	auto &bo = app_.buyout_manager();
+	auto& bo = app_.buyout_manager();
 	Buyout item_buyout(123.0, BUYOUT_TYPE_BUYOUT, CURRENCY_ORB_OF_ALTERATION, QDateTime::currentDateTime());
 	Buyout tab_buyout(456.0, BUYOUT_TYPE_BUYOUT, CURRENCY_CHAOS_ORB, QDateTime::currentDateTime());
 	bo.Set(*first, item_buyout);
@@ -115,7 +115,7 @@ void TestItemsManager::MoveItemNoBoToBo() {
 
 	QVERIFY2(item_before->hash() == item_after->hash(), "Before/after must have equal hashes");
 
-	auto &bo = app_.buyout_manager();
+	auto& bo = app_.buyout_manager();
 	Buyout tab_buyout(456.0, BUYOUT_TYPE_BUYOUT, CURRENCY_CHAOS_ORB, QDateTime::currentDateTime());
 	bo.SetTab(second_tab.GetUniqueHash(), tab_buyout);
 
@@ -144,7 +144,7 @@ void TestItemsManager::MoveItemBoToNoBo() {
 
 	QVERIFY2(item_before->hash() == item_after->hash(), "Before/after must have equal hashes");
 
-	auto &bo = app_.buyout_manager();
+	auto& bo = app_.buyout_manager();
 	Buyout tab_buyout(456.0, BUYOUT_TYPE_BUYOUT, CURRENCY_CHAOS_ORB, QDateTime::currentDateTime());
 	bo.SetTab(first_tab.GetUniqueHash(), tab_buyout);
 
@@ -173,7 +173,7 @@ void TestItemsManager::MoveItemBoToBo() {
 
 	QVERIFY2(item_before->hash() == item_after->hash(), "Before/after must have equal hashes");
 
-	auto &bo = app_.buyout_manager();
+	auto& bo = app_.buyout_manager();
 	Buyout first_buyout(456.0, BUYOUT_TYPE_BUYOUT, CURRENCY_CHAOS_ORB, QDateTime::currentDateTime());
 	Buyout second_buyout(234.0, BUYOUT_TYPE_BUYOUT, CURRENCY_CARTOGRAPHERS_CHISEL, QDateTime::currentDateTime());
 	bo.SetTab(first_tab.GetUniqueHash(), first_buyout);

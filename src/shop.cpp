@@ -42,7 +42,7 @@ const std::string kShopTemplateItems = "[items]";
 const int kMaxCharactersInPost = 50000;
 const int kSpoilerOverhead = 19; // "[spoiler][/spoiler]" length
 
-Shop::Shop(Application &app) :
+Shop::Shop(Application& app) :
 	app_(app),
 	shop_data_outdated_(true),
 	submitting_(false)
@@ -54,7 +54,7 @@ Shop::Shop(Application &app) :
 		shop_template_ = kShopTemplateItems;
 }
 
-void Shop::SetThread(const std::vector<std::string> &threads) {
+void Shop::SetThread(const std::vector<std::string>& threads) {
 	if (submitting_)
 		return;
 	threads_ = threads;
@@ -68,16 +68,16 @@ void Shop::SetAutoUpdate(bool update) {
 	app_.data().SetBool("shop_update", update);
 }
 
-void Shop::SetShopTemplate(const std::string &shop_template) {
+void Shop::SetShopTemplate(const std::string& shop_template) {
 	shop_template_ = shop_template;
 	app_.data().Set("shop_template", shop_template);
 	ExpireShopData();
 }
-std::string Shop::SpoilerBuyout(Buyout &bo) {
+std::string Shop::SpoilerBuyout(Buyout& bo) {
 	std::string out = "";
 	out += "[spoiler=\"" + bo.BuyoutTypeAsPrefix();
 	if (bo.IsPriced())
-		out += " " + QString::number(bo.value).toStdString() + " "+ bo.CurrencyAsTag();
+		out += " " + QString::number(bo.value).toStdString() + " " + bo.CurrencyAsTag();
 	out += "\"]";
 	return out;
 }
@@ -93,7 +93,7 @@ void Shop::Update() {
 	std::vector<AugmentedItem> aug_items;
 	AugmentedItem tmp = AugmentedItem();
 	//Get all buyouts to be able to sort them
-	for (auto &item : app_.items_manager().items()) {
+	for (auto& item : app_.items_manager().items()) {
 		tmp.item = item.get();
 		tmp.bo = app_.buyout_manager().Get(*item);
 
@@ -108,15 +108,15 @@ void Shop::Update() {
 
 	Buyout current_bo = aug_items[0].bo;
 	data += SpoilerBuyout(current_bo);
-	for (auto &aug : aug_items) {
+	for (auto& aug : aug_items) {
 		if (aug.bo.type != current_bo.type || aug.bo.currency != current_bo.currency || aug.bo.value != current_bo.value) {
 			current_bo = aug.bo;
 			data += "[/spoiler]";
 			data += SpoilerBuyout(current_bo);
 		}
 		std::string item_string = aug.item->location().GetForumCode(app_.league());
-		if (data.size() + item_string.size() + shop_template_.size()+ kSpoilerOverhead + QString("[/spoiler]").size() > kMaxCharactersInPost) {
-			data +="[/spoiler]";
+		if (data.size() + item_string.size() + shop_template_.size() + kSpoilerOverhead + QString("[/spoiler]").size() > kMaxCharactersInPost) {
+			data += "[/spoiler]";
 			shop_data_.push_back(data);
 			data = SpoilerBuyout(current_bo);
 			data += item_string;
@@ -181,7 +181,7 @@ void Shop::SubmitSingleShop() {
 		// first, get to the edit-thread page to grab CSRF token
 		QNetworkRequest request = QNetworkRequest(QUrl(ShopEditUrl(requests_completed_).c_str()));
 		request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-		QNetworkReply *fetched = app_.logged_in_nm().get(request);
+		QNetworkReply* fetched = app_.logged_in_nm().get(request);
 		new QReplyTimeout(fetched, kEditThreadTimeout);
 		connect(fetched, SIGNAL(finished()), this, SLOT(OnEditPageFinished()));
 	}
@@ -189,7 +189,7 @@ void Shop::SubmitSingleShop() {
 }
 
 void Shop::OnEditPageFinished() {
-	QNetworkReply *reply = qobject_cast<QNetworkReply *>(QObject::sender());
+	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
 	QByteArray bytes = reply->readAll();
 	std::string page(bytes.constData(), bytes.size());
 	std::string hash = Util::GetCsrfToken(page, "hash");
@@ -222,13 +222,13 @@ void Shop::OnEditPageFinished() {
 	QNetworkRequest request((QUrl(ShopEditUrl(requests_completed_).c_str())));
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply *submitted = app_.logged_in_nm().post(request, data);
+	QNetworkReply* submitted = app_.logged_in_nm().post(request, data);
 	new QReplyTimeout(submitted, kEditThreadTimeout);
 	connect(submitted, SIGNAL(finished()), this, SLOT(OnShopSubmitted()));
 }
 
 void Shop::OnShopSubmitted() {
-	QNetworkReply *reply = qobject_cast<QNetworkReply *>(QObject::sender());
+	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
 	QByteArray bytes = reply->readAll();
 	std::string page(bytes.constData(), bytes.size());
 	std::string error = Util::FindTextBetween(page, "<ul class=\"errors\"><li>", "</li></ul>");
@@ -258,6 +258,6 @@ void Shop::CopyToClipboard() {
 		QLOG_WARN() << "You have more than one shop, only the first one will be copied.";
 	}
 
-	QClipboard *clipboard = QApplication::clipboard();
+	QClipboard* clipboard = QApplication::clipboard();
 	clipboard->setText(QString(shop_data_[0].c_str()));
 }

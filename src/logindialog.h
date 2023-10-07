@@ -35,7 +35,7 @@ class SteamLoginDialog;
 class MainWindow;
 
 namespace Ui {
-class LoginDialog;
+	class LoginDialog;
 }
 
 class LoginDialog : public QDialog {
@@ -51,24 +51,24 @@ public slots:
 	void LoggedInCheck(); // checks login is successful
 	void OnMainPageFinished();
 	void OnProxyCheckBoxClicked(bool);
-	void OnSteamCookieReceived(const QString &cookie);
+	void OnSteamCookieReceived(const QString& cookie);
 	void OnSteamDialogClosed();
 	void errorOccurred();
 	void sslErrorOccurred();
 protected:
-	bool event(QEvent *e);
+	bool event(QEvent* e);
 private:
 	void SaveSettings();
 	void LoadSettings();
-	void DisplayError(const QString &error, bool disable_login = false);
-	void LoginWithCookie(const QString &cookie);
+	void DisplayError(const QString& error, bool disable_login = false);
+	void LoginWithCookie(const QString& cookie);
 	void InitSteamDialog();
-	void LeaguesApiError(const QString &error, const QByteArray &reply);
+	void LeaguesApiError(const QString& error, const QByteArray& reply);
 	// Retrieves session cookie for a successful login; proceeds to OnMainPageFinished
-	void FinishLogin(QNetworkReply *reply);
+	void FinishLogin(QNetworkReply* reply);
 	std::unique_ptr<Application> app_;
-	Ui::LoginDialog *ui;
-	MainWindow *mw;
+	Ui::LoginDialog* ui;
+	MainWindow* mw;
 	std::string settings_path_;
 	QString saved_league_;
 	QString session_id_;

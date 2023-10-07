@@ -31,8 +31,8 @@
 #include "QsLog.h"
 #include <QMessageBox>
 
-Search::Search(BuyoutManager &bo_manager, const std::string &caption,
-			   const std::vector<std::unique_ptr<Filter>> &filters, QTreeView *view) :
+Search::Search(BuyoutManager& bo_manager, const std::string& caption,
+	const std::vector<std::unique_ptr<Filter>>& filters, QTreeView* view) :
 	caption_(caption),
 	view_(view),
 	bo_manager_(bo_manager),
@@ -69,26 +69,26 @@ Search::Search(BuyoutManager &bo_manager, const std::string &caption,
 	};
 	columns_ = std::vector<move_only>(std::make_move_iterator(std::begin(init)), std::make_move_iterator(std::end(init)));
 
-	for (auto &filter : filters)
+	for (auto& filter : filters)
 		filters_.push_back(std::move(filter->CreateData()));
 }
 
 void Search::FromForm() {
-	for (auto &filter : filters_)
+	for (auto& filter : filters_)
 		filter->FromForm();
 }
 
 void Search::ToForm() {
-	for (auto &filter : filters_)
+	for (auto& filter : filters_)
 		filter->ToForm();
 }
 
 void Search::ResetForm() {
-	for (auto &filter : filters_)
+	for (auto& filter : filters_)
 		filter->filter()->ResetForm();
 }
 
-const std::vector<std::unique_ptr<Bucket> > &Search::buckets() const {
+const std::vector<std::unique_ptr<Bucket> >& Search::buckets() const {
 	if (current_mode_ == ByTab) {
 		return buckets_;
 	} else {
@@ -96,11 +96,11 @@ const std::vector<std::unique_ptr<Bucket> > &Search::buckets() const {
 	}
 }
 
-const std::unique_ptr<Bucket> &Search::bucket(int row) const {
-	auto const &active_buckets = (current_mode_ == ByTab) ? buckets_:bucket_;
+const std::unique_ptr<Bucket>& Search::bucket(int row) const {
+	auto const& active_buckets = (current_mode_ == ByTab) ? buckets_ : bucket_;
 
 	if (row >= 0) {
-		std::vector<std::unique_ptr<Bucket>>::size_type row_t = (size_t) row;  // Assumes int max() always able to fit in unsigned long long
+		std::vector<std::unique_ptr<Bucket>>::size_type row_t = (size_t)row;  // Assumes int max() always able to fit in unsigned long long
 
 		if (row_t < active_buckets.size()) {
 			return active_buckets[row_t];
@@ -108,23 +108,23 @@ const std::unique_ptr<Bucket> &Search::bucket(int row) const {
 	}
 
 	QMessageBox::critical(nullptr, "Fatal Error", QString("Bucket row out of bounds: ") +
-						  QString::number(row) + " bucket size: " + QString::number(active_buckets.size()) +
-						  " mode:" + QString::number(current_mode_) +
-						  ". Program will abort.");
+		QString::number(row) + " bucket size: " + QString::number(active_buckets.size()) +
+		" mode:" + QString::number(current_mode_) +
+		". Program will abort.");
 	abort();
 
 }
 
-void Search::FilterItems(const Items &items) {
+void Search::FilterItems(const Items& items) {
 	// If we're just changing tabs we don't need to update anything
 	if (refresh_reason_ == RefreshReason::TabChanged)
 		return;
 
 	QLOG_DEBUG() << "FilterItems: reason(" << refresh_reason_ << ")";
 	items_.clear();
-	for (const auto &item : items) {
+	for (const auto& item : items) {
 		bool matches = true;
-		for (auto &filter : filters_)
+		for (auto& filter : filters_)
 			if (!filter->Matches(item)) {
 				matches = false;
 				break;
@@ -140,7 +140,7 @@ void Search::FilterItems(const Items &items) {
 	bucket_.push_back(std::make_unique<Bucket>(ItemLocation()));
 
 	std::map<ItemLocation, std::unique_ptr<Bucket>> bucketed_tabs;
-	for (const auto &item : items_) {
+	for (const auto& item : items_) {
 		ItemLocation location = item->location();
 		if (!bucketed_tabs.count(location))
 			bucketed_tabs[location] = std::make_unique<Bucket>(location);
@@ -152,21 +152,21 @@ void Search::FilterItems(const Items &items) {
 	// But only do so if no filters are active as we want to hide empty tabs when
 	// filtering
 	if (!IsAnyFilterActive()) {
-		for (auto &location: bo_manager_.GetStashTabLocations())
+		for (auto& location : bo_manager_.GetStashTabLocations())
 			if (!bucketed_tabs.count(location)) {
 				bucketed_tabs[location] = std::make_unique<Bucket>(location);
 			}
 	}
 
 	buckets_.clear();
-	for (auto &element : bucketed_tabs)
+	for (auto& element : bucketed_tabs)
 		buckets_.push_back(std::move(element.second));
 
 	// Let the model know that current sort order has been invalidated
 	model_->SetSorted(false);
 }
 
-void Search::RenameCaption(const std::string newName){
+void Search::RenameCaption(const std::string newName) {
 	caption_ = newName;
 }
 
@@ -174,7 +174,7 @@ QString Search::GetCaption() {
 	return QString("%1 [%2]").arg(caption_.c_str()).arg(GetItemsCount());
 }
 
-ItemLocation Search::GetTabLocation(const QModelIndex & index) const {
+ItemLocation Search::GetTabLocation(const QModelIndex& index) const {
 	if (!index.isValid())
 		return ItemLocation();
 
@@ -209,7 +209,7 @@ uint Search::GetItemsCount() {
 	return filtered_item_count_total_;
 }
 
-void Search::Activate(const Items &items) {
+void Search::Activate(const Items& items) {
 	FromForm();
 	FilterItems(items);
 	view_->setSortingEnabled(false);
@@ -222,7 +222,7 @@ void Search::SaveViewProperties() {
 	expanded_property_.clear();
 	auto rowCount = model_->rowCount();
 	for (int row = 0; row < rowCount; ++row) {
-		QModelIndex index = model_->index( row, 0, QModelIndex());
+		QModelIndex index = model_->index(row, 0, QModelIndex());
 		if (index.isValid() && view_->isExpanded(index)) {
 			expanded_property_.insert(bucket(row)->location().GetHeader());
 		}
@@ -233,7 +233,7 @@ void Search::RestoreViewProperties() {
 	if (!expanded_property_.empty()) {
 		auto rowCount = model_->rowCount();
 		for (int row = 0; row < rowCount; ++row) {
-			QModelIndex index = model_->index( row, 0, QModelIndex());
+			QModelIndex index = model_->index(row, 0, QModelIndex());
 			// Block signals else columns will be resized on every expand which can be super slow.
 			view_->blockSignals(true);
 			if (expanded_property_.count(bucket(row)->location().GetHeader())) {
@@ -248,11 +248,11 @@ bool Search::IsAnyFilterActive() const {
 	return (items_.size() != unfiltered_item_count_);
 }
 
-void Search::UpdateItemCounts(const Items &items) {
+void Search::UpdateItemCounts(const Items& items) {
 	unfiltered_item_count_ = items.size();
 
 	filtered_item_count_total_ = 0;
-	for (auto &item : items_)
+	for (auto& item : items_)
 		filtered_item_count_total_ += item->count();
 }
 

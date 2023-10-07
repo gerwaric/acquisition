@@ -94,7 +94,7 @@ namespace RateLimit
 	// The API endpoints used by acquisition that need to be checked for rate limits. Since
 	// this is known at compile time, we don't have to anything dynamic here.
 	extern const QStringList KNOWN_ENDPOINTS;
-    
+
 	// Consider a policy "borderline" when there are this many requests left before violation.
 	// This gives us a small buffer, just in case.
 	const int BORDERLINE_REQUEST_BUFFER = 2;
@@ -217,7 +217,7 @@ namespace RateLimit
 		{PolicyStatus::INVALID,    "INVALID"},
 		{PolicyStatus::OK,         "OK"},
 		{PolicyStatus::BORDERLINE, "BORDERLINE"},
-		{PolicyStatus::VIOLATION,  "VIOLATION"}};
+		{PolicyStatus::VIOLATION,  "VIOLATION"} };
 
 	struct Policy {
 		Policy(const QString& name_);

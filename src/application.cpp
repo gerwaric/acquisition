@@ -48,8 +48,8 @@ Application::~Application() {
 
 void Application::InitLogin(
 	std::unique_ptr<QNetworkAccessManager> login_manager,
-	const std::string &league,
-	const std::string &email,
+	const std::string& league,
+	const std::string& email,
 	bool mock_data)
 {
 	league_ = league;
@@ -98,8 +98,8 @@ void Application::SaveDbOnNewVersion() {
 	// This way we don't create an useless data_save_version folder on the first time you run acquisition
 
 	bool first_start = data_->Get("tabs", "first_time") == "first_time" &&
-				data_->GetTabs(ItemLocationType::STASH).length() == 0 &&
-				data_->GetTabs(ItemLocationType::CHARACTER).length() == 0;
+		data_->GetTabs(ItemLocationType::STASH).length() == 0 &&
+		data_->GetTabs(ItemLocationType::CHARACTER).length() == 0;
 	if (version != VERSION_NAME && !first_start) {
 		QString data_path = Filesystem::UserDir().c_str() + QString("/data");
 		QString save_path = data_path + "_save_" + version.c_str();

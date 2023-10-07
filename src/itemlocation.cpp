@@ -16,7 +16,7 @@ QDebug& operator<<(QDebug& os, const ItemLocationType& obj) {
 	};
 }
 
-ItemLocation::ItemLocation():
+ItemLocation::ItemLocation() :
 	x_(0), y_(0), w_(0), h_(0), red_(0), green_(0), blue_(0),
 	tab_id_(0),
 	socketed_(false),
@@ -24,7 +24,7 @@ ItemLocation::ItemLocation():
 	type_(ItemLocationType::STASH)
 {}
 
-ItemLocation::ItemLocation(const rapidjson::Value &root):
+ItemLocation::ItemLocation(const rapidjson::Value& root) :
 	ItemLocation()
 {
 	FromItemJson(root);
@@ -57,7 +57,7 @@ void ItemLocation::SetBackgroundColor(int r, int g, int b) {
 	blue_ = b;
 }
 
-void ItemLocation::FromItemJson(const rapidjson::Value &root) {
+void ItemLocation::FromItemJson(const rapidjson::Value& root) {
 	if (root.HasMember("_type")) {
 		type_ = static_cast<ItemLocationType>(root["_type"].GetInt());
 		switch (type_) {
@@ -94,8 +94,8 @@ void ItemLocation::FromItemJson(const rapidjson::Value &root) {
 		inventory_id_ = root["inventoryId"].GetString();
 }
 
-void ItemLocation::ToItemJson(rapidjson::Value *root_ptr, rapidjson_allocator &alloc) {
-	auto &root = *root_ptr;
+void ItemLocation::ToItemJson(rapidjson::Value* root_ptr, rapidjson_allocator& alloc) {
+	auto& root = *root_ptr;
 	rapidjson::Value string_val(rapidjson::kStringType);
 	root.AddMember("_type", static_cast<int>(type_), alloc);
 	switch (type_) {
@@ -148,7 +148,7 @@ QRectF ItemLocation::GetRect() const {
 	return result;
 }
 
-std::string ItemLocation::GetForumCode(const std::string &league) const {
+std::string ItemLocation::GetForumCode(const std::string& league) const {
 	switch (type_) {
 	case ItemLocationType::STASH:
 		return QString("[linkItem location=\"Stash%1\" league=\"%2\" x=\"%3\" y=\"%4\"]")
@@ -178,20 +178,20 @@ std::string ItemLocation::GetUniqueHash() const {
 	};
 }
 
-void ItemLocation::set_json(rapidjson::Value &value, rapidjson_allocator &alloc) {
+void ItemLocation::set_json(rapidjson::Value& value, rapidjson_allocator& alloc) {
 	if (type_ == ItemLocationType::CHARACTER) {
 		value.AddMember("i", tab_id_, alloc);
 	};
 	json_ = Util::RapidjsonSerialize(value);
 }
 
-bool ItemLocation::operator<(const ItemLocation &rhs) const {
+bool ItemLocation::operator<(const ItemLocation& rhs) const {
 	switch (type_) {
 	case ItemLocationType::STASH: return std::tie(type_, tab_id_) < std::tie(rhs.type_, rhs.tab_id_);
 	case ItemLocationType::CHARACTER: return std::tie(type_, character_) < std::tie(rhs.type_, rhs.character_);
 	};
 }
 
-bool ItemLocation::operator==(const ItemLocation &other) const {
+bool ItemLocation::operator==(const ItemLocation& other) const {
 	return get_tab_uniq_id() == other.get_tab_uniq_id();
 }

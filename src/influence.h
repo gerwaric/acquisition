@@ -34,11 +34,11 @@ static const QString eater_of_worlds_symbol_Link = ":/tooltip/Eater-of-worlds-it
 class Influence {
 
 
-	public:
-		static QIcon combineInflunceIcons(const QIcon leftIcon, const QIcon rightIcon);
+public:
+	static QIcon combineInflunceIcons(const QIcon leftIcon, const QIcon rightIcon);
 
-	private:
-		Influence() {}
+private:
+	Influence() {}
 };
 
 #endif // INFLUENCE_H
