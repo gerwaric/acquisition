@@ -74,7 +74,7 @@ void Application::InitLogin(
 	// as long as they are all logged into the same account, which is assumed.
 	//
 	// WARNING: Breaking the above assumption may lead to rate limit violations.
-	rate_limiter_ = std::make_unique<RateLimit::RateLimiter>(*logged_in_nm_);
+	rate_limiter_ = std::make_unique<RateLimiter>(*logged_in_nm_);
 
 	buyout_manager_ = std::make_unique<BuyoutManager>(*data_);
 	shop_ = std::make_unique<Shop>(*this);

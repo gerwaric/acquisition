@@ -36,8 +36,8 @@
 // As of August 2023, GGG has implemented "new" rate limit policies that are
 // incompatible with how acquisition used to throttle requests. There was no
 // obvious way to fix the network request code used by the ItemsManagerWorker.
-// Instead, I've done instead is create a wrapper that accepts network requests
-// from the ItemsManagerWorker and hidden the implementation details.
+// Instead, what I've done instead is create a wrapper that accepts network
+// requests from the ItemsManagerWorker and hidden the implementation details.
 // 
 // See https://www.pathofexile.com/developer/docs for more details on the rate
 // limit information that is included in the HTTP headers of the network reply
@@ -80,21 +80,10 @@
 // take from the relevant HTTP headers in each network reply.
 //
 // WARNINGS:
-// 
-//      Rate limit violations may occur due to bugs, but they can also happen
-//      on application startup. For example, someone runs into a rate limit
-//      violation, then restarts the program to try again. If the restart
-//      happens before the restriction expires, the new application instance
-//      could hit the rate limt on its very first request.
-// 
-//      This code is "fragile". It uses asserts and throws exceptions when
-//      some errors are detected. As a result, this code won't call the
-//      requested callback function unless an error-freeresponse was received.
 //
 //      This code may also break where there are other sources of rate-limited
-//      API requests. Capturing all the requests coming from one computer would
-//      require hooking into the network at a deeper level than a single
-//      application, but there's probably very few users with use case like this.
+//      API requests, e.g. if someone is using two tools on the same computer
+//      with the same account.
 
 namespace RateLimit
 {
@@ -102,10 +91,12 @@ namespace RateLimit
 	// Constants
 	//=========================================================================================
 
-	// The API endpoints used by acquisition that need to be checked for rate limits.
+	// The API endpoints used by acquisition that need to be checked for rate limits. Since
+	// this is known at compile time, we don't have to anything dynamic here.
 	extern const QStringList KNOWN_ENDPOINTS;
     
 	// Consider a policy "borderline" when there are this many requests left before violation.
+	// This gives us a small buffer, just in case.
 	const int BORDERLINE_REQUEST_BUFFER = 2;
 
 	// This HTTP status code means there was a rate limit violation.
@@ -128,9 +119,11 @@ namespace RateLimit
 	// Rate Limited Requests
 	//=========================================================================================
 
-	// Request callback function
+	// Request callback functions should look like "void Foo(QNetworkReply*) {...};". The pointer
+	// to the QNetworkReply will be deleted after the callback is complete using deleteLater().
 	typedef std::function<void(QNetworkReply*)> Callback;
 
+	// Represents a single rate-limited request.
 	struct RateLimitedRequest {
 
 		// Construct a new rate-limited request.
@@ -152,7 +145,7 @@ namespace RateLimit
 		// A copy of this request's API endpoint, if any.
 		const QString endpoint;
 
-		// A pointer where the reply can be found after this request is sent.
+		// Pointer to network reply that will contain the http repsonse.
 		QNetworkReply* network_reply;
 
 		// The time a reply was made based on the reply's HTTP Date header.
@@ -160,9 +153,6 @@ namespace RateLimit
 
 		// The HTTP status of the reply.
 		int reply_status;
-
-		// True is the reply came from the network cache
-		bool reply_cached;
 
 	private:
 
@@ -186,10 +176,10 @@ namespace RateLimit
 	//  A policy applies to one or more endpoints.
 	// 
 	//  Each rule has a name.
-	//  Each rule has one or more limitation items.
+	//  Each rule has one or more items.
 	// 
-	//  Each limitation item defines one set of limits
-	//  Each limitation item comes with information on the state of that limitation.
+	//  Each item has data that defines one set of limits.
+	//  Each item has data on the state of those limts.
 	//
 	// For any request against a rate-limited endpoint, only one policy applies, but
 	// all of limitations for each item of every rule within that policy are checked.
@@ -203,15 +193,9 @@ namespace RateLimit
 		operator QString() const;
 	};
 
-	// Both RateLimitItem and RateLimitRule have default constructors because
+	// Both RuleItemData and PolicyRule have default constructors because
 	// they are the two policy-related classes where it's useful to preallocate
-	// arrays of known size.
-	// 
-	// Specifically, this is used by RateLimit::Init(), by the RateLimitPolicy
-	// constructor which parses a network reply.
-	//
-	// I avoided using default arguments because I find them confusing and 
-	// more likely to result in unintended consequences.
+	// arrays of a known size.
 
 	struct RuleItem {
 		RuleItemData limit;
@@ -243,7 +227,7 @@ namespace RateLimit
 		PolicyStatus status;
 		size_t max_period;
 	private:
-		void CheckStatus();
+		void UpdateStatus();
 	};
 
 	//=========================================================================================
@@ -252,10 +236,6 @@ namespace RateLimit
 
 	class PolicyManager : public QObject {
 		Q_OBJECT
-
-	signals:
-		// Sent when this policy manager pauses due to rate limiting.
-		void RateLimitingStarted();
 
 	public:
 		// Construct a rate limit manager with the specified policy.
@@ -269,51 +249,56 @@ namespace RateLimit
 		// header is received.
 		std::unique_ptr<Policy> policy;
 
-		// API endpoints this manager's policy applies to.
+		// List of the API endpoints this manager's policy applies to.
 		QStringList endpoints;
 
 		// True when a rate limited request is active.
 		bool IsBusy() const;
 
-		// Return a string representing the state of this policy manager.
+		// Return a string representing the state of this policy manager,
+		// used to update the UI so the user can see what's going on.
 		QString GetCurrentStatus() const;
+
+	signals:
+		// Sent when this policy manager pauses due to rate limiting.
+		void RateLimitingStarted();
 
 	private:
 
-		// This is called whenever the policy is update, which happens either
-		// at construction inside Init() or when a QNetworkReply with a
-		// X-Rate-Limit-Policy header is received.
+		// This is called whenever the policy is updated, which happens either
+		// at construction or when a QNetworkReply with a X-Rate-Limit-Policy
+		// header is received.
 		void OnPolicyUpdate();
 
-		// If you guessed that this sends the currently active request. The
-		// active request is stored as a member variable so that it doesn't have
-		// to be passed around in lambda functors, which is tough to do with
-		// unique pointers, beacuse they are fussy about being copied.
+		// Called right after active_request is loaded with a new request. This
+		// will determine when that request can be sent and setup the active
+		// request timer to send that request after a delay.
 		void ActivateRequest();
 
+		// Sends the currently active request and connects it to ReceiveReply().
 		void SendRequest();
 
-		// This is called when a reply has been received. Like the unique pointer
-		// to the active request, the network reply is stored as a member.
+		// Called when a reply has been received. Checks for errors. Updates the
+		// rate limit policy if one was received. Puts the response in the
+		// dispatch queue for callbacks. Checks to see if another request is
+		// waiting to be activated.
 		void ReceiveReply();
 
-		// Resend the active request after the delay specified in the active reply.
+		// Resends the active request after a delay due to a violation.
 		void ResendAfterViolation();
 
-		// Simple flag to check if the active_request is in use. It's possible
-		// to detect this by checking the status of the active request pointer,
-		// but using a separate boolean flag is claer.
+		// Keep track of wether or not there's an active request keeping this
+		// policy manager busy.
 		bool busy;
 
-		// This timer sends the active request.
+		// This time is used on a single-shot by ActivateRequest() to send
+		// requests with a delay.
 		QTimer active_request_timer;
 
-		// Unique pointer to the currently active request.
+		// The currently active request.
 		std::unique_ptr<RateLimitedRequest> active_request;
 
-		// Other requests in this list have been queued up. When an active request
-		// has been successfully send and replied, the next request will be taken
-		// from this queue.
+		// Requests that are waiting to be activated.
 		std::list<std::unique_ptr<RateLimitedRequest>> request_queue;
 
 		// When a reply is recieved and the policy state has been updated or a 
@@ -346,16 +331,17 @@ namespace RateLimit
 
 	class RateLimiter : public QObject {
 		Q_OBJECT
+
 	public:
 		// Creat a rate limiter.
 		RateLimiter(QNetworkAccessManager& manager);
 
-		// Submit a request/callback to the rate limiter. Requets will be deleted
-		// after the callback is triggered.
+		// Submit a request-callback pair to the rate limiter. Note that the callback function
+		// should not delete the QNetworkReply. That is handled after the callback finishes.
 		void Submit(QNetworkAccessManager& manager, QNetworkRequest request, Callback callback);
 
 	public slots:
-		// Slot for policy managers to call when they begin rate limiting.
+		// Slot for policy managers to send signals when they begin rate limiting.
 		void OnTimerStarted();
 
 	signals:
@@ -364,28 +350,43 @@ namespace RateLimit
 
 	private:
 
+		// When a request completes successfully, it's passed to this dispatcher,
+		// which is repsonsible for putting the replies in order, triggering callbacks,
+		// and disposing of the QNetworkReplies.
 		void DispatchRequest(std::unique_ptr<RateLimitedRequest> request);
 
-		void NextInitRequest();
-		void SendInitRequest(const QString endpoint, QNetworkRequest request);
-		void ReceiveInitReply(const QString endpoint, QNetworkReply* reply);
+		// Look through KNOWN_ENDPOINTS, calling SendInitialRequest() for each of them,
+		// and then calling FinishInit() at the end.
+		void NextInitialRequest();
+
+		// Make a HEAD request to see if a rate-limit policy applies.
+		void SendInitialRequest(const QString endpoint, QNetworkRequest request);
+
+		// Process the reply to a HEAD request, creating or updating a
+		// rate limit policy and keeping track of which endpoints map to
+		// which policies.
+		void ReceiveInitialReply(const QString endpoint, QNetworkReply* reply);
+
+		// Called once all the initial HEAD requests are complete and we are
+		// ready to create the rate limit policy managers.
 		void FinishInit();
 
+		// False until the policy managers are created.
 		bool initialized;
 
+		// The network manager to use for the initial HEAD requests to determine
+		// the state of the rate limit policies at application startup. This
+		// should be a logged-in network manager, but that's not checked.
 		QNetworkAccessManager& initial_manager;
 
-		//std::queue<QNetworkRequest> initial_requests;
-		
+		// A place to store policies parsed from the initial HEAD requests
+		// before any policy managers are created.
 		std::vector<std::unique_ptr<Policy>> initial_policies;
+
+		// A place to keep track of which endoints go with the initial policies.
 		std::vector<QStringList> initial_policy_endpoints;
 
-		//std::vector<QString> initial_endpoints;
-
-		//int initial_replies_received;
-
-		// Save requests that are submitted before the policy managers
-		// have been created.
+		// Requests that are submitted before the policy managers have been created.
 		std::vector<std::unique_ptr<RateLimitedRequest>> staged_requests;
 
 		// One manager for each rate limit policy.

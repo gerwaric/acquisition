@@ -1,5 +1,5 @@
 /*
-	Copyright 2014 Ilya Zhuravlev
+	Copyright 2023 Tom Holz
 
 	This file is part of Acquisition.
 
@@ -19,9 +19,13 @@
 
 #include "ratelimitpanel.h"
 
+#include <QPushButton>
+#include <QTextEdit>
+
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
+// Modeled after LogPanel
 RateLimitStatusPanel::RateLimitStatusPanel(MainWindow *window, Ui::MainWindow *ui):
 	status_button_(new QPushButton),
 	output_(new QTextEdit)
