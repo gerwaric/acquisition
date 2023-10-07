@@ -52,6 +52,7 @@
 #include "itemsmanager.h"
 #include "logpanel.h"
 #include "modsfilter.h"
+#include "ratelimitpanel.h"
 #include "replytimeout.h"
 #include "search.h"
 #include "selfdestructingreply.h"
@@ -59,6 +60,7 @@
 #include "util.h"
 #include "verticalscrollarea.h"
 #include "network_info.h"
+#include "version.h"
 
 const std::string POE_WEBCDN = "http://webcdn.pathofexile.com"; // Should be updated to https://web.poecdn.com ?
 
@@ -81,6 +83,7 @@ MainWindow::MainWindow(std::unique_ptr<Application> app):
 	image_cache_ = new ImageCache(Filesystem::UserDir() + "/cache");
 
 	InitializeUi();
+	InitializeRateLimitPanel();
 	InitializeLogging();
 	InitializeSearchForm();
 	NewSearch();
@@ -105,6 +108,10 @@ MainWindow::MainWindow(std::unique_ptr<Application> app):
 	});
 
 }
+void MainWindow::InitializeRateLimitPanel() {
+	RateLimitStatusPanel* rate_panel = new RateLimitStatusPanel(this, ui);
+	connect(&app_->rate_limiter(), &RateLimit::RateLimiter::StatusUpdate, rate_panel, &RateLimitStatusPanel::OnStatusUpdate);
+}
 
 void MainWindow::InitializeLogging() {
 	LogPanel *log_panel = new LogPanel(this, ui);
@@ -115,6 +122,9 @@ void MainWindow::InitializeLogging() {
 #if defined(_DEBUG)
 	QLOG_ERROR() << "Maintainer: This is a debug build.";
 #endif
+	if (TRIAL_VERSION) {
+		QLOG_ERROR() << "Maintainer: This build will expire on" << EXPIRATION_DATE.toString();
+	};
 }
 
 void MainWindow::InitializeUi() {
@@ -382,13 +392,13 @@ void MainWindow::OnStatusUpdate(const CurrentStatusUpdate &status) {
 		break;
 	case ProgramState::ItemsReceive:
 	case ProgramState::ItemsPaused:
-		title = QString("Receiving stash data, %1/%2 [%3 from cache]").arg(status.progress).arg(status.total).arg(status.cached);
+		title = QString("Receiving stash data, %1/%2").arg(status.progress).arg(status.total);
 		if (status.state == ProgramState::ItemsPaused)
 			title += " (throttled, sleeping 60 seconds)";
 		need_progress = true;
 		break;
 	case ProgramState::ItemsCompleted:
-		title = QString("Received %1 tabs [%2 from cache]").arg(status.total).arg(status.cached);
+		title = QString("Received %1 tabs").arg(status.total);
 		QLOG_INFO() << title;
 		break;
 	case ProgramState::ShopSubmitting:
@@ -410,6 +420,7 @@ void MainWindow::OnStatusUpdate(const CurrentStatusUpdate &status) {
 	}
 
 	status_bar_label_->setText(title);
+	status_bar_label_->update();
 
 #ifdef Q_OS_WIN32
 	QWinTaskbarProgress *progress = taskbar_button_->progress();

@@ -13,6 +13,8 @@ enum class ItemLocationType {
 	STASH,
 	CHARACTER
 };
+QDebug& operator<<(QDebug& os, const ItemLocationType& obj);
+
 
 class ItemLocation {
 public:
@@ -35,6 +37,7 @@ public:
 	void set_tab_label(const std::string &tab_label) { tab_label_ = tab_label; }
 	std::string get_tab_label() const { return tab_label_; }
 	bool socketed() const { return socketed_; }
+	bool removeonly() const { return removeonly_; }
 	void set_socketed(bool socketed) { socketed_ = socketed; }
 	int get_tab_id() const { return tab_id_; }
 	int getR() const {return red_;}
@@ -48,6 +51,7 @@ private:
 	int x_, y_, w_, h_;
 	int red_, green_, blue_;
 	bool socketed_;
+	bool removeonly_;
 	ItemLocationType type_;
 	int tab_id_{0};
 	std::string json_;
