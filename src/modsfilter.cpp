@@ -35,6 +35,10 @@ SelectedMod::SelectedMod(const std::string &name, double min, double max, bool m
 	max_text_(std::make_unique<QLineEdit>()),
 	delete_button_(std::make_unique<QPushButton>("x"))
 {
+	// If we don't set this size adjust policy, the combobox will expand to the width of the longest
+	// mod without regards to the rest of the UI. This can make the search panel (and therefore the main
+	// window) wider than a widescreen monitor.
+	mod_select_->setSizeAdjustPolicy(QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon);
 	mod_select_->setEditable(true);
 	mod_select_->addItems(mod_string_list);
 	mod_completer_ = new QCompleter(mod_string_list);
