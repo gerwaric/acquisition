@@ -57,11 +57,12 @@ SOURCES += \
 	src/modlist.cpp \
 	src/modsfilter.cpp \
 	src/porting.cpp \
+	src/ratelimit.cpp \
+	src/ratelimitpanel.cpp \
 	src/replytimeout.cpp \
 	src/search.cpp \
 	src/shop.cpp \
 	src/steamlogindialog.cpp \
-	src/tabcache.cpp \
 	src/updatechecker.cpp \
 	src/util.cpp \
 	src/version.cpp \
@@ -104,13 +105,14 @@ HEADERS += \
 	src/modlist.h \
 	src/modsfilter.h \
 	src/porting.h \
+	src/ratelimit.h \
+	src/ratelimitpanel.h \
 	src/rapidjson_util.h \
 	src/replytimeout.h \
 	src/search.h \
 	src/selfdestructingreply.h \
 	src/shop.h \
 	src/steamlogindialog.h \
-	src/tabcache.h \
 	src/updatechecker.h \
 	src/util.h \
 	src/version.h \
@@ -128,7 +130,7 @@ FORMS += \
 	forms/logindialog.ui \
 	forms/steamlogindialog.ui
 
-#CONFIG += c++11
+CONFIG += c++14
 
 DEPENDPATH *= $${INCLUDEPATH}
 
