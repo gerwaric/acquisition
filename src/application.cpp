@@ -32,6 +32,10 @@
 #include "QsLog.h"
 #include "version.h"
 
+const QString BUILD_TIMESTAMP = QString(__DATE__ " " __TIME__).simplified();
+const QDateTime BUILD_DATE = QLocale("en_US").toDateTime(BUILD_TIMESTAMP, "MMM d yyyy hh:mm:ss");
+const QDateTime EXPIRATION_DATE = TRIAL_VERSION ? BUILD_DATE.addDays(TRIAL_EXPIRATION_DAYS) : QDateTime();
+
 Application::Application() {}
 
 Application::~Application() {
@@ -39,8 +43,12 @@ Application::~Application() {
 		buyout_manager_->Save();
 }
 
-void Application::InitLogin(std::unique_ptr<QNetworkAccessManager> login_manager, const std::string &league, const std::string &email,
-		bool mock_data) {
+void Application::InitLogin(
+	std::unique_ptr<QNetworkAccessManager> login_manager,
+	const std::string &league,
+	const std::string &email,
+	bool mock_data)
+{
 	league_ = league;
 	email_ = email;
 	logged_in_nm_ = std::move(login_manager);
