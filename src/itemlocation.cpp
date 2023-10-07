@@ -18,6 +18,7 @@ QDebug& operator<<(QDebug& os, const ItemLocationType& obj) {
 
 ItemLocation::ItemLocation():
 	x_(0), y_(0), w_(0), h_(0), red_(0), green_(0), blue_(0),
+	tab_id_(0),
 	socketed_(false),
 	removeonly_(false),
 	type_(ItemLocationType::STASH)
@@ -38,10 +39,13 @@ ItemLocation::ItemLocation(int tab_id, std::string tab_unique_id, std::string na
 	switch (type_) {
 	case ItemLocationType::STASH:
 		tab_label_ = name;
+		character_ = "";
 		removeonly_ = ends_with(name, "(Remove-only)");
 		break;
 	case ItemLocationType::CHARACTER:
+		tab_label_ = "";
 		character_ = name;
+		removeonly_ = false;
 		break;
 	};
 	tab_unique_id_ = tab_unique_id;
