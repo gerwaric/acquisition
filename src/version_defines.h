@@ -19,4 +19,4 @@
 
 // Use these control if this build will expire.
 #define TRIAL_VERSION               1
-#define TRIAL_EXPIRATION_DAYS       7
+#define TRIAL_EXPIRATION_DAYS       14
