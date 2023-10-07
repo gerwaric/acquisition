@@ -25,12 +25,10 @@
 #include <regex>
 #include "QsLog.h"
 #include "rapidjson/document.h"
-#include "rapidjson/writer.h"
 #include "rapidjson/error/en.h"
 
 #include "application.h"
 #include "datastore.h"
-#include "rapidjson_util.h"
 #include "util.h"
 #include "itemlocation.h"
 #include "QVariant"

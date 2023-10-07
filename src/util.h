@@ -25,8 +25,6 @@
 #include <QDebug>
 #include <QObject>
 
-#include "item.h"
-
 class QComboBox;
 class QNetworkReply;
 
@@ -43,7 +41,7 @@ enum class TextWidthId {
 // Reflection example for an ENUM in QT 5.4.x
 class RefreshReason {
 	Q_GADGET
-		Q_ENUMS(Type)
+	Q_ENUMS(Type)
 public:
 	enum Type {
 		Unknown,
@@ -59,7 +57,7 @@ QDebug& operator<<(QDebug& os, const RefreshReason::Type& obj);
 
 class TabSelection {
 	Q_GADGET
-		Q_ENUMS(Type)
+	Q_ENUMS(Type)
 public:
 	enum Type {
 		All,

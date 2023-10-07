@@ -20,6 +20,8 @@
 #include <memory>
 #include <QCheckBox>
 #include <QGroupBox>
+#include <QHBoxLayout>
+#include <QLabel>
 #include <QLineEdit>
 #include <QCompleter>
 #include <QComboBox>
@@ -27,6 +29,7 @@
 
 #include "buyoutmanager.h"
 #include "filters.h"
+#include "itemconstants.h"
 #include "util.h"
 #include "porting.h"
 

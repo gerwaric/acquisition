@@ -21,7 +21,6 @@
 #include "ui_steamlogindialog.h"
 
 #include <QCloseEvent>
-#include "QsLog.h"
 #include <memory>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -35,7 +34,6 @@
 #include <QUrlQuery>
 #include <QFile>
 
-#include "filesystem.h"
 #include "network_info.h"
 
 extern const char* POE_COOKIE_NAME;

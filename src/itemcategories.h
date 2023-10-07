@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef ITEMCATEGORIES_H
 #define ITEMCATEGORIES_H
 

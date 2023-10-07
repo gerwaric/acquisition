@@ -3,6 +3,7 @@
 #include <string>
 
 #include "item.h"
+#include "itemlocation.h"
 #include "column.h"
 
 // A bucket holds set of filtered items.

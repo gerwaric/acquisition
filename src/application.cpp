@@ -31,6 +31,7 @@
 #include "shop.h"
 #include "QsLog.h"
 #include "version.h"
+#include "version_defines.h"
 #include "ratelimit.h"
 
 using RateLimit::RateLimiter;

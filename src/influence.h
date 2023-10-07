@@ -1,10 +1,10 @@
-#include <QString>
-
-#include "util.h"
-#include "QsLog.h"
+#pragma once
 
 #ifndef INFLUENCE_H
 #define INFLUENCE_H
+
+#include <QString>
+#include <QIcon>
 
 static const QString elder_1x1_Link = ":/backgrounds/ElderBackground_1x1.png";
 static const QString elder_1x3_Link = ":/backgrounds/ElderBackground_1x3.png";

@@ -29,6 +29,7 @@
 #include "buyoutmanager.h"
 #include "util.h"
 #include "influence.h"
+#include "itemconstants.h"
 
 const double EPS = 1e-6;
 const QRegularExpression sort_double_match("^\\+?([\\d.]+)%?$");

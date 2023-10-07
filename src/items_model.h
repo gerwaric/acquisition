@@ -21,9 +21,6 @@
 
 #include <QAbstractItemModel>
 
-#include "column.h"
-#include "item.h"
-
 class BuyoutManager;
 class Search;
 

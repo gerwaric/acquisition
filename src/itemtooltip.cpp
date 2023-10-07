@@ -26,6 +26,7 @@
 #include "QsLog.h"
 
 #include "item.h"
+#include "itemconstants.h"
 #include "util.h"
 
 int qInitResources_resources();

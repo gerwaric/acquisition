@@ -24,8 +24,6 @@
 #include <QString>
 #include <QDateTime>
 
-#include "version_defines.h"
-#include "item.h"
 #include "ratelimit.h"
 
 using RateLimit::RateLimiter;
