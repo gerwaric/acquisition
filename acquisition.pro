@@ -75,7 +75,7 @@ SOURCES += \
 
 HEADERS += \
 	deps/sqlite/sqlite3.h \
-	network_info.h \
+    network_info.h \
 	src/application.h \
 	src/bucket.h \
 	src/buyoutmanager.h \
@@ -129,7 +129,7 @@ FORMS += \
 	forms/logindialog.ui \
 	forms/steamlogindialog.ui
 
-CONFIG += c++14
+#CONFIG += c++11
 
 DEPENDPATH *= $${INCLUDEPATH}
 
