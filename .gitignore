@@ -26,6 +26,9 @@ Makefile*
 # QtCreator
 .qtc_clangd/
 
+# QT Visual Studio Tools
+*.qtvscr
+
 *.autosave
 
 *.swp
@@ -55,4 +58,3 @@ CppProperties.json
 
 # doc
 doc/
-deploy.ps1
