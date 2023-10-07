@@ -4,6 +4,8 @@
 
 #include <boost/algorithm/string/predicate.hpp>
 
+#include "QsLog.h"
+#include "itemconstants.h"
 #include "rapidjson_util.h"
 #include "util.h"
 
@@ -18,10 +20,10 @@ QDebug& operator<<(QDebug& os, const ItemLocationType& obj) {
 
 ItemLocation::ItemLocation() :
 	x_(0), y_(0), w_(0), h_(0), red_(0), green_(0), blue_(0),
-	tab_id_(0),
-	socketed_(false),
-	removeonly_(false),
-	type_(ItemLocationType::STASH)
+    socketed_(false),
+    removeonly_(false),
+    type_(ItemLocationType::STASH),
+    tab_id_(0)
 {}
 
 ItemLocation::ItemLocation(const rapidjson::Value& root) :
