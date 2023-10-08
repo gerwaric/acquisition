@@ -3,6 +3,8 @@
 #include <QTest>
 #include <memory>
 
+#include "QsLog.h"
+
 #include "porting.h"
 #include "testitem.h"
 #include "testitemsmanager.h"
@@ -17,10 +19,28 @@ int test_main() {
 	QLocale::setDefault(QLocale::C);
 	std::setlocale(LC_ALL, "C");
 
+	QLOG_INFO() << "------------------------------------------------------------------------------";
+	QLOG_INFO() << "TestItem starting";
 	TEST(TestItem);
-	TEST(TestShop);
-	TEST(TestUtil);
-	TEST(TestItemsManager);
+	QLOG_INFO() << "TestItem returned" << result;
 
-	return result != 0 ? -1 : 0;
+	QLOG_INFO() << "------------------------------------------------------------------------------"; 
+	QLOG_INFO() << "TestShop starting";
+	TEST(TestShop);
+	QLOG_INFO() << "TestShop returned" << result;
+
+	QLOG_INFO() << "------------------------------------------------------------------------------";
+	QLOG_INFO() << "TestUtil starting";
+	TEST(TestUtil);
+	QLOG_INFO() << "TestUtil returned" << result;
+
+	QLOG_INFO() << "------------------------------------------------------------------------------";
+	QLOG_INFO() << "TestUtil starting";
+	TEST(TestItemsManager);
+	QLOG_INFO() << "TestUtil returned" << result;
+
+	result = (result != 0) ? -1 : 0;
+	QLOG_INFO() << "------------------------------------------------------------------------------";
+	QLOG_INFO() << "Final result is" << result;
+	return result;
 }
