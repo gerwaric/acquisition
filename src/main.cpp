@@ -42,6 +42,12 @@
 #include "CrashRpt.h"
 #endif
 
+#ifdef _DEBUG
+const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::TraceLevel;
+#else
+const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::InfoLevel;
+#endif
+
 int main(int argc, char* argv[])
 {
 	qRegisterMetaType<CurrentStatusUpdate>("CurrentStatusUpdate");
@@ -90,7 +96,7 @@ int main(int argc, char* argv[])
 	parser.process(a);
 
 	QsLogging::Logger& logger = QsLogging::Logger::instance();
-	logger.setLoggingLevel(QsLogging::TraceLevel);
+	logger.setLoggingLevel(DEFAULT_LOGLEVEL);
 
 	if (parser.isSet(option_log_level)) {
 		const QString loglevel = parser.value(option_log_level).toUpper();
