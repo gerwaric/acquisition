@@ -23,3 +23,23 @@ Either open `acquisition.pro` in Qt Creator and build or do `qmake && make`.
 `--data-dir <path>`: set the path where Acquisition should save its data. By default it's `%localappdata%\acquisition` on Windows and `~/.local/share/acquisition` on Linux.
 
 `--test`: run tests. Zero exit code on success, other values indicate errors.
+
+### Changelog
+
+## v0.9.9
+
+Application Changes:
+- New dynamic rate limiting based on HTTP reply headers
+- Only tabs marked or selected for updating are requested (this replaces the previous tab caching approach)
+- Remove-only stash tabs are no longer refresh-locked
+- The status bar updates while acquisition is loading saved tabs and items at startup
+
+Development Changes:
+- Added a build expiration option defined at compile time (for pre-release builds)
+- Updated deployment and installer scripts
+
+Toolchain:
+- QT Creator 11.0.3 with QT 5.15.2 and MSVC 2019 64-bit (for release builds)
+- Visual Studio 2019 with QT Visual Studio Tools 3.0.1 (for editing, debugging, and testing)
+- Open SSL 1.1.1v (64-bit)
+- Inno Setup 6.2.2 (for installer creation)
