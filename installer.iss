@@ -15,7 +15,7 @@
 ;
 ; This is the same GUID as the testpushpleaseignore fork of Acquisition:
 AppId={{53E25C0C-0305-47BB-9884-F0F202297AF4} 
-AppName="Acquisition (Tom's test version)"
+AppName={#AppName}
 AppVersion={#AppVersion}
 ;AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#AppPublisher}
