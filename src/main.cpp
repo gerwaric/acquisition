@@ -81,20 +81,42 @@ int main(int argc, char* argv[])
 	QFontDatabase::addApplicationFont(":/fonts/Fontin-SmallCaps.ttf");
 
 	QCommandLineParser parser;
-	QCommandLineOption option_test("test"), option_data_dir("data-dir", "Where to save Acquisition data.", "data-dir");
+	QCommandLineOption option_test("test");
+	QCommandLineOption option_data_dir("data-dir", "Where to save Acquisition data.", "data-dir");
+	QCommandLineOption option_log_level("log-level", "How much to log.", "log-level");
 	parser.addOption(option_test);
 	parser.addOption(option_data_dir);
+	parser.addOption(option_log_level);
 	parser.process(a);
-
-	if (parser.isSet(option_test))
-		return test_main();
-
-	if (parser.isSet(option_data_dir))
-		Filesystem::SetUserDir(parser.value(option_data_dir).toStdString());
 
 	QsLogging::Logger& logger = QsLogging::Logger::instance();
 	logger.setLoggingLevel(QsLogging::TraceLevel);
-	const QString sLogPath(QDir(Filesystem::UserDir().c_str()).filePath("log.txt"));
+
+	if (parser.isSet(option_log_level)) {
+		const QString loglevel = parser.value(option_log_level).toUpper();
+		if (loglevel == "TRACE") {
+			logger.setLoggingLevel(QsLogging::TraceLevel);
+		} else if (loglevel == "DEBUG") {
+			logger.setLoggingLevel(QsLogging::DebugLevel);
+		} else if (loglevel == "INFO") {
+			logger.setLoggingLevel(QsLogging::InfoLevel);
+		} else if (loglevel == "WARN") {
+			logger.setLoggingLevel(QsLogging::WarnLevel);
+		} else if (loglevel == "ERROR") {
+			logger.setLoggingLevel(QsLogging::ErrorLevel);
+		} else if (loglevel == "FATAL") {
+			logger.setLoggingLevel(QsLogging::FatalLevel);
+		} else if (loglevel == "OFF") {
+			logger.setLoggingLevel(QsLogging::OffLevel);
+		};
+	};
+
+	if (parser.isSet(option_data_dir)) {
+		const QString datadir = parser.value(option_data_dir);
+		Filesystem::SetUserDir(datadir.toStdString());
+	};
+	const QDir userdir = QDir(Filesystem::UserDir().c_str());
+	const QString sLogPath(userdir.filePath("log.txt"));
 
 	QsLogging::DestinationPtr fileDestination(
 		QsLogging::DestinationFactory::MakeFileDestination(sLogPath, true, 10 * 1024 * 1024, 0));
@@ -111,8 +133,13 @@ int main(int argc, char* argv[])
 		QLOG_DEBUG() << "This build expires on" << EXPIRATION_DATE.toString();
 	};
 
-	LoginDialog login(std::make_unique<Application>());
-	login.show();
-
-	return a.exec();
+	if (parser.isSet(option_test)) {
+		QLOG_INFO() << "Running in test mode.";
+		return test_main();
+	} else {
+		QLOG_INFO() << "Preparing login dialog.";
+		LoginDialog login(std::make_unique<Application>());
+		login.show();
+		return a.exec();
+	};
 }
