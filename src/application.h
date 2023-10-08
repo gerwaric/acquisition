@@ -24,10 +24,6 @@
 #include <QString>
 #include <QDateTime>
 
-#include "ratelimit.h"
-
-using RateLimit::RateLimiter;
-
 // Holds the date and time of the current build based on __DATE__ and __TIME__ macros.
 extern const QString BUILD_TIMESTAMP;
 
@@ -64,7 +60,6 @@ public:
 	QNetworkAccessManager& logged_in_nm() const { return *logged_in_nm_; }
 	Shop& shop() const { return *shop_; }
 	CurrencyManager& currency_manager() const { return *currency_manager_; }
-	RateLimiter& rate_limiter() const { return *rate_limiter_; }
 public slots:
 	void OnItemsRefreshed(bool initial_refresh);
 private:
@@ -78,6 +73,5 @@ private:
 	std::unique_ptr<QNetworkAccessManager> logged_in_nm_;
 	std::unique_ptr<ItemsManager> items_manager_;
 	std::unique_ptr<CurrencyManager> currency_manager_;
-	std::unique_ptr<RateLimiter> rate_limiter_;
 	void SaveDbOnNewVersion();
 };

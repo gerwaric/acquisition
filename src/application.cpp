@@ -55,34 +55,28 @@ void Application::InitLogin(
 {
 	league_ = league;
 	email_ = email;
-	logged_in_nm_ = std::move(login_manager);
 
 	if (mock_data) {
 		// This is used in tests
 		data_ = std::make_unique<MemoryDataStore>();
 		sensitive_data_ = std::make_unique<MemoryDataStore>();
+		logged_in_nm_ = nullptr;
 	} else {
 		std::string data_file = SqliteDataStore::MakeFilename(email, league);
 		data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/data/" + data_file);
 		sensitive_data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/sensitive_data/" + data_file);
 		SaveDbOnNewVersion();
+		logged_in_nm_ = std::move(login_manager);
 	}
-
-	// Initialize the rate limiter here. Other parts of acquisition will use different
-	// QNetworkAccessManager objects, which will be passed to the rate_limiter's Submit()
-	// method. However, rate limits are only tied to account and ip as of September 2023,
-	// so we don't need to keep track of which access manager is sending which requests
-	// as long as they are all logged into the same account, which is assumed.
-	//
-	// WARNING: Breaking the above assumption may lead to rate limit violations.
-	rate_limiter_ = std::make_unique<RateLimiter>(*logged_in_nm_);
 
 	buyout_manager_ = std::make_unique<BuyoutManager>(*data_);
 	shop_ = std::make_unique<Shop>(*this);
 	items_manager_ = std::make_unique<ItemsManager>(*this);
 	currency_manager_ = std::make_unique<CurrencyManager>(*this);
 	connect(items_manager_.get(), &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
-	items_manager_->Start();
+	if (mock_data == false) {
+		items_manager_->Start();
+	};
 }
 
 void Application::OnItemsRefreshed(bool initial_refresh) {

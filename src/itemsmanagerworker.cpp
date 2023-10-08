@@ -38,6 +38,9 @@
 #include "mainwindow.h"
 #include "buyoutmanager.h"
 #include "modlist.h"
+#include "ratelimit.h"
+
+using RateLimit::RateLimiter;
 
 const char* kStashItemsUrl = "https://www.pathofexile.com/character-window/get-stash-items";
 const char* kCharacterItemsUrl = "https://www.pathofexile.com/character-window/get-items";
@@ -52,8 +55,10 @@ const char* kRePoE_stat_translations = "https://raw.githubusercontent.com/brathe
 const char* kRePoE_item_classes = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/item_classes.min.json";
 const char* kRePoE_item_base_types = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/base_items.min.json";
 
-ItemsManagerWorker::ItemsManagerWorker(Application& app, QThread* thread) :
+ItemsManagerWorker::ItemsManagerWorker(Application& app) :
 	data_(app.data()),
+	network_manager_(nullptr),
+	rate_limiter_(nullptr),
 	total_completed_(-1),
 	total_needed_(-1),
 	requests_completed_(-1),
@@ -67,15 +72,9 @@ ItemsManagerWorker::ItemsManagerWorker(Application& app, QThread* thread) :
 	queue_id_(-1),
 	first_fetch_tab_id_(-1),
 	bo_manager_(app.buyout_manager()),
-	account_name_(app.email()),
-	rate_limiter_(app.rate_limiter())
+	account_name_(app.email())
 {
-	QUrl poe(kMainPage);
-	network_manager_.cookieJar()->setCookiesFromUrl(app.logged_in_nm().cookieJar()->cookiesForUrl(poe), poe);
-	network_manager_.moveToThread(thread);
-}
-
-ItemsManagerWorker::~ItemsManagerWorker() {
+	cookies_ = app.logged_in_nm().cookieJar()->cookiesForUrl(QUrl(kMainPage));
 }
 
 void ItemsManagerWorker::UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations) {
@@ -85,18 +84,34 @@ void ItemsManagerWorker::UpdateRequest(TabSelection::Type type, const std::vecto
 }
 
 void ItemsManagerWorker::Init() {
+
 	if (updating_) {
 		QLOG_WARN() << "ItemsManagerWorker::Init() called while updating, skipping Mod List Update";
 		return;
 	};
 
+	network_manager_ = std::make_unique<QNetworkAccessManager>();
+	network_manager_->cookieJar()->setCookiesFromUrl(cookies_, QUrl(kMainPage));
+
+	if (test_mode_) {
+		//network_manager_->setNetworkAccessible(QNetworkAccessManager::NetworkAccessibility::NotAccessible);
+		return;
+	};
+
+	rate_limiter_ = std::make_unique<RateLimiter>(*network_manager_);
+	connect(rate_limiter_.get(), &RateLimiter::StatusUpdate, this, &ItemsManagerWorker::OnRateLimitStatusUpdate);
+
 	updating_ = true;
 
 	QNetworkRequest PoE_item_classes_request = QNetworkRequest(QUrl(QString(kRePoE_item_classes)));
-	rate_limiter_.Submit(network_manager_, PoE_item_classes_request,
+	rate_limiter_->Submit(*network_manager_, PoE_item_classes_request,
 		[=](QNetworkReply* reply) {
 			OnItemClassesReceived(reply);
 		});
+}
+
+void ItemsManagerWorker::OnRateLimitStatusUpdate(const QString& status) {
+	emit RateLimitStatusUpdate(status);
 }
 
 void ItemsManagerWorker::OnItemClassesReceived(QNetworkReply* reply) {
@@ -109,7 +124,7 @@ void ItemsManagerWorker::OnItemClassesReceived(QNetworkReply* reply) {
 		emit ItemClassesUpdate(bytes);
 	};
 	QNetworkRequest PoE_item_base_types_request = QNetworkRequest(QUrl(QString(kRePoE_item_base_types)));
-	rate_limiter_.Submit(network_manager_, PoE_item_base_types_request,
+	rate_limiter_->Submit(*network_manager_, PoE_item_base_types_request,
 		[=](QNetworkReply* reply) {
 			OnItemBaseTypesReceived(reply);
 		});
@@ -226,7 +241,7 @@ void ItemsManagerWorker::ParseItemMods() {
 
 void ItemsManagerWorker::UpdateModList() {
 	QNetworkRequest PoE_stat_translations_request = QNetworkRequest(QUrl(QString(kRePoE_stat_translations)));
-	rate_limiter_.Submit(network_manager_, PoE_stat_translations_request,
+	rate_limiter_->Submit(*network_manager_, PoE_stat_translations_request,
 		[=](QNetworkReply* reply) {
 			OnStatTranslationsReceived(reply);
 		});
@@ -344,7 +359,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 
 	// first, download the main page because it's the only way to know which character is selected
 	QNetworkRequest main_page_request = QNetworkRequest(QUrl(kMainPage));
-	rate_limiter_.Submit(network_manager_, main_page_request,
+	rate_limiter_->Submit(*network_manager_, main_page_request,
 		[=](QNetworkReply* reply) {
 			OnMainPageReceived(reply);
 		});
@@ -408,7 +423,7 @@ void ItemsManagerWorker::OnMainPageReceived(QNetworkReply* reply) {
 
 	// now get character list
 	QNetworkRequest characters_request = QNetworkRequest(QUrl(kGetCharactersUrl));
-	rate_limiter_.Submit(network_manager_, characters_request,
+	rate_limiter_->Submit(*network_manager_, characters_request,
 		[=](QNetworkReply* reply) {
 			OnCharacterListReceived(reply);
 		});
@@ -480,7 +495,7 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 	emit StatusUpdate(status);
 
 	QNetworkRequest tab_request = MakeTabRequest(first_fetch_tab_id_, true);
-	rate_limiter_.Submit(network_manager_, tab_request,
+	rate_limiter_->Submit(*network_manager_, tab_request,
 		[=](QNetworkReply* reply) {
 			OnFirstTabReceived(reply);
 		});
@@ -538,7 +553,7 @@ void ItemsManagerWorker::FetchItems() {
 		// Pass the request to the rate limiter.
 		QNetworkRequest fetch_request = request.network_request;
 		ItemLocation location = request.location;
-		rate_limiter_.Submit(network_manager_, fetch_request,
+		rate_limiter_->Submit(*network_manager_, fetch_request,
 			[=](QNetworkReply* reply) {
 				OnTabReceived(reply, location);
 			});
@@ -805,7 +820,7 @@ void ItemsManagerWorker::PreserveSelectedCharacter() {
 	};
 	QLOG_DEBUG() << "Preserving selected character:" << selected_character_.c_str();
 	QNetworkRequest character_request = MakeCharacterRequest(selected_character_);
-	rate_limiter_.Submit(network_manager_, character_request,
+	rate_limiter_->Submit(*network_manager_, character_request,
 		[](QNetworkReply*) {
 			// The act of making this request sets the active character.
 			// We don't need to to anything with the reply.

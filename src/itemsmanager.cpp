@@ -49,25 +49,31 @@ ItemsManager::ItemsManager(Application& app) :
 }
 
 ItemsManager::~ItemsManager() {
-	thread_->quit();
-	thread_->wait();
+	if (thread_ != nullptr) {
+		thread_->quit();
+		thread_->wait();
+	};
 }
 
 void ItemsManager::Start() {
 	thread_ = std::make_unique<QThread>();
-	worker_ = std::make_unique<ItemsManagerWorker>(app_, thread_.get());
-	connect(thread_.get(), SIGNAL(started()), worker_.get(), SLOT(Init()));
+	worker_ = std::make_unique<ItemsManagerWorker>(app_);
+	worker_->moveToThread(thread_.get());
+	connect(thread_.get(), &QThread::started, worker_.get(), &ItemsManagerWorker::Init);
 	connect(this, SIGNAL(UpdateSignal(TabSelection::Type, const std::vector<ItemLocation> &)), worker_.get(), SLOT(Update(TabSelection::Type, const std::vector<ItemLocation> &)));
 	connect(worker_.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
 	connect(worker_.get(), SIGNAL(ItemsRefreshed(Items, std::vector<ItemLocation>, bool)), this, SLOT(OnItemsRefreshed(Items, std::vector<ItemLocation>, bool)));
 	connect(worker_.get(), &ItemsManagerWorker::ItemClassesUpdate, this, &ItemsManager::OnItemClassesUpdate);
 	connect(worker_.get(), &ItemsManagerWorker::ItemBaseTypesUpdate, this, &ItemsManager::OnItemBaseTypesUpdate);
-	worker_->moveToThread(thread_.get());
 	thread_->start();
 }
 
 void ItemsManager::OnStatusUpdate(const CurrentStatusUpdate& status) {
 	emit StatusUpdate(status);
+}
+
+void ItemsManager::OnRateLimitStatusUpdate(const QString& status) {
+	emit RateLimitStatusUpdate(status);
 }
 
 void ItemsManager::OnItemClassesUpdate(const QByteArray& classes) {

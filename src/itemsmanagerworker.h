@@ -27,14 +27,19 @@
 #include "util.h"
 #include "item.h"
 #include "mainwindow.h"
-#include "ratelimit.h"
+//#include "ratelimit.h"
 
 class Application;
 class DataStore;
 class QNetworkReply;
+class QNetworkCookie;
 class QSignalMapper;
 class QTimer;
 class BuyoutManager;
+
+namespace RateLimit {
+	class RateLimiter;
+};
 
 using RateLimit::RateLimiter;
 
@@ -52,8 +57,7 @@ struct ItemsReply {
 class ItemsManagerWorker : public QObject {
 	Q_OBJECT
 public:
-	ItemsManagerWorker(Application& app, QThread* thread);
-	~ItemsManagerWorker();
+	ItemsManagerWorker(Application& app);
 	bool isInitialized() const { return initialized_; }
 	void UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations);
 public slots:
@@ -67,6 +71,7 @@ public slots:
 	void FetchItems();
 	void PreserveSelectedCharacter();
 	void Init();
+	void OnRateLimitStatusUpdate(const QString& string);
 
 	void OnStatTranslationsReceived(QNetworkReply* reply);
 	void OnItemClassesReceived(QNetworkReply* reply);
@@ -74,6 +79,7 @@ public slots:
 signals:
 	void ItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
 	void StatusUpdate(const CurrentStatusUpdate& status);
+	void RateLimitStatusUpdate(const QString& status);
 	void ItemClassesUpdate(const QByteArray& classes);
 	void ItemBaseTypesUpdate(const QByteArray& baseTypes);
 private:
@@ -90,7 +96,9 @@ private:
 	void FinishUpdate();
 
 	DataStore& data_;
-	QNetworkAccessManager network_manager_;
+	bool test_mode_;
+	std::unique_ptr<QNetworkAccessManager> network_manager_;
+	std::unique_ptr<RateLimit::RateLimiter> rate_limiter_;
 	std::vector<ItemLocation> tabs_;
 	std::queue<ItemsRequest> queue_;
 
@@ -120,5 +128,5 @@ private:
 	const BuyoutManager& bo_manager_;
 	std::string account_name_;
 
-	RateLimiter& rate_limiter_;
+	QList<QNetworkCookie> cookies_;
 };
