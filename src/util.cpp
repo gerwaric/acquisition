@@ -27,12 +27,15 @@
 #include <QLabel>
 #include <QFontMetrics>
 #include <QNetworkReply>
+#include <QRegularExpression>
 #include <QTextDocument>
 #include <QPainter>
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include <sstream>
 #include <iomanip>
+#include <format>
+#include <regex>
 
 #include "buyoutmanager.h"
 #include "porting.h"
@@ -90,16 +93,28 @@ void Util::ParseJson(QNetworkReply* reply, rapidjson::Document* doc) {
 	doc->Parse(bytes.constData());
 }
 
-std::string Util::GetCsrfToken(const std::string& page, const std::string& name) {
-	std::string needle = "name=\"" + name + "\" value=\"";
-	auto pos = page.find(needle);
-	if (pos == std::string::npos)
-		return "";
-	auto start = pos + needle.size();  // Right after the opening "
-	auto end = page.find("\"", start); // Closing "
-	if (end == std::string::npos)
-		return "";
-	return page.substr(start, end - start);
+std::string Util::GetCsrfToken(const QByteArray& page, const std::string& name) {
+	// As of October 2023, the CSRF token can appear in one of two ways:
+	//  name="hash" value="..."
+	//	or
+	//	name="hash" class="input-error" value="..."
+	const QString expr = QString(
+		R"regex(
+			name="%1"
+			\s+
+			(?:
+				class=".*?"
+				\s+
+			)?
+			value="(.*?)"
+		)regex").arg(QString::fromStdString(name));
+	const QRegularExpression re(expr,
+		QRegularExpression::CaseInsensitiveOption |
+		QRegularExpression::MultilineOption |
+		QRegularExpression::DotMatchesEverythingOption |
+		QRegularExpression::ExtendedPatternSyntaxOption);
+	const QRegularExpressionMatch match = re.match(page);
+	return match.captured(1).toStdString();
 }
 
 std::string Util::FindTextBetween(const std::string& page, const std::string& left, const std::string& right) {

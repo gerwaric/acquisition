@@ -19,7 +19,9 @@
 
 #pragma once
 
+#include <QNetworkReply>
 #include <QObject>
+#include <QUrlQuery>
 #include <string>
 #include <vector>
 #include "item.h"
@@ -59,11 +61,12 @@ public:
 	const std::string& shop_template() const { return shop_template_; }
 public slots:
 	void OnEditPageFinished();
-	void OnShopSubmitted();
+	void OnShopSubmitted(QUrlQuery query, QNetworkReply* reply);
 signals:
 	void StatusUpdate(const CurrentStatusUpdate& status);
 private:
 	void SubmitSingleShop();
+	void SubmitNextShop(const std::string title, const std::string hash);
 	std::string ShopEditUrl(int idx);
 	std::string SpoilerBuyout(Buyout& bo);
 

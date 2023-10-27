@@ -259,8 +259,7 @@ void LoginDialog::OnLoginPageFinished() {
 	}
 
 	QByteArray bytes = reply->readAll();
-	std::string page(bytes.constData(), bytes.size());
-	std::string hash = Util::GetCsrfToken(page, "hash");
+	std::string hash = Util::GetCsrfToken(bytes, "hash");
 	if (hash.empty()) {
 		DisplayError("Failed to log in (can't extract form hash from page)");
 		return;

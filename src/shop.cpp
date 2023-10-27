@@ -23,6 +23,8 @@
 #include <QClipboard>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QTextDocumentFragment>
+#include <QTimer>
 #include <QUrl>
 #include <QUrlQuery>
 #include "QsLog.h"
@@ -41,6 +43,29 @@ const std::string kPoeEditThread = "https://www.pathofexile.com/forum/edit-threa
 const std::string kShopTemplateItems = "[items]";
 const int kMaxCharactersInPost = 50000;
 const int kSpoilerOverhead = 19; // "[spoiler][/spoiler]" length
+
+// Use a regular expression to look for html errors.
+const QRegularExpression error_regex(
+	R"regex(
+		# Start the match looking for any class attribute that indicates an error
+		class="(?:input-error|errors)"
+
+		# Skip over as much as possible while looking for an <li> start tag that
+		# should be the start of the error message.
+		.*?
+
+		# Match the list item element and capture it's contents, because this is
+		# expected to be the error message.
+		<li>(.*?)</li>
+	)regex",
+	QRegularExpression::CaseInsensitiveOption |
+	QRegularExpression::MultilineOption |
+	QRegularExpression::DotMatchesEverythingOption |
+	QRegularExpression::ExtendedPatternSyntaxOption);
+
+const QRegularExpression ratelimit_regex(
+	R"regex(You must wait (\d+) seconds.)regex",
+	QRegularExpression::CaseInsensitiveOption);
 
 Shop::Shop(Application& app) :
 	app_(app),
@@ -152,8 +177,10 @@ void Shop::SubmitShopToForum(bool force) {
 
 	std::string previous_hash = app_.data().Get("shop_hash");
 	// Don't update the shop if it hasn't changed
-	if (previous_hash == shop_hash_ && !force)
+	if (previous_hash == shop_hash_ && !force) {
+		QLOG_TRACE() << "Shop hash has not changed. Skipping update.";
 		return;
+	}
 
 	if (threads_.size() < shop_data_.size()) {
 		QLOG_WARN() << "Need" << shop_data_.size() - threads_.size() << "more shops defined to fit all your items.";
@@ -181,6 +208,7 @@ void Shop::SubmitSingleShop() {
 		// first, get to the edit-thread page to grab CSRF token
 		QNetworkRequest request = QNetworkRequest(QUrl(ShopEditUrl(requests_completed_).c_str()));
 		request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+		request.setRawHeader("Cache-Control", "max-age=0");
 		QNetworkReply* fetched = app_.logged_in_nm().get(request);
 		new QReplyTimeout(fetched, kEditThreadTimeout);
 		connect(fetched, SIGNAL(finished()), this, SLOT(OnEditPageFinished()));
@@ -190,9 +218,8 @@ void Shop::SubmitSingleShop() {
 
 void Shop::OnEditPageFinished() {
 	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
-	QByteArray bytes = reply->readAll();
-	std::string page(bytes.constData(), bytes.size());
-	std::string hash = Util::GetCsrfToken(page, "hash");
+	const QByteArray bytes = reply->readAll();
+	const std::string hash = Util::GetCsrfToken(bytes, "hash");
 	if (hash.empty()) {
 		QLOG_ERROR() << "Can't update shop -- cannot extract CSRF token from the page. Check if thread ID is valid."
 			<< "If you're using Steam to login make sure you use the same login method (steam or login/password) in Acquisition, Path of Exile website and Path of Exile game client."
@@ -200,40 +227,117 @@ void Shop::OnEditPageFinished() {
 			<< "In this case you should either recreate your shop thread or use a correct login method in Acquisition.";
 		submitting_ = false;
 		return;
-	}
+	} else {
+		QLOG_TRACE() << "CSRF token is" << QString(hash.c_str());
+	};
 
 	// now submit our edit
 
 	// holy shit give me some html parser library please
+	const std::string page(bytes.constData(), bytes.size());
 	std::string title = Util::FindTextBetween(page, "<input type=\"text\" name=\"title\" id=\"title\" onkeypress=\"return&#x20;event.keyCode&#x21;&#x3D;13\" value=\"", "\">");
 	if (title.empty()) {
 		QLOG_ERROR() << "Can't update shop -- title is empty. Check if thread ID is valid.";
 		submitting_ = false;
+		reply->deleteLater();
 		return;
-	}
+	};
+	
+	QTimer::singleShot(500, [=]() { SubmitNextShop(title, hash); });
+	reply->deleteLater();
+}
 
+void Shop::SubmitNextShop(const std::string title, const std::string hash)
+{
 	QUrlQuery query;
-	query.addQueryItem("hash", hash.c_str());
 	query.addQueryItem("title", Util::Decode(title).c_str());
 	query.addQueryItem("content", requests_completed_ < shop_data_.size() ? shop_data_[requests_completed_].c_str() : "Empty");
+	query.addQueryItem("notify_owner", "0");
+	query.addQueryItem("hash", hash.c_str());
 	query.addQueryItem("submit", "Submit");
 
 	QByteArray data(query.query().toUtf8());
 	QNetworkRequest request((QUrl(ShopEditUrl(requests_completed_).c_str())));
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+	request.setRawHeader("Cache-Control", "max-age=0");
+
 	QNetworkReply* submitted = app_.logged_in_nm().post(request, data);
 	new QReplyTimeout(submitted, kEditThreadTimeout);
-	connect(submitted, SIGNAL(finished()), this, SLOT(OnShopSubmitted()));
+	connect(submitted, &QNetworkReply::finished,
+		[=]() {
+			OnShopSubmitted(query, submitted);
+			submitted->deleteLater();
+		});
 }
 
-void Shop::OnShopSubmitted() {
-	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
-	QByteArray bytes = reply->readAll();
+void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
+	//QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
+	const QByteArray bytes = reply->readAll();
+
+	// Errors can show up in a couple different places. So far, the easiest way to identify
+	// them seems to be to look for an html tag with the "class" attribute set to
+	// "input-error" or "errors".
+	// 
+	// After this class attribute, there seems to always be an error message enclosed in
+	// an list item tag, with varying differents between the class attribute and that tag.
+	QRegularExpressionMatchIterator i = error_regex.globalMatch(bytes);
+	if (i.hasNext()) {
+		// Process one or more errors (I've never seen more than one in practice).
+		int seconds = 0;
+		while (i.hasNext()) {
+			// We only know the error message if the list item element was found.
+			const QRegularExpressionMatch error_match = i.next();
+			const QString error_message = (error_match.lastCapturedIndex() > 0)
+				? QTextDocumentFragment::fromHtml(error_match.captured(1)).toPlainText()
+				: "(Failed to parse the error message)";
+			QLOG_ERROR() << "Error submitting shop thread:" << error_message;
+			QLOG_TRACE() << "The html fragment containing the error is" << error_match.captured(0);
+			// This error would occur somewhat randomly before a delay was added in OnEditPageFinished.
+			// With that delay, this error doesn't seem to happen any more, but we should probably
+			// keep checking for it.
+			if (error_message.startsWith("Security token has expired.")) {
+				if (seconds < 5) {
+					seconds = 5;
+					QLOG_TRACE() << "Setting" << seconds << "delay.";
+				};
+			};
+			// Look for a rate limiting error here, because there are no headers to check for
+			// like the other API calls.
+			if (error_message.startsWith("Rate limiting")) {
+				const QRegularExpressionMatch ratelimit_match = ratelimit_regex.match(error_message);
+				int ratelimit_delay = ratelimit_match.captured(1).toInt();
+				if (ratelimit_delay == 0) {
+					QLOG_ERROR() << "Error parsing wait time from error message.";
+					submitting_ = false;
+					return;
+				}
+				if (seconds < ratelimit_delay) {
+					seconds = ratelimit_delay + 1;
+					QLOG_TRACE() << "Setting" << seconds << "second delay.";
+				};
+			};
+		};
+		if (seconds > 0) {
+			// Resubmit if the errors indicate we only have to try again later.
+			const int ms = seconds * 1000;
+			const std::string title = query.queryItemValue("title").toStdString();
+			const std::string hash = Util::GetCsrfToken(bytes, "hash");
+			QLOG_WARN() << "Resubmitting shop after" << seconds << "seconds.";
+			QTimer::singleShot(ms, [=]() { SubmitNextShop(title, hash); });
+			return;
+		} else {
+			// Quit the update for any other error.
+			submitting_ = false;
+			return;
+		};
+	};
+
+	// Keep legacy error-checking in place for now.
 	std::string page(bytes.constData(), bytes.size());
 	std::string error = Util::FindTextBetween(page, "<ul class=\"errors\"><li>", "</li></ul>");
 	if (!error.empty()) {
-		QLOG_ERROR() << "Error while submitting shop to forums:" << error.c_str();
+		QLOG_ERROR() << "(DEPRECATED) Error while submitting shop to forums:" << error.c_str();
 		submitting_ = false;
 		return;
 	}
@@ -242,7 +346,7 @@ void Shop::OnShopSubmitted() {
 	// relavent, but that's not certain or documented anywhere, so let's do both.
 	std::string input_error = Util::FindTextBetween(page, "class=\"input-error\">", "</div>");
 	if (!input_error.empty()) {
-		QLOG_ERROR() << "Input error while submitting shop to forums:" << input_error.c_str();
+		QLOG_ERROR() << "(DEPRECATED) Input error while submitting shop to forums:" << input_error.c_str();
 		submitting_ = false;
 		return;
 	}
@@ -250,16 +354,12 @@ void Shop::OnShopSubmitted() {
 	// have missed. Otherwise errors might just silently fall through the cracks.
 	for (auto& substr : { "class=\"errors\"", "class=\"input-error\"" }) {
 		if (page.find(substr) != std::string::npos) {
-			QLOG_ERROR() << "An error was detected but not handled while submitting shop to forums:" << substr;
+			QLOG_ERROR() << "(DEPRECATED) An error was detected but not handled while submitting shop to forums:" << substr;
+			QLOG_ERROR() << page.c_str();
 			submitting_ = false;
 			return;
 		};
 	}
-
-	// now let's hope that shop was submitted successfully and notify poe.trade
-	QNetworkRequest request(QUrl(("http://verify.poe.trade/" + threads_[requests_completed_] + "/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").c_str()));
-	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	app_.logged_in_nm().get(request);
 
 	++requests_completed_;
 	SubmitSingleShop();

@@ -35,6 +35,7 @@ Application Changes:
 - Only tabs marked or selected for updating are requested (this replaces the previous tab caching approach)
 - Remove-only stash tabs are no longer refresh-locked
 - The status bar updates while acquisition is loading saved tabs and items at startup
+- Better error handling and error prevention during shop forum updates
 
 Development Changes:
 - Added a build expiration option defined at compile time (for pre-release builds)
