@@ -70,9 +70,8 @@ void SqliteDataStore::CleanItemsTable() {
 
 		query = "SELECT loc FROM items";
 		sqlite3_stmt* stmt;
-		auto prepareResults = sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, NULL);
+		sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, NULL);
 		while (sqlite3_step(stmt) == SQLITE_ROW) {
-			int value_type = sqlite3_column_type(stmt, 0);
 			std::string locStr(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0)));
 			locs.push_back(locStr);
 
@@ -94,7 +93,7 @@ void SqliteDataStore::CleanItemsTable() {
 
 			//check stash tabs
 			doc.Parse(stashTabData.c_str());
-			for (const rapidjson::Value const* tab = doc.Begin(); tab != doc.End(); ++tab) {
+			for (const rapidjson::Value* tab = doc.Begin(); tab != doc.End(); ++tab) {
 				if (tab->HasMember("id") && (*tab)["id"].IsString()) {
 					std::string tabLoc((*tab)["id"].GetString());
 					if (tabLoc.compare(loc) == 0) {
@@ -107,7 +106,7 @@ void SqliteDataStore::CleanItemsTable() {
 			//check character tabs
 			if (!foundLoc) {
 				doc.Parse(charsData.c_str());
-				for (const rapidjson::Value const* tab = doc.Begin(); tab != doc.End(); ++tab) {
+				for (const rapidjson::Value* tab = doc.Begin(); tab != doc.End(); ++tab) {
 					if (tab->HasMember("name") && (*tab)["name"].IsString()) {
 						std::string tabLoc((*tab)["name"].GetString());
 						if (tabLoc.compare(loc) == 0) {
@@ -167,8 +166,8 @@ std::string SqliteDataStore::GetItems(const ItemLocation& loc, const std::string
 	std::string location = loc.get_tab_uniq_id();
 
 	sqlite3_stmt* stmt;
-	auto prepareResults = sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, NULL);
-	auto bindResults = sqlite3_bind_text(stmt, 1, location.c_str(), -1, SQLITE_STATIC);
+	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, NULL);
+	sqlite3_bind_text(stmt, 1, location.c_str(), -1, SQLITE_STATIC);
 	std::string result(default_value);
 
 	auto rslt = sqlite3_step(stmt);
