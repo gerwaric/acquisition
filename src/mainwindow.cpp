@@ -415,6 +415,7 @@ void MainWindow::OnStatusUpdate(const CurrentStatusUpdate& status) {
 		break;
 	case ProgramState::ItemsRetrieved:
 		title = QString("Parsing item mods in tabs, %1/%2").arg(status.progress).arg(status.total);
+		need_progress = true;
 		break;
 	default:
 		title = "Unknown";
