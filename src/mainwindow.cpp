@@ -54,6 +54,7 @@
 #include "items_model.h"
 #include "logpanel.h"
 #include "modsfilter.h"
+#include "network_info.h"
 #include "ratelimitpanel.h"
 #include "replytimeout.h"
 #include "search.h"
@@ -61,7 +62,7 @@
 #include "shop.h"
 #include "util.h"
 #include "verticalscrollarea.h"
-#include "network_info.h"
+#include "version.h"
 
 const std::string POE_WEBCDN = "http://webcdn.pathofexile.com"; // Should be updated to https://web.poecdn.com ?
 

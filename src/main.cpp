@@ -35,6 +35,7 @@
 #include "mainwindow.h"
 #include "porting.h"
 #include "util.h"
+#include "version.h"
 #include "version_defines.h"
 #include "../test/testmain.h"
 

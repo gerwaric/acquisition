@@ -24,7 +24,9 @@ Either open `acquisition.pro` in Qt Creator and build or do `qmake && make`.
 
 `--test`: run tests. Zero exit code on success, other values indicate errors.
 
-### Changelog
+`--log-level <level>`: controls the amount of detail in the log. Options are `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, and `OFF`. The default level for release builds is `INFO`. The default level for debug builds is `TRACE`. Case-insensitive.
+
+### Recent Changes
 
 ## v0.9.9 (currently in beta)
 

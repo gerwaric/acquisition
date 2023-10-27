@@ -56,6 +56,7 @@ SOURCES += \
 	src/memorydatastore.cpp \
 	src/modlist.cpp \
 	src/modsfilter.cpp \
+	src/network_info.cpp \
 	src/porting.cpp \
 	src/ratelimit.cpp \
 	src/ratelimitpanel.cpp \
@@ -104,6 +105,7 @@ HEADERS += \
 	src/memorydatastore.h \
 	src/modlist.h \
 	src/modsfilter.h \
+	src/network_info.h \
 	src/porting.h \
 	src/ratelimit.h \
 	src/ratelimitpanel.h \
