@@ -614,6 +614,7 @@ static QByteArray GetHeader(QNetworkReply* const reply, const QByteArray& name) 
 		return reply->rawHeader(name);
 	} else {
 		QLOG_ERROR() << "GetHeader(): missing header:" << name;
+        return QByteArray();
 	};
 }
 

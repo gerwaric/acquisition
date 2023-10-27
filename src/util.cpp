@@ -276,6 +276,7 @@ QDebug& operator<<(QDebug& os, const QsLogging::Level& obj) {
 	case QsLogging::Level::WarnLevel: return os << "WARN";
 	case QsLogging::Level::ErrorLevel: return os << "ERROR";
 	case QsLogging::Level::FatalLevel: return os << "FATAL";
-	case QsLogging::Level::OffLevel: return os << "OFF";
+    case QsLogging::Level::OffLevel: return os << "OFF";
+    default: return os << "None (log level is invalid)";
 	};
 }
