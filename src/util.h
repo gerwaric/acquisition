@@ -25,6 +25,8 @@
 #include <QDebug>
 #include <QObject>
 
+#include "QsLogLevel.h"
+
 class QComboBox;
 class QNetworkReply;
 
@@ -68,6 +70,8 @@ private:
 	Type type;
 };
 QDebug& operator<<(QDebug& os, const TabSelection::Type& obj);
+
+QDebug& operator<<(QDebug& os, const QsLogging::Level& obj);
 
 
 namespace Util {

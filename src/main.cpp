@@ -42,6 +42,13 @@
 #include "CrashRpt.h"
 #endif
 
+#ifdef _DEBUG
+const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::TraceLevel;
+#else
+const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::InfoLevel;
+#endif
+
+
 int main(int argc, char* argv[])
 {
 	qRegisterMetaType<CurrentStatusUpdate>("CurrentStatusUpdate");
@@ -89,57 +96,67 @@ int main(int argc, char* argv[])
 	parser.addOption(option_log_level);
 	parser.process(a);
 
-	QsLogging::Logger& logger = QsLogging::Logger::instance();
-	logger.setLoggingLevel(QsLogging::TraceLevel);
+	// Start by assumign the default log level.
+	QsLogging::Level loglevel = DEFAULT_LOGLEVEL;
+	bool valid_loglevel = true;
 
+
+	// Process --log-level if it was present on the command line.
 	if (parser.isSet(option_log_level)) {
-		const QString loglevel = parser.value(option_log_level).toUpper();
-		if (loglevel == "TRACE") {
-			logger.setLoggingLevel(QsLogging::TraceLevel);
-		} else if (loglevel == "DEBUG") {
-			logger.setLoggingLevel(QsLogging::DebugLevel);
-		} else if (loglevel == "INFO") {
-			logger.setLoggingLevel(QsLogging::InfoLevel);
-		} else if (loglevel == "WARN") {
-			logger.setLoggingLevel(QsLogging::WarnLevel);
-		} else if (loglevel == "ERROR") {
-			logger.setLoggingLevel(QsLogging::ErrorLevel);
-		} else if (loglevel == "FATAL") {
-			logger.setLoggingLevel(QsLogging::FatalLevel);
-		} else if (loglevel == "OFF") {
-			logger.setLoggingLevel(QsLogging::OffLevel);
+		const QString logging_option = parser.value(option_log_level).toUpper();
+		if      (logging_option == "TRACE") { loglevel = QsLogging::TraceLevel; }
+		else if (logging_option == "DEBUG") { loglevel = QsLogging::DebugLevel; }
+		else if (logging_option == "INFO")  { loglevel = QsLogging::InfoLevel;  }
+		else if (logging_option == "WARN")  { loglevel = QsLogging::WarnLevel;  }
+		else if (logging_option == "ERROR") { loglevel = QsLogging::ErrorLevel; }
+		else if (logging_option == "FATAL") { loglevel = QsLogging::FatalLevel; }
+		else if (logging_option == "OFF")   { loglevel = QsLogging::OffLevel;   }
+		else {
+			valid_loglevel = false;
 		};
 	};
 
+	// Setup the data dir, which is where the log will be written.
 	if (parser.isSet(option_data_dir)) {
-		const QString datadir = parser.value(option_data_dir);
+		const QString datadir = QString(parser.value(option_data_dir));
 		Filesystem::SetUserDir(datadir.toStdString());
 	};
-	const QDir userdir = QDir(Filesystem::UserDir().c_str());
-	const QString sLogPath(userdir.filePath("log.txt"));
+	const QString sLogPath = QString(QDir(Filesystem::UserDir().c_str()).filePath("log.txt"));
 
+	// Setup the logger.
+	QsLogging::Logger& logger = QsLogging::Logger::instance();
 	QsLogging::DestinationPtr fileDestination(
 		QsLogging::DestinationFactory::MakeFileDestination(sLogPath, true, 10 * 1024 * 1024, 0));
 	QsLogging::DestinationPtr debugDestination(
 		QsLogging::DestinationFactory::MakeDebugOutputDestination());
+	logger.setLoggingLevel(loglevel);
 	logger.addDestination(debugDestination);
 	logger.addDestination(fileDestination);
 
-	QLOG_DEBUG() << "-------------------------------------------------------------------------------";
-	QLOG_DEBUG() << VER_PRODUCTNAME_STR << VER_STR << "( version code" << VER_CODE << ")";
-	QLOG_DEBUG() << "Built on" << BUILD_DATE.toString();
-	QLOG_DEBUG() << "Built with Qt" << QT_VERSION_STR << "running on" << qVersion();
+	// Start the log with basic info
+	QLOG_INFO() << "-------------------------------------------------------------------------------";
+	QLOG_INFO() << VER_PRODUCTNAME_STR << VER_STR << "( version code" << VER_CODE << ")";
 	if (TRIAL_VERSION) {
-		QLOG_DEBUG() << "This build expires on" << EXPIRATION_DATE.toString();
+		QLOG_WARN() << "This build expires on" << EXPIRATION_DATE.toString();
+	};
+	if (valid_loglevel == false) {
+		QLOG_ERROR() << "Called with invalid log level:" << parser.value(option_log_level);
+		QLOG_ERROR() << "Valid options are: TRACE, DEBUG, INFO, WARN, ERROR, FATAL, and OFF (case insensitive)";
+		return EXIT_FAILURE;
+	};
+	QLOG_INFO() << "Logging level is" << logger.loggingLevel();
+	QLOG_DEBUG() << "Built on" << BUILD_DATE.toString()
+		<< "with Qt" << QT_VERSION_STR << "(Qt" << qVersion() << " is running)";
+
+	// Check for test mode.
+	if (parser.isSet(option_test)) {
+		QLOG_INFO() << "Running test suite...";
+		return test_main();
 	};
 
-	if (parser.isSet(option_test)) {
-		QLOG_INFO() << "Running in test mode.";
-		return test_main();
-	} else {
-		QLOG_INFO() << "Preparing login dialog.";
-		LoginDialog login(std::make_unique<Application>());
-		login.show();
-		return a.exec();
-	};
+	// Run the main application, starting with the login dialog.
+	QLOG_INFO() << "Running application...";
+	LoginDialog login(std::make_unique<Application>());
+	login.show();
+	return a.exec();
 }

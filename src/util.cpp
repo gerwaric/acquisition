@@ -267,3 +267,15 @@ QDebug& operator<<(QDebug& os, const TabSelection::Type& obj)
 	os << meta->enumerator(meta->indexOfEnumerator("Type")).key(obj);
 	return os;
 }
+
+QDebug& operator<<(QDebug& os, const QsLogging::Level& obj) {
+	switch (obj) {
+	case QsLogging::Level::TraceLevel: return os << "TRACE";
+	case QsLogging::Level::DebugLevel: return os << "DEBUG";
+	case QsLogging::Level::InfoLevel: return os << "INFO";
+	case QsLogging::Level::WarnLevel: return os << "WARN";
+	case QsLogging::Level::ErrorLevel: return os << "ERROR";
+	case QsLogging::Level::FatalLevel: return os << "FATAL";
+	case QsLogging::Level::OffLevel: return os << "OFF";
+	};
+}
