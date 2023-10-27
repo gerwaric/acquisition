@@ -28,7 +28,7 @@
 #include "modlist.h"
 #include "porting.h"
 
-SelectedMod::SelectedMod(const std::string &name, double min, double max, bool min_filled, bool max_filled) :
+SelectedMod::SelectedMod(const std::string& name, double min, double max, bool min_filled, bool max_filled) :
 	data_(name, min, max, min_filled, max_filled),
 	mod_select_(std::make_unique<QComboBox>()),
 	min_text_(std::make_unique<QLineEdit>()),
@@ -69,7 +69,7 @@ enum LayoutColumn {
 	kColumnCount
 };
 
-void SelectedMod::AddToLayout(QGridLayout *layout, int index) {
+void SelectedMod::AddToLayout(QGridLayout* layout, int index) {
 	int combobox_pos = index * 2;
 	int minmax_pos = index * 2 + 1;
 	layout->addWidget(mod_select_.get(), combobox_pos, 0, 1, LayoutColumn::kColumnCount);
@@ -78,7 +78,7 @@ void SelectedMod::AddToLayout(QGridLayout *layout, int index) {
 	layout->addWidget(delete_button_.get(), minmax_pos, LayoutColumn::kDeleteButton);
 }
 
-void SelectedMod::CreateSignalMappings(QSignalMapper *signal_mapper, int index) {
+void SelectedMod::CreateSignalMappings(QSignalMapper* signal_mapper, int index) {
 	QObject::connect(mod_select_.get(), SIGNAL(currentIndexChanged(int)), signal_mapper, SLOT(map()));
 	QObject::connect(min_text_.get(), SIGNAL(textEdited(const QString&)), signal_mapper, SLOT(map()));
 	QObject::connect(max_text_.get(), SIGNAL(textEdited(const QString&)), signal_mapper, SLOT(map()));
@@ -91,14 +91,14 @@ void SelectedMod::CreateSignalMappings(QSignalMapper *signal_mapper, int index) 
 	signal_mapper->setMapping(delete_button_.get(), -index - 1);
 }
 
-void SelectedMod::RemoveSignalMappings(QSignalMapper *signal_mapper) {
+void SelectedMod::RemoveSignalMappings(QSignalMapper* signal_mapper) {
 	signal_mapper->removeMappings(mod_select_.get());
 	signal_mapper->removeMappings(min_text_.get());
 	signal_mapper->removeMappings(max_text_.get());
 	signal_mapper->removeMappings(delete_button_.get());
 }
 
-ModsFilter::ModsFilter(QLayout *parent):
+ModsFilter::ModsFilter(QLayout* parent) :
 	signal_handler_(*this)
 {
 	Initialize(parent);
@@ -106,16 +106,16 @@ ModsFilter::ModsFilter(QLayout *parent):
 		parent->parentWidget()->window(), SLOT(OnDelayedSearchFormChange()));
 }
 
-void ModsFilter::FromForm(FilterData *data) {
-	auto &mod_data = data->mod_data;
+void ModsFilter::FromForm(FilterData* data) {
+	auto& mod_data = data->mod_data;
 	mod_data.clear();
-	for (auto &mod : mods_)
+	for (auto& mod : mods_)
 		mod_data.push_back(mod.data());
 }
 
-void ModsFilter::ToForm(FilterData *data) {
+void ModsFilter::ToForm(FilterData* data) {
 	Clear();
-	for (auto &mod : data->mod_data)
+	for (auto& mod : data->mod_data)
 		mods_.push_back(SelectedMod(mod.mod, mod.min, mod.max, mod.min_filled, mod.max_filled));
 	Refill();
 }
@@ -125,11 +125,11 @@ void ModsFilter::ResetForm() {
 	Refill();
 }
 
-bool ModsFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data) {
-	for (auto &mod : data->mod_data) {
+bool ModsFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
+	for (auto& mod : data->mod_data) {
 		if (mod.mod.empty())
 			continue;
-		const ModTable &mod_table = item->mod_table();
+		const ModTable& mod_table = item->mod_table();
 		if (!mod_table.count(mod.mod))
 			return false;
 		double value = mod_table.at(mod.mod);
@@ -141,7 +141,7 @@ bool ModsFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data) {
 	return true;
 }
 
-void ModsFilter::Initialize(QLayout *parent) {
+void ModsFilter::Initialize(QLayout* parent) {
 	layout_ = std::make_unique<QGridLayout>();
 	add_button_ = std::make_unique<QPushButton>("Add mod");
 	QObject::connect(add_button_.get(), SIGNAL(clicked()), &signal_handler_, SLOT(OnAddButtonClicked()));
@@ -172,13 +172,13 @@ void ModsFilter::DeleteMod(int id) {
 }
 
 void ModsFilter::ClearSignalMapper() {
-	for (auto &mod : mods_) {
+	for (auto& mod : mods_) {
 		mod.RemoveSignalMappings(&signal_mapper_);
 	}
 }
 
 void ModsFilter::ClearLayout() {
-	QLayoutItem *item;
+	QLayoutItem* item;
 	while ((item = layout_->takeAt(0))) {}
 }
 
@@ -193,7 +193,7 @@ void ModsFilter::Refill() {
 	ClearLayout();
 
 	int i = 0;
-	for (auto &mod : mods_) {
+	for (auto& mod : mods_) {
 		mod.AddToLayout(layout_.get(), i);
 		mod.CreateSignalMappings(&signal_mapper_, i);
 

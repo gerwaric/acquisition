@@ -43,43 +43,43 @@ public:
 	};
 
 public:
-	Search(BuyoutManager &bo, const std::string &caption, const std::vector<std::unique_ptr<Filter>> &filters, QTreeView *view);
-	void FilterItems(const Items &items);
+	Search(BuyoutManager& bo, const std::string& caption, const std::vector<std::unique_ptr<Filter>>& filters, QTreeView* view);
+	void FilterItems(const Items& items);
 	void FromForm();
 	void ToForm();
 	void ResetForm();
-	const std::string &caption() const { return caption_; }
-	const Items &items() const { return items_; }
-	const std::vector<std::unique_ptr<Column>> &columns() const { return columns_; }
-	const std::vector<std::unique_ptr<Bucket>> &buckets() const;
+	const std::string& caption() const { return caption_; }
+	const Items& items() const { return items_; }
+	const std::vector<std::unique_ptr<Column>>& columns() const { return columns_; }
+	const std::vector<std::unique_ptr<Bucket>>& buckets() const;
 	void RenameCaption(const std::string newName);
 	QString GetCaption();
 	uint GetItemsCount();
 	bool IsAnyFilterActive() const;
 	// Sets this search as current, will display items in passed QTreeView.
-	void Activate(const Items &items);
+	void Activate(const Items& items);
 	void RestoreViewProperties();
 	void SaveViewProperties();
-	ItemLocation GetTabLocation(const QModelIndex & index) const;
+	ItemLocation GetTabLocation(const QModelIndex& index) const;
 	void SetViewMode(ViewMode mode);
 	int GetViewMode() { return current_mode_; }
-	const std::unique_ptr<Bucket> &bucket(int row) const;
-	void SetRefreshReason(RefreshReason::Type reason) { refresh_reason_ = reason;}
+	const std::unique_ptr<Bucket>& bucket(int row) const;
+	void SetRefreshReason(RefreshReason::Type reason) { refresh_reason_ = reason; }
 private:
-	void UpdateItemCounts(const Items &items);
+	void UpdateItemCounts(const Items& items);
 
 	std::vector<std::unique_ptr<FilterData>> filters_;
 	std::vector<std::unique_ptr<Column>> columns_;
 	std::string caption_;
 	Items items_;
-	QTreeView *view_{nullptr};
-	BuyoutManager &bo_manager_;
+	QTreeView* view_{ nullptr };
+	BuyoutManager& bo_manager_;
 	std::unique_ptr<ItemsModel> model_;
 	std::vector<std::unique_ptr<Bucket>> buckets_;
 	std::vector<std::unique_ptr<Bucket>> bucket_;
-	uint unfiltered_item_count_{0};
-	uint filtered_item_count_total_{0};
+	uint unfiltered_item_count_{ 0 };
+	uint filtered_item_count_total_{ 0 };
 	std::set<std::string> expanded_property_;
-	ViewMode current_mode_{ByTab};
-	RefreshReason::Type refresh_reason_{RefreshReason::Unknown};
+	ViewMode current_mode_{ ByTab };
+	RefreshReason::Type refresh_reason_{ RefreshReason::Unknown };
 };

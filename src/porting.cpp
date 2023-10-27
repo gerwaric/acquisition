@@ -26,22 +26,22 @@
 // This namespace should contain platform-dependant functions.
 
 namespace porting {
-std::string DefaultUserDir() {
+	std::string DefaultUserDir() {
 #ifdef PORTABLE
-	return qApp->applicationDirPath().toStdString();
+		return qApp->applicationDirPath().toStdString();
 #else
-	return QStandardPaths::writableLocation(QStandardPaths::DataLocation).toStdString();
+		return QStandardPaths::writableLocation(QStandardPaths::DataLocation).toStdString();
 #endif
-}
+	}
 }
 
 #ifdef __ANDROID__
 namespace std {
-double stod(const std::string& str) {
-	std::istringstream is(str);
-	double result;
-	is >> result;
-	return result;
-}
+	double stod(const std::string& str) {
+		std::istringstream is(str);
+		double result;
+		is >> result;
+		return result;
+	}
 }
 #endif

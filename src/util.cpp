@@ -40,24 +40,24 @@
 #include <boost/algorithm/string.hpp>
 #include <QMetaEnum>
 
-std::string Util::Md5(const std::string &value) {
+std::string Util::Md5(const std::string& value) {
 	QString hash = QString(QCryptographicHash::hash(value.c_str(), QCryptographicHash::Md5).toHex());
 	return hash.toUtf8().constData();
 }
 
-double Util::AverageDamage(const std::string &s) {
+double Util::AverageDamage(const std::string& s) {
 	size_t x = s.find("-");
 	if (x == std::string::npos)
 		return 0;
 	return (std::stod(s.substr(0, x)) + std::stod(s.substr(x + 1))) / 2;
 }
 
-void Util::PopulateBuyoutTypeComboBox(QComboBox *combobox) {
-	combobox->addItems(QStringList({"[Ignore]", "Buyout", "Fixed price", "Current Offer", "No price", "[Inherit]"}));
+void Util::PopulateBuyoutTypeComboBox(QComboBox* combobox) {
+	combobox->addItems(QStringList({ "[Ignore]", "Buyout", "Fixed price", "Current Offer", "No price", "[Inherit]" }));
 	combobox->setCurrentIndex(5);
 }
 
-void Util::PopulateBuyoutCurrencyComboBox(QComboBox *combobox) {
+void Util::PopulateBuyoutCurrencyComboBox(QComboBox* combobox) {
 	for (auto type : Currency::Types())
 		combobox->addItem(QString(Currency(type).AsString().c_str()));
 }
@@ -85,12 +85,12 @@ int Util::TextWidth(TextWidthId id) {
 	return result[static_cast<int>(id)];
 }
 
-void Util::ParseJson(QNetworkReply *reply, rapidjson::Document *doc) {
+void Util::ParseJson(QNetworkReply* reply, rapidjson::Document* doc) {
 	QByteArray bytes = reply->readAll();
 	doc->Parse(bytes.constData());
 }
 
-std::string Util::GetCsrfToken(const std::string &page, const std::string &name) {
+std::string Util::GetCsrfToken(const std::string& page, const std::string& name) {
 	std::string needle = "name=\"" + name + "\" value=\"";
 	auto pos = page.find(needle);
 	if (pos == std::string::npos)
@@ -102,7 +102,7 @@ std::string Util::GetCsrfToken(const std::string &page, const std::string &name)
 	return page.substr(start, end - start);
 }
 
-std::string Util::FindTextBetween(const std::string &page, const std::string &left, const std::string &right) {
+std::string Util::FindTextBetween(const std::string& page, const std::string& left, const std::string& right) {
 	size_t first = page.find(left);
 	size_t last = page.find(right, first);
 	if (first == std::string::npos || last == std::string::npos || first > last)
@@ -110,14 +110,14 @@ std::string Util::FindTextBetween(const std::string &page, const std::string &le
 	return page.substr(first + left.size(), last - first - left.size());
 }
 
-std::string Util::RapidjsonSerialize(const rapidjson::Value &val) {
+std::string Util::RapidjsonSerialize(const rapidjson::Value& val) {
 	rapidjson::StringBuffer buffer;
 	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
 	val.Accept(writer);
 	return buffer.GetString();
 }
 
-void Util::RapidjsonAddConstString(rapidjson::Value *object, const char *const name, const std::string &value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator> &alloc) {
+void Util::RapidjsonAddConstString(rapidjson::Value* object, const char* const name, const std::string& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc) {
 	rapidjson::Value rjson_name;
 	rjson_name.SetString(name, strlen(name));
 	rapidjson::Value rjson_val;
@@ -125,7 +125,7 @@ void Util::RapidjsonAddConstString(rapidjson::Value *object, const char *const n
 	object->AddMember(rjson_name, rjson_val, alloc);
 }
 
-std::string Util::StringReplace(const std::string &haystack, const std::string &needle, const std::string &replace) {
+std::string Util::StringReplace(const std::string& haystack, const std::string& needle, const std::string& replace) {
 	std::string out = haystack;
 	for (size_t pos = 0; ; pos += replace.length()) {
 		pos = out.find(needle, pos);
@@ -137,11 +137,11 @@ std::string Util::StringReplace(const std::string &haystack, const std::string &
 	return out;
 }
 
-std::string Util::StringJoin(const std::vector<std::string> &arr, const std::string &separator) {
+std::string Util::StringJoin(const std::vector<std::string>& arr, const std::string& separator) {
 	return boost::join(arr, separator);
 }
 
-std::vector<std::string> Util::StringSplit(const std::string &str, char delim) {
+std::vector<std::string> Util::StringSplit(const std::string& str, char delim) {
 	std::vector<std::string> elems;
 	std::stringstream ss(str);
 	std::string item;
@@ -151,7 +151,7 @@ std::vector<std::string> Util::StringSplit(const std::string &str, char delim) {
 	return elems;
 }
 
-bool Util::MatchMod(const char *match, const char *mod, double *output) {
+bool Util::MatchMod(const char* match, const char* mod, double* output) {
 	double result = 0.0;
 	auto pmatch = match;
 	auto pmod = mod;
@@ -176,13 +176,13 @@ bool Util::MatchMod(const char *match, const char *mod, double *output) {
 	return !*pmatch && !*pmod;
 }
 
-std::string Util::Capitalise(const std::string &str) {
+std::string Util::Capitalise(const std::string& str) {
 	std::string capitalised = str;
 	capitalised[0] = static_cast<std::string::value_type>(toupper(capitalised[0]));   //  Set the first character to upper case
 	return capitalised;
 }
 
-std::string Util::TimeAgoInWords(const QDateTime buyout_time){
+std::string Util::TimeAgoInWords(const QDateTime buyout_time) {
 	QDateTime current_date = QDateTime::currentDateTime();
 	qint64 secs = buyout_time.secsTo(current_date);
 	qint64 days = secs / 60 / 60 / 24;
@@ -190,54 +190,54 @@ std::string Util::TimeAgoInWords(const QDateTime buyout_time){
 	qint64 minutes = (secs / 60) % 60;
 
 	// YEARS
-	if (days > 365){
+	if (days > 365) {
 		int years = (days / 365);
 		if (days % 365 != 0)
 			years++;
 		return QString("%1 %2 ago").arg(years).arg(years == 1 ? "year" : "years").toStdString();
 	}
 	// MONTHS
-	if (days > 30){
+	if (days > 30) {
 		int months = (days / 365);
 		if (days % 30 != 0)
 			months++;
 		return QString("%1 %2 ago").arg(months).arg(months == 1 ? "month" : "months").toStdString();
-	// DAYS
-	}else if (days > 0){
+		// DAYS
+	} else if (days > 0) {
 		return QString("%1 %2 ago").arg(days).arg(days == 1 ? "day" : "days").toStdString();
-	// HOURS
-	}else if (hours > 0){
+		// HOURS
+	} else if (hours > 0) {
 		return QString("%1 %2 ago").arg(hours).arg(hours == 1 ? "hour" : "hours").toStdString();
-	//MINUTES
-	}else if (minutes > 0){
+		//MINUTES
+	} else if (minutes > 0) {
 		return QString("%1 %2 ago").arg(minutes).arg(minutes == 1 ? "minute" : "minutes").toStdString();
-	// SECONDS
-	}else if (secs > 5){
+		// SECONDS
+	} else if (secs > 5) {
 		return QString("%1 %2 ago").arg(secs).arg("seconds").toStdString();
-	}else if (secs < 5){
+	} else if (secs < 5) {
 		return QString("just now").toStdString();
-	}else{
+	} else {
 		return "";
 	}
 }
 
-std::string Util::Decode(const std::string &entity) {
+std::string Util::Decode(const std::string& entity) {
 	QTextDocument text;
 	text.setHtml(entity.c_str());
 	return text.toPlainText().toStdString();
 }
 
-QColor Util::recommendedForegroundTextColor(const QColor& backgroundColor){
-	float R = (float) backgroundColor.red() / 255.0f;
-	float G = (float) backgroundColor.green() / 255.0f;
-	float B = (float) backgroundColor.blue() / 255.0f;
+QColor Util::recommendedForegroundTextColor(const QColor& backgroundColor) {
+	float R = (float)backgroundColor.red() / 255.0f;
+	float G = (float)backgroundColor.green() / 255.0f;
+	float B = (float)backgroundColor.blue() / 255.0f;
 
 	const float gamma = 2.2;
 	float L = 0.2126 * pow(R, gamma)
-			+ 0.7152 * pow(G, gamma)
-			+ 0.0722 * pow(B, gamma);
+		+ 0.7152 * pow(G, gamma)
+		+ 0.0722 * pow(B, gamma);
 
-	return ( L > 0.5 ) ? QColor(QColorConstants::Black) : QColor(QColorConstants::White);
+	return (L > 0.5) ? QColor(QColorConstants::Black) : QColor(QColorConstants::White);
 }
 
 std::string Util::hexStr(const uint8_t* data, int len)
@@ -254,16 +254,16 @@ std::string Util::hexStr(const uint8_t* data, int len)
 	return temp;
 }
 
-QDebug &operator<<(QDebug &os, const RefreshReason::Type &obj)
+QDebug& operator<<(QDebug& os, const RefreshReason::Type& obj)
 {
-	const QMetaObject *meta = &RefreshReason::staticMetaObject;
+	const QMetaObject* meta = &RefreshReason::staticMetaObject;
 	os << meta->enumerator(meta->indexOfEnumerator("Type")).key(obj);
 	return os;
 }
 
-QDebug &operator<<(QDebug &os, const TabSelection::Type &obj)
+QDebug& operator<<(QDebug& os, const TabSelection::Type& obj)
 {
-	const QMetaObject *meta = &TabSelection::staticMetaObject;
+	const QMetaObject* meta = &TabSelection::staticMetaObject;
 	os << meta->enumerator(meta->indexOfEnumerator("Type")).key(obj);
 	return os;
 }

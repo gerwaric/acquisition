@@ -45,20 +45,20 @@ struct ItemsRequest {
 };
 
 struct ItemsReply {
-	QNetworkReply *network_reply;
+	QNetworkReply* network_reply;
 	ItemsRequest request;
 };
 
 class ItemsManagerWorker : public QObject {
 	Q_OBJECT
 public:
-	ItemsManagerWorker(Application &app, QThread *thread);
+	ItemsManagerWorker(Application& app, QThread* thread);
 	~ItemsManagerWorker();
 	bool isInitialized() const { return initialized_; }
 	void UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations);
 public slots:
 	void ParseItemMods();
-	void Update(TabSelection::Type type, const std::vector<ItemLocation> &tab_names = std::vector<ItemLocation>());
+	void Update(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 public slots:
 	void OnMainPageReceived(QNetworkReply* reply);
 	void OnCharacterListReceived(QNetworkReply* reply);
@@ -72,24 +72,24 @@ public slots:
 	void OnItemClassesReceived(QNetworkReply* reply);
 	void OnItemBaseTypesReceived(QNetworkReply* reply);
 signals:
-	void ItemsRefreshed(const Items &items, const std::vector<ItemLocation> &tabs, bool initial_refresh);
-	void StatusUpdate(const CurrentStatusUpdate &status);
-	void ItemClassesUpdate(const QByteArray &classes);
-	void ItemBaseTypesUpdate(const QByteArray &baseTypes);
+	void ItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
+	void StatusUpdate(const CurrentStatusUpdate& status);
+	void ItemClassesUpdate(const QByteArray& classes);
+	void ItemBaseTypesUpdate(const QByteArray& baseTypes);
 private:
 	void RemoveUpdatingTabs(const std::set<std::string>& tab_ids);
 	void RemoveUpdatingItems(const std::set<std::string>& tab_ids);
 	QNetworkRequest MakeTabRequest(int tab_index, bool tabs = false);
-	QNetworkRequest MakeCharacterRequest(const std::string &name);
-	QNetworkRequest MakeCharacterPassivesRequest(const std::string &name);
-	void QueueRequest(const QNetworkRequest &request, const ItemLocation &location);
-	void ParseItems(rapidjson::Value *value_ptr, ItemLocation base_location, rapidjson_allocator &alloc);
+	QNetworkRequest MakeCharacterRequest(const std::string& name);
+	QNetworkRequest MakeCharacterPassivesRequest(const std::string& name);
+	void QueueRequest(const QNetworkRequest& request, const ItemLocation& location);
+	void ParseItems(rapidjson::Value* value_ptr, ItemLocation base_location, rapidjson_allocator& alloc);
 	std::vector<std::pair<std::string, std::string> > CreateTabsSignatureVector(std::string tabs);
 	void UpdateModList();
 	bool TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, ItemLocation& location);
 	void FinishUpdate();
 
-	DataStore &data_;
+	DataStore& data_;
 	QNetworkAccessManager network_manager_;
 	std::vector<ItemLocation> tabs_;
 	std::queue<ItemsRequest> queue_;
@@ -117,7 +117,7 @@ private:
 
 	std::string first_fetch_tab_;
 	int first_fetch_tab_id_;
-	const BuyoutManager &bo_manager_;
+	const BuyoutManager& bo_manager_;
 	std::string account_name_;
 
 	RateLimiter& rate_limiter_;

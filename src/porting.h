@@ -23,7 +23,7 @@
 #include <QString>
 
 namespace porting {
-std::string DefaultUserDir();
+	std::string DefaultUserDir();
 }
 
 #ifdef __ANDROID__
@@ -32,27 +32,27 @@ std::string DefaultUserDir();
 
 // http://stackoverflow.com/a/18124627/2606891
 namespace std {
-template <typename T>
-std::string to_string(T value)
-{
-	std::ostringstream os ;
-	os << value ;
-	return os.str() ;
-}
+	template <typename T>
+	std::string to_string(T value)
+	{
+		std::ostringstream os;
+		os << value;
+		return os.str();
+	}
 
-double stod(const std::string& str);
+	double stod(const std::string& str);
 }
 #endif
 
 // visual studio ships with std::make_unique implementation
 #ifndef _MSC_VER
 namespace std {
-// to be added in C++14
-// source: http://herbsutter.com/gotw/_102/
-template<typename T, typename ...Args>
-std::unique_ptr<T> make_unique( Args&& ...args )
-{
-	return std::unique_ptr<T>( new T( std::forward<Args>(args)... ) );
-}
+	// to be added in C++14
+	// source: http://herbsutter.com/gotw/_102/
+	template<typename T, typename ...Args>
+	std::unique_ptr<T> make_unique(Args&& ...args)
+	{
+		return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+	}
 }
 #endif

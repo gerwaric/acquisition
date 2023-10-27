@@ -37,29 +37,29 @@ class LogPanel;
 class LogPanelSignalHandler : public QObject {
 	Q_OBJECT
 public:
-	LogPanelSignalHandler(LogPanel &parent) :
+	LogPanelSignalHandler(LogPanel& parent) :
 		parent_(parent)
 	{}
 public slots:
 	void OnStatusLabelClicked();
-	void OnMessage(const QString &message, QsLogging::Level level);
+	void OnMessage(const QString& message, QsLogging::Level level);
 private:
-	LogPanel &parent_;
+	LogPanel& parent_;
 };
 
 class LogPanel : public QsLogging::Destination {
 	friend class LogPanelSignalHandler;
 public:
-	LogPanel(MainWindow *window, Ui::MainWindow *ui);
+	LogPanel(MainWindow* window, Ui::MainWindow* ui);
 	virtual void write(const QString& message, QsLogging::Level level);
 	virtual bool isValid() { return true; }
 private:
-	void AddLine(const QString &message, QsLogging::Level level);
+	void AddLine(const QString& message, QsLogging::Level level);
 	void UpdateStatusLabel();
 	void ToggleOutputVisibility();
 
-	QPushButton *status_button_;
-	QTextEdit *output_;
+	QPushButton* status_button_;
+	QTextEdit* output_;
 	std::vector<int> num_messages_;
 	LogPanelSignalHandler signal_handler_;
 };

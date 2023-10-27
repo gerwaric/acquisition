@@ -28,16 +28,16 @@
 class DataStore {
 public:
 	virtual ~DataStore() {};
-	virtual void Set(const std::string &key, const std::string &value) = 0;
-	virtual void SetTabs(const ItemLocationType &type, const std::string &value) = 0;
-	virtual void SetItems(const ItemLocation &loc, const std::string &value) = 0;
-	virtual std::string Get(const std::string &key, const std::string &default_value = "") = 0;
-	virtual std::string GetTabs(const ItemLocationType &type, const std::string &default_value = "") = 0;
-	virtual std::string GetItems(const ItemLocation &loc, const std::string &default_value = "") = 0;
-	virtual void InsertCurrencyUpdate(const CurrencyUpdate &update) = 0;
+	virtual void Set(const std::string& key, const std::string& value) = 0;
+	virtual void SetTabs(const ItemLocationType& type, const std::string& value) = 0;
+	virtual void SetItems(const ItemLocation& loc, const std::string& value) = 0;
+	virtual std::string Get(const std::string& key, const std::string& default_value = "") = 0;
+	virtual std::string GetTabs(const ItemLocationType& type, const std::string& default_value = "") = 0;
+	virtual std::string GetItems(const ItemLocation& loc, const std::string& default_value = "") = 0;
+	virtual void InsertCurrencyUpdate(const CurrencyUpdate& update) = 0;
 	virtual std::vector<CurrencyUpdate> GetAllCurrency() = 0;
-	virtual void SetBool(const std::string &key, bool value) = 0;
-	virtual bool GetBool(const std::string &key, bool default_value = false) = 0;
-	virtual void SetInt(const std::string &key, int value) = 0;
-	virtual int GetInt(const std::string &key, int default_value = 0) = 0;
+	virtual void SetBool(const std::string& key, bool value) = 0;
+	virtual bool GetBool(const std::string& key, bool default_value = false) = 0;
+	virtual void SetInt(const std::string& key, int value) = 0;
+	virtual int GetInt(const std::string& key, int default_value = 0) = 0;
 };

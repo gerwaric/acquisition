@@ -78,8 +78,8 @@ public:
 		EATER_OF_WORLDS
 	};
 
-	explicit Item(const rapidjson::Value &json, const ItemLocation &loc);
-	Item(const std::string &name, const ItemLocation &location); // used by tests
+	explicit Item(const rapidjson::Value& json, const ItemLocation& loc);
+	Item(const std::string& name, const ItemLocation& location); // used by tests
 	std::string name() const { return name_; }
 	std::string typeLine() const { return typeLine_; }
 	std::string PrettyName() const;
@@ -87,52 +87,52 @@ public:
 	bool corrupted() const { return corrupted_; }
 	bool crafted() const { return crafted_; }
 	bool enchanted() const { return enchanted_; }
-	bool hasInfluence(INFLUENCE_TYPES type) const { return std::find(influenceList_.begin(), influenceList_.end(), type) != influenceList_.end();}
-	INFLUENCE_TYPES influenceLeft() const {return influenceList_.size() == 0 ? NONE : influenceList_[0];}
-	INFLUENCE_TYPES influenceRight() const {return influenceList_.size() == 0 ? NONE : influenceList_.size() == 1 ? influenceList_[0] : influenceList_[1];}
-	bool hasInfluence() const {return !influenceList_.empty();}
+	bool hasInfluence(INFLUENCE_TYPES type) const { return std::find(influenceList_.begin(), influenceList_.end(), type) != influenceList_.end(); }
+	INFLUENCE_TYPES influenceLeft() const { return influenceList_.size() == 0 ? NONE : influenceList_[0]; }
+	INFLUENCE_TYPES influenceRight() const { return influenceList_.size() == 0 ? NONE : influenceList_.size() == 1 ? influenceList_[0] : influenceList_[1]; }
+	bool hasInfluence() const { return !influenceList_.empty(); }
 	int w() const { return w_; }
 	int h() const { return h_; }
 	int frameType() const { return frameType_; }
-	const std::string &icon() const { return icon_; }
-	const std::map<std::string, std::string> &properties() const { return properties_; }
-	const std::vector<ItemProperty> &text_properties() const { return text_properties_; }
-	const std::vector<ItemRequirement> &text_requirements() const { return text_requirements_; }
-	const std::map<std::string, ItemMods> &text_mods() const { return text_mods_; }
-	const std::vector<ItemSocket> &text_sockets() const { return text_sockets_; }
-	const std::string &hash() const { return hash_; }
-	const std::string &old_hash() const { return old_hash_; }
-	const std::vector<std::pair<std::string, int>> &elemental_damage() const { return elemental_damage_; }
-	const std::map<std::string, int> &requirements() const { return requirements_; }
+	const std::string& icon() const { return icon_; }
+	const std::map<std::string, std::string>& properties() const { return properties_; }
+	const std::vector<ItemProperty>& text_properties() const { return text_properties_; }
+	const std::vector<ItemRequirement>& text_requirements() const { return text_requirements_; }
+	const std::map<std::string, ItemMods>& text_mods() const { return text_mods_; }
+	const std::vector<ItemSocket>& text_sockets() const { return text_sockets_; }
+	const std::string& hash() const { return hash_; }
+	const std::string& old_hash() const { return old_hash_; }
+	const std::vector<std::pair<std::string, int>>& elemental_damage() const { return elemental_damage_; }
+	const std::map<std::string, int>& requirements() const { return requirements_; }
 	double DPS() const;
 	double pDPS() const;
 	double eDPS() const;
 	double cDPS() const;
 	int sockets_cnt() const { return sockets_cnt_; }
 	int links_cnt() const { return links_cnt_; }
-	const ItemSocketGroup &sockets() const { return sockets_; }
-	const std::vector<ItemSocketGroup> &socket_groups() const { return socket_groups_; }
-	const ItemLocation &location() const { return location_; }
+	const ItemSocketGroup& sockets() const { return sockets_; }
+	const std::vector<ItemSocketGroup>& socket_groups() const { return socket_groups_; }
+	const ItemLocation& location() const { return location_; }
 	const std::string& json() { return json_; }
 	const std::string& note() const { return note_; }
 	const std::string& category() const { return category_; }
 	const std::vector<std::string>& category_vector() const { return category_vector_; }
 	uint talisman_tier() const { return talisman_tier_; }
 	int count() const { return count_; }
-	const ModTable &mod_table() const { return mod_table_; }
+	const ModTable& mod_table() const { return mod_table_; }
 	int ilvl() const { return ilvl_; }
-	bool operator<(const Item &other) const;
+	bool operator<(const Item& other) const;
 	bool Wearable() const;
 	std::string POBformat() const;
 	static const size_t k_CategoryLevels = 3;
 	static const std::array<CategoryReplaceMap, k_CategoryLevels> replace_map_;
 
 private:
-	void CalculateCategories(const rapidjson::Value &json);
+	void CalculateCategories(const rapidjson::Value& json);
 	// The point of GenerateMods is to create combined (e.g. implicit+explicit) poe.trade-like mod map to be searched by mod filter.
 	// For now it only does that for a small chosen subset of mods (think "popular" + "pseudo" sections at poe.trade)
-	void GenerateMods(const rapidjson::Value &json);
-	void CalculateHash(const rapidjson::Value &json);
+	void GenerateMods(const rapidjson::Value& json);
+	void CalculateHash(const rapidjson::Value& json);
 
 	std::string name_;
 	ItemLocation location_;
@@ -166,7 +166,7 @@ private:
 	std::string note_;
 	ModTable mod_table_;
 	std::string uid_;
-	uint talisman_tier_{0};
+	uint talisman_tier_{ 0 };
 };
 
 typedef std::vector<std::shared_ptr<Item>> Items;

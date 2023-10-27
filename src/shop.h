@@ -28,9 +28,9 @@
 struct CurrentStatusUpdate;
 extern const std::string kShopTemplateItems;
 struct AugmentedItem {
-	Item *item;
+	Item* item;
 	Buyout bo;
-	bool operator<(const AugmentedItem &other) const {
+	bool operator<(const AugmentedItem& other) const {
 		if (bo.type != other.bo.type)
 			return bo.type < other.bo.type;
 		if (bo.currency != other.bo.currency)
@@ -45,29 +45,29 @@ class Application;
 class Shop : public QObject {
 	Q_OBJECT
 public:
-	explicit Shop(Application &app);
-	void SetThread(const std::vector<std::string> &threads);
+	explicit Shop(Application& app);
+	void SetThread(const std::vector<std::string>& threads);
 	void SetAutoUpdate(bool update);
-	void SetShopTemplate(const std::string &shop_template);
+	void SetShopTemplate(const std::string& shop_template);
 	void Update();
 	void CopyToClipboard();
 	void ExpireShopData();
 	void SubmitShopToForum(bool force = false);
 	bool auto_update() const { return auto_update_; }
-	const std::vector<std::string> &threads() const { return threads_; }
-	const std::vector<std::string> &shop_data() const { return shop_data_; }
-	const std::string &shop_template() const { return shop_template_; }
+	const std::vector<std::string>& threads() const { return threads_; }
+	const std::vector<std::string>& shop_data() const { return shop_data_; }
+	const std::string& shop_template() const { return shop_template_; }
 public slots:
 	void OnEditPageFinished();
 	void OnShopSubmitted();
 signals:
-	void StatusUpdate(const CurrentStatusUpdate &status);
+	void StatusUpdate(const CurrentStatusUpdate& status);
 private:
 	void SubmitSingleShop();
 	std::string ShopEditUrl(int idx);
-	std::string SpoilerBuyout(Buyout &bo);
+	std::string SpoilerBuyout(Buyout& bo);
 
-	Application &app_;
+	Application& app_;
 	std::vector<std::string> threads_;
 	std::vector<std::string> shop_data_;
 	std::string shop_hash_;

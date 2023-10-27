@@ -27,7 +27,7 @@
 #include "util.h"
 #include "QsLog.h"
 
-ItemsModel::ItemsModel(BuyoutManager &bo_manager, const Search &search) :
+ItemsModel::ItemsModel(BuyoutManager& bo_manager, const Search& search) :
 	bo_manager_(bo_manager),
 	search_(search)
 {
@@ -47,7 +47,7 @@ ItemsModel::ItemsModel(BuyoutManager &bo_manager, const Search &search) :
 	and so on
 */
 
-int ItemsModel::rowCount(const QModelIndex &parent) const {
+int ItemsModel::rowCount(const QModelIndex& parent) const {
 	// Root element, contains buckets
 	if (!parent.isValid())
 		return search_.buckets().size();
@@ -59,7 +59,7 @@ int ItemsModel::rowCount(const QModelIndex &parent) const {
 	return 0;
 }
 
-int ItemsModel::columnCount(const QModelIndex &parent) const {
+int ItemsModel::columnCount(const QModelIndex& parent) const {
 	// Root element, contains buckets
 	if (!parent.isValid())
 		return search_.columns().size();
@@ -76,7 +76,7 @@ QVariant ItemsModel::headerData(int section, Qt::Orientation /* orientation */, 
 	return QVariant();
 }
 
-QVariant ItemsModel::data(const QModelIndex &index, int role) const {
+QVariant ItemsModel::data(const QModelIndex& index, int role) const {
 	// Bucket title
 	if (!index.isValid())
 		return QVariant();
@@ -85,30 +85,30 @@ QVariant ItemsModel::data(const QModelIndex &index, int role) const {
 		if (index.column() > 0)
 			return QVariant();
 
-		const ItemLocation &location = search_.GetTabLocation(index);
-		if ( role == Qt::CheckStateRole) {
+		const ItemLocation& location = search_.GetTabLocation(index);
+		if (role == Qt::CheckStateRole) {
 			if (!location.IsValid())
 				return QVariant();
 			if (bo_manager_.GetRefreshLocked(location))
 				return Qt::PartiallyChecked;
-			return ( bo_manager_.GetRefreshChecked(location) ? Qt::Checked : Qt::Unchecked );
+			return (bo_manager_.GetRefreshChecked(location) ? Qt::Checked : Qt::Unchecked);
 		}
 		if (role == Qt::DisplayRole) {
 			if (!location.IsValid())
 				return "All Items";
 			QString title(location.GetHeader().c_str());
-			auto const &bo = bo_manager_.GetTab(location.GetUniqueHash());
+			auto const& bo = bo_manager_.GetTab(location.GetUniqueHash());
 			if (bo.IsActive())
 				title += QString(" [%1]").arg(bo.AsText().c_str());
 			return title;
 		}
-		if (location.IsValid() && location.get_type() == ItemLocationType::STASH){
-			if(role == Qt::BackgroundRole){
+		if (location.IsValid() && location.get_type() == ItemLocationType::STASH) {
+			if (role == Qt::BackgroundRole) {
 				QColor backgroundColor(location.getR(), location.getG(), location.getB());
 				if (backgroundColor.isValid())
 					return backgroundColor;
 			}
-			if(role == Qt::ForegroundRole){
+			if (role == Qt::ForegroundRole) {
 				QColor backgroundColor(location.getR(), location.getG(), location.getB());
 				return Util::recommendedForegroundTextColor(backgroundColor);
 			}
@@ -117,8 +117,8 @@ QVariant ItemsModel::data(const QModelIndex &index, int role) const {
 
 		return QVariant();
 	}
-	auto &column = search_.columns()[index.column()];
-	const Item &item = *search_.bucket(index.parent().row())->item(index.row());
+	auto& column = search_.columns()[index.column()];
+	const Item& item = *search_.bucket(index.parent().row())->item(index.row());
 	if (role == Qt::DisplayRole)
 		return column->value(item);
 	else if (role == Qt::ForegroundRole)
@@ -128,25 +128,25 @@ QVariant ItemsModel::data(const QModelIndex &index, int role) const {
 	return QVariant();
 }
 
-Qt::ItemFlags ItemsModel::flags(const QModelIndex &index) const
+Qt::ItemFlags ItemsModel::flags(const QModelIndex& index) const
 {
 	if (!index.isValid())
 		return 0;
 
-	if ( index.column() == 0 && index.internalId() == 0) {
-		const ItemLocation &location = search_.GetTabLocation(index);
+	if (index.column() == 0 && index.internalId() == 0) {
+		const ItemLocation& location = search_.GetTabLocation(index);
 		if (location.IsValid() && !bo_manager_.GetRefreshLocked(location))
 			return Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsUserCheckable;
 	}
 	return Qt::ItemIsSelectable | Qt::ItemIsEnabled;
 }
 
-bool ItemsModel::setData(const QModelIndex &index, const QVariant &value, int role) {
+bool ItemsModel::setData(const QModelIndex& index, const QVariant& value, int role) {
 	if (!index.isValid())
 		return false;
 
 	if (role == Qt::CheckStateRole) {
-		const ItemLocation &location = search_.GetTabLocation(index);
+		const ItemLocation& location = search_.GetTabLocation(index);
 		bo_manager_.SetRefreshChecked(location, value.toBool());
 
 		// It's possible that our tabs can have the same name.  Right now we don't have a
@@ -158,7 +158,7 @@ bool ItemsModel::setData(const QModelIndex &index, const QVariant &value, int ro
 		for (int i = 0; i < row_count; ++i) {
 			auto match_index = this->index(i);
 			if (search_.GetTabLocation(match_index).GetUniqueHash() == target_hash)
-				emit dataChanged(match_index,match_index);
+				emit dataChanged(match_index, match_index);
 		}
 
 		return true;
@@ -176,8 +176,8 @@ void ItemsModel::sort(int column, Qt::SortOrder order)
 	sort_order_ = order;
 	sort_column_ = column;
 
-	auto &column_obj = search_.columns()[column];
-	for (const auto &bucket: search_.buckets()) {
+	auto& column_obj = search_.columns()[column];
+	for (const auto& bucket : search_.buckets()) {
 		bucket->Sort(*column_obj, order);
 	}
 	emit layoutChanged();
@@ -189,7 +189,7 @@ void ItemsModel::sort()
 	sort(sort_column_, sort_order_);
 }
 
-QModelIndex ItemsModel::parent(const QModelIndex &index) const {
+QModelIndex ItemsModel::parent(const QModelIndex& index) const {
 	// bucket
 	if (!index.isValid() || index.internalId() == 0) {
 		return QModelIndex();
@@ -198,7 +198,7 @@ QModelIndex ItemsModel::parent(const QModelIndex &index) const {
 	return createIndex(index.internalId() - 1, 0, static_cast<quintptr>(0));
 }
 
-QModelIndex ItemsModel::index(int row, int column, const QModelIndex &parent) const {
+QModelIndex ItemsModel::index(int row, int column, const QModelIndex& parent) const {
 	if (parent.isValid()) {
 		if (parent.row() >= (signed)search_.buckets().size()) {
 			QLOG_WARN() << "Should not happen: Index request parent contains invalid row";

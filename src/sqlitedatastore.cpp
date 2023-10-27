@@ -28,7 +28,7 @@
 #include "currencymanager.h"
 #include "util.h"
 
-SqliteDataStore::SqliteDataStore(const std::string &filename) :
+SqliteDataStore::SqliteDataStore(const std::string& filename) :
 	filename_(filename)
 {
 	QDir dir(QDir::cleanPath((filename + "/..").c_str()));
@@ -47,7 +47,7 @@ SqliteDataStore::SqliteDataStore(const std::string &filename) :
 	sqlite3_exec(db_, "VACUUM", 0, 0, 0);
 }
 
-void SqliteDataStore::CreateTable(const std::string &name, const std::string &fields) {
+void SqliteDataStore::CreateTable(const std::string& name, const std::string& fields) {
 	std::string query = "CREATE TABLE IF NOT EXISTS " + name + "(" + fields + ")";
 	if (sqlite3_exec(db_, query.c_str(), 0, 0, 0) != SQLITE_OK) {
 		throw std::runtime_error("Failed to execute creation statement for table " + name + ".");
@@ -78,9 +78,9 @@ void SqliteDataStore::CleanItemsTable() {
 
 			blob_info blobI;
 			blobI.len = sqlite3_column_bytes(stmt, 0);
-			blobI.info = (byte*) malloc(blobI.len);
+			blobI.info = (byte*)malloc(blobI.len);
 			memcpy(blobI.info, (byte*)sqlite3_column_blob(stmt, 0), blobI.len);
-			
+
 			locs_byte.push_back(blobI);
 		}
 		sqlite3_finalize(stmt);
@@ -94,7 +94,7 @@ void SqliteDataStore::CleanItemsTable() {
 
 			//check stash tabs
 			doc.Parse(stashTabData.c_str());
-			for (const rapidjson::Value const *tab = doc.Begin(); tab != doc.End(); ++tab) {
+			for (const rapidjson::Value const* tab = doc.Begin(); tab != doc.End(); ++tab) {
 				if (tab->HasMember("id") && (*tab)["id"].IsString()) {
 					std::string tabLoc((*tab)["id"].GetString());
 					if (tabLoc.compare(loc) == 0) {
@@ -138,9 +138,9 @@ void SqliteDataStore::CleanItemsTable() {
 	}
 }
 
-std::string SqliteDataStore::Get(const std::string &key, const std::string &default_value) {
+std::string SqliteDataStore::Get(const std::string& key, const std::string& default_value) {
 	std::string query = "SELECT value FROM data WHERE key = ?";
-	sqlite3_stmt *stmt;
+	sqlite3_stmt* stmt;
 	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
 	sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_STATIC);
 	std::string result(default_value);
@@ -150,11 +150,11 @@ std::string SqliteDataStore::Get(const std::string &key, const std::string &defa
 	return result;
 }
 
-std::string SqliteDataStore::GetTabs(const ItemLocationType &type, const std::string &default_value) {
+std::string SqliteDataStore::GetTabs(const ItemLocationType& type, const std::string& default_value) {
 	std::string query = "SELECT value FROM tabs WHERE type = ?";
-	sqlite3_stmt *stmt;
+	sqlite3_stmt* stmt;
 	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
-	sqlite3_bind_int(stmt, 1, (int) type);
+	sqlite3_bind_int(stmt, 1, (int)type);
 	std::string result(default_value);
 	if (sqlite3_step(stmt) == SQLITE_ROW)
 		result = std::string(static_cast<const char*>(sqlite3_column_blob(stmt, 0)), sqlite3_column_bytes(stmt, 0));
@@ -162,11 +162,11 @@ std::string SqliteDataStore::GetTabs(const ItemLocationType &type, const std::st
 	return result;
 }
 
-std::string SqliteDataStore::GetItems(const ItemLocation &loc, const std::string &default_value) {
+std::string SqliteDataStore::GetItems(const ItemLocation& loc, const std::string& default_value) {
 	std::string query = "SELECT value FROM items WHERE loc = ?";
 	std::string location = loc.get_tab_uniq_id();
 
-	sqlite3_stmt *stmt;
+	sqlite3_stmt* stmt;
 	auto prepareResults = sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, NULL);
 	auto bindResults = sqlite3_bind_text(stmt, 1, location.c_str(), -1, SQLITE_STATIC);
 	std::string result(default_value);
@@ -179,9 +179,9 @@ std::string SqliteDataStore::GetItems(const ItemLocation &loc, const std::string
 	return result;
 }
 
-void SqliteDataStore::Set(const std::string &key, const std::string &value) {
+void SqliteDataStore::Set(const std::string& key, const std::string& value) {
 	std::string query = "INSERT OR REPLACE INTO data (key, value) VALUES (?, ?)";
-	sqlite3_stmt *stmt;
+	sqlite3_stmt* stmt;
 	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
 	sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_STATIC);
 	sqlite3_bind_blob(stmt, 2, value.c_str(), value.size(), SQLITE_STATIC);
@@ -189,22 +189,22 @@ void SqliteDataStore::Set(const std::string &key, const std::string &value) {
 	sqlite3_finalize(stmt);
 }
 
-void SqliteDataStore::SetTabs(const ItemLocationType &type, const std::string &value) {
+void SqliteDataStore::SetTabs(const ItemLocationType& type, const std::string& value) {
 	std::string query = "INSERT OR REPLACE INTO tabs (type, value) VALUES (?, ?)";
-	sqlite3_stmt *stmt;
+	sqlite3_stmt* stmt;
 	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
-	sqlite3_bind_int(stmt, 1, (int) type);
+	sqlite3_bind_int(stmt, 1, (int)type);
 	sqlite3_bind_blob(stmt, 2, value.c_str(), value.size(), SQLITE_STATIC);
 	sqlite3_step(stmt);
 	sqlite3_finalize(stmt);
 }
 
-void SqliteDataStore::SetItems(const ItemLocation &loc, const std::string &value) {
+void SqliteDataStore::SetItems(const ItemLocation& loc, const std::string& value) {
 	if (loc.get_tab_uniq_id().empty())
 		return;
 
 	std::string query = "INSERT OR REPLACE INTO items (loc, value) VALUES (?, ?)";
-	sqlite3_stmt *stmt;
+	sqlite3_stmt* stmt;
 	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
 	sqlite3_bind_text(stmt, 1, loc.get_tab_uniq_id().c_str(), -1, SQLITE_TRANSIENT);
 	sqlite3_bind_blob(stmt, 2, value.c_str(), value.size(), SQLITE_STATIC);
@@ -212,9 +212,9 @@ void SqliteDataStore::SetItems(const ItemLocation &loc, const std::string &value
 	sqlite3_finalize(stmt);
 }
 
-void SqliteDataStore::InsertCurrencyUpdate(const CurrencyUpdate &update) {
+void SqliteDataStore::InsertCurrencyUpdate(const CurrencyUpdate& update) {
 	std::string query = "INSERT INTO currency (timestamp, value) VALUES (?, ?)";
-	sqlite3_stmt *stmt;
+	sqlite3_stmt* stmt;
 	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
 	sqlite3_bind_int64(stmt, 1, update.timestamp);
 	sqlite3_bind_text(stmt, 2, update.value.c_str(), -1, SQLITE_STATIC);
@@ -237,19 +237,19 @@ std::vector<CurrencyUpdate> SqliteDataStore::GetAllCurrency() {
 	return result;
 }
 
-void SqliteDataStore::SetBool(const std::string &key, bool value) {
+void SqliteDataStore::SetBool(const std::string& key, bool value) {
 	SetInt(key, static_cast<int>(value));
 }
 
-bool SqliteDataStore::GetBool(const std::string &key, bool default_value) {
+bool SqliteDataStore::GetBool(const std::string& key, bool default_value) {
 	return static_cast<bool>(GetInt(key, static_cast<int>(default_value)));
 }
 
-void SqliteDataStore::SetInt(const std::string &key, int value) {
+void SqliteDataStore::SetInt(const std::string& key, int value) {
 	Set(key, std::to_string(value));
 }
 
-int SqliteDataStore::GetInt(const std::string &key, int default_value) {
+int SqliteDataStore::GetInt(const std::string& key, int default_value) {
 	return std::stoi(Get(key, std::to_string(default_value)));
 }
 
@@ -257,7 +257,7 @@ SqliteDataStore::~SqliteDataStore() {
 	sqlite3_close(db_);
 }
 
-std::string SqliteDataStore::MakeFilename(const std::string &name, const std::string &league) {
+std::string SqliteDataStore::MakeFilename(const std::string& name, const std::string& league) {
 	std::string key = name + "|" + league;
 	return QString(QCryptographicHash::hash(key.c_str(), QCryptographicHash::Md5).toHex()).toStdString();
 }

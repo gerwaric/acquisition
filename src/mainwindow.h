@@ -52,7 +52,7 @@ class QStringListModel;
 struct Buyout;
 
 namespace Ui {
-class MainWindow;
+	class MainWindow;
 }
 
 enum class TreeState {
@@ -84,13 +84,13 @@ public:
 	~MainWindow();
 	std::vector<Column*> columns;
 public slots:
-	void OnTreeChange(const QModelIndex &index, const QModelIndex &prev);
+	void OnTreeChange(const QModelIndex& index, const QModelIndex& prev);
 	void OnSearchFormChange();
 	void OnDelayedSearchFormChange();
 	void OnTabChange(int index);
-	void OnImageFetched(QNetworkReply *reply);
+	void OnImageFetched(QNetworkReply* reply);
 	void OnItemsRefreshed();
-	void OnStatusUpdate(const CurrentStatusUpdate &status);
+	void OnStatusUpdate(const CurrentStatusUpdate& status);
 	void OnBuyoutChange();
 	void ResizeTreeColumns();
 	void OnExpandAll();
@@ -130,49 +130,49 @@ private:
 	void UpdateCurrentItem();
 	void UpdateCurrentBuyout();
 	void NewSearch();
-	void SetCurrentSearch(Search *search);
+	void SetCurrentSearch(Search* search);
 	void InitializeRateLimitPanel();
 	void InitializeLogging();
 	void InitializeSearchForm();
 	void InitializeUi();
-	void AddSearchGroup(QLayout *layout, const std::string &name);
-	bool eventFilter(QObject *o, QEvent *e);
+	void AddSearchGroup(QLayout* layout, const std::string& name);
+	bool eventFilter(QObject* o, QEvent* e);
 	void UpdateShopMenu();
-	void UpdateBuyoutWidgets(const Buyout &bo);
+	void UpdateBuyoutWidgets(const Buyout& bo);
 	void ExpandCollapse(TreeState state);
 	void UpdateOnlineGui();
-	void closeEvent(QCloseEvent *event);
+	void closeEvent(QCloseEvent* event);
 	void CheckSelected(bool value);
 
 	std::unique_ptr<Application> app_;
-	Ui::MainWindow *ui;
+	Ui::MainWindow* ui;
 	std::shared_ptr<Item> current_item_;
 	Bucket current_bucket_;
 	std::vector<Search*> searches_;
-	Search *current_search_;
-	Search *previous_search_{nullptr};
-	QTabBar *tab_bar_;
+	Search* current_search_;
+	Search* previous_search_{ nullptr };
+	QTabBar* tab_bar_;
 	std::vector<std::unique_ptr<Filter>> filters_;
 	int search_count_;
-	QNetworkAccessManager *image_network_manager_;
-	ImageCache *image_cache_;
-	QLabel *status_bar_label_;
-	QVBoxLayout *search_form_layout_;
+	QNetworkAccessManager* image_network_manager_;
+	ImageCache* image_cache_;
+	QLabel* status_bar_label_;
+	QVBoxLayout* search_form_layout_;
 	QMenu context_menu_;
 	UpdateChecker update_checker_;
 	QPushButton update_button_;
 	QPushButton refresh_button_;
 	AutoOnline auto_online_;
 	QLabel online_label_;
-	QNetworkAccessManager *network_manager_;
+	QNetworkAccessManager* network_manager_;
 	QTimer delayed_update_current_item_;
 	QTimer delayed_search_form_change_;
-	QStringListModel *category_string_model_;
-	QStringListModel *rarity_search_model_;
+	QStringListModel* category_string_model_;
+	QStringListModel* rarity_search_model_;
 
 	int rightClickedTabIndex = -1;
 
 #ifdef Q_OS_WIN32
-	QWinTaskbarButton *taskbar_button_;
+	QWinTaskbarButton* taskbar_button_;
 #endif
 };

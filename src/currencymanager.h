@@ -59,15 +59,15 @@ struct CurrencyItem {
 
 };
 struct CurrencyLabels {
-	QLabel *name;
-	QLabel *count;
-	QLabel *chaos_ratio;
-	QLabel *chaos_value;
-	QLabel *exalt_ratio;
-	QLabel *exalt_value;
-	QLabel *exalt_total;
-	QLabel *chaos_total;
-	QLabel *wisdom_total;
+	QLabel* name;
+	QLabel* count;
+	QLabel* chaos_ratio;
+	QLabel* chaos_value;
+	QLabel* exalt_ratio;
+	QLabel* exalt_value;
+	QLabel* exalt_total;
+	QLabel* chaos_total;
+	QLabel* wisdom_total;
 	CurrencyLabels() {
 		name = new QLabel("Name");
 		count = new QLabel("Count");
@@ -88,16 +88,16 @@ class CurrencyWidget : public QWidget
 public slots:
 	void Update();
 	void UpdateVisual(bool show_chaos, bool show_exalt);
-	bool IsNone() const { return currency_->currency.type==CURRENCY_NONE;}
+	bool IsNone() const { return currency_->currency.type == CURRENCY_NONE; }
 public:
 	CurrencyWidget(std::shared_ptr<CurrencyItem> currency);
 	//Visual stuff
-	QLabel *name;
-	QLabel *count;
-	QDoubleSpinBox *chaos_ratio;
-	QDoubleSpinBox *chaos_value;
-	QDoubleSpinBox *exalt_ratio;
-	QDoubleSpinBox *exalt_value;
+	QLabel* name;
+	QLabel* count;
+	QDoubleSpinBox* chaos_ratio;
+	QDoubleSpinBox* chaos_value;
+	QDoubleSpinBox* exalt_ratio;
+	QDoubleSpinBox* exalt_value;
 
 private:
 	//Data
@@ -117,7 +117,7 @@ const std::vector<std::string> CurrencyForWisdom({
 													 "Armourer's Scrap",
 													 "Blacksmith's Whetstone",
 													 "Orb of Transmutation"
-												 });
+	});
 
 const std::vector<int> CurrencyWisdomValue({
 											   1,
@@ -125,7 +125,7 @@ const std::vector<int> CurrencyWisdomValue({
 											   2,
 											   4,
 											   4
-										   });
+	});
 
 class CurrencyManager;
 
@@ -133,9 +133,9 @@ class CurrencyDialog : public QDialog
 {
 	Q_OBJECT
 public:
-	CurrencyDialog(CurrencyManager &manager, bool show_chaos, bool show_exalt);
-	bool ShowChaos() const { return show_chaos_->isChecked();}
-	bool ShowExalt() const { return show_exalt_->isChecked();}
+	CurrencyDialog(CurrencyManager& manager, bool show_chaos, bool show_exalt);
+	bool ShowChaos() const { return show_chaos_->isChecked(); }
+	bool ShowExalt() const { return show_exalt_->isChecked(); }
 
 public slots:
 	void Update();
@@ -143,16 +143,16 @@ public slots:
 	void UpdateVisibility(bool show_chaos, bool show_exalt);
 	void UpdateTotalValue();
 private:
-	CurrencyManager &currency_manager_;
+	CurrencyManager& currency_manager_;
 	std::vector<CurrencyWidget*> currencies_widgets_;
-	CurrencyLabels *headers_;
-	QVBoxLayout *layout_;
-	QLabel *total_exalt_value_;
-	QLabel *total_chaos_value_;
-	QLabel *total_wisdom_value_;
-	QCheckBox *show_chaos_;
-	QCheckBox *show_exalt_;
-	QFrame *separator_;
+	CurrencyLabels* headers_;
+	QVBoxLayout* layout_;
+	QLabel* total_exalt_value_;
+	QLabel* total_chaos_value_;
+	QLabel* total_wisdom_value_;
+	QCheckBox* show_chaos_;
+	QCheckBox* show_exalt_;
+	QFrame* separator_;
 	QVBoxLayout* GenerateLayout(bool show_chaos, bool show_exalt);
 	void UpdateTotalWisdomValue();
 };
@@ -162,13 +162,13 @@ class CurrencyManager : public QWidget
 {
 	Q_OBJECT
 public:
-	explicit CurrencyManager(Application &app);
+	explicit CurrencyManager(Application& app);
 	~CurrencyManager();
 	void ClearCurrency();
 	// Called in itemmanagerworker::ParseItem
-	void ParseSingleItem(const Item &item);
+	void ParseSingleItem(const Item& item);
 	//void UpdateBaseValue(int ind, double value);
-	const std::vector<std::shared_ptr<CurrencyItem>> &currencies() const { return currencies_;}
+	const std::vector<std::shared_ptr<CurrencyItem>>& currencies() const { return currencies_; }
 	double TotalExaltedValue();
 	double TotalChaosValue();
 	int TotalWisdomValue();
@@ -178,8 +178,8 @@ public:
 	void ExportCurrency();
 
 private:
-	Application &app_;
-	DataStore &data_;
+	Application& app_;
+	DataStore& data_;
 	std::vector<std::shared_ptr<CurrencyItem>> currencies_;
 	// We only need the "count" of a CurrencyItem so int will be enough
 	std::vector<int> wisdoms_;
@@ -190,8 +190,8 @@ private:
 	void MigrateCurrency();
 	void InitCurrency();
 	void SaveCurrencyItems();
-	std::string Serialize(const std::vector<std::shared_ptr<CurrencyItem>> &currencies);
-	void Deserialize(const std::string &data, std::vector<std::shared_ptr<CurrencyItem>> *currencies);
+	std::string Serialize(const std::vector<std::shared_ptr<CurrencyItem>>& currencies);
+	void Deserialize(const std::string& data, std::vector<std::shared_ptr<CurrencyItem>>* currencies);
 	void Save();
 public slots:
 	void SaveCurrencyValue();

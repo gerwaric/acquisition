@@ -30,25 +30,25 @@ class Search;
 class ItemsModel : public QAbstractItemModel {
 	Q_OBJECT
 public:
-	ItemsModel(BuyoutManager &bo_manager, const Search &search);
-	int rowCount(const QModelIndex &parent = QModelIndex()) const;
-	int columnCount(const QModelIndex &parent = QModelIndex()) const;
-	QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const;
-	QModelIndex parent(const QModelIndex &index) const;
-	QModelIndex index(int row, int column = 0, const QModelIndex &parent = QModelIndex()) const;
+	ItemsModel(BuyoutManager& bo_manager, const Search& search);
+	int rowCount(const QModelIndex& parent = QModelIndex()) const;
+	int columnCount(const QModelIndex& parent = QModelIndex()) const;
+	QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const;
+	QModelIndex parent(const QModelIndex& index) const;
+	QModelIndex index(int row, int column = 0, const QModelIndex& parent = QModelIndex()) const;
 	QVariant headerData(int section, Qt::Orientation orientation, int role) const;
-	Qt::ItemFlags flags(const QModelIndex &index) const;
-	bool setData(const QModelIndex &index, const QVariant &value, int role = Qt::EditRole);
+	Qt::ItemFlags flags(const QModelIndex& index) const;
+	bool setData(const QModelIndex& index, const QVariant& value, int role = Qt::EditRole);
 	void sort(int column, Qt::SortOrder order);
 	void sort();
-	Qt::SortOrder GetSortOrder() { return sort_order_;};
-	int GetSortColumn() { return sort_column_;};
+	Qt::SortOrder GetSortOrder() { return sort_order_; };
+	int GetSortColumn() { return sort_column_; };
 	void SetSorted(bool val) { sorted_ = val; };
 
 private:
-	BuyoutManager &bo_manager_;
-	const Search &search_;
-	Qt::SortOrder sort_order_{Qt::DescendingOrder};
-	int sort_column_{0};
-	bool sorted_{false};
+	BuyoutManager& bo_manager_;
+	const Search& search_;
+	Qt::SortOrder sort_order_{ Qt::DescendingOrder };
+	int sort_column_{ 0 };
+	bool sorted_{ false };
 };

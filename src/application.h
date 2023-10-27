@@ -56,16 +56,16 @@ public:
 	Application(const Application&) = delete;
 	Application& operator=(const Application&) = delete;
 	// Should be called by login dialog after login
-	void InitLogin(std::unique_ptr<QNetworkAccessManager> login_manager, const std::string &league, const std::string &email, bool mock_data = false);
-	const std::string &league() const { return league_; }
-	const std::string &email() const { return email_; }
-	ItemsManager &items_manager() { return *items_manager_; }
-	DataStore &data() const { return *data_; }
-	DataStore &sensitive_data() const { return *sensitive_data_; }
-	BuyoutManager &buyout_manager() const { return *buyout_manager_; }
-	QNetworkAccessManager &logged_in_nm() const { return *logged_in_nm_; }
-	Shop &shop() const { return *shop_; }
-	CurrencyManager &currency_manager() const { return *currency_manager_; }
+	void InitLogin(std::unique_ptr<QNetworkAccessManager> login_manager, const std::string& league, const std::string& email, bool mock_data = false);
+	const std::string& league() const { return league_; }
+	const std::string& email() const { return email_; }
+	ItemsManager& items_manager() { return *items_manager_; }
+	DataStore& data() const { return *data_; }
+	DataStore& sensitive_data() const { return *sensitive_data_; }
+	BuyoutManager& buyout_manager() const { return *buyout_manager_; }
+	QNetworkAccessManager& logged_in_nm() const { return *logged_in_nm_; }
+	Shop& shop() const { return *shop_; }
+	CurrencyManager& currency_manager() const { return *currency_manager_; }
 	RateLimiter& rate_limiter() const { return *rate_limiter_; }
 public slots:
 	void OnItemsRefreshed(bool initial_refresh);

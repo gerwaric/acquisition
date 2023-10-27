@@ -95,17 +95,17 @@ static std::vector<std::string> kPoEColors = {
 	"#d02090"
 };
 
-static std::string ColorPropertyValue(const ItemPropertyValue &value) {
+static std::string ColorPropertyValue(const ItemPropertyValue& value) {
 	size_t type = value.type;
 	if (type >= kPoEColors.size())
 		type = 0;
 	return "<font color='" + kPoEColors[type] + "'>" + value.str + "</font>";
 }
 
-static std::string FormatProperty(const ItemProperty &prop) {
+static std::string FormatProperty(const ItemProperty& prop) {
 	if (prop.display_mode == 3) {
 		QString format(prop.name.c_str());
-		for (auto &value : prop.values)
+		for (auto& value : prop.values)
 			format = format.arg(ColorPropertyValue(value).c_str());
 		return format.toStdString();
 	}
@@ -114,7 +114,7 @@ static std::string FormatProperty(const ItemProperty &prop) {
 		if (prop.name.size() > 0)
 			text += ": ";
 		bool first = true;
-		for (auto &value : prop.values) {
+		for (auto& value : prop.values) {
 			if (!first)
 				text += ", ";
 			first = false;
@@ -124,10 +124,10 @@ static std::string FormatProperty(const ItemProperty &prop) {
 	return text;
 }
 
-static std::string GenerateProperties(const Item &item) {
+static std::string GenerateProperties(const Item& item) {
 	std::string text;
 	bool first = true;
-	for (auto &property : item.text_properties()) {
+	for (auto& property : item.text_properties()) {
 		if (!first)
 			text += "<br>";
 		first = false;
@@ -137,13 +137,13 @@ static std::string GenerateProperties(const Item &item) {
 	return text;
 }
 
-static std::string GenerateRequirements(const Item &item) {
+static std::string GenerateRequirements(const Item& item) {
 	std::string text;
 	bool first = true;
 	// Talisman level is not really a requirement but it lives in the requirements section
 	if (item.talisman_tier())
 		text += "Talisman Tier: " + std::to_string(item.talisman_tier()) + "<br>";
-	for (auto &requirement : item.text_requirements()) {
+	for (auto& requirement : item.text_requirements()) {
 		text += first ? "Requires " : ", ";
 		first = false;
 		text += requirement.name + " " + ColorPropertyValue(requirement.value);
@@ -151,10 +151,10 @@ static std::string GenerateRequirements(const Item &item) {
 	return text;
 }
 
-static std::string ModListAsString(const ItemMods &list) {
+static std::string ModListAsString(const ItemMods& list) {
 	std::string mods;
 	bool first = true;
-	for (auto &mod : list) {
+	for (auto& mod : list) {
 		mods += (first ? "" : "<br>") + mod;
 		first = false;
 	}
@@ -163,10 +163,10 @@ static std::string ModListAsString(const ItemMods &list) {
 	return ColorPropertyValue(ItemPropertyValue{ mods, 1 });
 }
 
-static std::vector<std::string> GenerateMods(const Item &item) {
+static std::vector<std::string> GenerateMods(const Item& item) {
 	std::vector<std::string> out;
-	auto &mods = item.text_mods();
-	for (auto &mod_type : ITEM_MOD_TYPES) {
+	auto& mods = item.text_mods();
+	for (auto& mod_type : ITEM_MOD_TYPES) {
 		std::string mod_list = ModListAsString(mods.at(mod_type));
 		if (!mod_list.empty())
 			out.push_back(mod_list);
@@ -174,7 +174,7 @@ static std::vector<std::string> GenerateMods(const Item &item) {
 	return out;
 }
 
-static std::string GenerateItemInfo(const Item &item, const std::string &key, bool fancy) {
+static std::string GenerateItemInfo(const Item& item, const std::string& key, bool fancy) {
 	std::vector<std::string> sections;
 
 	std::string properties_text = GenerateProperties(item);
@@ -198,7 +198,7 @@ static std::string GenerateItemInfo(const Item &item, const std::string &key, bo
 
 	std::string text;
 	bool first = true;
-	for (auto &s : sections) {
+	for (auto& s : sections) {
 		if (!first) {
 			text += "<br>";
 			if (fancy)
@@ -232,14 +232,14 @@ static std::vector<std::string> FrameToColor = {
 	"#aa9e82"
 };
 
-static void UpdateMinimap(const Item &item, Ui::MainWindow *ui) {
+static void UpdateMinimap(const Item& item, Ui::MainWindow* ui) {
 	QPixmap pixmap(MINIMAP_SIZE, MINIMAP_SIZE);
 	pixmap.fill(QColor("transparent"));
 
 	QPainter painter(&pixmap);
 	painter.setBrush(QBrush(QColor(0x0c, 0x0b, 0x0b)));
 	painter.drawRect(0, 0, MINIMAP_SIZE, MINIMAP_SIZE);
-	const ItemLocation &location = item.location();
+	const ItemLocation& location = item.location();
 	painter.setBrush(QBrush(location.socketed() ? Qt::blue : Qt::red));
 	QRectF rect = location.GetRect();
 	painter.drawRect(rect);
@@ -247,7 +247,7 @@ static void UpdateMinimap(const Item &item, Ui::MainWindow *ui) {
 	ui->minimapLabel->setPixmap(pixmap);
 }
 
-void GenerateItemHeaderSide(QLabel *itemHeader, bool leftNotRight, std::string header_path_prefix, bool singleline, Item::INFLUENCE_TYPES base) {
+void GenerateItemHeaderSide(QLabel* itemHeader, bool leftNotRight, std::string header_path_prefix, bool singleline, Item::INFLUENCE_TYPES base) {
 	QImage header(QString::fromStdString(header_path_prefix + (leftNotRight ? "Left.png" : "Right.png")));
 	QSize header_size = singleline ? HEADER_SINGLELINE_SIZE : HEADER_DOUBLELINE_SIZE;
 	header = header.scaled(header_size);
@@ -260,44 +260,44 @@ void GenerateItemHeaderSide(QLabel *itemHeader, bool leftNotRight, std::string h
 	QImage overlay_image;
 
 	if (base != Item::NONE) {
-		switch (base){
-			case Item::ELDER:
-				overlay_image = elder_icon;
-				break;
-			case Item::SHAPER:
-				overlay_image = shaper_icon;
-				break;
-			case Item::HUNTER:
-				overlay_image = hunter_icon;
-				break;
-			case Item::WARLORD:
-				overlay_image = warlord_icon;
-				break;
-			case Item::CRUSADER:
-				overlay_image = crusader_icon;
-				break;
-			case Item::REDEEMER:
-				overlay_image = redeemer_icon;
-				break;
-			case Item::SYNTHESISED:
-				overlay_image = synthesised_icon;
-				break;
-			case Item::FRACTURED:
-				overlay_image = fractured_icon;
-				break;
-			case Item::SEARING_EXARCH:
-				overlay_image = searing_exarch_icon;
-				break;
-			case Item::EATER_OF_WORLDS:
-				overlay_image = eater_of_worlds_icon;
-				break;
-			case Item::NONE:
-				break;
+		switch (base) {
+		case Item::ELDER:
+			overlay_image = elder_icon;
+			break;
+		case Item::SHAPER:
+			overlay_image = shaper_icon;
+			break;
+		case Item::HUNTER:
+			overlay_image = hunter_icon;
+			break;
+		case Item::WARLORD:
+			overlay_image = warlord_icon;
+			break;
+		case Item::CRUSADER:
+			overlay_image = crusader_icon;
+			break;
+		case Item::REDEEMER:
+			overlay_image = redeemer_icon;
+			break;
+		case Item::SYNTHESISED:
+			overlay_image = synthesised_icon;
+			break;
+		case Item::FRACTURED:
+			overlay_image = fractured_icon;
+			break;
+		case Item::SEARING_EXARCH:
+			overlay_image = searing_exarch_icon;
+			break;
+		case Item::EATER_OF_WORLDS:
+			overlay_image = eater_of_worlds_icon;
+			break;
+		case Item::NONE:
+			break;
 		}
 
 		overlay_image = overlay_image.scaled(HEADER_OVERLAY_SIZE);
-		int overlay_x = singleline ? (leftNotRight ? 2: 1) : (leftNotRight ? 2: 15);
-		int overlay_y = (int) ( 0.5 * (header.height() - overlay_image.height()) );
+		int overlay_x = singleline ? (leftNotRight ? 2 : 1) : (leftNotRight ? 2 : 15);
+		int overlay_y = (int)(0.5 * (header.height() - overlay_image.height()));
 		header_painter.drawImage(overlay_x, overlay_y, overlay_image);
 	}
 
@@ -305,7 +305,7 @@ void GenerateItemHeaderSide(QLabel *itemHeader, bool leftNotRight, std::string h
 	itemHeader->setPixmap(header_pixmap);
 }
 
-void UpdateItemTooltip(const Item &item, Ui::MainWindow *ui) {
+void UpdateItemTooltip(const Item& item, Ui::MainWindow* ui) {
 	size_t frame = item.frameType();
 	if (frame >= FrameToKey.size())
 		frame = 0;
@@ -342,7 +342,7 @@ void UpdateItemTooltip(const Item &item, Ui::MainWindow *ui) {
 	ui->itemNameSecondLine->setStyleSheet(css.c_str());
 }
 
-QPixmap GenerateItemSockets(const int width, const int height, const std::vector<ItemSocket> &sockets) {
+QPixmap GenerateItemSockets(const int width, const int height, const std::vector<ItemSocket>& sockets) {
 	QPixmap pixmap(width * PIXELS_PER_SLOT, height * PIXELS_PER_SLOT);  // This will ensure we have enough room to draw the slots
 	pixmap.fill(Qt::transparent);
 	QPainter painter(&pixmap);
@@ -355,13 +355,13 @@ QPixmap GenerateItemSockets(const int width, const int height, const std::vector
 	if (sockets.size() == 0) {
 		// Do nothing
 	} else if (sockets.size() == 1) {
-		auto &socket = sockets.front();
+		auto& socket = sockets.front();
 		QImage socket_image(":/sockets/" + QString(socket.attr) + ".png");
 		painter.drawImage(0, PIXELS_PER_SLOT * i, socket_image);
 		socket_rows = 1;
 		socket_columns = 1;
 	} else {
-		for (auto &socket : sockets) {
+		for (auto& socket : sockets) {
 			bool link = socket.group == prev.group;
 			QImage socket_image(":/sockets/" + QString(socket.attr) + ".png");
 			if (width == 1) {
@@ -379,34 +379,34 @@ QPixmap GenerateItemSockets(const int width, const int height, const std::vector
 				socket_rows = qMax(row + 1, socket_rows);
 				painter.drawImage(PIXELS_PER_SLOT * column, PIXELS_PER_SLOT * row, socket_image);
 				if (link) {
-					switch(i){
-						case 1:
-						case 3:
-						case 5:
-							// horizontal link
-							painter.drawImage(
-								PIXELS_PER_SLOT - LINKH_WIDTH / 2,
-								row * PIXELS_PER_SLOT + PIXELS_PER_SLOT / 2 - LINKH_HEIGHT / 2,
-								link_h
-							);
-							break;
-						case 2:
-							painter.drawImage(
-								PIXELS_PER_SLOT * 1.5 - LINKV_WIDTH / 2,
-								row * PIXELS_PER_SLOT - LINKV_HEIGHT / 2,
-								link_v
-							);
-							break;
-						case 4:
-							painter.drawImage(
-								PIXELS_PER_SLOT / 2 - LINKV_WIDTH / 2,
-								row * PIXELS_PER_SLOT - LINKV_HEIGHT / 2,
-								link_v
-							);
-							break;
-						default:
-							QLOG_ERROR() << "No idea how to draw link for socket " << i;
-							break;
+					switch (i) {
+					case 1:
+					case 3:
+					case 5:
+						// horizontal link
+						painter.drawImage(
+							PIXELS_PER_SLOT - LINKH_WIDTH / 2,
+							row * PIXELS_PER_SLOT + PIXELS_PER_SLOT / 2 - LINKH_HEIGHT / 2,
+							link_h
+						);
+						break;
+					case 2:
+						painter.drawImage(
+							PIXELS_PER_SLOT * 1.5 - LINKV_WIDTH / 2,
+							row * PIXELS_PER_SLOT - LINKV_HEIGHT / 2,
+							link_v
+						);
+						break;
+					case 4:
+						painter.drawImage(
+							PIXELS_PER_SLOT / 2 - LINKV_WIDTH / 2,
+							row * PIXELS_PER_SLOT - LINKV_HEIGHT / 2,
+							link_v
+						);
+						break;
+					default:
+						QLOG_ERROR() << "No idea how to draw link for socket " << i;
+						break;
 					}
 				}
 			}
@@ -417,10 +417,10 @@ QPixmap GenerateItemSockets(const int width, const int height, const std::vector
 	}
 
 	return pixmap.copy(0, 0, PIXELS_PER_SLOT * socket_columns,
-											PIXELS_PER_SLOT * socket_rows);
+		PIXELS_PER_SLOT * socket_rows);
 }
 
-QPixmap GenerateItemIcon(const Item &item, const QImage &image) {
+QPixmap GenerateItemIcon(const Item& item, const QImage& image) {
 	const int height = item.h();
 	const int width = item.w();
 
@@ -428,42 +428,42 @@ QPixmap GenerateItemIcon(const Item &item, const QImage &image) {
 	layered.fill(Qt::transparent);
 	QPainter layered_painter(&layered);
 
-	if (item.hasInfluence(Item::SHAPER) || item.hasInfluence(Item::ELDER)){
+	if (item.hasInfluence(Item::SHAPER) || item.hasInfluence(Item::ELDER)) {
 		// Assumes width <= 2
-		const QImage *background_image = nullptr;
+		const QImage* background_image = nullptr;
 		if (item.hasInfluence(Item::ELDER)) {
-			switch(height) {
-				case 1:
-					background_image = width == 1 ? &shaper_1x1 : &shaper_2x1;
-					break;
-				case 2:
-					background_image = width == 1 ? nullptr : &shaper_2x2;
-					break;
-				case 3:
-					background_image = width == 1 ? &shaper_1x3 : &shaper_2x3;
-					break;
-				case 4:
-					background_image = width == 1 ? &shaper_1x4 : &shaper_2x4;
-					break;
-				default:
-					break;
+			switch (height) {
+			case 1:
+				background_image = width == 1 ? &shaper_1x1 : &shaper_2x1;
+				break;
+			case 2:
+				background_image = width == 1 ? nullptr : &shaper_2x2;
+				break;
+			case 3:
+				background_image = width == 1 ? &shaper_1x3 : &shaper_2x3;
+				break;
+			case 4:
+				background_image = width == 1 ? &shaper_1x4 : &shaper_2x4;
+				break;
+			default:
+				break;
 			}
 		} else {    // Elder
-			switch(height) {
-				case 1:
-					background_image = width == 1 ? &elder_1x1 : &elder_2x1;
-					break;
-				case 2:
-					background_image = width == 1 ? nullptr : &elder_2x2;
-					break;
-				case 3:
-					background_image = width == 1 ? &elder_1x3 : &elder_2x3;
-					break;
-				case 4:
-					background_image = width == 1 ? &elder_1x4 : &elder_2x4;
-					break;
-				default:
-					break;
+			switch (height) {
+			case 1:
+				background_image = width == 1 ? &elder_1x1 : &elder_2x1;
+				break;
+			case 2:
+				background_image = width == 1 ? nullptr : &elder_2x2;
+				break;
+			case 3:
+				background_image = width == 1 ? &elder_1x3 : &elder_2x3;
+				break;
+			case 4:
+				background_image = width == 1 ? &elder_1x4 : &elder_2x4;
+				break;
+			default:
+				break;
 			}
 		}
 		if (background_image) {
@@ -478,8 +478,8 @@ QPixmap GenerateItemIcon(const Item &item, const QImage &image) {
 	if (item.text_sockets().size() > 0) {
 		QPixmap sockets = GenerateItemSockets(width, height, item.text_sockets());
 
-		layered_painter.drawPixmap((int)(0.5*(image.width() - sockets.width())),
-					   (int)(0.5*(image.height() - sockets.height())), sockets);    // Center sockets on overall image
+		layered_painter.drawPixmap((int)(0.5 * (image.width() - sockets.width())),
+			(int)(0.5 * (image.height() - sockets.height())), sockets);    // Center sockets on overall image
 	}
 
 	return layered;

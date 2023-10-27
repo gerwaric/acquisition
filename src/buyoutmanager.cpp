@@ -195,14 +195,14 @@ const std::map<std::string, Currency> BuyoutManager::string_to_currency_type_ = 
 	{"silver", CURRENCY_SILVER_COIN},
 };
 
-BuyoutManager::BuyoutManager(DataStore &data) :
+BuyoutManager::BuyoutManager(DataStore& data) :
 	data_(data),
 	save_needed_(false)
 {
 	Load();
 }
 
-void BuyoutManager::Set(const Item &item, const Buyout &buyout) {
+void BuyoutManager::Set(const Item& item, const Buyout& buyout) {
 	auto it = buyouts_.lower_bound(item.hash());
 	if (it != buyouts_.end() && !(buyouts_.key_comp()(item.hash(), it->first))) {
 		// Entry exists - we don't want to update if buyout is equal to existing
@@ -212,11 +212,11 @@ void BuyoutManager::Set(const Item &item, const Buyout &buyout) {
 		}
 	} else {
 		save_needed_ = true;
-		buyouts_.insert(it, {item.hash(), buyout});
+		buyouts_.insert(it, { item.hash(), buyout });
 	}
 }
 
-Buyout BuyoutManager::Get(const Item &item) const {
+Buyout BuyoutManager::Get(const Item& item) const {
 	auto const it = buyouts_.find(item.hash());
 	if (it != buyouts_.end()) {
 		return it->second;
@@ -224,7 +224,7 @@ Buyout BuyoutManager::Get(const Item &item) const {
 	return Buyout();
 }
 
-Buyout BuyoutManager::GetTab(const std::string &tab) const {
+Buyout BuyoutManager::GetTab(const std::string& tab) const {
 	auto const it = tab_buyouts_.find(tab);
 	if (it != tab_buyouts_.end()) {
 		return it->second;
@@ -232,7 +232,7 @@ Buyout BuyoutManager::GetTab(const std::string &tab) const {
 	return Buyout();
 }
 
-void BuyoutManager::SetTab(const std::string &tab, const Buyout &buyout) {
+void BuyoutManager::SetTab(const std::string& tab, const Buyout& buyout) {
 	auto it = tab_buyouts_.lower_bound(tab);
 	if (it != tab_buyouts_.end() && !(tab_buyouts_.key_comp()(tab, it->first))) {
 		// Entry exists - we don't want to update if buyout is equal to existing
@@ -242,7 +242,7 @@ void BuyoutManager::SetTab(const std::string &tab, const Buyout &buyout) {
 		}
 	} else {
 		save_needed_ = true;
-		tab_buyouts_.insert(it, {tab, buyout});
+		tab_buyouts_.insert(it, { tab, buyout });
 	}
 }
 
@@ -251,7 +251,7 @@ void BuyoutManager::CompressTabBuyouts() {
 	// This function is to remove buyouts associated with tab names that don't
 	// currently exist.
 	std::set<std::string> tmp;
-	for (auto const& loc: tabs_)
+	for (auto const& loc : tabs_)
 		tmp.insert(loc.GetUniqueHash());
 
 	for (auto it = tab_buyouts_.begin(), ite = tab_buyouts_.end(); it != ite;) {
@@ -264,13 +264,13 @@ void BuyoutManager::CompressTabBuyouts() {
 	}
 }
 
-void BuyoutManager::CompressItemBuyouts(const Items &items) {
+void BuyoutManager::CompressItemBuyouts(const Items& items) {
 	// When items are moved between tabs or deleted their buyouts entries remain
 	// This function looks at buyouts and makes sure there is an associated item
 	// that exists
 	std::set<std::string> tmp;
-	for (auto const &item_sp: items) {
-		const Item & item= *item_sp;
+	for (auto const& item_sp : items) {
+		const Item& item = *item_sp;
 		tmp.insert(item.hash());
 	}
 
@@ -284,22 +284,22 @@ void BuyoutManager::CompressItemBuyouts(const Items &items) {
 	}
 }
 
-void BuyoutManager::SetRefreshChecked(const ItemLocation &loc, bool value) {
+void BuyoutManager::SetRefreshChecked(const ItemLocation& loc, bool value) {
 	save_needed_ = true;
 	refresh_checked_[loc.GetUniqueHash()] = value;
 }
 
-bool BuyoutManager::GetRefreshChecked(const ItemLocation &loc) const {
+bool BuyoutManager::GetRefreshChecked(const ItemLocation& loc) const {
 	auto it = refresh_checked_.find(loc.GetUniqueHash());
 	bool refresh_checked = (it != refresh_checked_.end()) ? it->second : true;
 	return (refresh_checked || GetRefreshLocked(loc));
 }
 
-bool BuyoutManager::GetRefreshLocked(const ItemLocation &loc) const {
+bool BuyoutManager::GetRefreshLocked(const ItemLocation& loc) const {
 	return refresh_locked_.count(loc.GetUniqueHash());
 }
 
-void BuyoutManager::SetRefreshLocked(const ItemLocation &loc) {
+void BuyoutManager::SetRefreshLocked(const ItemLocation& loc) {
 	refresh_locked_.insert(loc.GetUniqueHash());
 }
 
@@ -316,21 +316,21 @@ void BuyoutManager::Clear() {
 	tabs_.clear();
 }
 
-std::string BuyoutManager::Serialize(const std::map<std::string, Buyout> &buyouts) {
+std::string BuyoutManager::Serialize(const std::map<std::string, Buyout>& buyouts) {
 	rapidjson::Document doc;
 	doc.SetObject();
-	auto &alloc = doc.GetAllocator();
+	auto& alloc = doc.GetAllocator();
 
-	for (auto &bo : buyouts) {
-		const Buyout &buyout = bo.second;
+	for (auto& bo : buyouts) {
+		const Buyout& buyout = bo.second;
 		if (!buyout.IsSavable())
 			continue;
 		rapidjson::Value item(rapidjson::kObjectType);
 		item.AddMember("value", buyout.value, alloc);
 
-		if (!buyout.last_update.isNull()){
+		if (!buyout.last_update.isNull()) {
 			item.AddMember("last_update", buyout.last_update.toTime_t(), alloc);
-		}else{
+		} else {
 			// If last_update is null, set as the actual time
 			item.AddMember("last_update", QDateTime::currentDateTime().toTime_t(), alloc);
 		}
@@ -348,7 +348,7 @@ std::string BuyoutManager::Serialize(const std::map<std::string, Buyout> &buyout
 	return Util::RapidjsonSerialize(doc);
 }
 
-void BuyoutManager::Deserialize(const std::string &data, std::map<std::string, Buyout> *buyouts) {
+void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, Buyout>* buyouts) {
 	buyouts->clear();
 
 	// if data is empty (on first use) we shouldn't make user panic by showing ERROR messages
@@ -364,17 +364,17 @@ void BuyoutManager::Deserialize(const std::string &data, std::map<std::string, B
 	if (!doc.IsObject())
 		return;
 	for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
-		auto &object = itr->value;
-		const std::string &name = itr->name.GetString();
+		auto& object = itr->value;
+		const std::string& name = itr->name.GetString();
 		Buyout bo;
 
 		bo.currency = Currency::FromTag(object["currency"].GetString());
 		bo.type = Buyout::TagAsBuyoutType(object["type"].GetString());
 		bo.value = object["value"].GetDouble();
-		if (object.HasMember("last_update")){
+		if (object.HasMember("last_update")) {
 			bo.last_update = QDateTime::fromTime_t(object["last_update"].GetInt());
 		}
-		if (object.HasMember("source")){
+		if (object.HasMember("source")) {
 			bo.source = Buyout::TagAsBuyoutSource(object["source"].GetString());
 		}
 		bo.inherited = false;
@@ -385,12 +385,12 @@ void BuyoutManager::Deserialize(const std::string &data, std::map<std::string, B
 }
 
 
-std::string BuyoutManager::Serialize(const std::map<std::string, bool> &obj) {
+std::string BuyoutManager::Serialize(const std::map<std::string, bool>& obj) {
 	rapidjson::Document doc;
 	doc.SetObject();
-	auto &alloc = doc.GetAllocator();
+	auto& alloc = doc.GetAllocator();
 
-	for (auto &pair : obj) {
+	for (auto& pair : obj) {
 		rapidjson::Value key(pair.first.c_str(), alloc);
 		rapidjson::Value val(pair.second);
 		doc.AddMember(key, val, alloc);
@@ -398,7 +398,7 @@ std::string BuyoutManager::Serialize(const std::map<std::string, bool> &obj) {
 	return Util::RapidjsonSerialize(doc);
 }
 
-void BuyoutManager::Deserialize(const std::string &data, std::map<std::string, bool> &obj) {
+void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, bool>& obj) {
 	// if data is empty (on first use) we shouldn't make user panic by showing ERROR messages
 	if (data.empty())
 		return;
@@ -413,8 +413,8 @@ void BuyoutManager::Deserialize(const std::string &data, std::map<std::string, b
 		return;
 
 	for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
-		const auto &val = itr->value.GetBool();
-		const auto &name = itr->name.GetString();
+		const auto& val = itr->value.GetBool();
+		const auto& name = itr->name.GetString();
 		obj[name] = val;
 	}
 }
@@ -433,7 +433,7 @@ void BuyoutManager::Load() {
 	Deserialize(data_.Get("tab_buyouts"), &tab_buyouts_);
 	Deserialize(data_.Get("refresh_checked_state"), refresh_checked_);
 }
-void BuyoutManager::SetStashTabLocations(const std::vector<ItemLocation> &tabs) {
+void BuyoutManager::SetStashTabLocations(const std::vector<ItemLocation>& tabs) {
 	tabs_ = tabs;
 }
 
@@ -443,7 +443,7 @@ const std::vector<ItemLocation> BuyoutManager::GetStashTabLocations() const {
 
 
 Currency BuyoutManager::StringToCurrencyType(std::string currency) const {
-	auto const &it = string_to_currency_type_.find(currency);
+	auto const& it = string_to_currency_type_.find(currency);
 	if (it != string_to_currency_type_.end()) {
 		return it->second;
 	}
@@ -451,7 +451,7 @@ Currency BuyoutManager::StringToCurrencyType(std::string currency) const {
 }
 
 BuyoutType BuyoutManager::StringToBuyoutType(std::string bo_str) const {
-	auto const &it = string_to_buyout_type_.find(bo_str);
+	auto const& it = string_to_buyout_type_.find(bo_str);
 	if (it != string_to_buyout_type_.end()) {
 		return it->second;
 	}
@@ -468,7 +468,7 @@ Buyout BuyoutManager::StringToBuyout(std::string format) {
 	Buyout tmp;
 	// regex_search allows for stuff before ~ and after currency type.  We only want to honor the formats
 	// that POE trade also accept so this may need to change if it's too generous
-	if (std::regex_search(format,sm,exp)) {
+	if (std::regex_search(format, sm, exp)) {
 		tmp.type = StringToBuyoutType(sm[1]);
 		tmp.value = QVariant(sm[2].str().c_str()).toDouble();
 		tmp.currency = StringToCurrencyType(sm[3]);
@@ -478,7 +478,7 @@ Buyout BuyoutManager::StringToBuyout(std::string format) {
 	return tmp;
 }
 
-void BuyoutManager::MigrateItem(const Item &item) {
+void BuyoutManager::MigrateItem(const Item& item) {
 	std::string old_hash = item.old_hash();
 	std::string hash = item.hash();
 	auto it = buyouts_.find(old_hash);
@@ -523,21 +523,21 @@ bool Buyout::RequiresRefresh() const
 }
 
 BuyoutSource Buyout::TagAsBuyoutSource(std::string tag) {
-	auto &m = buyout_source_as_tag_;
-	auto const &it = std::find_if(m.begin(), m.end(), [&](BuyoutSourceMap::value_type const &x){ return x.second == tag;});
-	return (it != m.end()) ? it->first:BUYOUT_SOURCE_NONE;
+	auto& m = buyout_source_as_tag_;
+	auto const& it = std::find_if(m.begin(), m.end(), [&](BuyoutSourceMap::value_type const& x) { return x.second == tag; });
+	return (it != m.end()) ? it->first : BUYOUT_SOURCE_NONE;
 }
 
 BuyoutType Buyout::TagAsBuyoutType(std::string tag) {
-	auto &m = buyout_type_as_tag_;
-	auto const &it = std::find_if(m.begin(), m.end(), [&](BuyoutTypeMap::value_type const &x){ return x.second == tag;});
-	return (it != m.end()) ? it->first:BUYOUT_TYPE_INHERIT;
+	auto& m = buyout_type_as_tag_;
+	auto const& it = std::find_if(m.begin(), m.end(), [&](BuyoutTypeMap::value_type const& x) { return x.second == tag; });
+	return (it != m.end()) ? it->first : BUYOUT_TYPE_INHERIT;
 }
 
 BuyoutType Buyout::IndexAsBuyoutType(int index) {
 	if (index >= 0) {
-		size_t index_t = (size_t) index;
-		if ( index_t < buyout_type_as_tag_.size()) {
+		size_t index_t = (size_t)index;
+		if (index_t < buyout_type_as_tag_.size()) {
 			return static_cast<BuyoutType>(index_t);
 		}
 	}
@@ -554,8 +554,8 @@ std::string Buyout::AsText() const {
 	}
 }
 
-const std::string &Buyout::BuyoutTypeAsTag() const {
-	auto const &it = buyout_type_as_tag_.find(type);
+const std::string& Buyout::BuyoutTypeAsTag() const {
+	auto const& it = buyout_type_as_tag_.find(type);
 	if (it != buyout_type_as_tag_.end()) {
 		return it->second;
 	} else {
@@ -564,8 +564,8 @@ const std::string &Buyout::BuyoutTypeAsTag() const {
 	}
 }
 
-const std::string &Buyout::BuyoutTypeAsPrefix() const {
-	auto const &it = buyout_type_as_prefix_.find(type);
+const std::string& Buyout::BuyoutTypeAsPrefix() const {
+	auto const& it = buyout_type_as_prefix_.find(type);
 	if (it != buyout_type_as_prefix_.end()) {
 		return it->second;
 	} else {
@@ -574,8 +574,8 @@ const std::string &Buyout::BuyoutTypeAsPrefix() const {
 	}
 }
 
-const std::string &Buyout::BuyoutSourceAsTag() const {
-	auto const &it = buyout_source_as_tag_.find(source);
+const std::string& Buyout::BuyoutSourceAsTag() const {
+	auto const& it = buyout_source_as_tag_.find(source);
 	if (it != buyout_source_as_tag_.end()) {
 		return it->second;
 	} else {
@@ -584,33 +584,33 @@ const std::string &Buyout::BuyoutSourceAsTag() const {
 	}
 }
 
-const std::string &Buyout::CurrencyAsTag() const
+const std::string& Buyout::CurrencyAsTag() const
 {
 	return currency.AsTag();
 }
 
-bool Buyout::operator==(const Buyout&o) const {
+bool Buyout::operator==(const Buyout& o) const {
 	static const double eps = 1e-6;
 	return std::fabs(o.value - value) < eps && o.type == type
-			&& o.currency == currency && o.inherited == inherited
-			&& o.source == source;
+		&& o.currency == currency && o.inherited == inherited
+		&& o.source == source;
 }
 
-bool Buyout::operator!=(const Buyout &o) const {
+bool Buyout::operator!=(const Buyout& o) const {
 	return !(o == *this);
 }
 
 Currency Currency::FromTag(std::string tag)
 {
-	auto &m = currency_type_as_tag_;
-	auto const &it = std::find_if(m.begin(), m.end(), [&](CurrencyTypeMap::value_type const &x){ return x.second == tag;});
-	return Currency((it != m.end()) ? it->first:CURRENCY_NONE);
+	auto& m = currency_type_as_tag_;
+	auto const& it = std::find_if(m.begin(), m.end(), [&](CurrencyTypeMap::value_type const& x) { return x.second == tag; });
+	return Currency((it != m.end()) ? it->first : CURRENCY_NONE);
 }
 
 std::vector<CurrencyType> Currency::Types() {
 	std::vector<CurrencyType> tmp;
-	for (unsigned int i = 0; i < currency_type_as_tag_.size();i++) {
-	   tmp.push_back(static_cast<CurrencyType>(i));
+	for (unsigned int i = 0; i < currency_type_as_tag_.size(); i++) {
+		tmp.push_back(static_cast<CurrencyType>(i));
 	}
 	return tmp;
 }
@@ -624,8 +624,8 @@ Currency Currency::FromIndex(int index) {
 	}
 }
 
-const std::string &Currency::AsString() const {
-	auto const &it = currency_type_as_string_.find(type);
+const std::string& Currency::AsString() const {
+	auto const& it = currency_type_as_string_.find(type);
 	if (it != currency_type_as_string_.end()) {
 		return it->second;
 	} else {
@@ -634,8 +634,8 @@ const std::string &Currency::AsString() const {
 	}
 }
 
-const std::string &Currency::AsTag() const {
-	auto const &it = currency_type_as_tag_.find(type);
+const std::string& Currency::AsTag() const {
+	auto const& it = currency_type_as_tag_.find(type);
 	if (it != currency_type_as_tag_.end()) {
 		return it->second;
 	} else {
@@ -644,7 +644,7 @@ const std::string &Currency::AsTag() const {
 	}
 }
 
-const int &Currency::AsRank() const
+const int& Currency::AsRank() const
 {
 	return currency_type_as_rank_.at(type);
 }

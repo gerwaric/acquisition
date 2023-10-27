@@ -28,8 +28,8 @@ class DataStore;
 class AutoOnline : public QObject {
 	Q_OBJECT
 public:
-	AutoOnline(DataStore &data, DataStore &sensitive_data);
-	void SetUrl(const std::string &url);
+	AutoOnline(DataStore& data, DataStore& sensitive_data);
+	void SetUrl(const std::string& url);
 	void SetEnabled(bool enabled);
 	bool enabled() { return enabled_; }
 	bool IsUrlSet() { return !url_.empty(); }
@@ -41,8 +41,8 @@ public slots:
 signals:
 	void Update(bool running);
 private:
-	DataStore &data_;
-	DataStore &sensitive_data_;
+	DataStore& data_;
+	DataStore& sensitive_data_;
 	bool enabled_;
 	std::string url_;
 	std::string process_script_;

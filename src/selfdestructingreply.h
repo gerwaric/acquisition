@@ -24,17 +24,17 @@
 // Automatically calls deleteLater on its QNetworkReply object when we go out of scope
 class SelfDestructingReply {
 public:
-	explicit SelfDestructingReply(QNetworkReply *reply) :
+	explicit SelfDestructingReply(QNetworkReply* reply) :
 		reply_(reply)
 	{}
 	~SelfDestructingReply() {
 		reply_->deleteLater();
 	}
-	SelfDestructingReply(const SelfDestructingReply &o) = delete;
-	SelfDestructingReply &operator=(const SelfDestructingReply &o) = delete;
-	QNetworkReply *operator->() {
+	SelfDestructingReply(const SelfDestructingReply& o) = delete;
+	SelfDestructingReply& operator=(const SelfDestructingReply& o) = delete;
+	QNetworkReply* operator->() {
 		return reply_;
 	}
 private:
-	QNetworkReply *reply_;
+	QNetworkReply* reply_;
 };

@@ -64,7 +64,7 @@
 
 const std::string POE_WEBCDN = "http://webcdn.pathofexile.com"; // Should be updated to https://web.poecdn.com ?
 
-MainWindow::MainWindow(std::unique_ptr<Application> app):
+MainWindow::MainWindow(std::unique_ptr<Application> app) :
 	app_(std::move(app)),
 	ui(new Ui::MainWindow),
 	current_search_(nullptr),
@@ -90,22 +90,22 @@ MainWindow::MainWindow(std::unique_ptr<Application> app):
 
 	image_network_manager_ = new QNetworkAccessManager;
 	connect(image_network_manager_, SIGNAL(finished(QNetworkReply*)),
-			this, SLOT(OnImageFetched(QNetworkReply*)));
+		this, SLOT(OnImageFetched(QNetworkReply*)));
 
 	connect(&app_->items_manager(), &ItemsManager::ItemsRefreshed, this, &MainWindow::OnItemsRefreshed);
 	connect(&app_->items_manager(), &ItemsManager::StatusUpdate, this, &MainWindow::OnStatusUpdate);
 	connect(&app_->shop(), &Shop::StatusUpdate, this, &MainWindow::OnStatusUpdate);
 	connect(&update_checker_, &UpdateChecker::UpdateAvailable, this, &MainWindow::OnUpdateAvailable);
 	connect(&auto_online_, &AutoOnline::Update, this, &MainWindow::OnOnlineUpdate);
-	connect(&delayed_update_current_item_, &QTimer::timeout, [&](){UpdateCurrentItem();delayed_update_current_item_.stop();});
-	connect(&delayed_search_form_change_, &QTimer::timeout, [&](){OnSearchFormChange();delayed_search_form_change_.stop();});
+	connect(&delayed_update_current_item_, &QTimer::timeout, [&]() {UpdateCurrentItem(); delayed_update_current_item_.stop(); });
+	connect(&delayed_search_form_change_, &QTimer::timeout, [&]() {OnSearchFormChange(); delayed_search_form_change_.stop(); });
 
 	// This updates the item information when index changes
 	connect(ui->treeView->header(), &QHeaderView::sortIndicatorChanged, [&](int, Qt::SortOrder) {
 		QModelIndex idx = ui->treeView->selectionModel()->currentIndex();
 		if (idx.isValid())
 			OnTreeChange(idx, idx);
-	});
+		});
 
 }
 void MainWindow::InitializeRateLimitPanel() {
@@ -114,7 +114,7 @@ void MainWindow::InitializeRateLimitPanel() {
 }
 
 void MainWindow::InitializeLogging() {
-	LogPanel *log_panel = new LogPanel(this, ui);
+	LogPanel* log_panel = new LogPanel(this, ui);
 	QsLogging::DestinationPtr log_panel_ptr(log_panel);
 	QsLogging::Logger::instance().addDestination(log_panel_ptr);
 
@@ -156,7 +156,7 @@ void MainWindow::InitializeUi() {
 	connect(ui->buyoutTypeComboBox, SIGNAL(activated(int)), this, SLOT(OnBuyoutChange()));
 	connect(ui->buyoutValueLineEdit, SIGNAL(textEdited(QString)), this, SLOT(OnBuyoutChange()));
 
-	ui->viewComboBox->addItems({"By Tab", "By Item"});
+	ui->viewComboBox->addItems({ "By Tab", "By Item" });
 	connect(ui->viewComboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::activated), [&](int mode) {
 		current_search_->SetViewMode(static_cast<Search::ViewMode>(mode));
 		if (mode == Search::ByItem) {
@@ -164,7 +164,7 @@ void MainWindow::InitializeUi() {
 		} else {
 			ResizeTreeColumns();
 		}
-	});
+		});
 
 	ui->buyoutTypeComboBox->setEnabled(false);
 	ui->buyoutValueLineEdit->setEnabled(false);
@@ -211,17 +211,17 @@ void MainWindow::InitializeUi() {
 	context_menu_.addAction("Expand All", this, SLOT(OnExpandAll()));
 	context_menu_.addAction("Collapse All", this, SLOT(OnCollapseAll()));
 
-	connect(ui->treeView, &QTreeView::customContextMenuRequested, [&](const QPoint &pos) {
+	connect(ui->treeView, &QTreeView::customContextMenuRequested, [&](const QPoint& pos) {
 		context_menu_.popup(ui->treeView->viewport()->mapToGlobal(pos));
-	});
+		});
 
 	refresh_button_.setStyleSheet("color: blue; font-weight: bold;");
 	refresh_button_.setFlat(true);
 	refresh_button_.hide();
 	statusBar()->addPermanentWidget(&refresh_button_);
-	connect(&refresh_button_, &QPushButton::clicked, [=](){
+	connect(&refresh_button_, &QPushButton::clicked, [=]() {
 		on_actionRefresh_triggered();
-	});
+		});
 
 	statusBar()->addPermanentWidget(&online_label_);
 	UpdateOnlineGui();
@@ -230,9 +230,9 @@ void MainWindow::InitializeUi() {
 	update_button_.setFlat(true);
 	update_button_.hide();
 	statusBar()->addPermanentWidget(&update_button_);
-	connect(&update_button_, &QPushButton::clicked, [=](){
+	connect(&update_button_, &QPushButton::clicked, [=]() {
 		UpdateChecker::AskUserToUpdate(this);
-	});
+		});
 	// resize columns when a tab is expanded/collapsed
 	connect(ui->treeView, SIGNAL(collapsed(const QModelIndex&)), this, SLOT(ResizeTreeColumns()));
 	connect(ui->treeView, SIGNAL(expanded(const QModelIndex&)), this, SLOT(ResizeTreeColumns()));
@@ -249,7 +249,7 @@ void MainWindow::InitializeUi() {
 	ui->itemTooltipWidget->hide();
 	ui->itemButtonsWidget->hide();
 
-	connect(ui->itemInfoTypeTabs, &QTabWidget::currentChanged, [=](int idx){
+	connect(ui->itemInfoTypeTabs, &QTabWidget::currentChanged, [=](int idx) {
 		auto tabs = ui->itemInfoTypeTabs;
 		for (int i = 0; i < tabs->count(); i++)
 			if (i != idx)
@@ -259,7 +259,7 @@ void MainWindow::InitializeUi() {
 		tabs->widget(idx)->adjustSize();
 
 		app_->data().SetInt("preferred_tooltip_type", idx);
-	});
+		});
 
 	ui->itemInfoTypeTabs->setCurrentIndex(app_->data().GetInt("preferred_tooltip_type"));
 
@@ -289,23 +289,23 @@ void MainWindow::OnCollapseAll() {
 }
 
 void MainWindow::OnCheckAll() {
-	auto & bo = app_->buyout_manager();
-	for (auto const & bucket: current_search_->buckets())
+	auto& bo = app_->buyout_manager();
+	for (auto const& bucket : current_search_->buckets())
 		bo.SetRefreshChecked(bucket->location(), true);
 	ui->treeView->model()->layoutChanged();
 }
 
 void MainWindow::OnUncheckAll() {
-	auto & bo = app_->buyout_manager();
-	for (auto const & bucket: current_search_->buckets())
+	auto& bo = app_->buyout_manager();
+	for (auto const& bucket : current_search_->buckets())
 		bo.SetRefreshChecked(bucket->location(), false);
-	 ui->treeView->model()->layoutChanged();
+	ui->treeView->model()->layoutChanged();
 }
 
 void MainWindow::OnRefreshSelected() {
 	// Get names of tabs to refresh
 	std::vector<ItemLocation> locations;
-	for (auto const &index: ui->treeView->selectionModel()->selectedIndexes()) {
+	for (auto const& index : ui->treeView->selectionModel()->selectedIndexes()) {
 		// Fetch tab names per index
 		locations.push_back(current_search_->GetTabLocation(index));
 	}
@@ -318,9 +318,9 @@ void MainWindow::OnRefreshSelected() {
  * @param value test
  */
 void MainWindow::CheckSelected(bool value) {
-	auto & bo = app_->buyout_manager();
+	auto& bo = app_->buyout_manager();
 
-	for (auto const &index: ui->treeView->selectionModel()->selectedIndexes()) {
+	for (auto const& index : ui->treeView->selectionModel()->selectedIndexes()) {
 		bo.SetRefreshChecked(current_search_->GetTabLocation(index), value);
 	}
 }
@@ -355,9 +355,9 @@ void MainWindow::OnBuyoutChange() {
 	if (ui->buyoutValueLineEdit->text().isEmpty() && bo.IsPriced())
 		return;
 
-	BuyoutManager &bo_manager = app_->buyout_manager();
-	for (auto const &index: ui->treeView->selectionModel()->selectedIndexes()) {
-		auto const &tab = current_search_->GetTabLocation(index).GetUniqueHash();
+	BuyoutManager& bo_manager = app_->buyout_manager();
+	for (auto const& index : ui->treeView->selectionModel()->selectedIndexes()) {
+		auto const& tab = current_search_->GetTabLocation(index).GetUniqueHash();
 
 		// Don't allow users to manually update locked tabs (game priced)
 		if (bo_manager.GetTab(tab).IsGameSet())
@@ -365,7 +365,7 @@ void MainWindow::OnBuyoutChange() {
 		if (!index.parent().isValid()) {
 			bo_manager.SetTab(tab, bo);
 		} else {
-			auto &item = current_search_->bucket(index.parent().row())->item(index.row());
+			auto& item = current_search_->bucket(index.parent().row())->item(index.row());
 			// Don't allow users to manually update locked items (game priced per item in note section)
 			if (bo_manager.Get(*item).IsGameSet())
 				continue;
@@ -378,7 +378,7 @@ void MainWindow::OnBuyoutChange() {
 	ResizeTreeColumns();
 }
 
-void MainWindow::OnStatusUpdate(const CurrentStatusUpdate &status) {
+void MainWindow::OnStatusUpdate(const CurrentStatusUpdate& status) {
 	QString title;
 	bool need_progress = false;
 	switch (status.state) {
@@ -423,7 +423,7 @@ void MainWindow::OnStatusUpdate(const CurrentStatusUpdate &status) {
 	status_bar_label_->update();
 
 #ifdef Q_OS_WIN32
-	QWinTaskbarProgress *progress = taskbar_button_->progress();
+	QWinTaskbarProgress* progress = taskbar_button_->progress();
 	progress->setVisible(need_progress);
 	progress->setMinimum(0);
 	progress->setMaximum(status.total);
@@ -435,9 +435,9 @@ void MainWindow::OnStatusUpdate(const CurrentStatusUpdate &status) {
 
 }
 
-bool MainWindow::eventFilter(QObject *o, QEvent *e) {
+bool MainWindow::eventFilter(QObject* o, QEvent* e) {
 	if (o == tab_bar_ && e->type() == QEvent::MouseButtonPress) {
-		QMouseEvent *mouse_event = static_cast<QMouseEvent *>(e);
+		QMouseEvent* mouse_event = static_cast<QMouseEvent*>(e);
 		int index = tab_bar_->tabAt(mouse_event->pos());
 		if (mouse_event->button() == Qt::MidButton) {
 			// remove tab and Search if it's not "+"
@@ -458,11 +458,11 @@ bool MainWindow::eventFilter(QObject *o, QEvent *e) {
 				tab_bar_->setTabText(tab_bar_->count() - 1, "+");
 			}
 			return true;
-		} else if(mouse_event->button() == Qt::RightButton){
+		} else if (mouse_event->button() == Qt::RightButton) {
 			rightClickedTabIndex = index;
 
 			if (rightClickedTabIndex >= 0 && rightClickedTabIndex < tab_bar_->count() - 1) {
-				class TabRightClickMenu:public QMenu{};
+				class TabRightClickMenu :public QMenu {};
 				TabRightClickMenu rcMenu;
 
 				rcMenu.addAction("Rename Tab", this, SLOT(OnRenameTabClicked()));
@@ -475,19 +475,19 @@ bool MainWindow::eventFilter(QObject *o, QEvent *e) {
 	return QMainWindow::eventFilter(o, e);
 }
 
-void MainWindow::OnRenameTabClicked(){
+void MainWindow::OnRenameTabClicked() {
 	bool ok;
 	QString name = QInputDialog::getText(this, "Rename Tab",
 		"Rename Tab here",
 		QLineEdit::Normal, "", &ok);
 
-	if (ok && !name.isEmpty()){
+	if (ok && !name.isEmpty()) {
 		searches_[rightClickedTabIndex]->RenameCaption(name.toStdString());
 		tab_bar_->setTabText(rightClickedTabIndex, searches_[rightClickedTabIndex]->GetCaption());
 	}
 }
 
-void MainWindow::OnImageFetched(QNetworkReply *reply) {
+void MainWindow::OnImageFetched(QNetworkReply* reply) {
 	std::string url = reply->url().toString().toStdString();
 	if (reply->error()) {
 		QLOG_WARN() << "Failed to download item image," << url.c_str();
@@ -502,7 +502,7 @@ void MainWindow::OnImageFetched(QNetworkReply *reply) {
 		ui->imageLabel->setPixmap(GenerateItemIcon(*current_item_, image));
 }
 
-void MainWindow::SetCurrentSearch(Search *search) {
+void MainWindow::SetCurrentSearch(Search* search) {
 	previous_search_ = current_search_;
 	current_search_ = search;
 }
@@ -518,7 +518,7 @@ void MainWindow::ModelViewRefresh() {
 	// Save view properties if no search fields are populated
 	// AND we're viewing in Tab mode
 	if (previous_search_ && !previous_search_->IsAnyFilterActive()
-			&& previous_search_->GetViewMode() == Search::ByTab)
+		&& previous_search_->GetViewMode() == Search::ByTab)
 		previous_search_->SaveViewProperties();
 
 	previous_search_ = current_search_;
@@ -528,7 +528,7 @@ void MainWindow::ModelViewRefresh() {
 	ui->viewComboBox->setCurrentIndex(static_cast<int>(current_search_->GetViewMode()));
 
 	connect(ui->treeView->selectionModel(), SIGNAL(currentChanged(const QModelIndex&, const QModelIndex&)),
-			this, SLOT(OnTreeChange(const QModelIndex&, const QModelIndex&)));
+		this, SLOT(OnTreeChange(const QModelIndex&, const QModelIndex&)));
 
 	ui->treeView->reset();
 	if (current_search_->IsAnyFilterActive() || current_search_->GetViewMode() == Search::ByItem) {
@@ -536,7 +536,7 @@ void MainWindow::ModelViewRefresh() {
 		// Also expand by default if we're in Item view mode
 		ExpandCollapse(TreeState::kExpand);
 	} else {
-	  // Restore view properties if no search fields are populated AND current mode is tab mode
+		// Restore view properties if no search fields are populated AND current mode is tab mode
 		current_search_->RestoreViewProperties();
 		ResizeTreeColumns();
 	}
@@ -550,7 +550,7 @@ void MainWindow::OnDelayedSearchFormChange() {
 	delayed_search_form_change_.start(350);
 }
 
-void MainWindow::OnTreeChange(const QModelIndex &current, const QModelIndex & /* previous */) {
+void MainWindow::OnTreeChange(const QModelIndex& current, const QModelIndex& /* previous */) {
 	app_->buyout_manager().Save();
 
 	if (!current.parent().isValid()) {
@@ -577,7 +577,7 @@ void MainWindow::OnTabChange(int index) {
 	}
 }
 
-void MainWindow::AddSearchGroup(QLayout *layout, const std::string &name="") {
+void MainWindow::AddSearchGroup(QLayout* layout, const std::string& name = "") {
 	if (!name.empty()) {
 		auto label = new QLabel(("<h3>" + name + "</h3>").c_str());
 		search_form_layout_->addWidget(label);
@@ -707,7 +707,7 @@ void MainWindow::UpdateCurrentItem() {
 	std::string icon = current_item_->icon();
 	if (icon.size() && icon[0] == '/')
 		icon = POE_WEBCDN + icon;
-	if (!image_cache_->Exists(icon)){
+	if (!image_cache_->Exists(icon)) {
 		QNetworkRequest request = QNetworkRequest(QUrl(icon.c_str()));
 		request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 		image_network_manager_->get(request);
@@ -717,7 +717,7 @@ void MainWindow::UpdateCurrentItem() {
 	ui->locationLabel->setText(current_item_->location().GetHeader().c_str());
 }
 
-void MainWindow::UpdateBuyoutWidgets(const Buyout &bo) {
+void MainWindow::UpdateBuyoutWidgets(const Buyout& bo) {
 	ui->buyoutTypeComboBox->setCurrentIndex(bo.type);
 	ui->buyoutTypeComboBox->setEnabled(!bo.IsGameSet());
 	ui->buyoutCurrencyComboBox->setEnabled(false);
@@ -809,7 +809,7 @@ void MainWindow::OnOnlineUpdate(bool online) {
 		online_label_.setText("Online");
 	} else {
 		online_label_.setStyleSheet("color: red");
-online_label_.setText("Offline");
+		online_label_.setText("Offline");
 	}
 }
 
@@ -919,11 +919,11 @@ void MainWindow::on_actionExport_currency_triggered() {
 	app_->currency_manager().ExportCurrency();
 }
 
-void MainWindow::closeEvent(QCloseEvent *event) {
-	QMessageBox::StandardButton resBtn = QMessageBox::question( this, "Acquisition",
-																tr("Are you sure you want to quit?\n"),
-																QMessageBox::No | QMessageBox::Yes,
-																QMessageBox::Yes);
+void MainWindow::closeEvent(QCloseEvent* event) {
+	QMessageBox::StandardButton resBtn = QMessageBox::question(this, "Acquisition",
+		tr("Are you sure you want to quit?\n"),
+		QMessageBox::No | QMessageBox::Yes,
+		QMessageBox::Yes);
 	if (resBtn != QMessageBox::Yes) {
 		auto_online_.SendOnlineUpdate(false);
 		event->ignore();
@@ -949,7 +949,7 @@ void MainWindow::on_uploadTooltipButton_clicked() {
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	QByteArray data = "image=" + QUrl::toPercentEncoding(bytes.toBase64());
-	QNetworkReply *reply = network_manager_->post(request, data);
+	QNetworkReply* reply = network_manager_->post(request, data);
 	new QReplyTimeout(reply, kImgurUploadTimeout);
 	connect(reply, &QNetworkReply::finished, this, &MainWindow::OnUploadFinished);
 }
@@ -972,7 +972,7 @@ void MainWindow::OnUploadFinished() {
 	ui->uploadTooltipButton->setDisabled(false);
 	ui->uploadTooltipButton->setText("Upload to imgur");
 
-	SelfDestructingReply reply(qobject_cast<QNetworkReply *>(QObject::sender()));
+	SelfDestructingReply reply(qobject_cast<QNetworkReply*>(QObject::sender()));
 	QByteArray bytes = reply->readAll();
 
 	rapidjson::Document doc;

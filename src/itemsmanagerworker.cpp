@@ -39,36 +39,36 @@
 #include "buyoutmanager.h"
 #include "modlist.h"
 
-const char *kStashItemsUrl = "https://www.pathofexile.com/character-window/get-stash-items";
-const char *kCharacterItemsUrl = "https://www.pathofexile.com/character-window/get-items";
-const char *kGetCharactersUrl = "https://www.pathofexile.com/character-window/get-characters";
-const char *kMainPage = "https://www.pathofexile.com/";
+const char* kStashItemsUrl = "https://www.pathofexile.com/character-window/get-stash-items";
+const char* kCharacterItemsUrl = "https://www.pathofexile.com/character-window/get-items";
+const char* kGetCharactersUrl = "https://www.pathofexile.com/character-window/get-characters";
+const char* kMainPage = "https://www.pathofexile.com/";
 //While the page does say "get passive skills", it seems to only send socketed jewels
-const char *kCharacterSocketedJewels = "https://www.pathofexile.com/character-window/get-passive-skills";
+const char* kCharacterSocketedJewels = "https://www.pathofexile.com/character-window/get-passive-skills";
 
-const char *kPOE_trade_stats = "https://www.pathofexile.com/api/trade/data/stats";
+const char* kPOE_trade_stats = "https://www.pathofexile.com/api/trade/data/stats";
 
-const char *kRePoE_stat_translations = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/stat_translations.min.json";
-const char *kRePoE_item_classes = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/item_classes.min.json";
-const char *kRePoE_item_base_types = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/base_items.min.json";
+const char* kRePoE_stat_translations = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/stat_translations.min.json";
+const char* kRePoE_item_classes = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/item_classes.min.json";
+const char* kRePoE_item_base_types = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/base_items.min.json";
 
 ItemsManagerWorker::ItemsManagerWorker(Application& app, QThread* thread) :
-    data_(app.data()),
-    total_completed_(-1),
-    total_needed_(-1),
-    requests_completed_(-1),
-    requests_needed_(-1),
-    league_(app.league()),
-    initialized_(false),
+	data_(app.data()),
+	total_completed_(-1),
+	total_needed_(-1),
+	requests_completed_(-1),
+	requests_needed_(-1),
+	league_(app.league()),
+	initialized_(false),
 	updating_(false),
-    cancel_update_(false),
-    updateRequest_(false),
-    type_(TabSelection::Type::Checked),
-    queue_id_(-1),
-    first_fetch_tab_id_(-1),
+	cancel_update_(false),
+	updateRequest_(false),
+	type_(TabSelection::Type::Checked),
+	queue_id_(-1),
+	first_fetch_tab_id_(-1),
 	bo_manager_(app.buyout_manager()),
 	account_name_(app.email()),
-    rate_limiter_(app.rate_limiter())
+	rate_limiter_(app.rate_limiter())
 {
 	QUrl poe(kMainPage);
 	network_manager_.cookieJar()->setCookiesFromUrl(app.logged_in_nm().cookieJar()->cookiesForUrl(poe), poe);
@@ -79,16 +79,16 @@ ItemsManagerWorker::~ItemsManagerWorker() {
 }
 
 void ItemsManagerWorker::UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations) {
-    updateRequest_ = true;
-    type_ = type;
-    locations_ = locations;
+	updateRequest_ = true;
+	type_ = type;
+	locations_ = locations;
 }
 
 void ItemsManagerWorker::Init() {
-    if (updating_) {
-        QLOG_WARN() << "ItemsManagerWorker::Init() called while updating, skipping Mod List Update";
-        return;
-    };
+	if (updating_) {
+		QLOG_WARN() << "ItemsManagerWorker::Init() called while updating, skipping Mod List Update";
+		return;
+	};
 
 	updating_ = true;
 
@@ -99,129 +99,129 @@ void ItemsManagerWorker::Init() {
 		});
 }
 
-void ItemsManagerWorker::OnItemClassesReceived(QNetworkReply *reply) {
-    if (reply->error()) {
-        QLOG_ERROR() << "Couldn't fetch RePoE Item Classes:" << reply->url().toDisplayString()
-            << "due to error:" << reply->errorString() << "The type dropdown will remain empty.";
-    } else {
-        QLOG_DEBUG() << "Item classes received.";
-        QByteArray bytes = reply->readAll();
-        emit ItemClassesUpdate(bytes);
-    };
+void ItemsManagerWorker::OnItemClassesReceived(QNetworkReply* reply) {
+	if (reply->error()) {
+		QLOG_ERROR() << "Couldn't fetch RePoE Item Classes:" << reply->url().toDisplayString()
+			<< "due to error:" << reply->errorString() << "The type dropdown will remain empty.";
+	} else {
+		QLOG_DEBUG() << "Item classes received.";
+		QByteArray bytes = reply->readAll();
+		emit ItemClassesUpdate(bytes);
+	};
 	QNetworkRequest PoE_item_base_types_request = QNetworkRequest(QUrl(QString(kRePoE_item_base_types)));
-    rate_limiter_.Submit(network_manager_, PoE_item_base_types_request,
+	rate_limiter_.Submit(network_manager_, PoE_item_base_types_request,
 		[=](QNetworkReply* reply) {
 			OnItemBaseTypesReceived(reply);
 		});
 }
 
 void ItemsManagerWorker::OnItemBaseTypesReceived(QNetworkReply* reply) {
-    if (reply->error()) {
-        QLOG_ERROR() << "Couldn't fetch RePoE Item Base Types:" << reply->url().toDisplayString()
-            << "due to error:" << reply->errorString() << "The type dropdown will remain empty.";
-    } else {
-        QLOG_DEBUG() << "Item base types received.";
-        QByteArray bytes = reply->readAll();
-        emit ItemBaseTypesUpdate(bytes);
-    };
+	if (reply->error()) {
+		QLOG_ERROR() << "Couldn't fetch RePoE Item Base Types:" << reply->url().toDisplayString()
+			<< "due to error:" << reply->errorString() << "The type dropdown will remain empty.";
+	} else {
+		QLOG_DEBUG() << "Item base types received.";
+		QByteArray bytes = reply->readAll();
+		emit ItemBaseTypesUpdate(bytes);
+	};
 	UpdateModList();
 }
 
 void ItemsManagerWorker::ParseItemMods() {
-    InitModlist();
+	InitModlist();
 	tabs_.clear();
 	tabs_signature_.clear();
 	tab_id_index_.clear();
 
 	//Get cached tabs (item tabs not search tabs)
-    for (ItemLocationType type : {ItemLocationType::STASH, ItemLocationType::CHARACTER}) {
-        std::string tabs = data_.GetTabs(type);
+	for (ItemLocationType type : {ItemLocationType::STASH, ItemLocationType::CHARACTER}) {
+		std::string tabs = data_.GetTabs(type);
 		if (tabs.empty()) {
 			QLOG_DEBUG() << "Cache contains no" << type << "locations";
 			continue;
 		};
 		rapidjson::Document doc;
-        if (doc.Parse(tabs.c_str()).HasParseError()) {
-            QLOG_ERROR() << "Malformed tabs data (" << rapidjson::GetParseError_En(doc.GetParseError()) << "):" << tabs.c_str();
-            continue;
-        };
+		if (doc.Parse(tabs.c_str()).HasParseError()) {
+			QLOG_ERROR() << "Malformed tabs data (" << rapidjson::GetParseError_En(doc.GetParseError()) << "):" << tabs.c_str();
+			continue;
+		};
 		tabs_signature_ = CreateTabsSignatureVector(tabs);
 		for (auto& tab : doc) {
-            //constructor values to fill in
-            int index;
-            std::string tabUniqueId, name;
-            int r, g, b;
+			//constructor values to fill in
+			int index;
+			std::string tabUniqueId, name;
+			int r, g, b;
 
-            switch (type) {
-            case ItemLocationType::STASH:
-                if (tab_id_index_.count(tab["id"].GetString())) {
-                    QLOG_ERROR() << "Duplicated tab found while loading data:" << tab["id"].GetString();
-                    continue;
-                };
-                if (!tab.HasMember("n") || !tab["n"].IsString()) {
-                    QLOG_ERROR() << "Malformed tabs data doesn't contain its name (field 'n'):" << tabs.c_str();
-                    continue;
-                };
-                index = tab["i"].GetInt();
-                tabUniqueId = tab["id"].GetString();
-                name = tab["n"].GetString();
-                r = tab["colour"]["r"].GetInt();
-                g = tab["colour"]["g"].GetInt();
-                b = tab["colour"]["b"].GetInt();
-                break;
-            case ItemLocationType::CHARACTER:
-                if (tab_id_index_.count(tab["name"].GetString())) {
-                    continue;
-                };
-                if (tab.HasMember("i")) {
-                    index = tab["i"].GetInt();
-                } else {
-                    index = tabs_.size();
-                };
-                tabUniqueId = tab["name"].GetString();
-                name = tab["name"].GetString();
-                r = 0;
-                g = 0;
-                b = 0;
-                break;
-            };
-            ItemLocation loc(index, tabUniqueId, name, type, r, g, b);
-            loc.set_json(tab, doc.GetAllocator());
-            tabs_.push_back(loc);
-            tab_id_index_.insert(loc.get_tab_uniq_id());
-        };
-    };
+			switch (type) {
+			case ItemLocationType::STASH:
+				if (tab_id_index_.count(tab["id"].GetString())) {
+					QLOG_ERROR() << "Duplicated tab found while loading data:" << tab["id"].GetString();
+					continue;
+				};
+				if (!tab.HasMember("n") || !tab["n"].IsString()) {
+					QLOG_ERROR() << "Malformed tabs data doesn't contain its name (field 'n'):" << tabs.c_str();
+					continue;
+				};
+				index = tab["i"].GetInt();
+				tabUniqueId = tab["id"].GetString();
+				name = tab["n"].GetString();
+				r = tab["colour"]["r"].GetInt();
+				g = tab["colour"]["g"].GetInt();
+				b = tab["colour"]["b"].GetInt();
+				break;
+			case ItemLocationType::CHARACTER:
+				if (tab_id_index_.count(tab["name"].GetString())) {
+					continue;
+				};
+				if (tab.HasMember("i")) {
+					index = tab["i"].GetInt();
+				} else {
+					index = tabs_.size();
+				};
+				tabUniqueId = tab["name"].GetString();
+				name = tab["name"].GetString();
+				r = 0;
+				g = 0;
+				b = 0;
+				break;
+			};
+			ItemLocation loc(index, tabUniqueId, name, type, r, g, b);
+			loc.set_json(tab, doc.GetAllocator());
+			tabs_.push_back(loc);
+			tab_id_index_.insert(loc.get_tab_uniq_id());
+		};
+	};
 
 	items_.clear();
 
 	// Get cached items
-    for (int i = 0; i < tabs_.size(); i++) {
-        auto tab = tabs_[i];
-        std::string items = data_.GetItems(tab);
-        if (items.size() != 0) {
-            rapidjson::Document doc;
-            doc.Parse(items.c_str());
-            for (auto item = doc.Begin(); item != doc.End(); ++item) {
-                items_.push_back(std::make_shared<Item>(*item, tab));
-            };
-        };
-        CurrentStatusUpdate status;
-        status.state = ProgramState::ItemsRetrieved;
-        status.progress = i + 1;
-        status.total = tabs_.size();
-        emit StatusUpdate(status);
-    };
+	for (int i = 0; i < tabs_.size(); i++) {
+		auto tab = tabs_[i];
+		std::string items = data_.GetItems(tab);
+		if (items.size() != 0) {
+			rapidjson::Document doc;
+			doc.Parse(items.c_str());
+			for (auto item = doc.Begin(); item != doc.End(); ++item) {
+				items_.push_back(std::make_shared<Item>(*item, tab));
+			};
+		};
+		CurrentStatusUpdate status;
+		status.state = ProgramState::ItemsRetrieved;
+		status.progress = i + 1;
+		status.total = tabs_.size();
+		emit StatusUpdate(status);
+	};
 
-    initialized_ = true;
-    updating_ = false;
+	initialized_ = true;
+	updating_ = false;
 
 	// let ItemManager know that the retrieval of cached items/tabs has been completed (calls ItemsManager::OnItemsRefreshed method)
 	emit ItemsRefreshed(items_, tabs_, true);
 
-    if (updateRequest_) {
-        updateRequest_ = false;
-        Update(type_, locations_);
-    };
+	if (updateRequest_) {
+		updateRequest_ = false;
+		Update(type_, locations_);
+	};
 }
 
 void ItemsManagerWorker::UpdateModList() {
@@ -233,48 +233,48 @@ void ItemsManagerWorker::UpdateModList() {
 }
 
 void ItemsManagerWorker::OnStatTranslationsReceived(QNetworkReply* reply) {
-    QLOG_TRACE() << "Stat translations received.";
+	QLOG_TRACE() << "Stat translations received.";
 
-    if (reply->error()) {
-        QLOG_ERROR() << "Couldn't fetch RePoE Stat Translations: " << reply->url().toDisplayString()
-            << " due to error: " << reply->errorString() << " Aborting update.";
-        return;
-    };
-    
+	if (reply->error()) {
+		QLOG_ERROR() << "Couldn't fetch RePoE Stat Translations: " << reply->url().toDisplayString()
+			<< " due to error: " << reply->errorString() << " Aborting update.";
+		return;
+	};
+
 	QByteArray bytes = reply->readAll();
 	rapidjson::Document doc;
 	doc.Parse(bytes.constData());
 
-    if (doc.HasParseError()) {
-        QLOG_ERROR() << "Couldn't properly parse Stat Translations from RePoE, canceling Mods Update";
-        return;
-    };
+	if (doc.HasParseError()) {
+		QLOG_ERROR() << "Couldn't properly parse Stat Translations from RePoE, canceling Mods Update";
+		return;
+	};
 
 	mods.clear();
 	std::set<std::string> stat_strings;
 
-    for (auto& translation : doc) {
-        for (auto& stat : translation["English"]) {
-            std::vector<std::string> formats;
-            for (auto& format : stat["format"]) {
-                formats.push_back(format.GetString());
-            };
-            std::string stat_string = stat["string"].GetString();
-            if (formats[0].compare("ignore") != 0) {
-                for (int i = 0; i < formats.size(); i++) {
-                    std::string searchString = "{" + std::to_string(i) + "}";
-                    boost::replace_all(stat_string, searchString, formats[i]);
-                };
-            };
-            if (stat_string.length() > 0) {
-                stat_strings.insert(stat_string);
-            };
-        };
-    };
+	for (auto& translation : doc) {
+		for (auto& stat : translation["English"]) {
+			std::vector<std::string> formats;
+			for (auto& format : stat["format"]) {
+				formats.push_back(format.GetString());
+			};
+			std::string stat_string = stat["string"].GetString();
+			if (formats[0].compare("ignore") != 0) {
+				for (int i = 0; i < formats.size(); i++) {
+					std::string searchString = "{" + std::to_string(i) + "}";
+					boost::replace_all(stat_string, searchString, formats[i]);
+				};
+			};
+			if (stat_string.length() > 0) {
+				stat_strings.insert(stat_string);
+			};
+		};
+	};
 
-    for (std::string stat_string : stat_strings) {
-        mods.push_back({ stat_string });
-    };
+	for (std::string stat_string : stat_strings) {
+		mods.push_back({ stat_string });
+	};
 
 	// Create a separate thread to load the items, which allows the UI to
 	// update the status bar while items are being parsed. This operation
@@ -284,12 +284,12 @@ void ItemsManagerWorker::OnStatTranslationsReceived(QNetworkReply* reply) {
 	parser->start();
 }
 
-void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemLocation> &locations) {
-    if (updating_) {
-        QLOG_WARN() << "ItemsManagerWorker::Update called while updating";
-        return;
-    };
-	QLOG_DEBUG() <<  "Updating" << type << "stash tabs";
+void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemLocation>& locations) {
+	if (updating_) {
+		QLOG_WARN() << "ItemsManagerWorker::Update called while updating";
+		return;
+	};
+	QLOG_DEBUG() << "Updating" << type << "stash tabs";
 	updating_ = true;
 	cancel_update_ = false;
 
@@ -300,50 +300,50 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 	tabs_as_string_ = "";
 	selected_character_ = "";
 
-    first_fetch_tab_ = "";
-    first_fetch_tab_id_ = -1;
+	first_fetch_tab_ = "";
+	first_fetch_tab_id_ = -1;
 
-    if (type == TabSelection::All) {
-        QLOG_DEBUG() << "Updating all tabs and items.";
-        tabs_.clear();
-        tab_id_index_.clear();
-        items_.clear();
-        first_fetch_tab_id_ = 0;
-    } else {
-        // Build a list of tabs to update.
-        std::set<std::string> tabs_to_update = {};
-        switch (type) {
-        case TabSelection::Checked:
-            // Use the buyout manager to determine which tabs are check.
-            for (auto const& tab : tabs_) {
-                if ((tab.IsValid()) && (bo_manager_.GetRefreshChecked(tab) == true)) {
-                    tabs_to_update.insert(tab.get_tab_uniq_id());
-                };
-            };
-            break;
-        case TabSelection::Selected:
-            // Use the function argument to determine which tabs were selected.
-            for (auto const& tab : locations) {
-                if (tab.IsValid()) {
-                    tabs_to_update.insert(tab.get_tab_uniq_id());
-                };
-            };
-            break;
-        };
-        // Remove the tabs that will be updated, and all the items linked to those tabs.
-        QLOG_DEBUG() << "Updating" << tabs_to_update.size() << " tabs.";
-        RemoveUpdatingTabs(tabs_to_update);
-        RemoveUpdatingItems(tabs_to_update);
-    };
+	if (type == TabSelection::All) {
+		QLOG_DEBUG() << "Updating all tabs and items.";
+		tabs_.clear();
+		tab_id_index_.clear();
+		items_.clear();
+		first_fetch_tab_id_ = 0;
+	} else {
+		// Build a list of tabs to update.
+		std::set<std::string> tabs_to_update = {};
+		switch (type) {
+		case TabSelection::Checked:
+			// Use the buyout manager to determine which tabs are check.
+			for (auto const& tab : tabs_) {
+				if ((tab.IsValid()) && (bo_manager_.GetRefreshChecked(tab) == true)) {
+					tabs_to_update.insert(tab.get_tab_uniq_id());
+				};
+			};
+			break;
+		case TabSelection::Selected:
+			// Use the function argument to determine which tabs were selected.
+			for (auto const& tab : locations) {
+				if (tab.IsValid()) {
+					tabs_to_update.insert(tab.get_tab_uniq_id());
+				};
+			};
+			break;
+		};
+		// Remove the tabs that will be updated, and all the items linked to those tabs.
+		QLOG_DEBUG() << "Updating" << tabs_to_update.size() << " tabs.";
+		RemoveUpdatingTabs(tabs_to_update);
+		RemoveUpdatingItems(tabs_to_update);
+	};
 
-    if (first_fetch_tab_id_ < 0) {
-        QLOG_WARN() << "Requesting tab index 0 because there are no known tabs to update.";
-        first_fetch_tab_ = "<UNKNOWN>";
-        first_fetch_tab_id_ = 0;
-    };
+	if (first_fetch_tab_id_ < 0) {
+		QLOG_WARN() << "Requesting tab index 0 because there are no known tabs to update.";
+		first_fetch_tab_ = "<UNKNOWN>";
+		first_fetch_tab_id_ = 0;
+	};
 
 	// first, download the main page because it's the only way to know which character is selected
-    QNetworkRequest main_page_request = QNetworkRequest(QUrl(kMainPage));
+	QNetworkRequest main_page_request = QNetworkRequest(QUrl(kMainPage));
 	rate_limiter_.Submit(network_manager_, main_page_request,
 		[=](QNetworkReply* reply) {
 			OnMainPageReceived(reply);
@@ -351,63 +351,63 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 }
 
 void ItemsManagerWorker::RemoveUpdatingTabs(const std::set<std::string>& tab_ids) {
-    if (tab_ids.empty()) {
-        QLOG_ERROR() << "No tabs to remove.";
-        return;
-    };
+	if (tab_ids.empty()) {
+		QLOG_ERROR() << "No tabs to remove.";
+		return;
+	};
 
-    // Keep tabs that are not being updated.
-    std::vector<ItemLocation> current_tabs = tabs_;
-    bool need_first = true;
-    tabs_.clear();
-    tab_id_index_.clear();
-    for (auto& tab : current_tabs) {
-        const std::string tab_id = tab.get_tab_uniq_id();
-        bool save_tab = (tab_ids.count(tab.get_tab_uniq_id()) == 0);
-        if (save_tab) {
-            tabs_.push_back(tab);
-            tab_id_index_.insert(tab.get_tab_uniq_id());
-        } else if (need_first) {
-            first_fetch_tab_ = tab.get_tab_uniq_id();
-            first_fetch_tab_id_ = tab.get_tab_id();
-            need_first = false;
-        };
-    };
-    QLOG_DEBUG() << "Keeping" << tabs_.size() << "tabs and culling" << (current_tabs.size() - tabs_.size());
+	// Keep tabs that are not being updated.
+	std::vector<ItemLocation> current_tabs = tabs_;
+	bool need_first = true;
+	tabs_.clear();
+	tab_id_index_.clear();
+	for (auto& tab : current_tabs) {
+		const std::string tab_id = tab.get_tab_uniq_id();
+		bool save_tab = (tab_ids.count(tab.get_tab_uniq_id()) == 0);
+		if (save_tab) {
+			tabs_.push_back(tab);
+			tab_id_index_.insert(tab.get_tab_uniq_id());
+		} else if (need_first) {
+			first_fetch_tab_ = tab.get_tab_uniq_id();
+			first_fetch_tab_id_ = tab.get_tab_id();
+			need_first = false;
+		};
+	};
+	QLOG_DEBUG() << "Keeping" << tabs_.size() << "tabs and culling" << (current_tabs.size() - tabs_.size());
 }
 
 void ItemsManagerWorker::RemoveUpdatingItems(const std::set<std::string>& tab_ids) {
-    // Keep items with locations that are not being updated.
-    if (tab_ids.empty()) {
-        QLOG_ERROR() << "No tabs to remove items from.";
-        return;
-    };
-    Items current_items = items_;
-    items_.clear();
-    for (auto const& item : current_items) {
-        const ItemLocation& tab = item.get()->location();
-        bool save_item = (tab_ids.count(tab.get_tab_uniq_id()) == 0);
-        if (save_item) {
-            items_.push_back(item); 
-        };
-    };
-    QLOG_DEBUG() << "Keeping" << items_.size() << "items and culling" << (current_items.size() - items_.size());
+	// Keep items with locations that are not being updated.
+	if (tab_ids.empty()) {
+		QLOG_ERROR() << "No tabs to remove items from.";
+		return;
+	};
+	Items current_items = items_;
+	items_.clear();
+	for (auto const& item : current_items) {
+		const ItemLocation& tab = item.get()->location();
+		bool save_item = (tab_ids.count(tab.get_tab_uniq_id()) == 0);
+		if (save_item) {
+			items_.push_back(item);
+		};
+	};
+	QLOG_DEBUG() << "Keeping" << items_.size() << "items and culling" << (current_items.size() - items_.size());
 }
-void ItemsManagerWorker::OnMainPageReceived(QNetworkReply *reply) {
-    QLOG_TRACE() << "Main page received.";
+void ItemsManagerWorker::OnMainPageReceived(QNetworkReply* reply) {
+	QLOG_TRACE() << "Main page received.";
 
-    if (reply->error()) {
-        QLOG_WARN() << "Couldn't fetch main page: " << reply->url().toDisplayString() << " due to error: " << reply->errorString();
-    } else {
-        std::string page(reply->readAll().constData());
-        selected_character_ = Util::FindTextBetween(page, "C({\"name\":\"", "\",\"class");
-        if (selected_character_.empty()) {
-            QLOG_WARN() << "Couldn't extract currently selected character name from GGG homepage (maintenence?) Text was: " << page.c_str();
-        };
-    };
+	if (reply->error()) {
+		QLOG_WARN() << "Couldn't fetch main page: " << reply->url().toDisplayString() << " due to error: " << reply->errorString();
+	} else {
+		std::string page(reply->readAll().constData());
+		selected_character_ = Util::FindTextBetween(page, "C({\"name\":\"", "\",\"class");
+		if (selected_character_.empty()) {
+			QLOG_WARN() << "Couldn't extract currently selected character name from GGG homepage (maintenence?) Text was: " << page.c_str();
+		};
+	};
 
 	// now get character list
-    QNetworkRequest characters_request = QNetworkRequest(QUrl(kGetCharactersUrl));
+	QNetworkRequest characters_request = QNetworkRequest(QUrl(kGetCharactersUrl));
 	rate_limiter_.Submit(network_manager_, characters_request,
 		[=](QNetworkReply* reply) {
 			OnCharacterListReceived(reply);
@@ -415,64 +415,64 @@ void ItemsManagerWorker::OnMainPageReceived(QNetworkReply *reply) {
 }
 
 void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
-    QLOG_TRACE() << "Character list received.";
+	QLOG_TRACE() << "Character list received.";
 	QByteArray bytes = reply->readAll();
 	rapidjson::Document doc;
 	doc.Parse(bytes.constData());
 
-    if (reply->error()) {
-        QLOG_WARN() << "Couldn't fetch character list: " << reply->url().toDisplayString()
-            << " due to error: " << reply->errorString() << " Aborting update.";
-        updating_ = false;
-        return;
-    };
-    
-    if (doc.HasParseError() || !doc.IsArray()) {
-        QLOG_ERROR() << "Received invalid reply instead of character list:" << bytes.constData();
-        if (doc.HasParseError()) {
-            QLOG_ERROR() << "The error was" << rapidjson::GetParseError_En(doc.GetParseError());
-        };
-        QLOG_ERROR() << "";
-        QLOG_ERROR() << "(Maybe you need to log in to the website manually and accept new Terms of Service?)";
-        updating_ = false;
-        return;
-    };
+	if (reply->error()) {
+		QLOG_WARN() << "Couldn't fetch character list: " << reply->url().toDisplayString()
+			<< " due to error: " << reply->errorString() << " Aborting update.";
+		updating_ = false;
+		return;
+	};
+
+	if (doc.HasParseError() || !doc.IsArray()) {
+		QLOG_ERROR() << "Received invalid reply instead of character list:" << bytes.constData();
+		if (doc.HasParseError()) {
+			QLOG_ERROR() << "The error was" << rapidjson::GetParseError_En(doc.GetParseError());
+		};
+		QLOG_ERROR() << "";
+		QLOG_ERROR() << "(Maybe you need to log in to the website manually and accept new Terms of Service?)";
+		updating_ = false;
+		return;
+	};
 
 	QLOG_DEBUG() << "Received character list, there are" << doc.Size() << "characters across all leagues.";
 
-    int total_character_count = 0;
+	int total_character_count = 0;
 	int requested_character_count = 0;
 	for (auto& character : doc) {
 		const std::string name = character["name"].GetString();
 		if (!character.HasMember("league") || !character.HasMember("name") || !character["league"].IsString() || !character["name"].IsString()) {
-            QLOG_ERROR() << "Malformed character entry for" << name.c_str() << ": the reply may be invalid : " << bytes.constData();
-            continue;
-        };
-        if (character["league"].GetString() != league_) {
+			QLOG_ERROR() << "Malformed character entry for" << name.c_str() << ": the reply may be invalid : " << bytes.constData();
+			continue;
+		};
+		if (character["league"].GetString() != league_) {
 			QLOG_DEBUG() << "Skipping" << name.c_str() << "because this character is not in" << league_.c_str();
-            continue;
-        };
-        ++total_character_count;
-        if (tab_id_index_.count(name) > 0) {
-            QLOG_DEBUG() << "Skipping" << name.c_str() << "because this item is not being refreshed.";
-            continue;
-        };
-        const int tab_count = tabs_.size();
-        ItemLocation location;
-        location.set_type(ItemLocationType::CHARACTER);
-        location.set_character(name);
-        location.set_json(character, doc.GetAllocator());
-        location.set_tab_id(tab_count);
-        tabs_.push_back(location);
-        ++requested_character_count;
+			continue;
+		};
+		++total_character_count;
+		if (tab_id_index_.count(name) > 0) {
+			QLOG_DEBUG() << "Skipping" << name.c_str() << "because this item is not being refreshed.";
+			continue;
+		};
+		const int tab_count = tabs_.size();
+		ItemLocation location;
+		location.set_type(ItemLocationType::CHARACTER);
+		location.set_character(name);
+		location.set_json(character, doc.GetAllocator());
+		location.set_tab_id(tab_count);
+		tabs_.push_back(location);
+		++requested_character_count;
 
-        //Queue request for items on character in character's stash
-        QueueRequest(MakeCharacterRequest(name), location);
+		//Queue request for items on character in character's stash
+		QueueRequest(MakeCharacterRequest(name), location);
 
-        //Queue request for jewels in character's passive tree
-        QueueRequest(MakeCharacterPassivesRequest(name), location);
+		//Queue request for jewels in character's passive tree
+		QueueRequest(MakeCharacterPassivesRequest(name), location);
 	}
-    QLOG_DEBUG() << "There are" << requested_character_count << "characters to update in" << league_.c_str();
+	QLOG_DEBUG() << "There are" << requested_character_count << "characters to update in" << league_.c_str();
 
 	CurrentStatusUpdate status;
 	status.state = ProgramState::CharactersReceived;
@@ -498,27 +498,27 @@ QNetworkRequest ItemsManagerWorker::MakeTabRequest(int tab_index, bool tabs) {
 	return QNetworkRequest(url);
 }
 
-QNetworkRequest ItemsManagerWorker::MakeCharacterRequest(const std::string &name) {
+QNetworkRequest ItemsManagerWorker::MakeCharacterRequest(const std::string& name) {
 	QUrlQuery query;
 	query.addQueryItem("character", name.c_str());
 	query.addQueryItem("accountName", account_name_.c_str());
 
 	QUrl url(kCharacterItemsUrl);
 	url.setQuery(query);
-    return QNetworkRequest(url);
+	return QNetworkRequest(url);
 }
 
-QNetworkRequest ItemsManagerWorker::MakeCharacterPassivesRequest(const std::string &name) {
+QNetworkRequest ItemsManagerWorker::MakeCharacterPassivesRequest(const std::string& name) {
 	QUrlQuery query;
 	query.addQueryItem("character", name.c_str());
 	query.addQueryItem("accountName", account_name_.c_str());
 
 	QUrl url(kCharacterSocketedJewels);
 	url.setQuery(query);
-    return QNetworkRequest(url);
+	return QNetworkRequest(url);
 }
 
-void ItemsManagerWorker::QueueRequest(const QNetworkRequest &request, const ItemLocation &location) {
+void ItemsManagerWorker::QueueRequest(const QNetworkRequest& request, const ItemLocation& location) {
 	QLOG_DEBUG() << "Queued (" << queue_id_ + 1 << ") -- " << location.GetHeader().c_str();
 	ItemsRequest items_request;
 	items_request.network_request = request;
@@ -530,22 +530,22 @@ void ItemsManagerWorker::QueueRequest(const QNetworkRequest &request, const Item
 void ItemsManagerWorker::FetchItems() {
 	std::string tab_titles;
 	int count = queue_.size();
-    for (int i = 0; i < count; ++i) {
-        // Take the next request out of the queue.
-        ItemsRequest request = queue_.front();
-        queue_.pop();
+	for (int i = 0; i < count; ++i) {
+		// Take the next request out of the queue.
+		ItemsRequest request = queue_.front();
+		queue_.pop();
 
-        // Pass the request to the rate limiter.
-        QNetworkRequest fetch_request = request.network_request;
-        ItemLocation location = request.location;
-        rate_limiter_.Submit(network_manager_, fetch_request,
-            [=](QNetworkReply* reply) {
-                OnTabReceived(reply, location);
-            });
+		// Pass the request to the rate limiter.
+		QNetworkRequest fetch_request = request.network_request;
+		ItemLocation location = request.location;
+		rate_limiter_.Submit(network_manager_, fetch_request,
+			[=](QNetworkReply* reply) {
+				OnTabReceived(reply, location);
+			});
 
-        // Keep track of the tabs requested.
-        tab_titles += request.location.GetHeader() + " ";
-    };
+		// Keep track of the tabs requested.
+		tab_titles += request.location.GetHeader() + " ";
+	};
 	QLOG_DEBUG() << "Created" << count << "requests:" << tab_titles.c_str();
 	requests_needed_ = count;
 	requests_completed_ = 0;
@@ -558,155 +558,155 @@ void ItemsManagerWorker::OnFirstTabReceived(QNetworkReply* reply) {
 	rapidjson::Document doc;
 	doc.Parse(bytes.constData());
 
-    if (!doc.IsObject()) {
-        QLOG_ERROR() << "Can't even fetch first tab. Failed to update items.";
-        updating_ = false;
-        return;
-    };
+	if (!doc.IsObject()) {
+		QLOG_ERROR() << "Can't even fetch first tab. Failed to update items.";
+		updating_ = false;
+		return;
+	};
 
-    if (doc.HasMember("error")) {
-        QLOG_ERROR() << "Aborting update since first fetch failed due to 'error':" << Util::RapidjsonSerialize(doc["error"]).c_str();
-        updating_ = false;
-        return;
-    };
+	if (doc.HasMember("error")) {
+		QLOG_ERROR() << "Aborting update since first fetch failed due to 'error':" << Util::RapidjsonSerialize(doc["error"]).c_str();
+		updating_ = false;
+		return;
+	};
 
-    if (!doc.HasMember("tabs") || doc["tabs"].Size() == 0) {
-        QLOG_ERROR() << "There are no tabs, this should not happen, bailing out.";
-        updating_ = false;
-        return;
-    };
+	if (!doc.HasMember("tabs") || doc["tabs"].Size() == 0) {
+		QLOG_ERROR() << "There are no tabs, this should not happen, bailing out.";
+		updating_ = false;
+		return;
+	};
 
-    QLOG_DEBUG() << "Received tabs list, there are" << doc["tabs"].Size() << "tabs";
-    tabs_as_string_ = Util::RapidjsonSerialize(doc["tabs"]);
+	QLOG_DEBUG() << "Received tabs list, there are" << doc["tabs"].Size() << "tabs";
+	tabs_as_string_ = Util::RapidjsonSerialize(doc["tabs"]);
 	tabs_signature_ = CreateTabsSignatureVector(tabs_as_string_);
 
-    // Remember old tab headers before clearing tabs
-    std::set<std::string> old_tab_headers;
-    for (auto const &tab: tabs_) {
+	// Remember old tab headers before clearing tabs
+	std::set<std::string> old_tab_headers;
+	for (auto const& tab : tabs_) {
 		old_tab_headers.insert(tab.GetHeader());
 	};
 
-    // Force refreshes for any stash tabs that were moved or renamed.
-    for (auto const& tab : tabs_) {
-        if (!old_tab_headers.count(tab.GetHeader())) {
-            QLOG_DEBUG() << "Forcing refresh of moved or renamed tab: " << tab.GetHeader().c_str();
-            QueueRequest(MakeTabRequest(tab.get_tab_id(), true), tab);
-        };
-    };
+	// Force refreshes for any stash tabs that were moved or renamed.
+	for (auto const& tab : tabs_) {
+		if (!old_tab_headers.count(tab.GetHeader())) {
+			QLOG_DEBUG() << "Forcing refresh of moved or renamed tab: " << tab.GetHeader().c_str();
+			QueueRequest(MakeTabRequest(tab.get_tab_id(), true), tab);
+		};
+	};
 
-    // Queue stash tab requests.
-    for (auto& tab : doc["tabs"]) {
+	// Queue stash tab requests.
+	for (auto& tab : doc["tabs"]) {
 
-        std::string label = tab["n"].GetString();
-        const int index = tab["i"].GetInt();
+		std::string label = tab["n"].GetString();
+		const int index = tab["i"].GetInt();
 
-        // Skip hidden tabs.
-        if (doc["tabs"][index].HasMember("hidden") && doc["tabs"][index]["hidden"].GetBool()) {
-            continue;
-        };
+		// Skip hidden tabs.
+		if (doc["tabs"][index].HasMember("hidden") && doc["tabs"][index]["hidden"].GetBool()) {
+			continue;
+		};
 
-        // Skip tabs that are in the index; they are not being refreshed.
-        const char* tab_id = tab["id"].GetString();
-        if (tab_id_index_.count(tab_id) > 0) {
-            continue;
-        };
+		// Skip tabs that are in the index; they are not being refreshed.
+		const char* tab_id = tab["id"].GetString();
+		if (tab_id_index_.count(tab_id) > 0) {
+			continue;
+		};
 
-        // Create and save the tab location object.
-        const int r = tab["colour"]["r"].GetInt();
-        const int g = tab["colour"]["g"].GetInt();
-        const int b = tab["colour"]["b"].GetInt();
-        ItemLocation location(index, tab_id, label, ItemLocationType::STASH, r, g, b);
-        location.set_json(tab, doc.GetAllocator());
-        tabs_.push_back(location);
-        tab_id_index_.insert(tab_id);
+		// Create and save the tab location object.
+		const int r = tab["colour"]["r"].GetInt();
+		const int g = tab["colour"]["g"].GetInt();
+		const int b = tab["colour"]["b"].GetInt();
+		ItemLocation location(index, tab_id, label, ItemLocationType::STASH, r, g, b);
+		location.set_json(tab, doc.GetAllocator());
+		tabs_.push_back(location);
+		tab_id_index_.insert(tab_id);
 
-        // Submit a request for this tab.
-        QueueRequest(MakeTabRequest(location.get_tab_id(), true), location);
-    };
+		// Submit a request for this tab.
+		QueueRequest(MakeTabRequest(location.get_tab_id(), true), location);
+	};
 
 	total_needed_ = queue_.size();
 	total_completed_ = 0;
-    FetchItems();
+	FetchItems();
 }
 
-void ItemsManagerWorker::ParseItems(rapidjson::Value *value_ptr, ItemLocation base_location, rapidjson_allocator &alloc) {
-	auto &value = *value_ptr;
+void ItemsManagerWorker::ParseItems(rapidjson::Value* value_ptr, ItemLocation base_location, rapidjson_allocator& alloc) {
+	auto& value = *value_ptr;
 
-	for (auto &item : value) {
+	for (auto& item : value) {
 		//ItemLocation location(base_location);
 		base_location.FromItemJson(item);
 		base_location.ToItemJson(&item, alloc);
 		items_.push_back(std::make_shared<Item>(item, base_location));
-        if (item.HasMember("socketedItems") && item["socketedItems"].IsArray()) {
-            base_location.set_socketed(true);
-            ParseItems(&item["socketedItems"], base_location, alloc);
-        };
+		if (item.HasMember("socketedItems") && item["socketedItems"].IsArray()) {
+			base_location.set_socketed(true);
+			ParseItems(&item["socketedItems"], base_location, alloc);
+		};
 	}
 }
 
 void ItemsManagerWorker::OnTabReceived(QNetworkReply* network_reply, ItemLocation location) {
-    QLOG_DEBUG() << "Received a reply for" << location.GetHeader().c_str();
+	QLOG_DEBUG() << "Received a reply for" << location.GetHeader().c_str();
 
 	QByteArray bytes = network_reply->readAll();
 	rapidjson::Document doc;
 	doc.Parse(bytes.constData());
 
 	bool error = false;
-    if (!doc.IsObject()) {
-        QLOG_WARN() << "Got a non-object response";
-        error = true;
-    } else if (doc.HasMember("error")) {
-        // this can happen if user is browsing stash in background and we can't know about it
-        QLOG_WARN() << "Got 'error' instead of stash tab contents: " << Util::RapidjsonSerialize(doc["error"]).c_str();
-        error = true;
-    };
+	if (!doc.IsObject()) {
+		QLOG_WARN() << "Got a non-object response";
+		error = true;
+	} else if (doc.HasMember("error")) {
+		// this can happen if user is browsing stash in background and we can't know about it
+		QLOG_WARN() << "Got 'error' instead of stash tab contents: " << Util::RapidjsonSerialize(doc["error"]).c_str();
+		error = true;
+	};
 
 	// We index expected tabs and their locations as part of the first fetch.  It's possible for users
 	// to move or rename tabs during the update which will result in the item data being out-of-sync with
 	// expected index/tab name map.  We need to detect this case and abort the update.
-    if (!cancel_update_ && !error && (location.get_type() == ItemLocationType::STASH)) {
+	if (!cancel_update_ && !error && (location.get_type() == ItemLocationType::STASH)) {
 		cancel_update_ = TabsChanged(doc, network_reply, location);
-    };
+	};
 
 	// re-queue a failed request
-    if (error) {
-        QueueRequest(network_reply->request(), location);
-    };
+	if (error) {
+		QueueRequest(network_reply->request(), location);
+	};
 
 	++requests_completed_;
 
-    if (!error) {
-        ++total_completed_;
-    };
+	if (!error) {
+		++total_completed_;
+	};
 
-    if (requests_completed_ == requests_needed_) {
-        if (cancel_update_) {
-            updating_ = false;
-        };
-    };
+	if (requests_completed_ == requests_needed_) {
+		if (cancel_update_) {
+			updating_ = false;
+		};
+	};
 
 	CurrentStatusUpdate status = CurrentStatusUpdate();
 	status.state = ProgramState::ItemsReceive;
 	status.progress = total_completed_;
 	status.total = total_needed_;
-    if (total_completed_ == total_needed_) {
-        status.state = ProgramState::ItemsCompleted;
-    };
-    if (cancel_update_) {
-        status.state = ProgramState::UpdateCancelled;
-    };
+	if (total_completed_ == total_needed_) {
+		status.state = ProgramState::ItemsCompleted;
+	};
+	if (cancel_update_) {
+		status.state = ProgramState::UpdateCancelled;
+	};
 	emit StatusUpdate(status);
 
-    if (error) {
-        return;
-    };
+	if (error) {
+		return;
+	};
 
 	ParseItems(&doc["items"], location, doc.GetAllocator());
 
-    if ((total_completed_ == total_needed_) && !cancel_update_) {
+	if ((total_completed_ == total_needed_) && !cancel_update_) {
 		FinishUpdate();
 		PreserveSelectedCharacter();
-    };
+	};
 }
 
 bool ItemsManagerWorker::TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, ItemLocation& location) {
@@ -716,7 +716,7 @@ bool ItemsManagerWorker::TabsChanged(rapidjson::Document& doc, QNetworkReply* ne
 			<< network_reply->request().url().toDisplayString();
 		return true;
 	};
-	
+
 	std::string tabs_as_string = Util::RapidjsonSerialize(doc["tabs"]);
 	auto tabs_signature_current = CreateTabsSignatureVector(tabs_as_string);
 	auto tab_id = location.get_tab_id();
@@ -731,7 +731,7 @@ bool ItemsManagerWorker::TabsChanged(rapidjson::Document& doc, QNetworkReply* ne
 
 		auto& x = tabs_signature_current[tab_id];
 		auto& y = tabs_signature_[tab_id];
-		reason += "[tab_index=" + std::to_string(tab_id) 
+		reason += "[tab_index=" + std::to_string(tab_id)
 			+ "/" + std::to_string(tabs_signature_current.size())
 			+ "(#" + std::to_string(tab_id + 1) + ")]";
 
@@ -799,33 +799,33 @@ void ItemsManagerWorker::FinishUpdate() {
 }
 
 void ItemsManagerWorker::PreserveSelectedCharacter() {
-    if (selected_character_.empty()) {
-        QLOG_DEBUG() << "Cannot preserve selected character: no character selected";
-        return;
-    };
-    QLOG_DEBUG() << "Preserving selected character:" << selected_character_.c_str();
+	if (selected_character_.empty()) {
+		QLOG_DEBUG() << "Cannot preserve selected character: no character selected";
+		return;
+	};
+	QLOG_DEBUG() << "Preserving selected character:" << selected_character_.c_str();
 	QNetworkRequest character_request = MakeCharacterRequest(selected_character_);
 	rate_limiter_.Submit(network_manager_, character_request,
-        [](QNetworkReply*) {
-            // The act of making this request sets the active character.
-            // We don't need to to anything with the reply.
-        });
+		[](QNetworkReply*) {
+			// The act of making this request sets the active character.
+			// We don't need to to anything with the reply.
+		});
 }
 
 std::vector<std::pair<std::string, std::string> > ItemsManagerWorker::CreateTabsSignatureVector(std::string tabs) {
 	std::vector<std::pair<std::string, std::string> > tmp;
 	rapidjson::Document doc;
 
-    if (doc.Parse(tabs.c_str()).HasParseError()) {
-        QLOG_ERROR() << "Error creating signature vector from tabs data ("
+	if (doc.Parse(tabs.c_str()).HasParseError()) {
+		QLOG_ERROR() << "Error creating signature vector from tabs data ("
 			<< rapidjson::GetParseError_En(doc.GetParseError()) << "):" << tabs.c_str();
-    } else {
-        for (auto& tab : doc) {
-            std::string name = (tab.HasMember("n") && tab["n"].IsString()) ? tab["n"].GetString() : "UNKNOWN_NAME";
-            std::string uid = (tab.HasMember("id") && tab["id"].IsString()) ? tab["id"].GetString() : "UNKNOWN_ID";
-            tmp.emplace_back(name, uid);
-        };
-    };
+	} else {
+		for (auto& tab : doc) {
+			std::string name = (tab.HasMember("n") && tab["n"].IsString()) ? tab["n"].GetString() : "UNKNOWN_NAME";
+			std::string uid = (tab.HasMember("id") && tab["id"].IsString()) ? tab["id"].GetString() : "UNKNOWN_ID";
+			tmp.emplace_back(name, uid);
+		};
+	};
 	return tmp;
 }
 

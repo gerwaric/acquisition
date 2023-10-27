@@ -24,5 +24,5 @@
 namespace Filesystem {
 	void Init();
 	std::string UserDir();
-	void SetUserDir(const std::string &dir);
+	void SetUserDir(const std::string& dir);
 }

@@ -41,12 +41,12 @@ UpdateChecker::UpdateChecker() {
 void UpdateChecker::CheckForUpdates() {
 	QNetworkRequest request = QNetworkRequest(QUrl(UPDATE_CHECK_URL));
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply *version_check = nm_.get(request);
+	QNetworkReply* version_check = nm_.get(request);
 	connect(version_check, &QNetworkReply::finished, this, &UpdateChecker::OnUpdateCheckCompleted);
 }
 
 void UpdateChecker::OnUpdateCheckCompleted() {
-	QNetworkReply *reply = qobject_cast<QNetworkReply *>(QObject::sender());
+	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
 	QByteArray bytes = reply->readAll();
 	int available_version = QString(bytes).toInt();
 	if (available_version > VERSION_CODE) {
@@ -54,7 +54,7 @@ void UpdateChecker::OnUpdateCheckCompleted() {
 	}
 }
 
-void UpdateChecker::AskUserToUpdate(QWidget *parent) {
+void UpdateChecker::AskUserToUpdate(QWidget* parent) {
 	QMessageBox::StandardButton result = QMessageBox::information(parent, "Update",
 		"A newer version of Acquisition is available. "
 		"Would you like to navigate to GitHub to download it?",

@@ -34,60 +34,60 @@
 
 namespace {
 
-bool is_poe_running_locally() {
+	bool is_poe_running_locally() {
 #if defined(Q_OS_LINUX) || defined(Q_OS_MAC)
-	QProcess process;
-	process.start("/bin/sh -c \"ps -ax|grep PathOfExile|grep -v grep|wc -l\"");
-	process.waitForFinished(-1);
-	QString i = process.readAllStandardOutput();
-	return i.toInt() > 0;
+		QProcess process;
+		process.start("/bin/sh -c \"ps -ax|grep PathOfExile|grep -v grep|wc -l\"");
+		process.waitForFinished(-1);
+		QString i = process.readAllStandardOutput();
+		return i.toInt() > 0;
 #elif defined(Q_OS_WIN)
-// http://msdn.microsoft.com/en-us/library/windows/desktop/ms686701%28v=vs.85%29.aspx
-	HANDLE hProcessSnap;
-	PROCESSENTRY32 pe32;
+		// http://msdn.microsoft.com/en-us/library/windows/desktop/ms686701%28v=vs.85%29.aspx
+		HANDLE hProcessSnap;
+		PROCESSENTRY32 pe32;
 
-	hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-	if (hProcessSnap == INVALID_HANDLE_VALUE) {
-		QLOG_ERROR() << "CreateToolhelp32Snapshot (of processes)";
-		return false;
-	}
+		hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+		if (hProcessSnap == INVALID_HANDLE_VALUE) {
+			QLOG_ERROR() << "CreateToolhelp32Snapshot (of processes)";
+			return false;
+		}
 
-	pe32.dwSize = sizeof(PROCESSENTRY32);
+		pe32.dwSize = sizeof(PROCESSENTRY32);
 
-	if (!Process32First(hProcessSnap, &pe32)) {
-		QLOG_ERROR() << "Process32First";
+		if (!Process32First(hProcessSnap, &pe32)) {
+			QLOG_ERROR() << "Process32First";
+			CloseHandle(hProcessSnap);
+			return false;
+		}
+
+		bool found = false;
+		do {
+			QString s = QString::fromUtf16((char16_t*)pe32.szExeFile);
+			if (s.contains("PathOfExile"))
+				found = true;
+		} while (Process32Next(hProcessSnap, &pe32));
+
 		CloseHandle(hProcessSnap);
-		return false;
+
+		return found;
+#endif
 	}
 
-	bool found = false;
-	do {
-		QString s = QString::fromUtf16((char16_t*)pe32.szExeFile);
-		if (s.contains("PathOfExile"))
-			found = true;
-	} while(Process32Next(hProcessSnap, &pe32));
-
-	CloseHandle(hProcessSnap);
-
-	return found;
-#endif
-}
-
-bool is_poe_running_remotely(const std::string& script) {
+	bool is_poe_running_remotely(const std::string& script) {
 #if defined(Q_OS_LINUX) || defined(Q_OS_MAC)
-	std::string poe_check_script = "/bin/sh -c \"" + script + "\"";
+		std::string poe_check_script = "/bin/sh -c \"" + script + "\"";
 
-	QProcess process;
-	process.start(poe_check_script.c_str());
-	process.waitForFinished(-1);
+		QProcess process;
+		process.start(poe_check_script.c_str());
+		process.waitForFinished(-1);
 
-	return process.exitCode() == 0;
+		return process.exitCode() == 0;
 #else
-	Q_UNUSED(script);
-	QLOG_ERROR() << "Script handling has not been implemented on this Operating System";
-	return false;
+		Q_UNUSED(script);
+		QLOG_ERROR() << "Script handling has not been implemented on this Operating System";
+		return false;
 #endif
-}
+	}
 
 
 } //end of anonymous namespace
@@ -95,7 +95,7 @@ bool is_poe_running_remotely(const std::string& script) {
 // check for PoE running every minute
 const int kOnlineCheckInterval = 60 * 1000;
 
-AutoOnline::AutoOnline(DataStore &data, DataStore &sensitive_data) :
+AutoOnline::AutoOnline(DataStore& data, DataStore& sensitive_data) :
 	data_(data),
 	sensitive_data_(sensitive_data),
 	enabled_(data_.GetBool("online_enabled")),
@@ -127,7 +127,7 @@ void AutoOnline::SendOnlineUpdate(bool online) {
 
 void AutoOnline::Check() {
 	bool running = is_poe_running_locally();
-	if (IsRemoteScriptSet()){
+	if (IsRemoteScriptSet()) {
 		running = is_poe_running_remotely(process_script_);
 	} else {
 		running = is_poe_running_locally();
@@ -144,9 +144,9 @@ void AutoOnline::Check() {
 
 const std::vector<std::string> url_valid_prefixes = { "http://control.poe.xyz.is/", "http://control.poe.trade/" };
 
-void AutoOnline::SetUrl(const std::string &url) {
+void AutoOnline::SetUrl(const std::string& url) {
 	bool prefix_is_valid = false;
-	for (auto &valid_prefix : url_valid_prefixes) {
+	for (auto& valid_prefix : url_valid_prefixes) {
 		prefix_is_valid |= url.compare(0, valid_prefix.size(), valid_prefix) == 0;
 	}
 	if (!prefix_is_valid) {
