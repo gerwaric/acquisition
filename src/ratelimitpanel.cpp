@@ -54,6 +54,6 @@ void RateLimitStatusPanel::OnStatusLabelClicked() {
 	};
 }
 
-void RateLimitStatusPanel::OnStatusUpdate(const QString message) {
+void RateLimitStatusPanel::OnStatusUpdate(const QString& message) {
 	output_->setText(message);
 }

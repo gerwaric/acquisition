@@ -111,7 +111,7 @@ MainWindow::MainWindow(std::unique_ptr<Application> app) :
 }
 void MainWindow::InitializeRateLimitPanel() {
 	RateLimitStatusPanel* rate_panel = new RateLimitStatusPanel(this, ui);
-	connect(&app_->rate_limiter(), &RateLimit::RateLimiter::StatusUpdate, rate_panel, &RateLimitStatusPanel::OnStatusUpdate);
+	connect(&app_->items_manager(), &ItemsManager::RateLimitStatusUpdate, rate_panel, &RateLimitStatusPanel::OnStatusUpdate);
 }
 
 void MainWindow::InitializeLogging() {

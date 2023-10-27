@@ -33,7 +33,7 @@ public:
 	RateLimitStatusPanel(MainWindow* window, Ui::MainWindow* ui);
 public slots:
 	void OnStatusLabelClicked();
-	void OnStatusUpdate(const QString message);
+	void OnStatusUpdate(const QString& message);
 private:
 	QPushButton* status_button_;
 	QTextEdit* output_;
