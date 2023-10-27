@@ -53,7 +53,7 @@ private:
 	bool socketed_;
 	bool removeonly_;
 	ItemLocationType type_;
-	int tab_id_{0};
+	int tab_id_;
 	std::string json_;
 
 	//this would be the value "tabs -> id", which seems to be a hashed value generated on their end
