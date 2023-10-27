@@ -58,3 +58,6 @@ CppProperties.json
 
 # doc
 doc/
+
+# macOS
+.DS_Store
