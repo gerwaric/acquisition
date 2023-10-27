@@ -237,6 +237,24 @@ void Shop::OnShopSubmitted() {
 		submitting_ = false;
 		return;
 	}
+	// This slightly different error was encountered while debugging an issue with v0.9.9-beta.1.
+	// It's possible GGG has updated the forums so the previous error checking is no longer
+	// relavent, but that's not certain or documented anywhere, so let's do both.
+	std::string input_error = Util::FindTextBetween(page, "class=\"input-error\">", "</div>");
+	if (!input_error.empty()) {
+		QLOG_ERROR() << "Input error while submitting shop to forums:" << input_error.c_str();
+		submitting_ = false;
+		return;
+	}
+	// Let's err on the side of being cautious and look for an error the above code might
+	// have missed. Otherwise errors might just silently fall through the cracks.
+	for (auto& substr : { "class=\"errors\"", "class=\"input-error\"" }) {
+		if (page.find(substr) != std::string::npos) {
+			QLOG_ERROR() << "An error was detected but not handled while submitting shop to forums:" << substr;
+			submitting_ = false;
+			return;
+		};
+	}
 
 	// now let's hope that shop was submitted successfully and notify poe.trade
 	QNetworkRequest request(QUrl(("http://verify.poe.trade/" + threads_[requests_completed_] + "/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").c_str()));
