@@ -211,7 +211,11 @@ void ItemsManagerWorker::ParseItemMods() {
 			rapidjson::Document doc;
 			doc.Parse(items.c_str());
 			for (auto item = doc.Begin(); item != doc.End(); ++item) {
-				items_.push_back(std::make_shared<Item>(*item, tab));
+				// Create a new location and make sure location-related information
+				// such as x and y are pulled from the item json.
+				ItemLocation loc = tab;
+				loc.FromItemJson(*item);
+				items_.push_back(std::make_shared<Item>(*item, loc));
 			};
 		};
 		CurrentStatusUpdate status;
@@ -642,7 +646,7 @@ void ItemsManagerWorker::ParseItems(rapidjson::Value* value_ptr, ItemLocation ba
 	auto& value = *value_ptr;
 
 	for (auto& item : value) {
-		//ItemLocation location(base_location);
+		// Make sure location data from the item like x and y is brought over to the location object.
 		base_location.FromItemJson(item);
 		base_location.ToItemJson(&item, alloc);
 		items_.push_back(std::make_shared<Item>(item, base_location));
