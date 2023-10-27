@@ -92,12 +92,6 @@ void ItemsManagerWorker::Init() {
 
 	network_manager_ = std::make_unique<QNetworkAccessManager>();
 	network_manager_->cookieJar()->setCookiesFromUrl(cookies_, QUrl(kMainPage));
-
-	if (test_mode_) {
-		//network_manager_->setNetworkAccessible(QNetworkAccessManager::NetworkAccessibility::NotAccessible);
-		return;
-	};
-
 	rate_limiter_ = std::make_unique<RateLimiter>(*network_manager_);
 	connect(rate_limiter_.get(), &RateLimiter::StatusUpdate, this, &ItemsManagerWorker::OnRateLimitStatusUpdate);
 

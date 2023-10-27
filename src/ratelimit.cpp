@@ -422,7 +422,7 @@ void PolicyManager::ActivateRequest() {
 	// Need to wait and rerun this function when it's safe to send.
 	QLOG_TRACE() << policy->name
 		<< "waiting" << (msec_delay / 1000)
-		<< "seconds to send active request" << active_request->id
+		<< "seconds to send request" << active_request->id
 		<< "at" << next_send.toLocalTime().toString();
 
 	active_request_timer.setInterval(msec_delay);
