@@ -26,7 +26,7 @@ Either open `acquisition.pro` in Qt Creator and build or do `qmake && make`.
 
 ### Changelog
 
-## v0.9.9
+## v0.9.9 (currently in beta)
 
 Application Changes:
 - New dynamic rate limiting based on HTTP reply headers
