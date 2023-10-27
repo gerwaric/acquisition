@@ -32,10 +32,9 @@
 
 #include "application.h"
 #include "filesystem.h"
-#include "itemsmanagerworker.h"
-#include "modlist.h"
+#include "mainwindow.h"
 #include "porting.h"
-#include "version.h"
+#include "util.h"
 #include "version_defines.h"
 #include "../test/testmain.h"
 

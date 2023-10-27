@@ -27,7 +27,6 @@
 #include <vector>
 #include "rapidjson/document.h"
 
-#include "itemconstants.h"
 #include "itemlocation.h"
 
 extern const std::vector<std::string> ITEM_MOD_TYPES;

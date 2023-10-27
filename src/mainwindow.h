@@ -33,7 +33,6 @@
 
 #include "autoonline.h"
 #include "bucket.h"
-#include "items_model.h"
 #include "porting.h"
 #include "updatechecker.h"
 

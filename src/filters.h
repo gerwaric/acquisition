@@ -23,16 +23,17 @@
 #include <memory>
 
 #include "item.h"
-#include "mainwindow.h"
 #include "porting.h"
-#include "ui_mainwindow.h"
 
 class QLineEdit;
 class QCheckBox;
-class FilterData;
 class QComboBox;
 class QCompleter;
 class QAbstractListModel;
+class QLayout;
+
+class BuyoutManager;
+class FilterData;
 
 /*
  * Objects of subclasses of this class do the following:

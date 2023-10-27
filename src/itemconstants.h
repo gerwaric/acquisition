@@ -1,6 +1,7 @@
 #pragma once
 
 #include <map>
+#include <string>
 
 enum FRAME_TYPES {
 	FRAME_TYPE_NORMAL = 0,
@@ -31,7 +32,7 @@ struct position {
 	double y;
 };
 
-std::map<std::string, position> const POS_MAP{
+std::map<std::string, position> const POS_MAP {
 	{"MainInventory", {0, 7}}, {"BodyArmour", {5, 2}}, {"Weapon", {2, 0}}, {"Weapon2", {2, 0}}, {"Offhand", {8, 0}},
 	{"Offhand2", {8, 0}}, {"Boots", {7, 4}}, {"Ring", {4, 3}}, {"Ring2", {7, 3}}, {"Amulet", {7, 2}},
 	{"Gloves", {3, 4}}, {"Belt", {5, 5}}, {"Helm", {5, 0}}, {"Flask", {3.5, 6}}

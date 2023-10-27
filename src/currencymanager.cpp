@@ -31,9 +31,7 @@
 #include "porting.h"
 #include "util.h"
 #include "rapidjson/document.h"
-#include "rapidjson/writer.h"
 #include "rapidjson/error/en.h"
-#include "rapidjson_util.h"
 
 
 CurrencyManager::CurrencyManager(Application& app) :

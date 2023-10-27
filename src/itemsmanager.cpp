@@ -22,12 +22,13 @@
 #include <QThread>
 #include <stdexcept>
 
+#include "QsLog.h"
+
 #include "application.h"
 #include "buyoutmanager.h"
 #include "datastore.h"
 #include "itemsmanagerworker.h"
 #include "porting.h"
-#include "rapidjson_util.h"
 #include "shop.h"
 #include "util.h"
 #include "mainwindow.h"

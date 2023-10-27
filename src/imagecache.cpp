@@ -24,7 +24,6 @@
 #include <QString>
 #include <QCryptographicHash>
 
-#include "mainwindow.h"
 #include "util.h"
 
 ImageCache::ImageCache(const std::string& directory) :

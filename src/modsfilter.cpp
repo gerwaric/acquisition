@@ -23,7 +23,6 @@
 #include <QLineEdit>
 #include <QObject>
 #include <QPushButton>
-#include "QsLog.h"
 
 #include "modlist.h"
 #include "porting.h"
