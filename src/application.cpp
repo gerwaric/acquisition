@@ -31,6 +31,9 @@
 #include "shop.h"
 #include "QsLog.h"
 #include "version.h"
+#include "ratelimit.h"
+
+using RateLimit::RateLimiter;
 
 const QString BUILD_TIMESTAMP = QString(__DATE__ " " __TIME__).simplified();
 const QDateTime BUILD_DATE = QLocale("en_US").toDateTime(BUILD_TIMESTAMP, "MMM d yyyy hh:mm:ss");
@@ -63,6 +66,16 @@ void Application::InitLogin(
 		sensitive_data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/sensitive_data/" + data_file);
 		SaveDbOnNewVersion();
 	}
+
+	// Initialize the rate limiter here. Other parts of acquisition will use different
+	// QNetworkAccessManager objects, which will be passed to the rate_limiter's Submit()
+	// method. However, rate limits are only tied to account and ip as of September 2023,
+	// so we don't need to keep track of which access manager is sending which requests
+	// as long as they are all logged into the same account, which is assumed.
+	//
+	// WARNING: Breaking the above assumption may lead to rate limit violations.
+	rate_limiter_ = std::make_unique<RateLimit::RateLimiter>(*logged_in_nm_);
+
 	buyout_manager_ = std::make_unique<BuyoutManager>(*data_);
 	shop_ = std::make_unique<Shop>(*this);
 	items_manager_ = std::make_unique<ItemsManager>(*this);
