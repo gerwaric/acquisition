@@ -26,7 +26,6 @@
 #include <regex>
 #include "rapidjson/document.h"
 
-#include "QsLog.h"
 #include "modlist.h"
 #include "util.h"
 #include "porting.h"
@@ -354,8 +353,6 @@ double Item::cDPS() const {
 }
 
 void Item::GenerateMods(const rapidjson::Value& json) {
-	bool mod_present = false;
-	double sum = 0;
 	for (auto& type : { "implicitMods", "explicitMods", "craftedMods", "fracturedMods" }) {
 		if (!json.HasMember(type) || !json[type].IsArray())
 			continue;
@@ -364,7 +361,7 @@ void Item::GenerateMods(const rapidjson::Value& json) {
 				continue;
 
 			std::string mod_s = mod.GetString();
-			std::regex rep("([0-9\.]+)");
+            std::regex rep("([0-9\\.]+)");
 			mod_s = std::regex_replace(mod_s, rep, "#");
 			auto rslt = mods_map.find(mod_s);
 			if (rslt != mods_map.end()) {
