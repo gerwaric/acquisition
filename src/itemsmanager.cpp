@@ -41,8 +41,8 @@ ItemsManager::ItemsManager(Application &app) :
 	shop_(app.shop()),
 	app_(app)
 {
-	auto_update_interval_ = std::stoi(data_.Get("autoupdate_interval", "30"));
-	auto_update_ = data_.GetBool("autoupdate", true);
+	auto_update_interval_ = std::stoi(data_.Get("autoupdate_interval", "60"));
+	auto_update_ = data_.GetBool("autoupdate", false);
 	SetAutoUpdateInterval(auto_update_interval_);
 	connect(auto_update_timer_.get(), SIGNAL(timeout()), this, SLOT(OnAutoRefreshTimer()));
 }

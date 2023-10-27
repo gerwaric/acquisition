@@ -48,7 +48,7 @@ Shop::Shop(Application &app) :
 	submitting_(false)
 {
 	threads_ = Util::StringSplit(app_.data().Get("shop"), ';');
-	auto_update_ = app_.data().GetBool("shop_update", true);
+	auto_update_ = app_.data().GetBool("shop_update", false);
 	shop_template_ = app_.data().Get("shop_template");
 	if (shop_template_.empty())
 		shop_template_ = kShopTemplateItems;
