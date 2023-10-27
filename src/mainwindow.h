@@ -36,8 +36,6 @@
 #include "items_model.h"
 #include "porting.h"
 #include "updatechecker.h"
-#include "tabcache.h"
-
 
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -133,6 +131,7 @@ private:
 	void UpdateCurrentBuyout();
 	void NewSearch();
 	void SetCurrentSearch(Search *search);
+	void InitializeRateLimitPanel();
 	void InitializeLogging();
 	void InitializeSearchForm();
 	void InitializeUi();

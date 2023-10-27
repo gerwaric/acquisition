@@ -24,7 +24,6 @@
 
 #include "item.h"
 #include "itemsmanagerworker.h"
-#include "tabcache.h"
 
 struct CurrentStatusUpdate;
 class QThread;
@@ -46,7 +45,6 @@ public:
 	// Creates and starts the worker
 	void Start();
 	void Update(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
-	void RefreshModList();
 	void SetAutoUpdateInterval(int minutes);
 	void SetAutoUpdate(bool update);
 	int auto_update_interval() const { return auto_update_interval_; }
@@ -55,7 +53,6 @@ public:
 	void ApplyAutoTabBuyouts();
 	void ApplyAutoItemBuyouts();
 	void PropagateTabBuyouts();
-	void UpdateCategories();
 	const QSet<QString>& categories() const { return categories_; }
 public slots:
 	// called by auto_update_timer_

@@ -6,6 +6,8 @@ QT += core gui network testlib
 win32 {
 	QT += winextras
 	QT.testlib.CONFIG -= console
+	LIBS += -L"C:\Program Files\OpenSSL-Win64\lib" -llibcrypto -llibssl
+	INCLUDEPATH += "C:\Program Files\OpenSSL-Win64\include"
 }
 
 unix {
@@ -13,19 +15,13 @@ unix {
 	QMAKE_CXXFLAGS += -Wno-inconsistent-missing-override
 }
 
-nowebengine {
-  DEFINES += NO_WEBENGINE
-} else {
-  QT += webenginewidgets
-}
+DEFINES += NO_WEBENGINE
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 include(deps/QsLog/QsLog.pri)
 
-INCLUDEPATH += src deps deps/boost-header-only "C:\Program Files\OpenSSL-Win64\include"
-
-LIBS += -L"C:\Program Files\OpenSSL-Win64\lib" -llibcrypto -llibssl
+INCLUDEPATH += src deps deps/boost-header-only
 
 SOURCES += \
 	deps/sqlite/sqlite3.c \
@@ -35,7 +31,6 @@ SOURCES += \
 	src/buyoutmanager.cpp \
 	src/column.cpp \
 	src/currencymanager.cpp \
-	src/influence.cpp \
 	src/itemcategories.cpp \
 	src/sqlitedatastore.cpp \
 	src/filesystem.cpp \
@@ -56,12 +51,14 @@ SOURCES += \
 	src/memorydatastore.cpp \
 	src/modlist.cpp \
 	src/modsfilter.cpp \
+	src/network_info.cpp \
 	src/porting.cpp \
+	src/ratelimit.cpp \
+	src/ratelimitpanel.cpp \
 	src/replytimeout.cpp \
 	src/search.cpp \
 	src/shop.cpp \
 	src/steamlogindialog.cpp \
-	src/tabcache.cpp \
 	src/updatechecker.cpp \
 	src/util.cpp \
 	src/version.cpp \
@@ -82,7 +79,6 @@ HEADERS += \
 	src/column.h \
 	src/currencymanager.h \
 	src/datastore.h \
-	src/influence.h \
 	src/itemcategories.h \
 	src/sqlitedatastore.h \
 	src/filesystem.h \
@@ -103,14 +99,16 @@ HEADERS += \
 	src/memorydatastore.h \
 	src/modlist.h \
 	src/modsfilter.h \
+	src/network_info.h \
 	src/porting.h \
+	src/ratelimit.h \
+	src/ratelimitpanel.h \
 	src/rapidjson_util.h \
 	src/replytimeout.h \
 	src/search.h \
 	src/selfdestructingreply.h \
 	src/shop.h \
 	src/steamlogindialog.h \
-	src/tabcache.h \
 	src/updatechecker.h \
 	src/util.h \
 	src/version.h \
@@ -128,7 +126,7 @@ FORMS += \
 	forms/logindialog.ui \
 	forms/steamlogindialog.ui
 
-#CONFIG += c++11
+CONFIG += c++14
 
 DEPENDPATH *= $${INCLUDEPATH}
 

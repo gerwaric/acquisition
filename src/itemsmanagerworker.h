@@ -27,6 +27,7 @@
 #include "util.h"
 #include "item.h"
 #include "mainwindow.h"
+#include "ratelimit.h"
 
 class Application;
 class DataStore;
@@ -34,11 +35,8 @@ class QNetworkReply;
 class QSignalMapper;
 class QTimer;
 class BuyoutManager;
-class TabCache;
 
-const int kThrottleRequests = 45;
-const int kThrottleSleep = 60;
-const int kMaxCacheSize = (1000*1024*1024); // 1GB
+using RateLimit::RateLimiter;
 
 struct ItemsRequest {
 	int id;
@@ -56,65 +54,60 @@ class ItemsManagerWorker : public QObject {
 public:
 	ItemsManagerWorker(Application &app, QThread *thread);
 	~ItemsManagerWorker();
-	bool isModsUpdating(){ return modsUpdating_; }
-	volatile bool initialModUpdateCompleted_;
-	void UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation> &locations) { updateRequest_ = true; type_ = type, locations_ = locations; }
+	bool isInitialized() const { return initialized_; }
+	void UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations);
 public slots:
 	void ParseItemMods();
 	void Update(TabSelection::Type type, const std::vector<ItemLocation> &tab_names = std::vector<ItemLocation>());
 public slots:
-	void OnMainPageReceived();
-	void OnCharacterListReceived();
-	void OnFirstTabReceived();
-	void OnTabReceived(int index);
-	/*
-	* Makes 45 requests at once, should be called every minute.
-	* These values are approximated (GGG throttles requests)
-	* based on some quick testing.
-	*/
-	void FetchItems(int limit = kThrottleRequests);
+	void OnMainPageReceived(QNetworkReply* reply);
+	void OnCharacterListReceived(QNetworkReply* reply);
+	void OnFirstTabReceived(QNetworkReply* reply);
+	void OnTabReceived(QNetworkReply* reply, ItemLocation location);
+	void FetchItems();
 	void PreserveSelectedCharacter();
 	void Init();
 
-	void OnStatTranslationsReceived();
-	void OnItemClassesReceived();
-	void OnItemBaseTypesReceived();
+	void OnStatTranslationsReceived(QNetworkReply* reply);
+	void OnItemClassesReceived(QNetworkReply* reply);
+	void OnItemBaseTypesReceived(QNetworkReply* reply);
 signals:
 	void ItemsRefreshed(const Items &items, const std::vector<ItemLocation> &tabs, bool initial_refresh);
 	void StatusUpdate(const CurrentStatusUpdate &status);
 	void ItemClassesUpdate(const QByteArray &classes);
 	void ItemBaseTypesUpdate(const QByteArray &baseTypes);
 private:
-
-	QNetworkRequest MakeTabRequest(int tab_index, const ItemLocation &location, bool tabs = false, bool refresh = false);
-	QNetworkRequest MakeCharacterRequest(const std::string &name, const ItemLocation &location);
-	QNetworkRequest MakeCharacterPassivesRequest(const std::string &name, const ItemLocation &location);
+	void RemoveUpdatingTabs(const std::set<std::string>& tab_ids);
+	void RemoveUpdatingItems(const std::set<std::string>& tab_ids);
+	QNetworkRequest MakeTabRequest(int tab_index, bool tabs = false);
+	QNetworkRequest MakeCharacterRequest(const std::string &name);
+	QNetworkRequest MakeCharacterPassivesRequest(const std::string &name);
 	void QueueRequest(const QNetworkRequest &request, const ItemLocation &location);
 	void ParseItems(rapidjson::Value *value_ptr, ItemLocation base_location, rapidjson_allocator &alloc);
 	std::vector<std::pair<std::string, std::string> > CreateTabsSignatureVector(std::string tabs);
 	void UpdateModList();
+	bool TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, ItemLocation& location);
+	void FinishUpdate();
 
-	QNetworkRequest Request(QUrl url, const ItemLocation &location, TabCache::Flags flags = TabCache::None);
 	DataStore &data_;
 	QNetworkAccessManager network_manager_;
-	QSignalMapper *signal_mapper_;
 	std::vector<ItemLocation> tabs_;
 	std::queue<ItemsRequest> queue_;
-	std::map<int, ItemsReply> replies_;
+
 	// tabs_signature_ captures <"n", "id"> from JSON tab list, used as consistency check
 	std::vector<std::pair<std::string, std::string> > tabs_signature_;
-	bool cancel_update_{false};
 	Items items_;
-	int total_completed_, total_needed_, total_cached_;
+	int total_completed_, total_needed_;
 	int requests_completed_, requests_needed_;
-	int cached_requests_completed_{0};
 
+	std::set<std::string> tab_id_index_;
 	std::string tabs_as_string_;
 	std::string league_;
-	// set to true if updating right now
+
+	volatile bool initialized_;
 	volatile bool updating_;
 
-	volatile bool modsUpdating_;
+	bool cancel_update_;
 	bool updateRequest_;
 	TabSelection::Type type_;
 	std::vector<ItemLocation> locations_;
@@ -122,10 +115,10 @@ private:
 	int queue_id_;
 	std::string selected_character_;
 
-	std::string first_fetch_tab_{""};
-	TabCache *tab_cache_{new TabCache()};
+	std::string first_fetch_tab_;
+	int first_fetch_tab_id_;
 	const BuyoutManager &bo_manager_;
 	std::string account_name_;
-	TabSelection::Type tab_selection_;
-	std::set<std::string> selected_tabs_;
+
+	RateLimiter& rate_limiter_;
 };
