@@ -125,8 +125,10 @@ int main(int argc, char* argv[])
 
 	// Setup the logger.
 	QsLogging::Logger& logger = QsLogging::Logger::instance();
-	QsLogging::DestinationPtr fileDestination(
-		QsLogging::DestinationFactory::MakeFileDestination(sLogPath, true, 10 * 1024 * 1024, 0));
+    QsLogging::MaxSizeBytes logsize(10 * 1024 * 1024);
+    QsLogging::MaxOldLogCount logcount(0);
+    QsLogging::DestinationPtr fileDestination(
+        QsLogging::DestinationFactory::MakeFileDestination(sLogPath, QsLogging::EnableLogRotation, logsize, logcount));
 	QsLogging::DestinationPtr debugDestination(
 		QsLogging::DestinationFactory::MakeDebugOutputDestination());
 	logger.setLoggingLevel(loglevel);
