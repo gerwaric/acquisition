@@ -196,7 +196,7 @@ QVariant InfluncedColumn::icon(const Item& item) const {
 		}
 		return leftIcon;
 	}
-	return NULL;
+	return QVariant::fromValue(NULL);
 }
 
 

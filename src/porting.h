@@ -46,6 +46,7 @@ namespace std {
 
 // visual studio ships with std::make_unique implementation
 #ifndef _MSC_VER
+#ifndef __APPLE__
 namespace std {
 	// to be added in C++14
 	// source: http://herbsutter.com/gotw/_102/
@@ -55,4 +56,9 @@ namespace std {
 		return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 	}
 }
+#endif
+#endif
+
+#ifdef __APPLE__
+typedef unsigned char byte;
 #endif

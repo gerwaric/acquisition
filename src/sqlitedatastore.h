@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "datastore.h"
+#include "porting.h"
 
 class Application;
 struct CurrencyUpdate;

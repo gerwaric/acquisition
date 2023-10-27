@@ -19,6 +19,7 @@
 
 #include "itemsmanager.h"
 
+#include <QNetworkCookie>
 #include <QThread>
 #include <stdexcept>
 
@@ -34,6 +35,7 @@
 #include "mainwindow.h"
 #include "filters.h"
 #include "itemcategories.h"
+#include "ratelimit.h"
 
 ItemsManager::ItemsManager(Application& app) :
 	auto_update_timer_(std::make_unique<QTimer>()),
