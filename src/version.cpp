@@ -23,5 +23,5 @@
 const int VERSION_CODE = VER_CODE;
 const char VERSION_NAME[] = VER_STR;
 
-const char UPDATE_CHECK_URL[] = "https://raw.githubusercontent.com/testpushpleaseignore/acquisition/master/version.txt";
-const char UPDATE_DOWNLOAD_LOCATION[] = "https://github.com/testpushpleaseignore/acquisition/releases";
+const char UPDATE_CHECK_URL[] = "https://raw.githubusercontent.com/gerwaric/acquisition/master/version.txt";
+const char UPDATE_DOWNLOAD_LOCATION[] = "https://github.com/gerwaric/acquisition/releases";
