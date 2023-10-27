@@ -26,6 +26,9 @@
 
 #include "version_defines.h"
 #include "item.h"
+#include "ratelimit.h"
+
+using RateLimit::RateLimiter;
 
 // Holds the date and time of the current build based on __DATE__ and __TIME__ macros.
 extern const QString BUILD_TIMESTAMP;

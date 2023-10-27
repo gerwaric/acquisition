@@ -175,8 +175,7 @@ void ItemsManagerWorker::ParseItemMods() {
                 };
                 if (tab.HasMember("i")) {
                     index = tab["i"].GetInt();
-                }
-                else {
+                } else {
                     index = tabs_.size();
                 };
                 tabUniqueId = tab["name"].GetString();

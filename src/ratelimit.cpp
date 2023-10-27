@@ -140,10 +140,10 @@ Policy::Policy(QNetworkReply* const reply) :
 		};
 	};
 	// Check the status of the rate limit.
-	CheckStatus();
+	UpdateStatus();
 }
 
-void Policy::CheckStatus() {
+void Policy::UpdateStatus() {
 	status = PolicyStatus::UNKNOWN;
 	for (const auto& rule : rules) {
 		for (const auto& item : rule.items) {
@@ -467,11 +467,10 @@ void PolicyManager::ReceiveReply() {
 	QNetworkReply* reply = active_request->network_reply;
 	active_request->reply_time = GetDate(reply);
 	active_request->reply_status = GetStatus(reply);
-	active_request->reply_cached = reply->attribute(QNetworkRequest::SourceIsFromCacheAttribute).toBool();
     
 	QLOG_TRACE() << policy->name
 		<< "received reply for request" << active_request->id
-		<< "from cache" << active_request->reply_cached << "with status" << active_request->reply_status;
+		<< "with status" << active_request->reply_status;
 
 	if (reply->hasRawHeader("X-Rate-Limit-Policy")) {
 
@@ -483,20 +482,19 @@ void PolicyManager::ReceiveReply() {
 				<< "received header reply with" << reply_policy_name;
 		};
 
-		if (active_request->reply_cached == false) {
 
-			// Save the reply time if this was not a cached reply.
-			known_reply_times.push_front(active_request->reply_time);
+		// Save the reply time if this was not a cached reply.
+		known_reply_times.push_front(active_request->reply_time);
 
-			// Read the updated policy limits and state from the network reply.
-			policy = std::make_unique<Policy>(reply);
+		// Read the updated policy limits and state from the network reply.
+		policy = std::make_unique<Policy>(reply);
 
-			// Now examine the new policy and update ourselves accordingly.
-			OnPolicyUpdate();
+		// Now examine the new policy and update ourselves accordingly.
+		OnPolicyUpdate();
 
-			emit RateLimitingStarted();
-		};
-	} else if (active_request->reply_cached == false) {
+		emit RateLimitingStarted();
+		
+	} else {
 		if (policy->name != "<none>") {
 			QLOG_ERROR() << "policy manager for" << policy->name
 				<< "received a reply without a rate limit policy";
@@ -510,10 +508,6 @@ void PolicyManager::ReceiveReply() {
 		ResendAfterViolation();
 
 	} else if (active_request->network_reply->error() != QNetworkReply::NoError) {
-
-		if (active_request->reply_cached) {
-			QLOG_ERROR() << "VIOLATION detected in a reponse with an error";
-		};
 
 		// Some other HTTP error was encountered.
 		QLOG_ERROR() << "policy manager for" << policy->name
@@ -543,10 +537,6 @@ void PolicyManager::ResendAfterViolation()
 	// Set the violation flag now. It will be unset when a reply is received that doesn't
 	// indicat a violation.
 	violation = true;
-
-	if (active_request->reply_cached) {
-		QLOG_ERROR() << "VIOLATION detected in a cached response.";
-	};
 
 	// Determine how long we need to wait.
 	const int delay_sec = active_request->network_reply->rawHeader("Retry-After").toInt();
@@ -596,6 +586,7 @@ QString PolicyManager::GetCurrentStatus() const {
 		lines.push_back(QString("( %1 )").arg(QString(rule)));
 	};
 	lines.push_back(info);
+
 	switch (policy->status) {
 	case PolicyStatus::OK:
 		lines.push_back("Not rate limited.");
@@ -687,9 +678,6 @@ static QString GetEndpoint(const QUrl& url) {
 RateLimiter::RateLimiter(QNetworkAccessManager& network_manager) :
 	initialized(false),
 	initial_manager(network_manager)
-	//initial_endpoints(KNOWN_ENDPOINTS.length()),
-	//initial_replies(KNOWN_ENDPOINTS.length()),
-	//initial_replies_received(0)
 {
 	// Creat the policy manager that will handle non-limited requests.
 	default_manager = std::make_unique<PolicyManager>(std::make_unique<Policy>("<none>"));
@@ -700,7 +688,7 @@ RateLimiter::RateLimiter(QNetworkAccessManager& network_manager) :
 	connect(&status_updater, &QTimer::timeout, this, &RateLimiter::DoStatusUpdate);
 
 	// Start sending HEAD requests to construct the rate limit policy manager.
-	NextInitRequest();
+	NextInitialRequest();
 }
 
 void RateLimiter::Submit(QNetworkAccessManager& network_manager, QNetworkRequest network_request, Callback request_callback)
@@ -725,7 +713,7 @@ void RateLimiter::DispatchRequest(std::unique_ptr<RateLimitedRequest> request) {
 	// See if any of the policy managers should handle this request.
 	for (auto& manager : managers) {
 		if (manager->endpoints.contains(request->endpoint)) {
-			QLOG_DEBUG() << manager->policy->name << ":" << request->endpoint;
+			QLOG_DEBUG() << "Dispatching request to" << manager->policy->name << ":" << request->endpoint;
 			manager->QueueRequest(std::move(request));
 			return;
 		};
@@ -748,29 +736,29 @@ void RateLimiter::OnTimerStarted() {
 	};
 }
 
-void RateLimiter::NextInitRequest() {
+void RateLimiter::NextInitialRequest() {
 
 	static int k = 0;
 	if (k < KNOWN_ENDPOINTS.length()) {
 		const QString endpoint = KNOWN_ENDPOINTS[k++];
 		QNetworkRequest request = QNetworkRequest(QUrl(endpoint));
-		SendInitRequest(endpoint, request);
+		SendInitialRequest(endpoint, request);
 	} else {
 		FinishInit();
 	};
 };
 
-void RateLimiter::SendInitRequest(const QString endpoint, QNetworkRequest request) {
+void RateLimiter::SendInitialRequest(const QString endpoint, QNetworkRequest request) {
 	QLOG_DEBUG() << "Sending HEAD request to" << request.url().toString();
 
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	QNetworkReply* reply = initial_manager.head(request);
 	connect(reply, &QNetworkReply::finished, [=]() {
-			ReceiveInitReply(endpoint, reply);
+			ReceiveInitialReply(endpoint, reply);
 		});
 }
 
-void RateLimiter::ReceiveInitReply(const QString endpoint, QNetworkReply* reply) {
+void RateLimiter::ReceiveInitialReply(const QString endpoint, QNetworkReply* reply) {
 	QLOG_DEBUG() << "Received HEAD reply for" << endpoint;
 
 	// Make sure the reply is deleted no matter what.
@@ -779,7 +767,7 @@ void RateLimiter::ReceiveInitReply(const QString endpoint, QNetworkReply* reply)
 	// Skip replies that did not come back with a rate limit policy.
 	if (reply->hasRawHeader("X-Rate-Limit-Policy") == false) {
 		QLOG_DEBUG() << "The endpoint does not have a rate limit policy";
-		NextInitRequest();
+		NextInitialRequest();
 		return;
 	};
 
@@ -792,7 +780,7 @@ void RateLimiter::ReceiveInitReply(const QString endpoint, QNetworkReply* reply)
 			QLOG_DEBUG() << "Adding endpoint to" << p->name << ":" << endpoint;
 			initial_policies.at(k) = std::move(p);
 			initial_policy_endpoints.at(k).push_back(endpoint);
-			NextInitRequest();
+			NextInitialRequest();
 			return;
 		};
 	};
@@ -801,7 +789,7 @@ void RateLimiter::ReceiveInitReply(const QString endpoint, QNetworkReply* reply)
 	QLOG_DEBUG() << "Creating policy" << p->name << "for" << endpoint;
 	initial_policies.push_back(std::move(p));
 	initial_policy_endpoints.push_back(QStringList(endpoint));
-	NextInitRequest();
+	NextInitialRequest();
 }
 
 void RateLimiter::FinishInit() {

@@ -1,5 +1,5 @@
 /*
-	Copyright 2014 Ilya Zhuravlev
+	Copyright 2023 Gerwaric
 
 	This file is part of Acquisition.
 
@@ -20,11 +20,13 @@
 #pragma once
 
 #include <QObject>
-#include <QPushButton>
-#include <QTextEdit>
+
+class QPushButton;
+class QTextEdit;
 
 #include "mainwindow.h"
 
+// Modeled after LogPanel
 class RateLimitStatusPanel : public QObject {
 	Q_OBJECT
 public:
