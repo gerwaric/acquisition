@@ -175,7 +175,7 @@ std::string ItemLocation::GetUniqueHash() const {
 		QLOG_ERROR() << "ItemLocation is invalid:" << json_.c_str();;
 	};
 	switch (type_) {
-	case ItemLocationType::STASH: return "stash:" + tab_unique_id_; // use unique id because tab label is not unique
+	case ItemLocationType::STASH: return "stash:" + tab_label_; // TODO: tab labels are not guaranteed unique
 	case ItemLocationType::CHARACTER: return "character:" + character_;
 	};
 }
