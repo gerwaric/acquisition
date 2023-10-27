@@ -19,8 +19,18 @@
 
 #pragma once
 
+#ifndef VERSION_H
+#define VERSION_H
+
+// These control if this build will expire, and need to be defined before
+// any other acquisition headers are included.
+#define TRIAL_VERSION               0
+#define TRIAL_EXPIRATION_DAYS       0
+
 extern const int VERSION_CODE;
 extern const char VERSION_NAME[];
 
 extern const char UPDATE_CHECK_URL[];
 extern const char UPDATE_DOWNLOAD_LOCATION[];
+
+#endif

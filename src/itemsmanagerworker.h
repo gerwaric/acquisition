@@ -21,25 +21,21 @@
 
 #include <queue>
 #include <QNetworkAccessManager>
+#include <QNetworkCookie>
 #include <QNetworkRequest>
 #include <QObject>
 
 #include "util.h"
 #include "item.h"
 #include "mainwindow.h"
-//#include "ratelimit.h"
+#include "ratelimit.h"
 
 class Application;
 class DataStore;
 class QNetworkReply;
-class QNetworkCookie;
 class QSignalMapper;
 class QTimer;
 class BuyoutManager;
-
-namespace RateLimit {
-	class RateLimiter;
-};
 
 using RateLimit::RateLimiter;
 
