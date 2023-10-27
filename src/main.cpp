@@ -36,14 +36,14 @@
 #include "modlist.h"
 #include "porting.h"
 #include "version.h"
+#include "version_defines.h"
 #include "../test/testmain.h"
-#include "tabcache.h"
 
 #ifdef CRASHRPT
 #include "CrashRpt.h"
 #endif
 
-int main(int argc, char *argv[])
+int main(int argc, char* argv[])
 {
 	qRegisterMetaType<CurrentStatusUpdate>("CurrentStatusUpdate");
 	qRegisterMetaType<Items>("Items");
@@ -98,14 +98,19 @@ int main(int argc, char *argv[])
 	const QString sLogPath(QDir(Filesystem::UserDir().c_str()).filePath("log.txt"));
 
 	QsLogging::DestinationPtr fileDestination(
-		QsLogging::DestinationFactory::MakeFileDestination(sLogPath, true, 10 * 1024 * 1024, 0) );
+		QsLogging::DestinationFactory::MakeFileDestination(sLogPath, true, 10 * 1024 * 1024, 0));
 	QsLogging::DestinationPtr debugDestination(
-		QsLogging::DestinationFactory::MakeDebugOutputDestination() );
+		QsLogging::DestinationFactory::MakeDebugOutputDestination());
 	logger.addDestination(debugDestination);
 	logger.addDestination(fileDestination);
 
 	QLOG_DEBUG() << "-------------------------------------------------------------------------------";
+	QLOG_DEBUG() << VER_PRODUCTNAME_STR << VER_STR << "( version code" << VER_CODE << ")";
+	QLOG_DEBUG() << "Built on" << BUILD_DATE.toString();
 	QLOG_DEBUG() << "Built with Qt" << QT_VERSION_STR << "running on" << qVersion();
+	if (TRIAL_VERSION) {
+		QLOG_DEBUG() << "This build expires on" << EXPIRATION_DATE.toString();
+	};
 
 	LoginDialog login(std::make_unique<Application>());
 	login.show();

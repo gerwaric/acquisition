@@ -48,13 +48,7 @@
 #include "util.h"
 #include "version.h"
 #include "network_info.h"
-
-#include "openssl/aes.h"
-
-// If BUILD_EXPIRATION is a valid QDateTime object, it will be checked against the current
-// date. The user won't be able to proceed past the login window if the build is expired.
-// To disable this check, set BUILD_EXPIRATION = QDateTime(), which is a null date.
-const QDateTime BUILD_EXPIRATION = QDateTime::fromString("2023-10-15", "yyyy-MM-dd");
+#include "version_defines.h"
 
 const char* POE_LEAGUE_LIST_URL = "https://api.pathofexile.com/leagues?type=main&compact=1";
 const char* POE_LOGIN_URL = "https://www.pathofexile.com/login";
@@ -199,18 +193,35 @@ void LoginDialog::OnLeaguesRequestFinished() {
 	if (reply->error())
 		return LeaguesApiError(reply->errorString(), bytes);
 
-    // Check the date on the HTTP response (which the user cannot easily change) to see if this build has expired.
-    if (BUILD_EXPIRATION.isValid()) {
-        const QString expirate_date = BUILD_EXPIRATION.toString();
-        const QDateTime today = QDateTime::fromString(QString(reply->rawHeader("Date")), Qt::RFC2822Date);
-        if (today > BUILD_EXPIRATION) {
-            QLOG_ERROR() << "This build expired on" << expirate_date;
-            DisplayError("This test build expired on " + expirate_date);
-            return;
-        };
-        QLOG_WARN() << "This test build will expire on" << expirate_date;
-        DisplayError("This test build will expire on " + expirate_date);
-    };
+	// Trial builds come with an expiration date. Prevent login of expired builds.
+	if (TRIAL_VERSION) {
+		// Make sure the expiration date is valid.
+		const QString expiration = EXPIRATION_DATE.toString();
+		if (EXPIRATION_DATE.isValid() == false) {
+			QLOG_ERROR() << "This is a trial build, but the expiration date is invalid";
+			DisplayError("This is a trial build, but the expiration date is invalid");
+			ui->loginButton->setEnabled(false);
+			return;
+		};
+		// Make sure the reply header date is valid.
+		const QDateTime current_time = QDateTime::fromString(QString(reply->rawHeader("Date")), Qt::RFC2822Date);
+		if (current_time.isValid() == false) {
+			QLOG_ERROR() << "Cannot determine the current date of an expiring trial build.";
+			DisplayError("Cannot determine the current date of an expiring trial build");
+			ui->loginButton->setEnabled(false);
+			return;
+		};
+		// Make sure the build hasn't expired.
+		if (EXPIRATION_DATE < current_time) {
+			QLOG_ERROR() << "This build expired on" << expiration;
+			DisplayError("This build expired on " + expiration);
+			ui->loginButton->setEnabled(false);
+			return;
+		};
+		// Warn the user that this build will expire.
+		QLOG_WARN() << "This build will expire on" << expiration;
+		DisplayError("This build will expire on " + expiration);
+	};
 
 	rapidjson::Document doc;
 	doc.Parse(bytes.constData());

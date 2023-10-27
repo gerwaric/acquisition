@@ -16,3 +16,7 @@
 #define VER_ORIGINALFILENAME_STR    "acquisition.exe"
 #define VER_INTERNALNAME_STR        VER_FILEDESCRIPTION_STR
 #define VER_PRODUCTNAME_STR         VER_FILEDESCRIPTION_STR
+
+// Use these control if this build will expire.
+#define TRIAL_VERSION               1
+#define TRIAL_EXPIRATION_DAYS       7

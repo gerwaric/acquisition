@@ -21,8 +21,15 @@
 
 #include <QNetworkAccessManager>
 #include <QObject>
+#include <QString>
+#include <QDateTime>
 
+#include "version_defines.h"
 #include "item.h"
+
+extern const QString BUILD_TIMESTAMP;
+extern const QDateTime BUILD_DATE;
+extern const QDateTime EXPIRATION_DATE;
 
 class QNetworkReply;
 
