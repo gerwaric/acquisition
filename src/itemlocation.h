@@ -4,10 +4,7 @@
 #include <QColor>
 #include <set>
 #include "rapidjson/document.h"
-
-#include "itemconstants.h"
 #include "rapidjson_util.h"
-#include "QsLog.h"
 
 enum class ItemLocationType {
 	STASH,
@@ -64,4 +61,3 @@ private:
 	std::string inventory_id_;
 };
 
-static std::set<std::string> tab_id_index_;
