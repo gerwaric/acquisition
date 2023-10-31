@@ -24,10 +24,6 @@
 #include <memory>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
-#ifndef NO_WEBENGINE
-#include <QWebEngineProfile>
-#include <QWebEngineCookieStore>
-#endif
 #include <QNetworkCookie>
 #include <QNetworkCookieJar>
 #include <QNetworkRequest>
@@ -43,29 +39,6 @@ SteamLoginDialog::SteamLoginDialog(QWidget* parent) :
 	ui(new Ui::SteamLoginDialog)
 {
 	ui->setupUi(this);
-#ifndef NO_WEBENGINE
-	webView = new QWebEngineView();
-	ui->verticalLayout->addWidget(webView);
-
-	connect(webView, &QWebEngineView::loadProgress, [this](int progress) {
-		if (progress > 0 && progress < 100) {
-			setWindowTitle(QString("Loading...  (%2%)").arg(progress));
-		} else {
-			setWindowTitle(webView->title());
-		}
-		});
-
-	connect(QWebEngineProfile::defaultProfile()->cookieStore(),
-		&QWebEngineCookieStore::cookieAdded, [this](const QNetworkCookie& cookie) {
-			if (cookie.name() == POE_COOKIE_NAME) {
-				QString session_id = QString(cookie.value());
-				webView->stop();
-				emit CookieReceived(session_id);
-				completed_ = true;
-				close();
-			}
-		});
-#endif
 }
 
 SteamLoginDialog::~SteamLoginDialog() {
@@ -80,19 +53,4 @@ void SteamLoginDialog::closeEvent(QCloseEvent* e) {
 
 void SteamLoginDialog::Init() {
 	completed_ = false;
-#ifndef NO_WEBENGINE
-	QByteArray data("x=0&y=0");
-	QNetworkRequest request(QUrl("https://www.pathofexile.com/login/steam"));
-	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply* reply = network_manager_.post(request, data);
-
-	auto conn = std::shared_ptr<QMetaObject::Connection>(new QMetaObject::Connection());
-	*conn = connect(reply, &QNetworkReply::finished, [this, reply, conn] {
-		auto attr = reply->attribute(QNetworkRequest::RedirectionTargetAttribute);
-		webView->load(attr.toUrl());
-		reply->deleteLater();
-		disconnect(*conn);
-		});
-#endif
 }

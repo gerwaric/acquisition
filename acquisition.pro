@@ -1,7 +1,7 @@
 TARGET = acquisition
 TEMPLATE = app
 
-QT += core gui network testlib
+QT += core gui network testlib widgets
 
 win32 {
 	QT.testlib.CONFIG -= console
@@ -15,10 +15,6 @@ macx {
 unix:!macx {
 	LIBS += -ldl -L"/usr/local/ssl/lib" -l:libcrypto.a -l:libssl.a
 }
-
-DEFINES += NO_WEBENGINE
-
-QT += widgets
 
 include(deps/QsLog/QsLog.pri)
 
