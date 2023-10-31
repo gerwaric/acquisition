@@ -360,7 +360,11 @@ void LoginDialog::OnMainPageFinished() {
 	std::string league(ui->leagueComboBox->currentText().toStdString());
 	app_->InitLogin(std::move(login_manager_), league, account.toStdString());
 	mw = new MainWindow(std::move(app_));
-	mw->setWindowTitle(QString("Acquisition - %1").arg(league.c_str()));
+	mw->setWindowTitle(
+		QString("Acquisition [%1] - %2 [%3]")
+		.arg(VERSION_NAME)
+		.arg(league.c_str())
+		.arg(account));
 	mw->show();
 	close();
 }
