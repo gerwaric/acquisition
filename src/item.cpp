@@ -308,7 +308,7 @@ std::string Item::PrettyName() const {
 	return typeLine_;
 }
 
-void Item::CalculateCategories(const rapidjson::Value& json) {
+void Item::CalculateCategories() {
 	auto rslt = itemBaseType_NameToClass.find(baseType_);
 	if (rslt != itemBaseType_NameToClass.end()) {
 		std::string step1 = rslt->second;

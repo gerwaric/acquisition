@@ -127,7 +127,7 @@ public:
 	static const std::array<CategoryReplaceMap, k_CategoryLevels> replace_map_;
 
 private:
-	void CalculateCategories(const rapidjson::Value& json);
+    void CalculateCategories();
 	// The point of GenerateMods is to create combined (e.g. implicit+explicit) poe.trade-like mod map to be searched by mod filter.
 	// For now it only does that for a small chosen subset of mods (think "popular" + "pseudo" sections at poe.trade)
 	void GenerateMods(const rapidjson::Value& json);
