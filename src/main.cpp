@@ -39,10 +39,6 @@
 #include "version_defines.h"
 #include "../test/testmain.h"
 
-#ifdef CRASHRPT
-#include "CrashRpt.h"
-#endif
-
 #ifdef _DEBUG
 const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::TraceLevel;
 #else
@@ -61,27 +57,6 @@ int main(int argc, char* argv[])
 
 	QLocale::setDefault(QLocale::C);
 	std::setlocale(LC_ALL, "C");
-
-#if defined(CRASHRPT) && !defined(_DEBUG)
-	CR_INSTALL_INFOW info;
-	memset(&info, 0, sizeof(info));
-	info.cb = sizeof(info);
-	info.pszAppName = L"Acquisition";
-	WCHAR wversion[64];
-	MultiByteToWideChar(CP_UTF8, 0, VERSION_NAME, -1, wversion, sizeof(wversion) / sizeof(wversion[0]));
-	info.pszAppVersion = wversion;
-	// URL for sending reports over HTTP.
-	info.pszUrl = L"https://xyz.is/crashfix/index.php/crashReport/uploadExternal";
-	// Define delivery transport priorities.
-	info.uPriorities[CR_HTTP] = 1;                     // Use HTTP.
-	info.uPriorities[CR_SMTP] = CR_NEGATIVE_PRIORITY;  // Not use SMTP.
-	info.uPriorities[CR_SMAPI] = CR_NEGATIVE_PRIORITY; // Not use Simple MAPI.
-	// Define flags.
-	info.dwFlags = 0;
-	info.dwFlags |= CR_INST_ALL_POSSIBLE_HANDLERS; // Install all available exception handlers.
-	info.dwFlags |= CR_INST_HTTP_BINARY_ENCODING;  // Use binary encoding for HTTP uploads (recommended).
-	CrAutoInstallHelper cr_install_helper(&info);
-#endif
 
 	QApplication a(argc, argv);
 	Filesystem::Init();
