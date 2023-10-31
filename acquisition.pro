@@ -9,7 +9,7 @@ win32 {
 	INCLUDEPATH += "C:\Program Files\OpenSSL-Win64\include"
 }
 
-unix {
+unix:!macx {
 	LIBS += -ldl -L"/usr/local/ssl/lib" -l:libcrypto.a -l:libssl.a
 }
 
