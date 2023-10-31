@@ -199,7 +199,7 @@ void ModsFilter::Refill() {
 		++i;
 	}
 
-	layout_->addWidget(add_button_.get(), 2 * mods_.size(), 0, 1, LayoutColumn::kColumnCount);
+    layout_->addWidget(add_button_.get(), 2 * static_cast<int>(mods_.size()), 0, 1, LayoutColumn::kColumnCount);
 }
 
 void ModsFilterSignalHandler::OnAddButtonClicked() {

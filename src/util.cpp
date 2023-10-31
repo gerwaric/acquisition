@@ -137,10 +137,10 @@ std::string Util::RapidjsonSerialize(const rapidjson::Value& val) {
 }
 
 void Util::RapidjsonAddConstString(rapidjson::Value* object, const char* const name, const std::string& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc) {
-	rapidjson::Value rjson_name;
-	rjson_name.SetString(name, strlen(name));
-	rapidjson::Value rjson_val;
-	rjson_val.SetString(value.c_str(), value.size());
+    rapidjson::Value rjson_name;
+    rjson_name.SetString(name, rapidjson::SizeType(strlen(name)));
+    rapidjson::Value rjson_val;
+    rjson_val.SetString(value.c_str(), rapidjson::SizeType(value.size()));
 	object->AddMember(rjson_name, rjson_val, alloc);
 }
 
@@ -251,12 +251,12 @@ QColor Util::recommendedForegroundTextColor(const QColor& backgroundColor) {
 	float G = (float)backgroundColor.green() / 255.0f;
 	float B = (float)backgroundColor.blue() / 255.0f;
 
-	const float gamma = 2.2;
-	float L = 0.2126 * pow(R, gamma)
-		+ 0.7152 * pow(G, gamma)
-		+ 0.0722 * pow(B, gamma);
+    const float gamma = 2.2f;
+    float L = 0.2126f * pow(R, gamma)
+        + 0.7152f * pow(G, gamma)
+        + 0.0722f * pow(B, gamma);
 
-	return (L > 0.5) ? QColor(QColorConstants::Black) : QColor(QColorConstants::White);
+    return (L > 0.5f) ? QColor(QColorConstants::Black) : QColor(QColorConstants::White);
 }
 
 std::string Util::hexStr(const uint8_t* data, int len)

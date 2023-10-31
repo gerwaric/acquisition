@@ -182,8 +182,8 @@ void SqliteDataStore::Set(const std::string& key, const std::string& value) {
 	std::string query = "INSERT OR REPLACE INTO data (key, value) VALUES (?, ?)";
 	sqlite3_stmt* stmt;
 	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
-	sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_STATIC);
-	sqlite3_bind_blob(stmt, 2, value.c_str(), value.size(), SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_STATIC);
+    sqlite3_bind_blob(stmt, 2, value.c_str(), static_cast<int>(value.size()), SQLITE_STATIC);
 	sqlite3_step(stmt);
 	sqlite3_finalize(stmt);
 }
@@ -193,7 +193,7 @@ void SqliteDataStore::SetTabs(const ItemLocationType& type, const std::string& v
 	sqlite3_stmt* stmt;
 	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
 	sqlite3_bind_int(stmt, 1, (int)type);
-	sqlite3_bind_blob(stmt, 2, value.c_str(), value.size(), SQLITE_STATIC);
+    sqlite3_bind_blob(stmt, 2, value.c_str(), static_cast<int>(value.size()), SQLITE_STATIC);
 	sqlite3_step(stmt);
 	sqlite3_finalize(stmt);
 }
@@ -206,7 +206,7 @@ void SqliteDataStore::SetItems(const ItemLocation& loc, const std::string& value
 	sqlite3_stmt* stmt;
 	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
 	sqlite3_bind_text(stmt, 1, loc.get_tab_uniq_id().c_str(), -1, SQLITE_TRANSIENT);
-	sqlite3_bind_blob(stmt, 2, value.c_str(), value.size(), SQLITE_STATIC);
+    sqlite3_bind_blob(stmt, 2, value.c_str(), static_cast<int>(value.size()), SQLITE_STATIC);
 	sqlite3_step(stmt);
 	sqlite3_finalize(stmt);
 }

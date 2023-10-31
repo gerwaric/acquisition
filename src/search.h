@@ -54,7 +54,7 @@ public:
 	const std::vector<std::unique_ptr<Bucket>>& buckets() const;
 	void RenameCaption(const std::string newName);
 	QString GetCaption();
-	uint GetItemsCount();
+    size_t GetItemsCount();
 	bool IsAnyFilterActive() const;
 	// Sets this search as current, will display items in passed QTreeView.
 	void Activate(const Items& items);
@@ -77,8 +77,8 @@ private:
 	std::unique_ptr<ItemsModel> model_;
 	std::vector<std::unique_ptr<Bucket>> buckets_;
 	std::vector<std::unique_ptr<Bucket>> bucket_;
-	uint unfiltered_item_count_{ 0 };
-	uint filtered_item_count_total_{ 0 };
+    size_t unfiltered_item_count_{ 0 };
+    size_t filtered_item_count_total_{ 0 };
 	std::set<std::string> expanded_property_;
 	ViewMode current_mode_{ ByTab };
 	RefreshReason::Type refresh_reason_{ RefreshReason::Unknown };

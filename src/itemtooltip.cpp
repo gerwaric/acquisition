@@ -351,7 +351,7 @@ QPixmap GenerateItemSockets(const int width, const int height, const std::vector
 	int socket_rows = 0;
 	int socket_columns = 0;
 	ItemSocket prev = { 255, '-' };
-	size_t i = 0;
+    int i = 0;
 
 	if (sockets.size() == 0) {
 		// Do nothing

@@ -49,23 +49,26 @@ ItemsModel::ItemsModel(BuyoutManager& bo_manager, const Search& search) :
 
 int ItemsModel::rowCount(const QModelIndex& parent) const {
 	// Root element, contains buckets
-	if (!parent.isValid())
-		return search_.buckets().size();
+    if (!parent.isValid()) {
+        return static_cast<int>(search_.buckets().size());
+    };
 	// Bucket, contains elements
-	if (parent.isValid() && !parent.parent().isValid()) {
-		return search_.bucket(parent.row())->items().size();
-	}
+    if (parent.isValid() && !parent.parent().isValid()) {
+        return static_cast<int>(search_.bucket(parent.row())->items().size());
+    };
 	// Element, contains nothing
 	return 0;
 }
 
 int ItemsModel::columnCount(const QModelIndex& parent) const {
 	// Root element, contains buckets
-	if (!parent.isValid())
-		return search_.columns().size();
+    if (!parent.isValid()) {
+        return static_cast<int>(search_.columns().size());
+    };
 	// Bucket, contains elements
-	if (parent.isValid() && !parent.parent().isValid())
-		return search_.columns().size();
+    if (parent.isValid() && !parent.parent().isValid()) {
+        return static_cast<int>(search_.columns().size());
+    };
 	// Element, contains nothing
 	return 0;
 }

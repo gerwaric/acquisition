@@ -67,7 +67,7 @@ signals:
 private:
 	void SubmitSingleShop();
 	void SubmitNextShop(const std::string title, const std::string hash);
-	std::string ShopEditUrl(int idx);
+    std::string ShopEditUrl(size_t idx);
 	std::string SpoilerBuyout(Buyout& bo);
 
 	Application& app_;

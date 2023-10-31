@@ -191,7 +191,7 @@ void Shop::SubmitShopToForum(bool force) {
 	SubmitSingleShop();
 }
 
-std::string Shop::ShopEditUrl(int idx) {
+std::string Shop::ShopEditUrl(size_t idx) {
 	return kPoeEditThread + threads_[idx];
 }
 

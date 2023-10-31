@@ -438,8 +438,8 @@ bool MainWindow::eventFilter(QObject* o, QEvent* e) {
 					current_search_ = nullptr;
 				delete searches_[index];
 				searches_.erase(searches_.begin() + index);
-				if (static_cast<size_t>(tab_bar_->currentIndex()) == searches_.size())
-					tab_bar_->setCurrentIndex(searches_.size() - 1);
+                if (static_cast<size_t>(tab_bar_->currentIndex()) == searches_.size())
+                    tab_bar_->setCurrentIndex(static_cast<int>(searches_.size()) - 1);
 				OnTabChange(tab_bar_->currentIndex());
 				// that's because after removeTab text will be set to previous search's caption
 				// which is because my way of dealing with "+" tab is hacky and should be replaced by something sane

@@ -157,7 +157,7 @@ void ItemsManagerWorker::ParseItemMods() {
 		tabs_signature_ = CreateTabsSignatureVector(tabs);
 		for (auto& tab : doc) {
 			//constructor values to fill in
-			int index;
+            size_t index;
 			std::string tabUniqueId, name;
 			int r, g, b;
 
@@ -193,8 +193,8 @@ void ItemsManagerWorker::ParseItemMods() {
 				g = 0;
 				b = 0;
 				break;
-			};
-			ItemLocation loc(index, tabUniqueId, name, type, r, g, b);
+            };
+            ItemLocation loc(static_cast<int>(index), tabUniqueId, name, type, r, g, b);
 			loc.set_json(tab, doc.GetAllocator());
 			tabs_.push_back(loc);
 			tab_id_index_.insert(loc.get_tab_uniq_id());
@@ -469,8 +469,8 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 		if (tab_id_index_.count(name) > 0) {
 			QLOG_DEBUG() << "Skipping" << name.c_str() << "because this item is not being refreshed.";
 			continue;
-		};
-		const int tab_count = tabs_.size();
+        };
+        const int tab_count = static_cast<int>(tabs_.size());
 		ItemLocation location;
 		location.set_type(ItemLocationType::CHARACTER);
 		location.set_character(name);
@@ -542,7 +542,7 @@ void ItemsManagerWorker::QueueRequest(const QNetworkRequest& request, const Item
 
 void ItemsManagerWorker::FetchItems() {
 	std::string tab_titles;
-	int count = queue_.size();
+    const size_t count = queue_.size();
 	for (int i = 0; i < count; ++i) {
 		// Take the next request out of the queue.
 		ItemsRequest request = queue_.front();
