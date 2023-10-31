@@ -203,16 +203,17 @@ void LoginDialog::OnLeaguesRequestFinished() {
 			ui->loginButton->setEnabled(false);
 			return;
 		};
-		// Make sure the reply header date is valid.
-		const QDateTime current_time = QDateTime::fromString(QString(reply->rawHeader("Date")), Qt::RFC2822Date);
-		if (current_time.isValid() == false) {
+        // Make sure the reply header date is valid.
+        const QByteArray reply_timestamp = Util::FixTimezone(reply->rawHeader("Date"));
+        const QDateTime reply_date = QDateTime::fromString(reply_timestamp, Qt::RFC2822Date);
+        if (reply_date.isValid() == false) {
 			QLOG_ERROR() << "Cannot determine the current date of an expiring trial build.";
 			DisplayError("Cannot determine the current date of an expiring trial build");
 			ui->loginButton->setEnabled(false);
 			return;
 		};
 		// Make sure the build hasn't expired.
-		if (EXPIRATION_DATE < current_time) {
+        if (EXPIRATION_DATE < reply_date) {
 			QLOG_ERROR() << "This build expired on" << expiration;
 			DisplayError("This build expired on " + expiration);
 			ui->loginButton->setEnabled(false);

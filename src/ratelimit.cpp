@@ -22,6 +22,7 @@
 
 #include "QsLog.h"
 
+#include "util.h"
 #include "network_info.h"
 #include "ratelimit.h"
 
@@ -650,7 +651,7 @@ static QByteArrayList GetRateLimitState(QNetworkReply* const reply, const QByteA
 
 // Return the date from the HTTP reply headers.
 static QDateTime GetDate(QNetworkReply* const reply) {
-	QString timestamp = QString(GetHeader(reply, "Date"));
+    QString timestamp = QString(Util::FixTimezone(GetHeader(reply, "Date")));
 	const QDateTime date = QDateTime::fromString(timestamp, Qt::RFC2822Date);
 	if (date.isValid() == false) {
 		QLOG_ERROR() << "invalid date parsed from" << timestamp;
