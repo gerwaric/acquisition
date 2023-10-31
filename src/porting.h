@@ -47,6 +47,7 @@ namespace std {
 // visual studio ships with std::make_unique implementation
 #ifndef _MSC_VER
 #ifndef __APPLE__
+#ifndef Q_OS_LINUX
 namespace std {
 	// to be added in C++14
 	// source: http://herbsutter.com/gotw/_102/
@@ -58,7 +59,8 @@ namespace std {
 }
 #endif
 #endif
+#endif
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(Q_OS_LINUX)
 typedef unsigned char byte;
 #endif

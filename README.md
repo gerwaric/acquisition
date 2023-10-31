@@ -27,9 +27,14 @@ But it's tricky. Acquisition uses Qt version 5, which you'll have to compile dir
 
 ### Linux
 
-Either open `acquisition.pro` in Qt Creator and build or do `qmake && make`.
+v0.9.9 has been built and run on a virtual machine:
+- Linux Mint 21.2 Cinnamon
+- Qt Creator 11.0.3
+- Qt 5.15.2
+- gcc 11.4.0
+- OpenSSL 1.1.1w
 
-*WARNING*: This has not been tested lately.
+There is no installable package yet.
 
 ## Command line arguments
 

@@ -11,8 +11,7 @@ win32 {
 }
 
 unix {
-	LIBS += -ldl
-	QMAKE_CXXFLAGS += -Wno-inconsistent-missing-override
+	LIBS += -ldl -L"/usr/local/ssl/lib" -l:libcrypto.a -l:libssl.a
 }
 
 DEFINES += NO_WEBENGINE

@@ -34,7 +34,11 @@
 #include "rapidjson/writer.h"
 #include <sstream>
 #include <iomanip>
+#if defined(Q_OS_LINUX)
+#include <cmath>
+#else
 #include <format>
+#endif
 #include <regex>
 
 #include "buyoutmanager.h"
