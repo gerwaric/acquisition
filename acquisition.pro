@@ -127,6 +127,7 @@ FORMS += \
 DEPENDPATH *= $${INCLUDEPATH}
 
 RESOURCES += resources.qrc \
-	deps/qdarkstyle/style.qrc
+	deps/qdarkstyle/dark/darkstyle.qrc \
+	deps/qdarkstyle/light/lightstyle.qrc
 
 RC_FILE = resources.rc

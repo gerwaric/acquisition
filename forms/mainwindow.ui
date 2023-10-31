@@ -417,6 +417,7 @@
     </property>
     <addaction name="actionDark"/>
     <addaction name="actionLight"/>
+    <addaction name="actionDefault"/>
    </widget>
    <addaction name="menuItems"/>
    <addaction name="menuShop"/>
@@ -529,6 +530,14 @@
   <action name="actionRefresh_Mod_List">
    <property name="text">
     <string>Refresh Mod List</string>
+   </property>
+  </action>
+  <action name="actionDefault">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Default</string>
    </property>
   </action>
  </widget>

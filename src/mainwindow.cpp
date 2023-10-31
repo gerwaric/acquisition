@@ -266,9 +266,10 @@ void MainWindow::InitializeUi() {
 
 	ui->itemInfoTypeTabs->setCurrentIndex(app_->data().GetInt("preferred_tooltip_type"));
 
-	auto theme = app_->data().Get("theme", "light");
-	if (theme == "dark") on_actionDark_triggered(true);
-	if (theme == "light") on_actionLight_triggered(true);
+    std::string theme = app_->data().Get("theme", "default");
+    if (theme == "default") on_actionDefault_triggered(true);
+    else if (theme == "dark") on_actionDark_triggered(true);
+    else if (theme == "light") on_actionLight_triggered(true);
 }
 
 void MainWindow::ExpandCollapse(TreeState state) {
@@ -870,7 +871,7 @@ void MainWindow::on_actionList_currency_triggered() {
 void MainWindow::on_actionDark_triggered(bool toggle) {
 	// Credits: https://github.com/ColinDuquesnoy/QDarkStyleSheet
 	if (toggle) {
-		QFile f(":qdarkstyle/style.qss");
+        QFile f(":qdarkstyle/dark/darkstyle.qss");
 		if (!f.exists()) {
 			printf("Unable to set stylesheet, file not found\n");
 		} else {
@@ -882,22 +883,45 @@ void MainWindow::on_actionDark_triggered(bool toggle) {
 			pal.setColor(QPalette::WindowText, Qt::white);
 			QApplication::setPalette(pal);
 		}
-		app_->data().Set("theme", "dark");
-		ui->actionLight->setChecked(!toggle);
-	}
-	ui->actionDark->setChecked(true);
+        app_->data().Set("theme", "dark");
+        ui->actionLight->setChecked(false);
+        ui->actionDefault->setChecked(false);
+    }
+    ui->actionDark->setChecked(toggle);
 }
 
 void MainWindow::on_actionLight_triggered(bool toggle) {
-	if (toggle) {
-		qApp->setStyleSheet("");
-		QPalette pal = QApplication::palette();
-		pal.setColor(QPalette::WindowText, Qt::black);
-		QApplication::setPalette(pal);
-		ui->actionDark->setChecked(!toggle);
-		app_->data().Set("theme", "light");
-	}
-	ui->actionLight->setChecked(true);
+    if (toggle) {
+        QFile f(":qdarkstyle/light/lightstyle.qss");
+        if (!f.exists()) {
+            printf("Unable to set stylesheet, file not found\n");
+        } else {
+            f.open(QFile::ReadOnly | QFile::Text);
+            QTextStream ts(&f);
+            qApp->setStyleSheet(ts.readAll());
+
+            QPalette pal = QApplication::palette();
+            pal.setColor(QPalette::WindowText, Qt::black);
+            QApplication::setPalette(pal);
+        }
+        app_->data().Set("theme", "light");
+        ui->actionDark->setChecked(false);
+        ui->actionDefault->setChecked(false);
+    }
+    ui->actionLight->setChecked(toggle);
+}
+
+void MainWindow::on_actionDefault_triggered(bool toggle) {
+    if (toggle) {
+        qApp->setStyleSheet("");
+        QPalette pal = QApplication::palette();
+        pal.setColor(QPalette::WindowText, Qt::black);
+        QApplication::setPalette(pal);
+        app_->data().Set("theme", "default");
+        ui->actionDark->setChecked(false);
+        ui->actionLight->setChecked(false);
+    }
+    ui->actionDefault->setChecked(toggle);
 }
 
 void MainWindow::on_actionExport_currency_triggered() {
