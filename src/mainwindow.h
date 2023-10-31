@@ -26,11 +26,6 @@
 #include <QPushButton>
 #include <QCloseEvent>
 
-#ifdef Q_OS_WIN
-#include <QWinTaskbarButton>
-#include <QWinTaskbarProgress>
-#endif
-
 #include "autoonline.h"
 #include "bucket.h"
 #include "porting.h"
@@ -170,8 +165,4 @@ private:
 	QStringListModel* rarity_search_model_;
 
 	int rightClickedTabIndex = -1;
-
-#ifdef Q_OS_WIN32
-	QWinTaskbarButton* taskbar_button_;
-#endif
 };

@@ -4,7 +4,6 @@ TEMPLATE = app
 QT += core gui network testlib
 
 win32 {
-	QT += winextras
 	QT.testlib.CONFIG -= console
 	LIBS += -L"C:\Program Files\OpenSSL-Win64\lib" -llibcrypto -llibssl
 	INCLUDEPATH += "C:\Program Files\OpenSSL-Win64\include"

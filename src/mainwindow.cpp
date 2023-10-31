@@ -74,11 +74,7 @@ MainWindow::MainWindow(std::unique_ptr<Application> app) :
 	auto_online_(app_->data(), app_->sensitive_data()),
 	network_manager_(new QNetworkAccessManager)
 {
-#ifdef Q_OS_WIN32
-	createWinId();
-	taskbar_button_ = new QWinTaskbarButton(this);
-	taskbar_button_->setWindow(this->windowHandle());
-#elif defined(Q_OS_LINUX)
+#if defined(Q_OS_LINUX)
 	setWindowIcon(QIcon(":/icons/assets/icon.svg"));
 #endif
 
@@ -387,7 +383,6 @@ void MainWindow::OnBuyoutChange() {
 
 void MainWindow::OnStatusUpdate(const CurrentStatusUpdate& status) {
 	QString title;
-	bool need_progress = false;
 	switch (status.state) {
 	case ProgramState::CharactersReceived:
 		if (status.total == 0) {
@@ -402,7 +397,6 @@ void MainWindow::OnStatusUpdate(const CurrentStatusUpdate& status) {
 		title = QString("Receiving stash data, %1/%2").arg(status.progress).arg(status.total);
 		if (status.state == ProgramState::ItemsPaused)
 			title += " (throttled, sleeping 60 seconds)";
-		need_progress = true;
 		break;
 	case ProgramState::ItemsCompleted:
 		title = QString("Received %1 tabs").arg(status.total);
@@ -410,7 +404,6 @@ void MainWindow::OnStatusUpdate(const CurrentStatusUpdate& status) {
 		break;
 	case ProgramState::ShopSubmitting:
 		title = QString("Sending your shops to the forum, %1/%2").arg(status.progress).arg(status.total);
-		need_progress = true;
 		break;
 	case ProgramState::ShopCompleted:
 		title = QString("Shop threads updated");
@@ -421,7 +414,6 @@ void MainWindow::OnStatusUpdate(const CurrentStatusUpdate& status) {
 		break;
 	case ProgramState::ItemsRetrieved:
 		title = QString("Parsing item mods in tabs, %1/%2").arg(status.progress).arg(status.total);
-		need_progress = true;
 		break;
 	default:
 		title = "Unknown";
@@ -429,18 +421,6 @@ void MainWindow::OnStatusUpdate(const CurrentStatusUpdate& status) {
 
 	status_bar_label_->setText(title);
 	status_bar_label_->update();
-
-#ifdef Q_OS_WIN32
-	QWinTaskbarProgress* progress = taskbar_button_->progress();
-	progress->setVisible(need_progress);
-	progress->setMinimum(0);
-	progress->setMaximum(status.total);
-	progress->setValue(status.progress);
-	progress->setPaused(status.state == ProgramState::ItemsPaused);
-#else
-	(void)need_progress;//Fix compilation warning(unused var on non-windows)
-#endif
-
 }
 
 bool MainWindow::eventFilter(QObject* o, QEvent* e) {
@@ -774,9 +754,6 @@ void MainWindow::OnItemsRefreshed() {
 
 MainWindow::~MainWindow() {
 	delete ui;
-#ifdef Q_OS_WIN32
-	delete taskbar_button_;
-#endif
 }
 
 void MainWindow::on_actionForum_shop_thread_triggered() {
