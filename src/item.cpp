@@ -174,7 +174,7 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
 	// quad stashes, currency stashes, etc
 	boost::replace_last(icon_, "scaleIndex=", "scaleIndex=0&");
 
-	CalculateCategories(json);
+    CalculateCategories();
 
 	if (json.HasMember("talismanTier") && json["talismanTier"].IsUint()) {
 		talisman_tier_ = json["talismanTier"].GetUint();
