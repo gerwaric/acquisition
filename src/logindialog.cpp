@@ -28,7 +28,7 @@
 #include <QNetworkCookie>
 #include <QNetworkCookieJar>
 #include <QNetworkProxyFactory>
-#include <QRegExp>
+#include <QRegularExpression>
 #include <QSettings>
 #include <QUrl>
 #include <QUrlQuery>
@@ -346,15 +346,14 @@ void LoginDialog::LoginWithCookie(const QString& cookie) {
 
 void LoginDialog::OnMainPageFinished() {
 	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
-	QString html(reply->readAll());
-	QRegExp regexp("/account/view-profile/(.*)\"");
-	regexp.setMinimal(true);
-	int pos = regexp.indexIn(html);
-	if (pos == -1) {
+    QString html(reply->readAll());
+    QRegularExpression regexp("/account/view-profile/(.*?)\"");
+    QRegularExpressionMatch match = regexp.match(html, 0);
+    if (match.hasMatch() == false) {
 		DisplayError("Failed to find account name.");
 		return;
 	}
-	QString account = regexp.cap(1);
+    QString account = match.captured(1);
 	QLOG_DEBUG() << "Logged in as:" << account;
 
 	std::string league(ui->leagueComboBox->currentText().toStdString());

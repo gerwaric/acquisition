@@ -133,9 +133,9 @@ QVariant ItemsModel::data(const QModelIndex& index, int role) const {
 
 Qt::ItemFlags ItemsModel::flags(const QModelIndex& index) const
 {
-	if (!index.isValid())
-		return 0;
-
+    if (!index.isValid()) {
+        return Qt::ItemFlags();
+    }
 	if (index.column() == 0 && index.internalId() == 0) {
 		const ItemLocation& location = search_.GetTabLocation(index);
 		if (location.IsValid() && !bo_manager_.GetRefreshLocked(location))

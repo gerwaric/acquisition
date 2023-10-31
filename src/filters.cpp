@@ -91,8 +91,8 @@ bool NameSearchFilter::Matches(const std::shared_ptr<Item>& item, FilterData* da
 
 void NameSearchFilter::Initialize(QLayout* parent) {
 	QWidget* group = new QWidget;
-	QHBoxLayout* layout = new QHBoxLayout;
-	layout->setMargin(0);
+    QHBoxLayout* layout = new QHBoxLayout;
+    layout->setContentsMargins(0, 0, 0, 0);
 	QLabel* label = new QLabel("Name");
 	label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
 	label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
@@ -133,7 +133,7 @@ bool CategorySearchFilter::Matches(const std::shared_ptr<Item>& item, FilterData
 void CategorySearchFilter::Initialize(QLayout* parent) {
 	QWidget* group = new QWidget;
 	QHBoxLayout* layout = new QHBoxLayout;
-	layout->setMargin(0);
+    layout->setContentsMargins(0, 0, 0, 0);
 	QLabel* label = new QLabel("Type");
 	label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
 	label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
@@ -197,7 +197,7 @@ bool RaritySearchFilter::Matches(const std::shared_ptr<Item>& item, FilterData* 
 void RaritySearchFilter::Initialize(QLayout* parent) {
 	QWidget* group = new QWidget;
 	QHBoxLayout* layout = new QHBoxLayout;
-	layout->setMargin(0);
+    layout->setContentsMargins(0, 0, 0, 0);
 	QLabel* label = new QLabel("Rarity");
 	label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
 	label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
@@ -230,7 +230,7 @@ MinMaxFilter::MinMaxFilter(QLayout* parent, std::string property, std::string ca
 void MinMaxFilter::Initialize(QLayout* parent) {
 	QWidget* group = new QWidget;
 	QHBoxLayout* layout = new QHBoxLayout;
-	layout->setMargin(0);
+    layout->setContentsMargins(0, 0, 0, 0);
 	QLabel* label = new QLabel(caption_.c_str());
 	label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 	textbox_min_ = new QLineEdit;
@@ -334,7 +334,7 @@ SocketsColorsFilter::SocketsColorsFilter(QLayout* parent) {
 void SocketsColorsFilter::Initialize(QLayout* parent, const char* caption) {
 	QWidget* group = new QWidget;
 	QHBoxLayout* layout = new QHBoxLayout;
-	layout->setMargin(0);
+    layout->setContentsMargins(0, 0, 0, 0);
 	QLabel* label = new QLabel(caption);
 	label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 	textbox_r_ = new QLineEdit;
@@ -436,7 +436,7 @@ BooleanFilter::BooleanFilter(QLayout* parent, std::string property, std::string 
 void BooleanFilter::Initialize(QLayout* parent) {
 	QWidget* group = new QWidget;
 	QHBoxLayout* layout = new QHBoxLayout;
-	layout->setMargin(0);
+    layout->setContentsMargins(0, 0, 0, 0);
 	QLabel* label = new QLabel(caption_.c_str());
 	label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 	checkbox_ = new QCheckBox;

@@ -39,30 +39,36 @@ QColor Column::color(const Item& /* item */) const {
 	return QApplication::palette().color(QPalette::WindowText);
 }
 
-std::tuple<QVariant, QVariant, const Item&> Column::multivalue(const Item* item) const {
-	// Transform values into something optimal for sorting
-	// Possibilities: 12, 12.12, 10%, 10.13%, +16%, 12-14, 10/20
-	QVariant sort_first_by;
-	QVariant sort_second_by;
+Column::sort_tuple Column::multivalue(const Item* item) const {
+    // Transform values into something optimal for sorting
+    // Possibilities: 12, 12.12, 10%, 10.13%, +16%, 12-14, 10/20
+    double first_double = 0.0;
+    double second_double = 0.0;
+    std::string first_string = "";
+    std::string second_string = "";
 
-	QString str = value(*item).toString();
-	QRegularExpressionMatch match;
+    QString str = value(*item).toString();
+    QRegularExpressionMatch match;
 
-	if (str.contains(sort_double_match, &match)) {
-		sort_first_by = match.captured(1).toDouble();
-	} else if (str.contains(sort_two_values, &match)) {
-		if (match.captured(2).startsWith("-")) {
-			sort_first_by = 0.5 * (match.captured(1).toDouble() + match.captured(3).toDouble());
-		} else {
-			sort_first_by = item->PrettyName().c_str();
-			sort_second_by = match.captured(1).toDouble();
-		}
-	} else {
-		sort_first_by = str;
-		sort_second_by = item->PrettyName().c_str();
-	}
+    if (str.contains(sort_double_match, &match)) {
+        first_double = match.captured(1).toDouble();
+    } else if (str.contains(sort_two_values, &match)) {
+        if (match.captured(2).startsWith("-")) {
+            first_double = 0.5 * (match.captured(1).toDouble() + match.captured(3).toDouble());
+        } else {
+            first_string = item->PrettyName();
+            second_double = match.captured(1).toDouble();
+        }
+    } else {
+        first_string = str.toStdString();
+        second_string = item->PrettyName().c_str();
+    }
 
-	return std::forward_as_tuple(sort_first_by, sort_second_by, *item);
+    return std::forward_as_tuple(
+        first_double,
+        first_string,
+        second_double,
+        second_string, *item);
 }
 
 bool Column::lt(const Item* lhs, const Item* rhs) const {

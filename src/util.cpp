@@ -34,11 +34,7 @@
 #include "rapidjson/writer.h"
 #include <sstream>
 #include <iomanip>
-#if defined(Q_OS_LINUX)
 #include <cmath>
-#else
-#include <format>
-#endif
 #include <regex>
 
 #include "buyoutmanager.h"
@@ -87,7 +83,7 @@ int Util::TextWidth(TextWidthId id) {
 		QLineEdit textbox;
 		QFontMetrics fm(textbox.fontMetrics());
 		for (size_t i = 0; i < width_strings.size(); ++i)
-			result[i] = fm.width(width_strings[i].c_str());
+            result[i] = fm.horizontalAdvance(width_strings[i].c_str());
 	}
 	return result[static_cast<int>(id)];
 }
@@ -271,6 +267,32 @@ std::string Util::hexStr(const uint8_t* data, int len)
 	boost::to_upper(temp);
 
 	return temp;
+}
+
+// Obsolete timezones are allowed by RFC2822, but they aren't parsed by
+// QT 6.5.3 so we have to fix them manually.
+QByteArray Util::FixTimezone(const QByteArray& rfc2822_date) {
+    const std::vector<std::pair<QByteArray,QByteArray>> OBSOLETE_ZONES = {
+        {"GMT", "+0000"},
+        {"UT" , "+0000"},
+        {"EST", "-0005"},
+        {"EDT", "-0004"},
+        {"CST", "-0006"},
+        {"CDT", "-0005"},
+        {"MST", "-0007"},
+        {"MDT", "-0006"},
+        {"PST", "-0008"},
+        {"PDT", "-0007"}
+    };
+    for (auto& pair : OBSOLETE_ZONES) {
+        const QByteArray& zone = pair.first;
+        const QByteArray& offset = pair.second;
+        if (rfc2822_date.endsWith(zone)) {
+            const int k = rfc2822_date.length() - zone.length();
+            return rfc2822_date.left(k) + offset;
+        };
+    };
+    return rfc2822_date;
 }
 
 QDebug& operator<<(QDebug& os, const RefreshReason::Type& obj)

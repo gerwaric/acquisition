@@ -327,10 +327,10 @@ std::string BuyoutManager::Serialize(const std::map<std::string, Buyout>& buyout
 		item.AddMember("value", buyout.value, alloc);
 
 		if (!buyout.last_update.isNull()) {
-			item.AddMember("last_update", buyout.last_update.toTime_t(), alloc);
+            item.AddMember("last_update", buyout.last_update.currentMSecsSinceEpoch(), alloc);
 		} else {
 			// If last_update is null, set as the actual time
-			item.AddMember("last_update", QDateTime::currentDateTime().toTime_t(), alloc);
+            item.AddMember("last_update", QDateTime::currentDateTime().currentMSecsSinceEpoch(), alloc);
 		}
 
 		Util::RapidjsonAddConstString(&item, "type", buyout.BuyoutTypeAsTag(), alloc);
@@ -370,7 +370,7 @@ void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, B
 		bo.type = Buyout::TagAsBuyoutType(object["type"].GetString());
 		bo.value = object["value"].GetDouble();
 		if (object.HasMember("last_update")) {
-			bo.last_update = QDateTime::fromTime_t(object["last_update"].GetInt());
+            bo.last_update = QDateTime::fromSecsSinceEpoch(object["last_update"].GetInt());
 		}
 		if (object.HasMember("source")) {
 			bo.source = Buyout::TagAsBuyoutSource(object["source"].GetString());

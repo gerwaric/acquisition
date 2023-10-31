@@ -427,7 +427,7 @@ bool MainWindow::eventFilter(QObject* o, QEvent* e) {
 	if (o == tab_bar_ && e->type() == QEvent::MouseButtonPress) {
 		QMouseEvent* mouse_event = static_cast<QMouseEvent*>(e);
 		int index = tab_bar_->tabAt(mouse_event->pos());
-		if (mouse_event->button() == Qt::MidButton) {
+        if (mouse_event->button() == Qt::MiddleButton) {
 			// remove tab and Search if it's not "+"
 			if (index >= 0 && index < tab_bar_->count() - 1) {
 				tab_bar_->removeTab(index);
@@ -743,8 +743,8 @@ void MainWindow::OnItemsRefreshed() {
 		}
 		tab++;
 	}
-	QList<QString> categories = app_->items_manager().categories().toList();
-	qSort(categories);
+    QStringList categories = app_->items_manager().categories().values();
+    categories.sort();
 	category_string_model_->setStringList(categories);
 	// Must re-populate category form after model re-init which clears selection
 	current_search_->ToForm();

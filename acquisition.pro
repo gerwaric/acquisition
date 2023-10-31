@@ -15,7 +15,7 @@ unix:!macx {
 
 DEFINES += NO_WEBENGINE
 
-greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
+QT += widgets
 
 include(deps/QsLog/QsLog.pri)
 
@@ -123,8 +123,6 @@ FORMS += \
 	forms/mainwindow.ui \
 	forms/logindialog.ui \
 	forms/steamlogindialog.ui
-
-CONFIG += c++14
 
 DEPENDPATH *= $${INCLUDEPATH}
 
