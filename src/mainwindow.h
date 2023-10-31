@@ -26,7 +26,6 @@
 #include <QPushButton>
 #include <QCloseEvent>
 
-#include "autoonline.h"
 #include "bucket.h"
 #include "porting.h"
 #include "updatechecker.h"
@@ -95,8 +94,7 @@ public slots:
 	void OnUncheckSelected() { CheckSelected(false); };
 	void OnRenameTabClicked();
 	void OnRefreshSelected();
-	void OnUpdateAvailable();
-	void OnOnlineUpdate(bool online);
+    void OnUpdateAvailable();
 	void OnUploadFinished();
 private slots:
 	void on_actionForum_shop_thread_triggered();
@@ -108,9 +106,6 @@ private slots:
 	void on_actionUpdate_shop_triggered();
 	void on_actionShop_template_triggered();
 	void on_actionAutomatically_update_shop_triggered();
-	void on_actionControl_poe_xyz_is_URL_triggered();
-	void on_actionRemoteScript_triggered();
-	void on_actionAutomatically_refresh_online_status_triggered();
 	void on_actionList_currency_triggered();
 	void on_actionDark_triggered(bool toggle);
 	void on_actionLight_triggered(bool toggle);
@@ -135,7 +130,6 @@ private:
 	void UpdateShopMenu();
 	void UpdateBuyoutWidgets(const Buyout& bo);
 	void ExpandCollapse(TreeState state);
-	void UpdateOnlineGui();
 	void closeEvent(QCloseEvent* event);
 	void CheckSelected(bool value);
 
@@ -157,8 +151,6 @@ private:
 	UpdateChecker update_checker_;
 	QPushButton update_button_;
 	QPushButton refresh_button_;
-	AutoOnline auto_online_;
-	QLabel online_label_;
 	QNetworkAccessManager* network_manager_;
 	QTimer delayed_update_current_item_;
 	QTimer delayed_search_form_change_;

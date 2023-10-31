@@ -396,14 +396,6 @@
     <addaction name="actionAutomatically_refresh_items"/>
     <addaction name="actionItems_refresh_interval"/>
    </widget>
-   <widget class="QMenu" name="menuAuto_online">
-    <property name="title">
-     <string>Auto online</string>
-    </property>
-    <addaction name="actionControl_poe_xyz_is_URL"/>
-    <addaction name="actionRemoteScript"/>
-    <addaction name="actionAutomatically_refresh_online_status"/>
-   </widget>
    <widget class="QMenu" name="menuCurrency">
     <property name="title">
      <string>Currency</string>
@@ -421,7 +413,6 @@
    </widget>
    <addaction name="menuItems"/>
    <addaction name="menuShop"/>
-   <addaction name="menuAuto_online"/>
    <addaction name="menuCurrency"/>
    <addaction name="menuTheme"/>
   </widget>
@@ -476,24 +467,6 @@
   <action name="actionShop_template">
    <property name="text">
     <string>Shop template...</string>
-   </property>
-  </action>
-  <action name="actionControl_poe_xyz_is_URL">
-   <property name="text">
-    <string>control.poe.trade URL...</string>
-   </property>
-  </action>
-  <action name="actionRemoteScript">
-   <property name="text">
-    <string>Process list script</string>
-   </property>
-  </action>
-  <action name="actionAutomatically_refresh_online_status">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Automatically refresh online status</string>
    </property>
   </action>
   <action name="actionList_currency">
