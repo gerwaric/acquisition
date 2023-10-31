@@ -24,8 +24,8 @@
 
 // These control if this build will expire, and need to be defined before
 // any other acquisition headers are included.
-#define TRIAL_VERSION               0
-#define TRIAL_EXPIRATION_DAYS       0
+#define TRIAL_VERSION               1
+#define TRIAL_EXPIRATION_DAYS       30
 
 extern const int VERSION_CODE;
 extern const char VERSION_NAME[];
