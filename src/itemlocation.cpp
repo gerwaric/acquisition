@@ -14,7 +14,8 @@ using boost::algorithm::ends_with;
 QDebug& operator<<(QDebug& os, const ItemLocationType& obj) {
 	switch (obj) {
 	case ItemLocationType::STASH: return os << "STASH";
-	case ItemLocationType::CHARACTER: return os << "CHARACTER";
+    case ItemLocationType::CHARACTER: return os << "CHARACTER";
+    default: return os << "<Invalid ItemLocationType(" << static_cast<long long int>(obj) << ")>";
 	};
 }
 
@@ -122,7 +123,8 @@ void ItemLocation::ToItemJson(rapidjson::Value* root_ptr, rapidjson_allocator& a
 std::string ItemLocation::GetHeader() const {
 	switch (type_) {
 	case ItemLocationType::STASH: return QString("#%1, \"%2\"").arg(tab_id_ + 1).arg(tab_label_.c_str()).toStdString();
-	case ItemLocationType::CHARACTER: return character_;
+    case ItemLocationType::CHARACTER: return character_;
+    default: return "";
 	};
 }
 
@@ -159,14 +161,17 @@ std::string ItemLocation::GetForumCode(const std::string& league) const {
 	case ItemLocationType::CHARACTER:
 		return QString("[linkItem location=\"%1\" character=\"%2\" x=\"%3\" y=\"%4\"]")
 			.arg(inventory_id_.c_str(), character_.c_str(), QString::number(x_), QString::number(y_))
-			.toStdString();
+            .toStdString();
+    default:
+        return "";
 	};
 }
 
 bool ItemLocation::IsValid() const {
 	switch (type_) {
 	case ItemLocationType::STASH: return !tab_unique_id_.empty();
-	case ItemLocationType::CHARACTER: return !character_.empty();
+    case ItemLocationType::CHARACTER: return !character_.empty();
+    default: return false;
 	};
 }
 
@@ -177,6 +182,7 @@ std::string ItemLocation::GetUniqueHash() const {
 	switch (type_) {
 	case ItemLocationType::STASH: return "stash:" + tab_label_; // TODO: tab labels are not guaranteed unique
 	case ItemLocationType::CHARACTER: return "character:" + character_;
+    default: return "";
 	};
 }
 
@@ -188,10 +194,16 @@ void ItemLocation::set_json(rapidjson::Value& value, rapidjson_allocator& alloc)
 }
 
 bool ItemLocation::operator<(const ItemLocation& rhs) const {
-	switch (type_) {
-	case ItemLocationType::STASH: return std::tie(type_, tab_id_) < std::tie(rhs.type_, rhs.tab_id_);
-	case ItemLocationType::CHARACTER: return std::tie(type_, character_) < std::tie(rhs.type_, rhs.character_);
-	};
+    if (type_ == rhs.type_) {
+        switch (type_) {
+        case ItemLocationType::STASH: return std::tie(type_, tab_id_) < std::tie(rhs.type_, rhs.tab_id_);
+        case ItemLocationType::CHARACTER: return std::tie(type_, character_) < std::tie(rhs.type_, rhs.character_);
+        default: return true;
+        };
+    } else {
+        // STASH locations will always be less than CHARACTER locations.
+        return (type_ == ItemLocationType::STASH);
+    };
 }
 
 bool ItemLocation::operator==(const ItemLocation& other) const {
