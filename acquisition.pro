@@ -9,6 +9,11 @@ win32 {
 	INCLUDEPATH += "C:\Program Files\OpenSSL-Win64\include"
 }
 
+macx {
+	# Needed to use boost-headers-only 1.75 with Xcode 15.0.1
+	DEFINES += _LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION
+}
+
 unix:!macx {
 	LIBS += -ldl -L"/usr/local/ssl/lib" -l:libcrypto.a -l:libssl.a
 }
