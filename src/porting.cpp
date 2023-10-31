@@ -30,7 +30,7 @@ namespace porting {
 #ifdef PORTABLE
 		return qApp->applicationDirPath().toStdString();
 #else
-        return QStandardPaths::writableLocation(QStandardPaths::AppDataLocation).toStdString();
+        return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation).toStdString();
 #endif
 	}
 }
