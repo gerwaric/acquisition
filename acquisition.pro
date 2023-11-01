@@ -13,6 +13,7 @@ macx {
 }
 
 unix:!macx {
+        # This may need troubleshooting
 	LIBS += -ldl -L"/usr/local/ssl/lib" -l:libcrypto.a -l:libssl.a
 }
 

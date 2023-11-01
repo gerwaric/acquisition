@@ -1,73 +1,51 @@
 # Acquisition
 Acquisition is an inventory management tool for [Path of Exile](https://www.pathofexile.com/).
 
-It is written in C++, uses the Qt widget toolkit, and runs on Windows and macOS. It used to run on Linux as well.
+You can download all of your stash tabs and character inventories for offline search.
 
-You can download Windows and macOS setup packages from [the releases page](https://github.com/gerwaric/acquisition/releases).
+You can list items for trade using forum shop threads. These threads are indexed by the official trade site. This allows you to list items in remove-only tabs as well as character invetories, which are not normally listed on the official trade site.
+
+Acquisition runs on Windows and macOS, and probably Linux with some effort.
+
+You can download setup packages from [the releases page](https://github.com/gerwaric/acquisition/releases).
 
 ## Compiling or Developing Acquisition
 
+Acquisition is written in C++ and uses the Qt widget toolkit.
+
+Acquisition can be built on all supported platforms with Qt Creator.
+
 ### Windows
 
-On Windows you can use either QT Creator, or Visual Studio with the Qt Add-In.
+On Windows you can also use Visual Studio with the Qt Visual Studio Tools extension.
 
-v0.9.9 was built with the following tools:
-- QT Creator 11.0.3 with QT 5.15.2 and MSVC 2019 64-bit (for release builds)
-- Visual Studio 2019 with QT Visual Studio Tools 3.0.1 (for editing, debugging, and testing)
-- Open SSL 1.1.1v (64-bit)
+v0.9.10 was built with the following tools:
+- Qt Creator 11.0.3 with Qt 6.5.3 LTS and MSVC 2019 64-bit (for release builds)
+- Visual Studio 2019 with Qt Visual Studio Tools 3.0.1 (for editing, debugging, and testing)
 - Inno Setup 6.2.2 (for installer creation)
 
 ### macOS
 
-v0.9.9 was built on an M1 MacBook Air running macOS Ventura 13.6.
+v0.9.10 was built on an M1 Mac running macOS Ventura 13.6 with the following tools:
+- Qt Creator 11.0.3 with Qt 6.5.3 for macOS
+- XCode 15.0.1
 
-But it's tricky. Acquisition uses Qt version 5, which you'll have to compile directly from source. It also requires an older macOS SDK, so you'll need to install an older XCode, specifically version 14.0.1. Once you have that working, you'll need to build the `qtbase`, `qtdeclarative`, and `qttools` modules.
+## Command line
 
-*NOTE*: v0.9.9 is the first macOS release. Please report any issues with the installer.
+`acquisition [--data-dir <path>] [--log-level <level>] [--test]`
 
-### Linux
+`--data-dir <path>`:
+	Set the path where Acquisition should save its data.
+	The default on Windows is `%localappdata%\acquisition`.
+	The default on macOS is `~/Library/Application Support/acquisition`.
+	The default on Linux is `~/.local/share/acquisition`.
 
-v0.9.9 has been built and run on a virtual machine:
-- Linux Mint 21.2 Cinnamon
-- Qt Creator 11.0.3
-- Qt 5.15.2
-- gcc 11.4.0
-- OpenSSL 1.1.1w
-
-There is no installable package yet.
-
-## Command line arguments
-
-`--data-dir <path>`: set the path where Acquisition should save its data. By default it's `%localappdata%\acquisition` on Windows, `~/.local/share/acquisition` on Linux, and `~/Library/Application Support/acquisition` on macOS.
-
-`--log-level <level>`: controls the amount of detail in the log.
+`--log-level <level>`:
+	Controls the amount of detail in the log.
 	Options are `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, and `OFF`.
+ 	This option is case-insensitive.
 	The default level for release builds is `INFO`.
 	The default level for debug builds is `TRACE`.
- 	This option is case-insensitive.
 
-`--test`: run tests. Zero exit code on success, other values indicate errors.
-
-### Recent Changes
-
-## v0.9.9
-
-Application Changes:
-- The status bar updates while acquisition is loading saved tabs and items at startup.
-- New dynamic rate limiting based on HTTP reply headers fully complies with GGG's rate limiting policies.
-- Remove-only stash tabs with in-game buyouts are no longer refresh-locked.
-- Only tabs marked or selected for updating are requested (this replaces the previous tab caching).
-- Better error handling and error prevention during shop forum updates.
-
-Development Changes:
-- Added a build expiration option defined at compile time (for pre-release builds).
-- Updated deployment and installer scripts.
-- Created a macOS build.
-
-### Roadmap
-
-## v0.10 (or maybe v1.0?)
-
-- OAuth. Acquisition has been approved by GGG as a public client, which means reworking authentication, as well as moving away from the legacy API that Acquisition was designed around, so it comes with significant rework.
-- Porting to Qt 6, which will make OAuth easier to implement and prevent issues when Qt 5 goes EOL in 2025.
-- Various improvements under-the-hood.
+`--test`:
+	run tests. Zero exit code on success, other values indicate errors.

@@ -4,8 +4,8 @@
 //The program will look to this file in the GitHub repo, and compare it to
 //the VER_CODE in the current installation. If the number in the version.txt
 //file is greater than VER_CODE, then the updater will notify the user
-#define VER_CODE                    52
-#define VER_STR                     "v0.9.10-beta.1"
+#define VER_CODE                    53
+#define VER_STR                     "v0.9.10"
 #define VER_FILEVERSION             0,9,10,0
 #define VER_FILEVERSION_STR         "0.9.10.0"
 
