@@ -46,13 +46,10 @@ public:
 public slots:
 	void OnLeaguesRequestFinished();
 	void OnLoginButtonClicked();
-	void OnLoginPageFinished();
 	void OnLoggedIn();
 	void LoggedInCheck(); // checks login is successful
 	void OnMainPageFinished();
 	void OnProxyCheckBoxClicked(bool);
-	void OnSteamCookieReceived(const QString& cookie);
-	void OnSteamDialogClosed();
 	void errorOccurred();
 	void sslErrorOccurred();
 protected:
@@ -61,8 +58,8 @@ private:
 	void SaveSettings();
 	void LoadSettings();
 	void DisplayError(const QString& error, bool disable_login = false);
+	void LoginWithOAuth();
 	void LoginWithCookie(const QString& cookie);
-	void InitSteamDialog();
 	void LeaguesApiError(const QString& error, const QByteArray& reply);
 	// Retrieves session cookie for a successful login; proceeds to OnMainPageFinished
 	void FinishLogin(QNetworkReply* reply);

@@ -56,25 +56,15 @@ const char* POE_COOKIE_NAME = "POESESSID";
 const char* LOGIN_CHECK_ERROR = "Failed to log in (invalid password or expired session ID? try re-logging with email/password pair or via steam)";
 
 enum {
-	LOGIN_PASSWORD,
-	LOGIN_STEAM,
+    LOGIN_OAUTH,
 	LOGIN_SESSIONID
 };
 
 /**
  * Possible login flows:
- *
- * Normal
-	=> Retrieve /login to get csrf token
-	=> OnLoginPageFinished()
-	=> POST email/pw to /login
-	=> OnLoggedIn()
-	=> Retrieve /my-account to get account name
-	=> OnMainPageFinished()
-	=> done
 
- * Steam
-	=> Run webengine and point it at steam login page
+ * OAuth
+	=> Point browser to OAuth login page
 	=> OnSteamCookieReceived() -> LoginWithCookie()
 	=> Retrieve POE_LOGIN_CHECK_URL
 	=> LoggedInCheck()
@@ -147,35 +137,15 @@ void LoginDialog::OnLoginButtonClicked() {
 	ui->loginButton->setText("Logging in...");
 
 	switch (ui->loginTabs->currentIndex()) {
-	case LOGIN_PASSWORD: {
-		// Get POE_LOGIN_URL to retrieve the csrf token
-		QNetworkReply* login_page = login_manager_->get(QNetworkRequest(QUrl(POE_LOGIN_URL)));
-		connect(login_page, SIGNAL(finished()), this, SLOT(OnLoginPageFinished()));
+    case LOGIN_OAUTH:
+		LoginWithOAuth();
 		break;
-	}
-	case LOGIN_STEAM: {
-		if (!steam_login_dialog_)
-			InitSteamDialog();
-		steam_login_dialog_->show();
-		steam_login_dialog_->Init();
-		break;
-	}
-	case LOGIN_SESSIONID: {
+	case LOGIN_SESSIONID:
 		LoginWithCookie(ui->sessionIDLineEdit->text());
 		break;
 	}
-	}
 }
 
-void LoginDialog::InitSteamDialog() {
-	steam_login_dialog_ = std::make_unique<SteamLoginDialog>();
-	connect(steam_login_dialog_.get(), SIGNAL(CookieReceived(const QString&)), this, SLOT(OnSteamCookieReceived(const QString&)));
-	connect(steam_login_dialog_.get(), SIGNAL(Closed()), this, SLOT(OnSteamDialogClosed()), Qt::DirectConnection);
-}
-
-void LoginDialog::OnSteamDialogClosed() {
-	DisplayError("Login was not completed");
-}
 
 void LoginDialog::LeaguesApiError(const QString& error, const QByteArray& reply) {
 	DisplayError("Leagues API returned malformed data: " + error, true);
@@ -248,36 +218,6 @@ static QString EncodeSpecialCharacters(QString s) {
 	return s;
 }
 
-void LoginDialog::OnLoginPageFinished() {
-	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
-	if (reply->error()) {
-		DisplayError("Network error: " + reply->errorString() + "\nTry using another login method.");
-		return;
-	}
-
-	QByteArray bytes = reply->readAll();
-	std::string hash = Util::GetCsrfToken(bytes, "hash");
-	if (hash.empty()) {
-		DisplayError("Failed to log in (can't extract form hash from page)");
-		return;
-	}
-
-	QUrlQuery query;
-	query.addQueryItem("login_email", EncodeSpecialCharacters(ui->emailLineEdit->text()));
-	query.addQueryItem("login_password", EncodeSpecialCharacters(ui->passwordLineEdit->text()));
-	query.addQueryItem("hash", QString(hash.c_str()));
-	query.addQueryItem("login", "Login");
-	query.addQueryItem("remember_me", "1");
-
-	QUrl url(POE_LOGIN_URL);
-	QByteArray data(query.query().toUtf8());
-	QNetworkRequest request(url);
-	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply* logged_in = login_manager_->post(request, data);
-	connect(logged_in, SIGNAL(finished()), this, SLOT(OnLoggedIn()));
-}
-
 void LoginDialog::FinishLogin(QNetworkReply* reply) {
 	QList<QNetworkCookie> cookies = reply->manager()->cookieJar()->cookiesForUrl(QUrl(POE_MAIN_PAGE));
 	for (QNetworkCookie& cookie : cookies)
@@ -320,12 +260,8 @@ void LoginDialog::LoggedInCheck() {
 	FinishLogin(reply);
 }
 
-void LoginDialog::OnSteamCookieReceived(const QString& cookie) {
-	if (cookie.isEmpty()) {
-		DisplayError("Failed to log in, the received cookie is empty.");
-		return;
-	}
-	LoginWithCookie(cookie);
+void LoginDialog::LoginWithOAuth() {
+
 }
 
 void LoginDialog::LoginWithCookie(const QString& cookie) {

@@ -55,7 +55,6 @@ SOURCES += \
 	src/replytimeout.cpp \
 	src/search.cpp \
 	src/shop.cpp \
-	src/steamlogindialog.cpp \
 	src/updatechecker.cpp \
 	src/util.cpp \
 	src/version.cpp \
@@ -104,7 +103,6 @@ HEADERS += \
 	src/search.h \
 	src/selfdestructingreply.h \
 	src/shop.h \
-	src/steamlogindialog.h \
 	src/updatechecker.h \
 	src/util.h \
 	src/version.h \
@@ -119,8 +117,7 @@ HEADERS += \
 
 FORMS += \
 	forms/mainwindow.ui \
-	forms/logindialog.ui \
-	forms/steamlogindialog.ui
+	forms/logindialog.ui
 
 DEPENDPATH *= $${INCLUDEPATH}
 
