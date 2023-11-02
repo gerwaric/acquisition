@@ -408,7 +408,12 @@ void ItemsManagerWorker::OnMainPageReceived(QNetworkReply* reply) {
 		std::string page(reply->readAll().constData());
 		selected_character_ = Util::FindTextBetween(page, "C({\"name\":\"", "\",\"class");
 		if (selected_character_.empty()) {
-			QLOG_WARN() << "Couldn't extract currently selected character name from GGG homepage (maintenence?) Text was: " << page.c_str();
+            // If the user is using POESESSID, then we should expect to find the character name.
+            // If the uses is using OAuth, then we might not find the character name if they user
+            // is not logged into pathofexile.com using the browser they authenticated with.
+            if (app_.oauth_manager().access_token().isEmpty() == true) {
+                QLOG_WARN() << "Couldn't extract currently selected character name from GGG homepage (maintenence?) Text was: " << page.c_str();
+            };
 		};
 	};
 
