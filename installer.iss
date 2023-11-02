@@ -32,6 +32,7 @@ PrivilegesRequiredOverridesAllowed=dialog
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+MinVersion=10.0
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
