@@ -197,15 +197,20 @@ QString OAuthManager::receiveAuthorization(const QHttpServerRequest& request, co
 	requestToken(auth_code);
 
 	// Update the user.
-	return
-		"<html>"
-		"  <head>"
-		"    <title>OAuth Authorization Response</title>"
-		"  </head>"
-		"  <body>"
-		"    <p>Authorization received; you can close this page.</p>"
-		"  </body>"
-		"</html>";
+	return R"html(
+		<html>
+			<head>
+				<title>Acquisition</title>
+				<style>
+					html, body, .container { height: 75%; }
+					.container { display: flex; align-items: center; justify-content: center; }
+				</style>
+			</head>
+			<body>
+				<h1 class="container">Acquisition has been authorized.<br>You may close this page.</h1>
+			</body>
+		</html>";
+	)html";
 };
 
 void OAuthManager::requestToken(const QString& code)
