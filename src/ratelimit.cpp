@@ -197,8 +197,8 @@ RateLimitedRequest::RateLimitedRequest(const QNetworkRequest& request, const Cal
 // Create a new rate limit manager based on an existing policy.
 PolicyManager::PolicyManager(Application& application, std::unique_ptr<Policy> policy_, QObject* parent) :
 	QObject(parent),
-	app(application),
 	policy(std::move(policy_)),
+	app(application),
 	busy(false),
 	next_send(QDateTime::currentDateTime()),
 	last_send(QDateTime()),
@@ -458,7 +458,7 @@ void PolicyManager::SendRequest() {
 		<< "sending request" << active_request->id
 		<< "to" << active_request->endpoint
 		<< "via" << active_request->network_request.url().toString();
-	
+
 	// Make a copy of the request so we can add the OAuth token (if it exists).
 	// We do this here, at the very last minute, in case the token has changed
 	// from when the request was initially queued.
@@ -626,7 +626,7 @@ static QByteArray GetHeader(QNetworkReply* const reply, const QByteArray& name) 
 		return reply->rawHeader(name);
 	} else {
 		QLOG_ERROR() << "GetHeader(): missing header:" << name;
-        return QByteArray();
+		return QByteArray();
 	};
 }
 
@@ -662,7 +662,7 @@ static QByteArrayList GetRateLimitState(QNetworkReply* const reply, const QByteA
 
 // Return the date from the HTTP reply headers.
 static QDateTime GetDate(QNetworkReply* const reply) {
-    QString timestamp = QString(Util::FixTimezone(GetHeader(reply, "Date")));
+	QString timestamp = QString(Util::FixTimezone(GetHeader(reply, "Date")));
 	const QDateTime date = QDateTime::fromString(timestamp, Qt::RFC2822Date);
 	if (date.isValid() == false) {
 		QLOG_ERROR() << "invalid date parsed from" << timestamp;
@@ -690,8 +690,8 @@ static QString GetEndpoint(const QUrl& url) {
 
 RateLimiter::RateLimiter(Application& application, QObject* parent) :
 	QObject(parent),
-	app(application),
-	initialized(false)
+	initialized(false),
+	app(application)
 {
 	// Creat the policy manager that will handle non-limited requests.
 	default_manager = std::make_unique<PolicyManager>(app, std::make_unique<Policy>("<none>"), this);
@@ -767,8 +767,9 @@ void RateLimiter::SendInitialRequest(const QString endpoint, QNetworkRequest req
 
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	QNetworkReply* reply = app.network_manager().head(request);
-	connect(reply, &QNetworkReply::finished, [=]() {
-		ReceiveInitialReply(endpoint, reply);
+	connect(reply, &QNetworkReply::finished, this,
+		[=]() {
+			ReceiveInitialReply(endpoint, reply);
 		});
 }
 

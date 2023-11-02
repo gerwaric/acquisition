@@ -27,7 +27,6 @@
 
 #include "item.h"
 #include "itemconstants.h"
-#include "util.h"
 
 int qInitResources_resources();
 Q_CONSTRUCTOR_FUNCTION(qInitResources_resources);

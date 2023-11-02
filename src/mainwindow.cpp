@@ -70,7 +70,7 @@ MainWindow::MainWindow(std::unique_ptr<Application> app) :
 	app_(std::move(app)),
 	ui(new Ui::MainWindow),
 	current_search_(nullptr),
-    search_count_(0)
+	search_count_(0)
 {
 #if defined(Q_OS_LINUX)
 	setWindowIcon(QIcon(":/icons/assets/icon.svg"));
@@ -88,14 +88,15 @@ MainWindow::MainWindow(std::unique_ptr<Application> app) :
 	connect(&app_->items_manager(), &ItemsManager::StatusUpdate, this, &MainWindow::OnStatusUpdate);
 	connect(&app_->shop(), &Shop::StatusUpdate, this, &MainWindow::OnStatusUpdate);
 	connect(&app_->update_checker(), &UpdateChecker::UpdateAvailable, this, &MainWindow::OnUpdateAvailable);
-	connect(&delayed_update_current_item_, &QTimer::timeout, [&]() {UpdateCurrentItem(); delayed_update_current_item_.stop(); });
-	connect(&delayed_search_form_change_, &QTimer::timeout, [&]() {OnSearchFormChange(); delayed_search_form_change_.stop(); });
+	connect(&delayed_update_current_item_, &QTimer::timeout, this, [&]() {UpdateCurrentItem(); delayed_update_current_item_.stop(); });
+	connect(&delayed_search_form_change_, &QTimer::timeout, this, [&]() {OnSearchFormChange(); delayed_search_form_change_.stop(); });
 
 	// This updates the item information when index changes
-	connect(ui->treeView->header(), &QHeaderView::sortIndicatorChanged, [&](int, Qt::SortOrder) {
-		QModelIndex idx = ui->treeView->selectionModel()->currentIndex();
-		if (idx.isValid())
-			OnTreeChange(idx, idx);
+	connect(ui->treeView->header(), &QHeaderView::sortIndicatorChanged, this,
+		[&](int, Qt::SortOrder) {
+			QModelIndex idx = ui->treeView->selectionModel()->currentIndex();
+			if (idx.isValid())
+				OnTreeChange(idx, idx);
 		});
 
 }
@@ -149,7 +150,7 @@ void MainWindow::InitializeUi() {
 	connect(ui->buyoutValueLineEdit, SIGNAL(textEdited(QString)), this, SLOT(OnBuyoutChange()));
 
 	ui->viewComboBox->addItems({ "By Tab", "By Item" });
-	connect(ui->viewComboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::activated), [&](int mode) {
+	connect(ui->viewComboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::activated), this, [&](int mode) {
 		current_search_->SetViewMode(static_cast<Search::ViewMode>(mode));
 		if (mode == Search::ByItem) {
 			OnExpandAll();
@@ -203,7 +204,7 @@ void MainWindow::InitializeUi() {
 	context_menu_.addAction("Expand All", this, SLOT(OnExpandAll()));
 	context_menu_.addAction("Collapse All", this, SLOT(OnCollapseAll()));
 
-	connect(ui->treeView, &QTreeView::customContextMenuRequested, [&](const QPoint& pos) {
+	connect(ui->treeView, &QTreeView::customContextMenuRequested, this, [&](const QPoint& pos) {
 		context_menu_.popup(ui->treeView->viewport()->mapToGlobal(pos));
 		});
 
@@ -211,7 +212,7 @@ void MainWindow::InitializeUi() {
 	refresh_button_.setFlat(true);
 	refresh_button_.hide();
 	statusBar()->addPermanentWidget(&refresh_button_);
-	connect(&refresh_button_, &QPushButton::clicked, [=]() {
+	connect(&refresh_button_, &QPushButton::clicked, this, [=]() {
 		on_actionRefresh_triggered();
 		});
 
@@ -219,7 +220,7 @@ void MainWindow::InitializeUi() {
 	update_button_.setFlat(true);
 	update_button_.hide();
 	statusBar()->addPermanentWidget(&update_button_);
-	connect(&update_button_, &QPushButton::clicked, [=]() {
+	connect(&update_button_, &QPushButton::clicked, this, [=]() {
 		UpdateChecker::AskUserToUpdate(this);
 		});
 	// resize columns when a tab is expanded/collapsed
@@ -238,7 +239,7 @@ void MainWindow::InitializeUi() {
 	ui->itemTooltipWidget->hide();
 	ui->itemButtonsWidget->hide();
 
-	connect(ui->itemInfoTypeTabs, &QTabWidget::currentChanged, [=](int idx) {
+	connect(ui->itemInfoTypeTabs, &QTabWidget::currentChanged, this, [=](int idx) {
 		auto tabs = ui->itemInfoTypeTabs;
 		for (int i = 0; i < tabs->count(); i++)
 			if (i != idx)
@@ -252,10 +253,10 @@ void MainWindow::InitializeUi() {
 
 	ui->itemInfoTypeTabs->setCurrentIndex(app_->data().GetInt("preferred_tooltip_type"));
 
-    std::string theme = app_->data().Get("theme", "default");
-    if (theme == "default") on_actionDefault_triggered(true);
-    else if (theme == "dark") on_actionDark_triggered(true);
-    else if (theme == "light") on_actionLight_triggered(true);
+	std::string theme = app_->data().Get("theme", "default");
+	if (theme == "default") on_actionDefault_triggered(true);
+	else if (theme == "dark") on_actionDark_triggered(true);
+	else if (theme == "light") on_actionLight_triggered(true);
 }
 
 void MainWindow::ExpandCollapse(TreeState state) {
@@ -282,14 +283,14 @@ void MainWindow::OnCheckAll() {
 	auto& bo = app_->buyout_manager();
 	for (auto const& bucket : current_search_->buckets())
 		bo.SetRefreshChecked(bucket->location(), true);
-	ui->treeView->model()->layoutChanged();
+	emit ui->treeView->model()->layoutChanged();
 }
 
 void MainWindow::OnUncheckAll() {
 	auto& bo = app_->buyout_manager();
 	for (auto const& bucket : current_search_->buckets())
 		bo.SetRefreshChecked(bucket->location(), false);
-	ui->treeView->model()->layoutChanged();
+	emit ui->treeView->model()->layoutChanged();
 }
 
 void MainWindow::OnRefreshSelected() {
@@ -364,7 +365,7 @@ void MainWindow::OnBuyoutChange() {
 	}
 	app_->items_manager().PropagateTabBuyouts();
 	// refresh treeView to immediately reflect price changes
-	ui->treeView->model()->layoutChanged();
+	emit ui->treeView->model()->layoutChanged();
 	ResizeTreeColumns();
 }
 
@@ -414,7 +415,7 @@ bool MainWindow::eventFilter(QObject* o, QEvent* e) {
 	if (o == tab_bar_ && e->type() == QEvent::MouseButtonPress) {
 		QMouseEvent* mouse_event = static_cast<QMouseEvent*>(e);
 		int index = tab_bar_->tabAt(mouse_event->pos());
-        if (mouse_event->button() == Qt::MiddleButton) {
+		if (mouse_event->button() == Qt::MiddleButton) {
 			// remove tab and Search if it's not "+"
 			if (index >= 0 && index < tab_bar_->count() - 1) {
 				tab_bar_->removeTab(index);
@@ -425,8 +426,8 @@ bool MainWindow::eventFilter(QObject* o, QEvent* e) {
 					current_search_ = nullptr;
 				delete searches_[index];
 				searches_.erase(searches_.begin() + index);
-                if (static_cast<size_t>(tab_bar_->currentIndex()) == searches_.size())
-                    tab_bar_->setCurrentIndex(static_cast<int>(searches_.size()) - 1);
+				if (static_cast<size_t>(tab_bar_->currentIndex()) == searches_.size())
+					tab_bar_->setCurrentIndex(static_cast<int>(searches_.size()) - 1);
 				OnTabChange(tab_bar_->currentIndex());
 				// that's because after removeTab text will be set to previous search's caption
 				// which is because my way of dealing with "+" tab is hacky and should be replaced by something sane
@@ -731,8 +732,8 @@ void MainWindow::OnItemsRefreshed() {
 		}
 		tab++;
 	}
-    QStringList categories = app_->items_manager().categories().values();
-    categories.sort();
+	QStringList categories = app_->items_manager().categories().values();
+	categories.sort();
 	category_string_model_->setStringList(categories);
 	// Must re-populate category form after model re-init which clears selection
 	current_search_->ToForm();
@@ -814,7 +815,7 @@ void MainWindow::on_actionList_currency_triggered() {
 void MainWindow::on_actionDark_triggered(bool toggle) {
 	// Credits: https://github.com/ColinDuquesnoy/QDarkStyleSheet
 	if (toggle) {
-        QFile f(":qdarkstyle/dark/darkstyle.qss");
+		QFile f(":qdarkstyle/dark/darkstyle.qss");
 		if (!f.exists()) {
 			printf("Unable to set stylesheet, file not found\n");
 		} else {
@@ -826,45 +827,45 @@ void MainWindow::on_actionDark_triggered(bool toggle) {
 			pal.setColor(QPalette::WindowText, Qt::white);
 			QApplication::setPalette(pal);
 		}
-        app_->data().Set("theme", "dark");
-        ui->actionLight->setChecked(false);
-        ui->actionDefault->setChecked(false);
-    }
-    ui->actionDark->setChecked(toggle);
+		app_->data().Set("theme", "dark");
+		ui->actionLight->setChecked(false);
+		ui->actionDefault->setChecked(false);
+	}
+	ui->actionDark->setChecked(toggle);
 }
 
 void MainWindow::on_actionLight_triggered(bool toggle) {
-    if (toggle) {
-        QFile f(":qdarkstyle/light/lightstyle.qss");
-        if (!f.exists()) {
-            printf("Unable to set stylesheet, file not found\n");
-        } else {
-            f.open(QFile::ReadOnly | QFile::Text);
-            QTextStream ts(&f);
-            qApp->setStyleSheet(ts.readAll());
+	if (toggle) {
+		QFile f(":qdarkstyle/light/lightstyle.qss");
+		if (!f.exists()) {
+			printf("Unable to set stylesheet, file not found\n");
+		} else {
+			f.open(QFile::ReadOnly | QFile::Text);
+			QTextStream ts(&f);
+			qApp->setStyleSheet(ts.readAll());
 
-            QPalette pal = QApplication::palette();
-            pal.setColor(QPalette::WindowText, Qt::black);
-            QApplication::setPalette(pal);
-        }
-        app_->data().Set("theme", "light");
-        ui->actionDark->setChecked(false);
-        ui->actionDefault->setChecked(false);
-    }
-    ui->actionLight->setChecked(toggle);
+			QPalette pal = QApplication::palette();
+			pal.setColor(QPalette::WindowText, Qt::black);
+			QApplication::setPalette(pal);
+		}
+		app_->data().Set("theme", "light");
+		ui->actionDark->setChecked(false);
+		ui->actionDefault->setChecked(false);
+	}
+	ui->actionLight->setChecked(toggle);
 }
 
 void MainWindow::on_actionDefault_triggered(bool toggle) {
-    if (toggle) {
-        qApp->setStyleSheet("");
-        QPalette pal = QApplication::palette();
-        pal.setColor(QPalette::WindowText, Qt::black);
-        QApplication::setPalette(pal);
-        app_->data().Set("theme", "default");
-        ui->actionDark->setChecked(false);
-        ui->actionLight->setChecked(false);
-    }
-    ui->actionDefault->setChecked(toggle);
+	if (toggle) {
+		qApp->setStyleSheet("");
+		QPalette pal = QApplication::palette();
+		pal.setColor(QPalette::WindowText, Qt::black);
+		QApplication::setPalette(pal);
+		app_->data().Set("theme", "default");
+		ui->actionDark->setChecked(false);
+		ui->actionLight->setChecked(false);
+	}
+	ui->actionDefault->setChecked(toggle);
 }
 
 void MainWindow::on_actionExport_currency_triggered() {

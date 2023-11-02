@@ -93,7 +93,7 @@ void OAuthManager::requestAccess()
 	url.setPort(port);
 	url.setPath(REDIRECT_PATH);
 	redirect_uri_ = url.toString();
-	
+
 	// Make the authorization request.
 	requestAuthorization(state, code_challenge);
 }
@@ -156,7 +156,7 @@ QString OAuthManager::receiveAuthorization(const QHttpServerRequest& request, co
 {
 	// Shut the server down now that an access token response has been received.
 	// Don't do it immediately in case the browser wants to request a favicon.
-	QTimer::singleShot(1000,
+	QTimer::singleShot(1000, this,
 		[=]() {
 			the_server_->disconnect();
 			the_server_->deleteLater();
@@ -226,7 +226,7 @@ void OAuthManager::requestToken(const QString& code)
 		{"redirect_uri", redirect_uri_},
 		{"scope", SCOPE},
 		{"code_verifier", code_verifier_} });
-	
+
 	const QByteArray data = query.toString(QUrl::FullyEncoded).toUtf8();
 
 	QLOG_TRACE() << "Requesting OAuth access token.";
@@ -267,7 +267,7 @@ void OAuthManager::receiveToken(QNetworkReply* reply)
 	};
 	QLOG_TRACE() << "Refreshing OAuth token in" << refresh_sec << "seconds.";
 	const long int refresh_msec = refresh_sec * 1000;
-	QTimer::singleShot(refresh_msec, [=]() { requestRefresh(the_token_->refresh_token); });
+	QTimer::singleShot(refresh_msec, this, [=]() { requestRefresh(the_token_->refresh_token); });
 }
 
 void OAuthManager::requestRefresh(const QString& refresh_token) {

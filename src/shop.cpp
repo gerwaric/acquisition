@@ -242,8 +242,8 @@ void Shop::OnEditPageFinished() {
 		reply->deleteLater();
 		return;
 	};
-	
-	QTimer::singleShot(500, [=]() { SubmitNextShop(title, hash); });
+
+	QTimer::singleShot(500, this, [=]() { SubmitNextShop(title, hash); });
 	reply->deleteLater();
 }
 
@@ -264,7 +264,7 @@ void Shop::SubmitNextShop(const std::string title, const std::string hash)
 
 	QNetworkReply* submitted = app_.network_manager().post(request, data);
 	new QReplyTimeout(submitted, kEditThreadTimeout);
-	connect(submitted, &QNetworkReply::finished,
+	connect(submitted, &QNetworkReply::finished, this,
 		[=]() {
 			OnShopSubmitted(query, submitted);
 			submitted->deleteLater();
@@ -324,7 +324,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
 			const std::string title = query.queryItemValue("title").toStdString();
 			const std::string hash = Util::GetCsrfToken(bytes, "hash");
 			QLOG_WARN() << "Resubmitting shop after" << seconds << "seconds.";
-			QTimer::singleShot(ms, [=]() { SubmitNextShop(title, hash); });
+			QTimer::singleShot(ms, this, [=]() { SubmitNextShop(title, hash); });
 			return;
 		} else {
 			// Quit the update for any other error.
