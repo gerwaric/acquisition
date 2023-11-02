@@ -29,8 +29,8 @@ class QNetworkReply;
 class QString;
 
 class Application;
-class SteamLoginDialog;
 class MainWindow;
+struct AccessToken;
 
 namespace Ui {
 	class LoginDialog;
@@ -48,6 +48,7 @@ public slots:
 	void LoggedInCheck(); // checks login is successful
 	void OnMainPageFinished();
 	void OnProxyCheckBoxClicked(bool);
+	void OnOAuthAccessGranted(const AccessToken& token);
 	void errorOccurred();
 	void sslErrorOccurred();
 protected:

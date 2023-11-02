@@ -44,6 +44,7 @@
 #include "network_info.h"
 #include "version_defines.h"
 #include "updatechecker.h"
+#include "oauth.h"
 
 const char* POE_LEAGUE_LIST_URL = "https://api.pathofexile.com/leagues?type=main&compact=1";
 const char* POE_LOGIN_URL = "https://www.pathofexile.com/login";
@@ -52,12 +53,10 @@ const char* POE_MY_ACCOUNT = "https://www.pathofexile.com/my-account";
 const char* POE_LOGIN_CHECK_URL = POE_MY_ACCOUNT;
 const char* POE_COOKIE_NAME = "POESESSID";
 
-const char* LOGIN_CHECK_ERROR = "Failed to log in (invalid password or expired session ID? try re-logging with email/password pair or via steam)";
+const char* LOGIN_CHECK_ERROR = "Failed to log in. Try copying your session ID again, or try OAuth";
 
-enum {
-    LOGIN_OAUTH,
-	LOGIN_SESSIONID
-};
+const char* OAUTH_TAB = "oauthTab";
+const char* SESSIONID_TAB = "sessionIdTab";
 
 /**
  * Possible login flows:
@@ -134,16 +133,16 @@ void LoginDialog::OnLoginButtonClicked() {
 	ui->loginButton->setEnabled(false);
 	ui->loginButton->setText("Logging in...");
 
-	switch (ui->loginTabs->currentIndex()) {
-    case LOGIN_OAUTH:
-		LoginWithOAuth();
-		break;
-	case LOGIN_SESSIONID:
-		LoginWithCookie(ui->sessionIDLineEdit->text());
-		break;
-	}
-}
+	const QString tab_name = ui->loginTabs->currentWidget()->objectName();
 
+	if (tab_name == OAUTH_TAB) {
+		LoginWithOAuth();
+	} else if (tab_name == SESSIONID_TAB) {
+		LoginWithCookie(ui->sessionIDLineEdit->text());
+	} else {
+		QLOG_ERROR() << "Invalid login tab name:" << tab_name;
+	};
+}
 
 void LoginDialog::LeaguesApiError(const QString& error, const QByteArray& reply) {
 	DisplayError("Leagues API returned malformed data: " + error, true);
@@ -210,7 +209,8 @@ void LoginDialog::OnLeaguesRequestFinished() {
 		ui->leagueComboBox->setCurrentText(saved_league_);
 }
 
-// All characters except + should be handled by QUrlQuery, see http://doc.qt.io/qt-5/qurlquery.html#encoding
+// All characters except + should be handled by QUrlQuery
+// See https://doc.qt.io/qt-6/qurlquery.html#encoding
 static QString EncodeSpecialCharacters(QString s) {
 	s.replace("+", "%2b");
 	return s;
@@ -254,12 +254,27 @@ void LoginDialog::LoggedInCheck() {
 		DisplayError(LOGIN_CHECK_ERROR);
 		return;
 	}
-
 	FinishLogin(reply);
 }
 
 void LoginDialog::LoginWithOAuth() {
+	connect(&app_->oauth_manager(), &OAuthManager::accessGranted,
+		this, &LoginDialog::OnOAuthAccessGranted);
+	app_->oauth_manager().requestAccess();
+}
 
+void LoginDialog::OnOAuthAccessGranted(const AccessToken& token) {
+	const QString account = token.username;
+	std::string league(ui->leagueComboBox->currentText().toStdString());
+	app_->InitLogin(league, account.toStdString());
+	mw = new MainWindow(std::move(app_));
+	mw->setWindowTitle(
+		QString("Acquisition [%1] - %2 [%3]")
+		.arg(VERSION_NAME)
+		.arg(league.c_str())
+		.arg(account));
+	mw->show();
+	close();
 }
 
 void LoginDialog::LoginWithCookie(const QString& cookie) {
@@ -310,8 +325,14 @@ void LoginDialog::LoadSettings() {
 	ui->rembmeCheckBox->setChecked(settings.value("remember_me_checked").toBool());
 	ui->proxyCheckBox->setChecked(settings.value("use_system_proxy_checked").toBool());
 
-	if (ui->rembmeCheckBox->isChecked())
-		ui->loginTabs->setCurrentIndex(LOGIN_SESSIONID);
+	if (ui->rembmeCheckBox->isChecked()) {
+		for (auto i = 0; i < ui->loginTabs->count(); ++i) {
+			if (ui->loginTabs->widget(i)->objectName() == SESSIONID_TAB) {
+				ui->loginTabs->setCurrentIndex(i);
+				break;
+			};
+		};
+	};
 
 	saved_league_ = settings.value("league", "").toString();
 	if (saved_league_.size() > 0)

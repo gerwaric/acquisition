@@ -42,6 +42,7 @@ class BuyoutManager;
 class Shop;
 class CurrencyManager;
 class UpdateChecker;
+class OAuthManager;
 
 class Application : public QObject {
 	Q_OBJECT
@@ -62,6 +63,7 @@ public:
 	Shop& shop() const { return *shop_; }
 	CurrencyManager& currency_manager() const { return *currency_manager_; }
 	UpdateChecker& update_checker() const { return *update_checker_; }
+	OAuthManager& oauth_manager() const { return *oauth_manager_; }
 public slots:
 	void OnItemsRefreshed(bool initial_refresh);
 private:
@@ -77,5 +79,6 @@ private:
 	std::unique_ptr<ItemsManager> items_manager_;
 	std::unique_ptr<CurrencyManager> currency_manager_;
 	std::unique_ptr<UpdateChecker> update_checker_;
+	std::unique_ptr<OAuthManager> oauth_manager_;
 	void SaveDbOnNewVersion();
 };

@@ -1,7 +1,7 @@
 TARGET = acquisition
 TEMPLATE = app
 
-QT += core gui network testlib widgets
+QT += core gui network testlib widgets httpserver websockets
 
 win32 {
 	QT.testlib.CONFIG -= console
@@ -49,6 +49,7 @@ SOURCES += \
 	src/modlist.cpp \
 	src/modsfilter.cpp \
 	src/network_info.cpp \
+	src/oauth.cpp \
 	src/porting.cpp \
 	src/ratelimit.cpp \
 	src/ratelimitpanel.cpp \
@@ -95,6 +96,7 @@ HEADERS += \
 	src/modlist.h \
 	src/modsfilter.h \
 	src/network_info.h \
+	src/oauth.h \
 	src/porting.h \
 	src/ratelimit.h \
 	src/ratelimitpanel.h \

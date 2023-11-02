@@ -34,6 +34,7 @@
 #include "version_defines.h"
 #include "ratelimit.h"
 #include "updatechecker.h"
+#include "oauth.h"
 
 using RateLimit::RateLimiter;
 
@@ -47,6 +48,7 @@ Application::Application(bool mock_data) :
 	if (test_mode_ == false) {
 		network_manager_ = std::make_unique<QNetworkAccessManager>(this);
 		update_checker_ = std::make_unique<UpdateChecker>(*network_manager_, this);
+		oauth_manager_ = std::make_unique<OAuthManager>(*network_manager_, this);
 	};
 }
 
