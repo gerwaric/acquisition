@@ -39,36 +39,32 @@
 
 ItemsManager::ItemsManager(Application& app) :
 	auto_update_timer_(std::make_unique<QTimer>()),
-	data_(app.data()),
-	bo_manager_(app.buyout_manager()),
-	shop_(app.shop()),
 	app_(app)
 {
-	auto_update_interval_ = std::stoi(data_.Get("autoupdate_interval", "60"));
-	auto_update_ = data_.GetBool("autoupdate", false);
+	auto_update_interval_ = std::stoi(app_.data().Get("autoupdate_interval", "60"));
+	auto_update_ = app_.data().GetBool("autoupdate", false);
 	SetAutoUpdateInterval(auto_update_interval_);
 	connect(auto_update_timer_.get(), SIGNAL(timeout()), this, SLOT(OnAutoRefreshTimer()));
 }
 
 ItemsManager::~ItemsManager() {
+	/*
 	if (thread_ != nullptr) {
 		thread_->quit();
 		thread_->wait();
 	};
+	*/
 }
 
 void ItemsManager::Start() {
-	thread_ = std::make_unique<QThread>();
 	worker_ = std::make_unique<ItemsManagerWorker>(app_);
-	worker_->moveToThread(thread_.get());
-	connect(thread_.get(), &QThread::started, worker_.get(), &ItemsManagerWorker::Init);
 	connect(this, SIGNAL(UpdateSignal(TabSelection::Type, const std::vector<ItemLocation> &)), worker_.get(), SLOT(Update(TabSelection::Type, const std::vector<ItemLocation> &)));
 	connect(worker_.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
 	connect(worker_.get(), &ItemsManagerWorker::RateLimitStatusUpdate, this, &ItemsManager::OnRateLimitStatusUpdate);
 	connect(worker_.get(), SIGNAL(ItemsRefreshed(Items, std::vector<ItemLocation>, bool)), this, SLOT(OnItemsRefreshed(Items, std::vector<ItemLocation>, bool)));
 	connect(worker_.get(), &ItemsManagerWorker::ItemClassesUpdate, this, &ItemsManager::OnItemClassesUpdate);
 	connect(worker_.get(), &ItemsManagerWorker::ItemBaseTypesUpdate, this, &ItemsManager::OnItemBaseTypesUpdate);
-	thread_->start();
+	worker_->Init();
 }
 
 void ItemsManager::OnStatusUpdate(const CurrentStatusUpdate& status) {
@@ -129,7 +125,7 @@ void ItemsManager::ApplyAutoTabBuyouts() {
 
 	// Loop over all tabs, create buyout based on tab name which applies auto-pricing policies
 	auto& bo = app_.buyout_manager();
-	for (auto const& loc : bo_manager_.GetStashTabLocations()) {
+	for (auto const& loc : app_.buyout_manager().GetStashTabLocations()) {
 		auto tab_label = loc.get_tab_label();
 		Buyout buyout = bo.StringToBuyout(tab_label);
 		if (buyout.IsActive()) {
@@ -201,7 +197,7 @@ void ItemsManager::OnItemsRefreshed(const Items& items, const std::vector<ItemLo
 
 	QLOG_DEBUG() << "Number of items refreshed: " << items_.size() << "; Number of tabs refreshed: " << tabs.size() << "; Initial Refresh: " << initial_refresh;
 
-	bo_manager_.SetStashTabLocations(tabs);
+	app_.buyout_manager().SetStashTabLocations(tabs);
 	MigrateBuyouts();
 	ApplyAutoTabBuyouts();
 	ApplyAutoItemBuyouts();
@@ -221,7 +217,7 @@ void ItemsManager::Update(TabSelection::Type type, const std::vector<ItemLocatio
 }
 
 void ItemsManager::SetAutoUpdate(bool update) {
-	data_.SetBool("autoupdate", update);
+	app_.data().SetBool("autoupdate", update);
 	auto_update_ = update;
 	if (!auto_update_) {
 		auto_update_timer_->stop();
@@ -232,7 +228,7 @@ void ItemsManager::SetAutoUpdate(bool update) {
 }
 
 void ItemsManager::SetAutoUpdateInterval(int minutes) {
-	data_.Set("autoupdate_interval", std::to_string(minutes));
+	app_.data().Set("autoupdate_interval", std::to_string(minutes));
 	auto_update_interval_ = minutes;
 	if (auto_update_) {
 		auto_update_timer_->start(auto_update_interval_ * 60 * 1000);
@@ -244,14 +240,14 @@ void ItemsManager::OnAutoRefreshTimer() {
 }
 
 void ItemsManager::MigrateBuyouts() {
-	int db_version = data_.GetInt("db_version");
+	int db_version = app_.data().GetInt("db_version");
 	// Don't migrate twice
 	if (db_version == 4) {
 		return;
 	};
 	for (auto& item : items_) {
-		bo_manager_.MigrateItem(*item);
+		app_.buyout_manager().MigrateItem(*item);
 	};
-	bo_manager_.Save();
-	data_.SetInt("db_version", 4);
+	app_.buyout_manager().Save();
+	app_.data().SetInt("db_version", 4);
 }

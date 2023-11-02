@@ -78,10 +78,6 @@ private:
 	int auto_update_interval_;
 	std::unique_ptr<QTimer> auto_update_timer_;
 	std::unique_ptr<ItemsManagerWorker> worker_;
-	std::unique_ptr<QThread> thread_;
-	DataStore& data_;
-	BuyoutManager& bo_manager_;
-	Shop& shop_;
 	Application& app_;
 	Items items_;
 	QSet<QString> categories_;
