@@ -22,9 +22,11 @@
 
 #include "QsLog.h"
 
+#include "application.h"
 #include "util.h"
 #include "network_info.h"
 #include "ratelimit.h"
+#include "oauth.h"
 
 using namespace RateLimit;
 
@@ -177,9 +179,8 @@ void Policy::UpdateStatus() {
 unsigned long RateLimitedRequest::request_count = 0;
 
 // Create a new rate-limited request.
-RateLimitedRequest::RateLimitedRequest(QNetworkAccessManager& manager, const QNetworkRequest& request, const Callback callback) :
+RateLimitedRequest::RateLimitedRequest(const QNetworkRequest& request, const Callback callback) :
 	id(++request_count),
-	network_manager(manager),
 	network_request(request),
 	worker_callback(callback),
 	endpoint(GetEndpoint(request.url())),
@@ -194,8 +195,9 @@ RateLimitedRequest::RateLimitedRequest(QNetworkAccessManager& manager, const QNe
 //=========================================================================================
 
 // Create a new rate limit manager based on an existing policy.
-PolicyManager::PolicyManager(std::unique_ptr<Policy> policy_, QObject* parent) :
+PolicyManager::PolicyManager(Application& application, std::unique_ptr<Policy> policy_, QObject* parent) :
 	QObject(parent),
+	app(application),
 	policy(std::move(policy_)),
 	busy(false),
 	next_send(QDateTime::currentDateTime()),
@@ -456,9 +458,19 @@ void PolicyManager::SendRequest() {
 		<< "sending request" << active_request->id
 		<< "to" << active_request->endpoint
 		<< "via" << active_request->network_request.url().toString();
+	
+	// Make a copy of the request so we can add the OAuth token (if it exists).
+	// We do this here, at the very last minute, in case the token has changed
+	// from when the request was initially queued.
+	QNetworkRequest request = active_request->network_request;
+	if (policy->name != "<none>") {
+		QLOG_TRACE() << "Adding OAuth Authorization:" << request.rawHeader("Authorization");
+		app.oauth_manager().addAuthorization(request);
+	};
 
+	// Finally, send the request and note the time.
 	last_send = QDateTime::currentDateTime();
-	QNetworkReply* reply = active_request->network_manager.get(active_request->network_request);
+	QNetworkReply* reply = app.network_manager().get(request);
 	active_request->network_reply = reply;
 	connect(reply, &QNetworkReply::finished, this, &PolicyManager::ReceiveReply);
 };
@@ -483,7 +495,6 @@ void PolicyManager::ReceiveReply() {
 			QLOG_ERROR() << "policy manager for" << policy->name
 				<< "received header reply with" << reply_policy_name;
 		};
-
 
 		// Save the reply time if this was not a cached reply.
 		known_reply_times.push_front(active_request->reply_time);
@@ -678,13 +689,13 @@ static QString GetEndpoint(const QUrl& url) {
 // The application-facing Rate Limiter
 //=========================================================================================
 
-RateLimiter::RateLimiter(QNetworkAccessManager& network_manager, QObject* parent) :
+RateLimiter::RateLimiter(Application& application, QObject* parent) :
 	QObject(parent),
-	initialized(false),
-	initial_manager(network_manager)
+	app(application),
+	initialized(false)
 {
 	// Creat the policy manager that will handle non-limited requests.
-	default_manager = std::make_unique<PolicyManager>(std::make_unique<Policy>("<none>"));
+	default_manager = std::make_unique<PolicyManager>(app, std::make_unique<Policy>("<none>"), this);
 
 	// Setup the status update timer.
 	status_updater.setSingleShot(false);
@@ -695,14 +706,14 @@ RateLimiter::RateLimiter(QNetworkAccessManager& network_manager, QObject* parent
 	NextInitialRequest();
 }
 
-void RateLimiter::Submit(QNetworkAccessManager& network_manager, QNetworkRequest network_request, Callback request_callback)
+void RateLimiter::Submit(QNetworkRequest network_request, Callback request_callback)
 {
 	// Make sure the user agent is set according to GGG's guidance.
 	network_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 
 	// Create a new rate-limited request.
 	std::unique_ptr<RateLimitedRequest> request = std::make_unique<RateLimitedRequest>(
-		network_manager, network_request, request_callback);
+		network_request, request_callback);
 
 	// Dispatch or stage the request depending on if we are fully initialized.
 	if (initialized) {
@@ -756,7 +767,7 @@ void RateLimiter::SendInitialRequest(const QString endpoint, QNetworkRequest req
 	QLOG_DEBUG() << "Sending HEAD request to" << request.url().toString();
 
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply* reply = initial_manager.head(request);
+	QNetworkReply* reply = app.network_manager().head(request);
 	connect(reply, &QNetworkReply::finished, [=]() {
 		ReceiveInitialReply(endpoint, reply);
 		});
@@ -803,7 +814,8 @@ void RateLimiter::FinishInit() {
 	for (int n = 0; n < initial_policies.size(); ++n) {
 
 		// Setup a policy manager for this policy and hookup the timer for status updates.
-		std::unique_ptr<PolicyManager> pm = std::make_unique<PolicyManager>(std::move(initial_policies.at(n)));
+		std::unique_ptr<PolicyManager> pm = std::make_unique<PolicyManager>(
+			app, std::move(initial_policies.at(n)), this);
 		pm->endpoints = initial_policy_endpoints[n];
 		connect(pm.get(), &PolicyManager::RateLimitingStarted, this, &RateLimiter::OnTimerStarted);
 

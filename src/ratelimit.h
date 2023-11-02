@@ -23,11 +23,12 @@
 #include <queue>
 
 #include <QDateTime>
-#include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QObject>
 #include <QTimer>
+
+class Application;
 
 //--------------------------------------------------------------------------
 // Introduction to GGG's API Rate Limits
@@ -127,14 +128,11 @@ namespace RateLimit
 	struct RateLimitedRequest {
 
 		// Construct a new rate-limited request.
-		RateLimitedRequest(QNetworkAccessManager& manager, const QNetworkRequest& request, const Callback callback);
+		RateLimitedRequest(const QNetworkRequest& request, const Callback callback);
 
 		// Unique identified for each request, even through different requests can be
 		// routed to different policy managers based on different endpoints.
 		const unsigned long id;
-
-		// A reference to the network manager used to send this request.
-		QNetworkAccessManager& network_manager;
 
 		// A copy of the network request that's going to be sent.
 		const QNetworkRequest network_request;
@@ -239,7 +237,7 @@ namespace RateLimit
 
 	public:
 		// Construct a rate limit manager with the specified policy.
-		PolicyManager(std::unique_ptr<Policy>, QObject* parent = nullptr);
+		PolicyManager(Application& application, std::unique_ptr<Policy>, QObject* parent = nullptr);
 
 		// Move a request into to this manager's queue.
 		void QueueRequest(std::unique_ptr<RateLimitedRequest> request);
@@ -287,6 +285,10 @@ namespace RateLimit
 		// Resends the active request after a delay due to a violation.
 		void ResendAfterViolation();
 
+		// Keep a reference to the Application since we need access to the 
+		// network access manager and oauth manager.
+		Application& app;
+		
 		// Keep track of wether or not there's an active request keeping this
 		// policy manager busy.
 		bool busy;
@@ -334,11 +336,11 @@ namespace RateLimit
 
 	public:
 		// Creat a rate limiter.
-		RateLimiter(QNetworkAccessManager& manager, QObject* parent = nullptr);
+		RateLimiter(Application& app, QObject* parent = nullptr);
 
 		// Submit a request-callback pair to the rate limiter. Note that the callback function
 		// should not delete the QNetworkReply. That is handled after the callback finishes.
-		void Submit(QNetworkAccessManager& manager, QNetworkRequest request, Callback callback);
+		void Submit(QNetworkRequest request, Callback callback);
 
 	public slots:
 		// Slot for policy managers to send signals when they begin rate limiting.
@@ -374,10 +376,9 @@ namespace RateLimit
 		// False until the policy managers are created.
 		bool initialized;
 
-		// The network manager to use for the initial HEAD requests to determine
-		// the state of the rate limit policies at application startup. This
-		// should be a logged-in network manager, but that's not checked.
-		QNetworkAccessManager& initial_manager;
+		// Keep a reference to the Applicaiton since we need to use it's
+		// network access manager and oauth manager.
+		Application& app;
 
 		// A place to store policies parsed from the initial HEAD requests
 		// before any policy managers are created.
