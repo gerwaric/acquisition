@@ -99,7 +99,7 @@ std::string Util::GetCsrfToken(const QByteArray& page, const std::string& name) 
 	//  name="hash" value="..."
 	//	or
 	//	name="hash" class="input-error" value="..."
-	const QString expr = QString(
+    static const QString expr = QString(
 		R"regex(
 			name="%1"
 			\s+
@@ -109,7 +109,7 @@ std::string Util::GetCsrfToken(const QByteArray& page, const std::string& name) 
 			)?
 			value="(.*?)"
 		)regex").arg(QString::fromStdString(name));
-	const QRegularExpression re(expr,
+    static const QRegularExpression re(expr,
 		QRegularExpression::CaseInsensitiveOption |
 		QRegularExpression::MultilineOption |
 		QRegularExpression::DotMatchesEverythingOption |
