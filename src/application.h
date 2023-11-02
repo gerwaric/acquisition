@@ -19,7 +19,6 @@
 
 #pragma once
 
-#include <QNetworkAccessManager>
 #include <QObject>
 #include <QString>
 #include <QDateTime>
@@ -34,6 +33,7 @@ extern const QDateTime BUILD_DATE;
 // expires, otherwise it will be an invalid QDateTime object.
 extern const QDateTime EXPIRATION_DATE;
 
+class QNetworkAccessManager;
 class QNetworkReply;
 
 class DataStore;
@@ -41,28 +41,31 @@ class ItemsManager;
 class BuyoutManager;
 class Shop;
 class CurrencyManager;
+class UpdateChecker;
 
 class Application : public QObject {
 	Q_OBJECT
 public:
-	Application();
+	Application(bool mock_data = false);
 	~Application();
 	Application(const Application&) = delete;
 	Application& operator=(const Application&) = delete;
 	// Should be called by login dialog after login
-	void InitLogin(std::unique_ptr<QNetworkAccessManager> login_manager, const std::string& league, const std::string& email, bool mock_data = false);
+	void InitLogin(const std::string& league, const std::string& email);
 	const std::string& league() const { return league_; }
 	const std::string& email() const { return email_; }
 	ItemsManager& items_manager() { return *items_manager_; }
 	DataStore& data() const { return *data_; }
 	DataStore& sensitive_data() const { return *sensitive_data_; }
 	BuyoutManager& buyout_manager() const { return *buyout_manager_; }
-	QNetworkAccessManager& logged_in_nm() const { return *logged_in_nm_; }
+	QNetworkAccessManager& network_manager() const { return *network_manager_; }
 	Shop& shop() const { return *shop_; }
 	CurrencyManager& currency_manager() const { return *currency_manager_; }
+	UpdateChecker& update_checker() const { return *update_checker_; }
 public slots:
 	void OnItemsRefreshed(bool initial_refresh);
 private:
+	bool test_mode_;
 	std::string league_;
 	std::string email_;
 	std::unique_ptr<DataStore> data_;
@@ -70,8 +73,9 @@ private:
 	std::unique_ptr<DataStore> sensitive_data_;
 	std::unique_ptr<BuyoutManager> buyout_manager_;
 	std::unique_ptr<Shop> shop_;
-	std::unique_ptr<QNetworkAccessManager> logged_in_nm_;
+	std::unique_ptr<QNetworkAccessManager> network_manager_;
 	std::unique_ptr<ItemsManager> items_manager_;
 	std::unique_ptr<CurrencyManager> currency_manager_;
+	std::unique_ptr<UpdateChecker> update_checker_;
 	void SaveDbOnNewVersion();
 };

@@ -22,7 +22,6 @@
 
 #include <QDesktopServices>
 #include <QMessageBox>
-#include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QNetworkCookie>
@@ -40,11 +39,11 @@
 #include "mainwindow.h"
 #include "replytimeout.h"
 #include "selfdestructingreply.h"
-#include "steamlogindialog.h"
 #include "util.h"
 #include "version.h"
 #include "network_info.h"
 #include "version_defines.h"
+#include "updatechecker.h"
 
 const char* POE_LEAGUE_LIST_URL = "https://api.pathofexile.com/leagues?type=main&compact=1";
 const char* POE_LOGIN_URL = "https://www.pathofexile.com/login";
@@ -103,10 +102,9 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 	QLOG_DEBUG() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
 	QLOG_DEBUG() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
 
-	login_manager_ = std::make_unique<QNetworkAccessManager>();
 	connect(ui->proxyCheckBox, SIGNAL(clicked(bool)), this, SLOT(OnProxyCheckBoxClicked(bool)));
 	connect(ui->loginButton, SIGNAL(clicked()), this, SLOT(OnLoginButtonClicked()));
-	connect(&update_checker_, &UpdateChecker::UpdateAvailable, [&]() {
+	connect(&app_->update_checker(), &UpdateChecker::UpdateAvailable, [&]() {
 		// Only annoy the user once at the login dialog window, even if it's opened for more than an hour
 		if (asked_to_update_)
 			return;
@@ -116,7 +114,7 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 
 	QNetworkRequest leagues_request = QNetworkRequest(QUrl(QString(POE_LEAGUE_LIST_URL)));
 	leagues_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply* leagues_reply = login_manager_->get(leagues_request);
+	QNetworkReply* leagues_reply = app_->network_manager().get(leagues_request);
 
 	connect(leagues_reply, &QNetworkReply::errorOccurred, this, &LoginDialog::errorOccurred);
 	connect(leagues_reply, &QNetworkReply::sslErrors, this, &LoginDialog::sslErrorOccurred);
@@ -227,7 +225,7 @@ void LoginDialog::FinishLogin(QNetworkReply* reply) {
 	// we need one more request to get account name
 	QNetworkRequest main_page_request = QNetworkRequest(QUrl(POE_MY_ACCOUNT));
 	main_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply* main_page = login_manager_->get(main_page_request);
+	QNetworkReply* main_page = app_->network_manager().get(main_page_request);
 	connect(main_page, SIGNAL(finished()), this, SLOT(OnMainPageFinished()));
 }
 
@@ -269,11 +267,11 @@ void LoginDialog::LoginWithCookie(const QString& cookie) {
 	poeCookie.setPath("/");
 	poeCookie.setDomain(".pathofexile.com");
 
-	login_manager_->cookieJar()->insertCookie(poeCookie);
+	app_->network_manager().cookieJar()->insertCookie(poeCookie);
 
 	QNetworkRequest login_page_request = QNetworkRequest(QUrl(POE_LOGIN_CHECK_URL));
 	login_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply* login_page = login_manager_->get(login_page_request);
+	QNetworkReply* login_page = app_->network_manager().get(login_page_request);
 	connect(login_page, SIGNAL(finished()), this, SLOT(LoggedInCheck()));
 }
 
@@ -290,7 +288,7 @@ void LoginDialog::OnMainPageFinished() {
 	QLOG_DEBUG() << "Logged in as:" << account;
 
 	std::string league(ui->leagueComboBox->currentText().toStdString());
-	app_->InitLogin(std::move(login_manager_), league, account.toStdString());
+	app_->InitLogin(league, account.toStdString());
 	mw = new MainWindow(std::move(app_));
 	mw->setWindowTitle(
 		QString("Acquisition [%1] - %2 [%3]")

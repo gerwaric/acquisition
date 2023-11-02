@@ -27,7 +27,6 @@
 #include <QImageReader>
 #include <QInputDialog>
 #include <QMouseEvent>
-#include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QPainter>
@@ -60,6 +59,7 @@
 #include "search.h"
 #include "selfdestructingreply.h"
 #include "shop.h"
+#include "updatechecker.h"
 #include "util.h"
 #include "verticalscrollarea.h"
 #include "version.h"
@@ -70,8 +70,7 @@ MainWindow::MainWindow(std::unique_ptr<Application> app) :
 	app_(std::move(app)),
 	ui(new Ui::MainWindow),
 	current_search_(nullptr),
-    search_count_(0),
-	network_manager_(new QNetworkAccessManager)
+    search_count_(0)
 {
 #if defined(Q_OS_LINUX)
 	setWindowIcon(QIcon(":/icons/assets/icon.svg"));
@@ -85,14 +84,10 @@ MainWindow::MainWindow(std::unique_ptr<Application> app) :
 	InitializeSearchForm();
 	NewSearch();
 
-	image_network_manager_ = new QNetworkAccessManager;
-	connect(image_network_manager_, SIGNAL(finished(QNetworkReply*)),
-		this, SLOT(OnImageFetched(QNetworkReply*)));
-
 	connect(&app_->items_manager(), &ItemsManager::ItemsRefreshed, this, &MainWindow::OnItemsRefreshed);
 	connect(&app_->items_manager(), &ItemsManager::StatusUpdate, this, &MainWindow::OnStatusUpdate);
 	connect(&app_->shop(), &Shop::StatusUpdate, this, &MainWindow::OnStatusUpdate);
-	connect(&update_checker_, &UpdateChecker::UpdateAvailable, this, &MainWindow::OnUpdateAvailable);
+	connect(&app_->update_checker(), &UpdateChecker::UpdateAvailable, this, &MainWindow::OnUpdateAvailable);
 	connect(&delayed_update_current_item_, &QTimer::timeout, [&]() {UpdateCurrentItem(); delayed_update_current_item_.stop(); });
 	connect(&delayed_search_form_change_, &QTimer::timeout, [&]() {OnSearchFormChange(); delayed_search_form_change_.stop(); });
 
@@ -690,7 +685,8 @@ void MainWindow::UpdateCurrentItem() {
 	if (!image_cache_->Exists(icon)) {
 		QNetworkRequest request = QNetworkRequest(QUrl(icon.c_str()));
 		request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-		image_network_manager_->get(request);
+		QNetworkReply* reply = app_->network_manager().get(request);
+		connect(reply, &QNetworkReply::finished, this, [=]() { OnImageFetched(reply); });
 	} else
 		ui->imageLabel->setPixmap(GenerateItemIcon(*current_item_, image_cache_->Get(icon)));
 
@@ -904,7 +900,7 @@ void MainWindow::on_uploadTooltipButton_clicked() {
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	QByteArray data = "image=" + QUrl::toPercentEncoding(bytes.toBase64());
-	QNetworkReply* reply = network_manager_->post(request, data);
+	QNetworkReply* reply = app_->network_manager().post(request, data);
 	new QReplyTimeout(reply, kImgurUploadTimeout);
 	connect(reply, &QNetworkReply::finished, this, &MainWindow::OnUploadFinished);
 }

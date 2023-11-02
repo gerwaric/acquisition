@@ -33,6 +33,7 @@
 #include "version.h"
 #include "version_defines.h"
 #include "ratelimit.h"
+#include "updatechecker.h"
 
 using RateLimit::RateLimiter;
 
@@ -40,7 +41,14 @@ const QString BUILD_TIMESTAMP = QString(__DATE__ " " __TIME__).simplified();
 const QDateTime BUILD_DATE = QLocale("en_US").toDateTime(BUILD_TIMESTAMP, "MMM d yyyy hh:mm:ss");
 const QDateTime EXPIRATION_DATE = TRIAL_VERSION ? BUILD_DATE.addDays(TRIAL_EXPIRATION_DAYS) : QDateTime();
 
-Application::Application() {}
+Application::Application(bool mock_data) :
+	test_mode_(mock_data)
+{
+	if (test_mode_ == false) {
+		network_manager_ = std::make_unique<QNetworkAccessManager>(this);
+		update_checker_ = std::make_unique<UpdateChecker>(*network_manager_, this);
+	};
+}
 
 Application::~Application() {
 	if (buyout_manager_)
@@ -48,25 +56,21 @@ Application::~Application() {
 }
 
 void Application::InitLogin(
-	std::unique_ptr<QNetworkAccessManager> login_manager,
 	const std::string& league,
-	const std::string& email,
-	bool mock_data)
+	const std::string& email)
 {
 	league_ = league;
 	email_ = email;
 
-	if (mock_data) {
+	if (test_mode_) {
 		// This is used in tests
 		data_ = std::make_unique<MemoryDataStore>();
 		sensitive_data_ = std::make_unique<MemoryDataStore>();
-		logged_in_nm_ = nullptr;
 	} else {
 		std::string data_file = SqliteDataStore::MakeFilename(email, league);
 		data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/data/" + data_file);
 		sensitive_data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/sensitive_data/" + data_file);
 		SaveDbOnNewVersion();
-		logged_in_nm_ = std::move(login_manager);
 	}
 
 	buyout_manager_ = std::make_unique<BuyoutManager>(*data_);
@@ -74,7 +78,7 @@ void Application::InitLogin(
 	items_manager_ = std::make_unique<ItemsManager>(*this);
 	currency_manager_ = std::make_unique<CurrencyManager>(*this);
 	connect(items_manager_.get(), &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
-	if (mock_data == false) {
+	if (test_mode_ == false) {
 		items_manager_->Start();
 	};
 }

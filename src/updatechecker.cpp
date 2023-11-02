@@ -31,7 +31,10 @@
 // Check for updates every hour
 const int kUpdateCheckInterval = 60 * 60 * 1000;
 
-UpdateChecker::UpdateChecker() {
+UpdateChecker::UpdateChecker(QNetworkAccessManager& network_manager, QObject* parent) :
+	QObject(parent),
+	nm_(network_manager)
+{
 	timer_.setInterval(kUpdateCheckInterval);
 	timer_.start();
 	connect(&timer_, &QTimer::timeout, this, &UpdateChecker::CheckForUpdates);

@@ -56,26 +56,20 @@ const char* kRePoE_item_classes = "https://raw.githubusercontent.com/brather1ng/
 const char* kRePoE_item_base_types = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/base_items.min.json";
 
 ItemsManagerWorker::ItemsManagerWorker(Application& app) :
-	data_(app.data()),
-	network_manager_(nullptr),
+	app_(app),
 	rate_limiter_(nullptr),
 	total_completed_(-1),
 	total_needed_(-1),
 	requests_completed_(-1),
 	requests_needed_(-1),
-	league_(app.league()),
 	initialized_(false),
 	updating_(false),
 	cancel_update_(false),
 	updateRequest_(false),
 	type_(TabSelection::Type::Checked),
 	queue_id_(-1),
-	first_fetch_tab_id_(-1),
-	bo_manager_(app.buyout_manager()),
-	account_name_(app.email())
-{
-	cookies_ = app.logged_in_nm().cookieJar()->cookiesForUrl(QUrl(kMainPage));
-}
+	first_fetch_tab_id_(-1)
+{}
 
 void ItemsManagerWorker::UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations) {
 	updateRequest_ = true;
@@ -90,15 +84,13 @@ void ItemsManagerWorker::Init() {
 		return;
 	};
 
-	network_manager_ = std::make_unique<QNetworkAccessManager>();
-	network_manager_->cookieJar()->setCookiesFromUrl(cookies_, QUrl(kMainPage));
-	rate_limiter_ = std::make_unique<RateLimiter>(*network_manager_);
+	rate_limiter_ = std::make_unique<RateLimiter>(app_.network_manager());
 	connect(rate_limiter_.get(), &RateLimiter::StatusUpdate, this, &ItemsManagerWorker::OnRateLimitStatusUpdate);
 
 	updating_ = true;
 
 	QNetworkRequest PoE_item_classes_request = QNetworkRequest(QUrl(QString(kRePoE_item_classes)));
-	rate_limiter_->Submit(*network_manager_, PoE_item_classes_request,
+	rate_limiter_->Submit(app_.network_manager(), PoE_item_classes_request,
 		[=](QNetworkReply* reply) {
 			OnItemClassesReceived(reply);
 		});
@@ -118,7 +110,7 @@ void ItemsManagerWorker::OnItemClassesReceived(QNetworkReply* reply) {
 		emit ItemClassesUpdate(bytes);
 	};
 	QNetworkRequest PoE_item_base_types_request = QNetworkRequest(QUrl(QString(kRePoE_item_base_types)));
-	rate_limiter_->Submit(*network_manager_, PoE_item_base_types_request,
+	rate_limiter_->Submit(app_.network_manager(), PoE_item_base_types_request,
 		[=](QNetworkReply* reply) {
 			OnItemBaseTypesReceived(reply);
 		});
@@ -144,7 +136,7 @@ void ItemsManagerWorker::ParseItemMods() {
 
 	//Get cached tabs (item tabs not search tabs)
 	for (ItemLocationType type : {ItemLocationType::STASH, ItemLocationType::CHARACTER}) {
-		std::string tabs = data_.GetTabs(type);
+		std::string tabs = app_.data().GetTabs(type);
 		if (tabs.empty()) {
 			QLOG_DEBUG() << "Cache contains no" << type << "locations";
 			continue;
@@ -206,7 +198,7 @@ void ItemsManagerWorker::ParseItemMods() {
 	// Get cached items
 	for (int i = 0; i < tabs_.size(); i++) {
 		auto tab = tabs_[i];
-		std::string items = data_.GetItems(tab);
+		std::string items = app_.data().GetItems(tab);
 		if (items.size() != 0) {
 			rapidjson::Document doc;
 			doc.Parse(items.c_str());
@@ -239,7 +231,7 @@ void ItemsManagerWorker::ParseItemMods() {
 
 void ItemsManagerWorker::UpdateModList() {
 	QNetworkRequest PoE_stat_translations_request = QNetworkRequest(QUrl(QString(kRePoE_stat_translations)));
-	rate_limiter_->Submit(*network_manager_, PoE_stat_translations_request,
+	rate_limiter_->Submit(app_.network_manager(), PoE_stat_translations_request,
 		[=](QNetworkReply* reply) {
 			OnStatTranslationsReceived(reply);
 		});
@@ -329,7 +321,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 		case TabSelection::Checked:
 			// Use the buyout manager to determine which tabs are check.
 			for (auto const& tab : tabs_) {
-				if ((tab.IsValid()) && (bo_manager_.GetRefreshChecked(tab) == true)) {
+				if ((tab.IsValid()) && (app_.buyout_manager().GetRefreshChecked(tab) == true)) {
 					tabs_to_update.insert(tab.get_tab_uniq_id());
 				};
 			};
@@ -357,7 +349,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 
 	// first, download the main page because it's the only way to know which character is selected
 	QNetworkRequest main_page_request = QNetworkRequest(QUrl(kMainPage));
-	rate_limiter_->Submit(*network_manager_, main_page_request,
+	rate_limiter_->Submit(app_.network_manager(), main_page_request,
 		[=](QNetworkReply* reply) {
 			OnMainPageReceived(reply);
 		});
@@ -421,7 +413,7 @@ void ItemsManagerWorker::OnMainPageReceived(QNetworkReply* reply) {
 
 	// now get character list
 	QNetworkRequest characters_request = QNetworkRequest(QUrl(kGetCharactersUrl));
-	rate_limiter_->Submit(*network_manager_, characters_request,
+	rate_limiter_->Submit(app_.network_manager(), characters_request,
 		[=](QNetworkReply* reply) {
 			OnCharacterListReceived(reply);
 		});
@@ -461,8 +453,8 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 			QLOG_ERROR() << "Malformed character entry for" << name.c_str() << ": the reply may be invalid : " << bytes.constData();
 			continue;
 		};
-		if (character["league"].GetString() != league_) {
-			QLOG_DEBUG() << "Skipping" << name.c_str() << "because this character is not in" << league_.c_str();
+		if (character["league"].GetString() != app_.league()) {
+			QLOG_DEBUG() << "Skipping" << name.c_str() << "because this character is not in" << app_.league().c_str();
 			continue;
 		};
 		++total_character_count;
@@ -485,7 +477,7 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 		//Queue request for jewels in character's passive tree
 		QueueRequest(MakeCharacterPassivesRequest(name), location);
 	}
-	QLOG_DEBUG() << "There are" << requested_character_count << "characters to update in" << league_.c_str();
+	QLOG_DEBUG() << "There are" << requested_character_count << "characters to update in" << app_.league().c_str();
 
 	CurrentStatusUpdate status;
 	status.state = ProgramState::CharactersReceived;
@@ -493,7 +485,7 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 	emit StatusUpdate(status);
 
 	QNetworkRequest tab_request = MakeTabRequest(first_fetch_tab_id_, true);
-	rate_limiter_->Submit(*network_manager_, tab_request,
+	rate_limiter_->Submit(app_.network_manager(), tab_request,
 		[=](QNetworkReply* reply) {
 			OnFirstTabReceived(reply);
 		});
@@ -501,10 +493,10 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 
 QNetworkRequest ItemsManagerWorker::MakeTabRequest(int tab_index, bool tabs) {
 	QUrlQuery query;
-	query.addQueryItem("league", league_.c_str());
+	query.addQueryItem("league", app_.league().c_str());
 	query.addQueryItem("tabs", tabs ? "1" : "0");
 	query.addQueryItem("tabIndex", std::to_string(tab_index).c_str());
-	query.addQueryItem("accountName", account_name_.c_str());
+	query.addQueryItem("accountName", app_.email().c_str());
 
 	QUrl url(kStashItemsUrl);
 	url.setQuery(query);
@@ -514,7 +506,7 @@ QNetworkRequest ItemsManagerWorker::MakeTabRequest(int tab_index, bool tabs) {
 QNetworkRequest ItemsManagerWorker::MakeCharacterRequest(const std::string& name) {
 	QUrlQuery query;
 	query.addQueryItem("character", name.c_str());
-	query.addQueryItem("accountName", account_name_.c_str());
+	query.addQueryItem("accountName", app_.email().c_str());
 
 	QUrl url(kCharacterItemsUrl);
 	url.setQuery(query);
@@ -524,7 +516,7 @@ QNetworkRequest ItemsManagerWorker::MakeCharacterRequest(const std::string& name
 QNetworkRequest ItemsManagerWorker::MakeCharacterPassivesRequest(const std::string& name) {
 	QUrlQuery query;
 	query.addQueryItem("character", name.c_str());
-	query.addQueryItem("accountName", account_name_.c_str());
+	query.addQueryItem("accountName", app_.email().c_str());
 
 	QUrl url(kCharacterSocketedJewels);
 	url.setQuery(query);
@@ -551,7 +543,7 @@ void ItemsManagerWorker::FetchItems() {
 		// Pass the request to the rate limiter.
 		QNetworkRequest fetch_request = request.network_request;
 		ItemLocation location = request.location;
-		rate_limiter_->Submit(*network_manager_, fetch_request,
+		rate_limiter_->Submit(app_.network_manager(), fetch_request,
 			[=](QNetworkReply* reply) {
 				OnTabReceived(reply, location);
 			});
@@ -794,14 +786,14 @@ void ItemsManagerWorker::FinishUpdate() {
 	for (auto const& tab : tabsPerType) {
 		const ItemLocationType& tab_type = tab.first;
 		const QString tab_json = "[" + tab.second.join(",") + "]";
-		data_.SetTabs(tab_type, tab_json.toStdString());
+		app_.data().SetTabs(tab_type, tab_json.toStdString());
 	};
 
 	// Save items by location.
 	for (auto const& items : itemsPerLoc) {
 		const ItemLocation& items_location = items.first;
 		const QString items_json = "[" + items.second.join(",") + "]";
-		data_.SetItems(items_location, items_json.toStdString());
+		app_.data().SetItems(items_location, items_json.toStdString());
 	};
 
 	// Let everyone know the update is done.
@@ -818,7 +810,7 @@ void ItemsManagerWorker::PreserveSelectedCharacter() {
 	};
 	QLOG_DEBUG() << "Preserving selected character:" << selected_character_.c_str();
 	QNetworkRequest character_request = MakeCharacterRequest(selected_character_);
-	rate_limiter_->Submit(*network_manager_, character_request,
+	rate_limiter_->Submit(app_.network_manager(), character_request,
 		[](QNetworkReply*) {
 			// The act of making this request sets the active character.
 			// We don't need to to anything with the reply.

@@ -39,6 +39,8 @@
 #include "version_defines.h"
 #include "../test/testmain.h"
 
+#include "oauth.h"
+
 #ifdef _DEBUG
 const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::TraceLevel;
 #else

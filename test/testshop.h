@@ -7,6 +7,8 @@
 class TestShop : public QObject
 {
 	Q_OBJECT
+public:
+	TestShop();
 private slots:
 	void initTestCase();
 	void SocketedGemsNotLinked();

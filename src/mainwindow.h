@@ -25,12 +25,11 @@
 #include <QMenu>
 #include <QPushButton>
 #include <QCloseEvent>
+#include <QTimer>
 
 #include "bucket.h"
 #include "porting.h"
-#include "updatechecker.h"
 
-class QNetworkAccessManager;
 class QNetworkReply;
 class QVBoxLayout;
 
@@ -143,15 +142,12 @@ private:
 	QTabBar* tab_bar_;
 	std::vector<std::unique_ptr<Filter>> filters_;
 	int search_count_;
-	QNetworkAccessManager* image_network_manager_;
 	ImageCache* image_cache_;
 	QLabel* status_bar_label_;
 	QVBoxLayout* search_form_layout_;
 	QMenu context_menu_;
-	UpdateChecker update_checker_;
 	QPushButton update_button_;
 	QPushButton refresh_button_;
-	QNetworkAccessManager* network_manager_;
 	QTimer delayed_update_current_item_;
 	QTimer delayed_search_form_change_;
 	QStringListModel* category_string_model_;

@@ -209,7 +209,7 @@ void Shop::SubmitSingleShop() {
 		QNetworkRequest request = QNetworkRequest(QUrl(ShopEditUrl(requests_completed_).c_str()));
 		request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 		request.setRawHeader("Cache-Control", "max-age=0");
-		QNetworkReply* fetched = app_.logged_in_nm().get(request);
+		QNetworkReply* fetched = app_.network_manager().get(request);
 		new QReplyTimeout(fetched, kEditThreadTimeout);
 		connect(fetched, SIGNAL(finished()), this, SLOT(OnEditPageFinished()));
 	}
@@ -262,7 +262,7 @@ void Shop::SubmitNextShop(const std::string title, const std::string hash)
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	request.setRawHeader("Cache-Control", "max-age=0");
 
-	QNetworkReply* submitted = app_.logged_in_nm().post(request, data);
+	QNetworkReply* submitted = app_.network_manager().post(request, data);
 	new QReplyTimeout(submitted, kEditThreadTimeout);
 	connect(submitted, &QNetworkReply::finished,
 		[=]() {

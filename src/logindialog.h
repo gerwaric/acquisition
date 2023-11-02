@@ -24,8 +24,6 @@
 #include <string>
 #include <vector>
 
-#include "updatechecker.h"
-
 class QNetworkAccessManager;
 class QNetworkReply;
 class QString;
@@ -69,9 +67,6 @@ private:
 	std::string settings_path_;
 	QString saved_league_;
 	QString session_id_;
-	std::unique_ptr<QNetworkAccessManager> login_manager_;
 	std::vector<std::string> leagues_;
-	std::unique_ptr<SteamLoginDialog> steam_login_dialog_;
-	UpdateChecker update_checker_;
 	bool asked_to_update_;
 };

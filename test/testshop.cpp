@@ -1,6 +1,5 @@
 #include "testshop.h"
 
-#include <QNetworkAccessManager>
 #include <memory>
 #include "rapidjson/document.h"
 
@@ -11,10 +10,10 @@
 #include "shop.h"
 #include "testdata.h"
 
+TestShop::TestShop() : app_(true) {}
 
 void TestShop::initTestCase() {
-	auto null_nm = std::make_unique<QNetworkAccessManager>();
-	app_.InitLogin(std::move(null_nm), "TestLeague", "testuser", true);
+	app_.InitLogin("TestLeague", "testuser");
 }
 
 void TestShop::SocketedGemsNotLinked() {
