@@ -150,7 +150,7 @@ void CategorySearchFilter::Initialize(QLayout* parent) {
 	layout->addWidget(combobox_);
 	group->setLayout(layout);
 	parent->addWidget(group);
-	QObject::connect(combobox_, SIGNAL(currentIndexChanged(const QString&)),
+	QObject::connect(combobox_, SIGNAL(currentIndexChanged(int)),
 		parent->parentWidget()->window(), SLOT(OnDelayedSearchFormChange()));
 }
 
@@ -209,7 +209,7 @@ void RaritySearchFilter::Initialize(QLayout* parent) {
 	layout->addWidget(combobox_);
 	group->setLayout(layout);
 	parent->addWidget(group);
-	QObject::connect(combobox_, SIGNAL(currentIndexChanged(const QString&)),
+	QObject::connect(combobox_, SIGNAL(currentIndexChanged(int)),
 		parent->parentWidget()->window(), SLOT(OnDelayedSearchFormChange()));
 }
 

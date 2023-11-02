@@ -151,7 +151,7 @@ void ModsFilter::Initialize(QLayout* parent) {
 	widget->setLayout(layout_.get());
 	parent->addWidget(widget);
 
-	QObject::connect(&signal_mapper_, SIGNAL(mapped(int)), &signal_handler_, SLOT(OnModChanged(int)));
+	QObject::connect(&signal_mapper_, SIGNAL(mappedInt(int)), &signal_handler_, SLOT(OnModChanged(int)));
 }
 
 void ModsFilter::AddMod() {
