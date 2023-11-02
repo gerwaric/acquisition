@@ -194,7 +194,8 @@ RateLimitedRequest::RateLimitedRequest(QNetworkAccessManager& manager, const QNe
 //=========================================================================================
 
 // Create a new rate limit manager based on an existing policy.
-PolicyManager::PolicyManager(std::unique_ptr<Policy> policy_) :
+PolicyManager::PolicyManager(std::unique_ptr<Policy> policy_, QObject* parent) :
+	QObject(parent),
 	policy(std::move(policy_)),
 	busy(false),
 	next_send(QDateTime::currentDateTime()),
@@ -677,7 +678,8 @@ static QString GetEndpoint(const QUrl& url) {
 // The application-facing Rate Limiter
 //=========================================================================================
 
-RateLimiter::RateLimiter(QNetworkAccessManager& network_manager) :
+RateLimiter::RateLimiter(QNetworkAccessManager& network_manager, QObject* parent) :
+	QObject(parent),
 	initialized(false),
 	initial_manager(network_manager)
 {

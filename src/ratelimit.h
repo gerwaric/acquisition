@@ -239,7 +239,7 @@ namespace RateLimit
 
 	public:
 		// Construct a rate limit manager with the specified policy.
-		PolicyManager(std::unique_ptr<Policy>);
+		PolicyManager(std::unique_ptr<Policy>, QObject* parent = nullptr);
 
 		// Move a request into to this manager's queue.
 		void QueueRequest(std::unique_ptr<RateLimitedRequest> request);
@@ -334,7 +334,7 @@ namespace RateLimit
 
 	public:
 		// Creat a rate limiter.
-		RateLimiter(QNetworkAccessManager& manager);
+		RateLimiter(QNetworkAccessManager& manager, QObject* parent = nullptr);
 
 		// Submit a request-callback pair to the rate limiter. Note that the callback function
 		// should not delete the QNetworkReply. That is handled after the callback finishes.
