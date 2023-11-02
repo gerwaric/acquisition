@@ -36,6 +36,7 @@ class Shop;
 /*
  * ItemsManager manages an ItemsManagerWorker (which lives in a separate thread)
  * and glues it to the rest of Acquisition.
+ * (No longer true as of v0.10.0, but we will see if this causes performance issues).
  */
 class ItemsManager : public QObject {
 	Q_OBJECT
