@@ -103,7 +103,10 @@ const QString OAuthManager::access_token() const {
 };
 
 void OAuthManager::addAuthorization(QNetworkRequest& request) {
-	if (the_token_ != nullptr) {
+	if (the_token_ == nullptr) {
+		QLOG_ERROR() << "Cannot add OAuth authorization to network request: no token is available.";
+	} else {
+		QLOG_TRACE() << "Adding OAuth authorization to network request.";
 		QString bearer = "Bearer " + the_token_->access_token;
 		request.setRawHeader("Authorization", bearer.toUtf8());
 	};

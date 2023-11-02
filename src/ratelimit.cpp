@@ -464,7 +464,6 @@ void PolicyManager::SendRequest() {
 	// from when the request was initially queued.
 	QNetworkRequest request = active_request->network_request;
 	if (policy->name != "<none>") {
-		QLOG_TRACE() << "Adding OAuth Authorization:" << request.rawHeader("Authorization");
 		app.oauth_manager().addAuthorization(request);
 	};
 
