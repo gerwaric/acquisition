@@ -29,6 +29,7 @@
 #include <QNetworkReply>
 #include <QRegularExpression>
 #include <QTextDocument>
+#include <QUrlQuery>
 #include <QPainter>
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
@@ -240,6 +241,17 @@ std::string Util::Decode(const std::string& entity) {
 	QTextDocument text;
 	text.setHtml(entity.c_str());
 	return text.toPlainText().toStdString();
+}
+
+QUrlQuery Util::EncodeQueryItems(const std::list<std::pair<QString, QString>>& items) {
+	// https://github.com/owncloud/client/issues/9203
+	QUrlQuery result;
+	for (const auto& item : items) {
+		const QString key = QUrl::toPercentEncoding(item.first);
+		const QString value = QUrl::toPercentEncoding(item.second);
+		result.addQueryItem(key, value);
+	};
+	return result;
 }
 
 QColor Util::recommendedForegroundTextColor(const QColor& backgroundColor) {
