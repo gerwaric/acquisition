@@ -31,7 +31,7 @@
      <property name="currentIndex">
       <number>0</number>
      </property>
-     <widget class="QWidget" name="tab_2">
+     <widget class="QWidget" name="oauthTab">
       <attribute name="title">
        <string>OAuth</string>
       </attribute>
@@ -45,7 +45,7 @@
        </item>
       </layout>
      </widget>
-     <widget class="QWidget" name="tab_3">
+     <widget class="QWidget" name="sessionIdTab">
       <attribute name="title">
        <string>Session ID</string>
       </attribute>
