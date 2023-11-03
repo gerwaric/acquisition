@@ -127,6 +127,12 @@ void MainWindow::InitializeLogging() {
 void MainWindow::InitializeUi() {
 	ui->setupUi(this);
 
+	// Load the appropriate theme.
+	const std::string theme = app_->global_data().Get("theme", "default");
+	if (theme == "dark") OnSetDarkTheme(true);
+	else if (theme == "light") OnSetLightTheme(true);
+	else if (theme == "default") OnSetDefaultTheme(true);
+
 	status_bar_label_ = new QLabel("Ready");
 	statusBar()->addWidget(status_bar_label_);
 	ui->itemLayout->setAlignment(Qt::AlignTop);
@@ -138,9 +144,9 @@ void MainWindow::InitializeUi() {
 	tab_bar_ = new QTabBar;
 	tab_bar_->installEventFilter(this);
 	tab_bar_->setExpanding(false);
-	ui->mainLayout->insertWidget(0, tab_bar_);
 	tab_bar_->addTab("+");
 	connect(tab_bar_, &QTabBar::currentChanged, this, &MainWindow::OnTabChange);
+	ui->mainLayout->insertWidget(0, tab_bar_);
 
 	Util::PopulateBuyoutTypeComboBox(ui->buyoutTypeComboBox);
 	Util::PopulateBuyoutCurrencyComboBox(ui->buyoutCurrencyComboBox);
@@ -163,7 +169,7 @@ void MainWindow::InitializeUi() {
 	ui->buyoutValueLineEdit->setEnabled(false);
 	ui->buyoutCurrencyComboBox->setEnabled(false);
 
-	ui->actionAutomatically_refresh_items->setChecked(app_->items_manager().auto_update());
+	ui->actionSetAutomaticTabRefresh->setChecked(app_->items_manager().auto_update());
 	UpdateShopMenu();
 
 	search_form_layout_ = new QVBoxLayout;
@@ -212,9 +218,7 @@ void MainWindow::InitializeUi() {
 	refresh_button_.setFlat(true);
 	refresh_button_.hide();
 	statusBar()->addPermanentWidget(&refresh_button_);
-	connect(&refresh_button_, &QPushButton::clicked, this, [=]() {
-		on_actionRefresh_triggered();
-		});
+	connect(&refresh_button_, &QPushButton::clicked, this, &MainWindow::OnRefreshAllTabs);
 
 	update_button_.setStyleSheet("color: blue; font-weight: bold;");
 	update_button_.setFlat(true);
@@ -253,10 +257,31 @@ void MainWindow::InitializeUi() {
 
 	ui->itemInfoTypeTabs->setCurrentIndex(app_->data().GetInt("preferred_tooltip_type"));
 
-	std::string theme = app_->data().Get("theme", "default");
-	if (theme == "default") on_actionDefault_triggered(true);
-	else if (theme == "dark") on_actionDark_triggered(true);
-	else if (theme == "light") on_actionLight_triggered(true);
+	// Connect the Tabs menu
+	connect(ui->actionRefreshCheckedTabs, &QAction::triggered, this, &MainWindow::OnRefreshCheckedTabs);
+	connect(ui->actionRefreshAllTabs, &QAction::triggered, this, &MainWindow::OnRefreshAllTabs);
+	connect(ui->actionSetAutomaticTabRefresh, &QAction::triggered, this, &MainWindow::OnSetAutomaticTabRefresh);
+	connect(ui->actionSetTabRefreshInterval, &QAction::triggered, this, &MainWindow::OnSetTabRefreshInterval);
+
+	// Connect the Shop menu
+	connect(ui->actionSetShopThreads, &QAction::triggered, this, &MainWindow::OnSetShopThreads);
+	connect(ui->actionEditShopTemplate, &QAction::triggered, this, &MainWindow::OnEditShopTemplate);
+	connect(ui->actionCopyShopToClipboard, &QAction::triggered, this, &MainWindow::OnCopyShopToClipboard);
+	connect(ui->actionUpdateShops, &QAction::triggered, this, &MainWindow::OnUpdateShops);
+	connect(ui->actionUpdatePOESESSID, &QAction::triggered, this, &MainWindow::OnUpdatePOESESSID);
+
+	// Connect the Currency menu
+	connect(ui->actionListCurrency, &QAction::triggered, this, &MainWindow::OnListCurrency);
+	connect(ui->actionExportCurrency, &QAction::triggered, this, &MainWindow::OnExportCurrency);
+
+	// Connect the Theme menu
+	connect(ui->actionSetDarkTheme, &QAction::triggered, this, &MainWindow::OnSetDarkTheme);
+	connect(ui->actionSetLightTheme, &QAction::triggered, this, &MainWindow::OnSetLightTheme);
+	connect(ui->actionSetDefaultTheme, &QAction::triggered, this, &MainWindow::OnSetDefaultTheme);
+
+	// Connect the Tooltip tab buttons
+	connect(ui->uploadTooltipButton, &QPushButton::clicked, this, &MainWindow::OnUploadToImgur);
+	connect(ui->pobTooltipButton, &QPushButton::clicked, this, &MainWindow::OnCopyForPOB);
 }
 
 void MainWindow::ExpandCollapse(TreeState state) {
@@ -744,7 +769,7 @@ MainWindow::~MainWindow() {
 	delete ui;
 }
 
-void MainWindow::on_actionForum_shop_thread_triggered() {
+void MainWindow::OnSetShopThreads() {
 	bool ok;
 	QString thread = QInputDialog::getText(this, "Shop thread",
 		"Enter thread number. You can enter multiple shops by separating them with a comma. More than one shop may be needed if you have a lot of items.",
@@ -754,12 +779,16 @@ void MainWindow::on_actionForum_shop_thread_triggered() {
 	UpdateShopMenu();
 }
 
+void MainWindow::OnUpdatePOESESSID() {
+	QLOG_ERROR() << "Shop -> Update POESESSID is not implemented yet.";
+}
+
 void MainWindow::UpdateShopMenu() {
 	std::string title = "Forum shop thread...";
 	if (!app_->shop().threads().empty())
 		title += " [" + Util::StringJoin(app_->shop().threads(), ",") + "]";
-	ui->actionForum_shop_thread->setText(title.c_str());
-	ui->actionAutomatically_update_shop->setChecked(app_->shop().auto_update());
+	ui->actionSetShopThreads->setText(title.c_str());
+	ui->actionSetAutomaticallyShopUpdate->setChecked(app_->shop().auto_update());
 }
 
 void MainWindow::OnUpdateAvailable() {
@@ -767,35 +796,34 @@ void MainWindow::OnUpdateAvailable() {
 	update_button_.show();
 }
 
-void MainWindow::on_actionCopy_shop_data_to_clipboard_triggered() {
+void MainWindow::OnCopyShopToClipboard() {
 	app_->shop().CopyToClipboard();
 }
 
-void MainWindow::on_actionItems_refresh_interval_triggered() {
+void MainWindow::OnSetTabRefreshInterval() {
 	int interval = QInputDialog::getText(this, "Auto refresh items", "Refresh items every X minutes",
 		QLineEdit::Normal, QString::number(app_->items_manager().auto_update_interval())).toInt();
 	if (interval > 0)
 		app_->items_manager().SetAutoUpdateInterval(interval);
 }
 
-void MainWindow::on_actionRefresh_triggered() {
-	// Refresh all tabs
+void MainWindow::OnRefreshAllTabs() {
 	app_->items_manager().Update(TabSelection::All);
 }
 
-void MainWindow::on_actionRefresh_checked_triggered() {
+void MainWindow::OnRefreshCheckedTabs() {
 	app_->items_manager().Update(TabSelection::Checked);
 }
 
-void MainWindow::on_actionAutomatically_refresh_items_triggered() {
-	app_->items_manager().SetAutoUpdate(ui->actionAutomatically_refresh_items->isChecked());
+void MainWindow::OnSetAutomaticTabRefresh() {
+	app_->items_manager().SetAutoUpdate(ui->actionSetAutomaticTabRefresh->isChecked());
 }
 
-void MainWindow::on_actionUpdate_shop_triggered() {
+void MainWindow::OnUpdateShops() {
 	app_->shop().SubmitShopToForum(true);
 }
 
-void MainWindow::on_actionShop_template_triggered() {
+void MainWindow::OnEditShopTemplate() {
 	bool ok;
 	QString text = QInputDialog::getMultiLineText(this, "Shop template", "Enter shop template. [items] will be replaced with the list of items you marked for sale.",
 		app_->shop().shop_template().c_str(), &ok);
@@ -803,15 +831,15 @@ void MainWindow::on_actionShop_template_triggered() {
 		app_->shop().SetShopTemplate(text.toStdString());
 }
 
-void MainWindow::on_actionAutomatically_update_shop_triggered() {
-	app_->shop().SetAutoUpdate(ui->actionAutomatically_update_shop->isChecked());
+void MainWindow::OnSetAutomaticShopUpdate() {
+	app_->shop().SetAutoUpdate(ui->actionSetAutomaticallyShopUpdate->isChecked());
 }
 
-void MainWindow::on_actionList_currency_triggered() {
+void MainWindow::OnListCurrency() {
 	app_->currency_manager().DisplayCurrency();
 }
 
-void MainWindow::on_actionDark_triggered(bool toggle) {
+void MainWindow::OnSetDarkTheme(bool toggle) {
 	// Credits: https://github.com/ColinDuquesnoy/QDarkStyleSheet
 	if (toggle) {
 		QFile f(":qdarkstyle/dark/darkstyle.qss");
@@ -826,14 +854,14 @@ void MainWindow::on_actionDark_triggered(bool toggle) {
 			pal.setColor(QPalette::WindowText, Qt::white);
 			QApplication::setPalette(pal);
 		}
-		app_->data().Set("theme", "dark");
-		ui->actionLight->setChecked(false);
-		ui->actionDefault->setChecked(false);
+		app_->global_data().Set("theme", "dark");
+		ui->actionSetLightTheme->setChecked(false);
+		ui->actionSetDefaultTheme->setChecked(false);
 	}
-	ui->actionDark->setChecked(toggle);
+	ui->actionSetDarkTheme->setChecked(toggle);
 }
 
-void MainWindow::on_actionLight_triggered(bool toggle) {
+void MainWindow::OnSetLightTheme(bool toggle) {
 	if (toggle) {
 		QFile f(":qdarkstyle/light/lightstyle.qss");
 		if (!f.exists()) {
@@ -847,27 +875,27 @@ void MainWindow::on_actionLight_triggered(bool toggle) {
 			pal.setColor(QPalette::WindowText, Qt::black);
 			QApplication::setPalette(pal);
 		}
-		app_->data().Set("theme", "light");
-		ui->actionDark->setChecked(false);
-		ui->actionDefault->setChecked(false);
+		app_->global_data().Set("theme", "light");
+		ui->actionSetDarkTheme->setChecked(false);
+		ui->actionSetDefaultTheme->setChecked(false);
 	}
-	ui->actionLight->setChecked(toggle);
+	ui->actionSetLightTheme->setChecked(toggle);
 }
 
-void MainWindow::on_actionDefault_triggered(bool toggle) {
+void MainWindow::OnSetDefaultTheme(bool toggle) {
 	if (toggle) {
 		qApp->setStyleSheet("");
 		QPalette pal = QApplication::palette();
 		pal.setColor(QPalette::WindowText, Qt::black);
 		QApplication::setPalette(pal);
-		app_->data().Set("theme", "default");
-		ui->actionDark->setChecked(false);
-		ui->actionLight->setChecked(false);
+		app_->global_data().Set("theme", "default");
+		ui->actionSetDarkTheme->setChecked(false);
+		ui->actionSetLightTheme->setChecked(false);
 	}
-	ui->actionDefault->setChecked(toggle);
+	ui->actionSetDefaultTheme->setChecked(toggle);
 }
 
-void MainWindow::on_actionExport_currency_triggered() {
+void MainWindow::OnExportCurrency() {
 	app_->currency_manager().ExportCurrency();
 }
 
@@ -883,7 +911,7 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 	}
 }
 
-void MainWindow::on_uploadTooltipButton_clicked() {
+void MainWindow::OnUploadToImgur() {
 	ui->uploadTooltipButton->setDisabled(true);
 	ui->uploadTooltipButton->setText("Uploading...");
 
@@ -905,7 +933,7 @@ void MainWindow::on_uploadTooltipButton_clicked() {
 	connect(reply, &QNetworkReply::finished, this, &MainWindow::OnUploadFinished);
 }
 
-void MainWindow::on_pobTooltipButton_clicked() {
+void MainWindow::OnCopyForPOB() {
 	if (current_item_ == nullptr) {
 		return;
 	}
