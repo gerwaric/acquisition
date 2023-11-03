@@ -132,6 +132,8 @@ FORMS += \
 	forms/mainwindow.ui \
 	forms/logindialog.ui
 
+UI_DIR = ui
+
 DEPENDPATH *= $${INCLUDEPATH}
 
 RESOURCES += resources.qrc \
