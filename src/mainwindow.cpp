@@ -899,9 +899,9 @@ void MainWindow::on_uploadTooltipButton_clicked() {
 	request.setRawHeader("Authorization", "Client-ID d6d2d8a0437a90f");
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+	request.setTransferTimeout(kImgurUploadTimeout);
 	QByteArray data = "image=" + QUrl::toPercentEncoding(bytes.toBase64());
 	QNetworkReply* reply = app_->network_manager().post(request, data);
-	new QReplyTimeout(reply, kImgurUploadTimeout);
 	connect(reply, &QNetworkReply::finished, this, &MainWindow::OnUploadFinished);
 }
 

@@ -209,8 +209,8 @@ void Shop::SubmitSingleShop() {
 		QNetworkRequest request = QNetworkRequest(QUrl(ShopEditUrl(requests_completed_).c_str()));
 		request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 		request.setRawHeader("Cache-Control", "max-age=0");
+		request.setTransferTimeout(kEditThreadTimeout);
 		QNetworkReply* fetched = app_.network_manager().get(request);
-		new QReplyTimeout(fetched, kEditThreadTimeout);
 		connect(fetched, &QNetworkReply::finished, this, &Shop::OnEditPageFinished);
 	}
 	emit StatusUpdate(status);
@@ -261,9 +261,9 @@ void Shop::SubmitNextShop(const std::string title, const std::string hash)
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	request.setRawHeader("Cache-Control", "max-age=0");
+	request.setTransferTimeout(kEditThreadTimeout);
 
 	QNetworkReply* submitted = app_.network_manager().post(request, data);
-	new QReplyTimeout(submitted, kEditThreadTimeout);
 	connect(submitted, &QNetworkReply::finished, this,
 		[=]() {
 			OnShopSubmitted(query, submitted);

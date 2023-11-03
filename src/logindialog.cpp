@@ -112,12 +112,12 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 
 	QNetworkRequest leagues_request = QNetworkRequest(QUrl(QString(POE_LEAGUE_LIST_URL)));
 	leagues_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+	leagues_request.setTransferTimeout(kPoeApiTimeout);
 	QNetworkReply* leagues_reply = app_->network_manager().get(leagues_request);
 
 	connect(leagues_reply, &QNetworkReply::errorOccurred, this, &LoginDialog::errorOccurred);
 	connect(leagues_reply, &QNetworkReply::sslErrors, this, &LoginDialog::sslErrorOccurred);
 	connect(leagues_reply, &QNetworkReply::finished, this, &LoginDialog::OnLeaguesRequestFinished);
-	new QReplyTimeout(leagues_reply, kPoeApiTimeout);
 }
 
 void LoginDialog::errorOccurred() {

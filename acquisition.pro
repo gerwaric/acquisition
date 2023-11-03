@@ -67,7 +67,6 @@ SOURCES += \
 	src/porting.cpp \
 	src/ratelimit.cpp \
 	src/ratelimitpanel.cpp \
-	src/replytimeout.cpp \
 	src/search.cpp \
 	src/shop.cpp \
 	src/updatechecker.cpp \
