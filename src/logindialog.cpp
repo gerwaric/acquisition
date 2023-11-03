@@ -35,6 +35,7 @@
 #include "QsLog.h"
 
 #include "application.h"
+#include "datastore.h"
 #include "filesystem.h"
 #include "mainwindow.h"
 #include "network_info.h"
@@ -87,7 +88,8 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 	ui->setupUi(this);
 	ui->errorLabel->hide();
 	ui->errorLabel->setStyleSheet("QLabel { color : red; }");
-    setWindowTitle(QString("Login [") + APP_VERSION_STRING + "]");
+	setWindowTitle(QString("Login [") + APP_VERSION_STRING + "]");
+
 #if defined(Q_OS_LINUX)
 	setWindowIcon(QIcon(":/icons/assets/icon.svg"));
 #endif
@@ -95,6 +97,7 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 
 	settings_path_ = Filesystem::UserDir() + "/settings.ini";
 	LoadSettings();
+	LoadTheme();
 
 	QLOG_DEBUG() << "Supports SSL: " << QSslSocket::supportsSsl();
 	QLOG_DEBUG() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
@@ -118,6 +121,41 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 	connect(leagues_reply, &QNetworkReply::errorOccurred, this, &LoginDialog::errorOccurred);
 	connect(leagues_reply, &QNetworkReply::sslErrors, this, &LoginDialog::sslErrorOccurred);
 	connect(leagues_reply, &QNetworkReply::finished, this, &LoginDialog::OnLeaguesRequestFinished);
+}
+
+void LoginDialog::LoadTheme() {
+	// Load the appropriate theme.
+	const std::string theme = app_->global_data().Get("theme", "default");
+
+	// Do nothing for the default theme.
+	if (theme == "default") {
+		return;
+	};
+
+	// Determine which qss file to use.
+	QString stylesheet;
+	if (theme == "dark") {
+		stylesheet = ":qdarkstyle/dark/darkstyle.qss";
+	} else if (theme == "light") {
+		stylesheet = ":qdarkstyle/light/lightstyle.qss";
+	} else {
+		QLOG_ERROR() << "Invalid theme:" << theme;
+		return;
+	};
+
+	// Load the theme.
+	QFile f(stylesheet);
+	if (!f.exists()) {
+		QLOG_ERROR() << "Theme stylesheet not found:" << stylesheet;
+	} else {
+		f.open(QFile::ReadOnly | QFile::Text);
+		QTextStream ts(&f);
+		qApp->setStyleSheet(ts.readAll());
+
+		QPalette pal = QApplication::palette();
+		pal.setColor(QPalette::WindowText, Qt::white);
+		QApplication::setPalette(pal);
+	};
 }
 
 void LoginDialog::errorOccurred() {
@@ -269,7 +307,7 @@ void LoginDialog::OnOAuthAccessGranted(const AccessToken& token) {
 	mw = new MainWindow(std::move(app_));
 	mw->setWindowTitle(
 		QString("Acquisition [%1] - %2 [%3]")
-        .arg(APP_VERSION_STRING)
+		.arg(APP_VERSION_STRING)
 		.arg(league.c_str())
 		.arg(account));
 	mw->show();
@@ -306,7 +344,7 @@ void LoginDialog::OnMainPageFinished() {
 	mw = new MainWindow(std::move(app_));
 	mw->setWindowTitle(
 		QString("Acquisition [%1] - %2 [%3]")
-        .arg(APP_VERSION_STRING)
+		.arg(APP_VERSION_STRING)
 		.arg(league.c_str())
 		.arg(account));
 	mw->show();
