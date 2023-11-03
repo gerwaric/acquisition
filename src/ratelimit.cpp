@@ -17,25 +17,18 @@
 	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <QApplication>
+#include "ratelimit.h"
+
 #include <QUrl>
 
 #include "QsLog.h"
 
 #include "application.h"
-#include "util.h"
 #include "network_info.h"
-#include "ratelimit.h"
 #include "oauth.h"
+#include "util.h"
 
 using namespace RateLimit;
-
-const QStringList RateLimit::KNOWN_ENDPOINTS = {
-	"https://www.pathofexile.com/character-window/get-stash-items",
-	"https://www.pathofexile.com/character-window/get-items",
-	"https://www.pathofexile.com/character-window/get-characters",
-	"https://www.pathofexile.com/character-window/get-passive-skills",
-	"https://api.pathofexile.com/leagues" };
 
 //=========================================================================================
 // Local function declarations
@@ -113,13 +106,15 @@ PolicyRule::operator QString() const {
 	return QString("%1: %2").arg(name, list.join(", "));
 }
 
-Policy::Policy(const QString& name) :
-	name(name),
+Policy::Policy() :
+	name("<<EMPTY-POLICY>>"),
+	empty(true),
 	status(PolicyStatus::UNKNOWN),
 	max_period(0) {};
 
 Policy::Policy(QNetworkReply* const reply) :
 	name(GetRateLimitPolicy(reply)),
+	empty(false),
 	status(PolicyStatus::UNKNOWN),
 	max_period(0)
 {
@@ -195,10 +190,9 @@ RateLimitedRequest::RateLimitedRequest(const QNetworkRequest& request, const Cal
 //=========================================================================================
 
 // Create a new rate limit manager based on an existing policy.
-PolicyManager::PolicyManager(Application& application, std::unique_ptr<Policy> policy_, QObject* parent) :
+PolicyManager::PolicyManager(std::unique_ptr<Policy> policy_, QObject* parent) :
 	QObject(parent),
 	policy(std::move(policy_)),
-	app(application),
 	busy(false),
 	next_send(QDateTime::currentDateTime()),
 	last_send(QDateTime()),
@@ -345,19 +339,13 @@ void PolicyManager::OnPolicyUpdate()
 				QLOG_DEBUG() << "about to violate" << policy->name << QString(rule);
 
 				// Determine how far back into the history we can look.
-				size_t n = current_hits;
-				if (n > history_size) {
-					n = history_size;
-				};
+				const size_t n = (current_hits > history_size) ? history_size : current_hits;
 
 				// Start with the timestamp of the earliest known
 				// reply relevant to this limitation.
-				QDateTime starting_time;
-				if (n < 1) {
-					starting_time = QDateTime::currentDateTime();
-				} else {
-					starting_time = known_reply_times[n - 1];
-				};
+				const QDateTime starting_time = (n < 1)
+					? QDateTime::currentDateTime()
+					: known_reply_times[n - 1];
 
 				// Calculate the next time it will be safe to send a request.
 				const QDateTime next_safe_time = starting_time
@@ -459,27 +447,16 @@ void PolicyManager::SendRequest() {
 		<< "to" << active_request->endpoint
 		<< "via" << active_request->network_request.url().toString();
 
-	// Make a copy of the request so we can add the OAuth token (if it exists).
-	// We do this here, at the very last minute, in case the token has changed
-	// from when the request was initially queued.
-	QNetworkRequest request = active_request->network_request;
-	if (policy->name != "<none>") {
-        if (app.oauth_manager().access_token() != nullptr) {
-            app.oauth_manager().addAuthorization(request);
-        };
-	};
-
 	// Finally, send the request and note the time.
 	last_send = QDateTime::currentDateTime();
-	QNetworkReply* reply = app.network_manager().get(request);
-	active_request->network_reply = reply;
-	connect(reply, &QNetworkReply::finished, this, &PolicyManager::ReceiveReply);
+	emit RequestReady(active_request->network_request);
 };
 
-// Called when the active request's network_reply is finished.
+// Called when the active request's reply is finished.
 void PolicyManager::ReceiveReply() {
 
-	QNetworkReply* reply = active_request->network_reply;
+	QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+	active_request->network_reply = reply;
 	active_request->reply_time = GetDate(reply);
 	active_request->reply_status = GetStatus(reply);
 
@@ -509,7 +486,7 @@ void PolicyManager::ReceiveReply() {
 		emit RateLimitingStarted();
 
 	} else {
-		if (policy->name != "<none>") {
+		if (policy->empty == false) {
 			QLOG_ERROR() << "policy manager for" << policy->name
 				<< "received a reply without a rate limit policy";
 		};
@@ -595,8 +572,8 @@ QString PolicyManager::GetCurrentStatus() const {
 
 	QStringList lines;
 	lines.push_back(policy->name);
-	const std::vector<PolicyRule>& rules = policy->rules;
-	for (const auto& rule : rules) {
+	std::vector<PolicyRule>& rules = policy->rules;
+	for (auto& rule : rules) {
 		lines.push_back(QString("( %1 )").arg(QString(rule)));
 	};
 	lines.push_back(info);
@@ -690,21 +667,30 @@ static QString GetEndpoint(const QUrl& url) {
 // The application-facing Rate Limiter
 //=========================================================================================
 
-RateLimiter::RateLimiter(Application& application, QObject* parent) :
+RateLimiter::RateLimiter(Application& app, QObject* parent) :
 	QObject(parent),
-	initialized(false),
-	app(application)
+	network_manager_(app.network_manager()),
+	oauth_manager_(app.oauth_manager())
 {
 	// Creat the policy manager that will handle non-limited requests.
-	default_manager = std::make_unique<PolicyManager>(app, std::make_unique<Policy>("<none>"), this);
+	default_manager = std::make_shared<PolicyManager>(std::make_unique<Policy>(), this);
+	connect(default_manager.get(), &PolicyManager::RequestReady, this, &RateLimiter::SendRequest);
 
 	// Setup the status update timer.
 	status_updater.setSingleShot(false);
 	status_updater.setInterval(1000);
 	connect(&status_updater, &QTimer::timeout, this, &RateLimiter::DoStatusUpdate);
+}
 
-	// Start sending HEAD requests to construct the rate limit policy manager.
-	NextInitialRequest();
+void RateLimiter::SendRequest(QNetworkRequest request) {
+	PolicyManager* manager = qobject_cast<PolicyManager*>(sender());
+	if (manager->policy->empty == false) {
+		if (oauth_manager_.access_token() != nullptr) {
+			oauth_manager_.addAuthorization(request);
+		};
+	};
+	QNetworkReply* reply = network_manager_.get(request);
+	connect(reply, &QNetworkReply::finished, manager, &PolicyManager::ReceiveReply);
 }
 
 void RateLimiter::Submit(QNetworkRequest network_request, Callback request_callback)
@@ -712,36 +698,75 @@ void RateLimiter::Submit(QNetworkRequest network_request, Callback request_callb
 	// Make sure the user agent is set according to GGG's guidance.
 	network_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 
+	// We need the endpoint to see if there's a manager for this request.
+	const QString endpoint = GetEndpoint(network_request.url());
+
+	if (endpoint_mapping.count(endpoint) > 0) {
+
+		// This endpoint is known to use an existing policy manager.
+		std::unique_ptr<RateLimitedRequest> request = std::make_unique<RateLimitedRequest>(
+			network_request, request_callback);
+		PolicyManager& manager = *endpoint_mapping[endpoint];
+		QLOG_DEBUG() << manager.policy->name << "is handling" << endpoint;
+		manager.QueueRequest(std::move(request));
+
+	} else {
+
+		// This is a new endpoint.
+		QNetworkReply* reply = network_manager_.head(network_request);
+		connect(reply, &QNetworkReply::finished, this,
+			[=]() { SetupEndpoint(network_request, request_callback, reply); });
+
+	};
+}
+
+void RateLimiter::SetupEndpoint(QNetworkRequest network_request, Callback request_callback, QNetworkReply* reply) {
+
 	// Create a new rate-limited request.
 	std::unique_ptr<RateLimitedRequest> request = std::make_unique<RateLimitedRequest>(
 		network_request, request_callback);
 
-	// Dispatch or stage the request depending on if we are fully initialized.
-	if (initialized) {
-		DispatchRequest(std::move(request));
-	} else {
-		staged_requests.push_back(std::move(request));
+	// Get a reference to the endpoint since we use it a bunch.
+	const QString endpoint = request->endpoint;
+
+	// Handle requests that are not rate limited.
+	if (reply->hasRawHeader("X-Rate-Limit-Policy") == false) {
+		QLOG_DEBUG() << "The endpoint is not rate-limited:" << endpoint;
+		endpoint_mapping[endpoint] = default_manager;
+		default_manager->endpoints.push_back(endpoint);
+		default_manager->QueueRequest(std::move(request));
+		return;
+	}
+
+	// Parse the rate limit policy from the reply headers.
+	const QString policy_name = GetRateLimitPolicy(reply);
+	QLOG_DEBUG() << policy_name << "encountered.";
+
+	// Check to see if another manager already exists for this policy.
+	if (policy_mapping.count(policy_name) > 0) {
+		QLOG_DEBUG() << policy_name << "now handles" << endpoint;
+		std::shared_ptr<PolicyManager> manager = policy_mapping[policy_name];
+		endpoint_mapping[endpoint] = manager;
+		manager->endpoints.push_back(endpoint);
+		manager->policy = std::make_unique<Policy>(reply);
+		manager->OnPolicyUpdate();
+		manager->QueueRequest(std::move(request));
+		return;
 	};
+
+	// Create a new policy manager.
+	QLOG_DEBUG() << policy_name << "created for" << endpoint;
+	std::unique_ptr<Policy> policy = std::make_unique<Policy>(reply);
+	std::shared_ptr<PolicyManager> manager = std::make_shared<PolicyManager>(std::move(policy), this);
+	connect(manager.get(), &PolicyManager::RequestReady, this, &RateLimiter::SendRequest);
+	endpoint_mapping[endpoint] = manager;
+	policy_mapping[policy_name] = manager;
+	manager->endpoints.push_back(endpoint);
+	manager->QueueRequest(std::move(request));
+
+	// Since we discovered a new rate limit policy, let's update the status.
+	DoStatusUpdate();
 }
-
-void RateLimiter::DispatchRequest(std::unique_ptr<RateLimitedRequest> request) {
-
-	// See if any of the policy managers should handle this request.
-	for (auto& manager : managers) {
-		if (manager->endpoints.contains(request->endpoint)) {
-			QLOG_DEBUG() << "Dispatching request to" << manager->policy->name << ":" << request->endpoint;
-			manager->QueueRequest(std::move(request));
-			return;
-		};
-	};
-
-	// Fall back to using the default manager which does not apply any rate-limiting.
-	// It's useful to use a policy manager here instead of writing custom code so that
-	// we aren't duplicating code. We can also take advantage of the ordered dispatching
-	// so that even non-limited requests will be returned in the order they were called.
-	QLOG_DEBUG() << "No policy manager for:" << request->endpoint;
-	default_manager->QueueRequest(std::move(request));
-};
 
 void RateLimiter::OnTimerStarted() {
 
@@ -752,103 +777,14 @@ void RateLimiter::OnTimerStarted() {
 	};
 }
 
-void RateLimiter::NextInitialRequest() {
-
-	static int k = 0;
-	if (k < KNOWN_ENDPOINTS.length()) {
-		const QString endpoint = KNOWN_ENDPOINTS[k++];
-		QNetworkRequest request = QNetworkRequest(QUrl(endpoint));
-		SendInitialRequest(endpoint, request);
-	} else {
-		FinishInit();
-	};
-};
-
-void RateLimiter::SendInitialRequest(const QString endpoint, QNetworkRequest request) {
-	QLOG_DEBUG() << "Sending HEAD request to" << request.url().toString();
-
-	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply* reply = app.network_manager().head(request);
-	connect(reply, &QNetworkReply::finished, this,
-		[=]() {
-			ReceiveInitialReply(endpoint, reply);
-		});
-}
-
-void RateLimiter::ReceiveInitialReply(const QString endpoint, QNetworkReply* reply) {
-	QLOG_DEBUG() << "Received HEAD reply for" << endpoint;
-
-	// Make sure the reply is deleted no matter what.
-	reply->deleteLater();
-
-	// Skip replies that did not come back with a rate limit policy.
-	if (reply->hasRawHeader("X-Rate-Limit-Policy") == false) {
-		QLOG_DEBUG() << "The endpoint does not have a rate limit policy";
-		NextInitialRequest();
-		return;
-	};
-
-	// Parse this reply's headers into a new rate limit policy object.
-	std::unique_ptr<Policy> p = std::make_unique<Policy>(reply);
-
-	// See if this reply is just an update to an existing policy.
-	for (int k = 0; k < initial_policies.size(); ++k) {
-		if (initial_policies.at(k)->name == p->name) {
-			QLOG_DEBUG() << "Adding endpoint to" << p->name << ":" << endpoint;
-			initial_policies.at(k) = std::move(p);
-			initial_policy_endpoints.at(k).push_back(endpoint);
-			NextInitialRequest();
-			return;
-		};
-	};
-
-	// Since we didn't find an existing policy to update, create a new one.
-	QLOG_DEBUG() << "Creating policy" << p->name << "for" << endpoint;
-	initial_policies.push_back(std::move(p));
-	initial_policy_endpoints.push_back(QStringList(endpoint));
-	NextInitialRequest();
-}
-
-void RateLimiter::FinishInit() {
-	QLOG_DEBUG() << "Finishing initialization.";
-
-	// Create policy managers for each of the policies.
-	for (int n = 0; n < initial_policies.size(); ++n) {
-
-		// Setup a policy manager for this policy and hookup the timer for status updates.
-		std::unique_ptr<PolicyManager> pm = std::make_unique<PolicyManager>(
-			app, std::move(initial_policies.at(n)), this);
-		pm->endpoints = initial_policy_endpoints[n];
-		connect(pm.get(), &PolicyManager::RateLimitingStarted, this, &RateLimiter::OnTimerStarted);
-
-		QLOG_DEBUG() << "PolicyManager" << n << "created for" << pm->policy->name;
-		for (int k = 0; k < pm->endpoints.length(); ++k) {
-			QLOG_DEBUG() << "PolicyManager" << n << "endpoint" << k << "is" << pm->endpoints[k];
-		};
-
-		// Add this manager to our list.
-		managers.push_back(std::move(pm));
-	};
-
-	initialized = true;
-
-	// Update the rate limit panel so the user can see the initial state of the policies.
-	DoStatusUpdate();
-
-	// Send any requests that were queued up during initialization.
-	QLOG_DEBUG() << "Dispatching" << staged_requests.size() << "staged requests.";
-	for (auto& request : staged_requests) {
-		DispatchRequest(std::move(request));
-	};
-}
-
 void RateLimiter::DoStatusUpdate()
 {
 	bool busy = false;
 	QStringList lines;
 
 	// Check to see if any of the policy managers are busy.
-	for (const auto& manager : managers) {
+	for (auto& pair : policy_mapping) {
+		auto manager = pair.second;
 		lines.push_back(manager->GetCurrentStatus());
 		lines.push_back("");
 		if (manager->IsBusy()) {
@@ -864,9 +800,9 @@ void RateLimiter::DoStatusUpdate()
 		};
 	} else {
 		// Start the timer if it's not running and someone is busy.
-		// (This should probably never happen).
+		// (This should probably never happen, but I"ve seen it).
 		if (status_updater.isActive() == false) {
-			QLOG_WARN() << "The rate limiter is busy, but the status update time was not running";
+			QLOG_WARN() << "The rate limiter is busy, but the status update timer was not running";
 			QMetaObject::invokeMethod(&status_updater, "start");
 		};
 	};
