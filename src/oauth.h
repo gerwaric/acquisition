@@ -24,11 +24,11 @@
 
 #include <QObject>
 #include <QString>
+#include <QtHttpServer/QHttpServer>
 
 #include "rapidjson/document.h"
 
 class QHttpServerRequest;
-class QHttpServer;
 class QNetworkAccessManager;
 class QNetworkReply;
 class QNetworkRequest;

@@ -20,6 +20,7 @@
 #include "application.h"
 
 #include <QNetworkAccessManager>
+#include <QtHttpServer/QHttpServer>
 
 #include "buyoutmanager.h"
 #include "sqlitedatastore.h"
