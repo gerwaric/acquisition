@@ -145,9 +145,9 @@ void MainWindow::InitializeUi() {
 	Util::PopulateBuyoutTypeComboBox(ui->buyoutTypeComboBox);
 	Util::PopulateBuyoutCurrencyComboBox(ui->buyoutCurrencyComboBox);
 
-	connect(ui->buyoutCurrencyComboBox, SIGNAL(activated(int)), this, SLOT(OnBuyoutChange()));
-	connect(ui->buyoutTypeComboBox, SIGNAL(activated(int)), this, SLOT(OnBuyoutChange()));
-	connect(ui->buyoutValueLineEdit, SIGNAL(textEdited(QString)), this, SLOT(OnBuyoutChange()));
+	connect(ui->buyoutCurrencyComboBox, &QComboBox::activated, this, &MainWindow::OnBuyoutChange);
+	connect(ui->buyoutTypeComboBox, &QComboBox::activated, this, &MainWindow::OnBuyoutChange);
+	connect(ui->buyoutValueLineEdit, &QLineEdit::textEdited, this, &MainWindow::OnBuyoutChange);
 
 	ui->viewComboBox->addItems({ "By Tab", "By Item" });
 	connect(ui->viewComboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::activated), this, [&](int mode) {
@@ -194,15 +194,15 @@ void MainWindow::InitializeUi() {
 	ui->treeView->setSelectionMode(QAbstractItemView::ExtendedSelection);
 	ui->treeView->setSortingEnabled(true);
 
-	context_menu_.addAction("Refresh Selected", this, SLOT(OnRefreshSelected()));
-	context_menu_.addAction("Check Selected", this, SLOT(OnCheckSelected()));
-	context_menu_.addAction("Uncheck Selected", this, SLOT(OnUncheckSelected()));
+	context_menu_.addAction("Refresh Selected", this, &MainWindow::OnRefreshSelected);
+	context_menu_.addAction("Check Selected", this, &MainWindow::OnCheckSelected);
+	context_menu_.addAction("Uncheck Selected", this, &MainWindow::OnUncheckSelected);
 	context_menu_.addSeparator();
-	context_menu_.addAction("Check All", this, SLOT(OnCheckAll()));
-	context_menu_.addAction("Uncheck All", this, SLOT(OnUncheckAll()));
+	context_menu_.addAction("Check All", this, &MainWindow::OnCheckAll);
+	context_menu_.addAction("Uncheck All", this, &MainWindow::OnUncheckAll);
 	context_menu_.addSeparator();
-	context_menu_.addAction("Expand All", this, SLOT(OnExpandAll()));
-	context_menu_.addAction("Collapse All", this, SLOT(OnCollapseAll()));
+	context_menu_.addAction("Expand All", this, &MainWindow::OnExpandAll);
+	context_menu_.addAction("Collapse All", this, &MainWindow::OnCollapseAll);
 
 	connect(ui->treeView, &QTreeView::customContextMenuRequested, this, [&](const QPoint& pos) {
 		context_menu_.popup(ui->treeView->viewport()->mapToGlobal(pos));
@@ -224,8 +224,8 @@ void MainWindow::InitializeUi() {
 		UpdateChecker::AskUserToUpdate(this);
 		});
 	// resize columns when a tab is expanded/collapsed
-	connect(ui->treeView, SIGNAL(collapsed(const QModelIndex&)), this, SLOT(ResizeTreeColumns()));
-	connect(ui->treeView, SIGNAL(expanded(const QModelIndex&)), this, SLOT(ResizeTreeColumns()));
+	connect(ui->treeView, &QTreeView::collapsed, this, &MainWindow::ResizeTreeColumns);
+	connect(ui->treeView, &QTreeView::expanded, this, &MainWindow::ResizeTreeColumns);
 
 	ui->propertiesLabel->setStyleSheet("QLabel { background-color: black; color: #7f7f7f; padding: 10px; font-size: 17px; }");
 	ui->propertiesLabel->setFont(QFont("Fontin SmallCaps"));
@@ -441,7 +441,7 @@ bool MainWindow::eventFilter(QObject* o, QEvent* e) {
 				class TabRightClickMenu :public QMenu {};
 				TabRightClickMenu rcMenu;
 
-				rcMenu.addAction("Rename Tab", this, SLOT(OnRenameTabClicked()));
+				rcMenu.addAction("Rename Tab", this, &MainWindow::OnRenameTabClicked);
 				rcMenu.exec(QCursor::pos());
 			}
 

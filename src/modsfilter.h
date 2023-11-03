@@ -68,6 +68,7 @@ class ModsFilter;
 
 class ModsFilterSignalHandler : public QObject {
 	Q_OBJECT
+	friend class ModsFilter;
 public:
 	ModsFilterSignalHandler(ModsFilter& parent) :
 		parent_(parent)

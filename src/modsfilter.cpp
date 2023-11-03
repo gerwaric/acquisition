@@ -24,6 +24,7 @@
 #include <QObject>
 #include <QPushButton>
 
+#include "mainwindow.h"
 #include "modlist.h"
 #include "porting.h"
 
@@ -78,10 +79,10 @@ void SelectedMod::AddToLayout(QGridLayout* layout, int index) {
 }
 
 void SelectedMod::CreateSignalMappings(QSignalMapper* signal_mapper, int index) {
-	QObject::connect(mod_select_.get(), SIGNAL(currentIndexChanged(int)), signal_mapper, SLOT(map()));
-	QObject::connect(min_text_.get(), SIGNAL(textEdited(const QString&)), signal_mapper, SLOT(map()));
-	QObject::connect(max_text_.get(), SIGNAL(textEdited(const QString&)), signal_mapper, SLOT(map()));
-	QObject::connect(delete_button_.get(), SIGNAL(clicked()), signal_mapper, SLOT(map()));
+	QObject::connect(mod_select_.get(), &QComboBox::currentIndexChanged, signal_mapper, qOverload<>(&QSignalMapper::map));
+	QObject::connect(min_text_.get(), &QLineEdit::textEdited, signal_mapper, qOverload<>(&QSignalMapper::map));
+	QObject::connect(max_text_.get(), &QLineEdit::textEdited, signal_mapper, qOverload<>(&QSignalMapper::map));
+	QObject::connect(delete_button_.get(), &QPushButton::clicked, signal_mapper, qOverload<>(&QSignalMapper::map));
 
 	signal_mapper->setMapping(mod_select_.get(), index + 1);
 	signal_mapper->setMapping(min_text_.get(), index + 1);
@@ -101,8 +102,9 @@ ModsFilter::ModsFilter(QLayout* parent) :
 	signal_handler_(*this)
 {
 	Initialize(parent);
-	QObject::connect(&signal_handler_, SIGNAL(SearchFormChanged()),
-		parent->parentWidget()->window(), SLOT(OnDelayedSearchFormChange()));
+	MainWindow* main_window = qobject_cast<MainWindow*>(parent->parentWidget()->window());
+	QObject::connect(&signal_handler_, &ModsFilterSignalHandler::SearchFormChanged,
+		main_window, &MainWindow::OnDelayedSearchFormChange);
 }
 
 void ModsFilter::FromForm(FilterData* data) {
@@ -143,7 +145,7 @@ bool ModsFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
 void ModsFilter::Initialize(QLayout* parent) {
 	layout_ = std::make_unique<QGridLayout>();
 	add_button_ = std::make_unique<QPushButton>("Add mod");
-	QObject::connect(add_button_.get(), SIGNAL(clicked()), &signal_handler_, SLOT(OnAddButtonClicked()));
+	QObject::connect(add_button_.get(), &QPushButton::clicked, &signal_handler_, &ModsFilterSignalHandler::OnAddButtonClicked);
 	Refill();
 
 	auto widget = new QWidget;
@@ -151,7 +153,7 @@ void ModsFilter::Initialize(QLayout* parent) {
 	widget->setLayout(layout_.get());
 	parent->addWidget(widget);
 
-	QObject::connect(&signal_mapper_, SIGNAL(mappedInt(int)), &signal_handler_, SLOT(OnModChanged(int)));
+	QObject::connect(&signal_mapper_, &QSignalMapper::mappedInt, &signal_handler_, &ModsFilterSignalHandler::OnModChanged);
 }
 
 void ModsFilter::AddMod() {

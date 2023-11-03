@@ -6,7 +6,7 @@ QReplyTimeout::QReplyTimeout(QNetworkReply* reply, const int timeout) :
 	QObject(reply)
 {
 	if (reply) {
-		QTimer::singleShot(timeout, this, SLOT(timeout()));
+		QTimer::singleShot(timeout, this, &QReplyTimeout::timeout);
 	}
 }
 

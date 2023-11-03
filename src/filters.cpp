@@ -30,6 +30,7 @@
 #include "buyoutmanager.h"
 #include "filters.h"
 #include "itemconstants.h"
+#include "mainwindow.h"
 #include "util.h"
 #include "porting.h"
 
@@ -90,6 +91,7 @@ bool NameSearchFilter::Matches(const std::shared_ptr<Item>& item, FilterData* da
 }
 
 void NameSearchFilter::Initialize(QLayout* parent) {
+	MainWindow* main_window = qobject_cast<MainWindow*>(parent->parentWidget()->window());
 	QWidget* group = new QWidget;
     QHBoxLayout* layout = new QHBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
@@ -101,8 +103,7 @@ void NameSearchFilter::Initialize(QLayout* parent) {
 	layout->addWidget(textbox_);
 	group->setLayout(layout);
 	parent->addWidget(group);
-	QObject::connect(textbox_, SIGNAL(textEdited(const QString&)),
-		parent->parentWidget()->window(), SLOT(OnDelayedSearchFormChange()));
+	QObject::connect(textbox_, &QLineEdit::textEdited, main_window, &MainWindow::OnDelayedSearchFormChange);
 }
 
 CategorySearchFilter::CategorySearchFilter(QLayout* parent, QAbstractListModel* model) :
@@ -131,6 +132,7 @@ bool CategorySearchFilter::Matches(const std::shared_ptr<Item>& item, FilterData
 }
 
 void CategorySearchFilter::Initialize(QLayout* parent) {
+	MainWindow* main_window = qobject_cast<MainWindow*>(parent->parentWidget()->window());
 	QWidget* group = new QWidget;
 	QHBoxLayout* layout = new QHBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
@@ -150,8 +152,7 @@ void CategorySearchFilter::Initialize(QLayout* parent) {
 	layout->addWidget(combobox_);
 	group->setLayout(layout);
 	parent->addWidget(group);
-	QObject::connect(combobox_, SIGNAL(currentIndexChanged(int)),
-		parent->parentWidget()->window(), SLOT(OnDelayedSearchFormChange()));
+	QObject::connect(combobox_, &QComboBox::currentIndexChanged, main_window, &MainWindow::OnDelayedSearchFormChange);
 }
 
 RaritySearchFilter::RaritySearchFilter(QLayout* parent, QAbstractListModel* model) :
@@ -195,6 +196,7 @@ bool RaritySearchFilter::Matches(const std::shared_ptr<Item>& item, FilterData* 
 }
 
 void RaritySearchFilter::Initialize(QLayout* parent) {
+	MainWindow* main_window = qobject_cast<MainWindow*>(parent->parentWidget()->window());
 	QWidget* group = new QWidget;
 	QHBoxLayout* layout = new QHBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
@@ -209,8 +211,7 @@ void RaritySearchFilter::Initialize(QLayout* parent) {
 	layout->addWidget(combobox_);
 	group->setLayout(layout);
 	parent->addWidget(group);
-	QObject::connect(combobox_, SIGNAL(currentIndexChanged(int)),
-		parent->parentWidget()->window(), SLOT(OnDelayedSearchFormChange()));
+	QObject::connect(combobox_, &QComboBox::currentIndexChanged, main_window, &MainWindow::OnDelayedSearchFormChange);
 }
 
 MinMaxFilter::MinMaxFilter(QLayout* parent, std::string property) :
@@ -228,6 +229,7 @@ MinMaxFilter::MinMaxFilter(QLayout* parent, std::string property, std::string ca
 }
 
 void MinMaxFilter::Initialize(QLayout* parent) {
+	MainWindow* main_window = qobject_cast<MainWindow*>(parent->parentWidget()->window());
 	QWidget* group = new QWidget;
 	QHBoxLayout* layout = new QHBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
@@ -245,10 +247,8 @@ void MinMaxFilter::Initialize(QLayout* parent) {
 	textbox_min_->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_MIN_MAX));
 	textbox_max_->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_MIN_MAX));
 	label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
-	QObject::connect(textbox_min_, SIGNAL(textEdited(const QString&)),
-		parent->parentWidget()->window(), SLOT(OnDelayedSearchFormChange()));
-	QObject::connect(textbox_max_, SIGNAL(textEdited(const QString&)),
-		parent->parentWidget()->window(), SLOT(OnDelayedSearchFormChange()));
+	QObject::connect(textbox_min_, &QLineEdit::textEdited, main_window, &MainWindow::OnDelayedSearchFormChange);
+	QObject::connect(textbox_max_, &QLineEdit::textEdited, main_window, &MainWindow::OnDelayedSearchFormChange);
 }
 
 void MinMaxFilter::FromForm(FilterData* data) {
@@ -332,6 +332,7 @@ SocketsColorsFilter::SocketsColorsFilter(QLayout* parent) {
 // TODO(xyz): ugh, a lot of copypasta below, perhaps this could be done
 // in a nice way?
 void SocketsColorsFilter::Initialize(QLayout* parent, const char* caption) {
+	MainWindow* main_window = qobject_cast<MainWindow*>(parent->parentWidget()->window());
 	QWidget* group = new QWidget;
 	QHBoxLayout* layout = new QHBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
@@ -353,12 +354,9 @@ void SocketsColorsFilter::Initialize(QLayout* parent, const char* caption) {
 	textbox_g_->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_RGB));
 	textbox_b_->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_RGB));
 	label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
-	QObject::connect(textbox_r_, SIGNAL(textEdited(const QString&)),
-		parent->parentWidget()->window(), SLOT(OnSearchFormChange()));
-	QObject::connect(textbox_g_, SIGNAL(textEdited(const QString&)),
-		parent->parentWidget()->window(), SLOT(OnSearchFormChange()));
-	QObject::connect(textbox_b_, SIGNAL(textEdited(const QString&)),
-		parent->parentWidget()->window(), SLOT(OnSearchFormChange()));
+	QObject::connect(textbox_r_, &QLineEdit::textEdited, main_window, &MainWindow::OnSearchFormChange);
+	QObject::connect(textbox_g_, &QLineEdit::textEdited, main_window, &MainWindow::OnSearchFormChange);
+	QObject::connect(textbox_b_, &QLineEdit::textEdited, main_window, &MainWindow::OnSearchFormChange);
 }
 
 void SocketsColorsFilter::FromForm(FilterData* data) {
@@ -434,6 +432,7 @@ BooleanFilter::BooleanFilter(QLayout* parent, std::string property, std::string 
 }
 
 void BooleanFilter::Initialize(QLayout* parent) {
+	MainWindow* main_window = qobject_cast<MainWindow*>(parent->parentWidget()->window());
 	QWidget* group = new QWidget;
 	QHBoxLayout* layout = new QHBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
@@ -446,8 +445,7 @@ void BooleanFilter::Initialize(QLayout* parent) {
 	parent->addWidget(group);
 	label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_BOOL_LABEL));
 
-	QObject::connect(checkbox_, SIGNAL(clicked(bool)),
-		parent->parentWidget()->window(), SLOT(OnSearchFormChange()));
+	QObject::connect(checkbox_, &QCheckBox::clicked, main_window, &MainWindow::OnSearchFormChange);
 }
 
 void BooleanFilter::FromForm(FilterData* data) {
