@@ -37,14 +37,13 @@
 #include "application.h"
 #include "filesystem.h"
 #include "mainwindow.h"
+#include "network_info.h"
 #include "replytimeout.h"
 #include "selfdestructingreply.h"
 #include "util.h"
-#include "version.h"
-#include "network_info.h"
-#include "version_defines.h"
 #include "updatechecker.h"
 #include "oauth.h"
+#include "version_defines.h"
 
 const char* POE_LEAGUE_LIST_URL = "https://api.pathofexile.com/leagues?type=main&compact=1";
 const char* POE_LOGIN_URL = "https://www.pathofexile.com/login";
@@ -88,7 +87,7 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 	ui->setupUi(this);
 	ui->errorLabel->hide();
 	ui->errorLabel->setStyleSheet("QLabel { color : red; }");
-	setWindowTitle(QString("Login [") + VERSION_NAME + "]");
+    setWindowTitle(QString("Login [") + APP_VERSION_STRING + "]");
 #if defined(Q_OS_LINUX)
 	setWindowIcon(QIcon(":/icons/assets/icon.svg"));
 #endif
@@ -270,7 +269,7 @@ void LoginDialog::OnOAuthAccessGranted(const AccessToken& token) {
 	mw = new MainWindow(std::move(app_));
 	mw->setWindowTitle(
 		QString("Acquisition [%1] - %2 [%3]")
-		.arg(VERSION_NAME)
+        .arg(APP_VERSION_STRING)
 		.arg(league.c_str())
 		.arg(account));
 	mw->show();
@@ -307,7 +306,7 @@ void LoginDialog::OnMainPageFinished() {
 	mw = new MainWindow(std::move(app_));
 	mw->setWindowTitle(
 		QString("Acquisition [%1] - %2 [%3]")
-		.arg(VERSION_NAME)
+        .arg(APP_VERSION_STRING)
 		.arg(league.c_str())
 		.arg(account));
 	mw->show();

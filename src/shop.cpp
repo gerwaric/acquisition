@@ -33,11 +33,11 @@
 #include "buyoutmanager.h"
 #include "datastore.h"
 #include "itemsmanager.h"
+#include "network_info.h"
 #include "porting.h"
 #include "util.h"
 #include "mainwindow.h"
 #include "replytimeout.h"
-#include "network_info.h"
 
 const std::string kPoeEditThread = "https://www.pathofexile.com/forum/edit-thread/";
 const std::string kShopTemplateItems = "[items]";

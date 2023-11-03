@@ -1,10 +1,24 @@
+# First check the version of Qt.
+lessThan(QT_MAJOR_VERSION, 6):error("Qt 6.5 or newer is required.")
+!versionAtLeast(QT_VERSION, 6.5):error("Qt 6.5 or newer is required.");
+
 TARGET = acquisition
 TEMPLATE = app
+VERSION = 0.10.0
+
+# These defines are checked against the contents of version_defines.h at build time.
+DEFINES += "MY_TARGET=\\\"$${TARGET}\\\""
+DEFINES += "MY_VERSION=\\\"$${VERSION}\\\""
 
 QT += core gui network testlib widgets httpserver websockets
 
 win32 {
-	QT.testlib.CONFIG -= console
+        QT.testlib.CONFIG -= console
+	# Define information for the window version resource
+	QMAKE_TARGET_PRODUCT = Acquisition
+	QMAKE_TARGET_DESCRIPTION = "Stash management for Path of Exile"
+	QMAKE_TARGET_COPYRIGHT = "Copyright © 2014 Ilya Zhuravlev and 2023 Gerwaric"
+	RC_ICONS = assets/icon.ico
 }
 
 macx {
@@ -19,7 +33,7 @@ unix:!macx {
 
 include(deps/QsLog/QsLog.pri)
 
-INCLUDEPATH += src deps deps/boost-headers-only
+INCLUDEPATH += src deps deps/boost-headers-only test
 
 SOURCES += \
 	deps/sqlite/sqlite3.c \
@@ -48,7 +62,6 @@ SOURCES += \
 	src/memorydatastore.cpp \
 	src/modlist.cpp \
 	src/modsfilter.cpp \
-	src/network_info.cpp \
 	src/oauth.cpp \
 	src/porting.cpp \
 	src/ratelimit.cpp \
@@ -58,7 +71,6 @@ SOURCES += \
 	src/shop.cpp \
 	src/updatechecker.cpp \
 	src/util.cpp \
-	src/version.cpp \
 	src/verticalscrollarea.cpp \
 	test/testdata.cpp \
 	test/testitem.cpp \
@@ -107,7 +119,6 @@ HEADERS += \
 	src/shop.h \
 	src/updatechecker.h \
 	src/util.h \
-	src/version.h \
 	src/version_defines.h \
 	src/verticalscrollarea.h \
 	test/testdata.h \
@@ -127,4 +138,3 @@ RESOURCES += resources.qrc \
 	deps/qdarkstyle/dark/darkstyle.qrc \
 	deps/qdarkstyle/light/lightstyle.qrc
 
-RC_FILE = resources.rc

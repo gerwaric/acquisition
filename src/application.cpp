@@ -30,11 +30,10 @@
 #include "porting.h"
 #include "shop.h"
 #include "QsLog.h"
-#include "version.h"
-#include "version_defines.h"
 #include "ratelimit.h"
 #include "updatechecker.h"
 #include "oauth.h"
+#include "version_defines.h"
 
 using RateLimit::RateLimiter;
 
@@ -101,7 +100,7 @@ void Application::SaveDbOnNewVersion() {
 	bool first_start = data_->Get("tabs", "first_time") == "first_time" &&
 		data_->GetTabs(ItemLocationType::STASH).length() == 0 &&
 		data_->GetTabs(ItemLocationType::CHARACTER).length() == 0;
-	if (version != VERSION_NAME && !first_start) {
+    if (version != APP_VERSION_STRING && !first_start) {
 		QString data_path = Filesystem::UserDir().c_str() + QString("/data");
 		QString save_path = data_path + "_save_" + version.c_str();
 		QDir src(data_path);
@@ -113,6 +112,6 @@ void Application::SaveDbOnNewVersion() {
 		}
 		QLOG_INFO() << "I've created the folder " << save_path << "in your acquisition folder, containing a save of all your data";
 	}
-	data_->Set("version", VERSION_NAME);
+    data_->Set("version", APP_VERSION_STRING);
 
 }

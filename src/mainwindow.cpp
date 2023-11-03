@@ -61,8 +61,8 @@
 #include "shop.h"
 #include "updatechecker.h"
 #include "util.h"
+#include "version_defines.h"
 #include "verticalscrollarea.h"
-#include "version.h"
 
 const std::string POE_WEBCDN = "http://webcdn.pathofexile.com"; // Should be updated to https://web.poecdn.com ?
 
