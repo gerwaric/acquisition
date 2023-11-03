@@ -45,11 +45,18 @@ const QDateTime EXPIRATION_DATE = TRIAL_VERSION ? BUILD_DATE.addDays(TRIAL_EXPIR
 Application::Application(bool mock_data) :
 	test_mode_(mock_data)
 {
-	if (test_mode_ == false) {
-		network_manager_ = std::make_unique<QNetworkAccessManager>(this);
-		update_checker_ = std::make_unique<UpdateChecker>(*network_manager_, this);
-		oauth_manager_ = std::make_unique<OAuthManager>(*network_manager_, this);
+	if (test_mode_) {
+		global_data_ = std::make_unique<MemoryDataStore>();
+		return;
 	};
+
+	network_manager_ = std::make_unique<QNetworkAccessManager>(this);
+	update_checker_ = std::make_unique<UpdateChecker>(*network_manager_, this);
+	oauth_manager_ = std::make_unique<OAuthManager>(*network_manager_, this);
+
+	// The global datastore holds things like the selected theme.
+	std::string global_data_file = SqliteDataStore::MakeFilename("", "");
+	global_data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/data/" + global_data_file);
 }
 
 Application::~Application() {
@@ -101,7 +108,7 @@ void Application::SaveDbOnNewVersion() {
 	bool first_start = data_->Get("tabs", "first_time") == "first_time" &&
 		data_->GetTabs(ItemLocationType::STASH).length() == 0 &&
 		data_->GetTabs(ItemLocationType::CHARACTER).length() == 0;
-    if (version != APP_VERSION_STRING && !first_start) {
+	if (version != APP_VERSION_STRING && !first_start) {
 		QString data_path = Filesystem::UserDir().c_str() + QString("/data");
 		QString save_path = data_path + "_save_" + version.c_str();
 		QDir src(data_path);
@@ -113,6 +120,6 @@ void Application::SaveDbOnNewVersion() {
 		}
 		QLOG_INFO() << "I've created the folder " << save_path << "in your acquisition folder, containing a save of all your data";
 	}
-    data_->Set("version", APP_VERSION_STRING);
+	data_->Set("version", APP_VERSION_STRING);
 
 }
