@@ -24,6 +24,7 @@ win32 {
 macx {
 	# Needed to use boost-headers-only 1.75 with Xcode 15.0.1
 	DEFINES += _LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION
+	ICON = assets/icon.icns
 }
 
 unix:!macx {
