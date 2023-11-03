@@ -464,7 +464,9 @@ void PolicyManager::SendRequest() {
 	// from when the request was initially queued.
 	QNetworkRequest request = active_request->network_request;
 	if (policy->name != "<none>") {
-		app.oauth_manager().addAuthorization(request);
+        if (app.oauth_manager().access_token() != nullptr) {
+            app.oauth_manager().addAuthorization(request);
+        };
 	};
 
 	// Finally, send the request and note the time.
