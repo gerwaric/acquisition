@@ -58,7 +58,7 @@ LogPanel::LogPanel(MainWindow* window, Ui::MainWindow* ui) :
 	status_button_->setFlat(true);
 	window->statusBar()->addPermanentWidget(status_button_);
 	UpdateStatusLabel();
-	QObject::connect(status_button_, SIGNAL(clicked()), &signal_handler_, SLOT(OnStatusLabelClicked()));
+	QObject::connect(status_button_, &QPushButton::clicked, &signal_handler_, &LogPanelSignalHandler::OnStatusLabelClicked);
 
 	ui->mainLayout->addWidget(output_);
 }

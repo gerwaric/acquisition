@@ -100,8 +100,8 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 	QLOG_DEBUG() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
 	QLOG_DEBUG() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
 
-	connect(ui->proxyCheckBox, SIGNAL(clicked(bool)), this, SLOT(OnProxyCheckBoxClicked(bool)));
-	connect(ui->loginButton, SIGNAL(clicked()), this, SLOT(OnLoginButtonClicked()));
+	connect(ui->proxyCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnProxyCheckBoxClicked);
+	connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
 	connect(&app_->update_checker(), &UpdateChecker::UpdateAvailable, this, [&]() {
 		// Only annoy the user once at the login dialog window, even if it's opened for more than an hour
 		if (asked_to_update_)
@@ -225,7 +225,7 @@ void LoginDialog::FinishLogin(QNetworkReply* reply) {
 	QNetworkRequest main_page_request = QNetworkRequest(QUrl(POE_MY_ACCOUNT));
 	main_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	QNetworkReply* main_page = app_->network_manager().get(main_page_request);
-	connect(main_page, SIGNAL(finished()), this, SLOT(OnMainPageFinished()));
+	connect(main_page, &QNetworkReply::finished, this, &LoginDialog::OnMainPageFinished);
 }
 
 void LoginDialog::OnLoggedIn() {
@@ -286,7 +286,7 @@ void LoginDialog::LoginWithCookie(const QString& cookie) {
 	QNetworkRequest login_page_request = QNetworkRequest(QUrl(POE_LOGIN_CHECK_URL));
 	login_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	QNetworkReply* login_page = app_->network_manager().get(login_page_request);
-	connect(login_page, SIGNAL(finished()), this, SLOT(LoggedInCheck()));
+	connect(login_page, &QNetworkReply::finished, this, &LoginDialog::LoggedInCheck);
 }
 
 void LoginDialog::OnMainPageFinished() {

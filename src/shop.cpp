@@ -211,7 +211,7 @@ void Shop::SubmitSingleShop() {
 		request.setRawHeader("Cache-Control", "max-age=0");
 		QNetworkReply* fetched = app_.network_manager().get(request);
 		new QReplyTimeout(fetched, kEditThreadTimeout);
-		connect(fetched, SIGNAL(finished()), this, SLOT(OnEditPageFinished()));
+		connect(fetched, &QNetworkReply::finished, this, &Shop::OnEditPageFinished);
 	}
 	emit StatusUpdate(status);
 }

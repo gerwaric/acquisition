@@ -140,7 +140,7 @@ void MainWindow::InitializeUi() {
 	tab_bar_->setExpanding(false);
 	ui->mainLayout->insertWidget(0, tab_bar_);
 	tab_bar_->addTab("+");
-	connect(tab_bar_, SIGNAL(currentChanged(int)), this, SLOT(OnTabChange(int)));
+	connect(tab_bar_, &QTabBar::currentChanged, this, &MainWindow::OnTabChange);
 
 	Util::PopulateBuyoutTypeComboBox(ui->buyoutTypeComboBox);
 	Util::PopulateBuyoutCurrencyComboBox(ui->buyoutCurrencyComboBox);
@@ -503,8 +503,7 @@ void MainWindow::ModelViewRefresh() {
 
 	ui->viewComboBox->setCurrentIndex(static_cast<int>(current_search_->GetViewMode()));
 
-	connect(ui->treeView->selectionModel(), SIGNAL(currentChanged(const QModelIndex&, const QModelIndex&)),
-		this, SLOT(OnTreeChange(const QModelIndex&, const QModelIndex&)));
+	connect(ui->treeView->selectionModel(), &QItemSelectionModel::currentChanged, this, &MainWindow::OnTreeChange);
 
 	ui->treeView->reset();
 	if (current_search_->IsAnyFilterActive() || current_search_->GetViewMode() == Search::ByItem) {
