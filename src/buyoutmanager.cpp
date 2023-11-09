@@ -326,14 +326,14 @@ std::string BuyoutManager::Serialize(const std::map<std::string, Buyout>& buyout
 		rapidjson::Value item(rapidjson::kObjectType);
 		item.AddMember("value", buyout.value, alloc);
 
-        if (!buyout.last_update.isNull()) {
-            const uint64_t last_update = buyout.last_update.currentSecsSinceEpoch();
-            item.AddMember("last_update", last_update, alloc);
-        } else {
-            // If last_update is null, set as the actual time
-            const uint64_t last_update = QDateTime::currentDateTime().currentSecsSinceEpoch();
-            item.AddMember("last_update", last_update, alloc);
-        }
+		if (!buyout.last_update.isNull()) {
+			const uint64_t last_update = buyout.last_update.currentSecsSinceEpoch();
+			item.AddMember("last_update", last_update, alloc);
+		} else {
+			// If last_update is null, set as the actual time
+			const uint64_t last_update = QDateTime::currentDateTime().currentSecsSinceEpoch();
+			item.AddMember("last_update", last_update, alloc);
+		}
 
 
 		Util::RapidjsonAddConstString(&item, "type", buyout.BuyoutTypeAsTag(), alloc);
@@ -373,7 +373,7 @@ void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, B
 		bo.type = Buyout::TagAsBuyoutType(object["type"].GetString());
 		bo.value = object["value"].GetDouble();
 		if (object.HasMember("last_update")) {
-            bo.last_update = QDateTime::fromSecsSinceEpoch(object["last_update"].GetInt64());
+			bo.last_update = QDateTime::fromSecsSinceEpoch(object["last_update"].GetInt64());
 			const QDateTime now = QDateTime::currentDateTime();
 			// The following block of code is necessary because of a bug that was introduced with the 
 			// port to Qt 6. The issue was that the buyout was serializing to msecs instead of seconds.
