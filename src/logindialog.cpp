@@ -295,9 +295,11 @@ void LoginDialog::LoggedInCheck() {
 }
 
 void LoginDialog::LoginWithOAuth() {
-	connect(&app_->oauth_manager(), &OAuthManager::accessGranted,
-		this, &LoginDialog::OnOAuthAccessGranted);
-	app_->oauth_manager().requestAccess();
+	DisplayError("OAuth is not fully implemented yet.", true);
+	return;
+	//connect(&app_->oauth_manager(), &OAuthManager::accessGranted,
+	//	this, &LoginDialog::OnOAuthAccessGranted);
+	//app_->oauth_manager().requestAccess();
 }
 
 void LoginDialog::OnOAuthAccessGranted(const AccessToken& token) {
