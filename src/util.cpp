@@ -38,6 +38,8 @@
 #include <cmath>
 #include <regex>
 
+#include "QsLog.h"
+
 #include "buyoutmanager.h"
 #include "porting.h"
 #include <boost/algorithm/string/join.hpp>
