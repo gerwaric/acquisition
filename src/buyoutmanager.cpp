@@ -356,6 +356,9 @@ void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, B
 	if (data.empty())
 		return;
 
+	// The the comment below about the bug introduced in v0.9.10
+	bool bug_detected = false;
+
 	rapidjson::Document doc;
 	if (doc.Parse(data.c_str()).HasParseError()) {
 		QLOG_ERROR() << "Error while parsing buyouts.";
@@ -375,17 +378,15 @@ void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, B
 		if (object.HasMember("last_update")) {
 			bo.last_update = QDateTime::fromSecsSinceEpoch(object["last_update"].GetInt64());
 			const QDateTime now = QDateTime::currentDateTime();
-			// The following block of code is necessary because of a bug that was introduced with the 
+			// The following block of code is necessary because of a bug that was introduced with the
 			// port to Qt 6. The issue was that the buyout was serializing to msecs instead of seconds.
 			// This code attemps to detect and fix that issue. It should be removed in a future version
 			// once nobody is using the bugged version (v0.9.10) any more.
 			if (bo.last_update > now) {
-				bo.last_update = QDateTime::fromSecsSinceEpoch(bo.last_update.currentSecsSinceEpoch() / 1000);
-				if (bo.last_update > now) {
-					QLOG_WARN() << "Detected v0.9.10 buyout serialization bug. Unable to fix. Resetting to current date and time.";
-					bo.last_update = now;
-				} else {
-					QLOG_WARN() << "Detected v0.9.10 buyout serialization bug. It seems to have been fixable.";
+				bo.last_update = QDateTime::currentDateTime();
+				if (bug_detected == false) {
+					QLOG_WARN() << "Detected v0.9.10 buyout serialization bug. Resetting buyout timestamps to current date and time.";
+					bug_detected = true;
 				};
 			};
 		}
