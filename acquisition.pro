@@ -10,10 +10,10 @@ VERSION = 0.10.1
 DEFINES += "MY_TARGET=\\\"$${TARGET}\\\""
 DEFINES += "MY_VERSION=\\\"$${VERSION}\\\""
 
-QT += core gui network testlib widgets httpserver websockets
+QT += core gui network widgets httpserver websockets testlib
 
 win32 {
-        QT.testlib.CONFIG -= console
+	QT.testlib.CONFIG -= console
 	# Define information for the window version resource
 	QMAKE_TARGET_PRODUCT = Acquisition
 	QMAKE_TARGET_DESCRIPTION = "Stash management for Path of Exile"
@@ -28,7 +28,7 @@ macx {
 }
 
 unix:!macx {
-        # This may need troubleshooting
+	# This may need troubleshooting
 	LIBS += -ldl -L"/usr/local/ssl/lib" -l:libcrypto.a -l:libssl.a
 }
 
@@ -43,14 +43,13 @@ SOURCES += \
 	src/buyoutmanager.cpp \
 	src/column.cpp \
 	src/currencymanager.cpp \
-	src/itemcategories.cpp \
-	src/sqlitedatastore.cpp \
 	src/filesystem.cpp \
 	src/filters.cpp \
 	src/flowlayout.cpp \
 	src/imagecache.cpp \
 	src/influence.cpp \
 	src/item.cpp \
+	src/itemcategories.cpp \
 	src/itemlocation.cpp \
 	src/items_model.cpp \
 	src/itemsmanager.cpp \
@@ -69,6 +68,7 @@ SOURCES += \
 	src/ratelimitpanel.cpp \
 	src/search.cpp \
 	src/shop.cpp \
+	src/sqlitedatastore.cpp \
 	src/updatechecker.cpp \
 	src/util.cpp \
 	src/verticalscrollarea.cpp \
@@ -87,14 +87,13 @@ HEADERS += \
 	src/column.h \
 	src/currencymanager.h \
 	src/datastore.h \
-	src/itemcategories.h \
-	src/sqlitedatastore.h \
 	src/filesystem.h \
 	src/filters.h \
 	src/flowlayout.h \
 	src/imagecache.h \
 	src/influence.h \
 	src/item.h \
+	src/itemcategories.h \
 	src/itemconstants.h \
 	src/itemlocation.h \
 	src/items_model.h \
@@ -110,13 +109,14 @@ HEADERS += \
 	src/network_info.h \
 	src/oauth.h \
 	src/porting.h \
+	src/rapidjson_util.h \
 	src/ratelimit.h \
 	src/ratelimitpanel.h \
-	src/rapidjson_util.h \
 	src/replytimeout.h \
 	src/search.h \
 	src/selfdestructingreply.h \
 	src/shop.h \
+	src/sqlitedatastore.h \
 	src/updatechecker.h \
 	src/util.h \
 	src/version_defines.h \
@@ -129,8 +129,8 @@ HEADERS += \
 	test/testutil.h
 
 FORMS += \
-	forms/mainwindow.ui \
-	forms/logindialog.ui
+	forms/logindialog.ui \
+	forms/mainwindow.ui
 
 UI_DIR = ui
 
@@ -139,4 +139,3 @@ DEPENDPATH *= $${INCLUDEPATH}
 RESOURCES += resources.qrc \
 	deps/qdarkstyle/dark/darkstyle.qrc \
 	deps/qdarkstyle/light/lightstyle.qrc
-
