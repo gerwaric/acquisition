@@ -1,8 +1,5 @@
 #pragma once
 
-#ifndef INFLUENCE_H
-#define INFLUENCE_H
-
 #include <QString>
 #include <QIcon>
 
@@ -40,5 +37,3 @@ public:
 private:
 	Influence() {}
 };
-
-#endif // INFLUENCE_H

@@ -19,9 +19,6 @@
 
 #pragma once
 
-#ifndef H_RATELIMIT_H
-#define H_RATELIMIT_H
-
 #include <boost/circular_buffer.hpp>
 #include <queue>
 #include <unordered_map>
@@ -387,5 +384,3 @@ namespace RateLimit
 		void DoStatusUpdate();
 	};
 }
-
-#endif

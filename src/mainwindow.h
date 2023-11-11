@@ -19,9 +19,6 @@
 
 #pragma once
 
-#ifndef ACQUISITION_MAINWINDOW_H
-#define ACQUISITION_MAINWINDOW_H
-
 #include <memory>
 #include <QLabel>
 #include <QMainWindow>
@@ -168,5 +165,3 @@ private:
 
 	int rightClickedTabIndex = -1;
 };
-
-#endif

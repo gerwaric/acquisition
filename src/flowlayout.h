@@ -3,9 +3,6 @@
 
 #pragma once
 
-#ifndef FLOWLAYOUT_H
-#define FLOWLAYOUT_H
-
 #include <QLayout>
 #include <QRect>
 #include <QStyle>
@@ -38,5 +35,3 @@ private:
     int m_hSpace;
     int m_vSpace;
 };
-
-#endif // FLOWLAYOUT_H

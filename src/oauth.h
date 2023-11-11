@@ -19,9 +19,6 @@
 
 #pragma once
 
-#ifndef ACQUISITION_OAUTH_H
-#define ACQUISITION_OAUTH_H
-
 #include <QObject>
 #include <QString>
 #include <QtHttpServer/QHttpServer>
@@ -67,5 +64,3 @@ private:
 	QByteArray code_verifier_;
 	QString redirect_uri_;
 };
-
-#endif
