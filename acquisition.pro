@@ -28,8 +28,11 @@ macx {
 }
 
 unix:!macx {
-	# This may need troubleshooting
-	LIBS += -ldl -L"/usr/local/ssl/lib" -l:libcrypto.a -l:libssl.a
+       # If your system supports OpenSSL 3 out of the box, you
+       # probably don't need the -L here, otherwise you will
+       # have to install or build OpenSSL yourself and specify
+       # the library path here.
+       LIBS += -ldl -L~/openssl-3.1.4/lib64/ -lcrypto -lssl
 }
 
 include(deps/QsLog/QsLog.pri)

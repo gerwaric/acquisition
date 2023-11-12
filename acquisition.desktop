@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Acquisition
+Exec=acquisition
+Icon=default
+Comment=Offline stash tab management for Path of Exile
+Categories=Office;
+
