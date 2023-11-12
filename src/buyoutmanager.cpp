@@ -355,9 +355,6 @@ void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, B
 	if (data.empty())
 		return;
 
-	// The the comment below about the bug introduced in v0.9.10
-	bool bug_detected = false;
-
 	rapidjson::Document doc;
 	if (doc.Parse(data.c_str()).HasParseError()) {
 		QLOG_ERROR() << "Error while parsing buyouts.";
@@ -376,7 +373,6 @@ void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, B
 		bo.value = object["value"].GetDouble();
 		if (object.HasMember("last_update")) {
 			bo.last_update = QDateTime::fromSecsSinceEpoch(object["last_update"].GetInt64());
-			const QDateTime now = QDateTime::currentDateTime();
 		}
 		if (object.HasMember("source")) {
 			bo.source = Buyout::TagAsBuyoutSource(object["source"].GetString());
