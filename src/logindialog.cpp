@@ -29,6 +29,7 @@
 #include <QNetworkProxyFactory>
 #include <QRegularExpression>
 #include <QSettings>
+#include <QSysInfo>
 #include <QUrl>
 #include <QUrlQuery>
 #include <iostream>
@@ -99,9 +100,21 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 	LoadSettings();
 	LoadTheme();
 
-	QLOG_DEBUG() << "Supports SSL: " << QSslSocket::supportsSsl();
-	QLOG_DEBUG() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
-	QLOG_DEBUG() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
+    bool has_ssl = QSslSocket::supportsSsl();
+    QLOG_DEBUG() << "Supports SSL: " << has_ssl;
+    if (has_ssl == false) {
+#ifdef Q_OS_LINUX
+        const QString msg = "OpenSSL 3.x was not found; check LD_LIBRARY_PATH if you have a custom installation.";
+#else
+        const QString msg = "SSL is not supported on" + QSysInfo::prettyProductName() + ". This is unexpected.";
+#endif
+        DisplayError(msg, true);
+        QLOG_FATAL() << msg;
+        ui->loginButton->setEnabled(false);
+        return;
+    };
+    QLOG_DEBUG() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
+    QLOG_DEBUG() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
 
 	connect(ui->proxyCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnProxyCheckBoxClicked);
 	connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
