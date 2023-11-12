@@ -3,7 +3,6 @@
 //Make sure to update version.txt file to match the "VER_CODE" value
 //The program will look to this file in the GitHub repo, and compare it to
 //the VER_CODE in the current installation. If the number in the version.txt
-//file is greater than VER_CODE, then the updater will notify the user.
 #define VERSION_CODE                56
 
 // These are used by the Inno 6 installer script.

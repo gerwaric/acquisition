@@ -335,7 +335,6 @@ std::string BuyoutManager::Serialize(const std::map<std::string, Buyout>& buyout
 			item.AddMember("last_update", last_update, alloc);
 		}
 
-
 		Util::RapidjsonAddConstString(&item, "type", buyout.BuyoutTypeAsTag(), alloc);
 		Util::RapidjsonAddConstString(&item, "currency", buyout.CurrencyAsTag(), alloc);
 		Util::RapidjsonAddConstString(&item, "source", buyout.BuyoutSourceAsTag(), alloc);
