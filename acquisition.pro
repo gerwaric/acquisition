@@ -4,7 +4,7 @@ lessThan(QT_MAJOR_VERSION, 6):error("Qt 6.5 or newer is required.")
 
 TARGET = acquisition
 TEMPLATE = app
-VERSION = 0.10.1
+VERSION = 0.10.2
 
 # These defines are checked against the contents of version_defines.h at build time.
 DEFINES += "MY_TARGET=\\\"$${TARGET}\\\""
