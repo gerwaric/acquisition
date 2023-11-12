@@ -32,6 +32,8 @@ struct MessageType {
 	std::string desc;
 };
 
+// Colors for different message types. Unfortunately this is hard-coded
+// and does not account for different themes.
 static std::vector<MessageType> message_types{
 	{ QColor(), "message" },
 	{ QColor(174, 141, 28), "warning" },
@@ -56,7 +58,7 @@ LogPanel::LogPanel(MainWindow* window, Ui::MainWindow* ui) :
 	status_button_->setFlat(true);
 	window->statusBar()->addPermanentWidget(status_button_);
 	UpdateStatusLabel();
-	QObject::connect(status_button_, SIGNAL(clicked()), &signal_handler_, SLOT(OnStatusLabelClicked()));
+	QObject::connect(status_button_, &QPushButton::clicked, &signal_handler_, &LogPanelSignalHandler::OnStatusLabelClicked);
 
 	ui->mainLayout->addWidget(output_);
 }
@@ -106,7 +108,14 @@ void LogPanel::AddLine(const QString& message, QsLogging::Level level) {
 	color = message_types[type].color;
 
 	output_->moveCursor(QTextCursor::End);
-	output_->setTextColor(color);
+	if (level != QsLogging::InfoLevel) {
+		// Don't set the text color for basic info messages
+		// because they may be unreadable on dark themes.
+		//
+		// The real solution is to have the colors depend
+		// on the theme somehow.
+		output_->setTextColor(color);
+	};
 	output_->insertPlainText(message + "\n");
 	output_->ensureCursorVisible();
 

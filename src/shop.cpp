@@ -33,11 +33,11 @@
 #include "buyoutmanager.h"
 #include "datastore.h"
 #include "itemsmanager.h"
+#include "network_info.h"
 #include "porting.h"
 #include "util.h"
 #include "mainwindow.h"
 #include "replytimeout.h"
-#include "network_info.h"
 
 const std::string kPoeEditThread = "https://www.pathofexile.com/forum/edit-thread/";
 const std::string kShopTemplateItems = "[items]";
@@ -209,9 +209,9 @@ void Shop::SubmitSingleShop() {
 		QNetworkRequest request = QNetworkRequest(QUrl(ShopEditUrl(requests_completed_).c_str()));
 		request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 		request.setRawHeader("Cache-Control", "max-age=0");
-		QNetworkReply* fetched = app_.logged_in_nm().get(request);
-		new QReplyTimeout(fetched, kEditThreadTimeout);
-		connect(fetched, SIGNAL(finished()), this, SLOT(OnEditPageFinished()));
+		request.setTransferTimeout(kEditThreadTimeout);
+		QNetworkReply* fetched = app_.network_manager().get(request);
+		connect(fetched, &QNetworkReply::finished, this, &Shop::OnEditPageFinished);
 	}
 	emit StatusUpdate(status);
 }
@@ -242,8 +242,8 @@ void Shop::OnEditPageFinished() {
 		reply->deleteLater();
 		return;
 	};
-	
-	QTimer::singleShot(500, [=]() { SubmitNextShop(title, hash); });
+
+	QTimer::singleShot(500, this, [=]() { SubmitNextShop(title, hash); });
 	reply->deleteLater();
 }
 
@@ -261,10 +261,10 @@ void Shop::SubmitNextShop(const std::string title, const std::string hash)
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	request.setRawHeader("Cache-Control", "max-age=0");
+	request.setTransferTimeout(kEditThreadTimeout);
 
-	QNetworkReply* submitted = app_.logged_in_nm().post(request, data);
-	new QReplyTimeout(submitted, kEditThreadTimeout);
-	connect(submitted, &QNetworkReply::finished,
+	QNetworkReply* submitted = app_.network_manager().post(request, data);
+	connect(submitted, &QNetworkReply::finished, this,
 		[=]() {
 			OnShopSubmitted(query, submitted);
 			submitted->deleteLater();
@@ -324,7 +324,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
 			const std::string title = query.queryItemValue("title").toStdString();
 			const std::string hash = Util::GetCsrfToken(bytes, "hash");
 			QLOG_WARN() << "Resubmitting shop after" << seconds << "seconds.";
-			QTimer::singleShot(ms, [=]() { SubmitNextShop(title, hash); });
+			QTimer::singleShot(ms, this, [=]() { SubmitNextShop(title, hash); });
 			return;
 		} else {
 			// Quit the update for any other error.

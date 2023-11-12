@@ -22,7 +22,6 @@
 
 #include <QDesktopServices>
 #include <QMessageBox>
-#include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QNetworkCookie>
@@ -30,20 +29,22 @@
 #include <QNetworkProxyFactory>
 #include <QRegularExpression>
 #include <QSettings>
+#include <QSysInfo>
 #include <QUrl>
 #include <QUrlQuery>
 #include <iostream>
 #include "QsLog.h"
 
 #include "application.h"
+#include "datastore.h"
 #include "filesystem.h"
 #include "mainwindow.h"
+#include "network_info.h"
 #include "replytimeout.h"
 #include "selfdestructingreply.h"
-#include "steamlogindialog.h"
 #include "util.h"
-#include "version.h"
-#include "network_info.h"
+#include "updatechecker.h"
+#include "oauth.h"
 #include "version_defines.h"
 
 const char* POE_LEAGUE_LIST_URL = "https://api.pathofexile.com/leagues?type=main&compact=1";
@@ -53,28 +54,16 @@ const char* POE_MY_ACCOUNT = "https://www.pathofexile.com/my-account";
 const char* POE_LOGIN_CHECK_URL = POE_MY_ACCOUNT;
 const char* POE_COOKIE_NAME = "POESESSID";
 
-const char* LOGIN_CHECK_ERROR = "Failed to log in (invalid password or expired session ID? try re-logging with email/password pair or via steam)";
+const char* LOGIN_CHECK_ERROR = "Failed to log in. Try copying your session ID again, or try OAuth";
 
-enum {
-	LOGIN_PASSWORD,
-	LOGIN_STEAM,
-	LOGIN_SESSIONID
-};
+const char* OAUTH_TAB = "oauthTab";
+const char* SESSIONID_TAB = "sessionIdTab";
 
 /**
  * Possible login flows:
- *
- * Normal
-	=> Retrieve /login to get csrf token
-	=> OnLoginPageFinished()
-	=> POST email/pw to /login
-	=> OnLoggedIn()
-	=> Retrieve /my-account to get account name
-	=> OnMainPageFinished()
-	=> done
 
- * Steam
-	=> Run webengine and point it at steam login page
+ * OAuth
+	=> Point browser to OAuth login page
 	=> OnSteamCookieReceived() -> LoginWithCookie()
 	=> Retrieve POE_LOGIN_CHECK_URL
 	=> LoggedInCheck()
@@ -100,7 +89,8 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 	ui->setupUi(this);
 	ui->errorLabel->hide();
 	ui->errorLabel->setStyleSheet("QLabel { color : red; }");
-	setWindowTitle(QString("Login [") + VERSION_NAME + "]");
+	setWindowTitle(QString("Login [") + APP_VERSION_STRING + "]");
+
 #if defined(Q_OS_LINUX)
 	setWindowIcon(QIcon(":/icons/assets/icon.svg"));
 #endif
@@ -108,15 +98,27 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 
 	settings_path_ = Filesystem::UserDir() + "/settings.ini";
 	LoadSettings();
+	LoadTheme();
 
-	QLOG_DEBUG() << "Supports SSL: " << QSslSocket::supportsSsl();
-	QLOG_DEBUG() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
-	QLOG_DEBUG() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
+    bool has_ssl = QSslSocket::supportsSsl();
+    QLOG_DEBUG() << "Supports SSL: " << has_ssl;
+    if (has_ssl == false) {
+#ifdef Q_OS_LINUX
+        const QString msg = "OpenSSL 3.x was not found; check LD_LIBRARY_PATH if you have a custom installation.";
+#else
+        const QString msg = "SSL is not supported on" + QSysInfo::prettyProductName() + ". This is unexpected.";
+#endif
+        DisplayError(msg, true);
+        QLOG_FATAL() << msg;
+        ui->loginButton->setEnabled(false);
+        return;
+    };
+    QLOG_DEBUG() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
+    QLOG_DEBUG() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
 
-	login_manager_ = std::make_unique<QNetworkAccessManager>();
-	connect(ui->proxyCheckBox, SIGNAL(clicked(bool)), this, SLOT(OnProxyCheckBoxClicked(bool)));
-	connect(ui->loginButton, SIGNAL(clicked()), this, SLOT(OnLoginButtonClicked()));
-	connect(&update_checker_, &UpdateChecker::UpdateAvailable, [&]() {
+	connect(ui->proxyCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnProxyCheckBoxClicked);
+	connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
+	connect(&app_->update_checker(), &UpdateChecker::UpdateAvailable, this, [&]() {
 		// Only annoy the user once at the login dialog window, even if it's opened for more than an hour
 		if (asked_to_update_)
 			return;
@@ -126,12 +128,47 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 
 	QNetworkRequest leagues_request = QNetworkRequest(QUrl(QString(POE_LEAGUE_LIST_URL)));
 	leagues_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply* leagues_reply = login_manager_->get(leagues_request);
+	leagues_request.setTransferTimeout(kPoeApiTimeout);
+	QNetworkReply* leagues_reply = app_->network_manager().get(leagues_request);
 
 	connect(leagues_reply, &QNetworkReply::errorOccurred, this, &LoginDialog::errorOccurred);
 	connect(leagues_reply, &QNetworkReply::sslErrors, this, &LoginDialog::sslErrorOccurred);
 	connect(leagues_reply, &QNetworkReply::finished, this, &LoginDialog::OnLeaguesRequestFinished);
-	new QReplyTimeout(leagues_reply, kPoeApiTimeout);
+}
+
+void LoginDialog::LoadTheme() {
+	// Load the appropriate theme.
+	const std::string theme = app_->global_data().Get("theme", "default");
+
+	// Do nothing for the default theme.
+	if (theme == "default") {
+		return;
+	};
+
+	// Determine which qss file to use.
+	QString stylesheet;
+	if (theme == "dark") {
+		stylesheet = ":qdarkstyle/dark/darkstyle.qss";
+	} else if (theme == "light") {
+		stylesheet = ":qdarkstyle/light/lightstyle.qss";
+	} else {
+		QLOG_ERROR() << "Invalid theme:" << theme;
+		return;
+	};
+
+	// Load the theme.
+	QFile f(stylesheet);
+	if (!f.exists()) {
+		QLOG_ERROR() << "Theme stylesheet not found:" << stylesheet;
+	} else {
+		f.open(QFile::ReadOnly | QFile::Text);
+		QTextStream ts(&f);
+		qApp->setStyleSheet(ts.readAll());
+
+		QPalette pal = QApplication::palette();
+		pal.setColor(QPalette::WindowText, Qt::white);
+		QApplication::setPalette(pal);
+	};
 }
 
 void LoginDialog::errorOccurred() {
@@ -146,35 +183,15 @@ void LoginDialog::OnLoginButtonClicked() {
 	ui->loginButton->setEnabled(false);
 	ui->loginButton->setText("Logging in...");
 
-	switch (ui->loginTabs->currentIndex()) {
-	case LOGIN_PASSWORD: {
-		// Get POE_LOGIN_URL to retrieve the csrf token
-		QNetworkReply* login_page = login_manager_->get(QNetworkRequest(QUrl(POE_LOGIN_URL)));
-		connect(login_page, SIGNAL(finished()), this, SLOT(OnLoginPageFinished()));
-		break;
-	}
-	case LOGIN_STEAM: {
-		if (!steam_login_dialog_)
-			InitSteamDialog();
-		steam_login_dialog_->show();
-		steam_login_dialog_->Init();
-		break;
-	}
-	case LOGIN_SESSIONID: {
+	const QString tab_name = ui->loginTabs->currentWidget()->objectName();
+
+	if (tab_name == OAUTH_TAB) {
+		LoginWithOAuth();
+	} else if (tab_name == SESSIONID_TAB) {
 		LoginWithCookie(ui->sessionIDLineEdit->text());
-		break;
-	}
-	}
-}
-
-void LoginDialog::InitSteamDialog() {
-	steam_login_dialog_ = std::make_unique<SteamLoginDialog>();
-	connect(steam_login_dialog_.get(), SIGNAL(CookieReceived(const QString&)), this, SLOT(OnSteamCookieReceived(const QString&)));
-	connect(steam_login_dialog_.get(), SIGNAL(Closed()), this, SLOT(OnSteamDialogClosed()), Qt::DirectConnection);
-}
-
-void LoginDialog::OnSteamDialogClosed() {
-	DisplayError("Login was not completed");
+	} else {
+		QLOG_ERROR() << "Invalid login tab name:" << tab_name;
+	};
 }
 
 void LoginDialog::LeaguesApiError(const QString& error, const QByteArray& reply) {
@@ -199,17 +216,17 @@ void LoginDialog::OnLeaguesRequestFinished() {
 			ui->loginButton->setEnabled(false);
 			return;
 		};
-        // Make sure the reply header date is valid.
-        const QByteArray reply_timestamp = Util::FixTimezone(reply->rawHeader("Date"));
-        const QDateTime reply_date = QDateTime::fromString(reply_timestamp, Qt::RFC2822Date);
-        if (reply_date.isValid() == false) {
+		// Make sure the reply header date is valid.
+		const QByteArray reply_timestamp = Util::FixTimezone(reply->rawHeader("Date"));
+		const QDateTime reply_date = QDateTime::fromString(reply_timestamp, Qt::RFC2822Date);
+		if (reply_date.isValid() == false) {
 			QLOG_ERROR() << "Cannot determine the current date of an expiring trial build.";
 			DisplayError("Cannot determine the current date of an expiring trial build");
 			ui->loginButton->setEnabled(false);
 			return;
 		};
 		// Make sure the build hasn't expired.
-        if (EXPIRATION_DATE < reply_date) {
+		if (EXPIRATION_DATE < reply_date) {
 			QLOG_ERROR() << "This build expired on" << expiration;
 			DisplayError("This build expired on " + expiration);
 			ui->loginButton->setEnabled(false);
@@ -242,40 +259,11 @@ void LoginDialog::OnLeaguesRequestFinished() {
 		ui->leagueComboBox->setCurrentText(saved_league_);
 }
 
-// All characters except + should be handled by QUrlQuery, see http://doc.qt.io/qt-5/qurlquery.html#encoding
+// All characters except + should be handled by QUrlQuery
+// See https://doc.qt.io/qt-6/qurlquery.html#encoding
 static QString EncodeSpecialCharacters(QString s) {
 	s.replace("+", "%2b");
 	return s;
-}
-
-void LoginDialog::OnLoginPageFinished() {
-	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
-	if (reply->error()) {
-		DisplayError("Network error: " + reply->errorString() + "\nTry using another login method.");
-		return;
-	}
-
-	QByteArray bytes = reply->readAll();
-	std::string hash = Util::GetCsrfToken(bytes, "hash");
-	if (hash.empty()) {
-		DisplayError("Failed to log in (can't extract form hash from page)");
-		return;
-	}
-
-	QUrlQuery query;
-	query.addQueryItem("login_email", EncodeSpecialCharacters(ui->emailLineEdit->text()));
-	query.addQueryItem("login_password", EncodeSpecialCharacters(ui->passwordLineEdit->text()));
-	query.addQueryItem("hash", QString(hash.c_str()));
-	query.addQueryItem("login", "Login");
-	query.addQueryItem("remember_me", "1");
-
-	QUrl url(POE_LOGIN_URL);
-	QByteArray data(query.query().toUtf8());
-	QNetworkRequest request(url);
-	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply* logged_in = login_manager_->post(request, data);
-	connect(logged_in, SIGNAL(finished()), this, SLOT(OnLoggedIn()));
 }
 
 void LoginDialog::FinishLogin(QNetworkReply* reply) {
@@ -287,8 +275,8 @@ void LoginDialog::FinishLogin(QNetworkReply* reply) {
 	// we need one more request to get account name
 	QNetworkRequest main_page_request = QNetworkRequest(QUrl(POE_MY_ACCOUNT));
 	main_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply* main_page = login_manager_->get(main_page_request);
-	connect(main_page, SIGNAL(finished()), this, SLOT(OnMainPageFinished()));
+	QNetworkReply* main_page = app_->network_manager().get(main_page_request);
+	connect(main_page, &QNetworkReply::finished, this, &LoginDialog::OnMainPageFinished);
 }
 
 void LoginDialog::OnLoggedIn() {
@@ -316,16 +304,29 @@ void LoginDialog::LoggedInCheck() {
 		DisplayError(LOGIN_CHECK_ERROR);
 		return;
 	}
-
 	FinishLogin(reply);
 }
 
-void LoginDialog::OnSteamCookieReceived(const QString& cookie) {
-	if (cookie.isEmpty()) {
-		DisplayError("Failed to log in, the received cookie is empty.");
-		return;
-	}
-	LoginWithCookie(cookie);
+void LoginDialog::LoginWithOAuth() {
+	DisplayError("OAuth is not fully implemented yet.", true);
+	return;
+	//connect(&app_->oauth_manager(), &OAuthManager::accessGranted,
+	//	this, &LoginDialog::OnOAuthAccessGranted);
+	//app_->oauth_manager().requestAccess();
+}
+
+void LoginDialog::OnOAuthAccessGranted(const AccessToken& token) {
+	const QString account = token.username;
+	std::string league(ui->leagueComboBox->currentText().toStdString());
+	app_->InitLogin(league, account.toStdString());
+	mw = new MainWindow(std::move(app_));
+	mw->setWindowTitle(
+		QString("Acquisition [%1] - %2 [%3]")
+		.arg(APP_VERSION_STRING)
+		.arg(league.c_str())
+		.arg(account));
+	mw->show();
+	close();
 }
 
 void LoginDialog::LoginWithCookie(const QString& cookie) {
@@ -333,32 +334,32 @@ void LoginDialog::LoginWithCookie(const QString& cookie) {
 	poeCookie.setPath("/");
 	poeCookie.setDomain(".pathofexile.com");
 
-	login_manager_->cookieJar()->insertCookie(poeCookie);
+	app_->network_manager().cookieJar()->insertCookie(poeCookie);
 
 	QNetworkRequest login_page_request = QNetworkRequest(QUrl(POE_LOGIN_CHECK_URL));
 	login_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply* login_page = login_manager_->get(login_page_request);
-	connect(login_page, SIGNAL(finished()), this, SLOT(LoggedInCheck()));
+	QNetworkReply* login_page = app_->network_manager().get(login_page_request);
+	connect(login_page, &QNetworkReply::finished, this, &LoginDialog::LoggedInCheck);
 }
 
 void LoginDialog::OnMainPageFinished() {
 	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
-    QString html(reply->readAll());
-    QRegularExpression regexp("/account/view-profile/(.*?)\"");
-    QRegularExpressionMatch match = regexp.match(html, 0);
-    if (match.hasMatch() == false) {
+	QString html(reply->readAll());
+	QRegularExpression regexp("/account/view-profile/(.*?)\"");
+	QRegularExpressionMatch match = regexp.match(html, 0);
+	if (match.hasMatch() == false) {
 		DisplayError("Failed to find account name.");
 		return;
 	}
-    QString account = match.captured(1);
+	QString account = match.captured(1);
 	QLOG_DEBUG() << "Logged in as:" << account;
 
 	std::string league(ui->leagueComboBox->currentText().toStdString());
-	app_->InitLogin(std::move(login_manager_), league, account.toStdString());
+	app_->InitLogin(league, account.toStdString());
 	mw = new MainWindow(std::move(app_));
 	mw->setWindowTitle(
 		QString("Acquisition [%1] - %2 [%3]")
-		.arg(VERSION_NAME)
+		.arg(APP_VERSION_STRING)
 		.arg(league.c_str())
 		.arg(account));
 	mw->show();
@@ -376,8 +377,14 @@ void LoginDialog::LoadSettings() {
 	ui->rembmeCheckBox->setChecked(settings.value("remember_me_checked").toBool());
 	ui->proxyCheckBox->setChecked(settings.value("use_system_proxy_checked").toBool());
 
-	if (ui->rembmeCheckBox->isChecked())
-		ui->loginTabs->setCurrentIndex(LOGIN_SESSIONID);
+	if (ui->rembmeCheckBox->isChecked()) {
+		for (auto i = 0; i < ui->loginTabs->count(); ++i) {
+			if (ui->loginTabs->widget(i)->objectName() == SESSIONID_TAB) {
+				ui->loginTabs->setCurrentIndex(i);
+				break;
+			};
+		};
+	};
 
 	saved_league_ = settings.value("league", "").toString();
 	if (saved_league_.size() > 0)

@@ -27,9 +27,10 @@
 #include "itemsmanager.h"
 #include "testdata.h"
 
+TestItemsManager::TestItemsManager() : app_(true) {}
+
 void TestItemsManager::initTestCase() {
-	auto null_nm = std::make_unique<QNetworkAccessManager>();
-	app_.InitLogin(std::move(null_nm), "TestLeague", "testuser", true);
+	app_.InitLogin("TestLeague", "testuser");
 }
 
 void TestItemsManager::cleanup() {

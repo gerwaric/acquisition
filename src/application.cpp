@@ -20,6 +20,7 @@
 #include "application.h"
 
 #include <QNetworkAccessManager>
+#include <QtHttpServer/QHttpServer>
 
 #include "buyoutmanager.h"
 #include "sqlitedatastore.h"
@@ -30,9 +31,10 @@
 #include "porting.h"
 #include "shop.h"
 #include "QsLog.h"
-#include "version.h"
-#include "version_defines.h"
 #include "ratelimit.h"
+#include "updatechecker.h"
+#include "oauth.h"
+#include "version_defines.h"
 
 using RateLimit::RateLimiter;
 
@@ -40,7 +42,22 @@ const QString BUILD_TIMESTAMP = QString(__DATE__ " " __TIME__).simplified();
 const QDateTime BUILD_DATE = QLocale("en_US").toDateTime(BUILD_TIMESTAMP, "MMM d yyyy hh:mm:ss");
 const QDateTime EXPIRATION_DATE = TRIAL_VERSION ? BUILD_DATE.addDays(TRIAL_EXPIRATION_DAYS) : QDateTime();
 
-Application::Application() {}
+Application::Application(bool mock_data) :
+	test_mode_(mock_data)
+{
+	if (test_mode_) {
+		global_data_ = std::make_unique<MemoryDataStore>();
+		return;
+	};
+
+	network_manager_ = std::make_unique<QNetworkAccessManager>(this);
+	update_checker_ = std::make_unique<UpdateChecker>(*network_manager_, this);
+	oauth_manager_ = std::make_unique<OAuthManager>(*network_manager_, this);
+
+	// The global datastore holds things like the selected theme.
+	std::string global_data_file = SqliteDataStore::MakeFilename("", "");
+	global_data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/data/" + global_data_file);
+}
 
 Application::~Application() {
 	if (buyout_manager_)
@@ -48,25 +65,21 @@ Application::~Application() {
 }
 
 void Application::InitLogin(
-	std::unique_ptr<QNetworkAccessManager> login_manager,
 	const std::string& league,
-	const std::string& email,
-	bool mock_data)
+	const std::string& email)
 {
 	league_ = league;
 	email_ = email;
 
-	if (mock_data) {
+	if (test_mode_) {
 		// This is used in tests
 		data_ = std::make_unique<MemoryDataStore>();
 		sensitive_data_ = std::make_unique<MemoryDataStore>();
-		logged_in_nm_ = nullptr;
 	} else {
 		std::string data_file = SqliteDataStore::MakeFilename(email, league);
 		data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/data/" + data_file);
 		sensitive_data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/sensitive_data/" + data_file);
 		SaveDbOnNewVersion();
-		logged_in_nm_ = std::move(login_manager);
 	}
 
 	buyout_manager_ = std::make_unique<BuyoutManager>(*data_);
@@ -74,7 +87,7 @@ void Application::InitLogin(
 	items_manager_ = std::make_unique<ItemsManager>(*this);
 	currency_manager_ = std::make_unique<CurrencyManager>(*this);
 	connect(items_manager_.get(), &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
-	if (mock_data == false) {
+	if (test_mode_ == false) {
 		items_manager_->Start();
 	};
 }
@@ -95,7 +108,7 @@ void Application::SaveDbOnNewVersion() {
 	bool first_start = data_->Get("tabs", "first_time") == "first_time" &&
 		data_->GetTabs(ItemLocationType::STASH).length() == 0 &&
 		data_->GetTabs(ItemLocationType::CHARACTER).length() == 0;
-	if (version != VERSION_NAME && !first_start) {
+	if (version != APP_VERSION_STRING && !first_start) {
 		QString data_path = Filesystem::UserDir().c_str() + QString("/data");
 		QString save_path = data_path + "_save_" + version.c_str();
 		QDir src(data_path);
@@ -107,6 +120,6 @@ void Application::SaveDbOnNewVersion() {
 		}
 		QLOG_INFO() << "I've created the folder " << save_path << "in your acquisition folder, containing a save of all your data";
 	}
-	data_->Set("version", VERSION_NAME);
+	data_->Set("version", APP_VERSION_STRING);
 
 }

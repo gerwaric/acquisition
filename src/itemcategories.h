@@ -1,8 +1,5 @@
 #pragma once
 
-#ifndef ITEMCATEGORIES_H
-#define ITEMCATEGORIES_H
-
 #include <string>
 #include <map>
 
@@ -15,5 +12,3 @@ class ItemCategories
 public:
 	ItemCategories();
 };
-
-#endif // ITEMCATEGORIES_H

@@ -18,6 +18,7 @@
 */
 
 #include <ctime>
+#include <cmath>
 #include <QWidget>
 #include <QtGui>
 #include "QsLog.h"
@@ -273,8 +274,8 @@ CurrencyWidget::CurrencyWidget(std::shared_ptr<CurrencyItem> currency) :
 	exalt_value->setMaximum(100000);
 	exalt_value->setEnabled(false);
 	Update();
-	connect(chaos_ratio, SIGNAL(valueChanged(double)), this, SLOT(Update()));
-	connect(exalt_ratio, SIGNAL(valueChanged(double)), this, SLOT(Update()));
+	connect(chaos_ratio, &QDoubleSpinBox::valueChanged, this, &CurrencyWidget::Update);
+	connect(exalt_ratio, &QDoubleSpinBox::valueChanged, this, &CurrencyWidget::Update);
 }
 
 void CurrencyWidget::UpdateVisual(bool show_chaos, bool show_exalt) {
@@ -303,8 +304,8 @@ CurrencyDialog::CurrencyDialog(CurrencyManager& manager, bool show_chaos, bool s
 		// To keep every vector the same size, we DO create spinboxes for the empty currency, just don't display them
 		if (curr->currency == CURRENCY_NONE)
 			continue;
-		connect(tmp->exalt_ratio, SIGNAL(valueChanged(double)), this, SLOT(UpdateTotalValue()));
-		connect(tmp->chaos_ratio, SIGNAL(valueChanged(double)), this, SLOT(UpdateTotalValue()));
+		connect(tmp->exalt_ratio, &QDoubleSpinBox::valueChanged, this, &CurrencyDialog::UpdateTotalValue);
+		connect(tmp->chaos_ratio, &QDoubleSpinBox::valueChanged, this, &CurrencyDialog::UpdateTotalValue);
 
 		currencies_widgets_.push_back(tmp);
 
@@ -314,12 +315,12 @@ CurrencyDialog::CurrencyDialog(CurrencyManager& manager, bool show_chaos, bool s
 	total_exalt_value_ = new QLabel("");
 	show_exalt_ = new QCheckBox("show exalt ratio");
 	show_exalt_->setChecked(show_exalt);
-	connect(show_exalt_, SIGNAL(stateChanged(int)), this, SLOT(UpdateVisual()));
+	connect(show_exalt_, &QCheckBox::stateChanged, this, &CurrencyDialog::UpdateVisual);
 
 	total_chaos_value_ = new QLabel("");
 	show_chaos_ = new QCheckBox("show chaos ratio");
 	show_chaos_->setChecked(show_chaos);
-	connect(show_chaos_, SIGNAL(stateChanged(int)), this, SLOT(UpdateVisual()));
+	connect(show_chaos_, &QCheckBox::stateChanged, this, &CurrencyDialog::UpdateVisual);
 	total_wisdom_value_ = new QLabel("");
 	layout_ = new QVBoxLayout;
 	Update();

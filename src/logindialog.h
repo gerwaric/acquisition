@@ -24,15 +24,13 @@
 #include <string>
 #include <vector>
 
-#include "updatechecker.h"
-
 class QNetworkAccessManager;
 class QNetworkReply;
 class QString;
 
 class Application;
-class SteamLoginDialog;
 class MainWindow;
+struct AccessToken;
 
 namespace Ui {
 	class LoginDialog;
@@ -46,13 +44,11 @@ public:
 public slots:
 	void OnLeaguesRequestFinished();
 	void OnLoginButtonClicked();
-	void OnLoginPageFinished();
 	void OnLoggedIn();
 	void LoggedInCheck(); // checks login is successful
 	void OnMainPageFinished();
 	void OnProxyCheckBoxClicked(bool);
-	void OnSteamCookieReceived(const QString& cookie);
-	void OnSteamDialogClosed();
+	void OnOAuthAccessGranted(const AccessToken& token);
 	void errorOccurred();
 	void sslErrorOccurred();
 protected:
@@ -60,9 +56,10 @@ protected:
 private:
 	void SaveSettings();
 	void LoadSettings();
+	void LoadTheme();
 	void DisplayError(const QString& error, bool disable_login = false);
+	void LoginWithOAuth();
 	void LoginWithCookie(const QString& cookie);
-	void InitSteamDialog();
 	void LeaguesApiError(const QString& error, const QByteArray& reply);
 	// Retrieves session cookie for a successful login; proceeds to OnMainPageFinished
 	void FinishLogin(QNetworkReply* reply);
@@ -72,9 +69,6 @@ private:
 	std::string settings_path_;
 	QString saved_league_;
 	QString session_id_;
-	std::unique_ptr<QNetworkAccessManager> login_manager_;
 	std::vector<std::string> leagues_;
-	std::unique_ptr<SteamLoginDialog> steam_login_dialog_;
-	UpdateChecker update_checker_;
 	bool asked_to_update_;
 };

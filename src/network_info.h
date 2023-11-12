@@ -1,8 +1,5 @@
 #pragma once
 
-#ifndef NETWORK_INFO_H
-#define NETWORK_INFO_H
+#include "version_defines.h"
 
-extern const char USER_AGENT[];
-
-#endif
+#define USER_AGENT  (APP_NAME "/" APP_VERSION_STRING "(contact: " APP_PUBLISHER_EMAIL ")")

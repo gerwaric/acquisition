@@ -24,14 +24,21 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QUrl>
+#include <QWidget>
 
-#include "version.h"
 #include "network_info.h"
+#include "version_defines.h"
 
-// Check for updates every hour
-const int kUpdateCheckInterval = 60 * 60 * 1000;
+// Check for updates every 24 hours
+const int kUpdateCheckInterval = 24 * 60 * 60 * 1000;
 
-UpdateChecker::UpdateChecker() {
+const char* UPDATE_CHECK_URL = "https://raw.githubusercontent.com/gerwaric/acquisition/master/version.txt";
+const char* UPDATE_DOWNLOAD_LOCATION = "https://github.com/gerwaric/acquisition/releases";
+
+UpdateChecker::UpdateChecker(QNetworkAccessManager& network_manager, QObject* parent) :
+	QObject(parent),
+	nm_(network_manager)
+{
 	timer_.setInterval(kUpdateCheckInterval);
 	timer_.start();
 	connect(&timer_, &QTimer::timeout, this, &UpdateChecker::CheckForUpdates);

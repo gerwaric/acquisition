@@ -26,6 +26,8 @@
 class TestItemsManager : public QObject
 {
 	Q_OBJECT
+public:
+	TestItemsManager();
 private slots:
 	void initTestCase();
 	void cleanup();

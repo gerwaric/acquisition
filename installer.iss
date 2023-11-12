@@ -3,11 +3,11 @@
 
 #include "src/version_defines.h"
 
-#define AppName VER_FILEDESCRIPTION_STR
-#define AppVersion VER_STR
-#define AppPublisher "Gerwaric"
-#define AppURL "https://github.com/gerwaric/acquisition"
-#define AppExeName VER_ORIGINALFILENAME_STR
+#define MyAppName APP_NAME
+#define MyAppExe APP_NAME + ".exe"
+#define MyAppVersion APP_VERSION_STRING
+#define MyAppPublisher APP_PUBLISHER
+#define MyAppURL APP_URL
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
@@ -15,18 +15,16 @@
 ;
 ; This is the same GUID as the testpushpleaseignore fork of Acquisition:
 AppId={{53E25C0C-0305-47BB-9884-F0F202297AF4} 
-AppName={#AppName}
-AppVersion={#AppVersion}
-;AppVerName={#MyAppName} {#MyAppVersion}
-AppPublisher={#AppPublisher}
-AppPublisherURL={#AppURL}
+AppName={#MyAppName}
+AppVersion={#MyAppVersion}
+AppPublisher={#MyAppPublisher}
+AppPublisherURL={#MyAppURL}
 ;AppSupportURL={#AppURL}
-AppUpdatesURL={#AppURL}
-DefaultDirName={autopf}\{#AppName}
+AppUpdatesURL={#MyAppURL}
+DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
 LicenseFile=COPYING
-OutputBaseFilename=acquisition_setup_{#AppVersion}
-; Remove the following line to run in administrative install mode (install for all users.)
+OutputBaseFilename={#MyAppName}_setup_{#MyAppVersion}
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 Compression=lzma
@@ -45,9 +43,9 @@ Source: ".\deploy\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs crea
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Icons]
-Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExeName}"
-Name: "{autodesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Tasks: desktopicon
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExe}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExe}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#AppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(AppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExe}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 

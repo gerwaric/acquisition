@@ -29,15 +29,15 @@
 #include <clocale>
 #include <limits>
 #include <memory>
+#include <string_view>
 
 #include "application.h"
 #include "filesystem.h"
 #include "mainwindow.h"
 #include "porting.h"
 #include "util.h"
-#include "version.h"
 #include "version_defines.h"
-#include "../test/testmain.h"
+#include "testmain.h"
 
 #ifdef _DEBUG
 const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::TraceLevel;
@@ -45,9 +45,18 @@ const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::TraceLevel;
 const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::InfoLevel;
 #endif
 
+// Use this helper function to check defines at build time.
+constexpr bool strings_equal(char const* left, char const* right) {
+    return std::string_view(left) == std::string_view(right);
+}
 
 int main(int argc, char* argv[])
-{
+{   
+    // Don't allow this code to compile if there is a mismatch between
+    // the Qt Creator project file and version_defines.h.
+    static_assert(strings_equal(APP_NAME, MY_TARGET), "Target mismatch");
+    static_assert(strings_equal(APP_VERSION, MY_VERSION), "Version mismatch");
+
 	qRegisterMetaType<CurrentStatusUpdate>("CurrentStatusUpdate");
 	qRegisterMetaType<Items>("Items");
 	qRegisterMetaType<std::vector<std::string>>("std::vector<std::string>");
@@ -75,7 +84,6 @@ int main(int argc, char* argv[])
 	// Start by assumign the default log level.
 	QsLogging::Level loglevel = DEFAULT_LOGLEVEL;
 	bool valid_loglevel = true;
-
 
 	// Process --log-level if it was present on the command line.
 	if (parser.isSet(option_log_level)) {
@@ -113,7 +121,7 @@ int main(int argc, char* argv[])
 
 	// Start the log with basic info
 	QLOG_INFO() << "-------------------------------------------------------------------------------";
-	QLOG_INFO() << VER_PRODUCTNAME_STR << VER_STR << "( version code" << VER_CODE << ")";
+    QLOG_INFO().noquote() << a.applicationName() << a.applicationVersion() << "( version code" << VERSION_CODE << ")";
 	if (TRIAL_VERSION) {
 		QLOG_WARN() << "This build expires on" << EXPIRATION_DATE.toString();
 	};
@@ -122,8 +130,8 @@ int main(int argc, char* argv[])
 		QLOG_ERROR() << "Valid options are: TRACE, DEBUG, INFO, WARN, ERROR, FATAL, and OFF (case insensitive)";
 		return EXIT_FAILURE;
 	};
-	QLOG_INFO() << "Logging level is" << logger.loggingLevel();
-	QLOG_DEBUG() << "Built on" << BUILD_DATE.toString()
+    QLOG_INFO() << "Logging level is" << logger.loggingLevel();
+    QLOG_DEBUG().noquote() << "Built on" << BUILD_DATE.toString()
 		<< "with Qt" << QT_VERSION_STR << "(Qt" << qVersion() << " is running)";
 
 	// Check for test mode.

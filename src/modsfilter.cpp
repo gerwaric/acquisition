@@ -13,7 +13,7 @@
 	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 	GNU General Public License for more details.
 
-	You should have received a copy of the GNU General Public License
+	You should have received a copy of the GNU General Public Licensex
 	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
@@ -24,104 +24,121 @@
 #include <QObject>
 #include <QPushButton>
 
+#include "mainwindow.h"
 #include "modlist.h"
 #include "porting.h"
 
 SelectedMod::SelectedMod(const std::string& name, double min, double max, bool min_filled, bool max_filled) :
 	data_(name, min, max, min_filled, max_filled),
-	mod_select_(std::make_unique<QComboBox>()),
-	min_text_(std::make_unique<QLineEdit>()),
-	max_text_(std::make_unique<QLineEdit>()),
-	delete_button_(std::make_unique<QPushButton>("x"))
+	mod_completer_(mod_string_list),
+	delete_button_("X")
 {
+	// Setup the mod completer
+	mod_completer_.setCompletionMode(QCompleter::PopupCompletion);
+	mod_completer_.setFilterMode(Qt::MatchContains);
+	mod_completer_.setCaseSensitivity(Qt::CaseInsensitive);
+
 	// If we don't set this size adjust policy, the combobox will expand to the width of the longest
 	// mod without regards to the rest of the UI. This can make the search panel (and therefore the main
 	// window) wider than a widescreen monitor.
-	mod_select_->setSizeAdjustPolicy(QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon);
-	mod_select_->setEditable(true);
-	mod_select_->addItems(mod_string_list);
-	mod_completer_ = new QCompleter(mod_string_list);
-	mod_completer_->setCompletionMode(QCompleter::PopupCompletion);
-	mod_completer_->setFilterMode(Qt::MatchContains);
-	mod_completer_->setCaseSensitivity(Qt::CaseInsensitive);
-	mod_select_->setCompleter(mod_completer_);
+	mod_select_.setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+	mod_select_.setEditable(true);
+	mod_select_.addItems(mod_string_list);
+	mod_select_.setCurrentIndex(mod_select_.findText(name.c_str()));
+	mod_select_.setCompleter(&mod_completer_);
 
-	mod_select_->setCurrentIndex(mod_select_->findText(name.c_str()));
 	if (min_filled)
-		min_text_->setText(QString::number(min));
+		min_text_.setText(QString::number(min));
 	if (max_filled)
-		max_text_->setText(QString::number(max));
+		max_text_.setText(QString::number(max));
+
+	// Connect signals for the mod fields.
+	QObject::connect(&mod_select_, &QComboBox::currentIndexChanged, this, &SelectedMod::OnModChanged);
+	connect(&min_text_, &QLineEdit::textEdited, this, &SelectedMod::OnMinChanged);
+	connect(&max_text_, &QLineEdit::textEdited, this, &SelectedMod::OnMaxChanged);
+	connect(&delete_button_, &QPushButton::clicked, this, &SelectedMod::OnModDeleted);
 }
 
-void SelectedMod::Update() {
-	data_.mod = mod_select_->currentText().toStdString();
-	data_.min = min_text_->text().toDouble();
-	data_.max = max_text_->text().toDouble();
-	data_.min_filled = !min_text_->text().isEmpty();
-	data_.max_filled = !max_text_->text().isEmpty();
+void SelectedMod::OnModChanged() {
+	data_.mod = mod_select_.currentText().toStdString();
+	emit ModChanged(*this);
 }
 
-enum LayoutColumn {
-	kMinField,
-	kMaxField,
-	kDeleteButton,
-	kColumnCount
-};
-
-void SelectedMod::AddToLayout(QGridLayout* layout, int index) {
-	int combobox_pos = index * 2;
-	int minmax_pos = index * 2 + 1;
-	layout->addWidget(mod_select_.get(), combobox_pos, 0, 1, LayoutColumn::kColumnCount);
-	layout->addWidget(min_text_.get(), minmax_pos, LayoutColumn::kMinField);
-	layout->addWidget(max_text_.get(), minmax_pos, LayoutColumn::kMaxField);
-	layout->addWidget(delete_button_.get(), minmax_pos, LayoutColumn::kDeleteButton);
+void SelectedMod::OnMinChanged() {
+	data_.min = min_text_.text().toDouble();
+	data_.min_filled = !min_text_.text().isEmpty();
+	emit ModChanged(*this);
 }
 
-void SelectedMod::CreateSignalMappings(QSignalMapper* signal_mapper, int index) {
-	QObject::connect(mod_select_.get(), SIGNAL(currentIndexChanged(int)), signal_mapper, SLOT(map()));
-	QObject::connect(min_text_.get(), SIGNAL(textEdited(const QString&)), signal_mapper, SLOT(map()));
-	QObject::connect(max_text_.get(), SIGNAL(textEdited(const QString&)), signal_mapper, SLOT(map()));
-	QObject::connect(delete_button_.get(), SIGNAL(clicked()), signal_mapper, SLOT(map()));
-
-	signal_mapper->setMapping(mod_select_.get(), index + 1);
-	signal_mapper->setMapping(min_text_.get(), index + 1);
-	signal_mapper->setMapping(max_text_.get(), index + 1);
-	// hack to distinguish update and delete, delete event has negative (id + 1)
-	signal_mapper->setMapping(delete_button_.get(), -index - 1);
+void SelectedMod::OnMaxChanged() {
+	data_.max = max_text_.text().toDouble();
+	data_.max_filled = !max_text_.text().isEmpty();
+	emit ModChanged(*this);
 }
 
-void SelectedMod::RemoveSignalMappings(QSignalMapper* signal_mapper) {
-	signal_mapper->removeMappings(mod_select_.get());
-	signal_mapper->removeMappings(min_text_.get());
-	signal_mapper->removeMappings(max_text_.get());
-	signal_mapper->removeMappings(delete_button_.get());
+void SelectedMod::OnModDeleted()  {
+	emit ModDeleted(*this);
+}
+
+void SelectedMod::AddToLayout(QGridLayout* layout) {
+	const int row = layout->rowCount() - 1;
+	layout->addWidget(&mod_select_, row, 0, 1, ModsFilter::LayoutColumn::kColumnCount);
+	layout->addWidget(&min_text_, row + 1, ModsFilter::LayoutColumn::kMinField);
+	layout->addWidget(&max_text_, row + 1, ModsFilter::LayoutColumn::kMaxField);
+	layout->addWidget(&delete_button_, row + 1, ModsFilter::LayoutColumn::kDeleteButton);
+}
+
+void SelectedMod::RemoveFromLayout(QGridLayout* layout) {
+	layout->removeWidget(&mod_select_);
+	layout->removeWidget(&min_text_);
+	layout->removeWidget(&max_text_);
+	layout->removeWidget(&delete_button_);
 }
 
 ModsFilter::ModsFilter(QLayout* parent) :
+	add_button_("Add mod"),
 	signal_handler_(*this)
 {
-	Initialize(parent);
-	QObject::connect(&signal_handler_, SIGNAL(SearchFormChanged()),
-		parent->parentWidget()->window(), SLOT(OnDelayedSearchFormChange()));
+	// Create a widget to hold all of the search mods.
+	QWidget* widget = new QWidget;
+	widget->setContentsMargins(0, 0, 0, 0);
+	widget->setLayout(&layout_);
+	parent->addWidget(widget);
+
+	// Setup the 'Add mod' button.
+	layout_.addWidget(&add_button_, layout_.rowCount(), 0, 1, LayoutColumn::kColumnCount);
+	QObject::connect(&add_button_, &QPushButton::clicked, &signal_handler_, &ModsFilterSignalHandler::OnAddButtonClicked);
+
+	// Make sure the main window knows when the search form has changed.
+	MainWindow* main_window = qobject_cast<MainWindow*>(parent->parentWidget()->window());
+	QObject::connect(
+		&signal_handler_, &ModsFilterSignalHandler::SearchFormChanged,
+		main_window, &MainWindow::OnDelayedSearchFormChange);
 }
 
 void ModsFilter::FromForm(FilterData* data) {
-	auto& mod_data = data->mod_data;
-	mod_data.clear();
-	for (auto& mod : mods_)
-		mod_data.push_back(mod.data());
+	data->mod_data.clear();
+	for (auto& mod : mods_) {
+		data->mod_data.push_back(mod->data());
+	};
 }
 
 void ModsFilter::ToForm(FilterData* data) {
-	Clear();
-	for (auto& mod : data->mod_data)
-		mods_.push_back(SelectedMod(mod.mod, mod.min, mod.max, mod.min_filled, mod.max_filled));
-	Refill();
+	ResetForm();
+
+	// Add search mods from the filter data.
+	for (auto& mod : data->mod_data) {
+		mods_.push_back(std::make_unique<SelectedMod>(mod.mod, mod.min, mod.max, mod.min_filled, mod.max_filled));
+		mods_.back()->AddToLayout(&layout_);
+	};
+
+	// Add the button at the end.
+	layout_.addWidget(&add_button_, layout_.rowCount(), 0, 1, LayoutColumn::kColumnCount);
 }
 
 void ModsFilter::ResetForm() {
-	Clear();
-	Refill();
+	while (auto item = layout_.takeAt(0)) { };
+	mods_.clear();
 }
 
 bool ModsFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
@@ -140,76 +157,41 @@ bool ModsFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
 	return true;
 }
 
-void ModsFilter::Initialize(QLayout* parent) {
-	layout_ = std::make_unique<QGridLayout>();
-	add_button_ = std::make_unique<QPushButton>("Add mod");
-	QObject::connect(add_button_.get(), SIGNAL(clicked()), &signal_handler_, SLOT(OnAddButtonClicked()));
-	Refill();
+void ModsFilter::AddNewMod() {
 
-	auto widget = new QWidget;
-	widget->setContentsMargins(0, 0, 0, 0);
-	widget->setLayout(layout_.get());
-	parent->addWidget(widget);
+	// Remove the button from the bottom of the mod search panel.
+	layout_.removeWidget(&add_button_);
 
-	QObject::connect(&signal_mapper_, SIGNAL(mapped(int)), &signal_handler_, SLOT(OnModChanged(int)));
-}
-
-void ModsFilter::AddMod() {
-	SelectedMod mod("", 0, 0, false, false);
+	// Create the mod, connect signals, and add it to the UI.
+	auto mod = std::make_unique<SelectedMod>("", 0, 0, false, false);
+	QObject::connect(mod.get(), &SelectedMod::ModChanged, &signal_handler_, &ModsFilterSignalHandler::OnModChanged);
+	QObject::connect(mod.get(), &SelectedMod::ModDeleted, &signal_handler_, &ModsFilterSignalHandler::OnModDeleted);
+	mod->AddToLayout(&layout_);
 	mods_.push_back(std::move(mod));
-	Refill();
+
+	// Add the button back to the new bottom of the search panel.
+	layout_.addWidget(&add_button_, layout_.rowCount(), 0, 1, LayoutColumn::kColumnCount);
 }
 
-void ModsFilter::UpdateMod(int id) {
-	mods_[id].Update();
-}
-
-void ModsFilter::DeleteMod(int id) {
-	mods_.erase(mods_.begin() + id);
-
-	Refill();
-}
-
-void ModsFilter::ClearSignalMapper() {
-	for (auto& mod : mods_) {
-		mod.RemoveSignalMappings(&signal_mapper_);
-	}
-}
-
-void ModsFilter::ClearLayout() {
-	QLayoutItem* item;
-	while ((item = layout_->takeAt(0))) {}
-}
-
-void ModsFilter::Clear() {
-	ClearSignalMapper();
-	ClearLayout();
-	mods_.clear();
-}
-
-void ModsFilter::Refill() {
-	ClearSignalMapper();
-	ClearLayout();
-
-	int i = 0;
-	for (auto& mod : mods_) {
-		mod.AddToLayout(layout_.get(), i);
-		mod.CreateSignalMappings(&signal_mapper_, i);
-
-		++i;
-	}
-
-    layout_->addWidget(add_button_.get(), 2 * static_cast<int>(mods_.size()), 0, 1, LayoutColumn::kColumnCount);
+void ModsFilter::DeleteMod(SelectedMod& mod) {
+	mod.RemoveFromLayout(&layout_);
+	for (auto it = mods_.begin(); it < mods_.end(); ++it) {
+		if (&mod == it->get()) {
+			mods_.erase(it);
+			return;
+		};
+	};
 }
 
 void ModsFilterSignalHandler::OnAddButtonClicked() {
-	parent_.AddMod();
+	parent_.AddNewMod();
 }
 
-void ModsFilterSignalHandler::OnModChanged(int id) {
-	if (id < 0)
-		parent_.DeleteMod(-id - 1);
-	else
-		parent_.UpdateMod(id - 1);
+void ModsFilterSignalHandler::OnModChanged() {
+	emit SearchFormChanged();
+}
+
+void ModsFilterSignalHandler::OnModDeleted(SelectedMod& mod) {
+	parent_.DeleteMod(mod);
 	emit SearchFormChanged();
 }

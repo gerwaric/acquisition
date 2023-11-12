@@ -27,6 +27,7 @@
 
 // Modeled after LogPanel
 RateLimitStatusPanel::RateLimitStatusPanel(MainWindow* window, Ui::MainWindow* ui) :
+	QObject(window),
 	status_button_(new QPushButton),
 	output_(new QTextEdit)
 {

@@ -25,10 +25,13 @@
 
 class QWidget;
 
+extern const char* UPDATE_CHECK_URL;
+extern const char* UPDATE_DOWNLOAD_LOCATION;
+
 class UpdateChecker : public QObject {
 	Q_OBJECT
 public:
-	UpdateChecker();
+	UpdateChecker(QNetworkAccessManager& network_manager, QObject* parent = nullptr);
 	static void AskUserToUpdate(QWidget* parent);
 public slots:
 	void CheckForUpdates();
@@ -36,6 +39,6 @@ public slots:
 signals:
 	void UpdateAvailable();
 private:
-	QNetworkAccessManager nm_;
+	QNetworkAccessManager& nm_;
 	QTimer timer_;
 };

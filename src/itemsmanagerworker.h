@@ -20,7 +20,6 @@
 #pragma once
 
 #include <queue>
-#include <QNetworkAccessManager>
 #include <QNetworkCookie>
 #include <QNetworkRequest>
 #include <QObject>
@@ -91,9 +90,9 @@ private:
 	bool TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, ItemLocation& location);
 	void FinishUpdate();
 
-	DataStore& data_;
+	Application& app_;
+
 	bool test_mode_;
-	std::unique_ptr<QNetworkAccessManager> network_manager_;
 	std::unique_ptr<RateLimit::RateLimiter> rate_limiter_;
 	std::vector<ItemLocation> tabs_;
 	std::queue<ItemsRequest> queue_;
@@ -106,7 +105,6 @@ private:
 
 	std::set<std::string> tab_id_index_;
 	std::string tabs_as_string_;
-	std::string league_;
 
 	volatile bool initialized_;
 	volatile bool updating_;
@@ -121,8 +119,4 @@ private:
 
 	std::string first_fetch_tab_;
 	int first_fetch_tab_id_;
-	const BuyoutManager& bo_manager_;
-	std::string account_name_;
-
-	QList<QNetworkCookie> cookies_;
 };

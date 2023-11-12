@@ -36,6 +36,7 @@ class Shop;
 /*
  * ItemsManager manages an ItemsManagerWorker (which lives in a separate thread)
  * and glues it to the rest of Acquisition.
+ * (No longer true as of v0.10.0, but we will see if this causes performance issues).
  */
 class ItemsManager : public QObject {
 	Q_OBJECT
@@ -78,10 +79,6 @@ private:
 	int auto_update_interval_;
 	std::unique_ptr<QTimer> auto_update_timer_;
 	std::unique_ptr<ItemsManagerWorker> worker_;
-	std::unique_ptr<QThread> thread_;
-	DataStore& data_;
-	BuyoutManager& bo_manager_;
-	Shop& shop_;
 	Application& app_;
 	Items items_;
 	QSet<QString> categories_;

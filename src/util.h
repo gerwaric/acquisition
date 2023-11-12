@@ -24,6 +24,7 @@
 #include "rapidjson/document.h"
 #include <QDebug>
 #include <QObject>
+#include <QUrlQuery>
 
 #include "QsLogLevel.h"
 
@@ -109,6 +110,8 @@ namespace Util {
 	std::string TimeAgoInWords(const QDateTime buyout_time);
 
 	std::string Decode(const std::string& entity);
+
+	QUrlQuery EncodeQueryItems(const std::list<std::pair<QString, QString>>& items);
 
 	void unique_elements(std::vector<std::string>& vec);
 

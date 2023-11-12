@@ -25,12 +25,11 @@
 #include <QMenu>
 #include <QPushButton>
 #include <QCloseEvent>
+#include <QTimer>
 
 #include "bucket.h"
 #include "porting.h"
-#include "updatechecker.h"
 
-class QNetworkAccessManager;
 class QNetworkReply;
 class QVBoxLayout;
 
@@ -67,7 +66,7 @@ enum class ProgramState {
 
 struct CurrentStatusUpdate {
 	ProgramState state;
-    size_t progress{}, total{}, cached{};
+	size_t progress{}, total{}, cached{};
 };
 
 class MainWindow : public QMainWindow {
@@ -94,25 +93,35 @@ public slots:
 	void OnUncheckSelected() { CheckSelected(false); };
 	void OnRenameTabClicked();
 	void OnRefreshSelected();
-    void OnUpdateAvailable();
+	void OnUpdateAvailable();
 	void OnUploadFinished();
 private slots:
-	void on_actionForum_shop_thread_triggered();
-	void on_actionCopy_shop_data_to_clipboard_triggered();
-	void on_actionItems_refresh_interval_triggered();
-	void on_actionRefresh_triggered();
-	void on_actionRefresh_checked_triggered();
-	void on_actionAutomatically_refresh_items_triggered();
-	void on_actionUpdate_shop_triggered();
-	void on_actionShop_template_triggered();
-	void on_actionAutomatically_update_shop_triggered();
-	void on_actionList_currency_triggered();
-	void on_actionDark_triggered(bool toggle);
-	void on_actionLight_triggered(bool toggle);
-    void on_actionDefault_triggered(bool toggle);
-	void on_actionExport_currency_triggered();
-	void on_uploadTooltipButton_clicked();
-	void on_pobTooltipButton_clicked();
+	// Tabs menu actions
+	void OnRefreshCheckedTabs();
+	void OnRefreshAllTabs();
+	void OnSetAutomaticTabRefresh();
+	void OnSetTabRefreshInterval();
+
+	// Shop menu actions
+	void OnSetShopThreads();
+	void OnEditShopTemplate();
+	void OnCopyShopToClipboard();
+	void OnUpdateShops();
+	void OnSetAutomaticShopUpdate();
+	void OnUpdatePOESESSID();
+
+	// Theme menu actions
+	void OnSetDarkTheme(bool toggle);
+	void OnSetLightTheme(bool toggle);
+	void OnSetDefaultTheme(bool toggle);
+
+	// Currency menu actions
+	void OnListCurrency();
+	void OnExportCurrency();
+
+	// Tooltip buttons
+	void OnCopyForPOB();
+	void OnUploadToImgur();
 
 private:
 	void ModelViewRefresh();
@@ -143,15 +152,12 @@ private:
 	QTabBar* tab_bar_;
 	std::vector<std::unique_ptr<Filter>> filters_;
 	int search_count_;
-	QNetworkAccessManager* image_network_manager_;
 	ImageCache* image_cache_;
 	QLabel* status_bar_label_;
 	QVBoxLayout* search_form_layout_;
 	QMenu context_menu_;
-	UpdateChecker update_checker_;
 	QPushButton update_button_;
 	QPushButton refresh_button_;
-	QNetworkAccessManager* network_manager_;
 	QTimer delayed_update_current_item_;
 	QTimer delayed_search_form_change_;
 	QStringListModel* category_string_model_;

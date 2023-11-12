@@ -380,54 +380,61 @@
     <property name="title">
      <string>Shop</string>
     </property>
-    <addaction name="actionForum_shop_thread"/>
-    <addaction name="actionShop_template"/>
-    <addaction name="actionCopy_shop_data_to_clipboard"/>
-    <addaction name="actionUpdate_shop"/>
-    <addaction name="actionAutomatically_update_shop"/>
+    <addaction name="actionSetShopThreads"/>
+    <addaction name="actionEditShopTemplate"/>
+    <addaction name="actionCopyShopToClipboard"/>
+    <addaction name="actionUpdateShops"/>
+    <addaction name="actionSetAutomaticallyShopUpdate"/>
+    <addaction name="actionUpdatePOESESSID"/>
    </widget>
-   <widget class="QMenu" name="menuItems">
+   <widget class="QMenu" name="menuTabs">
     <property name="title">
      <string>Tabs</string>
     </property>
-    <addaction name="actionRefresh_checked"/>
-    <addaction name="actionRefresh"/>
+    <addaction name="actionRefreshCheckedTabs"/>
+    <addaction name="actionRefreshAllTabs"/>
     <addaction name="separator"/>
-    <addaction name="actionAutomatically_refresh_items"/>
-    <addaction name="actionItems_refresh_interval"/>
+    <addaction name="actionSetAutomaticTabRefresh"/>
+    <addaction name="actionSetTabRefreshInterval"/>
    </widget>
    <widget class="QMenu" name="menuCurrency">
     <property name="title">
      <string>Currency</string>
     </property>
-    <addaction name="actionList_currency"/>
-    <addaction name="actionExport_currency"/>
+    <addaction name="actionListCurrency"/>
+    <addaction name="actionExportCurrency"/>
    </widget>
    <widget class="QMenu" name="menuTheme">
     <property name="title">
      <string>Theme</string>
     </property>
-    <addaction name="actionDark"/>
-    <addaction name="actionLight"/>
-    <addaction name="actionDefault"/>
+    <addaction name="actionSetDarkTheme"/>
+    <addaction name="actionSetLightTheme"/>
+    <addaction name="actionSetDefaultTheme"/>
    </widget>
-   <addaction name="menuItems"/>
+   <addaction name="menuTabs"/>
    <addaction name="menuShop"/>
    <addaction name="menuCurrency"/>
    <addaction name="menuTheme"/>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
-  <action name="actionForum_shop_thread">
+  <action name="actionSetShopThreads">
+   <property name="enabled">
+    <bool>true</bool>
+   </property>
    <property name="text">
-    <string>Forum shop thread...</string>
+    <string>Set Shop Threads</string>
    </property>
   </action>
-  <action name="actionCopy_shop_data_to_clipboard">
+  <action name="actionCopyShopToClipboard">
+   <property name="enabled">
+    <bool>true</bool>
+   </property>
    <property name="text">
     <string>Copy shop data to clipboard</string>
    </property>
   </action>
-  <action name="actionAutomatically_refresh_items">
+  <action name="actionSetAutomaticTabRefresh">
    <property name="checkable">
     <bool>true</bool>
    </property>
@@ -438,53 +445,62 @@
     <string>Auto refresh checked tabs</string>
    </property>
   </action>
-  <action name="actionItems_refresh_interval">
+  <action name="actionSetTabRefreshInterval">
    <property name="text">
     <string>Auto refresh interval...</string>
    </property>
   </action>
-  <action name="actionRefresh">
+  <action name="actionRefreshAllTabs">
    <property name="text">
     <string>Refresh all tabs</string>
    </property>
   </action>
-  <action name="actionUpdate_shop">
+  <action name="actionUpdateShops">
+   <property name="enabled">
+    <bool>true</bool>
+   </property>
    <property name="text">
     <string>Update shop thread at forums</string>
    </property>
   </action>
-  <action name="actionAutomatically_update_shop">
+  <action name="actionSetAutomaticallyShopUpdate">
    <property name="checkable">
     <bool>true</bool>
    </property>
    <property name="checked">
     <bool>false</bool>
    </property>
+   <property name="enabled">
+    <bool>true</bool>
+   </property>
    <property name="text">
     <string>Automatically update shop</string>
    </property>
   </action>
-  <action name="actionShop_template">
+  <action name="actionEditShopTemplate">
+   <property name="enabled">
+    <bool>true</bool>
+   </property>
    <property name="text">
-    <string>Shop template...</string>
+    <string>Edit Shop Template</string>
    </property>
   </action>
-  <action name="actionList_currency">
+  <action name="actionListCurrency">
    <property name="text">
     <string>List currency...</string>
    </property>
   </action>
-  <action name="actionExport_currency">
+  <action name="actionExportCurrency">
    <property name="text">
     <string>Export to CSV...</string>
    </property>
   </action>
-  <action name="actionRefresh_checked">
+  <action name="actionRefreshCheckedTabs">
    <property name="text">
     <string>Refresh checked tabs</string>
    </property>
   </action>
-  <action name="actionDark">
+  <action name="actionSetDarkTheme">
    <property name="checkable">
     <bool>true</bool>
    </property>
@@ -492,7 +508,7 @@
     <string>Dark</string>
    </property>
   </action>
-  <action name="actionLight">
+  <action name="actionSetLightTheme">
    <property name="checkable">
     <bool>true</bool>
    </property>
@@ -505,12 +521,17 @@
     <string>Refresh Mod List</string>
    </property>
   </action>
-  <action name="actionDefault">
+  <action name="actionSetDefaultTheme">
    <property name="checkable">
     <bool>true</bool>
    </property>
    <property name="text">
     <string>Default</string>
+   </property>
+  </action>
+  <action name="actionUpdatePOESESSID">
+   <property name="text">
+    <string>Update POESESSID</string>
    </property>
   </action>
  </widget>

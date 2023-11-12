@@ -29,6 +29,7 @@
 #include <QNetworkReply>
 #include <QRegularExpression>
 #include <QTextDocument>
+#include <QUrlQuery>
 #include <QPainter>
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
@@ -36,6 +37,8 @@
 #include <iomanip>
 #include <cmath>
 #include <regex>
+
+#include "QsLog.h"
 
 #include "buyoutmanager.h"
 #include "porting.h"
@@ -98,7 +101,7 @@ std::string Util::GetCsrfToken(const QByteArray& page, const std::string& name) 
 	//  name="hash" value="..."
 	//	or
 	//	name="hash" class="input-error" value="..."
-	const QString expr = QString(
+    static const QString expr = QString(
 		R"regex(
 			name="%1"
 			\s+
@@ -108,7 +111,7 @@ std::string Util::GetCsrfToken(const QByteArray& page, const std::string& name) 
 			)?
 			value="(.*?)"
 		)regex").arg(QString::fromStdString(name));
-	const QRegularExpression re(expr,
+    static const QRegularExpression re(expr,
 		QRegularExpression::CaseInsensitiveOption |
 		QRegularExpression::MultilineOption |
 		QRegularExpression::DotMatchesEverythingOption |
@@ -240,6 +243,17 @@ std::string Util::Decode(const std::string& entity) {
 	QTextDocument text;
 	text.setHtml(entity.c_str());
 	return text.toPlainText().toStdString();
+}
+
+QUrlQuery Util::EncodeQueryItems(const std::list<std::pair<QString, QString>>& items) {
+	// https://github.com/owncloud/client/issues/9203
+	QUrlQuery result;
+	for (const auto& item : items) {
+		const QString key = QUrl::toPercentEncoding(item.first);
+		const QString value = QUrl::toPercentEncoding(item.second);
+		result.addQueryItem(key, value);
+	};
+	return result;
 }
 
 QColor Util::recommendedForegroundTextColor(const QColor& backgroundColor) {
