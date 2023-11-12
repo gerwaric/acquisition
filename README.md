@@ -5,30 +5,48 @@ You can download all of your stash tabs and character inventories for offline se
 
 You can list items for trade using forum shop threads. These threads are indexed by the official trade site. This allows you to list items in remove-only tabs as well as character invetories, which are not normally listed on the official trade site.
 
-Acquisition runs on Windows and macOS, and probably Linux with some effort.
+Acquisition runs on Windows, macOS, Linux.
 
 You can download setup packages from [the releases page](https://github.com/gerwaric/acquisition/releases).
 
-## Compiling or Developing Acquisition
+## Building Acquisition
 
 Acquisition is written in C++ and uses the Qt widget toolkit.
 
-Acquisition can be built on all supported platforms with Qt Creator.
+### Qt
 
-### Windows
+Acquisition should be buildable with Qt Creator (Community) on any platform that supports Qt 6.5.
 
-On Windows you can also use Visual Studio with the Qt Visual Studio Tools extension.
+Acquisition depends on the following Qt modules, which should be installed from the Qt Maintenance Tool:
+- Qt HTTP Server
+- Qt WebSockets
 
-v0.9.10 was built with the following tools:
-- Qt Creator 11.0.3 with Qt 6.5.3 LTS and MSVC 2019 64-bit (for release builds)
-- Visual Studio 2019 with Qt Visual Studio Tools 3.0.1 (for editing, debugging, and testing)
+### Microsoft Windows
+
+On Windows you can also build Acquisition with Visual Studio 2019 and the Qt Visual Studio Tools extension.
+
+Windows releases are currently built with:
+- Windows 11
+- Qt Creator 11.0.3 (Community) with Qt 6.5.3 LTS and MSVC 2019 64-bit (for release builds)
+- Visual Studio 2019 with Qt Visual Studio Tools 3.0.2 (for editing, debugging, and testing)
 - Inno Setup 6.2.2 (for installer creation)
 
-### macOS
+**NOTE**: v0.9.9 is the last version of Acquisition that runs on Windows 7 and 8.
 
-v0.9.10 was built on an M1 Mac running macOS Ventura 13.6 with the following tools:
-- Qt Creator 11.0.3 with Qt 6.5.3 for macOS
+### Apple macOS
+
+macOS releases are currently built with:
+- macOS Ventura 13.6.1 on Apple M1 silicon
+- Qt Creator 11.0.3 (Community) with Qt 6.5.3 for macOS
 - XCode 15.0.1
+
+### Linux
+
+Linux releases are currently built with:
+- Linut Mint 20 Cinnamon (based on Ubuntu Focal)
+- Qt Creator 11.0.3 (Community) with Qt 6.5.3 GCC 64bit 
+- OpenSSL 3.1.4 (manually built and installed from source)
+- linuxdeployqt (for AppImage creation)
 
 ## Command line
 
