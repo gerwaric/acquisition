@@ -13,7 +13,3 @@
 #define APP_PUBLISHER               "GERWARIC"
 #define APP_PUBLISHER_EMAIL         "gerwaric@gmail.com"
 #define APP_URL                     "https://github.com/gerwaric/acquisition"
-
-// These control if this build will expire.
-#define TRIAL_VERSION               0
-#define TRIAL_EXPIRATION_DAYS       0

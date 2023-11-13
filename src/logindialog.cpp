@@ -206,37 +206,6 @@ void LoginDialog::OnLeaguesRequestFinished() {
 	if (reply->error())
 		return LeaguesApiError(reply->errorString(), bytes);
 
-	// Trial builds come with an expiration date. Prevent login of expired builds.
-	if (TRIAL_VERSION) {
-		// Make sure the expiration date is valid.
-		const QString expiration = EXPIRATION_DATE.toString();
-		if (EXPIRATION_DATE.isValid() == false) {
-			QLOG_ERROR() << "This is a trial build, but the expiration date is invalid";
-			DisplayError("This is a trial build, but the expiration date is invalid");
-			ui->loginButton->setEnabled(false);
-			return;
-		};
-		// Make sure the reply header date is valid.
-		const QByteArray reply_timestamp = Util::FixTimezone(reply->rawHeader("Date"));
-		const QDateTime reply_date = QDateTime::fromString(reply_timestamp, Qt::RFC2822Date);
-		if (reply_date.isValid() == false) {
-			QLOG_ERROR() << "Cannot determine the current date of an expiring trial build.";
-			DisplayError("Cannot determine the current date of an expiring trial build");
-			ui->loginButton->setEnabled(false);
-			return;
-		};
-		// Make sure the build hasn't expired.
-		if (EXPIRATION_DATE < reply_date) {
-			QLOG_ERROR() << "This build expired on" << expiration;
-			DisplayError("This build expired on " + expiration);
-			ui->loginButton->setEnabled(false);
-			return;
-		};
-		// Warn the user that this build will expire.
-		QLOG_WARN() << "This build will expire on" << expiration;
-		DisplayError("This build will expire on " + expiration);
-	};
-
 	rapidjson::Document doc;
 	doc.Parse(bytes.constData());
 
