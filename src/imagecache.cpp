@@ -26,27 +26,27 @@
 
 #include "util.h"
 
-ImageCache::ImageCache(const std::string& directory) :
+ImageCache::ImageCache(const QString& directory) :
 	directory_(directory)
 {
-	if (!QDir(directory_.c_str()).exists())
-		QDir().mkpath(directory_.c_str());
+	if (!QDir(directory_).exists())
+		QDir().mkpath(directory_);
 }
 
 bool ImageCache::Exists(const std::string& url) {
-	std::string path = GetPath(url);
-	QFile file(QString(path.c_str()));
+	QString path = GetPath(url);
+	QFile file(path);
 	return file.exists();
 }
 
 QImage ImageCache::Get(const std::string& url) {
-	return QImage(QString(GetPath(url).c_str()));
+	return QImage(QString(GetPath(url)));
 }
 
 void ImageCache::Set(const std::string& url, const QImage& image) {
-	image.save(QString(GetPath(url).c_str()));
+	image.save(QString(GetPath(url)));
 }
 
-std::string ImageCache::GetPath(const std::string& url) {
-	return directory_ + "/" + Util::Md5(url) + ".png";
+QString ImageCache::GetPath(const std::string& url) {
+	return directory_ + "/" + QString::fromStdString(Util::Md5(url)) + ".png";
 }

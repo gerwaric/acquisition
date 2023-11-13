@@ -28,13 +28,13 @@
 #include "currencymanager.h"
 #include "util.h"
 
-SqliteDataStore::SqliteDataStore(const std::string& filename) :
+SqliteDataStore::SqliteDataStore(const QString& filename) :
 	filename_(filename)
 {
-	QDir dir(QDir::cleanPath((filename + "/..").c_str()));
+	QDir dir(QDir::cleanPath(filename + "/.."));
 	if (!dir.exists())
 		QDir().mkpath(dir.path());
-	if (sqlite3_open(filename_.c_str(), &db_) != SQLITE_OK) {
+	if (sqlite3_open(filename_.toStdString().c_str(), &db_) != SQLITE_OK) {
 		throw std::runtime_error("Failed to open sqlite3 database.");
 	}
 	CreateTable("data", "key TEXT PRIMARY KEY, value BLOB");
@@ -182,8 +182,8 @@ void SqliteDataStore::Set(const std::string& key, const std::string& value) {
 	std::string query = "INSERT OR REPLACE INTO data (key, value) VALUES (?, ?)";
 	sqlite3_stmt* stmt;
 	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
-    sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_blob(stmt, 2, value.c_str(), static_cast<int>(value.size()), SQLITE_STATIC);
+	sqlite3_bind_text(stmt, 1, key.c_str(), -1, SQLITE_STATIC);
+	sqlite3_bind_blob(stmt, 2, value.c_str(), static_cast<int>(value.size()), SQLITE_STATIC);
 	sqlite3_step(stmt);
 	sqlite3_finalize(stmt);
 }
@@ -193,7 +193,7 @@ void SqliteDataStore::SetTabs(const ItemLocationType& type, const std::string& v
 	sqlite3_stmt* stmt;
 	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
 	sqlite3_bind_int(stmt, 1, (int)type);
-    sqlite3_bind_blob(stmt, 2, value.c_str(), static_cast<int>(value.size()), SQLITE_STATIC);
+	sqlite3_bind_blob(stmt, 2, value.c_str(), static_cast<int>(value.size()), SQLITE_STATIC);
 	sqlite3_step(stmt);
 	sqlite3_finalize(stmt);
 }
@@ -206,7 +206,7 @@ void SqliteDataStore::SetItems(const ItemLocation& loc, const std::string& value
 	sqlite3_stmt* stmt;
 	sqlite3_prepare_v2(db_, query.c_str(), -1, &stmt, 0);
 	sqlite3_bind_text(stmt, 1, loc.get_tab_uniq_id().c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_blob(stmt, 2, value.c_str(), static_cast<int>(value.size()), SQLITE_STATIC);
+	sqlite3_bind_blob(stmt, 2, value.c_str(), static_cast<int>(value.size()), SQLITE_STATIC);
 	sqlite3_step(stmt);
 	sqlite3_finalize(stmt);
 }
@@ -256,7 +256,7 @@ SqliteDataStore::~SqliteDataStore() {
 	sqlite3_close(db_);
 }
 
-std::string SqliteDataStore::MakeFilename(const std::string& name, const std::string& league) {
+QString SqliteDataStore::MakeFilename(const std::string& name, const std::string& league) {
 	std::string key = name + "|" + league;
-	return QString(QCryptographicHash::hash(key.c_str(), QCryptographicHash::Md5).toHex()).toStdString();
+	return QString(QCryptographicHash::hash(key.c_str(), QCryptographicHash::Md5).toHex());
 }

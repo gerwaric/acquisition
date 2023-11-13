@@ -66,7 +66,7 @@ private:
 	std::unique_ptr<Application> app_;
 	Ui::LoginDialog* ui;
 	MainWindow* mw;
-	std::string settings_path_;
+	QString settings_path_;
 	QString saved_league_;
 	QString session_id_;
 	std::vector<std::string> leagues_;

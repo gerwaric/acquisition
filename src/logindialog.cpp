@@ -100,21 +100,21 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 	LoadSettings();
 	LoadTheme();
 
-    bool has_ssl = QSslSocket::supportsSsl();
-    QLOG_DEBUG() << "Supports SSL: " << has_ssl;
-    if (has_ssl == false) {
+	bool has_ssl = QSslSocket::supportsSsl();
+	QLOG_DEBUG() << "Supports SSL: " << has_ssl;
+	if (has_ssl == false) {
 #ifdef Q_OS_LINUX
-        const QString msg = "OpenSSL 3.x was not found; check LD_LIBRARY_PATH if you have a custom installation.";
+		const QString msg = "OpenSSL 3.x was not found; check LD_LIBRARY_PATH if you have a custom installation.";
 #else
-        const QString msg = "SSL is not supported on" + QSysInfo::prettyProductName() + ". This is unexpected.";
+		const QString msg = "SSL is not supported on" + QSysInfo::prettyProductName() + ". This is unexpected.";
 #endif
-        DisplayError(msg, true);
-        QLOG_FATAL() << msg;
-        ui->loginButton->setEnabled(false);
-        return;
-    };
-    QLOG_DEBUG() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
-    QLOG_DEBUG() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
+		DisplayError(msg, true);
+		QLOG_FATAL() << msg;
+		ui->loginButton->setEnabled(false);
+		return;
+	};
+	QLOG_DEBUG() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
+	QLOG_DEBUG() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
 
 	connect(ui->proxyCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnProxyCheckBoxClicked);
 	connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
@@ -340,7 +340,7 @@ void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
 }
 
 void LoginDialog::LoadSettings() {
-	QSettings settings(settings_path_.c_str(), QSettings::IniFormat);
+	QSettings settings(settings_path_, QSettings::IniFormat);
 	session_id_ = settings.value("session_id", "").toString();
 	ui->sessionIDLineEdit->setText(session_id_);
 	ui->rembmeCheckBox->setChecked(settings.value("remember_me_checked").toBool());
@@ -363,7 +363,7 @@ void LoginDialog::LoadSettings() {
 }
 
 void LoginDialog::SaveSettings() {
-	QSettings settings(settings_path_.c_str(), QSettings::IniFormat);
+	QSettings settings(settings_path_, QSettings::IniFormat);
 	if (ui->rembmeCheckBox->isChecked()) {
 		settings.setValue("session_id", session_id_);
 		settings.setValue("league", ui->leagueComboBox->currentText());
