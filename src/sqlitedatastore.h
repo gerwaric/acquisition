@@ -19,8 +19,11 @@
 
 #pragma once
 
+#include <QMutex>
 #include <QString>
+#include <QSqlDatabase>
 
+#include <map>
 #include <string>
 #include <vector>
 
@@ -30,11 +33,6 @@
 class Application;
 struct CurrencyUpdate;
 struct sqlite3;
-
-struct blob_info {
-	byte* info;
-	int len;
-};
 
 class SqliteDataStore : public DataStore {
 public:
@@ -58,5 +56,8 @@ private:
 	void CleanItemsTable();
 
 	QString filename_;
-	sqlite3* db_;
+	QSqlDatabase db_;
+
+	// TBD reference counting to delete un-needed mutexes
+	static std::map<const QString,std::pair<QMutex*, int>> file_access_;
 };
