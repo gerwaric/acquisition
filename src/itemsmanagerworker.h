@@ -92,7 +92,6 @@ private:
 
 	Application& app_;
 
-	bool test_mode_;
 	std::unique_ptr<RateLimit::RateLimiter> rate_limiter_;
 	std::vector<ItemLocation> tabs_;
 	std::queue<ItemsRequest> queue_;
