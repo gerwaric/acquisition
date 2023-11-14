@@ -26,6 +26,7 @@
 #include <QStringList>
 #include <QThread>
 
+#include <list>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -56,10 +57,12 @@ private:
 
 class DataStore {
 public:
+	typedef std::list<const ItemLocation*> LocationList;
+	typedef std::list<const Item*> ItemList;
 	virtual ~DataStore() {};
 	virtual void Set(const std::string& key, const std::string& value) = 0;
-	virtual void SetTabs(const ItemLocationType& type, const std::string& value) = 0;
-	virtual void SetItems(const ItemLocation& loc, const std::string& value) = 0;
+	virtual void SetTabs(const ItemLocationType& type, const LocationList& tabs) = 0;
+	virtual void SetItems(const ItemLocation& loc, const ItemList& items) = 0;
 	virtual std::string Get(const std::string& key, const std::string& default_value = "") = 0;
 	virtual std::string GetTabs(const ItemLocationType& type, const std::string& default_value = "") = 0;
 	virtual std::string GetItems(const ItemLocation& loc, const std::string& default_value = "") = 0;
@@ -69,4 +72,7 @@ public:
 	virtual bool GetBool(const std::string& key, bool default_value = false) = 0;
 	virtual void SetInt(const std::string& key, int value) = 0;
 	virtual int GetInt(const std::string& key, int default_value = 0) = 0;
+protected:
+	QString Serialize(const LocationList& tabs);
+	QString Serialize(const ItemList& items);
 };

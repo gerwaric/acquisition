@@ -775,31 +775,29 @@ void ItemsManagerWorker::FinishUpdate() {
 		});
 
 	// Maps location type (CHARACTER or STASH) to a list of all the tabs of that type
-	std::map<ItemLocationType, QStringList> tabsPerType;
-	for (auto const& tab : tabs_) {
-		const ItemLocationType& tab_type = tab.get_type();
-		tabsPerType[tab_type].push_back(QString::fromStdString(tab.get_json()));
+	std::map<ItemLocationType, DataStore::LocationList> tabsPerType;
+	for (const auto& tab : tabs_) {
+		tabsPerType[tab.get_type()].push_back(&tab);
 	};
 
 	// Map locations to a list of items in that location.
-	std::map<ItemLocation, QStringList> itemsPerLoc;
-	for (auto const& item : items_) {
-		const ItemLocation& item_location = item->location();
-		itemsPerLoc[item_location].push_back(QString::fromStdString(item->json()));
+	std::map<ItemLocation, DataStore::ItemList> itemsPerLoc;
+	for (const auto& item : items_) {
+		itemsPerLoc[item->location()].push_back(item.get());
 	};
 
 	// Save tabs by tab type.
-	for (auto const& tab : tabsPerType) {
-		const ItemLocationType& tab_type = tab.first;
-		const QString tab_json = "[" + tab.second.join(",") + "]";
-		app_.data().SetTabs(tab_type, tab_json.toStdString());
+	for (auto const& pair : tabsPerType) {
+		const auto& location_type = pair.first;
+		const auto& tabs = pair.second;
+		app_.data().SetTabs(location_type, tabs);
 	};
 
 	// Save items by location.
-	for (auto const& items : itemsPerLoc) {
-		const ItemLocation& items_location = items.first;
-		const QString items_json = "[" + items.second.join(",") + "]";
-		app_.data().SetItems(items_location, items_json.toStdString());
+	for (auto const& pair : itemsPerLoc) {
+		const auto& location = pair.first;
+		const auto& items = pair.second;
+		app_.data().SetItems(location, items);
 	};
 
 	// Let everyone know the update is done.

@@ -91,3 +91,21 @@ void DataStoreConnectionManager::Disconnect(const QString& filename) {
 		connections_.erase(connection_id);
 	};
 }
+
+QString DataStore::Serialize(const DataStore::LocationList& tabs) {
+	QStringList json_tabs;
+	json_tabs.reserve(tabs.size());
+	for (auto& tab : tabs) {
+		json_tabs.push_back(QString::fromStdString(tab->get_json()));
+	};
+	return "[" + json_tabs.join(",") + "]";
+}
+
+QString DataStore::Serialize(const DataStore::ItemList& items) {
+	QStringList json_items;
+	json_items.reserve(items.size());
+	for (auto& item : items) {
+		json_items.push_back(QString::fromStdString(item->json()));
+	};
+	return "[" + json_items.join(",") + "]";
+}

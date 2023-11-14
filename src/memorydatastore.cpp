@@ -46,12 +46,12 @@ void MemoryDataStore::Set(const std::string& key, const std::string& value) {
 	data_[key] = value;
 }
 
-void MemoryDataStore::SetTabs(const ItemLocationType& type, const std::string& value) {
-	tabs_[type] = value;
+void MemoryDataStore::SetTabs(const ItemLocationType& type, const LocationList& tabs) {
+	tabs_[type] = Serialize(tabs).toStdString();
 }
 
-void MemoryDataStore::SetItems(const ItemLocation& loc, const std::string& value) {
-	items_[loc.get_tab_uniq_id()] = value;
+void MemoryDataStore::SetItems(const ItemLocation& loc, const ItemList& items) {
+	items_[loc.get_tab_uniq_id()] = Serialize(items).toStdString();
 }
 
 void MemoryDataStore::InsertCurrencyUpdate(const CurrencyUpdate& update) {

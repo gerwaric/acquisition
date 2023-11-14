@@ -221,20 +221,21 @@ void SqliteDataStore::Set(const std::string& key, const std::string& value) {
 	};
 }
 
-void SqliteDataStore::SetTabs(const ItemLocationType& type, const std::string& value) {
+void SqliteDataStore::SetTabs(const ItemLocationType& type, const LocationList& tabs) {
 	auto& db = manager_.GetConnection(filename_);
 	QMutexLocker locker(db.mutex);
 	QSqlQuery query(db.database);
 	query.prepare("INSERT OR REPLACE INTO tabs (type, value) VALUES (?, ?)");
 	query.bindValue(0, (int)type);
-	query.bindValue(1, QString::fromStdString(value));
+	query.bindValue(1, Serialize(tabs));
 	if (query.exec() == false) {
 		QLOG_ERROR() << "Error setting tabs for type" << (int)type;
 	};
 }
 
-void SqliteDataStore::SetItems(const ItemLocation& loc, const std::string& value) {
-	if (loc.get_tab_uniq_id().empty()) {
+void SqliteDataStore::SetItems(const ItemLocation& loc, const ItemList& items) {
+	const QString location_uid = QString::fromStdString(loc.get_tab_uniq_id());
+	if (location_uid.isEmpty()) {
 		QLOG_WARN() << "Cannot set items because the location is empty";
 		return;
 	};
@@ -243,9 +244,9 @@ void SqliteDataStore::SetItems(const ItemLocation& loc, const std::string& value
 	QSqlQuery query(db.database);
 	query.prepare("INSERT OR REPLACE INTO items (loc, value) VALUES (?, ?)");
 	query.bindValue(0, QString::fromStdString(loc.get_tab_uniq_id()));
-	query.bindValue(1, QString::fromStdString(value));
+	query.bindValue(1, Serialize(items));
 	if (query.exec() == false) {
-		QLOG_ERROR() << "Error setting tabs for type" << loc.get_tab_uniq_id();
+		QLOG_ERROR() << "Error saving items for location" << location_uid;
 	};
 }
 

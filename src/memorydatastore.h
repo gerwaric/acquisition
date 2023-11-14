@@ -28,8 +28,8 @@
 class MemoryDataStore : public DataStore {
 public:
 	void Set(const std::string& key, const std::string& value);
-	void SetTabs(const ItemLocationType& type, const std::string& value);
-	void SetItems(const ItemLocation& loc, const std::string& value);
+	void SetTabs(const ItemLocationType& type, const LocationList& tabs);
+	void SetItems(const ItemLocation& loc, const ItemList& items);
 	std::string Get(const std::string& key, const std::string& default_value = "");
 	std::string GetTabs(const ItemLocationType& type, const std::string& default_value = "");
 	std::string GetItems(const ItemLocation& loc, const std::string& default_value = "");
