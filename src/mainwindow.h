@@ -27,6 +27,8 @@
 #include <QCloseEvent>
 #include <QTimer>
 
+#include "QsLog.h"
+
 #include "bucket.h"
 #include "porting.h"
 
@@ -110,10 +112,13 @@ private slots:
 	void OnSetAutomaticShopUpdate();
 	void OnUpdatePOESESSID();
 
-	// Theme menu actions
+	// Theme submenu actions
 	void OnSetDarkTheme(bool toggle);
 	void OnSetLightTheme(bool toggle);
 	void OnSetDefaultTheme(bool toggle);
+
+	// Logging submenu actions
+	void OnSetLogging(QsLogging::Level level);
 
 	// Currency menu actions
 	void OnListCurrency();
