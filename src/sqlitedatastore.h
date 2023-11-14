@@ -55,5 +55,6 @@ private:
 
 	const QString filename_;
 
+	DataStoreConnection& GetConnection();
 	static DataStoreConnectionManager manager_;
 };

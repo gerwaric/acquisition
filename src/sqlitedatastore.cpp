@@ -45,7 +45,7 @@ SqliteDataStore::SqliteDataStore(const QString& filename) :
 	CreateTable("currency", "timestamp INTEGER PRIMARY KEY, value TEXT");
 	CleanItemsTable();
 
-	auto& db = manager_.GetConnection(filename_);
+	auto& db = GetConnection();
 	QMutexLocker locker(db.mutex);
 	QSqlQuery query(db.database);
 	query.prepare("VACUUM");
@@ -57,7 +57,7 @@ SqliteDataStore::SqliteDataStore(const QString& filename) :
 void SqliteDataStore::CreateTable(const std::string& name, const std::string& fields) {
 	const QString qname = QString::fromStdString(name);
 	const QString qfields = QString::fromStdString(fields);
-	auto& db = manager_.GetConnection(filename_);
+	auto& db = GetConnection();
 	QMutexLocker locker(db.mutex);
 	QSqlQuery query(db.database);
 	query.prepare("CREATE TABLE IF NOT EXISTS " + qname + "(" + qfields + ")");
@@ -67,7 +67,7 @@ void SqliteDataStore::CreateTable(const std::string& name, const std::string& fi
 }
 
 void SqliteDataStore::CleanItemsTable() {
-	auto& db = manager_.GetConnection(filename_);
+	auto& db = GetConnection();
 	QMutexLocker locker(db.mutex);
 	QSqlQuery query(db.database);
 	query.prepare("DELETE FROM items WHERE loc IS NULL");
@@ -146,7 +146,7 @@ void SqliteDataStore::CleanItemsTable() {
 }
 
 std::string SqliteDataStore::Get(const std::string& key, const std::string& default_value) {
-	auto& db = manager_.GetConnection(filename_);
+	auto& db = GetConnection();
 	QMutexLocker locker(db.mutex);
 	QSqlQuery query(db.database);
 	query.prepare("SELECT value FROM data WHERE key = ?");
@@ -166,7 +166,7 @@ std::string SqliteDataStore::Get(const std::string& key, const std::string& defa
 }
 
 Locations SqliteDataStore::GetTabs(const ItemLocationType& type) {
-	auto& db = manager_.GetConnection(filename_);
+	auto& db = GetConnection();
 	QMutexLocker locker(db.mutex);
 	QSqlQuery query(db.database);
 	query.prepare("SELECT value FROM tabs WHERE type = ?");
@@ -187,7 +187,7 @@ Locations SqliteDataStore::GetTabs(const ItemLocationType& type) {
 
 Items SqliteDataStore::GetItems(const ItemLocation& loc) {
 	const QString tab_uid = QString::fromStdString(loc.get_tab_uniq_id());
-	auto& db = manager_.GetConnection(filename_);
+	auto& db = GetConnection();
 	QMutexLocker locker(db.mutex);
 	QSqlQuery query(db.database);
 	query.prepare("SELECT value FROM items WHERE loc = ?");
@@ -207,7 +207,7 @@ Items SqliteDataStore::GetItems(const ItemLocation& loc) {
 }
 
 void SqliteDataStore::Set(const std::string& key, const std::string& value) {
-	auto& db = manager_.GetConnection(filename_);
+	auto& db = GetConnection();
 	QMutexLocker locker(db.mutex);
 	QSqlQuery query(db.database);
 	query.prepare("INSERT OR REPLACE INTO data (key, value) VALUES (?, ?)");
@@ -219,7 +219,7 @@ void SqliteDataStore::Set(const std::string& key, const std::string& value) {
 }
 
 void SqliteDataStore::SetTabs(const ItemLocationType& type, const LocationList& tabs) {
-	auto& db = manager_.GetConnection(filename_);
+	auto& db = GetConnection();
 	QMutexLocker locker(db.mutex);
 	QSqlQuery query(db.database);
 	query.prepare("INSERT OR REPLACE INTO tabs (type, value) VALUES (?, ?)");
@@ -236,7 +236,7 @@ void SqliteDataStore::SetItems(const ItemLocation& loc, const ItemList& items) {
 		QLOG_WARN() << "Cannot set items because the location is empty";
 		return;
 	};
-	auto& db = manager_.GetConnection(filename_);
+	auto& db = GetConnection();
 	QMutexLocker locker(db.mutex);
 	QSqlQuery query(db.database);
 	query.prepare("INSERT OR REPLACE INTO items (loc, value) VALUES (?, ?)");
@@ -248,7 +248,7 @@ void SqliteDataStore::SetItems(const ItemLocation& loc, const ItemList& items) {
 }
 
 void SqliteDataStore::InsertCurrencyUpdate(const CurrencyUpdate& update) {
-	auto& db = manager_.GetConnection(filename_);
+	auto& db = GetConnection();
 	QMutexLocker locker(db.mutex);
 	QSqlQuery query(db.database);
 	query.prepare("INSERT INTO currency (timestamp, value) VALUES (?, ?)");
@@ -260,7 +260,7 @@ void SqliteDataStore::InsertCurrencyUpdate(const CurrencyUpdate& update) {
 }
 
 std::vector<CurrencyUpdate> SqliteDataStore::GetAllCurrency() {
-	auto& db = manager_.GetConnection(filename_);
+	auto& db = GetConnection();
 	QMutexLocker locker(db.mutex);
 	QSqlQuery query(db.database);
 	query.prepare("SELECT timestamp, value FROM currency ORDER BY timestamp ASC");
@@ -302,4 +302,8 @@ SqliteDataStore::~SqliteDataStore() {
 QString SqliteDataStore::MakeFilename(const std::string& name, const std::string& league) {
 	std::string key = name + "|" + league;
 	return QString(QCryptographicHash::hash(key.c_str(), QCryptographicHash::Md5).toHex());
+}
+
+DataStoreConnection& SqliteDataStore::GetConnection() {
+	return manager_.GetConnection(filename_);
 }
