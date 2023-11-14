@@ -61,3 +61,4 @@ private:
 	std::string inventory_id_;
 };
 
+typedef std::vector<ItemLocation> Locations;
