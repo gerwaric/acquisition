@@ -114,9 +114,9 @@ int main(int argc, char* argv[])
 
 	// Start the log with basic info
 	QLOG_INFO() << "-------------------------------------------------------------------------------";
-	QLOG_INFO().noquote() << a.applicationName() << a.applicationVersion() << "( version code" << VERSION_CODE << ")";
-	QLOG_INFO().noquote() << "Built on" << QStringLiteral(__DATE__ " " __TIME__).simplified();
-	QLOG_INFO().noquote() << "Built with Qt" << QT_VERSION_STR "and running on Qt" << qVersion();
+	QLOG_INFO().noquote() << a.applicationName() << APP_VERSION_STRING << "( version code" << VERSION_CODE << ")";
+	QLOG_INFO().noquote() << "Built on " << QStringLiteral(__DATE__ " " __TIME__).simplified();
+	QLOG_INFO().noquote() << "Built with Qt " << QT_VERSION_STR " and running on Qt " << qVersion();
 	if (valid_loglevel == false) {
 		QLOG_ERROR() << "Called with invalid log level:" << parser.value(option_log_level);
 		QLOG_ERROR() << "Valid options are: TRACE, DEBUG, INFO, WARN, ERROR, FATAL, and OFF (case insensitive)";
