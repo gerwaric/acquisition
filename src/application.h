@@ -55,6 +55,7 @@ public:
 public slots:
 	void OnItemsRefreshed(bool initial_refresh);
 private:
+	QString GetDataPath();
 	bool test_mode_;
 	std::string league_;
 	std::string email_;

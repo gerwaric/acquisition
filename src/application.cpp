@@ -51,8 +51,10 @@ Application::Application(bool mock_data) :
 	oauth_manager_ = std::make_unique<OAuthManager>(*network_manager_, this);
 
 	// The global datastore holds things like the selected theme.
-	QString global_data_file = SqliteDataStore::MakeFilename("", "");
-	global_data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/data/" + global_data_file);
+	const QString data_path = GetDataPath();
+	const QString global_file_name = SqliteDataStore::MakeFilename("", "");
+	const QString global_file_path = data_path + QDir::separator() + global_file_name;
+	global_data_ = std::make_unique<SqliteDataStore>(global_file_path);
 }
 
 Application::~Application() {
@@ -71,8 +73,10 @@ void Application::InitLogin(
 		// This is used in tests
 		data_ = std::make_unique<MemoryDataStore>();
 	} else {
-		const QString data_file = SqliteDataStore::MakeFilename(email, league);
-		data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/data/" + data_file);
+		const QString data_path = GetDataPath();
+		const QString data_file_name = SqliteDataStore::MakeFilename(email, league);
+		const QString data_file_path = data_path + QDir::separator() + data_file_name;
+		data_ = std::make_unique<SqliteDataStore>(data_file_path);
 		SaveDbOnNewVersion();
 	}
 
@@ -86,6 +90,10 @@ void Application::InitLogin(
 	};
 }
 
+QString Application::GetDataPath() {
+	return Filesystem::UserDir() + QDir::separator() + "data";
+}
+
 void Application::OnItemsRefreshed(bool initial_refresh) {
 	currency_manager_->Update();
 	shop_->Update();
@@ -96,24 +104,39 @@ void Application::OnItemsRefreshed(bool initial_refresh) {
 void Application::SaveDbOnNewVersion() {
 	//If user updated from a 0.5c db to a 0.5d, db exists but no "version" in it
 	std::string version = data_->Get("version", "0.5c");
+
 	// We call this just after login, so we didn't pulled tabs for the first time ; so "tabs" shouldn't exist in the DB
 	// This way we don't create an useless data_save_version folder on the first time you run acquisition
+	const bool first_start = (data_->Get("tabs", "first_time") == "first_time")
+		&& (data_->GetTabs(ItemLocationType::STASH).length() == 0)
+		&& (data_->GetTabs(ItemLocationType::CHARACTER).length() == 0);
 
-	bool first_start = data_->Get("tabs", "first_time") == "first_time" &&
-		data_->GetTabs(ItemLocationType::STASH).length() == 0 &&
-		data_->GetTabs(ItemLocationType::CHARACTER).length() == 0;
-	if (version != APP_VERSION_STRING && !first_start) {
-		QString data_path = Filesystem::UserDir() + QString("/data");
-		QString save_path = data_path + "_save_" + version.c_str();
-		QDir src(data_path);
-		QDir dst(save_path);
-		if (!dst.exists())
-			QDir().mkpath(dst.path());
-		for (auto name : src.entryList()) {
-			QFile::copy(data_path + QDir::separator() + name, save_path + QDir::separator() + name);
-		}
-		QLOG_INFO() << "I've created the folder " << save_path << "in your acquisition folder, containing a save of all your data";
-	}
+	if ((version != APP_VERSION_STRING) && !first_start) {
+		QLOG_INFO()
+			<< "Preparing to backup your data from" << version
+			<< "because version" << APP_VERSION_STRING << "was detected.";
+		const QString data_path = GetDataPath();
+		const QDir src(data_path);
+		QString save_path;
+		QDir dst;
+		int i = 1;
+		do {
+			save_path = data_path + "_" + version.c_str() + "_save_" + QString::number(i);
+			dst = QDir(save_path);
+			++i;
+			if (i > 10) {
+				QLOG_ERROR() << "There are too many existing backups. Something might be wrong. Not making another.";
+				return;
+			};
+		} while (dst.exists());
+		QLOG_INFO() << "Backing your data folder to" << save_path;
+		QDir().mkpath(dst.path());
+		for (auto name : src.entryList(QDir::Files)) {
+			const QString src_file = data_path + QDir::separator() + name;
+			const QString dst_file = save_path + QDir::separator() + name;
+			QFile::copy(src_file, dst_file);
+		};
+		QLOG_INFO() << "Your data folder has been backed up to" << save_path;
+	};
 	data_->Set("version", APP_VERSION_STRING);
-
 }
