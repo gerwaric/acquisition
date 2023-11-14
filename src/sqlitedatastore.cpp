@@ -153,7 +153,7 @@ std::string SqliteDataStore::Get(const std::string& key, const std::string& defa
 	QMutexLocker locker(db.mutex);
 	QSqlQuery query(db.database);
 	query.prepare("SELECT value FROM data WHERE key = ?");
-	query.bindValue(0, QByteArray::fromStdString(key));
+	query.bindValue(0, QString::fromStdString(key));
 	if (query.exec() == false) {
 		QLOG_ERROR() << "Error getting data for" << key.c_str() << ":" << query.lastError().text();
 		return default_value;
@@ -189,7 +189,7 @@ std::string SqliteDataStore::GetTabs(const ItemLocationType& type, const std::st
 }
 
 std::string SqliteDataStore::GetItems(const ItemLocation& loc, const std::string& default_value) {
-	const QByteArray tab_uid = QByteArray::fromStdString(loc.get_tab_uniq_id());
+	const QString tab_uid = QString::fromStdString(loc.get_tab_uniq_id());
 	auto& db = manager_.GetConnection(filename_);
 	QMutexLocker locker(db.mutex);
 	QSqlQuery query(db.database);
@@ -214,8 +214,8 @@ void SqliteDataStore::Set(const std::string& key, const std::string& value) {
 	QMutexLocker locker(db.mutex);
 	QSqlQuery query(db.database);
 	query.prepare("INSERT OR REPLACE INTO data (key, value) VALUES (?, ?)");
-	query.bindValue(0, QByteArray::fromStdString(key));
-	query.bindValue(1, QByteArray::fromStdString(value));
+	query.bindValue(0, QString::fromStdString(key));
+	query.bindValue(1, QString::fromStdString(value));
 	if (query.exec() == false) {
 		QLOG_ERROR() << "Error setting value" << key.c_str();
 	};
@@ -227,7 +227,7 @@ void SqliteDataStore::SetTabs(const ItemLocationType& type, const std::string& v
 	QSqlQuery query(db.database);
 	query.prepare("INSERT OR REPLACE INTO tabs (type, value) VALUES (?, ?)");
 	query.bindValue(0, (int)type);
-	query.bindValue(1, QByteArray::fromStdString(value));
+	query.bindValue(1, QString::fromStdString(value));
 	if (query.exec() == false) {
 		QLOG_ERROR() << "Error setting tabs for type" << (int)type;
 	};
@@ -242,8 +242,8 @@ void SqliteDataStore::SetItems(const ItemLocation& loc, const std::string& value
 	QMutexLocker locker(db.mutex);
 	QSqlQuery query(db.database);
 	query.prepare("INSERT OR REPLACE INTO items (loc, value) VALUES (?, ?)");
-	query.bindValue(0, QByteArray::fromStdString(loc.get_tab_uniq_id()));
-	query.bindValue(1, QByteArray::fromStdString(value));
+	query.bindValue(0, QString::fromStdString(loc.get_tab_uniq_id()));
+	query.bindValue(1, QString::fromStdString(value));
 	if (query.exec() == false) {
 		QLOG_ERROR() << "Error setting tabs for type" << loc.get_tab_uniq_id();
 	};
@@ -255,7 +255,7 @@ void SqliteDataStore::InsertCurrencyUpdate(const CurrencyUpdate& update) {
 	QSqlQuery query(db.database);
 	query.prepare("INSERT INTO currency (timestamp, value) VALUES (?, ?)");
 	query.bindValue(0, update.timestamp);
-	query.bindValue(1, QByteArray::fromStdString(update.value));
+	query.bindValue(1, QString::fromStdString(update.value));
 	if (query.exec() == false) {
 		QLOG_ERROR() << "Error inserting currency update.";
 	};
