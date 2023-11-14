@@ -23,7 +23,6 @@
 #include <QString>
 #include <QSqlDatabase>
 
-#include <map>
 #include <string>
 #include <vector>
 
@@ -32,7 +31,6 @@
 
 class Application;
 struct CurrencyUpdate;
-struct sqlite3;
 
 class SqliteDataStore : public DataStore {
 public:
@@ -55,9 +53,7 @@ private:
 	void CreateTable(const std::string& name, const std::string& fields);
 	void CleanItemsTable();
 
-	QString filename_;
-	QSqlDatabase db_;
+	const QString filename_;
 
-	// TBD reference counting to delete un-needed mutexes
-	static std::map<const QString,std::pair<QMutex*, int>> file_access_;
+	static DataStoreConnectionManager manager_;
 };

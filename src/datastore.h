@@ -19,11 +19,40 @@
 
 #pragma once
 
+#include <QMutex>
+#include <QObject>
+#include <QSqlDatabase>
+#include <QString>
+#include <QStringList>
+#include <QThread>
+
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "currencymanager.h"
 #include "itemlocation.h"
+
+struct DataStoreConnection {
+	QSqlDatabase database;
+	QMutex* mutex;
+	int count;
+};
+
+class DataStoreConnectionManager : public QObject {
+	Q_OBJECT
+public:
+	DataStoreConnection& GetConnection(const QString& filename);
+	void Disconnect(const QString& filename);
+private slots:
+	void OnThreadFinished();
+private:
+	int thread_id_count_{ 0 };
+	std::unordered_map<QThread*, QString> thread_ids_;
+	std::unordered_map<QThread*, QStringList> connection_ids_;
+	std::unordered_map<QString, DataStoreConnection> connections_;
+	QMutex mutex_;
+};
 
 class DataStore {
 public:

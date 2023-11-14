@@ -30,49 +30,36 @@
 #include "QsLog.h"
 #include "currencymanager.h"
 
-std::map<const QString,std::pair<QMutex*, int>> SqliteDataStore::file_access_;
+DataStoreConnectionManager SqliteDataStore::manager_;
 
 SqliteDataStore::SqliteDataStore(const QString& filename) :
 	filename_(filename)
 {
-	if (file_access_.count(filename_) == 0) {
-		file_access_[filename_] = {new QMutex(), 0};
-	} else {
-		file_access_[filename_].second++;
-	};
-
 	QDir dir(QDir::cleanPath(filename + "/.."));
 	if (!dir.exists())
 		QDir().mkpath(dir.path());
 
-	QMutexLocker locker(file_access_[filename_].first);
-	db_ = QSqlDatabase::addDatabase("QSQLITE", filename);
-	db_.setDatabaseName(filename);
-	if (db_.open() == false) {
-		QLOG_ERROR() << "Failed to open sqlite3 database:" << filename << ":" << db_.lastError().text();
-		return;
-	};
-
-	locker.unlock();
 	CreateTable("data", "key TEXT PRIMARY KEY, value BLOB");
 	CreateTable("tabs", "type INT PRIMARY KEY, value BLOB");
 	CreateTable("items", "loc TEXT PRIMARY KEY, value BLOB");
 	CreateTable("currency", "timestamp INTEGER PRIMARY KEY, value TEXT");
 	CleanItemsTable();
-	locker.relock();
 
-	QSqlQuery query(db_);
+	auto& db = manager_.GetConnection(filename_);
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(db.database);
 	query.prepare("VACUUM");
 	if (query.exec() == false) {
-		QLOG_ERROR() << "Failed to vacuum sqlite3 database:" << filename << ":" << db_.lastError().text();
+		QLOG_ERROR() << "Failed to vacuum sqlite3 database:" << filename << ":" << db.database.lastError().text();
 	};
 }
 
 void SqliteDataStore::CreateTable(const std::string& name, const std::string& fields) {
-	QMutexLocker locker(file_access_[filename_].first);
 	const QString qname = QString::fromStdString(name);
 	const QString qfields = QString::fromStdString(fields);
-	QSqlQuery query(db_);
+	auto& db = manager_.GetConnection(filename_);
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(db.database);
 	query.prepare("CREATE TABLE IF NOT EXISTS " + qname + "(" + qfields + ")");
 	if (query.exec() == false) {
 		QLOG_ERROR() << "CreatTable faile on" << qname << ":" << query.lastError().text();
@@ -80,8 +67,9 @@ void SqliteDataStore::CreateTable(const std::string& name, const std::string& fi
 }
 
 void SqliteDataStore::CleanItemsTable() {
-	QMutexLocker locker(file_access_[filename_].first);
-	QSqlQuery query(db_);
+	auto& db = manager_.GetConnection(filename_);
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(db.database);
 	query.prepare("DELETE FROM items WHERE loc IS NULL");
 	if (query.exec() == false) {
 		QLOG_ERROR() << "CleanItemsTable(): error deleting items where loc is null.";
@@ -99,7 +87,7 @@ void SqliteDataStore::CleanItemsTable() {
 	if ((stashTabData.compare("NOT FOUND") != 0) && (charsData.compare("NOT FOUND") != 0)) {
 		std::list<QByteArray> locs;
 
-		query = QSqlQuery(db_);
+		query = QSqlQuery(db.database);
 		query.setForwardOnly(true);
 		query.prepare("SELECT loc FROM items");
 		if (query.exec() == false) {
@@ -149,7 +137,7 @@ void SqliteDataStore::CleanItemsTable() {
 
 			//loc not found in either tab storage, delete record from 'items'
 			if (!foundLoc) {
-				query = QSqlQuery(db_);
+				query = QSqlQuery(db.database);
 				query.prepare("DELETE FROM items WHERE loc = ?");
 				query.bindValue(0, loc);
 				if (query.exec() == false) {
@@ -161,8 +149,9 @@ void SqliteDataStore::CleanItemsTable() {
 }
 
 std::string SqliteDataStore::Get(const std::string& key, const std::string& default_value) {
-	QMutexLocker locker(file_access_[filename_].first);
-	QSqlQuery query(db_);
+	auto& db = manager_.GetConnection(filename_);
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(db.database);
 	query.prepare("SELECT value FROM data WHERE key = ?");
 	query.bindValue(0, QByteArray::fromStdString(key));
 	if (query.exec() == false) {
@@ -180,8 +169,9 @@ std::string SqliteDataStore::Get(const std::string& key, const std::string& defa
 }
 
 std::string SqliteDataStore::GetTabs(const ItemLocationType& type, const std::string& default_value) {
-	QMutexLocker locker(file_access_[filename_].first);
-	QSqlQuery query(db_);
+	auto& db = manager_.GetConnection(filename_);
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(db.database);
 	query.prepare("SELECT value FROM tabs WHERE type = ?");
 	query.bindValue(0, (int)type);
 	if (query.exec() == false) {
@@ -200,8 +190,9 @@ std::string SqliteDataStore::GetTabs(const ItemLocationType& type, const std::st
 
 std::string SqliteDataStore::GetItems(const ItemLocation& loc, const std::string& default_value) {
 	const QByteArray tab_uid = QByteArray::fromStdString(loc.get_tab_uniq_id());
-	QMutexLocker locker(file_access_[filename_].first);
-	QSqlQuery query(db_);
+	auto& db = manager_.GetConnection(filename_);
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(db.database);
 	query.prepare("SELECT value FROM items WHERE loc = ?");
 	query.bindValue(0, tab_uid);
 	if (query.exec() == false) {
@@ -219,8 +210,9 @@ std::string SqliteDataStore::GetItems(const ItemLocation& loc, const std::string
 }
 
 void SqliteDataStore::Set(const std::string& key, const std::string& value) {
-	QMutexLocker locker(file_access_[filename_].first);
-	QSqlQuery query(db_);
+	auto& db = manager_.GetConnection(filename_);
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(db.database);
 	query.prepare("INSERT OR REPLACE INTO data (key, value) VALUES (?, ?)");
 	query.bindValue(0, QByteArray::fromStdString(key));
 	query.bindValue(1, QByteArray::fromStdString(value));
@@ -230,8 +222,9 @@ void SqliteDataStore::Set(const std::string& key, const std::string& value) {
 }
 
 void SqliteDataStore::SetTabs(const ItemLocationType& type, const std::string& value) {
-	QMutexLocker locker(file_access_[filename_].first);
-	QSqlQuery query(db_);
+	auto& db = manager_.GetConnection(filename_);
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(db.database);
 	query.prepare("INSERT OR REPLACE INTO tabs (type, value) VALUES (?, ?)");
 	query.bindValue(0, (int)type);
 	query.bindValue(1, QByteArray::fromStdString(value));
@@ -245,8 +238,9 @@ void SqliteDataStore::SetItems(const ItemLocation& loc, const std::string& value
 		QLOG_WARN() << "Cannot set items because the location is empty";
 		return;
 	};
-	QMutexLocker locker(file_access_[filename_].first);
-	QSqlQuery query(db_);
+	auto& db = manager_.GetConnection(filename_);
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(db.database);
 	query.prepare("INSERT OR REPLACE INTO items (loc, value) VALUES (?, ?)");
 	query.bindValue(0, QByteArray::fromStdString(loc.get_tab_uniq_id()));
 	query.bindValue(1, QByteArray::fromStdString(value));
@@ -256,8 +250,9 @@ void SqliteDataStore::SetItems(const ItemLocation& loc, const std::string& value
 }
 
 void SqliteDataStore::InsertCurrencyUpdate(const CurrencyUpdate& update) {
-	QMutexLocker locker(file_access_[filename_].first);
-	QSqlQuery query(db_);
+	auto& db = manager_.GetConnection(filename_);
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(db.database);
 	query.prepare("INSERT INTO currency (timestamp, value) VALUES (?, ?)");
 	query.bindValue(0, update.timestamp);
 	query.bindValue(1, QByteArray::fromStdString(update.value));
@@ -267,8 +262,9 @@ void SqliteDataStore::InsertCurrencyUpdate(const CurrencyUpdate& update) {
 }
 
 std::vector<CurrencyUpdate> SqliteDataStore::GetAllCurrency() {
-	QMutexLocker locker(file_access_[filename_].first);
-	QSqlQuery query(db_);
+	auto& db = manager_.GetConnection(filename_);
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(db.database);
 	query.prepare("SELECT timestamp, value FROM currency ORDER BY timestamp ASC");
 	std::vector<CurrencyUpdate> result;
 	while (query.next()) {
@@ -301,20 +297,7 @@ int SqliteDataStore::GetInt(const std::string& key, int default_value) {
 }
 
 SqliteDataStore::~SqliteDataStore() {
-	if (file_access_.count(filename_) == 0) {
-		QLOG_ERROR() << "~SqliteDataStore: filename is missing" << filename_;
-		return;
-	};
-	// Do nothing if there are other data stores still using this file.
-	if (--file_access_[filename_].second > 0) {
-		return;
-	};
-	// Free the mutex and close the database connection.
-	delete(file_access_[filename_].first);
-	file_access_.erase(filename_);
-	if (db_.isValid()) {
-		db_.close();
-	};
+	manager_.Disconnect(filename_);
 }
 
 QString SqliteDataStore::MakeFilename(const std::string& name, const std::string& league) {
