@@ -70,11 +70,9 @@ void Application::InitLogin(
 	if (test_mode_) {
 		// This is used in tests
 		data_ = std::make_unique<MemoryDataStore>();
-		sensitive_data_ = std::make_unique<MemoryDataStore>();
 	} else {
 		const QString data_file = SqliteDataStore::MakeFilename(email, league);
 		data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/data/" + data_file);
-		sensitive_data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/sensitive_data/" + data_file);
 		SaveDbOnNewVersion();
 	}
 
