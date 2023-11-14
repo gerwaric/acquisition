@@ -28,7 +28,7 @@ std::string MemoryDataStore::Get(const std::string& key, const std::string& defa
 	return i->second;
 }
 
-std::vector<ItemLocation> MemoryDataStore::GetTabs(const ItemLocationType& type) {
+Locations MemoryDataStore::GetTabs(const ItemLocationType& type) {
 	auto i = tabs_.find(type);
 	if (i == tabs_.end())
 		return {};

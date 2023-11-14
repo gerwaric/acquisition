@@ -165,7 +165,7 @@ std::string SqliteDataStore::Get(const std::string& key, const std::string& defa
 	return result;
 }
 
-std::vector<ItemLocation> SqliteDataStore::GetTabs(const ItemLocationType& type) {
+Locations SqliteDataStore::GetTabs(const ItemLocationType& type) {
 	auto& db = manager_.GetConnection(filename_);
 	QMutexLocker locker(db.mutex);
 	QSqlQuery query(db.database);
