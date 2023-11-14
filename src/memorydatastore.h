@@ -31,8 +31,8 @@ public:
 	void SetTabs(const ItemLocationType& type, const LocationList& tabs);
 	void SetItems(const ItemLocation& loc, const ItemList& items);
 	std::string Get(const std::string& key, const std::string& default_value = "");
-	std::string GetTabs(const ItemLocationType& type, const std::string& default_value = "");
-	std::string GetItems(const ItemLocation& loc, const std::string& default_value = "");
+	std::vector<ItemLocation> GetTabs(const ItemLocationType& type);
+	Items GetItems(const ItemLocation& loc);
 	void InsertCurrencyUpdate(const CurrencyUpdate& update);
 	std::vector<CurrencyUpdate> GetAllCurrency();
 	void SetBool(const std::string& key, bool value);

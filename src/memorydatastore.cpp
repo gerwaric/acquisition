@@ -28,18 +28,18 @@ std::string MemoryDataStore::Get(const std::string& key, const std::string& defa
 	return i->second;
 }
 
-std::string MemoryDataStore::GetTabs(const ItemLocationType& type, const std::string& default_value) {
+std::vector<ItemLocation> MemoryDataStore::GetTabs(const ItemLocationType& type) {
 	auto i = tabs_.find(type);
 	if (i == tabs_.end())
-		return default_value;
-	return i->second;
+		return {};
+	return DeserializeTabs(QString::fromStdString(i->second));
 }
 
-std::string MemoryDataStore::GetItems(const ItemLocation& loc, const std::string& default_value) {
+Items MemoryDataStore::GetItems(const ItemLocation& loc) {
 	auto i = items_.find(loc.get_tab_uniq_id());
 	if (i == items_.end())
-		return default_value;
-	return i->second;
+		return {};
+	return DeserializeItems(QString::fromStdString(i->second), loc);
 }
 
 void MemoryDataStore::Set(const std::string& key, const std::string& value) {

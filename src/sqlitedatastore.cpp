@@ -80,72 +80,69 @@ void SqliteDataStore::CleanItemsTable() {
 	//  * check all "db.items" record keys against 'id' or 'name' values in the "db.tabs" data,
 	//    remove record from 'items' if not anywhere in either 'tabs' record.
 	locker.unlock();
-	std::string stashTabData = GetTabs(ItemLocationType::STASH, "NOT FOUND");
-	std::string charsData = GetTabs(ItemLocationType::CHARACTER, "NOT FOUND");
+	const Locations stash_tabs = GetTabs(ItemLocationType::STASH);
+	const Locations character_tabs = GetTabs(ItemLocationType::CHARACTER);
 	locker.relock();
 
-	if ((stashTabData.compare("NOT FOUND") != 0) && (charsData.compare("NOT FOUND") != 0)) {
-		std::list<QByteArray> locs;
+	if (stash_tabs.empty() || character_tabs.empty()) {
+		return;
+	};
 
-		query = QSqlQuery(db.database);
-		query.setForwardOnly(true);
-		query.prepare("SELECT loc FROM items");
-		if (query.exec() == false) {
-			QLOG_ERROR() << "CleanItemsTable(): error selecting loc from items.";
+	query = QSqlQuery(db.database);
+	query.setForwardOnly(true);
+	query.prepare("SELECT loc FROM items");
+	if (query.exec() == false) {
+		QLOG_ERROR() << "CleanItemsTable(): error selecting loc from items.";
+		return;
+	};
+
+	std::list<std::string> locs;
+	while (query.next()) {
+		if (query.lastError().isValid()) {
+			QLOG_ERROR() << "CleanItemsTable(): error moving to next loc";
 			return;
 		};
-		while (query.next()) {
-			if (query.lastError().isValid()) {
-				QLOG_ERROR() << "CleanItemsTable(): error moving to next loc";
-				return;
+		locs.push_back(query.value(0).toString().toStdString());
+	};
+	query.finish();
+
+	// Keep track of the number of orphaned locations we find.
+	int n = 0;
+
+	for (const auto& loc : locs) {
+
+		bool foundLoc = false;
+
+		// Check stash tabs
+		for (const auto& stash : stash_tabs) {
+			if (stash.get_tab_uniq_id() == loc) {
+				foundLoc = true;
+				break;
 			};
-			QByteArray bytes = query.value(0).toByteArray();
-			locs.push_back(bytes);
 		};
-		query.finish();
 
-		for (const auto& loc : locs) {
-
-			rapidjson::Document doc;
-			bool foundLoc = false;
-
-			//check stash tabs
-			doc.Parse(stashTabData.c_str());
-			for (const rapidjson::Value* tab = doc.Begin(); tab != doc.End(); ++tab) {
-				if (tab->HasMember("id") && (*tab)["id"].IsString()) {
-					std::string tabLoc((*tab)["id"].GetString());
-					if (tabLoc.compare(loc) == 0) {
-						foundLoc = true;
-						break;
-					}
-				}
-			}
-
-			//check character tabs
-			if (!foundLoc) {
-				doc.Parse(charsData.c_str());
-				for (const rapidjson::Value* tab = doc.Begin(); tab != doc.End(); ++tab) {
-					if (tab->HasMember("name") && (*tab)["name"].IsString()) {
-						std::string tabLoc((*tab)["name"].GetString());
-						if (tabLoc.compare(loc) == 0) {
-							foundLoc = true;
-							break;
-						}
-					}
-				}
-			}
-
-			//loc not found in either tab storage, delete record from 'items'
-			if (!foundLoc) {
-				query = QSqlQuery(db.database);
-				query.prepare("DELETE FROM items WHERE loc = ?");
-				query.bindValue(0, loc);
-				if (query.exec() == false) {
-					QLOG_ERROR() << "Error deleting items where loc is" << loc;
+		// Check character tabs
+		if (!foundLoc) {
+			for (const auto& character : character_tabs) {
+				if (character.get_tab_uniq_id() == loc) {
+					foundLoc = true;
+					break;
 				};
-			}
-		}
-	}
+			};
+		};
+
+		// Delete items in this location since the location appears to be orphaned.
+		if (!foundLoc) {
+			query = QSqlQuery(db.database);
+			query.prepare("DELETE FROM items WHERE loc = ?");
+			query.bindValue(0, QString::fromStdString(loc));
+			if (query.exec() == false) {
+				QLOG_ERROR() << "Error deleting items where loc is" << loc;
+			};
+			++n;
+		};
+	};
+	QLOG_INFO() << "Items from" << n << "orphaned locations were removed from the database.";
 }
 
 std::string SqliteDataStore::Get(const std::string& key, const std::string& default_value) {
@@ -168,7 +165,7 @@ std::string SqliteDataStore::Get(const std::string& key, const std::string& defa
 	return result;
 }
 
-std::string SqliteDataStore::GetTabs(const ItemLocationType& type, const std::string& default_value) {
+std::vector<ItemLocation> SqliteDataStore::GetTabs(const ItemLocationType& type) {
 	auto& db = manager_.GetConnection(filename_);
 	QMutexLocker locker(db.mutex);
 	QSqlQuery query(db.database);
@@ -176,19 +173,19 @@ std::string SqliteDataStore::GetTabs(const ItemLocationType& type, const std::st
 	query.bindValue(0, (int)type);
 	if (query.exec() == false) {
 		QLOG_ERROR() << "Error getting tabs for type" << (int)type << ":" << query.lastError().text();
-		return default_value;
+		return {};
 	};
 	if (query.next() == false) {
 		if (query.isActive() == false) {
 			QLOG_ERROR() << "Error getting result for" << (int)type << ":" << query.lastError().text();
 		};
-		return default_value;
+		return {};
 	};
-	std::string result = query.value(0).toByteArray().toStdString();
-	return result;
+	const QString result = query.value(0).toString();
+	return DeserializeTabs(result);
 }
 
-std::string SqliteDataStore::GetItems(const ItemLocation& loc, const std::string& default_value) {
+Items SqliteDataStore::GetItems(const ItemLocation& loc) {
 	const QString tab_uid = QString::fromStdString(loc.get_tab_uniq_id());
 	auto& db = manager_.GetConnection(filename_);
 	QMutexLocker locker(db.mutex);
@@ -197,16 +194,16 @@ std::string SqliteDataStore::GetItems(const ItemLocation& loc, const std::string
 	query.bindValue(0, tab_uid);
 	if (query.exec() == false) {
 		QLOG_ERROR() << "Error getting items for" << tab_uid << ":" << query.lastError().text();
-		return default_value;
+		return {};
 	};
 	if (query.next() == false) {
 		if (query.isActive() == false) {
 			QLOG_ERROR() << "Error getting result for" << tab_uid << ":" << query.lastError().text();
 		};
-		return default_value;
+		return {};
 	};
-	std::string result = query.value(0).toByteArray().toStdString();
-	return result;
+	const QString result = query.value(0).toString();
+	return DeserializeItems(result, loc);
 }
 
 void SqliteDataStore::Set(const std::string& key, const std::string& value) {
@@ -298,6 +295,7 @@ int SqliteDataStore::GetInt(const std::string& key, int default_value) {
 }
 
 SqliteDataStore::~SqliteDataStore() {
+	QLOG_TRACE() << "Sqlite data store is begin destroyed:" << filename_;
 	manager_.Disconnect(filename_);
 }
 

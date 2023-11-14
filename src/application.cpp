@@ -108,8 +108,8 @@ void Application::SaveDbOnNewVersion() {
 	// We call this just after login, so we didn't pulled tabs for the first time ; so "tabs" shouldn't exist in the DB
 	// This way we don't create an useless data_save_version folder on the first time you run acquisition
 	const bool first_start = (data_->Get("tabs", "first_time") == "first_time")
-		&& (data_->GetTabs(ItemLocationType::STASH).length() == 0)
-		&& (data_->GetTabs(ItemLocationType::CHARACTER).length() == 0);
+		&& data_->GetTabs(ItemLocationType::STASH).empty()
+		&& data_->GetTabs(ItemLocationType::CHARACTER).empty();
 
 	if ((version != APP_VERSION_STRING) && !first_start) {
 		QLOG_INFO()

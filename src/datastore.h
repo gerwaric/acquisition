@@ -33,6 +33,7 @@
 
 #include "currencymanager.h"
 #include "itemlocation.h"
+#include "item.h"
 
 struct DataStoreConnection {
 	QSqlDatabase database;
@@ -64,8 +65,8 @@ public:
 	virtual void SetTabs(const ItemLocationType& type, const LocationList& tabs) = 0;
 	virtual void SetItems(const ItemLocation& loc, const ItemList& items) = 0;
 	virtual std::string Get(const std::string& key, const std::string& default_value = "") = 0;
-	virtual std::string GetTabs(const ItemLocationType& type, const std::string& default_value = "") = 0;
-	virtual std::string GetItems(const ItemLocation& loc, const std::string& default_value = "") = 0;
+	virtual Locations GetTabs(const ItemLocationType& type) = 0;
+	virtual Items GetItems(const ItemLocation& loc) = 0;
 	virtual void InsertCurrencyUpdate(const CurrencyUpdate& update) = 0;
 	virtual std::vector<CurrencyUpdate> GetAllCurrency() = 0;
 	virtual void SetBool(const std::string& key, bool value) = 0;
@@ -75,4 +76,6 @@ public:
 protected:
 	QString Serialize(const LocationList& tabs);
 	QString Serialize(const ItemList& items);
+	Locations DeserializeTabs(const QString& tabs_json);
+	Items DeserializeItems(const QString& items_json, const ItemLocation& tab);
 };
