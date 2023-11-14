@@ -19,7 +19,11 @@
 
 #include "datastore.h"
 
+#include <QSqlError>
+
 #include "QsLog.h"
+#include "rapidjson/error/en.h"
+#include "util.h"
 
 DataStoreConnection& DataStoreConnectionManager::GetConnection(const QString& filename) {
 
@@ -30,13 +34,14 @@ DataStoreConnection& DataStoreConnectionManager::GetConnection(const QString& fi
 	if (thread_ids_.count(thread) == 0) {
 		++thread_id_count_;
 		const QString thread_id = QStringLiteral("Thread(%1)").arg(thread_id_count_);
-		QLOG_DEBUG() << "Creating thread id for database connection:" << thread_id;
+		QLOG_DEBUG() << "Creating a new thread id for data store connections:" << thread_id;
 		thread_ids_[thread] = thread_id;
 		QObject::connect(thread, &QThread::finished, this, &DataStoreConnectionManager::OnThreadFinished);
 	};
 
 	// Connections are created for each filename-thread combination.
-	const QString connection_id = thread_ids_[thread] + ":" + filename;
+	const QString thread_id = thread_ids_[thread];
+	const QString connection_id = thread_id + ":" + filename;
 
 	// Reuse an existing connection if possible.
 	if (connections_.count(connection_id) > 0) {
@@ -46,8 +51,7 @@ DataStoreConnection& DataStoreConnectionManager::GetConnection(const QString& fi
 	};
 
 	// Create a new connection for this thread and file.
-	const QString thread_id = thread_ids_[thread];
-	QLOG_DEBUG() << "Adding new sqlite database connection for" << thread_id << "to" << filename;
+	QLOG_DEBUG() << "Creating a new data store connection:" << connection_id;
 
 	// Save the connection info.
 	connection_ids_[thread].push_back(connection_id);
@@ -57,7 +61,7 @@ DataStoreConnection& DataStoreConnectionManager::GetConnection(const QString& fi
 	connection.database = QSqlDatabase::addDatabase("QSQLITE", connection_id);
 	connection.database.setDatabaseName(filename);
 	if (connection.database.open() == false) {
-		QLOG_ERROR() << "Error adding database connection for" << thread_id << "to" << filename;
+		QLOG_ERROR() << "Error opening database for" << connection_id << ":" << connection.database.lastError().text();
 	};
 	connection.mutex = new QMutex;
 	connection.count = 1;
@@ -68,24 +72,29 @@ void DataStoreConnectionManager::OnThreadFinished() {
 	QMutexLocker locker(&mutex_);
 	QThread* thread = QThread::currentThread();
 	const QString thread_id = thread_ids_[thread];
-	QLOG_DEBUG() << "Removing thread id from database connections:" << thread_id;
+	QLOG_DEBUG() << "Removing thread from data store connections:" << thread_id;
 	thread_ids_.erase(thread);
 	for (const QString& connection_id : connection_ids_[thread]) {
+		QLOG_DEBUG() << "Removing data store connection:" << connection_id;
+		auto& connection = connections_[connection_id];
+		connection.database.close();
+		delete(connection.mutex);
 		connections_.erase(connection_id);
 	};
 };
 
 void DataStoreConnectionManager::Disconnect(const QString& filename) {
+	const QString thread_id = thread_ids_[QThread::currentThread()];
+	const QString connection_id = thread_id + ":" + filename;
 	QMutexLocker locker(&mutex_);
-	const QString connection_id = thread_ids_[QThread::currentThread()] + ":" + filename;
 	if (connections_.count(connection_id) == 0) {
-		QLOG_ERROR() << "Could not disconnect from a database that doesn't exist.";
+		// The current thread is not connected to this datastore's file.
 		return;
 	};
+	QLOG_DEBUG() << "Closing data store connection:" << connection_id;
 	auto& connection = connections_[connection_id];
-	const QString name = connection.database.connectionName();
-	QLOG_DEBUG() << "Closeing sqlite database connection for" << name;
 	if (--connection.count <= 0) {
+		QLOG_DEBUG() << "Removing unused data store connection:" << connection_id;
 		connection.database.close();
 		delete(connection.mutex);
 		connections_.erase(connection_id);
