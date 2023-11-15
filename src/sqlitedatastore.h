@@ -50,8 +50,9 @@ public:
 	int GetInt(const std::string& key, int default_value = 0);
 	static QString MakeFilename(const std::string& name, const std::string& league);
 private:
-	void CreateTable(const std::string& name, const std::string& fields);
-	void CleanItemsTable();
+	void SimpleQuery(DataStoreConnection& db, const QString& query_str);
+	//void CreateTable(const std::string& name, const std::string& fields);
+	//void CleanItemsTable();
 
 	const QString filename_;
 

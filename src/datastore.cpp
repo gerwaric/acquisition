@@ -204,6 +204,72 @@ Locations DataStore::DeserializeTabs(const QString& tabs_json) {
 	return tabs;
 }
 
+ItemLocation DataStore::DeserializeTab(const QString& tab_json) {
+
+	if (tab_json.isEmpty()) {
+		QLOG_DEBUG() << "No tab to deserialize.";
+		return {};
+	};
+
+	rapidjson::Document doc;
+	doc.Parse(tab_json.toStdString().c_str());
+	if (doc.HasParseError()) {
+		QLOG_ERROR() << "Error parsing serialized tabs:" << rapidjson::GetParseError_En(doc.GetParseError());
+		QLOG_ERROR() << "The malformed json is" << tab_json;
+		return {};
+	};
+	if (doc.IsObject() == false) {
+		QLOG_ERROR() << "Error parsing serialized tab: the json is not an object:" << tab_json;
+		return {};
+	};
+
+	// Detemine which kind of location this is.
+	ItemLocationType type;
+	if (doc.HasMember("name")) {
+		type = ItemLocationType::CHARACTER;
+	} else if (doc.HasMember("n")) {
+		type = ItemLocationType::STASH;
+	} else {
+		QLOG_ERROR() << "Unable to determine location type during tab deserialization:" << tab_json;
+		return {};
+	};
+
+	// Constructor values to fill in
+	size_t index;
+	std::string tabUniqueId, name;
+	int r, g, b;
+
+	switch (type) {
+	case ItemLocationType::STASH:
+		if (!doc.HasMember("n") || !doc["n"].IsString()) {
+			QLOG_ERROR() << "Malformed tabs data doesn't contain its name (field 'n'):" << tab_json;
+			return {};
+		};
+		index = doc["i"].GetInt();
+		tabUniqueId = doc["id"].GetString();
+		name = doc["n"].GetString();
+		r = doc["colour"]["r"].GetInt();
+		g = doc["colour"]["g"].GetInt();
+		b = doc["colour"]["b"].GetInt();
+		break;
+	case ItemLocationType::CHARACTER:
+		if (doc.HasMember("i")) {
+			index = doc["i"].GetInt();
+		} else {
+			index = -1;
+		};
+		tabUniqueId = doc["name"].GetString();
+		name = doc["name"].GetString();
+		r = 0;
+		g = 0;
+		b = 0;
+		break;
+	};
+	ItemLocation loc(static_cast<int>(index), tabUniqueId, name, type, r, g, b);
+	loc.set_json(doc, doc.GetAllocator());
+	return loc;
+}
+
 Items DataStore::DeserializeItems(const QString& items_json, const ItemLocation& tab) {
 
 	// Parsed the serialized json and check for errors.

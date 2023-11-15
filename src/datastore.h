@@ -77,5 +77,6 @@ protected:
 	QString Serialize(const LocationList& tabs);
 	QString Serialize(const ItemList& items);
 	Locations DeserializeTabs(const QString& tabs_json);
+	ItemLocation DeserializeTab(const QString& tab_json);
 	Items DeserializeItems(const QString& items_json, const ItemLocation& tab);
 };
