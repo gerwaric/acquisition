@@ -24,14 +24,11 @@
 #include <string>
 #include <vector>
 
-class QNetworkAccessManager;
-class QNetworkReply;
 class QString;
 
 class Application;
 class MainWindow;
 struct AccessToken;
-
 namespace Ui {
 	class LoginDialog;
 }
@@ -42,15 +39,9 @@ public:
 	explicit LoginDialog(std::unique_ptr<Application> app);
 	~LoginDialog();
 public slots:
-	void OnLeaguesRequestFinished();
 	void OnLoginButtonClicked();
-	void OnLoggedIn();
-	void LoggedInCheck(); // checks login is successful
-	void OnMainPageFinished();
 	void OnProxyCheckBoxClicked(bool);
 	void OnOAuthAccessGranted(const AccessToken& token);
-	void errorOccurred();
-	void sslErrorOccurred();
 protected:
 	bool event(QEvent* e);
 private:
@@ -58,17 +49,11 @@ private:
 	void LoadSettings();
 	void LoadTheme();
 	void DisplayError(const QString& error, bool disable_login = false);
-	void LoginWithOAuth();
-	void LoginWithCookie(const QString& cookie);
-	void LeaguesApiError(const QString& error, const QByteArray& reply);
-	// Retrieves session cookie for a successful login; proceeds to OnMainPageFinished
-	void FinishLogin(QNetworkReply* reply);
 	std::unique_ptr<Application> app_;
 	Ui::LoginDialog* ui;
 	MainWindow* mw;
 	QString settings_path_;
 	QString saved_league_;
-	QString session_id_;
 	std::vector<std::string> leagues_;
 	bool asked_to_update_;
 };

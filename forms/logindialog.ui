@@ -39,40 +39,9 @@
        <item>
         <widget class="QLabel" name="label_4">
          <property name="text">
-          <string>Click &quot;Login&quot; button below to initiate login process.</string>
+          <string>Click &quot;Authenticate&quot; button below to start the login process.</string>
          </property>
         </widget>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="sessionIdTab">
-      <attribute name="title">
-       <string>Session ID</string>
-      </attribute>
-      <layout class="QVBoxLayout" name="verticalLayout_3">
-       <item>
-        <layout class="QFormLayout" name="formLayout_3">
-         <item row="0" column="0">
-          <widget class="QLabel" name="sessIDLabel">
-           <property name="minimumSize">
-            <size>
-             <width>65</width>
-             <height>0</height>
-            </size>
-           </property>
-           <property name="text">
-            <string>POESESSID</string>
-           </property>
-          </widget>
-         </item>
-         <item row="0" column="1">
-          <widget class="QLineEdit" name="sessionIDLineEdit">
-           <property name="echoMode">
-            <enum>QLineEdit::Password</enum>
-           </property>
-          </widget>
-         </item>
-        </layout>
        </item>
       </layout>
      </widget>
@@ -132,7 +101,7 @@
    <item>
     <widget class="QPushButton" name="loginButton">
      <property name="text">
-      <string>Login</string>
+      <string>Authenticate</string>
      </property>
     </widget>
    </item>
