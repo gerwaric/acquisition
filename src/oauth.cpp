@@ -133,7 +133,6 @@ void OAuthManager::requestAuthorization(const QByteArray& state, const QByteArra
 		[=](const QHttpServerRequest& request) { return receiveAuthorization(request, state); });
 
 	// Use the user's browser to open the authorization url.
-	QLOG_DEBUG() << "Preparing OAuth authorization request:" << authorization_url.toString();
 	QDesktopServices::openUrl(authorization_url);
 }
 
