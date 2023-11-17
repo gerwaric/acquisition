@@ -31,7 +31,7 @@ class QNetworkReply;
 class QNetworkRequest;
 
 struct AccessToken {
-	AccessToken(const rapidjson::Value& json);
+	AccessToken(const rapidjson::Value& json = rapidjson::Value(rapidjson::kObjectType));
 	QString access_token;
 	long int expires_in;
 	QString token_type;
