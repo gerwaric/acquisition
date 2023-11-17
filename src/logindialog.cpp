@@ -158,7 +158,7 @@ void LoginDialog::OnOAuthAccessGranted(const AccessToken& token) {
 	ui->authenticateLabel->setText("You are authenticated as \"" + token.username + "\"");
 	ui->authenticateButton->setText("Re-authenticate (as someone else).");
 	ui->authenticateButton->setEnabled(true);
-	PoE::GetLeagues(token, this,
+	PoE::GetLeagues(this,
 		[=](const PoE::GetLeaguesResult& leagues) {
 			OnLeaguesReceived(leagues);
 		});

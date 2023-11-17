@@ -16,16 +16,16 @@
 	You should have received a copy of the GNU General Public License
 	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
-
 #include "poe_api/poe_league.h"
 
+#include <QObject>
+
 #include "QsLog.h"
-#include "oauth.h"
 #include "ratelimit.h"
 
 namespace PoE {
 
-	void GetLeagues(const AccessToken& token, QObject* object, GetLeaguesCallback callback)
+	void GetLeagues(QObject* object, GetLeaguesCallback callback)
 	{
 		static auto& rate_limiter = RateLimit::RateLimiter::instance();
 		

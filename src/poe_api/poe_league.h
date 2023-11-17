@@ -16,22 +16,16 @@
 	You should have received a copy of the GNU General Public License
 	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
-
 #pragma once
 
 #include "json_struct/json_struct.h"
-
-#include <QNetworkRequest>
-#include <QObject>
-#include <QUrl>
 
 #include <optional>
 #include <memory>
 #include <string>
 #include <vector>
 
-#include "oauth.h"
-#include "ratelimit.h"
+class QObject;
 
 namespace PoE {
 
@@ -68,5 +62,5 @@ namespace PoE {
 	};
 	typedef std::function<void(const GetLeaguesResult&)> GetLeaguesCallback;
 
-	void GetLeagues(const AccessToken& token, QObject* object, GetLeaguesCallback callback);
+	void GetLeagues(QObject* object, GetLeaguesCallback callback);
 }
