@@ -40,6 +40,7 @@ include(deps/QsLog/QsLog.pri)
 INCLUDEPATH += src deps deps/boost-headers-only test
 
 SOURCES += \
+        src/poe_api/poe_league.cpp \
 	src/application.cpp \
 	src/bucket.cpp \
 	src/buyoutmanager.cpp \
@@ -83,6 +84,9 @@ SOURCES += \
 	test/testutil.cpp
 
 HEADERS += \
+	deps/json_struct/json_struct.h \
+        deps/json_struct/json_struct_diff.h \
+        src/poe_api/poe_league.h \
 	src/application.h \
 	src/bucket.h \
 	src/buyoutmanager.h \
