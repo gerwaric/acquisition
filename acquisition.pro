@@ -28,11 +28,11 @@ macx {
 }
 
 unix:!macx {
-       # If your system supports OpenSSL 3 out of the box, you
-       # probably don't need the -L here, otherwise you will
-       # have to install or build OpenSSL yourself and specify
-       # the library path here.
-       LIBS += -ldl -L~/openssl-3.1.4/lib64/ -lcrypto -lssl
+	# If your system supports OpenSSL 3 out of the box, you
+	# probably don't need the -L here, otherwise you will
+	# have to install or build OpenSSL yourself and specify
+	# the library path here.
+	LIBS += -ldl -L~/openssl-3.1.4/lib64/ -lcrypto -lssl
 }
 
 include(deps/QsLog/QsLog.pri)
@@ -40,7 +40,7 @@ include(deps/QsLog/QsLog.pri)
 INCLUDEPATH += src deps deps/boost-headers-only test
 
 SOURCES += \
-        src/poe_api/poe_league.cpp \
+	src/poe_api/poe_league.cpp \
 	src/application.cpp \
 	src/bucket.cpp \
 	src/buyoutmanager.cpp \
@@ -85,8 +85,18 @@ SOURCES += \
 
 HEADERS += \
 	deps/json_struct/json_struct.h \
-        deps/json_struct/json_struct_diff.h \
-        src/poe_api/poe_league.h \
+	deps/json_struct/json_struct_diff.h \
+	src/poe_api/poe_account.h \
+	src/poe_api/poe_character.h \
+	src/poe_api/poe_crucible.h \
+	src/poe_api/poe_filter.h \
+	src/poe_api/poe_item.h \
+	src/poe_api/poe_ladder.h \
+	src/poe_api/poe_league.h \
+	src/poe_api/poe_league_account.h \
+	src/poe_api/poe_passives.h \
+	src/poe_api/poe_pvp.h \
+	src/poe_api/poe_stash.h \
 	src/application.h \
 	src/bucket.h \
 	src/buyoutmanager.h \
