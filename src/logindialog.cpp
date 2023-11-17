@@ -35,6 +35,8 @@
 #include <iostream>
 #include "QsLog.h"
 
+#include "poe_api/poe_league.h"
+
 #include "application.h"
 #include "datastore.h"
 #include "filesystem.h"
@@ -50,6 +52,7 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 	asked_to_update_(false)
 {
 	ui->setupUi(this);
+	ui->loginButton->setEnabled(false);
 	ui->errorLabel->hide();
 	ui->errorLabel->setStyleSheet("QLabel { color : red; }");
 	setWindowTitle("Login [" APP_VERSION_STRING "]");
@@ -79,6 +82,7 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 	QLOG_DEBUG() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
 	QLOG_DEBUG() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
 
+	connect(ui->authenticateButton, &QPushButton::clicked, this, &LoginDialog::OnAuthenticateButtonClicked);
 	connect(ui->proxyCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnProxyCheckBoxClicked);
 	connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
 	connect(&app_->update_checker(), &UpdateChecker::UpdateAvailable, this,
@@ -138,22 +142,43 @@ void LoginDialog::LoadTheme() {
 	};
 }
 
-void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
-	QNetworkProxyFactory::setUseSystemConfiguration(checked);
-}
-
-void LoginDialog::OnLoginButtonClicked() {
-	ui->loginButton->setEnabled(false);
-	ui->loginButton->setText("Authenticating...");
+void LoginDialog::OnAuthenticateButtonClicked() {
+	ui->authenticateButton->setEnabled(false);
+	ui->authenticateButton->setText("Authenticating...");
 	connect(&app_->oauth_manager(), &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
 	app_->oauth_manager().requestAccess();
 }
 
+void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
+	QNetworkProxyFactory::setUseSystemConfiguration(checked);
+}
+
 void LoginDialog::OnOAuthAccessGranted(const AccessToken& token) {
-	const QString account = token.username;
-	const QString league(ui->leagueComboBox->currentText());
-	const QString window_title = QStringLiteral("Acquisition [" APP_VERSION_STRING "] - %2 [%3]").arg(league, account);
-	app_->InitLogin(league.toStdString(), account.toStdString());
+	account_ = token.username.toStdString();
+	ui->authenticateLabel->setText("You are authenticated as \"" + token.username + "\"");
+	ui->authenticateButton->setText("Re-authenticate (as someone else).");
+	ui->authenticateButton->setEnabled(true);
+	PoE::GetLeagues(token, this,
+		[=](const PoE::GetLeaguesResult& leagues) {
+			OnLeaguesReceived(leagues);
+		});
+}
+
+void LoginDialog::OnLeaguesReceived(const PoE::GetLeaguesResult& result) {
+	ui->leagueComboBox->setEnabled(true);
+	for (auto& league : result.leagues) {
+		ui->leagueComboBox->addItem(QString::fromStdString(league.id));
+	};
+	ui->loginButton->setEnabled(true);
+}
+
+void LoginDialog::OnLoginButtonClicked() {
+	const std::string league = ui->leagueComboBox->currentText().toStdString();
+	const QString window_title = QString("Acquisition [%1] - %2 [%3]").arg(
+		QString(APP_VERSION_STRING),
+		QString::fromStdString(league),
+		QString::fromStdString(account_));
+	app_->InitLogin(league, account_);
 	mw = new MainWindow(std::move(app_));
 	mw->setWindowTitle(window_title);
 	mw->show();

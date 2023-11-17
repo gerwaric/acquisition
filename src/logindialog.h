@@ -24,6 +24,8 @@
 #include <string>
 #include <vector>
 
+#include "poe_api/poe_league.h"
+
 class QString;
 
 class Application;
@@ -39,9 +41,11 @@ public:
 	explicit LoginDialog(std::unique_ptr<Application> app);
 	~LoginDialog();
 public slots:
-	void OnLoginButtonClicked();
+	void OnAuthenticateButtonClicked();
 	void OnProxyCheckBoxClicked(bool);
 	void OnOAuthAccessGranted(const AccessToken& token);
+	void OnLeaguesReceived(const PoE::GetLeaguesResult& leagues);
+	void OnLoginButtonClicked();
 protected:
 	bool event(QEvent* e);
 private:
@@ -54,6 +58,7 @@ private:
 	MainWindow* mw;
 	QString settings_path_;
 	QString saved_league_;
+	std::string account_;
 	std::vector<std::string> leagues_;
 	bool asked_to_update_;
 };
