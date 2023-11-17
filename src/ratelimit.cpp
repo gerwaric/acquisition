@@ -190,7 +190,7 @@ RateLimitedRequest::RateLimitedRequest(const QNetworkRequest& request, const Cal
 //=========================================================================================
 
 // Create a new rate limit manager based on an existing policy.
-PolicyManager::PolicyManager(std::unique_ptr<Policy> policy_, QObject* parent) :
+PolicyManager::PolicyManager(QObject* parent, std::unique_ptr<Policy> policy_) :
 	QObject(parent),
 	policy(std::move(policy_)),
 	busy(false),
@@ -667,27 +667,46 @@ static QString GetEndpoint(const QUrl& url) {
 // The application-facing Rate Limiter
 //=========================================================================================
 
-RateLimiter::RateLimiter(Application& app, QObject* parent) :
-	QObject(parent),
-	network_manager_(app.network_manager()),
-	oauth_manager_(app.oauth_manager())
+RateLimiter& RateLimiter::instance() {
+	static RateLimiter rate_limiter;
+	return rate_limiter;
+}
+
+RateLimiter::RateLimiter() :
+	network_manager_(this),
+	default_manager(this),
+	status_updater(this)
 {
-	// Creat the policy manager that will handle non-limited requests.
-	default_manager = std::make_shared<PolicyManager>(std::make_unique<Policy>(), this);
-	connect(default_manager.get(), &PolicyManager::RequestReady, this, &RateLimiter::SendRequest);
+	// Create the worker thread.
+	worker_thread = new QThread();
+	connect(worker_thread, &QThread::finished, worker_thread, &QThread::deleteLater);
+	connect(worker_thread, &QThread::finished, this, &RateLimiter::deleteLater);
+
+	// This connection is used when Submit() is called from another thread.
+	connect(this, &RateLimiter::Queue, this, &RateLimiter::OnSubmit, Qt::QueuedConnection);
+
+	// Make sure requests from the default manager are handled.
+	connect(&default_manager, &PolicyManager::RequestReady, this, &RateLimiter::SendRequest);
 
 	// Setup the status update timer.
 	status_updater.setSingleShot(false);
 	status_updater.setInterval(1000);
 	connect(&status_updater, &QTimer::timeout, this, &RateLimiter::DoStatusUpdate);
+
+	// Move ourselves (and our children) to the worker thread and start the worker.
+	this->moveToThread(worker_thread);
+	worker_thread->start();
+}
+
+void RateLimiter::SetAccessToken(const AccessToken& token) {
+	access_token = token;
 }
 
 void RateLimiter::SendRequest(QNetworkRequest request) {
 	PolicyManager* manager = qobject_cast<PolicyManager*>(sender());
 	if (manager->policy->empty == false) {
-		if (oauth_manager_.access_token() != nullptr) {
-			oauth_manager_.addAuthorization(request);
-		};
+		request.setHeader(QNetworkRequest::UserAgentHeader, USER_AGENT);
+		request.setRawHeader("Authentication", "Bearer " + access_token.access_token.toUtf8());
 	};
 	QNetworkReply* reply = network_manager_.get(request);
 	connect(reply, &QNetworkReply::finished, manager, &PolicyManager::ReceiveReply);
@@ -695,8 +714,14 @@ void RateLimiter::SendRequest(QNetworkRequest request) {
 
 void RateLimiter::Submit(QNetworkRequest network_request, Callback request_callback)
 {
-	// Make sure the user agent is set according to GGG's guidance.
-	network_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+	if (QThread::currentThread() == this->thread()) {
+		OnSubmit(network_request, request_callback);
+	} else {
+		emit Queue(network_request, request_callback);
+	};
+};
+
+void RateLimiter::OnSubmit(QNetworkRequest network_request, Callback request_callback) {
 
 	// We need the endpoint to see if there's a manager for this request.
 	const QString endpoint = GetEndpoint(network_request.url());
@@ -704,8 +729,7 @@ void RateLimiter::Submit(QNetworkRequest network_request, Callback request_callb
 	if (endpoint_mapping.count(endpoint) > 0) {
 
 		// This endpoint is known to use an existing policy manager.
-		std::unique_ptr<RateLimitedRequest> request = std::make_unique<RateLimitedRequest>(
-			network_request, request_callback);
+		auto request = std::make_unique<RateLimitedRequest>(network_request, request_callback);
 		PolicyManager& manager = *endpoint_mapping[endpoint];
 		QLOG_DEBUG() << manager.policy->name << "is handling" << endpoint;
 		manager.QueueRequest(std::move(request));
@@ -723,8 +747,7 @@ void RateLimiter::Submit(QNetworkRequest network_request, Callback request_callb
 void RateLimiter::SetupEndpoint(QNetworkRequest network_request, Callback request_callback, QNetworkReply* reply) {
 
 	// Create a new rate-limited request.
-	std::unique_ptr<RateLimitedRequest> request = std::make_unique<RateLimitedRequest>(
-		network_request, request_callback);
+	auto request = std::make_unique<RateLimitedRequest>(network_request, request_callback);
 
 	// Get a reference to the endpoint since we use it a bunch.
 	const QString endpoint = request->endpoint;
@@ -732,9 +755,9 @@ void RateLimiter::SetupEndpoint(QNetworkRequest network_request, Callback reques
 	// Handle requests that are not rate limited.
 	if (reply->hasRawHeader("X-Rate-Limit-Policy") == false) {
 		QLOG_DEBUG() << "The endpoint is not rate-limited:" << endpoint;
-		endpoint_mapping[endpoint] = default_manager;
-		default_manager->endpoints.push_back(endpoint);
-		default_manager->QueueRequest(std::move(request));
+		endpoint_mapping[endpoint] = &default_manager;
+		default_manager.endpoints.push_back(endpoint);
+		default_manager.QueueRequest(std::move(request));
 		return;
 	}
 
@@ -745,24 +768,27 @@ void RateLimiter::SetupEndpoint(QNetworkRequest network_request, Callback reques
 	// Check to see if another manager already exists for this policy.
 	if (policy_mapping.count(policy_name) > 0) {
 		QLOG_DEBUG() << policy_name << "now handles" << endpoint;
-		std::shared_ptr<PolicyManager> manager = policy_mapping[policy_name];
-		endpoint_mapping[endpoint] = manager;
-		manager->endpoints.push_back(endpoint);
-		manager->policy = std::make_unique<Policy>(reply);
-		manager->OnPolicyUpdate();
-		manager->QueueRequest(std::move(request));
+		auto it = policy_mapping.find(policy_name);
+		if (it != policy_mapping.end()) {
+			auto manager = it->second.get();
+			endpoint_mapping[endpoint] = manager;
+			manager->endpoints.push_back(endpoint);
+			manager->policy = std::make_unique<Policy>(reply);
+			manager->OnPolicyUpdate();
+			manager->QueueRequest(std::move(request));
+		}
 		return;
 	};
 
 	// Create a new policy manager.
 	QLOG_DEBUG() << policy_name << "created for" << endpoint;
-	std::unique_ptr<Policy> policy = std::make_unique<Policy>(reply);
-	std::shared_ptr<PolicyManager> manager = std::make_shared<PolicyManager>(std::move(policy), this);
+	auto policy = std::make_unique<Policy>(reply);
+	auto manager = std::make_unique<PolicyManager>(this, std::move(policy));
 	connect(manager.get(), &PolicyManager::RequestReady, this, &RateLimiter::SendRequest);
-	endpoint_mapping[endpoint] = manager;
-	policy_mapping[policy_name] = manager;
 	manager->endpoints.push_back(endpoint);
 	manager->QueueRequest(std::move(request));
+	endpoint_mapping[endpoint] = manager.get();
+	policy_mapping.emplace(policy_name, std::move(manager));
 
 	// Since we discovered a new rate limit policy, let's update the status.
 	DoStatusUpdate();
@@ -784,7 +810,7 @@ void RateLimiter::DoStatusUpdate()
 
 	// Check to see if any of the policy managers are busy.
 	for (auto& pair : policy_mapping) {
-		auto manager = pair.second;
+		auto manager = pair.second.get();
 		lines.push_back(manager->GetCurrentStatus());
 		lines.push_back("");
 		if (manager->IsBusy()) {

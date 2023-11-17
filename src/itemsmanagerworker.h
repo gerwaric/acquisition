@@ -72,6 +72,7 @@ public slots:
 	void OnItemClassesReceived(QNetworkReply* reply);
 	void OnItemBaseTypesReceived(QNetworkReply* reply);
 signals:
+	void GetRequest(const QNetworkRequest& request, RateLimit::Callback callback);
 	void ItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
 	void StatusUpdate(const CurrentStatusUpdate& status);
 	void RateLimitStatusUpdate(const QString& status);
@@ -92,7 +93,7 @@ private:
 
 	Application& app_;
 
-	std::unique_ptr<RateLimit::RateLimiter> rate_limiter_;
+	RateLimit::RateLimiter& rate_limiter_;
 	std::vector<ItemLocation> tabs_;
 	std::queue<ItemsRequest> queue_;
 

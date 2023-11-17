@@ -30,6 +30,8 @@
 #include <QObject>
 #include <QTimer>
 
+#include "oauth.h"
+
 class Application;
 class OAuthManager;
 
@@ -241,7 +243,7 @@ namespace RateLimit
 
 	public:
 		// Construct a rate limit manager with the specified policy.
-		PolicyManager(std::unique_ptr<Policy>, QObject* parent = nullptr);
+		PolicyManager(QObject* parent = nullptr, std::unique_ptr<Policy> = std::make_unique<Policy>());
 
 		// Move a request into to this manager's queue.
 		void QueueRequest(std::unique_ptr<RateLimitedRequest> request);
@@ -339,43 +341,55 @@ namespace RateLimit
 		Q_OBJECT
 
 	public:
-		// Creat a rate limiter.
-		RateLimiter(Application& app, QObject* parent = nullptr);
+		static RateLimiter& instance();
 
+	public slots:
 		// Submit a request-callback pair to the rate limiter. Note that the callback function
 		// should not delete the QNetworkReply. That is handled after the callback finishes.
 		void Submit(QNetworkRequest network_request, Callback request_callback);
 
-	public slots:
 		// Slot for policy managers to send signals when they begin rate limiting.
 		void OnTimerStarted();
 
 	signals:
+		// Used internally when Submit() is called from another thread.
+		void Queue(QNetworkRequest network_request, Callback request_callback);
+
 		// Signal sent to the UI so the user can see what's going on.
 		void StatusUpdate(const QString message);
 
 	private slots:
-		// Called when a policy manager has a request for us to send.
+		// Handles a newly submitted request.
+		void OnSubmit(QNetworkRequest network_request, Callback request_callback);
+
+		// Called by policy managers when there's a request for us to send.
 		void SendRequest(QNetworkRequest request);
 
+		// Should be called when there's a new OAuth access token.
+		void SetAccessToken(const AccessToken& token);
+
 	private:
+		// Private constructor to enforce the singleton design pattern.
+		RateLimiter();
+
 		// Process the first request for an endpoint we haven't encountered before.
 		void SetupEndpoint(QNetworkRequest network_request, Callback request_callback, QNetworkReply* reply);
 
-		// Reference to the Application's network access manager.
-		QNetworkAccessManager& network_manager_;
+		AccessToken access_token;
 
-		// Reference to the Application's OAuth manager.
-		OAuthManager& oauth_manager_;
+		QThread* worker_thread;
+
+		// Reference to the Application's network access manager.
+		QNetworkAccessManager network_manager_;
 
 		// Keep around one manager for non-rate-limited or non-api requests.
-		std::shared_ptr<PolicyManager> default_manager;
+		PolicyManager default_manager;
 
 		// Map endpoints to policy managers.
-		std::unordered_map<QString, std::shared_ptr<PolicyManager>> endpoint_mapping;
+		std::unordered_map<QString, PolicyManager*> endpoint_mapping;
 
 		// Map policy names to policy managers.
-		std::unordered_map<QString, std::shared_ptr<PolicyManager>> policy_mapping;
+		std::unordered_map<QString, std::unique_ptr<PolicyManager>> policy_mapping;
 
 		// This timer updates the rate limit status.
 		QTimer status_updater;
