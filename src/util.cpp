@@ -245,12 +245,12 @@ std::string Util::Decode(const std::string& entity) {
 	return text.toPlainText().toStdString();
 }
 
-QUrlQuery Util::EncodeQueryItems(const std::list<std::pair<QString, QString>>& items) {
+QUrlQuery Util::EncodeQueryItems(const std::list<std::pair<std::string, std::string>>& items) {
 	// https://github.com/owncloud/client/issues/9203
 	QUrlQuery result;
 	for (const auto& item : items) {
-		const QString key = QUrl::toPercentEncoding(item.first);
-		const QString value = QUrl::toPercentEncoding(item.second);
+		const QString key = QUrl::toPercentEncoding(QString::fromStdString(item.first));
+		const QString value = QUrl::toPercentEncoding(QString::fromStdString(item.second));
 		result.addQueryItem(key, value);
 	};
 	return result;

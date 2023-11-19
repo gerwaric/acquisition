@@ -111,7 +111,7 @@ namespace Util {
 
 	std::string Decode(const std::string& entity);
 
-	QUrlQuery EncodeQueryItems(const std::list<std::pair<QString, QString>>& items);
+	QUrlQuery EncodeQueryItems(const std::list<std::pair<std::string, std::string>>& items);
 
 	void unique_elements(std::vector<std::string>& vec);
 

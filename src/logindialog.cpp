@@ -154,8 +154,8 @@ void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
 }
 
 void LoginDialog::OnOAuthAccessGranted(const AccessToken& token) {
-	account_ = token.username.toStdString();
-	ui->authenticateLabel->setText("You are authenticated as \"" + token.username + "\"");
+	account_ = token.username;
+	ui->authenticateLabel->setText("You are authenticated as \"" + QString::fromStdString(token.username) + "\"");
 	ui->authenticateButton->setText("Re-authenticate (as someone else).");
 	ui->authenticateButton->setEnabled(true);
 	PoE::GetLeagues(this,

@@ -377,7 +377,7 @@ namespace RateLimit
 		void SetupEndpoint(const QString endpoint, QNetworkRequest network_request, Callback request_callback, QNetworkReply* reply);
 
 		AccessToken access_token;
-		QByteArray bearer_token;
+		std::string bearer_token;
 
 		QThread* worker_thread;
 

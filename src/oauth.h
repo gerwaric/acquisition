@@ -20,10 +20,11 @@
 #pragma once
 
 #include <QObject>
-#include <QString>
 #include <QtHttpServer/QHttpServer>
 
-#include "rapidjson/document.h"
+#include <string>
+
+#include "json_struct/json_struct.h"
 
 class QHttpServerRequest;
 class QNetworkAccessManager;
@@ -31,14 +32,14 @@ class QNetworkReply;
 class QNetworkRequest;
 
 struct AccessToken {
-	AccessToken(const rapidjson::Value& json = rapidjson::Value(rapidjson::kObjectType));
-	QString access_token;
+	std::string access_token;
 	long int expires_in;
-	QString token_type;
-	QString scope;
-	QString username;
-	QString sub;
-	QString refresh_token;
+	std::string token_type;
+	std::string scope;
+	std::string username;
+	std::string sub;
+	std::string refresh_token;
+	JS_OBJ(access_token, expires_in, token_type, scope, username, sub, refresh_token);
 };
 
 class OAuthManager : public QObject {
@@ -46,21 +47,21 @@ class OAuthManager : public QObject {
 public:
 	OAuthManager(QNetworkAccessManager& network_manager, QObject* parent = nullptr);
 	void requestAccess();
-    const QString access_token() const;
+	const std::string access_token() const;
 	void addAuthorization(QNetworkRequest& request);
 signals:
 	void accessGranted(const AccessToken& token);
 private:
-	void requestAuthorization(const QByteArray& state, const QByteArray& code_challenge);
-	QString receiveAuthorization(const QHttpServerRequest& request, const QByteArray& state);
-	void requestToken(const QString& code);
+	void requestAuthorization(const std::string& state, const std::string& code_challenge);
+	std::string receiveAuthorization(const QHttpServerRequest& request, const std::string& state);
+	void requestToken(const std::string& code);
 	void receiveToken(QNetworkReply* reply);
-	void requestRefresh(const QString& refresh_token);
+	void requestRefresh(const std::string& refresh_token);
 
 	QNetworkAccessManager& the_manager_;
 	std::unique_ptr<QHttpServer> the_server_;
 	std::unique_ptr<AccessToken> the_token_;
 
-	QByteArray code_verifier_;
-	QString redirect_uri_;
+	std::string code_verifier_;
+	std::string redirect_uri_;
 };

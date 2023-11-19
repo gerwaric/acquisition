@@ -732,14 +732,14 @@ RateLimiter::RateLimiter() :
 
 void RateLimiter::SetAccessToken(const AccessToken& token) {
 	access_token = token;
-	bearer_token = "Bearer " + token.access_token.toUtf8();
+	bearer_token = "Bearer " + token.access_token;
 }
 
 void RateLimiter::SendRequest(QNetworkRequest request) {
 	PolicyManager* manager = qobject_cast<PolicyManager*>(sender());
 	request.setHeader(QNetworkRequest::UserAgentHeader, USER_AGENT);
 	if (request.url().host() == "api.pathofexile.com") {
-		request.setRawHeader("Authorization", bearer_token);
+		request.setRawHeader("Authorization", QByteArray::fromStdString(bearer_token));
 	};
 	QNetworkReply* reply = network_manager_.get(request);
 	connect(reply, &QNetworkReply::finished, manager, &PolicyManager::ReceiveReply);
