@@ -74,7 +74,7 @@ namespace PoE {
 			if (reply->error() != QNetworkReply::NoError) {
 				const auto status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
 				const auto message = reply->attribute(QNetworkRequest::HttpReasonPhraseAttribute);
-				QLOG_ERROR() << "ListCharacters: network error (" << status << "):" << message;
+				QLOG_ERROR() << "GetCharacter: network error (" << status << "):" << message;
 				return;
 			};
 			const QByteArray data = reply->readAll();
@@ -82,7 +82,7 @@ namespace PoE {
 			JS::ParseContext context(data);
 			JS::Error error = context.parseTo(result);
 			if (error != JS::Error::NoError) {
-				QLOG_ERROR() << "ListCharacters: json error:" << context.makeErrorString();
+				QLOG_ERROR() << "GetCharacter: json error:" << context.makeErrorString();
 				return;
 			};
 			// Run the callback in the context object's thread.
