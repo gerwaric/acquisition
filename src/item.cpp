@@ -225,7 +225,7 @@ Item::Item(const PoE::Item& item, const ItemLocation& location) :
 	// Import item sockets.
 	if (item.sockets) {
 		ItemSocketGroup current_group = { 0, 0, 0, 0 };
-		sockets_cnt_ = item.sockets.value().size();
+		sockets_cnt_ = static_cast<int>(item.sockets.value().size());
 		int counter = 0;
 		int prev_group = -1;
 		for (auto& socket : item.sockets.value()) {
@@ -609,7 +609,7 @@ void Item::GenerateMods(const PoE::Item& item) {
 
 	for (auto& mod_list : mod_lists) {
 		if (mod_list) {
-			for (const auto mod : mod_list.value()) {
+			for (const auto& mod : mod_list.value()) {
 				std::string mod_s = mod;
 				std::regex rep("([0-9\\.]+)");
 				mod_s = std::regex_replace(mod_s, rep, "#");
