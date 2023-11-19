@@ -201,7 +201,7 @@ namespace PoE {
 		std::optional<std::vector<PoE::ItemProperty>>	nextLevelRequirements;	// ? array of ItemProperty
 		std::optional<int>                          talismanTier;			// ? int
 		std::optional<std::vector<PoE::ItemReward>>		rewards;				// ? array of object
-		std::optional<std::vector<std::string>>     secDescrText;			// ? string
+		std::optional<std::string>                      secDescrText;			// ? string
 		std::optional<std::vector<std::string>>     utilityMods;			// ? array of string
 		std::optional<std::vector<PoE::LogbookMod>>		logbookMods;			// ? array of object
 		std::optional<std::vector<std::string>>     enchantMods;			// ? array of string
