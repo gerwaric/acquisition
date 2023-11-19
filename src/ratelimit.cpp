@@ -696,6 +696,36 @@ RateLimiter::RateLimiter() :
 	status_updater.setInterval(1000);
 	connect(&status_updater, &QTimer::timeout, this, &RateLimiter::DoStatusUpdate);
 	
+	// The current game patch (3.22.2) does not support HEAD requests against the new API,
+	// so we need to setup some managers here.
+	QLOG_WARN() << "============================================================";
+	QLOG_WARN() << "==== HARD CODING INITAL POLICIES UNTIL 3.22.3 or 3.23 ======";
+	QLOG_WARN() << "============================================================";
+	std::map<QString, QStringList> setup = {
+		{"league-request-limit",          {"GET /account/leagues"}},
+		{"character-list-request-limit",  {"GET /character"}},
+		{"character-request-limit",       {"GET /character/<name>"}},
+		{"stash-list-request-limit",      {"GET /stash/<league>"}},
+		{"stash-request-limit",           {"GET /stash/<league>/<stash_id>"}}
+	};
+	for (const auto& item : setup) {
+		const QString& policy_name = item.first;
+		const QStringList& policy_endpoints = item.second;
+		auto p = std::make_unique<Policy>();
+		auto pm = std::make_unique<PolicyManager>(this, std::move(p));
+		pm->policy_name = policy_name;
+		pm->policy->name = policy_name;
+		pm->endpoints.append(policy_endpoints);
+		QLOG_WARN() << "  INITIAL POLICY:" << policy_name;
+		for (const auto& endpoint : policy_endpoints) {
+			QLOG_WARN() << "    ENDPOINT:" << endpoint;
+			endpoint_mapping[endpoint] = pm.get();
+		};
+		connect(pm.get(), &PolicyManager::RequestReady, this, &RateLimiter::SendRequest);
+		connect(pm.get(), &PolicyManager::RateLimitingStarted, this, &RateLimiter::OnTimerStarted);
+		policy_mapping.emplace(policy_name, std::move(pm));
+	};
+
 	// Move ourselves (and our children) to the worker thread and start the worker.
 	this->moveToThread(worker_thread);
 	worker_thread->start();
