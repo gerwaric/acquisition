@@ -36,8 +36,6 @@
 #include "oauth.h"
 #include "version_defines.h"
 
-using RateLimit::RateLimiter;
-
 Application::Application(bool mock_data) :
 	test_mode_(mock_data)
 {
@@ -50,7 +48,7 @@ Application::Application(bool mock_data) :
 	update_checker_ = std::make_unique<UpdateChecker>(*network_manager_, this);
 	oauth_manager_ = std::make_unique<OAuthManager>(*network_manager_, this);
 
-	// Make sure the rate limiter gets AccessTokens when they are updated.
+	// Make sure the rate limiter gets tokens when they are updated.
 	connect(oauth_manager_.get(), &OAuthManager::accessGranted,
 		&RateLimit::RateLimiter::instance(),
 		&RateLimit::RateLimiter::SetAccessToken);

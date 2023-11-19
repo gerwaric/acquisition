@@ -31,7 +31,7 @@ class QNetworkAccessManager;
 class QNetworkReply;
 class QNetworkRequest;
 
-struct AccessToken {
+struct OAuthToken {
 	std::string access_token;
 	long int expires_in;
 	std::string token_type;
@@ -50,7 +50,7 @@ public:
 	const std::string access_token() const;
 	void addAuthorization(QNetworkRequest& request);
 signals:
-	void accessGranted(const AccessToken& token);
+	void accessGranted(const OAuthToken& token);
 private:
 	void requestAuthorization(const std::string& state, const std::string& code_challenge);
 	std::string receiveAuthorization(const QHttpServerRequest& request, const std::string& state);
@@ -58,9 +58,11 @@ private:
 	void receiveToken(QNetworkReply* reply);
 	void requestRefresh(const std::string& refresh_token);
 
+	static std::string authorizationError(const std::string& message);
+
 	QNetworkAccessManager& the_manager_;
 	std::unique_ptr<QHttpServer> the_server_;
-	std::unique_ptr<AccessToken> the_token_;
+	std::unique_ptr<OAuthToken> the_token_;
 
 	std::string code_verifier_;
 	std::string redirect_uri_;

@@ -33,7 +33,6 @@
 #include "oauth.h"
 
 class Application;
-class OAuthManager;
 
 //--------------------------------------------------------------------------
 // Introduction to GGG's API Rate Limits
@@ -346,7 +345,7 @@ namespace RateLimit
 
 	public slots:
 		// Should be called when there's a new OAuth access token.
-		void SetAccessToken(const AccessToken& token);
+		void SetAccessToken(const OAuthToken& token);
 
 		// Submit a request-callback pair to the rate limiter. Note that the callback function
 		// should not delete the QNetworkReply. That is handled after the callback finishes.
@@ -376,7 +375,7 @@ namespace RateLimit
 		// Process the first request for an endpoint we haven't encountered before.
 		void SetupEndpoint(const QString endpoint, QNetworkRequest network_request, Callback request_callback, QNetworkReply* reply);
 
-		AccessToken access_token;
+		OAuthToken access_token;
 		std::string bearer_token;
 
 		QThread* worker_thread;

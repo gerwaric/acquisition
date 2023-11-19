@@ -137,7 +137,7 @@ void OAuthManager::requestAuthorization(const std::string& state, const std::str
 	QDesktopServices::openUrl(authorization_url);
 }
 
-std::string authorizationError(const std::string& message)
+std::string OAuthManager::authorizationError(const std::string& message)
 {
 	QLOG_ERROR() << "OAuth authorization error:" << message;
 	QString html =

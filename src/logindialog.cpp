@@ -153,7 +153,7 @@ void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
 	QNetworkProxyFactory::setUseSystemConfiguration(checked);
 }
 
-void LoginDialog::OnOAuthAccessGranted(const AccessToken& token) {
+void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
 	account_ = token.username;
 	ui->authenticateLabel->setText("You are authenticated as \"" + QString::fromStdString(token.username) + "\"");
 	ui->authenticateButton->setText("Re-authenticate (as someone else).");

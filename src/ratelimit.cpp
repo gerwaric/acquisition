@@ -730,7 +730,7 @@ RateLimiter::RateLimiter() :
 	worker_thread->start();
 }
 
-void RateLimiter::SetAccessToken(const AccessToken& token) {
+void RateLimiter::SetAccessToken(const OAuthToken& token) {
 	access_token = token;
 	bearer_token = "Bearer " + token.access_token;
 }

@@ -30,7 +30,7 @@ class QString;
 
 class Application;
 class MainWindow;
-struct AccessToken;
+struct OAuthToken;
 namespace Ui {
 	class LoginDialog;
 }
@@ -43,7 +43,7 @@ public:
 public slots:
 	void OnAuthenticateButtonClicked();
 	void OnProxyCheckBoxClicked(bool);
-	void OnOAuthAccessGranted(const AccessToken& token);
+	void OnOAuthAccessGranted(const OAuthToken& token);
 	void OnLeaguesReceived(const PoE::GetLeaguesResult& leagues);
 	void OnLoginButtonClicked();
 protected:
