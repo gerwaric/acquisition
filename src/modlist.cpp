@@ -176,14 +176,22 @@ bool SumModGenerator::Match(const char* mod, double* output) {
 }
 
 void SumModGenerator::Generate(const rapidjson::Value& mod, ModTable* output) {
+	Generate(mod.GetString(), output);
+}
+
+void SumModGenerator::Generate(const std::string& mod, ModTable* output) {
 	bool mod_present = false;
 	double sum = 0;
 	double result;
-	if (Match(mod.GetString(), &result)) {
+	if (Match(mod.c_str(), &result)) {
 		sum += result;
 		mod_present = true;
-	}
-
-	if (mod_present)
-		(*output)[name_] = sum;
+	};
+	if (mod_present) {
+		if (output->count(name_) == 0) {
+			(*output)[name_] = sum;
+		} else {
+			(*output)[name_] += sum;
+		}
+	};
 }
