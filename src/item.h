@@ -29,6 +29,8 @@
 
 #include "itemlocation.h"
 
+namespace PoE { struct Item; }
+
 extern const std::vector<std::string> ITEM_MOD_TYPES;
 
 struct ItemSocketGroup {
@@ -77,6 +79,7 @@ public:
 		EATER_OF_WORLDS
 	};
 
+	explicit Item(const PoE::Item& item, const ItemLocation& loc);
 	explicit Item(const rapidjson::Value& json, const ItemLocation& loc);
 	Item(const std::string& name, const ItemLocation& location); // used by tests
 	std::string name() const { return name_; }
@@ -130,7 +133,9 @@ private:
     void CalculateCategories();
 	// The point of GenerateMods is to create combined (e.g. implicit+explicit) poe.trade-like mod map to be searched by mod filter.
 	// For now it only does that for a small chosen subset of mods (think "popular" + "pseudo" sections at poe.trade)
+	void GenerateMods(const PoE::Item& item);
 	void GenerateMods(const rapidjson::Value& json);
+	void CalculateHash(const PoE::Item& item);
 	void CalculateHash(const rapidjson::Value& json);
 
 	std::string name_;

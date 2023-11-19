@@ -28,6 +28,8 @@
 
 #include "QsLog.h"
 
+#include "poe_api/poe_item.h"
+
 #include "modlist.h"
 #include "util.h"
 #include "porting.h"
@@ -83,12 +85,231 @@ static std::string fixup_name(const std::string& name) {
 	return name;
 }
 
+// Construct directly from a new API object.
+Item::Item(const PoE::Item& item, const ItemLocation& location) :
+	name_(item.name),
+	location_(location),
+	typeLine_(item.typeLine),
+	baseType_(item.baseType),
+	// set in constructor body: category_(),          
+	// set in constructor body: category_vector_(),
+	identified_(item.identified),
+	corrupted_(item.corrupted.value_or(false)),
+	crafted_(item.craftedMods),
+	enchanted_(item.enchantMods),
+	// set in constructor body: influenceList_(),
+	w_(item.w),
+	h_(item.h),
+	frameType_(item.frameType ? static_cast<int>(item.frameType.value()) : -1),
+	icon_(item.icon),
+	// set in constructor body: properties_(),
+	// set in constructor body: elemental_damage_(),
+	sockets_cnt_(0),
+	links_cnt_(0),
+	// set in constructor body: sockets_(),
+	// set in constructor body: socket_groups_(),
+	// set in constructor body: requirements_(),
+	//json_(JS::serializeStruct(item)), // WARNING -- not the same as legacy item objects.
+	// set in constructor body: count_(),
+	ilvl_(item.ilvl),
+	// set in constructor body: text_properties_(),
+	// set in constructor body: text_requirements_(),
+	// set in constructor body: text_mods_(),
+	// set in constructor body: text_sockets_(),
+	note_(item.note.value_or("")),
+	// set in constructor body: mod_table_(),
+	uid_(item.id.value_or("NONE")),
+	talisman_tier_(item.talismanTier.value_or(0))
+{
+	json_ = JS::serializeStruct(item);
+
+	name_ = fixup_name(name_);
+
+	// Use base type for all hybrid items except vaal gems.
+	typeLine_ = (item.hybrid && (!item.hybrid.value().isVaalGem.value_or(false)))
+		? fixup_name(item.hybrid.value().baseTypeName)
+		: typeLine_ = fixup_name(typeLine_);
+
+	baseType_ = fixup_name(baseType_);
+
+	if (item.influences) {
+		if (item.influences.value().shaper.value_or(false))   influenceList_.push_back(SHAPER);
+		if (item.influences.value().elder.value_or(false))    influenceList_.push_back(ELDER);
+		if (item.influences.value().crusader.value_or(false)) influenceList_.push_back(CRUSADER);
+		if (item.influences.value().redeemer.value_or(false)) influenceList_.push_back(REDEEMER);
+		if (item.influences.value().hunter.value_or(false))   influenceList_.push_back(HUNTER);
+		if (item.influences.value().warlord.value_or(false))  influenceList_.push_back(WARLORD);
+	};
+	if (item.synthesised.value_or(false)) influenceList_.push_back(SYNTHESISED);
+	if (item.fractured.value_or(false))   influenceList_.push_back(FRACTURED);
+	if (item.searing.value_or(false))     influenceList_.push_back(SEARING_EXARCH);
+	if (item.tangled.value_or(false))     influenceList_.push_back(EATER_OF_WORLDS);
+
+	// The lines that are commented out below are mod categories that Acquisiton
+	// was not parsing in v0.9.7. They should be enabled at some point.
+
+	// if (item.utilityMods)   text_mods_["utilityMods"] = item.utilityMods.value();
+	// TBD - Logbook mods
+	if (item.enchantMods)   text_mods_["enchantMods"] = item.enchantMods.value();
+	//if (item.scourgeMods)   text_mods_["scourgeMods"] = item.scourgeMods.value();
+	if (item.implicitMods)  text_mods_["implicitMods"] = item.implicitMods.value();
+	// TBD - Ultimatum mods
+	if (item.explicitMods)  text_mods_["explicitMods"] = item.explicitMods.value();
+	if (item.craftedMods)   text_mods_["craftedMods"] = item.craftedMods.value();
+	if (item.fracturedMods) text_mods_["fracturedMods"] = item.fracturedMods.value();
+	//if (item.crucibleMods)  text_mods_["crucibleMods"] = item.crucibleMods.value();
+	//if (item.cosmeticMods)  text_mods_["cosmeticMods"] = item.cosmeticMods.value();
+	//if (item.veiledMods)    text_mods_["veiledMods"] = item.veiledMods.value();
+
+	// Other code assumes icon is proper size so force quad=1 to quad=0 here as it's clunky
+	// to handle elsewhere
+	boost::replace_last(icon_, "quad=1", "quad=0");
+
+	// quad stashes, currency stashes, etc
+	boost::replace_last(icon_, "scaleIndex=", "scaleIndex=0&");
+
+	CalculateCategories();
+
+	// Import item properties.
+	if (item.properties) {
+		for (auto& prop : item.properties.value()) {
+			if (prop.name == "Elemental Damage") {
+				// Import elemental damage mods
+				elemental_damage_.reserve(elemental_damage_.size() + prop.values.size());
+				for (auto& value : prop.values) {
+					const std::string prop_name = std::get<0>(value);
+					const unsigned int prop_value = std::get<1>(value);
+					elemental_damage_.push_back({ prop_name, prop_value });
+				};
+			} else {
+				// Look for other properties
+				if (prop.values.size() > 0) {
+					properties_[prop.name] = std::get<0>(prop.values[0]);
+				};
+			};
+			ItemProperty property;
+			property.name = prop.name;
+			property.display_mode = prop.displayMode;
+			for (auto& value : prop.values) {
+				ItemPropertyValue v;
+				v.str = std::get<0>(value);
+				v.type = std::get<1>(value);
+				property.values.push_back(v);
+			};
+			text_properties_.push_back(property);
+		};
+	};
+
+	// Import item requirements.
+	if (item.requirements) {
+		for (auto& req : item.requirements.value()) {
+			if (req.values.size() != 1) {
+				QLOG_ERROR() << "Requirement item property values had" << req.values.size() << "elements:" << item.name;
+				continue;
+			};
+			const auto& value = req.values[0];
+			const std::string value_str = std::get<0>(value);
+			const unsigned int value_type = std::get<1>(value);
+			if (value_type != 0) {
+				QLOG_ERROR() << "Unhandled item property value type:" << value_type << "in requirements:" << item.name;
+				continue;
+			};
+			requirements_[req.name] = std::atoi(value_str.c_str());
+			ItemPropertyValue v;
+			v.str = value_str;
+			v.type = value_type;
+			text_requirements_.push_back({ req.name, v });
+		};
+	};
+
+	// Import item sockets.
+	if (item.sockets) {
+		ItemSocketGroup current_group = { 0, 0, 0, 0 };
+		sockets_cnt_ = item.sockets.value().size();
+		int counter = 0;
+		int prev_group = -1;
+		for (auto& socket : item.sockets.value()) {
+
+			if (socket.attr && socket.sColour) {
+				QLOG_WARN() << "Item socket has both attr and sColour:" << item.name;
+			}
+
+			char attr = '\0';
+			if (socket.attr) {
+				attr = socket.attr.value()[0];
+			} else if (socket.sColour) {
+				attr = socket.sColour.value()[0];
+			};
+
+			if (!attr) {
+				continue;
+			};
+
+			ItemSocket current_socket = { static_cast<unsigned char>(socket.group), attr };
+			text_sockets_.push_back(current_socket);
+			if (prev_group != current_socket.group) {
+				counter = 0;
+				socket_groups_.push_back(current_group);
+				current_group = { 0, 0, 0, 0 };
+			};
+			prev_group = current_socket.group;
+			++counter;
+			links_cnt_ = std::max(links_cnt_, counter);
+			switch (current_socket.attr) {
+			case 'S':
+				sockets_.r++;
+				current_group.r++;
+				break;
+			case 'D':
+				sockets_.g++;
+				current_group.g++;
+				break;
+			case 'I':
+				sockets_.b++;
+				current_group.b++;
+				break;
+			case 'G':
+				sockets_.w++;
+				current_group.w++;
+				break;
+			};
+		};
+		socket_groups_.push_back(current_group);
+	};
+
+	CalculateHash(item);
+
+	count_ = 1;
+	if (properties_.find("Stack Size") != properties_.end()) {
+		std::string size = properties_["Stack Size"];
+		if (size.find("/") != std::string::npos) {
+			size = size.substr(0, size.find("/"));
+			count_ = std::stoi(size);
+		};
+	};
+
+	if (item.itemLevel) {
+		const int itemLevel = item.itemLevel.value();
+		if (item.ilvl != itemLevel) {
+			QLOG_WARN() << "Item ilvl (" << item.ilvl << ") does not match itemLevel (" << itemLevel << ") in" << item.name;
+		};
+	};
+
+	GenerateMods(item);
+
+	if (!item.id) {
+		QLOG_ERROR() << "Item does not have a unique id:" << item.name;
+	};
+}
+
+// Create a fake item for test mode.
 Item::Item(const std::string& name, const ItemLocation& location) :
 	name_(name),
 	location_(location),
 	hash_(Util::Md5(name)) // Unique enough for tests
 {}
 
+// Parse from legacy api json.
 Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
 	location_(loc),
 	identified_(true),
@@ -368,6 +589,40 @@ double Item::cDPS() const {
 	return aps * Util::AverageDamage(cd);
 }
 
+void Item::GenerateMods(const PoE::Item& item) {
+
+	auto mod_lists = {
+		// TBD: item.utilityMods,
+		// TBD: item.enchantMods,
+		// TBD: item.scourgeMods,
+		item.implicitMods,
+		item.explicitMods,
+		item.craftedMods,
+		item.fracturedMods
+		// TBD: item.crucibleMods,
+		// TBD: item.cosmeticMods,
+		// TBD: item.veiledMods
+	};
+	// NOTE: logbookMods and ultimatumMods are excluded because they
+	// are different object types from the rest of the mod lists. If 
+	// they need to be added, they will need to be added separately.
+
+	for (auto& mod_list : mod_lists) {
+		if (mod_list) {
+			for (const auto mod : mod_list.value()) {
+				std::string mod_s = mod;
+				std::regex rep("([0-9\\.]+)");
+				mod_s = std::regex_replace(mod_s, rep, "#");
+				auto rslt = mods_map.find(mod_s);
+				if (rslt != mods_map.end()) {
+					SumModGenerator& gen = *rslt->second;
+					gen.Generate(mod, &mod_table_);
+				};
+			};
+		};
+	};
+}
+
 void Item::GenerateMods(const rapidjson::Value& json) {
 	for (auto& type : { "implicitMods", "explicitMods", "craftedMods", "fracturedMods" }) {
 		if (!json.HasMember(type) || !json[type].IsArray())
@@ -386,6 +641,14 @@ void Item::GenerateMods(const rapidjson::Value& json) {
 			}
 		}
 	}
+}
+
+void Item::CalculateHash(const PoE::Item& item) {
+	old_hash_ = "";
+	if (!item.id) {
+		QLOG_FATAL() << "Item does not have a unique id:" << item.name;
+	};
+	hash_ = item.id.value();
 }
 
 void Item::CalculateHash(const rapidjson::Value& json) {
