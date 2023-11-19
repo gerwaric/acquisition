@@ -40,7 +40,9 @@ include(deps/QsLog/QsLog.pri)
 INCLUDEPATH += src deps deps/boost-headers-only test
 
 SOURCES += \
-	src/poe_api/poe_league.cpp \
+        src/poe_api/poe_character.cpp \
+        src/poe_api/poe_league.cpp \
+        src/poe_api/poe_stash.cpp \
 	src/application.cpp \
 	src/bucket.cpp \
 	src/buyoutmanager.cpp \

@@ -30,6 +30,17 @@
 
 namespace PoE {
 
+	// Unofficial type
+	struct ItemInfluences {
+		std::optional<bool>                         shaper;
+		std::optional<bool>                         elder;
+		std::optional<bool>                         crusader;
+		std::optional<bool>                         redeemer;
+		std::optional<bool>                         hunter;
+		std::optional<bool>                         warlord;
+		JS_OBJ(shaper, elder, crusader, redeemer, hunter, warlord);
+	};
+
 	// https://www.pathofexile.com/developer/docs/reference#type-ItemSocket
 	struct ItemSocket {
 		unsigned int                                group = 0;				// uint
@@ -155,7 +166,7 @@ namespace PoE {
 		std::optional<std::string>					stackSizeText;			// ?
 		std::optional<std::string>					league;					// ?
 		std::optional<std::string>					id;						// ? a unique 64 digit hexadecimal string
-		std::optional<JS::JsonObject>               influences;				// ? object       /***** WARNING *****/
+		std::optional<PoE::ItemInfluences>          influences;             // ? object       /***** WARNING *****/
 		std::optional<bool>                         elder;					// ? always true if present
 		std::optional<bool>                         shaper;					// ? always true if present
 		std::optional<bool>                         searing;				// ? always true if present

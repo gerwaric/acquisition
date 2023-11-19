@@ -51,7 +51,7 @@ namespace PoE {
 			QMetaObject::invokeMethod(object, [=]() { callback(result); });
 		};
 
-		rate_limiter.Submit(QNetworkRequest(QUrl(GET_LEAGUES)), callback_wrapper);
+		rate_limiter.Submit("GET /account/leagues", QNetworkRequest(QUrl(GET_LEAGUES)), callback_wrapper);
 	}
 
 }
