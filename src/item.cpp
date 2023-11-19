@@ -36,22 +36,25 @@
 
 const std::array<Item::CategoryReplaceMap, Item::k_CategoryLevels> Item::replace_map_ = {
 	// Category hierarchy 0 replacement map
-	Item::CategoryReplaceMap({{"Divination", "Divination Cards"},
-							{"QuestItems", "Quest Items"}}),
-							// Category hierarchy 1 replacement map
-							Item::CategoryReplaceMap({{"BodyArmours", "Body"},
-													  {"VaalGems", "Vaal"},
-													  {"AtlasMaps", "2.4"},
-													  {"act4maps", "2.0"},
-													  {"OneHandWeapons", "1Hand"},
-													  {"TwoHandWeapons", "2Hand"}}),
-													  // Category hierarchy 2 replacement map
-													  Item::CategoryReplaceMap({{"OneHandAxes", "Axes"},
-																				{"OneHandMaces", "Maces"},
-																				{"OneHandSwords", "Swords"},
-																				{"TwoHandAxes", "Axes"},
-																				{"TwoHandMaces", "Maces"},
-																				{"TwoHandSwords", "Swords"}})
+	Item::CategoryReplaceMap({
+		{"Divination", "Divination Cards"},
+		{"QuestItems", "Quest Items"}}),
+	// Category hierarchy 1 replacement map
+	Item::CategoryReplaceMap({
+		{"BodyArmours", "Body"},
+		{"VaalGems", "Vaal"},
+		{"AtlasMaps", "2.4"},
+		{"act4maps", "2.0"},
+		{"OneHandWeapons", "1Hand"},
+		{"TwoHandWeapons", "2Hand"}}),
+	// Category hierarchy 2 replacement map
+	Item::CategoryReplaceMap({
+		{"OneHandAxes", "Axes"},
+		{"OneHandMaces", "Maces"},
+		{"OneHandSwords", "Swords"},
+		{"TwoHandAxes", "Axes"},
+		{"TwoHandMaces", "Maces"},
+		{"TwoHandSwords", "Swords"}})
 };
 
 const std::vector<std::string> ITEM_MOD_TYPES = {
