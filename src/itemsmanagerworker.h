@@ -36,7 +36,13 @@ class QSignalMapper;
 class QTimer;
 class BuyoutManager;
 
-using RateLimit::RateLimiter;
+namespace PoE {
+	struct ListCharactersResult;
+	struct ListStashesResult;
+	struct GetCharacterResult;
+	struct GetStashResult;
+	struct Item;
+}
 
 struct ItemsRequest {
 	int id;
@@ -56,55 +62,43 @@ public:
 	bool isInitialized() const { return initialized_; }
 	void UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations);
 public slots:
-	void ParseItemMods();
-	void Update(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
-public slots:
-	void OnMainPageReceived(QNetworkReply* reply);
-	void OnCharacterListReceived(QNetworkReply* reply);
-	void OnFirstTabReceived(QNetworkReply* reply);
-	void OnTabReceived(QNetworkReply* reply, ItemLocation location);
-	void FetchItems();
-	void PreserveSelectedCharacter();
 	void Init();
-	void OnRateLimitStatusUpdate(const QString& string);
-
-	void OnStatTranslationsReceived(QNetworkReply* reply);
+	void Update(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 	void OnItemClassesReceived(QNetworkReply* reply);
 	void OnItemBaseTypesReceived(QNetworkReply* reply);
+	void OnStatTranslationsReceived(QNetworkReply* reply);
+	void OnStashListReceived(const PoE::ListStashesResult& result);
+	void OnStashReceived(const PoE::GetStashResult& result);
+	void OnCharacterListReceived(const PoE::ListCharactersResult& result);
+	void OnCharacterReceived(const PoE::GetCharacterResult& result);
+	void FetchItems();
+	void OnRateLimitStatusUpdate(const QString& string);
+
 signals:
-	void GetRequest(const QNetworkRequest& request, RateLimit::Callback callback);
+	void GetRequest(const QString& endpoint, const QNetworkRequest& request, RateLimit::Callback callback);
 	void ItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
 	void StatusUpdate(const CurrentStatusUpdate& status);
 	void RateLimitStatusUpdate(const QString& status);
 	void ItemClassesUpdate(const QByteArray& classes);
 	void ItemBaseTypesUpdate(const QByteArray& baseTypes);
 private:
+	void ParseItemMods();
 	void RemoveUpdatingTabs(const std::set<std::string>& tab_ids);
 	void RemoveUpdatingItems(const std::set<std::string>& tab_ids);
-	QNetworkRequest MakeTabRequest(int tab_index, bool tabs = false);
-	QNetworkRequest MakeCharacterRequest(const std::string& name);
-	QNetworkRequest MakeCharacterPassivesRequest(const std::string& name);
-	void QueueRequest(const QNetworkRequest& request, const ItemLocation& location);
-	void ParseItems(rapidjson::Value* value_ptr, ItemLocation base_location, rapidjson_allocator& alloc);
-	std::vector<std::pair<std::string, std::string> > CreateTabsSignatureVector(std::string tabs);
-	void UpdateModList();
-	bool TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, ItemLocation& location);
+	void AddItems(const std::vector<PoE::Item>& items, const ItemLocation& location);
+	void FinishRequest();
 	void FinishUpdate();
 
 	Application& app_;
 
 	RateLimit::RateLimiter& rate_limiter_;
 	std::vector<ItemLocation> tabs_;
-	std::queue<ItemsRequest> queue_;
-
-	// tabs_signature_ captures <"n", "id"> from JSON tab list, used as consistency check
-	std::vector<std::pair<std::string, std::string> > tabs_signature_;
 	Items items_;
-    size_t total_completed_, total_needed_;
-    size_t requests_completed_, requests_needed_;
-
 	std::set<std::string> tab_id_index_;
-	std::string tabs_as_string_;
+
+	std::set<std::string> stashes_to_request_;
+	std::set<std::string> characters_to_request_;
+	size_t requests_needed_, requests_completed_;
 
 	volatile bool initialized_;
 	volatile bool updating_;
@@ -113,10 +107,4 @@ private:
 	bool updateRequest_;
 	TabSelection::Type type_;
 	std::vector<ItemLocation> locations_;
-
-	int queue_id_;
-	std::string selected_character_;
-
-	std::string first_fetch_tab_;
-	int first_fetch_tab_id_;
 };
