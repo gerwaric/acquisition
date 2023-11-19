@@ -133,7 +133,7 @@ namespace RateLimit
 	struct RateLimitedRequest {
 
 		// Construct a new rate-limited request.
-		RateLimitedRequest(const QNetworkRequest& request, const Callback callback);
+		RateLimitedRequest(const QString& endpoint, const QNetworkRequest& request, const Callback callback);
 
 		// Unique identified for each request, even through different requests can be
 		// routed to different policy managers based on different endpoints.
@@ -225,7 +225,6 @@ namespace RateLimit
 	struct Policy {
 		Policy();
 		Policy(QNetworkReply* const reply);
-		const bool empty;
 		QString name;
 		std::vector<PolicyRule> rules;
 		PolicyStatus status;
@@ -243,7 +242,7 @@ namespace RateLimit
 
 	public:
 		// Construct a rate limit manager with the specified policy.
-		PolicyManager(QObject* parent = nullptr, std::unique_ptr<Policy> = std::make_unique<Policy>());
+		PolicyManager(QObject* parent = nullptr, std::unique_ptr<Policy> = nullptr);
 
 		// Move a request into to this manager's queue.
 		void QueueRequest(std::unique_ptr<RateLimitedRequest> request);
@@ -252,6 +251,8 @@ namespace RateLimit
 		// which will be updated whenever a reply with the X-Rate-Limit-Policy
 		// header is received.
 		std::unique_ptr<Policy> policy;
+
+		QString policy_name;
 
 		// List of the API endpoints this manager's policy applies to.
 		QStringList endpoints;
@@ -344,38 +345,39 @@ namespace RateLimit
 		static RateLimiter& instance();
 
 	public slots:
+		// Should be called when there's a new OAuth access token.
+		void SetAccessToken(const AccessToken& token);
+
 		// Submit a request-callback pair to the rate limiter. Note that the callback function
 		// should not delete the QNetworkReply. That is handled after the callback finishes.
-		void Submit(QNetworkRequest network_request, Callback request_callback);
+		void Submit(const QString endpoint, QNetworkRequest network_request, Callback request_callback);
 
 		// Slot for policy managers to send signals when they begin rate limiting.
 		void OnTimerStarted();
 
 	signals:
 		// Used internally when Submit() is called from another thread.
-		void Queue(QNetworkRequest network_request, Callback request_callback);
+		void Queue(const QString& endpoint, QNetworkRequest network_request, Callback request_callback);
 
 		// Signal sent to the UI so the user can see what's going on.
 		void StatusUpdate(const QString message);
 
 	private slots:
 		// Handles a newly submitted request.
-		void OnSubmit(QNetworkRequest network_request, Callback request_callback);
+		void OnSubmit(const QString& endpoint, QNetworkRequest network_request, Callback request_callback);
 
 		// Called by policy managers when there's a request for us to send.
 		void SendRequest(QNetworkRequest request);
-
-		// Should be called when there's a new OAuth access token.
-		void SetAccessToken(const AccessToken& token);
 
 	private:
 		// Private constructor to enforce the singleton design pattern.
 		RateLimiter();
 
 		// Process the first request for an endpoint we haven't encountered before.
-		void SetupEndpoint(QNetworkRequest network_request, Callback request_callback, QNetworkReply* reply);
+		void SetupEndpoint(const QString endpoint, QNetworkRequest network_request, Callback request_callback, QNetworkReply* reply);
 
 		AccessToken access_token;
+		QByteArray bearer_token;
 
 		QThread* worker_thread;
 
