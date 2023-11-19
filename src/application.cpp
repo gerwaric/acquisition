@@ -50,6 +50,11 @@ Application::Application(bool mock_data) :
 	update_checker_ = std::make_unique<UpdateChecker>(*network_manager_, this);
 	oauth_manager_ = std::make_unique<OAuthManager>(*network_manager_, this);
 
+	// Make sure the rate limiter gets AccessTokens when they are updated.
+	connect(oauth_manager_.get(), &OAuthManager::accessGranted,
+		&RateLimit::RateLimiter::instance(),
+		&RateLimit::RateLimiter::SetAccessToken);
+
 	// The global datastore holds things like the selected theme.
 	const QString data_path = GetDataPath();
 	const QString global_file_name = SqliteDataStore::MakeFilename("", "");
