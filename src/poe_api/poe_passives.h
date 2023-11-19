@@ -88,7 +88,7 @@ namespace PoE {
 		std::optional<std::vector<std::string>>     reminderText;			// ? array of string
 		std::optional<std::vector<std::string>>     flavourText;			// ? array of string
 		std::optional<unsigned int>                 classStartIndex;		// ? uint
-		std::optional<unsigned int>                 group;					// ? uint	index into the groups table
+		std::optional<std::string>                  group;					// ? string	index into the groups table
 		std::optional<unsigned int>                 orbit;					// ? uint	the orbit this node occupies within it's group
 		std::optional<unsigned int>                 orbitIndex;				// ? uint	the index of this node in the group's orbit
 		std::vector<std::string>                    out;					// array of string	node identifiers of nodes this one connects to
