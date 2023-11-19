@@ -28,7 +28,7 @@ namespace PoE {
 	void GetLeagues(QObject* object, GetLeaguesCallback callback)
 	{
 		static auto& rate_limiter = RateLimit::RateLimiter::instance();
-		
+
 		const QString GET_LEAGUES("https://api.pathofexile.com/account/leagues");
 
 		auto callback_wrapper = [=](QNetworkReply* reply) {

@@ -309,7 +309,7 @@ void ItemsManagerWorker::RemoveUpdatingItems(const std::set<std::string>& tab_id
 }
 
 void ItemsManagerWorker::OnCharacterListReceived(const PoE::ListCharactersResult& result) {
-	
+
 	QLOG_DEBUG() << "Character list received with" << result.characters.size() << "characters (all leagues).";
 
 	characters_to_request_.clear();
@@ -398,7 +398,7 @@ void ItemsManagerWorker::FetchItems() {
 	QLOG_DEBUG() << "Fetching items from"
 		<< stashes_to_request_.size() << "stashes and"
 		<< characters_to_request_.size() << "characters.";
-	
+
 	requests_needed_ = stashes_to_request_.size() + characters_to_request_.size();
 	requests_completed_ = 0;
 
@@ -408,7 +408,7 @@ void ItemsManagerWorker::FetchItems() {
 				OnStashReceived(result);
 			},
 			app_.league(),
-			stashtab_id);
+				stashtab_id);
 	};
 	for (auto& character_name : characters_to_request_) {
 		PoE::GetCharacter(this,
@@ -420,7 +420,7 @@ void ItemsManagerWorker::FetchItems() {
 }
 
 void ItemsManagerWorker::OnStashReceived(const PoE::GetStashResult& result) {
-	
+
 	stashes_to_request_.erase(result.stash.id);
 
 	ItemLocation* location = nullptr;
@@ -441,7 +441,7 @@ void ItemsManagerWorker::OnStashReceived(const PoE::GetStashResult& result) {
 }
 
 void ItemsManagerWorker::OnCharacterReceived(const PoE::GetCharacterResult& result) {
-	
+
 	characters_to_request_.erase(result.character.name);
 
 	ItemLocation* location = nullptr;

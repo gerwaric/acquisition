@@ -694,7 +694,7 @@ RateLimiter::RateLimiter() :
 	status_updater.setSingleShot(false);
 	status_updater.setInterval(1000);
 	connect(&status_updater, &QTimer::timeout, this, &RateLimiter::DoStatusUpdate);
-	
+
 	// The current game patch (3.22.2) does not support HEAD requests against the new API,
 	// so we need to setup some managers here.
 	QLOG_WARN() << "============================================================";

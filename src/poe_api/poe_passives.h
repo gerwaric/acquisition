@@ -94,9 +94,9 @@ namespace PoE {
 		std::vector<std::string>                    out;					// array of string	node identifiers of nodes this one connects to
 		std::vector<std::string>                    in;						// array of string	node identifiers of nodes connected to this one
 		JS_OBJ(skill, name, icon, isKeystone, isNotable, isMastery, inactiveIcon, activeIcon, activeEffectImage, masteryEffects,
-			   isBlighted, isTattoo, isProxy, isJewelSocket, expansionJewel, recipe, grantedStrength, grantedDexterity,
-			   grantedIntelligence, ascendancyName, isAscendancyStart, isMultipleChoice, isMultipleChoiceOption,
-			   grantedPassivePoints, stats, reminderText, flavourText, classStartIndex, group, orbit, orbitIndex, out, in);
+			isBlighted, isTattoo, isProxy, isJewelSocket, expansionJewel, recipe, grantedStrength, grantedDexterity,
+			grantedIntelligence, ascendancyName, isAscendancyStart, isMultipleChoice, isMultipleChoiceOption,
+			grantedPassivePoints, stats, reminderText, flavourText, classStartIndex, group, orbit, orbitIndex, out, in);
 	};
 
 }

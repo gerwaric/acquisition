@@ -41,22 +41,22 @@ const std::array<Item::CategoryReplaceMap, Item::k_CategoryLevels> Item::replace
 	Item::CategoryReplaceMap({
 		{"Divination", "Divination Cards"},
 		{"QuestItems", "Quest Items"}}),
-	// Category hierarchy 1 replacement map
-	Item::CategoryReplaceMap({
-		{"BodyArmours", "Body"},
-		{"VaalGems", "Vaal"},
-		{"AtlasMaps", "2.4"},
-		{"act4maps", "2.0"},
-		{"OneHandWeapons", "1Hand"},
-		{"TwoHandWeapons", "2Hand"}}),
-	// Category hierarchy 2 replacement map
-	Item::CategoryReplaceMap({
-		{"OneHandAxes", "Axes"},
-		{"OneHandMaces", "Maces"},
-		{"OneHandSwords", "Swords"},
-		{"TwoHandAxes", "Axes"},
-		{"TwoHandMaces", "Maces"},
-		{"TwoHandSwords", "Swords"}})
+		// Category hierarchy 1 replacement map
+		Item::CategoryReplaceMap({
+			{"BodyArmours", "Body"},
+			{"VaalGems", "Vaal"},
+			{"AtlasMaps", "2.4"},
+			{"act4maps", "2.0"},
+			{"OneHandWeapons", "1Hand"},
+			{"TwoHandWeapons", "2Hand"}}),
+			// Category hierarchy 2 replacement map
+			Item::CategoryReplaceMap({
+				{"OneHandAxes", "Axes"},
+				{"OneHandMaces", "Maces"},
+				{"OneHandSwords", "Swords"},
+				{"TwoHandAxes", "Axes"},
+				{"TwoHandMaces", "Maces"},
+				{"TwoHandSwords", "Swords"}})
 };
 
 const std::vector<std::string> ITEM_MOD_TYPES = {
@@ -411,7 +411,7 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
 	// quad stashes, currency stashes, etc
 	boost::replace_last(icon_, "scaleIndex=", "scaleIndex=0&");
 
-    CalculateCategories();
+	CalculateCategories();
 
 	if (json.HasMember("talismanTier") && json["talismanTier"].IsUint()) {
 		talisman_tier_ = json["talismanTier"].GetUint();
@@ -632,7 +632,7 @@ void Item::GenerateMods(const rapidjson::Value& json) {
 				continue;
 
 			std::string mod_s = mod.GetString();
-            std::regex rep("([0-9\\.]+)");
+			std::regex rep("([0-9\\.]+)");
 			mod_s = std::regex_replace(mod_s, rep, "#");
 			auto rslt = mods_map.find(mod_s);
 			if (rslt != mods_map.end()) {

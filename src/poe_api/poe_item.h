@@ -238,16 +238,16 @@ namespace PoE {
 		std::optional<unsigned int>                 socket;					// ? uint
 		std::optional<std::string>					colour;					// ? string	S, D, I, or G
 		JS_OBJ(verified, w, h, icon, support, stackSize, maxStackSize, stackSizeText,
-			   league, id, influences, elder, shaper, searing, tangled, abyssJewel, delve,
-			   fractured, synthesised, sockets, socketedItems, name, typeLine, baseType, identified,
-			   itemLevel, ilvl, note, forum_note, lockedToCharacter, lockedToAccount, duplicated, split,
-			   corrupted, unmodifiable, cisRaceReward, seaRaceReward, thRaceReward, properties, notableProperties,
-			   requirements, additionalProperties, nextLevelRequirements, talismanTier, rewards, secDescrText,
-			   utilityMods, logbookMods, enchantMods, scourgeMods, implicitMods, ultimatumMods, explicitMods,
-			   craftedMods, fracturedMods, crucibleMods, cosmeticMods, veiledMods, veiled, descrText, flavourText,
-			   flavourTextParsed, flavourTextNote, prophecyText, isRelic, foilVariation, replica, foreseeing,
-			   incubatedItem, scourged, crucible, ruthless, frameType, artFilename, hybrid, extended, x, y,
-			   inventoryId, socket, colour);
+			league, id, influences, elder, shaper, searing, tangled, abyssJewel, delve,
+			fractured, synthesised, sockets, socketedItems, name, typeLine, baseType, identified,
+			itemLevel, ilvl, note, forum_note, lockedToCharacter, lockedToAccount, duplicated, split,
+			corrupted, unmodifiable, cisRaceReward, seaRaceReward, thRaceReward, properties, notableProperties,
+			requirements, additionalProperties, nextLevelRequirements, talismanTier, rewards, secDescrText,
+			utilityMods, logbookMods, enchantMods, scourgeMods, implicitMods, ultimatumMods, explicitMods,
+			craftedMods, fracturedMods, crucibleMods, cosmeticMods, veiledMods, veiled, descrText, flavourText,
+			flavourTextParsed, flavourTextNote, prophecyText, isRelic, foilVariation, replica, foreseeing,
+			incubatedItem, scourged, crucible, ruthless, frameType, artFilename, hybrid, extended, x, y,
+			inventoryId, socket, colour);
 	};
 
 	// Anonymous member of ItemJewelData

@@ -295,7 +295,7 @@ namespace RateLimit
 
 		// Resends the active request after a delay due to a violation.
 		void ResendAfterViolation();
-		
+
 		// Keep track of wether or not there's an active request keeping this
 		// policy manager busy.
 		bool busy;

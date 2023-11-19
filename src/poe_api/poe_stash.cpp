@@ -40,7 +40,7 @@ namespace PoE {
 	void ListStashes(QObject* object, ListStashesCallback callback, const std::string& league)
 	{
 		static auto& rate_limiter = RateLimit::RateLimiter::instance();
-		
+
 		const QString LIST_STASHES("https://api.pathofexile.com/stash/" + QString::fromStdString(league));
 
 		auto callback_wrapper = [=](QNetworkReply* reply) {
