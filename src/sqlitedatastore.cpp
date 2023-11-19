@@ -249,7 +249,7 @@ Items SqliteDataStore::GetItems(const ItemLocation& loc) {
 	QSqlQuery query(db.database);
 	query.prepare("SELECT value FROM items WHERE location_id = ? AND location_type = ?");
 	query.bindValue(0, QString::fromStdString(loc.get_tab_uniq_id()));
-	query.bindValue(0, (int)loc.get_type());
+	query.bindValue(1, (int)loc.get_type());
 	if (query.exec() == false) {
 		QLOG_ERROR() << "Error getting items for" << query.boundValue(0) << ":" << query.lastError().text();
 		return {};
