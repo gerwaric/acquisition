@@ -413,15 +413,14 @@ void PolicyManager::ActivateRequest() {
 		};
 	};
 
-	// Need to wait and rerun this function when it's safe to send.
-	QLOG_TRACE() << policy_name
-		<< "is waiting" << (msec_delay / 1000)
-		<< "seconds to send request" << active_request->id
-		<< "at" << next_send.toLocalTime().toString();
-
 	active_request_timer.setInterval(msec_delay);
 	QMetaObject::invokeMethod(&active_request_timer, "start");
 	if (msec_delay > 1000) {
+		// Need to wait and rerun this function when it's safe to send.
+		QLOG_TRACE() << policy_name
+			<< "is waiting" << (msec_delay / 1000)
+			<< "seconds to send request" << active_request->id
+			<< "at" << next_send.toLocalTime().toString();
 		emit RateLimitingStarted();
 	};
 }
@@ -762,7 +761,6 @@ void RateLimiter::OnSubmit(const QString& endpoint, QNetworkRequest network_requ
 		// This endpoint is known to use an existing policy manager.
 		auto request = std::make_unique<RateLimitedRequest>(endpoint, network_request, request_callback);
 		PolicyManager& manager = *endpoint_mapping[endpoint];
-		QLOG_DEBUG() << manager.policy_name << "is handling" << endpoint;
 		manager.QueueRequest(std::move(request));
 
 	} else {
