@@ -43,6 +43,7 @@ public:
 	void SetBackgroundColor(int r, int g, int b);
 	std::string get_tab_uniq_id() const { return type_ == ItemLocationType::STASH ? tab_unique_id_ : character_; }
 	void set_json(rapidjson::Value& value, rapidjson_allocator& alloc);
+	void set_json(const std::string& value) { json_ = value; };
 	std::string get_json() const { return json_; }
 private:
 	int x_, y_, w_, h_;
