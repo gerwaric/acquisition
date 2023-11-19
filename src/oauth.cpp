@@ -262,6 +262,7 @@ void OAuthManager::receiveToken(QNetworkReply* reply)
 		QLOG_ERROR() << "GetCharacter: json error:" << context.makeErrorString();
 		return;
 	};
+	the_token_->timestamp = Util::FixTimezone(reply->rawHeader("Date"));
 	QLOG_TRACE() << "OAuth access token received.";
 	emit accessGranted(*the_token_);
 

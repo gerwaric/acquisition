@@ -22,6 +22,7 @@
 #include <QObject>
 #include <QtHttpServer/QHttpServer>
 
+#include <optional>
 #include <string>
 
 #include "json_struct/json_struct.h"
@@ -39,7 +40,8 @@ struct OAuthToken {
 	std::string username;
 	std::string sub;
 	std::string refresh_token;
-	JS_OBJ(access_token, expires_in, token_type, scope, username, sub, refresh_token);
+	std::optional<std::string> timestamp;
+	JS_OBJ(access_token, expires_in, token_type, scope, username, sub, refresh_token, timestamp);
 };
 
 class OAuthManager : public QObject {
