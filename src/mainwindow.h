@@ -105,12 +105,12 @@ private slots:
 	void OnSetTabRefreshInterval();
 
 	// Shop menu actions
+	void OnSetPOESESSID();
 	void OnSetShopThreads();
 	void OnEditShopTemplate();
 	void OnCopyShopToClipboard();
 	void OnUpdateShops();
 	void OnSetAutomaticShopUpdate();
-	void OnUpdatePOESESSID();
 
 	// Theme submenu actions
 	void OnSetDarkTheme(bool toggle);

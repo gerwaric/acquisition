@@ -257,11 +257,11 @@ void MainWindow::InitializeUi() {
 	connect(ui->actionSetTabRefreshInterval, &QAction::triggered, this, &MainWindow::OnSetTabRefreshInterval);
 
 	// Connect the Shop menu
+	connect(ui->actionSetPOESESSID, &QAction::triggered, this, &MainWindow::OnSetPOESESSID);
 	connect(ui->actionSetShopThreads, &QAction::triggered, this, &MainWindow::OnSetShopThreads);
 	connect(ui->actionEditShopTemplate, &QAction::triggered, this, &MainWindow::OnEditShopTemplate);
 	connect(ui->actionCopyShopToClipboard, &QAction::triggered, this, &MainWindow::OnCopyShopToClipboard);
 	connect(ui->actionUpdateShops, &QAction::triggered, this, &MainWindow::OnUpdateShops);
-	connect(ui->actionUpdatePOESESSID, &QAction::triggered, this, &MainWindow::OnUpdatePOESESSID);
 
 	// Connect the Currency menu
 	connect(ui->actionListCurrency, &QAction::triggered, this, &MainWindow::OnListCurrency);
@@ -781,8 +781,8 @@ void MainWindow::OnSetShopThreads() {
 	UpdateShopMenu();
 }
 
-void MainWindow::OnUpdatePOESESSID() {
-	QLOG_ERROR() << "Shop -> Update POESESSID is not implemented yet.";
+void MainWindow::OnSetPOESESSID() {
+	QLOG_ERROR() << "Shop -> Set POESESSID is not implemented yet.";
 }
 
 void MainWindow::UpdateShopMenu() {
