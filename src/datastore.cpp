@@ -101,6 +101,22 @@ void DataStoreConnectionManager::Disconnect(const QString& filename) {
 	};
 }
 
+void DataStore::SetBool(const std::string& key, bool value) {
+	SetInt(key, static_cast<int>(value));
+}
+
+bool DataStore::GetBool(const std::string& key, bool default_value) {
+	return static_cast<bool>(GetInt(key, static_cast<int>(default_value)));
+}
+
+void DataStore::SetInt(const std::string& key, int value) {
+	Set(key, std::to_string(value));
+}
+
+int DataStore::GetInt(const std::string& key, int default_value) {
+	return std::stoi(Get(key, std::to_string(default_value)));
+}
+
 QString DataStore::Serialize(const DataStore::LocationList& tabs) {
 	QStringList json_tabs;
 	json_tabs.reserve(tabs.size());

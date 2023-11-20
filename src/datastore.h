@@ -69,10 +69,10 @@ public:
 	virtual Items GetItems(const ItemLocation& loc) = 0;
 	virtual void InsertCurrencyUpdate(const CurrencyUpdate& update) = 0;
 	virtual std::vector<CurrencyUpdate> GetAllCurrency() = 0;
-	virtual void SetBool(const std::string& key, bool value) = 0;
-	virtual bool GetBool(const std::string& key, bool default_value = false) = 0;
-	virtual void SetInt(const std::string& key, int value) = 0;
-	virtual int GetInt(const std::string& key, int default_value = 0) = 0;
+	void SetBool(const std::string& key, bool value);
+	bool GetBool(const std::string& key, bool default_value = false);
+	void SetInt(const std::string& key, int value);
+	int GetInt(const std::string& key, int default_value = 0);
 protected:
 	QString Serialize(const LocationList& tabs);
 	QString Serialize(const ItemList& items);
