@@ -341,22 +341,6 @@ std::vector<CurrencyUpdate> SqliteDataStore::GetAllCurrency() {
 	return result;
 }
 
-void SqliteDataStore::SetBool(const std::string& key, bool value) {
-	SetInt(key, static_cast<int>(value));
-}
-
-bool SqliteDataStore::GetBool(const std::string& key, bool default_value) {
-	return static_cast<bool>(GetInt(key, static_cast<int>(default_value)));
-}
-
-void SqliteDataStore::SetInt(const std::string& key, int value) {
-	Set(key, std::to_string(value));
-}
-
-int SqliteDataStore::GetInt(const std::string& key, int default_value) {
-	return std::stoi(Get(key, std::to_string(default_value)));
-}
-
 SqliteDataStore::~SqliteDataStore() {
 	QLOG_TRACE() << "Sqlite data store is begin destroyed:" << filename_;
 	manager_.Disconnect(filename_);

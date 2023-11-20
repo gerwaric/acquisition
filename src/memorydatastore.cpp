@@ -61,19 +61,3 @@ void MemoryDataStore::InsertCurrencyUpdate(const CurrencyUpdate& update) {
 std::vector<CurrencyUpdate> MemoryDataStore::GetAllCurrency() {
 	return currency_updates_;
 }
-
-void MemoryDataStore::SetBool(const std::string& key, bool value) {
-	SetInt(key, static_cast<int>(value));
-}
-
-bool MemoryDataStore::GetBool(const std::string& key, bool default_value) {
-	return static_cast<bool>(GetInt(key, static_cast<int>(default_value)));
-}
-
-void MemoryDataStore::SetInt(const std::string& key, int value) {
-	Set(key, std::to_string(value));
-}
-
-int MemoryDataStore::GetInt(const std::string& key, int default_value) {
-	return std::stoi(Get(key, std::to_string(default_value)));
-}
