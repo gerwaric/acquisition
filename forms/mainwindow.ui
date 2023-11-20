@@ -380,12 +380,15 @@
     <property name="title">
      <string>Shop</string>
     </property>
+    <addaction name="actionSetPOESESSID"/>
     <addaction name="actionSetShopThreads"/>
+    <addaction name="separator"/>
     <addaction name="actionEditShopTemplate"/>
     <addaction name="actionCopyShopToClipboard"/>
     <addaction name="actionUpdateShops"/>
     <addaction name="actionSetAutomaticallyShopUpdate"/>
-    <addaction name="actionUpdatePOESESSID"/>
+    <addaction name="separator"/>
+    <addaction name="actionImportBuyouts"/>
    </widget>
    <widget class="QMenu" name="menuTabs">
     <property name="title">
@@ -548,9 +551,9 @@
     <string>Default</string>
    </property>
   </action>
-  <action name="actionUpdatePOESESSID">
+  <action name="actionSetPOESESSID">
    <property name="text">
-    <string>Update POESESSID</string>
+    <string>Set POESESSID</string>
    </property>
   </action>
   <action name="actionLoggingOFF">
@@ -607,6 +610,11 @@
    </property>
    <property name="text">
     <string>TRACE</string>
+   </property>
+  </action>
+  <action name="actionImportBuyouts">
+   <property name="text">
+    <string>Import Buyouts</string>
    </property>
   </action>
  </widget>
