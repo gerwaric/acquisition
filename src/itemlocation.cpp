@@ -4,6 +4,10 @@
 
 #include <boost/algorithm/string/predicate.hpp>
 
+#include "poe_api/poe_character.h"
+#include "poe_api/poe_item.h"
+#include "poe_api/poe_stash.h"
+
 #include "QsLog.h"
 #include "itemconstants.h"
 #include "rapidjson_util.h"
@@ -26,6 +30,39 @@ ItemLocation::ItemLocation() :
 	type_(ItemLocationType::STASH),
 	tab_id_(0)
 {}
+
+ItemLocation::ItemLocation(const PoE::Character& character) :
+	x_(0), y_(0), w_(0), h_(0), red_(0), green_(0), blue_(0),
+	socketed_(false),
+	removeonly_(false),
+	type_(ItemLocationType::CHARACTER),
+	tab_id_(0),
+	tab_unique_id_(character.id),
+	character_(character.name)
+{}
+
+ItemLocation::ItemLocation(const PoE::StashTab& stash) :
+	x_(0), y_(0), w_(0), h_(0),
+	red_(std::stoul(stash.metadata.colour->substr(0, 2))),
+	green_(std::stoul(stash.metadata.colour->substr(2, 2))),
+	blue_(std::stoul(stash.metadata.colour->substr(4, 2))),
+	socketed_(false),
+	removeonly_(ends_with(stash.name, "(Remove-only)")),
+	type_(ItemLocationType::STASH),
+	tab_id_(stash.index.value_or(0)),
+	tab_label_(stash.name),
+	tab_unique_id_(stash.id)
+{}
+
+ItemLocation ItemLocation::OfItem(const PoE::Item& item) {
+	ItemLocation item_location = *this;
+	item_location.x_ = item.x.value_or(0);
+	item_location.y_ = item.y.value_or(0);
+	item_location.w_ = item.w;
+	item_location.h_ = item.h;
+	item_location.inventory_id_ = item.inventoryId.value_or("");
+	return item_location;
+}
 
 ItemLocation::ItemLocation(const rapidjson::Value& root) :
 	ItemLocation()
@@ -53,6 +90,7 @@ ItemLocation::ItemLocation(int tab_id, std::string tab_unique_id, std::string na
 	};
 	tab_unique_id_ = tab_unique_id;
 }
+
 
 void ItemLocation::SetBackgroundColor(int r, int g, int b) {
 	red_ = r;

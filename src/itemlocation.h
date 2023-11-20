@@ -6,6 +6,14 @@
 #include "rapidjson/document.h"
 #include "rapidjson_util.h"
 
+#include "json_struct/json_struct.h"
+
+namespace PoE {
+	struct Character;
+	struct Item;
+	struct StashTab;
+}
+
 enum class ItemLocationType {
 	STASH,
 	CHARACTER
@@ -16,6 +24,9 @@ QDebug& operator<<(QDebug& os, const ItemLocationType& obj);
 class ItemLocation {
 public:
 	ItemLocation();
+	explicit ItemLocation(const PoE::Character& character);
+	explicit ItemLocation(const PoE::StashTab& stash);
+	ItemLocation OfItem(const PoE::Item& item);
 	explicit ItemLocation(const rapidjson::Value& root);
 	ItemLocation(int tab_id, std::string tab_unique_id, std::string name, ItemLocationType = ItemLocationType::STASH, int r = 0, int g = 0, int b = 0);
 	void ToItemJson(rapidjson::Value* root, rapidjson_allocator& alloc);
@@ -60,6 +71,8 @@ private:
 	std::string tab_label_;
 	std::string character_;
 	std::string inventory_id_;
+	JS_OBJ(w_, y_, w_, h_, red_, blue_, green_,
+		socketed_, removeonly_, type_, tab_id_, tab_unique_id_, tab_label_, character_, inventory_id);
 };
 
 typedef std::vector<ItemLocation> Locations;
