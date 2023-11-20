@@ -44,6 +44,9 @@ static const char* SCOPE = "account:leagues account:stashes account:characters";
 static const char* REDIRECT_URL = "http://127.0.0.1";
 static const char* REDIRECT_PATH = "/auth/path-of-exile";
 
+// Refresh a token an hour before it's due to expire.
+static const int EXPIRATION_BUFFER_SECS = 3600;
+
 OAuthManager::OAuthManager(QNetworkAccessManager& network_manager, QObject* parent) :
 	QObject(parent),
 	the_manager_(network_manager)
@@ -72,17 +75,21 @@ OAuthManager::OAuthManager(QNetworkAccessManager& network_manager, QObject* pare
 }
 
 void OAuthManager::setToken(const OAuthToken& token) {
+	if (!token.expiration) {
+		QLOG_ERROR() << "Cannot set a token without an expiration.";
+		return;
+	};
 	the_token_ = token;
 	emit accessGranted(*the_token_);
 	setRefreshTimer();
 }
 
 void OAuthManager::setRefreshTimer() {
-	const QString timestamp = QString::fromStdString(*the_token_->timestamp);
-	const QDateTime token_date = QDateTime::fromString(timestamp, Qt::RFC2822Date);
-	const QDateTime refresh_date = token_date.addSecs(the_token_->expires_in - 60);
-	const unsigned long msec = QDateTime::currentDateTime().msecsTo(refresh_date);
-	refresh_timer_.setInterval(msec);
+	const QString expiration_timestamp = QString::fromStdString(*the_token_->expiration);
+	const QDateTime expiration_date = QDateTime::fromString(expiration_timestamp, Qt::RFC2822Date);
+	const QDateTime refresh_date = expiration_date.addSecs(-EXPIRATION_BUFFER_SECS);
+	const unsigned long interval = QDateTime::currentDateTime().msecsTo(refresh_date);
+	refresh_timer_.setInterval(interval);
 	refresh_timer_.start();
 	QLOG_INFO() << "OAuth: refreshing token at" << refresh_date.toString();
 }
@@ -277,8 +284,16 @@ void OAuthManager::receiveToken(QNetworkReply* reply)
 		QLOG_ERROR() << "OAuth: error parsing token:" << context.makeErrorString();
 		return;
 	};
-	the_token_->timestamp = Util::FixTimezone(reply->rawHeader("Date"));
 	QLOG_TRACE() << "OAuth access token received.";
+
+	// Determine birthday and expiration time.
+	const QString token_timestamp = Util::FixTimezone(reply->rawHeader("Date"));
+	const QDateTime token_birthday = QDateTime::fromString(token_timestamp, Qt::RFC2822Date);
+	const QDateTime token_expiration = token_birthday.addSecs(the_token_->expires_in);
+
+	// Add birthday and expiration then notify listeners there's a new token.
+	the_token_->birthday = token_birthday.toString(Qt::RFC2822Date).toStdString();
+	the_token_->expiration = token_expiration.toString(Qt::RFC2822Date).toStdString();
 	emit accessGranted(*the_token_);
 
 	// Setup the refresh timer.

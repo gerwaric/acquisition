@@ -41,8 +41,9 @@ struct OAuthToken {
 	std::string username;
 	std::string sub;
 	std::string refresh_token;
-	std::optional<std::string> timestamp;
-	JS_OBJ(access_token, expires_in, token_type, scope, username, sub, refresh_token, timestamp);
+	std::optional<std::string> birthday;
+	std::optional<std::string> expiration;
+	JS_OBJ(access_token, expires_in, token_type, scope, username, sub, refresh_token, birthday, expiration);
 };
 
 class OAuthManager : public QObject {
