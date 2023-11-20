@@ -145,6 +145,8 @@ void LoginDialog::OnLeaguesReceived(const PoE::GetLeaguesResult& result) {
 }
 
 void LoginDialog::OnLoginButtonClicked() {
+	close();
+	SaveSettings();
 	const std::string league = ui->leagueComboBox->currentText().toStdString();
 	const QString window_title = QString("Acquisition [%1] - %2 [%3]").arg(
 		QString(APP_VERSION_STRING),
@@ -154,11 +156,9 @@ void LoginDialog::OnLoginButtonClicked() {
 	mw = new MainWindow();
 	mw->setWindowTitle(window_title);
 	mw->show();
-	close();
 }
 
 LoginDialog::~LoginDialog() {
-	SaveSettings();
 	delete ui;
 	if (mw) {
 		delete mw;
