@@ -58,11 +58,49 @@ Application::Application(bool mock_data) :
 	const QString global_file_name = SqliteDataStore::MakeFilename("", "");
 	const QString global_file_path = data_path + QDir::separator() + global_file_name;
 	global_data_ = std::make_unique<SqliteDataStore>(global_file_path);
+
+	LoadTheme();
 }
 
 Application::~Application() {
-	if (buyout_manager_)
+	if (buyout_manager_) {
 		buyout_manager_->Save();
+	};
+}
+
+void Application::LoadTheme() {
+	// Load the appropriate theme.
+	const std::string theme = global_data_->Get("theme", "default");
+
+	// Do nothing for the default theme.
+	if (theme == "default") {
+		return;
+	};
+
+	// Determine which qss file to use.
+	QString stylesheet;
+	if (theme == "dark") {
+		stylesheet = ":qdarkstyle/dark/darkstyle.qss";
+	} else if (theme == "light") {
+		stylesheet = ":qdarkstyle/light/lightstyle.qss";
+	} else {
+		QLOG_ERROR() << "Invalid theme:" << theme;
+		return;
+	};
+
+	// Load the theme.
+	QFile f(stylesheet);
+	if (!f.exists()) {
+		QLOG_ERROR() << "Theme stylesheet not found:" << stylesheet;
+	} else {
+		f.open(QFile::ReadOnly | QFile::Text);
+		QTextStream ts(&f);
+		const QString stylesheet = ts.readAll();
+		qApp->setStyleSheet(stylesheet);
+		QPalette pal = QApplication::palette();
+		pal.setColor(QPalette::WindowText, Qt::white);
+		QApplication::setPalette(pal);
+	};
 }
 
 void Application::InitLogin(

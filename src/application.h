@@ -55,6 +55,7 @@ public:
 public slots:
 	void OnItemsRefreshed(bool initial_refresh);
 private:
+	void LoadTheme();
 	QString GetDataPath();
 	bool test_mode_;
 	std::string league_;

@@ -64,7 +64,6 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 
 	settings_path_ = Filesystem::UserDir() + "/settings.ini";
 	LoadSettings();
-	LoadTheme();
 
 	const bool supports_ssl = QSslSocket::supportsSsl();
 	QLOG_DEBUG() << "Supports SSL: " << supports_ssl;
@@ -107,41 +106,6 @@ void LoginDialog::LoadSettings() {
 	QNetworkProxyFactory::setUseSystemConfiguration(ui->proxyCheckBox->isChecked());
 }
 
-void LoginDialog::LoadTheme() {
-	// Load the appropriate theme.
-	const std::string theme = app_->global_data().Get("theme", "default");
-
-	// Do nothing for the default theme.
-	if (theme == "default") {
-		return;
-	};
-
-	// Determine which qss file to use.
-	QString stylesheet;
-	if (theme == "dark") {
-		stylesheet = ":qdarkstyle/dark/darkstyle.qss";
-	} else if (theme == "light") {
-		stylesheet = ":qdarkstyle/light/lightstyle.qss";
-	} else {
-		QLOG_ERROR() << "Invalid theme:" << theme;
-		return;
-	};
-
-	// Load the theme.
-	QFile f(stylesheet);
-	if (!f.exists()) {
-		QLOG_ERROR() << "Theme stylesheet not found:" << stylesheet;
-	} else {
-		f.open(QFile::ReadOnly | QFile::Text);
-		QTextStream ts(&f);
-		const QString stylesheet = ts.readAll();
-		qApp->setStyleSheet(stylesheet);
-		QPalette pal = QApplication::palette();
-		pal.setColor(QPalette::WindowText, Qt::white);
-		QApplication::setPalette(pal);
-	};
-}
-
 void LoginDialog::OnAuthenticateButtonClicked() {
 	ui->authenticateButton->setEnabled(false);
 	ui->authenticateButton->setText("Authenticating...");
@@ -156,7 +120,7 @@ void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
 void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
 	account_ = token.username;
 	ui->authenticateLabel->setText("You are authenticated as \"" + QString::fromStdString(token.username) + "\"");
-	ui->authenticateButton->setText("Re-authenticate (as someone else).");
+	ui->authenticateButton->setText("Re-authenticate (to change accounts)");
 	ui->authenticateButton->setEnabled(true);
 	PoE::GetLeagues(this,
 		[=](const PoE::GetLeaguesResult& leagues) {

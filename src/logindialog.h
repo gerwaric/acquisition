@@ -51,7 +51,6 @@ protected:
 private:
 	void SaveSettings();
 	void LoadSettings();
-	void LoadTheme();
 	void DisplayError(const QString& error, bool disable_login = false);
 	std::unique_ptr<Application> app_;
 	Ui::LoginDialog* ui;
