@@ -48,8 +48,10 @@ class OAuthManager : public QObject {
 	Q_OBJECT
 public:
 	OAuthManager(QNetworkAccessManager& network_manager, QObject* parent = nullptr);
+	void setToken(const OAuthToken& token);
 	void requestAccess();
-	const std::string access_token() const;
+	//const std::string access_token() const;
+	const std::optional<OAuthToken> token() const { return the_token_; };
 signals:
 	void accessGranted(const OAuthToken& token);
 private:
@@ -63,8 +65,8 @@ private:
 
 	QNetworkAccessManager& the_manager_;
 	std::unique_ptr<QHttpServer> the_server_;
-	std::unique_ptr<OAuthToken> the_token_;
 
+	std::optional<OAuthToken> the_token_;
 	std::string code_verifier_;
 	std::string redirect_uri_;
 };

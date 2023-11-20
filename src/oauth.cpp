@@ -67,6 +67,11 @@ OAuthManager::OAuthManager(QNetworkAccessManager& network_manager, QObject* pare
 		});
 }
 
+void OAuthManager::setToken(const OAuthToken& token) {
+	the_token_ = token;
+	emit accessGranted(the_token_.value());
+}
+
 void OAuthManager::requestAccess()
 {
 	// Build the state.
@@ -96,10 +101,6 @@ void OAuthManager::requestAccess()
 	// Make the authorization request.
 	requestAuthorization(state.toStdString(), code_challenge.toStdString());
 }
-
-const std::string OAuthManager::access_token() const {
-	return (the_token_ == nullptr) ? "" : the_token_->access_token;
-};
 
 void OAuthManager::requestAuthorization(const std::string& state, const std::string& code_challenge)
 {
