@@ -33,7 +33,6 @@
 #include "QsLog.h"
 #include "ratelimit.h"
 #include "updatechecker.h"
-#include "oauth.h"
 #include "version_defines.h"
 
 Application::Application(bool mock_data) :
@@ -53,13 +52,26 @@ Application::Application(bool mock_data) :
 		&RateLimit::RateLimiter::instance(),
 		&RateLimit::RateLimiter::SetAccessToken);
 
-	// The global datastore holds things like the selected theme.
+	// The global datastore holds things like the selected theme and the oath token.
 	const QString data_path = GetDataPath();
 	const QString global_file_name = SqliteDataStore::MakeFilename("", "");
 	const QString global_file_path = data_path + QDir::separator() + global_file_name;
 	global_data_ = std::make_unique<SqliteDataStore>(global_file_path);
 
 	LoadTheme();
+
+	// Look for a stored OAuth access token.
+	const std::string token_str = global_data_->Get("oauth_token", "");
+	if (token_str != "") {
+		OAuthToken token;
+		JS::ParseContext context(token_str);
+		JS::Error error = context.parseTo(token);
+		if (error != JS::Error::NoError) {
+			QLOG_ERROR() << "Error parsing stored OAuthToken:" << context.makeErrorString();
+		} else {
+			oauth_manager_->setToken(token);
+		};
+	};
 }
 
 Application::~Application() {

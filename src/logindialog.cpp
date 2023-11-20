@@ -93,6 +93,11 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 				UpdateChecker::AskUserToUpdate(this);
 			};
 		});
+
+	// Check for an existing OAuth token.
+	if (app_->oauth_manager().token()) {
+		OnOAuthAccessGranted(app_->oauth_manager().token().value());
+	};
 }
 
 void LoginDialog::LoadSettings() {
@@ -100,7 +105,7 @@ void LoginDialog::LoadSettings() {
 	ui->rembmeCheckBox->setChecked(settings.value("remember_me_checked").toBool());
 	ui->proxyCheckBox->setChecked(settings.value("use_system_proxy_checked").toBool());
 	saved_league_ = settings.value("league", "").toString();
-	if (saved_league_.size() > 0) {
+	if (saved_league_.isEmpty() == false) {
 		ui->leagueComboBox->setCurrentText(saved_league_);
 	};
 	QNetworkProxyFactory::setUseSystemConfiguration(ui->proxyCheckBox->isChecked());
@@ -119,7 +124,7 @@ void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
 
 void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
 	account_ = token.username;
-	ui->authenticateLabel->setText("You are authenticated as \"" + QString::fromStdString(token.username) + "\"");
+	ui->authenticateLabel->setText("You are authenticated as \"" + QString::fromStdString(token.username) + "\".");
 	ui->authenticateButton->setText("Re-authenticate (to change accounts)");
 	ui->authenticateButton->setEnabled(true);
 	PoE::GetLeagues(this,
@@ -132,6 +137,9 @@ void LoginDialog::OnLeaguesReceived(const PoE::GetLeaguesResult& result) {
 	ui->leagueComboBox->setEnabled(true);
 	for (auto& league : result.leagues) {
 		ui->leagueComboBox->addItem(QString::fromStdString(league.id));
+	};
+	if (saved_league_.isEmpty() == false) {
+		ui->leagueComboBox->setCurrentText(saved_league_);
 	};
 	ui->loginButton->setEnabled(true);
 }
@@ -163,6 +171,13 @@ void LoginDialog::SaveSettings() {
 	settings.setValue("league", remember_me ? ui->leagueComboBox->currentText() : "");
 	settings.setValue("remember_me_checked", ui->rembmeCheckBox->isChecked());
 	settings.setValue("use_system_proxy_checked", ui->proxyCheckBox->isChecked());
+	const bool has_token = app_->oauth_manager().token().has_value();
+	if (remember_me && has_token) {
+		const OAuthToken token = *app_->oauth_manager().token();
+		app_->global_data().Set("oauth_token", JS::serializeStruct(token));
+	} else {
+		app_->global_data().Set("oauth_token", "");
+	};
 }
 
 void LoginDialog::DisplayError(const QString& error, bool disable_login) {
