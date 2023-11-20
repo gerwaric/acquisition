@@ -48,6 +48,10 @@ OAuthManager::OAuthManager(QNetworkAccessManager& network_manager, QObject* pare
 	QObject(parent),
 	the_manager_(network_manager)
 {
+	// Configure the refresh timer.
+	refresh_timer_.setSingleShot(true);
+	connect(&refresh_timer_, &QTimer::timeout, this, &OAuthManager::requestRefresh);
+
 	// Create the http server.
 	the_server_ = std::make_unique<QHttpServer>(this);
 
@@ -69,7 +73,18 @@ OAuthManager::OAuthManager(QNetworkAccessManager& network_manager, QObject* pare
 
 void OAuthManager::setToken(const OAuthToken& token) {
 	the_token_ = token;
-	emit accessGranted(the_token_.value());
+	emit accessGranted(*the_token_);
+	setRefreshTimer();
+}
+
+void OAuthManager::setRefreshTimer() {
+	const QString timestamp = QString::fromStdString(*the_token_->timestamp);
+	const QDateTime token_date = QDateTime::fromString(timestamp, Qt::RFC2822Date);
+	const QDateTime refresh_date = token_date.addSecs(the_token_->expires_in - 60);
+	const unsigned long msec = QDateTime::currentDateTime().msecsTo(refresh_date);
+	refresh_timer_.setInterval(msec);
+	refresh_timer_.start();
+	QLOG_INFO() << "OAuth: refreshing token at" << refresh_date.toString();
 }
 
 void OAuthManager::requestAccess()
@@ -130,7 +145,7 @@ void OAuthManager::requestAuthorization(const std::string& state, const std::str
 
 std::string OAuthManager::authorizationError(const std::string& message)
 {
-	QLOG_ERROR() << "OAuth authorization error:" << message;
+	QLOG_ERROR() << "OAuth: authorization error:" << message;
 	QString html =
 		"<html>"
 		"  <head>"
@@ -158,34 +173,34 @@ std::string OAuthManager::receiveAuthorization(const QHttpServerRequest& request
 
 	// Check for errors.
 	if (query.hasQueryItem("error")) {
-		std::string error_message = query.queryItemValue("error").toStdString();
-		const std::string error_desription = query.queryItemValue("error_description").toStdString();
-		const std::string error_uri = query.queryItemValue("error_uri").toStdString();
-		if (error_desription.empty() == false) {
+		QString error_message = query.queryItemValue("error");
+		const QString error_desription = query.queryItemValue("error_description");
+		const QString error_uri = query.queryItemValue("error_uri");
+		if (error_desription.isEmpty() == false) {
 			error_message += " : " + error_desription;
 		};
-		if (error_uri.empty() == false) {
+		if (error_uri.isEmpty() == false) {
 			error_message += " : " + error_uri;
 		};
-		return authorizationError(error_message);
+		return authorizationError(error_message.toStdString());
 	};
 
-	const std::string auth_code = query.queryItemValue("code").toStdString();
-	const std::string auth_state = query.queryItemValue("state").toStdString();
+	const QString auth_code = query.queryItemValue("code");
+	const QString auth_state = query.queryItemValue("state");
 
 	// Make sure the code and state look valid.
-	if (auth_code.empty()) {
+	if (auth_code.isEmpty()) {
 		return authorizationError("Invalid authorization response: 'code' is missing.");
 	};
-	if (auth_state.empty()) {
+	if (auth_state.isEmpty()) {
 		return authorizationError("Invalid authorization response: 'state' is missing.");
 	};
-	if (auth_state != state) {
+	if (auth_state != QString::fromStdString(state)) {
 		return authorizationError("Invalid authorization repsonse: 'state' is invalid!");
 	};
 
 	// Use the code to request an access token.
-	requestToken(auth_code);
+	requestToken(auth_code.toStdString());
 
 	// Update the user.
 	return R"html(
@@ -206,6 +221,8 @@ std::string OAuthManager::receiveAuthorization(const QHttpServerRequest& request
 
 void OAuthManager::requestToken(const std::string& code)
 {
+	QLOG_TRACE() << "OAuth: requesting access token.";
+
 	QNetworkRequest request;
 	request.setUrl(QUrl(TOKEN_URL));
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
@@ -218,16 +235,23 @@ void OAuthManager::requestToken(const std::string& code)
 		{"redirect_uri", redirect_uri_},
 		{"scope", SCOPE},
 		{"code_verifier", code_verifier_} });
-
 	const QByteArray data = query.toString(QUrl::FullyEncoded).toUtf8();
 
-	QLOG_TRACE() << "Requesting OAuth access token.";
 	QNetworkReply* reply = the_manager_.post(request, data);
 	connect(reply, &QNetworkReply::finished, this, [=]() { receiveToken(reply); });
 }
 
 void OAuthManager::receiveToken(QNetworkReply* reply)
 {
+	QLOG_TRACE() << "OAuth: receiving access token.";
+
+	if (reply->error() != QNetworkReply::NoError) {
+		QLOG_ERROR() << "OAuth: http error"
+			<< reply->attribute(QNetworkRequest::HttpStatusCodeAttribute) << ":"
+			<< reply->attribute(QNetworkRequest::HttpReasonPhraseAttribute);
+		return;
+	};
+
 	// Extract the response so we can dispose of the reply.
 	const QByteArray bytes = reply->readAll();
 	reply->deleteLater();
@@ -250,26 +274,21 @@ void OAuthManager::receiveToken(QNetworkReply* reply)
 	JS::ParseContext context(bytes);
 	JS::Error error = context.parseTo(the_token_);
 	if (error != JS::Error::NoError) {
-		QLOG_ERROR() << "GetCharacter: json error:" << context.makeErrorString();
+		QLOG_ERROR() << "OAuth: error parsing token:" << context.makeErrorString();
 		return;
 	};
 	the_token_->timestamp = Util::FixTimezone(reply->rawHeader("Date"));
 	QLOG_TRACE() << "OAuth access token received.";
 	emit accessGranted(*the_token_);
 
-	// Use a timer to trigger a refresh.
-	const long int refresh_sec = (the_token_->expires_in - 60);
-	if (refresh_sec < 60) {
-		QLOG_ERROR() << "Token refresh is too soon:" << refresh_sec << "s";
-		return;
-	};
-	QLOG_TRACE() << "Refreshing OAuth token in" << refresh_sec << "seconds.";
-	const long int refresh_msec = refresh_sec * 1000;
-	QTimer::singleShot(refresh_msec, this, [=]() { requestRefresh(the_token_->refresh_token); });
+	// Setup the refresh timer.
+	setRefreshTimer();
 }
 
-void OAuthManager::requestRefresh(const std::string& refresh_token) {
-	
+void OAuthManager::requestRefresh() {
+
+	QLOG_TRACE() << "OAuth: refreshing access token.";
+
 	QNetworkRequest request;
 	request.setUrl(QUrl(TOKEN_URL));
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
@@ -278,10 +297,9 @@ void OAuthManager::requestRefresh(const std::string& refresh_token) {
 	const QUrlQuery query = Util::EncodeQueryItems({
 		{"client_id", CLIENT_ID},
 		{"grant_type", "refresh_token"},
-		{"refresh_token", refresh_token} });
-
-	QLOG_TRACE() << "Refreshing OAuth access token.";
+		{"refresh_token", the_token_->refresh_token} });
 	const QByteArray data = query.toString(QUrl::FullyEncoded).toUtf8();
+
 	QNetworkReply* reply = the_manager_.post(request, data);
 	connect(reply, &QNetworkReply::finished, this, [=]() { receiveToken(reply); });
 }

@@ -21,6 +21,7 @@
 
 #include <QObject>
 #include <QtHttpServer/QHttpServer>
+#include <QTimer>
 
 #include <optional>
 #include <string>
@@ -34,7 +35,7 @@ class QNetworkRequest;
 
 struct OAuthToken {
 	std::string access_token;
-	long int expires_in;
+	long long int expires_in;
 	std::string token_type;
 	std::string scope;
 	std::string username;
@@ -58,7 +59,8 @@ private:
 	std::string receiveAuthorization(const QHttpServerRequest& request, const std::string& state);
 	void requestToken(const std::string& code);
 	void receiveToken(QNetworkReply* reply);
-	void requestRefresh(const std::string& refresh_token);
+	void requestRefresh();
+	void setRefreshTimer();
 
 	static std::string authorizationError(const std::string& message);
 
@@ -68,4 +70,6 @@ private:
 	std::optional<OAuthToken> the_token_;
 	std::string code_verifier_;
 	std::string redirect_uri_;
+
+	QTimer refresh_timer_;
 };
