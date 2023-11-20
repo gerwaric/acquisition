@@ -35,10 +35,10 @@ class OAuthManager;
 class Application : public QObject {
 	Q_OBJECT
 public:
-	Application(bool mock_data = false);
+	static Application& instance();
+	static Application& test_instance();
 	~Application();
-	Application(const Application&) = delete;
-	Application& operator=(const Application&) = delete;
+
 	// Should be called by login dialog after login
 	void InitLogin(const std::string& league, const std::string& email);
 	const std::string& league() const { return league_; }
@@ -55,6 +55,7 @@ public:
 public slots:
 	void OnItemsRefreshed(bool initial_refresh);
 private:
+	Application(bool test_mode = false);
 	void LoadTheme();
 	QString GetDataPath();
 	bool test_mode_;

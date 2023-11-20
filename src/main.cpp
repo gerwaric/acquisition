@@ -132,7 +132,7 @@ int main(int argc, char* argv[])
 
 	// Run the main application, starting with the login dialog.
 	QLOG_INFO() << "Running application...";
-	LoginDialog login(std::make_unique<Application>());
+	LoginDialog login;
 	login.show();
 	return a.exec();
 }

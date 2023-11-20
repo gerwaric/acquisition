@@ -38,7 +38,7 @@ namespace Ui {
 class LoginDialog : public QDialog {
 	Q_OBJECT
 public:
-	explicit LoginDialog(std::unique_ptr<Application> app);
+	LoginDialog();
 	~LoginDialog();
 public slots:
 	void OnAuthenticateButtonClicked();
@@ -52,7 +52,7 @@ private:
 	void SaveSettings();
 	void LoadSettings();
 	void DisplayError(const QString& error, bool disable_login = false);
-	std::unique_ptr<Application> app_;
+	Application& app_;
 	Ui::LoginDialog* ui;
 	MainWindow* mw;
 	QString settings_path_;

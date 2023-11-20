@@ -45,8 +45,8 @@
 #include "oauth.h"
 #include "version_defines.h"
 
-LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
-	app_(std::move(app)),
+LoginDialog::LoginDialog() :
+	app_(Application::instance()),
 	ui(new Ui::LoginDialog),
 	mw(0),
 	asked_to_update_(false)
@@ -84,7 +84,7 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 	connect(ui->authenticateButton, &QPushButton::clicked, this, &LoginDialog::OnAuthenticateButtonClicked);
 	connect(ui->proxyCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnProxyCheckBoxClicked);
 	connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
-	connect(&app_->update_checker(), &UpdateChecker::UpdateAvailable, this,
+	connect(&app_.update_checker(), &UpdateChecker::UpdateAvailable, this,
 		[&]() {
 			// Only annoy the user once at the login dialog window,
 			// even if it's opened for more than an hour.
@@ -95,8 +95,8 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 		});
 
 	// Check for an existing OAuth token.
-	if (app_->oauth_manager().token()) {
-		OnOAuthAccessGranted(app_->oauth_manager().token().value());
+	if (app_.oauth_manager().token()) {
+		OnOAuthAccessGranted(app_.oauth_manager().token().value());
 	};
 }
 
@@ -114,8 +114,8 @@ void LoginDialog::LoadSettings() {
 void LoginDialog::OnAuthenticateButtonClicked() {
 	ui->authenticateButton->setEnabled(false);
 	ui->authenticateButton->setText("Authenticating...");
-	connect(&app_->oauth_manager(), &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
-	app_->oauth_manager().requestAccess();
+	connect(&app_.oauth_manager(), &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
+	app_.oauth_manager().requestAccess();
 }
 
 void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
@@ -150,8 +150,8 @@ void LoginDialog::OnLoginButtonClicked() {
 		QString(APP_VERSION_STRING),
 		QString::fromStdString(league),
 		QString::fromStdString(account_));
-	app_->InitLogin(league, account_);
-	mw = new MainWindow(std::move(app_));
+	app_.InitLogin(league, account_);
+	mw = new MainWindow();
 	mw->setWindowTitle(window_title);
 	mw->show();
 	close();
@@ -171,12 +171,12 @@ void LoginDialog::SaveSettings() {
 	settings.setValue("league", remember_me ? ui->leagueComboBox->currentText() : "");
 	settings.setValue("remember_me_checked", ui->rembmeCheckBox->isChecked());
 	settings.setValue("use_system_proxy_checked", ui->proxyCheckBox->isChecked());
-	const bool has_token = app_->oauth_manager().token().has_value();
+	const bool has_token = app_.oauth_manager().token().has_value();
 	if (remember_me && has_token) {
-		const OAuthToken token = *app_->oauth_manager().token();
-		app_->global_data().Set("oauth_token", JS::serializeStruct(token));
+		const OAuthToken token = *app_.oauth_manager().token();
+		app_.global_data().Set("oauth_token", JS::serializeStruct(token));
 	} else {
-		app_->global_data().Set("oauth_token", "");
+		app_.global_data().Set("oauth_token", "");
 	};
 }
 

@@ -27,7 +27,7 @@
 #include "itemsmanager.h"
 #include "testdata.h"
 
-TestItemsManager::TestItemsManager() : app_(true) {}
+TestItemsManager::TestItemsManager() : app_(Application::test_instance()) {}
 
 void TestItemsManager::initTestCase() {
 	app_.InitLogin("TestLeague", "testuser");

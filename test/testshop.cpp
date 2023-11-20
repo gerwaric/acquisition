@@ -10,7 +10,7 @@
 #include "shop.h"
 #include "testdata.h"
 
-TestShop::TestShop() : app_(true) {}
+TestShop::TestShop() : app_(Application::test_instance()) {}
 
 void TestShop::initTestCase() {
 	app_.InitLogin("TestLeague", "testuser");

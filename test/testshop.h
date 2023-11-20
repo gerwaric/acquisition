@@ -14,5 +14,5 @@ private slots:
 	void SocketedGemsNotLinked();
 	void TemplatedShopGeneration();
 private:
-	Application app_;
+	Application& app_;
 };
