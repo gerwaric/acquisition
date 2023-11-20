@@ -50,7 +50,6 @@ public:
 	OAuthManager(QNetworkAccessManager& network_manager, QObject* parent = nullptr);
 	void requestAccess();
 	const std::string access_token() const;
-	void addAuthorization(QNetworkRequest& request);
 signals:
 	void accessGranted(const OAuthToken& token);
 private:

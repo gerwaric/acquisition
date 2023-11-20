@@ -101,16 +101,6 @@ const std::string OAuthManager::access_token() const {
 	return (the_token_ == nullptr) ? "" : the_token_->access_token;
 };
 
-void OAuthManager::addAuthorization(QNetworkRequest& request) {
-	if (the_token_ == nullptr) {
-		QLOG_ERROR() << "Cannot add OAuth authorization to network request: no token is available.";
-	} else {
-		QLOG_TRACE() << "Adding OAuth authorization to network request.";
-		const QByteArray bearer = "Bearer " + QByteArray::fromStdString(the_token_->access_token);
-		request.setRawHeader("Authorization", bearer);
-	};
-}
-
 void OAuthManager::requestAuthorization(const std::string& state, const std::string& code_challenge)
 {
 	// Create the authorization query.
