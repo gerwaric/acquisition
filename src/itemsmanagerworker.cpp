@@ -55,7 +55,6 @@ const char* kRePoE_item_base_types = "https://raw.githubusercontent.com/brather1
 
 ItemsManagerWorker::ItemsManagerWorker(Application& app) :
 	app_(app),
-	rate_limiter_(RateLimit::RateLimiter::instance()),
 	requests_needed_(0),
 	requests_completed_(0),
 	initialized_(false),
@@ -64,8 +63,11 @@ ItemsManagerWorker::ItemsManagerWorker(Application& app) :
 	updateRequest_(false),
 	type_(TabSelection::Type::Checked)
 {
-	connect(this, &ItemsManagerWorker::GetRequest, &rate_limiter_, &RateLimit::RateLimiter::Submit);
-	connect(&rate_limiter_, &RateLimiter::StatusUpdate, this, &ItemsManagerWorker::OnRateLimitStatusUpdate);
+	// This is how we make rate-limited requests.
+	connect(this, &ItemsManagerWorker::GetRequest, &app_.rate_limiter(), &RateLimit::RateLimiter::Submit);
+
+	// This is how we get the status of rate limiting.
+	connect(&app_.rate_limiter(), &RateLimiter::StatusUpdate, this, &ItemsManagerWorker::OnRateLimitStatusUpdate);
 }
 
 void ItemsManagerWorker::UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations) {
@@ -330,7 +332,7 @@ void ItemsManagerWorker::OnCharacterListReceived(const PoE::ListCharactersResult
 			continue;
 		};
 		++total_character_count;
-		if (tab_id_index_.count(name) > 0) {
+		if (tab_id_index_.count(character.id) > 0) {
 			QLOG_DEBUG() << "Skipping" << name << "because this character is not being refreshed.";
 			continue;
 		};
@@ -339,11 +341,8 @@ void ItemsManagerWorker::OnCharacterListReceived(const PoE::ListCharactersResult
 		const PoE::LegacyCharacter legacy_character(character);
 
 		const int tab_count = static_cast<int>(tabs_.size());
-		ItemLocation location;
-		location.set_type(ItemLocationType::CHARACTER);
-		location.set_character(name);
+		ItemLocation location(character);
 		location.set_json(JS::serializeStruct(legacy_character));
-		location.set_tab_id(tab_count);
 		tabs_.push_back(location);
 		++requested_character_count;
 
@@ -380,11 +379,7 @@ void ItemsManagerWorker::OnStashListReceived(const PoE::ListStashesResult& resul
 		const PoE::LegacyStashTab legacy_tab(tab);
 
 		// Create and save the tab location object.
-		ItemLocation location(legacy_tab.i, legacy_tab.id, legacy_tab.n,
-			ItemLocationType::STASH,
-			legacy_tab.colour.r,
-			legacy_tab.colour.g,
-			legacy_tab.colour.b);
+		ItemLocation location(tab);
 		location.set_json(JS::serializeStruct(legacy_tab));
 		tabs_.push_back(location);
 		tab_id_index_.insert(tab.id);
@@ -401,6 +396,12 @@ void ItemsManagerWorker::FetchItems() {
 
 	requests_needed_ = stashes_to_request_.size() + characters_to_request_.size();
 	requests_completed_ = 0;
+
+	if (requests_needed_ == 0) {
+		QLOG_ERROR() << "Nothing to fetch.";
+		updating_ = false;
+		return;
+	};
 
 	for (auto& stashtab_id : stashes_to_request_) {
 		PoE::GetStash(this,
@@ -430,7 +431,7 @@ void ItemsManagerWorker::OnStashReceived(const PoE::GetStashResult& result) {
 		};
 	};
 	if (location == nullptr) {
-		QLOG_ERROR() << "OnStashReceived(): unable to find location.";
+		QLOG_ERROR() << "OnStashReceived(): unable to match a location to stash:" << result.stash.name;
 		return;
 	} else {
 		if (result.stash.items) {
@@ -446,7 +447,7 @@ void ItemsManagerWorker::OnCharacterReceived(const PoE::GetCharacterResult& resu
 
 	ItemLocation* location = nullptr;
 	for (auto& loc : tabs_) {
-		if (loc.get_tab_uniq_id() == result.character.name) {
+		if (loc.get_tab_uniq_id() == result.character.id) {
 			location = &loc;
 		};
 	};
