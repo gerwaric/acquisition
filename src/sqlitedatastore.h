@@ -44,10 +44,6 @@ public:
 	Items GetItems(const ItemLocation& loc);
 	void InsertCurrencyUpdate(const CurrencyUpdate& update);
 	std::vector<CurrencyUpdate> GetAllCurrency();
-	void SetBool(const std::string& key, bool value);
-	bool GetBool(const std::string& key, bool default_value = false);
-	void SetInt(const std::string& key, int value);
-	int GetInt(const std::string& key, int default_value = 0);
 	static QString MakeFilename(const std::string& name, const std::string& league);
 private:
 	void SimpleQuery(DataStoreConnection& db, const QString& query_str);
