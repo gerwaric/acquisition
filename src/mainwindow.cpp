@@ -104,15 +104,20 @@ MainWindow::MainWindow() :
 
 void MainWindow::InitializeRateLimitDialog() {
 
+	// Create the rate limit status dialog.
 	RateLimitDialog* dialog = new RateLimitDialog();
 	connect(&app_.rate_limiter(), &RateLimit::RateLimiter::StatusUpdate, dialog, &RateLimitDialog::OnStatusUpdate);
 	connect(&app_.rate_limiter(), &RateLimit::RateLimiter::PolicyUpdated, dialog, &RateLimitDialog::OnPolicyUpdate);
 	connect(dialog, &RateLimitDialog::RequestUpdate, &app_.rate_limiter(), &RateLimit::RateLimiter::OnUpdateRequested);
 
+	// Use a button on the status bar to activate the rate limit dialog.
 	QPushButton* button = new QPushButton(this);
-	button->setFlat(true);
 	button->setText("Rate Limit Status");
-	connect(button, &QPushButton::clicked, dialog, &RateLimitDialog::show);
+	connect(button, &QPushButton::clicked, dialog,
+		[=]() {
+			dialog->show();
+			dialog->raise();
+		});
 
 	statusBar()->addPermanentWidget(button);
 };
@@ -282,6 +287,9 @@ void MainWindow::InitializeUi() {
 	connect(ui->actionSetDarkTheme, &QAction::triggered, this, &MainWindow::OnSetDarkTheme);
 	connect(ui->actionSetLightTheme, &QAction::triggered, this, &MainWindow::OnSetLightTheme);
 	connect(ui->actionSetDefaultTheme, &QAction::triggered, this, &MainWindow::OnSetDefaultTheme);
+
+	// Make sure the right logging level submenu item is checked.
+	OnSetLogging(QsLogging::Logger::instance().loggingLevel());
 
 	// Connect the Logging submenu
 	connect(ui->actionLoggingOFF, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::OffLevel); });
@@ -909,7 +917,17 @@ void MainWindow::OnSetDefaultTheme(bool toggle) {
 }
 
 void MainWindow::OnSetLogging(QsLogging::Level level) {
-	QsLogging::Logger::instance().setLoggingLevel(level);
+	
+	// Update the logging level if needed.
+	auto& logger = QsLogging::Logger::instance();
+	const auto current_level = logger.loggingLevel();
+	if (level != current_level) {
+		QLOG_WARN() << "Logging level will change from" << current_level << "to" << level;
+		logger.setLoggingLevel(level);
+		QLOG_WARN() << "Logging level has changed from" << current_level << "to" << level;
+	};
+
+	// Update the submenu checkboxes.
 	ui->actionLoggingOFF->setChecked(level == QsLogging::OffLevel);
 	ui->actionLoggingFATAL->setChecked(level == QsLogging::FatalLevel);
 	ui->actionLoggingERROR->setChecked(level == QsLogging::ErrorLevel);
@@ -917,17 +935,6 @@ void MainWindow::OnSetLogging(QsLogging::Level level) {
 	ui->actionLoggingINFO->setChecked(level == QsLogging::InfoLevel);
 	ui->actionLoggingDEBUG->setChecked(level == QsLogging::DebugLevel);
 	ui->actionLoggingTRACE->setChecked(level == QsLogging::TraceLevel);
-	QString new_level;
-	switch (level) {
-	case QsLogging::OffLevel: new_level = "OFF"; break;
-	case QsLogging::FatalLevel: new_level = "FATAL"; break;
-	case QsLogging::ErrorLevel: new_level = "ERROR"; break;
-	case QsLogging::WarnLevel: new_level = "WARN"; break;
-	case QsLogging::InfoLevel: new_level = "INFO"; break;
-	case QsLogging::DebugLevel: new_level = "DEBUG"; break;
-	case QsLogging::TraceLevel: new_level = "TRACE"; break;
-	}
-	QLOG_INFO() << "Logging level set to" << new_level;
 }
 
 void MainWindow::OnExportCurrency() {
