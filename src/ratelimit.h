@@ -32,8 +32,6 @@
 
 #include "oauth.h"
 
-class Application;
-
 //--------------------------------------------------------------------------
 // Introduction to GGG's API Rate Limits
 //--------------------------------------------------------------------------
@@ -102,7 +100,7 @@ namespace RateLimit
 
 	// Consider a policy "borderline" when there are this many requests left before violation.
 	// This gives us a small buffer, just in case.
-	const int BORDERLINE_REQUEST_BUFFER = 2;
+	const int BORDERLINE_REQUEST_BUFFER = 1;
 
 	// This HTTP status code means there was a rate limit violation.
 	const int RATE_LIMIT_VIOLATION_STATUS = 429;
@@ -199,9 +197,18 @@ namespace RateLimit
 	// they are the two policy-related classes where it's useful to preallocate
 	// arrays of a known size.
 
+	enum class PolicyStatus { UNINITIALIZED = 0, OK, BORDERLINE, VIOLATION, INVALID };
+	static std::map<PolicyStatus, QString> POLICY_STATE = {
+		{PolicyStatus::UNINITIALIZED, "UNINITIALIZED"},
+		{PolicyStatus::INVALID,       "INVALID"},
+		{PolicyStatus::OK,            "OK"},
+		{PolicyStatus::BORDERLINE,    "BORDERLINE"},
+		{PolicyStatus::VIOLATION,     "VIOLATION"} };
+
 	struct RuleItem {
 		RuleItemData limit;
 		RuleItemData state;
+		PolicyStatus status;
 		operator QString() const;
 	};
 
@@ -212,14 +219,6 @@ namespace RateLimit
 		std::vector<RuleItem> items;
 		operator QString() const;
 	};
-
-	enum class PolicyStatus { UNKNOWN, INVALID, OK, BORDERLINE, VIOLATION };
-	static std::map<PolicyStatus, QString> POLICY_STATE = {
-		{PolicyStatus::UNKNOWN,    "UNKNOWN"},
-		{PolicyStatus::INVALID,    "INVALID"},
-		{PolicyStatus::OK,         "OK"},
-		{PolicyStatus::BORDERLINE, "BORDERLINE"},
-		{PolicyStatus::VIOLATION,  "VIOLATION"} };
 
 	struct Policy {
 		Policy();
@@ -268,12 +267,19 @@ namespace RateLimit
 		// header is received.
 		void OnPolicyUpdate();
 
+		// When a reply is recieved and the policy state has been updated or a 
+		// rate violation has been detected, the next possible send time is calculated
+		// and stored here.
+		QDateTime next_send;
+
 	signals:
 		// Emitted when a network request is ready to go.
 		void RequestReady(QNetworkRequest request);
 
 		// Emitted when this policy manager pauses due to rate limiting.
 		void RateLimitingStarted();
+
+		void PolicyUpdated(const Policy& policy);
 
 	public slots:
 		// Called when a reply has been received. Checks for errors. Updates the
@@ -309,11 +315,6 @@ namespace RateLimit
 		// Requests that are waiting to be activated.
 		std::list<std::unique_ptr<RateLimitedRequest>> request_queue;
 
-		// When a reply is recieved and the policy state has been updated or a 
-		// rate violation has been detected, the next possible send time is calculated
-		// and stored here.
-		QDateTime next_send;
-
 		// Store the time of the last send for this policy, just so we can have an
 		// extra check to make sure we don't flood GGG with requests.
 		QDateTime last_send;
@@ -341,7 +342,7 @@ namespace RateLimit
 		Q_OBJECT
 
 	public:
-		static RateLimiter& instance();
+		RateLimiter();
 
 	public slots:
 		// Should be called when there's a new OAuth access token.
@@ -354,12 +355,17 @@ namespace RateLimit
 		// Slot for policy managers to send signals when they begin rate limiting.
 		void OnTimerStarted();
 
+		// Used by the GUI to request a manual refresh.
+		void OnUpdateRequested();
+
 	signals:
 		// Used internally when Submit() is called from another thread.
 		void Queue(const QString& endpoint, QNetworkRequest network_request, Callback request_callback);
 
 		// Signal sent to the UI so the user can see what's going on.
 		void StatusUpdate(const QString message);
+
+		void PolicyUpdated(const Policy& policy);
 
 	private slots:
 		// Handles a newly submitted request.
@@ -368,10 +374,9 @@ namespace RateLimit
 		// Called by policy managers when there's a request for us to send.
 		void SendRequest(QNetworkRequest request);
 
-	private:
-		// Private constructor to enforce the singleton design pattern.
-		RateLimiter();
+		void OnPolicyUpdated(const Policy& policy);
 
+	private:
 		// Process the first request for an endpoint we haven't encountered before.
 		void SetupEndpoint(const QString endpoint, QNetworkRequest network_request, Callback request_callback, QNetworkReply* reply);
 

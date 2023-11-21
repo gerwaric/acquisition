@@ -16,25 +16,33 @@
 	You should have received a copy of the GNU General Public License
 	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
-
 #pragma once
 
-#include <QObject>
+#include <QDialog>
 
+class QEvent;
+class QLabel;
 class QPushButton;
-class QTextEdit;
+class QTreeWidget;
+class QVBoxLayout;
 
-#include "mainwindow.h"
+namespace RateLimit {
+	struct Policy;
+}
 
-// Modeled after LogPanel
-class RateLimitStatusPanel : public QObject {
+class RateLimitDialog : public QDialog
+{
 	Q_OBJECT
 public:
-	RateLimitStatusPanel(MainWindow* window, Ui::MainWindow* ui);
+	explicit RateLimitDialog();
+signals:
+	void RequestUpdate();
 public slots:
-	void OnStatusLabelClicked();
-	void OnStatusUpdate(const QString& message);
+	void OnStatusUpdate(const QString& status);
+	void OnPolicyUpdate(const RateLimit::Policy& policy);
 private:
-	QPushButton* status_button_;
-	QTextEdit* output_;
+	QVBoxLayout* layout;
+	QTreeWidget* treeWidget;
+	QPushButton* refreshButton;
+	QLabel* statusLabel;
 };

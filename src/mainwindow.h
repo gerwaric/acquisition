@@ -136,6 +136,7 @@ private:
 	void NewSearch();
 	void SetCurrentSearch(Search* search);
 	void InitializeRateLimitPanel();
+	void InitializeRateLimitDialog();
 	void InitializeLogging();
 	void InitializeSearchForm();
 	void InitializeUi();

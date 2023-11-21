@@ -59,10 +59,11 @@ Application::Application(bool test_mode) :
 	network_manager_ = std::make_unique<QNetworkAccessManager>(this);
 	update_checker_ = std::make_unique<UpdateChecker>(*network_manager_, this);
 	oauth_manager_ = std::make_unique<OAuthManager>(*network_manager_, this);
+	rate_limiter_ = std::make_unique<RateLimit::RateLimiter>();
 
 	// Make sure the rate limiter gets tokens when they are updated.
 	connect(oauth_manager_.get(), &OAuthManager::accessGranted,
-		&RateLimit::RateLimiter::instance(),
+		rate_limiter_.get(),
 		&RateLimit::RateLimiter::SetAccessToken);
 
 	// The global datastore holds things like the selected theme and the oath token.

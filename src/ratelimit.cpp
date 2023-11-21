@@ -108,12 +108,12 @@ PolicyRule::operator QString() const {
 
 Policy::Policy() :
 	name("<<EMPTY-POLICY>>"),
-	status(PolicyStatus::UNKNOWN),
+	status(PolicyStatus::UNINITIALIZED),
 	max_period(0) {};
 
 Policy::Policy(QNetworkReply* const reply) :
 	name(GetRateLimitPolicy(reply)),
-	status(PolicyStatus::UNKNOWN),
+	status(PolicyStatus::UNINITIALIZED),
 	max_period(0)
 {
 	const QByteArrayList rule_names = GetRateLimitRules(reply);
@@ -140,26 +140,26 @@ Policy::Policy(QNetworkReply* const reply) :
 }
 
 void Policy::UpdateStatus() {
-	status = PolicyStatus::UNKNOWN;
-	for (const auto& rule : rules) {
-		for (const auto& item : rule.items) {
+	status = PolicyStatus::UNINITIALIZED;
+	for (auto& rule : rules) {
+		for (auto& item : rule.items) {
 			const RuleItemData& limit = item.limit;
 			const RuleItemData& state = item.state;
 			if (item.limit.period != item.state.period) {
-				status = PolicyStatus::INVALID;
+				item.status = PolicyStatus::INVALID;
+			} else if (state.hits > limit.hits) {
+				item.status = PolicyStatus::VIOLATION;
+			} else if (state.hits >= (limit.hits - BORDERLINE_REQUEST_BUFFER)) {
+				item.status = PolicyStatus::BORDERLINE;
+			} else {
+				item.status = PolicyStatus::OK;
 			};
-			if (status != PolicyStatus::INVALID) {
-				if (state.hits > limit.hits) {
-					status = PolicyStatus::VIOLATION;
-				} else if (status != PolicyStatus::VIOLATION) {
-					if (state.hits >= (limit.hits - BORDERLINE_REQUEST_BUFFER)) {
-						status = PolicyStatus::BORDERLINE;
-					};
-				};
+			if (status < item.status) {
+				status = item.status;
 			};
 		};
 	};
-	if (status == PolicyStatus::UNKNOWN) {
+	if (status == PolicyStatus::UNINITIALIZED) {
 		status = PolicyStatus::OK;
 	};
 }
@@ -180,8 +180,7 @@ RateLimitedRequest::RateLimitedRequest(const QString& endpoint_, const QNetworkR
 	network_reply(nullptr),
 	reply_time(QDateTime()),
 	reply_status(-1)
-{
-}
+{}
 
 //=========================================================================================
 // Policy Manager
@@ -192,6 +191,7 @@ PolicyManager::PolicyManager(QObject* parent, std::unique_ptr<Policy> policy_) :
 	QObject(parent),
 	policy(std::move(policy_)),
 	busy(false),
+	active_request_timer(this),
 	next_send(QDateTime::currentDateTime()),
 	last_send(QDateTime()),
 	violation(false)
@@ -282,8 +282,7 @@ void PolicyManager::OnPolicyUpdate()
 	if (known_reply_times.capacity() < policy->max_period) {
 		QLOG_DEBUG() << policy->name
 			<< "increasing history capacity"
-			<< "from" << known_reply_times.capacity()
-			<< "to" << policy->max_period;
+			<< "from" << known_reply_times.capacity() << "to" << policy->max_period;
 		known_reply_times.set_capacity(policy->max_period);
 	};
 
@@ -373,7 +372,7 @@ void PolicyManager::OnPolicyUpdate()
 			};
 		};
 	};
-
+	emit PolicyUpdated(*policy);
 }
 
 // If the rate limit manager is busy, the request will be queued.
@@ -381,7 +380,7 @@ void PolicyManager::OnPolicyUpdate()
 // manager busy and causing subsequent requests to be queued.
 void PolicyManager::QueueRequest(std::unique_ptr<RateLimitedRequest> request) {
 	if (busy) {
-		QLOG_TRACE() << policy_name << "queuing request" << request->id;
+		QLOG_TRACE() << policy_name << "queuing request" << request->id << "for" << request->network_request.url().toString();
 		request_queue.push_back(std::move(request));
 	} else {
 		busy = true;
@@ -414,13 +413,14 @@ void PolicyManager::ActivateRequest() {
 	};
 
 	active_request_timer.setInterval(msec_delay);
-	QMetaObject::invokeMethod(&active_request_timer, "start");
+	active_request_timer.start();
 	if (msec_delay > 1000) {
 		// Need to wait and rerun this function when it's safe to send.
+		const QDateTime resend_time = QDateTime::currentDateTime().addMSecs(msec_delay);
 		QLOG_TRACE() << policy_name
-			<< "is waiting" << (msec_delay / 1000)
+			<< "is waiting" << msec_delay / 1000
 			<< "seconds to send request" << active_request->id
-			<< "at" << next_send.toLocalTime().toString();
+			<< "at" << resend_time.toLocalTime().toString();
 		emit RateLimitingStarted();
 	};
 }
@@ -669,11 +669,6 @@ static QString GetEndpoint(const QUrl& url) {
 // The application-facing Rate Limiter
 //=========================================================================================
 
-RateLimiter& RateLimiter::instance() {
-	static RateLimiter rate_limiter;
-	return rate_limiter;
-}
-
 RateLimiter::RateLimiter() :
 	network_manager_(this),
 	default_manager(this),
@@ -722,6 +717,8 @@ RateLimiter::RateLimiter() :
 		};
 		connect(pm.get(), &PolicyManager::RequestReady, this, &RateLimiter::SendRequest);
 		connect(pm.get(), &PolicyManager::RateLimitingStarted, this, &RateLimiter::OnTimerStarted);
+		connect(pm.get(), &PolicyManager::PolicyUpdated, this, &RateLimiter::OnPolicyUpdated);
+		emit PolicyUpdated(*pm->policy);
 		policy_mapping.emplace(policy_name, std::move(pm));
 	};
 
@@ -756,6 +753,11 @@ void RateLimiter::Submit(const QString endpoint, QNetworkRequest network_request
 
 void RateLimiter::OnSubmit(const QString& endpoint, QNetworkRequest network_request, Callback request_callback) {
 
+	if (QThread::currentThread() != this->thread()) {
+		QLOG_ERROR() << "OnSubmit is running on the wrong thread!";
+		return;
+	};
+
 	if (endpoint_mapping.count(endpoint) > 0) {
 
 		// This endpoint is known to use an existing policy manager.
@@ -771,6 +773,10 @@ void RateLimiter::OnSubmit(const QString& endpoint, QNetworkRequest network_requ
 			[=]() { SetupEndpoint(endpoint, network_request, request_callback, reply); });
 
 	};
+}
+
+void RateLimiter::OnPolicyUpdated(const Policy& policy) {
+	emit PolicyUpdated(policy);
 }
 
 void RateLimiter::SetupEndpoint(const QString endpoint, QNetworkRequest network_request, Callback request_callback, QNetworkReply* reply) {
@@ -812,6 +818,8 @@ void RateLimiter::SetupEndpoint(const QString endpoint, QNetworkRequest network_
 	auto manager = std::make_unique<PolicyManager>(this, std::move(policy));
 	connect(manager.get(), &PolicyManager::RequestReady, this, &RateLimiter::SendRequest);
 	connect(manager.get(), &PolicyManager::RateLimitingStarted, this, &RateLimiter::OnTimerStarted);
+	connect(manager.get(), &PolicyManager::PolicyUpdated, this, &RateLimiter::OnPolicyUpdated);
+	emit PolicyUpdated(*manager->policy);
 	manager->endpoints.push_back(endpoint);
 	manager->QueueRequest(std::move(request));
 	endpoint_mapping[endpoint] = manager.get();
@@ -835,12 +843,17 @@ void RateLimiter::DoStatusUpdate()
 	bool busy = false;
 	QStringList lines;
 
+	QString gating_policy;
+	QDateTime next_send;
+
 	// Check to see if any of the policy managers are busy.
 	for (auto& pair : policy_mapping) {
-		auto manager = pair.second.get();
-		lines.push_back(manager->GetCurrentStatus());
-		lines.push_back("");
-		if (manager->IsBusy()) {
+		auto& manager = *pair.second;
+		if (manager.IsBusy()) {
+			if (manager.next_send < next_send) {
+				gating_policy = manager.policy_name;
+				next_send = manager.next_send;
+			};
 			busy = true;
 		};
 	};
@@ -849,17 +862,28 @@ void RateLimiter::DoStatusUpdate()
 		// Stop the status updates if it's running and nobody is busy.
 		if (status_updater.isActive()) {
 			QLOG_DEBUG() << "Stopping rate limit status updates";
-			QMetaObject::invokeMethod(&status_updater, "stop");
+			status_updater.stop();
 		};
+		emit StatusUpdate("Not rate limited.");
 	} else {
 		// Start the timer if it's not running and someone is busy.
 		// (This should probably never happen, but I"ve seen it).
 		if (status_updater.isActive() == false) {
 			QLOG_WARN() << "The rate limiter is busy, but the status update timer was not running";
-			QMetaObject::invokeMethod(&status_updater, "start");
+			status_updater.start();
 		};
+		long long msec = QDateTime::currentDateTime().msecsTo(next_send);
+		const QString msg = (msec > 2000)
+			? QString("Paused %1 seconds to comply with %2 policy.").arg(msec / 2000).arg(gating_policy)
+			: QString("Paused %1 ms to comply with %2 policy.").arg(msec).arg(gating_policy);
+		emit StatusUpdate(msg);
 	};
+}
 
-	// Emit a status update either way so the user can see that we aren't busy.
-	emit StatusUpdate(lines.join('\n'));
+void RateLimiter::OnUpdateRequested()
+{
+	for (auto& pair : policy_mapping) {
+		emit PolicyUpdated(*pair.second->policy);
+	}
+	DoStatusUpdate();
 }

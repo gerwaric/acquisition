@@ -71,7 +71,7 @@ SOURCES += \
 	src/oauth.cpp \
 	src/porting.cpp \
 	src/ratelimit.cpp \
-	src/ratelimitpanel.cpp \
+	src/ratelimitdialog.cpp \
 	src/search.cpp \
 	src/shop.cpp \
 	src/sqlitedatastore.cpp \
@@ -129,7 +129,7 @@ HEADERS += \
 	src/porting.h \
 	src/rapidjson_util.h \
 	src/ratelimit.h \
-	src/ratelimitpanel.h \
+	src/ratelimitdialog.h \
 	src/replytimeout.h \
 	src/search.h \
 	src/selfdestructingreply.h \

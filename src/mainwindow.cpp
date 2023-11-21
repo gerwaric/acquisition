@@ -55,7 +55,7 @@
 #include "logpanel.h"
 #include "modsfilter.h"
 #include "network_info.h"
-#include "ratelimitpanel.h"
+#include "ratelimitdialog.h"
 #include "replytimeout.h"
 #include "search.h"
 #include "selfdestructingreply.h"
@@ -80,7 +80,7 @@ MainWindow::MainWindow() :
 	image_cache_ = new ImageCache(Filesystem::UserDir() + "/cache");
 
 	InitializeUi();
-	InitializeRateLimitPanel();
+	InitializeRateLimitDialog();
 	InitializeLogging();
 	InitializeSearchForm();
 	NewSearch();
@@ -101,10 +101,21 @@ MainWindow::MainWindow() :
 		});
 
 }
-void MainWindow::InitializeRateLimitPanel() {
-	RateLimitStatusPanel* rate_panel = new RateLimitStatusPanel(this, ui);
-	connect(&app_.items_manager(), &ItemsManager::RateLimitStatusUpdate, rate_panel, &RateLimitStatusPanel::OnStatusUpdate);
-}
+
+void MainWindow::InitializeRateLimitDialog() {
+
+	RateLimitDialog* dialog = new RateLimitDialog();
+	connect(&app_.rate_limiter(), &RateLimit::RateLimiter::StatusUpdate, dialog, &RateLimitDialog::OnStatusUpdate);
+	connect(&app_.rate_limiter(), &RateLimit::RateLimiter::PolicyUpdated, dialog, &RateLimitDialog::OnPolicyUpdate);
+	connect(dialog, &RateLimitDialog::RequestUpdate, &app_.rate_limiter(), &RateLimit::RateLimiter::OnUpdateRequested);
+
+	QPushButton* button = new QPushButton(this);
+	button->setFlat(true);
+	button->setText("Rate Limit Status");
+	connect(button, &QPushButton::clicked, dialog, &RateLimitDialog::show);
+
+	statusBar()->addPermanentWidget(button);
+};
 
 void MainWindow::InitializeLogging() {
 	LogPanel* log_panel = new LogPanel(this, ui);
