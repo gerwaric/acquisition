@@ -242,12 +242,12 @@ void ItemsManager::OnAutoRefreshTimer() {
 void ItemsManager::MigrateBuyouts() {
 	int db_version = app_.data().GetInt("db_version");
 	// Don't migrate twice
-	if (db_version == 4) {
+	if (db_version == 5) {
 		return;
 	};
 	for (auto& item : items_) {
 		app_.buyout_manager().MigrateItem(*item);
 	};
 	app_.buyout_manager().Save();
-	app_.data().SetInt("db_version", 4);
+	app_.data().SetInt("db_version", 5);
 }
