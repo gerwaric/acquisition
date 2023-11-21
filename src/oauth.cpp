@@ -47,6 +47,14 @@ static const char* REDIRECT_PATH = "/auth/path-of-exile";
 // Refresh a token an hour before it's due to expire.
 static const int EXPIRATION_BUFFER_SECS = 3600;
 
+QDateTime OAuthToken::getDate(const std::optional<std::string>& timestamp) {
+	if (timestamp) {
+		return QDateTime::fromString(QString::fromStdString(timestamp.value()), Qt::RFC2822Date);
+	} else {
+		return QDateTime();
+	};
+}
+
 OAuthManager::OAuthManager(QNetworkAccessManager& network_manager, QObject* parent) :
 	QObject(parent),
 	the_manager_(network_manager)

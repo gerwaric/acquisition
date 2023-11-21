@@ -34,6 +34,9 @@ class QNetworkReply;
 class QNetworkRequest;
 
 struct OAuthToken {
+	static QDateTime getDate(const std::optional<std::string>& timestamp);
+	QDateTime getBirthday() const { return getDate(birthday); };
+	QDateTime getExpiration() const { return getDate(expiration); };
 	std::string access_token;
 	long long int expires_in;
 	std::string token_type;
