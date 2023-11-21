@@ -21,6 +21,7 @@
 #include <QObject>
 
 #include "QsLog.h"
+#include "application.h"
 #include "ratelimit.h"
 
 namespace PoE {
@@ -36,7 +37,7 @@ namespace PoE {
 
 	void ListCharacters(QObject* object, ListCharactersCallback callback)
 	{
-		static auto& rate_limiter = RateLimit::RateLimiter::instance();
+		static auto& rate_limiter = Application::instance().rate_limiter();
 
 		const QString LIST_CHARACTERS("https://api.pathofexile.com/character");
 
@@ -65,7 +66,7 @@ namespace PoE {
 
 	void GetCharacter(QObject* object, GetCharacterCallback callback, const std::string& name)
 	{
-		static auto& rate_limiter = RateLimit::RateLimiter::instance();
+		static auto& rate_limiter = Application::instance().rate_limiter();
 
 		const QString GET_CHARACTER("https://api.pathofexile.com/character/" + QString::fromStdString(name));
 

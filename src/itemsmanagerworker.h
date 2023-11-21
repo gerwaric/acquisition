@@ -91,7 +91,6 @@ private:
 
 	Application& app_;
 
-	RateLimit::RateLimiter& rate_limiter_;
 	std::vector<ItemLocation> tabs_;
 	Items items_;
 	std::set<std::string> tab_id_index_;

@@ -21,6 +21,7 @@
 #include <QObject>
 
 #include "QsLog.h"
+#include "application.h"
 #include "ratelimit.h"
 
 namespace PoE {
@@ -39,7 +40,7 @@ namespace PoE {
 
 	void ListStashes(QObject* object, ListStashesCallback callback, const std::string& league)
 	{
-		static auto& rate_limiter = RateLimit::RateLimiter::instance();
+		static auto& rate_limiter = Application::instance().rate_limiter();
 
 		const QString LIST_STASHES("https://api.pathofexile.com/stash/" + QString::fromStdString(league));
 
@@ -71,7 +72,7 @@ namespace PoE {
 		const std::string& stash_id,
 		const std::string& substash_id)
 	{
-		static auto& rate_limiter = RateLimit::RateLimiter::instance();
+		static auto& rate_limiter = Application::instance().rate_limiter();
 
 		const QString LIST_STASHES = substash_id.empty()
 			? "https://api.pathofexile.com/stash/" + QString::fromStdString(league + "/" + stash_id)

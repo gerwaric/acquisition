@@ -21,13 +21,14 @@
 #include <QObject>
 
 #include "QsLog.h"
+#include "application.h"
 #include "ratelimit.h"
 
 namespace PoE {
 
 	void GetLeagues(QObject* object, GetLeaguesCallback callback)
 	{
-		static auto& rate_limiter = RateLimit::RateLimiter::instance();
+		static auto& rate_limiter = Application::instance().rate_limiter();
 
 		const QString GET_LEAGUES("https://api.pathofexile.com/account/leagues");
 
