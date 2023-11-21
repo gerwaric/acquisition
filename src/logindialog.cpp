@@ -124,8 +124,11 @@ void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
 
 void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
 	account_ = token.username;
-	ui->authenticateLabel->setText("You are authenticated as \"" + QString::fromStdString(token.username) + "\".");
-	ui->authenticateButton->setText("Re-authenticate (to change accounts)");
+	const QString message = QString("You are authenticated as \"%1\" until %2.")
+		.arg(QString::fromStdString(token.username))
+		.arg(token.getExpiration().toLocalTime().toString("MMM d 'at' h:m ap"));
+	ui->authenticateLabel->setText(message);
+	ui->authenticateButton->setText("Re-authenticate");
 	ui->authenticateButton->setEnabled(true);
 	PoE::GetLeagues(this,
 		[=](const PoE::GetLeaguesResult& leagues) {
