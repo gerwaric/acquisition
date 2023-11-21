@@ -840,25 +840,28 @@ void RateLimiter::OnTimerStarted() {
 
 void RateLimiter::DoStatusUpdate()
 {
-	bool busy = false;
+	bool rate_limited = false;
 	QStringList lines;
 
-	QString gating_policy;
-	QDateTime next_send;
+	QString limiting_policy;
+	QDateTime limiting_send = QDateTime();
 
 	// Check to see if any of the policy managers are busy.
 	for (auto& pair : policy_mapping) {
 		auto& manager = *pair.second;
 		if (manager.IsBusy()) {
-			if (manager.next_send < next_send) {
-				gating_policy = manager.policy_name;
-				next_send = manager.next_send;
+			if ((limiting_send.isValid() == false) || (manager.next_send < limiting_send)) {
+				limiting_policy = manager.policy_name;
+				limiting_send = manager.next_send;
 			};
-			busy = true;
+			rate_limited = true;
 		};
 	};
+	if (limiting_send < QDateTime::currentDateTime()) {
+		rate_limited = false;
+	};
 
-	if (busy == false) {
+	if (rate_limited == false) {
 		// Stop the status updates if it's running and nobody is busy.
 		if (status_updater.isActive()) {
 			QLOG_DEBUG() << "Stopping rate limit status updates";
@@ -872,10 +875,10 @@ void RateLimiter::DoStatusUpdate()
 			QLOG_WARN() << "The rate limiter is busy, but the status update timer was not running";
 			status_updater.start();
 		};
-		long long msec = QDateTime::currentDateTime().msecsTo(next_send);
-		const QString msg = (msec > 2000)
-			? QString("Paused %1 seconds to comply with %2 policy.").arg(msec / 2000).arg(gating_policy)
-			: QString("Paused %1 ms to comply with %2 policy.").arg(msec).arg(gating_policy);
+		long long msec = QDateTime::currentDateTime().msecsTo(limiting_send);
+		const QString msg = (msec > 3000)
+			? QString("Paused %1 seconds for \"%2\" policy.").arg(msec / 2000).arg(limiting_policy)
+			: QString("Paused %1 ms for \"%2\" policy.").arg(msec).arg(limiting_policy);
 		emit StatusUpdate(msg);
 	};
 }
