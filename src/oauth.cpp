@@ -23,6 +23,7 @@
 #include <QCryptographicHash>
 #include <QDesktopServices>
 #include <QtHttpServer/QHttpServer>
+#include <QMessageBox>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -311,6 +312,14 @@ void OAuthManager::receiveToken(QNetworkReply* reply)
 void OAuthManager::requestRefresh() {
 
 	QLOG_TRACE() << "OAuth: refreshing access token.";
+
+	QMessageBox* msgBox = new QMessageBox;
+	msgBox->setText(
+		"Your OAuth token is being refreshed.");
+		//"This dialog box will close automatically after 5 minutes.");
+	msgBox->exec();
+	connect(msgBox, &QMessageBox::close, msgBox, &QMessageBox::deleteLater);
+	//QTimer::singleShot(1000 * 60 * 5, [=]() { if (msgBox) msgBox->deleteLater(); });
 
 	QNetworkRequest request;
 	request.setUrl(QUrl(TOKEN_URL));
