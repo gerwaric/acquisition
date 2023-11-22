@@ -55,23 +55,30 @@ public:
 	OAuthManager(QNetworkAccessManager& network_manager, QObject* parent = nullptr);
 	void setToken(const OAuthToken& token);
 	void requestAccess();
-	const std::optional<OAuthToken> token() const { return the_token_; };
+	void showStatusMessage();
+	const std::optional<OAuthToken> token() const { return token_; };
 signals:
 	void accessGranted(const OAuthToken& token);
 private:
+	void createHttpServer();
 	void requestAuthorization(const std::string& state, const std::string& code_challenge);
-	std::string receiveAuthorization(const QHttpServerRequest& request, const std::string& state);
+	QString receiveAuthorization(const QHttpServerRequest& request, const std::string& state);
 	void requestToken(const std::string& code);
 	void receiveToken(QNetworkReply* reply);
 	void requestRefresh();
 	void setRefreshTimer();
 
-	static std::string authorizationError(const std::string& message);
+	static QString authorizationError(const QString& message);
 
-	QNetworkAccessManager& the_manager_;
-	std::unique_ptr<QHttpServer> the_server_;
+	QNetworkAccessManager& network_manager_;
 
-	std::optional<OAuthToken> the_token_;
+	// I can't find a way to shutdown a QHttpServer once it's started
+	// listening, so use a unique pointer so that we can destory the
+	// server once authentication is complete, so it won't stay
+	// running in the background.
+	std::unique_ptr<QHttpServer> http_server_;
+
+	std::optional<OAuthToken> token_;
 	std::string code_verifier_;
 	std::string redirect_uri_;
 
