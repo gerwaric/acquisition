@@ -47,6 +47,7 @@ SOURCES += \
 	src/bucket.cpp \
 	src/buyoutmanager.cpp \
 	src/column.cpp \
+	src/currency.cpp \
 	src/currencymanager.cpp \
 	src/datastore.cpp \
 	src/filesystem.cpp \
@@ -103,6 +104,7 @@ HEADERS += \
 	src/bucket.h \
 	src/buyoutmanager.h \
 	src/column.h \
+	src/currency.h \
 	src/currencymanager.h \
 	src/datastore.h \
 	src/filesystem.h \

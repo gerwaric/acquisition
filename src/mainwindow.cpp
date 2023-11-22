@@ -40,6 +40,7 @@
 
 #include "application.h"
 #include "buyoutmanager.h"
+#include "currency.h"
 #include "currencymanager.h"
 #include "datastore.h"
 #include "filesystem.h"
