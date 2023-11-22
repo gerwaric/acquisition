@@ -17,7 +17,6 @@
 	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include "ratelimitdialog.h"
-#include "ui_ratelimitdialog.h"
 
 #include <QEvent>
 #include <QPushButton>
