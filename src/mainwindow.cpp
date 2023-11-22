@@ -131,10 +131,17 @@ void MainWindow::InitializeLogging() {
 #ifdef _DEBUG
 	QLOG_WARN() << "Maintainer: This is a debug build";
 #endif
+	QLOG_INFO() << "The logging level is" << QsLogging::Logger::instance().loggingLevel();
 }
 
 void MainWindow::InitializeUi() {
 	ui->setupUi(this);
+
+	// Setup the window title.
+	const QString window_title = QString("Acquisition [" APP_VERSION_STRING "] - %1 - %2").arg(
+		QString::fromStdString(app_.league()),
+		QString::fromStdString(app_.account()));
+	setWindowTitle(window_title);
 
 	// Load the appropriate theme.
 	const std::string theme = app_.global_data().Get("theme", "default");
@@ -299,6 +306,10 @@ void MainWindow::InitializeUi() {
 	connect(ui->actionLoggingINFO, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::InfoLevel); });
 	connect(ui->actionLoggingDEBUG, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::DebugLevel); });
 	connect(ui->actionLoggingTRACE, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::TraceLevel); });
+
+	// Connect the OAuth submenu
+	connect(ui->actionShowOAuthToken, &QAction::triggered, &app_.oauth_manager(), &OAuthManager::showStatus);
+	connect(ui->actionRefreshOAuthToken, &QAction::triggered, &app_.oauth_manager(), &OAuthManager::requestRefresh);
 
 	// Connect the Tooltip tab buttons
 	connect(ui->uploadTooltipButton, &QPushButton::clicked, this, &MainWindow::OnUploadToImgur);
@@ -917,7 +928,7 @@ void MainWindow::OnSetDefaultTheme(bool toggle) {
 }
 
 void MainWindow::OnSetLogging(QsLogging::Level level) {
-	
+
 	// Update the logging level if needed.
 	auto& logger = QsLogging::Logger::instance();
 	const auto current_level = logger.loggingLevel();

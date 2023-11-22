@@ -6,21 +6,9 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>484</width>
-    <height>235</height>
+    <width>474</width>
+    <height>308</height>
    </rect>
-  </property>
-  <property name="minimumSize">
-   <size>
-    <width>484</width>
-    <height>235</height>
-   </size>
-  </property>
-  <property name="maximumSize">
-   <size>
-    <width>484</width>
-    <height>235</height>
-   </size>
   </property>
   <property name="windowTitle">
    <string>Log in</string>
@@ -50,6 +38,24 @@
          </property>
         </widget>
        </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout">
+         <item>
+          <widget class="QPushButton" name="tokenInfoButton">
+           <property name="text">
+            <string>Show details</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="tokenRefreshButton">
+           <property name="text">
+            <string>Refresh token</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
       </layout>
      </widget>
     </widget>
@@ -61,12 +67,6 @@
      </property>
      <item row="0" column="0">
       <widget class="QLabel" name="leagueLabel">
-       <property name="minimumSize">
-        <size>
-         <width>65</width>
-         <height>0</height>
-        </size>
-       </property>
        <property name="text">
         <string>League</string>
        </property>
@@ -99,7 +99,7 @@
      <item row="3" column="0">
       <widget class="QLabel" name="errorLabel">
        <property name="text">
-        <string>TextLabel</string>
+        <string>No error</string>
        </property>
       </widget>
      </item>
@@ -120,7 +120,7 @@
       </font>
      </property>
      <property name="text">
-      <string>Acquisition isn't affiliated with or endorsed by Grinding Gear Games in any way.</string>
+      <string>Acquisition is neither affiliated with nor endorsed by Grinding Gear Games in any way.</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>

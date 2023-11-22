@@ -52,10 +52,12 @@ LoginDialog::LoginDialog() :
 	asked_to_update_(false)
 {
 	ui->setupUi(this);
+	ui->tokenInfoButton->setEnabled(false);
+	ui->tokenRefreshButton->setEnabled(false);
 	ui->loginButton->setEnabled(false);
 	ui->errorLabel->hide();
 	ui->errorLabel->setStyleSheet("QLabel { color : red; }");
-	setWindowTitle("Login [" APP_VERSION_STRING "]");
+	setWindowTitle("Login - Acquisition [" APP_VERSION_STRING "]");
 
 #if defined(Q_OS_LINUX)
 	setWindowIcon(QIcon(":/icons/assets/icon.svg"));
@@ -75,12 +77,14 @@ LoginDialog::LoginDialog() :
 #endif
 		DisplayError(msg, true);
 		QLOG_FATAL() << msg;
-		ui->loginButton->setEnabled(false);
+		setEnabled(false);
 		return;
 	};
 	QLOG_DEBUG() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
 	QLOG_DEBUG() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
 
+	connect(ui->tokenInfoButton, &QPushButton::clicked, &app_.oauth_manager(), &OAuthManager::showStatus);
+	connect(ui->tokenRefreshButton, &QPushButton::clicked, &app_.oauth_manager(), &OAuthManager::requestRefresh);
 	connect(ui->authenticateButton, &QPushButton::clicked, this, &LoginDialog::OnAuthenticateButtonClicked);
 	connect(ui->proxyCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnProxyCheckBoxClicked);
 	connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
@@ -123,12 +127,12 @@ void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
 }
 
 void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
-	account_ = token.username;
-	const QString message = QString("You are authenticated as \"%1\" until %2.")
-		.arg(QString::fromStdString(token.username))
-		.arg(token.getExpiration().toLocalTime().toString("MMM d 'at' h:m ap"));
+	const QString message = QString("You are authenticated as \"%1\".")
+		.arg(QString::fromStdString(token.username));
 	ui->authenticateLabel->setText(message);
 	ui->authenticateButton->setText("Re-authenticate");
+	ui->tokenInfoButton->setEnabled(true);
+	ui->tokenRefreshButton->setEnabled(true);
 	ui->authenticateButton->setEnabled(true);
 	PoE::GetLeagues(this,
 		[=](const PoE::GetLeaguesResult& leagues) {
@@ -148,17 +152,22 @@ void LoginDialog::OnLeaguesReceived(const PoE::GetLeaguesResult& result) {
 }
 
 void LoginDialog::OnLoginButtonClicked() {
-	close();
-	SaveSettings();
-	const std::string league = ui->leagueComboBox->currentText().toStdString();
-	const QString window_title = QString("Acquisition [%1] - %2 [%3]").arg(
-		QString(APP_VERSION_STRING),
-		QString::fromStdString(league),
-		QString::fromStdString(account_));
-	app_.InitLogin(league, account_);
-	mw = new MainWindow();
-	mw->setWindowTitle(window_title);
-	mw->show();
+	if (app_.oauth_manager().token()) {
+		close();
+		SaveSettings();
+		const std::string account = app_.oauth_manager().token().value().username;
+		const std::string league = ui->leagueComboBox->currentText().toStdString();
+		app_.InitLogin(league, account);
+		mw = new MainWindow();
+		mw->show();
+	} else {
+		DisplayError("OAuth token is missing!");
+		ui->authenticateButton->setText("Authenticate");
+		ui->tokenInfoButton->setEnabled(false);
+		ui->tokenRefreshButton->setEnabled(false);
+		ui->leagueComboBox->setEnabled(false);
+		ui->loginButton->setEnabled(false);
+	};
 }
 
 LoginDialog::~LoginDialog() {
@@ -174,13 +183,10 @@ void LoginDialog::SaveSettings() {
 	settings.setValue("league", remember_me ? ui->leagueComboBox->currentText() : "");
 	settings.setValue("remember_me_checked", ui->rembmeCheckBox->isChecked());
 	settings.setValue("use_system_proxy_checked", ui->proxyCheckBox->isChecked());
-	const bool has_token = app_.oauth_manager().token().has_value();
-	if (remember_me && has_token) {
-		const OAuthToken token = *app_.oauth_manager().token();
-		app_.global_data().Set("oauth_token", JS::serializeStruct(token));
-	} else {
-		app_.global_data().Set("oauth_token", "");
-	};
+	const std::string token_json = (remember_me && app_.oauth_manager().token().has_value())
+		? JS::serializeStruct(app_.oauth_manager().token())
+		: "";
+	app_.global_data().Set("oauth_token", token_json);
 }
 
 void LoginDialog::DisplayError(const QString& error, bool disable_login) {

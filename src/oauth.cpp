@@ -328,7 +328,7 @@ void OAuthManager::receiveToken(QNetworkReply* reply)
 
 	// Determine birthday and expiration time.
 	const QString token_timestamp = Util::FixTimezone(reply->rawHeader("Date"));
-	const QDateTime token_birthday = QDateTime::fromString(token_timestamp, Qt::RFC2822Date);
+	const QDateTime token_birthday = QDateTime::fromString(token_timestamp, Qt::RFC2822Date).toLocalTime();
 	const QDateTime token_expiration = token_birthday.addSecs(token_->expires_in);
 
 	// Add birthday and expiration then notify listeners there's a new token.
@@ -345,11 +345,14 @@ void OAuthManager::requestRefresh() {
 	QLOG_TRACE() << "OAuth: refreshing access token.";
 
 	// Update the user.
-	static QMessageBox msgBox;
-	msgBox.setText("Your OAuth token is being refreshed.");
-	msgBox.setModal(false);
-	msgBox.show();
-	msgBox.raise();
+	static std::unique_ptr<QMessageBox> msgBox = nullptr;
+	if (!msgBox) {
+		msgBox = std::make_unique<QMessageBox>();
+		msgBox->setWindowTitle(APP_NAME " - OAuth Token Refresh");
+		msgBox->setModal(false);
+	};
+
+	msgBox->setText("Your OAuth token is being refreshed.");
 
 	// Setup the refresh query.
 	const QUrlQuery query = Util::EncodeQueryItems({
@@ -366,54 +369,62 @@ void OAuthManager::requestRefresh() {
 	QNetworkReply* reply = network_manager_.post(request, data);
 
 	connect(reply, &QNetworkReply::finished, this,
-		[&]() {
+		[=]() {
 			// Update the user again after the token has been received.
 			receiveToken(reply);
-			const QDateTime now = QDateTime::currentDateTime();
-			const QString timestamp = now.toString("MMM d 'at' h:m ap");
-			msgBox.setText("Your OAuth token was successfully refreshed on " + timestamp);
+			const QStringList message = {
+				"Your OAuth token was refreshed on " + token_->getBirthday().toString(),
+				"",
+				"The new token expires on " + token_->getExpiration().toString(),
+			};
+			msgBox->setText(message.join("\n"));
+			msgBox->show();
+			msgBox->raise();
 			reply->deleteLater();
 		});
 
 	connect(reply, &QNetworkReply::errorOccurred, this,
-		[&]() {
+		[=]() {
 			// Let the user know if there was an error.
 			const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 			const auto reason = reply->attribute(QNetworkRequest::HttpReasonPhraseAttribute).toString();
 			const QStringList message = {
-				"Token refresh failed."
-				"",
-				"QNetworkReply error: " + reply->errorString(),
+				"OAuth refresh failed: " + reply->errorString(),
 				"",
 				"HTTP status " + QString::number(status) + " (" + reason + ")"
 			};
-			msgBox.setText(message.join("\n"));
+			msgBox->setText(message.join("\n"));
+			msgBox->show();
+			msgBox->raise();
 			reply->deleteLater();
 		});
 }
 
-void OAuthManager::showStatusMessage() {
+void OAuthManager::showStatus() {
 
-	static QMessageBox statusBox;
+	static std::unique_ptr<QMessageBox> msgBox = nullptr;
+	if (!msgBox) {
+		msgBox = std::make_unique<QMessageBox>();
+		msgBox->setWindowTitle("OAuth Status - " APP_NAME " - OAuth Token Status");
+		msgBox->setModal(false);
+	};
 
-	QStringList message;
 	if (token_) {
 		const std::string json = JS::serializeStruct(token_.value(), JS::SerializerOptions::Pretty);
 		const QDateTime now = QDateTime::currentDateTime();
 		const QDateTime refresh_time = now.addMSecs(refresh_timer_.remainingTime());
 		const QString refresh_timestamp = refresh_time.toString("MMM d 'at' h:m ap");
-		refresh_timer_.remainingTime();
-		message = {
+		const QStringList message = {
 			"Your current OAuth token:",
+			"",
 			QString::fromStdString(json),
-			"(This token will be automatically refreshed on " + refresh_timestamp + ")"
+			"",
+			"This token will be automatically refreshed on " + refresh_timestamp
 		};
+		msgBox->setText(message.join("\n"));
 	} else {
-		message = { "No valid token. You are not authenticated." };
+		msgBox->setText("No valid token. You are not authenticated.");
 	}
-	statusBox.setWindowTitle("OAuth Status");
-	statusBox.setText(message.join("\n"));
-	statusBox.setModal(false);
-	statusBox.show();
-	statusBox.raise();
+	msgBox->show();
+	msgBox->raise();
 }

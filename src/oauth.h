@@ -54,9 +54,11 @@ class OAuthManager : public QObject {
 public:
 	OAuthManager(QNetworkAccessManager& network_manager, QObject* parent = nullptr);
 	void setToken(const OAuthToken& token);
-	void requestAccess();
-	void showStatusMessage();
 	const std::optional<OAuthToken> token() const { return token_; };
+public slots:
+	void requestAccess();
+	void requestRefresh();
+	void showStatus();
 signals:
 	void accessGranted(const OAuthToken& token);
 private:
@@ -65,7 +67,6 @@ private:
 	QString receiveAuthorization(const QHttpServerRequest& request, const std::string& state);
 	void requestToken(const std::string& code);
 	void receiveToken(QNetworkReply* reply);
-	void requestRefresh();
 	void setRefreshTimer();
 
 	static QString authorizationError(const QString& message);

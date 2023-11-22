@@ -431,8 +431,16 @@
      <addaction name="actionLoggingDEBUG"/>
      <addaction name="actionLoggingTRACE"/>
     </widget>
+    <widget class="QMenu" name="menuOAuth">
+     <property name="title">
+      <string>OAuth</string>
+     </property>
+     <addaction name="actionShowOAuthToken"/>
+     <addaction name="actionRefreshOAuthToken"/>
+    </widget>
     <addaction name="menuTheme"/>
     <addaction name="menuLogging"/>
+    <addaction name="menuOAuth"/>
    </widget>
    <addaction name="menuTabs"/>
    <addaction name="menuShop"/>
@@ -615,6 +623,16 @@
   <action name="actionImportBuyouts">
    <property name="text">
     <string>Import Buyouts</string>
+   </property>
+  </action>
+  <action name="actionShowOAuthToken">
+   <property name="text">
+    <string>Show current token</string>
+   </property>
+  </action>
+  <action name="actionRefreshOAuthToken">
+   <property name="text">
+    <string>Refresh current token</string>
    </property>
   </action>
  </widget>

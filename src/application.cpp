@@ -129,12 +129,10 @@ void Application::LoadTheme() {
 	};
 }
 
-void Application::InitLogin(
-	const std::string& league,
-	const std::string& email)
+void Application::InitLogin(const std::string& league, const std::string& account)
 {
+	account_ = account;
 	league_ = league;
-	email_ = email;
 
 	if (test_mode_) {
 		// This is used in tests
@@ -142,7 +140,7 @@ void Application::InitLogin(
 	} else {
 		const QString data_path = GetDataPath();
 		const bool data_path_exists = QDir(data_path).exists();
-		const QString data_file_name = SqliteDataStore::MakeFilename(email, league);
+		const QString data_file_name = SqliteDataStore::MakeFilename(account, league);
 		const QString data_file_path = data_path + QDir::separator() + data_file_name;
 		data_ = std::make_unique<SqliteDataStore>(data_file_path);
 		if (data_path_exists) {

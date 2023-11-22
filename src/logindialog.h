@@ -57,7 +57,6 @@ private:
 	MainWindow* mw;
 	QString settings_path_;
 	QString saved_league_;
-	std::string account_;
 	std::vector<std::string> leagues_;
 	bool asked_to_update_;
 };
