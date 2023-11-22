@@ -150,8 +150,8 @@ const std::string& Buyout::CurrencyAsTag() const
 bool Buyout::operator==(const Buyout& o) const {
 	static const double eps = 1e-6;
 	return std::fabs(o.value - value) < eps && o.type == type
-		   && o.currency == currency && o.inherited == inherited
-		   && o.source == source;
+		&& o.currency == currency && o.inherited == inherited
+		&& o.source == source;
 }
 
 bool Buyout::operator!=(const Buyout& o) const {

@@ -87,7 +87,7 @@ int Util::TextWidth(TextWidthId id) {
 		QLineEdit textbox;
 		QFontMetrics fm(textbox.fontMetrics());
 		for (size_t i = 0; i < width_strings.size(); ++i)
-            result[i] = fm.horizontalAdvance(width_strings[i].c_str());
+			result[i] = fm.horizontalAdvance(width_strings[i].c_str());
 	}
 	return result[static_cast<int>(id)];
 }
@@ -102,7 +102,7 @@ std::string Util::GetCsrfToken(const QByteArray& page, const std::string& name) 
 	//  name="hash" value="..."
 	//	or
 	//	name="hash" class="input-error" value="..."
-    static const QString expr = QString(
+	static const QString expr = QString(
 		R"regex(
 			name="%1"
 			\s+
@@ -112,7 +112,7 @@ std::string Util::GetCsrfToken(const QByteArray& page, const std::string& name) 
 			)?
 			value="(.*?)"
 		)regex").arg(QString::fromStdString(name));
-    static const QRegularExpression re(expr,
+	static const QRegularExpression re(expr,
 		QRegularExpression::CaseInsensitiveOption |
 		QRegularExpression::MultilineOption |
 		QRegularExpression::DotMatchesEverythingOption |
@@ -137,10 +137,10 @@ std::string Util::RapidjsonSerialize(const rapidjson::Value& val) {
 }
 
 void Util::RapidjsonAddConstString(rapidjson::Value* object, const char* const name, const std::string& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc) {
-    rapidjson::Value rjson_name;
-    rjson_name.SetString(name, rapidjson::SizeType(strlen(name)));
-    rapidjson::Value rjson_val;
-    rjson_val.SetString(value.c_str(), rapidjson::SizeType(value.size()));
+	rapidjson::Value rjson_name;
+	rjson_name.SetString(name, rapidjson::SizeType(strlen(name)));
+	rapidjson::Value rjson_val;
+	rjson_val.SetString(value.c_str(), rapidjson::SizeType(value.size()));
 	object->AddMember(rjson_name, rjson_val, alloc);
 }
 
@@ -262,12 +262,12 @@ QColor Util::recommendedForegroundTextColor(const QColor& backgroundColor) {
 	float G = (float)backgroundColor.green() / 255.0f;
 	float B = (float)backgroundColor.blue() / 255.0f;
 
-    const float gamma = 2.2f;
-    float L = 0.2126f * pow(R, gamma)
-        + 0.7152f * pow(G, gamma)
-        + 0.0722f * pow(B, gamma);
+	const float gamma = 2.2f;
+	float L = 0.2126f * pow(R, gamma)
+		+ 0.7152f * pow(G, gamma)
+		+ 0.0722f * pow(B, gamma);
 
-    return (L > 0.5f) ? QColor(QColorConstants::Black) : QColor(QColorConstants::White);
+	return (L > 0.5f) ? QColor(QColorConstants::Black) : QColor(QColorConstants::White);
 }
 
 std::string Util::hexStr(const uint8_t* data, int len)
@@ -287,27 +287,27 @@ std::string Util::hexStr(const uint8_t* data, int len)
 // Obsolete timezones are allowed by RFC2822, but they aren't parsed by
 // QT 6.5.3 so we have to fix them manually.
 QByteArray Util::FixTimezone(const QByteArray& rfc2822_date) {
-    const std::vector<std::pair<QByteArray,QByteArray>> OBSOLETE_ZONES = {
-        {"GMT", "+0000"},
-        {"UT" , "+0000"},
-        {"EST", "-0005"},
-        {"EDT", "-0004"},
-        {"CST", "-0006"},
-        {"CDT", "-0005"},
-        {"MST", "-0007"},
-        {"MDT", "-0006"},
-        {"PST", "-0008"},
-        {"PDT", "-0007"}
-    };
-    for (auto& pair : OBSOLETE_ZONES) {
-        const QByteArray& zone = pair.first;
-        const QByteArray& offset = pair.second;
-        if (rfc2822_date.endsWith(zone)) {
-            const int k = rfc2822_date.length() - zone.length();
-            return rfc2822_date.left(k) + offset;
-        };
-    };
-    return rfc2822_date;
+	const std::vector<std::pair<QByteArray, QByteArray>> OBSOLETE_ZONES = {
+		{"GMT", "+0000"},
+		{"UT" , "+0000"},
+		{"EST", "-0005"},
+		{"EDT", "-0004"},
+		{"CST", "-0006"},
+		{"CDT", "-0005"},
+		{"MST", "-0007"},
+		{"MDT", "-0006"},
+		{"PST", "-0008"},
+		{"PDT", "-0007"}
+	};
+	for (auto& pair : OBSOLETE_ZONES) {
+		const QByteArray& zone = pair.first;
+		const QByteArray& offset = pair.second;
+		if (rfc2822_date.endsWith(zone)) {
+			const int k = rfc2822_date.length() - zone.length();
+			return rfc2822_date.left(k) + offset;
+		};
+	};
+	return rfc2822_date;
 }
 
 QDebug& operator<<(QDebug& os, const RefreshReason::Type& obj)
@@ -332,7 +332,7 @@ QDebug& operator<<(QDebug& os, const QsLogging::Level& obj) {
 	case QsLogging::Level::WarnLevel: return os << "WARN";
 	case QsLogging::Level::ErrorLevel: return os << "ERROR";
 	case QsLogging::Level::FatalLevel: return os << "FATAL";
-    case QsLogging::Level::OffLevel: return os << "OFF";
-    default: return os << "None (log level is invalid)";
+	case QsLogging::Level::OffLevel: return os << "OFF";
+	default: return os << "None (log level is invalid)";
 	};
 }

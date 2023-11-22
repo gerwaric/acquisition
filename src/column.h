@@ -36,8 +36,8 @@ public:
 	virtual bool lt(const Item* lhs, const Item* rhs) const;
 	virtual ~Column() {}
 private:
-    typedef std::tuple<double, std::string, double, std::string, const Item&> sort_tuple;
-    sort_tuple multivalue(const Item* item) const;
+	typedef std::tuple<double, std::string, double, std::string, const Item&> sort_tuple;
+	sort_tuple multivalue(const Item* item) const;
 };
 
 class NameColumn : public Column {

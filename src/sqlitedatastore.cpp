@@ -47,9 +47,9 @@ SqliteDataStore::SqliteDataStore(const QString& filename) :
 		"  value BLOB,"
 		"  PRIMARY KEY (key)"
 		")");
-	
+
 	SimpleQuery(db,
-		"CREATE TABLE IF NOT EXISTS tabs (" 
+		"CREATE TABLE IF NOT EXISTS tabs ("
 		"  id TEXT NOT NULL,"
 		"  type INT NOT NULL,"
 		"  label TEXT,"
