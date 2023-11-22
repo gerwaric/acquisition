@@ -26,6 +26,7 @@
 #include "QsLog.h"
 
 #include "application.h"
+#include "buyout.h"
 #include "buyoutmanager.h"
 #include "datastore.h"
 #include "itemsmanagerworker.h"

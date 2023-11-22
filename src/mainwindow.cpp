@@ -39,6 +39,7 @@
 #include "QsLog.h"
 
 #include "application.h"
+#include "buyout.h"
 #include "buyoutmanager.h"
 #include "currency.h"
 #include "currencymanager.h"

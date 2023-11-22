@@ -45,6 +45,7 @@ SOURCES += \
 	src/poe_api/poe_stash.cpp \
 	src/application.cpp \
 	src/bucket.cpp \
+	src/buyout.cpp \
 	src/buyoutmanager.cpp \
 	src/column.cpp \
 	src/currency.cpp \
@@ -102,6 +103,7 @@ HEADERS += \
 	src/poe_api/poe_stash.h \
 	src/application.h \
 	src/bucket.h \
+	src/buyout.h \
 	src/buyoutmanager.h \
 	src/column.h \
 	src/currency.h \

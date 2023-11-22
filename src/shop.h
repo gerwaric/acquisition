@@ -25,7 +25,7 @@
 #include <string>
 #include <vector>
 #include "item.h"
-#include "buyoutmanager.h"
+#include "buyout.h"
 
 struct CurrentStatusUpdate;
 extern const std::string kShopTemplateItems;
