@@ -96,14 +96,14 @@
        </property>
       </widget>
      </item>
-     <item row="3" column="0">
-      <widget class="QLabel" name="errorLabel">
-       <property name="text">
-        <string>No error</string>
-       </property>
-      </widget>
-     </item>
     </layout>
+   </item>
+   <item>
+    <widget class="QLabel" name="errorLabel">
+     <property name="text">
+      <string>No error</string>
+     </property>
+    </widget>
    </item>
    <item>
     <widget class="QPushButton" name="loginButton">
@@ -131,6 +131,7 @@
   <zorder>loginButton</zorder>
   <zorder>loginTabs</zorder>
   <zorder>label</zorder>
+  <zorder>errorLabel</zorder>
  </widget>
  <resources/>
  <connections/>

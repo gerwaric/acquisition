@@ -205,12 +205,12 @@ void MainWindow::InitializeUi() {
 	ui->scrollArea->setFrameShape(QFrame::NoFrame);
 	ui->scrollArea->setWidgetResizable(true);
 
-	ui->horizontalLayout_2->insertWidget(0, scroll_area);
+	ui->horizontalSearchLayout->insertWidget(0, scroll_area);
 	search_form_container->show();
 
-	ui->horizontalLayout_2->setStretchFactor(0, 2);
-	ui->horizontalLayout_2->setStretchFactor(1, 5);
-	ui->horizontalLayout_2->setStretchFactor(2, 0);
+	ui->horizontalSearchLayout->setStretchFactor(0, 2);
+	ui->horizontalSearchLayout->setStretchFactor(1, 5);
+	ui->horizontalSearchLayout->setStretchFactor(2, 0);
 
 	ui->treeView->setContextMenuPolicy(Qt::CustomContextMenu);
 	ui->treeView->setSelectionMode(QAbstractItemView::ExtendedSelection);
