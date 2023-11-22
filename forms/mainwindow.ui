@@ -18,7 +18,7 @@
     <item row="0" column="0">
      <layout class="QVBoxLayout" name="mainLayout">
       <item>
-       <widget class="QSplitter" name="horizontalLayout_2">
+       <widget class="QSplitter" name="horizontalSearchLayout">
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
         </property>
@@ -52,7 +52,7 @@
              </spacer>
             </item>
             <item>
-             <widget class="QLabel" name="label">
+             <widget class="QLabel" name="viewLabel">
               <property name="text">
                <string>View:</string>
               </property>
@@ -119,7 +119,7 @@
                 </sizepolicy>
                </property>
                <property name="currentIndex">
-                <number>0</number>
+                <number>1</number>
                </property>
                <widget class="QWidget" name="itemInfoTooltip">
                 <attribute name="title">
@@ -438,9 +438,17 @@
      <addaction name="actionShowOAuthToken"/>
      <addaction name="actionRefreshOAuthToken"/>
     </widget>
+    <widget class="QMenu" name="menuBuyouts">
+     <property name="title">
+      <string>Buyouts</string>
+     </property>
+     <addaction name="actionClearManualBuyouts"/>
+     <addaction name="actionImportOldBuyouts"/>
+    </widget>
     <addaction name="menuTheme"/>
     <addaction name="menuLogging"/>
     <addaction name="menuOAuth"/>
+    <addaction name="menuBuyouts"/>
    </widget>
    <addaction name="menuTabs"/>
    <addaction name="menuShop"/>
@@ -633,6 +641,16 @@
   <action name="actionRefreshOAuthToken">
    <property name="text">
     <string>Refresh current token</string>
+   </property>
+  </action>
+  <action name="actionClearManualBuyouts">
+   <property name="text">
+    <string>Clear manual buyouts</string>
+   </property>
+  </action>
+  <action name="actionImportOldBuyouts">
+   <property name="text">
+    <string>Import manual buyouts</string>
    </property>
   </action>
  </widget>
