@@ -28,6 +28,11 @@
 
 #include "QsLog.h"
 
+#include "json_struct/json_struct.h"
+#include <boost/algorithm/string/join.hpp>
+#include <optional>
+#include <tuple>
+
 #include "modlist.h"
 #include "util.h"
 #include "porting.h"
@@ -385,7 +390,119 @@ void Item::GenerateMods(const rapidjson::Value& json) {
 	}
 }
 
+struct ImportedSocket {
+	unsigned int group;
+	std::optional<std::string> attr;
+	std::optional<std::string> sColour;
+	JS_OBJ(group, attr, sColour);
+};
+
+struct ImportedHybrid {
+	std::optional<bool> isVaalGem;
+	std::string baseTypeName;
+	JS_OBJ(isVaalGem, baseTypeName);
+};
+
+struct ImportedProperty {
+	std::string name;
+	std::vector<std::tuple<std::string, unsigned int>> values;
+	JS_OBJ(name, values);
+};
+
+struct ImportedItem {
+	std::optional<std::vector<ImportedSocket>> sockets;
+	std::string name;
+	std::string typeLine;
+	std::optional<std::vector<ImportedProperty>> properties;
+	std::optional<std::vector<ImportedProperty>> additionalProperties;
+	std::optional<std::vector<std::string>> implicitMods;
+	std::optional<std::vector<std::string>> explicitMods;
+	std::optional<ImportedHybrid> hybrid;
+	std::optional<std::string> _tab_label;
+	std::optional<std::string> _character;
+	JS_OBJ(sockets, name, typeLine, properties, additionalProperties, implicitMods, explicitMods, hybrid, _tab_label, _character);
+};
+
+// Fix up names by removing all <<set:X>> modifiers
+std::string fixup_legacy_name(const std::string& name) {
+	std::string::size_type right_shift = name.rfind(">>");
+	if (right_shift != std::string::npos) {
+		return name.substr(right_shift + 2);
+	}
+	return name;
+}
+
+// Fix up typeLine
+std::string fixup_legacy_typeline(const ImportedItem& item) {
+	return item.typeLine;
+	if ((item.hybrid) && (item.hybrid->isVaalGem.value_or(false) == false)) {
+		return fixup_legacy_name(item.hybrid->baseTypeName);
+	} else {
+		return fixup_legacy_name(item.typeLine);
+	};
+}
+
+
 void Item::CalculateHash(const rapidjson::Value& json) {
+
+	const std::string json_item = Util::RapidjsonSerialize(json);
+
+	ImportedItem legacy_item;
+	JS::ParseContext context(json_item);
+	JS::Error error = context.parseTo(legacy_item);
+	if (error != JS::Error::NoError) {
+		QLOG_ERROR() << "Error parsing imported item:" << context.makeErrorString();
+	};
+
+	legacy_item.name = fixup_legacy_name(legacy_item.name);
+	legacy_item.typeLine = fixup_legacy_typeline(legacy_item);
+
+	if (legacy_item._tab_label && legacy_item._character) {
+		QLOG_ERROR() << "Imported item has both \"_tab_label\" and \"_character\".";
+	} else if (!legacy_item._tab_label && !legacy_item._character) {
+		QLOG_ERROR() << "Imported item has neither \"_tab_label\" not \"_character\".";
+	};
+
+	std::list<std::string> hash_parts;
+	hash_parts.push_back(legacy_item.name);
+	hash_parts.push_back(legacy_item.typeLine);
+	// Add mods.
+	for (auto mods : { legacy_item.explicitMods, legacy_item.implicitMods }) {
+		if (mods) {
+			for (auto& mod : *mods) {
+				hash_parts.push_back(mod);
+			};
+		};
+	};
+	// Add properties.
+	for (auto properties : { legacy_item.properties, legacy_item.additionalProperties }) {
+		if (properties) {
+			for (auto& prop : *legacy_item.properties) {
+				hash_parts.push_back(prop.name);
+				for (auto& value : prop.values) {
+					hash_parts.push_back(std::get<0>(value));
+				};
+			};
+			hash_parts.push_back("~");
+		};
+	};
+	// Add sockets.
+	if (legacy_item.sockets) {
+		for (auto& socket : *legacy_item.sockets) {
+			if (socket.attr) {
+				hash_parts.push_back(std::to_string(socket.group));
+				hash_parts.push_back(*socket.attr);
+			};
+		};
+	};
+	// Add location identifier.
+	hash_parts.push_back("");
+	hash_parts.push_back(legacy_item._tab_label
+		? "stash:" + *legacy_item._tab_label
+		: "character:" + *legacy_item._character);
+	const std::string unique_new_alt = boost::algorithm::join(hash_parts, "~");
+	const std::string hash_alt = Util::Md5(unique_new_alt);
+
 	std::string unique_new = name_ + "~" + typeLine_ + "~";
 	// GGG removed the <<set>> things in patch 3.4.3e but our hashes all include them, oops
 	std::string unique_old = "<<set:MS>><<set:M>><<set:S>>" + unique_new;
@@ -416,6 +533,15 @@ void Item::CalculateHash(const rapidjson::Value& json) {
 
 	unique_old += unique_common;
 	unique_new += unique_common;
+
+	if (unique_new != unique_new_alt) {
+		QLOG_ERROR() << "Alternate hash string is different.";
+		QLOG_ERROR() << "original:" << unique_new;
+		QLOG_ERROR() << "re-impl: " << unique_new_alt;
+	};
+	if (hash_ != hash_alt) {
+		QLOG_ERROR() << "Alternate hash is different.";
+	};
 
 	old_hash_ = Util::Md5(unique_old);
 	hash_ = Util::Md5(unique_new);
