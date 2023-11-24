@@ -410,8 +410,9 @@ struct ImportedProperty {
 };
 
 struct ImportedItem {
+	typedef std::map<std::string, std::string> StringMap;
 	ImportedItem(const std::string& json);
-	void FixLegacyName(std::string& name);
+	const StringMap hashes() const { return hashes_; };
 	std::optional<std::vector<ImportedSocket>> sockets;
 	std::string name;
 	std::string typeLine;
@@ -424,6 +425,12 @@ struct ImportedItem {
 	std::optional<std::string> _tab_label;
 	std::optional<std::string> _character;
 	JS_OBJ(sockets, name, typeLine, properties, additionalProperties, implicitMods, explicitMods, hybrid, _type, _tab_label, _character);
+private:
+	void FixLegacyName(std::string& name);
+	void PrepareHashes();
+	std::string CommonHashString();
+	const std::string json_;
+	StringMap hashes_;
 };
 
 // Fix up names by removing all <<set:X>> modifiers
@@ -434,8 +441,9 @@ void ImportedItem::FixLegacyName(std::string& name) {
 	};
 }
 
-ImportedItem::ImportedItem(const std::string& json) {
-
+ImportedItem::ImportedItem(const std::string& json) :
+	json_(json)
+{
 	// Parse the json.
 	JS::ParseContext context(json);
 	JS::Error error = context.parseTo(*this);
@@ -464,87 +472,95 @@ ImportedItem::ImportedItem(const std::string& json) {
 		QLOG_ERROR() << "Imported item: _type is invalid:" << _type << ":" << json;
 		break;
 	};
+
+	PrepareHashes();
 }
 
-void Item::CalculateHash(const rapidjson::Value& json) {
-	
-	ImportedItem legacy_item(Util::RapidjsonSerialize(json));
+void ImportedItem::PrepareHashes() {
+
+	// Build a list of potential names.
+	std::list<std::string> possible_names;
+	possible_names.push_back(name);
+	possible_names.push_back("<<set:MS>><<set:M>><<set:S>>" + name);
+
+	// Build a list of potential typelines.
+	std::list<std::string> possible_typelines;
+	possible_typelines.push_back(typeLine);
+	if (hybrid) {
+		possible_typelines.push_back(hybrid->baseTypeName);
+	};
+
+	const std::string common(CommonHashString());
+
+	for (auto& possible_name : possible_names) {
+		for (auto& possible_typeline : possible_typelines) {
+
+			const auto input = possible_name + "~" + possible_typeline + "~" + common;
+			//hash_parts.push_front(possible_typeline);
+			//hash_parts.push_front(possible_name);
+			//const std::string input = boost::algorithm::join(hash_parts, "~");
+			const std::string md5 = Util::Md5(input);
+			hashes_[md5] = input;
+			//hash_parts.pop_front();
+			//hash_parts.pop_front();
+		};
+	};
+}
+
+std::string ImportedItem::CommonHashString() {
 
 	// These items will be joined with "~" and hashed with md5.
-	std::list<std::string> hash_parts;
+	std::list<std::string> parts;
 
 	// Add mods.
-	for (auto mods : { legacy_item.explicitMods, legacy_item.implicitMods }) {
+	for (auto mods : { explicitMods, implicitMods }) {
 		if (mods) {
 			for (auto& mod : *mods) {
-				hash_parts.push_back(mod);
+				parts.push_back(mod);
 			};
 		};
 	};
 	// Add properties.
-	for (auto properties : { legacy_item.properties, legacy_item.additionalProperties }) {
+	for (auto properties : { properties, additionalProperties }) {
 		if (properties) {
 			for (auto& prop : *properties) {
-				hash_parts.push_back(prop.name);
+				parts.push_back(prop.name);
 				for (auto& value : prop.values) {
-					hash_parts.push_back(std::get<0>(value));
+					parts.push_back(std::get<0>(value));
 				};
 			};
 		};
-		hash_parts.push_back("");
+		parts.push_back("");
 	};
 
 	// Add sockets.
-	if (legacy_item.sockets) {
-		for (auto& socket : *legacy_item.sockets) {
+	if (sockets) {
+		for (auto& socket : *sockets) {
 			if (socket.attr) {
-				hash_parts.push_back(std::to_string(socket.group));
-				hash_parts.push_back(*socket.attr);
+				parts.push_back(std::to_string(socket.group));
+				parts.push_back(*socket.attr);
 			};
 		};
 	};
 
 	// Add location identifier.
-	switch (ItemLocationType(legacy_item._type)) {
+	switch (ItemLocationType(_type)) {
 	case ItemLocationType::STASH:
-		hash_parts.push_back("~stash:" + *legacy_item._tab_label);
+		parts.push_back("~stash:" + *_tab_label);
 		break;
 	case ItemLocationType::CHARACTER:
-		hash_parts.push_back("~character:" + *legacy_item._character);
+		parts.push_back("~character:" + *_character);
 		break;
 	default:
-		QLOG_ERROR() << "Legacy item has invalid _type:" << legacy_item._type;
+		QLOG_ERROR() << "Legacy item has invalid _type:" << _type;
 		break;
 	};
 
-	// Build a list of potential names.
-	std::list<std::string> possible_names;
-	possible_names.push_back(legacy_item.name);
-	possible_names.push_back("<<set:MS>><<set:M>><<set:S>>" + legacy_item.name);
+	return boost::algorithm::join(parts, "~");
+}
 
-	// Build a list of potential typelines.
-	std::list<std::string> possible_typelines;
-	possible_typelines.push_back(legacy_item.typeLine);
-	if (legacy_item.hybrid) {
-		possible_typelines.push_back(legacy_item.hybrid->baseTypeName);
-	};
-
-	std::list<std::string> possible_hash_inputs;
-	for (auto& possible_name : possible_names) {
-		for (auto& possible_typeline : possible_typelines) {
-			hash_parts.push_front(possible_typeline);
-			hash_parts.push_front(possible_name);
-			possible_hash_inputs.push_back(boost::algorithm::join(hash_parts, "~"));
-			hash_parts.pop_front();
-			hash_parts.pop_front();
-		};
-	};
-
-	std::set<std::string> possible_hashes;
-	for (auto& hash_input : possible_hash_inputs) {
-		possible_hashes.insert(Util::Md5(hash_input));
-	};
-
+void Item::CalculateHash(const rapidjson::Value& json) {
+	
 	std::string unique_new = name_ + "~" + typeLine_ + "~";
 	// GGG removed the <<set>> things in patch 3.4.3e but our hashes all include them, oops
 	std::string unique_old = "<<set:MS>><<set:M>><<set:S>>" + unique_new;
@@ -579,12 +595,16 @@ void Item::CalculateHash(const rapidjson::Value& json) {
 	old_hash_ = Util::Md5(unique_old);
 	hash_ = Util::Md5(unique_new);
 
+	ImportedItem imported(Util::RapidjsonSerialize(json));
+
+	const auto possible_hashes = imported.hashes();
+
 	if (!possible_hashes.count(hash_) && !possible_hashes.count(old_hash_)) {
 		QLOG_ERROR() << "Unable to duplicate hash:";
 		QLOG_ERROR() << "unique_old =" << unique_old;
 		QLOG_ERROR() << "unique_new =" << unique_new;
-		for (auto& possible_hash_input : possible_hash_inputs) {
-			QLOG_ERROR() << "possible =" << possible_hash_input;
+		for (auto& md5 : possible_hashes) {
+			QLOG_ERROR() << "possible =" << md5.second;
 		};
 		return;
 	};
