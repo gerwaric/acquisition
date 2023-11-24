@@ -410,6 +410,8 @@ struct ImportedProperty {
 };
 
 struct ImportedItem {
+	ImportedItem(const std::string& json);
+	void FixLegacyName(std::string& name);
 	std::optional<std::vector<ImportedSocket>> sockets;
 	std::string name;
 	std::string typeLine;
@@ -418,54 +420,59 @@ struct ImportedItem {
 	std::optional<std::vector<std::string>> implicitMods;
 	std::optional<std::vector<std::string>> explicitMods;
 	std::optional<ImportedHybrid> hybrid;
+	int _type;
 	std::optional<std::string> _tab_label;
 	std::optional<std::string> _character;
-	JS_OBJ(sockets, name, typeLine, properties, additionalProperties, implicitMods, explicitMods, hybrid, _tab_label, _character);
+	JS_OBJ(sockets, name, typeLine, properties, additionalProperties, implicitMods, explicitMods, hybrid, _type, _tab_label, _character);
 };
 
 // Fix up names by removing all <<set:X>> modifiers
-std::string fixup_legacy_name(const std::string& name) {
+void ImportedItem::FixLegacyName(std::string& name) {
 	std::string::size_type right_shift = name.rfind(">>");
 	if (right_shift != std::string::npos) {
-		return name.substr(right_shift + 2);
-	}
-	return name;
-}
-
-// Fix up typeLine
-std::string fixup_legacy_typeline(const ImportedItem& item) {
-	return item.typeLine;
-	if ((item.hybrid) && (item.hybrid->isVaalGem.value_or(false) == false)) {
-		return fixup_legacy_name(item.hybrid->baseTypeName);
-	} else {
-		return fixup_legacy_name(item.typeLine);
+		name = name.substr(right_shift + 2);
 	};
 }
 
+ImportedItem::ImportedItem(const std::string& json) {
 
-void Item::CalculateHash(const rapidjson::Value& json) {
-
-	const std::string json_item = Util::RapidjsonSerialize(json);
-
-	ImportedItem legacy_item;
-	JS::ParseContext context(json_item);
-	JS::Error error = context.parseTo(legacy_item);
+	// Parse the json.
+	JS::ParseContext context(json);
+	JS::Error error = context.parseTo(*this);
 	if (error != JS::Error::NoError) {
 		QLOG_ERROR() << "Error parsing imported item:" << context.makeErrorString();
 	};
 
-	legacy_item.name = fixup_legacy_name(legacy_item.name);
-	legacy_item.typeLine = fixup_legacy_typeline(legacy_item);
-
-	if (legacy_item._tab_label && legacy_item._character) {
-		QLOG_ERROR() << "Imported item has both \"_tab_label\" and \"_character\".";
-	} else if (!legacy_item._tab_label && !legacy_item._character) {
-		QLOG_ERROR() << "Imported item has neither \"_tab_label\" not \"_character\".";
+	// Fixup name fields the same way acquistion v0.9.7 and earlier did.
+	FixLegacyName(name);
+	FixLegacyName(typeLine);
+	if (hybrid) {
+		FixLegacyName(hybrid->baseTypeName);
 	};
 
+	// Make sure this tab looks like either a stash or a character.
+	switch (ItemLocationType(_type)) {
+	case ItemLocationType::STASH:
+		if (!_tab_label) QLOG_ERROR() << "Imported item: _type is STASH, but _tab_label is missing:" << json;
+		if (_character) QLOG_ERROR() << "Imported item: _type is STASH, but _character is present:" << json;
+		break;
+	case ItemLocationType::CHARACTER:
+		if (!_character) QLOG_ERROR() << "Imported item: _type is CHARACTER, but _character is missing:" << json;
+		if (_tab_label) QLOG_ERROR() << "Imported item: _type is CHARACTER, but _tab_label is present:" << json;
+		break;
+	default:
+		QLOG_ERROR() << "Imported item: _type is invalid:" << _type << ":" << json;
+		break;
+	};
+}
+
+void Item::CalculateHash(const rapidjson::Value& json) {
+	
+	ImportedItem legacy_item(Util::RapidjsonSerialize(json));
+
+	// These items will be joined with "~" and hashed with md5.
 	std::list<std::string> hash_parts;
-	hash_parts.push_back(legacy_item.name);
-	hash_parts.push_back(legacy_item.typeLine);
+
 	// Add mods.
 	for (auto mods : { legacy_item.explicitMods, legacy_item.implicitMods }) {
 		if (mods) {
@@ -477,15 +484,16 @@ void Item::CalculateHash(const rapidjson::Value& json) {
 	// Add properties.
 	for (auto properties : { legacy_item.properties, legacy_item.additionalProperties }) {
 		if (properties) {
-			for (auto& prop : *legacy_item.properties) {
+			for (auto& prop : *properties) {
 				hash_parts.push_back(prop.name);
 				for (auto& value : prop.values) {
 					hash_parts.push_back(std::get<0>(value));
 				};
 			};
-			hash_parts.push_back("~");
 		};
+		hash_parts.push_back("");
 	};
+
 	// Add sockets.
 	if (legacy_item.sockets) {
 		for (auto& socket : *legacy_item.sockets) {
@@ -495,13 +503,47 @@ void Item::CalculateHash(const rapidjson::Value& json) {
 			};
 		};
 	};
+
 	// Add location identifier.
-	hash_parts.push_back("");
-	hash_parts.push_back(legacy_item._tab_label
-		? "stash:" + *legacy_item._tab_label
-		: "character:" + *legacy_item._character);
-	const std::string unique_new_alt = boost::algorithm::join(hash_parts, "~");
-	const std::string hash_alt = Util::Md5(unique_new_alt);
+	switch (ItemLocationType(legacy_item._type)) {
+	case ItemLocationType::STASH:
+		hash_parts.push_back("~stash:" + *legacy_item._tab_label);
+		break;
+	case ItemLocationType::CHARACTER:
+		hash_parts.push_back("~character:" + *legacy_item._character);
+		break;
+	default:
+		QLOG_ERROR() << "Legacy item has invalid _type:" << legacy_item._type;
+		break;
+	};
+
+	// Build a list of potential names.
+	std::list<std::string> possible_names;
+	possible_names.push_back(legacy_item.name);
+	possible_names.push_back("<<set:MS>><<set:M>><<set:S>>" + legacy_item.name);
+
+	// Build a list of potential typelines.
+	std::list<std::string> possible_typelines;
+	possible_typelines.push_back(legacy_item.typeLine);
+	if (legacy_item.hybrid) {
+		possible_typelines.push_back(legacy_item.hybrid->baseTypeName);
+	};
+
+	std::list<std::string> possible_hash_inputs;
+	for (auto& possible_name : possible_names) {
+		for (auto& possible_typeline : possible_typelines) {
+			hash_parts.push_front(possible_typeline);
+			hash_parts.push_front(possible_name);
+			possible_hash_inputs.push_back(boost::algorithm::join(hash_parts, "~"));
+			hash_parts.pop_front();
+			hash_parts.pop_front();
+		};
+	};
+
+	std::set<std::string> possible_hashes;
+	for (auto& hash_input : possible_hash_inputs) {
+		possible_hashes.insert(Util::Md5(hash_input));
+	};
 
 	std::string unique_new = name_ + "~" + typeLine_ + "~";
 	// GGG removed the <<set>> things in patch 3.4.3e but our hashes all include them, oops
@@ -534,17 +576,18 @@ void Item::CalculateHash(const rapidjson::Value& json) {
 	unique_old += unique_common;
 	unique_new += unique_common;
 
-	if (unique_new != unique_new_alt) {
-		QLOG_ERROR() << "Alternate hash string is different.";
-		QLOG_ERROR() << "original:" << unique_new;
-		QLOG_ERROR() << "re-impl: " << unique_new_alt;
-	};
-	if (hash_ != hash_alt) {
-		QLOG_ERROR() << "Alternate hash is different.";
-	};
-
 	old_hash_ = Util::Md5(unique_old);
 	hash_ = Util::Md5(unique_new);
+
+	if (!possible_hashes.count(hash_) && !possible_hashes.count(old_hash_)) {
+		QLOG_ERROR() << "Unable to duplicate hash:";
+		QLOG_ERROR() << "unique_old =" << unique_old;
+		QLOG_ERROR() << "unique_new =" << unique_new;
+		for (auto& possible_hash_input : possible_hash_inputs) {
+			QLOG_ERROR() << "possible =" << possible_hash_input;
+		};
+		return;
+	};
 }
 
 bool Item::operator<(const Item& rhs) const {
