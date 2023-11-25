@@ -49,8 +49,8 @@ BuyoutManager::BuyoutManager(DataStore& data) :
 }
 
 void BuyoutManager::Set(const Item& item, const Buyout& buyout) {
-	auto it = buyouts_.lower_bound(item.hash());
-	if (it != buyouts_.end() && !(buyouts_.key_comp()(item.hash(), it->first))) {
+	auto it = buyouts_.lower_bound(item.id());
+	if (it != buyouts_.end() && !(buyouts_.key_comp()(item.id(), it->first))) {
 		// Entry exists - we don't want to update if buyout is equal to existing
 		if (buyout != it->second) {
 			save_needed_ = true;
@@ -58,12 +58,12 @@ void BuyoutManager::Set(const Item& item, const Buyout& buyout) {
 		}
 	} else {
 		save_needed_ = true;
-		buyouts_.insert(it, { item.hash(), buyout });
+		buyouts_.insert(it, { item.id(), buyout });
 	}
 }
 
 Buyout BuyoutManager::Get(const Item& item) const {
-	auto const it = buyouts_.find(item.hash());
+	auto const it = buyouts_.find(item.id());
 	if (it != buyouts_.end()) {
 		return it->second;
 	}
@@ -98,7 +98,7 @@ void BuyoutManager::CompressTabBuyouts() {
 	// currently exist.
 	std::set<std::string> tmp;
 	for (auto const& loc : tabs_)
-		tmp.insert(loc.GetUniqueHash());
+		tmp.insert(loc.id());
 
 	for (auto it = tab_buyouts_.begin(), ite = tab_buyouts_.end(); it != ite;) {
 		if (tmp.count(it->first) == 0) {
@@ -117,7 +117,7 @@ void BuyoutManager::CompressItemBuyouts(const Items& items) {
 	std::set<std::string> tmp;
 	for (auto const& item_sp : items) {
 		const Item& item = *item_sp;
-		tmp.insert(item.hash());
+		tmp.insert(item.id());
 	}
 
 	for (auto it = buyouts_.cbegin(); it != buyouts_.cend();) {
@@ -132,21 +132,21 @@ void BuyoutManager::CompressItemBuyouts(const Items& items) {
 
 void BuyoutManager::SetRefreshChecked(const ItemLocation& loc, bool value) {
 	save_needed_ = true;
-	refresh_checked_[loc.GetUniqueHash()] = value;
+	refresh_checked_[loc.id()] = value;
 }
 
 bool BuyoutManager::GetRefreshChecked(const ItemLocation& loc) const {
-	auto it = refresh_checked_.find(loc.GetUniqueHash());
+	auto it = refresh_checked_.find(loc.id());
 	bool refresh_checked = (it != refresh_checked_.end()) ? it->second : true;
 	return (refresh_checked || GetRefreshLocked(loc));
 }
 
 bool BuyoutManager::GetRefreshLocked(const ItemLocation& loc) const {
-	return refresh_locked_.count(loc.GetUniqueHash());
+	return refresh_locked_.count(loc.id());
 }
 
 void BuyoutManager::SetRefreshLocked(const ItemLocation& loc) {
-	refresh_locked_.insert(loc.GetUniqueHash());
+	refresh_locked_.insert(loc.id());
 }
 
 void BuyoutManager::ClearRefreshLocks() {
@@ -315,16 +315,4 @@ Buyout BuyoutManager::StringToBuyout(std::string format) {
 		tmp.last_update = QDateTime::currentDateTime();
 	}
 	return tmp;
-}
-
-void BuyoutManager::MigrateItem(const Item& item) {
-	std::string old_hash = item.old_hash();
-	std::string hash = item.hash();
-	auto it = buyouts_.find(old_hash);
-	auto new_it = buyouts_.find(hash);
-	if (it != buyouts_.end() && (new_it == buyouts_.end() || new_it->second.source != BUYOUT_SOURCE_MANUAL)) {
-		buyouts_[hash] = it->second;
-		buyouts_.erase(it);
-		save_needed_ = true;
-	}
 }

@@ -37,7 +37,7 @@ ItemLocation::ItemLocation(const PoE::Character& character) :
 	removeonly_(false),
 	type_(ItemLocationType::CHARACTER),
 	tab_id_(0),
-	tab_unique_id_(character.id),
+	id_(character.id),
 	character_(character.name)
 {}
 
@@ -51,7 +51,7 @@ ItemLocation::ItemLocation(const PoE::StashTab& stash) :
 	type_(ItemLocationType::STASH),
 	tab_id_(stash.index.value_or(0)),
 	tab_label_(stash.name),
-	tab_unique_id_(stash.id)
+	id_(stash.id)
 {}
 
 ItemLocation ItemLocation::OfItem(const PoE::Item& item) {
@@ -88,7 +88,7 @@ ItemLocation::ItemLocation(int tab_id, std::string tab_unique_id, std::string na
 		removeonly_ = false;
 		break;
 	};
-	tab_unique_id_ = tab_unique_id;
+	id_ = tab_unique_id;
 }
 
 
@@ -206,22 +206,7 @@ std::string ItemLocation::GetForumCode(const std::string& league) const {
 }
 
 bool ItemLocation::IsValid() const {
-	switch (type_) {
-	case ItemLocationType::STASH: return !tab_unique_id_.empty();
-	case ItemLocationType::CHARACTER: return !character_.empty();
-	default: return false;
-	};
-}
-
-std::string ItemLocation::GetUniqueHash() const {
-	if (!IsValid()) {
-		QLOG_ERROR() << "ItemLocation is invalid:" << json_.c_str();;
-	};
-	switch (type_) {
-	case ItemLocationType::STASH: return "stash:" + tab_label_; // TODO: tab labels are not guaranteed unique
-	case ItemLocationType::CHARACTER: return "character:" + character_;
-	default: return "";
-	};
+	return !id_.empty();
 }
 
 void ItemLocation::set_json(rapidjson::Value& value, rapidjson_allocator& alloc) {
@@ -232,18 +217,9 @@ void ItemLocation::set_json(rapidjson::Value& value, rapidjson_allocator& alloc)
 }
 
 bool ItemLocation::operator<(const ItemLocation& rhs) const {
-	if (type_ == rhs.type_) {
-		switch (type_) {
-		case ItemLocationType::STASH: return std::tie(type_, tab_id_) < std::tie(rhs.type_, rhs.tab_id_);
-		case ItemLocationType::CHARACTER: return std::tie(type_, character_) < std::tie(rhs.type_, rhs.character_);
-		default: return true;
-		};
-	} else {
-		// STASH locations will always be less than CHARACTER locations.
-		return (type_ == ItemLocationType::STASH);
-	};
+	return (type_ != rhs.type_) ? (type_ < rhs.type_) : (id_ < rhs.id_);
 }
 
 bool ItemLocation::operator==(const ItemLocation& other) const {
-	return get_tab_uniq_id() == other.get_tab_uniq_id();
+	return (type_ == other.type_) && (id_ == other.id_);
 }

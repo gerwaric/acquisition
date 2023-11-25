@@ -100,7 +100,7 @@ QVariant ItemsModel::data(const QModelIndex& index, int role) const {
 			if (!location.IsValid())
 				return "All Items";
 			QString title(location.GetHeader().c_str());
-			auto const& bo = bo_manager_.GetTab(location.GetUniqueHash());
+			auto const& bo = bo_manager_.GetTab(location.id());
 			if (bo.IsActive())
 				title += QString(" [%1]").arg(bo.AsText().c_str());
 			return title;
@@ -156,11 +156,11 @@ bool ItemsModel::setData(const QModelIndex& index, const QVariant& value, int ro
 		// way to differentiate these tabs so indicate dataChanged event for each tab with
 		// the same name as the current checked tab so the 'check' is properly updated in
 		// the layout
-		std::string target_hash = location.GetUniqueHash();
+		std::string target_hash = location.id();
 		auto row_count = rowCount();
 		for (int i = 0; i < row_count; ++i) {
 			auto match_index = this->index(i);
-			if (search_.GetTabLocation(match_index).GetUniqueHash() == target_hash)
+			if (search_.GetTabLocation(match_index).id() == target_hash)
 				emit dataChanged(match_index, match_index);
 		}
 

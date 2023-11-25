@@ -55,7 +55,6 @@ public:
 	void Save();
 	void Load();
 
-	void MigrateItem(const Item& item);
 private:
 	BuyoutType StringToBuyoutType(std::string bo_str) const;
 

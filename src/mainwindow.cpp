@@ -407,7 +407,7 @@ void MainWindow::OnBuyoutChange() {
 
 	BuyoutManager& bo_manager = app_.buyout_manager();
 	for (auto const& index : ui->treeView->selectionModel()->selectedIndexes()) {
-		auto const& tab = current_search_->GetTabLocation(index).GetUniqueHash();
+		auto const& tab = current_search_->GetTabLocation(index).id();
 
 		// Don't allow users to manually update locked tabs (game priced)
 		if (bo_manager.GetTab(tab).IsGameSet())
@@ -774,7 +774,7 @@ void MainWindow::UpdateCurrentBuyout() {
 	if (current_item_) {
 		UpdateBuyoutWidgets(app_.buyout_manager().Get(*current_item_));
 	} else {
-		std::string tab = current_bucket_.location().GetUniqueHash();
+		std::string tab = current_bucket_.location().id();
 		UpdateBuyoutWidgets(app_.buyout_manager().GetTab(tab));
 	}
 }

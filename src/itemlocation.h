@@ -34,7 +34,6 @@ public:
 	std::string GetHeader() const;
 	QRectF GetRect() const;
 	std::string GetForumCode(const std::string& league) const;
-	std::string GetUniqueHash() const;
 	bool IsValid() const;
 	bool operator<(const ItemLocation& other) const;
 	bool operator==(const ItemLocation& other) const;
@@ -52,7 +51,7 @@ public:
 	int getG() const { return green_; }
 	int getB() const { return blue_; }
 	void SetBackgroundColor(int r, int g, int b);
-	std::string get_tab_uniq_id() const { return tab_unique_id_; }
+	const std::string id() const { return id_; }
 	void set_json(rapidjson::Value& value, rapidjson_allocator& alloc);
 	void set_json(const std::string& value) { json_ = value; };
 	std::string get_json() const { return json_; }
@@ -66,7 +65,7 @@ private:
 	std::string json_;
 
 	//this would be the value "tabs -> id", which seems to be a hashed value generated on their end
-	std::string tab_unique_id_;
+	std::string id_;
 
 	std::string tab_label_;
 	std::string character_;

@@ -130,7 +130,7 @@ void ItemsManager::ApplyAutoTabBuyouts() {
 		auto tab_label = loc.get_tab_label();
 		Buyout buyout = bo.StringToBuyout(tab_label);
 		if (buyout.IsActive()) {
-			bo.SetTab(loc.GetUniqueHash(), buyout);
+			bo.SetTab(loc.id(), buyout);
 		};
 	};
 
@@ -167,7 +167,7 @@ void ItemsManager::PropagateTabBuyouts() {
 	bo.ClearRefreshLocks();
 	for (auto& item_ptr : items_) {
 		Item& item = *item_ptr;
-		std::string hash = item.location().GetUniqueHash();
+		std::string hash = item.location().id();
 		auto item_bo = bo.Get(item);
 		auto tab_bo = bo.GetTab(hash);
 
@@ -199,7 +199,6 @@ void ItemsManager::OnItemsRefreshed(const Items& items, const std::vector<ItemLo
 	QLOG_DEBUG() << "Number of items refreshed: " << items_.size() << "; Number of tabs refreshed: " << tabs.size() << "; Initial Refresh: " << initial_refresh;
 
 	app_.buyout_manager().SetStashTabLocations(tabs);
-	MigrateBuyouts();
 	ApplyAutoTabBuyouts();
 	ApplyAutoItemBuyouts();
 	PropagateTabBuyouts();
@@ -238,17 +237,4 @@ void ItemsManager::SetAutoUpdateInterval(int minutes) {
 
 void ItemsManager::OnAutoRefreshTimer() {
 	Update(TabSelection::Checked);
-}
-
-void ItemsManager::MigrateBuyouts() {
-	int db_version = app_.data().GetInt("db_version");
-	// Don't migrate twice
-	if (db_version == 5) {
-		return;
-	};
-	for (auto& item : items_) {
-		app_.buyout_manager().MigrateItem(*item);
-	};
-	app_.buyout_manager().Save();
-	app_.data().SetInt("db_version", 5);
 }

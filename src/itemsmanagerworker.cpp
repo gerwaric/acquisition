@@ -190,7 +190,7 @@ void ItemsManagerWorker::ParseItemMods() {
 
 	// Save location ids.
 	for (const auto& tab : tabs_) {
-		tab_id_index_.insert(tab.get_tab_uniq_id());
+		tab_id_index_.insert(tab.id());
 	};
 
 	// Get cached items
@@ -245,7 +245,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 			// Use the buyout manager to determine which tabs are check.
 			for (auto const& tab : tabs_) {
 				if ((tab.IsValid()) && (app_.buyout_manager().GetRefreshChecked(tab) == true)) {
-					tabs_to_update.insert(tab.get_tab_uniq_id());
+					tabs_to_update.insert(tab.id());
 				};
 			};
 			break;
@@ -253,7 +253,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 			// Use the function argument to determine which tabs were selected.
 			for (auto const& tab : locations) {
 				if (tab.IsValid()) {
-					tabs_to_update.insert(tab.get_tab_uniq_id());
+					tabs_to_update.insert(tab.id());
 				};
 			};
 			break;
@@ -282,11 +282,11 @@ void ItemsManagerWorker::RemoveUpdatingTabs(const std::set<std::string>& tab_ids
 	tabs_.clear();
 	tab_id_index_.clear();
 	for (auto& tab : current_tabs) {
-		const std::string tab_id = tab.get_tab_uniq_id();
-		bool save_tab = (tab_ids.count(tab.get_tab_uniq_id()) == 0);
+		const std::string tab_id = tab.id();
+		bool save_tab = (tab_ids.count(tab.id()) == 0);
 		if (save_tab) {
 			tabs_.push_back(tab);
-			tab_id_index_.insert(tab.get_tab_uniq_id());
+			tab_id_index_.insert(tab.id());
 		};
 	};
 	QLOG_DEBUG() << "Keeping" << tabs_.size() << "tabs and culling" << (current_tabs.size() - tabs_.size());
@@ -302,7 +302,7 @@ void ItemsManagerWorker::RemoveUpdatingItems(const std::set<std::string>& tab_id
 	items_.clear();
 	for (auto const& item : current_items) {
 		const ItemLocation& tab = item.get()->location();
-		bool save_item = (tab_ids.count(tab.get_tab_uniq_id()) == 0);
+		bool save_item = (tab_ids.count(tab.id()) == 0);
 		if (save_item) {
 			items_.push_back(item);
 		};
@@ -426,7 +426,7 @@ void ItemsManagerWorker::OnStashReceived(const PoE::GetStashResult& result) {
 
 	ItemLocation* location = nullptr;
 	for (auto& loc : tabs_) {
-		if (loc.get_tab_uniq_id() == result.stash.id) {
+		if (loc.id() == result.stash.id) {
 			location = &loc;
 		};
 	};
@@ -447,7 +447,7 @@ void ItemsManagerWorker::OnCharacterReceived(const PoE::GetCharacterResult& resu
 
 	ItemLocation* location = nullptr;
 	for (auto& loc : tabs_) {
-		if (loc.get_tab_uniq_id() == result.character.id) {
+		if (loc.id() == result.character.id) {
 			location = &loc;
 		};
 	};

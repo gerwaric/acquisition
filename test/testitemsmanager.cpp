@@ -63,7 +63,7 @@ void TestItemsManager::BuyoutPropagation() {
 
 	auto& bo = app_.buyout_manager();
 	Buyout buyout(123.0, BUYOUT_TYPE_BUYOUT, CURRENCY_ORB_OF_ALTERATION, QDateTime::currentDateTime());
-	bo.SetTab(first_tab.GetUniqueHash(), buyout);
+	bo.SetTab(first_tab.id(), buyout);
 
 	Items items = { first, second };
 	auto tabs = { first_tab, second_tab };
@@ -88,7 +88,7 @@ void TestItemsManager::UserSetBuyoutPropagation() {
 	Buyout item_buyout(123.0, BUYOUT_TYPE_BUYOUT, CURRENCY_ORB_OF_ALTERATION, QDateTime::currentDateTime());
 	Buyout tab_buyout(456.0, BUYOUT_TYPE_BUYOUT, CURRENCY_CHAOS_ORB, QDateTime::currentDateTime());
 	bo.Set(*first, item_buyout);
-	bo.SetTab(first_tab.GetUniqueHash(), tab_buyout);
+	bo.SetTab(first_tab.id(), tab_buyout);
 
 	Items items = { first, second };
 	auto tabs = { first_tab };
@@ -114,11 +114,9 @@ void TestItemsManager::MoveItemNoBoToBo() {
 	auto item_before = std::make_shared<Item>("First item", first_tab);
 	auto item_after = std::make_shared<Item>("First item", second_tab);
 
-	QVERIFY2(item_before->hash() == item_after->hash(), "Before/after must have equal hashes");
-
 	auto& bo = app_.buyout_manager();
 	Buyout tab_buyout(456.0, BUYOUT_TYPE_BUYOUT, CURRENCY_CHAOS_ORB, QDateTime::currentDateTime());
-	bo.SetTab(second_tab.GetUniqueHash(), tab_buyout);
+	bo.SetTab(second_tab.id(), tab_buyout);
 
 	auto tabs = { first_tab, second_tab };
 	// Put item into the first tab
@@ -143,11 +141,9 @@ void TestItemsManager::MoveItemBoToNoBo() {
 	auto item_before = std::make_shared<Item>("First item", first_tab);
 	auto item_after = std::make_shared<Item>("First item", second_tab);
 
-	QVERIFY2(item_before->hash() == item_after->hash(), "Before/after must have equal hashes");
-
 	auto& bo = app_.buyout_manager();
 	Buyout tab_buyout(456.0, BUYOUT_TYPE_BUYOUT, CURRENCY_CHAOS_ORB, QDateTime::currentDateTime());
-	bo.SetTab(first_tab.GetUniqueHash(), tab_buyout);
+	bo.SetTab(first_tab.id(), tab_buyout);
 
 	auto tabs = { first_tab, second_tab };
 	// Put item into the first tab
@@ -172,13 +168,13 @@ void TestItemsManager::MoveItemBoToBo() {
 	auto item_before = std::make_shared<Item>("First item", first_tab);
 	auto item_after = std::make_shared<Item>("First item", second_tab);
 
-	QVERIFY2(item_before->hash() == item_after->hash(), "Before/after must have equal hashes");
+	//QVERIFY2(item_before->hash() == item_after->hash(), "Before/after must have equal hashes");
 
 	auto& bo = app_.buyout_manager();
 	Buyout first_buyout(456.0, BUYOUT_TYPE_BUYOUT, CURRENCY_CHAOS_ORB, QDateTime::currentDateTime());
 	Buyout second_buyout(234.0, BUYOUT_TYPE_BUYOUT, CURRENCY_CARTOGRAPHERS_CHISEL, QDateTime::currentDateTime());
-	bo.SetTab(first_tab.GetUniqueHash(), first_buyout);
-	bo.SetTab(second_tab.GetUniqueHash(), second_buyout);
+	bo.SetTab(first_tab.id(), first_buyout);
+	bo.SetTab(second_tab.id(), second_buyout);
 
 	auto tabs = { first_tab, second_tab };
 	// Put item into the first tab

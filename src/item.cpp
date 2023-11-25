@@ -287,8 +287,6 @@ Item::Item(const PoE::Item& item, const ItemLocation& location) :
 		socket_groups_.push_back(current_group);
 	};
 
-	CalculateHash(item);
-
 	count_ = 1;
 	if (properties_.find("Stack Size") != properties_.end()) {
 		std::string size = properties_["Stack Size"];
@@ -316,7 +314,7 @@ Item::Item(const PoE::Item& item, const ItemLocation& location) :
 Item::Item(const std::string& name, const ItemLocation& location) :
 	name_(name),
 	location_(location),
-	hash_(Util::Md5(name)) // Unique enough for tests
+	uid_(Util::Md5(name + "|" + location.id())) //hash_(Util::Md5(name)) // Unique enough for tests
 {}
 
 // Parse from legacy api json.
@@ -532,8 +530,6 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
 		socket_groups_.push_back(current_group);
 	}
 
-	CalculateHash(json);
-
 	count_ = 1;
 	if (properties_.find("Stack Size") != properties_.end()) {
 		std::string size = properties_["Stack Size"];
@@ -653,54 +649,8 @@ void Item::GenerateMods(const rapidjson::Value& json) {
 	}
 }
 
-void Item::CalculateHash(const PoE::Item& item) {
-	old_hash_ = "";
-	if (!item.id) {
-		QLOG_FATAL() << "Item does not have a unique id:" << item.name;
-	};
-	hash_ = item.id.value();
-}
-
-void Item::CalculateHash(const rapidjson::Value& json) {
-	std::string unique_new = name_ + "~" + typeLine_ + "~";
-	// GGG removed the <<set>> things in patch 3.4.3e but our hashes all include them, oops
-	std::string unique_old = "<<set:MS>><<set:M>><<set:S>>" + unique_new;
-
-	std::string unique_common;
-
-	if (json.HasMember("explicitMods") && json["explicitMods"].IsArray())
-		for (auto& mod : json["explicitMods"])
-			if (mod.IsString())
-				unique_common += std::string(mod.GetString()) + "~";
-
-	if (json.HasMember("implicitMods") && json["implicitMods"].IsArray())
-		for (auto& mod : json["implicitMods"])
-			if (mod.IsString())
-				unique_common += std::string(mod.GetString()) + "~";
-
-	unique_common += item_unique_properties(json, "properties") + "~";
-	unique_common += item_unique_properties(json, "additionalProperties") + "~";
-
-	if (json.HasMember("sockets") && json["sockets"].IsArray())
-		for (auto& socket : json["sockets"]) {
-			if (!socket.HasMember("group") || !socket.HasMember("attr") || !socket["group"].IsInt() || !socket["attr"].IsString())
-				continue;
-			unique_common += std::to_string(socket["group"].GetInt()) + "~" + socket["attr"].GetString() + "~";
-		}
-
-	unique_common += "~" + location_.GetUniqueHash();
-
-	unique_old += unique_common;
-	unique_new += unique_common;
-
-	old_hash_ = Util::Md5(unique_old);
-	hash_ = Util::Md5(unique_new);
-}
-
 bool Item::operator<(const Item& rhs) const {
-	std::string name = PrettyName();
-	std::string rhs_name = rhs.PrettyName();
-	return std::tie(name, uid_, hash_) < std::tie(rhs_name, rhs.uid_, hash_);
+	return uid_ < rhs.uid_;
 }
 
 bool Item::Wearable() const {

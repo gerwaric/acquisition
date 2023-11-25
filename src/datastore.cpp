@@ -215,7 +215,7 @@ Locations DataStore::DeserializeTabs(const QString& tabs_json) {
 		ItemLocation loc(static_cast<int>(index), tabUniqueId, name, type, r, g, b);
 		loc.set_json(tab_json, doc.GetAllocator());
 		tabs.push_back(loc);
-		tab_id_index_.insert(loc.get_tab_uniq_id());
+		tab_id_index_.insert(loc.id());
 	};
 	return tabs;
 }

@@ -83,6 +83,7 @@ public:
 	explicit Item(const rapidjson::Value& json, const ItemLocation& loc);
 	Item(const std::string& name, const ItemLocation& location); // used by tests
 	std::string name() const { return name_; }
+	std::string id() const { return uid_; }
 	std::string typeLine() const { return typeLine_; }
 	std::string PrettyName() const;
 	bool identified() const { return identified_; }
@@ -102,8 +103,6 @@ public:
 	const std::vector<ItemRequirement>& text_requirements() const { return text_requirements_; }
 	const std::map<std::string, ItemMods>& text_mods() const { return text_mods_; }
 	const std::vector<ItemSocket>& text_sockets() const { return text_sockets_; }
-	const std::string& hash() const { return hash_; }
-	const std::string& old_hash() const { return old_hash_; }
 	const std::vector<std::pair<std::string, int>>& elemental_damage() const { return elemental_damage_; }
 	const std::map<std::string, int>& requirements() const { return requirements_; }
 	double DPS() const;
@@ -135,8 +134,6 @@ private:
 	// For now it only does that for a small chosen subset of mods (think "popular" + "pseudo" sections at poe.trade)
 	void GenerateMods(const PoE::Item& item);
 	void GenerateMods(const rapidjson::Value& json);
-	void CalculateHash(const PoE::Item& item);
-	void CalculateHash(const rapidjson::Value& json);
 
 	std::string name_;
 	ItemLocation location_;
@@ -153,7 +150,6 @@ private:
 	int frameType_;
 	std::string icon_;
 	std::map<std::string, std::string> properties_;
-	std::string old_hash_, hash_;
 	// vector of pairs [damage, type]
 	std::vector<std::pair<std::string, int>> elemental_damage_;
 	int sockets_cnt_, links_cnt_;

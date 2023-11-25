@@ -36,7 +36,7 @@ Locations MemoryDataStore::GetTabs(const ItemLocationType& type) {
 }
 
 Items MemoryDataStore::GetItems(const ItemLocation& loc) {
-	auto i = items_.find(loc.get_tab_uniq_id());
+	auto i = items_.find(loc.id());
 	if (i == items_.end())
 		return {};
 	return DeserializeItems(QString::fromStdString(i->second), loc);
@@ -51,7 +51,7 @@ void MemoryDataStore::SetTabs(const ItemLocationType& type, const LocationList& 
 }
 
 void MemoryDataStore::SetItems(const ItemLocation& loc, const ItemList& items) {
-	items_[loc.get_tab_uniq_id()] = Serialize(items).toStdString();
+	items_[loc.id()] = Serialize(items).toStdString();
 }
 
 void MemoryDataStore::InsertCurrencyUpdate(const CurrencyUpdate& update) {

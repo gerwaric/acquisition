@@ -71,7 +71,6 @@ signals:
 	void RateLimitStatusUpdate(const QString& status);
 	void UpdateModListSignal();
 private:
-	void MigrateBuyouts();
 
 	// should items be automatically refreshed
 	bool auto_update_;
