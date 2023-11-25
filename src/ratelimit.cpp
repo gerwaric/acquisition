@@ -362,10 +362,6 @@ void PolicyManager::OnPolicyUpdate()
 
 				// Update this manager's send time only if it's later
 				// than the manager thinks we need to wait.
-				QLOG_TRACE() << "Updating next send:"
-					<< "\n\tstarting_time  is" << starting_time.toString()
-					<< "\n\tnext_safe_time is" << next_safe_time.toString()
-					<< "\n\tnext_send      is" << next_send.toString();
 				if (next_safe_time > next_send) {
 					next_send = next_safe_time;
 				};
@@ -380,7 +376,7 @@ void PolicyManager::OnPolicyUpdate()
 // manager busy and causing subsequent requests to be queued.
 void PolicyManager::QueueRequest(std::unique_ptr<RateLimitedRequest> request) {
 	if (busy) {
-		QLOG_TRACE() << policy_name << "queuing request" << request->id << "for" << request->network_request.url().toString();
+		QLOG_TRACE() << policy_name << "request" << request->id << "queued for" << request->network_request.url().toString();
 		request_queue.push_back(std::move(request));
 	} else {
 		busy = true;
@@ -416,11 +412,7 @@ void PolicyManager::ActivateRequest() {
 	active_request_timer.start();
 	if (msec_delay > 1000) {
 		// Need to wait and rerun this function when it's safe to send.
-		const QDateTime resend_time = QDateTime::currentDateTime().addMSecs(msec_delay);
-		QLOG_TRACE() << policy_name
-			<< "is waiting" << msec_delay / 1000
-			<< "seconds to send request" << active_request->id
-			<< "at" << resend_time.toLocalTime().toString();
+		QLOG_TRACE() << policy_name << "request" << active_request->id << "will be sent in" << msec_delay / 1000 << "seconds";
 		emit RateLimitingStarted();
 	};
 }
@@ -443,10 +435,7 @@ void PolicyManager::SendRequest() {
 		return;
 	};
 
-	QLOG_TRACE() << policy_name
-		<< "sending request" << active_request->id
-		<< "to" << active_request->endpoint
-		<< "via" << active_request->network_request.url().toString();
+	QLOG_TRACE() << policy_name << "request" << active_request->id << "sending" << active_request->network_request.url().toString();
 
 	// Finally, send the request and note the time.
 	last_send = QDateTime::currentDateTime();
@@ -461,9 +450,7 @@ void PolicyManager::ReceiveReply() {
 	active_request->reply_time = GetDate(reply);
 	active_request->reply_status = GetStatus(reply);
 
-	QLOG_TRACE() << policy_name
-		<< "received reply for request" << active_request->id
-		<< "with status" << active_request->reply_status;
+	QLOG_TRACE() << policy_name << "request" << active_request->id << "received reply with status" << active_request->reply_status;
 
 	if (reply->hasRawHeader("X-Rate-Limit-Policy")) {
 
