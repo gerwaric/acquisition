@@ -387,8 +387,6 @@
     <addaction name="actionCopyShopToClipboard"/>
     <addaction name="actionUpdateShops"/>
     <addaction name="actionSetAutomaticallyShopUpdate"/>
-    <addaction name="separator"/>
-    <addaction name="actionImportBuyouts"/>
    </widget>
    <widget class="QMenu" name="menuTabs">
     <property name="title">
@@ -438,21 +436,22 @@
      <addaction name="actionShowOAuthToken"/>
      <addaction name="actionRefreshOAuthToken"/>
     </widget>
-    <widget class="QMenu" name="menuBuyouts">
-     <property name="title">
-      <string>Buyouts</string>
-     </property>
-     <addaction name="actionClearManualBuyouts"/>
-     <addaction name="actionImportOldBuyouts"/>
-    </widget>
     <addaction name="menuTheme"/>
     <addaction name="menuLogging"/>
     <addaction name="menuOAuth"/>
-    <addaction name="menuBuyouts"/>
+   </widget>
+   <widget class="QMenu" name="menuBuyouts">
+    <property name="title">
+     <string>Buyouts</string>
+    </property>
+    <addaction name="actionViewBuyouts"/>
+    <addaction name="actionClearBuyouts"/>
+    <addaction name="actionImportBuyouts"/>
    </widget>
    <addaction name="menuTabs"/>
    <addaction name="menuShop"/>
    <addaction name="menuCurrency"/>
+   <addaction name="menuBuyouts"/>
    <addaction name="menuSettings"/>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
@@ -628,11 +627,6 @@
     <string>TRACE</string>
    </property>
   </action>
-  <action name="actionImportBuyouts">
-   <property name="text">
-    <string>Import Buyouts</string>
-   </property>
-  </action>
   <action name="actionShowOAuthToken">
    <property name="text">
     <string>Show current token</string>
@@ -643,12 +637,17 @@
     <string>Refresh current token</string>
    </property>
   </action>
-  <action name="actionClearManualBuyouts">
+  <action name="actionViewBuyouts">
+   <property name="text">
+    <string>View buyouts</string>
+   </property>
+  </action>
+  <action name="actionClearBuyouts">
    <property name="text">
     <string>Clear manual buyouts</string>
    </property>
   </action>
-  <action name="actionImportOldBuyouts">
+  <action name="actionImportBuyouts">
    <property name="text">
     <string>Import manual buyouts</string>
    </property>
