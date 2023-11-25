@@ -29,6 +29,7 @@ public:
 	bool operator==(const ItemLocation& other) const;
 	void set_type(const ItemLocationType type) { type_ = type; }
 	ItemLocationType get_type() const { return type_; }
+	const std::string get_character() const { return character_; };
 	void set_character(const std::string& character) { character_ = character; }
 	void set_tab_id(int tab_id) { tab_id_ = tab_id; }
 	void set_tab_label(const std::string& tab_label) { tab_label_ = tab_label; }

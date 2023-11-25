@@ -56,6 +56,7 @@ const char* kRePoE_item_classes = "https://raw.githubusercontent.com/brather1ng/
 const char* kRePoE_item_base_types = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/base_items.min.json";
 
 ItemsManagerWorker::ItemsManagerWorker(Application& app) :
+	app_(app),
 	data_(app.data()),
 	network_manager_(nullptr),
 	rate_limiter_(nullptr),
@@ -224,6 +225,56 @@ void ItemsManagerWorker::ParseItemMods() {
 		status.total = tabs_.size();
 		emit StatusUpdate(status);
 	};
+
+	std::set<std::string> item_hashes;
+	for (auto& item : items_) {
+		item_hashes.insert(item->hash());
+	};
+	const auto& buyouts = app_.buyout_manager().buyouts();
+	for (const auto& item : buyouts) {
+		const auto& hash = item.first;
+		const auto& buyout = item.second;
+		if (item_hashes.count(hash) == 0) {
+			QLOG_ERROR() << "Item buyout missing";
+		};
+	};
+	QLOG_ERROR() << "ITEM BUYOUTS:" << buyouts.size();
+
+	std::set<std::string> tab_labels;
+	std::set<std::string> character_names;
+	for (auto& tab : tabs_) {
+		switch (tab.get_type()) {
+		case ItemLocationType::STASH:
+			tab_labels.insert(tab.get_tab_label());
+			break;
+		case ItemLocationType::CHARACTER:
+			character_names.insert(tab.get_character());
+			break;
+		default:
+			QLOG_ERROR() << "ILLEGAL TAB TYPE";
+			break;
+		};
+	}
+
+	const auto& tab_buyouts = app_.buyout_manager().tab_buyouts();
+	for (const auto& item : tab_buyouts) {
+		const auto& tag = item.first;
+		const auto& buyout = item.second;
+		if (tag.compare(0, std::strlen("stash:"), "stash:") == 0) {
+			const std::string stash = tag.substr(std::strlen("stash:"));
+			if (tab_labels.count(stash) == 0) {
+				QLOG_ERROR() << "STASH TAB" << stash;
+			};
+		} else if (tag.compare(0, strlen("character:"), "character:") == 0) {
+			const std::string character = tag.substr(std::strlen("character:"));
+			if (character_names.count(character) == 0) {
+				QLOG_ERROR() << "CHARACTER TAB" << character;
+			};
+		} else {
+			QLOG_ERROR() << "BAD TAB BUYOUT:" << tag;
+		};
+	};
+	QLOG_ERROR() << "TAB BUYOUTS:" << tab_buyouts.size();
 
 	initialized_ = true;
 	updating_ = false;

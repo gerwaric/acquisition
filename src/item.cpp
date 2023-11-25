@@ -410,9 +410,9 @@ struct ImportedProperty {
 };
 
 struct ImportedItem {
-	typedef std::map<std::string, std::string> StringMap;
 	ImportedItem(const std::string& json);
-	const StringMap hashes() const { return hashes_; };
+	std::vector<std::string> hashes() const { return hashes_; };
+	std::vector<std::string> hash_inputs() const { return hash_inputs_; };
 	std::optional<std::vector<ImportedSocket>> sockets;
 	std::string name;
 	std::string typeLine;
@@ -430,7 +430,8 @@ private:
 	void PrepareHashes();
 	std::string CommonHashString();
 	const std::string json_;
-	StringMap hashes_;
+	std::vector<std::string> hashes_;
+	std::vector<std::string> hash_inputs_;
 };
 
 // Fix up names by removing all <<set:X>> modifiers
@@ -490,19 +491,15 @@ void ImportedItem::PrepareHashes() {
 		possible_typelines.push_back(hybrid->baseTypeName);
 	};
 
-	const std::string common(CommonHashString());
+	hashes_.clear();
+	hash_inputs_.clear();
 
+	const std::string common(CommonHashString());
 	for (auto& possible_name : possible_names) {
 		for (auto& possible_typeline : possible_typelines) {
-
 			const auto input = possible_name + "~" + possible_typeline + "~" + common;
-			//hash_parts.push_front(possible_typeline);
-			//hash_parts.push_front(possible_name);
-			//const std::string input = boost::algorithm::join(hash_parts, "~");
-			const std::string md5 = Util::Md5(input);
-			hashes_[md5] = input;
-			//hash_parts.pop_front();
-			//hash_parts.pop_front();
+			hashes_.push_back(Util::Md5(input));
+			hash_inputs_.push_back(input);
 		};
 	};
 }
@@ -599,15 +596,19 @@ void Item::CalculateHash(const rapidjson::Value& json) {
 
 	const auto possible_hashes = imported.hashes();
 
-	if (!possible_hashes.count(hash_) && !possible_hashes.count(old_hash_)) {
-		QLOG_ERROR() << "Unable to duplicate hash:";
-		QLOG_ERROR() << "unique_old =" << unique_old;
-		QLOG_ERROR() << "unique_new =" << unique_new;
-		for (auto& md5 : possible_hashes) {
-			QLOG_ERROR() << "possible =" << md5.second;
+	for (auto& hash : possible_hashes) {
+		if (hash == hash_) {
+			QLOG_TRACE() << "Hash match for:" << imported.name;
+			return;
 		};
-		return;
 	};
+	QLOG_ERROR() << "Unable to duplicate hash:";
+	QLOG_ERROR() << "unique_old =" << unique_old;
+	QLOG_ERROR() << "unique_new =" << unique_new;
+	for (auto& input : imported.hash_inputs()) {
+		QLOG_ERROR() << "possible =" << input;
+	};
+	return;
 }
 
 bool Item::operator<(const Item& rhs) const {

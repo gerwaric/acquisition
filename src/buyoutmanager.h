@@ -171,6 +171,8 @@ public:
 	void Load();
 
 	void MigrateItem(const Item& item);
+	const std::map<std::string, Buyout>& buyouts() const { return buyouts_; };
+	const std::map<std::string, Buyout>& tab_buyouts() const { return tab_buyouts_; };
 private:
 	Currency StringToCurrencyType(std::string currency) const;
 	BuyoutType StringToBuyoutType(std::string bo_str) const;

@@ -91,6 +91,7 @@ private:
 	bool TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, ItemLocation& location);
 	void FinishUpdate();
 
+	Application& app_;
 	DataStore& data_;
 	bool test_mode_;
 	std::unique_ptr<QNetworkAccessManager> network_manager_;
