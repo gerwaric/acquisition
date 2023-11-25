@@ -63,9 +63,9 @@ namespace PoE {
 		std::optional<bool>                         expired;				// ? bool	always true if present
 		std::optional<bool>                         deleted;				// ? bool	always true if present
 		std::optional<bool>                         current;				// ? bool	always true if present
-		std::optional<std::vector<Item>>			equipment;				// ? array of Item
-		std::optional<std::vector<Item>>			inventory;				// ? array of Item
-		std::optional<std::vector<Item>>			jewels;					// ? array of Item
+		std::optional<std::vector<PoE::Item>>		equipment;				// ? array of Item
+		std::optional<std::vector<PoE::Item>>		inventory;				// ? array of Item
+		std::optional<std::vector<PoE::Item>>		jewels;					// ? array of Item
 		std::optional<PoE::CharacterPassives>       passives;				// ? object
 		std::optional<PoE::CharacterMetadata>       metadata;				// ? object
 		JS_OBJECT(
