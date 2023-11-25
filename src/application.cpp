@@ -158,7 +158,7 @@ void Application::InitLogin(const std::string& league, const std::string& accoun
 	};
 }
 
-QString Application::GetDataPath() {
+QString Application::GetDataPath() const {
 	return Filesystem::UserDir() + QDir::separator() + "data";
 }
 

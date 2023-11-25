@@ -60,7 +60,7 @@ public slots:
 private:
 	Application(bool test_mode = false);
 	void LoadTheme();
-	QString GetDataPath();
+	QString GetDataPath() const;
 	bool test_mode_;
 	std::string account_;
 	std::string league_;
