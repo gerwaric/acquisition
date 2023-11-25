@@ -87,21 +87,21 @@ namespace PoE {
 	};
 
 	struct ListStashesResult {
-		std::vector<StashTab> stashes;
+		std::vector<PoE::StashTab> stashes;
 		JS_OBJ(stashes);
 	};
 	struct GetStashResult {
-		StashTab stash;
+		PoE::StashTab stash;
 		JS_OBJ(stash);
 	};
 
-	typedef std::function<void(const ListStashesResult&)> ListStashesCallback;
-	typedef std::function<void(const GetStashResult&)> GetStashCallback;
+	typedef std::function<void(const PoE::ListStashesResult&)> ListStashesCallback;
+	typedef std::function<void(const PoE::GetStashResult&)> GetStashCallback;
 
-	void ListStashes(QObject* object, ListStashesCallback callback,
+	void ListStashes(QObject* object, PoE::ListStashesCallback callback,
 		const std::string& league);
 
-	void GetStash(QObject* object, GetStashCallback,
+	void GetStash(QObject* object, PoE::GetStashCallback,
 		const std::string& league,
 		const std::string& stash_id,
 		const std::string& substash_id = "");

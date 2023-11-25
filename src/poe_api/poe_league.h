@@ -57,10 +57,10 @@ namespace PoE {
 	};
 
 	struct GetLeaguesResult {
-		std::vector<League> leagues;
+		std::vector<PoE::League> leagues;
 		JS_OBJ(leagues);
 	};
-	typedef std::function<void(const GetLeaguesResult&)> GetLeaguesCallback;
+	typedef std::function<void(const PoE::GetLeaguesResult&)> GetLeaguesCallback;
 
-	void GetLeagues(QObject* object, GetLeaguesCallback callback);
+	void GetLeagues(QObject* object, PoE::GetLeaguesCallback callback);
 }

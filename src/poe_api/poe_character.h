@@ -88,19 +88,19 @@ namespace PoE {
 	};
 
 	struct ListCharactersResult {
-		std::vector<Character> characters;
+		std::vector<PoE::Character> characters;
 		JS_OBJ(characters);
 	};
 	struct GetCharacterResult {
-		Character character;
+		PoE::Character character;
 		JS_OBJ(character);
 	};
 
-	typedef std::function<void(const ListCharactersResult&)> ListCharactersCallback;
-	typedef std::function<void(const GetCharacterResult&)> GetCharacterCallback;
+	typedef std::function<void(const PoE::ListCharactersResult&)> ListCharactersCallback;
+	typedef std::function<void(const PoE::GetCharacterResult&)> GetCharacterCallback;
 
-	void ListCharacters(QObject* object, ListCharactersCallback callback);
-	void GetCharacter(QObject* object, GetCharacterCallback callback, const std::string& name);
+	void ListCharacters(QObject* object, PoE::ListCharactersCallback callback);
+	void GetCharacter(QObject* object, PoE::GetCharacterCallback callback, const std::string& name);
 
 	struct LegacyCharacter {
 		LegacyCharacter(const Character& character);
