@@ -175,9 +175,11 @@ bool SumModGenerator::Match(const char* mod, double* output) {
 	return found;
 }
 
+/*
 void SumModGenerator::Generate(const rapidjson::Value& mod, ModTable* output) {
 	Generate(mod.GetString(), output);
 }
+*/
 
 void SumModGenerator::Generate(const std::string& mod, ModTable* output) {
 	bool mod_present = false;

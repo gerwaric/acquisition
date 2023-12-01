@@ -23,6 +23,8 @@
 #include <string>
 #include <vector>
 
+#include "json_struct/json_struct.h"
+
 enum CurrencyType {
 	CURRENCY_NONE,
 	CURRENCY_ORB_OF_ALTERATION,
@@ -46,15 +48,18 @@ enum CurrencyType {
 	CURRENCY_SILVER_COIN,
 };
 
+JS_ENUM_DECLARE_VALUE_PARSER(CurrencyType)
+
 struct Currency {
 	typedef std::map<CurrencyType, std::string> TypeStringMap;
 	typedef std::map<CurrencyType, int> TypeIntMap;
 	typedef std::map<std::string, CurrencyType> StringTypeMap;
 
-	Currency() = default;
+	Currency() {};
 	Currency(CurrencyType in_type) : type(in_type) { };
 
 	CurrencyType type{ CURRENCY_NONE };
+	JS_OBJ(type);
 
 	static std::vector<CurrencyType> Types();
 	static Currency FromTag(const std::string& tag);

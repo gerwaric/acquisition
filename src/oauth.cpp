@@ -303,20 +303,6 @@ void OAuthManager::receiveToken(QNetworkReply* reply)
 	const QByteArray bytes = reply->readAll();
 	reply->deleteLater();
 
-	// Parse the response into a token.
-	rapidjson::Document json;
-	json.Parse(bytes.constData());
-	if (json.HasParseError()) {
-		QLOG_ERROR() << "Oauth: error parsing access token response:" << Util::RapidjsonSerialize(json);
-		return;
-	};
-
-	// Check for response errors.
-	if (json.HasMember("error")) {
-		QLOG_ERROR() << "OAuth: access token response error:" << Util::RapidjsonSerialize(json);
-		return;
-	};
-
 	// Parse the token and emit it.
 	JS::ParseContext context(bytes);
 	JS::Error error = context.parseTo(token_);

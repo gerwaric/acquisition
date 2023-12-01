@@ -46,6 +46,7 @@ SOURCES += \
 	src/application.cpp \
 	src/bucket.cpp \
 	src/buyout.cpp \
+	src/buyoutimporter.cpp \
 	src/buyoutmanager.cpp \
 	src/column.cpp \
 	src/currency.cpp \
@@ -67,16 +68,15 @@ SOURCES += \
 	src/logpanel.cpp \
 	src/main.cpp \
 	src/mainwindow.cpp \
-	src/memorydatastore.cpp \
 	src/modlist.cpp \
 	src/modsfilter.cpp \
 	src/oauth.cpp \
 	src/porting.cpp \
 	src/ratelimit.cpp \
 	src/ratelimitdialog.cpp \
+	src/repoe.cpp \
 	src/search.cpp \
 	src/shop.cpp \
-	src/sqlitedatastore.cpp \
 	src/updatechecker.cpp \
 	src/util.cpp \
 	src/verticalscrollarea.cpp \
@@ -101,9 +101,11 @@ HEADERS += \
 	src/poe_api/poe_passives.h \
 	src/poe_api/poe_pvp.h \
 	src/poe_api/poe_stash.h \
+	src/poe_api/poe_typedefs.h \
 	src/application.h \
 	src/bucket.h \
 	src/buyout.h \
+	src/buyoutimporter.h \
 	src/buyoutmanager.h \
 	src/column.h \
 	src/currency.h \
@@ -125,7 +127,6 @@ HEADERS += \
 	src/logindialog.h \
 	src/logpanel.h \
 	src/mainwindow.h \
-	src/memorydatastore.h \
 	src/modlist.h \
 	src/modsfilter.h \
 	src/network_info.h \
@@ -135,10 +136,9 @@ HEADERS += \
 	src/ratelimit.h \
 	src/ratelimitdialog.h \
 	src/replytimeout.h \
+	src/repoe.h \
 	src/search.h \
-	src/selfdestructingreply.h \
 	src/shop.h \
-	src/sqlitedatastore.h \
 	src/updatechecker.h \
 	src/util.h \
 	src/version_defines.h \

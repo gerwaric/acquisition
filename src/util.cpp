@@ -31,12 +31,11 @@
 #include <QTextDocument>
 #include <QUrlQuery>
 #include <QPainter>
-#include "rapidjson/document.h"
-#include "rapidjson/writer.h"
 #include <sstream>
 #include <iomanip>
 #include <cmath>
 #include <regex>
+#include <string>
 
 #include "QsLog.h"
 
@@ -92,10 +91,12 @@ int Util::TextWidth(TextWidthId id) {
 	return result[static_cast<int>(id)];
 }
 
+/*
 void Util::ParseJson(QNetworkReply* reply, rapidjson::Document* doc) {
 	QByteArray bytes = reply->readAll();
 	doc->Parse(bytes.constData());
 }
+*/
 
 std::string Util::GetCsrfToken(const QByteArray& page, const std::string& name) {
 	// As of October 2023, the CSRF token can appear in one of two ways:
@@ -129,6 +130,7 @@ std::string Util::FindTextBetween(const std::string& page, const std::string& le
 	return page.substr(first + left.size(), last - first - left.size());
 }
 
+/*
 std::string Util::RapidjsonSerialize(const rapidjson::Value& val) {
 	rapidjson::StringBuffer buffer;
 	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -143,6 +145,7 @@ void Util::RapidjsonAddConstString(rapidjson::Value* object, const char* const n
 	rjson_val.SetString(value.c_str(), rapidjson::SizeType(value.size()));
 	object->AddMember(rjson_name, rjson_val, alloc);
 }
+*/
 
 std::string Util::StringReplace(const std::string& haystack, const std::string& needle, const std::string& replace) {
 	std::string out = haystack;

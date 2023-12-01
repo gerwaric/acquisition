@@ -19,11 +19,13 @@
 
 #pragma once
 
-#include "item.h"
+#include "buyout.h"
+
 #include <QDateTime>
 #include <set>
+#include <string>
 
-#include "buyout.h"
+#include "item.h"
 
 class ItemLocation;
 class DataStore;

@@ -26,6 +26,19 @@
 
 namespace PoE {
 
+	struct GetLeaguesWrapper {
+		GetLeaguesWrapper(const std::string& data) {
+			JS::ParseContext context(data);
+			JS::Error error = context.parseTo(*this);
+			if (error != JS::Error::NoError) {
+				QLOG_ERROR() << "Error parsing wrapped characters:" << context.makeErrorString();
+				return;
+			};
+		};
+		std::vector<PoE::League> leagues;
+		JS_OBJ(leagues);
+	};
+
 	void GetLeagues(QObject* object, GetLeaguesCallback callback)
 	{
 		static auto& rate_limiter = Application::instance().rate_limiter();
@@ -40,19 +53,19 @@ namespace PoE {
 				QLOG_ERROR() << "GetLeagues: network error (" << status << "):" << message;
 				return;
 			};
-			const QByteArray data = reply->readAll();
-			GetLeaguesResult result;
-			JS::ParseContext context(data);
-			JS::Error error = context.parseTo(result);
-			if (error != JS::Error::NoError) {
-				QLOG_ERROR() << "GetLeagues: json error:" << context.makeErrorString();
-				return;
-			};
 			// Run the callback in the context object's thread.
-			QMetaObject::invokeMethod(object, [=]() { callback(result); });
+			QMetaObject::invokeMethod(object,
+				[=]() {
+					const GetLeaguesWrapper result(reply->readAll().toStdString());
+					callback(result.leagues);
+				});
 		};
-
-		rate_limiter.Submit("GET /account/leagues", QNetworkRequest(QUrl(GET_LEAGUES)), callback_wrapper);
+		QMetaObject::invokeMethod(&rate_limiter,
+			[=]() {
+				rate_limiter.Submit("GET /account/leagues",
+					QNetworkRequest(QUrl(GET_LEAGUES)),
+					callback_wrapper);
+			});
 	}
 
 }

@@ -24,14 +24,13 @@
 
 #include "item.h"
 #include "itemsmanagerworker.h"
+#include "repoe.h"
 
-struct CurrentStatusUpdate;
 class QThread;
+
 class Application;
-class BuyoutManager;
-class DataStore;
 class ItemsManagerWorker;
-class Shop;
+struct CurrentStatusUpdate;
 
 /*
  * ItemsManager manages an ItemsManagerWorker (which lives in a separate thread)
@@ -62,8 +61,8 @@ public slots:
 	void OnStatusUpdate(const CurrentStatusUpdate& status);
 	void OnRateLimitStatusUpdate(const QString& status);
 	void OnItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
-	void OnItemClassesUpdate(const QByteArray& classes);
-	void OnItemBaseTypesUpdate(const QByteArray& baseTypes);
+	void OnItemClassesUpdate(const RePoE::ItemClasses& item_classes);
+	void OnItemBaseTypesUpdate(const RePoE::BaseTypes& base_types);
 signals:
 	void UpdateSignal(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 	void ItemsRefreshed(bool initial_refresh);
@@ -78,6 +77,7 @@ private:
 	int auto_update_interval_;
 	std::unique_ptr<QTimer> auto_update_timer_;
 	std::unique_ptr<ItemsManagerWorker> worker_;
+	std::unique_ptr<RePoE::Updater> repoe_;
 	Application& app_;
 	Items items_;
 	QSet<QString> categories_;

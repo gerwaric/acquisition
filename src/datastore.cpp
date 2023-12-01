@@ -20,12 +20,20 @@
 #include "datastore.h"
 
 #include <QSqlError>
+#include <QSqlQuery>
 
 #include "QsLog.h"
-#include "rapidjson/error/en.h"
 #include "util.h"
 
-DataStoreConnection& DataStoreConnectionManager::GetConnection(const QString& filename) {
+#include "poe_api/poe_character.h"
+#include "poe_api/poe_stash.h"
+
+DataStoreConnectionManager& DataStoreConnectionManager::instance() {
+	static DataStoreConnectionManager manager;
+	return manager;
+}
+
+DataStoreConnection& DataStoreConnectionManager::GetConnection(const QString filename) {
 
 	QMutexLocker locker(&mutex_);
 
@@ -83,7 +91,7 @@ void DataStoreConnectionManager::OnThreadFinished() {
 	};
 };
 
-void DataStoreConnectionManager::Disconnect(const QString& filename) {
+void DataStoreConnectionManager::Disconnect(const QString filename) {
 	const QString thread_id = thread_ids_[QThread::currentThread()];
 	const QString connection_id = thread_id + ":" + filename;
 	QMutexLocker locker(&mutex_);
@@ -91,7 +99,7 @@ void DataStoreConnectionManager::Disconnect(const QString& filename) {
 		// The current thread is not connected to this datastore's file.
 		return;
 	};
-	QLOG_DEBUG() << "Closing data store connection:" << connection_id;
+	QLOG_DEBUG() << "Closing data store connection:" << connection_id << "from" << thread_id;
 	auto& connection = connections_[connection_id];
 	if (--connection.count <= 0) {
 		QLOG_DEBUG() << "Removing unused data store connection:" << connection_id;
@@ -101,217 +109,203 @@ void DataStoreConnectionManager::Disconnect(const QString& filename) {
 	};
 }
 
-void DataStore::SetBool(const std::string& key, bool value) {
-	SetInt(key, static_cast<int>(value));
+DataStore::DataStore(const QString& filename) :
+	filename_(filename),
+	manager_(DataStoreConnectionManager::instance())
+{
+	if (filename_ != ":memory:") {
+		QDir dir(QDir::cleanPath(filename + "/.."));
+		if (!dir.exists()) {
+			QDir().mkpath(dir.path());
+		};
+	};
+
+	auto& db = manager_.GetConnection(filename_);
+	SimpleQuery(db, "CREATE TABLE IF NOT EXISTS data (key TEXT PRIMARY KEY, value BLOB)");
+	SimpleQuery(db, "CREATE TABLE IF NOT EXISTS stashes (id TEXT PRIMARY KEY, value BLOB)");
+	SimpleQuery(db, "CREATE TABLE IF NOT EXISTS characters (name TEXT PRIMARY KEY, value BLOB)");
+	SimpleQuery(db,
+		"CREATE TABLE IF NOT EXISTS buyouts ("
+		"  type INT NOT NULL,"
+		"  id TEXT NOT NULL,"
+		"  value BLOB,"
+		"  PRIMARY KEY (type, id)"
+		")");
+	SimpleQuery(db, "CREATE TABLE IF NOT EXISTS currency (timestamp INT PRIMARY KEY, value TEXT)");
+	SimpleQuery(db, "VACUUM");
 }
 
-bool DataStore::GetBool(const std::string& key, bool default_value) {
-	return static_cast<bool>(GetInt(key, static_cast<int>(default_value)));
+DataStore::~DataStore() {
+	QLOG_TRACE() << "Data store is being destroyed:" << filename_;
+	manager_.Disconnect(filename_);
 }
 
-void DataStore::SetInt(const std::string& key, int value) {
-	Set(key, std::to_string(value));
+std::string DataStore::Get(const std::string key, const std::string default_value) {
+	auto& db = manager_.GetConnection(filename_);
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(db.database);
+	query.prepare("SELECT value FROM data WHERE key = ?");
+	query.bindValue(0, QString::fromStdString(key));
+	if (query.exec() == false) {
+		QLOG_ERROR() << "Error getting data for" << key.c_str() << ":" << query.lastError().text();
+		return default_value;
+	};
+	if (query.next() == false) {
+		if (query.isActive() == false) {
+			QLOG_ERROR() << "Error getting result for" << key.c_str() << ":" << query.lastError().text();
+		};
+		return default_value;
+	};
+	return query.value(0).toString().toStdString();
 }
 
-int DataStore::GetInt(const std::string& key, int default_value) {
+int DataStore::GetInt(const std::string key, int default_value) {
 	return std::stoi(Get(key, std::to_string(default_value)));
 }
 
-QString DataStore::Serialize(const DataStore::LocationList& tabs) {
-	QStringList json_tabs;
-	json_tabs.reserve(tabs.size());
-	for (auto& tab : tabs) {
-		json_tabs.push_back(QString::fromStdString(tab->get_json()));
-	};
-	return "[" + json_tabs.join(",") + "]";
+bool DataStore::GetBool(const std::string key, bool default_value) {
+	return static_cast<bool>(GetInt(key, static_cast<int>(default_value)));
 }
 
-QString DataStore::Serialize(const DataStore::ItemList& items) {
-	QStringList json_items;
-	json_items.reserve(items.size());
-	for (auto& item : items) {
-		json_items.push_back(QString::fromStdString(item->json()));
-	};
-	return "[" + json_items.join(",") + "]";
-}
-
-Locations DataStore::DeserializeTabs(const QString& tabs_json) {
-
-	if (tabs_json.isEmpty()) {
-		QLOG_DEBUG() << "No tabs to deserialize.";
+std::unordered_map<PoE::StashId, PoE::StashTab> DataStore::GetStashes() {
+	auto& db = manager_.GetConnection(filename_);
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(db.database);
+	query.prepare("SELECT value FROM stashes");
+	if (query.exec() == false) {
+		QLOG_ERROR() << "Error selecting stashes:" << query.lastError().text();
 		return {};
 	};
-
-	rapidjson::Document doc;
-	doc.Parse(tabs_json.toStdString().c_str());
-	if (doc.HasParseError()) {
-		QLOG_ERROR() << "Error parsing serialized tabs:" << rapidjson::GetParseError_En(doc.GetParseError());
-		QLOG_ERROR() << "The malformed json is" << tabs_json;
-		return {};
-	};
-	if (doc.IsArray() == false) {
-		QLOG_ERROR() << "Error parsing serialized tabs: the json is not an array.";
-		return {};
-	};
-
-	// Preallocate the return value.
-	Locations tabs;
-	tabs.reserve(doc.Size());
-
-	// Keep track of which tabs have been parsed.
-	std::set<std::string> tab_id_index_;
-
-	for (auto& tab_json : doc) {
-	
-		// Detemine which kind of location this is.
-		ItemLocationType type;
-		if (tab_json.HasMember("name")) {
-			type = ItemLocationType::CHARACTER;
-		} else if (tab_json.HasMember("n")) {
-			type = ItemLocationType::STASH;
-		} else {
-			QLOG_ERROR() << "Unable to determine location type during tab deserialization:" << Util::RapidjsonSerialize(tab_json);
-			continue;
-		};
-
-		// Constructor values to fill in
-		size_t index;
-		std::string tabUniqueId, name;
-		int r, g, b;
-
-		switch (type) {
-		case ItemLocationType::STASH:
-			if (tab_id_index_.count(tab_json["id"].GetString())) {
-				QLOG_ERROR() << "Duplicated tab found while loading data:" << tab_json["id"].GetString();
-				continue;
-			};
-			if (!tab_json.HasMember("n") || !tab_json["n"].IsString()) {
-				QLOG_ERROR() << "Malformed tabs data doesn't contain its name (field 'n'):" << Util::RapidjsonSerialize(tab_json);
-				continue;
-			};
-			index = tab_json["i"].GetInt();
-			tabUniqueId = tab_json["id"].GetString();
-			name = tab_json["n"].GetString();
-			r = tab_json["colour"]["r"].GetInt();
-			g = tab_json["colour"]["g"].GetInt();
-			b = tab_json["colour"]["b"].GetInt();
-			break;
-		case ItemLocationType::CHARACTER:
-			if (tab_id_index_.count(tab_json["name"].GetString())) {
-				continue;
-			};
-			if (tab_json.HasMember("i")) {
-				index = tab_json["i"].GetInt();
-			} else {
-				index = tabs.size();
-			};
-			tabUniqueId = tab_json["name"].GetString();
-			name = tab_json["name"].GetString();
-			r = 0;
-			g = 0;
-			b = 0;
-			break;
-		};
-		ItemLocation loc(static_cast<int>(index), tabUniqueId, name, type, r, g, b);
-		loc.set_json(tab_json, doc.GetAllocator());
-		tabs.push_back(loc);
-		tab_id_index_.insert(loc.id());
-	};
-	return tabs;
-}
-
-ItemLocation DataStore::DeserializeTab(const QString& tab_json) {
-
-	if (tab_json.isEmpty()) {
-		QLOG_DEBUG() << "No tab to deserialize.";
-		return {};
-	};
-
-	rapidjson::Document doc;
-	doc.Parse(tab_json.toStdString().c_str());
-	if (doc.HasParseError()) {
-		QLOG_ERROR() << "Error parsing serialized tabs:" << rapidjson::GetParseError_En(doc.GetParseError());
-		QLOG_ERROR() << "The malformed json is" << tab_json;
-		return {};
-	};
-	if (doc.IsObject() == false) {
-		QLOG_ERROR() << "Error parsing serialized tab: the json is not an object:" << tab_json;
-		return {};
-	};
-
-	// Detemine which kind of location this is.
-	ItemLocationType type;
-	if (doc.HasMember("name")) {
-		type = ItemLocationType::CHARACTER;
-	} else if (doc.HasMember("n")) {
-		type = ItemLocationType::STASH;
-	} else {
-		QLOG_ERROR() << "Unable to determine location type during tab deserialization:" << tab_json;
-		return {};
-	};
-
-	// Constructor values to fill in
-	size_t index;
-	std::string tabUniqueId, name;
-	int r, g, b;
-
-	switch (type) {
-	case ItemLocationType::STASH:
-		if (!doc.HasMember("n") || !doc["n"].IsString()) {
-			QLOG_ERROR() << "Malformed tabs data doesn't contain its name (field 'n'):" << tab_json;
+	size_t count = 0;
+	std::unordered_map<PoE::StashId, PoE::StashTab> result;
+	while (query.next()) {
+		++count;
+		if (query.isActive() == false) {
+			QLOG_ERROR() << "Error getting stash" << count << ":" << query.lastError().text();
 			return {};
 		};
-		index = doc["i"].GetInt();
-		tabUniqueId = doc["id"].GetString();
-		name = doc["n"].GetString();
-		r = doc["colour"]["r"].GetInt();
-		g = doc["colour"]["g"].GetInt();
-		b = doc["colour"]["b"].GetInt();
-		break;
-	case ItemLocationType::CHARACTER:
-		if (doc.HasMember("i")) {
-			index = doc["i"].GetInt();
-		} else {
-			index = -1;
-		};
-		tabUniqueId = doc["name"].GetString();
-		name = doc["name"].GetString();
-		r = 0;
-		g = 0;
-		b = 0;
-		break;
+		auto stash = PoE::StashTab(query.value(0).toString().toStdString());
+		result.emplace(stash.id, stash);
 	};
-	ItemLocation loc(static_cast<int>(index), tabUniqueId, name, type, r, g, b);
-	loc.set_json(doc, doc.GetAllocator());
-	return loc;
+	return result;
 }
 
-Items DataStore::DeserializeItems(const QString& items_json, const ItemLocation& tab) {
-
-	// Parsed the serialized json and check for errors.
-	rapidjson::Document doc;
-	doc.Parse(items_json.toStdString().c_str());
-	if (doc.HasParseError()) {
-		QLOG_ERROR() << "Error parsing serialized items:" << rapidjson::GetParseError_En(doc.GetParseError());
-		QLOG_ERROR() << "The malformed json is" << items_json;
+std::unordered_map<PoE::CharacterName, PoE::Character> DataStore::GetCharacters() {
+	auto& db = manager_.GetConnection(filename_);
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(db.database);
+	query.prepare("SELECT value FROM characters");
+	if (query.exec() == false) {
+		QLOG_ERROR() << "Error selecting characters:" << query.lastError().text();
 		return {};
 	};
-	if (doc.IsArray() == false) {
-		QLOG_ERROR() << "Error parsing serialized items: the json is not an array.";
-		return {};
+	size_t count = 0;
+	std::unordered_map<PoE::CharacterName, PoE::Character> result;
+	while (query.next()) {
+		++count;
+		if (query.isActive() == false) {
+			QLOG_ERROR() << "Error getting character" << count << ":" << query.lastError().text();
+			return {};
+		};
+		auto character = PoE::Character(query.value(0).toString().toStdString());
+		result.emplace(character.name, character);
 	};
+	return result;
+}
 
-	// Preallocate the return value.
-	Items items;
-	items.reserve(doc.Size());
-
-	// Iterate over each item in the serialized json.
-	for (auto item_json = doc.Begin(); item_json != doc.End(); ++item_json) {
-		// Create a new location and make sure location-related information
-		// such as x and y are pulled from the item json.
-		ItemLocation loc = tab;
-		loc.FromItemJson(*item_json);
-		items.push_back(std::make_shared<Item>(*item_json, loc));
+void DataStore::Set(const std::string key, const std::string value) {
+	auto& db = manager_.GetConnection(filename_);
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(db.database);
+	query.prepare("INSERT OR REPLACE INTO data (key, value) VALUES (?, ?)");
+	query.bindValue(0, QString::fromStdString(key));
+	query.bindValue(1, QString::fromStdString(value));
+	if (query.exec() == false) {
+		QLOG_ERROR() << "Error setting value for" << query.boundValue(0) << ":" << query.lastError().text();
 	};
-	return items;
+}
+
+void DataStore::SetInt(const std::string key, int value) {
+	Set(key, std::to_string(value));
+}
+
+void DataStore::SetBool(const std::string key, bool value) {
+	SetInt(key, static_cast<int>(value));
+}
+
+void DataStore::SetStash(const PoE::StashTab& stash) {
+
+	const QString id = QString::fromStdString(stash.id);
+	const QString value = QString::fromStdString(JS::serializeStruct(stash, JS::SerializerOptions::Compact));
+
+	auto& db = manager_.GetConnection(filename_);
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(db.database);
+	query.prepare("INSERT OR REPLACE INTO stashes (id, value) VALUES (?, ?)");
+	query.bindValue(0, id);
+	query.bindValue(1, value);
+	if (query.exec() == false) {
+		QLOG_ERROR() << "Error inserting stash" << id << "(" << stash.type << "/" << stash.name << "):" << query.lastError().text();
+	};
+}
+
+void DataStore::SetCharacter(const PoE::Character& character) {
+
+	const QString name = QString::fromStdString(character.name);
+	const QString value = QString::fromStdString(JS::serializeStruct(character, JS::SerializerOptions::Compact));
+
+	auto& db = manager_.GetConnection(filename_);
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(db.database);
+	query.prepare("INSERT OR REPLACE INTO characters (name, value) VALUES (?, ?)");
+	query.bindValue(0, name);
+	query.bindValue(1, value);
+	if (query.exec() == false) {
+		QLOG_ERROR() << "Error storing character:" << name << ":" << query.lastError().text();
+	};
+}
+
+void DataStore::InsertCurrencyUpdate(const CurrencyUpdate& update) {
+	auto& db = manager_.GetConnection(filename_);
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(db.database);
+	query.prepare("INSERT INTO currency (timestamp, value) VALUES (?, ?)");
+	query.bindValue(0, update.timestamp);
+	query.bindValue(1, QString::fromStdString(update.value));
+	if (query.exec() == false) {
+		QLOG_ERROR() << "Error inserting currency update:" << query.lastError().text();
+	};
+}
+
+std::vector<CurrencyUpdate> DataStore::GetAllCurrency() {
+	auto& db = manager_.GetConnection(filename_);
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(db.database);
+	query.prepare("SELECT timestamp, value FROM currency ORDER BY timestamp ASC");
+	std::vector<CurrencyUpdate> result;
+	while (query.next()) {
+		if (query.lastError().isValid()) {
+			QLOG_ERROR() << "Error getting currency:" << query.lastError().text();
+			return {};
+		};
+		CurrencyUpdate update = CurrencyUpdate();
+		update.timestamp = query.value(0).toLongLong();
+		update.value = query.value(0).toByteArray().toStdString();
+		result.push_back(update);
+	};
+	return result;
+}
+
+QString DataStore::MakeFilename(const std::string name, const std::string league) {
+	std::string key = name + "|" + league;
+	return QString(QCryptographicHash::hash(key.c_str(), QCryptographicHash::Md5).toHex());
+}
+
+void DataStore::SimpleQuery(DataStoreConnection& db, const QString& query_string) {
+	const QString simplified_query = query_string.simplified();
+	QMutexLocker locker(db.mutex);
+	QSqlQuery query(simplified_query, db.database);
+	if (query.isActive() == false) {
+		QLOG_ERROR() << "Query failed:" << query.lastError().text() << ":" << simplified_query;
+	};
 }

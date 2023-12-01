@@ -27,6 +27,7 @@
 #include <QTimer>
 #include <QUrl>
 #include <QUrlQuery>
+
 #include "QsLog.h"
 
 #include "application.h"
@@ -139,7 +140,7 @@ void Shop::Update() {
 			data += "[/spoiler]";
 			data += SpoilerBuyout(current_bo);
 		}
-		std::string item_string = aug.item->location().GetForumCode(app_.league());
+		std::string item_string = aug.item->location().GetForumCode(app_.league().value());
 		if (data.size() + item_string.size() + shop_template_.size() + kSpoilerOverhead + QString("[/spoiler]").size() > kMaxCharactersInPost) {
 			data += "[/spoiler]";
 			shop_data_.push_back(data);

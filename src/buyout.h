@@ -23,6 +23,9 @@
 
 #include <map>
 #include <string>
+#include <unordered_map>
+
+#include "json_struct/json_struct.h"
 
 #include "currency.h"
 
@@ -35,12 +38,42 @@ enum BuyoutType {
 	BUYOUT_TYPE_INHERIT,
 };
 
+JS_ENUM_DECLARE_VALUE_PARSER(BuyoutType)
+
 enum BuyoutSource {
 	BUYOUT_SOURCE_NONE,
 	BUYOUT_SOURCE_MANUAL,
 	BUYOUT_SOURCE_GAME,
 	BUYOUT_SOURCE_AUTO
 };
+
+JS_ENUM_DECLARE_VALUE_PARSER(BuyoutSource)
+
+namespace JS {
+	template<>
+	struct TypeHandler<QDateTime>
+	{
+	public:
+		static inline Error to(QDateTime& to_type, ParseContext& context)
+		{
+			char* pointer;
+			long long seconds = strtol(context.token.value.data, &pointer, 10);
+			to_type = QDateTime::fromSecsSinceEpoch(seconds);
+			if (context.token.value.data == pointer)
+				return Error::FailedToParseInt;
+			return Error::NoError;
+		}
+		static void from(const QDateTime& from_type, Token& token, Serializer& serializer)
+		{
+			long long int seconds = from_type.toSecsSinceEpoch();
+			std::string buf = std::to_string(seconds);
+			token.value_type = Type::Number;
+			token.value.data = buf.data();
+			token.value.size = buf.size();
+			serializer.write(token);
+		}
+	};
+}
 
 struct Buyout {
 	typedef std::map<BuyoutType, std::string> BuyoutTypeMap;
@@ -52,6 +85,8 @@ struct Buyout {
 	Currency currency;
 	QDateTime last_update;
 	bool inherited = false;
+	JS_OBJ(value, type, source, currency, last_update, inherited);
+
 	bool operator==(const Buyout& o) const;
 	bool operator!=(const Buyout& o) const;
 	bool IsValid() const;
@@ -89,4 +124,9 @@ private:
 	static const BuyoutTypeMap buyout_type_as_tag_;
 	static const BuyoutTypeMap buyout_type_as_prefix_;
 	static const BuyoutSourceMap buyout_source_as_tag_;
+};
+
+struct SerializedBuyouts {
+	std::unordered_map<std::string, Buyout> buyouts;
+	JS_OBJ(buyouts);
 };

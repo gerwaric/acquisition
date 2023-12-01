@@ -552,5 +552,5 @@ bool CorruptedFilter::Matches(const std::shared_ptr<Item>& item, FilterData* dat
 }
 
 double ItemlevelFilter::GetValue(const std::shared_ptr<Item>& item) {
-	return item->ilvl();
+	return item->itemLevel();
 }

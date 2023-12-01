@@ -235,12 +235,14 @@ namespace RateLimit
 	// Rate Limit Policy Managers
 	//=========================================================================================
 
+	class RateLimiter;
+
 	class PolicyManager : public QObject {
 		Q_OBJECT
 
 	public:
 		// Construct a rate limit manager with the specified policy.
-		PolicyManager(QObject* parent = nullptr, std::unique_ptr<Policy> = nullptr);
+		PolicyManager(RateLimiter* limiter, std::unique_ptr<Policy> = nullptr);
 
 		// Move a request into to this manager's queue.
 		void QueueRequest(std::unique_ptr<RateLimitedRequest> request);
@@ -281,14 +283,9 @@ namespace RateLimit
 
 		void PolicyUpdated(const Policy& policy);
 
-	public slots:
-		// Called when a reply has been received. Checks for errors. Updates the
-		// rate limit policy if one was received. Puts the response in the
-		// dispatch queue for callbacks. Checks to see if another request is
-		// waiting to be activated.
-		void ReceiveReply();
-
 	private:
+
+		RateLimiter& limiter;
 
 		// Called right after active_request is loaded with a new request. This
 		// will determine when that request can be sent and setup the active
@@ -297,6 +294,12 @@ namespace RateLimit
 
 		// Sends the currently active request and connects it to ReceiveReply().
 		void SendRequest();
+
+		// Called when a reply has been received. Checks for errors. Updates the
+		// rate limit policy if one was received. Puts the response in the
+		// dispatch queue for callbacks. Checks to see if another request is
+		// waiting to be activated.
+		void ReceiveReply(QNetworkReply* reply);
 
 		// Resends the active request after a delay due to a violation.
 		void ResendAfterViolation();
@@ -344,12 +347,15 @@ namespace RateLimit
 	public:
 		RateLimiter();
 
+		// Called by policy managers when there's a request for us to send.
+		QNetworkReply* SendRequest(QNetworkRequest request);
+
 	public slots:
 		// Should be called when there's a new OAuth access token.
 		void SetAccessToken(const OAuthToken& token);
 
-		// Submit a request-callback pair to the rate limiter. Note that the callback function
-		// should not delete the QNetworkReply. That is handled after the callback finishes.
+		// Submit a request-callback pair to the rate limiter. The callback function is reponsible
+		// for deleting the network reply it receives.
 		void Submit(const QString endpoint, QNetworkRequest network_request, Callback request_callback);
 
 		// Slot for policy managers to send signals when they begin rate limiting.
@@ -370,9 +376,6 @@ namespace RateLimit
 	private slots:
 		// Handles a newly submitted request.
 		void OnSubmit(const QString& endpoint, QNetworkRequest network_request, Callback request_callback);
-
-		// Called by policy managers when there's a request for us to send.
-		void SendRequest(QNetworkRequest request);
 
 		void OnPolicyUpdated(const Policy& policy);
 

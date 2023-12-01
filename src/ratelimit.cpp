@@ -187,8 +187,9 @@ RateLimitedRequest::RateLimitedRequest(const QString& endpoint_, const QNetworkR
 //=========================================================================================
 
 // Create a new rate limit manager based on an existing policy.
-PolicyManager::PolicyManager(QObject* parent, std::unique_ptr<Policy> policy_) :
-	QObject(parent),
+PolicyManager::PolicyManager(RateLimiter* parent, std::unique_ptr<Policy> policy_) :
+	QObject(qobject_cast<QObject*>(parent)),
+	limiter(*parent),
 	policy(std::move(policy_)),
 	busy(false),
 	active_request_timer(this),
@@ -267,7 +268,6 @@ void Dispatch(std::unique_ptr<RateLimitedRequest> request)
 
 		// Trigger the callback for this request now.
 		request->worker_callback(request->network_reply);
-		request->network_reply->deleteLater();
 		request = nullptr;
 	};
 }
@@ -439,13 +439,16 @@ void PolicyManager::SendRequest() {
 
 	// Finally, send the request and note the time.
 	last_send = QDateTime::currentDateTime();
-	emit RequestReady(active_request->network_request);
+	
+	QNetworkReply* reply = limiter.SendRequest(active_request->network_request);
+	connect(reply, &QNetworkReply::finished, this, [=]() { ReceiveReply(reply); });
+	//emit RequestReady(active_request->network_request);
 };
 
 // Called when the active request's reply is finished.
-void PolicyManager::ReceiveReply() {
+void PolicyManager::ReceiveReply(QNetworkReply* reply) {
 
-	QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+	//QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
 	active_request->network_reply = reply;
 	active_request->reply_time = GetDate(reply);
 	active_request->reply_status = GetStatus(reply);
@@ -719,23 +722,46 @@ void RateLimiter::SetAccessToken(const OAuthToken& token) {
 	bearer_token = "Bearer " + token.access_token;
 }
 
-void RateLimiter::SendRequest(QNetworkRequest request) {
-	PolicyManager* manager = qobject_cast<PolicyManager*>(sender());
+QNetworkReply* RateLimiter::SendRequest(QNetworkRequest request) {
+	//PolicyManager* manager = qobject_cast<PolicyManager*>(sender());
 	request.setHeader(QNetworkRequest::UserAgentHeader, USER_AGENT);
 	if (request.url().host() == "api.pathofexile.com") {
 		request.setRawHeader("Authorization", QByteArray::fromStdString(bearer_token));
 	};
-	QNetworkReply* reply = network_manager_.get(request);
-	connect(reply, &QNetworkReply::finished, manager, &PolicyManager::ReceiveReply);
+	return network_manager_.get(request);
+	//connect(reply, &QNetworkReply::finished, manager, &PolicyManager::ReceiveReply);
 }
 
 void RateLimiter::Submit(const QString endpoint, QNetworkRequest network_request, Callback request_callback)
 {
+	if (QThread::currentThread() != this->thread()) {
+		QLOG_ERROR() << "Must use a queued connection to submit requests.";
+		return;
+	};
+
+	if (endpoint_mapping.count(endpoint) > 0) {
+
+		// This endpoint is known to use an existing policy manager.
+		auto request = std::make_unique<RateLimitedRequest>(endpoint, network_request, request_callback);
+		PolicyManager& manager = *endpoint_mapping[endpoint];
+		manager.QueueRequest(std::move(request));
+
+	} else {
+
+		// This is a new endpoint.
+		QNetworkReply* reply = network_manager_.head(network_request);
+		connect(reply, &QNetworkReply::finished, this,
+			[=]() { SetupEndpoint(endpoint, network_request, request_callback, reply); });
+
+	};
+
+	/*
 	if (QThread::currentThread() == this->thread()) {
 		OnSubmit(endpoint, network_request, request_callback);
 	} else {
 		emit Queue(endpoint, network_request, request_callback);
 	};
+	*/
 };
 
 void RateLimiter::OnSubmit(const QString& endpoint, QNetworkRequest network_request, Callback request_callback) {

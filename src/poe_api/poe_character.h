@@ -19,6 +19,8 @@
 #pragma once
 
 #include "json_struct/json_struct.h"
+
+#include "poe_api/poe_typedefs.h"
 #include "poe_api/poe_item.h"
 #include "poe_api/poe_passives.h"
 
@@ -52,6 +54,8 @@ namespace PoE {
 
 	// https://www.pathofexile.com/developer/docs/reference#type-Character
 	struct Character {
+		Character() {};
+		Character(const std::string& json);
 		std::string                                 id;						// string	a unique 64 digit hexadecimal string
 		std::string                                 name;					// string
 		std::string                                 realm;					// string	pc, xbox, or sony
@@ -87,38 +91,11 @@ namespace PoE {
 			JS_MEMBER(metadata));
 	};
 
-	struct ListCharactersResult {
-		std::vector<PoE::Character> characters;
-		JS_OBJ(characters);
-	};
-	struct GetCharacterResult {
-		PoE::Character character;
-		JS_OBJ(character);
-	};
-
-	typedef std::function<void(const PoE::ListCharactersResult&)> ListCharactersCallback;
-	typedef std::function<void(const PoE::GetCharacterResult&)> GetCharacterCallback;
+	using ListCharactersCallback = std::function<void(const std::vector<PoE::Character>&)>;
+	using GetCharacterCallback = std::function<void(const PoE::Character&)>;
 
 	void ListCharacters(QObject* object, PoE::ListCharactersCallback callback);
-	void GetCharacter(QObject* object, PoE::GetCharacterCallback callback, const std::string& name);
-
-	struct LegacyCharacter {
-		LegacyCharacter(const Character& character);
-		std::string name;
-		std::string realm;
-		std::string class_name;
-		std::string league;
-		int         level;
-		bool        pinnable;
-		int         i;
-		JS_OBJECT(
-			JS_MEMBER(name),
-			JS_MEMBER(realm),
-			JS_MEMBER_WITH_NAME(class_name, "class"),
-			JS_MEMBER(league),
-			JS_MEMBER(level),
-			JS_MEMBER(pinnable),
-			JS_MEMBER(i));
-	};
+	void GetCharacter(QObject* object, PoE::GetCharacterCallback callback,
+		const PoE::CharacterName& name);
 
 }

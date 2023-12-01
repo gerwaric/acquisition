@@ -23,8 +23,12 @@
 #include <QtGui>
 #include <QtWidgets>
 
+#include "json_struct/json_struct.h"
+
 #include "application.h"
 #include "buyoutmanager.h"
+#include "currency.h"
+
 struct CurrencyRatio {
 	Currency curr1;
 	Currency curr2;
@@ -42,6 +46,7 @@ struct CurrencyRatio {
 		value1(v1),
 		value2(v2)
 	{}
+	JS_OBJ(curr1, curr2, value1, value2);
 };
 
 struct CurrencyItem {
@@ -50,15 +55,23 @@ struct CurrencyItem {
 	std::string name;
 	CurrencyRatio exalt;
 	CurrencyRatio chaos;
-	CurrencyItem(int co, Currency curr, double chaos_ratio, double exalt_ratio) {
-		count = co;
-		currency = curr;
-		name = curr.AsString();
-		chaos = CurrencyRatio(currency, CURRENCY_CHAOS_ORB, chaos_ratio, 1);
-		exalt = CurrencyRatio(currency, CURRENCY_EXALTED_ORB, exalt_ratio, 1);
-	}
-
+	CurrencyItem() :
+		count(0),
+		currency(CURRENCY_NONE) {};
+	CurrencyItem(int co, Currency curr, double chaos_ratio, double exalt_ratio) :
+		count(co),
+		currency(curr),
+		name(curr.AsString()),
+		chaos(currency, CURRENCY_CHAOS_ORB, chaos_ratio, 1),
+		exalt(currency, CURRENCY_EXALTED_ORB, exalt_ratio, 1) {};
+	JS_OBJ(count, currency, name, exalt, chaos);
 };
+
+struct SerializedCurrencies {
+	std::vector<CurrencyItem> currencies;
+	JS_OBJ(currencies);
+};
+
 struct CurrencyLabels {
 	QLabel* name;
 	QLabel* count;

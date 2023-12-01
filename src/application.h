@@ -21,6 +21,8 @@
 
 #include <QObject>
 
+#include "poe_api/poe_typedefs.h"
+
 class QNetworkAccessManager;
 class QNetworkReply;
 
@@ -43,8 +45,8 @@ public:
 
 	// Should be called by login dialog after login
 	void InitLogin(const std::string& league, const std::string& email);
-	const std::string& account() const { return account_; }
-	const std::string& league() const { return league_; }
+	const PoE::AccountName& account() const { return account_; }
+	const PoE::LeagueName& league() const { return league_; }
 	ItemsManager& items_manager() { return *items_manager_; }
 	DataStore& global_data() const { return *global_data_; }
 	DataStore& data() const { return *data_; }
@@ -59,11 +61,12 @@ public slots:
 	void OnItemsRefreshed(bool initial_refresh);
 private:
 	Application(bool test_mode = false);
+	void InitGlobalData();
 	void LoadTheme();
 	QString GetDataPath() const;
 	bool test_mode_;
-	std::string account_;
-	std::string league_;
+	PoE::AccountName account_;
+	PoE::LeagueName league_;
 	std::unique_ptr<DataStore> global_data_;
 	std::unique_ptr<DataStore> data_;
 	std::unique_ptr<BuyoutManager> buyout_manager_;

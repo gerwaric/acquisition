@@ -26,23 +26,37 @@
 
 namespace PoE {
 
-	LegacyStashTab::LegacyStashTab(const StashTab& tab) :
-		n(tab.name),
-		i(tab.index.value_or(0)),
-		id(tab.id),
-		type(tab.type),
-		selected(false)
-	{
-		colour.r = std::stoul(tab.metadata.colour->substr(0, 2));
-		colour.g = std::stoul(tab.metadata.colour->substr(2, 2));
-		colour.b = std::stoul(tab.metadata.colour->substr(4, 2));
-	}
+	StashTab::StashTab(const std::string& json) {
+		JS::ParseContext context(json);
+		JS::Error error = context.parseTo(*this);
+		if (error != JS::Error::NoError) {
+			QLOG_ERROR() << "Error parsing stash tab:" << context.makeErrorString();
+		};
+	};
 
-	void ListStashes(QObject* object, ListStashesCallback callback, const std::string& league)
+	struct StashTabListWrapper {
+		StashTabListWrapper(const std::string& data) {
+			JS::ParseContext context(data);
+			JS::Error error = context.parseTo(*this);
+			if (error != JS::Error::NoError) {
+				QLOG_ERROR() << "Error parsing wrapped stashes:" << context.makeErrorString();
+				return;
+			};
+		};
+		std::vector<PoE::StashTab> stashes;
+		JS_OBJ(stashes);
+	};
+
+	void ListStashes(QObject* object, ListStashesCallback callback, const PoE::LeagueName& league)
 	{
 		static auto& rate_limiter = Application::instance().rate_limiter();
 
-		const QString LIST_STASHES("https://api.pathofexile.com/stash/" + QString::fromStdString(league));
+		if (!league) {
+			QLOG_ERROR() << "PoE API: cannot list stashes: league is empty";
+			return;
+		};
+
+		const QString LIST_STASHES("https://api.pathofexile.com/stash/" + QString(league));
 
 		auto callback_wrapper = [=](QNetworkReply* reply) {
 			// Check for network errors.
@@ -52,31 +66,55 @@ namespace PoE {
 				QLOG_ERROR() << "ListStashes: network error (" << status << "):" << message;
 				return;
 			};
-			const QByteArray data = reply->readAll();
-			ListStashesResult result;
-			JS::ParseContext context(data);
-			JS::Error error = context.parseTo(result);
-			if (error != JS::Error::NoError) {
-				QLOG_ERROR() << "ListStashes: json error:" << context.makeErrorString();
-				return;
-			};
 			// Run the callback in the context object's thread.
-			QMetaObject::invokeMethod(object, [=]() { callback(result); });
+			QMetaObject::invokeMethod(object,
+				[=]() {
+					const StashTabListWrapper result(reply->readAll().toStdString());
+					callback(result.stashes);
+				});
 		};
-
-		rate_limiter.Submit("GET /stash/<league>", QNetworkRequest(QUrl(LIST_STASHES)), callback_wrapper);
+		QMetaObject::invokeMethod(&rate_limiter,
+			[=]() { 
+				rate_limiter.Submit("GET /stash/<league>",
+					QNetworkRequest(QUrl(LIST_STASHES)),
+					callback_wrapper);
+			});
 	}
 
+	struct StashTabWrapper {
+		StashTabWrapper(const std::string& data) {
+			JS::ParseContext context(data);
+			JS::Error error = context.parseTo(*this);
+			if (error != JS::Error::NoError) {
+				QLOG_ERROR() << "Error parsing wrapped stash:" << context.makeErrorString();
+				return;
+			};
+		};
+		PoE::StashTab stash;
+		JS_OBJ(stash);
+	};
+
 	void GetStash(QObject* object, GetStashCallback callback,
-		const std::string& league,
-		const std::string& stash_id,
-		const std::string& substash_id)
+		const PoE::LeagueName& league,
+		const PoE::StashId& stash_id,
+		const PoE::StashId& substash_id)
 	{
 		static auto& rate_limiter = Application::instance().rate_limiter();
 
-		const QString LIST_STASHES = substash_id.empty()
-			? "https://api.pathofexile.com/stash/" + QString::fromStdString(league + "/" + stash_id)
-			: "https://api.pathofexile.com/stash/" + QString::fromStdString(league + "/" + stash_id + "/" + substash_id);
+		if (!league) {
+			QLOG_ERROR() << "PoE API: cannot get stash: league is empty";
+			return;
+		};
+		if (!stash_id) {
+			QLOG_ERROR() << "PoE API: cannot get stash: stash_id is empty";
+			return;
+		};
+
+		const QString path = (substash_id)
+			? QString(league) + "/" + QString(stash_id) + "/" + QString(substash_id)
+			: QString(league) + "/" + QString(stash_id);
+
+		const QString GET_STASH = "https://api.pathofexile.com/stash/" + path;
 
 		auto callback_wrapper = [=](QNetworkReply* reply) {
 			// Check for network errors.
@@ -86,19 +124,20 @@ namespace PoE {
 				QLOG_ERROR() << "GetStash: network error (" << status << "):" << message;
 				return;
 			};
-			const QByteArray data = reply->readAll();
-			GetStashResult result;
-			JS::ParseContext context(data);
-			JS::Error error = context.parseTo(result);
-			if (error != JS::Error::NoError) {
-				QLOG_ERROR() << "GetStash: json error:" << context.makeErrorString();
-				return;
-			};
+			// Parse the reply.
 			// Run the callback in the context object's thread.
-			QMetaObject::invokeMethod(object, [=]() { callback(result); });
+			QMetaObject::invokeMethod(object,
+				[=]() {
+					const StashTabWrapper result(reply->readAll().toStdString());
+					callback(result.stash);
+				});
 		};
-
-		rate_limiter.Submit("GET /stash/<league>/<stash_id>", QNetworkRequest(QUrl(LIST_STASHES)), callback_wrapper);
+		QMetaObject::invokeMethod(&rate_limiter,
+			[=]() {
+				rate_limiter.Submit("GET /stash/<league>/<stash_id>",
+					QNetworkRequest(QUrl(GET_STASH)),
+					callback_wrapper);			
+			});
 	}
 
 }

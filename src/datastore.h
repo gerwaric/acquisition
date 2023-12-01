@@ -27,13 +27,17 @@
 #include <QThread>
 
 #include <list>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "poe_api/poe_typedefs.h"
+
 #include "currencymanager.h"
 #include "itemlocation.h"
 #include "item.h"
+#include "mainwindow.h"
 
 struct DataStoreConnection {
 	QSqlDatabase database;
@@ -44,11 +48,13 @@ struct DataStoreConnection {
 class DataStoreConnectionManager : public QObject {
 	Q_OBJECT
 public:
-	DataStoreConnection& GetConnection(const QString& filename);
-	void Disconnect(const QString& filename);
+	static DataStoreConnectionManager& instance();
+	DataStoreConnection& GetConnection(const QString filename);
+	void Disconnect(const QString filename);
 private slots:
 	void OnThreadFinished();
 private:
+	DataStoreConnectionManager() {};
 	int thread_id_count_{ 0 };
 	std::unordered_map<QThread*, QString> thread_ids_;
 	std::unordered_map<QThread*, QStringList> connection_ids_;
@@ -56,27 +62,36 @@ private:
 	QMutex mutex_;
 };
 
-class DataStore {
+class DataStore : public QObject {
+	Q_OBJECT
+
 public:
-	typedef std::list<const ItemLocation*> LocationList;
-	typedef std::list<const Item*> ItemList;
-	virtual ~DataStore() {};
-	virtual void Set(const std::string& key, const std::string& value) = 0;
-	virtual void SetTabs(const ItemLocationType& type, const LocationList& tabs) = 0;
-	virtual void SetItems(const ItemLocation& loc, const ItemList& items) = 0;
-	virtual std::string Get(const std::string& key, const std::string& default_value = "") = 0;
-	virtual Locations GetTabs(const ItemLocationType& type) = 0;
-	virtual Items GetItems(const ItemLocation& loc) = 0;
-	virtual void InsertCurrencyUpdate(const CurrencyUpdate& update) = 0;
-	virtual std::vector<CurrencyUpdate> GetAllCurrency() = 0;
-	void SetBool(const std::string& key, bool value);
-	bool GetBool(const std::string& key, bool default_value = false);
-	void SetInt(const std::string& key, int value);
-	int GetInt(const std::string& key, int default_value = 0);
-protected:
-	QString Serialize(const LocationList& tabs);
-	QString Serialize(const ItemList& items);
-	Locations DeserializeTabs(const QString& tabs_json);
-	ItemLocation DeserializeTab(const QString& tab_json);
-	Items DeserializeItems(const QString& items_json, const ItemLocation& tab);
+	static QString MakeFilename(const std::string name, const std::string league);
+
+	DataStore(const QString& filename_);
+	~DataStore();
+
+	const QString filename() const { return filename_; };
+
+	void Set(const std::string key, const std::string value);
+	void SetInt(const std::string key, int value);
+	void SetBool(const std::string key, bool value);
+	void SetStash(const PoE::StashTab& stash);
+	void SetCharacter(const PoE::Character& character);
+	void InsertCurrencyUpdate(const CurrencyUpdate& update);
+
+	std::string Get(const std::string key, const std::string default_value = "");
+	int GetInt(const std::string key, int default_value = 0);
+	bool GetBool(const std::string key, bool default_value = false);
+	std::unordered_map<PoE::StashId, PoE::StashTab> GetStashes();
+	std::unordered_map<PoE::CharacterName, PoE::Character> GetCharacters();
+	std::vector<CurrencyUpdate> GetAllCurrency();
+
+signals:
+	void StatusUpdate(const CurrentStatusUpdate& status);
+
+private:
+	void SimpleQuery(DataStoreConnection& db, const QString& query_str);
+	const QString filename_;
+	DataStoreConnectionManager& manager_;
 };

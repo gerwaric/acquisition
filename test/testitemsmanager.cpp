@@ -19,7 +19,7 @@
 
 #include "testitemsmanager.h"
 
-#include "rapidjson/document.h"
+//#include "rapidjson/document.h"
 
 #include "buyout.h"
 #include "buyoutmanager.h"

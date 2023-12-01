@@ -20,8 +20,9 @@
 
 #include "json_struct/json_struct.h"
 
+#include "poe_api/poe_typedefs.h"
+
 #include <optional>
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -56,11 +57,7 @@ namespace PoE {
 		JS_OBJ(id, realm, description, rules, registerAt, event, url, startAt, endAt, timedEvent, scoreEvent, delveEvent, ancestorEvent, leagueEvent);
 	};
 
-	struct GetLeaguesResult {
-		std::vector<PoE::League> leagues;
-		JS_OBJ(leagues);
-	};
-	typedef std::function<void(const PoE::GetLeaguesResult&)> GetLeaguesCallback;
+	using GetLeaguesCallback = std::function<void(const std::vector<PoE::League>&)>;
 
 	void GetLeagues(QObject* object, PoE::GetLeaguesCallback callback);
 }

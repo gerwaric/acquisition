@@ -105,14 +105,14 @@ QVariant ItemsModel::data(const QModelIndex& index, int role) const {
 				title += QString(" [%1]").arg(bo.AsText().c_str());
 			return title;
 		}
-		if (location.IsValid() && location.get_type() == ItemLocationType::STASH) {
+		if (location.IsValid() && location.type() == ItemLocationType::STASH) {
 			if (role == Qt::BackgroundRole) {
-				QColor backgroundColor(location.getR(), location.getG(), location.getB());
+				QColor backgroundColor(location.red(), location.green(), location.blue());
 				if (backgroundColor.isValid())
 					return backgroundColor;
 			}
 			if (role == Qt::ForegroundRole) {
-				QColor backgroundColor(location.getR(), location.getG(), location.getB());
+				QColor backgroundColor(location.red(), location.green(), location.blue());
 				return Util::recommendedForegroundTextColor(backgroundColor);
 			}
 

@@ -3,10 +3,10 @@
 #include <QRectF>
 #include <QColor>
 #include <set>
-#include "rapidjson/document.h"
-#include "rapidjson_util.h"
 
-#include "json_struct/json_struct.h"
+#include "poe_api/poe_typedefs.h"
+
+class Item;
 
 namespace PoE {
 	struct Character;
@@ -15,63 +15,83 @@ namespace PoE {
 }
 
 enum class ItemLocationType {
+	INVALID,
 	STASH,
-	CHARACTER
+	CHARACTER,
 };
-QDebug& operator<<(QDebug& os, const ItemLocationType& obj);
 
+QDebug& operator<<(QDebug& os, const ItemLocationType& obj);
 
 class ItemLocation {
 public:
 	ItemLocation();
 	explicit ItemLocation(const PoE::Character& character);
+	explicit ItemLocation(const PoE::Character& character, const PoE::Item& item);
 	explicit ItemLocation(const PoE::StashTab& stash);
-	ItemLocation OfItem(const PoE::Item& item);
-	explicit ItemLocation(const rapidjson::Value& root);
-	ItemLocation(int tab_id, std::string tab_unique_id, std::string name, ItemLocationType = ItemLocationType::STASH, int r = 0, int g = 0, int b = 0);
-	void ToItemJson(rapidjson::Value* root, rapidjson_allocator& alloc);
-	void FromItemJson(const rapidjson::Value& root);
-	std::string GetHeader() const;
-	QRectF GetRect() const;
-	std::string GetForumCode(const std::string& league) const;
-	bool IsValid() const;
-	bool operator<(const ItemLocation& other) const;
-	bool operator==(const ItemLocation& other) const;
-	void set_type(const ItemLocationType type) { type_ = type; }
-	ItemLocationType get_type() const { return type_; }
-	void set_character(const std::string& character) { character_ = character; }
-	void set_tab_id(int tab_id) { tab_id_ = tab_id; }
-	void set_tab_label(const std::string& tab_label) { tab_label_ = tab_label; }
-	std::string get_tab_label() const { return tab_label_; }
-	bool socketed() const { return socketed_; }
-	bool removeonly() const { return removeonly_; }
-	void set_socketed(bool socketed) { socketed_ = socketed; }
-	int get_tab_id() const { return tab_id_; }
-	int getR() const { return red_; }
-	int getG() const { return green_; }
-	int getB() const { return blue_; }
-	void SetBackgroundColor(int r, int g, int b);
-	const std::string id() const { return id_; }
-	void set_json(rapidjson::Value& value, rapidjson_allocator& alloc);
-	void set_json(const std::string& value) { json_ = value; };
-	std::string get_json() const { return json_; }
-private:
-	int x_, y_, w_, h_;
-	int red_, green_, blue_;
-	bool socketed_;
-	bool removeonly_;
-	ItemLocationType type_;
-	int tab_id_;
-	std::string json_;
+	explicit ItemLocation(const PoE::StashTab& stash, const PoE::Item& item);
+	explicit ItemLocation(const ItemLocation& location, const PoE::Item& item);
+	explicit ItemLocation(int tab_id, std::string tab_unique_id, std::string name);
 
-	//this would be the value "tabs -> id", which seems to be a hashed value generated on their end
+	//void FromItem(const Item& item);
+	//void ToItem(Item& item);
+	std::string GetHeader() const;
+	std::string GetForumCode(const PoE::LeagueName& league) const;
+	QRectF GetRect() const;
+	bool IsValid() const { return type_ != ItemLocationType::INVALID; };
+
+	const auto tie() const { return std::tie(type_, stash_index_, name_, id_); };
+	bool operator<(const ItemLocation& other) const { return tie() < other.tie(); };
+	bool operator==(const ItemLocation& other) const { return tie() == other.tie(); };
+
+	ItemLocationType type() const { return type_; };
+	const std::string& id() const { return id_; };
+	const std::string& name() const { return name_; };
+	const std::string& parent_id() const { return parent_id_; };
+	int stash_index() const { return stash_index_; };
+	const std::string& stash_type() const { return stash_type_; };
+	int red() const { return red_; };
+	int green() const { return green_; };
+	int blue() const { return blue_; };
+	bool removeonly() const { return removeonly_; };
+	bool socketed() const { return socketed_; }
+	const std::string& inventory_id() const { return inventory_id_; }
+
+private:
+	void SocketInto(const PoE::Item& item);
+
+	// Either STASH, CHARACTER, or INVALID.
+	ItemLocationType type_;
+
+	// Both stash tabs and characters have a unique id.
 	std::string id_;
 
-	std::string tab_label_;
-	std::string character_;
+	// Both stash tabs and characters have a name, but only character names appears to be unique.
+	std::string name_;
+
+	// Only stash tabs can have a parent stash.
+	std::string parent_id_;
+
+	// Only stash tabs have an index.
+	int stash_index_;
+
+	// Only stash tabs have a type, e.g. "CurrencyStash" or "PremiumStash".
+	std::string stash_type_;
+
+	// Only stash tabs have color metadata.
+	int red_;
+
+	// Only stash tabs have color metadata.
+	int green_;
+
+	// Only stash tabs have color metadata.
+	int blue_;
+
+	// Only stash tabs can be remove-only.
+	bool removeonly_;
+	
+	int x_, y_, w_, h_;
+	bool socketed_;
 	std::string inventory_id_;
-	JS_OBJ(w_, y_, w_, h_, red_, blue_, green_,
-		socketed_, removeonly_, type_, tab_id_, tab_unique_id_, tab_label_, character_, inventory_id);
 };
 
 typedef std::vector<ItemLocation> Locations;

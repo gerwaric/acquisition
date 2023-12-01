@@ -83,6 +83,7 @@ LoginDialog::LoginDialog() :
 	QLOG_DEBUG() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
 	QLOG_DEBUG() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
 
+	connect(&app_.oauth_manager(), &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
 	connect(ui->tokenInfoButton, &QPushButton::clicked, &app_.oauth_manager(), &OAuthManager::showStatus);
 	connect(ui->tokenRefreshButton, &QPushButton::clicked, &app_.oauth_manager(), &OAuthManager::requestRefresh);
 	connect(ui->authenticateButton, &QPushButton::clicked, this, &LoginDialog::OnAuthenticateButtonClicked);
@@ -118,7 +119,6 @@ void LoginDialog::LoadSettings() {
 void LoginDialog::OnAuthenticateButtonClicked() {
 	ui->authenticateButton->setEnabled(false);
 	ui->authenticateButton->setText("Authenticating...");
-	connect(&app_.oauth_manager(), &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
 	app_.oauth_manager().requestAccess();
 }
 
@@ -135,14 +135,14 @@ void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
 	ui->tokenRefreshButton->setEnabled(true);
 	ui->authenticateButton->setEnabled(true);
 	PoE::GetLeagues(this,
-		[=](const PoE::GetLeaguesResult& leagues) {
+		[=](const std::vector<PoE::League>& leagues) {
 			OnLeaguesReceived(leagues);
 		});
 }
 
-void LoginDialog::OnLeaguesReceived(const PoE::GetLeaguesResult& result) {
+void LoginDialog::OnLeaguesReceived(const std::vector<PoE::League>& leagues) {
 	ui->leagueComboBox->setEnabled(true);
-	for (auto& league : result.leagues) {
+	for (auto& league : leagues) {
 		ui->leagueComboBox->addItem(QString::fromStdString(league.id));
 	};
 	if (saved_league_.isEmpty() == false) {
@@ -184,7 +184,7 @@ void LoginDialog::SaveSettings() {
 	settings.setValue("remember_me_checked", ui->rembmeCheckBox->isChecked());
 	settings.setValue("use_system_proxy_checked", ui->proxyCheckBox->isChecked());
 	const std::string token_json = (remember_me && app_.oauth_manager().token().has_value())
-		? JS::serializeStruct(app_.oauth_manager().token())
+		? JS::serializeStruct(app_.oauth_manager().token(), JS::SerializerOptions::Compact)
 		: "";
 	app_.global_data().Set("oauth_token", token_json);
 }

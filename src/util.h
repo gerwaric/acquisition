@@ -21,7 +21,6 @@
 
 #include <string>
 #include <QDateTime>
-#include "rapidjson/document.h"
 #include <QDebug>
 #include <QObject>
 #include <QUrlQuery>
@@ -74,7 +73,6 @@ QDebug& operator<<(QDebug& os, const TabSelection::Type& obj);
 
 QDebug& operator<<(QDebug& os, const QsLogging::Level& obj);
 
-
 namespace Util {
 	std::string Md5(const std::string& value);
 	double AverageDamage(const std::string& s);
@@ -83,12 +81,12 @@ namespace Util {
 
 	int TextWidth(TextWidthId id);
 
-	void ParseJson(QNetworkReply* reply, rapidjson::Document* doc);
+	//void ParseJson(QNetworkReply* reply, rapidjson::Document* doc);
 	std::string GetCsrfToken(const QByteArray& page, const std::string& name);
 	std::string FindTextBetween(const std::string& page, const std::string& left, const std::string& right);
 
-	std::string RapidjsonSerialize(const rapidjson::Value& val);
-	void RapidjsonAddConstString(rapidjson::Value* object, const char* const name, const std::string& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
+	//std::string RapidjsonSerialize(const rapidjson::Value& val);
+	//void RapidjsonAddConstString(rapidjson::Value* object, const char* const name, const std::string& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
 
 	std::string StringReplace(const std::string& haystack, const std::string& needle, const std::string& replace);
 	std::string StringJoin(const std::vector<std::string>& array, const std::string& separator);

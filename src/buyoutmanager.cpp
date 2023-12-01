@@ -24,15 +24,18 @@
 #include <stdexcept>
 #include <regex>
 #include "QsLog.h"
-#include "rapidjson/document.h"
-#include "rapidjson/error/en.h"
+#include "boost/algorithm/string/join.hpp"
 
 #include "application.h"
 #include "currency.h"
 #include "datastore.h"
 #include "util.h"
 #include "itemlocation.h"
-#include "QVariant"
+
+struct BooleanMap {
+	std::unordered_map<std::string, bool> values;
+	JS_OBJ(values);
+};
 
 const std::map<std::string, BuyoutType> BuyoutManager::string_to_buyout_type_ = {
 	{"~gb/o", BUYOUT_TYPE_BUYOUT},
@@ -163,6 +166,14 @@ void BuyoutManager::Clear() {
 }
 
 std::string BuyoutManager::Serialize(const std::map<std::string, Buyout>& buyouts) {
+
+	SerializedBuyouts result;
+	for (auto& item : buyouts) {
+		result.buyouts[item.first] = item.second;
+	};
+	return JS::serializeStruct(result, JS::SerializerOptions::Compact);
+	
+	/*
 	rapidjson::Document doc;
 	doc.SetObject();
 	auto& alloc = doc.GetAllocator();
@@ -194,6 +205,7 @@ std::string BuyoutManager::Serialize(const std::map<std::string, Buyout>& buyout
 	}
 
 	return Util::RapidjsonSerialize(doc);
+	*/
 }
 
 void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, Buyout>* buyouts) {
@@ -203,6 +215,20 @@ void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, B
 	if (data.empty())
 		return;
 
+	// First deserialize.
+	SerializedBuyouts result;
+	JS::ParseContext context(data);
+	JS::Error error = context.parseTo(result);
+	if (error != JS::Error::NoError) {
+		QLOG_ERROR() << "Failed to deserialized buyouts:" << context.makeErrorString();
+	};
+
+	// Second store the results.
+	for (auto& item : result.buyouts) {
+		(*buyouts)[item.first] = item.second;
+	};
+
+	/*
 	rapidjson::Document doc;
 	if (doc.Parse(data.c_str()).HasParseError()) {
 		QLOG_ERROR() << "Error while parsing buyouts.";
@@ -230,10 +256,19 @@ void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, B
 			bo.inherited = object["inherited"].GetBool();
 		(*buyouts)[name] = bo;
 	}
+	*/
 }
 
 
 std::string BuyoutManager::Serialize(const std::map<std::string, bool>& obj) {
+
+	BooleanMap map;
+	for (auto& item : obj) {
+		map.values[item.first] = item.second;
+	};
+	return JS::serializeStruct(map, JS::SerializerOptions::Compact);
+
+	/*
 	rapidjson::Document doc;
 	doc.SetObject();
 	auto& alloc = doc.GetAllocator();
@@ -244,6 +279,7 @@ std::string BuyoutManager::Serialize(const std::map<std::string, bool>& obj) {
 		doc.AddMember(key, val, alloc);
 	}
 	return Util::RapidjsonSerialize(doc);
+	*/
 }
 
 void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, bool>& obj) {
@@ -251,6 +287,20 @@ void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, b
 	if (data.empty())
 		return;
 
+	// First deserialize.
+	BooleanMap result;
+	JS::ParseContext context(data);
+	JS::Error error = context.parseTo(result);
+	if (error != JS::Error::NoError) {
+		QLOG_ERROR() << "Failed to deserialized buyouts:" << context.makeErrorString();
+	};
+
+	// Second store the results.
+	for (auto& item : result.values) {
+		obj[item.first] = item.second;
+	};
+
+	/*
 	rapidjson::Document doc;
 	if (doc.Parse(data.c_str()).HasParseError()) {
 		QLOG_ERROR() << rapidjson::GetParseError_En(doc.GetParseError());
@@ -265,6 +315,7 @@ void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, b
 		const auto& name = itr->name.GetString();
 		obj[name] = val;
 	}
+	*/
 }
 
 void BuyoutManager::Save() {

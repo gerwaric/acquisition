@@ -377,7 +377,7 @@ std::string ItemlevelColumn::name() const {
 }
 
 QVariant ItemlevelColumn::value(const Item& item) const {
-	if (item.ilvl() > 0)
-		return item.ilvl();
+	if (item.itemLevel() > 0)
+		return item.itemLevel();
 	return QVariant();
 }

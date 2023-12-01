@@ -1,7 +1,7 @@
 #include "testshop.h"
 
 #include <memory>
-#include "rapidjson/document.h"
+//#include "rapidjson/document.h"
 
 #include "application.h"
 #include "buyoutmanager.h"

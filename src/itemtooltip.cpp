@@ -25,6 +25,8 @@
 #include <vector>
 #include "QsLog.h"
 
+#include <boost/algorithm/string/join.hpp>
+
 #include "item.h"
 #include "itemconstants.h"
 
@@ -164,13 +166,16 @@ static std::string ModListAsString(const ItemMods& list) {
 }
 
 static std::vector<std::string> GenerateMods(const Item& item) {
+	auto& modlists = item.mods();
 	std::vector<std::string> out;
-	auto& mods = item.text_mods();
-	for (auto& mod_type : ITEM_MOD_TYPES) {
-		std::string mod_list = ModListAsString(mods.at(mod_type));
-		if (!mod_list.empty())
-			out.push_back(mod_list);
-	}
+	out.reserve(modlists.size());
+	for (auto& mods : modlists) {
+		if (mods) {
+			std::string modstr = boost::algorithm::join(*mods, "<br>");
+			out.push_back(ColorPropertyValue(ItemPropertyValue{ modstr, 1 }));
+		};
+	};
+	out.shrink_to_fit();
 	return out;
 }
 

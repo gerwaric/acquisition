@@ -20,6 +20,8 @@
 
 #include "json_struct/json_struct.h"
 
+#include "poe_api/poe_typedefs.h"
+
 #include <optional>
 #include <string>
 #include <vector>

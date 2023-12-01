@@ -37,6 +37,7 @@
 #include "filters.h"
 #include "itemcategories.h"
 #include "ratelimit.h"
+#include "repoe.h"
 
 ItemsManager::ItemsManager(Application& app) :
 	auto_update_timer_(std::make_unique<QTimer>()),
@@ -58,14 +59,21 @@ ItemsManager::~ItemsManager() {
 }
 
 void ItemsManager::Start() {
+
 	worker_ = std::make_unique<ItemsManagerWorker>(app_);
-	connect(this, &ItemsManager::UpdateSignal, worker_.get(), &ItemsManagerWorker::Update);
 	connect(worker_.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
 	connect(worker_.get(), &ItemsManagerWorker::RateLimitStatusUpdate, this, &ItemsManager::OnRateLimitStatusUpdate);
 	connect(worker_.get(), &ItemsManagerWorker::ItemsRefreshed, this, &ItemsManager::OnItemsRefreshed);
-	connect(worker_.get(), &ItemsManagerWorker::ItemClassesUpdate, this, &ItemsManager::OnItemClassesUpdate);
-	connect(worker_.get(), &ItemsManagerWorker::ItemBaseTypesUpdate, this, &ItemsManager::OnItemBaseTypesUpdate);
-	worker_->Init();
+
+	repoe_ = std::make_unique<RePoE::Updater>(this);
+	connect(repoe_.get(), &RePoE::Updater::GetRequest, &app_.rate_limiter(), &RateLimit::RateLimiter::Submit);
+	connect(repoe_.get(), &RePoE::Updater::ItemClassesUpdate, this, &ItemsManager::OnItemClassesUpdate);
+	connect(repoe_.get(), &RePoE::Updater::BaseTypesUpdate, this, &ItemsManager::OnItemBaseTypesUpdate);
+	connect(repoe_.get(), &RePoE::Updater::StatTranslationsUpdate, worker_.get(), &ItemsManagerWorker::OnStatTranslationsReceived);
+
+	connect(this, &ItemsManager::UpdateSignal, worker_.get(), &ItemsManagerWorker::Update);
+
+	emit repoe_->RequestItemClasses();
 }
 
 void ItemsManager::OnStatusUpdate(const CurrentStatusUpdate& status) {
@@ -76,46 +84,32 @@ void ItemsManager::OnRateLimitStatusUpdate(const QString& status) {
 	emit RateLimitStatusUpdate(status);
 }
 
-void ItemsManager::OnItemClassesUpdate(const QByteArray& classes) {
-	rapidjson::Document doc;
-	doc.Parse(classes.constData());
-
-	if (doc.HasParseError()) {
-		QLOG_ERROR() << "Couldn't properly parse Item Classes from RePoE, The type dropdown will remain empty.";
-		return;
-	};
+void ItemsManager::OnItemClassesUpdate(const RePoE::ItemClasses& item_classes) {
 
 	categories_.clear();
 	itemClassKeyToValue.clear();
 	itemClassValueToKey.clear();
 
-	for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
-		std::string key = itr->name.GetString();
-		std::string value = itr->value.FindMember("name")->value.GetString();
-		categories_.insert(value.c_str());
-		itemClassKeyToValue.insert(std::make_pair(key, value));
-		itemClassValueToKey.insert(std::make_pair(value, key));
+	for (const auto& it : item_classes) {
+		const std::string& key = it.first;
+		const std::string& value = it.second.name;
+		categories_.insert(QString::fromStdString(value));
+		itemClassKeyToValue[key] = value;
+		itemClassValueToKey[value] = key;
 	};
+	categories_.insert(QString::fromStdString(CategorySearchFilter::k_Default));
 
-	categories_.insert(CategorySearchFilter::k_Default.c_str());
+	emit repoe_->RequestBaseTypes();
 }
 
-void ItemsManager::OnItemBaseTypesUpdate(const QByteArray& baseTypes) {
-	rapidjson::Document doc;
-	doc.Parse(baseTypes.constData());
-
-	if (doc.HasParseError()) {
-		QLOG_ERROR() << "Couldn't properly parse Item Base Types from RePoE, The type dropdown will remain empty.";
-		return;
-	};
-
+void ItemsManager::OnItemBaseTypesUpdate(const RePoE::BaseTypes& base_types) {
 	itemBaseType_NameToClass.clear();
-
-	for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
-		std::string item_class = itr->value.FindMember("item_class")->value.GetString();
-		std::string name = itr->value.FindMember("name")->value.GetString();
-		itemBaseType_NameToClass.insert(std::make_pair(name, item_class));
+	for (const auto& it : base_types) {
+		const std::string& item_class = it.second.item_class;
+		const std::string& name = it.second.name;
+		itemBaseType_NameToClass[name] = item_class;
 	};
+	emit repoe_->RequestStatTranslations();
 }
 
 void ItemsManager::ApplyAutoTabBuyouts() {
@@ -127,7 +121,7 @@ void ItemsManager::ApplyAutoTabBuyouts() {
 	// Loop over all tabs, create buyout based on tab name which applies auto-pricing policies
 	auto& bo = app_.buyout_manager();
 	for (auto const& loc : app_.buyout_manager().GetStashTabLocations()) {
-		auto tab_label = loc.get_tab_label();
+		auto tab_label = loc.name();
 		Buyout buyout = bo.StringToBuyout(tab_label);
 		if (buyout.IsActive()) {
 			bo.SetTab(loc.id(), buyout);
@@ -207,13 +201,7 @@ void ItemsManager::OnItemsRefreshed(const Items& items, const std::vector<ItemLo
 }
 
 void ItemsManager::Update(TabSelection::Type type, const std::vector<ItemLocation>& locations) {
-	if (worker_.get()->isInitialized() == false) {
-		// tell ItemsManagerWorker to run an Update() after it's finished updating mods
-		worker_.get()->UpdateRequest(type, locations);
-		QLOG_DEBUG() << "Update deferred until item mods parsing is complete";
-	} else {
-		emit UpdateSignal(type, locations);
-	};
+	emit UpdateSignal(type, locations);
 }
 
 void ItemsManager::SetAutoUpdate(bool update) {

@@ -44,7 +44,7 @@ public slots:
 	void OnAuthenticateButtonClicked();
 	void OnProxyCheckBoxClicked(bool);
 	void OnOAuthAccessGranted(const OAuthToken& token);
-	void OnLeaguesReceived(const PoE::GetLeaguesResult& leagues);
+	void OnLeaguesReceived(const std::vector<PoE::League>& leagues);
 	void OnLoginButtonClicked();
 protected:
 	bool event(QEvent* e);

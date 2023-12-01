@@ -31,18 +31,16 @@
 #include "item.h"
 #include "porting.h"
 #include "util.h"
-#include "rapidjson/document.h"
-#include "rapidjson/error/en.h"
 
 
 CurrencyManager::CurrencyManager(Application& app) :
 	app_(app),
 	data_(app.data())
 {
-	if (data_.Get("currency_items", "").empty()) {
+	if (data_.Get("currency_items").empty()) {
 
 		FirstInitCurrency();
-		if (!data_.Get("currency_base", "").empty()) {
+		if (!data_.Get("currency_base").empty()) {
 			MigrateCurrency();
 			QLOG_INFO() << "Found old currency values, migrated them to the new system";
 		}
@@ -146,6 +144,15 @@ void CurrencyManager::MigrateCurrency() {
 }
 
 std::string CurrencyManager::Serialize(const std::vector<std::shared_ptr<CurrencyItem>>& currencies) {
+
+	SerializedCurrencies result;
+	result.currencies.reserve(currencies.size());
+	for (auto& currency : currencies) {
+		result.currencies.push_back(*currency);
+	};
+	return JS::serializeStruct(result, JS::SerializerOptions::Compact);
+
+	/*
 	rapidjson::Document doc;
 	doc.SetObject();
 	auto& alloc = doc.GetAllocator();
@@ -159,12 +166,33 @@ std::string CurrencyManager::Serialize(const std::vector<std::shared_ptr<Currenc
 		doc.AddMember(name, item, alloc);
 	}
 	return Util::RapidjsonSerialize(doc);
+	*/
 }
 
 void CurrencyManager::Deserialize(const std::string& data, std::vector<std::shared_ptr<CurrencyItem> >* currencies) {
 	//Maybe clear something would be good
 	if (data.empty())
 		return;
+
+	// First deserialize.
+	SerializedCurrencies result;
+	JS::ParseContext context(data);
+	JS::Error error = context.parseTo(result);
+	if (error != JS::Error::NoError) {
+		QLOG_ERROR() << "Failed to deserialized buyouts:" << context.makeErrorString();
+	};
+
+	// Copy results back to the output.
+	for (auto& deserialized_currency : result.currencies) {
+		for (auto& item : *currencies) {
+			if (deserialized_currency.currency == item->currency) {
+				*item = deserialized_currency;
+				break;
+			};
+		};
+	};
+
+	/*
 	rapidjson::Document doc;
 	if (doc.Parse(data.c_str()).HasParseError()) {
 		QLOG_ERROR() << "Error while parsing currency ratios.";
@@ -184,6 +212,7 @@ void CurrencyManager::Deserialize(const std::string& data, std::vector<std::shar
 		}
 		//currencies->push_back(item);
 	}
+	*/
 }
 
 void CurrencyManager::SaveCurrencyItems() {

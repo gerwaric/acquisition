@@ -24,7 +24,6 @@
 #include <sstream>
 #include <boost/algorithm/string.hpp>
 #include <regex>
-#include "rapidjson/document.h"
 
 #include "QsLog.h"
 
@@ -63,7 +62,7 @@ const std::array<Item::CategoryReplaceMap, Item::k_CategoryLevels> Item::replace
 
 	// Category hierarchy 1 replacement map
 	replace_map_1_,
-			
+
 	// Category hierarchy 2 replacement map
 	replace_map_2_
 
@@ -73,6 +72,7 @@ const std::vector<std::string> ITEM_MOD_TYPES = {
 	"implicitMods", "enchantMods", "explicitMods", "craftedMods", "fracturedMods"
 };
 
+/*
 static std::string item_unique_properties(const rapidjson::Value& json, const std::string& name) {
 	const char* name_p = name.c_str();
 	if (!json.HasMember(name_p))
@@ -85,6 +85,7 @@ static std::string item_unique_properties(const rapidjson::Value& json, const st
 	}
 	return result;
 }
+*/
 
 // Fix up names, remove all <<set:X>> modifiers
 static std::string fixup_name(const std::string& name) {
@@ -96,21 +97,22 @@ static std::string fixup_name(const std::string& name) {
 }
 
 // Construct directly from a new API object.
-Item::Item(const PoE::Item& item, const ItemLocation& location) :
-	name_(item.name),
-	location_(location),
-	typeLine_(item.typeLine),
-	baseType_(item.baseType),
+Item::Item(const PoE::Item& item) :
+	item_(item),
+	id_(item.id.value_or("")),
+	name_(fixup_name(item.name)),
+	typeLine_(fixup_name(item.typeLine)),
+	baseType_(fixup_name(item.baseType)),
 	// set in constructor body: category_(),          
 	// set in constructor body: category_vector_(),
-	identified_(item.identified),
-	corrupted_(item.corrupted.value_or(false)),
-	crafted_(item.craftedMods),
-	enchanted_(item.enchantMods),
+	//identified_(item.identified),
+	//corrupted_(item.corrupted.value_or(false)),
+	//crafted_(item.craftedMods),
+	//enchanted_(item.enchantMods),
 	// set in constructor body: influenceList_(),
-	w_(item.w),
-	h_(item.h),
-	frameType_(item.frameType ? static_cast<int>(item.frameType.value()) : -1),
+	//w_(item.w),
+	//h_(item.h),
+	//frameType_(item.frameType ? static_cast<int>(item.frameType.value()) : -1),
 	icon_(item.icon),
 	// set in constructor body: properties_(),
 	// set in constructor body: elemental_damage_(),
@@ -121,414 +123,64 @@ Item::Item(const PoE::Item& item, const ItemLocation& location) :
 	// set in constructor body: requirements_(),
 	//json_(JS::serializeStruct(item)), // WARNING -- not the same as legacy item objects.
 	// set in constructor body: count_(),
-	ilvl_(item.ilvl),
+	//ilvl_(item.ilvl),
 	// set in constructor body: text_properties_(),
 	// set in constructor body: text_requirements_(),
 	// set in constructor body: text_mods_(),
 	// set in constructor body: text_sockets_(),
-	note_(item.note.value_or("")),
+	// note_(item.note.value_or("")),
 	// set in constructor body: mod_table_(),
-	uid_(item.id.value_or("NONE")),
-	talisman_tier_(item.talismanTier.value_or(0))
+	//uid_(item.id.value_or("NONE")),
+	//talisman_tier_(item.talismanTier.value_or(0)),
+	// These next fields relate to the item location and used to be hacked in via json.
+	//implicit_mods_(item.implicitMods.value_or(std::vector<std::string>())),
+	//explicit_mods_(item.explicitMods.value_or(std::vector<std::string>())),
+	//crafted_mods_(item.craftedMods.value_or(std::vector<std::string>())),
+	//fractured_mods_(item.fracturedMods.value_or(std::vector<std::string>())),
+	_x(item.x.value_or(0)),
+	_y(item.y.value_or(0)),
+	_inventory_id(item.inventoryId.value_or(""))
 {
-	json_ = JS::serializeStruct(item);
-
-	name_ = fixup_name(name_);
-
 	// Use base type for all hybrid items except vaal gems.
-	typeLine_ = (item.hybrid && (!item.hybrid.value().isVaalGem.value_or(false)))
-		? fixup_name(item.hybrid.value().baseTypeName)
-		: typeLine_ = fixup_name(typeLine_);
-
-	baseType_ = fixup_name(baseType_);
-
-	if (item.influences) {
-		if (item.influences.value().shaper.value_or(false))   influenceList_.push_back(SHAPER);
-		if (item.influences.value().elder.value_or(false))    influenceList_.push_back(ELDER);
-		if (item.influences.value().crusader.value_or(false)) influenceList_.push_back(CRUSADER);
-		if (item.influences.value().redeemer.value_or(false)) influenceList_.push_back(REDEEMER);
-		if (item.influences.value().hunter.value_or(false))   influenceList_.push_back(HUNTER);
-		if (item.influences.value().warlord.value_or(false))  influenceList_.push_back(WARLORD);
-	};
-	if (item.synthesised.value_or(false)) influenceList_.push_back(SYNTHESISED);
-	if (item.fractured.value_or(false))   influenceList_.push_back(FRACTURED);
-	if (item.searing.value_or(false))     influenceList_.push_back(SEARING_EXARCH);
-	if (item.tangled.value_or(false))     influenceList_.push_back(EATER_OF_WORLDS);
-
-	// The lines that are commented out below are mod categories that Acquisiton
-	// was not parsing in v0.9.7. They should be enabled at some point.
-
-	// if (item.utilityMods)   text_mods_["utilityMods"] = item.utilityMods.value();
-	// TBD - Logbook mods
-	if (item.enchantMods)   text_mods_["enchantMods"] = item.enchantMods.value();
-	//if (item.scourgeMods)   text_mods_["scourgeMods"] = item.scourgeMods.value();
-	if (item.implicitMods)  text_mods_["implicitMods"] = item.implicitMods.value();
-	// TBD - Ultimatum mods
-	if (item.explicitMods)  text_mods_["explicitMods"] = item.explicitMods.value();
-	if (item.craftedMods)   text_mods_["craftedMods"] = item.craftedMods.value();
-	if (item.fracturedMods) text_mods_["fracturedMods"] = item.fracturedMods.value();
-	//if (item.crucibleMods)  text_mods_["crucibleMods"] = item.crucibleMods.value();
-	//if (item.cosmeticMods)  text_mods_["cosmeticMods"] = item.cosmeticMods.value();
-	//if (item.veiledMods)    text_mods_["veiledMods"] = item.veiledMods.value();
-
-	// Other code assumes icon is proper size so force quad=1 to quad=0 here as it's clunky
-	// to handle elsewhere
-	boost::replace_last(icon_, "quad=1", "quad=0");
-
-	// quad stashes, currency stashes, etc
-	boost::replace_last(icon_, "scaleIndex=", "scaleIndex=0&");
-
-	CalculateCategories();
-
-	// Import item properties.
-	if (item.properties) {
-		for (auto& prop : item.properties.value()) {
-			if (prop.name == "Elemental Damage") {
-				// Import elemental damage mods
-				elemental_damage_.reserve(elemental_damage_.size() + prop.values.size());
-				for (auto& value : prop.values) {
-					const std::string prop_name = std::get<0>(value);
-					const unsigned int prop_value = std::get<1>(value);
-					elemental_damage_.push_back({ prop_name, prop_value });
-				};
-			} else {
-				// Look for other properties
-				if (prop.values.size() > 0) {
-					properties_[prop.name] = std::get<0>(prop.values[0]);
-				};
-			};
-			ItemProperty property;
-			property.name = prop.name;
-			property.display_mode = prop.displayMode;
-			for (auto& value : prop.values) {
-				ItemPropertyValue v;
-				v.str = std::get<0>(value);
-				v.type = std::get<1>(value);
-				property.values.push_back(v);
-			};
-			text_properties_.push_back(property);
-		};
+	if (item.hybrid && (!item.hybrid.value().isVaalGem.value_or(false))) {
+		typeLine_ = fixup_name(item.hybrid->baseTypeName);
 	};
 
-	// Import item requirements.
-	if (item.requirements) {
-		for (auto& req : item.requirements.value()) {
-			if (req.values.size() != 1) {
-				QLOG_ERROR() << "Requirement item property values had" << req.values.size() << "elements:" << item.name;
-				continue;
-			};
-			const auto& value = req.values[0];
-			const std::string value_str = std::get<0>(value);
-			const unsigned int value_type = std::get<1>(value);
-			if (value_type != 0) {
-				QLOG_ERROR() << "Unhandled item property value type:" << value_type << "in requirements:" << item.name;
-				continue;
-			};
-			requirements_[req.name] = std::atoi(value_str.c_str());
-			ItemPropertyValue v;
-			v.str = value_str;
-			v.type = value_type;
-			text_requirements_.push_back({ req.name, v });
-		};
+	if (name_.empty()) {
+		prettyName_ = typeLine_;
+	} else {
+		prettyName_ = name_ + " " + typeLine_;
 	};
-
-	// Import item sockets.
-	if (item.sockets) {
-		ItemSocketGroup current_group = { 0, 0, 0, 0 };
-		sockets_cnt_ = static_cast<int>(item.sockets.value().size());
-		int counter = 0;
-		int prev_group = -1;
-		for (auto& socket : item.sockets.value()) {
-
-			if (socket.attr && socket.sColour) {
-				QLOG_WARN() << "Item socket has both attr and sColour:" << item.name;
-			}
-
-			char attr = '\0';
-			if (socket.attr) {
-				attr = socket.attr.value()[0];
-			} else if (socket.sColour) {
-				attr = socket.sColour.value()[0];
-			};
-
-			if (!attr) {
-				continue;
-			};
-
-			ItemSocket current_socket = { static_cast<unsigned char>(socket.group), attr };
-			text_sockets_.push_back(current_socket);
-			if (prev_group != current_socket.group) {
-				counter = 0;
-				socket_groups_.push_back(current_group);
-				current_group = { 0, 0, 0, 0 };
-			};
-			prev_group = current_socket.group;
-			++counter;
-			links_cnt_ = std::max(links_cnt_, counter);
-			switch (current_socket.attr) {
-			case 'S':
-				sockets_.r++;
-				current_group.r++;
-				break;
-			case 'D':
-				sockets_.g++;
-				current_group.g++;
-				break;
-			case 'I':
-				sockets_.b++;
-				current_group.b++;
-				break;
-			case 'G':
-				sockets_.w++;
-				current_group.w++;
-				break;
-			};
-		};
-		socket_groups_.push_back(current_group);
-	};
-
-	count_ = 1;
-	if (properties_.find("Stack Size") != properties_.end()) {
-		std::string size = properties_["Stack Size"];
-		if (size.find("/") != std::string::npos) {
-			size = size.substr(0, size.find("/"));
-			count_ = std::stoi(size);
-		};
-	};
-
-	if (item.itemLevel) {
-		const int itemLevel = item.itemLevel.value();
-		if (item.ilvl != itemLevel) {
-			QLOG_WARN() << "Item ilvl (" << item.ilvl << ") does not match itemLevel (" << itemLevel << ") in" << item.name;
-		};
-	};
-
-	GenerateMods(item);
 
 	if (!item.id) {
-		QLOG_ERROR() << "Item does not have a unique id:" << item.name;
+		QLOG_ERROR() << prettyName_ << "does not have a unique id";
 	};
-}
-
-// Create a fake item for test mode.
-Item::Item(const std::string& name, const ItemLocation& location) :
-	name_(name),
-	location_(location),
-	uid_(Util::Md5(name + "|" + location.id())) //hash_(Util::Md5(name)) // Unique enough for tests
-{}
-
-// Parse from legacy api json.
-Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
-	location_(loc),
-	identified_(true),
-	corrupted_(false),
-	crafted_(false),
-	enchanted_(false),
-	w_(0),
-	h_(0),
-	frameType_(0),
-	sockets_cnt_(0),
-	links_cnt_(0),
-	sockets_({ 0, 0, 0, 0 }),
-	json_(Util::RapidjsonSerialize(json)),
-	ilvl_(0)
-{
-	if (json.HasMember("name") && json["name"].IsString())
-		name_ = fixup_name(json["name"].GetString());
-	if (json.HasMember("typeLine") && json["typeLine"].IsString()) {
-		if (json.HasMember("hybrid") && json["hybrid"].IsObject()) {
-			if (json["hybrid"].HasMember("isVaalGem") && json["hybrid"]["isVaalGem"].IsBool() && json["hybrid"]["isVaalGem"].GetBool() == true) {
-				// Do not use the base type for vaal gems.
-				typeLine_ = fixup_name(json["typeLine"].GetString());
-			} else if (json["hybrid"].HasMember("baseTypeName") && json["hybrid"]["baseTypeName"].IsString()) {
-				// Use base type for other hybrid items.
-				typeLine_ = fixup_name(json["hybrid"]["baseTypeName"].GetString());
-			} else {
-				// Otherwise use the item's root type line.
-				typeLine_ = fixup_name(json["typeLine"].GetString());
-			};
-		} else {
-			typeLine_ = fixup_name(json["typeLine"].GetString());
+	if (item.itemLevel) {
+		if (item.ilvl != *item.itemLevel) {
+			QLOG_WARN() << prettyName_ << ": ilvl (" << item.ilvl << ") does not match itemLevel (" << *item_.itemLevel << ")";
 		};
 	};
-	if (json.HasMember("baseType") && json["baseType"].IsString())
-		baseType_ = fixup_name(json["baseType"].GetString());
-
-	if (json.HasMember("identified") && json["identified"].IsBool())
-		identified_ = json["identified"].GetBool();
-	if (json.HasMember("corrupted") && json["corrupted"].IsBool())
-		corrupted_ = json["corrupted"].GetBool();
-
-	if (json.HasMember("craftedMods") && json["craftedMods"].IsArray() && !json["craftedMods"].Empty())
-		crafted_ = true;
-	if (json.HasMember("enchantMods") && json["enchantMods"].IsArray() && !json["enchantMods"].Empty())
-		enchanted_ = true;
-
-	if (json.HasMember("influences")) {
-		if (json["influences"].HasMember("shaper"))
-			influenceList_.push_back(SHAPER);
-		if (json["influences"].HasMember("elder"))
-			influenceList_.push_back(ELDER);
-		if (json["influences"].HasMember("crusader"))
-			influenceList_.push_back(CRUSADER);
-		if (json["influences"].HasMember("redeemer"))
-			influenceList_.push_back(REDEEMER);
-		if (json["influences"].HasMember("hunter"))
-			influenceList_.push_back(HUNTER);
-		if (json["influences"].HasMember("warlord"))
-			influenceList_.push_back(WARLORD);
-	}
-
-	if (json.HasMember("synthesised") && json["synthesised"].IsBool() && json["synthesised"].GetBool())
-		influenceList_.push_back(SYNTHESISED);
-
-	if (json.HasMember("fractured") && json["fractured"].IsBool() && json["fractured"].GetBool())
-		influenceList_.push_back(FRACTURED);
-
-	if (json.HasMember("searing") && json["searing"].IsBool() && json["searing"].GetBool())
-		influenceList_.push_back(SEARING_EXARCH);
-
-	if (json.HasMember("tangled") && json["tangled"].IsBool() && json["tangled"].GetBool())
-		influenceList_.push_back(EATER_OF_WORLDS);
-
-	if (json.HasMember("w") && json["w"].IsInt())
-		w_ = json["w"].GetInt();
-	if (json.HasMember("h") && json["h"].IsInt())
-		h_ = json["h"].GetInt();
-
-	if (json.HasMember("frameType") && json["frameType"].IsInt())
-		frameType_ = json["frameType"].GetInt();
-
-	if (json.HasMember("icon") && json["icon"].IsString())
-		icon_ = json["icon"].GetString();
-
-	for (auto& mod_type : ITEM_MOD_TYPES) {
-		text_mods_[mod_type] = std::vector<std::string>();
-		const char* mod_type_s = mod_type.c_str();
-		if (json.HasMember(mod_type_s) && json[mod_type_s].IsArray()) {
-			auto& mods = text_mods_[mod_type];
-			for (auto& mod : json[mod_type_s])
-				if (mod.IsString())
-					mods.push_back(mod.GetString());
-		}
-	}
 
 	// Other code assumes icon is proper size so force quad=1 to quad=0 here as it's clunky
 	// to handle elsewhere
 	boost::replace_last(icon_, "quad=1", "quad=0");
+
 	// quad stashes, currency stashes, etc
 	boost::replace_last(icon_, "scaleIndex=", "scaleIndex=0&");
 
+	InitInfluences();
 	CalculateCategories();
+	wearable_ = category_ == "flasks"
+		|| category_ == "amulet"
+		|| category_ == "ring"
+		|| category_ == "belt"
+		|| category_.find("armour") != std::string::npos
+		|| category_.find("weapons") != std::string::npos
+		|| category_.find("jewels") != std::string::npos;
 
-	if (json.HasMember("talismanTier") && json["talismanTier"].IsUint()) {
-		talisman_tier_ = json["talismanTier"].GetUint();
-	}
-
-	if (json.HasMember("id") && json["id"].IsString()) {
-		uid_ = json["id"].GetString();
-	}
-
-	if (json.HasMember("note") && json["note"].IsString()) {
-		note_ = json["note"].GetString();
-	}
-
-	if (json.HasMember("properties") && json["properties"].IsArray()) {
-		for (auto& prop : json["properties"]) {
-			if (!prop.HasMember("name") || !prop["name"].IsString() || !prop.HasMember("values") || !prop["values"].IsArray())
-				continue;
-			std::string name = prop["name"].GetString();
-			if (name == "Elemental Damage") {
-				for (auto& value : prop["values"]) {
-					if (value.IsArray() && value.Size() >= 2 && value[0].IsString() && value[1].IsInt())
-						elemental_damage_.push_back(std::make_pair(value[0].GetString(), value[1].GetInt()));
-				}
-			} else {
-				if (prop["values"].Size() > 0 && prop["values"][0].IsArray() && prop["values"][0].Size() > 0 &&
-					prop["values"][0][0].IsString())
-					properties_[name] = prop["values"][0][0].GetString();
-			}
-
-			ItemProperty property;
-			property.name = name;
-			property.display_mode = prop["displayMode"].GetInt();
-			for (auto& value : prop["values"]) {
-				if (value.IsArray() && value.Size() >= 2 && value[0].IsString() && value[1].IsInt()) {
-					ItemPropertyValue v;
-					v.str = value[0].GetString();
-					v.type = value[1].GetInt();
-					property.values.push_back(v);
-				}
-			}
-			text_properties_.push_back(property);
-		}
-	}
-
-	if (json.HasMember("requirements") && json["requirements"].IsArray()) {
-		for (auto& req : json["requirements"]) {
-			if (req.IsObject() && req.HasMember("name") && req["name"].IsString() &&
-				req.HasMember("values") && req["values"].IsArray() && req["values"].Size() >= 1 &&
-				req["values"][0].IsArray() && req["values"][0].Size() >= 2 &&
-				req["values"][0][0].IsString() && req["values"][0][1].IsInt()) {
-				std::string name = req["name"].GetString();
-				std::string value = req["values"][0][0].GetString();
-				requirements_[name] = std::atoi(value.c_str());
-				ItemPropertyValue v;
-				v.str = value;
-				v.type = req["values"][0][1].GetInt();
-				text_requirements_.push_back({ name, v });
-			}
-		}
-	}
-
-	if (json.HasMember("sockets") && json["sockets"].IsArray()) {
-		ItemSocketGroup current_group = { 0, 0, 0, 0 };
-		sockets_cnt_ = json["sockets"].Size();
-		int counter = 0, prev_group = -1;
-		for (auto& socket : json["sockets"]) {
-			if (!socket.IsObject() || !socket.HasMember("group") || !socket["group"].IsInt())
-				continue;
-
-			char attr = '\0';
-			if (socket["attr"].IsString())
-				attr = socket["attr"].GetString()[0];
-			else if (socket["sColour"].IsString())
-				attr = socket["sColour"].GetString()[0];
-
-			if (!attr)
-				continue;
-
-			ItemSocket current_socket = { static_cast<unsigned char>(socket["group"].GetInt()), attr };
-			text_sockets_.push_back(current_socket);
-			if (prev_group != current_socket.group) {
-				counter = 0;
-				socket_groups_.push_back(current_group);
-				current_group = { 0, 0, 0, 0 };
-			}
-			prev_group = current_socket.group;
-			++counter;
-			links_cnt_ = std::max(links_cnt_, counter);
-			switch (current_socket.attr) {
-			case 'S':
-				sockets_.r++;
-				current_group.r++;
-				break;
-			case 'D':
-				sockets_.g++;
-				current_group.g++;
-				break;
-			case 'I':
-				sockets_.b++;
-				current_group.b++;
-				break;
-			case 'G':
-				sockets_.w++;
-				current_group.w++;
-				break;
-			}
-		}
-		socket_groups_.push_back(current_group);
-	}
+	InitProperties();
+	InitRequirements();
+	InitSockets();
 
 	count_ = 1;
 	if (properties_.find("Stack Size") != properties_.end()) {
@@ -536,19 +188,182 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
 		if (size.find("/") != std::string::npos) {
 			size = size.substr(0, size.find("/"));
 			count_ = std::stoi(size);
-		}
-	}
+		};
+	};
 
-	if (json.HasMember("ilvl") && json["ilvl"].IsInt())
-		ilvl_ = json["ilvl"].GetInt();
-
-	GenerateMods(json);
+	GenerateMods();
+	CalculateDPS();
 }
 
-std::string Item::PrettyName() const {
-	if (!name_.empty())
-		return name_ + " " + typeLine_;
-	return typeLine_;
+// Construct directly from a new API object.
+Item::Item(const PoE::Item& item, const ItemLocation& location) :
+	Item(item)
+{
+	location_ = location;
+	_type = location.type();
+	switch (_type) {
+	case ItemLocationType::STASH:
+		_tab = location.stash_index();
+		_tab_label = location.name();
+		_character = "";
+		break;
+	case ItemLocationType::CHARACTER:
+		_tab = 0;
+		_tab_label = "";
+		_character = location.name();
+		break;
+	default:
+		QLOG_ERROR() << "Item(): location has invalid type:" << _type;
+		break;
+	};
+	_socketed = location.socketed();
+	_removeonly = location.removeonly();
+	_inventory_id = location.inventory_id();
+}
+
+Item::Item() {};
+
+// Create a fake item for test mode.
+Item::Item(const std::string& name, const ItemLocation& location) : Item()
+{
+	id_ = Util::Md5(name + "|" + location.id()); //hash_(Util::Md5(name)) // Unique enough for tests
+	name_ = name;
+	location_ = location;
+}
+
+void Item::InitInfluences() {
+	std::vector<INFLUENCE_TYPES> influences;
+	influences.reserve(2);
+	if (item_.influences) {
+		if (item_.influences->shaper.value_or(false))   influences.push_back(SHAPER);
+		if (item_.influences->elder.value_or(false))    influences.push_back(ELDER);
+		if (item_.influences->crusader.value_or(false)) influences.push_back(CRUSADER);
+		if (item_.influences->redeemer.value_or(false)) influences.push_back(REDEEMER);
+		if (item_.influences->hunter.value_or(false))   influences.push_back(HUNTER);
+		if (item_.influences->warlord.value_or(false))  influences.push_back(WARLORD);
+	};
+	if (item_.synthesised.value_or(false)) influences.push_back(SYNTHESISED);
+	if (item_.fractured.value_or(false))   influences.push_back(FRACTURED);
+	if (item_.searing.value_or(false))     influences.push_back(SEARING_EXARCH);
+	if (item_.tangled.value_or(false))     influences.push_back(EATER_OF_WORLDS);
+
+	if (influences.size() > 2) { QLOG_ERROR() << "Item has more than two influences." << PrettyName(); } else if (influences.size() > 1) { influence_right_ = influences[1]; } else if (influences.size() > 0) { influence_left_ = influences[0]; };
+	influences.clear();
+}
+
+void Item::InitProperties() {
+	// Import item properties.
+	if (!item_.properties) {
+		return;
+	};
+	for (auto& prop : item_.properties.value()) {
+		if (prop.name == "Elemental Damage") {
+			// Import elemental damage mods
+			elemental_damage_.reserve(elemental_damage_.size() + prop.values.size());
+			for (auto& value : prop.values) {
+				const std::string prop_name = std::get<0>(value);
+				const unsigned int prop_value = std::get<1>(value);
+				elemental_damage_.push_back({ prop_name, prop_value });
+			};
+		} else {
+			// Look for other properties
+			if (prop.values.size() > 0) {
+				properties_[prop.name] = std::get<0>(prop.values[0]);
+			};
+		};
+		ItemProperty property;
+		property.name = prop.name;
+		property.display_mode = prop.displayMode;
+		for (auto& value : prop.values) {
+			ItemPropertyValue v;
+			v.str = std::get<0>(value);
+			v.type = std::get<1>(value);
+			property.values.push_back(v);
+		};
+		text_properties_.push_back(property);
+	};
+}
+
+void Item::InitRequirements() {
+	// Import item requirements.
+	if (!item_.requirements) {
+		return;
+	};
+	for (auto& req : item_.requirements.value()) {
+		if (req.values.size() != 1) {
+			QLOG_ERROR() << "Requirement item property values had" << req.values.size() << "elements:" << item_.name;
+			continue;
+		};
+		const auto& value = req.values[0];
+		const std::string value_str = std::get<0>(value);
+		const unsigned int value_type = std::get<1>(value);
+		requirements_[req.name] = std::atoi(value_str.c_str());
+		ItemPropertyValue v;
+		v.str = value_str;
+		v.type = value_type;
+		text_requirements_.push_back({ req.name, v });
+	};
+}
+
+void Item::InitSockets() {
+	// Import item sockets.
+	if (!item_.sockets) {
+		return;
+	};
+	ItemSocketGroup current_group = { 0, 0, 0, 0 };
+	sockets_cnt_ = static_cast<int>(item_.sockets->size());
+	int counter = 0;
+	int prev_group = -1;
+	for (auto& socket : *item_.sockets) {
+
+		// TBD I don't understand what this means, but Acquisition did not check for both
+		// attr and sColour.
+		// 
+		//if (socket.attr && socket.sColour) {
+		//	QLOG_WARN() << "Item socket has both attr and sColour:" << item.name;
+		//}
+
+		char attr = '\0';
+		if (socket.attr) {
+			attr = socket.attr.value()[0];
+		} else if (socket.sColour) {
+			attr = socket.sColour.value()[0];
+		};
+
+		if (!attr) {
+			continue;
+		};
+
+		ItemSocket current_socket = { static_cast<unsigned char>(socket.group), attr };
+		text_sockets_.push_back(current_socket);
+		if (prev_group != current_socket.group) {
+			counter = 0;
+			socket_groups_.push_back(current_group);
+			current_group = { 0, 0, 0, 0 };
+		};
+		prev_group = current_socket.group;
+		++counter;
+		links_cnt_ = std::max(links_cnt_, counter);
+		switch (current_socket.attr) {
+		case 'S':
+			sockets_.r++;
+			current_group.r++;
+			break;
+		case 'D':
+			sockets_.g++;
+			current_group.g++;
+			break;
+		case 'I':
+			sockets_.b++;
+			current_group.b++;
+			break;
+		case 'G':
+			sockets_.w++;
+			current_group.w++;
+			break;
+		};
+	};
+	socket_groups_.push_back(current_group);
 }
 
 void Item::CalculateCategories() {
@@ -559,52 +374,53 @@ void Item::CalculateCategories() {
 		if (rslt != itemClassKeyToValue.end()) {
 			category_ = rslt->second;
 			boost::to_lower(category_);
-		}
+		};
+	};
+}
+
+void Item::CalculateDPS() {
+
+	if (!properties_.count("Attacks per Second")) {
+		return;
+	};
+
+	const double attacks_per_second = std::stod(properties_.at("Attacks per Second"));
+
+	// Physical DPS
+	if (properties_.count("Physical Damage")) {
+		const std::string& physical_damage = properties_.at("Physical Damage");
+		physical_dps_ = attacks_per_second * Util::AverageDamage(physical_damage);
+	};
+
+	// Elemental DPS
+	if (!elemental_damage_.empty()) {
+		double damage = 0.0;
+		for (auto& item : elemental_damage_) {
+			damage += Util::AverageDamage(item.first);
+		};
+		elemental_dps_ = attacks_per_second * damage;
 	}
-}
 
-double Item::DPS() const {
-	return pDPS() + eDPS() + cDPS();
-}
+	// Chaos DPS
+	if (properties_.count("Chaos Damage")) {
+		const std::string& chaos_damage = properties_.at("Chaos Damage");
+		chaos_dps_ = attacks_per_second * Util::AverageDamage(chaos_damage);
+	};
 
-double Item::pDPS() const {
-	if (!properties_.count("Physical Damage") || !properties_.count("Attacks per Second"))
-		return 0;
-	double aps = std::stod(properties_.at("Attacks per Second"));
-	std::string pd = properties_.at("Physical Damage");
+	// Total DPS
+	total_dps_ = physical_dps_ + elemental_dps_ + chaos_dps_;
+};
 
-	return aps * Util::AverageDamage(pd);
-}
+void Item::GenerateMods() {
 
-double Item::eDPS() const {
-	if (elemental_damage_.empty() || !properties_.count("Attacks per Second"))
-		return 0;
-	double damage = 0;
-	for (auto& x : elemental_damage_)
-		damage += Util::AverageDamage(x.first);
-	double aps = std::stod(properties_.at("Attacks per Second"));
-	return aps * damage;
-}
-
-double Item::cDPS() const {
-	if (!properties_.count("Chaos Damage") || !properties_.count("Attacks per Second"))
-		return 0;
-	double aps = std::stod(properties_.at("Attacks per Second"));
-	std::string cd = properties_.at("Chaos Damage");
-
-	return aps * Util::AverageDamage(cd);
-}
-
-void Item::GenerateMods(const PoE::Item& item) {
-
-	auto mod_lists = {
+	const auto mod_lists = {
 		// TBD: item.utilityMods,
 		// TBD: item.enchantMods,
 		// TBD: item.scourgeMods,
-		item.implicitMods,
-		item.explicitMods,
-		item.craftedMods,
-		item.fracturedMods
+		item_.implicitMods,
+		item_.explicitMods,
+		item_.craftedMods,
+		item_.fracturedMods
 		// TBD: item.crucibleMods,
 		// TBD: item.cosmeticMods,
 		// TBD: item.veiledMods
@@ -629,40 +445,10 @@ void Item::GenerateMods(const PoE::Item& item) {
 	};
 }
 
-void Item::GenerateMods(const rapidjson::Value& json) {
-	for (auto& type : { "implicitMods", "explicitMods", "craftedMods", "fracturedMods" }) {
-		if (!json.HasMember(type) || !json[type].IsArray())
-			continue;
-		for (auto& mod : json[type]) {
-			if (!mod.IsString())
-				continue;
-
-			std::string mod_s = mod.GetString();
-			std::regex rep("([0-9\\.]+)");
-			mod_s = std::regex_replace(mod_s, rep, "#");
-			auto rslt = mods_map.find(mod_s);
-			if (rslt != mods_map.end()) {
-				SumModGenerator* gen = rslt->second;
-				gen->Generate(mod, &mod_table_);
-			}
-		}
-	}
-}
-
-bool Item::operator<(const Item& rhs) const {
-	return uid_ < rhs.uid_;
-}
-
-bool Item::Wearable() const {
-	return (category_ == "flasks"
-		|| category_ == "amulet" || category_ == "ring" || category_ == "belt"
-		|| category_.find("armour") != std::string::npos
-		|| category_.find("weapons") != std::string::npos
-		|| category_.find("jewels") != std::string::npos
-		);
-}
-
 std::string Item::POBformat() const {
+	QLOG_ERROR() << "TODO: reimplement POBformat";
+	return "";
+	/*
 	std::stringstream PoBText;
 	PoBText << name();
 	PoBText << "\n" << typeLine();
@@ -725,4 +511,5 @@ std::string Item::POBformat() const {
 	}
 
 	return PoBText.str();
+	*/
 }

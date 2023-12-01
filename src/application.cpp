@@ -26,8 +26,7 @@
 #include "poe_api/poe_stash.h"
 
 #include "buyoutmanager.h"
-#include "sqlitedatastore.h"
-#include "memorydatastore.h"
+#include "datastore.h"
 #include "filesystem.h"
 #include "itemsmanager.h"
 #include "currencymanager.h"
@@ -51,10 +50,8 @@ Application& Application::test_instance() {
 Application::Application(bool test_mode) :
 	test_mode_(test_mode)
 {
-	if (test_mode_) {
-		global_data_ = std::make_unique<MemoryDataStore>();
-		return;
-	};
+	InitGlobalData();
+	LoadTheme();
 
 	network_manager_ = std::make_unique<QNetworkAccessManager>(this);
 	update_checker_ = std::make_unique<UpdateChecker>(*network_manager_, this);
@@ -63,16 +60,7 @@ Application::Application(bool test_mode) :
 
 	// Make sure the rate limiter gets tokens when they are updated.
 	connect(oauth_manager_.get(), &OAuthManager::accessGranted,
-		rate_limiter_.get(),
-		&RateLimit::RateLimiter::SetAccessToken);
-
-	// The global datastore holds things like the selected theme and the oath token.
-	const QString data_path = GetDataPath();
-	const QString global_file_name = SqliteDataStore::MakeFilename("", "");
-	const QString global_file_path = data_path + QDir::separator() + global_file_name;
-	global_data_ = std::make_unique<SqliteDataStore>(global_file_path);
-
-	LoadTheme();
+		rate_limiter_.get(), &RateLimit::RateLimiter::SetAccessToken);
 
 	// Look for a stored OAuth access token.
 	const std::string token_str = global_data_->Get("oauth_token", "");
@@ -91,6 +79,26 @@ Application::Application(bool test_mode) :
 Application::~Application() {
 	if (buyout_manager_) {
 		buyout_manager_->Save();
+	};
+}
+
+void Application::InitGlobalData() {
+
+	// The global datastore holds things like the selected theme and the oath token.
+	if (test_mode_) {
+		global_data_ = std::make_unique<DataStore>(":memory:");
+		return;
+	};
+
+	const QDir data_path(GetDataPath());
+	const QString file_name = "global";
+	const QString file_path = data_path.absoluteFilePath(file_name);
+	global_data_ = std::make_unique<DataStore>(file_path);
+	if (data_path.exists()) {
+		if (global_data_->Get("version") != APP_VERSION_STRING) {
+			SaveDbOnNewVersion();
+			global_data_->Set("version", APP_VERSION_STRING);
+		};
 	};
 }
 
@@ -131,28 +139,28 @@ void Application::LoadTheme() {
 
 void Application::InitLogin(const std::string& league, const std::string& account)
 {
-	account_ = account;
-	league_ = league;
+	account_ = PoE::AccountName(account);
+	league_ = PoE::LeagueName(league);
 
-	if (test_mode_) {
-		// This is used in tests
-		data_ = std::make_unique<MemoryDataStore>();
-	} else {
-		const QString data_path = GetDataPath();
-		const bool data_path_exists = QDir(data_path).exists();
-		const QString data_file_name = SqliteDataStore::MakeFilename(account, league);
-		const QString data_file_path = data_path + QDir::separator() + data_file_name;
-		data_ = std::make_unique<SqliteDataStore>(data_file_path);
-		if (data_path_exists) {
-			SaveDbOnNewVersion();
+	if (test_mode_ == false) {
+		const QString file_name = DataStore::MakeFilename(account_.value(), league_.value());
+		const QString file_path = QDir(GetDataPath()).absoluteFilePath(file_name);
+		data_ = std::make_unique<DataStore>(file_path);
+		if (data_->Get("version") != APP_VERSION_STRING) {
+			// Backups were made when the global data store was created.
+			data_->Set("version", APP_VERSION_STRING);
 		};
-	}
+	} else {
+		data_ = std::make_unique<DataStore>(":memory:");
+	};
 
 	buyout_manager_ = std::make_unique<BuyoutManager>(*data_);
 	shop_ = std::make_unique<Shop>(*this);
 	items_manager_ = std::make_unique<ItemsManager>(*this);
 	currency_manager_ = std::make_unique<CurrencyManager>(*this);
+
 	connect(items_manager_.get(), &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
+
 	if (test_mode_ == false) {
 		items_manager_->Start();
 	};
@@ -165,45 +173,39 @@ QString Application::GetDataPath() const {
 void Application::OnItemsRefreshed(bool initial_refresh) {
 	currency_manager_->Update();
 	shop_->Update();
-	if (!initial_refresh && shop_->auto_update())
+	if (!initial_refresh && shop_->auto_update()) {
 		shop_->SubmitShopToForum();
+	};
 }
 
 void Application::SaveDbOnNewVersion() {
-	//If user updated from a 0.5c db to a 0.5d, db exists but no "version" in it
-	const std::string version = data_->Get("version", "0.5c");
 
-	if (version == APP_VERSION_STRING) {
-		return;
-	};
-
-	QLOG_INFO()
-		<< "Preparing to backup your data from" << version
-		<< "because version" << APP_VERSION_STRING << "was detected.";
+	// If user updated from a 0.5c db to a 0.5d, db exists but no "version" in it
+	const QString version = QString::fromStdString(global_data_->Get("version", "0.5c"));
+	QLOG_INFO() << "Preparing to backup your data because version" << APP_VERSION_STRING << "was detected.";
 
 	const QString data_path = GetDataPath();
-	const QDir src(data_path);
 	QString save_path;
-	QDir dst;
-	int i = 1;
+	int i = 0;
 	do {
-		save_path = data_path + "_" + version.c_str() + "_save_" + QString::number(i);
-		dst = QDir(save_path);
-		++i;
+		save_path = data_path + "_" + version + "_save_" + QString::number(++i);
 		if (i > 10) {
 			QLOG_ERROR() << "There are too many existing backups. Something might be wrong. Not making another.";
 			return;
 		};
-	} while (dst.exists());
+	} while (QDir(save_path).exists());
+
+	if (!QDir().mkpath(save_path)) {
+		QLOG_ERROR() << "Error creating backup folder:" << save_path;
+		return;
+	};
 
 	QLOG_INFO() << "Backing your data folder to" << save_path;
-	QDir().mkpath(dst.path());
+	const QDir src(data_path);
+	const QDir dst(save_path);
 	for (auto name : src.entryList(QDir::Files)) {
-		const QString src_file = data_path + QDir::separator() + name;
-		const QString dst_file = save_path + QDir::separator() + name;
+		const QString src_file = src.absoluteFilePath(name);
+		const QString dst_file = dst.absoluteFilePath(name);
 		QFile::copy(src_file, dst_file);
 	};
-	QLOG_INFO() << "Your data folder has been backed up to" << save_path;
-
-	data_->Set("version", APP_VERSION_STRING);
 }

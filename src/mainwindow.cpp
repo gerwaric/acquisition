@@ -60,7 +60,6 @@
 #include "ratelimitdialog.h"
 #include "replytimeout.h"
 #include "search.h"
-#include "selfdestructingreply.h"
 #include "shop.h"
 #include "updatechecker.h"
 #include "util.h"
@@ -141,8 +140,8 @@ void MainWindow::InitializeUi() {
 
 	// Setup the window title.
 	const QString window_title = QString("Acquisition [" APP_VERSION_STRING "] - %1 - %2").arg(
-		QString::fromStdString(app_.league()),
-		QString::fromStdString(app_.account()));
+		QString(app_.league()),
+		QString(app_.account()));
 	setWindowTitle(window_title);
 
 	// Load the appropriate theme.
@@ -1006,9 +1005,12 @@ void MainWindow::OnUploadFinished() {
 	ui->uploadTooltipButton->setDisabled(false);
 	ui->uploadTooltipButton->setText("Upload to imgur");
 
-	SelfDestructingReply reply(qobject_cast<QNetworkReply*>(QObject::sender()));
+	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
 	QByteArray bytes = reply->readAll();
+	reply->deleteLater();
 
+	QLOG_ERROR() << "TBD: new code to check the imgur result for errors.";
+	/*
 	rapidjson::Document doc;
 	doc.Parse(bytes.constData());
 
@@ -1029,7 +1031,8 @@ void MainWindow::OnUploadFinished() {
 	}
 	std::string url = doc["data"]["link"].GetString();
 	QApplication::clipboard()->setText(url.c_str());
-	QLOG_INFO() << "Image successfully uploaded, the URL is" << url.c_str() << "It also was copied to your clipboard.";
+	*/
 
-	reply->deleteLater();
+	//QLOG_INFO() << "Image successfully uploaded, the URL is" << url.c_str() << "It also was copied to your clipboard.";
+
 }

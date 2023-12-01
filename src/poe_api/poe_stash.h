@@ -19,6 +19,7 @@
 #pragma once
 
 #include "json_struct/json_struct.h"
+#include "poe_api/poe_typedefs.h"
 #include "poe_api/poe_item.h"
 
 #include <optional>
@@ -41,6 +42,8 @@ namespace PoE {
 
 	// https://www.pathofexile.com/developer/docs/reference#type-StashTab
 	struct StashTab {
+		StashTab() {};
+		StashTab(const std::string& json);
 		std::string                                 id;						// string	a 10 digit hexadecimal string
 		std::optional<std::string>					parent;					// ? string	a 10 digit hexadecimal string
 		std::string                                 name;					// string
@@ -49,7 +52,7 @@ namespace PoE {
 		PoE::StashTabMetadata                       metadata;				// object
 		std::optional<std::vector<PoE::StashTab>>   children;               // ? array of StashTab
 		std::optional<std::vector<PoE::Item>>       items;                  // ? array of Item
-		JS_OBJ(id, parent, name, type, index, metadata);
+		JS_OBJ(id, parent, name, type, index, metadata, children, items);
 	};
 
 	// https://www.pathofexile.com/developer/docs/reference#type-PublicStashChange
@@ -65,45 +68,15 @@ namespace PoE {
 		JS_OBJ(id, public_, accountName, stash, lastCharacterName, stashType, league, items);
 	};
 
-	struct LegacyStashTabColour {
-		unsigned int r;
-		unsigned int g;
-		unsigned int b;
-		JS_OBJ(r, g, b);
-	};
-
-	struct LegacyStashTab {
-		LegacyStashTab(const StashTab& stash);
-		std::string n;
-		unsigned int i;
-		std::string id;
-		std::string type;
-		bool        selected;
-		LegacyStashTabColour colour;
-		std::string srcL;
-		std::string srcC;
-		std::string srcR;
-		JS_OBJ(n, i, id, type, selected, colour, srcL, srcC, srcR);
-	};
-
-	struct ListStashesResult {
-		std::vector<PoE::StashTab> stashes;
-		JS_OBJ(stashes);
-	};
-	struct GetStashResult {
-		PoE::StashTab stash;
-		JS_OBJ(stash);
-	};
-
-	typedef std::function<void(const PoE::ListStashesResult&)> ListStashesCallback;
-	typedef std::function<void(const PoE::GetStashResult&)> GetStashCallback;
+	using ListStashesCallback = std::function<void(const std::vector<PoE::StashTab>&)>;
+	using GetStashCallback = std::function<void(const PoE::StashTab&)>;
 
 	void ListStashes(QObject* object, PoE::ListStashesCallback callback,
-		const std::string& league);
+		const PoE::LeagueName& league);
 
 	void GetStash(QObject* object, PoE::GetStashCallback,
-		const std::string& league,
-		const std::string& stash_id,
-		const std::string& substash_id = "");
+		const PoE::LeagueName& league,
+		const PoE::StashId& stash_id,
+		const PoE::StashId& substash_id = PoE::StashId());
 
 }
