@@ -39,7 +39,7 @@
 #include "version_defines.h"
 #include "testmain.h"
 
-#ifdef _DEBUG
+#if defined(_DEBUG) || defined(QT_DEBUG)
 const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::TraceLevel;
 #else
 const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::InfoLevel;

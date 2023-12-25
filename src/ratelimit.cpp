@@ -217,7 +217,7 @@ void Dispatch(std::unique_ptr<RateLimitedRequest> request)
 	// When a request has been successfully replied-to, then it's ready to be
 	// dispatched. There's a special function for this because replies may come
 	// back in a different order than they were submitted. This function
-	// keeps track of which replies have been recieved and triggers callback 
+	// keeps track of which replies have been recieved and triggers callback
 	// in order, so the calling code doesn't have to worry about order.
 
 	// Move finished requests into their own list so they can be reordered by
@@ -439,7 +439,7 @@ void PolicyManager::SendRequest() {
 
 	// Finally, send the request and note the time.
 	last_send = QDateTime::currentDateTime();
-	
+
 	QNetworkReply* reply = limiter.SendRequest(active_request->network_request);
 	connect(reply, &QNetworkReply::finished, this, [=]() { ReceiveReply(reply); });
 	//emit RequestReady(active_request->network_request);
@@ -597,6 +597,11 @@ static QByteArray GetHeader(QNetworkReply* const reply, const QByteArray& name) 
 		return reply->rawHeader(name);
 	} else {
 		QLOG_ERROR() << "GetHeader(): missing header:" << name;
+		for (auto& item : reply->rawHeaderPairs()) {
+			const auto& name = item.first;
+			const auto& value = item.second;
+			QLOG_ERROR() << "\t" << name << "=" << value;
+		};
 		return QByteArray();
 	};
 }
@@ -647,6 +652,7 @@ static int GetStatus(QNetworkReply* const reply) {
 }
 
 // Return the "endpoint" for a given URL.
+/*
 static QString GetEndpoint(const QUrl& url) {
 	// Strip everything except the scheme, host, and path.
 	return url.toString(QUrl::RemoveUserInfo
@@ -654,6 +660,7 @@ static QString GetEndpoint(const QUrl& url) {
 		| QUrl::RemoveQuery
 		| QUrl::StripTrailingSlash);
 }
+*/
 
 //=========================================================================================
 // The application-facing Rate Limiter
@@ -673,12 +680,16 @@ RateLimiter::RateLimiter() :
 	connect(this, &RateLimiter::Queue, this, &RateLimiter::OnSubmit, Qt::QueuedConnection);
 
 	// Make sure requests from the default manager are handled.
-	connect(&default_manager, &PolicyManager::RequestReady, this, &RateLimiter::SendRequest);
+	endpoint_mapping["<NONE>"] = &default_manager;
+
+	//connect(&default_manager, &PolicyManager::RequestReady, this, &RateLimiter::SendRequest);
 
 	// Setup the status update timer.
 	status_updater.setSingleShot(false);
 	status_updater.setInterval(1000);
 	connect(&status_updater, &QTimer::timeout, this, &RateLimiter::DoStatusUpdate);
+
+	/*
 
 	// The current game patch (3.22.2) does not support HEAD requests against the new API,
 	// so we need to setup some managers here.
@@ -711,6 +722,7 @@ RateLimiter::RateLimiter() :
 		emit PolicyUpdated(*pm->policy);
 		policy_mapping.emplace(policy_name, std::move(pm));
 	};
+	*/
 
 	// Move ourselves (and our children) to the worker thread and start the worker.
 	this->moveToThread(worker_thread);
@@ -723,45 +735,24 @@ void RateLimiter::SetAccessToken(const OAuthToken& token) {
 }
 
 QNetworkReply* RateLimiter::SendRequest(QNetworkRequest request) {
-	//PolicyManager* manager = qobject_cast<PolicyManager*>(sender());
-	request.setHeader(QNetworkRequest::UserAgentHeader, USER_AGENT);
-	if (request.url().host() == "api.pathofexile.com") {
-		request.setRawHeader("Authorization", QByteArray::fromStdString(bearer_token));
-	};
-	return network_manager_.get(request);
-	//connect(reply, &QNetworkReply::finished, manager, &PolicyManager::ReceiveReply);
+	PrepareRequest(request);
+	QNetworkReply* reply = network_manager_.get(request);
+	connect(reply, &QNetworkReply::errorOccurred, this,
+		[=]() {
+			QLOG_ERROR() << "RateLimiter::SendRequest(): network reply error:" << reply->errorString();
+		});
+	return reply;
 }
 
 void RateLimiter::Submit(const QString endpoint, QNetworkRequest network_request, Callback request_callback)
 {
-	if (QThread::currentThread() != this->thread()) {
-		QLOG_ERROR() << "Must use a queued connection to submit requests.";
-		return;
-	};
-
-	if (endpoint_mapping.count(endpoint) > 0) {
-
-		// This endpoint is known to use an existing policy manager.
-		auto request = std::make_unique<RateLimitedRequest>(endpoint, network_request, request_callback);
-		PolicyManager& manager = *endpoint_mapping[endpoint];
-		manager.QueueRequest(std::move(request));
-
-	} else {
-
-		// This is a new endpoint.
-		QNetworkReply* reply = network_manager_.head(network_request);
-		connect(reply, &QNetworkReply::finished, this,
-			[=]() { SetupEndpoint(endpoint, network_request, request_callback, reply); });
-
-	};
-
-	/*
 	if (QThread::currentThread() == this->thread()) {
+		QLOG_TRACE() << "RateLimiter::Submit(): calling OnSubmit directly";
 		OnSubmit(endpoint, network_request, request_callback);
 	} else {
+		QLOG_TRACE() << "RateLimiter::Submit(): issuing Queue signal";
 		emit Queue(endpoint, network_request, request_callback);
 	};
-	*/
 };
 
 void RateLimiter::OnSubmit(const QString& endpoint, QNetworkRequest network_request, Callback request_callback) {
@@ -774,6 +765,7 @@ void RateLimiter::OnSubmit(const QString& endpoint, QNetworkRequest network_requ
 	if (endpoint_mapping.count(endpoint) > 0) {
 
 		// This endpoint is known to use an existing policy manager.
+		QLOG_TRACE() << "RateLimiter::OnSubmit(): known endpoint:" << endpoint;
 		auto request = std::make_unique<RateLimitedRequest>(endpoint, network_request, request_callback);
 		PolicyManager& manager = *endpoint_mapping[endpoint];
 		manager.QueueRequest(std::move(request));
@@ -781,10 +773,13 @@ void RateLimiter::OnSubmit(const QString& endpoint, QNetworkRequest network_requ
 	} else {
 
 		// This is a new endpoint.
+		QLOG_TRACE() << "RateLimiter::OnSubmit: new endpoint:" << endpoint;
+		PrepareRequest(network_request);
 		QNetworkReply* reply = network_manager_.head(network_request);
 		connect(reply, &QNetworkReply::finished, this,
 			[=]() { SetupEndpoint(endpoint, network_request, request_callback, reply); });
-
+		connect(reply, &QNetworkReply::errorOccurred, this,
+			[=]() { QLOG_ERROR() << "RateLimiter: HEAD request error:" << reply->errorString(); });
 	};
 }
 
@@ -792,14 +787,33 @@ void RateLimiter::OnPolicyUpdated(const Policy& policy) {
 	emit PolicyUpdated(policy);
 }
 
+void RateLimiter::PrepareRequest(QNetworkRequest& request) {
+	request.setHeader(QNetworkRequest::UserAgentHeader, USER_AGENT);
+	if (request.url().host() == "api.pathofexile.com") {
+		if (bearer_token.empty()) {
+			QLOG_ERROR() << "RateLimiter::PrepareReuqest(): bearer token is empty!";
+		};
+		request.setRawHeader("Authorization", QByteArray::fromStdString(bearer_token));
+	};
+}
+
 void RateLimiter::SetupEndpoint(const QString endpoint, QNetworkRequest network_request, Callback request_callback, QNetworkReply* reply) {
+
+	QLOG_TRACE() << "RateLimiter::SetupEndpoint(): new endpoint:" << endpoint;
+
+	QLOG_TRACE() << "HEAD request:";
+	QLOG_TRACE() << "\t" << network_request.url().toString();
+	QLOG_TRACE() << "HEAD reply (HEADERS):";
+	for (auto& item : reply->rawHeaderPairs()) {
+		QLOG_TRACE() << "\t" << item.first << "=" << item.second;
+	};
 
 	// Create a new rate-limited request.
 	auto request = std::make_unique<RateLimitedRequest>(endpoint, network_request, request_callback);
 
 	// Handle requests that are not rate limited.
 	if (reply->hasRawHeader("X-Rate-Limit-Policy") == false) {
-		QLOG_DEBUG() << "The endpoint is not rate-limited:" << endpoint;
+		QLOG_DEBUG() << "RateLimiter::SetupEndpoint(): the endpoint is not rate-limited:" << endpoint;
 		endpoint_mapping[endpoint] = &default_manager;
 		default_manager.endpoints.push_back(endpoint);
 		default_manager.QueueRequest(std::move(request));
@@ -812,24 +826,22 @@ void RateLimiter::SetupEndpoint(const QString endpoint, QNetworkRequest network_
 
 	// Check to see if another manager already exists for this policy.
 	if (policy_mapping.count(policy_name) > 0) {
-		QLOG_DEBUG() << policy_name << "now handles" << endpoint;
+		QLOG_DEBUG() << "RateLimiter::SetupEndpoint():" << policy_name << "now handles" << endpoint;
 		auto it = policy_mapping.find(policy_name);
-		if (it != policy_mapping.end()) {
-			auto manager = it->second.get();
-			endpoint_mapping[endpoint] = manager;
-			manager->endpoints.push_back(endpoint);
-			manager->policy = std::make_unique<Policy>(reply);
-			manager->OnPolicyUpdate();
-			manager->QueueRequest(std::move(request));
-		}
+		auto manager = it->second.get();
+		endpoint_mapping[endpoint] = manager;
+		manager->endpoints.push_back(endpoint);
+		manager->policy = std::make_unique<Policy>(reply);
+		manager->OnPolicyUpdate();
+		manager->QueueRequest(std::move(request));
 		return;
 	};
 
 	// Create a new policy manager.
-	QLOG_DEBUG() << policy_name << "created for" << endpoint;
+	QLOG_DEBUG() << "RateLimiter::SetupEndpoint():" << policy_name << "created for" << endpoint;
 	auto policy = std::make_unique<Policy>(reply);
 	auto manager = std::make_unique<PolicyManager>(this, std::move(policy));
-	connect(manager.get(), &PolicyManager::RequestReady, this, &RateLimiter::SendRequest);
+	//connect(manager.get(), &PolicyManager::RequestReady, this, &RateLimiter::SendRequest);
 	connect(manager.get(), &PolicyManager::RateLimitingStarted, this, &RateLimiter::OnTimerStarted);
 	connect(manager.get(), &PolicyManager::PolicyUpdated, this, &RateLimiter::OnPolicyUpdated);
 	emit PolicyUpdated(*manager->policy);
