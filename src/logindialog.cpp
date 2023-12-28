@@ -134,6 +134,7 @@ void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
 	ui->tokenInfoButton->setEnabled(true);
 	ui->tokenRefreshButton->setEnabled(true);
 	ui->authenticateButton->setEnabled(true);
+	return;
 	PoE::GetLeagues(this,
 		[=](const std::vector<PoE::League>& leagues) {
 			OnLeaguesReceived(leagues);

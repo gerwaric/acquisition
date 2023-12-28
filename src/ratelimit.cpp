@@ -732,6 +732,38 @@ RateLimiter::RateLimiter() :
 void RateLimiter::SetAccessToken(const OAuthToken& token) {
 	access_token = token;
 	bearer_token = "Bearer " + token.access_token;
+
+	QStringList testpoints = {
+		"https://api.pathofexile.com/account/leagues", // list leagues
+		"https://api.pathofexile.com/character", // list characters
+		"https://api.pathofexile.com/character/AlternateMemes", // get character
+		"https://api.pathofexile.com/stash/Affliction", // list stashes
+		"https://api.pathofexile.com/stash/Affliction/571aa0adaf" // get stash
+	};
+
+	int n = 0;
+
+	for (auto& x : testpoints) {
+		QNetworkRequest req = QNetworkRequest(QUrl(x));
+		PrepareRequest(req);
+		QLOG_TRACE() << "SENDING HEAD REQUEST:" << x;
+		QNetworkReply* rep = network_manager_.head(req);
+		connect(rep, &QNetworkReply::finished, this,
+			[=]() {
+				QString message = "";
+				for (auto& pair : rep->rawHeaderPairs()) {
+					message += "\n" + pair.first + " = " + pair.second;
+				};
+				QLOG_TRACE().noquote() << "HEAD REPLY RECEIVED:" << x << message;
+			});
+		connect(rep, &QNetworkReply::errorOccurred, this,
+			[=]() {
+				QLOG_ERROR() << "HEAD REPLY ERROR:" << x;
+				QLOG_ERROR() << "Error was" << rep->errorString();
+			});
+	};
+	return;
+
 }
 
 QNetworkReply* RateLimiter::SendRequest(QNetworkRequest request) {
