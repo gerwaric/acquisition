@@ -49,11 +49,25 @@ namespace PoE {
 		JS_OBJ(group, attr, sColour);
 	};
 
+	enum class ItemDisplayMode {
+		NameFollowedByValues = 0,
+		ValuesFollowedbyName = 1,
+		ProgressBar = 2,
+		ValuesInsertedByIndex = 3,
+		Separator = 4
+	};
+}
+
+// This macro won't work in the PoE namespace.
+JS_ENUM_NAMESPACE_DECLARE_VALUE_PARSER(PoE, ItemDisplayMode);
+
+namespace PoE {
+
 	// https://www.pathofexile.com/developer/docs/reference#type-ItemProperty
 	struct ItemProperty {
 		std::string                                 name;					// string
 		std::vector<std::tuple<std::string, unsigned int>> values;          // array of array
-		unsigned int                                displayMode;			// uint
+		PoE::ItemDisplayMode                        displayMode;			// uint
 		std::optional<double>                       progress;				// ? double	rounded to 2 decimal places
 		std::optional<unsigned int>                 type;					// ? uint
 		std::optional<std::string>					suffix;					// ? string
@@ -147,10 +161,14 @@ namespace PoE {
 		Foil = 9,
 		SupporterFoil = 10
 	};
+
+	JS_ENUM(ItemRarity, Normal, Magic, Rare, Unique);
 }
 
 // This macro won't work in the PoE namespace.
 JS_ENUM_NAMESPACE_DECLARE_VALUE_PARSER(PoE, FrameType);
+
+JS_ENUM_NAMESPACE_DECLARE_STRING_PARSER(PoE, ItemRarity);
 
 namespace PoE {
 
@@ -180,6 +198,7 @@ namespace PoE {
 		std::string                                 name;					// string
 		std::string                                 typeLine;				// string
 		std::string                                 baseType;				// string
+		std::optional<PoE::ItemRarity>              rarity;                 // ?string	Normal, Magic, Rare, or Unique
 		bool                                        identified = false;		// bool
 		std::optional<int>                          itemLevel;				// ? int
 		int                                         ilvl = 0;				// deprecated
@@ -239,7 +258,7 @@ namespace PoE {
 		std::optional<std::string>					colour;					// ? string	S, D, I, or G
 		JS_OBJ(verified, w, h, icon, support, stackSize, maxStackSize, stackSizeText,
 			league, id, influences, elder, shaper, searing, tangled, abyssJewel, delve,
-			fractured, synthesised, sockets, socketedItems, name, typeLine, baseType, identified,
+			fractured, synthesised, sockets, socketedItems, name, typeLine, baseType, rarity, identified,
 			itemLevel, ilvl, note, forum_note, lockedToCharacter, lockedToAccount, duplicated, split,
 			corrupted, unmodifiable, cisRaceReward, seaRaceReward, thRaceReward, properties, notableProperties,
 			requirements, additionalProperties, nextLevelRequirements, talismanTier, rewards, secDescrText,

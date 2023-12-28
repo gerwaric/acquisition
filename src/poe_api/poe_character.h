@@ -38,12 +38,13 @@ namespace PoE {
 		std::vector<unsigned int>                   hashes;					// array of uint
 		std::vector<unsigned int>                   hashes_ex;				// array of uint
 		std::unordered_map<std::string, int>        mastery_effects;		// dictionary of int	the key is the string value of the mastery node skill hashand the value is the selected effect hash
-		std::unordered_map<std::string, PoE::PassiveNode> skill_overrides;       // dictionary of PassiveNode	the key is the string value of the node identifier being replaced
+		std::unordered_map<std::string, PoE::PassiveNode> skill_overrides;  // dictionary of PassiveNode	the key is the string value of the node identifier being replaced
 		std::optional<std::string>					bandit_choice;			// ? string	one of Kraityn, Alira, Oak, or Eramir
 		std::optional<std::string>					pantheon_major;			// ? string	one of TheBrineKing, Arakaali, Solaris, or Lunaris
 		std::optional<std::string>					pantheon_minor;			// ? string	one of Abberath, Gruthkul, Yugul, Shakari, Tukohama, Ralakesh, Garukhan, or Ryslatha
-		std::unordered_map<std::string, PoE::ItemJewelData> jewel_data;          // dictionary of ItemJewelData	the key is the string value of the x property of an item from the jewels array in this request
-		JS_OBJ(hashes, hashes_ex, mastery_effects, skill_overrides, bandit_choice, pantheon_major, pantheon_minor, jewel_data);
+		std::unordered_map<std::string, PoE::ItemJewelData> jewel_data;     // dictionary of ItemJewelData	the key is the string value of the x property of an item from the jewels array in this request
+		std::optional<std::string>                  alternate_ascendancy;   // ? string	Warden, Warlock, or Primalist 
+		JS_OBJ(hashes, hashes_ex, mastery_effects, skill_overrides, bandit_choice, pantheon_major, pantheon_minor, jewel_data, alternate_ascendancy);
 	};
 
 	// Anonymous member of Character
@@ -69,6 +70,7 @@ namespace PoE {
 		std::optional<bool>                         current;				// ? bool	always true if present
 		std::optional<std::vector<PoE::Item>>		equipment;				// ? array of Item
 		std::optional<std::vector<PoE::Item>>		inventory;				// ? array of Item
+		std::optional<std::vector<PoE::Item>>       rucksack;               // ? array of Item	items stored in the Primalist's Rucksack
 		std::optional<std::vector<PoE::Item>>		jewels;					// ? array of Item
 		std::optional<PoE::CharacterPassives>       passives;				// ? object
 		std::optional<PoE::CharacterMetadata>       metadata;				// ? object
@@ -86,6 +88,7 @@ namespace PoE {
 			JS_MEMBER(current),
 			JS_MEMBER(equipment),
 			JS_MEMBER(inventory),
+			JS_MEMBER(rucksack),
 			JS_MEMBER(jewels),
 			JS_MEMBER(passives),
 			JS_MEMBER(metadata));

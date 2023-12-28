@@ -38,11 +38,18 @@ namespace PoE {
 		JS_OBJ(id, name, description);
 	};
 
+	// Anonymous member of League
+	struct LeagueCategory {
+		std::string                                 id;                     // string	the league category, e.g.Affliction
+		std::optional<bool>                         active;                 // ? bool	always true if present
+	};
+
 	// https://www.pathofexile.com/developer/docs/reference#type-League
 	struct League {
 		std::string                                 id;						// string   the league's name
 		std::optional<std::string>                  realm;					// ? string pc, xbox, or sony
 		std::optional<std::string>                  description;			// ? string
+		std::optional<PoE::LeagueCategory>          category;
 		std::optional<std::vector<PoE::LeagueRule>> rules;					// ? array of LeagueRule
 		std::optional<std::string>                  registerAt;				// ? string date time(ISO8601)
 		std::optional<bool>                         event;					// ? bool   always true if present
@@ -54,7 +61,7 @@ namespace PoE {
 		std::optional<bool>                         delveEvent;             // ? bool   always true if present
 		std::optional<bool>                         ancestorEvent;          // ? bool   always true if present
 		std::optional<bool>                         leagueEvent;            // ? bool   always true if present
-		JS_OBJ(id, realm, description, rules, registerAt, event, url, startAt, endAt, timedEvent, scoreEvent, delveEvent, ancestorEvent, leagueEvent);
+		JS_OBJ(id, realm, description, category, rules, registerAt, event, url, startAt, endAt, timedEvent, scoreEvent, delveEvent, ancestorEvent, leagueEvent);
 	};
 
 	using GetLeaguesCallback = std::function<void(const std::vector<PoE::League>&)>;
