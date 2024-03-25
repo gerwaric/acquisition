@@ -530,7 +530,8 @@ void MainWindow::ModelViewRefresh() {
 
 	connect(ui->treeView->selectionModel(), &QItemSelectionModel::currentChanged, this, &MainWindow::OnTreeChange);
 
-	ui->treeView->reset();
+	QLOG_DEBUG() << "Skipping tree view reset";
+	//ui->treeView->reset();
 	if (current_search_->IsAnyFilterActive() || current_search_->GetViewMode() == Search::ByItem) {
 		// Policy is to expand all tabs when any search fields are populated
 		// Also expand by default if we're in Item view mode
