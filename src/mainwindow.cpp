@@ -91,14 +91,7 @@ MainWindow::MainWindow(std::unique_ptr<Application> app) :
 	connect(&delayed_update_current_item_, &QTimer::timeout, this, [&]() {UpdateCurrentItem(); delayed_update_current_item_.stop(); });
 	connect(&delayed_search_form_change_, &QTimer::timeout, this, [&]() {OnSearchFormChange(); delayed_search_form_change_.stop(); });
 
-	// This updates the item information when index changes
-	connect(ui->treeView->header(), &QHeaderView::sortIndicatorChanged, this,
-		[&](int, Qt::SortOrder) {
-			QModelIndex idx = ui->treeView->selectionModel()->currentIndex();
-			if (idx.isValid())
-				OnTreeChange(idx, idx);
-		});
-
+	
 }
 void MainWindow::InitializeRateLimitPanel() {
 	RateLimitStatusPanel* rate_panel = new RateLimitStatusPanel(this, ui);
@@ -526,9 +519,13 @@ void MainWindow::ModelViewRefresh() {
 
 	current_search_->Activate(app_->items_manager().items());
 
-	ui->viewComboBox->setCurrentIndex(static_cast<int>(current_search_->GetViewMode()));
+	// This updates the item information when selection changes.
+	connect(ui->treeView->selectionModel(), &QItemSelectionModel::currentChanged, this, &MainWindow::OnCurrentItemChanged);
 
-	connect(ui->treeView->selectionModel(), &QItemSelectionModel::currentChanged, this, &MainWindow::OnTreeChange);
+	// This updates the item information when a search or sort order changes.
+	connect(ui->treeView->model(), &QAbstractItemModel::layoutChanged, this, &MainWindow::OnLayoutChanged);
+
+	ui->viewComboBox->setCurrentIndex(static_cast<int>(current_search_->GetViewMode()));
 
 	QLOG_DEBUG() << "Skipping tree view reset";
 	//ui->treeView->reset();
@@ -545,25 +542,44 @@ void MainWindow::ModelViewRefresh() {
 	tab_bar_->setTabText(tab_bar_->currentIndex(), current_search_->GetCaption());
 }
 
-void MainWindow::OnDelayedSearchFormChange() {
-	// wait 350ms after search form change before applying
-	// This is so we don't force update after every keystroke etc...
-	delayed_search_form_change_.start(350);
-}
-
-void MainWindow::OnTreeChange(const QModelIndex& current, const QModelIndex& /* previous */) {
+void MainWindow::OnCurrentItemChanged(const QModelIndex& current, const QModelIndex& previous) {
 	app_->buyout_manager().Save();
-
 	if (!current.parent().isValid()) {
 		// clicked on a bucket
 		current_item_ = nullptr;
 		current_bucket_ = *current_search_->bucket(current.row());
 		UpdateCurrentBucket();
 	} else {
+		// clicked on an item
 		current_item_ = current_search_->bucket(current.parent().row())->item(current.row());
 		delayed_update_current_item_.start(100);
-	}
+	};
 	UpdateCurrentBuyout();
+}
+
+void MainWindow::OnLayoutChanged() {
+	// Do nothing is nothing is selected.
+	if (current_item_ == nullptr)
+		return;
+
+	// Look for the new index of the currently selected item.
+	const QModelIndex idx = current_search_->index(current_item_);
+
+	if (!idx.isValid()) {
+		// The previously selected item is no longer in search results.
+		current_item_ = nullptr;
+		ClearCurrentItem();
+		ui->treeView->selectionModel()->clearSelection();
+	} else {
+		// Reselect the item in the updated layout.
+		ui->treeView->selectionModel()->select(idx, QItemSelectionModel::ClearAndSelect);;
+	};
+}
+
+void MainWindow::OnDelayedSearchFormChange() {
+	// wait 350ms after search form change before applying
+	// This is so we don't force update after every keystroke etc...
+	delayed_search_form_change_.start(350);
 }
 
 void MainWindow::OnTabChange(int index) {
@@ -673,6 +689,19 @@ void MainWindow::NewSearch() {
 	ModelViewRefresh();
 }
 
+void MainWindow::ClearCurrentItem() {
+	ui->imageLabel->hide();
+	ui->minimapLabel->hide();
+	ui->locationLabel->hide();
+	ui->itemTooltipWidget->hide();
+	ui->itemButtonsWidget->hide();
+
+	ui->nameLabel->setText("Select an item");
+	ui->nameLabel->show();
+
+	ui->pobTooltipButton->setEnabled(false);
+}
+
 void MainWindow::UpdateCurrentBucket() {
 	ui->imageLabel->hide();
 	ui->minimapLabel->hide();
@@ -682,11 +711,15 @@ void MainWindow::UpdateCurrentBucket() {
 
 	ui->nameLabel->setText(current_bucket_.location().GetHeader().c_str());
 	ui->nameLabel->show();
+
+	ui->pobTooltipButton->setEnabled(false);
 }
 
 void MainWindow::UpdateCurrentItem() {
-	if (current_item_ == nullptr)
+	if (current_item_ == nullptr) {
+		ClearCurrentItem();
 		return;
+	};
 
 	ui->imageLabel->show();
 	ui->minimapLabel->show();

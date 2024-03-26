@@ -76,7 +76,8 @@ public:
 	~MainWindow();
 	std::vector<Column*> columns;
 public slots:
-	void OnTreeChange(const QModelIndex& index, const QModelIndex& prev);
+	void OnCurrentItemChanged(const QModelIndex& current, const QModelIndex& previous);
+	void OnLayoutChanged();
 	void OnSearchFormChange();
 	void OnDelayedSearchFormChange();
 	void OnTabChange(int index);
@@ -125,6 +126,7 @@ private slots:
 
 private:
 	void ModelViewRefresh();
+	void ClearCurrentItem();
 	void UpdateCurrentBucket();
 	void UpdateCurrentItem();
 	void UpdateCurrentBuyout();
