@@ -117,6 +117,36 @@ const std::unique_ptr<Bucket>& Search::bucket(int row) const {
 
 }
 
+const QModelIndex Search::index(const std::shared_ptr<Item> item) const {
+	if (!item) {
+		// Return an invalid index because there is no current item.
+		return QModelIndex::QModelIndex();
+	};
+	// Look for a bucket that matches the item's location.
+	const auto& location_id = item->location().get_tab_uniq_id();
+	const auto& active_buckets = buckets();
+	for (size_t row = 0; row < active_buckets.size(); ++row) {
+		// Check each search bucket against the item's location.
+		const auto& bucket = *active_buckets[row];
+		const auto& bucket_id = bucket.location().get_tab_uniq_id();
+		if (location_id == bucket_id) {
+			// Check each item in the bucket.
+			const QModelIndex parent = model_->index(row);
+			const auto& items = bucket.items();
+			for (size_t n = 0; n < items.size(); ++n) {
+				const auto model_item = items[n];
+				if (item == model_item) {
+					// Found the index of a match.
+					return model_->index(n, 0, parent);
+				};
+			};
+		};
+	};
+	// If we get here, that means the previously selected item is no
+	// longer part of the current view.
+	return QModelIndex::QModelIndex();
+}
+
 void Search::FilterItems(const Items& items) {
 	// If we're just changing tabs we don't need to update anything
 	if (refresh_reason_ == RefreshReason::TabChanged)
