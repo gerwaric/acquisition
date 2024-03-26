@@ -93,7 +93,8 @@ void Search::ResetForm() {
 const std::vector<std::unique_ptr<Bucket> >& Search::buckets() const {
 	if (current_mode_ == ByTab) {
 		return buckets_;
-	} else {
+	}
+	else {
 		return bucket_;
 	}
 }
@@ -120,12 +121,12 @@ const std::unique_ptr<Bucket>& Search::bucket(int row) const {
 const QModelIndex Search::index(const std::shared_ptr<Item> item) const {
 	if (!item) {
 		// Return an invalid index because there is no current item.
-		return QModelIndex::QModelIndex();
+		return QModelIndex();
 	};
 	// Look for a bucket that matches the item's location.
 	const auto& location_id = item->location().get_tab_uniq_id();
 	const auto& active_buckets = buckets();
-	for (size_t row = 0; row < active_buckets.size(); ++row) {
+	for (int row = 0; row < active_buckets.size(); ++row) {
 		// Check each search bucket against the item's location.
 		const auto& bucket = *active_buckets[row];
 		const auto& bucket_id = bucket.location().get_tab_uniq_id();
@@ -133,7 +134,7 @@ const QModelIndex Search::index(const std::shared_ptr<Item> item) const {
 			// Check each item in the bucket.
 			const QModelIndex parent = model_->index(row);
 			const auto& items = bucket.items();
-			for (size_t n = 0; n < items.size(); ++n) {
+			for (int n = 0; n < items.size(); ++n) {
 				const auto model_item = items[n];
 				if (item == model_item) {
 					// Found the index of a match.
@@ -144,7 +145,7 @@ const QModelIndex Search::index(const std::shared_ptr<Item> item) const {
 	};
 	// If we get here, that means the previously selected item is no
 	// longer part of the current view.
-	return QModelIndex::QModelIndex();
+	return QModelIndex();
 }
 
 void Search::FilterItems(const Items& items) {
@@ -214,7 +215,8 @@ ItemLocation Search::GetTabLocation(const QModelIndex& index) const {
 		// If index represents an item, get location from item as view may be on 'item' view
 		// where bucket location doesn't match items location
 		return bucket(index.parent().row())->item(index.row())->location();
-	} else {
+	}
+	else {
 		// Otherwise index represents a tab already, get location from there
 		return bucket(index.row())->location();
 	}
