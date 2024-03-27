@@ -47,11 +47,6 @@ namespace Ui {
 	class MainWindow;
 }
 
-enum class TreeState {
-	kExpand,
-	kCollapse
-};
-
 enum class ProgramState {
 	Unknown,
 	CharactersReceived,
@@ -140,7 +135,6 @@ private:
 	bool eventFilter(QObject* o, QEvent* e);
 	void UpdateShopMenu();
 	void UpdateBuyoutWidgets(const Buyout& bo);
-	void ExpandCollapse(TreeState state);
 	void closeEvent(QCloseEvent* event);
 	void CheckSelected(bool value);
 

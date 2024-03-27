@@ -277,24 +277,37 @@ void MainWindow::InitializeUi() {
 	connect(ui->pobTooltipButton, &QPushButton::clicked, this, &MainWindow::OnCopyForPOB);
 }
 
-void MainWindow::ExpandCollapse(TreeState state) {
-	// we block signals so that ResizeTreeColumns isn't called for every item, which is damn slow!
-	ui->treeView->blockSignals(true);
-	if (state == TreeState::kExpand)
-		ui->treeView->expandAll();
-	else
-		ui->treeView->collapseAll();
-	ui->treeView->blockSignals(false);
-
-	ResizeTreeColumns();
-}
-
 void MainWindow::OnExpandAll() {
-	ExpandCollapse(TreeState::kExpand);
+	// Only need to expand the top level, which corresponds to buckets,
+	// aka stash tabs and characters. Signals are blocked during this
+	// operation, otherwise the column resize function connected to
+	// the expanded() signal would be called repeatedly.
+	setCursor(Qt::WaitCursor);
+	ui->treeView->blockSignals(true);
+	ui->treeView->expandToDepth(0);
+	ui->treeView->blockSignals(false);
+	ResizeTreeColumns();
+	unsetCursor();
 }
 
 void MainWindow::OnCollapseAll() {
-	ExpandCollapse(TreeState::kCollapse);
+	// There is no depth-based collapse method, so manuall looping
+	// over rows can be much faster than collapseAll() under some
+	// conditions, possibly beecause those funcitons check every
+	// element in the tree, which in our case will include all items.
+	// 
+	// Signals are blocked for the same reason as the expand all case.
+	setCursor(Qt::WaitCursor);
+	ui->treeView->blockSignals(true);
+	const auto& model = *ui->treeView->model();
+	const int rowCount = model.rowCount();
+	for (int row = 0; row < rowCount; ++row) {
+		const QModelIndex idx = model.index(row, 0, QModelIndex());
+		ui->treeView->collapse(idx);
+	};
+	ui->treeView->blockSignals(false);
+	ResizeTreeColumns();
+	unsetCursor();
 }
 
 void MainWindow::OnCheckAll() {
@@ -532,7 +545,7 @@ void MainWindow::ModelViewRefresh() {
 	if (current_search_->IsAnyFilterActive() || current_search_->GetViewMode() == Search::ByItem) {
 		// Policy is to expand all tabs when any search fields are populated
 		// Also expand by default if we're in Item view mode
-		ExpandCollapse(TreeState::kExpand);
+		emit OnExpandAll();
 	} else {
 		// Restore view properties if no search fields are populated AND current mode is tab mode
 		current_search_->RestoreViewProperties();
