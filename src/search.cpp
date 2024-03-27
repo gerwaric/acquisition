@@ -254,7 +254,7 @@ void Search::Activate(const Items& items) {
 
 void Search::SaveViewProperties() {
 	expanded_property_.clear();
-	auto rowCount = model_->rowCount();
+	const int rowCount = model_->rowCount();
 	for (int row = 0; row < rowCount; ++row) {
 		QModelIndex index = model_->index(row, 0, QModelIndex());
 		if (index.isValid() && view_->isExpanded(index)) {
@@ -265,17 +265,25 @@ void Search::SaveViewProperties() {
 
 void Search::RestoreViewProperties() {
 	if (!expanded_property_.empty()) {
-		auto rowCount = model_->rowCount();
+		// There are some rows to expand.
+		const int rowCount = model_->rowCount();
 		for (int row = 0; row < rowCount; ++row) {
 			QModelIndex index = model_->index(row, 0, QModelIndex());
 			// Block signals else columns will be resized on every expand which can be super slow.
 			view_->blockSignals(true);
 			if (expanded_property_.count(bucket(row)->location().GetHeader())) {
 				view_->expand(index);
-			}
+			} else {
+				view_->collapse(index);
+			};
 			view_->blockSignals(false);
 		}
-	}
+	} else {
+		// Make sure all the rows are collapsed otherwise.
+		view_->blockSignals(true);
+		view_->collapseAll();
+		view_->blockSignals(false);
+	};
 }
 
 bool Search::IsAnyFilterActive() const {
