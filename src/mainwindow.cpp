@@ -519,7 +519,7 @@ void MainWindow::ModelViewRefresh() {
 
 	current_search_->Activate(app_->items_manager().items());
 
-	// This updates the item information when selection changes.
+	// This updates the item information when current item changes.
 	connect(ui->treeView->selectionModel(), &QItemSelectionModel::currentChanged, this, &MainWindow::OnCurrentItemChanged);
 
 	// This updates the item information when a search or sort order changes.
@@ -801,6 +801,9 @@ void MainWindow::OnItemsRefreshed() {
 
 MainWindow::~MainWindow() {
 	delete ui;
+	for (auto& search : searches_) {
+		delete(search);
+	};
 }
 
 void MainWindow::OnSetShopThreads() {
