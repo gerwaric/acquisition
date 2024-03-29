@@ -91,7 +91,7 @@ MainWindow::MainWindow(std::unique_ptr<Application> app) :
 	connect(&delayed_update_current_item_, &QTimer::timeout, this, [&]() {UpdateCurrentItem(); delayed_update_current_item_.stop(); });
 	connect(&delayed_search_form_change_, &QTimer::timeout, this, [&]() {OnSearchFormChange(); delayed_search_form_change_.stop(); });
 
-	
+
 }
 void MainWindow::InitializeRateLimitPanel() {
 	RateLimitStatusPanel* rate_panel = new RateLimitStatusPanel(this, ui);
@@ -545,7 +545,7 @@ void MainWindow::ModelViewRefresh() {
 	if (current_search_->IsAnyFilterActive() || current_search_->GetViewMode() == Search::ByItem) {
 		// Policy is to expand all tabs when any search fields are populated
 		// Also expand by default if we're in Item view mode
-		emit OnExpandAll();
+		OnExpandAll();
 	} else {
 		// Restore view properties if no search fields are populated AND current mode is tab mode
 		current_search_->RestoreViewProperties();
@@ -556,6 +556,7 @@ void MainWindow::ModelViewRefresh() {
 }
 
 void MainWindow::OnCurrentItemChanged(const QModelIndex& current, const QModelIndex& previous) {
+	Q_UNUSED(previous);
 	app_->buyout_manager().Save();
 	if (!current.parent().isValid()) {
 		// clicked on a bucket
