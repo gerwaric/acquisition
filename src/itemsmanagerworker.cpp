@@ -52,9 +52,14 @@ const char* kCharacterSocketedJewels = "https://www.pathofexile.com/character-wi
 
 const char* kPOE_trade_stats = "https://www.pathofexile.com/api/trade/data/stats";
 
-const char* kRePoE_stat_translations = "https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/stat_translations.min.json";
 const char* kRePoE_item_classes = "https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/item_classes.min.json";
 const char* kRePoE_item_base_types = "https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/base_items.min.json";
+
+// Modifiers from this list of files will be loaded in order from first to last.
+const QStringList REPOE_STAT_TRANSLATIONS = {
+	"https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/stat_translations.min.json",
+	"https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/stat_translations/necropolis.min.json"
+};
 
 ItemsManagerWorker::ItemsManagerWorker(Application& app) :
 	app_(app),
@@ -126,7 +131,9 @@ void ItemsManagerWorker::OnItemBaseTypesReceived(QNetworkReply* reply) {
 		QByteArray bytes = reply->readAll();
 		emit ItemBaseTypesUpdate(bytes);
 	};
-	UpdateModList();
+	mods.clear();
+	QStringList StatTranslationUrls = QStringList(REPOE_STAT_TRANSLATIONS);
+	UpdateModList(StatTranslationUrls);
 }
 
 void ItemsManagerWorker::ParseItemMods() {
@@ -230,16 +237,27 @@ void ItemsManagerWorker::ParseItemMods() {
 	};
 }
 
-void ItemsManagerWorker::UpdateModList() {
-	QNetworkRequest PoE_stat_translations_request = QNetworkRequest(QUrl(QString(kRePoE_stat_translations)));
-	rate_limiter_->Submit(PoE_stat_translations_request,
-		[=](QNetworkReply* reply) {
-			OnStatTranslationsReceived(reply);
-		});
+void ItemsManagerWorker::UpdateModList(QStringList StatTranslationUrls) {
+	if (StatTranslationUrls.isEmpty()) {
+		// Create a separate thread to load the items, which allows the UI to
+		// update the status bar while items are being parsed. This operation
+		// can take tens of seconds or longer depending on the nubmer of tabs
+		// and items.
+		QThread* parser = QThread::create([=]() { ParseItemMods(); });
+		parser->start();
+	} else {
+		QUrl url = QUrl(StatTranslationUrls.takeFirst());
+		QNetworkRequest PoE_stat_translations_request = QNetworkRequest(url);
+		rate_limiter_->Submit(PoE_stat_translations_request,
+			[=](QNetworkReply* reply) {
+				OnStatTranslationsReceived(reply);
+				UpdateModList(StatTranslationUrls);
+			});
+	};
 }
 
 void ItemsManagerWorker::OnStatTranslationsReceived(QNetworkReply* reply) {
-	QLOG_TRACE() << "Stat translations received.";
+	QLOG_TRACE() << "Stat translations received:" << reply->request().url().toString();
 
 	if (reply->error()) {
 		QLOG_ERROR() << "Couldn't fetch RePoE Stat Translations: " << reply->url().toDisplayString()
@@ -256,11 +274,22 @@ void ItemsManagerWorker::OnStatTranslationsReceived(QNetworkReply* reply) {
 		return;
 	};
 
-	mods.clear();
+	//mods.clear();
 	std::set<std::string> stat_strings;
 
 	for (auto& translation : doc) {
 		for (auto& stat : translation["English"]) {
+			if (stat.HasMember("is_markup") && (stat["is_markup"].GetBool() == true)) {
+				// This was added with the change to process json files inside
+				// the stat_translations directory. In this case, the necropolis
+				// mods from 3.24 have some kind of duplicate formatting with
+				// markup that acquisition has not had to deal with before.
+				//
+				// It's possible this is true for other files in the stat_translations
+				// folder, but acquisition has never needed to load modifiers from those
+				// files before.
+				continue;
+			};
 			std::vector<std::string> formats;
 			for (auto& format : stat["format"]) {
 				formats.push_back(format.GetString());
@@ -281,13 +310,6 @@ void ItemsManagerWorker::OnStatTranslationsReceived(QNetworkReply* reply) {
 	for (std::string stat_string : stat_strings) {
 		mods.push_back({ stat_string });
 	};
-
-	// Create a separate thread to load the items, which allows the UI to
-	// update the status bar while items are being parsed. This operation
-	// can take tens of seconds or longer depending on the nubmer of tabs
-	// and items.
-	QThread* parser = QThread::create([=]() { ParseItemMods(); });
-	parser->start();
 }
 
 void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemLocation>& locations) {
