@@ -26,12 +26,8 @@
 // Holds the date and time of the current build based on __DATE__ and __TIME__ macros.
 extern const QString BUILD_TIMESTAMP;
 
-// This is BUILD_TIMESTAMP parsed into a QDateTimeObject.
+// This is BUILD_TIMESTAMP parsed into a QDateTime.
 extern const QDateTime BUILD_DATE;
-
-// If TRIAL_VERSION is true (See network_defines.h) this will be the date this build
-// expires, otherwise it will be an invalid QDateTime object.
-extern const QDateTime EXPIRATION_DATE;
 
 class QNetworkAccessManager;
 class QNetworkReply;

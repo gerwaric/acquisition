@@ -105,15 +105,7 @@ void MainWindow::InitializeLogging() {
 
 	// display warnings here so it's more visible
 #if defined(_DEBUG)
-	if (TRIAL_VERSION) {
-		QLOG_WARN() << "Maintainer: This is a debug build that expiress on" << EXPIRATION_DATE.toString();
-	} else {
-		QLOG_WARN() << "Maintainer: This is a debug build";
-	};
-#else
-	if (TRIAL_VERSION) {
-		QLOG_WARN() << "Maintainer: This build expires on" << EXPIRATION_DATE.toString();
-	};
+	QLOG_WARN() << "Maintainer: This is a debug build";
 #endif
 }
 

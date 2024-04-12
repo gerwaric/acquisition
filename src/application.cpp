@@ -40,7 +40,6 @@ using RateLimit::RateLimiter;
 
 const QString BUILD_TIMESTAMP = QString(__DATE__ " " __TIME__).simplified();
 const QDateTime BUILD_DATE = QLocale("en_US").toDateTime(BUILD_TIMESTAMP, "MMM d yyyy hh:mm:ss");
-const QDateTime EXPIRATION_DATE = TRIAL_VERSION ? BUILD_DATE.addDays(TRIAL_EXPIRATION_DAYS) : QDateTime();
 
 Application::Application(bool mock_data) :
 	test_mode_(mock_data)
