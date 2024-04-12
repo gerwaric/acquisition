@@ -23,7 +23,7 @@
 #include <QString>
 
 namespace porting {
-	std::string DefaultUserDir();
+	QString DefaultUserDir();
 }
 
 #ifdef __ANDROID__

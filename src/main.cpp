@@ -103,9 +103,9 @@ int main(int argc, char* argv[])
 	// Setup the data dir, which is where the log will be written.
 	if (parser.isSet(option_data_dir)) {
 		const QString datadir = QString(parser.value(option_data_dir));
-		Filesystem::SetUserDir(datadir.toStdString());
+		Filesystem::SetUserDir(datadir);
 	};
-	const QString sLogPath = QString(QDir(Filesystem::UserDir().c_str()).filePath("log.txt"));
+	const QString sLogPath = QString(QDir(Filesystem::UserDir()).filePath("log.txt"));
 
 	// Setup the logger.
 	QsLogging::Logger& logger = QsLogging::Logger::instance();

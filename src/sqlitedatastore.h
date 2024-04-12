@@ -36,7 +36,7 @@ struct blob_info {
 
 class SqliteDataStore : public DataStore {
 public:
-	SqliteDataStore(const std::string& filename_);
+	SqliteDataStore(const QString& filename_);
 	~SqliteDataStore();
 	void Set(const std::string& key, const std::string& value);
 	void SetTabs(const ItemLocationType& type, const std::string& value);
@@ -50,11 +50,11 @@ public:
 	bool GetBool(const std::string& key, bool default_value = false);
 	void SetInt(const std::string& key, int value);
 	int GetInt(const std::string& key, int default_value = 0);
-	static std::string MakeFilename(const std::string& name, const std::string& league);
+	static QString MakeFilename(const std::string& name, const std::string& league);
 private:
 	void CreateTable(const std::string& name, const std::string& fields);
 	void CleanItemsTable();
 
-	std::string filename_;
+	QString filename_;
 	sqlite3* db_;
 };

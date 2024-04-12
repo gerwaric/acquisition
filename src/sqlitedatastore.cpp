@@ -28,13 +28,13 @@
 #include "currencymanager.h"
 #include "util.h"
 
-SqliteDataStore::SqliteDataStore(const std::string& filename) :
+SqliteDataStore::SqliteDataStore(const QString& filename) :
 	filename_(filename)
 {
-	QDir dir(QDir::cleanPath((filename + "/..").c_str()));
+	QDir dir(QDir::cleanPath(filename + "/.."));
 	if (!dir.exists())
 		QDir().mkpath(dir.path());
-	if (sqlite3_open(filename_.c_str(), &db_) != SQLITE_OK) {
+	if (sqlite3_open(filename_.toStdString().c_str(), &db_) != SQLITE_OK) {
 		throw std::runtime_error("Failed to open sqlite3 database.");
 	}
 	CreateTable("data", "key TEXT PRIMARY KEY, value BLOB");
@@ -256,7 +256,7 @@ SqliteDataStore::~SqliteDataStore() {
 	sqlite3_close(db_);
 }
 
-std::string SqliteDataStore::MakeFilename(const std::string& name, const std::string& league) {
+QString SqliteDataStore::MakeFilename(const std::string& name, const std::string& league) {
 	std::string key = name + "|" + league;
-	return QString(QCryptographicHash::hash(key.c_str(), QCryptographicHash::Md5).toHex()).toStdString();
+	return QString(QCryptographicHash::hash(key.c_str(), QCryptographicHash::Md5).toHex());
 }

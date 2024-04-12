@@ -340,7 +340,7 @@ void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
 }
 
 void LoginDialog::LoadSettings() {
-	QSettings settings(settings_path_.c_str(), QSettings::IniFormat);
+	QSettings settings(settings_path_, QSettings::IniFormat);
 	session_id_ = settings.value("session_id", "").toString();
 	ui->sessionIDLineEdit->setText(session_id_);
 	ui->rembmeCheckBox->setChecked(settings.value("remember_me_checked").toBool());
@@ -363,7 +363,7 @@ void LoginDialog::LoadSettings() {
 }
 
 void LoginDialog::SaveSettings() {
-	QSettings settings(settings_path_.c_str(), QSettings::IniFormat);
+	QSettings settings(settings_path_, QSettings::IniFormat);
 	if (ui->rembmeCheckBox->isChecked()) {
 		settings.setValue("session_id", session_id_);
 		settings.setValue("league", ui->leagueComboBox->currentText());

@@ -54,7 +54,7 @@ Application::Application(bool mock_data) :
 	oauth_manager_ = std::make_unique<OAuthManager>(*network_manager_, this);
 
 	// The global datastore holds things like the selected theme.
-	std::string global_data_file = SqliteDataStore::MakeFilename("", "");
+	QString global_data_file = SqliteDataStore::MakeFilename("", "");
 	global_data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/data/" + global_data_file);
 }
 
@@ -75,7 +75,7 @@ void Application::InitLogin(
 		data_ = std::make_unique<MemoryDataStore>();
 		sensitive_data_ = std::make_unique<MemoryDataStore>();
 	} else {
-		std::string data_file = SqliteDataStore::MakeFilename(email, league);
+		QString data_file = SqliteDataStore::MakeFilename(email, league);
 		data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/data/" + data_file);
 		sensitive_data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/sensitive_data/" + data_file);
 		SaveDbOnNewVersion();
@@ -108,7 +108,7 @@ void Application::SaveDbOnNewVersion() {
 		data_->GetTabs(ItemLocationType::STASH).length() == 0 &&
 		data_->GetTabs(ItemLocationType::CHARACTER).length() == 0;
 	if (version != APP_VERSION_STRING && !first_start) {
-		QString data_path = Filesystem::UserDir().c_str() + QString("/data");
+		QString data_path = Filesystem::UserDir() + QString("/data");
 		QString save_path = data_path + "_save_" + version.c_str();
 		QDir src(data_path);
 		QDir dst(save_path);
