@@ -54,7 +54,6 @@ public:
 	ItemsManager& items_manager() { return *items_manager_; }
 	DataStore& global_data() const { return *global_data_; }
 	DataStore& data() const { return *data_; }
-	DataStore& sensitive_data() const { return *sensitive_data_; }
 	BuyoutManager& buyout_manager() const { return *buyout_manager_; }
 	QNetworkAccessManager& network_manager() const { return *network_manager_; }
 	Shop& shop() const { return *shop_; }
@@ -69,8 +68,6 @@ private:
 	std::string email_;
 	std::unique_ptr<DataStore> global_data_;
 	std::unique_ptr<DataStore> data_;
-	// stores sensitive data that you'd rather not share, like control.poe.trade secret URL
-	std::unique_ptr<DataStore> sensitive_data_;
 	std::unique_ptr<BuyoutManager> buyout_manager_;
 	std::unique_ptr<Shop> shop_;
 	std::unique_ptr<QNetworkAccessManager> network_manager_;
