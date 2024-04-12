@@ -9,7 +9,7 @@
 // These are used by the Inno 6 installer script.
 #define APP_NAME                    "acquisition"
 #define APP_VERSION                 "0.10.3"
-#define APP_VERSION_STRING          "v0.10.3-alpha.5"
+#define APP_VERSION_STRING          "v0.10.3-alpha.6"
 #define APP_PUBLISHER               "GERWARIC"
 #define APP_PUBLISHER_EMAIL         "gerwaric@gmail.com"
 #define APP_URL                     "https://github.com/gerwaric/acquisition"

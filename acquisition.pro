@@ -10,7 +10,7 @@ VERSION = 0.10.3
 DEFINES += "MY_TARGET=\\\"$${TARGET}\\\""
 DEFINES += "MY_VERSION=\\\"$${VERSION}\\\""
 
-QT += core gui network widgets httpserver websockets testlib
+QT += core gui network widgets sql httpserver websockets testlib
 
 win32 {
 	QT.testlib.CONFIG -= console
@@ -40,7 +40,6 @@ include(deps/QsLog/QsLog.pri)
 INCLUDEPATH += src deps deps/boost-headers-only test
 
 SOURCES += \
-	deps/sqlite/sqlite3.c \
 	src/application.cpp \
 	src/bucket.cpp \
 	src/buyoutmanager.cpp \
@@ -83,7 +82,6 @@ SOURCES += \
 	test/testutil.cpp
 
 HEADERS += \
-	deps/sqlite/sqlite3.h \
 	src/application.h \
 	src/bucket.h \
 	src/buyoutmanager.h \

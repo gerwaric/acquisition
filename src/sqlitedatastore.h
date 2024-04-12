@@ -19,6 +19,9 @@
 
 #pragma once
 
+#include <QMutex>
+#include <QSqlDatabase>
+
 #include <string>
 #include <vector>
 
@@ -27,12 +30,6 @@
 
 class Application;
 struct CurrencyUpdate;
-struct sqlite3;
-
-struct blob_info {
-	byte* info;
-	int len;
-};
 
 class SqliteDataStore : public DataStore {
 public:
@@ -56,5 +53,7 @@ private:
 	void CleanItemsTable();
 
 	QString filename_;
-	sqlite3* db_;
+	QSqlDatabase db_;
+
+	static QMutex mutex_;
 };
