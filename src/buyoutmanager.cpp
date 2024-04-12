@@ -356,9 +356,6 @@ void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, B
 	if (data.empty())
 		return;
 
-	// The the comment below about the bug introduced in v0.9.10
-	bool bug_detected = false;
-
 	rapidjson::Document doc;
 	if (doc.Parse(data.c_str()).HasParseError()) {
 		QLOG_ERROR() << "Error while parsing buyouts.";
