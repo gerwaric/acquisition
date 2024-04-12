@@ -39,7 +39,7 @@ class BuyoutManager;
 using RateLimit::RateLimiter;
 
 struct ItemsRequest {
-	int id;
+	int id{ -1 };
 	QNetworkRequest network_request;
 	ItemLocation location;
 };
@@ -100,8 +100,8 @@ private:
 	// tabs_signature_ captures <"n", "id"> from JSON tab list, used as consistency check
 	std::vector<std::pair<std::string, std::string> > tabs_signature_;
 	Items items_;
-    size_t total_completed_, total_needed_;
-    size_t requests_completed_, requests_needed_;
+	size_t total_completed_, total_needed_;
+	size_t requests_completed_, requests_needed_;
 
 	std::set<std::string> tab_id_index_;
 	std::string tabs_as_string_;

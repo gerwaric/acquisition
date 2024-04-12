@@ -60,8 +60,8 @@ enum class ProgramState {
 };
 
 struct CurrentStatusUpdate {
-	ProgramState state;
-	size_t progress{}, total{}, cached{};
+	ProgramState state{ ProgramState::Unknown };
+	size_t progress{ 0 }, total{ 0 }, cached{ 0 };
 };
 
 class MainWindow : public QMainWindow {

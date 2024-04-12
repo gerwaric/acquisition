@@ -85,8 +85,8 @@ void SqliteDataStore::CleanItemsTable() {
 	//  * check all "db.items" record keys against 'id' or 'name' values in the "db.tabs" data,
 	//    remove record from 'items' if not anywhere in either 'tabs' record.
 	locker.unlock();
-	std::string stashTabData = GetTabs(ItemLocationType::STASH, "NOT FOUND");
-	std::string charsData = GetTabs(ItemLocationType::CHARACTER, "NOT FOUND");
+	std::string stashTabData = SqliteDataStore::GetTabs(ItemLocationType::STASH, "NOT FOUND");
+	std::string charsData = SqliteDataStore::GetTabs(ItemLocationType::CHARACTER, "NOT FOUND");
 	locker.relock();
 
 	if ((stashTabData.compare("NOT FOUND") != 0) && (charsData.compare("NOT FOUND") != 0)) {

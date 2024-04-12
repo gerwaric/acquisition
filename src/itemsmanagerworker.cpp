@@ -63,6 +63,7 @@ const QStringList REPOE_STAT_TRANSLATIONS = {
 
 ItemsManagerWorker::ItemsManagerWorker(Application& app) :
 	app_(app),
+	test_mode_(false),
 	rate_limiter_(nullptr),
 	total_completed_(-1),
 	total_needed_(-1),
@@ -157,7 +158,7 @@ void ItemsManagerWorker::ParseItemMods() {
 		tabs_signature_ = CreateTabsSignatureVector(tabs);
 		for (auto& tab : doc) {
 			//constructor values to fill in
-            size_t index;
+			size_t index;
 			std::string tabUniqueId, name;
 			int r, g, b;
 
@@ -193,8 +194,8 @@ void ItemsManagerWorker::ParseItemMods() {
 				g = 0;
 				b = 0;
 				break;
-            };
-            ItemLocation loc(static_cast<int>(index), tabUniqueId, name, type, r, g, b);
+			};
+			ItemLocation loc(static_cast<int>(index), tabUniqueId, name, type, r, g, b);
 			loc.set_json(tab, doc.GetAllocator());
 			tabs_.push_back(loc);
 			tab_id_index_.insert(loc.get_tab_uniq_id());
@@ -220,7 +221,7 @@ void ItemsManagerWorker::ParseItemMods() {
 		};
 		CurrentStatusUpdate status;
 		status.state = ProgramState::ItemsRetrieved;
-		status.progress = i + 1;
+		status.progress = static_cast<size_t>(i) + 1;
 		status.total = tabs_.size();
 		emit StatusUpdate(status);
 	};
@@ -307,7 +308,7 @@ void ItemsManagerWorker::OnStatTranslationsReceived(QNetworkReply* reply) {
 		};
 	};
 
-	for (std::string stat_string : stat_strings) {
+	for (const std::string& stat_string : stat_strings) {
 		mods.push_back({ stat_string });
 	};
 }
@@ -430,12 +431,12 @@ void ItemsManagerWorker::OnMainPageReceived(QNetworkReply* reply) {
 		std::string page(reply->readAll().constData());
 		selected_character_ = Util::FindTextBetween(page, "C({\"name\":\"", "\",\"class");
 		if (selected_character_.empty()) {
-            // If the user is using POESESSID, then we should expect to find the character name.
-            // If the uses is using OAuth, then we might not find the character name if they user
-            // is not logged into pathofexile.com using the browser they authenticated with.
-            if (app_.oauth_manager().access_token().isEmpty() == true) {
-                QLOG_WARN() << "Couldn't extract currently selected character name from GGG homepage (maintenence?) Text was: " << page.c_str();
-            };
+			// If the user is using POESESSID, then we should expect to find the character name.
+			// If the uses is using OAuth, then we might not find the character name if they user
+			// is not logged into pathofexile.com using the browser they authenticated with.
+			if (app_.oauth_manager().access_token().isEmpty() == true) {
+				QLOG_WARN() << "Couldn't extract currently selected character name from GGG homepage (maintenence?) Text was: " << page.c_str();
+			};
 		};
 	};
 
@@ -489,8 +490,8 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 		if (tab_id_index_.count(name) > 0) {
 			QLOG_DEBUG() << "Skipping" << name.c_str() << "because this item is not being refreshed.";
 			continue;
-        };
-        const int tab_count = static_cast<int>(tabs_.size());
+		};
+		const int tab_count = static_cast<int>(tabs_.size());
 		ItemLocation location;
 		location.set_type(ItemLocationType::CHARACTER);
 		location.set_character(name);
@@ -562,7 +563,7 @@ void ItemsManagerWorker::QueueRequest(const QNetworkRequest& request, const Item
 
 void ItemsManagerWorker::FetchItems() {
 	std::string tab_titles;
-    const size_t count = queue_.size();
+	const size_t count = queue_.size();
 	for (int i = 0; i < count; ++i) {
 		// Take the next request out of the queue.
 		ItemsRequest request = queue_.front();

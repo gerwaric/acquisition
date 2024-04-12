@@ -30,7 +30,7 @@
 struct CurrentStatusUpdate;
 extern const std::string kShopTemplateItems;
 struct AugmentedItem {
-	Item* item;
+	Item* item{ nullptr };
 	Buyout bo;
 	bool operator<(const AugmentedItem& other) const {
 		if (bo.type != other.bo.type)
@@ -67,7 +67,7 @@ signals:
 private:
 	void SubmitSingleShop();
 	void SubmitNextShop(const std::string title, const std::string hash);
-    std::string ShopEditUrl(size_t idx);
+	std::string ShopEditUrl(size_t idx);
 	std::string SpoilerBuyout(Buyout& bo);
 
 	Application& app_;

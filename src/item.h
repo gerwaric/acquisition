@@ -127,7 +127,7 @@ public:
 	static const std::array<CategoryReplaceMap, k_CategoryLevels> replace_map_;
 
 private:
-    void CalculateCategories();
+	void CalculateCategories();
 	// The point of GenerateMods is to create combined (e.g. implicit+explicit) poe.trade-like mod map to be searched by mod filter.
 	// For now it only does that for a small chosen subset of mods (think "popular" + "pseudo" sections at poe.trade)
 	void GenerateMods(const rapidjson::Value& json);
@@ -139,25 +139,25 @@ private:
 	std::string baseType_;
 	std::string category_;
 	std::vector<std::string> category_vector_;
-	bool identified_;
-	bool corrupted_;
-	bool crafted_;
-	bool enchanted_;
+	bool identified_{ true };
+	bool corrupted_{ false };
+	bool crafted_{ false };
+	bool enchanted_{ false };
 	std::vector<INFLUENCE_TYPES> influenceList_;
-	int w_, h_;
-	int frameType_;
+	int w_{ 0 }, h_{ 0 };
+	int frameType_{ 0 };
 	std::string icon_;
 	std::map<std::string, std::string> properties_;
 	std::string old_hash_, hash_;
 	// vector of pairs [damage, type]
 	std::vector<std::pair<std::string, int>> elemental_damage_;
-	int sockets_cnt_, links_cnt_;
-	ItemSocketGroup sockets_;
+	int sockets_cnt_{ 0 }, links_cnt_{ 0 };
+	ItemSocketGroup sockets_{ 0, 0, 0, 0 };
 	std::vector<ItemSocketGroup> socket_groups_;
 	std::map<std::string, int> requirements_;
 	std::string json_;
-	int count_;
-	int ilvl_;
+	int count_{ 0 };
+	int ilvl_{ 0 };
 	std::vector<ItemProperty> text_properties_;
 	std::vector<ItemRequirement> text_requirements_;
 	std::map<std::string, ItemMods> text_mods_;

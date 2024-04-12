@@ -229,7 +229,7 @@ public:
 	void Initialize(QLayout* parent, const char* caption);
 protected:
 	bool Check(int need_r, int need_g, int need_b, int got_r, int got_g, int got_b, int got_w);
-	QLineEdit* textbox_r_, * textbox_g_, * textbox_b_;
+	QLineEdit* textbox_r_{ nullptr }, * textbox_g_{ nullptr }, * textbox_b_{ nullptr };
 };
 
 class LinksColorsFilter : public SocketsColorsFilter {

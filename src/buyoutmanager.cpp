@@ -374,7 +374,6 @@ void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, B
 		bo.value = object["value"].GetDouble();
 		if (object.HasMember("last_update")) {
 			bo.last_update = QDateTime::fromSecsSinceEpoch(object["last_update"].GetInt64());
-			const QDateTime now = QDateTime::currentDateTime();
 		}
 		if (object.HasMember("source")) {
 			bo.source = Buyout::TagAsBuyoutSource(object["source"].GetString());
