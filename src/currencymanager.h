@@ -89,9 +89,9 @@ class CurrencyWidget : public QWidget
 public slots:
 	void Update();
 	void UpdateVisual(bool show_chaos, bool show_exalt);
-	bool IsNone() const { return currency_->currency.type == CURRENCY_NONE; }
 public:
 	CurrencyWidget(std::shared_ptr<CurrencyItem> currency);
+	bool IsNone() const { return currency_->currency.type == CURRENCY_NONE; }
 	//Visual stuff
 	QLabel* name;
 	QLabel* count;

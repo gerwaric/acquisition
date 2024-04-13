@@ -1,7 +1,5 @@
 #pragma once
 
-#include <string>
-
 #include "item.h"
 #include "itemlocation.h"
 #include "column.h"

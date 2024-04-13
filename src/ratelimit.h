@@ -20,7 +20,6 @@
 #pragma once
 
 #include <boost/circular_buffer.hpp>
-#include <queue>
 #include <unordered_map>
 
 #include <QDateTime>
@@ -227,7 +226,7 @@ namespace RateLimit
 		{PolicyStatus::BORDERLINE, "BORDERLINE"},
 		{PolicyStatus::VIOLATION,  "VIOLATION"},
 		{PolicyStatus::UNKNOWN,    "UNKNOWN"},
-		{PolicyStatus::INVALID,    "INVALID"}};
+		{PolicyStatus::INVALID,    "INVALID"} };
 
 	struct Policy {
 		Policy();
@@ -306,7 +305,7 @@ namespace RateLimit
 
 		// Resends the active request after a delay due to a violation.
 		void ResendAfterViolation();
-		
+
 		// Keep track of wether or not there's an active request keeping this
 		// policy manager busy.
 		bool busy;

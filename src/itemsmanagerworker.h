@@ -19,10 +19,12 @@
 
 #pragma once
 
-#include <queue>
 #include <QNetworkCookie>
 #include <QNetworkRequest>
 #include <QObject>
+
+#include <queue>
+#include <set>
 
 #include "item.h"
 #include "mainwindow.h"
@@ -35,7 +37,7 @@ class QSignalMapper;
 class QTimer;
 class BuyoutManager;
 namespace RateLimit {
-    struct StatusInfo;
+	struct StatusInfo;
 	class RateLimiter;
 };
 

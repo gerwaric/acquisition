@@ -19,8 +19,6 @@
 
 #pragma once
 
-#include <string>
-
 #include "item.h"
 #include "ui_mainwindow.h"
 
