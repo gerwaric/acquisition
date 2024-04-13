@@ -254,6 +254,7 @@ void MainWindow::InitializeUi() {
 	connect(ui->actionEditShopTemplate, &QAction::triggered, this, &MainWindow::OnEditShopTemplate);
 	connect(ui->actionCopyShopToClipboard, &QAction::triggered, this, &MainWindow::OnCopyShopToClipboard);
 	connect(ui->actionUpdateShops, &QAction::triggered, this, &MainWindow::OnUpdateShops);
+	connect(ui->actionSetAutomaticallyShopUpdate, &QAction::triggered, this, &MainWindow::OnSetAutomaticShopUpdate);
 	connect(ui->actionUpdatePOESESSID, &QAction::triggered, this, &MainWindow::OnUpdatePOESESSID);
 
 	// Connect the Currency menu
