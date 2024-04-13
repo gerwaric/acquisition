@@ -55,7 +55,7 @@ LogPanel::LogPanel(MainWindow* window, Ui::MainWindow* ui) :
 	output_->insertPlainText("Errors and warnings will be printed here\n");
 	output_->hide();
 
-	status_button_->setFlat(true);
+	status_button_->setFlat(false);
 	window->statusBar()->addPermanentWidget(status_button_);
 	UpdateStatusLabel();
 	QObject::connect(status_button_, &QPushButton::clicked, &signal_handler_, &LogPanelSignalHandler::OnStatusLabelClicked);

@@ -64,7 +64,7 @@ const QStringList REPOE_STAT_TRANSLATIONS = {
 ItemsManagerWorker::ItemsManagerWorker(Application& app) :
 	app_(app),
 	test_mode_(false),
-	rate_limiter_(nullptr),
+	rate_limiter_(app.rate_limiter()),
 	total_completed_(-1),
 	total_needed_(-1),
 	requests_completed_(-1),
@@ -91,20 +91,20 @@ void ItemsManagerWorker::Init() {
 		return;
 	};
 
-	rate_limiter_ = std::make_unique<RateLimiter>(app_);
-	connect(rate_limiter_.get(), &RateLimiter::StatusUpdate, this, &ItemsManagerWorker::OnRateLimitStatusUpdate);
+	//rate_limiter_ = std::make_unique<RateLimiter>(app_);
+	connect(&rate_limiter_, &RateLimiter::StatusUpdate, this, &ItemsManagerWorker::OnRateLimitStatusUpdate);
 
 	updating_ = true;
 
 	QNetworkRequest PoE_item_classes_request = QNetworkRequest(QUrl(QString(kRePoE_item_classes)));
-	rate_limiter_->Submit(PoE_item_classes_request,
+	rate_limiter_.Submit(PoE_item_classes_request,
 		[=](QNetworkReply* reply) {
 			OnItemClassesReceived(reply);
 		});
 }
 
-void ItemsManagerWorker::OnRateLimitStatusUpdate(const QString& status) {
-	emit RateLimitStatusUpdate(status);
+void ItemsManagerWorker::OnRateLimitStatusUpdate(const RateLimit::StatusInfo& update) {
+	emit RateLimitStatusUpdate(update);
 }
 
 void ItemsManagerWorker::OnItemClassesReceived(QNetworkReply* reply) {
@@ -117,7 +117,7 @@ void ItemsManagerWorker::OnItemClassesReceived(QNetworkReply* reply) {
 		emit ItemClassesUpdate(bytes);
 	};
 	QNetworkRequest PoE_item_base_types_request = QNetworkRequest(QUrl(QString(kRePoE_item_base_types)));
-	rate_limiter_->Submit(PoE_item_base_types_request,
+	rate_limiter_.Submit(PoE_item_base_types_request,
 		[=](QNetworkReply* reply) {
 			OnItemBaseTypesReceived(reply);
 		});
@@ -249,7 +249,7 @@ void ItemsManagerWorker::UpdateModList(QStringList StatTranslationUrls) {
 	} else {
 		QUrl url = QUrl(StatTranslationUrls.takeFirst());
 		QNetworkRequest PoE_stat_translations_request = QNetworkRequest(url);
-		rate_limiter_->Submit(PoE_stat_translations_request,
+		rate_limiter_.Submit(PoE_stat_translations_request,
 			[=](QNetworkReply* reply) {
 				OnStatTranslationsReceived(reply);
 				UpdateModList(StatTranslationUrls);
@@ -373,7 +373,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 
 	// first, download the main page because it's the only way to know which character is selected
 	QNetworkRequest main_page_request = QNetworkRequest(QUrl(kMainPage));
-	rate_limiter_->Submit(main_page_request,
+	rate_limiter_.Submit(main_page_request,
 		[=](QNetworkReply* reply) {
 			OnMainPageReceived(reply);
 		});
@@ -442,7 +442,7 @@ void ItemsManagerWorker::OnMainPageReceived(QNetworkReply* reply) {
 
 	// now get character list
 	QNetworkRequest characters_request = QNetworkRequest(QUrl(kGetCharactersUrl));
-	rate_limiter_->Submit(characters_request,
+	rate_limiter_.Submit(characters_request,
 		[=](QNetworkReply* reply) {
 			OnCharacterListReceived(reply);
 		});
@@ -514,7 +514,7 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 	emit StatusUpdate(status);
 
 	QNetworkRequest tab_request = MakeTabRequest(first_fetch_tab_id_, true);
-	rate_limiter_->Submit(tab_request,
+	rate_limiter_.Submit(tab_request,
 		[=](QNetworkReply* reply) {
 			OnFirstTabReceived(reply);
 		});
@@ -572,7 +572,7 @@ void ItemsManagerWorker::FetchItems() {
 		// Pass the request to the rate limiter.
 		QNetworkRequest fetch_request = request.network_request;
 		ItemLocation location = request.location;
-		rate_limiter_->Submit(fetch_request,
+		rate_limiter_.Submit(fetch_request,
 			[=](QNetworkReply* reply) {
 				OnTabReceived(reply, location);
 			});
@@ -838,12 +838,10 @@ void ItemsManagerWorker::PreserveSelectedCharacter() {
 		return;
 	};
 	QLOG_DEBUG() << "Preserving selected character:" << selected_character_.c_str();
+	// The act of making this request sets the active character.
+	// We don't need to to anything with the reply.
 	QNetworkRequest character_request = MakeCharacterRequest(selected_character_);
-	rate_limiter_->Submit(character_request,
-		[](QNetworkReply*) {
-			// The act of making this request sets the active character.
-			// We don't need to to anything with the reply.
-		});
+	rate_limiter_.Submit(character_request, [](QNetworkReply*) {});
 }
 
 std::vector<std::pair<std::string, std::string> > ItemsManagerWorker::CreateTabsSignatureVector(std::string tabs) {

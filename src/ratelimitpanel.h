@@ -26,6 +26,8 @@ class QTextEdit;
 
 #include "mainwindow.h"
 
+namespace RateLimit { struct StatusInfo; };
+
 // Modeled after LogPanel
 class RateLimitStatusPanel : public QObject {
 	Q_OBJECT
@@ -33,7 +35,7 @@ public:
 	RateLimitStatusPanel(MainWindow* window, Ui::MainWindow* ui);
 public slots:
 	void OnStatusLabelClicked();
-	void OnStatusUpdate(const QString& message);
+	void OnStatusUpdate(const RateLimit::StatusInfo& update);
 private:
 	QPushButton* status_button_;
 	QTextEdit* output_;

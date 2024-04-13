@@ -24,10 +24,9 @@
 #include <QNetworkRequest>
 #include <QObject>
 
-#include "util.h"
 #include "item.h"
 #include "mainwindow.h"
-#include "ratelimit.h"
+#include "util.h"
 
 class Application;
 class DataStore;
@@ -35,8 +34,10 @@ class QNetworkReply;
 class QSignalMapper;
 class QTimer;
 class BuyoutManager;
-
-using RateLimit::RateLimiter;
+namespace RateLimit {
+    struct StatusInfo;
+	class RateLimiter;
+};
 
 struct ItemsRequest {
 	int id{ -1 };
@@ -66,7 +67,7 @@ public slots:
 	void FetchItems();
 	void PreserveSelectedCharacter();
 	void Init();
-	void OnRateLimitStatusUpdate(const QString& string);
+	void OnRateLimitStatusUpdate(const RateLimit::StatusInfo& update);
 
 	void OnStatTranslationsReceived(QNetworkReply* reply);
 	void OnItemClassesReceived(QNetworkReply* reply);
@@ -74,7 +75,7 @@ public slots:
 signals:
 	void ItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
 	void StatusUpdate(const CurrentStatusUpdate& status);
-	void RateLimitStatusUpdate(const QString& status);
+	void RateLimitStatusUpdate(const RateLimit::StatusInfo& update);
 	void ItemClassesUpdate(const QByteArray& classes);
 	void ItemBaseTypesUpdate(const QByteArray& baseTypes);
 private:
@@ -91,9 +92,10 @@ private:
 	void FinishUpdate();
 
 	Application& app_;
+	RateLimit::RateLimiter& rate_limiter_;
 
 	bool test_mode_;
-	std::unique_ptr<RateLimit::RateLimiter> rate_limiter_;
+	//std::unique_ptr<RateLimit::RateLimiter> rate_limiter_;
 	std::vector<ItemLocation> tabs_;
 	std::queue<ItemsRequest> queue_;
 

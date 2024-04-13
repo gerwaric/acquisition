@@ -36,8 +36,6 @@
 #include "oauth.h"
 #include "version_defines.h"
 
-using RateLimit::RateLimiter;
-
 const QString BUILD_TIMESTAMP = QString(__DATE__ " " __TIME__).simplified();
 const QDateTime BUILD_DATE = QLocale("en_US").toDateTime(BUILD_TIMESTAMP, "MMM d yyyy hh:mm:ss");
 
@@ -52,6 +50,7 @@ Application::Application(bool mock_data) :
 	network_manager_ = std::make_unique<QNetworkAccessManager>(this);
 	update_checker_ = std::make_unique<UpdateChecker>(*network_manager_, this);
 	oauth_manager_ = std::make_unique<OAuthManager>(*network_manager_, this);
+	rate_limiter_ = std::make_unique<RateLimit::RateLimiter>(*this, nullptr);
 
 	// The global datastore holds things like the selected theme.
 	QString global_data_file = SqliteDataStore::MakeFilename("", "");

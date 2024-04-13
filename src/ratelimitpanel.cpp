@@ -24,6 +24,7 @@
 
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include "ratelimit.h"
 
 // Modeled after LogPanel
 RateLimitStatusPanel::RateLimitStatusPanel(MainWindow* window, Ui::MainWindow* ui) :
@@ -39,7 +40,7 @@ RateLimitStatusPanel::RateLimitStatusPanel(MainWindow* window, Ui::MainWindow* u
 	output_->setText("Rate limit status will be displayed here.\n");
 	output_->hide();
 
-	status_button_->setFlat(true);
+	status_button_->setFlat(false);
 	status_button_->setText("Rate Limit Status");
 	window->statusBar()->addPermanentWidget(status_button_);
 	QObject::connect(status_button_, &QPushButton::clicked, this, &RateLimitStatusPanel::OnStatusLabelClicked);
@@ -55,6 +56,16 @@ void RateLimitStatusPanel::OnStatusLabelClicked() {
 	};
 }
 
-void RateLimitStatusPanel::OnStatusUpdate(const QString& message) {
-	output_->setText(message);
+void RateLimitStatusPanel::OnStatusUpdate(const RateLimit::StatusInfo& update) {
+	switch (update.status) {
+	case RateLimit::RateLimitStatus::OK:
+		status_button_->setText("Rate limiting is OFF");
+		status_button_->setStyleSheet("");
+		break;
+	case RateLimit::RateLimitStatus::PAUSED:
+		status_button_->setText("Rate limited for " + QString::number(update.duration) + " seconds");
+		status_button_->setStyleSheet("font-weight: bold; color: red");
+		break;
+	};
+	output_->setText(update.message);
 }

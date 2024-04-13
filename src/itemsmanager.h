@@ -24,6 +24,7 @@
 
 #include "item.h"
 #include "itemsmanagerworker.h"
+#include "util.h"
 
 struct CurrentStatusUpdate;
 class QThread;
@@ -32,6 +33,7 @@ class BuyoutManager;
 class DataStore;
 class ItemsManagerWorker;
 class Shop;
+namespace RateLimit { struct StatusInfo; };
 
 /*
  * ItemsManager manages an ItemsManagerWorker (which lives in a separate thread)
@@ -60,7 +62,7 @@ public slots:
 	void OnAutoRefreshTimer();
 	// Used to glue Worker's signals to MainWindow
 	void OnStatusUpdate(const CurrentStatusUpdate& status);
-	void OnRateLimitStatusUpdate(const QString& status);
+	void OnRateLimitStatusUpdate(const RateLimit::StatusInfo& update);
 	void OnItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
 	void OnItemClassesUpdate(const QByteArray& classes);
 	void OnItemBaseTypesUpdate(const QByteArray& baseTypes);
@@ -68,7 +70,7 @@ signals:
 	void UpdateSignal(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 	void ItemsRefreshed(bool initial_refresh);
 	void StatusUpdate(const CurrentStatusUpdate& status);
-	void RateLimitStatusUpdate(const QString& status);
+	void RateLimitStatusUpdate(const RateLimit::StatusInfo& update);
 	void UpdateModListSignal();
 private:
 	void MigrateBuyouts();
