@@ -404,18 +404,37 @@
     <addaction name="actionListCurrency"/>
     <addaction name="actionExportCurrency"/>
    </widget>
-   <widget class="QMenu" name="menuTheme">
+   <widget class="QMenu" name="menuSettings">
     <property name="title">
-     <string>Theme</string>
+     <string>Settings</string>
     </property>
-    <addaction name="actionSetDarkTheme"/>
-    <addaction name="actionSetLightTheme"/>
-    <addaction name="actionSetDefaultTheme"/>
+    <widget class="QMenu" name="menuTheme">
+     <property name="title">
+      <string>Theme</string>
+     </property>
+     <addaction name="actionSetDarkTheme"/>
+     <addaction name="actionSetLightTheme"/>
+     <addaction name="actionSetDefaultTheme"/>
+    </widget>
+    <widget class="QMenu" name="menuLogging">
+     <property name="title">
+      <string>Logging</string>
+     </property>
+     <addaction name="actionLoggingOFF"/>
+     <addaction name="actionLoggingFATAL"/>
+     <addaction name="actionLoggingERROR"/>
+     <addaction name="actionLoggingWARN"/>
+     <addaction name="actionLoggingINFO"/>
+     <addaction name="actionLoggingDEBUG"/>
+     <addaction name="actionLoggingTRACE"/>
+    </widget>
+    <addaction name="menuTheme"/>
+    <addaction name="menuLogging"/>
    </widget>
    <addaction name="menuTabs"/>
    <addaction name="menuShop"/>
    <addaction name="menuCurrency"/>
-   <addaction name="menuTheme"/>
+   <addaction name="menuSettings"/>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
   <action name="actionSetShopThreads">
@@ -532,6 +551,62 @@
   <action name="actionUpdatePOESESSID">
    <property name="text">
     <string>Update POESESSID</string>
+   </property>
+  </action>
+  <action name="actionLoggingOFF">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>OFF</string>
+   </property>
+  </action>
+  <action name="actionLoggingFATAL">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>FATAL</string>
+   </property>
+  </action>
+  <action name="actionLoggingERROR">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>ERROR</string>
+   </property>
+  </action>
+  <action name="actionLoggingWARN">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>WARN</string>
+   </property>
+  </action>
+  <action name="actionLoggingINFO">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>INFO</string>
+   </property>
+  </action>
+  <action name="actionLoggingDEBUG">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>DEBUG</string>
+   </property>
+  </action>
+  <action name="actionLoggingTRACE">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>TRACE</string>
    </property>
   </action>
  </widget>

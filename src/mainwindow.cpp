@@ -32,6 +32,7 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QString>
 #include <QStringList>
 #include <QTabBar>
 #include <QStringListModel>
@@ -259,10 +260,19 @@ void MainWindow::InitializeUi() {
 	connect(ui->actionListCurrency, &QAction::triggered, this, &MainWindow::OnListCurrency);
 	connect(ui->actionExportCurrency, &QAction::triggered, this, &MainWindow::OnExportCurrency);
 
-	// Connect the Theme menu
+	// Connect the Theme submenu
 	connect(ui->actionSetDarkTheme, &QAction::triggered, this, &MainWindow::OnSetDarkTheme);
 	connect(ui->actionSetLightTheme, &QAction::triggered, this, &MainWindow::OnSetLightTheme);
 	connect(ui->actionSetDefaultTheme, &QAction::triggered, this, &MainWindow::OnSetDefaultTheme);
+
+	// Connect the Logging submenu
+	connect(ui->actionLoggingOFF, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::OffLevel); });
+	connect(ui->actionLoggingFATAL, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::FatalLevel); });
+	connect(ui->actionLoggingERROR, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::ErrorLevel); });
+	connect(ui->actionLoggingWARN, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::WarnLevel); });
+	connect(ui->actionLoggingINFO, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::InfoLevel); });
+	connect(ui->actionLoggingDEBUG, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::DebugLevel); });
+	connect(ui->actionLoggingTRACE, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::TraceLevel); });
 
 	// Connect the Tooltip tab buttons
 	connect(ui->uploadTooltipButton, &QPushButton::clicked, this, &MainWindow::OnUploadToImgur);
@@ -936,6 +946,28 @@ void MainWindow::OnSetDefaultTheme(bool toggle) {
 		ui->actionSetLightTheme->setChecked(false);
 	}
 	ui->actionSetDefaultTheme->setChecked(toggle);
+}
+
+void MainWindow::OnSetLogging(QsLogging::Level level) {
+	QsLogging::Logger::instance().setLoggingLevel(level);
+	ui->actionLoggingOFF->setChecked(level == QsLogging::OffLevel);
+	ui->actionLoggingFATAL->setChecked(level == QsLogging::FatalLevel);
+	ui->actionLoggingERROR->setChecked(level == QsLogging::ErrorLevel);
+	ui->actionLoggingWARN->setChecked(level == QsLogging::WarnLevel);
+	ui->actionLoggingINFO->setChecked(level == QsLogging::InfoLevel);
+	ui->actionLoggingDEBUG->setChecked(level == QsLogging::DebugLevel);
+	ui->actionLoggingTRACE->setChecked(level == QsLogging::TraceLevel);
+	QString new_level;
+	switch (level) {
+	case QsLogging::OffLevel: new_level = "OFF"; break;
+	case QsLogging::FatalLevel: new_level = "FATAL"; break;
+	case QsLogging::ErrorLevel: new_level = "ERROR"; break;
+	case QsLogging::WarnLevel: new_level = "WARN"; break;
+	case QsLogging::InfoLevel: new_level = "INFO"; break;
+	case QsLogging::DebugLevel: new_level = "DEBUG"; break;
+	case QsLogging::TraceLevel: new_level = "TRACE"; break;
+	}
+	QLOG_INFO() << "Logging level set to" << new_level;
 }
 
 void MainWindow::OnExportCurrency() {
