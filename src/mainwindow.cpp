@@ -397,8 +397,6 @@ void MainWindow::OnBuyoutChange() {
 		}
 	}
 	app_->items_manager().PropagateTabBuyouts();
-	// refresh treeView to immediately reflect price changes
-	emit ui->treeView->model()->layoutChanged();
 	ResizeTreeColumns();
 }
 
