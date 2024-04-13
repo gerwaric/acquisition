@@ -49,26 +49,26 @@ ItemsModel::ItemsModel(BuyoutManager& bo_manager, const Search& search) :
 
 int ItemsModel::rowCount(const QModelIndex& parent) const {
 	// Root element, contains buckets
-    if (!parent.isValid()) {
-        return static_cast<int>(search_.buckets().size());
-    };
+	if (!parent.isValid()) {
+		return static_cast<int>(search_.buckets().size());
+	};
 	// Bucket, contains elements
-    if (parent.isValid() && !parent.parent().isValid()) {
-        return static_cast<int>(search_.bucket(parent.row())->items().size());
-    };
+	if (parent.isValid() && !parent.parent().isValid()) {
+		return static_cast<int>(search_.bucket(parent.row())->items().size());
+	};
 	// Element, contains nothing
 	return 0;
 }
 
 int ItemsModel::columnCount(const QModelIndex& parent) const {
 	// Root element, contains buckets
-    if (!parent.isValid()) {
-        return static_cast<int>(search_.columns().size());
-    };
+	if (!parent.isValid()) {
+		return static_cast<int>(search_.columns().size());
+	};
 	// Bucket, contains elements
-    if (parent.isValid() && !parent.parent().isValid()) {
-        return static_cast<int>(search_.columns().size());
-    };
+	if (parent.isValid() && !parent.parent().isValid()) {
+		return static_cast<int>(search_.columns().size());
+	};
 	// Element, contains nothing
 	return 0;
 }
@@ -133,9 +133,9 @@ QVariant ItemsModel::data(const QModelIndex& index, int role) const {
 
 Qt::ItemFlags ItemsModel::flags(const QModelIndex& index) const
 {
-    if (!index.isValid()) {
-        return Qt::ItemFlags();
-    }
+	if (!index.isValid()) {
+		return Qt::ItemFlags();
+	}
 	if (index.column() == 0 && index.internalId() == 0) {
 		const ItemLocation& location = search_.GetTabLocation(index);
 		if (location.IsValid() && !bo_manager_.GetRefreshLocked(location))
@@ -208,7 +208,7 @@ QModelIndex ItemsModel::index(int row, int column, const QModelIndex& parent) co
 			return QModelIndex();
 		}
 		// item, we pass parent's (bucket's) row through ID parameter
-		return createIndex(row, column, static_cast<quintptr>(parent.row() + 1));
+		return createIndex(row, column, static_cast<quintptr>(parent.row()) + 1);
 	} else {
 		if (row >= (signed)search_.buckets().size()) {
 			QLOG_WARN() << "Index request asking for invalid row:" + QString::number(row);

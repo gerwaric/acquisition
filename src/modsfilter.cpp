@@ -37,6 +37,7 @@ SelectedMod::SelectedMod(const std::string& name, double min, double max, bool m
 	mod_completer_.setCompletionMode(QCompleter::PopupCompletion);
 	mod_completer_.setFilterMode(Qt::MatchContains);
 	mod_completer_.setCaseSensitivity(Qt::CaseInsensitive);
+	mod_completer_.setModelSorting(QCompleter::CaseInsensitivelySortedModel);
 
 	// If we don't set this size adjust policy, the combobox will expand to the width of the longest
 	// mod without regards to the rest of the UI. This can make the search panel (and therefore the main

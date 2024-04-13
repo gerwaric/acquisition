@@ -93,7 +93,8 @@ void Search::ResetForm() {
 const std::vector<std::unique_ptr<Bucket> >& Search::buckets() const {
 	if (current_mode_ == ByTab) {
 		return buckets_;
-	} else {
+	}
+	else {
 		return bucket_;
 	}
 }
@@ -115,6 +116,36 @@ const std::unique_ptr<Bucket>& Search::bucket(int row) const {
 		". Program will abort.");
 	abort();
 
+}
+
+const QModelIndex Search::index(const std::shared_ptr<Item> item) const {
+	if (!item) {
+		// Return an invalid index because there is no current item.
+		return QModelIndex();
+	};
+	// Look for a bucket that matches the item's location.
+	const auto& location_id = item->location().get_tab_uniq_id();
+	const auto& active_buckets = buckets();
+	for (int row = 0; row < active_buckets.size(); ++row) {
+		// Check each search bucket against the item's location.
+		const auto& bucket = *active_buckets[row];
+		const auto& bucket_id = bucket.location().get_tab_uniq_id();
+		if (location_id == bucket_id) {
+			// Check each item in the bucket.
+			const QModelIndex parent = model_->index(row);
+			const auto& items = bucket.items();
+			for (int n = 0; n < items.size(); ++n) {
+				const auto model_item = items[n];
+				if (item == model_item) {
+					// Found the index of a match.
+					return model_->index(n, 0, parent);
+				};
+			};
+		};
+	};
+	// If we get here, that means the previously selected item is no
+	// longer part of the current view.
+	return QModelIndex();
 }
 
 void Search::FilterItems(const Items& items) {
@@ -184,7 +215,8 @@ ItemLocation Search::GetTabLocation(const QModelIndex& index) const {
 		// If index represents an item, get location from item as view may be on 'item' view
 		// where bucket location doesn't match items location
 		return bucket(index.parent().row())->item(index.row())->location();
-	} else {
+	}
+	else {
 		// Otherwise index represents a tab already, get location from there
 		return bucket(index.row())->location();
 	}
@@ -222,7 +254,7 @@ void Search::Activate(const Items& items) {
 
 void Search::SaveViewProperties() {
 	expanded_property_.clear();
-	auto rowCount = model_->rowCount();
+	const int rowCount = model_->rowCount();
 	for (int row = 0; row < rowCount; ++row) {
 		QModelIndex index = model_->index(row, 0, QModelIndex());
 		if (index.isValid() && view_->isExpanded(index)) {
@@ -233,17 +265,25 @@ void Search::SaveViewProperties() {
 
 void Search::RestoreViewProperties() {
 	if (!expanded_property_.empty()) {
-		auto rowCount = model_->rowCount();
+		// There are some rows to expand.
+		const int rowCount = model_->rowCount();
 		for (int row = 0; row < rowCount; ++row) {
 			QModelIndex index = model_->index(row, 0, QModelIndex());
 			// Block signals else columns will be resized on every expand which can be super slow.
 			view_->blockSignals(true);
 			if (expanded_property_.count(bucket(row)->location().GetHeader())) {
 				view_->expand(index);
-			}
+			} else {
+				view_->collapse(index);
+			};
 			view_->blockSignals(false);
 		}
-	}
+	} else {
+		// Make sure all the rows are collapsed otherwise.
+		view_->blockSignals(true);
+		view_->collapseAll();
+		view_->blockSignals(false);
+	};
 }
 
 bool Search::IsAnyFilterActive() const {

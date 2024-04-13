@@ -154,6 +154,7 @@ void InitModlist() {
 
 		mod_generators.push_back(gen);
 	}
+	mod_string_list.sort(Qt::CaseInsensitive);
 }
 
 SumModGenerator::SumModGenerator(const std::string& name, const std::vector<std::string>& sum) :

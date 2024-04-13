@@ -103,9 +103,9 @@ int main(int argc, char* argv[])
 	// Setup the data dir, which is where the log will be written.
 	if (parser.isSet(option_data_dir)) {
 		const QString datadir = QString(parser.value(option_data_dir));
-		Filesystem::SetUserDir(datadir.toStdString());
+		Filesystem::SetUserDir(datadir);
 	};
-	const QString sLogPath = QString(QDir(Filesystem::UserDir().c_str()).filePath("log.txt"));
+	const QString sLogPath = QString(QDir(Filesystem::UserDir()).filePath("log.txt"));
 
 	// Setup the logger.
 	QsLogging::Logger& logger = QsLogging::Logger::instance();
@@ -122,8 +122,8 @@ int main(int argc, char* argv[])
 	// Start the log with basic info
 	QLOG_INFO() << "-------------------------------------------------------------------------------";
     QLOG_INFO().noquote() << a.applicationName() << a.applicationVersion() << "( version code" << VERSION_CODE << ")";
-	QLOG_INFO().noquote() << "Built on" << QStringLiteral(__DATE__ " " __TIME__).simplified();
-	QLOG_INFO().noquote() << "Built with Qt" << QT_VERSION_STR "and running on Qt" << qVersion();
+	QLOG_INFO().noquote() << "Built with Qt" << QT_VERSION_STR << "on" << QStringLiteral(__DATE__ " " __TIME__).simplified();
+	QLOG_INFO().noquote() << "Running on Qt" << qVersion();
 	if (valid_loglevel == false) {
 		QLOG_ERROR() << "Called with invalid log level:" << parser.value(option_log_level);
 		QLOG_ERROR() << "Valid options are: TRACE, DEBUG, INFO, WARN, ERROR, FATAL, and OFF (case insensitive)";

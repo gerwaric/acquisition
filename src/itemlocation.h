@@ -2,7 +2,6 @@
 
 #include <QRectF>
 #include <QColor>
-#include <set>
 #include "rapidjson/document.h"
 #include "rapidjson_util.h"
 

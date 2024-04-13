@@ -4,13 +4,13 @@ lessThan(QT_MAJOR_VERSION, 6):error("Qt 6.5 or newer is required.")
 
 TARGET = acquisition
 TEMPLATE = app
-VERSION = 0.10.2
+VERSION = 0.10.3
 
 # These defines are checked against the contents of version_defines.h at build time.
 DEFINES += "MY_TARGET=\\\"$${TARGET}\\\""
 DEFINES += "MY_VERSION=\\\"$${VERSION}\\\""
 
-QT += core gui network widgets httpserver websockets testlib
+QT += core gui network widgets sql httpserver websockets testlib
 
 win32 {
 	QT.testlib.CONFIG -= console
@@ -40,7 +40,6 @@ include(deps/QsLog/QsLog.pri)
 INCLUDEPATH += src deps deps/boost-headers-only test
 
 SOURCES += \
-	deps/sqlite/sqlite3.c \
 	src/application.cpp \
 	src/bucket.cpp \
 	src/buyoutmanager.cpp \
@@ -83,7 +82,6 @@ SOURCES += \
 	test/testutil.cpp
 
 HEADERS += \
-	deps/sqlite/sqlite3.h \
 	src/application.h \
 	src/bucket.h \
 	src/buyoutmanager.h \

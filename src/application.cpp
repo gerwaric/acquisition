@@ -36,7 +36,8 @@
 #include "oauth.h"
 #include "version_defines.h"
 
-using RateLimit::RateLimiter;
+const QString BUILD_TIMESTAMP = QString(__DATE__ " " __TIME__).simplified();
+const QDateTime BUILD_DATE = QLocale("en_US").toDateTime(BUILD_TIMESTAMP, "MMM d yyyy hh:mm:ss");
 
 Application::Application(bool mock_data) :
 	test_mode_(mock_data)
@@ -49,9 +50,10 @@ Application::Application(bool mock_data) :
 	network_manager_ = std::make_unique<QNetworkAccessManager>(this);
 	update_checker_ = std::make_unique<UpdateChecker>(*network_manager_, this);
 	oauth_manager_ = std::make_unique<OAuthManager>(*network_manager_, this);
+	rate_limiter_ = std::make_unique<RateLimit::RateLimiter>(*this, nullptr);
 
 	// The global datastore holds things like the selected theme.
-	std::string global_data_file = SqliteDataStore::MakeFilename("", "");
+	QString global_data_file = SqliteDataStore::MakeFilename("", "");
 	global_data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/data/" + global_data_file);
 }
 
@@ -70,11 +72,9 @@ void Application::InitLogin(
 	if (test_mode_) {
 		// This is used in tests
 		data_ = std::make_unique<MemoryDataStore>();
-		sensitive_data_ = std::make_unique<MemoryDataStore>();
 	} else {
-		std::string data_file = SqliteDataStore::MakeFilename(email, league);
+		QString data_file = SqliteDataStore::MakeFilename(email, league);
 		data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/data/" + data_file);
-		sensitive_data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/sensitive_data/" + data_file);
 		SaveDbOnNewVersion();
 	}
 
@@ -105,13 +105,13 @@ void Application::SaveDbOnNewVersion() {
 		data_->GetTabs(ItemLocationType::STASH).length() == 0 &&
 		data_->GetTabs(ItemLocationType::CHARACTER).length() == 0;
 	if (version != APP_VERSION_STRING && !first_start) {
-		QString data_path = Filesystem::UserDir().c_str() + QString("/data");
+		QString data_path = Filesystem::UserDir() + QString("/data");
 		QString save_path = data_path + "_save_" + version.c_str();
 		QDir src(data_path);
 		QDir dst(save_path);
 		if (!dst.exists())
 			QDir().mkpath(dst.path());
-		for (auto name : src.entryList()) {
+		for (const auto& name : src.entryList()) {
 			QFile::copy(data_path + QDir::separator() + name, save_path + QDir::separator() + name);
 		}
 		QLOG_INFO() << "I've created the folder " << save_path << "in your acquisition folder, containing a save of all your data";

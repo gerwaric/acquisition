@@ -64,6 +64,7 @@ public:
 	void SetViewMode(ViewMode mode);
 	int GetViewMode() { return current_mode_; }
 	const std::unique_ptr<Bucket>& bucket(int row) const;
+	const QModelIndex index(const std::shared_ptr<Item> item) const;
 	void SetRefreshReason(RefreshReason::Type reason) { refresh_reason_ = reason; }
 private:
 	void UpdateItemCounts(const Items& items);

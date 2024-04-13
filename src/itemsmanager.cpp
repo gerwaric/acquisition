@@ -28,6 +28,7 @@
 #include "application.h"
 #include "buyoutmanager.h"
 #include "datastore.h"
+#include "item.h"
 #include "itemsmanagerworker.h"
 #include "porting.h"
 #include "shop.h"
@@ -71,8 +72,8 @@ void ItemsManager::OnStatusUpdate(const CurrentStatusUpdate& status) {
 	emit StatusUpdate(status);
 }
 
-void ItemsManager::OnRateLimitStatusUpdate(const QString& status) {
-	emit RateLimitStatusUpdate(status);
+void ItemsManager::OnRateLimitStatusUpdate(const RateLimit::StatusInfo& update) {
+	emit RateLimitStatusUpdate(update);
 }
 
 void ItemsManager::OnItemClassesUpdate(const QByteArray& classes) {

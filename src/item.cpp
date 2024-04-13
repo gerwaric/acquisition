@@ -88,18 +88,7 @@ Item::Item(const std::string& name, const ItemLocation& location) :
 
 Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
 	location_(loc),
-	identified_(true),
-	corrupted_(false),
-	crafted_(false),
-	enchanted_(false),
-	w_(0),
-	h_(0),
-	frameType_(0),
-	sockets_cnt_(0),
-	links_cnt_(0),
-	sockets_({ 0, 0, 0, 0 }),
-	json_(Util::RapidjsonSerialize(json)),
-	ilvl_(0)
+	json_(Util::RapidjsonSerialize(json))
 {
 	if (json.HasMember("name") && json["name"].IsString())
 		name_ = fixup_name(json["name"].GetString());
@@ -187,7 +176,7 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
 	// quad stashes, currency stashes, etc
 	boost::replace_last(icon_, "scaleIndex=", "scaleIndex=0&");
 
-    CalculateCategories();
+	CalculateCategories();
 
 	if (json.HasMember("talismanTier") && json["talismanTier"].IsUint()) {
 		talisman_tier_ = json["talismanTier"].GetUint();
@@ -374,7 +363,7 @@ void Item::GenerateMods(const rapidjson::Value& json) {
 				continue;
 
 			std::string mod_s = mod.GetString();
-            std::regex rep("([0-9\\.]+)");
+			std::regex rep("([0-9\\.]+)");
 			mod_s = std::regex_replace(mod_s, rep, "#");
 			auto rslt = mods_map.find(mod_s);
 			if (rslt != mods_map.end()) {

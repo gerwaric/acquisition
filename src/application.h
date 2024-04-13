@@ -20,6 +20,14 @@
 #pragma once
 
 #include <QObject>
+#include <QString>
+#include <QDateTime>
+
+// Holds the date and time of the current build based on __DATE__ and __TIME__ macros.
+extern const QString BUILD_TIMESTAMP;
+
+// This is BUILD_TIMESTAMP parsed into a QDateTime.
+extern const QDateTime BUILD_DATE;
 
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -31,6 +39,7 @@ class Shop;
 class CurrencyManager;
 class UpdateChecker;
 class OAuthManager;
+namespace RateLimit { class RateLimiter; };
 
 class Application : public QObject {
 	Q_OBJECT
@@ -46,13 +55,13 @@ public:
 	ItemsManager& items_manager() { return *items_manager_; }
 	DataStore& global_data() const { return *global_data_; }
 	DataStore& data() const { return *data_; }
-	DataStore& sensitive_data() const { return *sensitive_data_; }
 	BuyoutManager& buyout_manager() const { return *buyout_manager_; }
 	QNetworkAccessManager& network_manager() const { return *network_manager_; }
 	Shop& shop() const { return *shop_; }
 	CurrencyManager& currency_manager() const { return *currency_manager_; }
 	UpdateChecker& update_checker() const { return *update_checker_; }
 	OAuthManager& oauth_manager() const { return *oauth_manager_; }
+	RateLimit::RateLimiter& rate_limiter() const { return *rate_limiter_; }
 public slots:
 	void OnItemsRefreshed(bool initial_refresh);
 private:
@@ -61,8 +70,6 @@ private:
 	std::string email_;
 	std::unique_ptr<DataStore> global_data_;
 	std::unique_ptr<DataStore> data_;
-	// stores sensitive data that you'd rather not share, like control.poe.trade secret URL
-	std::unique_ptr<DataStore> sensitive_data_;
 	std::unique_ptr<BuyoutManager> buyout_manager_;
 	std::unique_ptr<Shop> shop_;
 	std::unique_ptr<QNetworkAccessManager> network_manager_;
@@ -70,5 +77,6 @@ private:
 	std::unique_ptr<CurrencyManager> currency_manager_;
 	std::unique_ptr<UpdateChecker> update_checker_;
 	std::unique_ptr<OAuthManager> oauth_manager_;
+	std::unique_ptr<RateLimit::RateLimiter> rate_limiter_;
 	void SaveDbOnNewVersion();
 };

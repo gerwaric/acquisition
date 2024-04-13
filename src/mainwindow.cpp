@@ -92,13 +92,6 @@ MainWindow::MainWindow(std::unique_ptr<Application> app) :
 	connect(&delayed_update_current_item_, &QTimer::timeout, this, [&]() {UpdateCurrentItem(); delayed_update_current_item_.stop(); });
 	connect(&delayed_search_form_change_, &QTimer::timeout, this, [&]() {OnSearchFormChange(); delayed_search_form_change_.stop(); });
 
-	// This updates the item information when index changes
-	connect(ui->treeView->header(), &QHeaderView::sortIndicatorChanged, this,
-		[&](int, Qt::SortOrder) {
-			QModelIndex idx = ui->treeView->selectionModel()->currentIndex();
-			if (idx.isValid())
-				OnTreeChange(idx, idx);
-		});
 
 }
 void MainWindow::InitializeRateLimitPanel() {
@@ -112,7 +105,7 @@ void MainWindow::InitializeLogging() {
 	QsLogging::Logger::instance().addDestination(log_panel_ptr);
 
 	// display warnings here so it's more visible
-#ifdef _DEBUG
+#if defined(_DEBUG)
 	QLOG_WARN() << "Maintainer: This is a debug build";
 #endif
 }
@@ -286,24 +279,37 @@ void MainWindow::InitializeUi() {
 	connect(ui->pobTooltipButton, &QPushButton::clicked, this, &MainWindow::OnCopyForPOB);
 }
 
-void MainWindow::ExpandCollapse(TreeState state) {
-	// we block signals so that ResizeTreeColumns isn't called for every item, which is damn slow!
-	ui->treeView->blockSignals(true);
-	if (state == TreeState::kExpand)
-		ui->treeView->expandAll();
-	else
-		ui->treeView->collapseAll();
-	ui->treeView->blockSignals(false);
-
-	ResizeTreeColumns();
-}
-
 void MainWindow::OnExpandAll() {
-	ExpandCollapse(TreeState::kExpand);
+	// Only need to expand the top level, which corresponds to buckets,
+	// aka stash tabs and characters. Signals are blocked during this
+	// operation, otherwise the column resize function connected to
+	// the expanded() signal would be called repeatedly.
+	setCursor(Qt::WaitCursor);
+	ui->treeView->blockSignals(true);
+	ui->treeView->expandToDepth(0);
+	ui->treeView->blockSignals(false);
+	ResizeTreeColumns();
+	unsetCursor();
 }
 
 void MainWindow::OnCollapseAll() {
-	ExpandCollapse(TreeState::kCollapse);
+	// There is no depth-based collapse method, so manuall looping
+	// over rows can be much faster than collapseAll() under some
+	// conditions, possibly beecause those funcitons check every
+	// element in the tree, which in our case will include all items.
+	// 
+	// Signals are blocked for the same reason as the expand all case.
+	setCursor(Qt::WaitCursor);
+	ui->treeView->blockSignals(true);
+	const auto& model = *ui->treeView->model();
+	const int rowCount = model.rowCount();
+	for (int row = 0; row < rowCount; ++row) {
+		const QModelIndex idx = model.index(row, 0, QModelIndex());
+		ui->treeView->collapse(idx);
+	};
+	ui->treeView->blockSignals(false);
+	ResizeTreeColumns();
+	unsetCursor();
 }
 
 void MainWindow::OnCheckAll() {
@@ -528,15 +534,20 @@ void MainWindow::ModelViewRefresh() {
 
 	current_search_->Activate(app_->items_manager().items());
 
+	// This updates the item information when current item changes.
+	connect(ui->treeView->selectionModel(), &QItemSelectionModel::currentChanged, this, &MainWindow::OnCurrentItemChanged);
+
+	// This updates the item information when a search or sort order changes.
+	connect(ui->treeView->model(), &QAbstractItemModel::layoutChanged, this, &MainWindow::OnLayoutChanged);
+
 	ui->viewComboBox->setCurrentIndex(static_cast<int>(current_search_->GetViewMode()));
 
-	connect(ui->treeView->selectionModel(), &QItemSelectionModel::currentChanged, this, &MainWindow::OnTreeChange);
-
-	ui->treeView->reset();
+	QLOG_DEBUG() << "Skipping tree view reset";
+	//ui->treeView->reset();
 	if (current_search_->IsAnyFilterActive() || current_search_->GetViewMode() == Search::ByItem) {
 		// Policy is to expand all tabs when any search fields are populated
 		// Also expand by default if we're in Item view mode
-		ExpandCollapse(TreeState::kExpand);
+		OnExpandAll();
 	} else {
 		// Restore view properties if no search fields are populated AND current mode is tab mode
 		current_search_->RestoreViewProperties();
@@ -546,25 +557,45 @@ void MainWindow::ModelViewRefresh() {
 	tab_bar_->setTabText(tab_bar_->currentIndex(), current_search_->GetCaption());
 }
 
-void MainWindow::OnDelayedSearchFormChange() {
-	// wait 350ms after search form change before applying
-	// This is so we don't force update after every keystroke etc...
-	delayed_search_form_change_.start(350);
-}
-
-void MainWindow::OnTreeChange(const QModelIndex& current, const QModelIndex& /* previous */) {
+void MainWindow::OnCurrentItemChanged(const QModelIndex& current, const QModelIndex& previous) {
+	Q_UNUSED(previous);
 	app_->buyout_manager().Save();
-
 	if (!current.parent().isValid()) {
 		// clicked on a bucket
 		current_item_ = nullptr;
 		current_bucket_ = *current_search_->bucket(current.row());
 		UpdateCurrentBucket();
 	} else {
+		// clicked on an item
 		current_item_ = current_search_->bucket(current.parent().row())->item(current.row());
 		delayed_update_current_item_.start(100);
-	}
+	};
 	UpdateCurrentBuyout();
+}
+
+void MainWindow::OnLayoutChanged() {
+	// Do nothing is nothing is selected.
+	if (current_item_ == nullptr)
+		return;
+
+	// Look for the new index of the currently selected item.
+	const QModelIndex idx = current_search_->index(current_item_);
+
+	if (!idx.isValid()) {
+		// The previously selected item is no longer in search results.
+		current_item_ = nullptr;
+		ClearCurrentItem();
+		ui->treeView->selectionModel()->clearSelection();
+	} else {
+		// Reselect the item in the updated layout.
+		ui->treeView->selectionModel()->select(idx, QItemSelectionModel::ClearAndSelect);;
+	};
+}
+
+void MainWindow::OnDelayedSearchFormChange() {
+	// wait 350ms after search form change before applying
+	// This is so we don't force update after every keystroke etc...
+	delayed_search_form_change_.start(350);
 }
 
 void MainWindow::OnTabChange(int index) {
@@ -674,6 +705,19 @@ void MainWindow::NewSearch() {
 	ModelViewRefresh();
 }
 
+void MainWindow::ClearCurrentItem() {
+	ui->imageLabel->hide();
+	ui->minimapLabel->hide();
+	ui->locationLabel->hide();
+	ui->itemTooltipWidget->hide();
+	ui->itemButtonsWidget->hide();
+
+	ui->nameLabel->setText("Select an item");
+	ui->nameLabel->show();
+
+	ui->pobTooltipButton->setEnabled(false);
+}
+
 void MainWindow::UpdateCurrentBucket() {
 	ui->imageLabel->hide();
 	ui->minimapLabel->hide();
@@ -683,11 +727,15 @@ void MainWindow::UpdateCurrentBucket() {
 
 	ui->nameLabel->setText(current_bucket_.location().GetHeader().c_str());
 	ui->nameLabel->show();
+
+	ui->pobTooltipButton->setEnabled(false);
 }
 
 void MainWindow::UpdateCurrentItem() {
-	if (current_item_ == nullptr)
+	if (current_item_ == nullptr) {
+		ClearCurrentItem();
 		return;
+	};
 
 	ui->imageLabel->show();
 	ui->minimapLabel->show();
@@ -769,6 +817,9 @@ void MainWindow::OnItemsRefreshed() {
 
 MainWindow::~MainWindow() {
 	delete ui;
+	for (auto& search : searches_) {
+		delete(search);
+	};
 }
 
 void MainWindow::OnSetShopThreads() {

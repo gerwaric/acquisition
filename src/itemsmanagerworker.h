@@ -19,15 +19,16 @@
 
 #pragma once
 
-#include <queue>
 #include <QNetworkCookie>
 #include <QNetworkRequest>
 #include <QObject>
 
-#include "util.h"
+#include <queue>
+#include <set>
+
 #include "item.h"
 #include "mainwindow.h"
-#include "ratelimit.h"
+#include "util.h"
 
 class Application;
 class DataStore;
@@ -35,11 +36,13 @@ class QNetworkReply;
 class QSignalMapper;
 class QTimer;
 class BuyoutManager;
-
-using RateLimit::RateLimiter;
+namespace RateLimit {
+	struct StatusInfo;
+	class RateLimiter;
+};
 
 struct ItemsRequest {
-	int id;
+	int id{ -1 };
 	QNetworkRequest network_request;
 	ItemLocation location;
 };
@@ -66,7 +69,7 @@ public slots:
 	void FetchItems();
 	void PreserveSelectedCharacter();
 	void Init();
-	void OnRateLimitStatusUpdate(const QString& string);
+	void OnRateLimitStatusUpdate(const RateLimit::StatusInfo& update);
 
 	void OnStatTranslationsReceived(QNetworkReply* reply);
 	void OnItemClassesReceived(QNetworkReply* reply);
@@ -74,7 +77,7 @@ public slots:
 signals:
 	void ItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
 	void StatusUpdate(const CurrentStatusUpdate& status);
-	void RateLimitStatusUpdate(const QString& status);
+	void RateLimitStatusUpdate(const RateLimit::StatusInfo& update);
 	void ItemClassesUpdate(const QByteArray& classes);
 	void ItemBaseTypesUpdate(const QByteArray& baseTypes);
 private:
@@ -86,22 +89,23 @@ private:
 	void QueueRequest(const QNetworkRequest& request, const ItemLocation& location);
 	void ParseItems(rapidjson::Value* value_ptr, ItemLocation base_location, rapidjson_allocator& alloc);
 	std::vector<std::pair<std::string, std::string> > CreateTabsSignatureVector(std::string tabs);
-	void UpdateModList();
+	void UpdateModList(QStringList StatTranslationUrls);
 	bool TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, ItemLocation& location);
 	void FinishUpdate();
 
 	Application& app_;
+	RateLimit::RateLimiter& rate_limiter_;
 
 	bool test_mode_;
-	std::unique_ptr<RateLimit::RateLimiter> rate_limiter_;
+	//std::unique_ptr<RateLimit::RateLimiter> rate_limiter_;
 	std::vector<ItemLocation> tabs_;
 	std::queue<ItemsRequest> queue_;
 
 	// tabs_signature_ captures <"n", "id"> from JSON tab list, used as consistency check
 	std::vector<std::pair<std::string, std::string> > tabs_signature_;
 	Items items_;
-    size_t total_completed_, total_needed_;
-    size_t requests_completed_, requests_needed_;
+	size_t total_completed_, total_needed_;
+	size_t requests_completed_, requests_needed_;
 
 	std::set<std::string> tab_id_index_;
 	std::string tabs_as_string_;

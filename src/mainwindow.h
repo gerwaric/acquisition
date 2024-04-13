@@ -49,11 +49,6 @@ namespace Ui {
 	class MainWindow;
 }
 
-enum class TreeState {
-	kExpand,
-	kCollapse
-};
-
 enum class ProgramState {
 	Unknown,
 	CharactersReceived,
@@ -67,8 +62,8 @@ enum class ProgramState {
 };
 
 struct CurrentStatusUpdate {
-	ProgramState state;
-	size_t progress{}, total{}, cached{};
+	ProgramState state{ ProgramState::Unknown };
+	size_t progress{ 0 }, total{ 0 }, cached{ 0 };
 };
 
 class MainWindow : public QMainWindow {
@@ -78,7 +73,8 @@ public:
 	~MainWindow();
 	std::vector<Column*> columns;
 public slots:
-	void OnTreeChange(const QModelIndex& index, const QModelIndex& prev);
+	void OnCurrentItemChanged(const QModelIndex& current, const QModelIndex& previous);
+	void OnLayoutChanged();
 	void OnSearchFormChange();
 	void OnDelayedSearchFormChange();
 	void OnTabChange(int index);
@@ -130,6 +126,7 @@ private slots:
 
 private:
 	void ModelViewRefresh();
+	void ClearCurrentItem();
 	void UpdateCurrentBucket();
 	void UpdateCurrentItem();
 	void UpdateCurrentBuyout();
@@ -143,7 +140,6 @@ private:
 	bool eventFilter(QObject* o, QEvent* e);
 	void UpdateShopMenu();
 	void UpdateBuyoutWidgets(const Buyout& bo);
-	void ExpandCollapse(TreeState state);
 	void closeEvent(QCloseEvent* event);
 	void CheckSelected(bool value);
 

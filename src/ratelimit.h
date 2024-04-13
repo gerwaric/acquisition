@@ -20,7 +20,6 @@
 #pragma once
 
 #include <boost/circular_buffer.hpp>
-#include <queue>
 #include <unordered_map>
 
 #include <QDateTime>
@@ -91,6 +90,15 @@ class OAuthManager;
 
 namespace RateLimit
 {
+	enum class RateLimitStatus { OK, PAUSED };
+
+	struct StatusInfo {
+		RateLimitStatus status{ RateLimitStatus::OK };
+		int duration{ 0 };
+		QString message;
+	};
+
+
 	//=========================================================================================
 	// Constants
 	//=========================================================================================
@@ -212,13 +220,13 @@ namespace RateLimit
 		operator QString() const;
 	};
 
-	enum class PolicyStatus { UNKNOWN, INVALID, OK, BORDERLINE, VIOLATION };
+	enum class PolicyStatus { OK, BORDERLINE, VIOLATION, UNKNOWN, INVALID };
 	static std::map<PolicyStatus, QString> POLICY_STATE = {
-		{PolicyStatus::UNKNOWN,    "UNKNOWN"},
-		{PolicyStatus::INVALID,    "INVALID"},
 		{PolicyStatus::OK,         "OK"},
 		{PolicyStatus::BORDERLINE, "BORDERLINE"},
-		{PolicyStatus::VIOLATION,  "VIOLATION"} };
+		{PolicyStatus::VIOLATION,  "VIOLATION"},
+		{PolicyStatus::UNKNOWN,    "UNKNOWN"},
+		{PolicyStatus::INVALID,    "INVALID"} };
 
 	struct Policy {
 		Policy();
@@ -254,12 +262,14 @@ namespace RateLimit
 		// List of the API endpoints this manager's policy applies to.
 		QStringList endpoints;
 
-		// True when a rate limited request is active.
-		bool IsBusy() const;
+		// Return the status of this rate limit manager.
+		PolicyStatus GetStatus() const { return policy->status; };
 
-		// Return a string representing the state of this policy manager,
-		// used to update the UI so the user can see what's going on.
-		QString GetCurrentStatus() const;
+		// Return the number of seconds this manager is paused.
+		int GetPauseDuration() const;
+
+		// Return a long string with the details of this manager's status.
+		QString GetStatusMessage() const;
 
 		// This is called whenever the policy is updated, which happens either
 		// at construction or when a QNetworkReply with a X-Rate-Limit-Policy
@@ -269,6 +279,9 @@ namespace RateLimit
 	signals:
 		// Emitted when a network request is ready to go.
 		void RequestReady(QNetworkRequest request);
+
+		// Emmitted when a reply is recieved; used to update the rate limiter's status.
+		void ReplyReceived();
 
 		// Emitted when this policy manager pauses due to rate limiting.
 		void RateLimitingStarted();
@@ -292,7 +305,7 @@ namespace RateLimit
 
 		// Resends the active request after a delay due to a violation.
 		void ResendAfterViolation();
-		
+
 		// Keep track of wether or not there's an active request keeping this
 		// policy manager busy.
 		bool busy;
@@ -352,7 +365,7 @@ namespace RateLimit
 
 	signals:
 		// Signal sent to the UI so the user can see what's going on.
-		void StatusUpdate(const QString message);
+		void StatusUpdate(const StatusInfo& update);
 
 	private slots:
 		// Called when a policy manager has a request for us to send.
