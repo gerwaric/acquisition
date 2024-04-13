@@ -44,7 +44,6 @@ enum class TextWidthId {
 // Reflection example for an ENUM in QT 5.4.x
 class RefreshReason {
 	Q_GADGET
-	Q_ENUMS(Type)
 public:
 	enum Type {
 		Unknown,
@@ -53,6 +52,7 @@ public:
 		TabCreated,
 		TabChanged
 	};
+	Q_ENUM(Type)
 private:
 	Type type;
 };
@@ -60,13 +60,13 @@ QDebug& operator<<(QDebug& os, const RefreshReason::Type& obj);
 
 class TabSelection {
 	Q_GADGET
-	Q_ENUMS(Type)
 public:
 	enum Type {
 		All,
 		Checked,
 		Selected,
 	};
+	Q_ENUM(Type)
 private:
 	Type type;
 };
@@ -115,5 +115,5 @@ namespace Util {
 
 	void unique_elements(std::vector<std::string>& vec);
 
-    QByteArray FixTimezone(const QByteArray& rfc2822_date);
+	QByteArray FixTimezone(const QByteArray& rfc2822_date);
 }
