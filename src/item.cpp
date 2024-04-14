@@ -311,15 +311,39 @@ std::string Item::PrettyName() const {
 }
 
 void Item::CalculateCategories() {
-	auto rslt = itemBaseType_NameToClass.find(baseType_);
+	category_ = GetCategory(baseType_);
+	if (category_.empty() == false) {
+		return;
+	};
+	// If we didn't find a category on the first try, check to see if
+	// this might be a transfigured skill gem by looking for the base
+	// name and seeing if that's something we can categorize.
+	const auto indx = baseType_.find(" of ");
+	if (indx != std::string::npos) {
+		const auto altBaseType = baseType_.substr(0, indx);
+		category_ = GetCategory(altBaseType);
+		if (category_.empty() == false) {
+			return;
+		};
+	};
+	// Issue a warning for items we can't categorize, because they will
+	// be harder to search for, and may indicate that something needs to be
+	// added or udpdated.
+	QLOG_WARN() << "Unable to determine category for" << baseType_ << "(" + name_ + ")";
+}
+
+std::string Item::GetCategory(const std::string& baseType) {
+	auto rslt = itemBaseType_NameToClass.find(baseType);
 	if (rslt != itemBaseType_NameToClass.end()) {
 		std::string step1 = rslt->second;
 		rslt = itemClassKeyToValue.find(step1);
 		if (rslt != itemClassKeyToValue.end()) {
-			category_ = rslt->second;
-			boost::to_lower(category_);
-		}
-	}
+			std::string category = rslt->second;
+			boost::to_lower(category);
+			return category;
+		};
+	};
+	return "";
 }
 
 double Item::DPS() const {
