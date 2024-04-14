@@ -226,6 +226,12 @@ void ItemsManagerWorker::ParseItemMods() {
 		emit StatusUpdate(status);
 	};
 
+	CurrentStatusUpdate status;
+	status.state = ProgramState::ItemsCompleted;
+	status.progress = tabs_.size();
+	status.total = tabs_.size();
+	emit StatusUpdate(status);
+
 	initialized_ = true;
 	updating_ = false;
 
