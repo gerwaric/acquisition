@@ -19,6 +19,7 @@
 
 #include "modsfilter.h"
 
+#include <QApplication>
 #include <QComboBox>
 #include <QLineEdit>
 #include <QObject>
@@ -38,6 +39,7 @@ SelectedMod::SelectedMod(const std::string& name, double min, double max, bool m
 	mod_completer_.setFilterMode(Qt::MatchContains);
 	mod_completer_.setCaseSensitivity(Qt::CaseInsensitive);
 	mod_completer_.setModelSorting(QCompleter::CaseInsensitivelySortedModel);
+	mod_completer_.setWidget(&mod_select_);
 
 	// If we don't set this size adjust policy, the combobox will expand to the width of the longest
 	// mod without regards to the rest of the UI. This can make the search panel (and therefore the main
@@ -46,8 +48,11 @@ SelectedMod::SelectedMod(const std::string& name, double min, double max, bool m
 	mod_select_.setEditable(true);
 	mod_select_.addItems(mod_string_list);
 	mod_select_.setCurrentIndex(mod_select_.findText(name.c_str()));
-	mod_select_.setCompleter(&mod_completer_);
 
+	// We need to disable the builtin completer, otherwise this will kind of override
+	// the approach we've taken to implement an input-delayed completer.
+	mod_select_.setCompleter(nullptr);
+	
 	if (min_filled)
 		min_text_.setText(QString::number(min));
 	if (max_filled)
@@ -58,6 +63,23 @@ SelectedMod::SelectedMod(const std::string& name, double min, double max, bool m
 	connect(&min_text_, &QLineEdit::textEdited, this, &SelectedMod::OnMinChanged);
 	connect(&max_text_, &QLineEdit::textEdited, this, &SelectedMod::OnMaxChanged);
 	connect(&delete_button_, &QPushButton::clicked, this, &SelectedMod::OnModDeleted);
+
+	// Install a delay so the completer isn't called on every keypress.
+	connect(&mod_select_, &QComboBox::editTextChanged, this, &SelectedMod::OnModEditTextChanged);
+	connect(&completer_delay_, &QTimer::timeout, this, &SelectedMod::OnModEditTimeout);
+}
+
+void SelectedMod::OnModEditTextChanged() {
+	completer_delay_.start(350);
+}
+
+void SelectedMod::OnModEditTimeout() {
+	completer_delay_.stop();
+	const QString& text = mod_select_.lineEdit()->text();
+	if (text.isEmpty() == false) {
+		mod_completer_.setCompletionPrefix(text);
+		mod_completer_.complete();
+	};
 }
 
 void SelectedMod::OnModChanged() {

@@ -27,6 +27,7 @@
 #include <QLineEdit>
 #include <QObject>
 #include <QPushButton>
+#include <QTimer>
 
 #include <vector>
 
@@ -41,6 +42,8 @@ signals:
 	void ModChanged(SelectedMod &mod);
 	void ModDeleted(SelectedMod &mod);
 private slots:
+	void OnModEditTextChanged();
+	void OnModEditTimeout();
 	void OnModChanged();
 	void OnMinChanged();
 	void OnMaxChanged();
@@ -51,6 +54,7 @@ private:
 	QCompleter mod_completer_;
 	QLineEdit min_text_, max_text_;
 	QPushButton delete_button_;
+	QTimer completer_delay_;
 };
 
 class ModsFilter;
