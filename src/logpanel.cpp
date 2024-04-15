@@ -88,7 +88,6 @@ void LogPanel::write(const QString& message, QsLogging::Level level) {
 }
 
 void LogPanel::AddLine(const QString& message, QsLogging::Level level) {
-	QColor color;
 	int type;
 	switch (level) {
 	case QsLogging::InfoLevel:
@@ -105,19 +104,25 @@ void LogPanel::AddLine(const QString& message, QsLogging::Level level) {
 	}
 
 	num_messages_[type]++;
-	color = message_types[type].color;
 
-	output_->moveCursor(QTextCursor::End);
+	const auto weight = output_->fontWeight();
+	const auto color = output_->textColor();
+
+	// Insert the message with the right weight and color.
+	QString line = message;
 	if (level != QsLogging::InfoLevel) {
-		// Don't set the text color for basic info messages
-		// because they may be unreadable on dark themes.
-		//
-		// The real solution is to have the colors depend
-		// on the theme somehow.
-		output_->setTextColor(color);
+		line = "<b>" + line + "</b>";
 	};
-	output_->insertPlainText(message + "\n");
+	if (level == QsLogging::ErrorLevel) {
+		line = "<font color='red'>" + line + "</font>";
+	};
+	output_->moveCursor(QTextCursor::End);
+	output_->insertHtml(line + "<br>");
 	output_->ensureCursorVisible();
+
+	// Restore the original font weight and color.
+	output_->setFontWeight(weight);
+	output_->setTextColor(color);
 
 	if (output_->isVisible()) {
 		num_messages_.clear();
