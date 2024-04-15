@@ -1,6 +1,6 @@
 # First check the version of Qt.
 lessThan(QT_MAJOR_VERSION, 6):error("Qt 6.5 or newer is required.")
-!versionAtLeast(QT_VERSION, 6.5):error("Qt 6.5 or newer is required.");
+!versionAtLeast(QT_VERSION, 6.5):error("Qt 6.5 or newer is required.")
 
 TARGET = acquisition
 TEMPLATE = app
