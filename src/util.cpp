@@ -335,3 +335,31 @@ QDebug& operator<<(QDebug& os, const QsLogging::Level& obj) {
     default: return os << "None (log level is invalid)";
 	};
 }
+
+
+std::string Util::ConvertAsciiToUtf(const std::string& asciiString) {
+	std::string utfString;
+
+	for (size_t i = 0; i < asciiString.size(); ++i) {
+		// Check if the character is an escape character
+		if (asciiString[i] == '\\' && i + 1 < asciiString.size() && asciiString[i + 1] == 'u') {
+			// Fetch the next four characters after '\u'
+			std::string unicodeStr = asciiString.substr(i + 2, 4);
+
+			// Convert the hexadecimal Unicode representation to integer
+			unsigned int unicodeValue = std::stoi(unicodeStr, nullptr, 16);
+
+			// Append the Unicode character to the UTF-8 string
+			utfString.push_back((unicodeValue >> 12) | 0xE0);
+			utfString.push_back(((unicodeValue >> 6) & 0x3F) | 0x80);
+			utfString.push_back((unicodeValue & 0x3F) | 0x80);
+
+			// Skip the next 5 characters ('\\', 'u', and the 4 hexadecimal digits)
+			i += 5;
+		} else {
+			// Append the character as is
+			utfString.push_back(asciiString[i]);
+		};
+	};
+	return utfString;
+}

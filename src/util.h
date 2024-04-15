@@ -116,4 +116,6 @@ namespace Util {
 	void unique_elements(std::vector<std::string>& vec);
 
 	QByteArray FixTimezone(const QByteArray& rfc2822_date);
+
+	std::string ConvertAsciiToUtf(const std::string& asciiString);
 }
