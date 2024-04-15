@@ -428,6 +428,7 @@ void ItemsManagerWorker::RemoveUpdatingItems(const std::set<std::string>& tab_id
 	};
 	QLOG_DEBUG() << "Keeping" << items_.size() << "items and culling" << (current_items.size() - items_.size());
 }
+
 void ItemsManagerWorker::OnMainPageReceived(QNetworkReply* reply) {
 	QLOG_TRACE() << "Main page received.";
 
@@ -436,6 +437,7 @@ void ItemsManagerWorker::OnMainPageReceived(QNetworkReply* reply) {
 	} else {
 		std::string page(reply->readAll().constData());
 		selected_character_ = Util::FindTextBetween(page, "C({\"name\":\"", "\",\"class");
+		selected_character_ = Util::ConvertAsciiToUtf(selected_character_);
 		if (selected_character_.empty()) {
 			// If the user is using POESESSID, then we should expect to find the character name.
 			// If the uses is using OAuth, then we might not find the character name if they user
@@ -528,10 +530,10 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 
 QNetworkRequest ItemsManagerWorker::MakeTabRequest(int tab_index, bool tabs) {
 	QUrlQuery query;
-	query.addQueryItem("league", app_.league().c_str());
+	query.addQueryItem("league", QString::fromUtf8(app_.league()));
 	query.addQueryItem("tabs", tabs ? "1" : "0");
 	query.addQueryItem("tabIndex", std::to_string(tab_index).c_str());
-	query.addQueryItem("accountName", app_.email().c_str());
+	query.addQueryItem("accountName", QString::fromUtf8(app_.email()));
 
 	QUrl url(kStashItemsUrl);
 	url.setQuery(query);
@@ -540,8 +542,8 @@ QNetworkRequest ItemsManagerWorker::MakeTabRequest(int tab_index, bool tabs) {
 
 QNetworkRequest ItemsManagerWorker::MakeCharacterRequest(const std::string& name) {
 	QUrlQuery query;
-	query.addQueryItem("character", name.c_str());
-	query.addQueryItem("accountName", app_.email().c_str());
+	query.addQueryItem("character", QString::fromUtf8(name));
+	query.addQueryItem("accountName", QString::fromUtf8(app_.email()));
 
 	QUrl url(kCharacterItemsUrl);
 	url.setQuery(query);
@@ -550,8 +552,8 @@ QNetworkRequest ItemsManagerWorker::MakeCharacterRequest(const std::string& name
 
 QNetworkRequest ItemsManagerWorker::MakeCharacterPassivesRequest(const std::string& name) {
 	QUrlQuery query;
-	query.addQueryItem("character", name.c_str());
-	query.addQueryItem("accountName", app_.email().c_str());
+	query.addQueryItem("character", QString::fromUtf8(name));
+	query.addQueryItem("accountName", QString::fromUtf8(app_.email()));
 
 	QUrl url(kCharacterSocketedJewels);
 	url.setQuery(query);
@@ -843,7 +845,7 @@ void ItemsManagerWorker::PreserveSelectedCharacter() {
 		QLOG_DEBUG() << "Cannot preserve selected character: no character selected";
 		return;
 	};
-	QLOG_DEBUG() << "Preserving selected character:" << selected_character_.c_str();
+	QLOG_DEBUG() << "Preserving selected character:" << QString::fromUtf8(selected_character_);
 	// The act of making this request sets the active character.
 	// We don't need to to anything with the reply.
 	QNetworkRequest character_request = MakeCharacterRequest(selected_character_);
