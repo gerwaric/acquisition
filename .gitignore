@@ -47,6 +47,7 @@ Makefile*
 *.pdb
 .vs/
 enc_temp_folder/
+out/
 
 # deployment/installer
 deploy/
