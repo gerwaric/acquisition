@@ -3,6 +3,7 @@
 build/
 
 # Acquisitions installers are currently built here.
+deploy/
 Output/
 
 # This file is supposed to be ignored, but neither of the
