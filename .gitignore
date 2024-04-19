@@ -10,6 +10,12 @@ Output/
 # templated included below include it.
 CMakeUserPresets.json
 
+# These files should be ignored, but aren't part of the includes below
+*.qtvscr
+*.vcxproj
+*.vcxproj.*
+*_resource.rc
+
 #------------------------------------------------------------
 # https://github.com/github/gitignore/blob/main/Qt.gitignore
 #------------------------------------------------------------
