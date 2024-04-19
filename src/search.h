@@ -54,7 +54,7 @@ public:
 	const std::vector<std::unique_ptr<Bucket>>& buckets() const;
 	void RenameCaption(const std::string newName);
 	QString GetCaption();
-    size_t GetItemsCount();
+    size_t GetItemsCount() const;
 	bool IsAnyFilterActive() const;
 	// Sets this search as current, will display items in passed QTreeView.
 	void Activate(const Items& items);
@@ -62,7 +62,7 @@ public:
 	void SaveViewProperties();
 	ItemLocation GetTabLocation(const QModelIndex& index) const;
 	void SetViewMode(ViewMode mode);
-	int GetViewMode() { return current_mode_; }
+	int GetViewMode() const { return current_mode_; }
 	const std::unique_ptr<Bucket>& bucket(int row) const;
 	const QModelIndex index(const std::shared_ptr<Item> item) const;
 	void SetRefreshReason(RefreshReason::Type reason) { refresh_reason_ = reason; }

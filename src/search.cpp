@@ -237,7 +237,7 @@ void Search::SetViewMode(ViewMode mode)
 	}
 }
 
-size_t Search::GetItemsCount() {
+size_t Search::GetItemsCount() const {
 	return filtered_item_count_total_;
 }
 
