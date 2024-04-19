@@ -93,8 +93,7 @@ void Search::ResetForm() {
 const std::vector<std::unique_ptr<Bucket> >& Search::buckets() const {
 	if (current_mode_ == ByTab) {
 		return buckets_;
-	}
-	else {
+	} else {
 		return bucket_;
 	}
 }
@@ -135,7 +134,7 @@ const QModelIndex Search::index(const std::shared_ptr<Item> item) const {
 			const QModelIndex parent = model_->index(row);
 			const auto& items = bucket.items();
 			for (int n = 0; n < items.size(); ++n) {
-				const auto model_item = items[n];
+				const auto& model_item = items[n];
 				if (item == model_item) {
 					// Found the index of a match.
 					return model_->index(n, 0, parent);
@@ -215,8 +214,7 @@ ItemLocation Search::GetTabLocation(const QModelIndex& index) const {
 		// If index represents an item, get location from item as view may be on 'item' view
 		// where bucket location doesn't match items location
 		return bucket(index.parent().row())->item(index.row())->location();
-	}
-	else {
+	} else {
 		// Otherwise index represents a tab already, get location from there
 		return bucket(index.row())->location();
 	}
