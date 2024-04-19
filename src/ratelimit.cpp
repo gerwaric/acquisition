@@ -792,7 +792,7 @@ void RateLimiter::DoStatusUpdate()
 
 	// Check to see if any of the policy managers are busy.
 	for (auto& pair : policy_mapping) {
-		auto manager = pair.second;
+		auto& manager = pair.second;
 		lines.push_back(manager->GetStatusMessage());
 		lines.push_back("");
 		switch (manager->GetStatus()) {
