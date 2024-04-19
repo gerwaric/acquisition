@@ -34,6 +34,7 @@ class QLayout;
 
 class BuyoutManager;
 class FilterData;
+class SearchComboBox;
 
 /*
  * Objects of subclasses of this class do the following:
@@ -111,8 +112,7 @@ public:
 	void Initialize(QLayout* parent);
 	static const std::string k_Default;
 private:
-	QComboBox* combobox_;
-	QCompleter* completer_;
+	SearchComboBox* combobox_;
 	QAbstractListModel* model_;
 };
 

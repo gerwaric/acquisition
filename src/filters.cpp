@@ -18,6 +18,8 @@
 */
 
 #include <memory>
+#include <QAbstractItemView>
+#include <QListView>
 #include <QCheckBox>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -33,6 +35,7 @@
 #include "mainwindow.h"
 #include "util.h"
 #include "porting.h"
+#include "searchcombobox.h"
 
 const std::string CategorySearchFilter::k_Default = "<any>";
 const std::string RaritySearchFilter::k_Default = "<any>";
@@ -141,15 +144,7 @@ void CategorySearchFilter::Initialize(QLayout* parent) {
 	QLabel* label = new QLabel("Type");
 	label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
 	label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-	combobox_ = new QComboBox;
-	combobox_->setModel(model_);
-	combobox_->setEditable(true);
-	combobox_->setInsertPolicy(QComboBox::NoInsert);
-	completer_ = new QCompleter(combobox_->model());
-	completer_->setCompletionMode(QCompleter::PopupCompletion);
-	completer_->setFilterMode(Qt::MatchContains);
-	completer_->setCaseSensitivity(Qt::CaseInsensitive);
-	combobox_->setCompleter(completer_);
+	combobox_ = new SearchComboBox(model_, group);
 	layout->addWidget(label);
 	layout->addWidget(combobox_);
 	group->setLayout(layout);

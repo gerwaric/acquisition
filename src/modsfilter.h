@@ -31,30 +31,28 @@
 
 #include <vector>
 
+#include "searchcombobox.h"
+
 class SelectedMod : public QObject {
 	Q_OBJECT
 public:
 	SelectedMod(const std::string& name, double min, double max, bool min_selected, bool max_selected);
 	void AddToLayout(QGridLayout* layout);
-	void RemoveFromLayout(QGridLayout *layout);
+	void RemoveFromLayout(QGridLayout* layout);
 	const ModFilterData& data() const { return data_; }
 signals:
-	void ModChanged(SelectedMod &mod);
-	void ModDeleted(SelectedMod &mod);
+	void ModChanged(SelectedMod& mod);
+	void ModDeleted(SelectedMod& mod);
 private slots:
-	void OnModEditTextChanged();
-	void OnModEditTimeout();
 	void OnModChanged();
 	void OnMinChanged();
 	void OnMaxChanged();
 	void OnModDeleted();
 private:
 	ModFilterData data_;
-	QComboBox mod_select_;
-	QCompleter mod_completer_;
+	SearchComboBox mod_select_;
 	QLineEdit min_text_, max_text_;
 	QPushButton delete_button_;
-	QTimer completer_delay_;
 };
 
 class ModsFilter;

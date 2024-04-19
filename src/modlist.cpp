@@ -30,10 +30,12 @@
 #include "porting.h"
 #include "util.h"
 
-
-
 // Actual list of mods is computed at runtime
-QStringList mod_string_list;
+static QStringListModel mod_list_model_;
+
+QStringListModel& mod_list_model() {
+	return mod_list_model_;
+}
 
 std::vector<std::vector<std::string>> mods;
 std::unordered_map<std::string, SumModGenerator*> mods_map;
@@ -141,7 +143,7 @@ const std::vector<std::vector<std::string>> simple_sum = {
 std::vector<SumModGen> mod_generators;
 
 void InitModlist() {
-	mod_string_list.clear();
+	QStringList mod_string_list;
 	mod_generators.clear();
 	mods_map.clear();
 
@@ -155,6 +157,7 @@ void InitModlist() {
 		mod_generators.push_back(gen);
 	}
 	mod_string_list.sort(Qt::CaseInsensitive);
+	mod_list_model_.setStringList(mod_string_list);
 }
 
 SumModGenerator::SumModGenerator(const std::string& name, const std::vector<std::string>& sum) :
