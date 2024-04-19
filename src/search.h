@@ -53,7 +53,7 @@ public:
 	const std::vector<std::unique_ptr<Column>>& columns() const { return columns_; }
 	const std::vector<std::unique_ptr<Bucket>>& buckets() const;
 	void RenameCaption(const std::string newName);
-	QString GetCaption();
+	QString GetCaption() const;
     size_t GetItemsCount() const;
 	bool IsAnyFilterActive() const;
 	// Sets this search as current, will display items in passed QTreeView.
