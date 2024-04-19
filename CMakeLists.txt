@@ -14,7 +14,7 @@ set(CMAKE_AUTOUIC_SEARCH_PATHS forms/)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(QT NAMES Qt6 REQUIRED COMPONENTS Widgets)
+find_package(QT NAMES Qt6 REQUIRED COMPONENTS Core)
 find_package(Qt6 REQUIRED COMPONENTS
     Gui
     Httpserver
@@ -58,12 +58,12 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/ratelimit.cpp
     src/ratelimitpanel.cpp
     src/search.cpp
+    src/searchcombobox.cpp
     src/shop.cpp
     src/sqlitedatastore.cpp
     src/updatechecker.cpp
     src/util.cpp
     src/verticalscrollarea.cpp
-    # Test code
     test/testdata.cpp
     test/testitem.cpp
     test/testitemsmanager.cpp
@@ -104,6 +104,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/ratelimitpanel.h
     src/replytimeout.h
     src/search.h
+    src/searchcombobox.h
     src/selfdestructingreply.h
     src/shop.h
     src/sqlitedatastore.h
@@ -120,16 +121,41 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     # Forms
     forms/logindialog.ui
     forms/mainwindow.ui
-    # Resource
+    # Resources
     resources.qrc
     deps/qdarkstyle/dark/darkstyle.qrc
     deps/qdarkstyle/light/lightstyle.qrc
-    # QsLog (This should be in another file)
+)
+
+target_include_directories(acquisition PRIVATE
+    deps/
+    deps/QsLog/
+    deps/boost-headers-only/
+    src/
+    test/
+)
+
+target_link_libraries(acquisition PUBLIC
+    Qt::Core
+    Qt::Gui
+    Qt::HttpServer
+    Qt::Network
+    Qt::Widgets
+    Qt::Sql
+    Qt::Test
+    Qt::WebSockets
+    QsLog
+)
+
+# Add dependency: QsLog
+qt_add_library(QsLog STATIC
+    # Source
     deps/QsLog/QsLog.cpp
     deps/QsLog/QsLogDest.cpp
     deps/QsLog/QsLogDestConsole.cpp
     deps/QsLog/QsLogDestFile.cpp
     deps/QsLog/QsLogDestFunctor.cpp
+    # Headers
     deps/QsLog/QsLog.h
     deps/QsLog/QsLogDest.h
     deps/QsLog/QsLogDestConsole.h
@@ -139,23 +165,8 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     deps/QsLog/QsLogLevel.h
 )
 
-target_include_directories(acquisition PRIVATE
-    deps/
-    deps/boost-headers-only/
-    deps/QsLog/
-    src/
-    test/
-)
-
-target_link_libraries(acquisition PRIVATE
+target_link_libraries(QsLog PUBLIC
     Qt::Core
-    Qt::Gui
-    Qt::HttpServer
-    Qt::Network
-    Qt::Widgets
-    Qt::Sql
-    Qt::Test
-    Qt::WebSockets
 )
 
 target_compile_definitions(acquisition PRIVATE
@@ -164,15 +175,16 @@ target_compile_definitions(acquisition PRIVATE
 )
 
 # Visual Studio 2022 needs this to work with boost somehow.
-if (MSVC)
-	target_compile_options(acquisition PRIVATE "/EHsc")
+if(MSVC)
+    target_compile_options(QsLog PRIVATE "/EHsc")
+    target_compile_options(acquisition PRIVATE "/EHsc")
 endif()
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
 # explicit, fixed bundle identifier manually though.
-if (${QT_VERSION} VERSION_LESS 6.1.0)
-  set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.acquisition)
+if(${QT_VERSION} VERSION_LESS 6.1.0)
+    set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.acquisition)
 endif()
 
 set_target_properties(acquisition PROPERTIES
