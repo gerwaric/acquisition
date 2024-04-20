@@ -52,11 +52,6 @@ constexpr bool strings_equal(char const* left, char const* right) {
 
 int main(int argc, char* argv[])
 {   
-    // Don't allow this code to compile if there is a mismatch between
-    // the Qt Creator project file and version_defines.h.
-    static_assert(strings_equal(APP_NAME, MY_TARGET), "Target mismatch");
-    static_assert(strings_equal(APP_VERSION, MY_VERSION), "Version mismatch");
-
 	qRegisterMetaType<CurrentStatusUpdate>("CurrentStatusUpdate");
 	qRegisterMetaType<Items>("Items");
 	qRegisterMetaType<std::vector<std::string>>("std::vector<std::string>");

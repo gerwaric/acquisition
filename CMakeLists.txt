@@ -1,9 +1,23 @@
 cmake_minimum_required(VERSION 3.19)
 
 project(acquisition
-    VERSION 0.10.4
-    DESCRIPTION "Stash and shop management for Path of Exile"
-    LANGUAGES CXX)
+    VERSION 0.11.0
+    DESCRIPTION "Stash and forum shop management for Path of Exile"
+    HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
+    LANGUAGES CXX
+)
+
+# Use this to define pre-releases
+set(version_postfix "-alpha.1")
+
+# Variables used to generate version_defines.h and installer.iss
+set(version_code        58)
+set(app_name            "${CMAKE_PROJECT_NAME}")
+set(app_version         "${CMAKE_PROJECT_VERSION}")
+set(app_version_string  "${CMAKE_PROJECT_VERSION}${version_postfix}")
+set(app_url             "${CMAKE_PROJECT_HOMEPAGE_URL}")
+set(app_publisher       "GERWARIC")
+set(app_publisher_email "gerwaric@gmail.com")
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
@@ -110,7 +124,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/sqlitedatastore.h
     src/updatechecker.h
     src/util.h
-    src/version_defines.h
     src/verticalscrollarea.h
     test/testdata.h
     test/testitem.h
@@ -127,12 +140,16 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     deps/qdarkstyle/light/lightstyle.qrc
 )
 
+# Automatically populate the versions header file.
+configure_file(src/version_defines.h.in version_defines.h @ONLY)
+
 target_include_directories(acquisition PRIVATE
     deps/
     deps/QsLog/
     deps/boost-headers-only/
     src/
     test/
+    "${CMAKE_CURRENT_BINARY_DIR}" # needed for the auto-generated version_defines.h
 )
 
 target_link_libraries(acquisition PUBLIC
@@ -167,11 +184,6 @@ qt_add_library(QsLog STATIC
 
 target_link_libraries(QsLog PUBLIC
     Qt::Core
-)
-
-target_compile_definitions(acquisition PRIVATE
-    MY_TARGET=\"${CMAKE_PROJECT_NAME}\"
-    MY_VERSION=\"${CMAKE_PROJECT_VERSION}\"
 )
 
 # Visual Studio 2022 needs this to work with boost somehow.
