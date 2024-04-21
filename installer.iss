@@ -8,7 +8,7 @@
 #endif
 
 #ifndef DEPLOY_DIR
-#error "BUILD_DIR must be defined using the /D command-line parameter to run this script."
+#error "DEPLOY_DIR must be defined using the /D command-line parameter to run this script."
 #endif
 
 ;-----------------------------------------------------------------------------------------
