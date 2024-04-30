@@ -33,8 +33,11 @@
 
 #include "application.h"
 #include "filesystem.h"
+#include "itemsmanager.h"
 #include "mainwindow.h"
 #include "porting.h"
+#include "shop.h"
+#include "updatechecker.h"
 #include "util.h"
 #include "version_defines.h"
 #include "testmain.h"
@@ -141,13 +144,20 @@ int main(int argc, char* argv[])
 
 	QObject::connect(&login, &LoginDialog::LoginComplete, &mw,
 		[&](const QString& league, const QString& account) {
-			login.close();
+			
 			app.InitLogin(league.toStdString(), account.toStdString());
+			QObject::connect(&app.items_manager(), &ItemsManager::ItemsRefreshed, &mw, &MainWindow::OnItemsRefreshed);
+			QObject::connect(&app.items_manager(), &ItemsManager::StatusUpdate, &mw, &MainWindow::OnStatusUpdate);
+			QObject::connect(&app.shop(), &Shop::StatusUpdate, &mw, &MainWindow::OnStatusUpdate);
+			QObject::connect(&app.update_checker(), &UpdateChecker::UpdateAvailable, &mw, &MainWindow::OnUpdateAvailable);
+
+			mw.LoadSettings();
 			mw.setWindowTitle(
 				QString("Acquisition [%1] - %2 [%3]")
 				.arg(APP_VERSION_STRING)
 				.arg(league)
 				.arg(account));
+			login.close();
 			mw.show();
 		});
 

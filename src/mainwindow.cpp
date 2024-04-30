@@ -83,16 +83,9 @@ MainWindow::MainWindow(Application& app) :
 	InitializeRateLimitPanel();
 	InitializeLogging();
 	InitializeSearchForm();
-	NewSearch();
 
-	connect(&app_.items_manager(), &ItemsManager::ItemsRefreshed, this, &MainWindow::OnItemsRefreshed);
-	connect(&app_.items_manager(), &ItemsManager::StatusUpdate, this, &MainWindow::OnStatusUpdate);
-	connect(&app_.shop(), &Shop::StatusUpdate, this, &MainWindow::OnStatusUpdate);
-	connect(&app_.update_checker(), &UpdateChecker::UpdateAvailable, this, &MainWindow::OnUpdateAvailable);
 	connect(&delayed_update_current_item_, &QTimer::timeout, this, [&]() {UpdateCurrentItem(); delayed_update_current_item_.stop(); });
 	connect(&delayed_search_form_change_, &QTimer::timeout, this, [&]() {OnSearchFormChange(); delayed_search_form_change_.stop(); });
-
-
 }
 void MainWindow::InitializeRateLimitPanel() {
 	RateLimitStatusPanel* rate_panel = new RateLimitStatusPanel(this, ui);
@@ -112,12 +105,6 @@ void MainWindow::InitializeLogging() {
 
 void MainWindow::InitializeUi() {
 	ui->setupUi(this);
-
-	// Load the appropriate theme.
-	const std::string theme = app_.global_data().Get("theme", "default");
-	if (theme == "dark") OnSetDarkTheme(true);
-	else if (theme == "light") OnSetLightTheme(true);
-	else if (theme == "default") OnSetDefaultTheme(true);
 
 	status_bar_label_ = new QLabel("Ready");
 	statusBar()->addWidget(status_bar_label_);
@@ -154,9 +141,6 @@ void MainWindow::InitializeUi() {
 	ui->buyoutTypeComboBox->setEnabled(false);
 	ui->buyoutValueLineEdit->setEnabled(false);
 	ui->buyoutCurrencyComboBox->setEnabled(false);
-
-	ui->actionSetAutomaticTabRefresh->setChecked(app_.items_manager().auto_update());
-	UpdateShopMenu();
 
 	search_form_layout_ = new QVBoxLayout;
 	search_form_layout_->setAlignment(Qt::AlignTop);
@@ -241,8 +225,6 @@ void MainWindow::InitializeUi() {
 		app_.data().SetInt("preferred_tooltip_type", idx);
 		});
 
-	ui->itemInfoTypeTabs->setCurrentIndex(app_.data().GetInt("preferred_tooltip_type"));
-
 	// Connect the Tabs menu
 	connect(ui->actionRefreshCheckedTabs, &QAction::triggered, this, &MainWindow::OnRefreshCheckedTabs);
 	connect(ui->actionRefreshAllTabs, &QAction::triggered, this, &MainWindow::OnRefreshAllTabs);
@@ -278,6 +260,22 @@ void MainWindow::InitializeUi() {
 	// Connect the Tooltip tab buttons
 	connect(ui->uploadTooltipButton, &QPushButton::clicked, this, &MainWindow::OnUploadToImgur);
 	connect(ui->pobTooltipButton, &QPushButton::clicked, this, &MainWindow::OnCopyForPOB);
+}
+
+void MainWindow::LoadSettings() {
+
+    // Load the appropriate theme.
+    const std::string theme = app_.global_data().Get("theme", "default");
+    if (theme == "dark") OnSetDarkTheme(true);
+    else if (theme == "light") OnSetLightTheme(true);
+    else if (theme == "default") OnSetDefaultTheme(true);
+
+    ui->actionSetAutomaticTabRefresh->setChecked(app_.items_manager().auto_update());
+    UpdateShopMenu();
+
+    ui->itemInfoTypeTabs->setCurrentIndex(app_.data().GetInt("preferred_tooltip_type"));
+
+    NewSearch();
 }
 
 void MainWindow::OnExpandAll() {

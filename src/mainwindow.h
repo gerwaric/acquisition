@@ -72,6 +72,7 @@ public:
 	MainWindow(Application& app);
 	~MainWindow();
 	std::vector<Column*> columns;
+	void LoadSettings();
 public slots:
 	void OnCurrentItemChanged(const QModelIndex& current, const QModelIndex& previous);
 	void OnLayoutChanged();
