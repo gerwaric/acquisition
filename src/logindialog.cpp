@@ -80,10 +80,9 @@ const char* SESSIONID_TAB = "sessionIdTab";
 	=> done
  */
 
-LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
-	app_(std::move(app)),
+LoginDialog::LoginDialog(Application& app) :
+	app_(app),
 	ui(new Ui::LoginDialog),
-	mw(0),
 	asked_to_update_(false)
 {
 	ui->setupUi(this);
@@ -118,7 +117,7 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 
 	connect(ui->proxyCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnProxyCheckBoxClicked);
 	connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
-	connect(&app_->update_checker(), &UpdateChecker::UpdateAvailable, this, [&]() {
+	connect(&app_.update_checker(), &UpdateChecker::UpdateAvailable, this, [&]() {
 		// Only annoy the user once at the login dialog window, even if it's opened for more than an hour
 		if (asked_to_update_)
 			return;
@@ -129,7 +128,7 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 	QNetworkRequest leagues_request = QNetworkRequest(QUrl(QString(POE_LEAGUE_LIST_URL)));
 	leagues_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	leagues_request.setTransferTimeout(kPoeApiTimeout);
-	QNetworkReply* leagues_reply = app_->network_manager().get(leagues_request);
+	QNetworkReply* leagues_reply = app_.network_manager().get(leagues_request);
 
 	connect(leagues_reply, &QNetworkReply::errorOccurred, this, &LoginDialog::errorOccurred);
 	connect(leagues_reply, &QNetworkReply::sslErrors, this, &LoginDialog::sslErrorOccurred);
@@ -138,7 +137,7 @@ LoginDialog::LoginDialog(std::unique_ptr<Application> app) :
 
 void LoginDialog::LoadTheme() {
 	// Load the appropriate theme.
-	const std::string theme = app_->global_data().Get("theme", "default");
+	const std::string theme = app_.global_data().Get("theme", "default");
 
 	// Do nothing for the default theme.
 	if (theme == "default") {
@@ -244,7 +243,7 @@ void LoginDialog::FinishLogin(QNetworkReply* reply) {
 	// we need one more request to get account name
 	QNetworkRequest main_page_request = QNetworkRequest(QUrl(POE_MY_ACCOUNT));
 	main_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply* main_page = app_->network_manager().get(main_page_request);
+	QNetworkReply* main_page = app_.network_manager().get(main_page_request);
 	connect(main_page, &QNetworkReply::finished, this, &LoginDialog::OnMainPageFinished);
 }
 
@@ -286,16 +285,8 @@ void LoginDialog::LoginWithOAuth() {
 
 void LoginDialog::OnOAuthAccessGranted(const AccessToken& token) {
 	const QString account = token.username;
-	std::string league(ui->leagueComboBox->currentText().toStdString());
-	app_->InitLogin(league, account.toStdString());
-	mw = new MainWindow(std::move(app_));
-	mw->setWindowTitle(
-		QString("Acquisition [%1] - %2 [%3]")
-		.arg(APP_VERSION_STRING)
-		.arg(league.c_str())
-		.arg(account));
-	mw->show();
-	close();
+	const QString league = ui->leagueComboBox->currentText();
+	emit LoginComplete(league, account);
 }
 
 void LoginDialog::LoginWithCookie(const QString& cookie) {
@@ -303,11 +294,11 @@ void LoginDialog::LoginWithCookie(const QString& cookie) {
 	poeCookie.setPath("/");
 	poeCookie.setDomain(".pathofexile.com");
 
-	app_->network_manager().cookieJar()->insertCookie(poeCookie);
+	app_.network_manager().cookieJar()->insertCookie(poeCookie);
 
 	QNetworkRequest login_page_request = QNetworkRequest(QUrl(POE_LOGIN_CHECK_URL));
 	login_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply* login_page = app_->network_manager().get(login_page_request);
+	QNetworkReply* login_page = app_.network_manager().get(login_page_request);
 	connect(login_page, &QNetworkReply::finished, this, &LoginDialog::LoggedInCheck);
 }
 
@@ -323,16 +314,9 @@ void LoginDialog::OnMainPageFinished() {
 	QString account = match.captured(1);
 	QLOG_DEBUG() << "Logged in as:" << account;
 
-	std::string league(ui->leagueComboBox->currentText().toStdString());
-	app_->InitLogin(league, account.toStdString());
-	mw = new MainWindow(std::move(app_));
-	mw->setWindowTitle(
-		QString("Acquisition [%1] - %2 [%3]")
-		.arg(APP_VERSION_STRING)
-		.arg(league.c_str())
-		.arg(account));
-	mw->show();
-	close();
+	const QString league = ui->leagueComboBox->currentText();
+
+	emit LoginComplete(league, account);
 }
 
 void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
@@ -385,9 +369,6 @@ void LoginDialog::DisplayError(const QString& error, bool disable_login) {
 LoginDialog::~LoginDialog() {
 	SaveSettings();
 	delete ui;
-
-	if (mw)
-		delete mw;
 }
 
 bool LoginDialog::event(QEvent* e) {

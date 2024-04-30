@@ -134,7 +134,23 @@ int main(int argc, char* argv[])
 
 	// Run the main application, starting with the login dialog.
 	QLOG_INFO() << "Running application...";
-	LoginDialog login(std::make_unique<Application>());
+
+	Application app;
+	LoginDialog login(app);
+	MainWindow mw(app);
+
+	QObject::connect(&login, &LoginDialog::LoginComplete, &mw,
+		[&](const QString& league, const QString& account) {
+			login.close();
+			app.InitLogin(league.toStdString(), account.toStdString());
+			mw.setWindowTitle(
+				QString("Acquisition [%1] - %2 [%3]")
+				.arg(APP_VERSION_STRING)
+				.arg(league)
+				.arg(account));
+			mw.show();
+		});
+
 	login.show();
 	return a.exec();
 }

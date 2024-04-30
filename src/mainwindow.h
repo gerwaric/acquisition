@@ -69,7 +69,7 @@ struct CurrentStatusUpdate {
 class MainWindow : public QMainWindow {
 	Q_OBJECT
 public:
-	MainWindow(std::unique_ptr<Application> app);
+	MainWindow(Application& app);
 	~MainWindow();
 	std::vector<Column*> columns;
 public slots:
@@ -143,7 +143,7 @@ private:
 	void closeEvent(QCloseEvent* event);
 	void CheckSelected(bool value);
 
-	std::unique_ptr<Application> app_;
+	Application& app_;
 	Ui::MainWindow* ui;
 	std::shared_ptr<Item> current_item_;
 	Bucket current_bucket_;
