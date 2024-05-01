@@ -165,6 +165,17 @@ target_link_libraries(acquisition PUBLIC
     QsLog
 )
 
+# On Linux we need to build with OpenSSL 3.x
+if(UNIX)
+    set(OPENSSL_ROOT_DIR ~/openssl-3.1.5)
+    set(OPENSSL_USE_STATIC_LIBS TRUE)
+    find_package(OpenSSL 3.1.5 REQUIRED)
+    target_link_libraries(acquisition PUBLIC
+        OpenSSL::SSL
+        OpenSSL::Crypto
+    )
+endif()
+
 # Add dependency: QsLog
 qt_add_library(QsLog STATIC
     # Source
