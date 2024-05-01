@@ -48,11 +48,6 @@ const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::TraceLevel;
 const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::InfoLevel;
 #endif
 
-// Use this helper function to check defines at build time.
-constexpr bool strings_equal(char const* left, char const* right) {
-    return std::string_view(left) == std::string_view(right);
-}
-
 int main(int argc, char* argv[])
 {   
 	qRegisterMetaType<CurrentStatusUpdate>("CurrentStatusUpdate");
