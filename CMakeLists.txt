@@ -137,8 +137,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     forms/mainwindow.ui
     # Resources
     resources.qrc
-    deps/qdarkstyle/dark/darkstyle.qrc
-    deps/qdarkstyle/light/lightstyle.qrc
 )
 
 # Automatically populate the versions header file.
@@ -163,6 +161,7 @@ target_link_libraries(acquisition PUBLIC
     Qt::Test
     Qt::WebSockets
     QsLog
+	qdarkstyle
 )
 
 # On Linux we need to build with OpenSSL 3.x
@@ -196,6 +195,12 @@ qt_add_library(QsLog STATIC
 
 target_link_libraries(QsLog PUBLIC
     Qt::Core
+)
+
+# Add dependency: darkstyle
+add_library(qdarkstyle STATIC
+    deps/qdarkstyle/dark/darkstyle.qrc
+    deps/qdarkstyle/light/lightstyle.qrc
 )
 
 # Visual Studio 2022 needs this to work with boost somehow.
