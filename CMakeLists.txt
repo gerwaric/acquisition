@@ -28,8 +28,7 @@ set(CMAKE_AUTOUIC_SEARCH_PATHS forms/)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(QT NAMES Qt6 REQUIRED COMPONENTS Core)
-find_package(Qt6 REQUIRED COMPONENTS
+find_package(Qt6 6.5.3 REQUIRED COMPONENTS
     Gui
     HttpServer
     Network
@@ -161,7 +160,7 @@ target_link_libraries(acquisition PUBLIC
     Qt::Test
     Qt::WebSockets
     QsLog
-	qdarkstyle
+    qdarkstyle
 )
 
 # On Linux we need to build with OpenSSL 3.x
@@ -207,13 +206,6 @@ add_library(qdarkstyle STATIC
 if(MSVC)
     target_compile_options(QsLog PRIVATE "/EHsc")
     target_compile_options(acquisition PRIVATE "/EHsc")
-endif()
-
-# Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
-# If you are developing for iOS or macOS you should consider setting an
-# explicit, fixed bundle identifier manually though.
-if(${QT_VERSION} VERSION_LESS 6.1.0)
-    set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.acquisition)
 endif()
 
 set_target_properties(acquisition PROPERTIES
