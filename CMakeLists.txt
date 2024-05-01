@@ -202,9 +202,8 @@ add_library(qdarkstyle STATIC
     deps/qdarkstyle/light/lightstyle.qrc
 )
 
-# Visual Studio 2022 needs this to work with boost somehow.
+# Visual Studio 2022 needs this to work with boost.
 if(MSVC)
-    target_compile_options(QsLog PRIVATE "/EHsc")
     target_compile_options(acquisition PRIVATE "/EHsc")
 endif()
 
