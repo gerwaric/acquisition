@@ -32,6 +32,7 @@ public:
 	void set_tab_id(int tab_id) { tab_id_ = tab_id; }
 	void set_tab_label(const std::string& tab_label) { tab_label_ = tab_label; }
 	std::string get_tab_label() const { return tab_label_; }
+	std::string get_character() const { return character_; }
 	bool socketed() const { return socketed_; }
 	bool removeonly() const { return removeonly_; }
 	void set_socketed(bool socketed) { socketed_ = socketed; }
@@ -60,3 +61,4 @@ private:
 	std::string inventory_id_;
 };
 
+typedef std::vector<ItemLocation> Locations;
