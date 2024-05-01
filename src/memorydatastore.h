@@ -28,20 +28,16 @@
 class MemoryDataStore : public DataStore {
 public:
 	void Set(const std::string& key, const std::string& value);
-	void SetTabs(const ItemLocationType& type, const std::string& value);
-	void SetItems(const ItemLocation& loc, const std::string& value);
+	void SetTabs(const ItemLocationType& type, const Locations& tabs);
+	void SetItems(const ItemLocation& loc, const Items& items);
 	std::string Get(const std::string& key, const std::string& default_value = "");
-	std::string GetTabs(const ItemLocationType& type, const std::string& default_value = "");
-	std::string GetItems(const ItemLocation& loc, const std::string& default_value = "");
+	Locations GetTabs(const ItemLocationType& type);
+	Items GetItems(const ItemLocation& loc);
 	void InsertCurrencyUpdate(const CurrencyUpdate& update);
 	std::vector<CurrencyUpdate> GetAllCurrency();
-	void SetBool(const std::string& key, bool value);
-	bool GetBool(const std::string& key, bool default_value = false);
-	void SetInt(const std::string& key, int value);
-	int GetInt(const std::string& key, int default_value = 0);
 private:
 	std::map<std::string, std::string> data_;
-	std::map<ItemLocationType, std::string> tabs_;
-	std::map<std::string, std::string> items_;
+	std::map<ItemLocationType, Locations> tabs_;
+	std::map<std::string, Items> items_;
 	std::vector<CurrencyUpdate> currency_updates_;
 };

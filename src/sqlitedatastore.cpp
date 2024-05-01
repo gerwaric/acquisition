@@ -85,12 +85,12 @@ void SqliteDataStore::CleanItemsTable() {
 	//  * check all "db.items" record keys against 'id' or 'name' values in the "db.tabs" data,
 	//    remove record from 'items' if not anywhere in either 'tabs' record.
 	locker.unlock();
-	std::string stashTabData = SqliteDataStore::GetTabs(ItemLocationType::STASH, "NOT FOUND");
-	std::string charsData = SqliteDataStore::GetTabs(ItemLocationType::CHARACTER, "NOT FOUND");
+	Locations stashTabData = SqliteDataStore::GetTabs(ItemLocationType::STASH);
+	Locations charsData = SqliteDataStore::GetTabs(ItemLocationType::CHARACTER);
 	locker.relock();
 
-	if ((stashTabData.compare("NOT FOUND") != 0) && (charsData.compare("NOT FOUND") != 0)) {
-		std::list<QByteArray> locs;
+	if (!stashTabData.empty() && !charsData.empty()) {
+		QStringList locs;
 
 		query = QSqlQuery(db_);
 		query.setForwardOnly(true);
@@ -104,8 +104,7 @@ void SqliteDataStore::CleanItemsTable() {
 				QLOG_ERROR() << "CleanItemsTable(): error moving to next loc";
 				return;
 			};
-			QByteArray bytes = query.value(0).toByteArray();
-			locs.push_back(bytes);
+			locs.push_back(query.value(0).toString());
 		};
 		query.finish();
 
@@ -115,27 +114,19 @@ void SqliteDataStore::CleanItemsTable() {
 			bool foundLoc = false;
 
 			//check stash tabs
-			doc.Parse(stashTabData.c_str());
-			for (const rapidjson::Value* tab = doc.Begin(); tab != doc.End(); ++tab) {
-				if (tab->HasMember("id") && (*tab)["id"].IsString()) {
-					std::string tabLoc((*tab)["id"].GetString());
-					if (tabLoc.compare(loc) == 0) {
-						foundLoc = true;
-						break;
-					}
+			for (const auto& stashTab : stashTabData) {
+				if (loc == QString::fromStdString(stashTab.get_tab_uniq_id())) {
+					foundLoc = true;
+					break;
 				}
 			}
 
 			//check character tabs
 			if (!foundLoc) {
-				doc.Parse(charsData.c_str());
-				for (const rapidjson::Value* tab = doc.Begin(); tab != doc.End(); ++tab) {
-					if (tab->HasMember("name") && (*tab)["name"].IsString()) {
-						std::string tabLoc((*tab)["name"].GetString());
-						if (tabLoc.compare(loc) == 0) {
-							foundLoc = true;
-							break;
-						}
+				for (const auto& charTab : charsData) {
+					if (loc == QString::fromStdString(charTab.get_character())) {
+						foundLoc = true;
+						break;
 					}
 				}
 			}
@@ -172,26 +163,26 @@ std::string SqliteDataStore::Get(const std::string& key, const std::string& defa
 	return result;
 }
 
-std::string SqliteDataStore::GetTabs(const ItemLocationType& type, const std::string& default_value) {
+Locations SqliteDataStore::GetTabs(const ItemLocationType& type) {
 	QMutexLocker locker(&mutex_);
 	QSqlQuery query(db_);
 	query.prepare("SELECT value FROM tabs WHERE type = ?");
 	query.bindValue(0, (int)type);
 	if (query.exec() == false) {
 		QLOG_ERROR() << "Error getting tabs for type" << (int)type << ":" << query.lastError().text();
-		return default_value;
+		return {};
 	};
 	if (query.next() == false) {
 		if (query.isActive() == false) {
 			QLOG_ERROR() << "Error getting result for" << (int)type << ":" << query.lastError().text();
 		};
-		return default_value;
+		return {};
 	};
-	std::string result = query.value(0).toByteArray().toStdString();
-	return result;
+	const QString json = query.value(0).toString();
+	return DeserializeTabs(json);
 }
 
-std::string SqliteDataStore::GetItems(const ItemLocation& loc, const std::string& default_value) {
+Items SqliteDataStore::GetItems(const ItemLocation& loc) {
 	const QString tab_uid = QString::fromStdString(loc.get_tab_uniq_id());
 	QMutexLocker locker(&mutex_);
 	QSqlQuery query(db_);
@@ -199,16 +190,16 @@ std::string SqliteDataStore::GetItems(const ItemLocation& loc, const std::string
 	query.bindValue(0, tab_uid);
 	if (query.exec() == false) {
 		QLOG_ERROR() << "Error getting items for" << tab_uid << ":" << query.lastError().text();
-		return default_value;
+		return {};
 	};
 	if (query.next() == false) {
 		if (query.isActive() == false) {
 			QLOG_ERROR() << "Error getting result for" << tab_uid << ":" << query.lastError().text();
 		};
-		return default_value;
+		return {};
 	};
-	std::string result = query.value(0).toByteArray().toStdString();
-	return result;
+	const QString json = query.value(0).toString();
+	return DeserializeItems(json, loc);
 }
 
 void SqliteDataStore::Set(const std::string& key, const std::string& value) {
@@ -222,18 +213,18 @@ void SqliteDataStore::Set(const std::string& key, const std::string& value) {
 	};
 }
 
-void SqliteDataStore::SetTabs(const ItemLocationType& type, const std::string& value) {
+void SqliteDataStore::SetTabs(const ItemLocationType& type, const Locations& tabs) {
 	QMutexLocker locker(&mutex_);
 	QSqlQuery query(db_);
 	query.prepare("INSERT OR REPLACE INTO tabs (type, value) VALUES (?, ?)");
 	query.bindValue(0, (int)type);
-	query.bindValue(1, QString::fromStdString(value));
+	query.bindValue(1, Serialize(tabs));
 	if (query.exec() == false) {
 		QLOG_ERROR() << "Error setting tabs for type" << (int)type;
 	};
 }
 
-void SqliteDataStore::SetItems(const ItemLocation& loc, const std::string& value) {
+void SqliteDataStore::SetItems(const ItemLocation& loc, const Items& items) {
 	if (loc.get_tab_uniq_id().empty()) {
 		QLOG_WARN() << "Cannot set items because the location is empty";
 		return;
@@ -242,7 +233,7 @@ void SqliteDataStore::SetItems(const ItemLocation& loc, const std::string& value
 	QSqlQuery query(db_);
 	query.prepare("INSERT OR REPLACE INTO items (loc, value) VALUES (?, ?)");
 	query.bindValue(0, QString::fromStdString(loc.get_tab_uniq_id()));
-	query.bindValue(1, QString::fromStdString(value));
+	query.bindValue(1, Serialize(items));
 	if (query.exec() == false) {
 		QLOG_ERROR() << "Error setting tabs for type" << loc.get_tab_uniq_id();
 	};
@@ -275,22 +266,6 @@ std::vector<CurrencyUpdate> SqliteDataStore::GetAllCurrency() {
 		result.push_back(update);
 	};
 	return result;
-}
-
-void SqliteDataStore::SetBool(const std::string& key, bool value) {
-	SetInt(key, static_cast<int>(value));
-}
-
-bool SqliteDataStore::GetBool(const std::string& key, bool default_value) {
-	return static_cast<bool>(GetInt(key, static_cast<int>(default_value)));
-}
-
-void SqliteDataStore::SetInt(const std::string& key, int value) {
-	Set(key, std::to_string(value));
-}
-
-int SqliteDataStore::GetInt(const std::string& key, int default_value) {
-	return std::stoi(Get(key, std::to_string(default_value)));
 }
 
 SqliteDataStore::~SqliteDataStore() {

@@ -36,17 +36,13 @@ public:
 	SqliteDataStore(const QString& filename_);
 	~SqliteDataStore();
 	void Set(const std::string& key, const std::string& value);
-	void SetTabs(const ItemLocationType& type, const std::string& value);
-	void SetItems(const ItemLocation& loc, const std::string& value);
+	void SetTabs(const ItemLocationType& type, const Locations& value);
+	void SetItems(const ItemLocation& loc, const Items& value);
 	std::string Get(const std::string& key, const std::string& default_value = "");
-	std::string GetTabs(const ItemLocationType& type, const std::string& default_value = "");
-	std::string GetItems(const ItemLocation& loc, const std::string& default_value = "");
+	Locations GetTabs(const ItemLocationType& type);
+	Items GetItems(const ItemLocation& loc);
 	void InsertCurrencyUpdate(const CurrencyUpdate& update);
 	std::vector<CurrencyUpdate> GetAllCurrency();
-	void SetBool(const std::string& key, bool value);
-	bool GetBool(const std::string& key, bool default_value = false);
-	void SetInt(const std::string& key, int value);
-	int GetInt(const std::string& key, int default_value = 0);
 	static QString MakeFilename(const std::string& name, const std::string& league);
 private:
 	void CreateTable(const std::string& name, const std::string& fields);

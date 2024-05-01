@@ -48,6 +48,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/buyoutmanager.cpp
     src/column.cpp
     src/currencymanager.cpp
+    src/datastore.cpp
     src/filesystem.cpp
     src/filters.cpp
     src/flowlayout.cpp

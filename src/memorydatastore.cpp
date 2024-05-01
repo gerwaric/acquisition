@@ -28,17 +28,17 @@ std::string MemoryDataStore::Get(const std::string& key, const std::string& defa
 	return i->second;
 }
 
-std::string MemoryDataStore::GetTabs(const ItemLocationType& type, const std::string& default_value) {
+Locations MemoryDataStore::GetTabs(const ItemLocationType& type) {
 	auto i = tabs_.find(type);
 	if (i == tabs_.end())
-		return default_value;
+		return {};
 	return i->second;
 }
 
-std::string MemoryDataStore::GetItems(const ItemLocation& loc, const std::string& default_value) {
+Items MemoryDataStore::GetItems(const ItemLocation& loc) {
 	auto i = items_.find(loc.get_tab_uniq_id());
 	if (i == items_.end())
-		return default_value;
+		return {};
 	return i->second;
 }
 
@@ -46,12 +46,12 @@ void MemoryDataStore::Set(const std::string& key, const std::string& value) {
 	data_[key] = value;
 }
 
-void MemoryDataStore::SetTabs(const ItemLocationType& type, const std::string& value) {
-	tabs_[type] = value;
+void MemoryDataStore::SetTabs(const ItemLocationType& type, const Locations& tabs) {
+	tabs_[type] = tabs;
 }
 
-void MemoryDataStore::SetItems(const ItemLocation& loc, const std::string& value) {
-	items_[loc.get_tab_uniq_id()] = value;
+void MemoryDataStore::SetItems(const ItemLocation& loc, const Items& items) {
+	items_[loc.get_tab_uniq_id()] = items;
 }
 
 void MemoryDataStore::InsertCurrencyUpdate(const CurrencyUpdate& update) {
@@ -60,20 +60,4 @@ void MemoryDataStore::InsertCurrencyUpdate(const CurrencyUpdate& update) {
 
 std::vector<CurrencyUpdate> MemoryDataStore::GetAllCurrency() {
 	return currency_updates_;
-}
-
-void MemoryDataStore::SetBool(const std::string& key, bool value) {
-	SetInt(key, static_cast<int>(value));
-}
-
-bool MemoryDataStore::GetBool(const std::string& key, bool default_value) {
-	return static_cast<bool>(GetInt(key, static_cast<int>(default_value)));
-}
-
-void MemoryDataStore::SetInt(const std::string& key, int value) {
-	Set(key, std::to_string(value));
-}
-
-int MemoryDataStore::GetInt(const std::string& key, int default_value) {
-	return std::stoi(Get(key, std::to_string(default_value)));
 }
