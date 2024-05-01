@@ -31,11 +31,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(QT NAMES Qt6 REQUIRED COMPONENTS Core)
 find_package(Qt6 REQUIRED COMPONENTS
     Gui
-    Httpserver
+    HttpServer
     Network
     Sql
     Test
-    Websockets
+    WebSockets
     Widgets
 )
 
