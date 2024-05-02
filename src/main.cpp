@@ -49,7 +49,12 @@ const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::InfoLevel;
 #endif
 
 int main(int argc, char* argv[])
-{   
+{
+	// Make sure resources from the static qdarkstyle library are available.
+	Q_INIT_RESOURCE(darkstyle);
+	Q_INIT_RESOURCE(lightstyle);
+
+	// Register metatypes (is this still necessary?)
 	qRegisterMetaType<CurrentStatusUpdate>("CurrentStatusUpdate");
 	qRegisterMetaType<Items>("Items");
 	qRegisterMetaType<std::vector<std::string>>("std::vector<std::string>");
