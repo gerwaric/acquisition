@@ -13,6 +13,6 @@
 #define APP_VERSION_STRING          "@app_version_string@"
 #define APP_PUBLISHER               "@app_publisher@"
 #define APP_PUBLISHER_EMAIL         "@app_publisher_email@"
-#define APP_URL                     "@app_url"
+#define APP_URL                     "@app_url@"
 
 #endif
