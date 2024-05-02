@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.19)
 
 project(acquisition
-    VERSION 0.11.0
+    VERSION 0.10.4
     DESCRIPTION "Stash and forum shop management for Path of Exile"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
 )
 
 # Use this to define pre-releases
-set(version_postfix "-alpha.1")
+set(version_postfix "-alpha.5")
 
 # Variables used to generate version_defines.h and installer.iss
 set(version_code        58)
