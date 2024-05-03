@@ -40,6 +40,7 @@ class Column;
 class Filter;
 class FlowLayout;
 class ImageCache;
+class RateLimitStatusPanel;
 class Search;
 class QStringListModel;
 
@@ -47,6 +48,9 @@ struct Buyout;
 
 namespace Ui {
 	class MainWindow;
+}
+namespace RateLimit {
+	struct StatusInfo;
 }
 
 enum class ProgramState {
@@ -82,6 +86,7 @@ public slots:
 	void OnImageFetched(QNetworkReply* reply);
 	void OnItemsRefreshed();
 	void OnStatusUpdate(const CurrentStatusUpdate& status);
+	void OnRateLimitStatusUpdate(const RateLimit::StatusInfo& update);
 	void OnBuyoutChange();
 	void ResizeTreeColumns();
 	void OnExpandAll();
@@ -164,6 +169,7 @@ private:
 	QTimer delayed_search_form_change_;
 	QStringListModel* category_string_model_;
 	QStringListModel* rarity_search_model_;
+	RateLimitStatusPanel* rate_status_panel_;
 
 	int rightClickedTabIndex = -1;
 };

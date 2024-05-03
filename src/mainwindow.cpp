@@ -55,6 +55,7 @@
 #include "logpanel.h"
 #include "modsfilter.h"
 #include "network_info.h"
+#include "ratelimit.h"
 #include "ratelimitpanel.h"
 #include "replytimeout.h"
 #include "search.h"
@@ -71,7 +72,8 @@ MainWindow::MainWindow(Application& app) :
 	app_(app),
 	ui(new Ui::MainWindow),
 	current_search_(nullptr),
-	search_count_(0)
+	search_count_(0),
+	rate_status_panel_(nullptr)
 {
 #if defined(Q_OS_LINUX)
 	setWindowIcon(QIcon(":/icons/assets/icon.svg"));
@@ -88,8 +90,12 @@ MainWindow::MainWindow(Application& app) :
 	connect(&delayed_search_form_change_, &QTimer::timeout, this, [&]() {OnSearchFormChange(); delayed_search_form_change_.stop(); });
 }
 void MainWindow::InitializeRateLimitPanel() {
-	RateLimitStatusPanel* rate_panel = new RateLimitStatusPanel(this, ui);
-	connect(&app_.items_manager(), &ItemsManager::RateLimitStatusUpdate, rate_panel, &RateLimitStatusPanel::OnStatusUpdate);
+	rate_status_panel_ = new RateLimitStatusPanel(this, ui);
+}
+
+void MainWindow::OnRateLimitStatusUpdate(const RateLimit::StatusInfo& update) {
+	if (rate_status_panel_)
+		rate_status_panel_->OnStatusUpdate(update);
 }
 
 void MainWindow::InitializeLogging() {

@@ -148,6 +148,7 @@ int main(int argc, char* argv[])
 			app.InitLogin(league.toStdString(), account.toStdString());
 			QObject::connect(&app.items_manager(), &ItemsManager::ItemsRefreshed, &mw, &MainWindow::OnItemsRefreshed);
 			QObject::connect(&app.items_manager(), &ItemsManager::StatusUpdate, &mw, &MainWindow::OnStatusUpdate);
+			QObject::connect(&app.items_manager(), &ItemsManager::RateLimitStatusUpdate, &mw, &MainWindow::OnRateLimitStatusUpdate);
 			QObject::connect(&app.shop(), &Shop::StatusUpdate, &mw, &MainWindow::OnStatusUpdate);
 			QObject::connect(&app.update_checker(), &UpdateChecker::UpdateAvailable, &mw, &MainWindow::OnUpdateAvailable);
 
