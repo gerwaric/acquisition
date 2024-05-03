@@ -1,18 +1,28 @@
 #!/bin/bash
 
-QMAKE=${HOME}/Qt/6.5.3/gcc_64/bin/qmake
-DEPLOYQT=${HOME}/bin/linuxdeployqt-continuous-x86_64.AppImage
-BUILD_DIR=../build-acquisition-Desktop_Qt_6_5_3_GCC_64bit-Release
+export QMAKE=${HOME}/Qt/6.5.3/gcc_64/bin/qmake
+
+LINUXDEPLOY=${HOME}/bin/linuxdeploy-x86_64.AppImage
+PROJECT_DIR=${PWD}
+BUILD_DIR=${PWD}/build/Desktop_Qt_6_5_3_GCC_64bit-Release
 
 # Take the version string from version_defines.h
-export VERSION=`grep APP_VERSION_STRING src/version_defines.h | cut -d'"' -f2`
+export LINUXDEPLOY_OUTPUT_VERSION=`grep APP_VERSION_STRING ${BUILD_DIR}/version_defines.h | cut -d'"' -f2`
 
 # Prepare a clean deployment directory
-rm -rf ./deploy
-mkdir ./deploy
+rm -rf deploy
+mkdir -p deploy/usr/bin
 cd deploy
 
-# Copy the executable and build the app image
-cp ${BUILD_DIR}/acquisition .
-${DEPLOYQT} ../acquisition.desktop -qmake=${QMAKE} -appimage -verbose=1
+# Copy the executable
+cp "${BUILD_DIR}/acquisition" usr/bin/
+
+# Build the app image
+${LINUXDEPLOY} --appdir . \
+	--executable usr/bin/acquisition \
+	--desktop-file "${PROJECT_DIR}/acquisition.desktop" \
+	--icon-file "${PROJECT_DIR}/assets/icon.svg" \
+	--icon-filename default \
+	--plugin qt \
+	--output appimage
 
