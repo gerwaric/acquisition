@@ -40,6 +40,7 @@ class Column;
 class Filter;
 class FlowLayout;
 class ImageCache;
+class RateLimitStatusPanel;
 class Search;
 class QStringListModel;
 
@@ -47,6 +48,9 @@ struct Buyout;
 
 namespace Ui {
 	class MainWindow;
+}
+namespace RateLimit {
+	struct StatusInfo;
 }
 
 enum class ProgramState {
@@ -69,9 +73,10 @@ struct CurrentStatusUpdate {
 class MainWindow : public QMainWindow {
 	Q_OBJECT
 public:
-	MainWindow(std::unique_ptr<Application> app);
+	MainWindow(Application& app);
 	~MainWindow();
 	std::vector<Column*> columns;
+	void LoadSettings();
 public slots:
 	void OnCurrentItemChanged(const QModelIndex& current, const QModelIndex& previous);
 	void OnLayoutChanged();
@@ -81,6 +86,7 @@ public slots:
 	void OnImageFetched(QNetworkReply* reply);
 	void OnItemsRefreshed();
 	void OnStatusUpdate(const CurrentStatusUpdate& status);
+	void OnRateLimitStatusUpdate(const RateLimit::StatusInfo& update);
 	void OnBuyoutChange();
 	void ResizeTreeColumns();
 	void OnExpandAll();
@@ -143,7 +149,7 @@ private:
 	void closeEvent(QCloseEvent* event);
 	void CheckSelected(bool value);
 
-	std::unique_ptr<Application> app_;
+	Application& app_;
 	Ui::MainWindow* ui;
 	std::shared_ptr<Item> current_item_;
 	Bucket current_bucket_;
@@ -163,6 +169,7 @@ private:
 	QTimer delayed_search_form_change_;
 	QStringListModel* category_string_model_;
 	QStringListModel* rarity_search_model_;
+	RateLimitStatusPanel* rate_status_panel_;
 
 	int rightClickedTabIndex = -1;
 };

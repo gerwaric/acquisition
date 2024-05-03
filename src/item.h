@@ -112,7 +112,7 @@ public:
 	const ItemSocketGroup& sockets() const { return sockets_; }
 	const std::vector<ItemSocketGroup>& socket_groups() const { return socket_groups_; }
 	const ItemLocation& location() const { return location_; }
-	const std::string& json() { return json_; }
+	const std::string& json() const { return json_; }
 	const std::string& note() const { return note_; }
 	const std::string& category() const { return category_; }
 	const std::vector<std::string>& category_vector() const { return category_vector_; }

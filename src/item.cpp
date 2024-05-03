@@ -490,8 +490,8 @@ std::string Item::POBformat() const {
 
 	auto& mods = text_mods();
 
-	auto implicitMods = mods.at("implicitMods");
-	auto enchantMods = mods.at("enchantMods");
+	auto& implicitMods = mods.at("implicitMods");
+	auto& enchantMods = mods.at("enchantMods");
 	PoBText << "\nImplicits: " << (implicitMods.size() + enchantMods.size());
 	for (const auto& mod : enchantMods) {
 		PoBText << "\n{crafted}" << mod;
@@ -500,8 +500,8 @@ std::string Item::POBformat() const {
 		PoBText << "\n" << mod;
 	}
 
-	auto explicitMods = mods.at("explicitMods");
-	auto craftedMods = mods.at("craftedMods");
+	auto& explicitMods = mods.at("explicitMods");
+	auto& craftedMods = mods.at("craftedMods");
 	if (!explicitMods.empty() || !craftedMods.empty()) {
 		for (const auto& mod : explicitMods) {
 			PoBText << "\n" << mod;

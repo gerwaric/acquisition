@@ -102,8 +102,8 @@ void Application::SaveDbOnNewVersion() {
 	// This way we don't create an useless data_save_version folder on the first time you run acquisition
 
 	bool first_start = data_->Get("tabs", "first_time") == "first_time" &&
-		data_->GetTabs(ItemLocationType::STASH).length() == 0 &&
-		data_->GetTabs(ItemLocationType::CHARACTER).length() == 0;
+		data_->GetTabs(ItemLocationType::STASH).size() == 0 &&
+		data_->GetTabs(ItemLocationType::CHARACTER).size() == 0;
 	if (version != APP_VERSION_STRING && !first_start) {
 		QString data_path = Filesystem::UserDir() + QString("/data");
 		QString save_path = data_path + "_save_" + version.c_str();

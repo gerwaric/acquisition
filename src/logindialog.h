@@ -39,8 +39,10 @@ namespace Ui {
 class LoginDialog : public QDialog {
 	Q_OBJECT
 public:
-	explicit LoginDialog(std::unique_ptr<Application> app);
+	explicit LoginDialog(Application& app);
 	~LoginDialog();
+signals:
+	void LoginComplete(const QString& league, const QString& account);
 public slots:
 	void OnLeaguesRequestFinished();
 	void OnLoginButtonClicked();
@@ -63,9 +65,8 @@ private:
 	void LeaguesApiError(const QString& error, const QByteArray& reply);
 	// Retrieves session cookie for a successful login; proceeds to OnMainPageFinished
 	void FinishLogin(QNetworkReply* reply);
-	std::unique_ptr<Application> app_;
+	Application& app_;
 	Ui::LoginDialog* ui;
-	MainWindow* mw;
 	QString settings_path_;
 	QString saved_league_;
 	QString session_id_;

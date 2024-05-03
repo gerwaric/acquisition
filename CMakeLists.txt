@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.19)
 
 project(acquisition
-    VERSION 0.11.0
+    VERSION 0.10.4
     DESCRIPTION "Stash and forum shop management for Path of Exile"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
 )
 
 # Use this to define pre-releases
-set(version_postfix "-alpha.1")
+set(version_postfix "-alpha.6")
 
 # Variables used to generate version_defines.h and installer.iss
 set(version_code        58)
@@ -28,14 +28,13 @@ set(CMAKE_AUTOUIC_SEARCH_PATHS forms/)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(QT NAMES Qt6 REQUIRED COMPONENTS Core)
-find_package(Qt6 REQUIRED COMPONENTS
+find_package(Qt6 6.5.3 REQUIRED COMPONENTS
     Gui
-    Httpserver
+    HttpServer
     Network
     Sql
     Test
-    Websockets
+    WebSockets
     Widgets
 )
 
@@ -48,6 +47,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/buyoutmanager.cpp
     src/column.cpp
     src/currencymanager.cpp
+    src/datastore.cpp
     src/filesystem.cpp
     src/filters.cpp
     src/flowlayout.cpp
@@ -136,12 +136,28 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     forms/mainwindow.ui
     # Resources
     resources.qrc
-    deps/qdarkstyle/dark/darkstyle.qrc
-    deps/qdarkstyle/light/lightstyle.qrc
 )
 
-# Automatically populate the versions header file.
+# Automatically populate and include the versions header file.
 configure_file(src/version_defines.h.in version_defines.h @ONLY)
+target_sources(acquisition PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/version_defines.h")
+target_include_directories(acquisition PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
+
+# Automatically populate the VERSIONINFO file for windows.
+if(WIN32)
+    set(ver_FILEVERSION        "${PROJECT_VERSION_MAJOR},${PROJECT_VERSION_MINOR},${PROJECT_VERSION_PATCH}")
+    set(ver_FILEVERSION_STR    "${app_version_string}")
+    set(ver_PRODUCTVERSION     "${PROJECT_VERSION_MAJOR},${PROJECT_VERSION_MINOR},${PROJECT_VERSION_PATCH}")
+    set(ver_PRODUCTVERSION_STR "${app_version_string}")
+    set(ver_COMPANYNAME_STR    "")
+    set(ver_PRODUCTNAME_STR    "${PROJECT_NAME}")
+    set(ver_LEGALCOPYRIGHT_STR "Copyright \\251 2014 Ilya Zhuravlev and 2023 Gerwaric")
+    set(ver_FILENAME_STR       "${PROJECT_NAME}.exe")
+    set(ver_NAME_STR           "${PROJECT_NAME}")
+    set(ver_FILEDESC_STR       "${PROJECT_DESCRIPTION}")
+    configure_file(version_info.rc.in version_info.rc @ONLY)
+    target_sources(acquisition PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/version_info.rc")
+endif()
 
 target_include_directories(acquisition PRIVATE
     deps/
@@ -149,7 +165,7 @@ target_include_directories(acquisition PRIVATE
     deps/boost-headers-only/
     src/
     test/
-    "${CMAKE_CURRENT_BINARY_DIR}" # needed for the auto-generated version_defines.h
+    ${CMAKE_CURRENT_BINARY_DIR} # needed so files can include verion_defines.h
 )
 
 target_link_libraries(acquisition PUBLIC
@@ -162,7 +178,19 @@ target_link_libraries(acquisition PUBLIC
     Qt::Test
     Qt::WebSockets
     QsLog
+    qdarkstyle
 )
+
+# On Linux we need to build with OpenSSL 3.x
+if(UNIX)
+    set(OPENSSL_ROOT_DIR ~/openssl-3.1.5)
+    set(OPENSSL_USE_STATIC_LIBS TRUE)
+    find_package(OpenSSL 3.1.5 REQUIRED)
+    target_link_libraries(acquisition PUBLIC
+        OpenSSL::SSL
+        OpenSSL::Crypto
+    )
+endif()
 
 # Add dependency: QsLog
 qt_add_library(QsLog STATIC
@@ -186,17 +214,20 @@ target_link_libraries(QsLog PUBLIC
     Qt::Core
 )
 
-# Visual Studio 2022 needs this to work with boost somehow.
-if(MSVC)
-    target_compile_options(QsLog PRIVATE "/EHsc")
-    target_compile_options(acquisition PRIVATE "/EHsc")
-endif()
+# Add dependency: darkstyle
+add_library(qdarkstyle STATIC
+    deps/qdarkstyle/dark/darkstyle.qrc
+    deps/qdarkstyle/light/lightstyle.qrc
+)
 
-# Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
-# If you are developing for iOS or macOS you should consider setting an
-# explicit, fixed bundle identifier manually though.
-if(${QT_VERSION} VERSION_LESS 6.1.0)
-    set(BUNDLE_ID_OPTION MACOSX_BUNDLE_GUI_IDENTIFIER com.example.acquisition)
+if(MSVC)
+	
+    # Visual Studio 2022 needs this to work with boost.
+    target_compile_options(acquisition PRIVATE "/EHsc")
+
+    # Visual Studio 2022 needs for debugging to work.
+    target_compile_options(acquisition PRIVATE "$<$<CONFIG:DEBUG>:/ZI>")
+
 endif()
 
 set_target_properties(acquisition PROPERTIES

@@ -33,8 +33,11 @@
 
 #include "application.h"
 #include "filesystem.h"
+#include "itemsmanager.h"
 #include "mainwindow.h"
 #include "porting.h"
+#include "shop.h"
+#include "updatechecker.h"
 #include "util.h"
 #include "version_defines.h"
 #include "testmain.h"
@@ -45,13 +48,13 @@ const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::TraceLevel;
 const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::InfoLevel;
 #endif
 
-// Use this helper function to check defines at build time.
-constexpr bool strings_equal(char const* left, char const* right) {
-    return std::string_view(left) == std::string_view(right);
-}
-
 int main(int argc, char* argv[])
-{   
+{
+	// Make sure resources from the static qdarkstyle library are available.
+	Q_INIT_RESOURCE(darkstyle);
+	Q_INIT_RESOURCE(lightstyle);
+
+	// Register metatypes (is this still necessary?)
 	qRegisterMetaType<CurrentStatusUpdate>("CurrentStatusUpdate");
 	qRegisterMetaType<Items>("Items");
 	qRegisterMetaType<std::vector<std::string>>("std::vector<std::string>");
@@ -134,7 +137,31 @@ int main(int argc, char* argv[])
 
 	// Run the main application, starting with the login dialog.
 	QLOG_INFO() << "Running application...";
-	LoginDialog login(std::make_unique<Application>());
+
+	Application app;
+	LoginDialog login(app);
+	MainWindow mw(app);
+
+	QObject::connect(&login, &LoginDialog::LoginComplete, &mw,
+		[&](const QString& league, const QString& account) {
+			
+			app.InitLogin(league.toStdString(), account.toStdString());
+			QObject::connect(&app.items_manager(), &ItemsManager::ItemsRefreshed, &mw, &MainWindow::OnItemsRefreshed);
+			QObject::connect(&app.items_manager(), &ItemsManager::StatusUpdate, &mw, &MainWindow::OnStatusUpdate);
+			QObject::connect(&app.items_manager(), &ItemsManager::RateLimitStatusUpdate, &mw, &MainWindow::OnRateLimitStatusUpdate);
+			QObject::connect(&app.shop(), &Shop::StatusUpdate, &mw, &MainWindow::OnStatusUpdate);
+			QObject::connect(&app.update_checker(), &UpdateChecker::UpdateAvailable, &mw, &MainWindow::OnUpdateAvailable);
+
+			mw.LoadSettings();
+			mw.setWindowTitle(
+				QString("Acquisition [%1] - %2 [%3]")
+				.arg(APP_VERSION_STRING)
+				.arg(league)
+				.arg(account));
+			login.close();
+			mw.show();
+		});
+
 	login.show();
 	return a.exec();
 }

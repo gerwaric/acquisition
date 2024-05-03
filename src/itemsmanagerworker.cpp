@@ -145,79 +145,33 @@ void ItemsManagerWorker::ParseItemMods() {
 
 	//Get cached tabs (item tabs not search tabs)
 	for (ItemLocationType type : {ItemLocationType::STASH, ItemLocationType::CHARACTER}) {
-		std::string tabs = app_.data().GetTabs(type);
-		if (tabs.empty()) {
-			QLOG_DEBUG() << "Cache contains no" << type << "locations";
-			continue;
-		};
-		rapidjson::Document doc;
-		if (doc.Parse(tabs.c_str()).HasParseError()) {
-			QLOG_ERROR() << "Malformed tabs data (" << rapidjson::GetParseError_En(doc.GetParseError()) << "):" << tabs.c_str();
-			continue;
-		};
-		tabs_signature_ = CreateTabsSignatureVector(tabs);
-		for (auto& tab : doc) {
-			//constructor values to fill in
-			size_t index;
-			std::string tabUniqueId, name;
-			int r, g, b;
-
-			switch (type) {
-			case ItemLocationType::STASH:
-				if (tab_id_index_.count(tab["id"].GetString())) {
-					QLOG_ERROR() << "Duplicated tab found while loading data:" << tab["id"].GetString();
-					continue;
-				};
-				if (!tab.HasMember("n") || !tab["n"].IsString()) {
-					QLOG_ERROR() << "Malformed tabs data doesn't contain its name (field 'n'):" << tabs.c_str();
-					continue;
-				};
-				index = tab["i"].GetInt();
-				tabUniqueId = tab["id"].GetString();
-				name = tab["n"].GetString();
-				r = tab["colour"]["r"].GetInt();
-				g = tab["colour"]["g"].GetInt();
-				b = tab["colour"]["b"].GetInt();
-				break;
-			case ItemLocationType::CHARACTER:
-				if (tab_id_index_.count(tab["name"].GetString())) {
-					continue;
-				};
-				if (tab.HasMember("i")) {
-					index = tab["i"].GetInt();
-				} else {
-					index = tabs_.size();
-				};
-				tabUniqueId = tab["name"].GetString();
-				name = tab["name"].GetString();
-				r = 0;
-				g = 0;
-				b = 0;
-				break;
-			};
-			ItemLocation loc(static_cast<int>(index), tabUniqueId, name, type, r, g, b);
-			loc.set_json(tab, doc.GetAllocator());
-			tabs_.push_back(loc);
-			tab_id_index_.insert(loc.get_tab_uniq_id());
+		Locations tabs = app_.data().GetTabs(type);
+		tabs_.reserve(tabs_.size() + tabs.size());
+		for (const auto& tab : tabs) {
+			tabs_.push_back(tab);
 		};
 	};
 
-	items_.clear();
+	// Save location ids.
+	for (const auto& tab : tabs_) {
+		tab_id_index_.insert(tab.get_tab_uniq_id());
+	};
+
+	// Build the signature vector.
+	tabs_signature_.reserve(tabs_.size());
+	for (const auto& tab : tabs_) {
+		const std::string tab_name = tab.get_tab_label();
+		const std::string tab_id = QString::number(tab.get_tab_id()).toStdString();
+		tabs_signature_.push_back({ tab_name, tab_id });
+	};
 
 	// Get cached items
 	for (int i = 0; i < tabs_.size(); i++) {
-		auto tab = tabs_[i];
-		std::string items = app_.data().GetItems(tab);
-		if (items.size() != 0) {
-			rapidjson::Document doc;
-			doc.Parse(items.c_str());
-			for (auto item = doc.Begin(); item != doc.End(); ++item) {
-				// Create a new location and make sure location-related information
-				// such as x and y are pulled from the item json.
-				ItemLocation loc = tab;
-				loc.FromItemJson(*item);
-				items_.push_back(std::make_shared<Item>(*item, loc));
-			};
+		auto& tab = tabs_[i];
+		Items tab_items = app_.data().GetItems(tab);
+		items_.reserve(items_.size() + tab_items.size());
+		for (const auto& tab_item : tab_items) {
+			items_.push_back(tab_item);
 		};
 		CurrentStatusUpdate status;
 		status.state = ProgramState::ItemsRetrieved;
@@ -806,31 +760,29 @@ void ItemsManagerWorker::FinishUpdate() {
 		});
 
 	// Maps location type (CHARACTER or STASH) to a list of all the tabs of that type
-	std::map<ItemLocationType, QStringList> tabsPerType;
-	for (auto const& tab : tabs_) {
-		const ItemLocationType& tab_type = tab.get_type();
-		tabsPerType[tab_type].push_back(QString::fromStdString(tab.get_json()));
+	std::map<ItemLocationType, Locations> tabsPerType;
+	for (auto& tab : tabs_) {
+		tabsPerType[tab.get_type()].push_back(tab);
 	};
 
 	// Map locations to a list of items in that location.
-	std::map<ItemLocation, QStringList> itemsPerLoc;
-	for (auto const& item : items_) {
-		const ItemLocation& item_location = item->location();
-		itemsPerLoc[item_location].push_back(QString::fromStdString(item->json()));
+	std::map<ItemLocation, Items> itemsPerLoc;
+	for (auto& item : items_) {
+		itemsPerLoc[item->location()].push_back(item);
 	};
 
 	// Save tabs by tab type.
-	for (auto const& tab : tabsPerType) {
-		const ItemLocationType& tab_type = tab.first;
-		const QString tab_json = "[" + tab.second.join(",") + "]";
-		app_.data().SetTabs(tab_type, tab_json.toStdString());
+	for (auto const& pair : tabsPerType) {
+		const auto& location_type = pair.first;
+		const auto& tabs = pair.second;
+		app_.data().SetTabs(location_type, tabs);
 	};
 
 	// Save items by location.
-	for (auto const& items : itemsPerLoc) {
-		const ItemLocation& items_location = items.first;
-		const QString items_json = "[" + items.second.join(",") + "]";
-		app_.data().SetItems(items_location, items_json.toStdString());
+	for (auto const& pair : itemsPerLoc) {
+		const auto& location = pair.first;
+		const auto& items = pair.second;
+		app_.data().SetItems(location, items);
 	};
 
 	// Let everyone know the update is done.
