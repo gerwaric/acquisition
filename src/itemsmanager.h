@@ -20,19 +20,14 @@
 #pragma once
 
 #include <QTimer>
-#include <memory>
 
 #include "item.h"
 #include "itemsmanagerworker.h"
-#include "util.h"
 
 struct CurrentStatusUpdate;
-class QThread;
 class Application;
-class BuyoutManager;
-class DataStore;
 class ItemsManagerWorker;
-class Shop;
+
 namespace RateLimit { struct StatusInfo; };
 
 /*
@@ -56,32 +51,27 @@ public:
 	void ApplyAutoTabBuyouts();
 	void ApplyAutoItemBuyouts();
 	void PropagateTabBuyouts();
-	const QSet<QString>& categories() const { return categories_; }
 public slots:
 	// called by auto_update_timer_
 	void OnAutoRefreshTimer();
 	// Used to glue Worker's signals to MainWindow
 	void OnStatusUpdate(const CurrentStatusUpdate& status);
-	void OnRateLimitStatusUpdate(const RateLimit::StatusInfo& update);
 	void OnItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
-	void OnItemClassesUpdate(const QByteArray& classes);
-	void OnItemBaseTypesUpdate(const QByteArray& baseTypes);
 signals:
 	void UpdateSignal(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 	void ItemsRefreshed(bool initial_refresh);
 	void StatusUpdate(const CurrentStatusUpdate& status);
-	void RateLimitStatusUpdate(const RateLimit::StatusInfo& update);
 	void UpdateModListSignal();
 private:
 	void MigrateBuyouts();
 
 	// should items be automatically refreshed
 	bool auto_update_;
+
 	// items will be automatically updated every X minutes
 	int auto_update_interval_;
 	std::unique_ptr<QTimer> auto_update_timer_;
 	std::unique_ptr<ItemsManagerWorker> worker_;
 	Application& app_;
 	Items items_;
-	QSet<QString> categories_;
 };
