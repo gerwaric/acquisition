@@ -60,6 +60,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/itemsmanager.cpp
     src/itemsmanagerworker.cpp
     src/itemtooltip.cpp
+    src/legacyitemsworker.cpp
     src/logindialog.cpp
     src/logpanel.cpp
     src/main.cpp
@@ -104,6 +105,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/itemsmanager.h
     src/itemsmanagerworker.h
     src/itemtooltip.h
+    src/legacyitemsworker.h
     src/logindialog.h
     src/logpanel.h
     src/mainwindow.h

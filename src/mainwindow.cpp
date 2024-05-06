@@ -47,6 +47,7 @@
 #include "flowlayout.h"
 #include "imagecache.h"
 #include "item.h"
+#include "itemcategories.h"
 #include "itemconstants.h"
 #include "itemlocation.h"
 #include "itemtooltip.h"
@@ -809,8 +810,7 @@ void MainWindow::OnItemsRefreshed() {
 		}
 		tab++;
 	}
-	QStringList categories = app_.items_manager().categories().values();
-	categories.sort();
+	QStringList categories = GetItemCategories();
 	category_string_model_->setStringList(categories);
 	// Must re-populate category form after model re-init which clears selection
 	current_search_->ToForm();

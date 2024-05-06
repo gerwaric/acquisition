@@ -23,7 +23,7 @@
 #include <QString>
 #include <sstream>
 #include <boost/algorithm/string.hpp>
-#include <regex>
+//#include <regex>
 #include "rapidjson/document.h"
 
 #include "QsLog.h"
@@ -311,7 +311,7 @@ std::string Item::PrettyName() const {
 }
 
 void Item::CalculateCategories() {
-	category_ = GetCategory(baseType_);
+	category_ = GetItemCategory(baseType_);
 	if (category_.empty() == false) {
 		return;
 	};
@@ -321,7 +321,7 @@ void Item::CalculateCategories() {
 	const auto indx = baseType_.find(" of ");
 	if (indx != std::string::npos) {
 		const auto altBaseType = baseType_.substr(0, indx);
-		category_ = GetCategory(altBaseType);
+		category_ = GetItemCategory(altBaseType);
 		if (category_.empty() == false) {
 			return;
 		};
@@ -334,20 +334,6 @@ void Item::CalculateCategories() {
 	} else {
 		QLOG_INFO() << "Unable to determine item category of" << baseType_ + " (" + name_ + ")";
 	};
-}
-
-std::string Item::GetCategory(const std::string& baseType) {
-	auto rslt = itemBaseType_NameToClass.find(baseType);
-	if (rslt != itemBaseType_NameToClass.end()) {
-		std::string step1 = rslt->second;
-		rslt = itemClassKeyToValue.find(step1);
-		if (rslt != itemClassKeyToValue.end()) {
-			std::string category = rslt->second;
-			boost::to_lower(category);
-			return category;
-		};
-	};
-	return "";
 }
 
 double Item::DPS() const {
@@ -387,9 +373,12 @@ void Item::GenerateMods(const rapidjson::Value& json) {
 		if (!json.HasMember(type) || !json[type].IsArray())
 			continue;
 		for (auto& mod : json[type]) {
+			if (mod.IsString()) {
+				AddModToTable(mod.GetString(), &mod_table_);
+			}
+			/*
 			if (!mod.IsString())
 				continue;
-
 			std::string mod_s = mod.GetString();
 			std::regex rep("([0-9\\.]+)");
 			mod_s = std::regex_replace(mod_s, rep, "#");
@@ -398,6 +387,7 @@ void Item::GenerateMods(const rapidjson::Value& json) {
 				SumModGenerator* gen = rslt->second;
 				gen->Generate(mod, &mod_table_);
 			}
+			*/
 		}
 	}
 }
