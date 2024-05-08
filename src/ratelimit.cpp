@@ -689,8 +689,10 @@ RateLimiter::RateLimiter(Application& app, QObject* parent) :
 void RateLimiter::SendRequest(QNetworkRequest request) {
 	PolicyManager* manager = qobject_cast<PolicyManager*>(sender());
 	if (manager->policy->empty == false) {
-		if (oauth_manager_.access_token() != nullptr) {
-			oauth_manager_.addAuthorization(request);
+		if (oauth_manager_.token()) {
+			const auto& access_token = oauth_manager_.token().value().access_token;
+			const auto bearer_token = "Bearer " + access_token;
+			request.setRawHeader("Authorization", QByteArray::fromStdString(bearer_token));
 		};
 	};
 	QNetworkReply* reply = network_manager_.get(request);
