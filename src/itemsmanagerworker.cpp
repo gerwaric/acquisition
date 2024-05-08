@@ -32,15 +32,17 @@
 
 using RateLimit::RateLimiter;
 
-const char* kPOE_trade_stats = "https://www.pathofexile.com/api/trade/data/stats";
-const char* kRePoE_item_classes = "https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/item_classes.min.json";
-const char* kRePoE_item_base_types = "https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/base_items.min.json";
+namespace {
+	const char* kPOE_trade_stats = "https://www.pathofexile.com/api/trade/data/stats";
+	const char* kRePoE_item_classes = "https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/item_classes.min.json";
+	const char* kRePoE_item_base_types = "https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/base_items.min.json";
 
-// Modifiers from this list of files will be loaded in order from first to last.
-const QStringList REPOE_STAT_TRANSLATIONS = {
-	"https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/stat_translations.min.json",
-	"https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/stat_translations/necropolis.min.json"
-};
+	// Modifiers from this list of files will be loaded in order from first to last.
+	const QStringList REPOE_STAT_TRANSLATIONS = {
+		"https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/stat_translations.min.json",
+		"https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/stat_translations/necropolis.min.json"
+	};
+}
 
 ItemsManagerWorker::ItemsManagerWorker(Application& app) :
 	app_(app),

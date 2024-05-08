@@ -43,14 +43,17 @@
 
 using RateLimit::RateLimiter;
 
-const char* kStashItemsUrl = "https://www.pathofexile.com/character-window/get-stash-items";
-const char* kCharacterItemsUrl = "https://www.pathofexile.com/character-window/get-items";
-const char* kGetCharactersUrl = "https://www.pathofexile.com/character-window/get-characters";
-const char* kMainPage = "https://www.pathofexile.com/";
-//While the page does say "get passive skills", it seems to only send socketed jewels
-const char* kCharacterSocketedJewels = "https://www.pathofexile.com/character-window/get-passive-skills";
+namespace {
+	const char* kStashItemsUrl = "https://www.pathofexile.com/character-window/get-stash-items";
+	const char* kCharacterItemsUrl = "https://www.pathofexile.com/character-window/get-items";
+	const char* kGetCharactersUrl = "https://www.pathofexile.com/character-window/get-characters";
+	const char* kMainPage = "https://www.pathofexile.com/";
+	//While the page does say "get passive skills", it seems to only send socketed jewels
+	const char* kCharacterSocketedJewels = "https://www.pathofexile.com/character-window/get-passive-skills";
+}
 
-LegacyItemsWorker::LegacyItemsWorker(Application& app) : ItemsManagerWorker(app),
+LegacyItemsWorker::LegacyItemsWorker(Application& app) :
+	ItemsManagerWorker(app),
 	total_completed_(-1),
 	total_needed_(-1),
 	requests_completed_(-1),
@@ -88,12 +91,7 @@ void LegacyItemsWorker::OnMainPageReceived(QNetworkReply* reply) {
 		selected_character_ = Util::FindTextBetween(page, "C({\"name\":\"", "\",\"class");
 		selected_character_ = Util::ConvertAsciiToUtf(selected_character_);
 		if (selected_character_.empty()) {
-			// If the user is using POESESSID, then we should expect to find the character name.
-			// If the uses is using OAuth, then we might not find the character name if they user
-			// is not logged into pathofexile.com using the browser they authenticated with.
-			if (app_.oauth_manager().access_token().isEmpty() == true) {
-				QLOG_WARN() << "Couldn't extract currently selected character name from GGG homepage (maintenence?) Text was: " << page.c_str();
-			};
+			QLOG_WARN() << "Couldn't extract currently selected character name from GGG homepage (maintenence?) Text was: " << page.c_str();
 		};
 	};
 
