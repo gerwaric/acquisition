@@ -28,6 +28,7 @@ struct CurrentStatusUpdate;
 class Application;
 class ItemsManagerWorker;
 
+enum class POE_API;
 namespace RateLimit { struct StatusInfo; };
 
 /*
@@ -38,7 +39,7 @@ namespace RateLimit { struct StatusInfo; };
 class ItemsManager : public QObject {
 	Q_OBJECT
 public:
-	explicit ItemsManager(Application& app);
+	explicit ItemsManager(Application& app, POE_API api_mode);
 	~ItemsManager();
 	// Creates and starts the worker
 	void Start();
@@ -74,4 +75,5 @@ private:
 	std::unique_ptr<ItemsManagerWorker> worker_;
 	Application& app_;
 	Items items_;
+	POE_API api_;
 };

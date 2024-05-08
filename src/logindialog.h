@@ -30,11 +30,11 @@ class QString;
 
 class Application;
 class MainWindow;
-struct AccessToken;
+struct OAuthToken;
 
-namespace Ui {
-	class LoginDialog;
-}
+enum class POE_API;
+
+namespace Ui { class LoginDialog; }
 
 class LoginDialog : public QDialog {
 	Q_OBJECT
@@ -42,7 +42,7 @@ public:
 	explicit LoginDialog(Application& app);
 	~LoginDialog();
 signals:
-	void LoginComplete(const QString& league, const QString& account);
+	void LoginComplete(const QString& league, const QString& account, POE_API api_mode);
 public slots:
 	void OnLeaguesRequestFinished();
 	void OnLoginButtonClicked();
@@ -50,7 +50,7 @@ public slots:
 	void LoggedInCheck(); // checks login is successful
 	void OnMainPageFinished();
 	void OnProxyCheckBoxClicked(bool);
-	void OnOAuthAccessGranted(const AccessToken& token);
+	void OnOAuthAccessGranted(const OAuthToken& token);
 	void errorOccurred();
 	void sslErrorOccurred();
 protected:

@@ -31,6 +31,7 @@
 #include "item.h"
 #include "itemsmanagerworker.h"
 #include "legacyitemsworker.h"
+#include "oauthitemsworker.h"
 #include "porting.h"
 #include "shop.h"
 #include "util.h"
@@ -40,9 +41,10 @@
 #include "itemcategories.h"
 #include "ratelimit.h"
 
-ItemsManager::ItemsManager(Application& app) :
+ItemsManager::ItemsManager(Application& app, POE_API api_mode) :
 	auto_update_timer_(std::make_unique<QTimer>()),
-	app_(app)
+	app_(app),
+	api_(api_mode)
 {
 	auto_update_interval_ = std::stoi(app_.data().Get("autoupdate_interval", "60"));
 	auto_update_ = app_.data().GetBool("autoupdate", false);
@@ -54,7 +56,14 @@ ItemsManager::~ItemsManager()
 {}
 
 void ItemsManager::Start() {
-	worker_ = std::make_unique<LegacyItemsWorker>(app_);
+	switch (api_) {
+	case POE_API::LEGACY:
+		worker_ = std::make_unique<LegacyItemsWorker>(app_);
+		break;
+	case POE_API::OAUTH:
+		worker_ = std::make_unique<OAuthItemsWorker>(app_);
+		break;
+	}
 	connect(this, &ItemsManager::UpdateSignal, worker_.get(), &ItemsManagerWorker::Update);
 	connect(worker_.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
 	connect(worker_.get(), &ItemsManagerWorker::ItemsRefreshed, this, &ItemsManager::OnItemsRefreshed);

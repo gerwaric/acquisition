@@ -64,7 +64,8 @@ Application::~Application() {
 
 void Application::InitLogin(
 	const std::string& league,
-	const std::string& email)
+	const std::string& email,
+	POE_API api_mode)
 {
 	league_ = league;
 	email_ = email;
@@ -80,7 +81,7 @@ void Application::InitLogin(
 
 	buyout_manager_ = std::make_unique<BuyoutManager>(*data_);
 	shop_ = std::make_unique<Shop>(*this);
-	items_manager_ = std::make_unique<ItemsManager>(*this);
+	items_manager_ = std::make_unique<ItemsManager>(*this, api_mode);
 	currency_manager_ = std::make_unique<CurrencyManager>(*this);
 	connect(items_manager_.get(), &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
 	if (test_mode_ == false) {

@@ -144,9 +144,9 @@ int main(int argc, char* argv[])
 	MainWindow mw(app);
 
 	QObject::connect(&login, &LoginDialog::LoginComplete, &mw,
-		[&](const QString& league, const QString& account) {
+		[&](const QString& league, const QString& account, POE_API api_mode) {
 			
-			app.InitLogin(league.toStdString(), account.toStdString());
+			app.InitLogin(league.toStdString(), account.toStdString(), api_mode);
 			QObject::connect(&app.items_manager(), &ItemsManager::ItemsRefreshed, &mw, &MainWindow::OnItemsRefreshed);
 			QObject::connect(&app.items_manager(), &ItemsManager::StatusUpdate, &mw, &MainWindow::OnStatusUpdate);
 			QObject::connect(&app.shop(), &Shop::StatusUpdate, &mw, &MainWindow::OnStatusUpdate);

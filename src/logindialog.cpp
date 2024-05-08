@@ -99,21 +99,21 @@ LoginDialog::LoginDialog(Application& app) :
 	LoadSettings();
 	LoadTheme();
 
-    bool has_ssl = QSslSocket::supportsSsl();
-    QLOG_DEBUG() << "Supports SSL: " << has_ssl;
-    if (has_ssl == false) {
+	bool has_ssl = QSslSocket::supportsSsl();
+	QLOG_DEBUG() << "Supports SSL: " << has_ssl;
+	if (has_ssl == false) {
 #ifdef Q_OS_LINUX
-        const QString msg = "OpenSSL 3.x was not found; check LD_LIBRARY_PATH if you have a custom installation.";
+		const QString msg = "OpenSSL 3.x was not found; check LD_LIBRARY_PATH if you have a custom installation.";
 #else
-        const QString msg = "SSL is not supported on" + QSysInfo::prettyProductName() + ". This is unexpected.";
+		const QString msg = "SSL is not supported on" + QSysInfo::prettyProductName() + ". This is unexpected.";
 #endif
-        DisplayError(msg, true);
-        QLOG_FATAL() << msg;
-        ui->loginButton->setEnabled(false);
-        return;
-    };
-    QLOG_DEBUG() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
-    QLOG_DEBUG() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
+		DisplayError(msg, true);
+		QLOG_FATAL() << msg;
+		ui->loginButton->setEnabled(false);
+		return;
+	};
+	QLOG_DEBUG() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
+	QLOG_DEBUG() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
 
 	connect(ui->proxyCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnProxyCheckBoxClicked);
 	connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
@@ -133,6 +133,9 @@ LoginDialog::LoginDialog(Application& app) :
 	connect(leagues_reply, &QNetworkReply::errorOccurred, this, &LoginDialog::errorOccurred);
 	connect(leagues_reply, &QNetworkReply::sslErrors, this, &LoginDialog::sslErrorOccurred);
 	connect(leagues_reply, &QNetworkReply::finished, this, &LoginDialog::OnLeaguesRequestFinished);
+
+	connect(&app_.oauth_manager(), &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
+
 }
 
 void LoginDialog::LoadTheme() {
@@ -276,17 +279,13 @@ void LoginDialog::LoggedInCheck() {
 }
 
 void LoginDialog::LoginWithOAuth() {
-	DisplayError("OAuth is not fully implemented yet.", true);
-	return;
-	//connect(&app_->oauth_manager(), &OAuthManager::accessGranted,
-	//	this, &LoginDialog::OnOAuthAccessGranted);
-	//app_->oauth_manager().requestAccess();
+	app_.oauth_manager().requestAccess();
 }
 
-void LoginDialog::OnOAuthAccessGranted(const AccessToken& token) {
-	const QString account = token.username;
+void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
+	const QString account = QString::fromStdString(token.username);
 	const QString league = ui->leagueComboBox->currentText();
-	emit LoginComplete(league, account);
+	emit LoginComplete(league, account, POE_API::OAUTH);
 }
 
 void LoginDialog::LoginWithCookie(const QString& cookie) {
@@ -316,7 +315,7 @@ void LoginDialog::OnMainPageFinished() {
 
 	const QString league = ui->leagueComboBox->currentText();
 
-	emit LoginComplete(league, account);
+	emit LoginComplete(league, account, POE_API::LEGACY);
 }
 
 void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
