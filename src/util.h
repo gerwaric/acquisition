@@ -91,6 +91,11 @@ namespace Util {
 
 	std::string RapidjsonSerialize(const rapidjson::Value& val);
 	void RapidjsonAddConstString(rapidjson::Value* object, const char* const name, const std::string& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
+	void RapidjsonAddInt64(rapidjson::Value* object, const char* const name, long long int value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
+	void RapidjsonGetString(rapidjson::Value* object, const char* const name, std::string& output);
+	void RapidjsonGetString(rapidjson::Value* object, const char* const name, std::optional<std::string>& output);
+	void RapidjsonGetInt64(rapidjson::Value* object, const char* const name, long long int& output);
+	void RapidjsonGetInt64(rapidjson::Value* object, const char* const name, std::optional<long long int>& output);
 
 	std::string StringReplace(const std::string& haystack, const std::string& needle, const std::string& replace);
 	std::string StringJoin(const std::vector<std::string>& array, const std::string& separator);
@@ -111,6 +116,7 @@ namespace Util {
 
 	std::string Decode(const std::string& entity);
 
+	QUrlQuery EncodeQueryItems(const std::list<std::pair<std::string, std::string>>& items);
 	QUrlQuery EncodeQueryItems(const std::list<std::pair<QString, QString>>& items);
 
 	void unique_elements(std::vector<std::string>& vec);
