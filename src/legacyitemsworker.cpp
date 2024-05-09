@@ -74,8 +74,8 @@ void LegacyItemsWorker::DoUpdate() {
 	selected_character_ = "";
 
 	// first, download the main page because it's the only way to know which character is selected
-	QNetworkRequest main_page_request = QNetworkRequest(QUrl(kMainPage));
-	rate_limiter_.Submit(main_page_request,
+	QNetworkRequest request = QNetworkRequest(QUrl(kMainPage));
+	rate_limiter_.Submit(kMainPage, request,
 		[=](QNetworkReply* reply) {
 			OnMainPageReceived(reply);
 		});
@@ -96,8 +96,8 @@ void LegacyItemsWorker::OnMainPageReceived(QNetworkReply* reply) {
 	};
 
 	// now get character list
-	QNetworkRequest characters_request = QNetworkRequest(QUrl(kGetCharactersUrl));
-	rate_limiter_.Submit(characters_request,
+	QNetworkRequest request = QNetworkRequest(QUrl(kGetCharactersUrl));
+	rate_limiter_.Submit(kGetCharactersUrl, request,
 		[=](QNetworkReply* reply) {
 			OnCharacterListReceived(reply);
 		});
@@ -156,10 +156,10 @@ void LegacyItemsWorker::OnCharacterListReceived(QNetworkReply* reply) {
 		++requested_character_count;
 
 		//Queue request for items on character in character's stash
-		QueueRequest(MakeCharacterRequest(name), location);
+		QueueRequest(kCharacterItemsUrl, MakeCharacterRequest(name), location);
 
 		//Queue request for jewels in character's passive tree
-		QueueRequest(MakeCharacterPassivesRequest(name), location);
+		QueueRequest(kCharacterSocketedJewels, MakeCharacterPassivesRequest(name), location);
 	}
 	QLOG_DEBUG() << "There are" << requested_character_count << "characters to update in" << app_.league().c_str();
 
@@ -168,8 +168,8 @@ void LegacyItemsWorker::OnCharacterListReceived(QNetworkReply* reply) {
 	status.total = total_character_count;
 	emit StatusUpdate(status);
 
-	QNetworkRequest tab_request = MakeTabRequest(first_fetch_tab_id_, true);
-	rate_limiter_.Submit(tab_request,
+	QNetworkRequest request = MakeTabRequest(first_fetch_tab_id_, true);
+	rate_limiter_.Submit(kStashItemsUrl, request,
 		[=](QNetworkReply* reply) {
 			OnFirstTabReceived(reply);
 		});
@@ -207,9 +207,10 @@ QNetworkRequest LegacyItemsWorker::MakeCharacterPassivesRequest(const std::strin
 	return QNetworkRequest(url);
 }
 
-void LegacyItemsWorker::QueueRequest(const QNetworkRequest& request, const ItemLocation& location) {
+void LegacyItemsWorker::QueueRequest(const QString& endpoint, const QNetworkRequest& request, const ItemLocation& location) {
 	QLOG_DEBUG() << "Queued (" << queue_id_ + 1 << ") -- " << location.GetHeader().c_str();
 	ItemsRequest items_request;
+	items_request.endpoint = endpoint;
 	items_request.network_request = request;
 	items_request.id = queue_id_++;
 	items_request.location = location;
@@ -227,7 +228,7 @@ void LegacyItemsWorker::FetchItems() {
 		// Pass the request to the rate limiter.
 		QNetworkRequest fetch_request = request.network_request;
 		ItemLocation location = request.location;
-		rate_limiter_.Submit(fetch_request,
+		rate_limiter_.Submit(request.endpoint, fetch_request,
 			[=](QNetworkReply* reply) {
 				OnTabReceived(reply, location);
 			});
@@ -279,7 +280,7 @@ void LegacyItemsWorker::OnFirstTabReceived(QNetworkReply* reply) {
 	for (auto const& tab : tabs_) {
 		if (!old_tab_headers.count(tab.GetHeader())) {
 			QLOG_DEBUG() << "Forcing refresh of moved or renamed tab: " << tab.GetHeader().c_str();
-			QueueRequest(MakeTabRequest(tab.get_tab_id(), true), tab);
+			QueueRequest(kStashItemsUrl, MakeTabRequest(tab.get_tab_id(), true), tab);
 		};
 	};
 
@@ -310,7 +311,7 @@ void LegacyItemsWorker::OnFirstTabReceived(QNetworkReply* reply) {
 		tab_id_index_.insert(tab_id);
 
 		// Submit a request for this tab.
-		QueueRequest(MakeTabRequest(location.get_tab_id(), true), location);
+		QueueRequest(kStashItemsUrl, MakeTabRequest(location.get_tab_id(), true), location);
 	};
 
 	total_needed_ = queue_.size();
@@ -359,7 +360,8 @@ void LegacyItemsWorker::OnTabReceived(QNetworkReply* network_reply, ItemLocation
 
 	// re-queue a failed request
 	if (error) {
-		QueueRequest(network_reply->request(), location);
+		QLOG_ERROR() << "tab request error";
+		//QueueRequest(network_reply->request(), location);
 	};
 
 	++requests_completed_;
@@ -447,8 +449,8 @@ void LegacyItemsWorker::PreserveSelectedCharacter() {
 	QLOG_DEBUG() << "Preserving selected character:" << QString::fromUtf8(selected_character_);
 	// The act of making this request sets the active character.
 	// We don't need to to anything with the reply.
-	QNetworkRequest character_request = MakeCharacterRequest(selected_character_);
-	rate_limiter_.Submit(character_request, [](QNetworkReply*) {});
+	QNetworkRequest request = MakeCharacterRequest(selected_character_);
+	rate_limiter_.Submit(kCharacterItemsUrl, request, [](QNetworkReply*) {});
 }
 
 std::vector<std::pair<std::string, std::string> > LegacyItemsWorker::CreateTabsSignatureVector(std::string tabs) {
