@@ -28,6 +28,7 @@
 #include "datastore.h"
 #include "mainwindow.h"
 #include "modlist.h"
+#include "network_info.h"
 #include "ratelimit.h"
 
 using RateLimit::RateLimiter;
@@ -38,7 +39,7 @@ namespace {
 	const char* kRePoE_item_base_types = "https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/base_items.min.json";
 
 	// Modifiers from this list of files will be loaded in order from first to last.
-	const QStringList REPOE_STAT_TRANSLATIONS = {
+	const char* REPOE_STAT_TRANSLATIONS[] = {
 		"https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/stat_translations.min.json",
 		"https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/stat_translations/necropolis.min.json"
 	};
@@ -53,7 +54,11 @@ ItemsManagerWorker::ItemsManagerWorker(Application& app) :
 	updateRequest_(false),
 	type_(TabSelection::Type::Checked),
 	first_fetch_tab_id_(-1)
-{}
+{
+	for (const auto& url : REPOE_STAT_TRANSLATIONS) {
+		stat_translation_queue_.push(url);
+	};
+}
 
 ItemsManagerWorker::~ItemsManagerWorker()
 {}
@@ -73,14 +78,14 @@ void ItemsManagerWorker::Init() {
 
 	updating_ = true;
 
-	QNetworkRequest PoE_item_classes_request = QNetworkRequest(QUrl(QString(kRePoE_item_classes)));
-	rate_limiter_.Submit(PoE_item_classes_request,
-		[=](QNetworkReply* reply) {
-			OnItemClassesReceived(reply);
-		});
+	QNetworkRequest request = QNetworkRequest(QUrl(QString(kRePoE_item_classes)));
+	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+	QNetworkReply* reply = app_.network_manager().get(request);
+	connect(reply, &QNetworkReply::finished, this, &ItemsManagerWorker::OnItemClassesReceived);
 }
 
-void ItemsManagerWorker::OnItemClassesReceived(QNetworkReply* reply) {
+void ItemsManagerWorker::OnItemClassesReceived() {
+	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
 	if (reply->error()) {
 		QLOG_ERROR() << "Couldn't fetch RePoE Item Classes:" << reply->url().toDisplayString()
 			<< "due to error:" << reply->errorString() << "The type dropdown will remain empty.";
@@ -89,14 +94,13 @@ void ItemsManagerWorker::OnItemClassesReceived(QNetworkReply* reply) {
 		const QByteArray bytes = reply->readAll();
 		emit ItemClassesUpdate(bytes);
 	};
-	QNetworkRequest PoE_item_base_types_request = QNetworkRequest(QUrl(QString(kRePoE_item_base_types)));
-	rate_limiter_.Submit(PoE_item_base_types_request,
-		[=](QNetworkReply* reply) {
-			OnItemBaseTypesReceived(reply);
-		});
+	QNetworkRequest request = QNetworkRequest(QUrl(QString(kRePoE_item_base_types)));
+	QNetworkReply* next_reply = app_.network_manager().get(request);
+	connect(next_reply, &QNetworkReply::finished, this, &ItemsManagerWorker::OnItemBaseTypesReceived);
 }
 
-void ItemsManagerWorker::OnItemBaseTypesReceived(QNetworkReply* reply) {
+void ItemsManagerWorker::OnItemBaseTypesReceived() {
+	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
 	if (reply->error()) {
 		QLOG_ERROR() << "Couldn't fetch RePoE Item Base Types:" << reply->url().toDisplayString()
 			<< "due to error:" << reply->errorString() << "The type dropdown will remain empty.";
@@ -106,18 +110,21 @@ void ItemsManagerWorker::OnItemBaseTypesReceived(QNetworkReply* reply) {
 		emit ItemBaseTypesUpdate(bytes);
 	};
 	InitStatTranslations();
-	QStringList StatTranslationUrls = QStringList(REPOE_STAT_TRANSLATIONS);
-	UpdateModList(StatTranslationUrls);
+	UpdateModList();
 }
 
-void ItemsManagerWorker::UpdateModList(QStringList StatTranslationUrls) {
-	if (StatTranslationUrls.isEmpty() == false) {
-		QUrl url = QUrl(StatTranslationUrls.takeFirst());
-		QNetworkRequest PoE_stat_translations_request = QNetworkRequest(url);
-		rate_limiter_.Submit(PoE_stat_translations_request,
-			[=](QNetworkReply* reply) {
-				OnStatTranslationsReceived(reply);
-				UpdateModList(StatTranslationUrls);
+void ItemsManagerWorker::UpdateModList() {
+	if (stat_translation_queue_.empty() == false) {
+		const std::string next_url = stat_translation_queue_.front();
+		stat_translation_queue_.pop();
+		QUrl url = QUrl(QString::fromStdString(next_url));
+		QNetworkRequest request = QNetworkRequest(url);
+		request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+		QNetworkReply* reply = app_.network_manager().get(request);
+		connect(reply, &QNetworkReply::finished, this,
+			[&]() {
+				OnStatTranslationsReceived();
+				UpdateModList();
 			});
 	} else {
 		// Create a separate thread to load the items, which allows the UI to
@@ -133,7 +140,8 @@ void ItemsManagerWorker::UpdateModList(QStringList StatTranslationUrls) {
 	};
 }
 
-void ItemsManagerWorker::OnStatTranslationsReceived(QNetworkReply* reply) {
+void ItemsManagerWorker::OnStatTranslationsReceived() {
+	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
 	QLOG_TRACE() << "Stat translations received:" << reply->request().url().toString();
 	if (reply->error()) {
 		QLOG_ERROR() << "Couldn't fetch RePoE Stat Translations: " << reply->url().toDisplayString()

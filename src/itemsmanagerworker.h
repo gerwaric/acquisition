@@ -23,6 +23,7 @@
 #include <QNetworkRequest>
 #include <QObject>
 
+#include <queue>
 #include <set>
 #include <string>
 #include <vector>
@@ -38,6 +39,7 @@ namespace RateLimit { class RateLimiter; };
 
 struct ItemsRequest {
 	int id{ -1 };
+	QString endpoint;
 	QNetworkRequest network_request;
 	ItemLocation location;
 };
@@ -59,9 +61,9 @@ public slots:
 	void Update(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 	virtual void DoUpdate() = 0;
 	void Init();
-	void OnStatTranslationsReceived(QNetworkReply* reply);
-	void OnItemClassesReceived(QNetworkReply* reply);
-	void OnItemBaseTypesReceived(QNetworkReply* reply);
+	void OnStatTranslationsReceived();
+	void OnItemClassesReceived();
+	void OnItemBaseTypesReceived();
 signals:
 	void ItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
 	void StatusUpdate(const CurrentStatusUpdate& status);
@@ -73,7 +75,7 @@ private:
 	void RemoveUpdatingItems(const std::set<std::string>& tab_ids);
 	void ParseItems(rapidjson::Value* value_ptr, ItemLocation base_location, rapidjson_allocator& alloc);
 	std::vector<std::pair<std::string, std::string> > CreateTabsSignatureVector(std::string tabs);
-	void UpdateModList(QStringList StatTranslationUrls);
+	void UpdateModList();
 protected:
 	void FinishUpdate();
 
@@ -102,5 +104,6 @@ private:
 	bool updateRequest_;
 	TabSelection::Type type_;
 	std::vector<ItemLocation> locations_;
+	std::queue<std::string> stat_translation_queue_;
 
 };
