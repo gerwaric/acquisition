@@ -21,52 +21,94 @@
 
 #include <QDesktopServices>
 #include <QMessageBox>
-#include <QNetworkReply>
+#include <QNetworkAccessManager>
 #include <QNetworkRequest>
+#include <QRegularExpression>
 #include <QUrl>
 #include <QWidget>
+
+#include "QsLog.h"
 
 #include "network_info.h"
 #include "version_defines.h"
 
-// Check for updates every 24 hours
-const int kUpdateCheckInterval = 24 * 60 * 60 * 1000;
+namespace {
+	const char* CMAKELISTS = "https://raw.githubusercontent.com/gerwaric/acquisition/master/CMakeLists.txt";
+	const char* UPDATE_DOWNLOAD_LOCATION = "https://github.com/gerwaric/acquisition/releases";
+}
 
-const char* UPDATE_CHECK_URL = "https://raw.githubusercontent.com/gerwaric/acquisition/master/version.txt";
-const char* UPDATE_DOWNLOAD_LOCATION = "https://github.com/gerwaric/acquisition/releases";
+// Check for updates every 24 hours.
+const int UpdateChecker::update_interval = 24 * 60 * 60 * 1000;
+
+// Use APP_VERSION to hard-code the running version of acquisition.
+const QVersionNumber UpdateChecker::current_version = QVersionNumber::fromString(APP_VERSION);
+
+// Use a regular expression to capture the most recent gitub release version.
+const QRegularExpression UpdateChecker::version_regex = QRegularExpression(
+	R"REGEX(^ \s* project \s* \( .*? version \s+ (\S+))REGEX",
+	QRegularExpression::CaseInsensitiveOption |
+	QRegularExpression::MultilineOption |
+	QRegularExpression::DotMatchesEverythingOption |
+	QRegularExpression::ExtendedPatternSyntaxOption);
 
 UpdateChecker::UpdateChecker(QNetworkAccessManager& network_manager, QObject* parent) :
 	QObject(parent),
-	nm_(network_manager)
+	nm_(network_manager),
+	last_checked_(current_version)
 {
-	timer_.setInterval(kUpdateCheckInterval);
+	timer_.setInterval(update_interval);
 	timer_.start();
 	connect(&timer_, &QTimer::timeout, this, &UpdateChecker::CheckForUpdates);
-	CheckForUpdates();
 }
 
 void UpdateChecker::CheckForUpdates() {
-	QNetworkRequest request = QNetworkRequest(QUrl(UPDATE_CHECK_URL));
+	QNetworkRequest request = QNetworkRequest(QUrl(CMAKELISTS));
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply* version_check = nm_.get(request);
-	connect(version_check, &QNetworkReply::finished, this, &UpdateChecker::OnUpdateCheckCompleted);
+	QNetworkReply* reply = nm_.get(request);
+	connect(reply, &QNetworkReply::errorOccurred, this, &UpdateChecker::OnUpdateErrorOccurred);
+	connect(reply, &QNetworkReply::sslErrors, this, &UpdateChecker::OnUpdateSslErrors);
+	connect(reply, &QNetworkReply::finished, this, &UpdateChecker::OnUpdateReplyReceived);
 }
 
-void UpdateChecker::OnUpdateCheckCompleted() {
+void UpdateChecker::OnUpdateErrorOccurred(QNetworkReply::NetworkError code) {
 	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
-	QByteArray bytes = reply->readAll();
-	int available_version = QString(bytes).toInt();
-	if (available_version > VERSION_CODE) {
-		emit UpdateAvailable();
-	}
+	QLOG_ERROR() << "Network error" << code << "occurred while checking for an update : " << reply->errorString();
 }
 
-void UpdateChecker::AskUserToUpdate(QWidget* parent) {
-	QMessageBox::StandardButton result = QMessageBox::information(parent, "Update",
-		"A newer version of Acquisition is available. "
+void UpdateChecker::OnUpdateSslErrors(const QList<QSslError>& errors) {
+	const int n = errors.size();
+	QLOG_ERROR() << n << "SSL error(s) checking for an update:";
+	for (int i = 0; i < n; ++i) {
+		QLOG_ERROR() << "SSL error #" << i << "is" << errors[i].errorString();
+	};
+}
+
+void UpdateChecker::OnUpdateReplyReceived() {
+	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
+	if (reply->error() != QNetworkReply::NoError) {
+		QLOG_ERROR() << "The network reply came with an error:" << reply->errorString();
+		return;
+	};
+	const QByteArray bytes = reply->readAll();
+	const QRegularExpressionMatch match = version_regex.match(bytes);
+	if (!match.hasMatch() || !match.hasCaptured(1)) {
+		QLOG_ERROR() << "Unable to parse a version number from CMakeLists.txt";
+		return;
+	};
+	const QVersionNumber github_version = QVersionNumber::fromString(match.captured(1));
+	if (github_version > last_checked_) {
+		emit UpdateAvailable(github_version);
+	};
+	last_checked_ = github_version;
+}
+
+void UpdateChecker::AskUserToUpdate() {
+	QMessageBox::StandardButton result = QMessageBox::information(nullptr, "Update",
+	    "Acquisition version " + last_checked_.toString() + " is available. "
 		"Would you like to navigate to GitHub to download it?",
 		QMessageBox::Yes | QMessageBox::No,
 		QMessageBox::Yes);
-	if (result == QMessageBox::Yes)
+	if (result == QMessageBox::Yes) {
 		QDesktopServices::openUrl(QUrl(UPDATE_DOWNLOAD_LOCATION));
+	};
 }

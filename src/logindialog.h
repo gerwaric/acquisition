@@ -71,5 +71,4 @@ private:
 	QString saved_league_;
 	QString session_id_;
 	std::vector<std::string> leagues_;
-	bool asked_to_update_;
 };

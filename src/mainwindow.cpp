@@ -35,6 +35,7 @@
 #include <QString>
 #include <QStringList>
 #include <QTabBar>
+#include <QVersionNumber>
 #include <QStringListModel>
 #include "QsLog.h"
 
@@ -200,9 +201,8 @@ void MainWindow::InitializeUi() {
 	update_button_.setFlat(true);
 	update_button_.hide();
 	statusBar()->addPermanentWidget(&update_button_);
-	connect(&update_button_, &QPushButton::clicked, this, [=]() {
-		UpdateChecker::AskUserToUpdate(this);
-		});
+	connect(&update_button_, &QPushButton::clicked, &app_.update_checker(), &UpdateChecker::AskUserToUpdate);
+
 	// resize columns when a tab is expanded/collapsed
 	connect(ui->treeView, &QTreeView::collapsed, this, &MainWindow::ResizeTreeColumns);
 	connect(ui->treeView, &QTreeView::expanded, this, &MainWindow::ResizeTreeColumns);
@@ -847,8 +847,8 @@ void MainWindow::UpdateShopMenu() {
 	ui->actionSetAutomaticallyShopUpdate->setChecked(app_.shop().auto_update());
 }
 
-void MainWindow::OnUpdateAvailable() {
-	update_button_.setText("An update package is available now");
+void MainWindow::OnUpdateAvailable(const QVersionNumber& version) {
+	update_button_.setText("Version " + version.toString() + " is available.");
 	update_button_.show();
 }
 

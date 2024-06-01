@@ -82,8 +82,7 @@ const char* SESSIONID_TAB = "sessionIdTab";
 
 LoginDialog::LoginDialog(Application& app) :
 	app_(app),
-	ui(new Ui::LoginDialog),
-	asked_to_update_(false)
+	ui(new Ui::LoginDialog)
 {
 	ui->setupUi(this);
 	ui->errorLabel->hide();
@@ -117,13 +116,6 @@ LoginDialog::LoginDialog(Application& app) :
 
 	connect(ui->proxyCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnProxyCheckBoxClicked);
 	connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
-	connect(&app_.update_checker(), &UpdateChecker::UpdateAvailable, this, [&]() {
-		// Only annoy the user once at the login dialog window, even if it's opened for more than an hour
-		if (asked_to_update_)
-			return;
-		asked_to_update_ = true;
-		UpdateChecker::AskUserToUpdate(this);
-		});
 
 	QNetworkRequest leagues_request = QNetworkRequest(QUrl(QString(POE_LEAGUE_LIST_URL)));
 	leagues_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);

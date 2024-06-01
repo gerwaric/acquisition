@@ -142,16 +142,26 @@ int main(int argc, char* argv[])
 	LoginDialog login(app);
 	MainWindow mw(app);
 
+	// Connect to the update signal in case an update is detected before the main window is open.
+	QObject::connect(&app.update_checker(), &UpdateChecker::UpdateAvailable, &app.update_checker(), &UpdateChecker::AskUserToUpdate);
+
 	QObject::connect(&login, &LoginDialog::LoginComplete, &mw,
 		[&](const QString& league, const QString& account) {
 			
+			// Call init login to setup the shop, items manager, and other objects.
 			app.InitLogin(league.toStdString(), account.toStdString());
+
+			// Connect signals now that all the objects are created.
 			QObject::connect(&app.items_manager(), &ItemsManager::ItemsRefreshed, &mw, &MainWindow::OnItemsRefreshed);
 			QObject::connect(&app.items_manager(), &ItemsManager::StatusUpdate, &mw, &MainWindow::OnStatusUpdate);
 			QObject::connect(&app.items_manager(), &ItemsManager::RateLimitStatusUpdate, &mw, &MainWindow::OnRateLimitStatusUpdate);
 			QObject::connect(&app.shop(), &Shop::StatusUpdate, &mw, &MainWindow::OnStatusUpdate);
+
+			// Disconnect from the update signal so that only the main window gets it from now on.
+			QObject::disconnect(&app.update_checker(), &UpdateChecker::UpdateAvailable, nullptr, nullptr);
 			QObject::connect(&app.update_checker(), &UpdateChecker::UpdateAvailable, &mw, &MainWindow::OnUpdateAvailable);
 
+			// Prepare to show the main window.
 			mw.LoadSettings();
 			mw.setWindowTitle(
 				QString("Acquisition [%1] - %2 [%3]")
@@ -162,6 +172,12 @@ int main(int argc, char* argv[])
 			mw.show();
 		});
 
+	// Start the initial check for updates.
+	app.update_checker().CheckForUpdates();
+
+	// Show the login dialog.
 	login.show();
+
+	// Start the main event loop.
 	return a.exec();
 }

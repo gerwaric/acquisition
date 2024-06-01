@@ -19,26 +19,34 @@
 
 #pragma once
 
-#include <QNetworkAccessManager>
+#include <QList>
+#include <QNetworkReply>
 #include <QObject>
+#include <QSslError>
 #include <QTimer>
+#include <QVersionNumber>
 
+class QNetworkAccessManager;
 class QWidget;
-
-extern const char* UPDATE_CHECK_URL;
-extern const char* UPDATE_DOWNLOAD_LOCATION;
 
 class UpdateChecker : public QObject {
 	Q_OBJECT
 public:
 	UpdateChecker(QNetworkAccessManager& network_manager, QObject* parent = nullptr);
-	static void AskUserToUpdate(QWidget* parent);
+signals:
+	void UpdateAvailable(const QVersionNumber& version);
 public slots:
 	void CheckForUpdates();
-	void OnUpdateCheckCompleted();
-signals:
-	void UpdateAvailable();
+	void AskUserToUpdate();
+private slots:
+	void OnUpdateReplyReceived();
+	void OnUpdateErrorOccurred(QNetworkReply::NetworkError code);
+	void OnUpdateSslErrors(const QList<QSslError>& errors);
 private:
 	QNetworkAccessManager& nm_;
 	QTimer timer_;
+	QVersionNumber last_checked_;
+	static const int update_interval;
+	static const QVersionNumber current_version;
+	static const QRegularExpression version_regex;
 };

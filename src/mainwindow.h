@@ -33,6 +33,7 @@
 #include "porting.h"
 
 class QNetworkReply;
+class QVersionNumber;
 class QVBoxLayout;
 
 class Application;
@@ -97,7 +98,7 @@ public slots:
 	void OnUncheckSelected() { CheckSelected(false); };
 	void OnRenameTabClicked();
 	void OnRefreshSelected();
-	void OnUpdateAvailable();
+	void OnUpdateAvailable(const QVersionNumber& version);
 	void OnUploadFinished();
 private slots:
 	// Tabs menu actions
