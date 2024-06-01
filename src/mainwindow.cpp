@@ -270,18 +270,18 @@ void MainWindow::InitializeUi() {
 
 void MainWindow::LoadSettings() {
 
-    // Load the appropriate theme.
-    const std::string theme = app_.global_data().Get("theme", "default");
-    if (theme == "dark") OnSetDarkTheme(true);
-    else if (theme == "light") OnSetLightTheme(true);
-    else if (theme == "default") OnSetDefaultTheme(true);
+	// Load the appropriate theme.
+	const std::string theme = app_.global_data().Get("theme", "default");
+	if (theme == "dark") OnSetDarkTheme(true);
+	else if (theme == "light") OnSetLightTheme(true);
+	else if (theme == "default") OnSetDefaultTheme(true);
 
-    ui->actionSetAutomaticTabRefresh->setChecked(app_.items_manager().auto_update());
-    UpdateShopMenu();
+	ui->actionSetAutomaticTabRefresh->setChecked(app_.items_manager().auto_update());
+	UpdateShopMenu();
 
-    ui->itemInfoTypeTabs->setCurrentIndex(app_.data().GetInt("preferred_tooltip_type"));
+	ui->itemInfoTypeTabs->setCurrentIndex(app_.data().GetInt("preferred_tooltip_type"));
 
-    NewSearch();
+	NewSearch();
 }
 
 void MainWindow::OnExpandAll() {

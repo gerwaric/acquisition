@@ -46,7 +46,7 @@ class OAuthManager : public QObject {
 public:
 	OAuthManager(QNetworkAccessManager& network_manager, QObject* parent = nullptr);
 	void requestAccess();
-    const QString access_token() const;
+	const QString access_token() const;
 	void addAuthorization(QNetworkRequest& request);
 signals:
 	void accessGranted(const AccessToken& token);

@@ -86,14 +86,21 @@ int main(int argc, char* argv[])
 	// Process --log-level if it was present on the command line.
 	if (parser.isSet(option_log_level)) {
 		const QString logging_option = parser.value(option_log_level).toUpper();
-		if      (logging_option == "TRACE") { loglevel = QsLogging::TraceLevel; }
-		else if (logging_option == "DEBUG") { loglevel = QsLogging::DebugLevel; }
-		else if (logging_option == "INFO")  { loglevel = QsLogging::InfoLevel;  }
-		else if (logging_option == "WARN")  { loglevel = QsLogging::WarnLevel;  }
-		else if (logging_option == "ERROR") { loglevel = QsLogging::ErrorLevel; }
-		else if (logging_option == "FATAL") { loglevel = QsLogging::FatalLevel; }
-		else if (logging_option == "OFF")   { loglevel = QsLogging::OffLevel;   }
-		else {
+		if (logging_option == "TRACE") {
+			loglevel = QsLogging::TraceLevel;
+		} else if (logging_option == "DEBUG") {
+			loglevel = QsLogging::DebugLevel;
+		} else if (logging_option == "INFO") {
+			loglevel = QsLogging::InfoLevel;
+		} else if (logging_option == "WARN") {
+			loglevel = QsLogging::WarnLevel;
+		} else if (logging_option == "ERROR") {
+			loglevel = QsLogging::ErrorLevel;
+		} else if (logging_option == "FATAL") {
+			loglevel = QsLogging::FatalLevel;
+		} else if (logging_option == "OFF") {
+			loglevel = QsLogging::OffLevel;
+		} else {
 			valid_loglevel = false;
 		};
 	};
@@ -107,10 +114,10 @@ int main(int argc, char* argv[])
 
 	// Setup the logger.
 	QsLogging::Logger& logger = QsLogging::Logger::instance();
-    QsLogging::MaxSizeBytes logsize(10 * 1024 * 1024);
-    QsLogging::MaxOldLogCount logcount(0);
-    QsLogging::DestinationPtr fileDestination(
-        QsLogging::DestinationFactory::MakeFileDestination(sLogPath, QsLogging::EnableLogRotation, logsize, logcount));
+	QsLogging::MaxSizeBytes logsize(10 * 1024 * 1024);
+	QsLogging::MaxOldLogCount logcount(0);
+	QsLogging::DestinationPtr fileDestination(
+		QsLogging::DestinationFactory::MakeFileDestination(sLogPath, QsLogging::EnableLogRotation, logsize, logcount));
 	QsLogging::DestinationPtr debugDestination(
 		QsLogging::DestinationFactory::MakeDebugOutputDestination());
 	logger.setLoggingLevel(loglevel);
@@ -119,7 +126,7 @@ int main(int argc, char* argv[])
 
 	// Start the log with basic info
 	QLOG_INFO() << "-------------------------------------------------------------------------------";
-    QLOG_INFO().noquote() << a.applicationName() << a.applicationVersion() << "( version code" << VERSION_CODE << ")";
+	QLOG_INFO().noquote() << a.applicationName() << a.applicationVersion() << "( version code" << VERSION_CODE << ")";
 	QLOG_INFO().noquote() << "Built with Qt" << QT_VERSION_STR << "on" << QStringLiteral(__DATE__ " " __TIME__).simplified();
 	QLOG_INFO().noquote() << "Running on Qt" << qVersion();
 	if (valid_loglevel == false) {
@@ -127,7 +134,7 @@ int main(int argc, char* argv[])
 		QLOG_ERROR() << "Valid options are: TRACE, DEBUG, INFO, WARN, ERROR, FATAL, and OFF (case insensitive)";
 		return EXIT_FAILURE;
 	};
-    QLOG_INFO() << "Logging level is" << logger.loggingLevel();
+	QLOG_INFO() << "Logging level is" << logger.loggingLevel();
 
 	// Check for test mode.
 	if (parser.isSet(option_test)) {
@@ -147,7 +154,7 @@ int main(int argc, char* argv[])
 
 	QObject::connect(&login, &LoginDialog::LoginComplete, &mw,
 		[&](const QString& league, const QString& account) {
-			
+
 			// Call init login to setup the shop, items manager, and other objects.
 			app.InitLogin(league.toStdString(), account.toStdString());
 
