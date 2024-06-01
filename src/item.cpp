@@ -326,10 +326,6 @@ void Item::CalculateCategories() {
 			return;
 		};
 	};
-	// Issue a warning for items we can't categorize, because they will
-	// be harder to search for, and may indicate that something needs to be
-	// added or udpdated.
-	QLOG_WARN() << "Unable to determine category for" << baseType_ << "(" + name_ + ")";
 }
 
 std::string Item::GetCategory(const std::string& baseType) {
