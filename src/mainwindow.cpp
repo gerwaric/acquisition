@@ -219,6 +219,9 @@ void MainWindow::InitializeUi() {
 	ui->itemTooltipWidget->hide();
 	ui->itemButtonsWidget->hide();
 
+	// Make sure the right logging level menu item is checked.
+	OnSetLogging(QsLogging::Logger::instance().loggingLevel());
+
 	connect(ui->itemInfoTypeTabs, &QTabWidget::currentChanged, this, [=](int idx) {
 		auto tabs = ui->itemInfoTypeTabs;
 		for (int i = 0; i < tabs->count(); i++)
