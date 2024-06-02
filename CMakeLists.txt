@@ -226,7 +226,7 @@ if(MSVC)
     target_compile_options(acquisition PRIVATE "/EHsc")
 
     # Visual Studio 2022 needs for debugging to work.
-    target_compile_options(acquisition PRIVATE "$<$<CONFIG:DEBUG>:/ZI>")
+    target_compile_options(acquisition PRIVATE "$<$<CONFIG:DEBUG>:/Zi>")
 
 endif()
 
