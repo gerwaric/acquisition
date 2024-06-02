@@ -98,7 +98,7 @@ public slots:
 	void OnUncheckSelected() { CheckSelected(false); };
 	void OnRenameTabClicked();
 	void OnRefreshSelected();
-	void OnUpdateAvailable(const QVersionNumber& version, const QString& postfix);
+	void OnUpdateAvailable();
 	void OnUploadFinished();
 private slots:
 	// Tabs menu actions

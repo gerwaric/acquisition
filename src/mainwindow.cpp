@@ -195,6 +195,7 @@ void MainWindow::InitializeUi() {
 	statusBar()->addPermanentWidget(&refresh_button_);
 	connect(&refresh_button_, &QPushButton::clicked, this, &MainWindow::OnRefreshAllTabs);
 
+	update_button_.setText("Update available");
 	update_button_.setStyleSheet("color: blue; font-weight: bold;");
 	update_button_.setFlat(true);
 	update_button_.hide();
@@ -848,8 +849,7 @@ void MainWindow::UpdateShopMenu() {
 	ui->actionSetAutomaticallyShopUpdate->setChecked(app_.shop().auto_update());
 }
 
-void MainWindow::OnUpdateAvailable(const QVersionNumber& version, const QString& postfix) {
-	update_button_.setText("Version " + version.toString() + postfix + " is available.");
+void MainWindow::OnUpdateAvailable() {
 	update_button_.show();
 }
 

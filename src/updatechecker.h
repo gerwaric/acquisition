@@ -34,7 +34,7 @@ class UpdateChecker : public QObject {
 public:
 	UpdateChecker(QNetworkAccessManager& network_manager, QObject* parent = nullptr);
 signals:
-	void UpdateAvailable(const QVersionNumber& version, const QString& postfix);
+	void UpdateAvailable();
 public slots:
 	void CheckForUpdates();
 	void AskUserToUpdate();
@@ -44,11 +44,23 @@ private slots:
 	void OnUpdateSslErrors(const QList<QSslError>& errors);
 private:
 	QNetworkAccessManager& nm_;
-	QTimer timer_;
-	QVersionNumber last_version_;
-	QString last_postfix_;
+
+	// Ammount of time between update checks (milliseconds)
 	static const int update_interval;
-	static const QVersionNumber current_version;
-	static const QRegularExpression version_regex;
-	static const QRegularExpression postfix_regex;
+
+	// Trigger periodic update checks.
+	QTimer timer_;
+
+	// The last release tag checked by the UpdateChecker
+	QString last_checked_tag_;
+	
+	// The newest github release
+	QString newest_release_;
+
+	// The newest github pre-release
+	QString newest_prerelease_;
+	
+	// If the user is running an older pre-release with a version suffix,
+	// this will be the corresponding final release version.
+	QString upgrade_release_;
 };
