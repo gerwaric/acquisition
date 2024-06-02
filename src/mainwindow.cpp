@@ -76,9 +76,7 @@ MainWindow::MainWindow(Application& app) :
 	search_count_(0),
 	rate_status_panel_(nullptr)
 {
-#if defined(Q_OS_LINUX)
 	setWindowIcon(QIcon(":/icons/assets/icon.svg"));
-#endif
 
 	image_cache_ = new ImageCache(Filesystem::UserDir() + "/cache");
 

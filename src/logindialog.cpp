@@ -88,10 +88,7 @@ LoginDialog::LoginDialog(Application& app) :
 	ui->errorLabel->hide();
 	ui->errorLabel->setStyleSheet("QLabel { color : red; }");
 	setWindowTitle(QString("Login [") + APP_VERSION_STRING + "]");
-
-#if defined(Q_OS_LINUX)
 	setWindowIcon(QIcon(":/icons/assets/icon.svg"));
-#endif
 	setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
 	settings_path_ = Filesystem::UserDir() + "/settings.ini";
