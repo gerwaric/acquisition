@@ -51,10 +51,17 @@ const QRegularExpression UpdateChecker::version_regex = QRegularExpression(
 	QRegularExpression::DotMatchesEverythingOption |
 	QRegularExpression::ExtendedPatternSyntaxOption);
 
+const QRegularExpression UpdateChecker::postfix_regex = QRegularExpression(
+	R"REGEX(^ \s* set \s* \( .*? version_postfix \s+ "(.*?)")REGEX",
+	QRegularExpression::CaseInsensitiveOption |
+	QRegularExpression::MultilineOption |
+	QRegularExpression::DotMatchesEverythingOption |
+	QRegularExpression::ExtendedPatternSyntaxOption);
+
 UpdateChecker::UpdateChecker(QNetworkAccessManager& network_manager, QObject* parent) :
 	QObject(parent),
 	nm_(network_manager),
-	last_checked_(current_version)
+	last_version_(current_version)
 {
 	timer_.setInterval(update_interval);
 	timer_.start();
@@ -90,21 +97,27 @@ void UpdateChecker::OnUpdateReplyReceived() {
 		return;
 	};
 	const QByteArray bytes = reply->readAll();
-	const QRegularExpressionMatch match = version_regex.match(bytes);
+	QRegularExpressionMatch match = version_regex.match(bytes);
 	if (!match.hasMatch() || !match.hasCaptured(1)) {
-		QLOG_ERROR() << "Unable to parse a version number from CMakeLists.txt";
+		QLOG_ERROR() << "Unable to parse project version from CMakeLists.txt";
 		return;
 	};
 	const QVersionNumber github_version = QVersionNumber::fromString(match.captured(1));
-	if (github_version > last_checked_) {
-		emit UpdateAvailable(github_version);
+	match = postfix_regex.match(bytes);
+	if (!match.hasMatch() || !match.hasCaptured(1)) {
+		QLOG_DEBUG() << "No version postfix found.";
 	};
-	last_checked_ = github_version;
+	const QString github_postfix = match.captured(1);
+	if ((github_version > last_version_) || (github_postfix != last_postfix_)) {
+		emit UpdateAvailable(github_version, github_postfix);
+	};
+	last_version_ = github_version;
+	last_postfix_ = github_postfix;
 }
 
 void UpdateChecker::AskUserToUpdate() {
 	QMessageBox::StandardButton result = QMessageBox::information(nullptr, "Update",
-	    "Acquisition version " + last_checked_.toString() + " is available. "
+	    "Acquisition version " + last_version_.toString() + last_postfix_ + " is available. "
 		"Would you like to navigate to GitHub to download it?",
 		QMessageBox::Yes | QMessageBox::No,
 		QMessageBox::Yes);

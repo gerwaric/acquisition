@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.19)
 
+# WARNING: Acquisition parses this file to check for version changes,
+# so the project version and version_postfix need to be defined.
+
 project(acquisition
     VERSION 0.10.5
     DESCRIPTION "Stash and forum shop management for Path of Exile"

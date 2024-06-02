@@ -34,7 +34,7 @@ class UpdateChecker : public QObject {
 public:
 	UpdateChecker(QNetworkAccessManager& network_manager, QObject* parent = nullptr);
 signals:
-	void UpdateAvailable(const QVersionNumber& version);
+	void UpdateAvailable(const QVersionNumber& version, const QString& postfix);
 public slots:
 	void CheckForUpdates();
 	void AskUserToUpdate();
@@ -45,8 +45,10 @@ private slots:
 private:
 	QNetworkAccessManager& nm_;
 	QTimer timer_;
-	QVersionNumber last_checked_;
+	QVersionNumber last_version_;
+	QString last_postfix_;
 	static const int update_interval;
 	static const QVersionNumber current_version;
 	static const QRegularExpression version_regex;
+	static const QRegularExpression postfix_regex;
 };

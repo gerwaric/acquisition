@@ -848,8 +848,8 @@ void MainWindow::UpdateShopMenu() {
 	ui->actionSetAutomaticallyShopUpdate->setChecked(app_.shop().auto_update());
 }
 
-void MainWindow::OnUpdateAvailable(const QVersionNumber& version) {
-	update_button_.setText("Version " + version.toString() + " is available.");
+void MainWindow::OnUpdateAvailable(const QVersionNumber& version, const QString& postfix) {
+	update_button_.setText("Version " + version.toString() + postfix + " is available.");
 	update_button_.show();
 }
 
