@@ -92,10 +92,14 @@ void UpdateChecker::OnUpdateSslErrors(const QList<QSslError>& errors) {
 
 void UpdateChecker::OnUpdateReplyReceived() {
 	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
+	
+	// Check for network errors.
 	if (reply->error() != QNetworkReply::NoError) {
 		QLOG_ERROR() << "The network reply came with an error:" << reply->errorString();
 		return;
 	};
+	
+	// Try to match the project version.
 	const QByteArray bytes = reply->readAll();
 	QRegularExpressionMatch match = version_regex.match(bytes);
 	if (!match.hasMatch() || !match.hasCaptured(1)) {
@@ -103,14 +107,21 @@ void UpdateChecker::OnUpdateReplyReceived() {
 		return;
 	};
 	const QVersionNumber github_version = QVersionNumber::fromString(match.captured(1));
+
+	// Try to match the version_postfix.
 	match = postfix_regex.match(bytes);
 	if (!match.hasMatch() || !match.hasCaptured(1)) {
 		QLOG_DEBUG() << "No version postfix found.";
 	};
 	const QString github_postfix = match.captured(1);
+	
+	// Send a signal if there's a new version from the last check.
 	if ((github_version > last_version_) || (github_postfix != last_postfix_)) {
 		emit UpdateAvailable(github_version, github_postfix);
 	};
+
+	// Update the stored version for next time.
+	QLOG_INFO() << "Update check: latest github version is" << github_version.toString() + github_postfix;
 	last_version_ = github_version;
 	last_postfix_ = github_postfix;
 }
