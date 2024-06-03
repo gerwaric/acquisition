@@ -69,15 +69,12 @@ public slots:
 	void FetchItems();
 	void PreserveSelectedCharacter();
 	void Init();
-	void OnRateLimitStatusUpdate(const RateLimit::StatusInfo& update);
-
 	void OnStatTranslationsReceived(QNetworkReply* reply);
 	void OnItemClassesReceived(QNetworkReply* reply);
 	void OnItemBaseTypesReceived(QNetworkReply* reply);
 signals:
 	void ItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
 	void StatusUpdate(ProgramState state, const QString& status);
-	void RateLimitStatusUpdate(const RateLimit::StatusInfo& update);
 	void ItemClassesUpdate(const QByteArray& classes);
 	void ItemBaseTypesUpdate(const QByteArray& baseTypes);
 private:

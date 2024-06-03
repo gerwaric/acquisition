@@ -91,9 +91,6 @@ void ItemsManagerWorker::Init() {
 		return;
 	};
 
-	//rate_limiter_ = std::make_unique<RateLimiter>(app_);
-	connect(&rate_limiter_, &RateLimiter::StatusUpdate, this, &ItemsManagerWorker::OnRateLimitStatusUpdate);
-
 	updating_ = true;
 
 	emit StatusUpdate(ProgramState::Initializing, "Waiting for RePoE item classes.");
@@ -103,10 +100,6 @@ void ItemsManagerWorker::Init() {
 		[=](QNetworkReply* reply) {
 			OnItemClassesReceived(reply);
 		});
-}
-
-void ItemsManagerWorker::OnRateLimitStatusUpdate(const RateLimit::StatusInfo& update) {
-	emit RateLimitStatusUpdate(update);
 }
 
 void ItemsManagerWorker::OnItemClassesReceived(QNetworkReply* reply) {

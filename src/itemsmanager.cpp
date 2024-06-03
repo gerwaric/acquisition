@@ -61,7 +61,6 @@ void ItemsManager::Start() {
 	worker_ = std::make_unique<ItemsManagerWorker>(app_);
 	connect(this, &ItemsManager::UpdateSignal, worker_.get(), &ItemsManagerWorker::Update);
 	connect(worker_.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
-	connect(worker_.get(), &ItemsManagerWorker::RateLimitStatusUpdate, this, &ItemsManager::OnRateLimitStatusUpdate);
 	connect(worker_.get(), &ItemsManagerWorker::ItemsRefreshed, this, &ItemsManager::OnItemsRefreshed);
 	connect(worker_.get(), &ItemsManagerWorker::ItemClassesUpdate, this, &ItemsManager::OnItemClassesUpdate);
 	connect(worker_.get(), &ItemsManagerWorker::ItemBaseTypesUpdate, this, &ItemsManager::OnItemBaseTypesUpdate);
@@ -70,10 +69,6 @@ void ItemsManager::Start() {
 
 void ItemsManager::OnStatusUpdate(ProgramState state, const QString& status) {
 	emit StatusUpdate(state, status);
-}
-
-void ItemsManager::OnRateLimitStatusUpdate(const RateLimit::StatusInfo& update) {
-	emit RateLimitStatusUpdate(update);
 }
 
 void ItemsManager::OnItemClassesUpdate(const QByteArray& classes) {

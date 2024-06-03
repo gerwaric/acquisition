@@ -36,6 +36,7 @@
 #include "itemsmanager.h"
 #include "mainwindow.h"
 #include "porting.h"
+#include "ratelimit.h"
 #include "shop.h"
 #include "updatechecker.h"
 #include "util.h"
@@ -151,6 +152,10 @@ int main(int argc, char* argv[])
 	// Connect to the update signal in case an update is detected before the main window is open.
 	QObject::connect(&app.update_checker(), &UpdateChecker::UpdateAvailable, &app.update_checker(), &UpdateChecker::AskUserToUpdate);
 
+	// Connect the rate limit status updates directly to the main window.
+	QObject::connect(&app.rate_limiter(), &RateLimit::RateLimiter::StatusUpdate, &mw, &MainWindow::OnRateLimitStatusUpdate);
+
+
 	QObject::connect(&login, &LoginDialog::LoginComplete, &mw,
 		[&](const QString& league, const QString& account) {
 
@@ -160,7 +165,6 @@ int main(int argc, char* argv[])
 			// Connect signals now that all the objects are created.
 			QObject::connect(&app.items_manager(), &ItemsManager::ItemsRefreshed, &mw, &MainWindow::OnItemsRefreshed);
 			QObject::connect(&app.items_manager(), &ItemsManager::StatusUpdate, &mw, &MainWindow::OnStatusUpdate);
-			QObject::connect(&app.items_manager(), &ItemsManager::RateLimitStatusUpdate, &mw, &MainWindow::OnRateLimitStatusUpdate);
 			QObject::connect(&app.shop(), &Shop::StatusUpdate, &mw, &MainWindow::OnStatusUpdate);
 
 			// Disconnect from the update signal so that only the main window gets it from now on.

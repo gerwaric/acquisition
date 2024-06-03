@@ -63,7 +63,6 @@ public slots:
 	void OnAutoRefreshTimer();
 	// Used to glue Worker's signals to MainWindow
 	void OnStatusUpdate(ProgramState state, const QString& status);
-	void OnRateLimitStatusUpdate(const RateLimit::StatusInfo& update);
 	void OnItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
 	void OnItemClassesUpdate(const QByteArray& classes);
 	void OnItemBaseTypesUpdate(const QByteArray& baseTypes);
@@ -71,7 +70,6 @@ signals:
 	void UpdateSignal(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 	void ItemsRefreshed(bool initial_refresh);
 	void StatusUpdate(ProgramState state, const QString& status);
-	void RateLimitStatusUpdate(const RateLimit::StatusInfo& update);
 	void UpdateModListSignal();
 private:
 	void MigrateBuyouts();
