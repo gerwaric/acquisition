@@ -1,7 +1,32 @@
+#[[
+	Copyright 2014 Ilya Zhuravlev and 2024 Gerwaric
+
+	This file is part of Acquisition.
+
+	Acquisition is free software: you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation, either version 3 of the License, or
+	(at your option) any later version.
+
+	Acquisition is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+
+	You should have received a copy of the GNU General Public License
+	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
+#]]
+
 cmake_minimum_required(VERSION 3.19)
 
-# WARNING: Acquisition parses this file to check for version changes,
-# so the project version and version_postfix need to be defined.
+# NOTE: For automatic update detection to work, the 'app_version' variable
+# defined below should match a tag in github. Historically, the github tags
+# have been identical to the 'app_version' as defined below, except the 
+# tags on github are prefixed with a 'v'.
+#
+# The version code that used to be used for update detection is no longer
+# needed, except that some users with version of acquisition prior to
+# version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
     VERSION 0.10.5
@@ -11,10 +36,10 @@ project(acquisition
 )
 
 # Use this to define pre-releases
-set(version_postfix "-alpha.1")
+set(version_postfix "-alpha.2")
 
 # Variables used to generate version_defines.h and installer.iss
-set(version_code        60)
+set(version_code        60) # This doesn't need to be changed with the new update checks.
 set(app_name            "${CMAKE_PROJECT_NAME}")
 set(app_version         "${CMAKE_PROJECT_VERSION}")
 set(app_version_string  "${CMAKE_PROJECT_VERSION}${version_postfix}")
