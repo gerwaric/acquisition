@@ -166,6 +166,10 @@ void UpdateChecker::OnUpdateReplyReceived() {
 		if (tag_name.contains(app_version_string, Qt::CaseInsensitive)) {
 			QLOG_TRACE() << "UpdateChecker found a match for the running version" << tag_name;
 			matched_tag = tag_name;
+		};
+
+		// End early if we've found all the things we are looking for.
+		if (!matched_tag.isEmpty() && !newest_release_.isEmpty() && !newest_prerelease_.isEmpty()) {
 			break;
 		};
 	};
@@ -204,10 +208,10 @@ void UpdateChecker::AskUserToUpdate() {
 
 	// Setup the update message.
 	QStringList lines;
-	lines.append("The newest release is '" + newest_release_ + "'");
-	lines.append("The newest pre-release is '" + newest_prerelease_ + "'");
+	lines.append("The latest official release is '" + newest_release_ + "'");
+	lines.append("The latest pre-release is '" + newest_prerelease_ + "'");
 	if (show_compatible) {
-		lines.append("\nYou can also update to '" + upgrade_release_ + "'");
+		lines.append("\nYou could also update your version to '" + upgrade_release_ + "'");
 	};
 	const QString message = lines.join("\n");
 
