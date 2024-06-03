@@ -96,6 +96,8 @@ void ItemsManagerWorker::Init() {
 
 	updating_ = true;
 
+	emit StatusUpdate(ProgramState::Initializing, "Waiting for RePoE item classes.");
+
 	QNetworkRequest PoE_item_classes_request = QNetworkRequest(QUrl(QString(kRePoE_item_classes)));
 	rate_limiter_.Submit(PoE_item_classes_request,
 		[=](QNetworkReply* reply) {
@@ -116,6 +118,9 @@ void ItemsManagerWorker::OnItemClassesReceived(QNetworkReply* reply) {
 		QByteArray bytes = reply->readAll();
 		emit ItemClassesUpdate(bytes);
 	};
+
+	emit StatusUpdate(ProgramState::Initializing, "Waiting for RePoE item base types.");
+
 	QNetworkRequest PoE_item_base_types_request = QNetworkRequest(QUrl(QString(kRePoE_item_base_types)));
 	rate_limiter_.Submit(PoE_item_base_types_request,
 		[=](QNetworkReply* reply) {
@@ -132,6 +137,8 @@ void ItemsManagerWorker::OnItemBaseTypesReceived(QNetworkReply* reply) {
 		QByteArray bytes = reply->readAll();
 		emit ItemBaseTypesUpdate(bytes);
 	};
+	emit StatusUpdate(ProgramState::Initializing, "RePoE data received; updating mod list.");
+
 	mods.clear();
 	QStringList StatTranslationUrls = QStringList(REPOE_STAT_TRANSLATIONS);
 	UpdateModList(StatTranslationUrls);
@@ -174,12 +181,12 @@ void ItemsManagerWorker::ParseItemMods() {
 			items_.push_back(tab_item);
 		};
 		emit StatusUpdate(
-			ProgramState::Busy,
+			ProgramState::Initializing,
 			QString("Parsing item mods in tabs, %1/%2").arg(i + 1).arg(tabs_.size()));
 	};
 	emit StatusUpdate(
 		ProgramState::Ready,
-		QString("Received %1 tabs").arg(tabs_.size()));;
+		QString("Parsed items from %1 tabs").arg(tabs_.size()));;
 
 	initialized_ = true;
 	updating_ = false;
