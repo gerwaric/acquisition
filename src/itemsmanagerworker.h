@@ -76,7 +76,7 @@ public slots:
 	void OnItemBaseTypesReceived(QNetworkReply* reply);
 signals:
 	void ItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
-	void StatusUpdate(const CurrentStatusUpdate& status);
+	void StatusUpdate(ProgramState state, const QString& status);
 	void RateLimitStatusUpdate(const RateLimit::StatusInfo& update);
 	void ItemClassesUpdate(const QByteArray& classes);
 	void ItemBaseTypesUpdate(const QByteArray& baseTypes);

@@ -173,18 +173,13 @@ void ItemsManagerWorker::ParseItemMods() {
 		for (const auto& tab_item : tab_items) {
 			items_.push_back(tab_item);
 		};
-		CurrentStatusUpdate status;
-		status.state = ProgramState::ItemsRetrieved;
-		status.progress = static_cast<size_t>(i) + 1;
-		status.total = tabs_.size();
-		emit StatusUpdate(status);
+		emit StatusUpdate(
+			ProgramState::Busy,
+			QString("Parsing item mods in tabs, %1/%2").arg(i + 1).arg(tabs_.size()));
 	};
-
-	CurrentStatusUpdate status;
-	status.state = ProgramState::ItemsCompleted;
-	status.progress = tabs_.size();
-	status.total = tabs_.size();
-	emit StatusUpdate(status);
+	emit StatusUpdate(
+		ProgramState::Ready,
+		QString("Received %1 tabs").arg(tabs_.size()));;
 
 	initialized_ = true;
 	updating_ = false;
@@ -470,10 +465,9 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 	}
 	QLOG_DEBUG() << "There are" << requested_character_count << "characters to update in" << app_.league().c_str();
 
-	CurrentStatusUpdate status;
-	status.state = ProgramState::CharactersReceived;
-	status.total = total_character_count;
-	emit StatusUpdate(status);
+	emit StatusUpdate(
+		ProgramState::Busy,
+		QString("Requesting %1 characters").arg(requested_character_count));
 
 	QNetworkRequest tab_request = MakeTabRequest(first_fetch_tab_id_, true);
 	rate_limiter_.Submit(tab_request,
@@ -681,17 +675,14 @@ void ItemsManagerWorker::OnTabReceived(QNetworkReply* network_reply, ItemLocatio
 		};
 	};
 
-	CurrentStatusUpdate status = CurrentStatusUpdate();
-	status.state = ProgramState::ItemsReceive;
-	status.progress = total_completed_;
-	status.total = total_needed_;
-	if (total_completed_ == total_needed_) {
-		status.state = ProgramState::ItemsCompleted;
-	};
 	if (cancel_update_) {
-		status.state = ProgramState::UpdateCancelled;
+		emit StatusUpdate( ProgramState::Ready, "Update cancelled.");
+	} else if (total_completed_ == total_needed_) {
+		emit StatusUpdate(ProgramState::Ready, QString("Received %1 tabs.").arg(total_needed_));
+	} else {
+		emit StatusUpdate(ProgramState::Busy,
+			QString("Receiving stash data, %1/%2").arg(total_completed_).arg(total_needed_));
 	};
-	emit StatusUpdate(status);
 
 	if (error) {
 		return;

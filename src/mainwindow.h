@@ -56,19 +56,10 @@ namespace RateLimit {
 
 enum class ProgramState {
 	Unknown,
-	CharactersReceived,
-	ItemsReceive,
-	ItemsPaused,
-	ItemsCompleted,
-	ShopSubmitting,
-	ShopCompleted,
-	UpdateCancelled,
-	ItemsRetrieved
-};
-
-struct CurrentStatusUpdate {
-	ProgramState state{ ProgramState::Unknown };
-	size_t progress{ 0 }, total{ 0 };
+	Initializing,
+	Waiting,
+	Ready,
+	Busy
 };
 
 class MainWindow : public QMainWindow {
@@ -86,7 +77,7 @@ public slots:
 	void OnTabChange(int index);
 	void OnImageFetched(QNetworkReply* reply);
 	void OnItemsRefreshed();
-	void OnStatusUpdate(const CurrentStatusUpdate& status);
+	void OnStatusUpdate(ProgramState state, const QString& status);
 	void OnRateLimitStatusUpdate(const RateLimit::StatusInfo& update);
 	void OnBuyoutChange();
 	void ResizeTreeColumns();

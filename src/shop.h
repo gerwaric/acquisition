@@ -26,8 +26,8 @@
 #include <vector>
 #include "item.h"
 #include "buyoutmanager.h"
+#include "mainwindow.h"
 
-struct CurrentStatusUpdate;
 extern const std::string kShopTemplateItems;
 struct AugmentedItem {
 	Item* item{ nullptr };
@@ -63,7 +63,7 @@ public slots:
 	void OnEditPageFinished();
 	void OnShopSubmitted(QUrlQuery query, QNetworkReply* reply);
 signals:
-	void StatusUpdate(const CurrentStatusUpdate& status);
+	void StatusUpdate(ProgramState state, const QString& status);
 private:
 	void SubmitSingleShop();
 	void SubmitNextShop(const std::string title, const std::string hash);

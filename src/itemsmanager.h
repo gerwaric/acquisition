@@ -24,6 +24,7 @@
 
 #include "item.h"
 #include "itemsmanagerworker.h"
+#include "mainwindow.h"
 #include "util.h"
 
 struct CurrentStatusUpdate;
@@ -61,7 +62,7 @@ public slots:
 	// called by auto_update_timer_
 	void OnAutoRefreshTimer();
 	// Used to glue Worker's signals to MainWindow
-	void OnStatusUpdate(const CurrentStatusUpdate& status);
+	void OnStatusUpdate(ProgramState state, const QString& status);
 	void OnRateLimitStatusUpdate(const RateLimit::StatusInfo& update);
 	void OnItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
 	void OnItemClassesUpdate(const QByteArray& classes);
@@ -69,7 +70,7 @@ public slots:
 signals:
 	void UpdateSignal(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 	void ItemsRefreshed(bool initial_refresh);
-	void StatusUpdate(const CurrentStatusUpdate& status);
+	void StatusUpdate(ProgramState state, const QString& status);
 	void RateLimitStatusUpdate(const RateLimit::StatusInfo& update);
 	void UpdateModListSignal();
 private:

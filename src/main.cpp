@@ -55,7 +55,6 @@ int main(int argc, char* argv[])
 	Q_INIT_RESOURCE(lightstyle);
 
 	// Register metatypes (is this still necessary?)
-	qRegisterMetaType<CurrentStatusUpdate>("CurrentStatusUpdate");
 	qRegisterMetaType<Items>("Items");
 	qRegisterMetaType<std::vector<std::string>>("std::vector<std::string>");
 	qRegisterMetaType<std::vector<ItemLocation>>("std::vector<ItemLocation>");

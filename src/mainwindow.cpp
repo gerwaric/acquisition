@@ -407,45 +407,54 @@ void MainWindow::OnBuyoutChange() {
 	ResizeTreeColumns();
 }
 
-void MainWindow::OnStatusUpdate(const CurrentStatusUpdate& status) {
-	QString title;
-	switch (status.state) {
-	case ProgramState::CharactersReceived:
-		if (status.total == 0) {
-			refresh_button_.setText("No characters detected yet in this league, click to refresh");
-			refresh_button_.show();
-		} else {
-			refresh_button_.hide();
-		}
-		break;
-	case ProgramState::ItemsReceive:
-	case ProgramState::ItemsPaused:
-		title = QString("Receiving stash data, %1/%2").arg(status.progress).arg(status.total);
-		if (status.state == ProgramState::ItemsPaused)
-			title += " (throttled, sleeping 60 seconds)";
-		break;
-	case ProgramState::ItemsCompleted:
-		title = QString("Received %1 tabs").arg(status.total);
-		QLOG_INFO() << title;
-		break;
-	case ProgramState::ShopSubmitting:
-		title = QString("Sending your shops to the forum, %1/%2").arg(status.progress).arg(status.total);
-		break;
-	case ProgramState::ShopCompleted:
-		title = QString("Shop threads updated");
-		QLOG_INFO() << title;
-		break;
-	case ProgramState::UpdateCancelled:
-		title = QString("Shop updated cancelled due to tab movement or rename mid-update");
-		break;
-	case ProgramState::ItemsRetrieved:
-		title = QString("Parsing item mods in tabs, %1/%2").arg(status.progress).arg(status.total);
-		break;
-	default:
-		title = "Unknown";
-	}
-
-	status_bar_label_->setText(title);
+void MainWindow::OnStatusUpdate(ProgramState state, const QString& message) {
+	QString status;
+	switch (state) {
+	case ProgramState::Initializing: status = "Initializing"; break;
+	case ProgramState::Ready: status = "Ready"; break;
+	case ProgramState::Busy: status = "Busy"; break;
+	case ProgramState::Waiting: status = "Waiting"; break;
+	case ProgramState::Unknown: status = "Unknown State"; break;
+		/*
+		case ProgramState::CharactersReceived:
+			if (status.total == 0) {
+				refresh_button_.setText("No characters detected yet in this league, click to refresh");
+				refresh_button_.show();
+			} else {
+				refresh_button_.hide();
+			}
+			break;
+		case ProgramState::ItemsReceive:
+		case ProgramState::ItemsPaused:
+			title = QString("Receiving stash data, %1/%2").arg(status.progress).arg(status.total);
+			if (status.state == ProgramState::ItemsPaused)
+				title += " (throttled, sleeping 60 seconds)";
+			break;
+		case ProgramState::ItemsCompleted:
+			title = QString("Received %1 tabs").arg(status.total);
+			QLOG_INFO() << title;
+			break;
+		case ProgramState::ShopSubmitting:
+			title = QString("Sending your shops to the forum, %1/%2").arg(status.progress).arg(status.total);
+			break;
+		case ProgramState::ShopCompleted:
+			title = QString("Shop threads updated");
+			QLOG_INFO() << title;
+			break;
+		case ProgramState::UpdateCancelled:
+			title = QString("Shop updated cancelled due to tab movement or rename mid-update");
+			break;
+		case ProgramState::ItemsRetrieved:
+			title = QString("Parsing item mods in tabs, %1/%2").arg(status.progress).arg(status.total);
+			break;
+		default:
+			title = "Unknown";
+			*/
+	};
+	if (!message.isEmpty()) {
+		status += ": " + message;
+	};
+	status_bar_label_->setText(status);
 	status_bar_label_->update();
 }
 

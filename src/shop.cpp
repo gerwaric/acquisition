@@ -196,15 +196,15 @@ std::string Shop::ShopEditUrl(size_t idx) {
 }
 
 void Shop::SubmitSingleShop() {
-	CurrentStatusUpdate status = CurrentStatusUpdate();
-	status.state = ProgramState::ShopSubmitting;
-	status.progress = requests_completed_;
-	status.total = threads_.size();
 	if (requests_completed_ == threads_.size()) {
-		status.state = ProgramState::ShopCompleted;
+		emit StatusUpdate(ProgramState::Ready, "Shop threads updated");
 		submitting_ = false;
 		app_.data().Set("shop_hash", shop_hash_);
 	} else {
+		emit StatusUpdate(ProgramState::Ready,
+			QString("Sending your shops to the forum, %1/%2")
+			.arg(requests_completed_)
+			.arg(threads_.size()));
 		// first, get to the edit-thread page to grab CSRF token
 		QNetworkRequest request = QNetworkRequest(QUrl(ShopEditUrl(requests_completed_).c_str()));
 		request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
@@ -213,7 +213,6 @@ void Shop::SubmitSingleShop() {
 		QNetworkReply* fetched = app_.network_manager().get(request);
 		connect(fetched, &QNetworkReply::finished, this, &Shop::OnEditPageFinished);
 	}
-	emit StatusUpdate(status);
 }
 
 void Shop::OnEditPageFinished() {

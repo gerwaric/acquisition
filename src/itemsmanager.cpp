@@ -68,8 +68,8 @@ void ItemsManager::Start() {
 	worker_->Init();
 }
 
-void ItemsManager::OnStatusUpdate(const CurrentStatusUpdate& status) {
-	emit StatusUpdate(status);
+void ItemsManager::OnStatusUpdate(ProgramState state, const QString& status) {
+	emit StatusUpdate(state, status);
 }
 
 void ItemsManager::OnRateLimitStatusUpdate(const RateLimit::StatusInfo& update) {
