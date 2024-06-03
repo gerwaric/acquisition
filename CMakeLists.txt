@@ -36,7 +36,7 @@ project(acquisition
 )
 
 # Use this to define pre-releases
-set(version_postfix "-alpha.3")
+set(version_postfix "-alpha.4")
 
 # Variables used to generate version_defines.h and installer.iss
 set(version_code        60) # This doesn't need to be changed with the new update checks.
