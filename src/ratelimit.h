@@ -109,7 +109,7 @@ namespace RateLimit
 
 	// Consider a policy "borderline" when there are this many requests left before violation.
 	// This gives us a small buffer, just in case.
-	const int BORDERLINE_REQUEST_BUFFER = 2;
+	const int BORDERLINE_REQUEST_BUFFER = 0;
 
 	// This HTTP status code means there was a rate limit violation.
 	const int RATE_LIMIT_VIOLATION_STATUS = 429;
