@@ -319,12 +319,26 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 		RemoveUpdatingItems(tabs_to_update);
 	};
 
-	// first, download the main page because it's the only way to know which character is selected
-	QNetworkRequest main_page_request = QNetworkRequest(QUrl(kMainPage));
-	rate_limiter_.Submit(main_page_request,
-		[=](QNetworkReply* reply) {
-			OnMainPageReceived(reply);
-		});
+	has_stash_list_ = false;
+	has_character_list_ = false;
+
+	// This queues stash tab requests.
+	if (first_stash_request_index_ >= 0) {
+		QNetworkRequest tab_request = MakeTabRequest(first_stash_request_index_, true);
+		rate_limiter_.Submit(tab_request,
+			[=](QNetworkReply* reply) {
+				OnFirstTabReceived(reply);
+			});
+	};
+
+	if (!first_character_request_name_.empty()) {
+		// first, download the main page because it's the only way to know which character is selected
+		QNetworkRequest main_page_request = QNetworkRequest(QUrl(kMainPage));
+		rate_limiter_.Submit(main_page_request,
+			[=](QNetworkReply* reply) {
+				OnMainPageReceived(reply);
+			});
+	};
 }
 
 void ItemsManagerWorker::RemoveUpdatingTabs(const std::set<std::string>& tab_ids) {
@@ -398,25 +412,11 @@ void ItemsManagerWorker::OnMainPageReceived(QNetworkReply* reply) {
 			};
 		};
 	};
-
-	if ((first_stash_request_index_ < 0) && first_character_request_name_.empty()) {
-		QLOG_ERROR() << "Nothing to request. This should not happen";
-		return;
-	};
-
-	if (first_character_request_name_.empty()) {
-		QNetworkRequest tab_request = MakeTabRequest(first_stash_request_index_, true);
-		rate_limiter_.Submit(tab_request,
-			[=](QNetworkReply* reply) {
-				OnFirstTabReceived(reply);
-			});
-	} else {
-		QNetworkRequest characters_request = QNetworkRequest(QUrl(kGetCharactersUrl));
-		rate_limiter_.Submit(characters_request,
-			[=](QNetworkReply* reply) {
-				OnCharacterListReceived(reply);
-			});
-	};
+	QNetworkRequest characters_request = QNetworkRequest(QUrl(kGetCharactersUrl));
+	rate_limiter_.Submit(characters_request,
+		[=](QNetworkReply* reply) {
+			OnCharacterListReceived(reply);
+		});
 }
 
 void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
@@ -483,14 +483,11 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 		ProgramState::Busy,
 		QString("Requesting %1 characters").arg(requested_character_count));
 
-	if (first_stash_request_index_ < 0) {
+	has_character_list_ = true;
+
+	// Check to see if we can start sending queued requests to fetch items yet.
+	if (has_stash_list_ || (first_stash_request_index_ < 0)) {
 		FetchItems();
-	} else {
-		QNetworkRequest tab_request = MakeTabRequest(first_stash_request_index_, true);
-		rate_limiter_.Submit(tab_request,
-			[=](QNetworkReply* reply) {
-				OnFirstTabReceived(reply);
-			});
 	};
 }
 
@@ -634,7 +631,13 @@ void ItemsManagerWorker::OnFirstTabReceived(QNetworkReply* reply) {
 		// Submit a request for this tab.
 		QueueRequest(MakeTabRequest(location.get_tab_id(), true), location);
 	};
-	FetchItems();
+
+	has_stash_list_ = true;
+
+	// Check to see if we can start sending queued requests to fetch items yet.
+	if (has_character_list_ || first_character_request_name_.empty()) {
+		FetchItems();
+	}
 }
 
 void ItemsManagerWorker::ParseItems(rapidjson::Value* value_ptr, ItemLocation base_location, rapidjson_allocator& alloc) {

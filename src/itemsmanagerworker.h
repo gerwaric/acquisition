@@ -120,4 +120,7 @@ private:
 
 	int first_stash_request_index_;
 	std::string first_character_request_name_;
+
+	bool has_stash_list_;
+	bool has_character_list_;
 };
