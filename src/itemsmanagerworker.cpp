@@ -292,7 +292,6 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 		tabs_.clear();
 		tab_id_index_.clear();
 		items_.clear();
-		first_fetch_tab_id_ = 0;
 	} else {
 		// Build a list of tabs to update.
 		std::set<std::string> tabs_to_update = {};
@@ -318,12 +317,6 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 		QLOG_DEBUG() << "Updating" << tabs_to_update.size() << " tabs.";
 		RemoveUpdatingTabs(tabs_to_update);
 		RemoveUpdatingItems(tabs_to_update);
-	};
-
-	if (first_fetch_tab_id_ < 0) {
-		QLOG_WARN() << "Requesting tab index 0 because there are no known tabs to update.";
-		first_fetch_tab_ = "<UNKNOWN>";
-		first_fetch_tab_id_ = 0;
 	};
 
 	// first, download the main page because it's the only way to know which character is selected
@@ -352,9 +345,11 @@ void ItemsManagerWorker::RemoveUpdatingTabs(const std::set<std::string>& tab_ids
 			tabs_.push_back(tab);
 			tab_id_index_.insert(tab.get_tab_uniq_id());
 		} else if (need_first) {
-			first_fetch_tab_ = tab.get_tab_uniq_id();
-			first_fetch_tab_id_ = tab.get_tab_id();
-			need_first = false;
+			if (tab.get_type() == ItemLocationType::STASH) {
+				first_fetch_tab_ = tab.get_tab_uniq_id();
+				first_fetch_tab_id_ = tab.get_tab_id();
+				need_first = false;
+			};
 		};
 	};
 	QLOG_DEBUG() << "Keeping" << tabs_.size() << "tabs and culling" << (current_tabs.size() - tabs_.size());
@@ -469,11 +464,15 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 		ProgramState::Busy,
 		QString("Requesting %1 characters").arg(requested_character_count));
 
-	QNetworkRequest tab_request = MakeTabRequest(first_fetch_tab_id_, true);
-	rate_limiter_.Submit(tab_request,
-		[=](QNetworkReply* reply) {
-			OnFirstTabReceived(reply);
-		});
+	if (first_fetch_tab_id_ < 0) {
+		FetchItems();
+	} else {
+		QNetworkRequest tab_request = MakeTabRequest(first_fetch_tab_id_, true);
+		rate_limiter_.Submit(tab_request,
+			[=](QNetworkReply* reply) {
+				OnFirstTabReceived(reply);
+			});
+	};
 }
 
 QNetworkRequest ItemsManagerWorker::MakeTabRequest(int tab_index, bool tabs) {
@@ -518,9 +517,12 @@ void ItemsManagerWorker::QueueRequest(const QNetworkRequest& request, const Item
 }
 
 void ItemsManagerWorker::FetchItems() {
+	
+	total_needed_ = queue_.size();
+	total_completed_ = 0;
+
 	std::string tab_titles;
-	const size_t count = queue_.size();
-	for (int i = 0; i < count; ++i) {
+	for (int i = 0; i < total_needed_; ++i) {
 		// Take the next request out of the queue.
 		ItemsRequest request = queue_.front();
 		queue_.pop();
@@ -536,8 +538,8 @@ void ItemsManagerWorker::FetchItems() {
 		// Keep track of the tabs requested.
 		tab_titles += request.location.GetHeader() + " ";
 	};
-	QLOG_DEBUG() << "Created" << count << "requests:" << tab_titles.c_str();
-	requests_needed_ = count;
+	QLOG_DEBUG() << "Created" << total_needed_ << "requests:" << tab_titles.c_str();
+	requests_needed_ = total_needed_;
 	requests_completed_ = 0;
 }
 
@@ -613,9 +615,6 @@ void ItemsManagerWorker::OnFirstTabReceived(QNetworkReply* reply) {
 		// Submit a request for this tab.
 		QueueRequest(MakeTabRequest(location.get_tab_id(), true), location);
 	};
-
-	total_needed_ = queue_.size();
-	total_completed_ = 0;
 	FetchItems();
 }
 
