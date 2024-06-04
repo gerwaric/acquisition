@@ -375,23 +375,15 @@ double Item::cDPS() const {
 }
 
 void Item::GenerateMods(const rapidjson::Value& json) {
-	for (auto& type : { "implicitMods", "explicitMods", "craftedMods", "fracturedMods" }) {
-		if (!json.HasMember(type) || !json[type].IsArray())
-			continue;
-		for (auto& mod : json[type]) {
-			if (!mod.IsString())
-				continue;
-
-			std::string mod_s = mod.GetString();
-			std::regex rep("([0-9\\.]+)");
-			mod_s = std::regex_replace(mod_s, rep, "#");
-			auto rslt = mods_map.find(mod_s);
-			if (rslt != mods_map.end()) {
-				SumModGenerator* gen = rslt->second;
-				gen->Generate(mod, &mod_table_);
-			}
-		}
-	}
+	for (const auto& type : { "implicitMods", "explicitMods", "craftedMods", "fracturedMods" }) {
+		if (json.HasMember(type) && json[type].IsArray()) {
+			for (const auto& mod : json[type]) {
+				if (mod.IsString()) {
+					AddModToTable(mod.GetString(), &mod_table_);
+				};
+			};
+		};
+	};
 }
 
 void Item::CalculateHash(const rapidjson::Value& json) {

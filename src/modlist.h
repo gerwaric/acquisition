@@ -19,6 +19,8 @@
 
 #pragma once
 
+#include <QByteArray.h>
+
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -33,19 +35,20 @@ typedef std::unordered_map<std::string, double> ModTable;
 
 // This generates regular expressions for mods and does other setup, should be called when the app starts, perhaps in main()
 // Maybe this is not needed and constexpr could do the trick, but VS doesn't support it right now.
-void InitModlist();
+void InitModList();
 
 QStringListModel& mod_list_model();
 
 class ModGenerator {
 public:
-	virtual void Generate(const rapidjson::Value& json, ModTable* output) = 0;
+	void Generate(const rapidjson::Value& json, ModTable* output);
+	virtual void Generate(const std::string& json, ModTable* output) = 0;
 };
 
 class SumModGenerator : public ModGenerator {
 public:
 	SumModGenerator(const std::string& name, const std::vector<std::string>& sum);
-	virtual void Generate(const rapidjson::Value& json, ModTable* output);
+	virtual void Generate(const std::string& json, ModTable* output);
 private:
 	bool Match(const char* mod, double* output);
 
@@ -55,8 +58,6 @@ private:
 
 typedef std::shared_ptr<SumModGenerator> SumModGen;
 
-//extern QStringList mod_string_list;
-extern std::vector<SumModGen> mod_generators;
-extern std::vector<std::vector<std::string>> pseudoMods;
-extern std::vector<std::vector<std::string>> mods;
-extern std::unordered_map<std::string, SumModGenerator*> mods_map;
+void InitStatTranslations();
+void AddStatTranslations(const QByteArray& statTranslations);
+void AddModToTable(const std::string& mod, ModTable* output);

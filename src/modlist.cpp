@@ -20,42 +20,47 @@
 #include "modlist.h"
 
 #include <memory>
+#include <regex>
+#include <set>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
+#include <QNetworkReply.h>
 #include <QStringList>
+
+#include <boost/algorithm/string.hpp>
+#include "QsLog.h"
 
 #include "item.h"
 #include "porting.h"
 #include "util.h"
 
-// Actual list of mods is computed at runtime
-static QStringListModel mod_list_model_;
-
-QStringListModel& mod_list_model() {
-	return mod_list_model_;
-}
-
-std::vector<std::vector<std::string>> mods;
+QStringListModel mod_list_model_;
+std::set<std::string> mods;
 std::unordered_map<std::string, SumModGenerator*> mods_map;
+std::vector<SumModGen> mod_generators;
 
 // These are just summed, and the mod named as the first element of a vector is generated with value equaling the sum.
 // Both implicit and explicit fields are considered.
 // This is pretty much the same list as poe.trade uses
+//
+// NOTE: This appears to need updating --gerwaric (2024-05-06)
 const std::vector<std::vector<std::string>> simple_sum = {
 	{ "#% increased Quantity of Items found" },
 	{ "#% increased Rarity of Items found" },
 	{ "+# to maximum Life" },
 	{ "#% increased maximum Life" },
 	{ "+# to maximum Energy Shield" },
+	{ "#% increased maximum Energy Shield" },
 	{ "+# to maximum Mana" },
 	{ "#% increased Mana Regeneration Rate" },
-	{ "+#% to Fire Resistance", "+#% to Fire and Cold Resistances", "+#% to Fire and Lightning Resistances", "+#% to all Elemental Resistances" },
-	{ "+#% to Cold Resistance", "+#% to Fire and Cold Resistances", "+#% to Cold and Lightning Resistances", "+#% to all Elemental Resistances" },
-	{ "+#% to Lightning Resistance", "+#% to Cold and Lightning Resistances", "+#% to Fire and Lightning Resistances", "+#% to all Elemental Resistances" },
+	{ "+#% to Fire Resistance", "+#% to Fire and Cold Resistances", "+#% to Fire and Lightning Resistances", "+#% to all Elemental Resistances", "+#% to Fire and Chaos Resistances" },
+	{ "+#% to Cold Resistance", "+#% to Fire and Cold Resistances", "+#% to Cold and Lightning Resistances", "+#% to all Elemental Resistances", "+#% to Cold and Chaos Resistances" },
+	{ "+#% to Lightning Resistance", "+#% to Cold and Lightning Resistances", "+#% to Fire and Lightning Resistances", "+#% to all Elemental Resistances", "+#% to Lightning and Chaos Resistances" },
 	{ "+#% to all Elemental Resistances" },
-	{ "+#% to Chaos Resistance" },
+	{ "+#% to Chaos Resistance", "+#% to Fire and Chaos Resistances", "+#% to Cold and Chaos Resistances", "+#% to Lightning and Chaos Resistances" },
 	{ "+# to Level of Socketed Aura Gems", "+# to Level of Socketed Gems" },
 	{ "+# to Level of Socketed Fire Gems", "+# to Level of Socketed Gems" },
 	{ "+# to Level of Socketed Cold Gems", "+# to Level of Socketed Gems" },
@@ -140,29 +145,85 @@ const std::vector<std::vector<std::string>> simple_sum = {
 	{ "* Leo's Level-28-capped-rolls mod", "Cannot roll Mods with Required Level above #" },
 };
 
-std::vector<SumModGen> mod_generators;
-
-void InitModlist() {
-	QStringList mod_string_list;
-	mod_generators.clear();
-	mods_map.clear();
-
-	for (auto& list : mods) {
-		mod_string_list.push_back(list[0].c_str());
-
-		SumModGen gen = std::make_shared<SumModGenerator>(list[0], list);
-
-		mods_map.insert(std::make_pair<std::string, SumModGenerator*>(list[0].c_str(), gen.get()));
-
-		mod_generators.push_back(gen);
-	}
-	mod_string_list.sort(Qt::CaseInsensitive);
-	mod_list_model_.setStringList(mod_string_list);
+QStringListModel& mod_list_model() {
+	return mod_list_model_;
 }
 
-SumModGenerator::SumModGenerator(const std::string& name, const std::vector<std::string>& sum) :
+void InitStatTranslations() {
+	mods.clear();
+}
+
+void AddStatTranslations(const QByteArray& statTranslations) {
+	rapidjson::Document doc;
+	doc.Parse(statTranslations.constData());
+
+	if (doc.HasParseError()) {
+		QLOG_ERROR() << "Couldn't properly parse Stat Translations from RePoE, canceling Mods Update";
+		return;
+	};
+
+	for (auto& translation : doc) {
+		for (auto& stat : translation["English"]) {
+			if (stat.HasMember("is_markup") && (stat["is_markup"].GetBool() == true)) {
+				// This was added with the change to process json files inside
+				// the stat_translations directory. In this case, the necropolis
+				// mods from 3.24 have some kind of duplicate formatting with
+				// markup that acquisition has not had to deal with before.
+				//
+				// It's possible this is true for other files in the stat_translations
+				// folder, but acquisition has never needed to load modifiers from those
+				// files before.
+				continue;
+			};
+			std::vector<std::string> formats;
+			for (auto& format : stat["format"]) {
+				formats.push_back(format.GetString());
+			};
+			std::string stat_string = stat["string"].GetString();
+			if (formats[0].compare("ignore") != 0) {
+				for (int i = 0; i < formats.size(); i++) {
+					std::string searchString = "{" + std::to_string(i) + "}";
+					boost::replace_all(stat_string, searchString, formats[i]);
+				};
+			};
+			if (stat_string.length() > 0) {
+				mods.insert(stat_string);
+			};
+		};
+	};
+}
+
+void InitModList() {
+	std::set<std::string> mod_strings;
+	mod_generators.clear();
+	mods_map.clear();
+	for (auto& mod : mods) {
+		if (mod_strings.count(mod) > 0) {
+			QLOG_WARN() << "InitModList(): duplicate mod:" << mod;
+		} else {
+			mod_strings.insert(mod);
+			std::vector<std::string> list = { mod };
+			SumModGen gen = std::make_shared<SumModGenerator>(mod, list);
+			mods_map.insert(std::make_pair(mod, gen.get()));
+			mod_generators.push_back(gen);
+		};
+	};
+	QStringList mod_list;
+	mod_list.reserve(mod_strings.size());
+	for (auto& mod : mod_strings) {
+		mod_list.append(QString::fromStdString(mod));
+	};
+	mod_list.sort(Qt::CaseInsensitive);
+	mod_list_model_.setStringList(mod_list);
+}
+
+void ModGenerator::Generate(const rapidjson::Value& json, ModTable* output) {
+	Generate(json.GetString(), output);
+}
+
+SumModGenerator::SumModGenerator(const std::string& name, const std::vector<std::string>& matches) :
 	name_(name),
-	matches_(sum)
+	matches_(matches)
 {}
 
 bool SumModGenerator::Match(const char* mod, double* output) {
@@ -173,21 +234,24 @@ bool SumModGenerator::Match(const char* mod, double* output) {
 		if (Util::MatchMod(match.c_str(), mod, &result)) {
 			*output += result;
 			found = true;
-		}
-	}
-
+		};
+	};
 	return found;
 }
 
-void SumModGenerator::Generate(const rapidjson::Value& mod, ModTable* output) {
-	bool mod_present = false;
-	double sum = 0;
+void SumModGenerator::Generate(const std::string& mod, ModTable* output) {
 	double result;
-	if (Match(mod.GetString(), &result)) {
-		sum += result;
-		mod_present = true;
-	}
+	if (Match(mod.c_str(), &result)) {
+		(*output)[name_] = result;
+	};
+}
 
-	if (mod_present)
-		(*output)[name_] = sum;
+void AddModToTable(const std::string& raw_mod, ModTable* output) {
+	const std::regex rep("([0-9\\.]+)");
+	const std::string mod = std::regex_replace(raw_mod, rep, "#");
+	auto rslt = mods_map.find(mod);
+	if (rslt != mods_map.end()) {
+		SumModGenerator* gen = rslt->second;
+		gen->Generate(raw_mod, output);
+	};
 }

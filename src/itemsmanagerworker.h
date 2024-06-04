@@ -69,9 +69,9 @@ public slots:
 	void FetchItems();
 	void PreserveSelectedCharacter();
 	void Init();
-	void OnStatTranslationsReceived(QNetworkReply* reply);
-	void OnItemClassesReceived(QNetworkReply* reply);
-	void OnItemBaseTypesReceived(QNetworkReply* reply);
+	void OnStatTranslationsReceived();
+	void OnItemClassesReceived();
+	void OnItemBaseTypesReceived();
 signals:
 	void ItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
 	void StatusUpdate(ProgramState state, const QString& status);
@@ -86,7 +86,7 @@ private:
 	void QueueRequest(const QNetworkRequest& request, const ItemLocation& location);
 	void ParseItems(rapidjson::Value* value_ptr, ItemLocation base_location, rapidjson_allocator& alloc);
 	std::vector<std::pair<std::string, std::string> > CreateTabsSignatureVector(std::string tabs);
-	void UpdateModList(QStringList StatTranslationUrls);
+	void UpdateModList();
 	bool TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, ItemLocation& location);
 	void FinishUpdate();
 
@@ -121,6 +121,11 @@ private:
 	int first_stash_request_index_;
 	std::string first_character_request_name_;
 
+	bool need_stash_list_;
+	bool need_character_list_;
+
 	bool has_stash_list_;
 	bool has_character_list_;
+
+	std::queue<std::string> stat_translation_queue_;
 };

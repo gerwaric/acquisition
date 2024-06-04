@@ -36,6 +36,7 @@
 #include "datastore.h"
 #include "util.h"
 #include "mainwindow.h"
+#include "network_info.h"
 #include "buyoutmanager.h"
 #include "modlist.h"
 #include "ratelimit.h"
@@ -56,7 +57,7 @@ const char* kRePoE_item_classes = "https://raw.githubusercontent.com/lvlvllvlvll
 const char* kRePoE_item_base_types = "https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/base_items.min.json";
 
 // Modifiers from this list of files will be loaded in order from first to last.
-const QStringList REPOE_STAT_TRANSLATIONS = {
+const char* REPOE_STAT_TRANSLATIONS[] = {
 	"https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/stat_translations.min.json",
 	"https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/stat_translations/necropolis.min.json"
 };
@@ -75,8 +76,14 @@ ItemsManagerWorker::ItemsManagerWorker(Application& app) :
 	updateRequest_(false),
 	type_(TabSelection::Type::Checked),
 	queue_id_(-1),
-	first_stash_request_index_(-1)
-{}
+	first_stash_request_index_(-1),
+	has_stash_list_(false),
+	has_character_list_(false)
+{
+	for (const auto& url : REPOE_STAT_TRANSLATIONS) {
+		stat_translation_queue_.push(url);
+	};
+}
 
 void ItemsManagerWorker::UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations) {
 	updateRequest_ = true;
@@ -95,14 +102,14 @@ void ItemsManagerWorker::Init() {
 
 	emit StatusUpdate(ProgramState::Initializing, "Waiting for RePoE item classes.");
 
-	QNetworkRequest PoE_item_classes_request = QNetworkRequest(QUrl(QString(kRePoE_item_classes)));
-	rate_limiter_.Submit(PoE_item_classes_request,
-		[=](QNetworkReply* reply) {
-			OnItemClassesReceived(reply);
-		});
+	QNetworkRequest request = QNetworkRequest(QUrl(QString(kRePoE_item_classes)));
+	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+	QNetworkReply* reply = app_.network_manager().get(request);
+	connect(reply, &QNetworkReply::finished, this, &ItemsManagerWorker::OnItemClassesReceived);
 }
 
-void ItemsManagerWorker::OnItemClassesReceived(QNetworkReply* reply) {
+void ItemsManagerWorker::OnItemClassesReceived() {
+	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
 	if (reply->error()) {
 		QLOG_ERROR() << "Couldn't fetch RePoE Item Classes:" << reply->url().toDisplayString()
 			<< "due to error:" << reply->errorString() << "The type dropdown will remain empty.";
@@ -114,14 +121,14 @@ void ItemsManagerWorker::OnItemClassesReceived(QNetworkReply* reply) {
 
 	emit StatusUpdate(ProgramState::Initializing, "Waiting for RePoE item base types.");
 
-	QNetworkRequest PoE_item_base_types_request = QNetworkRequest(QUrl(QString(kRePoE_item_base_types)));
-	rate_limiter_.Submit(PoE_item_base_types_request,
-		[=](QNetworkReply* reply) {
-			OnItemBaseTypesReceived(reply);
-		});
+	QNetworkRequest request = QNetworkRequest(QUrl(QString(kRePoE_item_base_types)));
+	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+	QNetworkReply* next_reply = app_.network_manager().get(request);
+	connect(next_reply, &QNetworkReply::finished, this, &ItemsManagerWorker::OnItemBaseTypesReceived);
 }
 
-void ItemsManagerWorker::OnItemBaseTypesReceived(QNetworkReply* reply) {
+void ItemsManagerWorker::OnItemBaseTypesReceived() {
+	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
 	if (reply->error()) {
 		QLOG_ERROR() << "Couldn't fetch RePoE Item Base Types:" << reply->url().toDisplayString()
 			<< "due to error:" << reply->errorString() << "The type dropdown will remain empty.";
@@ -132,13 +139,12 @@ void ItemsManagerWorker::OnItemBaseTypesReceived(QNetworkReply* reply) {
 	};
 	emit StatusUpdate(ProgramState::Initializing, "RePoE data received; updating mod list.");
 
-	mods.clear();
-	QStringList StatTranslationUrls = QStringList(REPOE_STAT_TRANSLATIONS);
-	UpdateModList(StatTranslationUrls);
+	InitStatTranslations();
+	UpdateModList();
 }
 
 void ItemsManagerWorker::ParseItemMods() {
-	InitModlist();
+	InitModList();
 	tabs_.clear();
 	tabs_signature_.clear();
 	tab_id_index_.clear();
@@ -193,26 +199,31 @@ void ItemsManagerWorker::ParseItemMods() {
 	};
 }
 
-void ItemsManagerWorker::UpdateModList(QStringList StatTranslationUrls) {
-	if (StatTranslationUrls.isEmpty()) {
+void ItemsManagerWorker::UpdateModList() {
+	if (stat_translation_queue_.empty() == false) {
+		const std::string next_url = stat_translation_queue_.front();
+		stat_translation_queue_.pop();
+		QUrl url = QUrl(QString::fromStdString(next_url));
+		QNetworkRequest request = QNetworkRequest(url);
+		request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+		QNetworkReply* reply = app_.network_manager().get(request);
+		connect(reply, &QNetworkReply::finished, this, &ItemsManagerWorker::OnStatTranslationsReceived);
+	} else {
 		// Create a separate thread to load the items, which allows the UI to
 		// update the status bar while items are being parsed. This operation
 		// can take tens of seconds or longer depending on the nubmer of tabs
 		// and items.
-		QThread* parser = QThread::create([=]() { ParseItemMods(); });
-		parser->start();
-	} else {
-		QUrl url = QUrl(StatTranslationUrls.takeFirst());
-		QNetworkRequest PoE_stat_translations_request = QNetworkRequest(url);
-		rate_limiter_.Submit(PoE_stat_translations_request,
-			[=](QNetworkReply* reply) {
-				OnStatTranslationsReceived(reply);
-				UpdateModList(StatTranslationUrls);
+		QThread* parser = QThread::create(
+			[=]() {
+				InitModList();
+				ParseItemMods();
 			});
+		parser->start();
 	};
 }
 
-void ItemsManagerWorker::OnStatTranslationsReceived(QNetworkReply* reply) {
+void ItemsManagerWorker::OnStatTranslationsReceived() {
+	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
 	QLOG_TRACE() << "Stat translations received:" << reply->request().url().toString();
 
 	if (reply->error()) {
@@ -220,52 +231,8 @@ void ItemsManagerWorker::OnStatTranslationsReceived(QNetworkReply* reply) {
 			<< " due to error: " << reply->errorString() << " Aborting update.";
 		return;
 	};
-
-	QByteArray bytes = reply->readAll();
-	rapidjson::Document doc;
-	doc.Parse(bytes.constData());
-
-	if (doc.HasParseError()) {
-		QLOG_ERROR() << "Couldn't properly parse Stat Translations from RePoE, canceling Mods Update";
-		return;
-	};
-
-	//mods.clear();
-	std::set<std::string> stat_strings;
-
-	for (auto& translation : doc) {
-		for (auto& stat : translation["English"]) {
-			if (stat.HasMember("is_markup") && (stat["is_markup"].GetBool() == true)) {
-				// This was added with the change to process json files inside
-				// the stat_translations directory. In this case, the necropolis
-				// mods from 3.24 have some kind of duplicate formatting with
-				// markup that acquisition has not had to deal with before.
-				//
-				// It's possible this is true for other files in the stat_translations
-				// folder, but acquisition has never needed to load modifiers from those
-				// files before.
-				continue;
-			};
-			std::vector<std::string> formats;
-			for (auto& format : stat["format"]) {
-				formats.push_back(format.GetString());
-			};
-			std::string stat_string = stat["string"].GetString();
-			if (formats[0].compare("ignore") != 0) {
-				for (int i = 0; i < formats.size(); i++) {
-					std::string searchString = "{" + std::to_string(i) + "}";
-					boost::replace_all(stat_string, searchString, formats[i]);
-				};
-			};
-			if (stat_string.length() > 0) {
-				stat_strings.insert(stat_string);
-			};
-		};
-	};
-
-	for (const std::string& stat_string : stat_strings) {
-		mods.push_back({ stat_string });
-	};
+	AddStatTranslations(reply->readAll());
+	UpdateModList();
 }
 
 void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemLocation>& locations) {
@@ -284,6 +251,9 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 	tabs_as_string_ = "";
 	selected_character_ = "";
 
+	need_stash_list_ = false;
+	need_character_list_ = false;
+
 	first_stash_request_index_ = -1;
 	first_character_request_name_ = "";
 
@@ -292,6 +262,9 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 		tabs_.clear();
 		tab_id_index_.clear();
 		items_.clear();
+		first_stash_request_index_ = 0;
+		need_stash_list_ = true;
+		need_character_list_ = true;
 	} else {
 		// Build a list of tabs to update.
 		std::set<std::string> tabs_to_update = {};
@@ -317,13 +290,15 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 		QLOG_DEBUG() << "Updating" << tabs_to_update.size() << " tabs.";
 		RemoveUpdatingTabs(tabs_to_update);
 		RemoveUpdatingItems(tabs_to_update);
+		need_stash_list_ = (first_stash_request_index_ >= 0);
+		need_character_list_ = !first_character_request_name_.empty();
 	};
 
 	has_stash_list_ = false;
 	has_character_list_ = false;
 
 	// This queues stash tab requests.
-	if (first_stash_request_index_ >= 0) {
+	if (need_stash_list_) {
 		QNetworkRequest tab_request = MakeTabRequest(first_stash_request_index_, true);
 		rate_limiter_.Submit(tab_request,
 			[=](QNetworkReply* reply) {
@@ -331,7 +306,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 			});
 	};
 
-	if (!first_character_request_name_.empty()) {
+	if (need_character_list_) {
 		// first, download the main page because it's the only way to know which character is selected
 		QNetworkRequest main_page_request = QNetworkRequest(QUrl(kMainPage));
 		rate_limiter_.Submit(main_page_request,
@@ -486,12 +461,15 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 	has_character_list_ = true;
 
 	// Check to see if we can start sending queued requests to fetch items yet.
-	if (has_stash_list_ || (first_stash_request_index_ < 0)) {
+	if (!need_stash_list_ || has_stash_list_) {
 		FetchItems();
 	};
 }
 
 QNetworkRequest ItemsManagerWorker::MakeTabRequest(int tab_index, bool tabs) {
+	if (tab_index < 0) {
+		QLOG_ERROR() << "MakeTabRequest: invalid tab_index =" << tab_index;
+	};
 	QUrlQuery query;
 	query.addQueryItem("league", QString::fromUtf8(app_.league()));
 	query.addQueryItem("tabs", tabs ? "1" : "0");
@@ -504,6 +482,9 @@ QNetworkRequest ItemsManagerWorker::MakeTabRequest(int tab_index, bool tabs) {
 }
 
 QNetworkRequest ItemsManagerWorker::MakeCharacterRequest(const std::string& name) {
+	if (name.empty()) {
+		QLOG_ERROR() << "MakeCharacterRequest: invalid name = '" + name + "'";
+	};
 	QUrlQuery query;
 	query.addQueryItem("character", QString::fromUtf8(name));
 	query.addQueryItem("accountName", QString::fromUtf8(app_.email()));
@@ -514,6 +495,9 @@ QNetworkRequest ItemsManagerWorker::MakeCharacterRequest(const std::string& name
 }
 
 QNetworkRequest ItemsManagerWorker::MakeCharacterPassivesRequest(const std::string& name) {
+	if (name.empty()) {
+		QLOG_ERROR() << "MakeCharacterPassivesRequest: invalid name = '" + name + "'";
+	};
 	QUrlQuery query;
 	query.addQueryItem("character", QString::fromUtf8(name));
 	query.addQueryItem("accountName", QString::fromUtf8(app_.email()));
@@ -635,7 +619,7 @@ void ItemsManagerWorker::OnFirstTabReceived(QNetworkReply* reply) {
 	has_stash_list_ = true;
 
 	// Check to see if we can start sending queued requests to fetch items yet.
-	if (has_character_list_ || first_character_request_name_.empty()) {
+	if (!need_character_list_ || has_character_list_) {
 		FetchItems();
 	}
 }
