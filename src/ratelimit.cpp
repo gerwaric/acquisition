@@ -356,7 +356,7 @@ void PolicyManager::OnPolicyUpdate()
 
 				if (next_safe_time.isValid() == false) {
 					QLOG_ERROR() << "error updating next safe time in OnPolicyUpdate:"
-						<< "\n\tstarting time is" << starting_time.toString()
+						<< "\n\tstarting time is" << starting_time.toLocalTime().toString()
 						<< "\n\tperiod_tested is" << period_tested
 						<< "\n\tnext_safe_time is" << next_safe_time;
 				};
@@ -364,9 +364,9 @@ void PolicyManager::OnPolicyUpdate()
 				// Update this manager's send time only if it's later
 				// than the manager thinks we need to wait.
 				QLOG_TRACE() << "Updating next send:"
-					<< "\n\tstarting_time  is" << starting_time.toString()
-					<< "\n\tnext_safe_time is" << next_safe_time.toString()
-					<< "\n\tnext_send      is" << next_send.toString();
+					<< "\n\tstarting_time  is" << starting_time.toLocalTime().toString()
+					<< "\n\tnext_safe_time is" << next_safe_time.toLocalTime().toString()
+					<< "\n\tnext_send      is" << next_send.toLocalTime().toString();
 				if (next_safe_time > next_send) {
 					next_send = next_safe_time;
 				};
@@ -549,7 +549,7 @@ void PolicyManager::ResendAfterViolation()
 			<< "\n\t" << "request id" << active_request->id
 			<< "\n\t" << "request endpoint" << active_request->endpoint
 			<< "\n\t" << "Retry-After" << active_request->network_reply->rawHeader("Retry-After")
-			<< "\n\t" << "reply time was" << active_request->reply_time.toString();
+			<< "\n\t" << "reply time was" << active_request->reply_time.toLocalTime().toString();
 	};
 
 	// Reset this request before resending it, which means
