@@ -309,10 +309,9 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 	if (need_character_list_) {
 		// first, download the main page because it's the only way to know which character is selected
 		QNetworkRequest main_page_request = QNetworkRequest(QUrl(kMainPage));
-		rate_limiter_.Submit(kMainPage, main_page_request,
-			[=](QNetworkReply* reply) {
-				OnMainPageReceived(reply);
-			});
+		main_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+		QNetworkReply* reply = app_.network_manager().get(main_page_request);
+		connect(reply, &QNetworkReply::finished, this, &ItemsManagerWorker::OnMainPageReceived);
 	};
 }
 
@@ -369,7 +368,8 @@ void ItemsManagerWorker::RemoveUpdatingItems(const std::set<std::string>& tab_id
 	QLOG_DEBUG() << "Keeping" << items_.size() << "items and culling" << (current_items.size() - items_.size());
 }
 
-void ItemsManagerWorker::OnMainPageReceived(QNetworkReply* reply) {
+void ItemsManagerWorker::OnMainPageReceived() {
+	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
 	QLOG_TRACE() << "Main page received.";
 
 	if (reply->error()) {
@@ -508,7 +508,7 @@ QNetworkRequest ItemsManagerWorker::MakeCharacterPassivesRequest(const std::stri
 }
 
 void ItemsManagerWorker::QueueRequest(const QString& endpoint, const QNetworkRequest& request, const ItemLocation& location) {
-	QLOG_DEBUG() << "Queued (" << queue_id_ + 1 << ") -- " << location.GetHeader().c_str();
+	QLOG_DEBUG() << "Queued (" << queue_id_ + 1 << ") -- " << QString::fromUtf8(location.GetHeader());
 	ItemsRequest items_request;
 	items_request.endpoint = endpoint;
 	items_request.network_request = request;

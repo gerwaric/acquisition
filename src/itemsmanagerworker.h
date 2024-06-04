@@ -63,7 +63,7 @@ public slots:
 	void ParseItemMods();
 	void Update(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 public slots:
-	void OnMainPageReceived(QNetworkReply* reply);
+	void OnMainPageReceived();
 	void OnCharacterListReceived(QNetworkReply* reply);
 	void OnFirstTabReceived(QNetworkReply* reply);
 	void OnTabReceived(QNetworkReply* reply, ItemLocation location);
