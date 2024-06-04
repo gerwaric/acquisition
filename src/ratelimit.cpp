@@ -697,13 +697,10 @@ void RateLimiter::SendRequest(QNetworkRequest request) {
 	connect(reply, &QNetworkReply::finished, manager, &PolicyManager::ReceiveReply);
 }
 
-void RateLimiter::Submit(QNetworkRequest network_request, Callback request_callback)
+void RateLimiter::Submit(const QString& endpoint, QNetworkRequest network_request, Callback request_callback)
 {
 	// Make sure the user agent is set according to GGG's guidance.
 	network_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-
-	// We need the endpoint to see if there's a manager for this request.
-	const QString endpoint = GetEndpoint(network_request.url());
 
 	if (endpoint_mapping.count(endpoint) > 0) {
 

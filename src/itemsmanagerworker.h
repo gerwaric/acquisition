@@ -43,6 +43,7 @@ namespace RateLimit {
 
 struct ItemsRequest {
 	int id{ -1 };
+	QString endpoint;
 	QNetworkRequest network_request;
 	ItemLocation location;
 };
@@ -83,7 +84,7 @@ private:
 	QNetworkRequest MakeTabRequest(int tab_index, bool tabs = false);
 	QNetworkRequest MakeCharacterRequest(const std::string& name);
 	QNetworkRequest MakeCharacterPassivesRequest(const std::string& name);
-	void QueueRequest(const QNetworkRequest& request, const ItemLocation& location);
+	void QueueRequest(const QString& endpoint, const QNetworkRequest& request, const ItemLocation& location);
 	void ParseItems(rapidjson::Value* value_ptr, ItemLocation base_location, rapidjson_allocator& alloc);
 	std::vector<std::pair<std::string, std::string> > CreateTabsSignatureVector(std::string tabs);
 	void UpdateModList();

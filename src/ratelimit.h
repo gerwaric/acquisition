@@ -357,7 +357,7 @@ namespace RateLimit
 
 		// Submit a request-callback pair to the rate limiter. Note that the callback function
 		// should not delete the QNetworkReply. That is handled after the callback finishes.
-		void Submit(QNetworkRequest network_request, Callback request_callback);
+		void Submit(const QString& endpoint, QNetworkRequest network_request, Callback request_callback);
 
 	public slots:
 		// Slot for policy managers to send signals when they begin rate limiting.

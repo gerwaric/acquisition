@@ -300,7 +300,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 	// This queues stash tab requests.
 	if (need_stash_list_) {
 		QNetworkRequest tab_request = MakeTabRequest(first_stash_request_index_, true);
-		rate_limiter_.Submit(tab_request,
+		rate_limiter_.Submit(kStashItemsUrl, tab_request,
 			[=](QNetworkReply* reply) {
 				OnFirstTabReceived(reply);
 			});
@@ -309,7 +309,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 	if (need_character_list_) {
 		// first, download the main page because it's the only way to know which character is selected
 		QNetworkRequest main_page_request = QNetworkRequest(QUrl(kMainPage));
-		rate_limiter_.Submit(main_page_request,
+		rate_limiter_.Submit(kMainPage, main_page_request,
 			[=](QNetworkReply* reply) {
 				OnMainPageReceived(reply);
 			});
@@ -388,7 +388,7 @@ void ItemsManagerWorker::OnMainPageReceived(QNetworkReply* reply) {
 		};
 	};
 	QNetworkRequest characters_request = QNetworkRequest(QUrl(kGetCharactersUrl));
-	rate_limiter_.Submit(characters_request,
+	rate_limiter_.Submit(kGetCharactersUrl, characters_request,
 		[=](QNetworkReply* reply) {
 			OnCharacterListReceived(reply);
 		});
@@ -447,10 +447,10 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 		++requested_character_count;
 
 		//Queue request for items on character in character's stash
-		QueueRequest(MakeCharacterRequest(name), location);
+		QueueRequest(kCharacterItemsUrl, MakeCharacterRequest(name), location);
 
 		//Queue request for jewels in character's passive tree
-		QueueRequest(MakeCharacterPassivesRequest(name), location);
+		QueueRequest(kCharacterSocketedJewels, MakeCharacterPassivesRequest(name), location);
 	}
 	QLOG_DEBUG() << "There are" << requested_character_count << "characters to update in" << app_.league().c_str();
 
@@ -507,9 +507,10 @@ QNetworkRequest ItemsManagerWorker::MakeCharacterPassivesRequest(const std::stri
 	return QNetworkRequest(url);
 }
 
-void ItemsManagerWorker::QueueRequest(const QNetworkRequest& request, const ItemLocation& location) {
+void ItemsManagerWorker::QueueRequest(const QString& endpoint, const QNetworkRequest& request, const ItemLocation& location) {
 	QLOG_DEBUG() << "Queued (" << queue_id_ + 1 << ") -- " << location.GetHeader().c_str();
 	ItemsRequest items_request;
+	items_request.endpoint = endpoint;
 	items_request.network_request = request;
 	items_request.id = queue_id_++;
 	items_request.location = location;
@@ -528,9 +529,8 @@ void ItemsManagerWorker::FetchItems() {
 		queue_.pop();
 
 		// Pass the request to the rate limiter.
-		QNetworkRequest fetch_request = request.network_request;
 		ItemLocation location = request.location;
-		rate_limiter_.Submit(fetch_request,
+		rate_limiter_.Submit(request.endpoint, request.network_request,
 			[=](QNetworkReply* reply) {
 				OnTabReceived(reply, location);
 			});
@@ -582,7 +582,7 @@ void ItemsManagerWorker::OnFirstTabReceived(QNetworkReply* reply) {
 	for (auto const& tab : tabs_) {
 		if (!old_tab_headers.count(tab.GetHeader())) {
 			QLOG_DEBUG() << "Forcing refresh of moved or renamed tab: " << tab.GetHeader().c_str();
-			QueueRequest(MakeTabRequest(tab.get_tab_id(), true), tab);
+			QueueRequest(kStashItemsUrl, MakeTabRequest(tab.get_tab_id(), true), tab);
 		};
 	};
 
@@ -613,7 +613,7 @@ void ItemsManagerWorker::OnFirstTabReceived(QNetworkReply* reply) {
 		tab_id_index_.insert(tab_id);
 
 		// Submit a request for this tab.
-		QueueRequest(MakeTabRequest(location.get_tab_id(), true), location);
+		QueueRequest(kStashItemsUrl, MakeTabRequest(location.get_tab_id(), true), location);
 	};
 
 	has_stash_list_ = true;
@@ -661,11 +661,6 @@ void ItemsManagerWorker::OnTabReceived(QNetworkReply* network_reply, ItemLocatio
 	// expected index/tab name map.  We need to detect this case and abort the update.
 	if (!cancel_update_ && !error && (location.get_type() == ItemLocationType::STASH)) {
 		cancel_update_ = TabsChanged(doc, network_reply, location);
-	};
-
-	// re-queue a failed request
-	if (error) {
-		QueueRequest(network_reply->request(), location);
 	};
 
 	++requests_completed_;
@@ -797,7 +792,7 @@ void ItemsManagerWorker::PreserveSelectedCharacter() {
 	// The act of making this request sets the active character.
 	// We don't need to to anything with the reply.
 	QNetworkRequest character_request = MakeCharacterRequest(selected_character_);
-	rate_limiter_.Submit(character_request, [](QNetworkReply*) {});
+	rate_limiter_.Submit(kCharacterItemsUrl, character_request, [](QNetworkReply*) {});
 }
 
 std::vector<std::pair<std::string, std::string> > ItemsManagerWorker::CreateTabsSignatureVector(std::string tabs) {
