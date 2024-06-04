@@ -336,7 +336,7 @@ void MainWindow::OnUncheckAll() {
 void MainWindow::OnRefreshSelected() {
 	// Get names of tabs to refresh
 	std::vector<ItemLocation> locations;
-	for (auto const& index : ui->treeView->selectionModel()->selectedIndexes()) {
+	for (auto const& index : ui->treeView->selectionModel()->selectedRows()) {
 		// Fetch tab names per index
 		locations.push_back(current_search_->GetTabLocation(index));
 	}
@@ -351,7 +351,7 @@ void MainWindow::OnRefreshSelected() {
 void MainWindow::CheckSelected(bool value) {
 	auto& bo = app_.buyout_manager();
 
-	for (auto const& index : ui->treeView->selectionModel()->selectedIndexes()) {
+	for (auto const& index : ui->treeView->selectionModel()->selectedRows()) {
 		bo.SetRefreshChecked(current_search_->GetTabLocation(index), value);
 	}
 }
@@ -387,7 +387,7 @@ void MainWindow::OnBuyoutChange() {
 		return;
 
 	BuyoutManager& bo_manager = app_.buyout_manager();
-	for (auto const& index : ui->treeView->selectionModel()->selectedIndexes()) {
+	for (auto const& index : ui->treeView->selectionModel()->selectedRows()) {
 		auto const& tab = current_search_->GetTabLocation(index).GetUniqueHash();
 
 		// Don't allow users to manually update locked tabs (game priced)
