@@ -19,7 +19,6 @@
 
 #include "ratelimit.h"
 
-#include <QMetaEnum>
 #include <QUrl>
 
 #include "QsLog.h"

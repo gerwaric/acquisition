@@ -23,6 +23,7 @@
 #include <QDateTime>
 #include "rapidjson/document.h"
 #include <QDebug>
+#include <QMetaEnum>
 #include <QObject>
 #include <QUrlQuery>
 
