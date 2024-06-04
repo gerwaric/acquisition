@@ -19,6 +19,7 @@
 
 #include "ratelimit.h"
 
+#include <QMetaEnum>
 #include <QUrl>
 
 #include "QsLog.h"
@@ -536,7 +537,7 @@ int PolicyManager::GetPauseDuration() const {
 QString PolicyManager::GetStatusMessage() const {
 
 	const QString info = QString("%1 with %2 queued requests").arg(
-		POLICY_STATE[policy->status()],
+		Util::toString(policy->status()),
 		QString::number(request_queue.size()));
 
 	const int delay = GetPauseDuration();

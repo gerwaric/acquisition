@@ -90,7 +90,10 @@ class OAuthManager;
 
 namespace RateLimit
 {
+	Q_NAMESPACE;
+
 	enum class RateLimitStatus { OK, PAUSED };
+	Q_ENUM_NS(RateLimitStatus);
 
 	struct StatusInfo {
 		RateLimitStatus status{ RateLimitStatus::OK };
@@ -171,12 +174,7 @@ namespace RateLimit
 	};
 
 	enum class PolicyStatus { UNKNOWN, OK, BORDERLINE, VIOLATION, INVALID };
-	static std::map<PolicyStatus, QString> POLICY_STATE = {
-		{PolicyStatus::UNKNOWN,    "UNKNOWN"},
-		{PolicyStatus::OK,         "OK"},
-		{PolicyStatus::BORDERLINE, "BORDERLINE"},
-		{PolicyStatus::VIOLATION,  "VIOLATION"},
-		{PolicyStatus::INVALID,    "INVALID"} };
+	Q_ENUM_NS(PolicyStatus);
 
 	//=========================================================================================
 	// Next, declarations for the classes that represent a rate-limit policy

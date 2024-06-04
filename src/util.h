@@ -74,7 +74,6 @@ QDebug& operator<<(QDebug& os, const TabSelection::Type& obj);
 
 QDebug& operator<<(QDebug& os, const QsLogging::Level& obj);
 
-
 namespace Util {
 	std::string Md5(const std::string& value);
 	double AverageDamage(const std::string& s);
@@ -118,4 +117,10 @@ namespace Util {
 	QByteArray FixTimezone(const QByteArray& rfc2822_date);
 
 	std::string ConvertAsciiToUtf(const std::string& asciiString);
+
+	// Convert Q_ENUM and Q_ENUM_NS objects to their string value.
+	template<typename T>
+	QString toString(const T& value) {
+		return QMetaEnum::fromType<T>().valueToKey(static_cast<std::underlying_type_t<T>>(value));
+	};
 }
