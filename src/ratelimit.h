@@ -98,6 +98,7 @@ namespace RateLimit
 		QString message;
 	};
 
+	typedef boost::circular_buffer<QDateTime> RequestHistory;
 
 	//=========================================================================================
 	// Constants
@@ -169,6 +170,14 @@ namespace RateLimit
 		static unsigned long request_count;
 	};
 
+	enum class PolicyStatus { UNKNOWN, OK, BORDERLINE, VIOLATION, INVALID };
+	static std::map<PolicyStatus, QString> POLICY_STATE = {
+		{PolicyStatus::UNKNOWN,    "UNKNOWN"},
+		{PolicyStatus::OK,         "OK"},
+		{PolicyStatus::BORDERLINE, "BORDERLINE"},
+		{PolicyStatus::VIOLATION,  "VIOLATION"},
+		{PolicyStatus::INVALID,    "INVALID"} };
+
 	//=========================================================================================
 	// Next, declarations for the classes that represent a rate-limit policy
 	//=========================================================================================
@@ -193,51 +202,68 @@ namespace RateLimit
 	// For any request against a rate-limited endpoint, only one policy applies, but
 	// all of limitations for each item of every rule within that policy are checked.
 
-	struct RuleItemData {
-		RuleItemData();
+	class RuleItemData {
+	public:
 		RuleItemData(const QByteArray& header_fragment);
-		int hits;
-		int period;
-		int restriction;
+		int hits() const { return hits_; };
+		int period() const { return period_; };
+		int restriction() const { return restriction_; };
 		operator QString() const;
+	private:
+		int hits_;
+		int period_;
+		int restriction_;
 	};
 
 	// Both RuleItemData and PolicyRule have default constructors because
 	// they are the two policy-related classes where it's useful to preallocate
 	// arrays of a known size.
 
-	struct RuleItem {
-		RuleItemData limit;
-		RuleItemData state;
+	class RuleItem {
+	public:
+		RuleItem(const QByteArray& limit_fragment, const QByteArray& state_fragment);
+		const RuleItemData& limit() const { return limit_; };
+		const RuleItemData& state() const { return state_; };
+		PolicyStatus status() const { return status_; };
+		QDateTime NextSafeRequest(const RequestHistory& history) const;
 		operator QString() const;
+	private:
+		RuleItemData limit_;
+		RuleItemData state_;
+		PolicyStatus status_;
 	};
 
-	struct PolicyRule {
-		PolicyRule();
+	class PolicyRule {
+	public:
 		PolicyRule(const QByteArray& rule_name, QNetworkReply* const reply);
-		QString name;
-		std::vector<RuleItem> items;
+		QString name() const { return name_; };
+		const std::vector<RuleItem>& items() const { return items_; };
+		PolicyStatus status() const { return status_; };
 		operator QString() const;
+	private:
+		QString name_;
+		std::vector<RuleItem> items_;
+		PolicyStatus status_;
 	};
 
-	enum class PolicyStatus { OK, BORDERLINE, VIOLATION, UNKNOWN, INVALID };
-	static std::map<PolicyStatus, QString> POLICY_STATE = {
-		{PolicyStatus::OK,         "OK"},
-		{PolicyStatus::BORDERLINE, "BORDERLINE"},
-		{PolicyStatus::VIOLATION,  "VIOLATION"},
-		{PolicyStatus::UNKNOWN,    "UNKNOWN"},
-		{PolicyStatus::INVALID,    "INVALID"} };
-
-	struct Policy {
+	class Policy {
+	public:
 		Policy();
 		Policy(QNetworkReply* const reply);
-		const bool empty;
-		QString name;
-		std::vector<PolicyRule> rules;
-		PolicyStatus status;
-		size_t max_period;
+		QString name() const { return name_; };
+		bool empty() const { return empty_; };
+		const std::vector<PolicyRule>& rules() const { return rules_; };
+		PolicyStatus status() const { return status_; };
+		int max_hits() const { return max_hits_; };
+		int min_delay_msec() const { return min_delay_msec_; };
+		QDateTime NextSafeRequest(const RequestHistory& history) const;
 	private:
-		void UpdateStatus();
+		QString name_;
+		const bool empty_;
+		std::vector<PolicyRule> rules_;
+		size_t max_hits_;
+		size_t min_delay_msec_;
+		PolicyStatus status_;
 	};
 
 	//=========================================================================================
@@ -248,8 +274,7 @@ namespace RateLimit
 		Q_OBJECT
 
 	public:
-		// Construct a rate limit manager with the specified policy.
-		PolicyManager(std::unique_ptr<Policy>, QObject* parent = nullptr);
+		PolicyManager(QNetworkReply* reply, QObject* parent = nullptr);
 
 		// Move a request into to this manager's queue.
 		void QueueRequest(std::unique_ptr<RateLimitedRequest> request);
@@ -263,7 +288,7 @@ namespace RateLimit
 		QStringList endpoints;
 
 		// Return the status of this rate limit manager.
-		PolicyStatus GetStatus() const { return policy->status; };
+		PolicyStatus GetStatus() const { return policy->status(); };
 
 		// Return the number of seconds this manager is paused.
 		int GetPauseDuration() const;
@@ -341,7 +366,7 @@ namespace RateLimit
 		// A circular buffer is used because it's fast to access, and the number
 		// of items we have to store only changes when a rate limit policy
 		// changes, which should not happen regularly, but we handle that case, too.
-		boost::circular_buffer<QDateTime> known_reply_times;
+		RequestHistory history;
 	};
 
 	//=========================================================================================
@@ -380,9 +405,6 @@ namespace RateLimit
 
 		// Reference to the Application's OAuth manager.
 		OAuthManager& oauth_manager_;
-
-		// Keep around one manager for non-rate-limited or non-api requests.
-		std::shared_ptr<PolicyManager> default_manager;
 
 		// Map endpoints to policy managers.
 		std::unordered_map<QString, std::shared_ptr<PolicyManager>> endpoint_mapping;
