@@ -118,6 +118,6 @@ private:
 	int queue_id_;
 	std::string selected_character_;
 
-	std::string first_fetch_tab_;
-	int first_fetch_tab_id_;
+	int first_stash_request_index_;
+	std::string first_character_request_name_;
 };

@@ -75,7 +75,7 @@ ItemsManagerWorker::ItemsManagerWorker(Application& app) :
 	updateRequest_(false),
 	type_(TabSelection::Type::Checked),
 	queue_id_(-1),
-	first_fetch_tab_id_(-1)
+	first_stash_request_index_(-1)
 {}
 
 void ItemsManagerWorker::UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations) {
@@ -284,8 +284,8 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 	tabs_as_string_ = "";
 	selected_character_ = "";
 
-	first_fetch_tab_ = "";
-	first_fetch_tab_id_ = -1;
+	first_stash_request_index_ = -1;
+	first_character_request_name_ = "";
 
 	if (type == TabSelection::All) {
 		QLOG_DEBUG() << "Updating all tabs and items.";
@@ -344,11 +344,18 @@ void ItemsManagerWorker::RemoveUpdatingTabs(const std::set<std::string>& tab_ids
 		if (save_tab) {
 			tabs_.push_back(tab);
 			tab_id_index_.insert(tab.get_tab_uniq_id());
-		} else if (need_first) {
-			if (tab.get_type() == ItemLocationType::STASH) {
-				first_fetch_tab_ = tab.get_tab_uniq_id();
-				first_fetch_tab_id_ = tab.get_tab_id();
-				need_first = false;
+		} else {
+			switch (tab.get_type()) {
+			case ItemLocationType::STASH:
+				if (first_stash_request_index_ < 0) {
+					first_stash_request_index_ = tab.get_tab_id();
+				};
+				break;
+			case ItemLocationType::CHARACTER:
+				if (first_character_request_name_.empty()) {
+					first_character_request_name_ = tab.get_character();
+				};
+				break;
 			};
 		};
 	};
@@ -392,12 +399,24 @@ void ItemsManagerWorker::OnMainPageReceived(QNetworkReply* reply) {
 		};
 	};
 
-	// now get character list
-	QNetworkRequest characters_request = QNetworkRequest(QUrl(kGetCharactersUrl));
-	rate_limiter_.Submit(characters_request,
-		[=](QNetworkReply* reply) {
-			OnCharacterListReceived(reply);
-		});
+	if ((first_stash_request_index_ < 0) && first_character_request_name_.empty()) {
+		QLOG_ERROR() << "Nothing to request. This should not happen";
+		return;
+	};
+
+	if (first_character_request_name_.empty()) {
+		QNetworkRequest tab_request = MakeTabRequest(first_stash_request_index_, true);
+		rate_limiter_.Submit(tab_request,
+			[=](QNetworkReply* reply) {
+				OnFirstTabReceived(reply);
+			});
+	} else {
+		QNetworkRequest characters_request = QNetworkRequest(QUrl(kGetCharactersUrl));
+		rate_limiter_.Submit(characters_request,
+			[=](QNetworkReply* reply) {
+				OnCharacterListReceived(reply);
+			});
+	};
 }
 
 void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
@@ -464,10 +483,10 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 		ProgramState::Busy,
 		QString("Requesting %1 characters").arg(requested_character_count));
 
-	if (first_fetch_tab_id_ < 0) {
+	if (first_stash_request_index_ < 0) {
 		FetchItems();
 	} else {
-		QNetworkRequest tab_request = MakeTabRequest(first_fetch_tab_id_, true);
+		QNetworkRequest tab_request = MakeTabRequest(first_stash_request_index_, true);
 		rate_limiter_.Submit(tab_request,
 			[=](QNetworkReply* reply) {
 				OnFirstTabReceived(reply);
@@ -517,7 +536,7 @@ void ItemsManagerWorker::QueueRequest(const QNetworkRequest& request, const Item
 }
 
 void ItemsManagerWorker::FetchItems() {
-	
+
 	total_needed_ = queue_.size();
 	total_completed_ = 0;
 
@@ -675,7 +694,7 @@ void ItemsManagerWorker::OnTabReceived(QNetworkReply* network_reply, ItemLocatio
 	};
 
 	if (cancel_update_) {
-		emit StatusUpdate( ProgramState::Ready, "Update cancelled.");
+		emit StatusUpdate(ProgramState::Ready, "Update cancelled.");
 	} else if (total_completed_ == total_needed_) {
 		emit StatusUpdate(ProgramState::Ready, QString("Received %1 tabs.").arg(total_needed_));
 	} else {
