@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include <QByteArray.h>
+#include <QByteArray>
 
 #include <memory>
 #include <string>
