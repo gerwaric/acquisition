@@ -133,10 +133,6 @@ private:
 	void GenerateMods(const rapidjson::Value& json);
 	void CalculateHash(const rapidjson::Value& json);
 
-	// Helper function for CalculateCategories(), added as part of the
-	// hack to make transfigured gems from 3.24 work with v0.10.4
-	std::string GetCategory(const std::string& baseType);
-
 	std::string name_;
 	ItemLocation location_;
 	std::string typeLine_;

@@ -19,15 +19,16 @@
 
 #pragma once
 
+#include <vector>
+
 #include <QTimer>
-#include <memory>
 
 #include "item.h"
+#include "itemlocation.h"
 #include "itemsmanagerworker.h"
 #include "mainwindow.h"
 #include "util.h"
 
-struct CurrentStatusUpdate;
 class QThread;
 class Application;
 class BuyoutManager;
@@ -57,15 +58,10 @@ public:
 	void ApplyAutoTabBuyouts();
 	void ApplyAutoItemBuyouts();
 	void PropagateTabBuyouts();
-	const QSet<QString>& categories() const { return categories_; }
 public slots:
-	// called by auto_update_timer_
 	void OnAutoRefreshTimer();
-	// Used to glue Worker's signals to MainWindow
 	void OnStatusUpdate(ProgramState state, const QString& status);
 	void OnItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
-	void OnItemClassesUpdate(const QByteArray& classes);
-	void OnItemBaseTypesUpdate(const QByteArray& baseTypes);
 signals:
 	void UpdateSignal(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 	void ItemsRefreshed(bool initial_refresh);
@@ -82,5 +78,4 @@ private:
 	std::unique_ptr<ItemsManagerWorker> worker_;
 	Application& app_;
 	Items items_;
-	QSet<QString> categories_;
 };

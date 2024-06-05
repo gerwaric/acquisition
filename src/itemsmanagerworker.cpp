@@ -231,7 +231,8 @@ void ItemsManagerWorker::OnStatTranslationsReceived() {
 			<< " due to error: " << reply->errorString() << " Aborting update.";
 		return;
 	};
-	AddStatTranslations(reply->readAll());
+	const QByteArray bytes = reply->readAll();
+	emit StatTranslationsUpdate(bytes);
 	UpdateModList();
 }
 

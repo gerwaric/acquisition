@@ -78,6 +78,7 @@ signals:
 	void StatusUpdate(ProgramState state, const QString& status);
 	void ItemClassesUpdate(const QByteArray& classes);
 	void ItemBaseTypesUpdate(const QByteArray& baseTypes);
+	void StatTranslationsUpdate(const QByteArray& statTranslations);
 private:
 	void RemoveUpdatingTabs(const std::set<std::string>& tab_ids);
 	void RemoveUpdatingItems(const std::set<std::string>& tab_ids);

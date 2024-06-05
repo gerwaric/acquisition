@@ -23,7 +23,6 @@
 #include <QString>
 #include <sstream>
 #include <boost/algorithm/string.hpp>
-#include <regex>
 #include "rapidjson/document.h"
 
 #include "QsLog.h"
@@ -311,7 +310,7 @@ std::string Item::PrettyName() const {
 }
 
 void Item::CalculateCategories() {
-	category_ = GetCategory(baseType_);
+	category_ = GetItemCategory(baseType_);
 	if (category_.empty() == false) {
 		return;
 	};
@@ -321,25 +320,11 @@ void Item::CalculateCategories() {
 	const auto indx = baseType_.find(" of ");
 	if (indx != std::string::npos) {
 		const auto altBaseType = baseType_.substr(0, indx);
-		category_ = GetCategory(altBaseType);
+		category_ = GetItemCategory(altBaseType);
 		if (category_.empty() == false) {
 			return;
 		};
 	};
-}
-
-std::string Item::GetCategory(const std::string& baseType) {
-	auto rslt = itemBaseType_NameToClass.find(baseType);
-	if (rslt != itemBaseType_NameToClass.end()) {
-		std::string step1 = rslt->second;
-		rslt = itemClassKeyToValue.find(step1);
-		if (rslt != itemClassKeyToValue.end()) {
-			std::string category = rslt->second;
-			boost::to_lower(category);
-			return category;
-		};
-	};
-	return "";
 }
 
 double Item::DPS() const {

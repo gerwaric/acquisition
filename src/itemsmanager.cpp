@@ -34,6 +34,7 @@
 #include "shop.h"
 #include "util.h"
 #include "mainwindow.h"
+#include "modlist.h"
 #include "filters.h"
 #include "itemcategories.h"
 #include "ratelimit.h"
@@ -48,69 +49,21 @@ ItemsManager::ItemsManager(Application& app) :
 	connect(auto_update_timer_.get(), &QTimer::timeout, this, &ItemsManager::OnAutoRefreshTimer);
 }
 
-ItemsManager::~ItemsManager() {
-	/*
-	if (thread_ != nullptr) {
-		thread_->quit();
-		thread_->wait();
-	};
-	*/
-}
+ItemsManager::~ItemsManager() {}
 
 void ItemsManager::Start() {
 	worker_ = std::make_unique<ItemsManagerWorker>(app_);
 	connect(this, &ItemsManager::UpdateSignal, worker_.get(), &ItemsManagerWorker::Update);
 	connect(worker_.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
 	connect(worker_.get(), &ItemsManagerWorker::ItemsRefreshed, this, &ItemsManager::OnItemsRefreshed);
-	connect(worker_.get(), &ItemsManagerWorker::ItemClassesUpdate, this, &ItemsManager::OnItemClassesUpdate);
-	connect(worker_.get(), &ItemsManagerWorker::ItemBaseTypesUpdate, this, &ItemsManager::OnItemBaseTypesUpdate);
+	connect(worker_.get(), &ItemsManagerWorker::ItemClassesUpdate, [](const QByteArray& bytes) { InitItemClasses(bytes); });
+	connect(worker_.get(), &ItemsManagerWorker::ItemBaseTypesUpdate, [](const QByteArray& bytes) { InitItemBaseTypes(bytes); });
+	connect(worker_.get(), &ItemsManagerWorker::StatTranslationsUpdate, [](const QByteArray& bytes) { AddStatTranslations(bytes); });
 	worker_->Init();
 }
 
 void ItemsManager::OnStatusUpdate(ProgramState state, const QString& status) {
 	emit StatusUpdate(state, status);
-}
-
-void ItemsManager::OnItemClassesUpdate(const QByteArray& classes) {
-	rapidjson::Document doc;
-	doc.Parse(classes.constData());
-
-	if (doc.HasParseError()) {
-		QLOG_ERROR() << "Couldn't properly parse Item Classes from RePoE, The type dropdown will remain empty.";
-		return;
-	};
-
-	categories_.clear();
-	itemClassKeyToValue.clear();
-	itemClassValueToKey.clear();
-
-	for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
-		std::string key = itr->name.GetString();
-		std::string value = itr->value.FindMember("name")->value.GetString();
-		categories_.insert(value.c_str());
-		itemClassKeyToValue.insert(std::make_pair(key, value));
-		itemClassValueToKey.insert(std::make_pair(value, key));
-	};
-
-	categories_.insert(CategorySearchFilter::k_Default.c_str());
-}
-
-void ItemsManager::OnItemBaseTypesUpdate(const QByteArray& baseTypes) {
-	rapidjson::Document doc;
-	doc.Parse(baseTypes.constData());
-
-	if (doc.HasParseError()) {
-		QLOG_ERROR() << "Couldn't properly parse Item Base Types from RePoE, The type dropdown will remain empty.";
-		return;
-	};
-
-	itemBaseType_NameToClass.clear();
-
-	for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
-		std::string item_class = itr->value.FindMember("item_class")->value.GetString();
-		std::string name = itr->value.FindMember("name")->value.GetString();
-		itemBaseType_NameToClass.insert(std::make_pair(name, item_class));
-	};
 }
 
 void ItemsManager::ApplyAutoTabBuyouts() {
