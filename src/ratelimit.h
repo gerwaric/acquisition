@@ -111,15 +111,11 @@ namespace RateLimit
 	// this is known at compile time, we don't have to anything dynamic here.
 	extern const QStringList KNOWN_ENDPOINTS;
 
-	// Consider a policy "borderline" when there are this many requests left before violation.
-	// This gives us a small buffer, just in case.
-	const int BORDERLINE_REQUEST_BUFFER = 0;
-
 	// This HTTP status code means there was a rate limit violation.
 	const int RATE_LIMIT_VIOLATION_STATUS = 429;
 
 	// A delay added to make sure we don't get a violation.
-	const int SAFETY_BUFFER_MSEC = 1000;
+	const int SAFETY_BUFFER_MSEC = 2500;
 
 	// Minium time between sends for any given policy.
 	const int MINIMUM_INTERVAL_MSEC = 100;

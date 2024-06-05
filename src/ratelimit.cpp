@@ -73,11 +73,11 @@ RuleItem::RuleItem(const QByteArray& limit_fragment, const QByteArray& state_fra
 	limit_(limit_fragment),
 	state_(state_fragment)
 {
-	if ((state_.period() != limit_.period())) {
+	if (state_.period() != limit_.period()) {
 		status_ = PolicyStatus::INVALID;
 	} else if (state_.hits() > limit_.hits()) {
 		status_ = PolicyStatus::VIOLATION;
-	} else if (state_.hits() >= (limit_.hits() - BORDERLINE_REQUEST_BUFFER)) {
+	} else if (state_.hits() == limit_.hits()) {
 		status_ = PolicyStatus::BORDERLINE;
 	} else {
 		status_ = PolicyStatus::OK;
@@ -107,7 +107,7 @@ QDateTime RuleItem::NextSafeRequest(const RequestHistory& history) const {
 	};
 
 	// Calculate the next time it will be safe to send a request.
-	return start.addSecs(limit_.period());
+	return start.addSecs(limit_.period()).addMSecs(SAFETY_BUFFER_MSEC);
 }
 
 RuleItem::operator QString() const {
