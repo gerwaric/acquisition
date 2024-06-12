@@ -26,6 +26,7 @@
 #include <QEvent>
 #include <QImageReader>
 #include <QInputDialog>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QNetworkRequest>
 #include <QNetworkReply>
@@ -75,11 +76,14 @@ MainWindow::MainWindow(Application& app) :
 	ui(new Ui::MainWindow),
 	current_search_(nullptr),
 	search_count_(0),
-	rate_limit_dialog_(nullptr)
+	rate_limit_dialog_(nullptr),
+	quitting_(false)
 {
 	setWindowIcon(QIcon(":/icons/assets/icon.svg"));
 
 	image_cache_ = new ImageCache(Filesystem::UserDir() + "/cache");
+
+	connect(qApp, &QCoreApplication::aboutToQuit, this, [&]() { quitting_ = true; });
 
 	InitializeUi();
 	InitializeRateLimitDialog();
@@ -1001,15 +1005,24 @@ void MainWindow::OnExportCurrency() {
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
-	auto button = QMessageBox::question(this, "Acquisition",
-		tr("Are you sure you want to quit?"),
-		QMessageBox::No | QMessageBox::Yes,
-		QMessageBox::Yes);
-	if (button != QMessageBox::Yes) {
-		event->ignore();
+
+	if (quitting_) {
+		event->accept();
 		return;
 	};
-	QMainWindow::closeEvent(event);
+
+	QMessageBox msgbox(this);
+	msgbox.setWindowTitle("Acquisition");
+	msgbox.setText(tr("Are you sure you want to quit?"));
+	msgbox.setStandardButtons(QMessageBox::No | QMessageBox::Yes);
+	msgbox.setDefaultButton(QMessageBox::Yes);
+	
+	const auto button = msgbox.exec();
+	if (button == QMessageBox::Yes) {
+		event->accept();
+	} else {
+		event->ignore();
+	};
 }
 
 void MainWindow::OnUploadToImgur() {

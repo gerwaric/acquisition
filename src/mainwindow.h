@@ -33,7 +33,6 @@
 #include "porting.h"
 
 class QNetworkReply;
-class QVersionNumber;
 class QVBoxLayout;
 
 class Application;
@@ -161,6 +160,7 @@ private:
 	QStringListModel* category_string_model_;
 	QStringListModel* rarity_search_model_;
 	RateLimitDialog* rate_limit_dialog_;
+	bool quitting_;
 
 	int rightClickedTabIndex = -1;
 };
