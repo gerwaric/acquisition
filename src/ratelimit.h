@@ -19,7 +19,9 @@
 
 #pragma once
 
+#include <array>
 #include <boost/circular_buffer.hpp>
+#include <deque>
 #include <unordered_map>
 
 #include <QDateTime>
@@ -92,40 +94,22 @@ namespace RateLimit
 {
 	Q_NAMESPACE;
 
-	enum class RateLimitStatus { OK, PAUSED };
-	Q_ENUM_NS(RateLimitStatus);
-
-	struct StatusInfo {
-		RateLimitStatus status{ RateLimitStatus::OK };
-		int duration{ 0 };
-		QString message;
-	};
-
-	typedef boost::circular_buffer<QDateTime> RequestHistory;
-
 	//=========================================================================================
 	// Constants
 	//=========================================================================================
 
-	// The API endpoints used by acquisition that need to be checked for rate limits. Since
-	// this is known at compile time, we don't have to anything dynamic here.
-	extern const QStringList KNOWN_ENDPOINTS;
-
 	// This HTTP status code means there was a rate limit violation.
-	const int RATE_LIMIT_VIOLATION_STATUS = 429;
+	const int VIOLATION_STATUS = 429;
 
 	// A delay added to make sure we don't get a violation.
-	const int SAFETY_BUFFER_MSEC = 2500;
+	const int SAFETY_BUFFER_MSEC = 1000;
 
 	// Minium time between sends for any given policy.
-	const int MINIMUM_INTERVAL_MSEC = 100;
-
-	// Minimum time to send after activating a request.
-	const int MINIMUM_ACTIVATION_DELAY_MSEC = 100;
+	const int MINIMUM_INTERVAL_MSEC = 500;
 
 	// When there is a violation, add this much time to how long we
 	// wait just to make sure we don't trigger another violation.
-	const int EXTRA_RATE_VIOLATION_MSEC = 1000;
+	const int VIOLATION_BUFFER_MSEC = 1000;
 
 	//=========================================================================================
 	// Rate Limited Requests
@@ -139,7 +123,7 @@ namespace RateLimit
 	struct RateLimitedRequest {
 
 		// Construct a new rate-limited request.
-		RateLimitedRequest(const QNetworkRequest& request, const Callback callback);
+		RateLimitedRequest(const QString& endpoint, const QNetworkRequest& request, const Callback callback);
 
 		// Unique identified for each request, even through different requests can be
 		// routed to different policy managers based on different endpoints.
@@ -172,6 +156,8 @@ namespace RateLimit
 	enum class PolicyStatus { UNKNOWN, OK, BORDERLINE, VIOLATION, INVALID };
 	Q_ENUM_NS(PolicyStatus);
 
+	typedef boost::circular_buffer<QDateTime> RequestHistory;
+
 	//=========================================================================================
 	// Next, declarations for the classes that represent a rate-limit policy
 	//=========================================================================================
@@ -202,16 +188,11 @@ namespace RateLimit
 		int hits() const { return hits_; };
 		int period() const { return period_; };
 		int restriction() const { return restriction_; };
-		operator QString() const;
 	private:
 		int hits_;
 		int period_;
 		int restriction_;
 	};
-
-	// Both RuleItemData and PolicyRule have default constructors because
-	// they are the two policy-related classes where it's useful to preallocate
-	// arrays of a known size.
 
 	class RuleItem {
 	public:
@@ -219,8 +200,7 @@ namespace RateLimit
 		const RuleItemData& limit() const { return limit_; };
 		const RuleItemData& state() const { return state_; };
 		PolicyStatus status() const { return status_; };
-		QDateTime NextSafeRequest(const RequestHistory& history) const;
-		operator QString() const;
+		QDateTime GetNextSafeSend(const RequestHistory& history) const;
 	private:
 		RuleItemData limit_;
 		RuleItemData state_;
@@ -230,34 +210,31 @@ namespace RateLimit
 	class PolicyRule {
 	public:
 		PolicyRule(const QByteArray& rule_name, QNetworkReply* const reply);
-		QString name() const { return name_; };
+		const QString& name() const { return name_; };
 		const std::vector<RuleItem>& items() const { return items_; };
 		PolicyStatus status() const { return status_; };
-		operator QString() const;
+		int maximum_hits() const { return maximum_hits_; };
 	private:
 		QString name_;
 		std::vector<RuleItem> items_;
 		PolicyStatus status_;
+		int maximum_hits_;
 	};
 
 	class Policy {
 	public:
 		Policy();
-		Policy(QNetworkReply* const reply);
-		QString name() const { return name_; };
-		bool empty() const { return empty_; };
+		void Update(QNetworkReply* const reply);
+		const QString& name() const { return name_; };
 		const std::vector<PolicyRule>& rules() const { return rules_; };
 		PolicyStatus status() const { return status_; };
-		int max_hits() const { return max_hits_; };
-		int min_delay_msec() const { return min_delay_msec_; };
-		QDateTime NextSafeRequest(const RequestHistory& history) const;
+		int maximum_hits() const { return maximum_hits_; };
+		QDateTime GetNextSafeSend(const RequestHistory& history);
 	private:
 		QString name_;
-		const bool empty_;
 		std::vector<PolicyRule> rules_;
-		size_t max_hits_;
-		size_t min_delay_msec_;
 		PolicyStatus status_;
+		int maximum_hits_;
 	};
 
 	//=========================================================================================
@@ -268,42 +245,28 @@ namespace RateLimit
 		Q_OBJECT
 
 	public:
-		PolicyManager(QNetworkReply* reply, QObject* parent = nullptr);
+		PolicyManager(QObject* parent = nullptr);
 
 		// Move a request into to this manager's queue.
 		void QueueRequest(std::unique_ptr<RateLimitedRequest> request);
 
-		// Keep a unique_ptr to the policy associated with this manager,
-		// which will be updated whenever a reply with the X-Rate-Limit-Policy
-		// header is received.
-		std::unique_ptr<Policy> policy;
+		void Update(QNetworkReply* reply);
 
-		// List of the API endpoints this manager's policy applies to.
-		QStringList endpoints;
+		const Policy& policy() const { return policy_; };
 
-		// Return the status of this rate limit manager.
-		PolicyStatus GetStatus() const { return policy->status(); };
+		const QDateTime& next_send() const { return next_send_; };
 
-		// Return the number of seconds this manager is paused.
-		int GetPauseDuration() const;
-
-		// Return a long string with the details of this manager's status.
-		QString GetStatusMessage() const;
-
-		// This is called whenever the policy is updated, which happens either
-		// at construction or when a QNetworkReply with a X-Rate-Limit-Policy
-		// header is received.
-		void OnPolicyUpdate();
+		bool isActive() const { return !requests_.empty(); };
 
 	signals:
 		// Emitted when a network request is ready to go.
-		void RequestReady(QNetworkRequest request);
+		void RequestReady(PolicyManager* manager, QNetworkRequest request);
 
 		// Emmitted when a reply is recieved; used to update the rate limiter's status.
-		void ReplyReceived();
+		//void ReplyReceived(PolicyManager* manager);
 
-		// Emitted when this policy manager pauses due to rate limiting.
-		void RateLimitingStarted();
+		// Emitted when the underlying policy has been updated.
+		void PolicyUpdated(const Policy& policy);
 
 	public slots:
 		// Called when a reply has been received. Checks for errors. Updates the
@@ -312,6 +275,11 @@ namespace RateLimit
 		// waiting to be activated.
 		void ReceiveReply();
 
+	private slots:
+
+		// Sends the currently active request and connects it to ReceiveReply().
+		void SendRequest();
+
 	private:
 
 		// Called right after active_request is loaded with a new request. This
@@ -319,39 +287,30 @@ namespace RateLimit
 		// request timer to send that request after a delay.
 		void ActivateRequest();
 
-		// Sends the currently active request and connects it to ReceiveReply().
-		void SendRequest();
-
 		// Resends the active request after a delay due to a violation.
 		void ResendAfterViolation();
 
-		// Keep track of wether or not there's an active request keeping this
-		// policy manager busy.
-		bool busy;
+		// Keep a unique_ptr to the policy associated with this manager,
+		// which will be updated whenever a reply with the X-Rate-Limit-Policy
+		// header is received.
+		Policy policy_;
 
-		// This time is used on a single-shot by ActivateRequest() to send
-		// requests with a delay.
-		QTimer active_request_timer;
-
-		// The currently active request.
-		std::unique_ptr<RateLimitedRequest> active_request;
+		// Used to send requests after a delay.
+		QTimer activation_timer_;
 
 		// Requests that are waiting to be activated.
-		std::list<std::unique_ptr<RateLimitedRequest>> request_queue;
+		std::deque<std::unique_ptr<RateLimitedRequest>> requests_;
+
+		std::unique_ptr<RateLimitedRequest> active_request_;
 
 		// When a reply is recieved and the policy state has been updated or a 
 		// rate violation has been detected, the next possible send time is calculated
 		// and stored here.
-		QDateTime next_send;
+		QDateTime next_send_;
 
 		// Store the time of the last send for this policy, just so we can have an
 		// extra check to make sure we don't flood GGG with requests.
-		QDateTime last_send;
-
-		// Keep track of wether a violation was detected. Currently this is
-		// only used to update the program status so the user knows wether
-		// a reply is being delay to a violation or not.
-		bool violation;
+		QDateTime last_send_;
 
 		// We use a history of the received reply times so that we can calculate
 		// when the next safe send time will be. This allows us to calculate the
@@ -360,7 +319,7 @@ namespace RateLimit
 		// A circular buffer is used because it's fast to access, and the number
 		// of items we have to store only changes when a rate limit policy
 		// changes, which should not happen regularly, but we handle that case, too.
-		RequestHistory history;
+		RequestHistory history_;
 	};
 
 	//=========================================================================================
@@ -378,21 +337,33 @@ namespace RateLimit
 		// should not delete the QNetworkReply. That is handled after the callback finishes.
 		void Submit(const QString& endpoint, QNetworkRequest network_request, Callback request_callback);
 
+		const int UPDATE_INTERVAL_MSEC = 1000;
+
 	public slots:
-		// Slot for policy managers to send signals when they begin rate limiting.
-		void OnTimerStarted();
+		// Used by the GUI to request a manual refresh.
+		void OnUpdateRequested();
 
 	signals:
+		// Emitted when one of the policy managers has signalled a policy update.
+		void PolicyUpdate(const Policy& policy);
+
 		// Signal sent to the UI so the user can see what's going on.
-		void StatusUpdate(const StatusInfo& update);
+		void Paused(int seconds, const QString& policy_name);
 
 	private slots:
 		// Called when a policy manager has a request for us to send.
-		void SendRequest(QNetworkRequest request);
+		void SendRequest(PolicyManager* manager, QNetworkRequest request);
+
+		void SendStatusUpdate();
+
+		// Received signals from the policy managers.
+		void OnPolicyUpdated(const Policy& policy);
 
 	private:
 		// Process the first request for an endpoint we haven't encountered before.
-		void SetupEndpoint(QNetworkRequest network_request, Callback request_callback, QNetworkReply* reply);
+		void SetupEndpoint(const QString& endpoint, QNetworkRequest network_request, Callback request_callback, QNetworkReply* reply);
+
+		PolicyManager& GetManager(const QString& endpoint, const QString& policy_name);
 
 		// Reference to the Application's network access manager.
 		QNetworkAccessManager& network_manager_;
@@ -400,16 +371,10 @@ namespace RateLimit
 		// Reference to the Application's OAuth manager.
 		OAuthManager& oauth_manager_;
 
-		// Map endpoints to policy managers.
-		std::unordered_map<QString, std::shared_ptr<PolicyManager>> endpoint_mapping;
+		std::list<PolicyManager> managers_;
+		std::map<const QString, PolicyManager&> manager_by_policy_;
+		std::map<const QString, PolicyManager&> manager_by_endpoint_;
 
-		// Map policy names to policy managers.
-		std::unordered_map<QString, std::shared_ptr<PolicyManager>> policy_mapping;
-
-		// This timer updates the rate limit status.
-		QTimer status_updater;
-
-		// Called by the timer to emit status updates.
-		void DoStatusUpdate();
+		QTimer update_timer_;
 	};
 }

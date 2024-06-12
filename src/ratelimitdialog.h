@@ -1,5 +1,5 @@
 /*
-	Copyright 2023 Gerwaric
+	Copyright 2024 Gerwaric
 
 	This file is part of Acquisition.
 
@@ -16,27 +16,37 @@
 	You should have received a copy of the GNU General Public License
 	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
-
 #pragma once
 
+#include <QDialog>
 #include <QObject>
+#include <QString>
 
+class QLabel;
 class QPushButton;
-class QTextEdit;
+class QTreeWidget;
+class QWidget;
+class QVBoxLayout;
 
-#include "mainwindow.h"
+namespace RateLimit {
+	class Policy;
+	class RateLimiter;
+};
 
-namespace RateLimit { struct StatusInfo; };
-
-// Modeled after LogPanel
-class RateLimitStatusPanel : public QObject {
+class RateLimitDialog : public QDialog
+{
 	Q_OBJECT
 public:
-	RateLimitStatusPanel(MainWindow* window, Ui::MainWindow* ui);
+	explicit RateLimitDialog(QWidget* parent, RateLimit::RateLimiter* limiter);
+signals:
+	void RequestUpdate();
 public slots:
-	void OnStatusLabelClicked();
-	void OnStatusUpdate(const RateLimit::StatusInfo& update);
+	void OnRefreshRequested();
+	void OnPause(int pause, const QString& policy_name);
+	void OnPolicyUpdate(const RateLimit::Policy& policy);
 private:
-	QPushButton* status_button_;
-	QTextEdit* output_;
+	QVBoxLayout* layout;
+	QTreeWidget* treeWidget;
+	QPushButton* refreshButton;
+	QLabel* statusLabel;
 };

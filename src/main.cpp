@@ -55,13 +55,6 @@ int main(int argc, char* argv[])
 	Q_INIT_RESOURCE(darkstyle);
 	Q_INIT_RESOURCE(lightstyle);
 
-	// Register metatypes (is this still necessary?)
-	qRegisterMetaType<Items>("Items");
-	qRegisterMetaType<std::vector<std::string>>("std::vector<std::string>");
-	qRegisterMetaType<std::vector<ItemLocation>>("std::vector<ItemLocation>");
-	qRegisterMetaType<QsLogging::Level>("QsLogging::Level");
-	qRegisterMetaType<TabSelection::Type>("TabSelection::Type");
-
 	QLocale::setDefault(QLocale::C);
 	std::setlocale(LC_ALL, "C");
 
@@ -151,10 +144,6 @@ int main(int argc, char* argv[])
 
 	// Connect to the update signal in case an update is detected before the main window is open.
 	QObject::connect(&app.update_checker(), &UpdateChecker::UpdateAvailable, &app.update_checker(), &UpdateChecker::AskUserToUpdate);
-
-	// Connect the rate limit status updates directly to the main window.
-	QObject::connect(&app.rate_limiter(), &RateLimit::RateLimiter::StatusUpdate, &mw, &MainWindow::OnRateLimitStatusUpdate);
-
 
 	QObject::connect(&login, &LoginDialog::LoginComplete, &mw,
 		[&](const QString& league, const QString& account) {

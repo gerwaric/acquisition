@@ -41,7 +41,7 @@ class Column;
 class Filter;
 class FlowLayout;
 class ImageCache;
-class RateLimitStatusPanel;
+class RateLimitDialog;
 class Search;
 class QStringListModel;
 
@@ -78,7 +78,6 @@ public slots:
 	void OnImageFetched(QNetworkReply* reply);
 	void OnItemsRefreshed();
 	void OnStatusUpdate(ProgramState state, const QString& status);
-	void OnRateLimitStatusUpdate(const RateLimit::StatusInfo& update);
 	void OnBuyoutChange();
 	void ResizeTreeColumns();
 	void OnExpandAll();
@@ -130,7 +129,7 @@ private:
 	void UpdateCurrentBuyout();
 	void NewSearch();
 	void SetCurrentSearch(Search* search);
-	void InitializeRateLimitPanel();
+	void InitializeRateLimitDialog();
 	void InitializeLogging();
 	void InitializeSearchForm();
 	void InitializeUi();
@@ -161,7 +160,7 @@ private:
 	QTimer delayed_search_form_change_;
 	QStringListModel* category_string_model_;
 	QStringListModel* rarity_search_model_;
-	RateLimitStatusPanel* rate_status_panel_;
+	RateLimitDialog* rate_limit_dialog_;
 
 	int rightClickedTabIndex = -1;
 };

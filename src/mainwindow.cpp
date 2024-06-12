@@ -58,7 +58,7 @@
 #include "modsfilter.h"
 #include "network_info.h"
 #include "ratelimit.h"
-#include "ratelimitpanel.h"
+#include "ratelimitdialog.h"
 #include "replytimeout.h"
 #include "search.h"
 #include "selfdestructingreply.h"
@@ -75,27 +75,47 @@ MainWindow::MainWindow(Application& app) :
 	ui(new Ui::MainWindow),
 	current_search_(nullptr),
 	search_count_(0),
-	rate_status_panel_(nullptr)
+	rate_limit_dialog_(nullptr)
 {
 	setWindowIcon(QIcon(":/icons/assets/icon.svg"));
 
 	image_cache_ = new ImageCache(Filesystem::UserDir() + "/cache");
 
 	InitializeUi();
-	InitializeRateLimitPanel();
+	InitializeRateLimitDialog();
 	InitializeLogging();
 	InitializeSearchForm();
 
 	connect(&delayed_update_current_item_, &QTimer::timeout, this, [&]() {UpdateCurrentItem(); delayed_update_current_item_.stop(); });
 	connect(&delayed_search_form_change_, &QTimer::timeout, this, [&]() {OnSearchFormChange(); delayed_search_form_change_.stop(); });
 }
-void MainWindow::InitializeRateLimitPanel() {
-	rate_status_panel_ = new RateLimitStatusPanel(this, ui);
+
+MainWindow::~MainWindow() {
+	delete ui;
+	for (auto& search : searches_) {
+		delete(search);
+	};
+	rate_limit_dialog_->close();
+	rate_limit_dialog_->deleteLater();
 }
 
-void MainWindow::OnRateLimitStatusUpdate(const RateLimit::StatusInfo& update) {
-	if (rate_status_panel_)
-		rate_status_panel_->OnStatusUpdate(update);
+void MainWindow::InitializeRateLimitDialog() {
+	rate_limit_dialog_ = new RateLimitDialog(this, &app_.rate_limiter());
+	auto* const button = new QPushButton(this);
+	button->setFlat(false);
+	button->setText("Rate Limit Status");
+	connect(button, &QPushButton::clicked, rate_limit_dialog_, &RateLimitDialog::show);
+	connect(&app_.rate_limiter(), &RateLimit::RateLimiter::Paused, this,
+		[=](int pause) {
+			if (pause > 0) {
+				button->setText("Rate limited for " + QString::number(pause) + " seconds");
+				button->setStyleSheet("font-weight: bold; color: red");
+			} else {
+				button->setText("Rate limiting is OFF");
+				button->setStyleSheet("");
+			};
+		});
+	statusBar()->addPermanentWidget(button);
 }
 
 void MainWindow::InitializeLogging() {
@@ -829,13 +849,6 @@ void MainWindow::OnItemsRefreshed() {
 	ModelViewRefresh();
 }
 
-MainWindow::~MainWindow() {
-	delete ui;
-	for (auto& search : searches_) {
-		delete(search);
-	};
-}
-
 void MainWindow::OnSetShopThreads() {
 	bool ok;
 	QString thread = QInputDialog::getText(this, "Shop thread",
@@ -988,15 +1001,15 @@ void MainWindow::OnExportCurrency() {
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {
-	QMessageBox::StandardButton resBtn = QMessageBox::question(this, "Acquisition",
-		tr("Are you sure you want to quit?\n"),
+	auto button = QMessageBox::question(this, "Acquisition",
+		tr("Are you sure you want to quit?"),
 		QMessageBox::No | QMessageBox::Yes,
 		QMessageBox::Yes);
-	if (resBtn != QMessageBox::Yes) {
+	if (button != QMessageBox::Yes) {
 		event->ignore();
-	} else {
-		event->accept();
-	}
+		return;
+	};
+	QMainWindow::closeEvent(event);
 }
 
 void MainWindow::OnUploadToImgur() {

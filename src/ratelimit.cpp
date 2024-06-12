@@ -31,21 +31,63 @@
 using namespace RateLimit;
 
 //=========================================================================================
-// Local function declarations
+// Local functions
 //=========================================================================================
 
-static QByteArray ParseHeader(QNetworkReply* const reply, const QByteArray& name);
-static QByteArray ParseRateLimitPolicy(QNetworkReply* const reply);
-static QByteArrayList ParseHeaderList(QNetworkReply* const reply, const QByteArray& name, const char delim);
-static QByteArrayList ParseRateLimitRules(QNetworkReply* const reply);
-static QByteArrayList ParseRateLimit(QNetworkReply* const reply, const QByteArray& rule);
-static QByteArrayList ParseRateLimitState(QNetworkReply* const reply, const QByteArray& rule);
-static QDateTime ParseDate(QNetworkReply* const reply);
-static int ParseStatus(QNetworkReply* const reply);
+// Get a header field from an HTTP reply.
+QByteArray ParseHeader(QNetworkReply* const reply, const QByteArray& name) {
+	if (!reply->hasRawHeader(name)) {
+		QLOG_ERROR() << "GetHeader(): missing header:" << name;
+	};
+	return reply->rawHeader(name);
+}
 
-static QString GetEndpoint(const QUrl& url);
+// Get a header field and split into a list.
+QByteArrayList ParseHeaderList(QNetworkReply* const reply, const QByteArray& name, const char delim) {
+	const QByteArray value = ParseHeader(reply, name);
+	const QByteArrayList items = value.split(delim);
+	if (items.isEmpty()) {
+		QLOG_ERROR() << "GetHeaderList():" << name << "is empty";
+	};
+	return items;
+}
 
-static void Dispatch(std::unique_ptr<RateLimitedRequest> request);
+// Return the name of the policy from a network reply.
+QByteArray ParseRateLimitPolicy(QNetworkReply* const reply) {
+	return ParseHeader(reply, "X-Rate-Limit-Policy");
+}
+
+// Return the name(s) of the rule(s) from a network reply.
+QByteArrayList ParseRateLimitRules(QNetworkReply* const reply) {
+	return ParseHeaderList(reply, "X-Rate-Limit-Rules", ',');
+}
+
+// Return a list of one or more items that define a rule's limits.
+QByteArrayList ParseRateLimit(QNetworkReply* const reply, const QByteArray& rule) {
+	return ParseHeaderList(reply, "X-Rate-Limit-" + rule, ',');
+}
+
+// Return a list of one or more items that define a rule's current state.
+QByteArrayList ParseRateLimitState(QNetworkReply* const reply, const QByteArray& rule) {
+	return ParseHeaderList(reply, "X-Rate-Limit-" + rule + "-State", ',');
+}
+
+// Return the date from the HTTP reply headers.
+QDateTime ParseDate(QNetworkReply* const reply) {
+	const QString timestamp = QString(Util::FixTimezone(ParseHeader(reply, "Date")));
+	const QDateTime date = QDateTime::fromString(timestamp, Qt::RFC2822Date).toLocalTime();
+	if (!date.isValid()) {
+		QLOG_ERROR() << "invalid date parsed from" << timestamp;
+	};
+	return date;
+}
+
+// Return the HTTP status from the reply headers.
+int ParseStatus(QNetworkReply* const reply) {
+	return reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+}
+
+void Dispatch(std::unique_ptr<RateLimitedRequest> request);
 
 //=========================================================================================
 // Classes to represent a rate limit policy
@@ -62,17 +104,12 @@ RuleItemData::RuleItemData(const QByteArray& header_fragment) :
 	restriction_ = parts[2].toInt();
 }
 
-RuleItemData::operator QString() const {
-	return QString("%1:%2:%3").arg(
-		QString::number(hits_),
-		QString::number(period_),
-		QString::number(restriction_));
-}
 
 RuleItem::RuleItem(const QByteArray& limit_fragment, const QByteArray& state_fragment) :
 	limit_(limit_fragment),
 	state_(state_fragment)
 {
+	// Determine the status of this item.
 	if (state_.period() != limit_.period()) {
 		status_ = PolicyStatus::INVALID;
 	} else if (state_.hits() > limit_.hits()) {
@@ -84,133 +121,121 @@ RuleItem::RuleItem(const QByteArray& limit_fragment, const QByteArray& state_fra
 	};
 }
 
-QDateTime RuleItem::NextSafeRequest(const RequestHistory& history) const {
+QDateTime RuleItem::GetNextSafeSend(const RequestHistory& history) const {
+
+	const QDateTime now = QDateTime::currentDateTime().toLocalTime();
 
 	// We can send immediately if the policy is not borderline or in violation.
 	if (status_ < PolicyStatus::BORDERLINE) {
-		return QDateTime::currentDateTime().toLocalTime();
+		return now;
 	};
 
 	// Determine how far back into the history we can look.
-	size_t n = limit_.hits();
-	if (n > history.size()) {
-		n = history.size();
-	};
+	const size_t n = (limit_.hits() > history.size()) ? history.size() : limit_.hits();
 
 	// Start with the timestamp of the earliest known
 	// reply relevant to this limitation.
-	QDateTime start;
-	if (n < 1) {
-		start = QDateTime::currentDateTime().toLocalTime();
-	} else {
-		start = history[n - 1];
-	};
+	const QDateTime start = (n < 1) ? now : history[n - 1];
 
 	// Calculate the next time it will be safe to send a request.
-	return start.addSecs(limit_.period()).addMSecs(SAFETY_BUFFER_MSEC);
-}
-
-RuleItem::operator QString() const {
-	return QString("%1/%2:%3:%4").arg(
-		QString::number(state_.hits()),
-		QString::number(limit_.hits()),
-		QString::number(limit_.period()),
-		QString::number(limit_.restriction()));
+	return start.addSecs(limit_.period());
 }
 
 PolicyRule::PolicyRule(const QByteArray& rule_name, QNetworkReply* const reply) :
-	name_(QString(rule_name)),
-	status_(PolicyStatus::UNKNOWN)
+	name_(rule_name),
+	status_(PolicyStatus::UNKNOWN),
+	maximum_hits_(-1)
 {
 	const QByteArrayList limit_fragments = ParseRateLimit(reply, rule_name);
 	const QByteArrayList state_fragments = ParseRateLimitState(reply, rule_name);
 	const int item_count = limit_fragments.size();
+	if (state_fragments.size() != limit_fragments.size()) {
+		QLOG_ERROR() << "Invalid data for policy role.";
+	};
 	items_.reserve(item_count);
 	for (int j = 0; j < item_count; ++j) {
-		RuleItem item(limit_fragments[j], state_fragments[j]);
+
+		// Create a new rule item from the next pair of fragments.
+		const auto& item = items_.emplace_back(limit_fragments[j], state_fragments[j]);
+		
+		// Keep track of the max hits, max rate, and overall status.
+		if (maximum_hits_ < item.limit().hits()) {
+			maximum_hits_ = item.limit().hits();
+		};
 		if (status_ < item.status()) {
 			status_ = item.status();
 		};
-		items_.push_back(item);
 	};
-}
-
-PolicyRule::operator QString() const {
-	QStringList list;
-	list.reserve(items_.size());
-	for (const RuleItem& item : items_) {
-		list.push_back(QString(item));
-	};
-	return QString("%1: %2").arg(name_, list.join(", "));
 }
 
 Policy::Policy() :
-	name_("<<EMPTY-POLICY>>"),
-	empty_(true),
 	status_(PolicyStatus::UNKNOWN),
-	max_hits_(0),
-	min_delay_msec_(99999999)
-{};
+	maximum_hits_(-1)
+{}
 
-Policy::Policy(QNetworkReply* const reply) :
-	name_(ParseRateLimitPolicy(reply)),
-	empty_(false),
-	status_(PolicyStatus::UNKNOWN),
-	max_hits_(0),
-	min_delay_msec_(99999999)
-{
-	const QByteArrayList names = ParseRateLimitRules(reply);
-
-	rules_.reserve(names.size());
-
-	// Iterate over all the rule names expected.
-	for (const auto& name : names) {
-
-		// Parse the next rule.
-		const PolicyRule rule(name, reply);
-
-		// Update the maximum number of hits and minimum delay.
-		for (const auto& item : rule.items()) {
-			const int hits = item.limit().hits();
-			if (max_hits_ < hits) {
-				max_hits_ = hits;
-			};
-			const int period = item.limit().period();
-			const int delay_msec = (period * 1000) / hits;
-			if (min_delay_msec_ > delay_msec) {
-				min_delay_msec_ = delay_msec;
-			};
-		};
-
-		// Check the status of the new rule.
-		const PolicyStatus status = rule.status();
-		if (status == PolicyStatus::INVALID) {
-			QLOG_ERROR() << "Invalid rate limit state:" << name_ + "(" + rule.name() + ")";
-		} else if (status == PolicyStatus::VIOLATION) {
-			QLOG_ERROR() << "Rate limit violation detected:" << name_ + "(" + rule.name() + ")";
-		} else if (status == PolicyStatus::BORDERLINE) {
-			QLOG_WARN() << "Rate limit is borderline:" << name_ + "(" + rule.name() + ")";
-		};
-		if (status_ < status) {
-			status_ = status;
-		};
-
-		// Add this rule to the list.
-		rules_.push_back(rule);
-	};
-}
-
-QDateTime Policy::NextSafeRequest(const RequestHistory& history) const {
-	QDateTime result = QDateTime::currentDateTime().toLocalTime();
+QDateTime Policy::GetNextSafeSend(const RequestHistory& history) {
+	QDateTime next_send = QDateTime::currentDateTime().toLocalTime();
 	for (const auto& rule : rules_) {
 		for (const auto& item : rule.items()) {
-			const QDateTime t = item.NextSafeRequest(history);
-			if (result < t) {
-				result = t;
+			const QDateTime t = item.GetNextSafeSend(history);
+			if (next_send < t) {
+				next_send = t;
 			};
 		};
 	};
-	return result;
+	return next_send;
+}
+
+void Policy::Update(QNetworkReply* const reply)
+{
+	// Parse the name of the rate limit policy and all the rules for this reply.
+	const QString policy_name = ParseRateLimitPolicy(reply);
+	const QByteArrayList rule_names = ParseRateLimitRules(reply);
+
+	// Set or check the name of the policy found in the reply.
+	if (name_.isEmpty()) {
+		name_ = policy_name;
+	} else if (name_ != policy_name) {
+		QLOG_ERROR() << "Rate limit policy name changed from" << name_ << "to" << policy_name;
+	};
+
+	// Check to see if the rules seem to have changed, too.
+	if (!rules_.empty()) {
+		if (rules_.size() != rule_names.size()) {
+			QLOG_ERROR() << "The number rules of for rate limit policy" << name_ << "is changing.";
+		} else {
+			for (int i = 0; i < rule_names.size(); ++i) {
+				if (rule_names[i] != rules_[i].name()) {
+					QLOG_ERROR() << "Rate limit policy" << name_ << "rule" << i
+						<< "name changed from" << rules_[i].name() << "to" << rule_names[i];
+				};
+			};
+		};
+	};
+
+	// Reset the list of rules.
+	rules_.clear();
+	rules_.reserve(rule_names.size());
+
+	// Iterate over all the rule names expected.
+	for (const auto& rule_name : rule_names) {
+
+		// Create a new rule and add it to the list.
+		const auto& rule = rules_.emplace_back(rule_name, reply);
+
+		// Check the status of this rule..
+		if (rule.status() > PolicyStatus::OK) {
+			QLOG_WARN() << "Rate limit policy" << name_ << "(" << rule.name() << ") status is" << rule.status();
+		};
+		
+		// Update metrics for this rule.
+		if (maximum_hits_ < rule.maximum_hits()) {
+			maximum_hits_ = rule.maximum_hits();
+		};
+		if (status_ < rule.status()) {
+			status_ = rule.status();
+		};
+	};
 }
 
 //=========================================================================================
@@ -221,11 +246,11 @@ QDateTime Policy::NextSafeRequest(const RequestHistory& history) const {
 unsigned long RateLimitedRequest::request_count = 0;
 
 // Create a new rate-limited request.
-RateLimitedRequest::RateLimitedRequest(const QNetworkRequest& request, const Callback callback) :
+RateLimitedRequest::RateLimitedRequest(const QString& endpoint_, const QNetworkRequest& request, const Callback callback) :
 	id(++request_count),
 	network_request(request),
 	worker_callback(callback),
-	endpoint(GetEndpoint(request.url())),
+	endpoint(endpoint_),
 	network_reply(nullptr),
 	reply_time(QDateTime()),
 	reply_status(-1)
@@ -236,22 +261,14 @@ RateLimitedRequest::RateLimitedRequest(const QNetworkRequest& request, const Cal
 //=========================================================================================
 
 // Create a new rate limit manager based on an existing policy.
-PolicyManager::PolicyManager(QNetworkReply* reply, QObject* parent) :
+PolicyManager::PolicyManager(QObject* parent) :
 	QObject(parent),
-	policy(std::make_unique<Policy>(reply)),
-	busy(false),
-	next_send(QDateTime::currentDateTime()),
-	last_send(QDateTime()),
-	violation(false)
+	next_send_(QDateTime::currentDateTime().toLocalTime()),
+	last_send_(QDateTime())
 {
 	// Setup the active request timer to call SendRequest each time it's done.
-	active_request_timer.setSingleShot(true);
-	connect(&active_request_timer, &QTimer::timeout, this, &PolicyManager::SendRequest);
-
-	// Check the policy for pre-existing violations, e.g. if Acquisition
-	// has been recently restarted and we are still in time-out from a
-	// prior rate limit violation.
-	OnPolicyUpdate();
+	activation_timer_.setSingleShot(true);
+	connect(&activation_timer_, &QTimer::timeout, this, &PolicyManager::SendRequest);
 }
 
 // Put a request in the dispatch queue so it's callback can be triggered.
@@ -316,43 +333,12 @@ void Dispatch(std::unique_ptr<RateLimitedRequest> request)
 	};
 }
 
-// Update this policy manager when the policy has changed. This means updating
-// the number of reply times we keep around of the policy's limits have changed,
-// and figuring out the next time a request can be sent without violating this
-// policy.
-void PolicyManager::OnPolicyUpdate()
-{
-	// Grow the history capacity if needed.
-	if (history.capacity() < policy->max_hits()) {
-		QLOG_DEBUG() << policy->name()
-			<< "increasing history capacity"
-			<< "from" << history.capacity()
-			<< "to" << policy->max_hits();
-		history.set_capacity(policy->max_hits());
-	};
-
-	QDateTime t = policy->NextSafeRequest(history);
-
-	if (next_send < t) {
-		// Update this manager's send time only if it's later
-		// than the manager thinks we need to wait.
-		QLOG_TRACE() << "Updating next send:"
-			<< "\n\tfrom" << next_send.toLocalTime().toString()
-			<< "\n\tto  " << t.toLocalTime().toString();
-		next_send = t;
-	};
-}
-
 // If the rate limit manager is busy, the request will be queued.
 // Otherwise, the request will be sent immediately, making the
 // manager busy and causing subsequent requests to be queued.
 void PolicyManager::QueueRequest(std::unique_ptr<RateLimitedRequest> request) {
-	if (busy) {
-		QLOG_TRACE() << policy->name() << "queuing request" << request->id;
-		request_queue.push_back(std::move(request));
-	} else {
-		busy = true;
-		active_request = std::move(request);
+	requests_.push_back(std::move(request));
+	if (!active_request_) {
 		ActivateRequest();
 	};
 }
@@ -361,277 +347,181 @@ void PolicyManager::QueueRequest(std::unique_ptr<RateLimitedRequest> request) {
 // without violating the rate limit policy.
 void PolicyManager::ActivateRequest() {
 
-	if (next_send.isValid() == false) {
-		QLOG_ERROR() << "next_send is invalid";
+	if (active_request_) {
+		QLOG_DEBUG() << "RateLimit::PolicyManager::ActivateRequest: a request is already active";
+		return;
 	};
 
-	const QDateTime now = QDateTime::currentDateTime();
-
-	int msec_delay = now.msecsTo(next_send);
-	if (msec_delay < policy->min_delay_msec()) {
-		msec_delay = policy->min_delay_msec();
+	if (requests_.empty()) {
+		QLOG_DEBUG() << "RateLimit::PolicyManager::ActivateReuqest: no requests queued";
+		return;
 	};
 
-	if (last_send.isValid()) {
-		const QDateTime min_send = last_send.addMSecs(MINIMUM_INTERVAL_MSEC);
-		const int min_delay = now.msecsTo(min_send);
-		if (min_delay > msec_delay) {
-			msec_delay = min_delay;
+	active_request_ = std::move(requests_.front());
+	requests_.pop_front();
+
+	if (next_send_.isValid() == false) {
+		QLOG_ERROR() << "RateLimit::PolicyManager::ActivateRequest(): next_send is invalid";
+	};
+
+	QDateTime send = next_send_;
+	if (last_send_.isValid()) {
+		if (last_send_.msecsTo(send) < MINIMUM_INTERVAL_MSEC) {
+			send = last_send_.addMSecs(MINIMUM_INTERVAL_MSEC);
 		};
 	};
 
-	// Need to wait and rerun this function when it's safe to send.
-	QLOG_TRACE() << policy->name()
-		<< "waiting" << (msec_delay / 1000)
-		<< "seconds to send request" << active_request->id
-		<< "at" << next_send.toLocalTime().toString();
-
-	active_request_timer.setInterval(msec_delay);
-	QMetaObject::invokeMethod(&active_request_timer, "start");
-	if (msec_delay > 1000) {
-		emit RateLimitingStarted();
+	int delay = QDateTime::currentDateTime().msecsTo(send);
+	if (delay < 0) {
+		delay = 0;
 	};
+	QLOG_TRACE() << policy_.name() << "waiting" << (delay / 1000)
+		<< "seconds to send request" << active_request_->id
+		<< "at" << next_send_.toLocalTime().toString();
+
+	activation_timer_.setInterval(delay);
+	activation_timer_.start();
 }
 
 // Send the active request immediately.
 void PolicyManager::SendRequest() {
 
-	if (active_request == nullptr) {
-		QLOG_DEBUG() << "The active request is empty.";
+	if (!active_request_) {
+		QLOG_DEBUG() << "RateLimit::PolicyManager: no active request to send";
 		return;
 	};
 
-	if (violation == true) {
-		QLOG_ERROR() << "A violation seems to be in effect. Cannot send requests.";
-		return;
-	};
+	const auto& request = *active_request_;
 
-	if (active_request->network_reply != nullptr) {
+	if (request.network_reply != nullptr) {
 		QLOG_ERROR() << "The network reply for the active request is not empty";
 		return;
 	};
 
-	QLOG_TRACE() << policy->name()
-		<< "sending request" << active_request->id
-		<< "to" << active_request->endpoint
-		<< "via" << active_request->network_request.url().toString();
+	QLOG_TRACE() << policy_.name()
+		<< "sending request" << request.id
+		<< "to" << request.endpoint
+		<< "via" << request.network_request.url().toString();
 
 	// Finally, send the request and note the time.
-	last_send = QDateTime::currentDateTime();
-	emit RequestReady(active_request->network_request);
+	last_send_ = QDateTime::currentDateTime().toLocalTime();
+	emit RequestReady(this, request.network_request);
 };
 
 // Called when the active request's reply is finished.
-void PolicyManager::ReceiveReply() {
-
+void PolicyManager::ReceiveReply()
+{
 	QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
-	active_request->network_reply = reply;
-	active_request->reply_time = ParseDate(reply).toLocalTime();
-	active_request->reply_status = ParseStatus(reply);
 
-	QLOG_TRACE() << policy->name()
-		<< "received reply for request" << active_request->id
-		<< "with status" << active_request->reply_status;
-
-	if (reply->hasRawHeader("X-Rate-Limit-Policy")) {
-
-		const QString reply_policy_name = reply->rawHeader("X-Rate-Limit-Policy");
-
-		// Check the rate limit policy name from the header.
-		if (policy->name() != reply_policy_name) {
-			QLOG_ERROR() << "policy manager for" << policy->name()
-				<< "received header reply with" << reply_policy_name;
-		};
-
-		// Save the reply time if this was not a cached reply.
-		history.push_front(active_request->reply_time);
-
-		// Read the updated policy limits and state from the network reply.
-		policy = std::make_unique<Policy>(reply);
-
-		// Now examine the new policy and update ourselves accordingly.
-		OnPolicyUpdate();
-
-		// Alert listeners like the rate limiter
-		emit ReplyReceived();
-
-	} else {
-		if (policy->empty() == false) {
-			QLOG_ERROR() << "policy manager for" << policy->name()
-				<< "received a reply without a rate limit policy";
-		};
+	// Make sure the reply has a rate-limit header.
+	if (!reply->hasRawHeader("X-Rate-Limit-Policy")) {
+		QLOG_ERROR() << "Received a reply for" << policy_.name() << "without rate limit headers.";
+		return;
 	};
 
+	auto& request = *active_request_;
+	request.network_reply = reply;
+	request.reply_time = ParseDate(reply).toLocalTime();
+	request.reply_status = ParseStatus(reply);
+
+	QLOG_TRACE() << policy_.name()
+		<< "received reply for request" << request.id
+		<< "with status" << request.reply_status;
+
+	// Save the reply time.
+	history_.push_front(request.reply_time);
+
+	// Now examine the new policy and update ourselves accordingly.
+	Update(reply);
+
 	// Check for errors before dispatching the request
-	if (active_request->reply_status == RATE_LIMIT_VIOLATION_STATUS) {
+	if (policy_.status() == PolicyStatus::VIOLATION) {
 
 		// There was a rate limit violation.
 		ResendAfterViolation();
 
-	} else if (active_request->network_reply->error() != QNetworkReply::NoError) {
+	} else if (reply->error() != QNetworkReply::NoError) {
 
 		// Some other HTTP error was encountered.
-		QLOG_ERROR() << "policy manager for" << policy->name()
-			<< "request" << active_request->id
-			<< "reply status was " << active_request->reply_status
+		QLOG_ERROR() << "policy manager for" << policy_.name()
+			<< "request" << request.id
+			<< "reply status was " << request.reply_status
 			<< "and error was" << reply->error();
 
 	} else {
 
-		// No errors or violations, so move this request to the dispatch queue.
-		violation = false;
-		Dispatch(std::move(active_request));
-		if (request_queue.empty()) {
-			busy = false;
-		} else {
-			// Stay busy and activate the next request in the queue.
-			active_request = std::move(request_queue.front());
-			request_queue.pop_front();
-			ActivateRequest();
-		};
+		// Dispatch the current active request.
+		Dispatch(std::move(active_request_));
+
+		// Activate the next queued reqeust.
+		ActivateRequest();
+
 	};
 }
+
+void PolicyManager::Update(QNetworkReply* reply) {
+
+	// Update the rate limit policy.
+	policy_.Update(reply);
+
+	// Grow the history capacity if needed.
+	const int capacity = history_.capacity();
+	const int max_hits = policy_.maximum_hits();
+	if (capacity < max_hits) {
+		QLOG_DEBUG() << policy_.name()
+			<< "increasing history capacity"
+			<< "from" << capacity
+			<< "to" << max_hits;
+		history_.set_capacity(max_hits);
+	};
+
+	const QDateTime time = policy_.GetNextSafeSend(history_);
+	if (next_send_ < time) {
+		// Update this manager's send time only if it's later
+		// than the manager thinks we need to wait.
+		QLOG_TRACE() << "Updating next send:"
+			<< "from" << next_send_.toString()
+			<< "to" << time.toString();
+		next_send_ = time;
+	};
+
+	emit PolicyUpdated(policy_);
+}
+
 
 // A violation was detected, so we need to wait to resend the active request.
 void PolicyManager::ResendAfterViolation()
 {
-	// Set the violation flag now. It will be unset when a reply is received that doesn't
-	// indicat a violation.
-	violation = true;
+	auto& request = *active_request_;
 
 	// Determine how long we need to wait.
-	const int delay_sec = active_request->network_reply->rawHeader("Retry-After").toInt();
-	const int delay_msec = (delay_sec * 1000) + EXTRA_RATE_VIOLATION_MSEC;
-	QLOG_ERROR() << policy->name()
-		<< "RATE LIMIT VIOLATION on request" << active_request->id << "of" << delay_sec << "seconds";
-	for (const auto& header : active_request->network_reply->rawHeaderPairs()) {
+	const int delay_sec = request.network_reply->rawHeader("Retry-After").toInt();
+	const int delay_msec = (delay_sec * 1000) + VIOLATION_BUFFER_MSEC;
+	QLOG_ERROR() << policy_.name()
+		<< "RATE LIMIT VIOLATION on request" << request.id
+		<< "of" << delay_sec << "seconds";
+	for (const auto& header : request.network_reply->rawHeaderPairs()) {
 		QLOG_DEBUG() << header.first << "=" << header.second;
 	};
 
 	// Update the time it will be safe to send again.
-	next_send = active_request->reply_time.addMSecs(delay_msec);
-	if (next_send.isValid() == false) {
-		QLOG_DEBUG() << "policy manager for" << policy->name()
+	next_send_ = request.reply_time.addMSecs(delay_msec);
+	if (next_send_.isValid() == false) {
+		QLOG_DEBUG() << "policy manager for" << policy_.name()
 			<< "\n\tnext_send after violation is invalid:"
-			<< "\n\t" << "request id" << active_request->id
-			<< "\n\t" << "request endpoint" << active_request->endpoint
-			<< "\n\t" << "Retry-After" << active_request->network_reply->rawHeader("Retry-After")
-			<< "\n\t" << "reply time was" << active_request->reply_time.toLocalTime().toString();
+			<< "\n\t" << "request id" << request.id
+			<< "\n\t" << "request endpoint" << request.endpoint
+			<< "\n\t" << "Retry-After" << request.network_reply->rawHeader("Retry-After")
+			<< "\n\t" << "reply time was" << request.reply_time.toLocalTime().toString();
 	};
 
 	// Reset this request before resending it, which means
 	// letting QT know the assocated reply can be deleted.
-	active_request->network_reply->deleteLater();
-	active_request->network_reply = nullptr;
-	active_request->reply_time = QDateTime();
-	active_request->reply_status = -1;
+	request.network_reply->deleteLater();
+	request.network_reply = nullptr;
+	request.reply_time = QDateTime();
+	request.reply_status = -1;
 	ActivateRequest();
-}
-
-int PolicyManager::GetPauseDuration() const {
-	int delay = QDateTime::currentDateTime().secsTo(next_send);
-	return (delay > 0) ? delay : 0;
-}
-
-QString PolicyManager::GetStatusMessage() const {
-
-	const QString info = QString("%1 with %2 queued requests").arg(
-		Util::toString(policy->status()),
-		QString::number(request_queue.size()));
-
-	const int delay = GetPauseDuration();
-
-	QStringList lines;
-	lines.push_back(policy->name());
-	const std::vector<PolicyRule>& rules = policy->rules();
-	for (auto& rule : rules) {
-		lines.push_back(QString("( %1 )").arg(QString(rule)));
-	};
-	lines.push_back(info);
-
-	switch (policy->status()) {
-	case PolicyStatus::OK:
-		lines.push_back("Not rate limited.");
-		break;
-	case PolicyStatus::BORDERLINE:
-		lines.push_back(QString("Paused for %1 seconds to avoid a violation.").arg(QString::number(delay)));
-		break;
-	case PolicyStatus::VIOLATION:
-		lines.push_back(QString("Paused for %1 seconds due to VIOLATION.").arg(QString::number(delay)));
-		break;
-	default:
-		break;
-	};
-
-	return lines.join("\n  ");
-}
-
-//=========================================================================================
-// Local functions
-//=========================================================================================
-
-// Get a header field from an HTTP reply.
-static QByteArray ParseHeader(QNetworkReply* const reply, const QByteArray& name) {
-	if (reply->hasRawHeader(name)) {
-		return reply->rawHeader(name);
-	} else {
-		QLOG_ERROR() << "GetHeader(): missing header:" << name;
-		return QByteArray();
-	};
-}
-
-// Get a header field and split into a list.
-static QByteArrayList ParseHeaderList(QNetworkReply* const reply, const QByteArray& name, const char delim) {
-	QByteArray value = ParseHeader(reply, name);
-	QByteArrayList items = value.split(delim);
-	if (items.isEmpty() == true) {
-		QLOG_ERROR() << "GetHeaderList():" << name << "is empty";
-	};
-	return items;
-}
-
-// Return the name of the policy from a network reply.
-static QByteArray ParseRateLimitPolicy(QNetworkReply* const reply) {
-	return ParseHeader(reply, "X-Rate-Limit-Policy");
-}
-
-// Return the name(s) of the rule(s) from a network reply.
-static QByteArrayList ParseRateLimitRules(QNetworkReply* const reply) {
-	return ParseHeaderList(reply, "X-Rate-Limit-Rules", ',');
-}
-
-// Return a list of one or more items that define a rule's limits.
-static QByteArrayList ParseRateLimit(QNetworkReply* const reply, const QByteArray& rule) {
-	return ParseHeaderList(reply, "X-Rate-Limit-" + rule, ',');
-}
-
-// Return a list of one or more items that define a rule's current state.
-static QByteArrayList ParseRateLimitState(QNetworkReply* const reply, const QByteArray& rule) {
-	return ParseHeaderList(reply, "X-Rate-Limit-" + rule + "-State", ',');
-}
-
-// Return the date from the HTTP reply headers.
-static QDateTime ParseDate(QNetworkReply* const reply) {
-	QString timestamp = QString(Util::FixTimezone(ParseHeader(reply, "Date")));
-	const QDateTime date = QDateTime::fromString(timestamp, Qt::RFC2822Date);
-	if (date.isValid() == false) {
-		QLOG_ERROR() << "invalid date parsed from" << timestamp;
-	};
-	return date;
-}
-
-// Return the HTTP status from the reply headers.
-static int ParseStatus(QNetworkReply* const reply) {
-	return reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-}
-
-// Return the "endpoint" for a given URL.
-static QString GetEndpoint(const QUrl& url) {
-	// Strip everything except the scheme, host, and path.
-	return url.toString(QUrl::RemoveUserInfo
-		| QUrl::RemovePort
-		| QUrl::RemoveQuery
-		| QUrl::StripTrailingSlash);
 }
 
 //=========================================================================================
@@ -643,21 +533,9 @@ RateLimiter::RateLimiter(Application& app, QObject* parent) :
 	network_manager_(app.network_manager()),
 	oauth_manager_(app.oauth_manager())
 {
-	// Setup the status update timer.
-	status_updater.setSingleShot(false);
-	status_updater.setInterval(1000);
-	connect(&status_updater, &QTimer::timeout, this, &RateLimiter::DoStatusUpdate);
-}
-
-void RateLimiter::SendRequest(QNetworkRequest request) {
-	PolicyManager* manager = qobject_cast<PolicyManager*>(sender());
-	if (manager->policy->empty() == false) {
-		if (oauth_manager_.access_token() != nullptr) {
-			oauth_manager_.addAuthorization(request);
-		};
-	};
-	QNetworkReply* reply = network_manager_.get(request);
-	connect(reply, &QNetworkReply::finished, manager, &PolicyManager::ReceiveReply);
+	update_timer_.setSingleShot(false);
+	update_timer_.setInterval(UPDATE_INTERVAL_MSEC);
+	connect(&update_timer_, &QTimer::timeout, this, &RateLimiter::SendStatusUpdate);
 }
 
 void RateLimiter::Submit(const QString& endpoint, QNetworkRequest network_request, Callback request_callback)
@@ -665,12 +543,13 @@ void RateLimiter::Submit(const QString& endpoint, QNetworkRequest network_reques
 	// Make sure the user agent is set according to GGG's guidance.
 	network_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 
-	if (endpoint_mapping.count(endpoint) > 0) {
+	auto it = manager_by_endpoint_.find(endpoint);
+	if (it != manager_by_endpoint_.end()) {
 
-		// This endpoint is known to use an existing policy manager.
-		auto request = std::make_unique<RateLimitedRequest>(network_request, request_callback);
-		PolicyManager& manager = *endpoint_mapping[endpoint];
-		QLOG_DEBUG() << manager.policy->name() << "is handling" << endpoint;
+		// This endpoint is handled by an existing policy manager.
+		PolicyManager& manager = it->second;
+		QLOG_DEBUG() << manager.policy().name() << "is handling" << endpoint;
+		auto request = std::make_unique<RateLimitedRequest>(endpoint, network_request, request_callback);
 		manager.QueueRequest(std::move(request));
 
 	} else {
@@ -678,118 +557,111 @@ void RateLimiter::Submit(const QString& endpoint, QNetworkRequest network_reques
 		// This is a new endpoint.
 		QNetworkReply* reply = network_manager_.head(network_request);
 		connect(reply, &QNetworkReply::finished, this,
-			[=]() { SetupEndpoint(network_request, request_callback, reply); });
+			[=]() {
+				SetupEndpoint(endpoint, network_request, request_callback, reply);
+			});
 
 	};
 }
 
-void RateLimiter::SetupEndpoint(QNetworkRequest network_request, Callback request_callback, QNetworkReply* reply) {
+void RateLimiter::SetupEndpoint(const QString& endpoint, QNetworkRequest network_request, Callback request_callback, QNetworkReply* reply) {
 
-	// Create a new rate-limited request.
-	auto request = std::make_unique<RateLimitedRequest>(network_request, request_callback);
-
-	// Get a reference to the endpoint since we use it a bunch.
-	const QString endpoint = request->endpoint;
-
-	// Handle requests that are not rate limited.
-	if (reply->hasRawHeader("X-Rate-Limit-Policy") == false) {
-		QLOG_ERROR() << "The endpoint is not rate-limited:"
-			<< endpoint + " (" + network_request.url().toString() + ")";
+	// All endpoints should be rate limited.
+	if (!reply->hasRawHeader("X-Rate-Limit-Policy")) {
+		QString url = reply->request().url().toString();
+		QLOG_ERROR() << "The endpoint is not rate-limited:" << endpoint << "(" + url + ")";
 		return;
-	}
+	};
 
-	// Parse the rate limit policy from the reply headers.
 	const QString policy_name = ParseRateLimitPolicy(reply);
-	QLOG_DEBUG() << policy_name << "encountered.";
 
-	if (policy_mapping.count(policy_name) > 0) {
+	auto request = std::make_unique<RateLimitedRequest>(endpoint, network_request, request_callback);
 
-		// A policy manager already exists for this endpoint.
-		QLOG_DEBUG() << "Using existing rate limit policy" << policy_name << "for" << endpoint;
-		std::shared_ptr<PolicyManager> manager = policy_mapping[policy_name];
-		endpoint_mapping[endpoint] = manager;
-		manager->endpoints.push_back(endpoint);
-		manager->policy = std::make_unique<Policy>(reply);
-		manager->OnPolicyUpdate();
-		manager->QueueRequest(std::move(request));
+	PolicyManager& manager = GetManager(endpoint, policy_name);
+	manager.Update(reply);
+	manager.QueueRequest(std::move(request));
 
-	} else {
+}
 
+PolicyManager& RateLimiter::GetManager(const QString& endpoint, const QString& policy_name)
+{
+	auto it = manager_by_policy_.find(policy_name);
+	if (it == manager_by_policy_.end()) {
 		// Create a new policy manager.
 		QLOG_DEBUG() << "Creating rate limit policy" << policy_name << "for" << endpoint;
-		auto manager = std::make_shared<PolicyManager>(reply, this);
-		connect(manager.get(), &PolicyManager::RequestReady, this, &RateLimiter::SendRequest);
-		connect(manager.get(), &PolicyManager::ReplyReceived, this, &RateLimiter::DoStatusUpdate);
-		connect(manager.get(), &PolicyManager::RateLimitingStarted, this, &RateLimiter::OnTimerStarted);
-
-		for (auto& rule : manager->policy->rules()) {
-			QLOG_DEBUG() << manager->policy->name() + "(" + rule.name() + ")" << "is" << QString(rule);
-		};
-
-		endpoint_mapping[endpoint] = manager;
-		policy_mapping[policy_name] = manager;
-		manager->endpoints.push_back(endpoint);
-		manager->QueueRequest(std::move(request));
-
-		// Since we discovered a new rate limit policy, let's update the status.
-		DoStatusUpdate();
+		PolicyManager& manager = managers_.emplace_back(this);
+		connect(&manager, &PolicyManager::RequestReady, this, &RateLimiter::SendRequest);
+		connect(&manager, &PolicyManager::PolicyUpdated, this, &RateLimiter::OnPolicyUpdated);
+		manager_by_policy_.emplace(policy_name, manager);
+		manager_by_endpoint_.emplace(endpoint, manager);
+		return manager;
+	} else {
+		// Use an existing policy manager.
+		QLOG_DEBUG() << "Using an existing rate limit policy" << policy_name << "for" << endpoint;
+		PolicyManager& manager = it->second;
+		manager_by_endpoint_.emplace(endpoint, manager);
+		return manager;
 	};
 }
 
-void RateLimiter::OnTimerStarted() {
-
-	// Make sure the program status is being updated.
-	if (status_updater.isActive() == false) {
-		QLOG_DEBUG() << "Starting rate limit status updates";
-		QMetaObject::invokeMethod(&status_updater, "start");
+void RateLimiter::SendRequest(PolicyManager* manager, QNetworkRequest request) {
+	if (oauth_manager_.access_token() != nullptr) {
+		oauth_manager_.addAuthorization(request);
 	};
+	QNetworkReply* reply = network_manager_.get(request);
+	connect(reply, &QNetworkReply::finished, manager, &PolicyManager::ReceiveReply);
 }
 
-void RateLimiter::DoStatusUpdate()
+void RateLimiter::OnUpdateRequested()
 {
-	RateLimitStatus status = RateLimitStatus::OK;
-	bool curious = false;
-	QStringList lines;
-	int minimum_pause = 0;
+	for (const auto& manager : managers_) {
+		emit PolicyUpdate(manager.policy());
+	};
+	SendStatusUpdate();
+}
 
-	// Check to see if any of the policy managers are busy.
-	for (auto& pair : policy_mapping) {
-		auto& manager = pair.second;
-		lines.push_back(manager->GetStatusMessage());
-		lines.push_back("");
-		switch (manager->GetStatus()) {
-		case PolicyStatus::OK:
-			break;
-		case PolicyStatus::UNKNOWN:
-		case PolicyStatus::INVALID:
-			curious = true;
-			break;
-		case PolicyStatus::BORDERLINE:
-		case PolicyStatus::VIOLATION:
-			status = RateLimitStatus::PAUSED;
-			int pause = manager->GetPauseDuration();
-			if ((minimum_pause == 0) || (pause < minimum_pause)) {
-				minimum_pause = pause;
-			};
-			break;
+void RateLimiter::OnPolicyUpdated(const Policy& policy)
+{
+	emit PolicyUpdate(policy);
+	SendStatusUpdate();
+}
+
+void RateLimiter::SendStatusUpdate()
+{
+	QDateTime next_send;
+	QString limiting_policy;
+	for (auto& manager : managers_) {
+		if (!manager.isActive()) {
+			continue;
+		};
+		if (next_send.isValid() && (next_send <= manager.next_send())) {
+			continue;
+		};
+		next_send = manager.next_send();
+		limiting_policy = manager.policy().name();
+	};
+
+	int pause;
+	if (!next_send.isValid()) {
+		pause = 0;
+	} else {
+		pause = QDateTime::currentDateTime().secsTo(next_send);
+		if (pause < 0) {
+			pause = 0;
 		};
 	};
 
-	if ((status == RateLimitStatus::OK) && (curious == false)) {
-		// Stop the status updates if it's running and nobody is busy.
-		if (status_updater.isActive() == true) {
-			QLOG_DEBUG() << "Stopping rate limit status updates";
-			QMetaObject::invokeMethod(&status_updater, "stop");
+	if (pause > 0) {
+		if (!update_timer_.isActive()) {
+			QLOG_TRACE() << "Starting status updates (" << limiting_policy << ")";
+			update_timer_.start();
 		};
 	} else {
-		// Start the timer if it's not running and someone is busy.
-		if (status_updater.isActive() == false) {
-			QLOG_DEBUG() << "Starting rate limit status updates status update";
-			QMetaObject::invokeMethod(&status_updater, "start");
+		if (update_timer_.isActive()) {
+			QLOG_TRACE() << "Stopping status updates";
+			update_timer_.stop();
 		};
 	};
 
-	// Emit a status update either way so the user can see that we aren't busy.
-	StatusInfo update = { status, minimum_pause, lines.join('\n') };
-	emit StatusUpdate(update);
+	emit Paused(pause, limiting_policy);
 }
