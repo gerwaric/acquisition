@@ -27,7 +27,6 @@
 #include <utility>
 #include <vector>
 
-#include <QNetworkReply.h>
 #include <QStringList>
 
 #include <boost/algorithm/string.hpp>
