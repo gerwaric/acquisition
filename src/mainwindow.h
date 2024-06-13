@@ -49,9 +49,6 @@ struct Buyout;
 namespace Ui {
 	class MainWindow;
 }
-namespace RateLimit {
-	struct StatusInfo;
-}
 
 enum class ProgramState {
 	Unknown,
