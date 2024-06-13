@@ -20,8 +20,11 @@
 #pragma once
 
 #include <QObject>
-#include <QString>
 #include <QtHttpServer/QHttpServer>
+#include <QTimer>
+
+#include <optional>
+#include <string>
 
 #include "rapidjson/document.h"
 
@@ -30,37 +33,67 @@ class QNetworkAccessManager;
 class QNetworkReply;
 class QNetworkRequest;
 
-struct AccessToken {
-	AccessToken(const rapidjson::Value& json);
-	QString access_token;
-	long int expires_in;
-	QString token_type;
-	QString scope;
-	QString username;
-	QString sub;
-	QString refresh_token;
+class OAuthToken {
+public:
+	OAuthToken();
+	OAuthToken(const std::string& json, const QDateTime& timestamp = QDateTime());
+	std::string access_token() const { return access_token_; };
+	int expires_in() const { return expires_in_; };
+	std::string scope() const { return scope_; };
+	std::string username() const { return username_; };
+	std::string sub() const { return sub_; };
+	std::string refresh_token() const { return refresh_token_; };
+	std::optional<std::string> birthday() const { return birthday_; };
+	std::optional<std::string> expiration() const { return expiration_; };
+	std::string toJson() const;
+	QDateTime getBirthday() const { return getDate(birthday_); };
+	QDateTime getExpiration() const { return getDate(expiration_); };
+private:
+	static QDateTime getDate(const std::optional<std::string>& timestamp);
+	std::string access_token_;
+	long long int expires_in_;
+	std::string token_type_;
+	std::string scope_;
+	std::string username_;
+	std::string sub_;
+	std::string refresh_token_;
+	std::optional<std::string> birthday_;
+	std::optional<std::string> expiration_;
 };
 
 class OAuthManager : public QObject {
 	Q_OBJECT
 public:
 	OAuthManager(QNetworkAccessManager& network_manager, QObject* parent = nullptr);
+	void setToken(const OAuthToken& token);
+	const std::optional<OAuthToken> token() const { return token_; };
+public slots:
 	void requestAccess();
-	const QString access_token() const;
-	void addAuthorization(QNetworkRequest& request);
+	void requestRefresh();
+	void showStatus();
 signals:
-	void accessGranted(const AccessToken& token);
+	void accessGranted(const OAuthToken& token);
 private:
-	void requestAuthorization(const QByteArray& state, const QByteArray& code_challenge);
-	QString receiveAuthorization(const QHttpServerRequest& request, const QByteArray& state);
-	void requestToken(const QString& code);
+	void createHttpServer();
+	void requestAuthorization(const std::string& state, const std::string& code_challenge);
+	QString receiveAuthorization(const QHttpServerRequest& request, const std::string& state);
+	void requestToken(const std::string& code);
 	void receiveToken(QNetworkReply* reply);
-	void requestRefresh(const QString& refresh_token);
+	void setRefreshTimer();
 
-	QNetworkAccessManager& the_manager_;
-	std::unique_ptr<QHttpServer> the_server_;
-	std::unique_ptr<AccessToken> the_token_;
+	static QString authorizationError(const QString& message);
 
-	QByteArray code_verifier_;
-	QString redirect_uri_;
+	QNetworkAccessManager& network_manager_;
+
+	// I can't find a way to shutdown a QHttpServer once it's started
+	// listening, so use a unique pointer so that we can destory the
+	// server once authentication is complete, so it won't stay
+	// running in the background.
+	std::unique_ptr<QHttpServer> http_server_;
+
+	std::optional<OAuthToken> token_;
+	std::string code_verifier_;
+	std::string redirect_uri_;
+
+	QTimer refresh_timer_;
 };

@@ -91,6 +91,7 @@ namespace Util {
 
 	std::string RapidjsonSerialize(const rapidjson::Value& val);
 	void RapidjsonAddConstString(rapidjson::Value* object, const char* const name, const std::string& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
+	void RapidjsonAddInt64(rapidjson::Value* object, const char* const name, qint64 value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
 
 	std::string StringReplace(const std::string& haystack, const std::string& needle, const std::string& replace);
 	std::string StringJoin(const std::vector<std::string>& array, const std::string& separator);

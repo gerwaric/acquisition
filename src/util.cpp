@@ -143,6 +143,14 @@ void Util::RapidjsonAddConstString(rapidjson::Value* object, const char* const n
 	object->AddMember(rjson_name, rjson_val, alloc);
 }
 
+void Util::RapidjsonAddInt64(rapidjson::Value* object, const char* const name, qint64 value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc) {
+	rapidjson::Value rjson_name;
+	rjson_name.SetString(name, rapidjson::SizeType(strlen(name)));
+	rapidjson::Value rjson_val;
+	rjson_val.SetInt64(value);
+	object->AddMember(rjson_name, rjson_val, alloc);
+}
+
 std::string Util::StringReplace(const std::string& haystack, const std::string& needle, const std::string& replace) {
 	std::string out = haystack;
 	for (size_t pos = 0; ; pos += replace.length()) {

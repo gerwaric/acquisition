@@ -272,8 +272,8 @@ void LoginDialog::LoginWithOAuth() {
 	//app_->oauth_manager().requestAccess();
 }
 
-void LoginDialog::OnOAuthAccessGranted(const AccessToken& token) {
-	const QString account = token.username;
+void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
+	const QString account = QString::fromStdString(token.username());
 	const QString league = ui->leagueComboBox->currentText();
 	emit LoginComplete(league, account);
 }

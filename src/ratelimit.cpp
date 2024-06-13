@@ -605,8 +605,9 @@ PolicyManager& RateLimiter::GetManager(const QString& endpoint, const QString& p
 }
 
 void RateLimiter::SendRequest(PolicyManager* manager, QNetworkRequest request) {
-	if (oauth_manager_.access_token() != nullptr) {
-		oauth_manager_.addAuthorization(request);
+	if (oauth_manager_.token()) {
+		const std::string bearer = "Bearer " + oauth_manager_.token().value().access_token();
+		request.setRawHeader("Authorization", QByteArray::fromStdString(bearer));
 	};
 	QNetworkReply* reply = network_manager_.get(request);
 	connect(reply, &QNetworkReply::finished, manager, &PolicyManager::ReceiveReply);
