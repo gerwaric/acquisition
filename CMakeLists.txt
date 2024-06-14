@@ -151,7 +151,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/replytimeout.h
     src/search.h
     src/searchcombobox.h
-    src/selfdestructingreply.h
     src/shop.h
     src/sqlitedatastore.h
     src/updatechecker.h

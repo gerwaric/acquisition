@@ -63,7 +63,6 @@
 #include "ratelimiter.h"
 #include "replytimeout.h"
 #include "search.h"
-#include "selfdestructingreply.h"
 #include "shop.h"
 #include "updatechecker.h"
 #include "util.h"
@@ -1069,30 +1068,26 @@ void MainWindow::OnUploadFinished() {
 	ui->uploadTooltipButton->setDisabled(false);
 	ui->uploadTooltipButton->setText("Upload to imgur");
 
-	SelfDestructingReply reply(qobject_cast<QNetworkReply*>(QObject::sender()));
+	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
 	QByteArray bytes = reply->readAll();
+	reply->deleteLater();
 
 	rapidjson::Document doc;
 	doc.Parse(bytes.constData());
 
 	if (doc.HasParseError() || !doc.IsObject() || !doc.HasMember("status") || !doc["status"].IsNumber()) {
 		QLOG_ERROR() << "Imgur API returned invalid data (or timed out): " << bytes;
-		reply->deleteLater();
 		return;
 	}
 	if (doc["status"].GetInt() != 200) {
 		QLOG_ERROR() << "Imgur API returned status!=200: " << bytes;
-		reply->deleteLater();
 		return;
 	}
 	if (!doc.HasMember("data") || !doc["data"].HasMember("link") || !doc["data"]["link"].IsString()) {
 		QLOG_ERROR() << "Imgur API returned malformed reply: " << bytes;
-		reply->deleteLater();
 		return;
 	}
 	std::string url = doc["data"]["link"].GetString();
 	QApplication::clipboard()->setText(url.c_str());
 	QLOG_INFO() << "Image successfully uploaded, the URL is" << url.c_str() << "It also was copied to your clipboard.";
-
-	reply->deleteLater();
 }

@@ -41,7 +41,6 @@
 #include "mainwindow.h"
 #include "network_info.h"
 #include "replytimeout.h"
-#include "selfdestructingreply.h"
 #include "util.h"
 #include "updatechecker.h"
 #include "oauth.h"
@@ -177,8 +176,9 @@ void LoginDialog::LeaguesApiError(const QString& error, const QByteArray& reply)
 }
 
 void LoginDialog::OnLeaguesRequestFinished() {
-	SelfDestructingReply reply(qobject_cast<QNetworkReply*>(QObject::sender()));
+	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
 	QByteArray bytes = reply->readAll();
+	reply->deleteLater();
 
 	if (reply->error())
 		return LeaguesApiError(reply->errorString(), bytes);
