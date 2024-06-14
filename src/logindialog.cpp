@@ -231,10 +231,11 @@ void LoginDialog::OnLoggedIn() {
 	int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 	if (status != 302) {
 		DisplayError(LOGIN_CHECK_ERROR);
+		reply->deleteLater();
 		return;
 	}
-
 	FinishLogin(reply);
+	reply->deleteLater();
 }
 
 // Need a separate check since it's just the /login URL that's filtered
@@ -245,12 +246,15 @@ void LoginDialog::LoggedInCheck() {
 	switch (status) {
 	case 302:
 		DisplayError(LOGIN_CHECK_ERROR);
+		reply->deleteLater();
 		return;
 	case 401:
 		DisplayError(LOGIN_CHECK_ERROR);
+		reply->deleteLater();
 		return;
 	}
 	FinishLogin(reply);
+	reply->deleteLater();
 }
 
 void LoginDialog::LoginWithOAuth() {
@@ -280,6 +284,8 @@ void LoginDialog::LoginWithCookie(const QString& cookie) {
 void LoginDialog::OnMainPageFinished() {
 	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
 	QString html(reply->readAll());
+	reply->deleteLater();
+
 	QRegularExpression regexp("/account/view-profile/(.*?)\"");
 	QRegularExpressionMatch match = regexp.match(html, 0);
 	if (match.hasMatch() == false) {

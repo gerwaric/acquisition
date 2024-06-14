@@ -126,6 +126,7 @@ void ItemsManagerWorker::OnItemClassesReceived() {
 		const QByteArray bytes = reply->readAll();
 		InitItemClasses(bytes);
 	};
+	reply->deleteLater();
 
 	emit StatusUpdate(ProgramState::Initializing, "Waiting for RePoE item base types.");
 
@@ -145,6 +146,8 @@ void ItemsManagerWorker::OnItemBaseTypesReceived() {
 		const QByteArray bytes = reply->readAll();
 		InitItemBaseTypes(bytes);
 	};
+	reply->deleteLater();
+
 	emit StatusUpdate(ProgramState::Initializing, "RePoE data received; updating mod list.");
 
 	InitStatTranslations();
@@ -240,6 +243,7 @@ void ItemsManagerWorker::OnStatTranslationsReceived() {
 		return;
 	};
 	const QByteArray bytes = reply->readAll();
+	reply->deleteLater();
 	AddStatTranslations(bytes);
 	UpdateModList();
 }
@@ -430,6 +434,8 @@ void ItemsManagerWorker::OnMainPageReceived() {
 			QLOG_WARN() << "Couldn't extract currently selected character name from GGG homepage (maintenence?) Text was: " << page.c_str();
 		};
 	};
+	reply->deleteLater();
+
 	QNetworkRequest characters_request = QNetworkRequest(QUrl(kGetCharactersUrl));
 	auto submit = rate_limiter_.Submit(kGetCharactersUrl, characters_request);
 	connect(submit, &RateLimit::RateLimitedReply::complete, this, &ItemsManagerWorker::OnCharacterListReceived);
@@ -438,7 +444,6 @@ void ItemsManagerWorker::OnMainPageReceived() {
 void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 	QLOG_TRACE() << "Character list received.";
 	QByteArray bytes = reply->readAll();
-	reply->deleteLater();
 
 	rapidjson::Document doc;
 	doc.Parse(bytes.constData());
@@ -447,8 +452,10 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 		QLOG_WARN() << "Couldn't fetch character list: " << reply->url().toDisplayString()
 			<< " due to error: " << reply->errorString() << " Aborting update.";
 		updating_ = false;
+		reply->deleteLater();
 		return;
 	};
+	reply->deleteLater();
 
 	if (doc.HasParseError() || !doc.IsArray()) {
 		QLOG_ERROR() << "Received invalid reply instead of character list:" << bytes.constData();
@@ -689,7 +696,6 @@ void ItemsManagerWorker::OnTabReceived(QNetworkReply* reply, ItemLocation locati
 	QLOG_DEBUG() << "Received a reply for" << location.GetHeader().c_str();
 
 	QByteArray bytes = reply->readAll();
-	reply->deleteLater();
 
 	rapidjson::Document doc;
 	doc.Parse(bytes.constData());
@@ -710,6 +716,7 @@ void ItemsManagerWorker::OnTabReceived(QNetworkReply* reply, ItemLocation locati
 	if (!cancel_update_ && !error && (location.get_type() == ItemLocationType::STASH)) {
 		cancel_update_ = TabsChanged(doc, reply, location);
 	};
+	reply->deleteLater();
 
 	++requests_completed_;
 
@@ -844,7 +851,6 @@ void ItemsManagerWorker::PreserveSelectedCharacter() {
 	connect(submit, &RateLimit::RateLimitedReply::complete, this,
 		[=](QNetworkReply* reply) {
 			reply->deleteLater();
-			submit->deleteLater();
 		});
 }
 
