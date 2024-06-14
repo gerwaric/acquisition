@@ -41,7 +41,7 @@ class Shop;
 class CurrencyManager;
 class UpdateChecker;
 class OAuthManager;
-namespace RateLimit { class RateLimiter; };
+class RateLimiter;
 
 enum class PoeApiMode { LEGACY, OAUTH };
 
@@ -65,7 +65,7 @@ public:
 	CurrencyManager& currency_manager() const { return *currency_manager_; }
 	UpdateChecker& update_checker() const { return *update_checker_; }
 	OAuthManager& oauth_manager() const { return *oauth_manager_; }
-	RateLimit::RateLimiter& rate_limiter() const { return *rate_limiter_; }
+	RateLimiter& rate_limiter() const { return *rate_limiter_; }
 public slots:
 	void OnItemsRefreshed(bool initial_refresh);
 private:
@@ -81,6 +81,6 @@ private:
 	std::unique_ptr<CurrencyManager> currency_manager_;
 	std::unique_ptr<UpdateChecker> update_checker_;
 	std::unique_ptr<OAuthManager> oauth_manager_;
-	std::unique_ptr<RateLimit::RateLimiter> rate_limiter_;
+	std::unique_ptr<RateLimiter> rate_limiter_;
 	void SaveDbOnNewVersion();
 };

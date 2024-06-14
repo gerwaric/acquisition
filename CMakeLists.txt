@@ -99,6 +99,8 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/porting.cpp
     src/ratelimit.cpp
     src/ratelimitdialog.cpp
+    src/ratelimiter.cpp
+    src/ratelimitmanager.cpp
     src/search.cpp
     src/searchcombobox.cpp
     src/shop.cpp
@@ -144,6 +146,8 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/rapidjson_util.h
     src/ratelimit.h
     src/ratelimitdialog.h
+    src/ratelimiter.h
+    src/ratelimitmanager.h
     src/replytimeout.h
     src/search.h
     src/searchcombobox.h

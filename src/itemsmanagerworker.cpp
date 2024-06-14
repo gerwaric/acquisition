@@ -41,9 +41,8 @@
 #include "buyoutmanager.h"
 #include "modlist.h"
 #include "ratelimit.h"
+#include "ratelimiter.h"
 #include "oauth.h"
-
-using RateLimit::RateLimiter;
 
 const char* kStashItemsUrl = "https://www.pathofexile.com/character-window/get-stash-items";
 const char* kCharacterItemsUrl = "https://www.pathofexile.com/character-window/get-items";
@@ -370,17 +369,15 @@ void ItemsManagerWorker::LegacyRefresh() {
 	if (need_stash_list_) {
 		// This queues stash tab requests.
 		QNetworkRequest tab_request = MakeTabRequest(first_stash_request_index_, true);
-		rate_limiter_.Submit(kStashItemsUrl, tab_request,
-			[=](QNetworkReply* reply) {
-				OnFirstTabReceived(reply);
-			});
+		auto reply = rate_limiter_.Submit(kStashItemsUrl, tab_request);
+		connect(reply, &RateLimit::RateLimitedReply::complete, this, &ItemsManagerWorker::OnFirstTabReceived);
 	};
 	if (need_character_list_) {
 		// first, download the main page because it's the only way to know which character is selected
 		QNetworkRequest main_page_request = QNetworkRequest(QUrl(kMainPage));
 		main_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-		QNetworkReply* reply = app_.network_manager().get(main_page_request);
-		connect(reply, &QNetworkReply::finished, this, &ItemsManagerWorker::OnMainPageReceived);
+		QNetworkReply* submit = app_.network_manager().get(main_page_request);
+		connect(submit, &QNetworkReply::finished, this, &ItemsManagerWorker::OnMainPageReceived);
 	};
 }
 
@@ -388,35 +385,35 @@ void ItemsManagerWorker::OAuthRefresh() {
 	if (need_stash_list_) {
 		const auto url = QString(kOAuthListStashes) + QString::fromStdString(app_.league());
 		const auto request = QNetworkRequest(QUrl(url));
-		rate_limiter_.Submit("GET /stash/<league>", request,
-			[=](QNetworkReply* reply) {
-				OnOAuthStashListReceived(reply);
-			});
+		auto reply = rate_limiter_.Submit("GET /stash/<league>", request);
+		connect(reply, &RateLimit::RateLimitedReply::complete, this, &ItemsManagerWorker::OnOAuthStashListReceived);
 	};
 	if (need_character_list_) {
 		const auto url = QString(kOAuthListCharacters);
 		const auto request = QNetworkRequest(QUrl(url));
-		rate_limiter_.Submit("GET /character", request,
-			[=](QNetworkReply* reply) {
-				OnOAuthCharacterListReceived(reply);
-			});
+		auto submit = rate_limiter_.Submit("GET /character", request);
+		connect(submit, &RateLimit::RateLimitedReply::complete, this, &ItemsManagerWorker::OnOAuthCharacterListReceived);
 	};
 }
 
 void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
 	QLOG_WARN() << "OAuth stash list received";
+	reply->deleteLater();
 }
 
 void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply) {
 	QLOG_WARN() << "OAuth stash recieved";
+	reply->deleteLater();
 }
 
 void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
 	QLOG_WARN() << "OAuth character list received";
+	reply->deleteLater();
 }
 
 void ItemsManagerWorker::OnOAuthCharacterReceived(QNetworkReply* reply) {
 	QLOG_WARN() << "OAuth character received";
+	reply->deleteLater();
 }
 
 void ItemsManagerWorker::OnMainPageReceived() {
@@ -434,15 +431,15 @@ void ItemsManagerWorker::OnMainPageReceived() {
 		};
 	};
 	QNetworkRequest characters_request = QNetworkRequest(QUrl(kGetCharactersUrl));
-	rate_limiter_.Submit(kGetCharactersUrl, characters_request,
-		[=](QNetworkReply* reply) {
-			OnCharacterListReceived(reply);
-		});
+	auto submit = rate_limiter_.Submit(kGetCharactersUrl, characters_request);
+	connect(submit, &RateLimit::RateLimitedReply::complete, this, &ItemsManagerWorker::OnCharacterListReceived);
 }
 
 void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply* reply) {
 	QLOG_TRACE() << "Character list received.";
 	QByteArray bytes = reply->readAll();
+	reply->deleteLater();
+
 	rapidjson::Document doc;
 	doc.Parse(bytes.constData());
 
@@ -576,7 +573,8 @@ void ItemsManagerWorker::FetchItems() {
 
 		// Pass the request to the rate limiter.
 		ItemLocation location = request.location;
-		rate_limiter_.Submit(request.endpoint, request.network_request,
+		auto submit = rate_limiter_.Submit(request.endpoint, request.network_request);
+		connect(submit, &RateLimit::RateLimitedReply::complete, this,
 			[=](QNetworkReply* reply) {
 				OnTabReceived(reply, location);
 			});
@@ -593,6 +591,8 @@ void ItemsManagerWorker::OnFirstTabReceived(QNetworkReply* reply) {
 	QLOG_TRACE() << "First tab received.";
 
 	QByteArray bytes = reply->readAll();
+	reply->deleteLater();
+
 	rapidjson::Document doc;
 	doc.Parse(bytes.constData());
 
@@ -685,10 +685,12 @@ void ItemsManagerWorker::ParseItems(rapidjson::Value* value_ptr, ItemLocation ba
 	}
 }
 
-void ItemsManagerWorker::OnTabReceived(QNetworkReply* network_reply, ItemLocation location) {
+void ItemsManagerWorker::OnTabReceived(QNetworkReply* reply, ItemLocation location) {
 	QLOG_DEBUG() << "Received a reply for" << location.GetHeader().c_str();
 
-	QByteArray bytes = network_reply->readAll();
+	QByteArray bytes = reply->readAll();
+	reply->deleteLater();
+
 	rapidjson::Document doc;
 	doc.Parse(bytes.constData());
 
@@ -706,7 +708,7 @@ void ItemsManagerWorker::OnTabReceived(QNetworkReply* network_reply, ItemLocatio
 	// to move or rename tabs during the update which will result in the item data being out-of-sync with
 	// expected index/tab name map.  We need to detect this case and abort the update.
 	if (!cancel_update_ && !error && (location.get_type() == ItemLocationType::STASH)) {
-		cancel_update_ = TabsChanged(doc, network_reply, location);
+		cancel_update_ = TabsChanged(doc, reply, location);
 	};
 
 	++requests_completed_;
@@ -838,7 +840,12 @@ void ItemsManagerWorker::PreserveSelectedCharacter() {
 	// The act of making this request sets the active character.
 	// We don't need to to anything with the reply.
 	QNetworkRequest character_request = MakeCharacterRequest(selected_character_);
-	rate_limiter_.Submit(kCharacterItemsUrl, character_request, [](QNetworkReply*) {});
+	auto submit = rate_limiter_.Submit(kCharacterItemsUrl, character_request);
+	connect(submit, &RateLimit::RateLimitedReply::complete, this,
+		[=](QNetworkReply* reply) {
+			reply->deleteLater();
+			submit->deleteLater();
+		});
 }
 
 std::vector<std::pair<std::string, std::string> > ItemsManagerWorker::CreateTabsSignatureVector(std::string tabs) {

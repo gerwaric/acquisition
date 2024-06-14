@@ -60,6 +60,7 @@
 #include "network_info.h"
 #include "ratelimit.h"
 #include "ratelimitdialog.h"
+#include "ratelimiter.h"
 #include "replytimeout.h"
 #include "search.h"
 #include "selfdestructingreply.h"
@@ -109,13 +110,16 @@ void MainWindow::InitializeRateLimitDialog() {
 	button->setFlat(false);
 	button->setText("Rate Limit Status");
 	connect(button, &QPushButton::clicked, rate_limit_dialog_, &RateLimitDialog::show);
-	connect(&app_.rate_limiter(), &RateLimit::RateLimiter::Paused, this,
+	connect(&app_.rate_limiter(), &RateLimiter::Paused, this,
 		[=](int pause) {
 			if (pause > 0) {
 				button->setText("Rate limited for " + QString::number(pause) + " seconds");
 				button->setStyleSheet("font-weight: bold; color: red");
-			} else {
+			} else if (pause == 0) {
 				button->setText("Rate limiting is OFF");
+				button->setStyleSheet("");
+			} else {
+				button->setText("ERROR: pause is " + QString::number(pause));
 				button->setStyleSheet("");
 			};
 		});

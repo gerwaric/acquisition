@@ -32,6 +32,7 @@
 #include "shop.h"
 #include "QsLog.h"
 #include "ratelimit.h"
+#include "ratelimiter.h"
 #include "updatechecker.h"
 #include "oauth.h"
 #include "version_defines.h"
@@ -50,7 +51,7 @@ Application::Application(bool mock_data) :
 	network_manager_ = std::make_unique<QNetworkAccessManager>(this);
 	update_checker_ = std::make_unique<UpdateChecker>(*network_manager_, this);
 	oauth_manager_ = std::make_unique<OAuthManager>(*network_manager_, this);
-	rate_limiter_ = std::make_unique<RateLimit::RateLimiter>(*this, nullptr);
+	rate_limiter_ = std::make_unique<RateLimiter>(*network_manager_, *oauth_manager_, this);
 
 	// The global datastore holds things like the selected theme.
 	QString global_data_file = SqliteDataStore::MakeFilename("", "");

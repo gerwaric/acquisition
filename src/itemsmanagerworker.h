@@ -30,15 +30,16 @@
 #include "mainwindow.h"
 #include "util.h"
 
-class Application;
-class DataStore;
 class QNetworkReply;
 class QSignalMapper;
 class QTimer;
+
+class Application;
 class BuyoutManager;
+class DataStore;
+class RateLimiter;
 namespace RateLimit {
 	struct StatusInfo;
-	class RateLimiter;
 };
 enum class PoeApiMode;
 
@@ -98,7 +99,7 @@ private:
 
 	Application& app_;
 	PoeApiMode api_mode_;
-	RateLimit::RateLimiter& rate_limiter_;
+	RateLimiter& rate_limiter_;
 
 	bool test_mode_;
 	std::vector<ItemLocation> tabs_;
