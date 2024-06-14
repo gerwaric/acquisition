@@ -40,6 +40,7 @@ namespace RateLimit {
 	struct StatusInfo;
 	class RateLimiter;
 };
+enum class PoeApiMode;
 
 struct ItemsRequest {
 	int id{ -1 };
@@ -56,7 +57,7 @@ struct ItemsReply {
 class ItemsManagerWorker : public QObject {
 	Q_OBJECT
 public:
-	ItemsManagerWorker(Application& app);
+	ItemsManagerWorker(Application& app, PoeApiMode mode);
 	bool isInitialized() const { return initialized_; }
 	void UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations);
 public slots:
@@ -73,10 +74,16 @@ public slots:
 	void OnStatTranslationsReceived();
 	void OnItemClassesReceived();
 	void OnItemBaseTypesReceived();
+	void OnOAuthStashListReceived(QNetworkReply* reply);
+	void OnOAuthStashReceived(QNetworkReply* reply);
+	void OnOAuthCharacterListReceived(QNetworkReply* reply);
+	void OnOAuthCharacterReceived(QNetworkReply* reply);
 signals:
 	void ItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
 	void StatusUpdate(ProgramState state, const QString& status);
 private:
+	void LegacyRefresh();
+	void OAuthRefresh();
 	void RemoveUpdatingTabs(const std::set<std::string>& tab_ids);
 	void RemoveUpdatingItems(const std::set<std::string>& tab_ids);
 	QNetworkRequest MakeTabRequest(int tab_index, bool tabs = false);
@@ -90,6 +97,7 @@ private:
 	void FinishUpdate();
 
 	Application& app_;
+	PoeApiMode api_mode_;
 	RateLimit::RateLimiter& rate_limiter_;
 
 	bool test_mode_;

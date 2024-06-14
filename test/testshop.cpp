@@ -13,7 +13,7 @@
 TestShop::TestShop() : app_(true) {}
 
 void TestShop::initTestCase() {
-	app_.InitLogin("TestLeague", "testuser");
+	app_.InitLogin("TestLeague", "testuser", PoeApiMode::LEGACY);
 }
 
 void TestShop::SocketedGemsNotLinked() {

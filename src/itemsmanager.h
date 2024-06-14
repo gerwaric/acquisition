@@ -36,6 +36,7 @@ class DataStore;
 class ItemsManagerWorker;
 class Shop;
 namespace RateLimit { struct StatusInfo; };
+enum class PoeApiMode;
 
 /*
  * ItemsManager manages an ItemsManagerWorker (which lives in a separate thread)
@@ -48,7 +49,7 @@ public:
 	explicit ItemsManager(Application& app);
 	~ItemsManager();
 	// Creates and starts the worker
-	void Start();
+	void Start(PoeApiMode mode);
 	void Update(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 	void SetAutoUpdateInterval(int minutes);
 	void SetAutoUpdate(bool update);

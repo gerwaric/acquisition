@@ -24,13 +24,12 @@
 #include <string>
 #include <vector>
 
-class QNetworkAccessManager;
 class QNetworkReply;
 class QString;
 
 class Application;
-class MainWindow;
 class OAuthToken;
+enum class PoeApiMode;
 
 namespace Ui {
 	class LoginDialog;
@@ -42,7 +41,7 @@ public:
 	explicit LoginDialog(Application& app);
 	~LoginDialog();
 signals:
-	void LoginComplete(const QString& league, const QString& account);
+	void LoginComplete(const QString& league, const QString& account, PoeApiMode mode);
 public slots:
 	void OnLeaguesRequestFinished();
 	void OnLoginButtonClicked();

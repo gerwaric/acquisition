@@ -254,17 +254,14 @@ void LoginDialog::LoggedInCheck() {
 }
 
 void LoginDialog::LoginWithOAuth() {
-	DisplayError("OAuth is not fully implemented yet.", true);
-	return;
-	//connect(&app_->oauth_manager(), &OAuthManager::accessGranted,
-	//	this, &LoginDialog::OnOAuthAccessGranted);
-	//app_->oauth_manager().requestAccess();
+	connect(&app_.oauth_manager(), &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
+	app_.oauth_manager().requestAccess();
 }
 
 void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
 	const QString account = QString::fromStdString(token.username());
 	const QString league = ui->leagueComboBox->currentText();
-	emit LoginComplete(league, account);
+	emit LoginComplete(league, account, PoeApiMode::OAUTH);
 }
 
 void LoginDialog::LoginWithCookie(const QString& cookie) {
@@ -294,7 +291,7 @@ void LoginDialog::OnMainPageFinished() {
 
 	const QString league = ui->leagueComboBox->currentText();
 
-	emit LoginComplete(league, account);
+	emit LoginComplete(league, account, PoeApiMode::LEGACY);
 }
 
 void LoginDialog::OnProxyCheckBoxClicked(bool checked) {

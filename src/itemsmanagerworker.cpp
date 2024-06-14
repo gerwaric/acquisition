@@ -63,8 +63,14 @@ const char* REPOE_STAT_TRANSLATIONS[] = {
 	"https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/stat_translations/necropolis.min.json"
 };
 
-ItemsManagerWorker::ItemsManagerWorker(Application& app) :
+const char* kOAuthListStashes = "https://api.pathofexile.com/stash/";
+const char* kOAuthListCharacters = "https://api.pathofexile.com/character";
+const char* kOAuthGetStash = "";
+const char* kOAuthGetCharacter = "";
+
+ItemsManagerWorker::ItemsManagerWorker(Application& app, PoeApiMode mode) :
 	app_(app),
+	api_mode_(mode),
 	test_mode_(false),
 	rate_limiter_(app.rate_limiter()),
 	total_completed_(-1),
@@ -78,6 +84,8 @@ ItemsManagerWorker::ItemsManagerWorker(Application& app) :
 	type_(TabSelection::Type::Checked),
 	queue_id_(-1),
 	first_stash_request_index_(-1),
+	need_character_list_(false),
+	need_stash_list_(false),
 	has_stash_list_(false),
 	has_character_list_(false)
 {
@@ -299,21 +307,9 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 	has_stash_list_ = false;
 	has_character_list_ = false;
 
-	// This queues stash tab requests.
-	if (need_stash_list_) {
-		QNetworkRequest tab_request = MakeTabRequest(first_stash_request_index_, true);
-		rate_limiter_.Submit(kStashItemsUrl, tab_request,
-			[=](QNetworkReply* reply) {
-				OnFirstTabReceived(reply);
-			});
-	};
-
-	if (need_character_list_) {
-		// first, download the main page because it's the only way to know which character is selected
-		QNetworkRequest main_page_request = QNetworkRequest(QUrl(kMainPage));
-		main_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-		QNetworkReply* reply = app_.network_manager().get(main_page_request);
-		connect(reply, &QNetworkReply::finished, this, &ItemsManagerWorker::OnMainPageReceived);
+	switch (api_mode_) {
+	case PoeApiMode::LEGACY: LegacyRefresh(); break;
+	case PoeApiMode::OAUTH: OAuthRefresh(); break;
 	};
 }
 
@@ -368,6 +364,59 @@ void ItemsManagerWorker::RemoveUpdatingItems(const std::set<std::string>& tab_id
 		};
 	};
 	QLOG_DEBUG() << "Keeping" << items_.size() << "items and culling" << (current_items.size() - items_.size());
+}
+
+void ItemsManagerWorker::LegacyRefresh() {
+	if (need_stash_list_) {
+		// This queues stash tab requests.
+		QNetworkRequest tab_request = MakeTabRequest(first_stash_request_index_, true);
+		rate_limiter_.Submit(kStashItemsUrl, tab_request,
+			[=](QNetworkReply* reply) {
+				OnFirstTabReceived(reply);
+			});
+	};
+	if (need_character_list_) {
+		// first, download the main page because it's the only way to know which character is selected
+		QNetworkRequest main_page_request = QNetworkRequest(QUrl(kMainPage));
+		main_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+		QNetworkReply* reply = app_.network_manager().get(main_page_request);
+		connect(reply, &QNetworkReply::finished, this, &ItemsManagerWorker::OnMainPageReceived);
+	};
+}
+
+void ItemsManagerWorker::OAuthRefresh() {
+	if (need_stash_list_) {
+		const auto url = QString(kOAuthListStashes) + QString::fromStdString(app_.league());
+		const auto request = QNetworkRequest(QUrl(url));
+		rate_limiter_.Submit("GET /stash/<league>", request,
+			[=](QNetworkReply* reply) {
+				OnOAuthStashListReceived(reply);
+			});
+	};
+	if (need_character_list_) {
+		const auto url = QString(kOAuthListCharacters);
+		const auto request = QNetworkRequest(QUrl(url));
+		rate_limiter_.Submit("GET /character", request,
+			[=](QNetworkReply* reply) {
+				OnOAuthCharacterListReceived(reply);
+			});
+	};
+}
+
+void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
+	QLOG_WARN() << "OAuth stash list received";
+}
+
+void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply) {
+	QLOG_WARN() << "OAuth stash recieved";
+}
+
+void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
+	QLOG_WARN() << "OAuth character list received";
+}
+
+void ItemsManagerWorker::OnOAuthCharacterReceived(QNetworkReply* reply) {
+	QLOG_WARN() << "OAuth character received";
 }
 
 void ItemsManagerWorker::OnMainPageReceived() {

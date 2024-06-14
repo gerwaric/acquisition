@@ -50,8 +50,8 @@ ItemsManager::ItemsManager(Application& app) :
 
 ItemsManager::~ItemsManager() {}
 
-void ItemsManager::Start() {
-	worker_ = std::make_unique<ItemsManagerWorker>(app_);
+void ItemsManager::Start(PoeApiMode mode) {
+	worker_ = std::make_unique<ItemsManagerWorker>(app_, mode);
 	connect(this, &ItemsManager::UpdateSignal, worker_.get(), &ItemsManagerWorker::Update);
 	connect(worker_.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
 	connect(worker_.get(), &ItemsManagerWorker::ItemsRefreshed, this, &ItemsManager::OnItemsRefreshed);

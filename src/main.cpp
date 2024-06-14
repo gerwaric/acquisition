@@ -168,10 +168,10 @@ int main(int argc, char* argv[])
 	QObject::connect(&app.update_checker(), &UpdateChecker::UpdateAvailable, &app.update_checker(), &UpdateChecker::AskUserToUpdate);
 
 	QObject::connect(&login, &LoginDialog::LoginComplete, &mw,
-		[&](const QString& league, const QString& account) {
+		[&](const QString& league, const QString& account, PoeApiMode mode) {
 
 			// Call init login to setup the shop, items manager, and other objects.
-			app.InitLogin(league.toStdString(), account.toStdString());
+			app.InitLogin(league.toStdString(), account.toStdString(), mode);
 
 			// Connect signals now that all the objects are created.
 			QObject::connect(&app.items_manager(), &ItemsManager::ItemsRefreshed, &mw, &MainWindow::OnItemsRefreshed);

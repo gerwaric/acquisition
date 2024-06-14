@@ -64,7 +64,8 @@ Application::~Application() {
 
 void Application::InitLogin(
 	const std::string& league,
-	const std::string& email)
+	const std::string& email,
+	PoeApiMode mode)
 {
 	league_ = league;
 	email_ = email;
@@ -84,7 +85,7 @@ void Application::InitLogin(
 	currency_manager_ = std::make_unique<CurrencyManager>(*this);
 	connect(items_manager_.get(), &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
 	if (test_mode_ == false) {
-		items_manager_->Start();
+		items_manager_->Start(mode);
 	};
 }
 

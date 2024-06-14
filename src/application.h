@@ -43,6 +43,8 @@ class UpdateChecker;
 class OAuthManager;
 namespace RateLimit { class RateLimiter; };
 
+enum class PoeApiMode { LEGACY, OAUTH };
+
 class Application : public QObject {
 	Q_OBJECT
 public:
@@ -51,7 +53,7 @@ public:
 	Application(const Application&) = delete;
 	Application& operator=(const Application&) = delete;
 	// Should be called by login dialog after login
-	void InitLogin(const std::string& league, const std::string& email);
+	void InitLogin(const std::string& league, const std::string& email, PoeApiMode mode);
 	const std::string& league() const { return league_; }
 	const std::string& email() const { return email_; }
 	ItemsManager& items_manager() { return *items_manager_; }
