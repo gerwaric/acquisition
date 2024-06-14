@@ -34,6 +34,7 @@
 
 #include "application.h"
 #include "datastore.h"
+#include "itemcategories.h"
 #include "util.h"
 #include "mainwindow.h"
 #include "network_info.h"
@@ -115,8 +116,8 @@ void ItemsManagerWorker::OnItemClassesReceived() {
 			<< "due to error:" << reply->errorString() << "The type dropdown will remain empty.";
 	} else {
 		QLOG_DEBUG() << "Item classes received.";
-		QByteArray bytes = reply->readAll();
-		emit ItemClassesUpdate(bytes);
+		const QByteArray bytes = reply->readAll();
+		InitItemClasses(bytes);
 	};
 
 	emit StatusUpdate(ProgramState::Initializing, "Waiting for RePoE item base types.");
@@ -134,8 +135,8 @@ void ItemsManagerWorker::OnItemBaseTypesReceived() {
 			<< "due to error:" << reply->errorString() << "The type dropdown will remain empty.";
 	} else {
 		QLOG_DEBUG() << "Item base types received.";
-		QByteArray bytes = reply->readAll();
-		emit ItemBaseTypesUpdate(bytes);
+		const QByteArray bytes = reply->readAll();
+		InitItemBaseTypes(bytes);
 	};
 	emit StatusUpdate(ProgramState::Initializing, "RePoE data received; updating mod list.");
 
@@ -232,7 +233,7 @@ void ItemsManagerWorker::OnStatTranslationsReceived() {
 		return;
 	};
 	const QByteArray bytes = reply->readAll();
-	emit StatTranslationsUpdate(bytes);
+	AddStatTranslations(bytes);
 	UpdateModList();
 }
 

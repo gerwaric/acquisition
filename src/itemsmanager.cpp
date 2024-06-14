@@ -36,7 +36,6 @@
 #include "mainwindow.h"
 #include "modlist.h"
 #include "filters.h"
-#include "itemcategories.h"
 #include "ratelimit.h"
 
 ItemsManager::ItemsManager(Application& app) :
@@ -56,9 +55,6 @@ void ItemsManager::Start() {
 	connect(this, &ItemsManager::UpdateSignal, worker_.get(), &ItemsManagerWorker::Update);
 	connect(worker_.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
 	connect(worker_.get(), &ItemsManagerWorker::ItemsRefreshed, this, &ItemsManager::OnItemsRefreshed);
-	connect(worker_.get(), &ItemsManagerWorker::ItemClassesUpdate, [](const QByteArray& bytes) { InitItemClasses(bytes); });
-	connect(worker_.get(), &ItemsManagerWorker::ItemBaseTypesUpdate, [](const QByteArray& bytes) { InitItemBaseTypes(bytes); });
-	connect(worker_.get(), &ItemsManagerWorker::StatTranslationsUpdate, [](const QByteArray& bytes) { AddStatTranslations(bytes); });
 	worker_->Init();
 }
 
