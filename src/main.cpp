@@ -24,8 +24,11 @@
 #include <QDir>
 #include <QFontDatabase>
 #include <QLocale>
+#include <QMessageBox>
+
 #include "QsLog.h"
 #include "QsLogDest.h"
+
 #include <clocale>
 #include <limits>
 #include <memory>
@@ -48,6 +51,13 @@ const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::TraceLevel;
 #else
 const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::InfoLevel;
 #endif
+
+#ifdef Q_OS_LINUX
+const char* SSL_ERROR = "OpenSSL 3.x was not found; check LD_LIBRARY_PATH if you have a custom installation.";
+#else
+const char* SSL_ERROR = "SSL is not supported. This is unexpected.";
+#endif
+
 
 int main(int argc, char* argv[])
 {
@@ -128,6 +138,18 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	};
 	QLOG_INFO() << "Logging level is" << logger.loggingLevel();
+
+	if (!QSslSocket::supportsSsl()) {
+		QLOG_FATAL() << QString(SSL_ERROR);
+		QMessageBox msg(nullptr);
+		msg.setWindowTitle("Acquisition [" + QString(APP_VERSION_STRING) + "]");
+		msg.setText(SSL_ERROR);
+		msg.addButton(QMessageBox::Abort);
+		msg.exec();
+		return EXIT_FAILURE;
+	};
+	QLOG_DEBUG() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
+	QLOG_DEBUG() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
 
 	// Check for test mode.
 	if (parser.isSet(option_test)) {
