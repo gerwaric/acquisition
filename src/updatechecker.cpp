@@ -26,6 +26,7 @@
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QSettings>
+#include <QSizePolicy>
 #include <QUrl>
 #include <QWidget>
 
@@ -178,7 +179,6 @@ void UpdateChecker::OnUpdateReplyReceived() {
 
 	if (matched_tag.isEmpty()) {
 		QLOG_WARN() << "Unable to match any github release against the running version!";
-		return;
 	};
 
 	qsizetype k;
@@ -198,6 +198,14 @@ void UpdateChecker::OnUpdateReplyReceived() {
 }
 
 void UpdateChecker::AskUserToUpdate() {
+
+	const auto skip_release = settings_.value("skip_release_version", "");
+	const auto skip_prerelease = settings_.value("skip_prerelease_version", "");
+
+	if ((newest_release_ == skip_release) && (newest_prerelease_ == skip_prerelease)) {
+		QLOG_INFO() << "Skipping updates: no new versions";
+		return;
+	};
 
 	// Only show the 'compatible version' update if it's present and is
 	// different from the newest release. This cann happen if the user is
@@ -221,13 +229,24 @@ void UpdateChecker::AskUserToUpdate() {
 	QMessageBox msgbox(nullptr);
 	msgbox.setWindowTitle("Update [" APP_VERSION_STRING "]");
 	msgbox.setText(message);
-	auto accept_button = msgbox.addButton("  Navigate to GitHub  ", QMessageBox::AcceptRole);
-	auto reject_button = msgbox.addButton("  Ignore  ", QMessageBox::RejectRole);
+	auto accept_button = msgbox.addButton("  Go to Github  ", QMessageBox::AcceptRole);
+	auto ignore_button = msgbox.addButton("  Ignore  ", QMessageBox::RejectRole);
+	auto skip_button = msgbox.addButton("  Ignore (until new versions are available)", QMessageBox::RejectRole);
 	msgbox.setDefaultButton(accept_button);
+
+	// Resize the buttons so the text fits.
+	accept_button->setMinimumWidth(accept_button->sizeHint().width());
+	ignore_button->setMinimumWidth(ignore_button->sizeHint().width());
+	skip_button->setMinimumWidth(skip_button->sizeHint().width());
 
 	// Get the user's choice.
 	msgbox.exec();
-	if (msgbox.clickedButton() == accept_button) {
+
+	const auto clicked = msgbox.clickedButton();
+	if (clicked == accept_button) {
 		QDesktopServices::openUrl(QUrl(GITHUB_DOWNLOADS_URL));
+	} else if (clicked == skip_button) {
+		settings_.setValue("skip_release_version", newest_release_);
+		settings_.setValue("skip_prerelease_version", newest_prerelease_);
 	};
 }
