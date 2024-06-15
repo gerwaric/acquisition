@@ -21,8 +21,8 @@
 
 #include <boost/circular_buffer.hpp>
 
-#include <QByteArray>;
-#include <QByteArrayList>;
+#include <QByteArray>
+#include <QByteArrayList>
 #include <QDateTime>
 #include <QNetworkRequest>
 #include <QString>
