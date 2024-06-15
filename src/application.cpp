@@ -33,7 +33,6 @@
 #include "porting.h"
 #include "shop.h"
 #include "QsLog.h"
-#include "ratelimit.h"
 #include "ratelimiter.h"
 #include "updatechecker.h"
 #include "oauth.h"

@@ -30,6 +30,8 @@
 
 #include "ratelimit.h"
 
+#include "ratelimitmanager.h"
+
 class QNetworkAccessManager;
 class QNetworkReply;
 

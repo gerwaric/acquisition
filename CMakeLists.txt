@@ -213,7 +213,7 @@ target_link_libraries(acquisition PUBLIC
 )
 
 # On Linux we need to build with OpenSSL 3.x
-if(UNIX)
+if(UNIX AND (NOT APPLE))
     set(OPENSSL_ROOT_DIR ~/openssl-3.1.5)
     set(OPENSSL_USE_STATIC_LIBS TRUE)
     find_package(OpenSSL 3.1.5 REQUIRED)
@@ -258,6 +258,13 @@ if(MSVC)
 
     # Visual Studio 2022 needs for debugging to work.
     target_compile_options(acquisition PRIVATE "$<$<CONFIG:DEBUG>:/Zi>")
+
+endif()
+
+if(APPLE)
+
+    # On macOS we need to enable unary functions for version of boost we are using.
+    target_compile_definitions(acquisition PUBLIC _LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION)
 
 endif()
 

@@ -319,6 +319,9 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 				};
 			};
 			break;
+        case TabSelection::All:
+            // This case is handled by the enclosing if.
+            break;
 		};
 		// Remove the tabs that will be updated, and all the items linked to those tabs.
 		QLOG_DEBUG() << "Updating" << tabs_to_update.size() << " tabs.";

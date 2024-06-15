@@ -38,34 +38,6 @@ constexpr int MINIMUM_INTERVAL_MSEC = 500;
 // wait just to make sure we don't trigger another violation.
 constexpr int VIOLATION_BUFFER_MSEC = 1000;
 
-// Represents a single rate-limited request.
-struct RateLimitManager::RateLimitedRequest {
-
-	// Construct a new rate-limited request.
-	RateLimitedRequest(const QString& endpoint_, const QNetworkRequest& request, RateLimit::RateLimitedReply* reply_) :
-		id(++request_count),
-		network_request(request),
-		endpoint(endpoint_),
-		reply(reply_) {}
-
-	// Unique identified for each request, even through different requests can be
-	// routed to different policy managers based on different endpoints.
-	const unsigned long id;
-
-	// A copy of the network request that's going to be sent.
-	const QNetworkRequest network_request;
-
-	// A copy of this request's API endpoint, if any.
-	const QString endpoint;
-
-	RateLimit::RateLimitedReply* reply;
-
-private:
-
-	// Total number of requests that have every been constructed.
-	static unsigned long request_count;
-};
-
 // Total number of rate-limited requests that have been created.
 unsigned long RateLimitManager::RateLimitedRequest::request_count = 0;
 
