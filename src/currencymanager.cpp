@@ -218,7 +218,7 @@ void CurrencyManager::SaveCurrencyValue() {
 void CurrencyManager::ExportCurrency() {
 	std::string header_csv = "Date; Total value";
 	for (auto& item : currencies_) {
-		auto label = item->currency.AsString();
+		auto& label = item->currency.AsString();
 		if (label != "")
 			header_csv += ";" + label;
 	}
