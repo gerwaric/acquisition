@@ -25,6 +25,7 @@
 #include <QNetworkRequest>
 #include <QPushButton>
 #include <QRegularExpression>
+#include <QSettings>
 #include <QUrl>
 #include <QWidget>
 
@@ -43,8 +44,9 @@ namespace {
 // Check for updates every 24 hours.
 const int UpdateChecker::update_interval = 24 * 60 * 60 * 1000;
 
-UpdateChecker::UpdateChecker(QNetworkAccessManager& network_manager, QObject* parent) :
+UpdateChecker::UpdateChecker(QObject* parent, QSettings& settings, QNetworkAccessManager& network_manager) :
 	QObject(parent),
+	settings_(settings),
 	nm_(network_manager)
 {
 	timer_.setInterval(update_interval);

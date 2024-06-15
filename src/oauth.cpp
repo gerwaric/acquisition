@@ -38,6 +38,7 @@
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/writer.h"
 
+#include "application.h"
 #include "network_info.h"
 #include "util.h"
 
@@ -166,7 +167,7 @@ QDateTime OAuthToken::getDate(const std::optional<std::string>& timestamp) {
 
 //---------------------------------------------------------------------
 
-OAuthManager::OAuthManager(QNetworkAccessManager& network_manager, QObject* parent) :
+OAuthManager::OAuthManager(QObject* parent, QNetworkAccessManager& network_manager) :
 	QObject(parent),
 	network_manager_(network_manager),
 	refresh_timer_(this)

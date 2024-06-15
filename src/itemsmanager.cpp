@@ -38,12 +38,24 @@
 #include "filters.h"
 #include "ratelimit.h"
 
-ItemsManager::ItemsManager(Application& app) :
-	auto_update_timer_(std::make_unique<QTimer>()),
-	app_(app)
+ItemsManager::ItemsManager(QObject*  parent,
+	QNetworkAccessManager& network_manager,
+	BuyoutManager& buyout_manager,
+	DataStore& datastore,
+	RateLimiter& rate_limiter,
+	std::string league,
+	std::string email)
+	:
+	network_manager_(network_manager),
+	buyout_manager_(buyout_manager),
+	datastore_(datastore),
+	rate_limiter_(rate_limiter),
+	league_(league),
+	account_(email),
+	auto_update_timer_(std::make_unique<QTimer>())
 {
-	auto_update_interval_ = std::stoi(app_.data().Get("autoupdate_interval", "60"));
-	auto_update_ = app_.data().GetBool("autoupdate", false);
+	auto_update_interval_ = std::stoi(datastore_.Get("autoupdate_interval", "60"));
+	auto_update_ = datastore_.GetBool("autoupdate", false);
 	SetAutoUpdateInterval(auto_update_interval_);
 	connect(auto_update_timer_.get(), &QTimer::timeout, this, &ItemsManager::OnAutoRefreshTimer);
 }
@@ -51,7 +63,13 @@ ItemsManager::ItemsManager(Application& app) :
 ItemsManager::~ItemsManager() {}
 
 void ItemsManager::Start(PoeApiMode mode) {
-	worker_ = std::make_unique<ItemsManagerWorker>(app_, mode);
+	worker_ = std::make_unique<ItemsManagerWorker>(this,
+		network_manager_,
+		buyout_manager_,
+		datastore_,
+		rate_limiter_,
+		league_,
+		account_, mode);
 	connect(this, &ItemsManager::UpdateSignal, worker_.get(), &ItemsManagerWorker::Update);
 	connect(worker_.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
 	connect(worker_.get(), &ItemsManagerWorker::ItemsRefreshed, this, &ItemsManager::OnItemsRefreshed);
@@ -69,33 +87,31 @@ void ItemsManager::ApplyAutoTabBuyouts() {
 	// 3. Third priority it to apply pricing based on ideally user specified formats (doesn't exist yet)
 
 	// Loop over all tabs, create buyout based on tab name which applies auto-pricing policies
-	auto& bo = app_.buyout_manager();
-	for (auto const& loc : app_.buyout_manager().GetStashTabLocations()) {
+	for (auto const& loc : buyout_manager_.GetStashTabLocations()) {
 		auto tab_label = loc.get_tab_label();
-		Buyout buyout = bo.StringToBuyout(tab_label);
+		Buyout buyout = buyout_manager_.StringToBuyout(tab_label);
 		if (buyout.IsActive()) {
-			bo.SetTab(loc.GetUniqueHash(), buyout);
+			buyout_manager_.SetTab(loc.GetUniqueHash(), buyout);
 		};
 	};
 
 	// Need to compress tab buyouts here, as the tab names change we accumulate and save BO's
 	// for tabs that no longer exist I think.
-	bo.CompressTabBuyouts();
+	buyout_manager_.CompressTabBuyouts();
 }
 
 void ItemsManager::ApplyAutoItemBuyouts() {
 	// Loop over all items, check for note field with pricing and apply
-	auto& bo = app_.buyout_manager();
 	for (auto const& item : items_) {
 		auto const& note = item->note();
 		if (!note.empty()) {
-			Buyout buyout = bo.StringToBuyout(note);
+			Buyout buyout = buyout_manager_.StringToBuyout(note);
 			// This line may look confusing, buyout returns an active buyout if game
 			// pricing was found or a default buyout (inherit) if it was not.
 			// If there is a currently valid note we want to apply OR if
 			// old note no longer is valid (so basically clear pricing)
-			if (buyout.IsActive() || bo.Get(*item).IsGameSet()) {
-				bo.Set(*item, buyout);
+			if (buyout.IsActive() || buyout_manager_.Get(*item).IsGameSet()) {
+				buyout_manager_.Set(*item, buyout);
 			};
 		};
 	};
@@ -107,31 +123,30 @@ void ItemsManager::ApplyAutoItemBuyouts() {
 }
 
 void ItemsManager::PropagateTabBuyouts() {
-	auto& bo = app_.buyout_manager();
-	bo.ClearRefreshLocks();
+	buyout_manager_.ClearRefreshLocks();
 	for (auto& item_ptr : items_) {
 		Item& item = *item_ptr;
 		std::string hash = item.location().GetUniqueHash();
-		auto item_bo = bo.Get(item);
-		auto tab_bo = bo.GetTab(hash);
+		auto item_bo = buyout_manager_.Get(item);
+		auto tab_bo = buyout_manager_.GetTab(hash);
 
 		if (item_bo.IsInherited()) {
 			if (tab_bo.IsActive()) {
 				// Any propagation from tab price to item price should include this bit set
 				tab_bo.inherited = true;
 				tab_bo.last_update = QDateTime::currentDateTime();
-				bo.Set(item, tab_bo);
+				buyout_manager_.Set(item, tab_bo);
 			} else {
 				// This effectively 'clears' buyout by setting back to 'inherit' state.
-				bo.Set(item, Buyout());
+				buyout_manager_.Set(item, Buyout());
 			};
 		};
 
 		// If any savable bo's are set on an item or the tab then lock the refresh state.
 		// Skip remove-only tabs because they are not editable, nor indexed for trade now.
 		if (item.location().removeonly() == false) {
-			if (bo.Get(item).RequiresRefresh() || tab_bo.RequiresRefresh()) {
-				bo.SetRefreshLocked(item.location());
+			if (buyout_manager_.Get(item).RequiresRefresh() || tab_bo.RequiresRefresh()) {
+				buyout_manager_.SetRefreshLocked(item.location());
 			};
 		};
 	};
@@ -152,7 +167,7 @@ void ItemsManager::OnItemsRefreshed(const Items& items, const std::vector<ItemLo
 		QLOG_INFO() << "There are" << n << " uncategorized items.";
 	};
 
-	app_.buyout_manager().SetStashTabLocations(tabs);
+	buyout_manager_.SetStashTabLocations(tabs);
 	MigrateBuyouts();
 	ApplyAutoTabBuyouts();
 	ApplyAutoItemBuyouts();
@@ -172,7 +187,7 @@ void ItemsManager::Update(TabSelection::Type type, const std::vector<ItemLocatio
 }
 
 void ItemsManager::SetAutoUpdate(bool update) {
-	app_.data().SetBool("autoupdate", update);
+	datastore_.SetBool("autoupdate", update);
 	auto_update_ = update;
 	if (!auto_update_) {
 		auto_update_timer_->stop();
@@ -183,7 +198,7 @@ void ItemsManager::SetAutoUpdate(bool update) {
 }
 
 void ItemsManager::SetAutoUpdateInterval(int minutes) {
-	app_.data().Set("autoupdate_interval", std::to_string(minutes));
+	datastore_.Set("autoupdate_interval", std::to_string(minutes));
 	auto_update_interval_ = minutes;
 	if (auto_update_) {
 		auto_update_timer_->start(auto_update_interval_ * 60 * 1000);
@@ -195,14 +210,14 @@ void ItemsManager::OnAutoRefreshTimer() {
 }
 
 void ItemsManager::MigrateBuyouts() {
-	int db_version = app_.data().GetInt("db_version");
+	int db_version = datastore_.GetInt("db_version");
 	// Don't migrate twice
 	if (db_version == 4) {
 		return;
 	};
 	for (auto& item : items_) {
-		app_.buyout_manager().MigrateItem(*item);
+		buyout_manager_.MigrateItem(*item);
 	};
-	app_.buyout_manager().Save();
-	app_.data().SetInt("db_version", 4);
+	buyout_manager_.Save();
+	datastore_.SetInt("db_version", 4);
 }

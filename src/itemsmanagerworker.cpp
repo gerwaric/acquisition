@@ -24,10 +24,11 @@
 #include <QNetworkCookieJar>
 #include <QNetworkReply>
 #include <QSignalMapper>
-#include "QsLog.h"
 #include <QTimer>
 #include <QUrlQuery>
+
 #include <algorithm>
+#include "QsLog.h"
 #include "rapidjson/document.h"
 #include "rapidjson/error/en.h"
 #include <boost/algorithm/string.hpp>
@@ -74,11 +75,24 @@ const char* kOAuthGetStashUrl = "https://api.pathofexile.com/stash";
 const char* kOAuthGetCharacterEndpoint = "GET /character/<name>";
 const char* kOAuthGetCharacterUrl = "https://api.pathofexile.com/character";
 
-ItemsManagerWorker::ItemsManagerWorker(Application& app, PoeApiMode mode) :
-	app_(app),
+ItemsManagerWorker::ItemsManagerWorker(QObject* parent,
+	QNetworkAccessManager& network_manager,
+	BuyoutManager& buyout_manager,
+	DataStore& datastore,
+	RateLimiter& rate_limiter,
+	std::string league,
+	std::string account,
+	PoeApiMode mode)
+	:
+	QObject(parent),
 	api_mode_(mode),
 	test_mode_(false),
-	rate_limiter_(app.rate_limiter()),
+	network_manager_(network_manager),
+	buyout_manager_(buyout_manager),
+	datastore_(datastore),
+	rate_limiter_(rate_limiter),
+	league_(league),
+	account_(account),
 	total_completed_(-1),
 	total_needed_(-1),
 	requests_completed_(-1),
@@ -119,7 +133,7 @@ void ItemsManagerWorker::Init() {
 
 	QNetworkRequest request = QNetworkRequest(QUrl(QString(kRePoE_item_classes)));
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply* reply = app_.network_manager().get(request);
+	QNetworkReply* reply = network_manager_.get(request);
 	connect(reply, &QNetworkReply::finished, this, &ItemsManagerWorker::OnItemClassesReceived);
 }
 
@@ -139,7 +153,7 @@ void ItemsManagerWorker::OnItemClassesReceived() {
 
 	QNetworkRequest request = QNetworkRequest(QUrl(QString(kRePoE_item_base_types)));
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-	QNetworkReply* next_reply = app_.network_manager().get(request);
+	QNetworkReply* next_reply = network_manager_.get(request);
 	connect(next_reply, &QNetworkReply::finished, this, &ItemsManagerWorker::OnItemBaseTypesReceived);
 }
 
@@ -169,7 +183,7 @@ void ItemsManagerWorker::ParseItemMods() {
 
 	//Get cached tabs (item tabs not search tabs)
 	for (ItemLocationType type : {ItemLocationType::STASH, ItemLocationType::CHARACTER}) {
-		Locations tabs = app_.data().GetTabs(type);
+		Locations tabs = datastore_.GetTabs(type);
 		tabs_.reserve(tabs_.size() + tabs.size());
 		for (const auto& tab : tabs) {
 			tabs_.push_back(tab);
@@ -192,7 +206,7 @@ void ItemsManagerWorker::ParseItemMods() {
 	// Get cached items
 	for (int i = 0; i < tabs_.size(); i++) {
 		auto& tab = tabs_[i];
-		Items tab_items = app_.data().GetItems(tab);
+		Items tab_items = datastore_.GetItems(tab);
 		items_.reserve(items_.size() + tab_items.size());
 		for (const auto& tab_item : tab_items) {
 			items_.push_back(tab_item);
@@ -224,7 +238,7 @@ void ItemsManagerWorker::UpdateModList() {
 		QUrl url = QUrl(QString::fromStdString(next_url));
 		QNetworkRequest request = QNetworkRequest(url);
 		request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-		QNetworkReply* reply = app_.network_manager().get(request);
+		QNetworkReply* reply = network_manager_.get(request);
 		connect(reply, &QNetworkReply::finished, this, &ItemsManagerWorker::OnStatTranslationsReceived);
 	} else {
 		// Create a separate thread to load the items, which allows the UI to
@@ -292,7 +306,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 		case TabSelection::Checked:
 			// Use the buyout manager to determine which tabs are check.
 			for (auto const& tab : tabs_) {
-				if ((tab.IsValid()) && (app_.buyout_manager().GetRefreshChecked(tab) == true)) {
+				if ((tab.IsValid()) && (buyout_manager_.GetRefreshChecked(tab) == true)) {
 					tabs_to_update.insert(tab.get_tab_uniq_id());
 				};
 			};
@@ -388,14 +402,14 @@ void ItemsManagerWorker::LegacyRefresh() {
 		// to know which character is selected (doesn't apply to OAuth api).
 		QNetworkRequest main_page_request = QNetworkRequest(QUrl(kMainPage));
 		main_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-		QNetworkReply* submit = app_.network_manager().get(main_page_request);
+		QNetworkReply* submit = network_manager_.get(main_page_request);
 		connect(submit, &QNetworkReply::finished, this, &ItemsManagerWorker::OnLegcayMainPageReceived);
 	};
 }
 
 void ItemsManagerWorker::OAuthRefresh() {
 	if (need_stash_list_) {
-		const auto request = MakeOAuthStashListRequest(app_.league());
+		const auto request = MakeOAuthStashListRequest(league_);
 		auto reply = rate_limiter_.Submit(kOauthListStashesEndpoint, request);
 		connect(reply, &RateLimit::RateLimitedReply::complete, this, &ItemsManagerWorker::OnOAuthStashListReceived);
 	};
@@ -521,8 +535,8 @@ void ItemsManagerWorker::OnLegacyCharacterListReceived(QNetworkReply* reply) {
 			QLOG_ERROR() << "Malformed character entry for" << name.c_str() << ": the reply may be invalid : " << bytes.constData();
 			continue;
 		};
-		if (character["league"].GetString() != app_.league()) {
-			QLOG_DEBUG() << "Skipping" << name.c_str() << "because this character is not in" << app_.league().c_str();
+		if (character["league"].GetString() != league_) {
+			QLOG_DEBUG() << "Skipping" << name.c_str() << "because this character is not in" << league_;
 			continue;
 		};
 		++total_character_count;
@@ -545,7 +559,7 @@ void ItemsManagerWorker::OnLegacyCharacterListReceived(QNetworkReply* reply) {
 		//Queue request for jewels in character's passive tree
 		QueueRequest(kCharacterSocketedJewels, MakeLegacyPassivesRequest(name), location);
 	}
-	QLOG_DEBUG() << "There are" << requested_character_count << "characters to update in" << app_.league().c_str();
+	QLOG_DEBUG() << "There are" << requested_character_count << "characters to update in" << league_.c_str();
 
 	emit StatusUpdate(
 		ProgramState::Busy,
@@ -564,10 +578,10 @@ QNetworkRequest ItemsManagerWorker::MakeLegacyTabRequest(int tab_index, bool tab
 		QLOG_ERROR() << "MakeLegacyTabRequest: invalid tab_index =" << tab_index;
 	};
 	QUrlQuery query;
-	query.addQueryItem("league", QString::fromUtf8(app_.league()));
+	query.addQueryItem("league", QString::fromUtf8(league_));
 	query.addQueryItem("tabs", tabs ? "1" : "0");
 	query.addQueryItem("tabIndex", std::to_string(tab_index).c_str());
-	query.addQueryItem("accountName", QString::fromUtf8(app_.email()));
+	query.addQueryItem("accountName", QString::fromUtf8(account_));
 
 	QUrl url(kStashItemsUrl);
 	url.setQuery(query);
@@ -580,7 +594,7 @@ QNetworkRequest ItemsManagerWorker::MakeLegacyCharacterRequest(const std::string
 	};
 	QUrlQuery query;
 	query.addQueryItem("character", QString::fromUtf8(name));
-	query.addQueryItem("accountName", QString::fromUtf8(app_.email()));
+	query.addQueryItem("accountName", QString::fromUtf8(account_));
 
 	QUrl url(kCharacterItemsUrl);
 	url.setQuery(query);
@@ -593,7 +607,7 @@ QNetworkRequest ItemsManagerWorker::MakeLegacyPassivesRequest(const std::string&
 	};
 	QUrlQuery query;
 	query.addQueryItem("character", QString::fromUtf8(name));
-	query.addQueryItem("accountName", QString::fromUtf8(app_.email()));
+	query.addQueryItem("accountName", QString::fromUtf8(account_));
 
 	QUrl url(kCharacterSocketedJewels);
 	url.setQuery(query);
@@ -864,14 +878,14 @@ void ItemsManagerWorker::FinishUpdate() {
 	for (auto const& pair : tabsPerType) {
 		const auto& location_type = pair.first;
 		const auto& tabs = pair.second;
-		app_.data().SetTabs(location_type, tabs);
+		datastore_.SetTabs(location_type, tabs);
 	};
 
 	// Save items by location.
 	for (auto const& pair : itemsPerLoc) {
 		const auto& location = pair.first;
 		const auto& items = pair.second;
-		app_.data().SetItems(location, items);
+		datastore_.SetItems(location, items);
 	};
 
 	// Let everyone know the update is done.

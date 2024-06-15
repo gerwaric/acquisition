@@ -30,7 +30,6 @@
 #include "util.h"
 
 class QThread;
-class Application;
 class BuyoutManager;
 class DataStore;
 class ItemsManagerWorker;
@@ -46,7 +45,13 @@ enum class PoeApiMode;
 class ItemsManager : public QObject {
 	Q_OBJECT
 public:
-	explicit ItemsManager(Application& app);
+	explicit ItemsManager(QObject* parent,
+		QNetworkAccessManager& network_manager,
+		BuyoutManager& buyout_manager,
+		DataStore& datastore,
+		RateLimiter& rate_limiter,
+		std::string league,
+		std::string email);
 	~ItemsManager();
 	// Creates and starts the worker
 	void Start(PoeApiMode mode);
@@ -71,12 +76,18 @@ signals:
 private:
 	void MigrateBuyouts();
 
+	QNetworkAccessManager& network_manager_;
+	BuyoutManager& buyout_manager_;
+	DataStore& datastore_;
+	RateLimiter& rate_limiter_;
+	std::string league_;
+	std::string account_;
+
 	// should items be automatically refreshed
 	bool auto_update_;
 	// items will be automatically updated every X minutes
 	int auto_update_interval_;
 	std::unique_ptr<QTimer> auto_update_timer_;
 	std::unique_ptr<ItemsManagerWorker> worker_;
-	Application& app_;
 	Items items_;
 };

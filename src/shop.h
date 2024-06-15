@@ -28,6 +28,13 @@
 #include "buyoutmanager.h"
 #include "mainwindow.h"
 
+class QNetworkAccessManager;
+
+class Application;
+class BuyoutManager;
+class DataStore;
+class ItemsManager;
+
 extern const std::string kShopTemplateItems;
 struct AugmentedItem {
 	Item* item{ nullptr };
@@ -42,12 +49,16 @@ struct AugmentedItem {
 		return false;
 	}
 };
-class Application;
 
 class Shop : public QObject {
 	Q_OBJECT
 public:
-	explicit Shop(Application& app);
+	explicit Shop(QObject* parent,
+		QNetworkAccessManager& network_manager,
+		DataStore& datastore,
+		ItemsManager& items_manager,
+		BuyoutManager& buyout_manager,
+		std::string league);
 	void SetThread(const std::vector<std::string>& threads);
 	void SetAutoUpdate(bool update);
 	void SetShopTemplate(const std::string& shop_template);
@@ -70,7 +81,12 @@ private:
 	std::string ShopEditUrl(size_t idx);
 	std::string SpoilerBuyout(Buyout& bo);
 
-	Application& app_;
+	QNetworkAccessManager& network_manager_;
+	DataStore& datastore_;
+	ItemsManager& items_manager_;
+	BuyoutManager& buyout_manager_;
+
+	std::string league_;
 	std::vector<std::string> threads_;
 	std::vector<std::string> shop_data_;
 	std::string shop_hash_;

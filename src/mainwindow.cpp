@@ -20,10 +20,11 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
-#include <fstream>
-#include <iostream>
-#include <vector>
+#include <QApplication>
+#include <QBuffer>
+#include <QClipboard>
 #include <QEvent>
+#include <QFile>
 #include <QImageReader>
 #include <QInputDialog>
 #include <QMessageBox>
@@ -39,6 +40,10 @@
 #include <QVersionNumber>
 #include <QStringListModel>
 #include "QsLog.h"
+
+#include <fstream>
+#include <iostream>
+#include <vector>
 
 #include "application.h"
 #include "buyoutmanager.h"

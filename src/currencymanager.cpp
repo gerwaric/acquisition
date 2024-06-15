@@ -17,13 +17,18 @@
 	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <QDoubleSpinBox>
+#include <QFile>
+#include <QFileDialog>
+#include <QVBoxLayout>
+
 #include <ctime>
 #include <cmath>
-#include <QWidget>
-#include <QtGui>
-#include "QsLog.h"
 
-#include "application.h"
+#include "QsLog.h"
+#include "rapidjson/document.h"
+#include "rapidjson/error/en.h"
+
 #include "datastore.h"
 #include "buyoutmanager.h"
 #include "currencymanager.h"
@@ -31,13 +36,12 @@
 #include "item.h"
 #include "porting.h"
 #include "util.h"
-#include "rapidjson/document.h"
-#include "rapidjson/error/en.h"
 
 
-CurrencyManager::CurrencyManager(Application& app) :
-	app_(app),
-	data_(app.data())
+CurrencyManager::CurrencyManager(QWidget* parent, DataStore& datastore, ItemsManager& items_manager) :
+	QWidget(parent),
+	data_(datastore),
+	items_manager_(items_manager)
 {
 	if (data_.Get("currency_items", "").empty()) {
 
@@ -66,7 +70,7 @@ void CurrencyManager::Save() {
 
 void CurrencyManager::Update() {
 	ClearCurrency();
-	for (auto& item : app_.items_manager().items()) {
+	for (auto& item : items_manager_.items()) {
 		ParseSingleItem(*item);
 	}
 	SaveCurrencyValue();

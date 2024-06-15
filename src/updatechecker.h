@@ -27,12 +27,13 @@
 #include <QVersionNumber>
 
 class QNetworkAccessManager;
+class QSettings;
 class QWidget;
 
 class UpdateChecker : public QObject {
 	Q_OBJECT
 public:
-	UpdateChecker(QNetworkAccessManager& network_manager, QObject* parent = nullptr);
+	UpdateChecker(QObject* parent, QSettings& settings, QNetworkAccessManager& network_manager);
 signals:
 	void UpdateAvailable();
 public slots:
@@ -43,6 +44,7 @@ private slots:
 	void OnUpdateErrorOccurred(QNetworkReply::NetworkError code);
 	void OnUpdateSslErrors(const QList<QSslError>& errors);
 private:
+	QSettings& settings_;
 	QNetworkAccessManager& nm_;
 
 	// Ammount of time between update checks (milliseconds)

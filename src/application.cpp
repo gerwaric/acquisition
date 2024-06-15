@@ -19,6 +19,7 @@
 
 #include "application.h"
 
+#include <QDir>
 #include <QNetworkAccessManager>
 #include <QSettings>
 #include <QtHttpServer/QHttpServer>
@@ -55,9 +56,9 @@ Application::Application(bool mock_data) :
 
 	settings_ = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
 	network_manager_ = std::make_unique<QNetworkAccessManager>(this);
-	update_checker_ = std::make_unique<UpdateChecker>(*network_manager_, this);
-	oauth_manager_ = std::make_unique<OAuthManager>(*network_manager_, this);
-	rate_limiter_ = std::make_unique<RateLimiter>(*network_manager_, *oauth_manager_, this);
+	update_checker_ = std::make_unique<UpdateChecker>(this, *settings_, *network_manager_);
+	oauth_manager_ = std::make_unique<OAuthManager>(this, *network_manager_);
+	rate_limiter_ = std::make_unique<RateLimiter>(this, *network_manager_, *oauth_manager_);
 	global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
 }
 
@@ -78,16 +79,36 @@ void Application::InitLogin(
 		// This is used in tests
 		data_ = std::make_unique<MemoryDataStore>();
 	} else {
-		QString data_file = SqliteDataStore::MakeFilename(email, league);
-		data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/data/" + data_file);
+		const QString data_dir = Filesystem::UserDir() + "/data/";
+		const QString data_file = SqliteDataStore::MakeFilename(email, league);
+		const QString data_path = data_dir + data_file;
+		data_ = std::make_unique<SqliteDataStore>(data_path);
 		SaveDbOnNewVersion();
 	}
 
 	buyout_manager_ = std::make_unique<BuyoutManager>(*data_);
-	shop_ = std::make_unique<Shop>(*this);
-	items_manager_ = std::make_unique<ItemsManager>(*this);
-	currency_manager_ = std::make_unique<CurrencyManager>(*this);
+	
+	items_manager_ = std::make_unique<ItemsManager>(this,
+		*network_manager_,
+		*buyout_manager_,
+		*data_,
+		*rate_limiter_,
+		league_,
+		email_);
+	
+	shop_ = std::make_unique<Shop>(this,
+		*network_manager_,
+		*data_,
+		*items_manager_,
+		*buyout_manager_,
+		league_);
+	
+	currency_manager_ = std::make_unique<CurrencyManager>(nullptr,
+		*data_,
+		*items_manager_);
+
 	connect(items_manager_.get(), &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
+
 	if (test_mode_ == false) {
 		items_manager_->Start(mode);
 	};

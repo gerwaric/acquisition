@@ -33,6 +33,8 @@ class QNetworkAccessManager;
 class QNetworkReply;
 class QNetworkRequest;
 
+class Application;
+
 class OAuthToken {
 public:
 	OAuthToken();
@@ -64,7 +66,7 @@ private:
 class OAuthManager : public QObject {
 	Q_OBJECT
 public:
-	OAuthManager(QNetworkAccessManager& network_manager, QObject* parent = nullptr);
+	OAuthManager(QObject* parent, QNetworkAccessManager& network_manager);
 	void setToken(const OAuthToken& token);
 	const std::optional<OAuthToken> token() const { return token_; };
 public slots:

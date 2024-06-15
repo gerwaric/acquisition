@@ -21,6 +21,7 @@
 #include "ui_logindialog.h"
 
 #include <QDesktopServices>
+#include <QFile>
 #include <QMessageBox>
 #include <QNetworkReply>
 #include <QNetworkRequest>

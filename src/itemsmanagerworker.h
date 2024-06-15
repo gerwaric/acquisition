@@ -30,11 +30,11 @@
 #include "mainwindow.h"
 #include "util.h"
 
+class QNetworkAccessManager;
 class QNetworkReply;
 class QSignalMapper;
 class QTimer;
 
-class Application;
 class BuyoutManager;
 class DataStore;
 class RateLimiter;
@@ -58,7 +58,14 @@ struct ItemsReply {
 class ItemsManagerWorker : public QObject {
 	Q_OBJECT
 public:
-	ItemsManagerWorker(Application& app, PoeApiMode mode);
+	ItemsManagerWorker(QObject* parent,
+		QNetworkAccessManager& network_manager,
+		BuyoutManager& buyout_manager,
+		DataStore& datastore,
+		RateLimiter& rate_limiter,
+		std::string league,
+		std::string account,
+		PoeApiMode mode);
 	bool isInitialized() const { return initialized_; }
 	void UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations);
 public slots:
@@ -106,9 +113,14 @@ private:
 	bool TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, ItemLocation& location);
 	void FinishUpdate();
 
-	Application& app_;
-	PoeApiMode api_mode_;
+	QNetworkAccessManager& network_manager_;
+	DataStore& datastore_;
+	BuyoutManager& buyout_manager_;
 	RateLimiter& rate_limiter_;
+
+	PoeApiMode api_mode_;
+	std::string league_;
+	std::string account_;
 
 	bool test_mode_;
 	std::vector<ItemLocation> tabs_;

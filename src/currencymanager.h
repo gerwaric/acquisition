@@ -19,12 +19,24 @@
 
 #pragma once
 
-#include <limits>
-#include <QtGui>
-#include <QtWidgets>
+#include <QCheckBox>
+#include <QDialog>
+#include <QLabel>
+#include <QObject>
+#include <QWidget>
 
-#include "application.h"
+#include <limits>
+
 #include "buyoutmanager.h"
+
+class QDoubleSpinBox;
+class QVBoxLayout;
+
+class CurrencyManager;
+class DataStore;
+class ItemsManager;
+
+
 struct CurrencyRatio {
 	Currency curr1;
 	Currency curr2;
@@ -128,8 +140,6 @@ const std::vector<int> CurrencyWisdomValue({
 											   4
 	});
 
-class CurrencyManager;
-
 class CurrencyDialog : public QDialog
 {
 	Q_OBJECT
@@ -163,7 +173,7 @@ class CurrencyManager : public QWidget
 {
 	Q_OBJECT
 public:
-	explicit CurrencyManager(Application& app);
+	explicit CurrencyManager(QWidget* parent, DataStore& datastore, ItemsManager& items_manager);
 	~CurrencyManager();
 	void ClearCurrency();
 	// Called in itemmanagerworker::ParseItem
@@ -179,8 +189,9 @@ public:
 	void ExportCurrency();
 
 private:
-	Application& app_;
 	DataStore& data_;
+	ItemsManager& items_manager_;
+
 	std::vector<std::shared_ptr<CurrencyItem>> currencies_;
 	// We only need the "count" of a CurrencyItem so int will be enough
 	std::vector<int> wisdoms_;

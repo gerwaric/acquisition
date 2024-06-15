@@ -41,7 +41,7 @@ class RateLimiter : public QObject {
 
 public:
 	// Creat a rate limiter.
-	RateLimiter(QNetworkAccessManager& network_manager, OAuthManager& oauth_manager, QObject* parent = nullptr);
+	RateLimiter(QObject* parent, QNetworkAccessManager& network_manager, OAuthManager& oauth_manager);
 
 	// Submit a request-callback pair to the rate limiter. Note that the callback function
 	// should not delete the QNetworkReply. That is handled after the callback finishes.

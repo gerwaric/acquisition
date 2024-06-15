@@ -33,7 +33,7 @@
 
 constexpr int UPDATE_INTERVAL_MSEC = 1000;
 
-RateLimiter::RateLimiter(QNetworkAccessManager& network_manager, OAuthManager& oauth_manager, QObject* parent) :
+RateLimiter::RateLimiter(QObject* parent, QNetworkAccessManager& network_manager, OAuthManager& oauth_manager) :
 	QObject(parent),
 	network_manager_(network_manager),
 	oauth_manager_(oauth_manager)
