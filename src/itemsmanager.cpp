@@ -19,6 +19,7 @@
 
 #include "itemsmanager.h"
 
+#include <QMessageBox>
 #include <QNetworkCookie>
 #include <QThread>
 #include <stdexcept>
@@ -177,10 +178,21 @@ void ItemsManager::OnItemsRefreshed(const Items& items, const std::vector<ItemLo
 }
 
 void ItemsManager::Update(TabSelection::Type type, const std::vector<ItemLocation>& locations) {
-	if (worker_.get()->isInitialized() == false) {
+	if (!isInitialized()) {
 		// tell ItemsManagerWorker to run an Update() after it's finished updating mods
-		worker_.get()->UpdateRequest(type, locations);
+		worker_->UpdateRequest(type, locations);
 		QLOG_DEBUG() << "Update deferred until item mods parsing is complete";
+		QMessageBox::information(nullptr,
+			"Acquisition",
+			"This items worker is still initializing, but an update request has been queued.",
+			QMessageBox::Ok,
+			QMessageBox::Ok);
+	} else if (isUpdating()) {
+		QMessageBox::information(nullptr,
+			"Acquisition",
+			"An update is already in progress.",
+			QMessageBox::Ok,
+			QMessageBox::Ok);
 	} else {
 		emit UpdateSignal(type, locations);
 	};

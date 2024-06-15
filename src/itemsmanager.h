@@ -53,6 +53,8 @@ public:
 		std::string league,
 		std::string email);
 	~ItemsManager();
+	bool isInitialized() const { return worker_ ? worker_->isInitialized() : false; };
+	bool isUpdating() const { return worker_ ? worker_->isUpdating() : false; };
 	// Creates and starts the worker
 	void Start(PoeApiMode mode);
 	void Update(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());

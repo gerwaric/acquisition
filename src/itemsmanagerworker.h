@@ -65,6 +65,7 @@ public:
 		std::string account,
 		PoeApiMode mode);
 	bool isInitialized() const { return initialized_; }
+	bool isUpdating() const { return updating_; };
 	void UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations);
 public slots:
 	void ParseItemMods();
