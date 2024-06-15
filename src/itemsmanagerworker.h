@@ -65,16 +65,18 @@ public slots:
 	void ParseItemMods();
 	void Update(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 public slots:
-	void OnMainPageReceived();
-	void OnCharacterListReceived(QNetworkReply* reply);
-	void OnFirstTabReceived(QNetworkReply* reply);
-	void OnTabReceived(QNetworkReply* reply, ItemLocation location);
+	void OnLegcayMainPageReceived();
+	void OnLegacyCharacterListReceived(QNetworkReply* reply);
+	void OnFirstLegacyTabReceived(QNetworkReply* reply);
+	void OnLegacyTabReceived(QNetworkReply* reply, ItemLocation location);
 	void FetchItems();
 	void PreserveSelectedCharacter();
+	
 	void Init();
 	void OnStatTranslationsReceived();
 	void OnItemClassesReceived();
 	void OnItemBaseTypesReceived();
+
 	void OnOAuthStashListReceived(QNetworkReply* reply);
 	void OnOAuthStashReceived(QNetworkReply* reply);
 	void OnOAuthCharacterListReceived(QNetworkReply* reply);
@@ -83,13 +85,20 @@ signals:
 	void ItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
 	void StatusUpdate(ProgramState state, const QString& status);
 private:
-	void LegacyRefresh();
-	void OAuthRefresh();
 	void RemoveUpdatingTabs(const std::set<std::string>& tab_ids);
 	void RemoveUpdatingItems(const std::set<std::string>& tab_ids);
-	QNetworkRequest MakeTabRequest(int tab_index, bool tabs = false);
-	QNetworkRequest MakeCharacterRequest(const std::string& name);
-	QNetworkRequest MakeCharacterPassivesRequest(const std::string& name);
+
+	void LegacyRefresh();
+	QNetworkRequest MakeLegacyTabRequest(int tab_index, bool tabs = false);
+	QNetworkRequest MakeLegacyCharacterRequest(const std::string& name);
+	QNetworkRequest MakeLegacyPassivesRequest(const std::string& name);
+
+	void OAuthRefresh();
+	QNetworkRequest MakeOAuthStashListRequest(const std::string& league);
+	QNetworkRequest MakeOAuthStashRequest(const std::string& league, const std::string& stash_id, const std::string& substash_id = "");
+	QNetworkRequest MakeOAuthCharacterListRequest();
+	QNetworkRequest MakeOAuthCharacterRequest(const std::string& name);
+
 	void QueueRequest(const QString& endpoint, const QNetworkRequest& request, const ItemLocation& location);
 	void ParseItems(rapidjson::Value* value_ptr, ItemLocation base_location, rapidjson_allocator& alloc);
 	std::vector<std::pair<std::string, std::string> > CreateTabsSignatureVector(std::string tabs);
