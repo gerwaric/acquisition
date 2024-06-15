@@ -125,19 +125,19 @@ struct CurrencyUpdate {
 };
 
 const std::vector<std::string> CurrencyForWisdom({
-													 "Scroll of Wisdom",
-													 "Portal Scroll",
-													 "Armourer's Scrap",
-													 "Blacksmith's Whetstone",
-													 "Orb of Transmutation"
+	"Scroll of Wisdom",
+	"Portal Scroll",
+	"Armourer's Scrap",
+	"Blacksmith's Whetstone",
+	"Orb of Transmutation"
 	});
 
 const std::vector<int> CurrencyWisdomValue({
-											   1,
-											   1,
-											   2,
-											   4,
-											   4
+	1,
+	1,
+	2,
+	4,
+	4
 	});
 
 class CurrencyDialog : public QDialog

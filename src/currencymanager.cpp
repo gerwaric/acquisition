@@ -44,15 +44,14 @@ CurrencyManager::CurrencyManager(QWidget* parent, DataStore& datastore, ItemsMan
 	items_manager_(items_manager)
 {
 	if (data_.Get("currency_items", "").empty()) {
-
 		FirstInitCurrency();
 		if (!data_.Get("currency_base", "").empty()) {
 			MigrateCurrency();
 			QLOG_INFO() << "Found old currency values, migrated them to the new system";
-		}
-	} else
+		};
+	} else {
 		InitCurrency();
-
+	};
 	dialog_ = std::make_shared<CurrencyDialog>(*this, data_.GetBool("currency_show_chaos"), data_.GetBool("currency_show_exalt"));
 }
 
@@ -72,7 +71,7 @@ void CurrencyManager::Update() {
 	ClearCurrency();
 	for (auto& item : items_manager_.items()) {
 		ParseSingleItem(*item);
-	}
+	};
 	SaveCurrencyValue();
 	dialog_->Update();
 }
@@ -81,18 +80,20 @@ const double EPS = 1e-6;
 double CurrencyManager::TotalExaltedValue() {
 	double out = 0;
 	for (const auto& currency : currencies_) {
-		if (fabs(currency->exalt.value1) > EPS)
+		if (fabs(currency->exalt.value1) > EPS) {
 			out += currency->count / currency->exalt.value1;
-	}
+		};
+	};
 	return out;
 }
 
 double CurrencyManager::TotalChaosValue() {
 	double out = 0;
 	for (const auto& currency : currencies_) {
-		if (fabs(currency->chaos.value1) > EPS)
+		if (fabs(currency->chaos.value1) > EPS) {
 			out += currency->count / currency->chaos.value1;
-	}
+		};
+	};
 	return out;
 }
 
@@ -100,26 +101,26 @@ int CurrencyManager::TotalWisdomValue() {
 	int out = 0;
 	for (unsigned int i = 0; i < wisdoms_.size(); i++) {
 		out += wisdoms_[i] * CurrencyWisdomValue[i];
-	}
+	};
 	return out;
 }
 
 void CurrencyManager::ClearCurrency() {
 	for (auto& currency : currencies_) {
 		currency->count = 0;
-	}
+	};
 	for (auto& wisdom : wisdoms_) {
 		wisdom = 0;
-	}
+	};
 }
 void CurrencyManager::InitCurrency() {
 	for (auto type : Currency::Types()) {
 		currencies_.push_back(std::make_shared<CurrencyItem>(0, Currency(type), 1, 1));
-	}
+	};
 	Deserialize(data_.Get("currency_items"), &currencies_);
 	for (unsigned int i = 0; i < CurrencyWisdomValue.size(); i++) {
 		wisdoms_.push_back(0);
-	}
+	};
 }
 
 void CurrencyManager::FirstInitCurrency() {
@@ -128,9 +129,8 @@ void CurrencyManager::FirstInitCurrency() {
 	//TODO : can i get the size of the Currency enum ??
 	for (auto type : Currency::Types()) {
 		currencies_.push_back(std::make_shared<CurrencyItem>(0, Currency(type), 1, 1));
-
 		value += "0;";
-	}
+	};
 	value.pop_back(); // Remove the last ";"
 	data_.Set("currency_items", Serialize(currencies_));
 	data_.Set("currency_last_value", value);
@@ -144,7 +144,7 @@ void CurrencyManager::MigrateCurrency() {
 		// We can't use the toDouble function from QT, because it encodes a double with a ","
 		// Might be related to localisation issue, but anyway it's safer this way
 		currencies_[i]->exalt.value1 = std::stod(list[i]);
-	}
+	};
 	//Set to empty so we won't trigger it next time !
 	data_.Set("currency_base", "");
 }
@@ -161,22 +161,24 @@ std::string CurrencyManager::Serialize(const std::vector<std::shared_ptr<Currenc
 		Util::RapidjsonAddConstString(&item, "currency", curr->currency.AsTag(), alloc);
 		rapidjson::Value name(curr->name.c_str(), alloc);
 		doc.AddMember(name, item, alloc);
-	}
+	};
 	return Util::RapidjsonSerialize(doc);
 }
 
 void CurrencyManager::Deserialize(const std::string& data, std::vector<std::shared_ptr<CurrencyItem> >* currencies) {
 	//Maybe clear something would be good
-	if (data.empty())
+	if (data.empty()) {
 		return;
+	};
 	rapidjson::Document doc;
 	if (doc.Parse(data.c_str()).HasParseError()) {
 		QLOG_ERROR() << "Error while parsing currency ratios.";
 		QLOG_ERROR() << rapidjson::GetParseError_En(doc.GetParseError());
 		return;
-	}
-	if (!doc.IsObject())
+	};
+	if (!doc.IsObject()) {
 		return;
+	};
 	for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
 		auto& object = itr->value;
 		Currency curr = Currency::FromTag(object["currency"].GetString());
@@ -184,10 +186,10 @@ void CurrencyManager::Deserialize(const std::string& data, std::vector<std::shar
 			if (item->currency == curr) {
 				item = std::make_shared<CurrencyItem>(object["count"].GetDouble(), curr,
 					object["chaos_ratio"].GetDouble(), object["exalt_ratio"].GetDouble());
-			}
-		}
+			};
+		};
 		//currencies->push_back(item);
-	}
+	};
 }
 
 void CurrencyManager::SaveCurrencyItems() {
@@ -200,11 +202,13 @@ void CurrencyManager::SaveCurrencyValue() {
 	bool empty = true;
 	value = std::to_string(TotalExaltedValue());
 	for (auto& currency : currencies_) {
-		if (currency->name != "")
+		if (currency->name != "") {
 			value += ";" + std::to_string(currency->count);
-		if (currency->count != 0)
+		};
+		if (currency->count != 0) {
 			empty = false;
-	}
+		};
+	};
 	std::string old_value = data_.Get("currency_last_value", "");
 	if (value != old_value && !empty) {
 		CurrencyUpdate update = CurrencyUpdate();
@@ -212,22 +216,24 @@ void CurrencyManager::SaveCurrencyValue() {
 		update.value = value;
 		data_.InsertCurrencyUpdate(update);
 		data_.Set("currency_last_value", value);
-	}
+	};
 }
 
 void CurrencyManager::ExportCurrency() {
 	std::string header_csv = "Date; Total value";
 	for (auto& item : currencies_) {
 		auto& label = item->currency.AsString();
-		if (label != "")
+		if (label != "") {
 			header_csv += ";" + label;
-	}
+		};
+	};
 	std::vector<CurrencyUpdate> result = data_.GetAllCurrency();
 
 	QString fileName = QFileDialog::getSaveFileName(this, tr("Save Export file"),
 		QDir::toNativeSeparators(QDir::homePath() + "/" + "acquisition_export_currency.csv"));
-	if (fileName.isEmpty())
+	if (fileName.isEmpty()) {
 		return;
+	};
 	QFile file(QDir::toNativeSeparators(fileName));
 	if (file.open(QFile::WriteOnly | QFile::Text)) {
 		QTextStream out(&file);
@@ -238,20 +244,24 @@ void CurrencyManager::ExportCurrency() {
 			std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M", std::localtime(&timestamp));
 			out << buf << ";";
 			out << update.value.c_str() << "\n";
-		}
+		};
 	} else {
 		QLOG_WARN() << "CurrencyManager::ExportCurrency : couldn't open CSV export file ";
-	}
+	};
 }
 
 void CurrencyManager::ParseSingleItem(const Item& item) {
-	for (unsigned int i = 0; i < currencies_.size(); i++)
-		if (item.PrettyName() == currencies_[i]->name)
+	for (unsigned int i = 0; i < currencies_.size(); i++) {
+		if (item.PrettyName() == currencies_[i]->name) {
 			currencies_[i]->count += item.count();
+		};
+	};
 
-	for (unsigned int i = 0; i < wisdoms_.size(); i++)
-		if (item.PrettyName() == CurrencyForWisdom[i])
+	for (unsigned int i = 0; i < wisdoms_.size(); i++) {
+		if (item.PrettyName() == CurrencyForWisdom[i]) {
 			wisdoms_[i] += item.count();
+		};
+	};
 }
 
 void CurrencyManager::DisplayCurrency() {
@@ -295,10 +305,12 @@ void CurrencyWidget::Update() {
 	currency_->exalt.value1 = exalt_ratio->value();
 	name->setText(currency_->name.c_str());
 	count->setText(QString::number(currency_->count));
-	if (fabs(currency_->chaos.value1) > EPS)
+	if (fabs(currency_->chaos.value1) > EPS) {
 		chaos_value->setValue(currency_->count / currency_->chaos.value1);
-	if (fabs(currency_->exalt.value1) > EPS)
+	};
+	if (fabs(currency_->exalt.value1) > EPS) {
 		exalt_value->setValue(currency_->count / currency_->exalt.value1);
+	};
 }
 
 CurrencyDialog::CurrencyDialog(CurrencyManager& manager, bool show_chaos, bool show_exalt) : currency_manager_(manager) {
@@ -306,14 +318,13 @@ CurrencyDialog::CurrencyDialog(CurrencyManager& manager, bool show_chaos, bool s
 	for (auto& curr : currency_manager_.currencies()) {
 		CurrencyWidget* tmp = new CurrencyWidget(curr);
 		// To keep every vector the same size, we DO create spinboxes for the empty currency, just don't display them
-		if (curr->currency == CURRENCY_NONE)
+		if (curr->currency == CURRENCY_NONE) {
 			continue;
+		};
 		connect(tmp->exalt_ratio, &QDoubleSpinBox::valueChanged, this, &CurrencyDialog::UpdateTotalValue);
 		connect(tmp->chaos_ratio, &QDoubleSpinBox::valueChanged, this, &CurrencyDialog::UpdateTotalValue);
-
 		currencies_widgets_.push_back(tmp);
-
-	}
+	};
 	separator_ = new QFrame;
 	separator_->setFrameShape(QFrame::Shape::HLine);
 	total_exalt_value_ = new QLabel("");
@@ -337,10 +348,9 @@ CurrencyDialog::CurrencyDialog(CurrencyManager& manager, bool show_chaos, bool s
 void CurrencyDialog::Update() {
 	for (auto widget : currencies_widgets_) {
 		widget->Update();
-	}
+	};
 	UpdateTotalValue();
 	UpdateTotalWisdomValue();
-
 }
 
 void CurrencyDialog::UpdateVisual() {
@@ -360,7 +370,8 @@ void CurrencyDialog::UpdateVisibility(bool show_chaos, bool show_exalt) {
 
 	for (auto& item : currencies_widgets_) {
 		item->UpdateVisual(show_chaos, show_exalt);
-	}
+	};
+
 	headers_->chaos_total->setVisible(show_chaos);
 	total_chaos_value_->setVisible(show_chaos);
 	headers_->exalt_total->setVisible(show_exalt);
@@ -373,27 +384,26 @@ QVBoxLayout* CurrencyDialog::GenerateLayout(bool show_chaos, bool show_exalt) {
 	grid->addWidget(headers_->name, 0, 0);
 	grid->addWidget(headers_->count, 0, 1);
 	int col = 2;
+
 	//Qt is shit, if we don't hide widget that aren't in the grid, it still display them like shit
 	//Also, if we don't show widget in the grid, if they weren't in it before, it doesn't display them
-
-
 	if (show_chaos) {
 		grid->addWidget(headers_->chaos_value, 0, col);
 		grid->addWidget(headers_->chaos_ratio, 0, col + 1);
 		col += 2;
-	}
-
-
+	};
 	if (show_exalt) {
 		grid->addWidget(headers_->exalt_value, 0, col);
 		grid->addWidget(headers_->exalt_ratio, 0, col + 1);
-	}
+	};
+
 	//Main part
 	for (auto& item : currencies_widgets_) {
 		int curr_row = grid->rowCount() + 1;
 		// To keep every vector the same size, we DO create spinboxes for the empty currency, just don't display them
-		if (item->IsNone())
+		if (item->IsNone()) {
 			continue;
+		};
 		grid->addWidget(item->name, curr_row, 0);
 		grid->addWidget(item->count, curr_row, 1, 1, -1);
 		int col = 2;
@@ -402,14 +412,12 @@ QVBoxLayout* CurrencyDialog::GenerateLayout(bool show_chaos, bool show_exalt) {
 			grid->addWidget(item->chaos_value, curr_row, col);
 			grid->addWidget(item->chaos_ratio, curr_row, col + 1);
 			col += 2;
-		}
+		};
 		if (show_exalt) {
 			grid->addWidget(item->exalt_value, curr_row, col);
 			grid->addWidget(item->exalt_ratio, curr_row, col + 1);
-		}
-
-
-	}
+		};
+	};
 
 	//Bottom header
 	QGridLayout* bottom = new QGridLayout;
@@ -420,14 +428,14 @@ QVBoxLayout* CurrencyDialog::GenerateLayout(bool show_chaos, bool show_exalt) {
 		bottom->addWidget(headers_->chaos_total, 0, 0);
 		bottom->addWidget(total_chaos_value_, 0, 1);
 		col = 2;
-	}
+	};
 	bottom->addWidget(show_chaos_, 0, col);
 	col = 0;
 	if (show_exalt) {
 		bottom->addWidget(headers_->exalt_total, 1, 0);
 		bottom->addWidget(total_exalt_value_, 1, 1);
 		col = 2;
-	}
+	};
 	bottom->addWidget(show_exalt_, 1, col);
 	bottom->addWidget(headers_->wisdom_total, 2, 0);
 	bottom->addWidget(total_wisdom_value_, 2, 1);
@@ -436,10 +444,7 @@ QVBoxLayout* CurrencyDialog::GenerateLayout(bool show_chaos, bool show_exalt) {
 	layout->addWidget(separator_);
 	layout->addLayout(bottom);
 	return layout;
-
 }
-
-
 
 void CurrencyDialog::UpdateTotalValue() {
 	total_exalt_value_->setText(QString::number(currency_manager_.TotalExaltedValue()));
