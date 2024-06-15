@@ -201,7 +201,7 @@ BuyoutManager::BuyoutManager(DataStore& data) :
 }
 
 void BuyoutManager::Set(const Item& item, const Buyout& buyout) {
-	auto it = buyouts_.lower_bound(item.hash());
+	auto const& it = buyouts_.lower_bound(item.hash());
 	if (it != buyouts_.end() && !(buyouts_.key_comp()(item.hash(), it->first))) {
 		// Entry exists - we don't want to update if buyout is equal to existing
 		if (buyout != it->second) {
@@ -215,7 +215,7 @@ void BuyoutManager::Set(const Item& item, const Buyout& buyout) {
 }
 
 Buyout BuyoutManager::Get(const Item& item) const {
-	auto const it = buyouts_.find(item.hash());
+	auto const& it = buyouts_.find(item.hash());
 	if (it != buyouts_.end()) {
 		return it->second;
 	}
@@ -223,7 +223,7 @@ Buyout BuyoutManager::Get(const Item& item) const {
 }
 
 Buyout BuyoutManager::GetTab(const std::string& tab) const {
-	auto const it = tab_buyouts_.find(tab);
+	auto const& it = tab_buyouts_.find(tab);
 	if (it != tab_buyouts_.end()) {
 		return it->second;
 	}
@@ -231,7 +231,7 @@ Buyout BuyoutManager::GetTab(const std::string& tab) const {
 }
 
 void BuyoutManager::SetTab(const std::string& tab, const Buyout& buyout) {
-	auto it = tab_buyouts_.lower_bound(tab);
+	auto const& it = tab_buyouts_.lower_bound(tab);
 	if (it != tab_buyouts_.end() && !(tab_buyouts_.key_comp()(tab, it->first))) {
 		// Entry exists - we don't want to update if buyout is equal to existing
 		if (buyout != it->second) {
