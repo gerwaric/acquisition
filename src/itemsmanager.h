@@ -34,7 +34,7 @@ class BuyoutManager;
 class DataStore;
 class ItemsManagerWorker;
 class Shop;
-namespace RateLimit { struct StatusInfo; };
+
 enum class PoeApiMode;
 
 /*

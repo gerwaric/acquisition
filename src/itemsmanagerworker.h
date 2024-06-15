@@ -38,9 +38,7 @@ class QTimer;
 class BuyoutManager;
 class DataStore;
 class RateLimiter;
-namespace RateLimit {
-	struct StatusInfo;
-};
+
 enum class PoeApiMode;
 
 struct ItemsRequest {
