@@ -80,6 +80,10 @@ MainWindow::MainWindow(Application& app) :
 	quitting_(false)
 {
 	setWindowIcon(QIcon(":/icons/assets/icon.svg"));
+	setWindowTitle(QString("Acquisition [%1] - %2 [%3]").arg(
+		QString(APP_VERSION_STRING),
+		QString::fromStdString(app_.league()),
+		QString::fromStdString(app_.email())));
 
 	image_cache_ = new ImageCache(Filesystem::UserDir() + "/cache");
 
@@ -90,8 +94,15 @@ MainWindow::MainWindow(Application& app) :
 	InitializeLogging();
 	InitializeSearchForm();
 
+	connect(&app_.items_manager(), &ItemsManager::ItemsRefreshed, this, &MainWindow::OnItemsRefreshed);
+	connect(&app_.items_manager(), &ItemsManager::StatusUpdate, this, &MainWindow::OnStatusUpdate);
+	connect(&app_.shop(), &Shop::StatusUpdate, this, &MainWindow::OnStatusUpdate);
+	connect(&app_.update_checker(), &UpdateChecker::UpdateAvailable, this, &MainWindow::OnUpdateAvailable);
+
 	connect(&delayed_update_current_item_, &QTimer::timeout, this, [&]() {UpdateCurrentItem(); delayed_update_current_item_.stop(); });
 	connect(&delayed_search_form_change_, &QTimer::timeout, this, [&]() {OnSearchFormChange(); delayed_search_form_change_.stop(); });
+
+	LoadSettings();
 }
 
 MainWindow::~MainWindow() {
