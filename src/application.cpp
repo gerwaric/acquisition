@@ -20,6 +20,7 @@
 #include "application.h"
 
 #include <QNetworkAccessManager>
+#include <QSettings>
 #include <QtHttpServer/QHttpServer>
 
 #include "buyoutmanager.h"
@@ -48,14 +49,16 @@ Application::Application(bool mock_data) :
 		return;
 	};
 
+	const QString user_dir = Filesystem::UserDir();
+	const QString settings_path = user_dir + "/settings.ini";
+	const QString global_data_file = user_dir + "/data/" + SqliteDataStore::MakeFilename("", "");
+
+	settings_ = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
 	network_manager_ = std::make_unique<QNetworkAccessManager>(this);
 	update_checker_ = std::make_unique<UpdateChecker>(*network_manager_, this);
 	oauth_manager_ = std::make_unique<OAuthManager>(*network_manager_, this);
 	rate_limiter_ = std::make_unique<RateLimiter>(*network_manager_, *oauth_manager_, this);
-
-	// The global datastore holds things like the selected theme.
-	QString global_data_file = SqliteDataStore::MakeFilename("", "");
-	global_data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/data/" + global_data_file);
+	global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
 }
 
 Application::~Application() {

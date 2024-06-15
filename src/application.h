@@ -33,6 +33,7 @@ extern const QDateTime BUILD_DATE;
 
 class QNetworkAccessManager;
 class QNetworkReply;
+class QSettings;
 
 class DataStore;
 class ItemsManager;
@@ -56,6 +57,7 @@ public:
 	void InitLogin(const std::string& league, const std::string& email, PoeApiMode mode);
 	const std::string& league() const { return league_; }
 	const std::string& email() const { return email_; }
+	QSettings& settings() { return *settings_; };
 	ItemsManager& items_manager() { return *items_manager_; }
 	DataStore& global_data() const { return *global_data_; }
 	DataStore& data() const { return *data_; }
@@ -72,6 +74,7 @@ private:
 	bool test_mode_;
 	std::string league_;
 	std::string email_;
+	std::unique_ptr<QSettings> settings_;
 	std::unique_ptr<DataStore> global_data_;
 	std::unique_ptr<DataStore> data_;
 	std::unique_ptr<BuyoutManager> buyout_manager_;

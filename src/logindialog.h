@@ -66,7 +66,6 @@ private:
 	void FinishLogin(QNetworkReply* reply);
 	Application& app_;
 	Ui::LoginDialog* ui;
-	QString settings_path_;
 	QString saved_league_;
 	QString session_id_;
 	std::vector<std::string> leagues_;
