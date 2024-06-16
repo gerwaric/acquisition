@@ -39,7 +39,7 @@
 #include "filters.h"
 #include "ratelimit.h"
 
-ItemsManager::ItemsManager(QObject*  parent,
+ItemsManager::ItemsManager(QObject* parent,
 	QNetworkAccessManager& network_manager,
 	BuyoutManager& buyout_manager,
 	DataStore& datastore,

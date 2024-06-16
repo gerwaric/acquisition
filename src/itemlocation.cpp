@@ -31,6 +31,7 @@ ItemLocation::ItemLocation(const rapidjson::Value& root) :
 	ItemLocation()
 {
 	FromItemJson(root);
+	FixUid();
 }
 
 ItemLocation::ItemLocation(int tab_id, std::string tab_unique_id, std::string name, ItemLocationType type, int r, int g, int b) :
@@ -39,6 +40,7 @@ ItemLocation::ItemLocation(int tab_id, std::string tab_unique_id, std::string na
 {
 	type_ = type;
 	tab_id_ = tab_id;
+	tab_unique_id_ = tab_unique_id;
 	switch (type_) {
 	case ItemLocationType::STASH:
 		tab_label_ = name;
@@ -51,7 +53,17 @@ ItemLocation::ItemLocation(int tab_id, std::string tab_unique_id, std::string na
 		removeonly_ = false;
 		break;
 	};
-	tab_unique_id_ = tab_unique_id;
+	FixUid();
+}
+
+void ItemLocation::FixUid() {
+	// With the legacy API, stash tabs have a 64-digit identifier, but
+	// the modern API only ten, and it appears to be the first 10.
+	if (type_ == ItemLocationType::STASH) {
+		if (tab_unique_id_.size() > 10) {
+			tab_unique_id_ = tab_unique_id_.substr(0, 10);
+		};
+	};
 }
 
 void ItemLocation::SetBackgroundColor(int r, int g, int b) {

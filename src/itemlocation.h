@@ -45,6 +45,8 @@ public:
 	void set_json(rapidjson::Value& value, rapidjson_allocator& alloc);
 	std::string get_json() const { return json_; }
 private:
+	void FixUid();
+
 	int x_, y_, w_, h_;
 	int red_, green_, blue_;
 	bool socketed_;

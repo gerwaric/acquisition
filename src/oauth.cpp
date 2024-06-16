@@ -177,6 +177,13 @@ OAuthManager::OAuthManager(QObject* parent, QNetworkAccessManager& network_manag
 	connect(&refresh_timer_, &QTimer::timeout, this, &OAuthManager::requestRefresh);
 }
 
+void OAuthManager::setAuthorization(QNetworkRequest& request) {
+	if (token_) {
+		const std::string bearer = "Bearer " + token_.value().access_token();
+		request.setRawHeader("Authorization", QByteArray::fromStdString(bearer));
+	};
+}
+
 void OAuthManager::setToken(const OAuthToken& token) {
 	if (!token.expiration()) {
 		QLOG_ERROR() << "Cannot set an OAuth token without an expiration.";

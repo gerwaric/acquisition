@@ -58,6 +58,7 @@ RateLimit::RateLimitedReply* RateLimiter::Submit(const QString& endpoint, QNetwo
 
 		// Use a HEAD request to determine the policy status for a new endpoint.
 		network_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+		oauth_manager_.setAuthorization(network_request);
 		QNetworkReply* network_reply = network_manager_.head(network_request);
 		connect(network_reply, &QNetworkReply::finished, this,
 			[=]() {
@@ -72,8 +73,18 @@ void RateLimiter::SetupEndpoint(const QString& endpoint, QNetworkRequest network
 
 	// All endpoints should be rate limited.
 	if (!network_reply->hasRawHeader("X-Rate-Limit-Policy")) {
+		QLOG_TRACE() << "RateLimiter: invalid HEAD reply without a rate limit policy";
+		QLOG_TRACE() << "  Request URL:" << network_request.url().toString();
+		QLOG_TRACE() << "  Requests Headers:";
+		for (const auto& item : network_request.rawHeaderList()) {
+			QLOG_TRACE() << "    " << item << "=" << network_request.rawHeader(item);
+		};
+		QLOG_TRACE() << "  Reply Headers:";
+		for (const auto& pair : network_reply->rawHeaderPairs()) {
+			QLOG_TRACE() << "    " << pair.first << "=" << pair.second;
+		};
 		QString url = network_reply->request().url().toString();
-		QLOG_ERROR() << "The endpoint is not rate-limited:" << endpoint << "(" + url + ")";
+		QLOG_ERROR() << "The endpoint is apparently not rate-limited:" << endpoint << "(" + url + ")";
 		return;
 	};
 
@@ -112,11 +123,7 @@ void RateLimiter::SendRequest(RateLimitManager* manager, QNetworkRequest request
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 
 	// Set the bearer token if applicable.
-	if (oauth_manager_.token()) {
-		const std::string access_token = oauth_manager_.token().value().access_token();
-		const std::string bearer = "Bearer " + access_token;
-		request.setRawHeader("Authorization", QByteArray::fromStdString(bearer));
-	};
+	oauth_manager_.setAuthorization(request);
 
 	// Send the request.
 	QNetworkReply* reply = network_manager_.get(request);
