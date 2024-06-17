@@ -14,17 +14,17 @@ using boost::algorithm::ends_with;
 QDebug& operator<<(QDebug& os, const ItemLocationType& obj) {
 	switch (obj) {
 	case ItemLocationType::STASH: return os << "STASH";
-    case ItemLocationType::CHARACTER: return os << "CHARACTER";
-    default: return os << "<Invalid ItemLocationType(" << static_cast<long long int>(obj) << ")>";
+	case ItemLocationType::CHARACTER: return os << "CHARACTER";
+	default: return os << "<Invalid ItemLocationType(" << static_cast<long long int>(obj) << ")>";
 	};
 }
 
 ItemLocation::ItemLocation() :
 	x_(0), y_(0), w_(0), h_(0), red_(0), green_(0), blue_(0),
-    socketed_(false),
-    removeonly_(false),
-    type_(ItemLocationType::STASH),
-    tab_id_(0)
+	socketed_(false),
+	removeonly_(false),
+	type_(ItemLocationType::STASH),
+	tab_id_(0)
 {}
 
 ItemLocation::ItemLocation(const rapidjson::Value& root) :
@@ -161,25 +161,24 @@ void ItemLocation::ToItemJson(rapidjson::Value* root_ptr, rapidjson_allocator& a
 std::string ItemLocation::GetHeader() const {
 	switch (type_) {
 	case ItemLocationType::STASH: return QString("#%1, \"%2\"").arg(tab_id_ + 1).arg(tab_label_.c_str()).toStdString();
-    case ItemLocationType::CHARACTER: return character_;
-    default: return "";
+	case ItemLocationType::CHARACTER: return character_;
+	default: return "";
 	};
 }
 
 QRectF ItemLocation::GetRect() const {
 	QRectF result;
-	position itemPos;
-	itemPos.x = x_;
-	itemPos.y = y_;
+	position itemPos{ double(x_), double(y_) };
 
 	if ((!inventory_id_.empty()) && (type_ == ItemLocationType::CHARACTER)) {
+		auto& map = POS_MAP();
 		if (inventory_id_ == "MainInventory") {
-			itemPos.y += POS_MAP.at(inventory_id_).y;
+			itemPos.y += map.at(inventory_id_).y;
 		} else if (inventory_id_ == "Flask") {
-			itemPos.x += POS_MAP.at(inventory_id_).x;
-			itemPos.y = POS_MAP.at(inventory_id_).y;
-		} else if (POS_MAP.count(inventory_id_)) {
-			itemPos = POS_MAP.at(inventory_id_);
+			itemPos.x += map.at(inventory_id_).x;
+			itemPos.y = map.at(inventory_id_).y;
+		} else if (map.count(inventory_id_)) {
+			itemPos = map.at(inventory_id_);
 		};
 	};
 
@@ -199,17 +198,17 @@ std::string ItemLocation::GetForumCode(const std::string& league) const {
 	case ItemLocationType::CHARACTER:
 		return QString("[linkItem location=\"%1\" character=\"%2\" x=\"%3\" y=\"%4\"]")
 			.arg(inventory_id_.c_str(), character_.c_str(), QString::number(x_), QString::number(y_))
-            .toStdString();
-    default:
-        return "";
+			.toStdString();
+	default:
+		return "";
 	};
 }
 
 bool ItemLocation::IsValid() const {
 	switch (type_) {
 	case ItemLocationType::STASH: return !tab_unique_id_.empty();
-    case ItemLocationType::CHARACTER: return !character_.empty();
-    default: return false;
+	case ItemLocationType::CHARACTER: return !character_.empty();
+	default: return false;
 	};
 }
 
@@ -220,21 +219,21 @@ std::string ItemLocation::GetUniqueHash() const {
 	switch (type_) {
 	case ItemLocationType::STASH: return "stash:" + tab_label_; // TODO: tab labels are not guaranteed unique
 	case ItemLocationType::CHARACTER: return "character:" + character_;
-    default: return "";
+	default: return "";
 	};
 }
 
 bool ItemLocation::operator<(const ItemLocation& rhs) const {
-    if (type_ == rhs.type_) {
-        switch (type_) {
-        case ItemLocationType::STASH: return tab_id_ < rhs.tab_id_;
-        case ItemLocationType::CHARACTER: return character_ < rhs.character_;
-        default: return false; // This should never happen?
-        };
-    } else {
-        // STASH locations will always be less than CHARACTER locations.
-        return (type_ == ItemLocationType::STASH);
-    };
+	if (type_ == rhs.type_) {
+		switch (type_) {
+		case ItemLocationType::STASH: return tab_id_ < rhs.tab_id_;
+		case ItemLocationType::CHARACTER: return character_ < rhs.character_;
+		default: return false; // This should never happen?
+		};
+	} else {
+		// STASH locations will always be less than CHARACTER locations.
+		return (type_ == ItemLocationType::STASH);
+	};
 }
 
 bool ItemLocation::operator==(const ItemLocation& other) const {

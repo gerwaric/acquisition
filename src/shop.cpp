@@ -39,13 +39,13 @@
 #include "mainwindow.h"
 #include "replytimeout.h"
 
-const std::string kPoeEditThread = "https://www.pathofexile.com/forum/edit-thread/";
-const std::string kShopTemplateItems = "[items]";
+const char* kPoeEditThread = "https://www.pathofexile.com/forum/edit-thread/";
+const char* kShopTemplateItems = "[items]";
 const int kMaxCharactersInPost = 50000;
 const int kSpoilerOverhead = 19; // "[spoiler][/spoiler]" length
 
 // Use a regular expression to look for html errors.
-const QRegularExpression error_regex(
+const QRegularExpression Shop::error_regex(
 	R"regex(
 		# Start the match looking for any class attribute that indicates an error
 		class="(?:input-error|errors)"
@@ -63,7 +63,7 @@ const QRegularExpression error_regex(
 	QRegularExpression::DotMatchesEverythingOption |
 	QRegularExpression::ExtendedPatternSyntaxOption);
 
-const QRegularExpression ratelimit_regex(
+const QRegularExpression Shop::ratelimit_regex(
 	R"regex(You must wait (\d+) seconds.)regex",
 	QRegularExpression::CaseInsensitiveOption);
 
@@ -80,7 +80,8 @@ Shop::Shop(QObject* parent,
 	buyout_manager_(buyout_manager),
 	league_(league),
 	shop_data_outdated_(true),
-	submitting_(false)
+	submitting_(false),
+	requests_completed_(0)
 {
 	threads_ = Util::StringSplit(datastore_.Get("shop"), ';');
 	auto_update_ = datastore_.GetBool("shop_update", false);

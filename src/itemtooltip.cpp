@@ -19,55 +19,67 @@
 
 #include "itemtooltip.h"
 
+#include <QImage>
 #include <QPainter>
 #include <QString>
 #include <string>
 #include <vector>
 #include "QsLog.h"
 
+#include <array>
+
 #include "item.h"
 #include "itemconstants.h"
 
-int qInitResources_resources();
-Q_CONSTRUCTOR_FUNCTION(qInitResources_resources);
+const int LINKH_HEIGHT = 16;
+const int LINKH_WIDTH = 38;
+const int LINKV_HEIGHT = LINKH_WIDTH;
+const int LINKV_WIDTH = LINKH_HEIGHT;
 
-static const int LINKH_HEIGHT = 16;
-static const int LINKH_WIDTH = 38;
-static const int LINKV_HEIGHT = LINKH_WIDTH;
-static const int LINKV_WIDTH = LINKH_HEIGHT;
-static const QImage link_h(":/sockets/linkH.png");
-static const QImage link_v(":/sockets/linkV.png");
-static const QImage elder_1x1(":/backgrounds/ElderBackground_1x1.png");
-static const QImage elder_1x3(":/backgrounds/ElderBackground_1x3.png");
-static const QImage elder_1x4(":/backgrounds/ElderBackground_1x4.png");
-static const QImage elder_2x1(":/backgrounds/ElderBackground_2x1.png");
-static const QImage elder_2x2(":/backgrounds/ElderBackground_2x2.png");
-static const QImage elder_2x3(":/backgrounds/ElderBackground_2x3.png");
-static const QImage elder_2x4(":/backgrounds/ElderBackground_2x4.png");
-static const QImage shaper_1x1(":/backgrounds/ShaperBackground_1x1.png");
-static const QImage shaper_1x3(":/backgrounds/ShaperBackground_1x3.png");
-static const QImage shaper_1x4(":/backgrounds/ShaperBackground_1x4.png");
-static const QImage shaper_2x1(":/backgrounds/ShaperBackground_2x1.png");
-static const QImage shaper_2x2(":/backgrounds/ShaperBackground_2x2.png");
-static const QImage shaper_2x3(":/backgrounds/ShaperBackground_2x3.png");
-static const QImage shaper_2x4(":/backgrounds/ShaperBackground_2x4.png");
-static const QImage shaper_icon(":/tooltip/ShaperItemSymbol.png");
-static const QImage elder_icon(":/tooltip/ElderItemSymbol.png");
-static const QImage crusader_icon(":/tooltip/Crusader-item-symbol.png");
-static const QImage hunter_icon(":/tooltip/Hunter-item-symbol.png");
-static const QImage redeemer_icon(":/tooltip/Redeemer-item-symbol.png");
-static const QImage warlord_icon(":/tooltip/Warlord-item-symbol.png");
-static const QImage synthesised_icon(":/tooltip/Synthesised-item-symbol.png");
-static const QImage fractured_icon(":/tooltip/Fractured-item-symbol.png");
-static const QImage searing_exarch_icon(":/tooltip/Searing-exarch-item-symbol.png");
-static const QImage eater_of_worlds_icon(":/tooltip/Eater-of-worlds-item-symbol.png");
-static const int HEADER_SINGLELINE_WIDTH = 29;
-static const int HEADER_SINGLELINE_HEIGHT = 34;
-static const int HEADER_DOUBLELINE_WIDTH = 44;
-static const int HEADER_DOUBLELINE_HEIGHT = 54;
-static const QSize HEADER_SINGLELINE_SIZE(HEADER_SINGLELINE_WIDTH, HEADER_SINGLELINE_HEIGHT);
-static const QSize HEADER_DOUBLELINE_SIZE(HEADER_DOUBLELINE_WIDTH, HEADER_DOUBLELINE_HEIGHT);
-static const QSize HEADER_OVERLAY_SIZE(27, 27);
+const int HEADER_SINGLELINE_WIDTH = 29;
+const int HEADER_SINGLELINE_HEIGHT = 34;
+const int HEADER_DOUBLELINE_WIDTH = 44;
+const int HEADER_DOUBLELINE_HEIGHT = 54;
+
+const QSize HEADER_SINGLELINE_SIZE(HEADER_SINGLELINE_WIDTH, HEADER_SINGLELINE_HEIGHT);
+const QSize HEADER_DOUBLELINE_SIZE(HEADER_DOUBLELINE_WIDTH, HEADER_DOUBLELINE_HEIGHT);
+const QSize HEADER_OVERLAY_SIZE(27, 27);
+
+class IMAGES {
+private:
+	IMAGES() {};
+public:
+	static const IMAGES& instance() {
+		static IMAGES images;
+		return images;
+	};
+	const QImage link_h{ ":/sockets/linkH.png" };
+	const QImage link_v{ ":/sockets/linkV.png" };
+	const QImage elder_1x1{ ":/backgrounds/ElderBackground_1x1.png" };
+	const QImage elder_1x3{ ":/backgrounds/ElderBackground_1x3.png" };
+	const QImage elder_1x4{ ":/backgrounds/ElderBackground_1x4.png" };
+	const QImage elder_2x1{ ":/backgrounds/ElderBackground_2x1.png" };
+	const QImage elder_2x2{ ":/backgrounds/ElderBackground_2x2.png" };
+	const QImage elder_2x3{ ":/backgrounds/ElderBackground_2x3.png" };
+	const QImage elder_2x4{ ":/backgrounds/ElderBackground_2x4.png" };
+	const QImage shaper_1x1{ ":/backgrounds/ShaperBackground_1x1.png" };
+	const QImage shaper_1x3{ ":/backgrounds/ShaperBackground_1x3.png" };
+	const QImage shaper_1x4{ ":/backgrounds/ShaperBackground_1x4.png" };
+	const QImage shaper_2x1{ ":/backgrounds/ShaperBackground_2x1.png" };
+	const QImage shaper_2x2{ ":/backgrounds/ShaperBackground_2x2.png" };
+	const QImage shaper_2x3{ ":/backgrounds/ShaperBackground_2x3.png" };
+	const QImage shaper_2x4{ ":/backgrounds/ShaperBackground_2x4.png" };
+	const QImage shaper_icon{ ":/tooltip/ShaperItemSymbol.png" };
+	const QImage elder_icon{ ":/tooltip/ElderItemSymbol.png" };
+	const QImage crusader_icon{ ":/tooltip/Crusader-item-symbol.png" };
+	const QImage hunter_icon{ ":/tooltip/Hunter-item-symbol.png" };
+	const QImage redeemer_icon{ ":/tooltip/Redeemer-item-symbol.png" };
+	const QImage warlord_icon{ ":/tooltip/Warlord-item-symbol.png" };
+	const QImage synthesised_icon{ ":/tooltip/Synthesised-item-symbol.png" };
+	const QImage fractured_icon{ ":/tooltip/Fractured-item-symbol.png" };
+	const QImage searing_exarch_icon{ ":/tooltip/Searing-exarch-item-symbol.png" };
+	const QImage eater_of_worlds_icon{ ":/tooltip/Eater-of-worlds-item-symbol.png" };
+};
 
 /*
 	PoE colors:
@@ -84,7 +96,7 @@ static const QSize HEADER_OVERLAY_SIZE(27, 27);
 	UniqueItem: 10
 */
 
-static std::vector<std::string> kPoEColors = {
+static std::array kPoEColors = {
 	"#fff",
 	"#88f",
 	"#d20000",
@@ -99,7 +111,8 @@ static std::string ColorPropertyValue(const ItemPropertyValue& value) {
 	size_t type = value.type;
 	if (type >= kPoEColors.size())
 		type = 0;
-	return "<font color='" + kPoEColors[type] + "'>" + value.str + "</font>";
+	const std::string color = kPoEColors[type];
+	return "<font color='" + color + "'>" + value.str + "</font>";
 }
 
 static std::string FormatProperty(const ItemProperty& prop) {
@@ -214,7 +227,7 @@ static std::string GenerateItemInfo(const Item& item, const std::string& key, bo
 	return "<center>" + text + "</center>";
 }
 
-static std::vector<std::string> FrameToKey = {
+static std::array FrameToKey = {
 	"White",
 	"Magic",
 	"Rare",
@@ -223,7 +236,7 @@ static std::vector<std::string> FrameToKey = {
 	"Currency"
 };
 
-static std::vector<std::string> FrameToColor = {
+static std::array FrameToColor = {
 	"#c8c8c8",
 	"#88f",
 	"#ff7",
@@ -259,37 +272,39 @@ void GenerateItemHeaderSide(QLabel* itemHeader, bool leftNotRight, std::string h
 
 	QImage overlay_image;
 
+	const auto& images = IMAGES::instance();
+
 	if (base != Item::NONE) {
 		switch (base) {
 		case Item::ELDER:
-			overlay_image = elder_icon;
+			overlay_image = images.elder_icon;
 			break;
 		case Item::SHAPER:
-			overlay_image = shaper_icon;
+			overlay_image = images.shaper_icon;
 			break;
 		case Item::HUNTER:
-			overlay_image = hunter_icon;
+			overlay_image = images.hunter_icon;
 			break;
 		case Item::WARLORD:
-			overlay_image = warlord_icon;
+			overlay_image = images.warlord_icon;
 			break;
 		case Item::CRUSADER:
-			overlay_image = crusader_icon;
+			overlay_image = images.crusader_icon;
 			break;
 		case Item::REDEEMER:
-			overlay_image = redeemer_icon;
+			overlay_image = images.redeemer_icon;
 			break;
 		case Item::SYNTHESISED:
-			overlay_image = synthesised_icon;
+			overlay_image = images.synthesised_icon;
 			break;
 		case Item::FRACTURED:
-			overlay_image = fractured_icon;
+			overlay_image = images.fractured_icon;
 			break;
 		case Item::SEARING_EXARCH:
-			overlay_image = searing_exarch_icon;
+			overlay_image = images.searing_exarch_icon;
 			break;
 		case Item::EATER_OF_WORLDS:
-			overlay_image = eater_of_worlds_icon;
+			overlay_image = images.eater_of_worlds_icon;
 			break;
 		case Item::NONE:
 			break;
@@ -336,8 +351,9 @@ void UpdateItemTooltip(const Item& item, Ui::MainWindow* ui) {
 
 	ui->itemNameFirstLine->setText(item.name().c_str());
 	ui->itemNameSecondLine->setText(item.typeLine().c_str());
-
-	std::string css = "border-image: none; background-color: transparent; font-size: 20px; color: " + FrameToColor[frame];
+	
+	const std::string color = FrameToColor[frame];
+	const std::string css = "border-image: none; background-color: transparent; font-size: 20px; color: " + color;
 	ui->itemNameFirstLine->setStyleSheet(css.c_str());
 	ui->itemNameSecondLine->setStyleSheet(css.c_str());
 }
@@ -350,7 +366,7 @@ QPixmap GenerateItemSockets(const int width, const int height, const std::vector
 	int socket_rows = 0;
 	int socket_columns = 0;
 	ItemSocket prev = { 255, '-' };
-    int i = 0;
+	int i = 0;
 
 	if (sockets.size() == 0) {
 		// Do nothing
@@ -362,6 +378,9 @@ QPixmap GenerateItemSockets(const int width, const int height, const std::vector
 		socket_columns = 1;
 	} else {
 		for (auto& socket : sockets) {
+			const auto& images = IMAGES::instance();
+			const auto& link_h = images.link_h;
+			const auto& link_v = images.link_v;
 			bool link = socket.group == prev.group;
 			QImage socket_image(":/sockets/" + QString(socket.attr) + ".png");
 			if (width == 1) {
@@ -428,22 +447,24 @@ QPixmap GenerateItemIcon(const Item& item, const QImage& image) {
 	layered.fill(Qt::transparent);
 	QPainter layered_painter(&layered);
 
+
 	if (item.hasInfluence(Item::SHAPER) || item.hasInfluence(Item::ELDER)) {
 		// Assumes width <= 2
+		const auto& images = IMAGES::instance();
 		const QImage* background_image = nullptr;
 		if (item.hasInfluence(Item::ELDER)) {
 			switch (height) {
 			case 1:
-				background_image = width == 1 ? &shaper_1x1 : &shaper_2x1;
+				background_image = width == 1 ? &images.shaper_1x1 : &images.shaper_2x1;
 				break;
 			case 2:
-				background_image = width == 1 ? nullptr : &shaper_2x2;
+				background_image = width == 1 ? nullptr : &images.shaper_2x2;
 				break;
 			case 3:
-				background_image = width == 1 ? &shaper_1x3 : &shaper_2x3;
+				background_image = width == 1 ? &images.shaper_1x3 : &images.shaper_2x3;
 				break;
 			case 4:
-				background_image = width == 1 ? &shaper_1x4 : &shaper_2x4;
+				background_image = width == 1 ? &images.shaper_1x4 : &images.shaper_2x4;
 				break;
 			default:
 				break;
@@ -451,16 +472,16 @@ QPixmap GenerateItemIcon(const Item& item, const QImage& image) {
 		} else {    // Elder
 			switch (height) {
 			case 1:
-				background_image = width == 1 ? &elder_1x1 : &elder_2x1;
+				background_image = width == 1 ? &images.elder_1x1 : &images.elder_2x1;
 				break;
 			case 2:
-				background_image = width == 1 ? nullptr : &elder_2x2;
+				background_image = width == 1 ? nullptr : &images.elder_2x2;
 				break;
 			case 3:
-				background_image = width == 1 ? &elder_1x3 : &elder_2x3;
+				background_image = width == 1 ? &images.elder_1x3 : &images.elder_2x3;
 				break;
 			case 4:
-				background_image = width == 1 ? &elder_1x4 : &elder_2x4;
+				background_image = width == 1 ? &images.elder_1x4 : &images.elder_2x4;
 				break;
 			default:
 				break;

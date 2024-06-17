@@ -32,17 +32,21 @@
 #include "itemconstants.h"
 
 const double EPS = 1e-6;
-const QRegularExpression sort_double_match("^\\+?([\\d.]+)%?$");
-const QRegularExpression sort_two_values("^(\\d+)([-/])(\\d+)$");
+const char* SORT_DOUBLE_MATCH = "^\\+?([\\d.]+)%?$";
+const char* SORT_TWO_VALUES = "^(\\d+)([-/])(\\d+)$";
 
 QColor Column::color(const Item& /* item */) const {
 	return QApplication::palette().color(QPalette::WindowText);
 }
 
 Column::sort_tuple Column::multivalue(const Item* item) const {
-    // Transform values into something optimal for sorting
-    // Possibilities: 12, 12.12, 10%, 10.13%, +16%, 12-14, 10/20
-    double first_double = 0.0;
+	
+	// Transform values into something optimal for sorting
+	// Possibilities: 12, 12.12, 10%, 10.13%, +16%, 12-14, 10/20
+	static const QRegularExpression sort_double_match(SORT_DOUBLE_MATCH);
+	static const QRegularExpression sort_two_values(SORT_TWO_VALUES);
+
+	double first_double = 0.0;
     double second_double = 0.0;
     std::string first_string = "";
     std::string second_string = "";
@@ -198,7 +202,7 @@ QVariant InfluncedColumn::icon(const Item& item) const {
 			case Item::EATER_OF_WORLDS: rightIcon.addFile(eater_of_worlds_symbol_Link); break;
 			case Item::NONE: break;
 			}
-			return Influence::combineInflunceIcons(leftIcon, rightIcon);
+			return combineInflunceIcons(leftIcon, rightIcon);
 		}
 		return leftIcon;
 	}
@@ -365,8 +369,8 @@ QVariant DateColumn::value(const Item& item) const {
 }
 
 bool DateColumn::lt(const Item* lhs, const Item* rhs) const {
-	auto lhs_update_time = bo_manager_.Get(*lhs).last_update;
-	auto rhs_update_time = bo_manager_.Get(*rhs).last_update;
+	const QDateTime lhs_update_time = bo_manager_.Get(*lhs).last_update;
+	const QDateTime rhs_update_time = bo_manager_.Get(*rhs).last_update;
 	return (std::tie(lhs_update_time, *lhs) <
 		std::tie(rhs_update_time, *rhs));
 }

@@ -40,6 +40,8 @@ std::set<std::string> mods;
 std::unordered_map<std::string, SumModGenerator*> mods_map;
 std::vector<SumModGen> mod_generators;
 
+/* ------------------- TBD - FIX THIS!!! --------------------------
+ 
 // These are just summed, and the mod named as the first element of a vector is generated with value equaling the sum.
 // Both implicit and explicit fields are considered.
 // This is pretty much the same list as poe.trade uses
@@ -142,6 +144,7 @@ const std::vector<std::vector<std::string>> simple_sum = {
 	{ "Can have multiple Crafted Mods" },
 	{ "* Leo's Level-28-capped-rolls mod", "Cannot roll Mods with Required Level above #" },
 };
+*/
 
 QStringListModel& mod_list_model() {
 	return mod_list_model_;

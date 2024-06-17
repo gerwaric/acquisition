@@ -26,24 +26,23 @@
 #include <QLineEdit>
 #include <QLabel>
 #include <QFontMetrics>
+#include <QMetaEnum>
 #include <QNetworkReply>
 #include <QRegularExpression>
 #include <QTextDocument>
 #include <QUrlQuery>
 #include <QPainter>
-#include "rapidjson/document.h"
-#include "rapidjson/writer.h"
+
 #include <sstream>
 #include <iomanip>
 #include <cmath>
-#include <regex>
 
-#include "QsLog.h"
-
-#include "buyoutmanager.h"
+#include "rapidjson/document.h"
+#include "rapidjson/writer.h"
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string.hpp>
-#include <QMetaEnum>
+
+#include "currency.h"
 
 std::string Util::Md5(const std::string& value) {
 	QString hash = QString(QCryptographicHash::hash(value.c_str(), QCryptographicHash::Md5).toHex());
@@ -67,7 +66,7 @@ void Util::PopulateBuyoutCurrencyComboBox(QComboBox* combobox) {
 		combobox->addItem(QString(Currency(type).AsString().c_str()));
 }
 
-static std::vector<std::string> width_strings = {
+constexpr std::array width_strings = {
 	"max#",
 	"Map Tier",
 	"R##",
@@ -85,7 +84,7 @@ int Util::TextWidth(TextWidthId id) {
 		QLineEdit textbox;
 		QFontMetrics fm(textbox.fontMetrics());
 		for (size_t i = 0; i < width_strings.size(); ++i)
-            result[i] = fm.horizontalAdvance(width_strings[i].c_str());
+            result[i] = fm.horizontalAdvance(width_strings[i]);
 	}
 	return result[static_cast<int>(id)];
 }

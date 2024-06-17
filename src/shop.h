@@ -37,7 +37,6 @@ class BuyoutManager;
 class DataStore;
 class ItemsManager;
 
-extern const std::string kShopTemplateItems;
 struct AugmentedItem {
 	Item* item{ nullptr };
 	Buyout bo;
@@ -97,4 +96,7 @@ private:
 	bool auto_update_;
 	bool submitting_;
 	size_t requests_completed_;
+
+	static const QRegularExpression error_regex;
+	static const QRegularExpression ratelimit_regex;
 };

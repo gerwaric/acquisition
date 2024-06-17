@@ -85,6 +85,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/influence.cpp
     src/item.cpp
     src/itemcategories.cpp
+    src/itemconstants.cpp
     src/itemlocation.cpp
     src/items_model.cpp
     src/itemsmanager.cpp

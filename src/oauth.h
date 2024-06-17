@@ -26,8 +26,6 @@
 #include <optional>
 #include <string>
 
-#include "rapidjson/document.h"
-
 class QHttpServerRequest;
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -102,4 +100,7 @@ private:
 	std::string redirect_uri_;
 
 	QTimer refresh_timer_;
+
+	static const QString SUCCESS_HTML;
+	static const QString ERROR_HTML;
 };

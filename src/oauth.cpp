@@ -35,8 +35,6 @@
 
 #include "QsLog.h"
 #include "rapidjson/error/en.h"
-#include "rapidjson/stringbuffer.h"
-#include "rapidjson/writer.h"
 
 #include "application.h"
 #include "datastore.h"
@@ -56,7 +54,8 @@ const int EXPIRATION_BUFFER_SECS = 3600;
 
 // Return this HTML to the browser after successful authentication,
 // and try to avoid a favicon request.
-const QString SUCCESS_HTML = QString(R"html(
+const QString OAuthManager::SUCCESS_HTML = QString(
+	R"html(
 		<html>
 			<head>
 				<link rel="icon" href="data:, ">
@@ -69,10 +68,12 @@ const QString SUCCESS_HTML = QString(R"html(
 			<body>
 				<h1 class="container">Acquisition has been authorized.<br>You may close this page.</h1>
 			</body>
-		</html>")html").simplified();
+		</html>"
+	)html").simplified();
 
 // Use this as a template to show authentication errors.
-const QString ERROR_HTML = QString(R"html(
+const QString OAuthManager::ERROR_HTML = QString(
+	R"html(
 		<html>
 			<head>
 				<link rel="icon" href="data:, ">
@@ -81,7 +82,8 @@ const QString ERROR_HTML = QString(R"html(
 			<body>
 				<p>%2</p>
 			</body>
-		</html>)html").simplified();
+		</html>
+	)html").simplified();
 
 OAuthToken::OAuthToken() :
 	expires_in_(-1)
@@ -189,7 +191,6 @@ OAuthManager::OAuthManager(QObject* parent, QNetworkAccessManager& network_manag
 	if (token_str != "") {
 		token_ = OAuthToken(token_str);
 		setRefreshTimer();
-		emit accessGranted(*token_);
 	};
 
 }

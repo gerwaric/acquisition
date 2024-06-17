@@ -35,14 +35,10 @@
 #include <QUrl>
 #include <QUrlQuery>
 
-#include <iostream>
-
 #include "QsLog.h"
 #include "rapidjson/error/en.h"
 
 #include "application.h"
-#include "datastore.h"
-#include "filesystem.h"
 #include "mainwindow.h"
 #include "network_info.h"
 #include "replytimeout.h"
@@ -370,7 +366,7 @@ void LoginDialog::OnFinishLegacyLogin() {
 		return;
 	};
 
-	const QRegularExpression regexp("/account/view-profile/(.*?)\"");
+	static const QRegularExpression regexp("/account/view-profile/(.*?)\"");
 	QRegularExpressionMatch match = regexp.match(html, 0);
 	if (match.hasMatch() == false) {
 		DisplayError("Failed to find account name.");

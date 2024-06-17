@@ -94,8 +94,8 @@ namespace RateLimit
 	class RateLimitedReply : public QObject {
 		Q_OBJECT
 	signals:
-		void complete(QNetworkReply* reply) const;
-		void failed(QNetworkReply* reply) const;
+		void complete(QNetworkReply* reply);
+		void failed(QNetworkReply* reply);
 	};
 
 	enum class PolicyStatus { UNKNOWN, OK, BORDERLINE, VIOLATION, INVALID };
@@ -184,7 +184,7 @@ namespace RateLimit
 		PolicyStatus status_;
 		int maximum_hits_;
 	};
-	
+
 	QByteArray ParseHeader(QNetworkReply* const reply, const QByteArray& name);
 	QByteArrayList ParseHeaderList(QNetworkReply* const reply, const QByteArray& name, const char delim);
 	QByteArray ParseRateLimitPolicy(QNetworkReply* const reply);
