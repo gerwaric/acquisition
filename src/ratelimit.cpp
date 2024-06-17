@@ -149,16 +149,23 @@ QDateTime RuleItem::GetNextSafeSend(const RequestHistory& history) const {
 
 	// Start with the timestamp of the earliest known 
 	// reply relevant to this limitation.
-	const QDateTime beginning = (n < 1) ? now : history[n - 1];
+	const QDateTime earliest = (n < 1) ? now : history[n - 1];
 
-	QLOG_TRACE() << "GetNextSafeSend() at" << now.toString();
-	for (int k = 0; k < n; ++k) {
-		QLOG_TRACE() << " history[" << k << "] =" << history[k].toString()
-			<< "(" << now.secsTo(history[k]) << ")";
+	const QDateTime safe_time = earliest.addSecs(limit_.period());
+
+	if (state_.hits() >= limit_.hits()) {
+		QLOG_TRACE() << "GetNextSafeSend() at" << now.toString();
+		for (int k = 0; k < n; ++k) {
+			QLOG_TRACE() << " history[" << k << "] =" << history[k].toString()
+				<< "(" << now.secsTo(history[k]) << ")";
+		};
+		QLOG_TRACE() << "Beginning from history[" << n << "]:" << earliest.toString();
+		QLOG_TRACE() << "Adding" << limit_.period() << "seconds";
+		QLOG_TRACE() << "Sending on" << safe_time.toString();
 	};
 
 	// Calculate the next time it will be safe to send a request.
-	return beginning.addSecs(limit_.period());
+	return safe_time;
 }
 
 //=========================================================================================

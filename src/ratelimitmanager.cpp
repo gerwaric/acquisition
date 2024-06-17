@@ -29,7 +29,8 @@
 constexpr int VIOLATION_STATUS = 429;
 
 // A delay added to make sure we don't get a violation.
-constexpr int SAFETY_BUFFER_MSEC = 1000;
+constexpr int NORMAL_BUFFER_MSEC = 250;
+constexpr int BORDERLINE_BUFFER_MSEC = 1500;
 
 // Minium time between sends for any given policy.
 constexpr int MINIMUM_INTERVAL_MSEC = 500;
@@ -97,6 +98,13 @@ void RateLimitManager::ReceiveReply()
 
 	if (reply->error() == QNetworkReply::NoError) {
 
+		if (policy_->status() >= RateLimit::PolicyStatus::VIOLATION) {
+			QLOG_ERROR() << "Reply did not have an error, but the rate limit policy shows a violation occured.";
+		};
+		if (reply_status == VIOLATION_STATUS) {
+			QLOG_ERROR() << "Reply did not have an error, but the HTTP status indicates a rate limit violation.";
+		};
+
 		auto* submit = active_request_->reply;
 		active_request_ = nullptr;
 
@@ -106,25 +114,38 @@ void RateLimitManager::ReceiveReply()
 		// Activate the next queued reqeust.
 		ActivateRequest();
 
-	} else if (policy_->status() == RateLimit::PolicyStatus::VIOLATION) {
+	} else {
 
-		// There was a rate limit violation.
-		auto err = reply->error();
-		const int retry_sec = reply->rawHeader("Retry-After").toInt();
-		const int retry_msec = (1000 * retry_sec) + VIOLATION_BUFFER_MSEC;
 		reply->deleteLater();
-		next_send_ = reply_time.addMSecs(retry_msec);
-		activation_timer_.setInterval(retry_msec);
-		activation_timer_.start();
 
-	} else  {
+		if (reply_status == VIOLATION_STATUS) {
+			if (!reply->hasRawHeader("Retry-After")) {
+				QLOG_ERROR() << "HTTP status indicates a rate limit violation, but 'Retry-After' is missing";
+			};
+			if (policy_->status() != RateLimit::PolicyStatus::VIOLATION) {
+				QLOG_ERROR() << "HTTP status indicates a rate limit violation, but was not flagged in the policy update";
+			};
+		};
 
-		// Some other HTTP error was encountered.
-		QLOG_ERROR() << "policy manager for" << policy_->name()
-			<< "request" << active_request_->id
-			<< "reply status was " << reply_status
-			<< "and error was" << reply->error();
+		if (reply->hasRawHeader("Retry-After")) {
 
+			// There was a rate limit violation.
+			const int retry_sec = reply->rawHeader("Retry-After").toInt();
+			const int retry_msec = (1000 * retry_sec) + VIOLATION_BUFFER_MSEC;
+			next_send_ = reply_time.addMSecs(retry_msec);
+			activation_timer_.setInterval(retry_msec);
+			activation_timer_.start();
+
+		} else {
+
+			// Some other HTTP error was encountered.
+			QLOG_ERROR() << "policy manager for" << policy_->name()
+				<< "request" << active_request_->id
+				<< "reply status was " << reply_status
+				<< "and error was" << reply->error();
+
+		};
+		active_request_->reply = nullptr;
 	};
 }
 
@@ -198,16 +219,24 @@ void RateLimitManager::ActivateRequest() {
 	};
 
 	QDateTime send = next_send_;
+
+	if (policy_->status() >= RateLimit::PolicyStatus::BORDERLINE) {
+		send.addMSecs(BORDERLINE_BUFFER_MSEC);
+	} else {
+		send.addMSecs(NORMAL_BUFFER_MSEC);
+	};
+
 	if (last_send_.isValid()) {
 		if (last_send_.msecsTo(send) < MINIMUM_INTERVAL_MSEC) {
 			send = last_send_.addMSecs(MINIMUM_INTERVAL_MSEC);
 		};
 	};
-
+	
 	int delay = QDateTime::currentDateTime().msecsTo(send);
 	if (delay < 0) {
 		delay = 0;
 	};
+
 	QLOG_TRACE() << policy_->name() << "waiting" << (delay / 1000)
 		<< "seconds to send request" << active_request_->id
 		<< "at" << next_send_.toLocalTime().toString();
