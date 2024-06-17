@@ -33,77 +33,6 @@
 #include "itemlocation.h"
 #include "QVariant"
 
-const std::string Currency::currency_type_error_;
-
-const Currency::CurrencyTypeMap Currency::currency_type_as_string_ = {
-	{CURRENCY_NONE, ""},
-	{CURRENCY_ORB_OF_ALTERATION, "Orb of Alteration"},
-	{CURRENCY_ORB_OF_FUSING, "Orb of Fusing"},
-	{CURRENCY_ORB_OF_ALCHEMY, "Orb of Alchemy"},
-	{CURRENCY_CHAOS_ORB, "Chaos Orb"},
-	{CURRENCY_GCP, "Gemcutter's Prism"},
-	{CURRENCY_EXALTED_ORB, "Exalted Orb"},
-	{CURRENCY_CHROMATIC_ORB, "Chromatic Orb"},
-	{CURRENCY_JEWELLERS_ORB, "Jeweller's Orb"},
-	{CURRENCY_ORB_OF_CHANCE, "Orb of Chance"},
-	{CURRENCY_CARTOGRAPHERS_CHISEL, "Cartographer's Chisel"},
-	{CURRENCY_ORB_OF_SCOURING, "Orb of Scouring"},
-	{CURRENCY_BLESSED_ORB, "Blessed Orb"},
-	{CURRENCY_ORB_OF_REGRET, "Orb of Regret"},
-	{CURRENCY_REGAL_ORB, "Regal Orb"},
-	{CURRENCY_DIVINE_ORB, "Divine Orb"},
-	{CURRENCY_VAAL_ORB, "Vaal Orb"},
-	{CURRENCY_PERANDUS_COIN, "Perandus Coin"},
-	{CURRENCY_MIRROR_OF_KALANDRA, "Mirror of Kalandra"},
-	{CURRENCY_SILVER_COIN, "Silver Coin"},
-};
-
-const Currency::CurrencyTypeMap Currency::currency_type_as_tag_ = {
-	{CURRENCY_NONE, ""},
-	{CURRENCY_ORB_OF_ALTERATION, "alt"},
-	{CURRENCY_ORB_OF_FUSING, "fuse"},
-	{CURRENCY_ORB_OF_ALCHEMY, "alch"},
-	{CURRENCY_CHAOS_ORB, "chaos"},
-	{CURRENCY_GCP, "gcp"},
-	{CURRENCY_EXALTED_ORB, "exa"},
-	{CURRENCY_CHROMATIC_ORB, "chrom"},
-	{CURRENCY_JEWELLERS_ORB, "jew"},
-	{CURRENCY_ORB_OF_CHANCE, "chance"},
-	{CURRENCY_CARTOGRAPHERS_CHISEL, "chisel"},
-	{CURRENCY_ORB_OF_SCOURING, "scour"},
-	{CURRENCY_BLESSED_ORB, "blessed"},
-	{CURRENCY_ORB_OF_REGRET, "regret"},
-	{CURRENCY_REGAL_ORB, "regal"},
-	{CURRENCY_DIVINE_ORB, "divine"},
-	{CURRENCY_VAAL_ORB, "vaal"},
-	{CURRENCY_PERANDUS_COIN, "coin"},
-	{CURRENCY_MIRROR_OF_KALANDRA, "mirror"},
-	{CURRENCY_SILVER_COIN, "silver"},
-};
-
-const Currency::CurrencyRankMap Currency::currency_type_as_rank_ = {
-	{CURRENCY_NONE, 0},
-	{CURRENCY_CHROMATIC_ORB, 1},
-	{CURRENCY_ORB_OF_ALTERATION, 2},
-	{CURRENCY_JEWELLERS_ORB, 3},
-	{CURRENCY_ORB_OF_CHANCE, 4},
-	{CURRENCY_CARTOGRAPHERS_CHISEL, 5},
-	{CURRENCY_PERANDUS_COIN, 6},
-	{CURRENCY_ORB_OF_FUSING, 7},
-	{CURRENCY_ORB_OF_ALCHEMY, 8},
-	{CURRENCY_BLESSED_ORB, 9},
-	{CURRENCY_ORB_OF_SCOURING, 10},
-	{CURRENCY_CHAOS_ORB, 11},
-	{CURRENCY_ORB_OF_REGRET, 12},
-	{CURRENCY_REGAL_ORB, 13},
-	{CURRENCY_VAAL_ORB, 14},
-	{CURRENCY_GCP, 15},
-	{CURRENCY_DIVINE_ORB, 16},
-	{CURRENCY_EXALTED_ORB, 17},
-	{CURRENCY_MIRROR_OF_KALANDRA, 18},
-	{CURRENCY_SILVER_COIN, 19},
-};
-
 const std::string Buyout::buyout_type_error_;
 
 const Buyout::BuyoutTypeMap Buyout::buyout_type_as_tag_ = {
@@ -136,61 +65,6 @@ const std::map<std::string, BuyoutType> BuyoutManager::string_to_buyout_type_ = 
 	{"~b/o", BUYOUT_TYPE_BUYOUT},
 	{"~c/o", BUYOUT_TYPE_CURRENT_OFFER},
 	{"~price", BUYOUT_TYPE_FIXED},
-};
-
-const std::map<std::string, Currency> BuyoutManager::string_to_currency_type_ = {
-	{"alch", CURRENCY_ORB_OF_ALCHEMY},
-	{"alchs", CURRENCY_ORB_OF_ALCHEMY},
-	{"alchemy", CURRENCY_ORB_OF_ALCHEMY},
-	{"alt", CURRENCY_ORB_OF_ALTERATION},
-	{"alts", CURRENCY_ORB_OF_ALTERATION},
-	{"alteration", CURRENCY_ORB_OF_ALTERATION},
-	{"alterations", CURRENCY_ORB_OF_ALTERATION},
-	{"blessed", CURRENCY_BLESSED_ORB},
-	{"cartographer", CURRENCY_CARTOGRAPHERS_CHISEL},
-	{"cartographers", CURRENCY_CARTOGRAPHERS_CHISEL},
-	{"chance", CURRENCY_ORB_OF_CHANCE},
-	{"chaos", CURRENCY_CHAOS_ORB},
-	{"chisel", CURRENCY_CARTOGRAPHERS_CHISEL},
-	{"chisels", CURRENCY_CARTOGRAPHERS_CHISEL},
-	{"chrom", CURRENCY_CHROMATIC_ORB},
-	{"chrome", CURRENCY_CHROMATIC_ORB},
-	{"chromes", CURRENCY_CHROMATIC_ORB},
-	{"chromatic", CURRENCY_CHROMATIC_ORB},
-	{"chromatics", CURRENCY_CHROMATIC_ORB},
-	{"coin", CURRENCY_PERANDUS_COIN},
-	{"coins", CURRENCY_PERANDUS_COIN},
-	{"divine", CURRENCY_DIVINE_ORB},
-	{"divines", CURRENCY_DIVINE_ORB},
-	{"exa", CURRENCY_EXALTED_ORB},
-	{"exalted", CURRENCY_EXALTED_ORB},
-	{"fuse", CURRENCY_ORB_OF_FUSING},
-	{"fuses", CURRENCY_ORB_OF_FUSING},
-	{"fusing", CURRENCY_ORB_OF_FUSING},
-	{"fusings", CURRENCY_ORB_OF_FUSING},
-	{"gcp", CURRENCY_GCP},
-	{"gcps", CURRENCY_GCP},
-	{"gemcutter", CURRENCY_GCP},
-	{"gemcutters", CURRENCY_GCP},
-	{"jew", CURRENCY_JEWELLERS_ORB},
-	{"jewel", CURRENCY_JEWELLERS_ORB},
-	{"jewels", CURRENCY_JEWELLERS_ORB},
-	{"jeweler", CURRENCY_JEWELLERS_ORB},
-	{"jewelers", CURRENCY_JEWELLERS_ORB},
-	{"mir", CURRENCY_MIRROR_OF_KALANDRA},
-	{"mirror", CURRENCY_MIRROR_OF_KALANDRA},
-	{"p", CURRENCY_PERANDUS_COIN},
-	{"perandus", CURRENCY_PERANDUS_COIN},
-	{"regal", CURRENCY_REGAL_ORB},
-	{"regals", CURRENCY_REGAL_ORB},
-	{"regret", CURRENCY_ORB_OF_REGRET},
-	{"regrets", CURRENCY_ORB_OF_REGRET},
-	{"scour", CURRENCY_ORB_OF_SCOURING},
-	{"scours", CURRENCY_ORB_OF_SCOURING},
-	{"scouring", CURRENCY_ORB_OF_SCOURING},
-	{"shekel", CURRENCY_PERANDUS_COIN},
-	{"vaal", CURRENCY_VAAL_ORB},
-	{"silver", CURRENCY_SILVER_COIN},
 };
 
 BuyoutManager::BuyoutManager(DataStore& data) :
@@ -441,15 +315,6 @@ const std::vector<ItemLocation> BuyoutManager::GetStashTabLocations() const {
 	return tabs_;
 }
 
-
-Currency BuyoutManager::StringToCurrencyType(std::string currency) const {
-	auto const& it = string_to_currency_type_.find(currency);
-	if (it != string_to_currency_type_.end()) {
-		return it->second;
-	}
-	return CURRENCY_NONE;
-}
-
 BuyoutType BuyoutManager::StringToBuyoutType(std::string bo_str) const {
 	auto const& it = string_to_buyout_type_.find(bo_str);
 	if (it != string_to_buyout_type_.end()) {
@@ -471,7 +336,7 @@ Buyout BuyoutManager::StringToBuyout(std::string format) {
 	if (std::regex_search(format, sm, exp)) {
 		tmp.type = StringToBuyoutType(sm[1]);
 		tmp.value = QVariant(sm[2].str().c_str()).toDouble();
-		tmp.currency = StringToCurrencyType(sm[3]);
+		tmp.currency = Currency::FromString(sm[3]);
 		tmp.source = BUYOUT_SOURCE_GAME;
 		tmp.last_update = QDateTime::currentDateTime();
 	}
@@ -598,53 +463,4 @@ bool Buyout::operator==(const Buyout& o) const {
 
 bool Buyout::operator!=(const Buyout& o) const {
 	return !(o == *this);
-}
-
-Currency Currency::FromTag(std::string tag)
-{
-	auto& m = currency_type_as_tag_;
-	auto const& it = std::find_if(m.begin(), m.end(), [&](CurrencyTypeMap::value_type const& x) { return x.second == tag; });
-	return Currency((it != m.end()) ? it->first : CURRENCY_NONE);
-}
-
-std::vector<CurrencyType> Currency::Types() {
-	std::vector<CurrencyType> tmp;
-	for (unsigned int i = 0; i < currency_type_as_tag_.size(); i++) {
-		tmp.push_back(static_cast<CurrencyType>(i));
-	}
-	return tmp;
-}
-
-Currency Currency::FromIndex(int index) {
-	if (static_cast<unsigned int>(index) >= currency_type_as_tag_.size()) {
-		QLOG_WARN() << "Currency type index out of bounds: " << index << ". This should never happen - please report.";
-		return CURRENCY_NONE;
-	} else {
-		return Currency(static_cast<CurrencyType>(index));
-	}
-}
-
-const std::string& Currency::AsString() const {
-	auto const& it = currency_type_as_string_.find(type);
-	if (it != currency_type_as_string_.end()) {
-		return it->second;
-	} else {
-		QLOG_WARN() << "No mapping from currency type: " << type << " to string. This should never happen - please report.";
-		return currency_type_error_;
-	}
-}
-
-const std::string& Currency::AsTag() const {
-	auto const& it = currency_type_as_tag_.find(type);
-	if (it != currency_type_as_tag_.end()) {
-		return it->second;
-	} else {
-		QLOG_WARN() << "No mapping from currency type: " << type << " to tag. This should never happen - please report.";
-		return currency_type_error_;
-	}
-}
-
-const int& Currency::AsRank() const
-{
-	return currency_type_as_rank_.at(type);
 }

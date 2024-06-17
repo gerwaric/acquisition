@@ -23,30 +23,9 @@
 #include <QDateTime>
 #include <set>
 
-class ItemLocation;
+#include "currency.h"
 
-enum CurrencyType {
-	CURRENCY_NONE,
-	CURRENCY_ORB_OF_ALTERATION,
-	CURRENCY_ORB_OF_FUSING,
-	CURRENCY_ORB_OF_ALCHEMY,
-	CURRENCY_CHAOS_ORB,
-	CURRENCY_GCP,
-	CURRENCY_EXALTED_ORB,
-	CURRENCY_CHROMATIC_ORB,
-	CURRENCY_JEWELLERS_ORB,
-	CURRENCY_ORB_OF_CHANCE,
-	CURRENCY_CARTOGRAPHERS_CHISEL,
-	CURRENCY_ORB_OF_SCOURING,
-	CURRENCY_BLESSED_ORB,
-	CURRENCY_ORB_OF_REGRET,
-	CURRENCY_REGAL_ORB,
-	CURRENCY_DIVINE_ORB,
-	CURRENCY_VAAL_ORB,
-	CURRENCY_PERANDUS_COIN,
-	CURRENCY_MIRROR_OF_KALANDRA,
-	CURRENCY_SILVER_COIN,
-};
+class ItemLocation;
 
 enum BuyoutType {
 	BUYOUT_TYPE_IGNORE,
@@ -62,34 +41,6 @@ enum BuyoutSource {
 	BUYOUT_SOURCE_MANUAL,
 	BUYOUT_SOURCE_GAME,
 	BUYOUT_SOURCE_AUTO
-};
-
-struct Currency {
-	typedef std::map<CurrencyType, std::string> CurrencyTypeMap;
-	typedef std::map<CurrencyType, int> CurrencyRankMap;
-
-	Currency() = default;
-	Currency(CurrencyType in_type) : type(in_type) { };
-
-	CurrencyType type{ CURRENCY_NONE };
-
-	static std::vector<CurrencyType> Types();
-	static Currency FromIndex(int i);
-	static Currency FromTag(std::string tag);
-
-	bool operator==(const Currency& rhs) const { return type == rhs.type; }
-	bool operator!=(const Currency& rhs) const { return type != rhs.type; }
-	bool operator<(const Currency& rhs) const { return type < rhs.type; }
-
-	const std::string& AsString() const;
-	const std::string& AsTag() const;
-	const int& AsRank() const;
-
-private:
-	static const std::string currency_type_error_;
-	static const CurrencyTypeMap currency_type_as_string_;
-	static const CurrencyTypeMap currency_type_as_tag_;
-	static const CurrencyRankMap currency_type_as_rank_;
 };
 
 struct Buyout {
@@ -172,7 +123,6 @@ public:
 
 	void MigrateItem(const Item& item);
 private:
-	Currency StringToCurrencyType(std::string currency) const;
 	BuyoutType StringToBuyoutType(std::string bo_str) const;
 
 	std::string Serialize(const std::map<std::string, Buyout>& buyouts);
@@ -189,6 +139,5 @@ private:
 	bool save_needed_;
 	std::vector<ItemLocation> tabs_;
 	static const std::map<std::string, BuyoutType> string_to_buyout_type_;
-	static const std::map<std::string, Currency> string_to_currency_type_;
 };
 
