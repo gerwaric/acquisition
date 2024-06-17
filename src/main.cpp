@@ -160,8 +160,14 @@ int main(int argc, char* argv[])
 	// Run the main application, starting with the login dialog.
 	QLOG_INFO() << "Running application...";
 
+	// Construct an instance of Application.
 	Application app;
-	LoginDialog login(app);
+
+	// Use the application objects to contruct a login diaglog.
+	LoginDialog login(
+		app.settings(),
+		app.network_manager(),
+		app.oauth_manager());
 
 	// Connect to the update signal in case an update is detected before the main window is open.
 	QObject::connect(&app.update_checker(), &UpdateChecker::UpdateAvailable, &app.update_checker(), &UpdateChecker::AskUserToUpdate);

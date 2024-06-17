@@ -181,7 +181,7 @@
       </font>
      </property>
      <property name="text">
-      <string>Acquisition isn't affiliated with or endorsed by Grinding Gear Games in any way.</string>
+      <string>Acquisition is neither affiliated with nor endorsed by Grinding Gear Games in any way.</string>
      </property>
      <property name="alignment">
       <set>Qt::AlignCenter</set>

@@ -27,7 +27,10 @@
 class QNetworkReply;
 class QString;
 
-class Application;
+class QSettings;
+class QNetworkAccessManager;
+
+class OAuthManager;
 class OAuthToken;
 enum class PoeApiMode;
 
@@ -38,36 +41,36 @@ namespace Ui {
 class LoginDialog : public QDialog {
 	Q_OBJECT
 public:
-	explicit LoginDialog(Application& app);
+	explicit LoginDialog(
+		QSettings& settings,
+		QNetworkAccessManager& network_manager,
+		OAuthManager& oauth_manager);
 	~LoginDialog();
 signals:
 	void LoginComplete(const QString& league, const QString& account, PoeApiMode mode);
-public slots:
-	void OnLeaguesRequestFinished();
+private slots:
+	void OnLeaguesReceived();
 	void OnAuthenticateButtonClicked();
 	void OnLoginButtonClicked();
-	void OnLoggedIn();
-	void LoggedInCheck(); // checks login is successful
-	void OnMainPageFinished();
+	void OnStartLegacyLogin();
+	void OnFinishLegacyLogin();
 	void OnProxyCheckBoxClicked(bool);
 	void OnRememberMeCheckBoxClicked(bool);
 	void OnOAuthAccessGranted(const OAuthToken& token);
-	void errorOccurred();
-	void sslErrorOccurred();
 protected:
 	bool event(QEvent* e);
 private:
-	void SaveSettings();
 	void LoadSettings();
-	void DisplayError(const QString& error, bool disable_login = false);
+	void SaveSettings();
+	void RequestLeagues();
 	void LoginWithOAuth();
-	void LoginWithCookie(const QString& cookie);
-	void LeaguesApiError(const QString& error, const QByteArray& reply);
-	// Retrieves session cookie for a successful login; proceeds to OnMainPageFinished
-	void FinishLogin(QNetworkReply* reply);
-	Application& app_;
+	void LoginWithSessionID(const QString& session_id);
+	void LeaguesRequestError(const QString& error, const QByteArray& reply);
+	void DisplayError(const QString& error, bool disable_login = false);
+
+	QSettings& settings_;
+	QNetworkAccessManager& network_manager_;
+	OAuthManager& oauth_manager_;
+
 	Ui::LoginDialog* ui;
-	QString saved_league_;
-	QString session_id_;
-	std::vector<std::string> leagues_;
 };
