@@ -26,6 +26,8 @@
 #include <optional>
 #include <string>
 
+#include "rapidjson/document.h"
+
 class QHttpServerRequest;
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -47,10 +49,12 @@ public:
 	std::optional<std::string> birthday() const { return birthday_; };
 	std::optional<std::string> expiration() const { return expiration_; };
 	std::string toJson() const;
+	std::string toJsonPretty() const;
 	QDateTime getBirthday() const { return getDate(birthday_); };
 	QDateTime getExpiration() const { return getDate(expiration_); };
 private:
 	static QDateTime getDate(const std::optional<std::string>& timestamp);
+	rapidjson::Document toJsonDoc() const;
 	std::string access_token_;
 	long long int expires_in_;
 	std::string token_type_;

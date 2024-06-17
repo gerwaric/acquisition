@@ -39,6 +39,7 @@
 
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
+#include "rapidjson/prettywriter.h"
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string.hpp>
 
@@ -129,6 +130,13 @@ std::string Util::FindTextBetween(const std::string& page, const std::string& le
 std::string Util::RapidjsonSerialize(const rapidjson::Value& val) {
 	rapidjson::StringBuffer buffer;
 	rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+	val.Accept(writer);
+	return buffer.GetString();
+}
+
+std::string Util::RapidjsonPretty(const rapidjson::Value& val) {
+	rapidjson::StringBuffer buffer;
+	rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
 	val.Accept(writer);
 	return buffer.GetString();
 }

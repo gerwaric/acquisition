@@ -148,8 +148,15 @@ OAuthToken::OAuthToken(const std::string& json, const QDateTime& timestamp) :
 }
 
 std::string OAuthToken::toJson() const {
-	rapidjson::Document doc;
-	doc.SetObject();
+	return Util::RapidjsonSerialize(toJsonDoc());
+}
+
+std::string OAuthToken::toJsonPretty() const {
+	return Util::RapidjsonPretty(toJsonDoc());
+}
+
+rapidjson::Document OAuthToken::toJsonDoc() const {
+	rapidjson::Document doc(rapidjson::kObjectType);
 	auto& allocator = doc.GetAllocator();
 	Util::RapidjsonAddConstString(&doc, "access_token", access_token_, allocator);
 	Util::RapidjsonAddInt64(&doc, "expires_in", expires_in_, allocator);
@@ -164,7 +171,7 @@ std::string OAuthToken::toJson() const {
 	if (expiration_) {
 		Util::RapidjsonAddConstString(&doc, "expiration", expiration_.value(), allocator);
 	};
-	return Util::RapidjsonSerialize(doc);
+	return doc;
 }
 
 QDateTime OAuthToken::getDate(const std::optional<std::string>& timestamp) {
@@ -498,7 +505,7 @@ void OAuthManager::showStatus() {
 	};
 
 	if (token_) {
-		const std::string json = token_.value().toJson();
+		const std::string json = token_.value().toJsonPretty();
 		const QDateTime now = QDateTime::currentDateTime();
 		const QDateTime refresh_time = now.addMSecs(refresh_timer_.remainingTime());
 		const QString refresh_timestamp = refresh_time.toString("MMM d 'at' h:m ap");

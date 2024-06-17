@@ -88,6 +88,7 @@ namespace Util {
 	std::string FindTextBetween(const std::string& page, const std::string& left, const std::string& right);
 
 	std::string RapidjsonSerialize(const rapidjson::Value& val);
+	std::string RapidjsonPretty(const rapidjson::Value& val);
 	void RapidjsonAddConstString(rapidjson::Value* object, const char* const name, const std::string& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
 	void RapidjsonAddInt64(rapidjson::Value* object, const char* const name, qint64 value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
 

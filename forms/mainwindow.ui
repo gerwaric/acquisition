@@ -373,7 +373,7 @@
      <x>0</x>
      <y>0</y>
      <width>1280</width>
-     <height>21</height>
+     <height>20</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuShop">
@@ -428,8 +428,16 @@
      <addaction name="actionLoggingDEBUG"/>
      <addaction name="actionLoggingTRACE"/>
     </widget>
+    <widget class="QMenu" name="menuOAuth">
+     <property name="title">
+      <string>OAuth</string>
+     </property>
+     <addaction name="actionShowOAuthToken"/>
+     <addaction name="actionRefreshOAuthToken"/>
+    </widget>
     <addaction name="menuTheme"/>
     <addaction name="menuLogging"/>
+    <addaction name="menuOAuth"/>
    </widget>
    <addaction name="menuTabs"/>
    <addaction name="menuShop"/>
@@ -607,6 +615,16 @@
    </property>
    <property name="text">
     <string>TRACE</string>
+   </property>
+  </action>
+  <action name="actionShowOAuthToken">
+   <property name="text">
+    <string>Show Token</string>
+   </property>
+  </action>
+  <action name="actionRefreshOAuthToken">
+   <property name="text">
+    <string>Refresh Token</string>
    </property>
   </action>
  </widget>

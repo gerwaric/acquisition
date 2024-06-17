@@ -61,6 +61,7 @@
 #include "logpanel.h"
 #include "modsfilter.h"
 #include "network_info.h"
+#include "oauth.h"
 #include "ratelimit.h"
 #include "ratelimitdialog.h"
 #include "ratelimiter.h"
@@ -306,6 +307,10 @@ void MainWindow::InitializeUi() {
 	connect(ui->actionLoggingINFO, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::InfoLevel); });
 	connect(ui->actionLoggingDEBUG, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::DebugLevel); });
 	connect(ui->actionLoggingTRACE, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::TraceLevel); });
+
+	// Connect the OAuth submenu
+    connect(ui->actionShowOAuthToken, &QAction::triggered, &app_.oauth_manager(), &OAuthManager::showStatus);
+    connect(ui->actionRefreshOAuthToken, &QAction::triggered, &app_.oauth_manager(), &OAuthManager::requestRefresh);
 
 	// Connect the Tooltip tab buttons
 	connect(ui->uploadTooltipButton, &QPushButton::clicked, this, &MainWindow::OnUploadToImgur);
