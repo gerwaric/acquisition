@@ -229,6 +229,7 @@ bool ItemLocation::operator<(const ItemLocation& rhs) const {
         switch (type_) {
         case ItemLocationType::STASH: return tab_id_ < rhs.tab_id_;
         case ItemLocationType::CHARACTER: return character_ < rhs.character_;
+        default: return false; // This should never happen?
         };
     } else {
         // STASH locations will always be less than CHARACTER locations.

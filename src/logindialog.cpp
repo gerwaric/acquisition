@@ -67,19 +67,19 @@ const char* OAUTH_TAB = "oauthTab";
 const char* SESSIONID_TAB = "sessionIdTab";
 
 /**
- * 
+ *
  * Possible login flows:
- * 
+ *
  * Oauth:
  *   1. OnLoginButtonClicked()
  *   2. LoginWithOAuth()
- * 
+ *
  * Session ID:
  *   1. OnLoginButtonClicked()
  *   2. LoginWithSessionID()
  *	 3. OnStartLegacyLogin()
  *   4. OnFinishLegacyLogin()
- * 
+ *
  */
 
 LoginDialog::LoginDialog(
@@ -322,8 +322,6 @@ void LoginDialog::LoginWithSessionID(const QString& session_id) {
 void LoginDialog::OnStartLegacyLogin() {
 
 	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
-	const QByteArray bytes = reply->readAll();
-	const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
 	const auto cookies = reply->manager()->cookieJar()->cookiesForUrl(QUrl(POE_MAIN_PAGE));
 	reply->deleteLater();
 
