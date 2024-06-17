@@ -22,10 +22,12 @@
 #include <QNetworkReply>
 #include <QObject>
 #include <QUrlQuery>
+
 #include <string>
 #include <vector>
+
+#include "buyout.h"
 #include "item.h"
-#include "buyoutmanager.h"
 #include "mainwindow.h"
 
 class QNetworkAccessManager;

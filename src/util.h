@@ -87,8 +87,6 @@ namespace Util {
 	std::string GetCsrfToken(const QByteArray& page, const std::string& name);
 	std::string FindTextBetween(const std::string& page, const std::string& left, const std::string& right);
 
-	std::string BuyoutAsText(const Buyout& bo);
-
 	std::string RapidjsonSerialize(const rapidjson::Value& val);
 	void RapidjsonAddConstString(rapidjson::Value* object, const char* const name, const std::string& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
 	void RapidjsonAddInt64(rapidjson::Value* object, const char* const name, qint64 value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);

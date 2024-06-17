@@ -72,6 +72,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     # Source
     src/application.cpp
     src/bucket.cpp
+    src/buyout.cpp
     src/buyoutmanager.cpp
     src/column.cpp
     src/currency.cpp
@@ -118,6 +119,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     # Headers
     src/application.h
     src/bucket.h
+    src/buyout.h
     src/buyoutmanager.h
     src/column.h
     src/currency.h
