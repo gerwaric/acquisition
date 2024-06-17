@@ -30,15 +30,11 @@
 #include "QsLogDest.h"
 
 #include <clocale>
-#include <limits>
-#include <memory>
-#include <string_view>
 
 #include "application.h"
 #include "filesystem.h"
 #include "itemsmanager.h"
 #include "mainwindow.h"
-#include "ratelimit.h"
 #include "shop.h"
 #include "updatechecker.h"
 #include "util.h"
@@ -66,6 +62,10 @@ int main(int argc, char* argv[])
 
 	QLocale::setDefault(QLocale::C);
 	std::setlocale(LC_ALL, "C");
+
+	// Holds the date and time of the current build based on __DATE__ and __TIME__ macros.
+	const QString BUILD_TIMESTAMP = QStringLiteral(__DATE__ " " __TIME__).simplified();
+	const QDateTime BUILD_DATE = QLocale("en_US").toDateTime(BUILD_TIMESTAMP, "MMM d yyyy hh:mm:ss");
 
 	QApplication a(argc, argv);
 	Filesystem::Init();
@@ -171,7 +171,7 @@ int main(int argc, char* argv[])
 	// Connect to the update signal in case an update is detected before the main window is open.
 	QObject::connect(&app.update_checker(), &UpdateChecker::UpdateAvailable, &app.update_checker(), &UpdateChecker::AskUserToUpdate);
 
-	QObject::connect(&login, &LoginDialog::LoginComplete,
+	QObject::connect(&login, &LoginDialog::LoginComplete, &login,
 		[&](const QString& league, const QString& account, PoeApiMode mode) {
 
 			// Disconnect from the update signal so that only the main window gets it from now on.
