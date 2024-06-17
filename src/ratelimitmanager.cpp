@@ -221,9 +221,9 @@ void RateLimitManager::ActivateRequest() {
 	QDateTime send = next_send_;
 
 	if (policy_->status() >= RateLimit::PolicyStatus::BORDERLINE) {
-		send.addMSecs(BORDERLINE_BUFFER_MSEC);
+		send = send.addMSecs(BORDERLINE_BUFFER_MSEC);
 	} else {
-		send.addMSecs(NORMAL_BUFFER_MSEC);
+		send = send.addMSecs(NORMAL_BUFFER_MSEC);
 	};
 
 	if (last_send_.isValid()) {
