@@ -33,12 +33,13 @@ class QNetworkAccessManager;
 class QNetworkReply;
 class QNetworkRequest;
 
-class Application;
+class DataStore;
 
 class OAuthToken {
 public:
 	OAuthToken();
-	OAuthToken(const std::string& json, const QDateTime& timestamp = QDateTime());
+	OAuthToken(const std::string& json);
+	OAuthToken(const std::string& json, const QDateTime& timestamp);
 	std::string access_token() const { return access_token_; };
 	int expires_in() const { return expires_in_; };
 	std::string scope() const { return scope_; };
@@ -66,9 +67,9 @@ private:
 class OAuthManager : public QObject {
 	Q_OBJECT
 public:
-	OAuthManager(QObject* parent, QNetworkAccessManager& network_manager);
+	OAuthManager(QObject* parent, QNetworkAccessManager& network_manager, DataStore& datastore);
 	void setAuthorization(QNetworkRequest& request);
-	void setToken(const OAuthToken& token);
+	void RememberToken(bool remember);
 	const std::optional<OAuthToken> token() const { return token_; };
 public slots:
 	void requestAccess();
@@ -87,6 +88,7 @@ private:
 	static QString authorizationError(const QString& message);
 
 	QNetworkAccessManager& network_manager_;
+	DataStore& datastore_;
 
 	// I can't find a way to shutdown a QHttpServer once it's started
 	// listening, so use a unique pointer so that we can destory the
@@ -94,6 +96,7 @@ private:
 	// running in the background.
 	std::unique_ptr<QHttpServer> http_server_;
 
+	bool remember_token_;
 	std::optional<OAuthToken> token_;
 	std::string code_verifier_;
 	std::string redirect_uri_;

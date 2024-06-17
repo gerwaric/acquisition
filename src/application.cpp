@@ -55,11 +55,11 @@ Application::Application(bool mock_data) :
 	const QString global_data_file = user_dir + "/data/" + SqliteDataStore::MakeFilename("", "");
 
 	settings_ = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
+	global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
 	network_manager_ = std::make_unique<QNetworkAccessManager>(this);
 	update_checker_ = std::make_unique<UpdateChecker>(this, *settings_, *network_manager_);
-	oauth_manager_ = std::make_unique<OAuthManager>(this, *network_manager_);
+	oauth_manager_ = std::make_unique<OAuthManager>(this, *network_manager_, *global_data_);
 	rate_limiter_ = std::make_unique<RateLimiter>(this, *network_manager_, *oauth_manager_);
-	global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
 
 	LoadTheme();
 }

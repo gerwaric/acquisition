@@ -37,9 +37,16 @@
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_4">
        <item>
-        <widget class="QLabel" name="label_4">
+        <widget class="QLabel" name="authenticateLabel">
          <property name="text">
-          <string>Click &quot;Login&quot; button below to initiate login process.</string>
+          <string>You must be authenticated to login.</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+		<widget class="QPushButton" name="authenticateButton">			
+         <property name="text">
+          <string>Authenticate</string>
          </property>
         </widget>
        </item>
@@ -83,15 +90,8 @@
      <property name="topMargin">
       <number>0</number>
      </property>
-     <item row="3" column="0">
-      <widget class="QLabel" name="errorLabel">
-       <property name="text">
-        <string>TextLabel</string>
-       </property>
-      </widget>
-     </item>
      <item row="0" column="0">
-      <widget class="QLabel" name="label_3">
+      <widget class="QLabel" name="leagueLabel">
        <property name="minimumSize">
         <size>
          <width>65</width>
@@ -114,7 +114,7 @@
       </widget>
      </item>
      <item row="1" column="0">
-      <widget class="QCheckBox" name="rembmeCheckBox">
+      <widget class="QCheckBox" name="rememberMeCheckBox">
        <property name="text">
         <string>Remember me</string>
        </property>
@@ -127,7 +127,14 @@
        </property>
       </widget>
      </item>
-    </layout>
+     <item row="3" column="0">
+      <widget class="QLabel" name="errorLabel">
+       <property name="text">
+        <string>TextLabel</string>
+       </property>
+      </widget>
+     </item>
+	</layout>
    </item>
    <item>
     <widget class="QPushButton" name="loginButton">
@@ -136,9 +143,25 @@
      </property>
     </widget>
    </item>
+   <item>
+    <widget class="QLabel" name="disclaimerLabel">
+     <property name="font">
+      <font>
+       <italic>true</italic>
+      </font>
+     </property>
+     <property name="text">
+      <string>Acquisition isn't affiliated with or endorsed by Grinding Gear Games in any way.</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
   </layout>
-  <zorder>loginButton</zorder>
   <zorder>loginTabs</zorder>
+  <zorder>loginButton</zorder>
+  <zorder>disclaimerLabel</zorder>
  </widget>
  <resources/>
  <connections/>

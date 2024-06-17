@@ -44,11 +44,13 @@ signals:
 	void LoginComplete(const QString& league, const QString& account, PoeApiMode mode);
 public slots:
 	void OnLeaguesRequestFinished();
+	void OnAuthenticateButtonClicked();
 	void OnLoginButtonClicked();
 	void OnLoggedIn();
 	void LoggedInCheck(); // checks login is successful
 	void OnMainPageFinished();
 	void OnProxyCheckBoxClicked(bool);
+	void OnRememberMeCheckBoxClicked(bool);
 	void OnOAuthAccessGranted(const OAuthToken& token);
 	void errorOccurred();
 	void sslErrorOccurred();

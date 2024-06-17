@@ -39,6 +39,7 @@
 #include "rapidjson/writer.h"
 
 #include "application.h"
+#include "datastore.h"
 #include "network_info.h"
 #include "util.h"
 
@@ -86,7 +87,7 @@ OAuthToken::OAuthToken() :
 	expires_in_(-1)
 {}
 
-OAuthToken::OAuthToken(const std::string& json, const QDateTime& timestamp) :
+OAuthToken::OAuthToken(const std::string& json) :
 	expires_in_(-1)
 {
 	rapidjson::Document doc;
@@ -126,12 +127,17 @@ OAuthToken::OAuthToken(const std::string& json, const QDateTime& timestamp) :
 	if (doc.HasMember("expiration") && doc["expiration"].IsString()) {
 		expiration_ = doc["expiration"].GetString();
 	};
+}
+
+OAuthToken::OAuthToken(const std::string& json, const QDateTime& timestamp) :
+	OAuthToken(json)
+{
 	if (timestamp.isValid()) {
 		if (birthday_) {
-			QLOG_WARN() << "OAuthToken already has a birthday";
+			QLOG_ERROR() << "OAuthToken already has a birthday";
 		};
 		if (expiration_) {
-			QLOG_WARN() << "OAuthToken already has an expiration";
+			QLOG_ERROR() << "OAuthToken already has an expiration";
 		};
 		const QDateTime token_expiration = timestamp.addSecs(expires_in_);
 		birthday_ = timestamp.toString(Qt::RFC2822Date).toStdString();
@@ -167,14 +173,25 @@ QDateTime OAuthToken::getDate(const std::optional<std::string>& timestamp) {
 
 //---------------------------------------------------------------------
 
-OAuthManager::OAuthManager(QObject* parent, QNetworkAccessManager& network_manager) :
+OAuthManager::OAuthManager(QObject* parent, QNetworkAccessManager& network_manager, DataStore& datastore) :
 	QObject(parent),
 	network_manager_(network_manager),
-	refresh_timer_(this)
+	datastore_(datastore),
+	refresh_timer_(this),
+	remember_token_(false)
 {
 	// Configure the refresh timer.
 	refresh_timer_.setSingleShot(true);
 	connect(&refresh_timer_, &QTimer::timeout, this, &OAuthManager::requestRefresh);
+
+	// Look for an existing token.
+	const std::string token_str = datastore_.Get("oauth_token", "");
+	if (token_str != "") {
+		token_ = OAuthToken(token_str);
+		setRefreshTimer();
+		emit accessGranted(*token_);
+	};
+
 }
 
 void OAuthManager::setAuthorization(QNetworkRequest& request) {
@@ -184,15 +201,12 @@ void OAuthManager::setAuthorization(QNetworkRequest& request) {
 	};
 }
 
-void OAuthManager::setToken(const OAuthToken& token) {
-	if (!token.expiration()) {
-		QLOG_ERROR() << "Cannot set an OAuth token without an expiration.";
-	} else if (token.getExpiration() < QDateTime::currentDateTime()) {
-		QLOG_ERROR() << "Cannot set an OAuth token that has already expired.";
+void OAuthManager::RememberToken(bool remember) {
+	remember_token_ = remember;
+	if (remember_token_ && token_) {
+		datastore_.Set("oauth_token", token_.value().toJson());
 	} else {
-		token_ = token;
-		emit accessGranted(*token_);
-		setRefreshTimer();
+		datastore_.Set("oauth_token", "");
 	};
 }
 
@@ -400,6 +414,12 @@ void OAuthManager::receiveToken(QNetworkReply* reply)
 	// Parse the token and emit it.
 	token_ = OAuthToken(bytes.toStdString(), token_birthday);
 	QLOG_TRACE() << "OAuth access token received.";
+
+	if (remember_token_) {
+		datastore_.Set("oauth_token", token_.value().toJson());
+	} else {
+		datastore_.Set("oauth_token", "");
+	};
 
 	emit accessGranted(*token_);
 

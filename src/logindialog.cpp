@@ -87,6 +87,7 @@ LoginDialog::LoginDialog(Application& app) :
 	ui->setupUi(this);
 	ui->errorLabel->hide();
 	ui->errorLabel->setStyleSheet("QLabel { color : red; }");
+
 	setWindowTitle(QString("Login [") + APP_VERSION_STRING + "]");
 	setWindowIcon(QIcon(":/icons/assets/icon.svg"));
 	setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
@@ -95,6 +96,10 @@ LoginDialog::LoginDialog(Application& app) :
 
 	connect(ui->proxyCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnProxyCheckBoxClicked);
 	connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
+	connect(ui->rememberMeCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnRememberMeCheckBoxClicked);
+	connect(ui->authenticateButton, &QPushButton::clicked, this, &LoginDialog::OnAuthenticateButtonClicked);
+
+	connect(&app_.oauth_manager(), &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
 
 	QNetworkRequest leagues_request = QNetworkRequest(QUrl(QString(POE_LEAGUE_LIST_URL)));
 	leagues_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
@@ -104,6 +109,10 @@ LoginDialog::LoginDialog(Application& app) :
 	connect(leagues_reply, &QNetworkReply::errorOccurred, this, &LoginDialog::errorOccurred);
 	connect(leagues_reply, &QNetworkReply::sslErrors, this, &LoginDialog::sslErrorOccurred);
 	connect(leagues_reply, &QNetworkReply::finished, this, &LoginDialog::OnLeaguesRequestFinished);
+
+	if (app.oauth_manager().token()) {
+		OnOAuthAccessGranted(app_.oauth_manager().token().value());
+	};
 }
 
 LoginDialog::~LoginDialog() {
@@ -117,6 +126,13 @@ void LoginDialog::errorOccurred() {
 
 void LoginDialog::sslErrorOccurred() {
 	QLOG_ERROR() << "League List sslErrorOccured";
+}
+
+void LoginDialog::OnAuthenticateButtonClicked() {
+	ui->authenticateButton->setEnabled(false);
+	ui->authenticateButton->setText("Authenticating...");
+	ui->errorLabel->hide();
+	app_.oauth_manager().requestAccess();
 }
 
 void LoginDialog::OnLoginButtonClicked() {
@@ -222,14 +238,20 @@ void LoginDialog::LoggedInCheck() {
 }
 
 void LoginDialog::LoginWithOAuth() {
-	connect(&app_.oauth_manager(), &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
-	app_.oauth_manager().requestAccess();
+	if (app_.oauth_manager().token()) {
+		const OAuthToken token = app_.oauth_manager().token().value();
+		const QString account = QString::fromStdString(token.username());
+		const QString league = ui->leagueComboBox->currentText();
+		emit LoginComplete(league, account, PoeApiMode::OAUTH);
+	} else {
+		DisplayError("You are not authenticated.");
+	};
 }
 
 void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
-	const QString account = QString::fromStdString(token.username());
-	const QString league = ui->leagueComboBox->currentText();
-	emit LoginComplete(league, account, PoeApiMode::OAUTH);
+	ui->authenticateLabel->setText("You are authenticated as \"" + QString::fromStdString(token.username()) + "\"");
+	ui->authenticateButton->setText("Re-authenticate (as someone else).");
+	ui->authenticateButton->setEnabled(true);
 }
 
 void LoginDialog::LoginWithCookie(const QString& cookie) {
@@ -268,14 +290,23 @@ void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
 	QNetworkProxyFactory::setUseSystemConfiguration(checked);
 }
 
-void LoginDialog::LoadSettings() {
-	QSettings& settings = app_.settings();
-	session_id_ = settings.value("session_id", "").toString();
-	ui->sessionIDLineEdit->setText(session_id_);
-	ui->rembmeCheckBox->setChecked(settings.value("remember_me_checked").toBool());
-	ui->proxyCheckBox->setChecked(settings.value("use_system_proxy_checked").toBool());
+void LoginDialog::OnRememberMeCheckBoxClicked(bool checked) {
+	app_.oauth_manager().RememberToken(checked);
+}
 
-	if (ui->rembmeCheckBox->isChecked()) {
+void LoginDialog::LoadSettings() {
+	
+	QSettings& settings = app_.settings();
+	const bool remember_me = settings.value("remember_me_checked").toBool();
+	const bool use_proxy = settings.value("use_system_proxy_checked").toBool();
+	session_id_ = settings.value("session_id", "").toString();
+
+	app_.oauth_manager().RememberToken(remember_me);
+
+	ui->sessionIDLineEdit->setText(session_id_);
+	ui->rememberMeCheckBox->setChecked(remember_me);
+	ui->proxyCheckBox->setChecked(use_proxy);
+	if (remember_me) {
 		for (auto i = 0; i < ui->loginTabs->count(); ++i) {
 			if (ui->loginTabs->widget(i)->objectName() == SESSIONID_TAB) {
 				ui->loginTabs->setCurrentIndex(i);
@@ -285,22 +316,24 @@ void LoginDialog::LoadSettings() {
 	};
 
 	saved_league_ = settings.value("league", "").toString();
-	if (saved_league_.size() > 0)
+	if (saved_league_.size() > 0) {
 		ui->leagueComboBox->setCurrentText(saved_league_);
+	};
 
-	QNetworkProxyFactory::setUseSystemConfiguration(ui->proxyCheckBox->isChecked());
+	QNetworkProxyFactory::setUseSystemConfiguration(use_proxy);
 }
 
 void LoginDialog::SaveSettings() {
 	QSettings& settings = app_.settings();
-	if (ui->rembmeCheckBox->isChecked()) {
+	const bool remember_me = ui->rememberMeCheckBox->isChecked();
+	if (remember_me) {
 		settings.setValue("session_id", session_id_);
 		settings.setValue("league", ui->leagueComboBox->currentText());
 	} else {
 		settings.setValue("session_id", "");
 		settings.setValue("league", "");
 	}
-	settings.setValue("remember_me_checked", ui->rembmeCheckBox->isChecked() && !session_id_.isEmpty());
+	settings.setValue("remember_me_checked", remember_me);
 	settings.setValue("use_system_proxy_checked", ui->proxyCheckBox->isChecked());
 }
 
