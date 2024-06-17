@@ -57,7 +57,6 @@ protected:
 private:
 	void SaveSettings();
 	void LoadSettings();
-	void LoadTheme();
 	void DisplayError(const QString& error, bool disable_login = false);
 	void LoginWithOAuth();
 	void LoginWithCookie(const QString& cookie);

@@ -92,7 +92,6 @@ LoginDialog::LoginDialog(Application& app) :
 	setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
 	LoadSettings();
-	LoadTheme();
 
 	connect(ui->proxyCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnProxyCheckBoxClicked);
 	connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
@@ -110,41 +109,6 @@ LoginDialog::LoginDialog(Application& app) :
 LoginDialog::~LoginDialog() {
 	SaveSettings();
 	delete ui;
-}
-
-void LoginDialog::LoadTheme() {
-	// Load the appropriate theme.
-	const std::string theme = app_.global_data().Get("theme", "default");
-
-	// Do nothing for the default theme.
-	if (theme == "default") {
-		return;
-	};
-
-	// Determine which qss file to use.
-	QString stylesheet;
-	if (theme == "dark") {
-		stylesheet = ":qdarkstyle/dark/darkstyle.qss";
-	} else if (theme == "light") {
-		stylesheet = ":qdarkstyle/light/lightstyle.qss";
-	} else {
-		QLOG_ERROR() << "Invalid theme:" << theme;
-		return;
-	};
-
-	// Load the theme.
-	QFile f(stylesheet);
-	if (!f.exists()) {
-		QLOG_ERROR() << "Theme stylesheet not found:" << stylesheet;
-	} else {
-		f.open(QFile::ReadOnly | QFile::Text);
-		QTextStream ts(&f);
-		qApp->setStyleSheet(ts.readAll());
-
-		QPalette pal = QApplication::palette();
-		pal.setColor(QPalette::WindowText, Qt::white);
-		QApplication::setPalette(pal);
-	};
 }
 
 void LoginDialog::errorOccurred() {
