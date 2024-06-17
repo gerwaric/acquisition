@@ -6,21 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>484</width>
-    <height>235</height>
+    <width>392</width>
+    <height>248</height>
    </rect>
   </property>
-  <property name="minimumSize">
-   <size>
-    <width>484</width>
-    <height>235</height>
-   </size>
-  </property>
-  <property name="maximumSize">
-   <size>
-    <width>484</width>
-    <height>235</height>
-   </size>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
   </property>
   <property name="windowTitle">
    <string>Log in</string>
@@ -28,23 +22,35 @@
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <widget class="QTabWidget" name="loginTabs">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="currentIndex">
-      <number>0</number>
+      <number>1</number>
      </property>
      <widget class="QWidget" name="oauthTab">
       <attribute name="title">
        <string>OAuth</string>
       </attribute>
-      <layout class="QVBoxLayout" name="verticalLayout_4">
+      <layout class="QVBoxLayout" name="oauthTabLayout">
        <item>
         <widget class="QLabel" name="authenticateLabel">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
          <property name="text">
           <string>You must be authenticated to login.</string>
          </property>
         </widget>
        </item>
        <item>
-		<widget class="QPushButton" name="authenticateButton">			
+        <widget class="QPushButton" name="authenticateButton">
          <property name="text">
           <string>Authenticate</string>
          </property>
@@ -53,14 +59,26 @@
       </layout>
      </widget>
      <widget class="QWidget" name="sessionIdTab">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
       <attribute name="title">
        <string>Session ID</string>
       </attribute>
-      <layout class="QVBoxLayout" name="verticalLayout_3">
+      <layout class="QVBoxLayout" name="sessionIdTabLayout">
        <item>
-        <layout class="QFormLayout" name="formLayout_3">
+        <layout class="QFormLayout" name="sessionIdFormLayout">
          <item row="0" column="0">
           <widget class="QLabel" name="sessIDLabel">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
            <property name="minimumSize">
             <size>
              <width>65</width>
@@ -86,7 +104,7 @@
     </widget>
    </item>
    <item>
-    <layout class="QFormLayout" name="formLayout_2">
+    <layout class="QFormLayout" name="optionsLayout">
      <property name="topMargin">
       <number>0</number>
      </property>
@@ -134,10 +152,16 @@
        </property>
       </widget>
      </item>
-	</layout>
+    </layout>
    </item>
    <item>
     <widget class="QPushButton" name="loginButton">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="text">
       <string>Login</string>
      </property>
@@ -145,6 +169,12 @@
    </item>
    <item>
     <widget class="QLabel" name="disclaimerLabel">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="font">
       <font>
        <italic>true</italic>
@@ -159,9 +189,6 @@
     </widget>
    </item>
   </layout>
-  <zorder>loginTabs</zorder>
-  <zorder>loginButton</zorder>
-  <zorder>disclaimerLabel</zorder>
  </widget>
  <resources/>
  <connections/>
