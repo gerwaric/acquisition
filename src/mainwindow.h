@@ -27,7 +27,7 @@
 #include <QCloseEvent>
 #include <QTimer>
 
-#include "QsLog.h"
+#include "QsLogLevel.h"
 
 #include "bucket.h"
 

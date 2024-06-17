@@ -24,7 +24,6 @@
 
 #include "QsLog.h"
 
-#include "network_info.h"
 #include "util.h"
 
 using namespace RateLimit;
@@ -188,7 +187,7 @@ PolicyRule::PolicyRule(const QByteArray& rule_name, QNetworkReply* const reply) 
 
 		// Create a new rule item from the next pair of fragments.
 		const auto& item = items_.emplace_back(limit_fragments[j], state_fragments[j]);
-		
+
 		// Keep track of the max hits, max rate, and overall status.
 		if (maximum_hits_ < item.limit().hits()) {
 			maximum_hits_ = item.limit().hits();

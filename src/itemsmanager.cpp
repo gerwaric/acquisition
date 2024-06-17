@@ -22,7 +22,6 @@
 #include <QMessageBox>
 #include <QNetworkCookie>
 #include <QThread>
-#include <stdexcept>
 
 #include "QsLog.h"
 
@@ -36,7 +35,6 @@
 #include "mainwindow.h"
 #include "modlist.h"
 #include "filters.h"
-#include "ratelimit.h"
 
 ItemsManager::ItemsManager(QObject* parent,
 	QNetworkAccessManager& network_manager,

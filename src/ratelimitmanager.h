@@ -25,7 +25,6 @@
 #include <QTimer>
 
 #include <deque>
-#include <list>
 
 #include "ratelimit.h"
 

@@ -19,7 +19,6 @@
 
 #include "search.h"
 
-#include <iostream>
 #include <memory>
 #include <QHeaderView>
 #include <QTreeView>

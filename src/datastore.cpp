@@ -2,8 +2,6 @@
 
 #include "QsLog.h"
 #include "rapidjson/error/en.h"
-#include "rapidjson/rapidjson.h"
-#include "rapidjson_util.h"
 #include "util.h"
 
 void DataStore::SetBool(const std::string& key, bool value) {

@@ -19,9 +19,6 @@
 
 #include "buyoutmanager.h"
 
-#include <cassert>
-#include <sstream>
-#include <stdexcept>
 #include <regex>
 #include "QsLog.h"
 #include "rapidjson/document.h"

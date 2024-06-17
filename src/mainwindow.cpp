@@ -41,8 +41,6 @@
 #include <QStringListModel>
 #include "QsLog.h"
 
-#include <fstream>
-#include <iostream>
 #include <vector>
 
 #include "application.h"
@@ -1035,7 +1033,7 @@ void MainWindow::closeEvent(QCloseEvent* event) {
 	msgbox.setText(tr("Are you sure you want to quit?"));
 	msgbox.setStandardButtons(QMessageBox::No | QMessageBox::Yes);
 	msgbox.setDefaultButton(QMessageBox::Yes);
-	
+
 	const auto button = msgbox.exec();
 	if (button == QMessageBox::Yes) {
 		event->accept();

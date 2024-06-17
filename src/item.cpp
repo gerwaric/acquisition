@@ -25,8 +25,6 @@
 #include <boost/algorithm/string.hpp>
 #include "rapidjson/document.h"
 
-#include "QsLog.h"
-
 #include "modlist.h"
 #include "util.h"
 #include "itemlocation.h"

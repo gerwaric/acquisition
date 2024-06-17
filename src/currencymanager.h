@@ -25,8 +25,6 @@
 #include <QObject>
 #include <QWidget>
 
-#include <limits>
-
 #include "buyoutmanager.h"
 
 class QDoubleSpinBox;
