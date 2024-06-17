@@ -34,7 +34,18 @@ ItemLocation::ItemLocation(const rapidjson::Value& root) :
 	FixUid();
 }
 
-ItemLocation::ItemLocation(int tab_id, std::string tab_unique_id, std::string name, ItemLocationType type, int r, int g, int b) :
+ItemLocation::ItemLocation(int tab_id, std::string tab_unique_id, std::string name) :
+	ItemLocation()
+{
+	tab_label_ = name;
+	tab_id_ = tab_id;
+	tab_unique_id_ = tab_unique_id;
+}
+
+ItemLocation::ItemLocation(int tab_id, std::string tab_unique_id, std::string name,
+	ItemLocationType type, int r, int g, int b,
+	rapidjson::Value& value, rapidjson_allocator& alloc)
+	:
 	x_(0), y_(0), w_(0), h_(0), red_(r), green_(g), blue_(b),
 	socketed_(false)
 {
@@ -53,7 +64,28 @@ ItemLocation::ItemLocation(int tab_id, std::string tab_unique_id, std::string na
 		removeonly_ = false;
 		break;
 	};
+
 	FixUid();
+
+	if (type_ == ItemLocationType::STASH) {
+		if (!value.HasMember("i")) {
+			value.AddMember("i", tab_id_, alloc);
+		};
+		if (!value.HasMember("n")) {
+			rapidjson::Value name_value;
+			name_value.SetString(tab_label_.c_str(), alloc);
+			value.AddMember("n", name_value, alloc);
+		};
+		if (!value.HasMember("colour")) {
+			rapidjson::Value color_value;
+			color_value.SetObject();
+			color_value.AddMember("r", red_, alloc);
+			color_value.AddMember("g", green_, alloc);
+			color_value.AddMember("b", blue_, alloc);
+			value.AddMember("colour", color_value, alloc);
+		};
+	};
+	json_ = Util::RapidjsonSerialize(value);
 }
 
 void ItemLocation::FixUid() {
@@ -64,12 +96,6 @@ void ItemLocation::FixUid() {
 			tab_unique_id_ = tab_unique_id_.substr(0, 10);
 		};
 	};
-}
-
-void ItemLocation::SetBackgroundColor(int r, int g, int b) {
-	red_ = r;
-	green_ = g;
-	blue_ = b;
 }
 
 void ItemLocation::FromItemJson(const rapidjson::Value& root) {
@@ -198,19 +224,11 @@ std::string ItemLocation::GetUniqueHash() const {
 	};
 }
 
-void ItemLocation::set_json(rapidjson::Value& value, rapidjson_allocator& alloc) {
-	if (type_ == ItemLocationType::CHARACTER) {
-		value.AddMember("i", tab_id_, alloc);
-	};
-	json_ = Util::RapidjsonSerialize(value);
-}
-
 bool ItemLocation::operator<(const ItemLocation& rhs) const {
     if (type_ == rhs.type_) {
         switch (type_) {
-        case ItemLocationType::STASH: return std::tie(type_, tab_id_) < std::tie(rhs.type_, rhs.tab_id_);
-        case ItemLocationType::CHARACTER: return std::tie(type_, character_) < std::tie(rhs.type_, rhs.character_);
-        default: return true;
+        case ItemLocationType::STASH: return tab_id_ < rhs.tab_id_;
+        case ItemLocationType::CHARACTER: return character_ < rhs.character_;
         };
     } else {
         // STASH locations will always be less than CHARACTER locations.
@@ -219,5 +237,5 @@ bool ItemLocation::operator<(const ItemLocation& rhs) const {
 }
 
 bool ItemLocation::operator==(const ItemLocation& other) const {
-	return get_tab_uniq_id() == other.get_tab_uniq_id();
+	return tab_unique_id_ == other.tab_unique_id_;
 }
