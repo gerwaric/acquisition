@@ -61,7 +61,7 @@
 #include "logpanel.h"
 #include "modsfilter.h"
 #include "network_info.h"
-#include "oauth.h"
+#include "oauthmanager.h"
 #include "ratelimit.h"
 #include "ratelimitdialog.h"
 #include "ratelimiter.h"

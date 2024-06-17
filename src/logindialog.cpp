@@ -44,7 +44,7 @@
 #include "replytimeout.h"
 #include "util.h"
 #include "updatechecker.h"
-#include "oauth.h"
+#include "oauthmanager.h"
 #include "version_defines.h"
 
 const char* POE_LEAGUE_LIST_URL = "https://api.pathofexile.com/leagues?type=main&compact=1";

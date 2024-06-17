@@ -35,7 +35,7 @@
 #include "QsLog.h"
 #include "ratelimiter.h"
 #include "updatechecker.h"
-#include "oauth.h"
+#include "oauthmanager.h"
 #include "version_defines.h"
 
 Application::Application(bool mock_data) :

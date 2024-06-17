@@ -29,7 +29,7 @@
 #include "ratelimit.h"
 #include "ratelimitmanager.h"
 #include "network_info.h"
-#include "oauth.h"
+#include "oauthmanager.h"
 
 constexpr int UPDATE_INTERVAL_MSEC = 1000;
 

@@ -19,21 +19,12 @@
 
 #pragma once
 
-#include <QObject>
-#include <QtHttpServer/QHttpServer>
-#include <QTimer>
+#include <QDateTime>
 
-#include <optional>
 #include <string>
+#include <optional>
 
 #include "rapidjson/document.h"
-
-class QHttpServerRequest;
-class QNetworkAccessManager;
-class QNetworkReply;
-class QNetworkRequest;
-
-class DataStore;
 
 class OAuthToken {
 public:
@@ -64,47 +55,4 @@ private:
 	std::string refresh_token_;
 	std::optional<std::string> birthday_;
 	std::optional<std::string> expiration_;
-};
-
-class OAuthManager : public QObject {
-	Q_OBJECT
-public:
-	OAuthManager(QObject* parent, QNetworkAccessManager& network_manager, DataStore& datastore);
-	void setAuthorization(QNetworkRequest& request);
-	void RememberToken(bool remember);
-	const std::optional<OAuthToken> token() const { return token_; };
-public slots:
-	void requestAccess();
-	void requestRefresh();
-	void showStatus();
-signals:
-	void accessGranted(const OAuthToken& token);
-private:
-	void createHttpServer();
-	void requestAuthorization(const std::string& state, const std::string& code_challenge);
-	QString receiveAuthorization(const QHttpServerRequest& request, const std::string& state);
-	void requestToken(const std::string& code);
-	void receiveToken(QNetworkReply* reply);
-	void setRefreshTimer();
-
-	static QString authorizationError(const QString& message);
-
-	QNetworkAccessManager& network_manager_;
-	DataStore& datastore_;
-
-	// I can't find a way to shutdown a QHttpServer once it's started
-	// listening, so use a unique pointer so that we can destory the
-	// server once authentication is complete, so it won't stay
-	// running in the background.
-	std::unique_ptr<QHttpServer> http_server_;
-
-	bool remember_token_;
-	std::optional<OAuthToken> token_;
-	std::string code_verifier_;
-	std::string redirect_uri_;
-
-	QTimer refresh_timer_;
-
-	static const QString SUCCESS_HTML;
-	static const QString ERROR_HTML;
 };

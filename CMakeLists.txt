@@ -98,7 +98,8 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/memorydatastore.cpp
     src/modlist.cpp
     src/modsfilter.cpp
-    src/oauth.cpp
+    src/oauthmanager.cpp
+    src/oauthtoken.cpp
     src/ratelimit.cpp
     src/ratelimitdialog.cpp
     src/ratelimiter.cpp
@@ -145,7 +146,8 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/modlist.h
     src/modsfilter.h
     src/network_info.h
-    src/oauth.h
+    src/oauthmanager.h
+    src/oauthtoken.h
     src/rapidjson_util.h
     src/ratelimit.h
     src/ratelimitdialog.h

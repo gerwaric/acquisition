@@ -44,7 +44,7 @@
 #include "modlist.h"
 #include "ratelimit.h"
 #include "ratelimiter.h"
-#include "oauth.h"
+#include "oauthmanager.h"
 
 using namespace std::string_view_literals;
 
