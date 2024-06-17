@@ -33,7 +33,6 @@
 #include "QsLog.h"
 
 #include "item.h"
-#include "porting.h"
 #include "util.h"
 
 QStringListModel mod_list_model_;

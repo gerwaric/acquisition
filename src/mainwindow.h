@@ -30,7 +30,6 @@
 #include "QsLog.h"
 
 #include "bucket.h"
-#include "porting.h"
 
 class QNetworkReply;
 class QVBoxLayout;

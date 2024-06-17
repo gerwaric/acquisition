@@ -29,7 +29,6 @@
 
 #include "modlist.h"
 #include "util.h"
-#include "porting.h"
 #include "itemlocation.h"
 #include "itemcategories.h"
 

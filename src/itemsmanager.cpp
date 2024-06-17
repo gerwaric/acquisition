@@ -31,7 +31,6 @@
 #include "datastore.h"
 #include "item.h"
 #include "itemsmanagerworker.h"
-#include "porting.h"
 #include "shop.h"
 #include "util.h"
 #include "mainwindow.h"

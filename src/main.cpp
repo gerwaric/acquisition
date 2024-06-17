@@ -38,7 +38,6 @@
 #include "filesystem.h"
 #include "itemsmanager.h"
 #include "mainwindow.h"
-#include "porting.h"
 #include "ratelimit.h"
 #include "shop.h"
 #include "updatechecker.h"

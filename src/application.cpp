@@ -31,7 +31,6 @@
 #include "filesystem.h"
 #include "itemsmanager.h"
 #include "currencymanager.h"
-#include "porting.h"
 #include "shop.h"
 #include "QsLog.h"
 #include "ratelimiter.h"

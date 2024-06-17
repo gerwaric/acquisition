@@ -35,7 +35,6 @@
 #include "datastore.h"
 #include "itemsmanager.h"
 #include "network_info.h"
-#include "porting.h"
 #include "util.h"
 #include "mainwindow.h"
 #include "replytimeout.h"

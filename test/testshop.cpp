@@ -6,7 +6,6 @@
 #include "application.h"
 #include "buyoutmanager.h"
 #include "itemsmanager.h"
-#include "porting.h"
 #include "shop.h"
 #include "testdata.h"
 

@@ -23,7 +23,6 @@
 #include <memory>
 
 #include "item.h"
-#include "porting.h"
 
 class QLineEdit;
 class QCheckBox;
