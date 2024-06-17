@@ -85,12 +85,17 @@ LoginDialog::LoginDialog(Application& app) :
 	ui(new Ui::LoginDialog)
 {
 	ui->setupUi(this);
-	ui->errorLabel->hide();
-	ui->errorLabel->setStyleSheet("QLabel { color : red; }");
 
-	setWindowTitle(QString("Login [") + APP_VERSION_STRING + "]");
+	setWindowTitle(QString("Acquisition Login [") + APP_VERSION_STRING + "]");
 	setWindowIcon(QIcon(":/icons/assets/icon.svg"));
 	setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
+
+	// Select the OAuth tab by default
+	ui->loginTabs->setCurrentIndex(0);
+
+	// Hide the error message label by default.
+	ui->errorLabel->hide();
+	ui->errorLabel->setStyleSheet("QLabel { color : red; }");
 
 	LoadSettings();
 
@@ -160,29 +165,35 @@ void LoginDialog::OnLeaguesRequestFinished() {
 	QByteArray bytes = reply->readAll();
 	reply->deleteLater();
 
-	if (reply->error())
+	if (reply->error()) {
 		return LeaguesApiError(reply->errorString(), bytes);
+	};
 
 	rapidjson::Document doc;
 	doc.Parse(bytes.constData());
 
-	if (doc.HasParseError() || !doc.IsArray())
+	if (doc.HasParseError() || !doc.IsArray()) {
 		return LeaguesApiError("Failed to parse the document", bytes);
+	};
 
 	ui->leagueComboBox->clear();
 	for (auto& league : doc) {
-		if (!league.IsObject())
+		if (!league.IsObject()) {
 			return LeaguesApiError("Object expected", bytes);
-		if (!league.HasMember("id"))
+		};
+		if (!league.HasMember("id")) {
 			return LeaguesApiError("Missing league 'id'", bytes);
-		if (!league["id"].IsString())
+		};
+		if (!league["id"].IsString()) {
 			return LeaguesApiError("String expected", bytes);
+		};
 		ui->leagueComboBox->addItem(league["id"].GetString());
-	}
+	};
 	ui->leagueComboBox->setEnabled(true);
 
-	if (saved_league_.size() > 0)
+	if (saved_league_.size() > 0) {
 		ui->leagueComboBox->setCurrentText(saved_league_);
+	};
 }
 
 // All characters except + should be handled by QUrlQuery
@@ -194,9 +205,11 @@ static QString EncodeSpecialCharacters(QString s) {
 
 void LoginDialog::FinishLogin(QNetworkReply* reply) {
 	QList<QNetworkCookie> cookies = reply->manager()->cookieJar()->cookiesForUrl(QUrl(POE_MAIN_PAGE));
-	for (QNetworkCookie& cookie : cookies)
-		if (QString(cookie.name()) == POE_COOKIE_NAME)
+	for (QNetworkCookie& cookie : cookies) {
+		if (QString(cookie.name()) == POE_COOKIE_NAME) {
 			session_id_ = cookie.value();
+		};
+	};
 
 	// we need one more request to get account name
 	QNetworkRequest main_page_request = QNetworkRequest(QUrl(POE_MY_ACCOUNT));
@@ -213,7 +226,7 @@ void LoginDialog::OnLoggedIn() {
 		DisplayError(LOGIN_CHECK_ERROR);
 		reply->deleteLater();
 		return;
-	}
+	};
 	FinishLogin(reply);
 	reply->deleteLater();
 }
@@ -232,7 +245,7 @@ void LoginDialog::LoggedInCheck() {
 		DisplayError(LOGIN_CHECK_ERROR);
 		reply->deleteLater();
 		return;
-	}
+	};
 	FinishLogin(reply);
 	reply->deleteLater();
 }
@@ -277,7 +290,7 @@ void LoginDialog::OnMainPageFinished() {
 	if (match.hasMatch() == false) {
 		DisplayError("Failed to find account name.");
 		return;
-	}
+	};
 	QString account = match.captured(1);
 	QLOG_DEBUG() << "Logged in as:" << account;
 
@@ -297,8 +310,9 @@ void LoginDialog::OnRememberMeCheckBoxClicked(bool checked) {
 void LoginDialog::LoadSettings() {
 	
 	QSettings& settings = app_.settings();
-	const bool remember_me = settings.value("remember_me_checked").toBool();
-	const bool use_proxy = settings.value("use_system_proxy_checked").toBool();
+	const QString selected_tab = settings.value("selected_login_tab").toString();
+	const bool remember_me = settings.value("remember_me").toBool();
+	const bool use_proxy = settings.value("use_system_proxy").toBool();
 	session_id_ = settings.value("session_id", "").toString();
 
 	app_.oauth_manager().RememberToken(remember_me);
@@ -307,8 +321,8 @@ void LoginDialog::LoadSettings() {
 	ui->rememberMeCheckBox->setChecked(remember_me);
 	ui->proxyCheckBox->setChecked(use_proxy);
 	if (remember_me) {
-		for (auto i = 0; i < ui->loginTabs->count(); ++i) {
-			if (ui->loginTabs->widget(i)->objectName() == SESSIONID_TAB) {
+		for (int i = 0; i < ui->loginTabs->count(); ++i) {
+			if (ui->loginTabs->widget(i)->objectName() == selected_tab) {
 				ui->loginTabs->setCurrentIndex(i);
 				break;
 			};
@@ -329,12 +343,14 @@ void LoginDialog::SaveSettings() {
 	if (remember_me) {
 		settings.setValue("session_id", session_id_);
 		settings.setValue("league", ui->leagueComboBox->currentText());
+		settings.setValue("login_tab", ui->loginTabs->currentWidget()->objectName());
 	} else {
 		settings.setValue("session_id", "");
 		settings.setValue("league", "");
-	}
-	settings.setValue("remember_me_checked", remember_me);
-	settings.setValue("use_system_proxy_checked", ui->proxyCheckBox->isChecked());
+		settings.setValue("login_tab", "");
+	};
+	settings.setValue("remember_me", remember_me);
+	settings.setValue("use_system_proxy", ui->proxyCheckBox->isChecked());
 }
 
 void LoginDialog::DisplayError(const QString& error, bool disable_login) {
@@ -346,7 +362,8 @@ void LoginDialog::DisplayError(const QString& error, bool disable_login) {
 
 
 bool LoginDialog::event(QEvent* e) {
-	if (e->type() == QEvent::LayoutRequest)
+	if (e->type() == QEvent::LayoutRequest) {
 		setFixedSize(sizeHint());
+	};
 	return QDialog::event(e);
 }
