@@ -122,7 +122,7 @@ struct CurrencyUpdate {
 	std::string value;
 };
 
-const std::vector<std::string> CurrencyForWisdom({
+constexpr std::array<const char*, 5> CurrencyForWisdom({
 	"Scroll of Wisdom",
 	"Portal Scroll",
 	"Armourer's Scrap",
@@ -130,7 +130,7 @@ const std::vector<std::string> CurrencyForWisdom({
 	"Orb of Transmutation"
 	});
 
-const std::vector<int> CurrencyWisdomValue({
+constexpr std::array<int,5> CurrencyWisdomValue({
 	1,
 	1,
 	2,
