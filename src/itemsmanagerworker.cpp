@@ -32,7 +32,6 @@
 #include "rapidjson/document.h"
 #include "rapidjson/error/en.h"
 #include <boost/algorithm/string.hpp>
-#include <string_view>
 
 #include "application.h"
 #include "datastore.h"
@@ -45,8 +44,6 @@
 #include "ratelimit.h"
 #include "ratelimiter.h"
 #include "oauthmanager.h"
-
-using namespace std::string_view_literals;
 
 const char* kStashItemsUrl = "https://www.pathofexile.com/character-window/get-stash-items";
 const char* kCharacterItemsUrl = "https://www.pathofexile.com/character-window/get-items";
@@ -79,10 +76,10 @@ const char* kOAuthGetCharacterEndpoint = "GET /character/<name>";
 const char* kOAuthGetCharacterUrl = "https://api.pathofexile.com/character";
 
 constexpr std::array CHARACTER_ITEM_FIELDS = {
-	"equipment"sv,
-	"inventory"sv,
-	"rucksack"sv,
-	"jewels"sv
+	"equipment",
+	"inventory",
+	"rucksack",
+	"jewels"
 };
 
 ItemsManagerWorker::ItemsManagerWorker(QObject* parent,
@@ -708,9 +705,8 @@ void ItemsManagerWorker::OnOAuthCharacterReceived(QNetworkReply* reply, ItemLoca
 
 	auto character = doc["character"].GetObj();
 	for (const auto& field : CHARACTER_ITEM_FIELDS) {
-		const char* fieldname = field.data();
-		if (character.HasMember(fieldname)) {
-			ParseItems(character[fieldname], location, doc.GetAllocator());
+		if (character.HasMember(field)) {
+			ParseItems(character[field], location, doc.GetAllocator());
 		};
 	};
 
