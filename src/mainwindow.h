@@ -117,7 +117,7 @@ private slots:
 	void OnCopyShopToClipboard();
 	void OnUpdateShops();
 	void OnSetAutomaticShopUpdate();
-	void OnUpdatePOESESSID();
+	void OnShowPOESESSID();
 
 	// Theme submenu actions
 	void OnSetDarkTheme(bool toggle);

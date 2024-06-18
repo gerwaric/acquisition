@@ -53,10 +53,6 @@ const char* POE_MAIN_PAGE = "https://www.pathofexile.com/";
 const char* POE_MY_ACCOUNT = "https://www.pathofexile.com/my-account";
 const char* POE_LOGIN_CHECK_URL = POE_MY_ACCOUNT;
 
-const char* POE_COOKIE_NAME = "POESESSID";
-const char* POE_COOKIE_DOMAIN = ".pathofexile.com";
-const char* POE_COOKIE_PATH = "/";
-
 const char* LOGIN_CHECK_ERROR = "Failed to log in. Try copying your session ID again, or try OAuth";
 
 const char* OAUTH_TAB = "oauthTab";

@@ -25,11 +25,15 @@
 #include <QClipboard>
 #include <QEvent>
 #include <QFile>
+#include <QFontDatabase>
 #include <QImageReader>
 #include <QInputDialog>
+#include <QLayout>
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QNetworkAccessManager>
+#include <QNetworkCookie>
+#include <QNetworkCookieJar>
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QPainter>
@@ -314,7 +318,6 @@ void MainWindow::InitializeUi() {
 	connect(ui->actionCopyShopToClipboard, &QAction::triggered, this, &MainWindow::OnCopyShopToClipboard);
 	connect(ui->actionUpdateShops, &QAction::triggered, this, &MainWindow::OnUpdateShops);
 	connect(ui->actionSetAutomaticallyShopUpdate, &QAction::triggered, this, &MainWindow::OnSetAutomaticShopUpdate);
-	connect(ui->actionUpdatePOESESSID, &QAction::triggered, this, &MainWindow::OnUpdatePOESESSID);
 
 	// Connect the Currency menu
 	connect(ui->actionListCurrency, &QAction::triggered, this, &MainWindow::OnListCurrency);
@@ -338,6 +341,9 @@ void MainWindow::InitializeUi() {
 	connect(ui->actionShowOAuthToken, &QAction::triggered, &oauth_manager_, &OAuthManager::showStatus);
 	connect(ui->actionRefreshOAuthToken, &QAction::triggered, &oauth_manager_, &OAuthManager::requestRefresh);
 
+	// Connect the POESESSID submenu
+	connect(ui->actionShowPOESESSID, &QAction::triggered, this, &MainWindow::OnShowPOESESSID);
+	
 	// Connect the Tooltip tab buttons
 	connect(ui->uploadTooltipButton, &QPushButton::clicked, this, &MainWindow::OnUploadToImgur);
 	connect(ui->pobTooltipButton, &QPushButton::clicked, this, &MainWindow::OnCopyForPOB);
@@ -907,8 +913,46 @@ void MainWindow::OnSetShopThreads() {
 	UpdateShopMenu();
 }
 
-void MainWindow::OnUpdatePOESESSID() {
-	QLOG_ERROR() << "Shop -> Update POESESSID is not implemented yet.";
+void MainWindow::OnShowPOESESSID() {
+
+	static QInputDialog* dialog = nullptr;
+
+	// Create and configure the input dialog.
+	if (!dialog) {
+		dialog = new QInputDialog(this);
+		dialog->setWindowTitle("Path of Exile - Session ID");
+		dialog->setLabelText("POESESSID:");
+		dialog->setInputMode(QInputDialog::TextInput);
+		auto lineEdit = dialog->findChild<QLineEdit*>();
+		if (lineEdit) {
+			// Use a fixed width font for the input, and set it to be exactly
+			// as wide as a POESESSID cookie.
+			const QFont font = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+			const QFontMetrics metric(font);
+			const int w = metric.horizontalAdvance("00000000000000000000000000000000");
+			lineEdit->setFont(font);
+			lineEdit->setMinimumWidth(w);
+		};
+	};
+
+	// Load the session_id if it exists.
+	dialog->setTextValue(settings_.value("Login/session_id").toString());
+
+	// Get the user input and set the session cookie.
+	int code = dialog->exec();
+	if (code == QDialog::DialogCode::Accepted) {
+		const QString poesessid = dialog->textValue();
+		if (!poesessid.isEmpty()) {
+			QLOG_INFO() << "Updating POESESSID";
+			QNetworkCookie cookie(POE_COOKIE_NAME, poesessid.toUtf8());
+			cookie.setPath(POE_COOKIE_PATH);
+			cookie.setDomain(POE_COOKIE_DOMAIN);
+			network_manager_.cookieJar()->insertCookie(cookie);
+			settings_.setValue("Login/session_id", poesessid);
+		} else {
+			QLOG_INFO() << "Cannot update POESESSID because the string is empty";
+		};
+	};
 }
 
 void MainWindow::UpdateShopMenu() {
