@@ -110,9 +110,6 @@ MainWindow::MainWindow(
 	const QString account = settings_.value("account").toString();
 	settings_.endGroup();
 
-	setWindowIcon(QIcon(":/icons/assets/icon.svg"));
-	setWindowTitle(QString("Acquisition [%1] - %2 [%3]").arg(QString(APP_VERSION_STRING), league, account));
-
 	image_cache_ = new ImageCache(Filesystem::UserDir() + "/cache");
 
 	connect(qApp, &QCoreApplication::aboutToQuit, this, [&]() { quitting_ = true; });
@@ -121,6 +118,11 @@ MainWindow::MainWindow(
 	InitializeRateLimitDialog();
 	InitializeLogging();
 	InitializeSearchForm();
+
+	const QString title = QString("Acquisition [%1] - %2 League [%3]").arg(
+		QString(APP_VERSION_STRING), league, account);
+	setWindowTitle(title);
+	setWindowIcon(QIcon(":/icons/assets/icon.svg"));
 
 	connect(&items_manager_, &ItemsManager::ItemsRefreshed, this, &MainWindow::OnItemsRefreshed);
 	connect(&items_manager_, &ItemsManager::StatusUpdate, this, &MainWindow::OnStatusUpdate);
