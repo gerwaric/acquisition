@@ -75,7 +75,7 @@
 #include "version_defines.h"
 #include "verticalscrollarea.h"
 
-const std::string POE_WEBCDN = "http://webcdn.pathofexile.com"; // Should be updated to https://web.poecdn.com ?
+constexpr const char* POE_WEBCDN = "http://webcdn.pathofexile.com"; // Should be updated to https://web.poecdn.com ?
 
 MainWindow::MainWindow(
 	QSettings& settings,
@@ -900,9 +900,11 @@ void MainWindow::OnSetShopThreads() {
 	QString thread = QInputDialog::getText(this, "Shop thread",
 		"Enter thread number. You can enter multiple shops by separating them with a comma. More than one shop may be needed if you have a lot of items.",
 		QLineEdit::Normal, Util::StringJoin(shop_.threads(), ",").c_str(), &ok);
-	if (ok && !thread.isEmpty())
-		shop_.SetThread(Util::StringSplit(thread.remove(QRegularExpression("\\s+")).toStdString(), ','));
-	UpdateShopMenu();
+    if (ok && !thread.isEmpty()) {
+        static const auto spaces = QRegularExpression("\\s+");
+        shop_.SetThread(Util::StringSplit(thread.remove(spaces).toStdString(), ','));
+    };
+    UpdateShopMenu();
 }
 
 void MainWindow::OnUpdatePOESESSID() {
