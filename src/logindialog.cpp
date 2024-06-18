@@ -107,11 +107,14 @@ LoginDialog::LoginDialog(
 	// Disable the login button until we are ready to login.
 	ui->loginButton->setEnabled(false);
 
-	// Connect signals.
+	// Connect UI signals.
+	connect(ui->sessionIDLineEdit, &QLineEdit::textChanged, this, &LoginDialog::OnSessionIDChanged);
+	connect(ui->rememberMeCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnRememberMeCheckBoxClicked);
 	connect(ui->proxyCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnProxyCheckBoxClicked);
 	connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
-	connect(ui->rememberMeCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnRememberMeCheckBoxClicked);
 	connect(ui->authenticateButton, &QPushButton::clicked, this, &LoginDialog::OnAuthenticateButtonClicked);
+	
+	// Listen for access from the OAuth manager.
 	connect(&oauth_manager_, &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
 
 	// Load saved settings.
@@ -164,22 +167,14 @@ void LoginDialog::LoadSettings() {
 }
 
 void LoginDialog::SaveSettings() {
-	const bool remember_me = ui->rememberMeCheckBox->isChecked();
-	settings_.beginGroup("Login");
-	if (remember_me) {
-		settings_.setValue("session_id", ui->sessionIDLineEdit->text());
-		settings_.setValue("account", account_);
-		settings_.setValue("league", ui->leagueComboBox->currentText());
-		settings_.setValue("selected_tab", ui->loginTabs->currentWidget()->objectName());
-	} else {
+	if (!ui->rememberMeCheckBox->isChecked()) {
+		settings_.beginGroup("Login");
 		settings_.setValue("session_id", "");
 		settings_.setValue("account", "");
 		settings_.setValue("league", "");
 		settings_.setValue("selected_tab", "");
+		settings_.endGroup();
 	};
-	settings_.setValue("remember_user", remember_me);
-	settings_.setValue("use_system_proxy", ui->proxyCheckBox->isChecked());
-	settings_.endGroup();
 }
 
 void LoginDialog::RequestLeagues() {
@@ -250,6 +245,9 @@ void LoginDialog::OnLeaguesReceived() {
 		ui->leagueComboBox->setCurrentText(league);
 	};
 
+	// Now that leagues have been received, start listening for changes.
+	connect(ui->leagueComboBox, &QComboBox::currentTextChanged, this, &LoginDialog::OnLeagueChanged);
+
 	// Now we can let the user login.
 	ui->loginButton->setEnabled(true);
 }
@@ -288,7 +286,7 @@ void LoginDialog::LoginWithOAuth() {
 	if (oauth_manager_.token()) {
 		const OAuthToken token = oauth_manager_.token().value();
 		account_ = QString::fromStdString(token.username());
-		SaveSettings();
+		settings_.setValue("Login/account", account_);
 		emit LoginComplete(PoeApiMode::OAUTH);
 	} else {
 		DisplayError("You are not authenticated.");
@@ -334,11 +332,13 @@ void LoginDialog::OnStartLegacyLogin() {
 	};
 
 	// Check the session id cookie.
+	const QString session_id = settings_.value("Login/session_id").toString();
 	for (const QNetworkCookie& cookie : cookies) {
 		if (QString(cookie.name()) == POE_COOKIE_NAME) {
-			if (cookie.value() != ui->sessionIDLineEdit->text()) {
+			if (cookie.value() != session_id) {
 				QLOG_WARN() << "POESESSID mismatch";
 			};
+			break;
 		};
 	};
 
@@ -359,7 +359,6 @@ void LoginDialog::OnStartLegacyLogin() {
 			};
 			DisplayError("SSL error finishing legacy login", true);
 		});
-
 }
 
 void LoginDialog::OnFinishLegacyLogin() {
@@ -380,10 +379,11 @@ void LoginDialog::OnFinishLegacyLogin() {
 	};
 
 	account_ = match.captured(1);
-	const QString league = ui->leagueComboBox->currentText();
+	settings_.setValue("Login/account", account_);
+
+	const QString league = settings_.value("Login/league").toString();
 	QLOG_DEBUG() << "Logged in as" << account_ << "to" << league << "league.";
 
-	SaveSettings();
 	emit LoginComplete(PoeApiMode::LEGACY);
 }
 
@@ -393,12 +393,22 @@ void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
 	ui->authenticateButton->setEnabled(true);
 }
 
+void LoginDialog::OnSessionIDChanged(const QString& session_id) {
+	settings_.setValue("Login/session_id", session_id);
+}
+
+void LoginDialog::OnLeagueChanged(const QString& league) {
+	settings_.setValue("Login/league", league);
+}
+
 void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
 	QNetworkProxyFactory::setUseSystemConfiguration(checked);
+	settings_.setValue("Login/use_system_proxy", checked);
 }
 
 void LoginDialog::OnRememberMeCheckBoxClicked(bool checked) {
 	oauth_manager_.RememberToken(checked);
+	settings_.setValue("Login/remember_user", checked);
 }
 
 void LoginDialog::DisplayError(const QString& error, bool disable_login) {

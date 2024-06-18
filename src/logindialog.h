@@ -50,8 +50,10 @@ private slots:
 	void OnLoginButtonClicked();
 	void OnStartLegacyLogin();
 	void OnFinishLegacyLogin();
-	void OnProxyCheckBoxClicked(bool);
-	void OnRememberMeCheckBoxClicked(bool);
+	void OnSessionIDChanged(const QString& session_id);
+	void OnLeagueChanged(const QString& league);
+	void OnProxyCheckBoxClicked(bool checked);
+	void OnRememberMeCheckBoxClicked(bool checked);
 	void OnOAuthAccessGranted(const OAuthToken& token);
 protected:
 	bool event(QEvent* e);
