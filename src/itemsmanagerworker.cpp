@@ -631,7 +631,7 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
 }
 
 void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply, ItemLocation location) {
-	
+
 	auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
 	sender->deleteLater();
 	reply->deleteLater();
@@ -1029,7 +1029,7 @@ void ItemsManagerWorker::OnLegacyTabReceived(QNetworkReply* reply, ItemLocation 
 	auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
 	sender->deleteLater();
 	reply->deleteLater();
-	
+
 	QLOG_DEBUG() << "Legacy tab receivevd:" << location.GetHeader();
 	rapidjson::Document doc;
 	QByteArray bytes = reply->readAll();

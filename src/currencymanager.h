@@ -130,7 +130,7 @@ constexpr std::array<const char*, 5> CurrencyForWisdom({
 	"Orb of Transmutation"
 	});
 
-constexpr std::array<int,5> CurrencyWisdomValue({
+constexpr std::array<int, 5> CurrencyWisdomValue({
 	1,
 	1,
 	2,
