@@ -108,7 +108,6 @@ void RateLimitManager::ReceiveReply()
 		auto* submit = active_request_->reply;
 		active_request_ = nullptr;
 
-		connect(reply, &QNetworkReply::destroyed, this, [=]() { submit->deleteLater(); });
 		emit submit->complete(reply);
 
 		// Activate the next queued reqeust.

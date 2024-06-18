@@ -470,6 +470,8 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterRequest(const std::string&
 
 void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
 
+	auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
+	sender->deleteLater();
 	reply->deleteLater();
 
 	QLOG_TRACE() << "OAuth stash list received";
@@ -564,7 +566,9 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
 }
 
 void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
-	
+
+	auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
+	sender->deleteLater();
 	reply->deleteLater();
 
 	QLOG_TRACE() << "OAuth character list received";
@@ -627,7 +631,9 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
 }
 
 void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply, ItemLocation location) {
-
+	
+	auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
+	sender->deleteLater();
 	reply->deleteLater();
 
 	QLOG_TRACE() << "OAuth stash recieved";
@@ -681,6 +687,8 @@ void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply, ItemLocation
 
 void ItemsManagerWorker::OnOAuthCharacterReceived(QNetworkReply* reply, ItemLocation location) {
 
+	auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
+	sender->deleteLater();
 	reply->deleteLater();
 
 	QLOG_TRACE() << "OAuth character recieved";
@@ -749,10 +757,12 @@ void ItemsManagerWorker::OnLegacyMainPageReceived() {
 }
 
 void ItemsManagerWorker::OnLegacyCharacterListReceived(QNetworkReply* reply) {
-	QLOG_TRACE() << "Character list received.";
 
+	auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
+	sender->deleteLater();
 	reply->deleteLater();
 
+	QLOG_TRACE() << "Legacy character list received.";
 	if (reply->error()) {
 		QLOG_WARN() << "Couldn't fetch character list: " << reply->url().toDisplayString()
 			<< " due to error: " << reply->errorString() << " Aborting update.";
@@ -912,12 +922,14 @@ void ItemsManagerWorker::FetchItems() {
 }
 
 void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
-	QLOG_TRACE() << "First tab received.";
 
-	QByteArray bytes = reply->readAll();
+	auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
+	sender->deleteLater();
 	reply->deleteLater();
 
+	QLOG_TRACE() << "First legacy tab received.";
 	rapidjson::Document doc;
+	QByteArray bytes = reply->readAll();
 	doc.Parse(bytes.constData());
 
 	if (!doc.IsObject()) {
@@ -1013,11 +1025,14 @@ void ItemsManagerWorker::ParseItems(rapidjson::Value& value, ItemLocation base_l
 }
 
 void ItemsManagerWorker::OnLegacyTabReceived(QNetworkReply* reply, ItemLocation location) {
-	QLOG_DEBUG() << "Received a reply for" << location.GetHeader().c_str();
 
-	QByteArray bytes = reply->readAll();
-
+	auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
+	sender->deleteLater();
+	reply->deleteLater();
+	
+	QLOG_DEBUG() << "Legacy tab receivevd:" << location.GetHeader();
 	rapidjson::Document doc;
+	QByteArray bytes = reply->readAll();
 	doc.Parse(bytes.constData());
 
 	bool error = false;
@@ -1036,7 +1051,6 @@ void ItemsManagerWorker::OnLegacyTabReceived(QNetworkReply* reply, ItemLocation 
 	if (!cancel_update_ && !error && (location.get_type() == ItemLocationType::STASH)) {
 		cancel_update_ = TabsChanged(doc, reply, location);
 	};
-	reply->deleteLater();
 
 	++requests_completed_;
 
