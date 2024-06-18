@@ -22,9 +22,8 @@
 #include <QDialog>
 
 class QNetworkReply;
-class QString;
-
 class QSettings;
+class QString;
 class QNetworkAccessManager;
 
 class OAuthManager;
@@ -44,7 +43,7 @@ public:
 		OAuthManager& oauth_manager);
 	~LoginDialog();
 signals:
-	void LoginComplete(const QString& league, const QString& account, PoeApiMode mode);
+	void LoginComplete(PoeApiMode mode);
 private slots:
 	void OnLeaguesReceived();
 	void OnAuthenticateButtonClicked();

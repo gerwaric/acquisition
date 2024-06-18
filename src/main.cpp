@@ -172,16 +172,27 @@ int main(int argc, char* argv[])
 	QObject::connect(&app.update_checker(), &UpdateChecker::UpdateAvailable, &app.update_checker(), &UpdateChecker::AskUserToUpdate);
 
 	QObject::connect(&login, &LoginDialog::LoginComplete, &login,
-		[&](const QString& league, const QString& account, PoeApiMode mode) {
+		[&](PoeApiMode mode) {
 
 			// Disconnect from the update signal so that only the main window gets it from now on.
 			QObject::disconnect(&app.update_checker(), &UpdateChecker::UpdateAvailable, nullptr, nullptr);
 
 			// Call init login to setup the shop, items manager, and other objects.
-			app.InitLogin(league.toStdString(), account.toStdString(), mode);
+			app.InitLogin(mode);
 
 			// Prepare to show the main window now that everything is initialized.
-			MainWindow* mw = new MainWindow(app);
+			MainWindow* mw = new MainWindow(
+				app.settings(),
+				app.network_manager(),
+				app.rate_limiter(),
+				app.data(),
+				app.oauth_manager(),
+				app.items_manager(),
+				app.buyout_manager(),
+				app.currency_manager(),
+				app.update_checker(),
+				app.shop());
+
 			login.close();
 			mw->show();
 		});

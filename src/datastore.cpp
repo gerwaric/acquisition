@@ -4,14 +4,6 @@
 #include "rapidjson/error/en.h"
 #include "util.h"
 
-void DataStore::SetBool(const std::string& key, bool value) {
-	SetInt(key, static_cast<int>(value));
-}
-
-bool DataStore::GetBool(const std::string& key, bool default_value) {
-	return static_cast<bool>(GetInt(key, static_cast<int>(default_value)));
-}
-
 void DataStore::SetInt(const std::string& key, int value) {
 	Set(key, std::to_string(value));
 }

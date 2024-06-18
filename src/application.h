@@ -43,14 +43,12 @@ enum class PoeApiMode { LEGACY, OAUTH };
 class Application : public QObject {
 	Q_OBJECT
 public:
-	Application(bool mock_data = false);
+	explicit Application(bool mock_data = false);
 	~Application();
 	Application(const Application&) = delete;
 	Application& operator=(const Application&) = delete;
 	// Should be called by login dialog after login
-	void InitLogin(const std::string& league, const std::string& email, PoeApiMode mode);
-	const std::string& league() const { return league_; }
-	const std::string& email() const { return email_; }
+	void InitLogin(PoeApiMode mode);
 	QSettings& settings() { return *settings_; };
 	ItemsManager& items_manager() { return *items_manager_; }
 	DataStore& global_data() const { return *global_data_; }
@@ -67,8 +65,6 @@ public slots:
 private:
 	void LoadTheme();
 	bool test_mode_;
-	std::string league_;
-	std::string email_;
 	std::unique_ptr<QSettings> settings_;
 	std::unique_ptr<DataStore> global_data_;
 	std::unique_ptr<DataStore> data_;

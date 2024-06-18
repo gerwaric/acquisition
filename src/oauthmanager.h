@@ -40,7 +40,9 @@ class DataStore;
 class OAuthManager : public QObject {
 	Q_OBJECT
 public:
-	OAuthManager(QObject* parent, QNetworkAccessManager& network_manager, DataStore& datastore);
+	explicit OAuthManager(QObject* parent,
+		QNetworkAccessManager& network_manager,
+		DataStore& datastore);
 	void setAuthorization(QNetworkRequest& request);
 	void RememberToken(bool remember);
 	const std::optional<OAuthToken> token() const { return token_; };

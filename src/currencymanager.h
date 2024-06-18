@@ -28,12 +28,12 @@
 #include "buyoutmanager.h"
 
 class QDoubleSpinBox;
+class QSettings;
 class QVBoxLayout;
 
 class CurrencyManager;
 class DataStore;
 class ItemsManager;
-
 
 struct CurrencyRatio {
 	Currency curr1;
@@ -171,7 +171,10 @@ class CurrencyManager : public QWidget
 {
 	Q_OBJECT
 public:
-	explicit CurrencyManager(QWidget* parent, DataStore& datastore, ItemsManager& items_manager);
+	explicit CurrencyManager(QWidget* parent,
+		QSettings& settings,
+		DataStore& datastore,
+		ItemsManager& items_manager);
 	~CurrencyManager();
 	void ClearCurrency();
 	// Called in itemmanagerworker::ParseItem
@@ -187,6 +190,7 @@ public:
 	void ExportCurrency();
 
 private:
+	QSettings& settings_;
 	DataStore& data_;
 	ItemsManager& items_manager_;
 

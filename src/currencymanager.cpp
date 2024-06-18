@@ -20,6 +20,7 @@
 #include <QDoubleSpinBox>
 #include <QFile>
 #include <QFileDialog>
+#include <QSettings>
 #include <QVBoxLayout>
 
 #include <ctime>
@@ -37,8 +38,13 @@
 #include "util.h"
 
 
-CurrencyManager::CurrencyManager(QWidget* parent, DataStore& datastore, ItemsManager& items_manager) :
+CurrencyManager::CurrencyManager(QWidget* parent,
+	QSettings& settings,
+	DataStore& datastore,
+	ItemsManager& items_manager)
+	:
 	QWidget(parent),
+	settings_(settings),
 	data_(datastore),
 	items_manager_(items_manager)
 {
@@ -50,8 +56,10 @@ CurrencyManager::CurrencyManager(QWidget* parent, DataStore& datastore, ItemsMan
 		};
 	} else {
 		InitCurrency();
-	};
-	dialog_ = std::make_shared<CurrencyDialog>(*this, data_.GetBool("currency_show_chaos"), data_.GetBool("currency_show_exalt"));
+	}
+	const bool show_chaos = settings_.value("Curency/show_chaos", false).toBool();
+	const bool show_exalt = settings_.value("Curency/show_exalt", false).toBool();
+	dialog_ = std::make_shared<CurrencyDialog>(*this, show_chaos, show_exalt);
 }
 
 CurrencyManager::~CurrencyManager() {
@@ -61,9 +69,8 @@ CurrencyManager::~CurrencyManager() {
 void CurrencyManager::Save() {
 	SaveCurrencyItems();
 	SaveCurrencyValue();
-	data_.SetBool("currency_show_chaos", dialog_->ShowChaos());
-	data_.SetBool("currency_show_exalt", dialog_->ShowExalt());
-
+	settings_.setValue("Curency/show_chas", dialog_->ShowChaos());
+	settings_.setValue("Curency/show_exalt", dialog_->ShowExalt());
 }
 
 void CurrencyManager::Update() {
@@ -133,8 +140,8 @@ void CurrencyManager::FirstInitCurrency() {
 	value.pop_back(); // Remove the last ";"
 	data_.Set("currency_items", Serialize(currencies_));
 	data_.Set("currency_last_value", value);
-	data_.SetBool("currency_show_chaos", true);
-	data_.SetBool("currency_show_exalt", true);
+	settings_.setValue("Currency/show_chaos", true);
+	settings_.setValue("Currency/show_exalt", true);
 }
 
 void CurrencyManager::MigrateCurrency() {

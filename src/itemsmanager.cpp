@@ -21,6 +21,7 @@
 
 #include <QMessageBox>
 #include <QNetworkCookie>
+#include <QSettings>
 #include <QThread>
 
 #include "QsLog.h"
@@ -37,23 +38,24 @@
 #include "filters.h"
 
 ItemsManager::ItemsManager(QObject* parent,
+	QSettings& settings,
 	QNetworkAccessManager& network_manager,
 	BuyoutManager& buyout_manager,
 	DataStore& datastore,
-	RateLimiter& rate_limiter,
-	std::string league,
-	std::string email)
+	RateLimiter& rate_limiter)
 	:
+	settings_(settings),
 	network_manager_(network_manager),
 	buyout_manager_(buyout_manager),
 	datastore_(datastore),
 	rate_limiter_(rate_limiter),
-	league_(league),
-	account_(email),
 	auto_update_timer_(std::make_unique<QTimer>())
 {
-	auto_update_interval_ = std::stoi(datastore_.Get("autoupdate_interval", "60"));
-	auto_update_ = datastore_.GetBool("autoupdate", false);
+	settings_.beginGroup("ItemsManager");
+	auto_update_ = settings.value("autoupdate", false).toBool();
+	auto_update_interval_ = settings_.value("autoupdate_interal", 60).toInt();
+	settings_.endGroup();
+
 	SetAutoUpdateInterval(auto_update_interval_);
 	connect(auto_update_timer_.get(), &QTimer::timeout, this, &ItemsManager::OnAutoRefreshTimer);
 }
@@ -62,12 +64,11 @@ ItemsManager::~ItemsManager() {}
 
 void ItemsManager::Start(PoeApiMode mode) {
 	worker_ = std::make_unique<ItemsManagerWorker>(this,
+		settings_,
 		network_manager_,
 		buyout_manager_,
 		datastore_,
-		rate_limiter_,
-		league_,
-		account_, mode);
+		rate_limiter_, mode);
 	connect(this, &ItemsManager::UpdateSignal, worker_.get(), &ItemsManagerWorker::Update);
 	connect(worker_.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
 	connect(worker_.get(), &ItemsManagerWorker::ItemsRefreshed, this, &ItemsManager::OnItemsRefreshed);
@@ -196,7 +197,7 @@ void ItemsManager::Update(TabSelection::Type type, const std::vector<ItemLocatio
 }
 
 void ItemsManager::SetAutoUpdate(bool update) {
-	datastore_.SetBool("autoupdate", update);
+	settings_.setValue("ItemsManager/autoupdate", update);
 	auto_update_ = update;
 	if (!auto_update_) {
 		auto_update_timer_->stop();
@@ -207,7 +208,7 @@ void ItemsManager::SetAutoUpdate(bool update) {
 }
 
 void ItemsManager::SetAutoUpdateInterval(int minutes) {
-	datastore_.Set("autoupdate_interval", std::to_string(minutes));
+	settings_.setValue("ItemsManager/autoupdate_interval", minutes);
 	auto_update_interval_ = minutes;
 	if (auto_update_) {
 		auto_update_timer_->start(auto_update_interval_ * 60 * 1000);

@@ -23,6 +23,7 @@
 #include <QNetworkCookie>
 #include <QNetworkCookieJar>
 #include <QNetworkReply>
+#include <QSettings>
 #include <QSignalMapper>
 #include <QTimer>
 #include <QUrlQuery>
@@ -83,23 +84,21 @@ constexpr std::array CHARACTER_ITEM_FIELDS = {
 };
 
 ItemsManagerWorker::ItemsManagerWorker(QObject* parent,
+	QSettings& settings,
 	QNetworkAccessManager& network_manager,
 	BuyoutManager& buyout_manager,
 	DataStore& datastore,
 	RateLimiter& rate_limiter,
-	std::string league,
-	std::string account,
 	PoeApiMode mode)
 	:
 	QObject(parent),
+	settings_(settings),
 	api_mode_(mode),
 	test_mode_(false),
 	network_manager_(network_manager),
 	buyout_manager_(buyout_manager),
 	datastore_(datastore),
 	rate_limiter_(rate_limiter),
-	league_(league),
-	account_(account),
 	total_completed_(-1),
 	total_needed_(-1),
 	requests_completed_(-1),
@@ -133,6 +132,9 @@ void ItemsManagerWorker::Init() {
 		QLOG_WARN() << "ItemsManagerWorker::Init() called while updating, skipping Mod List Update";
 		return;
 	};
+
+	league_ = settings_.value("Login/league").toString().toStdString();
+	account_ = settings_.value("Login/account").toString().toStdString();
 
 	updating_ = true;
 
@@ -562,7 +564,7 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
 }
 
 void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
-
+	
 	reply->deleteLater();
 
 	QLOG_TRACE() << "OAuth character list received";

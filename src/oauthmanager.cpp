@@ -27,6 +27,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QSettings>
 #include <QString>
 #include <QTimer>
 #include <QUrl>
@@ -50,7 +51,10 @@ const char* REDIRECT_PATH = "/auth/path-of-exile";
 // Refresh a token an hour before it's due to expire.
 const int EXPIRATION_BUFFER_SECS = 3600;
 
-OAuthManager::OAuthManager(QObject* parent, QNetworkAccessManager& network_manager, DataStore& datastore) :
+OAuthManager::OAuthManager(QObject* parent,
+	QNetworkAccessManager& network_manager,
+	DataStore& datastore)
+	:
 	QObject(parent),
 	network_manager_(network_manager),
 	datastore_(datastore),

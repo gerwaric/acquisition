@@ -24,6 +24,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QRegularExpression>
+#include <QSettings>
 #include <QTextDocumentFragment>
 #include <QTimer>
 #include <QUrl>
@@ -68,23 +69,23 @@ const QRegularExpression Shop::ratelimit_regex(
 	QRegularExpression::CaseInsensitiveOption);
 
 Shop::Shop(QObject* parent,
+	QSettings& settings,
 	QNetworkAccessManager& network_manager,
 	DataStore& datastore,
 	ItemsManager& items_manager,
-	BuyoutManager& buyout_manager,
-	std::string league)
+	BuyoutManager& buyout_manager)
 	:
+	settings_(settings),
 	network_manager_(network_manager),
 	datastore_(datastore),
 	items_manager_(items_manager),
 	buyout_manager_(buyout_manager),
-	league_(league),
 	shop_data_outdated_(true),
 	submitting_(false),
 	requests_completed_(0)
 {
 	threads_ = Util::StringSplit(datastore_.Get("shop"), ';');
-	auto_update_ = datastore_.GetBool("shop_update", false);
+	auto_update_ = settings_.value("ForumShop/shop_update", false).toBool();
 	shop_template_ = datastore_.Get("shop_template");
 	if (shop_template_.empty())
 		shop_template_ = kShopTemplateItems;
@@ -101,7 +102,7 @@ void Shop::SetThread(const std::vector<std::string>& threads) {
 
 void Shop::SetAutoUpdate(bool update) {
 	auto_update_ = update;
-	datastore_.SetBool("shop_update", update);
+	settings_.setValue("ForumShop/shop_update", update);
 }
 
 void Shop::SetShopTemplate(const std::string& shop_template) {
@@ -142,6 +143,8 @@ void Shop::Update() {
 		return;
 	std::sort(aug_items.begin(), aug_items.end());
 
+	const std::string league = settings_.value("Login/league").toString().toStdString();
+
 	Buyout current_bo = aug_items[0].bo;
 	data += SpoilerBuyout(current_bo);
 	for (auto& aug : aug_items) {
@@ -150,7 +153,7 @@ void Shop::Update() {
 			data += "[/spoiler]";
 			data += SpoilerBuyout(current_bo);
 		}
-		std::string item_string = aug.item->location().GetForumCode(league_);
+		std::string item_string = aug.item->location().GetForumCode(league);
 		if (data.size() + item_string.size() + shop_template_.size() + kSpoilerOverhead + QString("[/spoiler]").size() > kMaxCharactersInPost) {
 			data += "[/spoiler]";
 			shop_data_.push_back(data);

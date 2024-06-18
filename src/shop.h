@@ -31,6 +31,7 @@
 #include "mainwindow.h"
 
 class QNetworkAccessManager;
+class QSettings;
 
 class Application;
 class BuyoutManager;
@@ -55,11 +56,11 @@ class Shop : public QObject {
 	Q_OBJECT
 public:
 	explicit Shop(QObject* parent,
+		QSettings& settings,
 		QNetworkAccessManager& network_manager,
 		DataStore& datastore,
 		ItemsManager& items_manager,
-		BuyoutManager& buyout_manager,
-		std::string league);
+		BuyoutManager& buyout_manager);
 	void SetThread(const std::vector<std::string>& threads);
 	void SetAutoUpdate(bool update);
 	void SetShopTemplate(const std::string& shop_template);
@@ -82,12 +83,12 @@ private:
 	std::string ShopEditUrl(size_t idx);
 	std::string SpoilerBuyout(Buyout& bo);
 
+	QSettings& settings_;
 	QNetworkAccessManager& network_manager_;
 	DataStore& datastore_;
 	ItemsManager& items_manager_;
 	BuyoutManager& buyout_manager_;
 
-	std::string league_;
 	std::vector<std::string> threads_;
 	std::vector<std::string> shop_data_;
 	std::string shop_hash_;

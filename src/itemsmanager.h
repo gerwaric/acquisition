@@ -29,7 +29,9 @@
 #include "mainwindow.h"
 #include "util.h"
 
+class QSettings;
 class QThread;
+
 class BuyoutManager;
 class DataStore;
 class ItemsManagerWorker;
@@ -46,12 +48,11 @@ class ItemsManager : public QObject {
 	Q_OBJECT
 public:
 	explicit ItemsManager(QObject* parent,
+		QSettings& settings,
 		QNetworkAccessManager& network_manager,
 		BuyoutManager& buyout_manager,
 		DataStore& datastore,
-		RateLimiter& rate_limiter,
-		std::string league,
-		std::string email);
+		RateLimiter& rate_limiter);
 	~ItemsManager();
 	bool isInitialized() const { return worker_ ? worker_->isInitialized() : false; };
 	bool isUpdating() const { return worker_ ? worker_->isUpdating() : false; };
@@ -78,12 +79,11 @@ signals:
 private:
 	void MigrateBuyouts();
 
+	QSettings& settings_;
 	QNetworkAccessManager& network_manager_;
 	BuyoutManager& buyout_manager_;
 	DataStore& datastore_;
 	RateLimiter& rate_limiter_;
-	std::string league_;
-	std::string account_;
 
 	// should items be automatically refreshed
 	bool auto_update_;

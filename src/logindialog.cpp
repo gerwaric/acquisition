@@ -83,6 +83,7 @@ LoginDialog::LoginDialog(
 	QNetworkAccessManager& network_manager,
 	OAuthManager& oauth_manager)
 	:
+	QDialog(nullptr),
 	settings_(settings),
 	network_manager_(network_manager),
 	oauth_manager_(oauth_manager),
@@ -132,12 +133,13 @@ LoginDialog::~LoginDialog() {
 
 void LoginDialog::LoadSettings() {
 
+	settings_.beginGroup("Login");
 	const QString session_id = settings_.value("session_id", "").toString();
 	const QString league = settings_.value("league").toString();
 	const QString selected_tab = settings_.value("selected_tab", "").toString();
-
-	const bool remember_me = settings_.value("remember_me_checked", false).toBool();
-	const bool use_proxy = settings_.value("use_system_proxy_checked", false).toBool();
+	const bool remember_me = settings_.value("remember_user", false).toBool();
+	const bool use_proxy = settings_.value("use_system_proxy", false).toBool();
+	settings_.endGroup();
 
 	oauth_manager_.RememberToken(remember_me);
 
@@ -163,6 +165,7 @@ void LoginDialog::LoadSettings() {
 
 void LoginDialog::SaveSettings() {
 	const bool remember_me = ui->rememberMeCheckBox->isChecked();
+	settings_.beginGroup("Login");
 	if (remember_me) {
 		settings_.setValue("session_id", ui->sessionIDLineEdit->text());
 		settings_.setValue("league", ui->leagueComboBox->currentText());
@@ -172,8 +175,9 @@ void LoginDialog::SaveSettings() {
 		settings_.setValue("league", "");
 		settings_.setValue("selected_tab", "");
 	};
-	settings_.setValue("remember_me_checked", remember_me);
-	settings_.setValue("use_system_proxy_checked", ui->proxyCheckBox->isChecked());
+	settings_.setValue("remember_user", remember_me);
+	settings_.setValue("use_system_proxy", ui->proxyCheckBox->isChecked());
+	settings_.endGroup();
 }
 
 void LoginDialog::RequestLeagues() {
@@ -283,7 +287,8 @@ void LoginDialog::LoginWithOAuth() {
 		const OAuthToken token = oauth_manager_.token().value();
 		const QString account = QString::fromStdString(token.username());
 		const QString league = ui->leagueComboBox->currentText();
-		emit LoginComplete(league, account, PoeApiMode::OAUTH);
+		SaveSettings();
+		emit LoginComplete(PoeApiMode::OAUTH);
 	} else {
 		DisplayError("You are not authenticated.");
 	};
@@ -377,7 +382,8 @@ void LoginDialog::OnFinishLegacyLogin() {
 	const QString league = ui->leagueComboBox->currentText();
 	QLOG_DEBUG() << "Logged in as" << account << "to" << league << "league.";
 
-	emit LoginComplete(league, account, PoeApiMode::LEGACY);
+	SaveSettings();
+	emit LoginComplete(PoeApiMode::LEGACY);
 }
 
 void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {

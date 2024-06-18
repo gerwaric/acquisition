@@ -32,6 +32,7 @@
 
 class QNetworkAccessManager;
 class QNetworkReply;
+class QSettings;
 class QSignalMapper;
 class QTimer;
 
@@ -57,12 +58,11 @@ class ItemsManagerWorker : public QObject {
 	Q_OBJECT
 public:
 	ItemsManagerWorker(QObject* parent,
+		QSettings& settings_,
 		QNetworkAccessManager& network_manager,
 		BuyoutManager& buyout_manager,
 		DataStore& datastore,
 		RateLimiter& rate_limiter,
-		std::string league,
-		std::string account,
 		PoeApiMode mode);
 	bool isInitialized() const { return initialized_; }
 	bool isUpdating() const { return updating_; };
@@ -119,6 +119,7 @@ private:
 	bool TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, ItemLocation& location);
 	void FinishUpdate();
 
+	QSettings& settings_;
 	QNetworkAccessManager& network_manager_;
 	DataStore& datastore_;
 	BuyoutManager& buyout_manager_;

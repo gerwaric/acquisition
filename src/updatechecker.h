@@ -33,7 +33,9 @@ class QWidget;
 class UpdateChecker : public QObject {
 	Q_OBJECT
 public:
-	UpdateChecker(QObject* parent, QSettings& settings, QNetworkAccessManager& network_manager);
+	explicit UpdateChecker(QObject* parent,
+		QSettings& settings,
+		QNetworkAccessManager& network_manager);
 signals:
 	void UpdateAvailable();
 public slots:
