@@ -268,6 +268,12 @@ endif()
 
 if(APPLE)
 
+    # Add the macOS application icon
+    set(MACOSX_BUNDLE_ICON_FILE icon.icns)
+    set(macos_app_icon "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.icns")
+    set_source_files_properties(${macos_app_icon} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+    target_sources(acquisition PUBLIC "${macos_app_icon}")
+
     # On macOS we need to enable unary functions for version of boost we are using.
     target_compile_definitions(acquisition PUBLIC _LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION)
 
