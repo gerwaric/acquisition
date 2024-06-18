@@ -88,7 +88,7 @@ void InitItemClasses(const QByteArray& classes) {
 
 void InitItemBaseTypes(const QByteArray& baseTypes) {
 
-	bool basetypes_initialized = false;
+    static bool basetypes_initialized = false;
 
 	rapidjson::Document doc;
 	doc.Parse(baseTypes.constData());
