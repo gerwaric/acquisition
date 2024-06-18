@@ -168,10 +168,12 @@ void LoginDialog::SaveSettings() {
 	settings_.beginGroup("Login");
 	if (remember_me) {
 		settings_.setValue("session_id", ui->sessionIDLineEdit->text());
+		settings_.setValue("account", account_);
 		settings_.setValue("league", ui->leagueComboBox->currentText());
 		settings_.setValue("selected_tab", ui->loginTabs->currentWidget()->objectName());
 	} else {
 		settings_.setValue("session_id", "");
+		settings_.setValue("account", "");
 		settings_.setValue("league", "");
 		settings_.setValue("selected_tab", "");
 	};
@@ -285,8 +287,7 @@ void LoginDialog::LoginWithOAuth() {
 	QLOG_INFO() << "Starting OAuth authentication";
 	if (oauth_manager_.token()) {
 		const OAuthToken token = oauth_manager_.token().value();
-		const QString account = QString::fromStdString(token.username());
-		const QString league = ui->leagueComboBox->currentText();
+		account_ = QString::fromStdString(token.username());
 		SaveSettings();
 		emit LoginComplete(PoeApiMode::OAUTH);
 	} else {
@@ -378,9 +379,9 @@ void LoginDialog::OnFinishLegacyLogin() {
 		return;
 	};
 
-	const QString account = match.captured(1);
+	account_ = match.captured(1);
 	const QString league = ui->leagueComboBox->currentText();
-	QLOG_DEBUG() << "Logged in as" << account << "to" << league << "league.";
+	QLOG_DEBUG() << "Logged in as" << account_ << "to" << league << "league.";
 
 	SaveSettings();
 	emit LoginComplete(PoeApiMode::LEGACY);

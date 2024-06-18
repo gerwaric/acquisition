@@ -69,4 +69,6 @@ private:
 	OAuthManager& oauth_manager_;
 
 	Ui::LoginDialog* ui;
+
+	QString account_;
 };
