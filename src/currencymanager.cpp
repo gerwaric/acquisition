@@ -69,7 +69,7 @@ CurrencyManager::~CurrencyManager() {
 void CurrencyManager::Save() {
 	SaveCurrencyItems();
 	SaveCurrencyValue();
-	settings_.setValue("Curency/show_chas", dialog_->ShowChaos());
+	settings_.setValue("Curency/show_chaos", dialog_->ShowChaos());
 	settings_.setValue("Curency/show_exalt", dialog_->ShowExalt());
 }
 
