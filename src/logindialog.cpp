@@ -245,7 +245,7 @@ void LoginDialog::OnLeaguesReceived() {
 	ui->leagueComboBox->setEnabled(true);
 
 	// If a league was saved, select it now.
-	const QString league = settings_.value("league").toString();
+	const QString league = settings_.value("Login/league").toString();
 	if (!league.isEmpty()) {
 		ui->leagueComboBox->setCurrentText(league);
 	};
