@@ -106,8 +106,8 @@ void Application::InitLogin(PoeApiMode mode)
 		// This is used in tests
 		data_ = std::make_unique<MemoryDataStore>();
 	} else {
-		const std::string league = settings_->value("league").toString().toStdString();
-		const std::string account = settings_->value("account").toString().toStdString();
+		const std::string league = settings_->value("Login/league").toString().toStdString();
+		const std::string account = settings_->value("Login/account").toString().toStdString();
 		const QString data_dir = Filesystem::UserDir() + "/data/";
 		const QString data_file = SqliteDataStore::MakeFilename(account, league);
 		const QString data_path = data_dir + data_file;
