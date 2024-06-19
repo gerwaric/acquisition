@@ -279,8 +279,8 @@ void LoginDialog::LoginWithOAuth() {
 	QLOG_INFO() << "Starting OAuth authentication";
 	if (oauth_manager_.token()) {
 		const OAuthToken token = oauth_manager_.token().value();
-		account_ = QString::fromStdString(token.username());
-		settings_.value("account").toString();
+		const QString account = QString::fromStdString(token.username());
+		settings_.setValue("account", account);
 		emit LoginComplete(PoeApiMode::OAUTH);
 	} else {
 		DisplayError("You are not authenticated.");
@@ -372,10 +372,11 @@ void LoginDialog::OnFinishLegacyLogin() {
 		return;
 	};
 
-	account_ = match.captured(1);
-	settings_.value("account").toString();
+	const QString account = match.captured(1);
+	const QString league = settings_.value("league").toString();
+	settings_.setValue("account", account);
 
-	QLOG_DEBUG() << "Logged in as" << account_ << "to" << settings_.value("league").toString() << "league.";
+	QLOG_DEBUG() << "Logged in as" << account << "to" << league << "league.";
 
 	emit LoginComplete(PoeApiMode::LEGACY);
 }
