@@ -133,8 +133,8 @@ void ItemsManagerWorker::Init() {
 		return;
 	};
 
-	league_ = settings_.value("Login/league").toString().toStdString();
-	account_ = settings_.value("Login/account").toString().toStdString();
+	league_ = settings_.value("league").toString().toStdString();
+	account_ = settings_.value("account").toString().toStdString();
 
 	updating_ = true;
 

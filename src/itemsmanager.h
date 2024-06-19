@@ -30,7 +30,6 @@
 #include "util.h"
 
 class QSettings;
-class QThread;
 
 class BuyoutManager;
 class DataStore;
@@ -61,8 +60,6 @@ public:
 	void Update(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 	void SetAutoUpdateInterval(int minutes);
 	void SetAutoUpdate(bool update);
-	int auto_update_interval() const { return auto_update_interval_; }
-	bool auto_update() const { return auto_update_; }
 	const Items& items() const { return items_; }
 	void ApplyAutoTabBuyouts();
 	void ApplyAutoItemBuyouts();
@@ -85,10 +82,6 @@ private:
 	DataStore& datastore_;
 	RateLimiter& rate_limiter_;
 
-	// should items be automatically refreshed
-	bool auto_update_;
-	// items will be automatically updated every X minutes
-	int auto_update_interval_;
 	std::unique_ptr<QTimer> auto_update_timer_;
 	std::unique_ptr<ItemsManagerWorker> worker_;
 	Items items_;

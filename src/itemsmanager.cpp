@@ -22,7 +22,6 @@
 #include <QMessageBox>
 #include <QNetworkCookie>
 #include <QSettings>
-#include <QThread>
 
 #include "QsLog.h"
 
@@ -51,12 +50,9 @@ ItemsManager::ItemsManager(QObject* parent,
 	rate_limiter_(rate_limiter),
 	auto_update_timer_(std::make_unique<QTimer>())
 {
-	settings_.beginGroup("ItemsManager");
-	auto_update_ = settings.value("autoupdate", false).toBool();
-	auto_update_interval_ = settings_.value("autoupdate_interal", 60).toInt();
-	settings_.endGroup();
-
-	SetAutoUpdateInterval(auto_update_interval_);
+	const int interval = settings_.value("autoupdate_interval", 30).toInt();
+	auto_update_timer_->setSingleShot(false);
+	auto_update_timer_->setInterval(interval * 60 * 1000);
 	connect(auto_update_timer_.get(), &QTimer::timeout, this, &ItemsManager::OnAutoRefreshTimer);
 }
 
@@ -197,22 +193,17 @@ void ItemsManager::Update(TabSelection::Type type, const std::vector<ItemLocatio
 }
 
 void ItemsManager::SetAutoUpdate(bool update) {
-	settings_.setValue("ItemsManager/autoupdate", update);
-	auto_update_ = update;
-	if (!auto_update_) {
-		auto_update_timer_->stop();
+	settings_.setValue("autoupdate", update);
+	if (update) {
+		auto_update_timer_->start();
 	} else {
-		// to start timer
-		SetAutoUpdateInterval(auto_update_interval_);
+		auto_update_timer_->stop();
 	};
 }
 
 void ItemsManager::SetAutoUpdateInterval(int minutes) {
-	settings_.setValue("ItemsManager/autoupdate_interval", minutes);
-	auto_update_interval_ = minutes;
-	if (auto_update_) {
-		auto_update_timer_->start(auto_update_interval_ * 60 * 1000);
-	};
+	settings_.setValue("autoupdate_interval", minutes);
+	auto_update_timer_->setInterval(minutes * 60 * 1000);
 }
 
 void ItemsManager::OnAutoRefreshTimer() {

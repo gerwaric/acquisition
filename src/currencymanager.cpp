@@ -57,8 +57,8 @@ CurrencyManager::CurrencyManager(QWidget* parent,
 	} else {
 		InitCurrency();
 	}
-	const bool show_chaos = settings_.value("Curency/show_chaos", false).toBool();
-	const bool show_exalt = settings_.value("Curency/show_exalt", false).toBool();
+	const bool show_chaos = settings_.value("show_chaos", false).toBool();
+	const bool show_exalt = settings_.value("show_exalt", false).toBool();
 	dialog_ = std::make_shared<CurrencyDialog>(*this, show_chaos, show_exalt);
 }
 
@@ -69,8 +69,8 @@ CurrencyManager::~CurrencyManager() {
 void CurrencyManager::Save() {
 	SaveCurrencyItems();
 	SaveCurrencyValue();
-	settings_.setValue("Curency/show_chaos", dialog_->ShowChaos());
-	settings_.setValue("Curency/show_exalt", dialog_->ShowExalt());
+	settings_.setValue("show_chaos", dialog_->ShowChaos());
+	settings_.setValue("show_exalt", dialog_->ShowExalt());
 }
 
 void CurrencyManager::Update() {
@@ -140,8 +140,8 @@ void CurrencyManager::FirstInitCurrency() {
 	value.pop_back(); // Remove the last ";"
 	data_.Set("currency_items", Serialize(currencies_));
 	data_.Set("currency_last_value", value);
-	settings_.setValue("Currency/show_chaos", true);
-	settings_.setValue("Currency/show_exalt", true);
+	settings_.setValue("show_chaos", true);
+	settings_.setValue("show_exalt", true);
 }
 
 void CurrencyManager::MigrateCurrency() {

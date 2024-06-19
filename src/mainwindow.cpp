@@ -39,7 +39,6 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QScrollArea>
-#include <QSettings>
 #include <QString>
 #include <QStringList>
 #include <QTabBar>
@@ -109,11 +108,6 @@ MainWindow::MainWindow(
 	rate_limit_dialog_(nullptr),
 	quitting_(false)
 {
-	settings_.beginGroup("Login");
-	const QString league = settings_.value("league").toString();
-	const QString account = settings_.value("account").toString();
-	settings_.endGroup();
-
 	image_cache_ = new ImageCache(Filesystem::UserDir() + "/cache");
 
 	connect(qApp, &QCoreApplication::aboutToQuit, this, [&]() { quitting_ = true; });
@@ -124,7 +118,9 @@ MainWindow::MainWindow(
 	InitializeSearchForm();
 
 	const QString title = QString("Acquisition [%1] - %2 League [%3]").arg(
-		QString(APP_VERSION_STRING), league, account);
+		QString(APP_VERSION_STRING), 
+		settings_.value("league").toString(),
+		settings_.value("account").toString());
 	setWindowTitle(title);
 	setWindowIcon(QIcon(":/icons/assets/icon.svg"));
 
@@ -303,7 +299,7 @@ void MainWindow::InitializeUi() {
 		tabs->widget(idx)->resize(tabs->widget(idx)->minimumSizeHint());
 		tabs->widget(idx)->adjustSize();
 
-		settings_.value("Application/tooltip_type", idx);
+		settings_.setValue("tooltip_tab", idx);
 		});
 
 	// Connect the Tabs menu
@@ -352,15 +348,15 @@ void MainWindow::InitializeUi() {
 void MainWindow::LoadSettings() {
 
 	// Load the appropriate theme.
-	const QString theme = settings_.value("Application/theme", "default").toString();
+	const QString theme = settings_.value("theme", "default").toString();
 	if (theme == "dark") OnSetDarkTheme(true);
 	else if (theme == "light") OnSetLightTheme(true);
 	else if (theme == "default") OnSetDefaultTheme(true);
 
-	ui->actionSetAutomaticTabRefresh->setChecked(items_manager_.auto_update());
+	ui->actionSetAutomaticTabRefresh->setChecked(settings_.value("autoupdate").toBool());
 	UpdateShopMenu();
 
-	ui->itemInfoTypeTabs->setCurrentIndex(settings_.value("Application/preferred_tooltip_type").toInt());
+	ui->itemInfoTypeTabs->setCurrentIndex(settings_.value("tooltip_tab").toInt());
 
 	NewSearch();
 }
@@ -936,7 +932,7 @@ void MainWindow::OnShowPOESESSID() {
 	};
 
 	// Load the session_id if it exists.
-	dialog->setTextValue(settings_.value("Login/session_id").toString());
+	dialog->setTextValue(settings_.value("session_id").toString());
 
 	// Get the user input and set the session cookie.
 	int code = dialog->exec();
@@ -948,7 +944,7 @@ void MainWindow::OnShowPOESESSID() {
 			cookie.setPath(POE_COOKIE_PATH);
 			cookie.setDomain(POE_COOKIE_DOMAIN);
 			network_manager_.cookieJar()->insertCookie(cookie);
-			settings_.setValue("Login/session_id", poesessid);
+			settings_.setValue("session_id", poesessid);
 		} else {
 			QLOG_INFO() << "Cannot update POESESSID because the string is empty";
 		};
@@ -972,8 +968,8 @@ void MainWindow::OnCopyShopToClipboard() {
 }
 
 void MainWindow::OnSetTabRefreshInterval() {
-	int interval = QInputDialog::getText(this, "Auto refresh items", "Refresh items every X minutes",
-		QLineEdit::Normal, QString::number(items_manager_.auto_update_interval())).toInt();
+	int interval = QInputDialog::getInt(this, "Auto refresh items", "Refresh items every X minutes",
+		QLineEdit::Normal, settings_.value("autoupdate_interval").toInt());
 	if (interval > 0)
 		items_manager_.SetAutoUpdateInterval(interval);
 }
@@ -1025,7 +1021,7 @@ void MainWindow::OnSetDarkTheme(bool toggle) {
 			pal.setColor(QPalette::WindowText, Qt::white);
 			QApplication::setPalette(pal);
 		}
-		settings_.setValue("Application/theme", "dark");
+		settings_.setValue("theme", "dark");
 		ui->actionSetLightTheme->setChecked(false);
 		ui->actionSetDefaultTheme->setChecked(false);
 	}
@@ -1046,7 +1042,7 @@ void MainWindow::OnSetLightTheme(bool toggle) {
 			pal.setColor(QPalette::WindowText, Qt::black);
 			QApplication::setPalette(pal);
 		}
-		settings_.setValue("Application/theme", "light");
+		settings_.setValue("theme", "light");
 		ui->actionSetDarkTheme->setChecked(false);
 		ui->actionSetDefaultTheme->setChecked(false);
 	}
@@ -1059,7 +1055,7 @@ void MainWindow::OnSetDefaultTheme(bool toggle) {
 		QPalette pal = QApplication::palette();
 		pal.setColor(QPalette::WindowText, Qt::black);
 		QApplication::setPalette(pal);
-		settings_.setValue("Application/theme", "default");
+		settings_.setValue("theme", "default");
 		ui->actionSetDarkTheme->setChecked(false);
 		ui->actionSetLightTheme->setChecked(false);
 	}

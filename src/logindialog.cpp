@@ -132,23 +132,21 @@ LoginDialog::~LoginDialog() {
 
 void LoginDialog::LoadSettings() {
 
-	settings_.beginGroup("Login");
-	const QString session_id = settings_.value("session_id", "").toString();
+	const QString session_id = settings_.value("session_id").toString();
 	const QString league = settings_.value("league").toString();
-	const QString selected_tab = settings_.value("selected_tab", "").toString();
-	const bool remember_me = settings_.value("remember_user", false).toBool();
-	const bool use_proxy = settings_.value("use_system_proxy", false).toBool();
-	settings_.endGroup();
+	const QString login_tab = settings_.value("login").toString();
+	const bool remember_me = settings_.value("remember_user").toBool();
+	const bool use_system_proxy = settings_.value("use_system_proxy").toBool();
 
 	oauth_manager_.RememberToken(remember_me);
 
 	ui->sessionIDLineEdit->setText(session_id);
 	ui->rememberMeCheckBox->setChecked(remember_me);
-	ui->proxyCheckBox->setChecked(use_proxy);
+	ui->proxyCheckBox->setChecked(use_system_proxy);
 
 	if (remember_me) {
 		for (int i = 0; i < ui->loginTabs->count(); ++i) {
-			if (ui->loginTabs->widget(i)->objectName() == selected_tab) {
+			if (ui->loginTabs->widget(i)->objectName() == login_tab) {
 				ui->loginTabs->setCurrentIndex(i);
 				break;
 			};
@@ -164,12 +162,12 @@ void LoginDialog::LoadSettings() {
 
 void LoginDialog::SaveSettings() {
 	if (!ui->rememberMeCheckBox->isChecked()) {
-		settings_.beginGroup("Login");
-		settings_.setValue("session_id", "");
-		settings_.setValue("account", "");
-		settings_.setValue("league", "");
-		settings_.setValue("selected_tab", "");
-		settings_.endGroup();
+		settings_.remove("session_id");
+		settings_.remove("account");
+		settings_.remove("league");
+		settings_.remove("tab");
+		settings_.remove("remember_user");
+		settings_.remove("use_system_proxy");
 	};
 }
 
@@ -236,7 +234,7 @@ void LoginDialog::OnLeaguesReceived() {
 	ui->leagueComboBox->setEnabled(true);
 
 	// If a league was saved, select it now.
-	const QString league = settings_.value("Login/league").toString();
+	const QString league = settings_.value("league").toString();
 	if (!league.isEmpty()) {
 		ui->leagueComboBox->setCurrentText(league);
 	};
@@ -282,7 +280,7 @@ void LoginDialog::LoginWithOAuth() {
 	if (oauth_manager_.token()) {
 		const OAuthToken token = oauth_manager_.token().value();
 		account_ = QString::fromStdString(token.username());
-		settings_.setValue("Login/account", account_);
+		settings_.value("account").toString();
 		emit LoginComplete(PoeApiMode::OAUTH);
 	} else {
 		DisplayError("You are not authenticated.");
@@ -328,7 +326,7 @@ void LoginDialog::OnStartLegacyLogin() {
 	};
 
 	// Check the session id cookie.
-	const QString session_id = settings_.value("Login/session_id").toString();
+	const QString session_id = settings_.value("session_id").toString();
 	for (const QNetworkCookie& cookie : cookies) {
 		if (QString(cookie.name()) == POE_COOKIE_NAME) {
 			if (cookie.value() != session_id) {
@@ -375,10 +373,9 @@ void LoginDialog::OnFinishLegacyLogin() {
 	};
 
 	account_ = match.captured(1);
-	settings_.setValue("Login/account", account_);
+	settings_.value("account").toString();
 
-	const QString league = settings_.value("Login/league").toString();
-	QLOG_DEBUG() << "Logged in as" << account_ << "to" << league << "league.";
+	QLOG_DEBUG() << "Logged in as" << account_ << "to" << settings_.value("league").toString() << "league.";
 
 	emit LoginComplete(PoeApiMode::LEGACY);
 }
@@ -390,21 +387,21 @@ void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
 }
 
 void LoginDialog::OnSessionIDChanged(const QString& session_id) {
-	settings_.setValue("Login/session_id", session_id);
+	settings_.setValue("session_id", session_id);
 }
 
 void LoginDialog::OnLeagueChanged(const QString& league) {
-	settings_.setValue("Login/league", league);
+	settings_.setValue("league", league);
 }
 
 void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
 	QNetworkProxyFactory::setUseSystemConfiguration(checked);
-	settings_.setValue("Login/use_system_proxy", checked);
+	settings_.setValue("use_system_proxy", checked);
 }
 
 void LoginDialog::OnRememberMeCheckBoxClicked(bool checked) {
 	oauth_manager_.RememberToken(checked);
-	settings_.setValue("Login/remember_user", checked);
+	settings_.setValue("remember_user", checked);
 }
 
 void LoginDialog::DisplayError(const QString& error, bool disable_login) {

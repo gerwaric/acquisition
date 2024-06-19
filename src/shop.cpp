@@ -85,7 +85,7 @@ Shop::Shop(QObject* parent,
 	requests_completed_(0)
 {
 	threads_ = Util::StringSplit(datastore_.Get("shop"), ';');
-	auto_update_ = settings_.value("ForumShop/shop_update", false).toBool();
+	auto_update_ = settings_.value("shop_autoupdate").toBool();
 	shop_template_ = datastore_.Get("shop_template");
 	if (shop_template_.empty())
 		shop_template_ = kShopTemplateItems;
@@ -102,7 +102,7 @@ void Shop::SetThread(const std::vector<std::string>& threads) {
 
 void Shop::SetAutoUpdate(bool update) {
 	auto_update_ = update;
-	settings_.setValue("ForumShop/shop_update", update);
+	settings_.setValue("shop_autoupdate", update);
 }
 
 void Shop::SetShopTemplate(const std::string& shop_template) {
@@ -143,7 +143,7 @@ void Shop::Update() {
 		return;
 	std::sort(aug_items.begin(), aug_items.end());
 
-	const std::string league = settings_.value("Login/league").toString().toStdString();
+	const std::string league = settings_.value("league").toString().toStdString();
 
 	Buyout current_bo = aug_items[0].bo;
 	data += SpoilerBuyout(current_bo);

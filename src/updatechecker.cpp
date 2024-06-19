@@ -202,10 +202,8 @@ void UpdateChecker::OnUpdateReplyReceived() {
 
 void UpdateChecker::AskUserToUpdate() {
 
-	settings_.beginGroup("Updates");
-	const QString skip_release = settings_.value("skip_release_version").toString();
-	const QString skip_prerelease = settings_.value("skip_prerelease_version").toString();
-	settings_.endGroup();
+	const QString skip_release = settings_.value("skip_release").toString();
+	const QString skip_prerelease = settings_.value("skip_prerelease").toString();
 
 	if ((newest_release_ == skip_release) && (newest_prerelease_ == skip_prerelease)) {
 		QLOG_INFO() << "Skipping updates: no new versions";
@@ -251,9 +249,7 @@ void UpdateChecker::AskUserToUpdate() {
 	if (clicked == accept_button) {
 		QDesktopServices::openUrl(QUrl(GITHUB_DOWNLOADS_URL));
 	} else if (clicked == skip_button) {
-		settings_.beginGroup("Updates");
-		settings_.setValue("skip_release_version", newest_release_);
-		settings_.setValue("skip_prerelease_version", newest_prerelease_);
-		settings_.endGroup();
+		settings_.setValue("skip_release", newest_release_);
+		settings_.setValue("skip_prerelease", newest_prerelease_);
 	};
 }
