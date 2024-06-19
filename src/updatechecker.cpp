@@ -233,9 +233,9 @@ void UpdateChecker::AskUserToUpdate() {
 	msgbox.setWindowTitle("Update [" APP_VERSION_STRING "]");
 	msgbox.setText(message);
 	auto accept_button = msgbox.addButton("  Go to Github  ", QMessageBox::AcceptRole);
-	auto ignore_button = msgbox.addButton("  Ignore  ", QMessageBox::RejectRole);
-	auto skip_button = msgbox.addButton("  Ignore (until new versions are available)", QMessageBox::RejectRole);
-	msgbox.setDefaultButton(accept_button);
+	auto skip_button = msgbox.addButton("  Ignore until the next update(s)  ", QMessageBox::RejectRole);
+	auto ignore_button = msgbox.addButton("  Ignore Once  ", QMessageBox::RejectRole);
+	msgbox.setDefaultButton(ignore_button);
 
 	// Resize the buttons so the text fits.
 	accept_button->setMinimumWidth(accept_button->sizeHint().width());
