@@ -93,9 +93,6 @@ LoginDialog::LoginDialog(
 	setWindowIcon(QIcon(":/icons/assets/icon.svg"));
 	setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
-	// Select the OAuth tab by default.
-	ui->loginTabs->setCurrentIndex(0);
-
 	// Hide the error message label by default.
 	ui->errorLabel->hide();
 	ui->errorLabel->setStyleSheet("QLabel { color : red; }");
@@ -109,7 +106,8 @@ LoginDialog::LoginDialog(
 	connect(ui->proxyCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnProxyCheckBoxClicked);
 	connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
 	connect(ui->authenticateButton, &QPushButton::clicked, this, &LoginDialog::OnAuthenticateButtonClicked);
-	
+	connect(ui->loginTabs, &QTabWidget::currentChanged, this, &LoginDialog::OnLoginTabChanged);
+
 	// Listen for access from the OAuth manager.
 	connect(&oauth_manager_, &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
 
@@ -134,7 +132,7 @@ void LoginDialog::LoadSettings() {
 
 	const QString session_id = settings_.value("session_id").toString();
 	const QString league = settings_.value("league").toString();
-	const QString login_tab = settings_.value("login").toString();
+	const int login_tab = settings_.value("login_tab").toInt();
 	const bool remember_me = settings_.value("remember_user").toBool();
 	const bool use_system_proxy = settings_.value("use_system_proxy").toBool();
 
@@ -143,16 +141,7 @@ void LoginDialog::LoadSettings() {
 	ui->sessionIDLineEdit->setText(session_id);
 	ui->rememberMeCheckBox->setChecked(remember_me);
 	ui->proxyCheckBox->setChecked(use_system_proxy);
-
-	if (remember_me) {
-		for (int i = 0; i < ui->loginTabs->count(); ++i) {
-			if (ui->loginTabs->widget(i)->objectName() == login_tab) {
-				ui->loginTabs->setCurrentIndex(i);
-				break;
-			};
-		};
-	};
-
+	ui->loginTabs->setCurrentIndex(login_tab);
 	if (!league.isEmpty()) {
 		ui->leagueComboBox->setCurrentText(league);
 	};
@@ -165,7 +154,7 @@ void LoginDialog::SaveSettings() {
 		settings_.remove("session_id");
 		settings_.remove("account");
 		settings_.remove("league");
-		settings_.remove("tab");
+		settings_.remove("login_tab");
 		settings_.remove("remember_user");
 		settings_.remove("use_system_proxy");
 	};
@@ -386,6 +375,10 @@ void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
 	ui->authenticateButton->setText("Re-authenticate (as someone else).");
 	ui->authenticateButton->setEnabled(true);
 }
+
+void LoginDialog::OnLoginTabChanged(int index) {
+	settings_.setValue("login_tab", index);
+};
 
 void LoginDialog::OnSessionIDChanged(const QString& session_id) {
 	settings_.setValue("session_id", session_id);

@@ -47,6 +47,7 @@ signals:
 private slots:
 	void OnLeaguesReceived();
 	void OnAuthenticateButtonClicked();
+	void OnLoginTabChanged(int index);
 	void OnLoginButtonClicked();
 	void OnStartLegacyLogin();
 	void OnFinishLegacyLogin();
