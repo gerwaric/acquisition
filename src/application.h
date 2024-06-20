@@ -25,14 +25,9 @@
 
 #include <string>
 
-// Holds the date and time of the current build based on __DATE__ and __TIME__ macros.
-extern const QString BUILD_TIMESTAMP;
-
-// This is BUILD_TIMESTAMP parsed into a QDateTime.
-extern const QDateTime BUILD_DATE;
-
 class QNetworkAccessManager;
 class QNetworkReply;
+class QSettings;
 
 class DataStore;
 class ItemsManager;
@@ -41,19 +36,20 @@ class Shop;
 class CurrencyManager;
 class UpdateChecker;
 class OAuthManager;
-namespace RateLimit { class RateLimiter; };
+class RateLimiter;
+
+enum class PoeApiMode { LEGACY, OAUTH };
 
 class Application : public QObject {
 	Q_OBJECT
 public:
-	Application(bool mock_data = false);
+	explicit Application(bool mock_data = false);
 	~Application();
 	Application(const Application&) = delete;
 	Application& operator=(const Application&) = delete;
 	// Should be called by login dialog after login
-	void InitLogin(const std::string& league, const std::string& email);
-	const std::string& league() const { return league_; }
-	const std::string& email() const { return email_; }
+	void InitLogin(PoeApiMode mode);
+	QSettings& settings() { return *settings_; };
 	ItemsManager& items_manager() { return *items_manager_; }
 	DataStore& global_data() const { return *global_data_; }
 	DataStore& data() const { return *data_; }
@@ -63,13 +59,13 @@ public:
 	CurrencyManager& currency_manager() const { return *currency_manager_; }
 	UpdateChecker& update_checker() const { return *update_checker_; }
 	OAuthManager& oauth_manager() const { return *oauth_manager_; }
-	RateLimit::RateLimiter& rate_limiter() const { return *rate_limiter_; }
+	RateLimiter& rate_limiter() const { return *rate_limiter_; }
 public slots:
 	void OnItemsRefreshed(bool initial_refresh);
 private:
+	void LoadTheme();
 	bool test_mode_;
-	std::string league_;
-	std::string email_;
+	std::unique_ptr<QSettings> settings_;
 	std::unique_ptr<DataStore> global_data_;
 	std::unique_ptr<DataStore> data_;
 	std::unique_ptr<BuyoutManager> buyout_manager_;
@@ -79,6 +75,6 @@ private:
 	std::unique_ptr<CurrencyManager> currency_manager_;
 	std::unique_ptr<UpdateChecker> update_checker_;
 	std::unique_ptr<OAuthManager> oauth_manager_;
-	std::unique_ptr<RateLimit::RateLimiter> rate_limiter_;
+	std::unique_ptr<RateLimiter> rate_limiter_;
 	void SaveDbOnNewVersion();
 };

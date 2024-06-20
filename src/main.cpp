@@ -24,19 +24,17 @@
 #include <QDir>
 #include <QFontDatabase>
 #include <QLocale>
+#include <QMessageBox>
+
 #include "QsLog.h"
 #include "QsLogDest.h"
+
 #include <clocale>
-#include <limits>
-#include <memory>
-#include <string_view>
 
 #include "application.h"
 #include "filesystem.h"
 #include "itemsmanager.h"
 #include "mainwindow.h"
-#include "porting.h"
-#include "ratelimit.h"
 #include "shop.h"
 #include "updatechecker.h"
 #include "util.h"
@@ -49,6 +47,13 @@ const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::TraceLevel;
 const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::InfoLevel;
 #endif
 
+#ifdef Q_OS_LINUX
+const char* SSL_ERROR = "OpenSSL 3.x was not found; check LD_LIBRARY_PATH if you have a custom installation.";
+#else
+const char* SSL_ERROR = "SSL is not supported. This is unexpected.";
+#endif
+
+
 int main(int argc, char* argv[])
 {
 	// Make sure resources from the static qdarkstyle library are available.
@@ -57,6 +62,10 @@ int main(int argc, char* argv[])
 
 	QLocale::setDefault(QLocale::C);
 	std::setlocale(LC_ALL, "C");
+
+	// Holds the date and time of the current build based on __DATE__ and __TIME__ macros.
+	const QString BUILD_TIMESTAMP = QStringLiteral(__DATE__ " " __TIME__).simplified();
+	const QDateTime BUILD_DATE = QLocale("en_US").toDateTime(BUILD_TIMESTAMP, "MMM d yyyy hh:mm:ss");
 
 	QApplication a(argc, argv);
 	Filesystem::Init();
@@ -120,7 +129,7 @@ int main(int argc, char* argv[])
 	// Start the log with basic info
 	QLOG_INFO() << "-------------------------------------------------------------------------------";
 	QLOG_INFO().noquote() << a.applicationName() << a.applicationVersion() << "( version code" << VERSION_CODE << ")";
-	QLOG_INFO().noquote() << "Built with Qt" << QT_VERSION_STR << "on" << QStringLiteral(__DATE__ " " __TIME__).simplified();
+    QLOG_INFO().noquote() << "Built with Qt" << QT_VERSION_STR << "on" << BUILD_DATE.toString();
 	QLOG_INFO().noquote() << "Running on Qt" << qVersion();
 	if (valid_loglevel == false) {
 		QLOG_ERROR() << "Called with invalid log level:" << parser.value(option_log_level);
@@ -128,6 +137,18 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	};
 	QLOG_INFO() << "Logging level is" << logger.loggingLevel();
+
+	if (!QSslSocket::supportsSsl()) {
+		QLOG_FATAL() << QString(SSL_ERROR);
+		QMessageBox msg(nullptr);
+		msg.setWindowTitle("Acquisition [" + QString(APP_VERSION_STRING) + "]");
+		msg.setText(SSL_ERROR);
+		msg.addButton(QMessageBox::Abort);
+		msg.exec();
+		return EXIT_FAILURE;
+	};
+	QLOG_DEBUG() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
+	QLOG_DEBUG() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
 
 	// Check for test mode.
 	if (parser.isSet(option_test)) {
@@ -138,37 +159,42 @@ int main(int argc, char* argv[])
 	// Run the main application, starting with the login dialog.
 	QLOG_INFO() << "Running application...";
 
+	// Construct an instance of Application.
 	Application app;
-	LoginDialog login(app);
-	MainWindow mw(app);
+
+	// Use the application objects to contruct a login diaglog.
+	LoginDialog login(
+		app.settings(),
+		app.network_manager(),
+		app.oauth_manager());
 
 	// Connect to the update signal in case an update is detected before the main window is open.
 	QObject::connect(&app.update_checker(), &UpdateChecker::UpdateAvailable, &app.update_checker(), &UpdateChecker::AskUserToUpdate);
 
-	QObject::connect(&login, &LoginDialog::LoginComplete, &mw,
-		[&](const QString& league, const QString& account) {
-
-			// Call init login to setup the shop, items manager, and other objects.
-			app.InitLogin(league.toStdString(), account.toStdString());
-
-			// Connect signals now that all the objects are created.
-			QObject::connect(&app.items_manager(), &ItemsManager::ItemsRefreshed, &mw, &MainWindow::OnItemsRefreshed);
-			QObject::connect(&app.items_manager(), &ItemsManager::StatusUpdate, &mw, &MainWindow::OnStatusUpdate);
-			QObject::connect(&app.shop(), &Shop::StatusUpdate, &mw, &MainWindow::OnStatusUpdate);
+	QObject::connect(&login, &LoginDialog::LoginComplete, &login,
+		[&](PoeApiMode mode) {
 
 			// Disconnect from the update signal so that only the main window gets it from now on.
 			QObject::disconnect(&app.update_checker(), &UpdateChecker::UpdateAvailable, nullptr, nullptr);
-			QObject::connect(&app.update_checker(), &UpdateChecker::UpdateAvailable, &mw, &MainWindow::OnUpdateAvailable);
 
-			// Prepare to show the main window.
-			mw.LoadSettings();
-			mw.setWindowTitle(
-				QString("Acquisition [%1] - %2 [%3]")
-				.arg(APP_VERSION_STRING)
-				.arg(league)
-				.arg(account));
+			// Call init login to setup the shop, items manager, and other objects.
+			app.InitLogin(mode);
+
+			// Prepare to show the main window now that everything is initialized.
+			MainWindow* mw = new MainWindow(
+				app.settings(),
+				app.network_manager(),
+				app.rate_limiter(),
+				app.data(),
+				app.oauth_manager(),
+				app.items_manager(),
+				app.buyout_manager(),
+				app.currency_manager(),
+				app.update_checker(),
+				app.shop());
+
 			login.close();
-			mw.show();
+			mw->show();
 		});
 
 	// Start the initial check for updates.

@@ -22,13 +22,22 @@
 #include <QNetworkReply>
 #include <QObject>
 #include <QUrlQuery>
+
 #include <string>
 #include <vector>
+
+#include "buyout.h"
 #include "item.h"
-#include "buyoutmanager.h"
 #include "mainwindow.h"
 
-extern const std::string kShopTemplateItems;
+class QNetworkAccessManager;
+class QSettings;
+
+class Application;
+class BuyoutManager;
+class DataStore;
+class ItemsManager;
+
 struct AugmentedItem {
 	Item* item{ nullptr };
 	Buyout bo;
@@ -42,12 +51,16 @@ struct AugmentedItem {
 		return false;
 	}
 };
-class Application;
 
 class Shop : public QObject {
 	Q_OBJECT
 public:
-	explicit Shop(Application& app);
+	explicit Shop(QObject* parent,
+		QSettings& settings,
+		QNetworkAccessManager& network_manager,
+		DataStore& datastore,
+		ItemsManager& items_manager,
+		BuyoutManager& buyout_manager);
 	void SetThread(const std::vector<std::string>& threads);
 	void SetAutoUpdate(bool update);
 	void SetShopTemplate(const std::string& shop_template);
@@ -70,7 +83,12 @@ private:
 	std::string ShopEditUrl(size_t idx);
 	std::string SpoilerBuyout(Buyout& bo);
 
-	Application& app_;
+	QSettings& settings_;
+	QNetworkAccessManager& network_manager_;
+	DataStore& datastore_;
+	ItemsManager& items_manager_;
+	BuyoutManager& buyout_manager_;
+
 	std::vector<std::string> threads_;
 	std::vector<std::string> shop_data_;
 	std::string shop_hash_;
@@ -79,4 +97,7 @@ private:
 	bool auto_update_;
 	bool submitting_;
 	size_t requests_completed_;
+
+	static const QRegularExpression error_regex;
+	static const QRegularExpression ratelimit_regex;
 };

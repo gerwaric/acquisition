@@ -27,22 +27,30 @@
 #include <QCloseEvent>
 #include <QTimer>
 
-#include "QsLog.h"
+#include "QsLogLevel.h"
 
 #include "bucket.h"
-#include "porting.h"
 
+class QNetworkAccessManager;
 class QNetworkReply;
+class QSettings;
+class QStringListModel;
 class QVBoxLayout;
 
-class Application;
+class BuyoutManager;
 class Column;
+class CurrencyManager;
+class DataStore;
 class Filter;
 class FlowLayout;
 class ImageCache;
+class ItemsManager;
+class OAuthManager;
+class RateLimiter;
 class RateLimitDialog;
 class Search;
-class QStringListModel;
+class Shop;
+class UpdateChecker;
 
 struct Buyout;
 
@@ -61,7 +69,17 @@ enum class ProgramState {
 class MainWindow : public QMainWindow {
 	Q_OBJECT
 public:
-	MainWindow(Application& app);
+	explicit MainWindow(
+		QSettings& settings_,
+		QNetworkAccessManager& network_manager,
+		RateLimiter& rate_limiter,
+		DataStore& datastore,
+		OAuthManager& oauth_manager,
+		ItemsManager& items_mangaer,
+		BuyoutManager& buyout_manager,
+		CurrencyManager& currency_manager,
+		UpdateChecker& update_checker,
+		Shop& shop);
 	~MainWindow();
 	std::vector<Column*> columns;
 	void LoadSettings();
@@ -99,7 +117,7 @@ private slots:
 	void OnCopyShopToClipboard();
 	void OnUpdateShops();
 	void OnSetAutomaticShopUpdate();
-	void OnUpdatePOESESSID();
+	void OnShowPOESESSID();
 
 	// Theme submenu actions
 	void OnSetDarkTheme(bool toggle);
@@ -136,8 +154,19 @@ private:
 	void closeEvent(QCloseEvent* event);
 	void CheckSelected(bool value);
 
-	Application& app_;
+	QSettings& settings_;
+	QNetworkAccessManager& network_manager_;
+	RateLimiter& rate_limiter_;
+	DataStore& datastore_;
+	OAuthManager& oauth_manager_;
+	ItemsManager& items_manager_;
+	BuyoutManager& buyout_manager_;
+	CurrencyManager& currency_manager_;
+	UpdateChecker& update_checker_;
+	Shop& shop_;
+
 	Ui::MainWindow* ui;
+
 	std::shared_ptr<Item> current_item_;
 	Bucket current_bucket_;
 	std::vector<Search*> searches_;

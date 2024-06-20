@@ -385,7 +385,6 @@
     <addaction name="actionCopyShopToClipboard"/>
     <addaction name="actionUpdateShops"/>
     <addaction name="actionSetAutomaticallyShopUpdate"/>
-    <addaction name="actionUpdatePOESESSID"/>
    </widget>
    <widget class="QMenu" name="menuTabs">
     <property name="title">
@@ -428,8 +427,23 @@
      <addaction name="actionLoggingDEBUG"/>
      <addaction name="actionLoggingTRACE"/>
     </widget>
+    <widget class="QMenu" name="menuOAuth">
+     <property name="title">
+      <string>OAuth</string>
+     </property>
+     <addaction name="actionShowOAuthToken"/>
+     <addaction name="actionRefreshOAuthToken"/>
+    </widget>
+    <widget class="QMenu" name="menuSessionID">
+     <property name="title">
+      <string>Session ID</string>
+     </property>
+     <addaction name="actionShowPOESESSID"/>
+    </widget>
     <addaction name="menuTheme"/>
     <addaction name="menuLogging"/>
+    <addaction name="menuOAuth"/>
+    <addaction name="menuSessionID"/>
    </widget>
    <addaction name="menuTabs"/>
    <addaction name="menuShop"/>
@@ -548,11 +562,6 @@
     <string>Default</string>
    </property>
   </action>
-  <action name="actionUpdatePOESESSID">
-   <property name="text">
-    <string>Update POESESSID</string>
-   </property>
-  </action>
   <action name="actionLoggingOFF">
    <property name="checkable">
     <bool>true</bool>
@@ -607,6 +616,21 @@
    </property>
    <property name="text">
     <string>TRACE</string>
+   </property>
+  </action>
+  <action name="actionShowOAuthToken">
+   <property name="text">
+    <string>Show Token</string>
+   </property>
+  </action>
+  <action name="actionRefreshOAuthToken">
+   <property name="text">
+    <string>Refresh Token</string>
+   </property>
+  </action>
+  <action name="actionShowPOESESSID">
+   <property name="text">
+    <string>POESESSID</string>
    </property>
   </action>
  </widget>

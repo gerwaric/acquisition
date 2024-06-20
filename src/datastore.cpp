@@ -2,17 +2,7 @@
 
 #include "QsLog.h"
 #include "rapidjson/error/en.h"
-#include "rapidjson/rapidjson.h"
-#include "rapidjson_util.h"
 #include "util.h"
-
-void DataStore::SetBool(const std::string& key, bool value) {
-	SetInt(key, static_cast<int>(value));
-}
-
-bool DataStore::GetBool(const std::string& key, bool default_value) {
-	return static_cast<bool>(GetInt(key, static_cast<int>(default_value)));
-}
 
 void DataStore::SetInt(const std::string& key, int value) {
 	Set(key, std::to_string(value));
@@ -69,15 +59,9 @@ Locations DataStore::DeserializeTabs(const QString& json) {
 	for (auto& tab_json : doc) {
 
 		// Detemine which kind of location this is.
-		ItemLocationType type;
-		if (tab_json.HasMember("name")) {
-			type = ItemLocationType::CHARACTER;
-		} else if (tab_json.HasMember("n")) {
-			type = ItemLocationType::STASH;
-		} else {
-			QLOG_ERROR() << "Unable to determine location type during tab deserialization:" << Util::RapidjsonSerialize(tab_json);
-			continue;
-		};
+		ItemLocationType type = (tab_json.HasMember("class"))
+			? ItemLocationType::CHARACTER
+			: ItemLocationType::STASH;
 
 		// Constructor values to fill in
 		size_t index;
@@ -117,8 +101,7 @@ Locations DataStore::DeserializeTabs(const QString& json) {
 			b = 0;
 			break;
 		};
-		ItemLocation loc(static_cast<int>(index), tabUniqueId, name, type, r, g, b);
-		loc.set_json(tab_json, doc.GetAllocator());
+		ItemLocation loc(static_cast<int>(index), tabUniqueId, name, type, r, g, b, tab_json, doc.GetAllocator());
 		tabs.push_back(loc);
 		tab_id_index_.insert(loc.get_tab_uniq_id());
 	};

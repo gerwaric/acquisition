@@ -19,12 +19,22 @@
 
 #pragma once
 
-#include <limits>
-#include <QtGui>
-#include <QtWidgets>
+#include <QCheckBox>
+#include <QDialog>
+#include <QLabel>
+#include <QObject>
+#include <QWidget>
 
-#include "application.h"
 #include "buyoutmanager.h"
+
+class QDoubleSpinBox;
+class QSettings;
+class QVBoxLayout;
+
+class CurrencyManager;
+class DataStore;
+class ItemsManager;
+
 struct CurrencyRatio {
 	Currency curr1;
 	Currency curr2;
@@ -112,23 +122,21 @@ struct CurrencyUpdate {
 	std::string value;
 };
 
-const std::vector<std::string> CurrencyForWisdom({
-													 "Scroll of Wisdom",
-													 "Portal Scroll",
-													 "Armourer's Scrap",
-													 "Blacksmith's Whetstone",
-													 "Orb of Transmutation"
+constexpr std::array<const char*, 5> CurrencyForWisdom({
+	"Scroll of Wisdom",
+	"Portal Scroll",
+	"Armourer's Scrap",
+	"Blacksmith's Whetstone",
+	"Orb of Transmutation"
 	});
 
-const std::vector<int> CurrencyWisdomValue({
-											   1,
-											   1,
-											   2,
-											   4,
-											   4
+constexpr std::array<int, 5> CurrencyWisdomValue({
+	1,
+	1,
+	2,
+	4,
+	4
 	});
-
-class CurrencyManager;
 
 class CurrencyDialog : public QDialog
 {
@@ -163,7 +171,10 @@ class CurrencyManager : public QWidget
 {
 	Q_OBJECT
 public:
-	explicit CurrencyManager(Application& app);
+	explicit CurrencyManager(QWidget* parent,
+		QSettings& settings,
+		DataStore& datastore,
+		ItemsManager& items_manager);
 	~CurrencyManager();
 	void ClearCurrency();
 	// Called in itemmanagerworker::ParseItem
@@ -179,8 +190,10 @@ public:
 	void ExportCurrency();
 
 private:
-	Application& app_;
+	QSettings& settings_;
 	DataStore& data_;
+	ItemsManager& items_manager_;
+
 	std::vector<std::shared_ptr<CurrencyItem>> currencies_;
 	// We only need the "count" of a CurrencyItem so int will be enough
 	std::vector<int> wisdoms_;

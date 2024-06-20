@@ -16,32 +16,25 @@
 	You should have received a copy of the GNU General Public License
 	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "porting.h"
 
-#include <QApplication>
-#include <QDir>
-#include <QStandardPaths>
-#include <QString>
+#include "itemconstants.h"
 
-// This namespace should contain platform-dependant functions.
-
-namespace porting {
-	QString DefaultUserDir() {
-#ifdef PORTABLE
-		return qApp->applicationDirPath();
-#else
-        return QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
-#endif
-	}
-}
-
-#ifdef __ANDROID__
-namespace std {
-	double stod(const std::string& str) {
-		std::istringstream is(str);
-		double result;
-		is >> result;
-		return result;
-	}
-}
-#endif
+const std::map<std::string, position>& POS_MAP() {
+	static const std::map<std::string, position> map = {
+		{"MainInventory", {0, 7}},
+		{"BodyArmour", {5, 2}},
+		{"Weapon", {2, 0}},
+		{"Weapon2", {2, 0}},
+		{"Offhand", {8, 0}},
+		{"Offhand2", {8, 0}},
+		{"Boots", {7, 4}},
+		{"Ring", {4, 3}},
+		{"Ring2", {7, 3}},
+		{"Amulet", {7, 2}},
+		{"Gloves", {3, 4}},
+		{"Belt", {5, 5}},
+		{"Helm", {5, 0}},
+		{"Flask", {3.5, 6}}
+	};
+	return map;
+};

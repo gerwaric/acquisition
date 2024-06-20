@@ -39,8 +39,6 @@ public:
 	virtual Items GetItems(const ItemLocation& loc) = 0;
 	virtual void InsertCurrencyUpdate(const CurrencyUpdate& update) = 0;
 	virtual std::vector<CurrencyUpdate> GetAllCurrency() = 0;
-	void SetBool(const std::string& key, bool value);
-	bool GetBool(const std::string& key, bool default_value = false);
 	void SetInt(const std::string& key, int value);
 	int GetInt(const std::string& key, int default_value = 0);
 protected:

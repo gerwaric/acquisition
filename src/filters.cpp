@@ -34,7 +34,6 @@
 #include "itemconstants.h"
 #include "mainwindow.h"
 #include "util.h"
-#include "porting.h"
 #include "searchcombobox.h"
 
 const std::string CategorySearchFilter::k_Default = "<any>";

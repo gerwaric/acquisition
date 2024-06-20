@@ -22,22 +22,21 @@
 #include <QObject>
 #include <QString>
 
+#include "ratelimit.h"
+
 class QLabel;
 class QPushButton;
 class QTreeWidget;
 class QWidget;
 class QVBoxLayout;
 
-namespace RateLimit {
-	class Policy;
-	class RateLimiter;
-};
+class RateLimiter;
 
 class RateLimitDialog : public QDialog
 {
 	Q_OBJECT
 public:
-	explicit RateLimitDialog(QWidget* parent, RateLimit::RateLimiter* limiter);
+	explicit RateLimitDialog(QWidget* parent, RateLimiter* limiter);
 signals:
 	void RequestUpdate();
 public slots:

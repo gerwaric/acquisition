@@ -28,17 +28,16 @@
 #include "ui_mainwindow.h"
 
 struct MessageType {
-	QColor color;
-	std::string desc;
+	const QColor color;
+	const char* desc;
 };
 
 // Colors for different message types. Unfortunately this is hard-coded
 // and does not account for different themes.
-static std::vector<MessageType> message_types{
+constexpr std::array<MessageType, 3> message_types{ {
 	{ QColor(), "message" },
 	{ QColor(174, 141, 28), "warning" },
-	{ QColor(255, 0, 0), "error" }
-};
+	{ QColor(255, 0, 0), "error" }} };
 
 LogPanel::LogPanel(MainWindow* window, Ui::MainWindow* ui) :
 	status_button_(new QPushButton),
@@ -66,11 +65,11 @@ LogPanel::LogPanel(MainWindow* window, Ui::MainWindow* ui) :
 void LogPanel::UpdateStatusLabel() {
 	QString stylesheet;
 	QString text = "Event Log";
-    for (size_t i = num_messages_.size(); i > 0; --i) {
-        int num = num_messages_[i-1];
-        auto& type = message_types[i-1];
+	for (size_t i = num_messages_.size(); i > 0; --i) {
+		int num = num_messages_[i - 1];
+		auto& type = message_types[i - 1];
 		if (num > 0) {
-			text = QString("%1 " + QString(type.desc.c_str())).arg(num) + (num > 1 ? "s" : "");
+			text = QString("%1 " + QString(type.desc)).arg(num) + (num > 1 ? "s" : "");
 			stylesheet = "font-weight: bold; color: " + type.color.name();
 			break;
 		}

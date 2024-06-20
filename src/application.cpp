@@ -19,7 +19,10 @@
 
 #include "application.h"
 
+#include <QApplication>
+#include <QDir>
 #include <QNetworkAccessManager>
+#include <QSettings>
 #include <QtHttpServer/QHttpServer>
 
 #include "buyoutmanager.h"
@@ -28,16 +31,12 @@
 #include "filesystem.h"
 #include "itemsmanager.h"
 #include "currencymanager.h"
-#include "porting.h"
 #include "shop.h"
 #include "QsLog.h"
-#include "ratelimit.h"
+#include "ratelimiter.h"
 #include "updatechecker.h"
-#include "oauth.h"
+#include "oauthmanager.h"
 #include "version_defines.h"
-
-const QString BUILD_TIMESTAMP = QString(__DATE__ " " __TIME__).simplified();
-const QDateTime BUILD_DATE = QLocale("en_US").toDateTime(BUILD_TIMESTAMP, "MMM d yyyy hh:mm:ss");
 
 Application::Application(bool mock_data) :
 	test_mode_(mock_data)
@@ -47,14 +46,18 @@ Application::Application(bool mock_data) :
 		return;
 	};
 
-	network_manager_ = std::make_unique<QNetworkAccessManager>(this);
-	update_checker_ = std::make_unique<UpdateChecker>(*network_manager_, this);
-	oauth_manager_ = std::make_unique<OAuthManager>(*network_manager_, this);
-	rate_limiter_ = std::make_unique<RateLimit::RateLimiter>(*this, nullptr);
+	const QString user_dir = Filesystem::UserDir();
+	const QString settings_path = user_dir + "/settings.ini";
+	const QString global_data_file = user_dir + "/data/" + SqliteDataStore::MakeFilename("", "");
 
-	// The global datastore holds things like the selected theme.
-	QString global_data_file = SqliteDataStore::MakeFilename("", "");
-	global_data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/data/" + global_data_file);
+	settings_ = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
+	global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
+	network_manager_ = std::make_unique<QNetworkAccessManager>(this);
+	update_checker_ = std::make_unique<UpdateChecker>(this, *settings_, *network_manager_);
+	oauth_manager_ = std::make_unique<OAuthManager>(this, *network_manager_, *global_data_);
+	rate_limiter_ = std::make_unique<RateLimiter>(this, *network_manager_, *oauth_manager_);
+
+	LoadTheme();
 }
 
 Application::~Application() {
@@ -62,29 +65,81 @@ Application::~Application() {
 		buyout_manager_->Save();
 }
 
-void Application::InitLogin(
-	const std::string& league,
-	const std::string& email)
-{
-	league_ = league;
-	email_ = email;
+void Application::LoadTheme() {
+	// Load the appropriate theme.
+	const QString theme = settings_->value("theme").toString();
 
+	// Do nothing for the default theme.
+	if (theme == "default") {
+		return;
+	};
+
+	// Determine which qss file to use.
+	QString stylesheet;
+	if (theme == "dark") {
+		stylesheet = ":qdarkstyle/dark/darkstyle.qss";
+	} else if (theme == "light") {
+		stylesheet = ":qdarkstyle/light/lightstyle.qss";
+	} else {
+		QLOG_ERROR() << "Invalid theme:" << theme;
+		return;
+	};
+
+	// Load the theme.
+	QFile f(stylesheet);
+	if (!f.exists()) {
+		QLOG_ERROR() << "Theme stylesheet not found:" << stylesheet;
+	} else {
+		f.open(QFile::ReadOnly | QFile::Text);
+		QTextStream ts(&f);
+		const QString stylesheet = ts.readAll();
+		qApp->setStyleSheet(stylesheet);
+		QPalette pal = QApplication::palette();
+		pal.setColor(QPalette::WindowText, Qt::white);
+		QApplication::setPalette(pal);
+	};
+}
+
+void Application::InitLogin(PoeApiMode mode)
+{
 	if (test_mode_) {
 		// This is used in tests
 		data_ = std::make_unique<MemoryDataStore>();
 	} else {
-		QString data_file = SqliteDataStore::MakeFilename(email, league);
-		data_ = std::make_unique<SqliteDataStore>(Filesystem::UserDir() + "/data/" + data_file);
+		const std::string league = settings_->value("league").toString().toStdString();
+		const std::string account = settings_->value("account").toString().toStdString();
+		const QString data_dir = Filesystem::UserDir() + "/data/";
+		const QString data_file = SqliteDataStore::MakeFilename(account, league);
+		const QString data_path = data_dir + data_file;
+		data_ = std::make_unique<SqliteDataStore>(data_path);
 		SaveDbOnNewVersion();
 	}
 
 	buyout_manager_ = std::make_unique<BuyoutManager>(*data_);
-	shop_ = std::make_unique<Shop>(*this);
-	items_manager_ = std::make_unique<ItemsManager>(*this);
-	currency_manager_ = std::make_unique<CurrencyManager>(*this);
+	
+	items_manager_ = std::make_unique<ItemsManager>(this,
+		*settings_,
+		*network_manager_,
+		*buyout_manager_,
+		*data_,
+		*rate_limiter_);
+	
+	shop_ = std::make_unique<Shop>(this,
+		*settings_,
+		*network_manager_,
+		*data_,
+		*items_manager_,
+		*buyout_manager_);
+	
+	currency_manager_ = std::make_unique<CurrencyManager>(nullptr,
+		*settings_,
+		*data_,
+		*items_manager_);
+
 	connect(items_manager_.get(), &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
+
 	if (test_mode_ == false) {
-		items_manager_->Start();
+		items_manager_->Start(mode);
 	};
 }
 
@@ -117,5 +172,4 @@ void Application::SaveDbOnNewVersion() {
 		QLOG_INFO() << "I've created the folder " << save_path << "in your acquisition folder, containing a save of all your data";
 	}
 	data_->Set("version", APP_VERSION_STRING);
-
 }

@@ -26,25 +26,24 @@
 #include <QLineEdit>
 #include <QLabel>
 #include <QFontMetrics>
+#include <QMetaEnum>
 #include <QNetworkReply>
 #include <QRegularExpression>
 #include <QTextDocument>
 #include <QUrlQuery>
 #include <QPainter>
-#include "rapidjson/document.h"
-#include "rapidjson/writer.h"
+
 #include <sstream>
 #include <iomanip>
 #include <cmath>
-#include <regex>
 
-#include "QsLog.h"
-
-#include "buyoutmanager.h"
-#include "porting.h"
+#include "rapidjson/document.h"
+#include "rapidjson/writer.h"
+#include "rapidjson/prettywriter.h"
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string.hpp>
-#include <QMetaEnum>
+
+#include "currency.h"
 
 std::string Util::Md5(const std::string& value) {
 	QString hash = QString(QCryptographicHash::hash(value.c_str(), QCryptographicHash::Md5).toHex());
@@ -68,7 +67,7 @@ void Util::PopulateBuyoutCurrencyComboBox(QComboBox* combobox) {
 		combobox->addItem(QString(Currency(type).AsString().c_str()));
 }
 
-static std::vector<std::string> width_strings = {
+constexpr std::array width_strings = {
 	"max#",
 	"Map Tier",
 	"R##",
@@ -86,7 +85,7 @@ int Util::TextWidth(TextWidthId id) {
 		QLineEdit textbox;
 		QFontMetrics fm(textbox.fontMetrics());
 		for (size_t i = 0; i < width_strings.size(); ++i)
-            result[i] = fm.horizontalAdvance(width_strings[i].c_str());
+            result[i] = fm.horizontalAdvance(width_strings[i]);
 	}
 	return result[static_cast<int>(id)];
 }
@@ -135,11 +134,26 @@ std::string Util::RapidjsonSerialize(const rapidjson::Value& val) {
 	return buffer.GetString();
 }
 
+std::string Util::RapidjsonPretty(const rapidjson::Value& val) {
+	rapidjson::StringBuffer buffer;
+	rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+	val.Accept(writer);
+	return buffer.GetString();
+}
+
 void Util::RapidjsonAddConstString(rapidjson::Value* object, const char* const name, const std::string& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc) {
     rapidjson::Value rjson_name;
     rjson_name.SetString(name, rapidjson::SizeType(strlen(name)));
     rapidjson::Value rjson_val;
     rjson_val.SetString(value.c_str(), rapidjson::SizeType(value.size()));
+	object->AddMember(rjson_name, rjson_val, alloc);
+}
+
+void Util::RapidjsonAddInt64(rapidjson::Value* object, const char* const name, qint64 value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc) {
+	rapidjson::Value rjson_name;
+	rjson_name.SetString(name, rapidjson::SizeType(strlen(name)));
+	rapidjson::Value rjson_val;
+	rjson_val.SetInt64(value);
 	object->AddMember(rjson_name, rjson_val, alloc);
 }
 

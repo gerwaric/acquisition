@@ -29,13 +29,14 @@
 #include "mainwindow.h"
 #include "util.h"
 
-class QThread;
-class Application;
+class QSettings;
+
 class BuyoutManager;
 class DataStore;
 class ItemsManagerWorker;
 class Shop;
-namespace RateLimit { struct StatusInfo; };
+
+enum class PoeApiMode;
 
 /*
  * ItemsManager manages an ItemsManagerWorker (which lives in a separate thread)
@@ -45,15 +46,20 @@ namespace RateLimit { struct StatusInfo; };
 class ItemsManager : public QObject {
 	Q_OBJECT
 public:
-	explicit ItemsManager(Application& app);
+	explicit ItemsManager(QObject* parent,
+		QSettings& settings,
+		QNetworkAccessManager& network_manager,
+		BuyoutManager& buyout_manager,
+		DataStore& datastore,
+		RateLimiter& rate_limiter);
 	~ItemsManager();
+	bool isInitialized() const { return worker_ ? worker_->isInitialized() : false; };
+	bool isUpdating() const { return worker_ ? worker_->isUpdating() : false; };
 	// Creates and starts the worker
-	void Start();
+	void Start(PoeApiMode mode);
 	void Update(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 	void SetAutoUpdateInterval(int minutes);
 	void SetAutoUpdate(bool update);
-	int auto_update_interval() const { return auto_update_interval_; }
-	bool auto_update() const { return auto_update_; }
 	const Items& items() const { return items_; }
 	void ApplyAutoTabBuyouts();
 	void ApplyAutoItemBuyouts();
@@ -70,12 +76,13 @@ signals:
 private:
 	void MigrateBuyouts();
 
-	// should items be automatically refreshed
-	bool auto_update_;
-	// items will be automatically updated every X minutes
-	int auto_update_interval_;
+	QSettings& settings_;
+	QNetworkAccessManager& network_manager_;
+	BuyoutManager& buyout_manager_;
+	DataStore& datastore_;
+	RateLimiter& rate_limiter_;
+
 	std::unique_ptr<QTimer> auto_update_timer_;
 	std::unique_ptr<ItemsManagerWorker> worker_;
-	Application& app_;
 	Items items_;
 };

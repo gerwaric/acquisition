@@ -30,7 +30,7 @@
 TestItemsManager::TestItemsManager() : app_(true) {}
 
 void TestItemsManager::initTestCase() {
-	app_.InitLogin("TestLeague", "testuser");
+	app_.InitLogin(PoeApiMode::LEGACY);
 }
 
 void TestItemsManager::cleanup() {

@@ -19,14 +19,14 @@
 
 #include "filesystem.h"
 
-#include "porting.h"
+#include <QStandardPaths>
 
 QString user_dir;
 
 namespace Filesystem {
 
 	void Init() {
-		SetUserDir(porting::DefaultUserDir());
+		SetUserDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
 	}
 
 	void SetUserDir(const QString& dir) {

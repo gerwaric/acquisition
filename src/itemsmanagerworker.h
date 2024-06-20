@@ -30,16 +30,17 @@
 #include "mainwindow.h"
 #include "util.h"
 
-class Application;
-class DataStore;
+class QNetworkAccessManager;
 class QNetworkReply;
+class QSettings;
 class QSignalMapper;
 class QTimer;
+
 class BuyoutManager;
-namespace RateLimit {
-	struct StatusInfo;
-	class RateLimiter;
-};
+class DataStore;
+class RateLimiter;
+
+enum class PoeApiMode;
 
 struct ItemsRequest {
 	int id{ -1 };
@@ -56,58 +57,90 @@ struct ItemsReply {
 class ItemsManagerWorker : public QObject {
 	Q_OBJECT
 public:
-	ItemsManagerWorker(Application& app);
+	ItemsManagerWorker(QObject* parent,
+		QSettings& settings_,
+		QNetworkAccessManager& network_manager,
+		BuyoutManager& buyout_manager,
+		DataStore& datastore,
+		RateLimiter& rate_limiter,
+		PoeApiMode mode);
 	bool isInitialized() const { return initialized_; }
+	bool isUpdating() const { return updating_; };
 	void UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations);
-public slots:
-	void ParseItemMods();
-	void Update(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
-public slots:
-	void OnMainPageReceived();
-	void OnCharacterListReceived(QNetworkReply* reply);
-	void OnFirstTabReceived(QNetworkReply* reply);
-	void OnTabReceived(QNetworkReply* reply, ItemLocation location);
-	void FetchItems();
-	void PreserveSelectedCharacter();
-	void Init();
-	void OnStatTranslationsReceived();
-	void OnItemClassesReceived();
-	void OnItemBaseTypesReceived();
+
 signals:
 	void ItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
 	void StatusUpdate(ProgramState state, const QString& status);
-	void ItemClassesUpdate(const QByteArray& classes);
-	void ItemBaseTypesUpdate(const QByteArray& baseTypes);
-	void StatTranslationsUpdate(const QByteArray& statTranslations);
+
+public slots:
+	void Init();
+	void Update(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
+
+private slots:
+	void OnItemClassesReceived();
+	void OnItemBaseTypesReceived();
+	void OnStatTranslationsReceived();
+
+	void OnLegacyMainPageReceived();
+	void OnLegacyCharacterListReceived(QNetworkReply* reply);
+	void OnFirstLegacyTabReceived(QNetworkReply* reply);
+	void OnLegacyTabReceived(QNetworkReply* reply, ItemLocation location);
+
+	void OnOAuthStashListReceived(QNetworkReply* reply);
+	void OnOAuthStashReceived(QNetworkReply* reply, ItemLocation location);
+	void OnOAuthCharacterListReceived(QNetworkReply* reply);
+	void OnOAuthCharacterReceived(QNetworkReply* reply, ItemLocation location);
+
 private:
+	void ParseItemMods();
 	void RemoveUpdatingTabs(const std::set<std::string>& tab_ids);
 	void RemoveUpdatingItems(const std::set<std::string>& tab_ids);
-	QNetworkRequest MakeTabRequest(int tab_index, bool tabs = false);
-	QNetworkRequest MakeCharacterRequest(const std::string& name);
-	QNetworkRequest MakeCharacterPassivesRequest(const std::string& name);
 	void QueueRequest(const QString& endpoint, const QNetworkRequest& request, const ItemLocation& location);
-	void ParseItems(rapidjson::Value* value_ptr, ItemLocation base_location, rapidjson_allocator& alloc);
-	std::vector<std::pair<std::string, std::string> > CreateTabsSignatureVector(std::string tabs);
+	void FetchItems();
+	void PreserveSelectedCharacter();
+
+	void LegacyRefresh();
+	QNetworkRequest MakeLegacyTabRequest(int tab_index, bool tabs = false);
+	QNetworkRequest MakeLegacyCharacterRequest(const std::string& name);
+	QNetworkRequest MakeLegacyPassivesRequest(const std::string& name);
+
+	void OAuthRefresh();
+	QNetworkRequest MakeOAuthStashListRequest(const std::string& league);
+	QNetworkRequest MakeOAuthStashRequest(const std::string& league, const std::string& stash_id, const std::string& substash_id = "");
+	QNetworkRequest MakeOAuthCharacterListRequest();
+	QNetworkRequest MakeOAuthCharacterRequest(const std::string& name);
+
+	typedef std::pair<std::string, std::string> TabSignature;
+	typedef std::vector<TabSignature> TabsSignatureVector;
+	TabsSignatureVector CreateTabsSignatureVector(const rapidjson::Value& tabs);
+
+	void ParseItems(rapidjson::Value& value, ItemLocation base_location, rapidjson_allocator& alloc);
 	void UpdateModList();
 	bool TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, ItemLocation& location);
 	void FinishUpdate();
 
-	Application& app_;
-	RateLimit::RateLimiter& rate_limiter_;
+	QSettings& settings_;
+	QNetworkAccessManager& network_manager_;
+	DataStore& datastore_;
+	BuyoutManager& buyout_manager_;
+	RateLimiter& rate_limiter_;
+
+	PoeApiMode api_mode_;
+	std::string league_;
+	std::string account_;
 
 	bool test_mode_;
-	//std::unique_ptr<RateLimit::RateLimiter> rate_limiter_;
 	std::vector<ItemLocation> tabs_;
 	std::queue<ItemsRequest> queue_;
 
 	// tabs_signature_ captures <"n", "id"> from JSON tab list, used as consistency check
-	std::vector<std::pair<std::string, std::string> > tabs_signature_;
+	TabsSignatureVector tabs_signature_;
+
 	Items items_;
 	size_t total_completed_, total_needed_;
 	size_t requests_completed_, requests_needed_;
 
 	std::set<std::string> tab_id_index_;
-	std::string tabs_as_string_;
 
 	volatile bool initialized_;
 	volatile bool updating_;

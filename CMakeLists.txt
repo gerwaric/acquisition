@@ -29,17 +29,17 @@ cmake_minimum_required(VERSION 3.19)
 # version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
-    VERSION 0.10.5
+    VERSION 0.11.0
     DESCRIPTION "Stash and forum shop management for Path of Exile"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
 )
 
 # Use this to define pre-releases
-set(version_postfix "-alpha.5")
+set(version_postfix "")
 
 # Variables used to generate version_defines.h and installer.iss
-set(version_code        60) # This doesn't need to be changed with the new update checks.
+set(version_code        61) # This doesn't need to be changed with the new update checks.
 set(app_name            "${CMAKE_PROJECT_NAME}")
 set(app_version         "${CMAKE_PROJECT_VERSION}")
 set(app_version_string  "${CMAKE_PROJECT_VERSION}${version_postfix}")
@@ -72,8 +72,10 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     # Source
     src/application.cpp
     src/bucket.cpp
+    src/buyout.cpp
     src/buyoutmanager.cpp
     src/column.cpp
+    src/currency.cpp
     src/currencymanager.cpp
     src/datastore.cpp
     src/filesystem.cpp
@@ -83,6 +85,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/influence.cpp
     src/item.cpp
     src/itemcategories.cpp
+    src/itemconstants.cpp
     src/itemlocation.cpp
     src/items_model.cpp
     src/itemsmanager.cpp
@@ -95,10 +98,12 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/memorydatastore.cpp
     src/modlist.cpp
     src/modsfilter.cpp
-    src/oauth.cpp
-    src/porting.cpp
+    src/oauthmanager.cpp
+    src/oauthtoken.cpp
     src/ratelimit.cpp
     src/ratelimitdialog.cpp
+    src/ratelimiter.cpp
+    src/ratelimitmanager.cpp
     src/search.cpp
     src/searchcombobox.cpp
     src/shop.cpp
@@ -115,8 +120,10 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     # Headers
     src/application.h
     src/bucket.h
+    src/buyout.h
     src/buyoutmanager.h
     src/column.h
+    src/currency.h
     src/currencymanager.h
     src/datastore.h
     src/filesystem.h
@@ -139,15 +146,16 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/modlist.h
     src/modsfilter.h
     src/network_info.h
-    src/oauth.h
-    src/porting.h
+    src/oauthmanager.h
+    src/oauthtoken.h
     src/rapidjson_util.h
     src/ratelimit.h
     src/ratelimitdialog.h
+    src/ratelimiter.h
+    src/ratelimitmanager.h
     src/replytimeout.h
     src/search.h
     src/searchcombobox.h
-    src/selfdestructingreply.h
     src/shop.h
     src/sqlitedatastore.h
     src/updatechecker.h
@@ -182,7 +190,7 @@ if(WIN32)
     set(ver_LEGALCOPYRIGHT_STR "Copyright \\251 2014 Ilya Zhuravlev and 2023 Gerwaric")
     set(ver_FILENAME_STR       "${PROJECT_NAME}.exe")
     set(ver_NAME_STR           "${PROJECT_NAME}")
-    set(ver_FILEDESC_STR       "${PROJECT_DESCRIPTION}")
+    set(ver_FILEDESC_STR       "${PROJECT_NAME}")
     configure_file(version_info.rc.in version_info.rc @ONLY)
     target_sources(acquisition PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/version_info.rc")
 endif()
@@ -259,6 +267,12 @@ if(MSVC)
 endif()
 
 if(APPLE)
+
+    # Add the macOS application icon
+    set(MACOSX_BUNDLE_ICON_FILE icon.icns)
+    set(macos_app_icon "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.icns")
+    set_source_files_properties(${macos_app_icon} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+    target_sources(acquisition PUBLIC "${macos_app_icon}")
 
     # On macOS we need to enable unary functions for version of boost we are using.
     target_compile_definitions(acquisition PUBLIC _LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION)

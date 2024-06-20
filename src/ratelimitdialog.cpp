@@ -27,9 +27,10 @@
 #include <QVBoxLayout>
 
 #include "ratelimit.h"
+#include "ratelimiter.h"
 #include "util.h"
 
-RateLimitDialog::RateLimitDialog(QWidget* parent, RateLimit::RateLimiter* limiter)
+RateLimitDialog::RateLimitDialog(QWidget* parent, RateLimiter* limiter)
 	: QDialog(parent)
 {
 	setSizeGripEnabled(true);
@@ -76,9 +77,9 @@ RateLimitDialog::RateLimitDialog(QWidget* parent, RateLimit::RateLimiter* limite
 	setMinimumWidth(600);
 	setMinimumHeight(400);
 
-	connect(limiter, &RateLimit::RateLimiter::PolicyUpdate, this, &RateLimitDialog::OnPolicyUpdate);
-	connect(limiter, &RateLimit::RateLimiter::Paused, this, &RateLimitDialog::OnPause);
-	connect(this, &RateLimitDialog::RequestUpdate, limiter, &RateLimit::RateLimiter::OnUpdateRequested);
+	connect(limiter, &RateLimiter::PolicyUpdate, this, &RateLimitDialog::OnPolicyUpdate);
+	connect(limiter, &RateLimiter::Paused, this, &RateLimitDialog::OnPause);
+	connect(this, &RateLimitDialog::RequestUpdate, limiter, &RateLimiter::OnUpdateRequested);
 }
 
 void RateLimitDialog::OnRefreshRequested()

@@ -31,20 +31,23 @@
 
 #include "filters.h"
 
-namespace {
-
-	bool classes_initialized{ false };
-	bool basetypes_initialized{ false };
-
+class CATEGORY_DATA {
+private:
+	CATEGORY_DATA() {};
+public:
+	static CATEGORY_DATA& instance() {
+		static CATEGORY_DATA data;
+		return data;
+	};
 	std::map<std::string, std::string> itemClassKeyToValue;
 	std::map<std::string, std::string> itemClassValueToKey;
 	std::map<std::string, std::string> itemBaseType_NameToClass;
-
 	QStringList categories;
-
-}
+};
 
 void InitItemClasses(const QByteArray& classes) {
+
+	static bool classes_initialized = false;
 
 	rapidjson::Document doc;
 	doc.Parse(classes.constData());
@@ -60,8 +63,9 @@ void InitItemClasses(const QByteArray& classes) {
 		QLOG_WARN() << "Item classes have already been loaded. They will be overwritten.";
 	};
 
-	itemClassKeyToValue.clear();
-	itemClassValueToKey.clear();
+	static auto& data = CATEGORY_DATA::instance();
+	data.itemClassKeyToValue.clear();
+	data.itemClassValueToKey.clear();
 
 	QSet<QString> cats;
 	for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
@@ -71,18 +75,20 @@ void InitItemClasses(const QByteArray& classes) {
 			QLOG_DEBUG() << "Item class for" << key << "is empty";
 			continue;
 		};
-		itemClassKeyToValue.insert(std::make_pair(key, value));
-		itemClassValueToKey.insert(std::make_pair(value, key));
+		data.itemClassKeyToValue.insert(std::make_pair(key, value));
+		data.itemClassValueToKey.insert(std::make_pair(value, key));
 		cats.insert(QString::fromStdString(value));
 	};
-	categories = cats.values();
-	categories.append(QString::fromStdString(CategorySearchFilter::k_Default));
-	categories.sort();
+	data.categories = cats.values();
+	data.categories.append(QString::fromStdString(CategorySearchFilter::k_Default));
+	data.categories.sort();
 
 	classes_initialized = true;
 }
 
 void InitItemBaseTypes(const QByteArray& baseTypes) {
+
+    static bool basetypes_initialized = false;
 
 	rapidjson::Document doc;
 	doc.Parse(baseTypes.constData());
@@ -98,11 +104,12 @@ void InitItemBaseTypes(const QByteArray& baseTypes) {
 		QLOG_WARN() << "Item base types have already been loaded. They will be overwritten.";
 	};
 
-	itemBaseType_NameToClass.clear();
+	static auto& data = CATEGORY_DATA::instance();
+	data.itemBaseType_NameToClass.clear();
 	for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
 		std::string item_class = itr->value.FindMember("item_class")->value.GetString();
 		std::string name = itr->value.FindMember("name")->value.GetString();
-		itemBaseType_NameToClass.insert(std::make_pair(name, item_class));
+		data.itemBaseType_NameToClass.insert(std::make_pair(name, item_class));
 	};
 
 	basetypes_initialized = true;
@@ -110,11 +117,13 @@ void InitItemBaseTypes(const QByteArray& baseTypes) {
 
 std::string GetItemCategory(const std::string& baseType) {
 
-	auto rslt = itemBaseType_NameToClass.find(baseType);
-	if (rslt != itemBaseType_NameToClass.end()) {
+	static auto& data = CATEGORY_DATA::instance();
+
+	auto rslt = data.itemBaseType_NameToClass.find(baseType);
+	if (rslt != data.itemBaseType_NameToClass.end()) {
 		std::string key = rslt->second;
-		rslt = itemClassKeyToValue.find(key);
-		if (rslt != itemClassKeyToValue.end()) {
+		rslt = data.itemClassKeyToValue.find(key);
+		if (rslt != data.itemClassKeyToValue.end()) {
 			std::string category = rslt->second;
 			boost::to_lower(category);
 			return category;
@@ -124,5 +133,6 @@ std::string GetItemCategory(const std::string& baseType) {
 }
 
 const QStringList& GetItemCategories() {
-	return categories;
+	static auto& data = CATEGORY_DATA::instance();
+	return data.categories;
 }

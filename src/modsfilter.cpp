@@ -28,7 +28,6 @@
 
 #include "mainwindow.h"
 #include "modlist.h"
-#include "porting.h"
 
 SelectedMod::SelectedMod(const std::string& name, double min, double max, bool min_filled, bool max_filled) :
 	data_(name, min, max, min_filled, max_filled),

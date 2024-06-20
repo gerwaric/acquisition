@@ -23,6 +23,8 @@
 #include <QClipboard>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QRegularExpression>
+#include <QSettings>
 #include <QTextDocumentFragment>
 #include <QTimer>
 #include <QUrl>
@@ -34,18 +36,17 @@
 #include "datastore.h"
 #include "itemsmanager.h"
 #include "network_info.h"
-#include "porting.h"
 #include "util.h"
 #include "mainwindow.h"
 #include "replytimeout.h"
 
-const std::string kPoeEditThread = "https://www.pathofexile.com/forum/edit-thread/";
-const std::string kShopTemplateItems = "[items]";
+const char* kPoeEditThread = "https://www.pathofexile.com/forum/edit-thread/";
+const char* kShopTemplateItems = "[items]";
 const int kMaxCharactersInPost = 50000;
 const int kSpoilerOverhead = 19; // "[spoiler][/spoiler]" length
 
 // Use a regular expression to look for html errors.
-const QRegularExpression error_regex(
+const QRegularExpression Shop::error_regex(
 	R"regex(
 		# Start the match looking for any class attribute that indicates an error
 		class="(?:input-error|errors)"
@@ -63,18 +64,29 @@ const QRegularExpression error_regex(
 	QRegularExpression::DotMatchesEverythingOption |
 	QRegularExpression::ExtendedPatternSyntaxOption);
 
-const QRegularExpression ratelimit_regex(
+const QRegularExpression Shop::ratelimit_regex(
 	R"regex(You must wait (\d+) seconds.)regex",
 	QRegularExpression::CaseInsensitiveOption);
 
-Shop::Shop(Application& app) :
-	app_(app),
+Shop::Shop(QObject* parent,
+	QSettings& settings,
+	QNetworkAccessManager& network_manager,
+	DataStore& datastore,
+	ItemsManager& items_manager,
+	BuyoutManager& buyout_manager)
+	:
+	settings_(settings),
+	network_manager_(network_manager),
+	datastore_(datastore),
+	items_manager_(items_manager),
+	buyout_manager_(buyout_manager),
 	shop_data_outdated_(true),
-	submitting_(false)
+	submitting_(false),
+	requests_completed_(0)
 {
-	threads_ = Util::StringSplit(app_.data().Get("shop"), ';');
-	auto_update_ = app_.data().GetBool("shop_update", false);
-	shop_template_ = app_.data().Get("shop_template");
+	threads_ = Util::StringSplit(datastore_.Get("shop"), ';');
+	auto_update_ = settings_.value("shop_autoupdate").toBool();
+	shop_template_ = datastore_.Get("shop_template");
 	if (shop_template_.empty())
 		shop_template_ = kShopTemplateItems;
 }
@@ -83,19 +95,19 @@ void Shop::SetThread(const std::vector<std::string>& threads) {
 	if (submitting_)
 		return;
 	threads_ = threads;
-	app_.data().Set("shop", Util::StringJoin(threads, ";"));
+	datastore_.Set("shop", Util::StringJoin(threads, ";"));
 	ExpireShopData();
-	app_.data().Set("shop_hash", "");
+	datastore_.Set("shop_hash", "");
 }
 
 void Shop::SetAutoUpdate(bool update) {
 	auto_update_ = update;
-	app_.data().SetBool("shop_update", update);
+	settings_.setValue("shop_autoupdate", update);
 }
 
 void Shop::SetShopTemplate(const std::string& shop_template) {
 	shop_template_ = shop_template;
-	app_.data().Set("shop_template", shop_template);
+	datastore_.Set("shop_template", shop_template);
 	ExpireShopData();
 }
 std::string Shop::SpoilerBuyout(Buyout& bo) {
@@ -118,9 +130,9 @@ void Shop::Update() {
 	std::vector<AugmentedItem> aug_items;
 	AugmentedItem tmp = AugmentedItem();
 	//Get all buyouts to be able to sort them
-	for (auto& item : app_.items_manager().items()) {
+	for (auto& item : items_manager_.items()) {
 		tmp.item = item.get();
-		tmp.bo = app_.buyout_manager().Get(*item);
+		tmp.bo = buyout_manager_.Get(*item);
 
 		if (!tmp.bo.IsPostable())
 			continue;
@@ -131,6 +143,8 @@ void Shop::Update() {
 		return;
 	std::sort(aug_items.begin(), aug_items.end());
 
+	const std::string league = settings_.value("league").toString().toStdString();
+
 	Buyout current_bo = aug_items[0].bo;
 	data += SpoilerBuyout(current_bo);
 	for (auto& aug : aug_items) {
@@ -139,7 +153,7 @@ void Shop::Update() {
 			data += "[/spoiler]";
 			data += SpoilerBuyout(current_bo);
 		}
-		std::string item_string = aug.item->location().GetForumCode(app_.league());
+		std::string item_string = aug.item->location().GetForumCode(league);
 		if (data.size() + item_string.size() + shop_template_.size() + kSpoilerOverhead + QString("[/spoiler]").size() > kMaxCharactersInPost) {
 			data += "[/spoiler]";
 			shop_data_.push_back(data);
@@ -175,7 +189,7 @@ void Shop::SubmitShopToForum(bool force) {
 	if (shop_data_outdated_)
 		Update();
 
-	std::string previous_hash = app_.data().Get("shop_hash");
+	std::string previous_hash = datastore_.Get("shop_hash");
 	// Don't update the shop if it hasn't changed
 	if (previous_hash == shop_hash_ && !force) {
 		QLOG_TRACE() << "Shop hash has not changed. Skipping update.";
@@ -199,7 +213,7 @@ void Shop::SubmitSingleShop() {
 	if (requests_completed_ == threads_.size()) {
 		emit StatusUpdate(ProgramState::Ready, "Shop threads updated");
 		submitting_ = false;
-		app_.data().Set("shop_hash", shop_hash_);
+		datastore_.Set("shop_hash", shop_hash_);
 	} else {
 		emit StatusUpdate(ProgramState::Ready,
 			QString("Sending your shops to the forum, %1/%2")
@@ -210,7 +224,7 @@ void Shop::SubmitSingleShop() {
 		request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 		request.setRawHeader("Cache-Control", "max-age=0");
 		request.setTransferTimeout(kEditThreadTimeout);
-		QNetworkReply* fetched = app_.network_manager().get(request);
+		QNetworkReply* fetched = network_manager_.get(request);
 		connect(fetched, &QNetworkReply::finished, this, &Shop::OnEditPageFinished);
 	}
 }
@@ -262,7 +276,7 @@ void Shop::SubmitNextShop(const std::string title, const std::string hash)
 	request.setRawHeader("Cache-Control", "max-age=0");
 	request.setTransferTimeout(kEditThreadTimeout);
 
-	QNetworkReply* submitted = app_.network_manager().post(request, data);
+	QNetworkReply* submitted = network_manager_.post(request, data);
 	connect(submitted, &QNetworkReply::finished, this,
 		[=]() {
 			OnShopSubmitted(query, submitted);

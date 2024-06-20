@@ -19,7 +19,6 @@
 
 #include "search.h"
 
-#include <iostream>
 #include <memory>
 #include <QHeaderView>
 #include <QTreeView>
@@ -29,7 +28,6 @@
 #include "column.h"
 #include "filters.h"
 #include "items_model.h"
-#include "porting.h"
 #include "QsLog.h"
 #include <QMessageBox>
 

@@ -3,7 +3,6 @@
 #include <QTest>
 #include <memory>
 
-#include "porting.h"
 #include "testitem.h"
 #include "testitemsmanager.h"
 #include "testshop.h"
