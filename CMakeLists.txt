@@ -17,7 +17,7 @@
 	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 #]]
 
-cmake_minimum_required(VERSION 3.19)
+cmake_minimum_required(VERSION 3.21.1)
 
 # NOTE: For automatic update detection to work, the 'app_version' variable
 # defined below should match a tag in github. Historically, the github tags
