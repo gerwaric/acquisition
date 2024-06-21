@@ -259,7 +259,7 @@ add_library(qdarkstyle STATIC
 if(MSVC)
 	
     # Visual Studio 2022 needs this to work with boost.
-    target_compile_options(acquisition PRIVATE "/EHsc")
+    target_compile_options(acquisition PRIVATE /EHsc /W4)
 
     # Visual Studio 2022 needs for debugging to work.
     target_compile_options(acquisition PRIVATE "$<$<CONFIG:DEBUG>:/Zi>")

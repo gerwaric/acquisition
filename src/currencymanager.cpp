@@ -17,6 +17,7 @@
 	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <QDateTime>
 #include <QDoubleSpinBox>
 #include <QFile>
 #include <QFileDialog>
@@ -25,6 +26,7 @@
 
 #include <ctime>
 #include <cmath>
+#include <mutex>
 
 #include "QsLog.h"
 #include "rapidjson/document.h"
@@ -171,13 +173,13 @@ std::string CurrencyManager::Serialize(const std::vector<std::shared_ptr<Currenc
 	return Util::RapidjsonSerialize(doc);
 }
 
-void CurrencyManager::Deserialize(const std::string& data, std::vector<std::shared_ptr<CurrencyItem> >* currencies) {
+void CurrencyManager::Deserialize(const std::string& string_data, std::vector<std::shared_ptr<CurrencyItem> >* currencies) {
 	//Maybe clear something would be good
-	if (data.empty()) {
+	if (string_data.empty()) {
 		return;
 	};
 	rapidjson::Document doc;
-	if (doc.Parse(data.c_str()).HasParseError()) {
+	if (doc.Parse(string_data.c_str()).HasParseError()) {
 		QLOG_ERROR() << "Error while parsing currency ratios.";
 		QLOG_ERROR() << rapidjson::GetParseError_En(doc.GetParseError());
 		return;
@@ -412,7 +414,7 @@ QVBoxLayout* CurrencyDialog::GenerateLayout(bool show_chaos, bool show_exalt) {
 		};
 		grid->addWidget(item->name, curr_row, 0);
 		grid->addWidget(item->count, curr_row, 1, 1, -1);
-		int col = 2;
+		col = 2;
 
 		if (show_chaos) {
 			grid->addWidget(item->chaos_value, curr_row, col);

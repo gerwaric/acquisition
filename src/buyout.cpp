@@ -54,8 +54,13 @@ bool Buyout::IsValid() const {
 	case BUYOUT_TYPE_INHERIT:
 	case BUYOUT_TYPE_NO_PRICE:
 		return true;
-	default:
+	case BUYOUT_TYPE_BUYOUT:
+	case BUYOUT_TYPE_FIXED:
+	case BUYOUT_TYPE_CURRENT_OFFER:
 		return (currency != CURRENCY_NONE) && (source != BUYOUT_SOURCE_NONE);
+	default:
+		QLOG_ERROR() << "Invalid buyout type:" << type;
+		return false;
 	}
 }
 

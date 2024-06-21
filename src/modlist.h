@@ -41,6 +41,7 @@ QStringListModel& mod_list_model();
 
 class ModGenerator {
 public:
+	virtual ~ModGenerator() {};
 	void Generate(const rapidjson::Value& json, ModTable* output);
 	virtual void Generate(const std::string& json, ModTable* output) = 0;
 };
@@ -48,6 +49,7 @@ public:
 class SumModGenerator : public ModGenerator {
 public:
 	SumModGenerator(const std::string& name, const std::vector<std::string>& sum);
+	virtual ~SumModGenerator() {};
 	virtual void Generate(const std::string& json, ModTable* output);
 private:
 	bool Match(const char* mod, double* output);

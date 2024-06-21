@@ -1126,8 +1126,8 @@ void MainWindow::OnUploadToImgur() {
 	request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	request.setTransferTimeout(kImgurUploadTimeout);
-	QByteArray data = "image=" + QUrl::toPercentEncoding(bytes.toBase64());
-	QNetworkReply* reply = network_manager_.post(request, data);
+	QByteArray image_data = "image=" + QUrl::toPercentEncoding(bytes.toBase64());
+	QNetworkReply* reply = network_manager_.post(request, image_data);
 	connect(reply, &QNetworkReply::finished, this, &MainWindow::OnUploadFinished);
 }
 

@@ -75,6 +75,7 @@ Shop::Shop(QObject* parent,
 	ItemsManager& items_manager,
 	BuyoutManager& buyout_manager)
 	:
+	QObject(parent),
 	settings_(settings),
 	network_manager_(network_manager),
 	datastore_(datastore),

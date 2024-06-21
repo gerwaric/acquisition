@@ -92,8 +92,8 @@ void Application::LoadTheme() {
 	} else {
 		f.open(QFile::ReadOnly | QFile::Text);
 		QTextStream ts(&f);
-		const QString stylesheet = ts.readAll();
-		qApp->setStyleSheet(stylesheet);
+		const QString theme_data = ts.readAll();
+		qApp->setStyleSheet(theme_data);
 		QPalette pal = QApplication::palette();
 		pal.setColor(QPalette::WindowText, Qt::white);
 		QApplication::setPalette(pal);

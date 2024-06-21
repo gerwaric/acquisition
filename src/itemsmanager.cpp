@@ -43,6 +43,7 @@ ItemsManager::ItemsManager(QObject* parent,
 	DataStore& datastore,
 	RateLimiter& rate_limiter)
 	:
+	QObject(parent),
 	settings_(settings),
 	network_manager_(network_manager),
 	buyout_manager_(buyout_manager),

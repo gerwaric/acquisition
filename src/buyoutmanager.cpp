@@ -171,11 +171,11 @@ std::string BuyoutManager::Serialize(const std::map<std::string, Buyout>& buyout
 		item.AddMember("value", buyout.value, alloc);
 
 		if (!buyout.last_update.isNull()) {
-			const uint64_t last_update = buyout.last_update.toSecsSinceEpoch();
+			const auto last_update = buyout.last_update.toSecsSinceEpoch();
 			item.AddMember("last_update", last_update, alloc);
 		} else {
 			// If last_update is null, set as the actual time
-			const uint64_t last_update = QDateTime::currentDateTime().toSecsSinceEpoch();
+			const auto last_update = QDateTime::currentDateTime().toSecsSinceEpoch();
 			item.AddMember("last_update", last_update, alloc);
 		}
 

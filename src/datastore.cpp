@@ -100,6 +100,9 @@ Locations DataStore::DeserializeTabs(const QString& json) {
 			g = 0;
 			b = 0;
 			break;
+		default:
+			QLOG_ERROR() << "Invalid item location type:" << type;
+			continue;
 		};
 		ItemLocation loc(static_cast<int>(index), tabUniqueId, name, type, r, g, b, tab_json, doc.GetAllocator());
 		tabs.push_back(loc);

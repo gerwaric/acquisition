@@ -162,8 +162,8 @@ void RateLimitManager::Update(QNetworkReply* reply) {
 	policy_ = std::move(new_policy);
 
 	// Grow the history capacity if needed.
-	const int capacity = history_.capacity();
-	const int max_hits = policy_->maximum_hits();
+	const size_t capacity = history_.capacity();
+	const size_t max_hits = policy_->maximum_hits();
 	if (capacity < max_hits) {
 		QLOG_DEBUG() << policy_->name()
 			<< "increasing history capacity"

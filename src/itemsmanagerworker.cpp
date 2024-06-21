@@ -99,10 +99,10 @@ ItemsManagerWorker::ItemsManagerWorker(QObject* parent,
 	buyout_manager_(buyout_manager),
 	datastore_(datastore),
 	rate_limiter_(rate_limiter),
-	total_completed_(-1),
-	total_needed_(-1),
-	requests_completed_(-1),
-	requests_needed_(-1),
+	total_completed_(0),
+	total_needed_(0),
+	requests_completed_(0),
+	requests_needed_(0),
 	initialized_(false),
 	updating_(false),
 	cancel_update_(false),
@@ -356,7 +356,6 @@ void ItemsManagerWorker::RemoveUpdatingTabs(const std::set<std::string>& tab_ids
 
 	// Keep tabs that are not being updated.
 	std::vector<ItemLocation> current_tabs = tabs_;
-	bool need_first = true;
 	tabs_.clear();
 	tab_id_index_.clear();
 	for (auto& tab : current_tabs) {

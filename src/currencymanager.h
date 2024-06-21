@@ -122,21 +122,21 @@ struct CurrencyUpdate {
 	std::string value;
 };
 
-constexpr std::array<const char*, 5> CurrencyForWisdom({
+constexpr std::array<const char*, 5> CurrencyForWisdom({ {
 	"Scroll of Wisdom",
 	"Portal Scroll",
 	"Armourer's Scrap",
 	"Blacksmith's Whetstone",
 	"Orb of Transmutation"
-	});
+	} });
 
-constexpr std::array<int, 5> CurrencyWisdomValue({
+constexpr std::array<int, 5> CurrencyWisdomValue({ {
 	1,
 	1,
 	2,
 	4,
 	4
-	});
+	} });
 
 class CurrencyDialog : public QDialog
 {

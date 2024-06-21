@@ -173,6 +173,7 @@ void LoginDialog::RequestLeagues() {
 	connect(reply, &QNetworkReply::finished, this, &LoginDialog::OnLeaguesReceived);
 	connect(reply, &QNetworkReply::errorOccurred, this,
 		[=](QNetworkReply::NetworkError code) {
+			Q_UNUSED(code);
 			DisplayError("Error requesting leagues: " + reply->errorString(), true);
 		});
 	connect(reply, &QNetworkReply::sslErrors, this,
@@ -290,6 +291,7 @@ void LoginDialog::LoginWithSessionID(const QString& session_id) {
 	connect(reply, &QNetworkReply::finished, this, &LoginDialog::OnStartLegacyLogin);
 	connect(reply, &QNetworkReply::errorOccurred, this,
 		[=](QNetworkReply::NetworkError code) {
+			Q_UNUSED(code);
 			DisplayError("Error during legacy login: " + reply->errorString(), true);
 		});
 	connect(reply, &QNetworkReply::sslErrors, this,
@@ -333,6 +335,7 @@ void LoginDialog::OnStartLegacyLogin() {
 	connect(next_reply, &QNetworkReply::finished, this, &LoginDialog::OnFinishLegacyLogin);
 	connect(reply, &QNetworkReply::errorOccurred, this,
 		[=](QNetworkReply::NetworkError code) {
+			Q_UNUSED(code);
 			DisplayError("Error finishing legacy login: " + reply->errorString(), true);
 		});
 	connect(reply, &QNetworkReply::sslErrors, this,
