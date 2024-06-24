@@ -115,8 +115,8 @@ LoginDialog::LoginDialog(
 	LoadSettings();
 
 	// Load the OAuth token if one is already present.
-	if (oauth_manager_.token()) {
-		OnOAuthAccessGranted(oauth_manager_.token().value());
+	if (oauth_manager_.token().isValid()) {
+		OnOAuthAccessGranted(oauth_manager_.token());
 	};
 
 	// Request the list of leagues.
@@ -267,8 +267,8 @@ void LoginDialog::OnLoginButtonClicked() {
 
 void LoginDialog::LoginWithOAuth() {
 	QLOG_INFO() << "Starting OAuth authentication";
-	if (oauth_manager_.token()) {
-		const OAuthToken token = oauth_manager_.token().value();
+	if (oauth_manager_.token().isValid()) {
+		const OAuthToken& token = oauth_manager_.token();
 		const QString account = QString::fromStdString(token.username());
 		settings_.setValue("account", account);
 		emit LoginComplete(PoeApiMode::OAUTH);
@@ -374,7 +374,9 @@ void LoginDialog::OnFinishLegacyLogin() {
 }
 
 void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
-	ui->authenticateLabel->setText("You are authenticated as \"" + QString::fromStdString(token.username()) + "\"");
+	const QString username = QString::fromStdString(token.username());
+	const QString expiration = token.expiration().toString();
+	ui->authenticateLabel->setText("You are authenticated as \"" + username + "\" until " + expiration);
 	ui->authenticateButton->setText("Re-authenticate (as someone else).");
 	ui->authenticateButton->setEnabled(true);
 }

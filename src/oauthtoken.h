@@ -22,7 +22,6 @@
 #include <QDateTime>
 
 #include <string>
-#include <optional>
 
 #include "rapidjson/document.h"
 
@@ -37,15 +36,15 @@ public:
 	std::string username() const { return username_; };
 	std::string sub() const { return sub_; };
 	std::string refresh_token() const { return refresh_token_; };
-	std::optional<std::string> birthday() const { return birthday_; };
-	std::optional<std::string> expiration() const { return expiration_; };
+	bool isValid() const;
+	QDateTime birthday() const { return birthday_; };
+	QDateTime expiration() const { return expiration_; };
 	std::string toJson() const;
 	std::string toJsonPretty() const;
-	QDateTime getBirthday() const { return getDate(birthday_); };
-	QDateTime getExpiration() const { return getDate(expiration_); };
 private:
-	static QDateTime getDate(const std::optional<std::string>& timestamp);
+	static QDateTime getDate(const std::string& timestamp);
 	rapidjson::Document toJsonDoc() const;
+
 	std::string access_token_;
 	long long int expires_in_;
 	std::string token_type_;
@@ -53,6 +52,7 @@ private:
 	std::string username_;
 	std::string sub_;
 	std::string refresh_token_;
-	std::optional<std::string> birthday_;
-	std::optional<std::string> expiration_;
+
+	QDateTime birthday_;
+	QDateTime expiration_;
 };

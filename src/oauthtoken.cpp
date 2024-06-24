@@ -62,27 +62,42 @@ OAuthToken::OAuthToken(const std::string& json) :
 	if (doc.HasMember("refresh_token") && doc["refresh_token"].IsString()) {
 		refresh_token_ = doc["refresh_token"].GetString();
 	};
+
 	if (doc.HasMember("birthday") && doc["birthday"].IsString()) {
-		birthday_ = doc["birthday"].GetString();
+		birthday_ = getDate(doc["birthday"].GetString());
+	} else {
+		QLOG_WARN() << "Constructing OAuth token without a birthday.";
 	};
+	
 	if (doc.HasMember("expiration") && doc["expiration"].IsString()) {
-		expiration_ = doc["expiration"].GetString();
-	};
+		expiration_ = getDate(doc["expiration"].GetString());
+	} else {
+		QLOG_WARN() << "Constructing OAuth token without an expiration";
+	}
 }
 
 OAuthToken::OAuthToken(const std::string& json, const QDateTime& timestamp) :
 	OAuthToken(json)
 {
 	if (timestamp.isValid()) {
-		if (birthday_) {
+		if (birthday_.isValid()) {
 			QLOG_ERROR() << "OAuthToken already has a birthday";
 		};
-		if (expiration_) {
+		if (expiration_.isValid()) {
 			QLOG_ERROR() << "OAuthToken already has an expiration";
 		};
-		const QDateTime token_expiration = timestamp.addSecs(expires_in_);
-		birthday_ = timestamp.toString(Qt::RFC2822Date).toStdString();
-		expiration_ = token_expiration.toString(Qt::RFC2822Date).toStdString();
+		birthday_ = timestamp.toLocalTime();;
+		expiration_ = timestamp.addSecs(expires_in_);
+	};
+}
+
+bool OAuthToken::isValid() const {
+	if (access_token_.empty()) {
+		return false;
+	} else if (!expiration_.isValid()) {
+		return false;
+	} else {
+		return (expiration_ > QDateTime::currentDateTime());
 	};
 }
 
@@ -97,24 +112,26 @@ std::string OAuthToken::toJsonPretty() const {
 rapidjson::Document OAuthToken::toJsonDoc() const {
 	rapidjson::Document doc(rapidjson::kObjectType);
 	auto& allocator = doc.GetAllocator();
-	Util::RapidjsonAddConstString(&doc, "access_token", access_token_, allocator);
+	Util::RapidjsonAddString(&doc, "access_token", access_token_, allocator);
 	Util::RapidjsonAddInt64(&doc, "expires_in", expires_in_, allocator);
-	Util::RapidjsonAddConstString(&doc, "token_type", token_type_, allocator);
-	Util::RapidjsonAddConstString(&doc, "scope", scope_, allocator);
-	Util::RapidjsonAddConstString(&doc, "username", username_, allocator);
-	Util::RapidjsonAddConstString(&doc, "sub", sub_, allocator);
-	Util::RapidjsonAddConstString(&doc, "refresh_token", refresh_token_, allocator);
-	if (birthday_) {
-		Util::RapidjsonAddConstString(&doc, "birthday", birthday_.value(), allocator);
+	Util::RapidjsonAddString(&doc, "token_type", token_type_, allocator);
+	Util::RapidjsonAddString(&doc, "scope", scope_, allocator);
+	Util::RapidjsonAddString(&doc, "username", username_, allocator);
+	Util::RapidjsonAddString(&doc, "sub", sub_, allocator);
+	Util::RapidjsonAddString(&doc, "refresh_token", refresh_token_, allocator);
+	if (birthday_.isValid()) {
+		const std::string birthday = birthday_.toLocalTime().toString().toStdString();
+		Util::RapidjsonAddString(&doc, "birthday", birthday, allocator);
 	};
-	if (expiration_) {
-		Util::RapidjsonAddConstString(&doc, "expiration", expiration_.value(), allocator);
+	if (expiration_.isValid()) {
+		const std::string expiration = expiration_.toLocalTime().toString().toStdString();
+		Util::RapidjsonAddString(&doc, "expiration", expiration, allocator);
 	};
 	return doc;
 }
 
-QDateTime OAuthToken::getDate(const std::optional<std::string>& timestamp) {
-	QByteArray value = QByteArray::fromStdString(timestamp.value_or(""));
+QDateTime OAuthToken::getDate(const std::string& timestamp) {
+	QByteArray value = QByteArray::fromStdString(timestamp);
 	value = Util::FixTimezone(value);
 	return QDateTime::fromString(value, Qt::RFC2822Date);
 }

@@ -69,31 +69,36 @@ OAuthManager::OAuthManager(QObject* parent,
 	const std::string token_str = datastore_.Get("oauth_token", "");
 	if (token_str != "") {
 		token_ = OAuthToken(token_str);
-		setRefreshTimer();
+		if (token_.isValid()) {
+			setRefreshTimer();
+		};
 	};
-
 }
 
 void OAuthManager::setAuthorization(QNetworkRequest& request) {
-	if (token_) {
-		const std::string bearer = "Bearer " + token_.value().access_token();
-		request.setRawHeader("Authorization", QByteArray::fromStdString(bearer));
+	if (token_.access_token().empty()) {
+		QLOG_ERROR() << "Cannot set OAuth authorization header: there is no token.";
+		return;
 	};
+	if (token_.expiration() <= QDateTime::currentDateTime()) {
+		QLOG_ERROR() << "Cannot set OAuth authorization header: the token has expired.";
+		return;
+	};
+	const std::string bearer = "Bearer " + token_.access_token();
+	request.setRawHeader("Authorization", QByteArray::fromStdString(bearer));
 }
 
 void OAuthManager::RememberToken(bool remember) {
 	remember_token_ = remember;
-	if (remember_token_ && token_) {
-		datastore_.Set("oauth_token", token_.value().toJson());
+	if (remember_token_ && token_.isValid()) {
+		datastore_.Set("oauth_token", token_.toJson());
 	} else {
 		datastore_.Set("oauth_token", "");
 	};
 }
 
 void OAuthManager::setRefreshTimer() {
-	const QString expiration_timestamp = QString::fromStdString(token_->expiration().value_or(""));
-	const QDateTime expiration_date = QDateTime::fromString(expiration_timestamp, Qt::RFC2822Date);
-	const QDateTime refresh_date = expiration_date.addSecs(-EXPIRATION_BUFFER_SECS);
+	const QDateTime refresh_date = token_.expiration().addSecs(-EXPIRATION_BUFFER_SECS);
 	const unsigned long interval = QDateTime::currentDateTime().msecsTo(refresh_date);
 	refresh_timer_.setInterval(interval);
 	refresh_timer_.start();
@@ -296,12 +301,12 @@ void OAuthManager::receiveToken(QNetworkReply* reply)
 	QLOG_TRACE() << "OAuth access token received.";
 
 	if (remember_token_) {
-		datastore_.Set("oauth_token", token_.value().toJson());
+		datastore_.Set("oauth_token", token_.toJson());
 	} else {
 		datastore_.Set("oauth_token", "");
 	};
 
-	emit accessGranted(*token_);
+	emit accessGranted(token_);
 
 	// Setup the refresh timer.
 	setRefreshTimer();
@@ -325,7 +330,7 @@ void OAuthManager::requestRefresh() {
 	const QUrlQuery query = Util::EncodeQueryItems({
 		{"client_id", CLIENT_ID},
 		{"grant_type", "refresh_token"},
-		{"refresh_token", QString::fromStdString(token_->refresh_token())} });
+		{"refresh_token", QString::fromStdString(token_.refresh_token())} });
 	const QByteArray data = query.toString(QUrl::FullyEncoded).toUtf8();
 
 	// Make and submit the POST request.
@@ -340,9 +345,9 @@ void OAuthManager::requestRefresh() {
 			// Update the user again after the token has been received.
 			receiveToken(reply);
 			const QStringList message = {
-				"Your OAuth token was refreshed on " + token_->getBirthday().toString(),
+				"Your OAuth token was refreshed on " + token_.birthday().toString(),
 				"",
-				"The new token expires on " + token_->getExpiration().toString(),
+				"The new token expires on " + token_.expiration().toString(),
 			};
 			msgBox->setText(message.join("\n"));
 			msgBox->show();
@@ -376,8 +381,8 @@ void OAuthManager::showStatus() {
 		msgBox->setModal(false);
 	};
 
-	if (token_) {
-		const std::string json = token_.value().toJsonPretty();
+	if (token_.isValid()) {
+		const std::string json = token_.toJsonPretty();
 		const QDateTime now = QDateTime::currentDateTime();
 		const QDateTime refresh_time = now.addMSecs(refresh_timer_.remainingTime());
 		const QString refresh_timestamp = refresh_time.toString("MMM d 'at' h:m ap");

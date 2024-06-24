@@ -23,7 +23,6 @@
 #include <QtHttpServer/QHttpServer>
 #include <QTimer>
 
-#include <optional>
 #include <string>
 
 #include "rapidjson/document.h"
@@ -45,7 +44,7 @@ public:
 		DataStore& datastore);
 	void setAuthorization(QNetworkRequest& request);
 	void RememberToken(bool remember);
-	const std::optional<OAuthToken> token() const { return token_; };
+	const OAuthToken& token() const { return token_; };
 public slots:
 	void requestAccess();
 	void requestRefresh();
@@ -72,7 +71,7 @@ private:
 	std::unique_ptr<QHttpServer> http_server_;
 
 	bool remember_token_;
-	std::optional<OAuthToken> token_;
+	OAuthToken token_;
 	std::string code_verifier_;
 	std::string redirect_uri_;
 
