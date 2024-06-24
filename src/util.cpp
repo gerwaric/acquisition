@@ -141,6 +141,14 @@ std::string Util::RapidjsonPretty(const rapidjson::Value& val) {
 	return buffer.GetString();
 }
 
+void Util::RapidjsonAddString(rapidjson::Value* object, const char* const name, const std::string& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc) {
+	rapidjson::Value rjson_name;
+	rjson_name.SetString(name, rapidjson::SizeType(strlen(name)), alloc);
+	rapidjson::Value rjson_val;
+	rjson_val.SetString(value.c_str(), rapidjson::SizeType(value.size()), alloc);
+	object->AddMember(rjson_name, rjson_val, alloc);
+}
+
 void Util::RapidjsonAddConstString(rapidjson::Value* object, const char* const name, const std::string& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc) {
     rapidjson::Value rjson_name;
     rjson_name.SetString(name, rapidjson::SizeType(strlen(name)));
