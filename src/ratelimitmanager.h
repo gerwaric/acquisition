@@ -68,33 +68,33 @@ private slots:
 
 private:
 
-    // Represents a single rate-limited request.
-    struct RateLimitedRequest {
+	// Represents a single rate-limited request.
+	struct RateLimitedRequest {
 
-        // Construct a new rate-limited request.
-        RateLimitedRequest(const QString& endpoint_, const QNetworkRequest& request, RateLimit::RateLimitedReply* reply_) :
-            id(++request_count),
-            network_request(request),
-            endpoint(endpoint_),
-            reply(reply_) {}
+		// Construct a new rate-limited request.
+		RateLimitedRequest(const QString& endpoint_, const QNetworkRequest& request, RateLimit::RateLimitedReply* reply_) :
+			id(++request_count),
+			network_request(request),
+			endpoint(endpoint_),
+			reply(reply_) {}
 
-        // Unique identified for each request, even through different requests can be
-        // routed to different policy managers based on different endpoints.
-        const unsigned long id;
+		// Unique identified for each request, even through different requests can be
+		// routed to different policy managers based on different endpoints.
+		const unsigned long id;
 
-        // A copy of the network request that's going to be sent.
-        const QNetworkRequest network_request;
+		// A copy of the network request that's going to be sent.
+		const QNetworkRequest network_request;
 
-        // A copy of this request's API endpoint, if any.
-        const QString endpoint;
+		// A copy of this request's API endpoint, if any.
+		const QString endpoint;
 
-        RateLimit::RateLimitedReply* reply;
+		RateLimit::RateLimitedReply* reply;
 
-    private:
+	private:
 
-        // Total number of requests that have every been constructed.
-        static unsigned long request_count;
-    };
+		// Total number of requests that have every been constructed.
+		static unsigned long request_count;
+	};
 
 	// Called right after active_request is loaded with a new request. This
 	// will determine when that request can be sent and setup the active
