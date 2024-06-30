@@ -30,14 +30,14 @@ constexpr int VIOLATION_STATUS = 429;
 
 // A delay added to make sure we don't get a violation.
 constexpr int NORMAL_BUFFER_MSEC = 250;
-constexpr int BORDERLINE_BUFFER_MSEC = 1500;
+constexpr int BORDERLINE_BUFFER_MSEC = 2000;
 
 // Minium time between sends for any given policy.
 constexpr int MINIMUM_INTERVAL_MSEC = 500;
 
 // When there is a violation, add this much time to how long we
 // wait just to make sure we don't trigger another violation.
-constexpr int VIOLATION_BUFFER_MSEC = 1000;
+constexpr int VIOLATION_BUFFER_MSEC = 2000;
 
 // Total number of rate-limited requests that have been created.
 unsigned long RateLimitManager::RateLimitedRequest::request_count = 0;
@@ -188,7 +188,7 @@ void RateLimitManager::Update(QNetworkReply* reply) {
 // If the rate limit manager is busy, the request will be queued.
 // Otherwise, the request will be sent immediately, making the
 // manager busy and causing subsequent requests to be queued.
-void RateLimitManager::QueueRequest(const QString & endpoint, const QNetworkRequest network_request, RateLimit::RateLimitedReply* reply) {
+void RateLimitManager::QueueRequest(const QString& endpoint, const QNetworkRequest network_request, RateLimit::RateLimitedReply* reply) {
 	auto request = std::make_unique<RateLimitedRequest>(endpoint, network_request, reply);
 	queued_requests_.push_back(std::move(request));
 	if (!active_request_) {
@@ -230,7 +230,7 @@ void RateLimitManager::ActivateRequest() {
 			send = last_send_.addMSecs(MINIMUM_INTERVAL_MSEC);
 		};
 	};
-	
+
 	int delay = QDateTime::currentDateTime().msecsTo(send);
 	if (delay < 0) {
 		delay = 0;
