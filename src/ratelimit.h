@@ -25,11 +25,10 @@
 #include <QByteArrayList>
 #include <QDateTime>
 #include <QNetworkRequest>
+#include <QObject>
 #include <QString>
 
 class QNetworkReply;
-
-class OAuthManager;
 
 //--------------------------------------------------------------------------
 // Introduction to GGG's API Rate Limits
@@ -148,6 +147,7 @@ namespace RateLimit
 		const RuleItemData& state() const { return state_; };
 		PolicyStatus status() const { return status_; };
 		QDateTime GetNextSafeSend(const RequestHistory& history) const;
+		int EstimateDuration(int request_count, int minimum_delay_msec) const;
 	private:
 		RuleItemData limit_;
 		RuleItemData state_;
@@ -178,6 +178,7 @@ namespace RateLimit
 		PolicyStatus status() const { return status_; };
 		int maximum_hits() const { return maximum_hits_; };
 		QDateTime GetNextSafeSend(const RequestHistory& history);
+		QDateTime EstimateDuration(int request_count, int minimum_delay_msec) const;
 	private:
 		QString name_;
 		std::vector<PolicyRule> rules_;

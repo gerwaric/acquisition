@@ -167,6 +167,39 @@ QDateTime RuleItem::GetNextSafeSend(const RequestHistory& history) const {
 	return safe_time;
 }
 
+int RuleItem::EstimateDuration(int request_count, int minimum_delay_msec) const {
+
+	int duration = 0;
+
+	const int current_hits = state_.hits();
+	const int max_hits = limit_.hits();
+	const int period_length = limit_.period();
+	const int restriction = limit_.restriction();
+	
+	int initial_burst = max_hits - current_hits;
+	if (initial_burst < 0) {
+		initial_burst = 0;
+		duration += restriction;
+	};
+
+	int remaining_requests = request_count - initial_burst;
+	if (remaining_requests < 0) {
+		remaining_requests = 0;
+	};
+	
+	const int full_periods = (remaining_requests / max_hits);
+	const int final_burst = (remaining_requests % max_hits);
+
+	const int a = initial_burst * minimum_delay_msec;
+	const int b = full_periods * period_length * 1000;
+	const int c = final_burst * minimum_delay_msec;
+	const int total_msec = a + b + c;
+
+	duration += (total_msec / 1000);
+
+	return duration;
+}
+
 //=========================================================================================
 // PolicyRule
 //=========================================================================================
@@ -307,4 +340,20 @@ QDateTime Policy::GetNextSafeSend(const RequestHistory& history) {
 		};
 	};
 	return next_send;
+}
+
+QDateTime Policy::EstimateDuration(int num_requests, int minimum_delay_msec) const {
+
+	int longest_wait = 0;
+	while (true) {
+		for (const auto& rule : rules_) {
+			for (const auto& item : rule.items()) {
+				const int wait = item.EstimateDuration(num_requests, minimum_delay_msec);
+				if (longest_wait < wait) {
+					longest_wait = wait;
+				};
+			};
+		};
+	};
+	return QDateTime::currentDateTime().toLocalTime().addSecs(longest_wait);
 }
