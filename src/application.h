@@ -60,6 +60,8 @@ public:
 	UpdateChecker& update_checker() const;
 	OAuthManager& oauth_manager() const;
 	RateLimiter& rate_limiter() const;
+signals:
+	void Quit() const;
 public slots:
 	void OnItemsRefreshed(bool initial_refresh);
 private:
@@ -78,5 +80,5 @@ private:
 	std::unique_ptr<RateLimiter> rate_limiter_;
 	void SaveDbOnNewVersion();
 
-	static void FatalAccessError(const char* object_name);
+	void FatalAccessError(const char* object_name) const;
 };

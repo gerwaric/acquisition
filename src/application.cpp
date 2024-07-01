@@ -42,6 +42,8 @@
 Application::Application(bool test_mode) :
 	test_mode_(test_mode)
 {
+	connect(this, &Application::Quit, qApp, &QApplication::quit, Qt::QueuedConnection);
+
 	if (test_mode_) {
 		global_data_ = std::make_unique<MemoryDataStore>();
 		return;
@@ -69,7 +71,7 @@ Application::~Application() {
 
 QSettings& Application::settings() const {
 	if (!settings_) {
-		FatalAccessError("settings is null");
+		FatalAccessError("settings");
 	};
 	return *settings_;
 };
@@ -144,15 +146,16 @@ RateLimiter& Application::rate_limiter() const {
 	return *rate_limiter_;
 }
 
-void Application::FatalAccessError(const char* object_name) {
-	const QString message = QString("Attempted to use the %1 before it was created.").arg(object_name);
+void Application::FatalAccessError(const char* object_name) const {
+	const QString message = QString("The '%1' object was invalid.").arg(object_name);
 	QLOG_FATAL() << message;
 	QMessageBox errorMsg;
 	errorMsg.setIcon(QMessageBox::Icon::Critical);
 	errorMsg.setWindowTitle("Acquistion: Fatal Error");
 	errorMsg.setText(message);
 	errorMsg.setStandardButtons(QMessageBox::StandardButton::Abort);
-	QApplication::quit();
+	errorMsg.exec();
+	emit Quit();
 }
 
 void Application::LoadTheme() {
