@@ -58,8 +58,8 @@ OAuthManager::OAuthManager(QObject* parent,
 	QObject(parent),
 	network_manager_(network_manager),
 	datastore_(datastore),
-	refresh_timer_(this),
-	remember_token_(false)
+	remember_token_(false),
+	refresh_timer_(this)
 {
 	// Configure the refresh timer.
 	refresh_timer_.setSingleShot(true);

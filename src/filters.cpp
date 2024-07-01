@@ -46,11 +46,11 @@ std::unique_ptr<FilterData> Filter::CreateData() {
 }
 
 FilterData::FilterData(Filter* filter) :
-	r(0), b(0), g(0),
-	min(0.0), max(0.0),
 	text_query(""),
+	min(0.0), max(0.0),
 	min_filled(false),
 	max_filled(false),
+	r(0), g(0), b(0),
 	r_filled(false),
 	g_filled(false),
 	b_filled(false),

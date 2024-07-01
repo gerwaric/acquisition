@@ -26,7 +26,6 @@
 
 #include <ctime>
 #include <cmath>
-#include <mutex>
 
 #include "QsLog.h"
 #include "rapidjson/document.h"

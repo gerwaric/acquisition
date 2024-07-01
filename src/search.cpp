@@ -70,7 +70,7 @@ Search::Search(BuyoutManager& bo_manager, const std::string& caption,
 	columns_ = std::vector<move_only>(std::make_move_iterator(std::begin(init)), std::make_move_iterator(std::end(init)));
 
 	for (auto& filter : filters)
-		filters_.push_back(std::move(filter->CreateData()));
+		filters_.emplace_back(filter->CreateData());
 }
 
 void Search::FromForm() {

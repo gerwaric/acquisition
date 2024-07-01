@@ -47,12 +47,9 @@
 #include "version_defines.h"
 
 constexpr const char* POE_LEAGUE_LIST_URL = "https://api.pathofexile.com/leagues?type=main&compact=1";
-constexpr const char* POE_LOGIN_URL = "https://www.pathofexile.com/login";
 constexpr const char* POE_MAIN_PAGE = "https://www.pathofexile.com/";
 constexpr const char* POE_MY_ACCOUNT = "https://www.pathofexile.com/my-account";
 constexpr const char* POE_LOGIN_CHECK_URL = POE_MY_ACCOUNT;
-
-constexpr const char* LOGIN_CHECK_ERROR = "Failed to log in. Try copying your session ID again, or try OAuth";
 
 constexpr const char* OAUTH_TAB = "oauthTab";
 constexpr const char* SESSIONID_TAB = "sessionIdTab";
