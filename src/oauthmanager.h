@@ -25,8 +25,6 @@
 
 #include <string>
 
-#include "rapidjson/document.h"
-
 #include "oauthtoken.h"
 
 class QHttpServerRequest;

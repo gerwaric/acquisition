@@ -59,7 +59,7 @@ ItemsManager::ItemsManager(QObject* parent,
 
 ItemsManager::~ItemsManager() {}
 
-void ItemsManager::Start(PoeApiMode mode) {
+void ItemsManager::Start(POE_API mode) {
 	worker_ = std::make_unique<ItemsManagerWorker>(this,
 		settings_,
 		network_manager_,

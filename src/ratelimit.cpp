@@ -153,7 +153,7 @@ QDateTime RuleItem::GetNextSafeSend(const RequestHistory& history) const {
 	const QDateTime safe_time = earliest.addSecs(limit_.period());
 
 	if (state_.hits() >= limit_.hits()) {
-		QLOG_TRACE() << "GetNextSafeSend() at" << now.toString();
+		QLOG_TRACE() << "GetNextSafeSend(): handling rate limit violation:" << now.toString();
 		for (int k = 0; k < n; ++k) {
 			QLOG_TRACE() << " history[" << k << "] =" << history[k].toString()
 				<< "(" << now.secsTo(history[k]) << ")";
@@ -328,14 +328,11 @@ void Policy::Check(const Policy& other) const {
 QDateTime Policy::GetNextSafeSend(const RequestHistory& history) {
 	QDateTime next_send = QDateTime::currentDateTime().toLocalTime();
 	QDateTime original = next_send;
-	QLOG_INFO() << "NextSend(): current time is" << next_send.toString();
 	for (const auto& rule : rules_) {
 		for (const auto& item : rule.items()) {
 			const QDateTime t = item.GetNextSafeSend(history);
 			if (next_send < t) {
 				next_send = t;
-				QLOG_INFO() << "NextSend(): updating to" << next_send.toString()
-					<< "(" << original.secsTo(next_send) << ")";
 			};
 		};
 	};

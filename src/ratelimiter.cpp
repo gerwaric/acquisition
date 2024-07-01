@@ -19,6 +19,8 @@
 
 #include "ratelimiter.h"
 
+#include <QMutex>
+#include <QMutexLocker>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 
@@ -33,17 +35,39 @@
 
 constexpr int UPDATE_INTERVAL_MSEC = 1000;
 
-RateLimiter::RateLimiter(QObject* parent, QNetworkAccessManager& network_manager, OAuthManager& oauth_manager) :
+RateLimiter::RateLimiter(QObject* parent,
+	QNetworkAccessManager& network_manager,
+	OAuthManager& oauth_manager)
+	:
 	QObject(parent),
 	network_manager_(network_manager),
-	oauth_manager_(oauth_manager)
+	oauth_manager_(oauth_manager),
+	mode_(POE_API::OAUTH)
 {
 	update_timer_.setSingleShot(false);
 	update_timer_.setInterval(UPDATE_INTERVAL_MSEC);
 	connect(&update_timer_, &QTimer::timeout, this, &RateLimiter::SendStatusUpdate);
 }
-RateLimit::RateLimitedReply* RateLimiter::Submit(const QString& endpoint, QNetworkRequest network_request)
+
+void RateLimiter::Init(POE_API mode) {
+	if (mode_ == POE_API::NONE) {
+		mode_ = mode;
+	} else {
+		QLOG_ERROR() << "The rate limiter's api mode has already been initialized.";
+	};
+}
+
+RateLimit::RateLimitedReply* RateLimiter::Submit(
+	const QString& endpoint,
+	QNetworkRequest network_request)
 {
+	if (mode_ == POE_API::NONE) {
+		QLOG_ERROR() << "RateLimiter: the API mode has not been set.";
+	};
+
+	// Make sure the user agent is set according to GGG's guidance.
+	network_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+
 	auto* reply = new RateLimit::RateLimitedReply();
 
 	auto it = manager_by_endpoint_.find(endpoint);
@@ -57,8 +81,9 @@ RateLimit::RateLimitedReply* RateLimiter::Submit(const QString& endpoint, QNetwo
 	} else {
 
 		// Use a HEAD request to determine the policy status for a new endpoint.
-		network_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-		oauth_manager_.setAuthorization(network_request);
+		if (mode_ == POE_API::OAUTH) {
+			oauth_manager_.setAuthorization(network_request);
+		};
 		QNetworkReply* network_reply = network_manager_.head(network_request);
 		connect(network_reply, &QNetworkReply::finished, this,
 			[=]() {
@@ -69,7 +94,12 @@ RateLimit::RateLimitedReply* RateLimiter::Submit(const QString& endpoint, QNetwo
 	return reply;
 }
 
-void RateLimiter::SetupEndpoint(const QString& endpoint, QNetworkRequest network_request, RateLimit::RateLimitedReply* reply, QNetworkReply* network_reply) {
+void RateLimiter::SetupEndpoint(
+	const QString& endpoint,
+	QNetworkRequest network_request,
+	RateLimit::RateLimitedReply* reply,
+	QNetworkReply* network_reply)
+{
 
 	// All endpoints should be rate limited.
 	if (!network_reply->hasRawHeader("X-Rate-Limit-Policy")) {
@@ -96,14 +126,22 @@ void RateLimiter::SetupEndpoint(const QString& endpoint, QNetworkRequest network
 	SendStatusUpdate();
 }
 
-RateLimitManager& RateLimiter::GetManager(const QString& endpoint, const QString& policy_name)
+RateLimitManager& RateLimiter::GetManager(
+	const QString& endpoint,
+	const QString& policy_name)
 {
+	// Make sure this function is thread-safe, since it modifies out managers.
+	static QMutex mutex;
+	QMutexLocker locker(&mutex);
+
 	auto it = manager_by_policy_.find(policy_name);
 	if (it == manager_by_policy_.end()) {
 		// Create a new policy manager.
 		QLOG_DEBUG() << "Creating rate limit policy" << policy_name << "for" << endpoint;
-		RateLimitManager& manager = *managers_.emplace_back(std::make_unique<RateLimitManager>(this));
-		connect(&manager, &RateLimitManager::RequestReady, this, &RateLimiter::SendRequest);
+		RateLimitManager& manager = *managers_.emplace_back(
+			std::make_unique<RateLimitManager>(this,
+				network_manager_,
+				oauth_manager_, mode_));
 		connect(&manager, &RateLimitManager::PolicyUpdated, this, &RateLimiter::OnPolicyUpdated);
 		manager_by_policy_.emplace(policy_name, manager);
 		manager_by_endpoint_.emplace(endpoint, manager);
@@ -115,19 +153,6 @@ RateLimitManager& RateLimiter::GetManager(const QString& endpoint, const QString
 		manager_by_endpoint_.emplace(endpoint, manager);
 		return manager;
 	};
-}
-
-void RateLimiter::SendRequest(RateLimitManager* manager, QNetworkRequest request) {
-
-	// Make sure the user agent is set according to GGG's guidance.
-	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-
-	// Set the bearer token if applicable.
-	oauth_manager_.setAuthorization(request);
-
-	// Send the request.
-	QNetworkReply* reply = network_manager_.get(request);
-	connect(reply, &QNetworkReply::finished, manager, &RateLimitManager::ReceiveReply);
 }
 
 void RateLimiter::OnUpdateRequested()

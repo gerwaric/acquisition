@@ -28,6 +28,7 @@
 
 #include "item.h"
 #include "mainwindow.h"
+#include "network_info.h"
 #include "util.h"
 
 class QNetworkAccessManager;
@@ -39,8 +40,6 @@ class QTimer;
 class BuyoutManager;
 class DataStore;
 class RateLimiter;
-
-enum class PoeApiMode;
 
 struct ItemsRequest {
 	int id{ -1 };
@@ -63,7 +62,7 @@ public:
 		BuyoutManager& buyout_manager,
 		DataStore& datastore,
 		RateLimiter& rate_limiter,
-		PoeApiMode mode);
+		POE_API mode);
 	bool isInitialized() const { return initialized_; }
 	bool isUpdating() const { return updating_; };
 	void UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations);
@@ -125,7 +124,7 @@ private:
 	BuyoutManager& buyout_manager_;
 	RateLimiter& rate_limiter_;
 
-	PoeApiMode api_mode_;
+	POE_API mode_;
 	std::string league_;
 	std::string account_;
 

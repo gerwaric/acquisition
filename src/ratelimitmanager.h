@@ -26,30 +26,42 @@
 
 #include <deque>
 
+#include "network_info.h"
 #include "ratelimit.h"
 
+class QNetworkAccessManager;
 class QNetworkReply;
+
+class OAuthManager;
 
 class RateLimitManager : public QObject {
 	Q_OBJECT
 
 public:
-	RateLimitManager(QObject* parent = nullptr);
+	RateLimitManager(QObject* parent,
+		QNetworkAccessManager& network_manager,
+		OAuthManager& oauth_manager,
+		POE_API mode);
 
 	// Move a request into to this manager's queue.
-	void QueueRequest(const QString& endpoint, const QNetworkRequest request, RateLimit::RateLimitedReply* reply);
+	void QueueRequest(
+		const QString& endpoint,
+		const QNetworkRequest request,
+		RateLimit::RateLimitedReply* reply);
 
 	void Update(QNetworkReply* reply);
 
-	const RateLimit::Policy& policy() const { return *policy_; };
+	const RateLimit::Policy& policy() const;
 
 	const QDateTime& next_send() const { return next_send_; };
 
 	bool isActive() const { return (active_request_ != nullptr); };
 
+	POE_API mode() const { return mode_; };
+
 signals:
 	// Emitted when a network request is ready to go.
-	void RequestReady(RateLimitManager* manager, QNetworkRequest request);
+	void RequestReady(RateLimitManager* manager, QNetworkRequest request, POE_API mode);
 
 	// Emitted when the underlying policy has been updated.
 	void PolicyUpdated(const RateLimit::Policy& policy);
@@ -68,27 +80,33 @@ private slots:
 
 private:
 
+	QNetworkAccessManager& network_manager_;
+	OAuthManager& oauth_manager_;
+
+	// Determines which API this rate limit manager will be used for.
+	const POE_API mode_;
+
 	// Represents a single rate-limited request.
 	struct RateLimitedRequest {
 
 		// Construct a new rate-limited request.
-		RateLimitedRequest(const QString& endpoint_, const QNetworkRequest& request, RateLimit::RateLimitedReply* reply_) :
+		RateLimitedRequest(const QString& endpoint_, const QNetworkRequest& network_request_, RateLimit::RateLimitedReply* reply_) :
 			id(++request_count),
-			network_request(request),
 			endpoint(endpoint_),
+			network_request(network_request_),
 			reply(reply_) {}
 
 		// Unique identified for each request, even through different requests can be
 		// routed to different policy managers based on different endpoints.
 		const unsigned long id;
 
-		// A copy of the network request that's going to be sent.
-		const QNetworkRequest network_request;
-
 		// A copy of this request's API endpoint, if any.
 		const QString endpoint;
 
-		RateLimit::RateLimitedReply* reply;
+		// A copy of the network request that's going to be sent.
+		QNetworkRequest network_request;
+
+		std::unique_ptr<RateLimit::RateLimitedReply> reply;
 
 	private:
 

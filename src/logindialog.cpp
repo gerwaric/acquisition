@@ -38,7 +38,6 @@
 #include "QsLog.h"
 #include "rapidjson/error/en.h"
 
-#include "application.h"
 #include "mainwindow.h"
 #include "network_info.h"
 #include "replytimeout.h"
@@ -271,7 +270,7 @@ void LoginDialog::LoginWithOAuth() {
 		const OAuthToken& token = oauth_manager_.token();
 		const QString account = QString::fromStdString(token.username());
 		settings_.setValue("account", account);
-		emit LoginComplete(PoeApiMode::OAUTH);
+		emit LoginComplete(POE_API::OAUTH);
 	} else {
 		DisplayError("You are not authenticated.");
 	};
@@ -370,7 +369,7 @@ void LoginDialog::OnFinishLegacyLogin() {
 
 	QLOG_DEBUG() << "Logged in as" << account << "to" << league << "league.";
 
-	emit LoginComplete(PoeApiMode::LEGACY);
+	emit LoginComplete(POE_API::LEGACY);
 }
 
 void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {

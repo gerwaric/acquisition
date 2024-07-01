@@ -25,12 +25,13 @@
 #include "datastore.h"
 #include "item.h"
 #include "itemsmanager.h"
+#include "network_info.h"
 #include "testdata.h"
 
 TestItemsManager::TestItemsManager() : app_(true) {}
 
 void TestItemsManager::initTestCase() {
-	app_.InitLogin(PoeApiMode::LEGACY);
+	app_.InitLogin(POE_API::LEGACY);
 }
 
 void TestItemsManager::cleanup() {

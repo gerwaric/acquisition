@@ -33,7 +33,6 @@
 
 #include "application.h"
 #include "filesystem.h"
-#include "itemsmanager.h"
 #include "mainwindow.h"
 #include "shop.h"
 #include "updatechecker.h"
@@ -172,13 +171,13 @@ int main(int argc, char* argv[])
 	QObject::connect(&app.update_checker(), &UpdateChecker::UpdateAvailable, &app.update_checker(), &UpdateChecker::AskUserToUpdate);
 
 	QObject::connect(&login, &LoginDialog::LoginComplete, &login,
-		[&](PoeApiMode mode) {
+		[&](POE_API api) {
 
 			// Disconnect from the update signal so that only the main window gets it from now on.
 			QObject::disconnect(&app.update_checker(), &UpdateChecker::UpdateAvailable, nullptr, nullptr);
 
 			// Call init login to setup the shop, items manager, and other objects.
-			app.InitLogin(mode);
+			app.InitLogin(api);
 
 			// Prepare to show the main window now that everything is initialized.
 			MainWindow* mw = new MainWindow(

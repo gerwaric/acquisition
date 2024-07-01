@@ -19,10 +19,16 @@
 
 #include "ratelimitmanager.h"
 
+#include <QApplication>
+#include <QErrorMessage>
+#include <QMessageBox>
+#include <QNetworkAccessManager>
 #include <QNetworkReply>
 
 #include "QsLog.h"
 
+#include "network_info.h"
+#include "oauthmanager.h"
 #include "ratelimit.h"
 
 // This HTTP status code means there was a rate limit violation.
@@ -43,8 +49,15 @@ constexpr int VIOLATION_BUFFER_MSEC = 2000;
 unsigned long RateLimitManager::RateLimitedRequest::request_count = 0;
 
 // Create a new rate limit manager based on an existing policy.
-RateLimitManager::RateLimitManager(QObject* parent) :
+RateLimitManager::RateLimitManager(QObject* parent,
+	QNetworkAccessManager& network_manager,
+	OAuthManager& oauth_manager,
+	POE_API mode)
+	:
 	QObject(parent),
+	network_manager_(network_manager),
+	oauth_manager_(oauth_manager),
+	mode_(mode),
 	next_send_(QDateTime::currentDateTime().toLocalTime()),
 	last_send_(QDateTime()),
 	policy_(nullptr)
@@ -54,15 +67,34 @@ RateLimitManager::RateLimitManager(QObject* parent) :
 	connect(&activation_timer_, &QTimer::timeout, this, &RateLimitManager::SendRequest);
 }
 
+const RateLimit::Policy& RateLimitManager::policy() const {
+	if (!policy_) {
+		const QString message = "Attempted to use a rate limit manager's policy before it was created.";
+		QLOG_FATAL() << message;
+		QMessageBox errorMsg;
+		errorMsg.setIcon(QMessageBox::Icon::Critical);
+		errorMsg.setWindowTitle("Acquistion: Fatal Error");
+		errorMsg.setText(message);
+		errorMsg.setStandardButtons(QMessageBox::StandardButton::Abort);
+		QApplication::quit();
+	};
+	return *policy_;
+}
+
 // Send the active request immediately.
 void RateLimitManager::SendRequest() {
+
+	if (!policy_) {
+		QLOG_ERROR() << "RateLimitManager: attempted to send a request without a policy";
+		return;
+	};
 
 	if (!active_request_) {
 		QLOG_DEBUG() << "RateLimit::RateLimitManager: no active request to send";
 		return;
 	};
 
-	const auto& request = *active_request_;
+	auto& request = *active_request_;
 	QLOG_TRACE() << policy_->name()
 		<< "sending request" << request.id
 		<< "to" << request.endpoint
@@ -70,13 +102,30 @@ void RateLimitManager::SendRequest() {
 
 	// Finally, send the request and note the time.
 	last_send_ = QDateTime::currentDateTime().toLocalTime();
-	emit RequestReady(this, request.network_request);
+
+	// Set the bearer token if applicable.
+	if (mode_ == POE_API::OAUTH) {
+		oauth_manager_.setAuthorization(request.network_request);
+	};
+
+	// Send the request.
+	QNetworkReply* reply = network_manager_.get(request.network_request);
+	connect(reply, &QNetworkReply::finished, this, &RateLimitManager::ReceiveReply);
+
 };
 
 // Called when the active request's reply is finished.
 void RateLimitManager::ReceiveReply()
 {
 	QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+
+	if (!policy_) {
+		QLOG_FATAL() << "Acquisition may crash: the rate limiter's policy is null.";
+	};
+
+	if (!active_request_) {
+		QLOG_FATAL() << "Acquisition may crash: the rate limiter's active request is null.";
+	};
 
 	// Make sure the reply has a rate-limit header.
 	if (!reply->hasRawHeader("X-Rate-Limit-Policy")) {
@@ -105,10 +154,13 @@ void RateLimitManager::ReceiveReply()
 			QLOG_ERROR() << "Reply did not have an error, but the HTTP status indicates a rate limit violation.";
 		};
 
-		auto* submit = active_request_->reply;
-		active_request_ = nullptr;
+		if (active_request_->reply) {
+			emit active_request_->reply->complete(reply);
+		} else {
+			QLOG_ERROR() << "Rate limited reply is not valid.";
+		};
 
-		emit submit->complete(reply);
+		active_request_ = nullptr;
 
 		// Activate the next queued reqeust.
 		ActivateRequest();
@@ -150,7 +202,7 @@ void RateLimitManager::ReceiveReply()
 
 void RateLimitManager::Update(QNetworkReply* reply) {
 
-	// Get the rate limit policy from this reply.
+// Get the rate limit policy from this reply.
 	auto new_policy = std::make_unique<RateLimit::Policy>(reply);
 
 	// If there was an existing policy, compare them.
@@ -188,7 +240,11 @@ void RateLimitManager::Update(QNetworkReply* reply) {
 // If the rate limit manager is busy, the request will be queued.
 // Otherwise, the request will be sent immediately, making the
 // manager busy and causing subsequent requests to be queued.
-void RateLimitManager::QueueRequest(const QString& endpoint, const QNetworkRequest network_request, RateLimit::RateLimitedReply* reply) {
+void RateLimitManager::QueueRequest(
+	const QString& endpoint,
+	const QNetworkRequest network_request,
+	RateLimit::RateLimitedReply* reply)
+{
 	auto request = std::make_unique<RateLimitedRequest>(endpoint, network_request, reply);
 	queued_requests_.push_back(std::move(request));
 	if (!active_request_) {

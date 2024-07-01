@@ -21,6 +21,8 @@
 
 #include <QDialog>
 
+#include "network_info.h"
+
 class QNetworkReply;
 class QSettings;
 class QString;
@@ -28,7 +30,6 @@ class QNetworkAccessManager;
 
 class OAuthManager;
 class OAuthToken;
-enum class PoeApiMode;
 
 namespace Ui {
 	class LoginDialog;
@@ -43,7 +44,7 @@ public:
 		OAuthManager& oauth_manager);
 	~LoginDialog();
 signals:
-	void LoginComplete(PoeApiMode mode);
+	void LoginComplete(POE_API mode);
 private slots:
 	void OnLeaguesReceived();
 	void OnAuthenticateButtonClicked();

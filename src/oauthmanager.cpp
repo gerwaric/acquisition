@@ -71,6 +71,10 @@ OAuthManager::OAuthManager(QObject* parent,
 		token_ = OAuthToken(token_str);
 		if (token_.isValid()) {
 			setRefreshTimer();
+		} else {
+			QLOG_INFO() << "Removing the stored OAuth token because it has expired.";
+			datastore_.Set("oauth_token", "");
+			token_ = OAuthToken();
 		};
 	};
 }

@@ -28,8 +28,8 @@
 #include <map>
 #include <memory>
 
+#include "network_info.h"
 #include "ratelimit.h"
-
 #include "ratelimitmanager.h"
 
 class QNetworkAccessManager;
@@ -42,12 +42,18 @@ class RateLimiter : public QObject {
 	Q_OBJECT
 
 public:
-	// Creat a rate limiter.
-	RateLimiter(QObject* parent, QNetworkAccessManager& network_manager, OAuthManager& oauth_manager);
+	// Create a rate limiter.
+	RateLimiter(QObject* parent,
+		QNetworkAccessManager& network_manager,
+		OAuthManager& oauth_manager);
+
+	void Init(POE_API mode);
 
 	// Submit a request-callback pair to the rate limiter. Note that the callback function
 	// should not delete the QNetworkReply. That is handled after the callback finishes.
-	RateLimit::RateLimitedReply* Submit(const QString& endpoint, QNetworkRequest network_request);
+	RateLimit::RateLimitedReply* Submit(
+		const QString& endpoint,
+		QNetworkRequest network_request);
 
 public slots:
 	// Used by the GUI to request a manual refresh.
@@ -61,8 +67,6 @@ signals:
 	void Paused(int seconds, const QString& policy_name);
 
 private slots:
-	// Called when a policy manager has a request for us to send.
-	void SendRequest(RateLimitManager* manager, QNetworkRequest request);
 
 	void SendStatusUpdate();
 
@@ -71,15 +75,23 @@ private slots:
 
 private:
 	// Process the first request for an endpoint we haven't encountered before.
-	void SetupEndpoint(const QString& endpoint, QNetworkRequest network_request, RateLimit::RateLimitedReply* reply, QNetworkReply* network_reply);
+	void SetupEndpoint(
+		const QString& endpoint,
+		QNetworkRequest network_request,
+		RateLimit::RateLimitedReply* reply,
+		QNetworkReply* network_reply);
 
-	RateLimitManager& GetManager(const QString& endpoint, const QString& policy_name);
+	RateLimitManager& GetManager(
+		const QString& endpoint,
+		const QString& policy_name);
 
 	// Reference to the Application's network access manager.
 	QNetworkAccessManager& network_manager_;
 
 	// Reference to the Application's OAuth manager.
 	OAuthManager& oauth_manager_;
+
+	POE_API mode_;
 
 	QTimer update_timer_;
 

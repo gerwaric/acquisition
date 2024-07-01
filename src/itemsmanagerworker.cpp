@@ -89,11 +89,11 @@ ItemsManagerWorker::ItemsManagerWorker(QObject* parent,
 	BuyoutManager& buyout_manager,
 	DataStore& datastore,
 	RateLimiter& rate_limiter,
-	PoeApiMode mode)
+	POE_API mode)
 	:
 	QObject(parent),
 	settings_(settings),
-	api_mode_(mode),
+	mode_(mode),
 	test_mode_(false),
 	network_manager_(network_manager),
 	buyout_manager_(buyout_manager),
@@ -342,9 +342,10 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 	has_stash_list_ = false;
 	has_character_list_ = false;
 
-	switch (api_mode_) {
-	case PoeApiMode::LEGACY: LegacyRefresh(); break;
-	case PoeApiMode::OAUTH: OAuthRefresh(); break;
+	switch (mode_) {
+	case POE_API::OAUTH: OAuthRefresh(); break;
+	case POE_API::LEGACY: LegacyRefresh(); break;
+    case POE_API::NONE: QLOG_ERROR() << "Invalid poe api mode"; break;
 	};
 }
 

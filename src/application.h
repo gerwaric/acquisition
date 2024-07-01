@@ -19,11 +19,13 @@
 
 #pragma once
 
+#include <QApplication>
+#include <QMessageBox>
 #include <QObject>
 #include <QString>
 #include <QDateTime>
 
-#include <string>
+#include "network_info.h"
 
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -38,28 +40,26 @@ class UpdateChecker;
 class OAuthManager;
 class RateLimiter;
 
-enum class PoeApiMode { LEGACY, OAUTH };
-
 class Application : public QObject {
 	Q_OBJECT
 public:
-	explicit Application(bool mock_data = false);
+	explicit Application(bool test_mode = false);
 	~Application();
 	Application(const Application&) = delete;
 	Application& operator=(const Application&) = delete;
 	// Should be called by login dialog after login
-	void InitLogin(PoeApiMode mode);
-	QSettings& settings() { return *settings_; };
-	ItemsManager& items_manager() { return *items_manager_; }
-	DataStore& global_data() const { return *global_data_; }
-	DataStore& data() const { return *data_; }
-	BuyoutManager& buyout_manager() const { return *buyout_manager_; }
-	QNetworkAccessManager& network_manager() const { return *network_manager_; }
-	Shop& shop() const { return *shop_; }
-	CurrencyManager& currency_manager() const { return *currency_manager_; }
-	UpdateChecker& update_checker() const { return *update_checker_; }
-	OAuthManager& oauth_manager() const { return *oauth_manager_; }
-	RateLimiter& rate_limiter() const { return *rate_limiter_; }
+	void InitLogin(POE_API api);
+	QSettings& settings() const;
+	ItemsManager& items_manager() const;
+	DataStore& global_data() const;
+	DataStore& data() const;
+	BuyoutManager& buyout_manager() const;
+	QNetworkAccessManager& network_manager() const;
+	Shop& shop() const;
+	CurrencyManager& currency_manager() const;
+	UpdateChecker& update_checker() const;
+	OAuthManager& oauth_manager() const;
+	RateLimiter& rate_limiter() const;
 public slots:
 	void OnItemsRefreshed(bool initial_refresh);
 private:
@@ -77,4 +77,6 @@ private:
 	std::unique_ptr<OAuthManager> oauth_manager_;
 	std::unique_ptr<RateLimiter> rate_limiter_;
 	void SaveDbOnNewVersion();
+
+	static void FatalAccessError(const char* object_name);
 };

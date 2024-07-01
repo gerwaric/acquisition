@@ -21,6 +21,7 @@
 
 #include <QApplication>
 #include <QDir>
+#include <QMessageBox>
 #include <QNetworkAccessManager>
 #include <QSettings>
 #include <QtHttpServer/QHttpServer>
@@ -38,8 +39,8 @@
 #include "oauthmanager.h"
 #include "version_defines.h"
 
-Application::Application(bool mock_data) :
-	test_mode_(mock_data)
+Application::Application(bool test_mode) :
+	test_mode_(test_mode)
 {
 	if (test_mode_) {
 		global_data_ = std::make_unique<MemoryDataStore>();
@@ -53,16 +54,105 @@ Application::Application(bool mock_data) :
 	settings_ = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
 	global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
 	network_manager_ = std::make_unique<QNetworkAccessManager>(this);
-	update_checker_ = std::make_unique<UpdateChecker>(this, *settings_, *network_manager_);
-	oauth_manager_ = std::make_unique<OAuthManager>(this, *network_manager_, *global_data_);
-	rate_limiter_ = std::make_unique<RateLimiter>(this, *network_manager_, *oauth_manager_);
+	update_checker_ = std::make_unique<UpdateChecker>(this, settings(), network_manager());
+	oauth_manager_ = std::make_unique<OAuthManager>(this, network_manager(), global_data());
+	rate_limiter_ = std::make_unique<RateLimiter>(this, network_manager(), oauth_manager());
 
 	LoadTheme();
 }
 
 Application::~Application() {
-	if (buyout_manager_)
+	if (buyout_manager_) {
 		buyout_manager_->Save();
+	};
+}
+
+QSettings& Application::settings() const {
+	if (!settings_) {
+		FatalAccessError("settings is null");
+	};
+	return *settings_;
+};
+
+ItemsManager& Application::items_manager() const {
+	if (!items_manager_) {
+		FatalAccessError("items nanager");
+	};
+	return *items_manager_;
+};
+
+DataStore& Application::global_data() const {
+	if (!global_data_) {
+		FatalAccessError("global datastore");
+	};
+	return *global_data_;
+};
+
+DataStore& Application::data() const {
+	if (!data_) {
+		FatalAccessError("datastore");
+	};
+	return *data_;
+};
+
+BuyoutManager& Application::buyout_manager() const {
+	if (!buyout_manager_) {
+		FatalAccessError("buyout manager");
+	};
+	return *buyout_manager_;
+};
+
+QNetworkAccessManager& Application::network_manager() const {
+	if (!network_manager_) {
+		FatalAccessError("network access manager");
+	};
+	return *network_manager_;
+}
+
+Shop& Application::shop() const {
+	if (!shop_) {
+		FatalAccessError("shop");
+	};
+	return *shop_;
+}
+
+CurrencyManager& Application::currency_manager() const {
+	if (!currency_manager_) {
+		FatalAccessError("currency manager");
+	};
+	return *currency_manager_;
+}
+
+UpdateChecker& Application::update_checker() const {
+	if (!update_checker_) {
+		FatalAccessError("update checker");
+	};
+	return *update_checker_;
+}
+
+OAuthManager& Application::oauth_manager() const {
+	if (!oauth_manager_) {
+		FatalAccessError("OAuth manager");
+	};
+	return *oauth_manager_;
+}
+
+RateLimiter& Application::rate_limiter() const {
+	if (!rate_limiter_) {
+		FatalAccessError("rate limiter");
+	};
+	return *rate_limiter_;
+}
+
+void Application::FatalAccessError(const char* object_name) {
+	const QString message = QString("Attempted to use the %1 before it was created.").arg(object_name);
+	QLOG_FATAL() << message;
+	QMessageBox errorMsg;
+	errorMsg.setIcon(QMessageBox::Icon::Critical);
+	errorMsg.setWindowTitle("Acquistion: Fatal Error");
+	errorMsg.setText(message);
+	errorMsg.setStandardButtons(QMessageBox::StandardButton::Abort);
+	QApplication::quit();
 }
 
 void Application::LoadTheme() {
@@ -100,7 +190,7 @@ void Application::LoadTheme() {
 	};
 }
 
-void Application::InitLogin(PoeApiMode mode)
+void Application::InitLogin(POE_API mode)
 {
 	if (test_mode_) {
 		// This is used in tests
@@ -116,25 +206,25 @@ void Application::InitLogin(PoeApiMode mode)
 	}
 
 	buyout_manager_ = std::make_unique<BuyoutManager>(*data_);
-	
+
 	items_manager_ = std::make_unique<ItemsManager>(this,
-		*settings_,
-		*network_manager_,
-		*buyout_manager_,
-		*data_,
-		*rate_limiter_);
-	
+		settings(),
+		network_manager(),
+		buyout_manager(),
+		data(),
+		rate_limiter());
+
 	shop_ = std::make_unique<Shop>(this,
-		*settings_,
-		*network_manager_,
-		*data_,
-		*items_manager_,
-		*buyout_manager_);
-	
+		settings(),
+		network_manager(),
+		data(),
+		items_manager(),
+		buyout_manager());
+
 	currency_manager_ = std::make_unique<CurrencyManager>(nullptr,
-		*settings_,
-		*data_,
-		*items_manager_);
+		settings(),
+		data(),
+		items_manager());
 
 	connect(items_manager_.get(), &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
 

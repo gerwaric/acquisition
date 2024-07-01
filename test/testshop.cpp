@@ -6,13 +6,14 @@
 #include "application.h"
 #include "buyoutmanager.h"
 #include "itemsmanager.h"
+#include "network_info.h"
 #include "shop.h"
 #include "testdata.h"
 
 TestShop::TestShop() : app_(true) {}
 
 void TestShop::initTestCase() {
-	app_.InitLogin(PoeApiMode::LEGACY);
+	app_.InitLogin(POE_API::LEGACY);
 }
 
 void TestShop::SocketedGemsNotLinked() {

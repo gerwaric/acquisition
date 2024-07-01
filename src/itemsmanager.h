@@ -27,6 +27,7 @@
 #include "itemlocation.h"
 #include "itemsmanagerworker.h"
 #include "mainwindow.h"
+#include "network_info.h"
 #include "util.h"
 
 class QSettings;
@@ -35,8 +36,6 @@ class BuyoutManager;
 class DataStore;
 class ItemsManagerWorker;
 class Shop;
-
-enum class PoeApiMode;
 
 /*
  * ItemsManager manages an ItemsManagerWorker (which lives in a separate thread)
@@ -56,7 +55,7 @@ public:
 	bool isInitialized() const { return worker_ ? worker_->isInitialized() : false; };
 	bool isUpdating() const { return worker_ ? worker_->isUpdating() : false; };
 	// Creates and starts the worker
-	void Start(PoeApiMode mode);
+	void Start(POE_API mode);
 	void Update(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 	void SetAutoUpdateInterval(int minutes);
 	void SetAutoUpdate(bool update);
