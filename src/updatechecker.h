@@ -49,9 +49,6 @@ private:
 	QSettings& settings_;
 	QNetworkAccessManager& nm_;
 
-	// Ammount of time between update checks (milliseconds)
-	static const int update_interval;
-
 	// Trigger periodic update checks.
 	QTimer timer_;
 

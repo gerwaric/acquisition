@@ -37,13 +37,11 @@
 #include "network_info.h"
 #include "version_defines.h"
 
-namespace {
-	const char* GITHUB_RELEASES_URL = "https://api.github.com/repos/gerwaric/acquisition/releases";
-	const char* GITHUB_DOWNLOADS_URL = "https://github.com/gerwaric/acquisition/releases";
-}
+constexpr const char* GITHUB_RELEASES_URL = "https://api.github.com/repos/gerwaric/acquisition/releases";
+constexpr const char* GITHUB_DOWNLOADS_URL = "https://github.com/gerwaric/acquisition/releases";
 
 // Check for updates every 24 hours.
-const int UpdateChecker::update_interval = 24 * 60 * 60 * 1000;
+constexpr int UPDATE_INTERVAL = 24 * 60 * 60 * 1000;
 
 UpdateChecker::UpdateChecker(QObject* parent,
 	QSettings& settings,
@@ -53,7 +51,7 @@ UpdateChecker::UpdateChecker(QObject* parent,
 	settings_(settings),
 	nm_(network_manager)
 {
-	timer_.setInterval(update_interval);
+	timer_.setInterval(UPDATE_INTERVAL);
 	timer_.start();
 	connect(&timer_, &QTimer::timeout, this, &UpdateChecker::CheckForUpdates);
 }

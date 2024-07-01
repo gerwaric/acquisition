@@ -41,15 +41,15 @@
 #include "util.h"
 
 // Hard-code authorization stuff.
-const char* AUTHORIZE_URL = "https://www.pathofexile.com/oauth/authorize";
-const char* TOKEN_URL = "https://www.pathofexile.com/oauth/token";
-const char* CLIENT_ID = "acquisition";
-const char* SCOPE = "account:leagues account:stashes account:characters";
-const char* REDIRECT_URL = "http://127.0.0.1";
-const char* REDIRECT_PATH = "/auth/path-of-exile";
+constexpr const char* AUTHORIZE_URL = "https://www.pathofexile.com/oauth/authorize";
+constexpr const char* TOKEN_URL = "https://www.pathofexile.com/oauth/token";
+constexpr const char* CLIENT_ID = "acquisition";
+constexpr const char* SCOPE = "account:leagues account:stashes account:characters";
+constexpr const char* REDIRECT_URL = "http://127.0.0.1";
+constexpr const char* REDIRECT_PATH = "/auth/path-of-exile";
 
 // Refresh a token an hour before it's due to expire.
-const int EXPIRATION_BUFFER_SECS = 3600;
+constexpr int EXPIRATION_BUFFER_SECS = 3600;
 
 OAuthManager::OAuthManager(QObject* parent,
 	QNetworkAccessManager& network_manager,

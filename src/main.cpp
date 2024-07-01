@@ -41,15 +41,15 @@
 #include "testmain.h"
 
 #ifdef _DEBUG
-const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::TraceLevel;
+constexpr QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::TraceLevel;
 #else
-const QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::InfoLevel;
+constexpr QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::InfoLevel;
 #endif
 
 #ifdef Q_OS_LINUX
-const char* SSL_ERROR = "OpenSSL 3.x was not found; check LD_LIBRARY_PATH if you have a custom installation.";
+constexpr const char* SSL_ERROR = "OpenSSL 3.x was not found; check LD_LIBRARY_PATH if you have a custom installation.";
 #else
-const char* SSL_ERROR = "SSL is not supported. This is unexpected.";
+constexpr const char* SSL_ERROR = "SSL is not supported. This is unexpected.";
 #endif
 
 

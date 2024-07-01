@@ -40,10 +40,10 @@
 #include "mainwindow.h"
 #include "replytimeout.h"
 
-const char* kPoeEditThread = "https://www.pathofexile.com/forum/edit-thread/";
-const char* kShopTemplateItems = "[items]";
-const int kMaxCharactersInPost = 50000;
-const int kSpoilerOverhead = 19; // "[spoiler][/spoiler]" length
+constexpr const char* kPoeEditThread = "https://www.pathofexile.com/forum/edit-thread/";
+constexpr const char* kShopTemplateItems = "[items]";
+constexpr int kMaxCharactersInPost = 50000;
+constexpr int kSpoilerOverhead = 19; // "[spoiler][/spoiler]" length
 
 // Use a regular expression to look for html errors.
 const QRegularExpression Shop::error_regex(

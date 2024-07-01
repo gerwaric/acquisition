@@ -41,10 +41,10 @@ enum ELEMENTAL_DAMAGE_TYPES {
 	ED_LIGHTNING = 6,
 };
 
-const int PIXELS_PER_SLOT = 47;
-const int INVENTORY_SLOTS = 12;
-const int PIXELS_PER_MINIMAP_SLOT = 10;
-const int MINIMAP_SIZE = INVENTORY_SLOTS * PIXELS_PER_MINIMAP_SLOT;
+constexpr int PIXELS_PER_SLOT = 47;
+constexpr int INVENTORY_SLOTS = 12;
+constexpr int PIXELS_PER_MINIMAP_SLOT = 10;
+constexpr int MINIMAP_SIZE = INVENTORY_SLOTS * PIXELS_PER_MINIMAP_SLOT;
 
 struct position {
 	double x;

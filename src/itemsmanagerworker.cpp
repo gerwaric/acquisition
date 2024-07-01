@@ -46,35 +46,35 @@
 #include "ratelimiter.h"
 #include "oauthmanager.h"
 
-const char* kStashItemsUrl = "https://www.pathofexile.com/character-window/get-stash-items";
-const char* kCharacterItemsUrl = "https://www.pathofexile.com/character-window/get-items";
-const char* kGetCharactersUrl = "https://www.pathofexile.com/character-window/get-characters";
-const char* kMainPage = "https://www.pathofexile.com/";
+constexpr const char* kStashItemsUrl = "https://www.pathofexile.com/character-window/get-stash-items";
+constexpr const char* kCharacterItemsUrl = "https://www.pathofexile.com/character-window/get-items";
+constexpr const char* kGetCharactersUrl = "https://www.pathofexile.com/character-window/get-characters";
+constexpr const char* kMainPage = "https://www.pathofexile.com/";
 //While the page does say "get passive skills", it seems to only send socketed jewels
-const char* kCharacterSocketedJewels = "https://www.pathofexile.com/character-window/get-passive-skills";
+constexpr const char* kCharacterSocketedJewels = "https://www.pathofexile.com/character-window/get-passive-skills";
 
-const char* kPOE_trade_stats = "https://www.pathofexile.com/api/trade/data/stats";
+constexpr const char* kPOE_trade_stats = "https://www.pathofexile.com/api/trade/data/stats";
 
-const char* kRePoE_item_classes = "https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/item_classes.min.json";
-const char* kRePoE_item_base_types = "https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/base_items.min.json";
+constexpr const char* kRePoE_item_classes = "https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/item_classes.min.json";
+constexpr const char* kRePoE_item_base_types = "https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/base_items.min.json";
 
 // Modifiers from this list of files will be loaded in order from first to last.
-const char* REPOE_STAT_TRANSLATIONS[] = {
+constexpr const char* REPOE_STAT_TRANSLATIONS[] = {
 	"https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/stat_translations.min.json",
 	"https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/stat_translations/necropolis.min.json"
 };
 
-const char* kOauthListStashesEndpoint = "GET /stash/<league>";
-const char* kOAuthListStashesUrl = "https://api.pathofexile.com/stash";
+constexpr const char* kOauthListStashesEndpoint = "GET /stash/<league>";
+constexpr const char* kOAuthListStashesUrl = "https://api.pathofexile.com/stash";
 
-const char* kOAuthListCharactersEndpoint = "GET /character";
-const char* kOAuthListCharactersUrl = "https://api.pathofexile.com/character";
+constexpr const char* kOAuthListCharactersEndpoint = "GET /character";
+constexpr const char* kOAuthListCharactersUrl = "https://api.pathofexile.com/character";
 
-const char* kOAuthGetStashEndpoint = "GET /stash/<league>/<stash_id>[/<substash_id>]";
-const char* kOAuthGetStashUrl = "https://api.pathofexile.com/stash";
+constexpr const char* kOAuthGetStashEndpoint = "GET /stash/<league>/<stash_id>[/<substash_id>]";
+constexpr const char* kOAuthGetStashUrl = "https://api.pathofexile.com/stash";
 
-const char* kOAuthGetCharacterEndpoint = "GET /character/<name>";
-const char* kOAuthGetCharacterUrl = "https://api.pathofexile.com/character";
+constexpr const char* kOAuthGetCharacterEndpoint = "GET /character/<name>";
+constexpr const char* kOAuthGetCharacterUrl = "https://api.pathofexile.com/character";
 
 constexpr std::array CHARACTER_ITEM_FIELDS = {
 	"equipment",
