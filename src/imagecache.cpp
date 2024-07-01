@@ -33,13 +33,13 @@ ImageCache::ImageCache(const QString& directory) :
 		QDir().mkpath(directory_);
 }
 
-bool ImageCache::Exists(const std::string& url) {
+bool ImageCache::Exists(const std::string& url) const {
 	QString path = GetPath(url);
 	QFile file(path);
 	return file.exists();
 }
 
-QImage ImageCache::Get(const std::string& url) {
+QImage ImageCache::Get(const std::string& url) const {
 	return QImage(QString(GetPath(url)));
 }
 
@@ -47,6 +47,6 @@ void ImageCache::Set(const std::string& url, const QImage& image) {
 	image.save(QString(GetPath(url)));
 }
 
-QString ImageCache::GetPath(const std::string& url) {
+QString ImageCache::GetPath(const std::string& url) const {
 	return directory_ + "/" + QString::fromStdString(Util::Md5(url)) + ".png";
 }
