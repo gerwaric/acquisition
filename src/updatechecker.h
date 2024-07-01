@@ -46,22 +46,21 @@ private slots:
 	void OnUpdateErrorOccurred(QNetworkReply::NetworkError code);
 	void OnUpdateSslErrors(const QList<QSslError>& errors);
 private:
+
+	void ParseReleaseTags(const QByteArray& bytes,
+		QStringList& tag_names,
+		std::vector<bool>& prerelease_flags);
+
 	QSettings& settings_;
 	QNetworkAccessManager& nm_;
 
 	// Trigger periodic update checks.
 	QTimer timer_;
 
-	// The last release tag checked by the UpdateChecker
-	QString last_checked_tag_;
-	
 	// The newest github release
-	QString newest_release_;
+	QString latest_release_;
 
 	// The newest github pre-release
-	QString newest_prerelease_;
-	
-	// If the user is running an older pre-release with a version suffix,
-	// this will be the corresponding final release version.
-	QString upgrade_release_;
+	QString latest_prerelease_;
+
 };

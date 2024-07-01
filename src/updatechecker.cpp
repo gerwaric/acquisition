@@ -57,6 +57,8 @@ UpdateChecker::UpdateChecker(QObject* parent,
 }
 
 void UpdateChecker::CheckForUpdates() {
+	// Get the releases from GitHub as a json object.
+	QLOG_TRACE() << "UpdateChecker: requesting GitHub releases:" << GITHUB_RELEASES_URL;
 	QNetworkRequest request = QNetworkRequest(QUrl(GITHUB_RELEASES_URL));
 	request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 	QNetworkReply* reply = nm_.get(request);
@@ -79,7 +81,8 @@ void UpdateChecker::OnUpdateSslErrors(const QList<QSslError>& errors) {
 }
 
 void UpdateChecker::OnUpdateReplyReceived() {
-	QLOG_TRACE() << "UpdateChecker: received an update reply.";
+	// Process the releases received from GitHub.
+	QLOG_TRACE() << "UpdateChecker: received an update reply from GitHub.";
 
 	// Check for network errors.
 	QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
@@ -88,9 +91,80 @@ void UpdateChecker::OnUpdateReplyReceived() {
 		return;
 	};
 
+	// Parse release tags from the json object.
+	QStringList tags;
+	std::vector<bool> prerelease_flags;
+	ParseReleaseTags(reply->readAll(), tags, prerelease_flags);
+
+	// Get the version of the application that's running now,
+	// and determine if it's a prerelease by comparing APP_VERSION
+	// with APP_VERSION_STRINg. The only difference between those two
+	// things should be the presence of a pre-release suffix in the 
+	// full version string.
+	const auto app_version = QStringLiteral(APP_VERSION);
+	const auto app_version_string = QStringLiteral(APP_VERSION_STRING);
+	const bool app_is_prerelease = (app_version != app_version_string);
+
+	// Find the index of the first release tag.
+	int kRelease = -1;
+	for (auto i = 0; i < tags.size(); ++i) {
+		if (!prerelease_flags[i]) {
+			kRelease = i;
+			break;
+		};
+	};
+
+	// Find the index of the first pre-release tag.
+	int kPrerelease = -1;
+	for (auto i = 0; i < tags.size(); ++i) {
+		if (prerelease_flags[i]) {
+			kPrerelease = i;
+			break;
+		};
+	};
+
+	// Make sure at least one tag was found.
+	if ((kRelease < 0) && (kPrerelease < 0)) {
+		QLOG_WARN() << "Unable to find any github releases or pre-releases!";
+		return;
+	};
+
+	// Find the index of the currently running build.
+	const auto kApp = tags.indexOf(app_version_string, Qt::CaseInsensitive);
+	if (kApp < 0) {
+		QLOG_WARN() << "No github tag matches the running version (" APP_VERSION_STRING ")";
+	};
+
+	// Create helpful variable to keep track of what we know now.
+	bool has_newer_release = (kRelease >= 0);
+	bool has_newer_prerelease = (kPrerelease >= 0) && (kPrerelease < kRelease);
+
+	// If we found the current build in the list from GitHub, make sure that
+	// the "newer" releases are actually newer.
+	//
+	// Lower indexes mean newer releases, because that's the order GitHub
+	// returns them in.
+	if (kApp >= 0) {
+		has_newer_release &= (kRelease < kApp);
+		has_newer_prerelease &= (kPrerelease < kApp);
+	};
+
+	// Now save the appropriate tags.
+	latest_release_ = (kRelease >= 0) ? tags[kRelease] : "";
+	latest_prerelease_ = (kPrerelease >= 0) ? tags[kPrerelease] : "";
+
+	// Send a signal if there's a new version from the last check.
+	if (has_newer_release || has_newer_prerelease) {
+		emit UpdateAvailable();
+	};
+}
+
+void UpdateChecker::ParseReleaseTags(const QByteArray& bytes,
+	QStringList& tag_names,
+	std::vector<bool>& prerelease_flags)
+{
 	// Parse the reply as a json document.
 	rapidjson::Document doc;
-	const QByteArray bytes = reply->readAll();
 	doc.Parse(bytes.constData());
 
 	// Check for json errors.
@@ -103,20 +177,13 @@ void UpdateChecker::OnUpdateReplyReceived() {
 		return;
 	};
 
-	QString newest_tag;
-	QString matched_tag;
+	// Prepare the output vectors.
+	const auto n = doc.GetArray().Size();
+	tag_names.reserve(n);
+	prerelease_flags.reserve(n);
 
-	const auto app_version = QStringLiteral(APP_VERSION);
-	const auto app_version_string = QStringLiteral(APP_VERSION_STRING);
-	const bool app_is_prerelease = app_version != app_version_string;
-
-	newest_release_ = "";
-	newest_prerelease_ = "";
-	upgrade_release_ = "";
-
-	// Start iterating through the release objects.
-	const auto& releases = doc.GetArray();
-	for (const auto& release : releases) {
+	// Check each of the release objects.
+	for (const auto& release : doc.GetArray()) {
 
 		// Skip draft releases.
 		if (release.HasMember("draft") && release["draft"].IsBool() && release["draft"].GetBool()) {
@@ -133,68 +200,15 @@ void UpdateChecker::OnUpdateReplyReceived() {
 			continue;
 		};
 
-		const QString tag_name = release["tag_name"].GetString();
-		const bool prerelease = release["prerelease"].GetBool();
-
-		// Save the first tag we encounter, since this is the one that will trigger
-		// the update signal regardless of wether it's a prerelease or not.
-		if (newest_tag.isEmpty()) {
-			newest_tag = tag_name;
+		// Strip leading "v" or "V".
+		QString tag_name = release["tag_name"].GetString();
+		if (tag_name.startsWith("v") || tag_name.startsWith("V")) {
+			tag_name.remove(0, 1);
 		};
 
-		// If the running version appears to be a pre-release, look for a matching release.
-		if (app_is_prerelease) {
-			if (!prerelease && tag_name.contains(app_version)) {
-				if (upgrade_release_.isEmpty()) {
-					QLOG_TRACE() << "UpdateChecker found an upgrade release:" << tag_name;
-					upgrade_release_ = tag_name;
-				};
-			};
-		};
-
-		// Keep track of how many releases and prereleases we find before a match,
-		// and keep track of the most recent ones.
-		if (prerelease) {
-			if (newest_prerelease_.isEmpty()) {
-				QLOG_TRACE() << "UpdateChecker found a newer prerelease tag:" << tag_name;
-				newest_prerelease_ = tag_name;
-			};
-		} else {
-			if (newest_release_.isEmpty()) {
-				QLOG_TRACE() << "UpdateChecker found a newer release tag:" << tag_name;
-				newest_release_ = tag_name;
-			};
-		};
-
-		// Try matching the release tag againg the running version.
-		if (tag_name.contains(app_version_string, Qt::CaseInsensitive)) {
-			QLOG_TRACE() << "UpdateChecker found a match for the running version" << tag_name;
-			matched_tag = tag_name;
-		};
-
-		// End early if we've found all the things we are looking for.
-		if (!matched_tag.isEmpty() && !newest_release_.isEmpty() && !newest_prerelease_.isEmpty()) {
-			break;
-		};
-	};
-
-	if (matched_tag.isEmpty()) {
-		QLOG_WARN() << "Unable to match any github release against the running version!";
-	};
-
-	qsizetype k;
-	const QVersionNumber newest_version = QVersionNumber::fromString(newest_tag, &k);
-	const QString newest_postfix = newest_tag.sliced(k);
-
-	const QVersionNumber last_checked_version = QVersionNumber::fromString(last_checked_tag_, &k);
-	const QString last_checked_postfix = last_checked_tag_.sliced(k);
-
-	// Update the last checked tag before announcing updates.
-	last_checked_tag_ = newest_tag;
-
-	// Send a signal if there's a new version from the last check.
-	if ((newest_version > last_checked_version) || (newest_postfix != last_checked_postfix)) {
-		emit UpdateAvailable();
+		// Add this release to the list.
+		tag_names.push_back(tag_name);
+		prerelease_flags.push_back(release["prerelease"].GetBool());
 	};
 }
 
@@ -203,51 +217,60 @@ void UpdateChecker::AskUserToUpdate() {
 	const QString skip_release = settings_.value("skip_release").toString();
 	const QString skip_prerelease = settings_.value("skip_prerelease").toString();
 
-	if ((newest_release_ == skip_release) && (newest_prerelease_ == skip_prerelease)) {
+	// Check to see if we have new releases to advertise to the user.
+	const bool new_release = (0 != skip_release.compare(latest_release_, Qt::CaseInsensitive));
+	const bool new_prerelease = (0 != skip_prerelease.compare(latest_prerelease_, Qt::CaseInsensitive));
+
+	if (!new_release && !new_prerelease) {
 		QLOG_INFO() << "Skipping updates: no new versions";
 		return;
 	};
 
-	// Only show the 'compatible version' update if it's present and is
-	// different from the newest release. This cann happen if the user is
-	// running an older pre-release, e.g. v0.10.3-alpha.3. In this case,
-	// the user could update to either v0.10.3, or a newer release like
-	// v0.10.4 or newer.
-	const bool show_compatible =
-		(upgrade_release_.isEmpty() == false) &&
-		(upgrade_release_ != newest_release_);
-
 	// Setup the update message.
 	QStringList lines;
-	lines.append("The latest official release is '" + newest_release_ + "'");
-	lines.append("The latest pre-release is '" + newest_prerelease_ + "'");
-	if (show_compatible) {
-		lines.append("\nYou could also update your version to '" + upgrade_release_ + "'");
+	if (new_release) {
+		lines.append("The latest version is:");
+		lines.append("   " + latest_release_);
+	};
+	if (new_prerelease) {
+		if (!lines.isEmpty()) {
+			lines.append("");
+		};
+		lines.append("The latest pre-release is:");
+		lines.append("   " + latest_prerelease_);
 	};
 	const QString message = lines.join("\n");
 
 	// Create the dialog box.
 	QMessageBox msgbox(nullptr);
-	msgbox.setWindowTitle("Update [" APP_VERSION_STRING "]");
+	msgbox.setWindowTitle("Acquisition [" APP_VERSION_STRING "]: Update Available");
 	msgbox.setText(message);
 	auto accept_button = msgbox.addButton("  Go to Github  ", QMessageBox::AcceptRole);
-	auto skip_button = msgbox.addButton("  Ignore until the next update(s)  ", QMessageBox::RejectRole);
-	auto ignore_button = msgbox.addButton("  Ignore Once  ", QMessageBox::RejectRole);
+	auto ignore_button = msgbox.addButton("  Ignore until newer versions  ", QMessageBox::RejectRole);
+	auto remind_button = msgbox.addButton("  Ignore once  ", QMessageBox::RejectRole);
 	msgbox.setDefaultButton(ignore_button);
 
 	// Resize the buttons so the text fits.
 	accept_button->setMinimumWidth(accept_button->sizeHint().width());
 	ignore_button->setMinimumWidth(ignore_button->sizeHint().width());
-	skip_button->setMinimumWidth(skip_button->sizeHint().width());
+	remind_button->setMinimumWidth(remind_button->sizeHint().width());
 
 	// Get the user's choice.
 	msgbox.exec();
-
 	const auto clicked = msgbox.clickedButton();
+
+	// Save the latest releases into the settings file oinly if the
+	// user asked to skip them in the future.
+	if (clicked == ignore_button) {
+		settings_.setValue("skip_release", latest_release_);
+		settings_.setValue("skip_prerelease", latest_prerelease_);
+	} else {
+		settings_.setValue("skip_release", "");
+		settings_.setValue("skip_prerelease", "");
+	};
+
+	// Open a desktop web browser window if the user clicked that button.
 	if (clicked == accept_button) {
 		QDesktopServices::openUrl(QUrl(GITHUB_DOWNLOADS_URL));
-	} else if (clicked == skip_button) {
-		settings_.setValue("skip_release", newest_release_);
-		settings_.setValue("skip_prerelease", newest_prerelease_);
 	};
 }
