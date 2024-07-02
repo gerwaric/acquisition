@@ -222,7 +222,7 @@ void ItemsManagerWorker::ParseItemMods() {
 		};
 		emit StatusUpdate(
 			ProgramState::Initializing,
-			QString("Parsing item mods in tabs, %1/%2").arg(
+			QString("Parsing items in %1/%2 tabs").arg(
 				QString::number(i + 1),
 				QString::number(tabs_.size())));
 	};
@@ -291,7 +291,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 	cancel_update_ = false;
 
 	// remove all pending requests
-	queue_ = std::queue<ItemsRequest>();
+	queue_ = {};
 	queue_id_ = 0;
 
 	selected_character_ = "";

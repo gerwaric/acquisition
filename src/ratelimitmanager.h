@@ -66,6 +66,9 @@ signals:
 	// Emitted when the underlying policy has been updated.
 	void PolicyUpdated(const RateLimit::Policy& policy);
 
+	// Used after a fatal error to close Acquistion
+	void Quit() const;
+
 public slots:
 	// Called when a reply has been received. Checks for errors. Updates the
 	// rate limit policy if one was received. Puts the response in the
@@ -118,6 +121,8 @@ private:
 	// will determine when that request can be sent and setup the active
 	// request timer to send that request after a delay.
 	void ActivateRequest();
+
+	void FatalError(const QString& message) const;
 
 	// Resends the active request after a delay due to a violation.
 	//void ResendAfterViolation();

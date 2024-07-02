@@ -175,6 +175,10 @@ void RateLimiter::SendStatusUpdate()
 	QDateTime next_send;
 	QString limiting_policy;
 	for (auto& manager : managers_) {
+		if (!manager) {
+			QLOG_ERROR() << "Cannot send a status update: the rate limit manager is invalid.";
+			continue;
+		};
 		if (!manager->isActive()) {
 			continue;
 		};
