@@ -45,7 +45,8 @@ public:
 	// Create a rate limiter.
 	RateLimiter(QObject* parent,
 		QNetworkAccessManager& network_manager,
-		OAuthManager& oauth_manager);
+		OAuthManager& oauth_manager,
+		POE_API mode);
 
 	void Init(POE_API mode);
 

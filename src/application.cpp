@@ -58,7 +58,6 @@ Application::Application(bool test_mode) :
 	network_manager_ = std::make_unique<QNetworkAccessManager>(this);
 	update_checker_ = std::make_unique<UpdateChecker>(this, settings(), network_manager());
 	oauth_manager_ = std::make_unique<OAuthManager>(this, network_manager(), global_data());
-	rate_limiter_ = std::make_unique<RateLimiter>(this, network_manager(), oauth_manager());
 
 	LoadTheme();
 }
@@ -208,7 +207,12 @@ void Application::InitLogin(POE_API mode)
 		SaveDbOnNewVersion();
 	}
 
-	buyout_manager_ = std::make_unique<BuyoutManager>(*data_);
+	rate_limiter_ = std::make_unique<RateLimiter>(this,
+		network_manager(),
+		oauth_manager(), mode);
+
+	buyout_manager_ = std::make_unique<BuyoutManager>(
+		data());
 
 	items_manager_ = std::make_unique<ItemsManager>(this,
 		settings(),

@@ -37,12 +37,13 @@ constexpr int UPDATE_INTERVAL_MSEC = 1000;
 
 RateLimiter::RateLimiter(QObject* parent,
 	QNetworkAccessManager& network_manager,
-	OAuthManager& oauth_manager)
+	OAuthManager& oauth_manager,
+	POE_API mode)
 	:
 	QObject(parent),
 	network_manager_(network_manager),
 	oauth_manager_(oauth_manager),
-	mode_(POE_API::OAUTH)
+	mode_(mode)
 {
 	update_timer_.setSingleShot(false);
 	update_timer_.setInterval(UPDATE_INTERVAL_MSEC);
