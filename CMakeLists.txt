@@ -30,7 +30,7 @@ cmake_minimum_required(VERSION 3.21.1)
 
 project(acquisition
     VERSION 0.11.1
-    DESCRIPTION "Stash and forum shop management for Path of Exile"
+    DESCRIPTION "Stash and forum shop management for Path of Exile \\256"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
 )
@@ -46,6 +46,8 @@ set(app_version_string  "${CMAKE_PROJECT_VERSION}${version_postfix}")
 set(app_url             "${CMAKE_PROJECT_HOMEPAGE_URL}")
 set(app_publisher       "GERWARIC")
 set(app_publisher_email "gerwaric@gmail.com")
+set(app_copyright       "Copyright \\251 2014 Ilya Zhuravlev and 2023 Gerwaric")
+set(app_trademark       "Path of Exile is a trademark of Grinding Gear Games, Ltd.")
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
@@ -181,18 +183,51 @@ target_include_directories(acquisition PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
 
 # Automatically populate the VERSIONINFO file for windows.
 if(WIN32)
-    set(ver_FILEVERSION        "${PROJECT_VERSION_MAJOR},${PROJECT_VERSION_MINOR},${PROJECT_VERSION_PATCH}")
-    set(ver_FILEVERSION_STR    "${app_version_string}")
-    set(ver_PRODUCTVERSION     "${PROJECT_VERSION_MAJOR},${PROJECT_VERSION_MINOR},${PROJECT_VERSION_PATCH}")
-    set(ver_PRODUCTVERSION_STR "${app_version_string}")
-    set(ver_COMPANYNAME_STR    "")
-    set(ver_PRODUCTNAME_STR    "${PROJECT_NAME}")
-    set(ver_LEGALCOPYRIGHT_STR "Copyright \\251 2014 Ilya Zhuravlev and 2023 Gerwaric")
-    set(ver_FILENAME_STR       "${PROJECT_NAME}.exe")
-    set(ver_NAME_STR           "${PROJECT_NAME}")
-    set(ver_FILEDESC_STR       "${PROJECT_NAME}")
+    
+    # Define the major version.
+	if (NOT PROJECT_VERSION_MAJOR STREQUAL "")
+        set(app_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
+    else()
+        set(app_VERSION_MAJOR, 1)
+    endif()
+    
+    # Define the minor version.
+    if (NOT PROJECT_VERSION_MINOR STREQUAL "")
+        set(app_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
+    else()
+        set(app_VERSION_MINOR 0)
+    endif()
+    
+    # Define the patch version.
+    if (NOT PROJECT_VERSION_PATCH STREQUAL "")
+        set(app_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
+    else()
+        set(app_VERSION_PATCH 0)
+    endif()
+    
+    # Define the tweak version.
+    if (NOT PROJECT_VERSION_TWEAK STREQUAL "")
+        set(app_VERSION_TWEAK "${PROJECT_VERSION_TWEAK}")
+    else()
+        set(app_VERSION_TWEAK 0)
+    endif()
+    
+    # Define the reset of the versioninfo data.
+    set(app_COMPANY_NAME	    "")
+    set(app_FILE_DESCRIPTION    "")
+    set(app_FILE_VERSION        "${app_version_string}")
+    set(app_INTERNAL_NAME       "${CMAKE_PROJECT_NAME}")
+    set(app_LEGAL_COPYRIGHT     "${app_copyright}")
+    set(app_LEGAL_TRADEMARK     "${app_trademark}")
+    set(app_ORIGINAL_FILENAME   "${CMAKE_PROJECT_NAME}.exe")
+    set(app_PRODUCT_NAME        "${CMAKE_PROJECT_NAME}")
+    set(app_PRODUCT_VERSION     "${app_version_string}")
+    set(app_ICON                "${PROJECT_SOURCE_DIR}/assets/icon.ico")
     configure_file(version_info.rc.in version_info.rc @ONLY)
-    target_sources(acquisition PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/version_info.rc")
+    target_sources(acquisition PUBLIC
+        "${CMAKE_CURRENT_BINARY_DIR}/version_info.rc"
+        "${PROJECT_SOURCE_DIR}/assets/icon.ico"
+    )
 endif()
 
 target_include_directories(acquisition PRIVATE
