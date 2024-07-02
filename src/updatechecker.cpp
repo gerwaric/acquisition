@@ -96,15 +96,6 @@ void UpdateChecker::OnUpdateReplyReceived() {
 	std::vector<bool> prerelease_flags;
 	ParseReleaseTags(reply->readAll(), tags, prerelease_flags);
 
-	// Get the version of the application that's running now,
-	// and determine if it's a prerelease by comparing APP_VERSION
-	// with APP_VERSION_STRINg. The only difference between those two
-	// things should be the presence of a pre-release suffix in the 
-	// full version string.
-	const auto app_version = QStringLiteral(APP_VERSION);
-	const auto app_version_string = QStringLiteral(APP_VERSION_STRING);
-	const bool app_is_prerelease = (app_version != app_version_string);
-
 	// Find the index of the first release tag.
 	int kRelease = -1;
 	for (auto i = 0; i < tags.size(); ++i) {
@@ -130,7 +121,7 @@ void UpdateChecker::OnUpdateReplyReceived() {
 	};
 
 	// Find the index of the currently running build.
-	const auto kApp = tags.indexOf(app_version_string, Qt::CaseInsensitive);
+	const auto kApp = tags.indexOf(APP_VERSION_STRING, Qt::CaseInsensitive);
 	if (kApp < 0) {
 		QLOG_WARN() << "No github tag matches the running version (" APP_VERSION_STRING ")";
 	};
