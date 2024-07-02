@@ -113,6 +113,7 @@ private:
 	typedef std::vector<TabSignature> TabsSignatureVector;
 	TabsSignatureVector CreateTabsSignatureVector(const rapidjson::Value& tabs);
 
+	void SendStatusUpdate();
 	void ParseItems(rapidjson::Value& value, ItemLocation base_location, rapidjson_allocator& alloc);
 	void UpdateModList();
 	bool TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, ItemLocation& location);
@@ -136,8 +137,12 @@ private:
 	TabsSignatureVector tabs_signature_;
 
 	Items items_;
-	size_t total_completed_, total_needed_;
-	size_t requests_completed_, requests_needed_;
+
+	size_t stashes_needed_;
+	size_t stashes_received_;
+
+	size_t characters_needed_;
+	size_t characters_received_;
 
 	std::set<std::string> tab_id_index_;
 

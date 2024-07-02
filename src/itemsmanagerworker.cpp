@@ -99,10 +99,10 @@ ItemsManagerWorker::ItemsManagerWorker(QObject* parent,
 	rate_limiter_(rate_limiter),
 	mode_(mode),
 	test_mode_(false),
-	total_completed_(0),
-	total_needed_(0),
-	requests_completed_(0),
-	requests_needed_(0),
+	stashes_needed_(0),
+	stashes_received_(0),
+	characters_needed_(0),
+	characters_received_(0),
 	initialized_(false),
 	updating_(false),
 	cancel_update_(false),
@@ -222,11 +222,14 @@ void ItemsManagerWorker::ParseItemMods() {
 		};
 		emit StatusUpdate(
 			ProgramState::Initializing,
-			QString("Parsing item mods in tabs, %1/%2").arg(i + 1).arg(tabs_.size()));
+			QString("Parsing item mods in tabs, %1/%2").arg(
+				QString::number(i + 1),
+				QString::number(tabs_.size())));
 	};
 	emit StatusUpdate(
 		ProgramState::Ready,
-		QString("Parsed items from %1 tabs").arg(tabs_.size()));;
+		QString("Parsed items from %1 tabs").arg(
+			QString::number(tabs_.size())));
 
 	initialized_ = true;
 	updating_ = false;
@@ -618,10 +621,6 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
 	}
 	QLOG_DEBUG() << "There are" << requested_character_count << "characters to update in" << league_.c_str();
 
-	emit StatusUpdate(
-		ProgramState::Busy,
-		QString("Requesting %1 characters").arg(requested_character_count));
-
 	has_character_list_ = true;
 
 	// Check to see if we can start sending queued requests to fetch items yet.
@@ -671,16 +670,10 @@ void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply, ItemLocation
 		};
 	};
 
-	++total_completed_;
+	++stashes_received_;
+	SendStatusUpdate();
 
-	if (cancel_update_) {
-		emit StatusUpdate(ProgramState::Ready, "Update cancelled.");
-	} else {
-		emit StatusUpdate(ProgramState::Busy,
-			QString("Receiving stash data, %1/%2").arg(total_completed_).arg(total_needed_));
-	};
-
-	if ((total_completed_ == total_needed_) && !cancel_update_) {
+	if ((stashes_received_ == stashes_needed_) && (characters_received_ == characters_needed_) && !cancel_update_) {
 		FinishUpdate();
 	};
 }
@@ -720,19 +713,12 @@ void ItemsManagerWorker::OnOAuthCharacterReceived(QNetworkReply* reply, ItemLoca
 		};
 	};
 
-	++total_completed_;
+	++characters_received_;
+	SendStatusUpdate();
 
-	if (cancel_update_) {
-		emit StatusUpdate(ProgramState::Ready, "Update cancelled.");
-	} else {
-		emit StatusUpdate(ProgramState::Busy,
-			QString("Receiving stash data, %1/%2").arg(total_completed_).arg(total_needed_));
-	};
-
-	if ((total_completed_ == total_needed_) && !cancel_update_) {
+	if ((stashes_received_ == stashes_needed_) && (characters_received_ == characters_needed_) && !cancel_update_) {
 		FinishUpdate();
 	};
-
 }
 
 void ItemsManagerWorker::OnLegacyMainPageReceived() {
@@ -817,10 +803,6 @@ void ItemsManagerWorker::OnLegacyCharacterListReceived(QNetworkReply* reply) {
 	}
 	QLOG_DEBUG() << "There are" << requested_character_count << "characters to update in" << league_.c_str();
 
-	emit StatusUpdate(
-		ProgramState::Busy,
-		QString("Requesting %1 characters").arg(requested_character_count));
-
 	has_character_list_ = true;
 
 	// Check to see if we can start sending queued requests to fetch items yet.
@@ -882,11 +864,14 @@ void ItemsManagerWorker::QueueRequest(const QString& endpoint, const QNetworkReq
 
 void ItemsManagerWorker::FetchItems() {
 
-	total_needed_ = queue_.size();
-	total_completed_ = 0;
+	stashes_needed_ = 0;
+	stashes_received_ = 0;
+
+	characters_needed_ = 0;
+	characters_received_ = 0;
 
 	std::string tab_titles;
-	for (int i = 0; i < total_needed_; ++i) {
+	while (!queue_.empty()) {
 
 		// Take the next request out of the queue.
 		ItemsRequest request = queue_.front();
@@ -897,14 +882,18 @@ void ItemsManagerWorker::FetchItems() {
 		const QString endpoint = request.endpoint;
 		std::function<void(QNetworkReply*)> callback;
 
-		if ((endpoint == kStashItemsUrl) ||
-			(endpoint == kCharacterItemsUrl) ||
-			(endpoint == kCharacterSocketedJewels)) {
+		if (endpoint == kStashItemsUrl) {
 			callback = [=](QNetworkReply* reply) { OnLegacyTabReceived(reply, location); };
+			++stashes_needed_;
+		} else if ((endpoint == kCharacterItemsUrl) || (endpoint == kCharacterSocketedJewels)) {
+			callback = [=](QNetworkReply* reply) { OnLegacyTabReceived(reply, location); };
+			++characters_needed_;
 		} else if (endpoint == kOAuthGetStashEndpoint) {
 			callback = [=](QNetworkReply* reply) { OnOAuthStashReceived(reply, location); };
+			++stashes_needed_;
 		} else if (endpoint == kOAuthGetCharacterEndpoint) {
 			callback = [=](QNetworkReply* reply) { OnOAuthCharacterReceived(reply, location); };
+			++characters_needed_;
 		} else {
 			QLOG_ERROR() << "FetchItems(): invalid endpoint:" << request.endpoint;
 		};
@@ -916,9 +905,11 @@ void ItemsManagerWorker::FetchItems() {
 		// Keep track of the tabs requested.
 		tab_titles += request.location.GetHeader() + " ";
 	};
-	QLOG_DEBUG() << "Created" << total_needed_ << "requests:" << tab_titles.c_str();
-	requests_needed_ = total_needed_;
-	requests_completed_ = 0;
+
+	SendStatusUpdate();
+
+	QLOG_DEBUG() << "Requested" << stashes_needed_ << "stashes and" << characters_needed_ << "characters.";
+	QLOG_DEBUG() << "Tab titles:" << tab_titles;
 }
 
 void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
@@ -1007,7 +998,33 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
 	// Check to see if we can start sending queued requests to fetch items yet.
 	if (!need_character_list_ || has_character_list_) {
 		FetchItems();
-	}
+	};
+}
+
+void ItemsManagerWorker::SendStatusUpdate() {
+	if (cancel_update_) {
+		emit StatusUpdate(ProgramState::Ready, "Update cancelled.");
+	} else {
+		QString message;
+		if ((stashes_needed_ > 0) && (characters_needed_ > 0)) {
+			message = QString("Receieved %1/%2 stash tabs and %3/%4 character locations").arg(
+				QString::number(stashes_received_),
+				QString::number(stashes_needed_),
+				QString::number(characters_received_),
+				QString::number(characters_needed_));
+		} else if (stashes_needed_ > 0) {
+			message = QString("Received %1/%2 stash tabs").arg(
+				QString::number(stashes_received_),
+				QString::number(stashes_needed_));
+		} else if (characters_needed_ > 0) {
+			message = QString("Received %1/%2 character locations").arg(
+				QString::number(characters_received_),
+				QString::number(characters_needed_));
+		} else {
+			message = "Received nothing; needed nothing.";
+		};
+		emit StatusUpdate(ProgramState::Busy, message);
+	};
 }
 
 void ItemsManagerWorker::ParseItems(rapidjson::Value& value, ItemLocation base_location, rapidjson_allocator& alloc) {
@@ -1037,11 +1054,12 @@ void ItemsManagerWorker::OnLegacyTabReceived(QNetworkReply* reply, ItemLocation 
 
 	bool error = false;
 	if (!doc.IsObject()) {
-		QLOG_WARN() << "Got a non-object response";
+		QLOG_ERROR() << "Legacy tab is non-object response for:" << location.GetHeader();
 		error = true;
 	} else if (doc.HasMember("error")) {
 		// this can happen if user is browsing stash in background and we can't know about it
-		QLOG_WARN() << "Got 'error' instead of stash tab contents: " << Util::RapidjsonSerialize(doc["error"]).c_str();
+		QLOG_ERROR() << "Legacy tab has 'error' instead of stash tab contents for: " << location.GetHeader();
+		QLOG_ERROR() << "The error is:" << Util::RapidjsonSerialize(doc["error"]).c_str();
 		error = true;
 	};
 
@@ -1052,23 +1070,18 @@ void ItemsManagerWorker::OnLegacyTabReceived(QNetworkReply* reply, ItemLocation 
 		cancel_update_ = TabsChanged(doc, reply, location);
 	};
 
-	++requests_completed_;
-
-	if (!error) {
-		++total_completed_;
+	switch (location.get_type()) {
+	case ItemLocationType::STASH: ++stashes_received_; break;
+	case ItemLocationType::CHARACTER: ++characters_received_; break;
+	default:
+		QLOG_ERROR() << "OnLegacyTabReceived: invalid location type" << location.get_type();
 	};
+	SendStatusUpdate();
 
-	if (requests_completed_ == requests_needed_) {
+	if ((stashes_received_ == stashes_needed_) && (characters_received_ == characters_needed_)) {
 		if (cancel_update_) {
 			updating_ = false;
 		};
-	};
-
-	if (cancel_update_) {
-		emit StatusUpdate(ProgramState::Ready, "Update cancelled.");
-	} else {
-		emit StatusUpdate(ProgramState::Busy,
-			QString("Receiving stash data, %1/%2").arg(total_completed_).arg(total_needed_));
 	};
 
 	if (error) {
@@ -1077,7 +1090,7 @@ void ItemsManagerWorker::OnLegacyTabReceived(QNetworkReply* reply, ItemLocation 
 
 	ParseItems(doc["items"], location, doc.GetAllocator());
 
-	if ((total_completed_ == total_needed_) && !cancel_update_) {
+	if ((stashes_received_ == stashes_needed_) && (characters_received_ == characters_needed_) && !cancel_update_) {
 		FinishUpdate();
 		PreserveSelectedCharacter();
 	};
@@ -1131,7 +1144,22 @@ void ItemsManagerWorker::FinishUpdate() {
 	// changed.  So sort items_ here before emitting and then generate
 	// item list as strings.
 
-	emit StatusUpdate(ProgramState::Ready, QString("Received %1 stash tabs or characters.").arg(total_needed_));
+	QString message;
+	if ((stashes_received_ > 0) && (characters_received_ > 0)) {
+		message = QString("Received %1 stash tabs and %2 character locations").arg(
+			QString::number(stashes_received_),
+			QString::number(characters_received_));
+	} else if (stashes_received_ > 0) {
+		message = QString("Received %1 stash tabs").arg(
+			QString::number(stashes_received_));
+	} else if (characters_received_ > 0) {
+		message = QString("Received %1 character locations").arg(
+			QString::number(characters_received_));
+	} else {
+		message = "Received nothing.";
+	}
+
+	emit StatusUpdate(ProgramState::Ready, message);
 
 	// Sort tabs.
 	std::sort(begin(tabs_), end(tabs_));
