@@ -170,14 +170,13 @@ std::string BuyoutManager::Serialize(const std::map<std::string, Buyout>& buyout
 		rapidjson::Value item(rapidjson::kObjectType);
 		item.AddMember("value", buyout.value, alloc);
 
-		if (!buyout.last_update.isNull()) {
-			const auto last_update = buyout.last_update.toSecsSinceEpoch();
-			item.AddMember("last_update", last_update, alloc);
-		} else {
-			// If last_update is null, set as the actual time
-			const auto last_update = QDateTime::currentDateTime().toSecsSinceEpoch();
-			item.AddMember("last_update", last_update, alloc);
-		}
+		// If last_update is null, set as the actual time
+		const auto last_update = buyout.last_update.isNull()
+			? QDateTime::currentDateTime().toSecsSinceEpoch()
+			: buyout.last_update.toSecsSinceEpoch();
+		rapidjson::Value value(rapidjson::kNumberType);
+		value.SetInt64(last_update);
+		item.AddMember("last_update", value, alloc);
 
 		Util::RapidjsonAddConstString(&item, "type", buyout.BuyoutTypeAsTag(), alloc);
 		Util::RapidjsonAddConstString(&item, "currency", buyout.CurrencyAsTag(), alloc);
