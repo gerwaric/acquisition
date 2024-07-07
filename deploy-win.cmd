@@ -10,6 +10,7 @@ rmdir /S /Q "%DEPLOY_DIR%"
 mkdir "%DEPLOY_DIR%"
 
 copy "%BUILD_DIR%\acquisition.exe" "%DEPLOY_DIR%"
+copy "%BUILD_DIR%\crashpad_handler.exe" "%DEPLOY_DIR%"
 
 "%WINDEPLOYQT%" "%DEPLOY_DIR%\acquisition.exe" --release --no-compiler-runtime --dir "%DEPLOY_DIR%"
 
