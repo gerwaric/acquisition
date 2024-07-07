@@ -250,12 +250,15 @@ add_library(Crashpad STATIC
 target_link_libraries(Crashpad PRIVATE
     Qt::Core
     QsLog
-    CrashpadBase
     CrashpadCommon
     CrashpadClient
     CrashpadUtil
-    Advapi32
+    CrashpadBase
 )
+
+if(WIN32)
+    target_link_libraries(Crashpad PRIVATE Advapi32)
+endif()
 
 target_include_directories(Crashpad PRIVATE
     deps/QsLog/
