@@ -36,7 +36,7 @@ project(acquisition
 )
 
 # Use this to define pre-releases
-set(version_postfix "-alpha.1")
+set(version_postfix "-alpha.2a")
 
 # Variables used to generate version_defines.h and installer.iss
 set(version_code        61) # This doesn't need to be changed with the new update checks.
@@ -49,6 +49,8 @@ set(app_publisher_email "gerwaric@gmail.com")
 set(app_copyright       "Copyright \\251 2014 Ilya Zhuravlev and 2023 Gerwaric")
 set(app_trademark       "Path of Exile is a trademark of Grinding Gear Games, Ltd.")
 
+include(GNUInstallDirs)
+
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -59,6 +61,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 6.5.3 REQUIRED COMPONENTS
+    Core
     Gui
     HttpServer
     Network
@@ -174,16 +177,16 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     forms/mainwindow.ui
     # Resources
     resources.qrc
+	# Generated version header
+	"${CMAKE_CURRENT_BINARY_DIR}/version_defines.h"
 )
 
 # Automatically populate and include the versions header file.
-configure_file(src/version_defines.h.in version_defines.h @ONLY)
-target_sources(acquisition PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/version_defines.h")
-target_include_directories(acquisition PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
+configure_file("src/version_defines.h.in" "version_defines.h" @ONLY)
 
 # Automatically populate the VERSIONINFO file for windows.
 if(WIN32)
-    
+
     # Define the major version.
 	if (NOT PROJECT_VERSION_MAJOR STREQUAL "")
         set(app_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
@@ -236,8 +239,44 @@ target_include_directories(acquisition PRIVATE
     deps/boost-headers-only/
     src/
     test/
-    ${CMAKE_CURRENT_BINARY_DIR} # needed so files can include verion_defines.h
+	${CMAKE_CURRENT_BINARY_DIR}
 )
+
+add_library(Crashpad STATIC
+    src/crashpad.cpp
+    src/crashpad.h
+)
+
+target_link_libraries(Crashpad PRIVATE
+    Qt::Core
+    QsLog
+    CrashpadBase
+    CrashpadCommon
+    CrashpadClient
+    CrashpadUtil
+    Advapi32
+)
+
+target_include_directories(Crashpad PRIVATE
+    deps/QsLog/
+    deps/Crashpad/Include/
+    deps/Crashpad/Include/crashpad/
+    deps/Crashpad/Include/crashpad/out/Default/gen/
+    deps/Crashpad/Include/crashpad/third_party/mini_chromium/
+    deps/Crashpad/Include/crashpad/third_party/mini_chromium/mini_chromium/
+)
+
+if(WIN32)
+    include(deps/Crashpad/Crashpad-Windows.cmake)
+elseif(APPLE)
+    include(deps/Crashpad/Crashpad-MacOS.cmake)
+elseif(UNIX)
+    include(deps/Crashpad/Crashpad-Linux.cmake)
+endif()
+
+get_target_property(CrashpadHandlerPath CrashpadHandler IMPORTED_LOCATION)
+add_custom_command(TARGET acquisition POST_BUILD COMMAND
+	${CMAKE_COMMAND} -E copy ${CrashpadHandlerPath} ${CMAKE_CURRENT_BINARY_DIR})
 
 target_link_libraries(acquisition PUBLIC
     Qt::Core
@@ -250,6 +289,7 @@ target_link_libraries(acquisition PUBLIC
     Qt::WebSockets
     QsLog
     qdarkstyle
+    Crashpad
 )
 
 # On Linux we need to build with OpenSSL 3.x
@@ -297,7 +337,7 @@ if(MSVC)
     target_compile_options(acquisition PRIVATE /EHsc /W4)
 
     # Visual Studio 2022 needs for debugging to work.
-    target_compile_options(acquisition PRIVATE "$<$<CONFIG:DEBUG>:/Zi>")
+    #target_compile_options(acquisition PRIVATE "$<$<CONFIG:DEBUG>:/Zi>")
 
 endif()
 
