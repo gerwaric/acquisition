@@ -26,6 +26,7 @@
 #include <QSettings>
 #include <QtHttpServer/QHttpServer>
 
+#include "crashpad.h"
 #include "buyoutmanager.h"
 #include "sqlitedatastore.h"
 #include "memorydatastore.h"
@@ -54,6 +55,19 @@ Application::Application(bool test_mode) :
 	const QString global_data_file = user_dir + "/data/" + SqliteDataStore::MakeFilename("", "");
 
 	settings_ = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
+
+	bool report_crashes = true;
+	if (!settings_->contains("report_crashes")) {
+		// Enable crash reporting by default.
+		settings_->setValue("report_crashes", true);
+	} else {
+		// Use the exiting setting.
+		report_crashes = settings_->value("report_crashes").toBool();
+	};
+	if (report_crashes) {
+		initializeCrashpad(APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
+	};
+
 	global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
 	network_manager_ = std::make_unique<QNetworkAccessManager>(this);
 	update_checker_ = std::make_unique<UpdateChecker>(this, settings(), network_manager());

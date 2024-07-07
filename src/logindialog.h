@@ -56,6 +56,7 @@ private slots:
 	void OnLeagueChanged(const QString& league);
 	void OnProxyCheckBoxClicked(bool checked);
 	void OnRememberMeCheckBoxClicked(bool checked);
+	void OnReportCrashesCheckBoxClicked(bool checked);
 	void OnOAuthAccessGranted(const OAuthToken& token);
 protected:
 	bool event(QEvent* e);

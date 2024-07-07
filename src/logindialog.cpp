@@ -29,6 +29,7 @@
 #include <QNetworkCookie>
 #include <QNetworkCookieJar>
 #include <QNetworkProxyFactory>
+#include <QPushButton>
 #include <QRegularExpression>
 #include <QSettings>
 #include <QSysInfo>
@@ -38,6 +39,7 @@
 #include "QsLog.h"
 #include "rapidjson/error/en.h"
 
+#include "crashpad.h"
 #include "mainwindow.h"
 #include "network_info.h"
 #include "replytimeout.h"
@@ -100,6 +102,7 @@ LoginDialog::LoginDialog(
 	connect(ui->sessionIDLineEdit, &QLineEdit::textChanged, this, &LoginDialog::OnSessionIDChanged);
 	connect(ui->rememberMeCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnRememberMeCheckBoxClicked);
 	connect(ui->proxyCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnProxyCheckBoxClicked);
+	connect(ui->reportCrashesCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnReportCrashesCheckBoxClicked);
 	connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
 	connect(ui->authenticateButton, &QPushButton::clicked, this, &LoginDialog::OnAuthenticateButtonClicked);
 	connect(ui->loginTabs, &QTabWidget::currentChanged, this, &LoginDialog::OnLoginTabChanged);
@@ -131,12 +134,14 @@ void LoginDialog::LoadSettings() {
 	const int login_tab = settings_.value("login_tab").toInt();
 	const bool remember_me = settings_.value("remember_user").toBool();
 	const bool use_system_proxy = settings_.value("use_system_proxy").toBool();
+	const bool report_crashes = settings_.value("report_crashes").toBool();
 
 	oauth_manager_.RememberToken(remember_me);
 
 	ui->sessionIDLineEdit->setText(session_id);
 	ui->rememberMeCheckBox->setChecked(remember_me);
 	ui->proxyCheckBox->setChecked(use_system_proxy);
+	ui->reportCrashesCheckBox->setChecked(report_crashes);
 	ui->loginTabs->setCurrentIndex(login_tab);
 	if (!league.isEmpty()) {
 		ui->leagueComboBox->setCurrentText(league);
@@ -153,6 +158,7 @@ void LoginDialog::SaveSettings() {
 		settings_.remove("login_tab");
 		settings_.remove("remember_user");
 		settings_.remove("use_system_proxy");
+		settings_.remove("report_crashes");
 	};
 }
 
@@ -397,6 +403,53 @@ void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
 void LoginDialog::OnRememberMeCheckBoxClicked(bool checked) {
 	oauth_manager_.RememberToken(checked);
 	settings_.setValue("remember_user", checked);
+}
+
+void LoginDialog::OnReportCrashesCheckBoxClicked(bool checked) {
+
+	QMessageBox msgbox(this);
+	msgbox.setWindowTitle("Acquisition Crash Reporting");
+
+	if (checked) {
+
+		// Before enabling crash reporting, make sure the user
+		// understands and accepts that crash reporting cannot be
+		// disabled without restarting acquistion.
+		msgbox.setText("Once crash reporting is enabled, it cannot be "
+			"disabled without restarting Acquistion.\n\nDo you want to "
+			"enable crash reporting?");
+		auto yes = msgbox.addButton("  Yes, enable crash reporting  ", msgbox.YesRole);
+		auto no = msgbox.addButton("  No  ", msgbox.NoRole);
+		msgbox.exec();
+		if (msgbox.clickedButton() == yes) {
+			settings_.setValue("report_crashes", true);
+			initializeCrashpad(APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
+		} else {
+			settings_.setValue("report_crashes", false);
+			ui->reportCrashesCheckBox->setChecked(false);
+		};
+
+	} else {
+	
+		// Since crashpad cannot be stopped once it is started, acquistion
+		// will have to be exited and restarted to disable crash reporting,
+		// so make sure the user accepts and agrees to this.
+		msgbox.setText("Acquisition will have to restart to disable crash "
+			"reporting.\n\nDo you want Acquisition to exit now and disable "
+			"crash reporting the next time it runs?");
+		auto yes = msgbox.addButton("  Yes, exit now  ", msgbox.YesRole);
+		auto no = msgbox.addButton("  No, continue running  ", msgbox.NoRole);
+		msgbox.exec();
+		if (msgbox.clickedButton() == yes) {
+			settings_.setValue("report_crashes", false);
+			close();
+		} else {
+			settings_.setValue("report_crashes", true);
+			ui->reportCrashesCheckBox->setChecked(true);
+			initializeCrashpad(APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
+		};
+
+	};
 }
 
 void LoginDialog::DisplayError(const QString& error, bool disable_login) {
