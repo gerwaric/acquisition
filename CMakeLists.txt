@@ -256,10 +256,6 @@ target_link_libraries(Crashpad PRIVATE
     CrashpadBase
 )
 
-if(WIN32)
-    target_link_libraries(Crashpad PRIVATE Advapi32)
-endif()
-
 target_include_directories(Crashpad PRIVATE
     deps/QsLog/
     deps/Crashpad/Include/
@@ -278,11 +274,12 @@ elseif(UNIX)
 endif()
 
 get_target_property(CrashpadHandlerPath CrashpadHandler IMPORTED_LOCATION)
-add_custom_command(TARGET acquisition POST_BUILD COMMAND
-    ${CMAKE_COMMAND} -E copy ${CrashpadHandlerPath} ${CMAKE_CURRENT_BINARY_DIR}
+add_custom_command(TARGET acquisition
+    POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy ${CrashpadHandlerPath} ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-target_link_libraries(acquisition PUBLIC
+target_link_libraries(acquisition PRIVATE
     Qt::Core
     Qt::Gui
     Qt::HttpServer
@@ -325,7 +322,7 @@ qt_add_library(QsLog STATIC
     deps/QsLog/QsLogLevel.h
 )
 
-target_link_libraries(QsLog PUBLIC
+target_link_libraries(QsLog PRIVATE
     Qt::Core
 )
 
@@ -348,10 +345,10 @@ if(APPLE)
     set(MACOSX_BUNDLE_ICON_FILE icon.icns)
     set(macos_app_icon "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.icns")
     set_source_files_properties(${macos_app_icon} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
-    target_sources(acquisition PUBLIC "${macos_app_icon}")
+    target_sources(acquisition PRIVATE "${macos_app_icon}")
     
     # On macOS we need to enable unary functions for version of boost we are using.
-    target_compile_definitions(acquisition PUBLIC _LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION)
+    target_compile_definitions(acquisition PRIVATE _LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION)
     
 endif()
 
