@@ -177,8 +177,8 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     forms/mainwindow.ui
     # Resources
     resources.qrc
-	# Generated version header
-	"${CMAKE_CURRENT_BINARY_DIR}/version_defines.h"
+    # Generated version header
+    "${CMAKE_CURRENT_BINARY_DIR}/version_defines.h"
 )
 
 # Automatically populate and include the versions header file.
@@ -186,9 +186,9 @@ configure_file("src/version_defines.h.in" "version_defines.h" @ONLY)
 
 # Automatically populate the VERSIONINFO file for windows.
 if(WIN32)
-
+    
     # Define the major version.
-	if (NOT PROJECT_VERSION_MAJOR STREQUAL "")
+    if (NOT PROJECT_VERSION_MAJOR STREQUAL "")
         set(app_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
     else()
         set(app_VERSION_MAJOR, 1)
@@ -239,7 +239,7 @@ target_include_directories(acquisition PRIVATE
     deps/boost-headers-only/
     src/
     test/
-	${CMAKE_CURRENT_BINARY_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 add_library(Crashpad STATIC
@@ -276,7 +276,8 @@ endif()
 
 get_target_property(CrashpadHandlerPath CrashpadHandler IMPORTED_LOCATION)
 add_custom_command(TARGET acquisition POST_BUILD COMMAND
-	${CMAKE_COMMAND} -E copy ${CrashpadHandlerPath} ${CMAKE_CURRENT_BINARY_DIR})
+    ${CMAKE_COMMAND} -E copy ${CrashpadHandlerPath} ${CMAKE_CURRENT_BINARY_DIR}
+)
 
 target_link_libraries(acquisition PUBLIC
     Qt::Core
@@ -332,26 +333,23 @@ add_library(qdarkstyle STATIC
 )
 
 if(MSVC)
-	
+    
     # Visual Studio 2022 needs this to work with boost.
     target_compile_options(acquisition PRIVATE /EHsc /W4)
-
-    # Visual Studio 2022 needs for debugging to work.
-    #target_compile_options(acquisition PRIVATE "$<$<CONFIG:DEBUG>:/Zi>")
-
+    
 endif()
 
 if(APPLE)
-
+    
     # Add the macOS application icon
     set(MACOSX_BUNDLE_ICON_FILE icon.icns)
     set(macos_app_icon "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.icns")
     set_source_files_properties(${macos_app_icon} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
     target_sources(acquisition PUBLIC "${macos_app_icon}")
-
+    
     # On macOS we need to enable unary functions for version of boost we are using.
     target_compile_definitions(acquisition PUBLIC _LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION)
-
+    
 endif()
 
 set_target_properties(acquisition PROPERTIES
