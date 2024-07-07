@@ -353,13 +353,27 @@ if(MSVC)
 endif()
 
 if(APPLE)
-    
+
     # Add the macOS application icon
     set(MACOSX_BUNDLE_ICON_FILE icon.icns)
     set(macos_app_icon "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.icns")
     set_source_files_properties(${macos_app_icon} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
     target_sources(acquisition PRIVATE "${macos_app_icon}")
-    
+
+    # Generate debugging symbols file.
+    target_compile_options(acquisition PRIVATE -g)
+    set_target_properties(acquisition PROPERTIES
+        XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES"
+        XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT "dwarf-with-dsym"
+        XCODE_ATTRIBUTE_DEPLOYMENT_POSTPROCESING "YES"
+        XCODE_ATTRIBUTE_STRIP_INSTALLED_PRODUCT "YES"
+    )
+    add_custom_command(TARGET acquisition
+        POST_BUILD
+        COMMAND xcrun dsymutil acquisition.app/Contents/MacOS/acquisition -o acquisition.dSYM
+    )
+
+
 endif()
 
 set_target_properties(acquisition PROPERTIES

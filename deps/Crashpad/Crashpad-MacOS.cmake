@@ -12,7 +12,7 @@ function(setup_macos_target target libname)
     )
 
     # Define the output library, which will be multi-architecture.
-    set(${target}_OUTPUT_LIB "${CMAKE_BINARY_DIR}/libs/${libname}.a")
+    set(${target}_OUTPUT_LIB "${CMAKE_BINARY_DIR}/crashpad/${libname}.a")
 
     # Use a custom target to cause lipo to combine the two input libraries.
     add_custom_target(${target}_MULTIARCH
