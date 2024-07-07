@@ -1,10 +1,11 @@
 
-# Qt Creator 13.0 puts build files here.
-build/
+# Visual Studio and Qt Creator 13.0 puts builds here.
+/build/
+/out/
 
 # Acquisitions installers are currently built here.
-deploy/
-Output/
+/deploy/
+/Output/
 
 # This file is supposed to be ignored, but neither of the
 # templated included below include it.
