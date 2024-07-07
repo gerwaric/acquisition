@@ -186,35 +186,22 @@ configure_file("src/version_defines.h.in" "version_defines.h" @ONLY)
 
 # Automatically populate the VERSIONINFO file for windows.
 if(WIN32)
-    
-    # Define the major version.
-    if (NOT PROJECT_VERSION_MAJOR STREQUAL "")
-        set(app_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
-    else()
-        set(app_VERSION_MAJOR, 1)
-    endif()
-    
-    # Define the minor version.
-    if (NOT PROJECT_VERSION_MINOR STREQUAL "")
-        set(app_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
-    else()
-        set(app_VERSION_MINOR 0)
-    endif()
-    
-    # Define the patch version.
-    if (NOT PROJECT_VERSION_PATCH STREQUAL "")
-        set(app_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
-    else()
-        set(app_VERSION_PATCH 0)
-    endif()
-    
-    # Define the tweak version.
-    if (NOT PROJECT_VERSION_TWEAK STREQUAL "")
-        set(app_VERSION_TWEAK "${PROJECT_VERSION_TWEAK}")
-    else()
-        set(app_VERSION_TWEAK 0)
-    endif()
-    
+
+    # Use a function to set version variables so there can be a default value.
+    function(setver name value default)
+	    if (NOT "${value}" STREQUAL "")
+            set("${name}" "${value}" PARENT_SCOPE)
+        else()
+            set("${name}" "${default}" PARENT_SCOPE)
+        endif()
+    endfunction()
+ 
+	# Define the version variables.
+	setver(app_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}" 1)
+	setver(app_VERSION_MINOR "${PROJECT_VERSION_MINOR}" 0)
+	setver(app_VERSION_PATCH "${PROJECT_VERSION_PATCH}" 0)
+	setver(app_VERSION_TWEAK "${PROJECT_VERSION_TWEAK}" 0)
+
     # Define the reset of the versioninfo data.
     set(app_COMPANY_NAME	    "")
     set(app_FILE_DESCRIPTION    "")
@@ -239,7 +226,7 @@ target_include_directories(acquisition PRIVATE
     deps/boost-headers-only/
     src/
     test/
-    ${CMAKE_CURRENT_BINARY_DIR}
+    "${CMAKE_CURRENT_BINARY_DIR}"
 )
 
 add_library(Crashpad STATIC
@@ -276,7 +263,7 @@ endif()
 get_target_property(CrashpadHandlerPath CrashpadHandler IMPORTED_LOCATION)
 add_custom_command(TARGET acquisition
     POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy ${CrashpadHandlerPath} ${CMAKE_CURRENT_BINARY_DIR}
+    COMMAND "${CMAKE_COMMAND}" -E copy "${CrashpadHandlerPath}" "${CMAKE_CURRENT_BINARY_DIR}"
 )
 
 target_link_libraries(acquisition PRIVATE
@@ -347,7 +334,7 @@ if(MSVC)
     set_target_properties(acquisition PROPERTIES
         LINK_FLAGS "/INCREMENTAL:NO /DEBUG /OPT:REF /OPT:ICF"
         COMPILE_PDB_NAME acquisition
-        COMPILE_PDB_OUTPUT_DIR ${CMAKE_BINARY_DIR}
+        COMPILE_PDB_OUTPUT_DIR "${CMAKE_BINARY_DIR}"
     )
 
 endif()
@@ -357,7 +344,7 @@ if(APPLE)
     # Add the macOS application icon
     set(MACOSX_BUNDLE_ICON_FILE icon.icns)
     set(macos_app_icon "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.icns")
-    set_source_files_properties(${macos_app_icon} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+    set_source_files_properties("${macos_app_icon}" PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
     target_sources(acquisition PRIVATE "${macos_app_icon}")
 
     # Generate debugging symbols file.

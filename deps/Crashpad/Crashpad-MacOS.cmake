@@ -7,12 +7,12 @@ function(setup_macos_target target libname)
 
     # Point to the precompiled libraries.
     set(${target}_PREBUILT_LIBS
-        "${PROJECT_SOURCE_DIR}/deps/Crashpad/Libraries/MacOS/arm64/${libname}.a"
-        "${PROJECT_SOURCE_DIR}/deps/Crashpad/Libraries/MacOS/x86_64/${libname}.a"
+        "${PROJECT_SOURCE_DIR}/deps/Crashpad/Libraries/MacOS/arm64/lib${libname}.a"
+        "${PROJECT_SOURCE_DIR}/deps/Crashpad/Libraries/MacOS/x86_64/lib${libname}.a"
     )
 
     # Define the output library, which will be multi-architecture.
-    set(${target}_OUTPUT_LIB "${CMAKE_BINARY_DIR}/crashpad/${libname}.a")
+    set(${target}_OUTPUT_LIB "${CMAKE_BINARY_DIR}/crashpad/lib${libname}.a")
 
     # Use a custom target to cause lipo to combine the two input libraries.
     add_custom_target(${target}_MULTIARCH
@@ -29,11 +29,11 @@ function(setup_macos_target target libname)
 
 endfunction()
 
-setup_macos_target(CrashpadBase libbase)
-setup_macos_target(CrashpadClient libclient)
-setup_macos_target(CrashpadCommon libcommon)
-setup_macos_target(CrashpadMigOutput libmig_output)
-setup_macos_target(CrashpadUtil libutil)
+setup_macos_target(CrashpadBase base)
+setup_macos_target(CrashpadClient client)
+setup_macos_target(CrashpadCommon common)
+setup_macos_target(CrashpadMigOutput mig_output)
+setup_macos_target(CrashpadUtil util)
 
 # Add libraries that were not specified in the top-level CMakeLists.txt
 target_link_libraries(Crashpad PRIVATE CrashpadMigOutput)
