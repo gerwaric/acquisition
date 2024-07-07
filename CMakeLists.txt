@@ -360,9 +360,6 @@ if(APPLE)
     set_source_files_properties(${macos_app_icon} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
     target_sources(acquisition PRIVATE "${macos_app_icon}")
     
-    # On macOS we need to enable unary functions for version of boost we are using.
-    target_compile_definitions(acquisition PRIVATE _LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION)
-    
 endif()
 
 set_target_properties(acquisition PROPERTIES
