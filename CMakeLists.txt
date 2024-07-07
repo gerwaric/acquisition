@@ -335,8 +335,21 @@ add_library(qdarkstyle STATIC
 if(MSVC)
     
     # Visual Studio 2022 needs this to work with boost.
-    target_compile_options(acquisition PRIVATE /EHsc /W4)
+    target_compile_options(acquisition PRIVATE /EHsc)
+
+    # Enable more warnings than default
+    target_compile_options(acquisition PRIVATE /W4)
+
+    # Create .pdb files for debugging
+    target_compile_options(acquisition PRIVATE /Zi)
     
+    # Tell linker to include symbol data
+    set_target_properties(acquisition PROPERTIES
+        LINK_FLAGS "/INCREMENTAL:NO /DEBUG /OPT:REF /OPT:ICF"
+        COMPILE_PDB_NAME acquisition
+        COMPILE_PDB_OUTPUT_DIR ${CMAKE_BINARY_DIR}
+    )
+
 endif()
 
 if(APPLE)
