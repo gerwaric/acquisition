@@ -189,18 +189,18 @@ if(WIN32)
 
     # Use a function to set version variables so there can be a default value.
     function(setver name value default)
-	    if (NOT "${value}" STREQUAL "")
+        if (NOT "${value}" STREQUAL "")
             set("${name}" "${value}" PARENT_SCOPE)
         else()
             set("${name}" "${default}" PARENT_SCOPE)
         endif()
     endfunction()
  
-	# Define the version variables.
-	setver(app_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}" 1)
-	setver(app_VERSION_MINOR "${PROJECT_VERSION_MINOR}" 0)
-	setver(app_VERSION_PATCH "${PROJECT_VERSION_PATCH}" 0)
-	setver(app_VERSION_TWEAK "${PROJECT_VERSION_TWEAK}" 0)
+    # Define the version variables.
+    setver(app_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}" 1)
+    setver(app_VERSION_MINOR "${PROJECT_VERSION_MINOR}" 0)
+    setver(app_VERSION_PATCH "${PROJECT_VERSION_PATCH}" 0)
+    setver(app_VERSION_TWEAK "${PROJECT_VERSION_TWEAK}" 0)
 
     # Define the reset of the versioninfo data.
     set(app_COMPANY_NAME	    "")
@@ -319,7 +319,7 @@ add_library(qdarkstyle STATIC
     deps/qdarkstyle/light/lightstyle.qrc
 )
 
-if(MSVC)
+if(WIN32)
     
     # Visual Studio 2022 needs this to work with boost.
     target_compile_options(acquisition PRIVATE /EHsc)
@@ -337,9 +337,7 @@ if(MSVC)
         COMPILE_PDB_OUTPUT_DIR "${CMAKE_BINARY_DIR}"
     )
 
-endif()
-
-if(APPLE)
+elseif(APPLE)
 
     # Add the macOS application icon
     set(MACOSX_BUNDLE_ICON_FILE icon.icns)
@@ -360,6 +358,17 @@ if(APPLE)
         COMMAND xcrun dsymutil acquisition.app/Contents/MacOS/acquisition -o acquisition.dSYM
     )
 
+elseif(LINUX)
+
+    # Generate debug symbols.
+    target_compile_options(acquisition PRIVATE -g)
+    add_custom_command(TARGET acquisition
+        POST_BUILD
+        COMMAND objcopy --only-keep-debug acquisition acquisition.debug
+        COMMAND strip --strip-debug --strip-unneeded acquisition
+        COMMAND objcopy --add-gnu-debuglink=acquisition.debug acquisition
+        COMMAND chmod -x acquisition.debug
+    )
 
 endif()
 
