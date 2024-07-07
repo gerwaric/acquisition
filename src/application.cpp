@@ -56,17 +56,7 @@ Application::Application(bool test_mode) :
 
 	settings_ = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
 
-	bool report_crashes = true;
-	if (!settings_->contains("report_crashes")) {
-		// Enable crash reporting by default.
-		settings_->setValue("report_crashes", true);
-	} else {
-		// Use the exiting setting.
-		report_crashes = settings_->value("report_crashes").toBool();
-	};
-	if (report_crashes) {
-		initializeCrashpad(APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
-	};
+	InitCrashReporting();
 
 	global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
 	network_manager_ = std::make_unique<QNetworkAccessManager>(this);
@@ -169,6 +159,33 @@ void Application::FatalAccessError(const char* object_name) const {
 	errorMsg.setStandardButtons(QMessageBox::StandardButton::Abort);
 	errorMsg.exec();
 	emit Quit();
+}
+
+void Application::InitCrashReporting() {
+
+	// Make sure the settings object exists.
+	if (!settings_) {
+		QLOG_ERROR() << "Cannot init crash reporting because settings object is invalid";
+		return;
+	};
+
+	// Enable crash reporting by default.
+	bool report_crashes = true;
+
+	if (!settings_->contains("report_crashes")) {
+		// Update the setting if it didn't exist before.
+		settings_->setValue("report_crashes", true);
+	} else {
+		// Use the exiting setting.
+		report_crashes = settings_->value("report_crashes").toBool();
+	};
+
+	// Initialize crash reporting with crashpad.
+	if (report_crashes) {
+		initializeCrashpad(APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
+	};
+
+
 }
 
 void Application::LoadTheme() {

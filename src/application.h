@@ -65,6 +65,7 @@ signals:
 public slots:
 	void OnItemsRefreshed(bool initial_refresh);
 private:
+	void InitCrashReporting();
 	void LoadTheme();
 	bool test_mode_;
 	std::unique_ptr<QSettings> settings_;
