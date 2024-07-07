@@ -16,6 +16,7 @@ CMakeUserPresets.json
 *.vcxproj
 *.vcxproj.*
 *_resource.rc
+.DS_Store
 
 # There are also special exclusions for Crasshpad at the end of this file.
 
