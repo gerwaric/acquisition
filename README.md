@@ -1,13 +1,11 @@
 # Acquisition
-Acquisition is an inventory management tool for [Path of Exile](https://www.pathofexile.com/).
+Acquisition is an inventory management tool for [Path of Exile](https://www.pathofexile.com/):
 
-You can download all of your stash tabs and character inventories for offline search.
+- You can download all of your stash tabs and character inventories for offline search.
 
-You can list items for trade using forum shop threads. These threads are indexed by the official trade site. This allows you to list items in remove-only tabs as well as character invetories, which are not normally listed on the official trade site.
+- You can list items for trade using forum shop threads, which are indexed by the official trade site. This allows you to list items in remove-only tabs as well as character invetories, which are not otherwise indexed on the official trade site.
 
-Acquisition runs on Windows, macOS, Linux.
-
-**NOTE**: macOS builds will be unavailable until I have new Apple hardware to build and test on --gerwaric
+Acquisition can run on Windows, macOS, Linux.
 
 You can download setup packages from [the releases page](https://github.com/gerwaric/acquisition/releases).
 
@@ -73,3 +71,7 @@ You will need to have OpenSSL installed and available on your LD_LIBRARY_PATH to
 
 `--test`:
 	run tests. Zero exit code on success, other values indicate errors.
+
+## Reporting issues
+
+If you're having problems with Acquisition, please check the issues page: https://github.com/gerwaric/acquisition/issues
