@@ -48,8 +48,6 @@ public:
         OAuthManager& oauth_manager,
         POE_API mode);
 
-    void Init(POE_API mode);
-
     // Submit a request-callback pair to the rate limiter. Note that the callback function
     // should not delete the QNetworkReply. That is handled after the callback finishes.
     RateLimit::RateLimitedReply* Submit(

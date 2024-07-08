@@ -50,22 +50,10 @@ RateLimiter::RateLimiter(QObject* parent,
     connect(&update_timer_, &QTimer::timeout, this, &RateLimiter::SendStatusUpdate);
 }
 
-void RateLimiter::Init(POE_API mode) {
-    if (mode_ == POE_API::NONE) {
-        mode_ = mode;
-    } else {
-        QLOG_ERROR() << "The rate limiter's api mode has already been initialized.";
-    };
-}
-
 RateLimit::RateLimitedReply* RateLimiter::Submit(
     const QString& endpoint,
     QNetworkRequest network_request)
 {
-    if (mode_ == POE_API::NONE) {
-        QLOG_ERROR() << "RateLimiter: the API mode has not been set.";
-    };
-
     // Make sure the user agent is set according to GGG's guidance.
     network_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 

@@ -9,7 +9,6 @@ constexpr const char* POE_COOKIE_DOMAIN = ".pathofexile.com";
 constexpr const char* POE_COOKIE_PATH = "/";
 
 enum class POE_API {
-    NONE,
+    LEGACY,
     OAUTH,
-    LEGACY
 };
