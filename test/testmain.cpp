@@ -1,6 +1,8 @@
 #include "testmain.h"
 
+#include <QEventLoop>
 #include <QLocale>
+#include <QObject>
 #include <QSettings>
 #include <QTest>
 
@@ -12,6 +14,7 @@
 #include "itemsmanager.h"
 #include "memorydatastore.h"
 #include "network_info.h"
+#include "repoe.h"
 #include "shop.h"
 #include "testitem.h"
 #include "testitemsmanager.h"
@@ -27,6 +30,19 @@ int test_main() {
     std::setlocale(LC_ALL, "C");
 
     Application app(true);
+    TestHelper helper;
+
+    if (app.repoe().IsInitialized()) {
+        return helper.run(app);
+    } else {
+        QEventLoop loop;
+        QObject::connect(&app.repoe(), &RePoE::finished, &helper, [&]() { helper.run(app); });
+        QObject::connect(&helper, &TestHelper::finished, &loop, &QEventLoop::exit);
+        return loop.exec();
+    };
+}
+
+int TestHelper::run(Application& app) {
 
     DataStore& data = app.data();
     ItemsManager& items_manager = app.items_manager();
@@ -39,5 +55,7 @@ int test_main() {
     result |= TEST(TestUtil);
     result |= TEST(TestItemsManager, data, items_manager, buyout_manager);
 
-    return (result != 0) ? -1 : 0;
+    int status = (result != 0) ? -1 : 0;
+    emit finished(status);
+    return status;
 }
