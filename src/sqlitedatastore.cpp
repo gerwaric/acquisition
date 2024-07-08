@@ -255,6 +255,10 @@ std::vector<CurrencyUpdate> SqliteDataStore::GetAllCurrency() {
     QSqlQuery query(db_);
     query.prepare("SELECT timestamp, value FROM currency ORDER BY timestamp ASC");
     std::vector<CurrencyUpdate> result;
+    if (query.exec() == false) {
+        QLOG_ERROR() << "Error getting currency updates:" << query.lastError().text();
+        return {};
+    };
     while (query.next()) {
         if (query.lastError().isValid()) {
             QLOG_ERROR() << "Error getting currency.";
@@ -262,7 +266,7 @@ std::vector<CurrencyUpdate> SqliteDataStore::GetAllCurrency() {
         };
         CurrencyUpdate update = CurrencyUpdate();
         update.timestamp = query.value(0).toLongLong();
-        update.value = query.value(0).toByteArray().toStdString();
+        update.value = query.value(1).toByteArray().toStdString();
         result.push_back(update);
     };
     return result;

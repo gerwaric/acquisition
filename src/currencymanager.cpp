@@ -24,9 +24,6 @@
 #include <QSettings>
 #include <QVBoxLayout>
 
-#include <ctime>
-#include <cmath>
-
 #include "QsLog.h"
 #include "rapidjson/document.h"
 #include "rapidjson/error/en.h"
@@ -191,8 +188,10 @@ void CurrencyManager::Deserialize(const std::string& string_data, std::vector<st
         Currency curr = Currency::FromTag(object["currency"].GetString());
         for (auto& item : *currencies) {
             if (item->currency == curr) {
-                item = std::make_shared<CurrencyItem>(object["count"].GetDouble(), curr,
-                    object["chaos_ratio"].GetDouble(), object["exalt_ratio"].GetDouble());
+                item = std::make_shared<CurrencyItem>(
+                    object["count"].GetDouble(), curr,
+                    object["chaos_ratio"].GetDouble(),
+                    object["exalt_ratio"].GetDouble());
             };
         };
         //currencies->push_back(item);
@@ -219,7 +218,7 @@ void CurrencyManager::SaveCurrencyValue() {
     std::string old_value = data_.Get("currency_last_value", "");
     if (value != old_value && !empty) {
         CurrencyUpdate update = CurrencyUpdate();
-        update.timestamp = std::time(nullptr);
+        update.timestamp = QDateTime::currentDateTime().toSecsSinceEpoch();
         update.value = value;
         data_.InsertCurrencyUpdate(update);
         data_.Set("currency_last_value", value);
@@ -227,11 +226,11 @@ void CurrencyManager::SaveCurrencyValue() {
 }
 
 void CurrencyManager::ExportCurrency() {
-    std::string header_csv = "Date; Total value";
+    std::string header_csv = "Date,Total value";
     for (auto& item : currencies_) {
         auto& label = item->currency.AsString();
         if (label != "") {
-            header_csv += ";" + label;
+            header_csv += "," + label;
         };
     };
     std::vector<CurrencyUpdate> result = data_.GetAllCurrency();
@@ -242,18 +241,17 @@ void CurrencyManager::ExportCurrency() {
         return;
     };
     QFile file(QDir::toNativeSeparators(fileName));
-    if (file.open(QFile::WriteOnly | QFile::Text)) {
-        QTextStream out(&file);
-        out << header_csv.c_str() << "\n";
-        for (auto& update : result) {
-            char buf[4096];
-            std::time_t timestamp = update.timestamp;
-            std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M", std::localtime(&timestamp));
-            out << buf << ";";
-            out << update.value.c_str() << "\n";
-        };
-    } else {
+    if (!file.open(QFile::WriteOnly | QFile::Text)) {
         QLOG_WARN() << "CurrencyManager::ExportCurrency : couldn't open CSV export file ";
+        return;
+    };
+    QTextStream out(&file);
+    out << header_csv.c_str() << "\n";
+    for (auto& update : result) {
+        const QDateTime timestamp = QDateTime::fromSecsSinceEpoch(update.timestamp).toLocalTime();
+        const QString value = QString::fromStdString(update.value);
+        out << timestamp.toString("yyyy-MM-dd hh:mm") << ",";
+        out << value.split(";").join(",") << "\n";
     };
 }
 
