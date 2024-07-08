@@ -33,7 +33,6 @@
 
 #include "application.h"
 #include "filesystem.h"
-#include "mainwindow.h"
 #include "shop.h"
 #include "updatechecker.h"
 #include "util.h"
@@ -163,57 +162,20 @@ int main(int argc, char* argv[])
     // Construct an instance of Application.
     Application app;
 
-    // Use the application objects to contruct a login diaglog.
-    LoginDialog login(
-        app.settings(),
-        app.network_manager(),
-        app.oauth_manager());
+    // Trigger an optional crash.
+    if (parser.isSet(option_crash)) {
+        const int choice = QMessageBox::critical(nullptr, "FATAL ERROR",
+            "Acquisition wants to abort.",
+            QMessageBox::StandardButton::Abort | QMessageBox::StandardButton::Cancel,
+            QMessageBox::StandardButton::Abort);
+        if (choice == QMessageBox::StandardButton::Abort) {
+            QLOG_FATAL() << "Acquistion is aborting.";
+            *(volatile int*)0 = 0;
+        };
+    };
 
-    // Connect to the update signal in case an update is detected before the main window is open.
-    QObject::connect(&app.update_checker(), &UpdateChecker::UpdateAvailable, &app.update_checker(), &UpdateChecker::AskUserToUpdate);
-
-    QObject::connect(&login, &LoginDialog::LoginComplete, &login,
-        [&](POE_API api) {
-
-            if (parser.isSet(option_crash)) {
-                const int choice = QMessageBox::critical(nullptr, "FATAL ERROR",
-                    "Acquisition wants to abort.",
-                    QMessageBox::StandardButton::Abort | QMessageBox::StandardButton::Cancel,
-                    QMessageBox::StandardButton::Abort);
-                if (choice == QMessageBox::StandardButton::Abort) {
-                    QLOG_FATAL() << "Acquistion is aborting.";
-                    *(volatile int*)0 = 0;
-                };
-            };
-
-            // Disconnect from the update signal so that only the main window gets it from now on.
-            QObject::disconnect(&app.update_checker(), &UpdateChecker::UpdateAvailable, nullptr, nullptr);
-
-            // Call init login to setup the shop, items manager, and other objects.
-            app.InitLogin(api);
-
-            // Prepare to show the main window now that everything is initialized.
-            MainWindow* mw = new MainWindow(
-                app.settings(),
-                app.network_manager(),
-                app.rate_limiter(),
-                app.data(),
-                app.oauth_manager(),
-                app.items_manager(),
-                app.buyout_manager(),
-                app.currency_manager(),
-                app.update_checker(),
-                app.shop());
-
-            login.close();
-            mw->show();
-        });
-
-    // Start the initial check for updates.
-    app.update_checker().CheckForUpdates();
-
-    // Show the login dialog.
-    login.show();
+    // Starting the application creates and shows the login dialog.
+    app.Start();
 
     // Start the main event loop.
     return a.exec();

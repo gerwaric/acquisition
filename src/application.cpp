@@ -26,18 +26,22 @@
 #include <QSettings>
 #include <QtHttpServer/QHttpServer>
 
-#include "crashpad.h"
+#include "QsLog.h"
+
 #include "buyoutmanager.h"
-#include "sqlitedatastore.h"
-#include "memorydatastore.h"
+#include "crashpad.h"
+#include "currencymanager.h"
 #include "filesystem.h"
 #include "itemsmanager.h"
-#include "currencymanager.h"
-#include "shop.h"
-#include "QsLog.h"
-#include "ratelimiter.h"
-#include "updatechecker.h"
+#include "logindialog.h"
+#include "mainwindow.h"
+#include "memorydatastore.h"
+#include "network_info.h"
 #include "oauthmanager.h"
+#include "ratelimiter.h"
+#include "shop.h"
+#include "sqlitedatastore.h"
+#include "updatechecker.h"
 #include "version_defines.h"
 
 Application::Application(bool test_mode) :
@@ -70,6 +74,55 @@ Application::~Application() {
     if (buyout_manager_) {
         buyout_manager_->Save();
     };
+}
+
+void Application::Start() {
+
+    login_ = std::make_unique<LoginDialog>(
+        settings(),
+        network_manager(),
+        oauth_manager());
+
+    if (!login_) {
+        QLOG_FATAL() << "Failed to create the login dialog.";
+        return;
+    };
+
+    // Connect to the update signal in case an update is detected before the main window is open.
+    QObject::connect(update_checker_.get(), &UpdateChecker::UpdateAvailable, update_checker_.get(), &UpdateChecker::AskUserToUpdate);
+
+    // Use the login complete signal to setup the main window.
+    QObject::connect(login_.get(), &LoginDialog::LoginComplete, this, &Application::OnLogin);
+
+    // Start the initial check for updates.
+    update_checker_->CheckForUpdates();
+
+    login_->show();
+}
+
+void Application::OnLogin(POE_API api) {
+
+    // Disconnect from the update signal so that only the main window gets it from now on.
+    QObject::disconnect(&update_checker(), &UpdateChecker::UpdateAvailable, nullptr, nullptr);
+
+    // Call init login to setup the shop, items manager, and other objects.
+    InitLogin(api);
+
+    // Prepare to show the main window now that everything is initialized.
+    main_window_ = std::make_unique<MainWindow>(
+        settings(),
+        network_manager(),
+        rate_limiter(),
+        data(),
+        oauth_manager(),
+        items_manager(),
+        buyout_manager(),
+        currency_manager(),
+        update_checker(),
+        shop());
+
+    login_->close();
+    main_window_->show();
 }
 
 QSettings& Application::settings() const {

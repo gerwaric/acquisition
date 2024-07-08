@@ -25,20 +25,22 @@
 #include <QString>
 #include <QDateTime>
 
-#include "network_info.h"
-
 class QNetworkAccessManager;
 class QNetworkReply;
 class QSettings;
 
+class BuyoutManager;
+class CurrencyManager;
 class DataStore;
 class ItemsManager;
-class BuyoutManager;
-class Shop;
-class CurrencyManager;
-class UpdateChecker;
+class LoginDialog;
+class MainWindow;
 class OAuthManager;
 class RateLimiter;
+class Shop;
+class UpdateChecker;
+
+enum class POE_API;
 
 class Application : public QObject {
     Q_OBJECT
@@ -47,7 +49,7 @@ public:
     ~Application();
     Application(const Application&) = delete;
     Application& operator=(const Application&) = delete;
-    // Should be called by login dialog after login
+    void Start();
     void InitLogin(POE_API api);
     QSettings& settings() const;
     ItemsManager& items_manager() const;
@@ -63,10 +65,14 @@ public:
 signals:
     void Quit() const;
 public slots:
+    void OnLogin(POE_API api);
     void OnItemsRefreshed(bool initial_refresh);
 private:
     void InitCrashReporting();
     void LoadTheme();
+    void SaveDbOnNewVersion();
+    void FatalAccessError(const char* object_name) const;
+
     bool test_mode_;
     std::unique_ptr<QSettings> settings_;
     std::unique_ptr<DataStore> global_data_;
@@ -79,7 +85,8 @@ private:
     std::unique_ptr<UpdateChecker> update_checker_;
     std::unique_ptr<OAuthManager> oauth_manager_;
     std::unique_ptr<RateLimiter> rate_limiter_;
-    void SaveDbOnNewVersion();
 
-    void FatalAccessError(const char* object_name) const;
+    std::unique_ptr<LoginDialog> login_;
+    std::unique_ptr<MainWindow> main_window_;
+
 };
