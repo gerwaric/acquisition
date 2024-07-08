@@ -41,6 +41,7 @@
 #include "ratelimiter.h"
 #include "shop.h"
 #include "sqlitedatastore.h"
+#include "testsettings.h"
 #include "updatechecker.h"
 #include "version_defines.h"
 
@@ -50,24 +51,25 @@ Application::Application(bool test_mode) :
     connect(this, &Application::Quit, qApp, &QApplication::quit, Qt::QueuedConnection);
 
     if (test_mode_) {
+
+        settings_ = TestSettings::NewInstance();
         global_data_ = std::make_unique<MemoryDataStore>();
-        return;
+
+    } else {
+
+        const QString user_dir = Filesystem::UserDir();
+        const QString settings_path = user_dir + "/settings.ini";
+        const QString global_data_file = user_dir + "/data/" + SqliteDataStore::MakeFilename("", "");
+        settings_ = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
+        global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
+
+        InitCrashReporting();
+        LoadTheme();
     };
 
-    const QString user_dir = Filesystem::UserDir();
-    const QString settings_path = user_dir + "/settings.ini";
-    const QString global_data_file = user_dir + "/data/" + SqliteDataStore::MakeFilename("", "");
-
-    settings_ = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
-
-    InitCrashReporting();
-
-    global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
     network_manager_ = std::make_unique<QNetworkAccessManager>(this);
     update_checker_ = std::make_unique<UpdateChecker>(this, settings(), network_manager());
     oauth_manager_ = std::make_unique<OAuthManager>(this, network_manager(), global_data());
-
-    LoadTheme();
 }
 
 Application::~Application() {

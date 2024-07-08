@@ -109,6 +109,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     test/testitem.cpp
     test/testitemsmanager.cpp
     test/testmain.cpp
+    test/testsettings.cpp
     test/testshop.cpp
     test/testutil.cpp
     # Headers
@@ -159,6 +160,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     test/testitem.h
     test/testitemsmanager.h
     test/testmain.h
+    test/testsettings.h
     test/testshop.h
     test/testutil.h
     # Forms
