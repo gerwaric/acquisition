@@ -280,7 +280,7 @@ void LoginDialog::LoginWithOAuth() {
 }
 
 void LoginDialog::LoginWithSessionID(const QString& session_id) {
-    QLOG_INFO() << "Starting legacy login with POESESSID =" << session_id;
+    QLOG_INFO() << "Starting legacy login with POESESSID";
     QNetworkCookie poesessid(POE_COOKIE_NAME, session_id.toUtf8());
     poesessid.setPath(POE_COOKIE_PATH);
     poesessid.setDomain(POE_COOKIE_DOMAIN);
