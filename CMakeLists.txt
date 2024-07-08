@@ -280,17 +280,6 @@ target_link_libraries(acquisition PRIVATE
     Crashpad
 )
 
-# On Linux we need to build with OpenSSL 3.x
-if(UNIX AND (NOT APPLE))
-    set(OPENSSL_ROOT_DIR ~/openssl-3.1.5)
-    set(OPENSSL_USE_STATIC_LIBS TRUE)
-    find_package(OpenSSL 3.1.5 REQUIRED)
-    target_link_libraries(acquisition PUBLIC
-        OpenSSL::SSL
-        OpenSSL::Crypto
-    )
-endif()
-
 # Add dependency: QsLog
 qt_add_library(QsLog STATIC
     # Source
@@ -339,6 +328,13 @@ if(WIN32)
     
 elseif(APPLE)
     
+    # Setup the macOS bundle
+    set_target_properties(acquisition PROPERTIES
+        ${BUNDLE_ID_OPTION}
+        MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+        MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
+    )
+
     # Add the macOS application icon
     set(MACOSX_BUNDLE_ICON_FILE icon.icns)
     set(macos_app_icon "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.icns")
@@ -358,8 +354,19 @@ elseif(APPLE)
         COMMAND xcrun dsymutil acquisition.app/Contents/MacOS/acquisition -o acquisition.dSYM
     )
     
-elseif(LINUX)
+elseif(UNIX)
     
+    # On Linux we depend on OpenSSL 3.1.5
+    if("$ENV{OPENSSL_ROOT_DIR}" STREQUAL "")
+        set(OPENSSL_ROOT_DIR ~/openssl-3.1.5)
+    endif()
+    set(OPENSSL_USE_STATIC_LIBS TRUE)
+    find_package(OpenSSL 3.1.5 REQUIRED)
+    target_link_libraries(acquisition PUBLIC
+        OpenSSL::SSL
+        OpenSSL::Crypto
+    )
+
     # Generate debug symbols.
     target_compile_options(acquisition PRIVATE -g)
     add_custom_command(TARGET acquisition
@@ -371,11 +378,3 @@ elseif(LINUX)
     )
     
 endif()
-
-set_target_properties(acquisition PROPERTIES
-    ${BUNDLE_ID_OPTION}
-    MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
-    MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
-    MACOSX_BUNDLE TRUE
-    WIN32_EXECUTABLE TRUE
-)
