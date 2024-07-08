@@ -47,114 +47,114 @@ constexpr const char* ATTACHMENT_TXT = "attachment.txt";
 std::filesystem::path StdPath(const QString& path)
 {
 #if defined(Q_OS_WINDOWS)
-	auto* wptr = reinterpret_cast<const wchar_t*>(path.utf16());
-	return std::filesystem::path(wptr, wptr + path.size());
+    auto* wptr = reinterpret_cast<const wchar_t*>(path.utf16());
+    return std::filesystem::path(wptr, wptr + path.size());
 #else
-	return std::filesystem::path(path.toStdString());
+    return std::filesystem::path(path.toStdString());
 #endif
 }
 
 bool initializeCrashpad(
-	const QString& dbName,
-	const QString& appName,
-	const QString& appVersion)
+    const QString& dbName,
+    const QString& appName,
+    const QString& appVersion)
 {
-	static CrashpadClient* client = nullptr;
+    static CrashpadClient* client = nullptr;
 
-	if (client != nullptr) {
-		QLOG_ERROR() << "Crashpad has already been initialized";
-		return false;
-	};
+    if (client != nullptr) {
+        QLOG_ERROR() << "Crashpad has already been initialized";
+        return false;
+    };
 
-	QLOG_INFO() << "Initalizing Crashpad";
-	QLOG_TRACE() << "  database =" << dbName;
-	QLOG_TRACE() << "  application =" << appName;
-	QLOG_TRACE() << "  version =" << appVersion;
+    QLOG_INFO() << "Initalizing Crashpad";
+    QLOG_TRACE() << "  database =" << dbName;
+    QLOG_TRACE() << "  application =" << appName;
+    QLOG_TRACE() << "  version =" << appVersion;
 
-	const QString appExe = QCoreApplication::applicationDirPath() + "/" + CRASHPAD_HANDLER;
-	const QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/" + CRASHPAD_DIR;
+    const QString appExe = QCoreApplication::applicationDirPath() + "/" + CRASHPAD_HANDLER;
+    const QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/" + CRASHPAD_DIR;
 
-	const QFileInfo appInfo(appExe);
-	if (!appInfo.exists()) {
-		QLOG_ERROR() << "Crashpad: the crash handler executable is missing:" << appExe;
-		return false;
-	};
+    const QFileInfo appInfo(appExe);
+    if (!appInfo.exists()) {
+        QLOG_ERROR() << "Crashpad: the crash handler executable is missing:" << appExe;
+        return false;
+    };
 
-	const QFileInfo dirInfo(appDataDir);
-	if (dirInfo.exists() && !dirInfo.isDir()) {
-		QLOG_ERROR() << "Crashpad: the data directory is a file:" << appDataDir;
-		return false;
-	};
+    const QFileInfo dirInfo(appDataDir);
+    if (dirInfo.exists() && !dirInfo.isDir()) {
+        QLOG_ERROR() << "Crashpad: the data directory is a file:" << appDataDir;
+        return false;
+    };
 
-	const FilePath handler(StdPath(appExe));
-	const FilePath dataDir(StdPath(appDataDir));
-	const FilePath& reportsDir = dataDir;
-	const FilePath& metricsDir = dataDir;
+    const FilePath handler(StdPath(appExe));
+    const FilePath dataDir(StdPath(appDataDir));
+    const FilePath& reportsDir = dataDir;
+    const FilePath& metricsDir = dataDir;
 
-	// Configure url with your BugSplat database
-	const std::string url = "https://" + dbName.toStdString() + ".bugsplat.com/post/bp/crash/crashpad.php";
+    // Configure url with your BugSplat database
+    const std::string url = "https://" + dbName.toStdString() + ".bugsplat.com/post/bp/crash/crashpad.php";
 
-	// Metadata that will be posted to BugSplat
-	const std::map<std::string, std::string> annotations{ {
-		{"format", "minidump"},                 // Required: Crashpad setting to save crash as a minidump
-		{"database", dbName.toStdString()},     // Required: BugSplat database
-		{"product", appName.toStdString()},     // Required: BugSplat appName
-		{"version", appVersion.toStdString()}   // Required: BugSplat appVersion
-	} };
+    // Metadata that will be posted to BugSplat
+    const std::map<std::string, std::string> annotations{ {
+        {"format", "minidump"},                 // Required: Crashpad setting to save crash as a minidump
+        {"database", dbName.toStdString()},     // Required: BugSplat database
+        {"product", appName.toStdString()},     // Required: BugSplat appName
+        {"version", appVersion.toStdString()}   // Required: BugSplat appVersion
+    } };
 
-	// Initialize crashpad database
-	auto database = CrashReportDatabase::Initialize(reportsDir);
-	if (database == NULL) {
-		QLOG_ERROR() << "Crashpad: failed to initialize the crash reports database.";
-		return false;
-	};
+    // Initialize crashpad database
+    auto database = CrashReportDatabase::Initialize(reportsDir);
+    if (database == NULL) {
+        QLOG_ERROR() << "Crashpad: failed to initialize the crash reports database.";
+        return false;
+    };
 
-	// Enable automated crash uploads
-	auto settings = database->GetSettings();
-	if (settings == NULL) {
-		QLOG_ERROR() << "Crashpad: failed to get settings.";
-		return false;
-	};
-	settings->SetUploadsEnabled(true);
+    // Enable automated crash uploads
+    auto settings = database->GetSettings();
+    if (settings == NULL) {
+        QLOG_ERROR() << "Crashpad: failed to get settings.";
+        return false;
+    };
+    settings->SetUploadsEnabled(true);
 
-	// Disable crashpad rate limiting so that all crashes have dmp files
-	const std::vector<std::string> arguments{ "--no-rate-limit" };
+    // Disable crashpad rate limiting so that all crashes have dmp files
+    const std::vector<std::string> arguments{ "--no-rate-limit" };
 
-	const bool restartable = true;
-	const bool asynchronous_start = true;
+    const bool restartable = true;
+    const bool asynchronous_start = true;
 
-	// Attachments to be uploaded alongside the crash - default bundle size limit is 20MB
-	const std::vector<FilePath> attachments;
-	
-	QLOG_TRACE() << "Crashpad: starting handler";
-	QLOG_TRACE() << "  hander =" << handler.value();
-	QLOG_TRACE() << "  database =" << reportsDir.value();
-	QLOG_TRACE() << "  metrics_dir =" << metricsDir.value();
-	QLOG_TRACE() << "  url =" << url;
-	for (auto& pair : annotations) {
-		QLOG_TRACE() << "  annotations[" << pair.first << "] =" << pair.second;
-	};
-	for (auto i = 0; i < arguments.size(); ++i) {
-		QLOG_TRACE() << "  arguments[" << i << "] =" << arguments[i];
-	};
-	QLOG_TRACE() << "  restartable =" << restartable;
-	QLOG_TRACE() << "  asynchronous_start =" << asynchronous_start;
- 	for (auto i = 0; i < attachments.size(); ++i) {
-		QLOG_TRACE() << "  attachments[" << i << "] =" << attachments[i].value();
-	};
+    // Attachments to be uploaded alongside the crash - default bundle size limit is 20MB
+    const std::vector<FilePath> attachments;
 
-	// Start crash handler
-	client = new CrashpadClient();
-	bool status = client->StartHandler(handler,
-		reportsDir, metricsDir, url, annotations, arguments,
-		restartable, asynchronous_start, attachments);
+    QLOG_TRACE() << "Crashpad: starting handler";
+    QLOG_TRACE() << "  hander =" << handler.value();
+    QLOG_TRACE() << "  database =" << reportsDir.value();
+    QLOG_TRACE() << "  metrics_dir =" << metricsDir.value();
+    QLOG_TRACE() << "  url =" << url;
+    for (auto& pair : annotations) {
+        QLOG_TRACE() << "  annotations[" << pair.first << "] =" << pair.second;
+    };
+    for (auto i = 0; i < arguments.size(); ++i) {
+        QLOG_TRACE() << "  arguments[" << i << "] =" << arguments[i];
+    };
+    QLOG_TRACE() << "  restartable =" << restartable;
+    QLOG_TRACE() << "  asynchronous_start =" << asynchronous_start;
+    for (auto i = 0; i < attachments.size(); ++i) {
+        QLOG_TRACE() << "  attachments[" << i << "] =" << attachments[i].value();
+    };
 
-	if (status) {
-		QLOG_TRACE() << "Crashpad is initialized.";
-	} else {
-		QLOG_ERROR() << "Crashpad failed to initialize the handler.";
-		client = nullptr;
-	};
-	return status;
+    // Start crash handler
+    client = new CrashpadClient();
+    bool status = client->StartHandler(handler,
+        reportsDir, metricsDir, url, annotations, arguments,
+        restartable, asynchronous_start, attachments);
+
+    if (status) {
+        QLOG_TRACE() << "Crashpad is initialized.";
+    } else {
+        QLOG_ERROR() << "Crashpad failed to initialize the handler.";
+        client = nullptr;
+    };
+    return status;
 }
 

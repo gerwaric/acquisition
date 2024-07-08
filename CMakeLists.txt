@@ -186,7 +186,7 @@ configure_file("src/version_defines.h.in" "version_defines.h" @ONLY)
 
 # Automatically populate the VERSIONINFO file for windows.
 if(WIN32)
-
+    
     # Use a function to set version variables so there can be a default value.
     function(setver name value default)
         if (NOT "${value}" STREQUAL "")
@@ -195,13 +195,13 @@ if(WIN32)
             set("${name}" "${default}" PARENT_SCOPE)
         endif()
     endfunction()
- 
+    
     # Define the version variables.
     setver(app_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}" 1)
     setver(app_VERSION_MINOR "${PROJECT_VERSION_MINOR}" 0)
     setver(app_VERSION_PATCH "${PROJECT_VERSION_PATCH}" 0)
     setver(app_VERSION_TWEAK "${PROJECT_VERSION_TWEAK}" 0)
-
+    
     # Define the reset of the versioninfo data.
     set(app_COMPANY_NAME	    "")
     set(app_FILE_DESCRIPTION    "")
@@ -323,10 +323,10 @@ if(WIN32)
     
     # Visual Studio 2022 needs this to work with boost.
     target_compile_options(acquisition PRIVATE /EHsc)
-
+    
     # Enable more warnings than default
     target_compile_options(acquisition PRIVATE /W4)
-
+    
     # Create .pdb files for debugging
     target_compile_options(acquisition PRIVATE /Zi)
     
@@ -336,15 +336,15 @@ if(WIN32)
         COMPILE_PDB_NAME acquisition
         COMPILE_PDB_OUTPUT_DIR "${CMAKE_BINARY_DIR}"
     )
-
+    
 elseif(APPLE)
-
+    
     # Add the macOS application icon
     set(MACOSX_BUNDLE_ICON_FILE icon.icns)
     set(macos_app_icon "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.icns")
     set_source_files_properties("${macos_app_icon}" PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
     target_sources(acquisition PRIVATE "${macos_app_icon}")
-
+    
     # Generate debugging symbols file.
     target_compile_options(acquisition PRIVATE -g)
     set_target_properties(acquisition PROPERTIES
@@ -357,9 +357,9 @@ elseif(APPLE)
         POST_BUILD
         COMMAND xcrun dsymutil acquisition.app/Contents/MacOS/acquisition -o acquisition.dSYM
     )
-
+    
 elseif(LINUX)
-
+    
     # Generate debug symbols.
     target_compile_options(acquisition PRIVATE -g)
     add_custom_command(TARGET acquisition
@@ -369,7 +369,7 @@ elseif(LINUX)
         COMMAND objcopy --add-gnu-debuglink=acquisition.debug acquisition
         COMMAND chmod -x acquisition.debug
     )
-
+    
 endif()
 
 set_target_properties(acquisition PROPERTIES

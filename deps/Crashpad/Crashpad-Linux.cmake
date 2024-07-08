@@ -9,7 +9,7 @@ function(setup_linux_target target libname)
     add_library(${target} SHARED IMPORTED)
     
     # Set the target location.
-	set_target_properties(${target} PROPERTIES
+    set_target_properties(${target} PROPERTIES
         IMPORTED_IMPLIB  "${PROJECT_SOURCE_DIR}/deps/Crashpad/Libraries/Linux/lib${libname}.a"
     )
     

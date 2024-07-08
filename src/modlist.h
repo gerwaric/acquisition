@@ -1,20 +1,20 @@
 /*
-	Copyright 2014 Ilya Zhuravlev
+    Copyright 2014 Ilya Zhuravlev
 
-	This file is part of Acquisition.
+    This file is part of Acquisition.
 
-	Acquisition is free software: you can redistribute it and/or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation, either version 3 of the License, or
-	(at your option) any later version.
+    Acquisition is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
 
-	Acquisition is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU General Public License for more details.
+    Acquisition is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
 
-	You should have received a copy of the GNU General Public License
-	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
+    You should have received a copy of the GNU General Public License
+    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #pragma once
@@ -41,21 +41,21 @@ QStringListModel& mod_list_model();
 
 class ModGenerator {
 public:
-	virtual ~ModGenerator() {};
-	void Generate(const rapidjson::Value& json, ModTable* output);
-	virtual void Generate(const std::string& json, ModTable* output) = 0;
+    virtual ~ModGenerator() {};
+    void Generate(const rapidjson::Value& json, ModTable* output);
+    virtual void Generate(const std::string& json, ModTable* output) = 0;
 };
 
 class SumModGenerator : public ModGenerator {
 public:
-	SumModGenerator(const std::string& name, const std::vector<std::string>& sum);
-	virtual ~SumModGenerator() {};
-	virtual void Generate(const std::string& json, ModTable* output);
+    SumModGenerator(const std::string& name, const std::vector<std::string>& sum);
+    virtual ~SumModGenerator() {};
+    virtual void Generate(const std::string& json, ModTable* output);
 private:
-	bool Match(const char* mod, double* output);
+    bool Match(const char* mod, double* output);
 
-	std::string name_;
-	std::vector<std::string> matches_;
+    std::string name_;
+    std::vector<std::string> matches_;
 };
 
 typedef std::shared_ptr<SumModGenerator> SumModGen;

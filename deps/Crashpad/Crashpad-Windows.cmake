@@ -4,10 +4,10 @@ set_target_properties(CrashpadHandler PROPERTIES
 )
 
 function(setup_windows_target target libname)
-
+    
     # Create the target
     add_library(${target} SHARED IMPORTED)
-
+    
     # Set the correct library locations depending upon the release.
     set_target_properties(${target} PROPERTIES
         IMPORTED_IMPLIB_DEBUG  "${PROJECT_SOURCE_DIR}/deps/Crashpad/Libraries/Windows/MDd/${libname}.lib"
@@ -15,7 +15,7 @@ function(setup_windows_target target libname)
         IMPORTED_IMPLIB_RELWITHDEBINFO "${PROJECT_SOURCE_DIR}/deps/Crashpad/Libraries/Windows/MDd/${libname}.lib"
         IMPORTED_IMPLIB_MINSIZEREL "${PROJECT_SOURCE_DIR}/deps/Crashpad/Libraries/Windows/MD/${libname}.lib"
     )
-
+    
 endfunction()
 
 setup_windows_target(CrashpadBase base)

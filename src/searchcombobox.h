@@ -8,11 +8,11 @@
 class QAbstractItemModel;
 
 class SearchComboCompleter : public QCompleter {
-	Q_OBJECT
+    Q_OBJECT
 public:
     using QCompleter::QCompleter;
 public slots:
-	void complete(const QRect& rect = QRect());
+    void complete(const QRect& rect = QRect());
 };
 
 class SearchComboStyle : public QProxyStyle {
@@ -28,10 +28,10 @@ class SearchComboBox : public QComboBox {
 public:
     SearchComboBox(QAbstractItemModel* model, QWidget* parent = nullptr);
 private slots:
-	void OnTextEdited();
-	void OnEditTimeout();
-	void OnCompleterActivated(const QString& text);
+    void OnTextEdited();
+    void OnEditTimeout();
+    void OnCompleterActivated(const QString& text);
 private:
-	SearchComboCompleter completer_;
-	QTimer edit_timer_;
+    SearchComboCompleter completer_;
+    QTimer edit_timer_;
 };

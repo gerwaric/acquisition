@@ -4,29 +4,29 @@ set_target_properties(CrashpadHandler PROPERTIES
 )
 
 function(setup_macos_target target libname)
-
+    
     # Point to the precompiled libraries.
     set(${target}_PREBUILT_LIBS
         "${PROJECT_SOURCE_DIR}/deps/Crashpad/Libraries/MacOS/arm64/lib${libname}.a"
         "${PROJECT_SOURCE_DIR}/deps/Crashpad/Libraries/MacOS/x86_64/lib${libname}.a"
     )
-
+    
     # Define the output library, which will be multi-architecture.
     set(${target}_OUTPUT_LIB "${CMAKE_BINARY_DIR}/crashpad/lib${libname}.a")
-
+    
     # Use a custom target to cause lipo to combine the two input libraries.
     add_custom_target(${target}_MULTIARCH
         DEPENDS ${${target}_PREBUILT_LIBS}
         BYPRODUCTS ${${target}_OUTPUT_LIB}
         COMMAND lipo ${${target}_PREBUILT_LIBS} -create -output ${${target}_OUTPUT_LIB}
     )
-
+    
     # Create the target
     add_library(${target} SHARED IMPORTED)
-
+    
     # Point the target to the generated multi-architecture library.
     set_target_properties(${target} PROPERTIES IMPORTED_LOCATION ${${target}_OUTPUT_LIB})
-
+    
 endfunction()
 
 setup_macos_target(CrashpadBase base)
