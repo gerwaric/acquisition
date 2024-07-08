@@ -6,20 +6,17 @@
 
 #include "rapidjson/document.h"
 
-#include "application.h"
 #include "buyoutmanager.h"
 #include "itemsmanager.h"
-#include "network_info.h"
 #include "shop.h"
 #include "testdata.h"
 
-TestShop::TestShop() {
-    app_ = std::make_unique<Application>(true);
-}
-
-void TestShop::initTestCase() {
-    app_->InitLogin(POE_API::LEGACY);
-}
+TestShop::TestShop(ItemsManager& items_manager, BuyoutManager& buyout_manager, Shop& shop)
+    :
+    items_manager_(items_manager),
+    buyout_manager_(buyout_manager),
+    shop_(shop)
+{}
 
 void TestShop::SocketedGemsNotLinked() {
 
@@ -27,16 +24,16 @@ void TestShop::SocketedGemsNotLinked() {
     doc.Parse(kSocketedItem);
 
     Items items = { std::make_shared<Item>(doc, ItemLocation()) };
-    app_->items_manager().OnItemsRefreshed(items, {}, true);
+    items_manager_.OnItemsRefreshed(items, {}, true);
 
     Buyout bo;
     bo.type = BUYOUT_TYPE_FIXED;
     bo.value = 10;
     bo.currency = CURRENCY_CHAOS_ORB;
-    app_->buyout_manager().Set(*items[0], bo);
+    buyout_manager_.Set(*items[0], bo);
 
-    app_->shop().Update();
-    std::vector<std::string> shop = app_->shop().shop_data();
+    shop_.Update();
+    std::vector<std::string> shop = shop_.shop_data();
     QVERIFY(shop.size() == 0);
 
 }
@@ -47,18 +44,18 @@ void TestShop::TemplatedShopGeneration() {
     doc.Parse(kItem1);
 
     Items items = { std::make_shared<Item>(doc, ItemLocation()) };
-    app_->items_manager().OnItemsRefreshed(items, {}, true);
+    items_manager_.OnItemsRefreshed(items, {}, true);
 
     Buyout bo;
     bo.type = BUYOUT_TYPE_FIXED;
     bo.value = 10;
     bo.currency = CURRENCY_CHAOS_ORB;
-    app_->buyout_manager().Set(*items[0], bo);
+    buyout_manager_.Set(*items[0], bo);
 
-    app_->shop().SetShopTemplate("My awesome shop [items]");
-    app_->shop().Update();
+    shop_.SetShopTemplate("My awesome shop [items]");
+    shop_.Update();
 
-    std::vector<std::string> shop = app_->shop().shop_data();
+    std::vector<std::string> shop = shop_.shop_data();
     QVERIFY(shop.size() == 1);
     QVERIFY(shop[0].find("~price") != std::string::npos);
     QVERIFY(shop[0].find("My awesome shop") != std::string::npos);

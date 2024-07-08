@@ -23,14 +23,18 @@
 
 #include <memory>
 
-class Application;
+class BuyoutManager;
+class DataStore;
+class ItemsManager;
 
 class TestItemsManager : public QObject {
     Q_OBJECT
 public:
-    TestItemsManager();
+    TestItemsManager(
+        DataStore& data,
+        ItemsManager& items_manager,
+        BuyoutManager& buyout_manager);
 private slots:
-    void initTestCase();
     void cleanup();
     void BuyoutForNewItem();
     void BuyoutPropagation();
@@ -40,5 +44,7 @@ private slots:
     void MoveItemBoToBo();
     void ItemHashMigration();
 private:
-    std::unique_ptr<Application> app_;
+    DataStore& data_;
+    ItemsManager& items_manager_;
+    BuyoutManager& buyout_manager_;
 };
