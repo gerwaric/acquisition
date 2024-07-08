@@ -55,6 +55,7 @@ std::filesystem::path StdPath(const QString& path)
 }
 
 bool initializeCrashpad(
+    const QString& dataDir,
     const QString& dbName,
     const QString& appName,
     const QString& appVersion)
@@ -72,24 +73,26 @@ bool initializeCrashpad(
     QLOG_TRACE() << "  version =" << appVersion;
 
     const QString appExe = QCoreApplication::applicationDirPath() + "/" + CRASHPAD_HANDLER;
-    const QString appDataDir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/" + CRASHPAD_DIR;
 
+    // Make sure the executable exists.
     const QFileInfo appInfo(appExe);
     if (!appInfo.exists()) {
         QLOG_ERROR() << "Crashpad: the crash handler executable is missing:" << appExe;
         return false;
     };
 
-    const QFileInfo dirInfo(appDataDir);
+    // Make sure the data directory exists.
+    const QFileInfo dirInfo(dataDir);
     if (dirInfo.exists() && !dirInfo.isDir()) {
-        QLOG_ERROR() << "Crashpad: the data directory is a file:" << appDataDir;
+        QLOG_ERROR() << "Crashpad: the data directory is a file:" << dataDir;
         return false;
     };
 
+    // Convert paths to base::FilePath
     const FilePath handler(StdPath(appExe));
-    const FilePath dataDir(StdPath(appDataDir));
-    const FilePath& reportsDir = dataDir;
-    const FilePath& metricsDir = dataDir;
+    const FilePath crashpadDir(StdPath(dataDir));
+    const FilePath& reportsDir = crashpadDir;
+    const FilePath& metricsDir = crashpadDir;
 
     // Configure url with your BugSplat database
     const std::string url = "https://" + dbName.toStdString() + ".bugsplat.com/post/bp/crash/crashpad.php";

@@ -40,6 +40,7 @@
 #include "rapidjson/error/en.h"
 
 #include "crashpad.h"
+#include "filesystem.h"
 #include "mainwindow.h"
 #include "network_info.h"
 #include "replytimeout.h"
@@ -423,7 +424,7 @@ void LoginDialog::OnReportCrashesCheckBoxClicked(bool checked) {
         msgbox.exec();
         if (msgbox.clickedButton() == yes) {
             settings_.setValue("report_crashes", true);
-            initializeCrashpad(APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
+            initializeCrashpad(Filesystem::UserDir(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
         } else {
             settings_.setValue("report_crashes", false);
             ui->reportCrashesCheckBox->setChecked(false);
@@ -446,7 +447,7 @@ void LoginDialog::OnReportCrashesCheckBoxClicked(bool checked) {
         } else {
             settings_.setValue("report_crashes", true);
             ui->reportCrashesCheckBox->setChecked(true);
-            initializeCrashpad(APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
+            initializeCrashpad(Filesystem::UserDir(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
         };
 
     };

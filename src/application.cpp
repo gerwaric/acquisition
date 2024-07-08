@@ -235,10 +235,8 @@ void Application::InitCrashReporting() {
 
     // Initialize crash reporting with crashpad.
     if (report_crashes) {
-        initializeCrashpad(APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
+        initializeCrashpad(Filesystem::UserDir(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
     };
-
-
 }
 
 void Application::LoadTheme() {
