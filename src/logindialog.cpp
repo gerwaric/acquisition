@@ -419,7 +419,7 @@ void LoginDialog::OnReportCrashesCheckBoxClicked(bool checked) {
             "disabled without restarting Acquistion.\n\nDo you want to "
             "enable crash reporting?");
         auto yes = msgbox.addButton("  Yes, enable crash reporting  ", msgbox.YesRole);
-        auto no = msgbox.addButton("  No  ", msgbox.NoRole);
+        msgbox.addButton("  No  ", msgbox.NoRole);
         msgbox.exec();
         if (msgbox.clickedButton() == yes) {
             settings_.setValue("report_crashes", true);
@@ -438,7 +438,7 @@ void LoginDialog::OnReportCrashesCheckBoxClicked(bool checked) {
             "reporting.\n\nDo you want Acquisition to exit now and disable "
             "crash reporting the next time it runs?");
         auto yes = msgbox.addButton("  Yes, exit now  ", msgbox.YesRole);
-        auto no = msgbox.addButton("  No, continue running  ", msgbox.NoRole);
+        msgbox.addButton("  No, continue running  ", msgbox.NoRole);
         msgbox.exec();
         if (msgbox.clickedButton() == yes) {
             settings_.setValue("report_crashes", false);
