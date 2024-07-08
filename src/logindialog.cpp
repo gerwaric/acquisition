@@ -44,6 +44,7 @@
 #include "mainwindow.h"
 #include "network_info.h"
 #include "replytimeout.h"
+#include "testmain.h"
 #include "util.h"
 #include "updatechecker.h"
 #include "oauthmanager.h"
@@ -110,6 +111,12 @@ LoginDialog::LoginDialog(
 
     // Listen for access from the OAuth manager.
     connect(&oauth_manager_, &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
+
+    // Setup the ability to trigger testing from the UI
+    QAction* foo = new QAction(this);
+    foo->setShortcut(Qt::Key_T | Qt::CTRL);
+    connect(foo, &QAction::triggered, this, &LoginDialog::OnRunTests);
+    addAction(foo);
 
     // Load saved settings.
     LoadSettings();
@@ -451,6 +458,16 @@ void LoginDialog::OnReportCrashesCheckBoxClicked(bool checked) {
         };
 
     };
+}
+
+void LoginDialog::OnRunTests() {
+    hide();
+    const int result = test_main();
+    const auto ok = QMessageBox::information(this, "Acquisition Tests",
+        "test_main() returned " + QString::number(result),
+        QMessageBox::StandardButton::Ok,
+        QMessageBox::StandardButton::Ok);
+    show();
 }
 
 void LoginDialog::DisplayError(const QString& error, bool disable_login) {
