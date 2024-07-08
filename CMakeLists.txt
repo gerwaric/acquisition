@@ -46,10 +46,8 @@ set(app_version_string  "${CMAKE_PROJECT_VERSION}${version_postfix}")
 set(app_url             "${CMAKE_PROJECT_HOMEPAGE_URL}")
 set(app_publisher       "GERWARIC")
 set(app_publisher_email "gerwaric@gmail.com")
-set(app_copyright       "Copyright \\251 2014 Ilya Zhuravlev and 2023 Gerwaric")
+set(app_copyright       "© 2014 Ilya Zhuravlev and 2023 Gerwaric")
 set(app_trademark       "Path of Exile is a trademark of Grinding Gear Games, Ltd.")
-
-include(GNUInstallDirs)
 
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
@@ -60,18 +58,9 @@ set(CMAKE_AUTOUIC_SEARCH_PATHS forms/)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 6.5.3 REQUIRED COMPONENTS
-    Core
-    Gui
-    HttpServer
-    Network
-    Sql
-    Test
-    WebSockets
-    Widgets
-)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui HttpServer Network Sql Test WebSockets Widgets)
 
-qt_standard_project_setup()
+qt_standard_project_setup(REQUIRES 6.5.3)
 
 qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     # Source
@@ -178,57 +167,39 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     # Resources
     resources.qrc
     # Generated version header
-    "${CMAKE_CURRENT_BINARY_DIR}/version_defines.h"
+    "${CMAKE_BINARY_DIR}/version_defines.h"
 )
 
 # Automatically populate and include the versions header file.
 configure_file("src/version_defines.h.in" "version_defines.h" @ONLY)
 
-# Automatically populate the VERSIONINFO file for windows.
-if(WIN32)
-    
-    # Use a function to set version variables so there can be a default value.
-    function(setver name value default)
-        if (NOT "${value}" STREQUAL "")
-            set("${name}" "${value}" PARENT_SCOPE)
-        else()
-            set("${name}" "${default}" PARENT_SCOPE)
-        endif()
-    endfunction()
-    
-    # Define the version variables.
-    setver(app_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}" 1)
-    setver(app_VERSION_MINOR "${PROJECT_VERSION_MINOR}" 0)
-    setver(app_VERSION_PATCH "${PROJECT_VERSION_PATCH}" 0)
-    setver(app_VERSION_TWEAK "${PROJECT_VERSION_TWEAK}" 0)
-    
-    # Define the reset of the versioninfo data.
-    set(app_COMPANY_NAME	    "")
-    set(app_FILE_DESCRIPTION    "")
-    set(app_FILE_VERSION        "${app_version_string}")
-    set(app_INTERNAL_NAME       "${CMAKE_PROJECT_NAME}")
-    set(app_LEGAL_COPYRIGHT     "${app_copyright}")
-    set(app_LEGAL_TRADEMARK     "${app_trademark}")
-    set(app_ORIGINAL_FILENAME   "${CMAKE_PROJECT_NAME}.exe")
-    set(app_PRODUCT_NAME        "${CMAKE_PROJECT_NAME}")
-    set(app_PRODUCT_VERSION     "${app_version_string}")
-    set(app_ICON                "${PROJECT_SOURCE_DIR}/assets/icon.ico")
-    configure_file(version_info.rc.in version_info.rc @ONLY)
-    target_sources(acquisition PUBLIC
-        "${CMAKE_CURRENT_BINARY_DIR}/version_info.rc"
-        "${PROJECT_SOURCE_DIR}/assets/icon.ico"
-    )
-endif()
-
+# Setup include directories.
 target_include_directories(acquisition PRIVATE
     deps/
     deps/QsLog/
     deps/boost-headers-only/
     src/
     test/
-    "${CMAKE_CURRENT_BINARY_DIR}"
+    "${CMAKE_BINARY_DIR}"
 )
 
+# Link required libraries.
+target_link_libraries(acquisition PRIVATE
+    Qt::Core
+    Qt::Gui
+    Qt::HttpServer
+    Qt::Network
+    Qt::Widgets
+    Qt::Sql
+    Qt::Test
+    Qt::WebSockets
+    QsLog
+    qdarkstyle
+    Crashpad
+)
+
+
+# Create the Crashpad library target.
 add_library(Crashpad STATIC
     src/crashpad.cpp
     src/crashpad.h
@@ -260,24 +231,11 @@ elseif(UNIX)
     include(deps/Crashpad/Crashpad-Linux.cmake)
 endif()
 
+# Make sure the crash_handler executable is copied to the build directory.
 get_target_property(CrashpadHandlerPath CrashpadHandler IMPORTED_LOCATION)
 add_custom_command(TARGET acquisition
     POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E copy "${CrashpadHandlerPath}" "${CMAKE_CURRENT_BINARY_DIR}"
-)
-
-target_link_libraries(acquisition PRIVATE
-    Qt::Core
-    Qt::Gui
-    Qt::HttpServer
-    Qt::Network
-    Qt::Widgets
-    Qt::Sql
-    Qt::Test
-    Qt::WebSockets
-    QsLog
-    qdarkstyle
-    Crashpad
+    COMMAND "${CMAKE_COMMAND}" -E copy "${CrashpadHandlerPath}" "${CMAKE_BINARY_DIR}"
 )
 
 # Add dependency: QsLog
@@ -308,8 +266,46 @@ add_library(qdarkstyle STATIC
     deps/qdarkstyle/light/lightstyle.qrc
 )
 
+#----------------------------------
+# Platform-specific section
+#----------------------------------
+
 if(WIN32)
     
+    # Add the application icon.
+    target_sources(acquisition PRIVATE "${PROJECT_SOURCE_DIR}/assets/icon.ico")
+
+    # Use a function to set version variables so there can be a default value.
+    function(setver name value default)
+        if (NOT "${value}" STREQUAL "")
+            set("${name}" "${value}" PARENT_SCOPE)
+        else()
+            set("${name}" "${default}" PARENT_SCOPE)
+        endif()
+    endfunction()
+
+    # Define the version variables.
+    setver(app_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}" 1)
+    setver(app_VERSION_MINOR "${PROJECT_VERSION_MINOR}" 0)
+    setver(app_VERSION_PATCH "${PROJECT_VERSION_PATCH}" 0)
+    setver(app_VERSION_TWEAK "${PROJECT_VERSION_TWEAK}" 0)
+
+    # Define the reset of the versioninfo data.
+    set(app_COMPANY_NAME        "")
+    set(app_FILE_DESCRIPTION    "")
+    set(app_FILE_VERSION        "${app_version_string}")
+    set(app_INTERNAL_NAME       "${CMAKE_PROJECT_NAME}")
+    set(app_LEGAL_COPYRIGHT     "${app_copyright}")
+    set(app_LEGAL_TRADEMARK     "${app_trademark}")
+    set(app_ORIGINAL_FILENAME   "${CMAKE_PROJECT_NAME}.exe")
+    set(app_PRODUCT_NAME        "${CMAKE_PROJECT_NAME}")
+    set(app_PRODUCT_VERSION     "${app_version_string}")
+    set(app_ICON                "${PROJECT_SOURCE_DIR}/assets/icon.ico")
+
+    # Create the windows VERSIONINFO resource file.
+    configure_file(version_info.rc.in version_info.rc @ONLY)
+    target_sources(acquisition PUBLIC "${CMAKE_BINARY_DIR}/version_info.rc")
+
     # Visual Studio 2022 needs this to work with boost.
     target_compile_options(acquisition PRIVATE /EHsc)
     
@@ -328,30 +324,38 @@ if(WIN32)
     
 elseif(APPLE)
     
+
+    set(macosx_app_version "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
+
     # Setup the macOS bundle
     set_target_properties(acquisition PROPERTIES
-        ${BUNDLE_ID_OPTION}
-        MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
-        MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
+        MACOSX_BUNDLE_BUNDLE_NAME "Acquisition"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${macosx_app_version}"
+        MACOSX_BUNDLE_COPYRIGHT "${app_copyright}"
+        #MACOSX_BUNDLE_GUI_IDENTIFIER ""
+        MACOSX_BUNDLE_ICON_FILE "icon.icns"
+        MACOSX_BUNDLE_INFO_STRING "${PROJECT_DESCRIPTION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${macosx_app_version}"
     )
 
     # Add the macOS application icon
-    set(MACOSX_BUNDLE_ICON_FILE icon.icns)
-    set(macos_app_icon "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.icns")
+    set(macos_app_icon "${PROJECT_SOURCE_DIR}/assets/icon.icns")
     set_source_files_properties("${macos_app_icon}" PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
     target_sources(acquisition PRIVATE "${macos_app_icon}")
     
     # Generate debugging symbols file.
-    target_compile_options(acquisition PRIVATE -g)
+    target_compile_options(acquisition PRIVATE "-g")
     set_target_properties(acquisition PROPERTIES
         XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES"
         XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT "dwarf-with-dsym"
         XCODE_ATTRIBUTE_DEPLOYMENT_POSTPROCESING "YES"
         XCODE_ATTRIBUTE_STRIP_INSTALLED_PRODUCT "YES"
     )
+    set(macos_exe "${CMAKE_BINARY_DIR}/acquisition.app/Contents/MacOS/acquisition")
+    set(macos_dsym "${CMAKE_BINARY_DIR}/acquisition_${app_version_string}.dSYM")
     add_custom_command(TARGET acquisition
         POST_BUILD
-        COMMAND xcrun dsymutil acquisition.app/Contents/MacOS/acquisition -o acquisition.dSYM
+        COMMAND xcrun dsymutil "${macos_exe}" -o "${macos_dsym}"
     )
     
 elseif(UNIX)
