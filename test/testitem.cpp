@@ -25,11 +25,11 @@
 #include "testdata.h"
 
 void TestItem::Parse() {
-	/*
+	
 	rapidjson::Document doc;
-	doc.Parse(kItem1.c_str());
+	doc.Parse(kItem1);
 
-	Item item(doc);
+	Item item(doc, ItemLocation());
 
 	// no need to check everything, just some basic properties
 	QCOMPARE(item.name().c_str(), "Demon Ward");
@@ -42,71 +42,71 @@ void TestItem::Parse() {
 	QCOMPARE(item.hash().c_str(), "605d9f566bc4305f4fd425efbbbed6a6");
 	// This needs to match so that item hash migration is successful
 	QCOMPARE(item.old_hash().c_str(), "36f0097563123e5296dc2eed54e9d6f3");
-	*/
+	
 }
 
 void TestItem::ParseCategories() {
-	/*
+	
 	rapidjson::Document doc;
-	doc.Parse(kCategoriesItemCard.c_str());
-	Item item(doc);
+	doc.Parse(kCategoriesItemCard);
+	Item item(doc, ItemLocation());
 	QCOMPARE(item.category().c_str(), "divination cards");
 
-	doc.Parse(kCategoriesItemBelt.c_str());
-	item = Item(doc);
+	doc.Parse(kCategoriesItemBelt);
+	item = Item(doc, ItemLocation());
 	QCOMPARE(item.category().c_str(), "belts");
 
-	doc.Parse(kCategoriesItemEssence.c_str());
-	item = Item(doc);
+	doc.Parse(kCategoriesItemEssence);
+	item = Item(doc, ItemLocation());
 	QCOMPARE(item.category().c_str(), "currency.essence");
 
-	doc.Parse(kCategoriesItemVaalGem.c_str());
-	item = Item(doc);
+	doc.Parse(kCategoriesItemVaalGem);
+	item = Item(doc, ItemLocation());
 	QCOMPARE(item.category().c_str(), "gems.vaal");
 
-	doc.Parse(kCategoriesItemSupportGem.c_str());
-	item = Item(doc);
+	doc.Parse(kCategoriesItemSupportGem);
+	item = Item(doc, ItemLocation());
 	QCOMPARE(item.category().c_str(), "gems.support");
 
-	doc.Parse(kCategoriesItemBow.c_str());
-	item = Item(doc);
+	doc.Parse(kCategoriesItemBow);
+	item = Item(doc, ItemLocation());
 	QCOMPARE(item.category().c_str(), "weapons.2hand.bows");
 
-	doc.Parse(kCategoriesItemClaw.c_str());
-	item = Item(doc);
+	doc.Parse(kCategoriesItemClaw);
+	item = Item(doc, ItemLocation());
 	QCOMPARE(item.category().c_str(), "weapons.1hand.claws");
 
-	doc.Parse(kCategoriesItemFragment.c_str());
-	item = Item(doc);
+	doc.Parse(kCategoriesItemFragment);
+	item = Item(doc, ItemLocation());
 	QCOMPARE(item.category().c_str(), "maps.atziri fragments");
 
-	doc.Parse(kCategoriesItemWarMap.c_str());
-	item = Item(doc);
+	doc.Parse(kCategoriesItemWarMap);
+	item = Item(doc, ItemLocation());
 	QCOMPARE(item.category().c_str(), "maps.3.1");
 
-	doc.Parse(kCategoriesItemUniqueMap.c_str());
-	item = Item(doc);
+	doc.Parse(kCategoriesItemUniqueMap);
+	item = Item(doc, ItemLocation());
 	QCOMPARE(item.category().c_str(), "maps.older uniques");
 
-	doc.Parse(kCategoriesItemBreachstone.c_str());
-	item = Item(doc);
+	doc.Parse(kCategoriesItemBreachstone);
+	item = Item(doc, ItemLocation());
 	QCOMPARE(item.category().c_str(), "currency.breach");
-	*/
+	
 }
 
 void TestItem::POBformat() {
-	/*
+	
 	rapidjson::Document doc;
-	doc.Parse(kCategoriesItemBelt.c_str());
-	Item item(doc);
+	doc.Parse(kCategoriesItemBelt);
+	Item item(doc, ItemLocation());
 	QCOMPARE(item.POBformat(), kItemBeltPOB);
 
-	doc.Parse(kCategoriesItemBow.c_str());
-	item = Item(doc);
+	doc.Parse(kCategoriesItemBow);
+	item = Item(doc, ItemLocation());
 	QCOMPARE(item.POBformat(), kItemBowPOB);
 
-	doc.Parse(kCategoriesItemClaw.c_str());
-	item = Item(doc);
+	doc.Parse(kCategoriesItemClaw);
+	item = Item(doc, ItemLocation());
 	QCOMPARE(item.POBformat(), kItemClawPOB);
-	*/
+	
 }

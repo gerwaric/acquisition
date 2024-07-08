@@ -17,11 +17,11 @@ void TestShop::initTestCase() {
 }
 
 void TestShop::SocketedGemsNotLinked() {
-	/*
+	
 	rapidjson::Document doc;
-	doc.Parse(kSocketedItem.c_str());
+	doc.Parse(kSocketedItem);
 
-	Items items = { std::make_shared<Item>(doc) };
+	Items items = { std::make_shared<Item>(doc, ItemLocation()) };
 	app_.items_manager().OnItemsRefreshed(items, {}, true);
 
 	Buyout bo;
@@ -33,15 +33,15 @@ void TestShop::SocketedGemsNotLinked() {
 	app_.shop().Update();
 	std::vector<std::string> shop = app_.shop().shop_data();
 	QVERIFY(shop.size() == 0);
-	*/
+	
 }
 
 void TestShop::TemplatedShopGeneration() {
-	/*
+	
 	rapidjson::Document doc;
-	doc.Parse(kItem1.c_str());
+	doc.Parse(kItem1);
 
-	Items items = { std::make_shared<Item>(doc) };
+	Items items = { std::make_shared<Item>(doc, ItemLocation()) };
 	app_.items_manager().OnItemsRefreshed(items, {}, true);
 
 	Buyout bo;
@@ -57,5 +57,5 @@ void TestShop::TemplatedShopGeneration() {
 	QVERIFY(shop.size() == 1);
 	QVERIFY(shop[0].find("~price") != std::string::npos);
 	QVERIFY(shop[0].find("My awesome shop") != std::string::npos);
-	*/
+	
 }

@@ -40,18 +40,18 @@ void TestItemsManager::cleanup() {
 }
 
 void TestItemsManager::BuyoutForNewItem() {
-	/*
+	
 	rapidjson::Document doc;
-	doc.Parse(kItem1.c_str());
+	doc.Parse(kItem1);
 
-	Items items = { std::make_shared<Item>(doc) };
+	Items items = { std::make_shared<Item>(doc, ItemLocation()) };
 	app_.items_manager().OnItemsRefreshed(items, {}, true);
 
 	BuyoutManager &bo = app_.buyout_manager();
 	Item &item = *items[0];
 	QVERIFY2(!bo.Get(item).IsActive(), "Buyout for a newly created item should exist but be in InActive state");
 	QVERIFY2(bo.Get(item).IsValid(), "Buyout for a newly created item should exist and be valid");
-	*/
+	
 }
 
 // Tests that buyouts are propagated when a user sets tab buyout
@@ -202,16 +202,16 @@ void TestItemsManager::MoveItemBoToBo() {
 
 // Checks that buyouts are migrated properly after item hash was changed
 void TestItemsManager::ItemHashMigration() {
-	/*
+	
 	rapidjson::Document doc;
-	doc.Parse(kItem1.c_str());
+	doc.Parse(kItem1);
 
-	Item item(doc);
+	Item item(doc, ItemLocation());
 
 	auto &bo = app_.buyout_manager();
 
 	// very hacky way to set a buyout with old itemhash
-	auto buyout = Buyout(1.23, BUYOUT_TYPE_BUYOUT, CURRENCY_ORB_OF_ALTERATION, QDateTime::fromTime_t(567));
+	auto buyout = Buyout(1.23, BUYOUT_TYPE_BUYOUT, CURRENCY_ORB_OF_ALTERATION, QDateTime::fromSecsSinceEpoch(567));
 	app_.data().Set("buyouts", "{\"36f0097563123e5296dc2eed54e9d6f3\": {\"currency\": \"alt\", \"type\": \"b/o\", \"value\": 1.23, \"last_update\": 567}}");
 	bo.Load();
 
@@ -222,5 +222,5 @@ void TestItemsManager::ItemHashMigration() {
 	QVERIFY2(bo.Get(item).IsActive(), "After migration: the buyout must exist");
 	auto buyout_from_mgr = bo.Get(item);
 	QVERIFY2(buyout_from_mgr == buyout, "After migration: the buyout must match our data");
-	*/
+	
 }
