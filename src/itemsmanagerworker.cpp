@@ -44,6 +44,7 @@
 #include "modlist.h"
 #include "ratelimit.h"
 #include "ratelimiter.h"
+#include "repoe.h"
 #include "oauthmanager.h"
 
 constexpr const char* kStashItemsUrl = "https://www.pathofexile.com/character-window/get-stash-items";
@@ -54,15 +55,6 @@ constexpr const char* kMainPage = "https://www.pathofexile.com/";
 constexpr const char* kCharacterSocketedJewels = "https://www.pathofexile.com/character-window/get-passive-skills";
 
 constexpr const char* kPOE_trade_stats = "https://www.pathofexile.com/api/trade/data/stats";
-
-constexpr const char* kRePoE_item_classes = "https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/item_classes.min.json";
-constexpr const char* kRePoE_item_base_types = "https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/base_items.min.json";
-
-// Modifiers from this list of files will be loaded in order from first to last.
-constexpr const char* REPOE_STAT_TRANSLATIONS[] = {
-    "https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/stat_translations.min.json",
-    "https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data/stat_translations/necropolis.min.json"
-};
 
 constexpr const char* kOauthListStashesEndpoint = "GET /stash/<league>";
 constexpr const char* kOAuthListStashesUrl = "https://api.pathofexile.com/stash";
@@ -86,6 +78,7 @@ constexpr std::array CHARACTER_ITEM_FIELDS = {
 ItemsManagerWorker::ItemsManagerWorker(QObject* parent,
     QSettings& settings,
     QNetworkAccessManager& network_manager,
+    RePoE& repoe,
     BuyoutManager& buyout_manager,
     DataStore& datastore,
     RateLimiter& rate_limiter,
@@ -94,6 +87,7 @@ ItemsManagerWorker::ItemsManagerWorker(QObject* parent,
     QObject(parent),
     settings_(settings),
     network_manager_(network_manager),
+    repoe_(repoe),
     datastore_(datastore),
     buyout_manager_(buyout_manager),
     rate_limiter_(rate_limiter),
@@ -114,11 +108,7 @@ ItemsManagerWorker::ItemsManagerWorker(QObject* parent,
     need_character_list_(false),
     has_stash_list_(false),
     has_character_list_(false)
-{
-    for (const auto& url : REPOE_STAT_TRANSLATIONS) {
-        stat_translation_queue_.push(url);
-    };
-}
+{}
 
 void ItemsManagerWorker::UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations) {
     updateRequest_ = true;
@@ -138,54 +128,28 @@ void ItemsManagerWorker::Init() {
 
     updating_ = true;
 
-    emit StatusUpdate(ProgramState::Initializing, "Waiting for RePoE item classes.");
-
-    QNetworkRequest request = QNetworkRequest(QUrl(QString(kRePoE_item_classes)));
-    request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-    QNetworkReply* reply = network_manager_.get(request);
-    connect(reply, &QNetworkReply::finished, this, &ItemsManagerWorker::OnItemClassesReceived);
-}
-
-void ItemsManagerWorker::OnItemClassesReceived() {
-    QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
-    if (reply->error()) {
-        QLOG_ERROR() << "Couldn't fetch RePoE Item Classes:" << reply->url().toDisplayString()
-            << "due to error:" << reply->errorString() << "The type dropdown will remain empty.";
+    if (repoe_.IsInitialized()) {
+        QLOG_DEBUG() << "RePoE data is available.";
+        OnRePoEReady();
     } else {
-        QLOG_DEBUG() << "Item classes received.";
-        const QByteArray bytes = reply->readAll();
-        InitItemClasses(bytes);
+        QLOG_INFO() << "Waiting for RePoE data.";
+        connect(&repoe_, &RePoE::finished, this, &ItemsManagerWorker::OnRePoEReady);
     };
-    reply->deleteLater();
-
-    emit StatusUpdate(ProgramState::Initializing, "Waiting for RePoE item base types.");
-
-    QNetworkRequest request = QNetworkRequest(QUrl(QString(kRePoE_item_base_types)));
-    request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-    QNetworkReply* next_reply = network_manager_.get(request);
-    connect(next_reply, &QNetworkReply::finished, this, &ItemsManagerWorker::OnItemBaseTypesReceived);
 }
 
-void ItemsManagerWorker::OnItemBaseTypesReceived() {
-    QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
-    if (reply->error()) {
-        QLOG_ERROR() << "Couldn't fetch RePoE Item Base Types:" << reply->url().toDisplayString()
-            << "due to error:" << reply->errorString() << "The type dropdown will remain empty.";
-    } else {
-        QLOG_DEBUG() << "Item base types received.";
-        const QByteArray bytes = reply->readAll();
-        InitItemBaseTypes(bytes);
-    };
-    reply->deleteLater();
-
-    emit StatusUpdate(ProgramState::Initializing, "RePoE data received; updating mod list.");
-
-    InitStatTranslations();
-    UpdateModList();
-}
+void ItemsManagerWorker::OnRePoEReady() {
+    // Create a separate thread to load the items, which allows the UI to
+    // update the status bar while items are being parsed. This operation
+    // can take tens of seconds or longer depending on the nubmer of tabs
+    // and items.
+    QThread* parser = QThread::create(
+        [=]() {
+            ParseItemMods();
+        });
+    parser->start();
+};
 
 void ItemsManagerWorker::ParseItemMods() {
-    InitModList();
     tabs_.clear();
     tabs_signature_.clear();
     tab_id_index_.clear();
@@ -241,44 +205,6 @@ void ItemsManagerWorker::ParseItemMods() {
         updateRequest_ = false;
         Update(type_, locations_);
     };
-}
-
-void ItemsManagerWorker::UpdateModList() {
-    if (stat_translation_queue_.empty() == false) {
-        const std::string next_url = stat_translation_queue_.front();
-        stat_translation_queue_.pop();
-        QUrl url = QUrl(QString::fromStdString(next_url));
-        QNetworkRequest request = QNetworkRequest(url);
-        request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-        QNetworkReply* reply = network_manager_.get(request);
-        connect(reply, &QNetworkReply::finished, this, &ItemsManagerWorker::OnStatTranslationsReceived);
-    } else {
-        // Create a separate thread to load the items, which allows the UI to
-        // update the status bar while items are being parsed. This operation
-        // can take tens of seconds or longer depending on the nubmer of tabs
-        // and items.
-        QThread* parser = QThread::create(
-            [=]() {
-                InitModList();
-                ParseItemMods();
-            });
-        parser->start();
-    };
-}
-
-void ItemsManagerWorker::OnStatTranslationsReceived() {
-    QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
-    QLOG_TRACE() << "Stat translations received:" << reply->request().url().toString();
-
-    if (reply->error()) {
-        QLOG_ERROR() << "Couldn't fetch RePoE Stat Translations: " << reply->url().toDisplayString()
-            << " due to error: " << reply->errorString() << " Aborting update.";
-        return;
-    };
-    const QByteArray bytes = reply->readAll();
-    reply->deleteLater();
-    AddStatTranslations(bytes);
-    UpdateModList();
 }
 
 void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemLocation>& locations) {
@@ -346,9 +272,8 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
     has_character_list_ = false;
 
     switch (mode_) {
-    case POE_API::OAUTH: OAuthRefresh(); break;
     case POE_API::LEGACY: LegacyRefresh(); break;
-    case POE_API::NONE: QLOG_ERROR() << "Invalid poe api mode"; break;
+    case POE_API::OAUTH: OAuthRefresh(); break;
     };
 }
 

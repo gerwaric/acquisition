@@ -37,6 +37,7 @@ class LoginDialog;
 class MainWindow;
 class OAuthManager;
 class RateLimiter;
+class RePoE;
 class Shop;
 class UpdateChecker;
 
@@ -57,6 +58,7 @@ public:
     DataStore& data() const;
     BuyoutManager& buyout_manager() const;
     QNetworkAccessManager& network_manager() const;
+    RePoE& repoe() const;
     Shop& shop() const;
     CurrencyManager& currency_manager() const;
     UpdateChecker& update_checker() const;
@@ -67,6 +69,7 @@ signals:
 public slots:
     void OnLogin(POE_API api);
     void OnItemsRefreshed(bool initial_refresh);
+    void OnRunTests();
 private:
     void InitCrashReporting();
     void LoadTheme();
@@ -80,6 +83,7 @@ private:
     std::unique_ptr<BuyoutManager> buyout_manager_;
     std::unique_ptr<Shop> shop_;
     std::unique_ptr<QNetworkAccessManager> network_manager_;
+    std::unique_ptr<RePoE> repoe_;
     std::unique_ptr<ItemsManager> items_manager_;
     std::unique_ptr<CurrencyManager> currency_manager_;
     std::unique_ptr<UpdateChecker> update_checker_;
@@ -88,5 +92,7 @@ private:
 
     std::unique_ptr<LoginDialog> login_;
     std::unique_ptr<MainWindow> main_window_;
+
+    QAction test_action_;
 
 };

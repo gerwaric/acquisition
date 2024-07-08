@@ -35,6 +35,7 @@ class QSettings;
 class BuyoutManager;
 class DataStore;
 class ItemsManagerWorker;
+class RePoE;
 class Shop;
 
 /*
@@ -48,6 +49,7 @@ public:
     explicit ItemsManager(QObject* parent,
         QSettings& settings,
         QNetworkAccessManager& network_manager,
+        RePoE& repoe,
         BuyoutManager& buyout_manager,
         DataStore& datastore,
         RateLimiter& rate_limiter);
@@ -77,6 +79,7 @@ private:
 
     QSettings& settings_;
     QNetworkAccessManager& network_manager_;
+    RePoE& repoe_;
     BuyoutManager& buyout_manager_;
     DataStore& datastore_;
     RateLimiter& rate_limiter_;

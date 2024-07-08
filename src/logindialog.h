@@ -58,7 +58,6 @@ private slots:
     void OnRememberMeCheckBoxClicked(bool checked);
     void OnReportCrashesCheckBoxClicked(bool checked);
     void OnOAuthAccessGranted(const OAuthToken& token);
-    void OnRunTests();
 protected:
     bool event(QEvent* e);
 private:

@@ -19,6 +19,7 @@
 
 #include "application.h"
 
+#include <QAction>
 #include <QApplication>
 #include <QDir>
 #include <QMessageBox>
@@ -39,8 +40,10 @@
 #include "network_info.h"
 #include "oauthmanager.h"
 #include "ratelimiter.h"
+#include "repoe.h"
 #include "shop.h"
 #include "sqlitedatastore.h"
+#include "testmain.h"
 #include "testsettings.h"
 #include "updatechecker.h"
 #include "version_defines.h"
@@ -60,6 +63,7 @@ Application::Application(bool test_mode) :
         const QString user_dir = Filesystem::UserDir();
         const QString settings_path = user_dir + "/settings.ini";
         const QString global_data_file = user_dir + "/data/" + SqliteDataStore::MakeFilename("", "");
+       
         settings_ = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
         global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
 
@@ -68,8 +72,16 @@ Application::Application(bool test_mode) :
     };
 
     network_manager_ = std::make_unique<QNetworkAccessManager>(this);
+    repoe_ = std::make_unique<RePoE>(this, network_manager());
     update_checker_ = std::make_unique<UpdateChecker>(this, settings(), network_manager());
     oauth_manager_ = std::make_unique<OAuthManager>(this, network_manager(), global_data());
+
+    // Start the process of fetching RePoE data.
+    repoe_->Init();
+
+    if (test_mode) {
+        InitLogin(POE_API::LEGACY);
+    };
 }
 
 Application::~Application() {
@@ -96,13 +108,22 @@ void Application::Start() {
     // Use the login complete signal to setup the main window.
     QObject::connect(login_.get(), &LoginDialog::LoginComplete, this, &Application::OnLogin);
 
+    // Setup the ability to trigger testing from the UI
+    connect(&test_action_, &QAction::triggered, this, &Application::OnRunTests);
+    test_action_.setShortcut(Qt::Key_T | Qt::CTRL);
+    login_->addAction(&test_action_);
+
     // Start the initial check for updates.
     update_checker_->CheckForUpdates();
 
+    // Show the login dialog now.
     login_->show();
 }
 
 void Application::OnLogin(POE_API api) {
+
+    // Stop listening for CTRL+T
+    login_->removeAction(&test_action_);
 
     // Disconnect from the update signal so that only the main window gets it from now on.
     QObject::disconnect(&update_checker(), &UpdateChecker::UpdateAvailable, nullptr, nullptr);
@@ -169,6 +190,13 @@ QNetworkAccessManager& Application::network_manager() const {
     return *network_manager_;
 }
 
+RePoE& Application::repoe() const {
+    if (!repoe_) {
+        FatalAccessError("RePoE");
+    };
+    return *repoe_;
+}
+
 Shop& Application::shop() const {
     if (!shop_) {
         FatalAccessError("shop");
@@ -207,13 +235,10 @@ RateLimiter& Application::rate_limiter() const {
 void Application::FatalAccessError(const char* object_name) const {
     const QString message = QString("The '%1' object was invalid.").arg(object_name);
     QLOG_FATAL() << message;
-    QMessageBox errorMsg;
-    errorMsg.setIcon(QMessageBox::Icon::Critical);
-    errorMsg.setWindowTitle("Acquistion: Fatal Error");
-    errorMsg.setText(message);
-    errorMsg.setStandardButtons(QMessageBox::StandardButton::Abort);
-    errorMsg.exec();
-    emit Quit();
+    QMessageBox::critical(nullptr,
+        "Acquisition Fatal Error", message,
+        QMessageBox::StandardButton::Abort,
+        QMessageBox::StandardButton::Abort);
 }
 
 void Application::InitCrashReporting() {
@@ -279,7 +304,6 @@ void Application::LoadTheme() {
 void Application::InitLogin(POE_API mode)
 {
     if (test_mode_) {
-        // This is used in tests
         data_ = std::make_unique<MemoryDataStore>();
     } else {
         const std::string league = settings_->value("league").toString().toStdString();
@@ -301,6 +325,7 @@ void Application::InitLogin(POE_API mode)
     items_manager_ = std::make_unique<ItemsManager>(this,
         settings(),
         network_manager(),
+        repoe(),
         buyout_manager(),
         data(),
         rate_limiter());
@@ -329,6 +354,23 @@ void Application::OnItemsRefreshed(bool initial_refresh) {
     shop_->Update();
     if (!initial_refresh && shop_->auto_update())
         shop_->SubmitShopToForum();
+}
+
+void Application::OnRunTests() {
+    if (!repoe_->IsInitialized()) {
+        QMessageBox::information(nullptr,
+            "Acquisition", "RePoE is not initialized yet. Try again later",
+            QMessageBox::StandardButton::Ok,
+            QMessageBox::StandardButton::Ok);
+        return;
+    };
+    login_->hide();
+    const int result = test_main();
+    QMessageBox::information(nullptr,
+        "Acquisition", "Testing returned " + QString::number(result),
+        QMessageBox::StandardButton::Ok,
+        QMessageBox::StandardButton::Ok);
+    login_->show();
 }
 
 void Application::SaveDbOnNewVersion() {

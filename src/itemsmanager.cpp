@@ -30,6 +30,7 @@
 #include "datastore.h"
 #include "item.h"
 #include "itemsmanagerworker.h"
+#include "repoe.h"
 #include "shop.h"
 #include "util.h"
 #include "mainwindow.h"
@@ -39,6 +40,7 @@
 ItemsManager::ItemsManager(QObject* parent,
     QSettings& settings,
     QNetworkAccessManager& network_manager,
+    RePoE& repoe,
     BuyoutManager& buyout_manager,
     DataStore& datastore,
     RateLimiter& rate_limiter)
@@ -46,6 +48,7 @@ ItemsManager::ItemsManager(QObject* parent,
     QObject(parent),
     settings_(settings),
     network_manager_(network_manager),
+    repoe_(repoe),
     buyout_manager_(buyout_manager),
     datastore_(datastore),
     rate_limiter_(rate_limiter),
@@ -63,6 +66,7 @@ void ItemsManager::Start(POE_API mode) {
     worker_ = std::make_unique<ItemsManagerWorker>(this,
         settings_,
         network_manager_,
+        repoe_,
         buyout_manager_,
         datastore_,
         rate_limiter_, mode);

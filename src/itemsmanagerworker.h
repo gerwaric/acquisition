@@ -40,6 +40,7 @@ class QTimer;
 class BuyoutManager;
 class DataStore;
 class RateLimiter;
+class RePoE;
 
 struct ItemsRequest {
     int id{ -1 };
@@ -59,6 +60,7 @@ public:
     ItemsManagerWorker(QObject* parent,
         QSettings& settings_,
         QNetworkAccessManager& network_manager,
+        RePoE& repoe,
         BuyoutManager& buyout_manager,
         DataStore& datastore,
         RateLimiter& rate_limiter,
@@ -73,13 +75,10 @@ signals:
 
 public slots:
     void Init();
+    void OnRePoEReady();
     void Update(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 
 private slots:
-    void OnItemClassesReceived();
-    void OnItemBaseTypesReceived();
-    void OnStatTranslationsReceived();
-
     void OnLegacyMainPageReceived();
     void OnLegacyCharacterListReceived(QNetworkReply* reply);
     void OnFirstLegacyTabReceived(QNetworkReply* reply);
@@ -115,12 +114,12 @@ private:
 
     void SendStatusUpdate();
     void ParseItems(rapidjson::Value& value, ItemLocation base_location, rapidjson_allocator& alloc);
-    void UpdateModList();
     bool TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, ItemLocation& location);
     void FinishUpdate();
 
     QSettings& settings_;
     QNetworkAccessManager& network_manager_;
+    RePoE& repoe_;
     DataStore& datastore_;
     BuyoutManager& buyout_manager_;
     RateLimiter& rate_limiter_;
@@ -165,6 +164,4 @@ private:
 
     bool has_stash_list_;
     bool has_character_list_;
-
-    std::queue<std::string> stat_translation_queue_;
 };
