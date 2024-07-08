@@ -1,23 +1,25 @@
 /*
-	Copyright 2014 Ilya Zhuravlev
+    Copyright 2014 Ilya Zhuravlev
 
-	This file is part of Acquisition.
+    This file is part of Acquisition.
 
-	Acquisition is free software: you can redistribute it and/or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation, either version 3 of the License, or
-	(at your option) any later version.
+    Acquisition is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
 
-	Acquisition is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU General Public License for more details.
+    Acquisition is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
 
-	You should have received a copy of the GNU General Public License
-	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
+    You should have received a copy of the GNU General Public License
+    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "testitem.h"
+
+#include <QtTest>
 
 #include "rapidjson/document.h"
 
@@ -25,88 +27,88 @@
 #include "testdata.h"
 
 void TestItem::Parse() {
-	
-	rapidjson::Document doc;
-	doc.Parse(kItem1);
 
-	Item item(doc, ItemLocation());
+    rapidjson::Document doc;
+    doc.Parse(kItem1);
 
-	// no need to check everything, just some basic properties
-	QCOMPARE(item.name().c_str(), "Demon Ward");
-	QCOMPARE(item.sockets().b, 0);
-	QCOMPARE(item.sockets().g, 1);
-	QCOMPARE(item.sockets().r, 0);
-	QCOMPARE(item.sockets().w, 0);
+    Item item(doc, ItemLocation());
 
-	// the hash should be the same between different versions of Acquisition and OSes
-	QCOMPARE(item.hash().c_str(), "605d9f566bc4305f4fd425efbbbed6a6");
-	// This needs to match so that item hash migration is successful
-	QCOMPARE(item.old_hash().c_str(), "36f0097563123e5296dc2eed54e9d6f3");
-	
+    // no need to check everything, just some basic properties
+    QCOMPARE(item.name().c_str(), "Demon Ward");
+    QCOMPARE(item.sockets().b, 0);
+    QCOMPARE(item.sockets().g, 1);
+    QCOMPARE(item.sockets().r, 0);
+    QCOMPARE(item.sockets().w, 0);
+
+    // the hash should be the same between different versions of Acquisition and OSes
+    QCOMPARE(item.hash().c_str(), "605d9f566bc4305f4fd425efbbbed6a6");
+    // This needs to match so that item hash migration is successful
+    QCOMPARE(item.old_hash().c_str(), "36f0097563123e5296dc2eed54e9d6f3");
+
 }
 
 void TestItem::ParseCategories() {
-	
-	rapidjson::Document doc;
-	doc.Parse(kCategoriesItemCard);
-	Item item(doc, ItemLocation());
-	QCOMPARE(item.category().c_str(), "divination cards");
 
-	doc.Parse(kCategoriesItemBelt);
-	item = Item(doc, ItemLocation());
-	QCOMPARE(item.category().c_str(), "belts");
+    rapidjson::Document doc;
+    doc.Parse(kCategoriesItemCard);
+    Item item(doc, ItemLocation());
+    QCOMPARE(item.category().c_str(), "divination cards");
 
-	doc.Parse(kCategoriesItemEssence);
-	item = Item(doc, ItemLocation());
-	QCOMPARE(item.category().c_str(), "currency.essence");
+    doc.Parse(kCategoriesItemBelt);
+    item = Item(doc, ItemLocation());
+    QCOMPARE(item.category().c_str(), "belts");
 
-	doc.Parse(kCategoriesItemVaalGem);
-	item = Item(doc, ItemLocation());
-	QCOMPARE(item.category().c_str(), "gems.vaal");
+    doc.Parse(kCategoriesItemEssence);
+    item = Item(doc, ItemLocation());
+    QCOMPARE(item.category().c_str(), "currency.essence");
 
-	doc.Parse(kCategoriesItemSupportGem);
-	item = Item(doc, ItemLocation());
-	QCOMPARE(item.category().c_str(), "gems.support");
+    doc.Parse(kCategoriesItemVaalGem);
+    item = Item(doc, ItemLocation());
+    QCOMPARE(item.category().c_str(), "gems.vaal");
 
-	doc.Parse(kCategoriesItemBow);
-	item = Item(doc, ItemLocation());
-	QCOMPARE(item.category().c_str(), "weapons.2hand.bows");
+    doc.Parse(kCategoriesItemSupportGem);
+    item = Item(doc, ItemLocation());
+    QCOMPARE(item.category().c_str(), "gems.support");
 
-	doc.Parse(kCategoriesItemClaw);
-	item = Item(doc, ItemLocation());
-	QCOMPARE(item.category().c_str(), "weapons.1hand.claws");
+    doc.Parse(kCategoriesItemBow);
+    item = Item(doc, ItemLocation());
+    QCOMPARE(item.category().c_str(), "weapons.2hand.bows");
 
-	doc.Parse(kCategoriesItemFragment);
-	item = Item(doc, ItemLocation());
-	QCOMPARE(item.category().c_str(), "maps.atziri fragments");
+    doc.Parse(kCategoriesItemClaw);
+    item = Item(doc, ItemLocation());
+    QCOMPARE(item.category().c_str(), "weapons.1hand.claws");
 
-	doc.Parse(kCategoriesItemWarMap);
-	item = Item(doc, ItemLocation());
-	QCOMPARE(item.category().c_str(), "maps.3.1");
+    doc.Parse(kCategoriesItemFragment);
+    item = Item(doc, ItemLocation());
+    QCOMPARE(item.category().c_str(), "maps.atziri fragments");
 
-	doc.Parse(kCategoriesItemUniqueMap);
-	item = Item(doc, ItemLocation());
-	QCOMPARE(item.category().c_str(), "maps.older uniques");
+    doc.Parse(kCategoriesItemWarMap);
+    item = Item(doc, ItemLocation());
+    QCOMPARE(item.category().c_str(), "maps.3.1");
 
-	doc.Parse(kCategoriesItemBreachstone);
-	item = Item(doc, ItemLocation());
-	QCOMPARE(item.category().c_str(), "currency.breach");
-	
+    doc.Parse(kCategoriesItemUniqueMap);
+    item = Item(doc, ItemLocation());
+    QCOMPARE(item.category().c_str(), "maps.older uniques");
+
+    doc.Parse(kCategoriesItemBreachstone);
+    item = Item(doc, ItemLocation());
+    QCOMPARE(item.category().c_str(), "currency.breach");
+
 }
 
 void TestItem::POBformat() {
-	
-	rapidjson::Document doc;
-	doc.Parse(kCategoriesItemBelt);
-	Item item(doc, ItemLocation());
-	QCOMPARE(item.POBformat(), kItemBeltPOB);
 
-	doc.Parse(kCategoriesItemBow);
-	item = Item(doc, ItemLocation());
-	QCOMPARE(item.POBformat(), kItemBowPOB);
+    rapidjson::Document doc;
+    doc.Parse(kCategoriesItemBelt);
+    Item item(doc, ItemLocation());
+    QCOMPARE(item.POBformat(), kItemBeltPOB);
 
-	doc.Parse(kCategoriesItemClaw);
-	item = Item(doc, ItemLocation());
-	QCOMPARE(item.POBformat(), kItemClawPOB);
-	
+    doc.Parse(kCategoriesItemBow);
+    item = Item(doc, ItemLocation());
+    QCOMPARE(item.POBformat(), kItemBowPOB);
+
+    doc.Parse(kCategoriesItemClaw);
+    item = Item(doc, ItemLocation());
+    QCOMPARE(item.POBformat(), kItemClawPOB);
+
 }

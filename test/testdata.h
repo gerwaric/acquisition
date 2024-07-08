@@ -19,9 +19,7 @@
 
 #pragma once
 
-#include <string>
-
-constexpr const char* kItem1 =
+constexpr const char* kItem1 = {
     "{\"verified\":false,\"w\":2,\"h\":2,\"icon\":\"http://webcdn.pathofexile.com/image/Art/2DItems/Armours/Helmets/Helm"
     "etStrDex10.png?scale=1&w=2&h=2&v=0a540f285248cdb64d4607186e348e3d3\",\"support\":true,\"league\":\"Rampage\",\"sock"
     "ets\":[{\"group\":0,\"attr\":\"D\"}],\"name\":\"Demon Ward\",\"typeLine\":\"Nightmare Bascinet\",\"identified\":tru"
@@ -31,9 +29,10 @@ constexpr const char* kItem1 =
     "values\":[[\"62\",0]],\"displayMode\":1},{\"name\":\"Dex\",\"values\":[[\"85\",0]],\"displayMode\":1}],\"explicitMo"
     "ds\":[\"+93 to Accuracy Rating\",\"100% increased Armour and Evasion\",\"+24% to Fire Resistance\",\"+32% to Lightn"
     "ing Resistance\",\"15% increased Block and Stun Recovery\"],\"frameType\":2,\"x\":0,\"y\":0,\"inventoryId\": \"Helm"
-    "\",\"socketedItems\":[], \"_type\": 0, \"_tab_label\": \"x\", \"_tab\": 0, \"_x\": 0, \"_y\": 0}";
+    "\",\"socketedItems\":[], \"_type\": 0, \"_tab_label\": \"x\", \"_tab\": 0, \"_x\": 0, \"_y\": 0}"
+};
 
-constexpr const char* kCategoriesItemCard =
+constexpr const char* kCategoriesItemCard = {
     "{\"verified\":false,\"w\":1,\"h\":1,\"ilvl\":0,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Divi"
     "nation\\/InventoryIcon.png?scale=1&scaleIndex=0&stackSize=1&w=1&h=1&v=a8ae131b97fad3c64de0e6d9f250d743\",\"league\""
     ":\"Standard\",\"id\":\"9aae0ab91a6fd7ceef94538b74a5b0cc770a966f3089295cf0a45bc0e48bad84\",\"name\":\"\",\"typeLine"
@@ -41,9 +40,10 @@ constexpr const char* kCategoriesItemCard =
     "displayMode\":0}],\"explicitMods\":[\"<uniqueitem>{Kaom\'s Heart}\"],\"flavourText\":[\"<size:31>{500 times Kaom\'s"
     " axe fell, 500 times Kaom\'s Heart splintered. Finally, all that remained was a terrible, heartless Fury.}\"],\"fra"
     "meType\":6,\"stackSize\":1,\"maxStackSize\":8,\"artFilename\":\"TheKingsHeart\",\"category\":{\"cards\":[]},\"x\":8"
-    ",\"y\":11,\"inventoryId\":\"Stash3\"}";
+    ",\"y\":11,\"inventoryId\":\"Stash3\"}"
+};
 
-constexpr const char* kCategoriesItemBelt =
+constexpr const char* kCategoriesItemBelt = {
     "{\"verified\":false,\"w\":2,\"h\":1,\"ilvl\":80,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Bel"
     "ts\\/AbyssBelt.png?scale=1&scaleIndex=0&w=2&h=1&v=cd7c25de181e6a77812020eb6e867971\",\"league\":\"Standard\",\"id\""
     ":\"7aa1eaefc73c5fd0321c201675d17d3a1c9ef7ba2748b903cb8d4171a9a70637\",\"sockets\":[{\"group\":0,\"attr\":false,\"sC"
@@ -51,7 +51,8 @@ constexpr const char* kCategoriesItemBelt =
     "e\":\"Level\",\"values\":[[\"64\",0]],\"displayMode\":0}],\"implicitMods\":[\"Has 1 Abyssal Socket\"],\"explicitMod"
     "s\":[\"+49 to maximum Energy Shield\",\"18% reduced Flask Charges used\",\"18% increased Elemental Damage with Atta"
     "ck Skills\"],\"frameType\":2,\"category\":{\"accessories\":[\"belt\"]},\"x\":0,\"y\":10,\"inventoryId\":\"Stash21\""
-    ",\"socketedItems\":[]}";
+    ",\"socketedItems\":[]}"
+};
 
 constexpr const char* kItemBeltPOB =
 R"(Ambush Cord
@@ -63,7 +64,7 @@ Has 1 Abyssal Socket
 18% reduced Flask Charges used
 18% increased Elemental Damage with Attack Skills)";
 
-constexpr const char* kCategoriesItemEssence =
+constexpr const char* kCategoriesItemEssence = {
     "{\"verified\":false,\"w\":1,\"h\":1,\"ilvl\":0,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Curr"
     "ency\\/Essence\\/Wrath5.png?scale=1&scaleIndex=3&stackSize=4&w=1&h=1&v=47288253244910c2da4f0bdda069b832\",\"league"
     "\":\"Standard\",\"id\":\"ec18c882e5438ed72a71337f3dfb9a3acf0a3afccc068acbdcf18adf07784f02\",\"name\":\"\",\"typeLin"
@@ -73,9 +74,10 @@ constexpr const char* kCategoriesItemEssence =
     "htning Damage\",\"Armour: (36-41)% to Lightning Resistance\",\"Quiver: (36-41)% to Lightning Resistance\",\"Belt: ("
     "36-41)% to Lightning Resistance\",\"Other Jewellery: (23-26)% increased Lightning Damage\"],\"descrText\":\"Right c"
     "lick this item then left click a normal item to apply it.\",\"frameType\":5,\"stackSize\":4,\"maxStackSize\":5000,"
-    "\"category\":{\"currency\":[]},\"x\":44,\"y\":0,\"inventoryId\":\"Stash1\"}";
+    "\"category\":{\"currency\":[]},\"x\":44,\"y\":0,\"inventoryId\":\"Stash1\"}"
+};
 
-constexpr const char* kCategoriesItemVaalGem =
+constexpr const char* kCategoriesItemVaalGem = {
     "{\"verified\":false,\"w\":1,\"h\":1,\"ilvl\":0,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Gems"
     "\\/VaalGems\\/VaalArc.png?scale=1&scaleIndex=3&w=1&h=1&v=b4f32328e279496ebb227521e8dce679\",\"support\":false,\"id"
     "\":\"d1014d4e4e6ecaa53805cfa274069071d4b3d26aa0f8a9ac1680cb77f5ed0f47\",\"name\":\"\",\"typeLine\":\"Vaal Arc\",\"i"
@@ -102,9 +104,10 @@ constexpr const char* kCategoriesItemVaalGem =
     "0% increased Effect of Shock\"],\"secDescrText\":\"A shocking arc of lightning stretches from the caster to a targe"
     "ted enemy and chains to other nearby enemies. Each time the beam chains it will also chain simultaneously to a seco"
     "nd enemy, but no enemy can be hit twice by the beams. Also grants a buff making you lucky when damaging enemies wit"
-    "h Arc for a short duration.\"}}";
+    "h Arc for a short duration.\"}}"
+};
 
-constexpr const char* kCategoriesItemSupportGem =
+constexpr const char* kCategoriesItemSupportGem = {
     "{\"verified\":false,\"w\":1,\"h\":1,\"ilvl\":0,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Gems"
     "\\/Support\\/IncreasedQuantity.png?scale=1&scaleIndex=0&w=1&h=1&v=b07c717ecf613d726e9edcbc0d66ff93\",\"support\":tr"
     "ue,\"league\":\"Hardcore\",\"id\":\"01726cfdcd593fafa3137f11274505c8678fc982b93146363b424165d1de1fe8\",\"name\":\""
@@ -116,9 +119,10 @@ constexpr const char* kCategoriesItemSupportGem =
     "Mods\":[\"19% increased Quantity of Items Dropped by Enemies Slain from Supported Skills\"],\"descrText\":\"This is"
     " a Support Gem. It does not grant a bonus to your character, but to skills in sockets connected to it. Place into a"
     "n item socket connected to a socket containing the Active Skill Gem you wish to augment. Right click to remove from"
-    " a socket.\",\"frameType\":4,\"category\":{\"gems\":[\"supportgem\"]},\"x\":11,\"y\":4,\"inventoryId\":\"Stash5\"}";
+    " a socket.\",\"frameType\":4,\"category\":{\"gems\":[\"supportgem\"]},\"x\":11,\"y\":4,\"inventoryId\":\"Stash5\"}"
+};
 
-constexpr const char* kCategoriesItemBow =
+constexpr const char* kCategoriesItemBow = {
     "{\"verified\":false,\"w\":2,\"h\":4,\"ilvl\":74,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Wea"
     "pons\\/TwoHandWeapons\\/Bows\\/BowOfTheCouncil.png?scale=1&scaleIndex=0&w=2&h=4&v=ecb677fbcbc747a46df9fa5e1e919952"
     "\",\"league\":\"Standard\",\"id\":\"b65efbb946441039d6a0bc0d224d01f732ec15828fcae511d6bde5a7d5a41622\",\"sockets\":"
@@ -133,7 +137,8 @@ constexpr const char* kCategoriesItemBow =
     "ode\":1},{\"name\":\"Int\",\"values\":[[\"108\",0]],\"displayMode\":1}],\"explicitMods\":[\"44% increased Physical "
     "Damage\",\"Adds 24 to 72 Physical Damage\",\"10% increased Attack Speed\",\"Bow Attacks fire 4 additional Arrows\","
     "\"20% reduced Projectile Speed\"],\"flavourText\":[\"We stand together. We strike together.\"],\"frameType\":3,\"ca"
-    "tegory\":{\"weapons\":[\"bow\"]},\"x\":0,\"y\":0,\"inventoryId\":\"Weapon2\",\"socketedItems\":[]}";
+    "tegory\":{\"weapons\":[\"bow\"]},\"x\":0,\"y\":0,\"inventoryId\":\"Weapon2\",\"socketedItems\":[]}"
+};
 
 constexpr const char* kItemBowPOB =
 R"(Reach of the Council
@@ -146,7 +151,7 @@ Adds 24 to 72 Physical Damage
 Bow Attacks fire 4 additional Arrows
 20% reduced Projectile Speed)";
 
-constexpr const char* kCategoriesItemClaw =
+constexpr const char* kCategoriesItemClaw = {
     "{\"verified\":false,\"w\":2,\"h\":2,\"ilvl\":70,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Wea"
     "pons\\/OneHandWeapons\\/Claws\\/Claw5Unique2.png?scale=1&scaleIndex=0&w=2&h=2&v=1b50572643c65320c8726d57a01d5be4\","
     "\"league\":\"Standard\",\"id\":\"f66fa2861857808c403ce958f1c38fcd7ed1bc8eda4ef5bf3f84f4f3edb99b09\",\"sockets\":[{"
@@ -162,7 +167,8 @@ constexpr const char* kCategoriesItemClaw =
     "laws\",\"116% increased Physical Damage\",\"Adds 1 to 50 Lightning Damage\",\"22% increased Attack Speed\",\"+32 to"
     " maximum Energy Shield\",\"Life Leech is applied to Energy Shield instead\"],\"flavourText\":[\"The darkest clouds "
     "clashed and coupled,\\r\",\"giving birth to four lightning children of hate.\"],\"frameType\":3,\"category\":{\"wea"
-    "pons\":[\"claw\"]},\"x\":6,\"y\":6,\"inventoryId\":\"Stash4\",\"socketedItems\":[]}";
+    "pons\":[\"claw\"]},\"x\":6,\"y\":6,\"inventoryId\":\"Stash4\",\"socketedItems\":[]}"
+};
 
 constexpr const char* kItemClawPOB =
 R"(Essentia Sanguis
@@ -177,24 +183,26 @@ Adds 1 to 50 Lightning Damage
 +32 to maximum Energy Shield
 Life Leech is applied to Energy Shield instead)";
 
-constexpr const char* kCategoriesItemFragment =
+constexpr const char* kCategoriesItemFragment = {
     "{\"verified\":false,\"w\":1,\"h\":1,\"ilvl\":0,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Maps"
     "\\/Vaal01.png?scale=1&scaleIndex=0&w=1&h=1&v=3b21ce0cd4c0b9e8cf5db6257daf831a\",\"league\":\"Standard\",\"id\":\"57"
     "5e571ccbea9ed070a1dd473794252a2ffe2aee6009e29050d6fad16c98a0af\",\"name\":\"\",\"typeLine\":\"Sacrifice at Midnight"
     "\",\"identified\":true,\"descrText\":\"Can be used in the Templar Laboratory or a personal Map Device.\",\"flavourT"
     "ext\":[\"Look to our Queen, for she will lead us into the light.\"],\"frameType\":0,\"category\":{\"maps\":[]},\"x"
-    "\":3,\"y\":3,\"inventoryId\":\"MainInventory\"}";
+    "\":3,\"y\":3,\"inventoryId\":\"MainInventory\"}"
+};
 
-constexpr const char* kCategoriesItemWarMap =
+constexpr const char* kCategoriesItemWarMap = {
     "{\"verified\":false,\"w\":1,\"h\":1,\"ilvl\":83,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Map"
     "s\\/Atlas2Maps\\/New\\/SunkenCity.png?scale=1&scaleIndex=0&w=1&h=1&mn=1&mt=15&v=da5c60832e40b287dc576c7f806448ce\","
     "\"league\":\"Standard\",\"id\":\"4ffac7327fa9ecf0996c9c7e456f9d53fbb2613f7bdbfd8f33faa2a36761355e\",\"name\":\"\","
     "\"typeLine\":\"Sunken City Map\",\"identified\":true,\"properties\":[{\"name\":\"Map Tier\",\"values\":[[\"15\",0]]"
     ",\"displayMode\":0,\"type\":1}],\"descrText\":\"Travel to this Map by using it in the Templar Laboratory or a perso"
     "nal Map Device. Maps can only be used once.\",\"frameType\":0,\"category\":{\"maps\":[]},\"x\":9,\"y\":11,\"invento"
-    "ryId\":\"Stash2\"}";
+    "ryId\":\"Stash2\"}"
+};
 
-constexpr const char* kCategoriesItemUniqueMap =
+constexpr const char* kCategoriesItemUniqueMap = {
     "{\"verified\":false,\"w\":1,\"h\":1,\"ilvl\":74,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Map"
     "s\\/HallOfGrandmasters.png?scale=1&scaleIndex=0&w=1&h=1&v=7b8e637fc9b6f7da6631cb8c48ce6af7\",\"league\":\"Standard"
     "\",\"id\":\"006611ccbc68137c27db8ea1fd735af15ba5c1828691bf4ad1fde2e43e2f1883\",\"name\":\"Hall of Grandmasters\",\""
@@ -203,17 +211,19 @@ constexpr const char* kCategoriesItemUniqueMap =
     "t\"],\"descrText\":\"Travel to this Map by using it in the Templar Laboratory or a personal Map Device. Maps can on"
     "ly be used once.\",\"flavourText\":[\"The grandest and greatest ever to fight,\\r\",\"Divine the champions stand ta"
     "ll.\\r\",\"But match their power, best their might,\\r\",\"And even the immortal may fall.\"],\"frameType\":3,\"cat"
-    "egory\":{\"maps\":[]},\"x\":5,\"y\":2,\"inventoryId\":\"MainInventory\"}";
+    "egory\":{\"maps\":[]},\"x\":5,\"y\":2,\"inventoryId\":\"MainInventory\"}"
+};
 
-constexpr const char* kCategoriesItemBreachstone =
+constexpr const char* kCategoriesItemBreachstone = {
     "{\"verified\":false,\"w\":1,\"h\":1,\"ilvl\":0,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Curr"
     "ency\\/Breach\\/BreachFragmentsLightning.png?scale=1&scaleIndex=0&w=1&h=1&v=01c1ec0220d90a59ebdbb1847a915710\",\"le"
     "ague\":\"Standard\",\"id\":\"aeebf65ba96865632773520742e8e901b8d7c064e93de927fa57296e1659e749\",\"name\":\"\",\"typ"
     "eLine\":\"Esh\'s Breachstone\",\"identified\":true,\"descrText\":\"Travel to Esh\'s Domain by using this item in th"
     "e Templar Laboratory or a personal Map Device. Can only be used once.\",\"frameType\":0,\"category\":{\"maps\":[]},"
-    "\"x\":11,\"y\":1,\"inventoryId\":\"Stash58\"}";
+    "\"x\":11,\"y\":1,\"inventoryId\":\"Stash58\"}"
+};
 
-constexpr const char* kSocketedItem =
+constexpr const char* kSocketedItem = {
     "{\"verified\":false,\"w\":2,\"h\":2,\"icon\":\"http://webcdn.pathofexile.com/image/Art/2DItems/Armours/Helmets/Helm"
     "etStrDex10.png?scale=1&w=2&h=2&v=0a540f285248cdb64d4607186e348e3d3\",\"support\":true,\"league\":\"Rampage\",\"sock"
     "ets\":[{\"group\":0,\"attr\":\"D\"}],\"name\":\"Demon Ward\",\"typeLine\":\"Nightmare Bascinet\",\"identified\":tru"
@@ -224,4 +234,5 @@ constexpr const char* kSocketedItem =
     "ds\":[\"+93 to Accuracy Rating\",\"100% increased Armour and Evasion\",\"+24% to Fire Resistance\",\"+32% to Lightn"
     "ing Resistance\",\"15% increased Block and Stun Recovery\"],\"frameType\":2,\"x\":0,\"y\":0,\"inventoryId\": \"\", "
     "\"socketedItems\":[], \"_socketed\":true, \"_type\": 0, \"_tab_label\": \"label\", \"_tab\": 0, \"_x\": 0, \"_y\": "
-    "0}";
+    "0}"
+};

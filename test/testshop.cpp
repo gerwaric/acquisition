@@ -1,6 +1,9 @@
 #include "testshop.h"
 
+#include <QTest>
+
 #include <memory>
+
 #include "rapidjson/document.h"
 
 #include "application.h"
@@ -10,52 +13,54 @@
 #include "shop.h"
 #include "testdata.h"
 
-TestShop::TestShop() : app_(true) {}
+TestShop::TestShop() {
+    app_ = std::make_unique<Application>(true);
+}
 
 void TestShop::initTestCase() {
-	app_.InitLogin(POE_API::LEGACY);
+    app_->InitLogin(POE_API::LEGACY);
 }
 
 void TestShop::SocketedGemsNotLinked() {
-	
-	rapidjson::Document doc;
-	doc.Parse(kSocketedItem);
 
-	Items items = { std::make_shared<Item>(doc, ItemLocation()) };
-	app_.items_manager().OnItemsRefreshed(items, {}, true);
+    rapidjson::Document doc;
+    doc.Parse(kSocketedItem);
 
-	Buyout bo;
-	bo.type = BUYOUT_TYPE_FIXED;
-	bo.value = 10;
-	bo.currency = CURRENCY_CHAOS_ORB;
-	app_.buyout_manager().Set(*items[0], bo);
+    Items items = { std::make_shared<Item>(doc, ItemLocation()) };
+    app_->items_manager().OnItemsRefreshed(items, {}, true);
 
-	app_.shop().Update();
-	std::vector<std::string> shop = app_.shop().shop_data();
-	QVERIFY(shop.size() == 0);
-	
+    Buyout bo;
+    bo.type = BUYOUT_TYPE_FIXED;
+    bo.value = 10;
+    bo.currency = CURRENCY_CHAOS_ORB;
+    app_->buyout_manager().Set(*items[0], bo);
+
+    app_->shop().Update();
+    std::vector<std::string> shop = app_->shop().shop_data();
+    QVERIFY(shop.size() == 0);
+
 }
 
 void TestShop::TemplatedShopGeneration() {
-	
-	rapidjson::Document doc;
-	doc.Parse(kItem1);
 
-	Items items = { std::make_shared<Item>(doc, ItemLocation()) };
-	app_.items_manager().OnItemsRefreshed(items, {}, true);
+    rapidjson::Document doc;
+    doc.Parse(kItem1);
 
-	Buyout bo;
-	bo.type = BUYOUT_TYPE_FIXED;
-	bo.value = 10;
-	bo.currency = CURRENCY_CHAOS_ORB;
-	app_.buyout_manager().Set(*items[0], bo);
+    Items items = { std::make_shared<Item>(doc, ItemLocation()) };
+    app_->items_manager().OnItemsRefreshed(items, {}, true);
 
-	app_.shop().SetShopTemplate("My awesome shop [items]");
-	app_.shop().Update();
+    Buyout bo;
+    bo.type = BUYOUT_TYPE_FIXED;
+    bo.value = 10;
+    bo.currency = CURRENCY_CHAOS_ORB;
+    app_->buyout_manager().Set(*items[0], bo);
 
-	std::vector<std::string> shop = app_.shop().shop_data();
-	QVERIFY(shop.size() == 1);
-	QVERIFY(shop[0].find("~price") != std::string::npos);
-	QVERIFY(shop[0].find("My awesome shop") != std::string::npos);
-	
+    app_->shop().SetShopTemplate("My awesome shop [items]");
+    app_->shop().Update();
+
+    std::vector<std::string> shop = app_->shop().shop_data();
+    QVERIFY(shop.size() == 1);
+    QVERIFY(shop[0].find("~price") != std::string::npos);
+    QVERIFY(shop[0].find("My awesome shop") != std::string::npos);
+
 }

@@ -1,6 +1,10 @@
-#include <clocale>
+#include "testmain.h"
+
 #include <QLocale>
+#include <QSettings>
 #include <QTest>
+
+#include <clocale>
 #include <memory>
 
 #include "testitem.h"
@@ -8,18 +12,18 @@
 #include "testshop.h"
 #include "testutil.h"
 
-#define TEST(Class) result |= QTest::qExec(std::make_unique<Class>().get())
+#define TEST(Class) QTest::qExec(std::make_unique<Class>().get())
 
 int test_main() {
-	int result = 0;
 
-	QLocale::setDefault(QLocale::C);
-	std::setlocale(LC_ALL, "C");
+    QLocale::setDefault(QLocale::C);
+    std::setlocale(LC_ALL, "C");
 
-	TEST(TestItem);
-	TEST(TestShop);
-	TEST(TestUtil);
-	TEST(TestItemsManager);
+    int result = 0;
+    result |= TEST(TestItem);
+    result |= TEST(TestShop);
+    result |= TEST(TestUtil);
+    result |= TEST(TestItemsManager);
 
-	return result != 0 ? -1 : 0;
+    return (result != 0) ? -1 : 0;
 }

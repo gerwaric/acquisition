@@ -1,18 +1,17 @@
 #pragma once
 
-#include <QtTest/QtTest>
+#include <QObject>
 
-#include "application.h"
+class Application;
 
-class TestShop : public QObject
-{
-	Q_OBJECT
+class TestShop : public QObject {
+    Q_OBJECT
 public:
-	TestShop();
+    TestShop();
 private slots:
-	void initTestCase();
-	void SocketedGemsNotLinked();
-	void TemplatedShopGeneration();
+    void initTestCase();
+    void SocketedGemsNotLinked();
+    void TemplatedShopGeneration();
 private:
-	Application app_;
+    std::unique_ptr<Application> app_;
 };
