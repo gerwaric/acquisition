@@ -75,9 +75,11 @@ int main(int argc, char* argv[])
     QCommandLineOption option_test("test");
     QCommandLineOption option_data_dir("data-dir", "Where to save Acquisition data.", "data-dir");
     QCommandLineOption option_log_level("log-level", "How much to log.", "log-level");
+    QCommandLineOption option_crash("crash-test");
     parser.addOption(option_test);
     parser.addOption(option_data_dir);
     parser.addOption(option_log_level);
+    parser.addOption(option_crash);
     parser.process(a);
 
     // Start by assumign the default log level.
@@ -172,6 +174,17 @@ int main(int argc, char* argv[])
 
     QObject::connect(&login, &LoginDialog::LoginComplete, &login,
         [&](POE_API api) {
+
+            if (parser.isSet(option_crash)) {
+                const int choice = QMessageBox::critical(nullptr, "FATAL ERROR",
+                    "Acquisition wants to abort.",
+                    QMessageBox::StandardButton::Abort | QMessageBox::StandardButton::Cancel,
+                    QMessageBox::StandardButton::Abort);
+                if (choice == QMessageBox::StandardButton::Abort) {
+                    QLOG_FATAL() << "Acquistion is aborting.";
+                    *(volatile int*)0 = 0;
+                };
+            };
 
             // Disconnect from the update signal so that only the main window gets it from now on.
             QObject::disconnect(&app.update_checker(), &UpdateChecker::UpdateAvailable, nullptr, nullptr);
