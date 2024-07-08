@@ -151,7 +151,7 @@ void ItemsManager::PropagateTabBuyouts() {
 void ItemsManager::OnItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh) {
     items_ = items;
 
-    QLOG_INFO() << "There are" << items_.size() << "items and" << tabs.size() << "tabs after the refresh.";
+    QLOG_DEBUG() << "There are" << items_.size() << "items and" << tabs.size() << "tabs after the refresh.";
     int n = 0;
     for (const auto& item : items) {
         if (item->category().empty()) {
@@ -160,7 +160,7 @@ void ItemsManager::OnItemsRefreshed(const Items& items, const std::vector<ItemLo
         };
     };
     if (n > 0) {
-        QLOG_INFO() << "There are" << n << " uncategorized items.";
+        QLOG_DEBUG() << "There are" << n << " uncategorized items.";
     };
 
     buyout_manager_.SetStashTabLocations(tabs);

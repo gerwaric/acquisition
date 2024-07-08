@@ -660,11 +660,11 @@ void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply, ItemLocation
     auto& stash = doc["stash"];
 
     if (!stash.HasMember("items") || !stash["items"].IsArray()) {
-        QLOG_INFO() << "Stash does not have an 'items' field";
+        QLOG_WARN() << "Stash does not have an 'items' field";
     } else {
         auto& items = stash["items"];
         if (items.GetArray().Size() == 0) {
-            QLOG_INFO() << "Stash does not contain any items";
+            QLOG_WARN() << "Stash does not contain any items";
         } else {
             ParseItems(items, location, doc.GetAllocator());
         };
