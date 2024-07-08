@@ -41,7 +41,7 @@
 #include "testmain.h"
 
 #ifdef _DEBUG
-constexpr QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::TraceLevel;
+constexpr QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::DebugLevel;
 #else
 constexpr QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::InfoLevel;
 #endif
