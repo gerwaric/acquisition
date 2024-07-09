@@ -7,10 +7,6 @@
 /deploy/
 /Output/
 
-# This file is supposed to be ignored, but neither of the
-# templated included below include it.
-CMakeUserPresets.json
-
 # These files should be ignored, but aren't part of the includes below
 *.qtvscr
 *.vcxproj
@@ -19,6 +15,23 @@ CMakeUserPresets.json
 .DS_Store
 
 # There are also special exclusions for Crasshpad at the end of this file.
+
+#------------------------------------------------------------
+# https://github.com/github/gitignore/blob/main/CMake.gitignore
+#------------------------------------------------------------
+
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Testing
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps
+CMakeUserPresets.json
 
 #------------------------------------------------------------
 # https://github.com/github/gitignore/blob/main/Qt.gitignore
