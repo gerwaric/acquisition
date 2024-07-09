@@ -107,9 +107,7 @@ const std::vector<std::unique_ptr<Bucket> >& Search::buckets() const {
 }
 
 const std::unique_ptr<Bucket>& Search::bucket(int row) const {
-    auto const& active_buckets = (current_mode_ == ViewMode::ByTab)
-        ? buckets_
-        : bucket_;
+    const auto& active_buckets = buckets();
     if ((row < 0) || (row >= active_buckets.size())) {
         const QString message = QString("Bucket row out of bounds: %1 bucket size: %2 mode: %3. Program will abort.").arg(
             QString::number(row),
