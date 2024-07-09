@@ -212,14 +212,17 @@ void ItemsManager::SetAutoUpdate(bool update) {
     QLOG_TRACE() << "ItemsManager::SetAutoUpdate() entered";
     settings_.setValue("autoupdate", update);
     if (update) {
+        QLOG_TRACE() << "ItemsManager::SetAutoUpdate() starting automatic updates";
         auto_update_timer_->start();
     } else {
+        QLOG_TRACE() << "ItemsManager::SetAutoUpdate() stopping automatic updates";
         auto_update_timer_->stop();
     };
 }
 
 void ItemsManager::SetAutoUpdateInterval(int minutes) {
     QLOG_TRACE() << "ItemsManager::SetAutoUpdateInterval() entered";
+    QLOG_TRACE() << "ItemsManager::SetAutoUpdateInterval() setting interval to" << minutes << "minutes";
     settings_.setValue("autoupdate_interval", minutes);
     auto_update_timer_->setInterval(minutes * 60 * 1000);
 }
@@ -234,11 +237,14 @@ void ItemsManager::MigrateBuyouts() {
     int db_version = datastore_.GetInt("db_version");
     // Don't migrate twice
     if (db_version == 4) {
+        QLOG_TRACE() << "ItemsManager::MigrateBuyouts() skipping migration because db_version is 4";
         return;
     };
+    QLOG_TRACE() << "ItemsManager::MigrateBuyouts() migrating" << items_.size() << "items";
     for (auto& item : items_) {
         buyout_manager_.MigrateItem(*item);
     };
+    QLOG_TRACE() << "ItemsManager::MigrateBuyouts() saving buyout manager and setting db_version to 4";
     buyout_manager_.Save();
     datastore_.SetInt("db_version", 4);
 }

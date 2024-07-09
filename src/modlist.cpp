@@ -151,13 +151,15 @@ QStringListModel& mod_list_model() {
 }
 
 void InitStatTranslations() {
+    QLOG_TRACE() << "InitStatTranslations() entered";
     mods.clear();
 }
 
 void AddStatTranslations(const QByteArray& statTranslations) {
+    QLOG_TRACE() << "AddStatTranslations() entered";
+
     rapidjson::Document doc;
     doc.Parse(statTranslations.constData());
-
     if (doc.HasParseError()) {
         QLOG_ERROR() << "Couldn't properly parse Stat Translations from RePoE, canceling Mods Update";
         return;
@@ -195,6 +197,8 @@ void AddStatTranslations(const QByteArray& statTranslations) {
 }
 
 void InitModList() {
+    QLOG_TRACE() << "InitModList() entered";
+
     std::set<std::string> mod_strings;
     mod_generators.clear();
     mods_map.clear();

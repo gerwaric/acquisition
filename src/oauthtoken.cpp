@@ -73,7 +73,7 @@ OAuthToken::OAuthToken(const std::string& json) :
         expiration_ = getDate(doc["expiration"].GetString());
     } else {
         QLOG_WARN() << "Constructing OAuth token without an expiration";
-    }
+    };
 }
 
 OAuthToken::OAuthToken(const std::string& json, const QDateTime& timestamp) :
