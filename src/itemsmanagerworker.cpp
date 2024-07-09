@@ -128,8 +128,9 @@ void ItemsManagerWorker::Init() {
 
     league_ = settings_.value("league").toString().toStdString();
     account_ = settings_.value("account").toString().toStdString();
-
     updating_ = true;
+    QLOG_TRACE() << "ItemsManagerWorker::Init() league =" << league_;
+    QLOG_TRACE() << "ItemsManagerWorker::Init() account =" << account_;
 
     if (repoe_.IsInitialized()) {
         QLOG_DEBUG() << "RePoE data is available.";
@@ -159,8 +160,9 @@ void ItemsManagerWorker::ParseItemMods() {
     tabs_signature_.clear();
     tab_id_index_.clear();
 
-    //Get cached tabs (item tabs not search tabs)
+    // Get cached tabs (item tabs not search tabs)
     for (ItemLocationType type : {ItemLocationType::STASH, ItemLocationType::CHARACTER}) {
+        QLOG_TRACE() << "ItemsManagerWorker::ParseItemMods() getting cached tabs for" << type;
         Locations tabs = datastore_.GetTabs(type);
         tabs_.reserve(tabs_.size() + tabs.size());
         for (const auto& tab : tabs) {
@@ -169,11 +171,13 @@ void ItemsManagerWorker::ParseItemMods() {
     };
 
     // Save location ids.
+    QLOG_TRACE() << "ItemsManagerWorker::ParseItemMods() saving location ids";
     for (const auto& tab : tabs_) {
         tab_id_index_.insert(tab.get_tab_uniq_id());
     };
 
     // Build the signature vector.
+    QLOG_TRACE() << "ItemsManangerWorker::ParseItemMods() building tabs signature";
     tabs_signature_.reserve(tabs_.size());
     for (const auto& tab : tabs_) {
         const std::string tab_name = tab.get_tab_label();
@@ -182,10 +186,12 @@ void ItemsManagerWorker::ParseItemMods() {
     };
 
     // Get cached items
+    QLOG_TRACE() << "ItemsManagerWorker::ParseItemMods() getting cached items";
     for (int i = 0; i < tabs_.size(); i++) {
         auto& tab = tabs_[i];
         Items tab_items = datastore_.GetItems(tab);
         items_.reserve(items_.size() + tab_items.size());
+        QLOG_TRACE() << "ItemsManagerWorker::ParseItemMods() got" << tab_items.size() << "items from" << tab.GetHeader();
         for (const auto& tab_item : tab_items) {
             items_.push_back(tab_item);
         };
@@ -204,9 +210,11 @@ void ItemsManagerWorker::ParseItemMods() {
     updating_ = false;
 
     // let ItemManager know that the retrieval of cached items/tabs has been completed (calls ItemsManager::OnItemsRefreshed method)
+    QLOG_TRACE() << "ItemsManagerWorker::ParseItemMods() emitting ItemsRefreshed signal";
     emit ItemsRefreshed(items_, tabs_, true);
 
     if (updateRequest_) {
+        QLOG_TRACE() << "ItemsManagerWorker::ParseItemMods() triggering requested update";
         updateRequest_ = false;
         Update(type_, locations_);
     };
@@ -248,6 +256,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
         switch (type) {
         case TabSelection::Checked:
             // Use the buyout manager to determine which tabs are check.
+            QLOG_TRACE() << "ItemsManagerWorker::Update() updating checked tabs";
             for (auto const& tab : tabs_) {
                 if ((tab.IsValid()) && (buyout_manager_.GetRefreshChecked(tab) == true)) {
                     tabs_to_update.insert(tab.get_tab_uniq_id());
@@ -256,6 +265,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
             break;
         case TabSelection::Selected:
             // Use the function argument to determine which tabs were selected.
+            QLOG_TRACE() << "ItemsManagerWorker::Update() updating selected tabs";
             for (auto const& tab : locations) {
                 if (tab.IsValid()) {
                     tabs_to_update.insert(tab.get_tab_uniq_id());
@@ -342,6 +352,7 @@ void ItemsManagerWorker::LegacyRefresh() {
     if (need_stash_list_) {
         // This queues stash tab requests.
         QNetworkRequest tab_request = MakeLegacyTabRequest(first_stash_request_index_, true);
+        QLOG_TRACE() << "ItemsManagerWorker::LegacyRefresh() requesting stash list:" << tab_request.url().toString();
         auto reply = rate_limiter_.Submit(kStashItemsUrl, tab_request);
         connect(reply, &RateLimit::RateLimitedReply::complete, this, &ItemsManagerWorker::OnFirstLegacyTabReceived);
     };
@@ -349,6 +360,7 @@ void ItemsManagerWorker::LegacyRefresh() {
         // Before listing characters we download the main page because it's the only way
         // to know which character is selected (doesn't apply to OAuth api).
         QNetworkRequest main_page_request = QNetworkRequest(QUrl(kMainPage));
+        QLOG_TRACE() << "ItemsManagerWorker::LegacyRefresh() requesting main page to capture selected character:" << main_page_request.url().toString();
         main_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
         QNetworkReply* submit = network_manager_.get(main_page_request);
         connect(submit, &QNetworkReply::finished, this, &ItemsManagerWorker::OnLegacyMainPageReceived);
@@ -359,11 +371,13 @@ void ItemsManagerWorker::OAuthRefresh() {
     QLOG_TRACE() << "ItemsManagerWorker::OAuthRefresh() entered";
     if (need_stash_list_) {
         const auto request = MakeOAuthStashListRequest(league_);
+        QLOG_TRACE() << "ItemsManagerWorker::OAuthRefresh() requesting stash list:" << request.url().toString();
         auto reply = rate_limiter_.Submit(kOauthListStashesEndpoint, request);
         connect(reply, &RateLimit::RateLimitedReply::complete, this, &ItemsManagerWorker::OnOAuthStashListReceived);
     };
     if (need_character_list_) {
         const auto request = MakeOAuthCharacterListRequest();
+        QLOG_TRACE() << "ItemsManagerWorker::OAuthRefresh() requesting character list:" << request.url().toString();
         auto submit = rate_limiter_.Submit(kOAuthListCharactersEndpoint, request);
         connect(submit, &RateLimit::RateLimitedReply::complete, this, &ItemsManagerWorker::OnOAuthCharacterListReceived);
     };
@@ -418,7 +432,6 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
     sender->deleteLater();
     reply->deleteLater();
 
-    QLOG_TRACE() << "OAuth stash list received";
     if (reply->error() != QNetworkReply::NoError) {
         QLOG_WARN() << "Aborting update because there was an error fetching the stash list:" << reply->errorString();
         updating_ = false;
@@ -498,13 +511,13 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
         // Submit a request for this tab.
         QueueRequest(kOAuthGetStashEndpoint, MakeOAuthStashRequest(league_, location.get_tab_uniq_id()), location);
     };
-
     QLOG_INFO() << "Requesting" << tabs_requested << "out of" << stashes.Size() << "stash tabs";
 
     has_stash_list_ = true;
 
     // Check to see if we can start sending queued requests to fetch items yet.
     if (!need_character_list_ || has_character_list_) {
+        QLOG_TRACE() << "ItemsManagerWorker::OnOAuthStashListReceived() fetching items";
         FetchItems();
     };
 }
@@ -567,6 +580,7 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
 
     // Check to see if we can start sending queued requests to fetch items yet.
     if (!need_stash_list_ || has_stash_list_) {
+        QLOG_TRACE() << "ItemsManagerWorker::OnOAuthCharacterListReceived() fetching items";
         FetchItems();
     };
 }
@@ -617,6 +631,7 @@ void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply, ItemLocation
     SendStatusUpdate();
 
     if ((stashes_received_ == stashes_needed_) && (characters_received_ == characters_needed_) && !cancel_update_) {
+        QLOG_TRACE() << "ItemsManagerWorker::OnOAuthStashReceived() finishing update";
         FinishUpdate();
     };
 }
@@ -661,6 +676,7 @@ void ItemsManagerWorker::OnOAuthCharacterReceived(QNetworkReply* reply, ItemLoca
     SendStatusUpdate();
 
     if ((stashes_received_ == stashes_needed_) && (characters_received_ == characters_needed_) && !cancel_update_) {
+        QLOG_TRACE() << "ItemsManagerWorker::OnOAuthCharacterReceived() finishing update";
         FinishUpdate();
     };
 }
@@ -682,6 +698,7 @@ void ItemsManagerWorker::OnLegacyMainPageReceived() {
     reply->deleteLater();
 
     QNetworkRequest characters_request = QNetworkRequest(QUrl(kGetCharactersUrl));
+    QLOG_TRACE() << "ItemsManagerWorker::OnLegacyMainPageReceived() requesting characters:" << characters_request.url().toString();
     auto submit = rate_limiter_.Submit(kGetCharactersUrl, characters_request);
     connect(submit, &RateLimit::RateLimitedReply::complete, this, &ItemsManagerWorker::OnLegacyCharacterListReceived);
 }
@@ -750,6 +767,7 @@ void ItemsManagerWorker::OnLegacyCharacterListReceived(QNetworkReply* reply) {
 
     // Check to see if we can start sending queued requests to fetch items yet.
     if (!need_stash_list_ || has_stash_list_) {
+        QLOG_TRACE() << "ItemsManagerWorker::OnLegacyCharacterListReceived() fetching items";
         FetchItems();
     };
 }
@@ -950,6 +968,7 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
 
     // Check to see if we can start sending queued requests to fetch items yet.
     if (!need_character_list_ || has_character_list_) {
+        QLOG_TRACE() << "ItemsManagerWorker::OnFirstLegacyTabReceived() fetching items";
         FetchItems();
     };
 }

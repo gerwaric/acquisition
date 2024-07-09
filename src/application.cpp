@@ -63,8 +63,6 @@ Application::Application(bool test_mode) :
 
     } else {
 
-        QLOG_TRACE() << "Application::Application() preparing settings and data";
-
         const QString user_dir = Filesystem::UserDir();
         QLOG_TRACE() << "Application::Application() data directory is" << user_dir;
 
@@ -178,7 +176,10 @@ void Application::OnLogin(POE_API api) {
         update_checker(),
         shop());
 
+    QLOG_TRACE() << "Application::OnLogin() closing the login dialog";
     login_->close();
+
+    QLOG_TRACE() << "Application::OnLogin() showing the main window";
     main_window_->show();
 }
 
@@ -270,7 +271,7 @@ void Application::FatalAccessError(const char* object_name) const {
     const QString message = QString("The '%1' object was invalid.").arg(object_name);
     QLOG_FATAL() << message;
     QMessageBox::critical(nullptr,
-        "Acquisition Fatal Error", message,
+        "Acquisition Fatal Error (Application)", message,
         QMessageBox::StandardButton::Abort,
         QMessageBox::StandardButton::Abort);
 }
@@ -300,6 +301,7 @@ void Application::InitCrashReporting() {
 
     // Initialize crash reporting with crashpad.
     if (report_crashes) {
+        QLOG_TRACE() << "Application::InitCrashReporting() initializing crashpad";
         initializeCrashpad(Filesystem::UserDir(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
     };
 }
@@ -332,7 +334,7 @@ void Application::LoadTheme() {
     // Load the theme.
     QFile f(stylesheet);
     if (!f.exists()) {
-        QLOG_ERROR() << "The theme's stylesheet does not exist";
+        QLOG_ERROR() << "The theme's stylesheet does not exist.";
         return;
     };
 
