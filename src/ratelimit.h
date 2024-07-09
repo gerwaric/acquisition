@@ -90,18 +90,20 @@ namespace RateLimit
 {
     Q_NAMESPACE;
 
+    // This is the object returned to the end-user of the rate limiter.
+    // When the underlying network request is finished, the complete
+    // signal will be issued so that the caller can use a slot to
+    // process the reply.
     class RateLimitedReply : public QObject {
         Q_OBJECT
     signals:
         void complete(QNetworkReply* reply);
-        void failed(QNetworkReply* reply);
     };
 
     enum class PolicyStatus { UNKNOWN, OK, BORDERLINE, VIOLATION, INVALID };
     Q_ENUM_NS(PolicyStatus);
 
-    typedef boost::circular_buffer<QDateTime> RequestHistory;
-
+    using RequestHistory = boost::circular_buffer<QDateTime>;
 
     //=========================================================================================
     // Next, declarations for the classes that represent a rate-limit policy

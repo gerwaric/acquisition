@@ -26,22 +26,52 @@
 
 #include <deque>
 
+#include "boost/function.hpp"
+
 #include "network_info.h"
 #include "ratelimit.h"
 
 class QNetworkAccessManager;
 class QNetworkReply;
 
-class OAuthManager;
+// Represents a single rate-limited request.
+struct RateLimitedRequest {
 
+    // Construct a new rate-limited request.
+    RateLimitedRequest(const QString& endpoint_, const QNetworkRequest& network_request_, RateLimit::RateLimitedReply* reply_) :
+        id(++request_count),
+        endpoint(endpoint_),
+        network_request(network_request_),
+        reply(reply_) {}
+
+    // Unique identified for each request, even through different requests can be
+    // routed to different policy managers based on different endpoints.
+    const unsigned long id;
+
+    // A copy of this request's API endpoint, if any.
+    const QString endpoint;
+
+    // A copy of the network request that's going to be sent.
+    QNetworkRequest network_request;
+
+    std::unique_ptr<RateLimit::RateLimitedReply> reply;
+
+private:
+
+    // Total number of requests that have every been constructed.
+    static unsigned long request_count;
+};
+
+// Manages a single rate limit policy, which may apply to multiple endpoints.
 class RateLimitManager : public QObject {
     Q_OBJECT
 
 public:
-    RateLimitManager(QObject* parent,
-        QNetworkAccessManager& network_manager,
-        OAuthManager& oauth_manager,
-        POE_API mode);
+
+    // This is the signature of the function used to send requests.
+    using SendFcn = boost::function<QNetworkReply* (QNetworkRequest&)>;
+
+    RateLimitManager(QObject* parent, SendFcn sender);
 
     // Move a request into to this manager's queue.
     void QueueRequest(
@@ -57,8 +87,6 @@ public:
 
     bool isActive() const { return (active_request_ != nullptr); };
 
-    POE_API mode() const { return mode_; };
-
 signals:
     // Emitted when a network request is ready to go.
     void RequestReady(RateLimitManager* manager, QNetworkRequest request, POE_API mode);
@@ -67,62 +95,26 @@ signals:
     void PolicyUpdated(const RateLimit::Policy& policy);
 
 public slots:
+
+    // Called whent the timer runs out to sends the active request and 
+    // connects the network reply it to ReceiveReply().
+    void SendRequest();
+
     // Called when a reply has been received. Checks for errors. Updates the
     // rate limit policy if one was received. Puts the response in the
     // dispatch queue for callbacks. Checks to see if another request is
     // waiting to be activated.
     void ReceiveReply();
 
-private slots:
-
-    // Sends the currently active request and connects it to ReceiveReply().
-    void SendRequest();
-
 private:
-
-    QNetworkAccessManager& network_manager_;
-    OAuthManager& oauth_manager_;
-
-    // Determines which API this rate limit manager will be used for.
-    const POE_API mode_;
-
-    // Represents a single rate-limited request.
-    struct RateLimitedRequest {
-
-        // Construct a new rate-limited request.
-        RateLimitedRequest(const QString& endpoint_, const QNetworkRequest& network_request_, RateLimit::RateLimitedReply* reply_) :
-            id(++request_count),
-            endpoint(endpoint_),
-            network_request(network_request_),
-            reply(reply_) {}
-
-        // Unique identified for each request, even through different requests can be
-        // routed to different policy managers based on different endpoints.
-        const unsigned long id;
-
-        // A copy of this request's API endpoint, if any.
-        const QString endpoint;
-
-        // A copy of the network request that's going to be sent.
-        QNetworkRequest network_request;
-
-        std::unique_ptr<RateLimit::RateLimitedReply> reply;
-
-    private:
-
-        // Total number of requests that have every been constructed.
-        static unsigned long request_count;
-    };
+    
+    // Function handle used to send network reqeusts.
+    const SendFcn sender_;
 
     // Called right after active_request is loaded with a new request. This
     // will determine when that request can be sent and setup the active
     // request timer to send that request after a delay.
     void ActivateRequest();
-
-    void FatalError(const QString& message);
-
-    // Resends the active request after a delay due to a violation.
-    //void ResendAfterViolation();
 
     // Used to send requests after a delay.
     QTimer activation_timer_;

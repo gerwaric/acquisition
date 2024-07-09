@@ -25,11 +25,13 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 
+#include "boost/function.hpp"
 #include "QsLog.h"
 
 #include "network_info.h"
 #include "oauthmanager.h"
 #include "ratelimit.h"
+#include "ratelimiter.h"
 
 // This HTTP status code means there was a rate limit violation.
 constexpr int VIOLATION_STATUS = 429;
@@ -46,18 +48,12 @@ constexpr int MINIMUM_INTERVAL_MSEC = 500;
 constexpr int VIOLATION_BUFFER_MSEC = 2000;
 
 // Total number of rate-limited requests that have been created.
-unsigned long RateLimitManager::RateLimitedRequest::request_count = 0;
+unsigned long RateLimitedRequest::request_count = 0;
 
 // Create a new rate limit manager based on an existing policy.
-RateLimitManager::RateLimitManager(QObject* parent,
-    QNetworkAccessManager& network_manager,
-    OAuthManager& oauth_manager,
-    POE_API mode)
-    :
+RateLimitManager::RateLimitManager(QObject* parent, SendFcn sender) :
     QObject(parent),
-    network_manager_(network_manager),
-    oauth_manager_(oauth_manager),
-    mode_(mode),
+    sender_(sender),
     next_send_(QDateTime::currentDateTime().toLocalTime()),
     last_send_(QDateTime()),
     policy_(nullptr)
@@ -70,7 +66,13 @@ RateLimitManager::RateLimitManager(QObject* parent,
 
 const RateLimit::Policy& RateLimitManager::policy() {
     if (!policy_) {
-        FatalError("Someone tried to access the rate limit manager's policy while it was null.");
+        const QString message = "The rate limit manager's policy is null.";
+        QLOG_FATAL() << message;
+        QMessageBox::critical(nullptr,
+            "Acquisition Fatal Error - Rate Limit Manager",
+            message,
+            QMessageBox::StandardButton::Abort,
+            QMessageBox::StandardButton::Abort);
     };
     return *policy_;
 }
@@ -98,13 +100,11 @@ void RateLimitManager::SendRequest() {
     // Finally, send the request and note the time.
     last_send_ = QDateTime::currentDateTime().toLocalTime();
 
-    // Set the bearer token if applicable.
-    if (mode_ == POE_API::OAUTH) {
-        oauth_manager_.setAuthorization(request.network_request);
+    if (!sender_) {
+        QLOG_ERROR() << "Rate limit manager cannot send requests.";
+        return;
     };
-
-    // Send the request.
-    QNetworkReply* reply = network_manager_.get(request.network_request);
+    QNetworkReply* reply = sender_(request.network_request);
     connect(reply, &QNetworkReply::finished, this, &RateLimitManager::ReceiveReply);
 
 };
@@ -145,6 +145,7 @@ void RateLimitManager::ReceiveReply()
 
     if (reply->error() == QNetworkReply::NoError) {
 
+        // Check for errors.
         if (policy_->status() >= RateLimit::PolicyStatus::VIOLATION) {
             QLOG_ERROR() << "Reply did not have an error, but the rate limit policy shows a violation occured.";
         };
@@ -152,7 +153,10 @@ void RateLimitManager::ReceiveReply()
             QLOG_ERROR() << "Reply did not have an error, but the HTTP status indicates a rate limit violation.";
         };
 
+        // Since the request finished successfully, signal complete()
+        // so anyone listening can handle the reply.
         if (active_request_->reply) {
+            QLOG_TRACE() << "RateLimiteManager::ReceiveReply() about to emit 'complete' signal";
             emit active_request_->reply->complete(reply);
         } else {
             QLOG_ERROR() << "Cannot complete the rate limited request because the reply is null.";
@@ -304,13 +308,4 @@ void RateLimitManager::ActivateRequest() {
 
     activation_timer_.setInterval(delay);
     activation_timer_.start();
-}
-
-void RateLimitManager::FatalError(const QString& message) {
-    QLOG_FATAL() << message;
-    QMessageBox::critical(nullptr,
-        "Acquisition Fatal Error - Rate Limit Manager",
-        message,
-        QMessageBox::StandardButton::Abort,
-        QMessageBox::StandardButton::Abort);
 }

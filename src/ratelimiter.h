@@ -30,7 +30,6 @@
 
 #include "network_info.h"
 #include "ratelimit.h"
-#include "ratelimitmanager.h"
 
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -83,6 +82,11 @@ private:
     RateLimitManager& GetManager(
         const QString& endpoint,
         const QString& policy_name);
+
+    // This funciton is passed to individual managers via a bound
+    // function so they can send network requests without having
+    // to know anything about OAuth.
+    QNetworkReply* SendRequest(QNetworkRequest network_request);
 
     // Reference to the Application's network access manager.
     QNetworkAccessManager& network_manager_;
