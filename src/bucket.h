@@ -27,7 +27,7 @@
 // Items are "bucketed" by their location: stash tab / character.
 class Bucket {
 public:
-    Bucket();
+    Bucket() {};
     explicit Bucket(const ItemLocation& location);
     void AddItem(const std::shared_ptr<Item>& item);
     const Items& items() const { return items_; }

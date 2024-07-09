@@ -37,9 +37,9 @@ class QModelIndex;
 
 class Search {
 public:
-    enum ViewMode {
-        ByTab,
-        ByItem
+    enum class ViewMode : int {
+        ByTab = 0,
+        ByItem = 1
     };
 
 public:
@@ -62,7 +62,7 @@ public:
     void SaveViewProperties();
     ItemLocation GetTabLocation(const QModelIndex& index) const;
     void SetViewMode(ViewMode mode);
-    int GetViewMode() const { return current_mode_; }
+    ViewMode GetViewMode() const { return current_mode_; }
     const std::unique_ptr<Bucket>& bucket(int row) const;
     const QModelIndex index(const std::shared_ptr<Item> item) const;
     void SetRefreshReason(RefreshReason::Type reason) { refresh_reason_ = reason; }
@@ -81,6 +81,6 @@ private:
     size_t unfiltered_item_count_{ 0 };
     size_t filtered_item_count_total_{ 0 };
     std::set<std::string> expanded_property_;
-    ViewMode current_mode_{ ByTab };
+    ViewMode current_mode_{ ViewMode::ByTab };
     RefreshReason::Type refresh_reason_{ RefreshReason::Unknown };
 };

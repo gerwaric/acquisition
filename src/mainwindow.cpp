@@ -203,13 +203,15 @@ void MainWindow::InitializeUi() {
     connect(ui->buyoutValueLineEdit, &QLineEdit::textEdited, this, &MainWindow::OnBuyoutChange);
 
     ui->viewComboBox->addItems({ "By Tab", "By Item" });
-    connect(ui->viewComboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::activated), this, [&](int mode) {
-        current_search_->SetViewMode(static_cast<Search::ViewMode>(mode));
-        if (mode == Search::ByItem) {
-            OnExpandAll();
-        } else {
-            ResizeTreeColumns();
-        }
+    connect(ui->viewComboBox, &QComboBox::activated, this,
+        [&](int n) {
+            const auto mode = static_cast<Search::ViewMode>(n);
+            current_search_->SetViewMode(mode);
+            if (mode == Search::ViewMode::ByItem) {
+                OnExpandAll();
+            } else {
+                ResizeTreeColumns();
+            };
         });
 
     ui->buyoutTypeComboBox->setEnabled(false);
@@ -610,7 +612,7 @@ void MainWindow::ModelViewRefresh() {
     // Save view properties if no search fields are populated
     // AND we're viewing in Tab mode
     if (previous_search_ && !previous_search_->IsAnyFilterActive()
-        && previous_search_->GetViewMode() == Search::ByTab)
+        && previous_search_->GetViewMode() == Search::ViewMode::ByTab)
         previous_search_->SaveViewProperties();
 
     previous_search_ = current_search_;
@@ -627,7 +629,7 @@ void MainWindow::ModelViewRefresh() {
 
     QLOG_DEBUG() << "Skipping tree view reset";
     //ui->treeView->reset();
-    if (current_search_->IsAnyFilterActive() || current_search_->GetViewMode() == Search::ByItem) {
+    if (current_search_->IsAnyFilterActive() || current_search_->GetViewMode() == Search::ViewMode::ByItem) {
         // Policy is to expand all tabs when any search fields are populated
         // Also expand by default if we're in Item view mode
         OnExpandAll();
