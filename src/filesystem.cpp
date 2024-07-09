@@ -21,7 +21,7 @@
 
 #include <QStandardPaths>
 
-#include "QsLog.h";
+#include "QsLog.h"
 
 namespace Filesystem {
 
