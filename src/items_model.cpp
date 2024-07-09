@@ -74,60 +74,67 @@ int ItemsModel::columnCount(const QModelIndex& parent) const {
 }
 
 QVariant ItemsModel::headerData(int section, Qt::Orientation /* orientation */, int role) const {
-    if (role == Qt::DisplayRole)
+    if (role == Qt::DisplayRole) {
         return QString(search_.columns()[section]->name().c_str());
+    };
     return QVariant();
 }
 
 QVariant ItemsModel::data(const QModelIndex& index, int role) const {
     // Bucket title
-    if (!index.isValid())
+    if (!index.isValid()) {
         return QVariant();
+    };
 
     if (index.internalId() == 0) {
-        if (index.column() > 0)
+        if (index.column() > 0) {
             return QVariant();
+        };
 
         const ItemLocation& location = search_.GetTabLocation(index);
         if (role == Qt::CheckStateRole) {
-            if (!location.IsValid())
+            if (!location.IsValid()) {
                 return QVariant();
-            if (bo_manager_.GetRefreshLocked(location))
+            };
+            if (bo_manager_.GetRefreshLocked(location)) {
                 return Qt::PartiallyChecked;
+            };
             return (bo_manager_.GetRefreshChecked(location) ? Qt::Checked : Qt::Unchecked);
-        }
+        };
         if (role == Qt::DisplayRole) {
-            if (!location.IsValid())
+            if (!location.IsValid()) {
                 return "All Items";
+            };
             QString title(location.GetHeader().c_str());
             auto const& bo = bo_manager_.GetTab(location.GetUniqueHash());
-            if (bo.IsActive())
+            if (bo.IsActive()) {
                 title += QString(" [%1]").arg(bo.AsText().c_str());
+            };
             return title;
-        }
+        };
         if (location.IsValid() && location.get_type() == ItemLocationType::STASH) {
             if (role == Qt::BackgroundRole) {
                 QColor backgroundColor(location.getR(), location.getG(), location.getB());
-                if (backgroundColor.isValid())
+                if (backgroundColor.isValid()) {
                     return backgroundColor;
-            }
+                };
+            };
             if (role == Qt::ForegroundRole) {
                 QColor backgroundColor(location.getR(), location.getG(), location.getB());
                 return Util::recommendedForegroundTextColor(backgroundColor);
-            }
-
-        }
-
+            };
+        };
         return QVariant();
-    }
+    };
     auto& column = search_.columns()[index.column()];
     const Item& item = *search_.bucket(index.parent().row())->item(index.row());
-    if (role == Qt::DisplayRole)
+    if (role == Qt::DisplayRole) {
         return column->value(item);
-    else if (role == Qt::ForegroundRole)
+    } else if (role == Qt::ForegroundRole) {
         return column->color(item);
-    else if (role == Qt::DecorationRole)
+    } else if (role == Qt::DecorationRole) {
         return column->icon(item);
+    };
     return QVariant();
 }
 
@@ -135,18 +142,20 @@ Qt::ItemFlags ItemsModel::flags(const QModelIndex& index) const
 {
     if (!index.isValid()) {
         return Qt::ItemFlags();
-    }
+    };
     if (index.column() == 0 && index.internalId() == 0) {
         const ItemLocation& location = search_.GetTabLocation(index);
-        if (location.IsValid() && !bo_manager_.GetRefreshLocked(location))
+        if (location.IsValid() && !bo_manager_.GetRefreshLocked(location)) {
             return Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsUserCheckable;
-    }
+        };
+    };
     return Qt::ItemIsSelectable | Qt::ItemIsEnabled;
 }
 
 bool ItemsModel::setData(const QModelIndex& index, const QVariant& value, int role) {
-    if (!index.isValid())
+    if (!index.isValid()) {
         return false;
+    };
 
     if (role == Qt::CheckStateRole) {
         const ItemLocation& location = search_.GetTabLocation(index);
@@ -160,12 +169,12 @@ bool ItemsModel::setData(const QModelIndex& index, const QVariant& value, int ro
         auto row_count = rowCount();
         for (int i = 0; i < row_count; ++i) {
             auto match_index = this->index(i);
-            if (search_.GetTabLocation(match_index).GetUniqueHash() == target_hash)
+            if (search_.GetTabLocation(match_index).GetUniqueHash() == target_hash) {
                 emit dataChanged(match_index, match_index);
-        }
-
+            };
+        };
         return true;
-    }
+    };
     return false;
 }
 
@@ -182,7 +191,7 @@ void ItemsModel::sort(int column, Qt::SortOrder order)
     auto& column_obj = search_.columns()[column];
     for (const auto& bucket : search_.buckets()) {
         bucket->Sort(*column_obj, order);
-    }
+    };
     emit layoutChanged();
     SetSorted(true);
 }
@@ -203,17 +212,17 @@ QModelIndex ItemsModel::parent(const QModelIndex& index) const {
 
 QModelIndex ItemsModel::index(int row, int column, const QModelIndex& parent) const {
     if (parent.isValid()) {
-        if (parent.row() >= (signed)search_.buckets().size()) {
+        if (parent.row() >= static_cast<int>(search_.buckets().size())) {
             QLOG_WARN() << "Should not happen: Index request parent contains invalid row";
             return QModelIndex();
-        }
+        };
         // item, we pass parent's (bucket's) row through ID parameter
         return createIndex(row, column, static_cast<quintptr>(parent.row()) + 1);
     } else {
         if (row >= (signed)search_.buckets().size()) {
             QLOG_WARN() << "Index request asking for invalid row:" + QString::number(row);
             return QModelIndex();
-        }
+        };
         return createIndex(row, column, static_cast<quintptr>(0));
-    }
+    };
 }
