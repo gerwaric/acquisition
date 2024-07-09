@@ -51,7 +51,7 @@ public:
 
     void Update(QNetworkReply* reply);
 
-    const RateLimit::Policy& policy() const;
+    const RateLimit::Policy& policy();
 
     const QDateTime& next_send() const { return next_send_; };
 
@@ -67,7 +67,7 @@ signals:
     void PolicyUpdated(const RateLimit::Policy& policy);
 
     // Used after a fatal error to close Acquistion
-    void Quit() const;
+    void Quit();
 
 public slots:
     // Called when a reply has been received. Checks for errors. Updates the
@@ -122,7 +122,7 @@ private:
     // request timer to send that request after a delay.
     void ActivateRequest();
 
-    void FatalError(const QString& message) const;
+    void FatalError(const QString& message);
 
     // Resends the active request after a delay due to a violation.
     //void ResendAfterViolation();

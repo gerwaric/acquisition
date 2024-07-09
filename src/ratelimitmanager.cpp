@@ -70,7 +70,7 @@ RateLimitManager::RateLimitManager(QObject* parent,
     connect(&activation_timer_, &QTimer::timeout, this, &RateLimitManager::SendRequest);
 }
 
-const RateLimit::Policy& RateLimitManager::policy() const {
+const RateLimit::Policy& RateLimitManager::policy() {
     if (!policy_) {
         FatalError("Someone tried to access the rate limit manager's policy while it was null.");
     };
@@ -304,7 +304,7 @@ void RateLimitManager::ActivateRequest() {
     activation_timer_.start();
 }
 
-void RateLimitManager::FatalError(const QString& message) const {
+void RateLimitManager::FatalError(const QString& message) {
     QLOG_FATAL() << message;
     QMessageBox errorMsg;
     errorMsg.setIcon(QMessageBox::Icon::Critical);

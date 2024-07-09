@@ -327,7 +327,6 @@ void Policy::Check(const Policy& other) const {
 
 QDateTime Policy::GetNextSafeSend(const RequestHistory& history) {
     QDateTime next_send = QDateTime::currentDateTime().toLocalTime();
-    QDateTime original = next_send;
     for (const auto& rule : rules_) {
         for (const auto& item : rule.items()) {
             const QDateTime t = item.GetNextSafeSend(history);

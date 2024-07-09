@@ -30,12 +30,10 @@
 #include "QsLogDest.h"
 
 #include <clocale>
-#include <iostream>
 
 #include "application.h"
 #include "filesystem.h"
 #include "shop.h"
-#include "updatechecker.h"
 #include "util.h"
 #include "version_defines.h"
 #include "testmain.h"
@@ -43,7 +41,7 @@
 #ifdef _DEBUG
 constexpr QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::DebugLevel;
 #else
-constexpr QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::InfoLevel;
+constexpr QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::TraceLevel;
 #endif
 
 #ifdef Q_OS_LINUX
@@ -172,7 +170,7 @@ int main(int argc, char* argv[])
             QMessageBox::StandardButton::Abort | QMessageBox::StandardButton::Cancel,
             QMessageBox::StandardButton::Abort);
         if (choice == QMessageBox::StandardButton::Abort) {
-            QLOG_FATAL() << "Acquistion is aborting.";
+            QLOG_FATAL() << "Acquisition is aborting.";
             *(volatile int*)0 = 0;
         };
     };
