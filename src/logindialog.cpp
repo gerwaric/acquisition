@@ -85,18 +85,22 @@ LoginDialog::LoginDialog(
     ui(new Ui::LoginDialog)
 {
     // Setup the dialog box.
+    QLOG_TRACE() << "LoginDialog::LoginDialog(): calling UI setup";
     ui->setupUi(this);
 
     // Set window properties.
+    QLOG_TRACE() << "LoginDialog::LoginDialog(): setting window properties";
     setWindowTitle(QString("Acquisition Login [") + APP_VERSION_STRING + "]");
     setWindowIcon(QIcon(":/icons/assets/icon.svg"));
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
     // Hide the error message label by default.
+    QLOG_TRACE() << "LoginDialog::LoginDialog(): hiding the error message label";
     ui->errorLabel->hide();
     ui->errorLabel->setStyleSheet("QLabel { color : red; }");
 
     // Disable the login button until we are ready to login.
+    QLOG_TRACE() << "LoginDialog::LoginDialog(): disabling the login button";
     ui->loginButton->setEnabled(false);
 
     // Connect UI signals.
@@ -112,33 +116,52 @@ LoginDialog::LoginDialog(
     connect(&oauth_manager_, &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
 
     // Load saved settings.
+    QLOG_TRACE() << "LoginDialog::LoginDialog(): calling LoadSettings()";
     LoadSettings();
 
     // Load the OAuth token if one is already present.
     if (oauth_manager_.token().isValid()) {
+        QLOG_TRACE() << "LoginDialog::LoginDialog(): found a valid OAuth token";
         OnOAuthAccessGranted(oauth_manager_.token());
     };
 
     // Request the list of leagues.
+    QLOG_TRACE() << "LoginDialog::LoginDialog(): requestingn leagues";
     RequestLeagues();
 }
 
 LoginDialog::~LoginDialog() {
+    QLOG_TRACE() << "LoginDialog::~LoginDialog() destroying object";
     SaveSettings();
     delete ui;
 }
 
 void LoginDialog::LoadSettings() {
 
-    const QString session_id = settings_.value("session_id").toString();
-    const QString league = settings_.value("league").toString();
-    const int login_tab = settings_.value("login_tab").toInt();
-    const bool remember_me = settings_.value("remember_user").toBool();
-    const bool use_system_proxy = settings_.value("use_system_proxy").toBool();
-    const bool report_crashes = settings_.value("report_crashes").toBool();
+    QLOG_TRACE() << "LoginDialog::LoadSetting()";
 
+    const QString session_id = settings_.value("session_id").toString();
+    QLOG_TRACE() << "LoginDialog::LoadSettings(): session_id has" << session_id.size() << "characters";
+
+    const QString league = settings_.value("league").toString();
+    QLOG_TRACE() << "LoginDialog::LoadSettings(): league =" << league;
+    
+    const int login_tab = settings_.value("login_tab").toInt();
+    QLOG_TRACE() << "LoginDialog::LoadSettings(): login_tab =" << login_tab;
+
+    const bool remember_me = settings_.value("remember_user").toBool();
+    QLOG_TRACE() << "LoginDialog::LoadSettings(): remember_me" << remember_me;
+
+    const bool use_system_proxy = settings_.value("use_system_proxy").toBool();
+    QLOG_TRACE() << "LoginDialog::LoadSettings(): use_system_proxy" << use_system_proxy;
+
+    const bool report_crashes = settings_.value("report_crashes").toBool();
+    QLOG_TRACE() << "LoginDialog::LoadSettings(): report_crashes" << report_crashes;
+
+    QLOG_TRACE() << "LoginDialog::LoadSettings(): passing remember_me to OAuth manager";
     oauth_manager_.RememberToken(remember_me);
 
+    QLOG_TRACE() << "LoginDialog::LoadSettings(): setting UI elements";
     ui->sessionIDLineEdit->setText(session_id);
     ui->rememberMeCheckBox->setChecked(remember_me);
     ui->proxyCheckBox->setChecked(use_system_proxy);
@@ -148,11 +171,13 @@ void LoginDialog::LoadSettings() {
         ui->leagueComboBox->setCurrentText(league);
     };
 
+    QLOG_TRACE() << "LoginDialog::LoadSetting(): setting proxy configuration";
     QNetworkProxyFactory::setUseSystemConfiguration(ui->proxyCheckBox->isChecked());
 }
 
 void LoginDialog::SaveSettings() {
     if (!ui->rememberMeCheckBox->isChecked()) {
+        QLOG_TRACE() << "LoginDialog::SaveSettings(): removing settings";
         settings_.remove("session_id");
         settings_.remove("account");
         settings_.remove("league");
@@ -172,6 +197,7 @@ void LoginDialog::RequestLeagues() {
     request.setTransferTimeout(kPoeApiTimeout);
 
     // Send the request and handle errors.
+    QLOG_TRACE() << "LoginDialog::RequestLeagues(): sending request:" << request.url().toString();
     QNetworkReply* reply = network_manager_.get(request);
     connect(reply, &QNetworkReply::finished, this, &LoginDialog::OnLeaguesReceived);
     connect(reply, &QNetworkReply::errorOccurred, this,
@@ -189,12 +215,15 @@ void LoginDialog::RequestLeagues() {
 }
 
 void LoginDialog::OnLeaguesReceived() {
+
+    QLOG_TRACE() << "LoginDialog::OnLeaguesReceived(): reply recieved";
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
     const QByteArray bytes = reply->readAll();
     reply->deleteLater();
 
     // Check for network errors.
     if (reply->error()) {
+        QLOG_TRACE() << "LoginDialog::OnLeaguesReceived(): reply error" << reply->error();
         return LeaguesRequestError(reply->errorString(), bytes);
     };
 

@@ -51,47 +51,71 @@
 Application::Application(bool test_mode) :
     test_mode_(test_mode)
 {
+    QLOG_TRACE() << "Application::Application(" << test_mode << ")";
     connect(this, &Application::Quit, qApp, &QApplication::quit, Qt::QueuedConnection);
 
     if (test_mode_) {
 
+        QLOG_TRACE() << "Application::Application(): preparing settings and data for test mode";
         settings_ = TestSettings::NewInstance();
         global_data_ = std::make_unique<MemoryDataStore>();
 
     } else {
 
+        QLOG_TRACE() << "Application::Application(): preparing settings and data";
+
         const QString user_dir = Filesystem::UserDir();
+        QLOG_TRACE() << "Application::Application(): data directory is" << user_dir;
+
         const QString settings_path = user_dir + "/settings.ini";
+        QLOG_TRACE() << "Application::Application(): settings path is" << settings_path;
+
         const QString global_data_file = user_dir + "/data/" + SqliteDataStore::MakeFilename("", "");
-       
+        QLOG_TRACE() << "Application::Application(): global data file is" << global_data_file;
+ 
         settings_ = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
         global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
 
+        QLOG_TRACE() << "Application::Application(): initializing crash reporting";
         InitCrashReporting();
+
+        QLOG_TRACE() << "Application::Application(): loading theme";
         LoadTheme();
     };
 
+    QLOG_TRACE() << "Application::Application(): creating QNetworkAccessManager";
     network_manager_ = std::make_unique<QNetworkAccessManager>(this);
+
+    QLOG_TRACE() << "Application::Application(): creating RePoE";
     repoe_ = std::make_unique<RePoE>(this, network_manager());
+
+    QLOG_TRACE() << "Application::Application(): creating update checker";
     update_checker_ = std::make_unique<UpdateChecker>(this, settings(), network_manager());
+
+    QLOG_TRACE() << "Application::Application(): creating OAuth manager";
     oauth_manager_ = std::make_unique<OAuthManager>(this, network_manager(), global_data());
 
     // Start the process of fetching RePoE data.
+    QLOG_TRACE() << "Application::Application(): initializing RePoE";
     repoe_->Init();
 
     if (test_mode) {
+        QLOG_TRACE() << "Application::Application(): calling InitLogin for test mode";
         InitLogin(POE_API::LEGACY);
     };
 }
 
 Application::~Application() {
+    QLOG_TRACE() << "Application::~Application() destructing object";
     if (buyout_manager_) {
+        QLOG_TRACE() << "Application::~Application() saving buyout manager";
         buyout_manager_->Save();
     };
 }
 
 void Application::Start() {
 
+    QLOG_TRACE() << "Application::Start(): creating the login dialog";
     login_ = std::make_unique<LoginDialog>(
         settings(),
         network_manager(),
@@ -103,20 +127,25 @@ void Application::Start() {
     };
 
     // Connect to the update signal in case an update is detected before the main window is open.
+    QLOG_TRACE() << "Application::Start(): connecting update checker";
     QObject::connect(update_checker_.get(), &UpdateChecker::UpdateAvailable, update_checker_.get(), &UpdateChecker::AskUserToUpdate);
 
     // Use the login complete signal to setup the main window.
+    QLOG_TRACE() << "Application::Start(): connecting login";
     QObject::connect(login_.get(), &LoginDialog::LoginComplete, this, &Application::OnLogin);
 
     // Setup the ability to trigger testing from the UI
+    QLOG_TRACE() << "Application::Start(): preparing shortcut for forced crashes";
     connect(&test_action_, &QAction::triggered, this, &Application::OnRunTests);
     test_action_.setShortcut(Qt::Key_T | Qt::CTRL);
     login_->addAction(&test_action_);
 
     // Start the initial check for updates.
+    QLOG_TRACE() << "Application::Start(): checking for updates";
     update_checker_->CheckForUpdates();
 
     // Show the login dialog now.
+    QLOG_TRACE() << "Application::Start(): showing the login dialog";
     login_->show();
 }
 
@@ -243,6 +272,8 @@ void Application::FatalAccessError(const char* object_name) const {
 
 void Application::InitCrashReporting() {
 
+    QLOG_TRACE() << "Application::InitCrashReporting()";
+
     // Make sure the settings object exists.
     if (!settings_) {
         QLOG_ERROR() << "Cannot init crash reporting because settings object is invalid";
@@ -254,10 +285,12 @@ void Application::InitCrashReporting() {
 
     if (!settings_->contains("report_crashes")) {
         // Update the setting if it didn't exist before.
+        QLOG_TRACE() << "Application::InitCrashReporting(): setting 'report_crashes' to true";
         settings_->setValue("report_crashes", true);
     } else {
         // Use the exiting setting.
         report_crashes = settings_->value("report_crashes").toBool();
+        QLOG_TRACE() << "Application::InitCrashReporting(): 'report_crashes' is" << report_crashes;
     };
 
     // Initialize crash reporting with crashpad.
@@ -267,8 +300,12 @@ void Application::InitCrashReporting() {
 }
 
 void Application::LoadTheme() {
+
+    QLOG_TRACE() << "Application::LoadTheme()";
+
     // Load the appropriate theme.
     const QString theme = settings_->value("theme").toString();
+    QLOG_TRACE() << "Application::LoadTheme(): theme is" << theme;
 
     // Do nothing for the default theme.
     if (theme == "default") {
@@ -285,20 +322,25 @@ void Application::LoadTheme() {
         QLOG_ERROR() << "Invalid theme:" << theme;
         return;
     };
+    QLOG_TRACE() << "Application::LoadTheme(): stylesheet is" << stylesheet;
 
     // Load the theme.
     QFile f(stylesheet);
     if (!f.exists()) {
-        QLOG_ERROR() << "Theme stylesheet not found:" << stylesheet;
-    } else {
-        f.open(QFile::ReadOnly | QFile::Text);
-        QTextStream ts(&f);
-        const QString theme_data = ts.readAll();
-        qApp->setStyleSheet(theme_data);
-        QPalette pal = QApplication::palette();
-        pal.setColor(QPalette::WindowText, Qt::white);
-        QApplication::setPalette(pal);
+        QLOG_ERROR() << "The theme's stylesheet does not exist";
+        return;
     };
+
+    QLOG_TRACE() << "Application::LoadTheme(): reading stylesheet";
+    f.open(QFile::ReadOnly | QFile::Text);
+    QTextStream ts(&f);
+    const QString theme_data = ts.readAll();
+
+    QLOG_TRACE() << "Application::LoadTheme(): setting stylsheet and palette";
+    qApp->setStyleSheet(theme_data);
+    QPalette pal = QApplication::palette();
+    pal.setColor(QPalette::WindowText, Qt::white);
+    QApplication::setPalette(pal);
 }
 
 void Application::InitLogin(POE_API mode)

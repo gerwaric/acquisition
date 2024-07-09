@@ -30,6 +30,7 @@
 #include "QsLogDest.h"
 
 #include <clocale>
+#include <iostream>
 
 #include "application.h"
 #include "filesystem.h"
@@ -138,6 +139,7 @@ int main(int argc, char* argv[])
     };
     QLOG_INFO() << "Logging level is" << logger.loggingLevel();
 
+    QLOG_TRACE() << "Checking for SSL support...";
     if (!QSslSocket::supportsSsl()) {
         QLOG_FATAL() << QString(SSL_ERROR);
         QMessageBox msg(nullptr);
@@ -147,8 +149,8 @@ int main(int argc, char* argv[])
         msg.exec();
         return EXIT_FAILURE;
     };
-    QLOG_DEBUG() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
-    QLOG_DEBUG() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
+    QLOG_TRACE() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
+    QLOG_TRACE() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
 
     // Check for test mode.
     if (parser.isSet(option_test)) {
@@ -164,6 +166,7 @@ int main(int argc, char* argv[])
 
     // Trigger an optional crash.
     if (parser.isSet(option_crash)) {
+        QLOG_TRACE() << "main(): a forced crash was requested";
         const int choice = QMessageBox::critical(nullptr, "FATAL ERROR",
             "Acquisition wants to abort.",
             QMessageBox::StandardButton::Abort | QMessageBox::StandardButton::Cancel,
@@ -175,8 +178,10 @@ int main(int argc, char* argv[])
     };
 
     // Starting the application creates and shows the login dialog.
+    QLOG_TRACE() << "main(): starting the application";
     app.Start();
 
     // Start the main event loop.
+    QLOG_TRACE() << "main(): starting the event loop";
     return a.exec();
 }
