@@ -108,16 +108,19 @@ ItemsManagerWorker::ItemsManagerWorker(QObject* parent,
     need_character_list_(false),
     has_stash_list_(false),
     has_character_list_(false)
-{}
+{
+    QLOG_TRACE() << "ItemsManagerWorker::ItemsManagerWorker() entered";
+}
 
 void ItemsManagerWorker::UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations) {
+    QLOG_TRACE() << "ItemsManagerWorker::UpdateRequest() entered";
     updateRequest_ = true;
     type_ = type;
     locations_ = locations;
 }
 
 void ItemsManagerWorker::Init() {
-
+    QLOG_TRACE() << "ItemsManagerWorker::Init() entered";
     if (updating_) {
         QLOG_WARN() << "ItemsManagerWorker::Init() called while updating, skipping Mod List Update";
         return;
@@ -138,6 +141,7 @@ void ItemsManagerWorker::Init() {
 }
 
 void ItemsManagerWorker::OnRePoEReady() {
+    QLOG_TRACE() << "ItemsManagerWorker::OnRePoEReady() entered";
     // Create a separate thread to load the items, which allows the UI to
     // update the status bar while items are being parsed. This operation
     // can take tens of seconds or longer depending on the nubmer of tabs
@@ -150,6 +154,7 @@ void ItemsManagerWorker::OnRePoEReady() {
 };
 
 void ItemsManagerWorker::ParseItemMods() {
+    QLOG_TRACE() << "ItemsManagerWorker::ParseItemMods() entered";
     tabs_.clear();
     tabs_signature_.clear();
     tab_id_index_.clear();
@@ -208,6 +213,7 @@ void ItemsManagerWorker::ParseItemMods() {
 }
 
 void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemLocation>& locations) {
+    QLOG_TRACE() << "ItemsManagerWorker::Update() entered";
     if (updating_) {
         QLOG_WARN() << "ItemsManagerWorker::Update called while updating";
         return;
@@ -278,6 +284,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 }
 
 void ItemsManagerWorker::RemoveUpdatingTabs(const std::set<std::string>& tab_ids) {
+    QLOG_TRACE() << "ItemsManagerWorker::RemoveUpdatingTabs() entered";
     if (tab_ids.empty()) {
         QLOG_ERROR() << "No tabs to remove.";
         return;
@@ -312,6 +319,7 @@ void ItemsManagerWorker::RemoveUpdatingTabs(const std::set<std::string>& tab_ids
 }
 
 void ItemsManagerWorker::RemoveUpdatingItems(const std::set<std::string>& tab_ids) {
+    QLOG_TRACE() << "ItemsManagerWorker::RemoveUpdatingItems() entered";
     // Keep items with locations that are not being updated.
     if (tab_ids.empty()) {
         QLOG_ERROR() << "No tabs to remove items from.";
@@ -330,6 +338,7 @@ void ItemsManagerWorker::RemoveUpdatingItems(const std::set<std::string>& tab_id
 }
 
 void ItemsManagerWorker::LegacyRefresh() {
+    QLOG_TRACE() << "ItemsManagerWorker::LegacyRefresh() entered";
     if (need_stash_list_) {
         // This queues stash tab requests.
         QNetworkRequest tab_request = MakeLegacyTabRequest(first_stash_request_index_, true);
@@ -347,6 +356,7 @@ void ItemsManagerWorker::LegacyRefresh() {
 }
 
 void ItemsManagerWorker::OAuthRefresh() {
+    QLOG_TRACE() << "ItemsManagerWorker::OAuthRefresh() entered";
     if (need_stash_list_) {
         const auto request = MakeOAuthStashListRequest(league_);
         auto reply = rate_limiter_.Submit(kOauthListStashesEndpoint, request);
@@ -360,6 +370,7 @@ void ItemsManagerWorker::OAuthRefresh() {
 }
 
 QNetworkRequest ItemsManagerWorker::MakeOAuthStashListRequest(const std::string& league) {
+    QLOG_TRACE() << "ItemsManagerWorker::MakeOAuthStashListRequest() entered";
     QStringList parts = {
         QString(kOAuthListStashesUrl),
         QString::fromStdString(league) };
@@ -368,6 +379,7 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthStashListRequest(const std::string&
 }
 
 QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterListRequest() {
+    QLOG_TRACE() << "ItemsManagerWorker::MakeOAuthCharacterListRequest() entered";
     const QUrl url(kOAuthListCharactersUrl);
     return QNetworkRequest(url);
 }
@@ -377,6 +389,7 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthStashRequest(
     const std::string& stash_id,
     const std::string& substash_id)
 {
+    QLOG_TRACE() << "ItemsManagerWorker::MakeOAuthStashRequest() entered";
     QStringList parts = {
         QString(kOAuthGetStashUrl),
         QString::fromStdString(league),
@@ -389,6 +402,8 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthStashRequest(
 }
 
 QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterRequest(const std::string& name) {
+    QLOG_TRACE() << "ItemsManagerWorker::MakeOAuthCharacterRequest() entered";
+
     QStringList parts = {
         QString(kOAuthGetCharacterUrl),
         QString::fromStdString(name) };
@@ -397,6 +412,7 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterRequest(const std::string&
 }
 
 void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
+    QLOG_TRACE() << "ItemsManagerWorker::OnOAuthStashListReceived() entered";
 
     auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
     sender->deleteLater();
@@ -494,6 +510,7 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
 }
 
 void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
+    QLOG_TRACE() << "ItemsManagerWorker::OnOAuthCharacterListReceived() entered";
 
     auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
     sender->deleteLater();
@@ -555,6 +572,7 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
 }
 
 void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply, ItemLocation location) {
+    QLOG_TRACE() << "ItemsManagerWorker::OnOAuthStashReceived() entered";
 
     auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
     sender->deleteLater();
@@ -604,6 +622,7 @@ void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply, ItemLocation
 }
 
 void ItemsManagerWorker::OnOAuthCharacterReceived(QNetworkReply* reply, ItemLocation location) {
+    QLOG_TRACE() << "ItemsManagerWorker::OnOAuthCharacterReceived() entered";
 
     auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
     sender->deleteLater();
@@ -647,9 +666,9 @@ void ItemsManagerWorker::OnOAuthCharacterReceived(QNetworkReply* reply, ItemLoca
 }
 
 void ItemsManagerWorker::OnLegacyMainPageReceived() {
-    QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
-    QLOG_TRACE() << "Main page received.";
+    QLOG_TRACE() << "ItemsManagerWorker::OnLegacyMainPageReceived() entered";
 
+    QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
     if (reply->error()) {
         QLOG_WARN() << "Couldn't fetch main page: " << reply->url().toDisplayString() << " due to error: " << reply->errorString();
     } else {
@@ -668,12 +687,11 @@ void ItemsManagerWorker::OnLegacyMainPageReceived() {
 }
 
 void ItemsManagerWorker::OnLegacyCharacterListReceived(QNetworkReply* reply) {
+    QLOG_TRACE() << "ItemsManagerWorker::OnLegacyCharacterListReceived() entered";
 
     auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
     sender->deleteLater();
     reply->deleteLater();
-
-    QLOG_TRACE() << "Legacy character list received.";
     if (reply->error()) {
         QLOG_WARN() << "Couldn't fetch character list: " << reply->url().toDisplayString()
             << " due to error: " << reply->errorString() << " Aborting update.";
@@ -737,6 +755,8 @@ void ItemsManagerWorker::OnLegacyCharacterListReceived(QNetworkReply* reply) {
 }
 
 QNetworkRequest ItemsManagerWorker::MakeLegacyTabRequest(int tab_index, bool tabs) {
+    QLOG_TRACE() << "ItemsManagerWorker::MakeLegacyTabRequest() entered";
+
     if (tab_index < 0) {
         QLOG_ERROR() << "MakeLegacyTabRequest: invalid tab_index =" << tab_index;
     };
@@ -752,6 +772,8 @@ QNetworkRequest ItemsManagerWorker::MakeLegacyTabRequest(int tab_index, bool tab
 }
 
 QNetworkRequest ItemsManagerWorker::MakeLegacyCharacterRequest(const std::string& name) {
+    QLOG_TRACE() << "ItemsManagerWorker::MakeLegacyCharacterRequest() entered";
+
     if (name.empty()) {
         QLOG_ERROR() << "MakeLegacyCharacterRequest: invalid name = '" + name + "'";
     };
@@ -765,6 +787,8 @@ QNetworkRequest ItemsManagerWorker::MakeLegacyCharacterRequest(const std::string
 }
 
 QNetworkRequest ItemsManagerWorker::MakeLegacyPassivesRequest(const std::string& name) {
+    QLOG_TRACE() << "ItemsManagerWorker::MakeLegacyPassivesRequest() entered";
+
     if (name.empty()) {
         QLOG_ERROR() << "MakeLegacyPassivesRequest: invalid name = '" + name + "'";
     };
@@ -778,6 +802,8 @@ QNetworkRequest ItemsManagerWorker::MakeLegacyPassivesRequest(const std::string&
 }
 
 void ItemsManagerWorker::QueueRequest(const QString& endpoint, const QNetworkRequest& request, const ItemLocation& location) {
+    QLOG_TRACE() << "ItemsManagerWorker::QueueRequest() entered";
+
     QLOG_DEBUG() << "Queued (" << queue_id_ + 1 << ") -- " << QString::fromUtf8(location.GetHeader());
     ItemsRequest items_request;
     items_request.endpoint = endpoint;
@@ -788,6 +814,7 @@ void ItemsManagerWorker::QueueRequest(const QString& endpoint, const QNetworkReq
 }
 
 void ItemsManagerWorker::FetchItems() {
+    QLOG_TRACE() << "ItemsManagerWorker::FetchItems() entered";
 
     stashes_needed_ = 0;
     stashes_received_ = 0;
@@ -838,6 +865,7 @@ void ItemsManagerWorker::FetchItems() {
 }
 
 void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
+    QLOG_TRACE() << "ItemsManagerWorker::OnFirstLegacyTabReceived() entered";
 
     auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
     sender->deleteLater();
@@ -927,6 +955,8 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
 }
 
 void ItemsManagerWorker::SendStatusUpdate() {
+    QLOG_TRACE() << "ItemsManagerWorker::SendStatusUpdate() entered";
+
     if (cancel_update_) {
         emit StatusUpdate(ProgramState::Ready, "Update cancelled.");
     } else {
@@ -953,6 +983,8 @@ void ItemsManagerWorker::SendStatusUpdate() {
 }
 
 void ItemsManagerWorker::ParseItems(rapidjson::Value& value, ItemLocation base_location, rapidjson_allocator& alloc) {
+    QLOG_TRACE() << "ItemsManagerWorker::ParseItems() entered";
+
     for (auto& item : value) {
         // Make sure location data from the item like x and y is brought over to the location object.
         base_location.FromItemJson(item);
@@ -967,6 +999,7 @@ void ItemsManagerWorker::ParseItems(rapidjson::Value& value, ItemLocation base_l
 }
 
 void ItemsManagerWorker::OnLegacyTabReceived(QNetworkReply* reply, ItemLocation location) {
+    QLOG_TRACE() << "ItemsManagerWorker::OnLegacyTabReceived() entered";
 
     auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
     sender->deleteLater();
@@ -1022,6 +1055,7 @@ void ItemsManagerWorker::OnLegacyTabReceived(QNetworkReply* reply, ItemLocation 
 }
 
 bool ItemsManagerWorker::TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, ItemLocation& location) {
+    QLOG_TRACE() << "ItemsManagerWorker::TabsChanged() entered";
 
     if (!doc.HasMember("tabs") || doc["tabs"].Size() == 0) {
         QLOG_ERROR() << "Full tab information missing from stash tab fetch.  Cancelling update. Full fetch URL: "
@@ -1062,6 +1096,8 @@ bool ItemsManagerWorker::TabsChanged(rapidjson::Document& doc, QNetworkReply* ne
 }
 
 void ItemsManagerWorker::FinishUpdate() {
+    QLOG_TRACE() << "ItemsManagerWorker::FinishUpdate() entered";
+
     // It's possible that we receive character vs stash tabs out of order, or users
     // move items around in a tab and we get them in a different order. For
     // consistency we want to present the tab data in a deterministic way to the rest
@@ -1129,6 +1165,8 @@ void ItemsManagerWorker::FinishUpdate() {
 }
 
 void ItemsManagerWorker::PreserveSelectedCharacter() {
+    QLOG_TRACE() << "ItemsManagerWorker::PreserveSelectedCharacter() entered";
+
     if (selected_character_.empty()) {
         QLOG_DEBUG() << "Cannot preserve selected character: no character selected";
         return;
@@ -1145,6 +1183,8 @@ void ItemsManagerWorker::PreserveSelectedCharacter() {
 }
 
 ItemsManagerWorker::TabsSignatureVector ItemsManagerWorker::CreateTabsSignatureVector(const rapidjson::Value& tabs) {
+    QLOG_TRACE() << "ItemsManagerWorker::CreateTabsSignatureVector() entered";
+
     const bool legacy = tabs[0].HasMember("n");
     const char* n = legacy ? "n" : "name";
     const char* id = "id";

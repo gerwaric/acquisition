@@ -66,9 +66,6 @@ signals:
     // Emitted when the underlying policy has been updated.
     void PolicyUpdated(const RateLimit::Policy& policy);
 
-    // Used after a fatal error to close Acquistion
-    void Quit();
-
 public slots:
     // Called when a reply has been received. Checks for errors. Updates the
     // rate limit policy if one was received. Puts the response in the

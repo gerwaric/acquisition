@@ -36,6 +36,7 @@ private:
     CATEGORY_DATA() {};
 public:
     static CATEGORY_DATA& instance() {
+        QLOG_TRACE() << "CATEGORY_DATA::instance() entered";
         static CATEGORY_DATA data;
         return data;
     };
@@ -46,8 +47,9 @@ public:
 };
 
 void InitItemClasses(const QByteArray& classes) {
-
+    QLOG_TRACE() << "InitItemClasses() entered";
     static bool classes_initialized = false;
+    QLOG_TRACE() << "InitItemClasses() classes_initialized =" << classes_initialized;
 
     rapidjson::Document doc;
     doc.Parse(classes.constData());
@@ -67,6 +69,7 @@ void InitItemClasses(const QByteArray& classes) {
     data.itemClassKeyToValue.clear();
     data.itemClassValueToKey.clear();
 
+    QLOG_TRACE() << "InitItemClasses() processing data";
     QSet<QString> cats;
     for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
         std::string key = itr->name.GetString();
@@ -87,8 +90,9 @@ void InitItemClasses(const QByteArray& classes) {
 }
 
 void InitItemBaseTypes(const QByteArray& baseTypes) {
-
+    QLOG_TRACE() << "InitItemBaseTypes() entered";
     static bool basetypes_initialized = false;
+    QLOG_TRACE() << "InitItemBaseTypes() basetypes_initialized =" << basetypes_initialized;
 
     rapidjson::Document doc;
     doc.Parse(baseTypes.constData());
@@ -104,6 +108,7 @@ void InitItemBaseTypes(const QByteArray& baseTypes) {
         QLOG_WARN() << "Item base types have already been loaded. They will be overwritten.";
     };
 
+    QLOG_TRACE() << "InitItemBaseTypes() processing data";
     static auto& data = CATEGORY_DATA::instance();
     data.itemBaseType_NameToClass.clear();
     for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
@@ -116,7 +121,8 @@ void InitItemBaseTypes(const QByteArray& baseTypes) {
 }
 
 std::string GetItemCategory(const std::string& baseType) {
-
+    QLOG_TRACE() << "GetItemCategory() entered";
+    QLOG_TRACE() << "GetItemCategory() baseType =" << baseType;
     static auto& data = CATEGORY_DATA::instance();
 
     auto rslt = data.itemBaseType_NameToClass.find(baseType);
@@ -126,13 +132,16 @@ std::string GetItemCategory(const std::string& baseType) {
         if (rslt != data.itemClassKeyToValue.end()) {
             std::string category = rslt->second;
             boost::to_lower(category);
+            QLOG_TRACE() << "GetItemCategory: category is" << category;
             return category;
         };
     };
+    QLOG_TRACE() << "GetItemCategory: could not categorize baseType";
     return "";
 }
 
 const QStringList& GetItemCategories() {
+    QLOG_TRACE() << "GetItemCategories() entered";
     static auto& data = CATEGORY_DATA::instance();
     return data.categories;
 }

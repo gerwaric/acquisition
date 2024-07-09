@@ -60,6 +60,7 @@ bool initializeCrashpad(
     const QString& appName,
     const QString& appVersion)
 {
+    QLOG_TRACE() << "initializeCrashpad() entered";
     static CrashpadClient* client = nullptr;
 
     if (client != nullptr) {
@@ -68,12 +69,12 @@ bool initializeCrashpad(
     };
 
     QLOG_INFO() << "Initalizing Crashpad";
-    QLOG_TRACE() << "database =" << dbName;
-    QLOG_TRACE() << "application =" << appName;
-    QLOG_TRACE() << "version =" << appVersion;
+    QLOG_TRACE() << "initializeCrashpad() database =" << dbName;
+    QLOG_TRACE() << "initializeCrashpad() application =" << appName;
+    QLOG_TRACE() << "initializeCrashpad() version =" << appVersion;
 
     const QString appExe = QCoreApplication::applicationDirPath() + "/" + CRASHPAD_HANDLER;
-    QLOG_TRACE() << "appExe =" << appExe;
+    QLOG_TRACE() << "initializeCrashpad() appExe =" << appExe;
 
     // Make sure the executable exists.
     const QFileInfo appInfo(appExe);
@@ -94,14 +95,14 @@ bool initializeCrashpad(
     const FilePath crashpadDir(StdPath(dataDir));
     const FilePath& reportsDir = crashpadDir;
     const FilePath& metricsDir = crashpadDir;
-    QLOG_TRACE() << "handler =" << handler.value();
-    QLOG_TRACE() << "crashpadDir =" << crashpadDir.value();
-    QLOG_TRACE() << "reportsDir =" << reportsDir.value();
-    QLOG_TRACE() << "metricsDir =" << metricsDir.value();
+    QLOG_TRACE() << "initializeCrashpad() handler =" << handler.value();
+    QLOG_TRACE() << "initializeCrashpad() crashpadDir =" << crashpadDir.value();
+    QLOG_TRACE() << "initializeCrashpad() reportsDir =" << reportsDir.value();
+    QLOG_TRACE() << "initializeCrashpad() metricsDir =" << metricsDir.value();
 
     // Configure url with your BugSplat database
     const std::string url = "https://" + dbName.toStdString() + ".bugsplat.com/post/bp/crash/crashpad.php";
-    QLOG_TRACE() << "url =" << url;
+    QLOG_TRACE() << "initializeCrashpad() url =" << url;
 
     // Metadata that will be posted to BugSplat
     const std::map<std::string, std::string> annotations{ {
@@ -111,11 +112,11 @@ bool initializeCrashpad(
         {"version", appVersion.toStdString()}   // Required: BugSplat appVersion
     } };
     for (auto& pair : annotations) {
-        QLOG_TRACE() << "annotations[" << pair.first << "] =" << pair.second;
+        QLOG_TRACE() << "initializeCrashpad() annotations[" << pair.first << "] =" << pair.second;
     };
 
     // Initialize crashpad database
-    QLOG_TRACE() << "Calling CrashReportDatabase::Initialize(" << reportsDir.value() << ")";
+    QLOG_TRACE() << "initializeCrashpad() calling CrashReportDatabase::Initialize(" << reportsDir.value() << ")";
     auto database = CrashReportDatabase::Initialize(reportsDir);
     if (database == NULL) {
         QLOG_ERROR() << "Crashpad: failed to initialize the crash reports database.";
@@ -123,41 +124,41 @@ bool initializeCrashpad(
     };
 
     // Enable automated crash uploads
-    QLOG_TRACE() << "Getting settings from the crash report database";
+    QLOG_TRACE() << "initializeCrashpad() getting settings from the crash report database";
     auto settings = database->GetSettings();
     if (settings == NULL) {
         QLOG_ERROR() << "Crashpad: failed to get settings.";
         return false;
     };
-    QLOG_TRACE() << "Calling SetUploadsEnabled( true )";
+    QLOG_TRACE() << "initializeCrashpad() calling SetUploadsEnabled( true )";
     settings->SetUploadsEnabled(true);
 
     // Disable crashpad rate limiting so that all crashes have dmp files
     const std::vector<std::string> arguments{ "--no-rate-limit" };
     for (auto i = 0; i < arguments.size(); ++i) {
-        QLOG_TRACE() << "  arguments[" << i << "] =" << arguments[i];
+        QLOG_TRACE() << "initializeCrashpad() arguments[" << i << "] =" << arguments[i];
     };
 
     const bool restartable = true;
     const bool asynchronous_start = true;
-    QLOG_TRACE() << "restartable =" << restartable;
-    QLOG_TRACE() << "asynchronous_start =" << asynchronous_start;
+    QLOG_TRACE() << "initializeCrashpad() restartable =" << restartable;
+    QLOG_TRACE() << "initializeCrashpad() asynchronous_start =" << asynchronous_start;
 
     // Attachments to be uploaded alongside the crash - default bundle size limit is 20MB
     const std::vector<FilePath> attachments;
     for (auto i = 0; i < attachments.size(); ++i) {
-        QLOG_TRACE() << "  attachments[" << i << "] =" << attachments[i].value();
+        QLOG_TRACE() << "initializeCrashpad() attachments[" << i << "] =" << attachments[i].value();
     };
 
     // Start crash handler
-    QLOG_TRACE() << "Creating a new CrashpadClient";
+    QLOG_TRACE() << "initializeCrashpad() creating a new CrashpadClient";
     client = new CrashpadClient();
     bool status = client->StartHandler(handler,
         reportsDir, metricsDir, url, annotations, arguments,
         restartable, asynchronous_start, attachments);
 
     if (status) {
-        QLOG_TRACE() << "Crashpad is initialized.";
+        QLOG_TRACE() << "initializeCrashpad() crashpad is initialized.";
     } else {
         QLOG_ERROR() << "Crashpad failed to initialize the handler.";
         client = nullptr;

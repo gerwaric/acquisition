@@ -45,6 +45,7 @@ RateLimiter::RateLimiter(QObject* parent,
     oauth_manager_(oauth_manager),
     mode_(mode)
 {
+    QLOG_TRACE() << "RateLimiter::RateLimiter() entered";
     update_timer_.setSingleShot(false);
     update_timer_.setInterval(UPDATE_INTERVAL_MSEC);
     connect(&update_timer_, &QTimer::timeout, this, &RateLimiter::SendStatusUpdate);
@@ -54,6 +55,10 @@ RateLimit::RateLimitedReply* RateLimiter::Submit(
     const QString& endpoint,
     QNetworkRequest network_request)
 {
+    QLOG_TRACE() << "RateLimiter::Submit() entered";
+    QLOG_TRACE() << "RateLimiter::Submit() endpoint =" << endpoint;
+    QLOG_TRACE() << "RateLimiter::Submit() network_request =" << network_request.url().toString();
+
     // Make sure the user agent is set according to GGG's guidance.
     network_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 
@@ -89,18 +94,18 @@ void RateLimiter::SetupEndpoint(
     RateLimit::RateLimitedReply* reply,
     QNetworkReply* network_reply)
 {
+    QLOG_TRACE() << "RateLimiter::SetupEndpoint() entered";
+    QLOG_TRACE() << "RateLimiter::SetupEndpoint() endpoint =" << endpoint;
+    QLOG_TRACE() << "RateLimiter::SetupEndpoint() network_request =" << network_request.url().toString();
 
     // All endpoints should be rate limited.
     if (!network_reply->hasRawHeader("X-Rate-Limit-Policy")) {
-        QLOG_TRACE() << "RateLimiter: invalid HEAD reply without a rate limit policy";
-        QLOG_TRACE() << "  Request URL:" << network_request.url().toString();
-        QLOG_TRACE() << "  Requests Headers:";
+        QLOG_TRACE() << "RateLimiter:SetupEndpoint(): invalid HEAD reply without a rate limit policy";
         for (const auto& item : network_request.rawHeaderList()) {
-            QLOG_TRACE() << "    " << item << "=" << network_request.rawHeader(item);
+            QLOG_TRACE() << "RateLimiter:SetupEndpoint() request header" << item << "=" << network_request.rawHeader(item);
         };
-        QLOG_TRACE() << "  Reply Headers:";
         for (const auto& pair : network_reply->rawHeaderPairs()) {
-            QLOG_TRACE() << "    " << pair.first << "=" << pair.second;
+            QLOG_TRACE() << "RateLimiter::SetupEndpoint() repy header" << pair.first << "=" << pair.second;
         };
         QString url = network_reply->request().url().toString();
         QLOG_ERROR() << "The endpoint is apparently not rate-limited:" << endpoint << "(" + url + ")";
@@ -119,6 +124,10 @@ RateLimitManager& RateLimiter::GetManager(
     const QString& endpoint,
     const QString& policy_name)
 {
+    QLOG_TRACE() << "RateLimiter::GetManager() entered";
+    QLOG_TRACE() << "RateLimiter::GetManager() endpoint = " << endpoint;
+    QLOG_TRACE() << "RateLimiter::GetManager() policy_name = " << policy_name;
+
     // Make sure this function is thread-safe, since it modifies out managers.
     static QMutex mutex;
     QMutexLocker locker(&mutex);
@@ -146,6 +155,7 @@ RateLimitManager& RateLimiter::GetManager(
 
 void RateLimiter::OnUpdateRequested()
 {
+    QLOG_TRACE() << "RateLimiter::OnUpdateRequested() entered";
     for (const auto& manager : managers_) {
         emit PolicyUpdate(manager->policy());
     };
@@ -154,12 +164,14 @@ void RateLimiter::OnUpdateRequested()
 
 void RateLimiter::OnPolicyUpdated(const RateLimit::Policy& policy)
 {
+    QLOG_TRACE() << "RateLimiter::OnPolicyUpdated() entered";
     emit PolicyUpdate(policy);
     SendStatusUpdate();
 }
 
 void RateLimiter::SendStatusUpdate()
 {
+    QLOG_TRACE() << "RateLimiter::SendStatusUpdate() entered";
     QDateTime next_send;
     QString limiting_policy;
     for (auto& manager : managers_) {
@@ -190,16 +202,16 @@ void RateLimiter::SendStatusUpdate()
 
     if (pause > 0) {
         if (!update_timer_.isActive()) {
-            QLOG_TRACE() << "Starting status updates (" << limiting_policy << ")";
+            QLOG_TRACE() << "RateLimiter::SendStatusUpdate() starting status updates (" << limiting_policy << ")";
             update_timer_.start();
         };
     } else {
         if (update_timer_.isActive()) {
-            QLOG_TRACE() << "Stopping status updates";
+            QLOG_TRACE() << "RateLimiter::SendStatusUpdate() stopping status updates";
             update_timer_.stop();
         };
     };
 
-    QLOG_TRACE() << "RateLimiter is PAUSED" << pause << "for" << limiting_policy;
+    QLOG_TRACE() << "RateLimiter::SendStatusUpdate() rateLimiter is PAUSED" << pause << "for" << limiting_policy;
     emit Paused(pause, limiting_policy);
 }

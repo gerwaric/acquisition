@@ -28,10 +28,13 @@ bool RePoE::initialized_ = false;
 RePoE::RePoE(QObject* parent, QNetworkAccessManager& network_manager) :
     QObject(parent),
     network_manager_(network_manager)
-{}
+{
+    QLOG_TRACE() << "RePoE::RePoE() entered";
+}
 
 void RePoE::Init() {
 
+    QLOG_TRACE() << "RePoE::Init() entered";
     if (initialized_) {
         QLOG_INFO() << "RePoE is already initialized.";
         return;
@@ -40,6 +43,7 @@ void RePoE::Init() {
     QLOG_INFO() << "Initializing RePoE";
     emit StatusUpdate(ProgramState::Initializing, "Waiting for RePoE item classes.");
 
+    QLOG_TRACE() << "RePoE: sending item classes request:" << ITEM_CLASSES_URL;
     QNetworkRequest request = QNetworkRequest(QUrl(ITEM_CLASSES_URL));
     request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
     QNetworkReply* reply = network_manager_.get(request);
@@ -47,6 +51,8 @@ void RePoE::Init() {
 }
 
 void RePoE::OnItemClassesReceived() {
+
+    QLOG_TRACE() << "RePoE::OnItemClassesReceived() entered";
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
     if (reply->error()) {
         QLOG_ERROR() << "Error fetching RePoE item classes:" << reply->url().toDisplayString()
@@ -60,6 +66,7 @@ void RePoE::OnItemClassesReceived() {
 
     emit StatusUpdate(ProgramState::Initializing, "Waiting for RePoE item base types.");
 
+    QLOG_TRACE() << "RePoE: sending base items request:" << BASE_ITEMS_URL;
     QNetworkRequest request = QNetworkRequest(QUrl(BASE_ITEMS_URL));
     request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
     QNetworkReply* next_reply = network_manager_.get(request);
@@ -68,6 +75,7 @@ void RePoE::OnItemClassesReceived() {
 
 void RePoE::OnBaseItemsReceived() {
 
+    QLOG_TRACE() << "RePoE::OnBaseItemsReceived() entered";
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
     if (reply->error()) {
         QLOG_ERROR() << "Error fetching RePoE base items:" << reply->url().toDisplayString()
@@ -87,6 +95,7 @@ void RePoE::OnBaseItemsReceived() {
 
 void RePoE::GetStatTranslations() {
 
+    QLOG_TRACE() << "RePoE::GetStatTranslations() entered";
     static QStringList urls = GetTranslationUrls();
     if (urls.isEmpty()) {
         QLOG_INFO() << "RePoE data received.";
@@ -96,9 +105,11 @@ void RePoE::GetStatTranslations() {
         return;
     };
 
+    QLOG_TRACE() << "RePoE: getting next stat translation";
     const QString next = urls.front();
     urls.pop_front();
 
+    QLOG_TRACE() << "RePoE: requesting stat translation:" << next;
     QNetworkRequest request = QNetworkRequest(QUrl(next));
     request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
     QNetworkReply* reply = network_manager_.get(request);
@@ -106,8 +117,10 @@ void RePoE::GetStatTranslations() {
 }
 
 QStringList RePoE::GetTranslationUrls() {
+    QLOG_TRACE() << "RePoE::GetTranslationUrls() entered";
     QStringList list;
     for (const auto& url : STAT_TRANSLATION_URLS) {
+        QLOG_TRACE() << "RePoE: adding stat translation:" << url;
         list.append(QString(url));
     };
     return list;
@@ -116,6 +129,7 @@ QStringList RePoE::GetTranslationUrls() {
 
 void RePoE::OnStatTranslationReceived() {
 
+    QLOG_TRACE() << "RePoE::OnStatTranslationReceived() entered";
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
     if (reply->error()) {
         QLOG_ERROR() << "Couldn't fetch RePoE Stat Translations: " << reply->url().toDisplayString()

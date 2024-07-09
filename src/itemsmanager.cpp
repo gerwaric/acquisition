@@ -54,6 +54,7 @@ ItemsManager::ItemsManager(QObject* parent,
     rate_limiter_(rate_limiter),
     auto_update_timer_(std::make_unique<QTimer>())
 {
+    QLOG_TRACE() << "ItemsManager::ItemsManager() entered";
     const int interval = settings_.value("autoupdate_interval", 30).toInt();
     auto_update_timer_->setSingleShot(false);
     auto_update_timer_->setInterval(interval * 60 * 1000);
@@ -63,6 +64,7 @@ ItemsManager::ItemsManager(QObject* parent,
 ItemsManager::~ItemsManager() {}
 
 void ItemsManager::Start(POE_API mode) {
+    QLOG_TRACE() << "ItemsManager::Start() entered";
     worker_ = std::make_unique<ItemsManagerWorker>(this,
         settings_,
         network_manager_,
@@ -77,10 +79,12 @@ void ItemsManager::Start(POE_API mode) {
 }
 
 void ItemsManager::OnStatusUpdate(ProgramState state, const QString& status) {
+    QLOG_TRACE() << "ItemsManager::OnStatusUpdate() entered";
     emit StatusUpdate(state, status);
 }
 
 void ItemsManager::ApplyAutoTabBuyouts() {
+    QLOG_TRACE() << "ItemsManager::ApplyAutoTabBuyouts() entered";
     // Can handle everything related to auto-tab pricing here.
     // 1. First format we need to honor is ascendency pricing formats which is top priority and overrides other types
     // 2. Second priority is to honor manual user pricing
@@ -101,6 +105,7 @@ void ItemsManager::ApplyAutoTabBuyouts() {
 }
 
 void ItemsManager::ApplyAutoItemBuyouts() {
+    QLOG_TRACE() << "ItemsManager::ApplyAutoItemBuyouts() entered";
     // Loop over all items, check for note field with pricing and apply
     for (auto const& item : items_) {
         auto const& note = item->note();
@@ -123,6 +128,7 @@ void ItemsManager::ApplyAutoItemBuyouts() {
 }
 
 void ItemsManager::PropagateTabBuyouts() {
+    QLOG_TRACE() << "ItemsManager::PropagateTabBuyouts() entered";
     buyout_manager_.ClearRefreshLocks();
     for (auto& item_ptr : items_) {
         Item& item = *item_ptr;
@@ -153,6 +159,7 @@ void ItemsManager::PropagateTabBuyouts() {
 }
 
 void ItemsManager::OnItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh) {
+    QLOG_TRACE() << "ItemsManager::OnItemsRefreshed() entered";
     items_ = items;
 
     QLOG_DEBUG() << "There are" << items_.size() << "items and" << tabs.size() << "tabs after the refresh.";
@@ -177,6 +184,7 @@ void ItemsManager::OnItemsRefreshed(const Items& items, const std::vector<ItemLo
 }
 
 void ItemsManager::Update(TabSelection::Type type, const std::vector<ItemLocation>& locations) {
+    QLOG_TRACE() << "ItemsManager::Update() entered";
     if (!isInitialized()) {
         // tell ItemsManagerWorker to run an Update() after it's finished updating mods
         worker_->UpdateRequest(type, locations);
@@ -198,6 +206,7 @@ void ItemsManager::Update(TabSelection::Type type, const std::vector<ItemLocatio
 }
 
 void ItemsManager::SetAutoUpdate(bool update) {
+    QLOG_TRACE() << "ItemsManager::SetAutoUpdate() entered";
     settings_.setValue("autoupdate", update);
     if (update) {
         auto_update_timer_->start();
@@ -207,15 +216,18 @@ void ItemsManager::SetAutoUpdate(bool update) {
 }
 
 void ItemsManager::SetAutoUpdateInterval(int minutes) {
+    QLOG_TRACE() << "ItemsManager::SetAutoUpdateInterval() entered";
     settings_.setValue("autoupdate_interval", minutes);
     auto_update_timer_->setInterval(minutes * 60 * 1000);
 }
 
 void ItemsManager::OnAutoRefreshTimer() {
+    QLOG_TRACE() << "ItemsManager::OnAutoRefreshTimer() entered";
     Update(TabSelection::Checked);
 }
 
 void ItemsManager::MigrateBuyouts() {
+    QLOG_TRACE() << "ItemsManager::MigrateBuyouts() entered";
     int db_version = datastore_.GetInt("db_version");
     // Don't migrate twice
     if (db_version == 4) {

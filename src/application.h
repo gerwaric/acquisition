@@ -64,8 +64,6 @@ public:
     UpdateChecker& update_checker() const;
     OAuthManager& oauth_manager() const;
     RateLimiter& rate_limiter() const;
-signals:
-    void Quit();
 public slots:
     void OnLogin(POE_API api);
     void OnItemsRefreshed(bool initial_refresh);

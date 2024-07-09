@@ -62,9 +62,7 @@ RateLimitManager::RateLimitManager(QObject* parent,
     last_send_(QDateTime()),
     policy_(nullptr)
 {
-    // Use the Quit signal to shutdown acquisition if there was a fatal error.
-    connect(this, &RateLimitManager::Quit, qApp, &QApplication::quit, Qt::QueuedConnection);
-
+    QLOG_TRACE() << "RateLimitManager::RateLimitManager() entered";
     // Setup the active request timer to call SendRequest each time it's done.
     activation_timer_.setSingleShot(true);
     connect(&activation_timer_, &QTimer::timeout, this, &RateLimitManager::SendRequest);
@@ -80,6 +78,7 @@ const RateLimit::Policy& RateLimitManager::policy() {
 // Send the active request immediately.
 void RateLimitManager::SendRequest() {
 
+    QLOG_TRACE() << "RateLimitManager::SendRequest() entered";
     if (!policy_) {
         QLOG_ERROR() << "The rate limit manager attempted to send a request without a policy.";
         return;
@@ -113,6 +112,7 @@ void RateLimitManager::SendRequest() {
 // Called when the active request's reply is finished.
 void RateLimitManager::ReceiveReply()
 {
+    QLOG_TRACE() << "RateLimitManager::ReceiveReply() entered";
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
 
     if (!policy_) {
@@ -200,6 +200,8 @@ void RateLimitManager::ReceiveReply()
 
 void RateLimitManager::Update(QNetworkReply* reply) {
 
+    QLOG_TRACE() << "RateLimitManager::Update() entered";
+
     // Get the rate limit policy from this reply.
     auto new_policy = std::make_unique<RateLimit::Policy>(reply);
 
@@ -243,6 +245,7 @@ void RateLimitManager::QueueRequest(
     const QNetworkRequest network_request,
     RateLimit::RateLimitedReply* reply)
 {
+    QLOG_TRACE() << "RateLimitManager::QueueRequest() entered";
     auto request = std::make_unique<RateLimitedRequest>(endpoint, network_request, reply);
     queued_requests_.push_back(std::move(request));
     if (!active_request_) {
@@ -254,16 +257,15 @@ void RateLimitManager::QueueRequest(
 // without violating the rate limit policy.
 void RateLimitManager::ActivateRequest() {
 
+    QLOG_TRACE() << "RateLimitManager::ActivateRequest() entered";
     if (!policy_) {
         QLOG_ERROR() << "Cannot activate a request because the policy is null.";
         return;
     };
-
     if (active_request_) {
         QLOG_DEBUG() << "Cannot activate a request because a request is already active.";
         return;
     };
-
     if (queued_requests_.empty()) {
         QLOG_DEBUG() << "Cannot active a request because the queue is empty.";
         return;
@@ -306,11 +308,9 @@ void RateLimitManager::ActivateRequest() {
 
 void RateLimitManager::FatalError(const QString& message) {
     QLOG_FATAL() << message;
-    QMessageBox errorMsg;
-    errorMsg.setIcon(QMessageBox::Icon::Critical);
-    errorMsg.setWindowTitle("Acquistion: Fatal Error (Rate Limit Manager)");
-    errorMsg.setText(message);
-    errorMsg.setStandardButtons(QMessageBox::StandardButton::Abort);
-    errorMsg.exec();
-    emit Quit();
+    QMessageBox::critical(nullptr,
+        "Acquisition Fatal Error - Rate Limit Manager",
+        message,
+        QMessageBox::StandardButton::Abort,
+        QMessageBox::StandardButton::Abort);
 }

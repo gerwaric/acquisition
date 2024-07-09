@@ -21,19 +21,26 @@
 
 #include <QStandardPaths>
 
-QString user_dir;
+#include "QsLog.h";
 
 namespace Filesystem {
 
+    QString user_dir;
+
     void Init() {
+        QLOG_TRACE() << "Filesystem::Init() entered";
         SetUserDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
     }
 
     void SetUserDir(const QString& dir) {
+        QLOG_TRACE() << "Filesystem::SetUserDir() entered";
+        QLOG_TRACE() << "Filesystem::SetUserDir() dir =" << dir;
         user_dir = dir;
     }
 
     QString UserDir() {
+        QLOG_TRACE() << "Filesystem::UserDir() entered";
+        QLOG_TRACE() << "Filesystem::UserDir() user_dir =" << user_dir;
         return user_dir;
     }
 
