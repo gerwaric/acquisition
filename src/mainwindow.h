@@ -83,6 +83,8 @@ public:
     ~MainWindow();
     std::vector<Column*> columns;
     void LoadSettings();
+signals:
+    void SetTheme(const QString& theme);
 public slots:
     void OnCurrentItemChanged(const QModelIndex& current, const QModelIndex& previous);
     void OnLayoutChanged();

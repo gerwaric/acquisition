@@ -1007,58 +1007,32 @@ void MainWindow::OnListCurrency() {
 }
 
 void MainWindow::OnSetDarkTheme(bool toggle) {
-    // Credits: https://github.com/ColinDuquesnoy/QDarkStyleSheet
     if (toggle) {
-        QFile f(":qdarkstyle/dark/darkstyle.qss");
-        if (!f.exists()) {
-            printf("Unable to set stylesheet, file not found\n");
-        } else {
-            f.open(QFile::ReadOnly | QFile::Text);
-            QTextStream ts(&f);
-            qApp->setStyleSheet(ts.readAll());
-
-            QPalette pal = QApplication::palette();
-            pal.setColor(QPalette::WindowText, Qt::white);
-            QApplication::setPalette(pal);
-        }
-        settings_.setValue("theme", "dark");
+        emit SetTheme("dark");
         ui->actionSetLightTheme->setChecked(false);
         ui->actionSetDefaultTheme->setChecked(false);
-    }
+        settings_.setValue("theme", "dark");
+    };
     ui->actionSetDarkTheme->setChecked(toggle);
 }
 
 void MainWindow::OnSetLightTheme(bool toggle) {
     if (toggle) {
-        QFile f(":qdarkstyle/light/lightstyle.qss");
-        if (!f.exists()) {
-            printf("Unable to set stylesheet, file not found\n");
-        } else {
-            f.open(QFile::ReadOnly | QFile::Text);
-            QTextStream ts(&f);
-            qApp->setStyleSheet(ts.readAll());
-
-            QPalette pal = QApplication::palette();
-            pal.setColor(QPalette::WindowText, Qt::black);
-            QApplication::setPalette(pal);
-        }
-        settings_.setValue("theme", "light");
+        emit SetTheme("light");
         ui->actionSetDarkTheme->setChecked(false);
         ui->actionSetDefaultTheme->setChecked(false);
-    }
+        settings_.setValue("theme", "light");
+    };
     ui->actionSetLightTheme->setChecked(toggle);
 }
 
 void MainWindow::OnSetDefaultTheme(bool toggle) {
     if (toggle) {
-        qApp->setStyleSheet("");
-        QPalette pal = QApplication::palette();
-        pal.setColor(QPalette::WindowText, Qt::black);
-        QApplication::setPalette(pal);
-        settings_.setValue("theme", "default");
+        emit SetTheme("default");
         ui->actionSetDarkTheme->setChecked(false);
         ui->actionSetLightTheme->setChecked(false);
-    }
+        settings_.setValue("theme", "default");
+    };
     ui->actionSetDefaultTheme->setChecked(toggle);
 }
 

@@ -65,12 +65,12 @@ public:
     OAuthManager& oauth_manager() const;
     RateLimiter& rate_limiter() const;
 public slots:
+    void OnSetTheme(const QString& theme);
     void OnLogin(POE_API api);
     void OnItemsRefreshed(bool initial_refresh);
     void OnRunTests();
 private:
     void InitCrashReporting();
-    void LoadTheme();
     void SaveDbOnNewVersion();
     void FatalAccessError(const char* object_name) const;
 
@@ -92,5 +92,6 @@ private:
     std::unique_ptr<MainWindow> main_window_;
 
     QAction test_action_;
+    QString active_theme_;
 
 };

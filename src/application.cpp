@@ -53,7 +53,6 @@ Application::Application(bool test_mode) :
     test_mode_(test_mode)
 {
     QLOG_TRACE() << "Application::Application() entered";
-    QLOG_TRACE() << "Application::Application() test_mode =" << test_mode;
 
     if (test_mode_) {
 
@@ -63,6 +62,7 @@ Application::Application(bool test_mode) :
 
     } else {
 
+        QLOG_TRACE() << "Application::Application() preparing settings and data";
         const QString user_dir = Filesystem::UserDir();
         QLOG_TRACE() << "Application::Application() data directory is" << user_dir;
 
@@ -79,7 +79,8 @@ Application::Application(bool test_mode) :
         InitCrashReporting();
 
         QLOG_TRACE() << "Application::Application() loading theme";
-        LoadTheme();
+        const QString theme = settings().value("theme", "default").toString();
+        OnSetTheme(theme);
     };
 
     QLOG_TRACE() << "Application::Application() creating QNetworkAccessManager";
@@ -115,15 +116,12 @@ Application::~Application() {
 void Application::Start() {
 
     QLOG_TRACE() << "Application::Start() entered";
+
+    QLOG_TRACE() << "Application::Start() creaating login dialog";
     login_ = std::make_unique<LoginDialog>(
         settings(),
         network_manager(),
         oauth_manager());
-
-    if (!login_) {
-        QLOG_FATAL() << "Failed to create the login dialog.";
-        return;
-    };
 
     // Connect to the update signal in case an update is detected before the main window is open.
     QLOG_TRACE() << "Application::Start() connecting update checker";
@@ -134,13 +132,13 @@ void Application::Start() {
     QObject::connect(login_.get(), &LoginDialog::LoginComplete, this, &Application::OnLogin);
 
     // Setup the ability to trigger testing from the UI
-    QLOG_TRACE() << "Application::Start() preparing shortcut for forced crashes";
+    QLOG_TRACE() << "Application::Start() installing keyboard shortcut for forced crashes";
     connect(&test_action_, &QAction::triggered, this, &Application::OnRunTests);
     test_action_.setShortcut(Qt::Key_T | Qt::CTRL);
     login_->addAction(&test_action_);
 
     // Start the initial check for updates.
-    QLOG_TRACE() << "Application::Start() checking for updates";
+    QLOG_TRACE() << "Application::Start() starting a check for application updates";
     update_checker_->CheckForUpdates();
 
     // Show the login dialog now.
@@ -153,6 +151,7 @@ void Application::OnLogin(POE_API api) {
     QLOG_TRACE() << "Application::OnLogin() entered";
 
     // Stop listening for CTRL+T
+    QLOG_TRACE() << "Application::OnLogin() uninstalling the keyboard shortcut for forced crashes";
     login_->removeAction(&test_action_);
 
     // Disconnect from the update signal so that only the main window gets it from now on.
@@ -175,6 +174,9 @@ void Application::OnLogin(POE_API api) {
         currency_manager(),
         update_checker(),
         shop());
+
+    // Connect the theme signal.
+    connect(main_window_.get(), &MainWindow::SetTheme, this, &Application::OnSetTheme);
 
     QLOG_TRACE() << "Application::OnLogin() closing the login dialog";
     login_->close();
@@ -277,7 +279,6 @@ void Application::FatalAccessError(const char* object_name) const {
 }
 
 void Application::InitCrashReporting() {
-
     QLOG_TRACE() << "Application::InitCrashReporting() entered";
 
     // Make sure the settings object exists.
@@ -306,48 +307,51 @@ void Application::InitCrashReporting() {
     };
 }
 
-void Application::LoadTheme() {
+void Application::OnSetTheme(const QString& theme) {
+    QLOG_TRACE() << "Application::OnSetTheme() entered";
 
-    QLOG_TRACE() << "Application::LoadTheme() entered";
-
-    // Load the appropriate theme.
-    const QString theme = settings_->value("theme").toString();
-    QLOG_TRACE() << "Application::LoadTheme() theme is" << theme;
-
-    // Do nothing for the default theme.
-    if (theme == "default") {
+    if (theme.compare(active_theme_, Qt::CaseInsensitive)) {
+        QLOG_DEBUG() << "Theme is already set:" << theme;
         return;
     };
 
-    // Determine which qss file to use.
     QString stylesheet;
-    if (theme == "dark") {
-        stylesheet = ":qdarkstyle/dark/darkstyle.qss";
-    } else if (theme == "light") {
+    QColor text_color;
+
+    if (theme.compare("default", Qt::CaseInsensitive)) {
+        stylesheet = "";
+        text_color = Qt::black;
+    } else if (theme.compare("light", Qt::CaseInsensitive)) {
         stylesheet = ":qdarkstyle/light/lightstyle.qss";
+        text_color = Qt::black;
+    } else if (theme.compare("dark", Qt::CaseInsensitive)) {
+        stylesheet = ":qdarkstyle/dark/darkstyle.qss";
+        text_color = Qt::white;
     } else {
         QLOG_ERROR() << "Invalid theme:" << theme;
         return;
     };
-    QLOG_TRACE() << "Application::LoadTheme() stylesheet is" << stylesheet;
+    QLOG_TRACE() << "Application::OnSetTheme() setting theme:" << theme;
 
-    // Load the theme.
-    QFile f(stylesheet);
-    if (!f.exists()) {
-        QLOG_ERROR() << "The theme's stylesheet does not exist.";
-        return;
+    QString style_data;
+    if (!stylesheet.isEmpty()) {
+        QLOG_TRACE() << "Application::OnSetTheme() loading stylesheet:" << stylesheet;
+        QFile f(stylesheet);
+        if (f.exists()) {
+            f.open(QFile::ReadOnly | QFile::Text);
+            style_data = f.readAll();
+        } else {
+            QLOG_ERROR() << "Style sheet not found:" << stylesheet;
+        };
     };
+    
+    QLOG_TRACE() << "Application::OnSetTheme() setting stylesheet";
+    qApp->setStyleSheet(style_data);
 
-    QLOG_TRACE() << "Application::LoadTheme() reading stylesheet";
-    f.open(QFile::ReadOnly | QFile::Text);
-    QTextStream ts(&f);
-    const QString theme_data = ts.readAll();
-
-    QLOG_TRACE() << "Application::LoadTheme() setting stylsheet and palette";
-    qApp->setStyleSheet(theme_data);
-    QPalette pal = QApplication::palette();
-    pal.setColor(QPalette::WindowText, Qt::white);
-    QApplication::setPalette(pal);
+    QLOG_TRACE() << "Application::OnSetTheme() setting window text color:" << text_color;
+    QPalette p = QApplication::palette();
+    p.setColor(QPalette::WindowText, text_color);
+    QApplication::setPalette(p);
 }
 
 void Application::InitLogin(POE_API mode)
