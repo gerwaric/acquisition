@@ -616,12 +616,14 @@ void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply, ItemLocation
 
     auto& stash = doc["stash"];
 
-    if (!stash.HasMember("items") || !stash["items"].IsArray()) {
-        QLOG_WARN() << "Stash does not have an 'items' field";
+    if (!stash.HasMember("items")) {
+        QLOG_DEBUG() << "Stash does not have an 'items' field:" << location.GetHeader();
     } else {
         auto& items = stash["items"];
-        if (items.GetArray().Size() == 0) {
-            QLOG_WARN() << "Stash does not contain any items";
+        if (!items.IsArray()) {
+            QLOG_DEBUG() << "Stash 'items' is not an array:" << location.GetHeader();
+        } else if (items.GetArray().Size() == 0) {
+            QLOG_DEBUG() << "Stash 'items' does not contain any items:" << location.GetHeader();
         } else {
             ParseItems(items, location, doc.GetAllocator());
         };
@@ -733,7 +735,6 @@ void ItemsManagerWorker::OnLegacyCharacterListReceived(QNetworkReply* reply) {
 
     QLOG_DEBUG() << "Received character list, there are" << doc.Size() << "characters across all leagues.";
 
-    int total_character_count = 0;
     int requested_character_count = 0;
     for (auto& character : doc) {
         const std::string name = character["name"].GetString();
@@ -745,7 +746,6 @@ void ItemsManagerWorker::OnLegacyCharacterListReceived(QNetworkReply* reply) {
             QLOG_DEBUG() << "Skipping" << name.c_str() << "because this character is not in" << league_;
             continue;
         };
-        ++total_character_count;
         if (tab_id_index_.count(name) > 0) {
             QLOG_DEBUG() << "Skipping" << name.c_str() << "because this item is not being refreshed.";
             continue;
@@ -1057,6 +1057,7 @@ void ItemsManagerWorker::OnLegacyTabReceived(QNetworkReply* reply, ItemLocation 
 
     if ((stashes_received_ == stashes_needed_) && (characters_received_ == characters_needed_)) {
         if (cancel_update_) {
+            QLOG_TRACE() << "ItemsManagerWorker::OnLegacyTabReceived() cancelling update";
             updating_ = false;
         };
     };
@@ -1065,9 +1066,21 @@ void ItemsManagerWorker::OnLegacyTabReceived(QNetworkReply* reply, ItemLocation 
         return;
     };
 
-    ParseItems(doc["items"], location, doc.GetAllocator());
+    if (!doc.HasMember("items")) {
+        QLOG_DEBUG() << "Legacy stash does not have 'items':" << location.GetHeader();
+    } else {
+        auto& items = doc["items"];
+        if (!items.IsArray()) {
+            QLOG_DEBUG() << "Legacy stash 'items' is not an array:" << location.GetHeader();
+        } else if (items.Size() == 0) {
+            QLOG_DEBUG() << "Legacy stash 'items' is empty:" << location.GetHeader();
+        } else {
+            ParseItems(items, location, doc.GetAllocator());
+        };
+    };
 
     if ((stashes_received_ == stashes_needed_) && (characters_received_ == characters_needed_) && !cancel_update_) {
+        QLOG_TRACE() << "ItemsManagerWorker::OnLegacyTabReceived() finishing update";
         FinishUpdate();
         PreserveSelectedCharacter();
     };
@@ -1177,6 +1190,7 @@ void ItemsManagerWorker::FinishUpdate() {
     };
 
     // Let everyone know the update is done.
+    QLOG_TRACE() << "ItemsManagerWorker::FinishUpdate() emitting ItemsRefreshed";
     emit ItemsRefreshed(items_, tabs_, false);
 
     updating_ = false;
