@@ -310,7 +310,7 @@ void Application::InitCrashReporting() {
 void Application::OnSetTheme(const QString& theme) {
     QLOG_TRACE() << "Application::OnSetTheme() entered";
 
-    if (theme.compare(active_theme_, Qt::CaseInsensitive)) {
+    if (0 == theme.compare(active_theme_, Qt::CaseInsensitive)) {
         QLOG_DEBUG() << "Theme is already set:" << theme;
         return;
     };
@@ -318,13 +318,13 @@ void Application::OnSetTheme(const QString& theme) {
     QString stylesheet;
     QColor text_color;
 
-    if (theme.compare("default", Qt::CaseInsensitive)) {
+    if (0 == theme.compare("default", Qt::CaseInsensitive)) {
         stylesheet = "";
         text_color = Qt::black;
-    } else if (theme.compare("light", Qt::CaseInsensitive)) {
+    } else if (0 == theme.compare("light", Qt::CaseInsensitive)) {
         stylesheet = ":qdarkstyle/light/lightstyle.qss";
         text_color = Qt::black;
-    } else if (theme.compare("dark", Qt::CaseInsensitive)) {
+    } else if (0 == theme.compare("dark", Qt::CaseInsensitive)) {
         stylesheet = ":qdarkstyle/dark/darkstyle.qss";
         text_color = Qt::white;
     } else {
