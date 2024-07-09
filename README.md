@@ -13,6 +13,10 @@ You can download setup packages from [the releases page](https://github.com/gerw
 
 Acquisition is written in C++ and the Qt widget toolkit. It was original a qmake project, but it now uses cmake.
 
+## SAST Tools
+
+[PVS-Studio](https://pvs-studio.com/en/pvs-studio/?utm_source=website&utm_medium=github&utm_campaign=open_source) - static analyzer for C, C++, C#, and Java code.
+
 ### Qt
 
 Acquisition should be buildable with Qt Creator (Community) on any platform that supports Qt 6.5.3 LTS.
