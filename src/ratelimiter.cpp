@@ -26,8 +26,7 @@
 
 #include <memory>
 
-#include "boost/bind.hpp"
-#include "boost/function.hpp"
+#include "boost/bind/bind.hpp"
 #include "QsLog.h"
 
 #include "ratelimit.h"
@@ -77,6 +76,7 @@ RateLimit::RateLimitedReply* RateLimiter::Submit(
     } else {
 
         // Use a HEAD request to determine the policy status for a new endpoint.
+        QLOG_DEBUG() << "OAuthManger::Submit() sending a HEAD for a new endpoint:" << endpoint;
         if (mode_ == POE_API::OAUTH) {
             oauth_manager_.setAuthorization(network_request);
         };
@@ -125,7 +125,7 @@ void RateLimiter::SetupEndpoint(
 RateLimitManager& RateLimiter::GetManager(
     const QString& endpoint,
     const QString& policy_name)
-{
+{    
     QLOG_TRACE() << "RateLimiter::GetManager() entered";
     QLOG_TRACE() << "RateLimiter::GetManager() endpoint = " << endpoint;
     QLOG_TRACE() << "RateLimiter::GetManager() policy_name = " << policy_name;
@@ -138,7 +138,7 @@ RateLimitManager& RateLimiter::GetManager(
     if (it == manager_by_policy_.end()) {
         // Create a new policy manager.
         QLOG_DEBUG() << "Creating rate limit policy" << policy_name << "for" << endpoint;
-        auto sender = boost::bind(&RateLimiter::SendRequest, this, _1);
+        auto sender = boost::bind(&RateLimiter::SendRequest, this, boost::placeholders::_1);
         auto mgr = std::make_unique<RateLimitManager>(this, sender);
         auto& manager = *managers_.emplace_back(std::move(mgr));
         connect(&manager, &RateLimitManager::PolicyUpdated, this, &RateLimiter::OnPolicyUpdated);
