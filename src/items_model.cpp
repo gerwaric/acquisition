@@ -211,15 +211,16 @@ QModelIndex ItemsModel::parent(const QModelIndex& index) const {
 }
 
 QModelIndex ItemsModel::index(int row, int column, const QModelIndex& parent) const {
+    int bucket_count = static_cast<int>(search_.buckets().size());
     if (parent.isValid()) {
-        if (parent.row() >= static_cast<int>(search_.buckets().size())) {
+        if (parent.row() >= bucket_count) {
             QLOG_WARN() << "Should not happen: Index request parent contains invalid row";
             return QModelIndex();
         };
         // item, we pass parent's (bucket's) row through ID parameter
         return createIndex(row, column, static_cast<quintptr>(parent.row()) + 1);
     } else {
-        if (row >= (signed)search_.buckets().size()) {
+        if (row >= bucket_count) {
             QLOG_WARN() << "Index request asking for invalid row:" + QString::number(row);
             return QModelIndex();
         };
