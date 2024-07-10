@@ -27,7 +27,7 @@ class Search;
 class ItemsModel : public QAbstractItemModel {
     Q_OBJECT
 public:
-    ItemsModel(BuyoutManager& bo_manager, const Search& search);
+    explicit ItemsModel(BuyoutManager& bo_manager, Search& search);
     int rowCount(const QModelIndex& parent = QModelIndex()) const;
     int columnCount(const QModelIndex& parent = QModelIndex()) const;
     QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const;
@@ -44,8 +44,8 @@ public:
 
 private:
     BuyoutManager& bo_manager_;
-    const Search& search_;
-    Qt::SortOrder sort_order_{ Qt::DescendingOrder };
-    int sort_column_{ 0 };
-    bool sorted_{ false };
+    Search& search_;
+    Qt::SortOrder sort_order_;
+    int sort_column_;
+    bool sorted_;
 };

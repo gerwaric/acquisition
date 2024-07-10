@@ -44,6 +44,7 @@ class DataStore;
 class Filter;
 class FlowLayout;
 class ImageCache;
+class ItemLocation;
 class ItemsManager;
 class OAuthManager;
 class RateLimiter;
@@ -170,7 +171,7 @@ private:
     Ui::MainWindow* ui;
 
     std::shared_ptr<Item> current_item_;
-    Bucket current_bucket_;
+    const ItemLocation* current_bucket_location_;
     std::vector<Search*> searches_;
     Search* current_search_;
     Search* previous_search_{ nullptr };

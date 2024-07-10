@@ -103,6 +103,7 @@ MainWindow::MainWindow(
     update_checker_(update_checker),
     shop_(shop),
     ui(new Ui::MainWindow),
+    current_bucket_location_(nullptr),
     current_search_(nullptr),
     search_count_(0),
     rate_limit_dialog_(nullptr),
@@ -402,7 +403,7 @@ void MainWindow::OnCollapseAll() {
 void MainWindow::OnCheckAll() {
     QLOG_TRACE() << "MainWindow::OnCheckAll() entered";
     for (auto const& bucket : current_search_->buckets()) {
-        buyout_manager_.SetRefreshChecked(bucket->location(), true);
+        buyout_manager_.SetRefreshChecked(bucket.location(), true);
     };
     emit ui->treeView->model()->layoutChanged();
 }
@@ -410,7 +411,7 @@ void MainWindow::OnCheckAll() {
 void MainWindow::OnUncheckAll() {
     QLOG_TRACE() << "MainWindow::OnUncheckAll() entered";
     for (auto const& bucket : current_search_->buckets()) {
-        buyout_manager_.SetRefreshChecked(bucket->location(), false);
+        buyout_manager_.SetRefreshChecked(bucket.location(), false);
     };
     emit ui->treeView->model()->layoutChanged();
 }
@@ -480,7 +481,7 @@ void MainWindow::OnBuyoutChange() {
         if (!index.parent().isValid()) {
             buyout_manager_.SetTab(tab, bo);
         } else {
-            auto& item = current_search_->bucket(index.parent().row())->item(index.row());
+            auto& item = current_search_->bucket(index.parent().row()).item(index.row());
             // Don't allow users to manually update locked items (game priced per item in note section)
             if (buyout_manager_.Get(*item).IsGameSet()) {
                 QLOG_TRACE() << "MainWindow::OnBuyoutChange() refusing to update locked item:" << item->name();
@@ -671,11 +672,11 @@ void MainWindow::OnCurrentItemChanged(const QModelIndex& current, const QModelIn
     if (!current.parent().isValid()) {
         // clicked on a bucket
         current_item_ = nullptr;
-        current_bucket_ = *current_search_->bucket(current.row());
+        current_bucket_location_ = &current_search_->bucket(current.row()).location();
         UpdateCurrentBucket();
     } else {
         // clicked on an item
-        current_item_ = current_search_->bucket(current.parent().row())->item(current.row());
+        current_item_ = current_search_->bucket(current.parent().row()).item(current.row());
         delayed_update_current_item_.start(100);
     };
     UpdateCurrentBuyout();
@@ -855,7 +856,7 @@ void MainWindow::UpdateCurrentBucket() {
     ui->itemTooltipWidget->hide();
     ui->itemButtonsWidget->hide();
 
-    ui->nameLabel->setText(current_bucket_.location().GetHeader().c_str());
+    ui->nameLabel->setText(current_bucket_location_->GetHeader().c_str());
     ui->nameLabel->show();
 
     ui->pobTooltipButton->setEnabled(false);
@@ -923,7 +924,7 @@ void MainWindow::UpdateCurrentBuyout() {
     if (current_item_) {
         UpdateBuyoutWidgets(buyout_manager_.Get(*current_item_));
     } else {
-        std::string tab = current_bucket_.location().GetUniqueHash();
+        std::string tab = current_bucket_location_->GetUniqueHash();
         UpdateBuyoutWidgets(buyout_manager_.GetTab(tab));
     }
 }

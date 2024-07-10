@@ -102,26 +102,32 @@ void Search::ResetForm() {
     };
 }
 
-const std::vector<std::unique_ptr<Bucket> >& Search::buckets() const {
-    if (current_mode_ == ViewMode::ByTab) {
-        return buckets_;
-    } else {
-        return bucket_;
+const std::vector<Bucket>& Search::buckets() const {
+    switch (current_mode_) {
+    case ViewMode::ByTab: return bucket_by_tab_; break;
+    case ViewMode::ByItem: return bucket_by_item_; break;
     };
 }
 
-const std::unique_ptr<Bucket>& Search::bucket(int row) const {
-    const auto& active_buckets = buckets();
-    if ((row < 0) || (row >= active_buckets.size())) {
+std::vector<Bucket>& Search::active_buckets() {
+    switch (current_mode_) {
+    case ViewMode::ByTab: return bucket_by_tab_; break;
+    case ViewMode::ByItem: return bucket_by_item_; break;
+    };
+}
+
+const Bucket& Search::bucket(int row) const {
+    const auto& bucket_list = buckets();
+    if ((row < 0) || (row >= bucket_list.size())) {
         const QString message = QString("Bucket row out of bounds: %1 bucket size: %2 mode: %3. Program will abort.").arg(
             QString::number(row),
-            QString::number(active_buckets.size()),
+            QString::number(bucket_list.size()),
             QString::number(static_cast<std::underlying_type_t<Search::ViewMode>>(current_mode_)));
         QLOG_FATAL() << message;
         QMessageBox::critical(nullptr, "Fatal Error", message);
         abort();
     };
-    return active_buckets[row];
+    return bucket_list[row];
 }
 
 const QModelIndex Search::index(const std::shared_ptr<Item> item) const {
@@ -130,11 +136,11 @@ const QModelIndex Search::index(const std::shared_ptr<Item> item) const {
         return QModelIndex();
     };
     // Look for a bucket that matches the item's location.
+    const auto& bucket_list = buckets();
     const auto& location_id = item->location().get_tab_uniq_id();
-    const auto& active_buckets = buckets();
-    for (int row = 0; row < active_buckets.size(); ++row) {
+    for (int row = 0; row < bucket_list.size(); ++row) {
         // Check each search bucket against the item's location.
-        const auto& bucket = *active_buckets[row];
+        const auto& bucket = bucket_list[row];
         const auto& bucket_id = bucket.location().get_tab_uniq_id();
         if (location_id == bucket_id) {
             // Check each item in the bucket.
@@ -152,6 +158,15 @@ const QModelIndex Search::index(const std::shared_ptr<Item> item) const {
     // If we get here, that means the previously selected item is no
     // longer part of the current view.
     return QModelIndex();
+}
+
+void Search::Sort(int column, Qt::SortOrder order) {
+    if ((column >= 0) && (column < columns_.size())) {
+        auto& col = *columns_[column];
+        for (auto& bucket : active_buckets()) {
+            bucket.Sort(col, order);
+        };
+    };
 }
 
 void Search::FilterItems(const Items& items) {
@@ -177,17 +192,17 @@ void Search::FilterItems(const Items& items) {
     UpdateItemCounts(items);
 
     // Single bucket with null location is used to view all items at once
-    bucket_.clear();
-    bucket_.push_back(std::make_unique<Bucket>(ItemLocation()));
+    bucket_by_item_.clear();
+    bucket_by_item_.emplace_back(ItemLocation());
 
-    std::map<ItemLocation, std::unique_ptr<Bucket>> bucketed_tabs;
+    std::map<ItemLocation, Bucket> bucketed_tabs;
     for (const auto& item : items_) {
         ItemLocation location = item->location();
         if (!bucketed_tabs.count(location)) {
-            bucketed_tabs[location] = std::make_unique<Bucket>(location);
+            bucketed_tabs.emplace(location, Bucket(location));
         };
-        bucketed_tabs[location]->AddItem(item);
-        bucket_.front()->AddItem(item);
+        bucketed_tabs[location].AddItem(item);
+        bucket_by_item_.front().AddItem(item);
     };
 
     // We need to add empty tabs here as there are no items to force their addition
@@ -196,14 +211,14 @@ void Search::FilterItems(const Items& items) {
     if (!IsAnyFilterActive()) {
         for (auto& location : bo_manager_.GetStashTabLocations()) {
             if (!bucketed_tabs.count(location)) {
-                bucketed_tabs[location] = std::make_unique<Bucket>(location);
+                bucketed_tabs.emplace(location, Bucket(location));
             };
         };
     };
 
-    buckets_.clear();
+    //buckets_by_tab_.clear();
     for (auto& element : bucketed_tabs) {
-        buckets_.push_back(std::move(element.second));
+        bucket_by_tab_.push_back(std::move(element.second));
     };
 
     // Let the model know that current sort order has been invalidated
@@ -226,10 +241,10 @@ ItemLocation Search::GetTabLocation(const QModelIndex& index) const {
     if (index.internalId() > 0) {
         // If index represents an item, get location from item as view may be on 'item' view
         // where bucket location doesn't match items location
-        return bucket(index.parent().row())->item(index.row())->location();
+        return bucket(index.parent().row()).item(index.row())->location();
     } else {
         // Otherwise index represents a tab already, get location from there
-        return bucket(index.row())->location();
+        return bucket(index.row()).location();
     }
 }
 
@@ -241,6 +256,7 @@ void Search::SetViewMode(ViewMode mode)
         };
 
         current_mode_ = mode;
+
         // Force immediate view update
         view_.reset();
         model_->SetSorted(false);
@@ -271,7 +287,7 @@ void Search::SaveViewProperties() {
     for (int row = 0; row < rowCount; ++row) {
         QModelIndex index = model_->index(row, 0, QModelIndex());
         if (index.isValid() && view_.isExpanded(index)) {
-            expanded_property_.insert(bucket(row)->location().GetHeader());
+            expanded_property_.insert(bucket(row).location().GetHeader());
         };
     };
 }
@@ -284,7 +300,7 @@ void Search::RestoreViewProperties() {
             QModelIndex index = model_->index(row, 0, QModelIndex());
             // Block signals else columns will be resized on every expand which can be super slow.
             view_.blockSignals(true);
-            if (expanded_property_.count(bucket(row)->location().GetHeader())) {
+            if (expanded_property_.count(bucket(row).location().GetHeader())) {
                 view_.expand(index);
             } else {
                 view_.collapse(index);

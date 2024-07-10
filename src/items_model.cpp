@@ -27,9 +27,12 @@
 #include "util.h"
 #include "QsLog.h"
 
-ItemsModel::ItemsModel(BuyoutManager& bo_manager, const Search& search) :
+ItemsModel::ItemsModel(BuyoutManager& bo_manager, Search& search) :
     bo_manager_(bo_manager),
-    search_(search)
+    search_(search),
+    sort_order_(Qt::DescendingOrder),
+    sort_column_(0),
+    sorted_(false)
 {
 }
 
@@ -54,7 +57,7 @@ int ItemsModel::rowCount(const QModelIndex& parent) const {
     };
     // Bucket, contains elements
     if (parent.isValid() && !parent.parent().isValid()) {
-        return static_cast<int>(search_.bucket(parent.row())->items().size());
+        return static_cast<int>(search_.bucket(parent.row()).items().size());
     };
     // Element, contains nothing
     return 0;
@@ -127,7 +130,7 @@ QVariant ItemsModel::data(const QModelIndex& index, int role) const {
         return QVariant();
     };
     auto& column = search_.columns()[index.column()];
-    const Item& item = *search_.bucket(index.parent().row())->item(index.row());
+    const Item& item = *search_.bucket(index.parent().row()).item(index.row());
     if (role == Qt::DisplayRole) {
         return column->value(item);
     } else if (role == Qt::ForegroundRole) {
@@ -184,14 +187,11 @@ void ItemsModel::sort(int column, Qt::SortOrder order)
     if (sorted_ && (sort_column_ == column) && (sort_order_ == order))
         return;
 
-    QLOG_DEBUG() << "Sorting";
+    QLOG_DEBUG() << "Sorting items model by column" << column;
     sort_order_ = order;
     sort_column_ = column;
 
-    auto& column_obj = search_.columns()[column];
-    for (const auto& bucket : search_.buckets()) {
-        bucket->Sort(*column_obj, order);
-    };
+    search_.Sort(column, order);
     emit layoutChanged();
     SetSorted(true);
 }

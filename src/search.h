@@ -51,7 +51,7 @@ public:
     const std::string& caption() const { return caption_; }
     const Items& items() const { return items_; }
     const std::vector<std::unique_ptr<Column>>& columns() const { return columns_; }
-    const std::vector<std::unique_ptr<Bucket>>& buckets() const;
+    const std::vector<Bucket>& buckets() const;
     void RenameCaption(const std::string newName);
     QString GetCaption() const;
     size_t GetItemsCount() const;
@@ -63,20 +63,23 @@ public:
     ItemLocation GetTabLocation(const QModelIndex& index) const;
     void SetViewMode(ViewMode mode);
     ViewMode GetViewMode() const { return current_mode_; }
-    const std::unique_ptr<Bucket>& bucket(int row) const;
+    const Bucket& bucket(int row) const;
     const QModelIndex index(const std::shared_ptr<Item> item) const;
     void SetRefreshReason(RefreshReason::Type reason) { refresh_reason_ = reason; }
+    void Sort(int column, Qt::SortOrder order);
 private:
     void UpdateItemCounts(const Items& items);
+    std::vector<Bucket>& active_buckets();
 
     BuyoutManager& bo_manager_;
     QTreeView& view_;
 
     std::unique_ptr<ItemsModel> model_;
-    std::vector<std::unique_ptr<Bucket>> buckets_;
-    std::vector<std::unique_ptr<Bucket>> bucket_;
     std::vector<std::unique_ptr<FilterData>> filters_;
     std::vector<std::unique_ptr<Column>> columns_;
+
+    std::vector<Bucket> bucket_by_tab_;
+    std::vector<Bucket> bucket_by_item_;
 
     std::string caption_;
     Items items_;
