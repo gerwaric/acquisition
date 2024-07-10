@@ -39,7 +39,7 @@ Search::Search(
     :
     bo_manager_(bo_manager),
     view_(*view),
-    model_(std::make_unique<ItemsModel>(bo_manager, *this)),
+    model_(bo_manager, *this),
     caption_(caption),
     unfiltered_item_count_(0),
     filtered_item_count_total_(0),
@@ -144,13 +144,13 @@ const QModelIndex Search::index(const std::shared_ptr<Item> item) const {
         const auto& bucket_id = bucket.location().get_tab_uniq_id();
         if (location_id == bucket_id) {
             // Check each item in the bucket.
-            const QModelIndex parent = model_->index(row);
+            const QModelIndex parent = model_.index(row);
             const auto& items = bucket.items();
             for (int n = 0; n < items.size(); ++n) {
                 const auto& model_item = items[n];
                 if (item == model_item) {
                     // Found the index of a match.
-                    return model_->index(n, 0, parent);
+                    return model_.index(n, 0, parent);
                 };
             };
         };
@@ -222,7 +222,7 @@ void Search::FilterItems(const Items& items) {
     };
 
     // Let the model know that current sort order has been invalidated
-    model_->SetSorted(false);
+    model_.SetSorted(false);
 }
 
 void Search::RenameCaption(const std::string newName) {
@@ -259,8 +259,8 @@ void Search::SetViewMode(ViewMode mode)
 
         // Force immediate view update
         view_.reset();
-        model_->SetSorted(false);
-        model_->sort();
+        model_.SetSorted(false);
+        model_.sort();
 
         if (mode == ViewMode::ByTab) {
             RestoreViewProperties();
@@ -276,16 +276,16 @@ void Search::Activate(const Items& items) {
     FromForm();
     FilterItems(items);
     view_.setSortingEnabled(false);
-    view_.setModel(model_.get());
-    view_.header()->setSortIndicator(model_->GetSortColumn(), model_->GetSortOrder());
+    view_.setModel(&model_);
+    view_.header()->setSortIndicator(model_.GetSortColumn(), model_.GetSortOrder());
     view_.setSortingEnabled(true);
 }
 
 void Search::SaveViewProperties() {
     expanded_property_.clear();
-    const int rowCount = model_->rowCount();
+    const int rowCount = model_.rowCount();
     for (int row = 0; row < rowCount; ++row) {
-        QModelIndex index = model_->index(row, 0, QModelIndex());
+        QModelIndex index = model_.index(row, 0, QModelIndex());
         if (index.isValid() && view_.isExpanded(index)) {
             expanded_property_.insert(bucket(row).location().GetHeader());
         };
@@ -295,9 +295,9 @@ void Search::SaveViewProperties() {
 void Search::RestoreViewProperties() {
     if (!expanded_property_.empty()) {
         // There are some rows to expand.
-        const int rowCount = model_->rowCount();
+        const int rowCount = model_.rowCount();
         for (int row = 0; row < rowCount; ++row) {
-            QModelIndex index = model_->index(row, 0, QModelIndex());
+            QModelIndex index = model_.index(row, 0, QModelIndex());
             // Block signals else columns will be resized on every expand which can be super slow.
             view_.blockSignals(true);
             if (expanded_property_.count(bucket(row).location().GetHeader())) {

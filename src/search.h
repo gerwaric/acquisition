@@ -24,6 +24,7 @@
 #include <set>
 
 #include "item.h"
+#include "items_model.h"
 #include "column.h"
 #include "bucket.h"
 #include "util.h"
@@ -74,10 +75,10 @@ private:
     BuyoutManager& bo_manager_;
     QTreeView& view_;
 
-    std::unique_ptr<ItemsModel> model_;
     std::vector<std::unique_ptr<FilterData>> filters_;
     std::vector<std::unique_ptr<Column>> columns_;
 
+    ItemsModel model_;
     std::vector<Bucket> bucket_by_tab_;
     std::vector<Bucket> bucket_by_item_;
 
