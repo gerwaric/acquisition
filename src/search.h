@@ -69,18 +69,20 @@ public:
 private:
     void UpdateItemCounts(const Items& items);
 
-    std::vector<std::unique_ptr<FilterData>> filters_;
-    std::vector<std::unique_ptr<Column>> columns_;
-    std::string caption_;
-    Items items_;
-    QTreeView* view_{ nullptr };
     BuyoutManager& bo_manager_;
+    QTreeView& view_;
+
     std::unique_ptr<ItemsModel> model_;
     std::vector<std::unique_ptr<Bucket>> buckets_;
     std::vector<std::unique_ptr<Bucket>> bucket_;
-    size_t unfiltered_item_count_{ 0 };
-    size_t filtered_item_count_total_{ 0 };
+    std::vector<std::unique_ptr<FilterData>> filters_;
+    std::vector<std::unique_ptr<Column>> columns_;
+
+    std::string caption_;
+    Items items_;
+    size_t unfiltered_item_count_;
+    size_t filtered_item_count_total_;
     std::set<std::string> expanded_property_;
-    ViewMode current_mode_{ ViewMode::ByTab };
-    RefreshReason::Type refresh_reason_{ RefreshReason::Unknown };
+    ViewMode current_mode_;
+    RefreshReason::Type refresh_reason_;
 };

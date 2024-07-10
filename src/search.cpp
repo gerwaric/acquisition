@@ -37,10 +37,14 @@ Search::Search(
     const std::vector<std::unique_ptr<Filter>>& filters,
     QTreeView* view)
     :
-    caption_(caption),
-    view_(view),
     bo_manager_(bo_manager),
-    model_(std::make_unique<ItemsModel>(bo_manager, *this))
+    view_(*view),
+    model_(std::make_unique<ItemsModel>(bo_manager, *this)),
+    caption_(caption),
+    unfiltered_item_count_(0),
+    filtered_item_count_total_(0),
+    current_mode_(ViewMode::ByTab),
+    refresh_reason_(RefreshReason::Unknown)
 {
     using move_only = std::unique_ptr<Column>;
     move_only init[] = {
@@ -238,7 +242,7 @@ void Search::SetViewMode(ViewMode mode)
 
         current_mode_ = mode;
         // Force immediate view update
-        view_->reset();
+        view_.reset();
         model_->SetSorted(false);
         model_->sort();
 
@@ -255,10 +259,10 @@ size_t Search::GetItemsCount() const {
 void Search::Activate(const Items& items) {
     FromForm();
     FilterItems(items);
-    view_->setSortingEnabled(false);
-    view_->setModel(model_.get());
-    view_->header()->setSortIndicator(model_->GetSortColumn(), model_->GetSortOrder());
-    view_->setSortingEnabled(true);
+    view_.setSortingEnabled(false);
+    view_.setModel(model_.get());
+    view_.header()->setSortIndicator(model_->GetSortColumn(), model_->GetSortOrder());
+    view_.setSortingEnabled(true);
 }
 
 void Search::SaveViewProperties() {
@@ -266,7 +270,7 @@ void Search::SaveViewProperties() {
     const int rowCount = model_->rowCount();
     for (int row = 0; row < rowCount; ++row) {
         QModelIndex index = model_->index(row, 0, QModelIndex());
-        if (index.isValid() && view_->isExpanded(index)) {
+        if (index.isValid() && view_.isExpanded(index)) {
             expanded_property_.insert(bucket(row)->location().GetHeader());
         };
     };
@@ -279,19 +283,19 @@ void Search::RestoreViewProperties() {
         for (int row = 0; row < rowCount; ++row) {
             QModelIndex index = model_->index(row, 0, QModelIndex());
             // Block signals else columns will be resized on every expand which can be super slow.
-            view_->blockSignals(true);
+            view_.blockSignals(true);
             if (expanded_property_.count(bucket(row)->location().GetHeader())) {
-                view_->expand(index);
+                view_.expand(index);
             } else {
-                view_->collapse(index);
+                view_.collapse(index);
             };
-            view_->blockSignals(false);
+            view_.blockSignals(false);
         }
     } else {
         // Make sure all the rows are collapsed otherwise.
-        view_->blockSignals(true);
-        view_->collapseAll();
-        view_->blockSignals(false);
+        view_.blockSignals(true);
+        view_.collapseAll();
+        view_.blockSignals(false);
     };
 }
 
