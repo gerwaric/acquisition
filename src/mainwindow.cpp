@@ -862,6 +862,7 @@ void MainWindow::UpdateCurrentBucket() {
 }
 
 void MainWindow::UpdateCurrentItem() {
+    QLOG_TRACE() << "MainWindow::UpdateCurrentItem() entered";
     if (current_item_ == nullptr) {
         ClearCurrentItem();
         return;
@@ -899,6 +900,7 @@ void MainWindow::UpdateCurrentItem() {
 }
 
 void MainWindow::UpdateBuyoutWidgets(const Buyout& bo) {
+    QLOG_TRACE() << "MainWindow::UpdateBuyoutWidgets() entered";
     ui->buyoutTypeComboBox->setCurrentIndex(bo.type);
     ui->buyoutTypeComboBox->setEnabled(!bo.IsGameSet());
     ui->buyoutCurrencyComboBox->setEnabled(false);
@@ -917,6 +919,7 @@ void MainWindow::UpdateBuyoutWidgets(const Buyout& bo) {
 }
 
 void MainWindow::UpdateCurrentBuyout() {
+    QLOG_TRACE() << "MainWindow::UpdateCurrentBuyout() entered";
     if (current_item_) {
         UpdateBuyoutWidgets(buyout_manager_.Get(*current_item_));
     } else {
@@ -926,6 +929,7 @@ void MainWindow::UpdateCurrentBuyout() {
 }
 
 void MainWindow::OnItemsRefreshed() {
+    QLOG_TRACE() << "MainWindow::OnItemsRefreshed() entered";
     int tab = 0;
     for (auto search : searches_) {
         search->SetRefreshReason(RefreshReason::ItemsChanged);
@@ -933,9 +937,9 @@ void MainWindow::OnItemsRefreshed() {
         if (search != current_search_) {
             search->FilterItems(items_manager_.items());
             tab_bar_->setTabText(tab, search->GetCaption());
-        }
+        };
         tab++;
-    }
+    };
     QStringList categories = GetItemCategories();
     category_string_model_->setStringList(categories);
     // Must re-populate category form after model re-init which clears selection
