@@ -256,8 +256,9 @@ void MainWindow::InitializeUi() {
     context_menu_.addAction("Expand All", this, &MainWindow::OnExpandAll);
     context_menu_.addAction("Collapse All", this, &MainWindow::OnCollapseAll);
 
-    connect(ui->treeView, &QTreeView::customContextMenuRequested, this, [&](const QPoint& pos) {
-        context_menu_.popup(ui->treeView->viewport()->mapToGlobal(pos));
+    connect(ui->treeView, &QTreeView::customContextMenuRequested, this,
+        [&](const QPoint& pos) {
+            context_menu_.popup(ui->treeView->viewport()->mapToGlobal(pos));
         });
 
     refresh_button_.setStyleSheet("color: blue; font-weight: bold;");
@@ -292,16 +293,18 @@ void MainWindow::InitializeUi() {
     // Make sure the right logging level menu item is checked.
     OnSetLogging(QsLogging::Logger::instance().loggingLevel());
 
-    connect(ui->itemInfoTypeTabs, &QTabWidget::currentChanged, this, [=](int idx) {
-        auto tabs = ui->itemInfoTypeTabs;
-        for (int i = 0; i < tabs->count(); i++)
-            if (i != idx)
-                tabs->widget(i)->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
-        tabs->widget(idx)->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
-        tabs->widget(idx)->resize(tabs->widget(idx)->minimumSizeHint());
-        tabs->widget(idx)->adjustSize();
-
-        settings_.setValue("tooltip_tab", idx);
+    connect(ui->itemInfoTypeTabs, &QTabWidget::currentChanged, this,
+        [=](int idx) {
+            auto tabs = ui->itemInfoTypeTabs;
+            for (int i = 0; i < tabs->count(); i++) {
+                if (i != idx) {
+                    tabs->widget(i)->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+                };
+            };
+            tabs->widget(idx)->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+            tabs->widget(idx)->resize(tabs->widget(idx)->minimumSizeHint());
+            tabs->widget(idx)->adjustSize();
+            settings_.setValue("tooltip_tab", idx);
         });
 
     // Connect the Tabs menu
@@ -416,8 +419,7 @@ void MainWindow::OnRefreshSelected() {
     for (auto const& index : ui->treeView->selectionModel()->selectedRows()) {
         // Fetch tab names per index
         locations.push_back(current_search_->GetTabLocation(index));
-    }
-
+    };
     items_manager_.Update(TabSelection::Selected, locations);
 }
 
@@ -435,6 +437,7 @@ void MainWindow::ResizeTreeColumns() {
 }
 
 void MainWindow::OnBuyoutChange() {
+    QLOG_TRACE() << "MainWindow::OnBuyoutChange() entered";
     shop_.ExpireShopData();
 
     Buyout bo;
@@ -449,31 +452,35 @@ void MainWindow::OnBuyoutChange() {
     } else {
         ui->buyoutCurrencyComboBox->setEnabled(false);
         ui->buyoutValueLineEdit->setEnabled(false);
-    }
+    };
 
-    if (!bo.IsValid())
+    if (!bo.IsValid()) {
         return;
+    };
 
     // Don't assign a zero buyout if nothing is entered in the value textbox
-    if (ui->buyoutValueLineEdit->text().isEmpty() && bo.IsPriced())
+    if (ui->buyoutValueLineEdit->text().isEmpty() && bo.IsPriced()) {
         return;
+    };
 
     for (auto const& index : ui->treeView->selectionModel()->selectedRows()) {
         auto const& tab = current_search_->GetTabLocation(index).GetUniqueHash();
 
         // Don't allow users to manually update locked tabs (game priced)
-        if (buyout_manager_.GetTab(tab).IsGameSet())
+        if (buyout_manager_.GetTab(tab).IsGameSet()) {
             continue;
+        };
         if (!index.parent().isValid()) {
             buyout_manager_.SetTab(tab, bo);
         } else {
             auto& item = current_search_->bucket(index.parent().row())->item(index.row());
             // Don't allow users to manually update locked items (game priced per item in note section)
-            if (buyout_manager_.Get(*item).IsGameSet())
+            if (buyout_manager_.Get(*item).IsGameSet()) {
                 continue;
+            };
             buyout_manager_.Set(*item, bo);
-        }
-    }
+        };
+    };
     items_manager_.PropagateTabBuyouts();
     ResizeTreeColumns();
 }
@@ -538,34 +545,34 @@ bool MainWindow::eventFilter(QObject* o, QEvent* e) {
             if (index >= 0 && index < tab_bar_->count() - 1) {
                 tab_bar_->removeTab(index);
                 auto search = searches_[index];
-                if (previous_search_ == search)
+                if (previous_search_ == search) {
                     previous_search_ = nullptr;
-                if (current_search_ == search)
+                };
+                if (current_search_ == search) {
                     current_search_ = nullptr;
+                };
                 delete searches_[index];
                 searches_.erase(searches_.begin() + index);
-                if (static_cast<size_t>(tab_bar_->currentIndex()) == searches_.size())
+                if (static_cast<size_t>(tab_bar_->currentIndex()) == searches_.size()) {
                     tab_bar_->setCurrentIndex(static_cast<int>(searches_.size()) - 1);
+                };
                 OnTabChange(tab_bar_->currentIndex());
                 // that's because after removeTab text will be set to previous search's caption
                 // which is because my way of dealing with "+" tab is hacky and should be replaced by something sane
                 tab_bar_->setTabText(tab_bar_->count() - 1, "+");
-            }
+            };
             return true;
         } else if (mouse_event->button() == Qt::RightButton) {
             rightClickedTabIndex = index;
-
             if (rightClickedTabIndex >= 0 && rightClickedTabIndex < tab_bar_->count() - 1) {
-                class TabRightClickMenu :public QMenu {};
+                class TabRightClickMenu : public QMenu {};
                 TabRightClickMenu rcMenu;
-
                 rcMenu.addAction("Rename Tab", this, &MainWindow::OnRenameTabClicked);
                 rcMenu.exec(QCursor::pos());
-            }
-
+            };
             rightClickedTabIndex = -1;
-        }
-    }
+        };
+    };
     return QMainWindow::eventFilter(o, e);
 }
 
@@ -602,21 +609,28 @@ void MainWindow::SetCurrentSearch(Search* search) {
 }
 
 void MainWindow::OnSearchFormChange() {
+    QLOG_TRACE() << "MainWindow::OnSearchFormChange() entered";
     current_search_->SetRefreshReason(RefreshReason::SearchFormChanged);
     ModelViewRefresh();
 }
 
 void MainWindow::ModelViewRefresh() {
+    QLOG_TRACE() << "MainWindow::ModelViewRefresh() entered";
     buyout_manager_.Save();
 
     // Save view properties if no search fields are populated
     // AND we're viewing in Tab mode
-    if (previous_search_ && !previous_search_->IsAnyFilterActive()
-        && previous_search_->GetViewMode() == Search::ViewMode::ByTab)
+    if (previous_search_
+        && !previous_search_->IsAnyFilterActive()
+        && (previous_search_->GetViewMode() == Search::ViewMode::ByTab))
+    {
+        QLOG_TRACE() << "MainWindow::ModelViewRefresh() saving view properties";
         previous_search_->SaveViewProperties();
+    };
 
     previous_search_ = current_search_;
 
+    QLOG_TRACE() << "MainWindow::ModelViewRefresh() activing current search";
     current_search_->Activate(items_manager_.items());
 
     // This updates the item information when current item changes.
@@ -644,6 +658,7 @@ void MainWindow::ModelViewRefresh() {
 
 void MainWindow::OnCurrentItemChanged(const QModelIndex& current, const QModelIndex& previous) {
     Q_UNUSED(previous);
+    QLOG_TRACE() << "MainWindow::OnCurrentItemChange() entered";
     buyout_manager_.Save();
     if (!current.parent().isValid()) {
         // clicked on a bucket
@@ -659,20 +674,26 @@ void MainWindow::OnCurrentItemChanged(const QModelIndex& current, const QModelIn
 }
 
 void MainWindow::OnLayoutChanged() {
+    QLOG_TRACE() << "MainWindow::OnLayoutChanged() entered";
+
     // Do nothing is nothing is selected.
-    if (current_item_ == nullptr)
+    if (current_item_ == nullptr) {
+        QLOG_TRACE() << "MainWindow::OnLayoutChange() nothing was selected";
         return;
+    };
 
     // Look for the new index of the currently selected item.
     const QModelIndex idx = current_search_->index(current_item_);
 
     if (!idx.isValid()) {
         // The previously selected item is no longer in search results.
+        QLOG_TRACE() << "MainWindow::OnLayoutChange() the previously selected item is gone";
         current_item_ = nullptr;
         ClearCurrentItem();
-        ui->treeView->selectionModel()->clearSelection();
+        ui->treeView->selectionModel()->clear();
     } else {
         // Reselect the item in the updated layout.
+        QLOG_TRACE() << "MainWindow::OnLayouotChange() reselecting the previous item";
         ui->treeView->selectionModel()->select(idx, QItemSelectionModel::ClearAndSelect);;
     };
 }
@@ -777,20 +798,35 @@ void MainWindow::InitializeSearchForm() {
 }
 
 void MainWindow::NewSearch() {
-    SetCurrentSearch(new Search(buyout_manager_, QString("Search %1").arg(++search_count_).toStdString(), filters_, ui->treeView));
+    QLOG_TRACE() << "MainWindow::NewSearch() entered";
+
+    auto search = new Search(
+        buyout_manager_,
+        QString("Search %1").arg(++search_count_).toStdString(),
+        filters_,
+        ui->treeView);
+
+    QLOG_TRACE() << "MainWindow::NewSearch() setting current search:" << search->GetCaption();
+    SetCurrentSearch(search);
+
     current_search_->SetRefreshReason(RefreshReason::TabCreated);
 
+    QLOG_TRACE() << "MainWindow::NewSearch() adding tab";
     tab_bar_->setTabText(tab_bar_->count() - 1, current_search_->GetCaption());
-
     tab_bar_->addTab("+");
+
     // this can't be done in ctor because it'll call OnSearchFormChange slot
     // and remove all previous search data
+    QLOG_TRACE() << "MainWindow::NewSearch() reseting search form and adding the search";
     current_search_->ResetForm();
     searches_.push_back(current_search_);
+
+    QLOG_TRACE() << "MainWindow::NewSearch() triggering model view refresh";
     ModelViewRefresh();
 }
 
 void MainWindow::ClearCurrentItem() {
+    QLOG_TRACE() << "MainWindow::ClearCurrentItem() entered";
     ui->imageLabel->hide();
     ui->minimapLabel->hide();
     ui->locationLabel->hide();
@@ -804,6 +840,7 @@ void MainWindow::ClearCurrentItem() {
 }
 
 void MainWindow::UpdateCurrentBucket() {
+    QLOG_TRACE() << "MainWindow::UpdateCurrentBucket() entered";
     ui->imageLabel->hide();
     ui->minimapLabel->hide();
     ui->locationLabel->hide();
