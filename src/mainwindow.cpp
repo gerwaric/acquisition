@@ -354,9 +354,7 @@ void MainWindow::LoadSettings() {
 
     // Load the appropriate theme.
     const QString theme = settings_.value("theme", "default").toString();
-    if (theme == "dark") OnSetDarkTheme(true);
-    else if (theme == "light") OnSetLightTheme(true);
-    else if (theme == "default") OnSetDefaultTheme(true);
+    emit SetTheme(theme);
 
     ui->actionSetAutomaticTabRefresh->setChecked(settings_.value("autoupdate").toBool());
     UpdateShopMenu();
@@ -367,6 +365,7 @@ void MainWindow::LoadSettings() {
 }
 
 void MainWindow::OnExpandAll() {
+    QLOG_TRACE() << "MainWindow::OnExpandAll() entered";
     // Only need to expand the top level, which corresponds to buckets,
     // aka stash tabs and characters. Signals are blocked during this
     // operation, otherwise the column resize function connected to
@@ -380,6 +379,7 @@ void MainWindow::OnExpandAll() {
 }
 
 void MainWindow::OnCollapseAll() {
+    QLOG_TRACE() << "MainWindow::OnCollapseAll() entered";
     // There is no depth-based collapse method, so manuall looping
     // over rows can be much faster than collapseAll() under some
     // conditions, possibly beecause those funcitons check every
@@ -400,6 +400,7 @@ void MainWindow::OnCollapseAll() {
 }
 
 void MainWindow::OnCheckAll() {
+    QLOG_TRACE() << "MainWindow::OnCheckAll() entered";
     for (auto const& bucket : current_search_->buckets()) {
         buyout_manager_.SetRefreshChecked(bucket->location(), true);
     };
@@ -407,6 +408,7 @@ void MainWindow::OnCheckAll() {
 }
 
 void MainWindow::OnUncheckAll() {
+    QLOG_TRACE() << "MainWindow::OnUncheckAll() entered";
     for (auto const& bucket : current_search_->buckets()) {
         buyout_manager_.SetRefreshChecked(bucket->location(), false);
     };
@@ -414,6 +416,7 @@ void MainWindow::OnUncheckAll() {
 }
 
 void MainWindow::OnRefreshSelected() {
+    QLOG_TRACE() << "MainWindow::OnRefreshSelected()";
     // Get names of tabs to refresh
     std::vector<ItemLocation> locations;
     for (auto const& index : ui->treeView->selectionModel()->selectedRows()) {
@@ -424,13 +427,14 @@ void MainWindow::OnRefreshSelected() {
 }
 
 void MainWindow::CheckSelected(bool value) {
+    QLOG_TRACE() << "MainWindow::CheckSelected() entered";
     for (auto const& index : ui->treeView->selectionModel()->selectedRows()) {
         buyout_manager_.SetRefreshChecked(current_search_->GetTabLocation(index), value);
     };
 }
 
 void MainWindow::ResizeTreeColumns() {
-    QLOG_DEBUG() << "ResizeTreeColumns";
+    QLOG_TRACE() << "MainWindow::ResizeTreeColumns() entered";
     for (int i = 0; i < ui->treeView->header()->count(); ++i) {
         ui->treeView->resizeColumnToContents(i);
     };
@@ -455,11 +459,13 @@ void MainWindow::OnBuyoutChange() {
     };
 
     if (!bo.IsValid()) {
+        QLOG_TRACE() << "MainWindow::OnBuyoutChange() buyout is invalid";
         return;
     };
 
     // Don't assign a zero buyout if nothing is entered in the value textbox
     if (ui->buyoutValueLineEdit->text().isEmpty() && bo.IsPriced()) {
+        QLOG_TRACE() << "MainWindow::OnBuyoutChange() buyout iempty";
         return;
     };
 
@@ -468,6 +474,7 @@ void MainWindow::OnBuyoutChange() {
 
         // Don't allow users to manually update locked tabs (game priced)
         if (buyout_manager_.GetTab(tab).IsGameSet()) {
+            QLOG_TRACE() << "MainWindow::OnBuyoutChange() refusing to update locked tab:" << tab;
             continue;
         };
         if (!index.parent().isValid()) {
@@ -476,6 +483,7 @@ void MainWindow::OnBuyoutChange() {
             auto& item = current_search_->bucket(index.parent().row())->item(index.row());
             // Don't allow users to manually update locked items (game priced per item in note section)
             if (buyout_manager_.Get(*item).IsGameSet()) {
+                QLOG_TRACE() << "MainWindow::OnBuyoutChange() refusing to update locked item:" << item->name();
                 continue;
             };
             buyout_manager_.Set(*item, bo);
@@ -537,7 +545,7 @@ void MainWindow::OnStatusUpdate(ProgramState state, const QString& message) {
 }
 
 bool MainWindow::eventFilter(QObject* o, QEvent* e) {
-    if (o == tab_bar_ && e->type() == QEvent::MouseButtonPress) {
+    if ((o == tab_bar_) && (e->type() == QEvent::MouseButtonPress)) {
         QMouseEvent* mouse_event = static_cast<QMouseEvent*>(e);
         int index = tab_bar_->tabAt(mouse_event->pos());
         if (mouse_event->button() == Qt::MiddleButton) {
@@ -593,14 +601,15 @@ void MainWindow::OnImageFetched(QNetworkReply* reply) {
     if (reply->error()) {
         QLOG_WARN() << "Failed to download item image," << url.c_str();
         return;
-    }
+    };
     QImageReader image_reader(reply);
     QImage image = image_reader.read();
 
     image_cache_->Set(url, image);
 
-    if (current_item_ && (url == current_item_->icon() || url == POE_WEBCDN + current_item_->icon()))
+    if (current_item_ && (url == current_item_->icon() || url == POE_WEBCDN + current_item_->icon())) {
         ui->imageLabel->setPixmap(GenerateItemIcon(*current_item_, image));
+    };
 }
 
 void MainWindow::SetCurrentSearch(Search* search) {
@@ -627,7 +636,6 @@ void MainWindow::ModelViewRefresh() {
         QLOG_TRACE() << "MainWindow::ModelViewRefresh() saving view properties";
         previous_search_->SaveViewProperties();
     };
-
     previous_search_ = current_search_;
 
     QLOG_TRACE() << "MainWindow::ModelViewRefresh() activing current search";
