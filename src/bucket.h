@@ -27,8 +27,17 @@
 // Items are "bucketed" by their location: stash tab / character.
 class Bucket {
 public:
-    Bucket() {};
+    Bucket() = default;
     explicit Bucket(const ItemLocation& location);
+
+    // Non-copyable
+    Bucket(const Bucket&) = delete;
+    Bucket& operator= (const Bucket&) = delete;
+
+    // Moveable
+    Bucket(Bucket&&) = default;
+    Bucket& operator = (Bucket&&) = default;
+
     void AddItem(const std::shared_ptr<Item>& item);
     const Items& items() const { return items_; }
     const std::shared_ptr<Item>& item(int row) const;

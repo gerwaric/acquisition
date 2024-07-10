@@ -29,6 +29,16 @@ class BuyoutManager;
 
 class Column {
 public:
+    Column() = default;
+
+    // Non-copyable
+    Column(const Column&) = delete;
+    Column& operator= (const Column&) = delete;
+
+    // Moveable
+    Column(Column&&) = default;
+    Column& operator = (Column&&) = default;
+
     virtual std::string name() const = 0;
     virtual QVariant value(const Item& item) const = 0;
     virtual QVariant icon(const Item& item) const = 0;

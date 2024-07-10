@@ -43,11 +43,23 @@ class SearchComboBox;
  */
 class Filter {
 public:
+
+    Filter() = default;
+    virtual ~Filter() {};
+
+    // Non-copyable
+    Filter(const Filter&) = delete;
+    Filter& operator= (const Filter&) = delete;
+
+    // Moveable
+    Filter(Filter&&) = default;
+    Filter& operator = (Filter&&) = default;
+
+
     virtual void FromForm(FilterData* data) = 0;
     virtual void ToForm(FilterData* data) = 0;
     virtual void ResetForm() = 0;
     virtual bool Matches(const std::shared_ptr<Item>& item, FilterData* data) = 0;
-    virtual ~Filter() {};
     std::unique_ptr<FilterData> CreateData();
 };
 
@@ -219,7 +231,7 @@ public:
 
 class SocketsColorsFilter : public Filter {
 public:
-    SocketsColorsFilter() {}
+    SocketsColorsFilter() {};
     explicit SocketsColorsFilter(QLayout* parent);
     void FromForm(FilterData* data);
     void ToForm(FilterData* data);
