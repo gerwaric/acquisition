@@ -56,14 +56,16 @@ const std::vector<std::string> ITEM_MOD_TYPES = {
 
 static std::string item_unique_properties(const rapidjson::Value& json, const std::string& name) {
     const char* name_p = name.c_str();
-    if (!json.HasMember(name_p))
+    if (!json.HasMember(name_p)) {
         return "";
+    };
     std::string result;
     for (auto& prop : json[name_p]) {
         result += std::string(prop["name"].GetString()) + "~";
-        for (auto& value : prop["values"])
+        for (auto& value : prop["values"]) {
             result += std::string(value[0].GetString()) + "~";
-    }
+        };
+    };
     return result;
 }
 
@@ -72,7 +74,7 @@ static std::string fixup_name(const std::string& name) {
     std::string::size_type right_shift = name.rfind(">>");
     if (right_shift != std::string::npos) {
         return name.substr(right_shift + 2);
-    }
+    };
     return name;
 }
 
@@ -86,8 +88,9 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
     location_(loc),
     json_(Util::RapidjsonSerialize(json))
 {
-    if (json.HasMember("name") && json["name"].IsString())
+    if (json.HasMember("name") && json["name"].IsString()) {
         name_ = fixup_name(json["name"].GetString());
+    };
     if (json.HasMember("typeLine") && json["typeLine"].IsString()) {
         if (json.HasMember("hybrid") && json["hybrid"].IsObject()) {
             if (json["hybrid"].HasMember("isVaalGem") && json["hybrid"]["isVaalGem"].IsBool() && json["hybrid"]["isVaalGem"].GetBool() == true) {
@@ -104,67 +107,82 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
             typeLine_ = fixup_name(json["typeLine"].GetString());
         };
     };
-    if (json.HasMember("baseType") && json["baseType"].IsString())
+    if (json.HasMember("baseType") && json["baseType"].IsString()) {
         baseType_ = fixup_name(json["baseType"].GetString());
-
-    if (json.HasMember("identified") && json["identified"].IsBool())
+    };
+    if (json.HasMember("identified") && json["identified"].IsBool()) {
         identified_ = json["identified"].GetBool();
-    if (json.HasMember("corrupted") && json["corrupted"].IsBool())
+    };
+    if (json.HasMember("corrupted") && json["corrupted"].IsBool()) {
         corrupted_ = json["corrupted"].GetBool();
-
-    if (json.HasMember("craftedMods") && json["craftedMods"].IsArray() && !json["craftedMods"].Empty())
+    };
+    if (json.HasMember("craftedMods") && json["craftedMods"].IsArray() && !json["craftedMods"].Empty()) {
         crafted_ = true;
-    if (json.HasMember("enchantMods") && json["enchantMods"].IsArray() && !json["enchantMods"].Empty())
+    };
+    if (json.HasMember("enchantMods") && json["enchantMods"].IsArray() && !json["enchantMods"].Empty()) {
         enchanted_ = true;
-
+    };
     if (json.HasMember("influences")) {
-        if (json["influences"].HasMember("shaper"))
+        if (json["influences"].HasMember("shaper")) {
             influenceList_.push_back(SHAPER);
-        if (json["influences"].HasMember("elder"))
+        };
+        if (json["influences"].HasMember("elder")) {
             influenceList_.push_back(ELDER);
-        if (json["influences"].HasMember("crusader"))
+        };
+        if (json["influences"].HasMember("crusader")) {
             influenceList_.push_back(CRUSADER);
-        if (json["influences"].HasMember("redeemer"))
+        };
+        if (json["influences"].HasMember("redeemer")) {
             influenceList_.push_back(REDEEMER);
-        if (json["influences"].HasMember("hunter"))
+        };
+        if (json["influences"].HasMember("hunter")) {
             influenceList_.push_back(HUNTER);
-        if (json["influences"].HasMember("warlord"))
+        };
+        if (json["influences"].HasMember("warlord")) {
             influenceList_.push_back(WARLORD);
+        };
     }
 
-    if (json.HasMember("synthesised") && json["synthesised"].IsBool() && json["synthesised"].GetBool())
+    if (json.HasMember("synthesised") && json["synthesised"].IsBool() && json["synthesised"].GetBool()) {
         influenceList_.push_back(SYNTHESISED);
-
-    if (json.HasMember("fractured") && json["fractured"].IsBool() && json["fractured"].GetBool())
+    };
+    if (json.HasMember("fractured") && json["fractured"].IsBool() && json["fractured"].GetBool()) {
         influenceList_.push_back(FRACTURED);
-
-    if (json.HasMember("searing") && json["searing"].IsBool() && json["searing"].GetBool())
+    };
+    if (json.HasMember("searing") && json["searing"].IsBool() && json["searing"].GetBool()) {
         influenceList_.push_back(SEARING_EXARCH);
-
-    if (json.HasMember("tangled") && json["tangled"].IsBool() && json["tangled"].GetBool())
+    };
+    if (json.HasMember("tangled") && json["tangled"].IsBool() && json["tangled"].GetBool()) {
         influenceList_.push_back(EATER_OF_WORLDS);
+    };
 
-    if (json.HasMember("w") && json["w"].IsInt())
+    if (json.HasMember("w") && json["w"].IsInt()) {
         w_ = json["w"].GetInt();
-    if (json.HasMember("h") && json["h"].IsInt())
+    };
+    if (json.HasMember("h") && json["h"].IsInt()) {
         h_ = json["h"].GetInt();
-
-    if (json.HasMember("frameType") && json["frameType"].IsInt())
+    };
+    
+    if (json.HasMember("frameType") && json["frameType"].IsInt()) {
         frameType_ = json["frameType"].GetInt();
-
-    if (json.HasMember("icon") && json["icon"].IsString())
+    };
+    
+    if (json.HasMember("icon") && json["icon"].IsString()) {
         icon_ = json["icon"].GetString();
+    };
 
     for (auto& mod_type : ITEM_MOD_TYPES) {
         text_mods_[mod_type] = std::vector<std::string>();
         const char* mod_type_s = mod_type.c_str();
         if (json.HasMember(mod_type_s) && json[mod_type_s].IsArray()) {
             auto& mods = text_mods_[mod_type];
-            for (auto& mod : json[mod_type_s])
-                if (mod.IsString())
+            for (auto& mod : json[mod_type_s]) {
+                if (mod.IsString()) {
                     mods.push_back(mod.GetString());
-        }
-    }
+                };
+            };
+        };
+    };
 
     // Other code assumes icon is proper size so force quad=1 to quad=0 here as it's clunky
     // to handle elsewhere
@@ -176,31 +194,33 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
 
     if (json.HasMember("talismanTier") && json["talismanTier"].IsUint()) {
         talisman_tier_ = json["talismanTier"].GetUint();
-    }
+    };
 
     if (json.HasMember("id") && json["id"].IsString()) {
         uid_ = json["id"].GetString();
-    }
+    };
 
     if (json.HasMember("note") && json["note"].IsString()) {
         note_ = json["note"].GetString();
-    }
+    };
 
     if (json.HasMember("properties") && json["properties"].IsArray()) {
         for (auto& prop : json["properties"]) {
-            if (!prop.HasMember("name") || !prop["name"].IsString() || !prop.HasMember("values") || !prop["values"].IsArray())
+            if (!prop.HasMember("name") || !prop["name"].IsString() || !prop.HasMember("values") || !prop["values"].IsArray()) {
                 continue;
+            };
             std::string name = prop["name"].GetString();
             if (name == "Elemental Damage") {
                 for (auto& value : prop["values"]) {
-                    if (value.IsArray() && value.Size() >= 2 && value[0].IsString() && value[1].IsInt())
+                    if (value.IsArray() && value.Size() >= 2 && value[0].IsString() && value[1].IsInt()) {
                         elemental_damage_.push_back(std::make_pair(value[0].GetString(), value[1].GetInt()));
-                }
+                    };
+                };
             } else {
-                if (prop["values"].Size() > 0 && prop["values"][0].IsArray() && prop["values"][0].Size() > 0 &&
-                    prop["values"][0][0].IsString())
+                if (prop["values"].Size() > 0 && prop["values"][0].IsArray() && prop["values"][0].Size() > 0 && prop["values"][0][0].IsString()) {
                     properties_[name] = prop["values"][0][0].GetString();
-            }
+                };
+            };
 
             ItemProperty property;
             property.name = name;
@@ -211,11 +231,11 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
                     v.str = value[0].GetString();
                     v.type = value[1].GetInt();
                     property.values.push_back(v);
-                }
-            }
+                };
+            };
             text_properties_.push_back(property);
-        }
-    }
+        };
+    };
 
     if (json.HasMember("requirements") && json["requirements"].IsArray()) {
         for (auto& req : json["requirements"]) {
@@ -230,26 +250,29 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
                 v.str = value;
                 v.type = req["values"][0][1].GetInt();
                 text_requirements_.push_back({ name, v });
-            }
-        }
-    }
+            };
+        };
+    };
 
     if (json.HasMember("sockets") && json["sockets"].IsArray()) {
         ItemSocketGroup current_group = { 0, 0, 0, 0 };
         sockets_cnt_ = json["sockets"].Size();
         int counter = 0, prev_group = -1;
         for (auto& socket : json["sockets"]) {
-            if (!socket.IsObject() || !socket.HasMember("group") || !socket["group"].IsInt())
+            if (!socket.IsObject() || !socket.HasMember("group") || !socket["group"].IsInt()) {
                 continue;
+            };
 
             char attr = '\0';
-            if (socket["attr"].IsString())
+            if (socket["attr"].IsString()) {
                 attr = socket["attr"].GetString()[0];
-            else if (socket["sColour"].IsString())
+            } else if (socket["sColour"].IsString()) {
                 attr = socket["sColour"].GetString()[0];
+            };
 
-            if (!attr)
+            if (!attr) {
                 continue;
+            };
 
             ItemSocket current_socket = { static_cast<unsigned char>(socket["group"].GetInt()), attr };
             text_sockets_.push_back(current_socket);
@@ -257,7 +280,7 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
                 counter = 0;
                 socket_groups_.push_back(current_group);
                 current_group = { 0, 0, 0, 0 };
-            }
+            };
             prev_group = current_socket.group;
             ++counter;
             links_cnt_ = std::max(links_cnt_, counter);
@@ -278,10 +301,10 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
                 sockets_.w++;
                 current_group.w++;
                 break;
-            }
-        }
+            };
+        };
         socket_groups_.push_back(current_group);
-    }
+    };
 
     CalculateHash(json);
 
@@ -291,19 +314,22 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
         if (size.find("/") != std::string::npos) {
             size = size.substr(0, size.find("/"));
             count_ = std::stoi(size);
-        }
-    }
+        };
+    };
 
-    if (json.HasMember("ilvl") && json["ilvl"].IsInt())
+    if (json.HasMember("ilvl") && json["ilvl"].IsInt()) {
         ilvl_ = json["ilvl"].GetInt();
+    };
 
     GenerateMods(json);
 }
 
 std::string Item::PrettyName() const {
-    if (!name_.empty())
+    if (!name_.empty()) {
         return name_ + " " + typeLine_;
-    return typeLine_;
+    } else {
+        return typeLine_;
+    };
 }
 
 void Item::CalculateCategories() {
@@ -329,8 +355,9 @@ double Item::DPS() const {
 }
 
 double Item::pDPS() const {
-    if (!properties_.count("Physical Damage") || !properties_.count("Attacks per Second"))
+    if (!properties_.count("Physical Damage") || !properties_.count("Attacks per Second")) {
         return 0;
+    };
     double aps = std::stod(properties_.at("Attacks per Second"));
     std::string pd = properties_.at("Physical Damage");
 
@@ -338,18 +365,21 @@ double Item::pDPS() const {
 }
 
 double Item::eDPS() const {
-    if (elemental_damage_.empty() || !properties_.count("Attacks per Second"))
+    if (elemental_damage_.empty() || !properties_.count("Attacks per Second")) {
         return 0;
+    };
     double damage = 0;
-    for (auto& x : elemental_damage_)
+    for (auto& x : elemental_damage_) {
         damage += Util::AverageDamage(x.first);
+    };
     double aps = std::stod(properties_.at("Attacks per Second"));
     return aps * damage;
 }
 
 double Item::cDPS() const {
-    if (!properties_.count("Chaos Damage") || !properties_.count("Attacks per Second"))
+    if (!properties_.count("Chaos Damage") || !properties_.count("Attacks per Second")) {
         return 0;
+    };
     double aps = std::stod(properties_.at("Attacks per Second"));
     std::string cd = properties_.at("Chaos Damage");
 
@@ -375,25 +405,32 @@ void Item::CalculateHash(const rapidjson::Value& json) {
 
     std::string unique_common;
 
-    if (json.HasMember("explicitMods") && json["explicitMods"].IsArray())
-        for (auto& mod : json["explicitMods"])
-            if (mod.IsString())
+    if (json.HasMember("explicitMods") && json["explicitMods"].IsArray()) {
+        for (auto& mod : json["explicitMods"]) {
+            if (mod.IsString()) {
                 unique_common += std::string(mod.GetString()) + "~";
-
-    if (json.HasMember("implicitMods") && json["implicitMods"].IsArray())
-        for (auto& mod : json["implicitMods"])
-            if (mod.IsString())
+            };
+        };
+    };
+    if (json.HasMember("implicitMods") && json["implicitMods"].IsArray()) {
+        for (auto& mod : json["implicitMods"]) {
+            if (mod.IsString()) {
                 unique_common += std::string(mod.GetString()) + "~";
+            };
+        };
+    };
 
     unique_common += item_unique_properties(json, "properties") + "~";
     unique_common += item_unique_properties(json, "additionalProperties") + "~";
 
-    if (json.HasMember("sockets") && json["sockets"].IsArray())
+    if (json.HasMember("sockets") && json["sockets"].IsArray()) {
         for (auto& socket : json["sockets"]) {
-            if (!socket.HasMember("group") || !socket.HasMember("attr") || !socket["group"].IsInt() || !socket["attr"].IsString())
+            if (!socket.HasMember("group") || !socket.HasMember("attr") || !socket["group"].IsInt() || !socket["attr"].IsString()) {
                 continue;
+            };
             unique_common += std::to_string(socket["group"].GetInt()) + "~" + socket["attr"].GetString() + "~";
-        }
+        };
+    };
 
     unique_common += "~" + location_.GetUniqueHash();
 
@@ -415,8 +452,7 @@ bool Item::Wearable() const {
         || category_ == "amulet" || category_ == "ring" || category_ == "belt"
         || category_.find("armour") != std::string::npos
         || category_.find("weapons") != std::string::npos
-        || category_.find("jewels") != std::string::npos
-        );
+        || category_.find("jewels") != std::string::npos);
 }
 
 std::string Item::POBformat() const {
@@ -435,7 +471,7 @@ std::string Item::POBformat() const {
             bool link = socket.group == prev.group;
             if (i > 0) {
                 PoBText << (link ? "-" : " ");
-            }
+            };
             switch (socket.attr) {
             case 'S':
                 PoBText << "R";
@@ -452,11 +488,11 @@ std::string Item::POBformat() const {
             default:
                 PoBText << socket.attr;
                 break;
-            }
+            };
             prev = socket;
             ++i;
-        }
-    }
+        };
+    };
 
     auto& mods = text_mods();
 
@@ -465,21 +501,21 @@ std::string Item::POBformat() const {
     PoBText << "\nImplicits: " << (implicitMods.size() + enchantMods.size());
     for (const auto& mod : enchantMods) {
         PoBText << "\n{crafted}" << mod;
-    }
+    };
     for (const auto& mod : implicitMods) {
         PoBText << "\n" << mod;
-    }
+    };
 
     auto& explicitMods = mods.at("explicitMods");
     auto& craftedMods = mods.at("craftedMods");
     if (!explicitMods.empty() || !craftedMods.empty()) {
         for (const auto& mod : explicitMods) {
             PoBText << "\n" << mod;
-        }
+        };
         for (const auto& mod : craftedMods) {
             PoBText << "\n{crafted}" << mod;
-        }
-    }
+        };
+    };
 
     return PoBText.str();
 }
