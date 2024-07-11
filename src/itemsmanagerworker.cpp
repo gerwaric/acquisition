@@ -42,10 +42,13 @@
 #include "network_info.h"
 #include "buyoutmanager.h"
 #include "modlist.h"
+#include "rapidjson_util.h"
 #include "ratelimit.h"
 #include "ratelimiter.h"
 #include "repoe.h"
 #include "oauthmanager.h"
+
+using rapidjson::HasArray;
 
 constexpr const char* kStashItemsUrl = "https://www.pathofexile.com/character-window/get-stash-items";
 constexpr const char* kCharacterItemsUrl = "https://www.pathofexile.com/character-window/get-items";
@@ -447,7 +450,7 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
         return;
     };
 
-    if (!doc.IsObject() || !doc.HasMember("stashes")) {
+    if (!doc.IsObject() || !HasArray(doc, "stashes")) {
         QLOG_ERROR() << "The stash list is invalid:" << bytes;
         updating_ = false;
         return;
@@ -482,7 +485,7 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
         const int index = tab["index"].GetInt();
 
         // Skip hidden tabs.
-        if (tab.HasMember("hidden") && tab["hidden"].GetBool()) {
+        if (HasBool(tab, "hidden") && tab["hidden"].GetBool()) {
             continue;
         };
 
@@ -501,7 +504,7 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
         // Create and save the tab location object.
         int r = 0, g = 0, b = 0;
         const auto metadata = tab["metadata"].GetObj();
-        if (metadata.HasMember("colour")) {
+        if (HasString(metadata, "colour")) {
             const std::string colour = metadata["colour"].GetString();
             if (colour.length() != 6) {
                 QLOG_ERROR() << "Cannot parse the stash tab's colour:" << colour;
@@ -552,7 +555,7 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
         return;
     };
 
-    if (!doc.IsObject() || !doc.HasMember("characters")) {
+    if (!doc.IsObject() || !HasArray(doc, "characters")) {
         QLOG_ERROR() << "The characters list is invalid:" << bytes;
         updating_ = false;
         return;
@@ -562,7 +565,7 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
     int requested_character_count = 0;
     for (auto& character : characters) {
         const std::string name = character["name"].GetString();
-        if (!character.HasMember("league") || !character.HasMember("name") || !character["league"].IsString() || !character["name"].IsString()) {
+        if (!HasString(character, "league") || !HasString(character, "name")) {
             QLOG_ERROR() << "Malformed character entry for" << name.c_str() << ": the reply may be invalid : " << bytes.constData();
             continue;
         };
@@ -615,7 +618,7 @@ void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply, ItemLocation
         return;
     };
 
-    if (!doc.HasMember("stash")) {
+    if (!HasObject(doc, "stash")) {
         QLOG_ERROR() << "Error parsing the stash: 'stash' field was missing.";
         updating_ = false;
         return;
@@ -623,13 +626,11 @@ void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply, ItemLocation
 
     auto& stash = doc["stash"];
 
-    if (!stash.HasMember("items")) {
-        QLOG_DEBUG() << "Stash does not have an 'items' field:" << location.GetHeader();
+    if (!HasArray(stash, "items")) {
+        QLOG_DEBUG() << "Stash does not have an 'items' array:" << location.GetHeader();
     } else {
         auto& items = stash["items"];
-        if (!items.IsArray()) {
-            QLOG_DEBUG() << "Stash 'items' is not an array:" << location.GetHeader();
-        } else if (items.GetArray().Size() == 0) {
+        if (items.GetArray().Size() == 0) {
             QLOG_DEBUG() << "Stash 'items' does not contain any items:" << location.GetHeader();
         } else {
             ParseItems(items, location, doc.GetAllocator());
@@ -668,7 +669,7 @@ void ItemsManagerWorker::OnOAuthCharacterReceived(QNetworkReply* reply, ItemLoca
         return;
     };
 
-    if (!doc.HasMember("character")) {
+    if (!HasObject(doc, "character")) {
         QLOG_ERROR() << "The reply to a character request did not contain a character object.";
         updating_ = false;
         return;
@@ -745,7 +746,7 @@ void ItemsManagerWorker::OnLegacyCharacterListReceived(QNetworkReply* reply) {
     int requested_character_count = 0;
     for (auto& character : doc) {
         const std::string name = character["name"].GetString();
-        if (!character.HasMember("league") || !character.HasMember("name") || !character["league"].IsString() || !character["name"].IsString()) {
+        if (!HasString(character, "league") || !HasString(character, "name")) {
             QLOG_ERROR() << "Malformed character entry for" << name.c_str() << ": the reply may be invalid : " << bytes.constData();
             continue;
         };
@@ -913,7 +914,7 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
         return;
     };
 
-    if (!doc.HasMember("tabs") || doc["tabs"].Size() == 0) {
+    if (!HasArray(doc, "tabs") || doc["tabs"].Size() == 0) {
         QLOG_ERROR() << "There are no tabs, this should not happen, bailing out.";
         updating_ = false;
         return;
@@ -945,7 +946,7 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
         const int index = tab["i"].GetInt();
 
         // Skip hidden tabs.
-        if (tabs[index].HasMember("hidden") && tabs[index]["hidden"].GetBool()) {
+        if (HasBool(tabs[index], "hidden") && tabs[index]["hidden"].GetBool()) {
             continue;
         };
 
@@ -961,7 +962,7 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
 
         // Create and save the tab location object.
         int r = 0, g = 0, b = 0;
-        if (tab.HasMember("colour") && tab["colour"].IsObject()) {
+        if (HasObject(tab, "colour")) {
             const auto& colour = tab["colour"];
             r = colour["r"].GetInt();
             g = colour["g"].GetInt();
@@ -1020,7 +1021,7 @@ void ItemsManagerWorker::ParseItems(rapidjson::Value& value, ItemLocation base_l
         base_location.FromItemJson(item);
         base_location.ToItemJson(&item, alloc);
         items_.push_back(std::make_shared<Item>(item, base_location));
-        if (item.HasMember("socketedItems") && item["socketedItems"].IsArray()) {
+        if (HasArray(item, "socketedItems")) {
             base_location.set_socketed(true);
             ParseItems(item["socketedItems"], base_location, alloc);
             base_location.set_socketed(false);
@@ -1077,13 +1078,11 @@ void ItemsManagerWorker::OnLegacyTabReceived(QNetworkReply* reply, ItemLocation 
         return;
     };
 
-    if (!doc.HasMember("items")) {
-        QLOG_DEBUG() << "Legacy stash does not have 'items':" << location.GetHeader();
+    if (!HasArray(doc, "items")) {
+        QLOG_DEBUG() << "Legacy stash does not have an 'items' array:" << location.GetHeader();
     } else {
         auto& items = doc["items"];
-        if (!items.IsArray()) {
-            QLOG_DEBUG() << "Legacy stash 'items' is not an array:" << location.GetHeader();
-        } else if (items.Size() == 0) {
+        if (items.Size() == 0) {
             QLOG_DEBUG() << "Legacy stash 'items' is empty:" << location.GetHeader();
         } else {
             ParseItems(items, location, doc.GetAllocator());
@@ -1234,9 +1233,12 @@ ItemsManagerWorker::TabsSignatureVector ItemsManagerWorker::CreateTabsSignatureV
     const char* id = "id";
     TabsSignatureVector signature;
     for (auto& tab : tabs) {
-        std::string name = (tab.HasMember(n) && tab[n].IsString()) ? tab[n].GetString() : "UNKNOWN_NAME";
-        std::string uid = (tab.HasMember(id) && tab[id].IsString()) ? tab[id].GetString() : "UNKNOWN_ID";
+        std::string name = HasString(tab, n) ? tab[n].GetString() : "UNKNOWN_NAME";
+        std::string uid = HasString(tab, id) ? tab[id].GetString() : "UNKNOWN_ID";
         if (!tab.HasMember("class")) {
+            // The stash tab unique id is only ten characters, but legacy tabs
+            // return a much longer value. GGG confirmed that taking the first
+            // ten characters is the right thing to do.
             if (uid.size() > 10) {
                 uid = uid.substr(0, 10);
             };
