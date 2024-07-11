@@ -37,6 +37,8 @@
 #include <iomanip>
 #include <cmath>
 
+#include "QsLog.h"
+
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include "rapidjson/prettywriter.h"
@@ -44,6 +46,30 @@
 #include <boost/algorithm/string.hpp>
 
 #include "currency.h"
+
+QsLogging::Level Util::QsLoggingLevel(const QString& value) {
+    if (0 == value.compare("TRACE", Qt::CaseInsensitive)) { return QsLogging::TraceLevel; };
+    if (0 == value.compare("DEBUG", Qt::CaseInsensitive)) { return QsLogging::DebugLevel; };
+    if (0 == value.compare("INFO", Qt::CaseInsensitive)) { return QsLogging::InfoLevel; };
+    if (0 == value.compare("WARN", Qt::CaseInsensitive)) { return QsLogging::WarnLevel; };
+    if (0 == value.compare("ERROR", Qt::CaseInsensitive)) { return QsLogging::ErrorLevel; };
+    if (0 == value.compare("FATAL", Qt::CaseInsensitive)) { return QsLogging::FatalLevel; };
+    if (0 == value.compare("OFF", Qt::CaseInsensitive)) { return QsLogging::OffLevel; };
+    QLOG_ERROR() << "Invalid logging level:" << value;
+    return QsLogging::DebugLevel;
+}
+
+QString Util::toString(QsLogging::Level level) {
+    switch (level) {
+    case QsLogging::Level::TraceLevel: return "TRACE";
+    case QsLogging::Level::DebugLevel: return "DEBUG";
+    case QsLogging::Level::InfoLevel: return "INFO";
+    case QsLogging::Level::WarnLevel: return "WARN";
+    case QsLogging::Level::ErrorLevel: return "ERROR";
+    case QsLogging::Level::FatalLevel: return "FATAL";
+    case QsLogging::Level::OffLevel: return "OFF";
+    };
+};
 
 std::string Util::Md5(const std::string& value) {
     QString hash = QString(QCryptographicHash::hash(value.c_str(), QCryptographicHash::Md5).toHex());

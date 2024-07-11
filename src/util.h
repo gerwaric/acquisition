@@ -76,6 +76,10 @@ QDebug& operator<<(QDebug& os, const TabSelection::Type& obj);
 QDebug& operator<<(QDebug& os, const QsLogging::Level& obj);
 
 namespace Util {
+
+    QsLogging::Level QsLoggingLevel(const QString& level);
+    QString toString(QsLogging::Level level);
+
     std::string Md5(const std::string& value);
     double AverageDamage(const std::string& s);
     void PopulateBuyoutTypeComboBox(QComboBox* combobox);
