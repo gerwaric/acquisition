@@ -25,6 +25,7 @@
 #include <QFontDatabase>
 #include <QLocale>
 #include <QMessageBox>
+#include <QSettings>
 
 #include "QsLog.h"
 #include "QsLogDest.h"
@@ -80,38 +81,36 @@ int main(int argc, char* argv[])
     parser.addOption(option_crash);
     parser.process(a);
 
-    // Start by assumign the default log level.
-    QsLogging::Level loglevel = DEFAULT_LOGLEVEL;
-    bool valid_loglevel = true;
-
-    // Process --log-level if it was present on the command line.
-    if (parser.isSet(option_log_level)) {
-        const QString logging_option = parser.value(option_log_level).toUpper();
-        if (logging_option == "TRACE") {
-            loglevel = QsLogging::TraceLevel;
-        } else if (logging_option == "DEBUG") {
-            loglevel = QsLogging::DebugLevel;
-        } else if (logging_option == "INFO") {
-            loglevel = QsLogging::InfoLevel;
-        } else if (logging_option == "WARN") {
-            loglevel = QsLogging::WarnLevel;
-        } else if (logging_option == "ERROR") {
-            loglevel = QsLogging::ErrorLevel;
-        } else if (logging_option == "FATAL") {
-            loglevel = QsLogging::FatalLevel;
-        } else if (logging_option == "OFF") {
-            loglevel = QsLogging::OffLevel;
-        } else {
-            valid_loglevel = false;
-        };
-    };
-
     // Setup the data dir, which is where the log will be written.
     if (parser.isSet(option_data_dir)) {
         const QString datadir = QString(parser.value(option_data_dir));
         Filesystem::SetUserDir(datadir);
     };
     const QString sLogPath = QString(QDir(Filesystem::UserDir()).filePath("log.txt"));
+
+    // Start by assumign the default log level.
+    QsLogging::Level loglevel = DEFAULT_LOGLEVEL;
+    bool valid_loglevel = true;
+
+    // The filename here needs to match the one in the application
+    // object constructor. This is a design flaw. We need this object
+    // very briefly for the log level setting.
+    //
+    // Perhaps it should live here and be passed into the Application
+    // object construtor?
+    QSettings settings(Filesystem::UserDir() + "/settings.ini", QSettings::IniFormat);
+
+    // Determine the logging level.
+    //
+    // Start with the compile-time default for this build, but allow it to be
+    // superceded by a command-line argument. If there's no command-line argument
+    // check the settings.ini file.
+    QsLogging::Level log_level = DEFAULT_LOGLEVEL;
+    if (parser.isSet(option_log_level)) {
+        log_level = Util::QsLoggingLevel(parser.value(option_log_level));
+    } else if (settings.contains("log_level")) {
+        log_level = Util::QsLoggingLevel(settings.value("log_level").toString());
+    };
 
     // Setup the logger.
     QsLogging::Logger& logger = QsLogging::Logger::instance();
@@ -121,7 +120,7 @@ int main(int argc, char* argv[])
         QsLogging::DestinationFactory::MakeFileDestination(sLogPath, QsLogging::EnableLogRotation, logsize, logcount));
     QsLogging::DestinationPtr debugDestination(
         QsLogging::DestinationFactory::MakeDebugOutputDestination());
-    logger.setLoggingLevel(loglevel);
+    logger.setLoggingLevel(log_level);
     logger.addDestination(debugDestination);
     logger.addDestination(fileDestination);
 

@@ -1097,17 +1097,8 @@ void MainWindow::OnSetLogging(QsLogging::Level level) {
     ui->actionLoggingINFO->setChecked(level == QsLogging::InfoLevel);
     ui->actionLoggingDEBUG->setChecked(level == QsLogging::DebugLevel);
     ui->actionLoggingTRACE->setChecked(level == QsLogging::TraceLevel);
-    QString new_level;
-    switch (level) {
-    case QsLogging::OffLevel: new_level = "OFF"; break;
-    case QsLogging::FatalLevel: new_level = "FATAL"; break;
-    case QsLogging::ErrorLevel: new_level = "ERROR"; break;
-    case QsLogging::WarnLevel: new_level = "WARN"; break;
-    case QsLogging::InfoLevel: new_level = "INFO"; break;
-    case QsLogging::DebugLevel: new_level = "DEBUG"; break;
-    case QsLogging::TraceLevel: new_level = "TRACE"; break;
-    }
-    QLOG_INFO() << "Logging level set to" << new_level;
+    QLOG_INFO() << "Logging level set to" << level;
+    settings_.setValue("log_level", Util::toString(level));
 }
 
 void MainWindow::OnExportCurrency() {
