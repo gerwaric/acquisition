@@ -283,16 +283,26 @@ void RateLimitManager::ActivateRequest() {
         return;
     };
 
+    QLOG_TRACE() << "RateLimitManager::ActivateRequest() next send is" << next_send_.toString();
     QDateTime send = next_send_;
 
     if (policy_->status() >= RateLimit::PolicyStatus::BORDERLINE) {
+        QLOG_TRACE() << "RateLimitManager::ActivateRequest()"
+            << "policy" << policy_->name() << "is BORDERLINE,"
+            << "adding" << QString::number(BORDERLINE_BUFFER_MSEC) << "seconds to next send";
         send = send.addMSecs(BORDERLINE_BUFFER_MSEC);
     } else {
+        QLOG_TRACE() << "RateLimitManager::ActivateRequest()"
+            << "policy" << policy_->name() << "is NOT borderline,"
+            << "adding" << QString::number(NORMAL_BUFFER_MSEC) << "seconds to next send";
         send = send.addMSecs(NORMAL_BUFFER_MSEC);
     };
 
     if (last_send_.isValid()) {
         if (last_send_.msecsTo(send) < MINIMUM_INTERVAL_MSEC) {
+            QLOG_TRACE() << "RateLimitManager::ActivateRequest()"
+                << "adding" << QString::number(MINIMUM_INTERVAL_MSEC)
+                << "to next send";
             send = last_send_.addMSecs(MINIMUM_INTERVAL_MSEC);
         };
     };
@@ -302,7 +312,8 @@ void RateLimitManager::ActivateRequest() {
         delay = 0;
     };
 
-    QLOG_TRACE() << policy_->name() << "waiting" << (delay / 1000)
+    QLOG_TRACE() << "RateLimitManager::ActivateRequest()"
+        << "waiting" << (delay / 1000)
         << "seconds to send request" << active_request_->id
         << "at" << next_send_.toLocalTime().toString();
 
