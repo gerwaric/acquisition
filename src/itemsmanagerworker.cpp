@@ -499,11 +499,18 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
         ++tabs_requested;
 
         // Create and save the tab location object.
+        int r = 0, g = 0, b = 0;
         const auto metadata = tab["metadata"].GetObj();
-        const std::string colour = metadata["colour"].GetString();
-        const int r = std::stoul(colour.substr(0, 2), nullptr, 16);
-        const int g = std::stoul(colour.substr(2, 2), nullptr, 16);
-        const int b = std::stoul(colour.substr(4, 2), nullptr, 16);
+        if (metadata.HasMember("colour")) {
+            const std::string colour = metadata["colour"].GetString();
+            if (colour.length() != 6) {
+                QLOG_ERROR() << "Cannot parse the stash tab's colour:" << colour;
+            } else {
+                r = std::stoul(colour.substr(0, 2), nullptr, 16);
+                g = std::stoul(colour.substr(2, 2), nullptr, 16);
+                b = std::stoul(colour.substr(4, 2), nullptr, 16);
+            };
+        };
         ItemLocation location(index, tab_id, label, ItemLocationType::STASH, r, g, b, tab, doc.GetAllocator());
         tabs_.push_back(location);
         tab_id_index_.insert(tab_id);
@@ -953,9 +960,13 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
         };
 
         // Create and save the tab location object.
-        const int r = tab["colour"]["r"].GetInt();
-        const int g = tab["colour"]["g"].GetInt();
-        const int b = tab["colour"]["b"].GetInt();
+        int r = 0, g = 0, b = 0;
+        if (tab.HasMember("colour") && tab["colour"].IsObject()) {
+            const auto& colour = tab["colour"];
+            r = colour["r"].GetInt();
+            g = colour["g"].GetInt();
+            b = colour["b"].GetInt();
+        };
         ItemLocation location(index, tab_id, label, ItemLocationType::STASH, r, g, b, tab, doc.GetAllocator());
         tabs_.push_back(location);
         tab_id_index_.insert(tab_id);
