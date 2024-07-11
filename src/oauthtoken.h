@@ -25,11 +25,13 @@
 
 #include "rapidjson/document.h"
 
+class QNetworkReply;
+
 class OAuthToken {
 public:
     OAuthToken();
     OAuthToken(const std::string& json);
-    OAuthToken(const std::string& json, const QDateTime& timestamp);
+    OAuthToken(QNetworkReply& reply);
     std::string access_token() const { return access_token_; };
     int expires_in() const { return expires_in_; };
     std::string scope() const { return scope_; };

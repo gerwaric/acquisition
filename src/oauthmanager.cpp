@@ -301,21 +301,15 @@ void OAuthManager::receiveToken(QNetworkReply* reply) {
         return;
     };
 
-    // Extract the response so we can dispose of the reply.
-    const QByteArray bytes = reply->readAll();
-    reply->deleteLater();
-
-    // Determine birthday and expiration time.
-    const QString token_timestamp = Util::FixTimezone(reply->rawHeader("Date"));
-    const QDateTime token_birthday = QDateTime::fromString(token_timestamp, Qt::RFC2822Date).toLocalTime();
-
     // Parse the token and emit it.
-    token_ = OAuthToken(bytes.toStdString(), token_birthday);
-    QLOG_TRACE() << "OAuth access token received.";
+    QLOG_TRACE() << "OAuthManager::receiveToken() parsing OAuth access token";
+    token_ = OAuthToken(*reply);
 
     if (remember_token_) {
+        QLOG_TRACE() << "OAuthManager::receiveToken() saving token to data store";
         datastore_.Set("oauth_token", token_.toJson());
     } else {
+        QLOG_TRACE() << "OAuthManager::receiveToken() removing token from data store";
         datastore_.Set("oauth_token", "");
     };
 
@@ -323,6 +317,9 @@ void OAuthManager::receiveToken(QNetworkReply* reply) {
 
     // Setup the refresh timer.
     setRefreshTimer();
+
+    // Make sure to dispose of the reply.
+    reply->deleteLater();
 }
 
 void OAuthManager::requestRefresh() {

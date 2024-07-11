@@ -19,6 +19,8 @@
 
 #include "oauthtoken.h"
 
+#include <QNetworkReply>
+
 #include "QsLog.h"
 #include "rapidjson/error/en.h"
 
@@ -26,11 +28,14 @@
 
 OAuthToken::OAuthToken() :
     expires_in_(-1)
-{}
+{
+    QLOG_TRACE() << "OAuthToken::OAuthToken(json) entered";
+}
 
 OAuthToken::OAuthToken(const std::string& json) :
     expires_in_(-1)
 {
+    QLOG_TRACE() << "OAuthToken::OAuthToken(json) entered";
     rapidjson::Document doc;
     doc.Parse(json.c_str());
     if (doc.HasParseError()) {
@@ -76,19 +81,23 @@ OAuthToken::OAuthToken(const std::string& json) :
     };
 }
 
-OAuthToken::OAuthToken(const std::string& json, const QDateTime& timestamp) :
-    OAuthToken(json)
+OAuthToken::OAuthToken(QNetworkReply& reply) :
+    OAuthToken(reply.readAll().toStdString())
 {
-    if (timestamp.isValid()) {
-        if (birthday_.isValid()) {
-            QLOG_ERROR() << "OAuthToken already has a birthday";
-        };
-        if (expiration_.isValid()) {
-            QLOG_ERROR() << "OAuthToken already has an expiration";
-        };
-        birthday_ = timestamp.toLocalTime();;
-        expiration_ = timestamp.addSecs(expires_in_);
+    QLOG_TRACE() << "OAuthToken::OAuthToken(reply) entered";
+    // Determine birthday and expiration time.
+    const QString reply_timestamp = Util::FixTimezone(reply.rawHeader("Date"));
+    const QDateTime reply_birthday = QDateTime::fromString(reply_timestamp, Qt::RFC2822Date).toLocalTime();
+    QLOG_TRACE() << "OAuthToken::OAuthToken(reply) reply date is" << reply_birthday.toString();
+
+    if (birthday_.isValid()) {
+        QLOG_ERROR() << "The OAuth token already has a birthday";
     };
+    if (expiration_.isValid()) {
+        QLOG_ERROR() << "The OAuth token already has an expiration";
+    };
+    birthday_ = reply_birthday;
+    expiration_ = reply_birthday.addSecs(expires_in_);
 }
 
 bool OAuthToken::isValid() const {
@@ -120,11 +129,11 @@ rapidjson::Document OAuthToken::toJsonDoc() const {
     Util::RapidjsonAddString(&doc, "sub", sub_, allocator);
     Util::RapidjsonAddString(&doc, "refresh_token", refresh_token_, allocator);
     if (birthday_.isValid()) {
-        const std::string birthday = birthday_.toLocalTime().toString().toStdString();
+        const std::string birthday = birthday_.toString(Qt::RFC2822Date).toStdString();
         Util::RapidjsonAddString(&doc, "birthday", birthday, allocator);
     };
     if (expiration_.isValid()) {
-        const std::string expiration = expiration_.toLocalTime().toString().toStdString();
+        const std::string expiration = expiration_.toString(Qt::RFC2822Date).toStdString();
         Util::RapidjsonAddString(&doc, "expiration", expiration, allocator);
     };
     return doc;
