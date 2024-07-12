@@ -47,8 +47,9 @@ public:
         OAuthManager& oauth_manager,
         POE_API mode);
 
-    // Submit a request-callback pair to the rate limiter. Note that the callback function
-    // should not delete the QNetworkReply. That is handled after the callback finishes.
+    // Submit a request-callback pair to the rate limiter. The caller is responsible
+    // for freeing the RateLimitedReply object with deleteLater() when the completed()
+    // signal has been emitted.
     RateLimit::RateLimitedReply* Submit(
         const QString& endpoint,
         QNetworkRequest network_request);
@@ -61,6 +62,9 @@ signals:
     // Emitted when one of the policy managers has signalled a policy update.
     void PolicyUpdate(const RateLimit::Policy& policy);
 
+    // Emitted when a request has been added to a queue.
+    void QueueUpdate(const QString& policy_name, int queued_requests);
+
     // Signal sent to the UI so the user can see what's going on.
     void Paused(int seconds, const QString& policy_name);
 
@@ -68,8 +72,14 @@ private slots:
 
     void SendStatusUpdate();
 
-    // Received signals from the policy managers.
+    // Received from individual policy managers.
     void OnPolicyUpdated(const RateLimit::Policy& policy);
+
+    // Received from individual policy managers.
+    void OnQueueUpdated(const QString& policy_name, int queued_requests);
+
+    // Received from individual policy managers.
+    void OnManagerPaused(const QString& policy_name, const QDateTime& until);
 
 private:
     // Process the first request for an endpoint we haven't encountered before.
@@ -97,6 +107,8 @@ private:
     POE_API mode_;
 
     QTimer update_timer_;
+
+    std::map<QDateTime, QString> pauses_;
 
     std::list<std::unique_ptr<RateLimitManager>> managers_;
     std::map<const QString, RateLimitManager&> manager_by_policy_;

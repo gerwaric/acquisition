@@ -25,7 +25,6 @@
 #include "ratelimit.h"
 
 class QLabel;
-class QPushButton;
 class QTreeWidget;
 class QWidget;
 class QVBoxLayout;
@@ -37,15 +36,12 @@ class RateLimitDialog : public QDialog
     Q_OBJECT
 public:
     explicit RateLimitDialog(QWidget* parent, RateLimiter* limiter);
-signals:
-    void RequestUpdate();
 public slots:
-    void OnRefreshRequested();
     void OnPause(int pause, const QString& policy_name);
     void OnPolicyUpdate(const RateLimit::Policy& policy);
+    void OnQueueUpdate(const QString& policy_name, int queue_size);
 private:
     QVBoxLayout* layout;
     QTreeWidget* treeWidget;
-    QPushButton* refreshButton;
     QLabel* statusLabel;
 };

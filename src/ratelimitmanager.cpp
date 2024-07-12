@@ -54,8 +54,6 @@ unsigned long RateLimitedRequest::request_count = 0;
 RateLimitManager::RateLimitManager(QObject* parent, SendFcn sender) :
     QObject(parent),
     sender_(sender),
-    next_send_(QDateTime::currentDateTime().toLocalTime()),
-    last_send_(QDateTime()),
     policy_(nullptr)
 {
     QLOG_TRACE() << "RateLimitManager::RateLimitManager() entered";
@@ -97,16 +95,12 @@ void RateLimitManager::SendRequest() {
         << "to" << request.endpoint
         << "via" << request.network_request.url().toString();
 
-    // Finally, send the request and note the time.
-    last_send_ = QDateTime::currentDateTime().toLocalTime();
-
     if (!sender_) {
         QLOG_ERROR() << "Rate limit manager cannot send requests.";
         return;
     };
     QNetworkReply* reply = sender_(request.network_request);
     connect(reply, &QNetworkReply::finished, this, &RateLimitManager::ReceiveReply);
-
 };
 
 // Called when the active request's reply is finished.
@@ -133,11 +127,15 @@ void RateLimitManager::ReceiveReply()
 
     const QDateTime reply_time = RateLimit::ParseDate(reply).toLocalTime();
     const int reply_status = RateLimit::ParseStatus(reply);
-    QLOG_TRACE() << policy_->name()
+    QLOG_TRACE() << "RateLimitManager::ReceiveReply()"
+        << policy_->name()
         << "received reply for request" << active_request_->id
         << "with status" << reply_status;
 
     // Save the reply time.
+    QLOG_TRACE() << "RateLimitManager::ReceiveReply()"
+        << policy_->name()
+        << "adding to history:" << reply_time.toString();
     history_.push_front(reply_time);
 
     // Now examine the new policy and update ourselves accordingly.
@@ -185,7 +183,9 @@ void RateLimitManager::ReceiveReply()
             // There was a rate limit violation.
             const int retry_sec = reply->rawHeader("Retry-After").toInt();
             const int retry_msec = (1000 * retry_sec) + VIOLATION_BUFFER_MSEC;
-            next_send_ = reply_time.addMSecs(retry_msec);
+            QLOG_ERROR() << "Rate limit VIOLATION for policy"
+                << policy_->name()
+                << "(retrying after" << (retry_msec / 1000) << "seconds)";
             activation_timer_.setInterval(retry_msec);
             activation_timer_.start();
 
@@ -198,6 +198,7 @@ void RateLimitManager::ReceiveReply()
                 << "and error was" << reply->error();
 
         };
+
         active_request_->reply = nullptr;
     };
 }
@@ -207,10 +208,13 @@ void RateLimitManager::Update(QNetworkReply* reply) {
     QLOG_TRACE() << "RateLimitManager::Update() entered";
 
     // Get the rate limit policy from this reply.
+    QLOG_TRACE() << "RateLimitManager::Update() parsing policy";
     auto new_policy = std::make_unique<RateLimit::Policy>(reply);
 
     // If there was an existing policy, compare them.
     if (policy_) {
+        QLOG_TRACE() << "RateLimitManager::Update()"
+            << policy_->name() << "checking update against existing policy";
         policy_->Check(*new_policy);
     };
 
@@ -228,16 +232,6 @@ void RateLimitManager::Update(QNetworkReply* reply) {
         history_.set_capacity(max_hits);
     };
 
-    const QDateTime time = policy_->GetNextSafeSend(history_);
-    if (next_send_ < time) {
-        // Update this manager's send time only if it's later
-        // than the manager thinks we need to wait.
-        QLOG_TRACE() << "Updating next send:"
-            << "from" << next_send_.toString()
-            << "to" << time.toString();
-        next_send_ = time;
-    };
-
     emit PolicyUpdated(policy());
 }
 
@@ -252,7 +246,9 @@ void RateLimitManager::QueueRequest(
     QLOG_TRACE() << "RateLimitManager::QueueRequest() entered";
     auto request = std::make_unique<RateLimitedRequest>(endpoint, network_request, reply);
     queued_requests_.push_back(std::move(request));
-    if (!active_request_) {
+    if (active_request_) {
+        emit QueueUpdated(policy_->name(), queued_requests_.size());
+    } else {
         ActivateRequest();
     };
 }
@@ -277,46 +273,56 @@ void RateLimitManager::ActivateRequest() {
 
     active_request_ = std::move(queued_requests_.front());
     queued_requests_.pop_front();
+    emit QueueUpdated(policy_->name(), queued_requests_.size());
 
-    if (next_send_.isValid() == false) {
+    const QDateTime now = QDateTime::currentDateTime();
+
+    QDateTime next_send = policy_->GetNextSafeSend(history_);
+
+    if (next_send.isValid() == false) {
         QLOG_ERROR() << "Cannot activate a request because the next send is invalid";
         return;
     };
 
-    QLOG_TRACE() << "RateLimitManager::ActivateRequest() next send is" << next_send_.toString();
-    QDateTime send = next_send_;
-
+    QLOG_TRACE() << "RateLimitManager::ActivateRequest()"
+        << policy_->name()
+        << "next_send before adjustment is" << next_send.toString()
+        << "(in" << now.secsTo(next_send) << "seconds)";
+ 
     if (policy_->status() >= RateLimit::PolicyStatus::BORDERLINE) {
         QLOG_TRACE() << "RateLimitManager::ActivateRequest()"
-            << "policy" << policy_->name() << "is BORDERLINE,"
-            << "adding" << QString::number(BORDERLINE_BUFFER_MSEC) << "seconds to next send";
-        send = send.addMSecs(BORDERLINE_BUFFER_MSEC);
+            << policy_->name() << "is BORDERLINE,"
+            << "adding" << QString::number(BORDERLINE_BUFFER_MSEC) << "msec to next send";
+        next_send = next_send.addMSecs(BORDERLINE_BUFFER_MSEC);
     } else {
         QLOG_TRACE() << "RateLimitManager::ActivateRequest()"
-            << "policy" << policy_->name() << "is NOT borderline,"
-            << "adding" << QString::number(NORMAL_BUFFER_MSEC) << "seconds to next send";
-        send = send.addMSecs(NORMAL_BUFFER_MSEC);
+            << policy_->name() << "is NOT borderline,"
+            << "adding" << QString::number(NORMAL_BUFFER_MSEC) << "msec to next send";
+        next_send = next_send.addMSecs(NORMAL_BUFFER_MSEC);
     };
 
-    if (last_send_.isValid()) {
-        if (last_send_.msecsTo(send) < MINIMUM_INTERVAL_MSEC) {
+    static QDateTime last_send;
+
+    if (last_send.isValid()) {
+        if (last_send.msecsTo(next_send) < MINIMUM_INTERVAL_MSEC) {
             QLOG_TRACE() << "RateLimitManager::ActivateRequest()"
                 << "adding" << QString::number(MINIMUM_INTERVAL_MSEC)
                 << "to next send";
-            send = last_send_.addMSecs(MINIMUM_INTERVAL_MSEC);
+            next_send = last_send.addMSecs(MINIMUM_INTERVAL_MSEC);
         };
     };
 
-    int delay = QDateTime::currentDateTime().msecsTo(send);
+    int delay = QDateTime::currentDateTime().msecsTo(next_send);
     if (delay < 0) {
         delay = 0;
     };
 
     QLOG_TRACE() << "RateLimitManager::ActivateRequest()"
-        << "waiting" << (delay / 1000)
-        << "seconds to send request" << active_request_->id
-        << "at" << next_send_.toLocalTime().toString();
-
+        << "waiting" << delay << "msecs to send request" << active_request_->id
+        << "at" << next_send.toLocalTime().toString();
     activation_timer_.setInterval(delay);
     activation_timer_.start();
+    if (delay > 0) {
+        emit Paused(policy_->name(), next_send);
+    };
 }

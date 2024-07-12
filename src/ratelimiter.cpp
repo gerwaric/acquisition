@@ -130,7 +130,7 @@ RateLimitManager& RateLimiter::GetManager(
     QLOG_TRACE() << "RateLimiter::GetManager() endpoint = " << endpoint;
     QLOG_TRACE() << "RateLimiter::GetManager() policy_name = " << policy_name;
 
-    // Make sure this function is thread-safe, since it modifies out managers.
+    // Make sure this function is thread-safe, since it modifies the managers.
     static QMutex mutex;
     QMutexLocker locker(&mutex);
 
@@ -142,6 +142,8 @@ RateLimitManager& RateLimiter::GetManager(
         auto mgr = std::make_unique<RateLimitManager>(this, sender);
         auto& manager = *managers_.emplace_back(std::move(mgr));
         connect(&manager, &RateLimitManager::PolicyUpdated, this, &RateLimiter::OnPolicyUpdated);
+        connect(&manager, &RateLimitManager::QueueUpdated, this, &RateLimiter::OnQueueUpdated);
+        connect(&manager, &RateLimitManager::Paused, this, &RateLimiter::OnManagerPaused);
         manager_by_policy_.emplace(policy_name, manager);
         manager_by_endpoint_.emplace(endpoint, manager);
         return manager;
@@ -167,59 +169,45 @@ void RateLimiter::OnUpdateRequested()
     for (const auto& manager : managers_) {
         emit PolicyUpdate(manager->policy());
     };
-    SendStatusUpdate();
 }
 
 void RateLimiter::OnPolicyUpdated(const RateLimit::Policy& policy)
 {
     QLOG_TRACE() << "RateLimiter::OnPolicyUpdated() entered";
     emit PolicyUpdate(policy);
-    SendStatusUpdate();
+}
+
+void RateLimiter::OnQueueUpdated(const QString& policy_name, int queued_requests) {
+    QLOG_TRACE() << "RateLimiter::OnQueueUpdated() entered";
+    emit QueueUpdate(policy_name, queued_requests);
+}
+
+void RateLimiter::OnManagerPaused(const QString& policy_name, const QDateTime& until) {
+    QLOG_TRACE() << "RateLimiter::OnManagerPaused() entered";
+    QLOG_TRACE() << "RateLimiter::OnManagerPaused()"
+        << "pausing until" << until.toString()
+        << "for" << policy_name;
+    pauses_.emplace(until, policy_name);
+    update_timer_.start();
 }
 
 void RateLimiter::SendStatusUpdate()
 {
     QLOG_TRACE() << "RateLimiter::SendStatusUpdate() entered";
-    QDateTime next_send;
-    QString limiting_policy;
-    for (auto& manager : managers_) {
-        if (!manager) {
-            QLOG_ERROR() << "Cannot send a status update: the rate limit manager is invalid.";
-            continue;
-        };
-        if (!manager->isActive()) {
-            continue;
-        };
-        // need to handle if there is one pause policy and one not pause.
-        if (next_send.isValid() && (next_send <= manager->next_send())) {
-            continue;
-        };
-        next_send = manager->next_send();
-        limiting_policy = manager->policy().name();
+    
+    // Get rid of any pauses that finished in the past.
+    const QDateTime now = QDateTime::currentDateTime();
+    while (!pauses_.empty() && (pauses_.begin()->first < now)) {
+        pauses_.erase(pauses_.begin());
     };
 
-    int pause;
-    if (!next_send.isValid()) {
-        pause = 0;
+    if (pauses_.empty()) {
+        QLOG_TRACE() << "RateLimiter::SendStatusUpdate() stopping status updates";
+        update_timer_.stop();
     } else {
-        pause = QDateTime::currentDateTime().secsTo(next_send);
-        if (pause < 0) {
-            pause = 0;
-        };
+        const auto pause = *pauses_.begin();
+        const QDateTime& pause_end = pause.first;
+        const QString policy_name = pause.second;
+        emit Paused(now.secsTo(pause_end), policy_name);
     };
-
-    if (pause > 0) {
-        if (!update_timer_.isActive()) {
-            QLOG_TRACE() << "RateLimiter::SendStatusUpdate() starting status updates (" << limiting_policy << ")";
-            update_timer_.start();
-        };
-    } else {
-        if (update_timer_.isActive()) {
-            QLOG_TRACE() << "RateLimiter::SendStatusUpdate() stopping status updates";
-            update_timer_.stop();
-        };
-    };
-
-    QLOG_TRACE() << "RateLimiter::SendStatusUpdate() rateLimiter is PAUSED" << pause << "for" << limiting_policy;
-    emit Paused(pause, limiting_policy);
 }

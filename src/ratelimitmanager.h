@@ -83,9 +83,7 @@ public:
 
     const RateLimit::Policy& policy();
 
-    const QDateTime& next_send() const { return next_send_; };
-
-    bool isActive() const { return (active_request_ != nullptr); };
+    int msecToNextSend() const { return activation_timer_.remainingTime(); };
 
 signals:
     // Emitted when a network request is ready to go.
@@ -93,6 +91,12 @@ signals:
 
     // Emitted when the underlying policy has been updated.
     void PolicyUpdated(const RateLimit::Policy& policy);
+
+    // Emitted when a request has been added to the queue;
+    void QueueUpdated(const QString policy_name, int queued_requests);
+
+    // Emitted when a network request has to wait to be sent.
+    void Paused(const QString& policy_name, const QDateTime& until);
 
 public slots:
 
@@ -118,15 +122,6 @@ private:
 
     // Used to send requests after a delay.
     QTimer activation_timer_;
-
-    // When a reply is recieved and the policy state has been updated or a 
-    // rate violation has been detected, the next possible send time is calculated
-    // and stored here.
-    QDateTime next_send_;
-
-    // Store the time of the last send for this policy, just so we can have an
-    // extra check to make sure we don't flood GGG with requests.
-    QDateTime last_send_;
 
     // Keep a unique_ptr to the policy associated with this manager,
     // which will be updated whenever a reply with the X-Rate-Limit-Policy

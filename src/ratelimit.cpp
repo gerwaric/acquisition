@@ -135,6 +135,7 @@ void RuleItem::Check(const RuleItem& other, const QString& prefix) const {
 }
 
 QDateTime RuleItem::GetNextSafeSend(const RequestHistory& history) const {
+    QLOG_TRACE() << "RateLimit::RuleItem::GetNextSafeSend() entered";
 
     const QDateTime now = QDateTime::currentDateTime().toLocalTime();
 
@@ -150,24 +151,19 @@ QDateTime RuleItem::GetNextSafeSend(const RequestHistory& history) const {
     // reply relevant to this limitation.
     const QDateTime earliest = (n < 1) ? now : history[n - 1];
 
-    const QDateTime safe_time = earliest.addSecs(limit_.period());
+    const QDateTime next_send = earliest.addSecs(limit_.period());
 
-    if (state_.hits() >= limit_.hits()) {
-        QLOG_TRACE() << "GetNextSafeSend(): handling rate limit violation:" << now.toString();
-        for (int k = 0; k < n; ++k) {
-            QLOG_TRACE() << " history[" << k << "] =" << history[k].toString()
-                << "(" << now.secsTo(history[k]) << ")";
-        };
-        QLOG_TRACE() << "Beginning from history[" << n << "]:" << earliest.toString();
-        QLOG_TRACE() << "Adding" << limit_.period() << "seconds";
-        QLOG_TRACE() << "Sending on" << safe_time.toString();
-    };
-
+    QLOG_TRACE() << "RateLimit::RuleItem::GetNextSafeSend()"
+        << "n =" << n
+        << "earliest =" << earliest.toString() << "(" << earliest.secsTo(now) << "seconds ago)"
+        << "next_send =" << next_send.toString() << "(in" << now.secsTo(next_send) << "seconds)";
+ 
     // Calculate the next time it will be safe to send a request.
-    return safe_time;
+    return next_send;
 }
 
 int RuleItem::EstimateDuration(int request_count, int minimum_delay_msec) const {
+    QLOG_TRACE() << "RateLimit::RuleItem::EstimateDuration() entered";
 
     int duration = 0;
 
@@ -209,6 +205,7 @@ PolicyRule::PolicyRule(const QByteArray& rule_name, QNetworkReply* const reply) 
     status_(PolicyStatus::UNKNOWN),
     maximum_hits_(-1)
 {
+    QLOG_TRACE() << "RateLimit::PolicyRule::PolicyRule() entered";
     const QByteArrayList limit_fragments = ParseRateLimit(reply, rule_name);
     const QByteArrayList state_fragments = ParseRateLimitState(reply, rule_name);
     const int item_count = limit_fragments.size();
@@ -232,6 +229,7 @@ PolicyRule::PolicyRule(const QByteArray& rule_name, QNetworkReply* const reply) 
 }
 
 void PolicyRule::Check(const PolicyRule& other, const QString& prefix) const {
+    QLOG_TRACE() << "RateLimit::PolicyRule::Check() entered";
 
     // Check the rule name
     if (name_ != other.name_) {
@@ -268,6 +266,7 @@ Policy::Policy(QNetworkReply* const reply) :
     status_(PolicyStatus::UNKNOWN),
     maximum_hits_(0)
 {
+    QLOG_TRACE() << "RateLimit::Policy::Policy() entered";
     const QByteArrayList rule_names = ParseRateLimitRules(reply);
 
     // Parse the name of the rate limit policy and all the rules for this reply.
@@ -281,10 +280,9 @@ Policy::Policy(QNetworkReply* const reply) :
         const auto& rule = rules_.emplace_back(rule_name, reply);
 
         // Check the status of this rule..
-        if (rule.status() > PolicyStatus::OK) {
-            QLOG_WARN() << "Rate limit policy" << name_
-                << "(" << rule.name() << ")"
-                << "status is" << rule.status();
+        if (rule.status() >= PolicyStatus::VIOLATION) {
+            QLOG_ERROR() << QString("Rate limit policy %1:%2 status is %4)").arg(
+                name_, rule.name(), Util::toString(rule.status()));
         };
 
         // Update metrics for this rule.
@@ -298,6 +296,7 @@ Policy::Policy(QNetworkReply* const reply) :
 }
 
 void Policy::Check(const Policy& other) const {
+    QLOG_TRACE() << "RateLimit::Policy::Check() entered";
 
     // Check the policy name
     if (name_ != other.name_) {
@@ -326,11 +325,17 @@ void Policy::Check(const Policy& other) const {
 }
 
 QDateTime Policy::GetNextSafeSend(const RequestHistory& history) {
+    QLOG_TRACE() << "RateLimit::Policy::GetNextSafeSend() entered";
+
     QDateTime next_send = QDateTime::currentDateTime().toLocalTime();
     for (const auto& rule : rules_) {
         for (const auto& item : rule.items()) {
             const QDateTime t = item.GetNextSafeSend(history);
+            QLOG_TRACE() << "RateLimit::Policy::GetNextSafeSend()"
+                << name_ << rule.name() << "t =" << t.toString()
+                << "(in" << QDateTime::currentDateTime().secsTo(t) << "seconds)";
             if (next_send < t) {
+                QLOG_TRACE() << "RateLimit::Policy::GetNextSafeSend() updating next_send";
                 next_send = t;
             };
         };
@@ -339,6 +344,7 @@ QDateTime Policy::GetNextSafeSend(const RequestHistory& history) {
 }
 
 QDateTime Policy::EstimateDuration(int num_requests, int minimum_delay_msec) const {
+    QLOG_TRACE() << "RateLimit::Policy::EstimateDuration() entered";
 
     int longest_wait = 0;
     while (true) {
