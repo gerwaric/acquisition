@@ -1089,6 +1089,10 @@ void MainWindow::OnSetDefaultTheme(bool toggle) {
 }
 
 void MainWindow::OnSetLogging(QsLogging::Level level) {
+    if ((level < QsLogging::TraceLevel) || (level > QsLogging::OffLevel)) {
+        QLOG_ERROR() << "Cannot set invalid log level value:" << static_cast<int>(level);
+        return;
+    };
     QsLogging::Logger::instance().setLoggingLevel(level);
     ui->actionLoggingOFF->setChecked(level == QsLogging::OffLevel);
     ui->actionLoggingFATAL->setChecked(level == QsLogging::FatalLevel);
@@ -1097,8 +1101,9 @@ void MainWindow::OnSetLogging(QsLogging::Level level) {
     ui->actionLoggingINFO->setChecked(level == QsLogging::InfoLevel);
     ui->actionLoggingDEBUG->setChecked(level == QsLogging::DebugLevel);
     ui->actionLoggingTRACE->setChecked(level == QsLogging::TraceLevel);
-    QLOG_INFO() << "Logging level set to" << level;
-    settings_.setValue("log_level", Util::toString(level));
+    const QString level_name = Util::LogLevelToText(level);
+    QLOG_INFO() << "Logging level set to" << level_name;
+    settings_.setValue("log_level", level_name);
 }
 
 void MainWindow::OnExportCurrency() {

@@ -47,7 +47,7 @@
 
 #include "currency.h"
 
-QsLogging::Level Util::QsLoggingLevel(const QString& value) {
+QsLogging::Level Util::TextToLogLevel(const QString& value) {
     if (0 == value.compare("TRACE", Qt::CaseInsensitive)) { return QsLogging::TraceLevel; };
     if (0 == value.compare("DEBUG", Qt::CaseInsensitive)) { return QsLogging::DebugLevel; };
     if (0 == value.compare("INFO", Qt::CaseInsensitive)) { return QsLogging::InfoLevel; };
@@ -55,11 +55,11 @@ QsLogging::Level Util::QsLoggingLevel(const QString& value) {
     if (0 == value.compare("ERROR", Qt::CaseInsensitive)) { return QsLogging::ErrorLevel; };
     if (0 == value.compare("FATAL", Qt::CaseInsensitive)) { return QsLogging::FatalLevel; };
     if (0 == value.compare("OFF", Qt::CaseInsensitive)) { return QsLogging::OffLevel; };
-    QLOG_ERROR() << "Invalid logging level:" << value;
+    QLOG_ERROR() << "Invalid logging level:" << value << "(defaulting to DEBUG)";
     return QsLogging::DebugLevel;
 }
 
-QString Util::toString(QsLogging::Level level) {
+QString Util::LogLevelToText(QsLogging::Level level) {
     switch (level) {
     case QsLogging::Level::TraceLevel: return "TRACE";
     case QsLogging::Level::DebugLevel: return "DEBUG";
@@ -68,6 +68,9 @@ QString Util::toString(QsLogging::Level level) {
     case QsLogging::Level::ErrorLevel: return "ERROR";
     case QsLogging::Level::FatalLevel: return "FATAL";
     case QsLogging::Level::OffLevel: return "OFF";
+    default:
+        QLOG_ERROR() << "Invalid log level:" << QString::number(level);
+        return "<INVALID_LEVEL>";
     };
 };
 

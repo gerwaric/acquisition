@@ -107,9 +107,9 @@ int main(int argc, char* argv[])
     // check the settings.ini file.
     QsLogging::Level log_level = DEFAULT_LOGLEVEL;
     if (parser.isSet(option_log_level)) {
-        log_level = Util::QsLoggingLevel(parser.value(option_log_level));
+        log_level = Util::TextToLogLevel(parser.value(option_log_level));
     } else if (settings.contains("log_level")) {
-        log_level = Util::QsLoggingLevel(settings.value("log_level").toString());
+        log_level = Util::TextToLogLevel(settings.value("log_level").toString());
     };
 
     // Setup the logger.

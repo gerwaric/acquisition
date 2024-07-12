@@ -77,8 +77,8 @@ QDebug& operator<<(QDebug& os, const QsLogging::Level& obj);
 
 namespace Util {
 
-    QsLogging::Level QsLoggingLevel(const QString& level);
-    QString toString(QsLogging::Level level);
+    QsLogging::Level TextToLogLevel(const QString& level);
+    QString LogLevelToText(QsLogging::Level level);
 
     std::string Md5(const std::string& value);
     double AverageDamage(const std::string& s);
