@@ -69,7 +69,6 @@ public:
     void SetRefreshReason(RefreshReason::Type reason) { refresh_reason_ = reason; }
     void Sort(int column, Qt::SortOrder order);
 private:
-    void UpdateItemCounts(const Items& items);
     std::vector<Bucket>& active_buckets();
 
     BuyoutManager& bo_manager_;

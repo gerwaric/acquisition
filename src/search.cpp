@@ -189,7 +189,11 @@ void Search::FilterItems(const Items& items) {
         };
     };
 
-    UpdateItemCounts(items);
+    unfiltered_item_count_ = items.size();
+    filtered_item_count_total_ = 0;
+    for (const auto& item : items_) {
+        filtered_item_count_total_ += item->count();
+    };
 
     // Single bucket with null location is used to view all items at once
     bucket_by_item_.clear();
@@ -216,9 +220,9 @@ void Search::FilterItems(const Items& items) {
         };
     };
 
-    //buckets_by_tab_.clear();
+    bucket_by_tab_.clear();
     for (auto& element : bucketed_tabs) {
-        bucket_by_tab_.push_back(std::move(element.second));
+        bucket_by_tab_.emplace_back(std::move(element.second));
     };
 
     // Let the model know that current sort order has been invalidated
@@ -318,12 +322,3 @@ void Search::RestoreViewProperties() {
 bool Search::IsAnyFilterActive() const {
     return (items_.size() != unfiltered_item_count_);
 }
-
-void Search::UpdateItemCounts(const Items& items) {
-    unfiltered_item_count_ = items.size();
-    filtered_item_count_total_ = 0;
-    for (auto& item : items_) {
-        filtered_item_count_total_ += item->count();
-    };
-}
-
