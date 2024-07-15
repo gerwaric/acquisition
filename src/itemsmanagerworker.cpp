@@ -139,7 +139,7 @@ void ItemsManagerWorker::Init() {
         QLOG_DEBUG() << "RePoE data is available.";
         OnRePoEReady();
     } else {
-        QLOG_INFO() << "Waiting for RePoE data.";
+        QLOG_DEBUG() << "Waiting for RePoE data.";
         connect(&repoe_, &RePoE::finished, this, &ItemsManagerWorker::OnRePoEReady);
     };
 }
@@ -455,7 +455,6 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
         updating_ = false;
         return;
     };
-
     const auto& stashes = doc["stashes"].GetArray();
 
     QLOG_DEBUG() << "Received stash list, there are" << stashes.Size() << "stash tabs";
@@ -481,47 +480,74 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
     // Queue stash tab requests.
     for (auto& tab : stashes) {
 
-        std::string label = tab["name"].GetString();
-        const int index = tab["index"].GetInt();
+        // Get the name of the stash tab.
+        if (!HasString(tab, "name")) {
+            QLOG_ERROR() << "The stash tab does not have a name";
+            continue;
+        };
+        const std::string tab_name = tab["name"].GetString();
 
         // Skip hidden tabs.
         if (HasBool(tab, "hidden") && tab["hidden"].GetBool()) {
+            QLOG_DEBUG() << "The stash tab is hidden:" << tab_name;
             continue;
         };
 
-        // Skip tabs that are in the index; they are not being refreshed.
-        std::string raw_id = tab["id"].GetString();
-        if (raw_id.size() > 10) {
-            raw_id = raw_id.substr(0, 10);
+        // Get the unique id.
+        if (!HasString(tab, "id")) {
+            QLOG_ERROR() << "The stash tab does not have a unique id:" << tab_name;
+            continue;
+        }
+        std::string tab_id = tab["id"].GetString();
+        if (tab_id.size() > 10) {
+            // The unique id for stash tabs returned from the legacy API
+            // need to be trimmed to 10 characters.
+            QLOG_DEBUG() << "Trimming tab unique id:" << tab_name;
+            tab_id = tab_id.substr(0, 10);
         };
-        const char* tab_id = raw_id.c_str();
+
+        // Skip tabs that are in the index; they are not being refreshed.
         if (tab_id_index_.count(tab_id) > 0) {
+            QLOG_TRACE() << "ItemsManagerWorker::OnOAuthStashListReceived() skipping tab:" << tab_name;
             continue;
         };
+
+        // Get the index of this stash tab.
+        if (!HasInt(tab, "index")) {
+            QLOG_ERROR() << "The stash tab does not have an index:" << tab_name;
+            continue;
+        };
+        const int tab_index = tab["index"].GetInt();
 
         ++tabs_requested;
 
         // Create and save the tab location object.
         int r = 0, g = 0, b = 0;
-        const auto metadata = tab["metadata"].GetObj();
-        if (HasString(metadata, "colour")) {
-            const std::string colour = metadata["colour"].GetString();
-            if (colour.length() != 6) {
-                QLOG_ERROR() << "Cannot parse the stash tab's colour:" << colour;
+        if (HasObject(tab, "metadata")) {
+            const auto& metadata = tab["metadata"].GetObj();
+            if (HasString(metadata, "colour")) {
+                const std::string colour = metadata["colour"].GetString();
+                if (colour.length() == 6) {
+                    r = std::stoul(colour.substr(0, 2), nullptr, 16);
+                    g = std::stoul(colour.substr(2, 2), nullptr, 16);
+                    b = std::stoul(colour.substr(4, 2), nullptr, 16);
+                } else {
+                    QLOG_ERROR() << "Cannot parse the stash tab" << tab_name << "colour:" << colour;
+                };
             } else {
-                r = std::stoul(colour.substr(0, 2), nullptr, 16);
-                g = std::stoul(colour.substr(2, 2), nullptr, 16);
-                b = std::stoul(colour.substr(4, 2), nullptr, 16);
+                QLOG_WARN() << "The stash tab does not have a colour:" << tab_name;
             };
+        } else {
+            QLOG_WARN() << "The stash tab has no metadata:" << tab_name;
         };
-        ItemLocation location(index, tab_id, label, ItemLocationType::STASH, r, g, b, tab, doc.GetAllocator());
+        ItemLocation location(tab_index, tab_id, tab_name, ItemLocationType::STASH, r, g, b, tab, doc.GetAllocator());
         tabs_.push_back(location);
         tab_id_index_.insert(tab_id);
 
         // Submit a request for this tab.
         QueueRequest(kOAuthGetStashEndpoint, MakeOAuthStashRequest(league_, location.get_tab_uniq_id()), location);
     };
-    QLOG_INFO() << "Requesting" << tabs_requested << "out of" << stashes.Size() << "stash tabs";
+    QLOG_DEBUG() << "Requesting" << tabs_requested << "out of" << stashes.Size() << "stash tabs";
 
     has_stash_list_ = true;
 
@@ -564,17 +590,22 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
     const auto& characters = doc["characters"].GetArray();
     int requested_character_count = 0;
     for (auto& character : characters) {
-        const std::string name = character["name"].GetString();
-        if (!HasString(character, "league") || !HasString(character, "name")) {
-            QLOG_ERROR() << "Malformed character entry for" << name.c_str() << ": the reply may be invalid : " << bytes.constData();
+        if (!HasString(character, "name")) {
+            QLOG_ERROR() << "The character does not have a name. The reply may be invalid:" << bytes;
             continue;
         };
-        if (character["league"].GetString() != league_) {
-            QLOG_DEBUG() << "Skipping" << name.c_str() << "because this character is not in" << league_;
+        const std::string name = character["name"].GetString();
+        if (!HasString(character, "league")) {
+            QLOG_ERROR() << "Malformed character entry for" << name << ": the reply may be invalid: " << bytes;
+            continue;
+        };
+        const std::string league = character["league"].GetString();
+        if (league != league_) {
+            QLOG_DEBUG() << "Skipping" << name << "because this character is not in" << league_;
             continue;
         };
         if (tab_id_index_.count(name) > 0) {
-            QLOG_DEBUG() << "Skipping" << name.c_str() << "because this item is not being refreshed.";
+            QLOG_DEBUG() << "Skipping" << name << "because this item is not being refreshed.";
             continue;
         };
         const int tab_count = static_cast<int>(tabs_.size());
@@ -623,18 +654,17 @@ void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply, ItemLocation
         updating_ = false;
         return;
     };
-
     auto& stash = doc["stash"];
 
-    if (!HasArray(stash, "items")) {
-        QLOG_DEBUG() << "Stash does not have an 'items' array:" << location.GetHeader();
-    } else {
+    if (HasArray(stash, "items")) {
         auto& items = stash["items"];
-        if (items.GetArray().Size() == 0) {
-            QLOG_DEBUG() << "Stash 'items' does not contain any items:" << location.GetHeader();
-        } else {
+        if (items.GetArray().Size() > 0) {
             ParseItems(items, location, doc.GetAllocator());
+        } else {
+            QLOG_DEBUG() << "Stash 'items' does not contain any items:" << location.GetHeader();
         };
+    } else {
+        QLOG_DEBUG() << "Stash does not have an 'items' array:" << location.GetHeader();
     };
 
     ++stashes_received_;
@@ -745,17 +775,22 @@ void ItemsManagerWorker::OnLegacyCharacterListReceived(QNetworkReply* reply) {
 
     int requested_character_count = 0;
     for (auto& character : doc) {
-        const std::string name = character["name"].GetString();
-        if (!HasString(character, "league") || !HasString(character, "name")) {
-            QLOG_ERROR() << "Malformed character entry for" << name.c_str() << ": the reply may be invalid : " << bytes.constData();
+        if (!HasString(character, "name")) {
+            QLOG_ERROR() << "The legacy character does not have a name. The reply may be invalid:" << bytes;
             continue;
         };
-        if (character["league"].GetString() != league_) {
-            QLOG_DEBUG() << "Skipping" << name.c_str() << "because this character is not in" << league_;
+        const std::string name = character["name"].GetString();
+        if (!HasString(character, "league")) {
+            QLOG_ERROR() << "Malformed legacy character entry for" << name << ": the reply may be invalid: " << bytes;
+            continue;
+        };
+        const std::string league = character["league"].GetString();
+        if (league != league_) {
+            QLOG_DEBUG() << "Skipping" << name << "because this character is not in" << league_;
             continue;
         };
         if (tab_id_index_.count(name) > 0) {
-            QLOG_DEBUG() << "Skipping" << name.c_str() << "because this item is not being refreshed.";
+            QLOG_DEBUG() << "Skipping legacy character" << name << "because this item is not being refreshed.";
             continue;
         };
         const int tab_count = static_cast<int>(tabs_.size());
@@ -903,26 +938,26 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
     doc.Parse(bytes.constData());
 
     if (!doc.IsObject()) {
-        QLOG_ERROR() << "Can't even fetch first tab. Failed to update items.";
+        QLOG_ERROR() << "Can't even fetch first legacy tab. Failed to update items.";
         updating_ = false;
         return;
     };
 
     if (doc.HasMember("error")) {
-        QLOG_ERROR() << "Aborting update since first fetch failed due to 'error':" << Util::RapidjsonSerialize(doc["error"]).c_str();
+        QLOG_ERROR() << "Aborting legacy update since first fetch failed due to 'error':" << Util::RapidjsonSerialize(doc["error"]).c_str();
         updating_ = false;
         return;
     };
 
     if (!HasArray(doc, "tabs") || doc["tabs"].Size() == 0) {
-        QLOG_ERROR() << "There are no tabs, this should not happen, bailing out.";
+        QLOG_ERROR() << "There are no legacy tabs, this should not happen, bailing out.";
         updating_ = false;
         return;
     };
 
     auto& tabs = doc["tabs"];
 
-    QLOG_DEBUG() << "Received tabs list, there are" << tabs.Size() << "tabs";
+    QLOG_DEBUG() << "Received legacy tabs list, there are" << tabs.Size() << "tabs";
     tabs_signature_ = CreateTabsSignatureVector(tabs);
 
     // Remember old tab headers before clearing tabs
@@ -942,20 +977,36 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
     // Queue stash tab requests.
     for (auto& tab : tabs) {
 
-        std::string label = tab["n"].GetString();
+        if (!HasString(tab, "n")) {
+            QLOG_ERROR() << "Legacy tab does not have name";
+            continue;
+        };
+        const std::string label = tab["n"].GetString();
+        
+        if (!HasInt(tab, "i")) {
+            QLOG_ERROR() << "Legacy tab does not have an index:" << label;
+            continue;
+        };
         const int index = tab["i"].GetInt();
 
         // Skip hidden tabs.
         if (HasBool(tabs[index], "hidden") && tabs[index]["hidden"].GetBool()) {
+            QLOG_DEBUG() << "The legacy tab is hidden:" << label;
             continue;
         };
 
         // Skip tabs that are in the index; they are not being refreshed.
-        std::string raw_id = tab["id"].GetString();
-        if (raw_id.size() > 10) {
-            raw_id = raw_id.substr(0, 10);
+        if (!HasString(tab, "id")) {
+            QLOG_ERROR() << "The legacy tab does not have a unique id:" << label;
+            continue;
         };
-        const char* tab_id = raw_id.c_str();
+        std::string tab_id = tab["id"].GetString();
+        if (tab_id.size() > 10) {
+            // The unique id for stash tabs returned from the legacy API
+            // need to be trimmed to 10 characters.
+            QLOG_DEBUG() << "Trimming legacy tab unique id:" << label;
+            tab_id = tab_id.substr(0, 10);
+        };
         if (tab_id_index_.count(tab_id) > 0) {
             continue;
         };
@@ -967,6 +1018,8 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
             r = colour["r"].GetInt();
             g = colour["g"].GetInt();
             b = colour["b"].GetInt();
+        } else {
+            QLOG_DEBUG() << "Legacy tab does not have colour:" << label;
         };
         ItemLocation location(index, tab_id, label, ItemLocationType::STASH, r, g, b, tab, doc.GetAllocator());
         tabs_.push_back(location);
