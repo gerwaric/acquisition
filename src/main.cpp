@@ -21,6 +21,7 @@
 
 #include <QApplication>
 #include <QCommandLineParser>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFontDatabase>
 #include <QLocale>
@@ -51,6 +52,72 @@ constexpr const char* SSL_ERROR = "OpenSSL 3.x was not found; check LD_LIBRARY_P
 constexpr const char* SSL_ERROR = "SSL is not supported. This is unexpected.";
 #endif
 
+#ifdef Q_OS_WINDOWS
+bool checkManifest() {
+    
+    // Get the directory where the application is running from.
+    const QString path = QGuiApplication::applicationDirPath();
+    const QDir dir(path);
+
+    // These are the Windows libraries we expect to find in the
+    // directory alongside the application executable.
+    const QStringList expected_dlls = {
+        "D3Dcompiler_47.dll",
+        "opengl32sw.dll",
+        "Qt6Core.dll",
+        "Qt6Gui.dll",
+        "Qt6HttpServer.dll",
+        "Qt6Network.dll",
+        "Qt6Sql.dll",
+        "Qt6Svg.dll",
+        "Qt6Test.dll",
+        "Qt6WebSockets.dll",
+        "Qt6Widgets.dll"
+    };
+
+    // Build the list of libraries that were present but unexpected.
+    // The .dll extension is windows-specific, but so far Windows
+    // is the only platform affected by this issue.
+    QStringList unexpected_dlls;
+    for (const auto& dll : dir.entryList({ "*.dll" })) {
+        if (!expected_dlls.contains(dll)) {
+            unexpected_dlls.push_back(dll);
+        };
+    };
+    
+    // Do nothing if nothing unexpected was found.
+    if (unexpected_dlls.isEmpty()) {
+        return true;
+    };
+
+    // Create a warning message for the dialog box.
+    const QStringList msg = {
+        "Unexpected libraries found in '" + path + "':",
+        "",
+        "\t" + unexpected_dlls.join(", "),
+        "",
+        "Acquisition may crash."
+    };
+
+    // Construct a warning dialog box.
+    QMessageBox msgbox;
+    msgbox.setWindowTitle("Acquisition");
+    msgbox.setText(msg.join("\n"));
+    msgbox.setIcon(QMessageBox::Warning);
+    const auto* open = msgbox.addButton("Open folder and quit", QMessageBox::NoRole);
+    const auto* quit = msgbox.addButton("Quit", QMessageBox::NoRole);
+    const auto* ignore = msgbox.addButton("Ignore and continue", QMessageBox::NoRole);
+    Q_UNUSED(quit);
+
+    // Get and react to the user input.
+    msgbox.exec();
+    const auto& clicked = msgbox.clickedButton();
+    if (clicked == open) {
+        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+    };
+    return (clicked == ignore);
+}
+#endif // Q_OS_WINDOWS
 
 int main(int argc, char* argv[])
 {
@@ -66,6 +133,18 @@ int main(int argc, char* argv[])
     const QDateTime BUILD_DATE = QLocale("en_US").toDateTime(BUILD_TIMESTAMP, "MMM d yyyy hh:mm:ss");
 
     QApplication a(argc, argv);
+
+#ifdef Q_OS_WINDOWS
+    // Check for unexpected files, especially DLLs on Windows, where
+    // this can cause unexpected crashes. We have to do this after
+    // constructing the application object because we might need to 
+    // present a warning dialog box to the user.
+    if (!checkManifest()) {
+        return EXIT_FAILURE;
+    };
+#endif
+
+    // Setup the default user directory.
     Filesystem::Init();
 
     QFontDatabase::addApplicationFont(":/fonts/Fontin-SmallCaps.ttf");
@@ -88,10 +167,6 @@ int main(int argc, char* argv[])
     };
     const QString sLogPath = QString(QDir(Filesystem::UserDir()).filePath("log.txt"));
 
-    // Start by assumign the default log level.
-    QsLogging::Level loglevel = DEFAULT_LOGLEVEL;
-    bool valid_loglevel = true;
-
     // The filename here needs to match the one in the application
     // object constructor. This is a design flaw. We need this object
     // very briefly for the log level setting.
@@ -105,11 +180,11 @@ int main(int argc, char* argv[])
     // Start with the compile-time default for this build, but allow it to be
     // superceded by a command-line argument. If there's no command-line argument
     // check the settings.ini file.
-    QsLogging::Level log_level = DEFAULT_LOGLEVEL;
+    QsLogging::Level loglevel = DEFAULT_LOGLEVEL;
     if (parser.isSet(option_log_level)) {
-        log_level = Util::TextToLogLevel(parser.value(option_log_level));
+        loglevel = Util::TextToLogLevel(parser.value(option_log_level));
     } else if (settings.contains("log_level")) {
-        log_level = Util::TextToLogLevel(settings.value("log_level").toString());
+        loglevel = Util::TextToLogLevel(settings.value("log_level").toString());
     };
 
     // Setup the logger.
@@ -120,7 +195,7 @@ int main(int argc, char* argv[])
         QsLogging::DestinationFactory::MakeFileDestination(sLogPath, QsLogging::EnableLogRotation, logsize, logcount));
     QsLogging::DestinationPtr debugDestination(
         QsLogging::DestinationFactory::MakeDebugOutputDestination());
-    logger.setLoggingLevel(log_level);
+    logger.setLoggingLevel(loglevel);
     logger.addDestination(debugDestination);
     logger.addDestination(fileDestination);
 
@@ -129,11 +204,6 @@ int main(int argc, char* argv[])
     QLOG_INFO().noquote() << a.applicationName() << a.applicationVersion() << "( version code" << VERSION_CODE << ")";
     QLOG_INFO().noquote() << "Built with Qt" << QT_VERSION_STR << "on" << BUILD_DATE.toString();
     QLOG_INFO().noquote() << "Running on Qt" << qVersion();
-    if (valid_loglevel == false) {
-        QLOG_ERROR() << "Called with invalid log level:" << parser.value(option_log_level);
-        QLOG_ERROR() << "Valid options are: TRACE, DEBUG, INFO, WARN, ERROR, FATAL, and OFF (case insensitive)";
-        return EXIT_FAILURE;
-    };
     QLOG_INFO() << "Logging level is" << logger.loggingLevel();
 
     QLOG_TRACE() << "Checking for SSL support...";
