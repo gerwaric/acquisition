@@ -25,6 +25,7 @@
 #include <QMessageBox>
 #include <QNetworkAccessManager>
 #include <QSettings>
+#include <QTemporaryFile>
 #include <QtHttpServer/QHttpServer>
 
 #include "boost/current_function.hpp"
@@ -41,6 +42,7 @@
 #include "network_info.h"
 #include "oauthmanager.h"
 #include "ratelimiter.h"
+#include "ratelimitmanager.h"
 #include "repoe.h"
 #include "shop.h"
 #include "sqlitedatastore.h"
