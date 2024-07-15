@@ -353,9 +353,11 @@ void MainWindow::InitializeUi() {
 
 void MainWindow::LoadSettings() {
 
-    // Load the appropriate theme.
-    const QString theme = settings_.value("theme", "default").toString();
-    emit SetTheme(theme);
+    // Make sure the theme button is checked.
+    const QString theme = settings_.value("theme", "default").toString().toLower();
+    ui->actionSetDarkTheme->setChecked(theme == "dark");
+    ui->actionSetLightTheme->setChecked(theme == "light");
+    ui->actionSetDefaultTheme->setChecked(theme == "default");
 
     ui->actionSetAutomaticTabRefresh->setChecked(settings_.value("autoupdate").toBool());
     UpdateShopMenu();
