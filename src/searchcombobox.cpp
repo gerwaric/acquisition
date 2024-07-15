@@ -59,9 +59,21 @@ void SearchComboBox::OnTextEdited() {
 void SearchComboBox::OnEditTimeout() {
     edit_timer_.stop();
     const QString& text = lineEdit()->text();
-    if (text.isEmpty() == false) {
-        completer_.setCompletionPrefix(text);
+    if (text.isEmpty()) {
+        return;
+    };
+    completer_.setCompletionPrefix(text);
+    if (completer_.setCurrentRow(1)) {
+        // Trigger completion if there are 2 or more results.
         completer_.complete();
+    } else if (completer_.setCurrentRow(0)) {
+        // If there is only one compleition result, check to see
+        // if it's just a partial completion.
+        if (text != completer_.currentCompletion()) {
+            completer_.complete();
+        } else {
+            setCurrentText(text);
+        };
     };
 }
 
