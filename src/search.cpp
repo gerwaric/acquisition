@@ -106,6 +106,10 @@ const std::vector<Bucket>& Search::buckets() const {
     switch (current_mode_) {
     case ViewMode::ByTab: return bucket_by_tab_; break;
     case ViewMode::ByItem: return bucket_by_item_; break;
+    default:
+        QLOG_ERROR() << "Invalid view mode:" << static_cast<int>(current_mode_);
+        return bucket_by_item_;
+        break;
     };
 }
 
@@ -113,12 +117,17 @@ std::vector<Bucket>& Search::active_buckets() {
     switch (current_mode_) {
     case ViewMode::ByTab: return bucket_by_tab_; break;
     case ViewMode::ByItem: return bucket_by_item_; break;
+    default:
+        QLOG_ERROR() << "Invalid view mode:" << static_cast<int>(current_mode_);
+        return bucket_by_item_;
+        break;
     };
 }
 
 const Bucket& Search::bucket(int row) const {
     const auto& bucket_list = buckets();
-    if ((row < 0) || (row >= bucket_list.size())) {
+    const int bucket_count = static_cast<int>(bucket_list.size());
+    if ((row < 0) || (row >= bucket_count)) {
         const QString message = QString("Bucket row out of bounds: %1 bucket size: %2 mode: %3. Program will abort.").arg(
             QString::number(row),
             QString::number(bucket_list.size()),
@@ -138,7 +147,8 @@ const QModelIndex Search::index(const std::shared_ptr<Item> item) const {
     // Look for a bucket that matches the item's location.
     const auto& bucket_list = buckets();
     const auto& location_id = item->location().get_tab_uniq_id();
-    for (int row = 0; row < bucket_list.size(); ++row) {
+    const int bucket_count = static_cast<int>(bucket_list.size());
+    for (int row = 0; row < bucket_count; ++row) {
         // Check each search bucket against the item's location.
         const auto& bucket = bucket_list[row];
         const auto& bucket_id = bucket.location().get_tab_uniq_id();
@@ -146,7 +156,8 @@ const QModelIndex Search::index(const std::shared_ptr<Item> item) const {
             // Check each item in the bucket.
             const QModelIndex parent = model_.index(row);
             const auto& items = bucket.items();
-            for (int n = 0; n < items.size(); ++n) {
+            const int item_count = static_cast<int>(items.size());
+            for (int n = 0; n < item_count; ++n) {
                 const auto& model_item = items[n];
                 if (item == model_item) {
                     // Found the index of a match.
@@ -161,7 +172,8 @@ const QModelIndex Search::index(const std::shared_ptr<Item> item) const {
 }
 
 void Search::Sort(int column, Qt::SortOrder order) {
-    if ((column >= 0) && (column < columns_.size())) {
+    const int column_count = static_cast<int>(columns_.size());
+    if ((column >= 0) && (column < column_count)) {
         auto& col = *columns_[column];
         for (auto& bucket : active_buckets()) {
             bucket.Sort(col, order);

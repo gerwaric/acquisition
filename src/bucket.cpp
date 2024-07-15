@@ -33,7 +33,8 @@ void Bucket::AddItem(const std::shared_ptr<Item>& item) {
 
 const std::shared_ptr<Item>& Bucket::item(int row) const
 {
-    if ((row < 0) || (row >= items_.size())) {
+    const int item_count = static_cast<int>(items_.size());
+    if ((row < 0) || (row >= item_count)) {
         const QString message = QString("Item row out of bounds: %1 item count: %2. Program will abort").arg(
             QString::number(row),
             QString::number(items_.size()));

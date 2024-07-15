@@ -184,7 +184,7 @@ void AddStatTranslations(const QByteArray& statTranslations) {
             };
             std::string stat_string = stat["string"].GetString();
             if (formats[0].compare("ignore") != 0) {
-                for (int i = 0; i < formats.size(); i++) {
+                for (size_t i = 0; i < formats.size(); i++) {
                     std::string searchString = "{" + std::to_string(i) + "}";
                     boost::replace_all(stat_string, searchString, formats[i]);
                 };
