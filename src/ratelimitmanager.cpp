@@ -247,7 +247,7 @@ void RateLimitManager::QueueRequest(
     auto request = std::make_unique<RateLimitedRequest>(endpoint, network_request, reply);
     queued_requests_.push_back(std::move(request));
     if (active_request_) {
-        emit QueueUpdated(policy_->name(), queued_requests_.size());
+        emit QueueUpdated(policy_->name(), static_cast<int>(queued_requests_.size()));
     } else {
         ActivateRequest();
     };
@@ -273,7 +273,7 @@ void RateLimitManager::ActivateRequest() {
 
     active_request_ = std::move(queued_requests_.front());
     queued_requests_.pop_front();
-    emit QueueUpdated(policy_->name(), queued_requests_.size());
+    emit QueueUpdated(policy_->name(), static_cast<int>(queued_requests_.size()));
 
     const QDateTime now = QDateTime::currentDateTime();
 
