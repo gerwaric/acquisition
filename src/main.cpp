@@ -80,7 +80,7 @@ bool checkManifest() {
     // is the only platform affected by this issue.
     QStringList unexpected_dlls;
     for (const auto& dll : dir.entryList({ "*.dll" })) {
-        if (!expected_dlls.contains(dll)) {
+        if (!expected_dlls.contains(dll, Qt::CaseInsensitive)) {
             unexpected_dlls.push_back(dll);
         };
     };
