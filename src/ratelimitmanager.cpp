@@ -290,10 +290,9 @@ void RateLimitManager::ActivateRequest() {
         << "(in" << now.secsTo(next_send) << "seconds)";
  
     if (policy_->status() >= RateLimit::PolicyStatus::BORDERLINE) {
-        QLOG_TRACE() << "RateLimitManager::ActivateRequest()"
-            << policy_->name() << "is BORDERLINE,"
-            << "adding" << QString::number(BORDERLINE_BUFFER_MSEC) << "msec to next send";
         next_send = next_send.addMSecs(BORDERLINE_BUFFER_MSEC);
+        QLOG_DEBUG() << QString("Rate limit policy '%1' is BORDERLINE, added %2 msecs to send at %3").arg(
+            policy_->name(), QString::number(BORDERLINE_BUFFER_MSEC), next_send.toString());
     } else {
         QLOG_TRACE() << "RateLimitManager::ActivateRequest()"
             << policy_->name() << "is NOT borderline,"

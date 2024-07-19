@@ -281,8 +281,11 @@ Policy::Policy(QNetworkReply* const reply) :
 
         // Check the status of this rule..
         if (rule.status() >= PolicyStatus::VIOLATION) {
-            QLOG_ERROR() << QString("Rate limit policy %1:%2 status is %4)").arg(
+            QLOG_ERROR() << QString("Rate limit policy '%1:%2' is %4)").arg(
                 name_, rule.name(), Util::toString(rule.status()));
+        } else if (rule.status() == PolicyStatus::BORDERLINE) {
+            QLOG_DEBUG() << QString("Rate limit policy '%1:%2' is BORDERLINE").arg(
+                name_, rule.name());
         };
 
         // Update metrics for this rule.
