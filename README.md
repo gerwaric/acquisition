@@ -1,5 +1,5 @@
 # Acquisition
-Acquisition is an inventory management tool for [Path of Exile](https://www.pathofexile.com/):
+Acquisition is an inventory management tool for [Path of Exile](https://www.pathofexile.com/) that has been around for over a decade:
 
 - You can download all of your stash tabs and character inventories for offline search.
 
@@ -11,11 +11,7 @@ You can download setup packages from [the releases page](https://github.com/gerw
 
 ## Building Acquisition
 
-Acquisition is written in C++ and the Qt widget toolkit. It was original a qmake project, but it now uses cmake.
-
-## SAST Tools
-
-[PVS-Studio](https://pvs-studio.com/en/pvs-studio/?utm_source=website&utm_medium=github&utm_campaign=open_source) - static analyzer for C, C++, C#, and Java code.
+Acquisition is written in C++ and uses the Qt widget toolkit. It was originally a qmake project, but has been migrated to cmake.
 
 ### Qt
 
@@ -27,24 +23,22 @@ Acquisition depends on the following Qt modules, which should be installed from 
 
 ### Microsoft Windows
 
-On Windows you can also build Acquisition with Visual Studio 2019 and the Qt Visual Studio Tools extension.
+On Windows you can also build Acquisition with Visual Studio 2022 and the Qt Visual Studio Tools extension.
 
 Windows releases are currently built with:
 - Windows 11
-- Qt Creator 13.0.0 (Community) with Qt 6.5.3 LTS and MSVC 2019 64-bit (for release builds)
-- Visual Studio 2022 with Qt Visual Studio Tools 3.0.2 (for editing, debugging, and testing) and Qt Vs CMake 1.1
+- Qt Creator 13.0.2 (Community) with Qt 6.5.3 LTS using the compiler from Visual Studio 2022 (for release builds)
+- Visual Studio 2022 with Qt Visual Studio Tools 3.2.0 (for editing, debugging, and testing) and Qt Vs CMake Tools 1.1
 - Inno Setup 6.2.2 (for installer creation)
 
 **NOTE**: v0.9.9 is the last version of Acquisition that runs on Windows 7 and 8.
 
 ### Apple macOS
 
-**NOTE: macOS builds are unavailable because I don't have Apple hardware to build on right now --gerwaric**
-
 macOS releases are currently built with:
-- macOS Ventura 13.6.1 on Apple M1 silicon
-- Qt Creator 11.0.3 (Community) with Qt 6.5.3 for macOS
-- XCode 15.0.1
+- macOS Sonoma 14.5 on Intel silicon
+- Qt Creator 13.0.2 (Community) with Qt 6.5.3 for macOS
+- XCode 15.4
 
 ### Linux
 
@@ -55,6 +49,10 @@ Linux releases are currently built with:
 - linuxdeploy (for AppImage creation)
 
 You will need to have OpenSSL installed and available on your LD_LIBRARY_PATH to use the Linux AppImage. This is because linuxdeploy blacklists OpenSSL, which blocks the libraries from being included.
+
+### SAST Tools
+
+[PVS-Studio](https://pvs-studio.com/en/pvs-studio/?utm_source=website&utm_medium=github&utm_campaign=open_source) - static analyzer for C, C++, C#, and Java code.
 
 ## Command line
 
