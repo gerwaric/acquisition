@@ -145,7 +145,6 @@ private:
     void UpdateCurrentItem();
     void UpdateCurrentBuyout();
     void NewSearch();
-    void SetCurrentSearch(Search* search);
     void InitializeRateLimitDialog();
     void InitializeLogging();
     void InitializeSearchForm();
@@ -174,7 +173,6 @@ private:
     const ItemLocation* current_bucket_location_;
     std::vector<Search*> searches_;
     Search* current_search_;
-    Search* previous_search_{ nullptr };
     QTabBar* tab_bar_;
     std::vector<std::unique_ptr<Filter>> filters_;
     int search_count_;
@@ -186,8 +184,6 @@ private:
     QPushButton refresh_button_;
     QTimer delayed_update_current_item_;
     QTimer delayed_search_form_change_;
-    QStringListModel* category_string_model_;
-    QStringListModel* rarity_search_model_;
     RateLimitDialog* rate_limit_dialog_;
     bool quitting_;
 

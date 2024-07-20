@@ -556,9 +556,6 @@ bool MainWindow::eventFilter(QObject* o, QEvent* e) {
             if (index >= 0 && index < tab_bar_->count() - 1) {
                 tab_bar_->removeTab(index);
                 auto search = searches_[index];
-                if (previous_search_ == search) {
-                    previous_search_ = nullptr;
-                };
                 if (current_search_ == search) {
                     current_search_ = nullptr;
                 };
@@ -615,11 +612,6 @@ void MainWindow::OnImageFetched(QNetworkReply* reply) {
     };
 }
 
-void MainWindow::SetCurrentSearch(Search* search) {
-    previous_search_ = current_search_;
-    current_search_ = search;
-}
-
 void MainWindow::OnSearchFormChange() {
     QLOG_TRACE() << "MainWindow::OnSearchFormChange() entered";
     current_search_->SetRefreshReason(RefreshReason::SearchFormChanged);
@@ -629,17 +621,6 @@ void MainWindow::OnSearchFormChange() {
 void MainWindow::ModelViewRefresh() {
     QLOG_TRACE() << "MainWindow::ModelViewRefresh() entered";
     buyout_manager_.Save();
-
-    // Save view properties if no search fields are populated
-    // AND we're viewing in Tab mode
-    if (previous_search_
-        && !previous_search_->IsAnyFilterActive()
-        && (previous_search_->GetViewMode() == Search::ViewMode::ByTab))
-    {
-        QLOG_TRACE() << "MainWindow::ModelViewRefresh() saving view properties";
-        previous_search_->SaveViewProperties();
-    };
-    previous_search_ = current_search_;
 
     QLOG_TRACE() << "MainWindow::ModelViewRefresh() activing current search";
     current_search_->Activate(items_manager_.items());
@@ -716,11 +697,17 @@ void MainWindow::OnDelayedSearchFormChange() {
 }
 
 void MainWindow::OnTabChange(int index) {
+
+    if (current_search_->IsAnyFilterActive() && (current_search_->GetViewMode() == Search::ViewMode::ByTab)) {
+        QLOG_TRACE() << "MainWindow::OnTabChange() saving view properties";
+        current_search_->SaveViewProperties();
+    };
+
     // "+" clicked
     if (static_cast<size_t>(index) == searches_.size()) {
         NewSearch();
     } else {
-        SetCurrentSearch(searches_[index]);
+        current_search_ = searches_[index];
         current_search_->SetRefreshReason(RefreshReason::TabChanged);
         current_search_->ToForm();
         ModelViewRefresh();
@@ -739,12 +726,16 @@ void MainWindow::AddSearchGroup(QLayout* layout, const std::string& name = "") {
 }
 
 void MainWindow::InitializeSearchForm() {
-    category_string_model_ = new QStringListModel;
-    rarity_search_model_ = new QStringListModel;
-    rarity_search_model_->setStringList(RaritySearchFilter::RARITY_LIST);
+    
+    // Initialize category list once.
+    auto* category_model = new QStringListModel(GetItemCategories(), this);
+
+    // Initialize rarity list once.
+    auto* rarity_model = new QStringListModel(RaritySearchFilter::RARITY_LIST, this);
+
     auto name_search = std::make_unique<NameSearchFilter>(search_form_layout_);
-    auto category_search = std::make_unique<CategorySearchFilter>(search_form_layout_, category_string_model_);
-    auto rarity_search = std::make_unique<RaritySearchFilter>(search_form_layout_, rarity_search_model_);
+    auto category_search = std::make_unique<CategorySearchFilter>(search_form_layout_, category_model);
+    auto rarity_search = std::make_unique<RaritySearchFilter>(search_form_layout_, rarity_model);
     auto offense_layout = new FlowLayout;
     auto defense_layout = new FlowLayout;
     auto sockets_layout = new FlowLayout;
@@ -811,20 +802,21 @@ void MainWindow::InitializeSearchForm() {
 void MainWindow::NewSearch() {
     QLOG_TRACE() << "MainWindow::NewSearch() entered";
 
-    auto search = new Search(
-        buyout_manager_,
-        QString("Search %1").arg(++search_count_).toStdString(),
-        filters_,
-        ui->treeView);
-
-    QLOG_TRACE() << "MainWindow::NewSearch() setting current search:" << search->GetCaption();
-    SetCurrentSearch(search);
-
-    current_search_->SetRefreshReason(RefreshReason::TabCreated);
+    ++search_count_;
+    
+    QString caption = QString("Search %1").arg(search_count_);
 
     QLOG_TRACE() << "MainWindow::NewSearch() adding tab";
-    tab_bar_->setTabText(tab_bar_->count() - 1, current_search_->GetCaption());
+    tab_bar_->setTabText(tab_bar_->count() - 1, caption);
     tab_bar_->addTab("+");
+
+    QLOG_TRACE() << "MainWindow::NewSearch() setting current search:" << caption;
+    current_search_ = new Search(
+        buyout_manager_,
+        caption.toStdString(),
+        filters_,
+        ui->treeView);
+    current_search_->SetRefreshReason(RefreshReason::TabCreated);
 
     // this can't be done in ctor because it'll call OnSearchFormChange slot
     // and remove all previous search data
@@ -943,11 +935,6 @@ void MainWindow::OnItemsRefreshed() {
         };
         tab++;
     };
-    QStringList categories = GetItemCategories();
-    category_string_model_->setStringList(categories);
-    // Must re-populate category form after model re-init which clears selection
-    current_search_->ToForm();
-
     ModelViewRefresh();
 }
 
