@@ -103,10 +103,12 @@ public slots:
     void OnUncheckAll();
     void OnCheckSelected() { CheckSelected(true); };
     void OnUncheckSelected() { CheckSelected(false); };
-    void OnRenameTabClicked();
+    void OnRenameTabClicked(int index);
+    void OnDeleteTabClicked(int index);
     void OnRefreshSelected();
     void OnUpdateAvailable();
     void OnUploadFinished();
+
 private slots:
     // Tabs menu actions
     void OnRefreshCheckedTabs();
@@ -186,6 +188,4 @@ private:
     QTimer delayed_search_form_change_;
     RateLimitDialog* rate_limit_dialog_;
     bool quitting_;
-
-    int rightClickedTabIndex = -1;
 };

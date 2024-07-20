@@ -80,6 +80,9 @@
 
 constexpr const char* POE_WEBCDN = "http://webcdn.pathofexile.com"; // Should be updated to https://web.poecdn.com ?
 
+constexpr int CURRENT_ITEM_UPDATE_DELAY_MS = 100;
+constexpr int SEARCH_UPDATE_DELAY_MS = 350;
+
 MainWindow::MainWindow(
     QSettings& settings,
     QNetworkAccessManager& network_manager,
@@ -130,10 +133,14 @@ MainWindow::MainWindow(
     connect(&shop_, &Shop::StatusUpdate, this, &MainWindow::OnStatusUpdate);
     connect(&update_checker_, &UpdateChecker::UpdateAvailable, this, &MainWindow::OnUpdateAvailable);
 
+    delayed_update_current_item_.setInterval(CURRENT_ITEM_UPDATE_DELAY_MS);
+    delayed_search_form_change_.setInterval(SEARCH_UPDATE_DELAY_MS);
+
     connect(&delayed_update_current_item_, &QTimer::timeout, this, [&]() {UpdateCurrentItem(); delayed_update_current_item_.stop(); });
     connect(&delayed_search_form_change_, &QTimer::timeout, this, [&]() {OnSearchFormChange(); delayed_search_form_change_.stop(); });
 
     LoadSettings();
+    NewSearch();
 }
 
 MainWindow::~MainWindow() {
@@ -363,8 +370,6 @@ void MainWindow::LoadSettings() {
     UpdateShopMenu();
 
     ui->itemInfoTypeTabs->setCurrentIndex(settings_.value("tooltip_tab").toInt());
-
-    NewSearch();
 }
 
 void MainWindow::OnExpandAll() {
@@ -504,41 +509,6 @@ void MainWindow::OnStatusUpdate(ProgramState state, const QString& message) {
     case ProgramState::Busy: status = "Busy"; break;
     case ProgramState::Waiting: status = "Waiting"; break;
     case ProgramState::Unknown: status = "Unknown State"; break;
-        /*
-        case ProgramState::CharactersReceived:
-            if (status.total == 0) {
-                refresh_button_.setText("No characters detected yet in this league, click to refresh");
-                refresh_button_.show();
-            } else {
-                refresh_button_.hide();
-            }
-            break;
-        case ProgramState::ItemsReceive:
-        case ProgramState::ItemsPaused:
-            title = QString("Receiving stash data, %1/%2").arg(status.progress).arg(status.total);
-            if (status.state == ProgramState::ItemsPaused)
-                title += " (throttled, sleeping 60 seconds)";
-            break;
-        case ProgramState::ItemsCompleted:
-            title = QString("Received %1 tabs").arg(status.total);
-            QLOG_INFO() << title;
-            break;
-        case ProgramState::ShopSubmitting:
-            title = QString("Sending your shops to the forum, %1/%2").arg(status.progress).arg(status.total);
-            break;
-        case ProgramState::ShopCompleted:
-            title = QString("Shop threads updated");
-            QLOG_INFO() << title;
-            break;
-        case ProgramState::UpdateCancelled:
-            title = QString("Shop updated cancelled due to tab movement or rename mid-update");
-            break;
-        case ProgramState::ItemsRetrieved:
-            title = QString("Parsing item mods in tabs, %1/%2").arg(status.progress).arg(status.total);
-            break;
-        default:
-            title = "Unknown";
-            */
     };
     if (!message.isEmpty()) {
         status += ": " + message;
@@ -553,47 +523,59 @@ bool MainWindow::eventFilter(QObject* o, QEvent* e) {
         int index = tab_bar_->tabAt(mouse_event->pos());
         if (mouse_event->button() == Qt::MiddleButton) {
             // remove tab and Search if it's not "+"
-            if (index >= 0 && index < tab_bar_->count() - 1) {
-                tab_bar_->removeTab(index);
-                auto search = searches_[index];
-                if (current_search_ == search) {
-                    current_search_ = nullptr;
-                };
-                delete searches_[index];
-                searches_.erase(searches_.begin() + index);
-                if (static_cast<size_t>(tab_bar_->currentIndex()) == searches_.size()) {
-                    tab_bar_->setCurrentIndex(static_cast<int>(searches_.size()) - 1);
-                };
-                OnTabChange(tab_bar_->currentIndex());
-                // that's because after removeTab text will be set to previous search's caption
-                // which is because my way of dealing with "+" tab is hacky and should be replaced by something sane
-                tab_bar_->setTabText(tab_bar_->count() - 1, "+");
-            };
+            OnDeleteTabClicked(index);
             return true;
         } else if (mouse_event->button() == Qt::RightButton) {
-            rightClickedTabIndex = index;
-            if (rightClickedTabIndex >= 0 && rightClickedTabIndex < tab_bar_->count() - 1) {
-                class TabRightClickMenu : public QMenu {};
-                TabRightClickMenu rcMenu;
-                rcMenu.addAction("Rename Tab", this, &MainWindow::OnRenameTabClicked);
-                rcMenu.exec(QCursor::pos());
-            };
-            rightClickedTabIndex = -1;
+            QMenu menu;
+            menu.addAction("Rename Tab", this, [=]() { OnRenameTabClicked(index); });
+            menu.addAction("Delete Tab", this, [=]() { OnDeleteTabClicked(index); });
+            menu.exec(QCursor::pos());
         };
     };
     return QMainWindow::eventFilter(o, e);
 }
 
-void MainWindow::OnRenameTabClicked() {
+void MainWindow::OnRenameTabClicked(int index) {
+    if ((index < 0) && (index >= tab_bar_->count() - 1)) {
+        QLOG_ERROR() << "Cannot rename tab: invalid index";
+        return;
+    };
     bool ok;
     QString name = QInputDialog::getText(this, "Rename Tab",
         "Rename Tab here",
         QLineEdit::Normal, "", &ok);
 
     if (ok && !name.isEmpty()) {
-        searches_[rightClickedTabIndex]->RenameCaption(name.toStdString());
-        tab_bar_->setTabText(rightClickedTabIndex, searches_[rightClickedTabIndex]->GetCaption());
-    }
+        searches_[index]->RenameCaption(name.toStdString());
+        tab_bar_->setTabText(index, searches_[index]->GetCaption());
+    };
+}
+
+void MainWindow::OnDeleteTabClicked(int index) {
+    if ((index < 0) && (index >= tab_bar_->count() - 1)) {
+        QLOG_ERROR() << "Cannot delete tab: invalid index";
+        return;
+    };
+    if ((index == 0) && (searches_.size() == 1)) {
+        QLOG_WARN() << "Cannot delete the only search";
+        QMessageBox::information(nullptr,
+            "Acquisition",
+            "You cannot delete the only search.");
+        return;
+    };
+
+    Search* search = searches_[index];
+    if (current_search_ == search) {
+        current_search_ = nullptr;
+    };
+    delete search;
+    searches_.erase(searches_.begin() + index);
+
+    const int new_index = (index < searches_.size()) ? index : index - 1;
+    tab_bar_->removeTab(index);
+    tab_bar_->setTabText(tab_bar_->count() - 1, "+");
+    tab_bar_->setCurrentIndex(new_index);
+    OnTabChange(new_index);
 }
 
 void MainWindow::OnImageFetched(QNetworkReply* reply) {
@@ -624,6 +606,7 @@ void MainWindow::ModelViewRefresh() {
 
     QLOG_TRACE() << "MainWindow::ModelViewRefresh() activing current search";
     current_search_->Activate(items_manager_.items());
+    ResizeTreeColumns();
 
     // This updates the item information when current item changes.
     connect(ui->treeView->selectionModel(), &QItemSelectionModel::currentChanged, this, &MainWindow::OnCurrentItemChanged);
@@ -633,18 +616,6 @@ void MainWindow::ModelViewRefresh() {
 
     ui->viewComboBox->setCurrentIndex(static_cast<int>(current_search_->GetViewMode()));
 
-    QLOG_DEBUG() << "Skipping tree view reset";
-    //ui->treeView->reset();
-    if (current_search_->IsAnyFilterActive() || current_search_->GetViewMode() == Search::ViewMode::ByItem) {
-        // Policy is to expand all tabs when any search fields are populated
-        // Also expand by default if we're in Item view mode
-        OnExpandAll();
-    } else {
-        // Restore view properties if no search fields are populated AND current mode is tab mode
-        current_search_->RestoreViewProperties();
-        ResizeTreeColumns();
-    }
-
     tab_bar_->setTabText(tab_bar_->currentIndex(), current_search_->GetCaption());
 }
 
@@ -652,17 +623,20 @@ void MainWindow::OnCurrentItemChanged(const QModelIndex& current, const QModelIn
     Q_UNUSED(previous);
     QLOG_TRACE() << "MainWindow::OnCurrentItemChange() entered";
     buyout_manager_.Save();
-    if (!current.parent().isValid()) {
-        // clicked on a bucket
-        current_item_ = nullptr;
-        current_bucket_location_ = &current_search_->bucket(current.row()).location();
-        UpdateCurrentBucket();
-    } else {
-        // clicked on an item
-        current_item_ = current_search_->bucket(current.parent().row()).item(current.row());
-        delayed_update_current_item_.start(100);
+
+    if (current.isValid()) {
+        if (current.parent().isValid()) {
+            // Clicked on an item
+            current_item_ = current_search_->bucket(current.parent().row()).item(current.row());
+            delayed_update_current_item_.start();
+        } else {
+            // Clicked on a bucket
+            current_item_ = nullptr;
+            current_bucket_location_ = &current_search_->bucket(current.row()).location();
+            UpdateCurrentBucket();
+        };
+        UpdateCurrentBuyout();
     };
-    UpdateCurrentBuyout();
 }
 
 void MainWindow::OnLayoutChanged() {
@@ -691,34 +665,26 @@ void MainWindow::OnLayoutChanged() {
 }
 
 void MainWindow::OnDelayedSearchFormChange() {
-    // wait 350ms after search form change before applying
-    // This is so we don't force update after every keystroke etc...
-    delayed_search_form_change_.start(350);
+    delayed_search_form_change_.start();
 }
 
 void MainWindow::OnTabChange(int index) {
-
-    if (current_search_->IsAnyFilterActive() && (current_search_->GetViewMode() == Search::ViewMode::ByTab)) {
-        QLOG_TRACE() << "MainWindow::OnTabChange() saving view properties";
-        current_search_->SaveViewProperties();
-    };
-
-    // "+" clicked
     if (static_cast<size_t>(index) == searches_.size()) {
+        // "+" clicked
         NewSearch();
     } else {
         current_search_ = searches_[index];
         current_search_->SetRefreshReason(RefreshReason::TabChanged);
         current_search_->ToForm();
         ModelViewRefresh();
-    }
+    };
 }
 
 void MainWindow::AddSearchGroup(QLayout* layout, const std::string& name = "") {
     if (!name.empty()) {
         auto label = new QLabel(("<h3>" + name + "</h3>").c_str());
         search_form_layout_->addWidget(label);
-    }
+    };
     layout->setContentsMargins(0, 0, 0, 0);
     auto layout_container = new QWidget;
     layout_container->setLayout(layout);
@@ -881,16 +847,17 @@ void MainWindow::UpdateCurrentItem() {
     ui->pobTooltipButton->setEnabled(current_item_->Wearable());
 
     std::string icon = current_item_->icon();
-    if (icon.size() && icon[0] == '/')
+    if (icon.size() && icon[0] == '/') {
         icon = POE_WEBCDN + icon;
+    };
     if (!image_cache_->Exists(icon)) {
         QNetworkRequest request = QNetworkRequest(QUrl(icon.c_str()));
         request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
         QNetworkReply* reply = network_manager_.get(request);
         connect(reply, &QNetworkReply::finished, this, [=]() { OnImageFetched(reply); });
-    } else
+    } else {
         ui->imageLabel->setPixmap(GenerateItemIcon(*current_item_, image_cache_->Get(icon)));
-
+    };
     ui->locationLabel->setText(current_item_->location().GetHeader().c_str());
 }
 
@@ -907,10 +874,10 @@ void MainWindow::UpdateBuyoutWidgets(const Buyout& bo) {
         if (!bo.IsGameSet()) {
             ui->buyoutCurrencyComboBox->setEnabled(true);
             ui->buyoutValueLineEdit->setEnabled(true);
-        }
+        };
     } else {
         ui->buyoutValueLineEdit->setText("");
-    }
+    };
 }
 
 void MainWindow::UpdateCurrentBuyout() {
@@ -920,7 +887,7 @@ void MainWindow::UpdateCurrentBuyout() {
     } else {
         std::string tab = current_bucket_location_->GetUniqueHash();
         UpdateBuyoutWidgets(buyout_manager_.GetTab(tab));
-    }
+    };
 }
 
 void MainWindow::OnItemsRefreshed() {
@@ -994,8 +961,9 @@ void MainWindow::OnShowPOESESSID() {
 
 void MainWindow::UpdateShopMenu() {
     std::string title = "Forum shop thread...";
-    if (!shop_.threads().empty())
+    if (!shop_.threads().empty()) {
         title += " [" + Util::StringJoin(shop_.threads(), ",") + "]";
+    };
     ui->actionSetShopThreads->setText(title.c_str());
     ui->actionSetAutomaticallyShopUpdate->setChecked(shop_.auto_update());
 }
@@ -1011,8 +979,9 @@ void MainWindow::OnCopyShopToClipboard() {
 void MainWindow::OnSetTabRefreshInterval() {
     int interval = QInputDialog::getInt(this, "Auto refresh items", "Refresh items every X minutes",
         QLineEdit::Normal, settings_.value("autoupdate_interval").toInt());
-    if (interval > 0)
+    if (interval > 0) {
         items_manager_.SetAutoUpdateInterval(interval);
+    };
 }
 
 void MainWindow::OnRefreshAllTabs() {
@@ -1035,8 +1004,9 @@ void MainWindow::OnEditShopTemplate() {
     bool ok;
     QString text = QInputDialog::getMultiLineText(this, "Shop template", "Enter shop template. [items] will be replaced with the list of items you marked for sale.",
         shop_.shop_template().c_str(), &ok);
-    if (ok && !text.isEmpty())
+    if (ok && !text.isEmpty()) {
         shop_.SetShopTemplate(text.toStdString());
+    };
 }
 
 void MainWindow::OnSetAutomaticShopUpdate() {
@@ -1145,12 +1115,12 @@ void MainWindow::OnUploadToImgur() {
 void MainWindow::OnCopyForPOB() {
     if (current_item_ == nullptr) {
         return;
-    }
+    };
     // if category isn't wearable, including flasks, don't do anything
     if (!current_item_->Wearable()) {
         QLOG_WARN() << current_item_->PrettyName().c_str() << ", category:" << current_item_->category().c_str() << ", should not have been exportable.";
         return;
-    }
+    };
 
     QApplication::clipboard()->setText(QString::fromStdString(current_item_->POBformat()));
     QLOG_INFO() << current_item_->PrettyName().c_str() << "was copied to your clipboard in Path of Building's \"Create custom\" format.";
@@ -1170,15 +1140,15 @@ void MainWindow::OnUploadFinished() {
     if (doc.HasParseError() || !doc.IsObject() || !doc.HasMember("status") || !doc["status"].IsNumber()) {
         QLOG_ERROR() << "Imgur API returned invalid data (or timed out): " << bytes;
         return;
-    }
+    };
     if (doc["status"].GetInt() != 200) {
         QLOG_ERROR() << "Imgur API returned status!=200: " << bytes;
         return;
-    }
+    };
     if (!doc.HasMember("data") || !doc["data"].HasMember("link") || !doc["data"]["link"].IsString()) {
         QLOG_ERROR() << "Imgur API returned malformed reply: " << bytes;
         return;
-    }
+    };
     std::string url = doc["data"]["link"].GetString();
     QApplication::clipboard()->setText(url.c_str());
     QLOG_INFO() << "Image successfully uploaded, the URL is" << url.c_str() << "It also was copied to your clipboard.";

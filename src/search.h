@@ -42,9 +42,10 @@ public:
         ByTab = 0,
         ByItem = 1
     };
-
-public:
-    Search(BuyoutManager& bo, const std::string& caption, const std::vector<std::unique_ptr<Filter>>& filters, QTreeView* view);
+    Search(BuyoutManager& bo,
+        const std::string& caption,
+        const std::vector<std::unique_ptr<Filter>>& filters,
+        QTreeView* view);
     void FilterItems(const Items& items);
     void FromForm();
     void ToForm();

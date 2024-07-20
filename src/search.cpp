@@ -191,11 +191,12 @@ void Search::FilterItems(const Items& items) {
     items_.clear();
     for (const auto& item : items) {
         bool matches = true;
-        for (auto& filter : filters_)
+        for (auto& filter : filters_) {
             if (!filter->Matches(item)) {
                 matches = false;
                 break;
             };
+        };
         if (matches) {
             items_.push_back(item);
         };
@@ -264,24 +265,22 @@ ItemLocation Search::GetTabLocation(const QModelIndex& index) const {
     }
 }
 
-void Search::SetViewMode(ViewMode mode)
-{
+void Search::SetViewMode(ViewMode mode) {
     if (mode != current_mode_) {
-        if (mode == ViewMode::ByItem) {
-            SaveViewProperties();
-        };
+
+        SaveViewProperties();
 
         current_mode_ = mode;
 
         // Force immediate view update
         view_.reset();
+        model_.blockSignals(true);
         model_.SetSorted(false);
         model_.sort();
+        model_.blockSignals(false);
 
-        if (mode == ViewMode::ByTab) {
-            RestoreViewProperties();
-        };
-    }
+        RestoreViewProperties();
+    };
 }
 
 size_t Search::GetItemsCount() const {
@@ -295,6 +294,7 @@ void Search::Activate(const Items& items) {
     view_.setModel(&model_);
     view_.header()->setSortIndicator(model_.GetSortColumn(), model_.GetSortOrder());
     view_.setSortingEnabled(true);
+    RestoreViewProperties();
 }
 
 void Search::SaveViewProperties() {
@@ -309,26 +309,25 @@ void Search::SaveViewProperties() {
 }
 
 void Search::RestoreViewProperties() {
-    if (!expanded_property_.empty()) {
+
+    // Block signals else columns will be resized on every expand which can be super slow.
+    view_.blockSignals(true);
+
+    if (IsAnyFilterActive() || GetViewMode() == Search::ViewMode::ByItem) {
+        view_.expandToDepth(0);
+    } else if (!expanded_property_.empty()) {
         // There are some rows to expand.
         const int rowCount = model_.rowCount();
         for (int row = 0; row < rowCount; ++row) {
             QModelIndex index = model_.index(row, 0, QModelIndex());
-            // Block signals else columns will be resized on every expand which can be super slow.
-            view_.blockSignals(true);
             if (expanded_property_.count(bucket(row).location().GetHeader())) {
                 view_.expand(index);
             } else {
                 view_.collapse(index);
             };
-            view_.blockSignals(false);
-        }
-    } else {
-        // Make sure all the rows are collapsed otherwise.
-        view_.blockSignals(true);
-        view_.collapseAll();
-        view_.blockSignals(false);
+        };
     };
+    view_.blockSignals(false);
 }
 
 bool Search::IsAnyFilterActive() const {
