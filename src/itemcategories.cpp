@@ -125,6 +125,11 @@ std::string GetItemCategory(const std::string& baseType) {
     QLOG_TRACE() << "GetItemCategory() baseType =" << baseType;
     static auto& data = CATEGORY_DATA::instance();
 
+    if (data.itemBaseType_NameToClass.empty()) {
+        QLOG_ERROR() << "Item base types have not been initialized";
+        return "";
+    };
+
     auto rslt = data.itemBaseType_NameToClass.find(baseType);
     if (rslt != data.itemBaseType_NameToClass.end()) {
         std::string key = rslt->second;
@@ -143,5 +148,8 @@ std::string GetItemCategory(const std::string& baseType) {
 const QStringList& GetItemCategories() {
     QLOG_TRACE() << "GetItemCategories() entered";
     static auto& data = CATEGORY_DATA::instance();
+    if (data.categories.isEmpty()) {
+        QLOG_ERROR() << "Item categories have not been initialized";
+    };
     return data.categories;
 }
