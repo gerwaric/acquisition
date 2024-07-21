@@ -139,6 +139,16 @@
       </widget>
      </item>
      <item row="2" column="0">
+      <widget class="QCheckBox" name="reportCrashesCheckBox">
+       <property name="text">
+        <string>Report crashes</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="0">
       <widget class="QCheckBox" name="proxyCheckBox">
        <property name="text">
         <string>Use system proxy</string>
@@ -149,16 +159,6 @@
       <widget class="QLabel" name="errorLabel">
        <property name="text">
         <string>TextLabel</string>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="0">
-      <widget class="QCheckBox" name="reportCrashesCheckBox">
-       <property name="text">
-        <string>Report crashes</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
        </property>
       </widget>
      </item>
