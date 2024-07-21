@@ -85,16 +85,20 @@ Shop::Shop(QObject* parent,
     submitting_(false),
     requests_completed_(0)
 {
+    QLOG_TRACE() << "Shop::Shop() entered";
     threads_ = Util::StringSplit(datastore_.Get("shop"), ';');
     auto_update_ = settings_.value("shop_autoupdate").toBool();
     shop_template_ = datastore_.Get("shop_template");
-    if (shop_template_.empty())
+    if (shop_template_.empty()) {
         shop_template_ = kShopTemplateItems;
+    };
 }
 
 void Shop::SetThread(const std::vector<std::string>& threads) {
-    if (submitting_)
+    QLOG_TRACE() << "Shop::SetThread() entered";
+    if (submitting_) {
         return;
+    };
     threads_ = threads;
     datastore_.Set("shop", Util::StringJoin(threads, ";"));
     ExpireShopData();
@@ -102,29 +106,34 @@ void Shop::SetThread(const std::vector<std::string>& threads) {
 }
 
 void Shop::SetAutoUpdate(bool update) {
+    QLOG_TRACE() << "Shop::SetAutoUpdate() entered";
     auto_update_ = update;
     settings_.setValue("shop_autoupdate", update);
 }
 
 void Shop::SetShopTemplate(const std::string& shop_template) {
+    QLOG_TRACE() << "Shop::SetShopTemplate() entered";
     shop_template_ = shop_template;
     datastore_.Set("shop_template", shop_template);
     ExpireShopData();
 }
 std::string Shop::SpoilerBuyout(Buyout& bo) {
+    QLOG_TRACE() << "Shop::SpoilerBuyout() entered";
     std::string out = "";
     out += "[spoiler=\"" + bo.BuyoutTypeAsPrefix();
-    if (bo.IsPriced())
+    if (bo.IsPriced()) {
         out += " " + QString::number(bo.value).toStdString() + " " + bo.CurrencyAsTag();
+    };
     out += "\"]";
     return out;
 }
 
 void Shop::Update() {
+    QLOG_TRACE() << "Shop::Update() entered";
     if (submitting_) {
         QLOG_WARN() << "Submitting shop right now, the request to update shop data will be ignored";
         return;
-    }
+    };
     shop_data_outdated_ = false;
     shop_data_.clear();
     std::string data = "";
@@ -135,13 +144,15 @@ void Shop::Update() {
         tmp.item = item.get();
         tmp.bo = buyout_manager_.Get(*item);
 
-        if (!tmp.bo.IsPostable())
+        if (!tmp.bo.IsPostable()) {
             continue;
+        };
 
         aug_items.push_back(tmp);
     }
-    if (aug_items.size() == 0)
+    if (aug_items.size() == 0) {
         return;
+    };
     std::sort(aug_items.begin(), aug_items.end());
 
     const std::string league = settings_.value("league").toString().toStdString();
@@ -153,7 +164,7 @@ void Shop::Update() {
             current_bo = aug.bo;
             data += "[/spoiler]";
             data += SpoilerBuyout(current_bo);
-        }
+        };
         std::string item_string = aug.item->location().GetForumCode(league);
         if (data.size() + item_string.size() + shop_template_.size() + kSpoilerOverhead + QString("[/spoiler]").size() > kMaxCharactersInPost) {
             data += "[/spoiler]";
@@ -162,44 +173,65 @@ void Shop::Update() {
             data += item_string;
         } else {
             data += item_string;
-        }
+        };
     }
-    if (!data.empty())
+    if (!data.empty()) {
         shop_data_.push_back(data);
+    };
 
-    for (size_t i = 0; i < shop_data_.size(); ++i)
+    for (size_t i = 0; i < shop_data_.size(); ++i) {
         shop_data_[i] = Util::StringReplace(shop_template_, kShopTemplateItems, "[spoiler]" + shop_data_[i] + "[/spoiler]");
-
+    };
     shop_hash_ = Util::Md5(Util::StringJoin(shop_data_, ";"));
 }
 
 void Shop::ExpireShopData() {
+    QLOG_TRACE() << "Shop::ExpireShopData() entered";
     shop_data_outdated_ = true;
 }
 
 void Shop::SubmitShopToForum(bool force) {
+    QLOG_TRACE() << "Shop::SubmitShopToForum() entered";
     if (submitting_) {
         QLOG_WARN() << "Already submitting your shop.";
         return;
-    }
+    };
     if (threads_.empty()) {
         QLOG_ERROR() << "Asked to update a shop with no shop ID defined.";
+        QMessageBox::warning(nullptr,
+            "Acquisition Shop Manager",
+            "No forum threads have been set."
+            "\n\n"
+            "Use the Shop --> 'Forum shop thread...' menu item.");
         return;
-    }
+    };
+    const QString session_id = settings_.value("session_id").toString();
+    if (session_id.isEmpty()) {
+        QLOG_ERROR() << "Cannot update the shop: POESESSID is not set";
+        QMessageBox::warning(nullptr,
+            "Acquisition Shop Manager",
+            "Cannot update forum shop threads because POESESSID has not been set."
+            "\n\n"
+            "Use the Settings --> POESESSID --> 'show or edit session cookie' menu item.");
+        return;
+    };
 
-    if (shop_data_outdated_)
+    if (shop_data_outdated_) {
         Update();
+    };
+
+    QLOG_INFO() << QString("Updating %1 forum shop threads").arg(threads_.size());
 
     std::string previous_hash = datastore_.Get("shop_hash");
     // Don't update the shop if it hasn't changed
     if (previous_hash == shop_hash_ && !force) {
         QLOG_TRACE() << "Shop hash has not changed. Skipping update.";
         return;
-    }
+    };
 
     if (threads_.size() < shop_data_.size()) {
         QLOG_WARN() << "Need" << shop_data_.size() - threads_.size() << "more shops defined to fit all your items.";
-    }
+    };
 
     requests_completed_ = 0;
     submitting_ = true;
@@ -207,15 +239,19 @@ void Shop::SubmitShopToForum(bool force) {
 }
 
 std::string Shop::ShopEditUrl(size_t idx) {
+    QLOG_TRACE() << "Shop::ShopEditUrl() entered";
     return kPoeEditThread + threads_[idx];
 }
 
 void Shop::SubmitSingleShop() {
+    QLOG_TRACE() << "Shop::SubmitSingleShop() entered";
     if (requests_completed_ == threads_.size()) {
+        QLOG_INFO() << "Shop threads updated";
         emit StatusUpdate(ProgramState::Ready, "Shop threads updated");
         submitting_ = false;
         datastore_.Set("shop_hash", shop_hash_);
     } else {
+        QLOG_INFO() << "Updating shop thread" << threads_[requests_completed_];
         emit StatusUpdate(ProgramState::Ready,
             QString("Sending your shops to the forum, %1/%2")
             .arg(requests_completed_)
@@ -227,10 +263,11 @@ void Shop::SubmitSingleShop() {
         request.setTransferTimeout(kEditThreadTimeout);
         QNetworkReply* fetched = network_manager_.get(request);
         connect(fetched, &QNetworkReply::finished, this, &Shop::OnEditPageFinished);
-    }
+    };
 }
 
 void Shop::OnEditPageFinished() {
+    QLOG_TRACE() << "Shop::OnEditPageFinished() entered";
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
     const QByteArray bytes = reply->readAll();
     const std::string hash = Util::GetCsrfToken(bytes, "hash");
@@ -263,6 +300,7 @@ void Shop::OnEditPageFinished() {
 
 void Shop::SubmitNextShop(const std::string title, const std::string hash)
 {
+    QLOG_TRACE() << "Shop::SubmitNextShop() entered";
     QUrlQuery query;
     query.addQueryItem("title", Util::Decode(title).c_str());
     query.addQueryItem("content", requests_completed_ < shop_data_.size() ? shop_data_[requests_completed_].c_str() : "Empty");
@@ -286,6 +324,7 @@ void Shop::SubmitNextShop(const std::string title, const std::string hash)
 }
 
 void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
+    QLOG_TRACE() << "Shop::OnShopSubmitted() entered";
     //QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
     const QByteArray bytes = reply->readAll();
 
@@ -325,7 +364,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
                     QLOG_ERROR() << "Error parsing wait time from error message.";
                     submitting_ = false;
                     return;
-                }
+                };
                 if (seconds < ratelimit_delay) {
                     seconds = ratelimit_delay + 1;
                     QLOG_TRACE() << "Setting" << seconds << "second delay.";
@@ -354,7 +393,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
         QLOG_ERROR() << "(DEPRECATED) Error while submitting shop to forums:" << error.c_str();
         submitting_ = false;
         return;
-    }
+    };
     // This slightly different error was encountered while debugging an issue with v0.9.9-beta.1.
     // It's possible GGG has updated the forums so the previous error checking is no longer
     // relavent, but that's not certain or documented anywhere, so let's do both.
@@ -363,7 +402,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
         QLOG_ERROR() << "(DEPRECATED) Input error while submitting shop to forums:" << input_error.c_str();
         submitting_ = false;
         return;
-    }
+    };
     // Let's err on the side of being cautious and look for an error the above code might
     // have missed. Otherwise errors might just silently fall through the cracks.
     for (auto& substr : { "class=\"errors\"", "class=\"input-error\"" }) {
@@ -373,23 +412,23 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
             submitting_ = false;
             return;
         };
-    }
+    };
 
     ++requests_completed_;
     SubmitSingleShop();
 }
 
 void Shop::CopyToClipboard() {
-    if (shop_data_outdated_)
+    QLOG_TRACE() << "Shop::CopyToClipboard() entered";
+    if (shop_data_outdated_) {
         Update();
-
-    if (shop_data_.empty())
+    };
+    if (shop_data_.empty()) {
         return;
-
+    };
     if (shop_data_.size() > 1) {
         QLOG_WARN() << "You have more than one shop, only the first one will be copied.";
-    }
-
+    };
     QClipboard* clipboard = QApplication::clipboard();
     clipboard->setText(QString(shop_data_[0].c_str()));
 }

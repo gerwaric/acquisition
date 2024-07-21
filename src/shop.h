@@ -42,14 +42,16 @@ struct AugmentedItem {
     Item* item{ nullptr };
     Buyout bo;
     bool operator<(const AugmentedItem& other) const {
-        if (bo.type != other.bo.type)
+        if (bo.type != other.bo.type) {
             return bo.type < other.bo.type;
-        if (bo.currency != other.bo.currency)
+        } else if (bo.currency != other.bo.currency) {
             return bo.currency < other.bo.currency;
-        if (bo.value != other.bo.value)
+        } else if (bo.value != other.bo.value) {
             return bo.value < other.bo.value;
-        return false;
-    }
+        } else {
+            return false;
+        };
+    };
 };
 
 class Shop : public QObject {
