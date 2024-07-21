@@ -373,7 +373,7 @@
      <x>0</x>
      <y>0</y>
      <width>1280</width>
-     <height>21</height>
+     <height>20</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuShop">
@@ -436,7 +436,7 @@
     </widget>
     <widget class="QMenu" name="menuSessionID">
      <property name="title">
-      <string>Session ID</string>
+      <string>POESESSID</string>
      </property>
      <addaction name="actionShowPOESESSID"/>
     </widget>
@@ -630,7 +630,7 @@
   </action>
   <action name="actionShowPOESESSID">
    <property name="text">
-    <string>POESESSID</string>
+    <string>Show or edit the session cookie</string>
    </property>
   </action>
  </widget>
