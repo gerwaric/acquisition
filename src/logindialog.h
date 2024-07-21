@@ -65,7 +65,7 @@ private:
     void SaveSettings();
     void RequestLeagues();
     void LoginWithOAuth();
-    void LoginWithSessionID(const QString& session_id);
+    void LoginWithSessionID();
     void LeaguesRequestError(const QString& error, const QByteArray& reply);
     void DisplayError(const QString& error, bool disable_login = false);
 

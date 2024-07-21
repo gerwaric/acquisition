@@ -289,11 +289,27 @@ void LoginDialog::OnLoginButtonClicked() {
     ui->loginButton->setEnabled(false);
     ui->loginButton->setText("Logging in...");
 
+    const QString session_id = ui->sessionIDLineEdit->text();
+    settings_.setValue("session_id", session_id);
+    if (!session_id.isEmpty()) {
+        QNetworkCookie poesessid(POE_COOKIE_NAME, session_id.toUtf8());
+        poesessid.setPath(POE_COOKIE_PATH);
+        poesessid.setDomain(POE_COOKIE_DOMAIN);
+        network_manager_.cookieJar()->insertCookie(poesessid);
+    };
+
     const QString tab_name = ui->loginTabs->currentWidget()->objectName();
     if (tab_name == OAUTH_TAB) {
         LoginWithOAuth();
     } else if (tab_name == SESSIONID_TAB) {
-        LoginWithSessionID(ui->sessionIDLineEdit->text());
+        if (!session_id.isEmpty()) {
+            LoginWithSessionID();
+        } else {
+            QLOG_ERROR() << "POESESSID is empty";
+            DisplayError("POESESSID cannot be blank");
+            ui->loginButton->setEnabled(true);
+            ui->loginButton->setText("Log in");
+        };
     } else {
         DisplayError("Invalid tab selected: " + tab_name);
     };
@@ -311,13 +327,8 @@ void LoginDialog::LoginWithOAuth() {
     };
 }
 
-void LoginDialog::LoginWithSessionID(const QString& session_id) {
+void LoginDialog::LoginWithSessionID() {
     QLOG_INFO() << "Starting legacy login with POESESSID";
-    QNetworkCookie poesessid(POE_COOKIE_NAME, session_id.toUtf8());
-    poesessid.setPath(POE_COOKIE_PATH);
-    poesessid.setDomain(POE_COOKIE_DOMAIN);
-    network_manager_.cookieJar()->insertCookie(poesessid);
-
     QNetworkRequest request = QNetworkRequest(QUrl(POE_LOGIN_CHECK_URL));
     request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
     QNetworkReply* reply = network_manager_.get(request);
