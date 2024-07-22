@@ -56,8 +56,6 @@ public:
     const std::vector<Bucket>& buckets() const;
     void RenameCaption(const std::string newName);
     QString GetCaption() const;
-    size_t GetItemsCount() const;
-    bool IsAnyFilterActive() const;
     // Sets this search as current, will display items in passed QTreeView.
     void Activate(const Items& items);
     void RestoreViewProperties();
@@ -85,8 +83,8 @@ private:
 
     std::string caption_;
     Items items_;
-    size_t unfiltered_item_count_;
-    size_t filtered_item_count_total_;
+    bool filtered_;
+    size_t filtered_item_count_;
     std::set<std::string> expanded_property_;
     ViewMode current_mode_;
     RefreshReason::Type refresh_reason_;

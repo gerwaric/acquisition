@@ -41,8 +41,8 @@ Search::Search(
     view_(*view),
     model_(bo_manager, *this),
     caption_(caption),
-    unfiltered_item_count_(0),
-    filtered_item_count_total_(0),
+    filtered_(false),
+    filtered_item_count_(0),
     current_mode_(ViewMode::ByTab),
     refresh_reason_(RefreshReason::Unknown)
 {
@@ -194,23 +194,21 @@ void Search::FilterItems(const Items& items) {
 
     QLOG_DEBUG() << "FilterItems: reason(" << refresh_reason_ << ")";
     items_.clear();
+    filtered_ = false;
+    filtered_item_count_ = 0;
     for (const auto& item : items) {
         bool matches = true;
         for (auto& filter : filters_) {
             if (!filter->Matches(item)) {
                 matches = false;
+                filtered_ = true;
                 break;
             };
         };
         if (matches) {
             items_.push_back(item);
+            filtered_item_count_ += item->count();
         };
-    };
-
-    unfiltered_item_count_ = items.size();
-    filtered_item_count_total_ = 0;
-    for (const auto& item : items_) {
-        filtered_item_count_total_ += item->count();
     };
 
     // Single bucket with null location is used to view all items at once
@@ -230,7 +228,7 @@ void Search::FilterItems(const Items& items) {
     // We need to add empty tabs here as there are no items to force their addition
     // But only do so if no filters are active as we want to hide empty tabs when
     // filtering
-    if (!IsAnyFilterActive()) {
+    if (!filtered_) {
         for (auto& location : bo_manager_.GetStashTabLocations()) {
             if (!bucketed_tabs.count(location)) {
                 bucketed_tabs.emplace(location, Bucket(location));
@@ -252,7 +250,7 @@ void Search::RenameCaption(const std::string newName) {
 }
 
 QString Search::GetCaption() const {
-    return QString("%1 [%2]").arg(caption_.c_str()).arg(GetItemsCount());
+    return QString("%1 [%2]").arg(caption_.c_str()).arg(filtered_item_count_);
 }
 
 ItemLocation Search::GetTabLocation(const QModelIndex& index) const {
@@ -304,10 +302,6 @@ void Search::SetViewMode(ViewMode mode) {
     };
 }
 
-size_t Search::GetItemsCount() const {
-    return filtered_item_count_total_;
-}
-
 void Search::Activate(const Items& items) {
     FromForm();
     FilterItems(items);
@@ -320,12 +314,14 @@ void Search::Activate(const Items& items) {
 
 void Search::SaveViewProperties() {
     expanded_property_.clear();
-    const int rowCount = model_.rowCount();
-    for (int row = 0; row < rowCount; ++row) {
-        QModelIndex index = model_.index(row, 0, QModelIndex());
-        if (index.isValid() && view_.isExpanded(index)) {
-            if (has_bucket(row)) {
-                expanded_property_.insert(bucket(row).location().GetHeader());
+    if (!filtered_ && (current_mode_ == Search::ViewMode::ByTab)) {
+        const int rowCount = model_.rowCount();
+        for (int row = 0; row < rowCount; ++row) {
+            QModelIndex index = model_.index(row, 0, QModelIndex());
+            if (index.isValid() && view_.isExpanded(index)) {
+                if (has_bucket(row)) {
+                    expanded_property_.insert(bucket(row).location().GetHeader());
+                };
             };
         };
     };
@@ -333,18 +329,18 @@ void Search::SaveViewProperties() {
 
 void Search::RestoreViewProperties() {
 
-    // Block signals else columns will be resized on every expand which can be super slow.
     view_.blockSignals(true);
-
-    if (IsAnyFilterActive() || GetViewMode() == Search::ViewMode::ByItem) {
+    if (filtered_ || (current_mode_ == Search::ViewMode::ByItem)) {
         view_.expandToDepth(0);
-    } else if (!expanded_property_.empty()) {
-        // There are some rows to expand.
-        const int rowCount = model_.rowCount();
-        for (int row = 0; row < rowCount; ++row) {
+    } else {
+        const int row_count = model_.rowCount();
+        for (int row = 0; row < row_count; ++row) {
             QModelIndex index = model_.index(row, 0, QModelIndex());
-            if (has_bucket(row)) {
-                if (expanded_property_.count(bucket(row).location().GetHeader())) {
+            if (expanded_property_.empty()) {
+                view_.collapse(index);
+            } else {
+                const auto key = bucket(row).location().GetHeader();
+                if (expanded_property_.count(key) > 0) {
                     view_.expand(index);
                 } else {
                     view_.collapse(index);
@@ -353,8 +349,4 @@ void Search::RestoreViewProperties() {
         };
     };
     view_.blockSignals(false);
-}
-
-bool Search::IsAnyFilterActive() const {
-    return (items_.size() != unfiltered_item_count_);
 }

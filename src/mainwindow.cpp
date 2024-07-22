@@ -598,6 +598,7 @@ void MainWindow::OnImageFetched(QNetworkReply* reply) {
 
 void MainWindow::OnSearchFormChange() {
     QLOG_TRACE() << "MainWindow::OnSearchFormChange() entered";
+    current_search_->SaveViewProperties();
     current_search_->SetRefreshReason(RefreshReason::SearchFormChanged);
     ModelViewRefresh();
 }
