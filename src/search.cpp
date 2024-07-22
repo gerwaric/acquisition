@@ -124,14 +124,19 @@ std::vector<Bucket>& Search::active_buckets() {
     };
 }
 
+bool Search::has_bucket(int row) const {
+    return (row >= 0) && (row < static_cast<int>(buckets().size()));
+}
+
 const Bucket& Search::bucket(int row) const {
     const auto& bucket_list = buckets();
     const int bucket_count = static_cast<int>(bucket_list.size());
     if ((row < 0) || (row >= bucket_count)) {
+        const int mode = static_cast<std::underlying_type_t<Search::ViewMode>>(current_mode_);
         const QString message = QString("Bucket row out of bounds: %1 bucket size: %2 mode: %3. Program will abort.").arg(
             QString::number(row),
-            QString::number(bucket_list.size()),
-            QString::number(static_cast<std::underlying_type_t<Search::ViewMode>>(current_mode_)));
+            QString::number(bucket_count),
+            QString::number(mode));
         QLOG_FATAL() << message;
         QMessageBox::critical(nullptr, "Fatal Error", message);
         abort();
@@ -254,15 +259,31 @@ ItemLocation Search::GetTabLocation(const QModelIndex& index) const {
     if (!index.isValid()) {
         return ItemLocation();
     };
-
     if (index.internalId() > 0) {
         // If index represents an item, get location from item as view may be on 'item' view
         // where bucket location doesn't match items location
-        return bucket(index.parent().row()).item(index.row())->location();
+        const int bucket_row = index.parent().row();
+        if (has_bucket(bucket_row)) {
+            const Bucket& b = bucket(bucket_row);
+            const int item_row = index.row();
+            if (b.has_item(item_row)) {
+                return b.item(item_row)->location();
+            } else {
+                QLOG_WARN() << "GetTabLocation(): parent bucket" << bucket_row << "does not have" << item_row << "items";
+            };
+        } else {
+            QLOG_WARN() << "GetTabLocation(): parent bucket" << bucket_row << "does not exist";
+        };
     } else {
         // Otherwise index represents a tab already, get location from there
-        return bucket(index.row()).location();
-    }
+        const int bucket_row = index.row();
+        if (has_bucket(bucket_row)) {
+            return bucket(bucket_row).location();
+        } else {
+            QLOG_WARN() << "GetTabLocation(): bucket" << bucket_row << "does not exist";
+        };
+    };
+    return ItemLocation();
 }
 
 void Search::SetViewMode(ViewMode mode) {
@@ -303,7 +324,9 @@ void Search::SaveViewProperties() {
     for (int row = 0; row < rowCount; ++row) {
         QModelIndex index = model_.index(row, 0, QModelIndex());
         if (index.isValid() && view_.isExpanded(index)) {
-            expanded_property_.insert(bucket(row).location().GetHeader());
+            if (has_bucket(row)) {
+                expanded_property_.insert(bucket(row).location().GetHeader());
+            };
         };
     };
 }
@@ -320,10 +343,12 @@ void Search::RestoreViewProperties() {
         const int rowCount = model_.rowCount();
         for (int row = 0; row < rowCount; ++row) {
             QModelIndex index = model_.index(row, 0, QModelIndex());
-            if (expanded_property_.count(bucket(row).location().GetHeader())) {
-                view_.expand(index);
-            } else {
-                view_.collapse(index);
+            if (has_bucket(row)) {
+                if (expanded_property_.count(bucket(row).location().GetHeader())) {
+                    view_.expand(index);
+                } else {
+                    view_.collapse(index);
+                };
             };
         };
     };

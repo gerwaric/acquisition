@@ -40,6 +40,7 @@ public:
 
     void AddItem(const std::shared_ptr<Item>& item);
     const Items& items() const { return items_; }
+    bool has_item(int row) const;
     const std::shared_ptr<Item>& item(int row) const;
     const ItemLocation& location() const { return location_; }
     void Sort(const Column& column, Qt::SortOrder order);

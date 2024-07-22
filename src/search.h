@@ -65,6 +65,7 @@ public:
     ItemLocation GetTabLocation(const QModelIndex& index) const;
     void SetViewMode(ViewMode mode);
     ViewMode GetViewMode() const { return current_mode_; }
+    bool has_bucket(int row) const;
     const Bucket& bucket(int row) const;
     const QModelIndex index(const std::shared_ptr<Item> item) const;
     void SetRefreshReason(RefreshReason::Type reason) { refresh_reason_ = reason; }

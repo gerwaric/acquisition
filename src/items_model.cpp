@@ -57,7 +57,12 @@ int ItemsModel::rowCount(const QModelIndex& parent) const {
     };
     // Bucket, contains elements
     if (parent.isValid() && !parent.parent().isValid()) {
-        return static_cast<int>(search_.bucket(parent.row()).items().size());
+        const int bucket_row = parent.row();
+        if (search_.has_bucket(bucket_row)) {
+            return static_cast<int>(search_.bucket(bucket_row).items().size());
+        } else {
+            return 0;
+        };
     };
     // Element, contains nothing
     return 0;
@@ -130,13 +135,24 @@ QVariant ItemsModel::data(const QModelIndex& index, int role) const {
         return QVariant();
     };
     auto& column = search_.columns()[index.column()];
-    const Item& item = *search_.bucket(index.parent().row()).item(index.row());
-    if (role == Qt::DisplayRole) {
-        return column->value(item);
-    } else if (role == Qt::ForegroundRole) {
-        return column->color(item);
-    } else if (role == Qt::DecorationRole) {
-        return column->icon(item);
+    const int bucket_row = index.parent().row();
+    if (search_.has_bucket(bucket_row)) {
+        const Bucket& bucket = search_.bucket(bucket_row);
+        const int item_row = index.row();
+        if (bucket.has_item(item_row)) {
+            const Item& item = *bucket.item(item_row);
+            if (role == Qt::DisplayRole) {
+                return column->value(item);
+            } else if (role == Qt::ForegroundRole) {
+                return column->color(item);
+            } else if (role == Qt::DecorationRole) {
+                return column->icon(item);
+            };
+        } else {
+            QLOG_ERROR() << "items model cannot get data: bucket" << bucket_row << "does not have" << item_row << "items";
+        };
+    } else {
+        QLOG_ERROR() << "items model cannot get data: bucket" << bucket_row << "does not exist";
     };
     return QVariant();
 }
@@ -214,14 +230,14 @@ QModelIndex ItemsModel::index(int row, int column, const QModelIndex& parent) co
     int bucket_count = static_cast<int>(search_.buckets().size());
     if (parent.isValid()) {
         if (parent.row() >= bucket_count) {
-            QLOG_WARN() << "Should not happen: Index request parent contains invalid row";
+            QLOG_WARN() << "ItemsModel: index parent row is invalid";
             return QModelIndex();
         };
         // item, we pass parent's (bucket's) row through ID parameter
         return createIndex(row, column, static_cast<quintptr>(parent.row()) + 1);
     } else {
         if (row >= bucket_count) {
-            QLOG_WARN() << "Index request asking for invalid row:" + QString::number(row);
+            QLOG_WARN() << "ItemsModel: index row is invalid:" + QString::number(row);
             return QModelIndex();
         };
         return createIndex(row, column, static_cast<quintptr>(0));

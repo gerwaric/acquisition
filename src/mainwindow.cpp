@@ -488,13 +488,24 @@ void MainWindow::OnBuyoutChange() {
         if (!index.parent().isValid()) {
             buyout_manager_.SetTab(tab, bo);
         } else {
-            auto& item = current_search_->bucket(index.parent().row()).item(index.row());
-            // Don't allow users to manually update locked items (game priced per item in note section)
-            if (buyout_manager_.Get(*item).IsGameSet()) {
-                QLOG_TRACE() << "MainWindow::OnBuyoutChange() refusing to update locked item:" << item->name();
-                continue;
+            const int bucket_row = index.parent().row();
+            if (current_search_->has_bucket(bucket_row)) {
+                const Bucket& bucket = current_search_->bucket(bucket_row);
+                const int item_row = index.row();
+                if (bucket.has_item(item_row)) {
+                    const Item& item = *bucket.item(item_row);
+                    // Don't allow users to manually update locked items (game priced per item in note section)
+                    if (buyout_manager_.Get(item).IsGameSet()) {
+                        QLOG_TRACE() << "MainWindow::OnBuyoutChange() refusing to update locked item:" << item.name();
+                        continue;
+                    };
+                    buyout_manager_.Set(item, bo);
+                } else {
+                    QLOG_ERROR() << "OnBuyoutChange(): bucket" << bucket_row << "does not have" << item_row << "items";
+                };
+            } else {
+                QLOG_ERROR() << "OnBuyoutChange(): bucket" << bucket_row << "does not exist";
             };
-            buyout_manager_.Set(*item, bo);
         };
     };
     items_manager_.PropagateTabBuyouts();
@@ -624,19 +635,37 @@ void MainWindow::OnCurrentItemChanged(const QModelIndex& current, const QModelIn
     QLOG_TRACE() << "MainWindow::OnCurrentItemChange() entered";
     buyout_manager_.Save();
 
-    if (current.isValid()) {
-        if (current.parent().isValid()) {
-            // Clicked on an item
-            current_item_ = current_search_->bucket(current.parent().row()).item(current.row());
-            delayed_update_current_item_.start();
-        } else {
-            // Clicked on a bucket
-            current_item_ = nullptr;
-            current_bucket_location_ = &current_search_->bucket(current.row()).location();
-            UpdateCurrentBucket();
-        };
-        UpdateCurrentBuyout();
+    if (!current.isValid()) {
+        return;
     };
+
+    if (current.parent().isValid()) {
+        // Clicked on an item
+        const int bucket_row = current.parent().row();
+        if (current_search_->has_bucket(bucket_row)) {
+            const Bucket& bucket = current_search_->bucket(bucket_row);
+            const int item_row = current.row();
+            if (bucket.has_item(item_row)) {
+                current_item_ = bucket.item(item_row);
+                delayed_update_current_item_.start();
+            } else {
+                QLOG_WARN() << "OnCurrentItemChanged(): parent bucket" << bucket_row << "does not have" << item_row << "rows";
+            };
+        } else {
+            QLOG_WARN() << "OnCurrentItemChanged(): parent bucket" << bucket_row << "does not exist";
+        };
+    } else {
+        // Clicked on a bucket
+        current_item_ = nullptr;
+        const int bucket_row = current.row();
+        if (current_search_->has_bucket(bucket_row)) {
+            current_bucket_location_ = &current_search_->bucket(bucket_row).location();
+            UpdateCurrentBucket();
+        } else {
+            QLOG_WARN() << "OnCurrentItemChanged(): bucket" << bucket_row << "does not exist";
+        };
+    };
+    UpdateCurrentBuyout();
 }
 
 void MainWindow::OnLayoutChanged() {
@@ -648,19 +677,25 @@ void MainWindow::OnLayoutChanged() {
         return;
     };
 
-    // Look for the new index of the currently selected item.
-    const QModelIndex idx = current_search_->index(current_item_);
+    // Reset the selection model, because using clear can cause exceptions
+    // when after search updates for some reason that's not clear yet.
+    ui->treeView->selectionModel()->reset();
 
-    if (!idx.isValid()) {
+    // Look for the new index of the currently selected item.
+    const QModelIndex index = current_search_->index(current_item_);
+
+    if (!index.isValid()) {
         // The previously selected item is no longer in search results.
         QLOG_TRACE() << "MainWindow::OnLayoutChange() the previously selected item is gone";
         current_item_ = nullptr;
         ClearCurrentItem();
-        ui->treeView->selectionModel()->clear();
     } else {
         // Reselect the item in the updated layout.
         QLOG_TRACE() << "MainWindow::OnLayouotChange() reselecting the previous item";
-        ui->treeView->selectionModel()->select(idx, QItemSelectionModel::ClearAndSelect);;
+        ui->treeView->selectionModel()->select(index,
+            QItemSelectionModel::Current |
+            QItemSelectionModel::Select |
+            QItemSelectionModel::Rows);
     };
 }
 
@@ -692,7 +727,7 @@ void MainWindow::AddSearchGroup(QLayout* layout, const std::string& name = "") {
 }
 
 void MainWindow::InitializeSearchForm() {
-    
+
     // Initialize category list once.
     auto* category_model = new QStringListModel(GetItemCategories(), this);
 
@@ -769,7 +804,7 @@ void MainWindow::NewSearch() {
     QLOG_TRACE() << "MainWindow::NewSearch() entered";
 
     ++search_count_;
-    
+
     QString caption = QString("Search %1").arg(search_count_);
 
     QLOG_TRACE() << "MainWindow::NewSearch() adding tab";
