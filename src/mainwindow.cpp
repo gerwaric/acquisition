@@ -200,6 +200,7 @@ void MainWindow::InitializeUi() {
     tab_bar_->installEventFilter(this);
     tab_bar_->setExpanding(false);
     tab_bar_->addTab("+");
+    tab_bar_->setSelectionBehaviorOnRemove(QTabBar::SelectLeftTab);
     connect(tab_bar_, &QTabBar::currentChanged, this, &MainWindow::OnTabChange);
     ui->mainLayout->insertWidget(0, tab_bar_);
 
@@ -532,25 +533,22 @@ bool MainWindow::eventFilter(QObject* o, QEvent* e) {
     if ((o == tab_bar_) && (e->type() == QEvent::MouseButtonPress)) {
         QMouseEvent* mouse_event = static_cast<QMouseEvent*>(e);
         int index = tab_bar_->tabAt(mouse_event->pos());
-        if (mouse_event->button() == Qt::MiddleButton) {
-            // remove tab and Search if it's not "+"
-            OnDeleteTabClicked(index);
-            return true;
-        } else if (mouse_event->button() == Qt::RightButton) {
-            QMenu menu;
-            menu.addAction("Rename Tab", this, [=]() { OnRenameTabClicked(index); });
-            menu.addAction("Delete Tab", this, [=]() { OnDeleteTabClicked(index); });
-            menu.exec(QCursor::pos());
+        if ((index >= 0) && (index < tab_bar_->count() - 1)) {
+            if (mouse_event->button() == Qt::MiddleButton) {
+                OnDeleteTabClicked(index);
+                return true;
+            } else if (mouse_event->button() == Qt::RightButton) {
+                QMenu menu;
+                menu.addAction("Rename Tab", this, [=]() { OnRenameTabClicked(index); });
+                menu.addAction("Delete Tab", this, [=]() { OnDeleteTabClicked(index); });
+                menu.exec(QCursor::pos());
+            };
         };
     };
     return QMainWindow::eventFilter(o, e);
 }
 
 void MainWindow::OnRenameTabClicked(int index) {
-    if ((index < 0) && (index >= tab_bar_->count() - 1)) {
-        QLOG_ERROR() << "Cannot rename tab: invalid index";
-        return;
-    };
     bool ok;
     QString name = QInputDialog::getText(this, "Rename Tab",
         "Rename Tab here",
@@ -563,18 +561,14 @@ void MainWindow::OnRenameTabClicked(int index) {
 }
 
 void MainWindow::OnDeleteTabClicked(int index) {
-    if ((index < 0) && (index >= tab_bar_->count() - 1)) {
-        QLOG_ERROR() << "Cannot delete tab: invalid index";
-        return;
-    };
-    if ((index == 0) && (searches_.size() == 1)) {
-        QLOG_WARN() << "Cannot delete the only search";
-        QMessageBox::information(nullptr,
-            "Acquisition",
-            "You cannot delete the only search.");
-        return;
+    // If the user is deleting the last search, create a new
+    // one to replace it, because the UI breaks without at
+    // least one search.
+    if (searches_.size() == 1) {
+        NewSearch();
     };
 
+    // Delete the search.
     Search* search = searches_[index];
     if (current_search_ == search) {
         current_search_ = nullptr;
@@ -582,11 +576,8 @@ void MainWindow::OnDeleteTabClicked(int index) {
     delete search;
     searches_.erase(searches_.begin() + index);
 
-    const int new_index = (index < searches_.size()) ? index : index - 1;
+    // Remove the tab from the UI
     tab_bar_->removeTab(index);
-    tab_bar_->setTabText(tab_bar_->count() - 1, "+");
-    tab_bar_->setCurrentIndex(new_index);
-    OnTabChange(new_index);
 }
 
 void MainWindow::OnImageFetched(QNetworkReply* reply) {
