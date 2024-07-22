@@ -39,6 +39,7 @@ public:
     Bucket& operator = (Bucket&&) = default;
 
     void AddItem(const std::shared_ptr<Item>& item);
+    void AddItems(const Items& items);
     const Items& items() const { return items_; }
     bool has_item(int row) const;
     const std::shared_ptr<Item>& item(int row) const;

@@ -31,6 +31,13 @@ void Bucket::AddItem(const std::shared_ptr<Item>& item) {
     items_.push_back(item);
 }
 
+void Bucket::AddItems(const Items& items) {
+    items_.reserve(items_.size() + items.size());
+    for (const auto& item : items) {
+        items_.push_back(item);
+    };
+}
+
 bool Bucket::has_item(int row) const {
     return (row >= 0) && (row < static_cast<int>(items_.size()));
 }
