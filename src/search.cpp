@@ -187,42 +187,70 @@ void Search::Sort(int column, Qt::SortOrder order) {
 }
 
 void Search::FilterItems(const Items& items) {
+
+    QLOG_DEBUG() << "FilterItems: reason(" << refresh_reason_ << ")";
+
     // If we're just changing tabs we don't need to update anything
     if (refresh_reason_ == RefreshReason::TabChanged) {
         return;
     };
 
-    QLOG_DEBUG() << "FilterItems: reason(" << refresh_reason_ << ")";
+    // Create a temporary vector of only the filters that are
+    // active, so we don't have to check every filter against
+    // every item.
+    std::vector<FilterData*> active_filters;
+    active_filters.reserve(filters_.size());
+    for (auto& filter : filters_) {
+        if (filter->filter()->IsActive()) {
+            active_filters.push_back(filter.get());
+        };
+    };
+    active_filters.shrink_to_fit();
+
+    // Reset everything before starting to filter items.
     items_.clear();
     filtered_ = false;
     filtered_item_count_ = 0;
+
+    // A single bucket with null location is used to view all items at once.
+    bucket_by_item_.clear();
+    bucket_by_item_.emplace_back(ItemLocation());
+
+    // Temporarily store items-by-tabs in a map.
+    std::map<ItemLocation, Bucket> bucketed_tabs;
+
+    // Try to minimize the number of times we have to loop over each item,
+    // because some players have hundreds of thousands or millions of items.
     for (const auto& item : items) {
+        // Start by assuming there is a match and run through evey
+        // filter until we find that one that will filter out the
+        // current item.
         bool matches = true;
-        for (auto& filter : filters_) {
+        for (const auto& filter : active_filters) {
             if (!filter->Matches(item)) {
+                // Now that we know this item will be filtered out,
+                // we don't need to check any more filters.
                 matches = false;
                 filtered_ = true;
                 break;
             };
         };
         if (matches) {
+            // This item passed through all the filters, so we can
+            // add it to the list of items and total count.
             items_.push_back(item);
             filtered_item_count_ += item->count();
-        };
-    };
 
-    // Single bucket with null location is used to view all items at once
-    bucket_by_item_.clear();
-    bucket_by_item_.emplace_back(ItemLocation());
+            // Add this item to the "By Item" bucket.
+            bucket_by_item_.front().AddItem(item);
 
-    std::map<ItemLocation, Bucket> bucketed_tabs;
-    for (const auto& item : items_) {
-        ItemLocation location = item->location();
-        if (!bucketed_tabs.count(location)) {
-            bucketed_tabs.emplace(location, Bucket(location));
+            // Add this item to the associagted "By Tab" bucket.
+            const ItemLocation location = item->location();
+            if (!bucketed_tabs.count(location)) {
+                bucketed_tabs.emplace(location, Bucket(location));
+            };
+            bucketed_tabs[location].AddItem(item);
         };
-        bucketed_tabs[location].AddItem(item);
-        bucket_by_item_.front().AddItem(item);
     };
 
     // We need to add empty tabs here as there are no items to force their addition
@@ -236,7 +264,9 @@ void Search::FilterItems(const Items& items) {
         };
     };
 
+    // Move the "By Tab" buckets into their final location.
     bucket_by_tab_.clear();
+    bucket_by_tab_.reserve(bucketed_tabs.size());
     for (auto& element : bucketed_tabs) {
         bucket_by_tab_.emplace_back(std::move(element.second));
     };

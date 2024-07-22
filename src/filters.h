@@ -53,14 +53,18 @@ public:
 
     // Moveable
     Filter(Filter&&) = default;
-    Filter& operator = (Filter&&) = default;
-
+    Filter& operator= (Filter&&) = default;
 
     virtual void FromForm(FilterData* data) = 0;
     virtual void ToForm(FilterData* data) = 0;
     virtual void ResetForm() = 0;
     virtual bool Matches(const std::shared_ptr<Item>& item, FilterData* data) = 0;
+
     std::unique_ptr<FilterData> CreateData();
+    bool IsActive() const { return active_; };
+
+protected:
+    bool active_{ false };
 };
 
 struct ModFilterData {

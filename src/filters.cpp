@@ -76,6 +76,7 @@ NameSearchFilter::NameSearchFilter(QLayout* parent) {
 
 void NameSearchFilter::FromForm(FilterData* data) {
     data->text_query = textbox_->text().toUtf8().constData();
+    active_ = (data->text_query != "");
 }
 
 void NameSearchFilter::ToForm(FilterData* data) {
@@ -84,6 +85,7 @@ void NameSearchFilter::ToForm(FilterData* data) {
 
 void NameSearchFilter::ResetForm() {
     textbox_->setText("");
+    active_ = false;
 }
 
 bool NameSearchFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
@@ -120,6 +122,7 @@ void CategorySearchFilter::FromForm(FilterData* data) {
     std::string current_text = combobox_->currentText().toStdString();
     boost::to_lower(current_text);
     data->text_query = (current_text == k_Default) ? "" : current_text;
+    active_ = (data->text_query != "");
 }
 
 void CategorySearchFilter::ToForm(FilterData* data) {
@@ -129,6 +132,7 @@ void CategorySearchFilter::ToForm(FilterData* data) {
 
 void CategorySearchFilter::ResetForm() {
     combobox_->setCurrentText(k_Default.c_str());
+    active_ = false;
 }
 
 bool CategorySearchFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
@@ -160,6 +164,7 @@ RaritySearchFilter::RaritySearchFilter(QLayout* parent, QAbstractListModel* mode
 void RaritySearchFilter::FromForm(FilterData* data) {
     std::string current_text = combobox_->currentText().toStdString();
     data->text_query = (current_text == k_Default) ? "" : current_text;
+    active_ = (data->text_query != "");
 }
 
 void RaritySearchFilter::ToForm(FilterData* data) {
@@ -169,12 +174,13 @@ void RaritySearchFilter::ToForm(FilterData* data) {
 
 void RaritySearchFilter::ResetForm() {
     combobox_->setCurrentText(k_Default.c_str());
+    active_ = false;
 }
 
 bool RaritySearchFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
     if (data->text_query == "") {
         return true;
-    }
+    };
     switch (item->frameType()) {
     case FRAME_TYPE_NORMAL:
         return (data->text_query == "Normal");
@@ -188,7 +194,7 @@ bool RaritySearchFilter::Matches(const std::shared_ptr<Item>& item, FilterData* 
         return (data->text_query == "Unique (Relic)");
     default:
         return false;
-    }
+    };
 }
 
 void RaritySearchFilter::Initialize(QLayout* parent) {
@@ -252,35 +258,41 @@ void MinMaxFilter::FromForm(FilterData* data) {
     data->min = textbox_min_->text().toDouble();
     data->max_filled = textbox_max_->text().size() > 0;
     data->max = textbox_max_->text().toDouble();
+    active_ = data->min_filled || data->max_filled;
 }
 
 void MinMaxFilter::ToForm(FilterData* data) {
-    if (data->min_filled)
+    if (data->min_filled) {
         textbox_min_->setText(QString::number(data->min));
-    else
+    } else {
         textbox_min_->setText("");
-    if (data->max_filled)
+    };
+    if (data->max_filled) {
         textbox_max_->setText(QString::number(data->max));
-    else
+    } else {
         textbox_max_->setText("");
+    };
 }
 
 void MinMaxFilter::ResetForm() {
     textbox_min_->setText("");
     textbox_max_->setText("");
+    active_ = false;
 }
 
 bool MinMaxFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
     if (IsValuePresent(item)) {
         double value = GetValue(item);
-        if (data->min_filled && data->min > value)
+        if (data->min_filled && data->min > value) {
             return false;
-        if (data->max_filled && data->max < value)
+        };
+        if (data->max_filled && data->max < value) {
             return false;
+        };
         return true;
     } else {
         return !data->max_filled && !data->min_filled;
-    }
+    };
 }
 
 bool SimplePropertyFilter::IsValuePresent(const std::shared_ptr<Item>& item) {
@@ -292,15 +304,17 @@ double SimplePropertyFilter::GetValue(const std::shared_ptr<Item>& item) {
 }
 
 double DefaultPropertyFilter::GetValue(const std::shared_ptr<Item>& item) {
-    if (!item->properties().count(property_))
+    if (!item->properties().count(property_)) {
         return default_value_;
+    };
     return SimplePropertyFilter::GetValue(item);
 }
 
 double RequiredStatFilter::GetValue(const std::shared_ptr<Item>& item) {
     auto& requirements = item->requirements();
-    if (requirements.count(property_))
+    if (requirements.count(property_)) {
         return requirements.at(property_);
+    };
     return 0;
 }
 
@@ -362,39 +376,42 @@ void SocketsColorsFilter::FromForm(FilterData* data) {
     data->r = textbox_r_->text().toInt();
     data->g = textbox_g_->text().toInt();
     data->b = textbox_b_->text().toInt();
+    active_ = data->r_filled || data->g_filled || data->b_filled;
 }
 
 void SocketsColorsFilter::ToForm(FilterData* data) {
-    if (data->r_filled)
+    if (data->r_filled) {
         textbox_r_->setText(QString::number(data->r));
-    if (data->g_filled)
+    };
+    if (data->g_filled) {
         textbox_g_->setText(QString::number(data->g));
-    if (data->b_filled)
+    };
+    if (data->b_filled) {
         textbox_b_->setText(QString::number(data->b));
+    };
 }
 
 void SocketsColorsFilter::ResetForm() {
     textbox_r_->setText("");
     textbox_g_->setText("");
     textbox_b_->setText("");
+    active_ = false;
 }
 
 bool SocketsColorsFilter::Check(int need_r, int need_g, int need_b, int got_r, int got_g, int got_b, int got_w) {
-    int diff = std::max(0, need_r - got_r) + std::max(0, need_g - got_g)
+    int diff = std::max(0, need_r - got_r)
+        + std::max(0, need_g - got_g)
         + std::max(0, need_b - got_b);
     return diff <= got_w;
 }
 
 bool SocketsColorsFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
-    if (!data->r_filled && !data->g_filled && !data->b_filled)
+    if (!data->r_filled && !data->g_filled && !data->b_filled) {
         return true;
-    int need_r = 0, need_g = 0, need_b = 0;
-    if (data->r_filled)
-        need_r = data->r;
-    if (data->g_filled)
-        need_g = data->g;
-    if (data->b_filled)
-        need_b = data->b;
+    };
+    const int need_r = data->r_filled ? data->r : 0;
+    const int need_g = data->g_filled ? data->g : 0;
+    const int need_b = data->b_filled ? data->b : 0;
     const ItemSocketGroup& sockets = item->sockets();
     return Check(need_r, need_g, need_b, sockets.r, sockets.g, sockets.b, sockets.w);
 }
@@ -404,19 +421,17 @@ LinksColorsFilter::LinksColorsFilter(QLayout* parent) {
 }
 
 bool LinksColorsFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
-    if (!data->r_filled && !data->g_filled && !data->b_filled)
+    if (!data->r_filled && !data->g_filled && !data->b_filled) {
         return true;
-    int need_r = 0, need_g = 0, need_b = 0;
-    if (data->r_filled)
-        need_r = data->r;
-    if (data->g_filled)
-        need_g = data->g;
-    if (data->b_filled)
-        need_b = data->b;
+    };
+    const int need_r = data->r_filled ? data->r : 0;
+    const int need_g = data->g_filled ? data->g : 0;
+    const int need_b = data->b_filled ? data->b : 0;
     for (auto& group : item->socket_groups()) {
-        if (Check(need_r, need_g, need_b, group.r, group.g, group.b, group.w))
+        if (Check(need_r, need_g, need_b, group.r, group.g, group.b, group.w)) {
             return true;
-    }
+        };
+    };
     return false;
 }
 
@@ -446,6 +461,7 @@ void BooleanFilter::Initialize(QLayout* parent) {
 
 void BooleanFilter::FromForm(FilterData* data) {
     data->checked = checkbox_->isChecked();
+    active_ = data->checked;
 }
 
 void BooleanFilter::ToForm(FilterData* data) {
@@ -454,6 +470,7 @@ void BooleanFilter::ToForm(FilterData* data) {
 
 void BooleanFilter::ResetForm() {
     checkbox_->setChecked(false);
+    active_ = false;
 }
 
 bool BooleanFilter::Matches(const std::shared_ptr<Item>& /* item */, FilterData* /* data */) {
@@ -503,48 +520,39 @@ bool AltartFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) 
         "WinterHeart.png",
     };
 
-    if (!data->checked)
+    if (!data->checked) {
         return true;
-    for (auto& needle : altart)
-        if (item->icon().find(needle) != std::string::npos)
+    };
+    for (auto& needle : altart) {
+        if (item->icon().find(needle) != std::string::npos) {
             return true;
+        };
+    };
     return false;
 }
 
 bool PricedFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
-    if (!data->checked)
-        return true;
-    return bm_.Get(*item).IsActive();
+    return !data->checked || bm_.Get(*item).IsActive();
 }
 
 bool UnidentifiedFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
-    if (!data->checked)
-        return true;
-    return !item->identified();
+    return !data->checked || !item->identified();
 }
 
 bool CraftedFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
-    if (!data->checked)
-        return true;
-    return item->crafted();
+    return !data->checked || item->crafted();
 }
 
 bool EnchantedFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
-    if (!data->checked)
-        return true;
-    return item->enchanted();
+    return !data->checked || item->enchanted();
 }
 
 bool InfluencedFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
-    if (!data->checked)
-        return true;
-    return item->hasInfluence();
+    return !data->checked ||  item->hasInfluence();
 }
 
 bool CorruptedFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
-    if (!data->checked)
-        return true;
-    return item->corrupted();
+    return !data->checked || item->corrupted();
 }
 
 double ItemlevelFilter::GetValue(const std::shared_ptr<Item>& item) {
