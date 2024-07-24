@@ -367,6 +367,16 @@ void Application::InitLogin(POE_API mode)
         const std::string league = settings_->value("league").toString().toStdString();
         const std::string account = settings_->value("account").toString().toStdString();
         const QString data_dir = Filesystem::UserDir() + "/data/";
+        if (league.empty()) {
+            QLOG_FATAL() << "The 'league' setting is blank";
+            QMessageBox::critical(nullptr, "Acquisition", "The 'league' setting is blank. Acquisition cannot continue.");
+            abort();
+        };
+        if (account.empty()) {
+            QLOG_FATAL() << "The 'account' setting is blank";
+            QMessageBox::critical(nullptr, "Acquisition", "The 'account' setting is blank. Acquisition cannot continue.");
+            abort();
+        };
         QLOG_TRACE() << "Application::InitLogin() league =" << league;
         QLOG_TRACE() << "Application::InitLogin() account =" << account;
         QLOG_TRACE() << "Application::InitLogin() data_dir =" << data_dir;

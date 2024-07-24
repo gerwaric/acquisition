@@ -239,8 +239,9 @@ void LoginDialog::OnLeaguesReceived() {
         return LeaguesRequestError("object is not an array", bytes);
     };
 
-    // Parse leagues and add them to the combo box.
-    ui->leagueComboBox->clear();
+    QStringList leagues;
+
+    // Parse leagues from the json object.
     for (auto& league : doc) {
         if (!league.IsObject()) {
             return LeaguesRequestError("object expected", bytes);
@@ -251,14 +252,52 @@ void LoginDialog::OnLeaguesReceived() {
         if (!league["id"].IsString()) {
             return LeaguesRequestError("league 'id' is not a string", bytes);
         };
-        ui->leagueComboBox->addItem(league["id"].GetString());
+        leagues.append(league["id"].GetString());
+    };
+
+    // Get the league from settings.ini
+    const QString saved_league = settings_.value("league").toString();
+    QLOG_TRACE() << "LoginDialog::OnLeaguesReceived() loaded leage from settings:" << saved_league;
+    
+    bool use_saved_league = false;
+
+    ui->leagueComboBox->clear();
+    for (auto& league : doc) {
+
+        // Make sure the league object is well-formed.
+        if (!league.IsObject()) {
+            return LeaguesRequestError("object expected", bytes);
+        };
+        if (!league.HasMember("id")) {
+            return LeaguesRequestError("missing league 'id'", bytes);
+        };
+        if (!league["id"].IsString()) {
+            return LeaguesRequestError("league 'id' is not a string", bytes);
+        };
+
+        // Get the league name.
+        const QString league_name = league["id"].GetString();
+        QLOG_TRACE() << "LoginDialog::OnLeaguesReceived() found league" << league_name;
+
+        // Add the league to the combo box.
+        ui->leagueComboBox->addItem(league_name);
+
+        // Set the current league if it matches the saved league.
+        if (0 == saved_league.compare(league_name, Qt::CaseInsensitive)) {
+            use_saved_league = true;
+        };
     };
     ui->leagueComboBox->setEnabled(true);
 
-    // If a league was saved, select it now.
-    const QString league = settings_.value("league").toString();
-    if (!league.isEmpty()) {
-        ui->leagueComboBox->setCurrentText(league);
+    // If we found a match for the save league use it. If we didn't, then
+    // we need to clear the setting, since the list of leagues may have
+    // changed since the last time acquisition was run.
+    if (use_saved_league) {
+        QLOG_TRACE() << "LoginDialog::OnLeaguesReceived() setting current league to" << saved_league;
+        ui->leagueComboBox->setCurrentText(saved_league);
+    } else {
+        QLOG_TRACE() << "LoginDialog::OnLeaguesReceived() clearing the saved league";
+        settings_.setValue("league", "");
     };
 
     // Now that leagues have been received, start listening for changes.
@@ -289,7 +328,9 @@ void LoginDialog::OnLoginButtonClicked() {
     ui->loginButton->setEnabled(false);
     ui->loginButton->setText("Logging in...");
 
+    const QString league = ui->leagueComboBox->currentText();
     const QString session_id = ui->sessionIDLineEdit->text();
+    settings_.setValue("league", league);
     settings_.setValue("session_id", session_id);
     if (!session_id.isEmpty()) {
         QNetworkCookie poesessid(POE_COOKIE_NAME, session_id.toUtf8());
