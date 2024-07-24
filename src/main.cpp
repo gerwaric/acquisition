@@ -91,13 +91,23 @@ bool checkManifest() {
     };
 
     // Create a warning message for the dialog box.
-    const QStringList msg = {
+    QStringList msg = {
         "Unexpected libraries found in '" + path + "':",
         "",
         "\t" + unexpected_dlls.join(", "),
-        "",
-        "Acquisition may crash."
+        ""
     };
+    if (unexpected_dlls.contains("msvcp140.dll", Qt::CaseInsensitive)) {
+        msg.append("Acquisition may crash. "
+            "Please consider deleteing the above files and installing the "
+            "MSVC runtime that comes with acquisition. You can do this from "
+            "the installer, or you can run 'vc_redist.x64.exe' from the "
+            "acquisition program directory");
+    } else {
+        msg.append("Acquisition may crash. "
+            "Please consider moving or deleting these files.");
+    };
+
 
     // Construct a warning dialog box.
     QMessageBox msgbox;
