@@ -19,9 +19,7 @@
 
 #include "bucket.h"
 
-#include <QMessageBox>
-
-#include "QsLog.h"
+#include "fatalerror.h"
 
 Bucket::Bucket(const ItemLocation& location) :
     location_(location)
@@ -49,9 +47,7 @@ const std::shared_ptr<Item>& Bucket::item(int row) const
         const QString message = QString("Bucket item row out of bounds: %1 item count: %2. Program will abort").arg(
             QString::number(row),
             QString::number(item_count));
-        QLOG_FATAL() << message;
-        QMessageBox::critical(nullptr, "Fatal Error", message);
-        abort();
+        FatalError(message);
     };
     return items_[row];
 }

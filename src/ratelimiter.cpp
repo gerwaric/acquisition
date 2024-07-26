@@ -29,6 +29,7 @@
 #include "boost/bind/bind.hpp"
 #include "QsLog.h"
 
+#include "fatalerror.h"
 #include "ratelimit.h"
 #include "ratelimitmanager.h"
 #include "network_info.h"
@@ -63,8 +64,10 @@ RateLimit::RateLimitedReply* RateLimiter::Submit(
     // Make sure the user agent is set according to GGG's guidance.
     network_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 
+    // Create a new rate limited reply that we can return to the calling function.
     auto* reply = new RateLimit::RateLimitedReply();
 
+    // Look for a rate limit manager for this endpoint.
     auto it = manager_by_endpoint_.find(endpoint);
     if (it != manager_by_endpoint_.end()) {
 
@@ -86,6 +89,26 @@ RateLimit::RateLimitedReply* RateLimiter::Submit(
                 SetupEndpoint(endpoint, network_request, reply, network_reply);
             });
 
+        // Catch network errors so we can change the setup state.
+        connect(network_reply, &QNetworkReply::errorOccurred, this,
+            [=]() {
+                FatalError(QString("Network error %1 in HEAD reply for '%2': %3").arg(
+                    QString::number(network_reply->error()),
+                    endpoint,
+                    network_reply->errorString()));
+            });
+
+        // Catch SSL errors so we can change the setup state.
+        connect(network_reply, &QNetworkReply::sslErrors, this,
+            [=](const QList<QSslError>& errors) {
+                QStringList messages;
+                for (const auto& error : errors) {
+                    messages.append(error.errorString());
+                };
+                FatalError(QString("SSL error(s) in HEAD reply for '%1': %2").arg(
+                    endpoint,
+                    messages.join(", ")));
+            });
     };
     return reply;
 }
@@ -100,6 +123,22 @@ void RateLimiter::SetupEndpoint(
     QLOG_TRACE() << "RateLimiter::SetupEndpoint() endpoint =" << endpoint;
     QLOG_TRACE() << "RateLimiter::SetupEndpoint() network_request =" << network_request.url().toString();
 
+    // Check for network errors.
+    if (network_reply->error() != QNetworkReply::NoError) {
+        FatalError(QString("Network error %1 in HEAD reply for '%2': %3").arg(
+            QString::number(network_reply->error()),
+            endpoint,
+            network_reply->errorString()));
+    };
+
+    // Check for other HTTP errors.
+    const int response_code = RateLimit::ParseStatus(network_reply);
+    if (response_code != 200) {
+        FatalError(QString("HTTP error %1 in HEAD reply for '%2'").arg(
+            QString::number(response_code),
+            endpoint));
+    };
+
     // All endpoints should be rate limited.
     if (!network_reply->hasRawHeader("X-Rate-Limit-Policy")) {
         QLOG_TRACE() << "RateLimiter:SetupEndpoint(): invalid HEAD reply without a rate limit policy";
@@ -109,9 +148,8 @@ void RateLimiter::SetupEndpoint(
         for (const auto& pair : network_reply->rawHeaderPairs()) {
             QLOG_TRACE() << "RateLimiter::SetupEndpoint() repy header" << pair.first << "=" << pair.second;
         };
-        QString url = network_reply->request().url().toString();
-        QLOG_ERROR() << "The endpoint is apparently not rate-limited:" << endpoint << "(" + url + ")";
-        return;
+        const QString message = QString("The endpoint is not rate-limited: '%1'").arg(endpoint);
+        FatalError(message);
     };
 
     const QString policy_name = network_reply->rawHeader("X-Rate-Limit-Policy");
@@ -125,7 +163,7 @@ void RateLimiter::SetupEndpoint(
 RateLimitManager& RateLimiter::GetManager(
     const QString& endpoint,
     const QString& policy_name)
-{    
+{
     QLOG_TRACE() << "RateLimiter::GetManager() entered";
     QLOG_TRACE() << "RateLimiter::GetManager() endpoint = " << endpoint;
     QLOG_TRACE() << "RateLimiter::GetManager() policy_name = " << policy_name;
@@ -194,7 +232,7 @@ void RateLimiter::OnManagerPaused(const QString& policy_name, const QDateTime& u
 void RateLimiter::SendStatusUpdate()
 {
     QLOG_TRACE() << "RateLimiter::SendStatusUpdate() entered";
-    
+
     // Get rid of any pauses that finished in the past.
     const QDateTime now = QDateTime::currentDateTime();
     while (!pauses_.empty() && (pauses_.begin()->first < now)) {
@@ -205,7 +243,7 @@ void RateLimiter::SendStatusUpdate()
         QLOG_TRACE() << "RateLimiter::SendStatusUpdate() stopping status updates";
         update_timer_.stop();
     } else {
-        const auto pause = *pauses_.begin();
+        const auto& pause = *pauses_.begin();
         const QDateTime& pause_end = pause.first;
         const QString policy_name = pause.second;
         emit Paused(now.secsTo(pause_end), policy_name);

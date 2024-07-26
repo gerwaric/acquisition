@@ -36,7 +36,7 @@ project(acquisition
 )
 
 # Use this to define pre-releases
-set(version_postfix "-alpha.11")
+set(version_postfix "-alpha.12")
 
 # Variables used to generate version_defines.h and installer.iss
 set(version_code        61) # This doesn't need to be changed with the new update checks.
@@ -72,6 +72,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/currency.cpp
     src/currencymanager.cpp
     src/datastore.cpp
+    src/fatalerror.cpp
     src/filesystem.cpp
     src/filters.cpp
     src/flowlayout.cpp
@@ -122,6 +123,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/currency.h
     src/currencymanager.h
     src/datastore.h
+    src/fatalerror.h
     src/filesystem.h
     src/filters.h
     src/flowlayout.h

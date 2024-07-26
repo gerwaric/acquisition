@@ -26,10 +26,10 @@
 #include "buyoutmanager.h"
 #include "bucket.h"
 #include "column.h"
+#include "fatalerror.h"
 #include "filters.h"
 #include "items_model.h"
 #include "QsLog.h"
-#include <QMessageBox>
 
 Search::Search(
     BuyoutManager& bo_manager,
@@ -137,9 +137,7 @@ const Bucket& Search::bucket(int row) const {
             QString::number(row),
             QString::number(bucket_count),
             QString::number(mode));
-        QLOG_FATAL() << message;
-        QMessageBox::critical(nullptr, "Fatal Error", message);
-        abort();
+        FatalError(message);
     };
     return bucket_list[row];
 }

@@ -34,6 +34,7 @@
 #include "buyoutmanager.h"
 #include "crashpad.h"
 #include "currencymanager.h"
+#include "fatalerror.h"
 #include "filesystem.h"
 #include "itemsmanager.h"
 #include "logindialog.h"
@@ -69,16 +70,15 @@ Application::Application(bool test_mode) :
         QLOG_TRACE() << "Application::Application() data directory is" << user_dir;
 
         const QString settings_path = user_dir + "/settings.ini";
-        QLOG_TRACE() << "Application::Application() settings path is" << settings_path;
-
-        const QString global_data_file = user_dir + "/data/" + SqliteDataStore::MakeFilename("", "");
-        QLOG_TRACE() << "Application::Application() global data file is" << global_data_file;
- 
+        QLOG_TRACE() << "Application::Application() creating the settings object:" << settings_path;
         settings_ = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
-        global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
 
         QLOG_TRACE() << "Application::Application() initializing crash reporting";
         InitCrashReporting();
+
+        const QString global_data_file = user_dir + "/data/" + SqliteDataStore::MakeFilename("", "");
+        QLOG_TRACE() << "Application::Application() opening global data file:" << global_data_file;
+        global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
 
         QLOG_TRACE() << "Application::Application() loading theme";
         const QString theme = settings().value("theme", "default").toString();
@@ -189,95 +189,86 @@ void Application::OnLogin(POE_API api) {
 
 QSettings& Application::settings() const {
     if (!settings_) {
-        FatalAccessError("settings");
+        FatalError("Application::settings() attempted to dereference a null pointer");
     };
     return *settings_;
 };
 
 ItemsManager& Application::items_manager() const {
     if (!items_manager_) {
-        FatalAccessError("items nanager");
+        FatalError("Application::items_manager() attempted to dereference a null pointer");
     };
     return *items_manager_;
 };
 
 DataStore& Application::global_data() const {
     if (!global_data_) {
-        FatalAccessError("global datastore");
+        FatalError("Application::global_data() attempted to dereference a null pointer");
     };
     return *global_data_;
 };
 
 DataStore& Application::data() const {
     if (!data_) {
-        FatalAccessError("datastore");
+        FatalError("Application::data() attempted to dereference a null pointer");
     };
     return *data_;
 };
 
 BuyoutManager& Application::buyout_manager() const {
     if (!buyout_manager_) {
-        FatalAccessError("buyout manager");
+        FatalError("Application::buyout_manager() attempted to dereference a null pointer");
     };
     return *buyout_manager_;
 };
 
 QNetworkAccessManager& Application::network_manager() const {
     if (!network_manager_) {
-        FatalAccessError("network access manager");
+        FatalError("Application::network_manager() attempted to dereference a null pointer");
     };
     return *network_manager_;
 }
 
 RePoE& Application::repoe() const {
     if (!repoe_) {
-        FatalAccessError("RePoE");
+        FatalError("Application::repoe() attempted to dereference a null pointer");
     };
     return *repoe_;
 }
 
 Shop& Application::shop() const {
     if (!shop_) {
-        FatalAccessError("shop");
+        FatalError("Application::shop() attempted to dereference a null pointer");
     };
     return *shop_;
 }
 
 CurrencyManager& Application::currency_manager() const {
     if (!currency_manager_) {
-        FatalAccessError("currency manager");
+        FatalError("Application::currency_manager() attempted to dereference a null pointer");
     };
     return *currency_manager_;
 }
 
 UpdateChecker& Application::update_checker() const {
     if (!update_checker_) {
-        FatalAccessError("update checker");
+        FatalError("Application::update_checker() attempted to dereference a null pointer");
     };
     return *update_checker_;
 }
 
 OAuthManager& Application::oauth_manager() const {
     if (!oauth_manager_) {
-        FatalAccessError("OAuth manager");
+        FatalError("Application::oauth_manager() attempted to dereference a null pointer");
     };
     return *oauth_manager_;
 }
 
 RateLimiter& Application::rate_limiter() const {
     if (!rate_limiter_) {
-        FatalAccessError("rate limiter");
+        FatalError("Application::rate_limiter() attempted to dereference a null pointer");
     };
     return *rate_limiter_;
-}
-
-void Application::FatalAccessError(const char* object_name) const {
-    const QString message = QString("The '%1' object was invalid.").arg(object_name);
-    QLOG_FATAL() << message;
-    QMessageBox::critical(nullptr,
-        "Acquisition Fatal Error (Application)", message,
-        QMessageBox::StandardButton::Abort,
-        QMessageBox::StandardButton::Abort);
 }
 
 void Application::InitCrashReporting() {
@@ -346,7 +337,7 @@ void Application::OnSetTheme(const QString& theme) {
             QLOG_ERROR() << "Style sheet not found:" << stylesheet;
         };
     };
-    
+
     QLOG_TRACE() << "Application::OnSetTheme() setting stylesheet";
     qApp->setStyleSheet(style_data);
 
@@ -368,14 +359,10 @@ void Application::InitLogin(POE_API mode)
         const std::string account = settings_->value("account").toString().toStdString();
         const QString data_dir = Filesystem::UserDir() + "/data/";
         if (league.empty()) {
-            QLOG_FATAL() << "The 'league' setting is blank";
-            QMessageBox::critical(nullptr, "Acquisition", "The 'league' setting is blank. Acquisition cannot continue.");
-            abort();
+            FatalError("Login failure: the league has not been set.");
         };
         if (account.empty()) {
-            QLOG_FATAL() << "The 'account' setting is blank";
-            QMessageBox::critical(nullptr, "Acquisition", "The 'account' setting is blank. Acquisition cannot continue.");
-            abort();
+            FatalError("Login failure: the account has not been set.");
         };
         QLOG_TRACE() << "Application::InitLogin() league =" << league;
         QLOG_TRACE() << "Application::InitLogin() account =" << account;

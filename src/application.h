@@ -72,7 +72,6 @@ public slots:
 private:
     void InitCrashReporting();
     void SaveDbOnNewVersion();
-    void FatalAccessError(const char* object_name) const;
 
     bool test_mode_;
     std::unique_ptr<QSettings> settings_;

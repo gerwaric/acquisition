@@ -82,6 +82,7 @@ private slots:
     void OnManagerPaused(const QString& policy_name, const QDateTime& until);
 
 private:
+
     // Process the first request for an endpoint we haven't encountered before.
     void SetupEndpoint(
         const QString& endpoint,
@@ -89,11 +90,12 @@ private:
         RateLimit::RateLimitedReply* reply,
         QNetworkReply* network_reply);
 
+    // Get or create the rate limit policy manager for the given endpoint.
     RateLimitManager& GetManager(
         const QString& endpoint,
         const QString& policy_name);
 
-    // This funciton is passed to individual managers via a bound
+    // This function is passed to individual managers via a bound
     // function so they can send network requests without having
     // to know anything about OAuth.
     QNetworkReply* SendRequest(QNetworkRequest network_request);

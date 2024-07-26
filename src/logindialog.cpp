@@ -54,6 +54,8 @@ constexpr const char* POE_MAIN_PAGE = "https://www.pathofexile.com/";
 constexpr const char* POE_MY_ACCOUNT = "https://www.pathofexile.com/my-account";
 constexpr const char* POE_LOGIN_CHECK_URL = POE_MY_ACCOUNT;
 
+constexpr int CLOUDFLARE_RATE_LIMITED = 1015;
+
 constexpr const char* OAUTH_TAB = "oauthTab";
 constexpr const char* SESSIONID_TAB = "sessionIdTab";
 
@@ -145,7 +147,7 @@ void LoginDialog::LoadSettings() {
 
     const QString league = settings_.value("league").toString();
     QLOG_TRACE() << "LoginDialog::LoadSettings() league =" << league;
-    
+
     const int login_tab = settings_.value("login_tab").toInt();
     QLOG_TRACE() << "LoginDialog::LoadSettings() login_tab =" << login_tab;
 
@@ -258,7 +260,7 @@ void LoginDialog::OnLeaguesReceived() {
     // Get the league from settings.ini
     const QString saved_league = settings_.value("league").toString();
     QLOG_TRACE() << "LoginDialog::OnLeaguesReceived() loaded leage from settings:" << saved_league;
-    
+
     bool use_saved_league = false;
 
     ui->leagueComboBox->clear();
@@ -377,8 +379,12 @@ void LoginDialog::LoginWithSessionID() {
     connect(reply, &QNetworkReply::finished, this, &LoginDialog::OnStartLegacyLogin);
     connect(reply, &QNetworkReply::errorOccurred, this,
         [=](QNetworkReply::NetworkError code) {
-            Q_UNUSED(code);
-            DisplayError("Error during legacy login: " + reply->errorString(), true);
+            const int error_code = static_cast<int>(code);
+            if (error_code == CLOUDFLARE_RATE_LIMITED) {
+                DisplayError("Rate limited by Cloudflare! Please report to gerwaric@gmail.com");
+            } else {
+                DisplayError("Error during legacy login: " + reply->errorString(), true);
+            };
         });
     connect(reply, &QNetworkReply::sslErrors, this,
         [=](const QList<QSslError>& errors) {
@@ -398,8 +404,19 @@ void LoginDialog::OnStartLegacyLogin() {
     reply->deleteLater();
 
     // Check for HTTP errors.
-    if (reply->error()) {
-        DisplayError("Legacy login failed: " + reply->errorString());
+    if (reply->error() != QNetworkReply::NoError) {
+        const int error_code = static_cast<int>(reply->error());
+        QString msg;
+        if (error_code == 204) {
+            msg = "You appear to be logged out. Please try updating your POESESSID.";
+        } else if (error_code == 1015) {
+            msg = "Your account or ip seems to have been blocked by Cloudflare!";
+        } else {
+            msg = QString("Network error %1 during legacy login: %2").arg(
+                QString::number(reply->error()),
+                reply->errorString());
+        };
+        DisplayError(msg);
         return;
     };
 
@@ -422,8 +439,12 @@ void LoginDialog::OnStartLegacyLogin() {
     connect(next_reply, &QNetworkReply::finished, this, &LoginDialog::OnFinishLegacyLogin);
     connect(reply, &QNetworkReply::errorOccurred, this,
         [=](QNetworkReply::NetworkError code) {
-            Q_UNUSED(code);
-            DisplayError("Error finishing legacy login: " + reply->errorString(), true);
+            const int error_code = static_cast<int>(code);
+            if (error_code == CLOUDFLARE_RATE_LIMITED) {
+                DisplayError("Blocked by Cloudflare! Please tell gerwaric@gmail.com. You may need to contact GGG support :-(");
+            } else {
+                DisplayError("Error finishing legacy login: " + reply->errorString(), true);
+            };
         });
     connect(reply, &QNetworkReply::sslErrors, this,
         [=](const QList<QSslError>& errors) {

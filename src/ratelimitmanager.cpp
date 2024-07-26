@@ -25,10 +25,9 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 
-#include "boost/function.hpp"
 #include "QsLog.h"
 
-#include "network_info.h"
+#include "fatalerror.h"
 #include "oauthmanager.h"
 #include "ratelimit.h"
 #include "ratelimiter.h"
@@ -64,13 +63,7 @@ RateLimitManager::RateLimitManager(QObject* parent, SendFcn sender) :
 
 const RateLimit::Policy& RateLimitManager::policy() {
     if (!policy_) {
-        const QString message = "The rate limit manager's policy is null.";
-        QLOG_FATAL() << message;
-        QMessageBox::critical(nullptr,
-            "Acquisition Fatal Error - Rate Limit Manager",
-            message,
-            QMessageBox::StandardButton::Abort,
-            QMessageBox::StandardButton::Abort);
+        FatalError("The rate limit manager's policy is null!");
     };
     return *policy_;
 }
@@ -288,7 +281,7 @@ void RateLimitManager::ActivateRequest() {
         << policy_->name()
         << "next_send before adjustment is" << next_send.toString()
         << "(in" << now.secsTo(next_send) << "seconds)";
- 
+
     if (policy_->status() >= RateLimit::PolicyStatus::BORDERLINE) {
         next_send = next_send.addMSecs(BORDERLINE_BUFFER_MSEC);
         QLOG_DEBUG() << QString("Rate limit policy '%1' is BORDERLINE, added %2 msecs to send at %3").arg(

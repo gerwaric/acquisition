@@ -34,6 +34,7 @@
 #include <clocale>
 
 #include "application.h"
+#include "fatalerror.h"
 #include "filesystem.h"
 #include "shop.h"
 #include "util.h"
@@ -41,20 +42,14 @@
 #include "testmain.h"
 
 #ifdef _DEBUG
-constexpr QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::TraceLevel;
+constexpr QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::DebugLevel;
 #else
 constexpr QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::InfoLevel;
 #endif
 
-#ifdef Q_OS_LINUX
-constexpr const char* SSL_ERROR = "OpenSSL 3.x was not found; check LD_LIBRARY_PATH if you have a custom installation.";
-#else
-constexpr const char* SSL_ERROR = "SSL is not supported. This is unexpected.";
-#endif
-
 #ifdef Q_OS_WINDOWS
 bool checkManifest() {
-    
+
     // Get the directory where the application is running from.
     const QString path = QGuiApplication::applicationDirPath();
     const QDir dir(path);
@@ -84,7 +79,7 @@ bool checkManifest() {
             unexpected_dlls.push_back(dll);
         };
     };
-    
+
     // Do nothing if nothing unexpected was found.
     if (unexpected_dlls.isEmpty()) {
         return true;
@@ -218,13 +213,7 @@ int main(int argc, char* argv[])
 
     QLOG_TRACE() << "Checking for SSL support...";
     if (!QSslSocket::supportsSsl()) {
-        QLOG_FATAL() << QString(SSL_ERROR);
-        QMessageBox msg(nullptr);
-        msg.setWindowTitle("Acquisition [" + QString(APP_VERSION_STRING) + "]");
-        msg.setText(SSL_ERROR);
-        msg.addButton(QMessageBox::Abort);
-        msg.exec();
-        return EXIT_FAILURE;
+        FatalError("SSL is not supported");
     };
     QLOG_TRACE() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
     QLOG_TRACE() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
@@ -249,8 +238,8 @@ int main(int argc, char* argv[])
             QMessageBox::StandardButton::Abort | QMessageBox::StandardButton::Cancel,
             QMessageBox::StandardButton::Abort);
         if (choice == QMessageBox::StandardButton::Abort) {
-            QLOG_FATAL() << "Acquisition is aborting.";
-            *(volatile int*)0 = 0;
+            QLOG_FATAL() << "Forcing acquisition to crash.";
+            abort();
         };
     };
 
