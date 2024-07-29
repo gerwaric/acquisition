@@ -36,7 +36,7 @@
 
 constexpr const char* GITHUB_ISSUES_URL = (APP_URL "/issues");
 
-void FatalError(const QString& message) {
+[[noreturn]] void FatalError(const QString& message) {
 
     QLOG_FATAL() << message;
 
