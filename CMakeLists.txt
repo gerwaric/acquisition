@@ -36,10 +36,10 @@ project(acquisition
 )
 
 # Use this to define pre-releases
-set(version_postfix "-alpha.12")
+set(version_postfix "")
 
 # Variables used to generate version_defines.h and installer.iss
-set(version_code        61) # This doesn't need to be changed with the new update checks.
+set(version_code        62) # This doesn't need to be changed with the new update checks.
 set(app_name            "${CMAKE_PROJECT_NAME}")
 set(app_version         "${CMAKE_PROJECT_VERSION}")
 set(app_version_string  "${CMAKE_PROJECT_VERSION}${version_postfix}")
