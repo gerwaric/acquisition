@@ -169,7 +169,6 @@ void AddStatTranslations(const QByteArray& statTranslations) {
 
     for (auto& translation : doc) {
         for (auto& stat : translation["English"]) {
-            auto s = Util::RapidjsonSerialize(stat);
             if (HasBool(stat, "is_markup") && (stat["is_markup"].GetBool() == true)) {
                 // This was added with the change to process json files inside
                 // the stat_translations directory. In this case, the necropolis
