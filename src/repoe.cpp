@@ -14,13 +14,13 @@
 
 #define REPOE_DATA(x) ("https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data" x)
 
-constexpr const char* ITEM_CLASSES_URL = REPOE_DATA("/item_classes.min.json");
-constexpr const char* BASE_ITEMS_URL = REPOE_DATA("/base_items.min.json");
+constexpr const char* ITEM_CLASSES_URL = REPOE_DATA("/item_classes.json");
+constexpr const char* BASE_ITEMS_URL = REPOE_DATA("/base_items.json");
 
 // Modifiers from this list of files will be loaded in order from first to last.
 constexpr const char* STAT_TRANSLATION_URLS[] = {
-    REPOE_DATA("/stat_translations.min.json"),
-    REPOE_DATA("/stat_translations/necropolis.min.json")
+    REPOE_DATA("/stat_translations.json"),
+    REPOE_DATA("/stat_translations/necropolis.json")
 };
 
 bool RePoE::initialized_ = false;

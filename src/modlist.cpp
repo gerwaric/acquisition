@@ -35,6 +35,8 @@
 #include "item.h"
 #include "util.h"
 
+using rapidjson::HasBool;
+
 QStringListModel mod_list_model_;
 std::set<std::string> mods;
 std::unordered_map<std::string, SumModGenerator*> mods_map;
@@ -167,7 +169,8 @@ void AddStatTranslations(const QByteArray& statTranslations) {
 
     for (auto& translation : doc) {
         for (auto& stat : translation["English"]) {
-            if (stat.HasMember("is_markup") && (stat["is_markup"].GetBool() == true)) {
+            auto s = Util::RapidjsonSerialize(stat);
+            if (HasBool(stat, "is_markup") && (stat["is_markup"].GetBool() == true)) {
                 // This was added with the change to process json files inside
                 // the stat_translations directory. In this case, the necropolis
                 // mods from 3.24 have some kind of duplicate formatting with
