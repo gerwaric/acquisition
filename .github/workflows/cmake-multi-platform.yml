@@ -4,9 +4,9 @@ name: CMake with Qt on multiple platforms
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "actions-test" ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ "actions-test" ]
 
 jobs:
   build:
