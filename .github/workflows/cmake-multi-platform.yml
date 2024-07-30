@@ -43,8 +43,8 @@ jobs:
         version: '6.5.3'
         target: 'desktop'
         arch: '${{ matrix.qt_arch }}'
-        modules: 'qthttpserver'
         dir: '${{github.workspace}}/qt/'
+        modules: 'qthttpserver qtwebsockets'
 
     - name: Set reusable strings
       # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
