@@ -32,7 +32,7 @@ jobs:
             c_compiler: cl
             cpp_compiler: cl
             qt_arch: win64_msvc2019_64
-            modules: qthttpserver
+            modules: 'qthttpserver'
             
     steps:
     - uses: actions/checkout@v4
@@ -40,8 +40,9 @@ jobs:
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       with:
-        target: "desktop"
+        aqtversion: '==3.1.*'
         version: "6.5.3"
+        target: "desktop"
         arch: "${{ matrix.qt_arch }}"
         dir: "${{github.workspace}}/qt"
         install-deps: "true"
