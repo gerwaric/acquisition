@@ -32,7 +32,6 @@ jobs:
             c_compiler: cl
             cpp_compiler: cl
             qt_arch: win64_msvc2019_64
-            modules: 'qthttpserver'
             
     steps:
     - uses: actions/checkout@v4
@@ -44,8 +43,7 @@ jobs:
         version: "6.5.3"
         target: "desktop"
         arch: "${{ matrix.qt_arch }}"
-        dir: "${{github.workspace}}/qt"
-        install-deps: "true"
+        modules: 'qthttpserver'
 
     - name: Set reusable strings
       # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
