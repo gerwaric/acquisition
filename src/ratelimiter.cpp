@@ -36,9 +36,6 @@
 #include "network_info.h"
 #include "oauthmanager.h"
 
-constexpr const int HTTP_OK = 200;
-constexpr const int HTTP_NO_CONTENT = 204;
-
 constexpr int UPDATE_INTERVAL_MSEC = 1000;
 
 // Create a list of all the attributes a QNetworkRequest or QNetwork reply can have,
@@ -167,6 +164,7 @@ void RateLimiter::SetupEndpoint(
 
     // Check for network errors.
     if (network_reply->error() != QNetworkReply::NoError) {
+        LogSetupReply(network_request, network_reply);
         FatalError(QString("Network error %1 in HEAD reply for '%2': %3").arg(
             QString::number(network_reply->error()),
             endpoint,
@@ -175,22 +173,16 @@ void RateLimiter::SetupEndpoint(
 
     // Check for other HTTP errors.
     const int response_code = RateLimit::ParseStatus(network_reply);
-    if ((response_code != 200) && (response_code != 204)) {
+    if ((response_code < 200) && (response_code > 299)) {
         LogSetupReply(network_request, network_reply);
-        FatalError(QString("HTTP error %1 in HEAD reply for '%2'").arg(
+        FatalError(QString("HTTP status %1 in HEAD reply for '%2'").arg(
             QString::number(response_code),
             endpoint));
     };
 
-    // TEMPORARY for debugging this one weird crash
-    if (response_code == 204) {
-        QLOG_WARN() << "TEMPORARY DEBUGGING INFO --- BEGIN";
-        LogSetupReply(network_request, network_reply);
-        QLOG_WARN() << "TEMPORARY DEBUGGING INFO --- END";
-    };
-
     // All endpoints should be rate limited.
     if (!network_reply->hasRawHeader("X-Rate-Limit-Policy")) {
+        LogSetupReply(network_request, network_reply);
         FatalError(QString("The endpoint is not rate-limited: '%1'").arg(endpoint));
     };
 
