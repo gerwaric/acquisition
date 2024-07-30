@@ -27,7 +27,7 @@ On Windows you can also build Acquisition with Visual Studio 2022 and the Qt Vis
 
 Windows releases are currently built with:
 - Windows 11
-- Qt Creator 13.0.2 (Community) with Qt 6.5.3 LTS using the compiler from Visual Studio 2022 (for release builds)
+- Qt Creator 14.0.0 (Community) with Qt 6.5.3 LTS using the compiler from Visual Studio 2022 (for release builds)
 - Visual Studio 2022 with Qt Visual Studio Tools 3.2.0 (for editing, debugging, and testing) and Qt Vs CMake Tools 1.1
 - Inno Setup 6.2.2 (for installer creation)
 
@@ -37,14 +37,14 @@ Windows releases are currently built with:
 
 macOS releases are currently built with:
 - macOS Sonoma 14.5 on Intel silicon
-- Qt Creator 13.0.2 (Community) with Qt 6.5.3 for macOS
+- Qt Creator 14.0.0 (Community) with Qt 6.5.3 for macOS
 - XCode 15.4
 
 ### Linux
 
 Linux releases are currently built with:
 - Linut Mint 20 Cinnamon (based on Ubuntu Focal) running in a VirtualBox VM
-- Qt Creator 13.0.0 (Community) with Qt 6.5.3 GCC 64bit 
+- Qt Creator 14.0.0 (Community) with Qt 6.5.3 GCC 64bit 
 - OpenSSL 3.1.5 (manually built and installed from source)
 - linuxdeploy (for AppImage creation)
 
