@@ -24,6 +24,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 
+#include <array>
 #include <memory>
 
 #include "boost/bind/bind.hpp"
@@ -35,7 +36,25 @@
 #include "network_info.h"
 #include "oauthmanager.h"
 
+constexpr const int HTTP_OK = 200;
+constexpr const int HTTP_NO_CONTENT = 204;
+
 constexpr int UPDATE_INTERVAL_MSEC = 1000;
+
+// Create a list of all the attributes a reply can have, since there is no
+// other way to iterate over this list, which was picked from the full list
+// of attributes here: https://doc.qt.io/qt-6/qnetworkrequest.html#Attribute-enum
+constexpr std::array REPLY_ATTRIBUTES = {
+    std::make_pair(QNetworkRequest::HttpStatusCodeAttribute, "HttpStatusCode"),
+    std::make_pair(QNetworkRequest::HttpReasonPhraseAttribute, "HttpReasonPhrase"),
+    std::make_pair(QNetworkRequest::RedirectionTargetAttribute, "RedirectionTarget"),
+    std::make_pair(QNetworkRequest::ConnectionEncryptedAttribute, "ConnectionEncrypted"),
+    std::make_pair(QNetworkRequest::SourceIsFromCacheAttribute, "SourceIsFromCache"),
+    std::make_pair(QNetworkRequest::HttpPipeliningWasUsedAttribute, "HttpPipelineWasUsed"),
+    std::make_pair(QNetworkRequest::BackgroundRequestAttribute, "BackgroundRequest"),
+    std::make_pair(QNetworkRequest::Http2WasUsedAttribute, "Http2WasUsed"),
+    std::make_pair(QNetworkRequest::OriginalContentLengthAttribute, "OriginalContentLength")
+};
 
 RateLimiter::RateLimiter(QObject* parent,
     QNetworkAccessManager& network_manager,
@@ -123,6 +142,11 @@ void RateLimiter::SetupEndpoint(
     QLOG_TRACE() << "RateLimiter::SetupEndpoint() endpoint =" << endpoint;
     QLOG_TRACE() << "RateLimiter::SetupEndpoint() network_request =" << network_request.url().toString();
 
+    // Make sure the network reply is a valid pointer before using it.
+    if (network_reply == nullptr) {
+        FatalError(QString("The HEAD reply was null"));
+    };
+
     // Check for network errors.
     if (network_reply->error() != QNetworkReply::NoError) {
         FatalError(QString("Network error %1 in HEAD reply for '%2': %3").arg(
@@ -133,31 +157,66 @@ void RateLimiter::SetupEndpoint(
 
     // Check for other HTTP errors.
     const int response_code = RateLimit::ParseStatus(network_reply);
-    if (response_code != 200) {
+    if ((response_code != 200) && (response_code != 204)) {
+        LogSetupReply(network_request, network_reply);
         FatalError(QString("HTTP error %1 in HEAD reply for '%2'").arg(
             QString::number(response_code),
             endpoint));
     };
 
-    // All endpoints should be rate limited.
-    if (!network_reply->hasRawHeader("X-Rate-Limit-Policy")) {
-        QLOG_TRACE() << "RateLimiter:SetupEndpoint(): invalid HEAD reply without a rate limit policy";
-        for (const auto& item : network_request.rawHeaderList()) {
-            QLOG_TRACE() << "RateLimiter:SetupEndpoint() request header" << item << "=" << network_request.rawHeader(item);
-        };
-        for (const auto& pair : network_reply->rawHeaderPairs()) {
-            QLOG_TRACE() << "RateLimiter::SetupEndpoint() repy header" << pair.first << "=" << pair.second;
-        };
-        const QString message = QString("The endpoint is not rate-limited: '%1'").arg(endpoint);
-        FatalError(message);
+    // TEMPORARY for debugging this one weird crash
+    if (response_code == 204) {
+        QLOG_WARN() << "TEMPORARY DEBUGGING INFO --- BEGIN";
+        LogSetupReply(network_request, network_reply);
+        QLOG_WARN() << "TEMPORARY DEBUGGING INFO --- END";
     };
 
-    const QString policy_name = network_reply->rawHeader("X-Rate-Limit-Policy");
+    // All endpoints should be rate limited.
+    if (!network_reply->hasRawHeader("X-Rate-Limit-Policy")) {
+        FatalError(QString("The endpoint is not rate-limited: '%1'").arg(endpoint));
+    };
 
+    // Get or create the manager for this policy.
+    const QString policy_name = network_reply->rawHeader("X-Rate-Limit-Policy");
     RateLimitManager& manager = GetManager(endpoint, policy_name);
+
+    // Update the policy manager and queue the request.
     manager.Update(network_reply);
     manager.QueueRequest(endpoint, network_request, reply);
+
+    // Emit a status update for anyone listening.
     SendStatusUpdate();
+}
+
+void RateLimiter::LogSetupReply(const QNetworkRequest& request, const QNetworkReply* reply) {
+
+    // Log the request headers.
+    for (const auto& name : request.rawHeaderList()) {
+        const bool is_authorization = (0 == name.compare("Authorization", Qt::CaseInsensitive));
+        QByteArray value = request.rawHeader(name);
+        if (is_authorization) {
+            // Mask the OAuth bearer token so it's not written to the log.
+            value.fill('*');
+        };
+        QLOG_INFO() << "RateLimiter::SetupEndpoint() HEAD request header" << name << "=" << value;
+    };
+
+    // Log the reply headers.
+    for (const auto& header : reply->rawHeaderPairs()) {
+        const auto& name = header.first;
+        const auto& value = header.second;
+        QLOG_INFO() << "RateLimiter::SetupEndpoint() HEAD reply header" << name << "=" << value;
+    };
+
+    // Log the reply attributes.
+    for (const auto& pair : REPLY_ATTRIBUTES) {
+        const QNetworkRequest::Attribute& code = pair.first;
+        const char* name = pair.second;
+        const QVariant value = reply->attribute(code);
+        if (value.isValid()) {
+            QLOG_INFO() << "RateLimiter::SetupEndpoint() HEAD reply attribute" << name << "=" << value.toString();
+        };
+    };
 }
 
 RateLimitManager& RateLimiter::GetManager(
