@@ -58,6 +58,7 @@ set(CMAKE_AUTOUIC_SEARCH_PATHS forms/)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+find_package(QT NAMES Qt6 REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui HttpServer Network Sql Test WebSockets Widgets)
 
 qt_standard_project_setup(REQUIRES 6.5.3)
