@@ -1,18 +1,23 @@
 #pragma once
 
-#include <QtTest/QtTest>
+#include <QObject>
 
-#include "application.h"
+class ItemsManager;
+class BuyoutManager;
+class Shop;
 
-class TestShop : public QObject
-{
-	Q_OBJECT
+class TestShop : public QObject {
+    Q_OBJECT
 public:
-	TestShop();
+    TestShop(
+        ItemsManager& items_manager,
+        BuyoutManager& buyout_manager,
+        Shop& shop);
 private slots:
-	void initTestCase();
-	void SocketedGemsNotLinked();
-	void TemplatedShopGeneration();
+    void SocketedGemsNotLinked();
+    void TemplatedShopGeneration();
 private:
-	Application app_;
+    ItemsManager& items_manager_;
+    BuyoutManager& buyout_manager_;
+    Shop& shop_;
 };

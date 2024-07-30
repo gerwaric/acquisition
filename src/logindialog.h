@@ -1,20 +1,20 @@
 /*
-	Copyright 2014 Ilya Zhuravlev
+    Copyright 2014 Ilya Zhuravlev
 
-	This file is part of Acquisition.
+    This file is part of Acquisition.
 
-	Acquisition is free software: you can redistribute it and/or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation, either version 3 of the License, or
-	(at your option) any later version.
+    Acquisition is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
 
-	Acquisition is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU General Public License for more details.
+    Acquisition is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
 
-	You should have received a copy of the GNU General Public License
-	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
+    You should have received a copy of the GNU General Public License
+    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #pragma once
@@ -32,45 +32,46 @@ class OAuthManager;
 class OAuthToken;
 
 namespace Ui {
-	class LoginDialog;
+    class LoginDialog;
 }
 
 class LoginDialog : public QDialog {
-	Q_OBJECT
+    Q_OBJECT
 public:
-	explicit LoginDialog(
-		QSettings& settings,
-		QNetworkAccessManager& network_manager,
-		OAuthManager& oauth_manager);
-	~LoginDialog();
+    explicit LoginDialog(
+        QSettings& settings,
+        QNetworkAccessManager& network_manager,
+        OAuthManager& oauth_manager);
+    ~LoginDialog();
 signals:
-	void LoginComplete(POE_API mode);
+    void LoginComplete(POE_API mode);
 private slots:
-	void OnLeaguesReceived();
-	void OnAuthenticateButtonClicked();
-	void OnLoginTabChanged(int index);
-	void OnLoginButtonClicked();
-	void OnStartLegacyLogin();
-	void OnFinishLegacyLogin();
-	void OnSessionIDChanged(const QString& session_id);
-	void OnLeagueChanged(const QString& league);
-	void OnProxyCheckBoxClicked(bool checked);
-	void OnRememberMeCheckBoxClicked(bool checked);
-	void OnOAuthAccessGranted(const OAuthToken& token);
+    void OnLeaguesReceived();
+    void OnAuthenticateButtonClicked();
+    void OnLoginTabChanged(int index);
+    void OnLoginButtonClicked();
+    void OnStartLegacyLogin();
+    void OnFinishLegacyLogin();
+    void OnSessionIDChanged(const QString& session_id);
+    void OnLeagueChanged(const QString& league);
+    void OnProxyCheckBoxClicked(bool checked);
+    void OnRememberMeCheckBoxClicked(bool checked);
+    void OnReportCrashesCheckBoxClicked(bool checked);
+    void OnOAuthAccessGranted(const OAuthToken& token);
 protected:
-	bool event(QEvent* e);
+    bool event(QEvent* e);
 private:
-	void LoadSettings();
-	void SaveSettings();
-	void RequestLeagues();
-	void LoginWithOAuth();
-	void LoginWithSessionID(const QString& session_id);
-	void LeaguesRequestError(const QString& error, const QByteArray& reply);
-	void DisplayError(const QString& error, bool disable_login = false);
+    void LoadSettings();
+    void SaveSettings();
+    void RequestLeagues();
+    void LoginWithOAuth();
+    void LoginWithSessionID();
+    void LeaguesRequestError(const QString& error, const QByteArray& reply);
+    void DisplayError(const QString& error, bool disable_login = false);
 
-	QSettings& settings_;
-	QNetworkAccessManager& network_manager_;
-	OAuthManager& oauth_manager_;
+    QSettings& settings_;
+    QNetworkAccessManager& network_manager_;
+    OAuthManager& oauth_manager_;
 
-	Ui::LoginDialog* ui;
+    Ui::LoginDialog* ui;
 };

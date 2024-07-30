@@ -1,20 +1,37 @@
 
-# Qt Creator 13.0 puts build files here.
-build/
+# Visual Studio and Qt Creator 13.0 puts builds here.
+/build/
+/out/
 
 # Acquisitions installers are currently built here.
-deploy/
-Output/
-
-# This file is supposed to be ignored, but neither of the
-# templated included below include it.
-CMakeUserPresets.json
+/deploy/
+/Output/
 
 # These files should be ignored, but aren't part of the includes below
 *.qtvscr
 *.vcxproj
 *.vcxproj.*
 *_resource.rc
+.DS_Store
+
+# There are also special exclusions for Crasshpad at the end of this file.
+
+#------------------------------------------------------------
+# https://github.com/github/gitignore/blob/main/CMake.gitignore
+#------------------------------------------------------------
+
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Testing
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps
+CMakeUserPresets.json
 
 #------------------------------------------------------------
 # https://github.com/github/gitignore/blob/main/Qt.gitignore
@@ -477,3 +494,11 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+#------------------------------------------------------------
+# Special exclusions
+#------------------------------------------------------------
+
+# Some of the Crashpad files are excluded by the previous rules,
+# but they need to be included, so we make this exception.
+!/deps/Crashpad/**

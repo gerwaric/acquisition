@@ -29,24 +29,24 @@ cmake_minimum_required(VERSION 3.21.1)
 # version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
-    VERSION 0.11.1
+    VERSION 0.11.1.1
     DESCRIPTION "Stash and forum shop management for Path of Exile \\256"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
 )
 
 # Use this to define pre-releases
-set(version_postfix "-alpha.1")
+set(version_postfix "")
 
 # Variables used to generate version_defines.h and installer.iss
-set(version_code        61) # This doesn't need to be changed with the new update checks.
+set(version_code        62) # This doesn't need to be changed with the new update checks.
 set(app_name            "${CMAKE_PROJECT_NAME}")
 set(app_version         "${CMAKE_PROJECT_VERSION}")
 set(app_version_string  "${CMAKE_PROJECT_VERSION}${version_postfix}")
 set(app_url             "${CMAKE_PROJECT_HOMEPAGE_URL}")
 set(app_publisher       "GERWARIC")
 set(app_publisher_email "gerwaric@gmail.com")
-set(app_copyright       "Copyright \\251 2014 Ilya Zhuravlev and 2023 Gerwaric")
+set(app_copyright       "© 2014 Ilya Zhuravlev and 2023 Gerwaric")
 set(app_trademark       "Path of Exile is a trademark of Grinding Gear Games, Ltd.")
 
 set(CMAKE_AUTOUIC ON)
@@ -58,17 +58,9 @@ set(CMAKE_AUTOUIC_SEARCH_PATHS forms/)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 6.5.3 REQUIRED COMPONENTS
-    Gui
-    HttpServer
-    Network
-    Sql
-    Test
-    WebSockets
-    Widgets
-)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui HttpServer Network Sql Test WebSockets Widgets)
 
-qt_standard_project_setup()
+qt_standard_project_setup(REQUIRES 6.5.3)
 
 qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     # Source
@@ -80,6 +72,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/currency.cpp
     src/currencymanager.cpp
     src/datastore.cpp
+    src/fatalerror.cpp
     src/filesystem.cpp
     src/filters.cpp
     src/flowlayout.cpp
@@ -106,6 +99,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/ratelimitdialog.cpp
     src/ratelimiter.cpp
     src/ratelimitmanager.cpp
+    src/repoe.cpp
     src/search.cpp
     src/searchcombobox.cpp
     src/shop.cpp
@@ -117,6 +111,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     test/testitem.cpp
     test/testitemsmanager.cpp
     test/testmain.cpp
+    test/testsettings.cpp
     test/testshop.cpp
     test/testutil.cpp
     # Headers
@@ -128,6 +123,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/currency.h
     src/currencymanager.h
     src/datastore.h
+    src/fatalerror.h
     src/filesystem.h
     src/filters.h
     src/flowlayout.h
@@ -156,6 +152,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/ratelimiter.h
     src/ratelimitmanager.h
     src/replytimeout.h
+    src/repoe.h
     src/search.h
     src/searchcombobox.h
     src/shop.h
@@ -167,6 +164,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     test/testitem.h
     test/testitemsmanager.h
     test/testmain.h
+    test/testsettings.h
     test/testshop.h
     test/testutil.h
     # Forms
@@ -174,72 +172,25 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     forms/mainwindow.ui
     # Resources
     resources.qrc
+    # Generated version header
+    "${CMAKE_BINARY_DIR}/version_defines.h"
 )
 
 # Automatically populate and include the versions header file.
-configure_file(src/version_defines.h.in version_defines.h @ONLY)
-target_sources(acquisition PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/version_defines.h")
-target_include_directories(acquisition PUBLIC "${CMAKE_CURRENT_BINARY_DIR}")
+configure_file("src/version_defines.h.in" "version_defines.h" @ONLY)
 
-# Automatically populate the VERSIONINFO file for windows.
-if(WIN32)
-    
-    # Define the major version.
-	if (NOT PROJECT_VERSION_MAJOR STREQUAL "")
-        set(app_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
-    else()
-        set(app_VERSION_MAJOR, 1)
-    endif()
-    
-    # Define the minor version.
-    if (NOT PROJECT_VERSION_MINOR STREQUAL "")
-        set(app_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
-    else()
-        set(app_VERSION_MINOR 0)
-    endif()
-    
-    # Define the patch version.
-    if (NOT PROJECT_VERSION_PATCH STREQUAL "")
-        set(app_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
-    else()
-        set(app_VERSION_PATCH 0)
-    endif()
-    
-    # Define the tweak version.
-    if (NOT PROJECT_VERSION_TWEAK STREQUAL "")
-        set(app_VERSION_TWEAK "${PROJECT_VERSION_TWEAK}")
-    else()
-        set(app_VERSION_TWEAK 0)
-    endif()
-    
-    # Define the reset of the versioninfo data.
-    set(app_COMPANY_NAME	    "")
-    set(app_FILE_DESCRIPTION    "")
-    set(app_FILE_VERSION        "${app_version_string}")
-    set(app_INTERNAL_NAME       "${CMAKE_PROJECT_NAME}")
-    set(app_LEGAL_COPYRIGHT     "${app_copyright}")
-    set(app_LEGAL_TRADEMARK     "${app_trademark}")
-    set(app_ORIGINAL_FILENAME   "${CMAKE_PROJECT_NAME}.exe")
-    set(app_PRODUCT_NAME        "${CMAKE_PROJECT_NAME}")
-    set(app_PRODUCT_VERSION     "${app_version_string}")
-    set(app_ICON                "${PROJECT_SOURCE_DIR}/assets/icon.ico")
-    configure_file(version_info.rc.in version_info.rc @ONLY)
-    target_sources(acquisition PUBLIC
-        "${CMAKE_CURRENT_BINARY_DIR}/version_info.rc"
-        "${PROJECT_SOURCE_DIR}/assets/icon.ico"
-    )
-endif()
-
+# Setup include directories.
 target_include_directories(acquisition PRIVATE
     deps/
     deps/QsLog/
     deps/boost-headers-only/
     src/
     test/
-    ${CMAKE_CURRENT_BINARY_DIR} # needed so files can include verion_defines.h
+    "${CMAKE_BINARY_DIR}"
 )
 
-target_link_libraries(acquisition PUBLIC
+# Link required libraries.
+target_link_libraries(acquisition PRIVATE
     Qt::Core
     Qt::Gui
     Qt::HttpServer
@@ -250,18 +201,48 @@ target_link_libraries(acquisition PUBLIC
     Qt::WebSockets
     QsLog
     qdarkstyle
+    Crashpad
 )
 
-# On Linux we need to build with OpenSSL 3.x
-if(UNIX AND (NOT APPLE))
-    set(OPENSSL_ROOT_DIR ~/openssl-3.1.5)
-    set(OPENSSL_USE_STATIC_LIBS TRUE)
-    find_package(OpenSSL 3.1.5 REQUIRED)
-    target_link_libraries(acquisition PUBLIC
-        OpenSSL::SSL
-        OpenSSL::Crypto
-    )
+
+# Create the Crashpad library target.
+add_library(Crashpad STATIC
+    src/crashpad.cpp
+    src/crashpad.h
+)
+
+target_link_libraries(Crashpad PRIVATE
+    Qt::Core
+    QsLog
+    CrashpadCommon
+    CrashpadClient
+    CrashpadUtil
+    CrashpadBase
+)
+
+target_include_directories(Crashpad PRIVATE
+    deps/QsLog/
+    deps/Crashpad/Include/
+    deps/Crashpad/Include/crashpad/
+    deps/Crashpad/Include/crashpad/out/Default/gen/
+    deps/Crashpad/Include/crashpad/third_party/mini_chromium/
+    deps/Crashpad/Include/crashpad/third_party/mini_chromium/mini_chromium/
+)
+
+if(WIN32)
+    include(deps/Crashpad/Crashpad-Windows.cmake)
+elseif(APPLE)
+    include(deps/Crashpad/Crashpad-MacOS.cmake)
+elseif(UNIX)
+    include(deps/Crashpad/Crashpad-Linux.cmake)
 endif()
+
+# Make sure the crash_handler executable is copied to the build directory.
+get_target_property(CrashpadHandlerPath CrashpadHandler IMPORTED_LOCATION)
+add_custom_command(TARGET acquisition
+    POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E copy "${CrashpadHandlerPath}" "${CMAKE_BINARY_DIR}"
+)
 
 # Add dependency: QsLog
 qt_add_library(QsLog STATIC
@@ -281,7 +262,7 @@ qt_add_library(QsLog STATIC
     deps/QsLog/QsLogLevel.h
 )
 
-target_link_libraries(QsLog PUBLIC
+target_link_libraries(QsLog PRIVATE
     Qt::Core
 )
 
@@ -291,33 +272,119 @@ add_library(qdarkstyle STATIC
     deps/qdarkstyle/light/lightstyle.qrc
 )
 
-if(MSVC)
-	
+#----------------------------------
+# Platform-specific section
+#----------------------------------
+
+if(WIN32)
+    
+    # Add the application icon.
+    target_sources(acquisition PRIVATE "${PROJECT_SOURCE_DIR}/assets/icon.ico")
+
+    # Use a function to set version variables so there can be a default value.
+    function(setver name value default)
+        if (NOT "${value}" STREQUAL "")
+            set("${name}" "${value}" PARENT_SCOPE)
+        else()
+            set("${name}" "${default}" PARENT_SCOPE)
+        endif()
+    endfunction()
+
+    # Define the version variables.
+    setver(app_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}" 1)
+    setver(app_VERSION_MINOR "${PROJECT_VERSION_MINOR}" 0)
+    setver(app_VERSION_PATCH "${PROJECT_VERSION_PATCH}" 0)
+    setver(app_VERSION_TWEAK "${PROJECT_VERSION_TWEAK}" 0)
+
+    # Define the reset of the versioninfo data.
+    set(app_COMPANY_NAME        "")
+    set(app_FILE_DESCRIPTION    "")
+    set(app_FILE_VERSION        "${app_version_string}")
+    set(app_INTERNAL_NAME       "${CMAKE_PROJECT_NAME}")
+    set(app_LEGAL_COPYRIGHT     "${app_copyright}")
+    set(app_LEGAL_TRADEMARK     "${app_trademark}")
+    set(app_ORIGINAL_FILENAME   "${CMAKE_PROJECT_NAME}.exe")
+    set(app_PRODUCT_NAME        "${CMAKE_PROJECT_NAME}")
+    set(app_PRODUCT_VERSION     "${app_version_string}")
+    set(app_ICON                "${PROJECT_SOURCE_DIR}/assets/icon.ico")
+
+    # Create the windows VERSIONINFO resource file.
+    configure_file(version_info.rc.in version_info.rc @ONLY)
+    target_sources(acquisition PUBLIC "${CMAKE_BINARY_DIR}/version_info.rc")
+
     # Visual Studio 2022 needs this to work with boost.
-    target_compile_options(acquisition PRIVATE /EHsc /W4)
+    target_compile_options(acquisition PRIVATE /EHsc)
+    
+    # Enable more warnings than default
+    target_compile_options(acquisition PRIVATE /W4)
+    
+    # Create .pdb files for debugging
+    target_compile_options(acquisition PRIVATE /Zi)
+    
+    # Tell linker to include symbol data
+    set_target_properties(acquisition PROPERTIES
+        LINK_FLAGS "/INCREMENTAL:NO /DEBUG /OPT:REF /OPT:ICF"
+        COMPILE_PDB_NAME acquisition
+        COMPILE_PDB_OUTPUT_DIR "${CMAKE_BINARY_DIR}"
+    )
+    
+elseif(APPLE)
+    
 
-    # Visual Studio 2022 needs for debugging to work.
-    target_compile_options(acquisition PRIVATE "$<$<CONFIG:DEBUG>:/Zi>")
+    set(macosx_app_version "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
 
-endif()
-
-if(APPLE)
+    # Setup the macOS bundle
+    set_target_properties(acquisition PROPERTIES
+        MACOSX_BUNDLE_BUNDLE_NAME "Acquisition"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${macosx_app_version}"
+        MACOSX_BUNDLE_COPYRIGHT "${app_copyright}"
+        #MACOSX_BUNDLE_GUI_IDENTIFIER ""
+        MACOSX_BUNDLE_ICON_FILE "icon.icns"
+        MACOSX_BUNDLE_INFO_STRING "${PROJECT_DESCRIPTION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${macosx_app_version}"
+    )
 
     # Add the macOS application icon
-    set(MACOSX_BUNDLE_ICON_FILE icon.icns)
-    set(macos_app_icon "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.icns")
-    set_source_files_properties(${macos_app_icon} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
-    target_sources(acquisition PUBLIC "${macos_app_icon}")
+    set(macos_app_icon "${PROJECT_SOURCE_DIR}/assets/icon.icns")
+    set_source_files_properties("${macos_app_icon}" PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+    target_sources(acquisition PRIVATE "${macos_app_icon}")
+    
+    # Generate debugging symbols file.
+    target_compile_options(acquisition PRIVATE "-g")
+    set_target_properties(acquisition PROPERTIES
+        XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES"
+        XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT "dwarf-with-dsym"
+        XCODE_ATTRIBUTE_DEPLOYMENT_POSTPROCESING "YES"
+        XCODE_ATTRIBUTE_STRIP_INSTALLED_PRODUCT "YES"
+    )
+    set(macos_exe "${CMAKE_BINARY_DIR}/acquisition.app/Contents/MacOS/acquisition")
+    set(macos_dsym "${CMAKE_BINARY_DIR}/acquisition_${app_version_string}.dSYM")
+    add_custom_command(TARGET acquisition
+        POST_BUILD
+        COMMAND xcrun dsymutil "${macos_exe}" -o "${macos_dsym}"
+    )
+    
+elseif(UNIX)
+    
+    # On Linux we depend on OpenSSL 3.1.5
+    if("$ENV{OPENSSL_ROOT_DIR}" STREQUAL "")
+        set(OPENSSL_ROOT_DIR ~/openssl-3.1.5)
+    endif()
+    set(OPENSSL_USE_STATIC_LIBS TRUE)
+    find_package(OpenSSL 3.1.5 REQUIRED)
+    target_link_libraries(acquisition PUBLIC
+        OpenSSL::SSL
+        OpenSSL::Crypto
+    )
 
-    # On macOS we need to enable unary functions for version of boost we are using.
-    target_compile_definitions(acquisition PUBLIC _LIBCPP_ENABLE_CXX17_REMOVED_UNARY_BINARY_FUNCTION)
-
+    # Generate debug symbols.
+    target_compile_options(acquisition PRIVATE -g)
+    add_custom_command(TARGET acquisition
+        POST_BUILD
+        COMMAND objcopy --only-keep-debug acquisition acquisition.debug
+        COMMAND strip --strip-debug --strip-unneeded acquisition
+        COMMAND objcopy --add-gnu-debuglink=acquisition.debug acquisition
+        COMMAND chmod -x acquisition.debug
+    )
+    
 endif()
-
-set_target_properties(acquisition PROPERTIES
-    ${BUNDLE_ID_OPTION}
-    MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
-    MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
-    MACOSX_BUNDLE TRUE
-    WIN32_EXECUTABLE TRUE
-)
