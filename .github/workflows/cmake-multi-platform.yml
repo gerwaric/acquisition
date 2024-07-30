@@ -32,6 +32,7 @@ jobs:
             c_compiler: cl
             cpp_compiler: cl
             qt_arch: win64_msvc2019_64
+            modules: qthttpserver
             
     steps:
     - uses: actions/checkout@v4
