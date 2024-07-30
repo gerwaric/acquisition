@@ -26,7 +26,7 @@ jobs:
         os: [windows-latest]
         build_type: [Release]
         c_compiler: [cl]
-        qt_arch: [win64_msvc2019_arm64]
+        qt_arch: [win64_msvc2019_64]
         include:
           - os: windows-latest
             c_compiler: cl
