@@ -41,6 +41,15 @@
 #include "version_defines.h"
 #include "testmain.h"
 
+// This is needed for Visual Studio 2022.
+#include "boost/config.hpp"
+#ifdef BOOST_NO_EXCEPTIONS
+#include <boost/throw_exception.hpp>
+void boost::throw_exception(std::exception const& e) {
+    throw e;
+}
+#endif
+
 #ifdef _DEBUG
 constexpr QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::DebugLevel;
 #else
