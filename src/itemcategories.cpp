@@ -121,8 +121,7 @@ void InitItemBaseTypes(const QByteArray& baseTypes) {
 }
 
 std::string GetItemCategory(const std::string& baseType) {
-    QLOG_TRACE() << "GetItemCategory() entered";
-    QLOG_TRACE() << "GetItemCategory() baseType =" << baseType;
+
     static auto& data = CATEGORY_DATA::instance();
 
     if (data.itemBaseType_NameToClass.empty()) {
@@ -141,7 +140,8 @@ std::string GetItemCategory(const std::string& baseType) {
             return category;
         };
     };
-    QLOG_TRACE() << "GetItemCategory: could not categorize baseType";
+
+    QLOG_TRACE() << "GetItemCategory: could not categorize baseType:" << baseType;
     return "";
 }
 
