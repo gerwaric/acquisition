@@ -87,6 +87,12 @@ private:
     void SetupEndpoint(
         const QString& endpoint,
         QNetworkRequest network_request,
+        RateLimit::RateLimitedReply* reply);
+
+    // Process the first request for an endpoint we haven't encountered before.
+    void ProcessHeadResponse(
+        const QString& endpoint,
+        QNetworkRequest network_request,
         RateLimit::RateLimitedReply* reply,
         QNetworkReply* network_reply);
 

@@ -19,6 +19,7 @@
 
 #include "ratelimiter.h"
 
+#include <QEventLoop>
 #include <QMutex>
 #include <QMutexLocker>
 #include <QNetworkAccessManager>
@@ -112,37 +113,13 @@ RateLimit::RateLimitedReply* RateLimiter::Submit(
 
     } else {
 
-        // Use a HEAD request to determine the policy status for a new endpoint.
-        QLOG_DEBUG() << "OAuthManger::Submit() sending a HEAD for a new endpoint:" << endpoint;
-        if (mode_ == POE_API::OAUTH) {
-            oauth_manager_.setAuthorization(network_request);
-        };
-        QNetworkReply* network_reply = network_manager_.head(network_request);
-        connect(network_reply, &QNetworkReply::finished, this,
-            [=]() {
-                SetupEndpoint(endpoint, network_request, reply, network_reply);
-            });
-
-        // Catch network errors so we can change the setup state.
-        connect(network_reply, &QNetworkReply::errorOccurred, this,
-            [=]() {
-                FatalError(QString("Network error %1 in HEAD reply for '%2': %3").arg(
-                    QString::number(network_reply->error()),
-                    endpoint,
-                    network_reply->errorString()));
-            });
-
-        // Catch SSL errors so we can change the setup state.
-        connect(network_reply, &QNetworkReply::sslErrors, this,
-            [=](const QList<QSslError>& errors) {
-                QStringList messages;
-                for (const auto& error : errors) {
-                    messages.append(error.errorString());
-                };
-                FatalError(QString("SSL error(s) in HEAD reply for '%1': %2").arg(
-                    endpoint,
-                    messages.join(", ")));
-            });
+        // This is a new endpoint, so it's possible we need a new policy
+        // manager, or that this endpoint should be managed by another
+        // manager that has already been created, because the same rate limit
+        // policy can apply to multiple managers.
+        QLOG_DEBUG() << "Unknown endpoint encountered:" << endpoint;
+        SetupEndpoint(endpoint, network_request, reply);
+        
     };
     return reply;
 }
@@ -150,20 +127,80 @@ RateLimit::RateLimitedReply* RateLimiter::Submit(
 void RateLimiter::SetupEndpoint(
     const QString& endpoint,
     QNetworkRequest network_request,
+    RateLimit::RateLimitedReply* reply)
+{
+    QLOG_TRACE() << "RateLimiter::SetupEndpoint() entered";
+
+    // Use a HEAD request to determine the policy status for a new endpoint.
+    QLOG_DEBUG() << "Sending a HEAD for endpoint:" << endpoint;
+
+    // Make sure the network request get an OAuth bearer token if necessary.
+    if (mode_ == POE_API::OAUTH) {
+        QLOG_TRACE() << "RateLimiter::SetupEndpoint() calling setAuthorization()";
+        oauth_manager_.setAuthorization(network_request);
+    };
+
+    // Make the head request.
+    QLOG_TRACE() << "RateLimiter::SetupEndpoint() sending a HEAD request for" << endpoint;
+    QNetworkReply* network_reply = network_manager_.head(network_request);
+
+    // Cause a fatal error if there was a network error.
+    connect(network_reply, &QNetworkReply::errorOccurred, this,
+        [=]() {
+            QLOG_ERROR() << "RateLimiter::SetupEndpoint() network error in HEAD reply for" << endpoint;
+            FatalError(QString("Network error %1 in HEAD reply for '%2': %3").arg(
+                QString::number(network_reply->error()),
+                endpoint,
+                network_reply->errorString()));
+        });
+
+    // Cause a fatal error if there were any SSL errors.
+    connect(network_reply, &QNetworkReply::sslErrors, this,
+        [=](const QList<QSslError>& errors) {
+            QLOG_ERROR() << "RateLimiter::SetupEndpoint() SSL error in HEAD reply for endpoint:" << endpoint;
+            QStringList messages;
+            for (const auto& error : errors) {
+                messages.append(error.errorString());
+            };
+            FatalError(QString("SSL error(s) in HEAD reply for '%1': %2").arg(
+                endpoint,
+                messages.join(", ")));
+        });
+
+    // WARNING: it is important to wait for this head request to finish before proceeding,
+    // because otherwise acquisiton may end up flooding the network with a series of HEAD
+    // requests, which has gotten users blocked before by Cloudflare, which is a problem
+    // GGG may not have control over.
+    //
+    // Another solution to this problem would be to allow requests to queue here instead,
+    // but that would be a lot more complex.
+    QEventLoop loop;
+    connect(network_reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    loop.exec();
+
+    QLOG_TRACE() << "RateLimiter::SetupEndpoint() received a HEAD reply for" << endpoint;
+    ProcessHeadResponse(endpoint, network_request, reply, network_reply);
+}
+
+void RateLimiter::ProcessHeadResponse(
+    const QString& endpoint,
+    QNetworkRequest network_request,
     RateLimit::RateLimitedReply* reply,
     QNetworkReply* network_reply)
 {
-    QLOG_TRACE() << "RateLimiter::SetupEndpoint() entered";
-    QLOG_TRACE() << "RateLimiter::SetupEndpoint() endpoint =" << endpoint;
-    QLOG_TRACE() << "RateLimiter::SetupEndpoint() network_request =" << network_request.url().toString();
+    QLOG_TRACE() << "RateLimiter::ProcessHeadResponse() entered";
+    QLOG_TRACE() << "RateLimiter::ProcessHeadResponse() endpoint =" << endpoint;
+    QLOG_TRACE() << "RateLimiter::ProcessHeadResponse() url =" << network_request.url().toString();
 
     // Make sure the network reply is a valid pointer before using it.
     if (network_reply == nullptr) {
+        QLOG_ERROR() << "The HEAD reply was null";
         FatalError(QString("The HEAD reply was null"));
     };
 
     // Check for network errors.
     if (network_reply->error() != QNetworkReply::NoError) {
+        QLOG_ERROR() << "The HEAD reply had a network error";
         LogSetupReply(network_request, network_reply);
         FatalError(QString("Network error %1 in HEAD reply for '%2': %3").arg(
             QString::number(network_reply->error()),
@@ -173,7 +210,9 @@ void RateLimiter::SetupEndpoint(
 
     // Check for other HTTP errors.
     const int response_code = RateLimit::ParseStatus(network_reply);
-    if ((response_code < 200) && (response_code > 299)) {
+    const bool response_failed = (response_code < 200) || (response_code > 299);
+    if (response_failed) {
+        QLOG_ERROR() << "The HEAD request failed";
         LogSetupReply(network_request, network_reply);
         FatalError(QString("HTTP status %1 in HEAD reply for '%2'").arg(
             QString::number(response_code),
@@ -182,8 +221,9 @@ void RateLimiter::SetupEndpoint(
 
     // All endpoints should be rate limited.
     if (!network_reply->hasRawHeader("X-Rate-Limit-Policy")) {
+        QLOG_ERROR() << "The HEAD response did not contain a rate limit policy for endpoint:" << endpoint;
         LogSetupReply(network_request, network_reply);
-        FatalError(QString("The endpoint is not rate-limited: '%1'").arg(endpoint));
+        FatalError(QString("he HEAD response did not contain a rate limit policy for endpoint: '%1'").arg(endpoint));
     };
 
     // Get or create the manager for this policy.
