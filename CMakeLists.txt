@@ -311,22 +311,15 @@ if(WIN32)
     # Create the windows VERSIONINFO resource file.
     configure_file(version_info.rc.in version_info.rc @ONLY)
     target_sources(acquisition PUBLIC "${CMAKE_BINARY_DIR}/version_info.rc")
-
-    # Visual Studio 2022 needs this to work with boost.
-    target_compile_options(acquisition PRIVATE /EHsc)
     
     # Enable more warnings than default
-    target_compile_options(acquisition PRIVATE /W4)
+    add_compile_options("/W4")
     
     # Create .pdb files for debugging
-    target_compile_options(acquisition PRIVATE /Zi)
-    
-    # Tell linker to include symbol data
-    set_target_properties(acquisition PROPERTIES
-        LINK_FLAGS "/INCREMENTAL:NO /DEBUG /OPT:REF /OPT:ICF"
-        COMPILE_PDB_NAME acquisition
-        COMPILE_PDB_OUTPUT_DIR "${CMAKE_BINARY_DIR}"
-    )
+    add_compile_options("$<$<NOT:$<CONFIG:Debug>>:/Zi>")
+    add_link_options("$<$<NOT:$<CONFIG:Debug>>:/DEBUG>")
+    add_link_options("$<$<NOT:$<CONFIG:Debug>>:/OPT:REF>")
+    add_link_options("$<$<NOT:$<CONFIG:Debug>>:/OPT:ICF>")
     
 elseif(APPLE)
     
