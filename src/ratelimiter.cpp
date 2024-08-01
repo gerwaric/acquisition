@@ -20,8 +20,6 @@
 #include "ratelimiter.h"
 
 #include <QEventLoop>
-#include <QMutex>
-#include <QMutexLocker>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 
@@ -287,10 +285,6 @@ RateLimitManager& RateLimiter::GetManager(
     QLOG_TRACE() << "RateLimiter::GetManager() entered";
     QLOG_TRACE() << "RateLimiter::GetManager() endpoint = " << endpoint;
     QLOG_TRACE() << "RateLimiter::GetManager() policy_name = " << policy_name;
-
-    // Make sure this function is thread-safe, since it modifies the managers.
-    static QMutex mutex;
-    QMutexLocker locker(&mutex);
 
     auto it = manager_by_policy_.find(policy_name);
     if (it == manager_by_policy_.end()) {
