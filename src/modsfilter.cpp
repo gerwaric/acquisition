@@ -36,10 +36,12 @@ SelectedMod::SelectedMod(const std::string& name, double min, double max, bool m
 {
     mod_select_.setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
 
-    if (min_filled)
+    if (min_filled) {
         min_text_.setText(QString::number(min));
-    if (max_filled)
+    };
+    if (max_filled) {
         max_text_.setText(QString::number(max));
+    };
 
     // Connect signals for the mod fields.
     QObject::connect(&mod_select_, &QComboBox::currentIndexChanged, this, &SelectedMod::OnModChanged);
@@ -70,7 +72,7 @@ void SelectedMod::OnModDeleted() {
 }
 
 void SelectedMod::AddToLayout(QGridLayout* layout) {
-    const int row = layout->rowCount() - 1;
+    const int row = layout->rowCount();
     layout->addWidget(&mod_select_, row, 0, 1, ModsFilter::LayoutColumn::kColumnCount);
     layout->addWidget(&min_text_, row + 1, ModsFilter::LayoutColumn::kMinField);
     layout->addWidget(&max_text_, row + 1, ModsFilter::LayoutColumn::kMaxField);
@@ -92,10 +94,11 @@ ModsFilter::ModsFilter(QLayout* parent) :
     QWidget* widget = new QWidget;
     widget->setContentsMargins(0, 0, 0, 0);
     widget->setLayout(&layout_);
+    widget->hide();
     parent->addWidget(widget);
 
     // Setup the 'Add mod' button.
-    layout_.addWidget(&add_button_, layout_.rowCount(), 0, 1, LayoutColumn::kColumnCount);
+    parent->addWidget(&add_button_);
     QObject::connect(&add_button_, &QPushButton::clicked, &signal_handler_, &ModsFilterSignalHandler::OnAddButtonClicked);
 
     // Make sure the main window knows when the search form has changed.
@@ -110,6 +113,7 @@ void ModsFilter::FromForm(FilterData* data) {
     for (auto& mod : mods_) {
         data->mod_data.push_back(mod->data());
     };
+    active_ = !mods_.empty();
 }
 
 void ModsFilter::ToForm(FilterData* data) {
@@ -120,36 +124,35 @@ void ModsFilter::ToForm(FilterData* data) {
         mods_.push_back(std::make_unique<SelectedMod>(mod.mod, mod.min, mod.max, mod.min_filled, mod.max_filled));
         mods_.back()->AddToLayout(&layout_);
     };
-
-    // Add the button at the end.
-    layout_.addWidget(&add_button_, layout_.rowCount(), 0, 1, LayoutColumn::kColumnCount);
 }
 
 void ModsFilter::ResetForm() {
     while (auto item = layout_.takeAt(0)) {};
     mods_.clear();
+    active_ = false;
 }
 
 bool ModsFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
     for (auto& mod : data->mod_data) {
-        if (mod.mod.empty())
+        if (mod.mod.empty()) {
             continue;
+        };
         const ModTable& mod_table = item->mod_table();
-        if (!mod_table.count(mod.mod))
+        if (!mod_table.count(mod.mod)) {
             return false;
+        };
         double value = mod_table.at(mod.mod);
-        if (mod.min_filled && value < mod.min)
+        if (mod.min_filled && value < mod.min) {
             return false;
-        if (mod.max_filled && value > mod.max)
+        };
+        if (mod.max_filled && value > mod.max) {
             return false;
+        };
     }
     return true;
 }
 
 void ModsFilter::AddNewMod() {
-
-    // Remove the button from the bottom of the mod search panel.
-    layout_.removeWidget(&add_button_);
 
     // Create the mod, connect signals, and add it to the UI.
     auto mod = std::make_unique<SelectedMod>("", 0, 0, false, false);
@@ -158,8 +161,12 @@ void ModsFilter::AddNewMod() {
     mod->AddToLayout(&layout_);
     mods_.push_back(std::move(mod));
 
-    // Add the button back to the new bottom of the search panel.
-    layout_.addWidget(&add_button_, layout_.rowCount(), 0, 1, LayoutColumn::kColumnCount);
+    // The parent might be hidden if there were no mod searches.
+    if (layout_.parentWidget()->isHidden()) {
+        layout_.parentWidget()->show();
+    };
+
+    active_ = true;
 }
 
 void ModsFilter::DeleteMod(SelectedMod& mod) {
@@ -167,6 +174,11 @@ void ModsFilter::DeleteMod(SelectedMod& mod) {
     for (auto it = mods_.begin(); it < mods_.end(); ++it) {
         if (&mod == it->get()) {
             mods_.erase(it);
+            // Hide the entire layout if there are no mod searches.
+            if (mods_.empty()) {
+                layout_.parentWidget()->hide();
+                active_ = false;
+            };
             return;
         };
     };
