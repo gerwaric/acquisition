@@ -36,7 +36,7 @@ project(acquisition
 )
 
 # Use this to define pre-releases
-set(version_postfix "-rc.1")
+set(version_postfix "-rc.2")
 
 # Variables used to generate version_defines.h and installer.iss
 set(version_code        63) # This doesn't need to be changed with the new update checks.
@@ -57,6 +57,23 @@ set(CMAKE_AUTOUIC_SEARCH_PATHS forms/)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# When building with Qt Creator in Windows, the compiler and linker options
+# need to be set before qt_add_executable(), otherwise these options won't be used.
+# (This is apparently not an issue with Visual Studio 2022).
+
+if(WIN32)
+
+    # Enable more warnings by default
+    add_compile_options(/W4)
+
+    # Create .pdb files for debugging
+    add_compile_options("$<$<NOT:$<CONFIG:Debug>>:/Zi>")
+    add_link_options("$<$<NOT:$<CONFIG:Debug>>:/DEBUG>")
+    add_link_options("$<$<NOT:$<CONFIG:Debug>>:/OPT:REF>")
+    add_link_options("$<$<NOT:$<CONFIG:Debug>>:/OPT:ICF>")
+
+endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui HttpServer Network Sql Test WebSockets Widgets)
 
@@ -204,7 +221,6 @@ target_link_libraries(acquisition PRIVATE
     Crashpad
 )
 
-
 # Create the Crashpad library target.
 add_library(Crashpad STATIC
     src/crashpad.cpp
@@ -311,19 +327,9 @@ if(WIN32)
     # Create the windows VERSIONINFO resource file.
     configure_file(version_info.rc.in version_info.rc @ONLY)
     target_sources(acquisition PUBLIC "${CMAKE_BINARY_DIR}/version_info.rc")
-    
-    # Enable more warnings than default
-    add_compile_options("/W4")
-    
-    # Create .pdb files for debugging
-    add_compile_options("$<$<NOT:$<CONFIG:Debug>>:/Zi>")
-    add_link_options("$<$<NOT:$<CONFIG:Debug>>:/DEBUG>")
-    add_link_options("$<$<NOT:$<CONFIG:Debug>>:/OPT:REF>")
-    add_link_options("$<$<NOT:$<CONFIG:Debug>>:/OPT:ICF>")
-    
+        
 elseif(APPLE)
     
-
     set(macosx_app_version "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
 
     # Setup the macOS bundle

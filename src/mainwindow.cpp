@@ -134,10 +134,12 @@ MainWindow::MainWindow(
     connect(&update_checker_, &UpdateChecker::UpdateAvailable, this, &MainWindow::OnUpdateAvailable);
 
     delayed_update_current_item_.setInterval(CURRENT_ITEM_UPDATE_DELAY_MS);
-    delayed_search_form_change_.setInterval(SEARCH_UPDATE_DELAY_MS);
+    delayed_update_current_item_.setSingleShot(true);
+    connect(&delayed_update_current_item_, &QTimer::timeout, this, &MainWindow::UpdateCurrentItem);
 
-    connect(&delayed_update_current_item_, &QTimer::timeout, this, [&]() {UpdateCurrentItem(); delayed_update_current_item_.stop(); });
-    connect(&delayed_search_form_change_, &QTimer::timeout, this, [&]() {OnSearchFormChange(); delayed_search_form_change_.stop(); });
+    delayed_search_form_change_.setInterval(SEARCH_UPDATE_DELAY_MS);
+    delayed_search_form_change_.setSingleShot(true);
+    connect(&delayed_search_form_change_, &QTimer::timeout, this, &MainWindow::OnSearchFormChange);
 
     LoadSettings();
     NewSearch();
@@ -736,7 +738,7 @@ void MainWindow::InitializeSearchForm() {
     auto misc_layout = new FlowLayout;
     auto misc_flags_layout = new FlowLayout;
     auto misc_flags2_layout = new FlowLayout;
-    auto mods_layout = new QHBoxLayout;
+    auto mods_layout = new QVBoxLayout;
 
     AddSearchGroup(offense_layout, "Offense");
     AddSearchGroup(defense_layout, "Defense");
