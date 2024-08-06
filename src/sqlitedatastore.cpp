@@ -21,24 +21,19 @@
 
 #include <QCryptographicHash>
 #include <QDir>
-#include <QMutexLocker>
 #include <QSqlError>
 #include <QSqlQuery>
 
 #include "QsLog.h"
 #include "currencymanager.h"
 
-QMutex SqliteDataStore::mutex_;
-
 SqliteDataStore::SqliteDataStore(const QString& filename) :
     filename_(filename)
 {
     QDir dir(QDir::cleanPath(filename + "/.."));
-    if (!dir.exists())
+    if (!dir.exists()) {
         QDir().mkpath(dir.path());
-
-    QMutexLocker locker(&mutex_);
-
+    };
     db_ = QSqlDatabase::addDatabase("QSQLITE", filename);
     db_.setDatabaseName(filename);
     if (db_.open() == false) {
@@ -46,13 +41,11 @@ SqliteDataStore::SqliteDataStore(const QString& filename) :
         return;
     };
 
-    locker.unlock();
     CreateTable("data", "key TEXT PRIMARY KEY, value BLOB");
     CreateTable("tabs", "type INT PRIMARY KEY, value BLOB");
     CreateTable("items", "loc TEXT PRIMARY KEY, value BLOB");
     CreateTable("currency", "timestamp INTEGER PRIMARY KEY, value TEXT");
     CleanItemsTable();
-    locker.relock();
 
     QSqlQuery query(db_);
     query.prepare("VACUUM");
@@ -62,7 +55,6 @@ SqliteDataStore::SqliteDataStore(const QString& filename) :
 }
 
 void SqliteDataStore::CreateTable(const std::string& name, const std::string& fields) {
-    QMutexLocker locker(&mutex_);
     const QString qname = QString::fromStdString(name);
     const QString qfields = QString::fromStdString(fields);
     QSqlQuery query(db_);
@@ -73,7 +65,6 @@ void SqliteDataStore::CreateTable(const std::string& name, const std::string& fi
 }
 
 void SqliteDataStore::CleanItemsTable() {
-    QMutexLocker locker(&mutex_);
     QSqlQuery query(db_);
     query.prepare("DELETE FROM items WHERE loc IS NULL");
     if (query.exec() == false) {
@@ -84,11 +75,9 @@ void SqliteDataStore::CleanItemsTable() {
     //If tabs table contains two records which are not empty or NULL (i.e. type column is equal to 0 or 1 for the two records)
     //  * check all "db.items" record keys against 'id' or 'name' values in the "db.tabs" data,
     //    remove record from 'items' if not anywhere in either 'tabs' record.
-    locker.unlock();
     Locations stashTabData = SqliteDataStore::GetTabs(ItemLocationType::STASH);
     Locations charsData = SqliteDataStore::GetTabs(ItemLocationType::CHARACTER);
-    locker.relock();
-
+    
     if (!stashTabData.empty() && !charsData.empty()) {
         QStringList locs;
 
@@ -145,7 +134,6 @@ void SqliteDataStore::CleanItemsTable() {
 }
 
 std::string SqliteDataStore::Get(const std::string& key, const std::string& default_value) {
-    QMutexLocker locker(&mutex_);
     QSqlQuery query(db_);
     query.prepare("SELECT value FROM data WHERE key = ?");
     query.bindValue(0, QString::fromStdString(key));
@@ -164,7 +152,6 @@ std::string SqliteDataStore::Get(const std::string& key, const std::string& defa
 }
 
 Locations SqliteDataStore::GetTabs(const ItemLocationType& type) {
-    QMutexLocker locker(&mutex_);
     QSqlQuery query(db_);
     query.prepare("SELECT value FROM tabs WHERE type = ?");
     query.bindValue(0, (int)type);
@@ -184,7 +171,6 @@ Locations SqliteDataStore::GetTabs(const ItemLocationType& type) {
 
 Items SqliteDataStore::GetItems(const ItemLocation& loc) {
     const QString tab_uid = QString::fromStdString(loc.get_tab_uniq_id());
-    QMutexLocker locker(&mutex_);
     QSqlQuery query(db_);
     query.prepare("SELECT value FROM items WHERE loc = ?");
     query.bindValue(0, tab_uid);
@@ -203,7 +189,6 @@ Items SqliteDataStore::GetItems(const ItemLocation& loc) {
 }
 
 void SqliteDataStore::Set(const std::string& key, const std::string& value) {
-    QMutexLocker locker(&mutex_);
     QSqlQuery query(db_);
     query.prepare("INSERT OR REPLACE INTO data (key, value) VALUES (?, ?)");
     query.bindValue(0, QString::fromStdString(key));
@@ -214,7 +199,6 @@ void SqliteDataStore::Set(const std::string& key, const std::string& value) {
 }
 
 void SqliteDataStore::SetTabs(const ItemLocationType& type, const Locations& tabs) {
-    QMutexLocker locker(&mutex_);
     QSqlQuery query(db_);
     query.prepare("INSERT OR REPLACE INTO tabs (type, value) VALUES (?, ?)");
     query.bindValue(0, (int)type);
@@ -229,7 +213,6 @@ void SqliteDataStore::SetItems(const ItemLocation& loc, const Items& items) {
         QLOG_WARN() << "Cannot set items because the location is empty";
         return;
     };
-    QMutexLocker locker(&mutex_);
     QSqlQuery query(db_);
     query.prepare("INSERT OR REPLACE INTO items (loc, value) VALUES (?, ?)");
     query.bindValue(0, QString::fromStdString(loc.get_tab_uniq_id()));
@@ -240,7 +223,6 @@ void SqliteDataStore::SetItems(const ItemLocation& loc, const Items& items) {
 }
 
 void SqliteDataStore::InsertCurrencyUpdate(const CurrencyUpdate& update) {
-    QMutexLocker locker(&mutex_);
     QSqlQuery query(db_);
     query.prepare("INSERT INTO currency (timestamp, value) VALUES (?, ?)");
     query.bindValue(0, update.timestamp);
@@ -251,7 +233,6 @@ void SqliteDataStore::InsertCurrencyUpdate(const CurrencyUpdate& update) {
 }
 
 std::vector<CurrencyUpdate> SqliteDataStore::GetAllCurrency() {
-    QMutexLocker locker(&mutex_);
     QSqlQuery query(db_);
     query.prepare("SELECT timestamp, value FROM currency ORDER BY timestamp ASC");
     std::vector<CurrencyUpdate> result;
@@ -273,9 +254,14 @@ std::vector<CurrencyUpdate> SqliteDataStore::GetAllCurrency() {
 }
 
 SqliteDataStore::~SqliteDataStore() {
-    QMutexLocker locker(&mutex_);
     if (db_.isValid()) {
+
+        // First close the database to invalidate any queries.
         db_.close();
+        
+        // Next remove the database connection to avoid undefined behavior
+        // at application shutdown per https://doc.qt.io/qt-6.5/qsqldatabase.html
+        QSqlDatabase::removeDatabase(filename_);
     };
 }
 

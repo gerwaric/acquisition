@@ -532,13 +532,13 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
                     g = std::stoul(colour.substr(2, 2), nullptr, 16);
                     b = std::stoul(colour.substr(4, 2), nullptr, 16);
                 } else {
-                    QLOG_ERROR() << "Cannot parse the stash tab" << tab_name << "colour:" << colour;
+                    QLOG_DEBUG() << "Cannot parse the stash tab" << tab_name << "colour:" << colour;
                 };
             } else {
-                QLOG_WARN() << "The stash tab does not have a colour:" << tab_name;
+                QLOG_DEBUG() << "The stash tab does not have a colour:" << tab_name;
             };
         } else {
-            QLOG_WARN() << "The stash tab has no metadata:" << tab_name;
+            QLOG_DEBUG() << "The stash tab has no metadata:" << tab_name;
         };
         ItemLocation location(tab_index, tab_id, tab_name, ItemLocationType::STASH, r, g, b, tab, doc.GetAllocator());
         tabs_.push_back(location);
