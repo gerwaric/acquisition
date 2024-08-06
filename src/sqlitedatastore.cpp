@@ -255,7 +255,13 @@ std::vector<CurrencyUpdate> SqliteDataStore::GetAllCurrency() {
 
 SqliteDataStore::~SqliteDataStore() {
     if (db_.isValid()) {
+
+        // First close the database to invalidate any queries.
         db_.close();
+        
+        // Next remove the database connection to avoid undefined behavior
+        // at application shutdown per https://doc.qt.io/qt-6.5/qsqldatabase.html
+        QSqlDatabase::removeDatabase(filename_);
     };
 }
 
