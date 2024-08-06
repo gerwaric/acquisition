@@ -19,7 +19,6 @@
 
 #pragma once
 
-#include <QMutex>
 #include <QSqlDatabase>
 
 #include <string>
@@ -49,6 +48,4 @@ private:
 
     QString filename_;
     QSqlDatabase db_;
-
-    static QMutex mutex_;
 };
