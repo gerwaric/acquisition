@@ -16,9 +16,17 @@ class ItemLocation {
 public:
     ItemLocation();
     explicit ItemLocation(const rapidjson::Value& root);
-    explicit ItemLocation(int tab_id, std::string tab_unique_id, std::string name);
-    explicit ItemLocation(int tab_id, std::string tab_unique_id, std::string name,
-        ItemLocationType type, int r, int g, int b,
+    explicit ItemLocation(
+        int tab_id,
+        const std::string tab_unique_id,
+        const std::string name);
+    explicit ItemLocation(
+        int tab_id,
+        const std::string tab_unique_id,
+        const std::string name,
+        ItemLocationType type,
+        const std::string tab_type,
+        int r, int g, int b,
         rapidjson::Value& value, rapidjson_allocator& alloc);
 
     void ToItemJson(rapidjson::Value* root, rapidjson_allocator& alloc);
@@ -56,6 +64,10 @@ private:
     //this would be the value "tabs -> id", which seems to be a hashed value generated on their end
     std::string tab_unique_id_;
 
+    // This is the "type" field from GGG, which is different from the ItemLocationType
+    // used by Acquisition.
+    std::string tab_type_;
+    
     std::string tab_label_;
     std::string character_;
     std::string inventory_id_;

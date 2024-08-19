@@ -24,6 +24,7 @@ ItemLocation::ItemLocation() :
     socketed_(false),
     removeonly_(false),
     type_(ItemLocationType::STASH),
+    tab_type_(""),
     tab_id_(0)
 {}
 
@@ -34,7 +35,11 @@ ItemLocation::ItemLocation(const rapidjson::Value& root) :
     FixUid();
 }
 
-ItemLocation::ItemLocation(int tab_id, std::string tab_unique_id, std::string name) :
+ItemLocation::ItemLocation(
+    int tab_id,
+    const std::string tab_unique_id,
+    const std::string name)
+    :
     ItemLocation()
 {
     tab_label_ = name;
@@ -42,23 +47,33 @@ ItemLocation::ItemLocation(int tab_id, std::string tab_unique_id, std::string na
     tab_unique_id_ = tab_unique_id;
 }
 
-ItemLocation::ItemLocation(int tab_id, std::string tab_unique_id, std::string name,
-    ItemLocationType type, int r, int g, int b,
+ItemLocation::ItemLocation(
+    int tab_id,
+    const std::string tab_unique_id,
+    const std::string name,
+    ItemLocationType type,
+    const std::string tab_type, 
+    int r, int g, int b,
     rapidjson::Value& value, rapidjson_allocator& alloc)
     :
-    x_(0), y_(0), w_(0), h_(0), red_(r), green_(g), blue_(b),
-    socketed_(false)
+    x_(0), y_(0),
+    w_(0), h_(0),
+    red_(r), green_(g), blue_(b),
+    socketed_(false),
+    type_(type),
+    tab_id_(tab_id),
+    json_(Util::RapidjsonSerialize(value)),
+    tab_unique_id_(tab_unique_id)
 {
-    type_ = type;
-    tab_id_ = tab_id;
-    tab_unique_id_ = tab_unique_id;
     switch (type_) {
     case ItemLocationType::STASH:
+        tab_type_ = tab_type;
         tab_label_ = name;
         character_ = "";
         removeonly_ = ends_with(name, "(Remove-only)");
         break;
     case ItemLocationType::CHARACTER:
+        tab_type_ = "";
         tab_label_ = "";
         character_ = name;
         removeonly_ = false;
@@ -85,7 +100,6 @@ ItemLocation::ItemLocation(int tab_id, std::string tab_unique_id, std::string na
             value.AddMember("colour", color_value, alloc);
         };
     };
-    json_ = Util::RapidjsonSerialize(value);
 }
 
 void ItemLocation::FixUid() {
@@ -182,10 +196,17 @@ QRectF ItemLocation::GetRect() const {
         };
     };
 
-    result.setX(MINIMAP_SIZE * itemPos.x / INVENTORY_SLOTS);
-    result.setY(MINIMAP_SIZE * itemPos.y / INVENTORY_SLOTS);
-    result.setWidth(MINIMAP_SIZE * w_ / INVENTORY_SLOTS);
-    result.setHeight(MINIMAP_SIZE * h_ / INVENTORY_SLOTS);
+    // The number of pixels per slot depends on whether we are looking
+    // at a quad stash or not.
+    float pixels_per_slot = static_cast<float>(PIXELS_PER_MINIMAP_SLOT);
+    if (0 == tab_type_.compare("QuadStash")) {
+        pixels_per_slot /= 2.0;
+    };
+
+    result.setX(pixels_per_slot * itemPos.x);
+    result.setY(pixels_per_slot * itemPos.y);
+    result.setWidth(pixels_per_slot * w_);
+    result.setHeight(pixels_per_slot * h_);
     return result;
 }
 
