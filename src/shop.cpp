@@ -346,6 +346,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
                 : "(Failed to parse the error message)";
             QLOG_ERROR() << "Error submitting shop thread:" << error_message;
             QLOG_TRACE() << "The html fragment containing the error is" << error_match.captured(0);
+            QLOG_ERROR() << "The query was:" << query.toString();
             // This error would occur somewhat randomly before a delay was added in OnEditPageFinished.
             // With that delay, this error doesn't seem to happen any more, but we should probably
             // keep checking for it.
