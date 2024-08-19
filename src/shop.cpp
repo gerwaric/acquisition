@@ -272,10 +272,11 @@ void Shop::OnEditPageFinished() {
     const QByteArray bytes = reply->readAll();
     const std::string hash = Util::GetCsrfToken(bytes, "hash");
     if (hash.empty()) {
-        QLOG_ERROR() << "Can't update shop -- cannot extract CSRF token from the page. Check if thread ID is valid."
-            << "If you're using Steam to login make sure you use the same login method (steam or login/password) in Acquisition, Path of Exile website and Path of Exile game client."
-            << "For example, if you created a shop thread while using Steam to log into the website and then logged into Acquisition with login/password it will not work."
-            << "In this case you should either recreate your shop thread or use a correct login method in Acquisition.";
+        if (bytes.contains("Login Required")) {
+            QLOG_ERROR() << "Cannot update shop: the POESESSID used by acquisition appears to be invalid.";
+        } else {
+            QLOG_ERROR() << "Cannot update shop: unable to extract CSRF token from the page. The thread ID may be invalid.";
+        };
         submitting_ = false;
         return;
     } else {
@@ -288,7 +289,7 @@ void Shop::OnEditPageFinished() {
     const std::string page(bytes.constData(), bytes.size());
     std::string title = Util::FindTextBetween(page, "<input type=\"text\" name=\"title\" id=\"title\" onkeypress=\"return&#x20;event.keyCode&#x21;&#x3D;13\" value=\"", "\">");
     if (title.empty()) {
-        QLOG_ERROR() << "Can't update shop -- title is empty. Check if thread ID is valid.";
+        QLOG_ERROR() << "Cannot update shop: title is empty. Check if thread ID is valid.";
         submitting_ = false;
         reply->deleteLater();
         return;
@@ -346,6 +347,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
                 : "(Failed to parse the error message)";
             QLOG_ERROR() << "Error submitting shop thread:" << error_message;
             QLOG_TRACE() << "The html fragment containing the error is" << error_match.captured(0);
+            QLOG_ERROR() << "The query was:" << query.toString();
             // This error would occur somewhat randomly before a delay was added in OnEditPageFinished.
             // With that delay, this error doesn't seem to happen any more, but we should probably
             // keep checking for it.

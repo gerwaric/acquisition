@@ -480,6 +480,8 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
     // Queue stash tab requests.
     for (auto& tab : stashes) {
 
+        const auto x = Util::RapidjsonSerialize(tab);
+
         // Get the name of the stash tab.
         if (!HasString(tab, "name")) {
             QLOG_ERROR() << "The stash tab does not have a name";
@@ -519,6 +521,13 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
         };
         const int tab_index = tab["index"].GetInt();
 
+        // Get the type of this stash tab.
+        if (!HasString(tab, "type")) {
+            QLOG_ERROR() << "The stash tab does not have a type:" << tab_name;
+            continue;
+        };
+        const std::string tab_type = tab["type"].GetString();
+
         ++tabs_requested;
 
         // Create and save the tab location object.
@@ -540,7 +549,7 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
         } else {
             QLOG_DEBUG() << "The stash tab has no metadata:" << tab_name;
         };
-        ItemLocation location(tab_index, tab_id, tab_name, ItemLocationType::STASH, r, g, b, tab, doc.GetAllocator());
+        ItemLocation location(tab_index, tab_id, tab_name, ItemLocationType::STASH, tab_type, r, g, b, tab, doc.GetAllocator());
         tabs_.push_back(location);
         tab_id_index_.insert(tab_id);
 
@@ -609,7 +618,7 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
             continue;
         };
         const int tab_count = static_cast<int>(tabs_.size());
-        ItemLocation location(tab_count, "", name, ItemLocationType::CHARACTER, 0, 0, 0, character, doc.GetAllocator());
+        ItemLocation location(tab_count, "", name, ItemLocationType::CHARACTER, "", 0, 0, 0, character, doc.GetAllocator());
         tabs_.push_back(location);
         ++requested_character_count;
 
@@ -794,7 +803,7 @@ void ItemsManagerWorker::OnLegacyCharacterListReceived(QNetworkReply* reply) {
             continue;
         };
         const int tab_count = static_cast<int>(tabs_.size());
-        ItemLocation location(tab_count, "", name, ItemLocationType::CHARACTER, 0, 0, 0, character, doc.GetAllocator());
+        ItemLocation location(tab_count, "", name, ItemLocationType::CHARACTER, "", 0, 0, 0, character, doc.GetAllocator());
         tabs_.push_back(location);
         ++requested_character_count;
 
@@ -1011,6 +1020,14 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
             continue;
         };
 
+        // Get the type of this stash tab.
+        if (!HasString(tab, "type")) {
+            QLOG_ERROR() << "The stash tab does not have a type:" << label;
+            continue;
+        };
+        const std::string tab_type = tab["type"].GetString();
+
+
         // Create and save the tab location object.
         int r = 0, g = 0, b = 0;
         if (HasObject(tab, "colour")) {
@@ -1021,7 +1038,7 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
         } else {
             QLOG_DEBUG() << "Legacy tab does not have colour:" << label;
         };
-        ItemLocation location(index, tab_id, label, ItemLocationType::STASH, r, g, b, tab, doc.GetAllocator());
+        ItemLocation location(index, tab_id, label, ItemLocationType::STASH, tab_type, r, g, b, tab, doc.GetAllocator());
         tabs_.push_back(location);
         tab_id_index_.insert(tab_id);
 

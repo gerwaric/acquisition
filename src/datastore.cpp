@@ -65,7 +65,7 @@ Locations DataStore::DeserializeTabs(const QString& json) {
 
         // Constructor values to fill in
         size_t index;
-        std::string tabUniqueId, name;
+        std::string tabUniqueId, name, tabType;
         int r, g, b;
 
         switch (type) {
@@ -84,6 +84,12 @@ Locations DataStore::DeserializeTabs(const QString& json) {
             r = tab_json["colour"]["r"].GetInt();
             g = tab_json["colour"]["g"].GetInt();
             b = tab_json["colour"]["b"].GetInt();
+            if (tab_json.HasMember("type") && tab_json["type"].IsString()) {
+                tabType = tab_json["type"].GetString();
+            } else {
+                QLOG_DEBUG() << "Stash tab does not have a type:" << name;
+                tabType = "";
+            };
             break;
         case ItemLocationType::CHARACTER:
             if (tab_id_index_.count(tab_json["name"].GetString())) {
@@ -99,12 +105,13 @@ Locations DataStore::DeserializeTabs(const QString& json) {
             r = 0;
             g = 0;
             b = 0;
+            tabType = "";
             break;
         default:
             QLOG_ERROR() << "Invalid item location type:" << type;
             continue;
         };
-        ItemLocation loc(static_cast<int>(index), tabUniqueId, name, type, r, g, b, tab_json, doc.GetAllocator());
+        ItemLocation loc(static_cast<int>(index), tabUniqueId, name, type, tabType, r, g, b, tab_json, doc.GetAllocator());
         tabs.push_back(loc);
         tab_id_index_.insert(loc.get_tab_uniq_id());
     };
