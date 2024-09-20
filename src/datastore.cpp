@@ -2,7 +2,12 @@
 
 #include "QsLog.h"
 #include "rapidjson/error/en.h"
+#include "rapidjson_util.h"
 #include "util.h"
+
+using rapidjson::HasInt;
+using rapidjson::HasObject;
+using rapidjson::HasString;
 
 void DataStore::SetInt(const std::string& key, int value) {
     Set(key, std::to_string(value));
@@ -64,56 +69,115 @@ Locations DataStore::DeserializeTabs(const QString& json) {
             : ItemLocationType::STASH;
 
         // Constructor values to fill in
-        size_t index;
-        std::string tabUniqueId, name, tabType;
-        int r, g, b;
+        size_t index = 0;
+        std::string tabUniqueId = "";
+        std::string name = "";
+        std::string tabType = "";
+        int r = 0;
+        int g = 0;
+        int b = 0;
 
         switch (type) {
         case ItemLocationType::STASH:
-            if (tab_id_index_.count(tab_json["id"].GetString())) {
-                QLOG_ERROR() << "Duplicated tab found while loading data:" << tab_json["id"].GetString();
+
+            // Get the unique tab id
+            if (!HasString(tab_json, "id")) {
+                QLOG_ERROR() << "Malformed tab data missing unique id:" << Util::RapidjsonSerialize(tab_json);
                 continue;
             };
-            if (!tab_json.HasMember("n") || !tab_json["n"].IsString()) {
-                QLOG_ERROR() << "Malformed tabs data doesn't contain its name (field 'n'):" << Util::RapidjsonSerialize(tab_json);
-                continue;
-            };
-            index = tab_json["i"].GetInt();
             tabUniqueId = tab_json["id"].GetString();
-            name = tab_json["n"].GetString();
-            r = tab_json["colour"]["r"].GetInt();
-            g = tab_json["colour"]["g"].GetInt();
-            b = tab_json["colour"]["b"].GetInt();
-            if (tab_json.HasMember("type") && tab_json["type"].IsString()) {
+
+            // Make sure we haven't seen this tab before.
+            if (tab_id_index_.count(tabUniqueId)) {
+                QLOG_ERROR() << "Duplicate tab found while deserializing tabs:" << tabUniqueId;
+                continue;
+            };
+
+            // Get the tab name from "n" when using the legacy API and "name" when using the OAuth api.
+            if (HasString(tab_json, "n")) {
+                name = tab_json["n"].GetString();
+            } else if (HasString(tab_json, "name")) {
+                name = tab_json["name"].GetString();
+            } else {
+                QLOG_ERROR() << "Malformed tab data doesn't contain a name:" << Util::RapidjsonSerialize(tab_json);
+                continue;
+            };
+
+            // Get the optional tab index.
+            if (HasInt(tab_json, "i")) {
+                index = tab_json["i"].GetInt();
+            } else {
+                index = tabs.size();
+            };
+
+            // Get the tab color if present.
+            if (HasObject(tab_json, "colour")) {
+                const auto& colour = tab_json["colour"];
+                if (HasInt(colour, "r")) { r = colour["r"].GetInt(); };
+                if (HasInt(colour, "g")) { g = colour["g"].GetInt(); };
+                if (HasInt(colour, "b")) { b = colour["b"].GetInt(); };
+            } else if (HasObject(tab_json, "metadata")) {
+                const auto& metadata = tab_json["metadata"];
+                if (HasString(metadata, "colour")) {
+                    const std::string colour = metadata["colour"].GetString();
+                    if (colour.length() == 6) {
+                        r = std::stoul(colour.substr(0, 2), nullptr, 16);
+                        g = std::stoul(colour.substr(2, 2), nullptr, 16);
+                        b = std::stoul(colour.substr(4, 2), nullptr, 16);
+                    } else {
+                        QLOG_DEBUG() << "Stab tab colour meta data is not 6 characters" << name << ":" << Util::RapidjsonSerialize(tab_json);
+                        continue;
+                    };
+                } else {
+                    QLOG_DEBUG() << "Stab tab metadata does not have a colour" << name << ":" << Util::RapidjsonSerialize(tab_json);
+                    continue;
+                };
+            } else {
+                QLOG_DEBUG() << "Stash tab does not have a colour" << name << ":" << Util::RapidjsonSerialize(tab_json);
+                continue;
+            };
+
+            // Get the tab type.
+            if (HasString(tab_json, "type")) {
                 tabType = tab_json["type"].GetString();
             } else {
                 QLOG_DEBUG() << "Stash tab does not have a type:" << name;
                 tabType = "";
             };
             break;
+
         case ItemLocationType::CHARACTER:
-            if (tab_id_index_.count(tab_json["name"].GetString())) {
+
+            // Get the character name
+            if (!HasString(tab_json, "name")) {
                 continue;
             };
-            if (tab_json.HasMember("i")) {
+            name = tab_json["name"].GetString();
+            tabUniqueId = name;
+
+            // Make sure this isn't a duplicate.
+            if (tab_id_index_.count(name)) {
+                QLOG_ERROR() << "Duplicate character found while deserializing tabs:" << tabUniqueId;
+                continue;
+            };
+
+            // Get the optional tab index.
+            if (HasInt(tab_json, "i")) {
                 index = tab_json["i"].GetInt();
             } else {
                 index = tabs.size();
             };
-            tabUniqueId = tab_json["name"].GetString();
-            name = tab_json["name"].GetString();
-            r = 0;
-            g = 0;
-            b = 0;
-            tabType = "";
             break;
+
         default:
+
             QLOG_ERROR() << "Invalid item location type:" << type;
             continue;
+
         };
         ItemLocation loc(static_cast<int>(index), tabUniqueId, name, type, tabType, r, g, b, tab_json, doc.GetAllocator());
         tabs.push_back(loc);
-        tab_id_index_.insert(loc.get_tab_uniq_id());
+        tab_id_index_.insert(loc.get_tab_uniq_id()); 
     };
     return tabs;
 }
