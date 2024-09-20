@@ -61,7 +61,7 @@ bool Buyout::IsValid() const {
     default:
         QLOG_ERROR() << "Invalid buyout type:" << type;
         return false;
-    }
+    };
 }
 
 bool Buyout::IsActive() const {
@@ -102,8 +102,8 @@ BuyoutType Buyout::IndexAsBuyoutType(int index) {
         size_t index_t = (size_t)index;
         if (index_t < buyout_type_as_tag_.size()) {
             return static_cast<BuyoutType>(index_t);
-        }
-    }
+        };
+    };
 
     QLOG_WARN() << "Buyout type index out of bounds: " << index << ". This should never happen - please report.";
     return BUYOUT_TYPE_INHERIT;
@@ -114,7 +114,7 @@ std::string Buyout::AsText() const {
         return BuyoutTypeAsTag() + " " + QString::number(value).toStdString() + " " + CurrencyAsTag();
     } else {
         return BuyoutTypeAsTag();
-    }
+    };
 }
 
 const std::string& Buyout::BuyoutTypeAsTag() const {
@@ -124,7 +124,7 @@ const std::string& Buyout::BuyoutTypeAsTag() const {
     } else {
         QLOG_WARN() << "No mapping from buyout type: " << type << " to tag. This should never happen - please report.";
         return buyout_type_error_;
-    }
+    };
 }
 
 const std::string& Buyout::BuyoutTypeAsPrefix() const {
@@ -134,7 +134,7 @@ const std::string& Buyout::BuyoutTypeAsPrefix() const {
     } else {
         QLOG_WARN() << "No mapping from buyout type: " << type << " to prefix. This should never happen - please report.";
         return buyout_type_error_;
-    }
+    };
 }
 
 const std::string& Buyout::BuyoutSourceAsTag() const {
@@ -144,7 +144,7 @@ const std::string& Buyout::BuyoutSourceAsTag() const {
     } else {
         QLOG_WARN() << "No mapping from buyout source: " << source << " to tag. This should never happen - please report.";
         return buyout_type_error_;
-    }
+    };
 }
 
 const std::string& Buyout::CurrencyAsTag() const
@@ -154,8 +154,10 @@ const std::string& Buyout::CurrencyAsTag() const
 
 bool Buyout::operator==(const Buyout& o) const {
     static const double eps = 1e-6;
-    return std::fabs(o.value - value) < eps && o.type == type
-        && o.currency == currency && o.inherited == inherited
+    return std::fabs(o.value - value) < eps
+        && o.type == type
+        && o.currency == currency
+        && o.inherited == inherited
         && o.source == source;
 }
 
