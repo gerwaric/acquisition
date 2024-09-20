@@ -45,6 +45,9 @@ BuyoutManager::BuyoutManager(DataStore& data) :
 }
 
 void BuyoutManager::Set(const Item& item, const Buyout& buyout) {
+    if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
+        QLOG_WARN() << "BuyoutManager::Set() obsolete 'current offer' buyout detected for" << item.PrettyName() << ":" << buyout.AsText();
+    };
     auto const& it = buyouts_.lower_bound(item.hash());
     if (it != buyouts_.end() && !(buyouts_.key_comp()(item.hash(), it->first))) {
         // Entry exists - we don't want to update if buyout is equal to existing
@@ -61,7 +64,11 @@ void BuyoutManager::Set(const Item& item, const Buyout& buyout) {
 Buyout BuyoutManager::Get(const Item& item) const {
     auto const& it = buyouts_.find(item.hash());
     if (it != buyouts_.end()) {
-        return it->second;
+        Buyout buyout = it->second;
+        if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
+            QLOG_WARN() << "BuyoutManager::Get() obsolete 'current offer' buyout detected for" << item.PrettyName() << ":" << buyout.AsText();
+        };
+        return buyout;
     };
     return Buyout();
 }
@@ -69,12 +76,19 @@ Buyout BuyoutManager::Get(const Item& item) const {
 Buyout BuyoutManager::GetTab(const std::string& tab) const {
     auto const& it = tab_buyouts_.find(tab);
     if (it != tab_buyouts_.end()) {
-        return it->second;
+        Buyout buyout = it->second;
+        if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
+            QLOG_WARN() << "BuyoutManager::GetTab() obsolete 'current offer' buyout detected for" << tab << ":" << buyout.AsText();
+        };
+        return buyout;
     };
     return Buyout();
 }
 
 void BuyoutManager::SetTab(const std::string& tab, const Buyout& buyout) {
+    if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
+        QLOG_WARN() << "BuyoutManager::SetTab() obsolete 'current offer' buyout detected for" << tab << ":" << buyout.AsText();
+    };
     auto const& it = tab_buyouts_.lower_bound(tab);
     if (it != tab_buyouts_.end() && !(tab_buyouts_.key_comp()(tab, it->first))) {
         // Entry exists - we don't want to update if buyout is equal to existing
@@ -224,6 +238,9 @@ void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, B
         bo.inherited = false;
         if (object.HasMember("inherited")) {
             bo.inherited = object["inherited"].GetBool();
+        };
+        if (bo.type == BUYOUT_TYPE_CURRENT_OFFER) {
+            QLOG_WARN() << "BuyoutManager::Deserialize() obsolete 'current offer' buyout detected:" << name;
         };
         (*buyouts)[name] = bo;
     };
