@@ -62,7 +62,6 @@ ItemLocation::ItemLocation(
     socketed_(false),
     type_(type),
     tab_id_(tab_id),
-    json_(Util::RapidjsonSerialize(value)),
     tab_unique_id_(tab_unique_id)
 {
     switch (type_) {
@@ -100,6 +99,9 @@ ItemLocation::ItemLocation(
             value.AddMember("colour", color_value, alloc);
         };
     };
+
+    json_ = Util::RapidjsonSerialize(value);
+
 }
 
 void ItemLocation::FixUid() {
