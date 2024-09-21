@@ -42,13 +42,11 @@ macOS releases are currently built with:
 
 Linux releases are distributed as an AppImage and built with:
 - Linut Mint 20 Cinnamon
-- Qt Creator 14.0.1 with Qt 6.5.3 GCC 64bit 
-- OpenSSL 3.1.7
+- Qt Creator 14.0.1 with Qt 6.5.3 GCC 64bit
+- OpenSSL 3.0.15 as provided by the Qt Maintenance Tool
 - linuxdeploy
 
-You will need to have OpenSSL version 3.1.7 or later available on your LD_LIBRARY_PATH to use the Linux AppImage. This is because linuxdeploy blacklists OpenSSL, which blocks the libraries from being included.
-
-If you're building acquisition yourself, make sure the OPENSSL_ROOT_DIR environment variable is set, either within the Qt project settings or via some other method.
+In order run acquisition, your LD_LIBRARY_PATH must include a directory that has OpenSSL 3.x libraries. If you are building acquisition, you can use the shared libraries provided by Qt, which are refernces in CMakeLists.txt. Otherwise you may have to download and install a compatible version of OpenSSL yourself unless your distribution provides one. This is because linuxdeploy blacklists the OpenSSL libraries for sercurity reasons.
 
 ### SAST Tools
 

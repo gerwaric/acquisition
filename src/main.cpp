@@ -222,7 +222,7 @@ int main(int argc, char* argv[])
 
     QLOG_TRACE() << "Checking for SSL support...";
     if (!QSslSocket::supportsSsl()) {
-        FatalError("SSL is not supported");
+        FatalError("SSL support is missing. On Linux, the LD_LIBRARY_PATH must include OpenSSL 3.x shared libraries.");
     };
     QLOG_TRACE() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
     QLOG_TRACE() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();

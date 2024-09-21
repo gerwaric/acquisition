@@ -365,13 +365,19 @@ elseif(APPLE)
     
 elseif(UNIX)
 
-    # The OPENSSL_ROOT_DIR environment variable may need to be set in
-    # the Qt project setting if a custom build of OpenSSL is being used.
-    find_package(OpenSSL 3.1.7 REQUIRED)
-    target_link_libraries(acquisition PUBLIC
-        OpenSSL::SSL
-        OpenSSL::Crypto
-    )
+    # Setup OpenSSL using the version that is distributed with Qt Creator
+    set(QT_OPENSSL_DIR "$ENV{HOME}/Qt/Tools/OpenSSLv3/src")
+
+    # First define the library as imported targets because they are pre-built.
+    add_library(libssl SHARED IMPORTED)
+    add_library(libcrypto SHARED IMPORTED)
+
+    # Second, point those libraries to the installed locations.
+    set_target_properties(libssl PROPERTIES IMPORTED_LOCATION "${QT_OPENSSL_DIR}/libssl.so")
+    set_target_properties(libcrypto PROPERTIES IMPORTED_LOCATION "${QT_OPENSSL_DIR}/libcrypto.so")
+
+    # Finally, we can link acquisition against the OpenSSL libraries.
+    target_link_libraries(acquisition PUBLIC libssl libcrypto)
 
     # Generate debug symbols.
     target_compile_options(acquisition PRIVATE -g)
