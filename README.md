@@ -36,19 +36,21 @@ Windows releases are currently built with:
 ### Apple macOS
 
 macOS releases are currently built with:
-- macOS Sonoma 14.5 on Intel silicon
+- macOS Sonoma 14.6 on Intel silicon
 - Qt Creator 14.0.0 (Community) with Qt 6.5.3 for macOS
 - XCode 15.4
 
 ### Linux
 
-Linux releases are currently built with:
-- Linut Mint 20 Cinnamon (based on Ubuntu Focal) running in a VirtualBox VM
-- Qt Creator 14.0.0 (Community) with Qt 6.5.3 GCC 64bit 
-- OpenSSL 3.1.5 (manually built and installed from source)
-- linuxdeploy (for AppImage creation)
+Linux releases are distributed as an AppImage and built with:
+- Linut Mint 20 Cinnamon
+- Qt Creator 14.0.1 with Qt 6.5.3 GCC 64bit 
+- OpenSSL 3.1.7
+- linuxdeploy
 
-You will need to have OpenSSL installed and available on your LD_LIBRARY_PATH to use the Linux AppImage. This is because linuxdeploy blacklists OpenSSL, which blocks the libraries from being included.
+You will need to have OpenSSL version 3.1.7 or later available on your LD_LIBRARY_PATH to use the Linux AppImage. This is because linuxdeploy blacklists OpenSSL, which blocks the libraries from being included.
+
+If you're building acquisition yourself, make sure the OPENSSL_ROOT_DIR environment variable is set, either within the Qt project settings or via some other method.
 
 ### SAST Tools
 

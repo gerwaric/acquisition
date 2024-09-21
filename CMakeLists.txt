@@ -364,13 +364,10 @@ elseif(APPLE)
     )
     
 elseif(UNIX)
-    
-    # On Linux we depend on OpenSSL 3.1.5
-    if("$ENV{OPENSSL_ROOT_DIR}" STREQUAL "")
-        set(OPENSSL_ROOT_DIR ~/openssl-3.1.5)
-    endif()
-    set(OPENSSL_USE_STATIC_LIBS TRUE)
-    find_package(OpenSSL 3.1.5 REQUIRED)
+
+    # The OPENSSL_ROOT_DIR environment variable may need to be set in
+    # the Qt project setting if a custom build of OpenSSL is being used.
+    find_package(OpenSSL 3.1.7 REQUIRED)
     target_link_libraries(acquisition PUBLIC
         OpenSSL::SSL
         OpenSSL::Crypto
