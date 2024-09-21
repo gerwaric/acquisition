@@ -27,11 +27,9 @@ On Windows you can also build Acquisition with Visual Studio 2022 and the Qt Vis
 
 Windows releases are currently built with:
 - Windows 11
-- Qt Creator 14.0.0 (Community) with Qt 6.5.3 LTS using the compiler from Visual Studio 2022 (for release builds)
+- Qt Creator 14.0.1 (Community) with Qt 6.5.3 LTS using the compiler from Visual Studio 2022 (for release builds)
 - Visual Studio 2022 with Qt Visual Studio Tools 3.2.0 (for editing, debugging, and testing) and Qt Vs CMake Tools 1.1
-- Inno Setup 6.2.2 (for installer creation)
-
-**NOTE**: v0.9.9 is the last version of Acquisition that runs on Windows 7 and 8.
+- Inno Setup 6.3.3 (for installer creation)
 
 ### Apple macOS
 
