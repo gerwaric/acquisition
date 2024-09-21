@@ -36,9 +36,9 @@ Windows releases are currently built with:
 ### Apple macOS
 
 macOS releases are currently built with:
-- macOS Sonoma 14.6 on Intel silicon
-- Qt Creator 14.0.0 (Community) with Qt 6.5.3 for macOS
-- XCode 15.4
+- macOS Sonoma 14.7 on Intel silicon
+- Qt Creator 14.0.1 with Qt 6.5.3 for macOS
+- XCode 16.0
 
 ### Linux
 
