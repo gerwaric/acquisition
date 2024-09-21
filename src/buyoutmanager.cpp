@@ -45,47 +45,61 @@ BuyoutManager::BuyoutManager(DataStore& data) :
 }
 
 void BuyoutManager::Set(const Item& item, const Buyout& buyout) {
+    if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
+        QLOG_WARN() << "BuyoutManager::Set() obsolete 'current offer' buyout detected for" << item.PrettyName() << ":" << buyout.AsText();
+    };
     auto const& it = buyouts_.lower_bound(item.hash());
     if (it != buyouts_.end() && !(buyouts_.key_comp()(item.hash(), it->first))) {
         // Entry exists - we don't want to update if buyout is equal to existing
         if (buyout != it->second) {
             save_needed_ = true;
             it->second = buyout;
-        }
+        };
     } else {
         save_needed_ = true;
         buyouts_.insert(it, { item.hash(), buyout });
-    }
+    };
 }
 
 Buyout BuyoutManager::Get(const Item& item) const {
     auto const& it = buyouts_.find(item.hash());
     if (it != buyouts_.end()) {
-        return it->second;
-    }
+        Buyout buyout = it->second;
+        if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
+            QLOG_WARN() << "BuyoutManager::Get() obsolete 'current offer' buyout detected for" << item.PrettyName() << ":" << buyout.AsText();
+        };
+        return buyout;
+    };
     return Buyout();
 }
 
 Buyout BuyoutManager::GetTab(const std::string& tab) const {
     auto const& it = tab_buyouts_.find(tab);
     if (it != tab_buyouts_.end()) {
-        return it->second;
-    }
+        Buyout buyout = it->second;
+        if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
+            QLOG_WARN() << "BuyoutManager::GetTab() obsolete 'current offer' buyout detected for" << tab << ":" << buyout.AsText();
+        };
+        return buyout;
+    };
     return Buyout();
 }
 
 void BuyoutManager::SetTab(const std::string& tab, const Buyout& buyout) {
+    if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
+        QLOG_WARN() << "BuyoutManager::SetTab() obsolete 'current offer' buyout detected for" << tab << ":" << buyout.AsText();
+    };
     auto const& it = tab_buyouts_.lower_bound(tab);
     if (it != tab_buyouts_.end() && !(tab_buyouts_.key_comp()(tab, it->first))) {
         // Entry exists - we don't want to update if buyout is equal to existing
         if (buyout != it->second) {
             save_needed_ = true;
             it->second = buyout;
-        }
+        };
     } else {
         save_needed_ = true;
         tab_buyouts_.insert(it, { tab, buyout });
-    }
+    };
 }
 
 void BuyoutManager::CompressTabBuyouts() {
@@ -102,8 +116,8 @@ void BuyoutManager::CompressTabBuyouts() {
             it = tab_buyouts_.erase(it);
         } else {
             ++it;
-        }
-    }
+        };
+    };
 }
 
 void BuyoutManager::CompressItemBuyouts(const Items& items) {
@@ -114,16 +128,15 @@ void BuyoutManager::CompressItemBuyouts(const Items& items) {
     for (auto const& item_sp : items) {
         const Item& item = *item_sp;
         tmp.insert(item.hash());
-    }
+    };
 
     for (auto it = buyouts_.cbegin(); it != buyouts_.cend();) {
         if (tmp.count(it->first) == 0) {
-
             buyouts_.erase(it++);
         } else {
             ++it;
-        }
-    }
+        };
+    };
 }
 
 void BuyoutManager::SetRefreshChecked(const ItemLocation& loc, bool value) {
@@ -165,8 +178,9 @@ std::string BuyoutManager::Serialize(const std::map<std::string, Buyout>& buyout
 
     for (auto& bo : buyouts) {
         const Buyout& buyout = bo.second;
-        if (!buyout.IsSavable())
+        if (!buyout.IsSavable()) {
             continue;
+        };
         rapidjson::Value item(rapidjson::kObjectType);
         item.AddMember("value", buyout.value, alloc);
 
@@ -186,7 +200,7 @@ std::string BuyoutManager::Serialize(const std::map<std::string, Buyout>& buyout
 
         rapidjson::Value name(bo.first.c_str(), alloc);
         doc.AddMember(name, item, alloc);
-    }
+    };
 
     return Util::RapidjsonSerialize(doc);
 }
@@ -203,9 +217,10 @@ void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, B
         QLOG_ERROR() << "Error while parsing buyouts.";
         QLOG_ERROR() << rapidjson::GetParseError_En(doc.GetParseError());
         return;
-    }
-    if (!doc.IsObject())
+    };
+    if (!doc.IsObject()) {
         return;
+    };
     for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
         auto& object = itr->value;
         const std::string& name = itr->name.GetString();
@@ -216,15 +231,19 @@ void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, B
         bo.value = object["value"].GetDouble();
         if (object.HasMember("last_update")) {
             bo.last_update = QDateTime::fromSecsSinceEpoch(object["last_update"].GetInt64());
-        }
+        };
         if (object.HasMember("source")) {
             bo.source = Buyout::TagAsBuyoutSource(object["source"].GetString());
-        }
+        };
         bo.inherited = false;
-        if (object.HasMember("inherited"))
+        if (object.HasMember("inherited")) {
             bo.inherited = object["inherited"].GetBool();
+        };
+        if (bo.type == BUYOUT_TYPE_CURRENT_OFFER) {
+            QLOG_WARN() << "BuyoutManager::Deserialize() obsolete 'current offer' buyout detected:" << name;
+        };
         (*buyouts)[name] = bo;
-    }
+    };
 }
 
 
@@ -237,34 +256,37 @@ std::string BuyoutManager::Serialize(const std::map<std::string, bool>& obj) {
         rapidjson::Value key(pair.first.c_str(), alloc);
         rapidjson::Value val(pair.second);
         doc.AddMember(key, val, alloc);
-    }
+    };
     return Util::RapidjsonSerialize(doc);
 }
 
 void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, bool>& obj) {
     // if data is empty (on first use) we shouldn't make user panic by showing ERROR messages
-    if (data.empty())
+    if (data.empty()) {
         return;
+    };
 
     rapidjson::Document doc;
     if (doc.Parse(data.c_str()).HasParseError()) {
         QLOG_ERROR() << rapidjson::GetParseError_En(doc.GetParseError());
         return;
-    }
+    };
 
-    if (!doc.IsObject())
+    if (!doc.IsObject()) {
         return;
+    };
 
     for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
         const auto& val = itr->value.GetBool();
         const auto& name = itr->name.GetString();
         obj[name] = val;
-    }
+    };
 }
 
 void BuyoutManager::Save() {
-    if (!save_needed_)
+    if (!save_needed_) {
         return;
+    };
     save_needed_ = false;
     data_.Set("buyouts", Serialize(buyouts_));
     data_.Set("tab_buyouts", Serialize(tab_buyouts_));
@@ -288,7 +310,7 @@ BuyoutType BuyoutManager::StringToBuyoutType(std::string bo_str) const {
     auto const& it = string_to_buyout_type_.find(bo_str);
     if (it != string_to_buyout_type_.end()) {
         return it->second;
-    }
+    };
     return BUYOUT_TYPE_INHERIT;
 }
 
@@ -308,7 +330,7 @@ Buyout BuyoutManager::StringToBuyout(std::string format) {
         tmp.currency = Currency::FromString(sm[3]);
         tmp.source = BUYOUT_SOURCE_GAME;
         tmp.last_update = QDateTime::currentDateTime();
-    }
+    };
     return tmp;
 }
 
@@ -321,5 +343,5 @@ void BuyoutManager::MigrateItem(const Item& item) {
         buyouts_[hash] = it->second;
         buyouts_.erase(it);
         save_needed_ = true;
-    }
+    };
 }
