@@ -35,16 +35,31 @@
 // This HTTP status code means there was a rate limit violation.
 constexpr int VIOLATION_STATUS = 429;
 
-// A delay added to make sure we don't get a violation.
-constexpr int NORMAL_BUFFER_MSEC = 250;
-constexpr int BORDERLINE_BUFFER_MSEC = 2000;
+// A delay added to every send to avoid flooding the server.
+constexpr int NORMAL_BUFFER_MSEC = 100;
 
 // Minium time between sends for any given policy.
-constexpr int MINIMUM_INTERVAL_MSEC = 500;
+constexpr int MINIMUM_INTERVAL_MSEC = 250;
 
-// When there is a violation, add this much time to how long we
-// wait just to make sure we don't trigger another violation.
-constexpr int VIOLATION_BUFFER_MSEC = 2000;
+// GGG has stated that when they are keeping track of request times,
+// they have a timing resolution, which they called a "bucket".
+// 
+// This explained some otherwise mysterious rate violations that I
+// was seeing very intermittently. Unless there's a away to find out
+// where those timing buckets begin and end precisely, all we can do
+// is use the bucket size as a minimum delay.
+//
+// GGG has also stated that this bucket resolution may be different
+// for different policies, but the one I had been asking them about
+// was 5.0 seconds. They also noted that this number is currently
+// not documented or exposed to api users in any way.
+//
+// So until GGG provides more information, I'm applying a minimum
+// 5.2 second delay when we are at or over the limit.
+//
+// In the future hopefully there will be a way to use the right
+// number for each policy.
+constexpr int TIMING_BUCKET_MSEC = 5200;
 
 // Total number of rate-limited requests that have been created.
 unsigned long RateLimitedRequest::request_count = 0;
@@ -175,7 +190,7 @@ void RateLimitManager::ReceiveReply()
 
             // There was a rate limit violation.
             const int retry_sec = reply->rawHeader("Retry-After").toInt();
-            const int retry_msec = (1000 * retry_sec) + VIOLATION_BUFFER_MSEC;
+            const int retry_msec = (1000 * retry_sec) + TIMING_BUCKET_MSEC;
             QLOG_ERROR() << "Rate limit VIOLATION for policy"
                 << policy_->name()
                 << "(retrying after" << (retry_msec / 1000) << "seconds)";
@@ -283,9 +298,9 @@ void RateLimitManager::ActivateRequest() {
         << "(in" << now.secsTo(next_send) << "seconds)";
 
     if (policy_->status() >= RateLimit::PolicyStatus::BORDERLINE) {
-        next_send = next_send.addMSecs(BORDERLINE_BUFFER_MSEC);
+        next_send = next_send.addMSecs(TIMING_BUCKET_MSEC);
         QLOG_DEBUG() << QString("Rate limit policy '%1' is BORDERLINE, added %2 msecs to send at %3").arg(
-            policy_->name(), QString::number(BORDERLINE_BUFFER_MSEC), next_send.toString());
+            policy_->name(), QString::number(TIMING_BUCKET_MSEC), next_send.toString());
     } else {
         QLOG_TRACE() << "RateLimitManager::ActivateRequest()"
             << policy_->name() << "is NOT borderline,"
