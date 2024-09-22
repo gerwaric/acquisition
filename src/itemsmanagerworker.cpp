@@ -529,26 +529,12 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
         const std::string tab_type = tab["type"].GetString();
 
         ++tabs_requested;
+    
+        // Get the stash tab color.
+        int r = 0, g = 0, b = 0;
+        Util::GetTabColor(tab, r, g, b);
 
         // Create and save the tab location object.
-        int r = 0, g = 0, b = 0;
-        if (HasObject(tab, "metadata")) {
-            const auto& metadata = tab["metadata"].GetObj();
-            if (HasString(metadata, "colour")) {
-                const std::string colour = metadata["colour"].GetString();
-                if (colour.length() == 6) {
-                    r = std::stoul(colour.substr(0, 2), nullptr, 16);
-                    g = std::stoul(colour.substr(2, 2), nullptr, 16);
-                    b = std::stoul(colour.substr(4, 2), nullptr, 16);
-                } else {
-                    QLOG_DEBUG() << "Cannot parse the stash tab" << tab_name << "colour:" << colour;
-                };
-            } else {
-                QLOG_DEBUG() << "The stash tab does not have a colour:" << tab_name;
-            };
-        } else {
-            QLOG_DEBUG() << "The stash tab has no metadata:" << tab_name;
-        };
         ItemLocation location(tab_index, tab_id, tab_name, ItemLocationType::STASH, tab_type, r, g, b, tab, doc.GetAllocator());
         tabs_.push_back(location);
         tab_id_index_.insert(tab_id);
@@ -1027,17 +1013,11 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
         };
         const std::string tab_type = tab["type"].GetString();
 
+        // Get the stash tab color;
+        int r = 0, g = 0, b = 0;
+        Util::GetTabColor(tab, r, g, b);
 
         // Create and save the tab location object.
-        int r = 0, g = 0, b = 0;
-        if (HasObject(tab, "colour")) {
-            const auto& colour = tab["colour"];
-            r = colour["r"].GetInt();
-            g = colour["g"].GetInt();
-            b = colour["b"].GetInt();
-        } else {
-            QLOG_DEBUG() << "Legacy tab does not have colour:" << label;
-        };
         ItemLocation location(index, tab_id, label, ItemLocationType::STASH, tab_type, r, g, b, tab, doc.GetAllocator());
         tabs_.push_back(location);
         tab_id_index_.insert(tab_id);

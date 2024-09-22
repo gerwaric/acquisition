@@ -110,32 +110,7 @@ Locations DataStore::DeserializeTabs(const QString& json) {
                 index = tabs.size();
             };
 
-            // Get the tab color if present.
-            if (HasObject(tab_json, "colour")) {
-                const auto& colour = tab_json["colour"];
-                if (HasInt(colour, "r")) { r = colour["r"].GetInt(); };
-                if (HasInt(colour, "g")) { g = colour["g"].GetInt(); };
-                if (HasInt(colour, "b")) { b = colour["b"].GetInt(); };
-            } else if (HasObject(tab_json, "metadata")) {
-                const auto& metadata = tab_json["metadata"];
-                if (HasString(metadata, "colour")) {
-                    const std::string colour = metadata["colour"].GetString();
-                    if (colour.length() == 6) {
-                        r = std::stoul(colour.substr(0, 2), nullptr, 16);
-                        g = std::stoul(colour.substr(2, 2), nullptr, 16);
-                        b = std::stoul(colour.substr(4, 2), nullptr, 16);
-                    } else {
-                        QLOG_DEBUG() << "Stab tab colour meta data is not 6 characters" << name << ":" << Util::RapidjsonSerialize(tab_json);
-                        continue;
-                    };
-                } else {
-                    QLOG_DEBUG() << "Stab tab metadata does not have a colour" << name << ":" << Util::RapidjsonSerialize(tab_json);
-                    continue;
-                };
-            } else {
-                QLOG_DEBUG() << "Stash tab does not have a colour" << name << ":" << Util::RapidjsonSerialize(tab_json);
-                continue;
-            };
+            Util::GetTabColor(tab_json, r, g, b);
 
             // Get the tab type.
             if (HasString(tab_json, "type")) {
@@ -144,6 +119,7 @@ Locations DataStore::DeserializeTabs(const QString& json) {
                 QLOG_DEBUG() << "Stash tab does not have a type:" << name;
                 tabType = "";
             };
+
             break;
 
         case ItemLocationType::CHARACTER:
@@ -167,6 +143,7 @@ Locations DataStore::DeserializeTabs(const QString& json) {
             } else {
                 index = tabs.size();
             };
+
             break;
 
         default:
@@ -177,7 +154,7 @@ Locations DataStore::DeserializeTabs(const QString& json) {
         };
         ItemLocation loc(static_cast<int>(index), tabUniqueId, name, type, tabType, r, g, b, tab_json, doc.GetAllocator());
         tabs.push_back(loc);
-        tab_id_index_.insert(loc.get_tab_uniq_id()); 
+        tab_id_index_.insert(loc.get_tab_uniq_id());
     };
     return tabs;
 }

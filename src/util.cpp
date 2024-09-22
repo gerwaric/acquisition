@@ -46,6 +46,7 @@
 #include <boost/algorithm/string.hpp>
 
 #include "currency.h"
+#include "rapidjson_util.h"
 
 QsLogging::Level Util::TextToLogLevel(const QString& value) {
     if (0 == value.compare("TRACE", Qt::CaseInsensitive)) { return QsLogging::TraceLevel; };
@@ -192,6 +193,59 @@ void Util::RapidjsonAddInt64(rapidjson::Value* object, const char* const name, q
     rapidjson::Value rjson_val;
     rjson_val.SetInt64(value);
     object->AddMember(rjson_name, rjson_val, alloc);
+}
+
+void Util::GetTabColor(rapidjson::Value& json, int& r, int& g, int& b) {
+
+    using rapidjson::HasObject;
+    using rapidjson::HasInt;
+    using rapidjson::HasString;
+
+    r = 0;
+    g = 0;
+    b = 0;
+
+    if (HasObject(json, "colour")) {
+
+        // Tabs retrieved with the legacy api will have a "colour" field.
+        const auto& colour = json["colour"];
+        if (HasInt(colour, "r")) { r = colour["r"].GetInt(); };
+        if (HasInt(colour, "g")) { g = colour["g"].GetInt(); };
+        if (HasInt(colour, "b")) { b = colour["b"].GetInt(); };
+
+    } else if (HasObject(json, "metadata")) {
+
+        // Tabs retrieved with the OAuth api have a "metadata" field that may have a colour.
+        const auto& metadata = json["metadata"];
+        if (HasString(metadata, "colour")) {
+
+            // The colour field is supposed to be a 6-character string, but it some really old
+            // tabs it's only 4 characters or 2 characters, and GGG has confirmed that in these
+            // cases the leading values should be treated as zeros.
+            const std::string colour = metadata["colour"].GetString();
+            switch (colour.length()) {
+            case 6:
+                r = std::stoul(colour.substr(0, 2), nullptr, 16);
+                g = std::stoul(colour.substr(2, 2), nullptr, 16);
+                b = std::stoul(colour.substr(4, 2), nullptr, 16);
+                break;
+            case 4:
+                g = std::stoul(colour.substr(0, 2), nullptr, 16);
+                b = std::stoul(colour.substr(2, 2), nullptr, 16);
+                break;
+            case 2:
+                b = std::stoul(colour.substr(0, 2), nullptr, 16);
+                break;
+            default:
+                QLOG_DEBUG() << "Could not parse stash tab colour:" << Util::RapidjsonSerialize(json);
+                break;
+            };
+        } else {
+            QLOG_DEBUG() << "Stab tab metadata does not have a colour:" << Util::RapidjsonSerialize(json);
+        };
+    } else {
+        QLOG_DEBUG() << "Stash tab does not have a colour:" << Util::RapidjsonSerialize(json);
+    };
 }
 
 std::string Util::StringReplace(const std::string& haystack, const std::string& needle, const std::string& replace) {
