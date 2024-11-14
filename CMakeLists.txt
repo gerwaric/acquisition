@@ -19,6 +19,15 @@
 
 cmake_minimum_required(VERSION 3.21.1)
 
+if(APPLE)
+    # This is needed because for v0.11.6 because I accidentally upgraded Xcode without
+    # checking to see if Qt was compatible.
+    #
+    # The symptoms of this is either a cmake erro about ignoring CMAKE_OSX_SYSROOT,
+    # or build errors about missing type_traits.h
+    set(CMAKE_OSX_SYSROOT /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk)
+endif()
+
 # NOTE: For automatic update detection to work, the 'app_version' variable
 # defined below should match a tag in github. Historically, the github tags
 # have been identical to the 'app_version' as defined below, except the 
