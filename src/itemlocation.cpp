@@ -9,6 +9,8 @@
 #include "rapidjson_util.h"
 #include "util.h"
 
+#include <string>
+
 using boost::algorithm::ends_with;
 
 QDebug& operator<<(QDebug& os, const ItemLocationType& obj) {
@@ -52,7 +54,7 @@ ItemLocation::ItemLocation(
     const std::string tab_unique_id,
     const std::string name,
     ItemLocationType type,
-    const std::string tab_type, 
+    const std::string tab_type,
     int r, int g, int b,
     rapidjson::Value& value, rapidjson_allocator& alloc)
     :
@@ -69,12 +71,14 @@ ItemLocation::ItemLocation(
         tab_type_ = tab_type;
         tab_label_ = name;
         character_ = "";
+        character_sortname_ = "";
         removeonly_ = ends_with(name, "(Remove-only)");
         break;
     case ItemLocationType::CHARACTER:
         tab_type_ = "";
         tab_label_ = "";
         character_ = name;
+        character_sortname_ = QString::fromStdString(character_).toLower();
         removeonly_ = false;
         break;
     };
@@ -250,8 +254,10 @@ bool ItemLocation::operator<(const ItemLocation& rhs) const {
     if (type_ == rhs.type_) {
         switch (type_) {
         case ItemLocationType::STASH: return tab_id_ < rhs.tab_id_;
-        case ItemLocationType::CHARACTER: return character_ < rhs.character_;
-        default: return false; // This should never happen?
+        case ItemLocationType::CHARACTER: return (QString::localeAwareCompare(character_sortname_, rhs.character_sortname_) < 0);
+        default:
+            QLOG_ERROR() << "Invalid location type:" << type_;
+            return true;
         };
     } else {
         // STASH locations will always be less than CHARACTER locations.

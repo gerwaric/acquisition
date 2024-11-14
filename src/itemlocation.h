@@ -71,6 +71,8 @@ private:
     std::string tab_label_;
     std::string character_;
     std::string inventory_id_;
+
+    QString character_sortname_;
 };
 
 typedef std::vector<ItemLocation> Locations;
