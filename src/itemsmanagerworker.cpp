@@ -820,7 +820,6 @@ QNetworkRequest ItemsManagerWorker::MakeLegacyTabRequest(int tab_index, bool tab
     query.addQueryItem("league", QString::fromUtf8(league_));
     query.addQueryItem("tabs", tabs ? "1" : "0");
     query.addQueryItem("tabIndex", std::to_string(tab_index).c_str());
-    query.addQueryItem("accountName", QString::fromUtf8(account_));
 
     QUrl url(kStashItemsUrl);
     url.setQuery(query);
@@ -835,7 +834,6 @@ QNetworkRequest ItemsManagerWorker::MakeLegacyCharacterRequest(const std::string
     };
     QUrlQuery query;
     query.addQueryItem("character", QString::fromUtf8(name));
-    query.addQueryItem("accountName", QString::fromUtf8(account_));
 
     QUrl url(kCharacterItemsUrl);
     url.setQuery(query);
@@ -850,7 +848,6 @@ QNetworkRequest ItemsManagerWorker::MakeLegacyPassivesRequest(const std::string&
     };
     QUrlQuery query;
     query.addQueryItem("character", QString::fromUtf8(name));
-    query.addQueryItem("accountName", QString::fromUtf8(account_));
 
     QUrl url(kCharacterSocketedJewels);
     url.setQuery(query);
