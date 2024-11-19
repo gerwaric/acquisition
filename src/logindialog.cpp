@@ -145,6 +145,9 @@ void LoginDialog::LoadSettings() {
     const QString session_id = settings_.value("session_id").toString();
     QLOG_TRACE() << "LoginDialog::LoadSettings() session_id has" << session_id.size() << "characters";
 
+    const QString realm = settings_.value("realm").toString();
+    QLOG_TRACE() << "LoginDialog::LoadSettings() realm =" << realm;
+
     const QString league = settings_.value("league").toString();
     QLOG_TRACE() << "LoginDialog::LoadSettings() league =" << league;
 
@@ -169,6 +172,9 @@ void LoginDialog::LoadSettings() {
     ui->proxyCheckBox->setChecked(use_system_proxy);
     ui->reportCrashesCheckBox->setChecked(report_crashes);
     ui->loginTabs->setCurrentIndex(login_tab);
+    if (!realm.isEmpty()) {
+        ui->realmComboBox->setCurrentText(realm);
+    };
     if (!league.isEmpty()) {
         ui->leagueComboBox->setCurrentText(league);
     };
@@ -182,6 +188,7 @@ void LoginDialog::SaveSettings() {
         QLOG_TRACE() << "LoginDialog::SaveSettings() removing settings";
         settings_.remove("session_id");
         settings_.remove("account");
+        settings_.remove("realm");
         settings_.remove("league");
         settings_.remove("login_tab");
         settings_.remove("remember_user");
@@ -330,8 +337,10 @@ void LoginDialog::OnLoginButtonClicked() {
     ui->loginButton->setEnabled(false);
     ui->loginButton->setText("Logging in...");
 
+    const QString realm = ui->realmComboBox->currentText();
     const QString league = ui->leagueComboBox->currentText();
     const QString session_id = ui->sessionIDLineEdit->text();
+    settings_.setValue("realm", realm);
     settings_.setValue("league", league);
     settings_.setValue("session_id", session_id);
     if (!session_id.isEmpty()) {
@@ -466,7 +475,7 @@ void LoginDialog::OnFinishLegacyLogin() {
         return;
     };
 
-    static const QRegularExpression regexp("/account/view-profile/(.*?)\"");
+    static const QRegularExpression regexp("/account/view-profile/.*?>(.*?)<");
     QRegularExpressionMatch match = regexp.match(html, 0);
     if (match.hasMatch() == false) {
         DisplayError("Failed to find account name.");
@@ -474,10 +483,11 @@ void LoginDialog::OnFinishLegacyLogin() {
     };
 
     const QString account = match.captured(1);
+    const QString realm = settings_.value("realm").toString();
     const QString league = settings_.value("league").toString();
     settings_.setValue("account", account);
 
-    QLOG_DEBUG() << "Logged in as" << account << "to" << league << "league.";
+    QLOG_DEBUG() << "Logged in as" << account << "to" << league << "league in" << realm << "realm";
 
     emit LoginComplete(POE_API::LEGACY);
 }

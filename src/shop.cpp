@@ -155,6 +155,7 @@ void Shop::Update() {
     };
     std::sort(aug_items.begin(), aug_items.end());
 
+    const std::string realm = settings_.value("realm").toString().toStdString();
     const std::string league = settings_.value("league").toString().toStdString();
 
     Buyout current_bo = aug_items[0].bo;
@@ -165,7 +166,7 @@ void Shop::Update() {
             data += "[/spoiler]";
             data += SpoilerBuyout(current_bo);
         };
-        std::string item_string = aug.item->location().GetForumCode(league);
+        std::string item_string = aug.item->location().GetForumCode(realm, league);
         if (data.size() + item_string.size() + shop_template_.size() + kSpoilerOverhead + QString("[/spoiler]").size() > kMaxCharactersInPost) {
             data += "[/spoiler]";
             shop_data_.push_back(data);
