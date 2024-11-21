@@ -38,7 +38,7 @@ endif()
 # version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
-    VERSION 0.11.7
+    VERSION 0.11.8
     DESCRIPTION "Stash and forum shop management for Path of Exile \\256"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
