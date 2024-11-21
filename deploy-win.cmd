@@ -15,7 +15,7 @@ set "WINDEPLOYQT=C:\Qt\6.5.3\msvc2019_64\bin\windeployqt.exe"
 set "ISCC=c:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 
 rem Define the build and deployment directories
-set "BUILD_DIR=..\build-acquisition-Desktop_Qt_6_5_3_MSVC2022_64bit-Release"
+set "BUILD_DIR=.\out\build"
 set "DEPLOY_DIR=%BUILD_DIR%\deploy";
 
 rmdir /S /Q "%DEPLOY_DIR%"
