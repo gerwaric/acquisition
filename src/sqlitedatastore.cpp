@@ -34,6 +34,20 @@ SqliteDataStore::SqliteDataStore(const QString& filename) :
     if (!dir.exists()) {
         QDir().mkpath(dir.path());
     };
+
+    if (!QFile(filename).exists()) {
+        // If the file doesn't exist, it's possible there's an old data file from
+        // before the addition of account name discriminators. Look for one of those
+        // files and rename if it found.
+        const QString old_filename = filename.chopped(5);
+        if (QFile(old_filename).exists()) {
+            QLOG_WARN() << "Renaming old data file with new account discriminator:" << filename;
+            if (!QFile(old_filename).rename(filename)) {
+                QLOG_ERROR() << "Unable to rename file:" << old_filename;
+            };
+        };
+    };
+
     db_ = QSqlDatabase::addDatabase("QSQLITE", filename);
     db_.setDatabaseName(filename);
     if (db_.open() == false) {
@@ -266,6 +280,22 @@ SqliteDataStore::~SqliteDataStore() {
 }
 
 QString SqliteDataStore::MakeFilename(const std::string& name, const std::string& league) {
-    std::string key = name + "|" + league;
-    return QString(QCryptographicHash::hash(key.c_str(), QCryptographicHash::Md5).toHex());
+    // We somehow have to manage the fact that usernames now have a numeric discriminator,
+    // e.g. GERWARIC#7694 instead of just GERWARIC.
+    const QString username = QString::fromStdString(name);
+    if (username.contains("#")) {
+        // Build the filename as though the username did not have a discriminator,
+        // then append the discriminator. This approach makes it possible to recognise
+        // old data files more easily, because the discriminator is kept out of the hash.
+        const QStringList parts = username.split("#");
+        const QString base_username = parts[0];
+        const QString discriminator = parts[1];
+        const std::string key = base_username.toStdString() + "|" + league;
+        const QString datafile = QString(QCryptographicHash::hash(key.c_str(), QCryptographicHash::Md5).toHex()) + "-" + discriminator;
+        return datafile;
+    } else {
+        const std::string key = name + "|" + league;
+        const QString datafile = QString(QCryptographicHash::hash(key.c_str(), QCryptographicHash::Md5).toHex());
+        return datafile;
+    };
 }
