@@ -145,7 +145,7 @@ void OAuthManager::requestAccess() {
     if (ports.length() != 1) {
         QLOG_ERROR() << "Http server for OAuth has" << ports.length() << "ports";
         return;
-    }
+    };
     const quint16 port = ports[0];
     if (port == 0) {
         QLOG_ERROR() << "Unable to bind the http server for OAuth authorization.";
