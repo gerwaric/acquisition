@@ -38,14 +38,14 @@ endif()
 # version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
-    VERSION 0.11.8
+    VERSION 0.12.0
     DESCRIPTION "Stash and forum shop management for Path of Exile \\256"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
 )
 
 # Use this to define pre-releases
-set(version_postfix "")
+set(version_postfix "-beta.1")
 
 # Variables used to generate version_defines.h and installer.iss
 set(version_code        63) # This doesn't need to be changed with the new update checks.
@@ -86,7 +86,7 @@ endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui HttpServer Network Sql Test WebSockets Widgets)
 
-qt_standard_project_setup(REQUIRES 6.5.3)
+qt_standard_project_setup(REQUIRES 6.8.0)
 
 qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     # Source

@@ -141,7 +141,12 @@ void OAuthManager::requestAccess() {
     };
 
     // Get the port for the callback.
-    const auto port = http_server_->listen();
+    const QList<quint16> ports = http_server_->serverPorts();
+    if (ports.length() != 1) {
+        QLOG_ERROR() << "Http server for OAuth has" << ports.length() << "ports";
+        return;
+    }
+    const quint16 port = ports[0];
     if (port == 0) {
         QLOG_ERROR() << "Unable to bind the http server for OAuth authorization.";
         return;
@@ -166,15 +171,15 @@ void OAuthManager::createHttpServer() {
     // Tell the server to ignore favicon requests, even though these
     // should be disabled based on the HTML we are returning.
     http_server_->route("/favicon.ico",
-        [](const QHttpServerRequest& request, QHttpServerResponder&& responder) {
+        [](const QHttpServerRequest& request, QHttpServerResponder& responder) {
             Q_UNUSED(request);
             Q_UNUSED(responder);
             QLOG_TRACE() << "OAuth: ignoring favicon.ico request";
         });
 
     // Capture all unhandled requests for debugging.
-    http_server_->setMissingHandler(
-        [](const QHttpServerRequest& request, QHttpServerResponder&& responder) {
+    http_server_->setMissingHandler(this,
+        [](const QHttpServerRequest& request, QHttpServerResponder& responder) {
             Q_UNUSED(responder);
             QLOG_TRACE() << "OAuth: unhandled request:" << request.url().toString();
         });
