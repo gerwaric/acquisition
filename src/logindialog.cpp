@@ -58,6 +58,7 @@ constexpr int CLOUDFLARE_RATE_LIMITED = 1015;
 
 constexpr const char* OAUTH_TAB = "oauthTab";
 constexpr const char* SESSIONID_TAB = "sessionIdTab";
+constexpr const char* OFFLINE_TAB = "offlineTab";
 
 /**
  *
@@ -79,12 +80,11 @@ LoginDialog::LoginDialog(
     QSettings& settings,
     QNetworkAccessManager& network_manager,
     OAuthManager& oauth_manager)
-    :
-    QDialog(nullptr),
-    settings_(settings),
-    network_manager_(network_manager),
-    oauth_manager_(oauth_manager),
-    ui(new Ui::LoginDialog)
+    : QDialog(nullptr)
+    , settings_(settings)
+    , network_manager_(network_manager)
+    , oauth_manager_(oauth_manager)
+    , ui(new Ui::LoginDialog)
 {
     // Setup the dialog box.
     QLOG_TRACE() << "LoginDialog::LoginDialog() calling UI setup";
@@ -96,30 +96,52 @@ LoginDialog::LoginDialog(
     setWindowIcon(QIcon(":/icons/assets/icon.svg"));
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
-    // Hide the error message label by default.
-    QLOG_TRACE() << "LoginDialog::LoginDialog() hiding the error message label";
+    // Hide the advanced options and error message by default
+    const bool show_advanced = settings_.value("show_advanced_login_options",false).toBool();
+    ui->rememberMeCheckBox->setHidden(!show_advanced);
+    ui->reportCrashesCheckBox->hide();
+    ui->proxyCheckBox->hide();
+    ui->loggingLevelLabel->hide();
+    ui->loggingLevelComboBox->hide();
     ui->errorLabel->hide();
     ui->errorLabel->setStyleSheet("QLabel { color : red; }");
+
+    // Setup loggin levels.
+    ui->loggingLevelComboBox->addItems({
+        Util::LogLevelToText(QsLogging::FatalLevel),
+        Util::LogLevelToText(QsLogging::ErrorLevel),
+        Util::LogLevelToText(QsLogging::DebugLevel),
+        Util::LogLevelToText(QsLogging::WarnLevel),
+        Util::LogLevelToText(QsLogging::InfoLevel),
+        Util::LogLevelToText(QsLogging::TraceLevel),
+        Util::LogLevelToText(QsLogging::OffLevel)
+    });
+    const QsLogging::Level logging_level = QsLogging::Logger::instance().loggingLevel();
+    ui->loggingLevelComboBox->setCurrentText(Util::LogLevelToText(logging_level));
 
     // Disable the login button until we are ready to login.
     QLOG_TRACE() << "LoginDialog::LoginDialog() disabling the login button";
     ui->loginButton->setEnabled(false);
 
-    // Connect UI signals.
-    connect(ui->sessionIDLineEdit, &QLineEdit::textChanged, this, &LoginDialog::OnSessionIDChanged);
-    connect(ui->rememberMeCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnRememberMeCheckBoxClicked);
-    connect(ui->proxyCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnProxyCheckBoxClicked);
-    connect(ui->reportCrashesCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnReportCrashesCheckBoxClicked);
-    connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
-    connect(ui->authenticateButton, &QPushButton::clicked, this, &LoginDialog::OnAuthenticateButtonClicked);
-    connect(ui->loginTabs, &QTabWidget::currentChanged, this, &LoginDialog::OnLoginTabChanged);
-
-    // Listen for access from the OAuth manager.
-    connect(&oauth_manager_, &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
-
     // Load saved settings.
     QLOG_TRACE() << "LoginDialog::LoginDialog() calling LoadSettings()";
     LoadSettings();
+
+    // Connect main UI buttons.
+    connect(ui->loginTabs, &QTabWidget::currentChanged, this, &LoginDialog::OnLoginTabChanged);
+    connect(ui->authenticateButton, &QPushButton::clicked, this, &LoginDialog::OnAuthenticateButtonClicked);
+    connect(ui->sessionIDLineEdit, &QLineEdit::textChanged, this, &LoginDialog::OnSessionIDChanged);
+    connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
+
+    // Connects options UI elements.
+    connect(ui->advancedCheckBox, &QCheckBox::checkStateChanged, this, &LoginDialog::OnAdvancedCheckBoxChanged);
+    connect(ui->rememberMeCheckBox, &QCheckBox::checkStateChanged, this, &LoginDialog::OnRememberMeCheckBoxChanged);
+    connect(ui->reportCrashesCheckBox, &QCheckBox::checkStateChanged, this, &LoginDialog::OnReportCrashesCheckBoxChanged);
+    connect(ui->proxyCheckBox, &QCheckBox::checkStateChanged, this, &LoginDialog::OnProxyCheckBoxChanged);
+    connect(ui->loggingLevelComboBox, &QComboBox::currentTextChanged, this, &LoginDialog::OnLoggingLevelChanged);
+
+    // Listen for access from the OAuth manager.
+    connect(&oauth_manager_, &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
 
     // Load the OAuth token if one is already present.
     if (oauth_manager_.token().isValid()) {
@@ -142,42 +164,50 @@ void LoginDialog::LoadSettings() {
 
     QLOG_TRACE() << "LoginDialog::LoadSetting()";
 
-    const QString session_id = settings_.value("session_id").toString();
-    QLOG_TRACE() << "LoginDialog::LoadSettings() session_id has" << session_id.size() << "characters";
-
     const QString realm = settings_.value("realm").toString();
     QLOG_TRACE() << "LoginDialog::LoadSettings() realm =" << realm;
+    if (!realm.isEmpty()) {
+        ui->realmComboBox->setCurrentText(realm);
+    };
 
     const QString league = settings_.value("league").toString();
     QLOG_TRACE() << "LoginDialog::LoadSettings() league =" << league;
+    if (!league.isEmpty()) {
+        ui->leagueComboBox->setCurrentText(league);
+    };
 
-    const int login_tab = settings_.value("login_tab").toInt();
-    QLOG_TRACE() << "LoginDialog::LoadSettings() login_tab =" << login_tab;
+    const QString session_id = settings_.value("session_id").toString();
+    QLOG_TRACE() << "LoginDialog::LoadSettings() session_id has" << session_id.size() << "characters";
+    ui->sessionIDLineEdit->setText(session_id);
+
+    const bool show_options = settings_.value("show_advanced_login_options").toBool();
+    ui->advancedCheckBox->setChecked(show_options);
+    ShowAdvancedOptions(show_options);
 
     const bool remember_me = settings_.value("remember_user").toBool();
     QLOG_TRACE() << "LoginDialog::LoadSettings() remember_me" << remember_me;
+    ui->rememberMeCheckBox->setChecked(remember_me);
 
     const bool use_system_proxy = settings_.value("use_system_proxy").toBool();
     QLOG_TRACE() << "LoginDialog::LoadSettings() use_system_proxy" << use_system_proxy;
+    ui->proxyCheckBox->setChecked(use_system_proxy);
 
     const bool report_crashes = settings_.value("report_crashes").toBool();
     QLOG_TRACE() << "LoginDialog::LoadSettings() report_crashes" << report_crashes;
+    ui->reportCrashesCheckBox->setChecked(report_crashes);
 
     QLOG_TRACE() << "LoginDialog::LoadSettings() passing remember_me to OAuth manager";
     oauth_manager_.RememberToken(remember_me);
 
-    QLOG_TRACE() << "LoginDialog::LoadSettings() setting UI elements";
-    ui->sessionIDLineEdit->setText(session_id);
-    ui->rememberMeCheckBox->setChecked(remember_me);
-    ui->proxyCheckBox->setChecked(use_system_proxy);
-    ui->reportCrashesCheckBox->setChecked(report_crashes);
-    ui->loginTabs->setCurrentIndex(login_tab);
-    if (!realm.isEmpty()) {
-        ui->realmComboBox->setCurrentText(realm);
+    const QString login_tab = settings_.value("login_tab").toString();
+    QLOG_TRACE() << "LoginDialog::LoadSettings() login_tab =" << login_tab;
+    for (auto i = 0; i < ui->loginTabs->count(); ++i) {
+        if (ui->loginTabs->widget(i)->objectName() == login_tab) {
+            ui->loginTabs->setCurrentIndex(i);
+            break;
+        };
     };
-    if (!league.isEmpty()) {
-        ui->leagueComboBox->setCurrentText(league);
-    };
+
 
     QLOG_TRACE() << "LoginDialog::LoadSetting() setting proxy configuration";
     QNetworkProxyFactory::setUseSystemConfiguration(ui->proxyCheckBox->isChecked());
@@ -185,15 +215,8 @@ void LoginDialog::LoadSettings() {
 
 void LoginDialog::SaveSettings() {
     if (!ui->rememberMeCheckBox->isChecked()) {
-        QLOG_TRACE() << "LoginDialog::SaveSettings() removing settings";
-        settings_.remove("session_id");
-        settings_.remove("account");
-        settings_.remove("realm");
-        settings_.remove("league");
-        settings_.remove("login_tab");
-        settings_.remove("remember_user");
-        settings_.remove("use_system_proxy");
-        settings_.remove("report_crashes");
+        QLOG_TRACE() << "LoginDialog::SaveSettings() clearing settings";
+        settings_.clear();
     };
 }
 
@@ -354,14 +377,17 @@ void LoginDialog::OnLoginButtonClicked() {
     if (tab_name == OAUTH_TAB) {
         LoginWithOAuth();
     } else if (tab_name == SESSIONID_TAB) {
-        if (!session_id.isEmpty()) {
-            LoginWithSessionID();
-        } else {
+        if (session_id.isEmpty()) {
             QLOG_ERROR() << "POESESSID is empty";
             DisplayError("POESESSID cannot be blank");
             ui->loginButton->setEnabled(true);
             ui->loginButton->setText("Log in");
+        } else {
+            LoginWithSessionID();
+            ui->loginButton->setEnabled(false);
         };
+    } else if (tab_name == OFFLINE_TAB) {
+
     } else {
         DisplayError("Invalid tab selected: " + tab_name);
     };
@@ -503,7 +529,20 @@ void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
 
 void LoginDialog::OnLoginTabChanged(int index) {
     QLOG_TRACE() << "LoginDialog::OnLoginTabChanged() entered";
-    settings_.setValue("login_tab", index);
+    const QWidget* tab = ui->loginTabs->widget(index);
+    if (tab == nullptr) {
+        QLOG_ERROR() << "LoginDialog: current tab widget is null";
+        return;
+    };
+    const bool hide_options = (tab == ui->offlineTab);
+    ui->realmLabel->setHidden(hide_options);
+    ui->realmComboBox->setHidden(hide_options);
+    ui->leagueLabel->setHidden(hide_options);
+    ui->leagueComboBox->setHidden(hide_options);
+    ui->advancedCheckBox->setHidden(hide_options);
+    ShowAdvancedOptions(!hide_options && ui->advancedCheckBox->isChecked());
+    ui->loginButton->setHidden(hide_options);
+    settings_.setValue("login_tab", tab->objectName());
 };
 
 void LoginDialog::OnSessionIDChanged(const QString& session_id) {
@@ -516,21 +555,30 @@ void LoginDialog::OnLeagueChanged(const QString& league) {
     settings_.setValue("league", league);
 }
 
-void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
-    QLOG_TRACE() << "LoginDialog::OnProxyCheckBoxClicked() entered";
+void LoginDialog::OnAdvancedCheckBoxChanged(Qt::CheckState state) {
+    QLOG_TRACE() << "LoginDialog: advanced options checkbox changed to" << state;
+    const bool checked = (state == Qt::Checked);
+    ShowAdvancedOptions(checked);
+    settings_.setValue("show_advanced_login_options", checked);
+}
+
+void LoginDialog::OnProxyCheckBoxChanged(Qt::CheckState state) {
+    QLOG_TRACE() << "LoginDialog: proxy checkbox changed to" << state;
+    const bool checked = (state == Qt::Checked);
     QNetworkProxyFactory::setUseSystemConfiguration(checked);
     settings_.setValue("use_system_proxy", checked);
 }
 
-void LoginDialog::OnRememberMeCheckBoxClicked(bool checked) {
-    QLOG_TRACE() << "LoginDialog::OnRememberMeCheckBoxClicked() entered";
+void LoginDialog::OnRememberMeCheckBoxChanged(Qt::CheckState state) {
+    QLOG_TRACE() << "LoginDialog: remember me checkbox changed to" << state;
+    const bool checked = (state == Qt::Checked);
     oauth_manager_.RememberToken(checked);
     settings_.setValue("remember_user", checked);
 }
 
-void LoginDialog::OnReportCrashesCheckBoxClicked(bool checked) {
-
-    QLOG_TRACE() << "LoginDialog::OnCrashReportCheckBoxClicked() entered";
+void LoginDialog::OnReportCrashesCheckBoxChanged(Qt::CheckState state) {
+    QLOG_TRACE() << "LoginDialog: crash reporting checkbox changed to" << state;
+    const bool checked = (state == Qt::Checked);
     QMessageBox msgbox(this);
     msgbox.setWindowTitle("Acquisition Crash Reporting");
 
@@ -574,6 +622,20 @@ void LoginDialog::OnReportCrashesCheckBoxClicked(bool checked) {
         };
 
     };
+}
+
+void LoginDialog::ShowAdvancedOptions(bool state) {
+    ui->rememberMeCheckBox->setHidden(!state);
+    ui->reportCrashesCheckBox->setHidden(!state);
+    ui->proxyCheckBox->setHidden(!state);
+    ui->loggingLevelLabel->setHidden(!state);
+    ui->loggingLevelComboBox->setHidden(!state);
+}
+
+void LoginDialog::OnLoggingLevelChanged(const QString& level) {
+    const QsLogging::Level logging_level = Util::TextToLogLevel(level);
+    QsLogging::Logger::instance().setLoggingLevel(logging_level);
+    settings_.setValue("logging_level", level);
 }
 
 void LoginDialog::DisplayError(const QString& error, bool disable_login) {

@@ -54,13 +54,16 @@ private slots:
     void OnFinishLegacyLogin();
     void OnSessionIDChanged(const QString& session_id);
     void OnLeagueChanged(const QString& league);
-    void OnProxyCheckBoxClicked(bool checked);
-    void OnRememberMeCheckBoxClicked(bool checked);
-    void OnReportCrashesCheckBoxClicked(bool checked);
+    void OnAdvancedCheckBoxChanged(Qt::CheckState state);
+    void OnProxyCheckBoxChanged(Qt::CheckState state);
+    void OnRememberMeCheckBoxChanged(Qt::CheckState state);
+    void OnReportCrashesCheckBoxChanged(Qt::CheckState state);
+    void OnLoggingLevelChanged(const QString& level);
     void OnOAuthAccessGranted(const OAuthToken& token);
 protected:
     bool event(QEvent* e);
 private:
+    void ShowAdvancedOptions(bool state);
     void LoadSettings();
     void SaveSettings();
     void RequestLeagues();
