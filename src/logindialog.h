@@ -61,6 +61,7 @@ private slots:
     void OnRememberMeCheckBoxChanged(Qt::CheckState state);
     void OnReportCrashesCheckBoxChanged(Qt::CheckState state);
     void OnLoggingLevelChanged(const QString& level);
+    void OnThemeChanged(const QString& theme);
     void OnUserDirButtonPushed();
     void OnOAuthAccessGranted(const OAuthToken& token);
 protected:
@@ -68,7 +69,6 @@ protected:
 private:
     void ShowAdvancedOptions(bool state);
     void LoadSettings();
-    void SaveSettings();
     void RequestLeagues();
     void LoginWithOAuth();
     void LoginWithSessionID();

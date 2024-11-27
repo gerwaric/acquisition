@@ -98,7 +98,13 @@ LoginDialog::LoginDialog(
     setWindowIcon(QIcon(":/icons/assets/icon.svg"));
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
-    // Setup loggin levels.
+    // Setup the realm options.
+    ui->realmComboBox->addItems({"pc","sony","xbox"});
+
+    // Setup theme.
+    ui->themeComboBox->addItems({"default","light","dark"});
+
+    // Setup logging levels.
     ui->loggingLevelComboBox->addItems({
         Util::LogLevelToText(QsLogging::FatalLevel),
         Util::LogLevelToText(QsLogging::ErrorLevel),
@@ -108,23 +114,29 @@ LoginDialog::LoginDialog(
         Util::LogLevelToText(QsLogging::TraceLevel),
         Util::LogLevelToText(QsLogging::OffLevel)
     });
-    const QsLogging::Level logging_level = QsLogging::Logger::instance().loggingLevel();
-    ui->loggingLevelComboBox->setCurrentText(Util::LogLevelToText(logging_level));
 
     // Display the data directory
     ui->userDirLabel->setText(Filesystem::UserDir());
 
     // Hide the error message by default
+    ui->errorLabel->setText("");
     ui->errorLabel->hide();
-    ui->errorLabel->setStyleSheet("QLabel { color : red; }");
+    ui->errorLabel->setStyleSheet("QLabel {color: red;}");
 
     // Disable the login button until we are ready to login.
-    QLOG_TRACE() << "LoginDialog::LoginDialog() disabling the login button";
     ui->loginButton->setEnabled(false);
 
     // Load saved settings.
-    QLOG_TRACE() << "LoginDialog::LoginDialog() calling LoadSettings()";
     LoadSettings();
+
+    // Set the proxy.
+    QNetworkProxyFactory::setUseSystemConfiguration(ui->proxyCheckBox->isChecked());
+
+    // Let the oath manager know about the remember me selection.
+    oauth_manager_.RememberToken(ui->rememberMeCheckBox->isChecked());
+
+    // Load advance settings option.
+    ShowAdvancedOptions(ui->advancedCheckBox->isChecked());
 
     // Connect main UI buttons.
     connect(ui->loginTabs, &QTabWidget::currentChanged, this, &LoginDialog::OnLoginTabChanged);
@@ -139,6 +151,7 @@ LoginDialog::LoginDialog(
     connect(ui->proxyCheckBox, &QCheckBox::checkStateChanged, this, &LoginDialog::OnProxyCheckBoxChanged);
     connect(ui->loggingLevelComboBox, &QComboBox::currentTextChanged, this, &LoginDialog::OnLoggingLevelChanged);
     connect(ui->userDirPushButton, &QPushButton::pressed, this, &LoginDialog::OnUserDirButtonPushed);
+    connect(ui->themeComboBox, & QComboBox::currentTextChanged, this, &LoginDialog::OnThemeChanged);
 
     // Listen for access from the OAuth manager.
     connect(&oauth_manager_, &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
@@ -155,68 +168,50 @@ LoginDialog::LoginDialog(
 }
 
 LoginDialog::~LoginDialog() {
-    QLOG_TRACE() << "LoginDialog::~LoginDialog() destroying object";
-    SaveSettings();
+    if (!ui->rememberMeCheckBox->isChecked()) {
+        QLOG_TRACE() << "LoginDialog::SaveSettings() clearing settings";
+        settings_.clear();
+    };
     delete ui;
 }
 
 void LoginDialog::LoadSettings() {
 
-    QLOG_TRACE() << "LoginDialog::LoadSetting()";
-
     const QString realm = settings_.value("realm").toString();
-    QLOG_TRACE() << "LoginDialog::LoadSettings() realm =" << realm;
-    if (!realm.isEmpty()) {
-        ui->realmComboBox->setCurrentText(realm);
-    };
+    ui->realmComboBox->setCurrentText(realm);
 
     const QString league = settings_.value("league").toString();
-    QLOG_TRACE() << "LoginDialog::LoadSettings() league =" << league;
-    if (!league.isEmpty()) {
-        ui->leagueComboBox->setCurrentText(league);
-    };
+    ui->leagueComboBox->setCurrentText(league);
+
+    const QString logging_level = Util::LogLevelToText(QsLogging::Logger::instance().loggingLevel());
+    ui->loggingLevelComboBox->setCurrentText(logging_level);
+
+    const QString theme = settings_.value("theme").toString();
+    ui->themeComboBox->setCurrentText(theme);
 
     const QString session_id = settings_.value("session_id").toString();
-    QLOG_TRACE() << "LoginDialog::LoadSettings() session_id has" << session_id.size() << "characters";
     ui->sessionIDLineEdit->setText(session_id);
 
-    const bool show_options = settings_.value("show_advanced_login_options").toBool();
-    ui->advancedCheckBox->setChecked(show_options);
-    ShowAdvancedOptions(show_options);
+    const bool show_advanced = settings_.value("show_advanced_login_options").toBool();
+    ui->advancedCheckBox->setChecked(show_advanced);
 
-    const bool remember_me = settings_.value("remember_user").toBool();
-    QLOG_TRACE() << "LoginDialog::LoadSettings() remember_me" << remember_me;
-    ui->rememberMeCheckBox->setChecked(remember_me);
+    const bool remember_user = settings_.value("remember_user").toBool();
+    ui->rememberMeCheckBox->setChecked(remember_user);
 
-    const bool use_system_proxy = settings_.value("use_system_proxy").toBool();
-    QLOG_TRACE() << "LoginDialog::LoadSettings() use_system_proxy" << use_system_proxy;
-    ui->proxyCheckBox->setChecked(use_system_proxy);
+    const bool use_proxy = settings_.value("use_system_proxy").toBool();
+    ui->proxyCheckBox->setChecked(use_proxy);
 
     const bool report_crashes = settings_.value("report_crashes").toBool();
-    QLOG_TRACE() << "LoginDialog::LoadSettings() report_crashes" << report_crashes;
     ui->reportCrashesCheckBox->setChecked(report_crashes);
-
-    QLOG_TRACE() << "LoginDialog::LoadSettings() passing remember_me to OAuth manager";
-    oauth_manager_.RememberToken(remember_me);
 
     const QString login_tab = settings_.value("login_tab").toString();
     QLOG_TRACE() << "LoginDialog::LoadSettings() login_tab =" << login_tab;
     for (auto i = 0; i < ui->loginTabs->count(); ++i) {
-        if (ui->loginTabs->widget(i)->objectName() == login_tab) {
+        const QString tab_name = ui->loginTabs->widget(i)->objectName();
+        if (0 == login_tab.compare(tab_name, Qt::CaseInsensitive)) {
             ui->loginTabs->setCurrentIndex(i);
             break;
         };
-    };
-
-
-    QLOG_TRACE() << "LoginDialog::LoadSetting() setting proxy configuration";
-    QNetworkProxyFactory::setUseSystemConfiguration(ui->proxyCheckBox->isChecked());
-}
-
-void LoginDialog::SaveSettings() {
-    if (!ui->rememberMeCheckBox->isChecked()) {
-        QLOG_TRACE() << "LoginDialog::SaveSettings() clearing settings";
-        settings_.clear();
     };
 }
 
@@ -540,7 +535,9 @@ void LoginDialog::OnLoginTabChanged(int index) {
     ui->leagueLabel->setHidden(hide_options);
     ui->leagueComboBox->setHidden(hide_options);
     ui->advancedCheckBox->setHidden(hide_options);
+    ui->advancedLine->setHidden(hide_options);
     ShowAdvancedOptions(!hide_options && ui->advancedCheckBox->isChecked());
+    ui->errorLabel->setHidden(hide_options);
     ui->loginButton->setHidden(hide_options);
     settings_.setValue("login_tab", tab->objectName());
 };
@@ -563,6 +560,7 @@ void LoginDialog::OnAdvancedCheckBoxChanged(Qt::CheckState state) {
 }
 
 void LoginDialog::ShowAdvancedOptions(bool state) {
+    ui->advancedLine->setHidden(!state);
     ui->rememberMeCheckBox->setHidden(!state);
     ui->reportCrashesCheckBox->setHidden(!state);
     ui->proxyCheckBox->setHidden(!state);
@@ -570,6 +568,8 @@ void LoginDialog::ShowAdvancedOptions(bool state) {
     ui->loggingLevelComboBox->setHidden(!state);
     ui->userDirPushButton->setHidden(!state);
     ui->userDirLabel->setHidden(!state);
+    ui->themeLabel->setHidden(!state);
+    ui->themeComboBox->setHidden(!state);
 }
 
 void LoginDialog::OnProxyCheckBoxChanged(Qt::CheckState state) {
@@ -647,6 +647,10 @@ void LoginDialog::OnLoggingLevelChanged(const QString& level) {
     const QsLogging::Level logging_level = Util::TextToLogLevel(level);
     QsLogging::Logger::instance().setLoggingLevel(logging_level);
     settings_.setValue("logging_level", level);
+}
+
+void LoginDialog::OnThemeChanged(const QString& theme) {
+    emit SetTheme(theme);
 }
 
 void LoginDialog::DisplayError(const QString& error, bool disable_login) {

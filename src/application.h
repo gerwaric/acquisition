@@ -65,7 +65,7 @@ public:
     OAuthManager& oauth_manager() const;
     RateLimiter& rate_limiter() const;
 public slots:
-    void OnSetTheme(const QString& theme);
+    void SetTheme(const QString& theme);
     void OnLogin(POE_API api);
     void OnItemsRefreshed(bool initial_refresh);
     void OnRunTests();

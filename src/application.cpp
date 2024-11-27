@@ -72,7 +72,12 @@ Application::Application() {
 
     QLOG_TRACE() << "Application::Application() loading theme";
     const QString theme = settings().value("theme", "default").toString();
-    OnSetTheme(theme);
+    SetTheme(theme);
+
+    if (settings().value("realm").toString().isEmpty()) {
+        settings().setValue("realm", "pc");
+    };
+    QLOG_TRACE() << "Application::Application() realm is" << settings().value("realm");
 
     QLOG_TRACE() << "Application::Application() creating QNetworkAccessManager";
     network_manager_ = std::make_unique<QNetworkAccessManager>(this);
@@ -110,12 +115,11 @@ void Application::Start() {
         oauth_manager());
 
     // Connect to the update signal in case an update is detected before the main window is open.
-    QLOG_TRACE() << "Application::Start() connecting update checker";
-    QObject::connect(update_checker_.get(), &UpdateChecker::UpdateAvailable, update_checker_.get(), &UpdateChecker::AskUserToUpdate);
+    connect(update_checker_.get(), &UpdateChecker::UpdateAvailable, update_checker_.get(), &UpdateChecker::AskUserToUpdate);
 
-    // Use the login complete signal to setup the main window.
-    QLOG_TRACE() << "Application::Start() connecting login";
-    QObject::connect(login_.get(), &LoginDialog::LoginComplete, this, &Application::OnLogin);
+    // Connect signals from the login dialog.
+    connect(login_.get(), &LoginDialog::SetTheme, this, &Application::SetTheme);
+    connect(login_.get(), &LoginDialog::LoginComplete, this, &Application::OnLogin);
 
     // Start the initial check for updates.
     QLOG_TRACE() << "Application::Start() starting a check for application updates";
@@ -152,7 +156,7 @@ void Application::OnLogin(POE_API api) {
         shop());
 
     // Connect the theme signal.
-    connect(main_window_.get(), &MainWindow::SetTheme, this, &Application::OnSetTheme);
+    connect(main_window_.get(), &MainWindow::SetTheme, this, &Application::SetTheme);
 
     QLOG_TRACE() << "Application::OnLogin() closing the login dialog";
     login_->close();
@@ -274,7 +278,7 @@ void Application::InitCrashReporting() {
     };
 }
 
-void Application::OnSetTheme(const QString& theme) {
+void Application::SetTheme(const QString& theme) {
     QLOG_TRACE() << "Application::OnSetTheme() entered";
 
     if (0 == theme.compare(active_theme_, Qt::CaseInsensitive)) {
@@ -298,7 +302,9 @@ void Application::OnSetTheme(const QString& theme) {
         QLOG_ERROR() << "Invalid theme:" << theme;
         return;
     };
+
     QLOG_TRACE() << "Application::OnSetTheme() setting theme:" << theme;
+    settings().setValue("theme", theme);
 
     QString style_data;
     if (!stylesheet.isEmpty()) {
@@ -314,11 +320,6 @@ void Application::OnSetTheme(const QString& theme) {
 
     QLOG_TRACE() << "Application::OnSetTheme() setting stylesheet";
     qApp->setStyleSheet(style_data);
-
-    QLOG_TRACE() << "Application::OnSetTheme() setting window text color:" << text_color;
-    QPalette p = QApplication::palette();
-    p.setColor(QPalette::WindowText, text_color);
-    QApplication::setPalette(p);
 }
 
 void Application::InitLogin(POE_API mode)
