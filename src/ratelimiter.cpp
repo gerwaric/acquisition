@@ -30,10 +30,9 @@
 #include "QsLog.h"
 
 #include "fatalerror.h"
-#include "ratelimit.h"
-#include "ratelimitmanager.h"
 #include "network_info.h"
 #include "oauthmanager.h"
+#include "ratelimitmanager.h"
 
 constexpr int UPDATE_INTERVAL_MSEC = 1000;
 
@@ -85,6 +84,8 @@ RateLimiter::RateLimiter(QObject* parent,
     update_timer_.setInterval(UPDATE_INTERVAL_MSEC);
     connect(&update_timer_, &QTimer::timeout, this, &RateLimiter::SendStatusUpdate);
 }
+
+RateLimiter::~RateLimiter() {}
 
 RateLimit::RateLimitedReply* RateLimiter::Submit(
     const QString& endpoint,

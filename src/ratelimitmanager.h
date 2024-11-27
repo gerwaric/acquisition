@@ -72,6 +72,7 @@ public:
     using SendFcn = boost::function<QNetworkReply* (QNetworkRequest&)>;
 
     RateLimitManager(QObject* parent, SendFcn sender);
+    ~RateLimitManager();
 
     // Move a request into to this manager's queue.
     void QueueRequest(

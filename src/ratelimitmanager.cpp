@@ -76,6 +76,9 @@ RateLimitManager::RateLimitManager(QObject* parent, SendFcn sender) :
     connect(&activation_timer_, &QTimer::timeout, this, &RateLimitManager::SendRequest);
 }
 
+RateLimitManager::~RateLimitManager() {
+}
+
 const RateLimit::Policy& RateLimitManager::policy() {
     if (!policy_) {
         FatalError("The rate limit manager's policy is null!");

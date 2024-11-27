@@ -47,6 +47,8 @@ public:
         OAuthManager& oauth_manager,
         POE_API mode);
 
+    ~RateLimiter();
+
     // Submit a request-callback pair to the rate limiter. The caller is responsible
     // for freeing the RateLimitedReply object with deleteLater() when the completed()
     // signal has been emitted.
