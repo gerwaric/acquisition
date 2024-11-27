@@ -536,7 +536,6 @@ void LoginDialog::OnLoginTabChanged(int index) {
     ui->leagueLabel->setHidden(hide_options);
     ui->leagueComboBox->setHidden(hide_options);
     ui->advancedCheckBox->setHidden(hide_options);
-    ui->advancedLine->setHidden(hide_options);
     ShowAdvancedOptions(!hide_options && ui->advancedCheckBox->isChecked());
     ui->errorLabel->setHidden(hide_options);
     ui->loginButton->setHidden(hide_options);
