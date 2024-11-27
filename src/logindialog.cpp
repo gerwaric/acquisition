@@ -45,6 +45,7 @@
 #include "filesystem.h"
 #include "mainwindow.h"
 #include "network_info.h"
+#include "rapidjson_util.h" // Needed for range iterators
 #include "replytimeout.h"
 #include "util.h"
 #include "updatechecker.h"

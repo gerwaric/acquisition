@@ -29,8 +29,6 @@
 
 #include "QsLogLevel.h"
 
-#include "bucket.h"
-
 class QNetworkAccessManager;
 class QNetworkReply;
 class QSettings;
@@ -44,6 +42,7 @@ class DataStore;
 class Filter;
 class FlowLayout;
 class ImageCache;
+class Item;
 class ItemLocation;
 class ItemsManager;
 class OAuthManager;
