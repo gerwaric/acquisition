@@ -45,17 +45,17 @@ std::unique_ptr<FilterData> Filter::CreateData() {
     return std::make_unique<FilterData>(this);
 }
 
-FilterData::FilterData(Filter* filter) :
-    text_query(""),
-    min(0.0), max(0.0),
-    min_filled(false),
-    max_filled(false),
-    r(0), g(0), b(0),
-    r_filled(false),
-    g_filled(false),
-    b_filled(false),
-    checked(false),
-    filter_(filter)
+FilterData::FilterData(Filter* filter)
+    : text_query("")
+    , min(0.0), max(0.0)
+    , min_filled(false)
+    , max_filled(false)
+    , r(0), g(0), b(0)
+    , r_filled(false)
+    , g_filled(false)
+    , b_filled(false)
+    , checked(false)
+    , filter_(filter)
 {}
 
 bool FilterData::Matches(const std::shared_ptr<Item> item) {
@@ -155,8 +155,8 @@ void CategorySearchFilter::Initialize(QLayout* parent) {
     QObject::connect(combobox_, &QComboBox::currentIndexChanged, main_window, &MainWindow::OnDelayedSearchFormChange);
 }
 
-RaritySearchFilter::RaritySearchFilter(QLayout* parent, QAbstractListModel* model) :
-    model_(model)
+RaritySearchFilter::RaritySearchFilter(QLayout* parent, QAbstractListModel* model)
+    : model_(model)
 {
     Initialize(parent);
 }
@@ -216,16 +216,16 @@ void RaritySearchFilter::Initialize(QLayout* parent) {
     QObject::connect(combobox_, &QComboBox::currentIndexChanged, main_window, &MainWindow::OnDelayedSearchFormChange);
 }
 
-MinMaxFilter::MinMaxFilter(QLayout* parent, std::string property) :
-    property_(property),
-    caption_(property)
+MinMaxFilter::MinMaxFilter(QLayout* parent, std::string property)
+    : property_(property)
+    , caption_(property)
 {
     Initialize(parent);
 }
 
-MinMaxFilter::MinMaxFilter(QLayout* parent, std::string property, std::string caption) :
-    property_(property),
-    caption_(caption)
+MinMaxFilter::MinMaxFilter(QLayout* parent, std::string property, std::string caption)
+    : property_(property)
+    , caption_(caption)
 {
     Initialize(parent);
 }
@@ -318,9 +318,9 @@ double RequiredStatFilter::GetValue(const std::shared_ptr<Item>& item) {
     return 0;
 }
 
-ItemMethodFilter::ItemMethodFilter(QLayout* parent, std::function<double(Item*)> func, std::string caption) :
-    MinMaxFilter(parent, caption, caption),
-    func_(func)
+ItemMethodFilter::ItemMethodFilter(QLayout* parent, std::function<double(Item*)> func, std::string caption)
+    : MinMaxFilter(parent, caption, caption)
+    , func_(func)
 {}
 
 double ItemMethodFilter::GetValue(const std::shared_ptr<Item>& item) {
@@ -435,9 +435,9 @@ bool LinksColorsFilter::Matches(const std::shared_ptr<Item>& item, FilterData* d
     return false;
 }
 
-BooleanFilter::BooleanFilter(QLayout* parent, std::string property, std::string caption) :
-    property_(property),
-    caption_(caption)
+BooleanFilter::BooleanFilter(QLayout* parent, std::string property, std::string caption)
+    : property_(property)
+    , caption_(caption)
 {
     Initialize(parent);
 }

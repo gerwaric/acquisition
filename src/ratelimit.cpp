@@ -85,10 +85,10 @@ int RateLimit::ParseStatus(QNetworkReply* const reply) {
 // RuleItemData
 //=========================================================================================
 
-RuleItemData::RuleItemData(const QByteArray& header_fragment) :
-    hits_(-1),
-    period_(-1),
-    restriction_(-1)
+RuleItemData::RuleItemData(const QByteArray& header_fragment)
+    : hits_(-1)
+    , period_(-1)
+    , restriction_(-1)
 {
     const QByteArrayList parts = header_fragment.split(':');
     hits_ = parts[0].toInt();
@@ -100,9 +100,9 @@ RuleItemData::RuleItemData(const QByteArray& header_fragment) :
 // RuleItem
 //=========================================================================================
 
-RuleItem::RuleItem(const QByteArray& limit_fragment, const QByteArray& state_fragment) :
-    limit_(limit_fragment),
-    state_(state_fragment)
+RuleItem::RuleItem(const QByteArray& limit_fragment, const QByteArray& state_fragment)
+    : limit_(limit_fragment)
+    , state_(state_fragment)
 {
     // Determine the status of this item.
     if (state_.period() != limit_.period()) {
@@ -200,10 +200,10 @@ int RuleItem::EstimateDuration(int request_count, int minimum_delay_msec) const 
 // PolicyRule
 //=========================================================================================
 
-PolicyRule::PolicyRule(const QByteArray& rule_name, QNetworkReply* const reply) :
-    name_(rule_name),
-    status_(PolicyStatus::UNKNOWN),
-    maximum_hits_(-1)
+PolicyRule::PolicyRule(const QByteArray& rule_name, QNetworkReply* const reply)
+    : name_(rule_name)
+    , status_(PolicyStatus::UNKNOWN)
+    , maximum_hits_(-1)
 {
     QLOG_TRACE() << "RateLimit::PolicyRule::PolicyRule() entered";
     const QByteArrayList limit_fragments = ParseRateLimit(reply, rule_name);
@@ -262,9 +262,9 @@ void PolicyRule::Check(const PolicyRule& other, const QString& prefix) const {
 // Policy
 //=========================================================================================
 
-Policy::Policy(QNetworkReply* const reply) :
-    status_(PolicyStatus::UNKNOWN),
-    maximum_hits_(0)
+Policy::Policy(QNetworkReply* const reply)
+    : status_(PolicyStatus::UNKNOWN)
+    , maximum_hits_(0)
 {
     QLOG_TRACE() << "RateLimit::Policy::Policy() entered";
     const QByteArrayList rule_names = ParseRateLimitRules(reply);

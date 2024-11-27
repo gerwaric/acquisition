@@ -65,10 +65,10 @@ constexpr int TIMING_BUCKET_MSEC = 5200;
 unsigned long RateLimitedRequest::request_count = 0;
 
 // Create a new rate limit manager based on an existing policy.
-RateLimitManager::RateLimitManager(QObject* parent, SendFcn sender) :
-    QObject(parent),
-    sender_(sender),
-    policy_(nullptr)
+RateLimitManager::RateLimitManager(QObject* parent, SendFcn sender)
+    : QObject(parent)
+    , sender_(sender)
+    , policy_(nullptr)
 {
     QLOG_TRACE() << "RateLimitManager::RateLimitManager() entered";
     // Setup the active request timer to call SendRequest each time it's done.

@@ -21,8 +21,8 @@
 
 #include "fatalerror.h"
 
-Bucket::Bucket(const ItemLocation& location) :
-    location_(location)
+Bucket::Bucket(const ItemLocation& location)
+    : location_(location)
 {}
 
 void Bucket::AddItem(const std::shared_ptr<Item>& item) {

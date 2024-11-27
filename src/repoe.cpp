@@ -25,9 +25,9 @@ constexpr const char* STAT_TRANSLATION_URLS[] = {
 
 bool RePoE::initialized_ = false;
 
-RePoE::RePoE(QObject* parent, QNetworkAccessManager& network_manager) :
-    QObject(parent),
-    network_manager_(network_manager)
+RePoE::RePoE(QObject* parent, QNetworkAccessManager& network_manager)
+    : QObject(parent)
+    , network_manager_(network_manager)
 {
     QLOG_TRACE() << "RePoE::RePoE() entered";
 }

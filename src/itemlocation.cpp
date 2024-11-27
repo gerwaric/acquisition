@@ -21,17 +21,19 @@ QDebug& operator<<(QDebug& os, const ItemLocationType& obj) {
     };
 }
 
-ItemLocation::ItemLocation() :
-    x_(0), y_(0), w_(0), h_(0), red_(0), green_(0), blue_(0),
-    socketed_(false),
-    removeonly_(false),
-    type_(ItemLocationType::STASH),
-    tab_type_(""),
-    tab_id_(0)
+ItemLocation::ItemLocation()
+    : x_(0), y_(0)
+    , w_(0), h_(0)
+    , red_(0), green_(0), blue_(0)
+    , socketed_(false)
+    , removeonly_(false)
+    , type_(ItemLocationType::STASH)
+    , tab_type_("")
+    , tab_id_(0)
 {}
 
-ItemLocation::ItemLocation(const rapidjson::Value& root) :
-    ItemLocation()
+ItemLocation::ItemLocation(const rapidjson::Value& root)
+    : ItemLocation()
 {
     FromItemJson(root);
     FixUid();
@@ -41,8 +43,7 @@ ItemLocation::ItemLocation(
     int tab_id,
     const std::string tab_unique_id,
     const std::string name)
-    :
-    ItemLocation()
+    : ItemLocation()
 {
     tab_label_ = name;
     tab_id_ = tab_id;
@@ -57,14 +58,13 @@ ItemLocation::ItemLocation(
     const std::string tab_type,
     int r, int g, int b,
     rapidjson::Value& value, rapidjson_allocator& alloc)
-    :
-    x_(0), y_(0),
-    w_(0), h_(0),
-    red_(r), green_(g), blue_(b),
-    socketed_(false),
-    type_(type),
-    tab_id_(tab_id),
-    tab_unique_id_(tab_unique_id)
+    : x_(0), y_(0)
+    , w_(0), h_(0)
+    , red_(r), green_(g), blue_(b)
+    , socketed_(false)
+    , type_(type)
+    , tab_id_(tab_id)
+    , tab_unique_id_(tab_unique_id)
 {
     switch (type_) {
     case ItemLocationType::STASH:

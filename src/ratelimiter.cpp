@@ -73,11 +73,10 @@ RateLimiter::RateLimiter(QObject* parent,
     QNetworkAccessManager& network_manager,
     OAuthManager& oauth_manager,
     POE_API mode)
-    :
-    QObject(parent),
-    network_manager_(network_manager),
-    oauth_manager_(oauth_manager),
-    mode_(mode)
+    : QObject(parent)
+    , network_manager_(network_manager)
+    , oauth_manager_(oauth_manager)
+    , mode_(mode)
 {
     QLOG_TRACE() << "RateLimiter::RateLimiter() entered";
     update_timer_.setSingleShot(false);

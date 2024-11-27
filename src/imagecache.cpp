@@ -26,8 +26,8 @@
 
 #include "util.h"
 
-ImageCache::ImageCache(const QString& directory) :
-    directory_(directory)
+ImageCache::ImageCache(const QString& directory)
+    : directory_(directory)
 {
     if (!QDir(directory_).exists())
         QDir().mkpath(directory_);

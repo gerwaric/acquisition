@@ -86,15 +86,15 @@ static std::string fixup_name(const std::string& name) {
     return name;
 }
 
-Item::Item(const std::string& name, const ItemLocation& location) :
-    name_(name),
-    location_(location),
-    hash_(Util::Md5(name)) // Unique enough for tests
+Item::Item(const std::string& name, const ItemLocation& location)
+    : name_(name)
+    , location_(location)
+    , hash_(Util::Md5(name)) // Unique enough for tests
 {}
 
-Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
-    location_(loc),
-    json_(Util::RapidjsonSerialize(json))
+Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
+    : location_(loc)
+    , json_(Util::RapidjsonSerialize(json))
 {
     if (HasString(json, "name")) {
         name_ = fixup_name(json["name"].GetString());

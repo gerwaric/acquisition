@@ -86,31 +86,30 @@ ItemsManagerWorker::ItemsManagerWorker(QObject* parent,
     DataStore& datastore,
     RateLimiter& rate_limiter,
     POE_API mode)
-    :
-    QObject(parent),
-    settings_(settings),
-    network_manager_(network_manager),
-    repoe_(repoe),
-    datastore_(datastore),
-    buyout_manager_(buyout_manager),
-    rate_limiter_(rate_limiter),
-    mode_(mode),
-    test_mode_(false),
-    stashes_needed_(0),
-    stashes_received_(0),
-    characters_needed_(0),
-    characters_received_(0),
-    initialized_(false),
-    updating_(false),
-    cancel_update_(false),
-    updateRequest_(false),
-    type_(TabSelection::Type::Checked),
-    queue_id_(-1),
-    first_stash_request_index_(-1),
-    need_stash_list_(false),
-    need_character_list_(false),
-    has_stash_list_(false),
-    has_character_list_(false)
+    : QObject(parent)
+    , settings_(settings)
+    , network_manager_(network_manager)
+    , repoe_(repoe)
+    , datastore_(datastore)
+    , buyout_manager_(buyout_manager)
+    , rate_limiter_(rate_limiter)
+    , mode_(mode)
+    , test_mode_(false)
+    , stashes_needed_(0)
+    , stashes_received_(0)
+    , characters_needed_(0)
+    , characters_received_(0)
+    , initialized_(false)
+    , updating_(false)
+    , cancel_update_(false)
+    , updateRequest_(false)
+    , type_(TabSelection::Type::Checked)
+    , queue_id_(-1)
+    , first_stash_request_index_(-1)
+    , need_stash_list_(false)
+    , need_character_list_(false)
+    , has_stash_list_(false)
+    , has_character_list_(false)
 {
     QLOG_TRACE() << "ItemsManagerWorker::ItemsManagerWorker() entered";
 }

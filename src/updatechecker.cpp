@@ -46,10 +46,9 @@ constexpr int UPDATE_INTERVAL = 24 * 60 * 60 * 1000;
 UpdateChecker::UpdateChecker(QObject* parent,
     QSettings& settings,
     QNetworkAccessManager& network_manager)
-    :
-    QObject(parent),
-    settings_(settings),
-    nm_(network_manager)
+    : QObject(parent)
+    , settings_(settings)
+    , nm_(network_manager)
 {
     timer_.setInterval(UPDATE_INTERVAL);
     timer_.start();

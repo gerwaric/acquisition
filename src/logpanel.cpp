@@ -39,10 +39,10 @@ constexpr std::array<MessageType, 3> message_types{ {
     { QColor(174, 141, 28), "warning" },
     { QColor(255, 0, 0), "error" }} };
 
-LogPanel::LogPanel(MainWindow* window, Ui::MainWindow* ui) :
-    status_button_(new QPushButton),
-    output_(new QTextEdit),
-    signal_handler_(*this)
+LogPanel::LogPanel(MainWindow* window, Ui::MainWindow* ui)
+    : status_button_(new QPushButton)
+    , output_(new QTextEdit)
+    , signal_handler_(*this)
 {
     num_messages_.resize(message_types.size());
 

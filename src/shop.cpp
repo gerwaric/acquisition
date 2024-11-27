@@ -74,16 +74,15 @@ Shop::Shop(QObject* parent,
     DataStore& datastore,
     ItemsManager& items_manager,
     BuyoutManager& buyout_manager)
-    :
-    QObject(parent),
-    settings_(settings),
-    network_manager_(network_manager),
-    datastore_(datastore),
-    items_manager_(items_manager),
-    buyout_manager_(buyout_manager),
-    shop_data_outdated_(true),
-    submitting_(false),
-    requests_completed_(0)
+    : QObject(parent)
+    , settings_(settings)
+    , network_manager_(network_manager)
+    , datastore_(datastore)
+    , items_manager_(items_manager)
+    , buyout_manager_(buyout_manager)
+    , shop_data_outdated_(true)
+    , submitting_(false)
+    , requests_completed_(0)
 {
     QLOG_TRACE() << "Shop::Shop() entered";
     threads_ = Util::StringSplit(datastore_.Get("shop"), ';');

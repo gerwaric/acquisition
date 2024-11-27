@@ -27,12 +27,12 @@
 #include "util.h"
 #include "QsLog.h"
 
-ItemsModel::ItemsModel(BuyoutManager& bo_manager, Search& search) :
-    bo_manager_(bo_manager),
-    search_(search),
-    sort_order_(Qt::DescendingOrder),
-    sort_column_(0),
-    sorted_(false)
+ItemsModel::ItemsModel(BuyoutManager& bo_manager, Search& search)
+    : bo_manager_(bo_manager)
+    , search_(search)
+    , sort_order_(Qt::DescendingOrder)
+    , sort_column_(0)
+    , sorted_(false)
 {
 }
 

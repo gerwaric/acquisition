@@ -54,12 +54,11 @@ constexpr int EXPIRATION_BUFFER_SECS = 3600;
 OAuthManager::OAuthManager(QObject* parent,
     QNetworkAccessManager& network_manager,
     DataStore& datastore)
-    :
-    QObject(parent),
-    network_manager_(network_manager),
-    datastore_(datastore),
-    remember_token_(false),
-    refresh_timer_(this)
+    : QObject(parent)
+    , network_manager_(network_manager)
+    , datastore_(datastore)
+    , remember_token_(false)
+    , refresh_timer_(this)
 {
     QLOG_TRACE() << "OAuthManager::OAuthManager() entered";
 

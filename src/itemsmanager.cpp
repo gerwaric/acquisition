@@ -44,15 +44,14 @@ ItemsManager::ItemsManager(QObject* parent,
     BuyoutManager& buyout_manager,
     DataStore& datastore,
     RateLimiter& rate_limiter)
-    :
-    QObject(parent),
-    settings_(settings),
-    network_manager_(network_manager),
-    repoe_(repoe),
-    buyout_manager_(buyout_manager),
-    datastore_(datastore),
-    rate_limiter_(rate_limiter),
-    auto_update_timer_(std::make_unique<QTimer>())
+    : QObject(parent)
+    , settings_(settings)
+    , network_manager_(network_manager)
+    , repoe_(repoe)
+    , buyout_manager_(buyout_manager)
+    , datastore_(datastore)
+    , rate_limiter_(rate_limiter)
+    , auto_update_timer_(std::make_unique<QTimer>())
 {
     QLOG_TRACE() << "ItemsManager::ItemsManager() entered";
     const int interval = settings_.value("autoupdate_interval", 30).toInt();

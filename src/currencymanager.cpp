@@ -40,11 +40,10 @@ CurrencyManager::CurrencyManager(QWidget* parent,
     QSettings& settings,
     DataStore& datastore,
     ItemsManager& items_manager)
-    :
-    QWidget(parent),
-    settings_(settings),
-    data_(datastore),
-    items_manager_(items_manager)
+    : QWidget(parent)
+    , settings_(settings)
+    , data_(datastore)
+    , items_manager_(items_manager)
 {
     if (data_.Get("currency_items", "").empty()) {
         FirstInitCurrency();

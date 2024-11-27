@@ -26,14 +26,14 @@
 
 #include "util.h"
 
-OAuthToken::OAuthToken() :
-    expires_in_(-1)
+OAuthToken::OAuthToken()
+    : expires_in_(-1)
 {
     QLOG_TRACE() << "OAuthToken::OAuthToken(json) entered";
 }
 
-OAuthToken::OAuthToken(const std::string& json) :
-    expires_in_(-1)
+OAuthToken::OAuthToken(const std::string& json)
+    : expires_in_(-1)
 {
     QLOG_TRACE() << "OAuthToken::OAuthToken(json) entered";
     rapidjson::Document doc;
@@ -81,8 +81,8 @@ OAuthToken::OAuthToken(const std::string& json) :
     };
 }
 
-OAuthToken::OAuthToken(QNetworkReply& reply) :
-    OAuthToken(reply.readAll().toStdString())
+OAuthToken::OAuthToken(QNetworkReply& reply)
+    : OAuthToken(reply.readAll().toStdString())
 {
     QLOG_TRACE() << "OAuthToken::OAuthToken(reply) entered";
     // Determine birthday and expiration time.

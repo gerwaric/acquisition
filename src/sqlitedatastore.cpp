@@ -27,8 +27,8 @@
 #include "QsLog.h"
 #include "currencymanager.h"
 
-SqliteDataStore::SqliteDataStore(const QString& filename) :
-    filename_(filename)
+SqliteDataStore::SqliteDataStore(const QString& filename)
+    : filename_(filename)
 {
     QDir dir(QDir::cleanPath(filename + "/.."));
     if (!dir.exists()) {
