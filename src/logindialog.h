@@ -44,8 +44,8 @@ public:
         OAuthManager& oauth_manager);
     ~LoginDialog();
 signals:
-    void SetTheme(const QString& theme);
-    void UserDirChanged(const QString& user_dir);
+    void ChangeTheme(const QString& theme);
+    void ChangeUserDir(const QString& user_dir);
     void LoginComplete(POE_API mode);
 private slots:
     void OnLeaguesReceived();
@@ -67,7 +67,6 @@ private slots:
 protected:
     bool event(QEvent* e);
 private:
-    void ShowAdvancedOptions(bool state);
     void LoadSettings();
     void RequestLeagues();
     void LoginWithOAuth();

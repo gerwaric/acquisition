@@ -116,7 +116,8 @@ void Application::Start() {
     connect(update_checker_.get(), &UpdateChecker::UpdateAvailable, update_checker_.get(), &UpdateChecker::AskUserToUpdate);
 
     // Connect signals from the login dialog.
-    connect(login_.get(), &LoginDialog::SetTheme, this, &Application::SetTheme);
+    connect(login_.get(), &LoginDialog::ChangeTheme, this, &Application::SetTheme);
+    connect(login_.get(), &LoginDialog::ChangeUserDir, this, &Application::SetUserDir);
     connect(login_.get(), &LoginDialog::LoginComplete, this, &Application::OnLogin);
 
     // Start the initial check for updates.
@@ -319,6 +320,11 @@ void Application::SetTheme(const QString& theme) {
 
     QLOG_TRACE() << "Application::OnSetTheme() setting stylesheet";
     qApp->setStyleSheet(style_data);
+}
+
+void Application::SetUserDir(const QString& dir)
+{
+    // TBD
 }
 
 void Application::InitLogin(POE_API mode)

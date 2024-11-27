@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>423</width>
-    <height>432</height>
+    <height>447</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -29,7 +29,7 @@
       </sizepolicy>
      </property>
      <property name="currentIndex">
-      <number>0</number>
+      <number>1</number>
      </property>
      <widget class="QWidget" name="oauthTab">
       <attribute name="title">
@@ -118,171 +118,138 @@
     </widget>
    </item>
    <item>
-    <layout class="QFormLayout" name="optionsLayout">
-     <property name="fieldGrowthPolicy">
-      <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
-     </property>
-     <property name="topMargin">
-      <number>0</number>
-     </property>
-     <item row="0" column="0">
-      <widget class="QLabel" name="realmLabel">
-       <property name="text">
-        <string>Realm</string>
-       </property>
-      </widget>
-     </item>
-     <item row="0" column="1">
-      <widget class="QComboBox" name="realmComboBox">
-       <property name="currentText">
-        <string/>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="0">
-      <widget class="QLabel" name="leagueLabel">
-       <property name="minimumSize">
-        <size>
-         <width>65</width>
-         <height>0</height>
-        </size>
-       </property>
-       <property name="text">
-        <string>League</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="1">
-      <widget class="QComboBox" name="leagueComboBox">
-       <property name="enabled">
-        <bool>false</bool>
-       </property>
-       <property name="sizeAdjustPolicy">
-        <enum>QComboBox::SizeAdjustPolicy::AdjustToContents</enum>
-       </property>
-      </widget>
-     </item>
-    </layout>
-   </item>
-   <item>
-    <layout class="QHBoxLayout" name="horizontalLayout">
-     <property name="topMargin">
-      <number>10</number>
-     </property>
-     <item>
-      <spacer name="horizontalSpacer">
-       <property name="orientation">
-        <enum>Qt::Orientation::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>40</width>
-         <height>20</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item>
-      <widget class="QCheckBox" name="advancedCheckBox">
-       <property name="text">
-        <string>Advanced Options</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <spacer name="horizontalSpacer_2">
-       <property name="orientation">
-        <enum>Qt::Orientation::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>40</width>
-         <height>20</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-    </layout>
-   </item>
-   <item>
-    <widget class="Line" name="advancedLine">
-     <property name="orientation">
-      <enum>Qt::Orientation::Horizontal</enum>
-     </property>
+    <widget class="QWidget" name="optionsWidget" native="true">
+     <layout class="QFormLayout" name="formLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="realmLabel">
+        <property name="text">
+         <string>Realm</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="realmComboBox">
+        <property name="currentText">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="leagueLabel">
+        <property name="minimumSize">
+         <size>
+          <width>65</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>League</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QComboBox" name="leagueComboBox">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="sizeAdjustPolicy">
+         <enum>QComboBox::SizeAdjustPolicy::AdjustToContents</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QCheckBox" name="advancedCheckBox">
+        <property name="text">
+         <string>Show Advanced Options</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
     </widget>
    </item>
    <item>
-    <layout class="QFormLayout" name="advancedOptionsLayout">
-     <property name="topMargin">
-      <number>0</number>
+    <widget class="QFrame" name="advancedOptionsFrame">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
      </property>
-     <item row="0" column="0">
-      <widget class="QCheckBox" name="rememberMeCheckBox">
-       <property name="text">
-        <string>Remember me</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="0">
-      <widget class="QCheckBox" name="reportCrashesCheckBox">
-       <property name="text">
-        <string>Report crashes</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="2" column="0">
-      <widget class="QCheckBox" name="proxyCheckBox">
-       <property name="text">
-        <string>Use system proxy</string>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="0">
-      <widget class="QLabel" name="loggingLevelLabel">
-       <property name="text">
-        <string>Logging Level</string>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="1">
-      <widget class="QComboBox" name="loggingLevelComboBox"/>
-     </item>
-     <item row="4" column="0">
-      <widget class="QLabel" name="themeLabel">
-       <property name="text">
-        <string>Theme</string>
-       </property>
-      </widget>
-     </item>
-     <item row="4" column="1">
-      <widget class="QComboBox" name="themeComboBox"/>
-     </item>
-     <item row="5" column="0">
-      <widget class="QPushButton" name="userDirPushButton">
-       <property name="text">
-        <string>Change User Directory</string>
-       </property>
-      </widget>
-     </item>
-     <item row="5" column="1">
-      <widget class="QLabel" name="userDirLabel">
-       <property name="text">
-        <string>User directory has not been set</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
+     <property name="frameShape">
+      <enum>QFrame::Shape::StyledPanel</enum>
+     </property>
+     <property name="frameShadow">
+      <enum>QFrame::Shadow::Raised</enum>
+     </property>
+     <layout class="QFormLayout" name="formLayout_2">
+      <item row="3" column="0">
+       <widget class="QCheckBox" name="proxyCheckBox">
+        <property name="text">
+         <string>Use system proxy</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QCheckBox" name="reportCrashesCheckBox">
+        <property name="text">
+         <string>Report crashes</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QCheckBox" name="rememberMeCheckBox">
+        <property name="text">
+         <string>Remember me</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="loggingLevelLabel">
+        <property name="text">
+         <string>Logging Level</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QComboBox" name="loggingLevelComboBox"/>
+      </item>
+      <item row="5" column="0">
+       <widget class="QLabel" name="themeLabel">
+        <property name="text">
+         <string>Theme</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="1">
+       <widget class="QComboBox" name="themeComboBox"/>
+      </item>
+      <item row="6" column="0">
+       <widget class="QPushButton" name="userDirPushButton">
+        <property name="text">
+         <string>Change User Directory</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="1">
+       <widget class="QLabel" name="userDirLabel">
+        <property name="text">
+         <string>User directory has not been set</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
    </item>
    <item>
     <widget class="QLabel" name="errorLabel">
      <property name="text">
-      <string>No login errors detected</string>
+      <string>Placeholder text</string>
      </property>
     </widget>
    </item>

@@ -136,8 +136,12 @@ LoginDialog::LoginDialog(
     // Let the oath manager know about the remember me selection.
     oauth_manager_.RememberToken(ui->rememberMeCheckBox->isChecked());
 
-    // Load advance settings option.
-    ShowAdvancedOptions(ui->advancedCheckBox->isChecked());
+    // Determine which options to show.
+    const bool hide_options = ui->loginTabs->currentWidget() == ui->offlineTab;
+    const bool hide_advanced = !ui->advancedCheckBox->isChecked();
+    ui->optionsWidget->setHidden(hide_options);
+    ui->advancedOptionsFrame->setHidden(hide_options | hide_advanced);
+    ui->loginButton->setHidden(hide_options);
 
     // Connect main UI buttons.
     connect(ui->loginTabs, &QTabWidget::currentChanged, this, &LoginDialog::OnLoginTabChanged);
@@ -531,13 +535,11 @@ void LoginDialog::OnLoginTabChanged(int index) {
         return;
     };
     const bool hide_options = (tab == ui->offlineTab);
-    ui->realmLabel->setHidden(hide_options);
-    ui->realmComboBox->setHidden(hide_options);
-    ui->leagueLabel->setHidden(hide_options);
-    ui->leagueComboBox->setHidden(hide_options);
-    ui->advancedCheckBox->setHidden(hide_options);
-    ShowAdvancedOptions(!hide_options && ui->advancedCheckBox->isChecked());
-    ui->errorLabel->setHidden(hide_options);
+    const bool hide_advanced = !ui->advancedCheckBox->isChecked();
+    const bool hide_error = ui->errorLabel->text().isEmpty();
+    ui->optionsWidget->setHidden(hide_options);
+    ui->advancedOptionsFrame->setHidden(hide_options || hide_advanced);
+    ui->errorLabel->setHidden(hide_options || hide_error);
     ui->loginButton->setHidden(hide_options);
     settings_.setValue("login_tab", tab->objectName());
 };
@@ -555,21 +557,9 @@ void LoginDialog::OnLeagueChanged(const QString& league) {
 void LoginDialog::OnAdvancedCheckBoxChanged(Qt::CheckState state) {
     QLOG_TRACE() << "LoginDialog: advanced options checkbox changed to" << state;
     const bool checked = (state == Qt::Checked);
-    ShowAdvancedOptions(checked);
+    const bool hide_options = ui->loginTabs->currentWidget() == ui->offlineTab;
+    ui->advancedOptionsFrame->setHidden(!checked || hide_options);
     settings_.setValue("show_advanced_login_options", checked);
-}
-
-void LoginDialog::ShowAdvancedOptions(bool state) {
-    ui->advancedLine->setHidden(!state);
-    ui->rememberMeCheckBox->setHidden(!state);
-    ui->reportCrashesCheckBox->setHidden(!state);
-    ui->proxyCheckBox->setHidden(!state);
-    ui->loggingLevelLabel->setHidden(!state);
-    ui->loggingLevelComboBox->setHidden(!state);
-    ui->userDirPushButton->setHidden(!state);
-    ui->userDirLabel->setHidden(!state);
-    ui->themeLabel->setHidden(!state);
-    ui->themeComboBox->setHidden(!state);
 }
 
 void LoginDialog::OnProxyCheckBoxChanged(Qt::CheckState state) {
@@ -639,7 +629,7 @@ void LoginDialog::OnUserDirButtonPushed() {
     const QString parent_dir = QFileInfo(current_dir).absolutePath();
     const QString new_dir = QFileDialog::getExistingDirectory(this, "Select the user directory", parent_dir);
     if (new_dir != current_dir) {
-        emit UserDirChanged(new_dir);
+        emit ChangeUserDir(new_dir);
     };
 }
 
@@ -650,7 +640,7 @@ void LoginDialog::OnLoggingLevelChanged(const QString& level) {
 }
 
 void LoginDialog::OnThemeChanged(const QString& theme) {
-    emit SetTheme(theme);
+    emit ChangeTheme(theme);
 }
 
 void LoginDialog::DisplayError(const QString& error, bool disable_login) {
