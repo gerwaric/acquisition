@@ -44,6 +44,8 @@ public:
         OAuthManager& oauth_manager);
     ~LoginDialog();
 signals:
+    void SetTheme(const QString& theme);
+    void UserDirChanged(const QString& user_dir);
     void LoginComplete(POE_API mode);
 private slots:
     void OnLeaguesReceived();
@@ -59,6 +61,7 @@ private slots:
     void OnRememberMeCheckBoxChanged(Qt::CheckState state);
     void OnReportCrashesCheckBoxChanged(Qt::CheckState state);
     void OnLoggingLevelChanged(const QString& level);
+    void OnUserDirButtonPushed();
     void OnOAuthAccessGranted(const OAuthToken& token);
 protected:
     bool event(QEvent* e);

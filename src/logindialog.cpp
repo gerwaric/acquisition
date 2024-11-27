@@ -22,6 +22,8 @@
 
 #include <QDesktopServices>
 #include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QMessageBox>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -96,16 +98,6 @@ LoginDialog::LoginDialog(
     setWindowIcon(QIcon(":/icons/assets/icon.svg"));
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
-    // Hide the advanced options and error message by default
-    const bool show_advanced = settings_.value("show_advanced_login_options",false).toBool();
-    ui->rememberMeCheckBox->setHidden(!show_advanced);
-    ui->reportCrashesCheckBox->hide();
-    ui->proxyCheckBox->hide();
-    ui->loggingLevelLabel->hide();
-    ui->loggingLevelComboBox->hide();
-    ui->errorLabel->hide();
-    ui->errorLabel->setStyleSheet("QLabel { color : red; }");
-
     // Setup loggin levels.
     ui->loggingLevelComboBox->addItems({
         Util::LogLevelToText(QsLogging::FatalLevel),
@@ -118,6 +110,13 @@ LoginDialog::LoginDialog(
     });
     const QsLogging::Level logging_level = QsLogging::Logger::instance().loggingLevel();
     ui->loggingLevelComboBox->setCurrentText(Util::LogLevelToText(logging_level));
+
+    // Display the data directory
+    ui->userDirLabel->setText(Filesystem::UserDir());
+
+    // Hide the error message by default
+    ui->errorLabel->hide();
+    ui->errorLabel->setStyleSheet("QLabel { color : red; }");
 
     // Disable the login button until we are ready to login.
     QLOG_TRACE() << "LoginDialog::LoginDialog() disabling the login button";
@@ -139,6 +138,7 @@ LoginDialog::LoginDialog(
     connect(ui->reportCrashesCheckBox, &QCheckBox::checkStateChanged, this, &LoginDialog::OnReportCrashesCheckBoxChanged);
     connect(ui->proxyCheckBox, &QCheckBox::checkStateChanged, this, &LoginDialog::OnProxyCheckBoxChanged);
     connect(ui->loggingLevelComboBox, &QComboBox::currentTextChanged, this, &LoginDialog::OnLoggingLevelChanged);
+    connect(ui->userDirPushButton, &QPushButton::pressed, this, &LoginDialog::OnUserDirButtonPushed);
 
     // Listen for access from the OAuth manager.
     connect(&oauth_manager_, &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
@@ -562,6 +562,16 @@ void LoginDialog::OnAdvancedCheckBoxChanged(Qt::CheckState state) {
     settings_.setValue("show_advanced_login_options", checked);
 }
 
+void LoginDialog::ShowAdvancedOptions(bool state) {
+    ui->rememberMeCheckBox->setHidden(!state);
+    ui->reportCrashesCheckBox->setHidden(!state);
+    ui->proxyCheckBox->setHidden(!state);
+    ui->loggingLevelLabel->setHidden(!state);
+    ui->loggingLevelComboBox->setHidden(!state);
+    ui->userDirPushButton->setHidden(!state);
+    ui->userDirLabel->setHidden(!state);
+}
+
 void LoginDialog::OnProxyCheckBoxChanged(Qt::CheckState state) {
     QLOG_TRACE() << "LoginDialog: proxy checkbox changed to" << state;
     const bool checked = (state == Qt::Checked);
@@ -624,12 +634,13 @@ void LoginDialog::OnReportCrashesCheckBoxChanged(Qt::CheckState state) {
     };
 }
 
-void LoginDialog::ShowAdvancedOptions(bool state) {
-    ui->rememberMeCheckBox->setHidden(!state);
-    ui->reportCrashesCheckBox->setHidden(!state);
-    ui->proxyCheckBox->setHidden(!state);
-    ui->loggingLevelLabel->setHidden(!state);
-    ui->loggingLevelComboBox->setHidden(!state);
+void LoginDialog::OnUserDirButtonPushed() {
+    const QString current_dir = QFileInfo(settings_.fileName()).absolutePath();
+    const QString parent_dir = QFileInfo(current_dir).absolutePath();
+    const QString new_dir = QFileDialog::getExistingDirectory(this, "Select the user directory", parent_dir);
+    if (new_dir != current_dir) {
+        emit UserDirChanged(new_dir);
+    };
 }
 
 void LoginDialog::OnLoggingLevelChanged(const QString& level) {

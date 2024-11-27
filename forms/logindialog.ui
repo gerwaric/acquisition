@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>423</width>
-    <height>368</height>
+    <height>394</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -171,14 +171,14 @@
        </property>
       </widget>
      </item>
-     <item row="2" column="0">
+     <item row="3" column="0">
       <widget class="QCheckBox" name="advancedCheckBox">
        <property name="text">
         <string>Show Advanced Options</string>
        </property>
       </widget>
      </item>
-     <item row="3" column="0">
+     <item row="5" column="0">
       <widget class="QCheckBox" name="rememberMeCheckBox">
        <property name="text">
         <string>Remember me</string>
@@ -188,7 +188,7 @@
        </property>
       </widget>
      </item>
-     <item row="4" column="0">
+     <item row="6" column="0">
       <widget class="QCheckBox" name="reportCrashesCheckBox">
        <property name="text">
         <string>Report crashes</string>
@@ -198,22 +198,36 @@
        </property>
       </widget>
      </item>
-     <item row="5" column="0">
+     <item row="7" column="0">
       <widget class="QCheckBox" name="proxyCheckBox">
        <property name="text">
         <string>Use system proxy</string>
        </property>
       </widget>
      </item>
-     <item row="6" column="0">
+     <item row="8" column="0">
       <widget class="QLabel" name="loggingLevelLabel">
        <property name="text">
         <string>Logging Level</string>
        </property>
       </widget>
      </item>
-     <item row="6" column="1">
+     <item row="8" column="1">
       <widget class="QComboBox" name="loggingLevelComboBox"/>
+     </item>
+     <item row="4" column="0">
+      <widget class="QPushButton" name="userDirPushButton">
+       <property name="text">
+        <string>Change User Directory</string>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="1">
+      <widget class="QLabel" name="userDirLabel">
+       <property name="text">
+        <string>User directory has not been set</string>
+       </property>
+      </widget>
      </item>
     </layout>
    </item>
