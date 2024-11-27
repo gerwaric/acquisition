@@ -52,38 +52,27 @@
 #include "updatechecker.h"
 #include "version_defines.h"
 
-Application::Application(bool test_mode) :
-    test_mode_(test_mode)
-{
+Application::Application() {
     QLOG_TRACE() << "Application::Application() entered";
 
-    if (test_mode_) {
+    QLOG_TRACE() << "Application::Application() preparing settings and data";
+    const QString user_dir = Filesystem::UserDir();
+    QLOG_TRACE() << "Application::Application() data directory is" << user_dir;
 
-        QLOG_TRACE() << "Application::Application() preparing settings and data for test mode";
-        settings_ = TestSettings::NewInstance();
-        global_data_ = std::make_unique<MemoryDataStore>();
+    const QString settings_path = user_dir + "/settings.ini";
+    QLOG_TRACE() << "Application::Application() creating the settings object:" << settings_path;
+    settings_ = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
 
-    } else {
+    QLOG_TRACE() << "Application::Application() initializing crash reporting";
+    InitCrashReporting();
 
-        QLOG_TRACE() << "Application::Application() preparing settings and data";
-        const QString user_dir = Filesystem::UserDir();
-        QLOG_TRACE() << "Application::Application() data directory is" << user_dir;
+    const QString global_data_file = user_dir + "/data/" + SqliteDataStore::MakeFilename("", "");
+    QLOG_TRACE() << "Application::Application() opening global data file:" << global_data_file;
+    global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
 
-        const QString settings_path = user_dir + "/settings.ini";
-        QLOG_TRACE() << "Application::Application() creating the settings object:" << settings_path;
-        settings_ = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
-
-        QLOG_TRACE() << "Application::Application() initializing crash reporting";
-        InitCrashReporting();
-
-        const QString global_data_file = user_dir + "/data/" + SqliteDataStore::MakeFilename("", "");
-        QLOG_TRACE() << "Application::Application() opening global data file:" << global_data_file;
-        global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
-
-        QLOG_TRACE() << "Application::Application() loading theme";
-        const QString theme = settings().value("theme", "default").toString();
-        OnSetTheme(theme);
-    };
+    QLOG_TRACE() << "Application::Application() loading theme";
+    const QString theme = settings().value("theme", "default").toString();
+    OnSetTheme(theme);
 
     QLOG_TRACE() << "Application::Application() creating QNetworkAccessManager";
     network_manager_ = std::make_unique<QNetworkAccessManager>(this);
@@ -100,11 +89,6 @@ Application::Application(bool test_mode) :
     // Start the process of fetching RePoE data.
     QLOG_TRACE() << "Application::Application() initializing RePoE";
     repoe_->Init();
-
-    if (test_mode) {
-        QLOG_TRACE() << "Application::Application() calling InitLogin for test mode";
-        InitLogin(POE_API::LEGACY);
-    };
 }
 
 Application::~Application() {
@@ -133,12 +117,6 @@ void Application::Start() {
     QLOG_TRACE() << "Application::Start() connecting login";
     QObject::connect(login_.get(), &LoginDialog::LoginComplete, this, &Application::OnLogin);
 
-    // Setup the ability to trigger testing from the UI
-    QLOG_TRACE() << "Application::Start() installing keyboard shortcut for forced crashes";
-    connect(&test_action_, &QAction::triggered, this, &Application::OnRunTests);
-    test_action_.setShortcut(Qt::Key_T | Qt::CTRL);
-    login_->addAction(&test_action_);
-
     // Start the initial check for updates.
     QLOG_TRACE() << "Application::Start() starting a check for application updates";
     update_checker_->CheckForUpdates();
@@ -151,10 +129,6 @@ void Application::Start() {
 void Application::OnLogin(POE_API api) {
 
     QLOG_TRACE() << "Application::OnLogin() entered";
-
-    // Stop listening for CTRL+T
-    QLOG_TRACE() << "Application::OnLogin() uninstalling the keyboard shortcut for forced crashes";
-    login_->removeAction(&test_action_);
 
     // Disconnect from the update signal so that only the main window gets it from now on.
     QObject::disconnect(&update_checker(), &UpdateChecker::UpdateAvailable, nullptr, nullptr);
@@ -351,28 +325,23 @@ void Application::InitLogin(POE_API mode)
 {
     QLOG_TRACE() << "Application::InitLogin() entered";
 
-    if (test_mode_) {
-        QLOG_TRACE() << "Application::InitLogin() creating memmory data store";
-        data_ = std::make_unique<MemoryDataStore>();
-    } else {
-        const std::string league = settings_->value("league").toString().toStdString();
-        const std::string account = settings_->value("account").toString().toStdString();
-        const QString data_dir = Filesystem::UserDir() + "/data/";
-        if (league.empty()) {
-            FatalError("Login failure: the league has not been set.");
-        };
-        if (account.empty()) {
-            FatalError("Login failure: the account has not been set.");
-        };
-        QLOG_TRACE() << "Application::InitLogin() league =" << league;
-        QLOG_TRACE() << "Application::InitLogin() account =" << account;
-        QLOG_TRACE() << "Application::InitLogin() data_dir =" << data_dir;
-        const QString data_file = SqliteDataStore::MakeFilename(account, league);
-        const QString data_path = data_dir + data_file;
-        QLOG_TRACE() << "Application::InitLogin() data_path =" << data_path;
-        data_ = std::make_unique<SqliteDataStore>(data_path);
-        SaveDbOnNewVersion();
-    }
+    const std::string league = settings_->value("league").toString().toStdString();
+    const std::string account = settings_->value("account").toString().toStdString();
+    const QString data_dir = Filesystem::UserDir() + "/data/";
+    if (league.empty()) {
+        FatalError("Login failure: the league has not been set.");
+    };
+    if (account.empty()) {
+        FatalError("Login failure: the account has not been set.");
+    };
+    QLOG_TRACE() << "Application::InitLogin() league =" << league;
+    QLOG_TRACE() << "Application::InitLogin() account =" << account;
+    QLOG_TRACE() << "Application::InitLogin() data_dir =" << data_dir;
+    const QString data_file = SqliteDataStore::MakeFilename(account, league);
+    const QString data_path = data_dir + data_file;
+    QLOG_TRACE() << "Application::InitLogin() data_path =" << data_path;
+    data_ = std::make_unique<SqliteDataStore>(data_path);
+    SaveDbOnNewVersion();
 
     QLOG_TRACE() << "Application::InitLogin() creating rate limiter";
     rate_limiter_ = std::make_unique<RateLimiter>(this,
@@ -408,10 +377,8 @@ void Application::InitLogin(POE_API mode)
 
     connect(items_manager_.get(), &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
 
-    if (test_mode_ == false) {
-        QLOG_TRACE() << "Application::InitLogin() starting items manager";
-        items_manager_->Start(mode);
-    };
+    QLOG_TRACE() << "Application::InitLogin() starting items manager";
+    items_manager_->Start(mode);
 }
 
 void Application::OnItemsRefreshed(bool initial_refresh) {

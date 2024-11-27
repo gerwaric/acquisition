@@ -46,7 +46,7 @@ enum class POE_API;
 class Application : public QObject {
     Q_OBJECT
 public:
-    explicit Application(bool test_mode = false);
+    explicit Application();
     ~Application();
     Application(const Application&) = delete;
     Application& operator=(const Application&) = delete;
@@ -73,7 +73,6 @@ private:
     void InitCrashReporting();
     void SaveDbOnNewVersion();
 
-    bool test_mode_;
     std::unique_ptr<QSettings> settings_;
     std::unique_ptr<DataStore> global_data_;
     std::unique_ptr<DataStore> data_;
@@ -90,7 +89,5 @@ private:
     std::unique_ptr<LoginDialog> login_;
     std::unique_ptr<MainWindow> main_window_;
 
-    QAction test_action_;
     QString active_theme_;
-
 };
