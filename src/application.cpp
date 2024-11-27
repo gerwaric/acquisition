@@ -39,7 +39,6 @@
 #include "itemsmanager.h"
 #include "logindialog.h"
 #include "mainwindow.h"
-#include "memorydatastore.h"
 #include "network_info.h"
 #include "oauthmanager.h"
 #include "ratelimiter.h"
@@ -48,7 +47,6 @@
 #include "shop.h"
 #include "sqlitedatastore.h"
 #include "testmain.h"
-#include "testsettings.h"
 #include "updatechecker.h"
 #include "version_defines.h"
 
