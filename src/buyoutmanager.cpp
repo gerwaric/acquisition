@@ -37,11 +37,15 @@ const std::map<std::string, BuyoutType> BuyoutManager::string_to_buyout_type_ = 
     {"~price", BUYOUT_TYPE_FIXED},
 };
 
-BuyoutManager::BuyoutManager(DataStore& data) :
-    data_(data),
-    save_needed_(false)
+BuyoutManager::BuyoutManager(DataStore& data)
+    : data_(data)
+    , save_needed_(false)
 {
     Load();
+}
+
+BuyoutManager::~BuyoutManager() {
+    Save();
 }
 
 void BuyoutManager::Set(const Item& item, const Buyout& buyout) {

@@ -31,6 +31,7 @@ class DataStore;
 class BuyoutManager {
 public:
     explicit BuyoutManager(DataStore& data);
+    ~BuyoutManager();
     void Set(const Item& item, const Buyout& buyout);
     Buyout Get(const Item& item) const;
 
