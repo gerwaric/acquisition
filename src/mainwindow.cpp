@@ -92,25 +92,22 @@ MainWindow::MainWindow(
     ItemsManager& items_manager,
     BuyoutManager& buyout_manager,
     CurrencyManager& currency_manager,
-    UpdateChecker& update_checker,
     Shop& shop)
-    :
-    settings_(settings),
-    network_manager_(network_manager),
-    rate_limiter_(rate_limiter),
-    datastore_(datastore),
-    oauth_manager_(oauth_manager),
-    items_manager_(items_manager),
-    buyout_manager_(buyout_manager),
-    currency_manager_(currency_manager),
-    update_checker_(update_checker),
-    shop_(shop),
-    ui(new Ui::MainWindow),
-    current_bucket_location_(nullptr),
-    current_search_(nullptr),
-    search_count_(0),
-    rate_limit_dialog_(nullptr),
-    quitting_(false)
+    : settings_(settings)
+    , network_manager_(network_manager)
+    , rate_limiter_(rate_limiter)
+    , datastore_(datastore)
+    , oauth_manager_(oauth_manager)
+    , items_manager_(items_manager)
+    , buyout_manager_(buyout_manager)
+    , currency_manager_(currency_manager)
+    , shop_(shop)
+    , ui(new Ui::MainWindow)
+    , current_bucket_location_(nullptr)
+    , current_search_(nullptr)
+    , search_count_(0)
+    , rate_limit_dialog_(nullptr)
+    , quitting_(false)
 {
     image_cache_ = new ImageCache(Filesystem::UserDir() + "/cache");
 
@@ -131,7 +128,6 @@ MainWindow::MainWindow(
     connect(&items_manager_, &ItemsManager::ItemsRefreshed, this, &MainWindow::OnItemsRefreshed);
     connect(&items_manager_, &ItemsManager::StatusUpdate, this, &MainWindow::OnStatusUpdate);
     connect(&shop_, &Shop::StatusUpdate, this, &MainWindow::OnStatusUpdate);
-    connect(&update_checker_, &UpdateChecker::UpdateAvailable, this, &MainWindow::OnUpdateAvailable);
 
     delayed_update_current_item_.setInterval(CURRENT_ITEM_UPDATE_DELAY_MS);
     delayed_update_current_item_.setSingleShot(true);
@@ -283,7 +279,7 @@ void MainWindow::InitializeUi() {
     update_button_.setFlat(true);
     update_button_.hide();
     statusBar()->addPermanentWidget(&update_button_);
-    connect(&update_button_, &QPushButton::clicked, &update_checker_, &UpdateChecker::AskUserToUpdate);
+    connect(&update_button_, &QPushButton::clicked, this, [=]() { emit UpdateCheckRequested(); });
 
     // resize columns when a tab is expanded/collapsed
     connect(ui->treeView, &QTreeView::collapsed, this, &MainWindow::ResizeTreeColumns);

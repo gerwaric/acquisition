@@ -79,12 +79,12 @@ public:
         ItemsManager& items_mangaer,
         BuyoutManager& buyout_manager,
         CurrencyManager& currency_manager,
-        UpdateChecker& update_checker,
         Shop& shop);
     ~MainWindow();
     std::vector<Column*> columns;
     void LoadSettings();
 signals:
+    void UpdateCheckRequested();
     void SetTheme(const QString& theme);
 public slots:
     void OnCurrentItemChanged(const QModelIndex& current, const QModelIndex& previous);
@@ -166,7 +166,6 @@ private:
     ItemsManager& items_manager_;
     BuyoutManager& buyout_manager_;
     CurrencyManager& currency_manager_;
-    UpdateChecker& update_checker_;
     Shop& shop_;
 
     Ui::MainWindow* ui;

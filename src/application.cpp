@@ -152,11 +152,12 @@ void Application::OnLogin(POE_API api) {
         items_manager(),
         buyout_manager(),
         currency_manager(),
-        update_checker(),
         shop());
 
-    // Connect the theme signal.
+    // Connect signals
     connect(main_window_.get(), &MainWindow::SetTheme, this, &Application::SetTheme);
+    connect(main_window_.get(), &MainWindow::UpdateCheckRequested, update_checker_.get(), &UpdateChecker::AskUserToUpdate);
+    connect(update_checker_.get(), &UpdateChecker::UpdateAvailable, main_window_.get(), &MainWindow::OnUpdateAvailable);
 
     QLOG_TRACE() << "Application::OnLogin() closing the login dialog";
     login_->close();
