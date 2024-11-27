@@ -53,18 +53,28 @@
 Application::Application() {
     QLOG_TRACE() << "Application::Application() entered";
 
+    QLOG_TRACE() << "Application::Application() creating QNetworkAccessManager";
+    network_manager_ = std::make_unique<QNetworkAccessManager>(this);
+
+    QLOG_TRACE() << "Application::Application() creating RePoE";
+    repoe_ = std::make_unique<RePoE>(this, network_manager());
+
     QLOG_TRACE() << "Application::Application() preparing settings and data";
     const QString user_dir = Filesystem::UserDir();
     QLOG_TRACE() << "Application::Application() data directory is" << user_dir;
 
-    const QString settings_path = user_dir + "/settings.ini";
+    InitUserDir(user_dir);
+    InitCrashReporting();
+}
+
+void Application::InitUserDir(const QString& dir) {
+
+    const QString settings_path = dir + QDir::separator() + "settings.ini";
     QLOG_TRACE() << "Application::Application() creating the settings object:" << settings_path;
     settings_ = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
 
-    QLOG_TRACE() << "Application::Application() initializing crash reporting";
-    InitCrashReporting();
-
-    const QString global_data_file = user_dir + "/data/" + SqliteDataStore::MakeFilename("", "");
+    const QString data_dir = dir + QDir::separator() + "data";
+    const QString global_data_file = data_dir + QDir::separator() + SqliteDataStore::MakeFilename("", "");
     QLOG_TRACE() << "Application::Application() opening global data file:" << global_data_file;
     global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
 
@@ -76,12 +86,6 @@ Application::Application() {
         settings().setValue("realm", "pc");
     };
     QLOG_TRACE() << "Application::Application() realm is" << settings().value("realm");
-
-    QLOG_TRACE() << "Application::Application() creating QNetworkAccessManager";
-    network_manager_ = std::make_unique<QNetworkAccessManager>(this);
-
-    QLOG_TRACE() << "Application::Application() creating RePoE";
-    repoe_ = std::make_unique<RePoE>(this, network_manager());
 
     QLOG_TRACE() << "Application::Application() creating update checker";
     update_checker_ = std::make_unique<UpdateChecker>(this, settings(), network_manager());
@@ -127,6 +131,16 @@ void Application::Start() {
     // Show the login dialog now.
     QLOG_TRACE() << "Application::Start() showing the login dialog";
     login_->show();
+}
+
+void Application::Stop() {
+    // Delete things in the reverse order they were created, just in case
+    // we might otherwise get an invalid point or reference.
+    login_ = nullptr;
+    oauth_manager_ = nullptr;
+    update_checker_ = nullptr;
+    global_data_ = nullptr;
+    settings_ = nullptr;
 }
 
 void Application::OnLogin(POE_API api) {
@@ -322,9 +336,11 @@ void Application::SetTheme(const QString& theme) {
     qApp->setStyleSheet(style_data);
 }
 
-void Application::SetUserDir(const QString& dir)
-{
-    // TBD
+void Application::SetUserDir(const QString& dir) {
+    Stop();
+    Filesystem::SetUserDir(dir);
+    InitUserDir(dir);
+    Start();
 }
 
 void Application::InitLogin(POE_API mode)

@@ -71,6 +71,8 @@ public slots:
     void OnItemsRefreshed(bool initial_refresh);
     void OnRunTests();
 private:
+    void Stop();
+    void InitUserDir(const QString& dir);
     void InitCrashReporting();
     void SaveDbOnNewVersion();
 
