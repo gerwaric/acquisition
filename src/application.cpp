@@ -28,7 +28,6 @@
 #include <QTemporaryFile>
 #include <QtHttpServer/QHttpServer>
 
-#include "boost/current_function.hpp"
 #include "QsLog.h"
 
 #include "buyoutmanager.h"
