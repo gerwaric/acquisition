@@ -26,6 +26,10 @@
 
 #include "util.h"
 
+// Hard-code the token lifetimes for a public client.
+constexpr long int ACCESS_TOKEN_LIFETIME_SECS = 10 * 3600; // 10 Hours
+constexpr long int REFRESH_TOKEN_LIFETIME_SECS = 7 * 24 * 3600; // 7 Days
+
 OAuthToken::OAuthToken()
     : expires_in_(-1)
 {
@@ -71,13 +75,19 @@ OAuthToken::OAuthToken(const std::string& json)
     if (doc.HasMember("birthday") && doc["birthday"].IsString()) {
         birthday_ = getDate(doc["birthday"].GetString());
     } else {
-        QLOG_WARN() << "Constructing OAuth token without a birthday.";
+        QLOG_WARN() << "Constructing OAuth token without a birthday";
     };
 
-    if (doc.HasMember("expiration") && doc["expiration"].IsString()) {
-        expiration_ = getDate(doc["expiration"].GetString());
+    if (doc.HasMember("access_expiration") && doc["access_expiration"].IsString()) {
+        access_expiration_ = getDate(doc["access_expiration"].GetString());
     } else {
-        QLOG_WARN() << "Constructing OAuth token without an expiration";
+        QLOG_WARN() << "Constructing OAuth token without an access expiration";
+    };
+
+    if (doc.HasMember("refresh_expiration") && doc["refresh_expiration"].IsString()) {
+        access_expiration_ = getDate(doc["refresh_expiration"].GetString());
+    } else {
+        QLOG_WARN() << "Constructing OAuth token without an refresh expiration";
     };
 }
 
@@ -93,22 +103,27 @@ OAuthToken::OAuthToken(QNetworkReply& reply)
     if (birthday_.isValid()) {
         QLOG_ERROR() << "The OAuth token already has a birthday";
     };
-    if (expiration_.isValid()) {
+    if (access_expiration_.isValid()) {
         QLOG_ERROR() << "The OAuth token already has an expiration";
     };
     birthday_ = reply_birthday;
-    expiration_ = reply_birthday.addSecs(expires_in_);
+    access_expiration_ = reply_birthday.addSecs(expires_in_);
+    refresh_expiration_ = reply_birthday.addSecs(expires_in_
+        + REFRESH_TOKEN_LIFETIME_SECS
+        - ACCESS_TOKEN_LIFETIME_SECS);
 }
 
+/*
 bool OAuthToken::isValid() const {
     if (access_token_.empty()) {
         return false;
-    } else if (!expiration_.isValid()) {
+    } else if (!access_expiration_.isValid()) {
         return false;
     } else {
-        return (expiration_ > QDateTime::currentDateTime());
+        return (access_expiration_ > QDateTime::currentDateTime());
     };
 }
+*/
 
 std::string OAuthToken::toJson() const {
     return Util::RapidjsonSerialize(toJsonDoc());
@@ -132,9 +147,13 @@ rapidjson::Document OAuthToken::toJsonDoc() const {
         const std::string birthday = birthday_.toString(Qt::RFC2822Date).toStdString();
         Util::RapidjsonAddString(&doc, "birthday", birthday, allocator);
     };
-    if (expiration_.isValid()) {
-        const std::string expiration = expiration_.toString(Qt::RFC2822Date).toStdString();
-        Util::RapidjsonAddString(&doc, "expiration", expiration, allocator);
+    if (access_expiration_.isValid()) {
+        const std::string access_expiration = access_expiration_.toString(Qt::RFC2822Date).toStdString();
+        Util::RapidjsonAddString(&doc, "expiration", access_expiration, allocator);
+    };
+    if (refresh_expiration_.isValid()) {
+        const std::string refresh_expiration = access_expiration_.toString(Qt::RFC2822Date).toStdString();
+        Util::RapidjsonAddString(&doc, "expiration", refresh_expiration, allocator);
     };
     return doc;
 }

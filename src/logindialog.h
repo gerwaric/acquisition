@@ -72,7 +72,7 @@ private:
     void LoginWithOAuth();
     void LoginWithSessionID();
     void LeaguesRequestError(const QString& error, const QByteArray& reply);
-    void DisplayError(const QString& error, bool disable_login = false);
+    void DisplayError(const QString& error);
 
     QSettings& settings_;
     QNetworkAccessManager& network_manager_;

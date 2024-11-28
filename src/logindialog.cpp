@@ -162,9 +162,13 @@ LoginDialog::LoginDialog(
     connect(&oauth_manager_, &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
 
     // Load the OAuth token if one is already present.
-    if (oauth_manager_.token().isValid()) {
+    const QDateTime now = QDateTime::currentDateTime();
+    const OAuthToken& token = oauth_manager_.token();
+    if (now < token.access_expiration()) {
         QLOG_TRACE() << "LoginDialog::LoginDialog() found a valid OAuth token";
         OnOAuthAccessGranted(oauth_manager_.token());
+    } else if (now < token.refresh_expiration()) {
+        QLOG_INFO() << "LoginDialog:LoginDialog() the OAuth token needs to be refreshed";
     };
 
     // Request the list of leagues.
@@ -235,14 +239,16 @@ void LoginDialog::RequestLeagues() {
     connect(reply, &QNetworkReply::errorOccurred, this,
         [=](QNetworkReply::NetworkError code) {
             Q_UNUSED(code);
-            DisplayError("Error requesting leagues: " + reply->errorString(), true);
+            DisplayError("Error requesting leagues: " + reply->errorString());
+            ui->loginButton->setEnabled(false);
         });
     connect(reply, &QNetworkReply::sslErrors, this,
         [=](const QList<QSslError>& errors) {
             for (const auto& error : errors) {
                 QLOG_ERROR() << "SSL Error requesting leagues:" << error.errorString();
             };
-            DisplayError("SSL error fetching leagues", true);
+            DisplayError("SSL error fetching leagues");
+            ui->loginButton->setEnabled(false);
         });
 }
 
@@ -341,7 +347,8 @@ void LoginDialog::OnLeaguesReceived() {
 
 void LoginDialog::LeaguesRequestError(const QString& error, const QByteArray& reply) {
     QLOG_ERROR() << "League reply was:" << reply;
-    DisplayError("Error requesting leagues: " + error, true);
+    DisplayError("Error requesting leagues: " + error);
+    ui->loginButton->setEnabled(false);
 }
 
 void LoginDialog::OnAuthenticateButtonClicked() {
@@ -395,11 +402,14 @@ void LoginDialog::OnLoginButtonClicked() {
 
 void LoginDialog::LoginWithOAuth() {
     QLOG_INFO() << "Starting OAuth authentication";
-    if (oauth_manager_.token().isValid()) {
-        const OAuthToken& token = oauth_manager_.token();
+    const QDateTime now = QDateTime::currentDateTime();
+    const OAuthToken& token = oauth_manager_.token();
+    if (now < token.access_expiration()) {
         const QString account = QString::fromStdString(token.username());
         settings_.setValue("account", account);
         emit LoginComplete(POE_API::OAUTH);
+    } else if (now < token.refresh_expiration()) {
+        DisplayError("The OAuth token needs to be refreshed");
     } else {
         DisplayError("You are not authenticated.");
     };
@@ -417,8 +427,10 @@ void LoginDialog::LoginWithSessionID() {
             const int error_code = static_cast<int>(code);
             if (error_code == CLOUDFLARE_RATE_LIMITED) {
                 DisplayError("Rate limited by Cloudflare! Please report to gerwaric@gmail.com");
+                ui->loginButton->setEnabled(false);
             } else {
-                DisplayError("Error during legacy login: " + reply->errorString(), true);
+                DisplayError("Error during legacy login: " + reply->errorString());
+                ui->loginButton->setEnabled(false);
             };
         });
     connect(reply, &QNetworkReply::sslErrors, this,
@@ -426,7 +438,8 @@ void LoginDialog::LoginWithSessionID() {
             for (const auto& error : errors) {
                 QLOG_ERROR() << "SSL error during legacy login:" << error.errorString();
             };
-            DisplayError("SSL error during session id login", true);
+            DisplayError("SSL error during session id login");
+            ui->loginButton->setEnabled(false);
         });
 }
 
@@ -478,7 +491,8 @@ void LoginDialog::OnStartLegacyLogin() {
             if (error_code == CLOUDFLARE_RATE_LIMITED) {
                 DisplayError("Blocked by Cloudflare! Please tell gerwaric@gmail.com. You may need to contact GGG support :-(");
             } else {
-                DisplayError("Error finishing legacy login: " + reply->errorString(), true);
+                DisplayError("Error finishing legacy login: " + reply->errorString());
+                ui->loginButton->setEnabled(false);
             };
         });
     connect(reply, &QNetworkReply::sslErrors, this,
@@ -486,7 +500,8 @@ void LoginDialog::OnStartLegacyLogin() {
             for (const auto& error : errors) {
                 QLOG_ERROR() << "SSL finishing legacy login:" << error.errorString();
             };
-            DisplayError("SSL error finishing legacy login", true);
+            DisplayError("SSL error finishing legacy login");
+            ui->loginButton->setEnabled(false);
         });
 }
 
@@ -521,8 +536,9 @@ void LoginDialog::OnFinishLegacyLogin() {
 void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
     QLOG_TRACE() << "LoginDialog::OnOAuthAccessGranted() entered";
     const QString username = QString::fromStdString(token.username());
-    const QString expiration = token.expiration().toString();
-    ui->authenticateLabel->setText("You are authenticated as \"" + username + "\" until " + expiration);
+    ui->authenticateLabel->setText("You are authenticated as \"" + username + "\". "
+        + "Access until " + token.access_expiration().toString() + ". "
+        + "Refresh until " +  token.refresh_expiration().toString() + ".");
     ui->authenticateButton->setText("Re-authenticate (as someone else).");
     ui->authenticateButton->setEnabled(true);
 }
@@ -643,11 +659,10 @@ void LoginDialog::OnThemeChanged(const QString& theme) {
     emit ChangeTheme(theme);
 }
 
-void LoginDialog::DisplayError(const QString& error, bool disable_login) {
+void LoginDialog::DisplayError(const QString& error) {
     QLOG_ERROR() << "LoginDialog:" << error;
     ui->errorLabel->setText(error);
     ui->errorLabel->show();
-    ui->loginButton->setEnabled(!disable_login);
     ui->loginButton->setText("Login");
 }
 

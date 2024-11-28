@@ -20,17 +20,18 @@
 #pragma once
 
 #include <QObject>
-#include <QtHttpServer/QHttpServer>
 #include <QTimer>
 
 #include <string>
 
 #include "oauthtoken.h"
 
+class QHttpServer;
 class QHttpServerRequest;
 class QNetworkAccessManager;
 class QNetworkReply;
 class QNetworkRequest;
+class QTcpServer;
 
 class DataStore;
 
@@ -40,6 +41,7 @@ public:
     explicit OAuthManager(QObject* parent,
         QNetworkAccessManager& network_manager,
         DataStore& datastore);
+    ~OAuthManager();
     void setAuthorization(QNetworkRequest& request);
     void RememberToken(bool remember);
     const OAuthToken& token() const { return token_; };
@@ -67,6 +69,7 @@ private:
     // server once authentication is complete, so it won't stay
     // running in the background.
     std::unique_ptr<QHttpServer> http_server_;
+    std::unique_ptr<QTcpServer> tcp_server_;
 
     bool remember_token_;
     OAuthToken token_;
