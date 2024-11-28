@@ -4,6 +4,7 @@
 #include <QLocale>
 #include <QObject>
 #include <QSettings>
+#include <QTemporaryFile>
 #include <QTest>
 
 #include <clocale>
