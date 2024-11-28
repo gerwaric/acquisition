@@ -536,9 +536,7 @@ void LoginDialog::OnFinishLegacyLogin() {
 void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
     QLOG_TRACE() << "LoginDialog::OnOAuthAccessGranted() entered";
     const QString username = QString::fromStdString(token.username());
-    ui->authenticateLabel->setText("You are authenticated as \"" + username + "\". "
-        + "Access until " + token.access_expiration().toString() + ". "
-        + "Refresh until " +  token.refresh_expiration().toString() + ".");
+    ui->authenticateLabel->setText("You are authenticated as \"" + username + "\"");
     ui->authenticateButton->setText("Re-authenticate (as someone else).");
     ui->authenticateButton->setEnabled(true);
 }
