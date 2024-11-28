@@ -25,6 +25,7 @@
 #include <QNetworkReply>
 #include <QSettings>
 #include <QSignalMapper>
+#include <QThread>
 #include <QTimer>
 #include <QUrlQuery>
 
