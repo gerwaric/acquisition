@@ -109,9 +109,9 @@ LoginDialog::LoginDialog(
     ui->loggingLevelComboBox->addItems({
         Util::LogLevelToText(QsLogging::FatalLevel),
         Util::LogLevelToText(QsLogging::ErrorLevel),
-        Util::LogLevelToText(QsLogging::DebugLevel),
         Util::LogLevelToText(QsLogging::WarnLevel),
         Util::LogLevelToText(QsLogging::InfoLevel),
+        Util::LogLevelToText(QsLogging::DebugLevel),
         Util::LogLevelToText(QsLogging::TraceLevel),
         Util::LogLevelToText(QsLogging::OffLevel)
     });
