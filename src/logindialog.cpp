@@ -148,6 +148,7 @@ LoginDialog::LoginDialog(
     connect(ui->authenticateButton, &QPushButton::clicked, this, &LoginDialog::OnAuthenticateButtonClicked);
     connect(ui->sessionIDLineEdit, &QLineEdit::textChanged, this, &LoginDialog::OnSessionIDChanged);
     connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
+    connect(ui->offlineButton, &QPushButton::clicked, this, &LoginDialog::OnOfflineButtonClicked);
 
     // Connects options UI elements.
     connect(ui->advancedCheckBox, &QCheckBox::checkStateChanged, this, &LoginDialog::OnAdvancedCheckBoxChanged);
@@ -398,6 +399,10 @@ void LoginDialog::OnLoginButtonClicked() {
     } else {
         DisplayError("Invalid tab selected: " + tab_name);
     };
+}
+
+void LoginDialog::OnOfflineButtonClicked() {
+
 }
 
 void LoginDialog::LoginWithOAuth() {
