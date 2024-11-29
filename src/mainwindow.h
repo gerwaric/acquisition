@@ -74,16 +74,21 @@ public:
         QNetworkAccessManager& network_manager,
         RateLimiter& rate_limiter,
         DataStore& datastore,
-        OAuthManager& oauth_manager,
         ItemsManager& items_mangaer,
         BuyoutManager& buyout_manager,
-        CurrencyManager& currency_manager,
         Shop& shop);
     ~MainWindow();
     std::vector<Column*> columns;
     void LoadSettings();
+
+    void prepare(
+        OAuthManager& oauth_manager,
+        CurrencyManager& currency_manager,
+        Shop& shop);
+
 signals:
     void UpdateCheckRequested();
+    void SetSessionId(const QString& poesessid);
     void SetTheme(const QString& theme);
 public slots:
     void OnCurrentItemChanged(const QModelIndex& current, const QModelIndex& previous);
@@ -131,10 +136,6 @@ private slots:
     // Logging submenu actions
     void OnSetLogging(QsLogging::Level level);
 
-    // Currency menu actions
-    void OnListCurrency();
-    void OnExportCurrency();
-
     // Tooltip buttons
     void OnCopyForPOB();
     void OnUploadToImgur();
@@ -161,10 +162,8 @@ private:
     QNetworkAccessManager& network_manager_;
     RateLimiter& rate_limiter_;
     DataStore& datastore_;
-    OAuthManager& oauth_manager_;
     ItemsManager& items_manager_;
     BuyoutManager& buyout_manager_;
-    CurrencyManager& currency_manager_;
     Shop& shop_;
 
     Ui::MainWindow* ui;

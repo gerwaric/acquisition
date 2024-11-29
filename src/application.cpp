@@ -24,6 +24,7 @@
 #include <QDir>
 #include <QMessageBox>
 #include <QNetworkAccessManager>
+#include <QNetworkCookieJar>
 #include <QSettings>
 #include <QTemporaryFile>
 #include <QtHttpServer/QHttpServer>
@@ -160,15 +161,26 @@ void Application::OnLogin(POE_API api) {
         network_manager(),
         rate_limiter(),
         data(),
-        oauth_manager(),
         items_manager(),
         buyout_manager(),
-        currency_manager(),
         shop());
 
-    // Connect signals
+    // Connect UI signals.
+    connect(main_window_.get(), &MainWindow::SetSessionId,  this, &Application::SetSessionId);
     connect(main_window_.get(), &MainWindow::SetTheme, this, &Application::SetTheme);
     connect(main_window_.get(), &MainWindow::UpdateCheckRequested, update_checker_.get(), &UpdateChecker::AskUserToUpdate);
+
+    connect(items_manager_.get(), &ItemsManager::ItemsRefreshed, main_window_.get(), &MainWindow::OnItemsRefreshed);
+    connect(items_manager_.get(), &ItemsManager::StatusUpdate, main_window_.get(), &MainWindow::OnStatusUpdate);
+
+    connect(shop_.get(), &Shop::StatusUpdate, main_window_.get(), &MainWindow::OnStatusUpdate);
+
+    main_window_->prepare(
+        *oauth_manager_,
+        *currency_manager_,
+        *shop_);
+
+    // Connect the update checker.
     connect(update_checker_.get(), &UpdateChecker::UpdateAvailable, main_window_.get(), &MainWindow::OnUpdateAvailable);
 
     QLOG_TRACE() << "Application::OnLogin() closing the login dialog";
@@ -289,6 +301,19 @@ void Application::InitCrashReporting() {
         QLOG_TRACE() << "Application::InitCrashReporting() initializing crashpad";
         initializeCrashpad(Filesystem::UserDir(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
     };
+}
+
+void Application::SetSessionId(const QString& poesessid) {
+    if (poesessid.isEmpty()) {
+        QLOG_ERROR() << "Application: cannot update POESESSID: value is empty";
+        return;
+    };
+    QLOG_INFO() << "Application: updating POESESSID";
+    QNetworkCookie cookie(POE_COOKIE_NAME, poesessid.toUtf8());
+    cookie.setPath(POE_COOKIE_PATH);
+    cookie.setDomain(POE_COOKIE_DOMAIN);
+    network_manager_->cookieJar()->insertCookie(cookie);
+    settings_->setValue("session_id", poesessid);
 }
 
 void Application::SetTheme(const QString& theme) {

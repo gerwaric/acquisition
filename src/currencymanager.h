@@ -167,11 +167,11 @@ private:
 };
 
 
-class CurrencyManager : public QWidget
+class CurrencyManager : public QObject
 {
     Q_OBJECT
 public:
-    explicit CurrencyManager(QWidget* parent,
+    explicit CurrencyManager(QObject* parent,
         QSettings& settings,
         DataStore& datastore,
         ItemsManager& items_manager);
@@ -184,10 +184,12 @@ public:
     double TotalExaltedValue();
     double TotalChaosValue();
     int TotalWisdomValue();
-    void DisplayCurrency();
     void Update();
-    // CSV export
+
+public slots:
+    void DisplayCurrency();
     void ExportCurrency();
+    void SaveCurrencyValue();
 
 private:
     QSettings& settings_;
@@ -207,6 +209,4 @@ private:
     std::string Serialize(const std::vector<std::shared_ptr<CurrencyItem>>& currencies);
     void Deserialize(const std::string& data, std::vector<std::shared_ptr<CurrencyItem>>* currencies);
     void Save();
-public slots:
-    void SaveCurrencyValue();
 };

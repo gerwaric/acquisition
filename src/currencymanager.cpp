@@ -36,11 +36,11 @@
 #include "util.h"
 
 
-CurrencyManager::CurrencyManager(QWidget* parent,
+CurrencyManager::CurrencyManager(QObject* parent,
     QSettings& settings,
     DataStore& datastore,
     ItemsManager& items_manager)
-    : QWidget(parent)
+    : QObject(parent)
     , settings_(settings)
     , data_(datastore)
     , items_manager_(items_manager)
@@ -234,7 +234,7 @@ void CurrencyManager::ExportCurrency() {
     };
     std::vector<CurrencyUpdate> result = data_.GetAllCurrency();
 
-    QString fileName = QFileDialog::getSaveFileName(this, tr("Save Export file"),
+    QString fileName = QFileDialog::getSaveFileName(nullptr, tr("Save Export file"),
         QDir::toNativeSeparators(QDir::homePath() + "/" + "acquisition_export_currency.csv"));
     if (fileName.isEmpty()) {
         return;

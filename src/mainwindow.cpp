@@ -32,8 +32,6 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QNetworkAccessManager>
-#include <QNetworkCookie>
-#include <QNetworkCookieJar>
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QPainter>
@@ -88,19 +86,15 @@ MainWindow::MainWindow(
     QNetworkAccessManager& network_manager,
     RateLimiter& rate_limiter,
     DataStore& datastore,
-    OAuthManager& oauth_manager,
     ItemsManager& items_manager,
     BuyoutManager& buyout_manager,
-    CurrencyManager& currency_manager,
     Shop& shop)
     : settings_(settings)
     , network_manager_(network_manager)
     , rate_limiter_(rate_limiter)
     , datastore_(datastore)
-    , oauth_manager_(oauth_manager)
     , items_manager_(items_manager)
     , buyout_manager_(buyout_manager)
-    , currency_manager_(currency_manager)
     , shop_(shop)
     , ui(new Ui::MainWindow)
     , current_bucket_location_(nullptr)
@@ -125,10 +119,6 @@ MainWindow::MainWindow(
     setWindowTitle(title);
     setWindowIcon(QIcon(":/icons/assets/icon.svg"));
 
-    connect(&items_manager_, &ItemsManager::ItemsRefreshed, this, &MainWindow::OnItemsRefreshed);
-    connect(&items_manager_, &ItemsManager::StatusUpdate, this, &MainWindow::OnStatusUpdate);
-    connect(&shop_, &Shop::StatusUpdate, this, &MainWindow::OnStatusUpdate);
-
     delayed_update_current_item_.setInterval(CURRENT_ITEM_UPDATE_DELAY_MS);
     delayed_update_current_item_.setSingleShot(true);
     connect(&delayed_update_current_item_, &QTimer::timeout, this, &MainWindow::UpdateCurrentItem);
@@ -148,6 +138,18 @@ MainWindow::~MainWindow() {
     };
     rate_limit_dialog_->close();
     rate_limit_dialog_->deleteLater();
+}
+
+void MainWindow::prepare(
+    OAuthManager& oauth_manager,
+    CurrencyManager& currency_manager,
+    Shop& shop)
+{
+    connect(ui->actionShowOAuthToken, &QAction::triggered, &oauth_manager, &OAuthManager::showStatus);
+    connect(ui->actionRefreshOAuthToken, &QAction::triggered, &oauth_manager, &OAuthManager::requestRefresh);
+
+    connect(ui->actionListCurrency, &QAction::triggered, &currency_manager, &CurrencyManager::DisplayCurrency);
+    connect(ui->actionExportCurrency, &QAction::triggered, &currency_manager, &CurrencyManager::ExportCurrency);
 }
 
 void MainWindow::InitializeRateLimitDialog() {
@@ -327,10 +329,6 @@ void MainWindow::InitializeUi() {
     connect(ui->actionUpdateShops, &QAction::triggered, this, &MainWindow::OnUpdateShops);
     connect(ui->actionSetAutomaticallyShopUpdate, &QAction::triggered, this, &MainWindow::OnSetAutomaticShopUpdate);
 
-    // Connect the Currency menu
-    connect(ui->actionListCurrency, &QAction::triggered, this, &MainWindow::OnListCurrency);
-    connect(ui->actionExportCurrency, &QAction::triggered, this, &MainWindow::OnExportCurrency);
-
     // Connect the Theme submenu
     connect(ui->actionSetDarkTheme, &QAction::triggered, this, &MainWindow::OnSetDarkTheme);
     connect(ui->actionSetLightTheme, &QAction::triggered, this, &MainWindow::OnSetLightTheme);
@@ -344,10 +342,6 @@ void MainWindow::InitializeUi() {
     connect(ui->actionLoggingINFO, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::InfoLevel); });
     connect(ui->actionLoggingDEBUG, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::DebugLevel); });
     connect(ui->actionLoggingTRACE, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::TraceLevel); });
-
-    // Connect the OAuth submenu
-    connect(ui->actionShowOAuthToken, &QAction::triggered, &oauth_manager_, &OAuthManager::showStatus);
-    connect(ui->actionRefreshOAuthToken, &QAction::triggered, &oauth_manager_, &OAuthManager::requestRefresh);
 
     // Connect the POESESSID submenu
     connect(ui->actionShowPOESESSID, &QAction::triggered, this, &MainWindow::OnShowPOESESSID);
@@ -971,16 +965,7 @@ void MainWindow::OnShowPOESESSID() {
     int code = dialog->exec();
     if (code == QDialog::DialogCode::Accepted) {
         const QString poesessid = dialog->textValue();
-        if (!poesessid.isEmpty()) {
-            QLOG_INFO() << "Updating POESESSID";
-            QNetworkCookie cookie(POE_COOKIE_NAME, poesessid.toUtf8());
-            cookie.setPath(POE_COOKIE_PATH);
-            cookie.setDomain(POE_COOKIE_DOMAIN);
-            network_manager_.cookieJar()->insertCookie(cookie);
-            settings_.setValue("session_id", poesessid);
-        } else {
-            QLOG_INFO() << "Cannot update POESESSID because the string is empty";
-        };
+        emit SetSessionId(poesessid);
     };
 }
 
@@ -1038,10 +1023,6 @@ void MainWindow::OnSetAutomaticShopUpdate() {
     shop_.SetAutoUpdate(ui->actionSetAutomaticallyShopUpdate->isChecked());
 }
 
-void MainWindow::OnListCurrency() {
-    currency_manager_.DisplayCurrency();
-}
-
 void MainWindow::OnSetDarkTheme(bool toggle) {
     if (toggle) {
         emit SetTheme("dark");
@@ -1088,10 +1069,6 @@ void MainWindow::OnSetLogging(QsLogging::Level level) {
     const QString level_name = Util::LogLevelToText(level);
     QLOG_INFO() << "Logging level set to" << level_name;
     settings_.setValue("log_level", level_name);
-}
-
-void MainWindow::OnExportCurrency() {
-    currency_manager_.ExportCurrency();
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {

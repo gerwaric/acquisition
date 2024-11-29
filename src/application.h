@@ -65,6 +65,7 @@ public:
     OAuthManager& oauth_manager() const;
     RateLimiter& rate_limiter() const;
 public slots:
+    void SetSessionId(const QString& poesessid);
     void SetTheme(const QString& theme);
     void SetUserDir(const QString& dir);
     void OnLogin(POE_API api);
