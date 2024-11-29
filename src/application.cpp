@@ -102,13 +102,7 @@ void Application::InitUserDir(const QString& dir) {
     repoe_->Init();
 }
 
-Application::~Application() {
-    QLOG_TRACE() << "Application::~Application() entered";
-    if (buyout_manager_) {
-        QLOG_TRACE() << "Application::~Application() saving buyout manager";
-        buyout_manager_->Save();
-    };
-}
+Application::~Application() {}
 
 void Application::Start() {
 
