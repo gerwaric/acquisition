@@ -10,7 +10,7 @@ enum class ProgramState;
 class RePoE : public QObject {
     Q_OBJECT
 public:
-    RePoE(QObject* parent, QNetworkAccessManager& network_manager);
+    RePoE(QNetworkAccessManager& network_manager);
     void Init();
     bool IsInitialized() const { return initialized_; };
 signals:

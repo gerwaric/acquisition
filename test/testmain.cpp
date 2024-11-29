@@ -34,7 +34,7 @@ int test_main() {
 
     QNetworkAccessManager network_manager;
     TestHelper helper;
-    RePoE repoe(nullptr, network_manager);
+    RePoE repoe(network_manager);
 
     QEventLoop loop;
     QObject::connect(&repoe, &RePoE::finished, &helper, [&]() { helper.run(network_manager, repoe); });

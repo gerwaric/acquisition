@@ -21,32 +21,72 @@
 
 #include <QDir>
 #include <QFile>
+#include <QImageReader>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
 #include <QString>
 #include <QCryptographicHash>
 
+#include <QsLog/QsLog.h>
+
+#include "network_info.h"
 #include "util.h"
 
-ImageCache::ImageCache(const QString& directory)
-    : directory_(directory)
+ImageCache::ImageCache(
+    QNetworkAccessManager& network_manager,
+    const QString& directory)
+    : network_manager_(network_manager)
+    , directory_(directory)
 {
-    if (!QDir(directory_).exists())
+    if (!QDir(directory_).exists()) {
         QDir().mkpath(directory_);
+    };
 }
 
-bool ImageCache::Exists(const std::string& url) const {
-    QString path = GetPath(url);
-    QFile file(path);
+bool ImageCache::contains(const std::string& url) const {
+    const QString filename = getImagePath(url);
+    const QFile file(filename);
     return file.exists();
 }
 
-QImage ImageCache::Get(const std::string& url) const {
-    return QImage(QString(GetPath(url)));
+void ImageCache::fetch(const std::string& url) {
+    if (contains(url)) {
+        QLOG_DEBUG() << "ImageCache: already contains" << url;
+        emit imageReady(url);
+    } else {
+        QLOG_DEBUG() << "ImageCache: fetching" << url;
+        QNetworkRequest request = QNetworkRequest(QUrl(QString::fromStdString(url)) );
+        request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+        QNetworkReply* reply = network_manager_.get(request);
+        connect(reply, &QNetworkReply::finished, this, &ImageCache::onFetched);
+    };
 }
 
-void ImageCache::Set(const std::string& url, const QImage& image) {
-    image.save(QString(GetPath(url)));
+void ImageCache::onFetched() {
+    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+    const std::string url = reply->url().toString().toStdString();
+    if (reply->error() != QNetworkReply::NoError) {
+        QLOG_ERROR() << "ImageCache: failed to fetch image:" << reply->errorString() << ":" << url;
+        return;
+    };
+    QLOG_DEBUG() << "ImageCatch: fetched" << url;
+    QImageReader image_reader(reply);
+    const QImage image = image_reader.read();
+    image.save(getImagePath(url));
+    emit imageReady(url);
 }
 
-QString ImageCache::GetPath(const std::string& url) const {
-    return directory_ + "/" + QString::fromStdString(Util::Md5(url)) + ".png";
+QImage ImageCache::load(const std::string& url) const {
+    const QString filename = getImagePath(url);
+    const QFile file(filename);
+    if (file.exists()) {
+        return QImage(getImagePath(url));
+    } else {
+        return QImage();
+    };
+}
+
+QString ImageCache::getImagePath(const std::string& url) const {
+    return directory_ + QDir::separator() + QString::fromStdString(Util::Md5(url)) + ".png";
 }

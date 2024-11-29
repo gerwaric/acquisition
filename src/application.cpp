@@ -36,6 +36,7 @@
 #include "currencymanager.h"
 #include "fatalerror.h"
 #include "filesystem.h"
+#include "imagecache.h"
 #include "itemsmanager.h"
 #include "logindialog.h"
 #include "mainwindow.h"
@@ -54,10 +55,10 @@ Application::Application() {
     QLOG_TRACE() << "Application::Application() entered";
 
     QLOG_TRACE() << "Application::Application() creating QNetworkAccessManager";
-    network_manager_ = std::make_unique<QNetworkAccessManager>(this);
+    network_manager_ = std::make_unique<QNetworkAccessManager>();
 
     QLOG_TRACE() << "Application::Application() creating RePoE";
-    repoe_ = std::make_unique<RePoE>(this, network_manager());
+    repoe_ = std::make_unique<RePoE>(network_manager());
 
     QLOG_TRACE() << "Application::Application() preparing settings and data";
     const QString user_dir = Filesystem::UserDir();
@@ -77,6 +78,9 @@ void Application::InitUserDir(const QString& dir) {
     const QString global_data_file = data_dir + QDir::separator() + SqliteDataStore::MakeFilename("", "");
     QLOG_TRACE() << "Application::Application() opening global data file:" << global_data_file;
     global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
+
+    const QString image_cache_dir = dir + QDir::separator() + "cache";
+    image_cache_ = std::make_unique<ImageCache>(network_manager(), image_cache_dir);
 
     QLOG_TRACE() << "Application::Application() loading theme";
     const QString theme = settings().value("theme", "default").toString();
@@ -163,7 +167,8 @@ void Application::OnLogin(POE_API api) {
         data(),
         items_manager(),
         buyout_manager(),
-        shop());
+        shop(),
+        image_cache());
 
     // Connect UI signals.
     connect(main_window_.get(), &MainWindow::SetSessionId,  this, &Application::SetSessionId);
@@ -172,6 +177,9 @@ void Application::OnLogin(POE_API api) {
 
     connect(items_manager_.get(), &ItemsManager::ItemsRefreshed, main_window_.get(), &MainWindow::OnItemsRefreshed);
     connect(items_manager_.get(), &ItemsManager::StatusUpdate, main_window_.get(), &MainWindow::OnStatusUpdate);
+
+    connect(main_window_.get(), &MainWindow::GetImage, image_cache_.get(), &ImageCache::fetch);
+    connect(image_cache_.get(), &ImageCache::imageReady, main_window_.get(), &MainWindow::OnImageFetched);
 
     connect(shop_.get(), &Shop::StatusUpdate, main_window_.get(), &MainWindow::OnStatusUpdate);
 
@@ -245,6 +253,14 @@ Shop& Application::shop() const {
     };
     return *shop_;
 }
+
+ImageCache& Application::image_cache() const {
+    if (!image_cache_) {
+        FatalError("Application::image_cache_() attempted to dereference a null pointer");
+    };
+    return *image_cache_;
+}
+
 
 CurrencyManager& Application::currency_manager() const {
     if (!currency_manager_) {

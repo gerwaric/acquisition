@@ -32,6 +32,7 @@ class QSettings;
 class BuyoutManager;
 class CurrencyManager;
 class DataStore;
+class ImageCache;
 class ItemsManager;
 class LoginDialog;
 class MainWindow;
@@ -60,6 +61,7 @@ public:
     QNetworkAccessManager& network_manager() const;
     RePoE& repoe() const;
     Shop& shop() const;
+    ImageCache& image_cache() const;
     CurrencyManager& currency_manager() const;
     UpdateChecker& update_checker() const;
     OAuthManager& oauth_manager() const;
@@ -77,18 +79,21 @@ private:
     void InitCrashReporting();
     void SaveDbOnNewVersion();
 
+    std::unique_ptr<QNetworkAccessManager> network_manager_;
     std::unique_ptr<QSettings> settings_;
+
+    std::unique_ptr<RePoE> repoe_;
     std::unique_ptr<DataStore> global_data_;
     std::unique_ptr<DataStore> data_;
-    std::unique_ptr<BuyoutManager> buyout_manager_;
-    std::unique_ptr<Shop> shop_;
-    std::unique_ptr<QNetworkAccessManager> network_manager_;
-    std::unique_ptr<RePoE> repoe_;
-    std::unique_ptr<ItemsManager> items_manager_;
-    std::unique_ptr<CurrencyManager> currency_manager_;
     std::unique_ptr<UpdateChecker> update_checker_;
     std::unique_ptr<OAuthManager> oauth_manager_;
+
+    std::unique_ptr<BuyoutManager> buyout_manager_;
+    std::unique_ptr<Shop> shop_;
+    std::unique_ptr<ItemsManager> items_manager_;
+    std::unique_ptr<CurrencyManager> currency_manager_;
     std::unique_ptr<RateLimiter> rate_limiter_;
+    std::unique_ptr<ImageCache> image_cache_;
 
     std::unique_ptr<LoginDialog> login_;
     std::unique_ptr<MainWindow> main_window_;

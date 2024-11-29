@@ -88,7 +88,8 @@ MainWindow::MainWindow(
     DataStore& datastore,
     ItemsManager& items_manager,
     BuyoutManager& buyout_manager,
-    Shop& shop)
+    Shop& shop,
+    ImageCache& image_cache)
     : settings_(settings)
     , network_manager_(network_manager)
     , rate_limiter_(rate_limiter)
@@ -96,6 +97,7 @@ MainWindow::MainWindow(
     , items_manager_(items_manager)
     , buyout_manager_(buyout_manager)
     , shop_(shop)
+    , image_cache_(image_cache)
     , ui(new Ui::MainWindow)
     , current_bucket_location_(nullptr)
     , current_search_(nullptr)
@@ -103,8 +105,6 @@ MainWindow::MainWindow(
     , rate_limit_dialog_(nullptr)
     , quitting_(false)
 {
-    image_cache_ = new ImageCache(Filesystem::UserDir() + "/cache");
-
     connect(qApp, &QCoreApplication::aboutToQuit, this, [&]() { quitting_ = true; });
 
     InitializeUi();
@@ -572,22 +572,6 @@ void MainWindow::OnDeleteTabClicked(int index) {
     tab_bar_->removeTab(index);
 }
 
-void MainWindow::OnImageFetched(QNetworkReply* reply) {
-    std::string url = reply->url().toString().toStdString();
-    if (reply->error()) {
-        QLOG_WARN() << "Failed to download item image," << url.c_str();
-        return;
-    };
-    QImageReader image_reader(reply);
-    QImage image = image_reader.read();
-
-    image_cache_->Set(url, image);
-
-    if (current_item_ && (url == current_item_->icon() || url == POE_WEBCDN + current_item_->icon())) {
-        ui->imageLabel->setPixmap(GenerateItemIcon(*current_item_, image));
-    };
-}
-
 void MainWindow::OnSearchFormChange() {
     QLOG_TRACE() << "MainWindow::OnSearchFormChange() entered";
     current_search_->SaveViewProperties();
@@ -863,22 +847,29 @@ void MainWindow::UpdateCurrentItem() {
     // in future should move everything tooltip-related there
     UpdateItemTooltip(*current_item_, ui);
 
+    ui->locationLabel->setText(current_item_->location().GetHeader().c_str());
     ui->pobTooltipButton->setEnabled(current_item_->Wearable());
 
     std::string icon = current_item_->icon();
-    if (icon.size() && icon[0] == '/') {
+    if ((icon.size() >= 1) && (icon[0] == '/')) {
         icon = POE_WEBCDN + icon;
     };
-    if (!image_cache_->Exists(icon)) {
-        QNetworkRequest request = QNetworkRequest(QUrl(icon.c_str()));
-        request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-        QNetworkReply* reply = network_manager_.get(request);
-        connect(reply, &QNetworkReply::finished, this, [=]() { OnImageFetched(reply); });
-    } else {
-        ui->imageLabel->setPixmap(GenerateItemIcon(*current_item_, image_cache_->Get(icon)));
-    };
-    ui->locationLabel->setText(current_item_->location().GetHeader().c_str());
+    emit GetImage(icon);
 }
+
+void MainWindow::OnImageFetched(const std::string& url) {
+    if (current_item_) {
+        const std::string icon = current_item_->icon();
+        if (url == icon) {
+            const QImage image = image_cache_.load(url);
+            if (!image.isNull()) {
+                const QPixmap pixmap = GenerateItemIcon(*current_item_, image);
+                ui->imageLabel->setPixmap(pixmap);
+            };
+        };
+    };
+}
+
 
 void MainWindow::UpdateBuyoutWidgets(const Buyout& bo) {
     QLOG_TRACE() << "MainWindow::UpdateBuyoutWidgets() entered";

@@ -76,7 +76,8 @@ public:
         DataStore& datastore,
         ItemsManager& items_mangaer,
         BuyoutManager& buyout_manager,
-        Shop& shop);
+        Shop& shop,
+        ImageCache& image_cache);
     ~MainWindow();
     std::vector<Column*> columns;
     void LoadSettings();
@@ -90,13 +91,14 @@ signals:
     void UpdateCheckRequested();
     void SetSessionId(const QString& poesessid);
     void SetTheme(const QString& theme);
+    void GetImage(const std::string& url);
 public slots:
     void OnCurrentItemChanged(const QModelIndex& current, const QModelIndex& previous);
     void OnLayoutChanged();
     void OnSearchFormChange();
     void OnDelayedSearchFormChange();
     void OnTabChange(int index);
-    void OnImageFetched(QNetworkReply* reply);
+    void OnImageFetched(const std::string& url);
     void OnItemsRefreshed();
     void OnStatusUpdate(ProgramState state, const QString& status);
     void OnBuyoutChange();
@@ -165,6 +167,7 @@ private:
     ItemsManager& items_manager_;
     BuyoutManager& buyout_manager_;
     Shop& shop_;
+    ImageCache& image_cache_;
 
     Ui::MainWindow* ui;
 
@@ -175,7 +178,7 @@ private:
     QTabBar* tab_bar_;
     std::vector<std::unique_ptr<Filter>> filters_;
     int search_count_;
-    ImageCache* image_cache_;
+
     QLabel* status_bar_label_;
     QVBoxLayout* search_form_layout_;
     QMenu context_menu_;
