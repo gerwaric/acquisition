@@ -72,13 +72,18 @@ OAuthManager::OAuthManager(QObject* parent,
     if (token_str == "") {
         return;
     };
-    const QDateTime now = QDateTime::currentDateTime();
     token_ = OAuthToken(token_str);
-    if (token_.refresh_expiration() > now) {
+    const QDateTime now = QDateTime::currentDateTime();
+    QLOG_DEBUG() << "Found an existing OAuth token:";
+    QLOG_DEBUG() << "OAuth access expires on " << token_.access_expiration().toString()
+        << ((now > token_.access_expiration()) ? "(expired)" : "");
+    QLOG_DEBUG() << "OAuth refresh expires on" << token_.refresh_expiration().toString()
+        << ((now > token_.refresh_expiration()) ? "(expired)" : "");
+    if (now > token_.refresh_expiration()) {
         QLOG_INFO() << "Removing the stored OAuth token because it has expired.";
         datastore_.Set("oauth_token", "");
         token_ = OAuthToken();
-    } else if (token_.access_expiration() > now) {
+    } else if (now > token_.access_expiration()) {
         QLOG_INFO() << "The OAuth token is being refreshed.";
         requestRefresh();
     } else {
