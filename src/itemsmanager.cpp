@@ -75,7 +75,7 @@ void ItemsManager::Start(POE_API mode) {
     connect(this, &ItemsManager::UpdateSignal, worker_.get(), &ItemsManagerWorker::Update);
     connect(worker_.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
     connect(worker_.get(), &ItemsManagerWorker::ItemsRefreshed, this, &ItemsManager::OnItemsRefreshed);
-    
+
     QLOG_TRACE() << "ItemsManager::Start() initializing the worker";
     worker_->Init();
 }

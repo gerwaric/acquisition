@@ -157,7 +157,7 @@ QDateTime RuleItem::GetNextSafeSend(const RequestHistory& history) const {
         << "n =" << n
         << "earliest =" << earliest.toString() << "(" << earliest.secsTo(now) << "seconds ago)"
         << "next_send =" << next_send.toString() << "(in" << now.secsTo(next_send) << "seconds)";
- 
+
     // Calculate the next time it will be safe to send a request.
     return next_send;
 }

@@ -117,7 +117,7 @@ RateLimit::RateLimitedReply* RateLimiter::Submit(
         // policy can apply to multiple managers.
         QLOG_DEBUG() << "Unknown endpoint encountered:" << endpoint;
         SetupEndpoint(endpoint, network_request, reply);
-        
+
     };
     return reply;
 }

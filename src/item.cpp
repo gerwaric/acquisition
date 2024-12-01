@@ -174,11 +174,11 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
     if (HasInt(json, "h")) {
         h_ = json["h"].GetInt();
     };
-    
+
     if (HasInt(json, "frameType")) {
         frameType_ = json["frameType"].GetInt();
     };
-    
+
     if (HasString(json, "icon")) {
         icon_ = json["icon"].GetString();
     };
@@ -218,14 +218,14 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
 
     if (HasArray(json, "properties")) {
         for (auto& prop : json["properties"]) {
-            
+
             if (!HasString(prop, "name") || !HasArray(prop, "values")) {
                 continue;
             };
 
             const std::string name = prop["name"].GetString();
             const auto& values = prop["values"];
-            
+
             if (name == "Elemental Damage") {
                 for (auto& value : values) {
                     if (value.IsArray() && value.Size() >= 2) {

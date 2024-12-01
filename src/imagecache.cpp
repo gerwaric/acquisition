@@ -56,7 +56,7 @@ void ImageCache::fetch(const std::string& url) {
         emit imageReady(url);
     } else {
         QLOG_DEBUG() << "ImageCache: fetching" << url;
-        QNetworkRequest request = QNetworkRequest(QUrl(QString::fromStdString(url)) );
+        QNetworkRequest request = QNetworkRequest(QUrl(QString::fromStdString(url)));
         request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
         QNetworkReply* reply = network_manager_.get(request);
         connect(reply, &QNetworkReply::finished, this, &ImageCache::onFetched);

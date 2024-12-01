@@ -548,7 +548,7 @@ bool EnchantedFilter::Matches(const std::shared_ptr<Item>& item, FilterData* dat
 }
 
 bool InfluencedFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
-    return !data->checked ||  item->hasInfluence();
+    return !data->checked || item->hasInfluence();
 }
 
 bool CorruptedFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {

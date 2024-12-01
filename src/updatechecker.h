@@ -49,15 +49,15 @@ private slots:
     void OnUpdateSslErrors(const QList<QSslError>& errors);
 private:
 
-	struct ReleaseTag {
-		semver::version version;
-		bool draft{ false };
-		bool prerelease{ false };
-	};
-	std::vector<ReleaseTag> ParseReleaseTags(const QByteArray& bytes);
+    struct ReleaseTag {
+        semver::version version;
+        bool draft{ false };
+        bool prerelease{ false };
+    };
+    std::vector<ReleaseTag> ParseReleaseTags(const QByteArray& bytes);
 
-	bool has_newer_release() const;
-	bool has_newer_prerelease() const;
+    bool has_newer_release() const;
+    bool has_newer_prerelease() const;
 
     QSettings& settings_;
     QNetworkAccessManager& nm_;
@@ -65,10 +65,10 @@ private:
     // Trigger periodic update checks.
     QTimer timer_;
 
-	// The running version
-	const semver::version running_version_;
+    // The running version
+    const semver::version running_version_;
 
-	// The latest github release
+    // The latest github release
     semver::version latest_release_;
     semver::version latest_prerelease_;
 

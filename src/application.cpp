@@ -165,7 +165,7 @@ void Application::OnLogin(POE_API api) {
         image_cache());
 
     // Connect UI signals.
-    connect(main_window_.get(), &MainWindow::SetSessionId,  this, &Application::SetSessionId);
+    connect(main_window_.get(), &MainWindow::SetSessionId, this, &Application::SetSessionId);
     connect(main_window_.get(), &MainWindow::SetTheme, this, &Application::SetTheme);
     connect(main_window_.get(), &MainWindow::UpdateCheckRequested, update_checker_.get(), &UpdateChecker::CheckForUpdates);
 

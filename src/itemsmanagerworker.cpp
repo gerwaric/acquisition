@@ -529,7 +529,7 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
         const std::string tab_type = tab["type"].GetString();
 
         ++tabs_requested;
-    
+
         // Get the stash tab color.
         int r = 0, g = 0, b = 0;
         Util::GetTabColor(tab, r, g, b);
@@ -974,7 +974,7 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
             continue;
         };
         const std::string label = tab["n"].GetString();
-        
+
         if (!HasInt(tab, "i")) {
             QLOG_ERROR() << "Legacy tab does not have an index:" << label;
             continue;
