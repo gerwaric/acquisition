@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>423</width>
-    <height>447</height>
+    <width>471</width>
+    <height>494</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -128,7 +128,17 @@
         <number>20</number>
        </property>
        <item>
+        <widget class="QLabel" name="offlineLabel">
+         <property name="text">
+          <string>Offline mode is not implemented yet.</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QPushButton" name="offlineButton">
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
          <property name="text">
           <string>Open an existing data file</string>
          </property>
@@ -251,16 +261,16 @@
        <widget class="QComboBox" name="themeComboBox"/>
       </item>
       <item row="6" column="0">
-       <widget class="QPushButton" name="userDirPushButton">
+       <widget class="QLabel" name="userDirLabel">
         <property name="text">
-         <string>Change User Directory</string>
+         <string>Profile directory</string>
         </property>
        </widget>
       </item>
       <item row="6" column="1">
-       <widget class="QLabel" name="userDirLabel">
+       <widget class="QPushButton" name="userDirButton">
         <property name="text">
-         <string>User directory has not been set</string>
+         <string/>
         </property>
        </widget>
       </item>

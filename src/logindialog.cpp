@@ -117,7 +117,7 @@ LoginDialog::LoginDialog(
     });
 
     // Display the data directory
-    ui->userDirLabel->setText(Filesystem::UserDir());
+	ui->userDirButton->setText(Filesystem::UserDir());
 
     // Hide the error message by default
     ui->errorLabel->setText("");
@@ -156,7 +156,7 @@ LoginDialog::LoginDialog(
     connect(ui->reportCrashesCheckBox, &QCheckBox::checkStateChanged, this, &LoginDialog::OnReportCrashesCheckBoxChanged);
     connect(ui->proxyCheckBox, &QCheckBox::checkStateChanged, this, &LoginDialog::OnProxyCheckBoxChanged);
     connect(ui->loggingLevelComboBox, &QComboBox::currentTextChanged, this, &LoginDialog::OnLoggingLevelChanged);
-    connect(ui->userDirPushButton, &QPushButton::pressed, this, &LoginDialog::OnUserDirButtonPushed);
+	connect(ui->userDirButton, &QPushButton::pressed, this, &LoginDialog::OnUserDirButtonPushed);
     connect(ui->themeComboBox, & QComboBox::currentTextChanged, this, &LoginDialog::OnThemeChanged);
 
     // Listen for access from the OAuth manager.
@@ -648,6 +648,7 @@ void LoginDialog::OnUserDirButtonPushed() {
     const QString parent_dir = QFileInfo(current_dir).absolutePath();
     const QString new_dir = QFileDialog::getExistingDirectory(this, "Select the user directory", parent_dir);
     if (new_dir != current_dir) {
+		ui->userDirButton->setText(new_dir);
         emit ChangeUserDir(new_dir);
     };
 }
