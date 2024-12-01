@@ -52,6 +52,11 @@ In order run acquisition, your LD_LIBRARY_PATH must include a directory that has
 
 [PVS-Studio](https://pvs-studio.com/en/pvs-studio/?utm_source=website&utm_medium=github&utm_campaign=open_source) - static analyzer for C, C++, C#, and Java code.
 
+<a href="https://scan.coverity.com/projects/gerwaric-acquisition">
+  <img alt="Coverity Scan Build Status"
+       src="https://scan.coverity.com/projects/31083/badge.svg"/>
+</a>
+
 ## Command line
 
 `acquisition [--data-dir <path>] [--log-level <level>] [--test]`
