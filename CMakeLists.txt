@@ -221,6 +221,11 @@ target_link_libraries(acquisition PRIVATE
     QsLog
     qdarkstyle
     Crashpad
+    semver
+)
+
+add_library(semver STATIC
+    deps/cpp-semver/semver.hpp
 )
 
 # Create the Crashpad library target.
