@@ -45,7 +45,7 @@ constexpr const char* GITHUB_DOWNLOADS_URL = "https://github.com/gerwaric/acquis
 // Check for updates every 24 hours.
 constexpr int UPDATE_INTERVAL = 24 * 60 * 60 * 1000;
 
-const semver::version UpdateChecker::NULL_VERSION = semver::version();
+static const semver::version NULL_VERSION = semver::version();
 
 UpdateChecker::UpdateChecker(QObject* parent,
     QSettings& settings,

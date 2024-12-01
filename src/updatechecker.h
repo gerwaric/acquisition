@@ -74,7 +74,4 @@ private:
 
     semver::version previous_release_;
     semver::version previous_prerelease_;
-
-    static const semver::version NULL_VERSION;
-
 };
