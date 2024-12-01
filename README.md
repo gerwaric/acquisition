@@ -15,7 +15,7 @@ Acquisition is written in C++ and uses the Qt widget toolkit. It was originally 
 
 ### Qt
 
-Acquisition should be buildable with Qt Creator (Community) on any platform that supports Qt 6.5.3 LTS.
+Acquisition should be buildable with Qt Creator (Community) on any platform that supports Qt 6.8.0.
 
 Acquisition depends on the following Qt modules, which should be installed from the Qt Maintenance Tool:
 - Qt HTTP Server
@@ -27,22 +27,22 @@ On Windows you can also build Acquisition with Visual Studio 2022 and the Qt Vis
 
 Windows releases are currently built with:
 - Windows 11
-- Qt Creator 14.0.1 (Community) with Qt 6.5.3 LTS using the compiler from Visual Studio 2022 (for release builds)
-- Visual Studio 2022 with Qt Visual Studio Tools 3.2.0 (for editing, debugging, and testing) and Qt Vs CMake Tools 1.1
-- Inno Setup 6.3.3 (for installer creation)
+- Qt Creator 14.0.2 (Community) with Qt 6.8.0 using MSVC 2022 64-bit
+- Visual Studio 2022 with Qt Visual Studio Tools 3.3.0 (for editing, debugging, and testing) and Qt Vs CMake Tools 1.1
+- Inno Setup 6.3.3 for installer creation
 
 ### Apple macOS
 
 macOS releases are currently built with:
-- macOS Sonoma 14.7 on Intel silicon
-- Qt Creator 14.0.1 with Qt 6.5.3 for macOS
-- XCode 16.0
+- macOS Sonoma 14.7.1 on Intel silicon
+- Qt Creator 14.0.2 with Qt 6.8.0 for macOS
+- XCode 15
 
 ### Linux
 
 Linux releases are distributed as an AppImage and built with:
 - Linut Mint 20 Cinnamon
-- Qt Creator 14.0.1 with Qt 6.5.3 GCC 64bit
+- Qt Creator 14.0.2 with Qt 6.8.0
 - OpenSSL 3.0.15 as provided by the Qt Maintenance Tool
 - linuxdeploy
 
