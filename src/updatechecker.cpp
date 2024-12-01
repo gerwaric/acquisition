@@ -108,9 +108,8 @@ void UpdateChecker::OnUpdateReplyReceived() {
 	const QByteArray bytes = reply->readAll();
 	const std::vector<ReleaseTag> releases = ParseReleaseTags(bytes);
 
-    const semver::version null_version = semver::version();
-   	latest_release_ = semver::version();
-    latest_prerelease_ = semver::version();
+   	latest_release_ = NULL_VERSION;
+    latest_prerelease_ = NULL_VERSION;
 
 	for (const auto& release : releases) {
 		if (release.prerelease) {
@@ -125,14 +124,14 @@ void UpdateChecker::OnUpdateReplyReceived() {
 	};
 
     // Make sure at least one tag was found.
-	if ((latest_release_ == null_version) && (latest_prerelease_ == null_version)) {
+	if ((latest_release_ == NULL_VERSION) && (latest_prerelease_ == NULL_VERSION)) {
 		QLOG_WARN() << "Unable to find any github releases or pre-releases!";
         return;
     };
-	if (latest_release_ > null_version) {
+	if (latest_release_ > NULL_VERSION) {
 		QLOG_DEBUG() << "UpdateChecker: latest release found:" << latest_release_.str();
 	};
-	if (latest_prerelease_ > null_version) {
+	if (latest_prerelease_ > NULL_VERSION) {
 		QLOG_DEBUG() << "UpdateChecker: latest prerelease found:" << latest_prerelease_.str();
 	};
 
