@@ -8,21 +8,15 @@ class QNetworkAccessManager;
 class QNetworkReply;
 class QNetworkRequest;
 
-class NetworkReply : public QObject {
-    Q_OBJECT
-signals:
-    void finished(QNetworkReply* reply);
-};
-
 class NetworkManager : public QObject {
     Q_OBJECT
 public:
     NetworkManager();
     ~NetworkManager();
 
-    QNetworkReply* get(QNetworkRequest& request);
-    QNetworkReply* get(QNetworkRequest& request, QIODevice* data);
-    QNetworkReply* get(QNetworkRequest& request, const QByteArray& data);
+    QNetworkReply* get(const QNetworkRequest& request);
+    QNetworkReply* get(const QNetworkRequest& request, QIODevice* data);
+    QNetworkReply* get(const QNetworkRequest& request, const QByteArray& data);
 
     QNetworkReply* head(const QNetworkRequest& request);
 
@@ -32,8 +26,8 @@ public:
     QNetworkReply* post(const QNetworkRequest& request, std::nullptr_t nptr);
 
 private:
-    bool offline() const;
-    QNetworkRequest& prepare(QNetworkRequest& request);
+    QNetworkRequest prepare(const QNetworkRequest& request);
     std::unique_ptr<QNetworkAccessManager> network_manager_;
     QNetworkInformation* network_info_;
+    bool offline_{ true };
 };

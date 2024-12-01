@@ -23,62 +23,40 @@ NetworkManager::NetworkManager()
 
 NetworkManager::~NetworkManager() {};
 
-bool NetworkManager::offline() {
-    return (QNetworkInformation::instance()->reachability() != QNetworkInformation::Reachability::Online);
+QNetworkReply* NetworkManager::get(const QNetworkRequest& request) {
+    return offline_ ? nullptr : network_manager_->get(prepare(request));
 }
 
-QNetworkRequest& NetworkManager::prepare(QNetworkRequest& request) {
-    request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-    return request;
+QNetworkReply* NetworkManager::get(const QNetworkRequest& request, QIODevice* data) {
+    return offline_ ? nullptr : network_manager_->get(prepare(request), data);
 }
 
-QNetworkReply* NetworkManager::get(QNetworkRequest& request) {
-    return online_ ? network_manager_->get(prepare(request)) : nullptr;
+QNetworkReply* NetworkManager::get(const QNetworkRequest& request, const QByteArray& data) {
+    return offline_ ? nullptr : network_manager_->get(prepare(request), data);
 }
 
-QNetworkReply* NetworkManager::get(QNetworkRequest& request, QIODevice* data) {
-    return online_ ? network_manager_->get(prepare(request), data) : nullptr;
-};
-
-QNetworkReply* NetworkManager::get(QNetworkRequest& request, const QByteArray& data) {
-    return online_ ? network_manager_->get(prepare(request), data) : nullptr;
-};
-
-
-
-
-QNetworkReply* NetworkManager::get(QNetworkRequest& request, ...)
-{
-    if (network_info_->reachability() != QNetworkInformation::Reachability::Online) {
-        QLOG_ERROR() << "NetworkManager: network is not online";
-        return nullptr;
-    };
-    request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-    return network_manager_->get(request);
+QNetworkReply* NetworkManager::head(const QNetworkRequest& request) {
+    return offline_ ? nullptr : network_manager_->head(prepare(request));
 }
 
-QNetworkReply* NetworkManager::head(QNetworkRequest& request, ...)
-{
-    if (network_info_->reachability() != QNetworkInformation::Reachability::Online) {
-        QLOG_ERROR() << "NetworkManager: network is not online";
-        return nullptr;
-    };
-    request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-    return network_manager_->head(request);
+QNetworkReply* NetworkManager::post(const QNetworkRequest& request, QIODevice* data) {
+    return offline_ ? nullptr : network_manager_->post(prepare(request), data);
 }
 
-QNetworkReply* NetworkManager::post(QNetworkRequest& request, ...)
-{
-    if (network_info_->reachability() != QNetworkInformation::Reachability::Online) {
-        QLOG_ERROR() << "NetworkManager: network is not online";
-        return nullptr;
-    };
-    request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-    return network_manager_->post(request);
+QNetworkReply* NetworkManager::post(const QNetworkRequest& request, QHttpMultiPart* multiPart) {
+    return offline_ ? nullptr : network_manager_->post(prepare(request), multiPart);
 }
 
+QNetworkReply* NetworkManager::post(const QNetworkRequest& request, const QByteArray& data) {
+    return offline_ ? nullptr : network_manager_->post(prepare(request), data);
+}
 
-void NetworkManager::onReachabilityChanged(QNetworkInformation::Reachability reachability)
-{
-    reachability_ = reachability;
+QNetworkReply* NetworkManager::post(const QNetworkRequest& request, std::nullptr_t nptr) {
+    return offline_ ? nullptr : network_manager_->post(prepare(request), nptr);
+}
+
+QNetworkRequest NetworkManager::prepare(const QNetworkRequest& request) {
+    QNetworkRequest outgoing_request(request);
+    outgoing_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
+    return outgoing_request;
 }
