@@ -53,7 +53,7 @@ UpdateChecker::UpdateChecker(QObject* parent,
     : QObject(parent)
     , settings_(settings)
     , nm_(network_manager)
-	, running_version_(semver::version::parse("0.11.8")) //QVersionNumber::fromString(APP_VERSION_STRING))
+	, running_version_(semver::version::parse(APP_VERSION_STRING))
 {
     const QString skip_release = settings_.value("skip_release").toString();
     const QString skip_prerelease = settings_.value("skip_prerelease").toString();
