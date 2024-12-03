@@ -30,7 +30,7 @@ cmake_minimum_required(VERSION 3.29)
 
 project(acquisition
     VERSION 0.12.0
-    DESCRIPTION "Stash and forum shop management for Path of Exile \\256"
+    DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
 )
@@ -46,7 +46,7 @@ set(app_version_string  "${CMAKE_PROJECT_VERSION}${version_postfix}")
 set(app_url             "${CMAKE_PROJECT_HOMEPAGE_URL}")
 set(app_publisher       "GERWARIC")
 set(app_publisher_email "gerwaric@gmail.com")
-set(app_copyright       "© 2014 Ilya Zhuravlev and 2023 Gerwaric")
+set(app_copyright       "Copyright (c) 2014 Ilya Zhuravlev and 2023 Gerwaric")
 set(app_trademark       "Path of Exile is a trademark of Grinding Gear Games, Ltd.")
 
 set(CMAKE_AUTOUIC ON)
