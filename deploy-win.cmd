@@ -4,15 +4,15 @@ setlocal
 
 rem Setup the Qt environment
 pushd .
-set "PATH=C:\Qt\6.8.0\msvc2019_64\bin;%PATH%"
+set "PATH=C:\Qt\6.8.1\msvc2019_64\bin;%PATH%"
 popd
 
 rem Define the locations of windeployqt and inno setup
-set "WINDEPLOYQT=C:\Qt\6.8.0\msvc2022_64\bin\windeployqt.exe"
+set "WINDEPLOYQT=C:\Qt\6.8.1\msvc2022_64\bin\windeployqt.exe"
 set "ISCC=c:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 
 rem Define the build and deployment directories
-set "BUILD_DIR=.\build\Desktop_Qt_6_8_0_MSVC2022_64bit-Release"
+set "BUILD_DIR=.\build\Desktop_Qt_6_8_1_MSVC2022_64bit-Release"
 set "DEPLOY_DIR=%BUILD_DIR%\deploy";
 
 rmdir /S /Q "%DEPLOY_DIR%"
