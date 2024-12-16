@@ -129,6 +129,7 @@ void ItemsManagerWorker::Init() {
         return;
     };
 
+    realm_ = settings_.value("realm").toString().toStdString();
     league_ = settings_.value("league").toString().toStdString();
     account_ = settings_.value("account").toString().toStdString();
     updating_ = true;
@@ -373,35 +374,45 @@ void ItemsManagerWorker::LegacyRefresh() {
 void ItemsManagerWorker::OAuthRefresh() {
     QLOG_TRACE() << "ItemsManagerWorker::OAuthRefresh() entered";
     if (need_stash_list_) {
-        const auto request = MakeOAuthStashListRequest(league_);
+        const auto request = MakeOAuthStashListRequest(realm_, league_);
         QLOG_TRACE() << "ItemsManagerWorker::OAuthRefresh() requesting stash list:" << request.url().toString();
         auto reply = rate_limiter_.Submit(kOauthListStashesEndpoint, request);
         connect(reply, &RateLimit::RateLimitedReply::complete, this, &ItemsManagerWorker::OnOAuthStashListReceived);
     };
     if (need_character_list_) {
-        const auto request = MakeOAuthCharacterListRequest();
+        const auto request = MakeOAuthCharacterListRequest(realm_);
         QLOG_TRACE() << "ItemsManagerWorker::OAuthRefresh() requesting character list:" << request.url().toString();
         auto submit = rate_limiter_.Submit(kOAuthListCharactersEndpoint, request);
         connect(submit, &RateLimit::RateLimitedReply::complete, this, &ItemsManagerWorker::OnOAuthCharacterListReceived);
     };
 }
 
-QNetworkRequest ItemsManagerWorker::MakeOAuthStashListRequest(const std::string& league) {
+QNetworkRequest ItemsManagerWorker::MakeOAuthStashListRequest(
+    const std::string& realm,
+    const std::string& league)
+{
     QLOG_TRACE() << "ItemsManagerWorker::MakeOAuthStashListRequest() entered";
     QStringList parts = {
         QString(kOAuthListStashesUrl),
+        QString::fromStdString(realm),
         QString::fromStdString(league) };
     const QUrl url(parts.join("/"));
     return QNetworkRequest(url);
 }
 
-QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterListRequest() {
+QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterListRequest(
+    const std::string& realm)
+{
     QLOG_TRACE() << "ItemsManagerWorker::MakeOAuthCharacterListRequest() entered";
-    const QUrl url(kOAuthListCharactersUrl);
+    const QStringList parts = {
+        QString(kOAuthListCharactersUrl),
+        QString::fromStdString(realm)};
+    const QUrl url(parts.join("/"));
     return QNetworkRequest(url);
 }
 
 QNetworkRequest ItemsManagerWorker::MakeOAuthStashRequest(
+    const std::string& realm,
     const std::string& league,
     const std::string& stash_id,
     const std::string& substash_id)
@@ -409,6 +420,7 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthStashRequest(
     QLOG_TRACE() << "ItemsManagerWorker::MakeOAuthStashRequest() entered";
     QStringList parts = {
         QString(kOAuthGetStashUrl),
+        QString::fromStdString(realm),
         QString::fromStdString(league),
         QString::fromStdString(stash_id) };
     if (!substash_id.empty()) {
@@ -418,11 +430,14 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthStashRequest(
     return QNetworkRequest(url);
 }
 
-QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterRequest(const std::string& name) {
+QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterRequest(
+    const std::string& realm,
+    const std::string& name)
+{
     QLOG_TRACE() << "ItemsManagerWorker::MakeOAuthCharacterRequest() entered";
-
     QStringList parts = {
         QString(kOAuthGetCharacterUrl),
+        QString::fromStdString(realm),
         QString::fromStdString(name) };
     const QUrl url(parts.join("/"));
     return QNetworkRequest(url);
@@ -471,7 +486,8 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
     for (auto const& tab : tabs_) {
         if (!old_tab_headers.count(tab.GetHeader())) {
             QLOG_DEBUG() << "Forcing refresh of moved or renamed tab: " << tab.GetHeader().c_str();
-            QueueRequest(kOAuthGetStashEndpoint, MakeOAuthStashRequest(league_, tab.get_tab_uniq_id()), tab);
+            QNetworkRequest request = MakeOAuthStashRequest(realm_, league_, tab.get_tab_uniq_id());
+            QueueRequest(kOAuthGetStashEndpoint, request, tab);
         };
     };
 
@@ -540,7 +556,8 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
         tab_id_index_.insert(tab_id);
 
         // Submit a request for this tab.
-        QueueRequest(kOAuthGetStashEndpoint, MakeOAuthStashRequest(league_, location.get_tab_uniq_id()), location);
+        QNetworkRequest request = MakeOAuthStashRequest(realm_, league_, location.get_tab_uniq_id());
+        QueueRequest(kOAuthGetStashEndpoint, request, location);
     };
     QLOG_DEBUG() << "Requesting" << tabs_requested << "out of" << stashes.Size() << "stash tabs";
 
@@ -590,13 +607,21 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
             continue;
         };
         const std::string name = character["name"].GetString();
+        if (!HasString(character, "realm")) {
+            QLOG_ERROR() << "The character does not have a realm. The reply may be invalid:" << bytes;
+        };
+        const std::string realm = character["realm"].GetString();
         if (!HasString(character, "league")) {
             QLOG_ERROR() << "Malformed character entry for" << name << ": the reply may be invalid: " << bytes;
             continue;
         };
         const std::string league = character["league"].GetString();
+        if (realm != realm_) {
+            QLOG_DEBUG() << "Skipping" << name << "because this character is not in realm" << realm_;
+            continue;
+        };
         if (league != league_) {
-            QLOG_DEBUG() << "Skipping" << name << "because this character is not in" << league_;
+            QLOG_DEBUG() << "Skipping" << name << "because this character is not in leage" << league_;
             continue;
         };
         if (tab_id_index_.count(name) > 0) {
@@ -608,7 +633,8 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
         tabs_.push_back(location);
         ++requested_character_count;
 
-        QueueRequest(kOAuthGetCharacterEndpoint, MakeOAuthCharacterRequest(name), location);
+        QNetworkRequest request = MakeOAuthCharacterRequest(realm_, name);
+        QueueRequest(kOAuthGetCharacterEndpoint, request, location);
     }
     QLOG_DEBUG() << "There are" << requested_character_count << "characters to update in" << league_.c_str();
 
