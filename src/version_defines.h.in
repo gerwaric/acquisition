@@ -15,4 +15,6 @@
 #define APP_PUBLISHER_EMAIL         "@app_publisher_email@"
 #define APP_URL                     "@app_url@"
 
+#define MSVC_RUNTIME_VERSION        "@msvc_runtime_version@"
+
 #endif

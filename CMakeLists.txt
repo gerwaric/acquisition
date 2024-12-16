@@ -36,7 +36,7 @@ project(acquisition
 )
 
 # Use this to define pre-releases
-set(version_postfix "-beta.1")
+set(version_postfix "-beta.2")
 
 # Variables used to generate version_defines.h and installer.iss
 set(version_code        63) # This doesn't need to be changed with the new update checks.
@@ -122,6 +122,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/searchcombobox.cpp
     src/shop.cpp
     src/sqlitedatastore.cpp
+    src/startupcheck.cpp
     src/updatechecker.cpp
     src/util.cpp
     src/verticalscrollarea.cpp
@@ -176,6 +177,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/searchcombobox.h
     src/shop.h
     src/sqlitedatastore.h
+    src/startupcheck.h
     src/updatechecker.h
     src/util.h
     src/verticalscrollarea.h
@@ -194,6 +196,42 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     # Generated version header
     "${CMAKE_BINARY_DIR}/version_defines.h"
 )
+
+# On Windows, we want to know which version of MSVC was used.
+if(WIN32)
+
+    if(NOT MSVC)
+        message(FATAL_ERROR "Only the MSVC compiler is supported on Windows")
+    endif()
+
+    # The Microsoft Visual C++ Compiler version 19 corresponds to runtime version 14.
+    set(msvc_compiler_ver "19")
+    set(msvc_runtime_ver "14")
+
+    # Run the compiler executable to grab the version printed on the first line.
+    execute_process(
+        COMMAND cl
+        OUTPUT_VARIABLE cl_output
+        ERROR_VARIABLE cl_error
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    # Extract the compiler version.
+    string(REGEX MATCH "Version ([0-9]+\\.[0-9]+\\.[0-9]+)" msvc_version ${cl_error})
+    string(REGEX REPLACE "^Version " "" msvc_version ${msvc_version})
+    if (NOT msvc_version)
+        message(FATAL_ERROR "Could not determine MSVC version from cl.exe output")
+    endif()
+    message(STATUS "MSVC Compiler: ${msvc_version}")
+
+    # Derive the runtime version.
+    string(REGEX REPLACE "^${msvc_compiler_ver}" "${msvc_runtime_ver}" msvc_runtime_version ${msvc_version})
+    if (NOT msvc_runtime_version)
+        message(FATAL_ERROR "Could not determine MSVC runtime version from cl.exe output")
+    endif()
+    message(STATUS "MSVC Runtime: ${msvc_runtime_version}")
+
+endif()
 
 # Automatically populate and include the versions header file.
 configure_file("src/version_defines.h.in" "version_defines.h" @ONLY)
@@ -301,6 +339,16 @@ add_library(qdarkstyle STATIC
 
 if(WIN32)
     
+    # As of v0.11.8 I'm still seeing crashes in the MSVC mutex code. It looks like there
+    # was a change in Visual Studio that causes this. The follwing define is an attempt
+    # to fix it.
+    #
+    # See https://stackoverflow.com/questions/78598141/first-stdmutexlock-crashes-in-application-built-with-latest-visual-studio
+    target_compile_definitions(acquisition PRIVATE _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
+
+    # Needed to check the MSVC runtime version
+    target_link_libraries(acquisition PRIVATE Version)
+
     # Add the application icon.
     target_sources(acquisition PRIVATE "${PROJECT_SOURCE_DIR}/assets/icon.ico")
 

@@ -21,11 +21,9 @@
 
 #include <QApplication>
 #include <QCommandLineParser>
-#include <QDesktopServices>
 #include <QDir>
 #include <QFontDatabase>
 #include <QLocale>
-#include <QMessageBox>
 #include <QSettings>
 
 #include "QsLog.h"
@@ -37,11 +35,13 @@
 #include "fatalerror.h"
 #include "filesystem.h"
 #include "shop.h"
+#include "startupcheck.h"
 #include "util.h"
 #include "version_defines.h"
 #include "testmain.h"
 
 // This is needed for Visual Studio 2022.
+#ifdef Q_OS_WINDOWS
 #include "boost/config.hpp"
 #ifdef BOOST_NO_EXCEPTIONS
 #include <boost/throw_exception.hpp>
@@ -49,89 +49,13 @@ void boost::throw_exception(std::exception const& e) {
     throw e;
 }
 #endif
+#endif
 
 #ifdef _DEBUG
 constexpr QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::DebugLevel;
 #else
 constexpr QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::InfoLevel;
 #endif
-
-#ifdef Q_OS_WINDOWS
-bool checkManifest() {
-
-    // Get the directory where the application is running from.
-    const QString path = QGuiApplication::applicationDirPath();
-    const QDir dir(path);
-
-    // These are the Windows libraries we expect to find in the
-    // directory alongside the application executable.
-    const QStringList expected_dlls = {
-        "D3Dcompiler_47.dll",
-        "opengl32sw.dll",
-        "Qt6Core.dll",
-        "Qt6Gui.dll",
-        "Qt6HttpServer.dll",
-        "Qt6Network.dll",
-        "Qt6Sql.dll",
-        "Qt6Svg.dll",
-        "Qt6Test.dll",
-        "Qt6WebSockets.dll",
-        "Qt6Widgets.dll"
-    };
-
-    // Build the list of libraries that were present but unexpected.
-    // The .dll extension is windows-specific, but so far Windows
-    // is the only platform affected by this issue.
-    QStringList unexpected_dlls;
-    for (const auto& dll : dir.entryList({ "*.dll" })) {
-        if (!expected_dlls.contains(dll, Qt::CaseInsensitive)) {
-            unexpected_dlls.push_back(dll);
-        };
-    };
-
-    // Do nothing if nothing unexpected was found.
-    if (unexpected_dlls.isEmpty()) {
-        return true;
-    };
-
-    // Create a warning message for the dialog box.
-    QStringList msg = {
-        "Unexpected libraries found in '" + path + "':",
-        "",
-        "\t" + unexpected_dlls.join(", "),
-        ""
-    };
-    if (unexpected_dlls.contains("msvcp140.dll", Qt::CaseInsensitive)) {
-        msg.append("Acquisition may crash. "
-            "Please consider deleteing the above files and installing the "
-            "MSVC runtime that comes with acquisition. You can do this from "
-            "the installer, or you can run 'vc_redist.x64.exe' from the "
-            "acquisition program directory");
-    } else {
-        msg.append("Acquisition may crash. "
-            "Please consider moving or deleting these files.");
-    };
-
-
-    // Construct a warning dialog box.
-    QMessageBox msgbox;
-    msgbox.setWindowTitle("Acquisition");
-    msgbox.setText(msg.join("\n"));
-    msgbox.setIcon(QMessageBox::Warning);
-    const auto* open = msgbox.addButton("Open folder and quit", QMessageBox::NoRole);
-    const auto* quit = msgbox.addButton("Quit", QMessageBox::NoRole);
-    const auto* ignore = msgbox.addButton("Ignore and continue", QMessageBox::NoRole);
-    Q_UNUSED(quit);
-
-    // Get and react to the user input.
-    msgbox.exec();
-    const auto& clicked = msgbox.clickedButton();
-    if (clicked == open) {
-        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
-    };
-    return (clicked == ignore);
-}
-#endif // Q_OS_WINDOWS
 
 int main(int argc, char* argv[])
 {
@@ -147,16 +71,6 @@ int main(int argc, char* argv[])
     const QDateTime BUILD_DATE = QLocale("en_US").toDateTime(BUILD_TIMESTAMP, "MMM d yyyy hh:mm:ss");
 
     QApplication a(argc, argv);
-
-#ifdef Q_OS_WINDOWS
-    // Check for unexpected files, especially DLLs on Windows, where
-    // this can cause unexpected crashes. We have to do this after
-    // constructing the application object because we might need to 
-    // present a warning dialog box to the user.
-    if (!checkManifest()) {
-        return EXIT_FAILURE;
-    };
-#endif
 
     // Setup the default user directory.
     Filesystem::Init();
@@ -217,6 +131,9 @@ int main(int argc, char* argv[])
     QLOG_INFO() << "-------------------------------------------------------------------------------";
     QLOG_INFO().noquote() << a.applicationName() << a.applicationVersion() << "( version code" << VERSION_CODE << ")";
     QLOG_INFO().noquote() << "Built with Qt" << QT_VERSION_STR << "on" << BUILD_DATE.toString();
+#ifdef Q_OS_WINDOWS
+	QLOG_INFO().noquote() << "Built with MSVC runtime" << MSVC_RUNTIME_VERSION;
+#endif
     QLOG_INFO().noquote() << "Running on Qt" << qVersion();
     QLOG_INFO() << "Logging level is" << logger.loggingLevel();
 
@@ -226,6 +143,12 @@ int main(int argc, char* argv[])
     };
     QLOG_TRACE() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
     QLOG_TRACE() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
+
+	// TEMPORARILY DISABLED
+	//
+	// if (!startupCheck()) {
+	//     return EXIT_FAILURE;
+	// };
 
     // Check for test mode.
     if (parser.isSet(option_test)) {
