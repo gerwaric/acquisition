@@ -68,8 +68,8 @@ private:
     // listening, so use a unique pointer so that we can destory the
     // server once authentication is complete, so it won't stay
     // running in the background.
-    std::unique_ptr<QHttpServer> http_server_;
-    std::unique_ptr<QTcpServer> tcp_server_;
+    QHttpServer* http_server_;
+    QTcpServer* tcp_server_;
 
     bool remember_token_;
     OAuthToken token_;

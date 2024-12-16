@@ -174,7 +174,7 @@ void OAuthManager::createHttpServer() {
     QLOG_TRACE() << "OAuthManager::createHttpServer() entered";
 
     // Create a new HTTP server.
-    http_server_ = std::make_unique<QHttpServer>(this);
+    http_server_ = new QHttpServer(this);
 
     // Tell the server to ignore favicon requests, even though these
     // should be disabled based on the HTML we are returning.
@@ -192,7 +192,7 @@ void OAuthManager::createHttpServer() {
             QLOG_TRACE() << "OAuth: unhandled request:" << request.url().toString();
         });
 
-    tcp_server_ = std::make_unique<QTcpServer>();
+    tcp_server_ = new QTcpServer(this);
 
     if (!tcp_server_->listen()) {
         QLOG_ERROR() << "OAuth: cannot start tcp server";
@@ -201,7 +201,7 @@ void OAuthManager::createHttpServer() {
         return;
     };
 
-    if (!http_server_->bind(tcp_server_.get())) {
+    if (!http_server_->bind(tcp_server_)) {
         QLOG_ERROR() << "OAuth: cannot bind http server to tcp server";
         tcp_server_ = nullptr;
         http_server_ = nullptr;
