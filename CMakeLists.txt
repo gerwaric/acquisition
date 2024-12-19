@@ -122,7 +122,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/searchcombobox.cpp
     src/shop.cpp
     src/sqlitedatastore.cpp
-    src/startupcheck.cpp
     src/updatechecker.cpp
     src/util.cpp
     src/verticalscrollarea.cpp
@@ -177,7 +176,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/searchcombobox.h
     src/shop.h
     src/sqlitedatastore.h
-    src/startupcheck.h
     src/updatechecker.h
     src/util.h
     src/verticalscrollarea.h
@@ -203,6 +201,14 @@ if(WIN32)
     if(NOT MSVC)
         message(FATAL_ERROR "Only the MSVC compiler is supported on Windows")
     endif()
+
+    # On Windows there we do extra checks to catch incompatible older versions
+    # of the Microsoft Visual Studio C++ Runtime, because these can cause
+    # otherwise unexpected crashes (usually in mutex-related code).
+    target_sources(acquisition PRIVATE
+        src/checkmsvc.cpp
+        src/checkmsvc.h
+    )
 
     # The Microsoft Visual C++ Compiler version 19 corresponds to runtime version 14.
     set(msvc_compiler_ver "19")

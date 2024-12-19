@@ -19,4 +19,4 @@
 
 #pragma once
 
-bool startupCheck();
+void checkMicrosoftRuntime();

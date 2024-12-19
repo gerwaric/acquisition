@@ -35,10 +35,13 @@
 #include "fatalerror.h"
 #include "filesystem.h"
 #include "shop.h"
-#include "startupcheck.h"
 #include "util.h"
 #include "version_defines.h"
 #include "testmain.h"
+
+#ifdef Q_OS_WINDOWS
+#include "checkmsvc.h"
+#endif
 
 // This is needed for Visual Studio 2022.
 #ifdef Q_OS_WINDOWS
@@ -131,24 +134,26 @@ int main(int argc, char* argv[])
     QLOG_INFO() << "-------------------------------------------------------------------------------";
     QLOG_INFO().noquote() << a.applicationName() << a.applicationVersion() << "( version code" << VERSION_CODE << ")";
     QLOG_INFO().noquote() << "Built with Qt" << QT_VERSION_STR << "on" << BUILD_DATE.toString();
-#ifdef Q_OS_WINDOWS
-	QLOG_INFO().noquote() << "Built with MSVC runtime" << MSVC_RUNTIME_VERSION;
-#endif
     QLOG_INFO().noquote() << "Running on Qt" << qVersion();
     QLOG_INFO() << "Logging level is" << logger.loggingLevel();
 
+#ifdef Q_OS_WINDOWS
+    // On Windows, it's possible there are incompatible versions of the MSVC runtime
+    // DLLs that can cause unexpected crashes, so acquisition does some extra work
+    // to try and detect this. It's not foolproof, however.
+    checkMicrosoftRuntime();
+#endif
+
     QLOG_TRACE() << "Checking for SSL support...";
     if (!QSslSocket::supportsSsl()) {
-        FatalError("SSL support is missing. On Linux, the LD_LIBRARY_PATH must include OpenSSL 3.x shared libraries.");
+#ifdef Q_OS_LINUX
+        FatalError("SSL support is missing. Make sure OpenSSL 3.x shared libaries are on the LD_LIBRARY_PATH.");
+#else
+        FatalError("SSL support is missing.");
+#endif
     };
     QLOG_TRACE() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
     QLOG_TRACE() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
-
-	// TEMPORARILY DISABLED
-	//
-	// if (!startupCheck()) {
-	//     return EXIT_FAILURE;
-	// };
 
     // Check for test mode.
     if (parser.isSet(option_test)) {
