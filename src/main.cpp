@@ -44,10 +44,12 @@
 #include "checkmsvc.h"
 #endif
 
-#ifdef _DEBUG
-constexpr QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::DebugLevel;
+constexpr const char* BUILD_TIMESTAMP = (__DATE__ " " __TIME__);
+
+#ifdef QT_DEBUG
+constexpr const char* DEFAULT_LOGGING_LEVEL = "DEBUG";
 #else
-constexpr QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::InfoLevel;
+constexpr const char* DEFAULT_LOGGING_LEVEL = "INFO";
 #endif
 
 int main(int argc, char* argv[])
@@ -60,8 +62,8 @@ int main(int argc, char* argv[])
     std::setlocale(LC_ALL, "C");
 
     // Holds the date and time of the current build based on __DATE__ and __TIME__ macros.
-    const QString BUILD_TIMESTAMP = QString(__DATE__ " " __TIME__).simplified();
-    const QDateTime BUILD_DATE = QLocale("en_US").toDateTime(BUILD_TIMESTAMP, "MMM d yyyy hh:mm:ss");
+    const QString build_timestamp = QString(BUILD_TIMESTAMP).simplified();
+    const QDateTime build_date = QLocale("en_US").toDateTime(build_timestamp, "MMM d yyyy hh:mm:ss");
 
     QApplication a(argc, argv);
 
@@ -94,15 +96,18 @@ int main(int argc, char* argv[])
     const QString sLogPath(appDataDir.filePath("log.txt"));
     QSettings settings(appDataDir.filePath("settings.ini"), QSettings::IniFormat);
 
-    // Determine the logging level.
-    QsLogging::Level loglevel = DEFAULT_LOGLEVEL;
+    // Determine the logging level. The command-line argument takes first priority.
+    // If no command line argument is present, Acquistion will check for a logging
+    // level in the settings file. Otherwise it will fallback to a default.
+    QString logging_option;
     if (parser.isSet(option_log_level)) {
-         // First priority is the command line argument.
-        loglevel = Util::TextToLogLevel(parser.value(option_log_level));
+        logging_option = parser.value(option_log_level);
     } else if (settings.contains("log_level")) {
-        // Second priority is the settings file.
-        loglevel = Util::TextToLogLevel(settings.value("log_level").toString());
+        logging_option = settings.value("log_level").toString();
+    } else {
+        logging_option = QString(DEFAULT_LOGGING_LEVEL);
     };
+    const QsLogging::Level loglevel = Util::TextToLogLevel(logging_option);
 
     // Setup the logger.
     QsLogging::MaxSizeBytes logsize(10 * 1024 * 1024);
@@ -120,7 +125,7 @@ int main(int argc, char* argv[])
     // Start the log with basic info
     QLOG_INFO() << "-------------------------------------------------------------------------------";
     QLOG_INFO().noquote() << a.applicationName() << a.applicationVersion() << "( version code" << VERSION_CODE << ")";
-    QLOG_INFO().noquote() << "Built with Qt" << QT_VERSION_STR << "on" << BUILD_DATE.toString();
+    QLOG_INFO().noquote() << "Built with Qt" << QT_VERSION_STR << "on" << build_date.toString();
     QLOG_INFO().noquote() << "Running on Qt" << qVersion();
     QLOG_INFO() << "Logging level is" << logger.loggingLevel();
 
