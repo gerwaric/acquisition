@@ -1,5 +1,5 @@
 #[[
-	Copyright 2014 Ilya Zhuravlev and 2024 Gerwaric
+	Copyright (C) 2014-2024 Acquisition Contributors
 
 	This file is part of Acquisition.
 
@@ -46,7 +46,7 @@ set(app_version_string  "${CMAKE_PROJECT_VERSION}${version_postfix}")
 set(app_url             "${CMAKE_PROJECT_HOMEPAGE_URL}")
 set(app_publisher       "GERWARIC")
 set(app_publisher_email "gerwaric@gmail.com")
-set(app_copyright       "Copyright (c) 2014-2024 Ilya Zhuravlev and Gerwaric")
+set(app_copyright       "Copyright (C) 2014-2024 Ilya Zhuravlev and other Acquisition Contributors")
 set(app_trademark       "Path of Exile is a trademark of Grinding Gear Games, Ltd.")
 
 set(CMAKE_AUTOUIC ON)

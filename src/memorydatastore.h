@@ -1,5 +1,5 @@
 /*
-    Copyright 2015 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 

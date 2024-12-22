@@ -1,3 +1,5 @@
+// Ref: http://qt-project.org/forums/viewthread/13728
+
 #pragma once
 
 #include <QObject>
