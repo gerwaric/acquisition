@@ -204,6 +204,9 @@ if(WIN32)
     # On Windows there we do extra checks to catch incompatible older versions
     # of the Microsoft Visual Studio C++ Runtime, because these can cause
     # otherwise unexpected crashes (usually in mutex-related code).
+    #
+    # For this to work, we need to know the MSCV runtime version that acquisition
+    # was built with, which is what the cmake code below this include does.
     target_sources(acquisition PRIVATE
         src/checkmsvc.cpp
         src/checkmsvc.h
