@@ -44,17 +44,6 @@
 #include "checkmsvc.h"
 #endif
 
-// This is needed for Visual Studio 2022.
-#ifdef Q_OS_WINDOWS
-#include "boost/config.hpp"
-#ifdef BOOST_NO_EXCEPTIONS
-#include <boost/throw_exception.hpp>
-void boost::throw_exception(std::exception const& e) {
-    throw e;
-}
-#endif
-#endif
-
 #ifdef _DEBUG
 constexpr QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::DebugLevel;
 #else

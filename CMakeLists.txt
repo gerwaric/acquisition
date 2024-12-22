@@ -66,6 +66,7 @@ if(WIN32)
 
     # Enable more warnings by default
     add_compile_options(/W4)
+    add_compile_options(/EHsc)
 
     # Create .pdb files for debugging
     add_compile_options("$<$<NOT:$<CONFIG:Debug>>:/Zi>")
