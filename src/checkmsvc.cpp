@@ -40,22 +40,25 @@ void checkApplicationDirectory(const QStringList& libraries);
 void checkRuntimeVersion(const QStringList& libraries);
 QVersionNumber getModuleVersion(const QString& name);
 
+#ifdef QT_DEBUG
+constexpr bool debug = true;
+#else
+constexpr bool debug = false;
+#endif
+
+static const QString DLL(const QString& name) {
+    return name + (debug ? "d.dll" : ".dll");
+}
+
 void checkMicrosoftRuntime()
 {
     QLOG_INFO() << "Checking Microsoft Visual C++ Runtime...";
     QLOG_INFO() << "Built with MSVC runtime" << MSVC_RUNTIME_VERSION;
 
     const QStringList libraries = {
-#ifdef Q_DEBUG
-        "msvcp140d.dll",
-        "vcruntime140d.dll",
-        "vcruntime140_1d.dll"
-#else
-        "msvcp140.dll"
-        "vcruntime140.dll",
-        "vcruntime140_1.dll"
-#endif
-    };
+        DLL("msvcp140"),
+        DLL("vcruntime140"),
+        DLL("vcruntime140_1") };
 
     QLOG_DEBUG() << "Checking MSVC runtime libraries:" << libraries.join(", ");
 
@@ -156,8 +159,9 @@ QVersionNumber getModuleVersion(const QString& dll)
     QLOG_TRACE() << "Getting module version for" << dll;
 
     // Load the MSVC module.
-    LPCSTR name = dll.toLocal8Bit().constData();
-    HMODULE hModule = GetModuleHandleA(name);
+    const std::wstring wstr = dll.toStdWString();
+    const LPCWSTR name = wstr.c_str();
+    const HMODULE hModule = GetModuleHandle(name);
     if (!hModule) {
         FatalError("Cannot get module handle for '" + dll + "'");
     };
@@ -171,7 +175,7 @@ QVersionNumber getModuleVersion(const QString& dll)
 
     // Get the DLL version.
     DWORD dummy = 0;
-    DWORD versionInfoSize = GetFileVersionInfoSize(path, &dummy);
+    const DWORD versionInfoSize = GetFileVersionInfoSize(path, &dummy);
     if (versionInfoSize == 0) {
         FatalError("Cannot get version info size for '" + dll + "'");
     };

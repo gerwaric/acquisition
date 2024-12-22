@@ -42,7 +42,6 @@
 #include "rapidjson/error/en.h"
 
 #include "crashpad.h"
-#include "filesystem.h"
 #include "mainwindow.h"
 #include "network_info.h"
 #include "rapidjson_util.h" // Needed for range iterators
@@ -80,10 +79,12 @@ constexpr const char* OFFLINE_TAB = "offlineTab";
  */
 
 LoginDialog::LoginDialog(
+    const QDir& app_data_dir,
     QSettings& settings,
     QNetworkAccessManager& network_manager,
     OAuthManager& oauth_manager)
     : QDialog(nullptr)
+    , app_data_dir_(app_data_dir)
     , settings_(settings)
     , network_manager_(network_manager)
     , oauth_manager_(oauth_manager)
@@ -117,7 +118,7 @@ LoginDialog::LoginDialog(
         });
 
     // Display the data directory
-    ui->userDirButton->setText(Filesystem::UserDir());
+    ui->userDirButton->setText(app_data_dir_.absolutePath());
 
     // Hide the error message by default
     ui->errorLabel->setText("");
@@ -140,7 +141,7 @@ LoginDialog::LoginDialog(
     const bool hide_options = ui->loginTabs->currentWidget() == ui->offlineTab;
     const bool hide_advanced = !ui->advancedCheckBox->isChecked();
     ui->optionsWidget->setHidden(hide_options);
-    ui->advancedOptionsFrame->setHidden(hide_options | hide_advanced);
+    ui->advancedOptionsFrame->setHidden(hide_options || hide_advanced);
     ui->loginButton->setHidden(hide_options);
 
     // Connect main UI buttons.
@@ -605,39 +606,38 @@ void LoginDialog::OnReportCrashesCheckBoxChanged(Qt::CheckState state) {
 
         // Before enabling crash reporting, make sure the user
         // understands and accepts that crash reporting cannot be
-        // disabled without restarting acquistion.
+        // disabled without restarting acquisition.
         msgbox.setText("Once crash reporting is enabled, it cannot be "
-            "disabled without restarting Acquistion.\n\nDo you want to "
+            "disabled without restarting Acquisition.\n\nDo you want to "
             "enable crash reporting?");
-        auto yes = msgbox.addButton("  Yes, enable crash reporting  ", msgbox.YesRole);
-        msgbox.addButton("  No  ", msgbox.NoRole);
+        auto yes = msgbox.addButton("  Enable crash reports  ", msgbox.YesRole);
+        msgbox.addButton("  Cancel  ", msgbox.NoRole);
         msgbox.exec();
-        if (msgbox.clickedButton() == yes) {
-            settings_.setValue("report_crashes", true);
-            initializeCrashpad(Filesystem::UserDir(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
+        const bool enable_reporting = (msgbox.clickedButton() == yes);
+        settings_.setValue("report_crashes", enable_reporting);
+        if (enable_reporting) {
+            initializeCrashpad(app_data_dir_.absolutePath(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
         } else {
-            settings_.setValue("report_crashes", false);
             ui->reportCrashesCheckBox->setChecked(false);
         };
 
     } else {
 
-        // Since crashpad cannot be stopped once it is started, acquistion
+        // Since crashpad cannot be stopped once it is started, acquisition
         // will have to be exited and restarted to disable crash reporting,
         // so make sure the user accepts and agrees to this.
         msgbox.setText("Acquisition will have to restart to disable crash "
             "reporting.\n\nDo you want Acquisition to exit now and disable "
             "crash reporting the next time it runs?");
         auto yes = msgbox.addButton("  Yes, exit now  ", msgbox.YesRole);
-        msgbox.addButton("  No, continue running  ", msgbox.NoRole);
+        msgbox.addButton("  No, continue without crash reporting  ", msgbox.NoRole);
         msgbox.exec();
-        if (msgbox.clickedButton() == yes) {
-            settings_.setValue("report_crashes", false);
+        const bool disable_reporting = (msgbox.clickedButton() == yes);
+        settings_.setValue("report_crashes", !disable_reporting);
+        if (disable_reporting) {
             close();
         } else {
-            settings_.setValue("report_crashes", true);
             ui->reportCrashesCheckBox->setChecked(true);
-            initializeCrashpad(Filesystem::UserDir(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
         };
 
     };

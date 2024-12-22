@@ -90,7 +90,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/currencymanager.cpp
     src/datastore.cpp
     src/fatalerror.cpp
-    src/filesystem.cpp
     src/filters.cpp
     src/flowlayout.cpp
     src/imagecache.cpp
@@ -142,7 +141,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/currencymanager.h
     src/datastore.h
     src/fatalerror.h
-    src/filesystem.h
     src/filters.h
     src/flowlayout.h
     src/imagecache.h

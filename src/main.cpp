@@ -25,6 +25,7 @@
 #include <QFontDatabase>
 #include <QLocale>
 #include <QSettings>
+#include <QStandardPaths>
 
 #include "QsLog.h"
 #include "QsLogDest.h"
@@ -32,8 +33,8 @@
 #include <clocale>
 
 #include "application.h"
+#include "crashpad.h"
 #include "fatalerror.h"
-#include "filesystem.h"
 #include "shop.h"
 #include "util.h"
 #include "version_defines.h"
@@ -70,21 +71,29 @@ int main(int argc, char* argv[])
     std::setlocale(LC_ALL, "C");
 
     // Holds the date and time of the current build based on __DATE__ and __TIME__ macros.
-    const QString BUILD_TIMESTAMP = QStringLiteral(__DATE__ " " __TIME__).simplified();
+    const QString BUILD_TIMESTAMP = QString(__DATE__ " " __TIME__).simplified();
     const QDateTime BUILD_DATE = QLocale("en_US").toDateTime(BUILD_TIMESTAMP, "MMM d yyyy hh:mm:ss");
 
     QApplication a(argc, argv);
 
-    // Setup the default user directory.
-    Filesystem::Init();
-
     QFontDatabase::addApplicationFont(":/fonts/Fontin-SmallCaps.ttf");
 
-    QCommandLineParser parser;
     QCommandLineOption option_test("test");
-    QCommandLineOption option_data_dir("data-dir", "Where to save Acquisition data.", "data-dir");
-    QCommandLineOption option_log_level("log-level", "How much to log.", "log-level");
+    option_test.setDescription("Run tests and exit.");
+
+    QCommandLineOption option_data_dir("data-dir");
+    option_data_dir.setDescription("Where to save Acquisition data.");
+    option_data_dir.setValueName("data-dir");
+    option_data_dir.setDefaultValue(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
+    
+    QCommandLineOption option_log_level("log-level");
+    option_log_level.setDescription("How much to log.");
+    option_log_level.setValueName("log-level");
+    
     QCommandLineOption option_crash("crash-test");
+    option_crash.setDescription("Trigger a crash dump at startup for testing.");
+
+    QCommandLineParser parser;
     parser.addOption(option_test);
     parser.addOption(option_data_dir);
     parser.addOption(option_log_level);
@@ -92,40 +101,29 @@ int main(int argc, char* argv[])
     parser.process(a);
 
     // Setup the data dir, which is where the log will be written.
-    if (parser.isSet(option_data_dir)) {
-        const QString datadir = QString(parser.value(option_data_dir));
-        Filesystem::SetUserDir(datadir);
-    };
-    const QString sLogPath = QString(QDir(Filesystem::UserDir()).filePath("log.txt"));
-
-    // The filename here needs to match the one in the application
-    // object constructor. This is a design flaw. We need this object
-    // very briefly for the log level setting.
-    //
-    // Perhaps it should live here and be passed into the Application
-    // object construtor?
-    QSettings settings(Filesystem::UserDir() + "/settings.ini", QSettings::IniFormat);
+    const QDir appDataDir = QDir(parser.value(option_data_dir));
+    const QString sLogPath(appDataDir.filePath("log.txt"));
+    QSettings settings(appDataDir.filePath("settings.ini"), QSettings::IniFormat);
 
     // Determine the logging level.
-    //
-    // Start with the compile-time default for this build, but allow it to be
-    // superceded by a command-line argument. If there's no command-line argument
-    // check the settings.ini file.
     QsLogging::Level loglevel = DEFAULT_LOGLEVEL;
     if (parser.isSet(option_log_level)) {
+         // First priority is the command line argument.
         loglevel = Util::TextToLogLevel(parser.value(option_log_level));
     } else if (settings.contains("log_level")) {
+        // Second priority is the settings file.
         loglevel = Util::TextToLogLevel(settings.value("log_level").toString());
     };
 
     // Setup the logger.
-    QsLogging::Logger& logger = QsLogging::Logger::instance();
     QsLogging::MaxSizeBytes logsize(10 * 1024 * 1024);
     QsLogging::MaxOldLogCount logcount(0);
     QsLogging::DestinationPtr fileDestination(
         QsLogging::DestinationFactory::MakeFileDestination(sLogPath, QsLogging::EnableLogRotation, logsize, logcount));
     QsLogging::DestinationPtr debugDestination(
         QsLogging::DestinationFactory::MakeDebugOutputDestination());
+
+    QsLogging::Logger& logger = QsLogging::Logger::instance();
     logger.setLoggingLevel(loglevel);
     logger.addDestination(debugDestination);
     logger.addDestination(fileDestination);
@@ -144,6 +142,15 @@ int main(int argc, char* argv[])
     checkMicrosoftRuntime();
 #endif
 
+    // Start crash reporting.
+    if (!settings.contains("report_crashes")) {
+        settings.setValue("report_crashes", true);
+    };
+    if (settings.value("report_crashes").toBool()) {
+        initializeCrashpad(appDataDir.absolutePath(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
+    };
+
+    // Check SSL.
     QLOG_TRACE() << "Checking for SSL support...";
     if (!QSslSocket::supportsSsl()) {
 #ifdef Q_OS_LINUX
@@ -165,7 +172,7 @@ int main(int argc, char* argv[])
     QLOG_INFO() << "Running application...";
 
     // Construct an instance of Application.
-    Application app;
+    Application app(appDataDir);
 
     // Trigger an optional crash.
     if (parser.isSet(option_crash)) {

@@ -35,7 +35,6 @@
 #include "crashpad.h"
 #include "currencymanager.h"
 #include "fatalerror.h"
-#include "filesystem.h"
 #include "imagecache.h"
 #include "itemsmanager.h"
 #include "logindialog.h"
@@ -51,7 +50,7 @@
 #include "updatechecker.h"
 #include "version_defines.h"
 
-Application::Application() {
+Application::Application(const QDir& appDataDir) {
     QLOG_TRACE() << "Application::Application() entered";
 
     QLOG_TRACE() << "Application::Application() creating QNetworkAccessManager";
@@ -60,22 +59,21 @@ Application::Application() {
     QLOG_TRACE() << "Application::Application() creating RePoE";
     repoe_ = std::make_unique<RePoE>(network_manager());
 
-    QLOG_TRACE() << "Application::Application() preparing settings and data";
-    const QString user_dir = Filesystem::UserDir();
-    QLOG_TRACE() << "Application::Application() data directory is" << user_dir;
-
-    InitUserDir(user_dir);
+    InitUserDir(appDataDir.absolutePath());
     InitCrashReporting();
 }
 
 void Application::InitUserDir(const QString& dir) {
 
-    const QString settings_path = dir + QDir::separator() + "settings.ini";
+    data_dir_ = QDir(dir);
+    QLOG_TRACE() << "Application::Application() data directory is" << data_dir_.absolutePath();
+
+    const QString settings_path = data_dir_.filePath("settings.ini");
     QLOG_TRACE() << "Application::Application() creating the settings object:" << settings_path;
     settings_ = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
 
-    const QString data_dir = dir + QDir::separator() + "data";
-    const QString global_data_file = data_dir + QDir::separator() + SqliteDataStore::MakeFilename("", "");
+    const QDir user_dir(data_dir_.filePath("data"));
+    const QString global_data_file = user_dir.filePath(SqliteDataStore::MakeFilename("", ""));
     QLOG_TRACE() << "Application::Application() opening global data file:" << global_data_file;
     global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
 
@@ -108,8 +106,9 @@ void Application::Start() {
 
     QLOG_TRACE() << "Application::Start() entered";
 
-    QLOG_TRACE() << "Application::Start() creaating login dialog";
+    QLOG_TRACE() << "Application::Start() creating login dialog";
     login_ = std::make_unique<LoginDialog>(
+        data_dir_,
         settings(),
         network_manager(),
         oauth_manager());
@@ -309,7 +308,7 @@ void Application::InitCrashReporting() {
     // Initialize crash reporting with crashpad.
     if (report_crashes) {
         QLOG_TRACE() << "Application::InitCrashReporting() initializing crashpad";
-        initializeCrashpad(Filesystem::UserDir(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
+        initializeCrashpad(data_dir_.absolutePath(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
     };
 }
 
@@ -372,7 +371,6 @@ void Application::SetTheme(const QString& theme) {
 
 void Application::SetUserDir(const QString& dir) {
     Stop();
-    Filesystem::SetUserDir(dir);
     InitUserDir(dir);
     Start();
 }
@@ -383,7 +381,7 @@ void Application::InitLogin(POE_API mode)
 
     const std::string league = settings_->value("league").toString().toStdString();
     const std::string account = settings_->value("account").toString().toStdString();
-    const QString data_dir = Filesystem::UserDir() + "/data/";
+    const QDir user_dir(data_dir_.filePath("data"));
     if (league.empty()) {
         FatalError("Login failure: the league has not been set.");
     };
@@ -392,9 +390,9 @@ void Application::InitLogin(POE_API mode)
     };
     QLOG_TRACE() << "Application::InitLogin() league =" << league;
     QLOG_TRACE() << "Application::InitLogin() account =" << account;
-    QLOG_TRACE() << "Application::InitLogin() data_dir =" << data_dir;
+    QLOG_TRACE() << "Application::InitLogin() data_dir =" << user_dir.absolutePath();
     const QString data_file = SqliteDataStore::MakeFilename(account, league);
-    const QString data_path = data_dir + data_file;
+    const QString data_path = user_dir.absoluteFilePath(data_file);
     QLOG_TRACE() << "Application::InitLogin() data_path =" << data_path;
     data_ = std::make_unique<SqliteDataStore>(data_path);
     SaveDbOnNewVersion();
@@ -483,8 +481,8 @@ void Application::SaveDbOnNewVersion() {
     QLOG_TRACE() << "Application::SaveDbOnNewVersion() first_start =" << first_start;
 
     if (version != APP_VERSION_STRING && !first_start) {
-        QString data_path = Filesystem::UserDir() + QString("/data");
-        QString save_path = data_path + "_save_" + version.c_str();
+        const QString data_path = data_dir_.filePath("data");
+        const QString save_path = data_dir_.filePath("data_save_" + QString::fromStdString(version));
         QLOG_TRACE() << "Application::SaveDbOnNewVersion() data_path =" << data_path;
         QLOG_TRACE() << "Application::SaveDbOnNewVersion() save_path =" << save_path;
         QDir src(data_path);
@@ -494,8 +492,8 @@ void Application::SaveDbOnNewVersion() {
             QDir().mkpath(dst.path());
         };
         for (const auto& name : src.entryList()) {
-            const QString a = data_path + QDir::separator() + name;
-            const QString b = save_path + QDir::separator() + name;
+            const QString a = QDir(data_path).filePath(name);
+            const QString b = QDir(save_path).filePath(name);
             QLOG_TRACE() << "Application::SaveDbOnNewVersion() copying" << a << "to" << b;
             QFile::copy(a, b);
         }

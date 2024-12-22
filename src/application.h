@@ -20,6 +20,7 @@
 #pragma once
 
 #include <QApplication>
+#include <QDir>
 #include <QMessageBox>
 #include <QObject>
 #include <QString>
@@ -47,7 +48,7 @@ enum class POE_API;
 class Application : public QObject {
     Q_OBJECT
 public:
-    explicit Application();
+    explicit Application(const QDir& appDataDir);
     ~Application();
     Application(const Application&) = delete;
     Application& operator=(const Application&) = delete;
@@ -98,5 +99,6 @@ private:
     std::unique_ptr<LoginDialog> login_;
     std::unique_ptr<MainWindow> main_window_;
 
+    QDir data_dir_;
     QString active_theme_;
 };

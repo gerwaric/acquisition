@@ -20,6 +20,7 @@
 #pragma once
 
 #include <QDialog>
+#include <QDir>
 
 #include "network_info.h"
 
@@ -39,6 +40,7 @@ class LoginDialog : public QDialog {
     Q_OBJECT
 public:
     explicit LoginDialog(
+        const QDir& app_data_dir,
         QSettings& settings,
         QNetworkAccessManager& network_manager,
         OAuthManager& oauth_manager);
@@ -75,6 +77,7 @@ private:
     void LeaguesRequestError(const QString& error, const QByteArray& reply);
     void DisplayError(const QString& error);
 
+    const QDir app_data_dir_;
     QSettings& settings_;
     QNetworkAccessManager& network_manager_;
     OAuthManager& oauth_manager_;

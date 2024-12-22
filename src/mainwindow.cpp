@@ -50,7 +50,6 @@
 #include "buyoutmanager.h"
 #include "currencymanager.h"
 #include "datastore.h"
-#include "filesystem.h"
 #include "filters.h"
 #include "flowlayout.h"
 #include "imagecache.h"
