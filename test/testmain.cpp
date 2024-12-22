@@ -40,7 +40,6 @@
 #include "shop.h"
 #include "testitem.h"
 #include "testitemsmanager.h"
-#include "testsettings.h"
 #include "testshop.h"
 #include "testutil.h"
 
@@ -64,14 +63,18 @@ int test_main() {
 
 int TestHelper::run(QNetworkAccessManager& network_manager, RePoE& repoe) {
 
-    std::unique_ptr<QSettings> settings = TestSettings::NewInstance();
+    // Create a temporary settings file.
+    auto tmp = std::make_unique<QTemporaryFile>();
+    tmp->open();
+
     std::unique_ptr<DataStore> datastore = std::make_unique<MemoryDataStore>();
 
+    QSettings settings(tmp->fileName(), QSettings::IniFormat);
     OAuthManager oauth_manager(network_manager, *datastore);
     RateLimiter rate_limiter(network_manager, oauth_manager, POE_API::LEGACY);
     BuyoutManager buyout_manager(*datastore);
-    ItemsManager items_manager(*settings, network_manager, repoe, buyout_manager, *datastore, rate_limiter);
-    Shop shop(*settings, network_manager, *datastore, items_manager, buyout_manager);
+    ItemsManager items_manager(settings, network_manager, repoe, buyout_manager, *datastore, rate_limiter);
+    Shop shop(settings, network_manager, *datastore, items_manager, buyout_manager);
 
     int result = 0;
     result |= TEST(TestItem);
