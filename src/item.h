@@ -25,7 +25,8 @@
 #include <unordered_map>
 #include <array>
 #include <vector>
-#include "rapidjson/document.h"
+
+#include <rapidjson/document.h>
 
 #include "itemlocation.h"
 

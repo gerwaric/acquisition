@@ -24,9 +24,9 @@
 #include <QSettings>
 #include <QVBoxLayout>
 
-#include "QsLog.h"
-#include "rapidjson/document.h"
-#include "rapidjson/error/en.h"
+#include <QsLog/QsLog.h>
+#include <rapidjson/document.h>
+#include <rapidjson/error/en.h>
 
 #include "datastore.h"
 #include "buyoutmanager.h"

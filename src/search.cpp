@@ -29,7 +29,7 @@
 #include "fatalerror.h"
 #include "filters.h"
 #include "items_model.h"
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 Search::Search(
     BuyoutManager& bo_manager,

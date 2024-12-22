@@ -29,7 +29,7 @@
 #include <QTemporaryFile>
 #include <QtHttpServer/QHttpServer>
 
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include "buyoutmanager.h"
 #include "crashpad.h"

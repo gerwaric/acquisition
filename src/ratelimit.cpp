@@ -22,7 +22,7 @@
 #include <QNetworkReply>
 #include <QUrl>
 
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include "util.h"
 

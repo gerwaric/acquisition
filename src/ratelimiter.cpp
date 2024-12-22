@@ -27,7 +27,7 @@
 #include <memory>
 
 #include "boost/bind/bind.hpp"
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include "fatalerror.h"
 #include "network_info.h"

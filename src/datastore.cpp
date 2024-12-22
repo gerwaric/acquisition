@@ -19,9 +19,10 @@
 
 #include "datastore.h"
 
-#include "QsLog.h"
-#include "rapidjson/error/en.h"
-#include "rapidjson_util.h"
+#include <QsLog/QsLog.h>
+#include <rapidjson/error/en.h>
+#include <rapidjson_util.h>
+
 #include "util.h"
 
 using rapidjson::HasInt;

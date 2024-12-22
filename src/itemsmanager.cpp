@@ -23,7 +23,7 @@
 #include <QNetworkCookie>
 #include <QSettings>
 
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include "application.h"
 #include "buyoutmanager.h"

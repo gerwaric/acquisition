@@ -30,7 +30,7 @@
 #include <QUrl>
 #include <QUrlQuery>
 
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include "version_defines.h"
 

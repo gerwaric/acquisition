@@ -20,7 +20,8 @@
 #pragma once
 
 #include <QObject>
-#include "QsLogDest.h"
+
+#include <QsLog/QsLogDest.h>
 
 #include <vector>
 

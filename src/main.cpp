@@ -27,8 +27,8 @@
 #include <QSettings>
 #include <QStandardPaths>
 
-#include "QsLog.h"
-#include "QsLogDest.h"
+#include <QsLog/QsLog.h>
+#include <QsLog/QsLogDest.h>
 
 #include <clocale>
 

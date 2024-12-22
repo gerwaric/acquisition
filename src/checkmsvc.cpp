@@ -30,7 +30,7 @@
 
 #include <windows.h>
 
-#include "QsLog/QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include "fatalerror.h"
 #include "version_defines.h"

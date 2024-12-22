@@ -27,7 +27,7 @@
 #include <QCloseEvent>
 #include <QTimer>
 
-#include "QsLogLevel.h"
+#include <QsLog/QsLogLevel.h>
 
 class QNetworkAccessManager;
 class QNetworkReply;

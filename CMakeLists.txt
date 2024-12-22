@@ -245,7 +245,6 @@ configure_file("src/version_defines.h.in" "version_defines.h" @ONLY)
 # Setup include directories.
 target_include_directories(acquisition PRIVATE
     deps/
-    deps/QsLog/
     deps/boost-headers-only/
     src/
     test/
@@ -288,7 +287,6 @@ target_link_libraries(Crashpad PRIVATE
 )
 
 target_include_directories(Crashpad PRIVATE
-    deps/QsLog/
     deps/Crashpad/Include/
     deps/Crashpad/Include/crashpad/
     deps/Crashpad/Include/crashpad/out/Default/gen/
@@ -327,6 +325,10 @@ qt_add_library(QsLog STATIC
     deps/QsLog/QsLogDestFunctor.h
     deps/QsLog/QsLogDisableForThisFile.h
     deps/QsLog/QsLogLevel.h
+)
+
+target_include_directories(QsLog PUBLIC
+    deps/
 )
 
 target_link_libraries(QsLog PRIVATE

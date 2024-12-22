@@ -29,7 +29,7 @@
 #include <QTimer>
 #include <QUrl>
 #include <QUrlQuery>
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include "application.h"
 #include "buyoutmanager.h"

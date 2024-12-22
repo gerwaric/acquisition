@@ -47,7 +47,7 @@
 #include "crashpad/client/settings.h"
 #include "mini_chromium/base/files/file_path.h"
 
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 using base::FilePath;
 using crashpad::CrashpadClient;

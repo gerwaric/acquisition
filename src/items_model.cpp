@@ -25,7 +25,7 @@
 #include "itemlocation.h"
 #include "search.h"
 #include "util.h"
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 ItemsModel::ItemsModel(BuyoutManager& bo_manager, Search& search)
     : bo_manager_(bo_manager)

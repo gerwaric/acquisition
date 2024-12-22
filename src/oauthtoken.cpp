@@ -21,8 +21,8 @@
 
 #include <QNetworkReply>
 
-#include "QsLog.h"
-#include "rapidjson/error/en.h"
+#include <QsLog/QsLog.h>
+#include <rapidjson/error/en.h>
 
 #include "util.h"
 

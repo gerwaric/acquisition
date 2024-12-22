@@ -23,11 +23,11 @@
 #include <QString>
 
 #include <map>
-#include <boost/algorithm/string.hpp>
 
-#include "rapidjson/document.h"
-#include "rapidjson/error/en.h"
-#include "QsLog.h"
+#include <boost/algorithm/string.hpp>
+#include <QsLog/QsLog.h>
+#include <rapidjson/document.h>
+#include <rapidjson/error/en.h>
 
 #include "filters.h"
 

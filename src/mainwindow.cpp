@@ -43,7 +43,7 @@
 #include <QVersionNumber>
 #include <QSettings>
 #include <QStringListModel>
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include <vector>
 

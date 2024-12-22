@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "rapidjson/document.h"
+#include <rapidjson/document.h>
 
 typedef rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator> rapidjson_allocator;
 

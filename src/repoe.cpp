@@ -24,7 +24,7 @@
 #include <QNetworkRequest>
 #include <QString>
 
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include "itemcategories.h"
 #include "mainwindow.h"

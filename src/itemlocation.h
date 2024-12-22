@@ -21,7 +21,9 @@
 
 #include <QRectF>
 #include <QColor>
-#include "rapidjson/document.h"
+
+#include <rapidjson/document.h>
+
 #include "rapidjson_util.h"
 
 enum class ItemLocationType {

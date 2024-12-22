@@ -37,11 +37,11 @@
 #include <iomanip>
 #include <cmath>
 
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
-#include "rapidjson/document.h"
-#include "rapidjson/writer.h"
-#include "rapidjson/prettywriter.h"
+#include <rapidjson/document.h>
+#include <rapidjson/writer.h>
+#include <rapidjson/prettywriter.h>
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string.hpp>
 

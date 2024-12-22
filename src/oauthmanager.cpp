@@ -35,7 +35,7 @@
 #include <QUrlQuery>
 #include <QUuid>
 
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include "datastore.h"
 #include "network_info.h"

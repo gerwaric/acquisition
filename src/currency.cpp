@@ -19,7 +19,7 @@
 
 #include "currency.h"
 
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 const std::string Currency::currency_type_error_;
 

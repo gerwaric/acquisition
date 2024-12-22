@@ -22,8 +22,8 @@
 #include <QString>
 
 #include <boost/algorithm/string/predicate.hpp>
+#include <QsLog/QsLog.h>
 
-#include "QsLog.h"
 #include "itemconstants.h"
 #include "rapidjson_util.h"
 #include "util.h"

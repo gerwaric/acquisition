@@ -25,7 +25,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include "fatalerror.h"
 #include "oauthmanager.h"

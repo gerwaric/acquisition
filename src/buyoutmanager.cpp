@@ -20,9 +20,10 @@
 #include "buyoutmanager.h"
 
 #include <regex>
-#include "QsLog.h"
-#include "rapidjson/document.h"
-#include "rapidjson/error/en.h"
+
+#include <QsLog/QsLog.h>
+#include <rapidjson/document.h>
+#include <rapidjson/error/en.h>
 
 #include "application.h"
 #include "datastore.h"

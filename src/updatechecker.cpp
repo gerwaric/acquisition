@@ -30,10 +30,10 @@
 #include <QUrl>
 #include <QWidget>
 
-#include "QsLog/QsLog.h"
-#include "rapidjson/document.h"
-#include "rapidjson/error/en.h"
-#include "cpp-semver/semver.hpp"
+#include <QsLog/QsLog.h>
+#include <rapidjson/document.h>
+#include <rapidjson/error/en.h>
+#include <cpp-semver/semver.hpp>
 
 #include "network_info.h"
 #include "util.h"

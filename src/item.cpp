@@ -19,11 +19,13 @@
 
 #include "item.h"
 
-#include <utility>
 #include <QString>
+
+#include <utility>
 #include <sstream>
+
 #include <boost/algorithm/string.hpp>
-#include "rapidjson/document.h"
+#include <rapidjson/document.h>
 
 #include "modlist.h"
 #include "util.h"

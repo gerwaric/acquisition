@@ -38,8 +38,8 @@
 #include <QUrl>
 #include <QUrlQuery>
 
-#include "QsLog.h"
-#include "rapidjson/error/en.h"
+#include <QsLog/QsLog.h>
+#include <rapidjson/error/en.h>
 
 #include "crashpad.h"
 #include "mainwindow.h"

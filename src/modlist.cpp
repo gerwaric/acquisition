@@ -30,7 +30,7 @@
 #include <QStringList>
 
 #include <boost/algorithm/string.hpp>
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include "item.h"
 #include "util.h"

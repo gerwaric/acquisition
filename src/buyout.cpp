@@ -19,7 +19,7 @@
 
 #include "buyout.h"
 
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 const std::string Buyout::buyout_type_error_;
 

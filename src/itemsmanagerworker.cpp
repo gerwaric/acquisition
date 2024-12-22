@@ -30,9 +30,10 @@
 #include <QUrlQuery>
 
 #include <algorithm>
-#include "QsLog.h"
-#include "rapidjson/document.h"
-#include "rapidjson/error/en.h"
+
+#include <QsLog/QsLog.h>
+#include <rapidjson/document.h>
+#include <rapidjson/error/en.h>
 #include <boost/algorithm/string.hpp>
 
 #include "application.h"
