@@ -69,12 +69,11 @@ constexpr std::array ATTRIBUTES = {
     std::make_pair(QNetworkRequest::UserMax, "UserMax"), //	32767
 };
 
-RateLimiter::RateLimiter(QObject* parent,
+RateLimiter::RateLimiter(
     QNetworkAccessManager& network_manager,
     OAuthManager& oauth_manager,
     POE_API mode)
-    : QObject(parent)
-    , network_manager_(network_manager)
+    : network_manager_(network_manager)
     , oauth_manager_(oauth_manager)
     , mode_(mode)
 {
@@ -291,7 +290,7 @@ RateLimitManager& RateLimiter::GetManager(
         // Create a new policy manager.
         QLOG_DEBUG() << "Creating rate limit policy" << policy_name << "for" << endpoint;
         auto sender = boost::bind(&RateLimiter::SendRequest, this, boost::placeholders::_1);
-        auto mgr = std::make_unique<RateLimitManager>(this, sender);
+        auto mgr = std::make_unique<RateLimitManager>(sender);
         auto& manager = *managers_.emplace_back(std::move(mgr));
         connect(&manager, &RateLimitManager::PolicyUpdated, this, &RateLimiter::OnPolicyUpdated);
         connect(&manager, &RateLimitManager::QueueUpdated, this, &RateLimiter::OnQueueUpdated);

@@ -36,12 +36,11 @@
 #include "util.h"
 
 
-CurrencyManager::CurrencyManager(QObject* parent,
+CurrencyManager::CurrencyManager(
     QSettings& settings,
     DataStore& datastore,
     ItemsManager& items_manager)
-    : QObject(parent)
-    , settings_(settings)
+    : settings_(settings)
     , data_(datastore)
     , items_manager_(items_manager)
 {

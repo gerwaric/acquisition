@@ -79,7 +79,7 @@ constexpr std::array CHARACTER_ITEM_FIELDS = {
     "jewels"
 };
 
-ItemsManagerWorker::ItemsManagerWorker(QObject* parent,
+ItemsManagerWorker::ItemsManagerWorker(
     QSettings& settings,
     QNetworkAccessManager& network_manager,
     RePoE& repoe,
@@ -87,8 +87,7 @@ ItemsManagerWorker::ItemsManagerWorker(QObject* parent,
     DataStore& datastore,
     RateLimiter& rate_limiter,
     POE_API mode)
-    : QObject(parent)
-    , settings_(settings)
+    : settings_(settings)
     , network_manager_(network_manager)
     , repoe_(repoe)
     , datastore_(datastore)

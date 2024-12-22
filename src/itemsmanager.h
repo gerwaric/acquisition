@@ -46,7 +46,7 @@ class Shop;
 class ItemsManager : public QObject {
     Q_OBJECT
 public:
-    explicit ItemsManager(QObject* parent,
+    explicit ItemsManager(
         QSettings& settings,
         QNetworkAccessManager& network_manager,
         RePoE& repoe,

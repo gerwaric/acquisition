@@ -90,10 +90,10 @@ void Application::InitUserDir(const QString& dir) {
     QLOG_TRACE() << "Application::Application() realm is" << settings().value("realm");
 
     QLOG_TRACE() << "Application::Application() creating update checker";
-    update_checker_ = std::make_unique<UpdateChecker>(this, settings(), network_manager());
+    update_checker_ = std::make_unique<UpdateChecker>(settings(), network_manager());
 
     QLOG_TRACE() << "Application::Application() creating OAuth manager";
-    oauth_manager_ = std::make_unique<OAuthManager>(this, network_manager(), global_data());
+    oauth_manager_ = std::make_unique<OAuthManager>(network_manager(), global_data());
 
     // Start the process of fetching RePoE data.
     QLOG_TRACE() << "Application::Application() initializing RePoE";
@@ -398,7 +398,7 @@ void Application::InitLogin(POE_API mode)
     SaveDbOnNewVersion();
 
     QLOG_TRACE() << "Application::InitLogin() creating rate limiter";
-    rate_limiter_ = std::make_unique<RateLimiter>(this,
+    rate_limiter_ = std::make_unique<RateLimiter>(
         network_manager(),
         oauth_manager(), mode);
 
@@ -407,7 +407,7 @@ void Application::InitLogin(POE_API mode)
         data());
 
     QLOG_TRACE() << "Application::InitLogin() creating items manager";
-    items_manager_ = std::make_unique<ItemsManager>(this,
+    items_manager_ = std::make_unique<ItemsManager>(
         settings(),
         network_manager(),
         repoe(),
@@ -416,7 +416,7 @@ void Application::InitLogin(POE_API mode)
         rate_limiter());
 
     QLOG_TRACE() << "Application::InitLogin() creating shop";
-    shop_ = std::make_unique<Shop>(this,
+    shop_ = std::make_unique<Shop>(
         settings(),
         network_manager(),
         data(),
@@ -424,7 +424,7 @@ void Application::InitLogin(POE_API mode)
         buyout_manager());
 
     QLOG_TRACE() << "Application::InitLogin() creating currency manager";
-    currency_manager_ = std::make_unique<CurrencyManager>(nullptr,
+    currency_manager_ = std::make_unique<CurrencyManager>(
         settings(),
         data(),
         items_manager());

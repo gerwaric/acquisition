@@ -38,7 +38,7 @@ class DataStore;
 class OAuthManager : public QObject {
     Q_OBJECT
 public:
-    explicit OAuthManager(QObject* parent,
+    explicit OAuthManager(
         QNetworkAccessManager& network_manager,
         DataStore& datastore);
     ~OAuthManager();

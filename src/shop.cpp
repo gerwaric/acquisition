@@ -68,14 +68,13 @@ const QRegularExpression Shop::ratelimit_regex(
     R"regex(You must wait (\d+) seconds.)regex",
     QRegularExpression::CaseInsensitiveOption);
 
-Shop::Shop(QObject* parent,
+Shop::Shop(
     QSettings& settings,
     QNetworkAccessManager& network_manager,
     DataStore& datastore,
     ItemsManager& items_manager,
     BuyoutManager& buyout_manager)
-    : QObject(parent)
-    , settings_(settings)
+    : settings_(settings)
     , network_manager_(network_manager)
     , datastore_(datastore)
     , items_manager_(items_manager)

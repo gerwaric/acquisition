@@ -37,15 +37,14 @@
 #include "modlist.h"
 #include "filters.h"
 
-ItemsManager::ItemsManager(QObject* parent,
+ItemsManager::ItemsManager(
     QSettings& settings,
     QNetworkAccessManager& network_manager,
     RePoE& repoe,
     BuyoutManager& buyout_manager,
     DataStore& datastore,
     RateLimiter& rate_limiter)
-    : QObject(parent)
-    , settings_(settings)
+    : settings_(settings)
     , network_manager_(network_manager)
     , repoe_(repoe)
     , buyout_manager_(buyout_manager)
@@ -65,7 +64,7 @@ ItemsManager::~ItemsManager() {}
 void ItemsManager::Start(POE_API mode) {
     QLOG_TRACE() << "ItemsManager::Start() entered";
     QLOG_TRACE() << "ItemsManager::Start() creating items manager worker";
-    worker_ = std::make_unique<ItemsManagerWorker>(this,
+    worker_ = std::make_unique<ItemsManagerWorker>(
         settings_,
         network_manager_,
         repoe_,

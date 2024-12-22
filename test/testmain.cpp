@@ -48,11 +48,11 @@ int TestHelper::run(QNetworkAccessManager& network_manager, RePoE& repoe) {
     std::unique_ptr<QSettings> settings = TestSettings::NewInstance();
     std::unique_ptr<DataStore> datastore = std::make_unique<MemoryDataStore>();
 
-    OAuthManager oauth_manager(nullptr, network_manager, *datastore);
-    RateLimiter rate_limiter(nullptr, network_manager, oauth_manager, POE_API::LEGACY);
+    OAuthManager oauth_manager(network_manager, *datastore);
+    RateLimiter rate_limiter(network_manager, oauth_manager, POE_API::LEGACY);
     BuyoutManager buyout_manager(*datastore);
-    ItemsManager items_manager(nullptr, *settings, network_manager, repoe, buyout_manager, *datastore, rate_limiter);
-    Shop shop(nullptr, *settings, network_manager, *datastore, items_manager, buyout_manager);
+    ItemsManager items_manager(*settings, network_manager, repoe, buyout_manager, *datastore, rate_limiter);
+    Shop shop(*settings, network_manager, *datastore, items_manager, buyout_manager);
 
     int result = 0;
     result |= TEST(TestItem);

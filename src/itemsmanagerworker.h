@@ -57,7 +57,7 @@ struct ItemsReply {
 class ItemsManagerWorker : public QObject {
     Q_OBJECT
 public:
-    ItemsManagerWorker(QObject* parent,
+    ItemsManagerWorker(
         QSettings& settings_,
         QNetworkAccessManager& network_manager,
         RePoE& repoe,

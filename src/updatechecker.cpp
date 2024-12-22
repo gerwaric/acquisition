@@ -47,11 +47,10 @@ constexpr int UPDATE_INTERVAL = 24 * 60 * 60 * 1000;
 
 static const semver::version NULL_VERSION = semver::version();
 
-UpdateChecker::UpdateChecker(QObject* parent,
+UpdateChecker::UpdateChecker(
     QSettings& settings,
     QNetworkAccessManager& network_manager)
-    : QObject(parent)
-    , settings_(settings)
+    : settings_(settings)
     , nm_(network_manager)
     , running_version_(semver::version::parse(APP_VERSION_STRING))
 {

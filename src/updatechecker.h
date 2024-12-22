@@ -35,7 +35,7 @@ class QWidget;
 class UpdateChecker : public QObject {
     Q_OBJECT
 public:
-    explicit UpdateChecker(QObject* parent,
+    explicit UpdateChecker(
         QSettings& settings,
         QNetworkAccessManager& network_manager);
 signals:

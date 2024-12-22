@@ -71,7 +71,7 @@ public:
     // This is the signature of the function used to send requests.
     using SendFcn = boost::function<QNetworkReply* (QNetworkRequest&)>;
 
-    RateLimitManager(QObject* parent, SendFcn sender);
+    RateLimitManager(SendFcn sender);
     ~RateLimitManager();
 
     // Move a request into to this manager's queue.

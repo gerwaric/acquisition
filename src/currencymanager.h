@@ -171,7 +171,7 @@ class CurrencyManager : public QObject
 {
     Q_OBJECT
 public:
-    explicit CurrencyManager(QObject* parent,
+    explicit CurrencyManager(
         QSettings& settings,
         DataStore& datastore,
         ItemsManager& items_manager);

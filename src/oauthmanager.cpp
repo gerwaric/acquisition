@@ -52,11 +52,10 @@ constexpr const char* REDIRECT_PATH = "/auth/path-of-exile";
 // Refresh a token an hour before it's due to expire.
 constexpr int EXPIRATION_BUFFER_SECS = 3600;
 
-OAuthManager::OAuthManager(QObject* parent,
+OAuthManager::OAuthManager(
     QNetworkAccessManager& network_manager,
     DataStore& datastore)
-    : QObject(parent)
-    , network_manager_(network_manager)
+    : network_manager_(network_manager)
     , datastore_(datastore)
     , remember_token_(false)
     , refresh_timer_(this)

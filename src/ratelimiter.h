@@ -42,7 +42,7 @@ class RateLimiter : public QObject {
 
 public:
     // Create a rate limiter.
-    RateLimiter(QObject* parent,
+    RateLimiter(
         QNetworkAccessManager& network_manager,
         OAuthManager& oauth_manager,
         POE_API mode);

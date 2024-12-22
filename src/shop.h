@@ -57,7 +57,7 @@ struct AugmentedItem {
 class Shop : public QObject {
     Q_OBJECT
 public:
-    explicit Shop(QObject* parent,
+    explicit Shop(
         QSettings& settings,
         QNetworkAccessManager& network_manager,
         DataStore& datastore,
