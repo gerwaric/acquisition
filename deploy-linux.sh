@@ -40,8 +40,10 @@ ${LINUXDEPLOY} --appdir . \
 	--desktop-file "${PROJECT_DIR}/acquisition.desktop" \
 	--icon-file "${PROJECT_DIR}/assets/icon.svg" \
 	--icon-filename default \
-    --exclude-library libqsqlmimer \
-	--exclude-library libmimerapi \
+	--exclude-library libqsqlmysql.so \
+	--exclude-library libqsqlmimer.so \
+	--exclude-library libqsqlodbc.so \
+	--exclude-library libqsqlpsql.so \
 	--plugin qt \
-    --output appimage
+	--output appimage
 
