@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -29,22 +29,21 @@
 #include "fatalerror.h"
 #include "filters.h"
 #include "items_model.h"
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 Search::Search(
     BuyoutManager& bo_manager,
     const std::string& caption,
     const std::vector<std::unique_ptr<Filter>>& filters,
     QTreeView* view)
-    :
-    bo_manager_(bo_manager),
-    view_(*view),
-    model_(bo_manager, *this),
-    caption_(caption),
-    filtered_(false),
-    filtered_item_count_(0),
-    current_mode_(ViewMode::ByTab),
-    refresh_reason_(RefreshReason::Unknown)
+    : bo_manager_(bo_manager)
+    , view_(*view)
+    , model_(bo_manager, *this)
+    , caption_(caption)
+    , filtered_(false)
+    , filtered_item_count_(0)
+    , current_mode_(ViewMode::ByTab)
+    , refresh_reason_(RefreshReason::Unknown)
 {
     using move_only = std::unique_ptr<Column>;
     move_only init[] = {

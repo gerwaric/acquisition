@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -24,22 +24,21 @@
 #include <QDir>
 #include <QMessageBox>
 #include <QNetworkAccessManager>
+#include <QNetworkCookieJar>
 #include <QSettings>
 #include <QTemporaryFile>
 #include <QtHttpServer/QHttpServer>
 
-#include "boost/current_function.hpp"
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include "buyoutmanager.h"
 #include "crashpad.h"
 #include "currencymanager.h"
 #include "fatalerror.h"
-#include "filesystem.h"
+#include "imagecache.h"
 #include "itemsmanager.h"
 #include "logindialog.h"
 #include "mainwindow.h"
-#include "memorydatastore.h"
 #include "network_info.h"
 #include "oauthmanager.h"
 #include "ratelimiter.h"
@@ -48,96 +47,79 @@
 #include "shop.h"
 #include "sqlitedatastore.h"
 #include "testmain.h"
-#include "testsettings.h"
 #include "updatechecker.h"
 #include "version_defines.h"
 
-Application::Application(bool test_mode) :
-    test_mode_(test_mode)
-{
+Application::Application(const QDir& appDataDir) {
     QLOG_TRACE() << "Application::Application() entered";
 
-    if (test_mode_) {
-
-        QLOG_TRACE() << "Application::Application() preparing settings and data for test mode";
-        settings_ = TestSettings::NewInstance();
-        global_data_ = std::make_unique<MemoryDataStore>();
-
-    } else {
-
-        QLOG_TRACE() << "Application::Application() preparing settings and data";
-        const QString user_dir = Filesystem::UserDir();
-        QLOG_TRACE() << "Application::Application() data directory is" << user_dir;
-
-        const QString settings_path = user_dir + "/settings.ini";
-        QLOG_TRACE() << "Application::Application() creating the settings object:" << settings_path;
-        settings_ = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
-
-        QLOG_TRACE() << "Application::Application() initializing crash reporting";
-        InitCrashReporting();
-
-        const QString global_data_file = user_dir + "/data/" + SqliteDataStore::MakeFilename("", "");
-        QLOG_TRACE() << "Application::Application() opening global data file:" << global_data_file;
-        global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
-
-        QLOG_TRACE() << "Application::Application() loading theme";
-        const QString theme = settings().value("theme", "default").toString();
-        OnSetTheme(theme);
-    };
-
     QLOG_TRACE() << "Application::Application() creating QNetworkAccessManager";
-    network_manager_ = std::make_unique<QNetworkAccessManager>(this);
+    network_manager_ = std::make_unique<QNetworkAccessManager>();
 
     QLOG_TRACE() << "Application::Application() creating RePoE";
-    repoe_ = std::make_unique<RePoE>(this, network_manager());
+    repoe_ = std::make_unique<RePoE>(network_manager());
+
+    InitUserDir(appDataDir.absolutePath());
+    InitCrashReporting();
+}
+
+void Application::InitUserDir(const QString& dir) {
+
+    data_dir_ = QDir(dir);
+    QLOG_TRACE() << "Application::Application() data directory is" << data_dir_.absolutePath();
+
+    const QString settings_path = data_dir_.filePath("settings.ini");
+    QLOG_TRACE() << "Application::Application() creating the settings object:" << settings_path;
+    settings_ = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
+
+    const QDir user_dir(data_dir_.filePath("data"));
+    const QString global_data_file = user_dir.filePath(SqliteDataStore::MakeFilename("", ""));
+    QLOG_TRACE() << "Application::Application() opening global data file:" << global_data_file;
+    global_data_ = std::make_unique<SqliteDataStore>(global_data_file);
+
+    const QString image_cache_dir = dir + QDir::separator() + "cache";
+    image_cache_ = std::make_unique<ImageCache>(network_manager(), image_cache_dir);
+
+    QLOG_TRACE() << "Application::Application() loading theme";
+    const QString theme = settings().value("theme", "default").toString();
+    SetTheme(theme);
+
+    if (settings().value("realm").toString().isEmpty()) {
+        settings().setValue("realm", "pc");
+    };
+    QLOG_TRACE() << "Application::Application() realm is" << settings().value("realm");
 
     QLOG_TRACE() << "Application::Application() creating update checker";
-    update_checker_ = std::make_unique<UpdateChecker>(this, settings(), network_manager());
+    update_checker_ = std::make_unique<UpdateChecker>(settings(), network_manager());
 
     QLOG_TRACE() << "Application::Application() creating OAuth manager";
-    oauth_manager_ = std::make_unique<OAuthManager>(this, network_manager(), global_data());
+    oauth_manager_ = std::make_unique<OAuthManager>(network_manager(), global_data());
 
     // Start the process of fetching RePoE data.
     QLOG_TRACE() << "Application::Application() initializing RePoE";
     repoe_->Init();
-
-    if (test_mode) {
-        QLOG_TRACE() << "Application::Application() calling InitLogin for test mode";
-        InitLogin(POE_API::LEGACY);
-    };
 }
 
-Application::~Application() {
-    QLOG_TRACE() << "Application::~Application() entered";
-    if (buyout_manager_) {
-        QLOG_TRACE() << "Application::~Application() saving buyout manager";
-        buyout_manager_->Save();
-    };
-}
+Application::~Application() {}
 
 void Application::Start() {
 
     QLOG_TRACE() << "Application::Start() entered";
 
-    QLOG_TRACE() << "Application::Start() creaating login dialog";
+    QLOG_TRACE() << "Application::Start() creating login dialog";
     login_ = std::make_unique<LoginDialog>(
+        data_dir_,
         settings(),
         network_manager(),
         oauth_manager());
 
     // Connect to the update signal in case an update is detected before the main window is open.
-    QLOG_TRACE() << "Application::Start() connecting update checker";
-    QObject::connect(update_checker_.get(), &UpdateChecker::UpdateAvailable, update_checker_.get(), &UpdateChecker::AskUserToUpdate);
+    connect(update_checker_.get(), &UpdateChecker::UpdateAvailable, update_checker_.get(), &UpdateChecker::AskUserToUpdate);
 
-    // Use the login complete signal to setup the main window.
-    QLOG_TRACE() << "Application::Start() connecting login";
-    QObject::connect(login_.get(), &LoginDialog::LoginComplete, this, &Application::OnLogin);
-
-    // Setup the ability to trigger testing from the UI
-    QLOG_TRACE() << "Application::Start() installing keyboard shortcut for forced crashes";
-    connect(&test_action_, &QAction::triggered, this, &Application::OnRunTests);
-    test_action_.setShortcut(Qt::Key_T | Qt::CTRL);
-    login_->addAction(&test_action_);
+    // Connect signals from the login dialog.
+    connect(login_.get(), &LoginDialog::ChangeTheme, this, &Application::SetTheme);
+    connect(login_.get(), &LoginDialog::ChangeUserDir, this, &Application::SetUserDir);
+    connect(login_.get(), &LoginDialog::LoginComplete, this, &Application::OnLogin);
 
     // Start the initial check for updates.
     QLOG_TRACE() << "Application::Start() starting a check for application updates";
@@ -148,13 +130,19 @@ void Application::Start() {
     login_->show();
 }
 
+void Application::Stop() {
+    // Delete things in the reverse order they were created, just in case
+    // we might otherwise get an invalid point or reference.
+    login_ = nullptr;
+    oauth_manager_ = nullptr;
+    update_checker_ = nullptr;
+    global_data_ = nullptr;
+    settings_ = nullptr;
+}
+
 void Application::OnLogin(POE_API api) {
 
     QLOG_TRACE() << "Application::OnLogin() entered";
-
-    // Stop listening for CTRL+T
-    QLOG_TRACE() << "Application::OnLogin() uninstalling the keyboard shortcut for forced crashes";
-    login_->removeAction(&test_action_);
 
     // Disconnect from the update signal so that only the main window gets it from now on.
     QObject::disconnect(&update_checker(), &UpdateChecker::UpdateAvailable, nullptr, nullptr);
@@ -170,15 +158,31 @@ void Application::OnLogin(POE_API api) {
         network_manager(),
         rate_limiter(),
         data(),
-        oauth_manager(),
         items_manager(),
         buyout_manager(),
-        currency_manager(),
-        update_checker(),
-        shop());
+        shop(),
+        image_cache());
 
-    // Connect the theme signal.
-    connect(main_window_.get(), &MainWindow::SetTheme, this, &Application::OnSetTheme);
+    // Connect UI signals.
+    connect(main_window_.get(), &MainWindow::SetSessionId, this, &Application::SetSessionId);
+    connect(main_window_.get(), &MainWindow::SetTheme, this, &Application::SetTheme);
+    connect(main_window_.get(), &MainWindow::UpdateCheckRequested, update_checker_.get(), &UpdateChecker::CheckForUpdates);
+
+    connect(items_manager_.get(), &ItemsManager::ItemsRefreshed, main_window_.get(), &MainWindow::OnItemsRefreshed);
+    connect(items_manager_.get(), &ItemsManager::StatusUpdate, main_window_.get(), &MainWindow::OnStatusUpdate);
+
+    connect(main_window_.get(), &MainWindow::GetImage, image_cache_.get(), &ImageCache::fetch);
+    connect(image_cache_.get(), &ImageCache::imageReady, main_window_.get(), &MainWindow::OnImageFetched);
+
+    connect(shop_.get(), &Shop::StatusUpdate, main_window_.get(), &MainWindow::OnStatusUpdate);
+
+    main_window_->prepare(
+        *oauth_manager_,
+        *currency_manager_,
+        *shop_);
+
+    // Connect the update checker.
+    connect(update_checker_.get(), &UpdateChecker::UpdateAvailable, main_window_.get(), &MainWindow::OnUpdateAvailable);
 
     QLOG_TRACE() << "Application::OnLogin() closing the login dialog";
     login_->close();
@@ -243,6 +247,14 @@ Shop& Application::shop() const {
     return *shop_;
 }
 
+ImageCache& Application::image_cache() const {
+    if (!image_cache_) {
+        FatalError("Application::image_cache_() attempted to dereference a null pointer");
+    };
+    return *image_cache_;
+}
+
+
 CurrencyManager& Application::currency_manager() const {
     if (!currency_manager_) {
         FatalError("Application::currency_manager() attempted to dereference a null pointer");
@@ -296,11 +308,24 @@ void Application::InitCrashReporting() {
     // Initialize crash reporting with crashpad.
     if (report_crashes) {
         QLOG_TRACE() << "Application::InitCrashReporting() initializing crashpad";
-        initializeCrashpad(Filesystem::UserDir(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
+        initializeCrashpad(data_dir_.absolutePath(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
     };
 }
 
-void Application::OnSetTheme(const QString& theme) {
+void Application::SetSessionId(const QString& poesessid) {
+    if (poesessid.isEmpty()) {
+        QLOG_ERROR() << "Application: cannot update POESESSID: value is empty";
+        return;
+    };
+    QLOG_INFO() << "Application: updating POESESSID";
+    QNetworkCookie cookie(POE_COOKIE_NAME, poesessid.toUtf8());
+    cookie.setPath(POE_COOKIE_PATH);
+    cookie.setDomain(POE_COOKIE_DOMAIN);
+    network_manager_->cookieJar()->insertCookie(cookie);
+    settings_->setValue("session_id", poesessid);
+}
+
+void Application::SetTheme(const QString& theme) {
     QLOG_TRACE() << "Application::OnSetTheme() entered";
 
     if (0 == theme.compare(active_theme_, Qt::CaseInsensitive)) {
@@ -324,7 +349,9 @@ void Application::OnSetTheme(const QString& theme) {
         QLOG_ERROR() << "Invalid theme:" << theme;
         return;
     };
+
     QLOG_TRACE() << "Application::OnSetTheme() setting theme:" << theme;
+    settings().setValue("theme", theme);
 
     QString style_data;
     if (!stylesheet.isEmpty()) {
@@ -340,42 +367,38 @@ void Application::OnSetTheme(const QString& theme) {
 
     QLOG_TRACE() << "Application::OnSetTheme() setting stylesheet";
     qApp->setStyleSheet(style_data);
+}
 
-    QLOG_TRACE() << "Application::OnSetTheme() setting window text color:" << text_color;
-    QPalette p = QApplication::palette();
-    p.setColor(QPalette::WindowText, text_color);
-    QApplication::setPalette(p);
+void Application::SetUserDir(const QString& dir) {
+    Stop();
+    InitUserDir(dir);
+    Start();
 }
 
 void Application::InitLogin(POE_API mode)
 {
     QLOG_TRACE() << "Application::InitLogin() entered";
 
-    if (test_mode_) {
-        QLOG_TRACE() << "Application::InitLogin() creating memmory data store";
-        data_ = std::make_unique<MemoryDataStore>();
-    } else {
-        const std::string league = settings_->value("league").toString().toStdString();
-        const std::string account = settings_->value("account").toString().toStdString();
-        const QString data_dir = Filesystem::UserDir() + "/data/";
-        if (league.empty()) {
-            FatalError("Login failure: the league has not been set.");
-        };
-        if (account.empty()) {
-            FatalError("Login failure: the account has not been set.");
-        };
-        QLOG_TRACE() << "Application::InitLogin() league =" << league;
-        QLOG_TRACE() << "Application::InitLogin() account =" << account;
-        QLOG_TRACE() << "Application::InitLogin() data_dir =" << data_dir;
-        const QString data_file = SqliteDataStore::MakeFilename(account, league);
-        const QString data_path = data_dir + data_file;
-        QLOG_TRACE() << "Application::InitLogin() data_path =" << data_path;
-        data_ = std::make_unique<SqliteDataStore>(data_path);
-        SaveDbOnNewVersion();
-    }
+    const std::string league = settings_->value("league").toString().toStdString();
+    const std::string account = settings_->value("account").toString().toStdString();
+    const QDir user_dir(data_dir_.filePath("data"));
+    if (league.empty()) {
+        FatalError("Login failure: the league has not been set.");
+    };
+    if (account.empty()) {
+        FatalError("Login failure: the account has not been set.");
+    };
+    QLOG_TRACE() << "Application::InitLogin() league =" << league;
+    QLOG_TRACE() << "Application::InitLogin() account =" << account;
+    QLOG_TRACE() << "Application::InitLogin() data_dir =" << user_dir.absolutePath();
+    const QString data_file = SqliteDataStore::MakeFilename(account, league);
+    const QString data_path = user_dir.absoluteFilePath(data_file);
+    QLOG_TRACE() << "Application::InitLogin() data_path =" << data_path;
+    data_ = std::make_unique<SqliteDataStore>(data_path);
+    SaveDbOnNewVersion();
 
     QLOG_TRACE() << "Application::InitLogin() creating rate limiter";
-    rate_limiter_ = std::make_unique<RateLimiter>(this,
+    rate_limiter_ = std::make_unique<RateLimiter>(
         network_manager(),
         oauth_manager(), mode);
 
@@ -384,7 +407,7 @@ void Application::InitLogin(POE_API mode)
         data());
 
     QLOG_TRACE() << "Application::InitLogin() creating items manager";
-    items_manager_ = std::make_unique<ItemsManager>(this,
+    items_manager_ = std::make_unique<ItemsManager>(
         settings(),
         network_manager(),
         repoe(),
@@ -393,7 +416,7 @@ void Application::InitLogin(POE_API mode)
         rate_limiter());
 
     QLOG_TRACE() << "Application::InitLogin() creating shop";
-    shop_ = std::make_unique<Shop>(this,
+    shop_ = std::make_unique<Shop>(
         settings(),
         network_manager(),
         data(),
@@ -401,17 +424,15 @@ void Application::InitLogin(POE_API mode)
         buyout_manager());
 
     QLOG_TRACE() << "Application::InitLogin() creating currency manager";
-    currency_manager_ = std::make_unique<CurrencyManager>(nullptr,
+    currency_manager_ = std::make_unique<CurrencyManager>(
         settings(),
         data(),
         items_manager());
 
     connect(items_manager_.get(), &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
 
-    if (test_mode_ == false) {
-        QLOG_TRACE() << "Application::InitLogin() starting items manager";
-        items_manager_->Start(mode);
-    };
+    QLOG_TRACE() << "Application::InitLogin() starting items manager";
+    items_manager_->Start(mode);
 }
 
 void Application::OnItemsRefreshed(bool initial_refresh) {
@@ -460,8 +481,8 @@ void Application::SaveDbOnNewVersion() {
     QLOG_TRACE() << "Application::SaveDbOnNewVersion() first_start =" << first_start;
 
     if (version != APP_VERSION_STRING && !first_start) {
-        QString data_path = Filesystem::UserDir() + QString("/data");
-        QString save_path = data_path + "_save_" + version.c_str();
+        const QString data_path = data_dir_.filePath("data");
+        const QString save_path = data_dir_.filePath("data_save_" + QString::fromStdString(version));
         QLOG_TRACE() << "Application::SaveDbOnNewVersion() data_path =" << data_path;
         QLOG_TRACE() << "Application::SaveDbOnNewVersion() save_path =" << save_path;
         QDir src(data_path);
@@ -471,8 +492,8 @@ void Application::SaveDbOnNewVersion() {
             QDir().mkpath(dst.path());
         };
         for (const auto& name : src.entryList()) {
-            const QString a = data_path + QDir::separator() + name;
-            const QString b = save_path + QDir::separator() + name;
+            const QString a = QDir(data_path).filePath(name);
+            const QString b = QDir(save_path).filePath(name);
             QLOG_TRACE() << "Application::SaveDbOnNewVersion() copying" << a << "to" << b;
             QFile::copy(a, b);
         }

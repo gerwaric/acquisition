@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -29,10 +29,10 @@
 #include "mainwindow.h"
 #include "modlist.h"
 
-SelectedMod::SelectedMod(const std::string& name, double min, double max, bool min_filled, bool max_filled) :
-    data_(name, min, max, min_filled, max_filled),
-    mod_select_(&mod_list_model()),
-    delete_button_("X")
+SelectedMod::SelectedMod(const std::string& name, double min, double max, bool min_filled, bool max_filled)
+    : data_(name, min, max, min_filled, max_filled)
+    , mod_select_(&mod_list_model())
+    , delete_button_("X")
 {
     mod_select_.setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
 

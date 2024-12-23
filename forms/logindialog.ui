@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>423</width>
-    <height>289</height>
+    <width>471</width>
+    <height>494</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -29,13 +29,19 @@
       </sizepolicy>
      </property>
      <property name="currentIndex">
-      <number>1</number>
+      <number>0</number>
      </property>
      <widget class="QWidget" name="oauthTab">
       <attribute name="title">
        <string>OAuth</string>
       </attribute>
       <layout class="QVBoxLayout" name="oauthTabLayout">
+       <property name="leftMargin">
+        <number>20</number>
+       </property>
+       <property name="rightMargin">
+        <number>20</number>
+       </property>
        <item>
         <widget class="QLabel" name="authenticateLabel">
          <property name="sizePolicy">
@@ -69,6 +75,12 @@
        <string>Session ID</string>
       </attribute>
       <layout class="QVBoxLayout" name="sessionIdTabLayout">
+       <property name="leftMargin">
+        <number>20</number>
+       </property>
+       <property name="rightMargin">
+        <number>20</number>
+       </property>
        <item>
         <layout class="QFormLayout" name="sessionIdFormLayout">
          <item row="0" column="0">
@@ -93,7 +105,7 @@
          <item row="0" column="1">
           <widget class="QLineEdit" name="sessionIDLineEdit">
            <property name="echoMode">
-            <enum>QLineEdit::Password</enum>
+            <enum>QLineEdit::EchoMode::Password</enum>
            </property>
           </widget>
          </item>
@@ -101,97 +113,176 @@
        </item>
       </layout>
      </widget>
+     <widget class="QWidget" name="offlineTab">
+      <attribute name="title">
+       <string>Offline Mode</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayout_3">
+       <property name="leftMargin">
+        <number>20</number>
+       </property>
+       <property name="topMargin">
+        <number>7</number>
+       </property>
+       <property name="rightMargin">
+        <number>20</number>
+       </property>
+       <item>
+        <widget class="QLabel" name="offlineLabel">
+         <property name="text">
+          <string>Offline mode is not implemented yet.</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="offlineButton">
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
+         <property name="text">
+          <string>Open an existing data file</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
     </widget>
    </item>
    <item>
-    <layout class="QFormLayout" name="optionsLayout">
-     <property name="topMargin">
-      <number>0</number>
+    <widget class="QWidget" name="optionsWidget" native="true">
+     <layout class="QFormLayout" name="formLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="realmLabel">
+        <property name="text">
+         <string>Realm</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="realmComboBox">
+        <property name="currentText">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="leagueLabel">
+        <property name="minimumSize">
+         <size>
+          <width>65</width>
+          <height>0</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>League</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QComboBox" name="leagueComboBox">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="sizeAdjustPolicy">
+         <enum>QComboBox::SizeAdjustPolicy::AdjustToContents</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QCheckBox" name="advancedCheckBox">
+        <property name="text">
+         <string>Show Advanced Options</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QFrame" name="advancedOptionsFrame">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
      </property>
-     <item row="1" column="0">
-      <widget class="QLabel" name="leagueLabel">
-       <property name="minimumSize">
-        <size>
-         <width>65</width>
-         <height>0</height>
-        </size>
-       </property>
-       <property name="text">
-        <string>League</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="1">
-      <widget class="QComboBox" name="leagueComboBox">
-       <property name="enabled">
-        <bool>false</bool>
-       </property>
-       <property name="sizeAdjustPolicy">
-        <enum>QComboBox::AdjustToContents</enum>
-       </property>
-      </widget>
-     </item>
-     <item row="2" column="0">
-      <widget class="QCheckBox" name="rememberMeCheckBox">
-       <property name="text">
-        <string>Remember me</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="0">
-      <widget class="QCheckBox" name="reportCrashesCheckBox">
-       <property name="text">
-        <string>Report crashes</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="4" column="0">
-      <widget class="QCheckBox" name="proxyCheckBox">
-       <property name="text">
-        <string>Use system proxy</string>
-       </property>
-      </widget>
-     </item>
-     <item row="5" column="0">
-      <widget class="QLabel" name="errorLabel">
-       <property name="text">
-        <string>TextLabel</string>
-       </property>
-      </widget>
-     </item>
-     <item row="0" column="1">
-      <widget class="QComboBox" name="realmComboBox">
-       <item>
+     <property name="frameShape">
+      <enum>QFrame::Shape::StyledPanel</enum>
+     </property>
+     <property name="frameShadow">
+      <enum>QFrame::Shadow::Raised</enum>
+     </property>
+     <layout class="QFormLayout" name="formLayout_2">
+      <item row="3" column="0">
+       <widget class="QCheckBox" name="proxyCheckBox">
         <property name="text">
-         <string>pc</string>
+         <string>Use system proxy</string>
         </property>
-       </item>
-       <item>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QCheckBox" name="reportCrashesCheckBox">
         <property name="text">
-         <string>xbox</string>
+         <string>Report crashes</string>
         </property>
-       </item>
-       <item>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QCheckBox" name="rememberMeCheckBox">
         <property name="text">
-         <string>sony</string>
+         <string>Remember me</string>
         </property>
-       </item>
-      </widget>
-     </item>
-     <item row="0" column="0">
-      <widget class="QLabel" name="realmLabel">
-       <property name="text">
-        <string>Realm</string>
-       </property>
-      </widget>
-     </item>
-    </layout>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="loggingLevelLabel">
+        <property name="text">
+         <string>Logging Level</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QComboBox" name="loggingLevelComboBox"/>
+      </item>
+      <item row="5" column="0">
+       <widget class="QLabel" name="themeLabel">
+        <property name="text">
+         <string>Theme</string>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="1">
+       <widget class="QComboBox" name="themeComboBox"/>
+      </item>
+      <item row="6" column="0">
+       <widget class="QLabel" name="userDirLabel">
+        <property name="text">
+         <string>Profile Folder</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="1">
+       <widget class="QPushButton" name="userDirButton">
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="errorLabel">
+     <property name="text">
+      <string>Placeholder text</string>
+     </property>
+    </widget>
    </item>
    <item>
     <widget class="QPushButton" name="loginButton">
@@ -223,7 +314,7 @@
       <string>Acquisition is neither affiliated with nor endorsed by Grinding Gear Games in any way.</string>
      </property>
      <property name="alignment">
-      <set>Qt::AlignCenter</set>
+      <set>Qt::AlignmentFlag::AlignCenter</set>
      </property>
     </widget>
    </item>

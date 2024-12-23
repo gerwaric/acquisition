@@ -1,5 +1,5 @@
 /*
-    Copyright 2023 Gerwaric
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -25,7 +25,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include "fatalerror.h"
 #include "oauthmanager.h"
@@ -65,15 +65,17 @@ constexpr int TIMING_BUCKET_MSEC = 5200;
 unsigned long RateLimitedRequest::request_count = 0;
 
 // Create a new rate limit manager based on an existing policy.
-RateLimitManager::RateLimitManager(QObject* parent, SendFcn sender) :
-    QObject(parent),
-    sender_(sender),
-    policy_(nullptr)
+RateLimitManager::RateLimitManager(SendFcn sender)
+    : sender_(sender)
+    , policy_(nullptr)
 {
     QLOG_TRACE() << "RateLimitManager::RateLimitManager() entered";
     // Setup the active request timer to call SendRequest each time it's done.
     activation_timer_.setSingleShot(true);
     connect(&activation_timer_, &QTimer::timeout, this, &RateLimitManager::SendRequest);
+}
+
+RateLimitManager::~RateLimitManager() {
 }
 
 const RateLimit::Policy& RateLimitManager::policy() {

@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -46,7 +46,7 @@ class Shop;
 class ItemsManager : public QObject {
     Q_OBJECT
 public:
-    explicit ItemsManager(QObject* parent,
+    explicit ItemsManager(
         QSettings& settings,
         QNetworkAccessManager& network_manager,
         RePoE& repoe,

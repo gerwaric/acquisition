@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -23,7 +23,7 @@
 #include <QNetworkCookie>
 #include <QSettings>
 
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include "application.h"
 #include "buyoutmanager.h"
@@ -37,22 +37,20 @@
 #include "modlist.h"
 #include "filters.h"
 
-ItemsManager::ItemsManager(QObject* parent,
+ItemsManager::ItemsManager(
     QSettings& settings,
     QNetworkAccessManager& network_manager,
     RePoE& repoe,
     BuyoutManager& buyout_manager,
     DataStore& datastore,
     RateLimiter& rate_limiter)
-    :
-    QObject(parent),
-    settings_(settings),
-    network_manager_(network_manager),
-    repoe_(repoe),
-    buyout_manager_(buyout_manager),
-    datastore_(datastore),
-    rate_limiter_(rate_limiter),
-    auto_update_timer_(std::make_unique<QTimer>())
+    : settings_(settings)
+    , network_manager_(network_manager)
+    , repoe_(repoe)
+    , buyout_manager_(buyout_manager)
+    , datastore_(datastore)
+    , rate_limiter_(rate_limiter)
+    , auto_update_timer_(std::make_unique<QTimer>())
 {
     QLOG_TRACE() << "ItemsManager::ItemsManager() entered";
     const int interval = settings_.value("autoupdate_interval", 30).toInt();
@@ -66,7 +64,7 @@ ItemsManager::~ItemsManager() {}
 void ItemsManager::Start(POE_API mode) {
     QLOG_TRACE() << "ItemsManager::Start() entered";
     QLOG_TRACE() << "ItemsManager::Start() creating items manager worker";
-    worker_ = std::make_unique<ItemsManagerWorker>(this,
+    worker_ = std::make_unique<ItemsManagerWorker>(
         settings_,
         network_manager_,
         repoe_,
@@ -76,7 +74,7 @@ void ItemsManager::Start(POE_API mode) {
     connect(this, &ItemsManager::UpdateSignal, worker_.get(), &ItemsManagerWorker::Update);
     connect(worker_.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
     connect(worker_.get(), &ItemsManagerWorker::ItemsRefreshed, this, &ItemsManager::OnItemsRefreshed);
-    
+
     QLOG_TRACE() << "ItemsManager::Start() initializing the worker";
     worker_->Init();
 }

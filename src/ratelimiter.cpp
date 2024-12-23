@@ -1,20 +1,20 @@
 /*
-    Copyright 2023 Gerwaric
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
-    Acquisition is free software : you can redistribute it and /or modify
+    Acquisition is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
     (at your option) any later version.
 
     Acquisition is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.See the
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
 
     You should have received a copy of the GNU General Public License
-    along with Acquisition.If not, see < http://www.gnu.org/licenses/>.
+    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include "ratelimiter.h"
@@ -27,13 +27,12 @@
 #include <memory>
 
 #include "boost/bind/bind.hpp"
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include "fatalerror.h"
-#include "ratelimit.h"
-#include "ratelimitmanager.h"
 #include "network_info.h"
 #include "oauthmanager.h"
+#include "ratelimitmanager.h"
 
 constexpr int UPDATE_INTERVAL_MSEC = 1000;
 
@@ -70,21 +69,21 @@ constexpr std::array ATTRIBUTES = {
     std::make_pair(QNetworkRequest::UserMax, "UserMax"), //	32767
 };
 
-RateLimiter::RateLimiter(QObject* parent,
+RateLimiter::RateLimiter(
     QNetworkAccessManager& network_manager,
     OAuthManager& oauth_manager,
     POE_API mode)
-    :
-    QObject(parent),
-    network_manager_(network_manager),
-    oauth_manager_(oauth_manager),
-    mode_(mode)
+    : network_manager_(network_manager)
+    , oauth_manager_(oauth_manager)
+    , mode_(mode)
 {
     QLOG_TRACE() << "RateLimiter::RateLimiter() entered";
     update_timer_.setSingleShot(false);
     update_timer_.setInterval(UPDATE_INTERVAL_MSEC);
     connect(&update_timer_, &QTimer::timeout, this, &RateLimiter::SendStatusUpdate);
 }
+
+RateLimiter::~RateLimiter() {}
 
 RateLimit::RateLimitedReply* RateLimiter::Submit(
     const QString& endpoint,
@@ -117,7 +116,7 @@ RateLimit::RateLimitedReply* RateLimiter::Submit(
         // policy can apply to multiple managers.
         QLOG_DEBUG() << "Unknown endpoint encountered:" << endpoint;
         SetupEndpoint(endpoint, network_request, reply);
-        
+
     };
     return reply;
 }
@@ -291,7 +290,7 @@ RateLimitManager& RateLimiter::GetManager(
         // Create a new policy manager.
         QLOG_DEBUG() << "Creating rate limit policy" << policy_name << "for" << endpoint;
         auto sender = boost::bind(&RateLimiter::SendRequest, this, boost::placeholders::_1);
-        auto mgr = std::make_unique<RateLimitManager>(this, sender);
+        auto mgr = std::make_unique<RateLimitManager>(sender);
         auto& manager = *managers_.emplace_back(std::move(mgr));
         connect(&manager, &RateLimitManager::PolicyUpdated, this, &RateLimiter::OnPolicyUpdated);
         connect(&manager, &RateLimitManager::QueueUpdated, this, &RateLimiter::OnQueueUpdated);

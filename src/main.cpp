@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -21,117 +21,36 @@
 
 #include <QApplication>
 #include <QCommandLineParser>
-#include <QDesktopServices>
 #include <QDir>
 #include <QFontDatabase>
 #include <QLocale>
-#include <QMessageBox>
 #include <QSettings>
+#include <QStandardPaths>
 
-#include "QsLog.h"
-#include "QsLogDest.h"
+#include <QsLog/QsLog.h>
+#include <QsLog/QsLogDest.h>
 
 #include <clocale>
 
 #include "application.h"
+#include "crashpad.h"
 #include "fatalerror.h"
-#include "filesystem.h"
 #include "shop.h"
 #include "util.h"
 #include "version_defines.h"
 #include "testmain.h"
 
-// This is needed for Visual Studio 2022.
-#include "boost/config.hpp"
-#ifdef BOOST_NO_EXCEPTIONS
-#include <boost/throw_exception.hpp>
-void boost::throw_exception(std::exception const& e) {
-    throw e;
-}
-#endif
-
-#ifdef _DEBUG
-constexpr QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::DebugLevel;
-#else
-constexpr QsLogging::Level DEFAULT_LOGLEVEL = QsLogging::InfoLevel;
-#endif
-
 #ifdef Q_OS_WINDOWS
-bool checkManifest() {
+#include "checkmsvc.h"
+#endif
 
-    // Get the directory where the application is running from.
-    const QString path = QGuiApplication::applicationDirPath();
-    const QDir dir(path);
+constexpr const char* BUILD_TIMESTAMP = (__DATE__ " " __TIME__);
 
-    // These are the Windows libraries we expect to find in the
-    // directory alongside the application executable.
-    const QStringList expected_dlls = {
-        "D3Dcompiler_47.dll",
-        "opengl32sw.dll",
-        "Qt6Core.dll",
-        "Qt6Gui.dll",
-        "Qt6HttpServer.dll",
-        "Qt6Network.dll",
-        "Qt6Sql.dll",
-        "Qt6Svg.dll",
-        "Qt6Test.dll",
-        "Qt6WebSockets.dll",
-        "Qt6Widgets.dll"
-    };
-
-    // Build the list of libraries that were present but unexpected.
-    // The .dll extension is windows-specific, but so far Windows
-    // is the only platform affected by this issue.
-    QStringList unexpected_dlls;
-    for (const auto& dll : dir.entryList({ "*.dll" })) {
-        if (!expected_dlls.contains(dll, Qt::CaseInsensitive)) {
-            unexpected_dlls.push_back(dll);
-        };
-    };
-
-    // Do nothing if nothing unexpected was found.
-    if (unexpected_dlls.isEmpty()) {
-        return true;
-    };
-
-    // Create a warning message for the dialog box.
-    QStringList msg = {
-        "Unexpected libraries found in '" + path + "':",
-        "",
-        "\t" + unexpected_dlls.join(", "),
-        ""
-    };
-    if (unexpected_dlls.contains("msvcp140.dll", Qt::CaseInsensitive)) {
-        msg.append("Acquisition may crash. "
-            "Please consider deleteing the above files and installing the "
-            "MSVC runtime that comes with acquisition. You can do this from "
-            "the installer, or you can run 'vc_redist.x64.exe' from the "
-            "acquisition program directory");
-    } else {
-        msg.append("Acquisition may crash. "
-            "Please consider moving or deleting these files.");
-    };
-
-
-    // Construct a warning dialog box.
-    QMessageBox msgbox;
-    msgbox.setWindowTitle("Acquisition");
-    msgbox.setText(msg.join("\n"));
-    msgbox.setIcon(QMessageBox::Warning);
-    const auto* open = msgbox.addButton("Open folder and quit", QMessageBox::NoRole);
-    const auto* quit = msgbox.addButton("Quit", QMessageBox::NoRole);
-    const auto* ignore = msgbox.addButton("Ignore and continue", QMessageBox::NoRole);
-    Q_UNUSED(quit);
-
-    // Get and react to the user input.
-    msgbox.exec();
-    const auto& clicked = msgbox.clickedButton();
-    if (clicked == open) {
-        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
-    };
-    return (clicked == ignore);
-}
-#endif // Q_OS_WINDOWS
+#ifdef QT_DEBUG
+constexpr const char* DEFAULT_LOGGING_LEVEL = "DEBUG";
+#else
+constexpr const char* DEFAULT_LOGGING_LEVEL = "INFO";
+#endif
 
 int main(int argc, char* argv[])
 {
@@ -143,31 +62,29 @@ int main(int argc, char* argv[])
     std::setlocale(LC_ALL, "C");
 
     // Holds the date and time of the current build based on __DATE__ and __TIME__ macros.
-    const QString BUILD_TIMESTAMP = QStringLiteral(__DATE__ " " __TIME__).simplified();
-    const QDateTime BUILD_DATE = QLocale("en_US").toDateTime(BUILD_TIMESTAMP, "MMM d yyyy hh:mm:ss");
+    const QString build_timestamp = QString(BUILD_TIMESTAMP).simplified();
+    const QDateTime build_date = QLocale("en_US").toDateTime(build_timestamp, "MMM d yyyy hh:mm:ss");
 
     QApplication a(argc, argv);
 
-#ifdef Q_OS_WINDOWS
-    // Check for unexpected files, especially DLLs on Windows, where
-    // this can cause unexpected crashes. We have to do this after
-    // constructing the application object because we might need to 
-    // present a warning dialog box to the user.
-    if (!checkManifest()) {
-        return EXIT_FAILURE;
-    };
-#endif
-
-    // Setup the default user directory.
-    Filesystem::Init();
-
     QFontDatabase::addApplicationFont(":/fonts/Fontin-SmallCaps.ttf");
 
-    QCommandLineParser parser;
     QCommandLineOption option_test("test");
-    QCommandLineOption option_data_dir("data-dir", "Where to save Acquisition data.", "data-dir");
-    QCommandLineOption option_log_level("log-level", "How much to log.", "log-level");
+    option_test.setDescription("Run tests and exit.");
+
+    QCommandLineOption option_data_dir("data-dir");
+    option_data_dir.setDescription("Where to save Acquisition data.");
+    option_data_dir.setValueName("data-dir");
+    option_data_dir.setDefaultValue(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
+    
+    QCommandLineOption option_log_level("log-level");
+    option_log_level.setDescription("How much to log.");
+    option_log_level.setValueName("log-level");
+    
     QCommandLineOption option_crash("crash-test");
+    option_crash.setDescription("Trigger a crash dump at startup for testing.");
+
+    QCommandLineParser parser;
     parser.addOption(option_test);
     parser.addOption(option_data_dir);
     parser.addOption(option_log_level);
@@ -175,40 +92,32 @@ int main(int argc, char* argv[])
     parser.process(a);
 
     // Setup the data dir, which is where the log will be written.
-    if (parser.isSet(option_data_dir)) {
-        const QString datadir = QString(parser.value(option_data_dir));
-        Filesystem::SetUserDir(datadir);
-    };
-    const QString sLogPath = QString(QDir(Filesystem::UserDir()).filePath("log.txt"));
+    const QDir appDataDir = QDir(parser.value(option_data_dir));
+    const QString sLogPath(appDataDir.filePath("log.txt"));
+    QSettings settings(appDataDir.filePath("settings.ini"), QSettings::IniFormat);
 
-    // The filename here needs to match the one in the application
-    // object constructor. This is a design flaw. We need this object
-    // very briefly for the log level setting.
-    //
-    // Perhaps it should live here and be passed into the Application
-    // object construtor?
-    QSettings settings(Filesystem::UserDir() + "/settings.ini", QSettings::IniFormat);
-
-    // Determine the logging level.
-    //
-    // Start with the compile-time default for this build, but allow it to be
-    // superceded by a command-line argument. If there's no command-line argument
-    // check the settings.ini file.
-    QsLogging::Level loglevel = DEFAULT_LOGLEVEL;
+    // Determine the logging level. The command-line argument takes first priority.
+    // If no command line argument is present, Acquistion will check for a logging
+    // level in the settings file. Otherwise it will fallback to a default.
+    QString logging_option;
     if (parser.isSet(option_log_level)) {
-        loglevel = Util::TextToLogLevel(parser.value(option_log_level));
+        logging_option = parser.value(option_log_level);
     } else if (settings.contains("log_level")) {
-        loglevel = Util::TextToLogLevel(settings.value("log_level").toString());
+        logging_option = settings.value("log_level").toString();
+    } else {
+        logging_option = QString(DEFAULT_LOGGING_LEVEL);
     };
+    const QsLogging::Level loglevel = Util::TextToLogLevel(logging_option);
 
     // Setup the logger.
-    QsLogging::Logger& logger = QsLogging::Logger::instance();
     QsLogging::MaxSizeBytes logsize(10 * 1024 * 1024);
     QsLogging::MaxOldLogCount logcount(0);
     QsLogging::DestinationPtr fileDestination(
         QsLogging::DestinationFactory::MakeFileDestination(sLogPath, QsLogging::EnableLogRotation, logsize, logcount));
     QsLogging::DestinationPtr debugDestination(
         QsLogging::DestinationFactory::MakeDebugOutputDestination());
+
+    QsLogging::Logger& logger = QsLogging::Logger::instance();
     logger.setLoggingLevel(loglevel);
     logger.addDestination(debugDestination);
     logger.addDestination(fileDestination);
@@ -216,13 +125,33 @@ int main(int argc, char* argv[])
     // Start the log with basic info
     QLOG_INFO() << "-------------------------------------------------------------------------------";
     QLOG_INFO().noquote() << a.applicationName() << a.applicationVersion() << "( version code" << VERSION_CODE << ")";
-    QLOG_INFO().noquote() << "Built with Qt" << QT_VERSION_STR << "on" << BUILD_DATE.toString();
+    QLOG_INFO().noquote() << "Built with Qt" << QT_VERSION_STR << "on" << build_date.toString();
     QLOG_INFO().noquote() << "Running on Qt" << qVersion();
     QLOG_INFO() << "Logging level is" << logger.loggingLevel();
 
+#ifdef Q_OS_WINDOWS
+    // On Windows, it's possible there are incompatible versions of the MSVC runtime
+    // DLLs that can cause unexpected crashes, so acquisition does some extra work
+    // to try and detect this. It's not foolproof, however.
+    checkMicrosoftRuntime();
+#endif
+
+    // Start crash reporting.
+    if (!settings.contains("report_crashes")) {
+        settings.setValue("report_crashes", true);
+    };
+    if (settings.value("report_crashes").toBool()) {
+        initializeCrashpad(appDataDir.absolutePath(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
+    };
+
+    // Check SSL.
     QLOG_TRACE() << "Checking for SSL support...";
     if (!QSslSocket::supportsSsl()) {
-        FatalError("SSL support is missing. On Linux, the LD_LIBRARY_PATH must include OpenSSL 3.x shared libraries.");
+#ifdef Q_OS_LINUX
+        FatalError("SSL support is missing. Make sure OpenSSL 3.x shared libaries are on the LD_LIBRARY_PATH.");
+#else
+        FatalError("SSL support is missing.");
+#endif
     };
     QLOG_TRACE() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
     QLOG_TRACE() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
@@ -237,7 +166,7 @@ int main(int argc, char* argv[])
     QLOG_INFO() << "Running application...";
 
     // Construct an instance of Application.
-    Application app;
+    Application app(appDataDir);
 
     // Trigger an optional crash.
     if (parser.isSet(option_crash)) {

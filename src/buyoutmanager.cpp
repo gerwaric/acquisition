@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -20,9 +20,10 @@
 #include "buyoutmanager.h"
 
 #include <regex>
-#include "QsLog.h"
-#include "rapidjson/document.h"
-#include "rapidjson/error/en.h"
+
+#include <QsLog/QsLog.h>
+#include <rapidjson/document.h>
+#include <rapidjson/error/en.h>
 
 #include "application.h"
 #include "datastore.h"
@@ -37,11 +38,15 @@ const std::map<std::string, BuyoutType> BuyoutManager::string_to_buyout_type_ = 
     {"~price", BUYOUT_TYPE_FIXED},
 };
 
-BuyoutManager::BuyoutManager(DataStore& data) :
-    data_(data),
-    save_needed_(false)
+BuyoutManager::BuyoutManager(DataStore& data)
+    : data_(data)
+    , save_needed_(false)
 {
     Load();
+}
+
+BuyoutManager::~BuyoutManager() {
+    Save();
 }
 
 void BuyoutManager::Set(const Item& item, const Buyout& buyout) {

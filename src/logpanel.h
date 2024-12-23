@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -20,7 +20,8 @@
 #pragma once
 
 #include <QObject>
-#include "QsLogDest.h"
+
+#include <QsLog/QsLogDest.h>
 
 #include <vector>
 

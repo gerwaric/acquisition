@@ -1,10 +1,29 @@
+/*
+    Copyright (C) 2014-2024 Acquisition Contributors
+
+    This file is part of Acquisition.
+
+    Acquisition is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Acquisition is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #include "itemlocation.h"
 
 #include <QString>
 
 #include <boost/algorithm/string/predicate.hpp>
+#include <QsLog/QsLog.h>
 
-#include "QsLog.h"
 #include "itemconstants.h"
 #include "rapidjson_util.h"
 #include "util.h"
@@ -21,17 +40,19 @@ QDebug& operator<<(QDebug& os, const ItemLocationType& obj) {
     };
 }
 
-ItemLocation::ItemLocation() :
-    x_(0), y_(0), w_(0), h_(0), red_(0), green_(0), blue_(0),
-    socketed_(false),
-    removeonly_(false),
-    type_(ItemLocationType::STASH),
-    tab_type_(""),
-    tab_id_(0)
+ItemLocation::ItemLocation()
+    : x_(0), y_(0)
+    , w_(0), h_(0)
+    , red_(0), green_(0), blue_(0)
+    , socketed_(false)
+    , removeonly_(false)
+    , type_(ItemLocationType::STASH)
+    , tab_type_("")
+    , tab_id_(0)
 {}
 
-ItemLocation::ItemLocation(const rapidjson::Value& root) :
-    ItemLocation()
+ItemLocation::ItemLocation(const rapidjson::Value& root)
+    : ItemLocation()
 {
     FromItemJson(root);
     FixUid();
@@ -41,8 +62,7 @@ ItemLocation::ItemLocation(
     int tab_id,
     const std::string tab_unique_id,
     const std::string name)
-    :
-    ItemLocation()
+    : ItemLocation()
 {
     tab_label_ = name;
     tab_id_ = tab_id;
@@ -57,14 +77,13 @@ ItemLocation::ItemLocation(
     const std::string tab_type,
     int r, int g, int b,
     rapidjson::Value& value, rapidjson_allocator& alloc)
-    :
-    x_(0), y_(0),
-    w_(0), h_(0),
-    red_(r), green_(g), blue_(b),
-    socketed_(false),
-    type_(type),
-    tab_id_(tab_id),
-    tab_unique_id_(tab_unique_id)
+    : x_(0), y_(0)
+    , w_(0), h_(0)
+    , red_(r), green_(g), blue_(b)
+    , socketed_(false)
+    , type_(type)
+    , tab_id_(tab_id)
+    , tab_unique_id_(tab_unique_id)
 {
     switch (type_) {
     case ItemLocationType::STASH:

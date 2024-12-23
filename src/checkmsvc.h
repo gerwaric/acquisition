@@ -1,5 +1,5 @@
 /*
-    Copyright 2015 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -19,10 +19,4 @@
 
 #pragma once
 
-#include <QString>
-
-namespace Filesystem {
-    void Init();
-    QString UserDir();
-    void SetUserDir(const QString& dir);
-}
+void checkMicrosoftRuntime();

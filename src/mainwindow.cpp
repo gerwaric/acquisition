@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -32,8 +32,6 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QNetworkAccessManager>
-#include <QNetworkCookie>
-#include <QNetworkCookieJar>
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QPainter>
@@ -45,14 +43,13 @@
 #include <QVersionNumber>
 #include <QSettings>
 #include <QStringListModel>
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include <vector>
 
 #include "buyoutmanager.h"
 #include "currencymanager.h"
 #include "datastore.h"
-#include "filesystem.h"
 #include "filters.h"
 #include "flowlayout.h"
 #include "imagecache.h"
@@ -88,32 +85,25 @@ MainWindow::MainWindow(
     QNetworkAccessManager& network_manager,
     RateLimiter& rate_limiter,
     DataStore& datastore,
-    OAuthManager& oauth_manager,
     ItemsManager& items_manager,
     BuyoutManager& buyout_manager,
-    CurrencyManager& currency_manager,
-    UpdateChecker& update_checker,
-    Shop& shop)
-    :
-    settings_(settings),
-    network_manager_(network_manager),
-    rate_limiter_(rate_limiter),
-    datastore_(datastore),
-    oauth_manager_(oauth_manager),
-    items_manager_(items_manager),
-    buyout_manager_(buyout_manager),
-    currency_manager_(currency_manager),
-    update_checker_(update_checker),
-    shop_(shop),
-    ui(new Ui::MainWindow),
-    current_bucket_location_(nullptr),
-    current_search_(nullptr),
-    search_count_(0),
-    rate_limit_dialog_(nullptr),
-    quitting_(false)
+    Shop& shop,
+    ImageCache& image_cache)
+    : settings_(settings)
+    , network_manager_(network_manager)
+    , rate_limiter_(rate_limiter)
+    , datastore_(datastore)
+    , items_manager_(items_manager)
+    , buyout_manager_(buyout_manager)
+    , shop_(shop)
+    , image_cache_(image_cache)
+    , ui(new Ui::MainWindow)
+    , current_bucket_location_(nullptr)
+    , current_search_(nullptr)
+    , search_count_(0)
+    , rate_limit_dialog_(nullptr)
+    , quitting_(false)
 {
-    image_cache_ = new ImageCache(Filesystem::UserDir() + "/cache");
-
     connect(qApp, &QCoreApplication::aboutToQuit, this, [&]() { quitting_ = true; });
 
     InitializeUi();
@@ -127,11 +117,6 @@ MainWindow::MainWindow(
         settings_.value("account").toString());
     setWindowTitle(title);
     setWindowIcon(QIcon(":/icons/assets/icon.svg"));
-
-    connect(&items_manager_, &ItemsManager::ItemsRefreshed, this, &MainWindow::OnItemsRefreshed);
-    connect(&items_manager_, &ItemsManager::StatusUpdate, this, &MainWindow::OnStatusUpdate);
-    connect(&shop_, &Shop::StatusUpdate, this, &MainWindow::OnStatusUpdate);
-    connect(&update_checker_, &UpdateChecker::UpdateAvailable, this, &MainWindow::OnUpdateAvailable);
 
     delayed_update_current_item_.setInterval(CURRENT_ITEM_UPDATE_DELAY_MS);
     delayed_update_current_item_.setSingleShot(true);
@@ -152,6 +137,18 @@ MainWindow::~MainWindow() {
     };
     rate_limit_dialog_->close();
     rate_limit_dialog_->deleteLater();
+}
+
+void MainWindow::prepare(
+    OAuthManager& oauth_manager,
+    CurrencyManager& currency_manager,
+    Shop& shop)
+{
+    connect(ui->actionShowOAuthToken, &QAction::triggered, &oauth_manager, &OAuthManager::showStatus);
+    connect(ui->actionRefreshOAuthToken, &QAction::triggered, &oauth_manager, &OAuthManager::requestRefresh);
+
+    connect(ui->actionListCurrency, &QAction::triggered, &currency_manager, &CurrencyManager::DisplayCurrency);
+    connect(ui->actionExportCurrency, &QAction::triggered, &currency_manager, &CurrencyManager::ExportCurrency);
 }
 
 void MainWindow::InitializeRateLimitDialog() {
@@ -283,7 +280,7 @@ void MainWindow::InitializeUi() {
     update_button_.setFlat(true);
     update_button_.hide();
     statusBar()->addPermanentWidget(&update_button_);
-    connect(&update_button_, &QPushButton::clicked, &update_checker_, &UpdateChecker::AskUserToUpdate);
+    connect(&update_button_, &QPushButton::clicked, this, [=]() { emit UpdateCheckRequested(); });
 
     // resize columns when a tab is expanded/collapsed
     connect(ui->treeView, &QTreeView::collapsed, this, &MainWindow::ResizeTreeColumns);
@@ -331,10 +328,6 @@ void MainWindow::InitializeUi() {
     connect(ui->actionUpdateShops, &QAction::triggered, this, &MainWindow::OnUpdateShops);
     connect(ui->actionSetAutomaticallyShopUpdate, &QAction::triggered, this, &MainWindow::OnSetAutomaticShopUpdate);
 
-    // Connect the Currency menu
-    connect(ui->actionListCurrency, &QAction::triggered, this, &MainWindow::OnListCurrency);
-    connect(ui->actionExportCurrency, &QAction::triggered, this, &MainWindow::OnExportCurrency);
-
     // Connect the Theme submenu
     connect(ui->actionSetDarkTheme, &QAction::triggered, this, &MainWindow::OnSetDarkTheme);
     connect(ui->actionSetLightTheme, &QAction::triggered, this, &MainWindow::OnSetLightTheme);
@@ -348,10 +341,6 @@ void MainWindow::InitializeUi() {
     connect(ui->actionLoggingINFO, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::InfoLevel); });
     connect(ui->actionLoggingDEBUG, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::DebugLevel); });
     connect(ui->actionLoggingTRACE, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::TraceLevel); });
-
-    // Connect the OAuth submenu
-    connect(ui->actionShowOAuthToken, &QAction::triggered, &oauth_manager_, &OAuthManager::showStatus);
-    connect(ui->actionRefreshOAuthToken, &QAction::triggered, &oauth_manager_, &OAuthManager::requestRefresh);
 
     // Connect the POESESSID submenu
     connect(ui->actionShowPOESESSID, &QAction::triggered, this, &MainWindow::OnShowPOESESSID);
@@ -580,22 +569,6 @@ void MainWindow::OnDeleteTabClicked(int index) {
 
     // Remove the tab from the UI
     tab_bar_->removeTab(index);
-}
-
-void MainWindow::OnImageFetched(QNetworkReply* reply) {
-    std::string url = reply->url().toString().toStdString();
-    if (reply->error()) {
-        QLOG_WARN() << "Failed to download item image," << url.c_str();
-        return;
-    };
-    QImageReader image_reader(reply);
-    QImage image = image_reader.read();
-
-    image_cache_->Set(url, image);
-
-    if (current_item_ && (url == current_item_->icon() || url == POE_WEBCDN + current_item_->icon())) {
-        ui->imageLabel->setPixmap(GenerateItemIcon(*current_item_, image));
-    };
 }
 
 void MainWindow::OnSearchFormChange() {
@@ -873,22 +846,29 @@ void MainWindow::UpdateCurrentItem() {
     // in future should move everything tooltip-related there
     UpdateItemTooltip(*current_item_, ui);
 
+    ui->locationLabel->setText(current_item_->location().GetHeader().c_str());
     ui->pobTooltipButton->setEnabled(current_item_->Wearable());
 
     std::string icon = current_item_->icon();
-    if (icon.size() && icon[0] == '/') {
+    if ((icon.size() >= 1) && (icon[0] == '/')) {
         icon = POE_WEBCDN + icon;
     };
-    if (!image_cache_->Exists(icon)) {
-        QNetworkRequest request = QNetworkRequest(QUrl(icon.c_str()));
-        request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-        QNetworkReply* reply = network_manager_.get(request);
-        connect(reply, &QNetworkReply::finished, this, [=]() { OnImageFetched(reply); });
-    } else {
-        ui->imageLabel->setPixmap(GenerateItemIcon(*current_item_, image_cache_->Get(icon)));
-    };
-    ui->locationLabel->setText(current_item_->location().GetHeader().c_str());
+    emit GetImage(icon);
 }
+
+void MainWindow::OnImageFetched(const std::string& url) {
+    if (current_item_) {
+        const std::string icon = current_item_->icon();
+        if (url == icon) {
+            const QImage image = image_cache_.load(url);
+            if (!image.isNull()) {
+                const QPixmap pixmap = GenerateItemIcon(*current_item_, image);
+                ui->imageLabel->setPixmap(pixmap);
+            };
+        };
+    };
+}
+
 
 void MainWindow::UpdateBuyoutWidgets(const Buyout& bo) {
     QLOG_TRACE() << "MainWindow::UpdateBuyoutWidgets() entered";
@@ -975,16 +955,7 @@ void MainWindow::OnShowPOESESSID() {
     int code = dialog->exec();
     if (code == QDialog::DialogCode::Accepted) {
         const QString poesessid = dialog->textValue();
-        if (!poesessid.isEmpty()) {
-            QLOG_INFO() << "Updating POESESSID";
-            QNetworkCookie cookie(POE_COOKIE_NAME, poesessid.toUtf8());
-            cookie.setPath(POE_COOKIE_PATH);
-            cookie.setDomain(POE_COOKIE_DOMAIN);
-            network_manager_.cookieJar()->insertCookie(cookie);
-            settings_.setValue("session_id", poesessid);
-        } else {
-            QLOG_INFO() << "Cannot update POESESSID because the string is empty";
-        };
+        emit SetSessionId(poesessid);
     };
 }
 
@@ -1042,10 +1013,6 @@ void MainWindow::OnSetAutomaticShopUpdate() {
     shop_.SetAutoUpdate(ui->actionSetAutomaticallyShopUpdate->isChecked());
 }
 
-void MainWindow::OnListCurrency() {
-    currency_manager_.DisplayCurrency();
-}
-
 void MainWindow::OnSetDarkTheme(bool toggle) {
     if (toggle) {
         emit SetTheme("dark");
@@ -1092,10 +1059,6 @@ void MainWindow::OnSetLogging(QsLogging::Level level) {
     const QString level_name = Util::LogLevelToText(level);
     QLOG_INFO() << "Logging level set to" << level_name;
     settings_.setValue("log_level", level_name);
-}
-
-void MainWindow::OnExportCurrency() {
-    currency_manager_.ExportCurrency();
 }
 
 void MainWindow::closeEvent(QCloseEvent* event) {

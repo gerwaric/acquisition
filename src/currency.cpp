@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -19,7 +19,7 @@
 
 #include "currency.h"
 
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 const std::string Currency::currency_type_error_;
 

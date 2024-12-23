@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -25,7 +25,8 @@
 #include <unordered_map>
 #include <array>
 #include <vector>
-#include "rapidjson/document.h"
+
+#include <rapidjson/document.h>
 
 #include "itemlocation.h"
 

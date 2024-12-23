@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -30,7 +30,7 @@
 #include <QStringList>
 
 #include <boost/algorithm/string.hpp>
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include "item.h"
 #include "util.h"

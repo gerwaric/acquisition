@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -24,11 +24,11 @@
 #include <QSqlError>
 #include <QSqlQuery>
 
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 #include "currencymanager.h"
 
-SqliteDataStore::SqliteDataStore(const QString& filename) :
-    filename_(filename)
+SqliteDataStore::SqliteDataStore(const QString& filename)
+    : filename_(filename)
 {
     QDir dir(QDir::cleanPath(filename + "/.."));
     if (!dir.exists()) {
@@ -91,7 +91,7 @@ void SqliteDataStore::CleanItemsTable() {
     //    remove record from 'items' if not anywhere in either 'tabs' record.
     Locations stashTabData = SqliteDataStore::GetTabs(ItemLocationType::STASH);
     Locations charsData = SqliteDataStore::GetTabs(ItemLocationType::CHARACTER);
-    
+
     if (!stashTabData.empty() && !charsData.empty()) {
         QStringList locs;
 
@@ -272,7 +272,7 @@ SqliteDataStore::~SqliteDataStore() {
 
         // First close the database to invalidate any queries.
         db_.close();
-        
+
         // Next remove the database connection to avoid undefined behavior
         // at application shutdown per https://doc.qt.io/qt-6.5/qsqldatabase.html
         QSqlDatabase::removeDatabase(filename_);

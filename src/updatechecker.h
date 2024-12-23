@@ -1,5 +1,5 @@
 /*
-    Copyright 2015 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -26,6 +26,8 @@
 #include <QTimer>
 #include <QVersionNumber>
 
+#include "cpp-semver/semver.hpp"
+
 class QNetworkAccessManager;
 class QSettings;
 class QWidget;
@@ -33,7 +35,7 @@ class QWidget;
 class UpdateChecker : public QObject {
     Q_OBJECT
 public:
-    explicit UpdateChecker(QObject* parent,
+    explicit UpdateChecker(
         QSettings& settings,
         QNetworkAccessManager& network_manager);
 signals:
@@ -47,9 +49,15 @@ private slots:
     void OnUpdateSslErrors(const QList<QSslError>& errors);
 private:
 
-    void ParseReleaseTags(const QByteArray& bytes,
-        QStringList& tag_names,
-        std::vector<bool>& prerelease_flags);
+    struct ReleaseTag {
+        semver::version version;
+        bool draft{ false };
+        bool prerelease{ false };
+    };
+    std::vector<ReleaseTag> ParseReleaseTags(const QByteArray& bytes);
+
+    bool has_newer_release() const;
+    bool has_newer_prerelease() const;
 
     QSettings& settings_;
     QNetworkAccessManager& nm_;
@@ -57,10 +65,13 @@ private:
     // Trigger periodic update checks.
     QTimer timer_;
 
-    // The newest github release
-    QString latest_release_;
+    // The running version
+    const semver::version running_version_;
 
-    // The newest github pre-release
-    QString latest_prerelease_;
+    // The latest github release
+    semver::version latest_release_;
+    semver::version latest_prerelease_;
 
+    semver::version previous_release_;
+    semver::version previous_prerelease_;
 };

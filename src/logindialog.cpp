@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -22,6 +22,8 @@
 
 #include <QDesktopServices>
 #include <QFile>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QMessageBox>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -36,13 +38,13 @@
 #include <QUrl>
 #include <QUrlQuery>
 
-#include "QsLog.h"
-#include "rapidjson/error/en.h"
+#include <QsLog/QsLog.h>
+#include <rapidjson/error/en.h>
 
 #include "crashpad.h"
-#include "filesystem.h"
 #include "mainwindow.h"
 #include "network_info.h"
+#include "rapidjson_util.h" // Needed for range iterators
 #include "replytimeout.h"
 #include "util.h"
 #include "updatechecker.h"
@@ -58,6 +60,7 @@ constexpr int CLOUDFLARE_RATE_LIMITED = 1015;
 
 constexpr const char* OAUTH_TAB = "oauthTab";
 constexpr const char* SESSIONID_TAB = "sessionIdTab";
+constexpr const char* OFFLINE_TAB = "offlineTab";
 
 /**
  *
@@ -76,15 +79,16 @@ constexpr const char* SESSIONID_TAB = "sessionIdTab";
  */
 
 LoginDialog::LoginDialog(
+    const QDir& app_data_dir,
     QSettings& settings,
     QNetworkAccessManager& network_manager,
     OAuthManager& oauth_manager)
-    :
-    QDialog(nullptr),
-    settings_(settings),
-    network_manager_(network_manager),
-    oauth_manager_(oauth_manager),
-    ui(new Ui::LoginDialog)
+    : QDialog(nullptr)
+    , app_data_dir_(app_data_dir)
+    , settings_(settings)
+    , network_manager_(network_manager)
+    , oauth_manager_(oauth_manager)
+    , ui(new Ui::LoginDialog)
 {
     // Setup the dialog box.
     QLOG_TRACE() << "LoginDialog::LoginDialog() calling UI setup";
@@ -96,35 +100,77 @@ LoginDialog::LoginDialog(
     setWindowIcon(QIcon(":/icons/assets/icon.svg"));
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
-    // Hide the error message label by default.
-    QLOG_TRACE() << "LoginDialog::LoginDialog() hiding the error message label";
+    // Setup the realm options.
+    ui->realmComboBox->addItems({ "pc","sony","xbox" });
+
+    // Setup theme.
+    ui->themeComboBox->addItems({ "default","light","dark" });
+
+    // Setup logging levels.
+    ui->loggingLevelComboBox->addItems({
+        Util::LogLevelToText(QsLogging::FatalLevel),
+        Util::LogLevelToText(QsLogging::ErrorLevel),
+        Util::LogLevelToText(QsLogging::WarnLevel),
+        Util::LogLevelToText(QsLogging::InfoLevel),
+        Util::LogLevelToText(QsLogging::DebugLevel),
+        Util::LogLevelToText(QsLogging::TraceLevel),
+        Util::LogLevelToText(QsLogging::OffLevel)
+        });
+
+    // Display the data directory
+    ui->userDirButton->setText(app_data_dir_.absolutePath());
+
+    // Hide the error message by default
+    ui->errorLabel->setText("");
     ui->errorLabel->hide();
-    ui->errorLabel->setStyleSheet("QLabel { color : red; }");
+    ui->errorLabel->setStyleSheet("QLabel {color: red;}");
 
     // Disable the login button until we are ready to login.
-    QLOG_TRACE() << "LoginDialog::LoginDialog() disabling the login button";
     ui->loginButton->setEnabled(false);
 
-    // Connect UI signals.
-    connect(ui->sessionIDLineEdit, &QLineEdit::textChanged, this, &LoginDialog::OnSessionIDChanged);
-    connect(ui->rememberMeCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnRememberMeCheckBoxClicked);
-    connect(ui->proxyCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnProxyCheckBoxClicked);
-    connect(ui->reportCrashesCheckBox, &QCheckBox::clicked, this, &LoginDialog::OnReportCrashesCheckBoxClicked);
-    connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
-    connect(ui->authenticateButton, &QPushButton::clicked, this, &LoginDialog::OnAuthenticateButtonClicked);
+    // Load saved settings.
+    LoadSettings();
+
+    // Set the proxy.
+    QNetworkProxyFactory::setUseSystemConfiguration(ui->proxyCheckBox->isChecked());
+
+    // Let the oath manager know about the remember me selection.
+    oauth_manager_.RememberToken(ui->rememberMeCheckBox->isChecked());
+
+    // Determine which options to show.
+    const bool hide_options = ui->loginTabs->currentWidget() == ui->offlineTab;
+    const bool hide_advanced = !ui->advancedCheckBox->isChecked();
+    ui->optionsWidget->setHidden(hide_options);
+    ui->advancedOptionsFrame->setHidden(hide_options || hide_advanced);
+    ui->loginButton->setHidden(hide_options);
+
+    // Connect main UI buttons.
     connect(ui->loginTabs, &QTabWidget::currentChanged, this, &LoginDialog::OnLoginTabChanged);
+    connect(ui->authenticateButton, &QPushButton::clicked, this, &LoginDialog::OnAuthenticateButtonClicked);
+    connect(ui->sessionIDLineEdit, &QLineEdit::textChanged, this, &LoginDialog::OnSessionIDChanged);
+    connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
+    connect(ui->offlineButton, &QPushButton::clicked, this, &LoginDialog::OnOfflineButtonClicked);
+
+    // Connects options UI elements.
+    connect(ui->advancedCheckBox, &QCheckBox::checkStateChanged, this, &LoginDialog::OnAdvancedCheckBoxChanged);
+    connect(ui->rememberMeCheckBox, &QCheckBox::checkStateChanged, this, &LoginDialog::OnRememberMeCheckBoxChanged);
+    connect(ui->reportCrashesCheckBox, &QCheckBox::checkStateChanged, this, &LoginDialog::OnReportCrashesCheckBoxChanged);
+    connect(ui->proxyCheckBox, &QCheckBox::checkStateChanged, this, &LoginDialog::OnProxyCheckBoxChanged);
+    connect(ui->loggingLevelComboBox, &QComboBox::currentTextChanged, this, &LoginDialog::OnLoggingLevelChanged);
+    connect(ui->userDirButton, &QPushButton::pressed, this, &LoginDialog::OnUserDirButtonPushed);
+    connect(ui->themeComboBox, &QComboBox::currentTextChanged, this, &LoginDialog::OnThemeChanged);
 
     // Listen for access from the OAuth manager.
     connect(&oauth_manager_, &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
 
-    // Load saved settings.
-    QLOG_TRACE() << "LoginDialog::LoginDialog() calling LoadSettings()";
-    LoadSettings();
-
     // Load the OAuth token if one is already present.
-    if (oauth_manager_.token().isValid()) {
+    const QDateTime now = QDateTime::currentDateTime();
+    const OAuthToken& token = oauth_manager_.token();
+    if (now < token.access_expiration()) {
         QLOG_TRACE() << "LoginDialog::LoginDialog() found a valid OAuth token";
         OnOAuthAccessGranted(oauth_manager_.token());
+    } else if (now < token.refresh_expiration()) {
+        QLOG_INFO() << "LoginDialog:LoginDialog() the OAuth token needs to be refreshed";
     };
 
     // Request the list of leagues.
@@ -133,67 +179,50 @@ LoginDialog::LoginDialog(
 }
 
 LoginDialog::~LoginDialog() {
-    QLOG_TRACE() << "LoginDialog::~LoginDialog() destroying object";
-    SaveSettings();
+    if (!ui->rememberMeCheckBox->isChecked()) {
+        QLOG_TRACE() << "LoginDialog::SaveSettings() clearing settings";
+        settings_.clear();
+    };
     delete ui;
 }
 
 void LoginDialog::LoadSettings() {
 
-    QLOG_TRACE() << "LoginDialog::LoadSetting()";
-
-    const QString session_id = settings_.value("session_id").toString();
-    QLOG_TRACE() << "LoginDialog::LoadSettings() session_id has" << session_id.size() << "characters";
-
     const QString realm = settings_.value("realm").toString();
-    QLOG_TRACE() << "LoginDialog::LoadSettings() realm =" << realm;
+    ui->realmComboBox->setCurrentText(realm);
 
     const QString league = settings_.value("league").toString();
-    QLOG_TRACE() << "LoginDialog::LoadSettings() league =" << league;
+    ui->leagueComboBox->setCurrentText(league);
 
-    const int login_tab = settings_.value("login_tab").toInt();
-    QLOG_TRACE() << "LoginDialog::LoadSettings() login_tab =" << login_tab;
+    const QString logging_level = Util::LogLevelToText(QsLogging::Logger::instance().loggingLevel());
+    ui->loggingLevelComboBox->setCurrentText(logging_level);
 
-    const bool remember_me = settings_.value("remember_user").toBool();
-    QLOG_TRACE() << "LoginDialog::LoadSettings() remember_me" << remember_me;
+    const QString theme = settings_.value("theme").toString();
+    ui->themeComboBox->setCurrentText(theme);
 
-    const bool use_system_proxy = settings_.value("use_system_proxy").toBool();
-    QLOG_TRACE() << "LoginDialog::LoadSettings() use_system_proxy" << use_system_proxy;
+    const QString session_id = settings_.value("session_id").toString();
+    ui->sessionIDLineEdit->setText(session_id);
+
+    const bool show_advanced = settings_.value("show_advanced_login_options").toBool();
+    ui->advancedCheckBox->setChecked(show_advanced);
+
+    const bool remember_user = settings_.value("remember_user").toBool();
+    ui->rememberMeCheckBox->setChecked(remember_user);
+
+    const bool use_proxy = settings_.value("use_system_proxy").toBool();
+    ui->proxyCheckBox->setChecked(use_proxy);
 
     const bool report_crashes = settings_.value("report_crashes").toBool();
-    QLOG_TRACE() << "LoginDialog::LoadSettings() report_crashes" << report_crashes;
-
-    QLOG_TRACE() << "LoginDialog::LoadSettings() passing remember_me to OAuth manager";
-    oauth_manager_.RememberToken(remember_me);
-
-    QLOG_TRACE() << "LoginDialog::LoadSettings() setting UI elements";
-    ui->sessionIDLineEdit->setText(session_id);
-    ui->rememberMeCheckBox->setChecked(remember_me);
-    ui->proxyCheckBox->setChecked(use_system_proxy);
     ui->reportCrashesCheckBox->setChecked(report_crashes);
-    ui->loginTabs->setCurrentIndex(login_tab);
-    if (!realm.isEmpty()) {
-        ui->realmComboBox->setCurrentText(realm);
-    };
-    if (!league.isEmpty()) {
-        ui->leagueComboBox->setCurrentText(league);
-    };
 
-    QLOG_TRACE() << "LoginDialog::LoadSetting() setting proxy configuration";
-    QNetworkProxyFactory::setUseSystemConfiguration(ui->proxyCheckBox->isChecked());
-}
-
-void LoginDialog::SaveSettings() {
-    if (!ui->rememberMeCheckBox->isChecked()) {
-        QLOG_TRACE() << "LoginDialog::SaveSettings() removing settings";
-        settings_.remove("session_id");
-        settings_.remove("account");
-        settings_.remove("realm");
-        settings_.remove("league");
-        settings_.remove("login_tab");
-        settings_.remove("remember_user");
-        settings_.remove("use_system_proxy");
-        settings_.remove("report_crashes");
+    const QString login_tab = settings_.value("login_tab").toString();
+    QLOG_TRACE() << "LoginDialog::LoadSettings() login_tab =" << login_tab;
+    for (auto i = 0; i < ui->loginTabs->count(); ++i) {
+        const QString tab_name = ui->loginTabs->widget(i)->objectName();
+        if (0 == login_tab.compare(tab_name, Qt::CaseInsensitive)) {
+            ui->loginTabs->setCurrentIndex(i);
+            break;
+        };
     };
 }
 
@@ -212,14 +241,16 @@ void LoginDialog::RequestLeagues() {
     connect(reply, &QNetworkReply::errorOccurred, this,
         [=](QNetworkReply::NetworkError code) {
             Q_UNUSED(code);
-            DisplayError("Error requesting leagues: " + reply->errorString(), true);
+            DisplayError("Error requesting leagues: " + reply->errorString());
+            ui->loginButton->setEnabled(false);
         });
     connect(reply, &QNetworkReply::sslErrors, this,
         [=](const QList<QSslError>& errors) {
             for (const auto& error : errors) {
                 QLOG_ERROR() << "SSL Error requesting leagues:" << error.errorString();
             };
-            DisplayError("SSL error fetching leagues", true);
+            DisplayError("SSL error fetching leagues");
+            ui->loginButton->setEnabled(false);
         });
 }
 
@@ -318,7 +349,8 @@ void LoginDialog::OnLeaguesReceived() {
 
 void LoginDialog::LeaguesRequestError(const QString& error, const QByteArray& reply) {
     QLOG_ERROR() << "League reply was:" << reply;
-    DisplayError("Error requesting leagues: " + error, true);
+    DisplayError("Error requesting leagues: " + error);
+    ui->loginButton->setEnabled(false);
 }
 
 void LoginDialog::OnAuthenticateButtonClicked() {
@@ -354,26 +386,36 @@ void LoginDialog::OnLoginButtonClicked() {
     if (tab_name == OAUTH_TAB) {
         LoginWithOAuth();
     } else if (tab_name == SESSIONID_TAB) {
-        if (!session_id.isEmpty()) {
-            LoginWithSessionID();
-        } else {
+        if (session_id.isEmpty()) {
             QLOG_ERROR() << "POESESSID is empty";
             DisplayError("POESESSID cannot be blank");
             ui->loginButton->setEnabled(true);
             ui->loginButton->setText("Log in");
+        } else {
+            LoginWithSessionID();
+            ui->loginButton->setEnabled(false);
         };
+    } else if (tab_name == OFFLINE_TAB) {
+
     } else {
         DisplayError("Invalid tab selected: " + tab_name);
     };
 }
 
+void LoginDialog::OnOfflineButtonClicked() {
+
+}
+
 void LoginDialog::LoginWithOAuth() {
     QLOG_INFO() << "Starting OAuth authentication";
-    if (oauth_manager_.token().isValid()) {
-        const OAuthToken& token = oauth_manager_.token();
+    const QDateTime now = QDateTime::currentDateTime();
+    const OAuthToken& token = oauth_manager_.token();
+    if (now < token.access_expiration()) {
         const QString account = QString::fromStdString(token.username());
         settings_.setValue("account", account);
         emit LoginComplete(POE_API::OAUTH);
+    } else if (now < token.refresh_expiration()) {
+        DisplayError("The OAuth token needs to be refreshed");
     } else {
         DisplayError("You are not authenticated.");
     };
@@ -391,8 +433,10 @@ void LoginDialog::LoginWithSessionID() {
             const int error_code = static_cast<int>(code);
             if (error_code == CLOUDFLARE_RATE_LIMITED) {
                 DisplayError("Rate limited by Cloudflare! Please report to gerwaric@gmail.com");
+                ui->loginButton->setEnabled(false);
             } else {
-                DisplayError("Error during legacy login: " + reply->errorString(), true);
+                DisplayError("Error during legacy login: " + reply->errorString());
+                ui->loginButton->setEnabled(false);
             };
         });
     connect(reply, &QNetworkReply::sslErrors, this,
@@ -400,7 +444,8 @@ void LoginDialog::LoginWithSessionID() {
             for (const auto& error : errors) {
                 QLOG_ERROR() << "SSL error during legacy login:" << error.errorString();
             };
-            DisplayError("SSL error during session id login", true);
+            DisplayError("SSL error during session id login");
+            ui->loginButton->setEnabled(false);
         });
 }
 
@@ -452,7 +497,8 @@ void LoginDialog::OnStartLegacyLogin() {
             if (error_code == CLOUDFLARE_RATE_LIMITED) {
                 DisplayError("Blocked by Cloudflare! Please tell gerwaric@gmail.com. You may need to contact GGG support :-(");
             } else {
-                DisplayError("Error finishing legacy login: " + reply->errorString(), true);
+                DisplayError("Error finishing legacy login: " + reply->errorString());
+                ui->loginButton->setEnabled(false);
             };
         });
     connect(reply, &QNetworkReply::sslErrors, this,
@@ -460,7 +506,8 @@ void LoginDialog::OnStartLegacyLogin() {
             for (const auto& error : errors) {
                 QLOG_ERROR() << "SSL finishing legacy login:" << error.errorString();
             };
-            DisplayError("SSL error finishing legacy login", true);
+            DisplayError("SSL error finishing legacy login");
+            ui->loginButton->setEnabled(false);
         });
 }
 
@@ -495,15 +542,26 @@ void LoginDialog::OnFinishLegacyLogin() {
 void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
     QLOG_TRACE() << "LoginDialog::OnOAuthAccessGranted() entered";
     const QString username = QString::fromStdString(token.username());
-    const QString expiration = token.expiration().toString();
-    ui->authenticateLabel->setText("You are authenticated as \"" + username + "\" until " + expiration);
+    ui->authenticateLabel->setText("You are authenticated as \"" + username + "\"");
     ui->authenticateButton->setText("Re-authenticate (as someone else).");
     ui->authenticateButton->setEnabled(true);
 }
 
 void LoginDialog::OnLoginTabChanged(int index) {
     QLOG_TRACE() << "LoginDialog::OnLoginTabChanged() entered";
-    settings_.setValue("login_tab", index);
+    const QWidget* tab = ui->loginTabs->widget(index);
+    if (tab == nullptr) {
+        QLOG_ERROR() << "LoginDialog: current tab widget is null";
+        return;
+    };
+    const bool hide_options = (tab == ui->offlineTab);
+    const bool hide_advanced = !ui->advancedCheckBox->isChecked();
+    const bool hide_error = ui->errorLabel->text().isEmpty();
+    ui->optionsWidget->setHidden(hide_options);
+    ui->advancedOptionsFrame->setHidden(hide_options || hide_advanced);
+    ui->errorLabel->setHidden(hide_options || hide_error);
+    ui->loginButton->setHidden(hide_options);
+    settings_.setValue("login_tab", tab->objectName());
 };
 
 void LoginDialog::OnSessionIDChanged(const QString& session_id) {
@@ -516,21 +574,31 @@ void LoginDialog::OnLeagueChanged(const QString& league) {
     settings_.setValue("league", league);
 }
 
-void LoginDialog::OnProxyCheckBoxClicked(bool checked) {
-    QLOG_TRACE() << "LoginDialog::OnProxyCheckBoxClicked() entered";
+void LoginDialog::OnAdvancedCheckBoxChanged(Qt::CheckState state) {
+    QLOG_TRACE() << "LoginDialog: advanced options checkbox changed to" << state;
+    const bool checked = (state == Qt::Checked);
+    const bool hide_options = ui->loginTabs->currentWidget() == ui->offlineTab;
+    ui->advancedOptionsFrame->setHidden(!checked || hide_options);
+    settings_.setValue("show_advanced_login_options", checked);
+}
+
+void LoginDialog::OnProxyCheckBoxChanged(Qt::CheckState state) {
+    QLOG_TRACE() << "LoginDialog: proxy checkbox changed to" << state;
+    const bool checked = (state == Qt::Checked);
     QNetworkProxyFactory::setUseSystemConfiguration(checked);
     settings_.setValue("use_system_proxy", checked);
 }
 
-void LoginDialog::OnRememberMeCheckBoxClicked(bool checked) {
-    QLOG_TRACE() << "LoginDialog::OnRememberMeCheckBoxClicked() entered";
+void LoginDialog::OnRememberMeCheckBoxChanged(Qt::CheckState state) {
+    QLOG_TRACE() << "LoginDialog: remember me checkbox changed to" << state;
+    const bool checked = (state == Qt::Checked);
     oauth_manager_.RememberToken(checked);
     settings_.setValue("remember_user", checked);
 }
 
-void LoginDialog::OnReportCrashesCheckBoxClicked(bool checked) {
-
-    QLOG_TRACE() << "LoginDialog::OnCrashReportCheckBoxClicked() entered";
+void LoginDialog::OnReportCrashesCheckBoxChanged(Qt::CheckState state) {
+    QLOG_TRACE() << "LoginDialog: crash reporting checkbox changed to" << state;
+    const bool checked = (state == Qt::Checked);
     QMessageBox msgbox(this);
     msgbox.setWindowTitle("Acquisition Crash Reporting");
 
@@ -538,49 +606,67 @@ void LoginDialog::OnReportCrashesCheckBoxClicked(bool checked) {
 
         // Before enabling crash reporting, make sure the user
         // understands and accepts that crash reporting cannot be
-        // disabled without restarting acquistion.
+        // disabled without restarting acquisition.
         msgbox.setText("Once crash reporting is enabled, it cannot be "
-            "disabled without restarting Acquistion.\n\nDo you want to "
+            "disabled without restarting Acquisition.\n\nDo you want to "
             "enable crash reporting?");
-        auto yes = msgbox.addButton("  Yes, enable crash reporting  ", msgbox.YesRole);
-        msgbox.addButton("  No  ", msgbox.NoRole);
+        auto yes = msgbox.addButton("  Enable crash reports  ", msgbox.YesRole);
+        msgbox.addButton("  Cancel  ", msgbox.NoRole);
         msgbox.exec();
-        if (msgbox.clickedButton() == yes) {
-            settings_.setValue("report_crashes", true);
-            initializeCrashpad(Filesystem::UserDir(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
+        const bool enable_reporting = (msgbox.clickedButton() == yes);
+        settings_.setValue("report_crashes", enable_reporting);
+        if (enable_reporting) {
+            initializeCrashpad(app_data_dir_.absolutePath(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
         } else {
-            settings_.setValue("report_crashes", false);
             ui->reportCrashesCheckBox->setChecked(false);
         };
 
     } else {
 
-        // Since crashpad cannot be stopped once it is started, acquistion
+        // Since crashpad cannot be stopped once it is started, acquisition
         // will have to be exited and restarted to disable crash reporting,
         // so make sure the user accepts and agrees to this.
         msgbox.setText("Acquisition will have to restart to disable crash "
             "reporting.\n\nDo you want Acquisition to exit now and disable "
             "crash reporting the next time it runs?");
         auto yes = msgbox.addButton("  Yes, exit now  ", msgbox.YesRole);
-        msgbox.addButton("  No, continue running  ", msgbox.NoRole);
+        msgbox.addButton("  No, continue without crash reporting  ", msgbox.NoRole);
         msgbox.exec();
-        if (msgbox.clickedButton() == yes) {
-            settings_.setValue("report_crashes", false);
+        const bool disable_reporting = (msgbox.clickedButton() == yes);
+        settings_.setValue("report_crashes", !disable_reporting);
+        if (disable_reporting) {
             close();
         } else {
-            settings_.setValue("report_crashes", true);
             ui->reportCrashesCheckBox->setChecked(true);
-            initializeCrashpad(Filesystem::UserDir(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
         };
 
     };
 }
 
-void LoginDialog::DisplayError(const QString& error, bool disable_login) {
+void LoginDialog::OnUserDirButtonPushed() {
+    const QString current_dir = QFileInfo(settings_.fileName()).absolutePath();
+    const QString parent_dir = QFileInfo(current_dir).absolutePath();
+    const QString new_dir = QFileDialog::getExistingDirectory(this, "Select the user directory", parent_dir);
+    if (new_dir != current_dir) {
+        ui->userDirButton->setText(new_dir);
+        emit ChangeUserDir(new_dir);
+    };
+}
+
+void LoginDialog::OnLoggingLevelChanged(const QString& level) {
+    const QsLogging::Level logging_level = Util::TextToLogLevel(level);
+    QsLogging::Logger::instance().setLoggingLevel(logging_level);
+    settings_.setValue("logging_level", level);
+}
+
+void LoginDialog::OnThemeChanged(const QString& theme) {
+    emit ChangeTheme(theme);
+}
+
+void LoginDialog::DisplayError(const QString& error) {
     QLOG_ERROR() << "LoginDialog:" << error;
     ui->errorLabel->setText(error);
     ui->errorLabel->show();
-    ui->loginButton->setEnabled(!disable_login);
     ui->loginButton->setText("Login");
 }
 

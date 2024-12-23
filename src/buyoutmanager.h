@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -31,6 +31,7 @@ class DataStore;
 class BuyoutManager {
 public:
     explicit BuyoutManager(DataStore& data);
+    ~BuyoutManager();
     void Set(const Item& item, const Buyout& buyout);
     Buyout Get(const Item& item) const;
 

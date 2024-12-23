@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -19,11 +19,13 @@
 
 #include "item.h"
 
-#include <utility>
 #include <QString>
+
+#include <utility>
 #include <sstream>
+
 #include <boost/algorithm/string.hpp>
-#include "rapidjson/document.h"
+#include <rapidjson/document.h>
 
 #include "modlist.h"
 #include "util.h"
@@ -86,15 +88,15 @@ static std::string fixup_name(const std::string& name) {
     return name;
 }
 
-Item::Item(const std::string& name, const ItemLocation& location) :
-    name_(name),
-    location_(location),
-    hash_(Util::Md5(name)) // Unique enough for tests
+Item::Item(const std::string& name, const ItemLocation& location)
+    : name_(name)
+    , location_(location)
+    , hash_(Util::Md5(name)) // Unique enough for tests
 {}
 
-Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
-    location_(loc),
-    json_(Util::RapidjsonSerialize(json))
+Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
+    : location_(loc)
+    , json_(Util::RapidjsonSerialize(json))
 {
     if (HasString(json, "name")) {
         name_ = fixup_name(json["name"].GetString());
@@ -174,11 +176,11 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
     if (HasInt(json, "h")) {
         h_ = json["h"].GetInt();
     };
-    
+
     if (HasInt(json, "frameType")) {
         frameType_ = json["frameType"].GetInt();
     };
-    
+
     if (HasString(json, "icon")) {
         icon_ = json["icon"].GetString();
     };
@@ -218,14 +220,14 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc) :
 
     if (HasArray(json, "properties")) {
         for (auto& prop : json["properties"]) {
-            
+
             if (!HasString(prop, "name") || !HasArray(prop, "values")) {
                 continue;
             };
 
             const std::string name = prop["name"].GetString();
             const auto& values = prop["values"];
-            
+
             if (name == "Elemental Damage") {
                 for (auto& value : values) {
                     if (value.IsArray() && value.Size() >= 2) {

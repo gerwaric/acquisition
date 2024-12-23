@@ -63,7 +63,7 @@ AppPublisherURL={#APP_URL}
 AppUpdatesURL={#APP_URL}
 DefaultDirName={autopf}\{#APP_NAME}
 DisableProgramGroupPage=yes
-LicenseFile=COPYING
+LicenseFile=LICENSE
 OutputBaseFilename={#APP_NAME}_setup_{#APP_VERSION_STRING}
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
@@ -76,7 +76,7 @@ MinVersion=10.0
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "vc_redist"; Description: "Install Microsoft Visual C++ Runtime"; Flags: checkedonce
+Name: "vc_redist"; Description: "Update/Install Microsoft Visual C++ 2015-2022 Runtime";
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; Flags: unchecked
 
 [Files]
@@ -89,4 +89,4 @@ Name: "{autodesktop}\{#APP_NAME}"; Filename: "{app}\{#APP_NAME}.exe"; Tasks: des
 
 [Run]
 Filename: "{app}\{#APP_NAME}.exe"; Description: "{cm:LaunchProgram,{#StringChange(APP_NAME, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
-Filename: "{app}\vc_redist.x64.exe"; Parameters: "/install"; Tasks: vc_redist;
+Filename: "{app}\vc_redist.x64.exe"; Parameters: "/install /passive"; Tasks: vc_redist;

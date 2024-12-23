@@ -24,9 +24,9 @@
 #include <QSettings>
 #include <QVBoxLayout>
 
-#include "QsLog.h"
-#include "rapidjson/document.h"
-#include "rapidjson/error/en.h"
+#include <QsLog/QsLog.h>
+#include <rapidjson/document.h>
+#include <rapidjson/error/en.h>
 
 #include "datastore.h"
 #include "buyoutmanager.h"
@@ -36,15 +36,13 @@
 #include "util.h"
 
 
-CurrencyManager::CurrencyManager(QWidget* parent,
+CurrencyManager::CurrencyManager(
     QSettings& settings,
     DataStore& datastore,
     ItemsManager& items_manager)
-    :
-    QWidget(parent),
-    settings_(settings),
-    data_(datastore),
-    items_manager_(items_manager)
+    : settings_(settings)
+    , data_(datastore)
+    , items_manager_(items_manager)
 {
     if (data_.Get("currency_items", "").empty()) {
         FirstInitCurrency();
@@ -235,7 +233,7 @@ void CurrencyManager::ExportCurrency() {
     };
     std::vector<CurrencyUpdate> result = data_.GetAllCurrency();
 
-    QString fileName = QFileDialog::getSaveFileName(this, tr("Save Export file"),
+    QString fileName = QFileDialog::getSaveFileName(nullptr, tr("Save Export file"),
         QDir::toNativeSeparators(QDir::homePath() + "/" + "acquisition_export_currency.csv"));
     if (fileName.isEmpty()) {
         return;
@@ -335,12 +333,12 @@ CurrencyDialog::CurrencyDialog(CurrencyManager& manager, bool show_chaos, bool s
     total_exalt_value_ = new QLabel("");
     show_exalt_ = new QCheckBox("show exalt ratio");
     show_exalt_->setChecked(show_exalt);
-    connect(show_exalt_, &QCheckBox::stateChanged, this, &CurrencyDialog::UpdateVisual);
+    connect(show_exalt_, &QCheckBox::checkStateChanged, this, &CurrencyDialog::UpdateVisual);
 
     total_chaos_value_ = new QLabel("");
     show_chaos_ = new QCheckBox("show chaos ratio");
     show_chaos_->setChecked(show_chaos);
-    connect(show_chaos_, &QCheckBox::stateChanged, this, &CurrencyDialog::UpdateVisual);
+    connect(show_chaos_, &QCheckBox::checkStateChanged, this, &CurrencyDialog::UpdateVisual);
     total_wisdom_value_ = new QLabel("");
     layout_ = new QVBoxLayout;
     Update();

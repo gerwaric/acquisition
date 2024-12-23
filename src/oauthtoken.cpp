@@ -1,5 +1,5 @@
 /*
-    Copyright 2023 Gerwaric
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -21,19 +21,23 @@
 
 #include <QNetworkReply>
 
-#include "QsLog.h"
-#include "rapidjson/error/en.h"
+#include <QsLog/QsLog.h>
+#include <rapidjson/error/en.h>
 
 #include "util.h"
 
-OAuthToken::OAuthToken() :
-    expires_in_(-1)
+// Hard-code the token lifetimes for a public client.
+constexpr long int ACCESS_TOKEN_LIFETIME_SECS = 10 * 3600; // 10 Hours
+constexpr long int REFRESH_TOKEN_LIFETIME_SECS = 7 * 24 * 3600; // 7 Days
+
+OAuthToken::OAuthToken()
+    : expires_in_(-1)
 {
     QLOG_TRACE() << "OAuthToken::OAuthToken(json) entered";
 }
 
-OAuthToken::OAuthToken(const std::string& json) :
-    expires_in_(-1)
+OAuthToken::OAuthToken(const std::string& json)
+    : expires_in_(-1)
 {
     QLOG_TRACE() << "OAuthToken::OAuthToken(json) entered";
     rapidjson::Document doc;
@@ -48,41 +52,61 @@ OAuthToken::OAuthToken(const std::string& json) :
     };
     if (doc.HasMember("access_token") && doc["access_token"].IsString()) {
         access_token_ = doc["access_token"].GetString();
+    } else {
+        QLOG_ERROR() << "OAuth: serialized token does not have `access_token`";
     };
     if (doc.HasMember("expires_in") && doc["expires_in"].IsInt64()) {
         expires_in_ = doc["expires_in"].GetInt64();
+    } else {
+        QLOG_ERROR() << "OAuth: serialized token does not have `expires_in`";
     };
     if (doc.HasMember("token_type") && doc["token_type"].IsString()) {
         token_type_ = doc["token_type"].GetString();
+    } else {
+        QLOG_ERROR() << "OAuth: serialized token does not have `token_type`";
     };
     if (doc.HasMember("scope") && doc["scope"].IsString()) {
         scope_ = doc["scope"].GetString();
+    } else {
+        QLOG_ERROR() << "OAuth: serialized token does not have `scope`";
     };
     if (doc.HasMember("username") && doc["username"].IsString()) {
         username_ = doc["username"].GetString();
+    } else {
+        QLOG_ERROR() << "OAuth: serialized token does not have `username`";
     };
     if (doc.HasMember("sub") && doc["sub"].IsString()) {
         sub_ = doc["sub"].GetString();
+    } else {
+        QLOG_ERROR() << "OAuth: serialized token does not have `sub`";
     };
     if (doc.HasMember("refresh_token") && doc["refresh_token"].IsString()) {
         refresh_token_ = doc["refresh_token"].GetString();
+    } else {
+        QLOG_ERROR() << "OAuth: serialized token does not have `refresh_token`";
     };
 
     if (doc.HasMember("birthday") && doc["birthday"].IsString()) {
         birthday_ = getDate(doc["birthday"].GetString());
     } else {
-        QLOG_WARN() << "Constructing OAuth token without a birthday.";
+        QLOG_ERROR() << "OAuth: serialized token does not have `birthday`";
     };
 
-    if (doc.HasMember("expiration") && doc["expiration"].IsString()) {
-        expiration_ = getDate(doc["expiration"].GetString());
+    if (doc.HasMember("access_expiration") && doc["access_expiration"].IsString()) {
+        access_expiration_ = getDate(doc["access_expiration"].GetString());
     } else {
-        QLOG_WARN() << "Constructing OAuth token without an expiration";
+        QLOG_ERROR() << "OAuth: serialized token does not have `access_expiration`";
+    };
+
+    if (doc.HasMember("refresh_expiration") && doc["refresh_expiration"].IsString()) {
+        refresh_expiration_ = getDate(doc["refresh_expiration"].GetString());
+    } else {
+        QLOG_ERROR() << "OAuth: serialized token does not have `refresh_expiration`";
     };
 }
 
-OAuthToken::OAuthToken(QNetworkReply& reply) :
-    OAuthToken(reply.readAll().toStdString())
+OAuthToken::OAuthToken(QNetworkReply& reply)
+    : OAuthToken(reply.readAll().toStdString())
 {
     QLOG_TRACE() << "OAuthToken::OAuthToken(reply) entered";
     // Determine birthday and expiration time.
@@ -93,22 +117,27 @@ OAuthToken::OAuthToken(QNetworkReply& reply) :
     if (birthday_.isValid()) {
         QLOG_ERROR() << "The OAuth token already has a birthday";
     };
-    if (expiration_.isValid()) {
+    if (access_expiration_.isValid()) {
         QLOG_ERROR() << "The OAuth token already has an expiration";
     };
     birthday_ = reply_birthday;
-    expiration_ = reply_birthday.addSecs(expires_in_);
+    access_expiration_ = reply_birthday.addSecs(expires_in_);
+    refresh_expiration_ = reply_birthday.addSecs(expires_in_
+        + REFRESH_TOKEN_LIFETIME_SECS
+        - ACCESS_TOKEN_LIFETIME_SECS);
 }
 
+/*
 bool OAuthToken::isValid() const {
     if (access_token_.empty()) {
         return false;
-    } else if (!expiration_.isValid()) {
+    } else if (!access_expiration_.isValid()) {
         return false;
     } else {
-        return (expiration_ > QDateTime::currentDateTime());
+        return (access_expiration_ > QDateTime::currentDateTime());
     };
 }
+*/
 
 std::string OAuthToken::toJson() const {
     return Util::RapidjsonSerialize(toJsonDoc());
@@ -119,6 +148,9 @@ std::string OAuthToken::toJsonPretty() const {
 }
 
 rapidjson::Document OAuthToken::toJsonDoc() const {
+    const std::string birthday = birthday_.toString(Qt::RFC2822Date).toStdString();
+    const std::string access_expiration = access_expiration_.toString(Qt::RFC2822Date).toStdString();
+    const std::string refresh_expiration = refresh_expiration_.toString(Qt::RFC2822Date).toStdString();
     rapidjson::Document doc(rapidjson::kObjectType);
     auto& allocator = doc.GetAllocator();
     Util::RapidjsonAddString(&doc, "access_token", access_token_, allocator);
@@ -128,14 +160,9 @@ rapidjson::Document OAuthToken::toJsonDoc() const {
     Util::RapidjsonAddString(&doc, "username", username_, allocator);
     Util::RapidjsonAddString(&doc, "sub", sub_, allocator);
     Util::RapidjsonAddString(&doc, "refresh_token", refresh_token_, allocator);
-    if (birthday_.isValid()) {
-        const std::string birthday = birthday_.toString(Qt::RFC2822Date).toStdString();
-        Util::RapidjsonAddString(&doc, "birthday", birthday, allocator);
-    };
-    if (expiration_.isValid()) {
-        const std::string expiration = expiration_.toString(Qt::RFC2822Date).toStdString();
-        Util::RapidjsonAddString(&doc, "expiration", expiration, allocator);
-    };
+    Util::RapidjsonAddString(&doc, "birthday", birthday, allocator);
+    Util::RapidjsonAddString(&doc, "access_expiration", access_expiration, allocator);
+    Util::RapidjsonAddString(&doc, "refresh_expiration", refresh_expiration, allocator);
     return doc;
 }
 

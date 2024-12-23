@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -57,7 +57,7 @@ struct ItemsReply {
 class ItemsManagerWorker : public QObject {
     Q_OBJECT
 public:
-    ItemsManagerWorker(QObject* parent,
+    ItemsManagerWorker(
         QSettings& settings_,
         QNetworkAccessManager& network_manager,
         RePoE& repoe,
@@ -103,10 +103,10 @@ private:
     QNetworkRequest MakeLegacyPassivesRequest(const std::string& name);
 
     void OAuthRefresh();
-    QNetworkRequest MakeOAuthStashListRequest(const std::string& league);
-    QNetworkRequest MakeOAuthStashRequest(const std::string& league, const std::string& stash_id, const std::string& substash_id = "");
-    QNetworkRequest MakeOAuthCharacterListRequest();
-    QNetworkRequest MakeOAuthCharacterRequest(const std::string& name);
+    QNetworkRequest MakeOAuthStashListRequest(const std::string& realm, const std::string& league);
+    QNetworkRequest MakeOAuthStashRequest(const std::string& realm, const std::string& league, const std::string& stash_id, const std::string& substash_id = "");
+    QNetworkRequest MakeOAuthCharacterListRequest(const std::string& realm);
+    QNetworkRequest MakeOAuthCharacterRequest(const std::string& realm, const std::string& name);
 
     typedef std::pair<std::string, std::string> TabSignature;
     typedef std::vector<TabSignature> TabsSignatureVector;
@@ -125,6 +125,7 @@ private:
     RateLimiter& rate_limiter_;
 
     POE_API mode_;
+    std::string realm_;
     std::string league_;
     std::string account_;
 

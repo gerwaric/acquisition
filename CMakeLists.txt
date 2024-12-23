@@ -1,5 +1,5 @@
 #[[
-	Copyright 2014 Ilya Zhuravlev and 2024 Gerwaric
+	Copyright (C) 2014-2024 Acquisition Contributors
 
 	This file is part of Acquisition.
 
@@ -17,16 +17,7 @@
 	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 #]]
 
-cmake_minimum_required(VERSION 3.21.1)
-
-if(APPLE)
-    # This is needed because for v0.11.6 because I accidentally upgraded Xcode without
-    # checking to see if Qt was compatible.
-    #
-    # The symptoms of this is either a cmake erro about ignoring CMAKE_OSX_SYSROOT,
-    # or build errors about missing type_traits.h
-    set(CMAKE_OSX_SYSROOT /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.1.sdk)
-endif()
+cmake_minimum_required(VERSION 3.29)
 
 # NOTE: For automatic update detection to work, the 'app_version' variable
 # defined below should match a tag in github. Historically, the github tags
@@ -38,8 +29,8 @@ endif()
 # version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
-    VERSION 0.11.8
-    DESCRIPTION "Stash and forum shop management for Path of Exile \\256"
+    VERSION 0.12.0
+    DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
 )
@@ -55,7 +46,7 @@ set(app_version_string  "${CMAKE_PROJECT_VERSION}${version_postfix}")
 set(app_url             "${CMAKE_PROJECT_HOMEPAGE_URL}")
 set(app_publisher       "GERWARIC")
 set(app_publisher_email "gerwaric@gmail.com")
-set(app_copyright       "© 2014 Ilya Zhuravlev and 2023 Gerwaric")
+set(app_copyright       "Copyright (C) 2014-2024 Ilya Zhuravlev and other Acquisition Contributors")
 set(app_trademark       "Path of Exile is a trademark of Grinding Gear Games, Ltd.")
 
 set(CMAKE_AUTOUIC ON)
@@ -75,6 +66,7 @@ if(WIN32)
 
     # Enable more warnings by default
     add_compile_options(/W4)
+    add_compile_options(/EHsc)
 
     # Create .pdb files for debugging
     add_compile_options("$<$<NOT:$<CONFIG:Debug>>:/Zi>")
@@ -86,7 +78,7 @@ endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui HttpServer Network Sql Test WebSockets Widgets)
 
-qt_standard_project_setup(REQUIRES 6.5.3)
+qt_standard_project_setup(REQUIRES 6.8.0)
 
 qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     # Source
@@ -99,7 +91,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/currencymanager.cpp
     src/datastore.cpp
     src/fatalerror.cpp
-    src/filesystem.cpp
     src/filters.cpp
     src/flowlayout.cpp
     src/imagecache.cpp
@@ -119,6 +110,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/memorydatastore.cpp
     src/modlist.cpp
     src/modsfilter.cpp
+    src/networkmanager.cpp
     src/oauthmanager.cpp
     src/oauthtoken.cpp
     src/ratelimit.cpp
@@ -137,7 +129,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     test/testitem.cpp
     test/testitemsmanager.cpp
     test/testmain.cpp
-    test/testsettings.cpp
     test/testshop.cpp
     test/testutil.cpp
     # Headers
@@ -150,7 +141,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/currencymanager.h
     src/datastore.h
     src/fatalerror.h
-    src/filesystem.h
     src/filters.h
     src/flowlayout.h
     src/imagecache.h
@@ -170,6 +160,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/modlist.h
     src/modsfilter.h
     src/network_info.h
+    src/networkmanager.h
     src/oauthmanager.h
     src/oauthtoken.h
     src/rapidjson_util.h
@@ -190,7 +181,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     test/testitem.h
     test/testitemsmanager.h
     test/testmain.h
-    test/testsettings.h
     test/testshop.h
     test/testutil.h
     # Forms
@@ -202,13 +192,59 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     "${CMAKE_BINARY_DIR}/version_defines.h"
 )
 
+# On Windows, we want to know which version of MSVC was used.
+if(WIN32)
+
+    if(NOT MSVC)
+        message(FATAL_ERROR "Only the MSVC compiler is supported on Windows")
+    endif()
+
+    # On Windows there we do extra checks to catch incompatible older versions
+    # of the Microsoft Visual Studio C++ Runtime, because these can cause
+    # otherwise unexpected crashes (usually in mutex-related code).
+    #
+    # For this to work, we need to know the MSCV runtime version that acquisition
+    # was built with, which is what the cmake code below this include does.
+    target_sources(acquisition PRIVATE
+        src/checkmsvc.cpp
+        src/checkmsvc.h
+    )
+
+    # The Microsoft Visual C++ Compiler version 19 corresponds to runtime version 14.
+    set(msvc_compiler_ver "19")
+    set(msvc_runtime_ver "14")
+
+    # Run the compiler executable to grab the version printed on the first line.
+    execute_process(
+        COMMAND cl
+        OUTPUT_VARIABLE cl_output
+        ERROR_VARIABLE cl_error
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    # Extract the compiler version.
+    string(REGEX MATCH "Version ([0-9]+\\.[0-9]+\\.[0-9]+)" msvc_version ${cl_error})
+    string(REGEX REPLACE "^Version " "" msvc_version ${msvc_version})
+    if (NOT msvc_version)
+        message(FATAL_ERROR "Could not determine MSVC version from cl.exe output")
+    endif()
+    message(STATUS "MSVC Compiler: ${msvc_version}")
+
+    # Derive the runtime version.
+    string(REGEX REPLACE "^${msvc_compiler_ver}" "${msvc_runtime_ver}" msvc_runtime_version ${msvc_version})
+    if (NOT msvc_runtime_version)
+        message(FATAL_ERROR "Could not determine MSVC runtime version from cl.exe output")
+    endif()
+    message(STATUS "MSVC Runtime: ${msvc_runtime_version}")
+
+endif()
+
 # Automatically populate and include the versions header file.
 configure_file("src/version_defines.h.in" "version_defines.h" @ONLY)
 
 # Setup include directories.
 target_include_directories(acquisition PRIVATE
     deps/
-    deps/QsLog/
     deps/boost-headers-only/
     src/
     test/
@@ -228,6 +264,11 @@ target_link_libraries(acquisition PRIVATE
     QsLog
     qdarkstyle
     Crashpad
+    semver
+)
+
+add_library(semver STATIC
+    deps/cpp-semver/semver.hpp
 )
 
 # Create the Crashpad library target.
@@ -246,7 +287,6 @@ target_link_libraries(Crashpad PRIVATE
 )
 
 target_include_directories(Crashpad PRIVATE
-    deps/QsLog/
     deps/Crashpad/Include/
     deps/Crashpad/Include/crashpad/
     deps/Crashpad/Include/crashpad/out/Default/gen/
@@ -287,6 +327,10 @@ qt_add_library(QsLog STATIC
     deps/QsLog/QsLogLevel.h
 )
 
+target_include_directories(QsLog PUBLIC
+    deps/
+)
+
 target_link_libraries(QsLog PRIVATE
     Qt::Core
 )
@@ -303,6 +347,16 @@ add_library(qdarkstyle STATIC
 
 if(WIN32)
     
+    # As of v0.11.8 I'm still seeing crashes in the MSVC mutex code. It looks like there
+    # was a change in Visual Studio that causes this. The follwing define is an attempt
+    # to fix it.
+    #
+    # See https://stackoverflow.com/questions/78598141/first-stdmutexlock-crashes-in-application-built-with-latest-visual-studio
+    target_compile_definitions(acquisition PRIVATE _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
+
+    # Needed to check the MSVC runtime version
+    target_link_libraries(acquisition PRIVATE Version)
+
     # Add the application icon.
     target_sources(acquisition PRIVATE "${PROJECT_SOURCE_DIR}/assets/icon.ico")
 

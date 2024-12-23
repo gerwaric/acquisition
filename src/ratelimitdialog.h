@@ -1,5 +1,5 @@
 /*
-    Copyright 2024 Gerwaric
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -16,6 +16,7 @@
     You should have received a copy of the GNU General Public License
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
+
 #pragma once
 
 #include <QDialog>

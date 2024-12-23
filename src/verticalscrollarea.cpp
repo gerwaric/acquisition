@@ -1,4 +1,4 @@
-// http://qt-project.org/forums/viewthread/13728
+// Ref: http://qt-project.org/forums/viewthread/13728
 
 #include "verticalscrollarea.h"
 

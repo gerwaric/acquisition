@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -15,7 +15,7 @@
 
     You should have received a copy of the GNU General Public License
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-    */
+*/
 
 #include "shop.h"
 
@@ -29,7 +29,7 @@
 #include <QTimer>
 #include <QUrl>
 #include <QUrlQuery>
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include "application.h"
 #include "buyoutmanager.h"
@@ -68,22 +68,20 @@ const QRegularExpression Shop::ratelimit_regex(
     R"regex(You must wait (\d+) seconds.)regex",
     QRegularExpression::CaseInsensitiveOption);
 
-Shop::Shop(QObject* parent,
+Shop::Shop(
     QSettings& settings,
     QNetworkAccessManager& network_manager,
     DataStore& datastore,
     ItemsManager& items_manager,
     BuyoutManager& buyout_manager)
-    :
-    QObject(parent),
-    settings_(settings),
-    network_manager_(network_manager),
-    datastore_(datastore),
-    items_manager_(items_manager),
-    buyout_manager_(buyout_manager),
-    shop_data_outdated_(true),
-    submitting_(false),
-    requests_completed_(0)
+    : settings_(settings)
+    , network_manager_(network_manager)
+    , datastore_(datastore)
+    , items_manager_(items_manager)
+    , buyout_manager_(buyout_manager)
+    , shop_data_outdated_(true)
+    , submitting_(false)
+    , requests_completed_(0)
 {
     QLOG_TRACE() << "Shop::Shop() entered";
     threads_ = Util::StringSplit(datastore_.Get("shop"), ';');

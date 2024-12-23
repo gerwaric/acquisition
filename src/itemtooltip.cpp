@@ -24,7 +24,7 @@
 #include <QString>
 #include <string>
 #include <vector>
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
 #include <array>
 

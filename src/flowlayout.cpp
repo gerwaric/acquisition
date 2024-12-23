@@ -6,13 +6,16 @@
 #include "flowlayout.h"
 
 FlowLayout::FlowLayout(QWidget* parent, int margin, int hSpacing, int vSpacing)
-    : QLayout(parent), m_hSpace(hSpacing), m_vSpace(vSpacing)
+    : QLayout(parent)
+    , m_hSpace(hSpacing)
+    , m_vSpace(vSpacing)
 {
     setContentsMargins(margin, margin, margin, margin);
 }
 
 FlowLayout::FlowLayout(int margin, int hSpacing, int vSpacing)
-    : m_hSpace(hSpacing), m_vSpace(vSpacing)
+    : m_hSpace(hSpacing)
+    , m_vSpace(vSpacing)
 {
     setContentsMargins(margin, margin, margin, margin);
 }

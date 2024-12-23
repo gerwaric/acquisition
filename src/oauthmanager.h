@@ -1,5 +1,5 @@
 /*
-    Copyright 2023 Gerwaric
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -20,26 +20,28 @@
 #pragma once
 
 #include <QObject>
-#include <QtHttpServer/QHttpServer>
 #include <QTimer>
 
 #include <string>
 
 #include "oauthtoken.h"
 
+class QHttpServer;
 class QHttpServerRequest;
 class QNetworkAccessManager;
 class QNetworkReply;
 class QNetworkRequest;
+class QTcpServer;
 
 class DataStore;
 
 class OAuthManager : public QObject {
     Q_OBJECT
 public:
-    explicit OAuthManager(QObject* parent,
+    explicit OAuthManager(
         QNetworkAccessManager& network_manager,
         DataStore& datastore);
+    ~OAuthManager();
     void setAuthorization(QNetworkRequest& request);
     void RememberToken(bool remember);
     const OAuthToken& token() const { return token_; };
@@ -66,7 +68,8 @@ private:
     // listening, so use a unique pointer so that we can destory the
     // server once authentication is complete, so it won't stay
     // running in the background.
-    std::unique_ptr<QHttpServer> http_server_;
+    QHttpServer* http_server_;
+    QTcpServer* tcp_server_;
 
     bool remember_token_;
     OAuthToken token_;

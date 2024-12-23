@@ -1,5 +1,5 @@
 /*
-    Copyright 2023 Gerwaric
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -42,10 +42,12 @@ class RateLimiter : public QObject {
 
 public:
     // Create a rate limiter.
-    RateLimiter(QObject* parent,
+    RateLimiter(
         QNetworkAccessManager& network_manager,
         OAuthManager& oauth_manager,
         POE_API mode);
+
+    ~RateLimiter();
 
     // Submit a request-callback pair to the rate limiter. The caller is responsible
     // for freeing the RateLimitedReply object with deleteLater() when the completed()

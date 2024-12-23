@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -21,13 +21,13 @@
 
 #include <string>
 #include <QDateTime>
-#include "rapidjson/document.h"
 #include <QDebug>
 #include <QMetaEnum>
 #include <QObject>
 #include <QUrlQuery>
 
-#include "QsLogLevel.h"
+#include <QsLog/QsLogLevel.h>
+#include <rapidjson/document.h>
 
 class QComboBox;
 class QNetworkReply;

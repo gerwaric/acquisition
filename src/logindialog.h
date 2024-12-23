@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -20,6 +20,7 @@
 #pragma once
 
 #include <QDialog>
+#include <QDir>
 
 #include "network_info.h"
 
@@ -39,36 +40,44 @@ class LoginDialog : public QDialog {
     Q_OBJECT
 public:
     explicit LoginDialog(
+        const QDir& app_data_dir,
         QSettings& settings,
         QNetworkAccessManager& network_manager,
         OAuthManager& oauth_manager);
     ~LoginDialog();
 signals:
+    void ChangeTheme(const QString& theme);
+    void ChangeUserDir(const QString& user_dir);
     void LoginComplete(POE_API mode);
 private slots:
     void OnLeaguesReceived();
     void OnAuthenticateButtonClicked();
     void OnLoginTabChanged(int index);
     void OnLoginButtonClicked();
+    void OnOfflineButtonClicked();
     void OnStartLegacyLogin();
     void OnFinishLegacyLogin();
     void OnSessionIDChanged(const QString& session_id);
     void OnLeagueChanged(const QString& league);
-    void OnProxyCheckBoxClicked(bool checked);
-    void OnRememberMeCheckBoxClicked(bool checked);
-    void OnReportCrashesCheckBoxClicked(bool checked);
+    void OnAdvancedCheckBoxChanged(Qt::CheckState state);
+    void OnProxyCheckBoxChanged(Qt::CheckState state);
+    void OnRememberMeCheckBoxChanged(Qt::CheckState state);
+    void OnReportCrashesCheckBoxChanged(Qt::CheckState state);
+    void OnLoggingLevelChanged(const QString& level);
+    void OnThemeChanged(const QString& theme);
+    void OnUserDirButtonPushed();
     void OnOAuthAccessGranted(const OAuthToken& token);
 protected:
     bool event(QEvent* e);
 private:
     void LoadSettings();
-    void SaveSettings();
     void RequestLeagues();
     void LoginWithOAuth();
     void LoginWithSessionID();
     void LeaguesRequestError(const QString& error, const QByteArray& reply);
-    void DisplayError(const QString& error, bool disable_login = false);
+    void DisplayError(const QString& error);
 
+    const QDir app_data_dir_;
     QSettings& settings_;
     QNetworkAccessManager& network_manager_;
     OAuthManager& oauth_manager_;

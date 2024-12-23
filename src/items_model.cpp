@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -25,14 +25,14 @@
 #include "itemlocation.h"
 #include "search.h"
 #include "util.h"
-#include "QsLog.h"
+#include <QsLog/QsLog.h>
 
-ItemsModel::ItemsModel(BuyoutManager& bo_manager, Search& search) :
-    bo_manager_(bo_manager),
-    search_(search),
-    sort_order_(Qt::DescendingOrder),
-    sort_column_(0),
-    sorted_(false)
+ItemsModel::ItemsModel(BuyoutManager& bo_manager, Search& search)
+    : bo_manager_(bo_manager)
+    , search_(search)
+    , sort_order_(Qt::DescendingOrder)
+    , sort_column_(0)
+    , sorted_(false)
 {
 }
 

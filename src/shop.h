@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -57,7 +57,7 @@ struct AugmentedItem {
 class Shop : public QObject {
     Q_OBJECT
 public:
-    explicit Shop(QObject* parent,
+    explicit Shop(
         QSettings& settings,
         QNetworkAccessManager& network_manager,
         DataStore& datastore,

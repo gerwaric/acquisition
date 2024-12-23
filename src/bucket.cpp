@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -21,8 +21,8 @@
 
 #include "fatalerror.h"
 
-Bucket::Bucket(const ItemLocation& location) :
-    location_(location)
+Bucket::Bucket(const ItemLocation& location)
+    : location_(location)
 {}
 
 void Bucket::AddItem(const std::shared_ptr<Item>& item) {

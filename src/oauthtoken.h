@@ -1,5 +1,5 @@
 /*
-    Copyright 2023 Gerwaric
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -23,7 +23,7 @@
 
 #include <string>
 
-#include "rapidjson/document.h"
+#include <rapidjson/document.h>
 
 class QNetworkReply;
 
@@ -38,9 +38,9 @@ public:
     std::string username() const { return username_; };
     std::string sub() const { return sub_; };
     std::string refresh_token() const { return refresh_token_; };
-    bool isValid() const;
     QDateTime birthday() const { return birthday_; };
-    QDateTime expiration() const { return expiration_; };
+    QDateTime access_expiration() const { return access_expiration_; };
+    QDateTime refresh_expiration() const { return refresh_expiration_; };
     std::string toJson() const;
     std::string toJsonPretty() const;
 private:
@@ -56,5 +56,6 @@ private:
     std::string refresh_token_;
 
     QDateTime birthday_;
-    QDateTime expiration_;
+    QDateTime access_expiration_;
+    QDateTime refresh_expiration_;
 };

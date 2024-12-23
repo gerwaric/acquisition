@@ -1,5 +1,5 @@
 /*
-    Copyright 2014 Ilya Zhuravlev
+    Copyright (C) 2014-2024 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -27,9 +27,7 @@
 #include <QCloseEvent>
 #include <QTimer>
 
-#include "QsLogLevel.h"
-
-#include "bucket.h"
+#include <QsLog/QsLogLevel.h>
 
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -44,6 +42,7 @@ class DataStore;
 class Filter;
 class FlowLayout;
 class ImageCache;
+class Item;
 class ItemLocation;
 class ItemsManager;
 class OAuthManager;
@@ -75,24 +74,31 @@ public:
         QNetworkAccessManager& network_manager,
         RateLimiter& rate_limiter,
         DataStore& datastore,
-        OAuthManager& oauth_manager,
         ItemsManager& items_mangaer,
         BuyoutManager& buyout_manager,
-        CurrencyManager& currency_manager,
-        UpdateChecker& update_checker,
-        Shop& shop);
+        Shop& shop,
+        ImageCache& image_cache);
     ~MainWindow();
     std::vector<Column*> columns;
     void LoadSettings();
+
+    void prepare(
+        OAuthManager& oauth_manager,
+        CurrencyManager& currency_manager,
+        Shop& shop);
+
 signals:
+    void UpdateCheckRequested();
+    void SetSessionId(const QString& poesessid);
     void SetTheme(const QString& theme);
+    void GetImage(const std::string& url);
 public slots:
     void OnCurrentItemChanged(const QModelIndex& current, const QModelIndex& previous);
     void OnLayoutChanged();
     void OnSearchFormChange();
     void OnDelayedSearchFormChange();
     void OnTabChange(int index);
-    void OnImageFetched(QNetworkReply* reply);
+    void OnImageFetched(const std::string& url);
     void OnItemsRefreshed();
     void OnStatusUpdate(ProgramState state, const QString& status);
     void OnBuyoutChange();
@@ -132,10 +138,6 @@ private slots:
     // Logging submenu actions
     void OnSetLogging(QsLogging::Level level);
 
-    // Currency menu actions
-    void OnListCurrency();
-    void OnExportCurrency();
-
     // Tooltip buttons
     void OnCopyForPOB();
     void OnUploadToImgur();
@@ -162,12 +164,10 @@ private:
     QNetworkAccessManager& network_manager_;
     RateLimiter& rate_limiter_;
     DataStore& datastore_;
-    OAuthManager& oauth_manager_;
     ItemsManager& items_manager_;
     BuyoutManager& buyout_manager_;
-    CurrencyManager& currency_manager_;
-    UpdateChecker& update_checker_;
     Shop& shop_;
+    ImageCache& image_cache_;
 
     Ui::MainWindow* ui;
 
@@ -178,7 +178,7 @@ private:
     QTabBar* tab_bar_;
     std::vector<std::unique_ptr<Filter>> filters_;
     int search_count_;
-    ImageCache* image_cache_;
+
     QLabel* status_bar_label_;
     QVBoxLayout* search_form_layout_;
     QMenu context_menu_;
