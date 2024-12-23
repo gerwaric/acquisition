@@ -17,9 +17,9 @@
 # You should have received a copy of the GNU General Public License
 # along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 
-MACDEPLOYQT=~/Qt/6.8.0/macos/bin/macdeployqt
+MACDEPLOYQT=~/Qt/6.8.1/macos/bin/macdeployqt
 
-TARGET=./build/Qt_6_8_0_for_macOS-Release
+TARGET=./build/Qt_6_8_1_for_macOS-Release
 
 pushd $TARGET
 
