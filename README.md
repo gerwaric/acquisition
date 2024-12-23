@@ -13,40 +13,7 @@ You can download setup packages from [the releases page](https://github.com/gerw
 
 Acquisition is written in C++ and uses the Qt widget toolkit. It was originally a qmake project, but has been migrated to cmake.
 
-### Qt
-
-Acquisition should be buildable with Qt Creator (Community) on any platform that supports Qt 6.8.0.
-
-Acquisition depends on the following Qt modules, which should be installed from the Qt Maintenance Tool:
-- Qt HTTP Server
-- Qt WebSockets
-
-### Microsoft Windows
-
-On Windows you can also build Acquisition with Visual Studio 2022 and the Qt Visual Studio Tools extension.
-
-Windows releases are currently built with:
-- Windows 11
-- Qt Creator 14.0.2 (Community) with Qt 6.8.0 using MSVC 2022 64-bit
-- Visual Studio 2022 with Qt Visual Studio Tools 3.3.0 (for editing, debugging, and testing) and Qt Vs CMake Tools 1.1
-- Inno Setup 6.3.3 for installer creation
-
-### Apple macOS
-
-macOS releases are currently built with:
-- macOS Sonoma 14.7.1 on Intel silicon
-- Qt Creator 14.0.2 with Qt 6.8.0 for macOS
-- XCode 15
-
-### Linux
-
-Linux releases are distributed as an AppImage and built with:
-- Linut Mint 20 Cinnamon
-- Qt Creator 14.0.2 with Qt 6.8.0
-- OpenSSL 3.0.15 as provided by the Qt Maintenance Tool
-- linuxdeploy
-
-In order run acquisition, your LD_LIBRARY_PATH must include a directory that has OpenSSL 3.x libraries. If you are building acquisition, you can use the shared libraries provided by Qt, which are refernces in CMakeLists.txt. Otherwise you may have to download and install a compatible version of OpenSSL yourself unless your distribution provides one. This is because linuxdeploy blacklists the OpenSSL libraries for sercurity reasons.
+See [BUILD.md](https://github.com/gerwaric/acquisition/BUILD.md) for more detailed build guidance.
 
 ### SAST Tools
 
