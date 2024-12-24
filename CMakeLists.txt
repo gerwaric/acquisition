@@ -251,13 +251,12 @@ configure_file("src/version_defines.h.in" "version_defines.h" @ONLY)
 
 # Setup include directories.
 target_include_directories(acquisition PRIVATE
-    deps/
-    deps/boost-headers-only/
     src/
     test/
     "${CMAKE_BINARY_DIR}"
 )
 
+add_subdirectory(deps/boost-headers-only)
 add_subdirectory(deps/Crashpad)
 add_subdirectory(deps/qdarkstyle)
 add_subdirectory(deps/QsLog)
@@ -266,6 +265,7 @@ add_subdirectory(deps/semver)
 
 # Link required libraries.
 target_link_libraries(acquisition PRIVATE
+    # Qt libraries
     Qt::Core
     Qt::Gui
     Qt::HttpServer
@@ -274,9 +274,11 @@ target_link_libraries(acquisition PRIVATE
     Qt::Sql
     Qt::Test
     Qt::WebSockets
-    QsLog
-    qdarkstyle
+    # Extenal libraries
+    boost-headers-only
     Crashpad
+    qdarkstyle
+    QsLog
     rapidjson
     semver
 )
