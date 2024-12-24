@@ -256,6 +256,8 @@ target_include_directories(acquisition PRIVATE
     "${CMAKE_BINARY_DIR}"
 )
 
+add_subdirectory(deps/rapidjson)
+
 # Link required libraries.
 target_link_libraries(acquisition PRIVATE
     Qt::Core
@@ -269,6 +271,7 @@ target_link_libraries(acquisition PRIVATE
     QsLog
     qdarkstyle
     Crashpad
+    rapidjson
     semver
 )
 
