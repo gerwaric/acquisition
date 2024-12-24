@@ -42,10 +42,10 @@
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 #endif
 
-#include "crashpad/client/crash_report_database.h"
-#include "crashpad/client/crashpad_client.h"
-#include "crashpad/client/settings.h"
-#include "mini_chromium/base/files/file_path.h"
+#include <crashpad/client/crash_report_database.h>
+#include <crashpad/client/crashpad_client.h>
+#include <crashpad/client/settings.h>
+#include <mini_chromium/base/files/file_path.h>
 
 #include <QsLog/QsLog.h>
 

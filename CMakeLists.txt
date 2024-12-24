@@ -92,6 +92,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/buyout.cpp
     src/buyoutmanager.cpp
     src/column.cpp
+    src/crashpad.cpp
     src/currency.cpp
     src/currencymanager.cpp
     src/datastore.cpp
@@ -142,6 +143,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/buyout.h
     src/buyoutmanager.h
     src/column.h
+    src/crashpad.h
     src/currency.h
     src/currencymanager.h
     src/datastore.h
@@ -256,6 +258,7 @@ target_include_directories(acquisition PRIVATE
     "${CMAKE_BINARY_DIR}"
 )
 
+add_subdirectory(deps/Crashpad)
 add_subdirectory(deps/qdarkstyle)
 add_subdirectory(deps/rapidjson)
 add_subdirectory(deps/semver)
@@ -275,44 +278,6 @@ target_link_libraries(acquisition PRIVATE
     Crashpad
     rapidjson
     semver
-)
-
-# Create the Crashpad library target.
-add_library(Crashpad STATIC
-    src/crashpad.cpp
-    src/crashpad.h
-)
-
-target_link_libraries(Crashpad PRIVATE
-    Qt::Core
-    QsLog
-    CrashpadCommon
-    CrashpadClient
-    CrashpadUtil
-    CrashpadBase
-)
-
-target_include_directories(Crashpad PRIVATE
-    deps/Crashpad/Include/
-    deps/Crashpad/Include/crashpad/
-    deps/Crashpad/Include/crashpad/out/Default/gen/
-    deps/Crashpad/Include/crashpad/third_party/mini_chromium/
-    deps/Crashpad/Include/crashpad/third_party/mini_chromium/mini_chromium/
-)
-
-if(WIN32)
-    include(deps/Crashpad/Crashpad-Windows.cmake)
-elseif(APPLE)
-    include(deps/Crashpad/Crashpad-MacOS.cmake)
-elseif(UNIX)
-    include(deps/Crashpad/Crashpad-Linux.cmake)
-endif()
-
-# Make sure the crash_handler executable is copied to the build directory.
-get_target_property(CrashpadHandlerPath CrashpadHandler IMPORTED_LOCATION)
-add_custom_command(TARGET acquisition
-    POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E copy "${CrashpadHandlerPath}" "${CMAKE_BINARY_DIR}"
 )
 
 # Add dependency: QsLog

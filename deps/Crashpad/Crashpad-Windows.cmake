@@ -1,19 +1,19 @@
 add_executable(CrashpadHandler IMPORTED)
 set_target_properties(CrashpadHandler PROPERTIES
-    IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/deps/Crashpad/Bin/Windows/crashpad_handler.exe"
+    IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/Crashpad/Bin/Windows/crashpad_handler.exe"
 )
 
 function(setup_windows_target target libname)
     
     # Create the target
-    add_library(${target} SHARED IMPORTED)
+    add_library(${target} STATIC IMPORTED)
     
     # Set the correct library locations depending upon the release.
     set_target_properties(${target} PROPERTIES
-        IMPORTED_IMPLIB_DEBUG  "${PROJECT_SOURCE_DIR}/deps/Crashpad/Libraries/Windows/MDd/${libname}.lib"
-        IMPORTED_IMPLIB_RELEASE "${PROJECT_SOURCE_DIR}/deps/Crashpad/Libraries/Windows/MD/${libname}.lib"
-        IMPORTED_IMPLIB_RELWITHDEBINFO "${PROJECT_SOURCE_DIR}/deps/Crashpad/Libraries/Windows/MDd/${libname}.lib"
-        IMPORTED_IMPLIB_MINSIZEREL "${PROJECT_SOURCE_DIR}/deps/Crashpad/Libraries/Windows/MD/${libname}.lib"
+        IMPORTED_LOCATION_DEBUG  "${CMAKE_CURRENT_SOURCE_DIR}/Crashpad/Libraries/Windows/MDd/${libname}.lib"
+        IMPORTED_LOCATION_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/Crashpad/Libraries/Windows/MD/${libname}.lib"
+        IMPORTED_LOCATION_RELWITHDEBINFO "${CMAKE_CURRENT_SOURCE_DIR}/Crashpad/Libraries/Windows/MDd/${libname}.lib"
+        IMPORTED_LOCATION_MINSIZEREL "${CMAKE_CURRENT_SOURCE_DIR}/Crashpad/Libraries/Windows/MD/${libname}.lib"
     )
     
 endfunction()
