@@ -1,3 +1,5 @@
+echo off
+
 rem Copyright (C) 2014-2024 Acquisition Contributors
 rem
 rem This file is part of Acquisition.
@@ -19,28 +21,89 @@ echo -------------------------------------------------------------
 
 setlocal
 
-rem Setup the Qt environment
+set "QTBIN=C:\Qt\6.8.1\msvc2022_64\bin"
+if not exist "%QTBIN%\." (
+    echo ERROR: QTBIN directory not found: "%QTBIN%"
+    exit /B
+)
+
+set "QTENV2=%QTBIN%\qtenv2.bat"
+if not exist "%QTENV2%" (
+    echo ERROR: qtenv2.bat not found: "%QTENV2%"
+    exit /B
+)
+
+set "VCVARSALL=C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvarsall.bat"
+if not exist "%VCVARSALL%" (
+    echo ERROR: vcvarsall.bat not found: "%VCVARSALL%"
+    exit /B
+)
+
+set "WINDEPLOYQT=%QTBIN%\windeployqt.exe"
+if not exist "%WINDEPLOYQT%" (
+    echo ERROR: windeployqt.exe not found: "%WINDEPLOYQT%"
+    exit /B
+)
+
+set "ISCC=c:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+if not exist "%ISCC%" (
+    echo Error: iscc.exe not found: "%ISCC%"
+    exit /B
+)
+
+set "BUILD_DIR=.\build\Desktop_Qt_6_8_1_MSVC2022_64bit-Release"
+if not exist "%BUILD_DIR%\." (
+    echo ERROR: build directory not found: "%BUILD_DIR%"
+    exit /B
+)
+if not exist "%BUILD_DIR%\acquisition.exe" (
+    echo ERROR: acquisition.exe not found in "%BUILD_DIR%".
+    exit /B
+)
+if not exist "%BUILD_DIR%\acquisition.pdb" (
+    echo ERROR: acquisition.pdb not found in "%BUILD_DIR%".
+    exit /B
+)
+if not exist "%BUILD_DIR%\crashpad_handler.exe" (
+    echo ERROR: crashpad_handler.exe not found in "%BUILD_DIR%".
+    exit /B
+)
+
+rem Need to use pushd before calling these scripts
 pushd .
-set "PATH=C:\Qt\6.8.1\msvc2019_64\bin;%PATH%"
+call "%QTENV2%"
+call "%VCVARSALL%" x64
 popd
 
-rem Define the locations of windeployqt and inno setup
-set "WINDEPLOYQT=C:\Qt\6.8.1\msvc2022_64\bin\windeployqt.exe"
-set "ISCC=c:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-
-rem Define the build and deployment directories
-set "BUILD_DIR=.\build\Desktop_Qt_6_8_1_MSVC2022_64bit-Release"
 set "DEPLOY_DIR=%BUILD_DIR%\deploy";
-
-rmdir /S /Q "%DEPLOY_DIR%"
+if exist "%DEPOY_DIR%\NUL" (
+    echo Deleting the existing deploy directory.
+    rmdir /S /Q "%DEPLOY_DIR%"
+)
+echo Creating the deploy directory.
 mkdir "%DEPLOY_DIR%"
 
-rem Build the deployment directory after copying the necessary executables
+echo Copying acquisition to deploy directory.
 copy "%BUILD_DIR%\acquisition.exe" "%DEPLOY_DIR%"
+
+echo Copying crashpad handler to deploy directory.
 copy "%BUILD_DIR%\crashpad_handler.exe" "%DEPLOY_DIR%"
+
+echo Running windeployqt.
 "%WINDEPLOYQT%" "%DEPLOY_DIR%\acquisition.exe" --release --compiler-runtime --dir "%DEPLOY_DIR%"
 
-rem Create the installer and copy the exe and pdb for uploading to BugSplat
+if not exist "%DEPLOY_DIR%\vc_redist.x64.exe" (
+    echo ERROR: vc_redist.x64.exe not found in "%DEPLOY_DIR%".
+    exit /B
+)
+vc_redist.x64.exe
+
+
+echo Calling Inno Setup to create the installer.
 "%ISCC%" /DBUILD_DIR="%BUILD_DIR%" /DDEPLOY_DIR="%DEPLOY_DIR%" installer.iss
+
+echo Copying the aquisition executable to the output directory.
 copy "%BUILD_DIR%\acquisition.exe" .\Output
+
+echo Copying the acquisition debug symbols to the output directory.
 copy "%BUILD_DIR%\acquisition.pdb" .\Output
