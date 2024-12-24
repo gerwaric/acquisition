@@ -256,6 +256,7 @@ target_include_directories(acquisition PRIVATE
     "${CMAKE_BINARY_DIR}"
 )
 
+add_subdirectory(deps/qdarkstyle)
 add_subdirectory(deps/rapidjson)
 
 # Link required libraries.
@@ -341,12 +342,6 @@ target_include_directories(QsLog PUBLIC
 
 target_link_libraries(QsLog PRIVATE
     Qt::Core
-)
-
-# Add dependency: darkstyle
-add_library(qdarkstyle STATIC
-    deps/qdarkstyle/dark/darkstyle.qrc
-    deps/qdarkstyle/light/lightstyle.qrc
 )
 
 #----------------------------------
