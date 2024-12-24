@@ -26,7 +26,7 @@
 #include <QTimer>
 #include <QVersionNumber>
 
-#include "cpp-semver/semver.hpp"
+#include <semver/semver.hpp>
 
 class QNetworkAccessManager;
 class QSettings;

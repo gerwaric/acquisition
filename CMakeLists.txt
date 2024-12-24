@@ -258,6 +258,7 @@ target_include_directories(acquisition PRIVATE
 
 add_subdirectory(deps/qdarkstyle)
 add_subdirectory(deps/rapidjson)
+add_subdirectory(deps/semver)
 
 # Link required libraries.
 target_link_libraries(acquisition PRIVATE
@@ -274,10 +275,6 @@ target_link_libraries(acquisition PRIVATE
     Crashpad
     rapidjson
     semver
-)
-
-add_library(semver STATIC
-    deps/cpp-semver/semver.hpp
 )
 
 # Create the Crashpad library target.
