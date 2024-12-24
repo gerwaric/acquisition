@@ -144,11 +144,16 @@ void RateLimiter::SetupEndpoint(
     // Cause a fatal error if there was a network error.
     connect(network_reply, &QNetworkReply::errorOccurred, this,
         [=]() {
+            const auto error_code = network_reply->error();
+            if ((error_code >= 200) && (error_code <= 299)) {
+                QLOG_DEBUG() << "RateLimit::SetupEndpoint() HEAD reply status is" << error_code;
+                return;
+            };
+            const QString error_value = QString::number(error_code);
+            const QString error_string = network_reply->errorString();
             QLOG_ERROR() << "RateLimiter::SetupEndpoint() network error in HEAD reply for" << endpoint;
             FatalError(QString("Network error %1 in HEAD reply for '%2': %3").arg(
-                QString::number(network_reply->error()),
-                endpoint,
-                network_reply->errorString()));
+                error_value, endpoint, error_string));
         });
 
     // Cause a fatal error if there were any SSL errors.
@@ -165,7 +170,7 @@ void RateLimiter::SetupEndpoint(
         });
 
     // WARNING: it is important to wait for this head request to finish before proceeding,
-    // because otherwise acquisiton may end up flooding the network with a series of HEAD
+    // because otherwise acquisition may end up flooding the network with a series of HEAD
     // requests, which has gotten users blocked before by Cloudflare, which is a problem
     // GGG may not have control over.
     //
@@ -191,18 +196,23 @@ void RateLimiter::ProcessHeadResponse(
 
     // Make sure the network reply is a valid pointer before using it.
     if (network_reply == nullptr) {
-        QLOG_ERROR() << "The HEAD reply was null";
+        QLOG_ERROR() << "The HEAD reply was null.";
         FatalError(QString("The HEAD reply was null"));
     };
 
     // Check for network errors.
-    if (network_reply->error() != QNetworkReply::NoError) {
-        QLOG_ERROR() << "The HEAD reply had a network error";
-        LogSetupReply(network_request, network_reply);
-        FatalError(QString("Network error %1 in HEAD reply for '%2': %3").arg(
-            QString::number(network_reply->error()),
-            endpoint,
-            network_reply->errorString()));
+    const auto error_code = network_reply->error();
+    if (error_code != QNetworkReply::NoError) {
+        if ((error_code >= 200) && (error_code <= 299)) {
+            QLOG_DEBUG() << "The HEAD reply has status" << error_code;
+        } else {
+            QLOG_ERROR() << "The HEAD reply had a network error.";
+            LogSetupReply(network_request, network_reply);
+            FatalError(QString("Network error %1 in HEAD reply for '%2': %3").arg(
+                QString::number(network_reply->error()),
+                endpoint,
+                network_reply->errorString()));
+        };
     };
 
     // Check for other HTTP errors.
@@ -238,6 +248,7 @@ void RateLimiter::ProcessHeadResponse(
 void RateLimiter::LogSetupReply(const QNetworkRequest& request, const QNetworkReply* reply) {
 
     // Log the request headers.
+    QLOG_INFO() << "RateLimiter: request url is" << request.url().toString();
     for (const auto& name : request.rawHeaderList()) {
         const bool is_authorization = (0 == name.compare("Authorization", Qt::CaseInsensitive));
         QByteArray value = request.rawHeader(name);
@@ -246,7 +257,7 @@ void RateLimiter::LogSetupReply(const QNetworkRequest& request, const QNetworkRe
             value.fill('*');
             value += " (The OAuth token has been masked for security)";
         };
-        QLOG_INFO() << "RateLimiter::SetupEndpoint() HEAD request header" << name << "=" << value;
+        QLOG_INFO() << "RateLimiter: request header" << name << "=" << value;
     };
 
     // Log the request attributes.
@@ -255,7 +266,7 @@ void RateLimiter::LogSetupReply(const QNetworkRequest& request, const QNetworkRe
         const char* name = pair.second;
         const QVariant value = request.attribute(code);
         if (value.isValid()) {
-            QLOG_INFO() << "RateLimiter::SetupEndpoint() HEAD request attribute" << name << "=" << value.toString();
+            QLOG_INFO() << "RateLimiter: request attribute" << name << "=" << value.toString();
         };
     };
 
@@ -263,7 +274,7 @@ void RateLimiter::LogSetupReply(const QNetworkRequest& request, const QNetworkRe
     for (const auto& header : reply->rawHeaderPairs()) {
         const auto& name = header.first;
         const auto& value = header.second;
-        QLOG_INFO() << "RateLimiter::SetupEndpoint() HEAD reply header" << name << "=" << value;
+        QLOG_INFO() << "RateLimiter: reply header" << name << "=" << value;
     };
 
     // Log the reply attributes.
@@ -272,7 +283,7 @@ void RateLimiter::LogSetupReply(const QNetworkRequest& request, const QNetworkRe
         const char* name = pair.second;
         const QVariant value = reply->attribute(code);
         if (value.isValid()) {
-            QLOG_INFO() << "RateLimiter::SetupEndpoint() HEAD reply attribute" << name << "=" << value.toString();
+            QLOG_INFO() << "RateLimiter: reply attribute" << name << "=" << value.toString();
         };
     };
 }
