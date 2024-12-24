@@ -260,6 +260,7 @@ target_include_directories(acquisition PRIVATE
 
 add_subdirectory(deps/Crashpad)
 add_subdirectory(deps/qdarkstyle)
+add_subdirectory(deps/QsLog)
 add_subdirectory(deps/rapidjson)
 add_subdirectory(deps/semver)
 
@@ -278,32 +279,6 @@ target_link_libraries(acquisition PRIVATE
     Crashpad
     rapidjson
     semver
-)
-
-# Add dependency: QsLog
-qt_add_library(QsLog STATIC
-    # Source
-    deps/QsLog/QsLog.cpp
-    deps/QsLog/QsLogDest.cpp
-    deps/QsLog/QsLogDestConsole.cpp
-    deps/QsLog/QsLogDestFile.cpp
-    deps/QsLog/QsLogDestFunctor.cpp
-    # Headers
-    deps/QsLog/QsLog.h
-    deps/QsLog/QsLogDest.h
-    deps/QsLog/QsLogDestConsole.h
-    deps/QsLog/QsLogDestFile.h
-    deps/QsLog/QsLogDestFunctor.h
-    deps/QsLog/QsLogDisableForThisFile.h
-    deps/QsLog/QsLogLevel.h
-)
-
-target_include_directories(QsLog PUBLIC
-    deps/
-)
-
-target_link_libraries(QsLog PRIVATE
-    Qt::Core
 )
 
 #----------------------------------

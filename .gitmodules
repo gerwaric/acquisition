@@ -1,5 +1,5 @@
 [submodule "deps/QsLog"]
-	path = deps/QsLog
+	path = deps/QsLog/QsLog
 	url = https://github.com/victronenergy/QsLog
 [submodule "deps/boost-headers-only"]
 	path = deps/boost-headers-only
