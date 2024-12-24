@@ -68,6 +68,11 @@ if(WIN32)
     add_compile_options(/W4)
     add_compile_options(/EHsc)
 
+    # There was a change to mutex constructors at some point
+    # that was causing random crashes, which can be avoided
+    # with this preprocessor flag.
+    add_compile_options(/D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
+
     # Create .pdb files for debugging
     add_compile_options("$<$<NOT:$<CONFIG:Debug>>:/Zi>")
     add_link_options("$<$<NOT:$<CONFIG:Debug>>:/DEBUG>")
@@ -346,13 +351,6 @@ add_library(qdarkstyle STATIC
 #----------------------------------
 
 if(WIN32)
-    
-    # As of v0.11.8 I'm still seeing crashes in the MSVC mutex code. It looks like there
-    # was a change in Visual Studio that causes this. The follwing define is an attempt
-    # to fix it.
-    #
-    # See https://stackoverflow.com/questions/78598141/first-stdmutexlock-crashes-in-application-built-with-latest-visual-studio
-    target_compile_definitions(acquisition PRIVATE _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
 
     # Needed to check the MSVC runtime version
     target_link_libraries(acquisition PRIVATE Version)
