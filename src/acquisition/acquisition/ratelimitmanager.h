@@ -26,7 +26,7 @@
 
 #include <deque>
 
-#include "boost/function.hpp"
+#include <boost/function.hpp>
 
 #include "network_info.h"
 #include "ratelimit.h"

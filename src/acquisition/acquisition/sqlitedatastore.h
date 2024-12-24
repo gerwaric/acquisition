@@ -24,7 +24,7 @@
 #include <string>
 #include <vector>
 
-#include "datastore.h"
+#include <acquisition/datastore.h>
 
 class Application;
 struct CurrencyUpdate;

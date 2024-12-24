@@ -17,7 +17,7 @@
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "shop.h"
+#include <acquisition/shop.h>
 
 #include <QApplication>
 #include <QClipboard>
@@ -31,14 +31,14 @@
 #include <QUrlQuery>
 #include <QsLog/QsLog.h>
 
-#include "application.h"
-#include "buyoutmanager.h"
-#include "datastore.h"
-#include "itemsmanager.h"
-#include "network_info.h"
-#include "util.h"
-#include "mainwindow.h"
-#include "replytimeout.h"
+#include <acquisition/application.h>
+#include <acquisition/buyoutmanager.h>
+#include <acquisition/datastore.h>
+#include <acquisition/itemsmanager.h>
+#include <acquisition/network_info.h>
+#include <acquisition/util.h>
+#include <acquisition/mainwindow.h>
+#include <acquisition/replytimeout.h>
 
 constexpr const char* kPoeEditThread = "https://www.pathofexile.com/forum/edit-thread/";
 constexpr const char* kShopTemplateItems = "[items]";

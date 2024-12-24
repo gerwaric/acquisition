@@ -26,9 +26,9 @@
 #include <string>
 #include <vector>
 
-#include "buyout.h"
-#include "item.h"
-#include "mainwindow.h"
+#include <acquisition/buyout.h>
+#include <acquisition/item.h>
+#include <acquisition/mainwindow.h>
 
 class QNetworkAccessManager;
 class QSettings;

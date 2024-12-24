@@ -29,19 +29,19 @@
 #include <clocale>
 #include <memory>
 
-#include "application.h"
-#include "datastore.h"
-#include "itemsmanager.h"
-#include "memorydatastore.h"
-#include "network_info.h"
-#include "oauthmanager.h"
-#include "ratelimiter.h"
-#include "repoe.h"
-#include "shop.h"
-#include "testitem.h"
-#include "testitemsmanager.h"
-#include "testshop.h"
-#include "testutil.h"
+#include <acquisition/application.h>
+#include <acquisition/datastore.h>
+#include <acquisition/itemsmanager.h>
+#include <acquisition/memorydatastore.h>
+#include <acquisition/network_info.h>
+#include <acquisition/oauthmanager.h>
+#include <acquisition/ratelimiter.h>
+#include <acquisition/repoe.h>
+#include <acquisition/shop.h>
+#include <test/testitem.h>
+#include <test/testitemsmanager.h>
+#include <test/testshop.h>
+#include <test/testutil.h>
 
 #define TEST(Class, ...) QTest::qExec(std::make_unique<Class>(__VA_ARGS__).get())
 

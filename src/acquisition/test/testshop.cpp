@@ -23,12 +23,12 @@
 
 #include <memory>
 
-#include "rapidjson/document.h"
+#include <rapidjson/document.h>
 
-#include "buyoutmanager.h"
-#include "itemsmanager.h"
-#include "shop.h"
-#include "testdata.h"
+#include <acquisition/buyoutmanager.h>
+#include <acquisition/itemsmanager.h>
+#include <acquisition/shop.h>
+#include <test/testdata.h>
 
 TestShop::TestShop(ItemsManager& items_manager, BuyoutManager& buyout_manager, Shop& shop)
     :

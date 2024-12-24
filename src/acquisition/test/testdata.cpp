@@ -17,4 +17,4 @@
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "testdata.h"
+#include <test/testdata.h>

@@ -17,7 +17,7 @@
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "util.h"
+#include <acquisition/util.h>
 
 #include <QComboBox>
 #include <QCryptographicHash>
@@ -45,8 +45,8 @@
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string.hpp>
 
-#include "currency.h"
-#include "rapidjson_util.h"
+#include <acquisition/currency.h>
+#include <acquisition/rapidjson_util.h>
 
 QsLogging::Level Util::TextToLogLevel(const QString& value) {
     if (0 == value.compare("TRACE", Qt::CaseInsensitive)) { return QsLogging::TraceLevel; };

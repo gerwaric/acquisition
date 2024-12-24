@@ -26,7 +26,7 @@
 #include <array>
 #include <memory>
 
-#include "boost/bind/bind.hpp"
+#include <boost/bind/bind.hpp>
 #include <QsLog/QsLog.h>
 
 #include "fatalerror.h"

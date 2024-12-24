@@ -17,19 +17,21 @@
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "search.h"
+#include <acquisition/search.h>
 
-#include <memory>
 #include <QHeaderView>
 #include <QTreeView>
 
-#include "buyoutmanager.h"
-#include "bucket.h"
-#include "column.h"
-#include "fatalerror.h"
-#include "filters.h"
-#include "items_model.h"
+#include <memory>
+
 #include <QsLog/QsLog.h>
+
+#include <acquisition/buyoutmanager.h>
+#include <acquisition/bucket.h>
+#include <acquisition/column.h>
+#include <acquisition/fatalerror.h>
+#include <acquisition/filters.h>
+#include <acquisition/items_model.h>
 
 Search::Search(
     BuyoutManager& bo_manager,

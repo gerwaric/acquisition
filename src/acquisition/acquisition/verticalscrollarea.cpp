@@ -1,6 +1,6 @@
 // Ref: http://qt-project.org/forums/viewthread/13728
 
-#include "verticalscrollarea.h"
+#include <acquisition/verticalscrollarea.h>
 
 #include <QEvent>
 #include <QScrollBar>

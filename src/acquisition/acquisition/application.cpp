@@ -46,7 +46,7 @@
 #include "repoe.h"
 #include "shop.h"
 #include "sqlitedatastore.h"
-#include "testmain.h"
+#include "test/testmain.h"
 #include "updatechecker.h"
 #include "version_defines.h"
 

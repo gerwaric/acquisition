@@ -1,0 +1,79 @@
+<RCC>
+    <qresource prefix="/sockets">
+        <file alias="I.png">sockets/Socket_I.png</file>
+        <file alias="D.png">sockets/Socket_D.png</file>
+        <file alias="linkH.png">sockets/Socket_Link_Horizontal.png</file>
+        <file alias="linkV.png">sockets/Socket_Link_Vertical.png</file>
+        <file alias="S.png">sockets/Socket_S.png</file>
+        <file alias="G.png">sockets/Socket_G.png</file>
+        <file alias="A.png">sockets/Socket_A.png</file>
+    </qresource>
+    <qresource prefix="/icons">
+        <file>icons/icon.icns</file>
+        <file>icons/icon.ico</file>
+        <file>icons/icon.png</file>
+        <file>icons/icon.svg</file>
+    </qresource>
+    <qresource prefix="/fonts">
+        <file alias="Fontin-SmallCaps.ttf">fonts/Fontin-SmallCaps.ttf</file>
+    </qresource>
+    <qresource prefix="/tooltip">
+        <file alias="SeparatorWhite.png">tooltip/SeparatorWhite.png</file>
+        <file alias="SeparatorMagic.png">tooltip/SeparatorMagic.png</file>
+        <file alias="SeparatorRare.png">tooltip/SeparatorRare.png</file>
+        <file alias="SeparatorUnique.png">tooltip/SeparatorUnique.png</file>
+        <file alias="SeparatorGem.png">tooltip/SeparatorGem.png</file>
+        <file alias="SeparatorCurrency.png">tooltip/SeparatorCurrency.png</file>
+        <file alias="ItemsHeaderWhiteLeft.png">tooltip/ItemsHeaderWhiteLeft.png</file>
+        <file alias="ItemsHeaderWhiteRight.png">tooltip/ItemsHeaderWhiteRight.png</file>
+        <file alias="ItemsHeaderWhiteMiddle.png">tooltip/ItemsHeaderWhiteMiddle.png</file>
+        <file alias="ItemsHeaderMagicLeft.png">tooltip/ItemsHeaderMagicLeft.png</file>
+        <file alias="ItemsHeaderMagicRight.png">tooltip/ItemsHeaderMagicRight.png</file>
+        <file alias="ItemsHeaderMagicMiddle.png">tooltip/ItemsHeaderMagicMiddle.png</file>
+        <file alias="ItemsHeaderRareLeft.png">tooltip/ItemsHeaderRareLeft.png</file>
+        <file alias="ItemsHeaderRareRight.png">tooltip/ItemsHeaderRareRight.png</file>
+        <file alias="ItemsHeaderRareMiddle.png">tooltip/ItemsHeaderRareMiddle.png</file>
+        <file alias="ItemsHeaderUniqueLeft.png">tooltip/ItemsHeaderUniqueLeft.png</file>
+        <file alias="ItemsHeaderUniqueRight.png">tooltip/ItemsHeaderUniqueRight.png</file>
+        <file alias="ItemsHeaderUniqueMiddle.png">tooltip/ItemsHeaderUniqueMiddle.png</file>
+        <file alias="ItemsHeaderGemLeft.png">tooltip/ItemsHeaderGemLeft.png</file>
+        <file alias="ItemsHeaderGemRight.png">tooltip/ItemsHeaderGemRight.png</file>
+        <file alias="ItemsHeaderGemMiddle.png">tooltip/ItemsHeaderGemMiddle.png</file>
+        <file alias="ItemsHeaderCurrencyLeft.png">tooltip/ItemsHeaderCurrencyLeft.png</file>
+        <file alias="ItemsHeaderCurrencyRight.png">tooltip/ItemsHeaderCurrencyRight.png</file>
+        <file alias="ItemsHeaderCurrencyMiddle.png">tooltip/ItemsHeaderCurrencyMiddle.png</file>
+        <file alias="ItemsHeaderRareSingleLineLeft.png">tooltip/ItemsHeaderRareSingleLineLeft.png</file>
+        <file alias="ItemsHeaderRareSingleLineRight.png">tooltip/ItemsHeaderRareSingleLineRight.png</file>
+        <file alias="ItemsHeaderRareSingleLineMiddle.png">tooltip/ItemsHeaderRareSingleLineMiddle.png</file>
+        <file alias="ItemsHeaderUniqueSingleLineLeft.png">tooltip/ItemsHeaderUniqueSingleLineLeft.png</file>
+        <file alias="ItemsHeaderUniqueSingleLineRight.png">tooltip/ItemsHeaderUniqueSingleLineRight.png</file>
+        <file alias="ItemsHeaderUniqueSingleLineMiddle.png">tooltip/ItemsHeaderUniqueSingleLineMiddle.png</file>
+        <file alias="ElderItemSymbol.png">tooltip/ElderItemSymbol.png</file>
+        <file alias="ShaperItemSymbol.png">tooltip/ShaperItemSymbol.png</file>
+        <file alias="Crusader-item-symbol.png">tooltip/Crusader-item-symbol.png</file>
+        <file alias="Hunter-item-symbol.png">tooltip/Hunter-item-symbol.png</file>
+        <file alias="Redeemer-item-symbol.png">tooltip/Redeemer-item-symbol.png</file>
+        <file alias="Warlord-item-symbol.png">tooltip/Warlord-item-symbol.png</file>
+		<file alias="Eater-of-worlds-item-symbol.png">tooltip/Eater-of-worlds-item-symbol.png</file>
+		<file alias="Fractured-item-symbol.png">tooltip/Fractured-item-symbol.png</file>
+		<file alias="Searing-exarch-item-symbol.png">tooltip/Searing-exarch-item-symbol.png</file>
+		<file alias="Synthesised-item-symbol.png">tooltip/Synthesised-item-symbol.png</file>
+		
+    </qresource>
+    <qresource prefix="/backgrounds">
+        <file alias="ElderBackground_1x1.png">backgrounds/ElderBackground_1x1.png</file>
+        <file alias="ElderBackground_1x3.png">backgrounds/ElderBackground_1x3.png</file>
+        <file alias="ElderBackground_1x4.png">backgrounds/ElderBackground_1x4.png</file>
+        <file alias="ElderBackground_2x1.png">backgrounds/ElderBackground_2x1.png</file>
+        <file alias="ElderBackground_2x2.png">backgrounds/ElderBackground_2x2.png</file>
+        <file alias="ElderBackground_2x3.png">backgrounds/ElderBackground_2x3.png</file>
+        <file alias="ElderBackground_2x4.png">backgrounds/ElderBackground_2x4.png</file>
+        <file alias="ShaperBackground_1x1.png">backgrounds/ShaperBackground_1x1.png</file>
+        <file alias="ShaperBackground_1x3.png">backgrounds/ShaperBackground_1x3.png</file>
+        <file alias="ShaperBackground_1x4.png">backgrounds/ShaperBackground_1x4.png</file>
+        <file alias="ShaperBackground_2x1.png">backgrounds/ShaperBackground_2x1.png</file>
+        <file alias="ShaperBackground_2x2.png">backgrounds/ShaperBackground_2x2.png</file>
+        <file alias="ShaperBackground_2x3.png">backgrounds/ShaperBackground_2x3.png</file>
+        <file alias="ShaperBackground_2x4.png">backgrounds/ShaperBackground_2x4.png</file>
+    </qresource>
+</RCC>

@@ -21,10 +21,10 @@
 
 #include <QtTest>
 
-#include "rapidjson/document.h"
+#include <rapidjson/document.h>
 
-#include "item.h"
-#include "testdata.h"
+#include <acquisition/item.h>
+#include <test/testdata.h>
 
 void TestItem::Parse() {
 

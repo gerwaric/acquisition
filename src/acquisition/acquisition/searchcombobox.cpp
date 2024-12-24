@@ -17,7 +17,7 @@
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "searchcombobox.h"
+#include <acquisition/searchcombobox.h>
 
 #include <QAbstractItemModel>
 #include <QAbstractItemView>

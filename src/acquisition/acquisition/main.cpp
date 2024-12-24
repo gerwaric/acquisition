@@ -38,7 +38,7 @@
 #include "shop.h"
 #include "util.h"
 #include "version_defines.h"
-#include "testmain.h"
+#include "test/testmain.h"
 
 #ifdef Q_OS_WINDOWS
 #include "checkmsvc.h"

@@ -17,7 +17,7 @@
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "repoe.h"
+#include <acquisition/repoe.h>
 
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -26,10 +26,10 @@
 
 #include <QsLog/QsLog.h>
 
-#include "itemcategories.h"
-#include "mainwindow.h"
-#include "modlist.h"
-#include "network_info.h"
+#include <acquisition/itemcategories.h>
+#include <acquisition/mainwindow.h>
+#include <acquisition/modlist.h>
+#include <acquisition/network_info.h>
 
 #define REPOE_DATA(x) ("https://raw.githubusercontent.com/lvlvllvlvllvlvl/RePoE/master/RePoE/data" x)
 

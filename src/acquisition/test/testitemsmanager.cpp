@@ -21,14 +21,14 @@
 
 #include <QTest>
 
-#include "rapidjson/document.h"
+#include <rapidjson/document.h>
 
-#include "buyoutmanager.h"
-#include "datastore.h"
-#include "item.h"
-#include "itemsmanager.h"
-#include "network_info.h"
-#include "testdata.h"
+#include <acquisition/buyoutmanager.h>
+#include <acquisition/datastore.h>
+#include <acquisition/item.h>
+#include <acquisition/itemsmanager.h>
+#include <acquisition/network_info.h>
+#include <test/testdata.h>
 
 TestItemsManager::TestItemsManager(
     DataStore& data,

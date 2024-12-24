@@ -17,7 +17,7 @@
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "sqlitedatastore.h"
+#include <acquisition/sqlitedatastore.h>
 
 #include <QCryptographicHash>
 #include <QDir>
@@ -25,7 +25,8 @@
 #include <QSqlQuery>
 
 #include <QsLog/QsLog.h>
-#include "currencymanager.h"
+
+#include <acquisition/currencymanager.h>
 
 SqliteDataStore::SqliteDataStore(const QString& filename)
     : filename_(filename)
