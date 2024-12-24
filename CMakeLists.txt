@@ -87,6 +87,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/buyout.cpp
     src/buyoutmanager.cpp
     src/column.cpp
+    src/crashpad.cpp
     src/currency.cpp
     src/currencymanager.cpp
     src/datastore.cpp
@@ -137,6 +138,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/buyout.h
     src/buyoutmanager.h
     src/column.h
+    src/crashpad.h
     src/currency.h
     src/currencymanager.h
     src/datastore.h
@@ -192,6 +194,38 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     "${CMAKE_BINARY_DIR}/version_defines.h"
 )
 
+add_subdirectory(external/boost-headers-only)
+add_subdirectory(external/Crashpad)
+add_subdirectory(external/qdarkstyle)
+add_subdirectory(external/QsLog)
+add_subdirectory(external/rapidjson)
+add_subdirectory(external/semver)
+
+# Setup include directories.
+target_include_directories(acquisition PRIVATE
+    src/
+    test/
+    "${CMAKE_BINARY_DIR}"
+)
+
+# Link required libraries.
+target_link_libraries(acquisition PRIVATE
+    Qt::Core
+    Qt::Gui
+    Qt::HttpServer
+    Qt::Network
+    Qt::Widgets
+    Qt::Sql
+    Qt::Test
+    Qt::WebSockets
+    boost-headers-only
+    Crashpad
+    qdarkstyle
+    QsLog
+    rapidjson
+    semver
+)
+
 # On Windows, we want to know which version of MSVC was used.
 if(WIN32)
 
@@ -241,105 +275,6 @@ endif()
 
 # Automatically populate and include the versions header file.
 configure_file("src/version_defines.h.in" "version_defines.h" @ONLY)
-
-# Setup include directories.
-target_include_directories(acquisition PRIVATE
-    deps/
-    deps/boost-headers-only/
-    src/
-    test/
-    "${CMAKE_BINARY_DIR}"
-)
-
-# Link required libraries.
-target_link_libraries(acquisition PRIVATE
-    Qt::Core
-    Qt::Gui
-    Qt::HttpServer
-    Qt::Network
-    Qt::Widgets
-    Qt::Sql
-    Qt::Test
-    Qt::WebSockets
-    QsLog
-    qdarkstyle
-    Crashpad
-    semver
-)
-
-add_library(semver STATIC
-    deps/cpp-semver/semver.hpp
-)
-
-# Create the Crashpad library target.
-add_library(Crashpad STATIC
-    src/crashpad.cpp
-    src/crashpad.h
-)
-
-target_link_libraries(Crashpad PRIVATE
-    Qt::Core
-    QsLog
-    CrashpadCommon
-    CrashpadClient
-    CrashpadUtil
-    CrashpadBase
-)
-
-target_include_directories(Crashpad PRIVATE
-    deps/Crashpad/Include/
-    deps/Crashpad/Include/crashpad/
-    deps/Crashpad/Include/crashpad/out/Default/gen/
-    deps/Crashpad/Include/crashpad/third_party/mini_chromium/
-    deps/Crashpad/Include/crashpad/third_party/mini_chromium/mini_chromium/
-)
-
-if(WIN32)
-    include(deps/Crashpad/Crashpad-Windows.cmake)
-elseif(APPLE)
-    include(deps/Crashpad/Crashpad-MacOS.cmake)
-elseif(UNIX)
-    include(deps/Crashpad/Crashpad-Linux.cmake)
-endif()
-
-# Make sure the crash_handler executable is copied to the build directory.
-get_target_property(CrashpadHandlerPath CrashpadHandler IMPORTED_LOCATION)
-add_custom_command(TARGET acquisition
-    POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E copy "${CrashpadHandlerPath}" "${CMAKE_BINARY_DIR}"
-)
-
-# Add dependency: QsLog
-qt_add_library(QsLog STATIC
-    # Source
-    deps/QsLog/QsLog.cpp
-    deps/QsLog/QsLogDest.cpp
-    deps/QsLog/QsLogDestConsole.cpp
-    deps/QsLog/QsLogDestFile.cpp
-    deps/QsLog/QsLogDestFunctor.cpp
-    # Headers
-    deps/QsLog/QsLog.h
-    deps/QsLog/QsLogDest.h
-    deps/QsLog/QsLogDestConsole.h
-    deps/QsLog/QsLogDestFile.h
-    deps/QsLog/QsLogDestFunctor.h
-    deps/QsLog/QsLogDisableForThisFile.h
-    deps/QsLog/QsLogLevel.h
-)
-
-target_include_directories(QsLog PUBLIC
-    deps/
-)
-
-target_link_libraries(QsLog PRIVATE
-    Qt::Core
-)
-
-# Add dependency: darkstyle
-add_library(qdarkstyle STATIC
-    deps/qdarkstyle/dark/darkstyle.qrc
-    deps/qdarkstyle/light/lightstyle.qrc
-)
 
 #----------------------------------
 # Platform-specific section
