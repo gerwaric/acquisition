@@ -392,23 +392,23 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthStashListRequest(
     const std::string& league)
 {
     QLOG_TRACE() << "ItemsManagerWorker::MakeOAuthStashListRequest() entered";
-    QStringList parts = {
-        QString(kOAuthListStashesUrl),
-        QString::fromStdString(realm),
-        QString::fromStdString(league) };
-    const QUrl url(parts.join("/"));
-    return QNetworkRequest(url);
+    QString url(kOAuthListStashesUrl);
+    if (realm != "pc") {
+        url += "/" + realm;
+    };
+    url += "/" + league;
+    return QNetworkRequest(QUrl(url));
 }
 
 QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterListRequest(
     const std::string& realm)
 {
     QLOG_TRACE() << "ItemsManagerWorker::MakeOAuthCharacterListRequest() entered";
-    const QStringList parts = {
-        QString(kOAuthListCharactersUrl),
-        QString::fromStdString(realm)};
-    const QUrl url(parts.join("/"));
-    return QNetworkRequest(url);
+    QString url(kOAuthListCharactersUrl);
+    if (realm != "pc") {
+        url += "/" + realm;
+    };
+    return QNetworkRequest(QUrl(url));
 }
 
 QNetworkRequest ItemsManagerWorker::MakeOAuthStashRequest(
@@ -418,16 +418,16 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthStashRequest(
     const std::string& substash_id)
 {
     QLOG_TRACE() << "ItemsManagerWorker::MakeOAuthStashRequest() entered";
-    QStringList parts = {
-        QString(kOAuthGetStashUrl),
-        QString::fromStdString(realm),
-        QString::fromStdString(league),
-        QString::fromStdString(stash_id) };
-    if (!substash_id.empty()) {
-        parts.push_back(QString::fromStdString(substash_id));
+    QString url(kOAuthGetStashUrl);
+    if (realm != "pc") {
+        url += "/" + realm;
     };
-    const QUrl url(parts.join("/"));
-    return QNetworkRequest(url);
+    url += "/" + league;
+    url += "/" + stash_id;
+    if (!substash_id.empty()) {
+        url += "/" + substash_id;
+    };
+    return QNetworkRequest(QUrl(url));
 }
 
 QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterRequest(
@@ -435,12 +435,12 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterRequest(
     const std::string& name)
 {
     QLOG_TRACE() << "ItemsManagerWorker::MakeOAuthCharacterRequest() entered";
-    QStringList parts = {
-        QString(kOAuthGetCharacterUrl),
-        QString::fromStdString(realm),
-        QString::fromStdString(name) };
-    const QUrl url(parts.join("/"));
-    return QNetworkRequest(url);
+    QString url(kOAuthGetCharacterUrl);
+    if (realm != "pc") {
+        url += "/" + realm;
+    };
+    url += "/" + name;
+    return QNetworkRequest(QUrl(url));
 }
 
 void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
