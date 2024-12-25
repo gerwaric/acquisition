@@ -27,11 +27,12 @@
 #include <boost/algorithm/string.hpp>
 #include <rapidjson/document.h>
 
-#include "modlist.h"
 #include "util/util.h"
+#include "util/rapidjson_util.h"
+
+#include "modlist.h"
 #include "itemlocation.h"
 #include "itemcategories.h"
-#include "util/rapidjson_util.h"
 
 using rapidjson::HasString;
 using rapidjson::HasInt;

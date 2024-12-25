@@ -25,15 +25,16 @@
 
 #include <QsLog/QsLog.h>
 
+#include "datastore/datastore.h"
+#include "ui/mainwindow.h"
+#include "util/repoe.h"
+#include "util/util.h"
+
 #include "application.h"
 #include "buyoutmanager.h"
-#include "datastore/datastore.h"
 #include "item.h"
 #include "itemsmanagerworker.h"
-#include "util/repoe.h"
 #include "shop.h"
-#include "util/util.h"
-#include "ui/mainwindow.h"
 #include "modlist.h"
 #include "filters.h"
 

@@ -27,9 +27,10 @@
 #include <QLabel>
 #include <QVBoxLayout>
 
+#include "util/util.h"
+
 #include "ratelimit.h"
 #include "ratelimiter.h"
-#include "util/util.h"
 
 RateLimitDialog::RateLimitDialog(QWidget* parent, RateLimiter* limiter)
     : QDialog(parent)

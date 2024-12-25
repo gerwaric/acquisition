@@ -24,9 +24,10 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <QsLog/QsLog.h>
 
-#include "itemconstants.h"
 #include "util/rapidjson_util.h"
 #include "util/util.h"
+
+#include "itemconstants.h"
 
 #include <string>
 

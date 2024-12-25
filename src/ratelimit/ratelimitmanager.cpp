@@ -29,8 +29,9 @@
 
 #include "util/fatalerror.h"
 #include "util/oauthmanager.h"
-#include "ratelimit/ratelimit.h"
-#include "ratelimit/ratelimiter.h"
+
+#include "ratelimit.h"
+#include "ratelimiter.h"
 
 // This HTTP status code means there was a rate limit violation.
 constexpr int VIOLATION_STATUS = 429;

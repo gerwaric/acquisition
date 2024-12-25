@@ -32,8 +32,9 @@
 #include <boost/algorithm/string.hpp>
 #include <QsLog/QsLog.h>
 
-#include "item.h"
 #include "util/util.h"
+
+#include "item.h"
 
 using rapidjson::HasBool;
 

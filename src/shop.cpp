@@ -29,15 +29,17 @@
 #include <QTimer>
 #include <QUrl>
 #include <QUrlQuery>
+
 #include <QsLog/QsLog.h>
+
+#include "datastore/datastore.h"
+#include "ui/mainwindow.h"
+#include "util/util.h"
 
 #include "application.h"
 #include "buyoutmanager.h"
-#include "datastore/datastore.h"
 #include "itemsmanager.h"
 #include "network_info.h"
-#include "util/util.h"
-#include "ui/mainwindow.h"
 #include "replytimeout.h"
 
 constexpr const char* kPoeEditThread = "https://www.pathofexile.com/forum/edit-thread/";

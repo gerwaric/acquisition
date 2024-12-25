@@ -26,8 +26,9 @@
 #include <QPalette>
 #include <QIcon>
 
-#include "buyoutmanager.h"
 #include "util/util.h"
+
+#include "buyoutmanager.h"
 #include "influence.h"
 #include "itemconstants.h"
 

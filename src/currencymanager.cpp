@@ -29,11 +29,12 @@
 #include <rapidjson/error/en.h>
 
 #include "datastore/datastore.h"
+#include "util/util.h"
+
 #include "buyoutmanager.h"
 #include "currencymanager.h"
 #include "itemsmanager.h"
 #include "item.h"
-#include "util/util.h"
 
 
 CurrencyManager::CurrencyManager(

@@ -25,6 +25,7 @@
 #include <QSqlQuery>
 
 #include <QsLog/QsLog.h>
+
 #include "currencymanager.h"
 
 SqliteDataStore::SqliteDataStore(const QString& filename)

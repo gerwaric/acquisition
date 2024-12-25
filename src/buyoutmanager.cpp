@@ -27,9 +27,10 @@
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
 
-#include "application.h"
 #include "datastore/datastore.h"
 #include "util/util.h"
+
+#include "application.h"
 #include "itemlocation.h"
 
 const std::map<std::string, BuyoutType> BuyoutManager::string_to_buyout_type_ = {

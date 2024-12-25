@@ -26,8 +26,9 @@
 
 #include <QsLog/QsLog.h>
 
-#include "itemcategories.h"
 #include "ui/mainwindow.h"
+
+#include "itemcategories.h"
 #include "modlist.h"
 #include "network_info.h"
 

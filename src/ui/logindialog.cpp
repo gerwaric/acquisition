@@ -42,13 +42,14 @@
 #include <rapidjson/error/en.h>
 
 #include "util/crashpad.h"
-#include "mainwindow.h"
-#include "network_info.h"
 #include "util/rapidjson_util.h" // Needed for range iterators
-#include "replytimeout.h"
 #include "util/util.h"
 #include "util/updatechecker.h"
 #include "util/oauthmanager.h"
+
+#include "mainwindow.h"
+#include "network_info.h"
+#include "replytimeout.h"
 #include "version_defines.h"
 
 constexpr const char* POE_LEAGUE_LIST_URL = "https://api.pathofexile.com/leagues?type=main&compact=1";

@@ -45,8 +45,9 @@
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string.hpp>
 
-#include "currency.h"
 #include "util/rapidjson_util.h"
+
+#include "currency.h"
 
 QsLogging::Level Util::TextToLogLevel(const QString& value) {
     if (0 == value.compare("TRACE", Qt::CaseInsensitive)) { return QsLogging::TraceLevel; };

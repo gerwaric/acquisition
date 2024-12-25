@@ -21,8 +21,8 @@
 
 #include <QsLog/QsLog.h>
 #include <rapidjson/error/en.h>
-#include "util/rapidjson_util.h"
 
+#include "util/rapidjson_util.h"
 #include "util/util.h"
 
 using rapidjson::HasInt;

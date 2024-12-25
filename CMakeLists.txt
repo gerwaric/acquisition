@@ -90,13 +90,12 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/buyout.cpp
     src/buyoutmanager.cpp
     src/column.cpp
-    src/util/crashpad.cpp
     src/currency.cpp
     src/currencymanager.cpp
     src/datastore/datastore.cpp
-    src/util/fatalerror.cpp
+    src/datastore/memorydatastore.cpp
+    src/datastore/sqlitedatastore.cpp
     src/filters.cpp
-    src/ui/flowlayout.cpp
     src/imagecache.cpp
     src/influence.cpp
     src/item.cpp
@@ -106,29 +105,30 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/items_model.cpp
     src/itemsmanager.cpp
     src/itemsmanagerworker.cpp
-    src/ui/itemtooltip.cpp
-    src/ui/logindialog.cpp
-    src/ui/logpanel.cpp
     src/main.cpp
-    src/ui/mainwindow.cpp
-    src/datastore/memorydatastore.cpp
     src/modlist.cpp
     src/modsfilter.cpp
-    src/util/networkmanager.cpp
-    src/util/oauthmanager.cpp
-    src/util/oauthtoken.cpp
     src/ratelimit/ratelimit.cpp
     src/ratelimit/ratelimitdialog.cpp
     src/ratelimit/ratelimiter.cpp
     src/ratelimit/ratelimitmanager.cpp
-    src/util/repoe.cpp
     src/search.cpp
-    src/ui/searchcombobox.cpp
     src/shop.cpp
-    src/datastore/sqlitedatastore.cpp
+    src/ui/flowlayout.cpp
+    src/ui/itemtooltip.cpp
+    src/ui/logindialog.cpp
+    src/ui/logpanel.cpp
+    src/ui/mainwindow.cpp
+    src/ui/searchcombobox.cpp
+    src/ui/verticalscrollarea.cpp
+    src/util/crashpad.cpp
+    src/util/fatalerror.cpp
+    src/util/networkmanager.cpp
+    src/util/oauthmanager.cpp
+    src/util/oauthtoken.cpp
+    src/util/repoe.cpp
     src/util/updatechecker.cpp
     src/util/util.cpp
-    src/ui/verticalscrollarea.cpp
     test/testdata.cpp
     test/testitem.cpp
     test/testitemsmanager.cpp
@@ -141,13 +141,12 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/buyout.h
     src/buyoutmanager.h
     src/column.h
-    src/util/crashpad.h
     src/currency.h
     src/currencymanager.h
     src/datastore/datastore.h
-    src/util/fatalerror.h
+    src/datastore/memorydatastore.h
+    src/datastore/sqlitedatastore.h
     src/filters.h
-    src/ui/flowlayout.h
     src/imagecache.h
     src/influence.h
     src/item.h
@@ -157,32 +156,33 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/items_model.h
     src/itemsmanager.h
     src/itemsmanagerworker.h
-    src/ui/itemtooltip.h
-    src/util/json_struct_qt.h
-    src/ui/logindialog.h
-    src/ui/logpanel.h
-    src/ui/mainwindow.h
-    src/datastore/memorydatastore.h
     src/modlist.h
     src/modsfilter.h
     src/network_info.h
-    src/util/networkmanager.h
-    src/util/oauthmanager.h
-    src/util/oauthtoken.h
-    src/util/rapidjson_util.h
     src/ratelimit/ratelimit.h
     src/ratelimit/ratelimitdialog.h
     src/ratelimit/ratelimiter.h
     src/ratelimit/ratelimitmanager.h
     src/replytimeout.h
-    src/util/repoe.h
     src/search.h
-    src/ui/searchcombobox.h
     src/shop.h
-    src/datastore/sqlitedatastore.h
+    src/ui/flowlayout.h
+    src/ui/itemtooltip.h
+    src/ui/logindialog.h
+    src/ui/logpanel.h
+    src/ui/mainwindow.h
+    src/ui/searchcombobox.h
+    src/ui/verticalscrollarea.h
+    src/util/crashpad.h
+    src/util/fatalerror.h
+    src/util/json_struct_qt.h
+    src/util/networkmanager.h
+    src/util/oauthmanager.h
+    src/util/oauthtoken.h
+    src/util/rapidjson_util.h
+    src/util/repoe.h
     src/util/updatechecker.h
     src/util/util.h
-    src/ui/verticalscrollarea.h
     test/testdata.h
     test/testitem.h
     test/testitemsmanager.h

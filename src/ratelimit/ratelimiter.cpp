@@ -26,13 +26,14 @@
 #include <array>
 #include <memory>
 
-#include "boost/bind/bind.hpp"
+#include <boost/bind/bind.hpp>
 #include <QsLog/QsLog.h>
 
-#include "util/fatalerror.h"
-#include "network_info.h"
-#include "util/oauthmanager.h"
 #include "ratelimit/ratelimitmanager.h"
+#include "util/fatalerror.h"
+#include "util/oauthmanager.h"
+
+#include "network_info.h"
 
 constexpr int UPDATE_INTERVAL_MSEC = 1000;
 

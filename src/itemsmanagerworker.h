@@ -26,10 +26,11 @@
 #include <queue>
 #include <set>
 
-#include "item.h"
 #include "ui/mainwindow.h"
-#include "network_info.h"
 #include "util/util.h"
+
+#include "item.h"
+#include "network_info.h"
 
 class QNetworkAccessManager;
 class QNetworkReply;

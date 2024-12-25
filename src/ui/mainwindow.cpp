@@ -47,9 +47,16 @@
 
 #include <vector>
 
+#include "datastore/datastore.h"
+#include "ratelimit/ratelimit.h"
+#include "ratelimit/ratelimitdialog.h"
+#include "ratelimit/ratelimiter.h"
+#include "util/oauthmanager.h"
+#include "util/updatechecker.h"
+#include "util/util.h"
+
 #include "buyoutmanager.h"
 #include "currencymanager.h"
-#include "datastore/datastore.h"
 #include "filters.h"
 #include "flowlayout.h"
 #include "imagecache.h"
@@ -63,15 +70,9 @@
 #include "logpanel.h"
 #include "modsfilter.h"
 #include "network_info.h"
-#include "util/oauthmanager.h"
-#include "ratelimit/ratelimit.h"
-#include "ratelimit/ratelimitdialog.h"
-#include "ratelimit/ratelimiter.h"
 #include "replytimeout.h"
 #include "search.h"
 #include "shop.h"
-#include "util/updatechecker.h"
-#include "util/util.h"
 #include "version_defines.h"
 #include "verticalscrollarea.h"
 

@@ -30,8 +30,9 @@
 
 #include <QsLog/QsLog.h>
 
-#include "network_info.h"
 #include "util/util.h"
+
+#include "network_info.h"
 
 ImageCache::ImageCache(
     QNetworkAccessManager& network_manager,

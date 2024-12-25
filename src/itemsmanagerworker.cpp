@@ -36,19 +36,20 @@
 #include <rapidjson/error/en.h>
 #include <boost/algorithm/string.hpp>
 
-#include "application.h"
 #include "datastore/datastore.h"
-#include "itemcategories.h"
-#include "util/util.h"
+#include "ratelimit/ratelimit.h"
+#include "ratelimit/ratelimiter.h"
 #include "ui/mainwindow.h"
+#include "util/util.h"
+#include "util/rapidjson_util.h"
+#include "util/repoe.h"
+#include "util/oauthmanager.h"
+
+#include "application.h"
+#include "itemcategories.h"
 #include "network_info.h"
 #include "buyoutmanager.h"
 #include "modlist.h"
-#include "util/rapidjson_util.h"
-#include "ratelimit/ratelimit.h"
-#include "ratelimit/ratelimiter.h"
-#include "util/repoe.h"
-#include "util/oauthmanager.h"
 
 using rapidjson::HasArray;
 

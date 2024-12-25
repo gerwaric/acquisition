@@ -31,23 +31,24 @@
 
 #include <QsLog/QsLog.h>
 
-#include "buyoutmanager.h"
-#include "util/crashpad.h"
-#include "currencymanager.h"
-#include "util/fatalerror.h"
-#include "imagecache.h"
-#include "itemsmanager.h"
-#include "ui/logindialog.h"
-#include "ui/mainwindow.h"
-#include "network_info.h"
-#include "util/oauthmanager.h"
+#include "datastore/sqlitedatastore.h"
 #include "ratelimit/ratelimiter.h"
 #include "ratelimit/ratelimitmanager.h"
+#include "ui/logindialog.h"
+#include "ui/mainwindow.h"
+#include "util/crashpad.h"
+#include "util/fatalerror.h"
+#include "util/oauthmanager.h"
 #include "util/repoe.h"
-#include "shop.h"
-#include "datastore/sqlitedatastore.h"
-#include "testmain.h"
 #include "util/updatechecker.h"
+
+#include "buyoutmanager.h"
+#include "currencymanager.h"
+#include "imagecache.h"
+#include "itemsmanager.h"
+#include "network_info.h"
+#include "shop.h"
+#include "testmain.h"
 #include "version_defines.h"
 
 Application::Application(const QDir& appDataDir) {
