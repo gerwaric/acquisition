@@ -26,7 +26,7 @@
 #include "item.h"
 #include "itemlocation.h"
 #include "itemsmanagerworker.h"
-#include "mainwindow.h"
+#include "ui/mainwindow.h"
 #include "network_info.h"
 #include "util.h"
 

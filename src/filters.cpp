@@ -32,9 +32,9 @@
 #include "buyoutmanager.h"
 #include "filters.h"
 #include "itemconstants.h"
-#include "mainwindow.h"
+#include "ui/mainwindow.h"
 #include "util.h"
-#include "searchcombobox.h"
+#include "ui/searchcombobox.h"
 
 const std::string CategorySearchFilter::k_Default = "<any>";
 const std::string RaritySearchFilter::k_Default = "<any>";

@@ -27,7 +27,7 @@
 #include <set>
 
 #include "item.h"
-#include "mainwindow.h"
+#include "ui/mainwindow.h"
 #include "network_info.h"
 #include "util.h"
 

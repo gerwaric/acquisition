@@ -28,7 +28,7 @@
 
 #include "buyout.h"
 #include "item.h"
-#include "mainwindow.h"
+#include "ui/mainwindow.h"
 
 class QNetworkAccessManager;
 class QSettings;

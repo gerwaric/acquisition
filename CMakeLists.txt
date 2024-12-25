@@ -53,8 +53,6 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-set(CMAKE_AUTOUIC_SEARCH_PATHS forms/)
-
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -98,7 +96,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/datastore/datastore.cpp
     src/fatalerror.cpp
     src/filters.cpp
-    src/flowlayout.cpp
+    src/ui/flowlayout.cpp
     src/imagecache.cpp
     src/influence.cpp
     src/item.cpp
@@ -108,11 +106,11 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/items_model.cpp
     src/itemsmanager.cpp
     src/itemsmanagerworker.cpp
-    src/itemtooltip.cpp
-    src/logindialog.cpp
-    src/logpanel.cpp
+    src/ui/itemtooltip.cpp
+    src/ui/logindialog.cpp
+    src/ui/logpanel.cpp
     src/main.cpp
-    src/mainwindow.cpp
+    src/ui/mainwindow.cpp
     src/datastore/memorydatastore.cpp
     src/modlist.cpp
     src/modsfilter.cpp
@@ -125,12 +123,12 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/ratelimit/ratelimitmanager.cpp
     src/repoe.cpp
     src/search.cpp
-    src/searchcombobox.cpp
+    src/ui/searchcombobox.cpp
     src/shop.cpp
     src/datastore/sqlitedatastore.cpp
     src/updatechecker.cpp
     src/util.cpp
-    src/verticalscrollarea.cpp
+    src/ui/verticalscrollarea.cpp
     test/testdata.cpp
     test/testitem.cpp
     test/testitemsmanager.cpp
@@ -149,7 +147,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/datastore/datastore.h
     src/fatalerror.h
     src/filters.h
-    src/flowlayout.h
+    src/ui/flowlayout.h
     src/imagecache.h
     src/influence.h
     src/item.h
@@ -159,11 +157,11 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/items_model.h
     src/itemsmanager.h
     src/itemsmanagerworker.h
-    src/itemtooltip.h
+    src/ui/itemtooltip.h
     src/json_struct_qt.h
-    src/logindialog.h
-    src/logpanel.h
-    src/mainwindow.h
+    src/ui/logindialog.h
+    src/ui/logpanel.h
+    src/ui/mainwindow.h
     src/datastore/memorydatastore.h
     src/modlist.h
     src/modsfilter.h
@@ -179,12 +177,12 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/replytimeout.h
     src/repoe.h
     src/search.h
-    src/searchcombobox.h
+    src/ui/searchcombobox.h
     src/shop.h
     src/datastore/sqlitedatastore.h
     src/updatechecker.h
     src/util.h
-    src/verticalscrollarea.h
+    src/ui/verticalscrollarea.h
     test/testdata.h
     test/testitem.h
     test/testitemsmanager.h
@@ -192,8 +190,8 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     test/testshop.h
     test/testutil.h
     # Forms
-    forms/logindialog.ui
-    forms/mainwindow.ui
+    src/ui/logindialog.ui
+    src/ui/mainwindow.ui
     # Resources
     resources.qrc
     # Generated version header

@@ -37,7 +37,7 @@
 #include "itemsmanager.h"
 #include "network_info.h"
 #include "util.h"
-#include "mainwindow.h"
+#include "ui/mainwindow.h"
 #include "replytimeout.h"
 
 constexpr const char* kPoeEditThread = "https://www.pathofexile.com/forum/edit-thread/";

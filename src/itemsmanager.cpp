@@ -33,7 +33,7 @@
 #include "repoe.h"
 #include "shop.h"
 #include "util.h"
-#include "mainwindow.h"
+#include "ui/mainwindow.h"
 #include "modlist.h"
 #include "filters.h"
 

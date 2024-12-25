@@ -40,7 +40,7 @@
 #include "datastore/datastore.h"
 #include "itemcategories.h"
 #include "util.h"
-#include "mainwindow.h"
+#include "ui/mainwindow.h"
 #include "network_info.h"
 #include "buyoutmanager.h"
 #include "modlist.h"

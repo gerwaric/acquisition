@@ -17,7 +17,7 @@
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "logindialog.h"
+#include "ui/logindialog.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
