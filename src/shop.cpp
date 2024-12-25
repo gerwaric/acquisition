@@ -36,7 +36,7 @@
 #include "datastore/datastore.h"
 #include "itemsmanager.h"
 #include "network_info.h"
-#include "util.h"
+#include "util/util.h"
 #include "ui/mainwindow.h"
 #include "replytimeout.h"
 

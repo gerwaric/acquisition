@@ -33,7 +33,7 @@
 #include <QsLog/QsLog.h>
 
 #include "item.h"
-#include "util.h"
+#include "util/util.h"
 
 using rapidjson::HasBool;
 

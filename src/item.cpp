@@ -28,10 +28,10 @@
 #include <rapidjson/document.h>
 
 #include "modlist.h"
-#include "util.h"
+#include "util/util.h"
 #include "itemlocation.h"
 #include "itemcategories.h"
-#include "rapidjson_util.h"
+#include "util/rapidjson_util.h"
 
 using rapidjson::HasString;
 using rapidjson::HasInt;

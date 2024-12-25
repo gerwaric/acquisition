@@ -26,7 +26,7 @@
 #include "buyoutmanager.h"
 #include "bucket.h"
 #include "column.h"
-#include "fatalerror.h"
+#include "util/fatalerror.h"
 #include "filters.h"
 #include "items_model.h"
 #include <QsLog/QsLog.h>

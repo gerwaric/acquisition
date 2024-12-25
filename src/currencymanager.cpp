@@ -33,7 +33,7 @@
 #include "currencymanager.h"
 #include "itemsmanager.h"
 #include "item.h"
-#include "util.h"
+#include "util/util.h"
 
 
 CurrencyManager::CurrencyManager(

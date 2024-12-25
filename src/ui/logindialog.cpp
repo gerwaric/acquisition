@@ -41,14 +41,14 @@
 #include <QsLog/QsLog.h>
 #include <rapidjson/error/en.h>
 
-#include "crashpad.h"
+#include "util/crashpad.h"
 #include "mainwindow.h"
 #include "network_info.h"
-#include "rapidjson_util.h" // Needed for range iterators
+#include "util/rapidjson_util.h" // Needed for range iterators
 #include "replytimeout.h"
-#include "util.h"
-#include "updatechecker.h"
-#include "oauthmanager.h"
+#include "util/util.h"
+#include "util/updatechecker.h"
+#include "util/oauthmanager.h"
 #include "version_defines.h"
 
 constexpr const char* POE_LEAGUE_LIST_URL = "https://api.pathofexile.com/leagues?type=main&compact=1";

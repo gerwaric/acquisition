@@ -33,15 +33,15 @@
 #include <clocale>
 
 #include "application.h"
-#include "crashpad.h"
-#include "fatalerror.h"
+#include "util/crashpad.h"
+#include "util/fatalerror.h"
 #include "shop.h"
-#include "util.h"
+#include "util/util.h"
 #include "version_defines.h"
 #include "testmain.h"
 
 #ifdef Q_OS_WINDOWS
-#include "checkmsvc.h"
+#include "util/checkmsvc.h"
 #endif
 
 constexpr const char* BUILD_TIMESTAMP = (__DATE__ " " __TIME__);

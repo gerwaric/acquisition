@@ -24,7 +24,7 @@
 
 #include <rapidjson/document.h>
 
-#include "rapidjson_util.h"
+#include "util/rapidjson_util.h"
 
 enum class ItemLocationType {
     STASH,

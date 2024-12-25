@@ -27,7 +27,7 @@
 #include <QIcon>
 
 #include "buyoutmanager.h"
-#include "util.h"
+#include "util/util.h"
 #include "influence.h"
 #include "itemconstants.h"
 

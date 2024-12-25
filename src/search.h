@@ -27,7 +27,7 @@
 #include "items_model.h"
 #include "column.h"
 #include "bucket.h"
-#include "util.h"
+#include "util/util.h"
 
 class BuyoutManager;
 class Filter;

@@ -17,7 +17,7 @@
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "util/util.h"
+#include "util.h"
 
 #include <QComboBox>
 #include <QCryptographicHash>

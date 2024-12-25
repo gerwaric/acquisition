@@ -24,7 +24,7 @@
 
 #include <QsLog/QsLog.h>
 
-#include "util.h"
+#include "util/util.h"
 
 using namespace RateLimit;
 

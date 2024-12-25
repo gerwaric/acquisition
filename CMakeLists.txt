@@ -90,11 +90,11 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/buyout.cpp
     src/buyoutmanager.cpp
     src/column.cpp
-    src/crashpad.cpp
+    src/util/crashpad.cpp
     src/currency.cpp
     src/currencymanager.cpp
     src/datastore/datastore.cpp
-    src/fatalerror.cpp
+    src/util/fatalerror.cpp
     src/filters.cpp
     src/ui/flowlayout.cpp
     src/imagecache.cpp
@@ -114,20 +114,20 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/datastore/memorydatastore.cpp
     src/modlist.cpp
     src/modsfilter.cpp
-    src/networkmanager.cpp
-    src/oauthmanager.cpp
-    src/oauthtoken.cpp
+    src/util/networkmanager.cpp
+    src/util/oauthmanager.cpp
+    src/util/oauthtoken.cpp
     src/ratelimit/ratelimit.cpp
     src/ratelimit/ratelimitdialog.cpp
     src/ratelimit/ratelimiter.cpp
     src/ratelimit/ratelimitmanager.cpp
-    src/repoe.cpp
+    src/util/repoe.cpp
     src/search.cpp
     src/ui/searchcombobox.cpp
     src/shop.cpp
     src/datastore/sqlitedatastore.cpp
-    src/updatechecker.cpp
-    src/util.cpp
+    src/util/updatechecker.cpp
+    src/util/util.cpp
     src/ui/verticalscrollarea.cpp
     test/testdata.cpp
     test/testitem.cpp
@@ -141,11 +141,11 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/buyout.h
     src/buyoutmanager.h
     src/column.h
-    src/crashpad.h
+    src/util/crashpad.h
     src/currency.h
     src/currencymanager.h
     src/datastore/datastore.h
-    src/fatalerror.h
+    src/util/fatalerror.h
     src/filters.h
     src/ui/flowlayout.h
     src/imagecache.h
@@ -158,7 +158,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/itemsmanager.h
     src/itemsmanagerworker.h
     src/ui/itemtooltip.h
-    src/json_struct_qt.h
+    src/util/json_struct_qt.h
     src/ui/logindialog.h
     src/ui/logpanel.h
     src/ui/mainwindow.h
@@ -166,22 +166,22 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/modlist.h
     src/modsfilter.h
     src/network_info.h
-    src/networkmanager.h
-    src/oauthmanager.h
-    src/oauthtoken.h
-    src/rapidjson_util.h
+    src/util/networkmanager.h
+    src/util/oauthmanager.h
+    src/util/oauthtoken.h
+    src/util/rapidjson_util.h
     src/ratelimit/ratelimit.h
     src/ratelimit/ratelimitdialog.h
     src/ratelimit/ratelimiter.h
     src/ratelimit/ratelimitmanager.h
     src/replytimeout.h
-    src/repoe.h
+    src/util/repoe.h
     src/search.h
     src/ui/searchcombobox.h
     src/shop.h
     src/datastore/sqlitedatastore.h
-    src/updatechecker.h
-    src/util.h
+    src/util/updatechecker.h
+    src/util/util.h
     src/ui/verticalscrollarea.h
     test/testdata.h
     test/testitem.h
@@ -212,8 +212,8 @@ if(WIN32)
     # For this to work, we need to know the MSCV runtime version that acquisition
     # was built with, which is what the cmake code below this include does.
     target_sources(acquisition PRIVATE
-        src/checkmsvc.cpp
-        src/checkmsvc.h
+        src/util/checkmsvc.cpp
+        src/util/checkmsvc.h
     )
 
     # The Microsoft Visual C++ Compiler version 19 corresponds to runtime version 14.

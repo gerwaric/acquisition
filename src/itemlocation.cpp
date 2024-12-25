@@ -25,8 +25,8 @@
 #include <QsLog/QsLog.h>
 
 #include "itemconstants.h"
-#include "rapidjson_util.h"
-#include "util.h"
+#include "util/rapidjson_util.h"
+#include "util/util.h"
 
 #include <string>
 
