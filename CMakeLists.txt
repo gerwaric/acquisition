@@ -119,10 +119,10 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/networkmanager.cpp
     src/oauthmanager.cpp
     src/oauthtoken.cpp
-    src/ratelimit.cpp
-    src/ratelimitdialog.cpp
-    src/ratelimiter.cpp
-    src/ratelimitmanager.cpp
+    src/ratelimit/ratelimit.cpp
+    src/ratelimit/ratelimitdialog.cpp
+    src/ratelimit/ratelimiter.cpp
+    src/ratelimit/ratelimitmanager.cpp
     src/repoe.cpp
     src/search.cpp
     src/searchcombobox.cpp
@@ -172,10 +172,10 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/oauthmanager.h
     src/oauthtoken.h
     src/rapidjson_util.h
-    src/ratelimit.h
-    src/ratelimitdialog.h
-    src/ratelimiter.h
-    src/ratelimitmanager.h
+    src/ratelimit/ratelimit.h
+    src/ratelimit/ratelimitdialog.h
+    src/ratelimit/ratelimiter.h
+    src/ratelimit/ratelimitmanager.h
     src/replytimeout.h
     src/repoe.h
     src/search.h

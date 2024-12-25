@@ -45,8 +45,8 @@
 #include "buyoutmanager.h"
 #include "modlist.h"
 #include "rapidjson_util.h"
-#include "ratelimit.h"
-#include "ratelimiter.h"
+#include "ratelimit/ratelimit.h"
+#include "ratelimit/ratelimiter.h"
 #include "repoe.h"
 #include "oauthmanager.h"
 

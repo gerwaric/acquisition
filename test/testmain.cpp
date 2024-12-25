@@ -35,7 +35,7 @@
 #include "datastore/memorydatastore.h"
 #include "network_info.h"
 #include "oauthmanager.h"
-#include "ratelimiter.h"
+#include "ratelimit/ratelimiter.h"
 #include "repoe.h"
 #include "shop.h"
 #include "testitem.h"
