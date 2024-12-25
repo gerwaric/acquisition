@@ -160,6 +160,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/itemsmanager.h
     src/itemsmanagerworker.h
     src/itemtooltip.h
+    src/json_struct_qt.h
     src/logindialog.h
     src/logpanel.h
     src/mainwindow.h
@@ -258,6 +259,7 @@ target_include_directories(acquisition PRIVATE
 
 add_subdirectory(deps/boost-headers-only)
 add_subdirectory(deps/Crashpad)
+add_subdirectory(deps/json_struct)
 add_subdirectory(deps/qdarkstyle)
 add_subdirectory(deps/QsLog)
 add_subdirectory(deps/rapidjson)
@@ -277,6 +279,7 @@ target_link_libraries(acquisition PRIVATE
     # Extenal libraries
     boost-headers-only
     Crashpad
+    json_struct
     qdarkstyle
     QsLog
     rapidjson
