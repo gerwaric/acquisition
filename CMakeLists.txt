@@ -95,7 +95,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/crashpad.cpp
     src/currency.cpp
     src/currencymanager.cpp
-    src/datastore.cpp
+    src/datastore/datastore.cpp
     src/fatalerror.cpp
     src/filters.cpp
     src/flowlayout.cpp
@@ -113,7 +113,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/logpanel.cpp
     src/main.cpp
     src/mainwindow.cpp
-    src/memorydatastore.cpp
+    src/datastore/memorydatastore.cpp
     src/modlist.cpp
     src/modsfilter.cpp
     src/networkmanager.cpp
@@ -127,7 +127,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/search.cpp
     src/searchcombobox.cpp
     src/shop.cpp
-    src/sqlitedatastore.cpp
+    src/datastore/sqlitedatastore.cpp
     src/updatechecker.cpp
     src/util.cpp
     src/verticalscrollarea.cpp
@@ -146,7 +146,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/crashpad.h
     src/currency.h
     src/currencymanager.h
-    src/datastore.h
+    src/datastore/datastore.h
     src/fatalerror.h
     src/filters.h
     src/flowlayout.h
@@ -164,7 +164,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/logindialog.h
     src/logpanel.h
     src/mainwindow.h
-    src/memorydatastore.h
+    src/datastore/memorydatastore.h
     src/modlist.h
     src/modsfilter.h
     src/network_info.h
@@ -181,7 +181,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/search.h
     src/searchcombobox.h
     src/shop.h
-    src/sqlitedatastore.h
+    src/datastore/sqlitedatastore.h
     src/updatechecker.h
     src/util.h
     src/verticalscrollarea.h

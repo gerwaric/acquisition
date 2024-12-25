@@ -28,7 +28,7 @@
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
 
-#include "datastore.h"
+#include "datastore/datastore.h"
 #include "buyoutmanager.h"
 #include "currencymanager.h"
 #include "itemsmanager.h"

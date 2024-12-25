@@ -37,7 +37,7 @@
 #include <boost/algorithm/string.hpp>
 
 #include "application.h"
-#include "datastore.h"
+#include "datastore/datastore.h"
 #include "itemcategories.h"
 #include "util.h"
 #include "mainwindow.h"

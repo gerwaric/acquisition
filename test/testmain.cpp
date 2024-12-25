@@ -30,9 +30,9 @@
 #include <memory>
 
 #include "application.h"
-#include "datastore.h"
+#include "datastore/datastore.h"
 #include "itemsmanager.h"
-#include "memorydatastore.h"
+#include "datastore/memorydatastore.h"
 #include "network_info.h"
 #include "oauthmanager.h"
 #include "ratelimiter.h"

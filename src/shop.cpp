@@ -33,7 +33,7 @@
 
 #include "application.h"
 #include "buyoutmanager.h"
-#include "datastore.h"
+#include "datastore/datastore.h"
 #include "itemsmanager.h"
 #include "network_info.h"
 #include "util.h"

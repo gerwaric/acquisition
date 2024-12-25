@@ -45,7 +45,7 @@
 #include "ratelimitmanager.h"
 #include "repoe.h"
 #include "shop.h"
-#include "sqlitedatastore.h"
+#include "datastore/sqlitedatastore.h"
 #include "testmain.h"
 #include "updatechecker.h"
 #include "version_defines.h"

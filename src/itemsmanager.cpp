@@ -27,7 +27,7 @@
 
 #include "application.h"
 #include "buyoutmanager.h"
-#include "datastore.h"
+#include "datastore/datastore.h"
 #include "item.h"
 #include "itemsmanagerworker.h"
 #include "repoe.h"

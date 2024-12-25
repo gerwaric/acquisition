@@ -24,7 +24,7 @@
 #include "rapidjson/document.h"
 
 #include "buyoutmanager.h"
-#include "datastore.h"
+#include "datastore/datastore.h"
 #include "item.h"
 #include "itemsmanager.h"
 #include "network_info.h"

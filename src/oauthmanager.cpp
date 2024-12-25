@@ -37,7 +37,7 @@
 
 #include <QsLog/QsLog.h>
 
-#include "datastore.h"
+#include "datastore/datastore.h"
 #include "network_info.h"
 #include "util.h"
 

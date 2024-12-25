@@ -26,7 +26,7 @@
 #include <rapidjson/error/en.h>
 
 #include "application.h"
-#include "datastore.h"
+#include "datastore/datastore.h"
 #include "util.h"
 #include "itemlocation.h"
 #include "QVariant"

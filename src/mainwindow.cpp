@@ -49,7 +49,7 @@
 
 #include "buyoutmanager.h"
 #include "currencymanager.h"
-#include "datastore.h"
+#include "datastore/datastore.h"
 #include "filters.h"
 #include "flowlayout.h"
 #include "imagecache.h"
