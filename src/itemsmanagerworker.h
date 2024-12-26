@@ -99,6 +99,7 @@ private:
     void PreserveSelectedCharacter();
 
     void LegacyRefresh();
+    QNetworkRequest MakeLegacyCharacterListRequest();
     QNetworkRequest MakeLegacyTabRequest(int tab_index, bool tabs = false);
     QNetworkRequest MakeLegacyCharacterRequest(const std::string& name);
     QNetworkRequest MakeLegacyPassivesRequest(const std::string& name);
