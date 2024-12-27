@@ -35,15 +35,15 @@ cd deploy
 cp "${BUILD_DIR}/acquisition" usr/bin/
 
 # Build the app image
-${LINUXDEPLOY} --appdir . \
-	--executable usr/bin/acquisition \
-	--desktop-file "${PROJECT_DIR}/acquisition.desktop" \
-	--icon-file "${PROJECT_DIR}/assets/icon.svg" \
-	--icon-filename default \
-	--exclude-library libqsqlmysql.so \
-	--exclude-library libqsqlmimer.so \
-	--exclude-library libqsqlodbc.so \
-	--exclude-library libqsqlpsql.so \
-	--plugin qt \
-	--output appimage
+${LINUXDEPLOY} --appdir=. \
+	--executable=usr/bin/acquisition \
+	--desktop-file="${PROJECT_DIR}/acquisition.desktop" \
+	--icon-file="${PROJECT_DIR}/assets/icon.svg" \
+	--icon-filename=default \
+	--plugin=qt \
+	--exclude-library=libqsqlmysql.so \
+	--exclude-library=libqsqlmimer.so \
+	--exclude-library=libqsqlodbc.so \
+	--exclude-library=libqsqlpsql.so \
+	--output=appimage
 
