@@ -236,11 +236,11 @@ QRectF ItemLocation::GetRect() const {
     return result;
 }
 
-std::string ItemLocation::GetForumCode(const std::string& realm, const std::string& league) const {
+std::string ItemLocation::GetForumCode(const std::string& realm, const std::string& league, unsigned int tab_index) const {
     switch (type_) {
     case ItemLocationType::STASH:
         return QString("[linkItem location=\"Stash%1\" league=\"%2\" x=\"%3\" y=\"%4\" realm=\"%5\"]")
-            .arg(QString::number(tab_id_ + 1), league.c_str(), QString::number(x_), QString::number(y_), realm.c_str())
+            .arg(QString::number(tab_index + 1), league.c_str(), QString::number(x_), QString::number(y_), realm.c_str())
             .toStdString();
     case ItemLocationType::CHARACTER:
         return QString("[linkItem location=\"%1\" character=\"%2\" x=\"%3\" y=\"%4\" realm=\"%5\"]")

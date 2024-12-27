@@ -20,7 +20,7 @@
       <item>
        <widget class="QSplitter" name="horizontalLayout_2">
         <property name="orientation">
-         <enum>Qt::Horizontal</enum>
+         <enum>Qt::Orientation::Horizontal</enum>
         </property>
         <widget class="QWidget" name="layoutWidget">
          <layout class="QVBoxLayout" name="itemListAndSearchFormLayout">
@@ -41,7 +41,7 @@
             <item>
              <spacer name="horizontalSpacer">
               <property name="orientation">
-               <enum>Qt::Horizontal</enum>
+               <enum>Qt::Orientation::Horizontal</enum>
               </property>
               <property name="sizeHint" stdset="0">
                <size>
@@ -294,7 +294,7 @@
                     <item>
                      <widget class="Line" name="pobButtonLine">
                       <property name="orientation">
-                       <enum>Qt::Horizontal</enum>
+                       <enum>Qt::Orientation::Horizontal</enum>
                       </property>
                      </widget>
                     </item>
@@ -340,7 +340,7 @@
              <item>
               <spacer name="verticalSpacer">
                <property name="orientation">
-                <enum>Qt::Vertical</enum>
+                <enum>Qt::Orientation::Vertical</enum>
                </property>
                <property name="sizeHint" stdset="0">
                 <size>
@@ -383,6 +383,7 @@
     <addaction name="actionSetShopThreads"/>
     <addaction name="actionEditShopTemplate"/>
     <addaction name="actionCopyShopToClipboard"/>
+    <addaction name="actionUpdateStashIndex"/>
     <addaction name="actionUpdateShops"/>
     <addaction name="actionSetAutomaticallyShopUpdate"/>
    </widget>
@@ -631,6 +632,11 @@
   <action name="actionShowPOESESSID">
    <property name="text">
     <string>Show or edit the session cookie</string>
+   </property>
+  </action>
+  <action name="actionUpdateStashIndex">
+   <property name="text">
+    <string>Update stash index</string>
    </property>
   </action>
  </widget>

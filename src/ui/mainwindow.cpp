@@ -326,6 +326,7 @@ void MainWindow::InitializeUi() {
     connect(ui->actionSetShopThreads, &QAction::triggered, this, &MainWindow::OnSetShopThreads);
     connect(ui->actionEditShopTemplate, &QAction::triggered, this, &MainWindow::OnEditShopTemplate);
     connect(ui->actionCopyShopToClipboard, &QAction::triggered, this, &MainWindow::OnCopyShopToClipboard);
+    connect(ui->actionUpdateStashIndex, &QAction::triggered, this, &MainWindow::OnUpdateStashIndex);
     connect(ui->actionUpdateShops, &QAction::triggered, this, &MainWindow::OnUpdateShops);
     connect(ui->actionSetAutomaticallyShopUpdate, &QAction::triggered, this, &MainWindow::OnSetAutomaticShopUpdate);
 
@@ -995,6 +996,10 @@ void MainWindow::OnRefreshCheckedTabs() {
 
 void MainWindow::OnSetAutomaticTabRefresh() {
     items_manager_.SetAutoUpdate(ui->actionSetAutomaticTabRefresh->isChecked());
+}
+
+void MainWindow::OnUpdateStashIndex() {
+    shop_.UpdateStashIndex();
 }
 
 void MainWindow::OnUpdateShops() {

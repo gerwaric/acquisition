@@ -420,6 +420,7 @@ void Application::InitLogin(POE_API mode)
     shop_ = std::make_unique<Shop>(
         settings(),
         network_manager(),
+        rate_limiter(),
         data(),
         items_manager(),
         buyout_manager());

@@ -54,7 +54,7 @@ public:
     void FromItemJson(const rapidjson::Value& root);
     std::string GetHeader() const;
     QRectF GetRect() const;
-    std::string GetForumCode(const std::string& realm, const std::string& league) const;
+    std::string GetForumCode(const std::string& realm, const std::string& league, unsigned int stash_index) const;
     std::string GetUniqueHash() const;
     bool IsValid() const;
     bool operator<(const ItemLocation& other) const;

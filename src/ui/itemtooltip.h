@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include "ui/ui_mainwindow.h"
+#include "include/ui/ui_mainwindow.h"
 
 #include "item.h"
 
