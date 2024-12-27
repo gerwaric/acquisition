@@ -364,27 +364,28 @@ elseif(APPLE)
     
 elseif(UNIX)
 
-    # Setup OpenSSL using the version that is distributed with Qt Creator
-    set(QT_OPENSSL_DIR "$ENV{HOME}/Qt/Tools/OpenSSLv3/src")
+    find_package(OpenSSL REQUIRED)
 
-    # First define the library as imported targets because they are pre-built.
-    add_library(libssl SHARED IMPORTED)
-    add_library(libcrypto SHARED IMPORTED)
+    # Make sure OpenSSL was found
+    if (OpenSSL_FOUND)
+        message(STATUS "Found OpenSSL: ${OPENSSL_VERSION}")
+        message(STATUS "OpenSSL Include Dir: ${OPENSSL_INCLUDE_DIR}")
+        message(STATUS "OpenSSL Libraries: ${OPENSSL_LIBRARIES}")
+    else()
+        message(FATAL_ERROR "OpenSSL not found on this system!")
+    endif()
 
-    # Second, point those libraries to the installed locations.
-    set_target_properties(libssl PROPERTIES IMPORTED_LOCATION "${QT_OPENSSL_DIR}/libssl.so")
-    set_target_properties(libcrypto PROPERTIES IMPORTED_LOCATION "${QT_OPENSSL_DIR}/libcrypto.so")
-
-    # Finally, we can link acquisition against the OpenSSL libraries.
-    target_link_libraries(acquisition PUBLIC libssl libcrypto)
+    # Link OpenSSL libraries to acquisition
+    target_include_directories(acquisition PUBLIC ${OPENSSL_INCLUDE_DIR})
+    target_link_libraries(acquisition PUBLIC OpenSSL::SSL OpenSSL::Crypto)
 
     # Generate debug symbols.
     target_compile_options(acquisition PRIVATE -g)
     add_custom_command(TARGET acquisition
         POST_BUILD
-        COMMAND objcopy --only-keep-debug acquisition acquisition.debug
-        COMMAND strip --strip-debug --strip-unneeded acquisition
-        COMMAND objcopy --add-gnu-debuglink=acquisition.debug acquisition
+        COMMAND ${CMAKE_OBJCOPY} --only-keep-debug acquisition acquisition.debug
+        COMMAND ${CMAKE_STRIP} --strip-debug --strip-unneeded acquisition
+        COMMAND ${CMAKE_OBJCOPY} --add-gnu-debuglink=acquisition.debug acquisition
         COMMAND chmod -x acquisition.debug
     )
     

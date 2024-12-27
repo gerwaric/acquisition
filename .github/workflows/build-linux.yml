@@ -1,0 +1,96 @@
+name: Build & Package (Linux)
+
+on:
+  push:
+    tags:
+        - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: 6.8.1
+        modules: 'qthttpserver qtwebsockets'
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y patchelf openssl libfuse2
+
+    - name: Verify OpenSSL Version
+      run: openssl version
+
+    - name: Download linuxdeploy and linuxdeply-plugin-qt
+      run: |
+        curl -Lo linuxdeploy https://github.com/dantti/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+        curl -Lo linuxdeploy-plugin-qt https://github.com/dantti/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+        chmod +x linuxdeploy linuxdeploy-plugin-qt
+
+    - name: Build
+      run: |
+        mkdir -p build
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release
+        cmake --build . --parallel
+
+    - name: Save Output Name to Environemnt
+      run:
+        echo "OUTPUT_NAME=acquisition-${{ github.ref_name }}-x86_64" >> $GITHUB_ENV
+
+    - name: Verify Output Name
+      run:
+        echo "Output Name is ${OUTPUT_NAME}"
+
+    - name: Upload Executable Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.OUTPUT_NAME }}
+        path: build/acquisition
+
+    - name: Upload Debug Symbols Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.OUTPUT_NAME }}.debug
+        path: build/acquisition.debug
+
+    - name: Package AppImage
+      run: |
+        ./linuxdeploy \
+          --appdir AppDir \
+          --executable build/acquisition \
+          --desktop-file acquisition.desktop \
+          --icon-file assets/icon.svg \
+          --icon-filename default \
+          --plugin qt \
+          --exclude-library libqsqlmysql.so \
+          --exclude-library libqsqlmimer.so \
+          --exclude-library libqsqlodbc.so \
+          --exclude-library libqsqlpsql.so \
+          --output appimage
+
+    - name: Rename AppImage
+      run:
+        mv acquisition-x86_64.AppImage ${OUTPUT_NAME}.AppImage
+
+    - name: Upload AppImage Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.OUTPUT_NAME }}.AppImage
+        path: acquisition*.AppImage
+
+    - name: Update Release
+      uses: softprops/action-gh-release@v2
+      with:
+        name: RELEASE_DRAFT
+        draft: true
+        files: ${{ env.OUTPUT_NAME }}.AppImage

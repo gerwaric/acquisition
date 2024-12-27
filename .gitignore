@@ -67,7 +67,7 @@ ui_*.h
 *.qmlc
 *.jsc
 Makefile*
-*build-*
+# *build-* (Commented out because the github actions workflow scripts would match this file)
 *.qm
 *.prl
 
