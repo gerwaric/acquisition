@@ -1,6 +1,6 @@
-[submodule "deps/QsLog"]
+[submodule "deps/QsLog/QsLog"]
 	path = deps/QsLog/QsLog
 	url = https://github.com/victronenergy/QsLog
-[submodule "deps/boost-headers-only"]
+[submodule "deps/boost-headers-only/boost-headers-only"]
 	path = deps/boost-headers-only/boost-headers-only
 	url = https://github.com/gerwaric/boost-headers-only
