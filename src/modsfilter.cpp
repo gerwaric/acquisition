@@ -26,7 +26,8 @@
 #include <QObject>
 #include <QPushButton>
 
-#include "mainwindow.h"
+#include "ui/mainwindow.h"
+
 #include "modlist.h"
 
 SelectedMod::SelectedMod(const std::string& name, double min, double max, bool min_filled, bool max_filled)

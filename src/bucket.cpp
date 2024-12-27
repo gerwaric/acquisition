@@ -19,7 +19,7 @@
 
 #include "bucket.h"
 
-#include "fatalerror.h"
+#include "util/fatalerror.h"
 
 Bucket::Bucket(const ItemLocation& location)
     : location_(location)

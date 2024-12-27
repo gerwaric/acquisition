@@ -1,6 +1,6 @@
 add_executable(CrashpadHandler IMPORTED)    
 set_target_properties(CrashpadHandler PROPERTIES
-    IMPORTED_LOCATION "${PROJECT_SOURCE_DIR}/deps/Crashpad/Bin/Linux/crashpad_handler"
+    IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/Crashpad/Bin/Linux/crashpad_handler"
 )
 
 function(setup_linux_target target libname)
@@ -10,7 +10,7 @@ function(setup_linux_target target libname)
     
     # Set the target location.
     set_target_properties(${target} PROPERTIES
-        IMPORTED_IMPLIB  "${PROJECT_SOURCE_DIR}/deps/Crashpad/Libraries/Linux/lib${libname}.a"
+        IMPORTED_IMPLIB  "${CMAKE_CURRENT_SOURCE_DIR}/Crashpad/Libraries/Linux/lib${libname}.a"
     )
     
 endfunction()

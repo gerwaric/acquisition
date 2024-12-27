@@ -19,13 +19,15 @@
 
 #include "items_model.h"
 
+#include <QsLog/QsLog.h>
+
+#include "util/util.h"
+
 #include "application.h"
 #include "bucket.h"
 #include "buyoutmanager.h"
 #include "itemlocation.h"
 #include "search.h"
-#include "util.h"
-#include <QsLog/QsLog.h>
 
 ItemsModel::ItemsModel(BuyoutManager& bo_manager, Search& search)
     : bo_manager_(bo_manager)

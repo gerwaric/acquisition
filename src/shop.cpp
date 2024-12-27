@@ -29,15 +29,19 @@
 #include <QTimer>
 #include <QUrl>
 #include <QUrlQuery>
+
 #include <QsLog/QsLog.h>
+#include <rapidjson/document.h>
+
+#include "datastore/datastore.h"
+#include "ratelimit/ratelimiter.h"
+#include "ui/mainwindow.h"
+#include "util/util.h"
 
 #include "application.h"
 #include "buyoutmanager.h"
-#include "datastore.h"
 #include "itemsmanager.h"
 #include "network_info.h"
-#include "util.h"
-#include "mainwindow.h"
 #include "replytimeout.h"
 
 constexpr const char* kPoeEditThread = "https://www.pathofexile.com/forum/edit-thread/";
@@ -71,29 +75,35 @@ const QRegularExpression Shop::ratelimit_regex(
 Shop::Shop(
     QSettings& settings,
     QNetworkAccessManager& network_manager,
+    RateLimiter& rate_limiter,
     DataStore& datastore,
     ItemsManager& items_manager,
     BuyoutManager& buyout_manager)
     : settings_(settings)
     , network_manager_(network_manager)
+    , rate_limiter_(rate_limiter)
     , datastore_(datastore)
     , items_manager_(items_manager)
     , buyout_manager_(buyout_manager)
     , shop_data_outdated_(true)
     , submitting_(false)
+    , indexing_(false)
     , requests_completed_(0)
 {
-    QLOG_TRACE() << "Shop::Shop() entered";
+    QLOG_TRACE() << "Shop: initializing";
     threads_ = Util::StringSplit(datastore_.Get("shop"), ';');
     auto_update_ = settings_.value("shop_autoupdate").toBool();
     shop_template_ = datastore_.Get("shop_template");
     if (shop_template_.empty()) {
         shop_template_ = kShopTemplateItems;
     };
+    if (!settings_.value("session_id").toString().isEmpty()) {
+        UpdateStashIndex();
+    };
 }
 
 void Shop::SetThread(const std::vector<std::string>& threads) {
-    QLOG_TRACE() << "Shop::SetThread() entered";
+    QLOG_DEBUG() << "Shop: setting thread(s) to" << Util::StringJoin(threads, ";");
     if (submitting_) {
         return;
     };
@@ -104,17 +114,18 @@ void Shop::SetThread(const std::vector<std::string>& threads) {
 }
 
 void Shop::SetAutoUpdate(bool update) {
-    QLOG_TRACE() << "Shop::SetAutoUpdate() entered";
+    QLOG_DEBUG() << "Shop: setting autoupdate to" << update;
     auto_update_ = update;
     settings_.setValue("shop_autoupdate", update);
 }
 
 void Shop::SetShopTemplate(const std::string& shop_template) {
-    QLOG_TRACE() << "Shop::SetShopTemplate() entered";
+    QLOG_DEBUG() << "Shop: setting template to" << shop_template;
     shop_template_ = shop_template;
     datastore_.Set("shop_template", shop_template);
     ExpireShopData();
 }
+
 std::string Shop::SpoilerBuyout(Buyout& bo) {
     QLOG_TRACE() << "Shop::SpoilerBuyout() entered";
     std::string out = "";
@@ -126,12 +137,98 @@ std::string Shop::SpoilerBuyout(Buyout& bo) {
     return out;
 }
 
+void Shop::UpdateStashIndex() {
+
+    QLOG_DEBUG() << "Shop: updating the stash index";
+    indexing_ = true;
+    tab_index_.clear();
+
+    const QString kStashItemsUrl = "https://www.pathofexile.com/character-window/get-stash-items";
+    const QString account = settings_.value("account").toString();
+    const QString realm = settings_.value("realm").toString();
+    const QString league = settings_.value("league").toString();
+
+    QUrlQuery query;
+    query.addQueryItem("accountName", account);
+    query.addQueryItem("realm", realm);
+    query.addQueryItem("league", league);
+    query.addQueryItem("tabs", "1");
+    query.addQueryItem("tabIndex", "0");
+
+    QUrl url(kStashItemsUrl);
+    url.setQuery(query);
+    QNetworkRequest request(url);
+
+    RateLimit::RateLimitedReply* reply = rate_limiter_.Submit(kStashItemsUrl, request);
+    connect(reply, &RateLimit::RateLimitedReply::complete, this, &Shop::OnStashTabIndexReceived);
+}
+
+void Shop::OnStashTabIndexReceived(QNetworkReply* reply) {
+
+    QLOG_DEBUG() << "Shop: stash tab list received.";
+    if (reply->error() != QNetworkReply::NetworkError::NoError) {
+        const int status = reply->error();
+        if ((status >= 200) && (status <= 299)) {
+            QLOG_DEBUG() << "Shop::OnStashTabIndexReceived() network reply status" << status;
+        } else {
+            QLOG_ERROR() << "Shop: network error indexing stashes:" << status << reply->errorString();
+            indexing_ = false;
+            return;
+        };
+    };
+
+    QLOG_DEBUG() << "Shop: stash tab list received";
+    rapidjson::Document doc;
+    QByteArray bytes = reply->readAll();
+    doc.Parse(bytes.constData());
+    reply->deleteLater();
+
+    if (!doc.IsObject()) {
+        QLOG_ERROR() << "Can't even fetch first legacy tab. Failed to update items.";
+        submitting_ = false;
+        return;
+    };
+
+    if (doc.HasMember("error")) {
+        QLOG_ERROR() << "Aborting legacy update since first fetch failed due to 'error':" << Util::RapidjsonSerialize(doc["error"]);
+        submitting_ = false;
+        return;
+    };
+
+    if (!HasArray(doc, "tabs") || doc["tabs"].Size() == 0) {
+        QLOG_ERROR() << "There are no legacy tabs, this should not happen, bailing out.";
+        submitting_ = false;
+        return;
+    };
+
+    auto& tabs = doc["tabs"];
+    QLOG_DEBUG() << "Received legacy tabs list, there are" << tabs.Size() << "tabs";
+
+    for (const auto& tab : tabs) {
+        const int index = tab["i"].GetInt();
+        const std::string uid = QString::fromUtf8(tab["id"].GetString()).first(10).toStdString();
+        tab_index_[uid] = index;
+    };
+    indexing_ = false;
+    ExpireShopData();
+    emit StashesIndexed();
+}
+
 void Shop::Update() {
-    QLOG_TRACE() << "Shop::Update() entered";
+    QLOG_DEBUG() << "Shop: updating shop data.";
     if (submitting_) {
         QLOG_WARN() << "Submitting shop right now, the request to update shop data will be ignored";
         return;
     };
+    if (indexing_) {
+        QLOG_WARN() << "Indexing shop right now, the request to update shop data will be ignored";
+        return;
+    };
+    if (tab_index_.empty()) {
+        QLOG_WARN() << "Shop cannot update until stashes are indexed";
+        return;
+    };
+
     shop_data_outdated_ = false;
     shop_data_.clear();
     std::string data = "";
@@ -164,8 +261,26 @@ void Shop::Update() {
             data += "[/spoiler]";
             data += SpoilerBuyout(current_bo);
         };
-        std::string item_string = aug.item->location().GetForumCode(realm, league);
-        if (data.size() + item_string.size() + shop_template_.size() + kSpoilerOverhead + QString("[/spoiler]").size() > kMaxCharactersInPost) {
+        const ItemLocation loc = aug.item->location();
+        std::string item_string;
+        if (loc.get_type() == ItemLocationType::CHARACTER) {
+            item_string = loc.GetForumCode(realm, league, 0);
+        } else {
+            const std::string uid = loc.get_tab_uniq_id();
+            const auto it = tab_index_.find(uid);
+            if (it == tab_index_.end()) {
+                QLOG_ERROR() << "Cannot determine tab index for" << aug.item->PrettyName() << "in" << loc.GetHeader();
+                continue;
+            };
+            const unsigned int ind = it->second;
+            item_string = loc.GetForumCode(realm, league, ind);
+        };
+        const size_t n = data.size()
+            + item_string.size()
+            + shop_template_.size()
+            + kSpoilerOverhead
+            + QStringLiteral("[/spoiler]").size();
+        if (n > kMaxCharactersInPost) {
             data += "[/spoiler]";
             shop_data_.push_back(data);
             data = SpoilerBuyout(current_bo);
@@ -185,14 +300,22 @@ void Shop::Update() {
 }
 
 void Shop::ExpireShopData() {
-    QLOG_TRACE() << "Shop::ExpireShopData() entered";
+    QLOG_TRACE() << "Shop: expiring shop data";
     shop_data_outdated_ = true;
 }
 
 void Shop::SubmitShopToForum(bool force) {
-    QLOG_TRACE() << "Shop::SubmitShopToForum() entered";
+    QLOG_DEBUG() << "Shop: submitting shop(s) to forums";
     if (submitting_) {
         QLOG_WARN() << "Already submitting your shop.";
+        return;
+    };
+    if (indexing_) {
+        QLOG_WARN() << "Still indexing tabs. Try again later.";
+        return;
+    };
+    if (tab_index_.empty()) {
+        QLOG_ERROR() << "Please update the stash index before submitting shops";
         return;
     };
     if (threads_.empty()) {
@@ -220,7 +343,6 @@ void Shop::SubmitShopToForum(bool force) {
     };
 
     QLOG_INFO() << QString("Updating %1 forum shop threads").arg(threads_.size());
-
     std::string previous_hash = datastore_.Get("shop_hash");
     // Don't update the shop if it hasn't changed
     if (previous_hash == shop_hash_ && !force) {
@@ -243,7 +365,7 @@ std::string Shop::ShopEditUrl(size_t idx) {
 }
 
 void Shop::SubmitSingleShop() {
-    QLOG_TRACE() << "Shop::SubmitSingleShop() entered";
+    QLOG_DEBUG() << "Shop: submitting a single shop.";
     if (requests_completed_ == threads_.size()) {
         QLOG_INFO() << "Shop threads updated";
         emit StatusUpdate(ProgramState::Ready, "Shop threads updated");
@@ -300,10 +422,13 @@ void Shop::OnEditPageFinished() {
 
 void Shop::SubmitNextShop(const std::string title, const std::string hash)
 {
-    QLOG_TRACE() << "Shop::SubmitNextShop() entered";
+    QLOG_DEBUG() << "Shop: submitting the next shop.";
+
+    const QString content = requests_completed_ < shop_data_.size() ? shop_data_[requests_completed_].c_str() : "Empty";
+
     QUrlQuery query;
     query.addQueryItem("title", Util::Decode(title).c_str());
-    query.addQueryItem("content", requests_completed_ < shop_data_.size() ? shop_data_[requests_completed_].c_str() : "Empty");
+    query.addQueryItem("content", content);
     query.addQueryItem("notify_owner", "0");
     query.addQueryItem("hash", hash.c_str());
     query.addQueryItem("submit", "Submit");
@@ -324,8 +449,7 @@ void Shop::SubmitNextShop(const std::string title, const std::string hash)
 }
 
 void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
-    QLOG_TRACE() << "Shop::OnShopSubmitted() entered";
-    //QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
+    QLOG_DEBUG() << "Shop: shop submission reply received.";
     const QByteArray bytes = reply->readAll();
 
     // Errors can show up in a couple different places. So far, the easiest way to identify
@@ -345,6 +469,10 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
                 ? QTextDocumentFragment::fromHtml(error_match.captured(1)).toPlainText()
                 : "(Failed to parse the error message)";
             QLOG_ERROR() << "Error submitting shop thread:" << error_message;
+            if (error_message.startsWith("Failed to find item.", Qt::CaseInsensitive)) {
+                QLOG_ERROR() << "The stash index may be out of date. (Try Shop->\"Update stash index\")";
+                continue;
+            };
             QLOG_TRACE() << "The html fragment containing the error is" << error_match.captured(0);
             QLOG_ERROR() << "The query was:" << query.toString();
             // This error would occur somewhat randomly before a delay was added in OnEditPageFinished.
@@ -358,7 +486,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
             };
             // Look for a rate limiting error here, because there are no headers to check for
             // like the other API calls.
-            if (error_message.startsWith("Rate limiting")) {
+            if (error_message.startsWith("Rate limiting", Qt::CaseInsensitive)) {
                 const QRegularExpressionMatch ratelimit_match = ratelimit_regex.match(error_message);
                 int ratelimit_delay = ratelimit_match.captured(1).toInt();
                 if (ratelimit_delay == 0) {
@@ -422,7 +550,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
 void Shop::CopyToClipboard() {
     QLOG_TRACE() << "Shop::CopyToClipboard() entered";
     if (shop_data_outdated_) {
-        Update();
+        QLOG_WARN() << "Shop data is outdated!";
     };
     if (shop_data_.empty()) {
         return;

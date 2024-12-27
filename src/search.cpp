@@ -19,17 +19,20 @@
 
 #include "search.h"
 
-#include <memory>
 #include <QHeaderView>
 #include <QTreeView>
+
+#include <memory>
+
+#include <QsLog/QsLog.h>
+
+#include "util/fatalerror.h"
 
 #include "buyoutmanager.h"
 #include "bucket.h"
 #include "column.h"
-#include "fatalerror.h"
 #include "filters.h"
 #include "items_model.h"
-#include <QsLog/QsLog.h>
 
 Search::Search(
     BuyoutManager& bo_manager,

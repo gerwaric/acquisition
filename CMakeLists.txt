@@ -29,7 +29,7 @@ cmake_minimum_required(VERSION 3.29)
 # version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
-    VERSION 0.12.1
+    VERSION 0.12.2
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
@@ -53,8 +53,6 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-set(CMAKE_AUTOUIC_SEARCH_PATHS forms/)
-
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -67,6 +65,11 @@ if(WIN32)
     # Enable more warnings by default
     add_compile_options(/W4)
     add_compile_options(/EHsc)
+
+    # There was a change to mutex constructors at some point
+    # that was causing random crashes, which can be avoided
+    # with this preprocessor flag.
+    add_compile_options(/D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
 
     # Create .pdb files for debugging
     add_compile_options("$<$<NOT:$<CONFIG:Debug>>:/Zi>")
@@ -89,10 +92,10 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/column.cpp
     src/currency.cpp
     src/currencymanager.cpp
-    src/datastore.cpp
-    src/fatalerror.cpp
+    src/datastore/datastore.cpp
+    src/datastore/memorydatastore.cpp
+    src/datastore/sqlitedatastore.cpp
     src/filters.cpp
-    src/flowlayout.cpp
     src/imagecache.cpp
     src/influence.cpp
     src/item.cpp
@@ -102,29 +105,30 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/items_model.cpp
     src/itemsmanager.cpp
     src/itemsmanagerworker.cpp
-    src/itemtooltip.cpp
-    src/logindialog.cpp
-    src/logpanel.cpp
     src/main.cpp
-    src/mainwindow.cpp
-    src/memorydatastore.cpp
     src/modlist.cpp
     src/modsfilter.cpp
-    src/networkmanager.cpp
-    src/oauthmanager.cpp
-    src/oauthtoken.cpp
-    src/ratelimit.cpp
-    src/ratelimitdialog.cpp
-    src/ratelimiter.cpp
-    src/ratelimitmanager.cpp
-    src/repoe.cpp
+    src/ratelimit/ratelimit.cpp
+    src/ratelimit/ratelimitdialog.cpp
+    src/ratelimit/ratelimiter.cpp
+    src/ratelimit/ratelimitmanager.cpp
     src/search.cpp
-    src/searchcombobox.cpp
     src/shop.cpp
-    src/sqlitedatastore.cpp
-    src/updatechecker.cpp
-    src/util.cpp
-    src/verticalscrollarea.cpp
+    src/ui/flowlayout.cpp
+    src/ui/itemtooltip.cpp
+    src/ui/logindialog.cpp
+    src/ui/logpanel.cpp
+    src/ui/mainwindow.cpp
+    src/ui/searchcombobox.cpp
+    src/ui/verticalscrollarea.cpp
+    src/util/crashpad.cpp
+    src/util/fatalerror.cpp
+    src/util/networkmanager.cpp
+    src/util/oauthmanager.cpp
+    src/util/oauthtoken.cpp
+    src/util/repoe.cpp
+    src/util/updatechecker.cpp
+    src/util/util.cpp
     test/testdata.cpp
     test/testitem.cpp
     test/testitemsmanager.cpp
@@ -139,10 +143,10 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/column.h
     src/currency.h
     src/currencymanager.h
-    src/datastore.h
-    src/fatalerror.h
+    src/datastore/datastore.h
+    src/datastore/memorydatastore.h
+    src/datastore/sqlitedatastore.h
     src/filters.h
-    src/flowlayout.h
     src/imagecache.h
     src/influence.h
     src/item.h
@@ -152,31 +156,33 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/items_model.h
     src/itemsmanager.h
     src/itemsmanagerworker.h
-    src/itemtooltip.h
-    src/logindialog.h
-    src/logpanel.h
-    src/mainwindow.h
-    src/memorydatastore.h
     src/modlist.h
     src/modsfilter.h
     src/network_info.h
-    src/networkmanager.h
-    src/oauthmanager.h
-    src/oauthtoken.h
-    src/rapidjson_util.h
-    src/ratelimit.h
-    src/ratelimitdialog.h
-    src/ratelimiter.h
-    src/ratelimitmanager.h
+    src/ratelimit/ratelimit.h
+    src/ratelimit/ratelimitdialog.h
+    src/ratelimit/ratelimiter.h
+    src/ratelimit/ratelimitmanager.h
     src/replytimeout.h
-    src/repoe.h
     src/search.h
-    src/searchcombobox.h
     src/shop.h
-    src/sqlitedatastore.h
-    src/updatechecker.h
-    src/util.h
-    src/verticalscrollarea.h
+    src/ui/flowlayout.h
+    src/ui/itemtooltip.h
+    src/ui/logindialog.h
+    src/ui/logpanel.h
+    src/ui/mainwindow.h
+    src/ui/searchcombobox.h
+    src/ui/verticalscrollarea.h
+    src/util/crashpad.h
+    src/util/fatalerror.h
+    src/util/json_struct_qt.h
+    src/util/networkmanager.h
+    src/util/oauthmanager.h
+    src/util/oauthtoken.h
+    src/util/rapidjson_util.h
+    src/util/repoe.h
+    src/util/updatechecker.h
+    src/util/util.h
     test/testdata.h
     test/testitem.h
     test/testitemsmanager.h
@@ -184,8 +190,8 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     test/testshop.h
     test/testutil.h
     # Forms
-    forms/logindialog.ui
-    forms/mainwindow.ui
+    src/ui/logindialog.ui
+    src/ui/mainwindow.ui
     # Resources
     resources.qrc
     # Generated version header
@@ -206,8 +212,8 @@ if(WIN32)
     # For this to work, we need to know the MSCV runtime version that acquisition
     # was built with, which is what the cmake code below this include does.
     target_sources(acquisition PRIVATE
-        src/checkmsvc.cpp
-        src/checkmsvc.h
+        src/util/checkmsvc.cpp
+        src/util/checkmsvc.h
     )
 
     # The Microsoft Visual C++ Compiler version 19 corresponds to runtime version 14.
@@ -244,15 +250,22 @@ configure_file("src/version_defines.h.in" "version_defines.h" @ONLY)
 
 # Setup include directories.
 target_include_directories(acquisition PRIVATE
-    deps/
-    deps/boost-headers-only/
     src/
     test/
     "${CMAKE_BINARY_DIR}"
 )
 
+add_subdirectory(deps/boost-headers-only)
+add_subdirectory(deps/Crashpad)
+add_subdirectory(deps/json_struct)
+add_subdirectory(deps/qdarkstyle)
+add_subdirectory(deps/QsLog)
+add_subdirectory(deps/rapidjson)
+add_subdirectory(deps/semver)
+
 # Link required libraries.
 target_link_libraries(acquisition PRIVATE
+    # Qt libraries
     Qt::Core
     Qt::Gui
     Qt::HttpServer
@@ -261,84 +274,14 @@ target_link_libraries(acquisition PRIVATE
     Qt::Sql
     Qt::Test
     Qt::WebSockets
-    QsLog
-    qdarkstyle
+    # Extenal libraries
+    boost-headers-only
     Crashpad
-    semver
-)
-
-add_library(semver STATIC
-    deps/cpp-semver/semver.hpp
-)
-
-# Create the Crashpad library target.
-add_library(Crashpad STATIC
-    src/crashpad.cpp
-    src/crashpad.h
-)
-
-target_link_libraries(Crashpad PRIVATE
-    Qt::Core
+    json_struct
+    qdarkstyle
     QsLog
-    CrashpadCommon
-    CrashpadClient
-    CrashpadUtil
-    CrashpadBase
-)
-
-target_include_directories(Crashpad PRIVATE
-    deps/Crashpad/Include/
-    deps/Crashpad/Include/crashpad/
-    deps/Crashpad/Include/crashpad/out/Default/gen/
-    deps/Crashpad/Include/crashpad/third_party/mini_chromium/
-    deps/Crashpad/Include/crashpad/third_party/mini_chromium/mini_chromium/
-)
-
-if(WIN32)
-    include(deps/Crashpad/Crashpad-Windows.cmake)
-elseif(APPLE)
-    include(deps/Crashpad/Crashpad-MacOS.cmake)
-elseif(UNIX)
-    include(deps/Crashpad/Crashpad-Linux.cmake)
-endif()
-
-# Make sure the crash_handler executable is copied to the build directory.
-get_target_property(CrashpadHandlerPath CrashpadHandler IMPORTED_LOCATION)
-add_custom_command(TARGET acquisition
-    POST_BUILD
-    COMMAND "${CMAKE_COMMAND}" -E copy "${CrashpadHandlerPath}" "${CMAKE_BINARY_DIR}"
-)
-
-# Add dependency: QsLog
-qt_add_library(QsLog STATIC
-    # Source
-    deps/QsLog/QsLog.cpp
-    deps/QsLog/QsLogDest.cpp
-    deps/QsLog/QsLogDestConsole.cpp
-    deps/QsLog/QsLogDestFile.cpp
-    deps/QsLog/QsLogDestFunctor.cpp
-    # Headers
-    deps/QsLog/QsLog.h
-    deps/QsLog/QsLogDest.h
-    deps/QsLog/QsLogDestConsole.h
-    deps/QsLog/QsLogDestFile.h
-    deps/QsLog/QsLogDestFunctor.h
-    deps/QsLog/QsLogDisableForThisFile.h
-    deps/QsLog/QsLogLevel.h
-)
-
-target_include_directories(QsLog PUBLIC
-    deps/
-)
-
-target_link_libraries(QsLog PRIVATE
-    Qt::Core
-)
-
-# Add dependency: darkstyle
-add_library(qdarkstyle STATIC
-    deps/qdarkstyle/dark/darkstyle.qrc
-    deps/qdarkstyle/light/lightstyle.qrc
+    rapidjson
+    semver
 )
 
 #----------------------------------
@@ -346,13 +289,6 @@ add_library(qdarkstyle STATIC
 #----------------------------------
 
 if(WIN32)
-    
-    # As of v0.11.8 I'm still seeing crashes in the MSVC mutex code. It looks like there
-    # was a change in Visual Studio that causes this. The follwing define is an attempt
-    # to fix it.
-    #
-    # See https://stackoverflow.com/questions/78598141/first-stdmutexlock-crashes-in-application-built-with-latest-visual-studio
-    target_compile_definitions(acquisition PRIVATE _DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
 
     # Needed to check the MSVC runtime version
     target_link_libraries(acquisition PRIVATE Version)

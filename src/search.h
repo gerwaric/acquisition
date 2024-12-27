@@ -23,11 +23,12 @@
 #include <vector>
 #include <set>
 
+#include "util/util.h"
+
 #include "item.h"
 #include "items_model.h"
 #include "column.h"
 #include "bucket.h"
-#include "util.h"
 
 class BuyoutManager;
 class Filter;

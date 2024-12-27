@@ -21,7 +21,7 @@
 
 #include <QTest>
 
-#include "util.h"
+#include "util/util.h"
 
 const double kDelta = 1e-6;
 

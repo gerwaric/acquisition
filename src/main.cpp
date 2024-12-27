@@ -17,7 +17,7 @@
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "logindialog.h"
+#include "ui/logindialog.h"
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -32,17 +32,18 @@
 
 #include <clocale>
 
-#include "application.h"
-#include "crashpad.h"
-#include "fatalerror.h"
-#include "shop.h"
-#include "util.h"
-#include "version_defines.h"
-#include "testmain.h"
+#include "util/crashpad.h"
+#include "util/fatalerror.h"
+#include "util/util.h"
 
 #ifdef Q_OS_WINDOWS
-#include "checkmsvc.h"
+#include "util/checkmsvc.h"
 #endif
+
+#include "application.h"
+#include "shop.h"
+#include "version_defines.h"
+#include "testmain.h"
 
 constexpr const char* BUILD_TIMESTAMP = (__DATE__ " " __TIME__);
 

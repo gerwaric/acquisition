@@ -36,19 +36,20 @@
 #include <rapidjson/error/en.h>
 #include <boost/algorithm/string.hpp>
 
+#include "datastore/datastore.h"
+#include "ratelimit/ratelimit.h"
+#include "ratelimit/ratelimiter.h"
+#include "ui/mainwindow.h"
+#include "util/util.h"
+#include "util/rapidjson_util.h"
+#include "util/repoe.h"
+#include "util/oauthmanager.h"
+
 #include "application.h"
-#include "datastore.h"
 #include "itemcategories.h"
-#include "util.h"
-#include "mainwindow.h"
 #include "network_info.h"
 #include "buyoutmanager.h"
 #include "modlist.h"
-#include "rapidjson_util.h"
-#include "ratelimit.h"
-#include "ratelimiter.h"
-#include "repoe.h"
-#include "oauthmanager.h"
 
 using rapidjson::HasArray;
 
@@ -61,16 +62,16 @@ constexpr const char* kCharacterSocketedJewels = "https://www.pathofexile.com/ch
 
 constexpr const char* kPOE_trade_stats = "https://www.pathofexile.com/api/trade/data/stats";
 
-constexpr const char* kOauthListStashesEndpoint = "GET /stash/<league>";
+constexpr const char* kOauthListStashesEndpoint = "List Stashes";
 constexpr const char* kOAuthListStashesUrl = "https://api.pathofexile.com/stash";
 
-constexpr const char* kOAuthListCharactersEndpoint = "GET /character";
+constexpr const char* kOAuthListCharactersEndpoint = "List Characters";
 constexpr const char* kOAuthListCharactersUrl = "https://api.pathofexile.com/character";
 
-constexpr const char* kOAuthGetStashEndpoint = "GET /stash/<league>/<stash_id>[/<substash_id>]";
+constexpr const char* kOAuthGetStashEndpoint = "Get Stash";
 constexpr const char* kOAuthGetStashUrl = "https://api.pathofexile.com/stash";
 
-constexpr const char* kOAuthGetCharacterEndpoint = "GET /character/<name>";
+constexpr const char* kOAuthGetCharacterEndpoint = "Get Character";
 constexpr const char* kOAuthGetCharacterUrl = "https://api.pathofexile.com/character";
 
 constexpr std::array CHARACTER_ITEM_FIELDS = {
@@ -758,7 +759,7 @@ void ItemsManagerWorker::OnLegacyMainPageReceived() {
     };
     reply->deleteLater();
 
-    QNetworkRequest characters_request = QNetworkRequest(QUrl(kGetCharactersUrl));
+    QNetworkRequest characters_request = MakeLegacyCharacterListRequest();
     QLOG_TRACE() << "ItemsManagerWorker::OnLegacyMainPageReceived() requesting characters:" << characters_request.url().toString();
     auto submit = rate_limiter_.Submit(kGetCharactersUrl, characters_request);
     connect(submit, &RateLimit::RateLimitedReply::complete, this, &ItemsManagerWorker::OnLegacyCharacterListReceived);
@@ -836,6 +837,18 @@ void ItemsManagerWorker::OnLegacyCharacterListReceived(QNetworkReply* reply) {
     };
 }
 
+QNetworkRequest ItemsManagerWorker::MakeLegacyCharacterListRequest() {
+    QLOG_TRACE() << "ItemsManagerWorker::MakeLegacyCharacterListRequest() entered";
+
+    QUrlQuery query;
+    query.addQueryItem("accountName", QString::fromUtf8(account_));
+    query.addQueryItem("realm", QString::fromUtf8(realm_));
+
+    QUrl url(kGetCharactersUrl);
+    url.setQuery(query);
+    return QNetworkRequest(url);
+}
+
 QNetworkRequest ItemsManagerWorker::MakeLegacyTabRequest(int tab_index, bool tabs) {
     QLOG_TRACE() << "ItemsManagerWorker::MakeLegacyTabRequest() entered";
 
@@ -843,9 +856,11 @@ QNetworkRequest ItemsManagerWorker::MakeLegacyTabRequest(int tab_index, bool tab
         QLOG_ERROR() << "MakeLegacyTabRequest: invalid tab_index =" << tab_index;
     };
     QUrlQuery query;
+    query.addQueryItem("accountName", QString::fromUtf8(account_));
+    query.addQueryItem("realm", QString::fromUtf8(realm_));
     query.addQueryItem("league", QString::fromUtf8(league_));
     query.addQueryItem("tabs", tabs ? "1" : "0");
-    query.addQueryItem("tabIndex", std::to_string(tab_index).c_str());
+    query.addQueryItem("tabIndex", QString::number(tab_index));
 
     QUrl url(kStashItemsUrl);
     url.setQuery(query);
@@ -859,6 +874,8 @@ QNetworkRequest ItemsManagerWorker::MakeLegacyCharacterRequest(const std::string
         QLOG_ERROR() << "MakeLegacyCharacterRequest: invalid name = '" + name + "'";
     };
     QUrlQuery query;
+    query.addQueryItem("accountName", QString::fromUtf8(account_));
+    query.addQueryItem("realm", QString::fromUtf8(realm_));
     query.addQueryItem("character", QString::fromUtf8(name));
 
     QUrl url(kCharacterItemsUrl);
@@ -873,6 +890,8 @@ QNetworkRequest ItemsManagerWorker::MakeLegacyPassivesRequest(const std::string&
         QLOG_ERROR() << "MakeLegacyPassivesRequest: invalid name = '" + name + "'";
     };
     QUrlQuery query;
+    query.addQueryItem("accountName", QString::fromUtf8(account_));
+    query.addQueryItem("realm", QString::fromUtf8(realm_));
     query.addQueryItem("character", QString::fromUtf8(name));
 
     QUrl url(kCharacterSocketedJewels);

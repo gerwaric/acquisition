@@ -31,7 +31,7 @@
 
 #include <vector>
 
-#include "searchcombobox.h"
+#include "ui/searchcombobox.h"
 
 class SelectedMod : public QObject {
     Q_OBJECT

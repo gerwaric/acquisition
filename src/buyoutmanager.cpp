@@ -19,17 +19,19 @@
 
 #include "buyoutmanager.h"
 
+#include <QVariant>
+
 #include <regex>
 
 #include <QsLog/QsLog.h>
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
 
+#include "datastore/datastore.h"
+#include "util/util.h"
+
 #include "application.h"
-#include "datastore.h"
-#include "util.h"
 #include "itemlocation.h"
-#include "QVariant"
 
 const std::map<std::string, BuyoutType> BuyoutManager::string_to_buyout_type_ = {
     {"~gb/o", BUYOUT_TYPE_BUYOUT},

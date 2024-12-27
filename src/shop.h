@@ -23,12 +23,13 @@
 #include <QObject>
 #include <QUrlQuery>
 
+#include <map>
 #include <string>
 #include <vector>
 
 #include "buyout.h"
 #include "item.h"
-#include "mainwindow.h"
+#include "ui/mainwindow.h"
 
 class QNetworkAccessManager;
 class QSettings;
@@ -37,6 +38,7 @@ class Application;
 class BuyoutManager;
 class DataStore;
 class ItemsManager;
+class RateLimiter;
 
 struct AugmentedItem {
     Item* item{ nullptr };
@@ -60,6 +62,7 @@ public:
     explicit Shop(
         QSettings& settings,
         QNetworkAccessManager& network_manager,
+        RateLimiter& rate_limiter,
         DataStore& datastore,
         ItemsManager& items_manager,
         BuyoutManager& buyout_manager);
@@ -75,9 +78,12 @@ public:
     const std::vector<std::string>& shop_data() const { return shop_data_; }
     const std::string& shop_template() const { return shop_template_; }
 public slots:
+    void UpdateStashIndex();
+    void OnStashTabIndexReceived(QNetworkReply* reply);
     void OnEditPageFinished();
     void OnShopSubmitted(QUrlQuery query, QNetworkReply* reply);
 signals:
+    void StashesIndexed();
     void StatusUpdate(ProgramState state, const QString& status);
 private:
     void SubmitSingleShop();
@@ -87,10 +93,12 @@ private:
 
     QSettings& settings_;
     QNetworkAccessManager& network_manager_;
+    RateLimiter& rate_limiter_;
     DataStore& datastore_;
     ItemsManager& items_manager_;
     BuyoutManager& buyout_manager_;
 
+    std::map<std::string, unsigned int> tab_index_;
     std::vector<std::string> threads_;
     std::vector<std::string> shop_data_;
     std::string shop_hash_;
@@ -98,6 +106,7 @@ private:
     bool shop_data_outdated_;
     bool auto_update_;
     bool submitting_;
+    bool indexing_;
     size_t requests_completed_;
 
     static const QRegularExpression error_regex;

@@ -29,12 +29,13 @@
 #include <QComboBox>
 #include <boost/algorithm/string/case_conv.hpp>
 
+#include "ui/mainwindow.h"
+#include "ui/searchcombobox.h"
+#include "util/util.h"
+
 #include "buyoutmanager.h"
 #include "filters.h"
 #include "itemconstants.h"
-#include "mainwindow.h"
-#include "util.h"
-#include "searchcombobox.h"
 
 const std::string CategorySearchFilter::k_Default = "<any>";
 const std::string RaritySearchFilter::k_Default = "<any>";

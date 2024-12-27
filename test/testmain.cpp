@@ -30,13 +30,13 @@
 #include <memory>
 
 #include "application.h"
-#include "datastore.h"
+#include "datastore/datastore.h"
 #include "itemsmanager.h"
-#include "memorydatastore.h"
+#include "datastore/memorydatastore.h"
 #include "network_info.h"
-#include "oauthmanager.h"
-#include "ratelimiter.h"
-#include "repoe.h"
+#include "util/oauthmanager.h"
+#include "ratelimit/ratelimiter.h"
+#include "util/repoe.h"
 #include "shop.h"
 #include "testitem.h"
 #include "testitemsmanager.h"
@@ -74,7 +74,7 @@ int TestHelper::run(QNetworkAccessManager& network_manager, RePoE& repoe) {
     RateLimiter rate_limiter(network_manager, oauth_manager, POE_API::LEGACY);
     BuyoutManager buyout_manager(*datastore);
     ItemsManager items_manager(settings, network_manager, repoe, buyout_manager, *datastore, rate_limiter);
-    Shop shop(settings, network_manager, *datastore, items_manager, buyout_manager);
+    Shop shop(settings, network_manager, rate_limiter, *datastore, items_manager, buyout_manager);
 
     int result = 0;
     result |= TEST(TestItem);

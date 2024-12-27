@@ -31,23 +31,24 @@
 
 #include <QsLog/QsLog.h>
 
+#include "datastore/sqlitedatastore.h"
+#include "ratelimit/ratelimiter.h"
+#include "ratelimit/ratelimitmanager.h"
+#include "ui/logindialog.h"
+#include "ui/mainwindow.h"
+#include "util/crashpad.h"
+#include "util/fatalerror.h"
+#include "util/oauthmanager.h"
+#include "util/repoe.h"
+#include "util/updatechecker.h"
+
 #include "buyoutmanager.h"
-#include "crashpad.h"
 #include "currencymanager.h"
-#include "fatalerror.h"
 #include "imagecache.h"
 #include "itemsmanager.h"
-#include "logindialog.h"
-#include "mainwindow.h"
 #include "network_info.h"
-#include "oauthmanager.h"
-#include "ratelimiter.h"
-#include "ratelimitmanager.h"
-#include "repoe.h"
 #include "shop.h"
-#include "sqlitedatastore.h"
 #include "testmain.h"
-#include "updatechecker.h"
 #include "version_defines.h"
 
 Application::Application(const QDir& appDataDir) {
@@ -419,6 +420,7 @@ void Application::InitLogin(POE_API mode)
     shop_ = std::make_unique<Shop>(
         settings(),
         network_manager(),
+        rate_limiter(),
         data(),
         items_manager(),
         buyout_manager());
