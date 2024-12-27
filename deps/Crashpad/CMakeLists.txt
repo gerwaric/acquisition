@@ -26,6 +26,5 @@ target_link_libraries(Crashpad PRIVATE
 )
 
 # Make sure the crash_handler executable is copied to the build directory.
-set_target_properties(CrashpadHandler PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
-)
+get_target_property(CrashPadHanderPath CrashpadHandler IMPORTED_LOCATION)
+file(COPY ${CrashPadHanderPath} DESTINATION ${CMAKE_BINARY_DIR})
