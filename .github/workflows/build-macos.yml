@@ -1,0 +1,71 @@
+name: Build & Package (macOS)
+
+on:
+  push:
+    tags:
+        - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest-large
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: 6.8.1
+        modules: 'qthttpserver qtwebsockets'
+
+    - name: Build
+      run: |
+        mkdir -p build
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release
+        cmake --build . --parallel
+
+    - name: Save Output Name to Environemnt
+      run:
+        echo "OUTPUT_NAME=acquisition-${{ github.ref_name }}" >> $GITHUB_ENV
+
+    - name: Verify Output Name
+      run:
+        echo "Output Name is ${OUTPUT_NAME}"
+
+    - name: Upload Executable Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.OUTPUT_NAME }}.app
+        path: build/acquisition.app
+
+    - name: Upload Debug Symbols Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.OUTPUT_NAME }}.dSYM
+        path: build/acquisition*.dSYM
+
+    - name: Package .dmg
+      run:
+        ${QT_PATH}/bin/macdeployqt acquisition.app -appstore-compliant -dmg
+
+    - name: Rename .dmg
+      run:
+        mv acquisition.dmg ${OUTPUT_NAME}.dmg
+
+    - name: Upload AppImage Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.OUTPUT_NAME }}.dmg
+        path: acquisition*.dmg
+
+    - name: Update Release
+      uses: softprops/action-gh-release@v2
+      with:
+        name: RELEASE_DRAFT
+        draft: true
+        files: ${{ env.OUTPUT_NAME }}.dmg

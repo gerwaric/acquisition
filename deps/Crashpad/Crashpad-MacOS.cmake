@@ -1,6 +1,6 @@
 add_executable(CrashpadHandler IMPORTED)    
 set_target_properties(CrashpadHandler PROPERTIES
-    IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}//Crashpad/Bin/MacOS/${CMAKE_SYSTEM_PROCESSOR}/crashpad_handler"
+    IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/Crashpad/Bin/MacOS/${CMAKE_SYSTEM_PROCESSOR}/crashpad_handler"
 )
 
 function(setup_macos_target target libname)
@@ -8,7 +8,7 @@ function(setup_macos_target target libname)
     # Point to the precompiled libraries.
     set(${target}_PREBUILT_LIBS
         "${CMAKE_CURRENT_SOURCE_DIR}/Crashpad/Libraries/MacOS/arm64/lib${libname}.a"
-        "${CMAKE_CURRENT_SOURCE_DIR}//Crashpad/Libraries/MacOS/x86_64/lib${libname}.a"
+        "${CMAKE_CURRENT_SOURCE_DIR}/Crashpad/Libraries/MacOS/x86_64/lib${libname}.a"
     )
     
     # Define the output library, which will be multi-architecture.
