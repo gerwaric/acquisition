@@ -47,3 +47,5 @@ See [BUILD.md](https://github.com/gerwaric/acquisition/BUILD.md) for more detail
 ## Reporting issues
 
 If you're having problems with Acquisition, please check the issues page: https://github.com/gerwaric/acquisition/issues
+
+You can also contact me on Discord as gerwaric.
