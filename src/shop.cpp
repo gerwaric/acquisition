@@ -394,18 +394,18 @@ void Shop::OnEditPageFinished() {
     const std::string hash = Util::GetCsrfToken(bytes, "hash");
     if (hash.empty()) {
         if (bytes.contains("Login Required")) {
-            QLOG_ERROR() << "Cannot update shop: the POESESSID used by acquisition appears to be invalid.";
+            QLOG_ERROR() << "Cannot update shop: the POESESSID is missing or invalid.";
+        } else if (bytes.contains("Permission Denied")) {
+            QLOG_ERROR() << "Cannot update shop: the POESESSID may be invalid or associated with another account.";
         } else {
             QLOG_ERROR() << "Cannot update shop: unable to extract CSRF token from the page. The thread ID may be invalid.";
         };
         submitting_ = false;
         return;
-    } else {
-        QLOG_TRACE() << "CSRF token is" << QString(hash.c_str());
     };
-
+    QLOG_TRACE() << "CSRF token found.";
+    
     // now submit our edit
-
     // holy shit give me some html parser library please
     const std::string page(bytes.constData(), bytes.size());
     std::string title = Util::FindTextBetween(page, "<input type=\"text\" name=\"title\" id=\"title\" onkeypress=\"return&#x20;event.keyCode&#x21;&#x3D;13\" value=\"", "\">");
@@ -471,22 +471,17 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
             QLOG_ERROR() << "Error submitting shop thread:" << error_message;
             if (error_message.startsWith("Failed to find item.", Qt::CaseInsensitive)) {
                 QLOG_ERROR() << "The stash index may be out of date. (Try Shop->\"Update stash index\")";
-                continue;
-            };
-            QLOG_TRACE() << "The html fragment containing the error is" << error_match.captured(0);
-            QLOG_ERROR() << "The query was:" << query.toString();
-            // This error would occur somewhat randomly before a delay was added in OnEditPageFinished.
-            // With that delay, this error doesn't seem to happen any more, but we should probably
-            // keep checking for it.
-            if (error_message.startsWith("Security token has expired.")) {
+            } else if (error_message.startsWith("Security token has expired.")) {
+                // This error would occur somewhat randomly before a delay was added in OnEditPageFinished.
+                // With that delay, this error doesn't seem to happen any more, but we should probably
+                // keep checking for it.
                 if (seconds < 5) {
                     seconds = 5;
                     QLOG_TRACE() << "Setting" << seconds << "delay.";
                 };
-            };
-            // Look for a rate limiting error here, because there are no headers to check for
-            // like the other API calls.
-            if (error_message.startsWith("Rate limiting", Qt::CaseInsensitive)) {
+            } else if (error_message.startsWith("Rate limiting", Qt::CaseInsensitive)) {
+                // Look for a rate limiting error here, because there are no headers to check for
+                // like the other API calls.
                 const QRegularExpressionMatch ratelimit_match = ratelimit_regex.match(error_message);
                 int ratelimit_delay = ratelimit_match.captured(1).toInt();
                 if (ratelimit_delay == 0) {
@@ -498,6 +493,9 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
                     seconds = ratelimit_delay + 1;
                     QLOG_TRACE() << "Setting" << seconds << "second delay.";
                 };
+            } else {
+                QLOG_ERROR() << "Unknown error; the html error fragment is" << error_match.captured(0);
+                QLOG_DEBUG() << "The query was:" << query.toString();
             };
         };
         if (seconds > 0) {
