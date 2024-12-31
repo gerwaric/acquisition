@@ -27,7 +27,6 @@
 #include <QLabel>
 #include <QFontMetrics>
 #include <QMetaEnum>
-#include <QNetworkReply>
 #include <QRegularExpression>
 #include <QTextDocument>
 #include <QUrlQuery>

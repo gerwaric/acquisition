@@ -17,157 +17,35 @@
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "oauthtoken.h"
+#include "util/oauthtoken.h"
 
 #include <QNetworkReply>
 
 #include <QsLog/QsLog.h>
-#include <rapidjson/error/en.h>
 
-#include "util.h"
+#include "util/util.h"
 
-// Hard-code the token lifetimes for a public client.
-constexpr long int ACCESS_TOKEN_LIFETIME_SECS = 10 * 3600; // 10 Hours
-constexpr long int REFRESH_TOKEN_LIFETIME_SECS = 7 * 24 * 3600; // 7 Days
+// Hard-code the token refresh lifetime for a public client:
+// https://www.pathofexile.com/developer/docs/authorization#clients-public
+constexpr long int REFRESH_LIFETIME_DAYS = 7;
 
-OAuthToken::OAuthToken()
-    : m_expires_in(-1)
+OAuthToken::OAuthToken(const QString& json)
 {
-    QLOG_TRACE() << "OAuthToken::OAuthToken(json) entered";
+    Util::parseJson<OAuthToken>(json, *this);
 }
 
 OAuthToken::OAuthToken(const std::string& json)
-    : m_expires_in(-1)
 {
-    QLOG_TRACE() << "OAuthToken::OAuthToken(json) entered";
-    rapidjson::Document doc;
-    doc.Parse(json.c_str());
-    if (doc.HasParseError()) {
-        QLOG_ERROR() << "Error parsing OAuthToken from json:" << rapidjson::GetParseError_En(doc.GetParseError());
-        return;
-    };
-    if (doc.IsObject() == false) {
-        QLOG_ERROR() << "OAuthToken json is not an object.";
-        return;
-    };
-    if (doc.HasMember("access_token") && doc["access_token"].IsString()) {
-        m_access_token = doc["access_token"].GetString();
-    } else {
-        QLOG_ERROR() << "OAuth: serialized token does not have `access_token`";
-    };
-    if (doc.HasMember("expires_in") && doc["expires_in"].IsInt64()) {
-        m_expires_in = doc["expires_in"].GetInt64();
-    } else {
-        QLOG_ERROR() << "OAuth: serialized token does not have `expires_in`";
-    };
-    if (doc.HasMember("token_type") && doc["token_type"].IsString()) {
-        m_token_type = doc["token_type"].GetString();
-    } else {
-        QLOG_ERROR() << "OAuth: serialized token does not have `token_type`";
-    };
-    if (doc.HasMember("scope") && doc["scope"].IsString()) {
-        m_scope = doc["scope"].GetString();
-    } else {
-        QLOG_ERROR() << "OAuth: serialized token does not have `scope`";
-    };
-    if (doc.HasMember("username") && doc["username"].IsString()) {
-        m_username = doc["username"].GetString();
-    } else {
-        QLOG_ERROR() << "OAuth: serialized token does not have `username`";
-    };
-    if (doc.HasMember("sub") && doc["sub"].IsString()) {
-        m_sub = doc["sub"].GetString();
-    } else {
-        QLOG_ERROR() << "OAuth: serialized token does not have `sub`";
-    };
-    if (doc.HasMember("refresh_token") && doc["refresh_token"].IsString()) {
-        m_refresh_token = doc["refresh_token"].GetString();
-    } else {
-        QLOG_ERROR() << "OAuth: serialized token does not have `refresh_token`";
-    };
-
-    if (doc.HasMember("birthday") && doc["birthday"].IsString()) {
-        m_birthday = getDate(doc["birthday"].GetString());
-    } else {
-        QLOG_ERROR() << "OAuth: serialized token does not have `birthday`";
-    };
-
-    if (doc.HasMember("access_expiration") && doc["access_expiration"].IsString()) {
-        m_access_expiration = getDate(doc["access_expiration"].GetString());
-    } else {
-        QLOG_ERROR() << "OAuth: serialized token does not have `access_expiration`";
-    };
-
-    if (doc.HasMember("refresh_expiration") && doc["refresh_expiration"].IsString()) {
-        m_refresh_expiration = getDate(doc["refresh_expiration"].GetString());
-    } else {
-        QLOG_ERROR() << "OAuth: serialized token does not have `refresh_expiration`";
-    };
+    Util::parseJson<OAuthToken>(json, *this);
 }
 
-OAuthToken::OAuthToken(QNetworkReply& reply)
-    : OAuthToken(reply.readAll().toStdString())
+OAuthToken::OAuthToken(QNetworkReply* reply)
 {
-    QLOG_TRACE() << "OAuthToken::OAuthToken(reply) entered";
+    Util::parseJson<OAuthToken>(reply, *this);
+
     // Determine birthday and expiration time.
-    const QString reply_timestamp = Util::FixTimezone(reply.rawHeader("Date"));
-    const QDateTime reply_birthday = QDateTime::fromString(reply_timestamp, Qt::RFC2822Date).toLocalTime();
-    QLOG_TRACE() << "OAuthToken::OAuthToken(reply) reply date is" << reply_birthday.toString();
-
-    if (m_birthday.isValid()) {
-        QLOG_ERROR() << "The OAuth token already has a birthday";
-    };
-    if (m_access_expiration.isValid()) {
-        QLOG_ERROR() << "The OAuth token already has an expiration";
-    };
-    m_birthday = reply_birthday;
-    m_access_expiration = reply_birthday.addSecs(m_expires_in);
-    m_refresh_expiration = reply_birthday.addSecs(m_expires_in
-        + REFRESH_TOKEN_LIFETIME_SECS
-        - ACCESS_TOKEN_LIFETIME_SECS);
-}
-
-/*
-bool OAuthToken::isValid() const {
-    if (access_token_.empty()) {
-        return false;
-    } else if (!access_expiration_.isValid()) {
-        return false;
-    } else {
-        return (access_expiration_ > QDateTime::currentDateTime());
-    };
-}
-*/
-
-std::string OAuthToken::toJson() const {
-    return Util::RapidjsonSerialize(toJsonDoc());
-}
-
-std::string OAuthToken::toJsonPretty() const {
-    return Util::RapidjsonPretty(toJsonDoc());
-}
-
-rapidjson::Document OAuthToken::toJsonDoc() const {
-    const std::string birthday = m_birthday.toString(Qt::RFC2822Date).toStdString();
-    const std::string access_expiration = m_access_expiration.toString(Qt::RFC2822Date).toStdString();
-    const std::string refresh_expiration = m_refresh_expiration.toString(Qt::RFC2822Date).toStdString();
-    rapidjson::Document doc(rapidjson::kObjectType);
-    auto& allocator = doc.GetAllocator();
-    Util::RapidjsonAddString(&doc, "access_token", m_access_token, allocator);
-    Util::RapidjsonAddInt64(&doc, "expires_in", m_expires_in, allocator);
-    Util::RapidjsonAddString(&doc, "token_type", m_token_type, allocator);
-    Util::RapidjsonAddString(&doc, "scope", m_scope, allocator);
-    Util::RapidjsonAddString(&doc, "username", m_username, allocator);
-    Util::RapidjsonAddString(&doc, "sub", m_sub, allocator);
-    Util::RapidjsonAddString(&doc, "refresh_token", m_refresh_token, allocator);
-    Util::RapidjsonAddString(&doc, "birthday", birthday, allocator);
-    Util::RapidjsonAddString(&doc, "access_expiration", access_expiration, allocator);
-    Util::RapidjsonAddString(&doc, "refresh_expiration", refresh_expiration, allocator);
-    return doc;
-}
-
-QDateTime OAuthToken::getDate(const std::string& timestamp) {
-    QByteArray value = QByteArray::fromStdString(timestamp);
-    value = Util::FixTimezone(value);
-    return QDateTime::fromString(value, Qt::RFC2822Date);
+    const QString timestamp = Util::FixTimezone(reply->rawHeader("Date"));
+    birthday = QDateTime::fromString(timestamp, Qt::RFC2822Date).toLocalTime();
+    access_expiration = birthday->addSecs(expires_in);
+    refresh_expiration = birthday->addDays(REFRESH_LIFETIME_DAYS);
 }

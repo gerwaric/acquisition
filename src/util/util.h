@@ -23,14 +23,15 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QMetaEnum>
+#include <QNetworkReply>
 #include <QObject>
 #include <QUrlQuery>
 
-#include <QsLog/QsLogLevel.h>
+#include <json_struct/json_struct.h>
+#include <QsLog/QsLog.h>
 #include <rapidjson/document.h>
 
 class QComboBox;
-class QNetworkReply;
 
 struct Buyout;
 
@@ -132,4 +133,61 @@ namespace Util {
     QString toString(const T& value) {
         return QMetaEnum::fromType<T>().valueToKey(static_cast<std::underlying_type_t<T>>(value));
     };
+
+    template<typename T>
+    void parseJson(const std::string& json, T& out) {
+        JS::ParseContext context(json);
+        if (context.parseTo<T>(out) != JS::Error::NoError) {
+            const QString type_name(typeid(T).name());
+            const std::string error_message = context.makeErrorString();
+            QLOG_ERROR() << "Error parsing json into" << type_name << ":" << error_message;
+        };
+    }
+
+    template<typename T>
+    inline void parseJson(const QByteArray& json, T& out) {
+        parseJson<T>(json.toStdString(), out);
+    }
+
+    template<typename T>
+    inline void parseJson(const QString& json, T& out) {
+        parseJson<T>(json.toUtf8(), out);
+    }
+
+    template<typename T>
+    void parseJson(QNetworkReply* reply, T& out) {
+        if (!reply) {
+            QLOG_ERROR() << "Cannot parse json network reply: reply is null";
+            return;
+        };
+        const int error_code = reply->error();
+        if (error_code != QNetworkReply::NetworkError::NoError) {
+            const QString error_message = reply->errorString();
+            QLOG_ERROR() << "Cannot parse json network reply: error" << error_code << ":" << error_message;
+            return;
+        };
+        parseJson<T>(reply->readAll().toStdString(), out);
+    }
+
+    template<typename T>
+    inline T parseJson(const QByteArray& json) {
+        T result;
+        parseJson<T>(json, result);
+        return result;
+    }
+
+    template<typename T>
+    inline T parseJson(const QString& json) {
+        T result;
+        parseJson<T>(json.toUtf8(), result);
+        return result;
+    }
+
+    template<typename T>
+    inline T parseJson(QNetworkReply* reply) {
+        T result;
+        parseJson<T>(reply->readAll(), result);
+        return result;
+    }
+
 }

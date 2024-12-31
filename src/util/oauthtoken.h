@@ -20,42 +20,31 @@
 #pragma once
 
 #include <QDateTime>
+#include <QString>
 
 #include <string>
 
-#include <rapidjson/document.h>
+#include "util/json_struct_qt.h"
 
 class QNetworkReply;
 
-class OAuthToken {
-public:
-    OAuthToken();
-    OAuthToken(const std::string& json);
-    OAuthToken(QNetworkReply& reply);
-    std::string access_token() const { return m_access_token; };
-    int expires_in() const { return m_expires_in; };
-    std::string scope() const { return m_scope; };
-    std::string username() const { return m_username; };
-    std::string sub() const { return m_sub; };
-    std::string refresh_token() const { return m_refresh_token; };
-    QDateTime birthday() const { return m_birthday; };
-    QDateTime access_expiration() const { return m_access_expiration; };
-    QDateTime refresh_expiration() const { return m_refresh_expiration; };
-    std::string toJson() const;
-    std::string toJsonPretty() const;
-private:
-    static QDateTime getDate(const std::string& timestamp);
-    rapidjson::Document toJsonDoc() const;
+struct OAuthToken {
 
-    std::string m_access_token;
-    long long int m_expires_in;
-    std::string m_token_type;
-    std::string m_scope;
-    std::string m_username;
-    std::string m_sub;
-    std::string m_refresh_token;
+    OAuthToken() = default;
+    explicit OAuthToken(const QString& json);
+    explicit OAuthToken(const std::string& json);
+    explicit OAuthToken(QNetworkReply* reply);
 
-    QDateTime m_birthday;
-    QDateTime m_access_expiration;
-    QDateTime m_refresh_expiration;
+    QString access_token;
+    int expires_in{ -1 };
+    QString scope;
+    QString username;
+    QString sub;
+    QString refresh_token;
+
+    std::optional<QDateTime> birthday;
+    std::optional<QDateTime> access_expiration;
+    std::optional<QDateTime> refresh_expiration;
+
+    JS_OBJ(access_token, expires_in, scope, username, sub, refresh_token, birthday, access_expiration, refresh_expiration);
 };

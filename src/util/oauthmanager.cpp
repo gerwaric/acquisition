@@ -75,15 +75,15 @@ OAuthManager::OAuthManager(
     m_token = OAuthToken(token_str);
     const QDateTime now = QDateTime::currentDateTime();
     QLOG_DEBUG() << "Found an existing OAuth token:";
-    QLOG_DEBUG() << "OAuth access expires on " << m_token.access_expiration().toString()
-        << ((now > m_token.access_expiration()) ? "(expired)" : "");
-    QLOG_DEBUG() << "OAuth refresh expires on" << m_token.refresh_expiration().toString()
-        << ((now > m_token.refresh_expiration()) ? "(expired)" : "");
-    if (now > m_token.refresh_expiration()) {
+    QLOG_DEBUG() << "OAuth access expires on " << m_token.access_expiration.value_or(QDateTime()).toString()
+        << ((now > m_token.access_expiration) ? "(expired)" : "");
+    QLOG_DEBUG() << "OAuth refresh expires on" << m_token.refresh_expiration.value_or(QDateTime()).toString()
+        << ((now > m_token.refresh_expiration) ? "(expired)" : "");
+    if (now > m_token.refresh_expiration) {
         QLOG_INFO() << "Removing the stored OAuth token because it has expired.";
         m_datastore.Set("oauth_token", "");
         m_token = OAuthToken();
-    } else if (now > m_token.access_expiration()) {
+    } else if (now > m_token.access_expiration) {
         QLOG_INFO() << "The OAuth token is being refreshed.";
         requestRefresh();
     } else {
@@ -95,15 +95,15 @@ OAuthManager::~OAuthManager() {};
 
 void OAuthManager::setAuthorization(QNetworkRequest& request) {
     QLOG_TRACE() << "OAuthManager::setAuthorization() entered";
-    if (m_token.access_token().empty()) {
+    if (m_token.access_token.isEmpty()) {
         QLOG_ERROR() << "Cannot set OAuth authorization header: there is no token.";
         return;
     };
-    if (m_token.access_expiration() <= QDateTime::currentDateTime()) {
+    if (m_token.access_expiration.value_or(QDateTime()) <= QDateTime::currentDateTime()) {
         QLOG_ERROR() << "Cannot set OAuth authorization header: the token has expired.";
         return;
     };
-    const std::string bearer = "Bearer " + m_token.access_token();
+    const std::string bearer = "Bearer " + m_token.access_token.toStdString();
     request.setRawHeader("Authorization", QByteArray::fromStdString(bearer));
 }
 
@@ -111,9 +111,9 @@ void OAuthManager::RememberToken(bool remember) {
     QLOG_TRACE() << "OAuthManager::RememberMeToken() entered";
     m_remember_token = remember;
     const QDateTime now = QDateTime::currentDateTime();
-    if (m_remember_token && (now < m_token.refresh_expiration())) {
+    if (m_remember_token && (now < m_token.refresh_expiration)) {
         QLOG_TRACE() << "OAuthManager::RememberMeToken() saving OAuth token";
-        m_datastore.Set("oauth_token", m_token.toJson());
+        m_datastore.Set("oauth_token", JS::serializeStruct(m_token));
     } else {
         QLOG_TRACE() << "OAuthManager::RememberMeToken() clearing OAuth token";
         m_datastore.Set("oauth_token", "");
@@ -122,7 +122,7 @@ void OAuthManager::RememberToken(bool remember) {
 
 void OAuthManager::setRefreshTimer() {
     QLOG_TRACE() << "OAuthManager::setRefreshTimer() entered";
-    const QDateTime refresh_date = m_token.access_expiration().addSecs(-EXPIRATION_BUFFER_SECS);
+    const QDateTime refresh_date = m_token.access_expiration.value_or(QDateTime()).addSecs(-EXPIRATION_BUFFER_SECS);
     const unsigned long interval = QDateTime::currentDateTime().msecsTo(refresh_date);
     m_refresh_timer.setInterval(interval);
     m_refresh_timer.start();
@@ -333,11 +333,11 @@ void OAuthManager::receiveToken(QNetworkReply* reply) {
 
     // Parse the token and emit it.
     QLOG_TRACE() << "OAuthManager::receiveToken() parsing OAuth access token";
-    m_token = OAuthToken(*reply);
+    m_token = OAuthToken(reply);
 
     if (m_remember_token) {
         QLOG_TRACE() << "OAuthManager::receiveToken() saving token to data store";
-        m_datastore.Set("oauth_token", m_token.toJson());
+        m_datastore.Set("oauth_token", JS::serializeStruct(m_token));
     } else {
         QLOG_TRACE() << "OAuthManager::receiveToken() removing token from data store";
         m_datastore.Set("oauth_token", "");
@@ -359,7 +359,7 @@ void OAuthManager::requestRefresh() {
     const QUrlQuery query = Util::EncodeQueryItems({
         {"client_id", CLIENT_ID},
         {"grant_type", "refresh_token"},
-        {"refresh_token", QString::fromStdString(m_token.refresh_token())} });
+        {"refresh_token", m_token.refresh_token} });
     const QByteArray data = query.toString(QUrl::FullyEncoded).toUtf8();
 
     // Make and submit the POST request.
@@ -395,17 +395,28 @@ void OAuthManager::showStatus() {
     msgBox->setAttribute(Qt::WA_DeleteOnClose);
 
     const QDateTime now = QDateTime::currentDateTime();
-    const std::string json = m_token.toJsonPretty();
+    const std::string json = JS::serializeStruct(m_token, JS::SerializerOptions::Pretty);
     QStringList message = { "Your current OAuth token:", QString::fromStdString(json) };
 
-    if (now < m_token.access_expiration()) {
-        const QDateTime refresh_time = now.addMSecs(m_refresh_timer.remainingTime());
-        const QString refresh_timestamp = refresh_time.toString("MMM d 'at' h:m ap");
-        message.append("This token will be automatically refreshed on " + refresh_timestamp);
-    } else if (now < m_token.refresh_expiration()) {
-        message.append("This token needs to be refreshed now");
+    if (!m_token.access_expiration) {
+        message += "The token's access_expiration is missing";
+    };
+    if (!m_token.refresh_expiration) {
+        message += "The token's refresh_expiration is missing";
+    };
+
+    if (m_token.access_expiration && m_token.refresh_expiration) {
+        if (now < m_token.access_expiration.value_or(QDateTime())) {
+            const QDateTime refresh_time = now.addMSecs(m_refresh_timer.remainingTime());
+            const QString refresh_timestamp = refresh_time.toString("MMM d 'at' h:m ap");
+            message.append("This token will be automatically refreshed on " + refresh_timestamp);
+        } else if (now < m_token.refresh_expiration) {
+                message.append("This token needs to be refreshed now");
+            } else {
+                message.append("No valid token. You are not authenticated.");
+            };
     } else {
-        message.append("No valid token. You are not authenticated.");
+        message.append("The token's expiration dates are missing");
     };
     msgBox->setText(message.join("\n\n"));
     msgBox->show();

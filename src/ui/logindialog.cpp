@@ -167,10 +167,10 @@ LoginDialog::LoginDialog(
     // Load the OAuth token if one is already present.
     const QDateTime now = QDateTime::currentDateTime();
     const OAuthToken& token = m_oauth_manager.token();
-    if (now < token.access_expiration()) {
+    if (token.access_expiration && (now < token.access_expiration.value())) {
         QLOG_TRACE() << "LoginDialog::LoginDialog() found a valid OAuth token";
         OnOAuthAccessGranted(m_oauth_manager.token());
-    } else if (now < token.refresh_expiration()) {
+    } else if (token.refresh_expiration && (now < token.refresh_expiration.value())) {
         QLOG_INFO() << "LoginDialog:LoginDialog() the OAuth token needs to be refreshed";
     };
 
@@ -411,11 +411,10 @@ void LoginDialog::LoginWithOAuth() {
     QLOG_INFO() << "Starting OAuth authentication";
     const QDateTime now = QDateTime::currentDateTime();
     const OAuthToken& token = m_oauth_manager.token();
-    if (now < token.access_expiration()) {
-        const QString account = QString::fromStdString(token.username());
-        m_settings.setValue("account", account);
+    if (token.access_expiration && (now < token.access_expiration.value())) {
+        m_settings.setValue("account", token.username);
         emit LoginComplete(POE_API::OAUTH);
-    } else if (now < token.refresh_expiration()) {
+    } else if (token.refresh_expiration && (now < token.refresh_expiration.value())) {
         DisplayError("The OAuth token needs to be refreshed");
     } else {
         DisplayError("You are not authenticated.");
@@ -542,8 +541,7 @@ void LoginDialog::OnFinishLegacyLogin() {
 
 void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
     QLOG_TRACE() << "LoginDialog::OnOAuthAccessGranted() entered";
-    const QString username = QString::fromStdString(token.username());
-    ui->authenticateLabel->setText("You are authenticated as \"" + username + "\"");
+    ui->authenticateLabel->setText("You are authenticated as \"" + token.username + "\"");
     ui->authenticateButton->setText("Re-authenticate (as someone else).");
     ui->authenticateButton->setEnabled(true);
 }

@@ -4,11 +4,14 @@
 
 #include <QByteArray>
 #include <QDateTime>
+#include <QNetworkReply>
 #include <QString>
 
 #include <string>
 
-#include "util.h"
+#include <QsLog/QsLog.h>
+
+#include "util/util.h"
 
 namespace JS {
 
@@ -124,29 +127,4 @@ namespace JS {
             serializer.write(token);
         }
     };
-}
-
-template<typename T>
-T parseJson(const QByteArray& bytes) {
-    const std::string json(bytes.toStdString());
-    JS::ParseContext context(json);
-    T result;
-    if (context.parseTo(&T) != JS::Error::NoError) {
-        const QString type_name(typeid(T).name());
-        const std::string error_message = context.makeErrorString();
-        QLOG_ERROR() << "Error parsing json into" << type_name << ":" << error_message;
-    };
-    return result;
-}
-
-template<typename T>
-T parseJson(const QString& json) {
-    const QByteArray bytes = json.toUtf8();
-    return parseJson<T>(bytes);
-}
-
-template<typename T>
-T parseJson(const QNetworkReply* reply) {
-    const QByteArray bytes = reply->readAll();
-    return parseJson<T>(bytes);
 }
