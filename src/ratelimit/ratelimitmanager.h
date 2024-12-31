@@ -34,33 +34,9 @@
 class QNetworkAccessManager;
 class QNetworkReply;
 
-// Represents a single rate-limited request.
-struct RateLimitedRequest {
-
-    // Construct a new rate-limited request.
-    RateLimitedRequest(const QString& endpoint_, const QNetworkRequest& network_request_, RateLimit::RateLimitedReply* reply_) :
-        id(++request_count),
-        endpoint(endpoint_),
-        network_request(network_request_),
-        reply(reply_) {}
-
-    // Unique identified for each request, even through different requests can be
-    // routed to different policy managers based on different endpoints.
-    const unsigned long id;
-
-    // A copy of this request's API endpoint, if any.
-    const QString endpoint;
-
-    // A copy of the network request that's going to be sent.
-    QNetworkRequest network_request;
-
-    std::unique_ptr<RateLimit::RateLimitedReply> reply;
-
-private:
-
-    // Total number of requests that have every been constructed.
-    static unsigned long request_count;
-};
+class RateLimitedReply;
+class RateLimitedRequest;
+class RateLimitPolicy;
 
 // Manages a single rate limit policy, which may apply to multiple endpoints.
 class RateLimitManager : public QObject {
@@ -78,11 +54,11 @@ public:
     void QueueRequest(
         const QString& endpoint,
         const QNetworkRequest request,
-        RateLimit::RateLimitedReply* reply);
+        RateLimitedReply* reply);
 
     void Update(QNetworkReply* reply);
 
-    const RateLimit::Policy& policy();
+    const RateLimitPolicy& policy();
 
     int msecToNextSend() const { return activation_timer_.remainingTime(); };
 
@@ -91,7 +67,7 @@ signals:
     void RequestReady(RateLimitManager* manager, QNetworkRequest request, POE_API mode);
 
     // Emitted when the underlying policy has been updated.
-    void PolicyUpdated(const RateLimit::Policy& policy);
+    void PolicyUpdated(const RateLimitPolicy& policy);
 
     // Emitted when a request has been added to the queue;
     void QueueUpdated(const QString policy_name, int queued_requests);
@@ -127,7 +103,7 @@ private:
     // Keep a unique_ptr to the policy associated with this manager,
     // which will be updated whenever a reply with the X-Rate-Limit-Policy
     // header is received.
-    std::unique_ptr<RateLimit::Policy> policy_;
+    std::unique_ptr<RateLimitPolicy> policy_;
 
     // The active request
     std::unique_ptr<RateLimitedRequest> active_request_;
@@ -142,5 +118,5 @@ private:
     // A circular buffer is used because it's fast to access, and the number
     // of items we have to store only changes when a rate limit policy
     // changes, which should not happen regularly, but we handle that case, too.
-    RateLimit::RequestHistory history_;
+    boost::circular_buffer<QDateTime> history_;
 };
