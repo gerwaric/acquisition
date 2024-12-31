@@ -20,17 +20,15 @@
 #pragma once
 
 #include <QDialog>
-#include <QObject>
-#include <QString>
-
-#include "ratelimit.h"
 
 class QLabel;
 class QTreeWidget;
-class QWidget;
 class QVBoxLayout;
 
+class QString;
+
 class RateLimiter;
+class RateLimitPolicy;
 
 class RateLimitDialog : public QDialog
 {
@@ -39,10 +37,10 @@ public:
     explicit RateLimitDialog(QWidget* parent, RateLimiter* limiter);
 public slots:
     void OnPause(int pause, const QString& policy_name);
-    void OnPolicyUpdate(const RateLimit::Policy& policy);
+    void OnPolicyUpdate(const RateLimitPolicy& policy);
     void OnQueueUpdate(const QString& policy_name, int queue_size);
 private:
-    QVBoxLayout* layout;
-    QTreeWidget* treeWidget;
-    QLabel* statusLabel;
+    QVBoxLayout* m_layout;
+    QTreeWidget* m_treeWidget;
+    QLabel* m_statusLabel;
 };

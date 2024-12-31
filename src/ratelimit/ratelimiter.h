@@ -29,13 +29,14 @@
 #include <memory>
 
 #include "network_info.h"
-#include "ratelimit.h"
 
 class QNetworkAccessManager;
 class QNetworkReply;
 
 class OAuthManager;
+class RateLimitedReply;
 class RateLimitManager;
+class RateLimitPolicy;
 
 class RateLimiter : public QObject {
     Q_OBJECT
@@ -52,7 +53,7 @@ public:
     // Submit a request-callback pair to the rate limiter. The caller is responsible
     // for freeing the RateLimitedReply object with deleteLater() when the completed()
     // signal has been emitted.
-    RateLimit::RateLimitedReply* Submit(
+    RateLimitedReply* Submit(
         const QString& endpoint,
         QNetworkRequest network_request);
 
@@ -62,7 +63,7 @@ public slots:
 
 signals:
     // Emitted when one of the policy managers has signalled a policy update.
-    void PolicyUpdate(const RateLimit::Policy& policy);
+    void PolicyUpdate(const RateLimitPolicy& policy);
 
     // Emitted when a request has been added to a queue.
     void QueueUpdate(const QString& policy_name, int queued_requests);
@@ -75,7 +76,7 @@ private slots:
     void SendStatusUpdate();
 
     // Received from individual policy managers.
-    void OnPolicyUpdated(const RateLimit::Policy& policy);
+    void OnPolicyUpdated(const RateLimitPolicy& policy);
 
     // Received from individual policy managers.
     void OnQueueUpdated(const QString& policy_name, int queued_requests);
@@ -89,13 +90,13 @@ private:
     void SetupEndpoint(
         const QString& endpoint,
         QNetworkRequest network_request,
-        RateLimit::RateLimitedReply* reply);
+        RateLimitedReply* reply);
 
     // Process the first request for an endpoint we haven't encountered before.
     void ProcessHeadResponse(
         const QString& endpoint,
         QNetworkRequest network_request,
-        RateLimit::RateLimitedReply* reply,
+        RateLimitedReply* reply,
         QNetworkReply* network_reply);
 
     // Log extra details about the HEAD request and replies
@@ -112,19 +113,19 @@ private:
     QNetworkReply* SendRequest(QNetworkRequest network_request);
 
     // Reference to the Application's network access manager.
-    QNetworkAccessManager& network_manager_;
+    QNetworkAccessManager& m_network_manager;
 
     // Reference to the Application's OAuth manager.
-    OAuthManager& oauth_manager_;
+    OAuthManager& m_oauth_manager;
 
-    POE_API mode_;
+    POE_API m_mode;
 
-    QTimer update_timer_;
+    QTimer m_update_timer;
 
-    std::map<QDateTime, QString> pauses_;
+    std::map<QDateTime, QString> m_pauses;
 
-    std::list<std::unique_ptr<RateLimitManager>> managers_;
-    std::map<const QString, RateLimitManager&> manager_by_policy_;
-    std::map<const QString, RateLimitManager&> manager_by_endpoint_;
+    std::list<std::unique_ptr<RateLimitManager>> m_managers;
+    std::map<const QString, RateLimitManager&> m_manager_by_policy;
+    std::map<const QString, RateLimitManager&> m_manager_by_endpoint;
 
 };

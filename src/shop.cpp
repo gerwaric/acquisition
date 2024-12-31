@@ -34,6 +34,7 @@
 #include <rapidjson/document.h>
 
 #include "datastore/datastore.h"
+#include "ratelimit/ratelimitedreply.h"
 #include "ratelimit/ratelimiter.h"
 #include "ui/mainwindow.h"
 #include "util/util.h"
@@ -159,8 +160,8 @@ void Shop::UpdateStashIndex() {
     url.setQuery(query);
     QNetworkRequest request(url);
 
-    RateLimit::RateLimitedReply* reply = rate_limiter_.Submit(kStashItemsUrl, request);
-    connect(reply, &RateLimit::RateLimitedReply::complete, this, &Shop::OnStashTabIndexReceived);
+    RateLimitedReply* reply = rate_limiter_.Submit(kStashItemsUrl, request);
+    connect(reply, &RateLimitedReply::complete, this, &Shop::OnStashTabIndexReceived);
 }
 
 void Shop::OnStashTabIndexReceived(QNetworkReply* reply) {

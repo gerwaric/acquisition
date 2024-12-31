@@ -19,7 +19,9 @@
 
 #pragma once
 
-class QString;
+#include <QNetworkRequest>
+#include <QString>
+
 class QNetworkRequest;
 
 class RateLimitedReply;
@@ -29,7 +31,7 @@ struct RateLimitedRequest {
 
     // Construct a new rate-limited request.
     RateLimitedRequest(const QString& endpoint_, const QNetworkRequest& network_request_, RateLimitedReply* reply_) :
-        id(++request_count),
+        id(++s_request_count),
         endpoint(endpoint_),
         network_request(network_request_),
         reply(reply_) {
@@ -52,5 +54,5 @@ struct RateLimitedRequest {
 private:
 
     // Total number of requests that have every been constructed.
-    static unsigned long request_count;
+    static unsigned long s_request_count;
 };

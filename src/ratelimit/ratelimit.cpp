@@ -20,7 +20,6 @@
 #include "ratelimit.h"
 
 #include <QNetworkReply>
-#include <QUrl>
 
 #include <QsLog/QsLog.h>
 

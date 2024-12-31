@@ -21,6 +21,9 @@
 
 #include <boost/circular_buffer.hpp>
 
+#include <QMetaObject>
+#include <QString>
+
 #include <vector>
 
 class QByteArray;
@@ -51,63 +54,68 @@ class QNetworkReply;
 // For any request against a rate-limited endpoint, only one policy applies, but
 // all of limitations for each item of every rule within that policy are checked.
 
-enum class RateLimitStatus { UNKNOWN, OK, BORDERLINE, VIOLATION, INVALID };
+class RateLimitRule;
+
+class RateLimitPolicy {
+    Q_GADGET
+public:
+    enum class Status { UNKNOWN, OK, BORDERLINE, VIOLATION, INVALID };
+    Q_ENUM(Status)
+
+    RateLimitPolicy(QNetworkReply* const reply);
+    void Check(const RateLimitPolicy& other) const;
+    const QString& name() const { return m_name; };
+    const std::vector<RateLimitRule>& rules() const { return m_rules; };
+    Status status() const { return m_status; };
+    int maximum_hits() const { return m_maximum_hits; };
+    QDateTime GetNextSafeSend(const boost::circular_buffer<QDateTime>& history);
+    QDateTime EstimateDuration(int request_count, int minimum_delay_msec) const;
+private:
+    const QString m_name;
+    std::vector<RateLimitRule> m_rules;
+    Status m_status;
+    int m_maximum_hits;
+};
+
 
 class RateLimitData {
 public:
     RateLimitData(const QByteArray& header_fragment);
-    int hits() const { return hits_; };
-    int period() const { return period_; };
-    int restriction() const { return restriction_; };
+    int hits() const { return m_hits; };
+    int period() const { return m_period; };
+    int restriction() const { return m_restriction; };
 private:
-    int hits_;
-    int period_;
-    int restriction_;
+    int m_hits;
+    int m_period;
+    int m_restriction;
 };
 
 class RateLimitItem {
 public:
     RateLimitItem(const QByteArray& limit_fragment, const QByteArray& state_fragment);
     void Check(const RateLimitItem& other, const QString& prefix) const;
-    const RateLimitData& limit() const { return limit_; };
-    const RateLimitData& state() const { return state_; };
-    RateLimitStatus status() const { return status_; };
+    const RateLimitData& limit() const { return m_limit; };
+    const RateLimitData& state() const { return m_state; };
+    RateLimitPolicy::Status status() const { return m_status; };
     QDateTime GetNextSafeSend(const boost::circular_buffer<QDateTime>& history) const;
     int EstimateDuration(int request_count, int minimum_delay_msec) const;
 private:
-    RateLimitData limit_;
-    RateLimitData state_;
-    RateLimitStatus status_;
+    RateLimitData m_limit;
+    RateLimitData m_state;
+    RateLimitPolicy::Status m_status;
 };
 
 class RateLimitRule {
 public:
-    RateLimitRule(const QByteArray& rule_name, QNetworkReply* const reply);
+    RateLimitRule(const QByteArray& name, QNetworkReply* const reply);
     void Check(const RateLimitRule& other, const QString& prefix) const;
-    const QString& name() const { return name_; };
-    const std::vector<RateLimitItem>& items() const { return items_; };
-    RateLimitStatus status() const { return status_; };
-    int maximum_hits() const { return maximum_hits_; };
+    const QString& name() const { return m_name; };
+    const std::vector<RateLimitItem>& items() const { return m_items; };
+    RateLimitPolicy::Status status() const { return m_status; };
+    int maximum_hits() const { return m_maximum_hits; };
 private:
-    QString name_;
-    std::vector<RateLimitItem> items_;
-    RateLimitStatus status_;
-    int maximum_hits_;
-};
-
-class RateLimitPolicy {
-public:
-    RateLimitPolicy(QNetworkReply* const reply);
-    void Check(const RateLimitPolicy& other) const;
-    const QString& name() const { return name_; };
-    const std::vector<RateLimitRule>& rules() const { return rules_; };
-    RateLimitStatus status() const { return status_; };
-    int maximum_hits() const { return maximum_hits_; };
-    QDateTime GetNextSafeSend(const boost::circular_buffer<QDateTime>& history);
-    QDateTime EstimateDuration(int request_count, int minimum_delay_msec) const;
-private:
-    QString name_;
-    std::vector<RateLimitRule> rules_;
-    RateLimitStatus status_;
-    int maximum_hits_;
+    const QString m_name;
+    std::vector<RateLimitItem> m_items;
+    RateLimitPolicy::Status m_status;
+    int m_maximum_hits;
 };

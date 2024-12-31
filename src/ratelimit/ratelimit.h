@@ -19,13 +19,9 @@
 
 #pragma once
 
-#include <boost/circular_buffer.hpp>
-
 #include <QByteArray>
 #include <QByteArrayList>
 #include <QDateTime>
-#include <QNetworkRequest>
-#include <QObject>
 #include <QString>
 
 class QNetworkReply;
@@ -88,10 +84,6 @@ class QNetworkReply;
 
 namespace RateLimit
 {
-    Q_NAMESPACE;
-
-
-
     QByteArray ParseHeader(QNetworkReply* const reply, const QByteArray& name);
     QByteArrayList ParseHeaderList(QNetworkReply* const reply, const QByteArray& name, const char delim);
     QByteArray ParseRateLimitPolicy(QNetworkReply* const reply);

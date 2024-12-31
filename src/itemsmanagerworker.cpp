@@ -38,6 +38,7 @@
 
 #include "datastore/datastore.h"
 #include "ratelimit/ratelimit.h"
+#include "ratelimit/ratelimitedreply.h"
 #include "ratelimit/ratelimiter.h"
 #include "ui/mainwindow.h"
 #include "util/util.h"
@@ -359,7 +360,7 @@ void ItemsManagerWorker::LegacyRefresh() {
         QNetworkRequest tab_request = MakeLegacyTabRequest(first_stash_request_index_, true);
         QLOG_TRACE() << "ItemsManagerWorker::LegacyRefresh() requesting stash list:" << tab_request.url().toString();
         auto reply = rate_limiter_.Submit(kStashItemsUrl, tab_request);
-        connect(reply, &RateLimit::RateLimitedReply::complete, this, &ItemsManagerWorker::OnFirstLegacyTabReceived);
+        connect(reply, &RateLimitedReply::complete, this, &ItemsManagerWorker::OnFirstLegacyTabReceived);
     };
     if (need_character_list_) {
         // Before listing characters we download the main page because it's the only way
@@ -378,13 +379,13 @@ void ItemsManagerWorker::OAuthRefresh() {
         const auto request = MakeOAuthStashListRequest(realm_, league_);
         QLOG_TRACE() << "ItemsManagerWorker::OAuthRefresh() requesting stash list:" << request.url().toString();
         auto reply = rate_limiter_.Submit(kOauthListStashesEndpoint, request);
-        connect(reply, &RateLimit::RateLimitedReply::complete, this, &ItemsManagerWorker::OnOAuthStashListReceived);
+        connect(reply, &RateLimitedReply::complete, this, &ItemsManagerWorker::OnOAuthStashListReceived);
     };
     if (need_character_list_) {
         const auto request = MakeOAuthCharacterListRequest(realm_);
         QLOG_TRACE() << "ItemsManagerWorker::OAuthRefresh() requesting character list:" << request.url().toString();
         auto submit = rate_limiter_.Submit(kOAuthListCharactersEndpoint, request);
-        connect(submit, &RateLimit::RateLimitedReply::complete, this, &ItemsManagerWorker::OnOAuthCharacterListReceived);
+        connect(submit, &RateLimitedReply::complete, this, &ItemsManagerWorker::OnOAuthCharacterListReceived);
     };
 }
 
@@ -447,7 +448,7 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterRequest(
 void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
     QLOG_TRACE() << "ItemsManagerWorker::OnOAuthStashListReceived() entered";
 
-    auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
+    auto sender = qobject_cast<RateLimitedReply*>(QObject::sender());
     sender->deleteLater();
     reply->deleteLater();
 
@@ -574,7 +575,7 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
 void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
     QLOG_TRACE() << "ItemsManagerWorker::OnOAuthCharacterListReceived() entered";
 
-    auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
+    auto sender = qobject_cast<RateLimitedReply*>(QObject::sender());
     sender->deleteLater();
     reply->deleteLater();
 
@@ -651,7 +652,7 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
 void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply, ItemLocation location) {
     QLOG_TRACE() << "ItemsManagerWorker::OnOAuthStashReceived() entered";
 
-    auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
+    auto sender = qobject_cast<RateLimitedReply*>(QObject::sender());
     sender->deleteLater();
     reply->deleteLater();
 
@@ -701,7 +702,7 @@ void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply, ItemLocation
 void ItemsManagerWorker::OnOAuthCharacterReceived(QNetworkReply* reply, ItemLocation location) {
     QLOG_TRACE() << "ItemsManagerWorker::OnOAuthCharacterReceived() entered";
 
-    auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
+    auto sender = qobject_cast<RateLimitedReply*>(QObject::sender());
     sender->deleteLater();
     reply->deleteLater();
 
@@ -762,13 +763,13 @@ void ItemsManagerWorker::OnLegacyMainPageReceived() {
     QNetworkRequest characters_request = MakeLegacyCharacterListRequest();
     QLOG_TRACE() << "ItemsManagerWorker::OnLegacyMainPageReceived() requesting characters:" << characters_request.url().toString();
     auto submit = rate_limiter_.Submit(kGetCharactersUrl, characters_request);
-    connect(submit, &RateLimit::RateLimitedReply::complete, this, &ItemsManagerWorker::OnLegacyCharacterListReceived);
+    connect(submit, &RateLimitedReply::complete, this, &ItemsManagerWorker::OnLegacyCharacterListReceived);
 }
 
 void ItemsManagerWorker::OnLegacyCharacterListReceived(QNetworkReply* reply) {
     QLOG_TRACE() << "ItemsManagerWorker::OnLegacyCharacterListReceived() entered";
 
-    auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
+    auto sender = qobject_cast<RateLimitedReply*>(QObject::sender());
     sender->deleteLater();
     reply->deleteLater();
     if (reply->error()) {
@@ -950,7 +951,7 @@ void ItemsManagerWorker::FetchItems() {
 
         // Pass the request to the rate limiter.
         auto submit = rate_limiter_.Submit(request.endpoint, request.network_request);
-        connect(submit, &RateLimit::RateLimitedReply::complete, this, callback);
+        connect(submit, &RateLimitedReply::complete, this, callback);
 
         // Keep track of the tabs requested.
         tab_titles += request.location.GetHeader() + " ";
@@ -965,7 +966,7 @@ void ItemsManagerWorker::FetchItems() {
 void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
     QLOG_TRACE() << "ItemsManagerWorker::OnFirstLegacyTabReceived() entered";
 
-    auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
+    auto sender = qobject_cast<RateLimitedReply*>(QObject::sender());
     sender->deleteLater();
     reply->deleteLater();
 
@@ -1124,7 +1125,7 @@ void ItemsManagerWorker::ParseItems(rapidjson::Value& value, ItemLocation base_l
 void ItemsManagerWorker::OnLegacyTabReceived(QNetworkReply* reply, ItemLocation location) {
     QLOG_TRACE() << "ItemsManagerWorker::OnLegacyTabReceived() entered";
 
-    auto sender = qobject_cast<RateLimit::RateLimitedReply*>(QObject::sender());
+    auto sender = qobject_cast<RateLimitedReply*>(QObject::sender());
     sender->deleteLater();
     reply->deleteLater();
 
@@ -1311,7 +1312,7 @@ void ItemsManagerWorker::PreserveSelectedCharacter() {
     // We don't need to to anything with the reply.
     QNetworkRequest character_request = MakeLegacyCharacterRequest(selected_character_);
     auto submit = rate_limiter_.Submit(kCharacterItemsUrl, character_request);
-    connect(submit, &RateLimit::RateLimitedReply::complete, this,
+    connect(submit, &RateLimitedReply::complete, this,
         [=](QNetworkReply* reply) {
             reply->deleteLater();
         });

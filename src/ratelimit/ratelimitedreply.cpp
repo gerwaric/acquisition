@@ -17,11 +17,6 @@
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "ratelimitedrequest.h"
+#include "ratelimitedreplpy.h"
 
-#include "ratelimitedreply.h"
-
-// Total number of rate-limited requests that have been created.
-unsigned long RateLimitedRequest::s_request_count = 0;
-
-RateLimitedRequest::~RateLimitedRequest() {}
+#include <QNetworkReply>

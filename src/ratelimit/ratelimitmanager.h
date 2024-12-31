@@ -24,9 +24,9 @@
 #include <QObject>
 #include <QTimer>
 
-#include <deque>
+#include <boost/circular_buffer.hpp>
 
-#include "boost/function.hpp"
+#include <deque>
 
 #include "network_info.h"
 #include "ratelimit.h"
@@ -45,7 +45,7 @@ class RateLimitManager : public QObject {
 public:
 
     // This is the signature of the function used to send requests.
-    using SendFcn = boost::function<QNetworkReply* (QNetworkRequest&)>;
+    using SendFcn = std::function<QNetworkReply* (QNetworkRequest&)>;
 
     RateLimitManager(SendFcn sender);
     ~RateLimitManager();
@@ -60,7 +60,7 @@ public:
 
     const RateLimitPolicy& policy();
 
-    int msecToNextSend() const { return activation_timer_.remainingTime(); };
+    int msecToNextSend() const { return m_activation_timer.remainingTime(); };
 
 signals:
     // Emitted when a network request is ready to go.
@@ -90,7 +90,7 @@ public slots:
 private:
     
     // Function handle used to send network reqeusts.
-    const SendFcn sender_;
+    const SendFcn m_sender;
 
     // Called right after active_request is loaded with a new request. This
     // will determine when that request can be sent and setup the active
@@ -98,18 +98,18 @@ private:
     void ActivateRequest();
 
     // Used to send requests after a delay.
-    QTimer activation_timer_;
+    QTimer m_activation_timer;
 
     // Keep a unique_ptr to the policy associated with this manager,
     // which will be updated whenever a reply with the X-Rate-Limit-Policy
     // header is received.
-    std::unique_ptr<RateLimitPolicy> policy_;
+    std::unique_ptr<RateLimitPolicy> m_policy;
 
     // The active request
-    std::unique_ptr<RateLimitedRequest> active_request_;
+    std::unique_ptr<RateLimitedRequest> m_active_request;
 
     // Requests that are waiting to be activated.
-    std::deque<std::unique_ptr<RateLimitedRequest>> queued_requests_;
+    std::deque<std::unique_ptr<RateLimitedRequest>> m_queued_requests;
 
     // We use a history of the received reply times so that we can calculate
     // when the next safe send time will be. This allows us to calculate the
@@ -118,5 +118,5 @@ private:
     // A circular buffer is used because it's fast to access, and the number
     // of items we have to store only changes when a rate limit policy
     // changes, which should not happen regularly, but we handle that case, too.
-    boost::circular_buffer<QDateTime> history_;
+    boost::circular_buffer<QDateTime> m_history;
 };

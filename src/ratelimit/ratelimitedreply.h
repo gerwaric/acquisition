@@ -19,6 +19,8 @@
 
 #pragma once
 
+class QNetworkReply;
+
 // This is the object returned to the end-user of the rate limiter.
 // When the underlying network request is finished, the complete
 // signal will be issued so that the caller can use a slot to
