@@ -43,6 +43,6 @@ signals:
     void imageReady(const std::string& url);
 private:
     QString getImagePath(const std::string& url) const;
-    QNetworkAccessManager& network_manager_;
-    QString directory_;
+    QNetworkAccessManager& m_network_manager;
+    QString m_directory;
 };

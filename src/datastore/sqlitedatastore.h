@@ -31,7 +31,7 @@ struct CurrencyUpdate;
 
 class SqliteDataStore : public DataStore {
 public:
-    SqliteDataStore(const QString& filename_);
+    SqliteDataStore(const QString& m_filename);
     ~SqliteDataStore();
     void Set(const std::string& key, const std::string& value);
     void SetTabs(const ItemLocationType& type, const Locations& value);
@@ -46,6 +46,6 @@ private:
     void CreateTable(const std::string& name, const std::string& fields);
     void CleanItemsTable();
 
-    QString filename_;
-    QSqlDatabase db_;
+    QString m_filename;
+    QSqlDatabase m_db;
 };

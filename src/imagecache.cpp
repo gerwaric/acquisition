@@ -37,11 +37,11 @@
 ImageCache::ImageCache(
     QNetworkAccessManager& network_manager,
     const QString& directory)
-    : network_manager_(network_manager)
-    , directory_(directory)
+    : m_network_manager(network_manager)
+    , m_directory(directory)
 {
-    if (!QDir(directory_).exists()) {
-        QDir().mkpath(directory_);
+    if (!QDir(m_directory).exists()) {
+        QDir().mkpath(m_directory);
     };
 }
 
@@ -59,7 +59,7 @@ void ImageCache::fetch(const std::string& url) {
         QLOG_DEBUG() << "ImageCache: fetching" << url;
         QNetworkRequest request = QNetworkRequest(QUrl(QString::fromStdString(url)));
         request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-        QNetworkReply* reply = network_manager_.get(request);
+        QNetworkReply* reply = m_network_manager.get(request);
         connect(reply, &QNetworkReply::finished, this, &ImageCache::onFetched);
     };
 }
@@ -89,5 +89,5 @@ QImage ImageCache::load(const std::string& url) const {
 }
 
 QString ImageCache::getImagePath(const std::string& url) const {
-    return directory_ + QDir::separator() + QString::fromStdString(Util::Md5(url)) + ".png";
+    return m_directory + QDir::separator() + QString::fromStdString(Util::Md5(url)) + ".png";
 }

@@ -55,8 +55,8 @@ public:
 private:
     bool Match(const char* mod, double* output);
 
-    std::string name_;
-    std::vector<std::string> matches_;
+    std::string m_name;
+    std::vector<std::string> m_matches;
 };
 
 typedef std::shared_ptr<SumModGenerator> SumModGen;

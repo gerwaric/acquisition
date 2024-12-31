@@ -45,7 +45,7 @@ int SearchComboStyle::styleHint(StyleHint hint, const QStyleOption* option, cons
 
 SearchComboBox::SearchComboBox(QAbstractItemModel* model, QWidget* parent) :
     QComboBox(parent),
-    completer_(model, this)
+    m_completer(model, this)
 {
     setEditable(true);
     setModel(model);
@@ -55,41 +55,41 @@ SearchComboBox::SearchComboBox(QAbstractItemModel* model, QWidget* parent) :
 
     view()->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
 
-    completer_.setCompletionMode(QCompleter::PopupCompletion);
-    completer_.setFilterMode(Qt::MatchContains);
-    completer_.setCaseSensitivity(Qt::CaseInsensitive);
-    completer_.setModelSorting(QCompleter::CaseInsensitivelySortedModel);
-    completer_.setWidget(this);
+    m_completer.setCompletionMode(QCompleter::PopupCompletion);
+    m_completer.setFilterMode(Qt::MatchContains);
+    m_completer.setCaseSensitivity(Qt::CaseInsensitive);
+    m_completer.setModelSorting(QCompleter::CaseInsensitivelySortedModel);
+    m_completer.setWidget(this);
 
     connect(this, &QComboBox::editTextChanged,
         this, &SearchComboBox::OnTextEdited);
 
-    connect(&edit_timer_, &QTimer::timeout,
+    connect(&m_edit_timer, &QTimer::timeout,
         this, &SearchComboBox::OnEditTimeout);
 
-    connect(&completer_, QOverload<const QString&>::of(&QCompleter::activated),
+    connect(&m_completer, QOverload<const QString&>::of(&QCompleter::activated),
         this, &SearchComboBox::OnCompleterActivated);
 }
 
 void SearchComboBox::OnTextEdited() {
-    edit_timer_.start(350);
+    m_edit_timer.start(350);
 }
 
 void SearchComboBox::OnEditTimeout() {
-    edit_timer_.stop();
+    m_edit_timer.stop();
     const QString& text = lineEdit()->text();
     if (text.isEmpty()) {
         return;
     };
-    completer_.setCompletionPrefix(text);
-    if (completer_.setCurrentRow(1)) {
+    m_completer.setCompletionPrefix(text);
+    if (m_completer.setCurrentRow(1)) {
         // Trigger completion if there are 2 or more results.
-        completer_.complete();
-    } else if (completer_.setCurrentRow(0)) {
+        m_completer.complete();
+    } else if (m_completer.setCurrentRow(0)) {
         // If there is only one compleition result, check to see
         // if it's just a partial completion.
-        if (text != completer_.currentCompletion()) {
-            completer_.complete();
+        if (text != m_completer.currentCompletion()) {
+            m_completer.complete();
         } else {
             setCurrentText(text);
         };

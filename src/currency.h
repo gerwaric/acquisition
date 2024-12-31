@@ -70,9 +70,9 @@ struct Currency {
     const int& AsRank() const;
 
 private:
-    static const std::string currency_type_error_;
-    static const Currency::TypeStringMap currency_type_as_string_;
-    static const Currency::TypeStringMap currency_type_as_tag_;
-    static const Currency::TypeIntMap currency_type_as_rank_;
-    static const Currency::StringTypeMap string_to_currency_type_;
+    static const std::string m_currency_type_error;
+    static const Currency::TypeStringMap m_currency_type_as_string;
+    static const Currency::TypeStringMap m_currency_type_as_tag;
+    static const Currency::TypeIntMap m_currency_type_as_rank;
+    static const Currency::StringTypeMap m_string_to_currency_type;
 };

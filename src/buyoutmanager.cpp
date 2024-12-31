@@ -33,7 +33,7 @@
 #include "application.h"
 #include "itemlocation.h"
 
-const std::map<std::string, BuyoutType> BuyoutManager::string_to_buyout_type_ = {
+const std::map<std::string, BuyoutType> BuyoutManager::m_string_to_buyout_type = {
     {"~gb/o", BUYOUT_TYPE_BUYOUT},
     {"~b/o", BUYOUT_TYPE_BUYOUT},
     {"~c/o", BUYOUT_TYPE_CURRENT_OFFER},
@@ -41,8 +41,8 @@ const std::map<std::string, BuyoutType> BuyoutManager::string_to_buyout_type_ = 
 };
 
 BuyoutManager::BuyoutManager(DataStore& data)
-    : data_(data)
-    , save_needed_(false)
+    : m_data(data)
+    , m_save_needed(false)
 {
     Load();
 }
@@ -55,22 +55,22 @@ void BuyoutManager::Set(const Item& item, const Buyout& buyout) {
     if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
         QLOG_WARN() << "BuyoutManager::Set() obsolete 'current offer' buyout detected for" << item.PrettyName() << ":" << buyout.AsText();
     };
-    auto const& it = buyouts_.lower_bound(item.hash());
-    if (it != buyouts_.end() && !(buyouts_.key_comp()(item.hash(), it->first))) {
+    auto const& it = m_buyouts.lower_bound(item.hash());
+    if (it != m_buyouts.end() && !(m_buyouts.key_comp()(item.hash(), it->first))) {
         // Entry exists - we don't want to update if buyout is equal to existing
         if (buyout != it->second) {
-            save_needed_ = true;
+            m_save_needed = true;
             it->second = buyout;
         };
     } else {
-        save_needed_ = true;
-        buyouts_.insert(it, { item.hash(), buyout });
+        m_save_needed = true;
+        m_buyouts.insert(it, { item.hash(), buyout });
     };
 }
 
 Buyout BuyoutManager::Get(const Item& item) const {
-    auto const& it = buyouts_.find(item.hash());
-    if (it != buyouts_.end()) {
+    auto const& it = m_buyouts.find(item.hash());
+    if (it != m_buyouts.end()) {
         Buyout buyout = it->second;
         if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
             QLOG_WARN() << "BuyoutManager::Get() obsolete 'current offer' buyout detected for" << item.PrettyName() << ":" << buyout.AsText();
@@ -81,8 +81,8 @@ Buyout BuyoutManager::Get(const Item& item) const {
 }
 
 Buyout BuyoutManager::GetTab(const std::string& tab) const {
-    auto const& it = tab_buyouts_.find(tab);
-    if (it != tab_buyouts_.end()) {
+    auto const& it = m_tab_buyouts.find(tab);
+    if (it != m_tab_buyouts.end()) {
         Buyout buyout = it->second;
         if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
             QLOG_WARN() << "BuyoutManager::GetTab() obsolete 'current offer' buyout detected for" << tab << ":" << buyout.AsText();
@@ -96,16 +96,16 @@ void BuyoutManager::SetTab(const std::string& tab, const Buyout& buyout) {
     if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
         QLOG_WARN() << "BuyoutManager::SetTab() obsolete 'current offer' buyout detected for" << tab << ":" << buyout.AsText();
     };
-    auto const& it = tab_buyouts_.lower_bound(tab);
-    if (it != tab_buyouts_.end() && !(tab_buyouts_.key_comp()(tab, it->first))) {
+    auto const& it = m_tab_buyouts.lower_bound(tab);
+    if (it != m_tab_buyouts.end() && !(m_tab_buyouts.key_comp()(tab, it->first))) {
         // Entry exists - we don't want to update if buyout is equal to existing
         if (buyout != it->second) {
-            save_needed_ = true;
+            m_save_needed = true;
             it->second = buyout;
         };
     } else {
-        save_needed_ = true;
-        tab_buyouts_.insert(it, { tab, buyout });
+        m_save_needed = true;
+        m_tab_buyouts.insert(it, { tab, buyout });
     };
 }
 
@@ -114,13 +114,13 @@ void BuyoutManager::CompressTabBuyouts() {
     // This function is to remove buyouts associated with tab names that don't
     // currently exist.
     std::set<std::string> tmp;
-    for (auto const& loc : tabs_)
+    for (auto const& loc : m_tabs)
         tmp.insert(loc.GetUniqueHash());
 
-    for (auto it = tab_buyouts_.begin(), ite = tab_buyouts_.end(); it != ite;) {
+    for (auto it = m_tab_buyouts.begin(), ite = m_tab_buyouts.end(); it != ite;) {
         if (tmp.count(it->first) == 0) {
-            save_needed_ = true;
-            it = tab_buyouts_.erase(it);
+            m_save_needed = true;
+            it = m_tab_buyouts.erase(it);
         } else {
             ++it;
         };
@@ -137,9 +137,9 @@ void BuyoutManager::CompressItemBuyouts(const Items& items) {
         tmp.insert(item.hash());
     };
 
-    for (auto it = buyouts_.cbegin(); it != buyouts_.cend();) {
+    for (auto it = m_buyouts.cbegin(); it != m_buyouts.cend();) {
         if (tmp.count(it->first) == 0) {
-            buyouts_.erase(it++);
+            m_buyouts.erase(it++);
         } else {
             ++it;
         };
@@ -147,35 +147,35 @@ void BuyoutManager::CompressItemBuyouts(const Items& items) {
 }
 
 void BuyoutManager::SetRefreshChecked(const ItemLocation& loc, bool value) {
-    save_needed_ = true;
-    refresh_checked_[loc.GetUniqueHash()] = value;
+    m_save_needed = true;
+    m_refresh_checked[loc.GetUniqueHash()] = value;
 }
 
 bool BuyoutManager::GetRefreshChecked(const ItemLocation& loc) const {
-    auto it = refresh_checked_.find(loc.GetUniqueHash());
-    bool refresh_checked = (it != refresh_checked_.end()) ? it->second : true;
+    auto it = m_refresh_checked.find(loc.GetUniqueHash());
+    bool refresh_checked = (it != m_refresh_checked.end()) ? it->second : true;
     return (refresh_checked || GetRefreshLocked(loc));
 }
 
 bool BuyoutManager::GetRefreshLocked(const ItemLocation& loc) const {
-    return refresh_locked_.count(loc.GetUniqueHash());
+    return m_refresh_locked.count(loc.GetUniqueHash());
 }
 
 void BuyoutManager::SetRefreshLocked(const ItemLocation& loc) {
-    refresh_locked_.insert(loc.GetUniqueHash());
+    m_refresh_locked.insert(loc.GetUniqueHash());
 }
 
 void BuyoutManager::ClearRefreshLocks() {
-    refresh_locked_.clear();
+    m_refresh_locked.clear();
 }
 
 void BuyoutManager::Clear() {
-    save_needed_ = true;
-    buyouts_.clear();
-    tab_buyouts_.clear();
-    refresh_locked_.clear();
-    refresh_checked_.clear();
-    tabs_.clear();
+    m_save_needed = true;
+    m_buyouts.clear();
+    m_tab_buyouts.clear();
+    m_refresh_locked.clear();
+    m_refresh_checked.clear();
+    m_tabs.clear();
 }
 
 std::string BuyoutManager::Serialize(const std::map<std::string, Buyout>& buyouts) {
@@ -291,31 +291,31 @@ void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, b
 }
 
 void BuyoutManager::Save() {
-    if (!save_needed_) {
+    if (!m_save_needed) {
         return;
     };
-    save_needed_ = false;
-    data_.Set("buyouts", Serialize(buyouts_));
-    data_.Set("tab_buyouts", Serialize(tab_buyouts_));
-    data_.Set("refresh_checked_state", Serialize(refresh_checked_));
+    m_save_needed = false;
+    m_data.Set("buyouts", Serialize(m_buyouts));
+    m_data.Set("tab_buyouts", Serialize(m_tab_buyouts));
+    m_data.Set("refresh_checked_state", Serialize(m_refresh_checked));
 }
 
 void BuyoutManager::Load() {
-    Deserialize(data_.Get("buyouts"), &buyouts_);
-    Deserialize(data_.Get("tab_buyouts"), &tab_buyouts_);
-    Deserialize(data_.Get("refresh_checked_state"), refresh_checked_);
+    Deserialize(m_data.Get("buyouts"), &m_buyouts);
+    Deserialize(m_data.Get("tab_buyouts"), &m_tab_buyouts);
+    Deserialize(m_data.Get("refresh_checked_state"), m_refresh_checked);
 }
 void BuyoutManager::SetStashTabLocations(const std::vector<ItemLocation>& tabs) {
-    tabs_ = tabs;
+    m_tabs = tabs;
 }
 
 const std::vector<ItemLocation> BuyoutManager::GetStashTabLocations() const {
-    return tabs_;
+    return m_tabs;
 }
 
 BuyoutType BuyoutManager::StringToBuyoutType(std::string bo_str) const {
-    auto const& it = string_to_buyout_type_.find(bo_str);
-    if (it != string_to_buyout_type_.end()) {
+    auto const& it = m_string_to_buyout_type.find(bo_str);
+    if (it != m_string_to_buyout_type.end()) {
         return it->second;
     };
     return BUYOUT_TYPE_INHERIT;
@@ -344,11 +344,11 @@ Buyout BuyoutManager::StringToBuyout(std::string format) {
 void BuyoutManager::MigrateItem(const Item& item) {
     std::string old_hash = item.old_hash();
     std::string hash = item.hash();
-    auto it = buyouts_.find(old_hash);
-    auto new_it = buyouts_.find(hash);
-    if (it != buyouts_.end() && (new_it == buyouts_.end() || new_it->second.source != BUYOUT_SOURCE_MANUAL)) {
-        buyouts_[hash] = it->second;
-        buyouts_.erase(it);
-        save_needed_ = true;
+    auto it = m_buyouts.find(old_hash);
+    auto new_it = m_buyouts.find(hash);
+    if (it != m_buyouts.end() && (new_it == m_buyouts.end() || new_it->second.source != BUYOUT_SOURCE_MANUAL)) {
+        m_buyouts[hash] = it->second;
+        m_buyouts.erase(it);
+        m_save_needed = true;
     };
 }

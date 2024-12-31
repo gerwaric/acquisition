@@ -31,7 +31,7 @@ class RePoE : public QObject {
 public:
     RePoE(QNetworkAccessManager& network_manager);
     void Init();
-    bool IsInitialized() const { return initialized_; };
+    bool IsInitialized() const { return s_initialized; };
 signals:
     void StatusUpdate(ProgramState state, const QString& status);
     void finished();
@@ -41,7 +41,7 @@ public slots:
     void OnStatTranslationReceived();
 private:
     void GetStatTranslations();
-    QNetworkAccessManager& network_manager_;
-    static bool initialized_;
+    QNetworkAccessManager& m_network_manager;
+    static bool s_initialized;
     static QStringList GetTranslationUrls();
 };

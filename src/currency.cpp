@@ -21,9 +21,9 @@
 
 #include <QsLog/QsLog.h>
 
-const std::string Currency::currency_type_error_;
+const std::string Currency::m_currency_type_error;
 
-const Currency::TypeStringMap Currency::currency_type_as_string_ = {
+const Currency::TypeStringMap Currency::m_currency_type_as_string = {
     {CURRENCY_NONE, ""},
     {CURRENCY_ORB_OF_ALTERATION, "Orb of Alteration"},
     {CURRENCY_ORB_OF_FUSING, "Orb of Fusing"},
@@ -46,7 +46,7 @@ const Currency::TypeStringMap Currency::currency_type_as_string_ = {
     {CURRENCY_SILVER_COIN, "Silver Coin"},
 };
 
-const Currency::TypeStringMap Currency::currency_type_as_tag_ = {
+const Currency::TypeStringMap Currency::m_currency_type_as_tag = {
     {CURRENCY_NONE, ""},
     {CURRENCY_ORB_OF_ALTERATION, "alt"},
     {CURRENCY_ORB_OF_FUSING, "fuse"},
@@ -69,7 +69,7 @@ const Currency::TypeStringMap Currency::currency_type_as_tag_ = {
     {CURRENCY_SILVER_COIN, "silver"},
 };
 
-const Currency::TypeIntMap Currency::currency_type_as_rank_ = {
+const Currency::TypeIntMap Currency::m_currency_type_as_rank = {
     {CURRENCY_NONE, 0},
     {CURRENCY_CHROMATIC_ORB, 1},
     {CURRENCY_ORB_OF_ALTERATION, 2},
@@ -92,7 +92,7 @@ const Currency::TypeIntMap Currency::currency_type_as_rank_ = {
     {CURRENCY_SILVER_COIN, 19},
 };
 
-const Currency::StringTypeMap Currency::string_to_currency_type_ = {
+const Currency::StringTypeMap Currency::m_string_to_currency_type = {
     {"alch", CURRENCY_ORB_OF_ALCHEMY},
     {"alchs", CURRENCY_ORB_OF_ALCHEMY},
     {"alchemy", CURRENCY_ORB_OF_ALCHEMY},
@@ -149,7 +149,7 @@ const Currency::StringTypeMap Currency::string_to_currency_type_ = {
 
 std::vector<CurrencyType> Currency::Types() {
     std::vector<CurrencyType> tmp;
-    for (unsigned int i = 0; i < currency_type_as_tag_.size(); i++) {
+    for (unsigned int i = 0; i < m_currency_type_as_tag.size(); i++) {
         tmp.push_back(static_cast<CurrencyType>(i));
     };
     return tmp;
@@ -157,13 +157,13 @@ std::vector<CurrencyType> Currency::Types() {
 
 Currency Currency::FromTag(const std::string& tag)
 {
-    auto& m = currency_type_as_tag_;
+    auto& m = m_currency_type_as_tag;
     auto const& it = std::find_if(m.begin(), m.end(), [&](Currency::TypeStringMap::value_type const& x) { return x.second == tag; });
     return Currency((it != m.end()) ? it->first : CURRENCY_NONE);
 }
 
 Currency Currency::FromIndex(int index) {
-    if (static_cast<unsigned int>(index) >= currency_type_as_tag_.size()) {
+    if (static_cast<unsigned int>(index) >= m_currency_type_as_tag.size()) {
         QLOG_WARN() << "Currency type index out of bounds: " << index << ". This should never happen - please report.";
         return CURRENCY_NONE;
     } else {
@@ -172,34 +172,34 @@ Currency Currency::FromIndex(int index) {
 }
 
 Currency Currency::FromString(const std::string& currency) {
-    auto const& it = string_to_currency_type_.find(currency);
-    if (it != string_to_currency_type_.end()) {
+    auto const& it = m_string_to_currency_type.find(currency);
+    if (it != m_string_to_currency_type.end()) {
         return it->second;
     };
     return CURRENCY_NONE;
 }
 
 const std::string& Currency::AsString() const {
-    auto const& it = currency_type_as_string_.find(type);
-    if (it != currency_type_as_string_.end()) {
+    auto const& it = m_currency_type_as_string.find(type);
+    if (it != m_currency_type_as_string.end()) {
         return it->second;
     } else {
         QLOG_WARN() << "No mapping from currency type: " << type << " to string. This should never happen - please report.";
-        return currency_type_error_;
+        return m_currency_type_error;
     };
 }
 
 const std::string& Currency::AsTag() const {
-    auto const& it = currency_type_as_tag_.find(type);
-    if (it != currency_type_as_tag_.end()) {
+    auto const& it = m_currency_type_as_tag.find(type);
+    if (it != m_currency_type_as_tag.end()) {
         return it->second;
     } else {
         QLOG_WARN() << "No mapping from currency type: " << type << " to tag. This should never happen - please report.";
-        return currency_type_error_;
+        return m_currency_type_error;
     };
 }
 
 const int& Currency::AsRank() const
 {
-    return currency_type_as_rank_.at(type);
+    return m_currency_type_as_rank.at(type);
 }

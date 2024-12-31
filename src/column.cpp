@@ -213,22 +213,22 @@ QVariant InfluncedColumn::icon(const Item& item) const {
 
 
 PropertyColumn::PropertyColumn(const std::string& name) :
-    name_(name),
-    property_(name)
+    m_name(name),
+    m_property(name)
 {}
 
 PropertyColumn::PropertyColumn(const std::string& name, const std::string& property) :
-    name_(name),
-    property_(property)
+    m_name(name),
+    m_property(property)
 {}
 
 std::string PropertyColumn::name() const {
-    return name_;
+    return m_name;
 }
 
 QVariant PropertyColumn::value(const Item& item) const {
-    if (item.properties().count(property_))
-        return item.properties().find(property_)->second.c_str();
+    if (item.properties().count(m_property))
+        return item.properties().find(m_property)->second.c_str();
     return QVariant();
 }
 
@@ -266,26 +266,26 @@ QVariant eDPSColumn::value(const Item& item) const {
 }
 
 ElementalDamageColumn::ElementalDamageColumn(int index) :
-    index_(index)
+    m_index(index)
 {}
 
 std::string ElementalDamageColumn::name() const {
-    if (index_ == 0)
+    if (m_index == 0)
         return "ED";
     return "";
 }
 
 QVariant ElementalDamageColumn::value(const Item& item) const {
-    if (item.elemental_damage().size() > index_) {
-        auto& ed = item.elemental_damage().at(index_);
+    if (item.elemental_damage().size() > m_index) {
+        auto& ed = item.elemental_damage().at(m_index);
         return ed.first.c_str();
     }
     return QVariant();
 }
 
 QColor ElementalDamageColumn::color(const Item& item) const {
-    if (item.elemental_damage().size() > index_) {
-        auto& ed = item.elemental_damage().at(index_);
+    if (item.elemental_damage().size() > m_index) {
+        auto& ed = item.elemental_damage().at(m_index);
         switch (ed.second) {
         case ED_FIRE:
             return QColor(0xc5, 0x13, 0x13);
@@ -325,7 +325,7 @@ QVariant cDPSColumn::value(const Item& item) const {
 }
 
 PriceColumn::PriceColumn(const BuyoutManager& bo_manager) :
-    bo_manager_(bo_manager)
+    m_bo_manager(bo_manager)
 {}
 
 std::string PriceColumn::name() const {
@@ -333,17 +333,17 @@ std::string PriceColumn::name() const {
 }
 
 QVariant PriceColumn::value(const Item& item) const {
-    const Buyout& bo = bo_manager_.Get(item);
+    const Buyout& bo = m_bo_manager.Get(item);
     return bo.AsText().c_str();
 }
 
 QColor PriceColumn::color(const Item& item) const {
-    const Buyout& bo = bo_manager_.Get(item);
+    const Buyout& bo = m_bo_manager.Get(item);
     return bo.IsInherited() ? QColor(0xaa, 0xaa, 0xaa) : QApplication::palette().color(QPalette::WindowText);
 }
 
 std::tuple<int, double, const Item&> PriceColumn::multivalue(const Item* item) const {
-    const Buyout& bo = bo_manager_.Get(*item);
+    const Buyout& bo = m_bo_manager.Get(*item);
     // forward_as_tuple used to forward item reference properly and avoid ref to temporary
     // that will be destroyed.  We want item reference because we want to sort based on item
     // object itself and not the pointer.  I'm not entirely sure I fully understand
@@ -357,7 +357,7 @@ bool PriceColumn::lt(const Item* lhs, const Item* rhs) const {
 }
 
 DateColumn::DateColumn(const BuyoutManager& bo_manager) :
-    bo_manager_(bo_manager)
+    m_bo_manager(bo_manager)
 {}
 
 std::string DateColumn::name() const {
@@ -365,13 +365,13 @@ std::string DateColumn::name() const {
 }
 
 QVariant DateColumn::value(const Item& item) const {
-    const Buyout& bo = bo_manager_.Get(item);
+    const Buyout& bo = m_bo_manager.Get(item);
     return bo.IsActive() ? Util::TimeAgoInWords(bo.last_update).c_str() : QVariant();
 }
 
 bool DateColumn::lt(const Item* lhs, const Item* rhs) const {
-    const QDateTime lhs_update_time = bo_manager_.Get(*lhs).last_update;
-    const QDateTime rhs_update_time = bo_manager_.Get(*rhs).last_update;
+    const QDateTime lhs_update_time = m_bo_manager.Get(*lhs).last_update;
+    const QDateTime rhs_update_time = m_bo_manager.Get(*rhs).last_update;
     return (std::tie(lhs_update_time, *lhs) <
         std::tie(rhs_update_time, *rhs));
 }

@@ -29,49 +29,49 @@
 
 NetworkManager::NetworkManager()
 {
-    network_manager_ = std::make_unique<QNetworkAccessManager>();
+    m_network_manager = std::make_unique<QNetworkAccessManager>();
 
-    network_info_ = QNetworkInformation::instance();
+    m_network_info = QNetworkInformation::instance();
 
-    connect(network_info_, &QNetworkInformation::reachabilityChanged, this,
+    connect(m_network_info, &QNetworkInformation::reachabilityChanged, this,
         [=](QNetworkInformation::Reachability reachability) {
             QLOG_INFO() << "NetworkManager: reachability changed to" << reachability;
-            offline_ = (reachability != QNetworkInformation::Reachability::Online);
+            m_offline = (reachability != QNetworkInformation::Reachability::Online);
         });
 }
 
 NetworkManager::~NetworkManager() {};
 
 QNetworkReply* NetworkManager::get(const QNetworkRequest& request) {
-    return offline_ ? nullptr : network_manager_->get(prepare(request));
+    return m_offline ? nullptr : m_network_manager->get(prepare(request));
 }
 
 QNetworkReply* NetworkManager::get(const QNetworkRequest& request, QIODevice* data) {
-    return offline_ ? nullptr : network_manager_->get(prepare(request), data);
+    return m_offline ? nullptr : m_network_manager->get(prepare(request), data);
 }
 
 QNetworkReply* NetworkManager::get(const QNetworkRequest& request, const QByteArray& data) {
-    return offline_ ? nullptr : network_manager_->get(prepare(request), data);
+    return m_offline ? nullptr : m_network_manager->get(prepare(request), data);
 }
 
 QNetworkReply* NetworkManager::head(const QNetworkRequest& request) {
-    return offline_ ? nullptr : network_manager_->head(prepare(request));
+    return m_offline ? nullptr : m_network_manager->head(prepare(request));
 }
 
 QNetworkReply* NetworkManager::post(const QNetworkRequest& request, QIODevice* data) {
-    return offline_ ? nullptr : network_manager_->post(prepare(request), data);
+    return m_offline ? nullptr : m_network_manager->post(prepare(request), data);
 }
 
 QNetworkReply* NetworkManager::post(const QNetworkRequest& request, QHttpMultiPart* multiPart) {
-    return offline_ ? nullptr : network_manager_->post(prepare(request), multiPart);
+    return m_offline ? nullptr : m_network_manager->post(prepare(request), multiPart);
 }
 
 QNetworkReply* NetworkManager::post(const QNetworkRequest& request, const QByteArray& data) {
-    return offline_ ? nullptr : network_manager_->post(prepare(request), data);
+    return m_offline ? nullptr : m_network_manager->post(prepare(request), data);
 }
 
 QNetworkReply* NetworkManager::post(const QNetworkRequest& request, std::nullptr_t nptr) {
-    return offline_ ? nullptr : network_manager_->post(prepare(request), nptr);
+    return m_offline ? nullptr : m_network_manager->post(prepare(request), nptr);
 }
 
 QNetworkRequest NetworkManager::prepare(const QNetworkRequest& request) {

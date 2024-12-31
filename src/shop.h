@@ -73,10 +73,10 @@ public:
     void CopyToClipboard();
     void ExpireShopData();
     void SubmitShopToForum(bool force = false);
-    bool auto_update() const { return auto_update_; }
-    const std::vector<std::string>& threads() const { return threads_; }
-    const std::vector<std::string>& shop_data() const { return shop_data_; }
-    const std::string& shop_template() const { return shop_template_; }
+    bool auto_update() const { return m_auto_update; }
+    const std::vector<std::string>& threads() const { return m_threads; }
+    const std::vector<std::string>& shop_data() const { return m_shop_data; }
+    const std::string& shop_template() const { return m_shop_template; }
 public slots:
     void UpdateStashIndex();
     void OnStashTabIndexReceived(QNetworkReply* reply);
@@ -91,23 +91,23 @@ private:
     std::string ShopEditUrl(size_t idx);
     std::string SpoilerBuyout(Buyout& bo);
 
-    QSettings& settings_;
-    QNetworkAccessManager& network_manager_;
-    RateLimiter& rate_limiter_;
-    DataStore& datastore_;
-    ItemsManager& items_manager_;
-    BuyoutManager& buyout_manager_;
+    QSettings& m_settings;
+    QNetworkAccessManager& m_network_manager;
+    RateLimiter& m_rate_limiter;
+    DataStore& m_datastore;
+    ItemsManager& m_items_manager;
+    BuyoutManager& m_buyout_manager;
 
-    std::map<std::string, unsigned int> tab_index_;
-    std::vector<std::string> threads_;
-    std::vector<std::string> shop_data_;
-    std::string shop_hash_;
-    std::string shop_template_;
-    bool shop_data_outdated_;
-    bool auto_update_;
-    bool submitting_;
-    bool indexing_;
-    size_t requests_completed_;
+    std::map<std::string, unsigned int> m_tab_index;
+    std::vector<std::string> m_threads;
+    std::vector<std::string> m_shop_data;
+    std::string m_shop_hash;
+    std::string m_shop_template;
+    bool m_shop_data_outdated;
+    bool m_auto_update;
+    bool m_submitting;
+    bool m_indexing;
+    size_t m_requests_completed;
 
     static const QRegularExpression error_regex;
     static const QRegularExpression ratelimit_regex;

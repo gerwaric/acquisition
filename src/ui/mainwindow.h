@@ -70,7 +70,7 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 public:
     explicit MainWindow(
-        QSettings& settings_,
+        QSettings& m_settings,
         QNetworkAccessManager& network_manager,
         RateLimiter& rate_limiter,
         DataStore& datastore,
@@ -161,32 +161,32 @@ private:
     void closeEvent(QCloseEvent* event);
     void CheckSelected(bool value);
 
-    QSettings& settings_;
-    QNetworkAccessManager& network_manager_;
-    RateLimiter& rate_limiter_;
-    DataStore& datastore_;
-    ItemsManager& items_manager_;
-    BuyoutManager& buyout_manager_;
-    Shop& shop_;
-    ImageCache& image_cache_;
+    QSettings& m_settings;
+    QNetworkAccessManager& m_network_manager;
+    RateLimiter& m_rate_limiter;
+    DataStore& m_datastore;
+    ItemsManager& m_items_manager;
+    BuyoutManager& m_buyout_manager;
+    Shop& m_shop;
+    ImageCache& m_image_cache;
 
     Ui::MainWindow* ui;
 
-    std::shared_ptr<Item> current_item_;
-    const ItemLocation* current_bucket_location_;
-    std::vector<Search*> searches_;
-    Search* current_search_;
-    QTabBar* tab_bar_;
-    std::vector<std::unique_ptr<Filter>> filters_;
-    int search_count_;
+    std::shared_ptr<Item> m_current_item;
+    const ItemLocation* m_current_bucket_location;
+    std::vector<Search*> m_searches;
+    Search* m_current_search;
+    QTabBar* m_tab_bar;
+    std::vector<std::unique_ptr<Filter>> m_filters;
+    int m_search_count;
 
-    QLabel* status_bar_label_;
-    QVBoxLayout* search_form_layout_;
-    QMenu context_menu_;
-    QPushButton update_button_;
-    QPushButton refresh_button_;
-    QTimer delayed_update_current_item_;
-    QTimer delayed_search_form_change_;
-    RateLimitDialog* rate_limit_dialog_;
-    bool quitting_;
+    QLabel* m_status_bar_label;
+    QVBoxLayout* m_search_form_layout;
+    QMenu m_context_menu;
+    QPushButton m_update_button;
+    QPushButton m_refresh_button;
+    QTimer m_delayed_update_current_item;
+    QTimer m_delayed_search_form_change;
+    RateLimitDialog* m_rate_limit_dialog;
+    bool m_quitting;
 };

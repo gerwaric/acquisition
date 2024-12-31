@@ -77,10 +77,10 @@ private:
     void LeaguesRequestError(const QString& error, const QByteArray& reply);
     void DisplayError(const QString& error);
 
-    const QDir app_data_dir_;
-    QSettings& settings_;
-    QNetworkAccessManager& network_manager_;
-    OAuthManager& oauth_manager_;
+    const QDir m_app_data_dir;
+    QSettings& m_settings;
+    QNetworkAccessManager& m_network_manager;
+    OAuthManager& m_oauth_manager;
 
     Ui::LoginDialog* ui;
 };

@@ -51,9 +51,9 @@ public:
     void FromForm();
     void ToForm();
     void ResetForm();
-    const std::string& caption() const { return caption_; }
-    const Items& items() const { return items_; }
-    const std::vector<std::unique_ptr<Column>>& columns() const { return columns_; }
+    const std::string& caption() const { return m_caption; }
+    const Items& items() const { return m_items; }
+    const std::vector<std::unique_ptr<Column>>& columns() const { return m_columns; }
     const std::vector<Bucket>& buckets() const;
     void RenameCaption(const std::string newName);
     QString GetCaption() const;
@@ -63,30 +63,30 @@ public:
     void SaveViewProperties();
     ItemLocation GetTabLocation(const QModelIndex& index) const;
     void SetViewMode(ViewMode mode);
-    ViewMode GetViewMode() const { return current_mode_; }
+    ViewMode GetViewMode() const { return m_current_mode; }
     bool has_bucket(int row) const;
     const Bucket& bucket(int row) const;
     const QModelIndex index(const std::shared_ptr<Item> item) const;
-    void SetRefreshReason(RefreshReason::Type reason) { refresh_reason_ = reason; }
+    void SetRefreshReason(RefreshReason::Type reason) { m_refresh_reason = reason; }
     void Sort(int column, Qt::SortOrder order);
 private:
     std::vector<Bucket>& active_buckets();
 
-    BuyoutManager& bo_manager_;
-    QTreeView& view_;
+    BuyoutManager& m_bo_manager;
+    QTreeView& m_view;
 
-    std::vector<std::unique_ptr<FilterData>> filters_;
-    std::vector<std::unique_ptr<Column>> columns_;
+    std::vector<std::unique_ptr<FilterData>> m_filters;
+    std::vector<std::unique_ptr<Column>> m_columns;
 
-    ItemsModel model_;
-    std::vector<Bucket> bucket_by_tab_;
-    std::vector<Bucket> bucket_by_item_;
+    ItemsModel m_model;
+    std::vector<Bucket> m_bucket_by_tab;
+    std::vector<Bucket> m_bucket_by_item;
 
-    std::string caption_;
-    Items items_;
-    bool filtered_;
-    size_t filtered_item_count_;
-    std::set<std::string> expanded_property_;
-    ViewMode current_mode_;
-    RefreshReason::Type refresh_reason_;
+    std::string m_caption;
+    Items m_items;
+    bool m_filtered;
+    size_t m_filtered_item_count;
+    std::set<std::string> m_expanded_property;
+    ViewMode m_current_mode;
+    RefreshReason::Type m_refresh_reason;
 };

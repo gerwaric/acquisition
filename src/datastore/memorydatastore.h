@@ -36,8 +36,8 @@ public:
     void InsertCurrencyUpdate(const CurrencyUpdate& update);
     std::vector<CurrencyUpdate> GetAllCurrency();
 private:
-    std::map<std::string, std::string> data_;
-    std::map<ItemLocationType, Locations> tabs_;
-    std::map<std::string, Items> items_;
-    std::vector<CurrencyUpdate> currency_updates_;
+    std::map<std::string, std::string> m_data;
+    std::map<ItemLocationType, Locations> m_tabs;
+    std::map<std::string, Items> m_items;
+    std::vector<CurrencyUpdate> m_currency_updates;
 };

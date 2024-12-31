@@ -95,8 +95,8 @@ public:
     QVariant value(const Item& item) const;
     QVariant icon(const Item& item) const { Q_UNUSED(item); return QVariant::fromValue(NULL); }
 private:
-    std::string name_;
-    std::string property_;
+    std::string m_name;
+    std::string m_property;
 };
 
 class DPSColumn : public Column {
@@ -128,7 +128,7 @@ public:
     QColor color(const Item& item) const;
     QVariant icon(const Item& item) const { Q_UNUSED(item); return QVariant::fromValue(NULL); }
 private:
-    size_t index_;
+    size_t m_index;
 };
 
 class ChaosDamageColumn : public Column {
@@ -156,7 +156,7 @@ public:
     QVariant icon(const Item& item) const { Q_UNUSED(item); return QVariant::fromValue(NULL); }
 private:
     std::tuple<int, double, const Item&> multivalue(const Item* item) const;
-    const BuyoutManager& bo_manager_;
+    const BuyoutManager& m_bo_manager;
 };
 
 class DateColumn : public Column {
@@ -167,7 +167,7 @@ public:
     bool lt(const Item* lhs, const Item* rhs) const;
     QVariant icon(const Item& item) const { Q_UNUSED(item); return QVariant::fromValue(NULL); }
 private:
-    const BuyoutManager& bo_manager_;
+    const BuyoutManager& m_bo_manager;
 };
 
 class ItemlevelColumn : public Column {

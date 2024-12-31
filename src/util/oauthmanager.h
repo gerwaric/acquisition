@@ -44,7 +44,7 @@ public:
     ~OAuthManager();
     void setAuthorization(QNetworkRequest& request);
     void RememberToken(bool remember);
-    const OAuthToken& token() const { return token_; };
+    const OAuthToken& token() const { return m_token; };
 public slots:
     void requestAccess();
     void requestRefresh();
@@ -61,22 +61,22 @@ private:
 
     static QString authorizationError(const QString& message);
 
-    QNetworkAccessManager& network_manager_;
-    DataStore& datastore_;
+    QNetworkAccessManager& m_network_manager;
+    DataStore& m_datastore;
 
     // I can't find a way to shutdown a QHttpServer once it's started
     // listening, so use a unique pointer so that we can destory the
     // server once authentication is complete, so it won't stay
     // running in the background.
-    QHttpServer* http_server_;
-    QTcpServer* tcp_server_;
+    QHttpServer* m_http_server;
+    QTcpServer* m_tcp_server;
 
-    bool remember_token_;
-    OAuthToken token_;
-    std::string code_verifier_;
-    std::string redirect_uri_;
+    bool m_remember_token;
+    OAuthToken m_token;
+    std::string m_code_verifier;
+    std::string m_redirect_uri;
 
-    QTimer refresh_timer_;
+    QTimer m_refresh_timer;
 
     static const QString SUCCESS_HTML;
     static const QString ERROR_HTML;

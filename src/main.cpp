@@ -62,7 +62,7 @@ int main(int argc, char* argv[])
     QLocale::setDefault(QLocale::C);
     std::setlocale(LC_ALL, "C");
 
-    // Holds the date and time of the current build based on __DATE__ and __TIME__ macros.
+    // Holds the date and time of the current build based on m___DATE_ and m___TIME_ macros.
     const QString build_timestamp = QString(BUILD_TIMESTAMP).simplified();
     const QDateTime build_date = QLocale("en_US").toDateTime(build_timestamp, "MMM d yyyy hh:mm:ss");
 

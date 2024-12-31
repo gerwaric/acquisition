@@ -59,15 +59,15 @@ class ItemsManagerWorker : public QObject {
     Q_OBJECT
 public:
     ItemsManagerWorker(
-        QSettings& settings_,
+        QSettings& m_settings,
         QNetworkAccessManager& network_manager,
         RePoE& repoe,
         BuyoutManager& buyout_manager,
         DataStore& datastore,
         RateLimiter& rate_limiter,
         POE_API mode);
-    bool isInitialized() const { return initialized_; }
-    bool isUpdating() const { return updating_; };
+    bool isInitialized() const { return m_initialized; }
+    bool isUpdating() const { return m_updating; };
     void UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations);
 
 signals:
@@ -119,52 +119,52 @@ private:
     bool TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, ItemLocation& location);
     void FinishUpdate();
 
-    QSettings& settings_;
-    QNetworkAccessManager& network_manager_;
-    RePoE& repoe_;
-    DataStore& datastore_;
-    BuyoutManager& buyout_manager_;
-    RateLimiter& rate_limiter_;
+    QSettings& m_settings;
+    QNetworkAccessManager& m_network_manager;
+    RePoE& m_repoe;
+    DataStore& m_datastore;
+    BuyoutManager& m_buyout_manager;
+    RateLimiter& m_rate_limiter;
 
-    POE_API mode_;
-    std::string realm_;
-    std::string league_;
-    std::string account_;
+    POE_API m_mode;
+    std::string m_realm;
+    std::string m_league;
+    std::string m_account;
 
-    bool test_mode_;
-    std::vector<ItemLocation> tabs_;
-    std::queue<ItemsRequest> queue_;
+    bool m_test_mode;
+    std::vector<ItemLocation> m_tabs;
+    std::queue<ItemsRequest> m_queue;
 
-    // tabs_signature_ captures <"n", "id"> from JSON tab list, used as consistency check
-    TabsSignatureVector tabs_signature_;
+    // m_tabs_signature captures <"n", "id"> from JSON tab list, used as consistency check
+    TabsSignatureVector m_tabs_signature;
 
-    Items items_;
+    Items m_items;
 
-    size_t stashes_needed_;
-    size_t stashes_received_;
+    size_t m_stashes_needed;
+    size_t m_stashes_received;
 
-    size_t characters_needed_;
-    size_t characters_received_;
+    size_t m_characters_needed;
+    size_t m_characters_received;
 
-    std::set<std::string> tab_id_index_;
+    std::set<std::string> m_tab_id_index;
 
-    volatile bool initialized_;
-    volatile bool updating_;
+    volatile bool m_initialized;
+    volatile bool m_updating;
 
-    bool cancel_update_;
-    bool updateRequest_;
-    TabSelection::Type type_;
-    std::vector<ItemLocation> locations_;
+    bool m_cancel_update;
+    bool m_updateRequest;
+    TabSelection::Type m_type;
+    std::vector<ItemLocation> m_locations;
 
-    int queue_id_;
-    std::string selected_character_;
+    int m_queue_id;
+    std::string m_selected_character;
 
-    int first_stash_request_index_;
-    std::string first_character_request_name_;
+    int m_first_stash_request_index;
+    std::string m_first_character_request_name;
 
-    bool need_stash_list_;
-    bool need_character_list_;
+    bool m_need_stash_list;
+    bool m_need_character_list;
 
-    bool has_stash_list_;
-    bool has_character_list_;
+    bool m_has_stash_list;
+    bool m_has_character_list;
 };

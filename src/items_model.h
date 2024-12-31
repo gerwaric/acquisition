@@ -38,14 +38,14 @@ public:
     bool setData(const QModelIndex& index, const QVariant& value, int role = Qt::EditRole);
     void sort(int column, Qt::SortOrder order);
     void sort();
-    Qt::SortOrder GetSortOrder() const { return sort_order_; };
-    int GetSortColumn() const { return sort_column_; };
-    void SetSorted(bool val) { sorted_ = val; };
+    Qt::SortOrder GetSortOrder() const { return m_sort_order; };
+    int GetSortColumn() const { return m_sort_column; };
+    void SetSorted(bool val) { m_sorted = val; };
 
 private:
-    BuyoutManager& bo_manager_;
-    Search& search_;
-    Qt::SortOrder sort_order_;
-    int sort_column_;
-    bool sorted_;
+    BuyoutManager& m_bo_manager;
+    Search& m_search;
+    Qt::SortOrder m_sort_order;
+    int m_sort_column;
+    bool m_sorted;
 };

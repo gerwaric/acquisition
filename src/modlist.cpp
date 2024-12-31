@@ -38,7 +38,7 @@
 
 using rapidjson::HasBool;
 
-QStringListModel mod_list_model_;
+QStringListModel m_mod_list_model;
 std::set<std::string> mods;
 std::unordered_map<std::string, SumModGenerator*> mods_map;
 std::vector<SumModGen> mod_generators;
@@ -150,7 +150,7 @@ const std::vector<std::vector<std::string>> simple_sum = {
 */
 
 QStringListModel& mod_list_model() {
-    return mod_list_model_;
+    return m_mod_list_model;
 }
 
 void InitStatTranslations() {
@@ -222,7 +222,7 @@ void InitModList() {
         mod_list.append(QString::fromStdString(mod));
     };
     mod_list.sort(Qt::CaseInsensitive);
-    mod_list_model_.setStringList(mod_list);
+    m_mod_list_model.setStringList(mod_list);
 }
 
 void ModGenerator::Generate(const rapidjson::Value& json, ModTable* output) {
@@ -230,14 +230,14 @@ void ModGenerator::Generate(const rapidjson::Value& json, ModTable* output) {
 }
 
 SumModGenerator::SumModGenerator(const std::string& name, const std::vector<std::string>& matches) :
-    name_(name),
-    matches_(matches)
+    m_name(name),
+    m_matches(matches)
 {}
 
 bool SumModGenerator::Match(const char* mod, double* output) {
     bool found = false;
     *output = 0.0;
-    for (auto& match : matches_) {
+    for (auto& match : m_matches) {
         double result = 0.0;
         if (Util::MatchMod(match.c_str(), mod, &result)) {
             *output += result;
@@ -250,7 +250,7 @@ bool SumModGenerator::Match(const char* mod, double* output) {
 void SumModGenerator::Generate(const std::string& mod, ModTable* output) {
     double result;
     if (Match(mod.c_str(), &result)) {
-        (*output)[name_] = result;
+        (*output)[m_name] = result;
     };
 }
 

@@ -43,10 +43,10 @@ constexpr const char* STAT_TRANSLATION_URLS[] = {
     REPOE_DATA("/stat_translations/necropolis.json")
 };
 
-bool RePoE::initialized_ = false;
+bool RePoE::s_initialized = false;
 
 RePoE::RePoE(QNetworkAccessManager& network_manager)
-    : network_manager_(network_manager)
+    : m_network_manager(network_manager)
 {
     QLOG_TRACE() << "RePoE::RePoE() entered";
 }
@@ -54,7 +54,7 @@ RePoE::RePoE(QNetworkAccessManager& network_manager)
 void RePoE::Init() {
 
     QLOG_TRACE() << "RePoE::Init() entered";
-    if (initialized_) {
+    if (s_initialized) {
         QLOG_INFO() << "RePoE is already initialized.";
         return;
     }
@@ -65,7 +65,7 @@ void RePoE::Init() {
     QLOG_TRACE() << "RePoE: sending item classes request:" << ITEM_CLASSES_URL;
     QNetworkRequest request = QNetworkRequest(QUrl(ITEM_CLASSES_URL));
     request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-    QNetworkReply* reply = network_manager_.get(request);
+    QNetworkReply* reply = m_network_manager.get(request);
     connect(reply, &QNetworkReply::finished, this, &RePoE::OnItemClassesReceived);
 }
 
@@ -88,7 +88,7 @@ void RePoE::OnItemClassesReceived() {
     QLOG_TRACE() << "RePoE: sending base items request:" << BASE_ITEMS_URL;
     QNetworkRequest request = QNetworkRequest(QUrl(BASE_ITEMS_URL));
     request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-    QNetworkReply* next_reply = network_manager_.get(request);
+    QNetworkReply* next_reply = m_network_manager.get(request);
     connect(next_reply, &QNetworkReply::finished, this, &RePoE::OnBaseItemsReceived);
 }
 
@@ -118,7 +118,7 @@ void RePoE::GetStatTranslations() {
     static QStringList urls = GetTranslationUrls();
     if (urls.isEmpty()) {
         QLOG_INFO() << "RePoE data received.";
-        initialized_ = true;
+        s_initialized = true;
         InitModList();
         emit finished();
         return;
@@ -131,7 +131,7 @@ void RePoE::GetStatTranslations() {
     QLOG_TRACE() << "RePoE: requesting stat translation:" << next;
     QNetworkRequest request = QNetworkRequest(QUrl(next));
     request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-    QNetworkReply* reply = network_manager_.get(request);
+    QNetworkReply* reply = m_network_manager.get(request);
     connect(reply, &QNetworkReply::finished, this, &RePoE::OnStatTranslationReceived);
 }
 

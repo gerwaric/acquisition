@@ -66,13 +66,13 @@ private:
     std::string Serialize(const std::map<std::string, bool>& obj);
     void Deserialize(const std::string& data, std::map<std::string, bool>& obj);
 
-    DataStore& data_;
-    std::map<std::string, Buyout> buyouts_;
-    std::map<std::string, Buyout> tab_buyouts_;
-    std::map<std::string, bool> refresh_checked_;
-    std::set<std::string> refresh_locked_;
-    bool save_needed_;
-    std::vector<ItemLocation> tabs_;
-    static const std::map<std::string, BuyoutType> string_to_buyout_type_;
+    DataStore& m_data;
+    std::map<std::string, Buyout> m_buyouts;
+    std::map<std::string, Buyout> m_tab_buyouts;
+    std::map<std::string, bool> m_refresh_checked;
+    std::set<std::string> m_refresh_locked;
+    bool m_save_needed;
+    std::vector<ItemLocation> m_tabs;
+    static const std::map<std::string, BuyoutType> m_string_to_buyout_type;
 };
 

@@ -39,13 +39,13 @@ class LogPanelSignalHandler : public QObject {
     Q_OBJECT
 public:
     LogPanelSignalHandler(LogPanel& parent) :
-        parent_(parent)
+        m_parent(parent)
     {}
 public slots:
     void OnStatusLabelClicked();
     void OnMessage(const QString& message, QsLogging::Level level);
 private:
-    LogPanel& parent_;
+    LogPanel& m_parent;
 };
 
 class LogPanel : public QsLogging::Destination {
@@ -59,8 +59,8 @@ private:
     void UpdateStatusLabel();
     void ToggleOutputVisibility();
 
-    QPushButton* status_button_;
-    QTextEdit* output_;
-    std::vector<int> num_messages_;
-    LogPanelSignalHandler signal_handler_;
+    QPushButton* m_status_button;
+    QTextEdit* m_output;
+    std::vector<int> m_num_messages;
+    LogPanelSignalHandler m_signal_handler;
 };
