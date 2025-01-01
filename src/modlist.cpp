@@ -20,16 +20,14 @@
 #include "modlist.h"
 
 #include <memory>
-#include <regex>
 #include <set>
-#include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
+#include <QRegularExpression>
 #include <QStringList>
 
-#include <boost/algorithm/string.hpp>
 #include <QsLog/QsLog.h>
 
 #include "util/util.h"
@@ -39,8 +37,8 @@
 using rapidjson::HasBool;
 
 QStringListModel m_mod_list_model;
-std::set<std::string> mods;
-std::unordered_map<std::string, SumModGenerator*> mods_map;
+std::set<QString> mods;
+std::unordered_map<QString, SumModGenerator*> mods_map;
 std::vector<SumModGen> mod_generators;
 
 /* ------------------- TBD - FIX THIS!!! --------------------------
@@ -50,7 +48,7 @@ std::vector<SumModGen> mod_generators;
 // This is pretty much the same list as poe.trade uses
 //
 // NOTE: This appears to need updating --gerwaric (2024-05-06)
-const std::vector<std::vector<std::string>> simple_sum = {
+const std::vector<std::vector<QString>> simple_sum = {
     { "#% increased Quantity of Items found" },
     { "#% increased Rarity of Items found" },
     { "+# to maximum Life" },
@@ -181,15 +179,15 @@ void AddStatTranslations(const QByteArray& statTranslations) {
                 // files before.
                 continue;
             };
-            std::vector<std::string> formats;
+            std::vector<QString> formats;
             for (auto& format : stat["format"]) {
                 formats.push_back(format.GetString());
             };
-            std::string stat_string = stat["string"].GetString();
+            QString stat_string = stat["string"].GetString();
             if (formats[0].compare("ignore") != 0) {
                 for (size_t i = 0; i < formats.size(); i++) {
-                    std::string searchString = "{" + std::to_string(i) + "}";
-                    boost::replace_all(stat_string, searchString, formats[i]);
+                    QString searchString = "{" + QString::number(i) + "}";
+                    stat_string.replace(searchString, formats[i]);
                 };
             };
             if (stat_string.length() > 0) {
@@ -202,7 +200,7 @@ void AddStatTranslations(const QByteArray& statTranslations) {
 void InitModList() {
     QLOG_TRACE() << "InitModList() entered";
 
-    std::set<std::string> mod_strings;
+    std::set<QString> mod_strings;
     mod_generators.clear();
     mods_map.clear();
     for (auto& mod : mods) {
@@ -210,7 +208,7 @@ void InitModList() {
             QLOG_WARN() << "InitModList(): duplicate mod:" << mod;
         } else {
             mod_strings.insert(mod);
-            std::vector<std::string> list = { mod };
+            std::vector<QString> list = { mod };
             SumModGen gen = std::make_shared<SumModGenerator>(mod, list);
             mods_map.insert(std::make_pair(mod, gen.get()));
             mod_generators.push_back(gen);
@@ -219,7 +217,7 @@ void InitModList() {
     QStringList mod_list;
     mod_list.reserve(mod_strings.size());
     for (auto& mod : mod_strings) {
-        mod_list.append(QString::fromStdString(mod));
+        mod_list.append(mod);
     };
     mod_list.sort(Qt::CaseInsensitive);
     m_mod_list_model.setStringList(mod_list);
@@ -229,7 +227,7 @@ void ModGenerator::Generate(const rapidjson::Value& json, ModTable* output) {
     Generate(json.GetString(), output);
 }
 
-SumModGenerator::SumModGenerator(const std::string& name, const std::vector<std::string>& matches) :
+SumModGenerator::SumModGenerator(const QString& name, const std::vector<QString>& matches) :
     m_name(name),
     m_matches(matches)
 {}
@@ -239,7 +237,7 @@ bool SumModGenerator::Match(const char* mod, double* output) {
     *output = 0.0;
     for (auto& match : m_matches) {
         double result = 0.0;
-        if (Util::MatchMod(match.c_str(), mod, &result)) {
+        if (Util::MatchMod(match.toStdString().c_str(), mod, &result)) {
             *output += result;
             found = true;
         };
@@ -247,16 +245,17 @@ bool SumModGenerator::Match(const char* mod, double* output) {
     return found;
 }
 
-void SumModGenerator::Generate(const std::string& mod, ModTable* output) {
+void SumModGenerator::Generate(const QString& mod, ModTable* output) {
     double result;
-    if (Match(mod.c_str(), &result)) {
+    if (Match(mod.toStdString().c_str(), &result)) {
         (*output)[m_name] = result;
     };
 }
 
-void AddModToTable(const std::string& raw_mod, ModTable* output) {
-    const std::regex rep("([0-9\\.]+)");
-    const std::string mod = std::regex_replace(raw_mod, rep, "#");
+void AddModToTable(const QString& raw_mod, ModTable* output) {
+    static const QRegularExpression rep("([0-9\\.]+)");
+    QString mod = raw_mod;
+    mod.replace(rep, "#");
     auto rslt = mods_map.find(mod);
     if (rslt != mods_map.end()) {
         SumModGenerator* gen = rslt->second;

@@ -24,7 +24,6 @@
 #include <utility>
 #include <sstream>
 
-#include <boost/algorithm/string.hpp>
 #include <rapidjson/document.h>
 
 #include "util/util.h"
@@ -61,35 +60,37 @@ const std::array<Item::CategoryReplaceMap, Item::k_CategoryLevels> Item::m_repla
                                                                                 {"TwoHandSwords", "Swords"}})
 };
 
-const std::vector<std::string> ITEM_MOD_TYPES = {
+const std::vector<QString> ITEM_MOD_TYPES = {
     "implicitMods", "enchantMods", "explicitMods", "craftedMods", "fracturedMods"
 };
 
-static std::string item_unique_properties(const rapidjson::Value& json, const std::string& name) {
-    const char* name_p = name.c_str();
+static QString item_unique_properties(const rapidjson::Value& json, const QString& name) {
+    const std::string name_s = name.toStdString();
+    const char* name_p = name_s.c_str();
     if (!json.HasMember(name_p)) {
         return "";
     };
-    std::string result;
+    QString result;
     for (auto& prop : json[name_p]) {
-        result += std::string(prop["name"].GetString()) + "~";
+        result += QString(prop["name"].GetString()) + "~";
         for (auto& value : prop["values"]) {
-            result += std::string(value[0].GetString()) + "~";
+            result += QString(value[0].GetString()) + "~";
         };
     };
     return result;
 }
 
 // Fix up names, remove all <<set:X>> modifiers
-static std::string fixup_name(const std::string& name) {
-    std::string::size_type right_shift = name.rfind(">>");
-    if (right_shift != std::string::npos) {
-        return name.substr(right_shift + 2);
+static QString fixup_name(const QString& name) {
+    const auto k = name.lastIndexOf(">>");
+    if (k >= 0) {
+        return name.sliced(k + 2);
+    } else {
+        return name;
     };
-    return name;
 }
 
-Item::Item(const std::string& name, const ItemLocation& location)
+Item::Item(const QString& name, const ItemLocation& location)
     : m_name(name)
     , m_location(location)
     , m_hash(Util::Md5(name)) // Unique enough for tests
@@ -103,7 +104,7 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
         m_name = fixup_name(json["name"].GetString());
     };
     if (HasString(json, "typeLine")) {
-        std::string name;
+        QString name;
         if (HasObject(json, "hybrid")) {
             const auto& hybrid = json["hybrid"];
             if (HasBool(hybrid, "isVaalGem") && hybrid["isVaalGem"].GetBool()) {
@@ -187,8 +188,8 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
     };
 
     for (auto& mod_type : ITEM_MOD_TYPES) {
-        m_text_mods[mod_type] = std::vector<std::string>();
-        const char* mod_type_s = mod_type.c_str();
+        m_text_mods[mod_type] = std::vector<QString>();
+        const char* mod_type_s = mod_type.toStdString().c_str();
         if (HasArray(json, mod_type_s)) {
             auto& mods = m_text_mods[mod_type];
             for (auto& mod : json[mod_type_s]) {
@@ -201,9 +202,9 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
 
     // Other code assumes icon is proper size so force quad=1 to quad=0 here as it's clunky
     // to handle elsewhere
-    boost::replace_last(m_icon, "quad=1", "quad=0");
+    m_icon.replace("quad=1", "quad=0");
     // quad stashes, currency stashes, etc
-    boost::replace_last(m_icon, "scaleIndex=", "scaleIndex=0&");
+    m_icon.replace("scaleIndex=", "scaleIndex=0&");
 
     CalculateCategories();
 
@@ -226,7 +227,7 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
                 continue;
             };
 
-            const std::string name = prop["name"].GetString();
+            const QString name = prop["name"].GetString();
             const auto& values = prop["values"];
 
             if (name == "Elemental Damage") {
@@ -276,9 +277,9 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
             if (!values[0][0].IsString() || !values[0][1].IsInt()) {
                 continue;
             };
-            const std::string name = req["name"].GetString();
-            const std::string value = values[0][0].GetString();
-            m_requirements[name] = std::atoi(value.c_str());
+            const QString name = req["name"].GetString();
+            const QString value = values[0][0].GetString();
+            m_requirements[name] = value.toInt();
             ItemPropertyValue v;
             v.str = value;
             v.type = values[0][1].GetInt();
@@ -344,10 +345,10 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
 
     m_count = 1;
     if (m_properties.find("Stack Size") != m_properties.end()) {
-        std::string size = m_properties["Stack Size"];
-        if (size.find("/") != std::string::npos) {
-            size = size.substr(0, size.find("/"));
-            m_count = std::stoi(size);
+        QString size = m_properties["Stack Size"];
+        if (size.contains("/")) {
+            const auto n = size.indexOf("/");
+            m_count = size.first(n).toInt();
         };
     };
 
@@ -358,8 +359,8 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
     GenerateMods(json);
 }
 
-std::string Item::PrettyName() const {
-    if (!m_name.empty()) {
+QString Item::PrettyName() const {
+    if (!m_name.isEmpty()) {
         return m_name + " " + m_typeLine;
     } else {
         return m_typeLine;
@@ -368,17 +369,17 @@ std::string Item::PrettyName() const {
 
 void Item::CalculateCategories() {
     m_category = GetItemCategory(m_baseType);
-    if (m_category.empty() == false) {
+    if (m_category.isEmpty() == false) {
         return;
     };
     // If we didn't find a category on the first try, check to see if
     // this might be a transfigured skill gem by looking for the base
     // name and seeing if that's something we can categorize.
-    const auto indx = m_baseType.find(" of ");
-    if (indx != std::string::npos) {
-        const auto altBaseType = m_baseType.substr(0, indx);
+    const auto indx = m_baseType.indexOf(" of ");
+    if (indx >= 0) {
+        const auto altBaseType = m_baseType.first(indx);
         m_category = GetItemCategory(altBaseType);
-        if (m_category.empty() == false) {
+        if (m_category.isEmpty() == false) {
             return;
         };
     };
@@ -392,8 +393,8 @@ double Item::pDPS() const {
     if (!m_properties.count("Physical Damage") || !m_properties.count("Attacks per Second")) {
         return 0;
     };
-    double aps = std::stod(m_properties.at("Attacks per Second"));
-    std::string pd = m_properties.at("Physical Damage");
+    double aps = m_properties.at("Attacks per Second").toDouble();
+    QString pd = m_properties.at("Physical Damage");
 
     return aps * Util::AverageDamage(pd);
 }
@@ -406,7 +407,7 @@ double Item::eDPS() const {
     for (auto& x : m_elemental_damage) {
         damage += Util::AverageDamage(x.first);
     };
-    double aps = std::stod(m_properties.at("Attacks per Second"));
+    double aps = m_properties.at("Attacks per Second").toDouble();
     return aps * damage;
 }
 
@@ -414,8 +415,8 @@ double Item::cDPS() const {
     if (!m_properties.count("Chaos Damage") || !m_properties.count("Attacks per Second")) {
         return 0;
     };
-    double aps = std::stod(m_properties.at("Attacks per Second"));
-    std::string cd = m_properties.at("Chaos Damage");
+    double aps = m_properties.at("Attacks per Second").toDouble();
+    QString cd = m_properties.at("Chaos Damage");
 
     return aps * Util::AverageDamage(cd);
 }
@@ -433,23 +434,23 @@ void Item::GenerateMods(const rapidjson::Value& json) {
 }
 
 void Item::CalculateHash(const rapidjson::Value& json) {
-    std::string unique_new = m_name + "~" + m_typeLine + "~";
+    QString unique_new = m_name + "~" + m_typeLine + "~";
     // GGG removed the <<set>> things in patch 3.4.3e but our hashes all include them, oops
-    std::string unique_old = "<<set:MS>><<set:M>><<set:S>>" + unique_new;
+    QString unique_old = "<<set:MS>><<set:M>><<set:S>>" + unique_new;
 
-    std::string unique_common;
+    QString unique_common;
 
     if (HasArray(json, "explicitMods")) {
         for (auto& mod : json["explicitMods"]) {
             if (mod.IsString()) {
-                unique_common += std::string(mod.GetString()) + "~";
+                unique_common += QString(mod.GetString()) + "~";
             };
         };
     };
     if (HasArray(json, "implicitMods")) {
         for (auto& mod : json["implicitMods"]) {
             if (mod.IsString()) {
-                unique_common += std::string(mod.GetString()) + "~";
+                unique_common += QString(mod.GetString()) + "~";
             };
         };
     };
@@ -463,8 +464,8 @@ void Item::CalculateHash(const rapidjson::Value& json) {
                 continue;
             };
             const int group = socket["group"].GetInt();
-            const std::string attr = socket["attr"].GetString();
-            unique_common += std::to_string(group) + "~" + attr + "~";
+            const QString attr = socket["attr"].GetString();
+            unique_common += QString::number(group) + "~" + attr + "~";
         };
     };
 
@@ -478,23 +479,23 @@ void Item::CalculateHash(const rapidjson::Value& json) {
 }
 
 bool Item::operator<(const Item& rhs) const {
-    std::string name = PrettyName();
-    std::string rhs_name = rhs.PrettyName();
+    QString name = PrettyName();
+    QString rhs_name = rhs.PrettyName();
     return std::tie(name, m_uid, m_hash) < std::tie(rhs_name, rhs.m_uid, m_hash);
 }
 
 bool Item::Wearable() const {
     return (m_category == "flasks"
         || m_category == "amulet" || m_category == "ring" || m_category == "belt"
-        || m_category.find("armour") != std::string::npos
-        || m_category.find("weapons") != std::string::npos
-        || m_category.find("jewels") != std::string::npos);
+        || m_category.contains("armour")
+        || m_category.contains("weapons")
+        || m_category.contains("jewels"));
 }
 
-std::string Item::POBformat() const {
+QString Item::POBformat() const {
     std::stringstream PoBText;
-    PoBText << name();
-    PoBText << "\n" << typeLine();
+    PoBText << name().toStdString();
+    PoBText << "\n" << typeLine().toStdString();
 
     // Could use m_uid for "Unique ID:", if it'd help PoB avoid duplicate imports later via stash API?
 
@@ -536,22 +537,22 @@ std::string Item::POBformat() const {
     auto& enchantMods = mods.at("enchantMods");
     PoBText << "\nImplicits: " << (implicitMods.size() + enchantMods.size());
     for (const auto& mod : enchantMods) {
-        PoBText << "\n{crafted}" << mod;
+        PoBText << "\n{crafted}" << mod.toStdString();
     };
     for (const auto& mod : implicitMods) {
-        PoBText << "\n" << mod;
+        PoBText << "\n" << mod.toStdString();
     };
 
     auto& explicitMods = mods.at("explicitMods");
     auto& craftedMods = mods.at("craftedMods");
     if (!explicitMods.empty() || !craftedMods.empty()) {
         for (const auto& mod : explicitMods) {
-            PoBText << "\n" << mod;
+            PoBText << "\n" << mod.toStdString();
         };
         for (const auto& mod : craftedMods) {
-            PoBText << "\n{crafted}" << mod;
+            PoBText << "\n{crafted}" << mod.toStdString();
         };
     };
 
-    return PoBText.str();
+    return QString::fromStdString(PoBText.str());
 }

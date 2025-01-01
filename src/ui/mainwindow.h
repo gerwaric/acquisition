@@ -91,14 +91,14 @@ signals:
     void UpdateCheckRequested();
     void SetSessionId(const QString& poesessid);
     void SetTheme(const QString& theme);
-    void GetImage(const std::string& url);
+    void GetImage(const QString& url);
 public slots:
     void OnCurrentItemChanged(const QModelIndex& current, const QModelIndex& previous);
     void OnLayoutChanged();
     void OnSearchFormChange();
     void OnDelayedSearchFormChange();
     void OnTabChange(int index);
-    void OnImageFetched(const std::string& url);
+    void OnImageFetched(const QString& url);
     void OnItemsRefreshed();
     void OnStatusUpdate(ProgramState state, const QString& status);
     void OnBuyoutChange();
@@ -154,7 +154,7 @@ private:
     void InitializeLogging();
     void InitializeSearchForm();
     void InitializeUi();
-    void AddSearchGroup(QLayout* layout, const std::string& name);
+    void AddSearchGroup(QLayout* layout, const QString& name);
     bool eventFilter(QObject* o, QEvent* e);
     void UpdateShopMenu();
     void UpdateBuyoutWidgets(const Buyout& bo);

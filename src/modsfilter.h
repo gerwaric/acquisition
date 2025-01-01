@@ -27,6 +27,7 @@
 #include <QLineEdit>
 #include <QObject>
 #include <QPushButton>
+#include <QString>
 #include <QTimer>
 
 #include <vector>
@@ -36,7 +37,7 @@
 class SelectedMod : public QObject {
     Q_OBJECT
 public:
-    SelectedMod(const std::string& name, double min, double max, bool min_selected, bool max_selected);
+    SelectedMod(const QString& name, double min, double max, bool min_selected, bool max_selected);
     void AddToLayout(QGridLayout* layout);
     void RemoveFromLayout(QGridLayout* layout);
     const ModFilterData& data() const { return m_data; }

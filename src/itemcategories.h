@@ -19,14 +19,14 @@
 
 #pragma once
 
-#include <string>
-
-#include <QByteArray>
 #include <QStringList>
+
+class QByteArray;
+class QString;
 
 void InitItemClasses(const QByteArray& classes);
 void InitItemBaseTypes(const QByteArray& baseTypes);
 
-std::string GetItemCategory(const std::string& baseType);
+QString GetItemCategory(const QString& baseType);
 
 const QStringList& GetItemCategories();

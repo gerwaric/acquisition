@@ -34,7 +34,6 @@
 #include <QsLog/QsLog.h>
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
-#include <boost/algorithm/string.hpp>
 
 #include "datastore/datastore.h"
 #include "ratelimit/ratelimit.h"
@@ -131,9 +130,9 @@ void ItemsManagerWorker::Init() {
         return;
     };
 
-    m_realm = m_settings.value("realm").toString().toStdString();
-    m_league = m_settings.value("league").toString().toStdString();
-    m_account = m_settings.value("account").toString().toStdString();
+    m_realm = m_settings.value("realm").toString();
+    m_league = m_settings.value("league").toString();
+    m_account = m_settings.value("account").toString();
     m_updating = true;
     QLOG_TRACE() << "ItemsManagerWorker::Init() league =" << m_league;
     QLOG_TRACE() << "ItemsManagerWorker::Init() account =" << m_account;
@@ -186,8 +185,8 @@ void ItemsManagerWorker::ParseItemMods() {
     QLOG_TRACE() << "ItemsManangerWorker::ParseItemMods() building tabs signature";
     m_tabs_signature.reserve(m_tabs.size());
     for (const auto& tab : m_tabs) {
-        const std::string tab_name = tab.get_tab_label();
-        const std::string tab_id = QString::number(tab.get_tab_id()).toStdString();
+        const QString tab_name = tab.get_tab_label();
+        const QString tab_id = QString::number(tab.get_tab_id());
         m_tabs_signature.push_back({ tab_name, tab_id });
     };
 
@@ -258,7 +257,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
         m_need_character_list = true;
     } else {
         // Build a list of tabs to update.
-        std::set<std::string> tabs_to_update = {};
+        std::set<QString> tabs_to_update = {};
         switch (type) {
         case TabSelection::Checked:
             // Use the buyout manager to determine which tabs are check.
@@ -287,7 +286,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
         RemoveUpdatingTabs(tabs_to_update);
         RemoveUpdatingItems(tabs_to_update);
         m_need_stash_list = (m_first_stash_request_index >= 0);
-        m_need_character_list = !m_first_character_request_name.empty();
+        m_need_character_list = !m_first_character_request_name.isEmpty();
     };
 
     m_has_stash_list = false;
@@ -299,7 +298,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
     };
 }
 
-void ItemsManagerWorker::RemoveUpdatingTabs(const std::set<std::string>& tab_ids) {
+void ItemsManagerWorker::RemoveUpdatingTabs(const std::set<QString>& tab_ids) {
     QLOG_TRACE() << "ItemsManagerWorker::RemoveUpdatingTabs() entered";
     if (tab_ids.empty()) {
         QLOG_ERROR() << "No tabs to remove.";
@@ -311,7 +310,7 @@ void ItemsManagerWorker::RemoveUpdatingTabs(const std::set<std::string>& tab_ids
     m_tabs.clear();
     m_tab_id_index.clear();
     for (auto& tab : current_tabs) {
-        const std::string tab_id = tab.get_tab_uniq_id();
+        const QString tab_id = tab.get_tab_uniq_id();
         bool save_tab = (tab_ids.count(tab.get_tab_uniq_id()) == 0);
         if (save_tab) {
             m_tabs.push_back(tab);
@@ -324,7 +323,7 @@ void ItemsManagerWorker::RemoveUpdatingTabs(const std::set<std::string>& tab_ids
                 };
                 break;
             case ItemLocationType::CHARACTER:
-                if (m_first_character_request_name.empty()) {
+                if (m_first_character_request_name.isEmpty()) {
                     m_first_character_request_name = tab.get_character();
                 };
                 break;
@@ -334,7 +333,7 @@ void ItemsManagerWorker::RemoveUpdatingTabs(const std::set<std::string>& tab_ids
     QLOG_DEBUG() << "Keeping" << m_tabs.size() << "tabs and culling" << (current_tabs.size() - m_tabs.size());
 }
 
-void ItemsManagerWorker::RemoveUpdatingItems(const std::set<std::string>& tab_ids) {
+void ItemsManagerWorker::RemoveUpdatingItems(const std::set<QString>& tab_ids) {
     QLOG_TRACE() << "ItemsManagerWorker::RemoveUpdatingItems() entered";
     // Keep items with locations that are not being updated.
     if (tab_ids.empty()) {
@@ -390,8 +389,8 @@ void ItemsManagerWorker::OAuthRefresh() {
 }
 
 QNetworkRequest ItemsManagerWorker::MakeOAuthStashListRequest(
-    const std::string& realm,
-    const std::string& league)
+    const QString& realm,
+    const QString& league)
 {
     QLOG_TRACE() << "ItemsManagerWorker::MakeOAuthStashListRequest() entered";
     QString url(kOAuthListStashesUrl);
@@ -403,7 +402,7 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthStashListRequest(
 }
 
 QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterListRequest(
-    const std::string& realm)
+    const QString& realm)
 {
     QLOG_TRACE() << "ItemsManagerWorker::MakeOAuthCharacterListRequest() entered";
     QString url(kOAuthListCharactersUrl);
@@ -414,10 +413,10 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterListRequest(
 }
 
 QNetworkRequest ItemsManagerWorker::MakeOAuthStashRequest(
-    const std::string& realm,
-    const std::string& league,
-    const std::string& stash_id,
-    const std::string& substash_id)
+    const QString& realm,
+    const QString& league,
+    const QString& stash_id,
+    const QString& substash_id)
 {
     QLOG_TRACE() << "ItemsManagerWorker::MakeOAuthStashRequest() entered";
     QString url(kOAuthGetStashUrl);
@@ -426,15 +425,15 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthStashRequest(
     };
     url += "/" + league;
     url += "/" + stash_id;
-    if (!substash_id.empty()) {
+    if (!substash_id.isEmpty()) {
         url += "/" + substash_id;
     };
     return QNetworkRequest(QUrl(url));
 }
 
 QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterRequest(
-    const std::string& realm,
-    const std::string& name)
+    const QString& realm,
+    const QString& name)
 {
     QLOG_TRACE() << "ItemsManagerWorker::MakeOAuthCharacterRequest() entered";
     QString url(kOAuthGetCharacterUrl);
@@ -479,7 +478,7 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
     m_tabs_signature = CreateTabsSignatureVector(stashes);
 
     // Remember old tab headers before clearing tabs
-    std::set<std::string> old_tab_headers;
+    std::set<QString> old_tab_headers;
     for (auto const& tab : m_tabs) {
         old_tab_headers.insert(tab.GetHeader());
     };
@@ -487,7 +486,7 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
     // Force refreshes for any stash tabs that were moved or renamed.
     for (auto const& tab : m_tabs) {
         if (!old_tab_headers.count(tab.GetHeader())) {
-            QLOG_DEBUG() << "Forcing refresh of moved or renamed tab: " << tab.GetHeader().c_str();
+            QLOG_DEBUG() << "Forcing refresh of moved or renamed tab: " << tab.GetHeader();
             QNetworkRequest request = MakeOAuthStashRequest(m_realm, m_league, tab.get_tab_uniq_id());
             QueueRequest(kOAuthGetStashEndpoint, request, tab);
         };
@@ -505,7 +504,7 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
             QLOG_ERROR() << "The stash tab does not have a name";
             continue;
         };
-        const std::string tab_name = tab["name"].GetString();
+        const QString tab_name = tab["name"].GetString();
 
         // Skip hidden tabs.
         if (HasBool(tab, "hidden") && tab["hidden"].GetBool()) {
@@ -518,12 +517,12 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
             QLOG_ERROR() << "The stash tab does not have a unique id:" << tab_name;
             continue;
         }
-        std::string tab_id = tab["id"].GetString();
+        QString tab_id = tab["id"].GetString();
         if (tab_id.size() > 10) {
             // The unique id for stash tabs returned from the legacy API
             // need to be trimmed to 10 characters.
             QLOG_DEBUG() << "Trimming tab unique id:" << tab_name;
-            tab_id = tab_id.substr(0, 10);
+            tab_id = tab_id.first(10);
         };
 
         // Skip tabs that are in the index; they are not being refreshed.
@@ -544,7 +543,7 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
             QLOG_ERROR() << "The stash tab does not have a type:" << tab_name;
             continue;
         };
-        const std::string tab_type = tab["type"].GetString();
+        const QString tab_type = tab["type"].GetString();
 
         ++tabs_requested;
 
@@ -608,16 +607,16 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
             QLOG_ERROR() << "The character does not have a name. The reply may be invalid:" << bytes;
             continue;
         };
-        const std::string name = character["name"].GetString();
+        const QString name = character["name"].GetString();
         if (!HasString(character, "realm")) {
             QLOG_ERROR() << "The character does not have a realm. The reply may be invalid:" << bytes;
         };
-        const std::string realm = character["realm"].GetString();
+        const QString realm = character["realm"].GetString();
         if (!HasString(character, "league")) {
             QLOG_ERROR() << "Malformed character entry for" << name << ": the reply may be invalid: " << bytes;
             continue;
         };
-        const std::string league = character["league"].GetString();
+        const QString league = character["league"].GetString();
         if (realm != m_realm) {
             QLOG_DEBUG() << "Skipping" << name << "because this character is not in realm" << m_realm;
             continue;
@@ -638,7 +637,7 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
         QNetworkRequest request = MakeOAuthCharacterRequest(m_realm, name);
         QueueRequest(kOAuthGetCharacterEndpoint, request, location);
     }
-    QLOG_DEBUG() << "There are" << requested_character_count << "characters to update in" << m_league.c_str();
+    QLOG_DEBUG() << "There are" << requested_character_count << "characters to update in" << m_league;
 
     m_has_character_list = true;
 
@@ -751,11 +750,10 @@ void ItemsManagerWorker::OnLegacyMainPageReceived() {
     if (reply->error()) {
         QLOG_WARN() << "Couldn't fetch main page: " << reply->url().toDisplayString() << " due to error: " << reply->errorString();
     } else {
-        std::string page(reply->readAll().constData());
+        QString page(reply->readAll().constData());
         m_selected_character = Util::FindTextBetween(page, "C({\"name\":\"", "\",\"class");
-        m_selected_character = Util::ConvertAsciiToUtf(m_selected_character);
-        if (m_selected_character.empty()) {
-            QLOG_WARN() << "Couldn't extract currently selected character name from GGG homepage (maintenence?) Text was: " << page.c_str();
+        if (m_selected_character.isEmpty()) {
+            QLOG_WARN() << "Couldn't extract currently selected character name from GGG homepage (maintenence?) Text was: " << page;
         };
     };
     reply->deleteLater();
@@ -802,12 +800,12 @@ void ItemsManagerWorker::OnLegacyCharacterListReceived(QNetworkReply* reply) {
             QLOG_ERROR() << "The legacy character does not have a name. The reply may be invalid:" << bytes;
             continue;
         };
-        const std::string name = character["name"].GetString();
+        const QString name = character["name"].GetString();
         if (!HasString(character, "league")) {
             QLOG_ERROR() << "Malformed legacy character entry for" << name << ": the reply may be invalid: " << bytes;
             continue;
         };
-        const std::string league = character["league"].GetString();
+        const QString league = character["league"].GetString();
         if (league != m_league) {
             QLOG_DEBUG() << "Skipping" << name << "because this character is not in" << m_league;
             continue;
@@ -827,7 +825,7 @@ void ItemsManagerWorker::OnLegacyCharacterListReceived(QNetworkReply* reply) {
         //Queue request for jewels in character's passive tree
         QueueRequest(kCharacterSocketedJewels, MakeLegacyPassivesRequest(name), location);
     }
-    QLOG_DEBUG() << "There are" << requested_character_count << "characters to update in" << m_league.c_str();
+    QLOG_DEBUG() << "There are" << requested_character_count << "characters to update in" << m_league;
 
     m_has_character_list = true;
 
@@ -842,8 +840,8 @@ QNetworkRequest ItemsManagerWorker::MakeLegacyCharacterListRequest() {
     QLOG_TRACE() << "ItemsManagerWorker::MakeLegacyCharacterListRequest() entered";
 
     QUrlQuery query;
-    query.addQueryItem("accountName", QString::fromUtf8(m_account));
-    query.addQueryItem("realm", QString::fromUtf8(m_realm));
+    query.addQueryItem("accountName", m_account);
+    query.addQueryItem("realm", m_realm);
 
     QUrl url(kGetCharactersUrl);
     url.setQuery(query);
@@ -857,9 +855,9 @@ QNetworkRequest ItemsManagerWorker::MakeLegacyTabRequest(int tab_index, bool tab
         QLOG_ERROR() << "MakeLegacyTabRequest: invalid tab_index =" << tab_index;
     };
     QUrlQuery query;
-    query.addQueryItem("accountName", QString::fromUtf8(m_account));
-    query.addQueryItem("realm", QString::fromUtf8(m_realm));
-    query.addQueryItem("league", QString::fromUtf8(m_league));
+    query.addQueryItem("accountName", m_account);
+    query.addQueryItem("realm", m_realm);
+    query.addQueryItem("league", m_league);
     query.addQueryItem("tabs", tabs ? "1" : "0");
     query.addQueryItem("tabIndex", QString::number(tab_index));
 
@@ -868,32 +866,32 @@ QNetworkRequest ItemsManagerWorker::MakeLegacyTabRequest(int tab_index, bool tab
     return QNetworkRequest(url);
 }
 
-QNetworkRequest ItemsManagerWorker::MakeLegacyCharacterRequest(const std::string& name) {
+QNetworkRequest ItemsManagerWorker::MakeLegacyCharacterRequest(const QString& name) {
     QLOG_TRACE() << "ItemsManagerWorker::MakeLegacyCharacterRequest() entered";
 
-    if (name.empty()) {
+    if (name.isEmpty()) {
         QLOG_ERROR() << "MakeLegacyCharacterRequest: invalid name = '" + name + "'";
     };
     QUrlQuery query;
-    query.addQueryItem("accountName", QString::fromUtf8(m_account));
-    query.addQueryItem("realm", QString::fromUtf8(m_realm));
-    query.addQueryItem("character", QString::fromUtf8(name));
+    query.addQueryItem("accountName", m_account);
+    query.addQueryItem("realm", m_realm);
+    query.addQueryItem("character", name);
 
     QUrl url(kCharacterItemsUrl);
     url.setQuery(query);
     return QNetworkRequest(url);
 }
 
-QNetworkRequest ItemsManagerWorker::MakeLegacyPassivesRequest(const std::string& name) {
+QNetworkRequest ItemsManagerWorker::MakeLegacyPassivesRequest(const QString& name) {
     QLOG_TRACE() << "ItemsManagerWorker::MakeLegacyPassivesRequest() entered";
 
-    if (name.empty()) {
+    if (name.isEmpty()) {
         QLOG_ERROR() << "MakeLegacyPassivesRequest: invalid name = '" + name + "'";
     };
     QUrlQuery query;
-    query.addQueryItem("accountName", QString::fromUtf8(m_account));
-    query.addQueryItem("realm", QString::fromUtf8(m_realm));
-    query.addQueryItem("character", QString::fromUtf8(name));
+    query.addQueryItem("accountName", m_account);
+    query.addQueryItem("realm", m_realm);
+    query.addQueryItem("character", name);
 
     QUrl url(kCharacterSocketedJewels);
     url.setQuery(query);
@@ -903,7 +901,7 @@ QNetworkRequest ItemsManagerWorker::MakeLegacyPassivesRequest(const std::string&
 void ItemsManagerWorker::QueueRequest(const QString& endpoint, const QNetworkRequest& request, const ItemLocation& location) {
     QLOG_TRACE() << "ItemsManagerWorker::QueueRequest() entered";
 
-    QLOG_DEBUG() << "Queued (" << m_queue_id + 1 << ") -- " << QString::fromUtf8(location.GetHeader());
+    QLOG_DEBUG() << "Queued (" << m_queue_id + 1 << ") -- " << location.GetHeader();
     ItemsRequest items_request;
     items_request.endpoint = endpoint;
     items_request.network_request = request;
@@ -921,7 +919,7 @@ void ItemsManagerWorker::FetchItems() {
     m_characters_needed = 0;
     m_characters_received = 0;
 
-    std::string tab_titles;
+    QString tab_titles;
     while (!m_queue.empty()) {
 
         // Take the next request out of the queue.
@@ -982,7 +980,7 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
     };
 
     if (doc.HasMember("error")) {
-        QLOG_ERROR() << "Aborting legacy update since first fetch failed due to 'error':" << Util::RapidjsonSerialize(doc["error"]).c_str();
+        QLOG_ERROR() << "Aborting legacy update since first fetch failed due to 'error':" << Util::RapidjsonSerialize(doc["error"]);
         m_updating = false;
         return;
     };
@@ -999,7 +997,7 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
     m_tabs_signature = CreateTabsSignatureVector(tabs);
 
     // Remember old tab headers before clearing tabs
-    std::set<std::string> old_tab_headers;
+    std::set<QString> old_tab_headers;
     for (auto const& tab : m_tabs) {
         old_tab_headers.insert(tab.GetHeader());
     };
@@ -1007,7 +1005,7 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
     // Force refreshes for any stash tabs that were moved or renamed.
     for (auto const& tab : m_tabs) {
         if (!old_tab_headers.count(tab.GetHeader())) {
-            QLOG_DEBUG() << "Forcing refresh of moved or renamed tab: " << tab.GetHeader().c_str();
+            QLOG_DEBUG() << "Forcing refresh of moved or renamed tab: " << tab.GetHeader();
             QueueRequest(kStashItemsUrl, MakeLegacyTabRequest(tab.get_tab_id(), true), tab);
         };
     };
@@ -1019,7 +1017,7 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
             QLOG_ERROR() << "Legacy tab does not have name";
             continue;
         };
-        const std::string label = tab["n"].GetString();
+        const QString label = tab["n"].GetString();
 
         if (!HasInt(tab, "i")) {
             QLOG_ERROR() << "Legacy tab does not have an index:" << label;
@@ -1038,12 +1036,12 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
             QLOG_ERROR() << "The legacy tab does not have a unique id:" << label;
             continue;
         };
-        std::string tab_id = tab["id"].GetString();
+        QString tab_id = tab["id"].GetString();
         if (tab_id.size() > 10) {
             // The unique id for stash tabs returned from the legacy API
             // need to be trimmed to 10 characters.
             QLOG_DEBUG() << "Trimming legacy tab unique id:" << label;
-            tab_id = tab_id.substr(0, 10);
+            tab_id = tab_id.first(10);
         };
         if (m_tab_id_index.count(tab_id) > 0) {
             continue;
@@ -1054,7 +1052,7 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
             QLOG_ERROR() << "The stash tab does not have a type:" << label;
             continue;
         };
-        const std::string tab_type = tab["type"].GetString();
+        const QString tab_type = tab["type"].GetString();
 
         // Get the stash tab color;
         int r = 0, g = 0, b = 0;
@@ -1141,7 +1139,7 @@ void ItemsManagerWorker::OnLegacyTabReceived(QNetworkReply* reply, ItemLocation 
     } else if (doc.HasMember("error")) {
         // this can happen if user is browsing stash in background and we can't know about it
         QLOG_ERROR() << "Legacy tab has 'error' instead of stash tab contents for: " << location.GetHeader();
-        QLOG_ERROR() << "The error is:" << Util::RapidjsonSerialize(doc["error"]).c_str();
+        QLOG_ERROR() << "The error is:" << Util::RapidjsonSerialize(doc["error"]);
         error = true;
     };
 
@@ -1202,7 +1200,7 @@ bool ItemsManagerWorker::TabsChanged(rapidjson::Document& doc, QNetworkReply* ne
     auto tab_id = location.get_tab_id();
     if (m_tabs_signature[tab_id] != tabs_signature_current[tab_id]) {
 
-        std::string reason;
+        QString reason;
         if (tabs_signature_current.size() != m_tabs_signature.size()) {
             reason += "[Tab size mismatch:"
                 + std::to_string(tabs_signature_current.size())
@@ -1224,7 +1222,7 @@ bool ItemsManagerWorker::TabsChanged(rapidjson::Document& doc, QNetworkReply* ne
 
         QLOG_ERROR() << "You renamed or re-ordered tabs in game while acquisition was in the middle of the update,"
             << " aborting to prevent synchronization problems and pricing data loss. Mismatch reason(s) -> "
-            << reason.c_str() << ". For request: " << network_reply->request().url().toDisplayString();
+            << reason << ". For request: " << network_reply->request().url().toDisplayString();
         return true;
     };
     return false;
@@ -1303,11 +1301,11 @@ void ItemsManagerWorker::FinishUpdate() {
 void ItemsManagerWorker::PreserveSelectedCharacter() {
     QLOG_TRACE() << "ItemsManagerWorker::PreserveSelectedCharacter() entered";
 
-    if (m_selected_character.empty()) {
+    if (m_selected_character.isEmpty()) {
         QLOG_DEBUG() << "Cannot preserve selected character: no character selected";
         return;
     };
-    QLOG_DEBUG() << "Preserving selected character:" << QString::fromUtf8(m_selected_character);
+    QLOG_DEBUG() << "Preserving selected character:" << m_selected_character;
     // The act of making this request sets the active character.
     // We don't need to to anything with the reply.
     QNetworkRequest character_request = MakeLegacyCharacterRequest(m_selected_character);
@@ -1326,14 +1324,14 @@ ItemsManagerWorker::TabsSignatureVector ItemsManagerWorker::CreateTabsSignatureV
     const char* id = "id";
     TabsSignatureVector signature;
     for (auto& tab : tabs) {
-        std::string name = HasString(tab, n) ? tab[n].GetString() : "UNKNOWN_NAME";
-        std::string uid = HasString(tab, id) ? tab[id].GetString() : "UNKNOWN_ID";
+        QString name = HasString(tab, n) ? tab[n].GetString() : "UNKNOWN_NAME";
+        QString uid = HasString(tab, id) ? tab[id].GetString() : "UNKNOWN_ID";
         if (!tab.HasMember("class")) {
             // The stash tab unique id is only ten characters, but legacy tabs
             // return a much longer value. GGG confirmed that taking the first
             // ten characters is the right thing to do.
             if (uid.size() > 10) {
-                uid = uid.substr(0, 10);
+                uid = uid.first(10);
             };
         };
         signature.emplace_back(name, uid);

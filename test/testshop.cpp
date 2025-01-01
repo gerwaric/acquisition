@@ -52,7 +52,7 @@ void TestShop::SocketedGemsNotLinked() {
     buyout_manager_.Set(*items[0], bo);
 
     shop_.Update();
-    std::vector<std::string> shop = shop_.shop_data();
+    QStringList shop = shop_.shop_data();
     QVERIFY(shop.size() == 0);
 
 }
@@ -74,9 +74,9 @@ void TestShop::TemplatedShopGeneration() {
     shop_.SetShopTemplate("My awesome shop [items]");
     shop_.Update();
 
-    std::vector<std::string> shop = shop_.shop_data();
+    QStringList shop = shop_.shop_data();
     QVERIFY(shop.size() == 1);
-    QVERIFY(shop[0].find("~price") != std::string::npos);
-    QVERIFY(shop[0].find("My awesome shop") != std::string::npos);
+    QVERIFY(shop[0].contains("~price"));
+    QVERIFY(shop[0].contains("My awesome shop"));
 
 }

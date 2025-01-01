@@ -21,6 +21,7 @@
 
 #include <QRectF>
 #include <QColor>
+#include <QString>
 
 #include <rapidjson/document.h>
 
@@ -39,29 +40,29 @@ public:
     explicit ItemLocation(const rapidjson::Value& root);
     explicit ItemLocation(
         int tab_id,
-        const std::string tab_unique_id,
-        const std::string name);
+        const QString tab_unique_id,
+        const QString name);
     explicit ItemLocation(
         int tab_id,
-        const std::string tab_unique_id,
-        const std::string name,
+        const QString tab_unique_id,
+        const QString name,
         ItemLocationType type,
-        const std::string tab_type,
+        const QString tab_type,
         int r, int g, int b,
         rapidjson::Value& value, rapidjson_allocator& alloc);
 
     void ToItemJson(rapidjson::Value* root, rapidjson_allocator& alloc);
     void FromItemJson(const rapidjson::Value& root);
-    std::string GetHeader() const;
+    QString GetHeader() const;
     QRectF GetRect() const;
-    std::string GetForumCode(const std::string& realm, const std::string& league, unsigned int stash_index) const;
-    std::string GetUniqueHash() const;
+    QString GetForumCode(const QString& realm, const QString& league, unsigned int stash_index) const;
+    QString GetUniqueHash() const;
     bool IsValid() const;
     bool operator<(const ItemLocation& other) const;
     bool operator==(const ItemLocation& other) const;
     ItemLocationType get_type() const { return m_type; }
-    std::string get_tab_label() const { return m_tab_label; }
-    std::string get_character() const { return m_character; }
+    QString get_tab_label() const { return m_tab_label; }
+    QString get_character() const { return m_character; }
     bool socketed() const { return m_socketed; }
     bool removeonly() const { return m_removeonly; }
     void set_socketed(bool socketed) { m_socketed = socketed; }
@@ -69,8 +70,8 @@ public:
     int getR() const { return m_red; }
     int getG() const { return m_green; }
     int getB() const { return m_blue; }
-    std::string get_tab_uniq_id() const { return m_type == ItemLocationType::STASH ? m_tab_unique_id : m_character; }
-    std::string get_json() const { return m_json; }
+    QString get_tab_uniq_id() const { return m_type == ItemLocationType::STASH ? m_tab_unique_id : m_character; }
+    QString get_json() const { return m_json; }
 private:
     void FixUid();
 
@@ -80,18 +81,18 @@ private:
     bool m_removeonly;
     ItemLocationType m_type;
     int m_tab_id;
-    std::string m_json;
+    QString m_json;
 
     //this would be the value "tabs -> id", which seems to be a hashed value generated on their end
-    std::string m_tab_unique_id;
+    QString m_tab_unique_id;
 
     // This is the "type" field from GGG, which is different from the ItemLocationType
     // used by Acquisition.
-    std::string m_tab_type;
+    QString m_tab_type;
     
-    std::string m_tab_label;
-    std::string m_character;
-    std::string m_inventory_id;
+    QString m_tab_label;
+    QString m_character;
+    QString m_inventory_id;
 
     QString m_character_sortname;
 };

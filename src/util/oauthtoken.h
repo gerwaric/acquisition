@@ -22,8 +22,6 @@
 #include <QDateTime>
 #include <QString>
 
-#include <string>
-
 #include "util/json_struct_qt.h"
 
 class QNetworkReply;
@@ -32,7 +30,6 @@ struct OAuthToken {
 
     OAuthToken() = default;
     explicit OAuthToken(const QString& json);
-    explicit OAuthToken(const std::string& json);
     explicit OAuthToken(QNetworkReply* reply);
 
     QString access_token;

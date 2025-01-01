@@ -36,7 +36,7 @@
 
 Search::Search(
     BuyoutManager& bo_manager,
-    const std::string& caption,
+    const QString& caption,
     const std::vector<std::unique_ptr<Filter>>& filters,
     QTreeView* view)
     : m_bo_manager(bo_manager)
@@ -275,12 +275,12 @@ void Search::FilterItems(const Items& items) {
     m_model.SetSorted(false);
 }
 
-void Search::RenameCaption(const std::string newName) {
+void Search::RenameCaption(const QString newName) {
     m_caption = newName;
 }
 
 QString Search::GetCaption() const {
-    return QString("%1 [%2]").arg(m_caption.c_str()).arg(m_filtered_item_count);
+    return QString("%1 [%2]").arg(m_caption).arg(m_filtered_item_count);
 }
 
 ItemLocation Search::GetTabLocation(const QModelIndex& index) const {

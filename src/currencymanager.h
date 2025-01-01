@@ -23,6 +23,7 @@
 #include <QDialog>
 #include <QLabel>
 #include <QObject>
+#include <QString>
 #include <QWidget>
 
 #include "buyoutmanager.h"
@@ -57,7 +58,7 @@ struct CurrencyRatio {
 struct CurrencyItem {
     int count;
     Currency currency;
-    std::string name;
+    QString name;
     CurrencyRatio exalt;
     CurrencyRatio chaos;
     CurrencyItem(int co, Currency curr, double chaos_ratio, double exalt_ratio) {
@@ -119,7 +120,7 @@ private:
 // Later we might need more logic if GGG adds more currency types and we want to be backwards compatible
 struct CurrencyUpdate {
     long long timestamp{ 0 };
-    std::string value;
+    QString value;
 };
 
 constexpr std::array<const char*, 5> CurrencyForWisdom({ {
@@ -206,7 +207,7 @@ private:
     void MigrateCurrency();
     void InitCurrency();
     void SaveCurrencyItems();
-    std::string Serialize(const std::vector<std::shared_ptr<CurrencyItem>>& currencies);
-    void Deserialize(const std::string& data, std::vector<std::shared_ptr<CurrencyItem>>* currencies);
+    QString Serialize(const std::vector<std::shared_ptr<CurrencyItem>>& currencies);
+    void Deserialize(const QString& data, std::vector<std::shared_ptr<CurrencyItem>>* currencies);
     void Save();
 };

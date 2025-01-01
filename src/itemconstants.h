@@ -19,8 +19,9 @@
 
 #pragma once
 
+#include <QString>
+
 #include <map>
-#include <string>
 
 enum FRAME_TYPES {
     FRAME_TYPE_NORMAL = 0,
@@ -51,4 +52,4 @@ struct position {
     double y;
 };
 
-const std::map<std::string, position>& POS_MAP();
+const std::map<QString, position>& POS_MAP();

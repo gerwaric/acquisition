@@ -19,12 +19,12 @@
 
 #pragma once
 
-#include <string>
 #include <QDateTime>
 #include <QDebug>
 #include <QMetaEnum>
 #include <QNetworkReply>
 #include <QObject>
+#include <QString>
 #include <QUrlQuery>
 
 #include <json_struct/json_struct.h>
@@ -81,31 +81,28 @@ namespace Util {
     QsLogging::Level TextToLogLevel(const QString& level);
     QString LogLevelToText(QsLogging::Level level);
 
-    std::string Md5(const std::string& value);
-    double AverageDamage(const std::string& s);
+    QString Md5(const QString& value);
+    double AverageDamage(const QString& s);
     void PopulateBuyoutTypeComboBox(QComboBox* combobox);
     void PopulateBuyoutCurrencyComboBox(QComboBox* combobox);
 
     int TextWidth(TextWidthId id);
 
     void ParseJson(QNetworkReply* reply, rapidjson::Document* doc);
-    std::string GetCsrfToken(const QByteArray& page, const std::string& name);
-    std::string FindTextBetween(const std::string& page, const std::string& left, const std::string& right);
+    QString GetCsrfToken(const QByteArray& page, const QString& name);
+    QString FindTextBetween(const QString& page, const QString& left, const QString& right);
 
-    std::string RapidjsonSerialize(const rapidjson::Value& val);
-    std::string RapidjsonPretty(const rapidjson::Value& val);
-    void RapidjsonAddString(rapidjson::Value* object, const char* const name, const std::string& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
-    void RapidjsonAddConstString(rapidjson::Value* object, const char* const name, const std::string& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
+    QString RapidjsonSerialize(const rapidjson::Value& val);
+    QString RapidjsonPretty(const rapidjson::Value& val);
+    void RapidjsonAddString(rapidjson::Value* object, const char* const name, const QString& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
+    void RapidjsonAddConstString(rapidjson::Value* object, const char* const name, const QString& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
     void RapidjsonAddInt64(rapidjson::Value* object, const char* const name, qint64 value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
 
 
     void GetTabColor(rapidjson::Value& json, int& r, int& g, int& b);
 
-    std::string StringReplace(const std::string& haystack, const std::string& needle, const std::string& replace);
-    std::string StringJoin(const std::vector<std::string>& array, const std::string& separator);
-    std::vector<std::string> StringSplit(const std::string& str, char delim);
+    QString StringReplace(const QString& haystack, const QString& needle, const QString& replace);
     QColor recommendedForegroundTextColor(const QColor& backgroundColor);
-    std::string hexStr(const uint8_t* data, int len);
 
     /*
         Example usage:
@@ -114,19 +111,17 @@ namespace Util {
     */
     bool MatchMod(const char* match, const char* mod, double* output);
 
-    std::string Capitalise(const std::string& str);
+    QString Capitalise(const QString& str);
 
-    std::string TimeAgoInWords(const QDateTime buyout_time);
+    QString TimeAgoInWords(const QDateTime buyout_time);
 
-    std::string Decode(const std::string& entity);
+    QString Decode(const QString& entity);
 
     QUrlQuery EncodeQueryItems(const std::list<std::pair<QString, QString>>& items);
 
-    void unique_elements(std::vector<std::string>& vec);
+    void unique_elements(std::vector<QString>& vec);
 
     QByteArray FixTimezone(const QByteArray& rfc2822_date);
-
-    std::string ConvertAsciiToUtf(const std::string& asciiString);
 
     // Convert Q_ENUM and Q_ENUM_NS objects to their string value.
     template<typename T>
@@ -139,7 +134,7 @@ namespace Util {
         JS::ParseContext context(json);
         if (context.parseTo<T>(out) != JS::Error::NoError) {
             const QString type_name(typeid(T).name());
-            const std::string error_message = context.makeErrorString();
+            const QString error_message = QString::fromStdString(context.makeErrorString());
             QLOG_ERROR() << "Error parsing json into" << type_name << ":" << error_message;
         };
     }

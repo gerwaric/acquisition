@@ -21,17 +21,12 @@
 
 #include <QString>
 
-#include <boost/algorithm/string/predicate.hpp>
 #include <QsLog/QsLog.h>
 
 #include "util/rapidjson_util.h"
 #include "util/util.h"
 
 #include "itemconstants.h"
-
-#include <string>
-
-using boost::algorithm::ends_with;
 
 QDebug& operator<<(QDebug& os, const ItemLocationType& obj) {
     switch (obj) {
@@ -61,8 +56,8 @@ ItemLocation::ItemLocation(const rapidjson::Value& root)
 
 ItemLocation::ItemLocation(
     int tab_id,
-    const std::string tab_unique_id,
-    const std::string name)
+    const QString tab_unique_id,
+    const QString name)
     : ItemLocation()
 {
     m_tab_label = name;
@@ -72,10 +67,10 @@ ItemLocation::ItemLocation(
 
 ItemLocation::ItemLocation(
     int tab_id,
-    const std::string tab_unique_id,
-    const std::string name,
+    const QString tab_unique_id,
+    const QString name,
     ItemLocationType type,
-    const std::string tab_type,
+    const QString tab_type,
     int r, int g, int b,
     rapidjson::Value& value, rapidjson_allocator& alloc)
     : m_x(0), m_y(0)
@@ -92,13 +87,13 @@ ItemLocation::ItemLocation(
         m_tab_label = name;
         m_character = "";
         m_character_sortname = "";
-        m_removeonly = ends_with(name, "(Remove-only)");
+        m_removeonly = name.endsWith("(Remove-only)");
         break;
     case ItemLocationType::CHARACTER:
         m_tab_type = "";
         m_tab_label = "";
         m_character = name;
-        m_character_sortname = QString::fromStdString(m_character).toLower();
+        m_character_sortname = m_character.toLower();
         m_removeonly = false;
         break;
     };
@@ -111,7 +106,7 @@ ItemLocation::ItemLocation(
         };
         if (!value.HasMember("n")) {
             rapidjson::Value name_value;
-            name_value.SetString(m_tab_label.c_str(), alloc);
+            name_value.SetString(m_tab_label.toStdString().c_str(), alloc);
             value.AddMember("n", name_value, alloc);
         };
         if (!value.HasMember("colour")) {
@@ -133,7 +128,7 @@ void ItemLocation::FixUid() {
     // the modern API only ten, and it appears to be the first 10.
     if (m_type == ItemLocationType::STASH) {
         if (m_tab_unique_id.size() > 10) {
-            m_tab_unique_id = m_tab_unique_id.substr(0, 10);
+            m_tab_unique_id = m_tab_unique_id.first(10);
         };
     };
 }
@@ -182,11 +177,11 @@ void ItemLocation::ToItemJson(rapidjson::Value* root_ptr, rapidjson_allocator& a
     switch (m_type) {
     case ItemLocationType::STASH:
         root.AddMember("_tab", m_tab_id, alloc);
-        string_val.SetString(m_tab_label.c_str(), alloc);
+        string_val.SetString(m_tab_label.toStdString().c_str(), alloc);
         root.AddMember("_tab_label", string_val, alloc);
         break;
     case ItemLocationType::CHARACTER:
-        string_val.SetString(m_character.c_str(), alloc);
+        string_val.SetString(m_character.toStdString().c_str(), alloc);
         root.AddMember("_character", string_val, alloc);
         break;
     };
@@ -198,9 +193,9 @@ void ItemLocation::ToItemJson(rapidjson::Value* root_ptr, rapidjson_allocator& a
     root.AddMember("_removeonly", m_removeonly, alloc);
 }
 
-std::string ItemLocation::GetHeader() const {
+QString ItemLocation::GetHeader() const {
     switch (m_type) {
-    case ItemLocationType::STASH: return QString("#%1, \"%2\"").arg(m_tab_id + 1).arg(m_tab_label.c_str()).toStdString();
+    case ItemLocationType::STASH: return QString("#%1, \"%2\"").arg(m_tab_id + 1).arg(m_tab_label);
     case ItemLocationType::CHARACTER: return m_character;
     default: return "";
     };
@@ -210,7 +205,7 @@ QRectF ItemLocation::GetRect() const {
     QRectF result;
     position itemPos{ double(m_x), double(m_y) };
 
-    if ((!m_inventory_id.empty()) && (m_type == ItemLocationType::CHARACTER)) {
+    if ((!m_inventory_id.isEmpty()) && (m_type == ItemLocationType::CHARACTER)) {
         auto& map = POS_MAP();
         if (m_inventory_id == "MainInventory") {
             itemPos.y += map.at(m_inventory_id).y;
@@ -236,16 +231,14 @@ QRectF ItemLocation::GetRect() const {
     return result;
 }
 
-std::string ItemLocation::GetForumCode(const std::string& realm, const std::string& league, unsigned int tab_index) const {
+QString ItemLocation::GetForumCode(const QString& realm, const QString& league, unsigned int tab_index) const {
     switch (m_type) {
     case ItemLocationType::STASH:
         return QString("[linkItem location=\"Stash%1\" league=\"%2\" x=\"%3\" y=\"%4\" realm=\"%5\"]")
-            .arg(QString::number(tab_index + 1), league.c_str(), QString::number(m_x), QString::number(m_y), realm.c_str())
-            .toStdString();
+            .arg(QString::number(tab_index + 1), league, QString::number(m_x), QString::number(m_y), realm);
     case ItemLocationType::CHARACTER:
         return QString("[linkItem location=\"%1\" character=\"%2\" x=\"%3\" y=\"%4\" realm=\"%5\"]")
-            .arg(m_inventory_id.c_str(), m_character.c_str(), QString::number(m_x), QString::number(m_y), realm.c_str())
-            .toStdString();
+            .arg(m_inventory_id, m_character, QString::number(m_x), QString::number(m_y), realm);
     default:
         return "";
     };
@@ -253,15 +246,15 @@ std::string ItemLocation::GetForumCode(const std::string& realm, const std::stri
 
 bool ItemLocation::IsValid() const {
     switch (m_type) {
-    case ItemLocationType::STASH: return !m_tab_unique_id.empty();
-    case ItemLocationType::CHARACTER: return !m_character.empty();
+    case ItemLocationType::STASH: return !m_tab_unique_id.isEmpty();
+    case ItemLocationType::CHARACTER: return !m_character.isEmpty();
     default: return false;
     };
 }
 
-std::string ItemLocation::GetUniqueHash() const {
+QString ItemLocation::GetUniqueHash() const {
     if (!IsValid()) {
-        QLOG_ERROR() << "ItemLocation is invalid:" << m_json.c_str();;
+        QLOG_ERROR() << "ItemLocation is invalid:" << m_json;
     };
     switch (m_type) {
     case ItemLocationType::STASH: return "stash:" + m_tab_label; // TODO: tab labels are not guaranteed unique

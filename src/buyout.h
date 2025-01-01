@@ -20,9 +20,9 @@
 #pragma once
 
 #include <QDateTime>
+#include <QString>
 
 #include <map>
-#include <string>
 
 #include "currency.h"
 
@@ -43,8 +43,8 @@ enum BuyoutSource {
 };
 
 struct Buyout {
-    typedef std::map<BuyoutType, std::string> BuyoutTypeMap;
-    typedef std::map<BuyoutSource, std::string> BuyoutSourceMap;
+    typedef std::map<BuyoutType, QString> BuyoutTypeMap;
+    typedef std::map<BuyoutSource, QString> BuyoutSourceMap;
 
     double value;
     BuyoutType type;
@@ -63,15 +63,15 @@ struct Buyout {
     bool IsGameSet() const;
     bool RequiresRefresh() const;
 
-    static BuyoutType TagAsBuyoutType(std::string tag);
+    static BuyoutType TagAsBuyoutType(QString tag);
     static BuyoutType IndexAsBuyoutType(int index);
-    static BuyoutSource TagAsBuyoutSource(std::string tag);
+    static BuyoutSource TagAsBuyoutSource(QString tag);
 
-    std::string AsText() const;
-    const std::string& BuyoutTypeAsTag() const;
-    const std::string& BuyoutTypeAsPrefix() const;
-    const std::string& BuyoutSourceAsTag() const;
-    const std::string& CurrencyAsTag() const;
+    QString AsText() const;
+    const QString& BuyoutTypeAsTag() const;
+    const QString& BuyoutTypeAsPrefix() const;
+    const QString& BuyoutSourceAsTag() const;
+    const QString& CurrencyAsTag() const;
 
     Buyout() :
         value(0),
@@ -85,7 +85,7 @@ struct Buyout {
         last_update(m_last_update)
     {}
 private:
-    static const std::string m_buyout_type_error;
+    static const QString m_buyout_type_error;
     static const BuyoutTypeMap m_buyout_type_as_tag;
     static const BuyoutTypeMap m_buyout_type_as_prefix;
     static const BuyoutSourceMap m_buyout_source_as_tag;

@@ -19,9 +19,8 @@
 
 #include "buyoutmanager.h"
 
+#include <QRegularExpression>
 #include <QVariant>
-
-#include <regex>
 
 #include <QsLog/QsLog.h>
 #include <rapidjson/document.h>
@@ -33,7 +32,7 @@
 #include "application.h"
 #include "itemlocation.h"
 
-const std::map<std::string, BuyoutType> BuyoutManager::m_string_to_buyout_type = {
+const std::map<QString, BuyoutType> BuyoutManager::m_string_to_buyout_type = {
     {"~gb/o", BUYOUT_TYPE_BUYOUT},
     {"~b/o", BUYOUT_TYPE_BUYOUT},
     {"~c/o", BUYOUT_TYPE_CURRENT_OFFER},
@@ -80,7 +79,7 @@ Buyout BuyoutManager::Get(const Item& item) const {
     return Buyout();
 }
 
-Buyout BuyoutManager::GetTab(const std::string& tab) const {
+Buyout BuyoutManager::GetTab(const QString& tab) const {
     auto const& it = m_tab_buyouts.find(tab);
     if (it != m_tab_buyouts.end()) {
         Buyout buyout = it->second;
@@ -92,7 +91,7 @@ Buyout BuyoutManager::GetTab(const std::string& tab) const {
     return Buyout();
 }
 
-void BuyoutManager::SetTab(const std::string& tab, const Buyout& buyout) {
+void BuyoutManager::SetTab(const QString& tab, const Buyout& buyout) {
     if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
         QLOG_WARN() << "BuyoutManager::SetTab() obsolete 'current offer' buyout detected for" << tab << ":" << buyout.AsText();
     };
@@ -113,7 +112,7 @@ void BuyoutManager::CompressTabBuyouts() {
     // When tabs are renamed we end up with stale tab buyouts that aren't deleted.
     // This function is to remove buyouts associated with tab names that don't
     // currently exist.
-    std::set<std::string> tmp;
+    std::set<QString> tmp;
     for (auto const& loc : m_tabs)
         tmp.insert(loc.GetUniqueHash());
 
@@ -131,7 +130,7 @@ void BuyoutManager::CompressItemBuyouts(const Items& items) {
     // When items are moved between tabs or deleted their buyouts entries remain
     // This function looks at buyouts and makes sure there is an associated item
     // that exists
-    std::set<std::string> tmp;
+    std::set<QString> tmp;
     for (auto const& item_sp : items) {
         const Item& item = *item_sp;
         tmp.insert(item.hash());
@@ -178,7 +177,7 @@ void BuyoutManager::Clear() {
     m_tabs.clear();
 }
 
-std::string BuyoutManager::Serialize(const std::map<std::string, Buyout>& buyouts) {
+QString BuyoutManager::Serialize(const std::map<QString, Buyout>& buyouts) {
     rapidjson::Document doc;
     doc.SetObject();
     auto& alloc = doc.GetAllocator();
@@ -205,22 +204,22 @@ std::string BuyoutManager::Serialize(const std::map<std::string, Buyout>& buyout
 
         item.AddMember("inherited", buyout.inherited, alloc);
 
-        rapidjson::Value name(bo.first.c_str(), alloc);
+        rapidjson::Value name(bo.first.toStdString().c_str(), alloc);
         doc.AddMember(name, item, alloc);
     };
 
     return Util::RapidjsonSerialize(doc);
 }
 
-void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, Buyout>* buyouts) {
+void BuyoutManager::Deserialize(const QString& data, std::map<QString, Buyout>* buyouts) {
     buyouts->clear();
 
     // if data is empty (on first use) we shouldn't make user panic by showing ERROR messages
-    if (data.empty())
+    if (data.isEmpty())
         return;
 
     rapidjson::Document doc;
-    if (doc.Parse(data.c_str()).HasParseError()) {
+    if (doc.Parse(data.toStdString().c_str()).HasParseError()) {
         QLOG_ERROR() << "Error while parsing buyouts.";
         QLOG_ERROR() << rapidjson::GetParseError_En(doc.GetParseError());
         return;
@@ -230,7 +229,7 @@ void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, B
     };
     for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
         auto& object = itr->value;
-        const std::string& name = itr->name.GetString();
+        const QString& name = itr->name.GetString();
         Buyout bo;
 
         bo.currency = Currency::FromTag(object["currency"].GetString());
@@ -254,27 +253,27 @@ void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, B
 }
 
 
-std::string BuyoutManager::Serialize(const std::map<std::string, bool>& obj) {
+QString BuyoutManager::Serialize(const std::map<QString, bool>& obj) {
     rapidjson::Document doc;
     doc.SetObject();
     auto& alloc = doc.GetAllocator();
 
     for (auto& pair : obj) {
-        rapidjson::Value key(pair.first.c_str(), alloc);
+        rapidjson::Value key(pair.first.toStdString().c_str(), alloc);
         rapidjson::Value val(pair.second);
         doc.AddMember(key, val, alloc);
     };
     return Util::RapidjsonSerialize(doc);
 }
 
-void BuyoutManager::Deserialize(const std::string& data, std::map<std::string, bool>& obj) {
+void BuyoutManager::Deserialize(const QString& data, std::map<QString, bool>& obj) {
     // if data is empty (on first use) we shouldn't make user panic by showing ERROR messages
-    if (data.empty()) {
+    if (data.isEmpty()) {
         return;
     };
 
     rapidjson::Document doc;
-    if (doc.Parse(data.c_str()).HasParseError()) {
+    if (doc.Parse(data.toStdString().c_str()).HasParseError()) {
         QLOG_ERROR() << rapidjson::GetParseError_En(doc.GetParseError());
         return;
     };
@@ -313,7 +312,7 @@ const std::vector<ItemLocation> BuyoutManager::GetStashTabLocations() const {
     return m_tabs;
 }
 
-BuyoutType BuyoutManager::StringToBuyoutType(std::string bo_str) const {
+BuyoutType BuyoutManager::StringToBuyoutType(QString bo_str) const {
     auto const& it = m_string_to_buyout_type.find(bo_str);
     if (it != m_string_to_buyout_type.end()) {
         return it->second;
@@ -321,20 +320,19 @@ BuyoutType BuyoutManager::StringToBuyoutType(std::string bo_str) const {
     return BUYOUT_TYPE_INHERIT;
 }
 
-Buyout BuyoutManager::StringToBuyout(std::string format) {
+Buyout BuyoutManager::StringToBuyout(QString format) {
     // Parse format string and initialize buyout object, if string does not match any known format
     // then the buyout object will not be valid (IsValid will return false).
-    std::regex exp("(~\\S+)\\s+(\\d+\\.?\\d*)\\s+(\\w+)");
-
-    std::smatch sm;
+    QRegularExpression exp("(~\\S+)\\s+(\\d+\\.?\\d*)\\s+(\\w+)");
 
     Buyout tmp;
     // regex_search allows for stuff before ~ and after currency type.  We only want to honor the formats
     // that POE trade also accept so this may need to change if it's too generous
-    if (std::regex_search(format, sm, exp)) {
-        tmp.type = StringToBuyoutType(sm[1]);
-        tmp.value = QVariant(sm[2].str().c_str()).toDouble();
-        tmp.currency = Currency::FromString(sm[3]);
+    QRegularExpressionMatch m = exp.match(format);
+    if (m.hasMatch()) {
+        tmp.type = StringToBuyoutType(m.captured(1));
+        tmp.value = m.captured(2).toDouble();
+        tmp.currency = Currency::FromString(m.captured(3));
         tmp.source = BUYOUT_SOURCE_GAME;
         tmp.last_update = QDateTime::currentDateTime();
     };
@@ -342,8 +340,8 @@ Buyout BuyoutManager::StringToBuyout(std::string format) {
 }
 
 void BuyoutManager::MigrateItem(const Item& item) {
-    std::string old_hash = item.old_hash();
-    std::string hash = item.hash();
+    QString old_hash = item.old_hash();
+    QString hash = item.hash();
     auto it = m_buyouts.find(old_hash);
     auto new_it = m_buyouts.find(hash);
     if (it != m_buyouts.end() && (new_it == m_buyouts.end() || new_it->second.source != BUYOUT_SOURCE_MANUAL)) {

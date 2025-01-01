@@ -30,7 +30,7 @@
 
 #include "modlist.h"
 
-SelectedMod::SelectedMod(const std::string& name, double min, double max, bool min_filled, bool max_filled)
+SelectedMod::SelectedMod(const QString& name, double min, double max, bool min_filled, bool max_filled)
     : m_data(name, min, max, min_filled, max_filled)
     , m_mod_select(&mod_list_model())
     , m_delete_button("X")
@@ -52,7 +52,7 @@ SelectedMod::SelectedMod(const std::string& name, double min, double max, bool m
 }
 
 void SelectedMod::OnModChanged() {
-    m_data.mod = m_mod_select.currentText().toStdString();
+    m_data.mod = m_mod_select.currentText();
     emit ModChanged(*this);
 }
 
@@ -135,7 +135,7 @@ void ModsFilter::ResetForm() {
 
 bool ModsFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
     for (auto& mod : data->mod_data) {
-        if (mod.mod.empty()) {
+        if (mod.mod.isEmpty()) {
             continue;
         };
         const ModTable& mod_table = item->mod_table();

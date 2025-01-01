@@ -21,7 +21,7 @@
 
 #include <QsLog/QsLog.h>
 
-const std::string Currency::m_currency_type_error;
+const QString Currency::m_currency_type_error;
 
 const Currency::TypeStringMap Currency::m_currency_type_as_string = {
     {CURRENCY_NONE, ""},
@@ -155,7 +155,7 @@ std::vector<CurrencyType> Currency::Types() {
     return tmp;
 }
 
-Currency Currency::FromTag(const std::string& tag)
+Currency Currency::FromTag(const QString& tag)
 {
     auto& m = m_currency_type_as_tag;
     auto const& it = std::find_if(m.begin(), m.end(), [&](Currency::TypeStringMap::value_type const& x) { return x.second == tag; });
@@ -171,7 +171,7 @@ Currency Currency::FromIndex(int index) {
     };
 }
 
-Currency Currency::FromString(const std::string& currency) {
+Currency Currency::FromString(const QString& currency) {
     auto const& it = m_string_to_currency_type.find(currency);
     if (it != m_string_to_currency_type.end()) {
         return it->second;
@@ -179,7 +179,7 @@ Currency Currency::FromString(const std::string& currency) {
     return CURRENCY_NONE;
 }
 
-const std::string& Currency::AsString() const {
+const QString& Currency::AsString() const {
     auto const& it = m_currency_type_as_string.find(type);
     if (it != m_currency_type_as_string.end()) {
         return it->second;
@@ -189,7 +189,7 @@ const std::string& Currency::AsString() const {
     };
 }
 
-const std::string& Currency::AsTag() const {
+const QString& Currency::AsTag() const {
     auto const& it = m_currency_type_as_tag.find(type);
     if (it != m_currency_type_as_tag.end()) {
         return it->second;

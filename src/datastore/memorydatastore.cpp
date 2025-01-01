@@ -21,7 +21,7 @@
 
 #include "currencymanager.h"
 
-std::string MemoryDataStore::Get(const std::string& key, const std::string& default_value) {
+QString MemoryDataStore::Get(const QString& key, const QString& default_value) {
     auto i = m_data.find(key);
     if (i == m_data.end())
         return default_value;
@@ -42,7 +42,7 @@ Items MemoryDataStore::GetItems(const ItemLocation& loc) {
     return i->second;
 }
 
-void MemoryDataStore::Set(const std::string& key, const std::string& value) {
+void MemoryDataStore::Set(const QString& key, const QString& value) {
     m_data[key] = value;
 }
 

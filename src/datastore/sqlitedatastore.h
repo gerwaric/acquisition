@@ -21,9 +21,6 @@
 
 #include <QSqlDatabase>
 
-#include <string>
-#include <vector>
-
 #include "datastore.h"
 
 class Application;
@@ -33,17 +30,17 @@ class SqliteDataStore : public DataStore {
 public:
     SqliteDataStore(const QString& m_filename);
     ~SqliteDataStore();
-    void Set(const std::string& key, const std::string& value);
+    void Set(const QString& key, const QString& value);
     void SetTabs(const ItemLocationType& type, const Locations& value);
     void SetItems(const ItemLocation& loc, const Items& value);
-    std::string Get(const std::string& key, const std::string& default_value = "");
+    QString Get(const QString& key, const QString& default_value = "");
     Locations GetTabs(const ItemLocationType& type);
     Items GetItems(const ItemLocation& loc);
     void InsertCurrencyUpdate(const CurrencyUpdate& update);
     std::vector<CurrencyUpdate> GetAllCurrency();
-    static QString MakeFilename(const std::string& name, const std::string& league);
+    static QString MakeFilename(const QString& name, const QString& league);
 private:
-    void CreateTable(const std::string& name, const std::string& fields);
+    void CreateTable(const QString& username, const QString& fields);
     void CleanItemsTable();
 
     QString m_filename;

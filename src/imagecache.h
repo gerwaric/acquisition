@@ -23,8 +23,6 @@
 #include <QImage>
 #include <QString>
 
-#include <string>
-
 class QNetworkAccessManager;
 class QNetworkReply;
 
@@ -34,15 +32,15 @@ public:
     explicit ImageCache(
         QNetworkAccessManager& network_manager,
         const QString& directory);
-    bool contains(const std::string& url) const;
-    QImage load(const std::string& url) const;
+    bool contains(const QString& url) const;
+    QImage load(const QString& url) const;
 public slots:
-    void fetch(const std::string& url);
+    void fetch(const QString& url);
     void onFetched();
 signals:
-    void imageReady(const std::string& url);
+    void imageReady(const QString& url);
 private:
-    QString getImagePath(const std::string& url) const;
+    QString getImagePath(const QString& url) const;
     QNetworkAccessManager& m_network_manager;
     QString m_directory;
 };

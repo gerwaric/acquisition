@@ -21,7 +21,7 @@
 
 #include <QsLog/QsLog.h>
 
-const std::string Buyout::m_buyout_type_error;
+const QString Buyout::m_buyout_type_error;
 
 const Buyout::BuyoutTypeMap Buyout::m_buyout_type_as_tag = {
     {BUYOUT_TYPE_IGNORE, "[ignore]"},
@@ -85,13 +85,13 @@ bool Buyout::RequiresRefresh() const
     return !(type == BUYOUT_TYPE_IGNORE || type == BUYOUT_TYPE_INHERIT);
 }
 
-BuyoutSource Buyout::TagAsBuyoutSource(std::string tag) {
+BuyoutSource Buyout::TagAsBuyoutSource(QString tag) {
     auto& m = m_buyout_source_as_tag;
     auto const& it = std::find_if(m.begin(), m.end(), [&](BuyoutSourceMap::value_type const& x) { return x.second == tag; });
     return (it != m.end()) ? it->first : BUYOUT_SOURCE_NONE;
 }
 
-BuyoutType Buyout::TagAsBuyoutType(std::string tag) {
+BuyoutType Buyout::TagAsBuyoutType(QString tag) {
     auto& m = m_buyout_type_as_tag;
     auto const& it = std::find_if(m.begin(), m.end(), [&](BuyoutTypeMap::value_type const& x) { return x.second == tag; });
     return (it != m.end()) ? it->first : BUYOUT_TYPE_INHERIT;
@@ -109,15 +109,15 @@ BuyoutType Buyout::IndexAsBuyoutType(int index) {
     return BUYOUT_TYPE_INHERIT;
 }
 
-std::string Buyout::AsText() const {
+QString Buyout::AsText() const {
     if (IsPriced()) {
-        return BuyoutTypeAsTag() + " " + QString::number(value).toStdString() + " " + CurrencyAsTag();
+        return BuyoutTypeAsTag() + " " + QString::number(value) + " " + CurrencyAsTag();
     } else {
         return BuyoutTypeAsTag();
     };
 }
 
-const std::string& Buyout::BuyoutTypeAsTag() const {
+const QString& Buyout::BuyoutTypeAsTag() const {
     auto const& it = m_buyout_type_as_tag.find(type);
     if (it != m_buyout_type_as_tag.end()) {
         return it->second;
@@ -127,7 +127,7 @@ const std::string& Buyout::BuyoutTypeAsTag() const {
     };
 }
 
-const std::string& Buyout::BuyoutTypeAsPrefix() const {
+const QString& Buyout::BuyoutTypeAsPrefix() const {
     auto const& it = m_buyout_type_as_prefix.find(type);
     if (it != m_buyout_type_as_prefix.end()) {
         return it->second;
@@ -137,7 +137,7 @@ const std::string& Buyout::BuyoutTypeAsPrefix() const {
     };
 }
 
-const std::string& Buyout::BuyoutSourceAsTag() const {
+const QString& Buyout::BuyoutSourceAsTag() const {
     auto const& it = m_buyout_source_as_tag.find(source);
     if (it != m_buyout_source_as_tag.end()) {
         return it->second;
@@ -147,7 +147,7 @@ const std::string& Buyout::BuyoutSourceAsTag() const {
     };
 }
 
-const std::string& Buyout::CurrencyAsTag() const
+const QString& Buyout::CurrencyAsTag() const
 {
     return currency.AsTag();
 }

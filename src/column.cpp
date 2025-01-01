@@ -49,8 +49,8 @@ Column::sort_tuple Column::multivalue(const Item* item) const {
 
     double first_double = 0.0;
     double second_double = 0.0;
-    std::string first_string = "";
-    std::string second_string = "";
+    QString first_string = "";
+    QString second_string = "";
 
     QString str = value(*item).toString();
     QRegularExpressionMatch match;
@@ -65,8 +65,8 @@ Column::sort_tuple Column::multivalue(const Item* item) const {
             second_double = match.captured(1).toDouble();
         }
     } else {
-        first_string = str.toStdString();
-        second_string = item->PrettyName().c_str();
+        first_string = str;
+        second_string = item->PrettyName();
     }
 
     return std::forward_as_tuple(
@@ -80,12 +80,12 @@ bool Column::lt(const Item* lhs, const Item* rhs) const {
     return multivalue(lhs) < multivalue(rhs);
 }
 
-std::string NameColumn::name() const {
+QString NameColumn::name() const {
     return "Name";
 }
 
 QVariant NameColumn::value(const Item& item) const {
-    return item.PrettyName().c_str();
+    return item.PrettyName();
 }
 
 QColor NameColumn::color(const Item& item) const {
@@ -113,7 +113,7 @@ QColor NameColumn::color(const Item& item) const {
     }
 }
 
-std::string CorruptedColumn::name() const {
+QString CorruptedColumn::name() const {
     return "Corr";
 }
 
@@ -123,7 +123,7 @@ QVariant CorruptedColumn::value(const Item& item) const {
     return QVariant();
 }
 
-std::string CraftedColumn::name() const {
+QString CraftedColumn::name() const {
     return "Mast";
 }
 
@@ -133,7 +133,7 @@ QVariant CraftedColumn::value(const Item& item) const {
     return QVariant();
 }
 
-std::string EnchantedColumn::name() const {
+QString EnchantedColumn::name() const {
     return "Ench";
 }
 
@@ -143,7 +143,7 @@ QVariant EnchantedColumn::value(const Item& item) const {
     return QVariant();
 }
 
-std::string InfluncedColumn::name() const {
+QString InfluncedColumn::name() const {
     return "Inf";
 }
 
@@ -212,27 +212,27 @@ QVariant InfluncedColumn::icon(const Item& item) const {
 
 
 
-PropertyColumn::PropertyColumn(const std::string& name) :
+PropertyColumn::PropertyColumn(const QString& name) :
     m_name(name),
     m_property(name)
 {}
 
-PropertyColumn::PropertyColumn(const std::string& name, const std::string& property) :
+PropertyColumn::PropertyColumn(const QString& name, const QString& property) :
     m_name(name),
     m_property(property)
 {}
 
-std::string PropertyColumn::name() const {
+QString PropertyColumn::name() const {
     return m_name;
 }
 
 QVariant PropertyColumn::value(const Item& item) const {
     if (item.properties().count(m_property))
-        return item.properties().find(m_property)->second.c_str();
+        return item.properties().find(m_property)->second;
     return QVariant();
 }
 
-std::string DPSColumn::name() const {
+QString DPSColumn::name() const {
     return "DPS";
 }
 
@@ -243,7 +243,7 @@ QVariant DPSColumn::value(const Item& item) const {
     return dps;
 }
 
-std::string pDPSColumn::name() const {
+QString pDPSColumn::name() const {
     return "pDPS";
 }
 
@@ -254,7 +254,7 @@ QVariant pDPSColumn::value(const Item& item) const {
     return pdps;
 }
 
-std::string eDPSColumn::name() const {
+QString eDPSColumn::name() const {
     return "eDPS";
 }
 
@@ -269,7 +269,7 @@ ElementalDamageColumn::ElementalDamageColumn(int index) :
     m_index(index)
 {}
 
-std::string ElementalDamageColumn::name() const {
+QString ElementalDamageColumn::name() const {
     if (m_index == 0)
         return "ED";
     return "";
@@ -278,7 +278,7 @@ std::string ElementalDamageColumn::name() const {
 QVariant ElementalDamageColumn::value(const Item& item) const {
     if (item.elemental_damage().size() > m_index) {
         auto& ed = item.elemental_damage().at(m_index);
-        return ed.first.c_str();
+        return ed.first;
     }
     return QVariant();
 }
@@ -298,13 +298,13 @@ QColor ElementalDamageColumn::color(const Item& item) const {
     return QColor();
 }
 
-std::string ChaosDamageColumn::name() const {
+QString ChaosDamageColumn::name() const {
     return "CD";
 }
 
 QVariant ChaosDamageColumn::value(const Item& item) const {
     if (item.properties().count("Chaos Damage"))
-        return item.properties().find("Chaos Damage")->second.c_str();
+        return item.properties().find("Chaos Damage")->second;
     return QVariant();
 }
 
@@ -313,7 +313,7 @@ QColor ChaosDamageColumn::color(const Item& item) const {
     return QColor(0xd0, 0x20, 0x90);
 }
 
-std::string cDPSColumn::name() const {
+QString cDPSColumn::name() const {
     return "cDPS";
 }
 
@@ -328,13 +328,13 @@ PriceColumn::PriceColumn(const BuyoutManager& bo_manager) :
     m_bo_manager(bo_manager)
 {}
 
-std::string PriceColumn::name() const {
+QString PriceColumn::name() const {
     return "Price";
 }
 
 QVariant PriceColumn::value(const Item& item) const {
     const Buyout& bo = m_bo_manager.Get(item);
-    return bo.AsText().c_str();
+    return bo.AsText();
 }
 
 QColor PriceColumn::color(const Item& item) const {
@@ -360,13 +360,13 @@ DateColumn::DateColumn(const BuyoutManager& bo_manager) :
     m_bo_manager(bo_manager)
 {}
 
-std::string DateColumn::name() const {
+QString DateColumn::name() const {
     return "Last Update";
 }
 
 QVariant DateColumn::value(const Item& item) const {
     const Buyout& bo = m_bo_manager.Get(item);
-    return bo.IsActive() ? Util::TimeAgoInWords(bo.last_update).c_str() : QVariant();
+    return bo.IsActive() ? Util::TimeAgoInWords(bo.last_update) : QVariant();
 }
 
 bool DateColumn::lt(const Item* lhs, const Item* rhs) const {
@@ -376,7 +376,7 @@ bool DateColumn::lt(const Item* lhs, const Item* rhs) const {
         std::tie(rhs_update_time, *rhs));
 }
 
-std::string ItemlevelColumn::name() const {
+QString ItemlevelColumn::name() const {
     return "ilvl";
 }
 

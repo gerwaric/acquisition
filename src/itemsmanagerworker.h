@@ -22,6 +22,7 @@
 #include <QNetworkCookie>
 #include <QNetworkRequest>
 #include <QObject>
+#include <QString>
 
 #include <queue>
 #include <set>
@@ -92,8 +93,8 @@ private slots:
 
 private:
     void ParseItemMods();
-    void RemoveUpdatingTabs(const std::set<std::string>& tab_ids);
-    void RemoveUpdatingItems(const std::set<std::string>& tab_ids);
+    void RemoveUpdatingTabs(const std::set<QString>& tab_ids);
+    void RemoveUpdatingItems(const std::set<QString>& tab_ids);
     void QueueRequest(const QString& endpoint, const QNetworkRequest& request, const ItemLocation& location);
     void FetchItems();
     void PreserveSelectedCharacter();
@@ -101,16 +102,16 @@ private:
     void LegacyRefresh();
     QNetworkRequest MakeLegacyCharacterListRequest();
     QNetworkRequest MakeLegacyTabRequest(int tab_index, bool tabs = false);
-    QNetworkRequest MakeLegacyCharacterRequest(const std::string& name);
-    QNetworkRequest MakeLegacyPassivesRequest(const std::string& name);
+    QNetworkRequest MakeLegacyCharacterRequest(const QString& name);
+    QNetworkRequest MakeLegacyPassivesRequest(const QString& name);
 
     void OAuthRefresh();
-    QNetworkRequest MakeOAuthStashListRequest(const std::string& realm, const std::string& league);
-    QNetworkRequest MakeOAuthStashRequest(const std::string& realm, const std::string& league, const std::string& stash_id, const std::string& substash_id = "");
-    QNetworkRequest MakeOAuthCharacterListRequest(const std::string& realm);
-    QNetworkRequest MakeOAuthCharacterRequest(const std::string& realm, const std::string& name);
+    QNetworkRequest MakeOAuthStashListRequest(const QString& realm, const QString& league);
+    QNetworkRequest MakeOAuthStashRequest(const QString& realm, const QString& league, const QString& stash_id, const QString& substash_id = "");
+    QNetworkRequest MakeOAuthCharacterListRequest(const QString& realm);
+    QNetworkRequest MakeOAuthCharacterRequest(const QString& realm, const QString& name);
 
-    typedef std::pair<std::string, std::string> TabSignature;
+    typedef std::pair<QString, QString> TabSignature;
     typedef std::vector<TabSignature> TabsSignatureVector;
     TabsSignatureVector CreateTabsSignatureVector(const rapidjson::Value& tabs);
 
@@ -127,9 +128,9 @@ private:
     RateLimiter& m_rate_limiter;
 
     POE_API m_mode;
-    std::string m_realm;
-    std::string m_league;
-    std::string m_account;
+    QString m_realm;
+    QString m_league;
+    QString m_account;
 
     bool m_test_mode;
     std::vector<ItemLocation> m_tabs;
@@ -146,7 +147,7 @@ private:
     size_t m_characters_needed;
     size_t m_characters_received;
 
-    std::set<std::string> m_tab_id_index;
+    std::set<QString> m_tab_id_index;
 
     volatile bool m_initialized;
     volatile bool m_updating;
@@ -157,10 +158,10 @@ private:
     std::vector<ItemLocation> m_locations;
 
     int m_queue_id;
-    std::string m_selected_character;
+    QString m_selected_character;
 
     int m_first_stash_request_index;
-    std::string m_first_character_request_name;
+    QString m_first_character_request_name;
 
     bool m_need_stash_list;
     bool m_need_character_list;

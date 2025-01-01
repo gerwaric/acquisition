@@ -22,11 +22,11 @@
 #include <QImage>
 #include <QPainter>
 #include <QString>
-#include <string>
-#include <vector>
+
 #include <QsLog/QsLog.h>
 
 #include <array>
+#include <vector>
 
 #include "item.h"
 #include "itemconstants.h"
@@ -107,22 +107,22 @@ static std::array kPoEColors = {
     "#d02090"
 };
 
-static std::string ColorPropertyValue(const ItemPropertyValue& value) {
+static QString ColorPropertyValue(const ItemPropertyValue& value) {
     size_t type = value.type;
     if (type >= kPoEColors.size())
         type = 0;
-    const std::string color = kPoEColors[type];
+    const QString color = kPoEColors[type];
     return "<font color='" + color + "'>" + value.str + "</font>";
 }
 
-static std::string FormatProperty(const ItemProperty& prop) {
+static QString FormatProperty(const ItemProperty& prop) {
     if (prop.display_mode == 3) {
-        QString format(prop.name.c_str());
+        QString format(prop.name);
         for (auto& value : prop.values)
-            format = format.arg(ColorPropertyValue(value).c_str());
-        return format.toStdString();
+            format = format.arg(ColorPropertyValue(value));
+        return format;
     }
-    std::string text = prop.name;
+    QString text = prop.name;
     if (prop.values.size()) {
         if (prop.name.size() > 0)
             text += ": ";
@@ -137,8 +137,8 @@ static std::string FormatProperty(const ItemProperty& prop) {
     return text;
 }
 
-static std::string GenerateProperties(const Item& item) {
-    std::string text;
+static QString GenerateProperties(const Item& item) {
+    QString text;
     bool first = true;
     for (auto& property : item.text_properties()) {
         if (!first)
@@ -150,8 +150,8 @@ static std::string GenerateProperties(const Item& item) {
     return text;
 }
 
-static std::string GenerateRequirements(const Item& item) {
-    std::string text;
+static QString GenerateRequirements(const Item& item) {
+    QString text;
     bool first = true;
     // Talisman level is not really a requirement but it lives in the requirements section
     if (item.talisman_tier())
@@ -164,52 +164,52 @@ static std::string GenerateRequirements(const Item& item) {
     return text;
 }
 
-static std::string ModListAsString(const ItemMods& list) {
-    std::string mods;
+static QString ModListAsString(const ItemMods& list) {
+    QString mods;
     bool first = true;
     for (auto& mod : list) {
         mods += (first ? "" : "<br>") + mod;
         first = false;
     }
-    if (mods.empty())
+    if (mods.isEmpty())
         return "";
     return ColorPropertyValue(ItemPropertyValue{ mods, 1 });
 }
 
-static std::vector<std::string> GenerateMods(const Item& item) {
-    std::vector<std::string> out;
+static std::vector<QString> GenerateMods(const Item& item) {
+    std::vector<QString> out;
     auto& mods = item.text_mods();
     for (auto& mod_type : ITEM_MOD_TYPES) {
-        std::string mod_list = ModListAsString(mods.at(mod_type));
-        if (!mod_list.empty())
+        QString mod_list = ModListAsString(mods.at(mod_type));
+        if (!mod_list.isEmpty())
             out.push_back(mod_list);
     }
     return out;
 }
 
-static std::string GenerateItemInfo(const Item& item, const std::string& key, bool fancy) {
-    std::vector<std::string> sections;
+static QString GenerateItemInfo(const Item& item, const QString& key, bool fancy) {
+    std::vector<QString> sections;
 
-    std::string properties_text = GenerateProperties(item);
+    QString properties_text = GenerateProperties(item);
     if (properties_text.size() > 0)
         sections.push_back(properties_text);
 
-    std::string requirements_text = GenerateRequirements(item);
+    QString requirements_text = GenerateRequirements(item);
     if (requirements_text.size() > 0)
         sections.push_back(requirements_text);
 
-    std::vector<std::string> mods = GenerateMods(item);
+    std::vector<QString> mods = GenerateMods(item);
     sections.insert(sections.end(), mods.begin(), mods.end());
 
-    std::string unmet;
+    QString unmet;
     if (!item.identified())
         unmet += "Unidentified";
     if (item.corrupted())
-        unmet += (unmet.empty() ? "" : "<br>") + std::string("Corrupted");
-    if (!unmet.empty())
+        unmet += (unmet.isEmpty() ? "" : "<br>") + QString("Corrupted");
+    if (!unmet.isEmpty())
         sections.push_back(ColorPropertyValue(ItemPropertyValue{ unmet, 2 }));
 
-    std::string text;
+    QString text;
     bool first = true;
     for (auto& s : sections) {
         if (!first) {
@@ -260,8 +260,8 @@ static void UpdateMinimap(const Item& item, Ui::MainWindow* ui) {
     ui->minimapLabel->setPixmap(pixmap);
 }
 
-void GenerateItemHeaderSide(QLabel* itemHeader, bool leftNotRight, std::string header_path_prefix, bool singleline, Item::INFLUENCE_TYPES base) {
-    QImage header(QString::fromStdString(header_path_prefix + (leftNotRight ? "Left.png" : "Right.png")));
+void GenerateItemHeaderSide(QLabel* itemHeader, bool leftNotRight, QString header_path_prefix, bool singleline, Item::INFLUENCE_TYPES base) {
+    QImage header(header_path_prefix + (leftNotRight ? "Left.png" : "Right.png"));
     QSize header_size = singleline ? HEADER_SINGLELINE_SIZE : HEADER_DOUBLELINE_SIZE;
     header = header.scaled(header_size);
 
@@ -324,13 +324,13 @@ void UpdateItemTooltip(const Item& item, Ui::MainWindow* ui) {
     size_t frame = item.frameType();
     if (frame >= FrameToKey.size())
         frame = 0;
-    std::string key = FrameToKey[frame];
+    QString key = FrameToKey[frame];
 
-    ui->propertiesLabel->setText(GenerateItemInfo(item, key, true).c_str());
-    ui->itemTextTooltip->setText(GenerateItemInfo(item, key, false).c_str());
+    ui->propertiesLabel->setText(GenerateItemInfo(item, key, true));
+    ui->itemTextTooltip->setText(GenerateItemInfo(item, key, false));
     UpdateMinimap(item, ui);
 
-    bool singleline = item.name().empty();
+    bool singleline = item.name().isEmpty();
     if (singleline) {
         ui->itemNameFirstLine->hide();
         ui->itemNameSecondLine->setAlignment(Qt::AlignCenter);
@@ -341,21 +341,21 @@ void UpdateItemTooltip(const Item& item, Ui::MainWindow* ui) {
         ui->itemNameSecondLine->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
         ui->itemNameContainerWidget->setFixedSize(16777215, HEADER_DOUBLELINE_HEIGHT);
     }
-    std::string suffix = (singleline && (frame == FRAME_TYPE_RARE || frame == FRAME_TYPE_UNIQUE)) ? "SingleLine" : "";
-    std::string header_path_prefix = ":/tooltip/ItemsHeader" + key + suffix;
+    QString suffix = (singleline && (frame == FRAME_TYPE_RARE || frame == FRAME_TYPE_UNIQUE)) ? "SingleLine" : "";
+    QString header_path_prefix = ":/tooltip/ItemsHeader" + key + suffix;
 
     GenerateItemHeaderSide(ui->itemHeaderLeft, true, header_path_prefix, singleline, item.influenceLeft());
     GenerateItemHeaderSide(ui->itemHeaderRight, false, header_path_prefix, singleline, item.influenceRight());
 
-    ui->itemNameContainerWidget->setStyleSheet(("border-radius: 0px; border: 0px; border-image: url(" + header_path_prefix + "Middle.png);").c_str());
+    ui->itemNameContainerWidget->setStyleSheet(("border-radius: 0px; border: 0px; border-image: url(" + header_path_prefix + "Middle.png);"));
 
-    ui->itemNameFirstLine->setText(item.name().c_str());
-    ui->itemNameSecondLine->setText(item.typeLine().c_str());
+    ui->itemNameFirstLine->setText(item.name());
+    ui->itemNameSecondLine->setText(item.typeLine());
 
-    const std::string color = FrameToColor[frame];
-    const std::string css = "border-image: none; background-color: transparent; font-size: 20px; color: " + color;
-    ui->itemNameFirstLine->setStyleSheet(css.c_str());
-    ui->itemNameSecondLine->setStyleSheet(css.c_str());
+    const QString color = FrameToColor[frame];
+    const QString css = "border-image: none; background-color: transparent; font-size: 20px; color: " + color;
+    ui->itemNameFirstLine->setStyleSheet(css);
+    ui->itemNameSecondLine->setStyleSheet(css);
 }
 
 QPixmap GenerateItemSockets(const int width, const int height, const std::vector<ItemSocket>& sockets) {
@@ -490,7 +490,7 @@ QPixmap GenerateItemIcon(const Item& item, const QImage& image) {
         if (background_image) {
             layered_painter.drawImage(0, 0, *background_image);
         } else {
-            QLOG_ERROR() << "Problem drawing background for " << item.PrettyName().c_str();
+            QLOG_ERROR() << "Problem drawing background for " << item.PrettyName();
         }
     }
 

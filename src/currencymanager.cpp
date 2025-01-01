@@ -45,9 +45,9 @@ CurrencyManager::CurrencyManager(
     , m_data(datastore)
     , m_items_manager(items_manager)
 {
-    if (m_data.Get("currency_items", "").empty()) {
+    if (m_data.Get("currency_items", "").isEmpty()) {
         FirstInitCurrency();
-        if (!m_data.Get("currency_base", "").empty()) {
+        if (!m_data.Get("currency_base", "").isEmpty()) {
             MigrateCurrency();
             QLOG_INFO() << "Found old currency values, migrated them to the new system";
         };
@@ -127,14 +127,14 @@ void CurrencyManager::InitCurrency() {
 }
 
 void CurrencyManager::FirstInitCurrency() {
-    std::string value = "";
+    QString value = "";
     //Dummy items + dummy currency_last_value
     //TODO : can i get the size of the Currency enum ??
     for (auto type : Currency::Types()) {
         m_currencies.push_back(std::make_shared<CurrencyItem>(0, Currency(type), 1, 1));
         value += "0;";
     };
-    value.pop_back(); // Remove the last ";"
+    value.chop(1); // Remove the last ";"
     m_data.Set("currency_items", Serialize(m_currencies));
     m_data.Set("currency_last_value", value);
     m_settings.setValue("show_chaos", true);
@@ -142,17 +142,17 @@ void CurrencyManager::FirstInitCurrency() {
 }
 
 void CurrencyManager::MigrateCurrency() {
-    std::vector<std::string> list = Util::StringSplit(m_data.Get("currency_base"), ';');
+    QStringList list = m_data.Get("currency_base").split(';');
     for (unsigned int i = 0; i < list.size(); i++) {
         // We can't use the toDouble function from QT, because it encodes a double with a ","
         // Might be related to localisation issue, but anyway it's safer this way
-        m_currencies[i]->exalt.value1 = std::stod(list[i]);
+        m_currencies[i]->exalt.value1 = list[i].toDouble();
     };
     //Set to empty so we won't trigger it next time !
     m_data.Set("currency_base", "");
 }
 
-std::string CurrencyManager::Serialize(const std::vector<std::shared_ptr<CurrencyItem>>& currencies) {
+QString CurrencyManager::Serialize(const std::vector<std::shared_ptr<CurrencyItem>>& currencies) {
     rapidjson::Document doc;
     doc.SetObject();
     auto& alloc = doc.GetAllocator();
@@ -162,19 +162,19 @@ std::string CurrencyManager::Serialize(const std::vector<std::shared_ptr<Currenc
         item.AddMember("chaos_ratio", curr->chaos.value1, alloc);
         item.AddMember("exalt_ratio", curr->exalt.value1, alloc);
         Util::RapidjsonAddConstString(&item, "currency", curr->currency.AsTag(), alloc);
-        rapidjson::Value name(curr->name.c_str(), alloc);
+        rapidjson::Value name(curr->name.toStdString().c_str(), alloc);
         doc.AddMember(name, item, alloc);
     };
     return Util::RapidjsonSerialize(doc);
 }
 
-void CurrencyManager::Deserialize(const std::string& string_data, std::vector<std::shared_ptr<CurrencyItem> >* currencies) {
+void CurrencyManager::Deserialize(const QString& string_data, std::vector<std::shared_ptr<CurrencyItem> >* currencies) {
     //Maybe clear something would be good
-    if (string_data.empty()) {
+    if (string_data.isEmpty()) {
         return;
     };
     rapidjson::Document doc;
-    if (doc.Parse(string_data.c_str()).HasParseError()) {
+    if (doc.Parse(string_data.toStdString().c_str()).HasParseError()) {
         QLOG_ERROR() << "Error while parsing currency ratios.";
         QLOG_ERROR() << rapidjson::GetParseError_En(doc.GetParseError());
         return;
@@ -202,10 +202,10 @@ void CurrencyManager::SaveCurrencyItems() {
 }
 
 void CurrencyManager::SaveCurrencyValue() {
-    std::string value = "";
+    QString value = "";
     // Useless to save if every count is 0.
     bool empty = true;
-    value = std::to_string(TotalExaltedValue());
+    value = QString::number(TotalExaltedValue());
     for (auto& currency : m_currencies) {
         if (currency->name != "") {
             value += ";" + std::to_string(currency->count);
@@ -214,7 +214,7 @@ void CurrencyManager::SaveCurrencyValue() {
             empty = false;
         };
     };
-    std::string old_value = m_data.Get("currency_last_value", "");
+    QString old_value = m_data.Get("currency_last_value", "");
     if (value != old_value && !empty) {
         CurrencyUpdate update = CurrencyUpdate();
         update.timestamp = QDateTime::currentDateTime().toSecsSinceEpoch();
@@ -225,7 +225,7 @@ void CurrencyManager::SaveCurrencyValue() {
 }
 
 void CurrencyManager::ExportCurrency() {
-    std::string header_csv = "Date,Total value";
+    QString header_csv = "Date,Total value";
     for (auto& item : m_currencies) {
         auto& label = item->currency.AsString();
         if (label != "") {
@@ -245,10 +245,10 @@ void CurrencyManager::ExportCurrency() {
         return;
     };
     QTextStream out(&file);
-    out << header_csv.c_str() << "\n";
+    out << header_csv << "\n";
     for (auto& update : result) {
         const QDateTime timestamp = QDateTime::fromSecsSinceEpoch(update.timestamp).toLocalTime();
-        const QString value = QString::fromStdString(update.value);
+        const QString value = update.value;
         out << timestamp.toString("yyyy-MM-dd hh:mm") << ",";
         out << value.split(";").join(",") << "\n";
     };
@@ -307,7 +307,7 @@ void CurrencyWidget::UpdateVisual(bool show_chaos, bool show_exalt) {
 void CurrencyWidget::Update() {
     m_currency->chaos.value1 = chaos_ratio->value();
     m_currency->exalt.value1 = exalt_ratio->value();
-    name->setText(m_currency->name.c_str());
+    name->setText(m_currency->name);
     count->setText(QString::number(m_currency->count));
     if (fabs(m_currency->chaos.value1) > EPS) {
         chaos_value->setValue(m_currency->count / m_currency->chaos.value1);

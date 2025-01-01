@@ -45,19 +45,19 @@ ImageCache::ImageCache(
     };
 }
 
-bool ImageCache::contains(const std::string& url) const {
+bool ImageCache::contains(const QString& url) const {
     const QString filename = getImagePath(url);
     const QFile file(filename);
     return file.exists();
 }
 
-void ImageCache::fetch(const std::string& url) {
+void ImageCache::fetch(const QString& url) {
     if (contains(url)) {
         QLOG_DEBUG() << "ImageCache: already contains" << url;
         emit imageReady(url);
     } else {
         QLOG_DEBUG() << "ImageCache: fetching" << url;
-        QNetworkRequest request = QNetworkRequest(QUrl(QString::fromStdString(url)));
+        QNetworkRequest request = QNetworkRequest(QUrl(url));
         request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
         QNetworkReply* reply = m_network_manager.get(request);
         connect(reply, &QNetworkReply::finished, this, &ImageCache::onFetched);
@@ -66,7 +66,7 @@ void ImageCache::fetch(const std::string& url) {
 
 void ImageCache::onFetched() {
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
-    const std::string url = reply->url().toString().toStdString();
+    const QString url = reply->url().toString();
     if (reply->error() != QNetworkReply::NoError) {
         QLOG_ERROR() << "ImageCache: failed to fetch image:" << reply->errorString() << ":" << url;
         return;
@@ -78,7 +78,7 @@ void ImageCache::onFetched() {
     emit imageReady(url);
 }
 
-QImage ImageCache::load(const std::string& url) const {
+QImage ImageCache::load(const QString& url) const {
     const QString filename = getImagePath(url);
     const QFile file(filename);
     if (file.exists()) {
@@ -88,6 +88,6 @@ QImage ImageCache::load(const std::string& url) const {
     };
 }
 
-QString ImageCache::getImagePath(const std::string& url) const {
-    return m_directory + QDir::separator() + QString::fromStdString(Util::Md5(url)) + ".png";
+QString ImageCache::getImagePath(const QString& url) const {
+    return m_directory + QDir::separator() + Util::Md5(url) + ".png";
 }

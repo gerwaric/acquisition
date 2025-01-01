@@ -19,9 +19,10 @@
 
 #pragma once
 
-#include <vector>
-
+#include <QString>
 #include <QTimer>
+
+#include <vector>
 
 #include "ui/mainwindow.h"
 #include "util/util.h"

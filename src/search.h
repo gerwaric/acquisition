@@ -19,6 +19,8 @@
 
 #pragma once
 
+#include <QString>
+
 #include <memory>
 #include <vector>
 #include <set>
@@ -44,18 +46,18 @@ public:
         ByItem = 1
     };
     Search(BuyoutManager& bo,
-        const std::string& caption,
+        const QString& caption,
         const std::vector<std::unique_ptr<Filter>>& filters,
         QTreeView* view);
     void FilterItems(const Items& items);
     void FromForm();
     void ToForm();
     void ResetForm();
-    const std::string& caption() const { return m_caption; }
+    const QString& caption() const { return m_caption; }
     const Items& items() const { return m_items; }
     const std::vector<std::unique_ptr<Column>>& columns() const { return m_columns; }
     const std::vector<Bucket>& buckets() const;
-    void RenameCaption(const std::string newName);
+    void RenameCaption(const QString newName);
     QString GetCaption() const;
     // Sets this search as current, will display items in passed QTreeView.
     void Activate(const Items& items);
@@ -82,11 +84,11 @@ private:
     std::vector<Bucket> m_bucket_by_tab;
     std::vector<Bucket> m_bucket_by_item;
 
-    std::string m_caption;
+    QString m_caption;
     Items m_items;
     bool m_filtered;
     size_t m_filtered_item_count;
-    std::set<std::string> m_expanded_property;
+    std::set<QString> m_expanded_property;
     ViewMode m_current_mode;
     RefreshReason::Type m_refresh_reason;
 };

@@ -19,9 +19,10 @@
 
 #pragma once
 
+#include <QString>
+
 #include <memory>
 #include <map>
-#include <string>
 #include <unordered_map>
 #include <array>
 #include <vector>
@@ -30,25 +31,25 @@
 
 #include "itemlocation.h"
 
-extern const std::vector<std::string> ITEM_MOD_TYPES;
+extern const std::vector<QString> ITEM_MOD_TYPES;
 
 struct ItemSocketGroup {
     int r, g, b, w;
 };
 
 struct ItemPropertyValue {
-    std::string str;
+    QString str;
     int type;
 };
 
 struct ItemProperty {
-    std::string name;
+    QString name;
     std::vector<ItemPropertyValue> values;
     int display_mode;
 };
 
 struct ItemRequirement {
-    std::string name;
+    QString name;
     ItemPropertyValue value;
 };
 
@@ -57,12 +58,12 @@ struct ItemSocket {
     char attr;
 };
 
-typedef std::vector<std::string> ItemMods;
-typedef std::unordered_map<std::string, double> ModTable;
+typedef std::vector<QString> ItemMods;
+typedef std::unordered_map<QString, double> ModTable;
 
 class Item {
 public:
-    typedef const std::unordered_map<std::string, std::string> CategoryReplaceMap;
+    typedef const std::unordered_map<QString, QString> CategoryReplaceMap;
 
     enum INFLUENCE_TYPES {
         NONE,
@@ -79,10 +80,10 @@ public:
     };
 
     explicit Item(const rapidjson::Value& json, const ItemLocation& loc);
-    explicit Item(const std::string& name, const ItemLocation& location); // used by tests
-    std::string name() const { return m_name; }
-    std::string typeLine() const { return m_typeLine; }
-    std::string PrettyName() const;
+    explicit Item(const QString& name, const ItemLocation& location); // used by tests
+    QString name() const { return m_name; }
+    QString typeLine() const { return m_typeLine; }
+    QString PrettyName() const;
     bool identified() const { return m_identified; }
     bool corrupted() const { return m_corrupted; }
     bool crafted() const { return m_crafted; }
@@ -94,16 +95,16 @@ public:
     int w() const { return m_w; }
     int h() const { return m_h; }
     int frameType() const { return m_frameType; }
-    const std::string& icon() const { return m_icon; }
-    const std::map<std::string, std::string>& properties() const { return m_properties; }
+    const QString& icon() const { return m_icon; }
+    const std::map<QString, QString>& properties() const { return m_properties; }
     const std::vector<ItemProperty>& text_properties() const { return m_text_properties; }
     const std::vector<ItemRequirement>& text_requirements() const { return m_text_requirements; }
-    const std::map<std::string, ItemMods>& text_mods() const { return m_text_mods; }
+    const std::map<QString, ItemMods>& text_mods() const { return m_text_mods; }
     const std::vector<ItemSocket>& text_sockets() const { return m_text_sockets; }
-    const std::string& hash() const { return m_hash; }
-    const std::string& old_hash() const { return m_old_hash; }
-    const std::vector<std::pair<std::string, int>>& elemental_damage() const { return m_elemental_damage; }
-    const std::map<std::string, int>& requirements() const { return m_requirements; }
+    const QString& hash() const { return m_hash; }
+    const QString& old_hash() const { return m_old_hash; }
+    const std::vector<std::pair<QString, int>>& elemental_damage() const { return m_elemental_damage; }
+    const std::map<QString, int>& requirements() const { return m_requirements; }
     double DPS() const;
     double pDPS() const;
     double eDPS() const;
@@ -113,17 +114,17 @@ public:
     const ItemSocketGroup& sockets() const { return m_sockets; }
     const std::vector<ItemSocketGroup>& socket_groups() const { return m_socket_groups; }
     const ItemLocation& location() const { return m_location; }
-    const std::string& json() const { return m_json; }
-    const std::string& note() const { return m_note; }
-    const std::string& category() const { return m_category; }
-    const std::vector<std::string>& category_vector() const { return m_category_vector; }
+    const QString& json() const { return m_json; }
+    const QString& note() const { return m_note; }
+    const QString& category() const { return m_category; }
+    const std::vector<QString>& category_vector() const { return m_category_vector; }
     uint talisman_tier() const { return m_talisman_tier; }
     int count() const { return m_count; }
     const ModTable& mod_table() const { return m_mod_table; }
     int ilvl() const { return m_ilvl; }
     bool operator<(const Item& other) const;
     bool Wearable() const;
-    std::string POBformat() const;
+    QString POBformat() const;
     static const size_t k_CategoryLevels = 3;
     static const std::array<CategoryReplaceMap, k_CategoryLevels> m_replace_map;
 
@@ -134,12 +135,12 @@ private:
     void GenerateMods(const rapidjson::Value& json);
     void CalculateHash(const rapidjson::Value& json);
 
-    std::string m_name;
+    QString m_name;
     ItemLocation m_location;
-    std::string m_typeLine;
-    std::string m_baseType;
-    std::string m_category;
-    std::vector<std::string> m_category_vector;
+    QString m_typeLine;
+    QString m_baseType;
+    QString m_category;
+    std::vector<QString> m_category_vector;
     bool m_identified{ true };
     bool m_corrupted{ false };
     bool m_crafted{ false };
@@ -147,25 +148,25 @@ private:
     std::vector<INFLUENCE_TYPES> m_influenceList;
     int m_w{ 0 }, m_h{ 0 };
     int m_frameType{ 0 };
-    std::string m_icon;
-    std::map<std::string, std::string> m_properties;
-    std::string m_old_hash, m_hash;
+    QString m_icon;
+    std::map<QString, QString> m_properties;
+    QString m_old_hash, m_hash;
     // vector of pairs [damage, type]
-    std::vector<std::pair<std::string, int>> m_elemental_damage;
+    std::vector<std::pair<QString, int>> m_elemental_damage;
     int m_sockets_cnt{ 0 }, m_links_cnt{ 0 };
     ItemSocketGroup m_sockets{ 0, 0, 0, 0 };
     std::vector<ItemSocketGroup> m_socket_groups;
-    std::map<std::string, int> m_requirements;
-    std::string m_json;
+    std::map<QString, int> m_requirements;
+    QString m_json;
     int m_count{ 0 };
     int m_ilvl{ 0 };
     std::vector<ItemProperty> m_text_properties;
     std::vector<ItemRequirement> m_text_requirements;
-    std::map<std::string, ItemMods> m_text_mods;
+    std::map<QString, ItemMods> m_text_mods;
     std::vector<ItemSocket> m_text_sockets;
-    std::string m_note;
+    QString m_note;
     ModTable m_mod_table;
-    std::string m_uid;
+    QString m_uid;
     uint m_talisman_tier{ 0 };
 };
 

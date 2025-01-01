@@ -27,7 +27,6 @@
 #include <QLineEdit>
 #include <QCompleter>
 #include <QComboBox>
-#include <boost/algorithm/string/case_conv.hpp>
 
 #include "ui/mainwindow.h"
 #include "ui/searchcombobox.h"
@@ -37,8 +36,8 @@
 #include "filters.h"
 #include "itemconstants.h"
 
-const std::string CategorySearchFilter::k_Default = "<any>";
-const std::string RaritySearchFilter::k_Default = "<any>";
+const QString CategorySearchFilter::k_Default = "<any>";
+const QString RaritySearchFilter::k_Default = "<any>";
 const QStringList RaritySearchFilter::RARITY_LIST{ "<any>", "Normal", "Magic", "Rare", "Unique", "Unique (Relic)" };
 
 
@@ -81,7 +80,7 @@ void NameSearchFilter::FromForm(FilterData* data) {
 }
 
 void NameSearchFilter::ToForm(FilterData* data) {
-    m_textbox->setText(data->text_query.c_str());
+    m_textbox->setText(data->text_query);
 }
 
 void NameSearchFilter::ResetForm() {
@@ -90,11 +89,9 @@ void NameSearchFilter::ResetForm() {
 }
 
 bool NameSearchFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
-    std::string query = data->text_query;
-    std::string name = item->PrettyName();
-    std::transform(query.begin(), query.end(), query.begin(), ::tolower);
-    std::transform(name.begin(), name.end(), name.begin(), ::tolower);
-    return name.find(query) != std::string::npos;
+    const QString query = data->text_query.toLower();
+    const QString name = item->PrettyName().toLower();
+    return name.contains(query);
 }
 
 void NameSearchFilter::Initialize(QLayout* parent) {
@@ -120,24 +117,23 @@ CategorySearchFilter::CategorySearchFilter(QLayout* parent, QAbstractListModel* 
 }
 
 void CategorySearchFilter::FromForm(FilterData* data) {
-    std::string current_text = m_combobox->currentText().toStdString();
-    boost::to_lower(current_text);
+    QString current_text = m_combobox->currentText().toLower();
     data->text_query = (current_text == k_Default) ? "" : current_text;
     m_active = (data->text_query != "");
 }
 
 void CategorySearchFilter::ToForm(FilterData* data) {
-    auto index = m_combobox->findText(data->text_query.c_str(), Qt::MatchFixedString);
+    auto index = m_combobox->findText(data->text_query, Qt::MatchFixedString);
     m_combobox->setCurrentIndex(std::max(0, index));
 }
 
 void CategorySearchFilter::ResetForm() {
-    m_combobox->setCurrentText(k_Default.c_str());
+    m_combobox->setCurrentText(k_Default);
     m_active = false;
 }
 
 bool CategorySearchFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
-    return item->category().find(data->text_query) != std::string::npos;
+    return item->category().contains(data->text_query);
 }
 
 void CategorySearchFilter::Initialize(QLayout* parent) {
@@ -163,18 +159,18 @@ RaritySearchFilter::RaritySearchFilter(QLayout* parent, QAbstractListModel* mode
 }
 
 void RaritySearchFilter::FromForm(FilterData* data) {
-    std::string current_text = m_combobox->currentText().toStdString();
+    QString current_text = m_combobox->currentText();
     data->text_query = (current_text == k_Default) ? "" : current_text;
     m_active = (data->text_query != "");
 }
 
 void RaritySearchFilter::ToForm(FilterData* data) {
-    auto index = m_combobox->findText(data->text_query.c_str(), Qt::MatchFixedString);
+    auto index = m_combobox->findText(data->text_query, Qt::MatchFixedString);
     m_combobox->setCurrentIndex(std::max(0, index));
 }
 
 void RaritySearchFilter::ResetForm() {
-    m_combobox->setCurrentText(k_Default.c_str());
+    m_combobox->setCurrentText(k_Default);
     m_active = false;
 }
 
@@ -217,14 +213,14 @@ void RaritySearchFilter::Initialize(QLayout* parent) {
     QObject::connect(m_combobox, &QComboBox::currentIndexChanged, main_window, &MainWindow::OnDelayedSearchFormChange);
 }
 
-MinMaxFilter::MinMaxFilter(QLayout* parent, std::string property)
+MinMaxFilter::MinMaxFilter(QLayout* parent, QString property)
     : m_property(property)
     , m_caption(property)
 {
     Initialize(parent);
 }
 
-MinMaxFilter::MinMaxFilter(QLayout* parent, std::string property, std::string caption)
+MinMaxFilter::MinMaxFilter(QLayout* parent, QString property, QString caption)
     : m_property(property)
     , m_caption(caption)
 {
@@ -236,7 +232,7 @@ void MinMaxFilter::Initialize(QLayout* parent) {
     QWidget* group = new QWidget;
     QHBoxLayout* layout = new QHBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
-    QLabel* label = new QLabel(m_caption.c_str());
+    QLabel* label = new QLabel(m_caption);
     label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     m_textbox_min = new QLineEdit;
     m_textbox_max = new QLineEdit;
@@ -301,7 +297,7 @@ bool SimplePropertyFilter::IsValuePresent(const std::shared_ptr<Item>& item) {
 }
 
 double SimplePropertyFilter::GetValue(const std::shared_ptr<Item>& item) {
-    return std::stod(item->properties().at(m_property));
+    return item->properties().at(m_property).toDouble();
 }
 
 double DefaultPropertyFilter::GetValue(const std::shared_ptr<Item>& item) {
@@ -319,7 +315,7 @@ double RequiredStatFilter::GetValue(const std::shared_ptr<Item>& item) {
     return 0;
 }
 
-ItemMethodFilter::ItemMethodFilter(QLayout* parent, std::function<double(Item*)> func, std::string caption)
+ItemMethodFilter::ItemMethodFilter(QLayout* parent, std::function<double(Item*)> func, QString caption)
     : MinMaxFilter(parent, caption, caption)
     , m_func(func)
 {}
@@ -436,7 +432,7 @@ bool LinksColorsFilter::Matches(const std::shared_ptr<Item>& item, FilterData* d
     return false;
 }
 
-BooleanFilter::BooleanFilter(QLayout* parent, std::string property, std::string caption)
+BooleanFilter::BooleanFilter(QLayout* parent, QString property, QString caption)
     : m_property(property)
     , m_caption(caption)
 {
@@ -448,7 +444,7 @@ void BooleanFilter::Initialize(QLayout* parent) {
     QWidget* group = new QWidget;
     QHBoxLayout* layout = new QHBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
-    QLabel* label = new QLabel(m_caption.c_str());
+    QLabel* label = new QLabel(m_caption);
     label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
     m_checkbox = new QCheckBox;
     layout->addWidget(label);
@@ -479,7 +475,7 @@ bool BooleanFilter::Matches(const std::shared_ptr<Item>& /* item */, FilterData*
 }
 
 bool AltartFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
-    static std::vector<std::string> altart = {
+    static const QStringList altart = {
         // season 1
         "RedBeak2.png", "Wanderlust2.png", "Ring2b.png", "Goldrim2.png", "FaceBreaker2.png", "Atzirismirror2.png",
         // season 2
@@ -525,7 +521,7 @@ bool AltartFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) 
         return true;
     };
     for (auto& needle : altart) {
-        if (item->icon().find(needle) != std::string::npos) {
+        if (item->icon().contains(needle)) {
             return true;
         };
     };

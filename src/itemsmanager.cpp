@@ -111,7 +111,7 @@ void ItemsManager::ApplyAutoItemBuyouts() {
     // Loop over all items, check for note field with pricing and apply
     for (auto const& item : m_items) {
         auto const& note = item->note();
-        if (!note.empty()) {
+        if (!note.isEmpty()) {
             Buyout buyout = m_buyout_manager.StringToBuyout(note);
             // This line may look confusing, buyout returns an active buyout if game
             // pricing was found or a default buyout (inherit) if it was not.
@@ -134,7 +134,7 @@ void ItemsManager::PropagateTabBuyouts() {
     m_buyout_manager.ClearRefreshLocks();
     for (auto& item_ptr : m_items) {
         Item& item = *item_ptr;
-        std::string hash = item.location().GetUniqueHash();
+        QString hash = item.location().GetUniqueHash();
         auto item_bo = m_buyout_manager.Get(item);
         auto tab_bo = m_buyout_manager.GetTab(hash);
 
@@ -167,7 +167,7 @@ void ItemsManager::OnItemsRefreshed(const Items& items, const std::vector<ItemLo
     QLOG_DEBUG() << "There are" << m_items.size() << "items and" << tabs.size() << "tabs after the refresh.";
     int n = 0;
     for (const auto& item : items) {
-        if (item->category().empty()) {
+        if (item->category().isEmpty()) {
             QLOG_TRACE() << "Unable to categorize" << item->PrettyName();
             ++n;
         };

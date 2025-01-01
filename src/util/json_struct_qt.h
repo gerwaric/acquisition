@@ -7,8 +7,6 @@
 #include <QNetworkReply>
 #include <QString>
 
-#include <string>
-
 #include <QsLog/QsLog.h>
 
 #include "util/util.h"

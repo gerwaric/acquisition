@@ -380,13 +380,13 @@ void Application::InitLogin(POE_API mode)
 {
     QLOG_TRACE() << "Application::InitLogin() entered";
 
-    const std::string league = m_settings->value("league").toString().toStdString();
-    const std::string account = m_settings->value("account").toString().toStdString();
+    const QString league = m_settings->value("league").toString();
+    const QString account = m_settings->value("account").toString();
     const QDir user_dir(m_data_dir.filePath("data"));
-    if (league.empty()) {
+    if (league.isEmpty()) {
         FatalError("Login failure: the league has not been set.");
     };
-    if (account.empty()) {
+    if (account.isEmpty()) {
         FatalError("Login failure: the account has not been set.");
     };
     QLOG_TRACE() << "Application::InitLogin() league =" << league;
@@ -473,7 +473,7 @@ void Application::SaveDbOnNewVersion() {
 
     QLOG_TRACE() << "Application::SaveDbOnNewVersion() entered";
     //If user updated from a 0.5c db to a 0.5d, db exists but no "version" in it
-    std::string version = m_data->Get("version", "0.5c");
+    QString version = m_data->Get("version", "0.5c");
     // We call this just after login, so we didn't pulled tabs for the first time ; so "tabs" shouldn't exist in the DB
     // This way we don't create an useless data_save_version folder on the first time you run acquisition
 
@@ -484,7 +484,7 @@ void Application::SaveDbOnNewVersion() {
 
     if (version != APP_VERSION_STRING && !first_start) {
         const QString data_path = m_data_dir.filePath("data");
-        const QString save_path = m_data_dir.filePath("m_data_save" + QString::fromStdString(version));
+        const QString save_path = m_data_dir.filePath("m_data_save" + version);
         QLOG_TRACE() << "Application::SaveDbOnNewVersion() data_path =" << data_path;
         QLOG_TRACE() << "Application::SaveDbOnNewVersion() save_path =" << save_path;
         QDir src(data_path);

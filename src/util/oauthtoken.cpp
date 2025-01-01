@@ -34,11 +34,6 @@ OAuthToken::OAuthToken(const QString& json)
     Util::parseJson<OAuthToken>(json, *this);
 }
 
-OAuthToken::OAuthToken(const std::string& json)
-{
-    Util::parseJson<OAuthToken>(json, *this);
-}
-
 OAuthToken::OAuthToken(QNetworkReply* reply)
 {
     Util::parseJson<OAuthToken>(reply, *this);

@@ -24,8 +24,6 @@
 #include <QUrlQuery>
 
 #include <map>
-#include <string>
-#include <vector>
 
 #include "buyout.h"
 #include "item.h"
@@ -66,17 +64,17 @@ public:
         DataStore& datastore,
         ItemsManager& items_manager,
         BuyoutManager& buyout_manager);
-    void SetThread(const std::vector<std::string>& threads);
+    void SetThread(const QStringList& threads);
     void SetAutoUpdate(bool update);
-    void SetShopTemplate(const std::string& shop_template);
+    void SetShopTemplate(const QString& shop_template);
     void Update();
     void CopyToClipboard();
     void ExpireShopData();
     void SubmitShopToForum(bool force = false);
     bool auto_update() const { return m_auto_update; }
-    const std::vector<std::string>& threads() const { return m_threads; }
-    const std::vector<std::string>& shop_data() const { return m_shop_data; }
-    const std::string& shop_template() const { return m_shop_template; }
+    const QStringList& threads() const { return m_threads; }
+    const QStringList& shop_data() const { return m_shop_data; }
+    const QString& shop_template() const { return m_shop_template; }
 public slots:
     void UpdateStashIndex();
     void OnStashTabIndexReceived(QNetworkReply* reply);
@@ -87,9 +85,9 @@ signals:
     void StatusUpdate(ProgramState state, const QString& status);
 private:
     void SubmitSingleShop();
-    void SubmitNextShop(const std::string title, const std::string hash);
-    std::string ShopEditUrl(size_t idx);
-    std::string SpoilerBuyout(Buyout& bo);
+    void SubmitNextShop(const QString title, const QString hash);
+    QString ShopEditUrl(size_t idx);
+    QString SpoilerBuyout(Buyout& bo);
 
     QSettings& m_settings;
     QNetworkAccessManager& m_network_manager;
@@ -98,11 +96,11 @@ private:
     ItemsManager& m_items_manager;
     BuyoutManager& m_buyout_manager;
 
-    std::map<std::string, unsigned int> m_tab_index;
-    std::vector<std::string> m_threads;
-    std::vector<std::string> m_shop_data;
-    std::string m_shop_hash;
-    std::string m_shop_template;
+    std::map<QString, unsigned int> m_tab_index;
+    QStringList m_threads;
+    QStringList m_shop_data;
+    QString m_shop_hash;
+    QString m_shop_template;
     bool m_shop_data_outdated;
     bool m_auto_update;
     bool m_submitting;

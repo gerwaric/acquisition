@@ -29,19 +29,19 @@ using rapidjson::HasInt;
 using rapidjson::HasObject;
 using rapidjson::HasString;
 
-void DataStore::SetInt(const std::string& key, int value) {
-    Set(key, std::to_string(value));
+void DataStore::SetInt(const QString& key, int value) {
+    Set(key, QString::number(value));
 }
 
-int DataStore::GetInt(const std::string& key, int default_value) {
-    return std::stoi(Get(key, std::to_string(default_value)));
+int DataStore::GetInt(const QString& key, int default_value) {
+    return Get(key, QString::number(default_value)).toInt();
 }
 
 QString DataStore::Serialize(const Locations& tabs) {
     QStringList json;
     json.reserve(tabs.size());
     for (auto& tab : tabs) {
-        json.push_back(QString::fromStdString(tab.get_json()));
+        json.push_back(tab.get_json());
     };
     return "[" + json.join(",") + "]";
 }
@@ -50,7 +50,7 @@ QString DataStore::Serialize(const Items& items) {
     QStringList json;
     json.reserve(items.size());
     for (auto& item : items) {
-        json.push_back(QString::fromStdString(item->json()));
+        json.push_back(item->json());
     };
     return "[" + json.join(",") + "]";
 }
@@ -79,7 +79,7 @@ Locations DataStore::DeserializeTabs(const QString& json) {
     tabs.reserve(doc.Size());
 
     // Keep track of which tabs have been parsed.
-    std::set<std::string> tab_id_index_;
+    std::set<QString> tab_id_index_;
 
     for (auto& tab_json : doc) {
 
@@ -90,9 +90,9 @@ Locations DataStore::DeserializeTabs(const QString& json) {
 
         // Constructor values to fill in
         size_t index = 0;
-        std::string tabUniqueId = "";
-        std::string name = "";
-        std::string tabType = "";
+        QString tabUniqueId = "";
+        QString name = "";
+        QString tabType = "";
         int r = 0;
         int g = 0;
         int b = 0;

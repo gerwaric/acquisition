@@ -22,8 +22,6 @@
 #include <QObject>
 #include <QTimer>
 
-#include <string>
-
 #include "oauthtoken.h"
 
 class QHttpServer;
@@ -53,9 +51,9 @@ signals:
     void accessGranted(const OAuthToken& token);
 private:
     void createHttpServer();
-    void requestAuthorization(const std::string& state, const std::string& code_challenge);
-    QString receiveAuthorization(const QHttpServerRequest& request, const std::string& state);
-    void requestToken(const std::string& code);
+    void requestAuthorization(const QString& state, const QString& code_challenge);
+    QString receiveAuthorization(const QHttpServerRequest& request, const QString& state);
+    void requestToken(const QString& code);
     void receiveToken(QNetworkReply* reply);
     void setRefreshTimer();
 
@@ -73,8 +71,8 @@ private:
 
     bool m_remember_token;
     OAuthToken m_token;
-    std::string m_code_verifier;
-    std::string m_redirect_uri;
+    QString m_code_verifier;
+    QString m_redirect_uri;
 
     QTimer m_refresh_timer;
 

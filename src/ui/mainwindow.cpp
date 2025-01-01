@@ -548,7 +548,7 @@ void MainWindow::OnRenameTabClicked(int index) {
         QLineEdit::Normal, "", &ok);
 
     if (ok && !name.isEmpty()) {
-        m_searches[index]->RenameCaption(name.toStdString());
+        m_searches[index]->RenameCaption(name);
         m_tab_bar->setTabText(index, m_searches[index]->GetCaption());
     };
 }
@@ -684,9 +684,9 @@ void MainWindow::OnTabChange(int index) {
     };
 }
 
-void MainWindow::AddSearchGroup(QLayout* layout, const std::string& name = "") {
-    if (!name.empty()) {
-        auto label = new QLabel(("<h3>" + name + "</h3>").c_str());
+void MainWindow::AddSearchGroup(QLayout* layout, const QString& name = "") {
+    if (!name.isEmpty()) {
+        auto label = new QLabel(("<h3>" + name + "</h3>"));
         m_search_form_layout->addWidget(label);
     };
     layout->setContentsMargins(0, 0, 0, 0);
@@ -783,7 +783,7 @@ void MainWindow::NewSearch() {
     QLOG_TRACE() << "MainWindow::NewSearch() setting current search:" << caption;
     m_current_search = new Search(
         m_buyout_manager,
-        caption.toStdString(),
+        caption,
         m_filters,
         ui->treeView);
     m_current_search->SetRefreshReason(RefreshReason::TabCreated);
@@ -820,7 +820,7 @@ void MainWindow::UpdateCurrentBucket() {
     ui->itemTooltipWidget->hide();
     ui->itemButtonsWidget->hide();
 
-    ui->nameLabel->setText(m_current_bucket_location->GetHeader().c_str());
+    ui->nameLabel->setText(m_current_bucket_location->GetHeader());
     ui->nameLabel->show();
 
     ui->pobTooltipButton->setEnabled(false);
@@ -848,19 +848,19 @@ void MainWindow::UpdateCurrentItem() {
     // in future should move everything tooltip-related there
     UpdateItemTooltip(*m_current_item, ui);
 
-    ui->locationLabel->setText(m_current_item->location().GetHeader().c_str());
+    ui->locationLabel->setText(m_current_item->location().GetHeader());
     ui->pobTooltipButton->setEnabled(m_current_item->Wearable());
 
-    std::string icon = m_current_item->icon();
+    QString icon = m_current_item->icon();
     if ((icon.size() >= 1) && (icon[0] == '/')) {
         icon = POE_WEBCDN + icon;
     };
     emit GetImage(icon);
 }
 
-void MainWindow::OnImageFetched(const std::string& url) {
+void MainWindow::OnImageFetched(const QString& url) {
     if (m_current_item) {
-        const std::string icon = m_current_item->icon();
+        const QString icon = m_current_item->icon();
         if (url == icon) {
             const QImage image = m_image_cache.load(url);
             if (!image.isNull()) {
@@ -896,7 +896,7 @@ void MainWindow::UpdateCurrentBuyout() {
     if (m_current_item) {
         UpdateBuyoutWidgets(m_buyout_manager.Get(*m_current_item));
     } else {
-        std::string tab = m_current_bucket_location->GetUniqueHash();
+        QString tab = m_current_bucket_location->GetUniqueHash();
         UpdateBuyoutWidgets(m_buyout_manager.GetTab(tab));
     };
 }
@@ -920,10 +920,10 @@ void MainWindow::OnSetShopThreads() {
     bool ok;
     QString thread = QInputDialog::getText(this, "Shop thread",
         "Enter thread number. You can enter multiple shops by separating them with a comma. More than one shop may be needed if you have a lot of items.",
-        QLineEdit::Normal, Util::StringJoin(m_shop.threads(), ",").c_str(), &ok);
+        QLineEdit::Normal, m_shop.threads().join(","), &ok);
     if (ok && !thread.isEmpty()) {
         static const auto spaces = QRegularExpression("\\s+");
-        m_shop.SetThread(Util::StringSplit(thread.remove(spaces).toStdString(), ','));
+        m_shop.SetThread(thread.remove(spaces).split(','));
     };
     UpdateShopMenu();
 }
@@ -962,11 +962,11 @@ void MainWindow::OnShowPOESESSID() {
 }
 
 void MainWindow::UpdateShopMenu() {
-    std::string title = "Forum shop thread...";
+    QString title = "Forum shop thread...";
     if (!m_shop.threads().empty()) {
-        title += " [" + Util::StringJoin(m_shop.threads(), ",") + "]";
+        title += " [" + m_shop.threads().join(",") + "]";
     };
-    ui->actionSetShopThreads->setText(title.c_str());
+    ui->actionSetShopThreads->setText(title);
     ui->actionSetAutomaticallyShopUpdate->setChecked(m_shop.auto_update());
 }
 
@@ -1009,9 +1009,9 @@ void MainWindow::OnUpdateShops() {
 void MainWindow::OnEditShopTemplate() {
     bool ok;
     QString text = QInputDialog::getMultiLineText(this, "Shop template", "Enter shop template. [items] will be replaced with the list of items you marked for sale.",
-        m_shop.shop_template().c_str(), &ok);
+        m_shop.shop_template(), &ok);
     if (ok && !text.isEmpty()) {
-        m_shop.SetShopTemplate(text.toStdString());
+        m_shop.SetShopTemplate(text);
     };
 }
 
@@ -1116,12 +1116,12 @@ void MainWindow::OnCopyForPOB() {
     };
     // if category isn't wearable, including flasks, don't do anything
     if (!m_current_item->Wearable()) {
-        QLOG_WARN() << m_current_item->PrettyName().c_str() << ", category:" << m_current_item->category().c_str() << ", should not have been exportable.";
+        QLOG_WARN() << m_current_item->PrettyName() << ", category:" << m_current_item->category() << ", should not have been exportable.";
         return;
     };
 
-    QApplication::clipboard()->setText(QString::fromStdString(m_current_item->POBformat()));
-    QLOG_INFO() << m_current_item->PrettyName().c_str() << "was copied to your clipboard in Path of Building's \"Create custom\" format.";
+    QApplication::clipboard()->setText(m_current_item->POBformat());
+    QLOG_INFO() << m_current_item->PrettyName() << "was copied to your clipboard in Path of Building's \"Create custom\" format.";
 }
 
 void MainWindow::OnUploadFinished() {
@@ -1147,7 +1147,7 @@ void MainWindow::OnUploadFinished() {
         QLOG_ERROR() << "Imgur API returned malformed reply: " << bytes;
         return;
     };
-    std::string url = doc["data"]["link"].GetString();
-    QApplication::clipboard()->setText(url.c_str());
-    QLOG_INFO() << "Image successfully uploaded, the URL is" << url.c_str() << "It also was copied to your clipboard.";
+    QString url = doc["data"]["link"].GetString();
+    QApplication::clipboard()->setText(url);
+    QLOG_INFO() << "Image successfully uploaded, the URL is" << url << "It also was copied to your clipboard.";
 }

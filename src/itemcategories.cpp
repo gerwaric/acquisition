@@ -19,12 +19,11 @@
 
 #include "itemcategories.h"
 
-#include <QSet>
+#include <QByteArray>
 #include <QString>
 
 #include <map>
 
-#include <boost/algorithm/string.hpp>
 #include <QsLog/QsLog.h>
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
@@ -40,9 +39,9 @@ public:
         static CATEGORY_DATA data;
         return data;
     };
-    std::map<std::string, std::string> itemClassKeyToValue;
-    std::map<std::string, std::string> itemClassValueToKey;
-    std::map<std::string, std::string> itemBaseType_NameToClass;
+    std::map<QString, QString> itemClassKeyToValue;
+    std::map<QString, QString> itemClassValueToKey;
+    std::map<QString, QString> itemBaseType_NameToClass;
     QStringList categories;
 };
 
@@ -72,18 +71,18 @@ void InitItemClasses(const QByteArray& classes) {
     QLOG_TRACE() << "InitItemClasses() processing data";
     QSet<QString> cats;
     for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
-        std::string key = itr->name.GetString();
-        std::string value = itr->value.FindMember("name")->value.GetString();
-        if (value.empty()) {
+        QString key = itr->name.GetString();
+        QString value = itr->value.FindMember("name")->value.GetString();
+        if (value.isEmpty()) {
             QLOG_DEBUG() << "Item class for" << key << "is empty";
             continue;
         };
         data.itemClassKeyToValue.insert(std::make_pair(key, value));
         data.itemClassValueToKey.insert(std::make_pair(value, key));
-        cats.insert(QString::fromStdString(value));
+        cats.insert(value);
     };
     data.categories = cats.values();
-    data.categories.append(QString::fromStdString(CategorySearchFilter::k_Default));
+    data.categories.append(CategorySearchFilter::k_Default);
     data.categories.sort();
 
     classes_initialized = true;
@@ -112,15 +111,15 @@ void InitItemBaseTypes(const QByteArray& baseTypes) {
     static auto& data = CATEGORY_DATA::instance();
     data.itemBaseType_NameToClass.clear();
     for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
-        std::string item_class = itr->value.FindMember("item_class")->value.GetString();
-        std::string name = itr->value.FindMember("name")->value.GetString();
+        QString item_class = itr->value.FindMember("item_class")->value.GetString();
+        QString name = itr->value.FindMember("name")->value.GetString();
         data.itemBaseType_NameToClass.insert(std::make_pair(name, item_class));
     };
 
     basetypes_initialized = true;
 }
 
-std::string GetItemCategory(const std::string& baseType) {
+QString GetItemCategory(const QString& baseType) {
 
     static auto& data = CATEGORY_DATA::instance();
 
@@ -131,11 +130,10 @@ std::string GetItemCategory(const std::string& baseType) {
 
     auto rslt = data.itemBaseType_NameToClass.find(baseType);
     if (rslt != data.itemBaseType_NameToClass.end()) {
-        std::string key = rslt->second;
+        QString key = rslt->second;
         rslt = data.itemClassKeyToValue.find(key);
         if (rslt != data.itemClassKeyToValue.end()) {
-            std::string category = rslt->second;
-            boost::to_lower(category);
+            QString category = rslt->second.toLower();
             QLOG_TRACE() << "GetItemCategory: category is" << category;
             return category;
         };
