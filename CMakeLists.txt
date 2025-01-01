@@ -180,7 +180,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/ui/verticalscrollarea.h
     src/util/crashpad.h
     src/util/fatalerror.h
-    src/util/json_struct_qt.h
     src/util/networkmanager.h
     src/util/oauthmanager.h
     src/util/oauthtoken.h

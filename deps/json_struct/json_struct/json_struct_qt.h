@@ -7,9 +7,7 @@
 #include <QNetworkReply>
 #include <QString>
 
-#include <QsLog/QsLog.h>
-
-#include "util/util.h"
+#include <array>
 
 namespace JS {
 
@@ -57,9 +55,30 @@ namespace JS {
     public:
         static inline Error to(QDateTime& to_type, JS::ParseContext& context)
         {
-            const QByteArray value(context.token.value.data, context.token.value.size);
-            const QByteArray fixed(Util::FixTimezone(value));
-            to_type = QDateTime::fromString(fixed, Qt::RFC2822Date);
+            // This is necessary because Qt 6.8 does not support obsolete time zone labels
+            // that are still allowable in RFC2822.
+            static const std::array<std::pair<QByteArray, QByteArray>, 10> obsolete_zones = { {
+                {"GMT", "+0000"},
+                {"UT" , "+0000"},
+                {"EST", "-0005"},
+                {"EDT", "-0004"},
+                {"CST", "-0006"},
+                {"CDT", "-0005"},
+                {"MST", "-0007"},
+                {"MDT", "-0006"},
+                {"PST", "-0008"},
+                {"PDT", "-0007"}
+            } };
+            QByteArray value(context.token.value.data, context.token.value.size);
+            for (auto& pair : obsolete_zones) {
+                const QByteArray& zone = pair.first;
+                const QByteArray& offset = pair.second;
+                if (value.endsWith(zone)) {
+                    value.chop(zone.length());
+                    value.append(offset);
+                };
+            };
+            to_type = QDateTime::fromString(value, Qt::RFC2822Date);
             if (!to_type.isValid()) {
                 return Error::UserDefinedErrors;
             };
