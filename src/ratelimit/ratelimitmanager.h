@@ -35,7 +35,7 @@ class QNetworkAccessManager;
 class QNetworkReply;
 
 class RateLimitedReply;
-class RateLimitedRequest;
+struct RateLimitedRequest;
 class RateLimitPolicy;
 
 // Manages a single rate limit policy, which may apply to multiple endpoints.
