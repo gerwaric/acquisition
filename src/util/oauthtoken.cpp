@@ -36,7 +36,10 @@ OAuthToken::OAuthToken(const QString& json)
 
 OAuthToken::OAuthToken(QNetworkReply* reply)
 {
-    Util::parseJson<OAuthToken>(reply, *this);
+    const QByteArray bytes = reply->readAll();
+    reply->deleteLater();
+
+    Util::parseJson<OAuthToken>(bytes, *this);
 
     // Determine birthday and expiration time.
     const QString timestamp = Util::FixTimezone(reply->rawHeader("Date"));

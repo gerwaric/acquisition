@@ -31,6 +31,7 @@
 #include <rapidjson/document.h>
 
 class QComboBox;
+class QNetworkReply;
 
 struct Buyout;
 
