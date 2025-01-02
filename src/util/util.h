@@ -22,7 +22,6 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QMetaEnum>
-#include <QNetworkReply>
 #include <QObject>
 #include <QString>
 #include <QUrlQuery>
@@ -150,21 +149,6 @@ namespace Util {
     }
 
     template<typename T>
-    void parseJson(QNetworkReply* reply, T& out) {
-        if (!reply) {
-            QLOG_ERROR() << "Cannot parse json network reply: reply is null";
-            return;
-        };
-        const int error_code = reply->error();
-        if (error_code != QNetworkReply::NetworkError::NoError) {
-            const QString error_message = reply->errorString();
-            QLOG_ERROR() << "Cannot parse json network reply: error" << error_code << ":" << error_message;
-            return;
-        };
-        parseJson<T>(reply->readAll().toStdString(), out);
-    }
-
-    template<typename T>
     inline T parseJson(const QByteArray& json) {
         T result;
         parseJson<T>(json, result);
@@ -175,13 +159,6 @@ namespace Util {
     inline T parseJson(const QString& json) {
         T result;
         parseJson<T>(json.toUtf8(), result);
-        return result;
-    }
-
-    template<typename T>
-    inline T parseJson(QNetworkReply* reply) {
-        T result;
-        parseJson<T>(reply->readAll(), result);
         return result;
     }
 
