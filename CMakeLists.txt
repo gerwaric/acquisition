@@ -29,14 +29,14 @@ cmake_minimum_required(VERSION 3.29)
 # version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
-    VERSION 0.12.2
+    VERSION 0.12.3
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
 )
 
 # Use this to define pre-releases
-set(version_postfix "")
+set(version_postfix "-beta.1")
 
 # Variables used to generate version_defines.h and installer.iss
 set(version_code        63) # This doesn't need to be changed with the new update checks.
@@ -262,6 +262,7 @@ target_include_directories(acquisition PRIVATE
 add_subdirectory(deps/boost-headers-only)
 add_subdirectory(deps/Crashpad)
 add_subdirectory(deps/json_struct)
+add_subdirectory(deps/libpoe)
 add_subdirectory(deps/qdarkstyle)
 add_subdirectory(deps/QsLog)
 add_subdirectory(deps/rapidjson)
@@ -282,6 +283,7 @@ target_link_libraries(acquisition PRIVATE
     boost-headers-only
     Crashpad
     json_struct
+    libpoe
     qdarkstyle
     QsLog
     rapidjson
