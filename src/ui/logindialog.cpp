@@ -38,11 +38,10 @@
 #include <QUrl>
 #include <QUrlQuery>
 
+#include <libpoe/type/league.h>
 #include <QsLog/QsLog.h>
-#include <rapidjson/error/en.h>
 
 #include "util/crashpad.h"
-#include "util/rapidjson_util.h" // Needed for range iterators
 #include "util/util.h"
 #include "util/updatechecker.h"
 #include "util/oauthmanager.h"
@@ -268,33 +267,8 @@ void LoginDialog::OnLeaguesReceived() {
         return LeaguesRequestError(reply->errorString(), bytes);
     };
 
-    rapidjson::Document doc;
-    doc.Parse(bytes.constData());
-
-    // Check the document for basic error.
-    if (doc.HasParseError()) {
-        const QString parse_error = rapidjson::GetParseError_En(doc.GetParseError());
-        return LeaguesRequestError("json error: " + parse_error, bytes);
-    };
-    if (!doc.IsArray()) {
-        return LeaguesRequestError("object is not an array", bytes);
-    };
-
-    QStringList leagues;
-
-    // Parse leagues from the json object.
-    for (auto& league : doc) {
-        if (!league.IsObject()) {
-            return LeaguesRequestError("object expected", bytes);
-        };
-        if (!league.HasMember("id")) {
-            return LeaguesRequestError("missing league 'id'", bytes);
-        };
-        if (!league["id"].IsString()) {
-            return LeaguesRequestError("league 'id' is not a string", bytes);
-        };
-        leagues.append(league["id"].GetString());
-    };
+    // Parse the leagues.
+    const auto leagues = Util::parseJson<std::vector<libpoe::League>>(bytes);
 
     // Get the league from settings.ini
     const QString saved_league = m_settings.value("league").toString();
@@ -303,28 +277,13 @@ void LoginDialog::OnLeaguesReceived() {
     bool use_saved_league = false;
 
     ui->leagueComboBox->clear();
-    for (auto& league : doc) {
-
-        // Make sure the league object is well-formed.
-        if (!league.IsObject()) {
-            return LeaguesRequestError("object expected", bytes);
-        };
-        if (!league.HasMember("id")) {
-            return LeaguesRequestError("missing league 'id'", bytes);
-        };
-        if (!league["id"].IsString()) {
-            return LeaguesRequestError("league 'id' is not a string", bytes);
-        };
-
-        // Get the league name.
-        const QString league_name = league["id"].GetString();
-        QLOG_TRACE() << "LoginDialog::OnLeaguesReceived() found league" << league_name;
+    for (auto& league : leagues) {
 
         // Add the league to the combo box.
-        ui->leagueComboBox->addItem(league_name);
+        ui->leagueComboBox->addItem(league.id);
 
         // Set the current league if it matches the saved league.
-        if (0 == saved_league.compare(league_name, Qt::CaseInsensitive)) {
+        if (0 == saved_league.compare(league.id, Qt::CaseInsensitive)) {
             use_saved_league = true;
         };
     };
