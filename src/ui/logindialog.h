@@ -30,7 +30,7 @@ class QString;
 class QNetworkAccessManager;
 
 class OAuthManager;
-class OAuthToken;
+struct OAuthToken;
 
 namespace Ui {
     class LoginDialog;
