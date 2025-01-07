@@ -102,11 +102,10 @@ void SqliteDataStore::CleanItemsTable() {
             return;
         };
         while (query.next()) {
-            if (query.lastError().isValid()) {
-                QLOG_ERROR() << "CleanItemsTable(): error moving to next loc";
-                return;
-            };
             locs.push_back(query.value(0).toString());
+        };
+        if (query.lastError().isValid()) {
+            QLOG_ERROR() << "CleanItemsTable(): error moving to next loc:" << query.lastError().text();
         };
         query.finish();
 
@@ -254,14 +253,14 @@ std::vector<CurrencyUpdate> SqliteDataStore::GetAllCurrency() {
         return {};
     };
     while (query.next()) {
-        if (query.lastError().isValid()) {
-            QLOG_ERROR() << "Error getting currency.";
-            return {};
-        };
         CurrencyUpdate update = CurrencyUpdate();
         update.timestamp = query.value(0).toLongLong();
         update.value = query.value(1).toString();
         result.push_back(update);
+    };
+    if (query.lastError().isValid()) {
+        QLOG_ERROR() << "Error getting currency.";
+        return {};
     };
     return result;
 }
