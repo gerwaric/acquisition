@@ -58,7 +58,7 @@ FilterData::FilterData(Filter* filter)
     , m_filter(filter)
 {}
 
-bool FilterData::Matches(const std::shared_ptr<Item> item) {
+bool FilterData::Matches(const std::shared_ptr<Item>& item) {
     return m_filter->Matches(item, this);
 }
 
@@ -76,7 +76,7 @@ NameSearchFilter::NameSearchFilter(QLayout* parent) {
 
 void NameSearchFilter::FromForm(FilterData* data) {
     data->text_query = m_textbox->text().toUtf8().constData();
-    m_active = (data->text_query != "");
+    m_active = !data->text_query.isEmpty();
 }
 
 void NameSearchFilter::ToForm(FilterData* data) {
@@ -119,7 +119,7 @@ CategorySearchFilter::CategorySearchFilter(QLayout* parent, QAbstractListModel* 
 void CategorySearchFilter::FromForm(FilterData* data) {
     QString current_text = m_combobox->currentText().toLower();
     data->text_query = (current_text == k_Default) ? "" : current_text;
-    m_active = (data->text_query != "");
+    m_active = !data->text_query.isEmpty();
 }
 
 void CategorySearchFilter::ToForm(FilterData* data) {
@@ -161,7 +161,7 @@ RaritySearchFilter::RaritySearchFilter(QLayout* parent, QAbstractListModel* mode
 void RaritySearchFilter::FromForm(FilterData* data) {
     QString current_text = m_combobox->currentText();
     data->text_query = (current_text == k_Default) ? "" : current_text;
-    m_active = (data->text_query != "");
+    m_active = !data->text_query.isEmpty();
 }
 
 void RaritySearchFilter::ToForm(FilterData* data) {
@@ -175,7 +175,7 @@ void RaritySearchFilter::ResetForm() {
 }
 
 bool RaritySearchFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
-    if (data->text_query == "") {
+    if (data->text_query.isEmpty()) {
         return true;
     };
     switch (item->frameType()) {

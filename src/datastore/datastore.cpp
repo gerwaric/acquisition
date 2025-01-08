@@ -137,7 +137,7 @@ Locations DataStore::DeserializeTabs(const QString& json) {
                 tabType = tab_json["type"].GetString();
             } else {
                 QLOG_DEBUG() << "Stash tab does not have a type:" << name;
-                tabType = "";
+                tabType.clear();
             };
 
             break;
@@ -174,7 +174,7 @@ Locations DataStore::DeserializeTabs(const QString& json) {
         };
         ItemLocation loc(static_cast<int>(index), tabUniqueId, name, type, tabType, r, g, b, tab_json, doc.GetAllocator());
         tabs.push_back(loc);
-        tab_id_index_.insert(loc.get_tab_uniq_id());
+        tab_id_index_.emplace(loc.get_tab_uniq_id());
     };
     return tabs;
 }

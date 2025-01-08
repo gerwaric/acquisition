@@ -89,7 +89,7 @@ class FilterData {
 public:
     FilterData(Filter* filter);
     Filter* filter() { return m_filter; }
-    bool Matches(const std::shared_ptr<Item> item);
+    bool Matches(const std::shared_ptr<Item>& item);
     void FromForm();
     void ToForm();
     // Various types of data for various filters

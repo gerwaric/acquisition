@@ -22,7 +22,7 @@
 #include <QIcon>
 #include <QPainter>
 
-QIcon combineInflunceIcons(const QIcon leftIcon, const QIcon rightIcon) {
+QIcon combineInflunceIcons(const QIcon& leftIcon, const QIcon& rightIcon) {
     const int width = 54;
     const int height = 27;
 

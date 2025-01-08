@@ -342,7 +342,7 @@ void Application::SetTheme(const QString& theme) {
     QColor text_color;
 
     if (0 == theme.compare("default", Qt::CaseInsensitive)) {
-        stylesheet = "";
+        stylesheet.clear();
         text_color = Qt::black;
     } else if (0 == theme.compare("light", Qt::CaseInsensitive)) {
         stylesheet = ":qdarkstyle/light/lightstyle.qss";

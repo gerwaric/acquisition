@@ -28,7 +28,7 @@
 
 #include "itemconstants.h"
 
-QDebug& operator<<(QDebug& os, const ItemLocationType& obj) {
+QDebug& operator<<(QDebug& os, const ItemLocationType obj) {
     switch (obj) {
     case ItemLocationType::STASH: return os << "STASH";
     case ItemLocationType::CHARACTER: return os << "CHARACTER";
@@ -56,8 +56,8 @@ ItemLocation::ItemLocation(const rapidjson::Value& root)
 
 ItemLocation::ItemLocation(
     int tab_id,
-    const QString tab_unique_id,
-    const QString name)
+    const QString& tab_unique_id,
+    const QString& name)
     : ItemLocation()
 {
     m_tab_label = name;
@@ -67,12 +67,13 @@ ItemLocation::ItemLocation(
 
 ItemLocation::ItemLocation(
     int tab_id,
-    const QString tab_unique_id,
-    const QString name,
+    const QString& tab_unique_id,
+    const QString& name,
     ItemLocationType type,
-    const QString tab_type,
+    const QString& tab_type,
     int r, int g, int b,
-    rapidjson::Value& value, rapidjson_allocator& alloc)
+    rapidjson::Value& value,
+    rapidjson_allocator& alloc)
     : m_x(0), m_y(0)
     , m_w(0), m_h(0)
     , m_red(r), m_green(g), m_blue(b)
@@ -85,13 +86,13 @@ ItemLocation::ItemLocation(
     case ItemLocationType::STASH:
         m_tab_type = tab_type;
         m_tab_label = name;
-        m_character = "";
-        m_character_sortname = "";
+        m_character.clear();
+        m_character_sortname.clear();
         m_removeonly = name.endsWith("(Remove-only)");
         break;
     case ItemLocationType::CHARACTER:
-        m_tab_type = "";
-        m_tab_label = "";
+        m_tab_type.clear();
+        m_tab_label.clear();
         m_character = name;
         m_character_sortname = m_character.toLower();
         m_removeonly = false;

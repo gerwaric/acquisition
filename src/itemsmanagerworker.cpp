@@ -178,7 +178,7 @@ void ItemsManagerWorker::ParseItemMods() {
     // Save location ids.
     QLOG_TRACE() << "ItemsManagerWorker::ParseItemMods() saving location ids";
     for (const auto& tab : m_tabs) {
-        m_tab_id_index.insert(tab.get_tab_uniq_id());
+        m_tab_id_index.emplace(tab.get_tab_uniq_id());
     };
 
     // Build the signature vector.
@@ -187,7 +187,7 @@ void ItemsManagerWorker::ParseItemMods() {
     for (const auto& tab : m_tabs) {
         const QString tab_name = tab.get_tab_label();
         const QString tab_id = QString::number(tab.get_tab_id());
-        m_tabs_signature.push_back({ tab_name, tab_id });
+        m_tabs_signature.emplace_back(tab_name, tab_id);
     };
 
     // Get cached items
@@ -239,13 +239,13 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
     m_queue = {};
     m_queue_id = 0;
 
-    m_selected_character = "";
+    m_selected_character.clear();
 
     m_need_stash_list = false;
     m_need_character_list = false;
 
     m_first_stash_request_index = -1;
-    m_first_character_request_name = "";
+    m_first_character_request_name.clear();
 
     if (type == TabSelection::All) {
         QLOG_DEBUG() << "Updating all tabs and items.";
@@ -264,7 +264,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
             QLOG_TRACE() << "ItemsManagerWorker::Update() updating checked tabs";
             for (auto const& tab : m_tabs) {
                 if ((tab.IsValid()) && (m_buyout_manager.GetRefreshChecked(tab) == true)) {
-                    tabs_to_update.insert(tab.get_tab_uniq_id());
+                    tabs_to_update.emplace(tab.get_tab_uniq_id());
                 };
             };
             break;
@@ -273,7 +273,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
             QLOG_TRACE() << "ItemsManagerWorker::Update() updating selected tabs";
             for (auto const& tab : locations) {
                 if (tab.IsValid()) {
-                    tabs_to_update.insert(tab.get_tab_uniq_id());
+                    tabs_to_update.emplace(tab.get_tab_uniq_id());
                 };
             };
             break;
@@ -310,11 +310,11 @@ void ItemsManagerWorker::RemoveUpdatingTabs(const std::set<QString>& tab_ids) {
     m_tabs.clear();
     m_tab_id_index.clear();
     for (auto& tab : current_tabs) {
-        const QString tab_id = tab.get_tab_uniq_id();
-        bool save_tab = (tab_ids.count(tab.get_tab_uniq_id()) == 0);
+        const QString tab_uid = tab.get_tab_uniq_id();
+        bool save_tab = (tab_ids.count(tab_uid) == 0);
         if (save_tab) {
             m_tabs.push_back(tab);
-            m_tab_id_index.insert(tab.get_tab_uniq_id());
+            m_tab_id_index.insert(tab_uid);
         } else {
             switch (tab.get_type()) {
             case ItemLocationType::STASH:
@@ -480,7 +480,7 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
     // Remember old tab headers before clearing tabs
     std::set<QString> old_tab_headers;
     for (auto const& tab : m_tabs) {
-        old_tab_headers.insert(tab.GetHeader());
+        old_tab_headers.emplace(tab.GetHeader());
     };
 
     // Force refreshes for any stash tabs that were moved or renamed.
@@ -496,8 +496,6 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
 
     // Queue stash tab requests.
     for (auto& tab : stashes) {
-
-        const auto x = Util::RapidjsonSerialize(tab);
 
         // Get the name of the stash tab.
         if (!HasString(tab, "name")) {
@@ -648,7 +646,7 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
     };
 }
 
-void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply, ItemLocation location) {
+void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply, const ItemLocation& location) {
     QLOG_TRACE() << "ItemsManagerWorker::OnOAuthStashReceived() entered";
 
     auto sender = qobject_cast<RateLimitedReply*>(QObject::sender());
@@ -698,7 +696,7 @@ void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply, ItemLocation
     };
 }
 
-void ItemsManagerWorker::OnOAuthCharacterReceived(QNetworkReply* reply, ItemLocation location) {
+void ItemsManagerWorker::OnOAuthCharacterReceived(QNetworkReply* reply, const ItemLocation& location) {
     QLOG_TRACE() << "ItemsManagerWorker::OnOAuthCharacterReceived() entered";
 
     auto sender = qobject_cast<RateLimitedReply*>(QObject::sender());
@@ -999,7 +997,7 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
     // Remember old tab headers before clearing tabs
     std::set<QString> old_tab_headers;
     for (auto const& tab : m_tabs) {
-        old_tab_headers.insert(tab.GetHeader());
+        old_tab_headers.emplace(tab.GetHeader());
     };
 
     // Force refreshes for any stash tabs that were moved or renamed.
@@ -1104,23 +1102,25 @@ void ItemsManagerWorker::SendStatusUpdate() {
     };
 }
 
-void ItemsManagerWorker::ParseItems(rapidjson::Value& value, ItemLocation base_location, rapidjson_allocator& alloc) {
+void ItemsManagerWorker::ParseItems(rapidjson::Value& value, const ItemLocation& base_location, rapidjson_allocator& alloc) {
     QLOG_TRACE() << "ItemsManagerWorker::ParseItems() entered";
+
+    ItemLocation location = base_location;
 
     for (auto& item : value) {
         // Make sure location data from the item like x and y is brought over to the location object.
-        base_location.FromItemJson(item);
-        base_location.ToItemJson(&item, alloc);
-        m_items.push_back(std::make_shared<Item>(item, base_location));
+        location.FromItemJson(item);
+        location.ToItemJson(&item, alloc);
+        m_items.push_back(std::make_shared<Item>(item, location));
         if (HasArray(item, "socketedItems")) {
-            base_location.set_socketed(true);
-            ParseItems(item["socketedItems"], base_location, alloc);
-            base_location.set_socketed(false);
+            location.set_socketed(true);
+            ParseItems(item["socketedItems"], location, alloc);
+            location.set_socketed(false);
         };
     };
 }
 
-void ItemsManagerWorker::OnLegacyTabReceived(QNetworkReply* reply, ItemLocation location) {
+void ItemsManagerWorker::OnLegacyTabReceived(QNetworkReply* reply, const ItemLocation& location) {
     QLOG_TRACE() << "ItemsManagerWorker::OnLegacyTabReceived() entered";
 
     auto sender = qobject_cast<RateLimitedReply*>(QObject::sender());
@@ -1187,7 +1187,7 @@ void ItemsManagerWorker::OnLegacyTabReceived(QNetworkReply* reply, ItemLocation 
     };
 }
 
-bool ItemsManagerWorker::TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, ItemLocation& location) {
+bool ItemsManagerWorker::TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, const ItemLocation& location) {
     QLOG_TRACE() << "ItemsManagerWorker::TabsChanged() entered";
 
     if (!doc.HasMember("tabs") || doc["tabs"].Size() == 0) {

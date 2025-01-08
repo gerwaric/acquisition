@@ -84,12 +84,12 @@ private slots:
     void OnLegacyMainPageReceived();
     void OnLegacyCharacterListReceived(QNetworkReply* reply);
     void OnFirstLegacyTabReceived(QNetworkReply* reply);
-    void OnLegacyTabReceived(QNetworkReply* reply, ItemLocation location);
+    void OnLegacyTabReceived(QNetworkReply* reply, const ItemLocation& location);
 
     void OnOAuthStashListReceived(QNetworkReply* reply);
-    void OnOAuthStashReceived(QNetworkReply* reply, ItemLocation location);
+    void OnOAuthStashReceived(QNetworkReply* reply, const ItemLocation& location);
     void OnOAuthCharacterListReceived(QNetworkReply* reply);
-    void OnOAuthCharacterReceived(QNetworkReply* reply, ItemLocation location);
+    void OnOAuthCharacterReceived(QNetworkReply* reply, const ItemLocation& location);
 
 private:
     void ParseItemMods();
@@ -116,8 +116,8 @@ private:
     TabsSignatureVector CreateTabsSignatureVector(const rapidjson::Value& tabs);
 
     void SendStatusUpdate();
-    void ParseItems(rapidjson::Value& value, ItemLocation base_location, rapidjson_allocator& alloc);
-    bool TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, ItemLocation& location);
+    void ParseItems(rapidjson::Value& value, const ItemLocation& base_location, rapidjson_allocator& alloc);
+    bool TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, const ItemLocation& location);
     void FinishUpdate();
 
     QSettings& m_settings;

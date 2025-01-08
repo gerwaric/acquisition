@@ -192,10 +192,10 @@ class BuyoutHelperPrivate {
 public:
     BuyoutHelperPrivate(const QString& filename);
     ~BuyoutHelperPrivate();
-    const LegacyBuyoutMap tab_buyouts() const { return m_tab_buyouts; };
-    const LegacyBuyoutMap item_buyouts() const { return m_item_buyouts; };
-    const LegacyCharacterList character_tabs() const { return m_character_tabs; };
-    const LegacyStashList stash_tabs() const { return m_stash_tabs; };
+    const LegacyBuyoutMap& tab_buyouts() const { return m_tab_buyouts; };
+    const LegacyBuyoutMap& item_buyouts() const { return m_item_buyouts; };
+    const LegacyCharacterList& character_tabs() const { return m_character_tabs; };
+    const LegacyStashList& stash_tabs() const { return m_stash_tabs; };
     bool validate();
 
 private:

@@ -31,10 +31,10 @@ class DataStore {
 public:
     virtual ~DataStore() {};
     virtual void Set(const QString& key, const QString& value) = 0;
-    virtual void SetTabs(const ItemLocationType& type, const Locations& tabs) = 0;
+    virtual void SetTabs(const ItemLocationType type, const Locations& tabs) = 0;
     virtual void SetItems(const ItemLocation& loc, const Items& items) = 0;
     virtual QString Get(const QString& key, const QString& default_value = "") = 0;
-    virtual Locations GetTabs(const ItemLocationType& type) = 0;
+    virtual Locations GetTabs(const ItemLocationType type) = 0;
     virtual Items GetItems(const ItemLocation& loc) = 0;
     virtual void InsertCurrencyUpdate(const CurrencyUpdate& update) = 0;
     virtual std::vector<CurrencyUpdate> GetAllCurrency() = 0;

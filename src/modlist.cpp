@@ -210,7 +210,7 @@ void InitModList() {
             mod_strings.insert(mod);
             std::vector<QString> list = { mod };
             SumModGen gen = std::make_shared<SumModGenerator>(mod, list);
-            mods_map.insert(std::make_pair(mod, gen.get()));
+            mods_map[mod] = gen.get();
             mod_generators.push_back(gen);
         };
     };

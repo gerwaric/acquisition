@@ -31,7 +31,7 @@ enum class ItemLocationType {
     STASH,
     CHARACTER
 };
-QDebug& operator<<(QDebug& os, const ItemLocationType& obj);
+QDebug& operator<<(QDebug& os, const ItemLocationType obj);
 
 
 class ItemLocation {
@@ -40,16 +40,17 @@ public:
     explicit ItemLocation(const rapidjson::Value& root);
     explicit ItemLocation(
         int tab_id,
-        const QString tab_unique_id,
-        const QString name);
+        const QString& tab_unique_id,
+        const QString& name);
     explicit ItemLocation(
         int tab_id,
-        const QString tab_unique_id,
-        const QString name,
+        const QString& tab_unique_id,
+        const QString& name,
         ItemLocationType type,
-        const QString tab_type,
+        const QString& tab_type,
         int r, int g, int b,
-        rapidjson::Value& value, rapidjson_allocator& alloc);
+        rapidjson::Value& value,
+        rapidjson_allocator& alloc);
 
     void ToItemJson(rapidjson::Value* root, rapidjson_allocator& alloc);
     void FromItemJson(const rapidjson::Value& root);

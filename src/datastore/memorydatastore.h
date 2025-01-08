@@ -26,10 +26,10 @@
 class MemoryDataStore : public DataStore {
 public:
     void Set(const QString& key, const QString& value);
-    void SetTabs(const ItemLocationType& type, const Locations& tabs);
+    void SetTabs(const ItemLocationType type, const Locations& tabs);
     void SetItems(const ItemLocation& loc, const Items& items);
     QString Get(const QString& key, const QString& default_value = "");
-    Locations GetTabs(const ItemLocationType& type);
+    Locations GetTabs(const ItemLocationType type);
     Items GetItems(const ItemLocation& loc);
     void InsertCurrencyUpdate(const CurrencyUpdate& update);
     std::vector<CurrencyUpdate> GetAllCurrency();

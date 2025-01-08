@@ -163,7 +163,7 @@ QString SqliteDataStore::Get(const QString& key, const QString& default_value) {
     return result;
 }
 
-Locations SqliteDataStore::GetTabs(const ItemLocationType& type) {
+Locations SqliteDataStore::GetTabs(const ItemLocationType type) {
     QSqlQuery query(m_db);
     query.prepare("SELECT value FROM tabs WHERE type = ?");
     query.bindValue(0, (int)type);
@@ -210,7 +210,7 @@ void SqliteDataStore::Set(const QString& key, const QString& value) {
     };
 }
 
-void SqliteDataStore::SetTabs(const ItemLocationType& type, const Locations& tabs) {
+void SqliteDataStore::SetTabs(const ItemLocationType type, const Locations& tabs) {
     QSqlQuery query(m_db);
     query.prepare("INSERT OR REPLACE INTO tabs (type, value) VALUES (?, ?)");
     query.bindValue(0, (int)type);

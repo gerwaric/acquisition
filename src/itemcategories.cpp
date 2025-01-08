@@ -33,7 +33,7 @@
 
 class CATEGORY_DATA {
 private:
-    CATEGORY_DATA() {};
+    CATEGORY_DATA() = default;
 public:
     static CATEGORY_DATA& instance() {
         QLOG_TRACE() << "CATEGORY_DATA::instance() entered";
@@ -81,8 +81,8 @@ void InitItemClasses(const QByteArray& classes) {
             QLOG_DEBUG() << "Item class for" << key << "is empty";
             continue;
         };
-        data.m_itemClassKeyToValue.insert(std::make_pair(key, value));
-        data.m_itemClassValueToKey.insert(std::make_pair(value, key));
+        data.m_itemClassKeyToValue[key] = value;
+        data.m_itemClassValueToKey[value] = key;
         cats.insert(value);
     };
     data.categories = cats.values();
@@ -125,7 +125,7 @@ void InitItemBaseTypes(const QByteArray& baseTypes) {
         if (name.isEmpty() || name.startsWith("[DO NOT USE]") || name.startsWith("[UNUSED]") || name.startsWith("[DNT]")) {
             continue;
         };
-        data.m_itemBaseTypeToClass.insert(std::make_pair(name, item_class));
+        data.m_itemBaseTypeToClass[name] = item_class;
     };
 
     basetypes_initialized = true;

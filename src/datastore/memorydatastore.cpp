@@ -28,7 +28,7 @@ QString MemoryDataStore::Get(const QString& key, const QString& default_value) {
     return i->second;
 }
 
-Locations MemoryDataStore::GetTabs(const ItemLocationType& type) {
+Locations MemoryDataStore::GetTabs(const ItemLocationType type) {
     auto i = m_tabs.find(type);
     if (i == m_tabs.end())
         return {};
@@ -46,7 +46,7 @@ void MemoryDataStore::Set(const QString& key, const QString& value) {
     m_data[key] = value;
 }
 
-void MemoryDataStore::SetTabs(const ItemLocationType& type, const Locations& tabs) {
+void MemoryDataStore::SetTabs(const ItemLocationType type, const Locations& tabs) {
     m_tabs[type] = tabs;
 }
 

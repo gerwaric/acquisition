@@ -31,10 +31,10 @@ public:
     SqliteDataStore(const QString& m_filename);
     ~SqliteDataStore();
     void Set(const QString& key, const QString& value);
-    void SetTabs(const ItemLocationType& type, const Locations& value);
+    void SetTabs(const ItemLocationType type, const Locations& value);
     void SetItems(const ItemLocation& loc, const Items& value);
     QString Get(const QString& key, const QString& default_value = "");
-    Locations GetTabs(const ItemLocationType& type);
+    Locations GetTabs(const ItemLocationType type);
     Items GetItems(const ItemLocation& loc);
     void InsertCurrencyUpdate(const CurrencyUpdate& update);
     std::vector<CurrencyUpdate> GetAllCurrency();

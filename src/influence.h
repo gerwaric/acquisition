@@ -47,4 +47,4 @@ constexpr const char* fractured_symbol_Link = ":/tooltip/Fractured-item-symbol.p
 constexpr const char* searing_exarch_symbol_Link = ":/tooltip/Searing-exarch-item-symbol.png";
 constexpr const char* eater_of_worlds_symbol_Link = ":/tooltip/Eater-of-worlds-item-symbol.png";
 
-QIcon combineInflunceIcons(const QIcon leftIcon, const QIcon rightIcon);
+QIcon combineInflunceIcons(const QIcon& leftIcon, const QIcon& rightIcon);
