@@ -30,6 +30,7 @@ class QNetworkAccessManager;
 class QNetworkReply;
 class QSettings;
 
+class BuyoutHelper;
 class BuyoutManager;
 class CurrencyManager;
 class DataStore;
@@ -89,6 +90,7 @@ private:
     std::unique_ptr<UpdateChecker> m_update_checker;
     std::unique_ptr<OAuthManager> m_oauth_manager;
 
+    std::unique_ptr<BuyoutHelper> m_buyout_helper;
     std::unique_ptr<BuyoutManager> m_buyout_manager;
     std::unique_ptr<Shop> m_shop;
     std::unique_ptr<ItemsManager> m_items_manager;

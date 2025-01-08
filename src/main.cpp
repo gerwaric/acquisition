@@ -160,7 +160,7 @@ int main(int argc, char* argv[])
     // Check for test mode.
     if (parser.isSet(option_test)) {
         QLOG_INFO() << "Running test suite...";
-        return test_main();
+        return test_main(appDataDir.absolutePath());
     };
 
     // Run the main application, starting with the login dialog.

@@ -29,6 +29,7 @@
 #include <rapidjson/error/en.h>
 
 #include "filters.h"
+#include "util/util.h"
 
 class CATEGORY_DATA {
 private:
@@ -39,17 +40,17 @@ public:
         static CATEGORY_DATA data;
         return data;
     };
-    std::map<QString, QString> itemClassKeyToValue;
-    std::map<QString, QString> itemClassValueToKey;
-    std::map<QString, QString> itemBaseType_NameToClass;
+    std::map<QString, QString> m_itemClassKeyToValue;
+    std::map<QString, QString> m_itemClassValueToKey;
+    std::map<QString, QString> m_itemBaseTypeToClass;
     QStringList categories;
 };
 
 void InitItemClasses(const QByteArray& classes) {
-    QLOG_TRACE() << "InitItemClasses() entered";
-    static bool classes_initialized = false;
-    QLOG_TRACE() << "InitItemClasses() classes_initialized =" << classes_initialized;
 
+    static bool classes_initialized = false;
+
+    QLOG_DEBUG() << "Initializing item classes";
     rapidjson::Document doc;
     doc.Parse(classes.constData());
     if (doc.HasParseError()) {
@@ -64,21 +65,24 @@ void InitItemClasses(const QByteArray& classes) {
         QLOG_WARN() << "Item classes have already been loaded. They will be overwritten.";
     };
 
-    static auto& data = CATEGORY_DATA::instance();
-    data.itemClassKeyToValue.clear();
-    data.itemClassValueToKey.clear();
+    auto& data = CATEGORY_DATA::instance();
+    data.m_itemClassKeyToValue.clear();
+    data.m_itemClassValueToKey.clear();
 
     QLOG_TRACE() << "InitItemClasses() processing data";
     QSet<QString> cats;
     for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
-        QString key = itr->name.GetString();
-        QString value = itr->value.FindMember("name")->value.GetString();
+        const QString key = itr->name.GetString();
+        const QString value = itr->value.FindMember("name")->value.GetString();
+        if (key.startsWith("DONOTUSE") || (0 == key.compare("Unarmed", Qt::CaseInsensitive))) {
+            continue;
+        };
         if (value.isEmpty()) {
             QLOG_DEBUG() << "Item class for" << key << "is empty";
             continue;
         };
-        data.itemClassKeyToValue.insert(std::make_pair(key, value));
-        data.itemClassValueToKey.insert(std::make_pair(value, key));
+        data.m_itemClassKeyToValue.insert(std::make_pair(key, value));
+        data.m_itemClassValueToKey.insert(std::make_pair(value, key));
         cats.insert(value);
     };
     data.categories = cats.values();
@@ -89,10 +93,10 @@ void InitItemClasses(const QByteArray& classes) {
 }
 
 void InitItemBaseTypes(const QByteArray& baseTypes) {
-    QLOG_TRACE() << "InitItemBaseTypes() entered";
-    static bool basetypes_initialized = false;
-    QLOG_TRACE() << "InitItemBaseTypes() basetypes_initialized =" << basetypes_initialized;
 
+    static bool basetypes_initialized = false;
+    
+    QLOG_DEBUG() << "Initializing item base types";
     rapidjson::Document doc;
     doc.Parse(baseTypes.constData());
     if (doc.HasParseError()) {
@@ -108,12 +112,20 @@ void InitItemBaseTypes(const QByteArray& baseTypes) {
     };
 
     QLOG_TRACE() << "InitItemBaseTypes() processing data";
-    static auto& data = CATEGORY_DATA::instance();
-    data.itemBaseType_NameToClass.clear();
+    auto& data = CATEGORY_DATA::instance();
+    data.m_itemBaseTypeToClass.clear();
     for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
-        QString item_class = itr->value.FindMember("item_class")->value.GetString();
-        QString name = itr->value.FindMember("name")->value.GetString();
-        data.itemBaseType_NameToClass.insert(std::make_pair(name, item_class));
+        // Skip unreleased objects.
+        const QString release_state = itr->value.FindMember("release_state")->value.GetString();
+        if (0 == release_state.compare("unreleased", Qt::CaseInsensitive)) {
+            continue;
+        };
+        const QString item_class = itr->value.FindMember("item_class")->value.GetString();
+        const QString name = itr->value.FindMember("name")->value.GetString();
+        if (name.isEmpty() || name.startsWith("[DO NOT USE]") || name.startsWith("[UNUSED]") || name.startsWith("[DNT]")) {
+            continue;
+        };
+        data.m_itemBaseTypeToClass.insert(std::make_pair(name, item_class));
     };
 
     basetypes_initialized = true;
@@ -121,18 +133,23 @@ void InitItemBaseTypes(const QByteArray& baseTypes) {
 
 QString GetItemCategory(const QString& baseType) {
 
-    static auto& data = CATEGORY_DATA::instance();
+    auto& data = CATEGORY_DATA::instance();
 
-    if (data.itemBaseType_NameToClass.empty()) {
+    if (data.m_itemClassKeyToValue.empty()) {
+        QLOG_ERROR() << "Item classes have not been initialized";
+        return "";
+    };
+
+    if (data.m_itemBaseTypeToClass.empty()) {
         QLOG_ERROR() << "Item base types have not been initialized";
         return "";
     };
 
-    auto rslt = data.itemBaseType_NameToClass.find(baseType);
-    if (rslt != data.itemBaseType_NameToClass.end()) {
+    auto rslt = data.m_itemBaseTypeToClass.find(baseType);
+    if (rslt != data.m_itemBaseTypeToClass.end()) {
         QString key = rslt->second;
-        rslt = data.itemClassKeyToValue.find(key);
-        if (rslt != data.itemClassKeyToValue.end()) {
+        rslt = data.m_itemClassKeyToValue.find(key);
+        if (rslt != data.m_itemClassKeyToValue.end()) {
             QString category = rslt->second.toLower();
             QLOG_TRACE() << "GetItemCategory: category is" << category;
             return category;
@@ -145,7 +162,7 @@ QString GetItemCategory(const QString& baseType) {
 
 const QStringList& GetItemCategories() {
     QLOG_TRACE() << "GetItemCategories() entered";
-    static auto& data = CATEGORY_DATA::instance();
+    auto& data = CATEGORY_DATA::instance();
     if (data.categories.isEmpty()) {
         QLOG_ERROR() << "Item categories have not been initialized";
     };

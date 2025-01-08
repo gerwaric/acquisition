@@ -61,17 +61,21 @@ const std::array<Item::CategoryReplaceMap, Item::k_CategoryLevels> Item::m_repla
 };
 
 const std::vector<QString> ITEM_MOD_TYPES = {
-    "implicitMods", "enchantMods", "explicitMods", "craftedMods", "fracturedMods"
+    "implicitMods",
+    "enchantMods",
+    "explicitMods",
+    "craftedMods",
+    "fracturedMods"
 };
 
 static QString item_unique_properties(const rapidjson::Value& json, const QString& name) {
     const std::string name_s = name.toStdString();
-    const char* name_p = name_s.c_str();
-    if (!json.HasMember(name_p)) {
+    const char* name_c = name_s.c_str();
+    if (!json.HasMember(name_c)) {
         return "";
     };
     QString result;
-    for (auto& prop : json[name_p]) {
+    for (auto& prop : json[name_c]) {
         result += QString(prop["name"].GetString()) + "~";
         for (auto& value : prop["values"]) {
             result += QString(value[0].GetString()) + "~";
@@ -189,10 +193,11 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
 
     for (auto& mod_type : ITEM_MOD_TYPES) {
         m_text_mods[mod_type] = std::vector<QString>();
-        const char* mod_type_s = mod_type.toStdString().c_str();
-        if (HasArray(json, mod_type_s)) {
+        const std::string mod_type_s = mod_type.toStdString();
+        const char* mod_type_c = mod_type_s.c_str();
+        if (HasArray(json, mod_type_c)) {
             auto& mods = m_text_mods[mod_type];
-            for (auto& mod : json[mod_type_s]) {
+            for (auto& mod : json[mod_type_c]) {
                 if (mod.IsString()) {
                     mods.push_back(mod.GetString());
                 };
@@ -493,66 +498,103 @@ bool Item::Wearable() const {
 }
 
 QString Item::POBformat() const {
-    std::stringstream PoBText;
-    PoBText << name().toStdString();
-    PoBText << "\n" << typeLine().toStdString();
+    std::stringstream pob;
+    switch (m_frameType) {
+    case 0: pob << "Rarity: NORMAL"; break;
+    case 1: pob << "Rarity: MAGIC"; break;
+    case 2: pob << "Rarity: RARE"; break;
+    case 3: pob << "Rarity: UNIQUE"; break;
+    case 4: // gem
+    case 5: // currency
+    case 6: // divination card
+    case 7: // quest
+    case 8: // prophecy (legacy)
+        QLOG_ERROR() << "Cannot build POB format: unsupported frameType:" << m_frameType;
+        break;
+    case 9: pob << "Rarity: UNIQUE"; break;// foil
+    case 10: pob << "Rarity: UNIQUE"; break;// supporter foil
+    case 11: // necropolis
+        QLOG_ERROR() << "Cannot build POB format: unsupported frameType:" << m_frameType;
+        break;
+    default:
+        QLOG_ERROR() << "Cannot build POB format: unrecognized frameType:" << m_frameType;
+        break;
+    };
+    pob << "\n" << name().toStdString();
+    pob << "\n" << typeLine().toStdString();
+    pob << "\nUnique ID: " << m_uid.toStdString();
+    pob << "\nItem Level: " << m_ilvl;
 
-    // Could use m_uid for "Unique ID:", if it'd help PoB avoid duplicate imports later via stash API?
+    if (m_properties.count("Quality") > 0) {
+        QString quality = m_properties.at("Quality");
+        if (quality.startsWith("+")) {
+            quality.slice(1);
+        };
+        if (quality.endsWith("%")) {
+            quality.chop(1);
+        };
+        pob << "\nQuality: " << quality.toInt();
+    };
 
     auto& sockets = text_sockets();
     if (sockets.size() > 0) {
-        PoBText << "\nSockets: ";
+        pob << "\nSockets: ";
         ItemSocket prev = { 255, '-' };
         size_t i = 0;
         for (auto& socket : sockets) {
             bool link = socket.group == prev.group;
             if (i > 0) {
-                PoBText << (link ? "-" : " ");
+                pob << (link ? "-" : " ");
             };
             switch (socket.attr) {
-            case 'S':
-                PoBText << "R";
-                break;
-            case 'D':
-                PoBText << "G";
-                break;
-            case 'I':
-                PoBText << "B";
-                break;
-            case 'G':
-                PoBText << "W";
-                break;
-            default:
-                PoBText << socket.attr;
-                break;
+            case 'S': pob << "R"; break;
+            case 'D': pob << "G"; break;
+            case 'I': pob << "B"; break;
+            case 'G': pob << "W"; break;
+            default: pob << socket.attr; break;
             };
             prev = socket;
             ++i;
         };
     };
 
+    if (m_requirements.count("Level") > 0) {
+        pob << "\nLevelReq: " << m_requirements.at("Level");
+    };
+
     auto& mods = text_mods();
 
     auto& implicitMods = mods.at("implicitMods");
     auto& enchantMods = mods.at("enchantMods");
-    PoBText << "\nImplicits: " << (implicitMods.size() + enchantMods.size());
+    pob << "\nImplicits: " << (implicitMods.size() + enchantMods.size());
     for (const auto& mod : enchantMods) {
-        PoBText << "\n{crafted}" << mod.toStdString();
+        pob << "\n{crafted}" << mod.toStdString();
     };
     for (const auto& mod : implicitMods) {
-        PoBText << "\n" << mod.toStdString();
+        pob << "\n" << mod.toStdString();
+    };
+
+    auto& fracturedMods = mods.at("fracturedMods");
+    if (!fracturedMods.empty()) {
+        for (const auto& mod : fracturedMods) {
+            pob << "\n{fractured}" << mod.toStdString();
+        };
     };
 
     auto& explicitMods = mods.at("explicitMods");
     auto& craftedMods = mods.at("craftedMods");
     if (!explicitMods.empty() || !craftedMods.empty()) {
         for (const auto& mod : explicitMods) {
-            PoBText << "\n" << mod.toStdString();
+            pob << "\n" << mod.toStdString();
         };
         for (const auto& mod : craftedMods) {
-            PoBText << "\n{crafted}" << mod.toStdString();
+            pob << "\n{crafted}" << mod.toStdString();
         };
     };
 
-    return QString::fromStdString(PoBText.str());
+    if (m_corrupted) {
+        pob << "\nCorrupted";
+    };
+
+    return QString::fromStdString(pob.str());
 }

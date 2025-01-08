@@ -44,7 +44,7 @@ private slots:
     void MoveItemBoToBo();
     void ItemHashMigration();
 private:
-    DataStore& data_;
-    ItemsManager& items_manager_;
-    BuyoutManager& buyout_manager_;
+    DataStore& m_data;
+    ItemsManager& m_items_manager;
+    BuyoutManager& m_buyout_manager;
 };

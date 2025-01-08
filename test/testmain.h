@@ -32,4 +32,4 @@ signals:
     void finished(int status);
 };
 
-int test_main();
+int test_main(const QString& data_dir);

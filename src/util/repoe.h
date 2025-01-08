@@ -20,9 +20,11 @@
 #pragma once
 
 #include <QObject>
+#include <QString>
+#include <QStringList>
 
 class QNetworkAccessManager;
-class QString;
+class QNetworkReply;
 
 enum class ProgramState;
 
@@ -30,18 +32,22 @@ class RePoE : public QObject {
     Q_OBJECT
 public:
     RePoE(QNetworkAccessManager& network_manager);
-    void Init();
-    bool IsInitialized() const { return s_initialized; };
+    void Init(const QString& data_dir);
+    bool IsInitialized() const { return m_initialized; };
 signals:
     void StatusUpdate(ProgramState state, const QString& status);
     void finished();
 public slots:
-    void OnItemClassesReceived();
-    void OnBaseItemsReceived();
-    void OnStatTranslationReceived();
+    void OnVersionReceived();
+    void OnFileReceived();
 private:
-    void GetStatTranslations();
+    void BeginUpdate();
+    void RequestNextFile();
+    void FinishUpdate();
+    QByteArray ReadFile(const QString& filename);
+
+    bool m_initialized;
     QNetworkAccessManager& m_network_manager;
-    static bool s_initialized;
-    static QStringList GetTranslationUrls();
+    QString m_data_dir;
+    std::vector<QString> m_needed_files;
 };

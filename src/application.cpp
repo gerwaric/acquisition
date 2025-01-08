@@ -42,6 +42,7 @@
 #include "util/repoe.h"
 #include "util/updatechecker.h"
 
+#include "buyouthelper.h"
 #include "buyoutmanager.h"
 #include "currencymanager.h"
 #include "imagecache.h"
@@ -59,6 +60,9 @@ Application::Application(const QDir& appDataDir) {
 
     QLOG_TRACE() << "Application::Application() creating RePoE";
     m_repoe = std::make_unique<RePoE>(network_manager());
+
+    QLOG_TRACE() << "Application::Application() creating BuyoutHelper";
+    m_buyout_helper = std::make_unique<BuyoutHelper>();
 
     InitUserDir(appDataDir.absolutePath());
     InitCrashReporting();
@@ -98,7 +102,7 @@ void Application::InitUserDir(const QString& dir) {
 
     // Start the process of fetching RePoE data.
     QLOG_TRACE() << "Application::Application() initializing RePoE";
-    m_repoe->Init();
+    m_repoe->Init(dir);
 }
 
 Application::~Application() {}
@@ -395,6 +399,10 @@ void Application::InitLogin(POE_API mode)
     const QString data_file = SqliteDataStore::MakeFilename(account, league);
     const QString data_path = user_dir.absoluteFilePath(data_file);
     QLOG_TRACE() << "Application::InitLogin() data_path =" << data_path;
+
+    QLOG_TRACE() << "Application::InitLogin() validating buyouts";
+    m_buyout_helper->validate(data_path);
+
     m_data = std::make_unique<SqliteDataStore>(data_path);
     SaveDbOnNewVersion();
 
@@ -460,7 +468,7 @@ void Application::OnRunTests() {
     }
     QLOG_TRACE() << "Application::OnRunTests() hiding login and running tests";
     m_login->hide();
-    const int result = test_main();
+    const int result = test_main(m_data_dir.absolutePath());
     QLOG_TRACE() << "Application::OnRunTests(): test_main returned" << result;
     QMessageBox::information(nullptr,
         "Acquisition", "Testing returned " + QString::number(result),
