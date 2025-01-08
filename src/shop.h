@@ -85,7 +85,7 @@ signals:
     void StatusUpdate(ProgramState state, const QString& status);
 private:
     void SubmitSingleShop();
-    void SubmitNextShop(const QString title, const QString hash);
+    void SubmitNextShop(const QString& title, const QString& hash);
     QString ShopEditUrl(size_t idx);
     QString SpoilerBuyout(Buyout& bo);
 

@@ -47,7 +47,7 @@ constexpr QSize HEADER_OVERLAY_SIZE(27, 27);
 
 class IMAGES {
 private:
-    IMAGES() {};
+    IMAGES() = default;
 public:
     static const IMAGES& instance() {
         static IMAGES images;
@@ -207,7 +207,7 @@ static QString GenerateItemInfo(const Item& item, const QString& key, bool fancy
     if (item.corrupted())
         unmet += (unmet.isEmpty() ? "" : "<br>") + QString("Corrupted");
     if (!unmet.isEmpty())
-        sections.push_back(ColorPropertyValue(ItemPropertyValue{ unmet, 2 }));
+        sections.emplace_back(ColorPropertyValue(ItemPropertyValue{ unmet, 2 }));
 
     QString text;
     bool first = true;

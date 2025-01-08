@@ -46,7 +46,7 @@ constexpr bool debug = true;
 constexpr bool debug = false;
 #endif
 
-static const QString DLL(const QString& name) {
+static QString DLL(const QString& name) {
     return name + (debug ? "d.dll" : ".dll");
 }
 

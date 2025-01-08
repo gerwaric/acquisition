@@ -293,7 +293,7 @@ QString Util::Capitalise(const QString& str) {
     return capitalized;
 }
 
-QString Util::TimeAgoInWords(const QDateTime buyout_time) {
+QString Util::TimeAgoInWords(const QDateTime& buyout_time) {
     QDateTime current_date = QDateTime::currentDateTime();
     qint64 secs = buyout_time.secsTo(current_date);
     qint64 days = secs / 60 / 60 / 24;
@@ -338,7 +338,7 @@ QString Util::Decode(const QString& entity) {
     return text.toPlainText();
 }
 
-QUrlQuery Util::EncodeQueryItems(const std::list<std::pair<QString, QString>>& items) {
+QUrlQuery Util::EncodeQueryItems(const std::vector<std::pair<QString, QString>>& items) {
     // https://github.com/owncloud/client/issues/9203
     QUrlQuery result;
     for (const auto& item : items) {
@@ -365,7 +365,7 @@ QColor Util::recommendedForegroundTextColor(const QColor& backgroundColor) {
 // Obsolete timezones are allowed by RFC2822, but they aren't parsed by
 // QT 6.5.3 so we have to fix them manually.
 QByteArray Util::FixTimezone(const QByteArray& rfc2822_date) {
-    const std::vector<std::pair<QByteArray, QByteArray>> OBSOLETE_ZONES = {
+    constexpr const std::array<std::pair<const char*, const char*>, 10> OBSOLETE_ZONES{ {
         {"GMT", "+0000"},
         {"UT" , "+0000"},
         {"EST", "-0005"},
@@ -376,7 +376,7 @@ QByteArray Util::FixTimezone(const QByteArray& rfc2822_date) {
         {"MDT", "-0006"},
         {"PST", "-0008"},
         {"PDT", "-0007"}
-    };
+    } };
     for (auto& pair : OBSOLETE_ZONES) {
         const QByteArray& zone = pair.first;
         const QByteArray& offset = pair.second;
@@ -388,21 +388,21 @@ QByteArray Util::FixTimezone(const QByteArray& rfc2822_date) {
     return rfc2822_date;
 }
 
-QDebug& operator<<(QDebug& os, const RefreshReason::Type& obj)
+QDebug& operator<<(QDebug& os, const RefreshReason::Type obj)
 {
     const QMetaObject* meta = &RefreshReason::staticMetaObject;
     os << meta->enumerator(meta->indexOfEnumerator("Type")).key(obj);
     return os;
 }
 
-QDebug& operator<<(QDebug& os, const TabSelection::Type& obj)
+QDebug& operator<<(QDebug& os, const TabSelection::Type obj)
 {
     const QMetaObject* meta = &TabSelection::staticMetaObject;
     os << meta->enumerator(meta->indexOfEnumerator("Type")).key(obj);
     return os;
 }
 
-QDebug& operator<<(QDebug& os, const QsLogging::Level& obj) {
+QDebug& operator<<(QDebug& os, const QsLogging::Level obj) {
     switch (obj) {
     case QsLogging::Level::TraceLevel: return os << "TRACE";
     case QsLogging::Level::DebugLevel: return os << "DEBUG";

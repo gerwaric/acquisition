@@ -310,9 +310,10 @@ void MainWindow::InitializeUi() {
                     tabs->widget(i)->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
                 };
             };
-            tabs->widget(idx)->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
-            tabs->widget(idx)->resize(tabs->widget(idx)->minimumSizeHint());
-            tabs->widget(idx)->adjustSize();
+            auto widget = tabs->widget(idx);
+            widget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+            widget->resize(tabs->widget(idx)->minimumSizeHint());
+            widget->adjustSize();
             m_settings.setValue("tooltip_tab", idx);
         });
 
@@ -423,7 +424,7 @@ void MainWindow::OnRefreshSelected() {
     std::vector<ItemLocation> locations;
     for (auto const& index : ui->treeView->selectionModel()->selectedRows()) {
         // Fetch tab names per index
-        locations.push_back(m_current_search->GetTabLocation(index));
+        locations.emplace_back(m_current_search->GetTabLocation(index));
     };
     m_items_manager.Update(TabSelection::Selected, locations);
 }

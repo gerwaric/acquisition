@@ -58,6 +58,8 @@ OAuthManager::OAuthManager(
     DataStore& datastore)
     : m_network_manager(network_manager)
     , m_datastore(datastore)
+    , m_http_server(nullptr)
+    , m_tcp_server(nullptr)
     , m_remember_token(false)
     , m_refresh_timer(this)
 {
@@ -69,7 +71,7 @@ OAuthManager::OAuthManager(
 
     // Look for an existing token.
     const QString token_str = m_datastore.Get("oauth_token", "");
-    if (token_str == "") {
+    if (token_str.isEmpty()) {
         return;
     };
     m_token = OAuthToken(token_str);
@@ -126,7 +128,7 @@ void OAuthManager::setRefreshTimer() {
     const unsigned long interval = QDateTime::currentDateTime().msecsTo(refresh_date);
     m_refresh_timer.setInterval(interval);
     m_refresh_timer.start();
-    QLOG_INFO() << "OAuth: refreshing token at" << refresh_date.toString();
+    QLOG_INFO() << "OAuth: refreshing token again at" << refresh_date.toString();
 }
 
 void OAuthManager::requestAccess() {

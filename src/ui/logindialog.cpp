@@ -166,10 +166,10 @@ LoginDialog::LoginDialog(
     // Load the OAuth token if one is already present.
     const QDateTime now = QDateTime::currentDateTime();
     const OAuthToken& token = m_oauth_manager.token();
-    if (token.access_expiration && (now < token.access_expiration.value())) {
+    if (token.access_expiration && (now < *token.access_expiration)) {
         QLOG_TRACE() << "LoginDialog::LoginDialog() found a valid OAuth token";
         OnOAuthAccessGranted(m_oauth_manager.token());
-    } else if (token.refresh_expiration && (now < token.refresh_expiration.value())) {
+    } else if (token.refresh_expiration && (now < *token.refresh_expiration)) {
         QLOG_INFO() << "LoginDialog:LoginDialog() the OAuth token needs to be refreshed";
     };
 
@@ -370,10 +370,10 @@ void LoginDialog::LoginWithOAuth() {
     QLOG_INFO() << "Starting OAuth authentication";
     const QDateTime now = QDateTime::currentDateTime();
     const OAuthToken& token = m_oauth_manager.token();
-    if (token.access_expiration && (now < token.access_expiration.value())) {
+    if (token.access_expiration && (now < *token.access_expiration)) {
         m_settings.setValue("account", token.username);
         emit LoginComplete(POE_API::OAUTH);
-    } else if (token.refresh_expiration && (now < token.refresh_expiration.value())) {
+    } else if (token.refresh_expiration && (now < *token.refresh_expiration)) {
         DisplayError("The OAuth token needs to be refreshed");
     } else {
         DisplayError("You are not authenticated.");

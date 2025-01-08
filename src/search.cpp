@@ -144,7 +144,7 @@ const Bucket& Search::bucket(int row) const {
     return bucket_list[row];
 }
 
-const QModelIndex Search::index(const std::shared_ptr<Item> item) const {
+const QModelIndex Search::index(const std::shared_ptr<Item>& item) const {
     if (!item) {
         // Return an invalid index because there is no current item.
         return QModelIndex();
@@ -247,7 +247,7 @@ void Search::FilterItems(const Items& items) {
             // Add this item to the associagted "By Tab" bucket.
             const ItemLocation location = item->location();
             if (!bucketed_tabs.count(location)) {
-                bucketed_tabs.emplace(location, Bucket(location));
+                bucketed_tabs[location] = Bucket(location);
             };
             bucketed_tabs[location].AddItem(item);
         };
@@ -259,7 +259,7 @@ void Search::FilterItems(const Items& items) {
     if (!m_filtered) {
         for (auto& location : m_bo_manager.GetStashTabLocations()) {
             if (!bucketed_tabs.count(location)) {
-                bucketed_tabs.emplace(location, Bucket(location));
+                bucketed_tabs[location] = Bucket(location);
             };
         };
     };
@@ -275,7 +275,7 @@ void Search::FilterItems(const Items& items) {
     m_model.SetSorted(false);
 }
 
-void Search::RenameCaption(const QString newName) {
+void Search::RenameCaption(const QString& newName) {
     m_caption = newName;
 }
 
@@ -350,7 +350,7 @@ void Search::SaveViewProperties() {
             QModelIndex index = m_model.index(row, 0, QModelIndex());
             if (index.isValid() && m_view.isExpanded(index)) {
                 if (has_bucket(row)) {
-                    m_expanded_property.insert(bucket(row).location().GetHeader());
+                    m_expanded_property.emplace(bucket(row).location().GetHeader());
                 };
             };
         };

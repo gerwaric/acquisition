@@ -148,10 +148,10 @@ void RePoE::BeginUpdate() {
     m_needed_files.clear();
     m_needed_files.reserve(REPOE_FILES.size() + STAT_TRANSLATIONS.size());
     for (const auto& filename : REPOE_FILES) {
-        m_needed_files.push_back(QString(filename));
+        m_needed_files.emplace_back(filename);
     };
     for (const auto& filename : STAT_TRANSLATIONS) {
-        m_needed_files.push_back(QString(filename));
+        m_needed_files.emplace_back(filename);
     };
     RequestNextFile();
 }

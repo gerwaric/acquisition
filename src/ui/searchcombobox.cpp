@@ -43,9 +43,9 @@ int SearchComboStyle::styleHint(StyleHint hint, const QStyleOption* option, cons
     };
 }
 
-SearchComboBox::SearchComboBox(QAbstractItemModel* model, QWidget* parent) :
-    QComboBox(parent),
-    m_completer(model, this)
+SearchComboBox::SearchComboBox(QAbstractItemModel* model, QWidget* parent)
+    : QComboBox(parent)
+    , m_completer(model, this)
 {
     setEditable(true);
     setModel(model);

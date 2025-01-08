@@ -57,7 +57,7 @@ public:
     const Items& items() const { return m_items; }
     const std::vector<std::unique_ptr<Column>>& columns() const { return m_columns; }
     const std::vector<Bucket>& buckets() const;
-    void RenameCaption(const QString newName);
+    void RenameCaption(const QString& newName);
     QString GetCaption() const;
     // Sets this search as current, will display items in passed QTreeView.
     void Activate(const Items& items);
@@ -68,7 +68,7 @@ public:
     ViewMode GetViewMode() const { return m_current_mode; }
     bool has_bucket(int row) const;
     const Bucket& bucket(int row) const;
-    const QModelIndex index(const std::shared_ptr<Item> item) const;
+    const QModelIndex index(const std::shared_ptr<Item>& item) const;
     void SetRefreshReason(RefreshReason::Type reason) { m_refresh_reason = reason; }
     void Sort(int column, Qt::SortOrder order);
 private:

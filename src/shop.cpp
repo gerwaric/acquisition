@@ -421,7 +421,7 @@ void Shop::OnEditPageFinished() {
     reply->deleteLater();
 }
 
-void Shop::SubmitNextShop(const QString title, const QString hash)
+void Shop::SubmitNextShop(const QString& title, const QString& hash)
 {
     QLOG_DEBUG() << "Shop: submitting the next shop.";
 

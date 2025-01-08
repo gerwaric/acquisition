@@ -58,7 +58,7 @@ public:
 private:
     Type type;
 };
-QDebug& operator<<(QDebug& os, const RefreshReason::Type& obj);
+QDebug& operator<<(QDebug& os, const RefreshReason::Type obj);
 
 class TabSelection {
     Q_GADGET
@@ -72,9 +72,9 @@ public:
 private:
     Type type;
 };
-QDebug& operator<<(QDebug& os, const TabSelection::Type& obj);
+QDebug& operator<<(QDebug& os, const TabSelection::Type obj);
 
-QDebug& operator<<(QDebug& os, const QsLogging::Level& obj);
+QDebug& operator<<(QDebug& os, const QsLogging::Level obj);
 
 namespace Util {
 
@@ -113,11 +113,11 @@ namespace Util {
 
     QString Capitalise(const QString& str);
 
-    QString TimeAgoInWords(const QDateTime buyout_time);
+    QString TimeAgoInWords(const QDateTime& buyout_time);
 
     QString Decode(const QString& entity);
 
-    QUrlQuery EncodeQueryItems(const std::list<std::pair<QString, QString>>& items);
+    QUrlQuery EncodeQueryItems(const std::vector<std::pair<QString, QString>>& items);
 
     void unique_elements(std::vector<QString>& vec);
 
