@@ -363,8 +363,12 @@ void Application::SetTheme(const QString& theme) {
         QLOG_TRACE() << "Application::OnSetTheme() loading stylesheet:" << stylesheet;
         QFile f(stylesheet);
         if (f.exists()) {
-            f.open(QFile::ReadOnly | QFile::Text);
-            style_data = f.readAll();
+            if (!f.open(QFile::ReadOnly | QFile::Text)) {
+                QLOG_ERROR() << "Error loading stylesheet (" + stylesheet + "):" << f.errorString();
+            } else {
+                style_data = f.readAll();
+                f.close();
+            };
         } else {
             QLOG_ERROR() << "Style sheet not found:" << stylesheet;
         };
