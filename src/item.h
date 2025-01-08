@@ -117,7 +117,6 @@ public:
     const QString& json() const { return m_json; }
     const QString& note() const { return m_note; }
     const QString& category() const { return m_category; }
-    const std::vector<QString>& category_vector() const { return m_category_vector; }
     uint talisman_tier() const { return m_talisman_tier; }
     int count() const { return m_count; }
     const ModTable& mod_table() const { return m_mod_table; }
@@ -140,7 +139,6 @@ private:
     QString m_typeLine;
     QString m_baseType;
     QString m_category;
-    std::vector<QString> m_category_vector;
     bool m_identified{ true };
     bool m_corrupted{ false };
     bool m_crafted{ false };
