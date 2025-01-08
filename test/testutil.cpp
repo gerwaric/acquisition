@@ -25,7 +25,7 @@
 
 const double kDelta = 1e-6;
 
-#define QCOMPAREDOUBLE(a, b) QVERIFY(a - kDelta <= b && b <= a + kDelta)
+#define QCOMPAREDOUBLE(a, b) QVERIFY(((a) - kDelta <= (b)) && ((b) <= (a) + kDelta))
 
 void TestUtil::TestModMatcher() {
     double result = 0.0;

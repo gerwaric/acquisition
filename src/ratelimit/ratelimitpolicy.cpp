@@ -298,13 +298,11 @@ QDateTime RateLimitPolicy::EstimateDuration(int num_requests, int minimum_delay_
     QLOG_TRACE() << "RateLimit::Policy::EstimateDuration() entered";
 
     int longest_wait = 0;
-    while (true) {
-        for (const auto& rule : m_rules) {
-            for (const auto& item : rule.items()) {
-                const int wait = item.EstimateDuration(num_requests, minimum_delay_msec);
-                if (longest_wait < wait) {
-                    longest_wait = wait;
-                };
+    for (const auto& rule : m_rules) {
+        for (const auto& item : rule.items()) {
+            const int wait = item.EstimateDuration(num_requests, minimum_delay_msec);
+            if (longest_wait < wait) {
+                longest_wait = wait;
             };
         };
     };

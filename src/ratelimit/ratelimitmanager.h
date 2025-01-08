@@ -53,7 +53,7 @@ public:
     // Move a request into to this manager's queue.
     void QueueRequest(
         const QString& endpoint,
-        const QNetworkRequest request,
+        const QNetworkRequest& request,
         RateLimitedReply* reply);
 
     void Update(QNetworkReply* reply);

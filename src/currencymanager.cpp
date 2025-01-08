@@ -41,7 +41,8 @@ CurrencyManager::CurrencyManager(
     QSettings& settings,
     DataStore& datastore,
     ItemsManager& items_manager)
-    : m_settings(settings)
+    : QObject()
+    , m_settings(settings)
     , m_data(datastore)
     , m_items_manager(items_manager)
 {
@@ -274,8 +275,9 @@ void CurrencyManager::DisplayCurrency() {
 }
 
 
-CurrencyWidget::CurrencyWidget(std::shared_ptr<CurrencyItem> currency) :
-    m_currency(currency)
+CurrencyWidget::CurrencyWidget(std::shared_ptr<CurrencyItem> currency)
+    : QWidget()
+    , m_currency(currency)
 {
     name = new QLabel("");
     count = new QLabel("");
@@ -305,15 +307,17 @@ void CurrencyWidget::UpdateVisual(bool show_chaos, bool show_exalt) {
 }
 
 void CurrencyWidget::Update() {
-    m_currency->chaos.value1 = chaos_ratio->value();
-    m_currency->exalt.value1 = exalt_ratio->value();
+    auto& chaos = m_currency->chaos;
+    auto& exalt = m_currency->exalt;
+    chaos.value1 = chaos_ratio->value();
+    exalt.value1 = exalt_ratio->value();
     name->setText(m_currency->name);
     count->setText(QString::number(m_currency->count));
-    if (fabs(m_currency->chaos.value1) > EPS) {
-        chaos_value->setValue(m_currency->count / m_currency->chaos.value1);
+    if (fabs(chaos.value1) > EPS) {
+        chaos_value->setValue(m_currency->count / chaos.value1);
     };
-    if (fabs(m_currency->exalt.value1) > EPS) {
-        exalt_value->setValue(m_currency->count / m_currency->exalt.value1);
+    if (fabs(exalt.value1) > EPS) {
+        exalt_value->setValue(m_currency->count / exalt.value1);
     };
 }
 

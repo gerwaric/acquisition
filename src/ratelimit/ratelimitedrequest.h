@@ -37,8 +37,6 @@ struct RateLimitedRequest {
         reply(reply_) {
     }
 
-    ~RateLimitedRequest();
-
     // Unique identified for each request, even through different requests can be
     // routed to different policy managers based on different endpoints.
     const unsigned long id;

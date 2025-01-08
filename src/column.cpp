@@ -227,8 +227,11 @@ QString PropertyColumn::name() const {
 }
 
 QVariant PropertyColumn::value(const Item& item) const {
-    if (item.properties().count(m_property))
-        return item.properties().find(m_property)->second;
+    const auto& properties = item.properties();
+    const auto result = properties.find(m_property);
+    if (result != properties.end()) {
+        return result->second;
+    };
     return QVariant();
 }
 
@@ -303,8 +306,11 @@ QString ChaosDamageColumn::name() const {
 }
 
 QVariant ChaosDamageColumn::value(const Item& item) const {
-    if (item.properties().count("Chaos Damage"))
-        return item.properties().find("Chaos Damage")->second;
+    const auto& properties = item.properties();
+    const auto result = properties.find(QStringLiteral("Chaos Damage"));
+    if (result != properties.end()) {
+        return result->second;
+    };
     return QVariant();
 }
 

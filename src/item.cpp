@@ -239,7 +239,7 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
                 for (auto& value : values) {
                     if (value.IsArray() && value.Size() >= 2) {
                         if (value[0].IsString() && value[1].IsInt()) {
-                            m_elemental_damage.push_back(std::make_pair(value[0].GetString(), value[1].GetInt()));
+                            m_elemental_damage.emplace_back(value[0].GetString(), value[1].GetInt());
                         };
                     };
                 };
@@ -349,11 +349,12 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
     CalculateHash(json);
 
     m_count = 1;
-    if (m_properties.find("Stack Size") != m_properties.end()) {
-        QString size = m_properties["Stack Size"];
-        if (size.contains("/")) {
-            const auto n = size.indexOf("/");
-            m_count = size.first(n).toInt();
+    auto it = m_properties.find(QStringLiteral("Stack Size"));
+    if (it != m_properties.end()) {
+        QString stack_size = it->second;
+        if (stack_size.contains("/")) {
+            const auto n = stack_size.indexOf("/");
+            m_count = stack_size.first(n).toInt();
         };
     };
 
@@ -395,35 +396,51 @@ double Item::DPS() const {
 }
 
 double Item::pDPS() const {
-    if (!m_properties.count("Physical Damage") || !m_properties.count("Attacks per Second")) {
+    
+    auto phys = m_properties.find(QStringLiteral("Physical Damage"));
+    if (phys == m_properties.end()) {
         return 0;
     };
-    double aps = m_properties.at("Attacks per Second").toDouble();
-    QString pd = m_properties.at("Physical Damage");
-
-    return aps * Util::AverageDamage(pd);
+    auto aps = m_properties.find(QStringLiteral("Attacks per Second"));
+    if (aps == m_properties.end()) {
+        return 0;
+    };
+    const double attacks = aps->second.toDouble();
+    QString hit = phys->second;
+    return attacks * Util::AverageDamage(hit);
 }
 
 double Item::eDPS() const {
-    if (m_elemental_damage.empty() || !m_properties.count("Attacks per Second")) {
+    if (m_elemental_damage.empty()) {
+        return 0;
+    };
+    auto aps = m_properties.find(QStringLiteral("Attacks per Second"));
+    if (aps == m_properties.end()) {
         return 0;
     };
     double damage = 0;
     for (auto& x : m_elemental_damage) {
         damage += Util::AverageDamage(x.first);
     };
-    double aps = m_properties.at("Attacks per Second").toDouble();
-    return aps * damage;
+    const double attacks = aps->second.toDouble();
+    return attacks * damage;
 }
 
 double Item::cDPS() const {
-    if (!m_properties.count("Chaos Damage") || !m_properties.count("Attacks per Second")) {
+
+    auto chaos = m_properties.find(QStringLiteral("Chaos Damage"));
+    if (chaos == m_properties.end()) {
         return 0;
     };
-    double aps = m_properties.at("Attacks per Second").toDouble();
-    QString cd = m_properties.at("Chaos Damage");
 
-    return aps * Util::AverageDamage(cd);
+    auto aps = m_properties.find(QStringLiteral("Attacks per Second"));
+    if (aps == m_properties.end()) {
+        return 0;
+    };
+    double attacks = aps->second.toDouble();
+    QString hit = chaos->second;
+
+    return attacks * Util::AverageDamage(hit);
 }
 
 void Item::GenerateMods(const rapidjson::Value& json) {
@@ -525,8 +542,9 @@ QString Item::POBformat() const {
     pob << "\nUnique ID: " << m_uid.toStdString();
     pob << "\nItem Level: " << m_ilvl;
 
-    if (m_properties.count("Quality") > 0) {
-        QString quality = m_properties.at("Quality");
+    auto qual = m_properties.find(QStringLiteral("Quality"));
+    if (qual != m_properties.end()) {
+        QString quality = qual->second;
         if (quality.startsWith("+")) {
             quality.slice(1);
         };
@@ -558,8 +576,9 @@ QString Item::POBformat() const {
         };
     };
 
-    if (m_requirements.count("Level") > 0) {
-        pob << "\nLevelReq: " << m_requirements.at("Level");
+    auto lvl = m_requirements.find(QStringLiteral("Level"));
+    if (lvl != m_requirements.end()) {
+        pob << "\nLevelReq: " << lvl->second;
     };
 
     auto& mods = text_mods();

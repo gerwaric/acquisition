@@ -23,5 +23,3 @@
 
 // Total number of rate-limited requests that have been created.
 unsigned long RateLimitedRequest::s_request_count = 0;
-
-RateLimitedRequest::~RateLimitedRequest() {}

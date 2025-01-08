@@ -125,7 +125,7 @@ private:
     std::map<QDateTime, QString> m_pauses;
 
     std::list<std::unique_ptr<RateLimitManager>> m_managers;
-    std::map<const QString, RateLimitManager&> m_manager_by_policy;
-    std::map<const QString, RateLimitManager&> m_manager_by_endpoint;
+    std::map<const QString, RateLimitManager*> m_manager_by_policy;
+    std::map<const QString, RateLimitManager*> m_manager_by_endpoint;
 
 };

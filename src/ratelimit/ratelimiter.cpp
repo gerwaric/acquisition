@@ -107,7 +107,7 @@ RateLimitedReply* RateLimiter::Submit(
     if (it != m_manager_by_endpoint.end()) {
 
         // This endpoint is handled by an existing policy manager.
-        RateLimitManager& manager = it->second;
+        RateLimitManager& manager = *it->second;
         QLOG_DEBUG() << manager.policy().name() << "is handling" << endpoint;
         manager.QueueRequest(endpoint, network_request, reply);
 
@@ -305,19 +305,19 @@ RateLimitManager& RateLimiter::GetManager(
         QLOG_DEBUG() << "Creating rate limit policy" << policy_name << "for" << endpoint;
         auto sender = boost::bind(&RateLimiter::SendRequest, this, boost::placeholders::_1);
         auto mgr = std::make_unique<RateLimitManager>(sender);
-        auto& manager = *m_managers.emplace_back(std::move(mgr));
-        connect(&manager, &RateLimitManager::PolicyUpdated, this, &RateLimiter::OnPolicyUpdated);
-        connect(&manager, &RateLimitManager::QueueUpdated, this, &RateLimiter::OnQueueUpdated);
-        connect(&manager, &RateLimitManager::Paused, this, &RateLimiter::OnManagerPaused);
-        m_manager_by_policy.emplace(policy_name, manager);
-        m_manager_by_endpoint.emplace(endpoint, manager);
-        return manager;
+        auto& manager = m_managers.emplace_back(std::move(mgr));
+        connect(manager.get(), &RateLimitManager::PolicyUpdated, this, &RateLimiter::OnPolicyUpdated);
+        connect(manager.get(), &RateLimitManager::QueueUpdated, this, &RateLimiter::OnQueueUpdated);
+        connect(manager.get(), &RateLimitManager::Paused, this, &RateLimiter::OnManagerPaused);
+        m_manager_by_policy[policy_name] = manager.get();
+        m_manager_by_endpoint[endpoint] = manager.get();
+        return *manager;
     } else {
         // Use an existing policy manager.
         QLOG_DEBUG() << "Using an existing rate limit policy" << policy_name << "for" << endpoint;
-        RateLimitManager& manager = it->second;
-        m_manager_by_endpoint.emplace(endpoint, manager);
-        return manager;
+        RateLimitManager* manager = it->second;
+        m_manager_by_endpoint[endpoint] = manager;
+        return *manager;
     };
 }
 
@@ -352,7 +352,7 @@ void RateLimiter::OnManagerPaused(const QString& policy_name, const QDateTime& u
     QLOG_TRACE() << "RateLimiter::OnManagerPaused()"
         << "pausing until" << until.toString()
         << "for" << policy_name;
-    m_pauses.emplace(until, policy_name);
+    m_pauses[until] = policy_name;
     m_update_timer.start();
 }
 

@@ -41,17 +41,17 @@ struct CurrencyRatio {
     Currency curr2;
     double value1;
     double value2;
-    CurrencyRatio() :
-        curr1(CURRENCY_NONE),
-        curr2(CURRENCY_NONE),
-        value1(0),
-        value2(0)
+    CurrencyRatio()
+        : curr1(CURRENCY_NONE)
+        , curr2(CURRENCY_NONE)
+        , value1(0)
+        , value2(0)
     {}
-    CurrencyRatio(Currency c1, Currency c2, double v1, double v2) :
-        curr1(c1),
-        curr2(c2),
-        value1(v1),
-        value2(v2)
+    CurrencyRatio(Currency c1, Currency c2, double v1, double v2)
+        : curr1(c1)
+        , curr2(c2)
+        , value1(v1)
+        , value2(v2)
     {}
 };
 
@@ -61,14 +61,13 @@ struct CurrencyItem {
     QString name;
     CurrencyRatio exalt;
     CurrencyRatio chaos;
-    CurrencyItem(int co, Currency curr, double chaos_ratio, double exalt_ratio) {
-        count = co;
-        currency = curr;
-        name = curr.AsString();
-        chaos = CurrencyRatio(currency, CURRENCY_CHAOS_ORB, chaos_ratio, 1);
-        exalt = CurrencyRatio(currency, CURRENCY_EXALTED_ORB, exalt_ratio, 1);
-    }
-
+    CurrencyItem(int co, Currency curr, double chaos_ratio, double exalt_ratio)
+        : count(co)
+        , currency(curr)
+        , name(curr.AsString())
+        , chaos(curr, CURRENCY_CHAOS_ORB, chaos_ratio, 1)
+        , exalt(curr, CURRENCY_EXALTED_ORB, exalt_ratio, 1)
+    {};
 };
 struct CurrencyLabels {
     QLabel* name;

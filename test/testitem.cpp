@@ -36,14 +36,19 @@ void TestItem::testBasicParsing() {
     QCOMPARE(item.typeLine(), "Vaal Mask");
     QCOMPARE(item.frameType(), 2);
 
-    QCOMPARE(item.sockets().b, 2);
-    QCOMPARE(item.sockets().g, 2);
-    QCOMPARE(item.sockets().r, 0);
-    QCOMPARE(item.sockets().w, 0);
+    const auto& sockets = item.sockets();
+    QCOMPARE(sockets.b, 2);
+    QCOMPARE(sockets.g, 2);
+    QCOMPARE(sockets.r, 0);
+    QCOMPARE(sockets.w, 0);
 
-    QVERIFY(item.requirements().count("Level") > 0);
-    if (item.requirements().count("Level") > 0) {
-        QVERIFY(item.requirements().at("Level"), 69);
+    const auto& requirements = item.requirements();
+    auto it = requirements.find(QStringLiteral("Level"));
+    if (it == requirements.end()) {
+        QVERIFY(false);
+    } else {
+        const int required_level = it->second;
+        QVERIFY(required_level, 69);
     };
     
     // the hash should be the same between different versions of Acquisition and OSes

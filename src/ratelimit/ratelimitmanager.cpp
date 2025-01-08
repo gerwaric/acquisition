@@ -251,7 +251,7 @@ void RateLimitManager::Update(QNetworkReply* reply) {
 // manager busy and causing subsequent requests to be queued.
 void RateLimitManager::QueueRequest(
     const QString& endpoint,
-    const QNetworkRequest network_request,
+    const QNetworkRequest& network_request,
     RateLimitedReply* reply)
 {
     QLOG_TRACE() << "RateLimitManager::QueueRequest() entered";

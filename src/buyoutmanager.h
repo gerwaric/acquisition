@@ -51,7 +51,7 @@ public:
     void ClearRefreshLocks();
 
     void SetStashTabLocations(const std::vector<ItemLocation>& tabs);
-    const std::vector<ItemLocation> GetStashTabLocations() const;
+    const std::vector<ItemLocation>& GetStashTabLocations() const;
     void Clear();
 
     Buyout StringToBuyout(QString);

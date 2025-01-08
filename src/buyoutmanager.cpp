@@ -63,7 +63,7 @@ void BuyoutManager::Set(const Item& item, const Buyout& buyout) {
         };
     } else {
         m_save_needed = true;
-        m_buyouts.insert(it, { item.hash(), buyout });
+        m_buyouts[item.hash()] = buyout;
     };
 }
 
@@ -104,7 +104,7 @@ void BuyoutManager::SetTab(const QString& tab, const Buyout& buyout) {
         };
     } else {
         m_save_needed = true;
-        m_tab_buyouts.insert(it, { tab, buyout });
+        m_tab_buyouts[tab] = buyout;
     };
 }
 
@@ -114,7 +114,7 @@ void BuyoutManager::CompressTabBuyouts() {
     // currently exist.
     std::set<QString> tmp;
     for (auto const& loc : m_tabs)
-        tmp.insert(loc.GetUniqueHash());
+        tmp.emplace(loc.GetUniqueHash());
 
     for (auto it = m_tab_buyouts.begin(), ite = m_tab_buyouts.end(); it != ite;) {
         if (tmp.count(it->first) == 0) {
@@ -161,7 +161,7 @@ bool BuyoutManager::GetRefreshLocked(const ItemLocation& loc) const {
 }
 
 void BuyoutManager::SetRefreshLocked(const ItemLocation& loc) {
-    m_refresh_locked.insert(loc.GetUniqueHash());
+    m_refresh_locked.emplace(loc.GetUniqueHash());
 }
 
 void BuyoutManager::ClearRefreshLocks() {
@@ -308,7 +308,7 @@ void BuyoutManager::SetStashTabLocations(const std::vector<ItemLocation>& tabs) 
     m_tabs = tabs;
 }
 
-const std::vector<ItemLocation> BuyoutManager::GetStashTabLocations() const {
+const std::vector<ItemLocation>& BuyoutManager::GetStashTabLocations() const {
     return m_tabs;
 }
 
