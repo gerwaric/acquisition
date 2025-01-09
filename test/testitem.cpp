@@ -29,7 +29,7 @@
 
 void TestItem::testBasicParsing() {
 
-    Item item = parseItem(kItem1);
+    const Item item = parseItem(kItem1);
 
     // no need to check everything, just some basic properties
 	QCOMPARE(item.name(), "Chimeric Crest");
@@ -43,12 +43,12 @@ void TestItem::testBasicParsing() {
     QCOMPARE(sockets.w, 0);
 
     const auto& requirements = item.requirements();
-    auto it = requirements.find(QStringLiteral("Level"));
+    const auto it = requirements.find(QStringLiteral("Level"));
     if (it == requirements.end()) {
         QVERIFY(false);
     } else {
         const int required_level = it->second;
-        QVERIFY(required_level, 69);
+        QCOMPARE(required_level, 69);
     };
     
     // the hash should be the same between different versions of Acquisition and OSes
