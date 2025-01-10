@@ -32,6 +32,7 @@
 #include <QsLog/QsLog.h>
 
 #include "datastore/sqlitedatastore.h"
+#include "legacy/legacydatastore.h"
 #include "ratelimit/ratelimiter.h"
 #include "ratelimit/ratelimitmanager.h"
 #include "ui/logindialog.h"
@@ -42,7 +43,6 @@
 #include "util/repoe.h"
 #include "util/updatechecker.h"
 
-#include "buyouthelper.h"
 #include "buyoutmanager.h"
 #include "currencymanager.h"
 #include "imagecache.h"
@@ -60,9 +60,6 @@ Application::Application(const QDir& appDataDir) {
 
     QLOG_TRACE() << "Application::Application() creating RePoE";
     m_repoe = std::make_unique<RePoE>(network_manager());
-
-    QLOG_TRACE() << "Application::Application() creating BuyoutHelper";
-    m_buyout_helper = std::make_unique<BuyoutHelper>();
 
     InitUserDir(appDataDir.absolutePath());
     InitCrashReporting();
@@ -405,7 +402,8 @@ void Application::InitLogin(POE_API mode)
     QLOG_TRACE() << "Application::InitLogin() data_path =" << data_path;
 
     QLOG_TRACE() << "Application::InitLogin() validating buyouts";
-    m_buyout_helper->validate(data_path);
+    LegacyDataStore legacy(data_path);
+    legacy.validate();
 
     m_data = std::make_unique<SqliteDataStore>(data_path);
     SaveDbOnNewVersion();

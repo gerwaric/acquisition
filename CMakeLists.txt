@@ -88,8 +88,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/application.cpp
     src/bucket.cpp
     src/buyout.cpp
-    src/buyouthelper.cpp
-    src/buyouthelperprivate.cpp
     src/buyoutmanager.cpp
     src/column.cpp
     src/currency.cpp
@@ -107,6 +105,8 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/items_model.cpp
     src/itemsmanager.cpp
     src/itemsmanagerworker.cpp
+    src/legacy/legacydatastore.cpp
+    src/legacy/legacyitem.cpp
     src/main.cpp
     src/modlist.cpp
     src/modsfilter.cpp
@@ -143,8 +143,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/application.h
     src/bucket.h
     src/buyout.h
-    src/buyouthelper.h
-    src/buyouthelperprivate.h
     src/buyoutmanager.h
     src/column.h
     src/currency.h
@@ -162,6 +160,12 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/items_model.h
     src/itemsmanager.h
     src/itemsmanagerworker.h
+    src/legacy/legacybuyout.h
+    src/legacy/legacycharacter.h
+    src/legacy/legacycurrency.h
+    src/legacy/legacydatastore.h
+    src/legacy/legacyitem.h
+    src/legacy/legacystash.h
     src/modlist.h
     src/modsfilter.h
     src/network_info.h
