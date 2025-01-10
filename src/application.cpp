@@ -22,11 +22,11 @@
 #include <QAction>
 #include <QApplication>
 #include <QDir>
+#include <QFileDialog>
 #include <QMessageBox>
 #include <QNetworkAccessManager>
 #include <QNetworkCookieJar>
 #include <QSettings>
-#include <QTemporaryFile>
 #include <QtHttpServer/QHttpServer>
 
 #include <QsLog/QsLog.h>
@@ -404,6 +404,9 @@ void Application::InitLogin(POE_API mode)
     QLOG_TRACE() << "Application::InitLogin() validating buyouts";
     LegacyDataStore legacy(data_path);
     legacy.validate();
+    
+    const QString exportfile = QFileDialog::getSaveFileName(nullptr, "Export Data", QString(), "*.tgz");
+    legacy.exportTo(exportfile, LegacyDataStore::ExportFormat::TGZ);
 
     m_data = std::make_unique<SqliteDataStore>(data_path);
     SaveDbOnNewVersion();

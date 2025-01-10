@@ -36,6 +36,8 @@ class LegacyDataStore {
 
 public:
 
+    enum class ExportFormat : int { JSON, TGZ };
+
     enum class ValidationStatus {
         Valid,
         Invalid
@@ -73,11 +75,13 @@ public:
 
     LegacyDataStore(const QString& filename);
     LegacyDataStore::ValidationStatus validate();
-    void exportJson(const QString& filename);
+    void exportTo(const QString& filename, ExportFormat format);
 
 private:
     void validateTabBuyouts();
     void validateItemBuyouts();
+    void exportJson(const QString& filename);
+    void exportTgz(const QString& filename);
 
     const Imported m_datastore;
 

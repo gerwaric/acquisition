@@ -19,10 +19,13 @@
 
 #include "legacydatastore.h"
 
+#include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QProcess>
 #include <QSqlError>
 #include <QSqlQuery>
+#include <QTemporaryDir>
 
 namespace {
 
@@ -147,33 +150,15 @@ LegacyDataStore::ValidationStatus LegacyDataStore::validate() {
     return LegacyDataStore::ValidationStatus::Valid;
 }
 
-void LegacyDataStore::exportJson(const QString& filename) {
-
-    QFile file(filename + ".temp");
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QLOG_ERROR() << "LegacyDataStore: unable to open output file ('" + filename << "'):" << file.errorString();
-        return;
+void LegacyDataStore::exportTo(const QString& filename, ExportFormat format)
+{
+    switch (format) {
+    case ExportFormat::JSON: exportJson(filename); break;
+    case ExportFormat::TGZ: exportTgz(filename); break;
+    default:
+        QLOG_ERROR() << "Unhandled export format:" << static_cast<int>(format);
+        break;
     };
-    file.write(QByteArray(JS::serializeStruct(m_datastore, JS::SerializerOptions::Compact)));
-    file.close();
-
-    QProcess process;
-#ifdef Q_OS_WINDOWS
-    QString command = "tar";
-    QStringList arguments = { "czvf", filename, (filename + ".temp") };
-#else
-    QString command = "tgz"; // zip command on Linux/macOS
-    QStringList arguments = { "czvf", filename, (filename + ".temp") };
-#endif
-
-    process.start(command, arguments);
-    if (!process.waitForFinished()) {
-        QLOG_ERROR() << "tar failed:" << process.errorString();
-    };
-    if (process.exitCode() != 0) {
-        QLOG_ERROR() << "tar non-zero exit code:" << process.errorString();
-    };
-    file.remove();
 }
 
 void LegacyDataStore::validateTabBuyouts() {
@@ -299,4 +284,48 @@ void LegacyDataStore::validateItemBuyouts() {
     if (orphaned_buyouts.size() > 0) {
         QLOG_WARN() << "Found" << locale.toString(orphaned_buyouts.size()) << "orphaned item buyouts";
     };
+}
+
+
+void LegacyDataStore::exportJson(const QString& filename) {
+    QFile file(filename);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QLOG_ERROR() << "Export failed: could not open json file:" << file.errorString();
+        return;
+    };
+    const QByteArray data(JS::serializeStruct(m_datastore, JS::SerializerOptions::Compact));
+    file.write(data);
+    file.close();
+}
+
+void LegacyDataStore::exportTgz(const QString& filename) {
+
+    // Use a temporary working directory.
+    QTemporaryDir dir;
+    if (!dir.isValid()) {
+        QLOG_ERROR() << "Export failed: could not create a temporary directory:" << dir.errorString();
+        return;
+    };
+
+    const QString basename = "export_data.json";
+    const QString tempfile = dir.filePath(basename);
+
+    // First export to a temporary .json file.
+    exportJson(tempfile);
+
+    const QString command = "tar";
+    const QStringList arguments = { "czvf", filename, "-C", dir.path(), basename };
+
+    // Next compress the temporary file into a tgz.
+    QProcess process;
+    process.start(command, arguments);
+    if (!process.waitForFinished()) {
+        QLOG_ERROR() << "Export failed: process failed:" << process.errorString();
+    };
+    if (process.exitCode() != 0) {
+        QLOG_ERROR() << "Export failed: tar error:" << process.errorString();
+    };
+
+    // Remove the temporary .json file.
+    QFile(tempfile).remove();
 }
