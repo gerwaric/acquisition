@@ -19,11 +19,28 @@
 
 #pragma once
 
-#include <QObject>
 #include <QString>
 
-bool initializeCrashpad(
-    const QString& appDataDir,
-    const char* dbName,
-    const char* appName,
-    const char* appVersion);
+#include <map>
+#include <set>
+
+#include "legacydatastore.h"
+
+class LegacyBuyoutValidator {
+public:
+
+    enum struct ValidationResult { Valid, Invalid, Error };
+
+    LegacyBuyoutValidator(const QString& filename);
+    ValidationResult status() { return m_status; };
+
+private:
+    void validateTabBuyouts();
+    void validateItemBuyouts();
+
+    const QString m_filename;
+    const LegacyDataStore m_datastore;
+    ValidationResult m_status;
+
+    std::map<QString, std::set<QString>> m_issues;
+};

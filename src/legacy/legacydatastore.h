@@ -20,28 +20,23 @@
 #pragma once
 
 #include <QSqlDatabase>
+#include <QString>
 
-#include <set>
+#include <unordered_map>
+#include <vector>
 
 #include <json_struct/json_struct_qt.h>
 #include <QsLog/QsLog.h>
 
 #include "legacybuyout.h"
-#include "legacycurrency.h"
+// IGNORE: #include "legacycurrency.h"
 #include "legacycharacter.h"
 #include "legacyitem.h"
 #include "legacystash.h"
 
-class LegacyDataStore {
+struct LegacyDataStore {
 
-public:
-
-    enum class ExportFormat : int { JSON, TGZ };
-
-    enum class ValidationStatus {
-        Valid,
-        Invalid
-    };
+    enum class ExportFormat{ Json, Tgz };
 
     struct DataTable {
         QString db_version;
@@ -63,26 +58,17 @@ public:
     using ItemsTable = std::unordered_map<QString, std::vector<LegacyItem>>;
     // IGNORE: using CurrencyTable = std::unordered_map<unsigned long long, QString>;
 
-    struct Imported {
-        Imported(const QString& filename);
-        bool ok{ true };
-        LegacyDataStore::DataTable data;
-        LegacyDataStore::TabsTable tabs;
-        LegacyDataStore::ItemsTable items;
-        // IGNORE: LegacyDataStore::CurrencyTable currency;
-        JS_OBJ(data, tabs, items);
-    };
-
     LegacyDataStore(const QString& filename);
-    LegacyDataStore::ValidationStatus validate();
-    void exportTo(const QString& filename, ExportFormat format);
+    void exportTo(const QString& filename, LegacyDataStore::ExportFormat format);
+
+    bool ok{ true };
+    LegacyDataStore::DataTable data;
+    LegacyDataStore::TabsTable tabs;
+    LegacyDataStore::ItemsTable items;
+    // IGNORE: LegacyDataStore::CurrencyTable currency;
+    JS_OBJ(data, tabs, items);
 
 private:
-    void validateTabBuyouts();
-    void validateItemBuyouts();
     void exportJson(const QString& filename);
     void exportTgz(const QString& filename);
-
-    const Imported m_datastore;
-
 };

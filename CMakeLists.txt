@@ -105,6 +105,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/items_model.cpp
     src/itemsmanager.cpp
     src/itemsmanagerworker.cpp
+    src/legacy/legacybuyoutvalidator.cpp
     src/legacy/legacydatastore.cpp
     src/legacy/legacyitem.cpp
     src/main.cpp
@@ -161,6 +162,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/itemsmanager.h
     src/itemsmanagerworker.h
     src/legacy/legacybuyout.h
+    src/legacy/legacybuyoutvalidator.h
     src/legacy/legacycharacter.h
     src/legacy/legacycurrency.h
     src/legacy/legacydatastore.h

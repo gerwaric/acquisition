@@ -83,7 +83,7 @@ namespace {
 
 //-------------------------------------------------------------------------------------------
 
-LegacyDataStore::Imported::Imported(const QString& filename) {
+LegacyDataStore::LegacyDataStore(const QString& filename) {
 
     if (!QFile::exists(filename)) {
         ok = false;
@@ -139,153 +139,16 @@ LegacyDataStore::Imported::Imported(const QString& filename) {
     db.removeDatabase("LegacyDataStore");
 }
 
-
-LegacyDataStore::LegacyDataStore(const QString& filename)
-    : m_datastore(filename)
-{}
-
-LegacyDataStore::ValidationStatus LegacyDataStore::validate() {
-    validateTabBuyouts();
-    validateItemBuyouts();
-    return LegacyDataStore::ValidationStatus::Valid;
-}
-
 void LegacyDataStore::exportTo(const QString& filename, ExportFormat format)
 {
     switch (format) {
-    case ExportFormat::JSON: exportJson(filename); break;
-    case ExportFormat::TGZ: exportTgz(filename); break;
+    case ExportFormat::Json: exportJson(filename); break;
+    case ExportFormat::Tgz: exportTgz(filename); break;
     default:
         QLOG_ERROR() << "Unhandled export format:" << static_cast<int>(format);
         break;
     };
 }
-
-void LegacyDataStore::validateTabBuyouts() {
-
-    const auto& stashes = m_datastore.tabs.stashes;
-    const auto& characters = m_datastore.tabs.characters;
-    const auto& buyouts = m_datastore.data.tab_buyouts;
-
-    QLocale locale = QLocale::system();
-    QLOG_INFO() << "Validating tab buyouts:";
-    QLOG_INFO() << "Found" << locale.toString(stashes.size()) << "stash tabs";
-    QLOG_INFO() << "Found" << locale.toString(characters.size()) << "characters";
-    QLOG_INFO() << "Found" << locale.toString(buyouts.size()) << "tab buyouts";
-
-    using Location = QString;
-
-    std::set<Location> all_locations;
-    std::set<Location> duplicated_locations;
-    std::set<Location> duplicated_buyouts;
-    std::set<Location> ambiguous_buyouts;
-    std::set<Location> matched_buyouts;
-    std::set<Location> orphaned_buyouts;
-
-    // Add stash tab location tags.
-    for (const auto& location : stashes) {
-        const Location tag = "stash:" + location.name;
-        if (all_locations.count(tag) <= 0) {
-            all_locations.insert(tag);
-        } else {
-            duplicated_locations.insert(tag);
-        };
-    };
-
-    // Add character location tags.
-    for (const auto& location : characters) {
-        const Location tag = "character:" + location.name;
-        if (all_locations.count(tag) <= 0) {
-            all_locations.insert(tag);
-        } else {
-            duplicated_locations.insert(tag);
-        };
-    };
-
-    // Validate all the tab buyouts.
-    for (const auto& buyout : buyouts) {
-        const Location& tag = buyout.first;
-        if (matched_buyouts.count(tag) > 0) {
-            duplicated_buyouts.insert(tag);
-        } else if (all_locations.count(tag) > 0) {
-            matched_buyouts.insert(tag);
-        } else {
-            orphaned_buyouts.insert(tag);
-        };
-        // If the location tag is one of the duplicated locations,
-        // then we don't know which tab this buyout really belongs to.
-        if (duplicated_locations.count(tag) > 0) {
-            ambiguous_buyouts.insert(tag);
-        };
-    };
-
-    if (duplicated_buyouts.size() > 0) {
-        QLOG_WARN() << "Found" << locale.toString(duplicated_buyouts.size()) << "duplicated tab buyouts";
-    };
-    if (ambiguous_buyouts.size() > 0) {
-        QLOG_WARN() << "Found" << locale.toString(ambiguous_buyouts.size()) << "ambiguous tab buyouts";
-    };
-    if (orphaned_buyouts.size() > 0) {
-        QLOG_WARN() << "Found" << locale.toString(orphaned_buyouts.size()) << "orphaned buyouts";
-    };
-}
-
-void LegacyDataStore::validateItemBuyouts() {
-
-    const auto& collections = m_datastore.items;
-    const auto& buyouts = m_datastore.data.buyouts;
-
-    QLocale locale = QLocale::system();
-    QLOG_INFO() << "Validating item buyouts";
-    QLOG_INFO() << "Found" << locale.toString(buyouts.size()) << "item buyouts";
-
-    using BuyoutHash = QString;
-
-    std::set<BuyoutHash> unique_buyouts;
-    std::set<BuyoutHash> duplicated_buyouts;
-    std::set<BuyoutHash> matched_buyouts;
-    std::set<BuyoutHash> orphaned_buyouts;
-
-    for (const auto& pair : buyouts) {
-        const BuyoutHash& hash = pair.first;
-        if (unique_buyouts.count(hash) <= 0) {
-            unique_buyouts.insert(hash);
-        } else {
-            duplicated_buyouts.insert(hash);
-        };
-    };
-
-    size_t item_count = 0;
-    for (const auto& collection : collections) {
-        const QString& loc = collection.first;
-        const std::vector<LegacyItem>& items = collection.second;
-        for (const auto& item : items) {
-            const BuyoutHash hash = item.hash();
-            if (matched_buyouts.count(hash) > 0) {
-                duplicated_buyouts.insert(hash);
-            } else if (buyouts.count(hash) > 0) {
-                matched_buyouts.insert(hash);
-            };
-        };
-        item_count += items.size();
-    };
-    QLOG_INFO() << "Found" << locale.toString(item_count) << "items";
-
-    // Now go back and make sure all of the buyouts have beem matched.
-    for (const BuyoutHash& hash : unique_buyouts) {
-        if (matched_buyouts.count(hash) <= 0) {
-            orphaned_buyouts.insert(hash);
-        };
-    };
-
-    if (duplicated_buyouts.size() > 0) {
-        QLOG_WARN() << "Found" << locale.toString(duplicated_buyouts.size()) << "duplicated item buyouts";
-    };
-    if (orphaned_buyouts.size() > 0) {
-        QLOG_WARN() << "Found" << locale.toString(orphaned_buyouts.size()) << "orphaned item buyouts";
-    };
-}
-
 
 void LegacyDataStore::exportJson(const QString& filename) {
     QFile file(filename);
@@ -293,7 +156,7 @@ void LegacyDataStore::exportJson(const QString& filename) {
         QLOG_ERROR() << "Export failed: could not open json file:" << file.errorString();
         return;
     };
-    const QByteArray data(JS::serializeStruct(m_datastore, JS::SerializerOptions::Compact));
+    const QByteArray data(JS::serializeStruct(*this, JS::SerializerOptions::Compact));
     file.write(data);
     file.close();
 }

@@ -32,7 +32,7 @@
 #include <QsLog/QsLog.h>
 
 #include "datastore/sqlitedatastore.h"
-#include "legacy/legacydatastore.h"
+#include "legacy/legacybuyoutvalidator.h"
 #include "ratelimit/ratelimiter.h"
 #include "ratelimit/ratelimitmanager.h"
 #include "ui/logindialog.h"
@@ -55,6 +55,9 @@
 Application::Application(const QDir& appDataDir) {
     QLOG_TRACE() << "Application::Application() entered";
 
+    QLOG_TRACE() << "Application::Application() initializing crashpad";
+    InitCrashReporting();
+
     QLOG_TRACE() << "Application::Application() creating QNetworkAccessManager";
     m_network_manager = std::make_unique<QNetworkAccessManager>();
 
@@ -62,7 +65,6 @@ Application::Application(const QDir& appDataDir) {
     m_repoe = std::make_unique<RePoE>(network_manager());
 
     InitUserDir(appDataDir.absolutePath());
-    InitCrashReporting();
 }
 
 void Application::InitUserDir(const QString& dir) {
@@ -401,12 +403,9 @@ void Application::InitLogin(POE_API mode)
     const QString data_path = user_dir.absoluteFilePath(data_file);
     QLOG_TRACE() << "Application::InitLogin() data_path =" << data_path;
 
-    QLOG_TRACE() << "Application::InitLogin() validating buyouts";
-    LegacyDataStore legacy(data_path);
-    legacy.validate();
-    
-    const QString exportfile = QFileDialog::getSaveFileName(nullptr, "Export Data", QString(), "*.tgz");
-    legacy.exportTo(exportfile, LegacyDataStore::ExportFormat::TGZ);
+    QLOG_INFO() << "Validating stored buyouts";
+    LegacyBuyoutValidator legacy(data_path);
+    //legacy.validate();
 
     m_data = std::make_unique<SqliteDataStore>(data_path);
     SaveDbOnNewVersion();
