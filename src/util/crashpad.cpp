@@ -61,12 +61,9 @@ constexpr const char* CRASHPAD_HANDLER = "crashpad_handler.exe";
 constexpr const char* CRASHPAD_HANDLER = "crashpad_handler";
 #endif
 
-// https://stackoverflow.com/questions/53744285/how-to-convert-between-boostfilesystempath-and-qstring
-std::filesystem::path StdPath(const QString& path)
-{
+std::filesystem::path StdPath(const QString& path) {
 #if defined(Q_OS_WINDOWS)
-    auto* wptr = reinterpret_cast<const wchar_t*>(path.utf16());
-    return std::filesystem::path(wptr, wptr + path.size());
+    return std::filesystem::path(path.toStdWString());
 #else
     return std::filesystem::path(path.toStdString());
 #endif
