@@ -41,6 +41,7 @@
 #include <libpoe/type/league.h>
 #include <QsLog/QsLog.h>
 
+#include "legacy/legacybuyoutvalidator.h"
 #include "util/crashpad.h"
 #include "util/util.h"
 #include "util/updatechecker.h"

@@ -19,26 +19,132 @@
 
 #include "legacybuyoutvalidator.h"
 
-LegacyBuyoutValidator::LegacyBuyoutValidator(const QString& filename)
-    : m_filename(filename)
+#include <QCheckBox>
+#include <QDesktopServices>
+#include <QDialog>
+#include <QDir>
+#include <QFileInfo>
+#include <QLabel>
+#include <QLayout>
+#include <QLineEdit>
+#include <QMessageBox>
+#include <QPushButton>
+#include <QTextEdit>
+
+#include "version_defines.h"
+
+const QString LegacyBuyoutValidator::SettingsKey = "skip_buyout_validation";
+
+LegacyBuyoutValidator::LegacyBuyoutValidator(QSettings& settings, const QString& filename)
+    : QObject()
+    , m_settings(settings)
+    , m_filename(filename)
     , m_datastore(filename)
 {
-    if (!m_datastore.ok) {
+    if (!m_datastore.isValid()) {
         m_status = ValidationResult::Error;
-    } else {
+    };
+}
+
+LegacyBuyoutValidator::ValidationResult LegacyBuyoutValidator::validate() {
+    if (m_status != ValidationResult::Error) {
         validateTabBuyouts();
         validateItemBuyouts();
         m_status = m_issues.empty()
             ? ValidationResult::Valid
             : ValidationResult::Invalid;
     };
+    return m_status;
+}
+
+void LegacyBuyoutValidator::notifyUser() {
+
+    QLocale locale = QLocale::system();
+
+    const auto& data = m_datastore.data();
+    const auto& tabs = m_datastore.tabs();
+
+    QStringList lines;
+    lines += "The data file location:";
+    lines += m_filename;
+    lines += QString();
+    lines += "The data file contains: ";
+    lines += QString("   - %1 items").arg(locale.toString(m_datastore.itemCount()));
+    lines += QString("   - %1 stash tabs").arg(locale.toString(tabs.stashes.size()));
+    lines += QString("   - %1 characters").arg(locale.toString(tabs.characters.size()));
+    lines += QString("   - %1 stash tab buyouts").arg(locale.toString(data.tab_buyouts.size()));
+    lines += QString("   - %1 item buyouts").arg(locale.toString(data.buyouts.size()));
+    lines += QString();
+    lines += QString("The potential issues are:");
+    for (const auto& pair : m_issues) {
+        const QString& issue = pair.first;
+        const int count = pair.second.size();
+        lines += QString("    - %1 %2").arg(locale.toString(count), issue);
+    };
+    QString message = lines.join("\n");
+
+    QTextEdit* details = new QTextEdit;
+    details->setReadOnly(true);
+    details->setText(message);
+
+    QPushButton* report_button = new QPushButton("Submit a buyout report now");
+    QPushButton* ignore_button = new QPushButton("Ignore and continue to Acquisition");
+    QCheckBox* reminder_checkbox = new QCheckBox("Don't ask again (applies to" APP_VERSION_STRING ")");
+
+    QLabel* help_label = new QLabel;
+    help_label->setText(
+        "For more information on what information on buyouts, I have created a discussion on GitHub:<br/>"
+        "<a href=\"https://github.com/gerwaric/acquisition/discussions/88\">https://github.com/gerwaric/acquisition/discussions/88</a>.");
+    help_label->setOpenExternalLinks(true);
+    help_label->setWordWrap(true);
+    help_label->setMargin(10);
+
+    QLayout* layout = new QVBoxLayout;
+    layout->addWidget(new QLabel("The buyout validate has detected potential issues with your data."));
+    layout->addWidget(details);
+    layout->addWidget(help_label);
+    layout->addWidget(report_button);
+    layout->addWidget(ignore_button);
+    layout->addWidget(reminder_checkbox);
+
+    QDialog* dialog = new QDialog;
+    dialog->setWindowTitle("Acquisition Buyout Validator");
+    dialog->setSizeGripEnabled(true);
+    dialog->setModal(true);
+    dialog->setLayout(layout);
+
+    // Connect the github button.
+    QObject::connect(report_button, &QPushButton::clicked, dialog,
+        [=]() {
+            const QString exportfile = QFileInfo(m_filename).dir().absoluteFilePath("../export/buyouts.tgz");
+            if (!m_datastore.exportTgz(exportfile)) {
+                QMessageBox::information(nullptr, "Acquisition",
+                    "Unable to export buyout data; acquisition will continue. "
+                    "Please consider reporting this issue on github.");
+                QLOG_WARN() << "Unable to export tgz";
+                return;
+            };
+            QMessageBox::warning(nullptr, "Acquisition",
+                "Acquisition will now exit to trigger a crash report with buyout information. "
+                "You will need to restart acquisition manually.");
+            if (reminder_checkbox->isChecked()) {
+                m_settings.setValue(LegacyBuyoutValidator::SettingsKey, QStringLiteral(APP_VERSION_STRING));
+            } else {
+                m_settings.remove(LegacyBuyoutValidator::SettingsKey);
+            };
+            QLOG_FATAL() << "Aborting acquisition to trigger a crash report with buyout information";
+            abort();
+        });
+
+    // Show the dialog and wait for the user to close it.
+    dialog->exec();
 }
 
 void LegacyBuyoutValidator::validateTabBuyouts() {
 
-    const auto& stashes = m_datastore.tabs.stashes;
-    const auto& characters = m_datastore.tabs.characters;
-    const auto& buyouts = m_datastore.data.tab_buyouts;
+    const auto& stashes = m_datastore.tabs().stashes;
+    const auto& characters = m_datastore.tabs().characters;
+    const auto& buyouts = m_datastore.data().tab_buyouts;
 
     QLocale locale = QLocale::system();
     QLOG_INFO() << "Validating tab buyouts:";
@@ -112,8 +218,8 @@ void LegacyBuyoutValidator::validateTabBuyouts() {
 
 void LegacyBuyoutValidator::validateItemBuyouts() {
 
-    const auto& collections = m_datastore.items;
-    const auto& buyouts = m_datastore.data.buyouts;
+    const auto& collections = m_datastore.items();
+    const auto& buyouts = m_datastore.data().buyouts;
 
     QLocale locale = QLocale::system();
     QLOG_INFO() << "Validating item buyouts";

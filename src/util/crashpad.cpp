@@ -132,9 +132,15 @@ bool initializeCrashpad(
     const bool restartable = true;
     const bool asynchronous_start = true;
 
+
     // Attachments to be uploaded alongside the crash - default bundle size limit is 20MB
+    const QString buyoutData = appDataDir + "/export/buyouts.tgz";
+    QFile buyoutDataFile(buyoutData);
+    if (buyoutDataFile.exists()) {
+        buyoutDataFile.remove();
+    };
     const std::vector<FilePath> attachments = {
-        FilePath(StdPath(appDataDir + "/exported_buyouts/buyout_data.tgz"))
+        FilePath(StdPath(buyoutData))
     };
 
     // Log the crashpad initialization settings 

@@ -36,8 +36,6 @@
 
 struct LegacyDataStore {
 
-    enum class ExportFormat{ Json, Tgz };
-
     struct DataTable {
         QString db_version;
         QString version;
@@ -59,16 +57,28 @@ struct LegacyDataStore {
     // IGNORE: using CurrencyTable = std::unordered_map<unsigned long long, QString>;
 
     LegacyDataStore(const QString& filename);
-    void exportTo(const QString& filename, LegacyDataStore::ExportFormat format);
+    bool exportJson(const QString& filename) const;
+    bool exportTgz(const QString& filename) const;
 
-    bool ok{ true };
-    LegacyDataStore::DataTable data;
-    LegacyDataStore::TabsTable tabs;
-    LegacyDataStore::ItemsTable items;
-    // IGNORE: LegacyDataStore::CurrencyTable currency;
-    JS_OBJ(data, tabs, items);
+    bool isValid() const { return m_valid; };
+    int itemCount() const { return m_item_count; };
+    const LegacyDataStore::DataTable& data() const { return m_data; };
+    const LegacyDataStore::TabsTable& tabs() const { return m_tabs; };
+    const LegacyDataStore::ItemsTable& items() const { return m_items; };
+
+    JS_OBJECT(
+        JS_MEMBER_WITH_NAME(m_data, "data"),
+        JS_MEMBER_WITH_NAME(m_tabs, "tabs"),
+        JS_MEMBER_WITH_NAME(m_items, "items"));
 
 private:
-    void exportJson(const QString& filename);
-    void exportTgz(const QString& filename);
+    LegacyDataStore::DataTable m_data;
+    LegacyDataStore::TabsTable m_tabs;
+    LegacyDataStore::ItemsTable m_items;
+    // IGNORE: LegacyDataStore::CurrencyTable currency;
+
+    bool m_valid{ false };
+    bool m_item_count{ 0 };
+
+public:
 };

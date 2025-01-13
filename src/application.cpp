@@ -53,15 +53,12 @@
 #include "version_defines.h"
 
 Application::Application(const QDir& appDataDir) {
-    QLOG_TRACE() << "Application::Application() entered";
+    QLOG_DEBUG() << "Application: created";
 
-    QLOG_TRACE() << "Application::Application() initializing crashpad";
-    InitCrashReporting();
-
-    QLOG_TRACE() << "Application::Application() creating QNetworkAccessManager";
+    QLOG_TRACE() << "Application: creating QNetworkAccessManager";
     m_network_manager = std::make_unique<QNetworkAccessManager>();
 
-    QLOG_TRACE() << "Application::Application() creating RePoE";
+    QLOG_TRACE() << "Application: creating RePoE";
     m_repoe = std::make_unique<RePoE>(network_manager());
 
     InitUserDir(appDataDir.absolutePath());
@@ -70,37 +67,40 @@ Application::Application(const QDir& appDataDir) {
 void Application::InitUserDir(const QString& dir) {
 
     m_data_dir = QDir(dir);
-    QLOG_TRACE() << "Application::Application() data directory is" << m_data_dir.absolutePath();
+    QLOG_TRACE() << "Application: data directory is" << m_data_dir.absolutePath();
 
     const QString settings_path = m_data_dir.filePath("settings.ini");
-    QLOG_TRACE() << "Application::Application() creating the settings object:" << settings_path;
+    QLOG_TRACE() << "Application: creating the settings object:" << settings_path;
     m_settings = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
+
+    QLOG_TRACE() << "Application:initializing crashpad";
+    InitCrashReporting();
 
     const QDir user_dir(m_data_dir.filePath("data"));
     const QString global_data_file = user_dir.filePath(SqliteDataStore::MakeFilename("", ""));
-    QLOG_TRACE() << "Application::Application() opening global data file:" << global_data_file;
+    QLOG_TRACE() << "Application: opening global data file:" << global_data_file;
     m_global_data = std::make_unique<SqliteDataStore>(global_data_file);
 
     const QString image_cache_dir = dir + QDir::separator() + "cache";
     m_image_cache = std::make_unique<ImageCache>(network_manager(), image_cache_dir);
 
-    QLOG_TRACE() << "Application::Application() loading theme";
+    QLOG_TRACE() << "Application: loading theme";
     const QString theme = settings().value("theme", "default").toString();
     SetTheme(theme);
 
     if (settings().value("realm").toString().isEmpty()) {
         settings().setValue("realm", "pc");
     };
-    QLOG_TRACE() << "Application::Application() realm is" << settings().value("realm");
+    QLOG_TRACE() << "Application: realm is" << settings().value("realm");
 
-    QLOG_TRACE() << "Application::Application() creating update checker";
+    QLOG_TRACE() << "Application: creating update checker";
     m_update_checker = std::make_unique<UpdateChecker>(settings(), network_manager());
 
-    QLOG_TRACE() << "Application::Application() creating OAuth manager";
+    QLOG_TRACE() << "Application: creating OAuth manager";
     m_oauth_manager = std::make_unique<OAuthManager>(network_manager(), global_data());
 
     // Start the process of fetching RePoE data.
-    QLOG_TRACE() << "Application::Application() initializing RePoE";
+    QLOG_TRACE() << "Application: initializing RePoE";
     m_repoe->Init(dir);
 }
 
@@ -108,9 +108,9 @@ Application::~Application() {}
 
 void Application::Start() {
 
-    QLOG_TRACE() << "Application::Start() entered";
+    QLOG_DEBUG() << "Application: starting";
 
-    QLOG_TRACE() << "Application::Start() creating login dialog";
+    QLOG_TRACE() << "Application: creating login dialog";
     m_login = std::make_unique<LoginDialog>(
         m_data_dir,
         settings(),
@@ -126,11 +126,11 @@ void Application::Start() {
     connect(m_login.get(), &LoginDialog::LoginComplete, this, &Application::OnLogin);
 
     // Start the initial check for updates.
-    QLOG_TRACE() << "Application::Start() starting a check for application updates";
+    QLOG_TRACE() << "Application: checking for application updates";
     m_update_checker->CheckForUpdates();
 
     // Show the login dialog now.
-    QLOG_TRACE() << "Application::Start() showing the login dialog";
+    QLOG_TRACE() << "Application: showing the login dialog";
     m_login->show();
 }
 
@@ -146,17 +146,17 @@ void Application::Stop() {
 
 void Application::OnLogin(POE_API api) {
 
-    QLOG_TRACE() << "Application::OnLogin() entered";
+    QLOG_DEBUG() << "Application: login initiated";
 
     // Disconnect from the update signal so that only the main window gets it from now on.
     QObject::disconnect(&update_checker(), &UpdateChecker::UpdateAvailable, nullptr, nullptr);
 
     // Call init login to setup the shop, items manager, and other objects.
-    QLOG_TRACE() << "Application::OnLogin() initializing login";
+    QLOG_TRACE() << "Application: initializing login";
     InitLogin(api);
 
     // Prepare to show the main window now that everything is initialized.
-    QLOG_TRACE() << "Application::OnLogin() creating main window";
+    QLOG_TRACE() << "Application:creating main window";
     m_main_window = std::make_unique<MainWindow>(
         settings(),
         network_manager(),
@@ -403,9 +403,16 @@ void Application::InitLogin(POE_API mode)
     const QString data_path = user_dir.absoluteFilePath(data_file);
     QLOG_TRACE() << "Application::InitLogin() data_path =" << data_path;
 
-    QLOG_INFO() << "Validating stored buyouts";
-    LegacyBuyoutValidator legacy(data_path);
-    //legacy.validate();
+    const QString skip_buyout_version = m_settings->value(LegacyBuyoutValidator::SettingsKey).toString();
+    if (0 == skip_buyout_version.compare(QStringLiteral(APP_VERSION_STRING), Qt::CaseInsensitive)) {
+        QLOG_DEBUG() << "Applicaiton: skipping buyout validation because version is" << QStringLiteral(APP_VERSION_STRING);
+    } else {
+        QLOG_INFO() << "Application: validating stored buyouts";
+        LegacyBuyoutValidator legacy(*m_settings, data_path);
+        if (legacy.validate() != LegacyBuyoutValidator::ValidationResult::Valid) {
+            legacy.notifyUser();
+        };
+    };
 
     m_data = std::make_unique<SqliteDataStore>(data_path);
     SaveDbOnNewVersion();

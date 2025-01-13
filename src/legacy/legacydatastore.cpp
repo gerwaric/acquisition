@@ -86,7 +86,6 @@ namespace {
 LegacyDataStore::LegacyDataStore(const QString& filename) {
 
     if (!QFile::exists(filename)) {
-        ok = false;
         QLOG_ERROR() << "BuyoutCollection: file not found:" << filename;
         return;
     };
@@ -95,25 +94,29 @@ LegacyDataStore::LegacyDataStore(const QString& filename) {
     db.setConnectOptions("QSQLITE_OPEN_READONLY");
     db.setDatabaseName(filename);
     if (!db.open()) {
-        ok = false;
         QLOG_ERROR() << "BuyoutCollection: cannot open" << filename << "due to error:" << db.lastError().text();
         return;
     };
 
-    ok &= getString(db, "SELECT value FROM data WHERE (key = 'db_version')", data.db_version);
-    ok &= getString(db, "SELECT value FROM data WHERE (key = 'version')", data.version);
-    ok &= getStruct(db, "SELECT value FROM data WHERE (key = 'buyouts')", data.buyouts);
-    ok &= getStruct(db, "SELECT value FROM data WHERE (key = 'tab_buyouts')", data.tab_buyouts);
-    ok &= getStruct(db, "SELECT value FROM tabs WHERE (type = 0)", tabs.stashes);
-    ok &= getStruct(db, "SELECT value FROM tabs WHERE (type = 1)", tabs.characters);
+    bool ok = true;
+    ok &= getString(db, "SELECT value FROM data WHERE (key = 'db_version')", m_data.db_version);
+    ok &= getString(db, "SELECT value FROM data WHERE (key = 'version')", m_data.version);
+    ok &= getStruct(db, "SELECT value FROM data WHERE (key = 'buyouts')", m_data.buyouts);
+    ok &= getStruct(db, "SELECT value FROM data WHERE (key = 'tab_buyouts')", m_data.tab_buyouts);
+    ok &= getStruct(db, "SELECT value FROM tabs WHERE (type = 0)", m_tabs.stashes);
+    ok &= getStruct(db, "SELECT value FROM tabs WHERE (type = 1)", m_tabs.characters);
+    if (!ok) {
+        QLOG_ERROR() << "LegacyDataStore: unable to load all data from" << filename;
+        return;
+    };
 
     const QString statement = "SELECT loc, value FROM items";
     QSqlQuery query(db);
     query.setForwardOnly(true);
     query.prepare(statement);
     if (!query.exec()) {
-        ok = false;
         QLOG_ERROR() << "LegacyDataStore: error executing '" + statement + "':" << query.lastError().text();
+        return;
     };
 
     while (query.next()) {
@@ -124,71 +127,68 @@ LegacyDataStore::LegacyDataStore(const QString& filename) {
         if (context.parseTo(result) != JS::Error::NoError) {
             ok = false;
             QLOG_ERROR() << "LegacyDataStore: error parsing 'items':" << QString::fromUtf8(context.makeErrorString());
-            break;
+            return;
         };
-        items[loc] = result;
+        m_items[loc] = result;
+        m_item_count += result.size();
     };
 
     if (query.lastError().isValid()) {
-        ok = false;
         QLOG_ERROR() << "LegacyDataStore: error moving to next record in 'items':" << query.lastError().text();
+        return;
     };
 
     query.finish();
     db.close();
     db.removeDatabase("LegacyDataStore");
+
+    m_valid = true;
 }
 
-void LegacyDataStore::exportTo(const QString& filename, ExportFormat format)
-{
-    switch (format) {
-    case ExportFormat::Json: exportJson(filename); break;
-    case ExportFormat::Tgz: exportTgz(filename); break;
-    default:
-        QLOG_ERROR() << "Unhandled export format:" << static_cast<int>(format);
-        break;
-    };
-}
-
-void LegacyDataStore::exportJson(const QString& filename) {
+bool LegacyDataStore::exportJson(const QString& filename) const {
     QFile file(filename);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         QLOG_ERROR() << "Export failed: could not open json file:" << file.errorString();
-        return;
+        return false;
     };
     const QByteArray data(JS::serializeStruct(*this, JS::SerializerOptions::Compact));
     file.write(data);
     file.close();
+    return true;
 }
 
-void LegacyDataStore::exportTgz(const QString& filename) {
+bool LegacyDataStore::exportTgz(const QString& filename) const {
 
     // Use a temporary working directory.
     QTemporaryDir dir;
     if (!dir.isValid()) {
         QLOG_ERROR() << "Export failed: could not create a temporary directory:" << dir.errorString();
-        return;
+        return false;
     };
 
-    const QString basename = "export_data.json";
-    const QString tempfile = dir.filePath(basename);
-
     // First export to a temporary .json file.
-    exportJson(tempfile);
-
-    const QString command = "tar";
-    const QStringList arguments = { "czvf", filename, "-C", dir.path(), basename };
+    const QString tempfile = dir.filePath("export.json");
+    if (!exportJson(tempfile)) {
+        return false;
+    };
 
     // Next compress the temporary file into a tgz.
+    const QString command = "tar";
+    const QStringList arguments = { "czvf", filename, "-C", dir.path(), "export.json" };
     QProcess process;
     process.start(command, arguments);
     if (!process.waitForFinished()) {
         QLOG_ERROR() << "Export failed: process failed:" << process.errorString();
+        return false;
     };
     if (process.exitCode() != 0) {
         QLOG_ERROR() << "Export failed: tar error:" << process.errorString();
+        return false;
     };
 
     // Remove the temporary .json file.
-    QFile(tempfile).remove();
+    if (!QFile(tempfile).remove()) {
+        QLOG_WARN() << "Error removing temporary json file:" << tempfile;
+    };
+    return true;
 }
