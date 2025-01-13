@@ -62,8 +62,6 @@ constexpr const char* CRASHPAD_HANDLER = "crashpad_handler";
 #endif
 constexpr const char* ATTACHMENT_TXT = "attachment.txt";
 
-constexpr const int STARTUP_TIMEOUT_MS = 8000;
-
 // https://stackoverflow.com/questions/53744285/how-to-convert-between-boostfilesystempath-and-qstring
 std::filesystem::path StdPath(const QString& path)
 {
@@ -189,17 +187,6 @@ bool initializeCrashpad(
         client = nullptr;
         return false;
     };
-    QLOG_TRACE() << "Crashpad: handler started";
-
-    // Wait for the handler to initialize
-    const bool done = client->WaitForHandlerStart(STARTUP_TIMEOUT_MS);
-    if (!done) {
-        QLOG_ERROR() << "Crashpad: handler startup timed out";
-        delete(client);
-        client = nullptr;
-        return false;
-    };
-
-    QLOG_INFO() << "Crashpad: initialization complete";
+    QLOG_DEBUG() << "Crashpad: handler started";
     return true;
 }
