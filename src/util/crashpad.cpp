@@ -60,7 +60,6 @@ constexpr const char* CRASHPAD_HANDLER = "crashpad_handler.exe";
 #else
 constexpr const char* CRASHPAD_HANDLER = "crashpad_handler";
 #endif
-constexpr const char* ATTACHMENT_TXT = "attachment.txt";
 
 // https://stackoverflow.com/questions/53744285/how-to-convert-between-boostfilesystempath-and-qstring
 std::filesystem::path StdPath(const QString& path)
