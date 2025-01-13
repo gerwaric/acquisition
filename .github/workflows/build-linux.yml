@@ -1,9 +1,6 @@
 name: Build & Package (Linux)
 
 on:
-  push:
-    tags:
-        - "v*"
   workflow_dispatch:
 
 jobs:

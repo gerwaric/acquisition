@@ -78,7 +78,5 @@ private:
     // IGNORE: LegacyDataStore::CurrencyTable currency;
 
     bool m_valid{ false };
-    bool m_item_count{ 0 };
-
-public:
+    size_t m_item_count{ 0 };
 };
