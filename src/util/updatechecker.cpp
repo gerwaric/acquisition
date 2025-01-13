@@ -50,22 +50,22 @@ static const semver::version NULL_VERSION = semver::version();
 UpdateChecker::UpdateChecker(
     QSettings& settings,
     QNetworkAccessManager& network_manager)
-    : settings_(settings)
-    , nm_(network_manager)
-    , running_version_(semver::version::parse(APP_VERSION_STRING))
+    : m_settings(settings)
+    , m_nm(network_manager)
+    , m_running_version(semver::version::parse(APP_VERSION_STRING))
 {
-    const QString skip_release = settings_.value("skip_release").toString();
-    const QString skip_prerelease = settings_.value("skip_prerelease").toString();
-    previous_release_ = skip_release.isEmpty() ? semver::version() : semver::version::parse(skip_release.toStdString());
-    previous_prerelease_ = skip_prerelease.isEmpty() ? semver::version() : semver::version::parse(skip_prerelease.toStdString());
+    const QString skip_release = m_settings.value("skip_release").toString();
+    const QString skip_prerelease = m_settings.value("skip_prerelease").toString();
+    m_previous_release = skip_release.isEmpty() ? semver::version() : semver::version::parse(skip_release.toStdString());
+    m_previous_prerelease = skip_prerelease.isEmpty() ? semver::version() : semver::version::parse(skip_prerelease.toStdString());
 
-    QLOG_DEBUG() << "UpdateChecker: running version is" << running_version_.str();
-    QLOG_DEBUG() << "UpdateChecker: skipped release is" << previous_release_.str();
-    QLOG_DEBUG() << "UpdateChecker: skipped prerelease is" << previous_prerelease_.str();
+    QLOG_DEBUG() << "UpdateChecker: running version is" << m_running_version.str();
+    QLOG_DEBUG() << "UpdateChecker: skipped release is" << m_previous_release.str();
+    QLOG_DEBUG() << "UpdateChecker: skipped prerelease is" << m_previous_prerelease.str();
 
-    timer_.setInterval(UPDATE_INTERVAL);
-    timer_.start();
-    connect(&timer_, &QTimer::timeout, this, &UpdateChecker::CheckForUpdates);
+    m_timer.setInterval(UPDATE_INTERVAL);
+    m_timer.start();
+    connect(&m_timer, &QTimer::timeout, this, &UpdateChecker::CheckForUpdates);
 }
 
 void UpdateChecker::CheckForUpdates() {
@@ -73,7 +73,7 @@ void UpdateChecker::CheckForUpdates() {
     QLOG_TRACE() << "UpdateChecker: requesting GitHub releases:" << GITHUB_RELEASES_URL;
     QNetworkRequest request = QNetworkRequest(QUrl(GITHUB_RELEASES_URL));
     request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-    QNetworkReply* reply = nm_.get(request);
+    QNetworkReply* reply = m_nm.get(request);
     connect(reply, &QNetworkReply::errorOccurred, this, &UpdateChecker::OnUpdateErrorOccurred);
     connect(reply, &QNetworkReply::sslErrors, this, &UpdateChecker::OnUpdateSslErrors);
     connect(reply, &QNetworkReply::finished, this, &UpdateChecker::OnUpdateReplyReceived);
@@ -107,31 +107,31 @@ void UpdateChecker::OnUpdateReplyReceived() {
     const QByteArray bytes = reply->readAll();
     const std::vector<ReleaseTag> releases = ParseReleaseTags(bytes);
 
-    latest_release_ = NULL_VERSION;
-    latest_prerelease_ = NULL_VERSION;
+    m_latest_release = NULL_VERSION;
+    m_latest_prerelease = NULL_VERSION;
 
     for (const auto& release : releases) {
         if (release.prerelease) {
-            if ((release.version > latest_prerelease_)) {
-                latest_prerelease_ = release.version;
+            if ((release.version > m_latest_prerelease)) {
+                m_latest_prerelease = release.version;
             };
         } else {
-            if ((release.version > latest_release_)) {
-                latest_release_ = release.version;
+            if ((release.version > m_latest_release)) {
+                m_latest_release = release.version;
             };
         };
     };
 
     // Make sure at least one tag was found.
-    if ((latest_release_ == NULL_VERSION) && (latest_prerelease_ == NULL_VERSION)) {
+    if ((m_latest_release == NULL_VERSION) && (m_latest_prerelease == NULL_VERSION)) {
         QLOG_WARN() << "Unable to find any github releases or pre-releases!";
         return;
     };
-    if (latest_release_ > NULL_VERSION) {
-        QLOG_DEBUG() << "UpdateChecker: latest release found:" << latest_release_.str();
+    if (m_latest_release > NULL_VERSION) {
+        QLOG_DEBUG() << "UpdateChecker: latest release found:" << m_latest_release.str();
     };
-    if (latest_prerelease_ > NULL_VERSION) {
-        QLOG_DEBUG() << "UpdateChecker: latest prerelease found:" << latest_prerelease_.str();
+    if (m_latest_prerelease > NULL_VERSION) {
+        QLOG_DEBUG() << "UpdateChecker: latest prerelease found:" << m_latest_prerelease.str();
     };
 
     // Send a signal if there's a new version from the last check.
@@ -190,11 +190,11 @@ std::vector<UpdateChecker::ReleaseTag> UpdateChecker::ParseReleaseTags(const QBy
 }
 
 bool UpdateChecker::has_newer_release() const {
-    return (latest_release_ > previous_release_) && (running_version_ < latest_release_);
+    return (m_latest_release > m_previous_release) && (m_running_version < m_latest_release);
 }
 
 bool UpdateChecker::has_newer_prerelease() const {
-    return (latest_prerelease_ > previous_prerelease_) && (running_version_ < latest_prerelease_);
+    return (m_latest_prerelease > m_previous_prerelease) && (m_running_version < m_latest_prerelease);
 }
 
 void UpdateChecker::AskUserToUpdate() {
@@ -208,15 +208,15 @@ void UpdateChecker::AskUserToUpdate() {
     QStringList lines;
     if (has_newer_release()) {
         lines.append("A newer release is available:");
-        lines.append("   " + QString::fromStdString(latest_release_.str()));
+        lines.append("   " + QString::fromStdString(m_latest_release.str()));
     };
     if (has_newer_prerelease()) {
-        if (latest_prerelease_ > latest_release_) {
+        if (m_latest_prerelease > m_latest_release) {
             if (!lines.isEmpty()) {
                 lines.append("");
             };
             lines.append("A newer prerelease is available:");
-            lines.append("   " + QString::fromStdString(latest_prerelease_.str()));
+            lines.append("   " + QString::fromStdString(m_latest_prerelease.str()));
         };
     };
     if (lines.isEmpty()) {
@@ -246,11 +246,11 @@ void UpdateChecker::AskUserToUpdate() {
     // Save the latest releases into the settings file oinly if the
     // user asked to skip them in the future.
     if (clicked == ignore_button) {
-        settings_.setValue("skip_release", QString::fromStdString(latest_release_.str()));
-        settings_.setValue("skip_prerelease", QString::fromStdString(latest_prerelease_.str()));
+        m_settings.setValue("skip_release", QString::fromStdString(m_latest_release.str()));
+        m_settings.setValue("skip_prerelease", QString::fromStdString(m_latest_prerelease.str()));
     } else {
-        settings_.setValue("skip_release", "");
-        settings_.setValue("skip_prerelease", "");
+        m_settings.setValue("skip_release", "");
+        m_settings.setValue("skip_prerelease", "");
     };
 
     // Open a desktop web browser window if the user clicked that button.

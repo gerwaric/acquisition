@@ -51,6 +51,6 @@ private slots:
     void OnEditTimeout();
     void OnCompleterActivated(const QString& text);
 private:
-    SearchComboCompleter completer_;
-    QTimer edit_timer_;
+    SearchComboCompleter m_completer;
+    QTimer m_edit_timer;
 };

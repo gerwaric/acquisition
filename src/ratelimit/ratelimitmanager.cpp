@@ -31,6 +31,9 @@
 #include "util/oauthmanager.h"
 
 #include "ratelimit.h"
+#include "ratelimitpolicy.h"
+#include "ratelimitedreply.h"
+#include "ratelimitedrequest.h"
 #include "ratelimiter.h"
 
 // This HTTP status code means there was a rate limit violation.
@@ -62,55 +65,52 @@ constexpr int MINIMUM_INTERVAL_MSEC = 250;
 // number for each policy.
 constexpr int TIMING_BUCKET_MSEC = 5200;
 
-// Total number of rate-limited requests that have been created.
-unsigned long RateLimitedRequest::request_count = 0;
-
 // Create a new rate limit manager based on an existing policy.
 RateLimitManager::RateLimitManager(SendFcn sender)
-    : sender_(sender)
-    , policy_(nullptr)
+    : m_sender(sender)
+    , m_policy(nullptr)
 {
     QLOG_TRACE() << "RateLimitManager::RateLimitManager() entered";
     // Setup the active request timer to call SendRequest each time it's done.
-    activation_timer_.setSingleShot(true);
-    connect(&activation_timer_, &QTimer::timeout, this, &RateLimitManager::SendRequest);
+    m_activation_timer.setSingleShot(true);
+    connect(&m_activation_timer, &QTimer::timeout, this, &RateLimitManager::SendRequest);
 }
 
 RateLimitManager::~RateLimitManager() {
 }
 
-const RateLimit::Policy& RateLimitManager::policy() {
-    if (!policy_) {
+const RateLimitPolicy& RateLimitManager::policy() {
+    if (!m_policy) {
         FatalError("The rate limit manager's policy is null!");
     };
-    return *policy_;
+    return *m_policy;
 }
 
 // Send the active request immediately.
 void RateLimitManager::SendRequest() {
 
     QLOG_TRACE() << "RateLimitManager::SendRequest() entered";
-    if (!policy_) {
+    if (!m_policy) {
         QLOG_ERROR() << "The rate limit manager attempted to send a request without a policy.";
         return;
     };
 
-    if (!active_request_) {
+    if (!m_active_request) {
         QLOG_ERROR() << "The rate limit manager attempted to send a request with no request to send.";
         return;
     };
 
-    auto& request = *active_request_;
-    QLOG_TRACE() << policy_->name()
+    auto& request = *m_active_request;
+    QLOG_TRACE() << m_policy->name()
         << "sending request" << request.id
         << "to" << request.endpoint
         << "via" << request.network_request.url().toString();
 
-    if (!sender_) {
+    if (!m_sender) {
         QLOG_ERROR() << "Rate limit manager cannot send requests.";
         return;
     };
-    QNetworkReply* reply = sender_(request.network_request);
+    QNetworkReply* reply = m_sender(request.network_request);
     connect(reply, &QNetworkReply::finished, this, &RateLimitManager::ReceiveReply);
 };
 
@@ -120,34 +120,34 @@ void RateLimitManager::ReceiveReply()
     QLOG_TRACE() << "RateLimitManager::ReceiveReply() entered";
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
 
-    if (!policy_) {
+    if (!m_policy) {
         QLOG_ERROR() << "The rate limit manager cannot recieve a reply when the policy is null.";
         return;
     };
 
-    if (!active_request_) {
+    if (!m_active_request) {
         QLOG_ERROR() << "The rate limit manager received a reply without an active request.";
         return;
     };
 
     // Make sure the reply has a rate-limit header.
     if (!reply->hasRawHeader("X-Rate-Limit-Policy")) {
-        QLOG_ERROR() << "Received a reply for" << policy_->name() << "without rate limit headers.";
+        QLOG_ERROR() << "Received a reply for" << m_policy->name() << "without rate limit headers.";
         return;
     };
 
     const QDateTime reply_time = RateLimit::ParseDate(reply).toLocalTime();
     const int reply_status = RateLimit::ParseStatus(reply);
     QLOG_TRACE() << "RateLimitManager::ReceiveReply()"
-        << policy_->name()
-        << "received reply for request" << active_request_->id
+        << m_policy->name()
+        << "received reply for request" << m_active_request->id
         << "with status" << reply_status;
 
     // Save the reply time.
     QLOG_TRACE() << "RateLimitManager::ReceiveReply()"
-        << policy_->name()
+        << m_policy->name()
         << "adding to history:" << reply_time.toString();
-    history_.push_front(reply_time);
+    m_history.push_front(reply_time);
 
     // Now examine the new policy and update ourselves accordingly.
     Update(reply);
@@ -155,7 +155,7 @@ void RateLimitManager::ReceiveReply()
     if (reply->error() == QNetworkReply::NoError) {
 
         // Check for errors.
-        if (policy_->status() >= RateLimit::PolicyStatus::VIOLATION) {
+        if (m_policy->status() >= RateLimitPolicy::Status::VIOLATION) {
             QLOG_ERROR() << "Reply did not have an error, but the rate limit policy shows a violation occured.";
         };
         if (reply_status == VIOLATION_STATUS) {
@@ -164,14 +164,14 @@ void RateLimitManager::ReceiveReply()
 
         // Since the request finished successfully, signal complete()
         // so anyone listening can handle the reply.
-        if (active_request_->reply) {
+        if (m_active_request->reply) {
             QLOG_TRACE() << "RateLimiteManager::ReceiveReply() about to emit 'complete' signal";
-            emit active_request_->reply->complete(reply);
+            emit m_active_request->reply->complete(reply);
         } else {
             QLOG_ERROR() << "Cannot complete the rate limited request because the reply is null.";
         };
 
-        active_request_ = nullptr;
+        m_active_request = nullptr;
 
         // Activate the next queued reqeust.
         ActivateRequest();
@@ -184,7 +184,7 @@ void RateLimitManager::ReceiveReply()
             if (!reply->hasRawHeader("Retry-After")) {
                 QLOG_ERROR() << "HTTP status indicates a rate limit violation, but 'Retry-After' is missing";
             };
-            if (policy_->status() != RateLimit::PolicyStatus::VIOLATION) {
+            if (m_policy->status() != RateLimitPolicy::Status::VIOLATION) {
                 QLOG_ERROR() << "HTTP status indicates a rate limit violation, but was not flagged in the policy update";
             };
         };
@@ -195,22 +195,22 @@ void RateLimitManager::ReceiveReply()
             const int retry_sec = reply->rawHeader("Retry-After").toInt();
             const int retry_msec = (1000 * retry_sec) + TIMING_BUCKET_MSEC;
             QLOG_ERROR() << "Rate limit VIOLATION for policy"
-                << policy_->name()
+                << m_policy->name()
                 << "(retrying after" << (retry_msec / 1000) << "seconds)";
-            activation_timer_.setInterval(retry_msec);
-            activation_timer_.start();
+            m_activation_timer.setInterval(retry_msec);
+            m_activation_timer.start();
 
         } else {
 
             // Some other HTTP error was encountered.
-            QLOG_ERROR() << "policy manager for" << policy_->name()
-                << "request" << active_request_->id
+            QLOG_ERROR() << "policy manager for" << m_policy->name()
+                << "request" << m_active_request->id
                 << "reply status was " << reply_status
                 << "and error was" << reply->error();
 
         };
 
-        active_request_->reply = nullptr;
+        m_active_request->reply = nullptr;
     };
 }
 
@@ -220,27 +220,27 @@ void RateLimitManager::Update(QNetworkReply* reply) {
 
     // Get the rate limit policy from this reply.
     QLOG_TRACE() << "RateLimitManager::Update() parsing policy";
-    auto new_policy = std::make_unique<RateLimit::Policy>(reply);
+    auto new_policy = std::make_unique<RateLimitPolicy>(reply);
 
     // If there was an existing policy, compare them.
-    if (policy_) {
+    if (m_policy) {
         QLOG_TRACE() << "RateLimitManager::Update()"
-            << policy_->name() << "checking update against existing policy";
-        policy_->Check(*new_policy);
+            << m_policy->name() << "checking update against existing policy";
+        m_policy->Check(*new_policy);
     };
 
     // Update the rate limit policy.
-    policy_ = std::move(new_policy);
+    m_policy = std::move(new_policy);
 
     // Grow the history capacity if needed.
-    const size_t capacity = history_.capacity();
-    const size_t max_hits = policy_->maximum_hits();
+    const size_t capacity = m_history.capacity();
+    const size_t max_hits = m_policy->maximum_hits();
     if (capacity < max_hits) {
-        QLOG_DEBUG() << policy_->name()
+        QLOG_DEBUG() << m_policy->name()
             << "increasing history capacity"
             << "from" << capacity
             << "to" << max_hits;
-        history_.set_capacity(max_hits);
+        m_history.set_capacity(max_hits);
     };
 
     emit PolicyUpdated(policy());
@@ -251,14 +251,14 @@ void RateLimitManager::Update(QNetworkReply* reply) {
 // manager busy and causing subsequent requests to be queued.
 void RateLimitManager::QueueRequest(
     const QString& endpoint,
-    const QNetworkRequest network_request,
-    RateLimit::RateLimitedReply* reply)
+    const QNetworkRequest& network_request,
+    RateLimitedReply* reply)
 {
     QLOG_TRACE() << "RateLimitManager::QueueRequest() entered";
     auto request = std::make_unique<RateLimitedRequest>(endpoint, network_request, reply);
-    queued_requests_.push_back(std::move(request));
-    if (active_request_) {
-        emit QueueUpdated(policy_->name(), static_cast<int>(queued_requests_.size()));
+    m_queued_requests.push_back(std::move(request));
+    if (m_active_request) {
+        emit QueueUpdated(m_policy->name(), static_cast<int>(m_queued_requests.size()));
     } else {
         ActivateRequest();
     };
@@ -269,26 +269,26 @@ void RateLimitManager::QueueRequest(
 void RateLimitManager::ActivateRequest() {
 
     QLOG_TRACE() << "RateLimitManager::ActivateRequest() entered";
-    if (!policy_) {
+    if (!m_policy) {
         QLOG_ERROR() << "Cannot activate a request because the policy is null.";
         return;
     };
-    if (active_request_) {
+    if (m_active_request) {
         QLOG_DEBUG() << "Cannot activate a request because a request is already active.";
         return;
     };
-    if (queued_requests_.empty()) {
+    if (m_queued_requests.empty()) {
         QLOG_DEBUG() << "Cannot active a request because the queue is empty.";
         return;
     };
 
-    active_request_ = std::move(queued_requests_.front());
-    queued_requests_.pop_front();
-    emit QueueUpdated(policy_->name(), static_cast<int>(queued_requests_.size()));
+    m_active_request = std::move(m_queued_requests.front());
+    m_queued_requests.pop_front();
+    emit QueueUpdated(m_policy->name(), static_cast<int>(m_queued_requests.size()));
 
     const QDateTime now = QDateTime::currentDateTime();
 
-    QDateTime next_send = policy_->GetNextSafeSend(history_);
+    QDateTime next_send = m_policy->GetNextSafeSend(m_history);
 
     if (next_send.isValid() == false) {
         QLOG_ERROR() << "Cannot activate a request because the next send is invalid";
@@ -296,17 +296,17 @@ void RateLimitManager::ActivateRequest() {
     };
 
     QLOG_TRACE() << "RateLimitManager::ActivateRequest()"
-        << policy_->name()
+        << m_policy->name()
         << "next_send before adjustment is" << next_send.toString()
         << "(in" << now.secsTo(next_send) << "seconds)";
 
-    if (policy_->status() >= RateLimit::PolicyStatus::BORDERLINE) {
+    if (m_policy->status() >= RateLimitPolicy::Status::BORDERLINE) {
         next_send = next_send.addMSecs(TIMING_BUCKET_MSEC);
         QLOG_DEBUG() << QString("Rate limit policy '%1' is BORDERLINE, added %2 msecs to send at %3").arg(
-            policy_->name(), QString::number(TIMING_BUCKET_MSEC), next_send.toString());
+            m_policy->name(), QString::number(TIMING_BUCKET_MSEC), next_send.toString());
     } else {
         QLOG_TRACE() << "RateLimitManager::ActivateRequest()"
-            << policy_->name() << "is NOT borderline,"
+            << m_policy->name() << "is NOT borderline,"
             << "adding" << QString::number(NORMAL_BUFFER_MSEC) << "msec to next send";
         next_send = next_send.addMSecs(NORMAL_BUFFER_MSEC);
     };
@@ -328,11 +328,11 @@ void RateLimitManager::ActivateRequest() {
     };
 
     QLOG_TRACE() << "RateLimitManager::ActivateRequest()"
-        << "waiting" << delay << "msecs to send request" << active_request_->id
+        << "waiting" << delay << "msecs to send request" << m_active_request->id
         << "at" << next_send.toLocalTime().toString();
-    activation_timer_.setInterval(delay);
-    activation_timer_.start();
+    m_activation_timer.setInterval(delay);
+    m_activation_timer.start();
     if (delay > 0) {
-        emit Paused(policy_->name(), next_send);
+        emit Paused(m_policy->name(), next_send);
     };
 }

@@ -21,7 +21,6 @@
 
 #include <QString>
 
-#include <boost/algorithm/string/predicate.hpp>
 #include <QsLog/QsLog.h>
 
 #include "util/rapidjson_util.h"
@@ -29,11 +28,7 @@
 
 #include "itemconstants.h"
 
-#include <string>
-
-using boost::algorithm::ends_with;
-
-QDebug& operator<<(QDebug& os, const ItemLocationType& obj) {
+QDebug& operator<<(QDebug& os, const ItemLocationType obj) {
     switch (obj) {
     case ItemLocationType::STASH: return os << "STASH";
     case ItemLocationType::CHARACTER: return os << "CHARACTER";
@@ -42,14 +37,14 @@ QDebug& operator<<(QDebug& os, const ItemLocationType& obj) {
 }
 
 ItemLocation::ItemLocation()
-    : x_(0), y_(0)
-    , w_(0), h_(0)
-    , red_(0), green_(0), blue_(0)
-    , socketed_(false)
-    , removeonly_(false)
-    , type_(ItemLocationType::STASH)
-    , tab_type_("")
-    , tab_id_(0)
+    : m_x(0), m_y(0)
+    , m_w(0), m_h(0)
+    , m_red(0), m_green(0), m_blue(0)
+    , m_socketed(false)
+    , m_removeonly(false)
+    , m_type(ItemLocationType::STASH)
+    , m_tab_type("")
+    , m_tab_id(0)
 {}
 
 ItemLocation::ItemLocation(const rapidjson::Value& root)
@@ -61,230 +56,229 @@ ItemLocation::ItemLocation(const rapidjson::Value& root)
 
 ItemLocation::ItemLocation(
     int tab_id,
-    const std::string tab_unique_id,
-    const std::string name)
+    const QString& tab_unique_id,
+    const QString& name)
     : ItemLocation()
 {
-    tab_label_ = name;
-    tab_id_ = tab_id;
-    tab_unique_id_ = tab_unique_id;
+    m_tab_label = name;
+    m_tab_id = tab_id;
+    m_tab_unique_id = tab_unique_id;
 }
 
 ItemLocation::ItemLocation(
     int tab_id,
-    const std::string tab_unique_id,
-    const std::string name,
+    const QString& tab_unique_id,
+    const QString& name,
     ItemLocationType type,
-    const std::string tab_type,
+    const QString& tab_type,
     int r, int g, int b,
-    rapidjson::Value& value, rapidjson_allocator& alloc)
-    : x_(0), y_(0)
-    , w_(0), h_(0)
-    , red_(r), green_(g), blue_(b)
-    , socketed_(false)
-    , type_(type)
-    , tab_id_(tab_id)
-    , tab_unique_id_(tab_unique_id)
+    rapidjson::Value& value,
+    rapidjson_allocator& alloc)
+    : m_x(0), m_y(0)
+    , m_w(0), m_h(0)
+    , m_red(r), m_green(g), m_blue(b)
+    , m_socketed(false)
+    , m_type(type)
+    , m_tab_id(tab_id)
+    , m_tab_unique_id(tab_unique_id)
 {
-    switch (type_) {
+    switch (m_type) {
     case ItemLocationType::STASH:
-        tab_type_ = tab_type;
-        tab_label_ = name;
-        character_ = "";
-        character_sortname_ = "";
-        removeonly_ = ends_with(name, "(Remove-only)");
+        m_tab_type = tab_type;
+        m_tab_label = name;
+        m_character.clear();
+        m_character_sortname.clear();
+        m_removeonly = name.endsWith("(Remove-only)");
         break;
     case ItemLocationType::CHARACTER:
-        tab_type_ = "";
-        tab_label_ = "";
-        character_ = name;
-        character_sortname_ = QString::fromStdString(character_).toLower();
-        removeonly_ = false;
+        m_tab_type.clear();
+        m_tab_label.clear();
+        m_character = name;
+        m_character_sortname = m_character.toLower();
+        m_removeonly = false;
         break;
     };
 
     FixUid();
 
-    if (type_ == ItemLocationType::STASH) {
+    if (m_type == ItemLocationType::STASH) {
         if (!value.HasMember("i")) {
-            value.AddMember("i", tab_id_, alloc);
+            value.AddMember("i", m_tab_id, alloc);
         };
         if (!value.HasMember("n")) {
             rapidjson::Value name_value;
-            name_value.SetString(tab_label_.c_str(), alloc);
+            name_value.SetString(m_tab_label.toStdString().c_str(), alloc);
             value.AddMember("n", name_value, alloc);
         };
         if (!value.HasMember("colour")) {
             rapidjson::Value color_value;
             color_value.SetObject();
-            color_value.AddMember("r", red_, alloc);
-            color_value.AddMember("g", green_, alloc);
-            color_value.AddMember("b", blue_, alloc);
+            color_value.AddMember("r", m_red, alloc);
+            color_value.AddMember("g", m_green, alloc);
+            color_value.AddMember("b", m_blue, alloc);
             value.AddMember("colour", color_value, alloc);
         };
     };
 
-    json_ = Util::RapidjsonSerialize(value);
+    m_json = Util::RapidjsonSerialize(value);
 
 }
 
 void ItemLocation::FixUid() {
     // With the legacy API, stash tabs have a 64-digit identifier, but
     // the modern API only ten, and it appears to be the first 10.
-    if (type_ == ItemLocationType::STASH) {
-        if (tab_unique_id_.size() > 10) {
-            tab_unique_id_ = tab_unique_id_.substr(0, 10);
+    if (m_type == ItemLocationType::STASH) {
+        if (m_tab_unique_id.size() > 10) {
+            m_tab_unique_id = m_tab_unique_id.first(10);
         };
     };
 }
 
 void ItemLocation::FromItemJson(const rapidjson::Value& root) {
     if (root.HasMember("_type")) {
-        type_ = static_cast<ItemLocationType>(root["_type"].GetInt());
-        switch (type_) {
+        m_type = static_cast<ItemLocationType>(root["_type"].GetInt());
+        switch (m_type) {
         case ItemLocationType::STASH:
-            tab_label_ = root["_tab_label"].GetString();
-            tab_id_ = root["_tab"].GetInt();
+            m_tab_label = root["_tab_label"].GetString();
+            m_tab_id = root["_tab"].GetInt();
             break;
         case ItemLocationType::CHARACTER:
-            character_ = root["_character"].GetString();
+            m_character = root["_character"].GetString();
             break;
         };
-        socketed_ = false;
+        m_socketed = false;
         if (root.HasMember("_socketed")) {
-            socketed_ = root["_socketed"].GetBool();
+            m_socketed = root["_socketed"].GetBool();
         };
         if (root.HasMember("_removeonly")) {
-            removeonly_ = root["_removeonly"].GetBool();
+            m_removeonly = root["_removeonly"].GetBool();
         };
         // socketed items have x/y pointing to parent
-        if (socketed_) {
-            x_ = root["_x"].GetInt();
-            y_ = root["_y"].GetInt();
+        if (m_socketed) {
+            m_x = root["_x"].GetInt();
+            m_y = root["_y"].GetInt();
         };
     };
     if (root.HasMember("x") && root.HasMember("y") && root["x"].IsInt() && root["y"].IsInt()) {
-        x_ = root["x"].GetInt();
-        y_ = root["y"].GetInt();
+        m_x = root["x"].GetInt();
+        m_y = root["y"].GetInt();
     };
     if (root.HasMember("w") && root.HasMember("h") && root["w"].IsInt() && root["h"].IsInt()) {
-        w_ = root["w"].GetInt();
-        h_ = root["h"].GetInt();
+        m_w = root["w"].GetInt();
+        m_h = root["h"].GetInt();
     };
     if (root.HasMember("inventoryId") && root["inventoryId"].IsString())
-        inventory_id_ = root["inventoryId"].GetString();
+        m_inventory_id = root["inventoryId"].GetString();
 }
 
 void ItemLocation::ToItemJson(rapidjson::Value* root_ptr, rapidjson_allocator& alloc) {
     auto& root = *root_ptr;
     rapidjson::Value string_val(rapidjson::kStringType);
-    root.AddMember("_type", static_cast<int>(type_), alloc);
-    switch (type_) {
+    root.AddMember("_type", static_cast<int>(m_type), alloc);
+    switch (m_type) {
     case ItemLocationType::STASH:
-        root.AddMember("_tab", tab_id_, alloc);
-        string_val.SetString(tab_label_.c_str(), alloc);
+        root.AddMember("_tab", m_tab_id, alloc);
+        string_val.SetString(m_tab_label.toStdString().c_str(), alloc);
         root.AddMember("_tab_label", string_val, alloc);
         break;
     case ItemLocationType::CHARACTER:
-        string_val.SetString(character_.c_str(), alloc);
+        string_val.SetString(m_character.toStdString().c_str(), alloc);
         root.AddMember("_character", string_val, alloc);
         break;
     };
-    if (socketed_) {
-        root.AddMember("_x", x_, alloc);
-        root.AddMember("_y", y_, alloc);
+    if (m_socketed) {
+        root.AddMember("_x", m_x, alloc);
+        root.AddMember("_y", m_y, alloc);
     };
-    root.AddMember("_socketed", socketed_, alloc);
-    root.AddMember("_removeonly", removeonly_, alloc);
+    root.AddMember("_socketed", m_socketed, alloc);
+    root.AddMember("_removeonly", m_removeonly, alloc);
 }
 
-std::string ItemLocation::GetHeader() const {
-    switch (type_) {
-    case ItemLocationType::STASH: return QString("#%1, \"%2\"").arg(tab_id_ + 1).arg(tab_label_.c_str()).toStdString();
-    case ItemLocationType::CHARACTER: return character_;
+QString ItemLocation::GetHeader() const {
+    switch (m_type) {
+    case ItemLocationType::STASH: return QString("#%1, \"%2\"").arg(m_tab_id + 1).arg(m_tab_label);
+    case ItemLocationType::CHARACTER: return m_character;
     default: return "";
     };
 }
 
 QRectF ItemLocation::GetRect() const {
     QRectF result;
-    position itemPos{ double(x_), double(y_) };
+    position itemPos{ double(m_x), double(m_y) };
 
-    if ((!inventory_id_.empty()) && (type_ == ItemLocationType::CHARACTER)) {
+    if ((!m_inventory_id.isEmpty()) && (m_type == ItemLocationType::CHARACTER)) {
         auto& map = POS_MAP();
-        if (inventory_id_ == "MainInventory") {
-            itemPos.y += map.at(inventory_id_).y;
-        } else if (inventory_id_ == "Flask") {
-            itemPos.x += map.at(inventory_id_).x;
-            itemPos.y = map.at(inventory_id_).y;
-        } else if (map.count(inventory_id_)) {
-            itemPos = map.at(inventory_id_);
+        if (m_inventory_id == "MainInventory") {
+            itemPos.y += map.at(m_inventory_id).y;
+        } else if (m_inventory_id == "Flask") {
+            itemPos.x += map.at(m_inventory_id).x;
+            itemPos.y = map.at(m_inventory_id).y;
+        } else if (map.count(m_inventory_id)) {
+            itemPos = map.at(m_inventory_id);
         };
     };
 
     // The number of pixels per slot depends on whether we are looking
     // at a quad stash or not.
     float pixels_per_slot = static_cast<float>(PIXELS_PER_MINIMAP_SLOT);
-    if (0 == tab_type_.compare("QuadStash")) {
+    if (0 == m_tab_type.compare("QuadStash")) {
         pixels_per_slot /= 2.0;
     };
 
     result.setX(pixels_per_slot * itemPos.x);
     result.setY(pixels_per_slot * itemPos.y);
-    result.setWidth(pixels_per_slot * w_);
-    result.setHeight(pixels_per_slot * h_);
+    result.setWidth(pixels_per_slot * m_w);
+    result.setHeight(pixels_per_slot * m_h);
     return result;
 }
 
-std::string ItemLocation::GetForumCode(const std::string& realm, const std::string& league, unsigned int tab_index) const {
-    switch (type_) {
+QString ItemLocation::GetForumCode(const QString& realm, const QString& league, unsigned int tab_index) const {
+    switch (m_type) {
     case ItemLocationType::STASH:
         return QString("[linkItem location=\"Stash%1\" league=\"%2\" x=\"%3\" y=\"%4\" realm=\"%5\"]")
-            .arg(QString::number(tab_index + 1), league.c_str(), QString::number(x_), QString::number(y_), realm.c_str())
-            .toStdString();
+            .arg(QString::number(tab_index + 1), league, QString::number(m_x), QString::number(m_y), realm);
     case ItemLocationType::CHARACTER:
         return QString("[linkItem location=\"%1\" character=\"%2\" x=\"%3\" y=\"%4\" realm=\"%5\"]")
-            .arg(inventory_id_.c_str(), character_.c_str(), QString::number(x_), QString::number(y_), realm.c_str())
-            .toStdString();
+            .arg(m_inventory_id, m_character, QString::number(m_x), QString::number(m_y), realm);
     default:
         return "";
     };
 }
 
 bool ItemLocation::IsValid() const {
-    switch (type_) {
-    case ItemLocationType::STASH: return !tab_unique_id_.empty();
-    case ItemLocationType::CHARACTER: return !character_.empty();
+    switch (m_type) {
+    case ItemLocationType::STASH: return !m_tab_unique_id.isEmpty();
+    case ItemLocationType::CHARACTER: return !m_character.isEmpty();
     default: return false;
     };
 }
 
-std::string ItemLocation::GetUniqueHash() const {
+QString ItemLocation::GetUniqueHash() const {
     if (!IsValid()) {
-        QLOG_ERROR() << "ItemLocation is invalid:" << json_.c_str();;
+        QLOG_ERROR() << "ItemLocation is invalid:" << m_json;
     };
-    switch (type_) {
-    case ItemLocationType::STASH: return "stash:" + tab_label_; // TODO: tab labels are not guaranteed unique
-    case ItemLocationType::CHARACTER: return "character:" + character_;
+    switch (m_type) {
+    case ItemLocationType::STASH: return "stash:" + m_tab_label; // TODO: tab labels are not guaranteed unique
+    case ItemLocationType::CHARACTER: return "character:" + m_character;
     default: return "";
     };
 }
 
 bool ItemLocation::operator<(const ItemLocation& rhs) const {
-    if (type_ == rhs.type_) {
-        switch (type_) {
-        case ItemLocationType::STASH: return tab_id_ < rhs.tab_id_;
-        case ItemLocationType::CHARACTER: return (QString::localeAwareCompare(character_sortname_, rhs.character_sortname_) < 0);
+    if (m_type == rhs.m_type) {
+        switch (m_type) {
+        case ItemLocationType::STASH: return m_tab_id < rhs.m_tab_id;
+        case ItemLocationType::CHARACTER: return (QString::localeAwareCompare(m_character_sortname, rhs.m_character_sortname) < 0);
         default:
-            QLOG_ERROR() << "Invalid location type:" << type_;
+            QLOG_ERROR() << "Invalid location type:" << m_type;
             return true;
         };
     } else {
         // STASH locations will always be less than CHARACTER locations.
-        return (type_ == ItemLocationType::STASH);
+        return (m_type == ItemLocationType::STASH);
     };
 }
 
 bool ItemLocation::operator==(const ItemLocation& other) const {
-    return tab_unique_id_ == other.tab_unique_id_;
+    return m_tab_unique_id == other.m_tab_unique_id;
 }

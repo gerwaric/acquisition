@@ -59,19 +59,19 @@ private:
     bool has_newer_release() const;
     bool has_newer_prerelease() const;
 
-    QSettings& settings_;
-    QNetworkAccessManager& nm_;
+    QSettings& m_settings;
+    QNetworkAccessManager& m_nm;
 
     // Trigger periodic update checks.
-    QTimer timer_;
+    QTimer m_timer;
 
     // The running version
-    const semver::version running_version_;
+    const semver::version m_running_version;
 
     // The latest github release
-    semver::version latest_release_;
-    semver::version latest_prerelease_;
+    semver::version m_latest_release;
+    semver::version m_latest_prerelease;
 
-    semver::version previous_release_;
-    semver::version previous_prerelease_;
+    semver::version m_previous_release;
+    semver::version m_previous_prerelease;
 };

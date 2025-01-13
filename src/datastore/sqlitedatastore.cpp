@@ -29,7 +29,7 @@
 #include "currencymanager.h"
 
 SqliteDataStore::SqliteDataStore(const QString& filename)
-    : filename_(filename)
+    : m_filename(filename)
 {
     QDir dir(QDir::cleanPath(filename + "/.."));
     if (!dir.exists()) {
@@ -49,10 +49,10 @@ SqliteDataStore::SqliteDataStore(const QString& filename)
         };
     };
 
-    db_ = QSqlDatabase::addDatabase("QSQLITE", filename);
-    db_.setDatabaseName(filename);
-    if (db_.open() == false) {
-        QLOG_ERROR() << "Failed to open QSQLITE database:" << filename << ":" << db_.lastError().text();
+    m_db = QSqlDatabase::addDatabase("QSQLITE", filename);
+    m_db.setDatabaseName(filename);
+    if (m_db.open() == false) {
+        QLOG_ERROR() << "Failed to open QSQLITE database:" << filename << ":" << m_db.lastError().text();
         return;
     };
 
@@ -62,25 +62,23 @@ SqliteDataStore::SqliteDataStore(const QString& filename)
     CreateTable("currency", "timestamp INTEGER PRIMARY KEY, value TEXT");
     CleanItemsTable();
 
-    QSqlQuery query(db_);
+    QSqlQuery query(m_db);
     query.prepare("VACUUM");
     if (query.exec() == false) {
-        QLOG_ERROR() << "SqliteDataStore: failed to vacuum QSQLITE database:" << filename << ":" << db_.lastError().text();
+        QLOG_ERROR() << "SqliteDataStore: failed to vacuum QSQLITE database:" << filename << ":" << m_db.lastError().text();
     };
 }
 
-void SqliteDataStore::CreateTable(const std::string& name, const std::string& fields) {
-    const QString qname = QString::fromStdString(name);
-    const QString qfields = QString::fromStdString(fields);
-    QSqlQuery query(db_);
-    query.prepare("CREATE TABLE IF NOT EXISTS " + qname + "(" + qfields + ")");
+void SqliteDataStore::CreateTable(const QString& name, const QString& fields) {
+    QSqlQuery query(m_db);
+    query.prepare("CREATE TABLE IF NOT EXISTS " + name + "(" + fields + ")");
     if (query.exec() == false) {
-        QLOG_ERROR() << "CreateTable(): failed to create" << qname << ":" << query.lastError().text();
+        QLOG_ERROR() << "CreateTable(): failed to create" << name << ":" << query.lastError().text();
     };
 }
 
 void SqliteDataStore::CleanItemsTable() {
-    QSqlQuery query(db_);
+    QSqlQuery query(m_db);
     query.prepare("DELETE FROM items WHERE loc IS NULL");
     if (query.exec() == false) {
         QLOG_ERROR() << "CleanItemsTable(): error deleting items where loc is null.";
@@ -96,7 +94,7 @@ void SqliteDataStore::CleanItemsTable() {
     if (!stashTabData.empty() && !charsData.empty()) {
         QStringList locs;
 
-        query = QSqlQuery(db_);
+        query = QSqlQuery(m_db);
         query.setForwardOnly(true);
         query.prepare("SELECT loc FROM items");
         if (query.exec() == false) {
@@ -104,11 +102,10 @@ void SqliteDataStore::CleanItemsTable() {
             return;
         };
         while (query.next()) {
-            if (query.lastError().isValid()) {
-                QLOG_ERROR() << "CleanItemsTable(): error moving to next loc";
-                return;
-            };
             locs.push_back(query.value(0).toString());
+        };
+        if (query.lastError().isValid()) {
+            QLOG_ERROR() << "CleanItemsTable(): error moving to next loc:" << query.lastError().text();
         };
         query.finish();
 
@@ -119,7 +116,7 @@ void SqliteDataStore::CleanItemsTable() {
 
             //check stash tabs
             for (const auto& stashTab : stashTabData) {
-                if (loc == QString::fromStdString(stashTab.get_tab_uniq_id())) {
+                if (loc == stashTab.get_tab_uniq_id()) {
                     foundLoc = true;
                     break;
                 }
@@ -128,7 +125,7 @@ void SqliteDataStore::CleanItemsTable() {
             //check character tabs
             if (!foundLoc) {
                 for (const auto& charTab : charsData) {
-                    if (loc == QString::fromStdString(charTab.get_character())) {
+                    if (loc == charTab.get_character()) {
                         foundLoc = true;
                         break;
                     }
@@ -137,7 +134,7 @@ void SqliteDataStore::CleanItemsTable() {
 
             //loc not found in either tab storage, delete record from 'items'
             if (!foundLoc) {
-                query = QSqlQuery(db_);
+                query = QSqlQuery(m_db);
                 query.prepare("DELETE FROM items WHERE loc = ?");
                 query.bindValue(0, loc);
                 if (query.exec() == false) {
@@ -148,26 +145,26 @@ void SqliteDataStore::CleanItemsTable() {
     }
 }
 
-std::string SqliteDataStore::Get(const std::string& key, const std::string& default_value) {
-    QSqlQuery query(db_);
+QString SqliteDataStore::Get(const QString& key, const QString& default_value) {
+    QSqlQuery query(m_db);
     query.prepare("SELECT value FROM data WHERE key = ?");
-    query.bindValue(0, QString::fromStdString(key));
+    query.bindValue(0, key);
     if (query.exec() == false) {
-        QLOG_ERROR() << "Error getting data for" << key.c_str() << ":" << query.lastError().text();
+        QLOG_ERROR() << "Error getting data for" << key << ":" << query.lastError().text();
         return default_value;
     };
     if (query.next() == false) {
         if (query.isActive() == false) {
-            QLOG_ERROR() << "Error getting result for" << key.c_str() << ":" << query.lastError().text();
+            QLOG_ERROR() << "Error getting result for" << key << ":" << query.lastError().text();
         };
         return default_value;
     };
-    std::string result = query.value(0).toByteArray().toStdString();
+    QString result = query.value(0).toByteArray();
     return result;
 }
 
-Locations SqliteDataStore::GetTabs(const ItemLocationType& type) {
-    QSqlQuery query(db_);
+Locations SqliteDataStore::GetTabs(const ItemLocationType type) {
+    QSqlQuery query(m_db);
     query.prepare("SELECT value FROM tabs WHERE type = ?");
     query.bindValue(0, (int)type);
     if (query.exec() == false) {
@@ -185,8 +182,8 @@ Locations SqliteDataStore::GetTabs(const ItemLocationType& type) {
 }
 
 Items SqliteDataStore::GetItems(const ItemLocation& loc) {
-    const QString tab_uid = QString::fromStdString(loc.get_tab_uniq_id());
-    QSqlQuery query(db_);
+    const QString tab_uid = loc.get_tab_uniq_id();
+    QSqlQuery query(m_db);
     query.prepare("SELECT value FROM items WHERE loc = ?");
     query.bindValue(0, tab_uid);
     if (query.exec() == false) {
@@ -203,18 +200,18 @@ Items SqliteDataStore::GetItems(const ItemLocation& loc) {
     return DeserializeItems(json, loc);
 }
 
-void SqliteDataStore::Set(const std::string& key, const std::string& value) {
-    QSqlQuery query(db_);
+void SqliteDataStore::Set(const QString& key, const QString& value) {
+    QSqlQuery query(m_db);
     query.prepare("INSERT OR REPLACE INTO data (key, value) VALUES (?, ?)");
-    query.bindValue(0, QString::fromStdString(key));
-    query.bindValue(1, QString::fromStdString(value));
+    query.bindValue(0, key);
+    query.bindValue(1, value);
     if (query.exec() == false) {
-        QLOG_ERROR() << "Error setting value" << key.c_str();
+        QLOG_ERROR() << "Error setting value" << key;
     };
 }
 
-void SqliteDataStore::SetTabs(const ItemLocationType& type, const Locations& tabs) {
-    QSqlQuery query(db_);
+void SqliteDataStore::SetTabs(const ItemLocationType type, const Locations& tabs) {
+    QSqlQuery query(m_db);
     query.prepare("INSERT OR REPLACE INTO tabs (type, value) VALUES (?, ?)");
     query.bindValue(0, (int)type);
     query.bindValue(1, Serialize(tabs));
@@ -224,13 +221,13 @@ void SqliteDataStore::SetTabs(const ItemLocationType& type, const Locations& tab
 }
 
 void SqliteDataStore::SetItems(const ItemLocation& loc, const Items& items) {
-    if (loc.get_tab_uniq_id().empty()) {
+    if (loc.get_tab_uniq_id().isEmpty()) {
         QLOG_WARN() << "Cannot set items because the location is empty";
         return;
     };
-    QSqlQuery query(db_);
+    QSqlQuery query(m_db);
     query.prepare("INSERT OR REPLACE INTO items (loc, value) VALUES (?, ?)");
-    query.bindValue(0, QString::fromStdString(loc.get_tab_uniq_id()));
+    query.bindValue(0, loc.get_tab_uniq_id());
     query.bindValue(1, Serialize(items));
     if (query.exec() == false) {
         QLOG_ERROR() << "Error setting tabs for type" << loc.get_tab_uniq_id();
@@ -238,17 +235,17 @@ void SqliteDataStore::SetItems(const ItemLocation& loc, const Items& items) {
 }
 
 void SqliteDataStore::InsertCurrencyUpdate(const CurrencyUpdate& update) {
-    QSqlQuery query(db_);
+    QSqlQuery query(m_db);
     query.prepare("INSERT INTO currency (timestamp, value) VALUES (?, ?)");
     query.bindValue(0, update.timestamp);
-    query.bindValue(1, QString::fromStdString(update.value));
+    query.bindValue(1, update.value);
     if (query.exec() == false) {
         QLOG_ERROR() << "Error inserting currency update.";
     };
 }
 
 std::vector<CurrencyUpdate> SqliteDataStore::GetAllCurrency() {
-    QSqlQuery query(db_);
+    QSqlQuery query(m_db);
     query.prepare("SELECT timestamp, value FROM currency ORDER BY timestamp ASC");
     std::vector<CurrencyUpdate> result;
     if (query.exec() == false) {
@@ -256,34 +253,33 @@ std::vector<CurrencyUpdate> SqliteDataStore::GetAllCurrency() {
         return {};
     };
     while (query.next()) {
-        if (query.lastError().isValid()) {
-            QLOG_ERROR() << "Error getting currency.";
-            return {};
-        };
         CurrencyUpdate update = CurrencyUpdate();
         update.timestamp = query.value(0).toLongLong();
-        update.value = query.value(1).toByteArray().toStdString();
+        update.value = query.value(1).toString();
         result.push_back(update);
+    };
+    if (query.lastError().isValid()) {
+        QLOG_ERROR() << "Error getting currency.";
+        return {};
     };
     return result;
 }
 
 SqliteDataStore::~SqliteDataStore() {
-    if (db_.isValid()) {
+    if (m_db.isValid()) {
 
         // First close the database to invalidate any queries.
-        db_.close();
+        m_db.close();
 
         // Next remove the database connection to avoid undefined behavior
         // at application shutdown per https://doc.qt.io/qt-6.5/qsqldatabase.html
-        QSqlDatabase::removeDatabase(filename_);
+        QSqlDatabase::removeDatabase(m_filename);
     };
 }
 
-QString SqliteDataStore::MakeFilename(const std::string& name, const std::string& league) {
+QString SqliteDataStore::MakeFilename(const QString& username, const QString& league) {
     // We somehow have to manage the fact that usernames now have a numeric discriminator,
     // e.g. GERWARIC#7694 instead of just GERWARIC.
-    const QString username = QString::fromStdString(name);
     if (username.contains("#")) {
         // Build the filename as though the username did not have a discriminator,
         // then append the discriminator. This approach makes it possible to recognise
@@ -291,11 +287,11 @@ QString SqliteDataStore::MakeFilename(const std::string& name, const std::string
         const QStringList parts = username.split("#");
         const QString base_username = parts[0];
         const QString discriminator = parts[1];
-        const std::string key = base_username.toStdString() + "|" + league;
+        const std::string key = base_username.toStdString() + "|" + league.toStdString();
         const QString datafile = QString(QCryptographicHash::hash(key.c_str(), QCryptographicHash::Md5).toHex()) + "-" + discriminator;
         return datafile;
     } else {
-        const std::string key = name + "|" + league;
+        const std::string key = username.toStdString() + "|" + league.toStdString();
         const QString datafile = QString(QCryptographicHash::hash(key.c_str(), QCryptographicHash::Md5).toHex());
         return datafile;
     };

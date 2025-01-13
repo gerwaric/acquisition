@@ -24,7 +24,6 @@
 #include <utility>
 #include <sstream>
 
-#include <boost/algorithm/string.hpp>
 #include <rapidjson/document.h>
 
 #include "util/util.h"
@@ -41,7 +40,7 @@ using rapidjson::HasBool;
 using rapidjson::HasObject;
 using rapidjson::HasArray;
 
-const std::array<Item::CategoryReplaceMap, Item::k_CategoryLevels> Item::replace_map_ = {
+const std::array<Item::CategoryReplaceMap, Item::k_CategoryLevels> Item::m_replace_map = {
     // Category hierarchy 0 replacement map
     Item::CategoryReplaceMap({{"Divination", "Divination Cards"},
                             {"QuestItems", "Quest Items"}}),
@@ -61,49 +60,55 @@ const std::array<Item::CategoryReplaceMap, Item::k_CategoryLevels> Item::replace
                                                                                 {"TwoHandSwords", "Swords"}})
 };
 
-const std::vector<std::string> ITEM_MOD_TYPES = {
-    "implicitMods", "enchantMods", "explicitMods", "craftedMods", "fracturedMods"
+const std::vector<QString> ITEM_MOD_TYPES = {
+    "implicitMods",
+    "enchantMods",
+    "explicitMods",
+    "craftedMods",
+    "fracturedMods"
 };
 
-static std::string item_unique_properties(const rapidjson::Value& json, const std::string& name) {
-    const char* name_p = name.c_str();
-    if (!json.HasMember(name_p)) {
+static QString item_unique_properties(const rapidjson::Value& json, const QString& name) {
+    const std::string name_s = name.toStdString();
+    const char* name_c = name_s.c_str();
+    if (!json.HasMember(name_c)) {
         return "";
     };
-    std::string result;
-    for (auto& prop : json[name_p]) {
-        result += std::string(prop["name"].GetString()) + "~";
+    QString result;
+    for (auto& prop : json[name_c]) {
+        result += QString(prop["name"].GetString()) + "~";
         for (auto& value : prop["values"]) {
-            result += std::string(value[0].GetString()) + "~";
+            result += QString(value[0].GetString()) + "~";
         };
     };
     return result;
 }
 
 // Fix up names, remove all <<set:X>> modifiers
-static std::string fixup_name(const std::string& name) {
-    std::string::size_type right_shift = name.rfind(">>");
-    if (right_shift != std::string::npos) {
-        return name.substr(right_shift + 2);
+static QString fixup_name(const QString& name) {
+    const auto k = name.lastIndexOf(">>");
+    if (k >= 0) {
+        return name.sliced(k + 2);
+    } else {
+        return name;
     };
-    return name;
 }
 
-Item::Item(const std::string& name, const ItemLocation& location)
-    : name_(name)
-    , location_(location)
-    , hash_(Util::Md5(name)) // Unique enough for tests
+Item::Item(const QString& name, const ItemLocation& location)
+    : m_name(name)
+    , m_location(location)
+    , m_hash(Util::Md5(name)) // Unique enough for tests
 {}
 
 Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
-    : location_(loc)
-    , json_(Util::RapidjsonSerialize(json))
+    : m_location(loc)
+    , m_json(Util::RapidjsonSerialize(json))
 {
     if (HasString(json, "name")) {
-        name_ = fixup_name(json["name"].GetString());
+        m_name = fixup_name(json["name"].GetString());
     };
     if (HasString(json, "typeLine")) {
-        std::string name;
+        QString name;
         if (HasObject(json, "hybrid")) {
             const auto& hybrid = json["hybrid"];
             if (HasBool(hybrid, "isVaalGem") && hybrid["isVaalGem"].GetBool()) {
@@ -119,79 +124,80 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
         } else {
             name = json["typeLine"].GetString();
         };
-        typeLine_ = fixup_name(name);
+        m_typeLine = fixup_name(name);
     };
     if (HasString(json, "baseType")) {
-        baseType_ = fixup_name(json["baseType"].GetString());
+        m_baseType = fixup_name(json["baseType"].GetString());
     };
     if (HasBool(json, "identified")) {
-        identified_ = json["identified"].GetBool();
+        m_identified = json["identified"].GetBool();
     };
     if (HasBool(json, "corrupted")) {
-        corrupted_ = json["corrupted"].GetBool();
+        m_corrupted = json["corrupted"].GetBool();
     };
     if (HasArray(json, "craftedMods") && !json["craftedMods"].Empty()) {
-        crafted_ = true;
+        m_crafted = true;
     };
     if (HasArray(json, "enchantMods") && !json["enchantMods"].Empty()) {
-        enchanted_ = true;
+        m_enchanted = true;
     };
     if (HasObject(json, "influences")) {
         const auto& influences = json["influences"];
         if (influences.HasMember("shaper")) {
-            influenceList_.push_back(SHAPER);
+            m_influenceList.push_back(SHAPER);
         };
         if (influences.HasMember("elder")) {
-            influenceList_.push_back(ELDER);
+            m_influenceList.push_back(ELDER);
         };
         if (influences.HasMember("crusader")) {
-            influenceList_.push_back(CRUSADER);
+            m_influenceList.push_back(CRUSADER);
         };
         if (influences.HasMember("redeemer")) {
-            influenceList_.push_back(REDEEMER);
+            m_influenceList.push_back(REDEEMER);
         };
         if (influences.HasMember("hunter")) {
-            influenceList_.push_back(HUNTER);
+            m_influenceList.push_back(HUNTER);
         };
         if (influences.HasMember("warlord")) {
-            influenceList_.push_back(WARLORD);
+            m_influenceList.push_back(WARLORD);
         };
     };
 
     if (HasBool(json, "synthesised") && json["synthesised"].GetBool()) {
-        influenceList_.push_back(SYNTHESISED);
+        m_influenceList.push_back(SYNTHESISED);
     };
     if (HasBool(json, "fractured") && json["fractured"].GetBool()) {
-        influenceList_.push_back(FRACTURED);
+        m_influenceList.push_back(FRACTURED);
     };
     if (HasBool(json, "searing") && json["searing"].GetBool()) {
-        influenceList_.push_back(SEARING_EXARCH);
+        m_influenceList.push_back(SEARING_EXARCH);
     };
     if (HasBool(json, "tangled") && json["tangled"].GetBool()) {
-        influenceList_.push_back(EATER_OF_WORLDS);
+        m_influenceList.push_back(EATER_OF_WORLDS);
     };
 
     if (HasInt(json, "w")) {
-        w_ = json["w"].GetInt();
+        m_w = json["w"].GetInt();
     };
     if (HasInt(json, "h")) {
-        h_ = json["h"].GetInt();
+        m_h = json["h"].GetInt();
     };
 
     if (HasInt(json, "frameType")) {
-        frameType_ = json["frameType"].GetInt();
+        m_frameType = json["frameType"].GetInt();
     };
 
     if (HasString(json, "icon")) {
-        icon_ = json["icon"].GetString();
+        m_icon = json["icon"].GetString();
     };
 
     for (auto& mod_type : ITEM_MOD_TYPES) {
-        text_mods_[mod_type] = std::vector<std::string>();
-        const char* mod_type_s = mod_type.c_str();
-        if (HasArray(json, mod_type_s)) {
-            auto& mods = text_mods_[mod_type];
-            for (auto& mod : json[mod_type_s]) {
+        m_text_mods[mod_type] = std::vector<QString>();
+        const std::string mod_type_s = mod_type.toStdString();
+        const char* mod_type_c = mod_type_s.c_str();
+        if (HasArray(json, mod_type_c)) {
+            auto& mods = m_text_mods[mod_type];
+            for (auto& mod : json[mod_type_c]) {
                 if (mod.IsString()) {
                     mods.push_back(mod.GetString());
                 };
@@ -201,22 +207,22 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
 
     // Other code assumes icon is proper size so force quad=1 to quad=0 here as it's clunky
     // to handle elsewhere
-    boost::replace_last(icon_, "quad=1", "quad=0");
+    m_icon.replace("quad=1", "quad=0");
     // quad stashes, currency stashes, etc
-    boost::replace_last(icon_, "scaleIndex=", "scaleIndex=0&");
+    m_icon.replace("scaleIndex=", "scaleIndex=0&");
 
     CalculateCategories();
 
     if (HasUint(json, "talismanTier")) {
-        talisman_tier_ = json["talismanTier"].GetUint();
+        m_talisman_tier = json["talismanTier"].GetUint();
     };
 
     if (HasString(json, "id")) {
-        uid_ = json["id"].GetString();
+        m_uid = json["id"].GetString();
     };
 
     if (HasString(json, "note")) {
-        note_ = json["note"].GetString();
+        m_note = json["note"].GetString();
     };
 
     if (HasArray(json, "properties")) {
@@ -226,20 +232,20 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
                 continue;
             };
 
-            const std::string name = prop["name"].GetString();
+            const QString name = prop["name"].GetString();
             const auto& values = prop["values"];
 
             if (name == "Elemental Damage") {
                 for (auto& value : values) {
                     if (value.IsArray() && value.Size() >= 2) {
                         if (value[0].IsString() && value[1].IsInt()) {
-                            elemental_damage_.push_back(std::make_pair(value[0].GetString(), value[1].GetInt()));
+                            m_elemental_damage.emplace_back(value[0].GetString(), value[1].GetInt());
                         };
                     };
                 };
             } else if (values.Size() > 0) {
                 if (values[0].IsArray() && values[0].Size() > 0 && values[0][0].IsString()) {
-                    properties_[name] = values[0][0].GetString();
+                    m_properties[name] = values[0][0].GetString();
                 };
             };
 
@@ -254,7 +260,7 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
                     property.values.push_back(v);
                 };
             };
-            text_properties_.push_back(property);
+            m_text_properties.push_back(property);
         };
     };
 
@@ -276,19 +282,19 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
             if (!values[0][0].IsString() || !values[0][1].IsInt()) {
                 continue;
             };
-            const std::string name = req["name"].GetString();
-            const std::string value = values[0][0].GetString();
-            requirements_[name] = std::atoi(value.c_str());
+            const QString name = req["name"].GetString();
+            const QString value = values[0][0].GetString();
+            m_requirements[name] = value.toInt();
             ItemPropertyValue v;
             v.str = value;
             v.type = values[0][1].GetInt();
-            text_requirements_.push_back({ name, v });
+            m_text_requirements.push_back({ name, v });
         };
     };
 
     if (HasArray(json, "sockets")) {
         ItemSocketGroup current_group = { 0, 0, 0, 0 };
-        sockets_cnt_ = json["sockets"].Size();
+        m_sockets_cnt = json["sockets"].Size();
         int counter = 0, prev_group = -1;
         for (auto& socket : json["sockets"]) {
 
@@ -309,76 +315,77 @@ Item::Item(const rapidjson::Value& json, const ItemLocation& loc)
 
             const int group = socket["group"].GetInt();
             ItemSocket current_socket = { static_cast<unsigned char>(group), attr };
-            text_sockets_.push_back(current_socket);
+            m_text_sockets.push_back(current_socket);
             if (prev_group != current_socket.group) {
                 counter = 0;
-                socket_groups_.push_back(current_group);
+                m_socket_groups.push_back(current_group);
                 current_group = { 0, 0, 0, 0 };
             };
             prev_group = current_socket.group;
             ++counter;
-            links_cnt_ = std::max(links_cnt_, counter);
+            m_links_cnt = std::max(m_links_cnt, counter);
             switch (current_socket.attr) {
             case 'S':
-                sockets_.r++;
+                m_sockets.r++;
                 current_group.r++;
                 break;
             case 'D':
-                sockets_.g++;
+                m_sockets.g++;
                 current_group.g++;
                 break;
             case 'I':
-                sockets_.b++;
+                m_sockets.b++;
                 current_group.b++;
                 break;
             case 'G':
-                sockets_.w++;
+                m_sockets.w++;
                 current_group.w++;
                 break;
             };
         };
-        socket_groups_.push_back(current_group);
+        m_socket_groups.push_back(current_group);
     };
 
     CalculateHash(json);
 
-    count_ = 1;
-    if (properties_.find("Stack Size") != properties_.end()) {
-        std::string size = properties_["Stack Size"];
-        if (size.find("/") != std::string::npos) {
-            size = size.substr(0, size.find("/"));
-            count_ = std::stoi(size);
+    m_count = 1;
+    auto it = m_properties.find(QStringLiteral("Stack Size"));
+    if (it != m_properties.end()) {
+        QString stack_size = it->second;
+        if (stack_size.contains("/")) {
+            const auto n = stack_size.indexOf("/");
+            m_count = stack_size.first(n).toInt();
         };
     };
 
     if (HasInt(json, "ilvl")) {
-        ilvl_ = json["ilvl"].GetInt();
+        m_ilvl = json["ilvl"].GetInt();
     };
 
     GenerateMods(json);
 }
 
-std::string Item::PrettyName() const {
-    if (!name_.empty()) {
-        return name_ + " " + typeLine_;
+QString Item::PrettyName() const {
+    if (!m_name.isEmpty()) {
+        return m_name + " " + m_typeLine;
     } else {
-        return typeLine_;
+        return m_typeLine;
     };
 }
 
 void Item::CalculateCategories() {
-    category_ = GetItemCategory(baseType_);
-    if (category_.empty() == false) {
+    m_category = GetItemCategory(m_baseType);
+    if (m_category.isEmpty() == false) {
         return;
     };
     // If we didn't find a category on the first try, check to see if
     // this might be a transfigured skill gem by looking for the base
     // name and seeing if that's something we can categorize.
-    const auto indx = baseType_.find(" of ");
-    if (indx != std::string::npos) {
-        const auto altBaseType = baseType_.substr(0, indx);
-        category_ = GetItemCategory(altBaseType);
-        if (category_.empty() == false) {
+    const auto indx = m_baseType.indexOf(" of ");
+    if (indx >= 0) {
+        const auto altBaseType = m_baseType.first(indx);
+        m_category = GetItemCategory(altBaseType);
+        if (m_category.isEmpty() == false) {
             return;
         };
     };
@@ -389,35 +396,51 @@ double Item::DPS() const {
 }
 
 double Item::pDPS() const {
-    if (!properties_.count("Physical Damage") || !properties_.count("Attacks per Second")) {
+    
+    auto phys = m_properties.find(QStringLiteral("Physical Damage"));
+    if (phys == m_properties.end()) {
         return 0;
     };
-    double aps = std::stod(properties_.at("Attacks per Second"));
-    std::string pd = properties_.at("Physical Damage");
-
-    return aps * Util::AverageDamage(pd);
+    auto aps = m_properties.find(QStringLiteral("Attacks per Second"));
+    if (aps == m_properties.end()) {
+        return 0;
+    };
+    const double attacks = aps->second.toDouble();
+    QString hit = phys->second;
+    return attacks * Util::AverageDamage(hit);
 }
 
 double Item::eDPS() const {
-    if (elemental_damage_.empty() || !properties_.count("Attacks per Second")) {
+    if (m_elemental_damage.empty()) {
+        return 0;
+    };
+    auto aps = m_properties.find(QStringLiteral("Attacks per Second"));
+    if (aps == m_properties.end()) {
         return 0;
     };
     double damage = 0;
-    for (auto& x : elemental_damage_) {
+    for (auto& x : m_elemental_damage) {
         damage += Util::AverageDamage(x.first);
     };
-    double aps = std::stod(properties_.at("Attacks per Second"));
-    return aps * damage;
+    const double attacks = aps->second.toDouble();
+    return attacks * damage;
 }
 
 double Item::cDPS() const {
-    if (!properties_.count("Chaos Damage") || !properties_.count("Attacks per Second")) {
+
+    auto chaos = m_properties.find(QStringLiteral("Chaos Damage"));
+    if (chaos == m_properties.end()) {
         return 0;
     };
-    double aps = std::stod(properties_.at("Attacks per Second"));
-    std::string cd = properties_.at("Chaos Damage");
 
-    return aps * Util::AverageDamage(cd);
+    auto aps = m_properties.find(QStringLiteral("Attacks per Second"));
+    if (aps == m_properties.end()) {
+        return 0;
+    };
+    double attacks = aps->second.toDouble();
+    QString hit = chaos->second;
+
+    return attacks * Util::AverageDamage(hit);
 }
 
 void Item::GenerateMods(const rapidjson::Value& json) {
@@ -425,7 +448,7 @@ void Item::GenerateMods(const rapidjson::Value& json) {
         if (HasArray(json, type)) {
             for (const auto& mod : json[type]) {
                 if (mod.IsString()) {
-                    AddModToTable(mod.GetString(), &mod_table_);
+                    AddModToTable(mod.GetString(), &m_mod_table);
                 };
             };
         };
@@ -433,23 +456,23 @@ void Item::GenerateMods(const rapidjson::Value& json) {
 }
 
 void Item::CalculateHash(const rapidjson::Value& json) {
-    std::string unique_new = name_ + "~" + typeLine_ + "~";
+    QString unique_new = m_name + "~" + m_typeLine + "~";
     // GGG removed the <<set>> things in patch 3.4.3e but our hashes all include them, oops
-    std::string unique_old = "<<set:MS>><<set:M>><<set:S>>" + unique_new;
+    QString unique_old = "<<set:MS>><<set:M>><<set:S>>" + unique_new;
 
-    std::string unique_common;
+    QString unique_common;
 
     if (HasArray(json, "explicitMods")) {
         for (auto& mod : json["explicitMods"]) {
             if (mod.IsString()) {
-                unique_common += std::string(mod.GetString()) + "~";
+                unique_common += QString(mod.GetString()) + "~";
             };
         };
     };
     if (HasArray(json, "implicitMods")) {
         for (auto& mod : json["implicitMods"]) {
             if (mod.IsString()) {
-                unique_common += std::string(mod.GetString()) + "~";
+                unique_common += QString(mod.GetString()) + "~";
             };
         };
     };
@@ -463,95 +486,134 @@ void Item::CalculateHash(const rapidjson::Value& json) {
                 continue;
             };
             const int group = socket["group"].GetInt();
-            const std::string attr = socket["attr"].GetString();
-            unique_common += std::to_string(group) + "~" + attr + "~";
+            const QString attr = socket["attr"].GetString();
+            unique_common += QString::number(group) + "~" + attr + "~";
         };
     };
 
-    unique_common += "~" + location_.GetUniqueHash();
+    unique_common += "~" + m_location.GetUniqueHash();
 
     unique_old += unique_common;
     unique_new += unique_common;
 
-    old_hash_ = Util::Md5(unique_old);
-    hash_ = Util::Md5(unique_new);
+    m_old_hash = Util::Md5(unique_old);
+    m_hash = Util::Md5(unique_new);
 }
 
 bool Item::operator<(const Item& rhs) const {
-    std::string name = PrettyName();
-    std::string rhs_name = rhs.PrettyName();
-    return std::tie(name, uid_, hash_) < std::tie(rhs_name, rhs.uid_, hash_);
+    QString name = PrettyName();
+    QString rhs_name = rhs.PrettyName();
+    return std::tie(name, m_uid, m_hash) < std::tie(rhs_name, rhs.m_uid, m_hash);
 }
 
 bool Item::Wearable() const {
-    return (category_ == "flasks"
-        || category_ == "amulet" || category_ == "ring" || category_ == "belt"
-        || category_.find("armour") != std::string::npos
-        || category_.find("weapons") != std::string::npos
-        || category_.find("jewels") != std::string::npos);
+    return (m_category == "flasks"
+        || m_category == "amulet" || m_category == "ring" || m_category == "belt"
+        || m_category.contains("armour")
+        || m_category.contains("weapons")
+        || m_category.contains("jewels"));
 }
 
-std::string Item::POBformat() const {
-    std::stringstream PoBText;
-    PoBText << name();
-    PoBText << "\n" << typeLine();
+QString Item::POBformat() const {
+    std::stringstream pob;
+    switch (m_frameType) {
+    case 0: pob << "Rarity: NORMAL"; break;
+    case 1: pob << "Rarity: MAGIC"; break;
+    case 2: pob << "Rarity: RARE"; break;
+    case 3: pob << "Rarity: UNIQUE"; break;
+    case 4: // gem
+    case 5: // currency
+    case 6: // divination card
+    case 7: // quest
+    case 8: // prophecy (legacy)
+        QLOG_ERROR() << "Cannot build POB format: unsupported frameType:" << m_frameType;
+        break;
+    case 9: pob << "Rarity: UNIQUE"; break;// foil
+    case 10: pob << "Rarity: UNIQUE"; break;// supporter foil
+    case 11: // necropolis
+        QLOG_ERROR() << "Cannot build POB format: unsupported frameType:" << m_frameType;
+        break;
+    default:
+        QLOG_ERROR() << "Cannot build POB format: unrecognized frameType:" << m_frameType;
+        break;
+    };
+    pob << "\n" << name().toStdString();
+    pob << "\n" << typeLine().toStdString();
+    pob << "\nUnique ID: " << m_uid.toStdString();
+    pob << "\nItem Level: " << m_ilvl;
 
-    // Could use uid_ for "Unique ID:", if it'd help PoB avoid duplicate imports later via stash API?
+    auto qual = m_properties.find(QStringLiteral("Quality"));
+    if (qual != m_properties.end()) {
+        QString quality = qual->second;
+        if (quality.startsWith("+")) {
+            quality.slice(1);
+        };
+        if (quality.endsWith("%")) {
+            quality.chop(1);
+        };
+        pob << "\nQuality: " << quality.toInt();
+    };
 
     auto& sockets = text_sockets();
     if (sockets.size() > 0) {
-        PoBText << "\nSockets: ";
+        pob << "\nSockets: ";
         ItemSocket prev = { 255, '-' };
         size_t i = 0;
         for (auto& socket : sockets) {
             bool link = socket.group == prev.group;
             if (i > 0) {
-                PoBText << (link ? "-" : " ");
+                pob << (link ? "-" : " ");
             };
             switch (socket.attr) {
-            case 'S':
-                PoBText << "R";
-                break;
-            case 'D':
-                PoBText << "G";
-                break;
-            case 'I':
-                PoBText << "B";
-                break;
-            case 'G':
-                PoBText << "W";
-                break;
-            default:
-                PoBText << socket.attr;
-                break;
+            case 'S': pob << "R"; break;
+            case 'D': pob << "G"; break;
+            case 'I': pob << "B"; break;
+            case 'G': pob << "W"; break;
+            default: pob << socket.attr; break;
             };
             prev = socket;
             ++i;
         };
     };
 
+    auto lvl = m_requirements.find(QStringLiteral("Level"));
+    if (lvl != m_requirements.end()) {
+        pob << "\nLevelReq: " << lvl->second;
+    };
+
     auto& mods = text_mods();
 
     auto& implicitMods = mods.at("implicitMods");
     auto& enchantMods = mods.at("enchantMods");
-    PoBText << "\nImplicits: " << (implicitMods.size() + enchantMods.size());
+    pob << "\nImplicits: " << (implicitMods.size() + enchantMods.size());
     for (const auto& mod : enchantMods) {
-        PoBText << "\n{crafted}" << mod;
+        pob << "\n{crafted}" << mod.toStdString();
     };
     for (const auto& mod : implicitMods) {
-        PoBText << "\n" << mod;
+        pob << "\n" << mod.toStdString();
+    };
+
+    auto& fracturedMods = mods.at("fracturedMods");
+    if (!fracturedMods.empty()) {
+        for (const auto& mod : fracturedMods) {
+            pob << "\n{fractured}" << mod.toStdString();
+        };
     };
 
     auto& explicitMods = mods.at("explicitMods");
     auto& craftedMods = mods.at("craftedMods");
     if (!explicitMods.empty() || !craftedMods.empty()) {
         for (const auto& mod : explicitMods) {
-            PoBText << "\n" << mod;
+            pob << "\n" << mod.toStdString();
         };
         for (const auto& mod : craftedMods) {
-            PoBText << "\n{crafted}" << mod;
+            pob << "\n{crafted}" << mod.toStdString();
         };
     };
 
-    return PoBText.str();
+    if (m_corrupted) {
+        pob << "\nCorrupted";
+    };
+
+    return QString::fromStdString(pob.str());
 }

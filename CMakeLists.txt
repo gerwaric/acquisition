@@ -29,14 +29,14 @@ cmake_minimum_required(VERSION 3.29)
 # version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
-    VERSION 0.12.2
+    VERSION 0.12.3
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
 )
 
 # Use this to define pre-releases
-set(version_postfix "")
+set(version_postfix "-beta.1")
 
 # Variables used to generate version_defines.h and installer.iss
 set(version_code        63) # This doesn't need to be changed with the new update checks.
@@ -105,13 +105,18 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/items_model.cpp
     src/itemsmanager.cpp
     src/itemsmanagerworker.cpp
+    src/legacy/legacybuyoutvalidator.cpp
+    src/legacy/legacydatastore.cpp
+    src/legacy/legacyitem.cpp
     src/main.cpp
     src/modlist.cpp
     src/modsfilter.cpp
     src/ratelimit/ratelimit.cpp
     src/ratelimit/ratelimitdialog.cpp
+    src/ratelimit/ratelimitedrequest.cpp
     src/ratelimit/ratelimiter.cpp
     src/ratelimit/ratelimitmanager.cpp
+    src/ratelimit/ratelimitpolicy.cpp
     src/search.cpp
     src/shop.cpp
     src/ui/flowlayout.cpp
@@ -156,13 +161,23 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/items_model.h
     src/itemsmanager.h
     src/itemsmanagerworker.h
+    src/legacy/legacybuyout.h
+    src/legacy/legacybuyoutvalidator.h
+    src/legacy/legacycharacter.h
+    src/legacy/legacycurrency.h
+    src/legacy/legacydatastore.h
+    src/legacy/legacyitem.h
+    src/legacy/legacystash.h
     src/modlist.h
     src/modsfilter.h
     src/network_info.h
     src/ratelimit/ratelimit.h
     src/ratelimit/ratelimitdialog.h
+    src/ratelimit/ratelimitedreply.h
+    src/ratelimit/ratelimitedrequest.h
     src/ratelimit/ratelimiter.h
     src/ratelimit/ratelimitmanager.h
+    src/ratelimit/ratelimitpolicy.h
     src/replytimeout.h
     src/search.h
     src/shop.h
@@ -175,7 +190,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/ui/verticalscrollarea.h
     src/util/crashpad.h
     src/util/fatalerror.h
-    src/util/json_struct_qt.h
     src/util/networkmanager.h
     src/util/oauthmanager.h
     src/util/oauthtoken.h
@@ -258,6 +272,7 @@ target_include_directories(acquisition PRIVATE
 add_subdirectory(deps/boost-headers-only)
 add_subdirectory(deps/Crashpad)
 add_subdirectory(deps/json_struct)
+add_subdirectory(deps/libpoe)
 add_subdirectory(deps/qdarkstyle)
 add_subdirectory(deps/QsLog)
 add_subdirectory(deps/rapidjson)
@@ -278,6 +293,7 @@ target_link_libraries(acquisition PRIVATE
     boost-headers-only
     Crashpad
     json_struct
+    libpoe
     qdarkstyle
     QsLog
     rapidjson

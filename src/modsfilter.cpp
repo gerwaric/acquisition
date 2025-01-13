@@ -30,41 +30,41 @@
 
 #include "modlist.h"
 
-SelectedMod::SelectedMod(const std::string& name, double min, double max, bool min_filled, bool max_filled)
-    : data_(name, min, max, min_filled, max_filled)
-    , mod_select_(&mod_list_model())
-    , delete_button_("X")
+SelectedMod::SelectedMod(const QString& name, double min, double max, bool min_filled, bool max_filled)
+    : m_data(name, min, max, min_filled, max_filled)
+    , m_mod_select(&mod_list_model())
+    , m_delete_button("X")
 {
-    mod_select_.setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    m_mod_select.setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
 
     if (min_filled) {
-        min_text_.setText(QString::number(min));
+        m_min_text.setText(QString::number(min));
     };
     if (max_filled) {
-        max_text_.setText(QString::number(max));
+        m_max_text.setText(QString::number(max));
     };
 
     // Connect signals for the mod fields.
-    QObject::connect(&mod_select_, &QComboBox::currentIndexChanged, this, &SelectedMod::OnModChanged);
-    connect(&min_text_, &QLineEdit::textEdited, this, &SelectedMod::OnMinChanged);
-    connect(&max_text_, &QLineEdit::textEdited, this, &SelectedMod::OnMaxChanged);
-    connect(&delete_button_, &QPushButton::clicked, this, &SelectedMod::OnModDeleted);
+    QObject::connect(&m_mod_select, &QComboBox::currentIndexChanged, this, &SelectedMod::OnModChanged);
+    connect(&m_min_text, &QLineEdit::textEdited, this, &SelectedMod::OnMinChanged);
+    connect(&m_max_text, &QLineEdit::textEdited, this, &SelectedMod::OnMaxChanged);
+    connect(&m_delete_button, &QPushButton::clicked, this, &SelectedMod::OnModDeleted);
 }
 
 void SelectedMod::OnModChanged() {
-    data_.mod = mod_select_.currentText().toStdString();
+    m_data.mod = m_mod_select.currentText();
     emit ModChanged(*this);
 }
 
 void SelectedMod::OnMinChanged() {
-    data_.min = min_text_.text().toDouble();
-    data_.min_filled = !min_text_.text().isEmpty();
+    m_data.min = m_min_text.text().toDouble();
+    m_data.min_filled = !m_min_text.text().isEmpty();
     emit ModChanged(*this);
 }
 
 void SelectedMod::OnMaxChanged() {
-    data_.max = max_text_.text().toDouble();
-    data_.max_filled = !max_text_.text().isEmpty();
+    m_data.max = m_max_text.text().toDouble();
+    m_data.max_filled = !m_max_text.text().isEmpty();
     emit ModChanged(*this);
 }
 
@@ -74,47 +74,47 @@ void SelectedMod::OnModDeleted() {
 
 void SelectedMod::AddToLayout(QGridLayout* layout) {
     const int row = layout->rowCount();
-    layout->addWidget(&mod_select_, row, 0, 1, ModsFilter::LayoutColumn::kColumnCount);
-    layout->addWidget(&min_text_, row + 1, ModsFilter::LayoutColumn::kMinField);
-    layout->addWidget(&max_text_, row + 1, ModsFilter::LayoutColumn::kMaxField);
-    layout->addWidget(&delete_button_, row + 1, ModsFilter::LayoutColumn::kDeleteButton);
+    layout->addWidget(&m_mod_select, row, 0, 1, ModsFilter::LayoutColumn::kColumnCount);
+    layout->addWidget(&m_min_text, row + 1, ModsFilter::LayoutColumn::kMinField);
+    layout->addWidget(&m_max_text, row + 1, ModsFilter::LayoutColumn::kMaxField);
+    layout->addWidget(&m_delete_button, row + 1, ModsFilter::LayoutColumn::kDeleteButton);
 }
 
 void SelectedMod::RemoveFromLayout(QGridLayout* layout) {
-    layout->removeWidget(&mod_select_);
-    layout->removeWidget(&min_text_);
-    layout->removeWidget(&max_text_);
-    layout->removeWidget(&delete_button_);
+    layout->removeWidget(&m_mod_select);
+    layout->removeWidget(&m_min_text);
+    layout->removeWidget(&m_max_text);
+    layout->removeWidget(&m_delete_button);
 }
 
 ModsFilter::ModsFilter(QLayout* parent) :
-    add_button_("Add mod"),
-    signal_handler_(*this)
+    m_add_button("Add mod"),
+    m_signal_handler(*this)
 {
     // Create a widget to hold all of the search mods.
     QWidget* widget = new QWidget;
     widget->setContentsMargins(0, 0, 0, 0);
-    widget->setLayout(&layout_);
+    widget->setLayout(&m_layout);
     widget->hide();
     parent->addWidget(widget);
 
     // Setup the 'Add mod' button.
-    parent->addWidget(&add_button_);
-    QObject::connect(&add_button_, &QPushButton::clicked, &signal_handler_, &ModsFilterSignalHandler::OnAddButtonClicked);
+    parent->addWidget(&m_add_button);
+    QObject::connect(&m_add_button, &QPushButton::clicked, &m_signal_handler, &ModsFilterSignalHandler::OnAddButtonClicked);
 
     // Make sure the main window knows when the search form has changed.
     MainWindow* main_window = qobject_cast<MainWindow*>(parent->parentWidget()->window());
     QObject::connect(
-        &signal_handler_, &ModsFilterSignalHandler::SearchFormChanged,
+        &m_signal_handler, &ModsFilterSignalHandler::SearchFormChanged,
         main_window, &MainWindow::OnDelayedSearchFormChange);
 }
 
 void ModsFilter::FromForm(FilterData* data) {
     data->mod_data.clear();
-    for (auto& mod : mods_) {
+    for (auto& mod : m_mods) {
         data->mod_data.push_back(mod->data());
     };
-    active_ = !mods_.empty();
+    m_active = !m_mods.empty();
 }
 
 void ModsFilter::ToForm(FilterData* data) {
@@ -122,20 +122,20 @@ void ModsFilter::ToForm(FilterData* data) {
 
     // Add search mods from the filter data.
     for (auto& mod : data->mod_data) {
-        mods_.push_back(std::make_unique<SelectedMod>(mod.mod, mod.min, mod.max, mod.min_filled, mod.max_filled));
-        mods_.back()->AddToLayout(&layout_);
+        m_mods.push_back(std::make_unique<SelectedMod>(mod.mod, mod.min, mod.max, mod.min_filled, mod.max_filled));
+        m_mods.back()->AddToLayout(&m_layout);
     };
 }
 
 void ModsFilter::ResetForm() {
-    while (auto item = layout_.takeAt(0)) {};
-    mods_.clear();
-    active_ = false;
+    while (auto item = m_layout.takeAt(0)) {};
+    m_mods.clear();
+    m_active = false;
 }
 
 bool ModsFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
     for (auto& mod : data->mod_data) {
-        if (mod.mod.empty()) {
+        if (mod.mod.isEmpty()) {
             continue;
         };
         const ModTable& mod_table = item->mod_table();
@@ -157,28 +157,28 @@ void ModsFilter::AddNewMod() {
 
     // Create the mod, connect signals, and add it to the UI.
     auto mod = std::make_unique<SelectedMod>("", 0, 0, false, false);
-    QObject::connect(mod.get(), &SelectedMod::ModChanged, &signal_handler_, &ModsFilterSignalHandler::OnModChanged);
-    QObject::connect(mod.get(), &SelectedMod::ModDeleted, &signal_handler_, &ModsFilterSignalHandler::OnModDeleted);
-    mod->AddToLayout(&layout_);
-    mods_.push_back(std::move(mod));
+    QObject::connect(mod.get(), &SelectedMod::ModChanged, &m_signal_handler, &ModsFilterSignalHandler::OnModChanged);
+    QObject::connect(mod.get(), &SelectedMod::ModDeleted, &m_signal_handler, &ModsFilterSignalHandler::OnModDeleted);
+    mod->AddToLayout(&m_layout);
+    m_mods.push_back(std::move(mod));
 
     // The parent might be hidden if there were no mod searches.
-    if (layout_.parentWidget()->isHidden()) {
-        layout_.parentWidget()->show();
+    if (m_layout.parentWidget()->isHidden()) {
+        m_layout.parentWidget()->show();
     };
 
-    active_ = true;
+    m_active = true;
 }
 
 void ModsFilter::DeleteMod(SelectedMod& mod) {
-    mod.RemoveFromLayout(&layout_);
-    for (auto it = mods_.begin(); it < mods_.end(); ++it) {
+    mod.RemoveFromLayout(&m_layout);
+    for (auto it = m_mods.begin(); it < m_mods.end(); ++it) {
         if (&mod == it->get()) {
-            mods_.erase(it);
+            m_mods.erase(it);
             // Hide the entire layout if there are no mod searches.
-            if (mods_.empty()) {
-                layout_.parentWidget()->hide();
-                active_ = false;
+            if (m_mods.empty()) {
+                m_layout.parentWidget()->hide();
+                m_active = false;
             };
             return;
         };
@@ -186,7 +186,7 @@ void ModsFilter::DeleteMod(SelectedMod& mod) {
 }
 
 void ModsFilterSignalHandler::OnAddButtonClicked() {
-    parent_.AddNewMod();
+    m_parent.AddNewMod();
 }
 
 void ModsFilterSignalHandler::OnModChanged() {
@@ -194,6 +194,6 @@ void ModsFilterSignalHandler::OnModChanged() {
 }
 
 void ModsFilterSignalHandler::OnModDeleted(SelectedMod& mod) {
-    parent_.DeleteMod(mod);
+    m_parent.DeleteMod(mod);
     emit SearchFormChanged();
 }

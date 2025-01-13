@@ -22,39 +22,39 @@
 #include "util/fatalerror.h"
 
 Bucket::Bucket(const ItemLocation& location)
-    : location_(location)
+    : m_location(location)
 {}
 
 void Bucket::AddItem(const std::shared_ptr<Item>& item) {
-    items_.push_back(item);
+    m_items.push_back(item);
 }
 
 void Bucket::AddItems(const Items& items) {
-    items_.reserve(items_.size() + items.size());
+    m_items.reserve(m_items.size() + items.size());
     for (const auto& item : items) {
-        items_.push_back(item);
+        m_items.push_back(item);
     };
 }
 
 bool Bucket::has_item(int row) const {
-    return (row >= 0) && (row < static_cast<int>(items_.size()));
+    return (row >= 0) && (row < static_cast<int>(m_items.size()));
 }
 
 const std::shared_ptr<Item>& Bucket::item(int row) const
 {
-    const int item_count = static_cast<int>(items_.size());
+    const int item_count = static_cast<int>(m_items.size());
     if ((row < 0) || (row >= item_count)) {
         const QString message = QString("Bucket item row out of bounds: %1 item count: %2. Program will abort").arg(
             QString::number(row),
             QString::number(item_count));
         FatalError(message);
     };
-    return items_[row];
+    return m_items[row];
 }
 
 void Bucket::Sort(const Column& column, Qt::SortOrder order)
 {
-    std::sort(begin(items_), end(items_),
+    std::sort(begin(m_items), end(m_items),
         [&](const std::shared_ptr<Item>& lhs, const std::shared_ptr<Item>& rhs)
         {
             if (order == Qt::AscendingOrder) {

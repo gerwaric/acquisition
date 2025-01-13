@@ -27,6 +27,7 @@
 #include <QLineEdit>
 #include <QObject>
 #include <QPushButton>
+#include <QString>
 #include <QTimer>
 
 #include <vector>
@@ -36,10 +37,10 @@
 class SelectedMod : public QObject {
     Q_OBJECT
 public:
-    SelectedMod(const std::string& name, double min, double max, bool min_selected, bool max_selected);
+    SelectedMod(const QString& name, double min, double max, bool min_selected, bool max_selected);
     void AddToLayout(QGridLayout* layout);
     void RemoveFromLayout(QGridLayout* layout);
-    const ModFilterData& data() const { return data_; }
+    const ModFilterData& data() const { return m_data; }
 signals:
     void ModChanged(SelectedMod& mod);
     void ModDeleted(SelectedMod& mod);
@@ -49,10 +50,10 @@ private slots:
     void OnMaxChanged();
     void OnModDeleted();
 private:
-    ModFilterData data_;
-    SearchComboBox mod_select_;
-    QLineEdit min_text_, max_text_;
-    QPushButton delete_button_;
+    ModFilterData m_data;
+    SearchComboBox m_mod_select;
+    QLineEdit m_min_text, m_max_text;
+    QPushButton m_delete_button;
 };
 
 class ModsFilter;
@@ -60,7 +61,7 @@ class ModsFilter;
 class ModsFilterSignalHandler : public QObject {
     Q_OBJECT
 public:
-    ModsFilterSignalHandler(ModsFilter& parent) : parent_(parent) {}
+    ModsFilterSignalHandler(ModsFilter& parent) : m_parent(parent) {}
 signals:
     void SearchFormChanged();
 public slots:
@@ -68,7 +69,7 @@ public slots:
     void OnModChanged();
     void OnModDeleted(SelectedMod& mod);
 private:
-    ModsFilter& parent_;
+    ModsFilter& m_parent;
 };
 
 class ModsFilter : public Filter {
@@ -90,8 +91,8 @@ private:
     void UpdateMod();
     void DeleteMod(SelectedMod& mod);
 
-    QGridLayout layout_;
-    std::vector<std::unique_ptr<SelectedMod>> mods_;
-    QPushButton add_button_;
-    ModsFilterSignalHandler signal_handler_;
+    QGridLayout m_layout;
+    std::vector<std::unique_ptr<SelectedMod>> m_mods;
+    QPushButton m_add_button;
+    ModsFilterSignalHandler m_signal_handler;
 };

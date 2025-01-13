@@ -36,7 +36,7 @@ private slots:
     void SocketedGemsNotLinked();
     void TemplatedShopGeneration();
 private:
-    ItemsManager& items_manager_;
-    BuyoutManager& buyout_manager_;
-    Shop& shop_;
+    ItemsManager& m_items_manager;
+    BuyoutManager& m_buyout_manager;
+    Shop& m_shop;
 };

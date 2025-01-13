@@ -21,43 +21,43 @@
 
 #include "currencymanager.h"
 
-std::string MemoryDataStore::Get(const std::string& key, const std::string& default_value) {
-    auto i = data_.find(key);
-    if (i == data_.end())
+QString MemoryDataStore::Get(const QString& key, const QString& default_value) {
+    auto i = m_data.find(key);
+    if (i == m_data.end())
         return default_value;
     return i->second;
 }
 
-Locations MemoryDataStore::GetTabs(const ItemLocationType& type) {
-    auto i = tabs_.find(type);
-    if (i == tabs_.end())
+Locations MemoryDataStore::GetTabs(const ItemLocationType type) {
+    auto i = m_tabs.find(type);
+    if (i == m_tabs.end())
         return {};
     return i->second;
 }
 
 Items MemoryDataStore::GetItems(const ItemLocation& loc) {
-    auto i = items_.find(loc.get_tab_uniq_id());
-    if (i == items_.end())
+    auto i = m_items.find(loc.get_tab_uniq_id());
+    if (i == m_items.end())
         return {};
     return i->second;
 }
 
-void MemoryDataStore::Set(const std::string& key, const std::string& value) {
-    data_[key] = value;
+void MemoryDataStore::Set(const QString& key, const QString& value) {
+    m_data[key] = value;
 }
 
-void MemoryDataStore::SetTabs(const ItemLocationType& type, const Locations& tabs) {
-    tabs_[type] = tabs;
+void MemoryDataStore::SetTabs(const ItemLocationType type, const Locations& tabs) {
+    m_tabs[type] = tabs;
 }
 
 void MemoryDataStore::SetItems(const ItemLocation& loc, const Items& items) {
-    items_[loc.get_tab_uniq_id()] = items;
+    m_items[loc.get_tab_uniq_id()] = items;
 }
 
 void MemoryDataStore::InsertCurrencyUpdate(const CurrencyUpdate& update) {
-    currency_updates_.push_back(update);
+    m_currency_updates.push_back(update);
 }
 
 std::vector<CurrencyUpdate> MemoryDataStore::GetAllCurrency() {
-    return currency_updates_;
+    return m_currency_updates;
 }

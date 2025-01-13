@@ -23,7 +23,7 @@
 #include <QString>
 
 bool initializeCrashpad(
-    const QString& dataDir,
-    const QString& dbName,
-    const QString& appName,
-    const QString& appVersion);
+    const QString& appDataDir,
+    const char* dbName,
+    const char* appName,
+    const char* appVersion);

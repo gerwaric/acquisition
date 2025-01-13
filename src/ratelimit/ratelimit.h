@@ -19,13 +19,9 @@
 
 #pragma once
 
-#include <boost/circular_buffer.hpp>
-
 #include <QByteArray>
 #include <QByteArrayList>
 #include <QDateTime>
-#include <QNetworkRequest>
-#include <QObject>
 #include <QString>
 
 class QNetworkReply;
@@ -88,106 +84,6 @@ class QNetworkReply;
 
 namespace RateLimit
 {
-    Q_NAMESPACE;
-
-    // This is the object returned to the end-user of the rate limiter.
-    // When the underlying network request is finished, the complete
-    // signal will be issued so that the caller can use a slot to
-    // process the reply.
-    class RateLimitedReply : public QObject {
-        Q_OBJECT
-    signals:
-        void complete(QNetworkReply* reply);
-    };
-
-    enum class PolicyStatus { UNKNOWN, OK, BORDERLINE, VIOLATION, INVALID };
-    Q_ENUM_NS(PolicyStatus);
-
-    using RequestHistory = boost::circular_buffer<QDateTime>;
-
-    //=========================================================================================
-    // Next, declarations for the classes that represent a rate-limit policy
-    //=========================================================================================
-    //
-    // Each API response has a rate-limit policy that applies to it.
-    // Those responses are present in the HTTP reply headers. Here's
-    // how they are concieved, briefly:
-    // 
-    //  Every endpoint only has one applicable policy.
-    //  Different endpoints may share the same rate limit policy.
-    // 
-    //  A policy has a name.
-    //  A policy has one or more rules.
-    //  A policy applies to one or more endpoints.
-    // 
-    //  Each rule has a name.
-    //  Each rule has one or more items.
-    // 
-    //  Each item has data that defines one set of limits.
-    //  Each item has data on the state of those limts.
-    //
-    // For any request against a rate-limited endpoint, only one policy applies, but
-    // all of limitations for each item of every rule within that policy are checked.
-
-    class RuleItemData {
-    public:
-        RuleItemData(const QByteArray& header_fragment);
-        int hits() const { return hits_; };
-        int period() const { return period_; };
-        int restriction() const { return restriction_; };
-    private:
-        int hits_;
-        int period_;
-        int restriction_;
-    };
-
-    class RuleItem {
-    public:
-        RuleItem(const QByteArray& limit_fragment, const QByteArray& state_fragment);
-        void Check(const RuleItem& other, const QString& prefix) const;
-        const RuleItemData& limit() const { return limit_; };
-        const RuleItemData& state() const { return state_; };
-        PolicyStatus status() const { return status_; };
-        QDateTime GetNextSafeSend(const RequestHistory& history) const;
-        int EstimateDuration(int request_count, int minimum_delay_msec) const;
-    private:
-        RuleItemData limit_;
-        RuleItemData state_;
-        PolicyStatus status_;
-    };
-
-    class PolicyRule {
-    public:
-        PolicyRule(const QByteArray& rule_name, QNetworkReply* const reply);
-        void Check(const PolicyRule& other, const QString& prefix) const;
-        const QString& name() const { return name_; };
-        const std::vector<RuleItem>& items() const { return items_; };
-        PolicyStatus status() const { return status_; };
-        int maximum_hits() const { return maximum_hits_; };
-    private:
-        QString name_;
-        std::vector<RuleItem> items_;
-        PolicyStatus status_;
-        int maximum_hits_;
-    };
-
-    class Policy {
-    public:
-        Policy(QNetworkReply* const reply);
-        void Check(const Policy& other) const;
-        const QString& name() const { return name_; };
-        const std::vector<PolicyRule>& rules() const { return rules_; };
-        PolicyStatus status() const { return status_; };
-        int maximum_hits() const { return maximum_hits_; };
-        QDateTime GetNextSafeSend(const RequestHistory& history);
-        QDateTime EstimateDuration(int request_count, int minimum_delay_msec) const;
-    private:
-        QString name_;
-        std::vector<PolicyRule> rules_;
-        PolicyStatus status_;
-        int maximum_hits_;
-    };
-
     QByteArray ParseHeader(QNetworkReply* const reply, const QByteArray& name);
     QByteArrayList ParseHeaderList(QNetworkReply* const reply, const QByteArray& name, const char delim);
     QByteArray ParseRateLimitPolicy(QNetworkReply* const reply);

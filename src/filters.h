@@ -61,22 +61,22 @@ public:
     virtual bool Matches(const std::shared_ptr<Item>& item, FilterData* data) = 0;
 
     std::unique_ptr<FilterData> CreateData();
-    bool IsActive() const { return active_; };
+    bool IsActive() const { return m_active; };
 
 protected:
-    bool active_{ false };
+    bool m_active{ false };
 };
 
 struct ModFilterData {
-    ModFilterData(const std::string& mod_, double min_, double max_, bool min_filled_, bool max_filled_) :
-        mod(mod_),
-        min(min_),
-        max(max_),
-        min_filled(min_filled_),
-        max_filled(max_filled_)
+    ModFilterData(const QString& m_mod, double m_min, double m_max, bool m_min_filled, bool m_max_filled) :
+        mod(m_mod),
+        min(m_min),
+        max(m_max),
+        min_filled(m_min_filled),
+        max_filled(m_max_filled)
     {}
 
-    std::string mod;
+    QString mod;
     double min, max;
     bool min_filled, max_filled;
 };
@@ -88,13 +88,13 @@ struct ModFilterData {
 class FilterData {
 public:
     FilterData(Filter* filter);
-    Filter* filter() { return filter_; }
-    bool Matches(const std::shared_ptr<Item> item);
+    Filter* filter() { return m_filter; }
+    bool Matches(const std::shared_ptr<Item>& item);
     void FromForm();
     void ToForm();
     // Various types of data for various filters
     // It's probably not a very elegant solution but it works.
-    std::string text_query;
+    QString text_query;
     double min, max;
     bool min_filled, max_filled;
     int r, g, b;
@@ -102,7 +102,7 @@ public:
     bool checked;
     std::vector<ModFilterData> mod_data;
 private:
-    Filter* filter_;
+    Filter* m_filter;
 };
 
 class NameSearchFilter : public Filter {
@@ -114,7 +114,7 @@ public:
     bool Matches(const std::shared_ptr<Item>& item, FilterData* data);
     void Initialize(QLayout* parent);
 private:
-    QLineEdit* textbox_;
+    QLineEdit* m_textbox;
 };
 
 class CategorySearchFilter : public Filter {
@@ -125,10 +125,10 @@ public:
     void ResetForm();
     bool Matches(const std::shared_ptr<Item>& item, FilterData* data);
     void Initialize(QLayout* parent);
-    static const std::string k_Default;
+    static const QString k_Default;
 private:
-    SearchComboBox* combobox_;
-    QAbstractListModel* model_;
+    SearchComboBox* m_combobox;
+    QAbstractListModel* m_model;
 };
 
 class RaritySearchFilter : public Filter {
@@ -139,17 +139,17 @@ public:
     void ResetForm();
     bool Matches(const std::shared_ptr<Item>& item, FilterData* data);
     void Initialize(QLayout* parent);
-    static const std::string k_Default;
+    static const QString k_Default;
     static const QStringList RARITY_LIST;
 private:
-    QComboBox* combobox_;
-    QAbstractListModel* model_;
+    QComboBox* m_combobox;
+    QAbstractListModel* m_model;
 };
 
 class MinMaxFilter : public Filter {
 public:
-    MinMaxFilter(QLayout* parent, std::string property);
-    MinMaxFilter(QLayout* parent, std::string property, std::string caption);
+    MinMaxFilter(QLayout* parent, QString property);
+    MinMaxFilter(QLayout* parent, QString property, QString caption);
     void FromForm(FilterData* data);
     void ToForm(FilterData* data);
     void ResetForm();
@@ -159,16 +159,16 @@ protected:
     virtual double GetValue(const std::shared_ptr<Item>& item) = 0;
     virtual bool IsValuePresent(const std::shared_ptr<Item>& item) = 0;
 
-    std::string property_, caption_;
+    QString m_property, m_caption;
 private:
-    QLineEdit* textbox_min_, * textbox_max_;
+    QLineEdit* m_textbox_min, * m_textbox_max;
 };
 
 class SimplePropertyFilter : public MinMaxFilter {
 public:
-    SimplePropertyFilter(QLayout* parent, std::string property) :
+    SimplePropertyFilter(QLayout* parent, QString property) :
         MinMaxFilter(parent, property) {}
-    SimplePropertyFilter(QLayout* parent, std::string property, std::string caption) :
+    SimplePropertyFilter(QLayout* parent, QString property, QString caption) :
         MinMaxFilter(parent, property, caption) {}
 protected:
     bool IsValuePresent(const std::shared_ptr<Item>& item);
@@ -178,26 +178,26 @@ protected:
 // Just like SimplePropertyFilter but assumes given default value instead of excluding items
 class DefaultPropertyFilter : public SimplePropertyFilter {
 public:
-    DefaultPropertyFilter(QLayout* parent, std::string property, double default_value) :
+    DefaultPropertyFilter(QLayout* parent, QString property, double default_value) :
         SimplePropertyFilter(parent, property),
-        default_value_(default_value)
+        m_default_value(default_value)
     {}
-    DefaultPropertyFilter(QLayout* parent, std::string property, std::string caption, double default_value) :
+    DefaultPropertyFilter(QLayout* parent, QString property, QString caption, double default_value) :
         SimplePropertyFilter(parent, property, caption),
-        default_value_(default_value)
+        m_default_value(default_value)
     {}
 protected:
     bool IsValuePresent(const std::shared_ptr<Item>& /* item */) { return true; }
     double GetValue(const std::shared_ptr<Item>& item);
 private:
-    double default_value_;
+    double m_default_value;
 };
 
 class RequiredStatFilter : public MinMaxFilter {
 public:
-    RequiredStatFilter(QLayout* parent, std::string property) :
+    RequiredStatFilter(QLayout* parent, QString property) :
         MinMaxFilter(parent, property) {}
-    RequiredStatFilter(QLayout* parent, std::string property, std::string caption) :
+    RequiredStatFilter(QLayout* parent, QString property, QString caption) :
         MinMaxFilter(parent, property, caption) {}
 private:
     bool IsValuePresent(const std::shared_ptr<Item>& /* item */) { return true; }
@@ -206,18 +206,18 @@ private:
 
 class ItemMethodFilter : public MinMaxFilter {
 public:
-    ItemMethodFilter(QLayout* parent, std::function<double(Item*)> func, std::string caption);
+    ItemMethodFilter(QLayout* parent, std::function<double(Item*)> func, QString caption);
 private:
     bool IsValuePresent(const std::shared_ptr<Item>& /* item */) { return true; }
     double GetValue(const std::shared_ptr<Item>& item);
-    std::function<double(Item*)> func_;
+    std::function<double(Item*)> m_func;
 };
 
 class SocketsFilter : public MinMaxFilter {
 public:
-    SocketsFilter(QLayout* parent, std::string property) :
+    SocketsFilter(QLayout* parent, QString property) :
         MinMaxFilter(parent, property) {}
-    SocketsFilter(QLayout* parent, std::string property, std::string caption) :
+    SocketsFilter(QLayout* parent, QString property, QString caption) :
         MinMaxFilter(parent, property, caption) {}
     bool IsValuePresent(const std::shared_ptr<Item>& /* item */) { return true; }
     double GetValue(const std::shared_ptr<Item>& item);
@@ -225,9 +225,9 @@ public:
 
 class LinksFilter : public MinMaxFilter {
 public:
-    LinksFilter(QLayout* parent, std::string property) :
+    LinksFilter(QLayout* parent, QString property) :
         MinMaxFilter(parent, property) {}
-    LinksFilter(QLayout* parent, std::string property, std::string caption) :
+    LinksFilter(QLayout* parent, QString property, QString caption) :
         MinMaxFilter(parent, property, caption) {}
     bool IsValuePresent(const std::shared_ptr<Item>& /* item */) { return true; }
     double GetValue(const std::shared_ptr<Item>& item);
@@ -244,7 +244,7 @@ public:
     void Initialize(QLayout* parent, const char* caption);
 protected:
     bool Check(int need_r, int need_g, int need_b, int got_r, int got_g, int got_b, int got_w);
-    QLineEdit* textbox_r_{ nullptr }, * textbox_g_{ nullptr }, * textbox_b_{ nullptr };
+    QLineEdit* m_textbox_r{ nullptr }, * m_textbox_g{ nullptr }, * m_textbox_b{ nullptr };
 };
 
 class LinksColorsFilter : public SocketsColorsFilter {
@@ -255,21 +255,21 @@ public:
 
 class BooleanFilter : public Filter {
 public:
-    BooleanFilter(QLayout* parent, std::string property, std::string caption);
+    BooleanFilter(QLayout* parent, QString property, QString caption);
     void FromForm(FilterData* data);
     void ToForm(FilterData* data);
     void ResetForm();
     bool Matches(const std::shared_ptr<Item>& item, FilterData* data);
     void Initialize(QLayout* parent);
 private:
-    QCheckBox* checkbox_;
+    QCheckBox* m_checkbox;
 protected:
-    std::string property_, caption_;
+    QString m_property, m_caption;
 };
 
 class AltartFilter : public BooleanFilter {
 public:
-    AltartFilter(QLayout* parent, std::string property, std::string caption) :
+    AltartFilter(QLayout* parent, QString property, QString caption) :
         BooleanFilter(parent, property, caption) {}
     using BooleanFilter::BooleanFilter;
     bool Matches(const std::shared_ptr<Item>& item, FilterData* data);
@@ -277,18 +277,18 @@ public:
 
 class PricedFilter : public BooleanFilter {
 public:
-    PricedFilter(QLayout* parent, std::string property, std::string caption, const BuyoutManager& bm) :
+    PricedFilter(QLayout* parent, QString property, QString caption, const BuyoutManager& bm) :
         BooleanFilter(parent, property, caption),
-        bm_(bm)
+        m_bm(bm)
     {}
     bool Matches(const std::shared_ptr<Item>& item, FilterData* data);
 private:
-    const BuyoutManager& bm_;
+    const BuyoutManager& m_bm;
 };
 
 class UnidentifiedFilter : public BooleanFilter {
 public:
-    UnidentifiedFilter(QLayout* parent, std::string property, std::string caption) :
+    UnidentifiedFilter(QLayout* parent, QString property, QString caption) :
         BooleanFilter(parent, property, caption) {}
     using BooleanFilter::BooleanFilter;
     bool Matches(const std::shared_ptr<Item>& item, FilterData* data);
@@ -296,7 +296,7 @@ public:
 
 class CraftedFilter : public BooleanFilter {
 public:
-    CraftedFilter(QLayout* parent, std::string property, std::string caption) :
+    CraftedFilter(QLayout* parent, QString property, QString caption) :
         BooleanFilter(parent, property, caption) {}
     using BooleanFilter::BooleanFilter;
     bool Matches(const std::shared_ptr<Item>& item, FilterData* data);
@@ -304,7 +304,7 @@ public:
 
 class EnchantedFilter : public BooleanFilter {
 public:
-    EnchantedFilter(QLayout* parent, std::string property, std::string caption) :
+    EnchantedFilter(QLayout* parent, QString property, QString caption) :
         BooleanFilter(parent, property, caption) {}
     using BooleanFilter::BooleanFilter;
     bool Matches(const std::shared_ptr<Item>& item, FilterData* data);
@@ -312,7 +312,7 @@ public:
 
 class InfluencedFilter : public BooleanFilter {
 public:
-    InfluencedFilter(QLayout* parent, std::string property, std::string caption) :
+    InfluencedFilter(QLayout* parent, QString property, QString caption) :
         BooleanFilter(parent, property, caption) {}
     using BooleanFilter::BooleanFilter;
     bool Matches(const std::shared_ptr<Item>& item, FilterData* data);
@@ -320,7 +320,7 @@ public:
 
 class CorruptedFilter : public BooleanFilter {
 public:
-    CorruptedFilter(QLayout* parent, std::string property, std::string caption) :
+    CorruptedFilter(QLayout* parent, QString property, QString caption) :
         BooleanFilter(parent, property, caption) {}
     using BooleanFilter::BooleanFilter;
     bool Matches(const std::shared_ptr<Item>& item, FilterData* data);
@@ -328,9 +328,9 @@ public:
 
 class ItemlevelFilter : public MinMaxFilter {
 public:
-    ItemlevelFilter(QLayout* parent, std::string property) :
+    ItemlevelFilter(QLayout* parent, QString property) :
         MinMaxFilter(parent, property) {}
-    ItemlevelFilter(QLayout* parent, std::string property, std::string caption) :
+    ItemlevelFilter(QLayout* parent, QString property, QString caption) :
         MinMaxFilter(parent, property, caption) {}
     bool IsValuePresent(const std::shared_ptr<Item>& /* item */) { return true; }
     double GetValue(const std::shared_ptr<Item>& item);

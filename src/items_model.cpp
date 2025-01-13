@@ -30,11 +30,11 @@
 #include "search.h"
 
 ItemsModel::ItemsModel(BuyoutManager& bo_manager, Search& search)
-    : bo_manager_(bo_manager)
-    , search_(search)
-    , sort_order_(Qt::DescendingOrder)
-    , sort_column_(0)
-    , sorted_(false)
+    : m_bo_manager(bo_manager)
+    , m_search(search)
+    , m_sort_order(Qt::DescendingOrder)
+    , m_sort_column(0)
+    , m_sorted(false)
 {
 }
 
@@ -55,13 +55,13 @@ ItemsModel::ItemsModel(BuyoutManager& bo_manager, Search& search)
 int ItemsModel::rowCount(const QModelIndex& parent) const {
     // Root element, contains buckets
     if (!parent.isValid()) {
-        return static_cast<int>(search_.buckets().size());
+        return static_cast<int>(m_search.buckets().size());
     };
     // Bucket, contains elements
     if (parent.isValid() && !parent.parent().isValid()) {
         const int bucket_row = parent.row();
-        if (search_.has_bucket(bucket_row)) {
-            return static_cast<int>(search_.bucket(bucket_row).items().size());
+        if (m_search.has_bucket(bucket_row)) {
+            return static_cast<int>(m_search.bucket(bucket_row).items().size());
         } else {
             return 0;
         };
@@ -73,11 +73,11 @@ int ItemsModel::rowCount(const QModelIndex& parent) const {
 int ItemsModel::columnCount(const QModelIndex& parent) const {
     // Root element, contains buckets
     if (!parent.isValid()) {
-        return static_cast<int>(search_.columns().size());
+        return static_cast<int>(m_search.columns().size());
     };
     // Bucket, contains elements
     if (parent.isValid() && !parent.parent().isValid()) {
-        return static_cast<int>(search_.columns().size());
+        return static_cast<int>(m_search.columns().size());
     };
     // Element, contains nothing
     return 0;
@@ -85,7 +85,7 @@ int ItemsModel::columnCount(const QModelIndex& parent) const {
 
 QVariant ItemsModel::headerData(int section, Qt::Orientation /* orientation */, int role) const {
     if (role == Qt::DisplayRole) {
-        return QString(search_.columns()[section]->name().c_str());
+        return QString(m_search.columns()[section]->name());
     };
     return QVariant();
 }
@@ -101,24 +101,24 @@ QVariant ItemsModel::data(const QModelIndex& index, int role) const {
             return QVariant();
         };
 
-        const ItemLocation& location = search_.GetTabLocation(index);
+        const ItemLocation& location = m_search.GetTabLocation(index);
         if (role == Qt::CheckStateRole) {
             if (!location.IsValid()) {
                 return QVariant();
             };
-            if (bo_manager_.GetRefreshLocked(location)) {
+            if (m_bo_manager.GetRefreshLocked(location)) {
                 return Qt::PartiallyChecked;
             };
-            return (bo_manager_.GetRefreshChecked(location) ? Qt::Checked : Qt::Unchecked);
+            return (m_bo_manager.GetRefreshChecked(location) ? Qt::Checked : Qt::Unchecked);
         };
         if (role == Qt::DisplayRole) {
             if (!location.IsValid()) {
                 return "All Items";
             };
-            QString title(location.GetHeader().c_str());
-            auto const& bo = bo_manager_.GetTab(location.GetUniqueHash());
+            QString title(location.GetHeader());
+            auto const& bo = m_bo_manager.GetTab(location.GetUniqueHash());
             if (bo.IsActive()) {
-                title += QString(" [%1]").arg(bo.AsText().c_str());
+                title += QString(" [%1]").arg(bo.AsText());
             };
             return title;
         };
@@ -136,10 +136,10 @@ QVariant ItemsModel::data(const QModelIndex& index, int role) const {
         };
         return QVariant();
     };
-    auto& column = search_.columns()[index.column()];
+    auto& column = m_search.columns()[index.column()];
     const int bucket_row = index.parent().row();
-    if (search_.has_bucket(bucket_row)) {
-        const Bucket& bucket = search_.bucket(bucket_row);
+    if (m_search.has_bucket(bucket_row)) {
+        const Bucket& bucket = m_search.bucket(bucket_row);
         const int item_row = index.row();
         if (bucket.has_item(item_row)) {
             const Item& item = *bucket.item(item_row);
@@ -165,8 +165,8 @@ Qt::ItemFlags ItemsModel::flags(const QModelIndex& index) const
         return Qt::ItemFlags();
     };
     if (index.column() == 0 && index.internalId() == 0) {
-        const ItemLocation& location = search_.GetTabLocation(index);
-        if (location.IsValid() && !bo_manager_.GetRefreshLocked(location)) {
+        const ItemLocation& location = m_search.GetTabLocation(index);
+        if (location.IsValid() && !m_bo_manager.GetRefreshLocked(location)) {
             return Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsUserCheckable;
         };
     };
@@ -179,18 +179,18 @@ bool ItemsModel::setData(const QModelIndex& index, const QVariant& value, int ro
     };
 
     if (role == Qt::CheckStateRole) {
-        const ItemLocation& location = search_.GetTabLocation(index);
-        bo_manager_.SetRefreshChecked(location, value.toBool());
+        const ItemLocation& location = m_search.GetTabLocation(index);
+        m_bo_manager.SetRefreshChecked(location, value.toBool());
 
         // It's possible that our tabs can have the same name.  Right now we don't have a
         // way to differentiate these tabs so indicate dataChanged event for each tab with
         // the same name as the current checked tab so the 'check' is properly updated in
         // the layout
-        std::string target_hash = location.GetUniqueHash();
+        QString target_hash = location.GetUniqueHash();
         auto row_count = rowCount();
         for (int i = 0; i < row_count; ++i) {
             auto match_index = this->index(i);
-            if (search_.GetTabLocation(match_index).GetUniqueHash() == target_hash) {
+            if (m_search.GetTabLocation(match_index).GetUniqueHash() == target_hash) {
                 emit dataChanged(match_index, match_index);
             };
         };
@@ -202,21 +202,21 @@ bool ItemsModel::setData(const QModelIndex& index, const QVariant& value, int ro
 void ItemsModel::sort(int column, Qt::SortOrder order)
 {
     // Ignore sort requests if we're already sorted
-    if (sorted_ && (sort_column_ == column) && (sort_order_ == order))
+    if (m_sorted && (m_sort_column == column) && (m_sort_order == order))
         return;
 
     QLOG_DEBUG() << "Sorting items model by column" << column;
-    sort_order_ = order;
-    sort_column_ = column;
+    m_sort_order = order;
+    m_sort_column = column;
 
-    search_.Sort(column, order);
+    m_search.Sort(column, order);
     emit layoutChanged();
     SetSorted(true);
 }
 
 void ItemsModel::sort()
 {
-    sort(sort_column_, sort_order_);
+    sort(m_sort_column, m_sort_order);
 }
 
 QModelIndex ItemsModel::parent(const QModelIndex& index) const {
@@ -229,7 +229,7 @@ QModelIndex ItemsModel::parent(const QModelIndex& index) const {
 }
 
 QModelIndex ItemsModel::index(int row, int column, const QModelIndex& parent) const {
-    int bucket_count = static_cast<int>(search_.buckets().size());
+    int bucket_count = static_cast<int>(m_search.buckets().size());
     if (parent.isValid()) {
         if (parent.row() >= bucket_count) {
             QLOG_WARN() << "ItemsModel: index parent row is invalid";

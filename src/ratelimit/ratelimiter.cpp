@@ -29,11 +29,13 @@
 #include <boost/bind/bind.hpp>
 #include <QsLog/QsLog.h>
 
-#include "ratelimit/ratelimitmanager.h"
+#include "network_info.h"
 #include "util/fatalerror.h"
 #include "util/oauthmanager.h"
 
-#include "network_info.h"
+#include "ratelimitedreply.h"
+#include "ratelimitmanager.h"
+#include "ratelimitpolicy.h"
 
 constexpr int UPDATE_INTERVAL_MSEC = 1000;
 
@@ -74,19 +76,19 @@ RateLimiter::RateLimiter(
     QNetworkAccessManager& network_manager,
     OAuthManager& oauth_manager,
     POE_API mode)
-    : network_manager_(network_manager)
-    , oauth_manager_(oauth_manager)
-    , mode_(mode)
+    : m_network_manager(network_manager)
+    , m_oauth_manager(oauth_manager)
+    , m_mode(mode)
 {
     QLOG_TRACE() << "RateLimiter::RateLimiter() entered";
-    update_timer_.setSingleShot(false);
-    update_timer_.setInterval(UPDATE_INTERVAL_MSEC);
-    connect(&update_timer_, &QTimer::timeout, this, &RateLimiter::SendStatusUpdate);
+    m_update_timer.setSingleShot(false);
+    m_update_timer.setInterval(UPDATE_INTERVAL_MSEC);
+    connect(&m_update_timer, &QTimer::timeout, this, &RateLimiter::SendStatusUpdate);
 }
 
 RateLimiter::~RateLimiter() {}
 
-RateLimit::RateLimitedReply* RateLimiter::Submit(
+RateLimitedReply* RateLimiter::Submit(
     const QString& endpoint,
     QNetworkRequest network_request)
 {
@@ -98,14 +100,14 @@ RateLimit::RateLimitedReply* RateLimiter::Submit(
     network_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 
     // Create a new rate limited reply that we can return to the calling function.
-    auto* reply = new RateLimit::RateLimitedReply();
+    auto* reply = new RateLimitedReply();
 
     // Look for a rate limit manager for this endpoint.
-    auto it = manager_by_endpoint_.find(endpoint);
-    if (it != manager_by_endpoint_.end()) {
+    auto it = m_manager_by_endpoint.find(endpoint);
+    if (it != m_manager_by_endpoint.end()) {
 
         // This endpoint is handled by an existing policy manager.
-        RateLimitManager& manager = it->second;
+        RateLimitManager& manager = *it->second;
         QLOG_DEBUG() << manager.policy().name() << "is handling" << endpoint;
         manager.QueueRequest(endpoint, network_request, reply);
 
@@ -125,7 +127,7 @@ RateLimit::RateLimitedReply* RateLimiter::Submit(
 void RateLimiter::SetupEndpoint(
     const QString& endpoint,
     QNetworkRequest network_request,
-    RateLimit::RateLimitedReply* reply)
+    RateLimitedReply* reply)
 {
     QLOG_TRACE() << "RateLimiter::SetupEndpoint() entered";
 
@@ -133,14 +135,14 @@ void RateLimiter::SetupEndpoint(
     QLOG_DEBUG() << "Sending a HEAD for endpoint:" << endpoint;
 
     // Make sure the network request get an OAuth bearer token if necessary.
-    if (mode_ == POE_API::OAUTH) {
+    if (m_mode == POE_API::OAUTH) {
         QLOG_TRACE() << "RateLimiter::SetupEndpoint() calling setAuthorization()";
-        oauth_manager_.setAuthorization(network_request);
+        m_oauth_manager.setAuthorization(network_request);
     };
 
     // Make the head request.
     QLOG_TRACE() << "RateLimiter::SetupEndpoint() sending a HEAD request for" << endpoint;
-    QNetworkReply* network_reply = network_manager_.head(network_request);
+    QNetworkReply* network_reply = m_network_manager.head(network_request);
 
     // Cause a fatal error if there was a network error.
     connect(network_reply, &QNetworkReply::errorOccurred, this,
@@ -188,7 +190,7 @@ void RateLimiter::SetupEndpoint(
 void RateLimiter::ProcessHeadResponse(
     const QString& endpoint,
     QNetworkRequest network_request,
-    RateLimit::RateLimitedReply* reply,
+    RateLimitedReply* reply,
     QNetworkReply* network_reply)
 {
     QLOG_TRACE() << "RateLimiter::ProcessHeadResponse() entered";
@@ -297,44 +299,44 @@ RateLimitManager& RateLimiter::GetManager(
     QLOG_TRACE() << "RateLimiter::GetManager() endpoint = " << endpoint;
     QLOG_TRACE() << "RateLimiter::GetManager() policy_name = " << policy_name;
 
-    auto it = manager_by_policy_.find(policy_name);
-    if (it == manager_by_policy_.end()) {
+    auto it = m_manager_by_policy.find(policy_name);
+    if (it == m_manager_by_policy.end()) {
         // Create a new policy manager.
         QLOG_DEBUG() << "Creating rate limit policy" << policy_name << "for" << endpoint;
         auto sender = boost::bind(&RateLimiter::SendRequest, this, boost::placeholders::_1);
         auto mgr = std::make_unique<RateLimitManager>(sender);
-        auto& manager = *managers_.emplace_back(std::move(mgr));
-        connect(&manager, &RateLimitManager::PolicyUpdated, this, &RateLimiter::OnPolicyUpdated);
-        connect(&manager, &RateLimitManager::QueueUpdated, this, &RateLimiter::OnQueueUpdated);
-        connect(&manager, &RateLimitManager::Paused, this, &RateLimiter::OnManagerPaused);
-        manager_by_policy_.emplace(policy_name, manager);
-        manager_by_endpoint_.emplace(endpoint, manager);
-        return manager;
+        auto& manager = m_managers.emplace_back(std::move(mgr));
+        connect(manager.get(), &RateLimitManager::PolicyUpdated, this, &RateLimiter::OnPolicyUpdated);
+        connect(manager.get(), &RateLimitManager::QueueUpdated, this, &RateLimiter::OnQueueUpdated);
+        connect(manager.get(), &RateLimitManager::Paused, this, &RateLimiter::OnManagerPaused);
+        m_manager_by_policy[policy_name] = manager.get();
+        m_manager_by_endpoint[endpoint] = manager.get();
+        return *manager;
     } else {
         // Use an existing policy manager.
         QLOG_DEBUG() << "Using an existing rate limit policy" << policy_name << "for" << endpoint;
-        RateLimitManager& manager = it->second;
-        manager_by_endpoint_.emplace(endpoint, manager);
-        return manager;
+        RateLimitManager* manager = it->second;
+        m_manager_by_endpoint[endpoint] = manager;
+        return *manager;
     };
 }
 
 QNetworkReply* RateLimiter::SendRequest(QNetworkRequest request) {
-    if (mode_ == POE_API::OAUTH) {
-        oauth_manager_.setAuthorization(request);
+    if (m_mode == POE_API::OAUTH) {
+        m_oauth_manager.setAuthorization(request);
     };
-    return network_manager_.get(request);
+    return m_network_manager.get(request);
 }
 
 void RateLimiter::OnUpdateRequested()
 {
     QLOG_TRACE() << "RateLimiter::OnUpdateRequested() entered";
-    for (const auto& manager : managers_) {
+    for (const auto& manager : m_managers) {
         emit PolicyUpdate(manager->policy());
     };
 }
 
-void RateLimiter::OnPolicyUpdated(const RateLimit::Policy& policy)
+void RateLimiter::OnPolicyUpdated(const RateLimitPolicy& policy)
 {
     QLOG_TRACE() << "RateLimiter::OnPolicyUpdated() entered";
     emit PolicyUpdate(policy);
@@ -350,8 +352,8 @@ void RateLimiter::OnManagerPaused(const QString& policy_name, const QDateTime& u
     QLOG_TRACE() << "RateLimiter::OnManagerPaused()"
         << "pausing until" << until.toString()
         << "for" << policy_name;
-    pauses_.emplace(until, policy_name);
-    update_timer_.start();
+    m_pauses[until] = policy_name;
+    m_update_timer.start();
 }
 
 void RateLimiter::SendStatusUpdate()
@@ -360,15 +362,15 @@ void RateLimiter::SendStatusUpdate()
 
     // Get rid of any pauses that finished in the past.
     const QDateTime now = QDateTime::currentDateTime();
-    while (!pauses_.empty() && (pauses_.begin()->first < now)) {
-        pauses_.erase(pauses_.begin());
+    while (!m_pauses.empty() && (m_pauses.begin()->first < now)) {
+        m_pauses.erase(m_pauses.begin());
     };
 
-    if (pauses_.empty()) {
+    if (m_pauses.empty()) {
         QLOG_TRACE() << "RateLimiter::SendStatusUpdate() stopping status updates";
-        update_timer_.stop();
+        m_update_timer.stop();
     } else {
-        const auto& pause = *pauses_.begin();
+        const auto& pause = *m_pauses.begin();
         const QDateTime& pause_end = pause.first;
         const QString policy_name = pause.second;
         emit Paused(now.secsTo(pause_end), policy_name);

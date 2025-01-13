@@ -19,8 +19,8 @@
 
 #include "itemconstants.h"
 
-const std::map<std::string, position>& POS_MAP() {
-    static const std::map<std::string, position> map = {
+const std::map<QString, position>& POS_MAP() {
+    static const std::map<QString, position> map = {
         {"MainInventory", {0, 7}},
         {"BodyArmour", {5, 2}},
         {"Weapon", {2, 0}},

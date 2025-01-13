@@ -20,64 +20,145 @@
 #pragma once
 
 constexpr const char* kItem1 = {
-    "{\"verified\":false,\"w\":2,\"h\":2,\"icon\":\"http://webcdn.pathofexile.com/image/Art/2DItems/Armours/Helmets/Helm"
-    "etStrDex10.png?scale=1&w=2&h=2&v=0a540f285248cdb64d4607186e348e3d3\",\"support\":true,\"league\":\"Rampage\",\"sock"
-    "ets\":[{\"group\":0,\"attr\":\"D\"}],\"name\":\"Demon Ward\",\"typeLine\":\"Nightmare Bascinet\",\"identified\":tru"
-    "e,\"corrupted\":false,\"properties\":[{\"name\":\"Quality\",\"values\":[[\"+20%\",1]],\"displayMode\":0},{\"name\":"
-    "\"Armour\",\"values\":[[\"310\",1]],\"displayMode\":0},{\"name\":\"Evasion Rating\",\"values\":[[\"447\",1]],\"disp"
-    "layMode\":0}],\"requirements\":[{\"name\":\"Level\",\"values\":[[\"67\",0]],\"displayMode\":0},{\"name\":\"Str\",\""
-    "values\":[[\"62\",0]],\"displayMode\":1},{\"name\":\"Dex\",\"values\":[[\"85\",0]],\"displayMode\":1}],\"explicitMo"
-    "ds\":[\"+93 to Accuracy Rating\",\"100% increased Armour and Evasion\",\"+24% to Fire Resistance\",\"+32% to Lightn"
-    "ing Resistance\",\"15% increased Block and Stun Recovery\"],\"frameType\":2,\"x\":0,\"y\":0,\"inventoryId\": \"Helm"
-    "\",\"socketedItems\":[], \"_type\": 0, \"_tab_label\": \"x\", \"_tab\": 0, \"_x\": 0, \"_y\": 0}"
+    "{\"verified\":false,\"w\":2,\"h\":2,\"icon\":\"https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQXJtb3V"
+    "ycy9IZWxtZXRzL0hlbG1ldERleEludDEwIiwidyI6MiwiaCI6Miwic2NhbGUiOjF9XQ/62018602df/HelmetDexInt10.png\",\"league\":\"St"
+    "andard\",\"id\":\"bd411ce3e662848b3a6d84ca19361afc2c18f7b24215c8375529cdb1328ddabd\",\"sockets\":[{\"group\":0,\"at"
+    "tr\":\"I\",\"sColour\":\"B\"},{\"group\":0,\"attr\":\"I\",\"sColour\":\"B\"},{\"group\":0,\"attr\":\"D\",\"sColour"
+    "\":\"G\"},{\"group\":0,\"attr\":\"D\",\"sColour\":\"G\"}],\"name\":\"Chimeric Crest\",\"typeLine\":\"Vaal Mask\",\""
+    "baseType\":\"Vaal Mask\",\"rarity\":\"Rare\",\"ilvl\":81,\"identified\":true,\"properties\":[{\"name\":\"Evasion Ra"
+    "ting\",\"values\":[[\"291\",1]],\"displayMode\":0,\"type\":17},{\"name\":\"Energy Shield\",\"values\":[[\"82\",1]],"
+    "\"displayMode\":0,\"type\":18}],\"requirements\":[{\"name\":\"Level\",\"values\":[[\"69\",0]],\"displayMode\":0,\"t"
+    "ype\":62,\"suffix\":\"(gem)\"},{\"name\":\"Dex\",\"values\":[[\"151\",0]],\"displayMode\":1,\"type\":64,\"suffix\":"
+    "\"(gem)\"},{\"name\":\"Int\",\"values\":[[\"153\",0]],\"displayMode\":1,\"type\":65,\"suffix\":\"(gem)\"}],\"enchan"
+    "tMods\":[\"Detonate Dead has a 45% chance to detonate an additional corpse\"],\"explicitMods\":[\"39% increased Eva"
+    "sion and Energy Shield\",\"+22 to maximum Energy Shield\",\"+32 to maximum Life\",\"+35 to maximum Mana\",\"+30% to"
+    " Lightning Resistance\",\"+11% to Chaos Resistance\",\"17% increased Stun and Block Recovery\"],\"frameType\":2,\"x"
+    "\":5,\"y\":1,\"inventoryId\":\"Stash1\",\"socketedItems\":[{\"verified\":false,\"w\":1,\"h\":1,\"icon\":\"https://w"
+    "eb.poecdn.com/gen/image/WzMwLDE0LHsiZiI6IjJESXRlbXMvR2Vtcy9CbGFja0hvbGUiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MX1d/8680619c44"
+    "/BlackHole.png\",\"support\":false,\"league\":\"Standard\",\"id\":\"6b23e1dd835e669b48cecd248189cc098edb8cc0af0725b"
+    "3e16916c26bcf69f9\",\"name\":\"\",\"typeLine\":\"Void Sphere\",\"baseType\":\"Void Sphere\",\"ilvl\":0,\"identified"
+    "\":true,\"properties\":[{\"name\":\"Spell, AoE, Duration, Physical, Chaos, Orb\",\"values\":[],\"displayMode\":0},{"
+    "\"name\":\"Level\",\"values\":[[\"19\",0]],\"displayMode\":0,\"type\":5},{\"name\":\"Cost\",\"values\":[[\"54 Mana"
+    "\",0]],\"displayMode\":0},{\"name\":\"Cooldown Time\",\"values\":[[\"10.00 sec\",0]],\"displayMode\":0},{\"name\":"
+    "\"Cast Time\",\"values\":[[\"0.80 sec\",0]],\"displayMode\":0},{\"name\":\"Critical Strike Chance\",\"values\":[[\""
+    "5.00%\",0]],\"displayMode\":0},{\"name\":\"Effectiveness of Added Damage\",\"values\":[[\"75%\",0]],\"displayMode\""
+    ":0}],\"requirements\":[{\"name\":\"Level\",\"values\":[[\"69\",0]],\"displayMode\":0,\"type\":62},{\"name\":\"Int\""
+    ",\"values\":[[\"153\",0]],\"displayMode\":1,\"type\":65}],\"additionalProperties\":[{\"name\":\"Experience\",\"valu"
+    "es\":[[\"124054059/157972052\",0]],\"displayMode\":2,\"progress\":0.79,\"type\":20}],\"secDescrText\":\"Creates a V"
+    "oid Sphere which Hinders enemies in an area around it, with the debuff being stronger on enemies closer to the sphe"
+    "re. It also regularly releases pulses of area damage. The Void Sphere will consume the corpses of any enemies which"
+    " die in its area. Can only have one Void Sphere at a time.\",\"explicitMods\":[\"Deals 322 to 483 Physical Damage\""
+    ",\"Base duration is 5.00 seconds\",\"Pulses every 0.40 seconds\",\"40% of Physical Damage Converted to Chaos Damage"
+    "\",\"Base radius is 3.8 metres\",\"Enemies in range are Hindered, with up to 39% reduced Movement Speed, based on d"
+    "istance from the Void Sphere\"],\"descrText\":\"Place into an item socket of the right colour to gain this skill. R"
+    "ight click to remove from a socket.\",\"frameType\":4,\"socket\":0,\"colour\":\"I\"},{\"verified\":false,\"w\":1,\""
+    "h\":1,\"icon\":\"https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvR2Vtcy9TdXBwb3J0L0luY3JlYXNlZEFPRSIsI"
+    "nciOjEsImgiOjEsInNjYWxlIjoxfV0/a4111d2154/IncreasedAOE.png\",\"support\":true,\"league\":\"Standard\",\"id\":\"4db2"
+    "7c8d95ccd7b2ec21497b314ee34b3b6ee805450c66cd43d26a8f62225134\",\"name\":\"\",\"typeLine\":\"Increased Area of Effec"
+    "t Support\",\"baseType\":\"Increased Area of Effect Support\",\"ilvl\":0,\"identified\":true,\"properties\":[{\"nam"
+    "e\":\"Support, AoE\",\"values\":[],\"displayMode\":0},{\"name\":\"Level\",\"values\":[[\"19\",0]],\"displayMode\":0"
+    ",\"type\":5},{\"name\":\"Cost & Reservation Multiplier\",\"values\":[[\"130%\",0]],\"displayMode\":0}],\"requiremen"
+    "ts\":[{\"name\":\"Level\",\"values\":[[\"69\",0]],\"displayMode\":0,\"type\":62},{\"name\":\"Int\",\"values\":[[\"1"
+    "09\",0]],\"displayMode\":1,\"type\":65}],\"additionalProperties\":[{\"name\":\"Experience\",\"values\":[[\"12450613"
+    "9/157405063\",0]],\"displayMode\":2,\"progress\":0.79,\"type\":20}],\"secDescrText\":\"Supports any skill with an a"
+    "rea of effect.\",\"explicitMods\":[\"Supported Skills have 48% increased Area of Effect\"],\"descrText\":\"This is "
+    "a Support Gem. It does not grant a bonus to your character, but to skills in sockets connected to it. Place into an"
+    " item socket connected to a socket containing the Skill Gem you wish to augment. Right click to remove from a socke"
+    "t.\",\"frameType\":4,\"socket\":1,\"colour\":\"I\"},{\"verified\":false,\"w\":1,\"h\":1,\"icon\":\"https://web.poec"
+    "dn.com/gen/image/WzMwLDE0LHsiZiI6IjJESXRlbXMvR2Vtcy9XaXRoZXJpbmdTdGVwR2VtIiwidyI6MSwiaCI6MSwic2NhbGUiOjF9XQ/9f7784c"
+    "2fa/WitheringStepGem.png\",\"support\":false,\"league\":\"Standard\",\"id\":\"817f21a0e4d8c0846d99cebf042ba51805e87"
+    "8b483c35e05e077d63ddf5a5537\",\"name\":\"\",\"typeLine\":\"Withering Step\",\"baseType\":\"Withering Step\",\"ilvl"
+    "\":0,\"identified\":true,\"properties\":[{\"name\":\"Travel, AoE, Chaos, Movement, Blink, Spell, Duration\",\"value"
+    "s\":[],\"displayMode\":0},{\"name\":\"Level\",\"values\":[[\"19\",0]],\"displayMode\":0,\"type\":5},{\"name\":\"Cos"
+    "t\",\"values\":[[\"22 Mana\",0]],\"displayMode\":0},{\"name\":\"Cooldown Time\",\"values\":[[\"3.00 sec\",0]],\"dis"
+    "playMode\":0},{\"name\":\"Cast Time\",\"values\":[[\"Instant\",0]],\"displayMode\":0}],\"requirements\":[{\"name\":"
+    "\"Level\",\"values\":[[\"68\",0]],\"displayMode\":0,\"type\":62},{\"name\":\"Dex\",\"values\":[[\"95\",0]],\"displa"
+    "yMode\":1,\"type\":64},{\"name\":\"Int\",\"values\":[[\"66\",0]],\"displayMode\":1,\"type\":65}],\"additionalProper"
+    "ties\":[{\"name\":\"Experience\",\"values\":[[\"174043738/212051599\",0]],\"displayMode\":2,\"progress\":0.82,\"typ"
+    "e\":20}],\"secDescrText\":\"Grants Elusive and a buff that grants Phasing. While you have this buff, monsters that "
+    "enter an area around you will be Withered. Using a skill or losing the Elusive buff ends this skill's effects. Shar"
+    "es a cooldown with other Blink skills. Cannot be used while already Elusive.\",\"explicitMods\":[\"Withered lasts 3"
+    " seconds\",\"+0.6 metres to radius\",\"Cannot be Cast or Triggered while Elusive\\nGrants Elusive\",\"This Skill's "
+    "Cooldown does not recover during its effect\",\"36% increased Effect of Elusive from this Skill\",\"Inflicts 6 With"
+    "ered Debuffs the first time each Enemy enters the Area\",\"Buff grants Phasing\"],\"descrText\":\"Place into an ite"
+    "m socket of the right colour to gain this skill. Right click to remove from a socket.\",\"frameType\":4,\"socket\":"
+    "2,\"colour\":\"D\"},{\"verified\":false,\"w\":1,\"h\":1,\"icon\":\"https://web.poecdn.com/gen/image/WzMwLDE0LHsiZiI"
+    "6IjJESXRlbXMvR2Vtcy9QbGFndWVCZWFyZXJHZW0iLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MX1d/4dfe0fb3ba/PlagueBearerGem.png\",\"suppor"
+    "t\":false,\"league\":\"Standard\",\"id\":\"edd31e8fefb58efc9930f412ec5bb7bb5161b9885c742882cc1f4d533bab8e2c\",\"nam"
+    "e\":\"\",\"typeLine\":\"Plague Bearer\",\"baseType\":\"Plague Bearer\",\"ilvl\":0,\"identified\":true,\"properties"
+    "\":[{\"name\":\"Spell, Chaos, AoE\",\"values\":[],\"displayMode\":0},{\"name\":\"Level\",\"values\":[[\"19\",0]],\""
+    "displayMode\":0,\"type\":5},{\"name\":\"Cost\",\"values\":[[\"13 Mana\",0]],\"displayMode\":0},{\"name\":\"Cooldown"
+    " Time\",\"values\":[[\"0.50 sec\",0]],\"displayMode\":0},{\"name\":\"Cast Time\",\"values\":[[\"Instant\",0]],\"dis"
+    "playMode\":0}],\"requirements\":[{\"name\":\"Level\",\"values\":[[\"68\",0]],\"displayMode\":0,\"type\":62},{\"name"
+    "\":\"Dex\",\"values\":[[\"151\",0]],\"displayMode\":1,\"type\":64}],\"additionalProperties\":[{\"name\":\"Experienc"
+    "e\",\"values\":[[\"174043738/211877683\",0]],\"displayMode\":2,\"progress\":0.82,\"type\":20}],\"secDescrText\":\"G"
+    "ain an Incubating buff, adding to its Plague Value as you inflict poisons. Use the skill again to begin Infecting, "
+    "dealing chaos damage over time to nearby enemies until the Plague Value is depleted. Your damage modifiers don't ap"
+    "ply to this skill's damage. Using the skill again alternates between Incubating and Infecting.\",\"explicitMods\":["
+    "\"+0.3 metres to radius\",\"20% less Damage with Poison while Incubating and not at Maximum Plague Value\",\"When y"
+    "ou inflict Poison while Incubating, adds 40% of the Expected Poison\\nDamage to Plague Value\",\"While Infecting, d"
+    "eals Chaos Damage per second equal to 12% of the Plague Value when Infecting began, and loses Plague Value at the s"
+    "ame rate\"],\"descrText\":\"Place into an item socket of the right colour to gain this skill. Right click to remove"
+    " from a socket.\",\"frameType\":4,\"socket\":3,\"colour\":\"D\"}],\"incubatedItem\":{\"name\":\"Labyrinth Item\",\""
+    "level\":67,\"progress\":0,\"total\":4443}}"
 };
 
 constexpr const char* kCategoriesItemCard = {
-    "{\"verified\":false,\"w\":1,\"h\":1,\"ilvl\":0,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Divi"
-    "nation\\/InventoryIcon.png?scale=1&scaleIndex=0&stackSize=1&w=1&h=1&v=a8ae131b97fad3c64de0e6d9f250d743\",\"league\""
-    ":\"Standard\",\"id\":\"9aae0ab91a6fd7ceef94538b74a5b0cc770a966f3089295cf0a45bc0e48bad84\",\"name\":\"\",\"typeLine"
-    "\":\"The King\'s Heart\",\"identified\":true,\"properties\":[{\"name\":\"Stack Size\",\"values\":[[\"1\\/8\",0]],\""
-    "displayMode\":0}],\"explicitMods\":[\"<uniqueitem>{Kaom\'s Heart}\"],\"flavourText\":[\"<size:31>{500 times Kaom\'s"
-    " axe fell, 500 times Kaom\'s Heart splintered. Finally, all that remained was a terrible, heartless Fury.}\"],\"fra"
-    "meType\":6,\"stackSize\":1,\"maxStackSize\":8,\"artFilename\":\"TheKingsHeart\",\"category\":{\"cards\":[]},\"x\":8"
-    ",\"y\":11,\"inventoryId\":\"Stash3\"}"
+    "{\"verified\":false,\"w\":1,\"h\":1,\"icon\":\"https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvRGl2aW5"
+    "hdGlvbi9JbnZlbnRvcnlJY29uIiwidyI6MSwiaCI6MSwic2NhbGUiOjF9XQ/f34bf8cbb5/InventoryIcon.png\",\"stackSize\":19,\"maxSt"
+    "ackSize\":8,\"league\":\"Standard\",\"id\":\"5378072dd6aa71145ae57782a6be76a6ba14cfd35cad47b30bb607a7f4a82611\",\"n"
+    "ame\":\"\",\"typeLine\":\"The King's Heart\",\"baseType\":\"The King's Heart\",\"ilvl\":0,\"identified\":true,\"pro"
+    "perties\":[{\"name\":\"Stack Size\",\"values\":[[\"19/8\",0]],\"displayMode\":0,\"type\":32}],\"explicitMods\":[\"<"
+    "uniqueitem>{Kaom's Heart}\"],\"flavourText\":[\"<size:31>{500 times Kaom's axe fell, 500 times Kaom's Heart splinte"
+    "red. Finally, all that remained was a terrible, heartless Fury.}\"],\"frameType\":6,\"artFilename\":\"TheKingsHeart"
+    "\",\"x\":38,\"y\":0,\"inventoryId\":\"Stash1\"}"
 };
 
 constexpr const char* kCategoriesItemBelt = {
-    "{\"verified\":false,\"w\":2,\"h\":1,\"ilvl\":80,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Bel"
-    "ts\\/AbyssBelt.png?scale=1&scaleIndex=0&w=2&h=1&v=cd7c25de181e6a77812020eb6e867971\",\"league\":\"Standard\",\"id\""
-    ":\"7aa1eaefc73c5fd0321c201675d17d3a1c9ef7ba2748b903cb8d4171a9a70637\",\"sockets\":[{\"group\":0,\"attr\":false,\"sC"
-    "olour\":\"A\"}],\"name\":\"Ambush Cord\",\"typeLine\":\"Stygian Vise\",\"identified\":true,\"requirements\":[{\"nam"
-    "e\":\"Level\",\"values\":[[\"64\",0]],\"displayMode\":0}],\"implicitMods\":[\"Has 1 Abyssal Socket\"],\"explicitMod"
-    "s\":[\"+49 to maximum Energy Shield\",\"18% reduced Flask Charges used\",\"18% increased Elemental Damage with Atta"
-    "ck Skills\"],\"frameType\":2,\"category\":{\"accessories\":[\"belt\"]},\"x\":0,\"y\":10,\"inventoryId\":\"Stash21\""
-    ",\"socketedItems\":[]}"
+    "{\"verified\":false,\"w\":2,\"h\":1,\"icon\":\"https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQmVsdHM"
+    "vQWJ5c3NCZWx0IiwidyI6MiwiaCI6MSwic2NhbGUiOjF9XQ/973fb5fe7a/AbyssBelt.png\",\"league\":\"Standard\",\"id\":\"716f88a"
+    "d17bb57418ff91d55bfedfb86db682783ad7e34c817777761991d4243\",\"sockets\":[{\"group\":0,\"attr\":\"A\",\"sColour\":\""
+    "A\"}],\"name\":\"Kraken Strap\",\"typeLine\":\"Stygian Vise\",\"baseType\":\"Stygian Vise\",\"rarity\":\"Rare\",\"i"
+    "lvl\":85,\"identified\":true,\"properties\":[{\"name\":\"Quality (Life and Mana Modifiers)\",\"values\":[[\"+20%\","
+    "1]],\"displayMode\":0,\"type\":6}],\"requirements\":[{\"name\":\"Level\",\"values\":[[\"51\",0]],\"displayMode\":0,"
+    "\"type\":62}],\"implicitMods\":[\"Has 1 Abyssal Socket\"],\"explicitMods\":[\"+34 to Strength\",\"+112 to maximum L"
+    "ife\",\"+60 to maximum Mana\",\"20% reduced Flask Charges used\",\"18% increased Flask Effect Duration\",\"19% incr"
+    "eased Elemental Damage with Attack Skills\"],\"frameType\":2,\"x\":0,\"y\":8,\"inventoryId\":\"Stash1\",\"socketedI"
+    "tems\":[]}"
 };
 
 constexpr const char* kItemBeltPOB =
-R"(Ambush Cord
+R"(Rarity: RARE
+Kraken Strap
 Stygian Vise
+Unique ID: 716f88ad17bb57418ff91d55bfedfb86db682783ad7e34c817777761991d4243
+Item Level: 85
 Sockets: A
+LevelReq: 51
 Implicits: 1
 Has 1 Abyssal Socket
-+49 to maximum Energy Shield
-18% reduced Flask Charges used
-18% increased Elemental Damage with Attack Skills)";
++34 to Strength
++112 to maximum Life
++60 to maximum Mana
+20% reduced Flask Charges used
+18% increased Flask Effect Duration
+19% increased Elemental Damage with Attack Skills)";
 
-constexpr const char* kCategoriesItemEssence = {
-    "{\"verified\":false,\"w\":1,\"h\":1,\"ilvl\":0,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Curr"
-    "ency\\/Essence\\/Wrath5.png?scale=1&scaleIndex=3&stackSize=4&w=1&h=1&v=47288253244910c2da4f0bdda069b832\",\"league"
-    "\":\"Standard\",\"id\":\"ec18c882e5438ed72a71337f3dfb9a3acf0a3afccc068acbdcf18adf07784f02\",\"name\":\"\",\"typeLin"
-    "e\":\"Screaming Essence of Wrath\",\"identified\":true,\"properties\":[{\"name\":\"Stack Size\",\"values\":[[\"4\\/"
-    "9\",0]],\"displayMode\":0}],\"explicitMods\":[\"Upgrades a normal item to rare with one guaranteed property\",\"\","
-    "\"Two Handed Melee Weapon: Adds (5-16) to (200-211) Lightning Damage\",\"Other Weapon: Adds (4-11) to (133-140) Lig"
-    "htning Damage\",\"Armour: (36-41)% to Lightning Resistance\",\"Quiver: (36-41)% to Lightning Resistance\",\"Belt: ("
-    "36-41)% to Lightning Resistance\",\"Other Jewellery: (23-26)% increased Lightning Damage\"],\"descrText\":\"Right c"
-    "lick this item then left click a normal item to apply it.\",\"frameType\":5,\"stackSize\":4,\"maxStackSize\":5000,"
-    "\"category\":{\"currency\":[]},\"x\":44,\"y\":0,\"inventoryId\":\"Stash1\"}"
+constexpr const char* kCategoriesItemEssence = { 
+    "{\"verified\":false,\"w\":1,\"h\":1,\"icon\":\"https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmV"
+    "uY3kvRXNzZW5jZS9BbmdlcjciLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MX1d/2cf0a55081/Anger7.png\",\"stackSize\":159,\"maxStackSize"
+    "\":5000,\"league\":\"Standard\",\"id\":\"aca59260b9dded703ed762d352e7cceecbead0fbc1ac9c265a016993cceb1d88\",\"name"
+    "\":\"\",\"typeLine\":\"Deafening Essence of Anger\",\"baseType\":\"Deafening Essence of Anger\",\"ilvl\":0,\"identi"
+    "fied\":true,\"properties\":[{\"name\":\"Stack Size\",\"values\":[[\"159/9\",0]],\"displayMode\":0,\"type\":32}],\"e"
+    "xplicitMods\":[\"Upgrades a normal item to rare or reforges a rare item, guaranteeing one property\",\"\",\"Bow: Ad"
+    "ds (149-203) to (302-351) Fire Damage\",\"Two Handed Melee Weapon: Adds (149-203) to (302-351) Fire Damage\",\"Othe"
+    "r Weapon: Adds (80-109) to (162-189) Fire Damage\",\"Armour: (46-48)% to Fire Resistance\",\"Quiver: (46-48)% to Fi"
+    "re Resistance\",\"Belt: (46-48)% to Fire Resistance\",\"Other Jewellery: (31-34)% increased Fire Damage\"],\"descrT"
+    "ext\":\"Right click this item then left click a normal or rare item to apply it.\",\"frameType\":5,\"x\":39,\"y\":0"
+    ",\"inventoryId\":\"Stash1\"}"
 };
 
-constexpr const char* kCategoriesItemVaalGem = {
+constexpr const char* kCategoriesItemVaalGem = { // TBD
     "{\"verified\":false,\"w\":1,\"h\":1,\"ilvl\":0,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Gems"
     "\\/VaalGems\\/VaalArc.png?scale=1&scaleIndex=3&w=1&h=1&v=b4f32328e279496ebb227521e8dce679\",\"support\":false,\"id"
     "\":\"d1014d4e4e6ecaa53805cfa274069071d4b3d26aa0f8a9ac1680cb77f5ed0f47\",\"name\":\"\",\"typeLine\":\"Vaal Arc\",\"i"
@@ -123,67 +204,80 @@ constexpr const char* kCategoriesItemSupportGem = {
 };
 
 constexpr const char* kCategoriesItemBow = {
-    "{\"verified\":false,\"w\":2,\"h\":4,\"ilvl\":74,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Wea"
-    "pons\\/TwoHandWeapons\\/Bows\\/BowOfTheCouncil.png?scale=1&scaleIndex=0&w=2&h=4&v=ecb677fbcbc747a46df9fa5e1e919952"
-    "\",\"league\":\"Standard\",\"id\":\"b65efbb946441039d6a0bc0d224d01f732ec15828fcae511d6bde5a7d5a41622\",\"sockets\":"
-    "[{\"group\":0,\"attr\":\"D\",\"sColour\":\"G\"},{\"group\":1,\"attr\":\"D\",\"sColour\":\"G\"},{\"group\":1,\"attr"
-    "\":\"I\",\"sColour\":\"B\"},{\"group\":1,\"attr\":\"I\",\"sColour\":\"B\"},{\"group\":1,\"attr\":\"D\",\"sColour\":"
-    "\"G\"},{\"group\":1,\"attr\":\"D\",\"sColour\":\"G\"}],\"name\":\"Reach of the Council\",\"typeLine\":\"Spine Bow\""
-    ",\"identified\":true,\"properties\":[{\"name\":\"Bow\",\"values\":[],\"displayMode\":0},{\"name\":\"Quality\",\"val"
-    "ues\":[[\"+20%\",1]],\"displayMode\":0,\"type\":6},{\"name\":\"Physical Damage\",\"values\":[[\"84-249\",1]],\"disp"
-    "layMode\":0,\"type\":9},{\"name\":\"Critical Strike Chance\",\"values\":[[\"6.00%\",0]],\"displayMode\":0,\"type\":"
-    "12},{\"name\":\"Attacks per Second\",\"values\":[[\"1.49\",1]],\"displayMode\":0,\"type\":13}],\"requirements\":[{"
-    "\"name\":\"Level\",\"values\":[[\"68\",0]],\"displayMode\":0},{\"name\":\"Dex\",\"values\":[[\"212\",0]],\"displayM"
-    "ode\":1},{\"name\":\"Int\",\"values\":[[\"108\",0]],\"displayMode\":1}],\"explicitMods\":[\"44% increased Physical "
-    "Damage\",\"Adds 24 to 72 Physical Damage\",\"10% increased Attack Speed\",\"Bow Attacks fire 4 additional Arrows\","
-    "\"20% reduced Projectile Speed\"],\"flavourText\":[\"We stand together. We strike together.\"],\"frameType\":3,\"ca"
-    "tegory\":{\"weapons\":[\"bow\"]},\"x\":0,\"y\":0,\"inventoryId\":\"Weapon2\",\"socketedItems\":[]}"
+    "{\"verified\":false,\"w\":2,\"h\":4,\"icon\":\"https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvV2VhcG9"
+    "ucy9Ud29IYW5kV2VhcG9ucy9Cb3dzL0JvdzUiLCJ3IjoyLCJoIjo0LCJzY2FsZSI6MSwiZnJhY3R1cmVkIjp0cnVlfV0/c921cebecf/Bow5.png\","
+    "\"league\":\"Standard\",\"id\":\"3008e0a14bef3941fde961ba0dacb539dac43bae42d5a7158c404b596f86c1f0\",\"fractured\":t"
+    "rue,\"sockets\":[{\"group\":0,\"attr\":\"D\",\"sColour\":\"G\"}],\"name\":\"Demon Reach\",\"typeLine\":\"Sniper Bow"
+    "\",\"baseType\":\"Sniper Bow\",\"rarity\":\"Rare\",\"ilvl\":83,\"identified\":true,\"properties\":[{\"name\":\"Bow"
+    "\",\"values\":[],\"displayMode\":0},{\"name\":\"Physical Damage\",\"values\":[[\"32-96\",0]],\"displayMode\":0,\"ty"
+    "pe\":9},{\"name\":\"Elemental Damage\",\"values\":[[\"8-106\",6]],\"displayMode\":0,\"type\":10},{\"name\":\"Critic"
+    "al Strike Chance\",\"values\":[[\"6.70%\",0]],\"displayMode\":0,\"type\":12},{\"name\":\"Attacks per Second\",\"val"
+    "ues\":[[\"1.25\",0]],\"displayMode\":0,\"type\":13}],\"requirements\":[{\"name\":\"Level\",\"values\":[[\"44\",0]],"
+    "\"displayMode\":0,\"type\":62},{\"name\":\"Dex\",\"values\":[[\"143\",0]],\"displayMode\":1,\"type\":64}],\"implici"
+    "tMods\":[\"+21% to Global Critical Strike Multiplier\"],\"explicitMods\":[\"Adds 8 to 106 Lightning Damage\",\"+33%"
+    " to Lightning Resistance\",\"0.24% of Physical Attack Damage Leeched as Life\",\"Gain 6 Mana per Enemy Killed\"],\""
+    "fracturedMods\":[\"+15% to Chaos Resistance\"],\"frameType\":2,\"x\":10,\"y\":18,\"inventoryId\":\"Stash1\",\"socke"
+    "tedItems\":[]}"
 };
 
 constexpr const char* kItemBowPOB =
-R"(Reach of the Council
-Spine Bow
-Sockets: G G-B-B-G-G
-Implicits: 0
-44% increased Physical Damage
-Adds 24 to 72 Physical Damage
-10% increased Attack Speed
-Bow Attacks fire 4 additional Arrows
-20% reduced Projectile Speed)";
+R"(Rarity: RARE
+Demon Reach
+Sniper Bow
+Unique ID: 3008e0a14bef3941fde961ba0dacb539dac43bae42d5a7158c404b596f86c1f0
+Item Level: 83
+Sockets: G
+LevelReq: 44
+Implicits: 1
++21% to Global Critical Strike Multiplier
+{fractured}+15% to Chaos Resistance
+Adds 8 to 106 Lightning Damage
++33% to Lightning Resistance
+0.24% of Physical Attack Damage Leeched as Life
+Gain 6 Mana per Enemy Killed)";
 
 constexpr const char* kCategoriesItemClaw = {
-    "{\"verified\":false,\"w\":2,\"h\":2,\"ilvl\":70,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Wea"
-    "pons\\/OneHandWeapons\\/Claws\\/Claw5Unique2.png?scale=1&scaleIndex=0&w=2&h=2&v=1b50572643c65320c8726d57a01d5be4\","
-    "\"league\":\"Standard\",\"id\":\"f66fa2861857808c403ce958f1c38fcd7ed1bc8eda4ef5bf3f84f4f3edb99b09\",\"sockets\":[{"
-    "\"group\":0,\"attr\":\"D\",\"sColour\":\"G\"},{\"group\":0,\"attr\":\"D\",\"sColour\":\"G\"}],\"name\":\"Essentia S"
-    "anguis\",\"typeLine\":\"Eye Gouger\",\"identified\":true,\"properties\":[{\"name\":\"Claw\",\"values\":[],\"display"
-    "Mode\":0},{\"name\":\"Physical Damage\",\"values\":[[\"56-147\",1]],\"displayMode\":0,\"type\":9},{\"name\":\"Eleme"
-    "ntal Damage\",\"values\":[[\"1-50\",6]],\"displayMode\":0,\"type\":10},{\"name\":\"Critical Strike Chance\",\"value"
-    "s\":[[\"6.30%\",0]],\"displayMode\":0,\"type\":12},{\"name\":\"Attacks per Second\",\"values\":[[\"1.83\",1]],\"dis"
-    "playMode\":0,\"type\":13},{\"name\":\"Weapon Range\",\"values\":[[\"9\",0]],\"displayMode\":0,\"type\":14}],\"requi"
-    "rements\":[{\"name\":\"Level\",\"values\":[[\"64\",0]],\"displayMode\":0},{\"name\":\"Dex\",\"values\":[[\"113\",0]"
-    "],\"displayMode\":1},{\"name\":\"Int\",\"values\":[[\"113\",0]],\"displayMode\":1}],\"implicitMods\":[\"0.6% of Phy"
-    "sical Attack Damage Leeched as Life\"],\"explicitMods\":[\"+10% Chance to Block Attack Damage while Dual Wielding C"
-    "laws\",\"116% increased Physical Damage\",\"Adds 1 to 50 Lightning Damage\",\"22% increased Attack Speed\",\"+32 to"
-    " maximum Energy Shield\",\"Life Leech is applied to Energy Shield instead\"],\"flavourText\":[\"The darkest clouds "
-    "clashed and coupled,\\r\",\"giving birth to four lightning children of hate.\"],\"frameType\":3,\"category\":{\"wea"
-    "pons\":[\"claw\"]},\"x\":6,\"y\":6,\"inventoryId\":\"Stash4\",\"socketedItems\":[]}"
+    "{\"verified\":false,\"w\":2,\"h\":2,\"icon\":\"https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvV2VhcG9"
+    "ucy9PbmVIYW5kV2VhcG9ucy9DbGF3cy9DbGF3MiIsInciOjIsImgiOjIsInNjYWxlIjoxfV0/8b8d9559cd/Claw2.png\",\"league\":\"Standa"
+    "rd\",\"id\":\"1961c5c3c28a876f28907a62df36a11546f46cf6a927c0db3d14ba1e27038e74\",\"sockets\":[{\"group\":0,\"attr\""
+    ":\"I\",\"sColour\":\"B\"},{\"group\":0,\"attr\":\"I\",\"sColour\":\"B\"},{\"group\":1,\"attr\":\"D\",\"sColour\":\""
+    "G\"}],\"name\":\"Onslaught Impaler\",\"typeLine\":\"Great White Claw\",\"baseType\":\"Great White Claw\",\"rarity\""
+    ":\"Rare\",\"ilvl\":84,\"identified\":true,\"corrupted\":true,\"properties\":[{\"name\":\"Claw\",\"values\":[],\"dis"
+    "playMode\":0},{\"name\":\"Quality\",\"values\":[[\"+20%\",1]],\"displayMode\":0,\"type\":6},{\"name\":\"Physical Da"
+    "mage\",\"values\":[[\"99-241\",1]],\"displayMode\":0,\"type\":9},{\"name\":\"Critical Strike Chance\",\"values\":[["
+    "\"8.00%\",0]],\"displayMode\":0,\"type\":12},{\"name\":\"Attacks per Second\",\"values\":[[\"1.64\",1]],\"displayMo"
+    "de\":0,\"type\":13},{\"name\":\"Weapon Range: {0} metres\",\"values\":[[\"1.1\",0]],\"displayMode\":3,\"type\":14}]"
+    ",\"requirements\":[{\"name\":\"Level\",\"values\":[[\"64\",0]],\"displayMode\":0,\"type\":62},{\"name\":\"Dex\",\"v"
+    "alues\":[[\"81\",0]],\"displayMode\":1,\"type\":64},{\"name\":\"Int\",\"values\":[[\"117\",0]],\"displayMode\":1,\""
+    "type\":65}],\"implicitMods\":[\"Grants 46 Life per Enemy Hit\"],\"explicitMods\":[\"Adds 11 to 22 Physical Damage\""
+    ",\"26% increased Attack Speed\",\"+136 to maximum Mana\",\"35% increased Damage with Poison\",\"+39% Critical Strik"
+    "e Multiplier while a Rare or Unique Enemy is Nearby\",\"25% chance to Poison on Hit\"],\"craftedMods\":[\"101% incr"
+    "eased Physical Damage\",\"19% chance to Poison on Hit\"],\"frameType\":2,\"x\":0,\"y\":0,\"inventoryId\":\"Weapon\""
+    ",\"socketedItems\":[]}"
 };
 
 constexpr const char* kItemClawPOB =
-R"(Essentia Sanguis
-Eye Gouger
-Sockets: G-G
+R"(Rarity: RARE
+Onslaught Impaler
+Great White Claw
+Unique ID: 1961c5c3c28a876f28907a62df36a11546f46cf6a927c0db3d14ba1e27038e74
+Item Level: 84
+Quality: 20
+Sockets: B-B G
+LevelReq: 64
 Implicits: 1
-0.6% of Physical Attack Damage Leeched as Life
-+10% Chance to Block Attack Damage while Dual Wielding Claws
-116% increased Physical Damage
-Adds 1 to 50 Lightning Damage
-22% increased Attack Speed
-+32 to maximum Energy Shield
-Life Leech is applied to Energy Shield instead)";
+Grants 46 Life per Enemy Hit
+Adds 11 to 22 Physical Damage
+26% increased Attack Speed
++136 to maximum Mana
+35% increased Damage with Poison
++39% Critical Strike Multiplier while a Rare or Unique Enemy is Nearby
+25% chance to Poison on Hit
+{crafted}101% increased Physical Damage
+{crafted}19% chance to Poison on Hit
+Corrupted)";
 
-constexpr const char* kCategoriesItemFragment = {
+constexpr const char* kCategoriesItemFragment = { // TBD
     "{\"verified\":false,\"w\":1,\"h\":1,\"ilvl\":0,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Maps"
     "\\/Vaal01.png?scale=1&scaleIndex=0&w=1&h=1&v=3b21ce0cd4c0b9e8cf5db6257daf831a\",\"league\":\"Standard\",\"id\":\"57"
     "5e571ccbea9ed070a1dd473794252a2ffe2aee6009e29050d6fad16c98a0af\",\"name\":\"\",\"typeLine\":\"Sacrifice at Midnight"
@@ -192,7 +286,7 @@ constexpr const char* kCategoriesItemFragment = {
     "\":3,\"y\":3,\"inventoryId\":\"MainInventory\"}"
 };
 
-constexpr const char* kCategoriesItemWarMap = {
+constexpr const char* kCategoriesItemWarMap = { // TBD
     "{\"verified\":false,\"w\":1,\"h\":1,\"ilvl\":83,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Map"
     "s\\/Atlas2Maps\\/New\\/SunkenCity.png?scale=1&scaleIndex=0&w=1&h=1&mn=1&mt=15&v=da5c60832e40b287dc576c7f806448ce\","
     "\"league\":\"Standard\",\"id\":\"4ffac7327fa9ecf0996c9c7e456f9d53fbb2613f7bdbfd8f33faa2a36761355e\",\"name\":\"\","
@@ -202,7 +296,7 @@ constexpr const char* kCategoriesItemWarMap = {
     "ryId\":\"Stash2\"}"
 };
 
-constexpr const char* kCategoriesItemUniqueMap = {
+constexpr const char* kCategoriesItemUniqueMap = { // TBD
     "{\"verified\":false,\"w\":1,\"h\":1,\"ilvl\":74,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Map"
     "s\\/HallOfGrandmasters.png?scale=1&scaleIndex=0&w=1&h=1&v=7b8e637fc9b6f7da6631cb8c48ce6af7\",\"league\":\"Standard"
     "\",\"id\":\"006611ccbc68137c27db8ea1fd735af15ba5c1828691bf4ad1fde2e43e2f1883\",\"name\":\"Hall of Grandmasters\",\""
@@ -214,7 +308,7 @@ constexpr const char* kCategoriesItemUniqueMap = {
     "egory\":{\"maps\":[]},\"x\":5,\"y\":2,\"inventoryId\":\"MainInventory\"}"
 };
 
-constexpr const char* kCategoriesItemBreachstone = {
+constexpr const char* kCategoriesItemBreachstone = { // TBD
     "{\"verified\":false,\"w\":1,\"h\":1,\"ilvl\":0,\"icon\":\"https:\\/\\/web.poecdn.com\\/image\\/Art\\/2DItems\\/Curr"
     "ency\\/Breach\\/BreachFragmentsLightning.png?scale=1&scaleIndex=0&w=1&h=1&v=01c1ec0220d90a59ebdbb1847a915710\",\"le"
     "ague\":\"Standard\",\"id\":\"aeebf65ba96865632773520742e8e901b8d7c064e93de927fa57296e1659e749\",\"name\":\"\",\"typ"
@@ -223,7 +317,7 @@ constexpr const char* kCategoriesItemBreachstone = {
     "\"x\":11,\"y\":1,\"inventoryId\":\"Stash58\"}"
 };
 
-constexpr const char* kSocketedItem = {
+constexpr const char* kSocketedItem = { // TBD
     "{\"verified\":false,\"w\":2,\"h\":2,\"icon\":\"http://webcdn.pathofexile.com/image/Art/2DItems/Armours/Helmets/Helm"
     "etStrDex10.png?scale=1&w=2&h=2&v=0a540f285248cdb64d4607186e348e3d3\",\"support\":true,\"league\":\"Rampage\",\"sock"
     "ets\":[{\"group\":0,\"attr\":\"D\"}],\"name\":\"Demon Ward\",\"typeLine\":\"Nightmare Bascinet\",\"identified\":tru"

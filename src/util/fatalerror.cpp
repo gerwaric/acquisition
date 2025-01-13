@@ -89,6 +89,6 @@ constexpr const char* GITHUB_ISSUES_URL = (APP_URL "/issues");
     dialog->exec();
 
     // Finally cause a crash, which should trigger a crash report
-    QLOG_FATAL() << "Aborting acquisition.";
+    QLOG_FATAL() << "Aborting acquisition after a fatal error.";
     abort();
 }

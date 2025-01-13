@@ -40,6 +40,8 @@
 #include "util/checkmsvc.h"
 #endif
 
+#include "legacy/legacybuyoutvalidator.h"
+
 #include "application.h"
 #include "shop.h"
 #include "version_defines.h"
@@ -62,7 +64,7 @@ int main(int argc, char* argv[])
     QLocale::setDefault(QLocale::C);
     std::setlocale(LC_ALL, "C");
 
-    // Holds the date and time of the current build based on __DATE__ and __TIME__ macros.
+    // Holds the date and time of the current build based on m___DATE_ and m___TIME_ macros.
     const QString build_timestamp = QString(BUILD_TIMESTAMP).simplified();
     const QDateTime build_date = QLocale("en_US").toDateTime(build_timestamp, "MMM d yyyy hh:mm:ss");
 
@@ -85,11 +87,18 @@ int main(int argc, char* argv[])
     QCommandLineOption option_crash("crash-test");
     option_crash.setDescription("Trigger a crash dump at startup for testing.");
 
+    QCommandLineOption option_validate_buyouts("validate-buyouts");
+    option_validate_buyouts.setDefaultValue("Validate buyouts in the specified data file");
+    option_validate_buyouts.setValueName("validate-buyouts");
+
     QCommandLineParser parser;
+    parser.addHelpOption();
+    parser.addVersionOption();
     parser.addOption(option_test);
     parser.addOption(option_data_dir);
     parser.addOption(option_log_level);
     parser.addOption(option_crash);
+    parser.addOption(option_validate_buyouts);
     parser.process(a);
 
     // Setup the data dir, which is where the log will be written.
@@ -137,14 +146,6 @@ int main(int argc, char* argv[])
     checkMicrosoftRuntime();
 #endif
 
-    // Start crash reporting.
-    if (!settings.contains("report_crashes")) {
-        settings.setValue("report_crashes", true);
-    };
-    if (settings.value("report_crashes").toBool()) {
-        initializeCrashpad(appDataDir.absolutePath(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
-    };
-
     // Check SSL.
     QLOG_TRACE() << "Checking for SSL support...";
     if (!QSslSocket::supportsSsl()) {
@@ -160,7 +161,12 @@ int main(int argc, char* argv[])
     // Check for test mode.
     if (parser.isSet(option_test)) {
         QLOG_INFO() << "Running test suite...";
-        return test_main();
+        return test_main(appDataDir.absolutePath());
+    };
+
+    if (parser.isSet(option_validate_buyouts)) {
+        const QString filename = parser.value(option_validate_buyouts);
+        QLOG_INFO() << "Validating buyouts:" << filename;
     };
 
     // Run the main application, starting with the login dialog.

@@ -19,25 +19,23 @@
 
 #pragma once
 
-#include <string>
-#include <vector>
 #include <map>
 
 #include "datastore.h"
 
 class MemoryDataStore : public DataStore {
 public:
-    void Set(const std::string& key, const std::string& value);
-    void SetTabs(const ItemLocationType& type, const Locations& tabs);
+    void Set(const QString& key, const QString& value);
+    void SetTabs(const ItemLocationType type, const Locations& tabs);
     void SetItems(const ItemLocation& loc, const Items& items);
-    std::string Get(const std::string& key, const std::string& default_value = "");
-    Locations GetTabs(const ItemLocationType& type);
+    QString Get(const QString& key, const QString& default_value = "");
+    Locations GetTabs(const ItemLocationType type);
     Items GetItems(const ItemLocation& loc);
     void InsertCurrencyUpdate(const CurrencyUpdate& update);
     std::vector<CurrencyUpdate> GetAllCurrency();
 private:
-    std::map<std::string, std::string> data_;
-    std::map<ItemLocationType, Locations> tabs_;
-    std::map<std::string, Items> items_;
-    std::vector<CurrencyUpdate> currency_updates_;
+    std::map<QString, QString> m_data;
+    std::map<ItemLocationType, Locations> m_tabs;
+    std::map<QString, Items> m_items;
+    std::vector<CurrencyUpdate> m_currency_updates;
 };

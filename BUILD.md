@@ -14,8 +14,8 @@ On Windows you can also build Acquisition with Visual Studio 2022 and the Qt Vis
 
 Windows releases are currently built with:
 - Windows 11
-- Qt Creator 14.0.2 (Community) with Qt 6.8.0 using MSVC 2022 64-bit
-- Visual Studio 2022 with Qt Visual Studio Tools 3.3.0 (for editing, debugging, and testing) and Qt Vs CMake Tools 1.1
+- Qt Creator 15.0.0 (Community) with Qt 6.8.1 using MSVC 2022 64-bit
+- Visual Studio 2022 with Qt Visual Studio Tools 3.3.1.1 (for editing, debugging, and testing) and Qt Vs CMake Tools 1.1
 - Inno Setup 6.3.3 for installer creation
 
 ## Linux
@@ -70,6 +70,6 @@ Look for an AppImage file in the deploy/ directory.
 ## macOS
 
 macOS releases are currently built with:
-- macOS Sonoma 14.7.1 on Intel silicon
-- Qt Creator 14.0.2 with Qt 6.8.0 for macOS
+- macOS Sonoma 14.7.2 on Intel silicon
+- Qt Creator 15.0.0 with Qt 6.8.1 for macOS
 - XCode 15

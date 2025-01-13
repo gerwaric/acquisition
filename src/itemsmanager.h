@@ -19,9 +19,10 @@
 
 #pragma once
 
-#include <vector>
-
+#include <QString>
 #include <QTimer>
+
+#include <vector>
 
 #include "ui/mainwindow.h"
 #include "util/util.h"
@@ -55,14 +56,14 @@ public:
         DataStore& datastore,
         RateLimiter& rate_limiter);
     ~ItemsManager();
-    bool isInitialized() const { return worker_ ? worker_->isInitialized() : false; };
-    bool isUpdating() const { return worker_ ? worker_->isUpdating() : false; };
+    bool isInitialized() const { return m_worker ? m_worker->isInitialized() : false; };
+    bool isUpdating() const { return m_worker ? m_worker->isUpdating() : false; };
     // Creates and starts the worker
     void Start(POE_API mode);
     void Update(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
     void SetAutoUpdateInterval(int minutes);
     void SetAutoUpdate(bool update);
-    const Items& items() const { return items_; }
+    const Items& items() const { return m_items; }
     void ApplyAutoTabBuyouts();
     void ApplyAutoItemBuyouts();
     void PropagateTabBuyouts();
@@ -78,14 +79,14 @@ signals:
 private:
     void MigrateBuyouts();
 
-    QSettings& settings_;
-    QNetworkAccessManager& network_manager_;
-    RePoE& repoe_;
-    BuyoutManager& buyout_manager_;
-    DataStore& datastore_;
-    RateLimiter& rate_limiter_;
+    QSettings& m_settings;
+    QNetworkAccessManager& m_network_manager;
+    RePoE& m_repoe;
+    BuyoutManager& m_buyout_manager;
+    DataStore& m_datastore;
+    RateLimiter& m_rate_limiter;
 
-    std::unique_ptr<QTimer> auto_update_timer_;
-    std::unique_ptr<ItemsManagerWorker> worker_;
-    Items items_;
+    std::unique_ptr<QTimer> m_auto_update_timer;
+    std::unique_ptr<ItemsManagerWorker> m_worker;
+    Items m_items;
 };

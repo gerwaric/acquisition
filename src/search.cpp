@@ -36,17 +36,17 @@
 
 Search::Search(
     BuyoutManager& bo_manager,
-    const std::string& caption,
+    const QString& caption,
     const std::vector<std::unique_ptr<Filter>>& filters,
     QTreeView* view)
-    : bo_manager_(bo_manager)
-    , view_(*view)
-    , model_(bo_manager, *this)
-    , caption_(caption)
-    , filtered_(false)
-    , filtered_item_count_(0)
-    , current_mode_(ViewMode::ByTab)
-    , refresh_reason_(RefreshReason::Unknown)
+    : m_bo_manager(bo_manager)
+    , m_view(*view)
+    , m_model(bo_manager, *this)
+    , m_caption(caption)
+    , m_filtered(false)
+    , m_filtered_item_count(0)
+    , m_current_mode(ViewMode::ByTab)
+    , m_refresh_reason(RefreshReason::Unknown)
 {
     using move_only = std::unique_ptr<Column>;
     move_only init[] = {
@@ -77,51 +77,51 @@ Search::Search(
         std::make_unique<PropertyColumn>("Lvl", "Level"),
         std::make_unique<ItemlevelColumn>()
     };
-    columns_ = std::vector<move_only>(
+    m_columns = std::vector<move_only>(
         std::make_move_iterator(std::begin(init)),
         std::make_move_iterator(std::end(init)));
 
     for (auto& filter : filters) {
-        filters_.emplace_back(filter->CreateData());
+        m_filters.emplace_back(filter->CreateData());
     };
 }
 
 void Search::FromForm() {
-    for (auto& filter : filters_) {
+    for (auto& filter : m_filters) {
         filter->FromForm();
     };
 }
 
 void Search::ToForm() {
-    for (auto& filter : filters_) {
+    for (auto& filter : m_filters) {
         filter->ToForm();
     };
 }
 
 void Search::ResetForm() {
-    for (auto& filter : filters_) {
+    for (auto& filter : m_filters) {
         filter->filter()->ResetForm();
     };
 }
 
 const std::vector<Bucket>& Search::buckets() const {
-    switch (current_mode_) {
-    case ViewMode::ByTab: return bucket_by_tab_; break;
-    case ViewMode::ByItem: return bucket_by_item_; break;
+    switch (m_current_mode) {
+    case ViewMode::ByTab: return m_bucket_by_tab; break;
+    case ViewMode::ByItem: return m_bucket_by_item; break;
     default:
-        QLOG_ERROR() << "Invalid view mode:" << static_cast<int>(current_mode_);
-        return bucket_by_item_;
+        QLOG_ERROR() << "Invalid view mode:" << static_cast<int>(m_current_mode);
+        return m_bucket_by_item;
         break;
     };
 }
 
 std::vector<Bucket>& Search::active_buckets() {
-    switch (current_mode_) {
-    case ViewMode::ByTab: return bucket_by_tab_; break;
-    case ViewMode::ByItem: return bucket_by_item_; break;
+    switch (m_current_mode) {
+    case ViewMode::ByTab: return m_bucket_by_tab; break;
+    case ViewMode::ByItem: return m_bucket_by_item; break;
     default:
-        QLOG_ERROR() << "Invalid view mode:" << static_cast<int>(current_mode_);
-        return bucket_by_item_;
+        QLOG_ERROR() << "Invalid view mode:" << static_cast<int>(m_current_mode);
+        return m_bucket_by_item;
         break;
     };
 }
@@ -134,7 +134,7 @@ const Bucket& Search::bucket(int row) const {
     const auto& bucket_list = buckets();
     const int bucket_count = static_cast<int>(bucket_list.size());
     if ((row < 0) || (row >= bucket_count)) {
-        const int mode = static_cast<std::underlying_type_t<Search::ViewMode>>(current_mode_);
+        const int mode = static_cast<std::underlying_type_t<Search::ViewMode>>(m_current_mode);
         const QString message = QString("Bucket row out of bounds: %1 bucket size: %2 mode: %3. Program will abort.").arg(
             QString::number(row),
             QString::number(bucket_count),
@@ -144,7 +144,7 @@ const Bucket& Search::bucket(int row) const {
     return bucket_list[row];
 }
 
-const QModelIndex Search::index(const std::shared_ptr<Item> item) const {
+const QModelIndex Search::index(const std::shared_ptr<Item>& item) const {
     if (!item) {
         // Return an invalid index because there is no current item.
         return QModelIndex();
@@ -159,14 +159,14 @@ const QModelIndex Search::index(const std::shared_ptr<Item> item) const {
         const auto& bucket_id = bucket.location().get_tab_uniq_id();
         if (location_id == bucket_id) {
             // Check each item in the bucket.
-            const QModelIndex parent = model_.index(row);
+            const QModelIndex parent = m_model.index(row);
             const auto& items = bucket.items();
             const int item_count = static_cast<int>(items.size());
             for (int n = 0; n < item_count; ++n) {
                 const auto& model_item = items[n];
                 if (item == model_item) {
                     // Found the index of a match.
-                    return model_.index(n, 0, parent);
+                    return m_model.index(n, 0, parent);
                 };
             };
         };
@@ -177,9 +177,9 @@ const QModelIndex Search::index(const std::shared_ptr<Item> item) const {
 }
 
 void Search::Sort(int column, Qt::SortOrder order) {
-    const int column_count = static_cast<int>(columns_.size());
+    const int column_count = static_cast<int>(m_columns.size());
     if ((column >= 0) && (column < column_count)) {
-        auto& col = *columns_[column];
+        auto& col = *m_columns[column];
         for (auto& bucket : active_buckets()) {
             bucket.Sort(col, order);
         };
@@ -188,10 +188,10 @@ void Search::Sort(int column, Qt::SortOrder order) {
 
 void Search::FilterItems(const Items& items) {
 
-    QLOG_DEBUG() << "FilterItems: reason(" << refresh_reason_ << ")";
+    QLOG_DEBUG() << "FilterItems: reason(" << m_refresh_reason << ")";
 
     // If we're just changing tabs we don't need to update anything
-    if (refresh_reason_ == RefreshReason::TabChanged) {
+    if (m_refresh_reason == RefreshReason::TabChanged) {
         return;
     };
 
@@ -199,8 +199,8 @@ void Search::FilterItems(const Items& items) {
     // active, so we don't have to check every filter against
     // every item.
     std::vector<FilterData*> active_filters;
-    active_filters.reserve(filters_.size());
-    for (auto& filter : filters_) {
+    active_filters.reserve(m_filters.size());
+    for (auto& filter : m_filters) {
         if (filter->filter()->IsActive()) {
             active_filters.push_back(filter.get());
         };
@@ -208,13 +208,13 @@ void Search::FilterItems(const Items& items) {
     active_filters.shrink_to_fit();
 
     // Reset everything before starting to filter items.
-    items_.clear();
-    filtered_ = false;
-    filtered_item_count_ = 0;
+    m_items.clear();
+    m_filtered = false;
+    m_filtered_item_count = 0;
 
     // A single bucket with null location is used to view all items at once.
-    bucket_by_item_.clear();
-    bucket_by_item_.emplace_back(ItemLocation());
+    m_bucket_by_item.clear();
+    m_bucket_by_item.emplace_back(ItemLocation());
 
     // Temporarily store items-by-tabs in a map.
     std::map<ItemLocation, Bucket> bucketed_tabs;
@@ -231,23 +231,23 @@ void Search::FilterItems(const Items& items) {
                 // Now that we know this item will be filtered out,
                 // we don't need to check any more filters.
                 matches = false;
-                filtered_ = true;
+                m_filtered = true;
                 break;
             };
         };
         if (matches) {
             // This item passed through all the filters, so we can
             // add it to the list of items and total count.
-            items_.push_back(item);
-            filtered_item_count_ += item->count();
+            m_items.push_back(item);
+            m_filtered_item_count += item->count();
 
             // Add this item to the "By Item" bucket.
-            bucket_by_item_.front().AddItem(item);
+            m_bucket_by_item.front().AddItem(item);
 
             // Add this item to the associagted "By Tab" bucket.
             const ItemLocation location = item->location();
             if (!bucketed_tabs.count(location)) {
-                bucketed_tabs.emplace(location, Bucket(location));
+                bucketed_tabs[location] = Bucket(location);
             };
             bucketed_tabs[location].AddItem(item);
         };
@@ -256,31 +256,31 @@ void Search::FilterItems(const Items& items) {
     // We need to add empty tabs here as there are no items to force their addition
     // But only do so if no filters are active as we want to hide empty tabs when
     // filtering
-    if (!filtered_) {
-        for (auto& location : bo_manager_.GetStashTabLocations()) {
+    if (!m_filtered) {
+        for (auto& location : m_bo_manager.GetStashTabLocations()) {
             if (!bucketed_tabs.count(location)) {
-                bucketed_tabs.emplace(location, Bucket(location));
+                bucketed_tabs[location] = Bucket(location);
             };
         };
     };
 
     // Move the "By Tab" buckets into their final location.
-    bucket_by_tab_.clear();
-    bucket_by_tab_.reserve(bucketed_tabs.size());
+    m_bucket_by_tab.clear();
+    m_bucket_by_tab.reserve(bucketed_tabs.size());
     for (auto& element : bucketed_tabs) {
-        bucket_by_tab_.emplace_back(std::move(element.second));
+        m_bucket_by_tab.emplace_back(std::move(element.second));
     };
 
     // Let the model know that current sort order has been invalidated
-    model_.SetSorted(false);
+    m_model.SetSorted(false);
 }
 
-void Search::RenameCaption(const std::string newName) {
-    caption_ = newName;
+void Search::RenameCaption(const QString& newName) {
+    m_caption = newName;
 }
 
 QString Search::GetCaption() const {
-    return QString("%1 [%2]").arg(caption_.c_str()).arg(filtered_item_count_);
+    return QString("%1 [%2]").arg(m_caption).arg(m_filtered_item_count);
 }
 
 ItemLocation Search::GetTabLocation(const QModelIndex& index) const {
@@ -315,18 +315,18 @@ ItemLocation Search::GetTabLocation(const QModelIndex& index) const {
 }
 
 void Search::SetViewMode(ViewMode mode) {
-    if (mode != current_mode_) {
+    if (mode != m_current_mode) {
 
         SaveViewProperties();
 
-        current_mode_ = mode;
+        m_current_mode = mode;
 
         // Force immediate view update
-        view_.reset();
-        model_.blockSignals(true);
-        model_.SetSorted(false);
-        model_.sort();
-        model_.blockSignals(false);
+        m_view.reset();
+        m_model.blockSignals(true);
+        m_model.SetSorted(false);
+        m_model.sort();
+        m_model.blockSignals(false);
 
         RestoreViewProperties();
     };
@@ -335,22 +335,22 @@ void Search::SetViewMode(ViewMode mode) {
 void Search::Activate(const Items& items) {
     FromForm();
     FilterItems(items);
-    view_.setSortingEnabled(false);
-    view_.setModel(&model_);
-    view_.header()->setSortIndicator(model_.GetSortColumn(), model_.GetSortOrder());
-    view_.setSortingEnabled(true);
+    m_view.setSortingEnabled(false);
+    m_view.setModel(&m_model);
+    m_view.header()->setSortIndicator(m_model.GetSortColumn(), m_model.GetSortOrder());
+    m_view.setSortingEnabled(true);
     RestoreViewProperties();
 }
 
 void Search::SaveViewProperties() {
-    expanded_property_.clear();
-    if (!filtered_ && (current_mode_ == Search::ViewMode::ByTab)) {
-        const int rowCount = model_.rowCount();
+    m_expanded_property.clear();
+    if (!m_filtered && (m_current_mode == Search::ViewMode::ByTab)) {
+        const int rowCount = m_model.rowCount();
         for (int row = 0; row < rowCount; ++row) {
-            QModelIndex index = model_.index(row, 0, QModelIndex());
-            if (index.isValid() && view_.isExpanded(index)) {
+            QModelIndex index = m_model.index(row, 0, QModelIndex());
+            if (index.isValid() && m_view.isExpanded(index)) {
                 if (has_bucket(row)) {
-                    expanded_property_.insert(bucket(row).location().GetHeader());
+                    m_expanded_property.emplace(bucket(row).location().GetHeader());
                 };
             };
         };
@@ -359,24 +359,24 @@ void Search::SaveViewProperties() {
 
 void Search::RestoreViewProperties() {
 
-    view_.blockSignals(true);
-    if (filtered_ || (current_mode_ == Search::ViewMode::ByItem)) {
-        view_.expandToDepth(0);
+    m_view.blockSignals(true);
+    if (m_filtered || (m_current_mode == Search::ViewMode::ByItem)) {
+        m_view.expandToDepth(0);
     } else {
-        const int row_count = model_.rowCount();
+        const int row_count = m_model.rowCount();
         for (int row = 0; row < row_count; ++row) {
-            QModelIndex index = model_.index(row, 0, QModelIndex());
-            if (expanded_property_.empty()) {
-                view_.collapse(index);
+            QModelIndex index = m_model.index(row, 0, QModelIndex());
+            if (m_expanded_property.empty()) {
+                m_view.collapse(index);
             } else {
                 const auto key = bucket(row).location().GetHeader();
-                if (expanded_property_.count(key) > 0) {
-                    view_.expand(index);
+                if (m_expanded_property.count(key) > 0) {
+                    m_view.expand(index);
                 } else {
-                    view_.collapse(index);
+                    m_view.collapse(index);
                 };
             };
         };
     };
-    view_.blockSignals(false);
+    m_view.blockSignals(false);
 }

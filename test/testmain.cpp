@@ -25,9 +25,14 @@
 #include <QSettings>
 #include <QTemporaryFile>
 #include <QTest>
+#include <QtDebug>
+#include <QtLogging>
 
 #include <clocale>
 #include <memory>
+#include <vector>
+
+#include <QsLog/QsLog.h>
 
 #include "application.h"
 #include "datastore/datastore.h"
@@ -43,12 +48,7 @@
 #include "testshop.h"
 #include "testutil.h"
 
-#define TEST(Class, ...) QTest::qExec(std::make_unique<Class>(__VA_ARGS__).get())
-
-int test_main() {
-
-    QLocale::setDefault(QLocale::C);
-    std::setlocale(LC_ALL, "C");
+int test_main(const QString& data_dir) {
 
     QNetworkAccessManager network_manager;
     TestHelper helper;
@@ -57,7 +57,7 @@ int test_main() {
     QEventLoop loop;
     QObject::connect(&repoe, &RePoE::finished, &helper, [&]() { helper.run(network_manager, repoe); });
     QObject::connect(&helper, &TestHelper::finished, &loop, &QEventLoop::exit);
-    repoe.Init();
+    repoe.Init(data_dir);
     return loop.exec();
 }
 
@@ -76,13 +76,34 @@ int TestHelper::run(QNetworkAccessManager& network_manager, RePoE& repoe) {
     ItemsManager items_manager(settings, network_manager, repoe, buyout_manager, *datastore, rate_limiter);
     Shop shop(settings, network_manager, rate_limiter, *datastore, items_manager, buyout_manager);
 
-    int result = 0;
-    result |= TEST(TestItem);
-    result |= TEST(TestShop, items_manager, buyout_manager, shop);
-    result |= TEST(TestUtil);
-    result |= TEST(TestItemsManager, *datastore, items_manager, buyout_manager);
+    const QString verbosity = "-v2";
 
-    int status = (result != 0) ? -1 : 0;
+	int overall_result = 0;
+    {
+		TestItem item_test;
+		const int result = QTest::qExec(&item_test, { verbosity, "-o", "acquisition-test-items.log" });
+		QLOG_INFO() << "TestItem result is" << result;
+		overall_result |= result;
+	};
+    {
+		TestShop shop_test(items_manager, buyout_manager, shop);
+		const int result = QTest::qExec(&shop_test, { verbosity, "-o", "acquisition-test-shop.log" });
+		QLOG_INFO() << "TestShop result is" << result;
+		overall_result |= result;
+	};
+    {
+		TestUtil util_test;
+		const int result = QTest::qExec(&util_test, { verbosity, "-o", "acquisition-test-utils.log" });
+		QLOG_INFO() << "TestUtil result is" << result;
+		overall_result |= result;
+	};
+    {
+		TestItemsManager items_manager_test(*datastore, items_manager, buyout_manager);
+		const int result = QTest::qExec(&items_manager_test, { verbosity, "-o", "acquisition-test-item-manager.log" });
+		QLOG_INFO() << "TestItemsManager result is" << result;
+		overall_result |= result;
+	};
+	int status = (overall_result == 0) ? 0 : -1;
     emit finished(status);
     return status;
 }

@@ -38,11 +38,11 @@
 #include <QUrl>
 #include <QUrlQuery>
 
+#include <libpoe/type/league.h>
 #include <QsLog/QsLog.h>
-#include <rapidjson/error/en.h>
 
+#include "legacy/legacybuyoutvalidator.h"
 #include "util/crashpad.h"
-#include "util/rapidjson_util.h" // Needed for range iterators
 #include "util/util.h"
 #include "util/updatechecker.h"
 #include "util/oauthmanager.h"
@@ -85,10 +85,10 @@ LoginDialog::LoginDialog(
     QNetworkAccessManager& network_manager,
     OAuthManager& oauth_manager)
     : QDialog(nullptr)
-    , app_data_dir_(app_data_dir)
-    , settings_(settings)
-    , network_manager_(network_manager)
-    , oauth_manager_(oauth_manager)
+    , m_app_data_dir(app_data_dir)
+    , m_settings(settings)
+    , m_network_manager(network_manager)
+    , m_oauth_manager(oauth_manager)
     , ui(new Ui::LoginDialog)
 {
     // Setup the dialog box.
@@ -119,7 +119,7 @@ LoginDialog::LoginDialog(
         });
 
     // Display the data directory
-    ui->userDirButton->setText(app_data_dir_.absolutePath());
+    ui->userDirButton->setText(m_app_data_dir.absolutePath());
 
     // Hide the error message by default
     ui->errorLabel->setText("");
@@ -136,7 +136,7 @@ LoginDialog::LoginDialog(
     QNetworkProxyFactory::setUseSystemConfiguration(ui->proxyCheckBox->isChecked());
 
     // Let the oath manager know about the remember me selection.
-    oauth_manager_.RememberToken(ui->rememberMeCheckBox->isChecked());
+    m_oauth_manager.RememberToken(ui->rememberMeCheckBox->isChecked());
 
     // Determine which options to show.
     const bool hide_options = ui->loginTabs->currentWidget() == ui->offlineTab;
@@ -162,15 +162,15 @@ LoginDialog::LoginDialog(
     connect(ui->themeComboBox, &QComboBox::currentTextChanged, this, &LoginDialog::OnThemeChanged);
 
     // Listen for access from the OAuth manager.
-    connect(&oauth_manager_, &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
+    connect(&m_oauth_manager, &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
 
     // Load the OAuth token if one is already present.
     const QDateTime now = QDateTime::currentDateTime();
-    const OAuthToken& token = oauth_manager_.token();
-    if (now < token.access_expiration()) {
+    const OAuthToken& token = m_oauth_manager.token();
+    if (token.access_expiration && (now < *token.access_expiration)) {
         QLOG_TRACE() << "LoginDialog::LoginDialog() found a valid OAuth token";
-        OnOAuthAccessGranted(oauth_manager_.token());
-    } else if (now < token.refresh_expiration()) {
+        OnOAuthAccessGranted(m_oauth_manager.token());
+    } else if (token.refresh_expiration && (now < *token.refresh_expiration)) {
         QLOG_INFO() << "LoginDialog:LoginDialog() the OAuth token needs to be refreshed";
     };
 
@@ -182,41 +182,41 @@ LoginDialog::LoginDialog(
 LoginDialog::~LoginDialog() {
     if (!ui->rememberMeCheckBox->isChecked()) {
         QLOG_TRACE() << "LoginDialog::SaveSettings() clearing settings";
-        settings_.clear();
+        m_settings.clear();
     };
     delete ui;
 }
 
 void LoginDialog::LoadSettings() {
 
-    const QString realm = settings_.value("realm").toString();
+    const QString realm = m_settings.value("realm").toString();
     ui->realmComboBox->setCurrentText(realm);
 
-    const QString league = settings_.value("league").toString();
+    const QString league = m_settings.value("league").toString();
     ui->leagueComboBox->setCurrentText(league);
 
     const QString logging_level = Util::LogLevelToText(QsLogging::Logger::instance().loggingLevel());
     ui->loggingLevelComboBox->setCurrentText(logging_level);
 
-    const QString theme = settings_.value("theme").toString();
+    const QString theme = m_settings.value("theme").toString();
     ui->themeComboBox->setCurrentText(theme);
 
-    const QString session_id = settings_.value("session_id").toString();
+    const QString session_id = m_settings.value("session_id").toString();
     ui->sessionIDLineEdit->setText(session_id);
 
-    const bool show_advanced = settings_.value("show_advanced_login_options").toBool();
+    const bool show_advanced = m_settings.value("show_advanced_login_options").toBool();
     ui->advancedCheckBox->setChecked(show_advanced);
 
-    const bool remember_user = settings_.value("remember_user").toBool();
+    const bool remember_user = m_settings.value("remember_user").toBool();
     ui->rememberMeCheckBox->setChecked(remember_user);
 
-    const bool use_proxy = settings_.value("use_system_proxy").toBool();
+    const bool use_proxy = m_settings.value("use_system_proxy").toBool();
     ui->proxyCheckBox->setChecked(use_proxy);
 
-    const bool report_crashes = settings_.value("report_crashes").toBool();
+    const bool report_crashes = m_settings.value("report_crashes").toBool();
     ui->reportCrashesCheckBox->setChecked(report_crashes);
 
-    const QString login_tab = settings_.value("login_tab").toString();
+    const QString login_tab = m_settings.value("login_tab").toString();
     QLOG_TRACE() << "LoginDialog::LoadSettings() login_tab =" << login_tab;
     for (auto i = 0; i < ui->loginTabs->count(); ++i) {
         const QString tab_name = ui->loginTabs->widget(i)->objectName();
@@ -237,7 +237,7 @@ void LoginDialog::RequestLeagues() {
 
     // Send the request and handle errors.
     QLOG_TRACE() << "LoginDialog::RequestLeagues() sending request:" << request.url().toString();
-    QNetworkReply* reply = network_manager_.get(request);
+    QNetworkReply* reply = m_network_manager.get(request);
     connect(reply, &QNetworkReply::finished, this, &LoginDialog::OnLeaguesReceived);
     connect(reply, &QNetworkReply::errorOccurred, this,
         [=](QNetworkReply::NetworkError code) {
@@ -268,63 +268,23 @@ void LoginDialog::OnLeaguesReceived() {
         return LeaguesRequestError(reply->errorString(), bytes);
     };
 
-    rapidjson::Document doc;
-    doc.Parse(bytes.constData());
-
-    // Check the document for basic error.
-    if (doc.HasParseError()) {
-        const QString parse_error = rapidjson::GetParseError_En(doc.GetParseError());
-        return LeaguesRequestError("json error: " + parse_error, bytes);
-    };
-    if (!doc.IsArray()) {
-        return LeaguesRequestError("object is not an array", bytes);
-    };
-
-    QStringList leagues;
-
-    // Parse leagues from the json object.
-    for (auto& league : doc) {
-        if (!league.IsObject()) {
-            return LeaguesRequestError("object expected", bytes);
-        };
-        if (!league.HasMember("id")) {
-            return LeaguesRequestError("missing league 'id'", bytes);
-        };
-        if (!league["id"].IsString()) {
-            return LeaguesRequestError("league 'id' is not a string", bytes);
-        };
-        leagues.append(league["id"].GetString());
-    };
+    // Parse the leagues.
+    const auto leagues = Util::parseJson<std::vector<libpoe::League>>(bytes);
 
     // Get the league from settings.ini
-    const QString saved_league = settings_.value("league").toString();
+    const QString saved_league = m_settings.value("league").toString();
     QLOG_TRACE() << "LoginDialog::OnLeaguesReceived() loaded leage from settings:" << saved_league;
 
     bool use_saved_league = false;
 
     ui->leagueComboBox->clear();
-    for (auto& league : doc) {
-
-        // Make sure the league object is well-formed.
-        if (!league.IsObject()) {
-            return LeaguesRequestError("object expected", bytes);
-        };
-        if (!league.HasMember("id")) {
-            return LeaguesRequestError("missing league 'id'", bytes);
-        };
-        if (!league["id"].IsString()) {
-            return LeaguesRequestError("league 'id' is not a string", bytes);
-        };
-
-        // Get the league name.
-        const QString league_name = league["id"].GetString();
-        QLOG_TRACE() << "LoginDialog::OnLeaguesReceived() found league" << league_name;
+    for (auto& league : leagues) {
 
         // Add the league to the combo box.
-        ui->leagueComboBox->addItem(league_name);
+        ui->leagueComboBox->addItem(league.id);
 
         // Set the current league if it matches the saved league.
-        if (0 == saved_league.compare(league_name, Qt::CaseInsensitive)) {
+        if (0 == saved_league.compare(league.id, Qt::CaseInsensitive)) {
             use_saved_league = true;
         };
     };
@@ -338,7 +298,7 @@ void LoginDialog::OnLeaguesReceived() {
         ui->leagueComboBox->setCurrentText(saved_league);
     } else {
         QLOG_TRACE() << "LoginDialog::OnLeaguesReceived() clearing the saved league";
-        settings_.setValue("league", "");
+        m_settings.setValue("league", "");
     };
 
     // Now that leagues have been received, start listening for changes.
@@ -360,7 +320,7 @@ void LoginDialog::OnAuthenticateButtonClicked() {
     ui->errorLabel->setText("");
     ui->authenticateButton->setEnabled(false);
     ui->authenticateButton->setText("Authenticating...");
-    oauth_manager_.requestAccess();
+    m_oauth_manager.requestAccess();
 }
 
 void LoginDialog::OnLoginButtonClicked() {
@@ -373,14 +333,14 @@ void LoginDialog::OnLoginButtonClicked() {
     const QString realm = ui->realmComboBox->currentText();
     const QString league = ui->leagueComboBox->currentText();
     const QString session_id = ui->sessionIDLineEdit->text();
-    settings_.setValue("realm", realm);
-    settings_.setValue("league", league);
-    settings_.setValue("session_id", session_id);
+    m_settings.setValue("realm", realm);
+    m_settings.setValue("league", league);
+    m_settings.setValue("session_id", session_id);
     if (!session_id.isEmpty()) {
         QNetworkCookie poesessid(POE_COOKIE_NAME, session_id.toUtf8());
         poesessid.setPath(POE_COOKIE_PATH);
         poesessid.setDomain(POE_COOKIE_DOMAIN);
-        network_manager_.cookieJar()->insertCookie(poesessid);
+        m_network_manager.cookieJar()->insertCookie(poesessid);
     };
 
     const QString tab_name = ui->loginTabs->currentWidget()->objectName();
@@ -410,12 +370,11 @@ void LoginDialog::OnOfflineButtonClicked() {
 void LoginDialog::LoginWithOAuth() {
     QLOG_INFO() << "Starting OAuth authentication";
     const QDateTime now = QDateTime::currentDateTime();
-    const OAuthToken& token = oauth_manager_.token();
-    if (now < token.access_expiration()) {
-        const QString account = QString::fromStdString(token.username());
-        settings_.setValue("account", account);
+    const OAuthToken& token = m_oauth_manager.token();
+    if (token.access_expiration && (now < *token.access_expiration)) {
+        m_settings.setValue("account", token.username);
         emit LoginComplete(POE_API::OAUTH);
-    } else if (now < token.refresh_expiration()) {
+    } else if (token.refresh_expiration && (now < *token.refresh_expiration)) {
         DisplayError("The OAuth token needs to be refreshed");
     } else {
         DisplayError("You are not authenticated.");
@@ -426,7 +385,7 @@ void LoginDialog::LoginWithSessionID() {
     QLOG_INFO() << "Starting legacy login with POESESSID";
     QNetworkRequest request = QNetworkRequest(QUrl(POE_LOGIN_CHECK_URL));
     request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-    QNetworkReply* reply = network_manager_.get(request);
+    QNetworkReply* reply = m_network_manager.get(request);
 
     connect(reply, &QNetworkReply::finished, this, &LoginDialog::OnStartLegacyLogin);
     connect(reply, &QNetworkReply::errorOccurred, this,
@@ -476,7 +435,7 @@ void LoginDialog::OnStartLegacyLogin() {
     };
 
     // Check the session id cookie.
-    const QString session_id = settings_.value("session_id").toString();
+    const QString session_id = m_settings.value("session_id").toString();
     for (const QNetworkCookie& cookie : cookies) {
         if (QString(cookie.name()) == POE_COOKIE_NAME) {
             if (cookie.value() != session_id) {
@@ -489,7 +448,7 @@ void LoginDialog::OnStartLegacyLogin() {
     // we need one more request to get account name
     QNetworkRequest request = QNetworkRequest(QUrl(POE_MY_ACCOUNT));
     request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-    QNetworkReply* next_reply = network_manager_.get(request);
+    QNetworkReply* next_reply = m_network_manager.get(request);
 
     connect(next_reply, &QNetworkReply::finished, this, &LoginDialog::OnFinishLegacyLogin);
     connect(reply, &QNetworkReply::errorOccurred, this,
@@ -531,9 +490,9 @@ void LoginDialog::OnFinishLegacyLogin() {
     };
 
     const QString account = match.captured(1);
-    const QString realm = settings_.value("realm").toString();
-    const QString league = settings_.value("league").toString();
-    settings_.setValue("account", account);
+    const QString realm = m_settings.value("realm").toString();
+    const QString league = m_settings.value("league").toString();
+    m_settings.setValue("account", account);
 
     QLOG_DEBUG() << "Logged in as" << account << "to" << league << "league in" << realm << "realm";
 
@@ -542,8 +501,7 @@ void LoginDialog::OnFinishLegacyLogin() {
 
 void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
     QLOG_TRACE() << "LoginDialog::OnOAuthAccessGranted() entered";
-    const QString username = QString::fromStdString(token.username());
-    ui->authenticateLabel->setText("You are authenticated as \"" + username + "\"");
+    ui->authenticateLabel->setText("You are authenticated as \"" + token.username + "\"");
     ui->authenticateButton->setText("Re-authenticate (as someone else).");
     ui->authenticateButton->setEnabled(true);
 }
@@ -562,17 +520,17 @@ void LoginDialog::OnLoginTabChanged(int index) {
     ui->advancedOptionsFrame->setHidden(hide_options || hide_advanced);
     ui->errorLabel->setHidden(hide_options || hide_error);
     ui->loginButton->setHidden(hide_options);
-    settings_.setValue("login_tab", tab->objectName());
+    m_settings.setValue("login_tab", tab->objectName());
 };
 
 void LoginDialog::OnSessionIDChanged(const QString& session_id) {
     QLOG_TRACE() << "LoginDialog::OnSessionIDChanged() entered";
-    settings_.setValue("session_id", session_id);
+    m_settings.setValue("session_id", session_id);
 }
 
 void LoginDialog::OnLeagueChanged(const QString& league) {
     QLOG_TRACE() << "LoginDialog::OnLeagueChanged() entered";
-    settings_.setValue("league", league);
+    m_settings.setValue("league", league);
 }
 
 void LoginDialog::OnAdvancedCheckBoxChanged(Qt::CheckState state) {
@@ -580,21 +538,21 @@ void LoginDialog::OnAdvancedCheckBoxChanged(Qt::CheckState state) {
     const bool checked = (state == Qt::Checked);
     const bool hide_options = ui->loginTabs->currentWidget() == ui->offlineTab;
     ui->advancedOptionsFrame->setHidden(!checked || hide_options);
-    settings_.setValue("show_advanced_login_options", checked);
+    m_settings.setValue("show_advanced_login_options", checked);
 }
 
 void LoginDialog::OnProxyCheckBoxChanged(Qt::CheckState state) {
     QLOG_TRACE() << "LoginDialog: proxy checkbox changed to" << state;
     const bool checked = (state == Qt::Checked);
     QNetworkProxyFactory::setUseSystemConfiguration(checked);
-    settings_.setValue("use_system_proxy", checked);
+    m_settings.setValue("use_system_proxy", checked);
 }
 
 void LoginDialog::OnRememberMeCheckBoxChanged(Qt::CheckState state) {
     QLOG_TRACE() << "LoginDialog: remember me checkbox changed to" << state;
     const bool checked = (state == Qt::Checked);
-    oauth_manager_.RememberToken(checked);
-    settings_.setValue("remember_user", checked);
+    m_oauth_manager.RememberToken(checked);
+    m_settings.setValue("remember_user", checked);
 }
 
 void LoginDialog::OnReportCrashesCheckBoxChanged(Qt::CheckState state) {
@@ -615,9 +573,9 @@ void LoginDialog::OnReportCrashesCheckBoxChanged(Qt::CheckState state) {
         msgbox.addButton("  Cancel  ", msgbox.NoRole);
         msgbox.exec();
         const bool enable_reporting = (msgbox.clickedButton() == yes);
-        settings_.setValue("report_crashes", enable_reporting);
+        m_settings.setValue("report_crashes", enable_reporting);
         if (enable_reporting) {
-            initializeCrashpad(app_data_dir_.absolutePath(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
+            initializeCrashpad(m_app_data_dir.absolutePath(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
         } else {
             ui->reportCrashesCheckBox->setChecked(false);
         };
@@ -634,7 +592,7 @@ void LoginDialog::OnReportCrashesCheckBoxChanged(Qt::CheckState state) {
         msgbox.addButton("  No, continue without crash reporting  ", msgbox.NoRole);
         msgbox.exec();
         const bool disable_reporting = (msgbox.clickedButton() == yes);
-        settings_.setValue("report_crashes", !disable_reporting);
+        m_settings.setValue("report_crashes", !disable_reporting);
         if (disable_reporting) {
             close();
         } else {
@@ -645,7 +603,7 @@ void LoginDialog::OnReportCrashesCheckBoxChanged(Qt::CheckState state) {
 }
 
 void LoginDialog::OnUserDirButtonPushed() {
-    const QString current_dir = QFileInfo(settings_.fileName()).absolutePath();
+    const QString current_dir = QFileInfo(m_settings.fileName()).absolutePath();
     const QString parent_dir = QFileInfo(current_dir).absolutePath();
     const QString new_dir = QFileDialog::getExistingDirectory(this, "Select the user directory", parent_dir);
     if (new_dir != current_dir) {
@@ -657,7 +615,7 @@ void LoginDialog::OnUserDirButtonPushed() {
 void LoginDialog::OnLoggingLevelChanged(const QString& level) {
     const QsLogging::Level logging_level = Util::TextToLogLevel(level);
     QsLogging::Logger::instance().setLoggingLevel(logging_level);
-    settings_.setValue("logging_level", level);
+    m_settings.setValue("logging_level", level);
 }
 
 void LoginDialog::OnThemeChanged(const QString& theme) {

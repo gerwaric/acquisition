@@ -21,9 +21,9 @@
 
 #include <QsLog/QsLog.h>
 
-const std::string Buyout::buyout_type_error_;
+const QString Buyout::m_buyout_type_error;
 
-const Buyout::BuyoutTypeMap Buyout::buyout_type_as_tag_ = {
+const Buyout::BuyoutTypeMap Buyout::m_buyout_type_as_tag = {
     {BUYOUT_TYPE_IGNORE, "[ignore]"},
     {BUYOUT_TYPE_BUYOUT, "b/o"},
     {BUYOUT_TYPE_FIXED, "price"},
@@ -32,7 +32,7 @@ const Buyout::BuyoutTypeMap Buyout::buyout_type_as_tag_ = {
     {BUYOUT_TYPE_INHERIT, ""}
 };
 
-const Buyout::BuyoutTypeMap Buyout::buyout_type_as_prefix_ = {
+const Buyout::BuyoutTypeMap Buyout::m_buyout_type_as_prefix = {
     {BUYOUT_TYPE_IGNORE, ""},
     {BUYOUT_TYPE_BUYOUT, " ~b/o "},
     {BUYOUT_TYPE_FIXED, " ~price "},
@@ -41,7 +41,7 @@ const Buyout::BuyoutTypeMap Buyout::buyout_type_as_prefix_ = {
     {BUYOUT_TYPE_INHERIT, ""}
 };
 
-const Buyout::BuyoutSourceMap Buyout::buyout_source_as_tag_ = {
+const Buyout::BuyoutSourceMap Buyout::m_buyout_source_as_tag = {
     {BUYOUT_SOURCE_NONE, ""},
     {BUYOUT_SOURCE_MANUAL, "manual"},
     {BUYOUT_SOURCE_GAME, "game"},
@@ -85,14 +85,14 @@ bool Buyout::RequiresRefresh() const
     return !(type == BUYOUT_TYPE_IGNORE || type == BUYOUT_TYPE_INHERIT);
 }
 
-BuyoutSource Buyout::TagAsBuyoutSource(std::string tag) {
-    auto& m = buyout_source_as_tag_;
+BuyoutSource Buyout::TagAsBuyoutSource(QString tag) {
+    auto& m = m_buyout_source_as_tag;
     auto const& it = std::find_if(m.begin(), m.end(), [&](BuyoutSourceMap::value_type const& x) { return x.second == tag; });
     return (it != m.end()) ? it->first : BUYOUT_SOURCE_NONE;
 }
 
-BuyoutType Buyout::TagAsBuyoutType(std::string tag) {
-    auto& m = buyout_type_as_tag_;
+BuyoutType Buyout::TagAsBuyoutType(QString tag) {
+    auto& m = m_buyout_type_as_tag;
     auto const& it = std::find_if(m.begin(), m.end(), [&](BuyoutTypeMap::value_type const& x) { return x.second == tag; });
     return (it != m.end()) ? it->first : BUYOUT_TYPE_INHERIT;
 }
@@ -100,7 +100,7 @@ BuyoutType Buyout::TagAsBuyoutType(std::string tag) {
 BuyoutType Buyout::IndexAsBuyoutType(int index) {
     if (index >= 0) {
         size_t index_t = (size_t)index;
-        if (index_t < buyout_type_as_tag_.size()) {
+        if (index_t < m_buyout_type_as_tag.size()) {
             return static_cast<BuyoutType>(index_t);
         };
     };
@@ -109,45 +109,45 @@ BuyoutType Buyout::IndexAsBuyoutType(int index) {
     return BUYOUT_TYPE_INHERIT;
 }
 
-std::string Buyout::AsText() const {
+QString Buyout::AsText() const {
     if (IsPriced()) {
-        return BuyoutTypeAsTag() + " " + QString::number(value).toStdString() + " " + CurrencyAsTag();
+        return BuyoutTypeAsTag() + " " + QString::number(value) + " " + CurrencyAsTag();
     } else {
         return BuyoutTypeAsTag();
     };
 }
 
-const std::string& Buyout::BuyoutTypeAsTag() const {
-    auto const& it = buyout_type_as_tag_.find(type);
-    if (it != buyout_type_as_tag_.end()) {
+const QString& Buyout::BuyoutTypeAsTag() const {
+    auto const& it = m_buyout_type_as_tag.find(type);
+    if (it != m_buyout_type_as_tag.end()) {
         return it->second;
     } else {
         QLOG_WARN() << "No mapping from buyout type: " << type << " to tag. This should never happen - please report.";
-        return buyout_type_error_;
+        return m_buyout_type_error;
     };
 }
 
-const std::string& Buyout::BuyoutTypeAsPrefix() const {
-    auto const& it = buyout_type_as_prefix_.find(type);
-    if (it != buyout_type_as_prefix_.end()) {
+const QString& Buyout::BuyoutTypeAsPrefix() const {
+    auto const& it = m_buyout_type_as_prefix.find(type);
+    if (it != m_buyout_type_as_prefix.end()) {
         return it->second;
     } else {
         QLOG_WARN() << "No mapping from buyout type: " << type << " to prefix. This should never happen - please report.";
-        return buyout_type_error_;
+        return m_buyout_type_error;
     };
 }
 
-const std::string& Buyout::BuyoutSourceAsTag() const {
-    auto const& it = buyout_source_as_tag_.find(source);
-    if (it != buyout_source_as_tag_.end()) {
+const QString& Buyout::BuyoutSourceAsTag() const {
+    auto const& it = m_buyout_source_as_tag.find(source);
+    if (it != m_buyout_source_as_tag.end()) {
         return it->second;
     } else {
         QLOG_WARN() << "No mapping from buyout source: " << source << " to tag. This should never happen - please report.";
-        return buyout_type_error_;
+        return m_buyout_type_error;
     };
 }
 
-const std::string& Buyout::CurrencyAsTag() const
+const QString& Buyout::CurrencyAsTag() const
 {
     return currency.AsTag();
 }

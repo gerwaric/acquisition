@@ -21,10 +21,31 @@
 
 #include <QObject>
 
+#include "item.h"
+
 class TestItem : public QObject {
     Q_OBJECT
 private slots:
-    void Parse();
-    void ParseCategories();
-    void POBformat();
+    void testBasicParsing();
+
+    void testDivCardCategory();
+    void testBeltCategory();
+    void testEssenceCategory();
+    void testVaalGemCategory();
+    void testSupportGemCategory();
+    void testBowCategory();
+    void testClawCategory();
+    void testFragmentCategory();
+    void testMapCategory();
+    void testUniqueMapCategory();
+    void testBreachstoneCategory();
+
+    void testBeltPOB();
+    void testBowPOB();
+    void testClawPOB();
+
+private:
+    static Item parseItem(const char* json);
+    static QString getCategory(const char* json);
+    static QString getPOB(const char* json);
 };

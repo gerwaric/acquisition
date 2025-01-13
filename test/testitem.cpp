@@ -21,94 +21,149 @@
 
 #include <QtTest>
 
-#include "rapidjson/document.h"
+#include <QsLog/QsLog.h>
+#include <rapidjson/document.h>
+#include <rapidjson/error/en.h>
 
-#include "item.h"
 #include "testdata.h"
 
-void TestItem::Parse() {
+void TestItem::testBasicParsing() {
 
-    rapidjson::Document doc;
-    doc.Parse(kItem1);
-
-    Item item(doc, ItemLocation());
+    const Item item = parseItem(kItem1);
 
     // no need to check everything, just some basic properties
-    QCOMPARE(item.name().c_str(), "Demon Ward");
-    QCOMPARE(item.sockets().b, 0);
-    QCOMPARE(item.sockets().g, 1);
-    QCOMPARE(item.sockets().r, 0);
-    QCOMPARE(item.sockets().w, 0);
+	QCOMPARE(item.name(), "Chimeric Crest");
+    QCOMPARE(item.typeLine(), "Vaal Mask");
+    QCOMPARE(item.frameType(), 2);
 
+    const auto& sockets = item.sockets();
+    QCOMPARE(sockets.b, 2);
+    QCOMPARE(sockets.g, 2);
+    QCOMPARE(sockets.r, 0);
+    QCOMPARE(sockets.w, 0);
+
+    const auto& requirements = item.requirements();
+    const auto it = requirements.find(QStringLiteral("Level"));
+    if (it == requirements.end()) {
+        QVERIFY(false);
+    } else {
+        const int required_level = it->second;
+        QCOMPARE(required_level, 69);
+    };
+    
     // the hash should be the same between different versions of Acquisition and OSes
-    QCOMPARE(item.hash().c_str(), "605d9f566bc4305f4fd425efbbbed6a6");
+    QCOMPARE(item.hash(), "d7341b85cb8115efee9896dda9b3f60e");
+
     // This needs to match so that item hash migration is successful
-    QCOMPARE(item.old_hash().c_str(), "36f0097563123e5296dc2eed54e9d6f3");
-
+    QCOMPARE(item.old_hash(), "fb915d79d2659e9175afae12612da584");
 }
 
-void TestItem::ParseCategories() {
-
-    rapidjson::Document doc;
-    doc.Parse(kCategoriesItemCard);
-    Item item(doc, ItemLocation());
-    QCOMPARE(item.category().c_str(), "divination cards");
-
-    doc.Parse(kCategoriesItemBelt);
-    item = Item(doc, ItemLocation());
-    QCOMPARE(item.category().c_str(), "belts");
-
-    doc.Parse(kCategoriesItemEssence);
-    item = Item(doc, ItemLocation());
-    QCOMPARE(item.category().c_str(), "currency.essence");
-
-    doc.Parse(kCategoriesItemVaalGem);
-    item = Item(doc, ItemLocation());
-    QCOMPARE(item.category().c_str(), "gems.vaal");
-
-    doc.Parse(kCategoriesItemSupportGem);
-    item = Item(doc, ItemLocation());
-    QCOMPARE(item.category().c_str(), "gems.support");
-
-    doc.Parse(kCategoriesItemBow);
-    item = Item(doc, ItemLocation());
-    QCOMPARE(item.category().c_str(), "weapons.2hand.bows");
-
-    doc.Parse(kCategoriesItemClaw);
-    item = Item(doc, ItemLocation());
-    QCOMPARE(item.category().c_str(), "weapons.1hand.claws");
-
-    doc.Parse(kCategoriesItemFragment);
-    item = Item(doc, ItemLocation());
-    QCOMPARE(item.category().c_str(), "maps.atziri fragments");
-
-    doc.Parse(kCategoriesItemWarMap);
-    item = Item(doc, ItemLocation());
-    QCOMPARE(item.category().c_str(), "maps.3.1");
-
-    doc.Parse(kCategoriesItemUniqueMap);
-    item = Item(doc, ItemLocation());
-    QCOMPARE(item.category().c_str(), "maps.older uniques");
-
-    doc.Parse(kCategoriesItemBreachstone);
-    item = Item(doc, ItemLocation());
-    QCOMPARE(item.category().c_str(), "currency.breach");
-
+void TestItem::testDivCardCategory() {
+    const Item item = parseItem(kCategoriesItemCard);
+    const QString category = item.category();
+    QCOMPARE(category, "divination cards");
 }
 
-void TestItem::POBformat() {
+void TestItem::testBeltCategory() {
+    const Item item = parseItem(kCategoriesItemBelt);
+    const QString category = item.category();
+    QCOMPARE(category, "belts");
+}
 
+void TestItem::testEssenceCategory() {
+    const Item item = parseItem(kCategoriesItemEssence);
+    const QString category = item.category();
+    QCOMPARE(category, "stackable currency");
+}
+
+void TestItem::testVaalGemCategory() {
+    const Item item = parseItem(kCategoriesItemVaalGem);
+    const QString category = item.category();
+    QCOMPARE(category, "gems.vaal");
+}
+
+void TestItem::testSupportGemCategory() {
+    const Item item = parseItem(kCategoriesItemSupportGem);
+    const QString category = item.category();
+    QCOMPARE(category, "gems.support");
+}
+
+void TestItem::testBowCategory() {
+    const Item item = parseItem(kCategoriesItemBow);
+    const QString category = item.category();
+    QCOMPARE(category, "bows");
+}
+
+void TestItem::testClawCategory() {
+    const Item item = parseItem(kCategoriesItemClaw);
+    const QString category = item.category();
+    QCOMPARE(category, "claws");
+}
+
+void TestItem::testFragmentCategory() {
+    const Item item = parseItem(kCategoriesItemFragment);
+    const QString category = item.category();
+    QCOMPARE(category, "maps.atziri fragments");
+}
+
+void TestItem::testMapCategory() {
+    const Item item = parseItem(kCategoriesItemWarMap);
+    const QString category = item.category();
+    QCOMPARE(category, "maps.3.1");
+}
+
+void TestItem::testUniqueMapCategory() {
+    const Item item = parseItem(kCategoriesItemUniqueMap);
+    const QString category = item.category();
+    QCOMPARE(category, "maps.older uniques");
+}
+
+void TestItem::testBreachstoneCategory() {
+    const Item item = parseItem(kCategoriesItemBreachstone);
+    const QString category = item.category();
+    QCOMPARE(category, "currency.breach");
+}
+
+void TestItem::testBeltPOB() {
+    const Item item = parseItem(kCategoriesItemBelt);
+    const std::string pob = item.POBformat().toStdString();
+    QCOMPARE(pob.c_str(), kItemBeltPOB);
+}
+
+void TestItem::testBowPOB() {
+    const Item item = parseItem(kCategoriesItemBow);
+    const std::string pob = item.POBformat().toStdString();
+    QCOMPARE(pob.c_str(), kItemBowPOB);
+}
+
+void TestItem::testClawPOB() {
+    const Item item = parseItem(kCategoriesItemClaw);
+    const std::string pob = item.POBformat().toStdString();
+    QCOMPARE(pob.c_str(), kItemClawPOB);
+}
+
+Item TestItem::parseItem(const char* json) {
     rapidjson::Document doc;
-    doc.Parse(kCategoriesItemBelt);
-    Item item(doc, ItemLocation());
-    QCOMPARE(item.POBformat(), kItemBeltPOB);
+    doc.Parse(json);
+    if (doc.HasParseError()) {
+        const auto code = doc.GetParseError();
+        const auto error = rapidjson::GetParseError_En(code);
+        QLOG_ERROR() << "Error parsing test item:" << error;
+        QLOG_ERROR() << "Item is:" << json;
+        return Item("", ItemLocation());
+    } else {
+        return Item(doc, ItemLocation());
+    };
+}
 
-    doc.Parse(kCategoriesItemBow);
-    item = Item(doc, ItemLocation());
-    QCOMPARE(item.POBformat(), kItemBowPOB);
+QString TestItem::getCategory(const char* json) {
+    const Item item = parseItem(json);
+    const QString category = item.category();
+    return category;
+}
 
-    doc.Parse(kCategoriesItemClaw);
-    item = Item(doc, ItemLocation());
-    QCOMPARE(item.POBformat(), kItemClawPOB);
-
+QString TestItem::getPOB(const char* json) {
+    const Item item = parseItem(json);
+    const QString pob = item.POBformat();
+    return pob;
 }

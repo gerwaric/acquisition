@@ -20,7 +20,10 @@
 #pragma once
 
 #include "item.h"
+
 #include <QDateTime>
+#include <QString>
+
 #include <set>
 
 #include "buyout.h"
@@ -35,8 +38,8 @@ public:
     void Set(const Item& item, const Buyout& buyout);
     Buyout Get(const Item& item) const;
 
-    void SetTab(const std::string& tab, const Buyout& buyout);
-    Buyout GetTab(const std::string& tab) const;
+    void SetTab(const QString& tab, const Buyout& buyout);
+    Buyout GetTab(const QString& tab) const;
     void CompressTabBuyouts();
     void CompressItemBuyouts(const Items& items);
 
@@ -48,31 +51,31 @@ public:
     void ClearRefreshLocks();
 
     void SetStashTabLocations(const std::vector<ItemLocation>& tabs);
-    const std::vector<ItemLocation> GetStashTabLocations() const;
+    const std::vector<ItemLocation>& GetStashTabLocations() const;
     void Clear();
 
-    Buyout StringToBuyout(std::string);
+    Buyout StringToBuyout(QString);
 
     void Save();
     void Load();
 
     void MigrateItem(const Item& item);
 private:
-    BuyoutType StringToBuyoutType(std::string bo_str) const;
+    BuyoutType StringToBuyoutType(QString bo_str) const;
 
-    std::string Serialize(const std::map<std::string, Buyout>& buyouts);
-    void Deserialize(const std::string& data, std::map<std::string, Buyout>* buyouts);
+    QString Serialize(const std::map<QString, Buyout>& buyouts);
+    void Deserialize(const QString& data, std::map<QString, Buyout>* buyouts);
 
-    std::string Serialize(const std::map<std::string, bool>& obj);
-    void Deserialize(const std::string& data, std::map<std::string, bool>& obj);
+    QString Serialize(const std::map<QString, bool>& obj);
+    void Deserialize(const QString& data, std::map<QString, bool>& obj);
 
-    DataStore& data_;
-    std::map<std::string, Buyout> buyouts_;
-    std::map<std::string, Buyout> tab_buyouts_;
-    std::map<std::string, bool> refresh_checked_;
-    std::set<std::string> refresh_locked_;
-    bool save_needed_;
-    std::vector<ItemLocation> tabs_;
-    static const std::map<std::string, BuyoutType> string_to_buyout_type_;
+    DataStore& m_data;
+    std::map<QString, Buyout> m_buyouts;
+    std::map<QString, Buyout> m_tab_buyouts;
+    std::map<QString, bool> m_refresh_checked;
+    std::set<QString> m_refresh_locked;
+    bool m_save_needed;
+    std::vector<ItemLocation> m_tabs;
+    static const std::map<QString, BuyoutType> m_string_to_buyout_type;
 };
 

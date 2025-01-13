@@ -27,7 +27,6 @@
 #include <QLineEdit>
 #include <QCompleter>
 #include <QComboBox>
-#include <boost/algorithm/string/case_conv.hpp>
 
 #include "ui/mainwindow.h"
 #include "ui/searchcombobox.h"
@@ -37,8 +36,8 @@
 #include "filters.h"
 #include "itemconstants.h"
 
-const std::string CategorySearchFilter::k_Default = "<any>";
-const std::string RaritySearchFilter::k_Default = "<any>";
+const QString CategorySearchFilter::k_Default = "<any>";
+const QString RaritySearchFilter::k_Default = "<any>";
 const QStringList RaritySearchFilter::RARITY_LIST{ "<any>", "Normal", "Magic", "Rare", "Unique", "Unique (Relic)" };
 
 
@@ -56,19 +55,19 @@ FilterData::FilterData(Filter* filter)
     , g_filled(false)
     , b_filled(false)
     , checked(false)
-    , filter_(filter)
+    , m_filter(filter)
 {}
 
-bool FilterData::Matches(const std::shared_ptr<Item> item) {
-    return filter_->Matches(item, this);
+bool FilterData::Matches(const std::shared_ptr<Item>& item) {
+    return m_filter->Matches(item, this);
 }
 
 void FilterData::FromForm() {
-    filter_->FromForm(this);
+    m_filter->FromForm(this);
 }
 
 void FilterData::ToForm() {
-    filter_->ToForm(this);
+    m_filter->ToForm(this);
 }
 
 NameSearchFilter::NameSearchFilter(QLayout* parent) {
@@ -76,25 +75,23 @@ NameSearchFilter::NameSearchFilter(QLayout* parent) {
 }
 
 void NameSearchFilter::FromForm(FilterData* data) {
-    data->text_query = textbox_->text().toUtf8().constData();
-    active_ = (data->text_query != "");
+    data->text_query = m_textbox->text().toUtf8().constData();
+    m_active = !data->text_query.isEmpty();
 }
 
 void NameSearchFilter::ToForm(FilterData* data) {
-    textbox_->setText(data->text_query.c_str());
+    m_textbox->setText(data->text_query);
 }
 
 void NameSearchFilter::ResetForm() {
-    textbox_->setText("");
-    active_ = false;
+    m_textbox->setText("");
+    m_active = false;
 }
 
 bool NameSearchFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
-    std::string query = data->text_query;
-    std::string name = item->PrettyName();
-    std::transform(query.begin(), query.end(), query.begin(), ::tolower);
-    std::transform(name.begin(), name.end(), name.begin(), ::tolower);
-    return name.find(query) != std::string::npos;
+    const QString query = data->text_query.toLower();
+    const QString name = item->PrettyName().toLower();
+    return name.contains(query);
 }
 
 void NameSearchFilter::Initialize(QLayout* parent) {
@@ -105,39 +102,38 @@ void NameSearchFilter::Initialize(QLayout* parent) {
     QLabel* label = new QLabel("Name");
     label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
     label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    textbox_ = new QLineEdit;
+    m_textbox = new QLineEdit;
     layout->addWidget(label);
-    layout->addWidget(textbox_);
+    layout->addWidget(m_textbox);
     group->setLayout(layout);
     parent->addWidget(group);
-    QObject::connect(textbox_, &QLineEdit::textEdited, main_window, &MainWindow::OnDelayedSearchFormChange);
+    QObject::connect(m_textbox, &QLineEdit::textEdited, main_window, &MainWindow::OnDelayedSearchFormChange);
 }
 
 CategorySearchFilter::CategorySearchFilter(QLayout* parent, QAbstractListModel* model) :
-    model_(model)
+    m_model(model)
 {
     Initialize(parent);
 }
 
 void CategorySearchFilter::FromForm(FilterData* data) {
-    std::string current_text = combobox_->currentText().toStdString();
-    boost::to_lower(current_text);
+    QString current_text = m_combobox->currentText().toLower();
     data->text_query = (current_text == k_Default) ? "" : current_text;
-    active_ = (data->text_query != "");
+    m_active = !data->text_query.isEmpty();
 }
 
 void CategorySearchFilter::ToForm(FilterData* data) {
-    auto index = combobox_->findText(data->text_query.c_str(), Qt::MatchFixedString);
-    combobox_->setCurrentIndex(std::max(0, index));
+    auto index = m_combobox->findText(data->text_query, Qt::MatchFixedString);
+    m_combobox->setCurrentIndex(std::max(0, index));
 }
 
 void CategorySearchFilter::ResetForm() {
-    combobox_->setCurrentText(k_Default.c_str());
-    active_ = false;
+    m_combobox->setCurrentText(k_Default);
+    m_active = false;
 }
 
 bool CategorySearchFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
-    return item->category().find(data->text_query) != std::string::npos;
+    return item->category().contains(data->text_query);
 }
 
 void CategorySearchFilter::Initialize(QLayout* parent) {
@@ -148,38 +144,38 @@ void CategorySearchFilter::Initialize(QLayout* parent) {
     QLabel* label = new QLabel("Type");
     label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
     label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    combobox_ = new SearchComboBox(model_, group);
+    m_combobox = new SearchComboBox(m_model, group);
     layout->addWidget(label);
-    layout->addWidget(combobox_);
+    layout->addWidget(m_combobox);
     group->setLayout(layout);
     parent->addWidget(group);
-    QObject::connect(combobox_, &QComboBox::currentIndexChanged, main_window, &MainWindow::OnDelayedSearchFormChange);
+    QObject::connect(m_combobox, &QComboBox::currentIndexChanged, main_window, &MainWindow::OnDelayedSearchFormChange);
 }
 
 RaritySearchFilter::RaritySearchFilter(QLayout* parent, QAbstractListModel* model)
-    : model_(model)
+    : m_model(model)
 {
     Initialize(parent);
 }
 
 void RaritySearchFilter::FromForm(FilterData* data) {
-    std::string current_text = combobox_->currentText().toStdString();
+    QString current_text = m_combobox->currentText();
     data->text_query = (current_text == k_Default) ? "" : current_text;
-    active_ = (data->text_query != "");
+    m_active = !data->text_query.isEmpty();
 }
 
 void RaritySearchFilter::ToForm(FilterData* data) {
-    auto index = combobox_->findText(data->text_query.c_str(), Qt::MatchFixedString);
-    combobox_->setCurrentIndex(std::max(0, index));
+    auto index = m_combobox->findText(data->text_query, Qt::MatchFixedString);
+    m_combobox->setCurrentIndex(std::max(0, index));
 }
 
 void RaritySearchFilter::ResetForm() {
-    combobox_->setCurrentText(k_Default.c_str());
-    active_ = false;
+    m_combobox->setCurrentText(k_Default);
+    m_active = false;
 }
 
 bool RaritySearchFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
-    if (data->text_query == "") {
+    if (data->text_query.isEmpty()) {
         return true;
     };
     switch (item->frameType()) {
@@ -206,27 +202,27 @@ void RaritySearchFilter::Initialize(QLayout* parent) {
     QLabel* label = new QLabel("Rarity");
     label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
     label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    combobox_ = new QComboBox;
-    combobox_->setModel(model_);
-    combobox_->setEditable(false);
-    combobox_->setInsertPolicy(QComboBox::NoInsert);
+    m_combobox = new QComboBox;
+    m_combobox->setModel(m_model);
+    m_combobox->setEditable(false);
+    m_combobox->setInsertPolicy(QComboBox::NoInsert);
     layout->addWidget(label);
-    layout->addWidget(combobox_);
+    layout->addWidget(m_combobox);
     group->setLayout(layout);
     parent->addWidget(group);
-    QObject::connect(combobox_, &QComboBox::currentIndexChanged, main_window, &MainWindow::OnDelayedSearchFormChange);
+    QObject::connect(m_combobox, &QComboBox::currentIndexChanged, main_window, &MainWindow::OnDelayedSearchFormChange);
 }
 
-MinMaxFilter::MinMaxFilter(QLayout* parent, std::string property)
-    : property_(property)
-    , caption_(property)
+MinMaxFilter::MinMaxFilter(QLayout* parent, QString property)
+    : m_property(property)
+    , m_caption(property)
 {
     Initialize(parent);
 }
 
-MinMaxFilter::MinMaxFilter(QLayout* parent, std::string property, std::string caption)
-    : property_(property)
-    , caption_(caption)
+MinMaxFilter::MinMaxFilter(QLayout* parent, QString property, QString caption)
+    : m_property(property)
+    , m_caption(caption)
 {
     Initialize(parent);
 }
@@ -236,49 +232,49 @@ void MinMaxFilter::Initialize(QLayout* parent) {
     QWidget* group = new QWidget;
     QHBoxLayout* layout = new QHBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
-    QLabel* label = new QLabel(caption_.c_str());
+    QLabel* label = new QLabel(m_caption);
     label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    textbox_min_ = new QLineEdit;
-    textbox_max_ = new QLineEdit;
+    m_textbox_min = new QLineEdit;
+    m_textbox_max = new QLineEdit;
     layout->addWidget(label);
-    layout->addWidget(textbox_min_);
-    layout->addWidget(textbox_max_);
+    layout->addWidget(m_textbox_min);
+    layout->addWidget(m_textbox_max);
     group->setLayout(layout);
     parent->addWidget(group);
-    textbox_min_->setPlaceholderText("min");
-    textbox_max_->setPlaceholderText("max");
-    textbox_min_->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_MIN_MAX));
-    textbox_max_->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_MIN_MAX));
+    m_textbox_min->setPlaceholderText("min");
+    m_textbox_max->setPlaceholderText("max");
+    m_textbox_min->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_MIN_MAX));
+    m_textbox_max->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_MIN_MAX));
     label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
-    QObject::connect(textbox_min_, &QLineEdit::textEdited, main_window, &MainWindow::OnDelayedSearchFormChange);
-    QObject::connect(textbox_max_, &QLineEdit::textEdited, main_window, &MainWindow::OnDelayedSearchFormChange);
+    QObject::connect(m_textbox_min, &QLineEdit::textEdited, main_window, &MainWindow::OnDelayedSearchFormChange);
+    QObject::connect(m_textbox_max, &QLineEdit::textEdited, main_window, &MainWindow::OnDelayedSearchFormChange);
 }
 
 void MinMaxFilter::FromForm(FilterData* data) {
-    data->min_filled = textbox_min_->text().size() > 0;
-    data->min = textbox_min_->text().toDouble();
-    data->max_filled = textbox_max_->text().size() > 0;
-    data->max = textbox_max_->text().toDouble();
-    active_ = data->min_filled || data->max_filled;
+    data->min_filled = m_textbox_min->text().size() > 0;
+    data->min = m_textbox_min->text().toDouble();
+    data->max_filled = m_textbox_max->text().size() > 0;
+    data->max = m_textbox_max->text().toDouble();
+    m_active = data->min_filled || data->max_filled;
 }
 
 void MinMaxFilter::ToForm(FilterData* data) {
     if (data->min_filled) {
-        textbox_min_->setText(QString::number(data->min));
+        m_textbox_min->setText(QString::number(data->min));
     } else {
-        textbox_min_->setText("");
+        m_textbox_min->setText("");
     };
     if (data->max_filled) {
-        textbox_max_->setText(QString::number(data->max));
+        m_textbox_max->setText(QString::number(data->max));
     } else {
-        textbox_max_->setText("");
+        m_textbox_max->setText("");
     };
 }
 
 void MinMaxFilter::ResetForm() {
-    textbox_min_->setText("");
-    textbox_max_->setText("");
-    active_ = false;
+    m_textbox_min->setText("");
+    m_textbox_max->setText("");
+    m_active = false;
 }
 
 bool MinMaxFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
@@ -297,35 +293,35 @@ bool MinMaxFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) 
 }
 
 bool SimplePropertyFilter::IsValuePresent(const std::shared_ptr<Item>& item) {
-    return item->properties().count(property_);
+    return item->properties().count(m_property);
 }
 
 double SimplePropertyFilter::GetValue(const std::shared_ptr<Item>& item) {
-    return std::stod(item->properties().at(property_));
+    return item->properties().at(m_property).toDouble();
 }
 
 double DefaultPropertyFilter::GetValue(const std::shared_ptr<Item>& item) {
-    if (!item->properties().count(property_)) {
-        return default_value_;
+    if (!item->properties().count(m_property)) {
+        return m_default_value;
     };
     return SimplePropertyFilter::GetValue(item);
 }
 
 double RequiredStatFilter::GetValue(const std::shared_ptr<Item>& item) {
     auto& requirements = item->requirements();
-    if (requirements.count(property_)) {
-        return requirements.at(property_);
+    if (requirements.count(m_property)) {
+        return requirements.at(m_property);
     };
     return 0;
 }
 
-ItemMethodFilter::ItemMethodFilter(QLayout* parent, std::function<double(Item*)> func, std::string caption)
+ItemMethodFilter::ItemMethodFilter(QLayout* parent, std::function<double(Item*)> func, QString caption)
     : MinMaxFilter(parent, caption, caption)
-    , func_(func)
+    , m_func(func)
 {}
 
 double ItemMethodFilter::GetValue(const std::shared_ptr<Item>& item) {
-    return func_(&*item);
+    return m_func(&*item);
 }
 
 double SocketsFilter::GetValue(const std::shared_ptr<Item>& item) {
@@ -349,54 +345,54 @@ void SocketsColorsFilter::Initialize(QLayout* parent, const char* caption) {
     layout->setContentsMargins(0, 0, 0, 0);
     QLabel* label = new QLabel(caption);
     label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    textbox_r_ = new QLineEdit;
-    textbox_r_->setPlaceholderText("R");
-    textbox_g_ = new QLineEdit;
-    textbox_g_->setPlaceholderText("G");
-    textbox_b_ = new QLineEdit;
-    textbox_b_->setPlaceholderText("B");
+    m_textbox_r = new QLineEdit;
+    m_textbox_r->setPlaceholderText("R");
+    m_textbox_g = new QLineEdit;
+    m_textbox_g->setPlaceholderText("G");
+    m_textbox_b = new QLineEdit;
+    m_textbox_b->setPlaceholderText("B");
     layout->addWidget(label);
-    layout->addWidget(textbox_r_);
-    layout->addWidget(textbox_g_);
-    layout->addWidget(textbox_b_);
+    layout->addWidget(m_textbox_r);
+    layout->addWidget(m_textbox_g);
+    layout->addWidget(m_textbox_b);
     group->setLayout(layout);
     parent->addWidget(group);
-    textbox_r_->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_RGB));
-    textbox_g_->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_RGB));
-    textbox_b_->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_RGB));
+    m_textbox_r->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_RGB));
+    m_textbox_g->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_RGB));
+    m_textbox_b->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_RGB));
     label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
-    QObject::connect(textbox_r_, &QLineEdit::textEdited, main_window, &MainWindow::OnSearchFormChange);
-    QObject::connect(textbox_g_, &QLineEdit::textEdited, main_window, &MainWindow::OnSearchFormChange);
-    QObject::connect(textbox_b_, &QLineEdit::textEdited, main_window, &MainWindow::OnSearchFormChange);
+    QObject::connect(m_textbox_r, &QLineEdit::textEdited, main_window, &MainWindow::OnSearchFormChange);
+    QObject::connect(m_textbox_g, &QLineEdit::textEdited, main_window, &MainWindow::OnSearchFormChange);
+    QObject::connect(m_textbox_b, &QLineEdit::textEdited, main_window, &MainWindow::OnSearchFormChange);
 }
 
 void SocketsColorsFilter::FromForm(FilterData* data) {
-    data->r_filled = textbox_r_->text().size() > 0;
-    data->g_filled = textbox_g_->text().size() > 0;
-    data->b_filled = textbox_b_->text().size() > 0;
-    data->r = textbox_r_->text().toInt();
-    data->g = textbox_g_->text().toInt();
-    data->b = textbox_b_->text().toInt();
-    active_ = data->r_filled || data->g_filled || data->b_filled;
+    data->r_filled = m_textbox_r->text().size() > 0;
+    data->g_filled = m_textbox_g->text().size() > 0;
+    data->b_filled = m_textbox_b->text().size() > 0;
+    data->r = m_textbox_r->text().toInt();
+    data->g = m_textbox_g->text().toInt();
+    data->b = m_textbox_b->text().toInt();
+    m_active = data->r_filled || data->g_filled || data->b_filled;
 }
 
 void SocketsColorsFilter::ToForm(FilterData* data) {
     if (data->r_filled) {
-        textbox_r_->setText(QString::number(data->r));
+        m_textbox_r->setText(QString::number(data->r));
     };
     if (data->g_filled) {
-        textbox_g_->setText(QString::number(data->g));
+        m_textbox_g->setText(QString::number(data->g));
     };
     if (data->b_filled) {
-        textbox_b_->setText(QString::number(data->b));
+        m_textbox_b->setText(QString::number(data->b));
     };
 }
 
 void SocketsColorsFilter::ResetForm() {
-    textbox_r_->setText("");
-    textbox_g_->setText("");
-    textbox_b_->setText("");
-    active_ = false;
+    m_textbox_r->setText("");
+    m_textbox_g->setText("");
+    m_textbox_b->setText("");
+    m_active = false;
 }
 
 bool SocketsColorsFilter::Check(int need_r, int need_g, int need_b, int got_r, int got_g, int got_b, int got_w) {
@@ -436,9 +432,9 @@ bool LinksColorsFilter::Matches(const std::shared_ptr<Item>& item, FilterData* d
     return false;
 }
 
-BooleanFilter::BooleanFilter(QLayout* parent, std::string property, std::string caption)
-    : property_(property)
-    , caption_(caption)
+BooleanFilter::BooleanFilter(QLayout* parent, QString property, QString caption)
+    : m_property(property)
+    , m_caption(caption)
 {
     Initialize(parent);
 }
@@ -448,30 +444,30 @@ void BooleanFilter::Initialize(QLayout* parent) {
     QWidget* group = new QWidget;
     QHBoxLayout* layout = new QHBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
-    QLabel* label = new QLabel(caption_.c_str());
+    QLabel* label = new QLabel(m_caption);
     label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    checkbox_ = new QCheckBox;
+    m_checkbox = new QCheckBox;
     layout->addWidget(label);
-    layout->addWidget(checkbox_);
+    layout->addWidget(m_checkbox);
     group->setLayout(layout);
     parent->addWidget(group);
     label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_BOOL_LABEL));
 
-    QObject::connect(checkbox_, &QCheckBox::clicked, main_window, &MainWindow::OnSearchFormChange);
+    QObject::connect(m_checkbox, &QCheckBox::clicked, main_window, &MainWindow::OnSearchFormChange);
 }
 
 void BooleanFilter::FromForm(FilterData* data) {
-    data->checked = checkbox_->isChecked();
-    active_ = data->checked;
+    data->checked = m_checkbox->isChecked();
+    m_active = data->checked;
 }
 
 void BooleanFilter::ToForm(FilterData* data) {
-    checkbox_->setChecked(data->checked);
+    m_checkbox->setChecked(data->checked);
 }
 
 void BooleanFilter::ResetForm() {
-    checkbox_->setChecked(false);
-    active_ = false;
+    m_checkbox->setChecked(false);
+    m_active = false;
 }
 
 bool BooleanFilter::Matches(const std::shared_ptr<Item>& /* item */, FilterData* /* data */) {
@@ -479,7 +475,7 @@ bool BooleanFilter::Matches(const std::shared_ptr<Item>& /* item */, FilterData*
 }
 
 bool AltartFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
-    static std::vector<std::string> altart = {
+    static const QStringList altart = {
         // season 1
         "RedBeak2.png", "Wanderlust2.png", "Ring2b.png", "Goldrim2.png", "FaceBreaker2.png", "Atzirismirror2.png",
         // season 2
@@ -525,7 +521,7 @@ bool AltartFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) 
         return true;
     };
     for (auto& needle : altart) {
-        if (item->icon().find(needle) != std::string::npos) {
+        if (item->icon().contains(needle)) {
             return true;
         };
     };
@@ -533,7 +529,7 @@ bool AltartFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) 
 }
 
 bool PricedFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {
-    return !data->checked || bm_.Get(*item).IsActive();
+    return !data->checked || m_bm.Get(*item).IsActive();
 }
 
 bool UnidentifiedFilter::Matches(const std::shared_ptr<Item>& item, FilterData* data) {

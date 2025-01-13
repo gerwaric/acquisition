@@ -46,7 +46,7 @@ public:
 
 private:
     QNetworkRequest prepare(const QNetworkRequest& request);
-    std::unique_ptr<QNetworkAccessManager> network_manager_;
-    QNetworkInformation* network_info_;
-    bool offline_{ true };
+    std::unique_ptr<QNetworkAccessManager> m_network_manager;
+    QNetworkInformation* m_network_info;
+    bool m_offline{ true };
 };

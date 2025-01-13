@@ -46,7 +46,7 @@ constexpr bool debug = true;
 constexpr bool debug = false;
 #endif
 
-static const QString DLL(const QString& name) {
+static QString DLL(const QString& name) {
     return name + (debug ? "d.dll" : ".dll");
 }
 
@@ -81,9 +81,10 @@ void checkApplicationDirectory(const QStringList& libraries)
             found.append(dll);
         };
     };
-    QLOG_DEBUG() << "Found unexpected MSVC libraries:" << found.join(", ");
 
     if (!found.isEmpty()) {
+
+		QLOG_DEBUG() << "Found" << found.size() << "unexpected MSVC libraries:" << found.join(", ");
 
         QStringList msg;
         msg.append("The application directory contains one or more MSVC runtime dlls:");

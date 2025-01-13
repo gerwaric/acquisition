@@ -40,33 +40,33 @@ constexpr std::array<MessageType, 3> message_types{ {
     { QColor(255, 0, 0), "error" }} };
 
 LogPanel::LogPanel(MainWindow* window, Ui::MainWindow* ui)
-    : status_button_(new QPushButton)
-    , output_(new QTextEdit)
-    , signal_handler_(*this)
+    : m_status_button(new QPushButton)
+    , m_output(new QTextEdit)
+    , m_signal_handler(*this)
 {
-    num_messages_.resize(message_types.size());
+    m_num_messages.resize(message_types.size());
 
     QFont font("Monospace");
     font.setStyleHint(QFont::TypeWriter);
-    output_->setReadOnly(true);
-    output_->setFont(font);
-    output_->setMaximumHeight(250); // TODO(xyz): remove magic numbers
-    output_->insertPlainText("Errors and warnings will be printed here\n");
-    output_->hide();
+    m_output->setReadOnly(true);
+    m_output->setFont(font);
+    m_output->setMaximumHeight(250); // TODO(xyz): remove magic numbers
+    m_output->insertPlainText("Errors and warnings will be printed here\n");
+    m_output->hide();
 
-    status_button_->setFlat(false);
-    window->statusBar()->addPermanentWidget(status_button_);
+    m_status_button->setFlat(false);
+    window->statusBar()->addPermanentWidget(m_status_button);
     UpdateStatusLabel();
-    QObject::connect(status_button_, &QPushButton::clicked, &signal_handler_, &LogPanelSignalHandler::OnStatusLabelClicked);
+    QObject::connect(m_status_button, &QPushButton::clicked, &m_signal_handler, &LogPanelSignalHandler::OnStatusLabelClicked);
 
-    ui->mainLayout->addWidget(output_);
+    ui->mainLayout->addWidget(m_output);
 }
 
 void LogPanel::UpdateStatusLabel() {
     QString stylesheet;
     QString text = "Event Log";
-    for (size_t i = num_messages_.size(); i > 0; --i) {
-        int num = num_messages_[i - 1];
+    for (size_t i = m_num_messages.size(); i > 0; --i) {
+        int num = m_num_messages[i - 1];
         auto& type = message_types[i - 1];
         if (num > 0) {
             text = QString("%1 " + QString(type.desc)).arg(num) + (num > 1 ? "s" : "");
@@ -75,14 +75,14 @@ void LogPanel::UpdateStatusLabel() {
         }
     }
 
-    status_button_->setStyleSheet(stylesheet);
-    status_button_->setText(text);
+    m_status_button->setStyleSheet(stylesheet);
+    m_status_button->setText(text);
 }
 
 void LogPanel::write(const QString& message, QsLogging::Level level) {
     // this is done like this because write() can be called from different threads,
     // so we let Qt signals/slots system take care of boring synchronization stuff
-    QMetaObject::invokeMethod(&signal_handler_, "OnMessage", Qt::QueuedConnection,
+    QMetaObject::invokeMethod(&m_signal_handler, "OnMessage", Qt::QueuedConnection,
         Q_ARG(QString, message), Q_ARG(QsLogging::Level, level));
 }
 
@@ -102,10 +102,10 @@ void LogPanel::AddLine(const QString& message, QsLogging::Level level) {
         return;
     }
 
-    num_messages_[type]++;
+    m_num_messages[type]++;
 
-    const auto weight = output_->fontWeight();
-    const auto color = output_->textColor();
+    const auto weight = m_output->fontWeight();
+    const auto color = m_output->textColor();
 
     // Insert the message with the right weight and color.
     QString line = message;
@@ -115,36 +115,36 @@ void LogPanel::AddLine(const QString& message, QsLogging::Level level) {
     if (level == QsLogging::ErrorLevel) {
         line = "<font color='red'>" + line + "</font>";
     };
-    output_->moveCursor(QTextCursor::End);
-    output_->insertHtml(line + "<br>");
-    output_->ensureCursorVisible();
+    m_output->moveCursor(QTextCursor::End);
+    m_output->insertHtml(line + "<br>");
+    m_output->ensureCursorVisible();
 
     // Restore the original font weight and color.
-    output_->setFontWeight(weight);
-    output_->setTextColor(color);
+    m_output->setFontWeight(weight);
+    m_output->setTextColor(color);
 
-    if (output_->isVisible()) {
-        num_messages_.clear();
-        num_messages_.resize(message_types.size());
+    if (m_output->isVisible()) {
+        m_num_messages.clear();
+        m_num_messages.resize(message_types.size());
     }
     UpdateStatusLabel();
 }
 
 void LogPanel::ToggleOutputVisibility() {
-    if (output_->isVisible()) {
-        output_->hide();
+    if (m_output->isVisible()) {
+        m_output->hide();
     } else {
-        output_->show();
-        num_messages_.clear();
-        num_messages_.resize(message_types.size());
+        m_output->show();
+        m_num_messages.clear();
+        m_num_messages.resize(message_types.size());
         UpdateStatusLabel();
     }
 }
 
 void LogPanelSignalHandler::OnStatusLabelClicked() {
-    parent_.ToggleOutputVisibility();
+    m_parent.ToggleOutputVisibility();
 }
 
 void LogPanelSignalHandler::OnMessage(const QString& message, const QsLogging::Level level) {
-    parent_.AddLine(message, level);
+    m_parent.AddLine(message, level);
 }

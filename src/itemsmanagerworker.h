@@ -22,6 +22,7 @@
 #include <QNetworkCookie>
 #include <QNetworkRequest>
 #include <QObject>
+#include <QString>
 
 #include <queue>
 #include <set>
@@ -59,15 +60,15 @@ class ItemsManagerWorker : public QObject {
     Q_OBJECT
 public:
     ItemsManagerWorker(
-        QSettings& settings_,
+        QSettings& m_settings,
         QNetworkAccessManager& network_manager,
         RePoE& repoe,
         BuyoutManager& buyout_manager,
         DataStore& datastore,
         RateLimiter& rate_limiter,
         POE_API mode);
-    bool isInitialized() const { return initialized_; }
-    bool isUpdating() const { return updating_; };
+    bool isInitialized() const { return m_initialized; }
+    bool isUpdating() const { return m_updating; };
     void UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations);
 
 signals:
@@ -83,17 +84,17 @@ private slots:
     void OnLegacyMainPageReceived();
     void OnLegacyCharacterListReceived(QNetworkReply* reply);
     void OnFirstLegacyTabReceived(QNetworkReply* reply);
-    void OnLegacyTabReceived(QNetworkReply* reply, ItemLocation location);
+    void OnLegacyTabReceived(QNetworkReply* reply, const ItemLocation& location);
 
     void OnOAuthStashListReceived(QNetworkReply* reply);
-    void OnOAuthStashReceived(QNetworkReply* reply, ItemLocation location);
+    void OnOAuthStashReceived(QNetworkReply* reply, const ItemLocation& location);
     void OnOAuthCharacterListReceived(QNetworkReply* reply);
-    void OnOAuthCharacterReceived(QNetworkReply* reply, ItemLocation location);
+    void OnOAuthCharacterReceived(QNetworkReply* reply, const ItemLocation& location);
 
 private:
     void ParseItemMods();
-    void RemoveUpdatingTabs(const std::set<std::string>& tab_ids);
-    void RemoveUpdatingItems(const std::set<std::string>& tab_ids);
+    void RemoveUpdatingTabs(const std::set<QString>& tab_ids);
+    void RemoveUpdatingItems(const std::set<QString>& tab_ids);
     void QueueRequest(const QString& endpoint, const QNetworkRequest& request, const ItemLocation& location);
     void FetchItems();
     void PreserveSelectedCharacter();
@@ -101,70 +102,70 @@ private:
     void LegacyRefresh();
     QNetworkRequest MakeLegacyCharacterListRequest();
     QNetworkRequest MakeLegacyTabRequest(int tab_index, bool tabs = false);
-    QNetworkRequest MakeLegacyCharacterRequest(const std::string& name);
-    QNetworkRequest MakeLegacyPassivesRequest(const std::string& name);
+    QNetworkRequest MakeLegacyCharacterRequest(const QString& name);
+    QNetworkRequest MakeLegacyPassivesRequest(const QString& name);
 
     void OAuthRefresh();
-    QNetworkRequest MakeOAuthStashListRequest(const std::string& realm, const std::string& league);
-    QNetworkRequest MakeOAuthStashRequest(const std::string& realm, const std::string& league, const std::string& stash_id, const std::string& substash_id = "");
-    QNetworkRequest MakeOAuthCharacterListRequest(const std::string& realm);
-    QNetworkRequest MakeOAuthCharacterRequest(const std::string& realm, const std::string& name);
+    QNetworkRequest MakeOAuthStashListRequest(const QString& realm, const QString& league);
+    QNetworkRequest MakeOAuthStashRequest(const QString& realm, const QString& league, const QString& stash_id, const QString& substash_id = "");
+    QNetworkRequest MakeOAuthCharacterListRequest(const QString& realm);
+    QNetworkRequest MakeOAuthCharacterRequest(const QString& realm, const QString& name);
 
-    typedef std::pair<std::string, std::string> TabSignature;
+    typedef std::pair<QString, QString> TabSignature;
     typedef std::vector<TabSignature> TabsSignatureVector;
     TabsSignatureVector CreateTabsSignatureVector(const rapidjson::Value& tabs);
 
     void SendStatusUpdate();
-    void ParseItems(rapidjson::Value& value, ItemLocation base_location, rapidjson_allocator& alloc);
-    bool TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, ItemLocation& location);
+    void ParseItems(rapidjson::Value& value, const ItemLocation& base_location, rapidjson_allocator& alloc);
+    bool TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, const ItemLocation& location);
     void FinishUpdate();
 
-    QSettings& settings_;
-    QNetworkAccessManager& network_manager_;
-    RePoE& repoe_;
-    DataStore& datastore_;
-    BuyoutManager& buyout_manager_;
-    RateLimiter& rate_limiter_;
+    QSettings& m_settings;
+    QNetworkAccessManager& m_network_manager;
+    RePoE& m_repoe;
+    DataStore& m_datastore;
+    BuyoutManager& m_buyout_manager;
+    RateLimiter& m_rate_limiter;
 
-    POE_API mode_;
-    std::string realm_;
-    std::string league_;
-    std::string account_;
+    POE_API m_mode;
+    QString m_realm;
+    QString m_league;
+    QString m_account;
 
-    bool test_mode_;
-    std::vector<ItemLocation> tabs_;
-    std::queue<ItemsRequest> queue_;
+    bool m_test_mode;
+    std::vector<ItemLocation> m_tabs;
+    std::queue<ItemsRequest> m_queue;
 
-    // tabs_signature_ captures <"n", "id"> from JSON tab list, used as consistency check
-    TabsSignatureVector tabs_signature_;
+    // m_tabs_signature captures <"n", "id"> from JSON tab list, used as consistency check
+    TabsSignatureVector m_tabs_signature;
 
-    Items items_;
+    Items m_items;
 
-    size_t stashes_needed_;
-    size_t stashes_received_;
+    size_t m_stashes_needed;
+    size_t m_stashes_received;
 
-    size_t characters_needed_;
-    size_t characters_received_;
+    size_t m_characters_needed;
+    size_t m_characters_received;
 
-    std::set<std::string> tab_id_index_;
+    std::set<QString> m_tab_id_index;
 
-    volatile bool initialized_;
-    volatile bool updating_;
+    volatile bool m_initialized;
+    volatile bool m_updating;
 
-    bool cancel_update_;
-    bool updateRequest_;
-    TabSelection::Type type_;
-    std::vector<ItemLocation> locations_;
+    bool m_cancel_update;
+    bool m_updateRequest;
+    TabSelection::Type m_type;
+    std::vector<ItemLocation> m_locations;
 
-    int queue_id_;
-    std::string selected_character_;
+    int m_queue_id;
+    QString m_selected_character;
 
-    int first_stash_request_index_;
-    std::string first_character_request_name_;
+    int m_first_stash_request_index;
+    QString m_first_character_request_name;
 
-    bool need_stash_list_;
-    bool need_character_list_;
+    bool m_need_stash_list;
+    bool m_need_character_list;
 
-    bool has_stash_list_;
-    bool has_character_list_;
+    bool m_has_stash_list;
+    bool m_has_character_list;
 };
