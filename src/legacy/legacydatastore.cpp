@@ -119,6 +119,7 @@ LegacyDataStore::LegacyDataStore(const QString& filename) {
         return;
     };
 
+    m_item_count = 0;
     while (query.next()) {
         const QString loc = query.value(0).toString();
         const QByteArray bytes = query.value(1).toByteArray();
