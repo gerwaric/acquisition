@@ -1319,6 +1319,11 @@ void ItemsManagerWorker::PreserveSelectedCharacter() {
 ItemsManagerWorker::TabsSignatureVector ItemsManagerWorker::CreateTabsSignatureVector(const rapidjson::Value& tabs) {
     QLOG_TRACE() << "ItemsManagerWorker::CreateTabsSignatureVector() entered";
 
+    if (!tabs.IsArray()) {
+        QLOG_ERROR() << "Tabs list is invalid: cannot create signature vector";
+        return;
+    };
+
     const bool legacy = tabs[0].HasMember("n");
     const char* n = legacy ? "n" : "name";
     const char* id = "id";
