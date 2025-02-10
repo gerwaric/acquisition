@@ -65,42 +65,49 @@ void LegacyBuyoutValidator::notifyUser() {
     const auto& tabs = m_datastore.tabs();
 
     QStringList lines;
-    lines += "The data file location:";
-    lines += m_filename;
-    lines += QString();
-    lines += "The data file contains: ";
-    lines += QString("   - %1 items").arg(locale.toString(m_datastore.itemCount()));
-    lines += QString("   - %1 stash tabs").arg(locale.toString(tabs.stashes.size()));
-    lines += QString("   - %1 characters").arg(locale.toString(tabs.characters.size()));
-    lines += QString("   - %1 stash tab buyouts").arg(locale.toString(data.tab_buyouts.size()));
-    lines += QString("   - %1 item buyouts").arg(locale.toString(data.buyouts.size()));
-    lines += QString();
-    lines += QString("The potential issues are:");
+    lines += QString("Suspected issues:");
     for (const auto& pair : m_issues) {
         const QString& issue = pair.first;
         const int count = pair.second.size();
         lines += QString("    - %1 %2").arg(locale.toString(count), issue);
     };
+    lines += QString();
+    lines += "The data file is: \"" + m_filename + "\"";
+    lines += QString();
+    lines += "The data file contains:";
+    lines += QString("   - %1 items").arg(locale.toString(m_datastore.itemCount()));
+    lines += QString("   - %1 stash tabs").arg(locale.toString(tabs.stashes.size()));
+    lines += QString("   - %1 characters").arg(locale.toString(tabs.characters.size()));
+    lines += QString("   - %1 stash tab buyouts").arg(locale.toString(data.tab_buyouts.size()));
+    lines += QString("   - %1 item buyouts").arg(locale.toString(data.buyouts.size()));
     QString message = lines.join("\n");
 
     QTextEdit* details = new QTextEdit;
     details->setReadOnly(true);
     details->setText(message);
 
-    QPushButton* report_button = new QPushButton("Submit a buyout report now");
-    QPushButton* ignore_button = new QPushButton("Ignore and continue to Acquisition");
-    QCheckBox* reminder_checkbox = new QCheckBox("Don't ask again (applies to" APP_VERSION_STRING ")");
+    QPushButton* report_button = new QPushButton("Send a buyout report");
+    QPushButton* ignore_button = new QPushButton("Ignore and continue");
+    QCheckBox* reminder_checkbox = new QCheckBox("Don't ask again (applies to " APP_VERSION_STRING ")");
 
     QLabel* help_label = new QLabel;
     help_label->setText(
-        "For more information on what information on buyouts, I have created a discussion on GitHub:<br/>"
+        "Please consider submitting a buyout report. This process is automatic,"
+        " using Bugsplat's crash reporting mechanish. It will also help me troubleshoot"
+        " this issue, since I only have my own accounts to test."
+        "<br/>"
+        "<br/>"
+        "For more information or to ask questions, you can email me at"
+        " <a href=\"mailto:gerwaric@gmail.com\">gerwaric@gmail.com</a>"
+        " or use this Github discussion:"
+        "<br/>"
         "<a href=\"https://github.com/gerwaric/acquisition/discussions/88\">https://github.com/gerwaric/acquisition/discussions/88</a>.");
     help_label->setOpenExternalLinks(true);
     help_label->setWordWrap(true);
     help_label->setMargin(10);
 
     QLayout* layout = new QVBoxLayout;
-    layout->addWidget(new QLabel("The buyout validate has detected potential issues with your data."));
+    layout->addWidget(new QLabel("The buyout validator has detected potential issues with your data."));
     layout->addWidget(details);
     layout->addWidget(help_label);
     layout->addWidget(report_button);
@@ -113,8 +120,18 @@ void LegacyBuyoutValidator::notifyUser() {
     dialog->setModal(true);
     dialog->setLayout(layout);
 
+    // Connect the reminder checkbox.
+    connect(reminder_checkbox, &QCheckBox::checkStateChanged, this,
+        [=]() {
+            if (reminder_checkbox->isChecked()) {
+                m_settings.setValue(LegacyBuyoutValidator::SettingsKey, QStringLiteral(APP_VERSION_STRING));
+            } else {
+                m_settings.remove(LegacyBuyoutValidator::SettingsKey);
+            };
+        });
+
     // Connect the github button.
-    QObject::connect(report_button, &QPushButton::clicked, dialog,
+    connect(report_button, &QPushButton::clicked, this,
         [=]() {
             const QString exportfile = QFileInfo(m_filename).dir().absoluteFilePath("../export/buyouts.tgz");
             if (!m_datastore.exportTgz(exportfile)) {
@@ -127,13 +144,15 @@ void LegacyBuyoutValidator::notifyUser() {
             QMessageBox::warning(nullptr, "Acquisition",
                 "Acquisition will now exit to trigger a crash report with buyout information. "
                 "You will need to restart acquisition manually.");
-            if (reminder_checkbox->isChecked()) {
-                m_settings.setValue(LegacyBuyoutValidator::SettingsKey, QStringLiteral(APP_VERSION_STRING));
-            } else {
-                m_settings.remove(LegacyBuyoutValidator::SettingsKey);
-            };
             QLOG_FATAL() << "Aborting acquisition to trigger a crash report with buyout information";
             abort();
+        });
+
+    // Connect the ignore button.
+    connect(ignore_button, &QPushButton::clicked, this, 
+        [=]() {
+            dialog->close();
+            dialog->deleteLater();
         });
 
     // Show the dialog and wait for the user to close it.
@@ -199,19 +218,19 @@ void LegacyBuyoutValidator::validateTabBuyouts() {
     };
 
     if (!duplicated_locations.empty()) {
-        m_issues["Duplicated Tabs"] = duplicated_locations;
+        m_issues["Duplicated tabs"] = duplicated_locations;
         QLOG_WARN() << "Found" << locale.toString(duplicated_locations.size()) << "duplicated tab locations";
     };
     if (!duplicated_buyouts.empty()) {
-        m_issues["Duplicated Tab Buyouts"] = duplicated_buyouts;
+        m_issues["Duplicated tab buyouts"] = duplicated_buyouts;
         QLOG_WARN() << "Found" << locale.toString(duplicated_buyouts.size()) << "duplicated tab buyouts";
     };
     if (!ambiguous_buyouts.empty()) {
-        m_issues["Ambiguous Tab Buyouts"] = ambiguous_buyouts;
+        m_issues["Ambiguous tab buyouts"] = ambiguous_buyouts;
         QLOG_WARN() << "Found" << locale.toString(ambiguous_buyouts.size()) << "ambiguous tab buyouts";
     };
     if (!orphaned_buyouts.empty()) {
-        m_issues["Orphaned Tab Buyouts"] = orphaned_buyouts;
+        m_issues["Orphaned tab buyouts"] = orphaned_buyouts;
         QLOG_WARN() << "Found" << locale.toString(orphaned_buyouts.size()) << "orphaned buyouts";
     };
 }
@@ -266,11 +285,11 @@ void LegacyBuyoutValidator::validateItemBuyouts() {
     };
 
     if (!duplicated_buyouts.empty()) {
-        m_issues["Duplicated Item Buyouts"] = duplicated_buyouts;
+        m_issues["Duplicated item buyouts"] = duplicated_buyouts;
         QLOG_WARN() << "Found" << locale.toString(duplicated_buyouts.size()) << "duplicated item buyouts";
     };
     if (!orphaned_buyouts.empty()) {
-        m_issues["Orphaned Item Buyouts"] = orphaned_buyouts;
+        m_issues["Orphaned item buyouts"] = orphaned_buyouts;
         QLOG_WARN() << "Found" << locale.toString(orphaned_buyouts.size()) << "orphaned item buyouts";
     };
 }
