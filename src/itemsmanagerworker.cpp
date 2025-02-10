@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -1321,7 +1321,7 @@ ItemsManagerWorker::TabsSignatureVector ItemsManagerWorker::CreateTabsSignatureV
 
     if (!tabs.IsArray()) {
         QLOG_ERROR() << "Tabs list is invalid: cannot create signature vector";
-        return;
+        return {};
     };
 
     const bool legacy = tabs[0].HasMember("n");
