@@ -13,7 +13,7 @@ You can download setup packages from [the releases page](https://github.com/gerw
 
 Acquisition is written in C++ and uses the Qt widget toolkit. It was originally a qmake project, but has been migrated to cmake.
 
-See [BUILD.md](https://github.com/gerwaric/acquisition/BUILD.md) for more detailed build guidance.
+See [BUILD.md](https://github.com/gerwaric/acquisition/blob/master/BUILD.md) for more detailed build guidance.
 
 ## Command line
 

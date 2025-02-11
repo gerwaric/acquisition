@@ -36,7 +36,7 @@ project(acquisition
 )
 
 # Use this to define pre-releases
-set(version_postfix "-beta.1")
+set(version_postfix "")
 
 # Variables used to generate version_defines.h and installer.iss
 set(version_code        63) # This doesn't need to be changed with the new update checks.
@@ -46,7 +46,7 @@ set(app_version_string  "${CMAKE_PROJECT_VERSION}${version_postfix}")
 set(app_url             "${CMAKE_PROJECT_HOMEPAGE_URL}")
 set(app_publisher       "GERWARIC")
 set(app_publisher_email "gerwaric@gmail.com")
-set(app_copyright       "Copyright (C) 2014-2024 Ilya Zhuravlev and other Acquisition Contributors")
+set(app_copyright       "Copyright (C) 2014-2025 Ilya Zhuravlev and other Acquisition Contributors")
 set(app_trademark       "Path of Exile is a trademark of Grinding Gear Games, Ltd.")
 
 set(CMAKE_AUTOUIC ON)
