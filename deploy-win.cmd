@@ -33,7 +33,7 @@ if not exist "%QTENV2%" (
     exit /B
 )
 
-set "VCVARSALL=C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvarsall.bat"
+set "VCVARSALL=C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat"
 if not exist "%VCVARSALL%" (
     echo ERROR: vcvarsall.bat not found: "%VCVARSALL%"
     exit /B
