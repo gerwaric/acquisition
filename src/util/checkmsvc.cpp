@@ -53,7 +53,8 @@ static QString DLL(const QString& name) {
 void checkMicrosoftRuntime()
 {
     QLOG_INFO() << "Checking Microsoft Visual C++ Runtime...";
-    QLOG_INFO() << "Built with MSVC runtime" << MSVC_RUNTIME_VERSION;
+	QLOG_INFO() << "Built with MSVC runtime" << MSVC_RUNTIME_BUILD_VERSION;
+	QLOG_INFO() << "Requires MSVC runtime" << MSVC_RUNTIME_MINIMUM_VERSION;
 
     const QStringList libraries = {
         DLL("msvcp140"),
@@ -123,11 +124,13 @@ void checkRuntimeVersion(const QStringList& libraries)
 {
     QLOG_DEBUG() << "Checking MSVC runtime version.";
 
-    const QVersionNumber build_version = QVersionNumber::fromString(MSVC_RUNTIME_VERSION).normalized();
-    if (build_version.isNull()) {
+	const QVersionNumber build_version = QVersionNumber::fromString(MSVC_RUNTIME_BUILD_VERSION).normalized();
+	const QVersionNumber required_version = QVersionNumber::fromString(MSVC_RUNTIME_MINIMUM_VERSION).normalized();
+	if (required_version.isNull()) {
         FatalError("Unable to parse MSVC runtime version form build constants");
     };
-    QLOG_DEBUG() << "MSVC build version:" << build_version;
+	QLOG_DEBUG() << "MSVC runtime build version:" << build_version.toString();
+	QLOG_DEBUG() << "MSVC runtime minimum version:" << required_version.toString();
 
     for (const auto& lib : libraries) {
         
@@ -137,12 +140,12 @@ void checkRuntimeVersion(const QStringList& libraries)
         };
         QLOG_TRACE() << "Found" << lib << "version" << lib_version;
 
-        if ((lib_version.majorVersion() < build_version.majorVersion()) ||
-            (lib_version.minorVersion() < build_version.minorVersion()))
+		if ((lib_version.majorVersion() < required_version.majorVersion()) ||
+			(lib_version.minorVersion() < required_version.minorVersion()))
         {
             QLOG_ERROR() << "Found" << lib
                 << "version" << lib_version.toString()
-                << "but build version is" << build_version.toString();
+				<< "but build version is" << required_version.toString();
 
             const QString msg =
                 "The Microsoft Visual C++ Runtime needs to be updated."

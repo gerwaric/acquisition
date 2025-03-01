@@ -32,6 +32,7 @@
 #define APP_PUBLISHER_EMAIL         "@app_publisher_email@"
 #define APP_URL                     "@app_url@"
 
-#define MSVC_RUNTIME_VERSION        "@msvc_runtime_version@"
+#define MSVC_RUNTIME_BUILD_VERSION  "@msvc_runtime_build_version@"
+#define MSVC_RUNTIME_MINIMUM_VERSION "@msvc_runtime_minimum_version@"
 
 #endif

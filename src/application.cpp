@@ -32,7 +32,7 @@
 #include <QsLog/QsLog.h>
 
 #include "datastore/sqlitedatastore.h"
-#include "legacy/legacybuyoutvalidator.h"
+// #include "legacy/legacybuyoutvalidator.h" DIABLED v0.12.4
 #include "ratelimit/ratelimiter.h"
 #include "ratelimit/ratelimitmanager.h"
 #include "ui/logindialog.h"
@@ -403,6 +403,9 @@ void Application::InitLogin(POE_API mode)
     const QString data_path = user_dir.absoluteFilePath(data_file);
     QLOG_TRACE() << "Application::InitLogin() data_path =" << data_path;
 
+	/*
+	 * DISABLED as of v0.12.4
+	 *
     const QString skip_buyout_version = m_settings->value(LegacyBuyoutValidator::SettingsKey).toString();
     if (0 == skip_buyout_version.compare(QStringLiteral(APP_VERSION_STRING), Qt::CaseInsensitive)) {
         QLOG_DEBUG() << "Applicaiton: skipping buyout validation because version is" << QStringLiteral(APP_VERSION_STRING);
@@ -413,6 +416,7 @@ void Application::InitLogin(POE_API mode)
             legacy.notifyUser();
         };
     };
+	*/
 
     m_data = std::make_unique<SqliteDataStore>(data_path);
     SaveDbOnNewVersion();

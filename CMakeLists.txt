@@ -29,14 +29,14 @@ cmake_minimum_required(VERSION 3.29)
 # version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
-    VERSION 0.12.3
+    VERSION 0.12.4
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
 )
 
 # Use this to define pre-releases
-set(version_postfix "")
+set(version_postfix "-beta.1")
 
 # Variables used to generate version_defines.h and installer.iss
 set(version_code        63) # This doesn't need to be changed with the new update checks.
@@ -61,6 +61,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # (This is apparently not an issue with Visual Studio 2022).
 
 if(WIN32)
+
+    # Hard-code the MSCV runtime required, because knowing when the runtime really
+    # needs to be updated is tricky
+    set(msvc_runtime_minimum_version "14.42")
 
     # Enable more warnings by default
     add_compile_options(/W4)
@@ -105,7 +109,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/items_model.cpp
     src/itemsmanager.cpp
     src/itemsmanagerworker.cpp
-    src/legacy/legacybuyoutvalidator.cpp
+    # src/legacy/legacybuyoutvalidator.cpp DISABLED as of v0.12.4
     src/legacy/legacydatastore.cpp
     src/legacy/legacyitem.cpp
     src/main.cpp
@@ -162,7 +166,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/itemsmanager.h
     src/itemsmanagerworker.h
     src/legacy/legacybuyout.h
-    src/legacy/legacybuyoutvalidator.h
+    # src/legacy/legacybuyoutvalidator.h DISABLED as of v0.12.4
     src/legacy/legacycharacter.h
     src/legacy/legacycurrency.h
     src/legacy/legacydatastore.h
@@ -251,11 +255,12 @@ if(WIN32)
     message(STATUS "MSVC Compiler: ${msvc_version}")
 
     # Derive the runtime version.
-    string(REGEX REPLACE "^${msvc_compiler_ver}" "${msvc_runtime_ver}" msvc_runtime_version ${msvc_version})
-    if (NOT msvc_runtime_version)
+    string(REGEX REPLACE "^${msvc_compiler_ver}" "${msvc_runtime_ver}" msvc_runtime_build_version ${msvc_version})
+    if (NOT msvc_runtime_build_version)
         message(FATAL_ERROR "Could not determine MSVC runtime version from cl.exe output")
     endif()
-    message(STATUS "MSVC Runtime: ${msvc_runtime_version}")
+    message(STATUS "MSVC Runtime Build Version: ${msvc_runtime_build_version}")
+    message(STATUS "MSVC Runtime Minimum Version: ${msvc_runtime_minimum_version}")
 
 endif()
 

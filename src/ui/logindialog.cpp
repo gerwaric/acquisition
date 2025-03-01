@@ -41,7 +41,7 @@
 #include <libpoe/type/league.h>
 #include <QsLog/QsLog.h>
 
-#include "legacy/legacybuyoutvalidator.h"
+// #include "legacy/legacybuyoutvalidator.h" -- DISABLED as of v0.12.3.1
 #include "util/crashpad.h"
 #include "util/util.h"
 #include "util/updatechecker.h"
