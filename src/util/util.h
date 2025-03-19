@@ -95,9 +95,7 @@ namespace Util {
     QString RapidjsonSerialize(const rapidjson::Value& val);
     QString RapidjsonPretty(const rapidjson::Value& val);
     void RapidjsonAddString(rapidjson::Value* object, const char* const name, const QString& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
-    void RapidjsonAddConstString(rapidjson::Value* object, const char* const name, const QString& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
     void RapidjsonAddInt64(rapidjson::Value* object, const char* const name, qint64 value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
-
 
     void GetTabColor(rapidjson::Value& json, int& r, int& g, int& b);
 

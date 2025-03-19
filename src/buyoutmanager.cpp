@@ -54,16 +54,13 @@ void BuyoutManager::Set(const Item& item, const Buyout& buyout) {
     if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
         QLOG_WARN() << "BuyoutManager::Set() obsolete 'current offer' buyout detected for" << item.PrettyName() << ":" << buyout.AsText();
     };
-    auto const& it = m_buyouts.lower_bound(item.hash());
-    if (it != m_buyouts.end() && !(m_buyouts.key_comp()(item.hash(), it->first))) {
-        // Entry exists - we don't want to update if buyout is equal to existing
-        if (buyout != it->second) {
-            m_save_needed = true;
-            it->second = buyout;
-        };
-    } else {
+    auto const& it = m_buyouts.find(item.hash());
+    if (it == m_buyouts.end()) {
         m_save_needed = true;
         m_buyouts[item.hash()] = buyout;
+    } else if (buyout != it->second) {
+        m_save_needed = true;
+        it->second = buyout;
     };
 }
 
@@ -113,9 +110,9 @@ void BuyoutManager::CompressTabBuyouts() {
     // This function is to remove buyouts associated with tab names that don't
     // currently exist.
     std::set<QString> tmp;
-    for (auto const& loc : m_tabs)
+    for (auto const& loc : m_tabs) {
         tmp.emplace(loc.GetUniqueHash());
-
+    };
     for (auto it = m_tab_buyouts.begin(), ite = m_tab_buyouts.end(); it != ite;) {
         if (tmp.count(it->first) == 0) {
             m_save_needed = true;
@@ -198,9 +195,9 @@ QString BuyoutManager::Serialize(const std::map<QString, Buyout>& buyouts) {
         value.SetInt64(last_update);
         item.AddMember("last_update", value, alloc);
 
-        Util::RapidjsonAddConstString(&item, "type", buyout.BuyoutTypeAsTag(), alloc);
-        Util::RapidjsonAddConstString(&item, "currency", buyout.CurrencyAsTag(), alloc);
-        Util::RapidjsonAddConstString(&item, "source", buyout.BuyoutSourceAsTag(), alloc);
+        Util::RapidjsonAddString(&item, "type", buyout.BuyoutTypeAsTag(), alloc);
+        Util::RapidjsonAddString(&item, "currency", buyout.CurrencyAsTag(), alloc);
+        Util::RapidjsonAddString(&item, "source", buyout.BuyoutSourceAsTag(), alloc);
 
         item.AddMember("inherited", buyout.inherited, alloc);
 

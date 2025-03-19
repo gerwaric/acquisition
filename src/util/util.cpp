@@ -175,15 +175,8 @@ void Util::RapidjsonAddString(rapidjson::Value* object, const char* const name, 
     rapidjson::Value rjson_name;
     rjson_name.SetString(name, rapidjson::SizeType(strlen(name)), alloc);
     rapidjson::Value rjson_val;
-    rjson_val.SetString(value.toStdString().c_str(), rapidjson::SizeType(value.size()), alloc);
-    object->AddMember(rjson_name, rjson_val, alloc);
-}
-
-void Util::RapidjsonAddConstString(rapidjson::Value* object, const char* const name, const QString& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc) {
-    rapidjson::Value rjson_name;
-    rjson_name.SetString(name, rapidjson::SizeType(strlen(name)));
-    rapidjson::Value rjson_val;
-    rjson_val.SetString(value.toStdString().c_str(), rapidjson::SizeType(value.size()));
+    const std::string val = value.toUtf8().constData();
+    rjson_val.SetString(val.c_str(), rapidjson::SizeType(val.size()), alloc);
     object->AddMember(rjson_name, rjson_val, alloc);
 }
 

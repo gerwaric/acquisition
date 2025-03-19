@@ -454,21 +454,11 @@ void Application::InitLogin(POE_API mode)
         data(),
         items_manager());
 
-    connect(m_items_manager.get(), &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
+    connect(m_items_manager.get(), &ItemsManager::ItemsRefreshed, m_currency_manager.get(), &CurrencyManager::Update);
+    connect(m_items_manager.get(), &ItemsManager::ItemsRefreshed, m_shop.get(), &Shop::Update);
 
     QLOG_TRACE() << "Application::InitLogin() starting items manager";
     m_items_manager->Start(mode);
-}
-
-void Application::OnItemsRefreshed(bool initial_refresh) {
-    QLOG_TRACE() << "Application::OnItemsRefreshed() entered";
-    QLOG_TRACE() << "Application::OnItemsRefreshed() initial_refresh =" << initial_refresh;
-    m_currency_manager->Update();
-    m_shop->Update();
-    if (!initial_refresh && m_shop->auto_update()) {
-        QLOG_TRACE() << "Application::OnItemsRefreshed() submitting shops";
-        m_shop->SubmitShopToForum();
-    };
 }
 
 void Application::OnRunTests() {

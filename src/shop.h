@@ -67,7 +67,6 @@ public:
     void SetThread(const QStringList& threads);
     void SetAutoUpdate(bool update);
     void SetShopTemplate(const QString& shop_template);
-    void Update();
     void CopyToClipboard();
     void ExpireShopData();
     void SubmitShopToForum(bool force = false);
@@ -77,11 +76,11 @@ public:
     const QString& shop_template() const { return m_shop_template; }
 public slots:
     void UpdateStashIndex();
+    void Update();
     void OnStashTabIndexReceived(QNetworkReply* reply);
     void OnEditPageFinished();
     void OnShopSubmitted(QUrlQuery query, QNetworkReply* reply);
 signals:
-    void StashesIndexed();
     void StatusUpdate(ProgramState state, const QString& status);
 private:
     void SubmitSingleShop();
@@ -101,11 +100,12 @@ private:
     QStringList m_shop_data;
     QString m_shop_hash;
     QString m_shop_template;
+    bool m_initialized;
     bool m_shop_data_outdated;
     bool m_auto_update;
     bool m_submitting;
     bool m_indexing;
-    size_t m_requests_completed;
+    int m_requests_completed;
 
     static const QRegularExpression error_regex;
     static const QRegularExpression ratelimit_regex;

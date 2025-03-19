@@ -72,7 +72,6 @@ public slots:
     void SetTheme(const QString& theme);
     void SetUserDir(const QString& dir);
     void OnLogin(POE_API api);
-    void OnItemsRefreshed(bool initial_refresh);
     void OnRunTests();
 private:
     void Stop();

@@ -162,7 +162,7 @@ QString CurrencyManager::Serialize(const std::vector<std::shared_ptr<CurrencyIte
         item.AddMember("count", curr->count, alloc);
         item.AddMember("chaos_ratio", curr->chaos.value1, alloc);
         item.AddMember("exalt_ratio", curr->exalt.value1, alloc);
-        Util::RapidjsonAddConstString(&item, "currency", curr->currency.AsTag(), alloc);
+        Util::RapidjsonAddString(&item, "currency", curr->currency.AsTag(), alloc);
         rapidjson::Value name(curr->name.toStdString().c_str(), alloc);
         doc.AddMember(name, item, alloc);
     };
