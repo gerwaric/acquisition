@@ -33,8 +33,9 @@ https://www.qt.io/download-open-source
 Notes:
 - You may need to sign up for a Qt account.
 - Make sure the following packages are installed:
-    - xcb-cursor0 and libxcb-cursor0
-	- libgl-dev and its dependencies
+    - libxcb-cursor0
+    - libxcb-cursor-dev
+	- libgl-dev
 - Other packages may be required on other distributions.
 
 When runing the installer, choose "Custom Installation". Then, in addition to the default selection, add the following:
