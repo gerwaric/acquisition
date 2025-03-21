@@ -30,6 +30,7 @@
 #include <QUrl>
 #include <QUrlQuery>
 
+#include <json_struct/json_struct_qt.h>
 #include <QsLog/QsLog.h>
 #include <rapidjson/document.h>
 
@@ -92,7 +93,7 @@ Shop::Shop(
     , m_indexing(false)
     , m_requests_completed(0)
 {
-    QLOG_TRACE() << "Shop: initializing";
+    QLOG_DEBUG() << "Shop: initializing";
     m_threads = m_datastore.Get("shop").split(";");
     m_auto_update = m_settings.value("shop_autoupdate").toBool();
     m_shop_template = m_datastore.Get("shop_template");
@@ -103,6 +104,9 @@ Shop::Shop(
     if (!m_settings.value("session_id").toString().isEmpty()) {
         UpdateStashIndex();
     };
+
+    const QString data = m_datastore.Get("shop_tab_index");
+    m_tab_index = Util::parseJson<decltype(m_tab_index)>(data);
 }
 
 void Shop::SetThread(const QStringList& threads) {
@@ -222,16 +226,17 @@ void Shop::OnStashTabIndexReceived(QNetworkReply* reply) {
     };
     m_indexing = false;
 
+    const std::string data = JS::serializeStruct(m_tab_index, JS::SerializerOptions::Compact);
+    m_datastore.Set("shop_tab_index", QString::fromUtf8(data));
+
     Update();
-/*    if (m_update_requested) {
-        QLOG_DEBUG() << "Shop: stash tab indexing complete, updating shop data";
-        Update();
-    };
-    emit StashesIndexed();
-    */
 }
 
 void Shop::Update() {
+    if (m_settings.value("session_id").toString().isEmpty()) {
+        QLOG_WARN() << "Shop: cannot update because POESESSID has not been set";
+        return;
+    };
     QLOG_DEBUG() << "Shop: updating shop data.";
     if (m_submitting) {
         QLOG_WARN() << "Shop: skipping update becaue the shop is currently being submitted";
@@ -485,8 +490,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
                 : "(Failed to parse the error message)";
             QLOG_ERROR() << "Shop: error submitting shop thread:" << error_message;
             if (error_message.startsWith("Failed to find item.", Qt::CaseInsensitive)) {
-                QLOG_ERROR() << "Shop: the forum tab index may be out of date. (Try Shop->\"Update stash index\")";
-                QLOG_ERROR() << "Shop: the stashes may also need to be refreshed.";
+                QLOG_ERROR() << "Shop: you may need to refresh your tabs, or update the shop index";
                 m_submitting = false;
                 return;
             };

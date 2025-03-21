@@ -95,7 +95,7 @@ private:
     ItemsManager& m_items_manager;
     BuyoutManager& m_buyout_manager;
 
-    std::map<QString, unsigned int> m_tab_index;
+    std::unordered_map<QString, unsigned int> m_tab_index;
     QStringList m_threads;
     QStringList m_shop_data;
     QString m_shop_hash;

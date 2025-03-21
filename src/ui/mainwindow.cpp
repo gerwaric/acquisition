@@ -146,7 +146,7 @@ void MainWindow::prepare(
     Shop& shop)
 {
     connect(ui->actionShowOAuthToken, &QAction::triggered, &oauth_manager, &OAuthManager::showStatus);
-    connect(ui->actionRefreshOAuthToken, &QAction::triggered, &oauth_manager, &OAuthManager::requestRefresh);
+    connect(ui->actionRefreshOAuthToken, &QAction::triggered, &oauth_manager, &OAuthManager::refreshAccess);
 
     connect(ui->actionListCurrency, &QAction::triggered, &currency_manager, &CurrencyManager::DisplayCurrency);
     connect(ui->actionExportCurrency, &QAction::triggered, &currency_manager, &CurrencyManager::ExportCurrency);
@@ -327,6 +327,7 @@ void MainWindow::InitializeUi() {
     connect(ui->actionSetShopThreads, &QAction::triggered, this, &MainWindow::OnSetShopThreads);
     connect(ui->actionEditShopTemplate, &QAction::triggered, this, &MainWindow::OnEditShopTemplate);
     connect(ui->actionCopyShopToClipboard, &QAction::triggered, this, &MainWindow::OnCopyShopToClipboard);
+    connect(ui->actionUpdatePOESESSID, &QAction::triggered, this, &MainWindow::OnShowPOESESSID);
     connect(ui->actionUpdateStashIndex, &QAction::triggered, this, &MainWindow::OnUpdateStashIndex);
     connect(ui->actionUpdateShops, &QAction::triggered, this, &MainWindow::OnUpdateShops);
     connect(ui->actionSetAutomaticallyShopUpdate, &QAction::triggered, this, &MainWindow::OnSetAutomaticShopUpdate);

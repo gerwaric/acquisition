@@ -373,7 +373,7 @@
      <x>0</x>
      <y>0</y>
      <width>1280</width>
-     <height>20</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuShop">
@@ -383,8 +383,10 @@
     <addaction name="actionSetShopThreads"/>
     <addaction name="actionEditShopTemplate"/>
     <addaction name="actionCopyShopToClipboard"/>
+    <addaction name="actionUpdatePOESESSID"/>
     <addaction name="actionUpdateStashIndex"/>
     <addaction name="actionUpdateShops"/>
+    <addaction name="separator"/>
     <addaction name="actionSetAutomaticallyShopUpdate"/>
    </widget>
    <widget class="QMenu" name="menuTabs">
@@ -494,7 +496,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Update shop thread at forums</string>
+    <string>Update forum shop thread</string>
    </property>
   </action>
   <action name="actionSetAutomaticallyShopUpdate">
@@ -636,7 +638,12 @@
   </action>
   <action name="actionUpdateStashIndex">
    <property name="text">
-    <string>Update stash index</string>
+    <string>Update website stash index</string>
+   </property>
+  </action>
+  <action name="actionUpdatePOESESSID">
+   <property name="text">
+    <string>Update POESESSID</string>
    </property>
   </action>
  </widget>

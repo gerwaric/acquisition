@@ -19,8 +19,10 @@
 
 #pragma once
 
+#include <QByteArray>
 #include <QDateTime>
 #include <QString>
+#include <QVariantMap>
 
 #include <json_struct/json_struct_qt.h>
 
@@ -30,14 +32,16 @@ struct OAuthToken {
 
     OAuthToken() = default;
     explicit OAuthToken(const QString& json);
+    explicit OAuthToken(const QVariantMap& tokens);
     explicit OAuthToken(QNetworkReply* reply);
+    bool isValid() const;
 
-    QString access_token;
+    QByteArray access_token;
     int expires_in{ -1 };
-    QString scope;
-    QString username;
-    QString sub;
-    QString refresh_token;
+    QByteArray scope;
+    QByteArray username;
+    QByteArray sub;
+    QByteArray refresh_token;
 
     std::optional<QDateTime> birthday;
     std::optional<QDateTime> access_expiration;

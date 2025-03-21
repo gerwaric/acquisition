@@ -20,61 +20,37 @@
 #pragma once
 
 #include <QObject>
-#include <QTimer>
+#include <QAbstractOAuth>
 
 #include "oauthtoken.h"
 
-class QHttpServer;
-class QHttpServerRequest;
 class QNetworkAccessManager;
-class QNetworkReply;
 class QNetworkRequest;
-class QTcpServer;
-
-class DataStore;
+class QOAuth2AuthorizationCodeFlow;
 
 class OAuthManager : public QObject {
     Q_OBJECT
 public:
-    explicit OAuthManager(
-        QNetworkAccessManager& network_manager,
-        DataStore& datastore);
-    ~OAuthManager();
-    void setAuthorization(QNetworkRequest& request);
-    void RememberToken(bool remember);
-    const OAuthToken& token() const { return m_token; };
+    explicit OAuthManager(QNetworkAccessManager& network_manager);
+    void authorize(QNetworkRequest& request);
+    void setToken(const OAuthToken& token);
+    OAuthToken token() const { return m_token; };
 public slots:
     void requestAccess();
-    void requestRefresh();
+    void refreshAccess();
     void showStatus();
 signals:
-    void accessGranted(const OAuthToken& token);
+    void grant(const OAuthToken& token);
 private:
-    void createHttpServer();
-    void requestAuthorization(const QString& state, const QString& code_challenge);
-    QString receiveAuthorization(const QHttpServerRequest& request, const QString& state);
-    void requestToken(const QString& code);
-    void receiveToken(QNetworkReply* reply);
-    void setRefreshTimer();
+    bool activate();
+    void fixParameters(QAbstractOAuth::Stage stage, QMultiMap<QString, QVariant>* parameters);
 
-    static QString authorizationError(const QString& message);
-
-    QNetworkAccessManager& m_network_manager;
-    DataStore& m_datastore;
-
-    // I can't find a way to shutdown a QHttpServer once it's started
-    // listening, so use a unique pointer so that we can destory the
-    // server once authentication is complete, so it won't stay
-    // running in the background.
-    QHttpServer* m_http_server;
-    QTcpServer* m_tcp_server;
-
-    bool m_remember_token;
+    QOAuth2AuthorizationCodeFlow* m_oauth{ nullptr };
     OAuthToken m_token;
-    QString m_code_verifier;
-    QString m_redirect_uri;
+    int m_handler_port{ -1 };
 
-    QTimer m_refresh_timer;
+    static void logRequestFailure(const QAbstractOAuth::Error error);
+    static void logServerError(const QString& error, const QString& errorDescription, const QUrl& uri);
 
     static const QString SUCCESS_HTML;
     static const QString ERROR_HTML;

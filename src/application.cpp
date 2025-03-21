@@ -58,6 +58,9 @@ Application::Application(const QDir& appDataDir) {
     QLOG_TRACE() << "Application: creating QNetworkAccessManager";
     m_network_manager = std::make_unique<QNetworkAccessManager>();
 
+    QLOG_TRACE() << "Application: creating OAuth manager";
+    m_oauth_manager = std::make_unique<OAuthManager>(network_manager());
+
     QLOG_TRACE() << "Application: creating RePoE";
     m_repoe = std::make_unique<RePoE>(network_manager());
 
@@ -80,6 +83,18 @@ void Application::InitUserDir(const QString& dir) {
     const QString global_data_file = user_dir.filePath(SqliteDataStore::MakeFilename("", ""));
     QLOG_TRACE() << "Application: opening global data file:" << global_data_file;
     m_global_data = std::make_unique<SqliteDataStore>(global_data_file);
+    
+    const QString stored_token = m_global_data->Get("oauth_token");
+    if (!stored_token.isEmpty()) {
+        const OAuthToken token(stored_token);
+        m_oauth_manager->setToken(token);
+    };
+
+    connect(m_oauth_manager.get(), &OAuthManager::grant, this,
+        [=](const OAuthToken& token) {
+            const QString data = QString::fromUtf8(JS::serializeStruct(token, JS::SerializerOptions::Compact));
+            m_global_data->Set("oauth_token", data);
+        });
 
     const QString image_cache_dir = dir + QDir::separator() + "cache";
     m_image_cache = std::make_unique<ImageCache>(network_manager(), image_cache_dir);
@@ -95,9 +110,6 @@ void Application::InitUserDir(const QString& dir) {
 
     QLOG_TRACE() << "Application: creating update checker";
     m_update_checker = std::make_unique<UpdateChecker>(settings(), network_manager());
-
-    QLOG_TRACE() << "Application: creating OAuth manager";
-    m_oauth_manager = std::make_unique<OAuthManager>(network_manager(), global_data());
 
     // Start the process of fetching RePoE data.
     QLOG_TRACE() << "Application: initializing RePoE";
@@ -138,7 +150,6 @@ void Application::Stop() {
     // Delete things in the reverse order they were created, just in case
     // we might otherwise get an invalid point or reference.
     m_login = nullptr;
-    m_oauth_manager = nullptr;
     m_update_checker = nullptr;
     m_global_data = nullptr;
     m_settings = nullptr;

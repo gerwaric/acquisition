@@ -137,7 +137,7 @@ void RateLimiter::SetupEndpoint(
     // Make sure the network request get an OAuth bearer token if necessary.
     if (m_mode == POE_API::OAUTH) {
         QLOG_TRACE() << "RateLimiter::SetupEndpoint() calling setAuthorization()";
-        m_oauth_manager.setAuthorization(network_request);
+        m_oauth_manager.authorize(network_request);
     };
 
     // Make the head request.
@@ -323,7 +323,7 @@ RateLimitManager& RateLimiter::GetManager(
 
 QNetworkReply* RateLimiter::SendRequest(QNetworkRequest request) {
     if (m_mode == POE_API::OAUTH) {
-        m_oauth_manager.setAuthorization(request);
+        m_oauth_manager.authorize(request);
     };
     return m_network_manager.get(request);
 }

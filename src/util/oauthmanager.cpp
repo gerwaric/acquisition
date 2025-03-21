@@ -20,20 +20,14 @@
 #include "oauthmanager.h"
 
 #include <QByteArray>
-#include <QCryptographicHash>
 #include <QDesktopServices>
-#include <QtHttpServer>
 #include <QMessageBox>
 #include <QNetworkAccessManager>
-#include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QOAuth2AuthorizationCodeFlow>
+#include <QOAuthHttpServerReplyHandler>
 #include <QSettings>
-#include <QString>
-#include <QTcpServer>
-#include <QTimer>
 #include <QUrl>
-#include <QUrlQuery>
-#include <QUuid>
 
 #include <QsLog/QsLog.h>
 
@@ -42,354 +36,185 @@
 #include "network_info.h"
 #include "util.h"
 
-// Hard-code authorization stuff.
-constexpr const char* AUTHORIZE_URL = "https://www.pathofexile.com/oauth/authorize";
-constexpr const char* TOKEN_URL = "https://www.pathofexile.com/oauth/token";
-constexpr const char* CLIENT_ID = "acquisition";
-constexpr const char* SCOPE = "account:leagues account:stashes account:characters";
-constexpr const char* REDIRECT_URL = "http://127.0.0.1";
-constexpr const char* REDIRECT_PATH = "/auth/path-of-exile";
-
-// Refresh a token an hour before it's due to expire.
-constexpr int EXPIRATION_BUFFER_SECS = 3600;
-
-OAuthManager::OAuthManager(
-    QNetworkAccessManager& network_manager,
-    DataStore& datastore)
-    : m_network_manager(network_manager)
-    , m_datastore(datastore)
-    , m_http_server(nullptr)
-    , m_tcp_server(nullptr)
-    , m_remember_token(false)
-    , m_refresh_timer(this)
-{
-    QLOG_TRACE() << "OAuthManager::OAuthManager() entered";
-
-    // Configure the refresh timer.
-    m_refresh_timer.setSingleShot(true);
-    connect(&m_refresh_timer, &QTimer::timeout, this, &OAuthManager::requestRefresh);
-
-    // Look for an existing token.
-    const QString token_str = m_datastore.Get("oauth_token", "");
-    if (token_str.isEmpty()) {
-        return;
-    };
-    m_token = OAuthToken(token_str);
-    const QDateTime now = QDateTime::currentDateTime();
-    QLOG_DEBUG() << "Found an existing OAuth token:";
-    QLOG_DEBUG() << "OAuth access expires on " << m_token.access_expiration.value_or(QDateTime()).toString()
-        << ((now > m_token.access_expiration) ? "(expired)" : "");
-    QLOG_DEBUG() << "OAuth refresh expires on" << m_token.refresh_expiration.value_or(QDateTime()).toString()
-        << ((now > m_token.refresh_expiration) ? "(expired)" : "");
-    if (now > m_token.refresh_expiration) {
-        QLOG_INFO() << "Removing the stored OAuth token because it has expired.";
-        m_datastore.Set("oauth_token", "");
-        m_token = OAuthToken();
-    } else if (now > m_token.access_expiration) {
-        QLOG_INFO() << "The OAuth token is being refreshed.";
-        requestRefresh();
-    } else {
-        setRefreshTimer();
-    };
+namespace {
+    constexpr const char* AUTHORIZE_URL = "https://www.pathofexile.com/oauth/authorize";
+    constexpr const char* TOKEN_URL = "https://www.pathofexile.com/oauth/token";
+    constexpr const char* CLIENT_ID = "acquisition";
+    constexpr const char* SCOPE = "account:leagues account:stashes account:characters";
+    constexpr const char* REDIRECT_URL = "http://127.0.0.1";
+    constexpr const char* REDIRECT_PATH = "/auth/path-of-exile";
 }
 
-OAuthManager::~OAuthManager() {};
+OAuthManager::OAuthManager(QNetworkAccessManager& network_manager) {
+    QLOG_DEBUG() << "OAuth: setting up OAuth";
 
-void OAuthManager::setAuthorization(QNetworkRequest& request) {
-    QLOG_TRACE() << "OAuthManager::setAuthorization() entered";
+    m_oauth = new QOAuth2AuthorizationCodeFlow(this);
+    m_oauth->setNetworkAccessManager(&network_manager);
+    m_oauth->setAccessTokenUrl(QUrl(TOKEN_URL));
+    m_oauth->setAuthorizationUrl(QUrl(AUTHORIZE_URL));
+    m_oauth->setClientIdentifier(CLIENT_ID);
+    m_oauth->setScope(SCOPE);
+    m_oauth->setPkceMethod(QOAuth2AuthorizationCodeFlow::PkceMethod::S256);
+    m_oauth->setNetworkRequestModifier(this,
+        [](QNetworkRequest& request, QAbstractOAuth::Stage) {
+            request.setHeader(QNetworkRequest::UserAgentHeader, USER_AGENT);
+        });
+    m_oauth->setModifyParametersFunction(
+        [this](QAbstractOAuth::Stage stage, QMultiMap<QString, QVariant>* parameters) {
+            fixParameters(stage, parameters);
+        });
+    m_oauth->setAutoRefresh(true);
+
+    connect(m_oauth, &QAbstractOAuth::authorizeWithBrowser, this, &QDesktopServices::openUrl);
+    connect(m_oauth, &QAbstractOAuth::granted, this, [this]() { emit grant(m_token); });
+    connect(m_oauth, &QAbstractOAuth::requestFailed, this, &OAuthManager::logRequestFailure);
+    connect(m_oauth, &QAbstractOAuth2::serverReportedErrorOccurred, this, &OAuthManager::logServerError);
+}
+
+void OAuthManager::authorize(QNetworkRequest& request) {
+    QLOG_TRACE() << "OAuth: authorizing a network request:" << request.url().toDisplayString();
     if (m_token.access_token.isEmpty()) {
-        QLOG_ERROR() << "Cannot set OAuth authorization header: there is no token.";
+        QLOG_ERROR() << "OAuth: cannot authorize request because there is no token.";
         return;
     };
-    if (m_token.access_expiration.value_or(QDateTime()) <= QDateTime::currentDateTime()) {
-        QLOG_ERROR() << "Cannot set OAuth authorization header: the token has expired.";
-        return;
-    };
-    const QString bearer = "Bearer " + m_token.access_token;
-    request.setRawHeader("Authorization", bearer.toUtf8());
+    const QByteArray bearer_token = "Bearer " + m_token.access_token;
+    request.setRawHeader("Authorization", bearer_token);
 }
 
-void OAuthManager::RememberToken(bool remember) {
-    QLOG_TRACE() << "OAuthManager::RememberMeToken() entered";
-    m_remember_token = remember;
-    const QDateTime now = QDateTime::currentDateTime();
-    if (m_remember_token && (now < m_token.refresh_expiration)) {
-        QLOG_TRACE() << "OAuthManager::RememberMeToken() saving OAuth token";
-        m_datastore.Set("oauth_token", QString::fromStdString(JS::serializeStruct(m_token)));
-    } else {
-        QLOG_TRACE() << "OAuthManager::RememberMeToken() clearing OAuth token";
-        m_datastore.Set("oauth_token", "");
+void OAuthManager::setToken(const OAuthToken& token) {
+    QLOG_DEBUG() << "OAuth: setting token";
+    m_token = token;
+    m_oauth->setRefreshToken(m_token.refresh_token);
+    if (m_token.access_expiration > QDateTime::currentDateTime()) {
+        QLOG_WARN() << "OAuth: the access token needs to be refreshed";
     };
-}
-
-void OAuthManager::setRefreshTimer() {
-    QLOG_TRACE() << "OAuthManager::setRefreshTimer() entered";
-    const QDateTime refresh_date = m_token.access_expiration.value_or(QDateTime()).addSecs(-EXPIRATION_BUFFER_SECS);
-    const unsigned long interval = QDateTime::currentDateTime().msecsTo(refresh_date);
-    m_refresh_timer.setInterval(interval);
-    m_refresh_timer.start();
-    QLOG_INFO() << "OAuth: refreshing token again at" << refresh_date.toString();
 }
 
 void OAuthManager::requestAccess() {
-    QLOG_TRACE() << "OAuthManager::setAccess() entered";
-
-    // Build the state.
-    const auto state_data = (
-        QUuid::createUuid().toString(QUuid::WithoutBraces) +
-        QUuid::createUuid().toString(QUuid::WithoutBraces)).toLatin1(); // 43 <= length <= 128
-    const auto state_hash = QCryptographicHash::hash(state_data, QCryptographicHash::Sha256);
-    const auto state = state_hash.toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals);
-
-    // Create the code challenge.
-    m_code_verifier = (
-        QUuid::createUuid().toString(QUuid::WithoutBraces) +
-        QUuid::createUuid().toString(QUuid::WithoutBraces)).toLatin1(); // 43 <= length <= 128
-    const auto code_hash = QCryptographicHash::hash(m_code_verifier.toUtf8(), QCryptographicHash::Sha256);
-    const auto code_challenge = code_hash.toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals);
-
-    // Setup an http server so we know what port to listen on.
-    createHttpServer();
-    if (m_http_server == nullptr) {
-        QLOG_ERROR() << "OAuth: unable to create the http server authorization.";
-        return;
+    QLOG_DEBUG() << "OAuth: requesting an access token";
+    if (activate()) {
+        m_oauth->grant();
     };
-
-    // Get the port for the callback.
-    const quint16 port = m_tcp_server->serverPort();
-    if (port == 0) {
-        QLOG_ERROR() << "OAuth: the tcp server is not listening";
-        return;
-    };
-
-    // Build the callback URI.
-    QUrl url(REDIRECT_URL);
-    url.setPort(port);
-    url.setPath(REDIRECT_PATH);
-    m_redirect_uri = url.toString();
-
-    // Make the authorization request.
-    requestAuthorization(state, code_challenge);
 }
 
-void OAuthManager::createHttpServer() {
-    QLOG_TRACE() << "OAuthManager::createHttpServer() entered";
-
-    // Create a new HTTP server.
-    m_http_server = new QHttpServer(this);
-
-    // Tell the server to ignore favicon requests, even though these
-    // should be disabled based on the HTML we are returning.
-    m_http_server->route("/favicon.ico",
-        [](const QHttpServerRequest& request, QHttpServerResponder& responder) {
-            Q_UNUSED(request);
-            Q_UNUSED(responder);
-            QLOG_TRACE() << "OAuth: ignoring favicon.ico request";
-        });
-
-    // Capture all unhandled requests for debugging.
-    m_http_server->setMissingHandler(this,
-        [](const QHttpServerRequest& request, QHttpServerResponder& responder) {
-            Q_UNUSED(responder);
-            QLOG_TRACE() << "OAuth: unhandled request:" << request.url().toString();
-        });
-
-    m_tcp_server = new QTcpServer(this);
-
-    if (!m_tcp_server->listen()) {
-        QLOG_ERROR() << "OAuth: cannot start tcp server";
-        m_tcp_server = nullptr;
-        m_http_server = nullptr;
+void OAuthManager::refreshAccess() {
+    QLOG_DEBUG() << "OAuth: refreshing access token";
+    if (m_token.refresh_token.isEmpty()) {
+        QLOG_ERROR() << "OAuth: cannot refresh access because the refresh token is empty";
         return;
     };
-
-    if (!m_http_server->bind(m_tcp_server)) {
-        QLOG_ERROR() << "OAuth: cannot bind http server to tcp server";
-        m_tcp_server = nullptr;
-        m_http_server = nullptr;
-        return;
+    if (activate()) {
+        m_oauth->refreshTokens();
     };
-
-}
-
-void OAuthManager::requestAuthorization(const QString& state, const QString& code_challenge) {
-    QLOG_TRACE() << "OAuthManager::requestAuthorization() entered";
-
-    // Create the authorization query.
-    const QUrlQuery query = Util::EncodeQueryItems({
-        {"client_id", CLIENT_ID},
-        {"response_type", "code"},
-        {"scope", SCOPE},
-        {"state", state},
-        {"redirect_uri", m_redirect_uri},
-        {"code_challenge", code_challenge},
-        {"code_challenge_method", "S256"} });
-
-    // Prepare the url.
-    QUrl authorization_url(AUTHORIZE_URL);
-    authorization_url.setQuery(query);
-
-    // Make sure the state is passed to the function that receives the authorization response.
-    m_http_server->route(REDIRECT_PATH,
-        [=](const QHttpServerRequest& request) {
-            return receiveAuthorization(request, state);
-        });
-
-    // Use the user's browser to open the authorization url.
-    QLOG_TRACE() << "OAuthManager::requestAuthorization() opening url";
-    QDesktopServices::openUrl(authorization_url);
-}
-
-QString OAuthManager::authorizationError(const QString& message) {
-    QLOG_ERROR() << "OAuth: authorization error:" << message;
-    return ERROR_HTML.arg(message);
-}
-
-QString OAuthManager::receiveAuthorization(const QHttpServerRequest& request, const QString& state) {
-    QLOG_TRACE() << "OAuthManager::receiveAuthorization() entered";
-
-    // Shut the server down now that an access token response has been received.
-    // Don't do it immediately in case the browser wants to request a favicon, even
-    // though I've tried to disable that by including icon links in HTML.
-    QTimer::singleShot(1000, this,
-        [=]() {
-            m_http_server = nullptr;
-        });
-
-    const QUrlQuery& query = request.query();
-
-    // Check for errors.
-    if (query.hasQueryItem("error")) {
-        QString error_message = query.queryItemValue("error");
-        const QString error_desription = query.queryItemValue("error_description");
-        const QString error_uri = query.queryItemValue("error_uri");
-        if (error_desription.isEmpty() == false) {
-            error_message += " : " + error_desription;
-        };
-        if (error_uri.isEmpty() == false) {
-            error_message += " : " + error_uri;
-        };
-        return authorizationError(error_message);
-    };
-
-    const QString auth_code = query.queryItemValue("code");
-    const QString auth_state = query.queryItemValue("state");
-
-    // Make sure the code and state look valid.
-    if (auth_code.isEmpty()) {
-        return authorizationError("Invalid authorization response: 'code' is missing.");
-    };
-    if (auth_state.isEmpty()) {
-        return authorizationError("Invalid authorization response: 'state' is missing.");
-    };
-    if (auth_state != state) {
-        return authorizationError("Invalid authorization repsonse: 'state' is invalid!");
-    };
-
-    // Use the code to request an access token.
-    requestToken(auth_code);
-
-    // Update the user.
-    return SUCCESS_HTML;
 };
 
-void OAuthManager::requestToken(const QString& code) {
-    QLOG_TRACE() << "OAuthManager::requestToken() entered";
+bool OAuthManager::activate() {
 
-    QNetworkRequest request;
-    request.setUrl(QUrl(TOKEN_URL));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-    request.setHeader(QNetworkRequest::UserAgentHeader, USER_AGENT);
-
-    const QUrlQuery query = Util::EncodeQueryItems({
-        {"client_id", CLIENT_ID},
-        {"grant_type", "authorization_code"},
-        {"code", code},
-        {"redirect_uri", m_redirect_uri},
-        {"scope", SCOPE},
-        {"code_verifier", m_code_verifier} });
-    const QByteArray data = query.toString(QUrl::FullyEncoded).toUtf8();
-    QNetworkReply* reply = m_network_manager.post(request, data);
-
-    connect(reply, &QNetworkReply::finished, this,
-        [=]() {
-            receiveToken(reply);
-            reply->deleteLater();
-        });
-    connect(reply, &QNetworkReply::errorOccurred, this,
-        [=]() {
-            QLOG_ERROR() << "Error requesting OAuth access token:" << reply->errorString();
-            reply->deleteLater();
-        });
-}
-
-void OAuthManager::receiveToken(QNetworkReply* reply) {
-    QLOG_TRACE() << "OAuthManager::receiveToken() entered";
-
-    if (reply->error() != QNetworkReply::NoError) {
-        QLOG_ERROR() << "OAuth: http error"
-            << reply->attribute(QNetworkRequest::HttpStatusCodeAttribute) << ":"
-            << reply->attribute(QNetworkRequest::HttpReasonPhraseAttribute);
-        return;
+    if (m_handler_port > -1) {
+        QLOG_WARN() << "OAuth: handler port is non-negative:" << m_handler_port;
     };
 
-    // Parse the token and emit it.
-    QLOG_TRACE() << "OAuthManager::receiveToken() parsing OAuth access token";
-    m_token = OAuthToken(reply);
+    auto handler = new QOAuthHttpServerReplyHandler(0, this);
+    handler->setCallbackPath(REDIRECT_PATH);
+    handler->setCallbackText(SUCCESS_HTML);
 
-    if (m_remember_token) {
-        QLOG_TRACE() << "OAuthManager::receiveToken() saving token to data store";
-        m_datastore.Set("oauth_token", QString::fromStdString(JS::serializeStruct(m_token)));
-    } else {
-        QLOG_TRACE() << "OAuthManager::receiveToken() removing token from data store";
-        m_datastore.Set("oauth_token", "");
+    connect(handler, &QOAuthHttpServerReplyHandler::tokensReceived, this,
+        [=](const QVariantMap& tokens) {
+            QLOG_DEBUG() << "OAuth: the handler has received tokens";
+            m_token = OAuthToken(tokens);
+            handler->close();
+            handler->deleteLater();
+            m_oauth->setReplyHandler(nullptr);
+            m_handler_port = -1;
+        });
+
+    connect(handler, &QAbstractOAuthReplyHandler::tokenRequestErrorOccurred,
+        [=](QAbstractOAuth::Error error, const QString& errorString) {
+            QLOG_ERROR() << "OAuth: token request error" << QString::number(int(error)) + ":" << errorString;
+            handler->close();
+            handler->deleteLater();
+            m_oauth->setReplyHandler(nullptr);
+            m_handler_port = -1;
+        });
+
+    if (!handler->isListening()) {
+        QLOG_ERROR() << "OAuth: unable to start the reply handler";
+        handler->deleteLater();
+        m_handler_port = -1;
+        return false;
     };
 
-    emit accessGranted(m_token);
-
-    // Setup the refresh timer.
-    setRefreshTimer();
-
-    // Make sure to dispose of the reply.
-    reply->deleteLater();
+    m_oauth->setReplyHandler(handler);
+    m_handler_port = handler->port();
+    QLOG_DEBUG() << "OAuth: reply handler is listening on port" << m_handler_port;
+    return true;
 }
 
-void OAuthManager::requestRefresh() {
-    QLOG_INFO() << "OAuth: attempting to refresh the access token";
+void OAuthManager::fixParameters(QAbstractOAuth::Stage stage, QMultiMap<QString, QVariant>* parameters) {
+    if (stage == QAbstractOAuth::Stage::RequestingAuthorization) {
+        // Qt uses "loopback" but GGG requires that acquisition use "127.0.0.1"
+        QUrl url(REDIRECT_URL);
+        url.setPort(m_handler_port);
+        url.setPath(REDIRECT_PATH);
+        QLOG_DEBUG() << "OAuth: replacing redirect_uri with" << url.toDisplayString();
+        parameters->replace("redirect_uri", url);
+    }
+    else if (stage == QAbstractOAuth::Stage::RefreshingAccessToken) {
+        // Qt inserts a client secret, but GGG's oauth implementation
+        // doesn't like this.
+        if (parameters->contains("client_secret")) {
+            QLOG_DEBUG() << "OAuth: removing client secret from refresh parameters";
+            parameters->remove("client_secret");
+        };
+    };
+    if (QsLogging::Logger::instance().loggingLevel() >= QsLogging::DebugLevel) {
+        for (const auto& key : parameters->keys()) {
+            QLOG_DEBUG() << "OAuth: stage" << int(stage) << "parameter:" << key << "=" << parameters->value(key);
+        };
+    };
+}
 
-    // Setup the refresh query.
-    const QUrlQuery query = Util::EncodeQueryItems({
-        {"client_id", CLIENT_ID},
-        {"grant_type", "refresh_token"},
-        {"refresh_token", m_token.refresh_token} });
-    const QByteArray data = query.toString(QUrl::FullyEncoded).toUtf8();
+void OAuthManager::logRequestFailure(const QAbstractOAuth::Error error) {
+    QString message;
+    switch (error) {
+    case QAbstractOAuth::Error::NoError:
+        message = "No error has ocurred.";
+        break;
+    case QAbstractOAuth::Error::NetworkError:
+        message = "Failed to connect to the server.";
+        break;
+    case QAbstractOAuth::Error::ServerError:
+        message = "The server answered the request with an error, or its response was not successfully received(for example, due to a state mismatch).";
+        break;
+    case QAbstractOAuth::Error::OAuthTokenNotFoundError:
+        message = "The server's response to a token request provided no token identifier.";
+        break;
+    case QAbstractOAuth::Error::OAuthTokenSecretNotFoundError:
+        message = "The server's response to a token request provided no token secret.";
+        break;
+    case QAbstractOAuth::Error::OAuthCallbackNotVerified:
+        message = "The authorization server has not verified the supplied callback URI in the request.This usually happens when the provided callback does not match with the callback supplied during client registration.";
+        break;
+    case QAbstractOAuth::Error::ClientError:
+        message = "An error that is attributable to the client application(e.g.missing configuration or attempting a request in a state where it's not allowed). Currently used by QOAuth2DeviceAuthorizationFlow.";
+        break;
+    case QAbstractOAuth::Error::ExpiredError:
+        message = "A token has expired.Currently used by QOAuth2DeviceAuthorizationFlow.";
+        break;
+    default:
+        message = "An unknown OAuth error occured (" + QString::number(int(error)) + ")";
+        break;
+    };
+    QLOG_ERROR() << "OAuth: request failed:" << message;
+}
 
-    // Make and submit the POST request.
-    QNetworkRequest request;
-    request.setUrl(QUrl(TOKEN_URL));
-    request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-    request.setHeader(QNetworkRequest::UserAgentHeader, USER_AGENT);
-    QNetworkReply* reply = m_network_manager.post(request, data);
-
-    connect(reply, &QNetworkReply::finished, this,
-        [=]() {
-            // Update the user again after the token has been received.
-            receiveToken(reply);
-            reply->deleteLater();
-            QLOG_INFO() << "OAuth: the oauth token has been refreshed";
-        });
-
-    connect(reply, &QNetworkReply::errorOccurred, this,
-        [=]() {
-            reply->deleteLater();
-            const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-            const auto reason = reply->attribute(QNetworkRequest::HttpReasonPhraseAttribute).toString();
-            QLOG_ERROR() << "OAuth: network error" << status << "refreshing token:" << reason;
-        });
+void OAuthManager::logServerError(const QString& error, const QString& errorDescription, const QUrl& uri) {
+    const QString message = QString("%1: %2 (%3)").arg(error, errorDescription, uri.toDisplayString());
+    QLOG_ERROR() << "OAuth: server error:" << message;
 }
 
 void OAuthManager::showStatus() {
-    QLOG_TRACE() << "OAuthManager::showStatus() entered";
+    QLOG_TRACE() << "OAuth: preparing status dialog";
 
     QMessageBox* msgBox = new QMessageBox;
     msgBox->setWindowTitle("OAuth Status - " APP_NAME " - OAuth Token Status");
@@ -409,17 +234,21 @@ void OAuthManager::showStatus() {
 
     if (m_token.access_expiration && m_token.refresh_expiration) {
         if (now < m_token.access_expiration.value_or(QDateTime())) {
-            const QDateTime refresh_time = now.addMSecs(m_refresh_timer.remainingTime());
-            const QString refresh_timestamp = refresh_time.toString("MMM d 'at' h:m ap");
-            message.append("This token will be automatically refreshed on " + refresh_timestamp);
-        } else if (now < m_token.refresh_expiration) {
-                message.append("This token needs to be refreshed now");
-            } else {
-                message.append("No valid token. You are not authenticated.");
-            };
-    } else {
+            //const QDateTime refresh_time = now.addMSecs(m_refresh_timer.remainingTime());
+            //const QString refresh_timestamp = refresh_time.toString("MMM d 'at' h:m ap");
+            //message.append("This token will be automatically refreshed on " + refresh_timestamp);
+        }
+        else if (now < m_token.refresh_expiration) {
+            message.append("This token needs to be refreshed now");
+        }
+        else {
+            message.append("No valid token. You are not authenticated.");
+        };
+    }
+    else {
         message.append("The token's expiration dates are missing");
     };
+    QLOG_TRACE() << "OAuth: status:" << message.join("; ");
     msgBox->setText(message.join("\n\n"));
     msgBox->show();
     msgBox->raise();

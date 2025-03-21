@@ -83,9 +83,9 @@ if(WIN32)
 
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui HttpServer Network Sql Test WebSockets Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Test Widgets)
 
-qt_standard_project_setup(REQUIRES 6.8.0)
+qt_standard_project_setup(REQUIRES 6.9)
 
 qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     # Source
@@ -288,12 +288,11 @@ target_link_libraries(acquisition PRIVATE
     # Qt libraries
     Qt::Core
     Qt::Gui
-    Qt::HttpServer
     Qt::Network
+    Qt::NetworkAuth
     Qt::Widgets
     Qt::Sql
     Qt::Test
-    Qt::WebSockets
     # Extenal libraries
     boost-headers-only
     Crashpad

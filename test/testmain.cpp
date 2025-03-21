@@ -70,7 +70,7 @@ int TestHelper::run(QNetworkAccessManager& network_manager, RePoE& repoe) {
     std::unique_ptr<DataStore> datastore = std::make_unique<MemoryDataStore>();
 
     QSettings settings(tmp->fileName(), QSettings::IniFormat);
-    OAuthManager oauth_manager(network_manager, *datastore);
+    OAuthManager oauth_manager(network_manager);
     RateLimiter rate_limiter(network_manager, oauth_manager, POE_API::LEGACY);
     BuyoutManager buyout_manager(*datastore);
     ItemsManager items_manager(settings, network_manager, repoe, buyout_manager, *datastore, rate_limiter);

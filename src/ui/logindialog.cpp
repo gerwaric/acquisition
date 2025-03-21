@@ -135,9 +135,6 @@ LoginDialog::LoginDialog(
     // Set the proxy.
     QNetworkProxyFactory::setUseSystemConfiguration(ui->proxyCheckBox->isChecked());
 
-    // Let the oath manager know about the remember me selection.
-    m_oauth_manager.RememberToken(ui->rememberMeCheckBox->isChecked());
-
     // Determine which options to show.
     const bool hide_options = ui->loginTabs->currentWidget() == ui->offlineTab;
     const bool hide_advanced = !ui->advancedCheckBox->isChecked();
@@ -162,16 +159,19 @@ LoginDialog::LoginDialog(
     connect(ui->themeComboBox, &QComboBox::currentTextChanged, this, &LoginDialog::OnThemeChanged);
 
     // Listen for access from the OAuth manager.
-    connect(&m_oauth_manager, &OAuthManager::accessGranted, this, &LoginDialog::OnOAuthAccessGranted);
+    connect(&m_oauth_manager, &OAuthManager::grant, this, &LoginDialog::OnOAuthAccessGranted);
 
     // Load the OAuth token if one is already present.
-    const QDateTime now = QDateTime::currentDateTime();
-    const OAuthToken& token = m_oauth_manager.token();
-    if (token.access_expiration && (now < *token.access_expiration)) {
-        QLOG_TRACE() << "LoginDialog::LoginDialog() found a valid OAuth token";
-        OnOAuthAccessGranted(m_oauth_manager.token());
-    } else if (token.refresh_expiration && (now < *token.refresh_expiration)) {
-        QLOG_INFO() << "LoginDialog:LoginDialog() the OAuth token needs to be refreshed";
+    if (ui->rememberMeCheckBox->isChecked()) {
+        const QDateTime now = QDateTime::currentDateTime();
+        const OAuthToken& token = m_oauth_manager.token();
+        if (token.access_expiration && (now < *token.access_expiration)) {
+            QLOG_TRACE() << "LoginDialog::LoginDialog() found a valid OAuth token";
+            OnOAuthAccessGranted(m_oauth_manager.token());
+        }
+        else if (token.refresh_expiration && (now < *token.refresh_expiration)) {
+            QLOG_INFO() << "LoginDialog:LoginDialog() the OAuth token needs to be refreshed";
+        };
     };
 
     // Request the list of leagues.
@@ -551,7 +551,6 @@ void LoginDialog::OnProxyCheckBoxChanged(Qt::CheckState state) {
 void LoginDialog::OnRememberMeCheckBoxChanged(Qt::CheckState state) {
     QLOG_TRACE() << "LoginDialog: remember me checkbox changed to" << state;
     const bool checked = (state == Qt::Checked);
-    m_oauth_manager.RememberToken(checked);
     m_settings.setValue("remember_user", checked);
 }
 

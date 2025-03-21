@@ -34,6 +34,21 @@ OAuthToken::OAuthToken(const QString& json)
     Util::parseJson<OAuthToken>(json, *this);
 }
 
+OAuthToken::OAuthToken(const QVariantMap& tokens)
+{
+    // Ignore the "token_type" field Qt returns;
+    access_token = tokens["access_token"].toString().toUtf8();
+    expires_in = tokens["expires_in"].toInt();
+    scope = tokens["scope"].toString().toUtf8();
+    username = tokens["username"].toString().toUtf8();
+    sub = tokens["sub"].toString().toUtf8();
+    refresh_token = tokens["refresh_token"].toString().toUtf8();
+
+    birthday = QDateTime::currentDateTime();
+    access_expiration = birthday->addSecs(expires_in);
+    refresh_expiration = birthday->addDays(REFRESH_LIFETIME_DAYS);
+}
+
 OAuthToken::OAuthToken(QNetworkReply* reply)
 {
     const QByteArray bytes = reply->readAll();
@@ -46,4 +61,11 @@ OAuthToken::OAuthToken(QNetworkReply* reply)
     birthday = QDateTime::fromString(timestamp, Qt::RFC2822Date).toLocalTime();
     access_expiration = birthday->addSecs(expires_in);
     refresh_expiration = birthday->addDays(REFRESH_LIFETIME_DAYS);
+}
+
+bool OAuthToken::isValid() const {
+    if (access_token.isEmpty()) return false;
+    if (!birthday || !birthday->isValid()) return false;
+    if (!access_expiration || !access_expiration->isValid()) return false;
+    if (!refresh_expiration || !refresh_expiration->isValid()) return false;
 }
