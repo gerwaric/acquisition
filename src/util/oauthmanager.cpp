@@ -48,12 +48,17 @@ namespace {
 OAuthManager::OAuthManager(QNetworkAccessManager& network_manager) {
     QLOG_DEBUG() << "OAuth: setting up OAuth";
 
+    QSet<QByteArray> scope_tokens;
+    for (const auto& token : QByteArray(SCOPE).split(' ')) {
+        scope_tokens.insert(token);
+    };
+
     m_oauth = new QOAuth2AuthorizationCodeFlow(this);
     m_oauth->setNetworkAccessManager(&network_manager);
-    m_oauth->setAccessTokenUrl(QUrl(TOKEN_URL));
+    m_oauth->setTokenUrl(QUrl(TOKEN_URL));
     m_oauth->setAuthorizationUrl(QUrl(AUTHORIZE_URL));
     m_oauth->setClientIdentifier(CLIENT_ID);
-    m_oauth->setScope(SCOPE);
+    m_oauth->setRequestedScopeTokens(scope_tokens);
     m_oauth->setPkceMethod(QOAuth2AuthorizationCodeFlow::PkceMethod::S256);
     m_oauth->setNetworkRequestModifier(this,
         [](QNetworkRequest& request, QAbstractOAuth::Stage) {
