@@ -64,6 +64,7 @@ public:
         DataStore& datastore,
         ItemsManager& items_manager,
         BuyoutManager& buyout_manager);
+    void SetSessionId(const QString poesessid);
     void SetThread(const QStringList& threads);
     void SetAutoUpdate(bool update);
     void SetShopTemplate(const QString& shop_template);

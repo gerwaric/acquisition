@@ -109,6 +109,10 @@ Shop::Shop(
     m_tab_index = Util::parseJson<decltype(m_tab_index)>(data);
 }
 
+void Shop::SetSessionId(const QString poesessid) {
+    UpdateStashIndex();
+}
+
 void Shop::SetThread(const QStringList& threads) {
     if (m_submitting) {
         QLOG_WARN() << "Shop: cannot set thread(s) while submitting forum shops";
@@ -490,7 +494,8 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
                 : "(Failed to parse the error message)";
             QLOG_ERROR() << "Shop: error submitting shop thread:" << error_message;
             if (error_message.startsWith("Failed to find item.", Qt::CaseInsensitive)) {
-                QLOG_ERROR() << "Shop: you may need to refresh your tabs, or update the shop index";
+                QLOG_ERROR() << "Shop: You might need to refresh your tabs (Tabs -> Refresh All Tabs)";
+                QLOG_ERROR() << "Shop: You might need to update the web stash index (Shop -> Update website stash index)";
                 m_submitting = false;
                 return;
             };

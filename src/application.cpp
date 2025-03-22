@@ -83,7 +83,7 @@ void Application::InitUserDir(const QString& dir) {
     const QString global_data_file = user_dir.filePath(SqliteDataStore::MakeFilename("", ""));
     QLOG_TRACE() << "Application: opening global data file:" << global_data_file;
     m_global_data = std::make_unique<SqliteDataStore>(global_data_file);
-    
+
     const QString stored_token = m_global_data->Get("oauth_token");
     if (!stored_token.isEmpty()) {
         const OAuthToken token(stored_token);
@@ -338,6 +338,7 @@ void Application::SetSessionId(const QString& poesessid) {
     cookie.setDomain(POE_COOKIE_DOMAIN);
     m_network_manager->cookieJar()->insertCookie(cookie);
     m_settings->setValue("session_id", poesessid);
+    m_shop->SetSessionId(poesessid);
 }
 
 void Application::SetTheme(const QString& theme) {
