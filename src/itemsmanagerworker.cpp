@@ -328,6 +328,8 @@ void ItemsManagerWorker::RemoveUpdatingTabs(const std::set<QString>& tab_ids) {
                 };
                 break;
             };
+            // Remove items in this tab from the database, too
+            m_datastore.SetItems(tab, {});
         };
     };
     QLOG_DEBUG() << "Keeping" << m_tabs.size() << "tabs and culling" << (current_tabs.size() - m_tabs.size());
@@ -1249,9 +1251,10 @@ void ItemsManagerWorker::FinishUpdate() {
     } else if (m_characters_received > 0) {
         message = QString("Received %1 character locations").arg(
             QString::number(m_characters_received));
-    } else {
-        message = "Received nothing.";
     }
+    else {
+        message = "Received nothing.";
+    };
 
     emit StatusUpdate(ProgramState::Ready, message);
 
