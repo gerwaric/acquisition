@@ -68,4 +68,5 @@ bool OAuthToken::isValid() const {
     if (!birthday || !birthday->isValid()) return false;
     if (!access_expiration || !access_expiration->isValid()) return false;
     if (!refresh_expiration || !refresh_expiration->isValid()) return false;
+    return true;
 }

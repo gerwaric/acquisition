@@ -193,8 +193,7 @@ void Application::OnLogin(POE_API api) {
 
     m_main_window->prepare(
         *m_oauth_manager,
-        *m_currency_manager,
-        *m_shop);
+        *m_currency_manager);
 
     // Connect the update checker.
     connect(m_update_checker.get(), &UpdateChecker::UpdateAvailable, m_main_window.get(), &MainWindow::OnUpdateAvailable);
@@ -415,9 +414,9 @@ void Application::InitLogin(POE_API mode)
     const QString data_path = user_dir.absoluteFilePath(data_file);
     QLOG_TRACE() << "Application::InitLogin() data_path =" << data_path;
 
-	/*
-	 * DISABLED as of v0.12.4
-	 *
+    /*
+     * DISABLED as of v0.12.4
+     *
     const QString skip_buyout_version = m_settings->value(LegacyBuyoutValidator::SettingsKey).toString();
     if (0 == skip_buyout_version.compare(QStringLiteral(APP_VERSION_STRING), Qt::CaseInsensitive)) {
         QLOG_DEBUG() << "Applicaiton: skipping buyout validation because version is" << QStringLiteral(APP_VERSION_STRING);
@@ -428,7 +427,7 @@ void Application::InitLogin(POE_API mode)
             legacy.notifyUser();
         };
     };
-	*/
+    */
 
     m_data = std::make_unique<SqliteDataStore>(data_path);
     SaveDbOnNewVersion();
