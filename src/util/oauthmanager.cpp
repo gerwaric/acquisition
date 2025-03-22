@@ -156,20 +156,20 @@ void OAuthManager::fixParameters(QAbstractOAuth::Stage stage, QMultiMap<QString,
         QUrl url(REDIRECT_URL);
         url.setPort(m_handler_port);
         url.setPath(REDIRECT_PATH);
-        QLOG_DEBUG() << "OAuth: replacing redirect_uri with" << url.toDisplayString();
+        QLOG_TRACE() << "OAuth: replacing redirect_uri with" << url.toDisplayString();
         parameters->replace("redirect_uri", url);
     }
     else if (stage == QAbstractOAuth::Stage::RefreshingAccessToken) {
         // Qt inserts a client secret, but GGG's oauth implementation
         // doesn't like this.
         if (parameters->contains("client_secret")) {
-            QLOG_DEBUG() << "OAuth: removing client secret from refresh parameters";
+            QLOG_TRACE() << "OAuth: removing client secret from refresh parameters";
             parameters->remove("client_secret");
         };
     };
     if (QsLogging::Logger::instance().loggingLevel() >= QsLogging::DebugLevel) {
         for (const auto& key : parameters->keys()) {
-            QLOG_DEBUG() << "OAuth: stage" << int(stage) << "parameter:" << key << "=" << parameters->value(key);
+            QLOG_TRACE() << "OAuth: stage" << int(stage) << "parameter:" << key << "=" << parameters->value(key);
         };
     };
 }
@@ -214,7 +214,6 @@ void OAuthManager::logServerError(const QString& error, const QString& errorDesc
 }
 
 void OAuthManager::showStatus() {
-    QLOG_TRACE() << "OAuth: preparing status dialog";
 
     QMessageBox* msgBox = new QMessageBox;
     msgBox->setWindowTitle("OAuth Status - " APP_NAME " - OAuth Token Status");
