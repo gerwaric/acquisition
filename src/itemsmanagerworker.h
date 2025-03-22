@@ -156,6 +156,7 @@ private:
     bool m_updateRequest;
     TabSelection::Type m_type;
     std::vector<ItemLocation> m_locations;
+    std::set<ItemLocation> m_requested_locations;
 
     int m_queue_id;
     QString m_selected_character;
