@@ -389,14 +389,8 @@ QString Shop::ShopEditUrl(size_t idx) {
 }
 
 void Shop::SubmitSingleShop() {
-    QLOG_DEBUG() << "Shop: submitting a single shop.";
-    if (m_requests_completed == m_threads.size()) {
-        QLOG_INFO() << "Shop threads updated";
-        emit StatusUpdate(ProgramState::Ready, "Shop threads updated");
-        m_submitting = false;
-        m_datastore.Set("shop_hash", m_shop_hash);
-    } else {
-        QLOG_INFO() << "Shop: updating forum thread" << m_threads[m_requests_completed];
+    if (m_requests_completed < m_threads.size()) {
+        QLOG_INFO() << "Shop: preparing to edit forum thread" << m_requests_completed << ":" << m_threads[m_requests_completed];
         emit StatusUpdate(ProgramState::Ready,
             QString("Sending your shops to the forum, %1/%2")
             .arg(m_requests_completed)
@@ -408,11 +402,18 @@ void Shop::SubmitSingleShop() {
         request.setTransferTimeout(kEditThreadTimeout);
         QNetworkReply* fetched = m_network_manager.get(request);
         connect(fetched, &QNetworkReply::finished, this, &Shop::OnEditPageFinished);
+    } else if (m_requests_completed == m_threads.size()) {
+        QLOG_INFO() << "Shop: all forum threads updated.";
+        emit StatusUpdate(ProgramState::Ready, "Shop threads updated");
+        m_submitting = false;
+        m_datastore.Set("shop_hash", m_shop_hash);
+    } else {
+        QLOG_ERROR() << "Shop: forum thread" << m_requests_completed << "does not exist.";
     };
 }
 
 void Shop::OnEditPageFinished() {
-    QLOG_TRACE() << "Shop::OnEditPageFinished() entered";
+    QLOG_TRACE() << "Shop: edit page finished";
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
     const QByteArray bytes = reply->readAll();
     const QString hash = Util::GetCsrfToken(bytes, "hash");
@@ -449,6 +450,10 @@ void Shop::SubmitNextShop(const QString& title, const QString& hash)
     QLOG_DEBUG() << "Shop: submitting the next shop.";
 
     const QString content = m_requests_completed < m_shop_data.size() ? m_shop_data[m_requests_completed] : "Empty";
+
+    if (m_requests_completed >= m_shop_data.size()) {
+        QLOG_WARN() << "Shop: shop data for forum" << m_requests_completed << "does not exist";
+    };
 
     QUrlQuery query;
     query.addQueryItem("title", Util::Decode(title));
