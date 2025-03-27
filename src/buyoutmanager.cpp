@@ -52,19 +52,20 @@ BuyoutManager::~BuyoutManager() {
 
 void BuyoutManager::Set(const Item& item, const Buyout& buyout) {
     if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
-        QLOG_WARN() << "BuyoutManager::Set() obsolete 'current offer' buyout detected for" << item.PrettyName() << ":" << buyout.AsText();
+        QLOG_WARN() << "BuyoutManager: tried to set an obsolete 'current offer' buyout for" << item.PrettyName() << ":" << buyout.AsText();
     };
-    auto const& it = m_buyouts.lower_bound(item.hash());
-    if (it != m_buyouts.end() && !(m_buyouts.key_comp()(item.hash(), it->first))) {
-        // Entry exists - we don't want to update if buyout is equal to existing
+    auto const& it = m_buyouts.find(item.hash());
+    if (it != m_buyouts.end()) {
+        // The item hash is present, so check to see if the buyout has changed before saving
         if (buyout != it->second) {
             m_save_needed = true;
             it->second = buyout;
         };
     } else {
+        // The item hash is not present, so we need to save buyouts
         m_save_needed = true;
         m_buyouts[item.hash()] = buyout;
-    };
+    }
 }
 
 Buyout BuyoutManager::Get(const Item& item) const {
@@ -72,7 +73,7 @@ Buyout BuyoutManager::Get(const Item& item) const {
     if (it != m_buyouts.end()) {
         Buyout buyout = it->second;
         if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
-            QLOG_WARN() << "BuyoutManager::Get() obsolete 'current offer' buyout detected for" << item.PrettyName() << ":" << buyout.AsText();
+            QLOG_WARN() << "BuyoutManager: detected an obsolete 'current offer' buyout for" << item.PrettyName() << ":" << buyout.AsText();
         };
         return buyout;
     };
@@ -84,7 +85,7 @@ Buyout BuyoutManager::GetTab(const QString& tab) const {
     if (it != m_tab_buyouts.end()) {
         Buyout buyout = it->second;
         if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
-            QLOG_WARN() << "BuyoutManager::GetTab() obsolete 'current offer' buyout detected for" << tab << ":" << buyout.AsText();
+            QLOG_WARN() << "BuyoutManager: detected an obsolete 'current offer' tab buyout for" << tab << ":" << buyout.AsText();
         };
         return buyout;
     };
@@ -93,7 +94,7 @@ Buyout BuyoutManager::GetTab(const QString& tab) const {
 
 void BuyoutManager::SetTab(const QString& tab, const Buyout& buyout) {
     if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
-        QLOG_WARN() << "BuyoutManager::SetTab() obsolete 'current offer' buyout detected for" << tab << ":" << buyout.AsText();
+        QLOG_WARN() << "BuyoutManager: tried to set an obsolete 'current offer' tab buyout for" << tab << ":" << buyout.AsText();
     };
     auto const& it = m_tab_buyouts.lower_bound(tab);
     if (it != m_tab_buyouts.end() && !(m_tab_buyouts.key_comp()(tab, it->first))) {
@@ -113,8 +114,9 @@ void BuyoutManager::CompressTabBuyouts() {
     // This function is to remove buyouts associated with tab names that don't
     // currently exist.
     std::set<QString> tmp;
-    for (auto const& loc : m_tabs)
+    for (auto const& loc : m_tabs) {
         tmp.emplace(loc.GetUniqueHash());
+    };
 
     for (auto it = m_tab_buyouts.begin(), ite = m_tab_buyouts.end(); it != ite;) {
         if (tmp.count(it->first) == 0) {
@@ -198,9 +200,9 @@ QString BuyoutManager::Serialize(const std::map<QString, Buyout>& buyouts) {
         value.SetInt64(last_update);
         item.AddMember("last_update", value, alloc);
 
-        Util::RapidjsonAddConstString(&item, "type", buyout.BuyoutTypeAsTag(), alloc);
-        Util::RapidjsonAddConstString(&item, "currency", buyout.CurrencyAsTag(), alloc);
-        Util::RapidjsonAddConstString(&item, "source", buyout.BuyoutSourceAsTag(), alloc);
+        Util::RapidjsonAddString(&item, "type", buyout.BuyoutTypeAsTag(), alloc);
+        Util::RapidjsonAddString(&item, "currency", buyout.CurrencyAsTag(), alloc);
+        Util::RapidjsonAddString(&item, "source", buyout.BuyoutSourceAsTag(), alloc);
 
         item.AddMember("inherited", buyout.inherited, alloc);
 
