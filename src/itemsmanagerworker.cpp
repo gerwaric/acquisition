@@ -291,6 +291,7 @@ void ItemsManagerWorker::Update(TabSelection::Type type, const std::vector<ItemL
 
     m_has_stash_list = false;
     m_has_character_list = false;
+    m_requested_locations.clear();
 
     switch (m_mode) {
     case POE_API::LEGACY: LegacyRefresh(); break;
@@ -906,6 +907,7 @@ void ItemsManagerWorker::QueueRequest(const QString& endpoint, const QNetworkReq
     items_request.id = m_queue_id++;
     items_request.location = location;
     m_queue.push(items_request);
+    m_requested_locations.insert(location);
 }
 
 void ItemsManagerWorker::FetchItems() {
@@ -1254,6 +1256,11 @@ void ItemsManagerWorker::FinishUpdate() {
     }
 
     emit StatusUpdate(ProgramState::Ready, message);
+
+    // Clear out all requested locations before updating them with the new items.
+    for (const auto& location : m_requested_locations) {
+        m_datastore.SetItems(location, {});
+    };
 
     // Sort tabs.
     std::sort(begin(m_tabs), end(m_tabs));
