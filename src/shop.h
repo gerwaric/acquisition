@@ -101,6 +101,7 @@ private:
     QStringList m_shop_data;
     QString m_shop_hash;
     QString m_shop_template;
+    bool m_initialized;
     bool m_shop_data_outdated;
     bool m_auto_update;
     bool m_submitting;
