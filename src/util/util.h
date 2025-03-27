@@ -95,9 +95,7 @@ namespace Util {
     QString RapidjsonSerialize(const rapidjson::Value& val);
     QString RapidjsonPretty(const rapidjson::Value& val);
     void RapidjsonAddString(rapidjson::Value* object, const char* const name, const QString& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
-    void RapidjsonAddConstString(rapidjson::Value* object, const char* const name, const QString& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
     void RapidjsonAddInt64(rapidjson::Value* object, const char* const name, qint64 value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc);
-
 
     void GetTabColor(rapidjson::Value& json, int& r, int& g, int& b);
 
@@ -109,7 +107,7 @@ namespace Util {
             MatchMod("+# to Life", "+12.3 to Life", &result);
         Will return true if matches and save average value to output.
     */
-    bool MatchMod(const char* match, const char* mod, double* output);
+    bool MatchMod(const char* const match, const char* const mod, double* output);
 
     QString Capitalise(const QString& str);
 
@@ -118,8 +116,6 @@ namespace Util {
     QString Decode(const QString& entity);
 
     QUrlQuery EncodeQueryItems(const std::vector<std::pair<QString, QString>>& items);
-
-    void unique_elements(std::vector<QString>& vec);
 
     QByteArray FixTimezone(const QByteArray& rfc2822_date);
 

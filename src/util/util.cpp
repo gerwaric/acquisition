@@ -75,15 +75,17 @@ QString Util::LogLevelToText(QsLogging::Level level) {
 };
 
 QString Util::Md5(const QString& value) {
-    QString hash = QString(QCryptographicHash::hash(value.toStdString().c_str(), QCryptographicHash::Md5).toHex());
+    const QString hash = QString(QCryptographicHash::hash(value.toStdString().c_str(), QCryptographicHash::Md5).toHex());
     return hash.toUtf8().constData();
 }
 
 double Util::AverageDamage(const QString& s) {
-    QStringList parts = s.split("-");
-    if (parts.size() < 2)
+    const QStringList parts = s.split("-");
+    if (parts.size() < 2) {
         return s.toDouble();
-    return (parts[0].toDouble() + parts[1].toDouble()) / 2;
+    } else {
+        return (parts[0].toDouble() + parts[1].toDouble()) / 2;
+    };
 }
 
 void Util::PopulateBuyoutTypeComboBox(QComboBox* combobox) {
@@ -92,8 +94,9 @@ void Util::PopulateBuyoutTypeComboBox(QComboBox* combobox) {
 }
 
 void Util::PopulateBuyoutCurrencyComboBox(QComboBox* combobox) {
-    for (auto type : Currency::Types())
+    for (auto type : Currency::Types()) {
         combobox->addItem(QString(Currency(type).AsString()));
+    };
 }
 
 constexpr std::array width_strings = {
@@ -113,9 +116,10 @@ int Util::TextWidth(TextWidthId id) {
         result.resize(width_strings.size());
         QLineEdit textbox;
         QFontMetrics fm(textbox.fontMetrics());
-        for (size_t i = 0; i < width_strings.size(); ++i)
+        for (size_t i = 0; i < width_strings.size(); ++i) {
             result[i] = fm.horizontalAdvance(width_strings[i]);
-    }
+        };
+    };
     return result[static_cast<int>(id)];
 }
 
@@ -138,7 +142,7 @@ QString Util::GetCsrfToken(const QByteArray& page, const QString& name) {
 				\s+
 			)?
 			value="(.*?)"
-		)regex").arg(name);
+		)regex").simplified().arg(name);
     static const QRegularExpression re(expr,
         QRegularExpression::CaseInsensitiveOption |
         QRegularExpression::MultilineOption |
@@ -149,12 +153,14 @@ QString Util::GetCsrfToken(const QByteArray& page, const QString& name) {
 }
 
 QString Util::FindTextBetween(const QString& page, const QString& left, const QString& right) {
-    std::string s = page.toStdString();
-    size_t first = s.find(left.toStdString());
-    size_t last = s.find(right.toStdString(), first);
-    if (first == std::string::npos || last == std::string::npos || first > last)
+    const std::string s = page.toStdString();
+    const size_t first = s.find(left.toStdString());
+    const size_t last = s.find(right.toStdString(), first);
+    if ((first == std::string::npos) || (last == std::string::npos) || (first > last)) {
         return "";
-    return QString::fromStdString(s.substr(first + left.size(), last - first - left.size()));
+    } else {
+        return QString::fromStdString(s.substr(first + left.size(), last - first - left.size()));
+    };
 }
 
 QString Util::RapidjsonSerialize(const rapidjson::Value& val) {
@@ -172,52 +178,37 @@ QString Util::RapidjsonPretty(const rapidjson::Value& val) {
 }
 
 void Util::RapidjsonAddString(rapidjson::Value* object, const char* const name, const QString& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc) {
-    rapidjson::Value rjson_name;
-    rjson_name.SetString(name, rapidjson::SizeType(strlen(name)), alloc);
-    rapidjson::Value rjson_val;
-    rjson_val.SetString(value.toStdString().c_str(), rapidjson::SizeType(value.size()), alloc);
-    object->AddMember(rjson_name, rjson_val, alloc);
-}
-
-void Util::RapidjsonAddConstString(rapidjson::Value* object, const char* const name, const QString& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc) {
-    rapidjson::Value rjson_name;
-    rjson_name.SetString(name, rapidjson::SizeType(strlen(name)));
-    rapidjson::Value rjson_val;
-    rjson_val.SetString(value.toStdString().c_str(), rapidjson::SizeType(value.size()));
+    const QByteArray bytes = value.toUtf8();
+    rapidjson::Value rjson_name(name, strlen(name), alloc);
+    rapidjson::Value rjson_val(bytes.constData(), bytes.length(), alloc);
     object->AddMember(rjson_name, rjson_val, alloc);
 }
 
 void Util::RapidjsonAddInt64(rapidjson::Value* object, const char* const name, qint64 value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc) {
-    rapidjson::Value rjson_name;
-    rjson_name.SetString(name, rapidjson::SizeType(strlen(name)));
-    rapidjson::Value rjson_val;
-    rjson_val.SetInt64(value);
+    rapidjson::Value rjson_name(name, strlen(name), alloc);
+    rapidjson::Value rjson_val(value);
     object->AddMember(rjson_name, rjson_val, alloc);
 }
 
 void Util::GetTabColor(rapidjson::Value& json, int& r, int& g, int& b) {
 
-    using rapidjson::HasObject;
-    using rapidjson::HasInt;
-    using rapidjson::HasString;
-
     r = 0;
     g = 0;
     b = 0;
 
-    if (HasObject(json, "colour")) {
+    if (rapidjson::HasObject(json, "colour")) {
 
         // Tabs retrieved with the legacy api will have a "colour" field.
         const auto& colour = json["colour"];
-        if (HasInt(colour, "r")) { r = colour["r"].GetInt(); };
-        if (HasInt(colour, "g")) { g = colour["g"].GetInt(); };
-        if (HasInt(colour, "b")) { b = colour["b"].GetInt(); };
+        if (rapidjson::HasInt(colour, "r")) { r = colour["r"].GetInt(); };
+        if (rapidjson::HasInt(colour, "g")) { g = colour["g"].GetInt(); };
+        if (rapidjson::HasInt(colour, "b")) { b = colour["b"].GetInt(); };
 
-    } else if (HasObject(json, "metadata")) {
+    } else if (rapidjson::HasObject(json, "metadata")) {
 
         // Tabs retrieved with the OAuth api have a "metadata" field that may have a colour.
         const auto& metadata = json["metadata"];
-        if (HasString(metadata, "colour")) {
+        if (rapidjson::HasString(metadata, "colour")) {
 
             // The colour field is supposed to be a 6-character string, but it some really old
             // tabs it's only 4 characters or 2 characters, and GGG has confirmed that in these
@@ -252,15 +243,16 @@ QString Util::StringReplace(const QString& haystack, const QString& needle, cons
     std::string out = haystack.toStdString();
     for (size_t pos = 0; ; pos += replace.length()) {
         pos = out.find(needle.toStdString(), pos);
-        if (pos == std::string::npos)
+        if (pos == std::string::npos) {
             break;
+        };
         out.erase(pos, needle.length());
         out.insert(pos, replace.toStdString());
-    }
+    };
     return QString::fromStdString(out);
 }
 
-bool Util::MatchMod(const char* match, const char* mod, double* output) {
+bool Util::MatchMod(const char* const match, const char* const mod, double* output) {
     double result = 0.0;
     auto pmatch = match;
     auto pmod = mod;
@@ -294,42 +286,53 @@ QString Util::Capitalise(const QString& str) {
 }
 
 QString Util::TimeAgoInWords(const QDateTime& buyout_time) {
-    QDateTime current_date = QDateTime::currentDateTime();
-    qint64 secs = buyout_time.secsTo(current_date);
-    qint64 days = secs / 60 / 60 / 24;
-    qint64 hours = (secs / 60 / 60) % 24;
-    qint64 minutes = (secs / 60) % 60;
+    const QDateTime current_date = QDateTime::currentDateTime();
+    const qint64 secs = buyout_time.secsTo(current_date);
+    const qint64 days = secs / 60 / 60 / 24;
+    const qint64 hours = (secs / 60 / 60) % 24;
+    const qint64 minutes = (secs / 60) % 60;
 
     // YEARS
     if (days > 365) {
         int years = (days / 365);
-        if (days % 365 != 0)
+        if (days % 365 != 0) {
             years++;
+        };
         return QString("%1 %2 ago").arg(years).arg(years == 1 ? "year" : "years");
-    }
+    };
+
     // MONTHS
     if (days > 30) {
         int months = (days / 365);
-        if (days % 30 != 0)
+        if (days % 30 != 0) {
             months++;
+        };
         return QString("%1 %2 ago").arg(months).arg(months == 1 ? "month" : "months");
-        // DAYS
-    } else if (days > 0) {
+    };
+    
+    // DAYS
+    if (days > 0) {
         return QString("%1 %2 ago").arg(days).arg(days == 1 ? "day" : "days");
-        // HOURS
-    } else if (hours > 0) {
+    };
+    
+    // HOURS
+    if (hours > 0) {
         return QString("%1 %2 ago").arg(hours).arg(hours == 1 ? "hour" : "hours");
-        //MINUTES
-    } else if (minutes > 0) {
+    };
+    
+    //MINUTES
+    if (minutes > 0) {
         return QString("%1 %2 ago").arg(minutes).arg(minutes == 1 ? "minute" : "minutes");
-        // SECONDS
-    } else if (secs > 5) {
+    };
+    
+    // SECONDS
+    if (secs > 5) {
         return QString("%1 %2 ago").arg(secs).arg("seconds");
     } else if (secs < 5) {
         return QString("just now");
-    } else {
-        return "";
-    }
+    };
+
+    return "";
 }
 
 QString Util::Decode(const QString& entity) {
@@ -350,12 +353,12 @@ QUrlQuery Util::EncodeQueryItems(const std::vector<std::pair<QString, QString>>&
 }
 
 QColor Util::recommendedForegroundTextColor(const QColor& backgroundColor) {
-    float R = (float)backgroundColor.red() / 255.0f;
-    float G = (float)backgroundColor.green() / 255.0f;
-    float B = (float)backgroundColor.blue() / 255.0f;
+    const float R = (float)backgroundColor.red() / 255.0f;
+    const float G = (float)backgroundColor.green() / 255.0f;
+    const float B = (float)backgroundColor.blue() / 255.0f;
 
     const float gamma = 2.2f;
-    float L = 0.2126f * pow(R, gamma)
+    const float L = 0.2126f * pow(R, gamma)
         + 0.7152f * pow(G, gamma)
         + 0.0722f * pow(B, gamma);
 
