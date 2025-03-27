@@ -129,8 +129,8 @@ void checkRuntimeVersion(const QStringList& libraries)
 	if (required_version.isNull()) {
         FatalError("Unable to parse MSVC runtime version form build constants");
     };
-	QLOG_DEBUG() << "MSVC runtime build version:" << build_version.toString();
-	QLOG_DEBUG() << "MSVC runtime minimum version:" << required_version.toString();
+	QLOG_DEBUG() << "Application built with MSVC runtime version:" << build_version.toString();
+	QLOG_DEBUG() << "Application requires MSVC runtime version:" << required_version.toString();
 
     for (const auto& lib : libraries) {
         
@@ -140,9 +140,7 @@ void checkRuntimeVersion(const QStringList& libraries)
         };
         QLOG_TRACE() << "Found" << lib << "version" << lib_version;
 
-		if ((lib_version.majorVersion() < required_version.majorVersion()) ||
-			(lib_version.minorVersion() < required_version.minorVersion()))
-        {
+		if (lib_version < required_version) {
             QLOG_ERROR() << "Found" << lib
                 << "version" << lib_version.toString()
 				<< "but build version is" << required_version.toString();
