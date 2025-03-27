@@ -186,7 +186,7 @@ void Util::RapidjsonAddString(rapidjson::Value* object, const char* const name, 
 
 void Util::RapidjsonAddInt64(rapidjson::Value* object, const char* const name, qint64 value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc) {
     rapidjson::Value rjson_name(name, strlen(name), alloc);
-    rapidjson::Value rjson_val(value);
+    rapidjson::Value rjson_val(static_cast<int64_t>(value));
     object->AddMember(rjson_name, rjson_val, alloc);
 }
 
