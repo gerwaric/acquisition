@@ -385,7 +385,8 @@ elseif(APPLE)
     
 elseif(UNIX)
 
-    set(OPENSSL_ROOT_DIR ~/Development/Qt/Tools/OpenSSLv3/src)
+    # If you install Qt's OpenSSL toolkit via the Qt Maintenance Tool, this should work.
+    set(OPENSSL_ROOT_DIR "${Qt6_DIR}/../../../../../Tools/OpenSSLv3/src")
 
     find_package(OpenSSL REQUIRED)
 
