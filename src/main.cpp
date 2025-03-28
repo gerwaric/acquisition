@@ -32,15 +32,12 @@
 
 #include <clocale>
 
-#include "util/crashpad.h"
 #include "util/fatalerror.h"
 #include "util/util.h"
 
 #ifdef Q_OS_WINDOWS
 #include "util/checkmsvc.h"
 #endif
-
-#include "legacy/legacybuyoutvalidator.h"
 
 #include "application.h"
 #include "shop.h"

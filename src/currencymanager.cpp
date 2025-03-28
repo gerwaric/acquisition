@@ -50,11 +50,11 @@ CurrencyManager::CurrencyManager(
         FirstInitCurrency();
         if (!m_data.Get("currency_base", "").isEmpty()) {
             MigrateCurrency();
-            QLOG_INFO() << "Found old currency values, migrated them to the new system";
+            QLOG_WARN() << "Found old currency values, migrated them to the new system";
         };
     } else {
         InitCurrency();
-    }
+    };
     const bool show_chaos = m_settings.value("show_chaos", false).toBool();
     const bool show_exalt = m_settings.value("show_exalt", false).toBool();
     m_dialog = std::make_shared<CurrencyDialog>(*this, show_chaos, show_exalt);
@@ -162,7 +162,7 @@ QString CurrencyManager::Serialize(const std::vector<std::shared_ptr<CurrencyIte
         item.AddMember("count", curr->count, alloc);
         item.AddMember("chaos_ratio", curr->chaos.value1, alloc);
         item.AddMember("exalt_ratio", curr->exalt.value1, alloc);
-        Util::RapidjsonAddConstString(&item, "currency", curr->currency.AsTag(), alloc);
+        Util::RapidjsonAddString(&item, "currency", curr->currency.AsTag(), alloc);
         rapidjson::Value name(curr->name.toStdString().c_str(), alloc);
         doc.AddMember(name, item, alloc);
     };

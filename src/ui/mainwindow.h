@@ -84,8 +84,7 @@ public:
 
     void prepare(
         OAuthManager& oauth_manager,
-        CurrencyManager& currency_manager,
-        Shop& shop);
+        CurrencyManager& currency_manager);
 
 signals:
     void UpdateCheckRequested();

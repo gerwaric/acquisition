@@ -61,7 +61,7 @@ struct LegacyDataStore {
     bool exportTgz(const QString& filename) const;
 
     bool isValid() const { return m_valid; };
-    int itemCount() const { return m_item_count; };
+    qint64 itemCount() const { return m_item_count; };
     const LegacyDataStore::DataTable& data() const { return m_data; };
     const LegacyDataStore::TabsTable& tabs() const { return m_tabs; };
     const LegacyDataStore::ItemsTable& items() const { return m_items; };
@@ -78,5 +78,5 @@ private:
     // IGNORE: LegacyDataStore::CurrencyTable currency;
 
     bool m_valid{ false };
-    size_t m_item_count{ 0 };
+    qint64 m_item_count{ 0 };
 };

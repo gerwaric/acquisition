@@ -29,14 +29,14 @@ cmake_minimum_required(VERSION 3.29)
 # version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
-    VERSION 0.12.4
+    VERSION 0.13.0
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
 )
 
 # Use this to define pre-releases
-set(version_postfix "-beta.1")
+set(version_postfix "-beta.2")
 
 # Variables used to generate version_defines.h and installer.iss
 set(version_code        63) # This doesn't need to be changed with the new update checks.
@@ -85,7 +85,7 @@ endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui HttpServer Network Sql Test WebSockets Widgets)
 
-qt_standard_project_setup(REQUIRES 6.8.0)
+qt_standard_project_setup(REQUIRES 6.8.3)
 
 qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     # Source
@@ -384,6 +384,9 @@ elseif(APPLE)
     )
     
 elseif(UNIX)
+
+    # If you install Qt's OpenSSL toolkit via the Qt Maintenance Tool, this should work.
+    set(OPENSSL_ROOT_DIR "${Qt6_DIR}/../../../../../Tools/OpenSSLv3/src")
 
     find_package(OpenSSL REQUIRED)
 

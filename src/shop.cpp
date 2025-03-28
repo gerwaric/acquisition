@@ -86,12 +86,13 @@ Shop::Shop(
     , m_datastore(datastore)
     , m_items_manager(items_manager)
     , m_buyout_manager(buyout_manager)
+    , m_initialized(false)
     , m_shop_data_outdated(true)
     , m_submitting(false)
     , m_indexing(false)
     , m_requests_completed(0)
 {
-    QLOG_TRACE() << "Shop: initializing";
+    QLOG_DEBUG() << "Shop: initializing";
     m_threads = m_datastore.Get("shop").split(";");
     m_auto_update = m_settings.value("shop_autoupdate").toBool();
     m_shop_template = m_datastore.Get("shop_template");
@@ -104,10 +105,11 @@ Shop::Shop(
 }
 
 void Shop::SetThread(const QStringList& threads) {
-    QLOG_DEBUG() << "Shop: setting thread(s) to" << threads.join(";");
     if (m_submitting) {
+        QLOG_WARN() << "Shop: cannot set shop threads: shop is still updating";
         return;
     };
+    QLOG_DEBUG() << "Shop: setting" << threads.size() << "thread(s) to" << threads.join(";");
     m_threads = threads;
     m_datastore.Set("shop", threads.join(";"));
     ExpireShopData();
@@ -128,7 +130,7 @@ void Shop::SetShopTemplate(const QString& shop_template) {
 }
 
 QString Shop::SpoilerBuyout(Buyout& bo) {
-    QLOG_TRACE() << "Shop::SpoilerBuyout() entered";
+    QLOG_TRACE() << "Shop: spoiler buyout called";
     QString out = "";
     out += "[spoiler=\"" + bo.BuyoutTypeAsPrefix();
     if (bo.IsPriced()) {
@@ -166,11 +168,10 @@ void Shop::UpdateStashIndex() {
 
 void Shop::OnStashTabIndexReceived(QNetworkReply* reply) {
 
-    QLOG_DEBUG() << "Shop: stash tab list received.";
     if (reply->error() != QNetworkReply::NetworkError::NoError) {
         const int status = reply->error();
         if ((status >= 200) && (status <= 299)) {
-            QLOG_DEBUG() << "Shop::OnStashTabIndexReceived() network reply status" << status;
+            QLOG_DEBUG() << "Shop: http reply status" << status;
         } else {
             QLOG_ERROR() << "Shop: network error indexing stashes:" << status << reply->errorString();
             m_indexing = false;
@@ -185,50 +186,55 @@ void Shop::OnStashTabIndexReceived(QNetworkReply* reply) {
     reply->deleteLater();
 
     if (!doc.IsObject()) {
-        QLOG_ERROR() << "Can't even fetch first legacy tab. Failed to update items.";
+        QLOG_ERROR() << "Shop: can't even fetch first legacy tab. Failed to update items.";
         m_submitting = false;
         return;
     };
 
     if (doc.HasMember("error")) {
-        QLOG_ERROR() << "Aborting legacy update since first fetch failed due to 'error':" << Util::RapidjsonSerialize(doc["error"]);
+        QLOG_ERROR() << "Shop: aborting legacy update since first fetch failed due to 'error':" << Util::RapidjsonSerialize(doc["error"]);
         m_submitting = false;
         return;
     };
 
     if (!HasArray(doc, "tabs") || doc["tabs"].Size() == 0) {
-        QLOG_ERROR() << "There are no legacy tabs, this should not happen, bailing out.";
+        QLOG_ERROR() << "Shop: there are no legacy tabs, this should not happen, bailing out.";
         m_submitting = false;
         return;
     };
 
     auto& tabs = doc["tabs"];
-    QLOG_DEBUG() << "Received legacy tabs list, there are" << tabs.Size() << "tabs";
+    QLOG_DEBUG() << "Shop: received legacy tabs list, there are" << tabs.Size() << "tabs";
 
     for (const auto& tab : tabs) {
         const int index = tab["i"].GetInt();
         const QString uid = QString::fromStdString(tab["id"].GetString()).first(10);
         m_tab_index[uid] = index;
     };
+    m_initialized = true;
     m_indexing = false;
     ExpireShopData();
     emit StashesIndexed();
 }
 
 void Shop::Update() {
-    QLOG_DEBUG() << "Shop: updating shop data.";
+    if (!m_initialized) {
+        QLOG_DEBUG() << "Shop: cannot update shop data yet because the shop is being initialized";
+        return;
+    };
     if (m_submitting) {
-        QLOG_WARN() << "Submitting shop right now, the request to update shop data will be ignored";
+        QLOG_WARN() << "Shop: skipping shop data update becuase the shop is being submitted";
         return;
     };
     if (m_indexing) {
-        QLOG_WARN() << "Indexing shop right now, the request to update shop data will be ignored";
+        QLOG_WARN() << "Shop: skipping shop data update because the shop is being indexed";
         return;
     };
     if (m_tab_index.empty()) {
-        QLOG_WARN() << "Shop cannot update until stashes are indexed";
+        QLOG_WARN() << "Shop: skipping shop data update because the stash tab index is empty";
         return;
     };
+    QLOG_DEBUG() << "Shop: updating shop data";
 
     m_shop_data_outdated = false;
     m_shop_data.clear();
@@ -270,7 +276,7 @@ void Shop::Update() {
             const QString uid = loc.get_tab_uniq_id();
             const auto it = m_tab_index.find(uid);
             if (it == m_tab_index.end()) {
-                QLOG_ERROR() << "Cannot determine tab index for" << aug.item->PrettyName() << "in" << loc.GetHeader();
+                QLOG_ERROR() << "Shop: cannot determine tab index for" << aug.item->PrettyName() << "in" << loc.GetHeader();
                 continue;
             };
             const unsigned int ind = it->second;
@@ -294,7 +300,7 @@ void Shop::Update() {
         m_shop_data.push_back(data);
     };
 
-    for (size_t i = 0; i < m_shop_data.size(); ++i) {
+    for (int i = 0; i < m_shop_data.size(); ++i) {
         m_shop_data[i] = Util::StringReplace(m_shop_template, kShopTemplateItems, "[spoiler]" + m_shop_data[i] + "[/spoiler]");
     };
     m_shop_hash = Util::Md5(m_shop_data.join(";"));
@@ -308,19 +314,19 @@ void Shop::ExpireShopData() {
 void Shop::SubmitShopToForum(bool force) {
     QLOG_DEBUG() << "Shop: submitting shop(s) to forums";
     if (m_submitting) {
-        QLOG_WARN() << "Already submitting your shop.";
+        QLOG_WARN() << "Shop: cannot submit two shops at once";
         return;
     };
     if (m_indexing) {
-        QLOG_WARN() << "Still indexing tabs. Try again later.";
+        QLOG_WARN() << "Shop: cannot submit shop because tabs are still being indexed";
         return;
     };
     if (m_tab_index.empty()) {
-        QLOG_ERROR() << "Please update the stash index before submitting shops";
+        QLOG_ERROR() << "Shop: cannot submit shop because the tab index is empty";
         return;
     };
     if (m_threads.empty()) {
-        QLOG_ERROR() << "Asked to update a shop with no shop ID defined.";
+        QLOG_ERROR() << "Shop: asked to update a shop with no shop ID defined.";
         QMessageBox::warning(nullptr,
             "Acquisition Shop Manager",
             "No forum threads have been set."
@@ -330,7 +336,7 @@ void Shop::SubmitShopToForum(bool force) {
     };
     const QString session_id = m_settings.value("session_id").toString();
     if (session_id.isEmpty()) {
-        QLOG_ERROR() << "Cannot update the shop: POESESSID is not set";
+        QLOG_ERROR() << "Shop: cannot submit a shop because the POESESSID is not set";
         QMessageBox::warning(nullptr,
             "Acquisition Shop Manager",
             "Cannot update forum shop threads because POESESSID has not been set."
@@ -343,16 +349,16 @@ void Shop::SubmitShopToForum(bool force) {
         Update();
     };
 
-    QLOG_INFO() << QString("Updating %1 forum shop threads").arg(m_threads.size());
+    QLOG_DEBUG() << "Shop: updating" << m_threads.size() << "forum shop threads";
     QString previous_hash = m_datastore.Get("shop_hash");
     // Don't update the shop if it hasn't changed
     if (previous_hash == m_shop_hash && !force) {
-        QLOG_TRACE() << "Shop hash has not changed. Skipping update.";
+        QLOG_TRACE() << "Shop: skipping update because the shop hash has not changed";
         return;
     };
 
     if (m_threads.size() < m_shop_data.size()) {
-        QLOG_WARN() << "Need" << m_shop_data.size() - m_threads.size() << "more shops defined to fit all your items.";
+        QLOG_WARN() << "Shop: need" << m_shop_data.size() - m_threads.size() << "more shops defined to fit all your items.";
     };
 
     m_requests_completed = 0;
@@ -360,20 +366,27 @@ void Shop::SubmitShopToForum(bool force) {
     SubmitSingleShop();
 }
 
-QString Shop::ShopEditUrl(size_t idx) {
-    QLOG_TRACE() << "Shop::ShopEditUrl() entered";
-    return kPoeEditThread + m_threads[idx];
+QString Shop::ShopEditUrl(int idx) {
+    if (idx >= m_threads.size()) {
+        QLOG_ERROR() << "Shop: cannot create edit url for thread #" << idx;
+        return "";
+    };
+    const QString url = kPoeEditThread + m_threads[idx];
+    QLOG_DEBUG() << "Shop: shop edit url #" << idx << "is" << url;
+    return url;
 }
 
 void Shop::SubmitSingleShop() {
     QLOG_DEBUG() << "Shop: submitting a single shop.";
-    if (m_requests_completed == m_threads.size()) {
-        QLOG_INFO() << "Shop threads updated";
+    if (m_requests_completed > m_threads.size()) {
+        QLOG_ERROR() << "Shop: shop thread #" << m_requests_completed << "does not exist";
+    } else if (m_requests_completed == m_threads.size()) {
+        QLOG_DEBUG() << "Shop: updated" << m_threads.size() << "threads";
         emit StatusUpdate(ProgramState::Ready, "Shop threads updated");
         m_submitting = false;
         m_datastore.Set("shop_hash", m_shop_hash);
     } else {
-        QLOG_INFO() << "Updating shop thread" << m_threads[m_requests_completed];
+        QLOG_DEBUG() << "Shop: updating shop thread #" << (m_requests_completed + 1) << ":" << m_threads[m_requests_completed];
         emit StatusUpdate(ProgramState::Ready,
             QString("Sending your shops to the forum, %1/%2")
             .arg(m_requests_completed)
@@ -389,7 +402,7 @@ void Shop::SubmitSingleShop() {
 }
 
 void Shop::OnEditPageFinished() {
-    QLOG_TRACE() << "Shop::OnEditPageFinished() entered";
+    QLOG_TRACE() << "Shop: edit page finished";
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
     const QByteArray bytes = reply->readAll();
     const QString hash = Util::GetCsrfToken(bytes, "hash");
@@ -405,7 +418,7 @@ void Shop::OnEditPageFinished() {
         return;
     };
     QLOG_TRACE() << "CSRF token found.";
-    
+
     // now submit our edit
     // holy shit give me some html parser library please
     const QString page(bytes);
@@ -469,16 +482,16 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
             const QString error_message = (error_match.lastCapturedIndex() > 0)
                 ? QTextDocumentFragment::fromHtml(error_match.captured(1)).toPlainText()
                 : "(Failed to parse the error message)";
-            QLOG_ERROR() << "Error submitting shop thread:" << error_message;
+            QLOG_ERROR() << "Shop: error submitting shop thread:" << error_message;
             if (error_message.startsWith("Failed to find item.", Qt::CaseInsensitive)) {
-                QLOG_ERROR() << "The stash index may be out of date. (Try Shop->\"Update stash index\")";
+                QLOG_ERROR() << "Shop: the stash index may be out of date. (Try Shop->\"Update stash index\")";
             } else if (error_message.startsWith("Security token has expired.")) {
                 // This error would occur somewhat randomly before a delay was added in OnEditPageFinished.
                 // With that delay, this error doesn't seem to happen any more, but we should probably
                 // keep checking for it.
                 if (seconds < 5) {
                     seconds = 5;
-                    QLOG_TRACE() << "Setting" << seconds << "delay.";
+                    QLOG_TRACE() << "Shop: setting" << seconds << "delay.";
                 };
             } else if (error_message.startsWith("Rate limiting", Qt::CaseInsensitive)) {
                 // Look for a rate limiting error here, because there are no headers to check for
@@ -486,17 +499,17 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
                 const QRegularExpressionMatch ratelimit_match = ratelimit_regex.match(error_message);
                 int ratelimit_delay = ratelimit_match.captured(1).toInt();
                 if (ratelimit_delay == 0) {
-                    QLOG_ERROR() << "Error parsing wait time from error message.";
+                    QLOG_ERROR() << "Shop: error parsing wait time from error message.";
                     m_submitting = false;
                     return;
                 };
                 if (seconds < ratelimit_delay) {
                     seconds = ratelimit_delay + 1;
-                    QLOG_TRACE() << "Setting" << seconds << "second delay.";
+                    QLOG_TRACE() << "Shop: setting" << seconds << "second delay.";
                 };
             } else {
-                QLOG_ERROR() << "Unknown error; the html error fragment is" << error_match.captured(0);
-                QLOG_DEBUG() << "The query was:" << query.toString();
+                QLOG_ERROR() << "Shop: unknown error fragment:" << error_match.captured(0);
+                QLOG_DEBUG() << "Shop: the query was:" << query.toString();
             };
         };
         if (seconds > 0) {
@@ -504,7 +517,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
             const int ms = seconds * 1000;
             const QString title = query.queryItemValue("title");
             const QString hash = Util::GetCsrfToken(bytes, "hash");
-            QLOG_WARN() << "Resubmitting shop after" << seconds << "seconds.";
+            QLOG_WARN() << "Shop: resubmitting shop after" << seconds << "seconds.";
             QTimer::singleShot(ms, this, [=]() { SubmitNextShop(title, hash); });
             return;
         } else {
@@ -518,7 +531,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
     QString page(bytes);
     QString error = Util::FindTextBetween(page, "<ul class=\"errors\"><li>", "</li></ul>");
     if (!error.isEmpty()) {
-        QLOG_ERROR() << "(DEPRECATED) Error while submitting shop to forums:" << error;
+        QLOG_ERROR() << "Shop: (DEPRECATED) Error while submitting shop to forums:" << error;
         m_submitting = false;
         return;
     };
@@ -527,7 +540,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
     // relavent, but that's not certain or documented anywhere, so let's do both.
     QString input_error = Util::FindTextBetween(page, "class=\"input-error\">", "</div>");
     if (!input_error.isEmpty()) {
-        QLOG_ERROR() << "(DEPRECATED) Input error while submitting shop to forums:" << input_error;
+        QLOG_ERROR() << "Shop: (DEPRECATED) Input error while submitting shop to forums:" << input_error;
         m_submitting = false;
         return;
     };
@@ -535,7 +548,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
     // have missed. Otherwise errors might just silently fall through the cracks.
     for (auto& substr : { "class=\"errors\"", "class=\"input-error\"" }) {
         if (page.contains(substr)) {
-            QLOG_ERROR() << "(DEPRECATED) An error was detected but not handled while submitting shop to forums:" << substr;
+            QLOG_ERROR() << "Shop: (DEPRECATED) An error was detected but not handled while submitting shop to forums:" << substr;
             QLOG_ERROR() << page;
             m_submitting = false;
             return;
@@ -547,16 +560,17 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
 }
 
 void Shop::CopyToClipboard() {
-    QLOG_TRACE() << "Shop::CopyToClipboard() entered";
     if (m_shop_data_outdated) {
-        QLOG_WARN() << "Shop data is outdated!";
+        QLOG_WARN() << "Shop: copying outdated shop data!";
     };
     if (m_shop_data.empty()) {
+        QLOG_WARN() << "Shop: there is nothing to copy to the clipboard";
         return;
     };
     if (m_shop_data.size() > 1) {
-        QLOG_WARN() << "You have more than one shop, only the first one will be copied.";
+        QLOG_WARN() << "Shop: you have multiple shops; only the first will be copied to the clipboard";
     };
+    QLOG_TRACE() << "Shop: copying shop data to clipboard for thread:" << m_shop_data[0];
     QClipboard* clipboard = QApplication::clipboard();
     clipboard->setText(m_shop_data[0]);
 }

@@ -14,8 +14,8 @@ On Windows you can also build Acquisition with Visual Studio 2022 and the Qt Vis
 
 Windows releases are currently built with:
 - Windows 11
-- Qt Creator 15.0.0 (Community) with Qt 6.8.1 using MSVC 2022 64-bit
-- Visual Studio 2022 with Qt Visual Studio Tools 3.3.1.1 (for editing, debugging, and testing) and Qt Vs CMake Tools 1.1
+- Qt Creator (Community) with Qt 6.8.x using MSVC 2022 64-bit
+- Visual Studio 2022 with Qt Visual Studio Tools 3.3 for editing, debugging, and testing
 - Inno Setup 6.3.3 for installer creation
 
 ## Linux
@@ -23,6 +23,10 @@ Windows releases are currently built with:
 These instructions are based on using Linux Mint 22 Cinnamon. Not every
 step is explicit--e.g. you will have to figure out how to use git and/or
 install packages on your distribution of choice.
+
+You might need to modify some of the deploy scripts and/or CMakeLists.txt
+depending on which specific version of Qt you have installed and where you've
+installed it.
 
 1. Start from a working Linux Mint 22 Cinnamon 64-bit installation.
 
@@ -38,10 +42,10 @@ Notes:
 - Other packages may be required on other distributions.
 
 When runing the installer, choose "Custom Installation". Then, in addition to the default selection, add the following:
-- Select "Desktop" under Qt -> Qt 6.8.1
-- Select "Qt Http Server" under Qt -> Qt 6.8.1 -> Additional Libraries
-- Select "Qt WebSockets" under Qt -> Qt 6.8.1 -> Additional Libraries
-- Select "OpenSSL 3.0.15 Toolkit" under Qt -> Build Tools
+- Select "Desktop" under Qt -> Qt 6.8.x
+- Select "Qt Http Server" under Qt -> Qt 6.8.x -> Additional Libraries
+- Select "Qt WebSockets" under Qt -> Qt 6.8.x -> Additional Libraries
+- Select "OpenSSL 3.0.x Toolkit" under Qt -> Build Tools
 
 3. Build OpenSSL 3.x from the toolkit that Qt installed.
 
@@ -70,6 +74,6 @@ Look for an AppImage file in the deploy/ directory.
 ## macOS
 
 macOS releases are currently built with:
-- macOS Sonoma 14.7.2 on Intel silicon
-- Qt Creator 15.0.0 with Qt 6.8.1 for macOS
-- XCode 15
+- macOS Sequoia 15.3 on Apple silicon
+- Qt Creator with Qt 6.8 for macOS
+- XCode 16
