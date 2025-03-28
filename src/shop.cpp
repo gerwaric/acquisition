@@ -300,7 +300,7 @@ void Shop::Update() {
         m_shop_data.push_back(data);
     };
 
-    for (size_t i = 0; i < m_shop_data.size(); ++i) {
+    for (int i = 0; i < m_shop_data.size(); ++i) {
         m_shop_data[i] = Util::StringReplace(m_shop_template, kShopTemplateItems, "[spoiler]" + m_shop_data[i] + "[/spoiler]");
     };
     m_shop_hash = Util::Md5(m_shop_data.join(";"));
@@ -366,7 +366,7 @@ void Shop::SubmitShopToForum(bool force) {
     SubmitSingleShop();
 }
 
-QString Shop::ShopEditUrl(size_t idx) {
+QString Shop::ShopEditUrl(int idx) {
     if (idx >= m_threads.size()) {
         QLOG_ERROR() << "Shop: cannot create edit url for thread #" << idx;
         return "";

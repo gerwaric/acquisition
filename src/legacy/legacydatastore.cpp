@@ -131,7 +131,7 @@ LegacyDataStore::LegacyDataStore(const QString& filename) {
             return;
         };
         m_items[loc] = result;
-        m_item_count += result.size();
+        m_item_count += static_cast<qint64>(result.size());
     };
 
     if (query.lastError().isValid()) {

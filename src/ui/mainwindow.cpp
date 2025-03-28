@@ -142,8 +142,7 @@ MainWindow::~MainWindow() {
 
 void MainWindow::prepare(
     OAuthManager& oauth_manager,
-    CurrencyManager& currency_manager,
-    Shop& shop)
+    CurrencyManager& currency_manager)
 {
     connect(ui->actionShowOAuthToken, &QAction::triggered, &oauth_manager, &OAuthManager::showStatus);
     connect(ui->actionRefreshOAuthToken, &QAction::triggered, &oauth_manager, &OAuthManager::requestRefresh);

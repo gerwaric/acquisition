@@ -33,8 +33,6 @@
 #include <QUrlQuery>
 #include <QPainter>
 
-#include <sstream>
-#include <iomanip>
 #include <cmath>
 
 #include <QsLog/QsLog.h>
@@ -179,13 +177,13 @@ QString Util::RapidjsonPretty(const rapidjson::Value& val) {
 
 void Util::RapidjsonAddString(rapidjson::Value* object, const char* const name, const QString& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc) {
     const QByteArray bytes = value.toUtf8();
-    rapidjson::Value rjson_name(name, strlen(name), alloc);
+    rapidjson::Value rjson_name(name, rapidjson::SizeType(strlen(name)), alloc);
     rapidjson::Value rjson_val(bytes.constData(), bytes.length(), alloc);
     object->AddMember(rjson_name, rjson_val, alloc);
 }
 
 void Util::RapidjsonAddInt64(rapidjson::Value* object, const char* const name, qint64 value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc) {
-    rapidjson::Value rjson_name(name, strlen(name), alloc);
+    rapidjson::Value rjson_name(name, rapidjson::SizeType(strlen(name)), alloc);
     rapidjson::Value rjson_val(static_cast<int64_t>(value));
     object->AddMember(rjson_name, rjson_val, alloc);
 }
@@ -309,22 +307,22 @@ QString Util::TimeAgoInWords(const QDateTime& buyout_time) {
         };
         return QString("%1 %2 ago").arg(months).arg(months == 1 ? "month" : "months");
     };
-    
+
     // DAYS
     if (days > 0) {
         return QString("%1 %2 ago").arg(days).arg(days == 1 ? "day" : "days");
     };
-    
+
     // HOURS
     if (hours > 0) {
         return QString("%1 %2 ago").arg(hours).arg(hours == 1 ? "hour" : "hours");
     };
-    
+
     //MINUTES
     if (minutes > 0) {
         return QString("%1 %2 ago").arg(minutes).arg(minutes == 1 ? "minute" : "minutes");
     };
-    
+
     // SECONDS
     if (secs > 5) {
         return QString("%1 %2 ago").arg(secs).arg("seconds");

@@ -86,7 +86,7 @@ signals:
 private:
     void SubmitSingleShop();
     void SubmitNextShop(const QString& title, const QString& hash);
-    QString ShopEditUrl(size_t idx);
+    QString ShopEditUrl(int idx);
     QString SpoilerBuyout(Buyout& bo);
 
     QSettings& m_settings;
@@ -106,7 +106,7 @@ private:
     bool m_auto_update;
     bool m_submitting;
     bool m_indexing;
-    size_t m_requests_completed;
+    int m_requests_completed;
 
     static const QRegularExpression error_regex;
     static const QRegularExpression ratelimit_regex;
