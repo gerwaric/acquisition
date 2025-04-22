@@ -21,19 +21,14 @@
 
 #include <json_struct/json_struct_qt.h>
 
-#include <optional>
-
 namespace libpoe {
-    
-    // https://www.pathofexile.com/developer/docs/reference#type-ItemSocket
 
-    struct ItemSocket {
-        unsigned group; // uint
-        std::optional<QString> attr; // ? string PoE1 only; S, D, I, G, A, or DV
-        std::optional<QString> sColour; // ? string PoE1 only; R, G, B, W, A, or DV
-        std::optional<QString> type; // ? string PoE2 only; gem, jewel, or rune
-        std::optional<QString> item; // ? string PoE2 only; emerald, sapphire, ruby, rune, soulcore, activegem, or supportgem
-        JS_OBJ(group, attr, sColour, type, item);
-    };
+    struct GemPage {
+        std::optional<QString> skillName;
+        std::optional<QString> description;
+        std::optional<std::vector<lippoe::ItemProperty>> properties;
+        std::optional<std::vector<QString>> stats;
+        JS_OBJ(skillName, description, properties, stats)
+    }
 
 }

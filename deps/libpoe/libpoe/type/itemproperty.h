@@ -37,6 +37,7 @@ namespace libpoe {
         std::optional<double>progress; // ? double rounded to 2 decimal places
         std::optional<unsigned> type; // ? uint
         std::optional<QString> suffix; // ? string
+        std::optional<QString> icon; // ? string
         JS_OBJ(name, values, displayMode, progress, type, suffix);
     };
 

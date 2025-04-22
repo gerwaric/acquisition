@@ -23,6 +23,7 @@
 
 #include <libpoe/type/cruciblenode.h>
 #include <libpoe/type/frametype.h>
+#include <libpoe/type/gemtab.h>
 #include <libpoe/type/itemproperty.h>
 #include <libpoe/type/itemsocket.h>
 
@@ -110,6 +111,7 @@ namespace libpoe {
             JS_OBJ(category, subcategories, prefixes, suffixes);
         };
 
+        std::optional<QString> realm; // ?string always poe2 if present
         bool verified; // bool
         unsigned w; // uint
         unsigned h; // uint
@@ -120,6 +122,7 @@ namespace libpoe {
         std::optional<QString> stackSizeText; // ? string
         std::optional<QString> league; // ? string
         std::optional<QString> id; // ? string a unique 64 digit hexadecimal string
+        std::optional<std::vector<QString>> gemSockets; // ?array of string PoE2 only; string is always W
         std::optional<libpoe::Item::Influences> influences; // ? object
         std::optional<bool> elder; // ? bool always true if present
         std::optional<bool> shaper; // ? bool always true if present
@@ -137,6 +140,7 @@ namespace libpoe {
         std::optional<QString> rarity; // ? string Normal, Magic, Rare, or Unique
         bool identified; // bool
         std::optional<int> itemLevel; // ? int used for items that always display their item level
+        std::optional<int> unidentifiedTier; // ?int PoE2 only
         int ilvl; // int
         std::optional<QString> note; // ? string user - generated text
         std::optional<QString> forum_note; // ? string user - generated text
@@ -152,8 +156,11 @@ namespace libpoe {
         std::optional<std::vector<libpoe::ItemProperty>> properties; // ? array of ItemProperty
         std::optional<std::vector<libpoe::ItemProperty>> notableProperties; // ? array of ItemProperty
         std::optional<std::vector<libpoe::ItemProperty>> requirements; // ? array of ItemProperty
+        std::optional<std::vector<libpoe::ItemProperty>> weaponRequirements; // ?array of ItemProperty PoE2 only
+        std::optional<std::vector<libpoe::ItemProperty>> supportGemRequirements; // ?array of ItemProperty PoE2 only
         std::optional<std::vector<libpoe::ItemProperty>> additionalProperties; // ? array of ItemProperty
         std::optional<std::vector<libpoe::ItemProperty>> nextLevelRequirements; // ? array of ItemProperty
+        std::optional<std::vector<lippoe::ItemProperty>> grantedSkills; // ?array of ItemProperty PoE2 only
         std::optional<int> talismanTier; // ? int
         std::optional<std::vector<libpoe::Item::Rewards>> rewards; // ? array of object
         std::optional<QString> secDescrText; // ? string
@@ -170,6 +177,9 @@ namespace libpoe {
         std::optional<std::vector<QString>> cosmeticMods; // ? array of string
         std::optional<std::vector<QString>> veiledMods; // ? array of string random video identifier
         std::optional<bool> veiled; // ? bool always true if present
+        std::optional<std::vector<libpoe::GemTab>> gemTabs; // ?array of GemTab 	PoE2 only
+        std::optional<std::vector<QString>> gemBackground; // ? string PoE2 only
+        std::optional<std::vector<QString>> gemSkill; // ? string PoE2 only
         std::optional<QString> descrText; // ? string
         std::optional<std::vector<QString>> flavourText; // ? array of
         // WARNING: flavourTextParsed might sometimes be an object
@@ -183,7 +193,7 @@ namespace libpoe {
         std::optional<libpoe::Item::IncubatingInfo> incubatedItem; // ? object
         std::optional<libpoe::Item::ScourgedInfo> scourged; // ? object
         std::optional<libpoe::Item::CrucibleInfo> crucible; // ? object
-        std::optional<bool> ruthless; // ? bool always true if present
+        std::optional<bool> ruthless; // ? bool PoE1 only; always true if present
         libpoe::FrameType frameType; // ? uint as FrameType
         std::optional<QString> artFilename; // ? string
         std::optional<libpoe::Item::HybridInfo> hybrid; // ? object
