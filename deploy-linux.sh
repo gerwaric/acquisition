@@ -17,11 +17,11 @@
 # You should have received a copy of the GNU General Public License
 # along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 
-export QMAKE=${HOME}/Qt/6.8.3/gcc_64/bin/qmake
+export QMAKE=${HOME}/Qt/6.9.0/gcc_64/bin/qmake
 
 LINUXDEPLOY=${HOME}/bin/linuxdeploy-x86_64.AppImage
 PROJECT_DIR=${PWD}
-BUILD_DIR=${PWD}/build/Desktop_Qt_6_8_3-Release
+BUILD_DIR=${PWD}/build/Desktop_Qt_6_9_0-Release
 
 # Take the version string from version_defines.h
 export LINUXDEPLOY_OUTPUT_VERSION=`grep APP_VERSION_STRING ${BUILD_DIR}/version_defines.h | cut -d'"' -f2`
@@ -46,4 +46,3 @@ ${LINUXDEPLOY} --appdir=. \
 	--exclude-library=libqsqlodbc.so \
 	--exclude-library=libqsqlpsql.so \
 	--output=appimage
-

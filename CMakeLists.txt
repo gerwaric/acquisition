@@ -85,7 +85,7 @@ endif()
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui HttpServer Network Sql Test WebSockets Widgets)
 
-qt_standard_project_setup(REQUIRES 6.8.3)
+qt_standard_project_setup(REQUIRES 6.9.0)
 
 qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     # Source
@@ -384,9 +384,6 @@ elseif(APPLE)
     )
     
 elseif(UNIX)
-
-    # If you install Qt's OpenSSL toolkit via the Qt Maintenance Tool, this should work.
-    set(OPENSSL_ROOT_DIR "${Qt6_DIR}/../../../../../Tools/OpenSSLv3/src")
 
     find_package(OpenSSL REQUIRED)
 
