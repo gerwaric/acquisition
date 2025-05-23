@@ -67,6 +67,7 @@ LicenseFile=LICENSE
 OutputBaseFilename={#APP_NAME}_setup_{#APP_VERSION_STRING}
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
+RestartIfNeededByRun=yes
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -89,4 +90,4 @@ Name: "{autodesktop}\{#APP_NAME}"; Filename: "{app}\{#APP_NAME}.exe"; Tasks: des
 
 [Run]
 Filename: "{app}\{#APP_NAME}.exe"; Description: "{cm:LaunchProgram,{#StringChange(APP_NAME, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
-Filename: "{app}\vc_redist.x64.exe"; Parameters: "/install /passive"; Tasks: vc_redist;
+Filename: "{app}\vc_redist.x64.exe"; Parameters: "/install /passive /norestart"; Tasks: vc_redist;
