@@ -83,6 +83,26 @@ if(WIN32)
 
 endif()
 
+include(FetchContent)
+
+if(NOT TARGET boost-headers-only)
+    FetchContent_Declare(
+        boost-headers-only
+        GIT_REPOSITORY https://github.com/gerwaric/boost-headers-only.git
+        GIT_TAG        boost-1.88.0
+    )
+    FetchContent_MakeAvailable(boost-headers-only)
+endif()
+
+if(NOT TARGET json_struct)
+    FetchContent_Declare(
+        json_struct
+        GIT_REPOSITORY https://github.com/jorgen/json_struct.git
+        GIT_TAG        1.0.1
+    )
+    FetchContent_MakeAvailable(json_struct)
+endif()
+
 find_package(Qt6 REQUIRED COMPONENTS Core Gui HttpServer Network Sql Test WebSockets Widgets)
 
 qt_standard_project_setup(REQUIRES 6.9.0)
@@ -194,6 +214,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/ui/verticalscrollarea.h
     src/util/crashpad.h
     src/util/fatalerror.h
+    src/util/json_struct_qt.h
     src/util/networkmanager.h
     src/util/oauthmanager.h
     src/util/oauthtoken.h
@@ -274,9 +295,7 @@ target_include_directories(acquisition PRIVATE
     "${CMAKE_BINARY_DIR}"
 )
 
-add_subdirectory(deps/boost-headers-only)
 add_subdirectory(deps/Crashpad)
-add_subdirectory(deps/json_struct)
 add_subdirectory(deps/libpoe)
 add_subdirectory(deps/qdarkstyle)
 add_subdirectory(deps/QsLog)
