@@ -524,8 +524,10 @@ void LoginDialog::OnLoginTabChanged(int index) {
 };
 
 void LoginDialog::OnSessionIDChanged(const QString& session_id) {
+    // Save the new session and make sure the login button is enabled.
     QLOG_TRACE() << "LoginDialog::OnSessionIDChanged() entered";
     m_settings.setValue("session_id", session_id);
+    ui->loginButton->setEnabled(true);
 }
 
 void LoginDialog::OnLeagueChanged(const QString& league) {
