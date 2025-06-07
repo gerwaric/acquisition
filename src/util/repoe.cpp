@@ -23,6 +23,8 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QRegularExpression>
+#include <QRegularExpressionMatch>
 #include <QString>
 
 #include <QsLog/QsLog.h>
@@ -33,16 +35,16 @@
 #include "modlist.h"
 #include "network_info.h"
 
-constexpr const char* REPOE_URL = "https://raw.githubusercontent.com/repoe-fork/repoe-fork.github.io/master/RePoE/data/";
+constexpr const char* REPOE_URL = "https://repoe-fork.github.io";
 
 constexpr std::array REPOE_FILES = {
-    "item_classes.json",
-    "base_items.json"
+    "item_classes.min.json",
+    "base_items.min.json"
 };
 
 constexpr std::array STAT_TRANSLATIONS = {
-    "stat_translations.json",
-    "stat_translations/necropolis.json"
+    "stat_translations.min.json",
+    "stat_translations/necropolis.min.json"
 };
 
 RePoE::RePoE(QNetworkAccessManager& network_manager)
@@ -64,10 +66,10 @@ void RePoE::Init(const QString& data_dir) {
 
     emit StatusUpdate(ProgramState::Initializing, "Waiting for RePoE version.");
 
-    const QString url = QString(REPOE_URL) + "/version.txt";
+    const QString url = QString(REPOE_URL) + "/poe1.html";
 
     // We start be requesting the current version from Github to see if we need to update.
-    QLOG_DEBUG() << "RePoE: requesting version.txt";
+    QLOG_DEBUG() << "RePoE: requesting poe1.html";
     QNetworkRequest request = QNetworkRequest(QUrl(url));
     request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
     QNetworkReply* reply = m_network_manager.get(request);
@@ -85,9 +87,12 @@ void RePoE::OnVersionReceived() {
             return;
         };
     };
-    QLOG_DEBUG() << "RePoE: received version.txt";
+    QLOG_DEBUG() << "RePoE: received poe1.html";
 
-    const QByteArray data = reply->readAll();
+    // Grab the html from the reply.
+    const QByteArray htmlData = reply->readAll();
+    const QString htmlString = QString::fromUtf8(htmlData);
+    const QString remote_version = RePoE::ParseVersion(htmlString);
     reply->deleteLater();
 
     QDir repoe_dir(m_data_dir);
@@ -106,29 +111,30 @@ void RePoE::OnVersionReceived() {
         update |= !repoe_dir.exists("repoe/" + QString(filename));
     };
 
-    const QString version_path = repoe_dir.absoluteFilePath("repoe/version.txt");
+    QLOG_DEBUG() << "RePoE: remote version is" << remote_version;
+
+    const QString version_path = repoe_dir.absoluteFilePath("repoe/poe1.html");
     QFile version_file(version_path);
     if (version_file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         QTextStream in(&version_file);
-        const QString remote_version = QString::fromUtf8(data);
-        const QString local_version = in.readAll();
+        const QString local_version = RePoE::ParseVersion(in.readAll());
         version_file.close();
         QLOG_DEBUG() << "RePoE: local version is" << local_version;
-        QLOG_DEBUG() << "RePoE: remote version is" << remote_version;
         if (local_version != remote_version) {
             update = true;
         };
     } else {
+        QLOG_DEBUG() << "RePoE: no local version";
         update = true;
     };
 
     if (update) {
         if (!version_file.open(QIODevice::WriteOnly)) {
-            QLOG_ERROR() << "RePoE: error opening version.txt for writing:" << version_file.errorString();
+            QLOG_ERROR() << "RePoE: error opening poe1.html for writing:" << version_file.errorString();
             return;
         };
-        if (version_file.write(data) < 0) {
-            QLOG_ERROR() << "RePoE: error writing version.txt:" << version_file.errorString();
+        if (version_file.write(htmlData) < 0) {
+            QLOG_ERROR() << "RePoE: error writing poe1.html:" << version_file.errorString();
             version_file.close();
             return;
         };
@@ -216,8 +222,8 @@ void RePoE::FinishUpdate() {
 
     emit StatusUpdate(ProgramState::Initializing, "RePoE updating item classes, base types, and mods");
 
-    InitItemClasses(ReadFile("item_classes.json"));
-    InitItemBaseTypes(ReadFile("base_items.json"));
+    InitItemClasses(ReadFile("item_classes.min.json"));
+    InitItemBaseTypes(ReadFile("base_items.min.json"));
 
     InitStatTranslations();
     for (const auto& filename : STAT_TRANSLATIONS) {
@@ -241,3 +247,15 @@ QByteArray RePoE::ReadFile(const QString& filename) {
         return data;
     };
 }
+
+QString RePoE::ParseVersion(const QString& contents) {
+    static const QRegularExpression versionRegex(R"(<title>.*?([\d.]+)</title>)");
+    const QRegularExpressionMatch match = versionRegex.match(contents);
+    if (match.hasMatch()) {
+        return match.captured(1);
+    } else {
+        QLOG_ERROR() << "RePoE: cannot parse version:" << contents;
+        return QString();
+    };
+}
+
