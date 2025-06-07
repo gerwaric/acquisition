@@ -152,14 +152,18 @@ void RateLimitManager::ReceiveReply()
     // Now examine the new policy and update ourselves accordingly.
     Update(reply);
 
+    bool violation_detected = false;
+
     if (reply->error() == QNetworkReply::NoError) {
 
         // Check for errors.
         if (m_policy->status() >= RateLimitPolicy::Status::VIOLATION) {
             QLOG_ERROR() << "Reply did not have an error, but the rate limit policy shows a violation occured.";
+            violation_detected = true;
         };
         if (reply_status == VIOLATION_STATUS) {
             QLOG_ERROR() << "Reply did not have an error, but the HTTP status indicates a rate limit violation.";
+            violation_detected = true;
         };
 
         // Since the request finished successfully, signal complete()
@@ -187,11 +191,13 @@ void RateLimitManager::ReceiveReply()
             if (m_policy->status() != RateLimitPolicy::Status::VIOLATION) {
                 QLOG_ERROR() << "HTTP status indicates a rate limit violation, but was not flagged in the policy update";
             };
+            violation_detected = true;
         };
 
         if (reply->hasRawHeader("Retry-After")) {
 
             // There was a rate limit violation.
+            violation_detected = true;
             const int retry_sec = reply->rawHeader("Retry-After").toInt();
             const int retry_msec = (1000 * retry_sec) + TIMING_BUCKET_MSEC;
             QLOG_ERROR() << "Rate limit VIOLATION for policy"
@@ -211,6 +217,10 @@ void RateLimitManager::ReceiveReply()
         };
 
         m_active_request->reply = nullptr;
+    };
+
+    if (violation_detected) {
+        emit Violation(m_policy->name());
     };
 }
 

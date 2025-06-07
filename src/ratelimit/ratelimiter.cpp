@@ -37,6 +37,9 @@
 #include "ratelimitmanager.h"
 #include "ratelimitpolicy.h"
 
+// Notify the user and stop working after too many rate limit violations.
+constexpr unsigned int MAX_VIOLATIONS = 5;
+
 constexpr int UPDATE_INTERVAL_MSEC = 1000;
 
 // Create a list of all the attributes a QNetworkRequest or QNetwork reply can have,
@@ -95,6 +98,11 @@ RateLimitedReply* RateLimiter::Submit(
     QLOG_TRACE() << "RateLimiter::Submit() entered";
     QLOG_TRACE() << "RateLimiter::Submit() endpoint =" << endpoint;
     QLOG_TRACE() << "RateLimiter::Submit() network_request =" << network_request.url().toString();
+
+    if (m_violation_count >= MAX_VIOLATIONS) {
+        QLOG_ERROR() << "RateLimiter: cannot submit request: too many API rate limit violations detected.";
+        return nullptr;
+    };
 
     // Make sure the user agent is set according to GGG's guidance.
     network_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
@@ -309,6 +317,7 @@ RateLimitManager& RateLimiter::GetManager(
         connect(manager.get(), &RateLimitManager::PolicyUpdated, this, &RateLimiter::OnPolicyUpdated);
         connect(manager.get(), &RateLimitManager::QueueUpdated, this, &RateLimiter::OnQueueUpdated);
         connect(manager.get(), &RateLimitManager::Paused, this, &RateLimiter::OnManagerPaused);
+        connect(manager.get(), &RateLimitManager::Violation, this, &RateLimiter::OnViolation);
         m_manager_by_policy[policy_name] = manager.get();
         m_manager_by_endpoint[endpoint] = manager.get();
         return *manager;
@@ -354,6 +363,13 @@ void RateLimiter::OnManagerPaused(const QString& policy_name, const QDateTime& u
         << "for" << policy_name;
     m_pauses[until] = policy_name;
     m_update_timer.start();
+}
+
+void RateLimiter::OnViolation(const QString& policy_name) {
+    ++m_violation_count;
+    if (m_violation_count >= MAX_VIOLATIONS) {
+        QLOG_ERROR() << "RateLimiter:" << m_violation_count << "rate limit violations detected.";
+    };
 }
 
 void RateLimiter::SendStatusUpdate()

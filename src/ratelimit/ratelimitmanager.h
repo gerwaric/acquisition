@@ -75,6 +75,9 @@ signals:
     // Emitted when a network request has to wait to be sent.
     void Paused(const QString& policy_name, const QDateTime& until);
 
+    // Emitted when a rate limit violation has been detected.
+    void Violation(const QString& policy_name);
+
 public slots:
 
     // Called whent the timer runs out to sends the active request and 
