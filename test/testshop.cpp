@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -46,9 +46,9 @@ void TestShop::SocketedGemsNotLinked() {
     m_items_manager.OnItemsRefreshed(items, {}, true);
 
     Buyout bo;
-    bo.type = BUYOUT_TYPE_FIXED;
+    bo.type = Buyout::BUYOUT_TYPE_FIXED;
     bo.value = 10;
-    bo.currency = CURRENCY_CHAOS_ORB;
+    bo.currency = Currency::CURRENCY_CHAOS_ORB;
     m_buyout_manager.Set(*items[0], bo);
 
     m_shop.Update();
@@ -66,9 +66,9 @@ void TestShop::TemplatedShopGeneration() {
     m_items_manager.OnItemsRefreshed(items, {}, true);
 
     Buyout bo;
-    bo.type = BUYOUT_TYPE_FIXED;
+    bo.type = Buyout::BUYOUT_TYPE_FIXED;
     bo.value = 10;
-    bo.currency = CURRENCY_CHAOS_ORB;
+    bo.currency = Currency::CURRENCY_CHAOS_ORB;
     m_buyout_manager.Set(*items[0], bo);
 
     m_shop.SetShopTemplate("My awesome shop [items]");

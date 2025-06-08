@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -30,7 +30,7 @@
 
 #include <windows.h>
 
-#include <QsLog/QsLog.h>
+#include <util/spdlog_qt.h>
 
 #include "fatalerror.h"
 #include "version_defines.h"
@@ -52,16 +52,16 @@ static QString DLL(const QString& name) {
 
 void checkMicrosoftRuntime()
 {
-    QLOG_INFO() << "Checking Microsoft Visual C++ Runtime...";
-	QLOG_INFO() << "Built with MSVC runtime" << MSVC_RUNTIME_BUILD_VERSION;
-	QLOG_INFO() << "Requires MSVC runtime" << MSVC_RUNTIME_MINIMUM_VERSION;
+    spdlog::info("Checking Microsoft Visual C++ Runtime...");
+	spdlog::info("Built with MSVC runtime" << MSVC_RUNTIME_BUILD_VERSION);
+	spdlog::info("Requires MSVC runtime" << MSVC_RUNTIME_MINIMUM_VERSION);
 
     const QStringList libraries = {
         DLL("msvcp140"),
         DLL("vcruntime140"),
         DLL("vcruntime140_1") };
 
-    QLOG_DEBUG() << "Checking MSVC runtime libraries:" << libraries.join(", ");
+    spdlog::debug("Checking MSVC runtime libraries:" << libraries.join(", "));
 
     checkApplicationDirectory(libraries);
     checkRuntimeVersion(libraries);
@@ -73,8 +73,8 @@ void checkApplicationDirectory(const QStringList& libraries)
     const QString path = QGuiApplication::applicationDirPath();
     const QDir dir(path);
 
-    QLOG_DEBUG() << "Checking application directory for unexpected MSVC libraries.";
-    QLOG_DEBUG() << "Application directory:" << path;
+    spdlog::debug("Checking application directory for unexpected MSVC libraries.");
+    spdlog::debug("Application directory:" << path);
 
     QStringList found;
     for (const auto& dll : libraries) {
@@ -85,7 +85,7 @@ void checkApplicationDirectory(const QStringList& libraries)
 
     if (!found.isEmpty()) {
 
-		QLOG_DEBUG() << "Found" << found.size() << "unexpected MSVC libraries:" << found.join(", ");
+		spdlog::debug("Found" << found.size() << "unexpected MSVC libraries:" << found.join(", "));
 
         QStringList msg;
         msg.append("The application directory contains one or more MSVC runtime dlls:");
@@ -113,7 +113,7 @@ void checkApplicationDirectory(const QStringList& libraries)
             QDesktopServices::openUrl(QUrl::fromLocalFile(path));
         };
         if (clicked != ignore) {
-            QLOG_FATAL() << "Aborting.";
+            spdlog::critical("Aborting.");
             abort();
         };
 
@@ -122,15 +122,15 @@ void checkApplicationDirectory(const QStringList& libraries)
 
 void checkRuntimeVersion(const QStringList& libraries)
 {
-    QLOG_DEBUG() << "Checking MSVC runtime version.";
+    spdlog::debug("Checking MSVC runtime version.");
 
 	const QVersionNumber build_version = QVersionNumber::fromString(MSVC_RUNTIME_BUILD_VERSION).normalized();
 	const QVersionNumber required_version = QVersionNumber::fromString(MSVC_RUNTIME_MINIMUM_VERSION).normalized();
 	if (required_version.isNull()) {
         FatalError("Unable to parse MSVC runtime version form build constants");
     };
-	QLOG_DEBUG() << "MSVC runtime build version:" << build_version.toString();
-	QLOG_DEBUG() << "MSVC runtime minimum version:" << required_version.toString();
+	spdlog::debug("MSVC runtime build version:" << build_version.toString());
+	spdlog::debug("MSVC runtime minimum version:" << required_version.toString());
 
     for (const auto& lib : libraries) {
         
@@ -138,7 +138,7 @@ void checkRuntimeVersion(const QStringList& libraries)
         if (lib_version.isNull()) {
             FatalError("Could not determine module version: " + lib);
         };
-        QLOG_TRACE() << "Found" << lib << "version" << lib_version;
+        spdlog::trace("Found" << lib << "version" << lib_version);
 
 		if ((lib_version.majorVersion() < required_version.majorVersion()) ||
 			(lib_version.minorVersion() < required_version.minorVersion()))
@@ -160,7 +160,7 @@ void checkRuntimeVersion(const QStringList& libraries)
 
 QVersionNumber getModuleVersion(const QString& dll)
 {
-    QLOG_TRACE() << "Getting module version for" << dll;
+    spdlog::trace("Getting module version for" << dll);
 
     // Load the MSVC module.
     const std::wstring wstr = dll.toStdWString();
@@ -175,7 +175,7 @@ QVersionNumber getModuleVersion(const QString& dll)
     if (GetModuleFileName(hModule, path, MAX_PATH) == 0) {
         FatalError("Cannot get module file name for '" + dll + "'");
     };
-    QLOG_TRACE() << dll << "module path is" << path;
+    spdlog::trace(dll << "module path is" << path);
 
     // Get the DLL version.
     DWORD dummy = 0;
@@ -183,7 +183,7 @@ QVersionNumber getModuleVersion(const QString& dll)
     if (versionInfoSize == 0) {
         FatalError("Cannot get version info size for '" + dll + "'");
     };
-    QLOG_TRACE() << dll << "module info size is" << versionInfoSize;
+    spdlog::trace(dll << "module info size is" << versionInfoSize);
 
     // Allocate memory for version information
     std::vector<char> versionInfo(versionInfoSize);
@@ -203,7 +203,7 @@ QVersionNumber getModuleVersion(const QString& dll)
     const WORD patch = HIWORD(fileInfo->dwFileVersionLS);
     const WORD tweak = LOWORD(fileInfo->dwFileVersionLS);
 
-    QLOG_TRACE() << dll << "module versions are" << major << minor << patch << tweak;
+    spdlog::trace(dll << "module versions are" << major << minor << patch << tweak);
 
     return QVersionNumber({ major, minor, patch, tweak }).normalized();
 }

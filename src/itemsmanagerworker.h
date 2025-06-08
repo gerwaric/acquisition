@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -27,8 +27,8 @@
 #include <queue>
 #include <set>
 
-#include "ui/mainwindow.h"
-#include "util/util.h"
+#include <ui/mainwindow.h>
+#include <util/util.h>
 
 #include "item.h"
 #include "network_info.h"
@@ -69,7 +69,7 @@ public:
         POE_API mode);
     bool isInitialized() const { return m_initialized; }
     bool isUpdating() const { return m_updating; };
-    void UpdateRequest(TabSelection::Type type, const std::vector<ItemLocation>& locations);
+    void UpdateRequest(TabSelection type, const std::vector<ItemLocation>& locations);
 
 signals:
     void ItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
@@ -78,7 +78,7 @@ signals:
 public slots:
     void Init();
     void OnRePoEReady();
-    void Update(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
+    void Update(TabSelection type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
 
 private slots:
     void OnLegacyMainPageReceived();
@@ -154,7 +154,7 @@ private:
 
     bool m_cancel_update;
     bool m_updateRequest;
-    TabSelection::Type m_type;
+    TabSelection m_type;
     std::vector<ItemLocation> m_locations;
     std::set<ItemLocation> m_requested_locations;
 

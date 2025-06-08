@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -24,9 +24,9 @@
 #include <QSqlError>
 #include <QSqlQuery>
 
-#include <QsLog/QsLog.h>
+#include <util/spdlog_qt.h>
 
-#include "currencymanager.h"
+#include <currencymanager.h>
 
 SqliteDataStore::SqliteDataStore(const QString& filename)
     : m_filename(filename)
@@ -42,9 +42,9 @@ SqliteDataStore::SqliteDataStore(const QString& filename)
         // files and rename if it found.
         const QString old_filename = filename.chopped(5);
         if (QFile(old_filename).exists()) {
-            QLOG_WARN() << "Renaming old data file with new account discriminator:" << filename;
+            spdlog::warn("Renaming old data file with new account discriminator: {}", filename);
             if (!QFile(old_filename).rename(filename)) {
-                QLOG_ERROR() << "Unable to rename file:" << old_filename;
+                spdlog::error("Unable to rename file: {}", old_filename);
             };
         };
     };
@@ -52,7 +52,7 @@ SqliteDataStore::SqliteDataStore(const QString& filename)
     m_db = QSqlDatabase::addDatabase("QSQLITE", filename);
     m_db.setDatabaseName(filename);
     if (m_db.open() == false) {
-        QLOG_ERROR() << "Failed to open QSQLITE database:" << filename << ":" << m_db.lastError().text();
+        spdlog::error("Failed to open QSQLITE database: {}: {}", filename, m_db.lastError().text());
         return;
     };
 
@@ -65,7 +65,7 @@ SqliteDataStore::SqliteDataStore(const QString& filename)
     QSqlQuery query(m_db);
     query.prepare("VACUUM");
     if (query.exec() == false) {
-        QLOG_ERROR() << "SqliteDataStore: failed to vacuum QSQLITE database:" << filename << ":" << m_db.lastError().text();
+        spdlog::error("SqliteDataStore: failed to vacuum QSQLITE database: {}: {}", filename, m_db.lastError().text());
     };
 }
 
@@ -73,7 +73,7 @@ void SqliteDataStore::CreateTable(const QString& name, const QString& fields) {
     QSqlQuery query(m_db);
     query.prepare("CREATE TABLE IF NOT EXISTS " + name + "(" + fields + ")");
     if (query.exec() == false) {
-        QLOG_ERROR() << "CreateTable(): failed to create" << name << ":" << query.lastError().text();
+        spdlog::error("CreateTable(): failed to create {}: {}", name, query.lastError().text());
     };
 }
 
@@ -81,7 +81,7 @@ void SqliteDataStore::CleanItemsTable() {
     QSqlQuery query(m_db);
     query.prepare("DELETE FROM items WHERE loc IS NULL");
     if (query.exec() == false) {
-        QLOG_ERROR() << "CleanItemsTable(): error deleting items where loc is null.";
+        spdlog::error("CleanItemsTable(): error deleting items where loc is null.");
         return;
     };
 
@@ -98,14 +98,14 @@ void SqliteDataStore::CleanItemsTable() {
         query.setForwardOnly(true);
         query.prepare("SELECT loc FROM items");
         if (query.exec() == false) {
-            QLOG_ERROR() << "CleanItemsTable(): error selecting loc from items.";
+            spdlog::error("CleanItemsTable(): error selecting loc from items.");
             return;
         };
         while (query.next()) {
             locs.push_back(query.value(0).toString());
         };
         if (query.lastError().isValid()) {
-            QLOG_ERROR() << "CleanItemsTable(): error moving to next loc:" << query.lastError().text();
+            spdlog::error("CleanItemsTable(): error moving to next loc: {}", query.lastError().text());
         };
         query.finish();
 
@@ -138,7 +138,7 @@ void SqliteDataStore::CleanItemsTable() {
                 query.prepare("DELETE FROM items WHERE loc = ?");
                 query.bindValue(0, loc);
                 if (query.exec() == false) {
-                    QLOG_ERROR() << "Error deleting items where loc is" << loc;
+                    spdlog::error("Error deleting items where loc is {}", loc);
                 };
             }
         }
@@ -150,12 +150,12 @@ QString SqliteDataStore::Get(const QString& key, const QString& default_value) {
     query.prepare("SELECT value FROM data WHERE key = ?");
     query.bindValue(0, key);
     if (query.exec() == false) {
-        QLOG_ERROR() << "Error getting data for" << key << ":" << query.lastError().text();
+        spdlog::error("Error getting data for {}: {}", key, query.lastError().text());
         return default_value;
     };
     if (query.next() == false) {
         if (query.isActive() == false) {
-            QLOG_ERROR() << "Error getting result for" << key << ":" << query.lastError().text();
+            spdlog::error("Error getting result for {}: {}", key, query.lastError().text());
         };
         return default_value;
     };
@@ -168,12 +168,12 @@ Locations SqliteDataStore::GetTabs(const ItemLocationType type) {
     query.prepare("SELECT value FROM tabs WHERE type = ?");
     query.bindValue(0, (int)type);
     if (query.exec() == false) {
-        QLOG_ERROR() << "Error getting tabs for type" << (int)type << ":" << query.lastError().text();
+        spdlog::error("Error getting tabs for type {}: {}", (int)type, query.lastError().text());
         return {};
     };
     if (query.next() == false) {
         if (query.isActive() == false) {
-            QLOG_ERROR() << "Error getting result for" << (int)type << ":" << query.lastError().text();
+            spdlog::error("Error getting result for {}: {}", (int)type, query.lastError().text());
         };
         return {};
     };
@@ -187,12 +187,12 @@ Items SqliteDataStore::GetItems(const ItemLocation& loc) {
     query.prepare("SELECT value FROM items WHERE loc = ?");
     query.bindValue(0, tab_uid);
     if (query.exec() == false) {
-        QLOG_ERROR() << "Error getting items for" << tab_uid << ":" << query.lastError().text();
+        spdlog::error("Error getting items for {}: {}", tab_uid, query.lastError().text());
         return {};
     };
     if (query.next() == false) {
         if (query.isActive() == false) {
-            QLOG_ERROR() << "Error getting result for" << tab_uid << ":" << query.lastError().text();
+            spdlog::error("Error getting result for {}: {}", tab_uid, query.lastError().text());
         };
         return {};
     };
@@ -206,7 +206,7 @@ void SqliteDataStore::Set(const QString& key, const QString& value) {
     query.bindValue(0, key);
     query.bindValue(1, value);
     if (query.exec() == false) {
-        QLOG_ERROR() << "Error setting value" << key;
+        spdlog::error("Error setting value {}", key);
     };
 }
 
@@ -216,13 +216,13 @@ void SqliteDataStore::SetTabs(const ItemLocationType type, const Locations& tabs
     query.bindValue(0, (int)type);
     query.bindValue(1, Serialize(tabs));
     if (query.exec() == false) {
-        QLOG_ERROR() << "Error setting tabs for type" << (int)type;
+        spdlog::error("Error setting tabs for type {}", (int)type);
     };
 }
 
 void SqliteDataStore::SetItems(const ItemLocation& loc, const Items& items) {
     if (loc.get_tab_uniq_id().isEmpty()) {
-        QLOG_WARN() << "Cannot set items because the location is empty";
+        spdlog::warn("Cannot set items because the location is empty");
         return;
     };
     QSqlQuery query(m_db);
@@ -230,7 +230,7 @@ void SqliteDataStore::SetItems(const ItemLocation& loc, const Items& items) {
     query.bindValue(0, loc.get_tab_uniq_id());
     query.bindValue(1, Serialize(items));
     if (query.exec() == false) {
-        QLOG_ERROR() << "Error setting tabs for type" << loc.get_tab_uniq_id();
+        spdlog::error("Error setting tabs for type {}", loc.get_tab_uniq_id());
     };
 }
 
@@ -240,7 +240,7 @@ void SqliteDataStore::InsertCurrencyUpdate(const CurrencyUpdate& update) {
     query.bindValue(0, update.timestamp);
     query.bindValue(1, update.value);
     if (query.exec() == false) {
-        QLOG_ERROR() << "Error inserting currency update.";
+        spdlog::error("Error inserting currency update.");
     };
 }
 
@@ -249,7 +249,7 @@ std::vector<CurrencyUpdate> SqliteDataStore::GetAllCurrency() {
     query.prepare("SELECT timestamp, value FROM currency ORDER BY timestamp ASC");
     std::vector<CurrencyUpdate> result;
     if (query.exec() == false) {
-        QLOG_ERROR() << "Error getting currency updates:" << query.lastError().text();
+        spdlog::error("Error getting currency updates: {}", query.lastError().text());
         return {};
     };
     while (query.next()) {
@@ -259,7 +259,7 @@ std::vector<CurrencyUpdate> SqliteDataStore::GetAllCurrency() {
         result.push_back(update);
     };
     if (query.lastError().isValid()) {
-        QLOG_ERROR() << "Error getting currency.";
+        spdlog::error("Error getting currency.");
         return {};
     };
     return result;

@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -21,7 +21,7 @@
 
 #include <QRegularExpression>
 
-#include <QsLog/QsLog.h>
+#include <util/spdlog_qt.h>
 
 QString LegacyItem::effectiveTypeLine() const {
     QString result;
@@ -40,7 +40,7 @@ QString LegacyItem::effectiveTypeLine() const {
 QString LegacyItem::hash() const {
 
     if (_character && _tab_label) {
-        QLOG_ERROR() << "LegacyItem::hash() item contains both '_carhacter' and '_tab_label':" << name << id;
+        spdlog::error("LegacyItem::hash() item contains both '_character' and '_tab_label': {} {}", name, id);
         return QString();
     };
 

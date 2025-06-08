@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -27,9 +27,8 @@
 #include <QRegularExpressionMatch>
 #include <QString>
 
-#include <QsLog/QsLog.h>
-
-#include "ui/mainwindow.h"
+#include <ui/mainwindow.h>
+#include <util/spdlog_qt.h>
 
 #include "itemcategories.h"
 #include "modlist.h"
@@ -51,14 +50,14 @@ RePoE::RePoE(QNetworkAccessManager& network_manager)
     : m_network_manager(network_manager)
     , m_initialized(false)
 {
-    QLOG_TRACE() << "RePoE::RePoE() entered";
+    spdlog::trace("RePoE::RePoE() entered");
 }
 
 void RePoE::Init(const QString& data_dir) {
 
-    QLOG_INFO() << "Initializing RePoE";
+    spdlog::info("Initializing RePoE");
     if (m_initialized) {
-        QLOG_INFO() << "RePoE is already initialized.";
+        spdlog::info("RePoE is already initialized.");
         return;
     };
 
@@ -66,10 +65,10 @@ void RePoE::Init(const QString& data_dir) {
 
     emit StatusUpdate(ProgramState::Initializing, "Waiting for RePoE version.");
 
-    const QString url = QString(REPOE_URL) + "/poe1.html";
+    const QString url = QString(REPOE_URL) + "/version.txt";
 
     // We start be requesting the current version from Github to see if we need to update.
-    QLOG_DEBUG() << "RePoE: requesting poe1.html";
+    spdlog::debug("RePoE: requesting version.txt");
     QNetworkRequest request = QNetworkRequest(QUrl(url));
     request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
     QNetworkReply* reply = m_network_manager.get(request);
@@ -82,17 +81,17 @@ void RePoE::OnVersionReceived() {
     if (reply->error()) {
         const auto error = reply->error();
         if ((error < 200) || (error > 299)) {
-            QLOG_ERROR() << "RePoE: error requesting version.txt:" << error << reply->errorString();
+            spdlog::error("RePoE: error requesting version.txt: {} {}", error, reply->errorString());
             reply->deleteLater();
             return;
         };
     };
-    QLOG_DEBUG() << "RePoE: received poe1.html";
+    spdlog::debug("RePoE: received version.txt");
 
-    // Grab the html from the reply.
-    const QByteArray htmlData = reply->readAll();
-    const QString htmlString = QString::fromUtf8(htmlData);
-    const QString remote_version = RePoE::ParseVersion(htmlString);
+    // Grab the version from the reply.
+    const QByteArray remote_data = reply->readAll();
+    const QString remote_version = QString::fromUtf8(remote_data);
+    spdlog::debug("RePoE: remote version is {}", remote_version);
     reply->deleteLater();
 
     QDir repoe_dir(m_data_dir);
@@ -109,46 +108,44 @@ void RePoE::OnVersionReceived() {
     };
     for (const auto& filename : STAT_TRANSLATIONS) {
         update |= !repoe_dir.exists("repoe/" + QString(filename));
-    };
+    };    
 
-    QLOG_DEBUG() << "RePoE: remote version is" << remote_version;
-
-    const QString version_path = repoe_dir.absoluteFilePath("repoe/poe1.html");
+    const QString version_path = repoe_dir.absoluteFilePath("repoe/version.txt");
     QFile version_file(version_path);
     if (version_file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         QTextStream in(&version_file);
-        const QString local_version = RePoE::ParseVersion(in.readAll());
+        const QString local_version = in.readAll();
         version_file.close();
-        QLOG_DEBUG() << "RePoE: local version is" << local_version;
+        spdlog::debug("RePoE: local version is {}", local_version);
         if (local_version != remote_version) {
             update = true;
         };
     } else {
-        QLOG_DEBUG() << "RePoE: no local version";
+        spdlog::debug("RePoE: no local version");
         update = true;
     };
 
     if (update) {
         if (!version_file.open(QIODevice::WriteOnly)) {
-            QLOG_ERROR() << "RePoE: error opening poe1.html for writing:" << version_file.errorString();
+            spdlog::error("RePoE: error opening version.txt for writing: {}", version_file.errorString());
             return;
         };
-        if (version_file.write(htmlData) < 0) {
-            QLOG_ERROR() << "RePoE: error writing poe1.html:" << version_file.errorString();
+        if (version_file.write(remote_data) < 0) {
+            spdlog::error("RePoE: error writing version.txt: {}", version_file.errorString());
             version_file.close();
             return;
         };
         version_file.close();
         BeginUpdate();
     } else {
-        QLOG_INFO() << "RePoE: an update is not needed";
+        spdlog::info("RePoE: an update is not needed");
         FinishUpdate();
     }
 }
 
 void RePoE::BeginUpdate() {
 
-    QLOG_INFO() << "RePoE: beginning update";
+    spdlog::info("RePoE: beginning update");
     emit StatusUpdate(ProgramState::Initializing, "Waiting for RePoE item classes.");
 
     m_needed_files.clear();
@@ -173,7 +170,7 @@ void RePoE::RequestNextFile() {
         const QString& filename = m_needed_files.back();
         emit StatusUpdate(ProgramState::Initializing, "Waiting for RePoE file: " + filename);
 
-        QLOG_DEBUG() << "RePoE: requesting" << filename;
+        spdlog::debug("RePoE: requesting {}", filename);
         const QString url = QString(REPOE_URL) + "/" + filename;
         QNetworkRequest request = QNetworkRequest(QUrl(url));
         request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
@@ -192,8 +189,8 @@ void RePoE::OnFileReceived() {
     const auto error = reply->error();
     if (error != QNetworkReply::NetworkError::NoError) {
         if ((error < 200) || (error > 299)) {
-            QLOG_ERROR() << "RePoE: network error:" << reply->errorString();
-            QLOG_ERROR() << "RePoE: failed to download" << filename;
+            spdlog::error("RePoE: network error: {}", reply->errorString());
+            spdlog::error("RePoE: failed to download {}", filename);
             reply->deleteLater();
             return;
         };
@@ -205,11 +202,11 @@ void RePoE::OnFileReceived() {
 
     QFile file(savefile);
     if (!file.open(QIODevice::WriteOnly)) {
-        QLOG_ERROR() << "RePoE: error opening file for writing:" << file.errorString();
+        spdlog::error("RePoE: error opening file for writing: {}", file.errorString());
         return;
     };
     if (file.write(data) < 0) {
-        QLOG_ERROR() << "RePoE: error writing data:" << file.errorString();
+        spdlog::error("RePoE: error writing data: {}", file.errorString());
         file.close();
         return;
     };
@@ -231,7 +228,7 @@ void RePoE::FinishUpdate() {
     };
     InitModList();
 
-    QLOG_INFO() << "RePoE: update finished";
+    spdlog::info("RePoE: update finished");
     m_initialized = true;
     emit finished();
 }
@@ -240,7 +237,7 @@ QByteArray RePoE::ReadFile(const QString& filename) {
     const QString filepath = m_data_dir + "/repoe/" + filename;
     QFile file(filepath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QLOG_ERROR() << "RePoE: cannot open file for reading:" << filepath;
+        spdlog::error("RePoE: cannot open file for reading: {}", filepath);
         return QByteArray();
     } else {
         const QByteArray data = file.readAll();
@@ -254,7 +251,7 @@ QString RePoE::ParseVersion(const QString& contents) {
     if (match.hasMatch()) {
         return match.captured(1);
     } else {
-        QLOG_ERROR() << "RePoE: cannot parse version:" << contents;
+        spdlog::error("RePoE: cannot parse version: {}", contents);
         return QString();
     };
 }

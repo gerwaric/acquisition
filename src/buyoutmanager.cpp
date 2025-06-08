@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -22,21 +22,21 @@
 #include <QRegularExpression>
 #include <QVariant>
 
-#include <QsLog/QsLog.h>
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
 
-#include "datastore/datastore.h"
-#include "util/util.h"
+#include <datastore/datastore.h>
+#include <util/spdlog_qt.h>
+#include <util/util.h>
 
 #include "application.h"
 #include "itemlocation.h"
 
 const std::map<QString, BuyoutType> BuyoutManager::m_string_to_buyout_type = {
-    {"~gb/o", BUYOUT_TYPE_BUYOUT},
-    {"~b/o", BUYOUT_TYPE_BUYOUT},
-    {"~c/o", BUYOUT_TYPE_CURRENT_OFFER},
-    {"~price", BUYOUT_TYPE_FIXED},
+    {"~gb/o", Buyout::BUYOUT_TYPE_BUYOUT},
+    {"~b/o", Buyout::BUYOUT_TYPE_BUYOUT},
+    {"~c/o", Buyout::BUYOUT_TYPE_CURRENT_OFFER},
+    {"~price", Buyout::BUYOUT_TYPE_FIXED},
 };
 
 BuyoutManager::BuyoutManager(DataStore& data)
@@ -51,8 +51,8 @@ BuyoutManager::~BuyoutManager() {
 }
 
 void BuyoutManager::Set(const Item& item, const Buyout& buyout) {
-    if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
-        QLOG_WARN() << "BuyoutManager: tried to set an obsolete 'current offer' buyout for" << item.PrettyName() << ":" << buyout.AsText();
+    if (buyout.type == Buyout::BUYOUT_TYPE_CURRENT_OFFER) {
+        spdlog::warn("BuyoutManager: tried to set an obsolete 'current offer' buyout for {}: {}", item.PrettyName(), buyout.AsText());
     };
     auto const& it = m_buyouts.find(item.hash());
     if (it != m_buyouts.end()) {
@@ -72,8 +72,8 @@ Buyout BuyoutManager::Get(const Item& item) const {
     auto const& it = m_buyouts.find(item.hash());
     if (it != m_buyouts.end()) {
         Buyout buyout = it->second;
-        if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
-            QLOG_WARN() << "BuyoutManager: detected an obsolete 'current offer' buyout for" << item.PrettyName() << ":" << buyout.AsText();
+        if (buyout.type == Buyout::BUYOUT_TYPE_CURRENT_OFFER) {
+            spdlog::warn("BuyoutManager: detected an obsolete 'current offer' buyout for {}: {}", item.PrettyName(), buyout.AsText());
         };
         return buyout;
     };
@@ -84,8 +84,8 @@ Buyout BuyoutManager::GetTab(const QString& tab) const {
     auto const& it = m_tab_buyouts.find(tab);
     if (it != m_tab_buyouts.end()) {
         Buyout buyout = it->second;
-        if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
-            QLOG_WARN() << "BuyoutManager: detected an obsolete 'current offer' tab buyout for" << tab << ":" << buyout.AsText();
+        if (buyout.type == Buyout::BUYOUT_TYPE_CURRENT_OFFER) {
+            spdlog::warn("BuyoutManager: detected an obsolete 'current offer' tab buyout for {}: {}", tab, buyout.AsText());
         };
         return buyout;
     };
@@ -93,8 +93,8 @@ Buyout BuyoutManager::GetTab(const QString& tab) const {
 }
 
 void BuyoutManager::SetTab(const QString& tab, const Buyout& buyout) {
-    if (buyout.type == BUYOUT_TYPE_CURRENT_OFFER) {
-        QLOG_WARN() << "BuyoutManager: tried to set an obsolete 'current offer' tab buyout for" << tab << ":" << buyout.AsText();
+    if (buyout.type == Buyout::BUYOUT_TYPE_CURRENT_OFFER) {
+        spdlog::warn("BuyoutManager: tried to set an obsolete 'current offer' tab buyout for {}: {}", tab, buyout.AsText());
     };
     auto const& it = m_tab_buyouts.lower_bound(tab);
     if (it != m_tab_buyouts.end() && !(m_tab_buyouts.key_comp()(tab, it->first))) {
@@ -222,8 +222,8 @@ void BuyoutManager::Deserialize(const QString& data, std::map<QString, Buyout>* 
 
     rapidjson::Document doc;
     if (doc.Parse(data.toStdString().c_str()).HasParseError()) {
-        QLOG_ERROR() << "Error while parsing buyouts.";
-        QLOG_ERROR() << rapidjson::GetParseError_En(doc.GetParseError());
+        spdlog::error("Error while parsing buyouts.");
+        spdlog::error(rapidjson::GetParseError_En(doc.GetParseError()));
         return;
     };
     if (!doc.IsObject()) {
@@ -247,8 +247,8 @@ void BuyoutManager::Deserialize(const QString& data, std::map<QString, Buyout>* 
         if (object.HasMember("inherited")) {
             bo.inherited = object["inherited"].GetBool();
         };
-        if (bo.type == BUYOUT_TYPE_CURRENT_OFFER) {
-            QLOG_WARN() << "BuyoutManager::Deserialize() obsolete 'current offer' buyout detected:" << name;
+        if (bo.type == Buyout::BUYOUT_TYPE_CURRENT_OFFER) {
+            spdlog::warn("BuyoutManager::Deserialize() obsolete 'current offer' buyout detected: {}", name);
         };
         (*buyouts)[name] = bo;
     };
@@ -276,7 +276,7 @@ void BuyoutManager::Deserialize(const QString& data, std::map<QString, bool>& ob
 
     rapidjson::Document doc;
     if (doc.Parse(data.toStdString().c_str()).HasParseError()) {
-        QLOG_ERROR() << rapidjson::GetParseError_En(doc.GetParseError());
+        spdlog::error(rapidjson::GetParseError_En(doc.GetParseError()));
         return;
     };
 
@@ -319,7 +319,7 @@ BuyoutType BuyoutManager::StringToBuyoutType(QString bo_str) const {
     if (it != m_string_to_buyout_type.end()) {
         return it->second;
     };
-    return BUYOUT_TYPE_INHERIT;
+    return Buyout::BUYOUT_TYPE_INHERIT;
 }
 
 Buyout BuyoutManager::StringToBuyout(QString format) {
@@ -335,7 +335,7 @@ Buyout BuyoutManager::StringToBuyout(QString format) {
         tmp.type = StringToBuyoutType(m.captured(1));
         tmp.value = m.captured(2).toDouble();
         tmp.currency = Currency::FromString(m.captured(3));
-        tmp.source = BUYOUT_SOURCE_GAME;
+        tmp.source = Buyout::BUYOUT_SOURCE_GAME;
         tmp.last_update = QDateTime::currentDateTime();
     };
     return tmp;
@@ -346,7 +346,7 @@ void BuyoutManager::MigrateItem(const Item& item) {
     QString hash = item.hash();
     auto it = m_buyouts.find(old_hash);
     auto new_it = m_buyouts.find(hash);
-    if (it != m_buyouts.end() && (new_it == m_buyouts.end() || new_it->second.source != BUYOUT_SOURCE_MANUAL)) {
+    if (it != m_buyouts.end() && (new_it == m_buyouts.end() || new_it->second.source != Buyout::BUYOUT_SOURCE_MANUAL)) {
         m_buyouts[hash] = it->second;
         m_buyouts.erase(it);
         m_save_needed = true;

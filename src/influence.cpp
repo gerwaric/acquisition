@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -18,8 +18,9 @@
 */
 
 #include "influence.h"
-#include <QImage>
+
 #include <QIcon>
+#include <QImage>
 #include <QPainter>
 
 QIcon combineInflunceIcons(const QIcon& leftIcon, const QIcon& rightIcon) {

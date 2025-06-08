@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -17,13 +17,12 @@
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "util/oauthtoken.h"
+#include "oauthtoken.h"
 
 #include <QNetworkReply>
 
-#include <QsLog/QsLog.h>
-
-#include "util/util.h"
+#include <util/spdlog_qt.h>
+#include <util/util.h>
 
 // Hard-code the token refresh lifetime for a public client:
 // https://www.pathofexile.com/developer/docs/authorization#clients-public

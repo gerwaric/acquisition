@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -24,9 +24,8 @@
 #include <QObject>
 #include <QTimer>
 
-#include <boost/circular_buffer.hpp>
-
 #include <deque>
+#include <boost/circular_buffer.hpp>
 
 #include "network_info.h"
 #include "ratelimit.h"

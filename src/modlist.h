@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -21,12 +21,12 @@
 
 #include <QByteArray>
 #include <QString>
+#include <QStringList>
+#include <QStringListModel>
 
 #include <memory>
 #include <unordered_map>
 #include <vector>
-#include <QStringList>
-#include <QStringListModel>
 
 #include <rapidjson/document.h>
 

@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -19,18 +19,17 @@
 
 #include "modlist.h"
 
+#include <QRegularExpression>
+#include <QStringList>
+
 #include <memory>
 #include <set>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include <QRegularExpression>
-#include <QStringList>
-
-#include <QsLog/QsLog.h>
-
-#include "util/util.h"
+#include <util/spdlog_qt.h>
+#include <util/util.h>
 
 #include "item.h"
 
@@ -152,17 +151,17 @@ QStringListModel& mod_list_model() {
 }
 
 void InitStatTranslations() {
-    QLOG_TRACE() << "InitStatTranslations() entered";
+    spdlog::trace("InitStatTranslations() entered");
     mods.clear();
 }
 
 void AddStatTranslations(const QByteArray& statTranslations) {
-    QLOG_TRACE() << "AddStatTranslations() entered";
+    spdlog::trace("AddStatTranslations() entered");
 
     rapidjson::Document doc;
     doc.Parse(statTranslations.constData());
     if (doc.HasParseError()) {
-        QLOG_ERROR() << "Couldn't properly parse Stat Translations from RePoE, canceling Mods Update";
+        spdlog::error("Couldn't properly parse Stat Translations from RePoE, canceling Mods Update");
         return;
     };
 
@@ -198,14 +197,14 @@ void AddStatTranslations(const QByteArray& statTranslations) {
 }
 
 void InitModList() {
-    QLOG_TRACE() << "InitModList() entered";
+    spdlog::trace("InitModList() entered");
 
     std::set<QString> mod_strings;
     mod_generators.clear();
     mods_map.clear();
     for (auto& mod : mods) {
         if (mod_strings.count(mod) > 0) {
-            QLOG_WARN() << "InitModList(): duplicate mod:" << mod;
+            spdlog::warn("InitModList(): duplicate mod: {}", mod);
         } else {
             mod_strings.insert(mod);
             std::vector<QString> list = { mod };

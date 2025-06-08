@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -19,28 +19,47 @@
 
 #pragma once
 
+#include <QObject>
 #include <QString>
 
 #include <map>
 
-enum FRAME_TYPES {
-    FRAME_TYPE_NORMAL = 0,
-    FRAME_TYPE_MAGIC = 1,
-    FRAME_TYPE_RARE = 2,
-    FRAME_TYPE_UNIQUE = 3,
-    FRAME_TYPE_GEM = 4,
-    FRAME_TYPE_CURRENCY = 5,
-    FRAME_TYPE_DIVINATION_CARD = 6,
-    FRAME_TYPE_QUEST_ITEM = 7,
-    FRAME_TYPE_PROPHECY = 8,
-    FRAME_TYPE_RELIC = 9
-};
+#include <util/spdlog_qt.h>
 
-enum ELEMENTAL_DAMAGE_TYPES {
-    ED_FIRE = 4,
-    ED_COLD = 5,
-    ED_LIGHTNING = 6,
-};
+namespace ItemEnums {
+    Q_NAMESPACE
+
+    enum FrameType {
+        FRAME_TYPE_NORMAL = 0,
+        FRAME_TYPE_MAGIC = 1,
+        FRAME_TYPE_RARE = 2,
+        FRAME_TYPE_UNIQUE = 3,
+        FRAME_TYPE_GEM = 4,
+        FRAME_TYPE_CURRENCY = 5,
+        FRAME_TYPE_DIVINATION_CARD = 6,
+        FRAME_TYPE_QUEST_ITEM = 7,
+        FRAME_TYPE_PROPHECY = 8,
+        FRAME_TYPE_RELIC = 9
+    };
+    Q_ENUM_NS(FrameType)
+
+    enum ElementalDamageType {
+        ED_FIRE = 4,
+        ED_COLD = 5,
+        ED_LIGHTNING = 6,
+    };
+    Q_ENUM_NS(ElementalDamageType)
+
+}
+
+using FrameType = ItemEnums::FrameType;
+template <>
+struct fmt::formatter<FrameType, char> : QtEnumFormatter<FrameType> {};
+
+using ElementalDamageType = ItemEnums::ElementalDamageType;
+template <>
+struct fmt::formatter<ElementalDamageType, char> : QtEnumFormatter<ElementalDamageType> {};
+
 
 constexpr int PIXELS_PER_SLOT = 47;
 constexpr int INVENTORY_SLOTS = 12;

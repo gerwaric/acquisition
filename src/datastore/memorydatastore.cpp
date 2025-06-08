@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -19,7 +19,7 @@
 
 #include "memorydatastore.h"
 
-#include "currencymanager.h"
+#include <currencymanager.h>
 
 QString MemoryDataStore::Get(const QString& key, const QString& default_value) {
     auto i = m_data.find(key);

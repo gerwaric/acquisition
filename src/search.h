@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -19,13 +19,14 @@
 
 #pragma once
 
+#include <QObject>
 #include <QString>
 
 #include <memory>
 #include <vector>
 #include <set>
 
-#include "util/util.h"
+#include <util/util.h>
 
 #include "item.h"
 #include "items_model.h"
@@ -40,11 +41,15 @@ class QTreeView;
 class QModelIndex;
 
 class Search {
+    Q_GADGET
 public:
+
     enum class ViewMode : int {
         ByTab = 0,
         ByItem = 1
     };
+    Q_ENUM(ViewMode)
+
     Search(BuyoutManager& bo,
         const QString& caption,
         const std::vector<std::unique_ptr<Filter>>& filters,
@@ -69,7 +74,7 @@ public:
     bool has_bucket(int row) const;
     const Bucket& bucket(int row) const;
     const QModelIndex index(const std::shared_ptr<Item>& item) const;
-    void SetRefreshReason(RefreshReason::Type reason) { m_refresh_reason = reason; }
+    void SetRefreshReason(RefreshReason reason) { m_refresh_reason = reason; }
     void Sort(int column, Qt::SortOrder order);
 private:
     std::vector<Bucket>& active_buckets();
@@ -90,5 +95,9 @@ private:
     size_t m_filtered_item_count;
     std::set<QString> m_expanded_property;
     ViewMode m_current_mode;
-    RefreshReason::Type m_refresh_reason;
+    RefreshReason m_refresh_reason;
 };
+
+template <>
+struct fmt::formatter<Search::ViewMode, char> : QtEnumFormatter<Search::ViewMode> {};
+

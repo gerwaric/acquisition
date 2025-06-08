@@ -19,14 +19,14 @@
 
 #pragma once
 
-#include <json_struct/json_struct.h>
-
 #include <QByteArray>
 #include <QDateTime>
 #include <QNetworkReply>
 #include <QString>
 
 #include <array>
+
+#include <json_struct/json_struct.h>
 
 namespace JS {
 

@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -17,7 +17,8 @@
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <memory>
+#include "filters.h"
+
 #include <QAbstractItemView>
 #include <QListView>
 #include <QCheckBox>
@@ -28,12 +29,13 @@
 #include <QCompleter>
 #include <QComboBox>
 
-#include "ui/mainwindow.h"
-#include "ui/searchcombobox.h"
-#include "util/util.h"
+#include <memory>
+
+#include <ui/mainwindow.h>
+#include <ui/searchcombobox.h>
+#include <util/util.h>
 
 #include "buyoutmanager.h"
-#include "filters.h"
 #include "itemconstants.h"
 
 const QString CategorySearchFilter::k_Default = "<any>";
@@ -179,15 +181,15 @@ bool RaritySearchFilter::Matches(const std::shared_ptr<Item>& item, FilterData* 
         return true;
     };
     switch (item->frameType()) {
-    case FRAME_TYPE_NORMAL:
+    case FrameType::FRAME_TYPE_NORMAL:
         return (data->text_query == "Normal");
-    case FRAME_TYPE_MAGIC:
+    case FrameType::FRAME_TYPE_MAGIC:
         return (data->text_query == "Magic");
-    case FRAME_TYPE_RARE:
+    case FrameType::FRAME_TYPE_RARE:
         return (data->text_query == "Rare");
-    case FRAME_TYPE_UNIQUE:
+    case FrameType::FRAME_TYPE_UNIQUE:
         return (data->text_query == "Unique");
-    case FRAME_TYPE_RELIC:
+    case FrameType::FRAME_TYPE_RELIC:
         return (data->text_query == "Unique (Relic)");
     default:
         return false;

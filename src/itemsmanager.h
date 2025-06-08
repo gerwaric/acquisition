@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -24,8 +24,8 @@
 
 #include <vector>
 
-#include "ui/mainwindow.h"
-#include "util/util.h"
+#include <ui/mainwindow.h>
+#include <util/util.h>
 
 #include "item.h"
 #include "itemlocation.h"
@@ -60,7 +60,7 @@ public:
     bool isUpdating() const { return m_worker ? m_worker->isUpdating() : false; };
     // Creates and starts the worker
     void Start(POE_API mode);
-    void Update(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
+    void Update(TabSelection type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
     void SetAutoUpdateInterval(int minutes);
     void SetAutoUpdate(bool update);
     const Items& items() const { return m_items; }
@@ -72,7 +72,7 @@ public slots:
     void OnStatusUpdate(ProgramState state, const QString& status);
     void OnItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
 signals:
-    void UpdateSignal(TabSelection::Type type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
+    void UpdateSignal(TabSelection type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
     void ItemsRefreshed(bool initial_refresh);
     void StatusUpdate(ProgramState state, const QString& status);
     void UpdateModListSignal();

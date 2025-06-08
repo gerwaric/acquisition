@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -26,7 +26,7 @@
 #include <vector>
 
 #include <util/json_struct_qt.h>
-#include <QsLog/QsLog.h>
+#include <util/spdlog_qt.h>
 
 #include "legacybuyout.h"
 // IGNORE: #include "legacycurrency.h"

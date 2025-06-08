@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -68,7 +68,7 @@ void TestItemsManager::BuyoutPropagation() {
     auto second = std::make_shared<Item>("Second item", second_tab);
 
     auto& bo = m_buyout_manager;
-    Buyout buyout(123.0, BUYOUT_TYPE_BUYOUT, CURRENCY_ORB_OF_ALTERATION, QDateTime::currentDateTime());
+    Buyout buyout(123.0, Buyout::BUYOUT_TYPE_BUYOUT, Currency::CURRENCY_ORB_OF_ALTERATION, QDateTime::currentDateTime());
     bo.SetTab(first_tab.GetUniqueHash(), buyout);
 
     Items items = { first, second };
@@ -91,8 +91,8 @@ void TestItemsManager::UserSetBuyoutPropagation() {
     auto second = std::make_shared<Item>("Second item", first_tab);
 
     auto& bo = m_buyout_manager;
-    Buyout item_buyout(123.0, BUYOUT_TYPE_BUYOUT, CURRENCY_ORB_OF_ALTERATION, QDateTime::currentDateTime());
-    Buyout tab_buyout(456.0, BUYOUT_TYPE_BUYOUT, CURRENCY_CHAOS_ORB, QDateTime::currentDateTime());
+    Buyout item_buyout(123.0, Buyout::BUYOUT_TYPE_BUYOUT, Currency::CURRENCY_ORB_OF_ALTERATION, QDateTime::currentDateTime());
+    Buyout tab_buyout(456.0, Buyout::BUYOUT_TYPE_BUYOUT, Currency::CURRENCY_CHAOS_ORB, QDateTime::currentDateTime());
     bo.Set(*first, item_buyout);
     bo.SetTab(first_tab.GetUniqueHash(), tab_buyout);
 
@@ -123,7 +123,7 @@ void TestItemsManager::MoveItemNoBoToBo() {
     QVERIFY2(item_before->hash() == item_after->hash(), "Before/after must have equal hashes");
 
     auto& bo = m_buyout_manager;
-    Buyout tab_buyout(456.0, BUYOUT_TYPE_BUYOUT, CURRENCY_CHAOS_ORB, QDateTime::currentDateTime());
+    Buyout tab_buyout(456.0, Buyout::BUYOUT_TYPE_BUYOUT, Currency::CURRENCY_CHAOS_ORB, QDateTime::currentDateTime());
     bo.SetTab(second_tab.GetUniqueHash(), tab_buyout);
 
     auto tabs = { first_tab, second_tab };
@@ -152,7 +152,7 @@ void TestItemsManager::MoveItemBoToNoBo() {
     QVERIFY2(item_before->hash() == item_after->hash(), "Before/after must have equal hashes");
 
     auto& bo = m_buyout_manager;
-    Buyout tab_buyout(456.0, BUYOUT_TYPE_BUYOUT, CURRENCY_CHAOS_ORB, QDateTime::currentDateTime());
+    Buyout tab_buyout(456.0, Buyout::BUYOUT_TYPE_BUYOUT, Currency::CURRENCY_CHAOS_ORB, QDateTime::currentDateTime());
     bo.SetTab(first_tab.GetUniqueHash(), tab_buyout);
 
     auto tabs = { first_tab, second_tab };
@@ -181,8 +181,8 @@ void TestItemsManager::MoveItemBoToBo() {
     QVERIFY2(item_before->hash() == item_after->hash(), "Before/after must have equal hashes");
 
     auto& bo = m_buyout_manager;
-    Buyout first_buyout(456.0, BUYOUT_TYPE_BUYOUT, CURRENCY_CHAOS_ORB, QDateTime::currentDateTime());
-    Buyout second_buyout(234.0, BUYOUT_TYPE_BUYOUT, CURRENCY_CARTOGRAPHERS_CHISEL, QDateTime::currentDateTime());
+    Buyout first_buyout(456.0, Buyout::BUYOUT_TYPE_BUYOUT, Currency::CURRENCY_CHAOS_ORB, QDateTime::currentDateTime());
+    Buyout second_buyout(234.0, Buyout::BUYOUT_TYPE_BUYOUT, Currency::CURRENCY_CARTOGRAPHERS_CHISEL, QDateTime::currentDateTime());
     bo.SetTab(first_tab.GetUniqueHash(), first_buyout);
     bo.SetTab(second_tab.GetUniqueHash(), second_buyout);
 
@@ -217,7 +217,7 @@ void TestItemsManager::ItemHashMigration() {
     auto& bo = m_buyout_manager;
 
     // very hacky way to set a buyout with old itemhash
-    auto buyout = Buyout(1.23, BUYOUT_TYPE_BUYOUT, CURRENCY_ORB_OF_ALTERATION, QDateTime::fromSecsSinceEpoch(567));
+    auto buyout = Buyout(1.23, Buyout::BUYOUT_TYPE_BUYOUT, Currency::CURRENCY_ORB_OF_ALTERATION, QDateTime::fromSecsSinceEpoch(567));
     m_data.Set("buyouts", "{\"36f0097563123e5296dc2eed54e9d6f3\": {\"currency\": \"alt\", \"type\": \"b/o\", \"value\": 1.23, \"last_update\": 567}}");
     bo.Load();
 

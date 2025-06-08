@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -17,8 +17,6 @@
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "ui/logindialog.h"
-
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QDir>
@@ -27,16 +25,15 @@
 #include <QSettings>
 #include <QStandardPaths>
 
-#include <QsLog/QsLog.h>
-#include <QsLog/QsLogDest.h>
-
 #include <clocale>
 
-#include "util/fatalerror.h"
-#include "util/util.h"
+#include <ui/logindialog.h>
+#include <util/fatalerror.h>
+#include <util/logging.h>
+#include <util/spdlog_qt.h>
 
 #ifdef Q_OS_WINDOWS
-#include "util/checkmsvc.h"
+#include <util/checkmsvc.h>
 #endif
 
 #include "application.h"
@@ -47,9 +44,9 @@
 constexpr const char* BUILD_TIMESTAMP = (__DATE__ " " __TIME__);
 
 #ifdef QT_DEBUG
-constexpr const char* DEFAULT_LOGGING_LEVEL = "DEBUG";
+constexpr const char* DEFAULT_LOGGING_LEVEL = "debug";
 #else
-constexpr const char* DEFAULT_LOGGING_LEVEL = "INFO";
+constexpr const char* DEFAULT_LOGGING_LEVEL = "info";
 #endif
 
 int main(int argc, char* argv[])
@@ -114,27 +111,19 @@ int main(int argc, char* argv[])
     } else {
         logging_option = QString(DEFAULT_LOGGING_LEVEL);
     };
-    const QsLogging::Level loglevel = Util::TextToLogLevel(logging_option);
+    const auto loglevel = spdlog::level::from_str(logging_option.toStdString());
 
-    // Setup the logger.
-    QsLogging::MaxSizeBytes logsize(10 * 1024 * 1024);
-    QsLogging::MaxOldLogCount logcount(0);
-    QsLogging::DestinationPtr fileDestination(
-        QsLogging::DestinationFactory::MakeFileDestination(sLogPath, QsLogging::EnableLogRotation, logsize, logcount));
-    QsLogging::DestinationPtr debugDestination(
-        QsLogging::DestinationFactory::MakeDebugOutputDestination());
-
-    QsLogging::Logger& logger = QsLogging::Logger::instance();
-    logger.setLoggingLevel(loglevel);
-    logger.addDestination(debugDestination);
-    logger.addDestination(fileDestination);
+    logging::init(sLogPath);
 
     // Start the log with basic info
-    QLOG_INFO() << "-------------------------------------------------------------------------------";
-    QLOG_INFO().noquote() << a.applicationName() << a.applicationVersion() << "( version code" << VERSION_CODE << ")";
-    QLOG_INFO().noquote() << "Built with Qt" << QT_VERSION_STR << "on" << build_date.toString();
-    QLOG_INFO().noquote() << "Running on Qt" << qVersion();
-    QLOG_INFO() << "Logging level is" << logger.loggingLevel();
+    spdlog::set_level(spdlog::level::info);
+    spdlog::info("-------------------------------------------------------------------------------");
+    spdlog::info("{} {} (version code {})", a.applicationName(), a.applicationVersion(), VERSION_CODE);
+    spdlog::info("Built with Qt {} on {}", QT_VERSION_STR, build_date.toString());
+    spdlog::info("Running on Qt {}", qVersion());
+    spdlog::info("Logging level will be {}", loglevel);
+    spdlog::set_level(loglevel);
+
 
 #ifdef Q_OS_WINDOWS
     // On Windows, it's possible there are incompatible versions of the MSVC runtime
@@ -144,7 +133,7 @@ int main(int argc, char* argv[])
 #endif
 
     // Check SSL.
-    QLOG_TRACE() << "Checking for SSL support...";
+    spdlog::trace("Checking for SSL support...");
     if (!QSslSocket::supportsSsl()) {
 #ifdef Q_OS_LINUX
         FatalError("SSL support is missing. Make sure OpenSSL 3.x shared libaries are on the LD_LIBRARY_PATH.");
@@ -152,44 +141,44 @@ int main(int argc, char* argv[])
         FatalError("SSL support is missing.");
 #endif
     };
-    QLOG_TRACE() << "SSL Library Build Version: " << QSslSocket::sslLibraryBuildVersionString();
-    QLOG_TRACE() << "SSL Library Version: " << QSslSocket::sslLibraryVersionString();
+    spdlog::trace("SSL Library Build Version: {}", QSslSocket::sslLibraryBuildVersionString());
+    spdlog::trace("SSL Library Version: {}", QSslSocket::sslLibraryVersionString());
 
     // Check for test mode.
     if (parser.isSet(option_test)) {
-        QLOG_INFO() << "Running test suite...";
+        spdlog::info("Running test suite...");
         return test_main(appDataDir.absolutePath());
     };
 
     if (parser.isSet(option_validate_buyouts)) {
         const QString filename = parser.value(option_validate_buyouts);
-        QLOG_INFO() << "Validating buyouts:" << filename;
+        spdlog::info("Validating buyouts: {}", filename);
     };
 
     // Run the main application, starting with the login dialog.
-    QLOG_INFO() << "Running application...";
+    spdlog::info("Running application...");
 
     // Construct an instance of Application.
     Application app(appDataDir);
 
     // Trigger an optional crash.
     if (parser.isSet(option_crash)) {
-        QLOG_TRACE() << "main(): a forced crash was requested";
+        spdlog::trace("main(): a forced crash was requested");
         const int choice = QMessageBox::critical(nullptr, "FATAL ERROR",
             "Acquisition wants to abort.",
             QMessageBox::StandardButton::Abort | QMessageBox::StandardButton::Cancel,
             QMessageBox::StandardButton::Abort);
         if (choice == QMessageBox::StandardButton::Abort) {
-            QLOG_FATAL() << "Forcing acquisition to crash.";
+            spdlog::critical("Forcing acquisition to crash.");
             abort();
         };
     };
 
     // Starting the application creates and shows the login dialog.
-    QLOG_TRACE() << "main(): starting the application";
+    spdlog::trace("main(): starting the application");
     app.Start();
 
     // Start the main event loop.
-    QLOG_TRACE() << "main(): starting the event loop";
+    spdlog::trace("main(): starting the event loop");
     return a.exec();
 }

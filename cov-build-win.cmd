@@ -1,6 +1,6 @@
  echo off
 
-rem Copyright (C) 2014-2024 Acquisition Contributors
+rem Copyright (C) 2014-2025 Acquisition Contributors
 rem
 rem This file is part of Acquisition.
 rem

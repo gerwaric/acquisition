@@ -1,3 +1,0 @@
-[submodule "deps/QsLog/QsLog"]
-	path = deps/QsLog/QsLog
-	url = https://github.com/victronenergy/QsLog

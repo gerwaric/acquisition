@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -26,7 +26,7 @@
 #include <QObject>
 #include <QPushButton>
 
-#include "ui/mainwindow.h"
+#include <ui/mainwindow.h>
 
 #include "modlist.h"
 

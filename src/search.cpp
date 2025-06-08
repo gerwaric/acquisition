@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -24,9 +24,8 @@
 
 #include <memory>
 
-#include <QsLog/QsLog.h>
-
-#include "util/fatalerror.h"
+#include <util/fatalerror.h>
+#include <util/spdlog_qt.h>
 
 #include "buyoutmanager.h"
 #include "bucket.h"
@@ -109,7 +108,7 @@ const std::vector<Bucket>& Search::buckets() const {
     case ViewMode::ByTab: return m_bucket_by_tab; break;
     case ViewMode::ByItem: return m_bucket_by_item; break;
     default:
-        QLOG_ERROR() << "Invalid view mode:" << static_cast<int>(m_current_mode);
+        spdlog::error("Invalid view mode: {}", m_current_mode);
         return m_bucket_by_item;
         break;
     };
@@ -120,7 +119,7 @@ std::vector<Bucket>& Search::active_buckets() {
     case ViewMode::ByTab: return m_bucket_by_tab; break;
     case ViewMode::ByItem: return m_bucket_by_item; break;
     default:
-        QLOG_ERROR() << "Invalid view mode:" << static_cast<int>(m_current_mode);
+        spdlog::error("Invalid view mode: {}", static_cast<int>(m_current_mode));
         return m_bucket_by_item;
         break;
     };
@@ -188,7 +187,7 @@ void Search::Sort(int column, Qt::SortOrder order) {
 
 void Search::FilterItems(const Items& items) {
 
-    QLOG_DEBUG() << "FilterItems: reason(" << m_refresh_reason << ")";
+    spdlog::debug("FilterItems: reason({})", m_refresh_reason);
 
     // If we're just changing tabs we don't need to update anything
     if (m_refresh_reason == RefreshReason::TabChanged) {
@@ -297,10 +296,10 @@ ItemLocation Search::GetTabLocation(const QModelIndex& index) const {
             if (b.has_item(item_row)) {
                 return b.item(item_row)->location();
             } else {
-                QLOG_WARN() << "GetTabLocation(): parent bucket" << bucket_row << "does not have" << item_row << "items";
+                spdlog::warn("GetTabLocation(): parent bucket {} does not have {} items", bucket_row, item_row);
             };
         } else {
-            QLOG_WARN() << "GetTabLocation(): parent bucket" << bucket_row << "does not exist";
+            spdlog::warn("GetTabLocation(): parent bucket {} does not exist", bucket_row);
         };
     } else {
         // Otherwise index represents a tab already, get location from there
@@ -308,7 +307,7 @@ ItemLocation Search::GetTabLocation(const QModelIndex& index) const {
         if (has_bucket(bucket_row)) {
             return bucket(bucket_row).location();
         } else {
-            QLOG_WARN() << "GetTabLocation(): bucket" << bucket_row << "does not exist";
+            spdlog::warn("GetTabLocation(): bucket {} does not exist", bucket_row);
         };
     };
     return ItemLocation();

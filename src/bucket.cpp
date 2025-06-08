@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -19,7 +19,7 @@
 
 #include "bucket.h"
 
-#include "util/fatalerror.h"
+#include <util/fatalerror.h>
 
 Bucket::Bucket(const ItemLocation& location)
     : m_location(location)

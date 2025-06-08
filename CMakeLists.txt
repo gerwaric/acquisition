@@ -1,5 +1,5 @@
 #[[
-	Copyright (C) 2014-2024 Acquisition Contributors
+	Copyright (C) 2014-2025 Acquisition Contributors
 
 	This file is part of Acquisition.
 
@@ -85,6 +85,8 @@ endif()
 
 include(FetchContent)
 
+find_package(Qt6 REQUIRED COMPONENTS Core Gui HttpServer Network Sql Test WebSockets Widgets)
+
 if(NOT TARGET boost-headers-only)
     FetchContent_Declare(
         boost-headers-only
@@ -103,9 +105,16 @@ if(NOT TARGET json_struct)
     FetchContent_MakeAvailable(json_struct)
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui HttpServer Network Sql Test WebSockets Widgets)
+if(NOT TARGET spdlog)
+    FetchContent_Declare(
+        spdlog
+        GIT_REPOSITORY https://github.com/gabime/spdlog.git
+        GIT_TAG        v1.15.3
+    )
+    FetchContent_MakeAvailable(spdlog)
+endif()
 
-qt_standard_project_setup(REQUIRES 6.9.0)
+qt_standard_project_setup(REQUIRES 6.9.1)
 
 qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     # Source
@@ -152,6 +161,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/ui/verticalscrollarea.cpp
     src/util/crashpad.cpp
     src/util/fatalerror.cpp
+    src/util/logging.cpp
     src/util/networkmanager.cpp
     src/util/oauthmanager.cpp
     src/util/oauthtoken.cpp
@@ -215,11 +225,13 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/util/crashpad.h
     src/util/fatalerror.h
     src/util/json_struct_qt.h
+    src/util/logging.h
     src/util/networkmanager.h
     src/util/oauthmanager.h
     src/util/oauthtoken.h
     src/util/rapidjson_util.h
     src/util/repoe.h
+    src/util/spdlog_qt.h
     src/util/updatechecker.h
     src/util/util.h
     test/testdata.h
@@ -298,7 +310,6 @@ target_include_directories(acquisition PRIVATE
 add_subdirectory(deps/Crashpad)
 add_subdirectory(deps/libpoe)
 add_subdirectory(deps/qdarkstyle)
-add_subdirectory(deps/QsLog)
 add_subdirectory(deps/rapidjson)
 add_subdirectory(deps/semver)
 
@@ -319,9 +330,9 @@ target_link_libraries(acquisition PRIVATE
     json_struct
     libpoe
     qdarkstyle
-    QsLog
     rapidjson
     semver
+    spdlog::spdlog_header_only
 )
 
 #----------------------------------

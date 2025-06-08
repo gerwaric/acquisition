@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -19,8 +19,8 @@
 
 #pragma once
 
-#include <QObject>
 #include <QNetworkRequest>
+#include <QObject>
 #include <QString>
 #include <QTimer>
 

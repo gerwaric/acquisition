@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -21,20 +21,11 @@
 
 #include <QString>
 
-#include <QsLog/QsLog.h>
-
-#include "util/rapidjson_util.h"
-#include "util/util.h"
+#include <util/rapidjson_util.h>
+#include <util/spdlog_qt.h>
+#include <util/util.h>
 
 #include "itemconstants.h"
-
-QDebug& operator<<(QDebug& os, const ItemLocationType obj) {
-    switch (obj) {
-    case ItemLocationType::STASH: return os << "STASH";
-    case ItemLocationType::CHARACTER: return os << "CHARACTER";
-    default: return os << "<Invalid ItemLocationType(" << static_cast<long long int>(obj) << ")>";
-    };
-}
 
 ItemLocation::ItemLocation()
     : m_x(0), m_y(0)
@@ -255,7 +246,7 @@ bool ItemLocation::IsValid() const {
 
 QString ItemLocation::GetUniqueHash() const {
     if (!IsValid()) {
-        QLOG_ERROR() << "ItemLocation is invalid:" << m_json;
+        spdlog::error("ItemLocation is invalid: {}", m_json);
     };
     switch (m_type) {
     case ItemLocationType::STASH: return "stash:" + m_tab_label; // TODO: tab labels are not guaranteed unique
@@ -270,7 +261,7 @@ bool ItemLocation::operator<(const ItemLocation& rhs) const {
         case ItemLocationType::STASH: return m_tab_id < rhs.m_tab_id;
         case ItemLocationType::CHARACTER: return (QString::localeAwareCompare(m_character_sortname, rhs.m_character_sortname) < 0);
         default:
-            QLOG_ERROR() << "Invalid location type:" << m_type;
+            spdlog::error("Invalid location type: {}", m_type);
             return true;
         };
     } else {

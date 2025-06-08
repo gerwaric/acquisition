@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -24,19 +24,19 @@
 
 #include <map>
 
-#include <QsLog/QsLog.h>
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
+#include <util/spdlog_qt.h>
+#include <util/util.h>
 
 #include "filters.h"
-#include "util/util.h"
 
 class CATEGORY_DATA {
 private:
     CATEGORY_DATA() = default;
 public:
     static CATEGORY_DATA& instance() {
-        QLOG_TRACE() << "CATEGORY_DATA::instance() entered";
+        spdlog::trace("CATEGORY_DATA::instance() entered");
         static CATEGORY_DATA data;
         return data;
     };
@@ -50,26 +50,26 @@ void InitItemClasses(const QByteArray& classes) {
 
     static bool classes_initialized = false;
 
-    QLOG_DEBUG() << "Initializing item classes";
+    spdlog::debug("Initializing item classes");
     rapidjson::Document doc;
     doc.Parse(classes.constData());
     if (doc.HasParseError()) {
         const auto error = doc.GetParseError();
         const auto reason = rapidjson::GetParseError_En(error);
-        QLOG_ERROR() << "Error parsing RePoE item classes:" << reason;
+        spdlog::error("Error parsing RePoE item classes: {}", reason);
         return;
     };
 
-    QLOG_INFO() << "Loading item classes from RePoE.";
+    spdlog::info("Loading item classes from RePoE.");
     if (classes_initialized) {
-        QLOG_WARN() << "Item classes have already been loaded. They will be overwritten.";
+        spdlog::warn("Item classes have already been loaded. They will be overwritten.");
     };
 
     auto& data = CATEGORY_DATA::instance();
     data.m_itemClassKeyToValue.clear();
     data.m_itemClassValueToKey.clear();
 
-    QLOG_TRACE() << "InitItemClasses() processing data";
+    spdlog::trace("InitItemClasses() processing data");
     QSet<QString> cats;
     for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
         const QString key = itr->name.GetString();
@@ -78,7 +78,7 @@ void InitItemClasses(const QByteArray& classes) {
             continue;
         };
         if (value.isEmpty()) {
-            QLOG_DEBUG() << "Item class for" << key << "is empty";
+            spdlog::debug("Item class for {} is empty", key);
             continue;
         };
         data.m_itemClassKeyToValue[key] = value;
@@ -96,22 +96,22 @@ void InitItemBaseTypes(const QByteArray& baseTypes) {
 
     static bool basetypes_initialized = false;
     
-    QLOG_DEBUG() << "Initializing item base types";
+    spdlog::debug("Initializing item base types");
     rapidjson::Document doc;
     doc.Parse(baseTypes.constData());
     if (doc.HasParseError()) {
         const auto error = doc.GetParseError();
         const auto reason = rapidjson::GetParseError_En(error);
-        QLOG_ERROR() << "Error parsing RePoE item base types:" << reason;
+        spdlog::error("Error parsing RePoE item base types: {}", reason);
         return;
     };
 
-    QLOG_INFO() << "Loading item base types from RePoE.";
+    spdlog::info("Loading item base types from RePoE.");
     if (basetypes_initialized) {
-        QLOG_WARN() << "Item base types have already been loaded. They will be overwritten.";
+        spdlog::warn("Item base types have already been loaded. They will be overwritten.");
     };
 
-    QLOG_TRACE() << "InitItemBaseTypes() processing data";
+    spdlog::trace("InitItemBaseTypes() processing data");
     auto& data = CATEGORY_DATA::instance();
     data.m_itemBaseTypeToClass.clear();
     for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
@@ -136,12 +136,12 @@ QString GetItemCategory(const QString& baseType) {
     auto& data = CATEGORY_DATA::instance();
 
     if (data.m_itemClassKeyToValue.empty()) {
-        QLOG_ERROR() << "Item classes have not been initialized";
+        spdlog::error("Item classes have not been initialized");
         return "";
     };
 
     if (data.m_itemBaseTypeToClass.empty()) {
-        QLOG_ERROR() << "Item base types have not been initialized";
+        spdlog::error("Item base types have not been initialized");
         return "";
     };
 
@@ -151,20 +151,20 @@ QString GetItemCategory(const QString& baseType) {
         rslt = data.m_itemClassKeyToValue.find(key);
         if (rslt != data.m_itemClassKeyToValue.end()) {
             QString category = rslt->second.toLower();
-            QLOG_TRACE() << "GetItemCategory: category is" << category;
+            spdlog::trace("GetItemCategory: category is {}", category);
             return category;
         };
     };
 
-    QLOG_TRACE() << "GetItemCategory: could not categorize baseType:" << baseType;
+    spdlog::trace("GetItemCategory: could not categorize baseType: {}", baseType);
     return "";
 }
 
 const QStringList& GetItemCategories() {
-    QLOG_TRACE() << "GetItemCategories() entered";
+    spdlog::trace("GetItemCategories() entered");
     auto& data = CATEGORY_DATA::instance();
     if (data.categories.isEmpty()) {
-        QLOG_ERROR() << "Item categories have not been initialized";
+        spdlog::error("Item categories have not been initialized");
     };
     return data.categories;
 }
