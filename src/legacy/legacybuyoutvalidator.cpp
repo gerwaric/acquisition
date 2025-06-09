@@ -167,9 +167,9 @@ void LegacyBuyoutValidator::validateTabBuyouts() {
 
     QLocale locale = QLocale::system();
     spdlog::info("Validating tab buyouts:");
-    spdlog::info("Found" << locale.toString(stashes.size()) << "stash tabs");
-    spdlog::info("Found" << locale.toString(characters.size()) << "characters");
-    spdlog::info("Found" << locale.toString(buyouts.size()) << "tab buyouts");
+    spdlog::info("Found {} stash tabs", locale.toString(stashes.size()));
+    spdlog::info("Found {} characters", locale.toString(characters.size()));
+    spdlog::info("Found {} tab buyouts", locale.toString(buyouts.size()));
 
     using Location = QString;
 
@@ -219,19 +219,19 @@ void LegacyBuyoutValidator::validateTabBuyouts() {
 
     if (!duplicated_locations.empty()) {
         m_issues["Duplicated tabs"] = duplicated_locations;
-        spdlog::warn("Found" << locale.toString(duplicated_locations.size()) << "duplicated tab locations");
+        spdlog::warn("Found {} duplicated tab locations", locale.toString(duplicated_locations.size()));
     };
     if (!duplicated_buyouts.empty()) {
         m_issues["Duplicated tab buyouts"] = duplicated_buyouts;
-        spdlog::warn("Found" << locale.toString(duplicated_buyouts.size()) << "duplicated tab buyouts");
+        spdlog::warn("Found duplicated tab buyouts", locale.toString(duplicated_buyouts.size()));
     };
     if (!ambiguous_buyouts.empty()) {
         m_issues["Ambiguous tab buyouts"] = ambiguous_buyouts;
-        spdlog::warn("Found" << locale.toString(ambiguous_buyouts.size()) << "ambiguous tab buyouts");
+        spdlog::warn("Found {} ambiguous tab buyouts", locale.toString(ambiguous_buyouts.size()));
     };
     if (!orphaned_buyouts.empty()) {
         m_issues["Orphaned tab buyouts"] = orphaned_buyouts;
-        spdlog::warn("Found" << locale.toString(orphaned_buyouts.size()) << "orphaned buyouts");
+        spdlog::warn("Found {} orphaned buyouts", locale.toString(orphaned_buyouts.size()));
     };
 }
 
@@ -242,7 +242,7 @@ void LegacyBuyoutValidator::validateItemBuyouts() {
 
     QLocale locale = QLocale::system();
     spdlog::info("Validating item buyouts");
-    spdlog::info("Found" << locale.toString(buyouts.size()) << "item buyouts");
+    spdlog::info("Found item buyouts", locale.toString(buyouts.size()));
 
     using BuyoutHash = QString;
 
@@ -275,7 +275,7 @@ void LegacyBuyoutValidator::validateItemBuyouts() {
         };
         item_count += items.size();
     };
-    spdlog::info("Found" << locale.toString(item_count) << "items");
+    spdlog::info("Found {} items", locale.toString(item_count));
 
     // Now go back and make sure all of the buyouts have beem matched.
     for (const BuyoutHash& hash : unique_buyouts) {
@@ -286,10 +286,10 @@ void LegacyBuyoutValidator::validateItemBuyouts() {
 
     if (!duplicated_buyouts.empty()) {
         m_issues["Duplicated item buyouts"] = duplicated_buyouts;
-        spdlog::warn("Found" << locale.toString(duplicated_buyouts.size()) << "duplicated item buyouts");
+        spdlog::warn("Found {} duplicated item buyouts", locale.toString(duplicated_buyouts.size()));
     };
     if (!orphaned_buyouts.empty()) {
         m_issues["Orphaned item buyouts"] = orphaned_buyouts;
-        spdlog::warn("Found" << locale.toString(orphaned_buyouts.size()) << "orphaned item buyouts");
+        spdlog::warn("Found orphaned item buyouts", locale.toString(orphaned_buyouts.size()));
     };
 }
