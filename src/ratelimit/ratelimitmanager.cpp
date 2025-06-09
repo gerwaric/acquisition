@@ -42,7 +42,7 @@ constexpr int VIOLATION_STATUS = 429;
 constexpr int NORMAL_BUFFER_MSEC = 100;
 
 // Minium time between sends for any given policy.
-constexpr int MINIMUM_INTERVAL_MSEC = 250;
+constexpr int MINIMUM_INTERVAL_MSEC = 1000;
 
 // GGG has stated that when they are keeping track of request times,
 // they have a timing resolution, which they called a "bucket".
@@ -62,7 +62,7 @@ constexpr int MINIMUM_INTERVAL_MSEC = 250;
 //
 // In the future hopefully there will be a way to use the right
 // number for each policy.
-constexpr int TIMING_BUCKET_MSEC = 5200;
+constexpr int TIMING_BUCKET_MSEC = 6000;
 
 // Create a new rate limit manager based on an existing policy.
 RateLimitManager::RateLimitManager(SendFcn sender)
