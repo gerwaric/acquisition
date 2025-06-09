@@ -139,9 +139,9 @@ bool initializeCrashpad(
 
     // Log the crashpad initialization settings 
     spdlog::debug("Crashpad: starting the crashpad client");
-    spdlog::trace("Crashpad: handler = {}", handlerPath.value());
-    spdlog::trace("Crashpad: reportsDir = {}", reportsDirPath.value());
-    spdlog::trace("Crashpad: metricsDir = {}", metricsDirPath.value());
+    spdlog::trace("Crashpad: handler = {}", QString::fromStdWString(handlerPath.value()));
+    spdlog::trace("Crashpad: reportsDir = {}", QString::fromStdWString(reportsDirPath.value()));
+    spdlog::trace("Crashpad: metricsDir = {}", QString::fromStdWString(metricsDirPath.value()));
     spdlog::trace("Crashpad: url = {}", url);
     for (const auto& pair : annotations) {
         spdlog::trace("Crashpad: annotations[{}] = {}", pair.first, pair.second);
@@ -152,7 +152,7 @@ bool initializeCrashpad(
     spdlog::trace("Crashpad: restartable = {}", restartable);
     spdlog::trace("Crashpad: asynchronous_start = {}", asynchronous_start);
     for (size_t i = 0; i < attachments.size(); ++i) {
-        spdlog::trace("Crashpad: attachments[{}] = {}", i, attachments[i].value());
+        spdlog::trace("Crashpad: attachments[{}] = {}", i, QString::fromStdWString(attachments[i].value()));
     };
 
     // Initialize crashpad database

@@ -84,7 +84,10 @@ jobs:
         # Copy built executable and dependencies
         Copy-Item "build\Release\*.exe" "installer\" -Recurse -Force
         Copy-Item "build\Release\*.dll" "installer\" -Recurse -Force -ErrorAction SilentlyContinue
-        
+
+        # Copy generated version header (needed by installer)
+        Copy-Item "build\version_defines.h" "installer\" -Force -ErrorAction SilentlyContinue
+                
         # Deploy Qt dependencies
         & "$env:QT_ROOT_DIR\bin\windeployqt.exe" `
           --release `
@@ -114,7 +117,7 @@ jobs:
         #$issContent | Set-Content "acquisition_build.iss"
         #
         # Compile the installer
-        & "ISCC.exe" "installer.iss"
+        & "ISCC.exe" /DBUILD_DIR="installer" /DDEPLOY_DIR="installer" "installer.iss"
     
     - name: Upload installer artifact
       uses: actions/upload-artifact@v4

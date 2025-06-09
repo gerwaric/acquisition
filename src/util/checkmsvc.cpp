@@ -138,7 +138,7 @@ void checkRuntimeVersion(const QStringList& libraries)
         if (lib_version.isNull()) {
             FatalError("Could not determine module version: " + lib);
         };
-        spdlog::trace("Found {} version {}", lib, lib_version);
+        spdlog::trace("Found {} version {}", lib, lib_version.toString());
 
 		if ((lib_version.majorVersion() < required_version.majorVersion()) ||
 			(lib_version.minorVersion() < required_version.minorVersion()))
@@ -173,7 +173,7 @@ QVersionNumber getModuleVersion(const QString& dll)
     if (GetModuleFileName(hModule, path, MAX_PATH) == 0) {
         FatalError("Cannot get module file name for '" + dll + "'");
     };
-    spdlog::trace("{} module path is {}", dll, path);
+    spdlog::trace("{} module path is {}", dll, QString::fromWCharArray(path));
 
     // Get the DLL version.
     DWORD dummy = 0;
@@ -181,7 +181,7 @@ QVersionNumber getModuleVersion(const QString& dll)
     if (versionInfoSize == 0) {
         FatalError("Cannot get version info size for '" + dll + "'");
     };
-    spdlog::trace("{} module info size is {}", dll, versionInfoSize);
+    spdlog::trace("{} module info size is {}", dll, static_cast<size_t>(versionInfoSize));
 
     // Allocate memory for version information
     std::vector<char> versionInfo(versionInfoSize);
@@ -196,10 +196,10 @@ QVersionNumber getModuleVersion(const QString& dll)
         FatalError("Unable to find the version of '" + dll + "'");
     };
 
-    const WORD major = HIWORD(fileInfo->dwFileVersionMS);
-    const WORD minor = LOWORD(fileInfo->dwFileVersionMS);
-    const WORD patch = HIWORD(fileInfo->dwFileVersionLS);
-    const WORD tweak = LOWORD(fileInfo->dwFileVersionLS);
+    const int major = static_cast<int>(HIWORD(fileInfo->dwFileVersionMS));
+    const int minor = static_cast<int>(LOWORD(fileInfo->dwFileVersionMS));
+    const int patch = static_cast<int>(HIWORD(fileInfo->dwFileVersionLS));
+    const int tweak = static_cast<int>(LOWORD(fileInfo->dwFileVersionLS));
 
     spdlog::trace("{} module versions are major={} minor={} patch=[} tweak={}", dll, major, minor, patch, tweak);
 
