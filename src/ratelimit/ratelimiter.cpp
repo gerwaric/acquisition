@@ -39,7 +39,7 @@
 #include "ratelimitpolicy.h"
 
 // Notify the user and stop working after too many rate limit violations.
-constexpr unsigned int MAX_VIOLATIONS = 5;
+constexpr unsigned int MAX_VIOLATIONS = 10;
 
 constexpr int UPDATE_INTERVAL_MSEC = 1000;
 
