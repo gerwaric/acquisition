@@ -27,6 +27,13 @@
 
 #include <spdlog/spdlog.h>
 
+// Define an inline helper function to convert levels into QStrings.
+
+inline QString to_qstring(spdlog::level::level_enum level) {
+    const auto sv = spdlog::level::to_string_view(level);
+    return QString::fromUtf8(sv.data(), sv.size());
+}
+
 // Create a specialized formatter for spdlog levels.
 
 template<>

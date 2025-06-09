@@ -610,10 +610,10 @@ void LoginDialog::OnUserDirButtonPushed() {
     };
 }
 
-void LoginDialog::OnLoggingLevelChanged(const QString& level) {
-    const spdlog::level::level_enum logging_level = spdlog::level::from_str(level.toStdString());
-    spdlog::set_level(logging_level);
-    m_settings.setValue("log_level", level);
+void LoginDialog::OnLoggingLevelChanged(const QString& level_name) {
+    const spdlog::level::level_enum level = spdlog::level::from_str(level_name.toStdString());
+    spdlog::set_level(level);
+    m_settings.setValue("log_level", level_name);
 }
 
 void LoginDialog::OnThemeChanged(const QString& theme) {

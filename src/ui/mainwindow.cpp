@@ -1056,7 +1056,7 @@ void MainWindow::OnSetLogging(spdlog::level::level_enum level) {
     ui->actionLoggingINFO->setChecked(level == spdlog::level::info);
     ui->actionLoggingDEBUG->setChecked(level == spdlog::level::debug);
     ui->actionLoggingTRACE->setChecked(level == spdlog::level::trace);
-    const QString level_name(spdlog::level::to_short_c_str(level));
+    const QString level_name = to_qstring(level);
     spdlog::info("Logging level set to {}", level_name);
     m_settings.setValue("log_level", level_name);
 }
