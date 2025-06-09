@@ -26,7 +26,7 @@ jobs:
         host: 'windows'
         target: 'desktop'
         arch: 'win64_msvc2022_64'
-        modules: 'qtwebsockets'  # Add modules your app needs
+        modules: 'qtwebsockets qthttpserver'  # Add modules your app needs
         cache: true
         cache-key-prefix: 'qt-6.9.1-win64'
     
