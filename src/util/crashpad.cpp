@@ -34,10 +34,6 @@
 #include <windows.h>
 #endif
 
-#if defined(Q_OS_MAC)
-#include <mach-o/dyld.h>
-#endif
-
 #if defined(Q_OS_LINUX)
 #include <unistd.h>
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
@@ -47,6 +43,10 @@
 #include <crashpad/client/crashpad_client.h>
 #include <crashpad/client/settings.h>
 #include <mini_chromium/base/files/file_path.h>
+
+#if defined(Q_OS_WINDOWS)
+#include <base/strings/utf_string_conversions.h>
+#endif
 
 #include <util/spdlog_qt.h>
 
@@ -61,11 +61,19 @@ constexpr const char* CRASHPAD_HANDLER = "crashpad_handler.exe";
 constexpr const char* CRASHPAD_HANDLER = "crashpad_handler";
 #endif
 
-std::filesystem::path StdPath(const QString& path) {
+inline std::filesystem::path to_path(const QString& path) {
 #if defined(Q_OS_WINDOWS)
     return std::filesystem::path(path.toStdWString());
 #else
     return std::filesystem::path(path.toStdString());
+#endif
+}
+
+inline std::string to_string(const FilePath& path) {
+#if defined(Q_OS_WINDOWS)
+    return base::WideToUTF8(path.value());
+#else
+    return path.value();
 #endif
 }
 
@@ -103,8 +111,8 @@ bool initializeCrashpad(
     spdlog::debug("Crashpad: handler = {}", crashpadHandler);
 
     // Convert paths to base::FilePath
-    const FilePath handlerPath(StdPath(crashpadHandler));
-    const FilePath crashpadDirPath(StdPath(appDataDir + "/crashpad"));
+    const FilePath handlerPath(to_path(crashpadHandler));
+    const FilePath crashpadDirPath(to_path(appDataDir + "/crashpad"));
     const FilePath& reportsDirPath = crashpadDirPath;
     const FilePath& metricsDirPath = crashpadDirPath;
 
@@ -134,14 +142,14 @@ bool initializeCrashpad(
         buyoutDataFile.remove();
     };
     const std::vector<FilePath> attachments = {
-        FilePath(StdPath(buyoutData))
+        FilePath(to_path(buyoutData))
     };
 
     // Log the crashpad initialization settings 
     spdlog::debug("Crashpad: starting the crashpad client");
-    spdlog::trace("Crashpad: handler = {}", QString::fromStdWString(handlerPath.value()));
-    spdlog::trace("Crashpad: reportsDir = {}", QString::fromStdWString(reportsDirPath.value()));
-    spdlog::trace("Crashpad: metricsDir = {}", QString::fromStdWString(metricsDirPath.value()));
+    spdlog::trace("Crashpad: handler = {}", to_string(handlerPath));
+    spdlog::trace("Crashpad: reportsDir = {}", to_string(reportsDirPath));
+    spdlog::trace("Crashpad: metricsDir = {}", to_string(metricsDirPath));
     spdlog::trace("Crashpad: url = {}", url);
     for (const auto& pair : annotations) {
         spdlog::trace("Crashpad: annotations[{}] = {}", pair.first, pair.second);
@@ -152,7 +160,7 @@ bool initializeCrashpad(
     spdlog::trace("Crashpad: restartable = {}", restartable);
     spdlog::trace("Crashpad: asynchronous_start = {}", asynchronous_start);
     for (size_t i = 0; i < attachments.size(); ++i) {
-        spdlog::trace("Crashpad: attachments[{}] = {}", i, QString::fromStdWString(attachments[i].value()));
+        spdlog::trace("Crashpad: attachments[{}] = {}", i, to_string(attachments[i]));
     };
 
     // Initialize crashpad database
