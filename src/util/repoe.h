@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -45,6 +45,7 @@ private:
     void RequestNextFile();
     void FinishUpdate();
     QByteArray ReadFile(const QString& filename);
+    QString ParseVersion(const QString& contents);
 
     bool m_initialized;
     QNetworkAccessManager& m_network_manager;

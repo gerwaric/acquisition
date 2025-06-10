@@ -1,5 +1,5 @@
 #[[
-	Copyright (C) 2014-2024 Acquisition Contributors
+	Copyright (C) 2014-2025 Acquisition Contributors
 
 	This file is part of Acquisition.
 
@@ -29,7 +29,7 @@ cmake_minimum_required(VERSION 3.29)
 # version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
-    VERSION 0.13.1
+    VERSION 0.13.2
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
@@ -83,9 +83,38 @@ if(WIN32)
 
 endif()
 
+include(FetchContent)
+
 find_package(Qt6 REQUIRED COMPONENTS Core Gui HttpServer Network Sql Test WebSockets Widgets)
 
-qt_standard_project_setup(REQUIRES 6.9.0)
+if(NOT TARGET boost-headers-only)
+    FetchContent_Declare(
+        boost-headers-only
+        GIT_REPOSITORY https://github.com/gerwaric/boost-headers-only.git
+        GIT_TAG        boost-1.88.0
+    )
+    FetchContent_MakeAvailable(boost-headers-only)
+endif()
+
+if(NOT TARGET json_struct)
+    FetchContent_Declare(
+        json_struct
+        GIT_REPOSITORY https://github.com/jorgen/json_struct.git
+        GIT_TAG        1.0.1
+    )
+    FetchContent_MakeAvailable(json_struct)
+endif()
+
+if(NOT TARGET spdlog)
+    FetchContent_Declare(
+        spdlog
+        GIT_REPOSITORY https://github.com/gabime/spdlog.git
+        GIT_TAG        v1.15.3
+    )
+    FetchContent_MakeAvailable(spdlog)
+endif()
+
+qt_standard_project_setup(REQUIRES 6.9.1)
 
 qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     # Source
@@ -132,6 +161,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/ui/verticalscrollarea.cpp
     src/util/crashpad.cpp
     src/util/fatalerror.cpp
+    src/util/logging.cpp
     src/util/networkmanager.cpp
     src/util/oauthmanager.cpp
     src/util/oauthtoken.cpp
@@ -194,11 +224,14 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/ui/verticalscrollarea.h
     src/util/crashpad.h
     src/util/fatalerror.h
+    src/util/json_struct_qt.h
+    src/util/logging.h
     src/util/networkmanager.h
     src/util/oauthmanager.h
     src/util/oauthtoken.h
     src/util/rapidjson_util.h
     src/util/repoe.h
+    src/util/spdlog_qt.h
     src/util/updatechecker.h
     src/util/util.h
     test/testdata.h
@@ -274,12 +307,9 @@ target_include_directories(acquisition PRIVATE
     "${CMAKE_BINARY_DIR}"
 )
 
-add_subdirectory(deps/boost-headers-only)
 add_subdirectory(deps/Crashpad)
-add_subdirectory(deps/json_struct)
 add_subdirectory(deps/libpoe)
 add_subdirectory(deps/qdarkstyle)
-add_subdirectory(deps/QsLog)
 add_subdirectory(deps/rapidjson)
 add_subdirectory(deps/semver)
 
@@ -300,9 +330,9 @@ target_link_libraries(acquisition PRIVATE
     json_struct
     libpoe
     qdarkstyle
-    QsLog
     rapidjson
     semver
+    spdlog::spdlog_header_only
 )
 
 #----------------------------------

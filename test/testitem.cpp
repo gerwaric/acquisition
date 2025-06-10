@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -21,7 +21,7 @@
 
 #include <QtTest>
 
-#include <QsLog/QsLog.h>
+#include <util/spdlog_qt.h>
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
 
@@ -148,8 +148,8 @@ Item TestItem::parseItem(const char* json) {
     if (doc.HasParseError()) {
         const auto code = doc.GetParseError();
         const auto error = rapidjson::GetParseError_En(code);
-        QLOG_ERROR() << "Error parsing test item:" << error;
-        QLOG_ERROR() << "Item is:" << json;
+        spdlog::error("Error parsing test item: {}", error);
+        spdlog::error("Item is: {}", json);
         return Item("", ItemLocation());
     } else {
         return Item(doc, ItemLocation());

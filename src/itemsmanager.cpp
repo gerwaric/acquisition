@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -23,12 +23,11 @@
 #include <QNetworkCookie>
 #include <QSettings>
 
-#include <QsLog/QsLog.h>
-
-#include "datastore/datastore.h"
-#include "ui/mainwindow.h"
-#include "util/repoe.h"
-#include "util/util.h"
+#include <datastore/datastore.h>
+#include <ui/mainwindow.h>
+#include <util/repoe.h>
+#include <util/spdlog_qt.h>
+#include <util/util.h>
 
 #include "application.h"
 #include "buyoutmanager.h"
@@ -53,7 +52,7 @@ ItemsManager::ItemsManager(
     , m_rate_limiter(rate_limiter)
     , m_auto_update_timer(std::make_unique<QTimer>())
 {
-    QLOG_TRACE() << "ItemsManager::ItemsManager() entered";
+    spdlog::trace("ItemsManager::ItemsManager() entered");
     const int interval = m_settings.value("autoupdate_interval", 30).toInt();
     m_auto_update_timer->setSingleShot(false);
     m_auto_update_timer->setInterval(interval * 60 * 1000);
@@ -63,8 +62,8 @@ ItemsManager::ItemsManager(
 ItemsManager::~ItemsManager() {}
 
 void ItemsManager::Start(POE_API mode) {
-    QLOG_TRACE() << "ItemsManager::Start() entered";
-    QLOG_TRACE() << "ItemsManager::Start() creating items manager worker";
+    spdlog::trace("ItemsManager::Start() entered");
+    spdlog::trace("ItemsManager::Start() creating items manager worker");
     m_worker = std::make_unique<ItemsManagerWorker>(
         m_settings,
         m_network_manager,
@@ -76,17 +75,17 @@ void ItemsManager::Start(POE_API mode) {
     connect(m_worker.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
     connect(m_worker.get(), &ItemsManagerWorker::ItemsRefreshed, this, &ItemsManager::OnItemsRefreshed);
 
-    QLOG_TRACE() << "ItemsManager::Start() initializing the worker";
+    spdlog::trace("ItemsManager::Start() initializing the worker");
     m_worker->Init();
 }
 
 void ItemsManager::OnStatusUpdate(ProgramState state, const QString& status) {
-    QLOG_TRACE() << "ItemsManager::OnStatusUpdate() entered";
+    spdlog::trace("ItemsManager::OnStatusUpdate() entered");
     emit StatusUpdate(state, status);
 }
 
 void ItemsManager::ApplyAutoTabBuyouts() {
-    QLOG_TRACE() << "ItemsManager::ApplyAutoTabBuyouts() entered";
+    spdlog::trace("ItemsManager::ApplyAutoTabBuyouts() entered");
     // Can handle everything related to auto-tab pricing here.
     // 1. First format we need to honor is ascendency pricing formats which is top priority and overrides other types
     // 2. Second priority is to honor manual user pricing
@@ -107,7 +106,7 @@ void ItemsManager::ApplyAutoTabBuyouts() {
 }
 
 void ItemsManager::ApplyAutoItemBuyouts() {
-    QLOG_TRACE() << "ItemsManager::ApplyAutoItemBuyouts() entered";
+    spdlog::trace("ItemsManager::ApplyAutoItemBuyouts() entered");
     // Loop over all items, check for note field with pricing and apply
     for (auto const& item : m_items) {
         auto const& note = item->note();
@@ -130,7 +129,7 @@ void ItemsManager::ApplyAutoItemBuyouts() {
 }
 
 void ItemsManager::PropagateTabBuyouts() {
-    QLOG_TRACE() << "ItemsManager::PropagateTabBuyouts() entered";
+    spdlog::trace("ItemsManager::PropagateTabBuyouts() entered");
     m_buyout_manager.ClearRefreshLocks();
     for (auto& item_ptr : m_items) {
         Item& item = *item_ptr;
@@ -161,19 +160,19 @@ void ItemsManager::PropagateTabBuyouts() {
 }
 
 void ItemsManager::OnItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh) {
-    QLOG_TRACE() << "ItemsManager::OnItemsRefreshed() entered";
+    spdlog::trace("ItemsManager::OnItemsRefreshed() entered");
     m_items = items;
 
-    QLOG_DEBUG() << "There are" << m_items.size() << "items and" << tabs.size() << "tabs after the refresh.";
+    spdlog::debug("There are {} items and {} tabs after the refresh.", m_items.size(), tabs.size());
     int n = 0;
     for (const auto& item : items) {
         if (item->category().isEmpty()) {
-            QLOG_TRACE() << "Unable to categorize" << item->PrettyName();
+            spdlog::trace("Unable to categorize {}", item->PrettyName());
             ++n;
         };
     };
     if (n > 0) {
-        QLOG_DEBUG() << "There are" << n << " uncategorized items.";
+        spdlog::debug("There are {} uncategorized items.", n);
     };
 
     m_buyout_manager.SetStashTabLocations(tabs);
@@ -185,12 +184,12 @@ void ItemsManager::OnItemsRefreshed(const Items& items, const std::vector<ItemLo
     emit ItemsRefreshed(initial_refresh);
 }
 
-void ItemsManager::Update(TabSelection::Type type, const std::vector<ItemLocation>& locations) {
-    QLOG_TRACE() << "ItemsManager::Update() entered";
+void ItemsManager::Update(TabSelection type, const std::vector<ItemLocation>& locations) {
+    spdlog::trace("ItemsManager::Update() entered");
     if (!isInitialized()) {
         // tell ItemsManagerWorker to run an Update() after it's finished updating mods
         m_worker->UpdateRequest(type, locations);
-        QLOG_DEBUG() << "Update deferred until item mods parsing is complete";
+        spdlog::debug("Update deferred until item mods parsing is complete");
         QMessageBox::information(nullptr,
             "Acquisition",
             "This items worker is still initializing, but an update request has been queued.",
@@ -208,42 +207,42 @@ void ItemsManager::Update(TabSelection::Type type, const std::vector<ItemLocatio
 }
 
 void ItemsManager::SetAutoUpdate(bool update) {
-    QLOG_TRACE() << "ItemsManager::SetAutoUpdate() entered";
+    spdlog::trace("ItemsManager::SetAutoUpdate() entered");
     m_settings.setValue("autoupdate", update);
     if (update) {
-        QLOG_TRACE() << "ItemsManager::SetAutoUpdate() starting automatic updates";
+        spdlog::trace("ItemsManager::SetAutoUpdate() starting automatic updates");
         m_auto_update_timer->start();
     } else {
-        QLOG_TRACE() << "ItemsManager::SetAutoUpdate() stopping automatic updates";
+        spdlog::trace("ItemsManager::SetAutoUpdate() stopping automatic updates");
         m_auto_update_timer->stop();
     };
 }
 
 void ItemsManager::SetAutoUpdateInterval(int minutes) {
-    QLOG_TRACE() << "ItemsManager::SetAutoUpdateInterval() entered";
-    QLOG_TRACE() << "ItemsManager::SetAutoUpdateInterval() setting interval to" << minutes << "minutes";
+    spdlog::trace("ItemsManager::SetAutoUpdateInterval() entered");
+    spdlog::trace("ItemsManager::SetAutoUpdateInterval() setting interval to {} minutes", minutes);
     m_settings.setValue("autoupdate_interval", minutes);
     m_auto_update_timer->setInterval(minutes * 60 * 1000);
 }
 
 void ItemsManager::OnAutoRefreshTimer() {
-    QLOG_TRACE() << "ItemsManager::OnAutoRefreshTimer() entered";
+    spdlog::trace("ItemsManager::OnAutoRefreshTimer() entered");
     Update(TabSelection::Checked);
 }
 
 void ItemsManager::MigrateBuyouts() {
-    QLOG_TRACE() << "ItemsManager::MigrateBuyouts() entered";
+    spdlog::trace("ItemsManager::MigrateBuyouts() entered");
     int db_version = m_datastore.GetInt("db_version");
     // Don't migrate twice
     if (db_version == 4) {
-        QLOG_TRACE() << "ItemsManager::MigrateBuyouts() skipping migration because db_version is 4";
+        spdlog::trace("ItemsManager::MigrateBuyouts() skipping migration because db_version is 4");
         return;
     };
-    QLOG_TRACE() << "ItemsManager::MigrateBuyouts() migrating" << m_items.size() << "items";
+    spdlog::trace("ItemsManager::MigrateBuyouts() migrating {} items", m_items.size());
     for (auto& item : m_items) {
         m_buyout_manager.MigrateItem(*item);
     };
-    QLOG_TRACE() << "ItemsManager::MigrateBuyouts() saving buyout manager and setting db_version to 4";
+    spdlog::trace("ItemsManager::MigrateBuyouts() saving buyout manager and setting db_version to 4");
     m_buyout_manager.Save();
     m_datastore.SetInt("db_version", 4);
 }

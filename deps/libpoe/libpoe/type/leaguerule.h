@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include <json_struct/json_struct_qt.h>
+#include <util/json_struct_qt.h>
 
 #include <optional>
 

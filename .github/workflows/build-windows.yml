@@ -1,11 +1,11 @@
-name: Build & Package (Windows)
+name: Build Windows Installer
 
 on:
-  push:
-    branches: [ main, master ]
-    tags: [ 'v*' ]
-  pull_request:
-    branches: [ main, master ]
+  #push:
+  #  branches: [ main, master ]
+  #  tags: [ 'v*' ]
+  #pull_request:
+  #  branches: [ main, master ]
   workflow_dispatch: # Allows manual triggering
 
 jobs:
@@ -26,7 +26,7 @@ jobs:
         host: 'windows'
         target: 'desktop'
         arch: 'win64_msvc2022_64'
-        modules: 'qtwebsockets qthttpserver'  # Add modules your app needs
+        modules: 'qtwebsockets qthttpserver'
         cache: true
         cache-key-prefix: 'qt-6.9.1-win64'
     
@@ -58,11 +58,11 @@ jobs:
       run: |
         cmake --build build --config Release --parallel
     
-    #- name: Run tests (optional)
-    #  run: |
-    #    cd build
-    #    ctest --config Release --output-on-failure
-    #  continue-on-error: true  # Remove this if tests are required to pass
+    - name: Run tests (optional)
+      run: |
+        cd build
+        ctest --config Release --output-on-failure
+      continue-on-error: true  # Remove this if tests are required to pass
     
     - name: Setup Inno Setup
       run: |
@@ -84,9 +84,12 @@ jobs:
         # Copy built executable and dependencies
         Copy-Item "build\Release\*.exe" "installer\" -Recurse -Force
         Copy-Item "build\Release\*.dll" "installer\" -Recurse -Force -ErrorAction SilentlyContinue
-        
+
+        # Copy generated version header (needed by installer)
+        Copy-Item "build\version_defines.h" "installer\" -Force -ErrorAction SilentlyContinue
+                
         # Deploy Qt dependencies
-        & "${{ env.Qt6_DIR }}\bin\windeployqt.exe" `
+        & "$env:QT_ROOT_DIR\bin\windeployqt.exe" `
           --release `
           --no-translations `
           --no-system-d3d-compiler `
@@ -109,12 +112,12 @@ jobs:
       run: |
         # Assuming your .iss file is in the root directory
         # Update the script with current version
-        #$issContent = Get-Content "installer.iss" -Raw  # Replace with your actual .iss filename
+        #$issContent = Get-Content "acquisition.iss" -Raw  # Replace with your actual .iss filename
         #$issContent = $issContent -replace '#define MyAppVersion ".*"', "#define MyAppVersion `"${{ steps.version.outputs.version }}`""
         #$issContent | Set-Content "acquisition_build.iss"
-        
+        #
         # Compile the installer
-        & "ISCC.exe" "installer.iss"
+        & "ISCC.exe" /DBUILD_DIR="installer" /DDEPLOY_DIR="installer" "installer.iss"
     
     - name: Upload installer artifact
       uses: actions/upload-artifact@v4

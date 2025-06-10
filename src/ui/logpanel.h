@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -21,10 +21,6 @@
 
 #include <QObject>
 
-#include <QsLog/QsLogDest.h>
-
-#include <vector>
-
 class MainWindow;
 class QPushButton;
 class QTextEdit;
@@ -33,34 +29,20 @@ namespace Ui {
     class MainWindow;
 }
 
-class LogPanel;
-
-class LogPanelSignalHandler : public QObject {
+class LogPanel : public QObject {
     Q_OBJECT
 public:
-    LogPanelSignalHandler(LogPanel& parent) :
-        m_parent(parent)
-    {}
-public slots:
-    void OnStatusLabelClicked();
-    void OnMessage(const QString& message, QsLogging::Level level);
-private:
-    LogPanel& m_parent;
-};
-
-class LogPanel : public QsLogging::Destination {
-    friend class LogPanelSignalHandler;
-public:
     LogPanel(MainWindow* window, Ui::MainWindow* ui);
-    virtual void write(const QString& message, QsLogging::Level level);
     virtual bool isValid() { return true; }
+public slots:
+    void TogglePanelVisibility();
 private:
-    void AddLine(const QString& message, QsLogging::Level level);
     void UpdateStatusLabel();
-    void ToggleOutputVisibility();
 
     QPushButton* m_status_button;
     QTextEdit* m_output;
-    std::vector<int> m_num_messages;
-    LogPanelSignalHandler m_signal_handler;
+
+    unsigned int m_num_errors{ 0 };
+    unsigned int m_num_warnings{ 0 };
+    unsigned int m_num_messages{ 0 };
 };

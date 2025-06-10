@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -43,37 +43,38 @@
 #include <QVersionNumber>
 #include <QSettings>
 #include <QStringListModel>
-#include <QsLog/QsLog.h>
 
 #include <vector>
 
-#include "datastore/datastore.h"
-#include "ratelimit/ratelimit.h"
-#include "ratelimit/ratelimitdialog.h"
-#include "ratelimit/ratelimiter.h"
-#include "util/oauthmanager.h"
-#include "util/updatechecker.h"
-#include "util/util.h"
+#include <datastore/datastore.h>
+#include <ratelimit/ratelimit.h>
+#include <ratelimit/ratelimitdialog.h>
+#include <ratelimit/ratelimiter.h>
+#include <util/oauthmanager.h>
+#include <util/spdlog_qt.h>
+#include <util/updatechecker.h>
+#include <util/util.h>
 
-#include "buyoutmanager.h"
-#include "currencymanager.h"
-#include "filters.h"
+#include <buyoutmanager.h>
+#include <currencymanager.h>
+#include <filters.h>
+#include <imagecache.h>
+#include <item.h>
+#include <itemcategories.h>
+#include <itemconstants.h>
+#include <itemlocation.h>
+#include <itemsmanager.h>
+#include <items_model.h>
+#include <modsfilter.h>
+#include <network_info.h>
+#include <replytimeout.h>
+#include <search.h>
+#include <shop.h>
+#include <version_defines.h>
+
 #include "flowlayout.h"
-#include "imagecache.h"
-#include "item.h"
-#include "itemcategories.h"
-#include "itemconstants.h"
-#include "itemlocation.h"
 #include "itemtooltip.h"
-#include "itemsmanager.h"
-#include "items_model.h"
 #include "logpanel.h"
-#include "modsfilter.h"
-#include "network_info.h"
-#include "replytimeout.h"
-#include "search.h"
-#include "shop.h"
-#include "version_defines.h"
 #include "verticalscrollarea.h"
 
 constexpr const char* POE_WEBCDN = "http://webcdn.pathofexile.com"; // Should be updated to https://web.poecdn.com ?
@@ -175,12 +176,9 @@ void MainWindow::InitializeRateLimitDialog() {
 
 void MainWindow::InitializeLogging() {
     LogPanel* log_panel = new LogPanel(this, ui);
-    QsLogging::DestinationPtr log_panel_ptr(log_panel);
-    QsLogging::Logger::instance().addDestination(log_panel_ptr);
-
-    // display warnings here so it's more visible
 #if defined(_DEBUG)
-    QLOG_WARN() << "Maintainer: This is a debug build";
+    // display warnings here so it's more visible
+    spdlog::warn("Maintainer: This is a debug build");
 #endif
 }
 
@@ -299,7 +297,7 @@ void MainWindow::InitializeUi() {
     ui->itemButtonsWidget->hide();
 
     // Make sure the right logging level menu item is checked.
-    OnSetLogging(QsLogging::Logger::instance().loggingLevel());
+    OnSetLogging(spdlog::get_level());
 
     connect(ui->itemInfoTypeTabs, &QTabWidget::currentChanged, this,
         [=](int idx) {
@@ -336,13 +334,13 @@ void MainWindow::InitializeUi() {
     connect(ui->actionSetDefaultTheme, &QAction::triggered, this, &MainWindow::OnSetDefaultTheme);
 
     // Connect the Logging submenu
-    connect(ui->actionLoggingOFF, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::OffLevel); });
-    connect(ui->actionLoggingFATAL, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::FatalLevel); });
-    connect(ui->actionLoggingERROR, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::ErrorLevel); });
-    connect(ui->actionLoggingWARN, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::WarnLevel); });
-    connect(ui->actionLoggingINFO, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::InfoLevel); });
-    connect(ui->actionLoggingDEBUG, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::DebugLevel); });
-    connect(ui->actionLoggingTRACE, &QAction::triggered, this, [=]() { OnSetLogging(QsLogging::TraceLevel); });
+    connect(ui->actionLoggingOFF, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::off); });
+    connect(ui->actionLoggingFATAL, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::critical); });
+    connect(ui->actionLoggingERROR, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::err); });
+    connect(ui->actionLoggingWARN, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::warn); });
+    connect(ui->actionLoggingINFO, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::info); });
+    connect(ui->actionLoggingDEBUG, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::debug); });
+    connect(ui->actionLoggingTRACE, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::trace); });
 
     // Connect the POESESSID submenu
     connect(ui->actionShowPOESESSID, &QAction::triggered, this, &MainWindow::OnShowPOESESSID);
@@ -367,7 +365,7 @@ void MainWindow::LoadSettings() {
 }
 
 void MainWindow::OnExpandAll() {
-    QLOG_TRACE() << "MainWindow::OnExpandAll() entered";
+    spdlog::trace("MainWindow::OnExpandAll() entered");
     // Only need to expand the top level, which corresponds to buckets,
     // aka stash tabs and characters. Signals are blocked during this
     // operation, otherwise the column resize function connected to
@@ -381,7 +379,7 @@ void MainWindow::OnExpandAll() {
 }
 
 void MainWindow::OnCollapseAll() {
-    QLOG_TRACE() << "MainWindow::OnCollapseAll() entered";
+    spdlog::trace("MainWindow::OnCollapseAll() entered");
     // There is no depth-based collapse method, so manuall looping
     // over rows can be much faster than collapseAll() under some
     // conditions, possibly beecause those funcitons check every
@@ -402,7 +400,7 @@ void MainWindow::OnCollapseAll() {
 }
 
 void MainWindow::OnCheckAll() {
-    QLOG_TRACE() << "MainWindow::OnCheckAll() entered";
+    spdlog::trace("MainWindow::OnCheckAll() entered");
     for (auto const& bucket : m_current_search->buckets()) {
         m_buyout_manager.SetRefreshChecked(bucket.location(), true);
     };
@@ -410,7 +408,7 @@ void MainWindow::OnCheckAll() {
 }
 
 void MainWindow::OnUncheckAll() {
-    QLOG_TRACE() << "MainWindow::OnUncheckAll() entered";
+    spdlog::trace("MainWindow::OnUncheckAll() entered");
     for (auto const& bucket : m_current_search->buckets()) {
         m_buyout_manager.SetRefreshChecked(bucket.location(), false);
     };
@@ -418,7 +416,7 @@ void MainWindow::OnUncheckAll() {
 }
 
 void MainWindow::OnRefreshSelected() {
-    QLOG_TRACE() << "MainWindow::OnRefreshSelected()";
+    spdlog::trace("MainWindow::OnRefreshSelected()");
     // Get names of tabs to refresh
     std::vector<ItemLocation> locations;
     for (auto const& index : ui->treeView->selectionModel()->selectedRows()) {
@@ -429,21 +427,21 @@ void MainWindow::OnRefreshSelected() {
 }
 
 void MainWindow::CheckSelected(bool value) {
-    QLOG_TRACE() << "MainWindow::CheckSelected() entered";
+    spdlog::trace("MainWindow::CheckSelected() entered");
     for (auto const& index : ui->treeView->selectionModel()->selectedRows()) {
         m_buyout_manager.SetRefreshChecked(m_current_search->GetTabLocation(index), value);
     };
 }
 
 void MainWindow::ResizeTreeColumns() {
-    QLOG_TRACE() << "MainWindow::ResizeTreeColumns() entered";
+    spdlog::trace("MainWindow::ResizeTreeColumns() entered");
     for (int i = 0; i < ui->treeView->header()->count(); ++i) {
         ui->treeView->resizeColumnToContents(i);
     };
 }
 
 void MainWindow::OnBuyoutChange() {
-    QLOG_TRACE() << "MainWindow::OnBuyoutChange() entered";
+    spdlog::trace("MainWindow::OnBuyoutChange() entered");
     m_shop.ExpireShopData();
 
     Buyout bo;
@@ -461,13 +459,13 @@ void MainWindow::OnBuyoutChange() {
     };
 
     if (!bo.IsValid()) {
-        QLOG_TRACE() << "MainWindow::OnBuyoutChange() buyout is invalid";
+        spdlog::trace("MainWindow::OnBuyoutChange() buyout is invalid");
         return;
     };
 
     // Don't assign a zero buyout if nothing is entered in the value textbox
     if (ui->buyoutValueLineEdit->text().isEmpty() && bo.IsPriced()) {
-        QLOG_TRACE() << "MainWindow::OnBuyoutChange() buyout iempty";
+        spdlog::trace("MainWindow::OnBuyoutChange() buyout iempty");
         return;
     };
 
@@ -476,7 +474,7 @@ void MainWindow::OnBuyoutChange() {
 
         // Don't allow users to manually update locked tabs (game priced)
         if (m_buyout_manager.GetTab(tab).IsGameSet()) {
-            QLOG_TRACE() << "MainWindow::OnBuyoutChange() refusing to update locked tab:" << tab;
+            spdlog::trace("MainWindow::OnBuyoutChange() refusing to update locked tab: {}", tab);
             continue;
         };
         if (!index.parent().isValid()) {
@@ -490,15 +488,15 @@ void MainWindow::OnBuyoutChange() {
                     const Item& item = *bucket.item(item_row);
                     // Don't allow users to manually update locked items (game priced per item in note section)
                     if (m_buyout_manager.Get(item).IsGameSet()) {
-                        QLOG_TRACE() << "MainWindow::OnBuyoutChange() refusing to update locked item:" << item.name();
+                        spdlog::trace("MainWindow::OnBuyoutChange() refusing to update locked item: {}", item.name());
                         continue;
                     };
                     m_buyout_manager.Set(item, bo);
                 } else {
-                    QLOG_ERROR() << "OnBuyoutChange(): bucket" << bucket_row << "does not have" << item_row << "items";
+                    spdlog::error("OnBuyoutChange(): bucket {} does not have {} items", bucket_row, item_row);
                 };
             } else {
-                QLOG_ERROR() << "OnBuyoutChange(): bucket" << bucket_row << "does not exist";
+                spdlog::error("OnBuyoutChange(): bucket {} does not exist", bucket_row);
             };
         };
     };
@@ -574,17 +572,17 @@ void MainWindow::OnDeleteTabClicked(int index) {
 }
 
 void MainWindow::OnSearchFormChange() {
-    QLOG_TRACE() << "MainWindow::OnSearchFormChange() entered";
+    spdlog::trace("MainWindow::OnSearchFormChange() entered");
     m_current_search->SaveViewProperties();
     m_current_search->SetRefreshReason(RefreshReason::SearchFormChanged);
     ModelViewRefresh();
 }
 
 void MainWindow::ModelViewRefresh() {
-    QLOG_TRACE() << "MainWindow::ModelViewRefresh() entered";
+    spdlog::trace("MainWindow::ModelViewRefresh() entered");
     m_buyout_manager.Save();
 
-    QLOG_TRACE() << "MainWindow::ModelViewRefresh() activing current search";
+    spdlog::trace("MainWindow::ModelViewRefresh() activing current search");
     m_current_search->Activate(m_items_manager.items());
     ResizeTreeColumns();
 
@@ -601,7 +599,7 @@ void MainWindow::ModelViewRefresh() {
 
 void MainWindow::OnCurrentItemChanged(const QModelIndex& current, const QModelIndex& previous) {
     Q_UNUSED(previous);
-    QLOG_TRACE() << "MainWindow::OnCurrentItemChange() entered";
+    spdlog::trace("MainWindow::OnCurrentItemChange() entered");
     m_buyout_manager.Save();
 
     if (!current.isValid()) {
@@ -618,10 +616,10 @@ void MainWindow::OnCurrentItemChanged(const QModelIndex& current, const QModelIn
                 m_current_item = bucket.item(item_row);
                 m_delayed_update_current_item.start();
             } else {
-                QLOG_WARN() << "OnCurrentItemChanged(): parent bucket" << bucket_row << "does not have" << item_row << "rows";
+                spdlog::warn("OnCurrentItemChanged(): parent bucket {} does not have {} rows", bucket_row, item_row);
             };
         } else {
-            QLOG_WARN() << "OnCurrentItemChanged(): parent bucket" << bucket_row << "does not exist";
+            spdlog::warn("OnCurrentItemChanged(): parent bucket {} does not exist", bucket_row);
         };
     } else {
         // Clicked on a bucket
@@ -631,18 +629,18 @@ void MainWindow::OnCurrentItemChanged(const QModelIndex& current, const QModelIn
             m_current_bucket_location = &m_current_search->bucket(bucket_row).location();
             UpdateCurrentBucket();
         } else {
-            QLOG_WARN() << "OnCurrentItemChanged(): bucket" << bucket_row << "does not exist";
+            spdlog::warn("OnCurrentItemChanged(): bucket {} does not exist", bucket_row);
         };
     };
     UpdateCurrentBuyout();
 }
 
 void MainWindow::OnLayoutChanged() {
-    QLOG_TRACE() << "MainWindow::OnLayoutChanged() entered";
+    spdlog::trace("MainWindow::OnLayoutChanged() entered");
 
     // Do nothing is nothing is selected.
     if (m_current_item == nullptr) {
-        QLOG_TRACE() << "MainWindow::OnLayoutChange() nothing was selected";
+        spdlog::trace("MainWindow::OnLayoutChange() nothing was selected");
         return;
     };
 
@@ -655,12 +653,12 @@ void MainWindow::OnLayoutChanged() {
 
     if (!index.isValid()) {
         // The previously selected item is no longer in search results.
-        QLOG_TRACE() << "MainWindow::OnLayoutChange() the previously selected item is gone";
+        spdlog::trace("MainWindow::OnLayoutChange() the previously selected item is gone");
         m_current_item = nullptr;
         ClearCurrentItem();
     } else {
         // Reselect the item in the updated layout.
-        QLOG_TRACE() << "MainWindow::OnLayouotChange() reselecting the previous item";
+        spdlog::trace("MainWindow::OnLayouotChange() reselecting the previous item");
         ui->treeView->selectionModel()->select(index,
             QItemSelectionModel::Current |
             QItemSelectionModel::Select |
@@ -770,17 +768,17 @@ void MainWindow::InitializeSearchForm() {
 }
 
 void MainWindow::NewSearch() {
-    QLOG_TRACE() << "MainWindow::NewSearch() entered";
+    spdlog::trace("MainWindow::NewSearch() entered");
 
     ++m_search_count;
 
     QString caption = QString("Search %1").arg(m_search_count);
 
-    QLOG_TRACE() << "MainWindow::NewSearch() adding tab";
+    spdlog::trace("MainWindow::NewSearch() adding tab");
     m_tab_bar->setTabText(m_tab_bar->count() - 1, caption);
     m_tab_bar->addTab("+");
 
-    QLOG_TRACE() << "MainWindow::NewSearch() setting current search:" << caption;
+    spdlog::trace("MainWindow::NewSearch() setting current search: {}", caption);
     m_current_search = new Search(
         m_buyout_manager,
         caption,
@@ -790,16 +788,16 @@ void MainWindow::NewSearch() {
 
     // this can't be done in ctor because it'll call OnSearchFormChange slot
     // and remove all previous search data
-    QLOG_TRACE() << "MainWindow::NewSearch() reseting search form and adding the search";
+    spdlog::trace("MainWindow::NewSearch() reseting search form and adding the search");
     m_current_search->ResetForm();
     m_searches.push_back(m_current_search);
 
-    QLOG_TRACE() << "MainWindow::NewSearch() triggering model view refresh";
+    spdlog::trace("MainWindow::NewSearch() triggering model view refresh");
     ModelViewRefresh();
 }
 
 void MainWindow::ClearCurrentItem() {
-    QLOG_TRACE() << "MainWindow::ClearCurrentItem() entered";
+    spdlog::trace("MainWindow::ClearCurrentItem() entered");
     ui->imageLabel->hide();
     ui->minimapLabel->hide();
     ui->locationLabel->hide();
@@ -813,7 +811,7 @@ void MainWindow::ClearCurrentItem() {
 }
 
 void MainWindow::UpdateCurrentBucket() {
-    QLOG_TRACE() << "MainWindow::UpdateCurrentBucket() entered";
+    spdlog::trace("MainWindow::UpdateCurrentBucket() entered");
     ui->imageLabel->hide();
     ui->minimapLabel->hide();
     ui->locationLabel->hide();
@@ -827,7 +825,7 @@ void MainWindow::UpdateCurrentBucket() {
 }
 
 void MainWindow::UpdateCurrentItem() {
-    QLOG_TRACE() << "MainWindow::UpdateCurrentItem() entered";
+    spdlog::trace("MainWindow::UpdateCurrentItem() entered");
     if (m_current_item == nullptr) {
         ClearCurrentItem();
         return;
@@ -873,7 +871,7 @@ void MainWindow::OnImageFetched(const QString& url) {
 
 
 void MainWindow::UpdateBuyoutWidgets(const Buyout& bo) {
-    QLOG_TRACE() << "MainWindow::UpdateBuyoutWidgets() entered";
+    spdlog::trace("MainWindow::UpdateBuyoutWidgets() entered");
     ui->buyoutTypeComboBox->setCurrentIndex(bo.type);
     ui->buyoutTypeComboBox->setEnabled(!bo.IsGameSet());
     ui->buyoutCurrencyComboBox->setEnabled(false);
@@ -892,7 +890,7 @@ void MainWindow::UpdateBuyoutWidgets(const Buyout& bo) {
 }
 
 void MainWindow::UpdateCurrentBuyout() {
-    QLOG_TRACE() << "MainWindow::UpdateCurrentBuyout() entered";
+    spdlog::trace("MainWindow::UpdateCurrentBuyout() entered");
     if (m_current_item) {
         UpdateBuyoutWidgets(m_buyout_manager.Get(*m_current_item));
     } else {
@@ -902,7 +900,7 @@ void MainWindow::UpdateCurrentBuyout() {
 }
 
 void MainWindow::OnItemsRefreshed() {
-    QLOG_TRACE() << "MainWindow::OnItemsRefreshed() entered";
+    spdlog::trace("MainWindow::OnItemsRefreshed() entered");
     int tab = 0;
     for (auto search : m_searches) {
         search->SetRefreshReason(RefreshReason::ItemsChanged);
@@ -1049,21 +1047,17 @@ void MainWindow::OnSetDefaultTheme(bool toggle) {
     ui->actionSetDefaultTheme->setChecked(toggle);
 }
 
-void MainWindow::OnSetLogging(QsLogging::Level level) {
-    if ((level < QsLogging::TraceLevel) || (level > QsLogging::OffLevel)) {
-        QLOG_ERROR() << "Cannot set invalid log level value:" << static_cast<int>(level);
-        return;
-    };
-    QsLogging::Logger::instance().setLoggingLevel(level);
-    ui->actionLoggingOFF->setChecked(level == QsLogging::OffLevel);
-    ui->actionLoggingFATAL->setChecked(level == QsLogging::FatalLevel);
-    ui->actionLoggingERROR->setChecked(level == QsLogging::ErrorLevel);
-    ui->actionLoggingWARN->setChecked(level == QsLogging::WarnLevel);
-    ui->actionLoggingINFO->setChecked(level == QsLogging::InfoLevel);
-    ui->actionLoggingDEBUG->setChecked(level == QsLogging::DebugLevel);
-    ui->actionLoggingTRACE->setChecked(level == QsLogging::TraceLevel);
-    const QString level_name = Util::LogLevelToText(level);
-    QLOG_INFO() << "Logging level set to" << level_name;
+void MainWindow::OnSetLogging(spdlog::level::level_enum level) {
+    spdlog::set_level(level);
+    ui->actionLoggingOFF->setChecked(level == spdlog::level::off);
+    ui->actionLoggingFATAL->setChecked(level == spdlog::level::critical);
+    ui->actionLoggingERROR->setChecked(level == spdlog::level::err);
+    ui->actionLoggingWARN->setChecked(level == spdlog::level::warn);
+    ui->actionLoggingINFO->setChecked(level == spdlog::level::info);
+    ui->actionLoggingDEBUG->setChecked(level == spdlog::level::debug);
+    ui->actionLoggingTRACE->setChecked(level == spdlog::level::trace);
+    const QString level_name = to_qstring(level);
+    spdlog::info("Logging level set to {}", level_name);
     m_settings.setValue("log_level", level_name);
 }
 
@@ -1116,12 +1110,12 @@ void MainWindow::OnCopyForPOB() {
     };
     // if category isn't wearable, including flasks, don't do anything
     if (!m_current_item->Wearable()) {
-        QLOG_WARN() << m_current_item->PrettyName() << ", category:" << m_current_item->category() << ", should not have been exportable.";
+        spdlog::warn("{}, category: {}, should not have been exportable.", m_current_item->PrettyName(), m_current_item->category());
         return;
     };
 
     QApplication::clipboard()->setText(m_current_item->POBformat());
-    QLOG_INFO() << m_current_item->PrettyName() << "was copied to your clipboard in Path of Building's \"Create custom\" format.";
+    spdlog::info("{} was copied to your clipboard in Path of Building's \"Create custom\" format.", m_current_item->PrettyName());
 }
 
 void MainWindow::OnUploadFinished() {
@@ -1136,18 +1130,18 @@ void MainWindow::OnUploadFinished() {
     doc.Parse(bytes.constData());
 
     if (doc.HasParseError() || !doc.IsObject() || !doc.HasMember("status") || !doc["status"].IsNumber()) {
-        QLOG_ERROR() << "Imgur API returned invalid data (or timed out): " << bytes;
+        spdlog::error("Imgur API returned invalid data (or timed out): {}", bytes);
         return;
     };
     if (doc["status"].GetInt() != 200) {
-        QLOG_ERROR() << "Imgur API returned status!=200: " << bytes;
+        spdlog::error("Imgur API returned status!=200: {}", bytes);
         return;
     };
     if (!doc.HasMember("data") || !doc["data"].HasMember("link") || !doc["data"]["link"].IsString()) {
-        QLOG_ERROR() << "Imgur API returned malformed reply: " << bytes;
+        spdlog::error("Imgur API returned malformed reply: {}", bytes);
         return;
     };
     QString url = doc["data"]["link"].GetString();
     QApplication::clipboard()->setText(url);
-    QLOG_INFO() << "Image successfully uploaded, the URL is" << url << "It also was copied to your clipboard.";
+    spdlog::info("Image successfully uploaded, the URL is {}. It also was copied to your clipboard.", url);
 }

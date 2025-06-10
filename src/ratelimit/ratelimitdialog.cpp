@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -20,14 +20,14 @@
 #include "ratelimitdialog.h"
 
 #include <QCoreApplication>
+#include <QLabel>
 #include <QPushButton>
 #include <QSizePolicy>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
-#include <QLabel>
 #include <QVBoxLayout>
 
-#include "util/util.h"
+#include <util/util.h>
 
 #include "ratelimiter.h"
 #include "ratelimitpolicy.h"

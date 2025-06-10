@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -21,8 +21,8 @@
 
 #include <QCoreApplication>
 #include <QDir>
-#include <QStandardPaths>
 #include <QFileInfo>
+#include <QStandardPaths>
 
 #include <filesystem>
 #include <map>
@@ -32,10 +32,6 @@
 #if defined(Q_OS_WINDOWS)
 #define NOMINMAX
 #include <windows.h>
-#endif
-
-#if defined(Q_OS_MAC)
-#include <mach-o/dyld.h>
 #endif
 
 #if defined(Q_OS_LINUX)
@@ -48,7 +44,11 @@
 #include <crashpad/client/settings.h>
 #include <mini_chromium/base/files/file_path.h>
 
-#include <QsLog/QsLog.h>
+#if defined(Q_OS_WINDOWS)
+#include <base/strings/utf_string_conversions.h>
+#endif
+
+#include <util/spdlog_qt.h>
 
 using base::FilePath;
 using crashpad::CrashpadClient;
@@ -61,11 +61,19 @@ constexpr const char* CRASHPAD_HANDLER = "crashpad_handler.exe";
 constexpr const char* CRASHPAD_HANDLER = "crashpad_handler";
 #endif
 
-std::filesystem::path StdPath(const QString& path) {
+inline std::filesystem::path to_path(const QString& path) {
 #if defined(Q_OS_WINDOWS)
     return std::filesystem::path(path.toStdWString());
 #else
     return std::filesystem::path(path.toStdString());
+#endif
+}
+
+inline std::string to_string(const FilePath& path) {
+#if defined(Q_OS_WINDOWS)
+    return base::WideToUTF8(path.value());
+#else
+    return path.value();
 #endif
 }
 
@@ -77,14 +85,14 @@ bool initializeCrashpad(
 {
     static CrashpadClient* client = nullptr;
     if (client != nullptr) {
-        QLOG_WARN() << "Crashpad has already been initialized";
+        spdlog::warn("Crashpad has already been initialized");
         return false;
     };
-    QLOG_INFO() << "Initializing Crashpad";
+    spdlog::info("Initializing Crashpad");
 
     const QDir dataDir(appDataDir);
     if (!dataDir.exists()) {
-        QLOG_ERROR() << "Crashpad: app data director does not exist:" << appDataDir;
+        spdlog::error("Crashpad: app data director does not exist: {}", appDataDir);
         return false;
     };
 
@@ -92,19 +100,19 @@ bool initializeCrashpad(
     const QString crashpadHandler = QCoreApplication::applicationDirPath() + "/" + CRASHPAD_HANDLER;
     const QFileInfo appInfo(crashpadHandler);
     if (!appInfo.exists()) {
-        QLOG_ERROR() << "Crashpad: the handler does not exist:" << crashpadHandler;
+        spdlog::error("Crashpad: the handler does not exist: {}", crashpadHandler);
         return false;
     };
 
-    QLOG_DEBUG() << "Crashpad: app data =" << appDataDir;
-    QLOG_DEBUG() << "Crashpad: database =" << dbName;
-    QLOG_DEBUG() << "Crashpad: application =" << appName;
-    QLOG_DEBUG() << "Crashpad: version =" << appVersion;
-    QLOG_DEBUG() << "Crashpad: handler =" << crashpadHandler;
+    spdlog::debug("Crashpad: app data = {}", appDataDir);
+    spdlog::debug("Crashpad: database = {}", dbName);
+    spdlog::debug("Crashpad: application = {}", appName);
+    spdlog::debug("Crashpad: version = {}", appVersion);
+    spdlog::debug("Crashpad: handler = {}", crashpadHandler);
 
     // Convert paths to base::FilePath
-    const FilePath handlerPath(StdPath(crashpadHandler));
-    const FilePath crashpadDirPath(StdPath(appDataDir + "/crashpad"));
+    const FilePath handlerPath(to_path(crashpadHandler));
+    const FilePath crashpadDirPath(to_path(appDataDir + "/crashpad"));
     const FilePath& reportsDirPath = crashpadDirPath;
     const FilePath& metricsDirPath = crashpadDirPath;
 
@@ -134,43 +142,43 @@ bool initializeCrashpad(
         buyoutDataFile.remove();
     };
     const std::vector<FilePath> attachments = {
-        FilePath(StdPath(buyoutData))
+        FilePath(to_path(buyoutData))
     };
 
     // Log the crashpad initialization settings 
-    QLOG_DEBUG() << "Crashpad: starting the crashpad client";
-    QLOG_TRACE() << "Crashpad: handler =" << handlerPath.value();
-    QLOG_TRACE() << "Crashpad: reportsDir =" << reportsDirPath.value();
-    QLOG_TRACE() << "Crashpad: metricsDir =" << metricsDirPath.value();
-    QLOG_TRACE() << "Crashpad: url =" << url;
+    spdlog::debug("Crashpad: starting the crashpad client");
+    spdlog::trace("Crashpad: handler = {}", to_string(handlerPath));
+    spdlog::trace("Crashpad: reportsDir = {}", to_string(reportsDirPath));
+    spdlog::trace("Crashpad: metricsDir = {}", to_string(metricsDirPath));
+    spdlog::trace("Crashpad: url = {}", url);
     for (const auto& pair : annotations) {
-        QLOG_TRACE() << "Crashpad: annotations[" << pair.first << "] =" << pair.second;
+        spdlog::trace("Crashpad: annotations[{}] = {}", pair.first, pair.second);
     };
     for (size_t i = 0; i < arguments.size(); ++i) {
-        QLOG_TRACE() << "Crashpad: arguments[" << i << "] =" << arguments[i];
+        spdlog::trace("Crashpad: arguments[{}] = {}", i, arguments[i]);
     };
-    QLOG_TRACE() << "Crashpad: restartable =" << restartable;
-    QLOG_TRACE() << "Crashpad: asynchronous_start =" << asynchronous_start;
+    spdlog::trace("Crashpad: restartable = {}", restartable);
+    spdlog::trace("Crashpad: asynchronous_start = {}", asynchronous_start);
     for (size_t i = 0; i < attachments.size(); ++i) {
-        QLOG_TRACE() << "Crashpad: attachments[" << i << "] =" << attachments[i].value();
+        spdlog::trace("Crashpad: attachments[{}] = {}", i, to_string(attachments[i]));
     };
 
     // Initialize crashpad database
     auto database = CrashReportDatabase::Initialize(reportsDirPath);
     if (database == NULL) {
-        QLOG_ERROR() << "Crashpad: failed to initialize the crash report database.";
+        spdlog::error("Crashpad: failed to initialize the crash report database.");
         return false;
     };
-    QLOG_TRACE() << "Crashpad: database initialized";
+    spdlog::trace("Crashpad: database initialized");
 
     // Enable automated crash uploads
     auto settings = database->GetSettings();
     if (settings == NULL) {
-        QLOG_ERROR() << "Crashpad: failed to get database settings.";
+        spdlog::error("Crashpad: failed to get database settings.");
         return false;
     };
     settings->SetUploadsEnabled(true);
-    QLOG_TRACE() << "Crashpad: upload enabled";
+    spdlog::trace("Crashpad: upload enabled");
 
     // Create the client and start the handler
     client = new CrashpadClient();
@@ -178,11 +186,11 @@ bool initializeCrashpad(
         reportsDirPath, metricsDirPath, url, annotations,
         arguments, restartable, asynchronous_start, attachments);
     if (!started) {
-        QLOG_ERROR() << "Crashpad: unable to start the handler";
+        spdlog::error("Crashpad: unable to start the handler");
         delete(client);
         client = nullptr;
         return false;
     };
-    QLOG_DEBUG() << "Crashpad: handler started";
+    spdlog::debug("Crashpad: handler started");
     return true;
 }

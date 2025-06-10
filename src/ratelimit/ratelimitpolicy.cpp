@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -23,9 +23,8 @@
 #include <QDateTime>
 #include <QNetworkReply>
 
-#include <QsLog/QsLog.h>
-
-#include "util/util.h"
+#include <util/spdlog_qt.h>
+#include <util/util.h>
 
 #include "ratelimit.h"
 
@@ -66,24 +65,18 @@ RateLimitItem::RateLimitItem(const QByteArray& limit_fragment, const QByteArray&
 
 void RateLimitItem::Check(const RateLimitItem& other, const QString& prefix) const {
     if (m_limit.hits() != other.m_limit.hits()) {
-        QLOG_WARN() << prefix << "limit.hits changed"
-            << "from" << m_limit.hits()
-            << "to" << other.m_limit.hits();
+        spdlog::warn("{} limit.hits changed form {} to {}", prefix, m_limit.hits(), other.m_limit.hits());
     };
     if (m_limit.period() != other.m_limit.period()) {
-        QLOG_WARN() << prefix << "limit.period changed"
-            << "from" << m_limit.period()
-            << "to" << other.m_limit.period();
+        spdlog::warn("{} limit.period changed from {} to {}", prefix, m_limit.period(), other.m_limit.period());
     };
     if (m_limit.restriction() != other.m_limit.restriction()) {
-        QLOG_WARN() << prefix << "limit.restriction changed"
-            << "from" << m_limit.restriction()
-            << "to" << other.m_limit.restriction();
+        spdlog::warn("{} limit.restriction changed from {} to {}", prefix, m_limit.restriction(), other.m_limit.restriction());
     };
 }
 
 QDateTime RateLimitItem::GetNextSafeSend(const boost::circular_buffer<QDateTime>& history) const {
-    QLOG_TRACE() << "RateLimit::RuleItem::GetNextSafeSend() entered";
+    spdlog::trace("RateLimit::RuleItem::GetNextSafeSend() entered");
 
     const QDateTime now = QDateTime::currentDateTime().toLocalTime();
 
@@ -101,17 +94,21 @@ QDateTime RateLimitItem::GetNextSafeSend(const boost::circular_buffer<QDateTime>
 
     const QDateTime next_send = earliest.addSecs(m_limit.period());
 
-    QLOG_TRACE() << "RateLimit::RuleItem::GetNextSafeSend()"
-        << "n =" << n
-        << "earliest =" << earliest.toString() << "(" << earliest.secsTo(now) << "seconds ago)"
-        << "next_send =" << next_send.toString() << "(in" << now.secsTo(next_send) << "seconds)";
+    spdlog::trace(
+        "RateLimit::RuleItem::GetNextSafeSend()"
+        " n = {}"
+        " earliest = {} ({} seconds ago)"
+        " next_send = {} (in {} seconds)",
+        n,
+        earliest.toString(), earliest.secsTo(now),
+        next_send.toString(), now.secsTo(next_send));
 
     // Calculate the next time it will be safe to send a request.
     return next_send;
 }
 
 int RateLimitItem::EstimateDuration(int request_count, int minimum_delay_msec) const {
-    QLOG_TRACE() << "RateLimit::RuleItem::EstimateDuration() entered";
+    spdlog::trace("RateLimit::RuleItem::EstimateDuration() entered");
 
     int duration = 0;
 
@@ -153,12 +150,12 @@ RateLimitRule::RateLimitRule(const QByteArray& name, QNetworkReply* const reply)
     , m_status(RateLimitPolicy::Status::UNKNOWN)
     , m_maximum_hits(-1)
 {
-    QLOG_TRACE() << "RateLimit::PolicyRule::PolicyRule() entered";
+    spdlog::trace("RateLimit::PolicyRule::PolicyRule() entered");
     const QByteArrayList limit_fragments = RateLimit::ParseRateLimit(reply, name);
     const QByteArrayList state_fragments = RateLimit::ParseRateLimitState(reply, name);
     const int item_count = limit_fragments.size();
     if (state_fragments.size() != limit_fragments.size()) {
-        QLOG_ERROR() << "Invalid data for policy role.";
+        spdlog::error("Invalid data for policy role.");
     };
     m_items.reserve(item_count);
     for (int j = 0; j < item_count; ++j) {
@@ -177,21 +174,18 @@ RateLimitRule::RateLimitRule(const QByteArray& name, QNetworkReply* const reply)
 }
 
 void RateLimitRule::Check(const RateLimitRule& other, const QString& prefix) const {
-    QLOG_TRACE() << "RateLimit::PolicyRule::Check() entered";
+    spdlog::trace("RateLimit::PolicyRule::Check() entered");
 
     // Check the rule name
     if (m_name != other.m_name) {
-        QLOG_WARN() << prefix << "rule name changed"
-            << "from" << m_name << "to" << other.m_name;
+        spdlog::warn("{} rule name changed from {} to {}", prefix, m_name, other.m_name);
     };
 
     // Check the number of items in this rule
     if (m_items.size() != other.m_items.size()) {
 
         // The number of items changed
-        QLOG_WARN() << prefix << "rule" << m_name << "went"
-            << "from" << m_items.size() << "items"
-            << "to" << other.m_items.size() << "items";
+        spdlog::warn("{} rule {} went from {} items to {} items", prefix, m_name, m_items.size(), other.m_items.size());
 
     } else {
 
@@ -215,7 +209,7 @@ RateLimitPolicy::RateLimitPolicy(QNetworkReply* const reply)
     , m_status(RateLimitPolicy::Status::UNKNOWN)
     , m_maximum_hits(0)
 {
-    QLOG_TRACE() << "RateLimit::Policy::Policy() entered";
+    spdlog::trace("RateLimit::Policy::Policy() entered");
     const QByteArrayList rule_names = RateLimit::ParseRateLimitRules(reply);
 
     // Parse the name of the rate limit policy and all the rules for this reply.
@@ -229,10 +223,10 @@ RateLimitPolicy::RateLimitPolicy(QNetworkReply* const reply)
 
         // Check the status of this rule..
         if (rule.status() >= RateLimitPolicy::Status::VIOLATION) {
-            QLOG_ERROR() << QString("Rate limit policy '%1:%2' is %4)").arg(
+            spdlog::error("Rate limit policy '{}:{}' is {})",
                 m_name, rule.name(), Util::toString(rule.status()));
         } else if (rule.status() == RateLimitPolicy::Status::BORDERLINE) {
-            QLOG_DEBUG() << QString("Rate limit policy '%1:%2' is BORDERLINE").arg(
+            spdlog::debug("Rate limit policy '{}:{}' is BORDERLINE",
                 m_name, rule.name());
         };
 
@@ -247,20 +241,18 @@ RateLimitPolicy::RateLimitPolicy(QNetworkReply* const reply)
 }
 
 void RateLimitPolicy::Check(const RateLimitPolicy& other) const {
-    QLOG_TRACE() << "RateLimit::Policy::Check() entered";
+    spdlog::trace("RateLimit::Policy::Check() entered");
 
     // Check the policy name
     if (m_name != other.m_name) {
-        QLOG_WARN() << "The rate limit policy name change from" << m_name << "to" << other.m_name;
+        spdlog::warn("The rate limit policy name change from {} to {}", m_name, other.m_name);
     };
 
     // Check the number of rules
     if (m_rules.size() != other.m_rules.size()) {
 
         // The number of rules changed
-        QLOG_WARN() << "The rate limit policy" << m_name
-            << "had" << m_rules.size() << "rules,"
-            << "but now has" << other.m_rules.size();
+        spdlog::warn("The rate limit policy {} had {} rules, but now has {}", m_name, m_rules.size(), other.m_rules.size());
 
     } else {
 
@@ -276,17 +268,16 @@ void RateLimitPolicy::Check(const RateLimitPolicy& other) const {
 }
 
 QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<QDateTime>& history) {
-    QLOG_TRACE() << "RateLimit::Policy::GetNextSafeSend() entered";
+    spdlog::trace("RateLimit::Policy::GetNextSafeSend() entered");
 
     QDateTime next_send = QDateTime::currentDateTime().toLocalTime();
     for (const auto& rule : m_rules) {
         for (const auto& item : rule.items()) {
             const QDateTime t = item.GetNextSafeSend(history);
-            QLOG_TRACE() << "RateLimit::Policy::GetNextSafeSend()"
-                << m_name << rule.name() << "t =" << t.toString()
-                << "(in" << QDateTime::currentDateTime().secsTo(t) << "seconds)";
+            spdlog::trace("RateLimit::Policy::GetNextSafeSend() {} {} t = {} (in {} seconds)",
+                          m_name, rule.name(), t.toString(), QDateTime::currentDateTime().secsTo(t));
             if (next_send < t) {
-                QLOG_TRACE() << "RateLimit::Policy::GetNextSafeSend() updating next_send";
+                spdlog::trace("RateLimit::Policy::GetNextSafeSend() updating next_send");
                 next_send = t;
             };
         };
@@ -295,7 +286,7 @@ QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<QDateTim
 }
 
 QDateTime RateLimitPolicy::EstimateDuration(int num_requests, int minimum_delay_msec) const {
-    QLOG_TRACE() << "RateLimit::Policy::EstimateDuration() entered";
+    spdlog::trace("RateLimit::Policy::EstimateDuration() entered");
 
     int longest_wait = 0;
     for (const auto& rule : m_rules) {

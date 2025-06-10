@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -27,7 +27,7 @@
 #include <QCloseEvent>
 #include <QTimer>
 
-#include <QsLog/QsLogLevel.h>
+#include <util/spdlog_qt.h>
 
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -136,7 +136,7 @@ private slots:
     void OnSetDefaultTheme(bool toggle);
 
     // Logging submenu actions
-    void OnSetLogging(QsLogging::Level level);
+    void OnSetLogging(spdlog::level::level_enum level);
 
     // Tooltip buttons
     void OnCopyForPOB();

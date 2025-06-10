@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -19,6 +19,7 @@
 
 #include "imagecache.h"
 
+#include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QImageReader>
@@ -26,11 +27,9 @@
 #include <QNetworkRequest>
 #include <QNetworkReply>
 #include <QString>
-#include <QCryptographicHash>
 
-#include <QsLog/QsLog.h>
-
-#include "util/util.h"
+#include <util/spdlog_qt.h>
+#include <util/util.h>
 
 #include "network_info.h"
 
@@ -53,10 +52,10 @@ bool ImageCache::contains(const QString& url) const {
 
 void ImageCache::fetch(const QString& url) {
     if (contains(url)) {
-        QLOG_DEBUG() << "ImageCache: already contains" << url;
+        spdlog::debug("ImageCache: already contains {}", url);
         emit imageReady(url);
     } else {
-        QLOG_DEBUG() << "ImageCache: fetching" << url;
+        spdlog::debug("ImageCache: fetching {}", url);
         QNetworkRequest request = QNetworkRequest(QUrl(url));
         request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
         QNetworkReply* reply = m_network_manager.get(request);
@@ -68,10 +67,10 @@ void ImageCache::onFetched() {
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
     const QString url = reply->url().toString();
     if (reply->error() != QNetworkReply::NoError) {
-        QLOG_ERROR() << "ImageCache: failed to fetch image:" << reply->errorString() << ":" << url;
+        spdlog::error("ImageCache: failed to fetch image: {}: {}", reply->errorString(), url);
         return;
     };
-    QLOG_DEBUG() << "ImageCatch: fetched" << url;
+    spdlog::debug("ImageCatch: fetched {}", url);
     QImageReader image_reader(reply);
     const QImage image = image_reader.read();
     image.save(getImagePath(url));

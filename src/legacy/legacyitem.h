@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -25,7 +25,7 @@
 #include <tuple>
 #include <vector>
 
-#include <json_struct/json_struct_qt.h>
+#include <util/json_struct_qt.h>
 
 struct LegacyItem {
 

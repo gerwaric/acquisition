@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -20,29 +20,37 @@
 #pragma once
 
 #include <QDateTime>
+#include <QObject>
 #include <QString>
 
 #include <map>
 
+#include <util/spdlog_qt.h>
+
 #include "currency.h"
 
-enum BuyoutType {
-    BUYOUT_TYPE_IGNORE,
-    BUYOUT_TYPE_BUYOUT,
-    BUYOUT_TYPE_FIXED,
-    BUYOUT_TYPE_CURRENT_OFFER,
-    BUYOUT_TYPE_NO_PRICE,
-    BUYOUT_TYPE_INHERIT,
-};
-
-enum BuyoutSource {
-    BUYOUT_SOURCE_NONE,
-    BUYOUT_SOURCE_MANUAL,
-    BUYOUT_SOURCE_GAME,
-    BUYOUT_SOURCE_AUTO
-};
-
 struct Buyout {
+    Q_GADGET
+public:
+
+    enum BuyoutType {
+        BUYOUT_TYPE_IGNORE,
+        BUYOUT_TYPE_BUYOUT,
+        BUYOUT_TYPE_FIXED,
+        BUYOUT_TYPE_CURRENT_OFFER,
+        BUYOUT_TYPE_NO_PRICE,
+        BUYOUT_TYPE_INHERIT,
+    };
+    Q_ENUM(BuyoutType)
+
+    enum BuyoutSource {
+        BUYOUT_SOURCE_NONE,
+        BUYOUT_SOURCE_MANUAL,
+        BUYOUT_SOURCE_GAME,
+        BUYOUT_SOURCE_AUTO
+    };
+    Q_ENUM(BuyoutSource)
+
     typedef std::map<BuyoutType, QString> BuyoutTypeMap;
     typedef std::map<BuyoutSource, QString> BuyoutSourceMap;
 
@@ -56,7 +64,7 @@ struct Buyout {
     bool operator!=(const Buyout& o) const;
     bool IsValid() const;
     bool IsActive() const;
-    bool IsInherited() const { return inherited || type == BUYOUT_TYPE_INHERIT; };
+    bool IsInherited() const { return inherited || type == BuyoutType::BUYOUT_TYPE_INHERIT; };
     bool IsSavable() const { return IsValid() && !(type == BUYOUT_TYPE_INHERIT); };
     bool IsPostable() const;
     bool IsPriced() const;
@@ -75,8 +83,8 @@ struct Buyout {
 
     Buyout() :
         value(0),
-        type(BUYOUT_TYPE_INHERIT),
-        currency(CURRENCY_NONE)
+        type(BuyoutType::BUYOUT_TYPE_INHERIT),
+        currency(CurrencyType::CURRENCY_NONE)
     {}
     Buyout(double m_value, BuyoutType m_type, Currency m_currency, QDateTime m_last_update) :
         value(m_value),
@@ -90,3 +98,11 @@ private:
     static const BuyoutTypeMap m_buyout_type_as_prefix;
     static const BuyoutSourceMap m_buyout_source_as_tag;
 };
+
+using BuyoutType = Buyout::BuyoutType;
+template <>
+struct fmt::formatter<BuyoutType, char> : QtEnumFormatter<BuyoutType> {};
+
+using BuyoutSource = Buyout::BuyoutSource;
+template <>
+struct fmt::formatter<BuyoutSource, char> : QtEnumFormatter<BuyoutSource> {};

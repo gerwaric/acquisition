@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -19,11 +19,11 @@
 
 #include "datastore.h"
 
-#include <QsLog/QsLog.h>
 #include <rapidjson/error/en.h>
 
-#include "util/rapidjson_util.h"
-#include "util/util.h"
+#include <util/rapidjson_util.h>
+#include <util/spdlog_qt.h>
+#include <util/util.h>
 
 using rapidjson::HasInt;
 using rapidjson::HasObject;
@@ -58,19 +58,19 @@ QString DataStore::Serialize(const Items& items) {
 Locations DataStore::DeserializeTabs(const QString& json) {
 
     if (json.isEmpty()) {
-        QLOG_DEBUG() << "No tabs to deserialize.";
+        spdlog::debug("No tabs to deserialize.");
         return {};
     };
 
     rapidjson::Document doc;
     doc.Parse(json.toStdString().c_str());
     if (doc.HasParseError()) {
-        QLOG_ERROR() << "Error parsing serialized tabs:" << rapidjson::GetParseError_En(doc.GetParseError());
-        QLOG_ERROR() << "The malformed json is" << json;
+        spdlog::error("Error parsing serialized tabs: {}", rapidjson::GetParseError_En(doc.GetParseError()));
+        spdlog::error("The malformed json is {}", json);
         return {};
     };
     if (doc.IsArray() == false) {
-        QLOG_ERROR() << "Error parsing serialized tabs: the json is not an array.";
+        spdlog::error("Error parsing serialized tabs: the json is not an array.");
         return {};
     };
 
@@ -102,14 +102,14 @@ Locations DataStore::DeserializeTabs(const QString& json) {
 
             // Get the unique tab id
             if (!HasString(tab_json, "id")) {
-                QLOG_ERROR() << "Malformed tab data missing unique id:" << Util::RapidjsonSerialize(tab_json);
+                spdlog::error("Malformed tab data missing unique id: {}", Util::RapidjsonSerialize(tab_json));
                 continue;
             };
             tabUniqueId = tab_json["id"].GetString();
 
             // Make sure we haven't seen this tab before.
             if (tab_id_index_.count(tabUniqueId)) {
-                QLOG_ERROR() << "Duplicate tab found while deserializing tabs:" << tabUniqueId;
+                spdlog::error("Duplicate tab found while deserializing tabs: {}", tabUniqueId);
                 continue;
             };
 
@@ -119,7 +119,7 @@ Locations DataStore::DeserializeTabs(const QString& json) {
             } else if (HasString(tab_json, "name")) {
                 name = tab_json["name"].GetString();
             } else {
-                QLOG_ERROR() << "Malformed tab data doesn't contain a name:" << Util::RapidjsonSerialize(tab_json);
+                spdlog::error("Malformed tab data doesn't contain a name: {}", Util::RapidjsonSerialize(tab_json));
                 continue;
             };
 
@@ -136,7 +136,7 @@ Locations DataStore::DeserializeTabs(const QString& json) {
             if (HasString(tab_json, "type")) {
                 tabType = tab_json["type"].GetString();
             } else {
-                QLOG_DEBUG() << "Stash tab does not have a type:" << name;
+                spdlog::debug("Stash tab does not have a type: {}", name);
                 tabType.clear();
             };
 
@@ -153,7 +153,7 @@ Locations DataStore::DeserializeTabs(const QString& json) {
 
             // Make sure this isn't a duplicate.
             if (tab_id_index_.count(name)) {
-                QLOG_ERROR() << "Duplicate character found while deserializing tabs:" << tabUniqueId;
+                spdlog::error("Duplicate character found while deserializing tabs: {}", tabUniqueId);
                 continue;
             };
 
@@ -168,7 +168,7 @@ Locations DataStore::DeserializeTabs(const QString& json) {
 
         default:
 
-            QLOG_ERROR() << "Invalid item location type:" << type;
+            spdlog::error("Invalid item location type: {}", type);
             continue;
 
         };
@@ -185,12 +185,12 @@ Items DataStore::DeserializeItems(const QString& json, const ItemLocation& tab) 
     rapidjson::Document doc;
     doc.Parse(json.toStdString().c_str());
     if (doc.HasParseError()) {
-        QLOG_ERROR() << "Error parsing serialized items:" << rapidjson::GetParseError_En(doc.GetParseError());
-        QLOG_ERROR() << "The malformed json is" << json;
+        spdlog::error("Error parsing serialized items: {}", rapidjson::GetParseError_En(doc.GetParseError()));
+        spdlog::error("The malformed json is {}", json);
         return {};
     };
     if (doc.IsArray() == false) {
-        QLOG_ERROR() << "Error parsing serialized items: the json is not an array.";
+        spdlog::error("Error parsing serialized items: the json is not an array.");
         return {};
     };
 

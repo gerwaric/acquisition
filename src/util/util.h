@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -26,60 +26,44 @@
 #include <QString>
 #include <QUrlQuery>
 
-#include <json_struct/json_struct.h>
-#include <QsLog/QsLog.h>
 #include <rapidjson/document.h>
+
+#include <util/json_struct_qt.h>
+#include <util/spdlog_qt.h>
 
 class QComboBox;
 class QNetworkReply;
 
 struct Buyout;
 
-enum class TextWidthId {
-    WIDTH_MIN_MAX,
-    WIDTH_LABEL,
-    WIDTH_RGB,
-    WIDTH_GROUP,    // Unused?
-    WIDTH_BOOL_LABEL
-};
 
-// Reflection example for an ENUM in QT 5.4.x
-class RefreshReason {
-    Q_GADGET
-public:
-    enum Type {
+namespace Util {
+    Q_NAMESPACE
+
+    enum class TextWidthId {
+        WIDTH_MIN_MAX,
+        WIDTH_LABEL,
+        WIDTH_RGB,
+        WIDTH_GROUP,    // Unused?
+        WIDTH_BOOL_LABEL
+    };
+    Q_ENUM_NS(TextWidthId);
+
+    enum class RefreshReason {
         Unknown,
         ItemsChanged,
         SearchFormChanged,
         TabCreated,
         TabChanged
     };
-    Q_ENUM(Type)
-private:
-    Type type;
-};
-QDebug& operator<<(QDebug& os, const RefreshReason::Type obj);
+    Q_ENUM_NS(RefreshReason)
 
-class TabSelection {
-    Q_GADGET
-public:
-    enum Type {
+    enum class TabSelection {
         All,
         Checked,
         Selected,
     };
-    Q_ENUM(Type)
-private:
-    Type type;
-};
-QDebug& operator<<(QDebug& os, const TabSelection::Type obj);
-
-QDebug& operator<<(QDebug& os, const QsLogging::Level obj);
-
-namespace Util {
-
-    QsLogging::Level TextToLogLevel(const QString& level);
-    QString LogLevelToText(QsLogging::Level level);
+    Q_ENUM_NS(TabSelection)
 
     QString Md5(const QString& value);
     double AverageDamage(const QString& s);
@@ -131,7 +115,7 @@ namespace Util {
         if (context.parseTo<T>(out) != JS::Error::NoError) {
             const QString type_name(typeid(T).name());
             const QString error_message = QString::fromStdString(context.makeErrorString());
-            QLOG_ERROR() << "Error parsing json into" << type_name << ":" << error_message;
+            spdlog::error("Error parsing json into {}: {}", type_name, error_message);
         };
     }
 
@@ -160,3 +144,17 @@ namespace Util {
     }
 
 }
+
+using TextWidthId = Util::TextWidthId;
+template <>
+struct fmt::formatter<TextWidthId, char> : QtEnumFormatter<TextWidthId> {};
+
+using RefreshReason = Util::RefreshReason;
+template <>
+struct fmt::formatter<RefreshReason, char> : QtEnumFormatter<RefreshReason> {};
+
+using TabSelection = Util::TabSelection;
+template <>
+struct fmt::formatter<TabSelection, char> : QtEnumFormatter<TabSelection> {};
+
+

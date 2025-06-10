@@ -17,6 +17,8 @@
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "currencymanager.h"
+
 #include <QDateTime>
 #include <QDoubleSpinBox>
 #include <QFile>
@@ -24,15 +26,14 @@
 #include <QSettings>
 #include <QVBoxLayout>
 
-#include <QsLog/QsLog.h>
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
 
-#include "datastore/datastore.h"
-#include "util/util.h"
+#include <datastore/datastore.h>
+#include <util/spdlog_qt.h>
+#include <util/util.h>
 
 #include "buyoutmanager.h"
-#include "currencymanager.h"
 #include "itemsmanager.h"
 #include "item.h"
 
@@ -50,7 +51,7 @@ CurrencyManager::CurrencyManager(
         FirstInitCurrency();
         if (!m_data.Get("currency_base", "").isEmpty()) {
             MigrateCurrency();
-            QLOG_WARN() << "Found old currency values, migrated them to the new system";
+            spdlog::warn("Found old currency values, migrated them to the new system");
         };
     } else {
         InitCurrency();
@@ -176,8 +177,8 @@ void CurrencyManager::Deserialize(const QString& string_data, std::vector<std::s
     };
     rapidjson::Document doc;
     if (doc.Parse(string_data.toStdString().c_str()).HasParseError()) {
-        QLOG_ERROR() << "Error while parsing currency ratios.";
-        QLOG_ERROR() << rapidjson::GetParseError_En(doc.GetParseError());
+        spdlog::error("Error while parsing currency ratios.");
+        spdlog::error(rapidjson::GetParseError_En(doc.GetParseError()));
         return;
     };
     if (!doc.IsObject()) {
@@ -242,7 +243,7 @@ void CurrencyManager::ExportCurrency() {
     };
     QFile file(QDir::toNativeSeparators(fileName));
     if (!file.open(QFile::WriteOnly | QFile::Text)) {
-        QLOG_WARN() << "CurrencyManager::ExportCurrency : couldn't open CSV export file ";
+        spdlog::warn("CurrencyManager::ExportCurrency : couldn't open CSV export file ");
         return;
     };
     QTextStream out(&file);
@@ -326,7 +327,7 @@ CurrencyDialog::CurrencyDialog(CurrencyManager& manager, bool show_chaos, bool s
     for (auto& curr : m_currency_manager.currencies()) {
         CurrencyWidget* tmp = new CurrencyWidget(curr);
         // To keep every vector the same size, we DO create spinboxes for the empty currency, just don't display them
-        if (curr->currency == CURRENCY_NONE) {
+        if (curr->currency == Currency::CURRENCY_NONE) {
             continue;
         };
         connect(tmp->exalt_ratio, &QDoubleSpinBox::valueChanged, this, &CurrencyDialog::UpdateTotalValue);

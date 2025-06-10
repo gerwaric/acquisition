@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -21,56 +21,28 @@
 
 #include <QComboBox>
 #include <QCryptographicHash>
-#include <QString>
-#include <QStringList>
 #include <QLineEdit>
 #include <QLabel>
 #include <QFontMetrics>
 #include <QMetaEnum>
 #include <QNetworkReply>
 #include <QRegularExpression>
+#include <QString>
+#include <QStringList>
 #include <QTextDocument>
 #include <QUrlQuery>
 #include <QPainter>
 
 #include <cmath>
 
-#include <QsLog/QsLog.h>
-
 #include <rapidjson/document.h>
 #include <rapidjson/writer.h>
 #include <rapidjson/prettywriter.h>
 
-#include "util/rapidjson_util.h"
+#include <util/rapidjson_util.h>
+#include <util/spdlog_qt.h>
 
 #include "currency.h"
-
-QsLogging::Level Util::TextToLogLevel(const QString& value) {
-    if (0 == value.compare("TRACE", Qt::CaseInsensitive)) { return QsLogging::TraceLevel; };
-    if (0 == value.compare("DEBUG", Qt::CaseInsensitive)) { return QsLogging::DebugLevel; };
-    if (0 == value.compare("INFO", Qt::CaseInsensitive)) { return QsLogging::InfoLevel; };
-    if (0 == value.compare("WARN", Qt::CaseInsensitive)) { return QsLogging::WarnLevel; };
-    if (0 == value.compare("ERROR", Qt::CaseInsensitive)) { return QsLogging::ErrorLevel; };
-    if (0 == value.compare("FATAL", Qt::CaseInsensitive)) { return QsLogging::FatalLevel; };
-    if (0 == value.compare("OFF", Qt::CaseInsensitive)) { return QsLogging::OffLevel; };
-    QLOG_ERROR() << "Invalid logging level:" << value << "(defaulting to DEBUG)";
-    return QsLogging::DebugLevel;
-}
-
-QString Util::LogLevelToText(QsLogging::Level level) {
-    switch (level) {
-    case QsLogging::Level::TraceLevel: return "TRACE";
-    case QsLogging::Level::DebugLevel: return "DEBUG";
-    case QsLogging::Level::InfoLevel: return "INFO";
-    case QsLogging::Level::WarnLevel: return "WARN";
-    case QsLogging::Level::ErrorLevel: return "ERROR";
-    case QsLogging::Level::FatalLevel: return "FATAL";
-    case QsLogging::Level::OffLevel: return "OFF";
-    default:
-        QLOG_ERROR() << "Invalid log level:" << QString::number(level);
-        return "<INVALID_LEVEL>";
-    };
-};
 
 QString Util::Md5(const QString& value) {
     const QString hash = QString(QCryptographicHash::hash(value.toStdString().c_str(), QCryptographicHash::Md5).toHex());
@@ -226,14 +198,14 @@ void Util::GetTabColor(rapidjson::Value& json, int& r, int& g, int& b) {
                 b = std::stoul(colour.substr(0, 2), nullptr, 16);
                 break;
             default:
-                QLOG_DEBUG() << "Could not parse stash tab colour:" << Util::RapidjsonSerialize(json);
+                spdlog::debug("Could not parse stash tab colour: {}", Util::RapidjsonSerialize(json));
                 break;
             };
         } else {
-            QLOG_DEBUG() << "Stab tab metadata does not have a colour:" << Util::RapidjsonSerialize(json);
+            spdlog::debug("Stab tab metadata does not have a colour: {}", Util::RapidjsonSerialize(json));
         };
     } else {
-        QLOG_DEBUG() << "Stash tab does not have a colour:" << Util::RapidjsonSerialize(json);
+        spdlog::debug("Stash tab does not have a colour: {}", Util::RapidjsonSerialize(json));
     };
 }
 
@@ -387,31 +359,4 @@ QByteArray Util::FixTimezone(const QByteArray& rfc2822_date) {
         };
     };
     return rfc2822_date;
-}
-
-QDebug& operator<<(QDebug& os, const RefreshReason::Type obj)
-{
-    const QMetaObject* meta = &RefreshReason::staticMetaObject;
-    os << meta->enumerator(meta->indexOfEnumerator("Type")).key(obj);
-    return os;
-}
-
-QDebug& operator<<(QDebug& os, const TabSelection::Type obj)
-{
-    const QMetaObject* meta = &TabSelection::staticMetaObject;
-    os << meta->enumerator(meta->indexOfEnumerator("Type")).key(obj);
-    return os;
-}
-
-QDebug& operator<<(QDebug& os, const QsLogging::Level obj) {
-    switch (obj) {
-    case QsLogging::Level::TraceLevel: return os << "TRACE";
-    case QsLogging::Level::DebugLevel: return os << "DEBUG";
-    case QsLogging::Level::InfoLevel: return os << "INFO";
-    case QsLogging::Level::WarnLevel: return os << "WARN";
-    case QsLogging::Level::ErrorLevel: return os << "ERROR";
-    case QsLogging::Level::FatalLevel: return os << "FATAL";
-    case QsLogging::Level::OffLevel: return os << "OFF";
-    default: return os << "None (log level is invalid)";
-    };
 }

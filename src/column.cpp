@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -26,7 +26,7 @@
 #include <QPalette>
 #include <QIcon>
 
-#include "util/util.h"
+#include <util/util.h>
 
 #include "buyoutmanager.h"
 #include "influence.h"
@@ -90,23 +90,23 @@ QVariant NameColumn::value(const Item& item) const {
 
 QColor NameColumn::color(const Item& item) const {
     switch (item.frameType()) {
-    case FRAME_TYPE_MAGIC:
+    case FrameType::FRAME_TYPE_MAGIC:
         return QColor(0x00, 0x66, 0x99);
-    case FRAME_TYPE_RARE:
+    case FrameType::FRAME_TYPE_RARE:
         return QColor(Qt::darkYellow);
-    case FRAME_TYPE_UNIQUE:
+    case FrameType::FRAME_TYPE_UNIQUE:
         return QColor(234, 117, 0);
-    case FRAME_TYPE_GEM:
+    case FrameType::FRAME_TYPE_GEM:
         return QColor(0x1b, 0xa2, 0x9b);
-    case FRAME_TYPE_CURRENCY:
+    case FrameType::FRAME_TYPE_CURRENCY:
         return QColor(0x77, 0x6e, 0x59);
-    case FRAME_TYPE_DIVINATION_CARD:
+    case FrameType::FRAME_TYPE_DIVINATION_CARD:
         return QColor(QRgb(0x01bcba));
-    case FRAME_TYPE_QUEST_ITEM:
+    case FrameType::FRAME_TYPE_QUEST_ITEM:
         return QColor(QRgb(0x4ae63a));
-    case FRAME_TYPE_PROPHECY:
+    case FrameType::FRAME_TYPE_PROPHECY:
         return QColor(181, 75, 255);
-    case FRAME_TYPE_RELIC:
+    case FrameType::FRAME_TYPE_RELIC:
         return QColor(QRgb(0x82ad6a));
     default:
         return QApplication::palette().color(QPalette::WindowText);
@@ -290,11 +290,11 @@ QColor ElementalDamageColumn::color(const Item& item) const {
     if (item.elemental_damage().size() > m_index) {
         auto& ed = item.elemental_damage().at(m_index);
         switch (ed.second) {
-        case ED_FIRE:
+        case ElementalDamageType::ED_FIRE:
             return QColor(0xc5, 0x13, 0x13);
-        case ED_COLD:
+        case ElementalDamageType::ED_COLD:
             return QColor(0x36, 0x64, 0x92);
-        case ED_LIGHTNING:
+        case ElementalDamageType::ED_LIGHTNING:
             return QColor(0xb9, 0x9c, 0x00);
         }
     }

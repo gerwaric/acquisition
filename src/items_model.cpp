@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -19,9 +19,8 @@
 
 #include "items_model.h"
 
-#include <QsLog/QsLog.h>
-
-#include "util/util.h"
+#include <util/spdlog_qt.h>
+#include <util/util.h>
 
 #include "application.h"
 #include "bucket.h"
@@ -151,10 +150,10 @@ QVariant ItemsModel::data(const QModelIndex& index, int role) const {
                 return column->icon(item);
             };
         } else {
-            QLOG_ERROR() << "items model cannot get data: bucket" << bucket_row << "does not have" << item_row << "items";
+            spdlog::error("items model cannot get data: bucket {} does not have {} items", bucket_row, item_row);
         };
     } else {
-        QLOG_ERROR() << "items model cannot get data: bucket" << bucket_row << "does not exist";
+        spdlog::error("items model cannot get data: bucket {} does not exist", bucket_row);
     };
     return QVariant();
 }
@@ -205,7 +204,7 @@ void ItemsModel::sort(int column, Qt::SortOrder order)
     if (m_sorted && (m_sort_column == column) && (m_sort_order == order))
         return;
 
-    QLOG_DEBUG() << "Sorting items model by column" << column;
+    spdlog::debug("Sorting items model by column {}", column);
     m_sort_order = order;
     m_sort_column = column;
 
@@ -232,14 +231,14 @@ QModelIndex ItemsModel::index(int row, int column, const QModelIndex& parent) co
     int bucket_count = static_cast<int>(m_search.buckets().size());
     if (parent.isValid()) {
         if (parent.row() >= bucket_count) {
-            QLOG_WARN() << "ItemsModel: index parent row is invalid";
+            spdlog::warn("ItemsModel: index parent row is invalid");
             return QModelIndex();
         };
         // item, we pass parent's (bucket's) row through ID parameter
         return createIndex(row, column, static_cast<quintptr>(parent.row()) + 1);
     } else {
         if (row >= bucket_count) {
-            QLOG_WARN() << "ItemsModel: index row is invalid:" + QString::number(row);
+            spdlog::warn("ItemsModel: index row is invalid:" + QString::number(row));
             return QModelIndex();
         };
         return createIndex(row, column, static_cast<quintptr>(0));

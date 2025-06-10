@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -19,11 +19,12 @@
 
 #include "networkmanager.h"
 
+#include <QMetaEnum>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 
-#include <QsLog/QsLog.h>
+#include <util/spdlog_qt.h>
 
 #include "network_info.h"
 
@@ -35,7 +36,8 @@ NetworkManager::NetworkManager()
 
     connect(m_network_info, &QNetworkInformation::reachabilityChanged, this,
         [=](QNetworkInformation::Reachability reachability) {
-            QLOG_INFO() << "NetworkManager: reachability changed to" << reachability;
+            const QString status = QMetaEnum::fromType<QNetworkInformation::Reachability>().valueToKey(static_cast<int>(reachability));
+        spdlog::info("NetworkManager: reachability changed to {}", status);
             m_offline = (reachability != QNetworkInformation::Reachability::Online);
         });
 }

@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -26,6 +26,7 @@
 #include "currencymanager.h"
 #include "item.h"
 #include "itemlocation.h"
+
 
 class DataStore {
 public:

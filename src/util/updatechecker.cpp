@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -30,10 +30,10 @@
 #include <QUrl>
 #include <QWidget>
 
-#include <QsLog/QsLog.h>
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
 #include <semver/semver.hpp>
+#include <util/spdlog_qt.h>
 
 #include "network_info.h"
 #include "util.h"
@@ -59,9 +59,9 @@ UpdateChecker::UpdateChecker(
     m_previous_release = skip_release.isEmpty() ? semver::version() : semver::version::parse(skip_release.toStdString());
     m_previous_prerelease = skip_prerelease.isEmpty() ? semver::version() : semver::version::parse(skip_prerelease.toStdString());
 
-    QLOG_DEBUG() << "UpdateChecker: running version is" << m_running_version.str();
-    QLOG_DEBUG() << "UpdateChecker: skipped release is" << m_previous_release.str();
-    QLOG_DEBUG() << "UpdateChecker: skipped prerelease is" << m_previous_prerelease.str();
+    spdlog::debug("UpdateChecker: running version is {}", m_running_version.str());
+    spdlog::debug("UpdateChecker: skipped release is {}", m_previous_release.str());
+    spdlog::debug("UpdateChecker: skipped prerelease is {}", m_previous_prerelease.str());
 
     m_timer.setInterval(UPDATE_INTERVAL);
     m_timer.start();
@@ -70,7 +70,7 @@ UpdateChecker::UpdateChecker(
 
 void UpdateChecker::CheckForUpdates() {
     // Get the releases from GitHub as a json object.
-    QLOG_TRACE() << "UpdateChecker: requesting GitHub releases:" << GITHUB_RELEASES_URL;
+    spdlog::trace("UpdateChecker: requesting GitHub releases: {}", GITHUB_RELEASES_URL);
     QNetworkRequest request = QNetworkRequest(QUrl(GITHUB_RELEASES_URL));
     request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
     QNetworkReply* reply = m_nm.get(request);
@@ -81,25 +81,25 @@ void UpdateChecker::CheckForUpdates() {
 
 void UpdateChecker::OnUpdateErrorOccurred(QNetworkReply::NetworkError code) {
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
-    QLOG_ERROR() << "Network error" << code << "occurred while checking for an update : " << reply->errorString();
+    spdlog::error("Network error {} occurred while checking for an update: {}", code, reply->errorString());
 }
 
 void UpdateChecker::OnUpdateSslErrors(const QList<QSslError>& errors) {
     const int n = errors.size();
-    QLOG_ERROR() << n << "SSL error(s) checking for an update:";
+    spdlog::error("{} SSL error(s) checking for an update:", n);
     for (int i = 0; i < n; ++i) {
-        QLOG_ERROR() << "SSL error #" << i << "is" << errors[i].errorString();
+        spdlog::error("SSL error # {} is {}", i, errors[i].errorString());
     };
 }
 
 void UpdateChecker::OnUpdateReplyReceived() {
     // Process the releases received from GitHub.
-    QLOG_TRACE() << "UpdateChecker: received an update reply from GitHub.";
+    spdlog::trace("UpdateChecker: received an update reply from GitHub.");
 
     // Check for network errors.
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
     if (reply->error() != QNetworkReply::NoError) {
-        QLOG_ERROR() << "The network reply came with an error:" << reply->errorString();
+        spdlog::error("The network reply came with an error: {}", reply->errorString());
         return;
     };
 
@@ -124,14 +124,14 @@ void UpdateChecker::OnUpdateReplyReceived() {
 
     // Make sure at least one tag was found.
     if ((m_latest_release == NULL_VERSION) && (m_latest_prerelease == NULL_VERSION)) {
-        QLOG_WARN() << "Unable to find any github releases or pre-releases!";
+        spdlog::warn("Unable to find any github releases or pre-releases!");
         return;
     };
     if (m_latest_release > NULL_VERSION) {
-        QLOG_DEBUG() << "UpdateChecker: latest release found:" << m_latest_release.str();
+        spdlog::debug("UpdateChecker: latest release found: {}", m_latest_release.str());
     };
     if (m_latest_prerelease > NULL_VERSION) {
-        QLOG_DEBUG() << "UpdateChecker: latest prerelease found:" << m_latest_prerelease.str();
+        spdlog::debug("UpdateChecker: latest prerelease found: {}", m_latest_prerelease.str());
     };
 
     // Send a signal if there's a new version from the last check.
@@ -148,11 +148,11 @@ std::vector<UpdateChecker::ReleaseTag> UpdateChecker::ParseReleaseTags(const QBy
 
     // Check for json errors.
     if (doc.HasParseError()) {
-        QLOG_ERROR() << "Error parsing github releases:" << rapidjson::GetParseError_En(doc.GetParseError());
+        spdlog::error("Error parsing github releases: {}", rapidjson::GetParseError_En(doc.GetParseError()));
         return {};
     };
     if (!doc.IsArray()) {
-        QLOG_ERROR() << "Error parsing github releases: document was not an array";
+        spdlog::error("Error parsing github releases: document was not an array");
         return {};
     };
 
@@ -176,7 +176,7 @@ std::vector<UpdateChecker::ReleaseTag> UpdateChecker::ParseReleaseTags(const QBy
 
         // Make sure we found a parseable version number
         if (release.version == NULL_VERSION) {
-            QLOG_WARN() << "Github release does not contain a name:" << Util::RapidjsonSerialize(json);
+            spdlog::warn("Github release does not contain a name: {}", Util::RapidjsonSerialize(json));
         };
 
         // Parse the release flags
@@ -200,7 +200,7 @@ bool UpdateChecker::has_newer_prerelease() const {
 void UpdateChecker::AskUserToUpdate() {
 
     if (!has_newer_release() && !has_newer_prerelease()) {
-        QLOG_WARN() << "UpdateChecker: no newer versions available";
+        spdlog::warn("UpdateChecker: no newer versions available");
         //return;
     };
 

@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -32,7 +32,7 @@
 #include <memory>
 #include <vector>
 
-#include <QsLog/QsLog.h>
+#include <util/spdlog_qt.h>
 
 #include "application.h"
 #include "datastore/datastore.h"
@@ -82,25 +82,25 @@ int TestHelper::run(QNetworkAccessManager& network_manager, RePoE& repoe) {
     {
 		TestItem item_test;
 		const int result = QTest::qExec(&item_test, { verbosity, "-o", "acquisition-test-items.log" });
-		QLOG_INFO() << "TestItem result is" << result;
+        spdlog::info("TestItem result is {}", result);
 		overall_result |= result;
 	};
     {
 		TestShop shop_test(items_manager, buyout_manager, shop);
 		const int result = QTest::qExec(&shop_test, { verbosity, "-o", "acquisition-test-shop.log" });
-		QLOG_INFO() << "TestShop result is" << result;
+        spdlog::info("TestShop result is {}", result);
 		overall_result |= result;
 	};
     {
 		TestUtil util_test;
 		const int result = QTest::qExec(&util_test, { verbosity, "-o", "acquisition-test-utils.log" });
-		QLOG_INFO() << "TestUtil result is" << result;
+        spdlog::info("TestUtil result is {}", result);
 		overall_result |= result;
 	};
     {
 		TestItemsManager items_manager_test(*datastore, items_manager, buyout_manager);
 		const int result = QTest::qExec(&items_manager_test, { verbosity, "-o", "acquisition-test-item-manager.log" });
-		QLOG_INFO() << "TestItemsManager result is" << result;
+        spdlog::info("TestItemsManager result is {}", result);
 		overall_result |= result;
 	};
 	int status = (overall_result == 0) ? 0 : -1;

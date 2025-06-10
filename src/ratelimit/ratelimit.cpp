@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -21,16 +21,15 @@
 
 #include <QNetworkReply>
 
-#include <QsLog/QsLog.h>
-
-#include "util/util.h"
+#include <util/spdlog_qt.h>
+#include <util/util.h>
 
 using namespace RateLimit;
 
 // Get a header field from an HTTP reply.
 QByteArray RateLimit::ParseHeader(QNetworkReply* const reply, const QByteArray& name) {
     if (!reply->hasRawHeader(name)) {
-        QLOG_ERROR() << "RateLimit: the network reply is missing a header:" << name;
+        spdlog::error("RateLimit: the network reply is missing a header: {}", name);
     };
     return reply->rawHeader(name);
 }
@@ -40,7 +39,7 @@ QByteArrayList RateLimit::ParseHeaderList(QNetworkReply* const reply, const QByt
     const QByteArray value = ParseHeader(reply, name);
     const QByteArrayList items = value.split(delim);
     if (items.isEmpty()) {
-        QLOG_ERROR() << "GetHeaderList():" << name << "is empty";
+        spdlog::error("GetHeaderList(): {} is empty", name);
     };
     return items;
 }
@@ -70,7 +69,7 @@ QDateTime RateLimit::ParseDate(QNetworkReply* const reply) {
     const QString timestamp = QString(Util::FixTimezone(ParseHeader(reply, "Date")));
     const QDateTime date = QDateTime::fromString(timestamp, Qt::RFC2822Date).toLocalTime();
     if (!date.isValid()) {
-        QLOG_ERROR() << "invalid date parsed from" << timestamp;
+        spdlog::error("invalid date parsed from {}", timestamp);
     };
     return date;
 }

@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -19,12 +19,12 @@
 
 #pragma once
 
-#include <boost/circular_buffer.hpp>
-
 #include <QMetaObject>
 #include <QString>
 
 #include <vector>
+
+#include <boost/circular_buffer.hpp>
 
 class QByteArray;
 class QDateTime;

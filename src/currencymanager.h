@@ -42,8 +42,8 @@ struct CurrencyRatio {
     double value1;
     double value2;
     CurrencyRatio()
-        : curr1(CURRENCY_NONE)
-        , curr2(CURRENCY_NONE)
+        : curr1(Currency::CURRENCY_NONE)
+        , curr2(Currency::CURRENCY_NONE)
         , value1(0)
         , value2(0)
     {}
@@ -65,8 +65,8 @@ struct CurrencyItem {
         : count(co)
         , currency(curr)
         , name(curr.AsString())
-        , chaos(curr, CURRENCY_CHAOS_ORB, chaos_ratio, 1)
-        , exalt(curr, CURRENCY_EXALTED_ORB, exalt_ratio, 1)
+        , chaos(curr, Currency::CURRENCY_CHAOS_ORB, chaos_ratio, 1)
+        , exalt(curr, Currency::CURRENCY_EXALTED_ORB, exalt_ratio, 1)
     {};
 };
 struct CurrencyLabels {
@@ -101,7 +101,7 @@ public slots:
     void UpdateVisual(bool show_chaos, bool show_exalt);
 public:
     CurrencyWidget(std::shared_ptr<CurrencyItem> currency);
-    bool IsNone() const { return m_currency->currency.type == CURRENCY_NONE; }
+    bool IsNone() const { return m_currency->currency.type == Currency::CURRENCY_NONE; }
     //Visual stuff
     QLabel* name;
     QLabel* count;

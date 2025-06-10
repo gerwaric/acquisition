@@ -19,15 +19,12 @@
 
 #pragma once
 
-#include "version_defines.h"
+#include <QString>
 
-constexpr const char* USER_AGENT = APP_NAME "/" APP_VERSION_STRING " (contact: " APP_PUBLISHER_EMAIL ")";
+#include <spdlog/spdlog.h>
 
-constexpr const char* POE_COOKIE_NAME = "POESESSID";
-constexpr const char* POE_COOKIE_DOMAIN = ".pathofexile.com";
-constexpr const char* POE_COOKIE_PATH = "/";
+namespace logging {
 
-enum class POE_API {
-    LEGACY,
-    OAUTH,
-};
+    void init(const QString& filename);
+
+}

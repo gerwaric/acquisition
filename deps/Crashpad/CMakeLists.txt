@@ -18,11 +18,11 @@ endif()
 
 target_link_libraries(Crashpad PRIVATE
     Qt::Core
-    QsLog
     CrashpadCommon
     CrashpadClient
     CrashpadUtil
     CrashpadBase
+    spdlog::spdlog_header_only
 )
 
 # Make sure the crash_handler executable is copied to the build directory.

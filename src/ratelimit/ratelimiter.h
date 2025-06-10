@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -19,8 +19,8 @@
 
 #pragma once
 
-#include <QObject>
 #include <QNetworkRequest>
+#include <QObject>
 #include <QString>
 #include <QTimer>
 
@@ -84,6 +84,9 @@ private slots:
     // Received from individual policy managers.
     void OnManagerPaused(const QString& policy_name, const QDateTime& until);
 
+    // Recieved from indivual policy managers.
+    void OnViolation(const QString& policy_name);
+
 private:
 
     // Process the first request for an endpoint we haven't encountered before.
@@ -127,5 +130,7 @@ private:
     std::list<std::unique_ptr<RateLimitManager>> m_managers;
     std::map<const QString, RateLimitManager*> m_manager_by_policy;
     std::map<const QString, RateLimitManager*> m_manager_by_endpoint;
+
+    unsigned int m_violation_count{ 0 };
 
 };

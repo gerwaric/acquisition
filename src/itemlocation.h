@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -19,23 +19,27 @@
 
 #pragma once
 
-#include <QRectF>
 #include <QColor>
+#include <QObject>
+#include <QRectF>
 #include <QString>
 
 #include <rapidjson/document.h>
 
-#include "util/rapidjson_util.h"
-
-enum class ItemLocationType {
-    STASH,
-    CHARACTER
-};
-QDebug& operator<<(QDebug& os, const ItemLocationType obj);
+#include <util/rapidjson_util.h>
+#include <util/spdlog_qt.h>
 
 
 class ItemLocation {
+    Q_GADGET
 public:
+
+    enum class ItemLocationType {
+        STASH,
+        CHARACTER
+    };
+    Q_ENUM(ItemLocationType)
+
     ItemLocation();
     explicit ItemLocation(const rapidjson::Value& root);
     explicit ItemLocation(
@@ -97,5 +101,11 @@ private:
 
     QString m_character_sortname;
 };
+
+using ItemLocationType = ItemLocation::ItemLocationType;
+
+template <>
+struct fmt::formatter<ItemLocationType, char> : QtEnumFormatter<ItemLocationType> {};
+
 
 typedef std::vector<ItemLocation> Locations;

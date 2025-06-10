@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -19,7 +19,7 @@
 
 #include "buyout.h"
 
-#include <QsLog/QsLog.h>
+#include <util/spdlog_qt.h>
 
 const QString Buyout::m_buyout_type_error;
 
@@ -57,9 +57,9 @@ bool Buyout::IsValid() const {
     case BUYOUT_TYPE_BUYOUT:
     case BUYOUT_TYPE_FIXED:
     case BUYOUT_TYPE_CURRENT_OFFER:
-        return (currency != CURRENCY_NONE) && (source != BUYOUT_SOURCE_NONE);
+        return (currency != Currency::CURRENCY_NONE) && (source != BUYOUT_SOURCE_NONE);
     default:
-        QLOG_ERROR() << "Invalid buyout type:" << type;
+        spdlog::error("Invalid buyout type: {}", static_cast<int>(type));
         return false;
     };
 }
@@ -105,7 +105,7 @@ BuyoutType Buyout::IndexAsBuyoutType(int index) {
         };
     };
 
-    QLOG_WARN() << "Buyout type index out of bounds: " << index << ". This should never happen - please report.";
+    spdlog::warn("Buyout type index out of bounds: {}. This should never happen - please report.", index);
     return BUYOUT_TYPE_INHERIT;
 }
 
@@ -122,7 +122,7 @@ const QString& Buyout::BuyoutTypeAsTag() const {
     if (it != m_buyout_type_as_tag.end()) {
         return it->second;
     } else {
-        QLOG_WARN() << "No mapping from buyout type: " << type << " to tag. This should never happen - please report.";
+        spdlog::warn("No mapping from buyout type: {} to tag. This should never happen - please report.", type);
         return m_buyout_type_error;
     };
 }
@@ -132,7 +132,7 @@ const QString& Buyout::BuyoutTypeAsPrefix() const {
     if (it != m_buyout_type_as_prefix.end()) {
         return it->second;
     } else {
-        QLOG_WARN() << "No mapping from buyout type: " << type << " to prefix. This should never happen - please report.";
+        spdlog::warn("No mapping from buyout type: {} to prefix. This should never happen - please report.", type);
         return m_buyout_type_error;
     };
 }
@@ -142,7 +142,7 @@ const QString& Buyout::BuyoutSourceAsTag() const {
     if (it != m_buyout_source_as_tag.end()) {
         return it->second;
     } else {
-        QLOG_WARN() << "No mapping from buyout source: " << source << " to tag. This should never happen - please report.";
+        spdlog::warn("No mapping from buyout source: {} to tag. This should never happen - please report.", source);
         return m_buyout_type_error;
     };
 }

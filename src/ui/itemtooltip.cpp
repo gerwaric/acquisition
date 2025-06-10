@@ -23,13 +23,13 @@
 #include <QPainter>
 #include <QString>
 
-#include <QsLog/QsLog.h>
-
 #include <array>
 #include <vector>
 
-#include "item.h"
-#include "itemconstants.h"
+#include <util/spdlog_qt.h>
+
+#include <item.h>
+#include <itemconstants.h>
 
 constexpr int LINKH_HEIGHT = 16;
 constexpr int LINKH_WIDTH = 38;
@@ -341,7 +341,7 @@ void UpdateItemTooltip(const Item& item, Ui::MainWindow* ui) {
         ui->itemNameSecondLine->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
         ui->itemNameContainerWidget->setFixedSize(16777215, HEADER_DOUBLELINE_HEIGHT);
     }
-    QString suffix = (singleline && (frame == FRAME_TYPE_RARE || frame == FRAME_TYPE_UNIQUE)) ? "SingleLine" : "";
+    QString suffix = (singleline && (frame == FrameType::FRAME_TYPE_RARE || frame == FrameType::FRAME_TYPE_UNIQUE)) ? "SingleLine" : "";
     QString header_path_prefix = ":/tooltip/ItemsHeader" + key + suffix;
 
     GenerateItemHeaderSide(ui->itemHeaderLeft, true, header_path_prefix, singleline, item.influenceLeft());
@@ -424,7 +424,7 @@ QPixmap GenerateItemSockets(const int width, const int height, const std::vector
                         );
                         break;
                     default:
-                        QLOG_ERROR() << "No idea how to draw link for socket " << i;
+                        spdlog::error("No idea how to draw link for socket {}", i);
                         break;
                     }
                 }
@@ -490,7 +490,7 @@ QPixmap GenerateItemIcon(const Item& item, const QImage& image) {
         if (background_image) {
             layered_painter.drawImage(0, 0, *background_image);
         } else {
-            QLOG_ERROR() << "Problem drawing background for " << item.PrettyName();
+            spdlog::error("Problem drawing background for {}", item.PrettyName());
         }
     }
 

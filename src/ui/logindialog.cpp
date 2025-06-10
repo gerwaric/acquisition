@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -39,18 +39,19 @@
 #include <QUrlQuery>
 
 #include <libpoe/type/league.h>
-#include <QsLog/QsLog.h>
 
 // #include "legacy/legacybuyoutvalidator.h" -- DISABLED as of v0.12.3.1
-#include "util/crashpad.h"
-#include "util/util.h"
-#include "util/updatechecker.h"
-#include "util/oauthmanager.h"
+#include <util/crashpad.h>
+#include <util/oauthmanager.h>
+#include <util/spdlog_qt.h>
+#include <util/util.h>
+#include <util/updatechecker.h>
+#include <version_defines.h>
+
+#include <network_info.h>
+#include <replytimeout.h>
 
 #include "mainwindow.h"
-#include "network_info.h"
-#include "replytimeout.h"
-#include "version_defines.h"
 
 constexpr const char* POE_LEAGUE_LIST_URL = "https://api.pathofexile.com/leagues?type=main&compact=1";
 constexpr const char* POE_MAIN_PAGE = "https://www.pathofexile.com/";
@@ -92,11 +93,11 @@ LoginDialog::LoginDialog(
     , ui(new Ui::LoginDialog)
 {
     // Setup the dialog box.
-    QLOG_TRACE() << "LoginDialog::LoginDialog() calling UI setup";
+    spdlog::trace("LoginDialog::LoginDialog() calling UI setup");
     ui->setupUi(this);
 
     // Set window properties.
-    QLOG_TRACE() << "LoginDialog::LoginDialog() setting window properties";
+    spdlog::trace("LoginDialog::LoginDialog() setting window properties");
     setWindowTitle(QString("Acquisition Login [") + APP_VERSION_STRING + "]");
     setWindowIcon(QIcon(":/icons/assets/icon.svg"));
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
@@ -108,15 +109,9 @@ LoginDialog::LoginDialog(
     ui->themeComboBox->addItems({ "default","light","dark" });
 
     // Setup logging levels.
-    ui->loggingLevelComboBox->addItems({
-        Util::LogLevelToText(QsLogging::FatalLevel),
-        Util::LogLevelToText(QsLogging::ErrorLevel),
-        Util::LogLevelToText(QsLogging::WarnLevel),
-        Util::LogLevelToText(QsLogging::InfoLevel),
-        Util::LogLevelToText(QsLogging::DebugLevel),
-        Util::LogLevelToText(QsLogging::TraceLevel),
-        Util::LogLevelToText(QsLogging::OffLevel)
-        });
+    for (const auto& level_name : spdlog::level::level_string_views) {
+        ui->loggingLevelComboBox->addItem(QString::fromUtf8(level_name));
+    };
 
     // Display the data directory
     ui->userDirButton->setText(m_app_data_dir.absolutePath());
@@ -168,20 +163,20 @@ LoginDialog::LoginDialog(
     const QDateTime now = QDateTime::currentDateTime();
     const OAuthToken& token = m_oauth_manager.token();
     if (token.access_expiration && (now < *token.access_expiration)) {
-        QLOG_TRACE() << "LoginDialog::LoginDialog() found a valid OAuth token";
+        spdlog::trace("LoginDialog::LoginDialog() found a valid OAuth token");
         OnOAuthAccessGranted(m_oauth_manager.token());
     } else if (token.refresh_expiration && (now < *token.refresh_expiration)) {
-        QLOG_INFO() << "LoginDialog:LoginDialog() the OAuth token needs to be refreshed";
+        spdlog::info("LoginDialog:LoginDialog() the OAuth token needs to be refreshed");
     };
 
     // Request the list of leagues.
-    QLOG_TRACE() << "LoginDialog::LoginDialog() requesting leagues";
+    spdlog::trace("LoginDialog::LoginDialog() requesting leagues");
     RequestLeagues();
 }
 
 LoginDialog::~LoginDialog() {
     if (!ui->rememberMeCheckBox->isChecked()) {
-        QLOG_TRACE() << "LoginDialog::SaveSettings() clearing settings";
+        spdlog::trace("LoginDialog::SaveSettings() clearing settings");
         m_settings.clear();
     };
     delete ui;
@@ -195,7 +190,8 @@ void LoginDialog::LoadSettings() {
     const QString league = m_settings.value("league").toString();
     ui->leagueComboBox->setCurrentText(league);
 
-    const QString logging_level = Util::LogLevelToText(QsLogging::Logger::instance().loggingLevel());
+    const spdlog::string_view_t sv = spdlog::level::to_string_view(spdlog::get_level());
+    const QString logging_level = QString::fromUtf8(sv.data(), sv.size());
     ui->loggingLevelComboBox->setCurrentText(logging_level);
 
     const QString theme = m_settings.value("theme").toString();
@@ -217,7 +213,7 @@ void LoginDialog::LoadSettings() {
     ui->reportCrashesCheckBox->setChecked(report_crashes);
 
     const QString login_tab = m_settings.value("login_tab").toString();
-    QLOG_TRACE() << "LoginDialog::LoadSettings() login_tab =" << login_tab;
+    spdlog::trace("LoginDialog::LoadSettings() login_tab = {}", login_tab);
     for (auto i = 0; i < ui->loginTabs->count(); ++i) {
         const QString tab_name = ui->loginTabs->widget(i)->objectName();
         if (0 == login_tab.compare(tab_name, Qt::CaseInsensitive)) {
@@ -236,7 +232,7 @@ void LoginDialog::RequestLeagues() {
     request.setTransferTimeout(kPoeApiTimeout);
 
     // Send the request and handle errors.
-    QLOG_TRACE() << "LoginDialog::RequestLeagues() sending request:" << request.url().toString();
+    spdlog::trace("LoginDialog::RequestLeagues() sending request: {}", request.url().toString());
     QNetworkReply* reply = m_network_manager.get(request);
     connect(reply, &QNetworkReply::finished, this, &LoginDialog::OnLeaguesReceived);
     connect(reply, &QNetworkReply::errorOccurred, this,
@@ -248,7 +244,7 @@ void LoginDialog::RequestLeagues() {
     connect(reply, &QNetworkReply::sslErrors, this,
         [=](const QList<QSslError>& errors) {
             for (const auto& error : errors) {
-                QLOG_ERROR() << "SSL Error requesting leagues:" << error.errorString();
+                spdlog::error("SSL Error requesting leagues: {}", error.errorString());
             };
             DisplayError("SSL error fetching leagues");
             ui->loginButton->setEnabled(false);
@@ -257,14 +253,14 @@ void LoginDialog::RequestLeagues() {
 
 void LoginDialog::OnLeaguesReceived() {
 
-    QLOG_TRACE() << "LoginDialog::OnLeaguesReceived() reply recieved";
+    spdlog::trace("LoginDialog::OnLeaguesReceived() reply recieved");
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
     const QByteArray bytes = reply->readAll();
     reply->deleteLater();
 
     // Check for network errors.
     if (reply->error()) {
-        QLOG_TRACE() << "LoginDialog::OnLeaguesReceived() reply error" << reply->error();
+        spdlog::trace("LoginDialog::OnLeaguesReceived() reply error {}", reply->error());
         return LeaguesRequestError(reply->errorString(), bytes);
     };
 
@@ -273,7 +269,7 @@ void LoginDialog::OnLeaguesReceived() {
 
     // Get the league from settings.ini
     const QString saved_league = m_settings.value("league").toString();
-    QLOG_TRACE() << "LoginDialog::OnLeaguesReceived() loaded leage from settings:" << saved_league;
+    spdlog::trace("LoginDialog::OnLeaguesReceived() loaded leage from settings: {}", saved_league);
 
     bool use_saved_league = false;
 
@@ -294,10 +290,10 @@ void LoginDialog::OnLeaguesReceived() {
     // we need to clear the setting, since the list of leagues may have
     // changed since the last time acquisition was run.
     if (use_saved_league) {
-        QLOG_TRACE() << "LoginDialog::OnLeaguesReceived() setting current league to" << saved_league;
+        spdlog::trace("LoginDialog::OnLeaguesReceived() setting current league to {}", saved_league);
         ui->leagueComboBox->setCurrentText(saved_league);
     } else {
-        QLOG_TRACE() << "LoginDialog::OnLeaguesReceived() clearing the saved league";
+        spdlog::trace("LoginDialog::OnLeaguesReceived() clearing the saved league");
         m_settings.setValue("league", "");
     };
 
@@ -309,13 +305,13 @@ void LoginDialog::OnLeaguesReceived() {
 }
 
 void LoginDialog::LeaguesRequestError(const QString& error, const QByteArray& reply) {
-    QLOG_ERROR() << "League reply was:" << reply;
+    spdlog::error("League reply was: {}", reply);
     DisplayError("Error requesting leagues: " + error);
     ui->loginButton->setEnabled(false);
 }
 
 void LoginDialog::OnAuthenticateButtonClicked() {
-    QLOG_TRACE() << "LoginDialog::OnAuthenticateButtonClicked() entered";
+    spdlog::trace("LoginDialog::OnAuthenticateButtonClicked() entered");
     ui->errorLabel->hide();
     ui->errorLabel->setText("");
     ui->authenticateButton->setEnabled(false);
@@ -324,7 +320,7 @@ void LoginDialog::OnAuthenticateButtonClicked() {
 }
 
 void LoginDialog::OnLoginButtonClicked() {
-    QLOG_TRACE() << "LoginDialog::OnLoginButtonClicked() entered";
+    spdlog::trace("LoginDialog::OnLoginButtonClicked() entered");
     ui->errorLabel->hide();
     ui->errorLabel->setText("");
     ui->loginButton->setEnabled(false);
@@ -348,7 +344,7 @@ void LoginDialog::OnLoginButtonClicked() {
         LoginWithOAuth();
     } else if (tab_name == SESSIONID_TAB) {
         if (session_id.isEmpty()) {
-            QLOG_ERROR() << "POESESSID is empty";
+            spdlog::error("POESESSID is empty");
             DisplayError("POESESSID cannot be blank");
             ui->loginButton->setEnabled(true);
             ui->loginButton->setText("Log in");
@@ -368,7 +364,7 @@ void LoginDialog::OnOfflineButtonClicked() {
 }
 
 void LoginDialog::LoginWithOAuth() {
-    QLOG_INFO() << "Starting OAuth authentication";
+    spdlog::info("Starting OAuth authentication");
     const QDateTime now = QDateTime::currentDateTime();
     const OAuthToken& token = m_oauth_manager.token();
     if (token.access_expiration && (now < *token.access_expiration)) {
@@ -382,7 +378,7 @@ void LoginDialog::LoginWithOAuth() {
 }
 
 void LoginDialog::LoginWithSessionID() {
-    QLOG_INFO() << "Starting legacy login with POESESSID";
+    spdlog::info("Starting legacy login with POESESSID");
     QNetworkRequest request = QNetworkRequest(QUrl(POE_LOGIN_CHECK_URL));
     request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
     QNetworkReply* reply = m_network_manager.get(request);
@@ -402,7 +398,7 @@ void LoginDialog::LoginWithSessionID() {
     connect(reply, &QNetworkReply::sslErrors, this,
         [=](const QList<QSslError>& errors) {
             for (const auto& error : errors) {
-                QLOG_ERROR() << "SSL error during legacy login:" << error.errorString();
+                spdlog::error("SSL error during legacy login: {}", error.errorString());
             };
             DisplayError("SSL error during session id login");
             ui->loginButton->setEnabled(false);
@@ -411,7 +407,7 @@ void LoginDialog::LoginWithSessionID() {
 
 // Need a separate check since it's just the /login URL that's filtered
 void LoginDialog::OnStartLegacyLogin() {
-    QLOG_TRACE() << "LoginDialog::OnStartLegacyLogin() entered";
+    spdlog::trace("LoginDialog::OnStartLegacyLogin() entered");
 
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
     const auto cookies = reply->manager()->cookieJar()->cookiesForUrl(QUrl(POE_MAIN_PAGE));
@@ -439,7 +435,7 @@ void LoginDialog::OnStartLegacyLogin() {
     for (const QNetworkCookie& cookie : cookies) {
         if (QString(cookie.name()) == POE_COOKIE_NAME) {
             if (cookie.value() != session_id) {
-                QLOG_WARN() << "POESESSID mismatch";
+                spdlog::warn("POESESSID mismatch");
             };
             break;
         };
@@ -464,7 +460,7 @@ void LoginDialog::OnStartLegacyLogin() {
     connect(reply, &QNetworkReply::sslErrors, this,
         [=](const QList<QSslError>& errors) {
             for (const auto& error : errors) {
-                QLOG_ERROR() << "SSL finishing legacy login:" << error.errorString();
+                spdlog::error("SSL finishing legacy login: {}", error.errorString());
             };
             DisplayError("SSL error finishing legacy login");
             ui->loginButton->setEnabled(false);
@@ -472,7 +468,7 @@ void LoginDialog::OnStartLegacyLogin() {
 }
 
 void LoginDialog::OnFinishLegacyLogin() {
-    QLOG_TRACE() << "LoginDialog::OnFinishLegacyLogin() entered";
+    spdlog::trace("LoginDialog::OnFinishLegacyLogin() entered");
 
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
     const QString html(reply->readAll());
@@ -494,23 +490,23 @@ void LoginDialog::OnFinishLegacyLogin() {
     const QString league = m_settings.value("league").toString();
     m_settings.setValue("account", account);
 
-    QLOG_DEBUG() << "Logged in as" << account << "to" << league << "league in" << realm << "realm";
+    spdlog::debug("Logged in as {} to {} league in {} realm", account, league, realm);
 
     emit LoginComplete(POE_API::LEGACY);
 }
 
 void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
-    QLOG_TRACE() << "LoginDialog::OnOAuthAccessGranted() entered";
+    spdlog::trace("LoginDialog::OnOAuthAccessGranted() entered");
     ui->authenticateLabel->setText("You are authenticated as \"" + token.username + "\"");
     ui->authenticateButton->setText("Re-authenticate (as someone else).");
     ui->authenticateButton->setEnabled(true);
 }
 
 void LoginDialog::OnLoginTabChanged(int index) {
-    QLOG_TRACE() << "LoginDialog::OnLoginTabChanged() entered";
+    spdlog::trace("LoginDialog::OnLoginTabChanged() entered");
     const QWidget* tab = ui->loginTabs->widget(index);
     if (tab == nullptr) {
-        QLOG_ERROR() << "LoginDialog: current tab widget is null";
+        spdlog::error("LoginDialog: current tab widget is null");
         return;
     };
     const bool hide_options = (tab == ui->offlineTab);
@@ -524,17 +520,19 @@ void LoginDialog::OnLoginTabChanged(int index) {
 };
 
 void LoginDialog::OnSessionIDChanged(const QString& session_id) {
-    QLOG_TRACE() << "LoginDialog::OnSessionIDChanged() entered";
+    // Save the new session and make sure the login button is enabled.
+    spdlog::trace("LoginDialog::OnSessionIDChanged() entered");
     m_settings.setValue("session_id", session_id);
+    ui->loginButton->setEnabled(true);
 }
 
 void LoginDialog::OnLeagueChanged(const QString& league) {
-    QLOG_TRACE() << "LoginDialog::OnLeagueChanged() entered";
+    spdlog::trace("LoginDialog::OnLeagueChanged() entered");
     m_settings.setValue("league", league);
 }
 
 void LoginDialog::OnAdvancedCheckBoxChanged(Qt::CheckState state) {
-    QLOG_TRACE() << "LoginDialog: advanced options checkbox changed to" << state;
+    spdlog::trace("LoginDialog: advanced options checkbox changed to {}", state);
     const bool checked = (state == Qt::Checked);
     const bool hide_options = ui->loginTabs->currentWidget() == ui->offlineTab;
     ui->advancedOptionsFrame->setHidden(!checked || hide_options);
@@ -542,21 +540,21 @@ void LoginDialog::OnAdvancedCheckBoxChanged(Qt::CheckState state) {
 }
 
 void LoginDialog::OnProxyCheckBoxChanged(Qt::CheckState state) {
-    QLOG_TRACE() << "LoginDialog: proxy checkbox changed to" << state;
+    spdlog::trace("LoginDialog: proxy checkbox changed to {}", state);
     const bool checked = (state == Qt::Checked);
     QNetworkProxyFactory::setUseSystemConfiguration(checked);
     m_settings.setValue("use_system_proxy", checked);
 }
 
 void LoginDialog::OnRememberMeCheckBoxChanged(Qt::CheckState state) {
-    QLOG_TRACE() << "LoginDialog: remember me checkbox changed to" << state;
+    spdlog::trace("LoginDialog: remember me checkbox changed to {}", state);
     const bool checked = (state == Qt::Checked);
     m_oauth_manager.RememberToken(checked);
     m_settings.setValue("remember_user", checked);
 }
 
 void LoginDialog::OnReportCrashesCheckBoxChanged(Qt::CheckState state) {
-    QLOG_TRACE() << "LoginDialog: crash reporting checkbox changed to" << state;
+    spdlog::trace("LoginDialog: crash reporting checkbox changed to {}", state);
     const bool checked = (state == Qt::Checked);
     QMessageBox msgbox(this);
     msgbox.setWindowTitle("Acquisition Crash Reporting");
@@ -612,10 +610,10 @@ void LoginDialog::OnUserDirButtonPushed() {
     };
 }
 
-void LoginDialog::OnLoggingLevelChanged(const QString& level) {
-    const QsLogging::Level logging_level = Util::TextToLogLevel(level);
-    QsLogging::Logger::instance().setLoggingLevel(logging_level);
-    m_settings.setValue("logging_level", level);
+void LoginDialog::OnLoggingLevelChanged(const QString& level_name) {
+    const spdlog::level::level_enum level = spdlog::level::from_str(level_name.toStdString());
+    spdlog::set_level(level);
+    m_settings.setValue("log_level", level_name);
 }
 
 void LoginDialog::OnThemeChanged(const QString& theme) {
@@ -623,7 +621,7 @@ void LoginDialog::OnThemeChanged(const QString& theme) {
 }
 
 void LoginDialog::DisplayError(const QString& error) {
-    QLOG_ERROR() << "LoginDialog:" << error;
+    spdlog::error("LoginDialog: {}", error);
     ui->errorLabel->setText(error);
     ui->errorLabel->show();
     ui->loginButton->setText("Login");

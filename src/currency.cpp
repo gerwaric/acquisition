@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -19,7 +19,7 @@
 
 #include "currency.h"
 
-#include <QsLog/QsLog.h>
+#include <util/spdlog_qt.h>
 
 const QString Currency::m_currency_type_error;
 
@@ -147,8 +147,8 @@ const Currency::StringTypeMap Currency::m_string_to_currency_type = {
     {"silver", CURRENCY_SILVER_COIN},
 };
 
-std::vector<CurrencyType> Currency::Types() {
-    std::vector<CurrencyType> tmp;
+std::vector<Currency::CurrencyType> Currency::Types() {
+    std::vector<Currency::CurrencyType> tmp;
     for (unsigned int i = 0; i < m_currency_type_as_tag.size(); i++) {
         tmp.push_back(static_cast<CurrencyType>(i));
     };
@@ -164,7 +164,7 @@ Currency Currency::FromTag(const QString& tag)
 
 Currency Currency::FromIndex(int index) {
     if (static_cast<unsigned int>(index) >= m_currency_type_as_tag.size()) {
-        QLOG_WARN() << "Currency type index out of bounds: " << index << ". This should never happen - please report.";
+        spdlog::warn("Currency type index out of bounds: {}. This should never happen - please report.", index);
         return CURRENCY_NONE;
     } else {
         return Currency(static_cast<CurrencyType>(index));
@@ -184,7 +184,7 @@ const QString& Currency::AsString() const {
     if (it != m_currency_type_as_string.end()) {
         return it->second;
     } else {
-        QLOG_WARN() << "No mapping from currency type: " << type << " to string. This should never happen - please report.";
+        spdlog::warn("No mapping from currency type: {} to string. This should never happen - please report.", type);
         return m_currency_type_error;
     };
 }
@@ -194,7 +194,7 @@ const QString& Currency::AsTag() const {
     if (it != m_currency_type_as_tag.end()) {
         return it->second;
     } else {
-        QLOG_WARN() << "No mapping from currency type: " << type << " to tag. This should never happen - please report.";
+        spdlog::warn("No mapping from currency type: {} to tag. This should never happen - please report.", type);
         return m_currency_type_error;
     };
 }

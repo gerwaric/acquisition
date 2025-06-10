@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -26,8 +26,8 @@
 
 #include <rapidjson/document.h>
 
-#include "util/util.h"
-#include "util/rapidjson_util.h"
+#include <util/rapidjson_util.h>
+#include <util/util.h>
 
 #include "modlist.h"
 #include "itemlocation.h"
@@ -526,15 +526,15 @@ QString Item::POBformat() const {
     case 6: // divination card
     case 7: // quest
     case 8: // prophecy (legacy)
-        QLOG_ERROR() << "Cannot build POB format: unsupported frameType:" << m_frameType;
+        spdlog::error("Cannot build POB format: unsupported frameType: {}", m_frameType);
         break;
     case 9: pob << "Rarity: UNIQUE"; break;// foil
     case 10: pob << "Rarity: UNIQUE"; break;// supporter foil
     case 11: // necropolis
-        QLOG_ERROR() << "Cannot build POB format: unsupported frameType:" << m_frameType;
+        spdlog::error("Cannot build POB format: unsupported frameType: {}", m_frameType);
         break;
     default:
-        QLOG_ERROR() << "Cannot build POB format: unrecognized frameType:" << m_frameType;
+        spdlog::error("Cannot build POB format: unrecognized frameType: {}", m_frameType);
         break;
     };
     pob << "\n" << name().toStdString();

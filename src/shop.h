@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -25,9 +25,10 @@
 
 #include <map>
 
+#include <ui/mainwindow.h>
+
 #include "buyout.h"
 #include "item.h"
-#include "ui/mainwindow.h"
 
 class QNetworkAccessManager;
 class QSettings;

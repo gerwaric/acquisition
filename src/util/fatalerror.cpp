@@ -1,5 +1,5 @@
 /*
-    Copyright (C) 2014-2024 Acquisition Contributors
+    Copyright (C) 2014-2025 Acquisition Contributors
 
     This file is part of Acquisition.
 
@@ -30,7 +30,7 @@
 #include <QUrl>
 #include <QUrlQuery>
 
-#include <QsLog/QsLog.h>
+#include <util/spdlog_qt.h>
 
 #include "version_defines.h"
 
@@ -38,7 +38,7 @@ constexpr const char* GITHUB_ISSUES_URL = (APP_URL "/issues");
 
 [[noreturn]] void FatalError(const QString& message) {
 
-    QLOG_FATAL() << message;
+    spdlog::critical(message);
 
     QTextEdit* details = new QTextEdit;
     details->setReadOnly(true);
@@ -89,6 +89,6 @@ constexpr const char* GITHUB_ISSUES_URL = (APP_URL "/issues");
     dialog->exec();
 
     // Finally cause a crash, which should trigger a crash report
-    QLOG_FATAL() << "Aborting acquisition after a fatal error.";
+    spdlog::critical("Aborting acquisition after a fatal error.");
     abort();
 }
