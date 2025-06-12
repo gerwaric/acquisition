@@ -250,8 +250,23 @@ void RateLimiter::ProcessHeadResponse(
         FatalError(QString("he HEAD response did not contain a rate limit policy for endpoint: '%1'").arg(endpoint));
     };
 
-    // Get or create the manager for this policy.
+    // Extract the policy name.
     const QString policy_name = network_reply->rawHeader("X-Rate-Limit-Policy");
+
+    // Log the headers.
+    QStringList lines;
+    lines.reserve(network_reply->rawHeaderList().size() + 2);
+    lines.append(QString("<HEAD_RESPONSE_HEADERS policy_name='%1'>").arg(policy_name));
+    const auto raw_headers = network_reply->rawHeaderList();
+    for (const auto& name : raw_headers) {
+        if (QString::fromUtf8(name).startsWith("X-Rate-Limit", Qt::CaseInsensitive)) {
+            lines.append(QString("%1 = '%2'").arg(name, network_reply->rawHeader(name)));
+        };
+    };
+    lines.append("</HEAD_RESPONSE_HEADERS>");
+    spdlog::debug("HEAD response received for {}:\n{}", policy_name, lines.join("\n"));
+
+    // Create the rate limit manager.
     RateLimitManager& manager = GetManager(endpoint, policy_name);
 
     // Update the policy manager and queue the request.
@@ -372,7 +387,7 @@ void RateLimiter::OnManagerPaused(const QString& policy_name, const QDateTime& u
 void RateLimiter::OnViolation(const QString& policy_name) {
     ++m_violation_count;
     if (m_violation_count >= MAX_VIOLATIONS) {
-        spdlog::error("RateLimiter: {} rate limit violations detected.", m_violation_count);
+        spdlog::error("RateLimiter: {} rate limit violations against.", m_violation_count);
     };
 }
 

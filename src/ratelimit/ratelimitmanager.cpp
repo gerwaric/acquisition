@@ -44,6 +44,10 @@ constexpr int NORMAL_BUFFER_MSEC = 100;
 // Minium time between sends for any given policy.
 constexpr int MINIMUM_INTERVAL_MSEC = 1000;
 
+// Maximum time we expect a request to take. This is used to detect
+// issues like timezones and clock errors.
+constexpr int MAXIMUM_API_RESPONSE_SEC = 60;
+
 // GGG has stated that when they are keeping track of request times,
 // they have a timing resolution, which they called a "bucket".
 // 
@@ -106,6 +110,7 @@ void RateLimitManager::SendRequest() {
         spdlog::error("Rate limit manager cannot send requests.");
         return;
     };
+    m_active_request->send_time = QDateTime::currentDateTime().toLocalTime();
     QNetworkReply* reply = m_sender(request.network_request);
     connect(reply, &QNetworkReply::finished, this, &RateLimitManager::ReceiveReply);
 };
@@ -136,12 +141,30 @@ void RateLimitManager::ReceiveReply()
     RateLimit::Event event;
     event.request_id = m_active_request->id;
     event.request_url = m_active_request->network_request.url().toString();
+    event.request_time = m_active_request->send_time;
     event.reply_time = RateLimit::ParseDate(reply).toLocalTime();
     event.reply_status = RateLimit::ParseStatus(reply);
     m_history.push_front(event);
 
-    spdlog::debug("RateLimitManager {} received reply for request {} with status {}",
-                  m_policy->name(), event.request_id, event.reply_status);
+    const int response_msec = event.request_time.msecsTo(event.reply_time);
+    if (response_msec < 0) {
+        spdlog::error(
+            "WARNING: The system clock may be off, because an API call was answered {} seconds before it was made.",
+            response_msec/1000);
+    } else if (response_msec > (MAXIMUM_API_RESPONSE_SEC * 1000)) {
+        spdlog::error(
+            "WARNING: The system clock may be off, because an API call seems to have taken {} seconds.",
+            response_msec/1000);
+    };
+
+    const auto response_delay = event.request_time.secsTo(event.reply_time);
+    if (std::abs(reponse_delay) > 60) {
+        spdlogg::error("WARNING: a network request appeared to take {} seconds. Your system clock may be off.", response_delay);
+    };
+
+    spdlog::trace(
+        "RateLimitManager {} received reply for request {} with status {}",
+        m_policy->name(), event.request_id, event.reply_status);
 
     // Now examine the new policy and update ourselves accordingly.
     Update(reply);
@@ -228,18 +251,27 @@ void RateLimitManager::LogViolation() {
     spdlog::error("Rate limit violation detector for policy '{}'. See log for details.", m_policy->name());
 
     QStringList lines;
-    lines.reserve(m_history.size() + 3);
     lines.append("Violation details:");
-    lines.append("<RATE_LIMIT_VIOLATION>");
-    size_t i = 0;
-    for (const auto& item : m_history) {
-        ++i;
-        lines.append(QString("%1: %2 at %3: %4").arg(
-            QString::number(i),
-            QString::number(item.reply_status),
+    lines.append(QString("<RATE_LIMIT_VIOLATION policy_name='%1'>").arg(m_policy->name()));
+    for (const auto& rule : m_policy->rules()) {
+        for (const auto& item : rule.items()) {
+            lines.append(QString("%1:%2(%3s) = %4/%5").arg(
+                m_policy->name(),
+                rule.name(),
+                QString::number(item.limit().period()),
+                QString::number(item.state().hits()),
+                QString::number(item.limit().hits())));
+        };
+    };
+    for (size_t i = 0; i < m_history.size(); ++i) {
+        const auto& item = m_history[i];
+        lines.append(QString("#%1: request %2 sent %3, received %4, status %5: %6").arg(
+            QString::number(i+1),
+            QString::number(item.request_id),
+            item.request_time.toString(),
             item.reply_time.toString(),
-            item.request_url
-        ));
+            QString::number(item.reply_status),
+            item.request_url));
     };
     lines.append("</RATE_LIMIT_VIOLATION>");
     spdlog::debug(lines.join("\n"));

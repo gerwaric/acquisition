@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <QDateTime>
 #include <QNetworkRequest>
 #include <QString>
 
@@ -46,6 +47,9 @@ struct RateLimitedRequest {
 
     // A copy of the network request that's going to be sent.
     QNetworkRequest network_request;
+
+    // The time the request was made.
+    QDateTime send_time;
 
     std::unique_ptr<RateLimitedReply> reply;
 

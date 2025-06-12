@@ -93,6 +93,7 @@ namespace RateLimit {
     struct Event {
         unsigned long request_id;
         QString request_url;
+        QDateTime request_time;
         QDateTime reply_time;
         int reply_status;
     };
