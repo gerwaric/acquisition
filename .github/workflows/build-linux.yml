@@ -38,7 +38,7 @@ jobs:
         mkdir -p build
         cd build
         cmake .. -DCMAKE_BUILD_TYPE=Release
-        cmake --build . --parallel
+        cmake --build . --parallel 2
 
     - name: Save Output Name to Environemnt
       run:
