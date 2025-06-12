@@ -3,7 +3,7 @@
 
 #include "flowlayout.h"
 
-#include <QtWidgets>
+#include <QWidget>
 
 
 FlowLayout::FlowLayout(QWidget* parent, int margin, int hSpacing, int vSpacing)

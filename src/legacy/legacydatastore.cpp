@@ -126,7 +126,6 @@ LegacyDataStore::LegacyDataStore(const QString& filename) {
         std::vector<LegacyItem> result;
         JS::ParseContext context(bytes);
         if (context.parseTo(result) != JS::Error::NoError) {
-            ok = false;
             spdlog::error("LegacyDataStore: error parsing 'items': {}", QString::fromUtf8(context.makeErrorString()));
             return;
         };

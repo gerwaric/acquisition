@@ -219,7 +219,7 @@ void CurrencyManager::SaveCurrencyValue() {
     QString old_value = m_data.Get("currency_last_value", "");
     if (value != old_value && !empty) {
         CurrencyUpdate update = CurrencyUpdate();
-        update.timestamp = QDateTime::currentDateTime().toSecsSinceEpoch();
+        update.timestamp = QDateTime::currentSecsSinceEpoch();
         update.value = value;
         m_data.InsertCurrencyUpdate(update);
         m_data.Set("currency_last_value", value);

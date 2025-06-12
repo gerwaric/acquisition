@@ -45,8 +45,6 @@ constexpr const char* GITHUB_DOWNLOADS_URL = "https://github.com/gerwaric/acquis
 // Check for updates every 24 hours.
 constexpr int UPDATE_INTERVAL = 24 * 60 * 60 * 1000;
 
-static const semver::version NULL_VERSION = semver::version();
-
 UpdateChecker::UpdateChecker(
     QSettings& settings,
     QNetworkAccessManager& network_manager)
@@ -107,8 +105,8 @@ void UpdateChecker::OnUpdateReplyReceived() {
     const QByteArray bytes = reply->readAll();
     const std::vector<ReleaseTag> releases = ParseReleaseTags(bytes);
 
-    m_latest_release = NULL_VERSION;
-    m_latest_prerelease = NULL_VERSION;
+    m_latest_release = semver::version();
+    m_latest_prerelease = semver::version();
 
     for (const auto& release : releases) {
         if (release.prerelease) {
@@ -123,14 +121,14 @@ void UpdateChecker::OnUpdateReplyReceived() {
     };
 
     // Make sure at least one tag was found.
-    if ((m_latest_release == NULL_VERSION) && (m_latest_prerelease == NULL_VERSION)) {
+    if ((m_latest_release == semver::version()) && (m_latest_prerelease == semver::version())) {
         spdlog::warn("Unable to find any github releases or pre-releases!");
         return;
     };
-    if (m_latest_release > NULL_VERSION) {
+    if (m_latest_release > semver::version()) {
         spdlog::debug("UpdateChecker: latest release found: {}", m_latest_release.str());
     };
-    if (m_latest_prerelease > NULL_VERSION) {
+    if (m_latest_prerelease > semver::version()) {
         spdlog::debug("UpdateChecker: latest prerelease found: {}", m_latest_prerelease.str());
     };
 
@@ -175,7 +173,7 @@ std::vector<UpdateChecker::ReleaseTag> UpdateChecker::ParseReleaseTags(const QBy
         };
 
         // Make sure we found a parseable version number
-        if (release.version == NULL_VERSION) {
+        if (release.version == semver::version()) {
             spdlog::warn("Github release does not contain a name: {}", Util::RapidjsonSerialize(json));
         };
 

@@ -266,7 +266,8 @@ void RateLimiter::LogSetupReply(const QNetworkRequest& request, const QNetworkRe
 
     // Log the request headers.
     spdlog::info("RateLimiter: request url is {}", request.url().toString());
-    for (const auto& name : request.rawHeaderList()) {
+    const auto& raw_headers = request.rawHeaderList();
+    for (const auto& name : raw_headers) {
         const bool is_authorization = (0 == name.compare("Authorization", Qt::CaseInsensitive));
         QByteArray value = request.rawHeader(name);
         if (is_authorization) {

@@ -175,7 +175,7 @@ void MainWindow::InitializeRateLimitDialog() {
 }
 
 void MainWindow::InitializeLogging() {
-    LogPanel* log_panel = new LogPanel(this, ui);
+    m_log_panel = new LogPanel(this, ui);
 #if defined(_DEBUG)
     // display warnings here so it's more visible
     spdlog::warn("Maintainer: This is a debug build");
@@ -419,7 +419,8 @@ void MainWindow::OnRefreshSelected() {
     spdlog::trace("MainWindow::OnRefreshSelected()");
     // Get names of tabs to refresh
     std::vector<ItemLocation> locations;
-    for (auto const& index : ui->treeView->selectionModel()->selectedRows()) {
+    const auto& selected_rows = ui->treeView->selectionModel()->selectedRows();
+    for (auto const& index : selected_rows) {
         // Fetch tab names per index
         locations.emplace_back(m_current_search->GetTabLocation(index));
     };
@@ -428,7 +429,8 @@ void MainWindow::OnRefreshSelected() {
 
 void MainWindow::CheckSelected(bool value) {
     spdlog::trace("MainWindow::CheckSelected() entered");
-    for (auto const& index : ui->treeView->selectionModel()->selectedRows()) {
+    const auto& selected_rows = ui->treeView->selectionModel()->selectedRows();
+    for (auto const& index : selected_rows) {
         m_buyout_manager.SetRefreshChecked(m_current_search->GetTabLocation(index), value);
     };
 }
@@ -469,7 +471,8 @@ void MainWindow::OnBuyoutChange() {
         return;
     };
 
-    for (auto const& index : ui->treeView->selectionModel()->selectedRows()) {
+    const auto& selected_rows = ui->treeView->selectionModel()->selectedRows();
+    for (auto const& index : selected_rows) {
         auto const& tab = m_current_search->GetTabLocation(index).GetUniqueHash();
 
         // Don't allow users to manually update locked tabs (game priced)
