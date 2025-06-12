@@ -19,8 +19,6 @@
 
 #pragma once
 
-#include <QSqlDatabase>
-
 #include "datastore.h"
 
 class Application;
@@ -44,5 +42,4 @@ private:
     void CleanItemsTable();
 
     QString m_filename;
-    QSqlDatabase m_db;
 };
