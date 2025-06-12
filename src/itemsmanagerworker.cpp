@@ -617,15 +617,15 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
         };
         const QString league = character["league"].GetString();
         if (realm != m_realm) {
-            spdlog::debug("Skipping {} because this character is not in realm {}", name, m_realm);
+            spdlog::trace("Skipping {} because this character is not in realm {}", name, m_realm);
             continue;
         };
         if (league != m_league) {
-            spdlog::debug("Skipping {} because this character is not in leage {}", name, m_league);
+            spdlog::trace("Skipping {} because this character is not in leage {}", name, m_league);
             continue;
         };
         if (m_tab_id_index.count(name) > 0) {
-            spdlog::debug("Skipping {} because this item is not being refreshed.", name);
+            spdlog::trace("Skipping {} because this item is not being refreshed.", name);
             continue;
         };
         const int tab_count = static_cast<int>(m_tabs.size());
@@ -899,7 +899,7 @@ QNetworkRequest ItemsManagerWorker::MakeLegacyPassivesRequest(const QString& nam
 void ItemsManagerWorker::QueueRequest(const QString& endpoint, const QNetworkRequest& request, const ItemLocation& location) {
     spdlog::trace("ItemsManagerWorker::QueueRequest() entered");
 
-    spdlog::debug("Queued ({}) -- {}", (m_queue_id + 1), location.GetHeader());
+    spdlog::trace("Queued ({}) -- {}", (m_queue_id + 1), location.GetHeader());
     ItemsRequest items_request;
     items_request.endpoint = endpoint;
     items_request.network_request = request;

@@ -19,7 +19,7 @@
 
 #include "testitem.h"
 
-#include <QtTest>
+#include <QtTest/QTest>
 
 #include <util/spdlog_qt.h>
 #include <rapidjson/document.h>

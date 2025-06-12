@@ -32,7 +32,7 @@ QString LegacyItem::effectiveTypeLine() const {
         result = typeLine;
     };
     // Remove legacy set information.
-    const QRegularExpression re("^(<<.*?>>)*");
+    static const QRegularExpression re("^(<<.*?>>)*");
     result.replace(re, "");
     return result;
 }

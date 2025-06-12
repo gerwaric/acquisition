@@ -38,10 +38,12 @@ constexpr int MAX_LINES = 200;
 constexpr bool DARK_COLORS = false;
 constexpr bool IS_UTF8 = true;
 
-LogPanel::LogPanel(MainWindow* window, Ui::MainWindow* ui)
-    : m_status_button(new QPushButton)
-    , m_output(new QTextEdit)
+LogPanel::LogPanel(MainWindow* window, Ui::MainWindow* ui) : QObject(window)
 {
+    // Create the UI widgets.
+    m_status_button = new QPushButton(window);
+    m_output = new QTextEdit(window);
+
     // Setup the output panel.
     m_output->hide();
     m_output->setReadOnly(true);

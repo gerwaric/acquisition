@@ -163,20 +163,20 @@ LoginDialog::LoginDialog(
     const QDateTime now = QDateTime::currentDateTime();
     const OAuthToken& token = m_oauth_manager.token();
     if (token.access_expiration && (now < *token.access_expiration)) {
-        spdlog::trace("LoginDialog::LoginDialog() found a valid OAuth token");
+        spdlog::trace("Login: found a valid OAuth token");
         OnOAuthAccessGranted(m_oauth_manager.token());
     } else if (token.refresh_expiration && (now < *token.refresh_expiration)) {
-        spdlog::info("LoginDialog:LoginDialog() the OAuth token needs to be refreshed");
+        spdlog::info("Login: the OAuth token needs to be refreshed");
     };
 
     // Request the list of leagues.
-    spdlog::trace("LoginDialog::LoginDialog() requesting leagues");
+    spdlog::trace("Login: requesting leagues");
     RequestLeagues();
 }
 
 LoginDialog::~LoginDialog() {
     if (!ui->rememberMeCheckBox->isChecked()) {
-        spdlog::trace("LoginDialog::SaveSettings() clearing settings");
+        spdlog::trace("Loging: clearing settings");
         m_settings.clear();
     };
     delete ui;
@@ -301,7 +301,7 @@ void LoginDialog::OnLeaguesReceived() {
     connect(ui->leagueComboBox, &QComboBox::currentTextChanged, this, &LoginDialog::OnLeagueChanged);
 
     // Now we can let the user login.
-    ui->loginButton->setEnabled(true);
+    //ui->loginButton->setEnabled(true);
 }
 
 void LoginDialog::LeaguesRequestError(const QString& error, const QByteArray& reply) {
@@ -500,6 +500,9 @@ void LoginDialog::OnOAuthAccessGranted(const OAuthToken& token) {
     ui->authenticateLabel->setText("You are authenticated as \"" + token.username + "\"");
     ui->authenticateButton->setText("Re-authenticate (as someone else).");
     ui->authenticateButton->setEnabled(true);
+    if (ui->loginTabs->currentWidget() == ui->oauthTab) {
+        ui->loginButton->setEnabled(true);
+    };
 }
 
 void LoginDialog::OnLoginTabChanged(int index) {
@@ -516,6 +519,11 @@ void LoginDialog::OnLoginTabChanged(int index) {
     ui->advancedOptionsFrame->setHidden(hide_options || hide_advanced);
     ui->errorLabel->setHidden(hide_options || hide_error);
     ui->loginButton->setHidden(hide_options);
+    if (tab == ui->oauthTab) {
+        ui->loginButton->setEnabled(!m_oauth_manager.token().access_token.isEmpty());
+    } else if (tab == ui->sessionIdTab) {
+        ui->loginButton->setEnabled(!ui->sessionIDLineEdit->text().isEmpty());
+    };
     m_settings.setValue("login_tab", tab->objectName());
 };
 
@@ -523,7 +531,7 @@ void LoginDialog::OnSessionIDChanged(const QString& session_id) {
     // Save the new session and make sure the login button is enabled.
     spdlog::trace("LoginDialog::OnSessionIDChanged() entered");
     m_settings.setValue("session_id", session_id);
-    ui->loginButton->setEnabled(true);
+    ui->loginButton->setEnabled(!session_id.isEmpty());
 }
 
 void LoginDialog::OnLeagueChanged(const QString& league) {

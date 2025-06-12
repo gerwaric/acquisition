@@ -194,7 +194,7 @@ QString BuyoutManager::Serialize(const std::map<QString, Buyout>& buyouts) {
 
         // If last_update is null, set as the actual time
         const auto last_update = buyout.last_update.isNull()
-            ? QDateTime::currentDateTime().toSecsSinceEpoch()
+            ? QDateTime::currentSecsSinceEpoch()
             : buyout.last_update.toSecsSinceEpoch();
         rapidjson::Value value(rapidjson::kNumberType);
         value.SetInt64(last_update);
@@ -325,7 +325,7 @@ BuyoutType BuyoutManager::StringToBuyoutType(QString bo_str) const {
 Buyout BuyoutManager::StringToBuyout(QString format) {
     // Parse format string and initialize buyout object, if string does not match any known format
     // then the buyout object will not be valid (IsValid will return false).
-    QRegularExpression exp("(~\\S+)\\s+(\\d+\\.?\\d*)\\s+(\\w+)");
+    static const QRegularExpression exp("(~\\S+)\\s+(\\d+\\.?\\d*)\\s+(\\w+)");
 
     Buyout tmp;
     // regex_search allows for stuff before ~ and after currency type.  We only want to honor the formats

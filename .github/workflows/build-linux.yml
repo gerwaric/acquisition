@@ -16,7 +16,7 @@ jobs:
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       with:
-        version: 6.8.1
+        version: 6.9.1
         modules: 'qthttpserver qtwebsockets'
 
     - name: Install Dependencies

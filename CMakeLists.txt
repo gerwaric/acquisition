@@ -29,7 +29,7 @@ cmake_minimum_required(VERSION 3.29)
 # version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
-    VERSION 0.13.2
+    VERSION 0.13.3
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
@@ -384,6 +384,7 @@ elseif(APPLE)
 
     # Setup the macOS bundle
     set_target_properties(acquisition PROPERTIES
+        MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_BUNDLE_NAME "Acquisition"
         MACOSX_BUNDLE_BUNDLE_VERSION "${macosx_app_version}"
         MACOSX_BUNDLE_COPYRIGHT "${app_copyright}"

@@ -53,13 +53,13 @@ RateLimitItem::RateLimitItem(const QByteArray& limit_fragment, const QByteArray&
 {
     // Determine the status of this item.
     if (m_state.period() != m_limit.period()) {
-        m_status = RateLimitPolicy::Status::INVALID;
+        m_status = RateLimit::Status::INVALID;
     } else if (m_state.hits() > m_limit.hits()) {
-        m_status = RateLimitPolicy::Status::VIOLATION;
+        m_status = RateLimit::Status::VIOLATION;
     } else if (m_state.hits() == m_limit.hits()) {
-        m_status = RateLimitPolicy::Status::BORDERLINE;
+        m_status = RateLimit::Status::BORDERLINE;
     } else {
-        m_status = RateLimitPolicy::Status::OK;
+        m_status = RateLimit::Status::OK;
     };
 }
 
@@ -75,7 +75,7 @@ void RateLimitItem::Check(const RateLimitItem& other, const QString& prefix) con
     };
 }
 
-QDateTime RateLimitItem::GetNextSafeSend(const boost::circular_buffer<QDateTime>& history) const {
+QDateTime RateLimitItem::GetNextSafeSend(const boost::circular_buffer<RateLimit::Event>& history) const {
     spdlog::trace("RateLimit::RuleItem::GetNextSafeSend() entered");
 
     const QDateTime now = QDateTime::currentDateTime().toLocalTime();
@@ -90,7 +90,7 @@ QDateTime RateLimitItem::GetNextSafeSend(const boost::circular_buffer<QDateTime>
 
     // Start with the timestamp of the earliest known 
     // reply relevant to this limitation.
-    const QDateTime earliest = (n < 1) ? now : history[n - 1];
+    const QDateTime earliest = (n < 1) ? now : history[n - 1].reply_time;
 
     const QDateTime next_send = earliest.addSecs(m_limit.period());
 
@@ -147,7 +147,7 @@ int RateLimitItem::EstimateDuration(int request_count, int minimum_delay_msec) c
 
 RateLimitRule::RateLimitRule(const QByteArray& name, QNetworkReply* const reply)
     : m_name(name)
-    , m_status(RateLimitPolicy::Status::UNKNOWN)
+    , m_status(RateLimit::Status::UNKNOWN)
     , m_maximum_hits(-1)
 {
     spdlog::trace("RateLimit::PolicyRule::PolicyRule() entered");
@@ -206,7 +206,7 @@ void RateLimitRule::Check(const RateLimitRule& other, const QString& prefix) con
 
 RateLimitPolicy::RateLimitPolicy(QNetworkReply* const reply)
     : m_name(RateLimit::ParseRateLimitPolicy(reply))
-    , m_status(RateLimitPolicy::Status::UNKNOWN)
+    , m_status(RateLimit::Status::UNKNOWN)
     , m_maximum_hits(0)
 {
     spdlog::trace("RateLimit::Policy::Policy() entered");
@@ -222,12 +222,10 @@ RateLimitPolicy::RateLimitPolicy(QNetworkReply* const reply)
         const auto& rule = m_rules.emplace_back(rule_name, reply);
 
         // Check the status of this rule..
-        if (rule.status() >= RateLimitPolicy::Status::VIOLATION) {
-            spdlog::error("Rate limit policy '{}:{}' is {})",
+        if (rule.status() >= RateLimit::Status::VIOLATION) {
+            spdlog::error(
+                "Rate limit policy '{}:{}' is {})",
                 m_name, rule.name(), Util::toString(rule.status()));
-        } else if (rule.status() == RateLimitPolicy::Status::BORDERLINE) {
-            spdlog::debug("Rate limit policy '{}:{}' is BORDERLINE",
-                m_name, rule.name());
         };
 
         // Update metrics for this rule.
@@ -267,7 +265,7 @@ void RateLimitPolicy::Check(const RateLimitPolicy& other) const {
     };
 }
 
-QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<QDateTime>& history) {
+QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<RateLimit::Event>& history) {
     spdlog::trace("RateLimit::Policy::GetNextSafeSend() entered");
 
     QDateTime next_send = QDateTime::currentDateTime().toLocalTime();

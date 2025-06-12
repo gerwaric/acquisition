@@ -45,6 +45,7 @@ class ImageCache;
 class Item;
 class ItemLocation;
 class ItemsManager;
+class LogPanel;
 class OAuthManager;
 class RateLimiter;
 class RateLimitDialog;
@@ -176,6 +177,7 @@ private:
     std::vector<Search*> m_searches;
     Search* m_current_search;
     QTabBar* m_tab_bar;
+    LogPanel* m_log_panel;
     std::vector<std::unique_ptr<Filter>> m_filters;
     int m_search_count;
 
