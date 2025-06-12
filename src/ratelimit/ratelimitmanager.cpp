@@ -128,17 +128,20 @@ void RateLimitManager::ReceiveReply()
 
     // Make sure the reply has a rate-limit header.
     if (!reply->hasRawHeader("X-Rate-Limit-Policy")) {
-        spdlog::error("Received a reply for {} without rate limit headers.", m_policy->name());
+        spdlog::error("The rate limit manager received a reply for {} without rate limit headers.", m_policy->name());
         return;
     };
 
-    const QDateTime reply_time = RateLimit::ParseDate(reply).toLocalTime();
-    const int reply_status = RateLimit::ParseStatus(reply);
-    spdlog::trace("RateLimitManager::ReceiveReply() {} received reply for request {} with status {}", m_policy->name(), m_active_request->id, reply_status);
+    // Add this reply to the history.
+    RateLimit::Event event;
+    event.request_id = m_active_request->id;
+    event.request_url = m_active_request->network_request.url().toString();
+    event.reply_time = RateLimit::ParseDate(reply).toLocalTime();
+    event.reply_status = RateLimit::ParseStatus(reply);
+    m_history.push_front(event);
 
-    // Save the reply time.
-    spdlog::trace("RateLimitManager::ReceiveReply() {} adding to history: {}", m_policy->name(), reply_time.toString());
-    m_history.push_front(reply_time);
+    spdlog::debug("RateLimitManager {} received reply for request {} with status {}",
+                  m_policy->name(), event.request_id, event.reply_status);
 
     // Now examine the new policy and update ourselves accordingly.
     Update(reply);
@@ -148,11 +151,11 @@ void RateLimitManager::ReceiveReply()
     if (reply->error() == QNetworkReply::NoError) {
 
         // Check for errors.
-        if (m_policy->status() >= RateLimitPolicy::Status::VIOLATION) {
+        if (m_policy->status() >= RateLimit::Status::VIOLATION) {
             spdlog::error("Reply did not have an error, but the rate limit policy shows a violation occured.");
             violation_detected = true;
         };
-        if (reply_status == VIOLATION_STATUS) {
+        if (event.reply_status == VIOLATION_STATUS) {
             spdlog::error("Reply did not have an error, but the HTTP status indicates a rate limit violation.");
             violation_detected = true;
         };
@@ -163,7 +166,11 @@ void RateLimitManager::ReceiveReply()
             spdlog::trace("RateLimiteManager::ReceiveReply() about to emit 'complete' signal");
             emit m_active_request->reply->complete(reply);
         } else {
-            spdlog::error("Cannot complete the rate limited request because the reply is null.");
+            spdlog::error(
+                "Cannot complete the rate limited request because the reply is null: {} request {}: {}",
+                m_policy->name(),
+                m_active_request->id,
+                m_active_request->network_request.url().toString());
         };
 
         m_active_request = nullptr;
@@ -175,11 +182,11 @@ void RateLimitManager::ReceiveReply()
 
         reply->deleteLater();
 
-        if (reply_status == VIOLATION_STATUS) {
+        if (event.reply_status == VIOLATION_STATUS) {
             if (!reply->hasRawHeader("Retry-After")) {
                 spdlog::error("HTTP status indicates a rate limit violation, but 'Retry-After' is missing");
             };
-            if (m_policy->status() != RateLimitPolicy::Status::VIOLATION) {
+            if (m_policy->status() != RateLimit::Status::VIOLATION) {
                 spdlog::error("HTTP status indicates a rate limit violation, but was not flagged in the policy update");
             };
             violation_detected = true;
@@ -198,7 +205,7 @@ void RateLimitManager::ReceiveReply()
         } else {
 
             // Some other HTTP error was encountered.
-            spdlog::error("policy manager for {} request {} reply status was {} and error was {}", m_policy->name(), m_active_request->id, reply_status, reply->error());
+            spdlog::error("policy manager for {} request {} reply status was {} and error was {}", m_policy->name(), m_active_request->id, event.reply_status, reply->error());
 
         };
 
@@ -206,8 +213,36 @@ void RateLimitManager::ReceiveReply()
     };
 
     if (violation_detected) {
+        LogViolation();
         emit Violation(m_policy->name());
     };
+}
+
+void RateLimitManager::LogViolation() {
+
+    if (!spdlog::should_log(spdlog::level::debug)) {
+        spdlog::error("Rate limit violation detected for policy '{}'. Enable DEBUG logging for details.", m_policy->name());
+        return;
+    };
+
+    spdlog::error("Rate limit violation detector for policy '{}'. See log for details.", m_policy->name());
+
+    QStringList lines;
+    lines.reserve(m_history.size() + 3);
+    lines.append("Violation details:");
+    lines.append("<RATE_LIMIT_VIOLATION>");
+    size_t i = 0;
+    for (const auto& item : m_history) {
+        ++i;
+        lines.append(QString("%1: %2 at %3: %4").arg(
+            QString::number(i),
+            QString::number(item.reply_status),
+            item.reply_time.toString(),
+            item.request_url
+        ));
+    };
+    lines.append("</RATE_LIMIT_VIOLATION>");
+    spdlog::debug(lines.join("\n"));
 }
 
 void RateLimitManager::Update(QNetworkReply* reply) {
@@ -291,7 +326,7 @@ void RateLimitManager::ActivateRequest() {
         "RateLimitManager::ActivateRequest() {} next_send before adjustment is {} (in {} seconds)",
         m_policy->name(), next_send.toString(), now.secsTo(next_send));
 
-    if (m_policy->status() >= RateLimitPolicy::Status::BORDERLINE) {
+    if (m_policy->status() >= RateLimit::Status::BORDERLINE) {
         next_send = next_send.addMSecs(TIMING_BUCKET_MSEC);
         spdlog::debug(
             "Rate limit policy {} is BORDERLINE. Added {} msecs to send at {}",

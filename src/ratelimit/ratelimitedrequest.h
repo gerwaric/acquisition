@@ -22,9 +22,9 @@
 #include <QNetworkRequest>
 #include <QString>
 
-class QNetworkRequest;
+#include "ratelimitedreply.h"
 
-class RateLimitedReply;
+class QNetworkRequest;
 
 // Represents a single rate-limited request.
 struct RateLimitedRequest {

@@ -101,7 +101,12 @@ RateLimitedReply* RateLimiter::Submit(
     spdlog::trace("RateLimiter::Submit() network_request = {}", network_request.url().toString());
 
     if (m_violation_count >= MAX_VIOLATIONS) {
-        spdlog::error("RateLimiter: cannot submit request: too many API rate limit violations detected.");
+        FatalError(
+            QString(
+                "The maximum limit of %1 rate limit violations has been reached."
+                " This should not be happening. Please consider reporting it."
+                " In the meantime, you may restart acquisition to reset this counter."
+                ).arg(m_violation_count));
         return nullptr;
     };
 
@@ -117,7 +122,7 @@ RateLimitedReply* RateLimiter::Submit(
 
         // This endpoint is handled by an existing policy manager.
         RateLimitManager& manager = *it->second;
-        spdlog::debug("{} is handling {}", manager.policy().name(), endpoint);
+        spdlog::trace("{} is handling {}", manager.policy().name(), endpoint);
         manager.QueueRequest(endpoint, network_request, reply);
 
     } else {

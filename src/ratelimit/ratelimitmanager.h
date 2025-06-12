@@ -22,6 +22,7 @@
 #include <QDateTime>
 #include <QNetworkRequest>
 #include <QObject>
+#include <QString>
 #include <QTimer>
 
 #include <deque>
@@ -94,6 +95,9 @@ private:
     // Function handle used to send network reqeusts.
     const SendFcn m_sender;
 
+    // Used to print log messages about rate limit violations.
+    void LogViolation();
+
     // Called right after active_request is loaded with a new request. This
     // will determine when that request can be sent and setup the active
     // request timer to send that request after a delay.
@@ -120,5 +124,5 @@ private:
     // A circular buffer is used because it's fast to access, and the number
     // of items we have to store only changes when a rate limit policy
     // changes, which should not happen regularly, but we handle that case, too.
-    boost::circular_buffer<QDateTime> m_history;
+    boost::circular_buffer<RateLimit::Event> m_history;
 };

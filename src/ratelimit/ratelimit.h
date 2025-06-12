@@ -24,6 +24,8 @@
 #include <QDateTime>
 #include <QString>
 
+#include <boost/circular_buffer.hpp>
+
 class QNetworkReply;
 
 //--------------------------------------------------------------------------
@@ -82,8 +84,19 @@ class QNetworkReply;
 //      API requests, e.g. if someone is using two tools on the same computer
 //      with the same account.
 
-namespace RateLimit
-{
+namespace RateLimit {
+    Q_NAMESPACE
+
+    enum class Status { UNKNOWN, OK, BORDERLINE, VIOLATION, INVALID };
+    Q_ENUM_NS(Status)
+
+    struct Event {
+        unsigned long request_id;
+        QString request_url;
+        QDateTime reply_time;
+        int reply_status;
+    };
+
     QByteArray ParseHeader(QNetworkReply* const reply, const QByteArray& name);
     QByteArrayList ParseHeaderList(QNetworkReply* const reply, const QByteArray& name, const char delim);
     QByteArray ParseRateLimitPolicy(QNetworkReply* const reply);
