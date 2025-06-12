@@ -384,6 +384,7 @@ elseif(APPLE)
 
     # Setup the macOS bundle
     set_target_properties(acquisition PROPERTIES
+        MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_BUNDLE_NAME "Acquisition"
         MACOSX_BUNDLE_BUNDLE_VERSION "${macosx_app_version}"
         MACOSX_BUNDLE_COPYRIGHT "${app_copyright}"
