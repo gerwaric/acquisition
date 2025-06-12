@@ -34,7 +34,7 @@
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
 
-#include <datastore/datastore.h>xf
+#include <datastore/datastore.h>
 #include <ratelimit/ratelimit.h>
 #include <ratelimit/ratelimitedreply.h>
 #include <ratelimit/ratelimiter.h>
