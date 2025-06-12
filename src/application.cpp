@@ -103,7 +103,9 @@ void Application::InitUserDir(const QString& dir) {
     m_repoe->Init(dir);
 }
 
-Application::~Application() {}
+Application::~Application() {
+    spdlog::shutdown();
+}
 
 void Application::Start() {
 
