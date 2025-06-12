@@ -19,6 +19,10 @@
 
 #pragma once
 
+#include <QMutex>
+#include <QSet>
+#include <QSqlDatabase>
+
 #include "datastore.h"
 
 class Application;
@@ -42,4 +46,9 @@ private:
     void CleanItemsTable();
 
     QString m_filename;
+
+    QString getThreadLocalConnectionName() const;
+    QSqlDatabase getThreadLocalDatabase();
+    mutable QMutex m_mutex;
+    mutable QSet<QString> m_connection_names;
 };
