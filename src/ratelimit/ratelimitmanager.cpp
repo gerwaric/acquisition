@@ -48,6 +48,9 @@ constexpr int MINIMUM_INTERVAL_MSEC = 1000;
 // issues like timezones and clock errors.
 constexpr int MAXIMUM_API_RESPONSE_SEC = 60;
 
+// This is another parameter used to check the system clock.
+constexpr int MAXIMUM_EARLY_ARRIVAL_SEC = 30;
+
 // GGG has stated that when they are keeping track of request times,
 // they have a timing resolution, which they called a "bucket".
 // 
@@ -117,7 +120,7 @@ void RateLimitManager::SendRequest() {
 
 // Called when the active request's reply is finished.
 void RateLimitManager::ReceiveReply()
-{
+{    
     spdlog::trace("RateLimitManager::ReceiveReply() entered");
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
 
@@ -146,20 +149,17 @@ void RateLimitManager::ReceiveReply()
     event.reply_status = RateLimit::ParseStatus(reply);
     m_history.push_front(event);
 
-    const int response_msec = event.request_time.msecsTo(event.reply_time);
-    if (response_msec < 0) {
+    const int response_sec = event.request_time.secsTo(event.reply_time);
+    if (response_sec > MAXIMUM_API_RESPONSE_SEC) {
         spdlog::error(
-            "WARNING: The system clock may be off, because an API call was answered {} seconds before it was made.",
-            response_msec/1000);
-    } else if (response_msec > (MAXIMUM_API_RESPONSE_SEC * 1000)) {
+            "WARNING: The system clock may be wrong: an API call seems to have taken too long: {} seconds."
+            " This may lead to API rate limit violations.",
+            response_sec);
+    } else if (response_sec < -MAXIMUM_EARLY_ARRIVAL_SEC) {
         spdlog::error(
-            "WARNING: The system clock may be off, because an API call seems to have taken {} seconds.",
-            response_msec/1000);
-    };
-
-    const auto response_delay = event.request_time.secsTo(event.reply_time);
-    if (std::abs(reponse_delay) > 60) {
-        spdlogg::error("WARNING: a network request appeared to take {} seconds. Your system clock may be off.", response_delay);
+            "WARNING: The system clock may be wrong: an API call seems to have been answered {}s before it was made."
+            " This may lead to API rate limit violations.",
+            -response_sec);
     };
 
     spdlog::trace(
