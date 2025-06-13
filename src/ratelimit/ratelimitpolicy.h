@@ -82,6 +82,7 @@ private:
     RateLimitData m_limit;
     RateLimitData m_state;
     RateLimit::Status m_status;
+    int m_resolution;
 };
 
 class RateLimitRule {
@@ -102,7 +103,6 @@ private:
 class RateLimitPolicy {
     Q_GADGET
 public:
-
     RateLimitPolicy(QNetworkReply* const reply);
     void Check(const RateLimitPolicy& other) const;
     const QString& name() const { return m_name; };

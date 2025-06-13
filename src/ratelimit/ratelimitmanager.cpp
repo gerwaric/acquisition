@@ -51,26 +51,6 @@ constexpr int MAXIMUM_API_RESPONSE_SEC = 60;
 // This is another parameter used to check the system clock.
 constexpr int MAXIMUM_EARLY_ARRIVAL_SEC = 30;
 
-// GGG has stated that when they are keeping track of request times,
-// they have a timing resolution, which they called a "bucket".
-// 
-// This explained some otherwise mysterious rate violations that I
-// was seeing very intermittently. Unless there's a away to find out
-// where those timing buckets begin and end precisely, all we can do
-// is use the bucket size as a minimum delay.
-//
-// GGG has also stated that this bucket resolution may be different
-// for different policies, but the one I had been asking them about
-// was 5.0 seconds. They also noted that this number is currently
-// not documented or exposed to api users in any way.
-//
-// So until GGG provides more information, I'm applying a minimum
-// 5.2 second delay when we are at or over the limit.
-//
-// In the future hopefully there will be a way to use the right
-// number for each policy.
-constexpr int TIMING_BUCKET_MSEC = 6000;
-
 // Create a new rate limit manager based on an existing policy.
 RateLimitManager::RateLimitManager(SendFcn sender)
     : m_sender(sender)
@@ -220,7 +200,7 @@ void RateLimitManager::ReceiveReply()
             // There was a rate limit violation.
             violation_detected = true;
             const int retry_sec = reply->rawHeader("Retry-After").toInt();
-            const int retry_msec = (1000 * retry_sec) + TIMING_BUCKET_MSEC;
+            const int retry_msec = (1000 * retry_sec);
             spdlog::error("Rate limit VIOLATION for policy {} (retrying after {} seconds)", m_policy->name(), (retry_msec / 1000));
             m_activation_timer.setInterval(retry_msec);
             m_activation_timer.start();
@@ -359,10 +339,9 @@ void RateLimitManager::ActivateRequest() {
         m_policy->name(), next_send.toString(), now.secsTo(next_send));
 
     if (m_policy->status() >= RateLimit::Status::BORDERLINE) {
-        next_send = next_send.addMSecs(TIMING_BUCKET_MSEC);
         spdlog::debug(
-            "Rate limit policy {} is BORDERLINE. Added {} msecs to send at {}",
-            m_policy->name(), TIMING_BUCKET_MSEC, next_send.toString());
+            "Rate limit policy {} is BORDERLINE.",
+            m_policy->name());
     } else {
         spdlog::trace(
             "RateLimitManager::ActivateRequest() {} is NOT borderline, adding {} msecs to next send",

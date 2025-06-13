@@ -38,9 +38,6 @@
 #include "ratelimitmanager.h"
 #include "ratelimitpolicy.h"
 
-// Notify the user and stop working after too many rate limit violations.
-constexpr unsigned int MAX_VIOLATIONS = 10;
-
 constexpr int UPDATE_INTERVAL_MSEC = 1000;
 
 // Create a list of all the attributes a QNetworkRequest or QNetwork reply can have,
@@ -99,16 +96,6 @@ RateLimitedReply* RateLimiter::Submit(
     spdlog::trace("RateLimiter::Submit() entered");
     spdlog::trace("RateLimiter::Submit() endpoint = {}", endpoint);
     spdlog::trace("RateLimiter::Submit() network_request = {}", network_request.url().toString());
-
-    if (m_violation_count >= MAX_VIOLATIONS) {
-        FatalError(
-            QString(
-                "The maximum limit of %1 rate limit violations has been reached."
-                " This should not be happening. Please consider reporting it."
-                " In the meantime, you may restart acquisition to reset this counter."
-                ).arg(m_violation_count));
-        return nullptr;
-    };
 
     // Make sure the user agent is set according to GGG's guidance.
     network_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
@@ -386,9 +373,7 @@ void RateLimiter::OnManagerPaused(const QString& policy_name, const QDateTime& u
 
 void RateLimiter::OnViolation(const QString& policy_name) {
     ++m_violation_count;
-    if (m_violation_count >= MAX_VIOLATIONS) {
-        spdlog::error("RateLimiter: {} rate limit violations against.", m_violation_count);
-    };
+    spdlog::error("RateLimiter: {} rate limit violations detected.", m_violation_count);
 }
 
 void RateLimiter::SendStatusUpdate()
