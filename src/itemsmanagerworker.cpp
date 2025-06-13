@@ -112,6 +112,7 @@ ItemsManagerWorker::ItemsManagerWorker(
     , m_need_character_list(false)
     , m_has_stash_list(false)
     , m_has_character_list(false)
+    , m_update_tab_contents(true)
 {
     spdlog::trace("ItemsManagerWorker::ItemsManagerWorker() entered");
 }
@@ -226,14 +227,32 @@ void ItemsManagerWorker::ParseItemMods() {
 }
 
 void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocation>& locations) {
-    spdlog::trace("ItemsManagerWorker::Update() entered");
+
     if (m_updating) {
-        spdlog::warn("ItemsManagerWorker::Update called while updating");
+        spdlog::warn("ItemsManagerWorker: update called while updating");
         return;
     };
-    spdlog::debug("Updating {} stash tabs", type);
+
+    spdlog::debug("ItemsManagerWorker: updating {} tabs", type);
+    if (spdlog::should_log(spdlog::level::trace)) {
+        QStringList character_names;
+        QStringList stash_names;
+        for (const auto& location : locations) {
+            switch (location.get_type()) {
+            case ItemLocationType::CHARACTER:
+                character_names.append(location.get_character());
+                break;
+            case ItemLocationType::STASH:
+                stash_names.append(location.get_tab_label());
+                break;
+            };
+        };
+        spdlog::trace("ItemsManagerWorker: characters = {}", character_names.join(", "));
+        spdlog::trace("ItemsManagerWorker: stashes = {}", stash_names.join(", "));
+    };
     m_updating = true;
     m_cancel_update = false;
+    m_update_tab_contents = (type != TabSelection::TabsOnly);
 
     // remove all pending requests
     m_queue = {};
@@ -247,8 +266,15 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
     m_first_stash_request_index = -1;
     m_first_character_request_name.clear();
 
-    if (type == TabSelection::All) {
-        spdlog::debug("Updating all tabs and items.");
+    if (type == TabSelection::TabsOnly) {
+        spdlog::debug("ItemsManagerWorker: updating stash and character lists.");
+        m_tabs.clear();
+        m_tab_id_index.clear();
+        m_need_stash_list = true;
+        m_need_character_list = true;
+        m_first_stash_request_index = 0;
+    } else if (type == TabSelection::All) {
+        spdlog::debug("ItemsManagerWorker: updating all tabs and items.");
         m_tabs.clear();
         m_tab_id_index.clear();
         m_items.clear();
@@ -261,7 +287,7 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
         switch (type) {
         case TabSelection::Checked:
             // Use the buyout manager to determine which tabs are check.
-            spdlog::trace("ItemsManagerWorker::Update() updating checked tabs");
+            spdlog::trace("ItemsManagerWorker: updating checked tabs.");
             for (auto const& tab : m_tabs) {
                 if ((tab.IsValid()) && (m_buyout_manager.GetRefreshChecked(tab) == true)) {
                     tabs_to_update.emplace(tab.get_tab_uniq_id());
@@ -278,7 +304,9 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
             };
             break;
         case TabSelection::All:
-            // This case is handled by the enclosing if.
+        case TabSelection::TabsOnly:
+            // These cases are handled by the enclosing if.
+            spdlog::error("ItemsManagerWorker: this code should have been unreachable??");
             break;
         };
         // Remove the tabs that will be updated, and all the items linked to those tabs.
@@ -354,7 +382,7 @@ void ItemsManagerWorker::RemoveUpdatingItems(const std::set<QString>& tab_ids) {
 }
 
 void ItemsManagerWorker::LegacyRefresh() {
-    spdlog::trace("ItemsManagerWorker::LegacyRefresh() entered");
+    spdlog::trace("Items Manager Worker: starting legacy refresh");
     if (m_need_stash_list) {
         // This queues stash tab requests.
         QNetworkRequest tab_request = MakeLegacyTabRequest(m_first_stash_request_index, true);
@@ -374,7 +402,7 @@ void ItemsManagerWorker::LegacyRefresh() {
 }
 
 void ItemsManagerWorker::OAuthRefresh() {
-    spdlog::trace("ItemsManagerWorker::OAuthRefresh() entered");
+    spdlog::trace("Items Manager Worker: starting OAuth refresh");
     if (m_need_stash_list) {
         const auto request = MakeOAuthStashListRequest(m_realm, m_league);
         spdlog::trace("ItemsManagerWorker::OAuthRefresh() requesting stash list: {}", request.url().toString());
@@ -485,11 +513,13 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
     };
 
     // Force refreshes for any stash tabs that were moved or renamed.
-    for (auto const& tab : m_tabs) {
-        if (!old_tab_headers.count(tab.GetHeader())) {
-            spdlog::debug("Forcing refresh of moved or renamed tab: {}", tab.GetHeader());
-            QNetworkRequest request = MakeOAuthStashRequest(m_realm, m_league, tab.get_tab_uniq_id());
-            QueueRequest(kOAuthGetStashEndpoint, request, tab);
+    if (m_update_tab_contents) {
+        for (auto const& tab : m_tabs) {
+            if (!old_tab_headers.count(tab.GetHeader())) {
+                spdlog::debug("Forcing refresh of moved or renamed tab: {}", tab.GetHeader());
+                QNetworkRequest request = MakeOAuthStashRequest(m_realm, m_league, tab.get_tab_uniq_id());
+                QueueRequest(kOAuthGetStashEndpoint, request, tab);
+            };
         };
     };
 
@@ -544,8 +574,6 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
         };
         const QString tab_type = tab["type"].GetString();
 
-        ++tabs_requested;
-
         // Get the stash tab color.
         int r = 0, g = 0, b = 0;
         Util::GetTabColor(tab, r, g, b);
@@ -556,8 +584,11 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
         m_tab_id_index.insert(tab_id);
 
         // Submit a request for this tab.
-        QNetworkRequest request = MakeOAuthStashRequest(m_realm, m_league, location.get_tab_uniq_id());
-        QueueRequest(kOAuthGetStashEndpoint, request, location);
+        if (m_update_tab_contents) {
+            ++tabs_requested;
+            QNetworkRequest request = MakeOAuthStashRequest(m_realm, m_league, location.get_tab_uniq_id());
+            QueueRequest(kOAuthGetStashEndpoint, request, location);
+        };
     };
     spdlog::debug("Requesting {} out of {} stash tabs", tabs_requested, stashes.Size());
 
@@ -631,10 +662,13 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
         const int tab_count = static_cast<int>(m_tabs.size());
         ItemLocation location(tab_count, "", name, ItemLocationType::CHARACTER, "", 0, 0, 0, character, doc.GetAllocator());
         m_tabs.push_back(location);
-        ++requested_character_count;
 
-        QNetworkRequest request = MakeOAuthCharacterRequest(m_realm, name);
-        QueueRequest(kOAuthGetCharacterEndpoint, request, location);
+        // Queue character request if needed.
+        if (m_update_tab_contents) {
+            ++requested_character_count;
+            QNetworkRequest request = MakeOAuthCharacterRequest(m_realm, name);
+            QueueRequest(kOAuthGetCharacterEndpoint, request, location);
+        };
     }
     spdlog::debug("There are {} characters to update in '{}'", requested_character_count, m_league);
 
@@ -815,13 +849,17 @@ void ItemsManagerWorker::OnLegacyCharacterListReceived(QNetworkReply* reply) {
         const int tab_count = static_cast<int>(m_tabs.size());
         ItemLocation location(tab_count, "", name, ItemLocationType::CHARACTER, "", 0, 0, 0, character, doc.GetAllocator());
         m_tabs.push_back(location);
-        ++requested_character_count;
 
-        //Queue request for items on character in character's stash
-        QueueRequest(kCharacterItemsUrl, MakeLegacyCharacterRequest(name), location);
+        if (m_update_tab_contents) {
 
-        //Queue request for jewels in character's passive tree
-        QueueRequest(kCharacterSocketedJewels, MakeLegacyPassivesRequest(name), location);
+            ++requested_character_count;
+
+            //Queue request for items on character in character's stash
+            QueueRequest(kCharacterItemsUrl, MakeLegacyCharacterRequest(name), location);
+
+            //Queue request for jewels in character's passive tree
+            QueueRequest(kCharacterSocketedJewels, MakeLegacyPassivesRequest(name), location);
+        };
     }
     spdlog::debug("There are {}characters to update in {}", requested_character_count, m_league);
 
@@ -911,6 +949,12 @@ void ItemsManagerWorker::QueueRequest(const QString& endpoint, const QNetworkReq
 
 void ItemsManagerWorker::FetchItems() {
     spdlog::trace("ItemsManagerWorker::FetchItems() entered");
+
+    if (!m_update_tab_contents) {
+        spdlog::trace("ItemsManagerWorker: not fetching items.");
+        FinishUpdate();
+        return;
+    };
 
     m_stashes_needed = 0;
     m_stashes_received = 0;
@@ -1002,10 +1046,12 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
     };
 
     // Force refreshes for any stash tabs that were moved or renamed.
-    for (auto const& tab : m_tabs) {
-        if (!old_tab_headers.count(tab.GetHeader())) {
-            spdlog::debug("Forcing refresh of moved or renamed tab: {}", tab.GetHeader());
-            QueueRequest(kStashItemsUrl, MakeLegacyTabRequest(tab.get_tab_id(), true), tab);
+    if (m_update_tab_contents) {
+        for (auto const& tab : m_tabs) {
+            if (!old_tab_headers.count(tab.GetHeader())) {
+                spdlog::debug("Forcing refresh of moved or renamed tab: {}", tab.GetHeader());
+                QueueRequest(kStashItemsUrl, MakeLegacyTabRequest(tab.get_tab_id(), true), tab);
+            };
         };
     };
 
@@ -1063,7 +1109,9 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
         m_tab_id_index.insert(tab_id);
 
         // Submit a request for this tab.
-        QueueRequest(kStashItemsUrl, MakeLegacyTabRequest(location.get_tab_id(), true), location);
+        if (m_update_tab_contents) {
+            QueueRequest(kStashItemsUrl, MakeLegacyTabRequest(location.get_tab_id(), true), location);
+        };
     };
 
     m_has_stash_list = true;
@@ -1096,6 +1144,8 @@ void ItemsManagerWorker::SendStatusUpdate() {
             message = QString("Received %1/%2 character locations").arg(
                 QString::number(m_characters_received),
                 QString::number(m_characters_needed));
+        } else if (!m_update_tab_contents) {
+            message = "Received tab lists";
         } else {
             message = "Received nothing; needed nothing.";
         };
@@ -1250,36 +1300,22 @@ void ItemsManagerWorker::FinishUpdate() {
     } else if (m_characters_received > 0) {
         message = QString("Received %1 character locations").arg(
             QString::number(m_characters_received));
+    } else if (!m_update_tab_contents) {
+        message = "Received tab lists";
     } else {
-        message = "Received nothing.";
-    }
+        message = "Received nothing";
+    };
 
     emit StatusUpdate(ProgramState::Ready, message);
 
-    // Clear out all requested locations before updating them with the new items.
-    for (const auto& location : m_requested_locations) {
-        m_datastore.SetItems(location, {});
-    };
 
     // Sort tabs.
     std::sort(begin(m_tabs), end(m_tabs));
-
-    // Sort items.
-    std::sort(begin(m_items), end(m_items),
-        [](const std::shared_ptr<Item>& a, const std::shared_ptr<Item>& b) {
-            return *a < *b;
-        });
 
     // Maps location type (CHARACTER or STASH) to a list of all the tabs of that type
     std::map<ItemLocationType, Locations> tabsPerType;
     for (auto& tab : m_tabs) {
         tabsPerType[tab.get_type()].push_back(tab);
-    };
-
-    // Map locations to a list of items in that location.
-    std::map<ItemLocation, Items> itemsPerLoc;
-    for (auto& item : m_items) {
-        itemsPerLoc[item->location()].push_back(item);
     };
 
     // Save tabs by tab type.
@@ -1289,11 +1325,31 @@ void ItemsManagerWorker::FinishUpdate() {
         m_datastore.SetTabs(location_type, tabs);
     };
 
-    // Save items by location.
-    for (auto const& pair : itemsPerLoc) {
-        const auto& location = pair.first;
-        const auto& items = pair.second;
-        m_datastore.SetItems(location, items);
+    if (m_update_tab_contents) {
+
+        // Clear out all requested locations before updating them with the new items.
+        for (const auto& location : m_requested_locations) {
+            m_datastore.SetItems(location, {});
+        };
+
+        // Sort items.
+        std::sort(begin(m_items), end(m_items),
+            [](const std::shared_ptr<Item>& a, const std::shared_ptr<Item>& b) {
+                return *a < *b;
+            });
+
+        // Map locations to a list of items in that location.
+        std::map<ItemLocation, Items> itemsPerLoc;
+        for (auto& item : m_items) {
+            itemsPerLoc[item->location()].push_back(item);
+        };
+
+        // Save items by location.
+        for (auto const& pair : itemsPerLoc) {
+            const auto& location = pair.first;
+            const auto& items = pair.second;
+            m_datastore.SetItems(location, items);
+        };
     };
 
     // Let everyone know the update is done.

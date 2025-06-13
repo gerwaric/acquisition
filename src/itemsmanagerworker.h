@@ -169,4 +169,6 @@ private:
 
     bool m_has_stash_list;
     bool m_has_character_list;
+
+    bool m_update_tab_contents;
 };

@@ -28,6 +28,29 @@
 
 #include "ratelimit.h"
 
+// GGG has stated that when they are keeping track of request times,
+// they have a timing resolution, which they called a "bucket".
+//
+// This explained some otherwise mysterious rate violations that I
+// was seeing very intermittently. Unless there's a away to find out
+// where those timing buckets begin and end precisely, all we can do
+// is use the bucket size as a minimum delay.
+//
+// GGG has also stated that this bucket resolution may be different
+// for different policies, but the one I had been asking them about
+// was 5.0 seconds. They also noted that this number is currently
+// not documented or exposed to api users in any way.
+//
+// As of June 2025, GGG has confirmed that all endpoints used by
+// acquisition have a 5 second timing bucket for the "fast" rate
+// limit, and a 1 minute bucket for the "slow" rate limit.
+
+constexpr unsigned int FAST_RESOLUTION_SECS = 5;
+constexpr unsigned int SLOW_RESOLUTION_SECS = 60;
+
+constexpr unsigned int FAST_CUTOFF_SECS = 60;
+constexpr unsigned int SLOW_CUTOFF_SECS = 300;
+
 //=========================================================================================
 // RateLimitData
 //=========================================================================================
@@ -50,6 +73,7 @@ RateLimitData::RateLimitData(const QByteArray& header_fragment)
 RateLimitItem::RateLimitItem(const QByteArray& limit_fragment, const QByteArray& state_fragment)
     : m_limit(limit_fragment)
     , m_state(state_fragment)
+    , m_resolution(-1)
 {
     // Determine the status of this item.
     if (m_state.period() != m_limit.period()) {
@@ -60,6 +84,15 @@ RateLimitItem::RateLimitItem(const QByteArray& limit_fragment, const QByteArray&
         m_status = RateLimit::Status::BORDERLINE;
     } else {
         m_status = RateLimit::Status::OK;
+    };
+
+    // Determine which timing resolution applies. This information is from GGG but undocumented.
+    if (m_limit.restriction() <= FAST_CUTOFF_SECS) {
+        m_resolution = FAST_RESOLUTION_SECS;
+    } else if (m_limit.restriction() >= SLOW_CUTOFF_SECS) {
+        m_resolution = SLOW_RESOLUTION_SECS;
+    } else {
+        spdlog::error("RateLimitData: unable to determine timing resolution;");
     };
 }
 
@@ -92,7 +125,12 @@ QDateTime RateLimitItem::GetNextSafeSend(const boost::circular_buffer<RateLimit:
     // reply relevant to this limitation.
     const QDateTime earliest = (n < 1) ? now : history[n - 1].reply_time;
 
-    const QDateTime next_send = earliest.addSecs(m_limit.period());
+    QDateTime next_send = earliest.addSecs(m_limit.period());
+
+    // Add the timing bucket resolution if we are borderline to avoid rate limiting.
+    if (m_status >= RateLimit::Status::BORDERLINE) {
+        next_send = next_send.addSecs(m_resolution);
+    };
 
     spdlog::trace(
         "RateLimit::RuleItem::GetNextSafeSend()"

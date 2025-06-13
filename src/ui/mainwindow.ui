@@ -373,7 +373,7 @@
      <x>0</x>
      <y>0</y>
      <width>1280</width>
-     <height>20</height>
+     <height>37</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuShop">
@@ -391,6 +391,7 @@
     <property name="title">
      <string>Tabs</string>
     </property>
+    <addaction name="actionFetchTabsList"/>
     <addaction name="actionRefreshCheckedTabs"/>
     <addaction name="actionRefreshAllTabs"/>
     <addaction name="separator"/>
@@ -637,6 +638,11 @@
   <action name="actionUpdateStashIndex">
    <property name="text">
     <string>Update stash index</string>
+   </property>
+  </action>
+  <action name="actionFetchTabsList">
+   <property name="text">
+    <string>Fetch tabs list</string>
    </property>
   </action>
  </widget>

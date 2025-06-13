@@ -315,6 +315,7 @@ void MainWindow::InitializeUi() {
         });
 
     // Connect the Tabs menu
+    connect(ui->actionFetchTabsList, &QAction::triggered, this, &MainWindow::OnFetchTabsList);
     connect(ui->actionRefreshCheckedTabs, &QAction::triggered, this, &MainWindow::OnRefreshCheckedTabs);
     connect(ui->actionRefreshAllTabs, &QAction::triggered, this, &MainWindow::OnRefreshAllTabs);
     connect(ui->actionSetAutomaticTabRefresh, &QAction::triggered, this, &MainWindow::OnSetAutomaticTabRefresh);
@@ -985,6 +986,10 @@ void MainWindow::OnSetTabRefreshInterval() {
     if (interval > 0) {
         m_items_manager.SetAutoUpdateInterval(interval);
     };
+}
+
+void MainWindow::OnFetchTabsList() {
+    m_items_manager.Update(TabSelection::TabsOnly);
 }
 
 void MainWindow::OnRefreshAllTabs() {
