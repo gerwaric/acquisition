@@ -117,6 +117,7 @@ public slots:
 
 private slots:
     // Tabs menu actions
+    void OnFetchTabsList();
     void OnRefreshCheckedTabs();
     void OnRefreshAllTabs();
     void OnSetAutomaticTabRefresh();

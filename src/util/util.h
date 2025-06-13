@@ -62,6 +62,7 @@ namespace Util {
         All,
         Checked,
         Selected,
+        TabsOnly
     };
     Q_ENUM_NS(TabSelection)
 
