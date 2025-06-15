@@ -201,7 +201,7 @@ QVersionNumber getModuleVersion(const QString& dll)
     const int patch = static_cast<int>(HIWORD(fileInfo->dwFileVersionLS));
     const int tweak = static_cast<int>(LOWORD(fileInfo->dwFileVersionLS));
 
-    spdlog::trace("{} module versions are major={} minor={} patch=[} tweak={}", dll, major, minor, patch, tweak);
+    spdlog::trace("{} module versions are major={} minor={} patch={} tweak={}", dll, major, minor, patch, tweak);
 
     return QVersionNumber({ major, minor, patch, tweak }).normalized();
 }
