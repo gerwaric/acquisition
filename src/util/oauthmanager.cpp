@@ -36,6 +36,7 @@
 #include <QUuid>
 
 #include <datastore/datastore.h>
+#include <util/json.h>
 #include <util/spdlog_qt.h>
 
 #include "network_info.h"
@@ -51,6 +52,10 @@ constexpr const char* REDIRECT_PATH = "/auth/path-of-exile";
 
 // Refresh a token an hour before it's due to expire.
 constexpr int EXPIRATION_BUFFER_SECS = 3600;
+
+// Hard-code the token refresh lifetime for a public client:
+// https://www.pathofexile.com/developer/docs/authorization#clients-public
+constexpr long int REFRESH_LIFETIME_DAYS = 7;
 
 OAuthManager::OAuthManager(
     QNetworkAccessManager& network_manager,
@@ -73,9 +78,9 @@ OAuthManager::OAuthManager(
     if (token_str.isEmpty()) {
         return;
     };
-    m_token = OAuthToken(token_str);
+    m_token = json::from_json_strict<OAuthToken>(token_str);
     const QDateTime now = QDateTime::currentDateTime();
-    spdlog::debug("Found an existing OAuth token:");
+    spdlog::debug("Found an existing OAuth token.");
     spdlog::debug(
         "OAuth access expires on {} {}",
         m_token.access_expiration.value_or(QDateTime()).toString(),
@@ -118,7 +123,7 @@ void OAuthManager::RememberToken(bool remember) {
     const QDateTime now = QDateTime::currentDateTime();
     if (m_remember_token && (now < m_token.refresh_expiration)) {
         spdlog::trace("OAuthManager::RememberMeToken() saving OAuth token");
-        m_datastore.Set("oauth_token", QString::fromStdString(JS::serializeStruct(m_token)));
+        m_datastore.Set("oauth_token", json::to_qstring(m_token));
     } else {
         spdlog::trace("OAuthManager::RememberMeToken() clearing OAuth token");
         m_datastore.Set("oauth_token", "");
@@ -339,13 +344,23 @@ void OAuthManager::receiveToken(QNetworkReply* reply) {
 
     // Parse the token and emit it.
     spdlog::trace("OAuthManager::receiveToken() parsing OAuth access token");
-    m_token = OAuthToken(reply);
+    const QByteArray bytes = reply->readAll();
+    m_token = json::from_json_strict<OAuthToken>(bytes);
+    spdlog::debug("OAuthtoken: received token is for username = '{}'", m_token.username);
+
+    // Add timestamps.
+    const QString timestamp = Util::FixTimezone(reply->rawHeader("Date"));
+    m_token.birthday = QDateTime::fromString(timestamp, Qt::RFC2822Date).toLocalTime();
+    m_token.access_expiration = m_token.birthday->addSecs(m_token.expires_in);
+    m_token.refresh_expiration = m_token.birthday->addDays(REFRESH_LIFETIME_DAYS);
+
+    spdlog::debug("OAuthToken is: {}", json::to_string(m_token));
 
     if (m_remember_token) {
-        spdlog::trace("OAuthManager::receiveToken() saving token to data store");
-        m_datastore.Set("oauth_token", QString::fromStdString(JS::serializeStruct(m_token)));
+        spdlog::trace("OAuthManager: saving received token");
+        m_datastore.Set("oauth_token", json::to_qstring(m_token));
     } else {
-        spdlog::trace("OAuthManager::receiveToken() removing token from data store");
+        spdlog::trace("OAuthManager: forgetting received token");
         m_datastore.Set("oauth_token", "");
     };
 
@@ -401,7 +416,7 @@ void OAuthManager::showStatus() {
     msgBox->setAttribute(Qt::WA_DeleteOnClose);
 
     const QDateTime now = QDateTime::currentDateTime();
-    const QString json = QString::fromUtf8(JS::serializeStruct(m_token, JS::SerializerOptions::Pretty));
+    const QString json = json::to_qstring(m_token);
     QStringList message = { "Your current OAuth token:", json };
 
     if (!m_token.access_expiration) {

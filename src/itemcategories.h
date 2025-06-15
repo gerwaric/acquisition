@@ -24,8 +24,8 @@
 class QByteArray;
 class QString;
 
-void InitItemClasses(const QByteArray& classes);
-void InitItemBaseTypes(const QByteArray& baseTypes);
+void InitItemClasses(const QByteArray& json);
+void InitItemBaseTypes(const QByteArray& json);
 
 QString GetItemCategory(const QString& baseType);
 

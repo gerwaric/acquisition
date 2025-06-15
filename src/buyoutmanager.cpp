@@ -22,10 +22,8 @@
 #include <QRegularExpression>
 #include <QVariant>
 
-#include <rapidjson/document.h>
-#include <rapidjson/error/en.h>
-
 #include <datastore/datastore.h>
+#include <util/json.h>
 #include <util/spdlog_qt.h>
 #include <util/util.h>
 
@@ -37,6 +35,15 @@ const std::map<QString, BuyoutType> BuyoutManager::m_string_to_buyout_type = {
     {"~b/o", Buyout::BUYOUT_TYPE_BUYOUT},
     {"~c/o", Buyout::BUYOUT_TYPE_CURRENT_OFFER},
     {"~price", Buyout::BUYOUT_TYPE_FIXED},
+};
+
+struct BuyoutDTO {
+    double value;
+    long long last_update;
+    QString type;
+    QString currency;
+    QString source;
+    bool inherited;
 };
 
 BuyoutManager::BuyoutManager(DataStore& data)
@@ -180,114 +187,64 @@ void BuyoutManager::Clear() {
 }
 
 QString BuyoutManager::Serialize(const std::map<QString, Buyout>& buyouts) {
-    rapidjson::Document doc;
-    doc.SetObject();
-    auto& alloc = doc.GetAllocator();
 
-    for (auto& bo : buyouts) {
-        const Buyout& buyout = bo.second;
-        if (!buyout.IsSavable()) {
-            continue;
-        };
-        rapidjson::Value item(rapidjson::kObjectType);
-        item.AddMember("value", buyout.value, alloc);
+    std::map<QString, BuyoutDTO> items;
+    for (const auto& pair : buyouts) {
 
-        // If last_update is null, set as the actual time
-        const auto last_update = buyout.last_update.isNull()
+        const QString& name = pair.first;
+        const Buyout& buyout = pair.second;
+        const long long last_update = buyout.last_update.isNull()
             ? QDateTime::currentSecsSinceEpoch()
             : buyout.last_update.toSecsSinceEpoch();
-        rapidjson::Value value(rapidjson::kNumberType);
-        value.SetInt64(last_update);
-        item.AddMember("last_update", value, alloc);
 
-        Util::RapidjsonAddString(&item, "type", buyout.BuyoutTypeAsTag(), alloc);
-        Util::RapidjsonAddString(&item, "currency", buyout.CurrencyAsTag(), alloc);
-        Util::RapidjsonAddString(&item, "source", buyout.BuyoutSourceAsTag(), alloc);
+        BuyoutDTO dto;
+        dto.value = buyout.value;
+        dto.last_update = last_update;
+        dto.type = buyout.BuyoutTypeAsTag();
+        dto.currency = buyout.CurrencyAsTag();
+        dto.source = buyout.BuyoutSourceAsTag();
+        dto.inherited = buyout.inherited;
 
-        item.AddMember("inherited", buyout.inherited, alloc);
-
-        rapidjson::Value name(bo.first.toStdString().c_str(), alloc);
-        doc.AddMember(name, item, alloc);
+        items[name] = dto;
     };
-
-    return Util::RapidjsonSerialize(doc);
+    return json::to_qstring(items);
 }
 
 void BuyoutManager::Deserialize(const QString& data, std::map<QString, Buyout>* buyouts) {
+
+    const auto items = json::from_json_strict<std::map<QString, BuyoutDTO>>(data);
+
     buyouts->clear();
 
-    // if data is empty (on first use) we shouldn't make user panic by showing ERROR messages
-    if (data.isEmpty())
-        return;
+    for (const auto& item : items) {
 
-    rapidjson::Document doc;
-    if (doc.Parse(data.toStdString().c_str()).HasParseError()) {
-        spdlog::error("Error while parsing buyouts.");
-        spdlog::error(rapidjson::GetParseError_En(doc.GetParseError()));
-        return;
-    };
-    if (!doc.IsObject()) {
-        return;
-    };
-    for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
-        auto& object = itr->value;
-        const QString& name = itr->name.GetString();
-        Buyout bo;
+        const QString& name = item.first;
+        const BuyoutDTO& dto = item.second;
 
-        bo.currency = Currency::FromTag(object["currency"].GetString());
-        bo.type = Buyout::TagAsBuyoutType(object["type"].GetString());
-        bo.value = object["value"].GetDouble();
-        if (object.HasMember("last_update")) {
-            bo.last_update = QDateTime::fromSecsSinceEpoch(object["last_update"].GetInt64());
-        };
-        if (object.HasMember("source")) {
-            bo.source = Buyout::TagAsBuyoutSource(object["source"].GetString());
-        };
-        bo.inherited = false;
-        if (object.HasMember("inherited")) {
-            bo.inherited = object["inherited"].GetBool();
-        };
-        if (bo.type == Buyout::BUYOUT_TYPE_CURRENT_OFFER) {
-            spdlog::warn("BuyoutManager::Deserialize() obsolete 'current offer' buyout detected: {}", name);
-        };
-        (*buyouts)[name] = bo;
+        Buyout buyout;
+        buyout.currency = Currency::FromTag(dto.currency);
+        buyout.type = Buyout::TagAsBuyoutType(dto.type);
+        buyout.value = dto.value;
+        buyout.last_update = QDateTime::fromSecsSinceEpoch(dto.last_update);
+        buyout.source = Buyout::TagAsBuyoutSource(dto.source);
+        buyout.inherited = dto.inherited;
+
+        (*buyouts)[name] = buyout;
     };
 }
 
 
-QString BuyoutManager::Serialize(const std::map<QString, bool>& obj) {
-    rapidjson::Document doc;
-    doc.SetObject();
-    auto& alloc = doc.GetAllocator();
-
-    for (auto& pair : obj) {
-        rapidjson::Value key(pair.first.toStdString().c_str(), alloc);
-        rapidjson::Value val(pair.second);
-        doc.AddMember(key, val, alloc);
-    };
-    return Util::RapidjsonSerialize(doc);
+QString BuyoutManager::Serialize(const std::map<QString, bool>& obj) {    
+    return json::to_qstring(obj);
 }
 
 void BuyoutManager::Deserialize(const QString& data, std::map<QString, bool>& obj) {
-    // if data is empty (on first use) we shouldn't make user panic by showing ERROR messages
-    if (data.isEmpty()) {
-        return;
-    };
 
-    rapidjson::Document doc;
-    if (doc.Parse(data.toStdString().c_str()).HasParseError()) {
-        spdlog::error(rapidjson::GetParseError_En(doc.GetParseError()));
-        return;
-    };
-
-    if (!doc.IsObject()) {
-        return;
-    };
-
-    for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
-        const auto& val = itr->value.GetBool();
-        const auto& name = itr->name.GetString();
-        obj[name] = val;
+    const auto items = json::from_json_strict<std::map<QString, bool>>(data);
+    for (const auto& item : items) {
+        const QString& name = item.first;
+        const bool value = item.second;
+        obj[name] = value;
     };
 }
 

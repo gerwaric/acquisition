@@ -20,9 +20,11 @@
 #pragma once
 
 #include <QByteArray>
+#include <QByteArrayView>
 #include <QMetaEnum>
 #include <QNetworkReply>
 #include <QString>
+#include <QStringView>
 #include <QVariant>
 
 #include <spdlog/spdlog.h>
@@ -30,7 +32,7 @@
 // Define an inline helper function to convert levels into QStrings.
 
 inline QString to_qstring(spdlog::level::level_enum level) {
-    const auto sv = spdlog::level::to_string_view(level);
+    const spdlog::string_view_t sv = spdlog::level::to_string_view(level);
     return QString::fromUtf8(sv.data(), sv.size());
 }
 
@@ -54,7 +56,18 @@ struct fmt::formatter<QString> {
         return ctx.end();
     };
     auto format(const QString& str, fmt::format_context& ctx) const -> decltype(ctx.out()) {
-        const auto utf8 = str.toUtf8();
+        const QByteArray utf8 = str.toUtf8();
+        return fmt::format_to(ctx.out(), "{}", std::string_view(utf8.data(), utf8.size()));
+    };
+};
+
+template <>
+struct fmt::formatter<QStringView> {
+    constexpr auto parse(fmt::format_parse_context& ctx) -> decltype(ctx.begin()) {
+        return ctx.end();
+    };
+    auto format(const QStringView& str, fmt::format_context& ctx) const -> decltype(ctx.out()) {
+        const QByteArray utf8 = str.toUtf8();
         return fmt::format_to(ctx.out(), "{}", std::string_view(utf8.data(), utf8.size()));
     };
 };
@@ -67,7 +80,18 @@ struct fmt::formatter<QByteArray> {
         return ctx.end();
     };
     auto format(const QByteArray& arr, fmt::format_context& ctx) const -> decltype(ctx.out()) {
-        const auto str = arr.toStdString();
+        const std::string str(arr.constData(), arr.size());
+        return fmt::format_to(ctx.out(), "{}", str);
+    };
+};
+
+template <>
+struct fmt::formatter<QByteArrayView> {
+    constexpr auto parse(fmt::format_parse_context& ctx) -> decltype(ctx.begin()) {
+        return ctx.end();
+    };
+    auto format(const QByteArrayView& arr, fmt::format_context& ctx) const -> decltype(ctx.out()) {
+        const std::string str(arr.constData(), arr.size());
         return fmt::format_to(ctx.out(), "{}", str);
     };
 };

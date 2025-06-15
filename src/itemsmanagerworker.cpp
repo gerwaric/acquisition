@@ -31,8 +31,8 @@
 
 #include <algorithm>
 
-#include <rapidjson/document.h>
-#include <rapidjson/error/en.h>
+//#include <rapidjson/document.h>
+//#include <rapidjson/error/en.h>
 
 #include <datastore/datastore.h>
 #include <ratelimit/ratelimit.h>
@@ -40,7 +40,7 @@
 #include <ratelimit/ratelimiter.h>
 #include <ui/mainwindow.h>
 #include <util/util.h>
-#include <util/rapidjson_util.h>
+//#include <util/rapidjson_util.h>
 #include <util/repoe.h>
 #include <util/spdlog_qt.h>
 #include <util/oauthmanager.h>
@@ -51,7 +51,7 @@
 #include "buyoutmanager.h"
 #include "modlist.h"
 
-using rapidjson::HasArray;
+//using rapidjson::HasArray;
 
 constexpr const char* kStashItemsUrl = "https://www.pathofexile.com/character-window/get-stash-items";
 constexpr const char* kCharacterItemsUrl = "https://www.pathofexile.com/character-window/get-items";

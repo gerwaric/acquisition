@@ -23,13 +23,26 @@
 #include <QString>
 
 #include <map>
+#include <optional>
 
-#include <rapidjson/document.h>
-#include <rapidjson/error/en.h>
+#include <util/json.h>
 #include <util/spdlog_qt.h>
 #include <util/util.h>
 
 #include "filters.h"
+
+struct ItemClassDTO {
+    std::optional<QString> category;
+    std::optional<QString> category_id;
+    QString name;
+    std::optional<std::vector<QString>> influence_tags;
+};
+
+struct BaseTypeDTO {
+    QString item_class;
+    QString name;
+    QString release_state;
+};
 
 class CATEGORY_DATA {
 private:
@@ -46,21 +59,18 @@ public:
     QStringList categories;
 };
 
-void InitItemClasses(const QByteArray& classes) {
+void InitItemClasses(const QByteArray& json) {
 
     static bool classes_initialized = false;
 
     spdlog::debug("Initializing item classes");
-    rapidjson::Document doc;
-    doc.Parse(classes.constData());
-    if (doc.HasParseError()) {
-        const auto error = doc.GetParseError();
-        const auto reason = rapidjson::GetParseError_En(error);
-        spdlog::error("Error parsing RePoE item classes: {}", reason);
+    const auto item_classes = json::from_json_strict<std::map<QString,ItemClassDTO>>(json);
+
+    if (item_classes.empty()) {
+        spdlog::error("Error loading RePoE item classes");
         return;
     };
 
-    spdlog::info("Loading item classes from RePoE.");
     if (classes_initialized) {
         spdlog::warn("Item classes have already been loaded. They will be overwritten.");
     };
@@ -69,22 +79,27 @@ void InitItemClasses(const QByteArray& classes) {
     data.m_itemClassKeyToValue.clear();
     data.m_itemClassValueToKey.clear();
 
-    spdlog::trace("InitItemClasses() processing data");
     QSet<QString> cats;
-    for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
-        const QString key = itr->name.GetString();
-        const QString value = itr->value.FindMember("name")->value.GetString();
+
+    for (const auto& pair : item_classes) {
+
+        const QString& key = pair.first;
         if (key.startsWith("DONOTUSE") || (0 == key.compare("Unarmed", Qt::CaseInsensitive))) {
             continue;
         };
+
+        const ItemClassDTO& class_dto = pair.second;
+        const QString& value = class_dto.name;
         if (value.isEmpty()) {
             spdlog::debug("Item class for {} is empty", key);
             continue;
         };
+
         data.m_itemClassKeyToValue[key] = value;
         data.m_itemClassValueToKey[value] = key;
         cats.insert(value);
     };
+
     data.categories = cats.values();
     data.categories.append(CategorySearchFilter::k_Default);
     data.categories.sort();
@@ -92,42 +107,45 @@ void InitItemClasses(const QByteArray& classes) {
     classes_initialized = true;
 }
 
-void InitItemBaseTypes(const QByteArray& baseTypes) {
+void InitItemBaseTypes(const QByteArray& json) {
 
     static bool basetypes_initialized = false;
     
     spdlog::debug("Initializing item base types");
-    rapidjson::Document doc;
-    doc.Parse(baseTypes.constData());
-    if (doc.HasParseError()) {
-        const auto error = doc.GetParseError();
-        const auto reason = rapidjson::GetParseError_En(error);
-        spdlog::error("Error parsing RePoE item base types: {}", reason);
+
+    // Turn off strictness for this read, since we aren't going to fully parse the data.
+    const auto items = json::from_json<std::map<QString,BaseTypeDTO>>(json);
+
+    if (items.empty()) {
+        spdlog::error("Unable to load RePoE item base types");
         return;
     };
 
-    spdlog::info("Loading item base types from RePoE.");
     if (basetypes_initialized) {
         spdlog::warn("Item base types have already been loaded. They will be overwritten.");
     };
 
-    spdlog::trace("InitItemBaseTypes() processing data");
     auto& data = CATEGORY_DATA::instance();
     data.m_itemBaseTypeToClass.clear();
-    for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
-        // Skip unreleased objects.
-        const QString release_state = itr->value.FindMember("release_state")->value.GetString();
-        if (0 == release_state.compare("unreleased", Qt::CaseInsensitive)) {
+
+    for (const auto& item : items) {
+
+        const BaseTypeDTO& base_type_dto = item.second;
+        if (0 == base_type_dto.release_state.compare("unreleased", Qt::CaseInsensitive)) {
             continue;
         };
-        const QString item_class = itr->value.FindMember("item_class")->value.GetString();
-        const QString name = itr->value.FindMember("name")->value.GetString();
-        if (name.isEmpty() || name.startsWith("[DO NOT USE]") || name.startsWith("[UNUSED]") || name.startsWith("[DNT]")) {
+
+        const QString& name = base_type_dto.name;
+        if (name.isEmpty()
+            || name.startsWith("[DO NOT USE]", Qt::CaseInsensitive)
+            || name.startsWith("[UNUSED]", Qt::CaseInsensitive)
+            || name.startsWith("[DNT]", Qt::CaseInsensitive)) {
             continue;
         };
+
+        const QString& item_class = base_type_dto.item_class;
         data.m_itemBaseTypeToClass[name] = item_class;
     };
-
     basetypes_initialized = true;
 }
 

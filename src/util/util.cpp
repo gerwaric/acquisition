@@ -35,11 +35,11 @@
 
 #include <cmath>
 
-#include <rapidjson/document.h>
-#include <rapidjson/writer.h>
-#include <rapidjson/prettywriter.h>
+//#include <rapidjson/document.h>
+//#include <rapidjson/writer.h>
+//#include <rapidjson/prettywriter.h>
 
-#include <util/rapidjson_util.h>
+//#include <util/rapidjson_util.h>
 #include <util/spdlog_qt.h>
 
 #include "currency.h"
@@ -133,6 +133,7 @@ QString Util::FindTextBetween(const QString& page, const QString& left, const QS
     };
 }
 
+/*
 QString Util::RapidjsonSerialize(const rapidjson::Value& val) {
     rapidjson::StringBuffer buffer;
     rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
@@ -159,6 +160,7 @@ void Util::RapidjsonAddInt64(rapidjson::Value* object, const char* const name, q
     rapidjson::Value rjson_val(static_cast<int64_t>(value));
     object->AddMember(rjson_name, rjson_val, alloc);
 }
+*/
 
 void Util::GetTabColor(rapidjson::Value& json, int& r, int& g, int& b) {
 

@@ -19,12 +19,12 @@
 
 #pragma once
 
-#include <json_struct/json_struct_qt.h>
-
-#include <libpoe/type/item.h>
+#include <QString>
 
 #include <optional>
 #include <vector>
+
+#include <glaze/glaze.hpp>
 
 namespace libpoe{
 
@@ -36,10 +36,6 @@ namespace libpoe{
             std::optional<bool> public_; // ? bool always true if present
             std::optional<bool> folder; // ? bool always true if present
             std::optional<QString> colour; // ? string 6 digit hex colour (NOTE: might be only 2 or 4 characters).
-            JS_OBJECT(
-                JS_MEMBER_WITH_NAME(public_, "public"),
-                JS_MEMBER(folder),
-                JS_MEMBER(colour));
         };
 
         QString id; // string a 10 digit hexadecimal string
@@ -50,7 +46,6 @@ namespace libpoe{
         libpoe::StashTab::Metadata metadata; // metadata object
         std::optional<std::vector<libpoe::StashTab>> children; // ? array of StashTab
         std::optional<std::vector<libpoe::Item>> items; // ? array of Item
-        JS_OBJ(id, parent, name, type, index, metadata, children, items);
 
         inline bool operator<(const StashTab& other) const {
             const unsigned a = index.value_or(0);
@@ -63,13 +58,17 @@ namespace libpoe{
 
     struct StashListWrapper {
         StashTabList stashes;
-        JS_OBJ(stashes);
     };
 
     struct StashWrapper {
         std::optional<libpoe::StashTab> stash;
-        JS_OBJ(stash);
     };
 
+};
 
+template <>
+struct glz::meta<libpoe::StashTab::MetaData> {
+    static constexpr auto value = glz::object(
+        "public", &libpoe::StashTab::MetaData::public_
+    );
 };

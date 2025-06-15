@@ -21,16 +21,19 @@
 
 #include <QNetworkReply>
 
+#include <glaze/glaze.hpp>
+
 #include <util/spdlog_qt.h>
 #include <util/util.h>
 
-// Hard-code the token refresh lifetime for a public client:
-// https://www.pathofexile.com/developer/docs/authorization#clients-public
-constexpr long int REFRESH_LIFETIME_DAYS = 7;
+/*
 
 OAuthToken::OAuthToken(const QString& json)
 {
-    Util::parseJson<OAuthToken>(json, *this);
+    const char* data = reinterpret_cast<const char*>(json.toUtf8().constData());
+    const size_t size = json.toUtf8().size();
+    const std::string_view json_view(data, size);
+    auto result = glz::read_json(*this, json_view);
 }
 
 OAuthToken::OAuthToken(QNetworkReply* reply)
@@ -46,3 +49,5 @@ OAuthToken::OAuthToken(QNetworkReply* reply)
     access_expiration = birthday->addSecs(expires_in);
     refresh_expiration = birthday->addDays(REFRESH_LIFETIME_DAYS);
 }
+
+*/

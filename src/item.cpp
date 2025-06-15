@@ -24,21 +24,22 @@
 #include <utility>
 #include <sstream>
 
-#include <rapidjson/document.h>
+//#include <rapidjson/document.h>
 
 #include <util/rapidjson_util.h>
+#include <util/json.h>
 #include <util/util.h>
 
 #include "modlist.h"
 #include "itemlocation.h"
 #include "itemcategories.h"
 
-using rapidjson::HasString;
-using rapidjson::HasInt;
-using rapidjson::HasUint;
-using rapidjson::HasBool;
-using rapidjson::HasObject;
-using rapidjson::HasArray;
+//using rapidjson::HasString;
+//using rapidjson::HasInt;
+//using rapidjson::HasUint;
+//using rapidjson::HasBool;
+//using rapidjson::HasObject;
+//using rapidjson::HasArray;
 
 const std::array<Item::CategoryReplaceMap, Item::k_CategoryLevels> Item::m_replace_map = {
     // Category hierarchy 0 replacement map

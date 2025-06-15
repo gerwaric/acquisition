@@ -26,10 +26,8 @@
 #include <QSettings>
 #include <QVBoxLayout>
 
-#include <rapidjson/document.h>
-#include <rapidjson/error/en.h>
-
 #include <datastore/datastore.h>
+#include <util/json.h>
 #include <util/spdlog_qt.h>
 #include <util/util.h>
 
@@ -37,6 +35,12 @@
 #include "itemsmanager.h"
 #include "item.h"
 
+struct CurrencyItemDTO {
+    QString name;
+    int count;
+    double chaos_ratio;
+    double exalt_ratio;
+};
 
 CurrencyManager::CurrencyManager(
     QSettings& settings,
@@ -155,47 +159,39 @@ void CurrencyManager::MigrateCurrency() {
 }
 
 QString CurrencyManager::Serialize(const std::vector<std::shared_ptr<CurrencyItem>>& currencies) {
-    rapidjson::Document doc;
-    doc.SetObject();
-    auto& alloc = doc.GetAllocator();
-    for (auto& curr : currencies) {
-        rapidjson::Value item(rapidjson::kObjectType);
-        item.AddMember("count", curr->count, alloc);
-        item.AddMember("chaos_ratio", curr->chaos.value1, alloc);
-        item.AddMember("exalt_ratio", curr->exalt.value1, alloc);
-        Util::RapidjsonAddString(&item, "currency", curr->currency.AsTag(), alloc);
-        rapidjson::Value name(curr->name.toStdString().c_str(), alloc);
-        doc.AddMember(name, item, alloc);
+
+    std::vector<CurrencyItemDTO> items;
+    items.reserve(currencies.size());
+
+    for (const auto& currency : currencies) {
+        CurrencyItemDTO item;
+        item.name = currency->name;
+        item.chaos_ratio = currency->chaos.value1;
+        item.exalt_ratio = currency->exalt.value1;
+        items.push_back(item);
     };
-    return Util::RapidjsonSerialize(doc);
+
+    return json::to_qstring(items);
 }
 
 void CurrencyManager::Deserialize(const QString& string_data, std::vector<std::shared_ptr<CurrencyItem> >* currencies) {
-    //Maybe clear something would be good
-    if (string_data.isEmpty()) {
-        return;
-    };
-    rapidjson::Document doc;
-    if (doc.Parse(string_data.toStdString().c_str()).HasParseError()) {
-        spdlog::error("Error while parsing currency ratios.");
-        spdlog::error(rapidjson::GetParseError_En(doc.GetParseError()));
-        return;
-    };
-    if (!doc.IsObject()) {
-        return;
-    };
-    for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
-        auto& object = itr->value;
-        Currency curr = Currency::FromTag(object["currency"].GetString());
-        for (auto& item : *currencies) {
-            if (item->currency == curr) {
-                item = std::make_shared<CurrencyItem>(
-                    object["count"].GetDouble(), curr,
-                    object["chaos_ratio"].GetDouble(),
-                    object["exalt_ratio"].GetDouble());
+
+    // Parse the json.
+    const auto items = json::from_json_strict<std::vector<CurrencyItemDTO>>(string_data);
+
+    // Match to existing currencies.
+    for (const auto& item : items) {
+        Currency c = Currency::FromTag(item.name);
+        for (auto& currency : *currencies) {
+            if (currency->currency == c) {
+                currency = std::make_shared<CurrencyItem>(
+                    item.count, c,
+                    item.chaos_ratio,
+                    item.exalt_ratio);
+                break;
             };
+            spdlog::error("CurrencyManager: unable to deserialize {}: no matching currency", item.name);
         };
-        //currencies->push_back(item);
     };
 }
 

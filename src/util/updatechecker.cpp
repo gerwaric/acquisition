@@ -30,9 +30,8 @@
 #include <QUrl>
 #include <QWidget>
 
-#include <rapidjson/document.h>
-#include <rapidjson/error/en.h>
 #include <semver/semver.hpp>
+#include <util/json.h>
 #include <util/spdlog_qt.h>
 
 #include "network_info.h"
@@ -44,6 +43,12 @@ constexpr const char* GITHUB_DOWNLOADS_URL = "https://github.com/gerwaric/acquis
 
 // Check for updates every 24 hours.
 constexpr int UPDATE_INTERVAL = 24 * 60 * 60 * 1000;
+
+struct GitHubReleaseDTO {
+    QString tag_name;
+    bool draft;
+    bool prerelease;
+};
 
 UpdateChecker::UpdateChecker(
     QSettings& settings,
@@ -140,6 +145,33 @@ void UpdateChecker::OnUpdateReplyReceived() {
 
 std::vector<UpdateChecker::ReleaseTag> UpdateChecker::ParseReleaseTags(const QByteArray& bytes)
 {
+    const auto items = json::from_json<std::vector<GitHubReleaseDTO>>(bytes);
+
+    std::vector<ReleaseTag> releases;
+
+    for (const auto& item : items) {
+
+        QString version_string = item.tag_name;
+        if (version_string.startsWith("v", Qt::CaseInsensitive)) {
+            version_string.remove(0, 1);
+        };
+
+        ReleaseTag release;
+        release.version = semver::version::parse(version_string.toUtf8().toStdString());
+        release.draft = item.draft;
+        release.prerelease = item.prerelease;
+
+        // Make sure we found a parseable version number
+        if (release.version == semver::version()) {
+            spdlog::warn("Github release does not contain a name: {}", bytes);
+        };
+
+        // Add this release to the list.
+        releases.push_back(release);
+    };
+    return releases;
+
+    /*
     // Parse the reply as a json document.
     rapidjson::Document doc;
     doc.Parse(bytes.constData());
@@ -185,6 +217,7 @@ std::vector<UpdateChecker::ReleaseTag> UpdateChecker::ParseReleaseTags(const QBy
         releases.push_back(release);
     };
     return releases;
+*/
 }
 
 bool UpdateChecker::has_newer_release() const {
