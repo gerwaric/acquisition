@@ -35,7 +35,7 @@ NetworkManager::NetworkManager()
     m_network_info = QNetworkInformation::instance();
 
     connect(m_network_info, &QNetworkInformation::reachabilityChanged, this,
-        [=](QNetworkInformation::Reachability reachability) {
+        [=,this](QNetworkInformation::Reachability reachability) {
             const QString status = QMetaEnum::fromType<QNetworkInformation::Reachability>().valueToKey(static_cast<int>(reachability));
         spdlog::info("NetworkManager: reachability changed to {}", status);
             m_offline = (reachability != QNetworkInformation::Reachability::Online);

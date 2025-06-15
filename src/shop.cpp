@@ -430,7 +430,7 @@ void Shop::OnEditPageFinished() {
         return;
     };
 
-    QTimer::singleShot(500, this, [=]() { SubmitNextShop(title, hash); });
+    QTimer::singleShot(500, this, [=,this]() { SubmitNextShop(title, hash); });
     reply->deleteLater();
 }
 
@@ -456,7 +456,7 @@ void Shop::SubmitNextShop(const QString& title, const QString& hash)
 
     QNetworkReply* submitted = m_network_manager.post(request, data);
     connect(submitted, &QNetworkReply::finished, this,
-        [=]() {
+        [=,this]() {
             OnShopSubmitted(query, submitted);
             submitted->deleteLater();
         });
@@ -518,7 +518,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
             const QString title = query.queryItemValue("title");
             const QString hash = Util::GetCsrfToken(bytes, "hash");
             spdlog::warn("Shop: resubmitting shop after {} seconds.", seconds);
-            QTimer::singleShot(ms, this, [=]() { SubmitNextShop(title, hash); });
+            QTimer::singleShot(ms, this, [=,this]() { SubmitNextShop(title, hash); });
             return;
         } else {
             // Quit the update for any other error.

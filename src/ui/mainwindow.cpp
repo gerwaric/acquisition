@@ -278,7 +278,7 @@ void MainWindow::InitializeUi() {
     m_update_button.setFlat(true);
     m_update_button.hide();
     statusBar()->addPermanentWidget(&m_update_button);
-    connect(&m_update_button, &QPushButton::clicked, this, [=]() { emit UpdateCheckRequested(); });
+    connect(&m_update_button, &QPushButton::clicked, this, [this]() { emit UpdateCheckRequested(); });
 
     // resize columns when a tab is expanded/collapsed
     connect(ui->treeView, &QTreeView::collapsed, this, &MainWindow::ResizeTreeColumns);
@@ -300,7 +300,7 @@ void MainWindow::InitializeUi() {
     OnSetLogging(spdlog::get_level());
 
     connect(ui->itemInfoTypeTabs, &QTabWidget::currentChanged, this,
-        [=](int idx) {
+        [=,this](int idx) {
             auto tabs = ui->itemInfoTypeTabs;
             for (int i = 0; i < tabs->count(); i++) {
                 if (i != idx) {
@@ -335,13 +335,13 @@ void MainWindow::InitializeUi() {
     connect(ui->actionSetDefaultTheme, &QAction::triggered, this, &MainWindow::OnSetDefaultTheme);
 
     // Connect the Logging submenu
-    connect(ui->actionLoggingOFF, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::off); });
-    connect(ui->actionLoggingFATAL, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::critical); });
-    connect(ui->actionLoggingERROR, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::err); });
-    connect(ui->actionLoggingWARN, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::warn); });
-    connect(ui->actionLoggingINFO, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::info); });
-    connect(ui->actionLoggingDEBUG, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::debug); });
-    connect(ui->actionLoggingTRACE, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::trace); });
+    connect(ui->actionLoggingOFF, &QAction::triggered, this, [this]() { OnSetLogging(spdlog::level::off); });
+    connect(ui->actionLoggingFATAL, &QAction::triggered, this, [this]() { OnSetLogging(spdlog::level::critical); });
+    connect(ui->actionLoggingERROR, &QAction::triggered, this, [this]() { OnSetLogging(spdlog::level::err); });
+    connect(ui->actionLoggingWARN, &QAction::triggered, this, [this]() { OnSetLogging(spdlog::level::warn); });
+    connect(ui->actionLoggingINFO, &QAction::triggered, this, [this]() { OnSetLogging(spdlog::level::info); });
+    connect(ui->actionLoggingDEBUG, &QAction::triggered, this, [this]() { OnSetLogging(spdlog::level::debug); });
+    connect(ui->actionLoggingTRACE, &QAction::triggered, this, [this]() { OnSetLogging(spdlog::level::trace); });
 
     // Connect the POESESSID submenu
     connect(ui->actionShowPOESESSID, &QAction::triggered, this, &MainWindow::OnShowPOESESSID);
@@ -534,8 +534,8 @@ bool MainWindow::eventFilter(QObject* o, QEvent* e) {
                 return true;
             } else if (mouse_event->button() == Qt::RightButton) {
                 QMenu menu;
-                menu.addAction("Rename Tab", this, [=]() { OnRenameTabClicked(index); });
-                menu.addAction("Delete Tab", this, [=]() { OnDeleteTabClicked(index); });
+                menu.addAction("Rename Tab", this, [=,this]() { OnRenameTabClicked(index); });
+                menu.addAction("Delete Tab", this, [=,this]() { OnDeleteTabClicked(index); });
                 menu.exec(QCursor::pos());
             };
         };

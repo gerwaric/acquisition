@@ -236,13 +236,13 @@ void LoginDialog::RequestLeagues() {
     QNetworkReply* reply = m_network_manager.get(request);
     connect(reply, &QNetworkReply::finished, this, &LoginDialog::OnLeaguesReceived);
     connect(reply, &QNetworkReply::errorOccurred, this,
-        [=](QNetworkReply::NetworkError code) {
+        [=,this](QNetworkReply::NetworkError code) {
             Q_UNUSED(code);
             DisplayError("Error requesting leagues: " + reply->errorString());
             ui->loginButton->setEnabled(false);
         });
     connect(reply, &QNetworkReply::sslErrors, this,
-        [=](const QList<QSslError>& errors) {
+        [=,this](const QList<QSslError>& errors) {
             for (const auto& error : errors) {
                 spdlog::error("SSL Error requesting leagues: {}", error.errorString());
             };
@@ -385,7 +385,7 @@ void LoginDialog::LoginWithSessionID() {
 
     connect(reply, &QNetworkReply::finished, this, &LoginDialog::OnStartLegacyLogin);
     connect(reply, &QNetworkReply::errorOccurred, this,
-        [=](QNetworkReply::NetworkError code) {
+        [=,this](QNetworkReply::NetworkError code) {
             const int error_code = static_cast<int>(code);
             if (error_code == CLOUDFLARE_RATE_LIMITED) {
                 DisplayError("Rate limited by Cloudflare! Please report to gerwaric@gmail.com");
@@ -396,7 +396,7 @@ void LoginDialog::LoginWithSessionID() {
             };
         });
     connect(reply, &QNetworkReply::sslErrors, this,
-        [=](const QList<QSslError>& errors) {
+        [=,this](const QList<QSslError>& errors) {
             for (const auto& error : errors) {
                 spdlog::error("SSL error during legacy login: {}", error.errorString());
             };
@@ -448,7 +448,7 @@ void LoginDialog::OnStartLegacyLogin() {
 
     connect(next_reply, &QNetworkReply::finished, this, &LoginDialog::OnFinishLegacyLogin);
     connect(reply, &QNetworkReply::errorOccurred, this,
-        [=](QNetworkReply::NetworkError code) {
+        [=,this](QNetworkReply::NetworkError code) {
             const int error_code = static_cast<int>(code);
             if (error_code == CLOUDFLARE_RATE_LIMITED) {
                 DisplayError("Blocked by Cloudflare! Please tell gerwaric@gmail.com. You may need to contact GGG support :-(");
@@ -458,7 +458,7 @@ void LoginDialog::OnStartLegacyLogin() {
             };
         });
     connect(reply, &QNetworkReply::sslErrors, this,
-        [=](const QList<QSslError>& errors) {
+        [=,this](const QList<QSslError>& errors) {
             for (const auto& error : errors) {
                 spdlog::error("SSL finishing legacy login: {}", error.errorString());
             };
