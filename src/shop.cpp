@@ -491,7 +491,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
                 // keep checking for it.
                 if (seconds < 5) {
                     seconds = 5;
-                    spdlog::trace("Shop: setting {delay.", seconds);
+                    spdlog::trace("Shop: setting {} second delay.", seconds);
                 };
             } else if (error_message.startsWith("Rate limiting", Qt::CaseInsensitive)) {
                 // Look for a rate limiting error here, because there are no headers to check for

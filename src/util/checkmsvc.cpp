@@ -28,12 +28,36 @@
 #include <QUrl>
 #include <QVersionNumber>
 
-#include <windows.h>
-
 #include <util/spdlog_qt.h>
 
 #include "fatalerror.h"
 #include "version_defines.h"
+
+#ifdef Q_OS_WINDOWS
+#include <windows.h>
+#else
+// Define stubs so we can include this file on non-Windows platforms,
+// which helps with development when a windows machine isn't available.
+constexpr unsigned MAX_PATH = 256;
+using DWORD = unsigned long;
+using WCHAR = wchar_t;
+using LPCWSTR = const WCHAR*;
+using LPVOID = void;
+using HMODULE = void*;
+using DWORD = unsigned long;
+using UINT = unsigned int;
+struct VS_FIXEDFILEINFO {
+    DWORD dwFileVersionMS{ 0 };
+    DWORD dwFileVersionLS{ 0 };
+};
+void* GetModuleHandle(...) { spdlog::error("MSVC checks not implemented."); return nullptr; }
+int GetModuleFileName(...) { spdlog::error("MSVC checks not implemented.");  return 0; }
+DWORD GetFileVersionInfoSize(...) { spdlog::error("MSVC checks not implemented.");  return 0; }
+bool GetFileVersionInfo(...) { spdlog::error("MSVC checks not implemented.");  return false; }
+unsigned int HIWORD(...) { spdlog::error("MSVC checks not implemented.");  return 0; };
+unsigned int LOWORD(...) { spdlog::error("MSVC checks not implemented.");  return 0; };
+bool VerQueryValue(...) { spdlog::error("MSVC checks not implemented.");  return false; };
+#endif
 
 // Local function prototypes
 void checkApplicationDirectory(const QStringList& libraries);
@@ -52,6 +76,13 @@ static QString DLL(const QString& name) {
 
 void checkMicrosoftRuntime()
 {
+#ifndef Q_OS_WINDOWS
+    // Do nothing on Linux or macOS, but we still want this file to be included
+    // in the build we can check for things like linting errors when developing
+    // on other platforms.
+    return;
+#endif
+
     spdlog::info("Checking Microsoft Visual C++ Runtime...");
 	spdlog::info("Built with MSVC runtime {}", MSVC_RUNTIME_BUILD_VERSION);
 	spdlog::info("Requires MSVC runtime {}", MSVC_RUNTIME_MINIMUM_VERSION);
@@ -201,7 +232,7 @@ QVersionNumber getModuleVersion(const QString& dll)
     const int patch = static_cast<int>(HIWORD(fileInfo->dwFileVersionLS));
     const int tweak = static_cast<int>(LOWORD(fileInfo->dwFileVersionLS));
 
-    spdlog::trace("{} module versions are major={} minor={} patch=[} tweak={}", dll, major, minor, patch, tweak);
+    spdlog::trace("{} module versions are major={} minor={} patch={} tweak={}", dll, major, minor, patch, tweak);
 
     return QVersionNumber({ major, minor, patch, tweak }).normalized();
 }

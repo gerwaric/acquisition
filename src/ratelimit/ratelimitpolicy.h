@@ -56,7 +56,6 @@ class QNetworkReply;
 // For any request against a rate-limited endpoint, only one policy applies, but
 // all of limitations for each item of every rule within that policy are checked.
 
-
 class RateLimitData {
 public:
     RateLimitData(const QByteArray& header_fragment);
@@ -82,7 +81,7 @@ private:
     RateLimitData m_limit;
     RateLimitData m_state;
     RateLimit::Status m_status;
-    int m_resolution;
+    unsigned m_resolution;
 };
 
 class RateLimitRule {

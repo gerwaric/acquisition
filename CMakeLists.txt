@@ -159,6 +159,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/ui/mainwindow.cpp
     src/ui/searchcombobox.cpp
     src/ui/verticalscrollarea.cpp
+    src/util/checkmsvc.cpp
     src/util/crashpad.cpp
     src/util/fatalerror.cpp
     src/util/logging.cpp
@@ -222,6 +223,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/ui/mainwindow.h
     src/ui/searchcombobox.h
     src/ui/verticalscrollarea.h
+    src/util/checkmsvc.h
     src/util/crashpad.h
     src/util/fatalerror.h
     src/util/json_struct_qt.h
@@ -255,17 +257,6 @@ if(WIN32)
     if(NOT MSVC)
         message(FATAL_ERROR "Only the MSVC compiler is supported on Windows")
     endif()
-
-    # On Windows there we do extra checks to catch incompatible older versions
-    # of the Microsoft Visual Studio C++ Runtime, because these can cause
-    # otherwise unexpected crashes (usually in mutex-related code).
-    #
-    # For this to work, we need to know the MSCV runtime version that acquisition
-    # was built with, which is what the cmake code below this include does.
-    target_sources(acquisition PRIVATE
-        src/util/checkmsvc.cpp
-        src/util/checkmsvc.h
-    )
 
     # The Microsoft Visual C++ Compiler version 19 corresponds to runtime version 14.
     set(msvc_compiler_ver "19")

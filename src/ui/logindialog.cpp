@@ -133,13 +133,6 @@ LoginDialog::LoginDialog(
     // Let the oath manager know about the remember me selection.
     m_oauth_manager.RememberToken(ui->rememberMeCheckBox->isChecked());
 
-    // Determine which options to show.
-    const bool hide_options = ui->loginTabs->currentWidget() == ui->offlineTab;
-    const bool hide_advanced = !ui->advancedCheckBox->isChecked();
-    ui->optionsWidget->setHidden(hide_options);
-    ui->advancedOptionsFrame->setHidden(hide_options || hide_advanced);
-    ui->loginButton->setHidden(hide_options);
-
     // Connect main UI buttons.
     connect(ui->loginTabs, &QTabWidget::currentChanged, this, &LoginDialog::OnLoginTabChanged);
     connect(ui->authenticateButton, &QPushButton::clicked, this, &LoginDialog::OnAuthenticateButtonClicked);
@@ -168,6 +161,9 @@ LoginDialog::LoginDialog(
     } else if (token.refresh_expiration && (now < *token.refresh_expiration)) {
         spdlog::info("Login: the OAuth token needs to be refreshed");
     };
+
+    // Use OnLoginTabChanged to do things like enable the login button.
+    OnLoginTabChanged(ui->loginTabs->currentIndex());
 
     // Request the list of leagues.
     spdlog::trace("Login: requesting leagues");
