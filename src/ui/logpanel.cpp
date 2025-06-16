@@ -91,20 +91,20 @@ void LogPanel::UpdateStatusLabel() {
     unsigned int k = 0;
 
     if (m_num_errors > 0) {
-        label = "error";
+        label = "error(s)";
         style = "font-weight: bold; color: " + ERROR_COLOR.name();
         k = m_num_errors;
     } else if (m_num_warnings > 0) {
-        label = "warning";
+        label = "warning(s)";
         style = "font-weight: bold; color: " + WARNING_COLOR.name();
         k = m_num_warnings;
     } else if (m_num_messages > 0) {
-        label = "message";
+        label = "message(s)";
         k = m_num_messages;
     };
 
     if (k > 0) {
-        label = QString::number(k) + QString(label) + ((k > 1) ? "s" : "");
+        label = QString("%1 %2").arg(QString::number(k), label);
     };
 
     m_status_button->setStyleSheet(style);
