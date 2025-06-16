@@ -28,29 +28,6 @@
 
 #include "ratelimit.h"
 
-// GGG has stated that when they are keeping track of request times,
-// they have a timing resolution, which they called a "bucket".
-//
-// This explained some otherwise mysterious rate violations that I
-// was seeing very intermittently. Unless there's a away to find out
-// where those timing buckets begin and end precisely, all we can do
-// is use the bucket size as a minimum delay.
-//
-// GGG has also stated that this bucket resolution may be different
-// for different policies, but the one I had been asking them about
-// was 5.0 seconds. They also noted that this number is currently
-// not documented or exposed to api users in any way.
-//
-// As of June 2025, GGG has confirmed that all endpoints used by
-// acquisition have a 5 second timing bucket for the "fast" rate
-// limit, and a 1 minute bucket for the "slow" rate limit.
-
-constexpr unsigned int FAST_RESOLUTION_SECS = 5;
-constexpr unsigned int SLOW_RESOLUTION_SECS = 60;
-
-constexpr unsigned int FAST_CUTOFF_SECS = 60;
-constexpr unsigned int SLOW_CUTOFF_SECS = 300;
-
 //=========================================================================================
 // RateLimitData
 //=========================================================================================
@@ -86,14 +63,10 @@ RateLimitItem::RateLimitItem(const QByteArray& limit_fragment, const QByteArray&
         m_status = RateLimit::Status::OK;
     };
 
-    // Determine which timing resolution applies. This information is from GGG but undocumented.
-    if (m_limit.restriction() <= FAST_CUTOFF_SECS) {
-        m_resolution = FAST_RESOLUTION_SECS;
-    } else if (m_limit.restriction() >= SLOW_CUTOFF_SECS) {
-        m_resolution = SLOW_RESOLUTION_SECS;
-    } else {
-        spdlog::error("RateLimitData: unable to determine timing resolution;");
-    };
+    // Determine which timing resolution applies.
+    m_resolution = (m_limit.period() <= RateLimit::INITIAL_VS_SUSTAINED_PERIOD_CUTOFF)
+        ? RateLimit::INITIAL_TIMING_BUCKET_SECS
+        : RateLimit::SUSTAINED_TIMING_BUCKET_SECS;
 }
 
 void RateLimitItem::Check(const RateLimitItem& other, const QString& prefix) const {
