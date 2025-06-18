@@ -473,6 +473,91 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterRequest(
     return QNetworkRequest(QUrl(url));
 }
 
+bool ItemsManagerWorker::IsOAuthTabValid(rapidjson::Value &tab)
+{
+    // Get the name of the stash tab.
+    if (!HasString(tab, "name")) {
+        spdlog::error("The stash tab does not have a name");
+        return false;
+    };
+
+    // Skip hidden tabs.
+    if (HasBool(tab, "hidden") && tab["hidden"].GetBool()) {
+        spdlog::debug("The stash tab is hidden: {}", tab["name"].GetString());
+        return false;
+    };
+
+    // Get the unique id.
+    if (!HasString(tab, "id")) {
+        spdlog::error("The stash tab does not have a unique id: {}", tab["name"].GetString());
+        return false;
+    };
+
+    // Get the index of this stash tab.
+    if (!HasInt(tab, "index")) {
+        spdlog::error("The stash tab does not have an index: {}", tab["name"].GetString());
+        return false;
+    };
+
+    // Get the type of this stash tab.
+    if (!HasString(tab, "type")) {
+        spdlog::error("The stash tab does not have a type: {}", tab["name"].GetString());
+        return false;
+    };
+
+    return true;
+}
+
+void ItemsManagerWorker::ProcessOAuthTab(rapidjson::Value &tab,
+                                         int &count,
+                                         rapidjson_allocator &alloc)
+{
+    // Skip this tab if it doesn't pass sanity checks.
+    if (!IsOAuthTabValid(tab)) {
+        return;
+    };
+
+    // Get tab info.
+    const QString tab_name = tab["name"].GetString();
+    const int tab_index = tab["index"].GetInt();
+    const QString tab_type = tab["type"].GetString();
+
+    // The unique id for stash tabs returned from the legacy API
+    // need to be trimmed to 10 characters.
+    QString tab_id = tab["id"].GetString();
+    if (tab_id.size() > 10) {
+        spdlog::debug("Trimming tab unique id: {}", tab_name);
+        tab_id = tab_id.first(10);
+    };
+
+    if (m_tab_id_index.count(tab_id) == 0) {
+        // Create this tab.
+        int r = 0, g = 0, b = 0;
+        Util::GetTabColor(tab, r, g, b);
+        ItemLocation location(
+            tab_index, tab_id, tab_name, ItemLocationType::STASH, tab_type, r, g, b, tab, alloc);
+
+        // Add this tab.
+        m_tabs.push_back(location);
+        m_tab_id_index.insert(tab_id);
+
+        // Submit a request for this tab.
+        if (m_update_tab_contents) {
+            ++count;
+            const auto uid = location.get_tab_uniq_id();
+            QNetworkRequest request = MakeOAuthStashRequest(m_realm, m_league, uid);
+            QueueRequest(kOAuthGetStashEndpoint, request, location);
+        };
+
+        // Process any children.
+        if (tab.HasMember("children")) {
+            for (auto &child : tab["children"]) {
+                ProcessOAuthTab(child, count, alloc);
+            };
+        };
+    };
+}
+
 void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
     spdlog::trace("ItemsManagerWorker::OnOAuthStashListReceived() entered");
 
@@ -525,70 +610,12 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
 
     int tabs_requested = 0;
 
+    auto &alloc = doc.GetAllocator();
+
     // Queue stash tab requests.
-    for (auto& tab : stashes) {
-
-        // Get the name of the stash tab.
-        if (!HasString(tab, "name")) {
-            spdlog::error("The stash tab does not have a name");
-            continue;
-        };
-        const QString tab_name = tab["name"].GetString();
-
-        // Skip hidden tabs.
-        if (HasBool(tab, "hidden") && tab["hidden"].GetBool()) {
-            spdlog::debug("The stash tab is hidden: {}", tab_name);
-            continue;
-        };
-
-        // Get the unique id.
-        if (!HasString(tab, "id")) {
-            spdlog::error("The stash tab does not have a unique id: {}", tab_name);
-            continue;
-        }
-        QString tab_id = tab["id"].GetString();
-        if (tab_id.size() > 10) {
-            // The unique id for stash tabs returned from the legacy API
-            // need to be trimmed to 10 characters.
-            spdlog::debug("Trimming tab unique id: {}", tab_name);
-            tab_id = tab_id.first(10);
-        };
-
-        // Skip tabs that are in the index; they are not being refreshed.
-        if (m_tab_id_index.count(tab_id) > 0) {
-            spdlog::trace("ItemsManagerWorker::OnOAuthStashListReceived() skipping tab: {}", tab_name);
-            continue;
-        };
-
-        // Get the index of this stash tab.
-        if (!HasInt(tab, "index")) {
-            spdlog::error("The stash tab does not have an index: {}", tab_name);
-            continue;
-        };
-        const int tab_index = tab["index"].GetInt();
-
-        // Get the type of this stash tab.
-        if (!HasString(tab, "type")) {
-            spdlog::error("The stash tab does not have a type: {}", tab_name);
-            continue;
-        };
-        const QString tab_type = tab["type"].GetString();
-
-        // Get the stash tab color.
-        int r = 0, g = 0, b = 0;
-        Util::GetTabColor(tab, r, g, b);
-
-        // Create and save the tab location object.
-        ItemLocation location(tab_index, tab_id, tab_name, ItemLocationType::STASH, tab_type, r, g, b, tab, doc.GetAllocator());
-        m_tabs.push_back(location);
-        m_tab_id_index.insert(tab_id);
-
-        // Submit a request for this tab.
-        if (m_update_tab_contents) {
-            ++tabs_requested;
-            QNetworkRequest request = MakeOAuthStashRequest(m_realm, m_league, location.get_tab_uniq_id());
-            QueueRequest(kOAuthGetStashEndpoint, request, location);
-        };
+    for (rapidjson::Value &tab : stashes) {
+        // This will process tabs recursively.
+        ProcessOAuthTab(tab, tabs_requested, alloc);
     };
     spdlog::debug("Requesting {} out of {} stash tabs", tabs_requested, stashes.Size());
 
@@ -630,7 +657,7 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
         return;
     };
 
-    const auto& characters = doc["characters"].GetArray();
+    const auto &characters = doc["characters"].GetArray();
     int requested_character_count = 0;
     for (auto& character : characters) {
         if (!HasString(character, "name")) {
@@ -724,6 +751,10 @@ void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply, const ItemLo
 
     ++m_stashes_received;
     SendStatusUpdate();
+
+    if (HasArray(stash, "children")) {
+        spdlog::info("HAS_CHILDREN: {}: {}", stash["name"].GetString(), Util::RapidjsonSerialize(stash));
+    };
 
     if ((m_stashes_received == m_stashes_needed) && (m_characters_received == m_characters_needed) && !m_cancel_update) {
         spdlog::trace("ItemsManagerWorker::OnOAuthStashReceived() finishing update");
@@ -1002,6 +1033,98 @@ void ItemsManagerWorker::FetchItems() {
 
     spdlog::debug("Requested {} stashes and {} characters.", m_stashes_needed, m_characters_needed);
     spdlog::debug("Tab titles: {}", tab_titles);
+
+    // Make sure we cancel the update if there was nothing to do.
+    // (Discovered this was necessary when trying to refresh a single unique stashtab).
+    if ((m_stashes_needed == 0) && (m_characters_needed == 0)) {
+        m_updating = false;
+    }
+}
+
+bool ItemsManagerWorker::IsLegacyTabValid(rapidjson::Value &tab)
+{
+    if (!HasString(tab, "n")) {
+        spdlog::error("Legacy tab does not have name");
+        return false;
+    };
+
+    if (!HasInt(tab, "i")) {
+        spdlog::error("Legacy tab does not have an index: {}", tab["n"].GetString());
+        return false;
+    };
+
+    // Skip hidden tabs.
+    if (HasBool(tab, "hidden") && tab["hidden"].GetBool()) {
+        spdlog::debug("The legacy tab is hidden: {}", tab["n"].GetString());
+        return false;
+    };
+
+    // Skip tabs that are in the index; they are not being refreshed.
+    if (!HasString(tab, "id")) {
+        spdlog::error("The legacy tab does not have a unique id: {}", tab["n"].GetString());
+        return false;
+    };
+    QString tab_id = tab["id"].GetString();
+    if (tab_id.size() > 10) {
+        // The unique id for stash tabs returned from the legacy API
+        // need to be trimmed to 10 characters.
+        spdlog::debug("Trimming legacy tab unique id: {}", tab["n"].GetString());
+        tab_id = tab_id.first(10);
+    };
+
+    // Get the type of this stash tab.
+    if (!HasString(tab, "type")) {
+        spdlog::error("The stash tab does not have a type: {}", tab["n"].GetString());
+        return false;
+    };
+
+    return true;
+}
+
+void ItemsManagerWorker::ProcessLegacyTab(rapidjson::Value &tab,
+                                          int &count,
+                                          rapidjson_allocator &alloc)
+{
+    if (!IsLegacyTabValid(tab)) {
+        return;
+    };
+
+    const QString label = tab["n"].GetString();
+    const QString tab_type = tab["type"].GetString();
+    const int index = tab["i"].GetInt();
+
+    // The unique id for stash tabs returned from the legacy API
+    // need to be trimmed to 10 characters.
+    QString tab_id = tab["id"].GetString();
+    if (tab_id.size() > 10) {
+        tab_id = tab_id.first(10);
+    };
+
+    if (m_tab_id_index.count(tab_id) == 0) {
+        // Create this tab.
+        int r = 0, g = 0, b = 0;
+        Util::GetTabColor(tab, r, g, b);
+        ItemLocation
+            location(index, tab_id, label, ItemLocationType::STASH, tab_type, r, g, b, tab, alloc);
+
+        // Add this tab.
+        m_tabs.push_back(location);
+        m_tab_id_index.insert(tab_id);
+
+        // Submit a request for this tab.
+        if (m_update_tab_contents) {
+            ++count;
+            QNetworkRequest request = MakeLegacyTabRequest(location.get_tab_id(), true);
+            QueueRequest(kStashItemsUrl, request, location);
+        };
+
+        // Process any children.
+        if (tab.HasMember("children")) {
+            for (auto &child : tab["children"]) {
+                ProcessLegacyTab(child, count, alloc);
+            };
+        };
+    };
 }
 
 void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
@@ -1056,62 +1179,10 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
     };
 
     // Queue stash tab requests.
+    int count = 0;
+    auto &alloc = doc.GetAllocator();
     for (auto& tab : tabs) {
-
-        if (!HasString(tab, "n")) {
-            spdlog::error("Legacy tab does not have name");
-            continue;
-        };
-        const QString label = tab["n"].GetString();
-
-        if (!HasInt(tab, "i")) {
-            spdlog::error("Legacy tab does not have an index: {}", label);
-            continue;
-        };
-        const int index = tab["i"].GetInt();
-
-        // Skip hidden tabs.
-        if (HasBool(tabs[index], "hidden") && tabs[index]["hidden"].GetBool()) {
-            spdlog::debug("The legacy tab is hidden: {}", label);
-            continue;
-        };
-
-        // Skip tabs that are in the index; they are not being refreshed.
-        if (!HasString(tab, "id")) {
-            spdlog::error("The legacy tab does not have a unique id: {}", label);
-            continue;
-        };
-        QString tab_id = tab["id"].GetString();
-        if (tab_id.size() > 10) {
-            // The unique id for stash tabs returned from the legacy API
-            // need to be trimmed to 10 characters.
-            spdlog::debug("Trimming legacy tab unique id: {}", label);
-            tab_id = tab_id.first(10);
-        };
-        if (m_tab_id_index.count(tab_id) > 0) {
-            continue;
-        };
-
-        // Get the type of this stash tab.
-        if (!HasString(tab, "type")) {
-            spdlog::error("The stash tab does not have a type: {}", label);
-            continue;
-        };
-        const QString tab_type = tab["type"].GetString();
-
-        // Get the stash tab color;
-        int r = 0, g = 0, b = 0;
-        Util::GetTabColor(tab, r, g, b);
-
-        // Create and save the tab location object.
-        ItemLocation location(index, tab_id, label, ItemLocationType::STASH, tab_type, r, g, b, tab, doc.GetAllocator());
-        m_tabs.push_back(location);
-        m_tab_id_index.insert(tab_id);
-
-        // Submit a request for this tab.
-        if (m_update_tab_contents) {
-            QueueRequest(kStashItemsUrl, MakeLegacyTabRequest(location.get_tab_id(), true), location);
-        };
+        ProcessLegacyTab(tab, count, alloc);
     };
 
     m_has_stash_list = true;

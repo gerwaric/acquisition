@@ -120,7 +120,13 @@ private:
     bool TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, const ItemLocation& location);
     void FinishUpdate();
 
-    QSettings& m_settings;
+    bool IsOAuthTabValid(rapidjson::Value &tab);
+    void ProcessOAuthTab(rapidjson::Value &tab, int &count, rapidjson_allocator &alloc);
+
+    bool IsLegacyTabValid(rapidjson::Value &tab);
+    void ProcessLegacyTab(rapidjson::Value &tab, int &count, rapidjson_allocator &alloc);
+
+    QSettings &m_settings;
     QNetworkAccessManager& m_network_manager;
     RePoE& m_repoe;
     DataStore& m_datastore;
