@@ -29,7 +29,7 @@ cmake_minimum_required(VERSION 3.29)
 # version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
-    VERSION 0.13.5
+    VERSION 0.13.6
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
@@ -92,6 +92,7 @@ if(NOT TARGET boost-headers-only)
         boost-headers-only
         GIT_REPOSITORY https://github.com/gerwaric/boost-headers-only.git
         GIT_TAG        boost-1.88.0
+        GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(boost-headers-only)
 endif()
@@ -101,6 +102,7 @@ if(NOT TARGET json_struct)
         json_struct
         GIT_REPOSITORY https://github.com/jorgen/json_struct.git
         GIT_TAG        1.0.1
+        GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(json_struct)
 endif()
@@ -110,6 +112,7 @@ if(NOT TARGET spdlog)
         spdlog
         GIT_REPOSITORY https://github.com/gabime/spdlog.git
         GIT_TAG        v1.15.3
+        GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(spdlog)
 endif()

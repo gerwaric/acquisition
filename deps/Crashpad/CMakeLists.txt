@@ -26,5 +26,21 @@ target_link_libraries(Crashpad PRIVATE
 )
 
 # Make sure the crash_handler executable is copied to the build directory.
-get_target_property(CrashPadHanderPath CrashpadHandler IMPORTED_LOCATION)
-file(COPY ${CrashPadHanderPath} DESTINATION ${CMAKE_BINARY_DIR})
+get_target_property(CrashPadHandlerPath CrashpadHandler IMPORTED_LOCATION)
+
+# Define the destination path
+set(CrashpadHandlerOutput "${CrashpadHandlerDestination}/${CrashpadHandlerExe}")
+
+# Copy it at build time, not configure time
+add_custom_command(
+    OUTPUT "${CrashpadHandlerOutput}"
+    COMMAND ${CMAKE_COMMAND} -E copy "${CrashPadHandlerPath}" "${CrashpadHandlerOutput}"
+    DEPENDS "${CrashPadHandlerPath}"
+    COMMENT "Copying crashpad_handler to build directory"
+    VERBATIM
+)
+
+# Add a custom target so the file gets copied during builds
+add_custom_target(copy_crashpad_handler ALL
+    DEPENDS "${CrashpadHandlerOutput}"
+)
