@@ -42,10 +42,10 @@ Notes:
 - Other packages may be required on other distributions.
 
 When runing the installer, choose "Custom Installation". Then, in addition to the default selection, add the following:
-- Select "Desktop" under Qt -> Qt 6.8.x
-- Select "Qt Http Server" under Qt -> Qt 6.8.x -> Additional Libraries
-- Select "Qt Network Authorization" under Qt -> Qt 6.8.x -> Additional Libraries
-- Select "Qt WebSockets" under Qt -> Qt 6.8.x -> Additional Libraries
+- Select "Desktop" under Qt -> Qt 6.9.x
+- Select "Qt Http Server" under Qt -> Qt 6.9.x -> Additional Libraries
+- Select "Qt Network Authorization" under Qt -> Qt 6.9.x -> Additional Libraries
+- Select "Qt WebSockets" under Qt -> Qt 6.9.x -> Additional Libraries
 
 If you are using a distribution that does not come with OpenSSL 3.x, you'll need to build and install it yourself:
 - Select "OpenSSL 3.0.x Toolkit" under Qt -> Build Tools
