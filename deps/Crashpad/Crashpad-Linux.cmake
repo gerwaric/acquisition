@@ -1,4 +1,4 @@
-set(CrashpadHandlerExe "crashpad_handler.exe")
+set(CrashpadHandlerExe "crashpad_handler")
 set(CrashpadHandlerDestination "${CMAKE_BINARY_DIR}")
 
 add_executable(CrashpadHandler IMPORTED)    
