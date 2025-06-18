@@ -1,6 +1,9 @@
+set(CrashpadHandlerExe "crashpad_handler")
+set(CrashpadHandlerDestination "${CMAKE_BINARY_DIR}/acquisition.app/Contents/MacOS")
+
 add_executable(CrashpadHandler IMPORTED)    
 set_target_properties(CrashpadHandler PROPERTIES
-    IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/Crashpad/Bin/MacOS/${CMAKE_SYSTEM_PROCESSOR}/crashpad_handler"
+    IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/Crashpad/Bin/MacOS/${CMAKE_SYSTEM_PROCESSOR}/${CrashpadHandlerExe}"
 )
 
 function(setup_macos_target target libname)

@@ -1,6 +1,9 @@
+set(CrashpadHandlerExe "crashpad_handler.exe")
+set(CrashpadHandlerDestination "${CMAKE_BINARY_DIR}")
+
 add_executable(CrashpadHandler IMPORTED)    
 set_target_properties(CrashpadHandler PROPERTIES
-    IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/Crashpad/Bin/Linux/crashpad_handler"
+    IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/Crashpad/Bin/Linux/${CrashpadHandlerExe}"
 )
 
 function(setup_linux_target target libname)
