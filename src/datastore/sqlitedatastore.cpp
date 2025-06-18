@@ -68,13 +68,12 @@ SqliteDataStore::SqliteDataStore(const QString& filename)
 
 
 SqliteDataStore::~SqliteDataStore() {
+    // Close and remove each database connection.
     QMutexLocker locker(&m_mutex);
-    const auto& connections = m_connection_names;
-    for (const QString& connection : connections) {
+    const auto &connections = m_connection_names;
+    for (const QString &connection : connections) {
         if (QSqlDatabase::contains(connection)) {
-            // Close and remove each database connection.
-            QSqlDatabase db = QSqlDatabase::database(connection);
-            db.close();
+            QSqlDatabase::database(connection).close();
             QSqlDatabase::removeDatabase(connection);
         };
     };
