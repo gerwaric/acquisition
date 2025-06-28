@@ -146,7 +146,7 @@ void CategorySearchFilter::Initialize(QLayout* parent) {
     QLabel* label = new QLabel("Type");
     label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
     label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    m_combobox = new SearchComboBox(m_model, group);
+    m_combobox = new SearchComboBox(m_model, "", group);
     layout->addWidget(label);
     layout->addWidget(m_combobox);
     group->setLayout(layout);

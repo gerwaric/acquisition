@@ -30,9 +30,10 @@
 
 #include "modlist.h"
 
-SelectedMod::SelectedMod(const QString& name, double min, double max, bool min_filled, bool max_filled)
+SelectedMod::SelectedMod(
+    const QString &name, double min, double max, bool min_filled, bool max_filled)
     : m_data(name, min, max, min_filled, max_filled)
-    , m_mod_select(&mod_list_model())
+    , m_mod_select(&mod_list_model(), name)
     , m_delete_button("X")
 {
     m_mod_select.setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
@@ -112,7 +113,7 @@ ModsFilter::ModsFilter(QLayout* parent) :
 void ModsFilter::FromForm(FilterData* data) {
     data->mod_data.clear();
     for (auto& mod : m_mods) {
-        data->mod_data.push_back(mod->data());
+        data->mod_data.push_back(ModFilterData(mod->data()));
     };
     m_active = !m_mods.empty();
 }
@@ -121,8 +122,22 @@ void ModsFilter::ToForm(FilterData* data) {
     ResetForm();
 
     // Add search mods from the filter data.
-    for (auto& mod : data->mod_data) {
-        m_mods.push_back(std::make_unique<SelectedMod>(mod.mod, mod.min, mod.max, mod.min_filled, mod.max_filled));
+    for (auto &data : data->mod_data) {
+        auto mod = std::make_unique<SelectedMod>(data.mod,
+                                                 data.min,
+                                                 data.max,
+                                                 data.min_filled,
+                                                 data.max_filled);
+        QObject::connect(mod.get(),
+                         &SelectedMod::ModChanged,
+                         &m_signal_handler,
+                         &ModsFilterSignalHandler::OnModChanged);
+        QObject::connect(mod.get(),
+                         &SelectedMod::ModDeleted,
+                         &m_signal_handler,
+                         &ModsFilterSignalHandler::OnModDeleted);
+
+        m_mods.push_back(std::move(mod));
         m_mods.back()->AddToLayout(&m_layout);
     };
 }
