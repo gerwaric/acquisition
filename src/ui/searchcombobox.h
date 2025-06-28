@@ -45,7 +45,7 @@ private:
 class SearchComboBox : public QComboBox {
     Q_OBJECT
 public:
-    SearchComboBox(QAbstractItemModel* model, QWidget* parent = nullptr);
+    SearchComboBox(QAbstractItemModel *model, const QString &value, QWidget *parent = nullptr);
 private slots:
     void OnTextEdited();
     void OnEditTimeout();
@@ -53,4 +53,5 @@ private slots:
 private:
     SearchComboCompleter m_completer;
     QTimer m_edit_timer;
+    bool m_skip_completer{false};
 };

@@ -43,12 +43,15 @@ int SearchComboStyle::styleHint(StyleHint hint, const QStyleOption* option, cons
     };
 }
 
-SearchComboBox::SearchComboBox(QAbstractItemModel* model, QWidget* parent)
+SearchComboBox::SearchComboBox(QAbstractItemModel *model, const QString &value, QWidget *parent)
     : QComboBox(parent)
     , m_completer(model, this)
 {
     setEditable(true);
     setModel(model);
+    if (!value.isEmpty()) {
+        setCurrentText(value);
+    }
     setCompleter(nullptr);
     setInsertPolicy(QComboBox::NoInsert);
     setStyle(new SearchComboStyle(style()));
@@ -81,6 +84,11 @@ void SearchComboBox::OnEditTimeout() {
     if (text.isEmpty()) {
         return;
     };
+    if (m_skip_completer) {
+        setCurrentText(text);
+        m_skip_completer = false;
+        return;
+    }
     m_completer.setCompletionPrefix(text);
     if (m_completer.setCurrentRow(1)) {
         // Trigger completion if there are 2 or more results.
@@ -97,6 +105,7 @@ void SearchComboBox::OnEditTimeout() {
 }
 
 void SearchComboBox::OnCompleterActivated(const QString& text) {
+    m_skip_completer = true;
     setCurrentText(text);
     setToolTip(text);
 }
