@@ -752,10 +752,6 @@ void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply* reply, const ItemLo
     ++m_stashes_received;
     SendStatusUpdate();
 
-    if (HasArray(stash, "children")) {
-        spdlog::info("HAS_CHILDREN: {}: {}", stash["name"].GetString(), Util::RapidjsonSerialize(stash));
-    };
-
     if ((m_stashes_received == m_stashes_needed) && (m_characters_received == m_characters_needed) && !m_cancel_update) {
         spdlog::trace("ItemsManagerWorker::OnOAuthStashReceived() finishing update");
         FinishUpdate();

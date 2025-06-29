@@ -53,10 +53,16 @@ ItemsManager::ItemsManager(
     , m_auto_update_timer(std::make_unique<QTimer>())
 {
     spdlog::trace("ItemsManager::ItemsManager() entered");
+
     const int interval = m_settings.value("autoupdate_interval", 30).toInt();
     m_auto_update_timer->setSingleShot(false);
     m_auto_update_timer->setInterval(interval * 60 * 1000);
     connect(m_auto_update_timer.get(), &QTimer::timeout, this, &ItemsManager::OnAutoRefreshTimer);
+
+    const bool autoupdate = m_settings.value("autoupdate", false).toBool();
+    if (autoupdate) {
+        m_auto_update_timer->start();
+    }
 }
 
 ItemsManager::~ItemsManager() {}
@@ -227,7 +233,11 @@ void ItemsManager::SetAutoUpdateInterval(int minutes) {
 
 void ItemsManager::OnAutoRefreshTimer() {
     spdlog::trace("ItemsManager::OnAutoRefreshTimer() entered");
-    Update(TabSelection::Checked);
+    if (!isUpdating()) {
+        Update(TabSelection::Checked);
+    } else {
+        spdlog::info("Skipping auto update because the previous update is not complete.");
+    }
 }
 
 void ItemsManager::MigrateBuyouts() {
