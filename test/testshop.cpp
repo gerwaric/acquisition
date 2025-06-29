@@ -51,7 +51,7 @@ void TestShop::SocketedGemsNotLinked() {
     bo.currency = Currency::CURRENCY_CHAOS_ORB;
     m_buyout_manager.Set(*items[0], bo);
 
-    m_shop.Update();
+    m_shop.UpdateShopData();
     QStringList shop = m_shop.shop_data();
     QVERIFY(shop.size() == 0);
 
@@ -72,7 +72,7 @@ void TestShop::TemplatedShopGeneration() {
     m_buyout_manager.Set(*items[0], bo);
 
     m_shop.SetShopTemplate("My awesome shop [items]");
-    m_shop.Update();
+    m_shop.UpdateShopData();
 
     QStringList shop = m_shop.shop_data();
     QVERIFY(shop.size() == 1);

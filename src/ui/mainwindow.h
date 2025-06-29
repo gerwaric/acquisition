@@ -127,7 +127,6 @@ private slots:
     void OnSetShopThreads();
     void OnEditShopTemplate();
     void OnCopyShopToClipboard();
-    void OnUpdateStashIndex();
     void OnUpdateShops();
     void OnSetAutomaticShopUpdate();
     void OnShowPOESESSID();

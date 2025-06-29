@@ -464,7 +464,7 @@ void Application::OnItemsRefreshed(bool initial_refresh) {
     spdlog::trace("Application::OnItemsRefreshed() entered");
     spdlog::trace("Application::OnItemsRefreshed() initial_refresh = {}", initial_refresh);
     m_currency_manager->Update();
-    m_shop->Update();
+    m_shop->ExpireShopData();
     if (!initial_refresh && m_shop->auto_update()) {
         spdlog::trace("Application::OnItemsRefreshed() submitting shops");
         m_shop->SubmitShopToForum();

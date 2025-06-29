@@ -28,7 +28,6 @@
 #include <ui/mainwindow.h>
 
 #include "buyout.h"
-#include "item.h"
 
 class QNetworkAccessManager;
 class QSettings;
@@ -38,22 +37,6 @@ class BuyoutManager;
 class DataStore;
 class ItemsManager;
 class RateLimiter;
-
-struct AugmentedItem {
-    Item* item{ nullptr };
-    Buyout bo;
-    bool operator<(const AugmentedItem& other) const {
-        if (bo.type != other.bo.type) {
-            return bo.type < other.bo.type;
-        } else if (bo.currency != other.bo.currency) {
-            return bo.currency < other.bo.currency;
-        } else if (bo.value != other.bo.value) {
-            return bo.value < other.bo.value;
-        } else {
-            return false;
-        };
-    };
-};
 
 class Shop : public QObject {
     Q_OBJECT
@@ -68,23 +51,29 @@ public:
     void SetThread(const QStringList& threads);
     void SetAutoUpdate(bool update);
     void SetShopTemplate(const QString& shop_template);
-    void Update();
+    void UpdateShopData();
     void CopyToClipboard();
     void ExpireShopData();
     void SubmitShopToForum(bool force = false);
     bool auto_update() const { return m_auto_update; }
-    const QStringList& threads() const { return m_threads; }
-    const QStringList& shop_data() const { return m_shop_data; }
-    const QString& shop_template() const { return m_shop_template; }
+
+    QStringList threads() const { return m_threads; }
+    QStringList shop_data() const { return m_shop_data; }
+    QString shop_template() const { return m_shop_template; }
+
 public slots:
-    void UpdateStashIndex();
-    void OnStashTabIndexReceived(QNetworkReply* reply);
     void OnEditPageFinished();
     void OnShopSubmitted(QUrlQuery query, QNetworkReply* reply);
+
 signals:
     void StashesIndexed();
     void StatusUpdate(ProgramState state, const QString& status);
+
 private:
+    void UpdateStashIndex(bool force);
+    void OnStashIndexReceived(bool force, QNetworkReply *reply);
+    void OnStashIndexUpdated(bool force);
+
     void SubmitSingleShop();
     void SubmitNextShop(const QString& title, const QString& hash);
     QString ShopEditUrl(int idx);
@@ -102,11 +91,9 @@ private:
     QStringList m_shop_data;
     QString m_shop_hash;
     QString m_shop_template;
-    bool m_initialized;
     bool m_shop_data_outdated;
     bool m_auto_update;
     bool m_submitting;
-    bool m_indexing;
     int m_requests_completed;
 
     static const QRegularExpression error_regex;
