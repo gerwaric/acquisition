@@ -28,12 +28,16 @@
 #include <util/fatalerror.h>
 #include <util/oauthmanager.h>
 #include <util/spdlog_qt.h>
+#include <util/util.h>
 
 #include "ratelimit.h"
 #include "ratelimitpolicy.h"
 #include "ratelimitedreply.h"
 #include "ratelimitedrequest.h"
 #include "ratelimiter.h"
+
+// For debugging rate limit violations, keep around more history than should be needed
+constexpr int HISTORY_BUFFER = 5;
 
 // This HTTP status code means there was a rate limit violation.
 constexpr int VIOLATION_STATUS = 429;
@@ -100,7 +104,7 @@ void RateLimitManager::SendRequest() {
 
 // Called when the active request's reply is finished.
 void RateLimitManager::ReceiveReply()
-{    
+{
     spdlog::trace("RateLimitManager::ReceiveReply() entered");
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
 
@@ -163,6 +167,14 @@ void RateLimitManager::ReceiveReply()
             violation_detected = true;
         };
 
+        // Extra debug logging for BORDERLINE policies while I'm trying to track down rate limit violations.
+        if (m_policy->status() == RateLimit::Status::BORDERLINE) {
+            const auto level = spdlog::get_level();
+            spdlog::set_level(spdlog::level::debug);
+            LogPolicyHistory();
+            spdlog::set_level(level);
+        }
+
         // Since the request finished successfully, signal complete()
         // so anyone listening can handle the reply.
         if (m_active_request->reply) {
@@ -216,23 +228,28 @@ void RateLimitManager::ReceiveReply()
     };
 
     if (violation_detected) {
-        LogViolation();
+        spdlog::error("Rate limit violation detector for policy '{}'. See log for DEBUG details.", m_policy->name());
+        const auto level = spdlog::get_level();
+        spdlog::set_level(spdlog::level::debug);
+        LogPolicyHistory();
+        spdlog::set_level(level);
         emit Violation(m_policy->name());
     };
 }
 
-void RateLimitManager::LogViolation() {
+void RateLimitManager::LogPolicyHistory() {
 
     if (!spdlog::should_log(spdlog::level::debug)) {
         spdlog::error("Rate limit violation detected for policy '{}'. Enable DEBUG logging for details.", m_policy->name());
         return;
     };
 
-    spdlog::error("Rate limit violation detector for policy '{}'. See log for details.", m_policy->name());
+    const QString name = m_policy->name();
+    const QString status = Util::toString(m_policy->status());
 
     QStringList lines;
     lines.append("Violation details:");
-    lines.append(QString("<RATE_LIMIT_VIOLATION policy_name='%1'>").arg(m_policy->name()));
+    lines.append(QString("<RATE_LIMIT_POLICY policy_name='%1' status='%2'>").arg(name, status));
     for (const auto& rule : m_policy->rules()) {
         for (const auto& item : rule.items()) {
             lines.append(QString("%1:%2(%3s) = %4/%5").arg(
@@ -246,14 +263,14 @@ void RateLimitManager::LogViolation() {
     for (size_t i = 0; i < m_history.size(); ++i) {
         const auto& item = m_history[i];
         lines.append(QString("#%1: request %2 sent %3, received %4, status %5: %6").arg(
-            QString::number(i+1),
+            QString::number(i + 1),
             QString::number(item.request_id),
-            item.request_time.toString(),
-            item.reply_time.toString(),
+            item.request_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
+            item.reply_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
             QString::number(item.reply_status),
             item.request_url));
     };
-    lines.append("</RATE_LIMIT_VIOLATION>");
+    lines.append("</RATE_LIMIT_POLICY>");
     spdlog::debug(lines.join("\n"));
 }
 
@@ -277,9 +294,10 @@ void RateLimitManager::Update(QNetworkReply* reply) {
     // Grow the history capacity if needed.
     const size_t capacity = m_history.capacity();
     const size_t max_hits = m_policy->maximum_hits();
-    if (capacity < max_hits) {
-        spdlog::debug("{} increasing capacity from {} to {}", m_policy->name(), capacity, max_hits);
-        m_history.set_capacity(max_hits);
+    const size_t history_size = max_hits + HISTORY_BUFFER;
+    if (capacity < history_size) {
+        spdlog::debug("{} increasing capacity from {} to {}", m_policy->name(), capacity, history_size);
+        m_history.set_capacity(history_size);
     };
 
     emit PolicyUpdated(policy());

@@ -96,7 +96,7 @@ private:
     const SendFcn m_sender;
 
     // Used to print log messages about rate limit violations.
-    void LogViolation();
+    void LogPolicyHistory();
 
     // Called right after active_request is loaded with a new request. This
     // will determine when that request can be sent and setup the active

@@ -50,7 +50,7 @@ RateLimitData::RateLimitData(const QByteArray& header_fragment)
 RateLimitItem::RateLimitItem(const QByteArray& limit_fragment, const QByteArray& state_fragment)
     : m_limit(limit_fragment)
     , m_state(state_fragment)
-    , m_resolution(-1)
+    , m_resolution(0)
 {
     // Determine the status of this item.
     if (m_state.period() != m_limit.period()) {

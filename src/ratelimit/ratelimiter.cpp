@@ -195,7 +195,7 @@ void RateLimiter::ProcessHeadResponse(
     QNetworkReply* network_reply)
 {
     spdlog::trace("RateLimiter::ProcessHeadResponse() entered");
-    spdlog::trace("RateLimiter::ProcessHeadResponse() endpoint = {}" , endpoint);
+    spdlog::trace("RateLimiter::ProcessHeadResponse() endpoint = {}", endpoint);
     spdlog::trace("RateLimiter::ProcessHeadResponse() url = {}", network_request.url().toString());
 
     // Make sure the network reply is a valid pointer before using it.
@@ -373,7 +373,7 @@ void RateLimiter::OnManagerPaused(const QString& policy_name, const QDateTime& u
 
 void RateLimiter::OnViolation(const QString& policy_name) {
     ++m_violation_count;
-    spdlog::error("RateLimiter: {} rate limit violations detected.", m_violation_count);
+    spdlog::error("RateLimiter: {} was violated. So far {} rate limit violations have been detected.", policy_name, m_violation_count);
 }
 
 void RateLimiter::SendStatusUpdate()
