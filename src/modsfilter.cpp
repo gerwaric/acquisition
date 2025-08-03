@@ -31,7 +31,7 @@
 #include "modlist.h"
 
 SelectedMod::SelectedMod(
-    const QString &name, double min, double max, bool min_filled, bool max_filled)
+    const QString& name, double min, double max, bool min_filled, bool max_filled)
     : m_data(name, min, max, min_filled, max_filled)
     , m_mod_select(&mod_list_model(), name)
     , m_delete_button("X")
@@ -122,20 +122,20 @@ void ModsFilter::ToForm(FilterData* data) {
     ResetForm();
 
     // Add search mods from the filter data.
-    for (auto &data : data->mod_data) {
-        auto mod = std::make_unique<SelectedMod>(data.mod,
-                                                 data.min,
-                                                 data.max,
-                                                 data.min_filled,
-                                                 data.max_filled);
+    for (auto& mod_data : data->mod_data) {
+        auto mod = std::make_unique<SelectedMod>(mod_data.mod,
+            mod_data.min,
+            mod_data.max,
+            mod_data.min_filled,
+            mod_data.max_filled);
         QObject::connect(mod.get(),
-                         &SelectedMod::ModChanged,
-                         &m_signal_handler,
-                         &ModsFilterSignalHandler::OnModChanged);
+            &SelectedMod::ModChanged,
+            &m_signal_handler,
+            &ModsFilterSignalHandler::OnModChanged);
         QObject::connect(mod.get(),
-                         &SelectedMod::ModDeleted,
-                         &m_signal_handler,
-                         &ModsFilterSignalHandler::OnModDeleted);
+            &SelectedMod::ModDeleted,
+            &m_signal_handler,
+            &ModsFilterSignalHandler::OnModDeleted);
 
         m_mods.push_back(std::move(mod));
         m_mods.back()->AddToLayout(&m_layout);
