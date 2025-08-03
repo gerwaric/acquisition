@@ -268,7 +268,7 @@ void Shop::OnStashIndexReceived(bool force, QNetworkReply *reply)
     const auto &tabs = doc["tabs"];
     spdlog::debug("Shop: received legacy tabs list, there are {} tabs", tabs.Size());
     for (const auto &tab : tabs) {
-        const int index = tab["i"].GetInt();
+        const unsigned index = static_cast<unsigned>(tab["i"].GetInt());
         const QString uid = QString::fromStdString(tab["id"].GetString()).first(10);
         m_tab_index[uid] = index;
         if ((old_index.count(uid) == 0) || (old_index.at(uid) != index)) {
