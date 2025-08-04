@@ -421,7 +421,6 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthStashListRequest(
     const QString& realm,
     const QString& league)
 {
-    spdlog::trace("ItemsManagerWorker::MakeOAuthStashListRequest() entered");
     QString url(kOAuthListStashesUrl);
     if (realm != "pc") {
         url += "/" + realm;
@@ -433,7 +432,6 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthStashListRequest(
 QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterListRequest(
     const QString& realm)
 {
-    spdlog::trace("ItemsManagerWorker::MakeOAuthCharacterListRequest() entered");
     QString url(kOAuthListCharactersUrl);
     if (realm != "pc") {
         url += "/" + realm;
@@ -447,7 +445,6 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthStashRequest(
     const QString& stash_id,
     const QString& substash_id)
 {
-    spdlog::trace("ItemsManagerWorker::MakeOAuthStashRequest() entered");
     QString url(kOAuthGetStashUrl);
     if (realm != "pc") {
         url += "/" + realm;
@@ -464,7 +461,6 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterRequest(
     const QString& realm,
     const QString& name)
 {
-    spdlog::trace("ItemsManagerWorker::MakeOAuthCharacterRequest() entered");
     QString url(kOAuthGetCharacterUrl);
     if (realm != "pc") {
         url += "/" + realm;
@@ -473,7 +469,7 @@ QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterRequest(
     return QNetworkRequest(QUrl(url));
 }
 
-bool ItemsManagerWorker::IsOAuthTabValid(rapidjson::Value &tab)
+bool ItemsManagerWorker::IsOAuthTabValid(rapidjson::Value& tab)
 {
     // Get the name of the stash tab.
     if (!HasString(tab, "name")) {
@@ -508,9 +504,9 @@ bool ItemsManagerWorker::IsOAuthTabValid(rapidjson::Value &tab)
     return true;
 }
 
-void ItemsManagerWorker::ProcessOAuthTab(rapidjson::Value &tab,
-                                         int &count,
-                                         rapidjson_allocator &alloc)
+void ItemsManagerWorker::ProcessOAuthTab(rapidjson::Value& tab,
+    int& count,
+    rapidjson_allocator& alloc)
 {
     // Skip this tab if it doesn't pass sanity checks.
     if (!IsOAuthTabValid(tab)) {
@@ -551,7 +547,7 @@ void ItemsManagerWorker::ProcessOAuthTab(rapidjson::Value &tab,
 
         // Process any children.
         if (tab.HasMember("children")) {
-            for (auto &child : tab["children"]) {
+            for (auto& child : tab["children"]) {
                 ProcessOAuthTab(child, count, alloc);
             };
         };
@@ -610,10 +606,10 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply* reply) {
 
     int tabs_requested = 0;
 
-    auto &alloc = doc.GetAllocator();
+    auto& alloc = doc.GetAllocator();
 
     // Queue stash tab requests.
-    for (rapidjson::Value &tab : stashes) {
+    for (rapidjson::Value& tab : stashes) {
         // This will process tabs recursively.
         ProcessOAuthTab(tab, tabs_requested, alloc);
     };
@@ -657,7 +653,7 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
         return;
     };
 
-    const auto &characters = doc["characters"].GetArray();
+    const auto& characters = doc["characters"].GetArray();
     int requested_character_count = 0;
     for (auto& character : characters) {
         if (!HasString(character, "name")) {
@@ -679,7 +675,7 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply* reply) {
             continue;
         };
         if (league != m_league) {
-            spdlog::trace("Skipping {} because this character is not in leage {}", name, m_league);
+            spdlog::trace("Skipping {} because this character is not in league {}", name, m_league);
             continue;
         };
         if (m_tab_id_index.count(name) > 0) {
@@ -866,7 +862,7 @@ void ItemsManagerWorker::OnLegacyCharacterListReceived(QNetworkReply* reply) {
         };
         const QString league = character["league"].GetString();
         if (league != m_league) {
-            spdlog::debug("Skipping {} because this character is not in {}", name, m_league);
+            spdlog::debug("Skipping {} because this character is not in league {}", name, m_league);
             continue;
         };
         if (m_tab_id_index.count(name) > 0) {
@@ -962,8 +958,6 @@ QNetworkRequest ItemsManagerWorker::MakeLegacyPassivesRequest(const QString& nam
 }
 
 void ItemsManagerWorker::QueueRequest(const QString& endpoint, const QNetworkRequest& request, const ItemLocation& location) {
-    spdlog::trace("ItemsManagerWorker::QueueRequest() entered");
-
     spdlog::trace("Queued ({}) -- {}", (m_queue_id + 1), location.GetHeader());
     ItemsRequest items_request;
     items_request.endpoint = endpoint;
@@ -1037,7 +1031,7 @@ void ItemsManagerWorker::FetchItems() {
     }
 }
 
-bool ItemsManagerWorker::IsLegacyTabValid(rapidjson::Value &tab)
+bool ItemsManagerWorker::IsLegacyTabValid(rapidjson::Value& tab)
 {
     if (!HasString(tab, "n")) {
         spdlog::error("Legacy tab does not have name");
@@ -1077,9 +1071,9 @@ bool ItemsManagerWorker::IsLegacyTabValid(rapidjson::Value &tab)
     return true;
 }
 
-void ItemsManagerWorker::ProcessLegacyTab(rapidjson::Value &tab,
-                                          int &count,
-                                          rapidjson_allocator &alloc)
+void ItemsManagerWorker::ProcessLegacyTab(rapidjson::Value& tab,
+    int& count,
+    rapidjson_allocator& alloc)
 {
     if (!IsLegacyTabValid(tab)) {
         return;
@@ -1116,7 +1110,7 @@ void ItemsManagerWorker::ProcessLegacyTab(rapidjson::Value &tab,
 
         // Process any children.
         if (tab.HasMember("children")) {
-            for (auto &child : tab["children"]) {
+            for (auto& child : tab["children"]) {
                 ProcessLegacyTab(child, count, alloc);
             };
         };
@@ -1176,7 +1170,7 @@ void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply* reply) {
 
     // Queue stash tab requests.
     int count = 0;
-    auto &alloc = doc.GetAllocator();
+    auto& alloc = doc.GetAllocator();
     for (auto& tab : tabs) {
         ProcessLegacyTab(tab, count, alloc);
     };
@@ -1221,8 +1215,6 @@ void ItemsManagerWorker::SendStatusUpdate() {
 }
 
 void ItemsManagerWorker::ParseItems(rapidjson::Value& value, const ItemLocation& base_location, rapidjson_allocator& alloc) {
-    spdlog::trace("ItemsManagerWorker::ParseItems() entered");
-
     ItemLocation location = base_location;
 
     for (auto& item : value) {

@@ -36,7 +36,6 @@ private:
     CATEGORY_DATA() = default;
 public:
     static CATEGORY_DATA& instance() {
-        spdlog::trace("CATEGORY_DATA::instance() entered");
         static CATEGORY_DATA data;
         return data;
     };
@@ -95,7 +94,7 @@ void InitItemClasses(const QByteArray& classes) {
 void InitItemBaseTypes(const QByteArray& baseTypes) {
 
     static bool basetypes_initialized = false;
-    
+
     spdlog::debug("Initializing item base types");
     rapidjson::Document doc;
     doc.Parse(baseTypes.constData());
@@ -151,17 +150,15 @@ QString GetItemCategory(const QString& baseType) {
         rslt = data.m_itemClassKeyToValue.find(key);
         if (rslt != data.m_itemClassKeyToValue.end()) {
             QString category = rslt->second.toLower();
-            spdlog::trace("GetItemCategory: category is {}", category);
             return category;
         };
     };
 
-    spdlog::trace("GetItemCategory: could not categorize baseType: {}", baseType);
+    spdlog::trace("GetItemCategory: could not categorize baseType: '{}'", baseType);
     return "";
 }
 
 const QStringList& GetItemCategories() {
-    spdlog::trace("GetItemCategories() entered");
     auto& data = CATEGORY_DATA::instance();
     if (data.categories.isEmpty()) {
         spdlog::error("Item categories have not been initialized");

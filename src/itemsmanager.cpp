@@ -86,7 +86,6 @@ void ItemsManager::Start(POE_API mode) {
 }
 
 void ItemsManager::OnStatusUpdate(ProgramState state, const QString& status) {
-    spdlog::trace("ItemsManager::OnStatusUpdate() entered");
     emit StatusUpdate(state, status);
 }
 
