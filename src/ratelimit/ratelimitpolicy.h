@@ -75,13 +75,10 @@ public:
     const RateLimitData& limit() const { return m_limit; };
     const RateLimitData& state() const { return m_state; };
     RateLimit::Status status() const { return m_status; };
-    QDateTime GetNextSafeSend(const boost::circular_buffer<RateLimit::Event>& history) const;
-    int EstimateDuration(int request_count, int minimum_delay_msec) const;
 private:
     RateLimitData m_limit;
     RateLimitData m_state;
     RateLimit::Status m_status;
-    unsigned m_resolution;
 };
 
 class RateLimitRule {
@@ -90,7 +87,7 @@ public:
     void Check(const RateLimitRule& other, const QString& prefix) const;
     const QString& name() const { return m_name; };
     const std::vector<RateLimitItem>& items() const { return m_items; };
-    RateLimit:: Status status() const { return m_status; };
+    RateLimit::Status status() const { return m_status; };
     int maximum_hits() const { return m_maximum_hits; };
 private:
     const QString m_name;

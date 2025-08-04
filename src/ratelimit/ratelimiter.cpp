@@ -93,9 +93,7 @@ RateLimitedReply* RateLimiter::Submit(
     const QString& endpoint,
     QNetworkRequest network_request)
 {
-    spdlog::trace("RateLimiter::Submit() entered");
-    spdlog::trace("RateLimiter::Submit() endpoint = {}", endpoint);
-    spdlog::trace("RateLimiter::Submit() network_request = {}", network_request.url().toString());
+    spdlog::trace("RateLimiter::Submit() endpoint = '{}', url = '{}'", endpoint, network_request.url().toString());
 
     // Make sure the user agent is set according to GGG's guidance.
     network_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
@@ -194,9 +192,7 @@ void RateLimiter::ProcessHeadResponse(
     RateLimitedReply* reply,
     QNetworkReply* network_reply)
 {
-    spdlog::trace("RateLimiter::ProcessHeadResponse() entered");
-    spdlog::trace("RateLimiter::ProcessHeadResponse() endpoint = {}", endpoint);
-    spdlog::trace("RateLimiter::ProcessHeadResponse() url = {}", network_request.url().toString());
+    spdlog::trace("RateLimiter::ProcessHeadResponse() endpoint='{}', url='{}'", endpoint, network_request.url().toString());
 
     // Make sure the network reply is a valid pointer before using it.
     if (network_reply == nullptr) {
@@ -361,7 +357,6 @@ void RateLimiter::OnPolicyUpdated(const RateLimitPolicy& policy)
 }
 
 void RateLimiter::OnQueueUpdated(const QString& policy_name, int queued_requests) {
-    spdlog::trace("RateLimiter::OnQueueUpdated() entered");
     emit QueueUpdate(policy_name, queued_requests);
 }
 

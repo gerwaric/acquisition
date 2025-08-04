@@ -108,6 +108,8 @@ void RateLimitManager::ReceiveReply()
     spdlog::trace("RateLimitManager::ReceiveReply() entered");
     QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
 
+    const QDateTime now = QDateTime::currentDateTime().toLocalTime();
+
     if (!m_policy) {
         spdlog::error("The rate limit manager cannot recieve a reply when the policy is null.");
         return;
@@ -129,6 +131,7 @@ void RateLimitManager::ReceiveReply()
     event.request_id = m_active_request->id;
     event.request_url = m_active_request->network_request.url().toString();
     event.request_time = m_active_request->send_time;
+    event.received_time = now;
     event.reply_time = RateLimit::ParseDate(reply).toLocalTime();
     event.reply_status = RateLimit::ParseStatus(reply);
     m_history.push_front(event);
@@ -166,14 +169,6 @@ void RateLimitManager::ReceiveReply()
             spdlog::error("Reply did not have an error, but the HTTP status indicates a rate limit violation.");
             violation_detected = true;
         };
-
-        // Extra debug logging for BORDERLINE policies while I'm trying to track down rate limit violations.
-        if (m_policy->status() == RateLimit::Status::BORDERLINE) {
-            const auto level = spdlog::get_level();
-            spdlog::set_level(spdlog::level::debug);
-            LogPolicyHistory();
-            spdlog::set_level(level);
-        }
 
         // Since the request finished successfully, signal complete()
         // so anyone listening can handle the reply.
@@ -228,50 +223,13 @@ void RateLimitManager::ReceiveReply()
     };
 
     if (violation_detected) {
-        spdlog::error("Rate limit violation detector for policy '{}'. See log for DEBUG details.", m_policy->name());
         const auto level = spdlog::get_level();
         spdlog::set_level(spdlog::level::debug);
+        spdlog::error("Rate limit violation detector for policy '{}'. See log for DEBUG details.", m_policy->name());
         LogPolicyHistory();
         spdlog::set_level(level);
         emit Violation(m_policy->name());
     };
-}
-
-void RateLimitManager::LogPolicyHistory() {
-
-    if (!spdlog::should_log(spdlog::level::debug)) {
-        spdlog::error("Rate limit violation detected for policy '{}'. Enable DEBUG logging for details.", m_policy->name());
-        return;
-    };
-
-    const QString name = m_policy->name();
-    const QString status = Util::toString(m_policy->status());
-
-    QStringList lines;
-    lines.append("Violation details:");
-    lines.append(QString("<RATE_LIMIT_POLICY policy_name='%1' status='%2'>").arg(name, status));
-    for (const auto& rule : m_policy->rules()) {
-        for (const auto& item : rule.items()) {
-            lines.append(QString("%1:%2(%3s) = %4/%5").arg(
-                m_policy->name(),
-                rule.name(),
-                QString::number(item.limit().period()),
-                QString::number(item.state().hits()),
-                QString::number(item.limit().hits())));
-        };
-    };
-    for (size_t i = 0; i < m_history.size(); ++i) {
-        const auto& item = m_history[i];
-        lines.append(QString("#%1: request %2 sent %3, received %4, status %5: %6").arg(
-            QString::number(i + 1),
-            QString::number(item.request_id),
-            item.request_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
-            item.reply_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
-            QString::number(item.reply_status),
-            item.request_url));
-    };
-    lines.append("</RATE_LIMIT_POLICY>");
-    spdlog::debug(lines.join("\n"));
 }
 
 void RateLimitManager::Update(QNetworkReply* reply) {
@@ -311,7 +269,6 @@ void RateLimitManager::QueueRequest(
     const QNetworkRequest& network_request,
     RateLimitedReply* reply)
 {
-    spdlog::trace("RateLimitManager::QueueRequest() entered");
     auto request = std::make_unique<RateLimitedRequest>(endpoint, network_request, reply);
     m_queued_requests.push_back(std::move(request));
     if (m_active_request) {
@@ -344,6 +301,11 @@ void RateLimitManager::ActivateRequest() {
     emit QueueUpdated(m_policy->name(), static_cast<int>(m_queued_requests.size()));
 
     const QDateTime now = QDateTime::currentDateTime();
+
+    if (m_policy->status() == RateLimit::Status::BORDERLINE) {
+        if (spdlog::should_log(spdlog::level::debug)) {
+        }
+    }
 
     QDateTime next_send = m_policy->GetNextSafeSend(m_history);
 
@@ -389,4 +351,33 @@ void RateLimitManager::ActivateRequest() {
     if (delay > 0) {
         emit Paused(m_policy->name(), next_send);
     };
+}
+
+void RateLimitManager::LogPolicyHistory() {
+    const QString status = Util::toString(m_policy->status());
+    QStringList lines;
+    lines.append("Rate Limit Policy details:");
+    lines.append(QString("<RATE_LIMIT_POLICY policy_name='%1' status='%2'>").arg(m_policy->name(), status));
+    for (const auto& rule : m_policy->rules()) {
+        for (const auto& item : rule.items()) {
+            lines.append(QString("%1:%2(%3s) = %4/%5").arg(
+                m_policy->name(),
+                rule.name(),
+                QString::number(item.limit().period()),
+                QString::number(item.state().hits()),
+                QString::number(item.limit().hits())));
+        };
+    };
+    for (size_t i = 0; i < m_history.size(); ++i) {
+        const auto& item = m_history[i];
+        lines.append(QString("#%1: request %2 sent %3, received %4, status %5: %6").arg(
+            QString::number(i + 1),
+            QString::number(item.request_id),
+            item.request_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
+            item.reply_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
+            QString::number(item.reply_status),
+            item.request_url));
+    };
+    lines.append("</RATE_LIMIT_POLICY>");
+    spdlog::debug(lines.join("\n"));
 }

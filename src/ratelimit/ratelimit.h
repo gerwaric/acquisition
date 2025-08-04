@@ -22,6 +22,7 @@
 #include <QByteArray>
 #include <QByteArrayList>
 #include <QDateTime>
+#include <QObject>
 #include <QString>
 
 #include <boost/circular_buffer.hpp>
@@ -90,38 +91,11 @@ namespace RateLimit {
     enum class Status { UNKNOWN, OK, BORDERLINE, VIOLATION, INVALID };
     Q_ENUM_NS(Status)
 
-    // GGG has stated that when they are keeping track of request times,
-    // they have a timing resolution, which they called a "bucket".
-    //
-    // This explained some otherwise mysterious rate violations that I
-    // was seeing very intermittently. Unless there's a away to find out
-    // where those timing buckets begin and end precisely, all we can do
-    // is use the bucket size as a minimum delay.
-    //
-    // GGG has also stated that this bucket resolution may be different
-    // for different policies, but the one I had been asking them about
-    // was 5.0 seconds. They also noted that this number is currently
-    // not documented or exposed to api users in any way.
-    //
-    // As of June 2025, GGG has confirmed that all endpoints used by
-    // acquisition have a 5 second timing bucket for the "fast" rate
-    // limit, and a 1 minute bucket for the "slow" rate limit.
-
-    constexpr unsigned INITIAL_TIMING_BUCKET_SECS = 5;
-    constexpr unsigned SUSTAINED_TIMING_BUCKET_SECS = 60;
-
-    // There's nothing in the rate limit policy that says there's only
-    // a fast and slow rate limit, but that's what email from GGG has
-    // implied, so this is used as a heuristic for determining which
-    // is which.
-
-    constexpr unsigned int INITIAL_VS_SUSTAINED_PERIOD_CUTOFF = 75;
-
-
     struct Event {
         unsigned long request_id;
         QString request_url;
         QDateTime request_time;
+        QDateTime received_time;
         QDateTime reply_time;
         int reply_status;
     };

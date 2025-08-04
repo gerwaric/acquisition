@@ -28,6 +28,38 @@
 
 #include "ratelimit.h"
 
+// GGG has stated that when they are keeping track of request times,
+// they have a timing resolution, which they called a "bucket".
+//
+// This explained some otherwise mysterious rate violations that I
+// was seeing very intermittently. Unless there's a away to find out
+// where those timing buckets begin and end precisely, all we can do
+// is use the bucket size as a minimum delay.
+//
+// GGG has also stated that this bucket resolution may be different
+// for different policies, but the one I had been asking them about
+// was 5.0 seconds. They also noted that this number is currently
+// not documented or exposed to api users in any way.
+//
+// As of June 2025, GGG has confirmed that all endpoints used by
+// acquisition have a 5 second timing bucket for the "fast" rate
+// limit, and a 1 minute bucket for the "slow" rate limit.
+
+constexpr const int INITIAL_TIMING_BUCKET_SECS = 5;
+constexpr const int SUSTAINED_TIMING_BUCKET_SECS = 60;
+
+// There's nothing in the rate limit policy that says there's only
+// a fast and slow rate limit, but that's what email from GGG has
+// implied, so this is used as a heuristic for determining which
+// is which.
+
+constexpr const int INITIAL_VS_SUSTAINED_PERIOD_CUTOFF = 75;
+
+// Since we don't know how the server buckets are aligned or what
+// the error is, let's add a buffer.
+
+constexpr const int TIMING_BUCKET_BUFFER_SECS = 1;
+
 //=========================================================================================
 // RateLimitData
 //=========================================================================================
@@ -50,7 +82,6 @@ RateLimitData::RateLimitData(const QByteArray& header_fragment)
 RateLimitItem::RateLimitItem(const QByteArray& limit_fragment, const QByteArray& state_fragment)
     : m_limit(limit_fragment)
     , m_state(state_fragment)
-    , m_resolution(0)
 {
     // Determine the status of this item.
     if (m_state.period() != m_limit.period()) {
@@ -62,11 +93,6 @@ RateLimitItem::RateLimitItem(const QByteArray& limit_fragment, const QByteArray&
     } else {
         m_status = RateLimit::Status::OK;
     };
-
-    // Determine which timing resolution applies.
-    m_resolution = (m_limit.period() <= RateLimit::INITIAL_VS_SUSTAINED_PERIOD_CUTOFF)
-        ? RateLimit::INITIAL_TIMING_BUCKET_SECS
-        : RateLimit::SUSTAINED_TIMING_BUCKET_SECS;
 }
 
 void RateLimitItem::Check(const RateLimitItem& other, const QString& prefix) const {
@@ -79,77 +105,6 @@ void RateLimitItem::Check(const RateLimitItem& other, const QString& prefix) con
     if (m_limit.restriction() != other.m_limit.restriction()) {
         spdlog::warn("{} limit.restriction changed from {} to {}", prefix, m_limit.restriction(), other.m_limit.restriction());
     };
-}
-
-QDateTime RateLimitItem::GetNextSafeSend(const boost::circular_buffer<RateLimit::Event>& history) const {
-    spdlog::trace("RateLimit::RuleItem::GetNextSafeSend() entered");
-
-    const QDateTime now = QDateTime::currentDateTime().toLocalTime();
-
-    // We can send immediately if we have not bumped up against a rate limit.
-    if (m_state.hits() < m_limit.hits()) {
-        return now;
-    };
-
-    // Determine how far back into the history we can look.
-    const size_t n = (m_limit.hits() > history.size()) ? history.size() : m_limit.hits();
-
-    // Start with the timestamp of the earliest known 
-    // reply relevant to this limitation.
-    const QDateTime earliest = (n < 1) ? now : history[n - 1].reply_time;
-
-    QDateTime next_send = earliest.addSecs(m_limit.period());
-
-    // Add the timing bucket resolution if we are borderline to avoid rate limiting.
-    if (m_status >= RateLimit::Status::BORDERLINE) {
-        next_send = next_send.addSecs(m_resolution);
-    };
-
-    spdlog::trace(
-        "RateLimit::RuleItem::GetNextSafeSend()"
-        " n = {}"
-        " earliest = {} ({} seconds ago)"
-        " next_send = {} (in {} seconds)",
-        n,
-        earliest.toString(), earliest.secsTo(now),
-        next_send.toString(), now.secsTo(next_send));
-
-    // Calculate the next time it will be safe to send a request.
-    return next_send;
-}
-
-int RateLimitItem::EstimateDuration(int request_count, int minimum_delay_msec) const {
-    spdlog::trace("RateLimit::RuleItem::EstimateDuration() entered");
-
-    int duration = 0;
-
-    const int current_hits = m_state.hits();
-    const int max_hits = m_limit.hits();
-    const int period_length = m_limit.period();
-    const int restriction = m_limit.restriction();
-
-    int initial_burst = max_hits - current_hits;
-    if (initial_burst < 0) {
-        initial_burst = 0;
-        duration += restriction;
-    };
-
-    int remaining_requests = request_count - initial_burst;
-    if (remaining_requests < 0) {
-        remaining_requests = 0;
-    };
-
-    const int full_periods = (remaining_requests / max_hits);
-    const int final_burst = (remaining_requests % max_hits);
-
-    const int a = initial_burst * minimum_delay_msec;
-    const int b = full_periods * period_length * 1000;
-    const int c = final_burst * minimum_delay_msec;
-    const int total_msec = a + b + c;
-
-    duration += (total_msec / 1000);
-
-    return duration;
 }
 
 //=========================================================================================
@@ -201,7 +156,7 @@ void RateLimitRule::Check(const RateLimitRule& other, const QString& prefix) con
     } else {
 
         // Check each item
-        for (int i = 0; i < m_items.size(); ++i) {
+        for (size_t i = 0; i < m_items.size(); ++i) {
             const QString item_prefix = QString("%1 item #%2").arg(prefix, QString::number(i));
             const auto& old_item = m_items[i];
             const auto& new_item = other.m_items[i];
@@ -266,7 +221,7 @@ void RateLimitPolicy::Check(const RateLimitPolicy& other) const {
     } else {
 
         // The number of rules is the same, so check each one
-        for (int i = 0; i < m_rules.size(); ++i) {
+        for (size_t i = 0; i < m_rules.size(); ++i) {
             const QString prefix = QString("Rate limit policy %1, rule #%2:").arg(m_name, QString::number(i));
             const auto& old_rule = m_rules[i];
             const auto& new_rule = other.m_rules[i];
@@ -279,18 +234,104 @@ void RateLimitPolicy::Check(const RateLimitPolicy& other) const {
 QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<RateLimit::Event>& history) {
     spdlog::trace("RateLimit::Policy::GetNextSafeSend() entered");
 
-    QDateTime next_send = QDateTime::currentDateTime().toLocalTime();
+    const QDateTime now = QDateTime::currentDateTime().toLocalTime();
+
+    QDateTime next_send(now);
+
+    if (m_status >= RateLimit::Status::BORDERLINE) {
+        if (spdlog::should_log(spdlog::level::trace)) {
+            spdlog::trace("Next safe send for {} is {}", m_name, next_send.toString(Qt::ISODateWithMs));
+            QStringList lines;
+            lines.append(QString("<HISTORY policy='%1'>").arg(m_name));
+            for (size_t i = 0; i < history.size(); ++i) {
+                const auto& event = history[i];
+                const QString line = QString("%1 #%2 (request_id=%3): sent %4, received %5, reply %6 (status=%7, url='%8')").arg(
+                    m_name,
+                    QString::number(i + 1),
+                    QString::number(event.request_id),
+                    event.request_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
+                    event.received_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
+                    event.reply_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
+                    QString::number(event.reply_status),
+                    event.request_url);
+                lines.append(line);
+            };
+            lines.append("</HISTORY>");
+            spdlog::trace("Policy event history for {}:\n{}", m_name, lines.join("\n"));
+        }
+    }
+
+    spdlog::trace("Rate Limiting: calculating next safe send for {} policy", m_name);
+
     for (const auto& rule : m_rules) {
         for (const auto& item : rule.items()) {
-            const QDateTime t = item.GetNextSafeSend(history);
-            spdlog::trace("RateLimit::Policy::GetNextSafeSend() {} {} t = {} (in {} seconds)",
-                          m_name, rule.name(), t.toString(), QDateTime::currentDateTime().secsTo(t));
+
+            const RateLimitData& state = item.state();
+            const RateLimitData& limit = item.limit();
+            const auto period = limit.period();
+            const auto max_hits = limit.hits();
+            const auto current_hits = state.hits();
+
+            const QString prefix = QString("%1:%2[%3s]").arg(m_name, rule.name(), QString::number(period));
+
+            // If this item is not limiting, we can skip it.
+            if (current_hits < max_hits) {
+                spdlog::trace("{}: (state {}/{}), skipping", prefix, current_hits, max_hits);
+                continue;
+            }
+
+            // Determine how far back into the history we can look.
+            const size_t hits = static_cast<size_t>(limit.hits());
+            const size_t len = history.size();
+            const size_t n = (len < hits) ? len : hits;
+
+            spdlog::trace("{}: (state {}/{}), n={}/{}", prefix, current_hits, max_hits, n, len);
+
+            // Start with the timestamp of the earliest known
+            // reply relevant to this limitation.
+            QDateTime t;
+            if (n < 1) {
+                spdlog::trace("{}: using current time: {}", prefix, now.toString(Qt::ISODateWithMs));
+                t = now;
+            } else {
+                const auto& event = history[n - 1];
+                if (spdlog::should_log(spdlog::level::trace)) {
+                    QString message{ QStringList{
+                        QString("<EVENT>"),
+                        QString("request_id    = %1").arg(event.request_id),
+                        QString("request_url   = %1").arg(event.request_url),
+                        QString("request_time  = %1").arg(event.request_time.toString(Qt::ISODateWithMs)),
+                        QString("received_time = %1").arg(event.received_time.toString(Qt::ISODateWithMs)),
+                        QString("reply_time    = %1").arg(event.reply_time.toString(Qt::ISODateWithMs)),
+                        QString("reply_status  = %1").arg(event.reply_status),
+                        QString("</EVENT>")
+                    }.join("\n") };
+                    spdlog::trace("{}: using event {}/{}:\n{}", prefix, n, len, message);
+                }
+                t = event.reply_time;
+            }
+
+            // Add the measurement period.
+            t = t.addSecs(period);
+            spdlog::trace("{}: next_send is after adding {}s period", prefix, next_send.toString(Qt::ISODateWithMs), period);
+
+            // Determine which timing resolution applies.
+            const int delay = ((period <= INITIAL_VS_SUSTAINED_PERIOD_CUTOFF)
+                ? INITIAL_TIMING_BUCKET_SECS
+                : SUSTAINED_TIMING_BUCKET_SECS) + TIMING_BUCKET_BUFFER_SECS;
+
+            // Add the timing resolution.
+            t = t.addSecs(delay);
+            spdlog::trace("{}: next_send is {} after adding {}s for timing bucket", prefix, next_send.toString(Qt::ISODateWithMs), delay);
+
+            // Check to see if we need to update the final result.
             if (next_send < t) {
-                spdlog::trace("RateLimit::Policy::GetNextSafeSend() updating next_send");
                 next_send = t;
+                spdlog::trace("{}: next send is {} now", prefix, next_send.toString(Qt::ISODateWithMs));
             };
         };
     };
+
     return next_send;
 }
 
@@ -298,13 +339,43 @@ QDateTime RateLimitPolicy::EstimateDuration(int num_requests, int minimum_delay_
     spdlog::trace("RateLimit::Policy::EstimateDuration() entered");
 
     int longest_wait = 0;
+
     for (const auto& rule : m_rules) {
         for (const auto& item : rule.items()) {
-            const int wait = item.EstimateDuration(num_requests, minimum_delay_msec);
+
+            int wait = 0;
+
+            const int current_hits = item.state().hits();
+            const int max_hits = item.limit().hits();
+            const int period_length = item.limit().period();
+            const int restriction = item.limit().restriction();
+
+            int initial_burst = max_hits - current_hits;
+            if (initial_burst < 0) {
+                initial_burst = 0;
+                wait += restriction;
+            };
+
+            int remaining_requests = num_requests - initial_burst;
+            if (remaining_requests < 0) {
+                remaining_requests = 0;
+            };
+
+            const int full_periods = (remaining_requests / max_hits);
+            const int final_burst = (remaining_requests % max_hits);
+
+            const int a = initial_burst * minimum_delay_msec;
+            const int b = full_periods * period_length * 1000;
+            const int c = final_burst * minimum_delay_msec;
+            const int total_msec = a + b + c;
+
+            wait += (total_msec / 1000);
+
             if (longest_wait < wait) {
                 longest_wait = wait;
             };
         };
     };
+
     return QDateTime::currentDateTime().toLocalTime().addSecs(longest_wait);
 }
