@@ -107,9 +107,12 @@ public:
     int maximum_hits() const { return m_maximum_hits; };
     QDateTime GetNextSafeSend(const boost::circular_buffer<RateLimit::Event>& history);
     QDateTime EstimateDuration(int request_count, int minimum_delay_msec) const;
+	QString GetBorderlineReport() const { return m_borderline_report.join("\n"); };
 private:
     const QString m_name;
     std::vector<RateLimitRule> m_rules;
     RateLimit::Status m_status;
     int m_maximum_hits;
+
+	QStringList m_borderline_report;
 };

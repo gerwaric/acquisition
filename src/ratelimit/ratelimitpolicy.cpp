@@ -238,30 +238,14 @@ QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<RateLimi
 
     QDateTime next_send(now);
 
-    if (m_status >= RateLimit::Status::BORDERLINE) {
-        if (spdlog::should_log(spdlog::level::trace)) {
-            spdlog::trace("Next safe send for {} is {}", m_name, next_send.toString(Qt::ISODateWithMs));
-            QStringList lines;
-            lines.append(QString("<HISTORY policy='%1'>").arg(m_name));
-            for (size_t i = 0; i < history.size(); ++i) {
-                const auto& event = history[i];
-                const QString line = QString("%1 #%2 (request_id=%3): sent %4, received %5, reply %6 (status=%7, url='%8')").arg(
-                    m_name,
-                    QString::number(i + 1),
-                    QString::number(event.request_id),
-                    event.request_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
-                    event.received_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
-                    event.reply_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
-                    QString::number(event.reply_status),
-                    event.request_url);
-                lines.append(line);
-            };
-            lines.append("</HISTORY>");
-            spdlog::trace("Policy event history for {}:\n{}", m_name, lines.join("\n"));
-        }
-    }
-
     spdlog::trace("Rate Limiting: calculating next safe send for {} policy", m_name);
+
+	const bool is_borderline = m_status == RateLimit::Status::BORDERLINE;
+
+	if (is_borderline) {
+		m_borderline_report.clear();
+		m_borderline_report.append("<----- BORDERLINE_REPORT ----->");
+	}
 
     for (const auto& rule : m_rules) {
         for (const auto& item : rule.items()) {
@@ -295,25 +279,23 @@ QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<RateLimi
                 t = now;
             } else {
                 const auto& event = history[n - 1];
-                if (spdlog::should_log(spdlog::level::trace)) {
-                    QString message{ QStringList{
-                        QString("<EVENT>"),
-                        QString("request_id    = %1").arg(event.request_id),
-                        QString("request_url   = %1").arg(event.request_url),
-                        QString("request_time  = %1").arg(event.request_time.toString(Qt::ISODateWithMs)),
-                        QString("received_time = %1").arg(event.received_time.toString(Qt::ISODateWithMs)),
-                        QString("reply_time    = %1").arg(event.reply_time.toString(Qt::ISODateWithMs)),
-                        QString("reply_status  = %1").arg(event.reply_status),
-                        QString("</EVENT>")
-                    }.join("\n") };
-                    spdlog::trace("{}: using event {}/{}:\n{}", prefix, n, len, message);
+				if (is_borderline) {
+					m_borderline_report.append(QString("<NEXT_SEND_BASED_ON index=%1, history_size=%2>").arg(n).arg(len));
+					m_borderline_report.append(QString("request_id    = %1").arg(event.request_id));
+					m_borderline_report.append(QString("request_url   = %1").arg(event.request_url));
+					m_borderline_report.append(QString("request_time  = %1").arg(event.request_time.toString(Qt::ISODateWithMs)));
+					m_borderline_report.append(QString("received_time = %1").arg(event.received_time.toString(Qt::ISODateWithMs)));
+					m_borderline_report.append(QString("reply_time    = %1").arg(event.reply_time.toString(Qt::ISODateWithMs)));
+					m_borderline_report.append(QString("reply_status  = %1").arg(event.reply_status));
+					m_borderline_report.append(QString("</EVENT>"));
                 }
-                t = event.reply_time;
+				spdlog::trace("{}: using history event {}/{} replied at {}", prefix, n, len, event.received_time.toString(Qt::ISODateWithMs));
+				t = event.reply_time;
             }
 
             // Add the measurement period.
             t = t.addSecs(period);
-            spdlog::trace("{}: next_send is after adding {}s period", prefix, next_send.toString(Qt::ISODateWithMs), period);
+			spdlog::trace("{}: next_send is {} after adding {}s period", prefix, next_send.toString(Qt::ISODateWithMs), period);
 
             // Determine which timing resolution applies.
             const int delay = ((period <= INITIAL_VS_SUSTAINED_PERIOD_CUTOFF)
@@ -331,6 +313,25 @@ QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<RateLimi
             };
         };
     };
+
+	if (is_borderline) {
+		m_borderline_report.append(QString("<HISTORY_BEFORE_VIOLATION policy='%1'>").arg(m_name));
+		for (size_t i = 0; i < history.size(); ++i) {
+			const auto& event = history[i];
+			const QString line = QString("%1 #%2 (request_id=%3): sent %4, received %5, reply %6 (status=%7, url='%8')").arg(
+				m_name,
+				QString::number(i + 1),
+				QString::number(event.request_id),
+				event.request_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
+				event.received_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
+				event.reply_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
+				QString::number(event.reply_status),
+				event.request_url);
+			m_borderline_report.append(line);
+		};
+		m_borderline_report.append("</HISTORY_BEFORE_VIOLATION>");
+	}
+
 
     return next_send;
 }

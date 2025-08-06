@@ -31,10 +31,10 @@
 #include <util/util.h>
 
 #include "ratelimit.h"
-#include "ratelimitpolicy.h"
 #include "ratelimitedreply.h"
 #include "ratelimitedrequest.h"
 #include "ratelimiter.h"
+#include "ratelimitpolicy.h"
 
 // For debugging rate limit violations, keep around more history than should be needed
 constexpr int HISTORY_BUFFER = 5;
@@ -223,11 +223,10 @@ void RateLimitManager::ReceiveReply()
     };
 
     if (violation_detected) {
-        const auto level = spdlog::get_level();
-        spdlog::set_level(spdlog::level::debug);
-        spdlog::error("Rate limit violation detector for policy '{}'. See log for DEBUG details.", m_policy->name());
+        spdlog::error("Rate limit violation detector for policy '{}':\n{}",
+                      m_policy->name(),
+                      m_policy->GetBorderlineReport());
         LogPolicyHistory();
-        spdlog::set_level(level);
         emit Violation(m_policy->name());
     };
 }
@@ -302,11 +301,6 @@ void RateLimitManager::ActivateRequest() {
 
     const QDateTime now = QDateTime::currentDateTime();
 
-    if (m_policy->status() == RateLimit::Status::BORDERLINE) {
-        if (spdlog::should_log(spdlog::level::debug)) {
-        }
-    }
-
     QDateTime next_send = m_policy->GetNextSafeSend(m_history);
 
     if (next_send.isValid() == false) {
@@ -379,5 +373,5 @@ void RateLimitManager::LogPolicyHistory() {
             item.request_url));
     };
     lines.append("</RATE_LIMIT_POLICY>");
-    spdlog::debug(lines.join("\n"));
+    spdlog::error(lines.join("\n"));
 }
