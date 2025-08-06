@@ -34,21 +34,23 @@
 
 #include <ui/searchcombobox.h>
 
-class SelectedMod : public QObject {
+class SelectedMod : public QObject
+{
     Q_OBJECT
 public:
-    SelectedMod(const QString& name, double min, double max, bool min_selected, bool max_selected);
-    void AddToLayout(QGridLayout* layout);
-    void RemoveFromLayout(QGridLayout* layout);
-    const ModFilterData& data() const { return m_data; }
+    SelectedMod(const QString &name, double min, double max, bool min_selected, bool max_selected);
+    void AddToLayout(QGridLayout *layout);
+    void RemoveFromLayout(QGridLayout *layout);
+    const ModFilterData &data() const { return m_data; }
 signals:
-    void ModChanged(SelectedMod& mod);
-    void ModDeleted(SelectedMod& mod);
+    void ModChanged(SelectedMod &mod);
+    void ModDeleted(SelectedMod &mod);
 private slots:
     void OnModChanged();
     void OnMinChanged();
     void OnMaxChanged();
     void OnModDeleted();
+
 private:
     ModFilterData m_data;
     SearchComboBox m_mod_select;
@@ -58,38 +60,40 @@ private:
 
 class ModsFilter;
 
-class ModsFilterSignalHandler : public QObject {
+class ModsFilterSignalHandler : public QObject
+{
     Q_OBJECT
 public:
-    ModsFilterSignalHandler(ModsFilter& parent) : m_parent(parent) {}
+    ModsFilterSignalHandler(ModsFilter &parent)
+        : m_parent(parent)
+    {}
 signals:
     void SearchFormChanged();
 public slots:
     void OnAddButtonClicked();
     void OnModChanged();
-    void OnModDeleted(SelectedMod& mod);
+    void OnModDeleted(SelectedMod &mod);
+
 private:
-    ModsFilter& m_parent;
+    ModsFilter &m_parent;
 };
 
-class ModsFilter : public Filter {
+class ModsFilter : public Filter
+{
     friend class ModsFilterSignalHandler;
+
 public:
-    enum LayoutColumn {
-        kMinField,
-        kMaxField,
-        kDeleteButton,
-        kColumnCount
-    };
-    explicit ModsFilter(QLayout* parent);
-    void FromForm(FilterData* data);
-    void ToForm(FilterData* data);
+    enum LayoutColumn { kMinField, kMaxField, kDeleteButton, kColumnCount };
+    explicit ModsFilter(QLayout *parent);
+    void FromForm(FilterData *data);
+    void ToForm(FilterData *data);
     void ResetForm();
-    bool Matches(const std::shared_ptr<Item>& item, FilterData* data);
+    bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
+
 private:
     void AddNewMod();
     void UpdateMod();
-    void DeleteMod(SelectedMod& mod);
+    void DeleteMod(SelectedMod &mod);
 
     QGridLayout m_layout;
     std::vector<std::unique_ptr<SelectedMod>> m_mods;

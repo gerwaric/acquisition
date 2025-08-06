@@ -28,27 +28,29 @@ class QNetworkReply;
 
 enum class ProgramState;
 
-class RePoE : public QObject {
+class RePoE : public QObject
+{
     Q_OBJECT
 public:
-    RePoE(QNetworkAccessManager& network_manager);
-    void Init(const QString& data_dir);
+    RePoE(QNetworkAccessManager &network_manager);
+    void Init(const QString &data_dir);
     bool IsInitialized() const { return m_initialized; };
 signals:
-    void StatusUpdate(ProgramState state, const QString& status);
+    void StatusUpdate(ProgramState state, const QString &status);
     void finished();
 public slots:
     void OnVersionReceived();
     void OnFileReceived();
+
 private:
     void BeginUpdate();
     void RequestNextFile();
     void FinishUpdate();
-    QByteArray ReadFile(const QString& filename);
-    QString ParseVersion(const QString& contents);
+    QByteArray ReadFile(const QString &filename);
+    QString ParseVersion(const QString &contents);
 
     bool m_initialized;
-    QNetworkAccessManager& m_network_manager;
+    QNetworkAccessManager &m_network_manager;
     QString m_data_dir;
     std::vector<QString> m_needed_files;
 };

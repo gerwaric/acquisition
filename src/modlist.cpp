@@ -37,7 +37,7 @@ using rapidjson::HasBool;
 
 QStringListModel m_mod_list_model;
 std::set<QString> mods;
-std::unordered_map<QString, SumModGenerator*> mods_map;
+std::unordered_map<QString, SumModGenerator *> mods_map;
 std::vector<SumModGen> mod_generators;
 
 /* ------------------- TBD - FIX THIS!!! --------------------------
@@ -146,27 +146,31 @@ const std::vector<std::vector<QString>> simple_sum = {
 };
 */
 
-QStringListModel& mod_list_model() {
+QStringListModel &mod_list_model()
+{
     return m_mod_list_model;
 }
 
-void InitStatTranslations() {
+void InitStatTranslations()
+{
     spdlog::trace("InitStatTranslations() entered");
     mods.clear();
 }
 
-void AddStatTranslations(const QByteArray& statTranslations) {
+void AddStatTranslations(const QByteArray &statTranslations)
+{
     spdlog::trace("AddStatTranslations() entered");
 
     rapidjson::Document doc;
     doc.Parse(statTranslations.constData());
     if (doc.HasParseError()) {
-        spdlog::error("Couldn't properly parse Stat Translations from RePoE, canceling Mods Update");
+        spdlog::error(
+            "Couldn't properly parse Stat Translations from RePoE, canceling Mods Update");
         return;
-    };
+    }
 
-    for (auto& translation : doc) {
-        for (auto& stat : translation["English"]) {
+    for (auto &translation : doc) {
+        for (auto &stat : translation["English"]) {
             if (HasBool(stat, "is_markup") && (stat["is_markup"].GetBool() == true)) {
                 // This was added with the change to process json files inside
                 // the stat_translations directory. In this case, the necropolis
@@ -179,85 +183,90 @@ void AddStatTranslations(const QByteArray& statTranslations) {
                 continue;
             };
             std::vector<QString> formats;
-            for (auto& format : stat["format"]) {
+            for (auto &format : stat["format"]) {
                 formats.push_back(format.GetString());
-            };
+            }
             QString stat_string = stat["string"].GetString();
             if (formats[0].compare("ignore") != 0) {
                 for (size_t i = 0; i < formats.size(); i++) {
                     QString searchString = "{" + QString::number(i) + "}";
                     stat_string.replace(searchString, formats[i]);
-                };
-            };
+                }
+            }
             if (stat_string.length() > 0) {
                 mods.insert(stat_string);
-            };
-        };
-    };
+            }
+        }
+    }
 }
 
-void InitModList() {
+void InitModList()
+{
     spdlog::trace("InitModList() entered");
 
     std::set<QString> mod_strings;
     mod_generators.clear();
     mods_map.clear();
-    for (auto& mod : mods) {
+    for (auto &mod : mods) {
         if (mod_strings.count(mod) > 0) {
             spdlog::warn("InitModList(): duplicate mod: {}", mod);
         } else {
             mod_strings.insert(mod);
-            std::vector<QString> list = { mod };
+            std::vector<QString> list = {mod};
             SumModGen gen = std::make_shared<SumModGenerator>(mod, list);
             mods_map[mod] = gen.get();
             mod_generators.push_back(gen);
-        };
-    };
+        }
+    }
     QStringList mod_list;
     mod_list.reserve(mod_strings.size());
-    for (auto& mod : mod_strings) {
+    for (auto &mod : mod_strings) {
         mod_list.append(mod);
-    };
+    }
     mod_list.sort(Qt::CaseInsensitive);
     m_mod_list_model.setStringList(mod_list);
 }
 
-void ModGenerator::Generate(const rapidjson::Value& json, ModTable* output) {
+void ModGenerator::Generate(const rapidjson::Value &json, ModTable *output)
+{
     Generate(json.GetString(), output);
 }
 
-SumModGenerator::SumModGenerator(const QString& name, const std::vector<QString>& matches) :
-    m_name(name),
-    m_matches(matches)
+SumModGenerator::SumModGenerator(const QString &name, const std::vector<QString> &matches)
+    : m_name(name)
+    , m_matches(matches)
 {}
 
-bool SumModGenerator::Match(const char* mod, double* output) {
+bool SumModGenerator::Match(const char *mod, double *output)
+{
     bool found = false;
     *output = 0.0;
-    for (auto& match : m_matches) {
+    for (auto &match : m_matches) {
         double result = 0.0;
         if (Util::MatchMod(match.toStdString().c_str(), mod, &result)) {
             *output += result;
             found = true;
-        };
-    };
+        }
+    }
     return found;
 }
 
-void SumModGenerator::Generate(const QString& mod, ModTable* output) {
+void SumModGenerator::Generate(const QString &mod, ModTable *output)
+{
     double result;
     if (Match(mod.toStdString().c_str(), &result)) {
         (*output)[m_name] = result;
-    };
+    }
 }
 
-void AddModToTable(const QString& raw_mod, ModTable* output) {
+void AddModToTable(const QString &raw_mod, ModTable *output)
+{
     static const QRegularExpression rep("([0-9\\.]+)");
     QString mod = raw_mod;
     mod.replace(rep, "#");
     auto rslt = mods_map.find(mod);
     if (rslt != mods_map.end()) {
-        SumModGenerator* gen = rslt->second;
+        SumModGenerator *gen = rslt->second;
         gen->Generate(raw_mod, output);
-    };
+    }
 }

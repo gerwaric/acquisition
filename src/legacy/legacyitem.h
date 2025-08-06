@@ -27,21 +27,24 @@
 
 #include <util/json_struct_qt.h>
 
-struct LegacyItem {
-
-    struct Socket {
+struct LegacyItem
+{
+    struct Socket
+    {
         unsigned group;
         std::optional<QString> attr;
         JS_OBJ(group, attr);
     };
 
-    struct Property {
+    struct Property
+    {
         QString name;
         std::vector<std::tuple<QString, int>> values;
         JS_OBJ(name, values);
     };
 
-    struct HybridInfo {
+    struct HybridInfo
+    {
         std::optional<bool> isVaalGem;
         QString baseTypeName;
         JS_OBJ(isVaalGem, baseTypeName);
@@ -60,7 +63,16 @@ struct LegacyItem {
     std::optional<LegacyItem::HybridInfo> hybrid;
     std::optional<QString> _character;
     std::optional<QString> _tab_label;
-    JS_OBJ(name, typeLine, hybrid, implicitMods, explicitMods, properties, additionalProperties, sockets, _character, _tab_label);
+    JS_OBJ(name,
+           typeLine,
+           hybrid,
+           implicitMods,
+           explicitMods,
+           properties,
+           additionalProperties,
+           sockets,
+           _character,
+           _tab_label);
 
     // Duplicate the way acquisition handles typeLine for vaal gems.
     QString effectiveTypeLine() const;

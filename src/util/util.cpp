@@ -21,63 +21,64 @@
 
 #include <QComboBox>
 #include <QCryptographicHash>
-#include <QLineEdit>
-#include <QLabel>
 #include <QFontMetrics>
+#include <QLabel>
+#include <QLineEdit>
 #include <QMetaEnum>
 #include <QNetworkReply>
+#include <QPainter>
 #include <QRegularExpression>
 #include <QString>
 #include <QStringList>
 #include <QTextDocument>
 #include <QUrlQuery>
-#include <QPainter>
 
 #include <cmath>
 
 #include <rapidjson/document.h>
-#include <rapidjson/writer.h>
 #include <rapidjson/prettywriter.h>
+#include <rapidjson/writer.h>
 
 #include <util/rapidjson_util.h>
 #include <util/spdlog_qt.h>
 
 #include "currency.h"
 
-QString Util::Md5(const QString& value) {
-    const QString hash = QString(QCryptographicHash::hash(value.toStdString().c_str(), QCryptographicHash::Md5).toHex());
+QString Util::Md5(const QString &value)
+{
+    const QString hash = QString(
+        QCryptographicHash::hash(value.toStdString().c_str(), QCryptographicHash::Md5).toHex());
     return hash.toUtf8().constData();
 }
 
-double Util::AverageDamage(const QString& s) {
+double Util::AverageDamage(const QString &s)
+{
     const QStringList parts = s.split("-");
     if (parts.size() < 2) {
         return s.toDouble();
     } else {
         return (parts[0].toDouble() + parts[1].toDouble()) / 2;
-    };
+    }
 }
 
-void Util::PopulateBuyoutTypeComboBox(QComboBox* combobox) {
-    combobox->addItems(QStringList({ "[Ignore]", "Buyout", "Fixed price", "Current Offer", "No price", "[Inherit]" }));
+void Util::PopulateBuyoutTypeComboBox(QComboBox *combobox)
+{
+    combobox->addItems(QStringList(
+        {"[Ignore]", "Buyout", "Fixed price", "Current Offer", "No price", "[Inherit]"}));
     combobox->setCurrentIndex(5);
 }
 
-void Util::PopulateBuyoutCurrencyComboBox(QComboBox* combobox) {
+void Util::PopulateBuyoutCurrencyComboBox(QComboBox *combobox)
+{
     for (auto type : Currency::Types()) {
         combobox->addItem(QString(Currency(type).AsString()));
-    };
+    }
 }
 
-constexpr std::array width_strings = {
-    "max#",
-    "Map Tier",
-    "R##",
-    "Defense",
-    "Master-crafted"
-};
+constexpr std::array width_strings = {"max#", "Map Tier", "R##", "Defense", "Master-crafted"};
 
-int Util::TextWidth(TextWidthId id) {
+int Util::TextWidth(TextWidthId id)
+{
     static bool calculated = false;
     static std::vector<int> result;
 
@@ -88,41 +89,45 @@ int Util::TextWidth(TextWidthId id) {
         QFontMetrics fm(textbox.fontMetrics());
         for (size_t i = 0; i < width_strings.size(); ++i) {
             result[i] = fm.horizontalAdvance(width_strings[i]);
-        };
-    };
+        }
+    }
     return result[static_cast<int>(id)];
 }
 
-void Util::ParseJson(QNetworkReply* reply, rapidjson::Document* doc) {
+void Util::ParseJson(QNetworkReply *reply, rapidjson::Document *doc)
+{
     QByteArray bytes = reply->readAll();
     doc->Parse(bytes.constData());
 }
 
-QString Util::GetCsrfToken(const QByteArray& page, const QString& name) {
+QString Util::GetCsrfToken(const QByteArray &page, const QString &name)
+{
     // As of October 2023, the CSRF token can appear in one of two ways:
     //  name="hash" value="..."
     //	or
     //	name="hash" class="input-error" value="..."
-    static const QString expr = QString(
-        R"regex(
-			name="%1"
+    // 
+    // clang-format off
+    static const QString expr = QString(R"regex(
+		name="%1"
+		\s+
+		(?:
+			class=".*?"
 			\s+
-			(?:
-				class=".*?"
-				\s+
-			)?
-			value="(.*?)"
-		)regex").simplified().arg(name);
+		)?
+		value="(.*?)")regex").simplified().arg(name);
+    // clang-format on
     static const QRegularExpression re(expr,
-        QRegularExpression::CaseInsensitiveOption |
-        QRegularExpression::MultilineOption |
-        QRegularExpression::DotMatchesEverythingOption |
-        QRegularExpression::ExtendedPatternSyntaxOption);
+                                       QRegularExpression::CaseInsensitiveOption
+                                           | QRegularExpression::MultilineOption
+                                           | QRegularExpression::DotMatchesEverythingOption
+                                           | QRegularExpression::ExtendedPatternSyntaxOption);
     const QRegularExpressionMatch match = re.match(page);
     return match.captured(1);
 }
 
-QString Util::FindTextBetween(const QString& page, const QString& left, const QString& right) {
+QString Util::FindTextBetween(const QString &page, const QString &left, const QString &right)
+{
     const std::string s = page.toStdString();
     const size_t first = s.find(left.toStdString());
     const size_t last = s.find(right.toStdString(), first);
@@ -130,56 +135,69 @@ QString Util::FindTextBetween(const QString& page, const QString& left, const QS
         return "";
     } else {
         return QString::fromStdString(s.substr(first + left.size(), last - first - left.size()));
-    };
+    }
 }
 
-QString Util::RapidjsonSerialize(const rapidjson::Value& val) {
+QString Util::RapidjsonSerialize(const rapidjson::Value &val)
+{
     rapidjson::StringBuffer buffer;
     rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
     val.Accept(writer);
     return buffer.GetString();
 }
 
-QString Util::RapidjsonPretty(const rapidjson::Value& val) {
+QString Util::RapidjsonPretty(const rapidjson::Value &val)
+{
     rapidjson::StringBuffer buffer;
     rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
     val.Accept(writer);
     return buffer.GetString();
 }
 
-void Util::RapidjsonAddString(rapidjson::Value* object, const char* const name, const QString& value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc) {
+void Util::RapidjsonAddString(rapidjson::Value *object,
+                              const char *const name,
+                              const QString &value,
+                              rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator> &alloc)
+{
     const QByteArray bytes = value.toUtf8();
     rapidjson::Value rjson_name(name, rapidjson::SizeType(strlen(name)), alloc);
     rapidjson::Value rjson_val(bytes.constData(), bytes.length(), alloc);
     object->AddMember(rjson_name, rjson_val, alloc);
 }
 
-void Util::RapidjsonAddInt64(rapidjson::Value* object, const char* const name, qint64 value, rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator>& alloc) {
+void Util::RapidjsonAddInt64(rapidjson::Value *object,
+                             const char *const name,
+                             qint64 value,
+                             rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator> &alloc)
+{
     rapidjson::Value rjson_name(name, rapidjson::SizeType(strlen(name)), alloc);
     rapidjson::Value rjson_val(static_cast<int64_t>(value));
     object->AddMember(rjson_name, rjson_val, alloc);
 }
 
-void Util::GetTabColor(rapidjson::Value& json, int& r, int& g, int& b) {
-
+void Util::GetTabColor(rapidjson::Value &json, int &r, int &g, int &b)
+{
     r = 0;
     g = 0;
     b = 0;
 
     if (rapidjson::HasObject(json, "colour")) {
-
         // Tabs retrieved with the legacy api will have a "colour" field.
-        const auto& colour = json["colour"];
-        if (rapidjson::HasInt(colour, "r")) { r = colour["r"].GetInt(); };
-        if (rapidjson::HasInt(colour, "g")) { g = colour["g"].GetInt(); };
-        if (rapidjson::HasInt(colour, "b")) { b = colour["b"].GetInt(); };
+        const auto &colour = json["colour"];
+        if (rapidjson::HasInt(colour, "r")) {
+            r = colour["r"].GetInt();
+        }
+        if (rapidjson::HasInt(colour, "g")) {
+            g = colour["g"].GetInt();
+        }
+        if (rapidjson::HasInt(colour, "b")) {
+            b = colour["b"].GetInt();
+        }
 
     } else if (rapidjson::HasObject(json, "metadata")) {
-
         // Tabs retrieved with the OAuth api have a "metadata" field that may have a colour.
-        const auto& metadata = json["metadata"];
+        const auto &metadata = json["metadata"];
         if (rapidjson::HasString(metadata, "colour")) {
-
             // The colour field is supposed to be a 6-character string, but it some really old
             // tabs it's only 4 characters or 2 characters, and GGG has confirmed that in these
             // cases the leading values should be treated as zeros.
@@ -198,31 +216,35 @@ void Util::GetTabColor(rapidjson::Value& json, int& r, int& g, int& b) {
                 b = std::stoul(colour.substr(0, 2), nullptr, 16);
                 break;
             default:
-                spdlog::debug("Could not parse stash tab colour: {}", Util::RapidjsonSerialize(json));
+                spdlog::debug("Could not parse stash tab colour: {}",
+                              Util::RapidjsonSerialize(json));
                 break;
-            };
+            }
         } else {
-            spdlog::debug("Stab tab metadata does not have a colour: {}", Util::RapidjsonSerialize(json));
-        };
+            spdlog::debug("Stab tab metadata does not have a colour: {}",
+                          Util::RapidjsonSerialize(json));
+        }
     } else {
         spdlog::debug("Stash tab does not have a colour: {}", Util::RapidjsonSerialize(json));
-    };
+    }
 }
 
-QString Util::StringReplace(const QString& haystack, const QString& needle, const QString& replace) {
+QString Util::StringReplace(const QString &haystack, const QString &needle, const QString &replace)
+{
     std::string out = haystack.toStdString();
-    for (size_t pos = 0; ; pos += replace.length()) {
+    for (size_t pos = 0;; pos += replace.length()) {
         pos = out.find(needle.toStdString(), pos);
         if (pos == std::string::npos) {
             break;
-        };
+        }
         out.erase(pos, needle.length());
         out.insert(pos, replace.toStdString());
-    };
+    }
     return QString::fromStdString(out);
 }
 
-bool Util::MatchMod(const char* const match, const char* const mod, double* output) {
+bool Util::MatchMod(const char *const match, const char *const mod, double *output)
+{
     double result = 0.0;
     auto pmatch = match;
     auto pmod = mod;
@@ -247,15 +269,17 @@ bool Util::MatchMod(const char* const match, const char* const mod, double* outp
     return !*pmatch && !*pmod;
 }
 
-QString Util::Capitalise(const QString& str) {
+QString Util::Capitalise(const QString &str)
+{
     QString capitalized = str;
     if (!capitalized.isEmpty()) {
         capitalized[0] = capitalized[0].toUpper();
-    };
+    }
     return capitalized;
 }
 
-QString Util::TimeAgoInWords(const QDateTime& buyout_time) {
+QString Util::TimeAgoInWords(const QDateTime &buyout_time)
+{
     const QDateTime current_date = QDateTime::currentDateTime();
     const qint64 secs = buyout_time.secsTo(current_date);
     const qint64 days = secs / 60 / 60 / 24;
@@ -269,7 +293,7 @@ QString Util::TimeAgoInWords(const QDateTime& buyout_time) {
             years++;
         };
         return QString("%1 %2 ago").arg(years).arg(years == 1 ? "year" : "years");
-    };
+    }
 
     // MONTHS
     if (days > 30) {
@@ -278,85 +302,86 @@ QString Util::TimeAgoInWords(const QDateTime& buyout_time) {
             months++;
         };
         return QString("%1 %2 ago").arg(months).arg(months == 1 ? "month" : "months");
-    };
+    }
 
     // DAYS
     if (days > 0) {
         return QString("%1 %2 ago").arg(days).arg(days == 1 ? "day" : "days");
-    };
+    }
 
     // HOURS
     if (hours > 0) {
         return QString("%1 %2 ago").arg(hours).arg(hours == 1 ? "hour" : "hours");
-    };
+    }
 
     //MINUTES
     if (minutes > 0) {
         return QString("%1 %2 ago").arg(minutes).arg(minutes == 1 ? "minute" : "minutes");
-    };
+    }
 
     // SECONDS
     if (secs > 5) {
         return QString("%1 %2 ago").arg(secs).arg("seconds");
     } else if (secs < 5) {
         return QString("just now");
-    };
+    }
 
     return "";
 }
 
-QString Util::Decode(const QString& entity) {
+QString Util::Decode(const QString &entity)
+{
     QTextDocument text;
     text.setHtml(entity);
     return text.toPlainText();
 }
 
-QUrlQuery Util::EncodeQueryItems(const std::vector<std::pair<QString, QString>>& items) {
+QUrlQuery Util::EncodeQueryItems(const std::vector<std::pair<QString, QString>> &items)
+{
     // https://github.com/owncloud/client/issues/9203
     QUrlQuery result;
-    for (const auto& item : items) {
+    for (const auto &item : items) {
         const QString key = QUrl::toPercentEncoding(item.first);
         const QString value = QUrl::toPercentEncoding(item.second);
         result.addQueryItem(key, value);
-    };
+    }
     return result;
 }
 
-QColor Util::recommendedForegroundTextColor(const QColor& backgroundColor) {
-    const float R = (float)backgroundColor.red() / 255.0f;
-    const float G = (float)backgroundColor.green() / 255.0f;
-    const float B = (float)backgroundColor.blue() / 255.0f;
+QColor Util::recommendedForegroundTextColor(const QColor &backgroundColor)
+{
+    const float R = (float) backgroundColor.red() / 255.0f;
+    const float G = (float) backgroundColor.green() / 255.0f;
+    const float B = (float) backgroundColor.blue() / 255.0f;
 
     const float gamma = 2.2f;
-    const float L = 0.2126f * pow(R, gamma)
-        + 0.7152f * pow(G, gamma)
-        + 0.0722f * pow(B, gamma);
+    const float L = 0.2126f * pow(R, gamma) + 0.7152f * pow(G, gamma) + 0.0722f * pow(B, gamma);
 
     return (L > 0.5f) ? QColor(QColorConstants::Black) : QColor(QColorConstants::White);
 }
 
 // Obsolete timezones are allowed by RFC2822, but they aren't parsed by
 // QT 6.5.3 so we have to fix them manually.
-QByteArray Util::FixTimezone(const QByteArray& rfc2822_date) {
-    constexpr const std::array<std::pair<const char*, const char*>, 10> OBSOLETE_ZONES{ {
-        {"GMT", "+0000"},
-        {"UT" , "+0000"},
-        {"EST", "-0005"},
-        {"EDT", "-0004"},
-        {"CST", "-0006"},
-        {"CDT", "-0005"},
-        {"MST", "-0007"},
-        {"MDT", "-0006"},
-        {"PST", "-0008"},
-        {"PDT", "-0007"}
-    } };
-    for (auto& pair : OBSOLETE_ZONES) {
-        const QByteArray& zone = pair.first;
-        const QByteArray& offset = pair.second;
+QByteArray Util::FixTimezone(const QByteArray &rfc2822_date)
+{
+    constexpr const std::array<std::pair<const char *, const char *>, 10> OBSOLETE_ZONES{
+        {{"GMT", "+0000"},
+         {"UT", "+0000"},
+         {"EST", "-0005"},
+         {"EDT", "-0004"},
+         {"CST", "-0006"},
+         {"CDT", "-0005"},
+         {"MST", "-0007"},
+         {"MDT", "-0006"},
+         {"PST", "-0008"},
+         {"PDT", "-0007"}}};
+    for (auto &pair : OBSOLETE_ZONES) {
+        const QByteArray &zone = pair.first;
+        const QByteArray &offset = pair.second;
         if (rfc2822_date.endsWith(zone)) {
             const int k = rfc2822_date.length() - zone.length();
             return rfc2822_date.left(k) + offset;
-        };
-    };
+        }
+    }
     return rfc2822_date;
 }

@@ -36,8 +36,8 @@
 #include <ratelimit/ratelimitedreply.h>
 #include <ratelimit/ratelimiter.h>
 #include <ui/mainwindow.h>
-#include <util/util.h>
 #include <util/spdlog_qt.h>
+#include <util/util.h>
 
 #include "application.h"
 #include "buyoutmanager.h"
@@ -87,22 +87,19 @@ const QRegularExpression Shop::error_regex(
 		# expected to be the error message.
 		<li>(.*?)</li>
 	)regex",
-    QRegularExpression::CaseInsensitiveOption |
-    QRegularExpression::MultilineOption |
-    QRegularExpression::DotMatchesEverythingOption |
-    QRegularExpression::ExtendedPatternSyntaxOption);
+    QRegularExpression::CaseInsensitiveOption | QRegularExpression::MultilineOption
+        | QRegularExpression::DotMatchesEverythingOption
+        | QRegularExpression::ExtendedPatternSyntaxOption);
 
-const QRegularExpression Shop::ratelimit_regex(
-    R"regex(You must wait (\d+) seconds.)regex",
-    QRegularExpression::CaseInsensitiveOption);
+const QRegularExpression Shop::ratelimit_regex(R"regex(You must wait (\d+) seconds.)regex",
+                                               QRegularExpression::CaseInsensitiveOption);
 
-Shop::Shop(
-    QSettings& settings,
-    QNetworkAccessManager& network_manager,
-    RateLimiter& rate_limiter,
-    DataStore& datastore,
-    ItemsManager& items_manager,
-    BuyoutManager& buyout_manager)
+Shop::Shop(QSettings &settings,
+           QNetworkAccessManager &network_manager,
+           RateLimiter &rate_limiter,
+           DataStore &datastore,
+           ItemsManager &items_manager,
+           BuyoutManager &buyout_manager)
     : m_settings(settings)
     , m_network_manager(network_manager)
     , m_rate_limiter(rate_limiter)
@@ -122,7 +119,8 @@ Shop::Shop(
     }
 }
 
-void Shop::SetThread(const QStringList& threads) {
+void Shop::SetThread(const QStringList &threads)
+{
     if (m_submitting) {
         spdlog::warn("Shop: cannot set shop threads: shop is still updating");
         return;
@@ -134,20 +132,23 @@ void Shop::SetThread(const QStringList& threads) {
     m_datastore.Set("shop_hash", "");
 }
 
-void Shop::SetAutoUpdate(bool update) {
+void Shop::SetAutoUpdate(bool update)
+{
     spdlog::debug("Shop: setting autoupdate to {}", update);
     m_auto_update = update;
     m_settings.setValue("shop_autoupdate", update);
 }
 
-void Shop::SetShopTemplate(const QString& shop_template) {
+void Shop::SetShopTemplate(const QString &shop_template)
+{
     spdlog::debug("Shop: setting template to {}", shop_template);
     m_shop_template = shop_template;
     m_datastore.Set("shop_template", shop_template);
     ExpireShopData();
 }
 
-QString Shop::SpoilerBuyout(Buyout& bo) {
+QString Shop::SpoilerBuyout(Buyout &bo)
+{
     spdlog::trace("Shop: spoiler buyout called");
     QString out = "";
     out += "[spoiler=\"" + bo.BuyoutTypeAsPrefix();
@@ -214,7 +215,7 @@ void Shop::UpdateStashIndex(bool force)
     url.setQuery(query);
     QNetworkRequest request(url);
 
-    RateLimitedReply* reply = m_rate_limiter.Submit(kStashItemsUrl, request);
+    RateLimitedReply *reply = m_rate_limiter.Submit(kStashItemsUrl, request);
     connect(reply, &RateLimitedReply::complete, this, [=](QNetworkReply *reply) {
         OnStashIndexReceived(force, reply);
         reply->deleteLater();
@@ -231,7 +232,9 @@ void Shop::OnStashIndexReceived(bool force, QNetworkReply *reply)
     if (reply->error() != QNetworkReply::NetworkError::NoError) {
         const int status = reply->error();
         if ((status < 200) || (status > 299)) {
-            spdlog::error("Shop: network error indexing stashes: {} {}", status, reply->errorString());
+            spdlog::error("Shop: network error indexing stashes: {} {}",
+                          status,
+                          reply->errorString());
             m_submitting = false;
             return;
         }
@@ -251,7 +254,8 @@ void Shop::OnStashIndexReceived(bool force, QNetworkReply *reply)
         return;
     }
     if (doc.HasMember("error")) {
-        spdlog::error("Shop: aborting legacy update since first fetch failed due to 'error': {}", Util::RapidjsonSerialize(doc["error"]));
+        spdlog::error("Shop: aborting legacy update since first fetch failed due to 'error': {}",
+                      Util::RapidjsonSerialize(doc["error"]));
         m_submitting = false;
         return;
     }
@@ -284,7 +288,8 @@ void Shop::OnStashIndexReceived(bool force, QNetworkReply *reply)
     OnStashIndexUpdated(force);
 }
 
-void Shop::ExpireShopData() {
+void Shop::ExpireShopData()
+{
     spdlog::trace("Shop: expiring shop data");
     m_shop_data_outdated = true;
 }
@@ -307,7 +312,8 @@ void Shop::OnStashIndexUpdated(bool force)
     }
 
     if (m_threads.size() < m_shop_data.size()) {
-        spdlog::warn("Shop: need {} more shops defined to fit all your items.", m_shop_data.size() - m_threads.size());
+        spdlog::warn("Shop: need {} more shops defined to fit all your items.",
+                     m_shop_data.size() - m_threads.size());
     }
 
     m_requests_completed = 0;
@@ -315,7 +321,7 @@ void Shop::OnStashIndexUpdated(bool force)
 }
 
 void Shop::UpdateShopData()
-{    
+{
     if (m_tab_index.empty()) {
         spdlog::warn("Shop: skipping shop data update because the stash tab index is empty");
         return;
@@ -397,7 +403,8 @@ void Shop::UpdateShopData()
     m_shop_data_outdated = false;
 }
 
-QString Shop::ShopEditUrl(int idx) {
+QString Shop::ShopEditUrl(int idx)
+{
     if (idx >= m_threads.size()) {
         spdlog::error("Shop: cannot create edit url for thread # {}", idx);
         return "";
@@ -407,7 +414,8 @@ QString Shop::ShopEditUrl(int idx) {
     return url;
 }
 
-void Shop::SubmitSingleShop() {
+void Shop::SubmitSingleShop()
+{
     spdlog::debug("Shop: submitting a single shop.");
 
     // Submet the next thread.
@@ -445,9 +453,10 @@ void Shop::SubmitSingleShop() {
     emit StatusUpdate(ProgramState::Ready, "Shop threads not updated due to an error.");
 }
 
-void Shop::OnEditPageFinished() {
+void Shop::OnEditPageFinished()
+{
     spdlog::trace("Shop: edit page finished");
-    QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
+    QNetworkReply *reply = qobject_cast<QNetworkReply *>(QObject::sender());
     const QByteArray bytes = reply->readAll();
     const QString hash = Util::GetCsrfToken(bytes, "hash");
     if (hash.isEmpty()) {
@@ -483,7 +492,8 @@ void Shop::OnEditPageFinished() {
                               "Shop threads not updated to to missing or invalid POESESSID");
 
         } else {
-            spdlog::error("Cannot update shop: unable to extract CSRF token from the page. The thread ID may be invalid.");
+            spdlog::error("Cannot update shop: unable to extract CSRF token from the page. The "
+                          "thread ID may be invalid.");
             emit StatusUpdate(ProgramState::Ready, "Shop threads not updated due to an error.");
         }
         m_submitting = false;
@@ -494,7 +504,11 @@ void Shop::OnEditPageFinished() {
     // now submit our edit
     // holy shit give me some html parser library please
     const QString page(bytes);
-    QString title = Util::FindTextBetween(page, "<input type=\"text\" name=\"title\" id=\"title\" onkeypress=\"return&#x20;event.keyCode&#x21;&#x3D;13\" value=\"", "\">");
+    QString title
+        = Util::FindTextBetween(page,
+                                "<input type=\"text\" name=\"title\" id=\"title\" "
+                                "onkeypress=\"return&#x20;event.keyCode&#x21;&#x3D;13\" value=\"",
+                                "\">");
     if (title.isEmpty()) {
         spdlog::error("Cannot update shop: title is empty. Check if thread ID is valid.");
         m_submitting = false;
@@ -506,11 +520,13 @@ void Shop::OnEditPageFinished() {
     reply->deleteLater();
 }
 
-void Shop::SubmitNextShop(const QString& title, const QString& hash)
+void Shop::SubmitNextShop(const QString &title, const QString &hash)
 {
     spdlog::debug("Shop: submitting the next shop.");
 
-    const QString content = m_requests_completed < m_shop_data.size() ? m_shop_data[m_requests_completed] : "Empty";
+    const QString content = m_requests_completed < m_shop_data.size()
+                                ? m_shop_data[m_requests_completed]
+                                : "Empty";
 
     QUrlQuery query;
     query.addQueryItem("title", Util::Decode(title));
@@ -530,7 +546,8 @@ void Shop::SubmitNextShop(const QString& title, const QString& hash)
     connect(reply, &QNetworkReply::finished, this, [=]() { OnShopSubmitted(query, reply); });
 }
 
-void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
+void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply *reply)
+{
     spdlog::debug("Shop: shop submission reply received.");
 
     // Make sure the reply is deleted.
@@ -553,7 +570,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
     // Errors can show up in a couple different places. So far, the easiest way to identify
     // them seems to be to look for an html tag with the "class" attribute set to
     // "input-error" or "errors".
-    // 
+    //
     // After this class attribute, there seems to always be an error message enclosed in
     // an list item tag, with varying differents between the class attribute and that tag.
     QRegularExpressionMatchIterator i = error_regex.globalMatch(bytes);
@@ -563,12 +580,14 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
         while (i.hasNext()) {
             // We only know the error message if the list item element was found.
             const QRegularExpressionMatch error_match = i.next();
-            const QString error_message = (error_match.lastCapturedIndex() > 0)
-                ? QTextDocumentFragment::fromHtml(error_match.captured(1)).toPlainText()
-                : "(Failed to parse the error message)";
+            const QString error_message
+                = (error_match.lastCapturedIndex() > 0)
+                      ? QTextDocumentFragment::fromHtml(error_match.captured(1)).toPlainText()
+                      : "(Failed to parse the error message)";
             spdlog::error("Shop: error submitting shop thread: {}", error_message);
             if (error_message.startsWith("Failed to find item.", Qt::CaseInsensitive)) {
-                spdlog::error("Shop: the stash index may be out of date. (Try Shop->\"Update stash index\")");
+                spdlog::error(
+                    "Shop: the stash index may be out of date. (Try Shop->\"Update stash index\")");
                 m_submitting = false;
                 return;
             } else if (error_message.startsWith("Security token has expired.")) {
@@ -629,16 +648,19 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
     // relavent, but that's not certain or documented anywhere, so let's do both.
     QString input_error = Util::FindTextBetween(page, "class=\"input-error\">", "</div>");
     if (!input_error.isEmpty()) {
-        spdlog::error("Shop: (DEPRECATED) Input error while submitting shop to forums: {}", input_error);
+        spdlog::error("Shop: (DEPRECATED) Input error while submitting shop to forums: {}",
+                      input_error);
         m_submitting = false;
         return;
     }
 
     // Let's err on the side of being cautious and look for an error the above code might
     // have missed. Otherwise errors might just silently fall through the cracks.
-    for (auto& substr : { "class=\"errors\"", "class=\"input-error\"" }) {
+    for (auto &substr : {"class=\"errors\"", "class=\"input-error\""}) {
         if (page.contains(substr)) {
-            spdlog::error("Shop: (DEPRECATED) An error was detected but not handled while submitting shop to forums: {}", substr);
+            spdlog::error("Shop: (DEPRECATED) An error was detected but not handled while "
+                          "submitting shop to forums: {}",
+                          substr);
             spdlog::error(page);
             m_submitting = false;
             return;
@@ -649,7 +671,8 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply* reply) {
     SubmitSingleShop();
 }
 
-void Shop::CopyToClipboard() {
+void Shop::CopyToClipboard()
+{
     if (m_shop_data.empty()) {
         spdlog::warn("Shop: there is nothing to copy to the clipboard");
         return;
@@ -658,9 +681,10 @@ void Shop::CopyToClipboard() {
         spdlog::warn("Shop: copying outdated shop data!");
     }
     if (m_shop_data.size() > 1) {
-        spdlog::warn("Shop: you have multiple shops; only the first will be copied to the clipboard");
+        spdlog::warn(
+            "Shop: you have multiple shops; only the first will be copied to the clipboard");
     }
     spdlog::trace("Shop: copying shop data to clipboard for thread: {}", m_shop_data[0]);
-    QClipboard* clipboard = QApplication::clipboard();
+    QClipboard *clipboard = QApplication::clipboard();
     clipboard->setText(m_shop_data[0]);
 }

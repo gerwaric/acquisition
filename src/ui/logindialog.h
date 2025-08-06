@@ -36,18 +36,18 @@ namespace Ui {
     class LoginDialog;
 }
 
-class LoginDialog : public QDialog {
+class LoginDialog : public QDialog
+{
     Q_OBJECT
 public:
-    explicit LoginDialog(
-        const QDir& app_data_dir,
-        QSettings& settings,
-        QNetworkAccessManager& network_manager,
-        OAuthManager& oauth_manager);
+    explicit LoginDialog(const QDir &app_data_dir,
+                         QSettings &settings,
+                         QNetworkAccessManager &network_manager,
+                         OAuthManager &oauth_manager);
     ~LoginDialog();
 signals:
-    void ChangeTheme(const QString& theme);
-    void ChangeUserDir(const QString& user_dir);
+    void ChangeTheme(const QString &theme);
+    void ChangeUserDir(const QString &user_dir);
     void LoginComplete(POE_API mode);
 private slots:
     void OnLeaguesReceived();
@@ -57,30 +57,32 @@ private slots:
     void OnOfflineButtonClicked();
     void OnStartLegacyLogin();
     void OnFinishLegacyLogin();
-    void OnSessionIDChanged(const QString& session_id);
-    void OnLeagueChanged(const QString& league);
+    void OnSessionIDChanged(const QString &session_id);
+    void OnLeagueChanged(const QString &league);
     void OnAdvancedCheckBoxChanged(Qt::CheckState state);
     void OnProxyCheckBoxChanged(Qt::CheckState state);
     void OnRememberMeCheckBoxChanged(Qt::CheckState state);
     void OnReportCrashesCheckBoxChanged(Qt::CheckState state);
-    void OnLoggingLevelChanged(const QString& level);
-    void OnThemeChanged(const QString& theme);
+    void OnLoggingLevelChanged(const QString &level);
+    void OnThemeChanged(const QString &theme);
     void OnUserDirButtonPushed();
-    void OnOAuthAccessGranted(const OAuthToken& token);
+    void OnOAuthAccessGranted(const OAuthToken &token);
+
 protected:
-    bool event(QEvent* e);
+    bool event(QEvent *e);
+
 private:
     void LoadSettings();
     void RequestLeagues();
     void LoginWithOAuth();
     void LoginWithSessionID();
-    void LeaguesRequestError(const QString& error, const QByteArray& reply);
-    void DisplayError(const QString& error);
+    void LeaguesRequestError(const QString &error, const QByteArray &reply);
+    void DisplayError(const QString &error);
 
     const QDir m_app_data_dir;
-    QSettings& m_settings;
-    QNetworkAccessManager& m_network_manager;
-    OAuthManager& m_oauth_manager;
+    QSettings &m_settings;
+    QNetworkAccessManager &m_network_manager;
+    OAuthManager &m_oauth_manager;
 
-    Ui::LoginDialog* ui;
+    Ui::LoginDialog *ui;
 };

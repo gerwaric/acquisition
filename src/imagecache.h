@@ -19,28 +19,28 @@
 
 #pragma once
 
-#include <QObject>
 #include <QImage>
+#include <QObject>
 #include <QString>
 
 class QNetworkAccessManager;
 class QNetworkReply;
 
-class ImageCache : public QObject {
+class ImageCache : public QObject
+{
     Q_OBJECT
 public:
-    explicit ImageCache(
-        QNetworkAccessManager& network_manager,
-        const QString& directory);
-    bool contains(const QString& url) const;
-    QImage load(const QString& url) const;
+    explicit ImageCache(QNetworkAccessManager &network_manager, const QString &directory);
+    bool contains(const QString &url) const;
+    QImage load(const QString &url) const;
 public slots:
-    void fetch(const QString& url);
+    void fetch(const QString &url);
     void onFetched();
 signals:
-    void imageReady(const QString& url);
+    void imageReady(const QString &url);
+
 private:
-    QString getImagePath(const QString& url) const;
-    QNetworkAccessManager& m_network_manager;
+    QString getImagePath(const QString &url) const;
+    QNetworkAccessManager &m_network_manager;
     QString m_directory;
 };

@@ -19,19 +19,19 @@
 
 #pragma once
 
-#include <QString>
 #include <QObject>
+#include <QString>
 
 #include <map>
 #include <vector>
 
 #include <util/spdlog_qt.h>
 
-
-struct Currency {
+struct Currency
+{
     Q_GADGET;
-public:
 
+public:
     enum CurrencyType {
         CURRENCY_NONE,
         CURRENCY_ORB_OF_ALTERATION,
@@ -61,22 +61,23 @@ public:
     typedef std::map<QString, CurrencyType> StringTypeMap;
 
     Currency() = default;
-    Currency(CurrencyType in_type) : type(in_type) { };
+    Currency(CurrencyType in_type)
+        : type(in_type) {};
 
-    CurrencyType type{ CurrencyType::CURRENCY_NONE };
+    CurrencyType type{CurrencyType::CURRENCY_NONE};
 
     static std::vector<CurrencyType> Types();
-    static Currency FromTag(const QString& tag);
+    static Currency FromTag(const QString &tag);
     static Currency FromIndex(int i);
-    static Currency FromString(const QString& currency);
+    static Currency FromString(const QString &currency);
 
-    bool operator==(const Currency& rhs) const { return type == rhs.type; }
-    bool operator!=(const Currency& rhs) const { return type != rhs.type; }
-    bool operator<(const Currency& rhs) const { return type < rhs.type; }
+    bool operator==(const Currency &rhs) const { return type == rhs.type; }
+    bool operator!=(const Currency &rhs) const { return type != rhs.type; }
+    bool operator<(const Currency &rhs) const { return type < rhs.type; }
 
-    const QString& AsString() const;
-    const QString& AsTag() const;
-    const int& AsRank() const;
+    const QString &AsString() const;
+    const QString &AsTag() const;
+    const int &AsRank() const;
 
 private:
     static const QString m_currency_type_error;
@@ -87,5 +88,6 @@ private:
 };
 
 using CurrencyType = Currency::CurrencyType;
-template <>
-struct fmt::formatter<CurrencyType, char> : QtEnumFormatter<CurrencyType> {};
+template<>
+struct fmt::formatter<CurrencyType, char> : QtEnumFormatter<CurrencyType>
+{};

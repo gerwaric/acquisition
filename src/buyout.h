@@ -29,10 +29,10 @@
 
 #include "currency.h"
 
-struct Buyout {
+struct Buyout
+{
     Q_GADGET
 public:
-
     enum BuyoutType {
         BUYOUT_TYPE_IGNORE,
         BUYOUT_TYPE_BUYOUT,
@@ -56,12 +56,12 @@ public:
 
     double value;
     BuyoutType type;
-    BuyoutSource source{ BUYOUT_SOURCE_MANUAL };
+    BuyoutSource source{BUYOUT_SOURCE_MANUAL};
     Currency currency;
     QDateTime last_update;
     bool inherited = false;
-    bool operator==(const Buyout& o) const;
-    bool operator!=(const Buyout& o) const;
+    bool operator==(const Buyout &o) const;
+    bool operator!=(const Buyout &o) const;
     bool IsValid() const;
     bool IsActive() const;
     bool IsInherited() const { return inherited || type == BuyoutType::BUYOUT_TYPE_INHERIT; };
@@ -76,22 +76,23 @@ public:
     static BuyoutSource TagAsBuyoutSource(QString tag);
 
     QString AsText() const;
-    const QString& BuyoutTypeAsTag() const;
-    const QString& BuyoutTypeAsPrefix() const;
-    const QString& BuyoutSourceAsTag() const;
-    const QString& CurrencyAsTag() const;
+    const QString &BuyoutTypeAsTag() const;
+    const QString &BuyoutTypeAsPrefix() const;
+    const QString &BuyoutSourceAsTag() const;
+    const QString &CurrencyAsTag() const;
 
-    Buyout() :
-        value(0),
-        type(BuyoutType::BUYOUT_TYPE_INHERIT),
-        currency(CurrencyType::CURRENCY_NONE)
+    Buyout()
+        : value(0)
+        , type(BuyoutType::BUYOUT_TYPE_INHERIT)
+        , currency(CurrencyType::CURRENCY_NONE)
     {}
-    Buyout(double m_value, BuyoutType m_type, Currency m_currency, QDateTime m_last_update) :
-        value(m_value),
-        type(m_type),
-        currency(m_currency),
-        last_update(m_last_update)
+    Buyout(double m_value, BuyoutType m_type, Currency m_currency, QDateTime m_last_update)
+        : value(m_value)
+        , type(m_type)
+        , currency(m_currency)
+        , last_update(m_last_update)
     {}
+
 private:
     static const QString m_buyout_type_error;
     static const BuyoutTypeMap m_buyout_type_as_tag;
@@ -100,9 +101,11 @@ private:
 };
 
 using BuyoutType = Buyout::BuyoutType;
-template <>
-struct fmt::formatter<BuyoutType, char> : QtEnumFormatter<BuyoutType> {};
+template<>
+struct fmt::formatter<BuyoutType, char> : QtEnumFormatter<BuyoutType>
+{};
 
 using BuyoutSource = Buyout::BuyoutSource;
-template <>
-struct fmt::formatter<BuyoutSource, char> : QtEnumFormatter<BuyoutSource> {};
+template<>
+struct fmt::formatter<BuyoutSource, char> : QtEnumFormatter<BuyoutSource>
+{};

@@ -38,19 +38,19 @@ class DataStore;
 class ItemsManager;
 class RateLimiter;
 
-class Shop : public QObject {
+class Shop : public QObject
+{
     Q_OBJECT
 public:
-    explicit Shop(
-        QSettings& settings,
-        QNetworkAccessManager& network_manager,
-        RateLimiter& rate_limiter,
-        DataStore& datastore,
-        ItemsManager& items_manager,
-        BuyoutManager& buyout_manager);
-    void SetThread(const QStringList& threads);
+    explicit Shop(QSettings &settings,
+                  QNetworkAccessManager &network_manager,
+                  RateLimiter &rate_limiter,
+                  DataStore &datastore,
+                  ItemsManager &items_manager,
+                  BuyoutManager &buyout_manager);
+    void SetThread(const QStringList &threads);
     void SetAutoUpdate(bool update);
-    void SetShopTemplate(const QString& shop_template);
+    void SetShopTemplate(const QString &shop_template);
     void UpdateShopData();
     void CopyToClipboard();
     void ExpireShopData();
@@ -63,11 +63,11 @@ public:
 
 public slots:
     void OnEditPageFinished();
-    void OnShopSubmitted(QUrlQuery query, QNetworkReply* reply);
+    void OnShopSubmitted(QUrlQuery query, QNetworkReply *reply);
 
 signals:
     void StashesIndexed();
-    void StatusUpdate(ProgramState state, const QString& status);
+    void StatusUpdate(ProgramState state, const QString &status);
 
 private:
     void UpdateStashIndex(bool force);
@@ -75,16 +75,16 @@ private:
     void OnStashIndexUpdated(bool force);
 
     void SubmitSingleShop();
-    void SubmitNextShop(const QString& title, const QString& hash);
+    void SubmitNextShop(const QString &title, const QString &hash);
     QString ShopEditUrl(int idx);
-    QString SpoilerBuyout(Buyout& bo);
+    QString SpoilerBuyout(Buyout &bo);
 
-    QSettings& m_settings;
-    QNetworkAccessManager& m_network_manager;
-    RateLimiter& m_rate_limiter;
-    DataStore& m_datastore;
-    ItemsManager& m_items_manager;
-    BuyoutManager& m_buyout_manager;
+    QSettings &m_settings;
+    QNetworkAccessManager &m_network_manager;
+    RateLimiter &m_rate_limiter;
+    DataStore &m_datastore;
+    ItemsManager &m_items_manager;
+    BuyoutManager &m_buyout_manager;
 
     std::map<QString, unsigned int> m_tab_index;
     QStringList m_threads;

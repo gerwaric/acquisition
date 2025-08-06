@@ -45,38 +45,40 @@ class UpdateChecker;
 
 enum class POE_API;
 
-class Application : public QObject {
+class Application : public QObject
+{
     Q_OBJECT
 public:
-    explicit Application(const QDir& appDataDir);
+    explicit Application(const QDir &appDataDir);
     ~Application();
-    Application(const Application&) = delete;
-    Application& operator=(const Application&) = delete;
+    Application(const Application &) = delete;
+    Application &operator=(const Application &) = delete;
     void Start();
     void InitLogin(POE_API api);
-    QSettings& settings() const;
-    ItemsManager& items_manager() const;
-    DataStore& global_data() const;
-    DataStore& data() const;
-    BuyoutManager& buyout_manager() const;
-    QNetworkAccessManager& network_manager() const;
-    RePoE& repoe() const;
-    Shop& shop() const;
-    ImageCache& image_cache() const;
-    CurrencyManager& currency_manager() const;
-    UpdateChecker& update_checker() const;
-    OAuthManager& oauth_manager() const;
-    RateLimiter& rate_limiter() const;
+    QSettings &settings() const;
+    ItemsManager &items_manager() const;
+    DataStore &global_data() const;
+    DataStore &data() const;
+    BuyoutManager &buyout_manager() const;
+    QNetworkAccessManager &network_manager() const;
+    RePoE &repoe() const;
+    Shop &shop() const;
+    ImageCache &image_cache() const;
+    CurrencyManager &currency_manager() const;
+    UpdateChecker &update_checker() const;
+    OAuthManager &oauth_manager() const;
+    RateLimiter &rate_limiter() const;
 public slots:
-    void SetSessionId(const QString& poesessid);
-    void SetTheme(const QString& theme);
-    void SetUserDir(const QString& dir);
+    void SetSessionId(const QString &poesessid);
+    void SetTheme(const QString &theme);
+    void SetUserDir(const QString &dir);
     void OnLogin(POE_API api);
     void OnItemsRefreshed(bool initial_refresh);
     void OnRunTests();
+
 private:
     void Stop();
-    void InitUserDir(const QString& dir);
+    void InitUserDir(const QString &dir);
     void InitCrashReporting();
     void SaveDbOnNewVersion();
 

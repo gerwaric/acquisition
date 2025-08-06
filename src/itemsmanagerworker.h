@@ -44,80 +44,94 @@ class DataStore;
 class RateLimiter;
 class RePoE;
 
-struct ItemsRequest {
-    int id{ -1 };
+struct ItemsRequest
+{
+    int id{-1};
     QString endpoint;
     QNetworkRequest network_request;
     ItemLocation location;
 };
 
-struct ItemsReply {
-    QNetworkReply* network_reply;
+struct ItemsReply
+{
+    QNetworkReply *network_reply;
     ItemsRequest request;
 };
 
-class ItemsManagerWorker : public QObject {
+class ItemsManagerWorker : public QObject
+{
     Q_OBJECT
 public:
-    ItemsManagerWorker(
-        QSettings& m_settings,
-        QNetworkAccessManager& network_manager,
-        RePoE& repoe,
-        BuyoutManager& buyout_manager,
-        DataStore& datastore,
-        RateLimiter& rate_limiter,
-        POE_API mode);
+    ItemsManagerWorker(QSettings &m_settings,
+                       QNetworkAccessManager &network_manager,
+                       RePoE &repoe,
+                       BuyoutManager &buyout_manager,
+                       DataStore &datastore,
+                       RateLimiter &rate_limiter,
+                       POE_API mode);
     bool isInitialized() const { return m_initialized; }
     bool isUpdating() const { return m_updating; };
-    void UpdateRequest(TabSelection type, const std::vector<ItemLocation>& locations);
+    void UpdateRequest(TabSelection type, const std::vector<ItemLocation> &locations);
 
 signals:
-    void ItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
-    void StatusUpdate(ProgramState state, const QString& status);
+    void ItemsRefreshed(const Items &items,
+                        const std::vector<ItemLocation> &tabs,
+                        bool initial_refresh);
+    void StatusUpdate(ProgramState state, const QString &status);
 
 public slots:
     void Init();
     void OnRePoEReady();
-    void Update(TabSelection type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
+    void Update(TabSelection type,
+                const std::vector<ItemLocation> &tab_names = std::vector<ItemLocation>());
 
 private slots:
     void OnLegacyMainPageReceived();
-    void OnLegacyCharacterListReceived(QNetworkReply* reply);
-    void OnFirstLegacyTabReceived(QNetworkReply* reply);
-    void OnLegacyTabReceived(QNetworkReply* reply, const ItemLocation& location);
+    void OnLegacyCharacterListReceived(QNetworkReply *reply);
+    void OnFirstLegacyTabReceived(QNetworkReply *reply);
+    void OnLegacyTabReceived(QNetworkReply *reply, const ItemLocation &location);
 
-    void OnOAuthStashListReceived(QNetworkReply* reply);
-    void OnOAuthStashReceived(QNetworkReply* reply, const ItemLocation& location);
-    void OnOAuthCharacterListReceived(QNetworkReply* reply);
-    void OnOAuthCharacterReceived(QNetworkReply* reply, const ItemLocation& location);
+    void OnOAuthStashListReceived(QNetworkReply *reply);
+    void OnOAuthStashReceived(QNetworkReply *reply, const ItemLocation &location);
+    void OnOAuthCharacterListReceived(QNetworkReply *reply);
+    void OnOAuthCharacterReceived(QNetworkReply *reply, const ItemLocation &location);
 
 private:
     void ParseItemMods();
-    void RemoveUpdatingTabs(const std::set<QString>& tab_ids);
-    void RemoveUpdatingItems(const std::set<QString>& tab_ids);
-    void QueueRequest(const QString& endpoint, const QNetworkRequest& request, const ItemLocation& location);
+    void RemoveUpdatingTabs(const std::set<QString> &tab_ids);
+    void RemoveUpdatingItems(const std::set<QString> &tab_ids);
+    void QueueRequest(const QString &endpoint,
+                      const QNetworkRequest &request,
+                      const ItemLocation &location);
     void FetchItems();
     void PreserveSelectedCharacter();
 
     void LegacyRefresh();
     QNetworkRequest MakeLegacyCharacterListRequest();
     QNetworkRequest MakeLegacyTabRequest(int tab_index, bool tabs = false);
-    QNetworkRequest MakeLegacyCharacterRequest(const QString& name);
-    QNetworkRequest MakeLegacyPassivesRequest(const QString& name);
+    QNetworkRequest MakeLegacyCharacterRequest(const QString &name);
+    QNetworkRequest MakeLegacyPassivesRequest(const QString &name);
 
     void OAuthRefresh();
-    QNetworkRequest MakeOAuthStashListRequest(const QString& realm, const QString& league);
-    QNetworkRequest MakeOAuthStashRequest(const QString& realm, const QString& league, const QString& stash_id, const QString& substash_id = "");
-    QNetworkRequest MakeOAuthCharacterListRequest(const QString& realm);
-    QNetworkRequest MakeOAuthCharacterRequest(const QString& realm, const QString& name);
+    QNetworkRequest MakeOAuthStashListRequest(const QString &realm, const QString &league);
+    QNetworkRequest MakeOAuthStashRequest(const QString &realm,
+                                          const QString &league,
+                                          const QString &stash_id,
+                                          const QString &substash_id = "");
+    QNetworkRequest MakeOAuthCharacterListRequest(const QString &realm);
+    QNetworkRequest MakeOAuthCharacterRequest(const QString &realm, const QString &name);
 
     typedef std::pair<QString, QString> TabSignature;
     typedef std::vector<TabSignature> TabsSignatureVector;
-    TabsSignatureVector CreateTabsSignatureVector(const rapidjson::Value& tabs);
+    TabsSignatureVector CreateTabsSignatureVector(const rapidjson::Value &tabs);
 
     void SendStatusUpdate();
-    void ParseItems(rapidjson::Value& value, const ItemLocation& base_location, rapidjson_allocator& alloc);
-    bool TabsChanged(rapidjson::Document& doc, QNetworkReply* network_reply, const ItemLocation& location);
+    void ParseItems(rapidjson::Value &value,
+                    const ItemLocation &base_location,
+                    rapidjson_allocator &alloc);
+    bool TabsChanged(rapidjson::Document &doc,
+                     QNetworkReply *network_reply,
+                     const ItemLocation &location);
     void FinishUpdate();
 
     bool IsOAuthTabValid(rapidjson::Value &tab);
@@ -127,11 +141,11 @@ private:
     void ProcessLegacyTab(rapidjson::Value &tab, int &count, rapidjson_allocator &alloc);
 
     QSettings &m_settings;
-    QNetworkAccessManager& m_network_manager;
-    RePoE& m_repoe;
-    DataStore& m_datastore;
-    BuyoutManager& m_buyout_manager;
-    RateLimiter& m_rate_limiter;
+    QNetworkAccessManager &m_network_manager;
+    RePoE &m_repoe;
+    DataStore &m_datastore;
+    BuyoutManager &m_buyout_manager;
+    RateLimiter &m_rate_limiter;
 
     POE_API m_mode;
     QString m_realm;

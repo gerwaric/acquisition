@@ -34,21 +34,21 @@
 
 #include "version_defines.h"
 
-constexpr const char* GITHUB_ISSUES_URL = (APP_URL "/issues");
+constexpr const char *GITHUB_ISSUES_URL = (APP_URL "/issues");
 
-[[noreturn]] void FatalError(const QString& message) {
-
+[[noreturn]] void FatalError(const QString &message)
+{
     spdlog::critical(message);
 
-    QTextEdit* details = new QTextEdit;
+    QTextEdit *details = new QTextEdit;
     details->setReadOnly(true);
     details->setText(message);
 
-    QPushButton* github_button = new QPushButton("Open the GitHub issues page");
-    QPushButton* email_button = new QPushButton("Open an email to " APP_PUBLISHER_EMAIL);
-    QPushButton* abort_button = new QPushButton("Abort Acquisition");
+    QPushButton *github_button = new QPushButton("Open the GitHub issues page");
+    QPushButton *email_button = new QPushButton("Open an email to " APP_PUBLISHER_EMAIL);
+    QPushButton *abort_button = new QPushButton("Abort Acquisition");
 
-    QLayout* layout = new QVBoxLayout;
+    QLayout *layout = new QVBoxLayout;
     layout->addWidget(new QLabel("Details:"));
     layout->addWidget(details);
     layout->addWidget(new QLabel("Please report or update this issue, as needed:"));
@@ -57,30 +57,28 @@ constexpr const char* GITHUB_ISSUES_URL = (APP_URL "/issues");
     layout->addWidget(new QLabel("Finally:"));
     layout->addWidget(abort_button);
 
-    QDialog* dialog = new QDialog;
+    QDialog *dialog = new QDialog;
     dialog->setWindowTitle("Acquisition - Fatal Error");
     dialog->setSizeGripEnabled(true);
     dialog->setModal(true);
     dialog->setLayout(layout);
 
     // Connect the github button.
-    QObject::connect(github_button, &QPushButton::clicked, dialog,
-        []() {
-            QDesktopServices::openUrl(QUrl(GITHUB_ISSUES_URL));
-        });
+    QObject::connect(github_button, &QPushButton::clicked, dialog, []() {
+        QDesktopServices::openUrl(QUrl(GITHUB_ISSUES_URL));
+    });
 
     // Connect the email button.
-    QObject::connect(email_button, &QPushButton::clicked, dialog,
-        [&]() {
-            const QString subject = "Acquisition: fatal error in version " APP_VERSION_STRING;
-            const QString body = "\n\n\n- - - - - - - - - - -\n\nDetails:\n\n" + message;
-            QUrlQuery query;
-            query.addQueryItem("subject", subject);
-            query.addQueryItem("body", body);
-            QUrl url("mailto:" APP_PUBLISHER_EMAIL);
-            url.setQuery(query);
-            QDesktopServices::openUrl(url);
-        });
+    QObject::connect(email_button, &QPushButton::clicked, dialog, [&]() {
+        const QString subject = "Acquisition: fatal error in version " APP_VERSION_STRING;
+        const QString body = "\n\n\n- - - - - - - - - - -\n\nDetails:\n\n" + message;
+        QUrlQuery query;
+        query.addQueryItem("subject", subject);
+        query.addQueryItem("body", body);
+        QUrl url("mailto:" APP_PUBLISHER_EMAIL);
+        url.setQuery(query);
+        QDesktopServices::openUrl(url);
+    });
 
     // Connect the close button.
     QObject::connect(abort_button, &QPushButton::clicked, dialog, &QDialog::close);

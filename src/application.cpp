@@ -51,7 +51,8 @@
 #include "testmain.h"
 #include "version_defines.h"
 
-Application::Application(const QDir& appDataDir) {
+Application::Application(const QDir &appDataDir)
+{
     spdlog::debug("Application: created");
 
     spdlog::trace("Application: creating QNetworkAccessManager");
@@ -63,8 +64,8 @@ Application::Application(const QDir& appDataDir) {
     InitUserDir(appDataDir.absolutePath());
 }
 
-void Application::InitUserDir(const QString& dir) {
-
+void Application::InitUserDir(const QString &dir)
+{
     m_data_dir = QDir(dir);
     spdlog::trace("Application: data directory is {}", m_data_dir.absolutePath());
 
@@ -103,23 +104,26 @@ void Application::InitUserDir(const QString& dir) {
     m_repoe->Init(dir);
 }
 
-Application::~Application() {
+Application::~Application()
+{
     spdlog::shutdown();
 }
 
-void Application::Start() {
-
+void Application::Start()
+{
     spdlog::debug("Application: starting");
 
     spdlog::trace("Application: creating login dialog");
-    m_login = std::make_unique<LoginDialog>(
-        m_data_dir,
-        settings(),
-        network_manager(),
-        oauth_manager());
+    m_login = std::make_unique<LoginDialog>(m_data_dir,
+                                            settings(),
+                                            network_manager(),
+                                            oauth_manager());
 
     // Connect to the update signal in case an update is detected before the main window is open.
-    connect(m_update_checker.get(), &UpdateChecker::UpdateAvailable, m_update_checker.get(), &UpdateChecker::AskUserToUpdate);
+    connect(m_update_checker.get(),
+            &UpdateChecker::UpdateAvailable,
+            m_update_checker.get(),
+            &UpdateChecker::AskUserToUpdate);
 
     // Connect signals from the login dialog.
     connect(m_login.get(), &LoginDialog::ChangeTheme, this, &Application::SetTheme);
@@ -135,7 +139,8 @@ void Application::Start() {
     m_login->show();
 }
 
-void Application::Stop() {
+void Application::Stop()
+{
     // Delete things in the reverse order they were created, just in case
     // we might otherwise get an invalid point or reference.
     m_login = nullptr;
@@ -145,8 +150,8 @@ void Application::Stop() {
     m_settings = nullptr;
 }
 
-void Application::OnLogin(POE_API api) {
-
+void Application::OnLogin(POE_API api)
+{
     spdlog::debug("Application: login initiated");
 
     // Disconnect from the update signal so that only the main window gets it from now on.
@@ -158,35 +163,47 @@ void Application::OnLogin(POE_API api) {
 
     // Prepare to show the main window now that everything is initialized.
     spdlog::trace("Application:creating main window");
-    m_main_window = std::make_unique<MainWindow>(
-        settings(),
-        network_manager(),
-        rate_limiter(),
-        data(),
-        items_manager(),
-        buyout_manager(),
-        shop(),
-        image_cache());
+    m_main_window = std::make_unique<MainWindow>(settings(),
+                                                 network_manager(),
+                                                 rate_limiter(),
+                                                 data(),
+                                                 items_manager(),
+                                                 buyout_manager(),
+                                                 shop(),
+                                                 image_cache());
 
     // Connect UI signals.
     connect(m_main_window.get(), &MainWindow::SetSessionId, this, &Application::SetSessionId);
     connect(m_main_window.get(), &MainWindow::SetTheme, this, &Application::SetTheme);
-    connect(m_main_window.get(), &MainWindow::UpdateCheckRequested, m_update_checker.get(), &UpdateChecker::CheckForUpdates);
+    connect(m_main_window.get(),
+            &MainWindow::UpdateCheckRequested,
+            m_update_checker.get(),
+            &UpdateChecker::CheckForUpdates);
 
-    connect(m_items_manager.get(), &ItemsManager::ItemsRefreshed, m_main_window.get(), &MainWindow::OnItemsRefreshed);
-    connect(m_items_manager.get(), &ItemsManager::StatusUpdate, m_main_window.get(), &MainWindow::OnStatusUpdate);
+    connect(m_items_manager.get(),
+            &ItemsManager::ItemsRefreshed,
+            m_main_window.get(),
+            &MainWindow::OnItemsRefreshed);
+    connect(m_items_manager.get(),
+            &ItemsManager::StatusUpdate,
+            m_main_window.get(),
+            &MainWindow::OnStatusUpdate);
 
     connect(m_main_window.get(), &MainWindow::GetImage, m_image_cache.get(), &ImageCache::fetch);
-    connect(m_image_cache.get(), &ImageCache::imageReady, m_main_window.get(), &MainWindow::OnImageFetched);
+    connect(m_image_cache.get(),
+            &ImageCache::imageReady,
+            m_main_window.get(),
+            &MainWindow::OnImageFetched);
 
     connect(m_shop.get(), &Shop::StatusUpdate, m_main_window.get(), &MainWindow::OnStatusUpdate);
 
-    m_main_window->prepare(
-        *m_oauth_manager,
-        *m_currency_manager);
+    m_main_window->prepare(*m_oauth_manager, *m_currency_manager);
 
     // Connect the update checker.
-    connect(m_update_checker.get(), &UpdateChecker::UpdateAvailable, m_main_window.get(), &MainWindow::OnUpdateAvailable);
+    connect(m_update_checker.get(),
+            &UpdateChecker::UpdateAvailable,
+            m_main_window.get(),
+            &MainWindow::OnUpdateAvailable);
 
     spdlog::trace("Application::OnLogin() closing the login dialog");
     m_login->close();
@@ -195,106 +212,119 @@ void Application::OnLogin(POE_API api) {
     m_main_window->show();
 }
 
-QSettings& Application::settings() const {
+QSettings &Application::settings() const
+{
     if (!m_settings) {
         FatalError("Application::settings() attempted to dereference a null pointer");
-    };
+    }
     return *m_settings;
-};
+}
 
-ItemsManager& Application::items_manager() const {
+ItemsManager &Application::items_manager() const
+{
     if (!m_items_manager) {
         FatalError("Application::items_manager() attempted to dereference a null pointer");
-    };
+    }
     return *m_items_manager;
-};
+}
 
-DataStore& Application::global_data() const {
+DataStore &Application::global_data() const
+{
     if (!m_global_data) {
         FatalError("Application::global_data() attempted to dereference a null pointer");
-    };
+    }
     return *m_global_data;
-};
+}
 
-DataStore& Application::data() const {
+DataStore &Application::data() const
+{
     if (!m_data) {
         FatalError("Application::data() attempted to dereference a null pointer");
-    };
+    }
     return *m_data;
-};
+}
 
-BuyoutManager& Application::buyout_manager() const {
+BuyoutManager &Application::buyout_manager() const
+{
     if (!m_buyout_manager) {
         FatalError("Application::buyout_manager() attempted to dereference a null pointer");
-    };
+    }
     return *m_buyout_manager;
-};
+}
 
-QNetworkAccessManager& Application::network_manager() const {
+QNetworkAccessManager &Application::network_manager() const
+{
     if (!m_network_manager) {
         FatalError("Application::network_manager() attempted to dereference a null pointer");
-    };
+    }
     return *m_network_manager;
 }
 
-RePoE& Application::repoe() const {
+RePoE &Application::repoe() const
+{
     if (!m_repoe) {
         FatalError("Application::repoe() attempted to dereference a null pointer");
-    };
+    }
     return *m_repoe;
 }
 
-Shop& Application::shop() const {
+Shop &Application::shop() const
+{
     if (!m_shop) {
         FatalError("Application::shop() attempted to dereference a null pointer");
-    };
+    }
     return *m_shop;
 }
 
-ImageCache& Application::image_cache() const {
+ImageCache &Application::image_cache() const
+{
     if (!m_image_cache) {
         FatalError("Application::m_image_cache() attempted to dereference a null pointer");
-    };
+    }
     return *m_image_cache;
 }
 
-
-CurrencyManager& Application::currency_manager() const {
+CurrencyManager &Application::currency_manager() const
+{
     if (!m_currency_manager) {
         FatalError("Application::currency_manager() attempted to dereference a null pointer");
-    };
+    }
     return *m_currency_manager;
 }
 
-UpdateChecker& Application::update_checker() const {
+UpdateChecker &Application::update_checker() const
+{
     if (!m_update_checker) {
         FatalError("Application::update_checker() attempted to dereference a null pointer");
-    };
+    }
     return *m_update_checker;
 }
 
-OAuthManager& Application::oauth_manager() const {
+OAuthManager &Application::oauth_manager() const
+{
     if (!m_oauth_manager) {
         FatalError("Application::oauth_manager() attempted to dereference a null pointer");
-    };
+    }
     return *m_oauth_manager;
 }
 
-RateLimiter& Application::rate_limiter() const {
+RateLimiter &Application::rate_limiter() const
+{
     if (!m_rate_limiter) {
         FatalError("Application::rate_limiter() attempted to dereference a null pointer");
-    };
+    }
     return *m_rate_limiter;
 }
 
-void Application::InitCrashReporting() {
+void Application::InitCrashReporting()
+{
     spdlog::trace("Application::InitCrashReporting() entered");
 
     // Make sure the settings object exists.
     if (!m_settings) {
         spdlog::error("Cannot init crash reporting because settings object is invalid");
         return;
-    };
+    }
 
     // Enable crash reporting by default.
     bool report_crashes = true;
@@ -307,20 +337,21 @@ void Application::InitCrashReporting() {
         // Use the exiting setting.
         report_crashes = m_settings->value("report_crashes").toBool();
         spdlog::trace("Application::InitCrashReporting() 'report_crashes' is {}", report_crashes);
-    };
+    }
 
     // Initialize crash reporting with crashpad.
     if (report_crashes) {
         spdlog::trace("Application::InitCrashReporting() initializing crashpad");
         initializeCrashpad(m_data_dir.absolutePath(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
-    };
+    }
 }
 
-void Application::SetSessionId(const QString& poesessid) {
+void Application::SetSessionId(const QString &poesessid)
+{
     if (poesessid.isEmpty()) {
         spdlog::error("Application: cannot update POESESSID: value is empty");
         return;
-    };
+    }
     spdlog::info("Application: updating POESESSID");
     QNetworkCookie cookie(POE_COOKIE_NAME, poesessid.toUtf8());
     cookie.setPath(POE_COOKIE_PATH);
@@ -329,13 +360,14 @@ void Application::SetSessionId(const QString& poesessid) {
     m_settings->setValue("session_id", poesessid);
 }
 
-void Application::SetTheme(const QString& theme) {
+void Application::SetTheme(const QString &theme)
+{
     spdlog::trace("Application::OnSetTheme() entered");
 
     if (0 == theme.compare(m_active_theme, Qt::CaseInsensitive)) {
         spdlog::debug("Theme is already set: {}", theme);
         return;
-    };
+    }
 
     QString stylesheet;
     QColor text_color;
@@ -352,7 +384,7 @@ void Application::SetTheme(const QString& theme) {
     } else {
         spdlog::error("Invalid theme: {}", theme);
         return;
-    };
+    }
 
     spdlog::trace("Application::OnSetTheme() setting theme: {}", theme);
     settings().setValue("theme", theme);
@@ -367,17 +399,18 @@ void Application::SetTheme(const QString& theme) {
             } else {
                 style_data = f.readAll();
                 f.close();
-            };
+            }
         } else {
             spdlog::error("Style sheet not found: {}", stylesheet);
-        };
-    };
+        }
+    }
 
     spdlog::trace("Application::OnSetTheme() setting stylesheet");
     qApp->setStyleSheet(style_data);
 }
 
-void Application::SetUserDir(const QString& dir) {
+void Application::SetUserDir(const QString &dir)
+{
     Stop();
     InitUserDir(dir);
     Start();
@@ -392,10 +425,10 @@ void Application::InitLogin(POE_API mode)
     const QDir user_dir(m_data_dir.filePath("data"));
     if (league.isEmpty()) {
         FatalError("Login failure: the league has not been set.");
-    };
+    }
     if (account.isEmpty()) {
         FatalError("Login failure: the account has not been set.");
-    };
+    }
     spdlog::trace("Application::InitLogin() league = {}", league);
     spdlog::trace("Application::InitLogin() account = {}", account);
     spdlog::trace("Application::InitLogin() data_dir = {}", user_dir.absolutePath());
@@ -422,45 +455,41 @@ void Application::InitLogin(POE_API mode)
     SaveDbOnNewVersion();
 
     spdlog::trace("Application::InitLogin() creating rate limiter");
-    m_rate_limiter = std::make_unique<RateLimiter>(
-        network_manager(),
-        oauth_manager(), mode);
+    m_rate_limiter = std::make_unique<RateLimiter>(network_manager(), oauth_manager(), mode);
 
     spdlog::trace("Application::InitLogin() creating buyout manager");
-    m_buyout_manager = std::make_unique<BuyoutManager>(
-        data());
+    m_buyout_manager = std::make_unique<BuyoutManager>(data());
 
     spdlog::trace("Application::InitLogin() creating items manager");
-    m_items_manager = std::make_unique<ItemsManager>(
-        settings(),
-        network_manager(),
-        repoe(),
-        buyout_manager(),
-        data(),
-        rate_limiter());
+    m_items_manager = std::make_unique<ItemsManager>(settings(),
+                                                     network_manager(),
+                                                     repoe(),
+                                                     buyout_manager(),
+                                                     data(),
+                                                     rate_limiter());
 
     spdlog::trace("Application::InitLogin() creating shop");
-    m_shop = std::make_unique<Shop>(
-        settings(),
-        network_manager(),
-        rate_limiter(),
-        data(),
-        items_manager(),
-        buyout_manager());
+    m_shop = std::make_unique<Shop>(settings(),
+                                    network_manager(),
+                                    rate_limiter(),
+                                    data(),
+                                    items_manager(),
+                                    buyout_manager());
 
     spdlog::trace("Application::InitLogin() creating currency manager");
-    m_currency_manager = std::make_unique<CurrencyManager>(
-        settings(),
-        data(),
-        items_manager());
+    m_currency_manager = std::make_unique<CurrencyManager>(settings(), data(), items_manager());
 
-    connect(m_items_manager.get(), &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
+    connect(m_items_manager.get(),
+            &ItemsManager::ItemsRefreshed,
+            this,
+            &Application::OnItemsRefreshed);
 
     spdlog::trace("Application::InitLogin() starting items manager");
     m_items_manager->Start(mode);
 }
 
-void Application::OnItemsRefreshed(bool initial_refresh) {
+void Application::OnItemsRefreshed(bool initial_refresh)
+{
     spdlog::trace("Application::OnItemsRefreshed() entered");
     spdlog::trace("Application::OnItemsRefreshed() initial_refresh = {}", initial_refresh);
     m_currency_manager->Update();
@@ -468,17 +497,19 @@ void Application::OnItemsRefreshed(bool initial_refresh) {
     if (!initial_refresh && m_shop->auto_update()) {
         spdlog::trace("Application::OnItemsRefreshed() submitting shops");
         m_shop->SubmitShopToForum();
-    };
+    }
 }
 
-void Application::OnRunTests() {
+void Application::OnRunTests()
+{
     spdlog::trace("Application::OnRunTests() entered");
     if (!m_repoe->IsInitialized()) {
         spdlog::trace("Application::OnRunTests() RePoE is not initialized");
         QMessageBox::information(nullptr,
-            "Acquisition", "RePoE is not initialized yet. Try again later",
-            QMessageBox::StandardButton::Ok,
-            QMessageBox::StandardButton::Ok);
+                                 "Acquisition",
+                                 "RePoE is not initialized yet. Try again later",
+                                 QMessageBox::StandardButton::Ok,
+                                 QMessageBox::StandardButton::Ok);
         return;
     }
     spdlog::trace("Application::OnRunTests() hiding login and running tests");
@@ -486,23 +517,24 @@ void Application::OnRunTests() {
     const int result = test_main(m_data_dir.absolutePath());
     spdlog::trace("Application::OnRunTests(): test_main returned {}", result);
     QMessageBox::information(nullptr,
-        "Acquisition", "Testing returned " + QString::number(result),
-        QMessageBox::StandardButton::Ok,
-        QMessageBox::StandardButton::Ok);
+                             "Acquisition",
+                             "Testing returned " + QString::number(result),
+                             QMessageBox::StandardButton::Ok,
+                             QMessageBox::StandardButton::Ok);
     m_login->show();
 }
 
-void Application::SaveDbOnNewVersion() {
-
+void Application::SaveDbOnNewVersion()
+{
     spdlog::trace("Application::SaveDbOnNewVersion() entered");
     //If user updated from a 0.5c db to a 0.5d, db exists but no "version" in it
     QString version = m_data->Get("version", "0.5c");
     // We call this just after login, so we didn't pulled tabs for the first time ; so "tabs" shouldn't exist in the DB
     // This way we don't create an useless data_save_version folder on the first time you run acquisition
 
-    bool first_start = m_data->Get("tabs", "first_time") == "first_time" &&
-        m_data->GetTabs(ItemLocationType::STASH).size() == 0 &&
-        m_data->GetTabs(ItemLocationType::CHARACTER).size() == 0;
+    bool first_start = m_data->Get("tabs", "first_time") == "first_time"
+                       && m_data->GetTabs(ItemLocationType::STASH).size() == 0
+                       && m_data->GetTabs(ItemLocationType::CHARACTER).size() == 0;
     spdlog::trace("Application::SaveDbOnNewVersion() first_start = {}", first_start);
 
     if (version != APP_VERSION_STRING && !first_start) {
@@ -515,15 +547,17 @@ void Application::SaveDbOnNewVersion() {
         if (!dst.exists()) {
             spdlog::trace("Application::SaveDbOnNewVersion() creating save_path");
             QDir().mkpath(dst.path());
-        };
+        }
         const QStringList entries = src.entryList();
-        for (const auto& name : entries) {
+        for (const auto &name : entries) {
             const QString a = QDir(data_path).filePath(name);
             const QString b = QDir(save_path).filePath(name);
             spdlog::trace("Application::SaveDbOnNewVersion() copying {} to {}", a, b);
             QFile::copy(a, b);
         }
-        spdlog::info("I've created the folder {} in your acquisition folder, containing a save of all your data", save_path);
+        spdlog::info("I've created the folder {} in your acquisition folder, containing a save of "
+                     "all your data",
+                     save_path);
     }
 
     spdlog::trace("Application::SaveDbOnNewVersion() setting 'version' to {}", APP_VERSION_STRING);

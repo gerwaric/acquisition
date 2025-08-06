@@ -19,34 +19,35 @@
 
 #pragma once
 
-#include <QObject>
 #include <QNetworkAccessManager>
 #include <QNetworkInformation>
+#include <QObject>
 
 class QNetworkAccessManager;
 class QNetworkReply;
 class QNetworkRequest;
 
-class NetworkManager : public QObject {
+class NetworkManager : public QObject
+{
     Q_OBJECT
 public:
     NetworkManager();
     ~NetworkManager();
 
-    QNetworkReply* get(const QNetworkRequest& request);
-    QNetworkReply* get(const QNetworkRequest& request, QIODevice* data);
-    QNetworkReply* get(const QNetworkRequest& request, const QByteArray& data);
+    QNetworkReply *get(const QNetworkRequest &request);
+    QNetworkReply *get(const QNetworkRequest &request, QIODevice *data);
+    QNetworkReply *get(const QNetworkRequest &request, const QByteArray &data);
 
-    QNetworkReply* head(const QNetworkRequest& request);
+    QNetworkReply *head(const QNetworkRequest &request);
 
-    QNetworkReply* post(const QNetworkRequest& request, QIODevice* data);
-    QNetworkReply* post(const QNetworkRequest& request, QHttpMultiPart* multiPart);
-    QNetworkReply* post(const QNetworkRequest& request, const QByteArray& data);
-    QNetworkReply* post(const QNetworkRequest& request, std::nullptr_t nptr);
+    QNetworkReply *post(const QNetworkRequest &request, QIODevice *data);
+    QNetworkReply *post(const QNetworkRequest &request, QHttpMultiPart *multiPart);
+    QNetworkReply *post(const QNetworkRequest &request, const QByteArray &data);
+    QNetworkReply *post(const QNetworkRequest &request, std::nullptr_t nptr);
 
 private:
-    QNetworkRequest prepare(const QNetworkRequest& request);
+    QNetworkRequest prepare(const QNetworkRequest &request);
     std::unique_ptr<QNetworkAccessManager> m_network_manager;
-    QNetworkInformation* m_network_info;
-    bool m_offline{ true };
+    QNetworkInformation *m_network_info;
+    bool m_offline{true};
 };

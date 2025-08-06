@@ -50,25 +50,27 @@ namespace ItemEnums {
     };
     Q_ENUM_NS(ElementalDamageType)
 
-}
+} // namespace ItemEnums
 
 using FrameType = ItemEnums::FrameType;
-template <>
-struct fmt::formatter<FrameType, char> : QtEnumFormatter<FrameType> {};
+template<>
+struct fmt::formatter<FrameType, char> : QtEnumFormatter<FrameType>
+{};
 
 using ElementalDamageType = ItemEnums::ElementalDamageType;
-template <>
-struct fmt::formatter<ElementalDamageType, char> : QtEnumFormatter<ElementalDamageType> {};
-
+template<>
+struct fmt::formatter<ElementalDamageType, char> : QtEnumFormatter<ElementalDamageType>
+{};
 
 constexpr int PIXELS_PER_SLOT = 47;
 constexpr int INVENTORY_SLOTS = 12;
 constexpr int PIXELS_PER_MINIMAP_SLOT = 10;
 constexpr int MINIMAP_SIZE = INVENTORY_SLOTS * PIXELS_PER_MINIMAP_SLOT;
 
-struct position {
+struct position
+{
     double x;
     double y;
 };
 
-const std::map<QString, position>& POS_MAP();
+const std::map<QString, position> &POS_MAP();

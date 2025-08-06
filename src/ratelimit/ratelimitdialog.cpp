@@ -32,7 +32,7 @@
 #include "ratelimiter.h"
 #include "ratelimitpolicy.h"
 
-RateLimitDialog::RateLimitDialog(QWidget* parent, RateLimiter* limiter)
+RateLimitDialog::RateLimitDialog(QWidget *parent, RateLimiter *limiter)
     : QDialog(parent)
 {
     setSizeGripEnabled(true);
@@ -40,13 +40,12 @@ RateLimitDialog::RateLimitDialog(QWidget* parent, RateLimiter* limiter)
     // The spaces at the end of the header labels are intentional. Without them,
     // Qt was cutting off the last character or two. I could not figure out how
     // to avoid this.
-    const QStringList columns = {
-        "Policy / Rule  ",
-        "Queue  ",
-        "Hits / Limit  ",
-        "Period (s)  ",
-        "Timeout(s)  ",
-        "Status  " };
+    const QStringList columns = {"Policy / Rule  ",
+                                 "Queue  ",
+                                 "Hits / Limit  ",
+                                 "Period (s)  ",
+                                 "Timeout(s)  ",
+                                 "Status  "};
 
     setWindowTitle("Acquisition : Rate Limit Status Window");
 
@@ -64,7 +63,7 @@ RateLimitDialog::RateLimitDialog(QWidget* parent, RateLimiter* limiter)
 
     for (int i = 0; i < m_treeWidget->columnCount(); ++i) {
         m_treeWidget->resizeColumnToContents(i);
-    };
+    }
 
     m_statusLabel = new QLabel;
     m_statusLabel->setText("Rate limit status: UNKNOWN");
@@ -84,29 +83,29 @@ RateLimitDialog::RateLimitDialog(QWidget* parent, RateLimiter* limiter)
     connect(limiter, &RateLimiter::Paused, this, &RateLimitDialog::OnPause);
 }
 
-void RateLimitDialog::OnPolicyUpdate(const RateLimitPolicy& policy)
+void RateLimitDialog::OnPolicyUpdate(const RateLimitPolicy &policy)
 {
     QString queued_state;
 
     // Look for an existing top-level item and remove it.
     for (int i = 0; i < m_treeWidget->topLevelItemCount(); ++i) {
-        QTreeWidgetItem* item = m_treeWidget->topLevelItem(i);
+        QTreeWidgetItem *item = m_treeWidget->topLevelItem(i);
         if (item->text(0) == policy.name()) {
             queued_state = item->text(1);
             delete m_treeWidget->takeTopLevelItem(i);
             break;
-        };
-    };
+        }
+    }
     // Create a new top-level item.
-    QTreeWidgetItem* policy_item = new QTreeWidgetItem(m_treeWidget);
+    QTreeWidgetItem *policy_item = new QTreeWidgetItem(m_treeWidget);
     policy_item->setFlags(Qt::ItemIsEnabled);
     policy_item->setText(0, policy.name());
     policy_item->setText(1, queued_state);
-    for (const auto& rule : policy.rules()) {
-        for (const auto& item : rule.items()) {
-            const auto& limit = item.limit();
-            const auto& state = item.state();
-            QTreeWidgetItem* rule_item = new QTreeWidgetItem(policy_item);
+    for (const auto &rule : policy.rules()) {
+        for (const auto &item : rule.items()) {
+            const auto &limit = item.limit();
+            const auto &state = item.state();
+            QTreeWidgetItem *rule_item = new QTreeWidgetItem(policy_item);
             rule_item->setFlags(Qt::ItemIsEnabled);
             rule_item->setText(0, QString("%1 (%2s)").arg(rule.name()).arg(limit.period()));
             rule_item->setText(2, QString("%1 / %2").arg(state.hits()).arg(limit.hits()));
@@ -114,8 +113,8 @@ void RateLimitDialog::OnPolicyUpdate(const RateLimitPolicy& policy)
             rule_item->setText(4, QString::number(limit.restriction()));
             rule_item->setText(5, Util::toString(item.status()));
             rule_item->setExpanded(true);
-        };
-    };
+        }
+    }
     policy_item->setExpanded(true);
 
     // Sort the rows by policy name.
@@ -127,25 +126,27 @@ void RateLimitDialog::OnPolicyUpdate(const RateLimitPolicy& policy)
     };
 }
 
-void RateLimitDialog::OnQueueUpdate(const QString& policy_name, int queued_requests) {
+void RateLimitDialog::OnQueueUpdate(const QString &policy_name, int queued_requests)
+{
     for (int i = 0; i < m_treeWidget->topLevelItemCount(); ++i) {
-        QTreeWidgetItem* item = m_treeWidget->topLevelItem(i);
+        QTreeWidgetItem *item = m_treeWidget->topLevelItem(i);
         if (item->text(0) == policy_name) {
             if (queued_requests > 0) {
                 item->setText(1, QString::number(queued_requests));
             } else {
                 item->setText(1, "");
-            };
+            }
             break;
-        };
-    };
+        }
+    }
 }
 
-void RateLimitDialog::OnPause(int pause, const QString& policy)
+void RateLimitDialog::OnPause(int pause, const QString &policy)
 {
     if (pause <= 0) {
         m_statusLabel->setText("Not rate limited");
     } else {
-        m_statusLabel->setText(QString("Paused for %1 seconds due to %2").arg(QString::number(pause), policy));
-    };
+        m_statusLabel->setText(
+            QString("Paused for %1 seconds due to %2").arg(QString::number(pause), policy));
+    }
 }

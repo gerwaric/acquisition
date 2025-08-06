@@ -29,42 +29,38 @@
 #include <util/rapidjson_util.h>
 #include <util/spdlog_qt.h>
 
-
-class ItemLocation {
+class ItemLocation
+{
     Q_GADGET
 public:
-
-    enum class ItemLocationType {
-        STASH,
-        CHARACTER
-    };
+    enum class ItemLocationType { STASH, CHARACTER };
     Q_ENUM(ItemLocationType)
 
     ItemLocation();
-    explicit ItemLocation(const rapidjson::Value& root);
-    explicit ItemLocation(
-        int tab_id,
-        const QString& tab_unique_id,
-        const QString& name);
-    explicit ItemLocation(
-        int tab_id,
-        const QString& tab_unique_id,
-        const QString& name,
-        ItemLocationType type,
-        const QString& tab_type,
-        int r, int g, int b,
-        rapidjson::Value& value,
-        rapidjson_allocator& alloc);
+    explicit ItemLocation(const rapidjson::Value &root);
+    explicit ItemLocation(int tab_id, const QString &tab_unique_id, const QString &name);
+    explicit ItemLocation(int tab_id,
+                          const QString &tab_unique_id,
+                          const QString &name,
+                          ItemLocationType type,
+                          const QString &tab_type,
+                          int r,
+                          int g,
+                          int b,
+                          rapidjson::Value &value,
+                          rapidjson_allocator &alloc);
 
-    void ToItemJson(rapidjson::Value* root, rapidjson_allocator& alloc);
-    void FromItemJson(const rapidjson::Value& root);
+    void ToItemJson(rapidjson::Value *root, rapidjson_allocator &alloc);
+    void FromItemJson(const rapidjson::Value &root);
     QString GetHeader() const;
     QRectF GetRect() const;
-    QString GetForumCode(const QString& realm, const QString& league, unsigned int stash_index) const;
+    QString GetForumCode(const QString &realm,
+                         const QString &league,
+                         unsigned int stash_index) const;
     QString GetUniqueHash() const;
     bool IsValid() const;
-    bool operator<(const ItemLocation& other) const;
-    bool operator==(const ItemLocation& other) const;
+    bool operator<(const ItemLocation &other) const;
+    bool operator==(const ItemLocation &other) const;
     ItemLocationType get_type() const { return m_type; }
     QString get_tab_label() const { return m_tab_label; }
     QString get_character() const { return m_character; }
@@ -75,8 +71,12 @@ public:
     int getR() const { return m_red; }
     int getG() const { return m_green; }
     int getB() const { return m_blue; }
-    QString get_tab_uniq_id() const { return m_type == ItemLocationType::STASH ? m_tab_unique_id : m_character; }
+    QString get_tab_uniq_id() const
+    {
+        return m_type == ItemLocationType::STASH ? m_tab_unique_id : m_character;
+    }
     QString get_json() const { return m_json; }
+
 private:
     void FixUid();
 
@@ -94,7 +94,7 @@ private:
     // This is the "type" field from GGG, which is different from the ItemLocationType
     // used by Acquisition.
     QString m_tab_type;
-    
+
     QString m_tab_label;
     QString m_character;
     QString m_inventory_id;
@@ -104,8 +104,8 @@ private:
 
 using ItemLocationType = ItemLocation::ItemLocationType;
 
-template <>
-struct fmt::formatter<ItemLocationType, char> : QtEnumFormatter<ItemLocationType> {};
-
+template<>
+struct fmt::formatter<ItemLocationType, char> : QtEnumFormatter<ItemLocationType>
+{};
 
 typedef std::vector<ItemLocation> Locations;

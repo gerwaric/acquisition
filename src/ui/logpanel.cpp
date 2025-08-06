@@ -25,8 +25,8 @@
 #include <QStatusBar>
 #include <QTextEdit>
 
-#include <spdlog/sinks/qt_sinks.h>
 #include <spdlog/sinks/callback_sink.h>
+#include <spdlog/sinks/qt_sinks.h>
 
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
@@ -38,7 +38,8 @@ constexpr int MAX_LINES = 200;
 constexpr bool DARK_COLORS = false;
 constexpr bool IS_UTF8 = true;
 
-LogPanel::LogPanel(MainWindow* window, Ui::MainWindow* ui) : QObject(window)
+LogPanel::LogPanel(MainWindow *window, Ui::MainWindow *ui)
+    : QObject(window)
 {
     // Create the UI widgets.
     m_status_button = new QPushButton(window);
@@ -61,7 +62,10 @@ LogPanel::LogPanel(MainWindow* window, Ui::MainWindow* ui) : QObject(window)
     QObject::connect(m_status_button, &QPushButton::clicked, this, &LogPanel::TogglePanelVisibility);
 
     // Create a sinke for the text panel.
-    auto panel_sink = std::make_shared<spdlog::sinks::qt_color_sink_mt>(m_output, MAX_LINES, DARK_COLORS, IS_UTF8);
+    auto panel_sink = std::make_shared<spdlog::sinks::qt_color_sink_mt>(m_output,
+                                                                        MAX_LINES,
+                                                                        DARK_COLORS,
+                                                                        IS_UTF8);
     panel_sink->set_level(spdlog::level::warn);
 
     // Create a custom callback sink to change the status button label.
@@ -71,7 +75,7 @@ LogPanel::LogPanel(MainWindow* window, Ui::MainWindow* ui) : QObject(window)
                 ++m_num_errors;
             } else if (msg.level == spdlog::level::warn) {
                 ++m_num_warnings;
-            };
+            }
             UpdateStatusLabel();
         });
     callback_sink->set_level(spdlog::level::warn);
@@ -84,8 +88,8 @@ LogPanel::LogPanel(MainWindow* window, Ui::MainWindow* ui) : QObject(window)
     ui->mainLayout->addWidget(m_output);
 }
 
-void LogPanel::UpdateStatusLabel() {
-
+void LogPanel::UpdateStatusLabel()
+{
     QString label = "Event Log";
     QString style = "";
     unsigned int k = 0;
@@ -101,17 +105,18 @@ void LogPanel::UpdateStatusLabel() {
     } else if (m_num_messages > 0) {
         label = "message(s)";
         k = m_num_messages;
-    };
+    }
 
     if (k > 0) {
         label = QString("%1 %2").arg(QString::number(k), label);
-    };
+    }
 
     m_status_button->setStyleSheet(style);
     m_status_button->setText(label);
 }
 
-void LogPanel::TogglePanelVisibility() {
+void LogPanel::TogglePanelVisibility()
+{
     if (m_output->isVisible()) {
         m_output->hide();
     } else {
@@ -122,5 +127,5 @@ void LogPanel::TogglePanelVisibility() {
         m_num_warnings = 0;
         m_num_errors = 0;
         UpdateStatusLabel();
-    };
+    }
 }

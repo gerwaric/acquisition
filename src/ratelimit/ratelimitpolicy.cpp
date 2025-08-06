@@ -64,7 +64,7 @@ constexpr const int TIMING_BUCKET_BUFFER_SECS = 1;
 // RateLimitData
 //=========================================================================================
 
-RateLimitData::RateLimitData(const QByteArray& header_fragment)
+RateLimitData::RateLimitData(const QByteArray &header_fragment)
     : m_hits(-1)
     , m_period(-1)
     , m_restriction(-1)
@@ -79,7 +79,7 @@ RateLimitData::RateLimitData(const QByteArray& header_fragment)
 // RateLimitItem
 //=========================================================================================
 
-RateLimitItem::RateLimitItem(const QByteArray& limit_fragment, const QByteArray& state_fragment)
+RateLimitItem::RateLimitItem(const QByteArray &limit_fragment, const QByteArray &state_fragment)
     : m_limit(limit_fragment)
     , m_state(state_fragment)
 {
@@ -95,15 +95,25 @@ RateLimitItem::RateLimitItem(const QByteArray& limit_fragment, const QByteArray&
     };
 }
 
-void RateLimitItem::Check(const RateLimitItem& other, const QString& prefix) const {
+void RateLimitItem::Check(const RateLimitItem &other, const QString &prefix) const
+{
     if (m_limit.hits() != other.m_limit.hits()) {
-        spdlog::warn("{} limit.hits changed form {} to {}", prefix, m_limit.hits(), other.m_limit.hits());
+        spdlog::warn("{} limit.hits changed form {} to {}",
+                     prefix,
+                     m_limit.hits(),
+                     other.m_limit.hits());
     };
     if (m_limit.period() != other.m_limit.period()) {
-        spdlog::warn("{} limit.period changed from {} to {}", prefix, m_limit.period(), other.m_limit.period());
+        spdlog::warn("{} limit.period changed from {} to {}",
+                     prefix,
+                     m_limit.period(),
+                     other.m_limit.period());
     };
     if (m_limit.restriction() != other.m_limit.restriction()) {
-        spdlog::warn("{} limit.restriction changed from {} to {}", prefix, m_limit.restriction(), other.m_limit.restriction());
+        spdlog::warn("{} limit.restriction changed from {} to {}",
+                     prefix,
+                     m_limit.restriction(),
+                     other.m_limit.restriction());
     };
 }
 
@@ -111,7 +121,7 @@ void RateLimitItem::Check(const RateLimitItem& other, const QString& prefix) con
 // RateLimitRule
 //=========================================================================================
 
-RateLimitRule::RateLimitRule(const QByteArray& name, QNetworkReply* const reply)
+RateLimitRule::RateLimitRule(const QByteArray &name, QNetworkReply *const reply)
     : m_name(name)
     , m_status(RateLimit::Status::UNKNOWN)
     , m_maximum_hits(-1)
@@ -125,9 +135,8 @@ RateLimitRule::RateLimitRule(const QByteArray& name, QNetworkReply* const reply)
     };
     m_items.reserve(item_count);
     for (int j = 0; j < item_count; ++j) {
-
         // Create a new rule item from the next pair of fragments.
-        const auto& item = m_items.emplace_back(limit_fragments[j], state_fragments[j]);
+        const auto &item = m_items.emplace_back(limit_fragments[j], state_fragments[j]);
 
         // Keep track of the max hits, max rate, and overall status.
         if (m_maximum_hits < item.limit().hits()) {
@@ -139,7 +148,8 @@ RateLimitRule::RateLimitRule(const QByteArray& name, QNetworkReply* const reply)
     };
 }
 
-void RateLimitRule::Check(const RateLimitRule& other, const QString& prefix) const {
+void RateLimitRule::Check(const RateLimitRule &other, const QString &prefix) const
+{
     spdlog::trace("RateLimit::PolicyRule::Check() entered");
 
     // Check the rule name
@@ -149,20 +159,21 @@ void RateLimitRule::Check(const RateLimitRule& other, const QString& prefix) con
 
     // Check the number of items in this rule
     if (m_items.size() != other.m_items.size()) {
-
         // The number of items changed
-        spdlog::warn("{} rule {} went from {} items to {} items", prefix, m_name, m_items.size(), other.m_items.size());
+        spdlog::warn("{} rule {} went from {} items to {} items",
+                     prefix,
+                     m_name,
+                     m_items.size(),
+                     other.m_items.size());
 
     } else {
-
         // Check each item
         for (size_t i = 0; i < m_items.size(); ++i) {
             const QString item_prefix = QString("%1 item #%2").arg(prefix, QString::number(i));
-            const auto& old_item = m_items[i];
-            const auto& new_item = other.m_items[i];
+            const auto &old_item = m_items[i];
+            const auto &new_item = other.m_items[i];
             old_item.Check(new_item, item_prefix);
         };
-
     };
 }
 
@@ -170,7 +181,7 @@ void RateLimitRule::Check(const RateLimitRule& other, const QString& prefix) con
 // RateLimitPolicy
 //=========================================================================================
 
-RateLimitPolicy::RateLimitPolicy(QNetworkReply* const reply)
+RateLimitPolicy::RateLimitPolicy(QNetworkReply *const reply)
     : m_name(RateLimit::ParseRateLimitPolicy(reply))
     , m_status(RateLimit::Status::UNKNOWN)
     , m_maximum_hits(0)
@@ -182,16 +193,16 @@ RateLimitPolicy::RateLimitPolicy(QNetworkReply* const reply)
     m_rules.reserve(rule_names.size());
 
     // Iterate over all the rule names expected.
-    for (const auto& rule_name : rule_names) {
-
+    for (const auto &rule_name : rule_names) {
         // Create a new rule and add it to the list.
-        const auto& rule = m_rules.emplace_back(rule_name, reply);
+        const auto &rule = m_rules.emplace_back(rule_name, reply);
 
         // Check the status of this rule..
         if (rule.status() >= RateLimit::Status::VIOLATION) {
-            spdlog::error(
-                "Rate limit policy '{}:{}' is {})",
-                m_name, rule.name(), Util::toString(rule.status()));
+            spdlog::error("Rate limit policy '{}:{}' is {})",
+                          m_name,
+                          rule.name(),
+                          Util::toString(rule.status()));
         };
 
         // Update metrics for this rule.
@@ -204,7 +215,8 @@ RateLimitPolicy::RateLimitPolicy(QNetworkReply* const reply)
     };
 }
 
-void RateLimitPolicy::Check(const RateLimitPolicy& other) const {
+void RateLimitPolicy::Check(const RateLimitPolicy &other) const
+{
     spdlog::trace("RateLimit::Policy::Check() entered");
 
     // Check the policy name
@@ -214,24 +226,26 @@ void RateLimitPolicy::Check(const RateLimitPolicy& other) const {
 
     // Check the number of rules
     if (m_rules.size() != other.m_rules.size()) {
-
         // The number of rules changed
-        spdlog::warn("The rate limit policy {} had {} rules, but now has {}", m_name, m_rules.size(), other.m_rules.size());
+        spdlog::warn("The rate limit policy {} had {} rules, but now has {}",
+                     m_name,
+                     m_rules.size(),
+                     other.m_rules.size());
 
     } else {
-
         // The number of rules is the same, so check each one
         for (size_t i = 0; i < m_rules.size(); ++i) {
-            const QString prefix = QString("Rate limit policy %1, rule #%2:").arg(m_name, QString::number(i));
-            const auto& old_rule = m_rules[i];
-            const auto& new_rule = other.m_rules[i];
+            const QString prefix = QString("Rate limit policy %1, rule #%2:")
+                                       .arg(m_name, QString::number(i));
+            const auto &old_rule = m_rules[i];
+            const auto &new_rule = other.m_rules[i];
             old_rule.Check(new_rule, prefix);
         };
-
     };
 }
 
-QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<RateLimit::Event>& history) {
+QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<RateLimit::Event> &history)
+{
     spdlog::trace("RateLimit::Policy::GetNextSafeSend() entered");
 
     const QDateTime now = QDateTime::currentDateTime().toLocalTime();
@@ -240,23 +254,23 @@ QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<RateLimi
 
     spdlog::trace("Rate Limiting: calculating next safe send for {} policy", m_name);
 
-	const bool is_borderline = m_status == RateLimit::Status::BORDERLINE;
+    const bool is_borderline = m_status == RateLimit::Status::BORDERLINE;
 
-	if (is_borderline) {
-		m_borderline_report.clear();
-		m_borderline_report.append("<----- BORDERLINE_REPORT ----->");
-	}
+    if (is_borderline) {
+        m_borderline_report.clear();
+        m_borderline_report.append("<----- BORDERLINE_REPORT ----->");
+    }
 
-    for (const auto& rule : m_rules) {
-        for (const auto& item : rule.items()) {
-
-            const RateLimitData& state = item.state();
-            const RateLimitData& limit = item.limit();
+    for (const auto &rule : m_rules) {
+        for (const auto &item : rule.items()) {
+            const RateLimitData &state = item.state();
+            const RateLimitData &limit = item.limit();
             const auto period = limit.period();
             const auto max_hits = limit.hits();
             const auto current_hits = state.hits();
 
-            const QString prefix = QString("%1:%2[%3s]").arg(m_name, rule.name(), QString::number(period));
+            const QString prefix = QString("%1:%2[%3s]")
+                                       .arg(m_name, rule.name(), QString::number(period));
 
             // If this item is not limiting, we can skip it.
             if (current_hits < max_hits) {
@@ -278,72 +292,93 @@ QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<RateLimi
                 spdlog::trace("{}: using current time: {}", prefix, now.toString(Qt::ISODateWithMs));
                 t = now;
             } else {
-                const auto& event = history[n - 1];
-				if (is_borderline) {
-					m_borderline_report.append(QString("<NEXT_SEND_BASED_ON index=%1, history_size=%2>").arg(n).arg(len));
-					m_borderline_report.append(QString("request_id    = %1").arg(event.request_id));
-					m_borderline_report.append(QString("request_url   = %1").arg(event.request_url));
-					m_borderline_report.append(QString("request_time  = %1").arg(event.request_time.toString(Qt::ISODateWithMs)));
-					m_borderline_report.append(QString("received_time = %1").arg(event.received_time.toString(Qt::ISODateWithMs)));
-					m_borderline_report.append(QString("reply_time    = %1").arg(event.reply_time.toString(Qt::ISODateWithMs)));
-					m_borderline_report.append(QString("reply_status  = %1").arg(event.reply_status));
-					m_borderline_report.append(QString("</EVENT>"));
+                const auto &event = history[n - 1];
+                if (is_borderline) {
+                    m_borderline_report.append(
+                        QString("<NEXT_SEND_BASED_ON index=%1, history_size=%2>").arg(n).arg(len));
+                    m_borderline_report.append(QString("request_id    = %1").arg(event.request_id));
+                    m_borderline_report.append(QString("request_url   = %1").arg(event.request_url));
+                    m_borderline_report.append(
+                        QString("request_time  = %1")
+                            .arg(event.request_time.toString(Qt::ISODateWithMs)));
+                    m_borderline_report.append(
+                        QString("received_time = %1")
+                            .arg(event.received_time.toString(Qt::ISODateWithMs)));
+                    m_borderline_report.append(
+                        QString("reply_time    = %1")
+                            .arg(event.reply_time.toString(Qt::ISODateWithMs)));
+                    m_borderline_report.append(
+                        QString("reply_status  = %1").arg(event.reply_status));
+                    m_borderline_report.append(QString("</EVENT>"));
                 }
-				spdlog::trace("{}: using history event {}/{} replied at {}", prefix, n, len, event.received_time.toString(Qt::ISODateWithMs));
-				t = event.reply_time;
+                spdlog::trace("{}: using history event {}/{} replied at {}",
+                              prefix,
+                              n,
+                              len,
+                              event.received_time.toString(Qt::ISODateWithMs));
+                t = event.reply_time;
             }
 
             // Add the measurement period.
             t = t.addSecs(period);
-			spdlog::trace("{}: next_send is {} after adding {}s period", prefix, next_send.toString(Qt::ISODateWithMs), period);
+            spdlog::trace("{}: next_send is {} after adding {}s period",
+                          prefix,
+                          next_send.toString(Qt::ISODateWithMs),
+                          period);
 
             // Determine which timing resolution applies.
             const int delay = ((period <= INITIAL_VS_SUSTAINED_PERIOD_CUTOFF)
-                ? INITIAL_TIMING_BUCKET_SECS
-                : SUSTAINED_TIMING_BUCKET_SECS) + TIMING_BUCKET_BUFFER_SECS;
+                                   ? INITIAL_TIMING_BUCKET_SECS
+                                   : SUSTAINED_TIMING_BUCKET_SECS)
+                              + TIMING_BUCKET_BUFFER_SECS;
 
             // Add the timing resolution.
             t = t.addSecs(delay);
-            spdlog::trace("{}: next_send is {} after adding {}s for timing bucket", prefix, next_send.toString(Qt::ISODateWithMs), delay);
+            spdlog::trace("{}: next_send is {} after adding {}s for timing bucket",
+                          prefix,
+                          next_send.toString(Qt::ISODateWithMs),
+                          delay);
 
             // Check to see if we need to update the final result.
             if (next_send < t) {
                 next_send = t;
-                spdlog::trace("{}: next send is {} now", prefix, next_send.toString(Qt::ISODateWithMs));
+                spdlog::trace("{}: next send is {} now",
+                              prefix,
+                              next_send.toString(Qt::ISODateWithMs));
             };
         };
     };
 
-	if (is_borderline) {
-		m_borderline_report.append(QString("<HISTORY_BEFORE_VIOLATION policy='%1'>").arg(m_name));
-		for (size_t i = 0; i < history.size(); ++i) {
-			const auto& event = history[i];
-			const QString line = QString("%1 #%2 (request_id=%3): sent %4, received %5, reply %6 (status=%7, url='%8')").arg(
-				m_name,
-				QString::number(i + 1),
-				QString::number(event.request_id),
-				event.request_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
-				event.received_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
-				event.reply_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
-				QString::number(event.reply_status),
-				event.request_url);
-			m_borderline_report.append(line);
-		};
-		m_borderline_report.append("</HISTORY_BEFORE_VIOLATION>");
-	}
-
+    if (is_borderline) {
+        m_borderline_report.append(QString("<HISTORY_BEFORE_VIOLATION policy='%1'>").arg(m_name));
+        for (size_t i = 0; i < history.size(); ++i) {
+            const auto &event = history[i];
+            const QString line = QString("%1 #%2 (request_id=%3): sent %4, received %5, reply %6 "
+                                         "(status=%7, url='%8')")
+                                     .arg(m_name,
+                                          QString::number(i + 1),
+                                          QString::number(event.request_id),
+                                          event.request_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
+                                          event.received_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
+                                          event.reply_time.toString("yyyy-MMM-dd HH:mm:ss.zzz"),
+                                          QString::number(event.reply_status),
+                                          event.request_url);
+            m_borderline_report.append(line);
+        };
+        m_borderline_report.append("</HISTORY_BEFORE_VIOLATION>");
+    }
 
     return next_send;
 }
 
-QDateTime RateLimitPolicy::EstimateDuration(int num_requests, int minimum_delay_msec) const {
+QDateTime RateLimitPolicy::EstimateDuration(int num_requests, int minimum_delay_msec) const
+{
     spdlog::trace("RateLimit::Policy::EstimateDuration() entered");
 
     int longest_wait = 0;
 
-    for (const auto& rule : m_rules) {
-        for (const auto& item : rule.items()) {
-
+    for (const auto &rule : m_rules) {
+        for (const auto &item : rule.items()) {
             int wait = 0;
 
             const int current_hits = item.state().hits();

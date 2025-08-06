@@ -28,15 +28,17 @@
 class QNetworkRequest;
 
 // Represents a single rate-limited request.
-struct RateLimitedRequest {
-
+struct RateLimitedRequest
+{
     // Construct a new rate-limited request.
-    RateLimitedRequest(const QString& endpoint_, const QNetworkRequest& network_request_, RateLimitedReply* reply_) :
-        id(++s_request_count),
-        endpoint(endpoint_),
-        network_request(network_request_),
-        reply(reply_) {
-    }
+    RateLimitedRequest(const QString &endpoint_,
+                       const QNetworkRequest &network_request_,
+                       RateLimitedReply *reply_)
+        : id(++s_request_count)
+        , endpoint(endpoint_)
+        , network_request(network_request_)
+        , reply(reply_)
+    {}
 
     // Unique identified for each request, even through different requests can be
     // routed to different policy managers based on different endpoints.
@@ -54,7 +56,6 @@ struct RateLimitedRequest {
     std::unique_ptr<RateLimitedReply> reply;
 
 private:
-
     // Total number of requests that have every been constructed.
     static unsigned long s_request_count;
 };

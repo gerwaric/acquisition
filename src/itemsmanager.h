@@ -45,46 +45,51 @@ class Shop;
  * and glues it to the rest of Acquisition.
  * (No longer true as of v0.10.0, but we will see if this causes performance issues).
  */
-class ItemsManager : public QObject {
+class ItemsManager : public QObject
+{
     Q_OBJECT
 public:
-    explicit ItemsManager(
-        QSettings& settings,
-        QNetworkAccessManager& network_manager,
-        RePoE& repoe,
-        BuyoutManager& buyout_manager,
-        DataStore& datastore,
-        RateLimiter& rate_limiter);
+    explicit ItemsManager(QSettings &settings,
+                          QNetworkAccessManager &network_manager,
+                          RePoE &repoe,
+                          BuyoutManager &buyout_manager,
+                          DataStore &datastore,
+                          RateLimiter &rate_limiter);
     ~ItemsManager();
-    bool isInitialized() const { return m_worker ? m_worker->isInitialized() : false; };
-    bool isUpdating() const { return m_worker ? m_worker->isUpdating() : false; };
+    bool isInitialized() const { return m_worker ? m_worker->isInitialized() : false; }
+    bool isUpdating() const { return m_worker ? m_worker->isUpdating() : false; }
     // Creates and starts the worker
     void Start(POE_API mode);
-    void Update(TabSelection type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
+    void Update(TabSelection type,
+                const std::vector<ItemLocation> &tab_names = std::vector<ItemLocation>());
     void SetAutoUpdateInterval(int minutes);
     void SetAutoUpdate(bool update);
-    const Items& items() const { return m_items; }
+    const Items &items() const { return m_items; }
     void ApplyAutoTabBuyouts();
     void ApplyAutoItemBuyouts();
     void PropagateTabBuyouts();
 public slots:
     void OnAutoRefreshTimer();
-    void OnStatusUpdate(ProgramState state, const QString& status);
-    void OnItemsRefreshed(const Items& items, const std::vector<ItemLocation>& tabs, bool initial_refresh);
+    void OnStatusUpdate(ProgramState state, const QString &status);
+    void OnItemsRefreshed(const Items &items,
+                          const std::vector<ItemLocation> &tabs,
+                          bool initial_refresh);
 signals:
-    void UpdateSignal(TabSelection type, const std::vector<ItemLocation>& tab_names = std::vector<ItemLocation>());
+    void UpdateSignal(TabSelection type,
+                      const std::vector<ItemLocation> &tab_names = std::vector<ItemLocation>());
     void ItemsRefreshed(bool initial_refresh);
-    void StatusUpdate(ProgramState state, const QString& status);
+    void StatusUpdate(ProgramState state, const QString &status);
     void UpdateModListSignal();
+
 private:
     void MigrateBuyouts();
 
-    QSettings& m_settings;
-    QNetworkAccessManager& m_network_manager;
-    RePoE& m_repoe;
-    BuyoutManager& m_buyout_manager;
-    DataStore& m_datastore;
-    RateLimiter& m_rate_limiter;
+    QSettings &m_settings;
+    QNetworkAccessManager &m_network_manager;
+    RePoE &m_repoe;
+    BuyoutManager &m_buyout_manager;
+    DataStore &m_datastore;
+    RateLimiter &m_rate_limiter;
 
     std::unique_ptr<QTimer> m_auto_update_timer;
     std::unique_ptr<ItemsManagerWorker> m_worker;

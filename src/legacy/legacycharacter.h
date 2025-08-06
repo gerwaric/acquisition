@@ -25,7 +25,8 @@
 
 #include <util/json_struct_qt.h>
 
-struct LegacyCharacter {
+struct LegacyCharacter
+{
     QString id;
     QString name;
     QString realm;
@@ -34,13 +35,12 @@ struct LegacyCharacter {
     unsigned int level;
     unsigned long experience;
     std::optional<bool> current;
-    JS_OBJECT(
-        JS_MEMBER(id),
-        JS_MEMBER(name),
-        JS_MEMBER(realm),
-        JS_MEMBER_WITH_NAME(class_, "class"),
-        JS_MEMBER(league),
-        JS_MEMBER(level),
-        JS_MEMBER(experience),
-        JS_MEMBER(current));
+    JS_OBJECT(JS_MEMBER(id),
+              JS_MEMBER(name),
+              JS_MEMBER(realm),
+              JS_MEMBER_WITH_NAME(class_, "class"),
+              JS_MEMBER(league),
+              JS_MEMBER(level),
+              JS_MEMBER(experience),
+              JS_MEMBER(current));
 };

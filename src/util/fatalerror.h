@@ -21,4 +21,4 @@
 
 #include <QString>
 
-[[noreturn]] void FatalError(const QString& message);
+[[noreturn]] void FatalError(const QString &message);

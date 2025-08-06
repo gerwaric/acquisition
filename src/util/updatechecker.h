@@ -32,12 +32,11 @@ class QNetworkAccessManager;
 class QSettings;
 class QWidget;
 
-class UpdateChecker : public QObject {
+class UpdateChecker : public QObject
+{
     Q_OBJECT
 public:
-    explicit UpdateChecker(
-        QSettings& settings,
-        QNetworkAccessManager& network_manager);
+    explicit UpdateChecker(QSettings &settings, QNetworkAccessManager &network_manager);
 signals:
     void UpdateAvailable();
 public slots:
@@ -46,21 +45,22 @@ public slots:
 private slots:
     void OnUpdateReplyReceived();
     void OnUpdateErrorOccurred(QNetworkReply::NetworkError code);
-    void OnUpdateSslErrors(const QList<QSslError>& errors);
-private:
+    void OnUpdateSslErrors(const QList<QSslError> &errors);
 
-    struct ReleaseTag {
+private:
+    struct ReleaseTag
+    {
         semver::version version;
-        bool draft{ false };
-        bool prerelease{ false };
+        bool draft{false};
+        bool prerelease{false};
     };
-    std::vector<ReleaseTag> ParseReleaseTags(const QByteArray& bytes);
+    std::vector<ReleaseTag> ParseReleaseTags(const QByteArray &bytes);
 
     bool has_newer_release() const;
     bool has_newer_prerelease() const;
 
-    QSettings& m_settings;
-    QNetworkAccessManager& m_nm;
+    QSettings &m_settings;
+    QNetworkAccessManager &m_nm;
 
     // Trigger periodic update checks.
     QTimer m_timer;
