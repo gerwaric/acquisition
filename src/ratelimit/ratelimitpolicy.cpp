@@ -234,25 +234,51 @@ bool RateLimitPolicy::Check(const RateLimitPolicy &other) const
     return true;
 }
 
+QString RateLimitPolicy::Timestamp(const QDateTime &t)
+{
+    return t.toString("yyyy-MMM-dd HH:mm:ss.zzz");
+}
+
 QString RateLimitPolicy::GetPolicyReport() const
 {
     QStringList lines;
-    lines.append(QString("<POLICY name='%1' status='%2'>").arg(m_name, Util::toString(m_status)));
+    lines.append(QString("<POLICY_STATE policy='%1'>").arg(m_name));
+    lines.append(QString("  status = %1:").arg(Util::toString(m_status)));
     for (const auto &rule : m_rules) {
         for (const auto &item : rule.items()) {
-            const auto &state = item.state();
-            const auto &limit = item.limit();
             lines.append(QString("  %1/%2[%3s] = (%4/%5):%6:%7")
-                             .arg(m_name,
-                                  rule.name(),
-                                  QString::number(limit.period()),
-                                  QString::number(state.hits()),
-                                  QString::number(limit.hits()),
-                                  QString::number(limit.period()),
-                                  QString::number(limit.restriction())));
+                             .arg(m_name, rule.name())
+                             .arg(item.limit().period())
+                             .arg(item.state().hits())
+                             .arg(item.limit().hits())
+                             .arg(item.limit().period())
+                             .arg(QString::number(item.limit().restriction())));
         }
     }
-    lines.append("</POLICY>");
+    lines.append("</POLICY_STATE>");
+    return lines.join("\n");
+}
+
+QString RateLimitPolicy::GetHistoryReport(
+    const boost::circular_buffer<RateLimit::Event> &history) const
+{
+    QStringList lines;
+    lines.append(QString("<HISTORY_STATE policy='%1'>").arg(m_name));
+    for (size_t i = 0; i < history.size(); ++i) {
+        const auto &event = history[i];
+        const QString line = QString("  %1 #%2 (request_id=%3): sent %4, received %5, reply %6 "
+                                     "(status=%7, url='%8')")
+                                 .arg(m_name)
+                                 .arg(i + 1)
+                                 .arg(event.request_id)
+                                 .arg(Timestamp(event.request_time),
+                                      Timestamp(event.received_time),
+                                      Timestamp(event.reply_time))
+                                 .arg(event.reply_status)
+                                 .arg(event.request_url);
+        lines.append(line);
+    }
+    lines.append("</HISTORY_STATE>");
     return lines.join("\n");
 }
 
@@ -267,30 +293,12 @@ QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<RateLimi
 
     spdlog::debug("Rate Limiting: calculating next send for BORDERLINE policy: {}", m_name);
 
-    // Use a lamba helper function to convert format datetime objects for logging.
-    const auto timestamp = [](const QDateTime &t) { return t.toString("yyyy-MMM-dd HH:mm:ss.zzz"); };
-
-    m_report.clear();
-    m_report.append(QString("===== BORDERLINE_REPORT(%1) =====").arg(timestamp(now)));
-    m_report.append(GetPolicyReport());
-    m_report.append("<HISTORY_STATE>");
-    for (size_t i = 0; i < history.size(); ++i) {
-        const auto &event = history[i];
-        const QString line = QString("  %1 #%2 (request_id=%3): sent %4, received %5, reply %6 "
-                                     "(status=%7, url='%8')")
-                                 .arg(m_name,
-                                      QString::number(i + 1),
-                                      QString::number(event.request_id),
-                                      timestamp(event.request_time),
-                                      timestamp(event.received_time),
-                                      timestamp(event.reply_time),
-                                      QString::number(event.reply_status),
-                                      event.request_url);
-        m_report.append(line);
-    }
-    m_report.append("</HISTORY_STATE>");
-
     QDateTime next_send(now);
+
+    QStringList lines;
+    lines.append(QString("===== BORDERLINE_REPORT(%1) =====").arg(Timestamp(now)));
+    lines.append(GetPolicyReport());
+    lines.append(GetHistoryReport(history));
 
     for (const auto &rule : m_rules) {
         for (const auto &item : rule.items()) {
@@ -302,14 +310,10 @@ QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<RateLimi
 
             // If this item is not limiting, we can skip it.
             if (current_hits < max_hits) {
-                spdlog::trace("{}: skipping rule because state is {}/{}",
-                              tag,
-                              current_hits,
-                              max_hits);
-                m_report.append(QString("%1: skipping rule because state is %2/%3")
-                                    .arg(tag)
-                                    .arg(current_hits)
-                                    .arg(max_hits));
+                lines.append(QString("%1: skipping rule because state is %2/%3")
+                                 .arg(tag)
+                                 .arg(current_hits)
+                                 .arg(max_hits));
                 continue;
             }
 
@@ -317,38 +321,33 @@ QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<RateLimi
             const size_t hits = static_cast<size_t>(max_hits);
             const size_t len = history.size();
             const size_t n = (len < hits) ? len : hits;
-
-            spdlog::trace("{}: n={}/{}", tag, n, len);
-            m_report.append(QString("%1: n=%2/%3").arg(tag).arg(n).arg(len));
+            lines.append(QString("%1: n=%2/%3").arg(tag).arg(n).arg(len));
 
             // Start with the timestamp of the earliest known
             // reply relevant to this limitation.
             QDateTime t;
             if (n < 1) {
                 t = now;
-                spdlog::trace("{}: using current time: {}", tag, timestamp(t));
-                m_report.append(QString("Using current time: %1").arg(timestamp(t)));
+                lines.append(QString("Using current time: %1").arg(Timestamp(t)));
             } else {
                 const auto &event = history[n - 1];
-                m_report.append(QString("%1: using history event:").arg(tag));
-                m_report.append(QString("<EVENT index=%1, history_size=%2>").arg(n).arg(len));
-                m_report.append(QString("  request_id    = %1").arg(event.request_id));
-                m_report.append(QString("  request_url   = %1").arg(event.request_url));
-                m_report.append(QString("  request_time  = %1").arg(timestamp(event.request_time)));
-                m_report.append(QString("  received_time = %1").arg(timestamp(event.received_time)));
-                m_report.append(QString("  reply_time    = %1").arg(timestamp(event.reply_time)));
-                m_report.append(QString("  reply_status  = %1").arg(event.reply_status));
-                m_report.append(QString("</EVENT>"));
+                lines.append(QString("%1: using history event:").arg(tag));
+                lines.append(QString("<EVENT index=%1, history_size=%2>").arg(n).arg(len));
+                lines.append(QString("  request_id    = %1").arg(event.request_id));
+                lines.append(QString("  request_url   = %1").arg(event.request_url));
+                lines.append(QString("  request_time  = %1").arg(Timestamp(event.request_time)));
+                lines.append(QString("  received_time = %1").arg(Timestamp(event.received_time)));
+                lines.append(QString("  reply_time    = %1").arg(Timestamp(event.reply_time)));
+                lines.append(QString("  reply_status  = %1").arg(event.reply_status));
+                lines.append(QString("</EVENT>"));
                 t = event.reply_time;
-                spdlog::trace("{}: send is {} from history event {}/{}", tag, timestamp(t), n, len);
             }
 
             // Add the measurement period.
             t = t.addSecs(period);
-            spdlog::trace("{}: send is {} after adding {}s period", tag, timestamp(t), period);
-            m_report.append(QString("%1: send is %2 adding %3 seconds for period")
-                                .arg(tag, timestamp(t))
-                                .arg(period));
+            lines.append(QString("%1: send is %2 adding %3 seconds for period")
+                             .arg(tag, Timestamp(t))
+                             .arg(period));
 
             // Determine which timing resolution applies.
             const int delay = ((period <= INITIAL_VS_SUSTAINED_PERIOD_CUTOFF)
@@ -358,31 +357,26 @@ QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<RateLimi
 
             // Add the timing resolution.
             t = t.addSecs(delay);
-            spdlog::trace("{}: send is {} after adding {}s for timing bucket",
-                          tag,
-                          timestamp(t),
-                          delay);
-            m_report.append(QString("%1: send is %2 after adding %3 seconds for timing bucket")
-                                .arg(tag, timestamp(t))
-                                .arg(delay));
+            lines.append(QString("%1: send is %2 after adding %3 seconds for timing bucket")
+                             .arg(tag, Timestamp(t))
+                             .arg(delay));
 
             // Check to see if we need to update the final result.
             if (next_send < t) {
-                spdlog::trace("{}: updating next send from {} to {}",
-                              tag,
-                              timestamp(next_send),
-                              timestamp(t));
-                m_report.append(QString("%1: updating next send from %1 to %2")
-                                    .arg(tag, timestamp(next_send), timestamp(t)));
+                lines.append(QString("%1: updating next send from %1 to %2")
+                                 .arg(tag, Timestamp(next_send), Timestamp(t)));
                 next_send = t;
             } else {
-                m_report.append(QString("Next send is unchanged").arg(tag));
+                lines.append(QString("Next send is unchanged").arg(tag));
             }
         }
     }
-    spdlog::debug("Rate Limiting: next send for '{}' is {}", m_name, timestamp(next_send));
-    m_report.append(QString("Next send for '%1' is %2").arg(m_name, timestamp(next_send)));
-    m_report.append(QString("================================="));
+    spdlog::debug("Rate Limiting: next send for '{}' is {}", m_name, Timestamp(next_send));
+    lines.append(QString("Next send for '%1' is %2").arg(m_name, Timestamp(next_send)));
+    lines.append(QString("================================="));
+
+    m_report = lines.join("\n");
+
     return next_send;
 }
 

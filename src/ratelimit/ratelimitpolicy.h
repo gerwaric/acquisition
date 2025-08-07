@@ -110,8 +110,11 @@ public:
     int maximum_hits() const { return m_maximum_hits; };
     QDateTime GetNextSafeSend(const boost::circular_buffer<RateLimit::Event> &history);
     QDateTime EstimateDuration(int request_count, int minimum_delay_msec) const;
+
+    // Report generators for logging.
     QString GetPolicyReport() const;
-    QString GetBorderlineReport() const { return m_report.join("\n"); };
+    QString GetHistoryReport(const boost::circular_buffer<RateLimit::Event> &history) const;
+    QString GetBorderlineReport() const { return m_report; };
 
 private:
     const QString m_name;
@@ -119,5 +122,11 @@ private:
     RateLimit::Status m_status;
     int m_maximum_hits;
 
-    QStringList m_report;
+    // This report is generated whenever GetNextSafeSend() is called, which should
+    // only be when a rate limit policy is about to be violated. Then if a violation
+    // occurs the report can be written to the log.
+    QString m_report;
+
+    // Internal helper for format dates for logging.
+    static QString Timestamp(const QDateTime &t);
 };
