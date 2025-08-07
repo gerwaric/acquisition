@@ -17,7 +17,14 @@
 	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 #]]
 
-cmake_minimum_required(VERSION 3.29)
+cmake_minimum_required(VERSION 3.30)
+
+# Needed to pass normal variables to subprojects.
+cmake_policy(SET CMP0077 NEW)
+
+# Needed because Tencent's rapidjson uses the deprecated
+# modules FindPythonInterp and FindPythonLibs.
+cmake_policy(SET CMP0148 OLD)
 
 # NOTE: For automatic update detection to work, the 'app_version' variable
 # defined below should match a tag in github. Historically, the github tags
@@ -36,7 +43,7 @@ project(acquisition
 )
 
 # Use this to define pre-releases
-set(version_postfix "-beta.3")
+set(version_postfix "")
 
 # Variables used to generate version_defines.h and installer.iss
 set(version_code        63) # This doesn't need to be changed with the new update checks.
@@ -53,7 +60,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # When building with Qt Creator in Windows, the compiler and linker options
@@ -105,6 +112,41 @@ if(NOT TARGET json_struct)
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(json_struct)
+endif()
+
+if(NOT TARGET rapidjson)
+    FetchContent_Declare(
+        rapidjson
+        GIT_REPOSITORY https://github.com/tencent/rapidjson.git
+        GIT_TAG        24b5e7a8b27f42fa16b96fc70aade9106cf7102f # There hasn't been a tagged release since 2016
+        GIT_SHALLOW    TRUE
+    )
+    # Turn off build options. (I'm not sure these are getting through to the subproject)
+    set(RAPIDJSON_BUILD_DOC OFF)
+    set(RAPIDJSON_BUILD_EXAMPLES OFF)
+    set(RAPIDJSON_BUILD_TEST OFF)
+    # Set CXX version options.
+    set(RAPIDJSON_BUILD_CXX11 OFF)
+    set(RAPIDJSON_BUILD_CXX17 OFF)
+    set(RAPIDJSON_BUILD_CXX20 ON)
+    FetchContent_MakeAvailable(rapidjson)
+    # The CMakeLists.txt for rapidjason from Tencent doesn't define an interface library,
+    # so we do it here instead.
+    add_library(rapidjson-headers INTERFACE)
+    target_include_directories(rapidjson-headers INTERFACE "${rapidjson_SOURCE_DIR}/include")
+endif()
+
+if(NOT TARGET semver)
+    FetchContent_Declare(
+        semver
+        GIT_REPOSITORY https://github.com/z4kn4fein/cpp-semver
+        GIT_TAG        v0.4.0
+        GIT_SHALLOW    TRUE
+    )
+    # Set build options for semver.
+    set(SEMVER_BUILD_TESTS OFF)
+    set(SEMVER_BUILD_MODULE OFF)
+    FetchContent_MakeAvailable(semver)
 endif()
 
 if(NOT TARGET spdlog)
@@ -304,8 +346,6 @@ target_include_directories(acquisition PRIVATE
 add_subdirectory(deps/Crashpad)
 add_subdirectory(deps/libpoe)
 add_subdirectory(deps/qdarkstyle)
-add_subdirectory(deps/rapidjson)
-add_subdirectory(deps/semver)
 
 # Link required libraries.
 target_link_libraries(acquisition PRIVATE
@@ -324,7 +364,7 @@ target_link_libraries(acquisition PRIVATE
     json_struct
     libpoe
     qdarkstyle
-    rapidjson
+    rapidjson-headers
     semver
     spdlog::spdlog_header_only
 )
@@ -422,8 +462,10 @@ elseif(UNIX)
     endif()
 
     # Link OpenSSL libraries to acquisition
-    target_include_directories(acquisition PUBLIC ${OPENSSL_INCLUDE_DIR})
-    target_link_libraries(acquisition PUBLIC OpenSSL::SSL OpenSSL::Crypto)
+    target_include_directories(acquisition PUBLIC "${OPENSSL_INCLUDE_DIR}")
+    target_link_libraries(acquisition PUBLIC
+        OpenSSL::SSL
+        OpenSSL::Crypto)
 
     # Generate debug symbols.
     target_compile_options(acquisition PRIVATE -g)
