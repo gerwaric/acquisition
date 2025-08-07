@@ -240,9 +240,9 @@ void RateLimitManager::ReceiveReply()
         LogPolicyHistory();
         emit Violation(m_policy->name());
     } else {
-        // For now, let's print the borderline report for trace logging.
-        if (spdlog::should_log(spdlog::level::trace)) {
-            if (m_policy->status() == RateLimit::Status::BORDERLINE) {
+        // For now, let's print the borderline report for trace debugging.
+        if (m_policy->status() == RateLimit::Status::BORDERLINE) {
+            if (spdlog::should_log(spdlog::level::trace)) {
                 spdlog::trace("Rate limit borderline report for policy '{}':\n{}",
                               m_policy->name(),
                               m_policy->GetBorderlineReport());
@@ -263,7 +263,12 @@ void RateLimitManager::Update(QNetworkReply *reply)
     if (m_policy) {
         spdlog::trace("RateLimitManager::Update() {} checking update against existing policy",
                       m_policy->name());
-        m_policy->Check(*new_policy);
+        if (!m_policy->Check(*new_policy)) {
+            spdlog::error("Rate Limit Policy: the updated policy is mismatched:\nCurrent "
+                          "Policy:\n{}\nNew Policy:\n{}",
+                          m_policy->GetPolicyReport(),
+                          new_policy->GetPolicyReport());
+        }
     }
 
     // Update the rate limit policy.

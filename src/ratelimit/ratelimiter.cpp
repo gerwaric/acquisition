@@ -382,8 +382,6 @@ void RateLimiter::OnViolation(const QString &policy_name)
 
 void RateLimiter::SendStatusUpdate()
 {
-    spdlog::trace("RateLimiter::SendStatusUpdate() entered");
-
     // Get rid of any pauses that finished in the past.
     const QDateTime now = QDateTime::currentDateTime();
     while (!m_pauses.empty() && (m_pauses.begin()->first < now)) {

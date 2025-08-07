@@ -74,7 +74,7 @@ class RateLimitItem
 {
 public:
     RateLimitItem(const QByteArray &limit_fragment, const QByteArray &state_fragment);
-    void Check(const RateLimitItem &other, const QString &prefix) const;
+    bool Check(const RateLimitItem &other) const;
     const RateLimitData &limit() const { return m_limit; };
     const RateLimitData &state() const { return m_state; };
     RateLimit::Status status() const { return m_status; };
@@ -89,17 +89,13 @@ class RateLimitRule
 {
 public:
     RateLimitRule(const QByteArray &name, QNetworkReply *const reply);
-    void Check(const RateLimitRule &other, const QString &prefix) const;
+    bool Check(const RateLimitRule &other) const;
     const QString &name() const { return m_name; };
     const std::vector<RateLimitItem> &items() const { return m_items; };
-    RateLimit::Status status() const { return m_status; };
-    int maximum_hits() const { return m_maximum_hits; };
 
 private:
     const QString m_name;
     std::vector<RateLimitItem> m_items;
-    RateLimit::Status m_status;
-    int m_maximum_hits;
 };
 
 class RateLimitPolicy
@@ -107,13 +103,14 @@ class RateLimitPolicy
     Q_GADGET
 public:
     RateLimitPolicy(QNetworkReply *const reply);
-    void Check(const RateLimitPolicy &other) const;
+    bool Check(const RateLimitPolicy &other) const;
     const QString &name() const { return m_name; };
     const std::vector<RateLimitRule> &rules() const { return m_rules; };
     RateLimit::Status status() const { return m_status; };
     int maximum_hits() const { return m_maximum_hits; };
     QDateTime GetNextSafeSend(const boost::circular_buffer<RateLimit::Event> &history);
     QDateTime EstimateDuration(int request_count, int minimum_delay_msec) const;
+    QString GetPolicyReport() const;
     QString GetBorderlineReport() const { return m_report.join("\n"); };
 
 private:

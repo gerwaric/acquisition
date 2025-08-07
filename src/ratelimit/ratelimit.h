@@ -88,7 +88,7 @@ class QNetworkReply;
 namespace RateLimit {
     Q_NAMESPACE
 
-    enum class Status { UNKNOWN, OK, BORDERLINE, VIOLATION, INVALID };
+    enum class Status { OK, BORDERLINE, VIOLATION, INVALID };
     Q_ENUM_NS(Status)
 
     struct Event
