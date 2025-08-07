@@ -216,7 +216,7 @@ void Shop::UpdateStashIndex(bool force)
     QNetworkRequest request(url);
 
     RateLimitedReply *reply = m_rate_limiter.Submit(kStashItemsUrl, request);
-    connect(reply, &RateLimitedReply::complete, this, [=](QNetworkReply *reply) {
+    connect(reply, &RateLimitedReply::complete, this, [=, this](QNetworkReply *reply) {
         OnStashIndexReceived(force, reply);
         reply->deleteLater();
     });
@@ -516,7 +516,7 @@ void Shop::OnEditPageFinished()
         return;
     }
 
-    QTimer::singleShot(500, this, [=]() { SubmitNextShop(title, hash); });
+    QTimer::singleShot(500, this, [=, this]() { SubmitNextShop(title, hash); });
     reply->deleteLater();
 }
 
@@ -543,7 +543,7 @@ void Shop::SubmitNextShop(const QString &title, const QString &hash)
     request.setTransferTimeout(kEditThreadTimeout);
 
     QNetworkReply *reply = m_network_manager.post(request, data);
-    connect(reply, &QNetworkReply::finished, this, [=]() { OnShopSubmitted(query, reply); });
+    connect(reply, &QNetworkReply::finished, this, [=, this]() { OnShopSubmitted(query, reply); });
 }
 
 void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply *reply)
@@ -625,7 +625,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply *reply)
             const QString title = query.queryItemValue("title");
             const QString hash = Util::GetCsrfToken(bytes, "hash");
             spdlog::warn("Shop: resubmitting shop after {} seconds.", seconds);
-            QTimer::singleShot(ms, this, [=]() { SubmitNextShop(title, hash); });
+            QTimer::singleShot(ms, this, [=, this]() { SubmitNextShop(title, hash); });
             return;
         } else {
             // Quit the update for any other error.

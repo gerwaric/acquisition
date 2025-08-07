@@ -312,7 +312,7 @@ void MainWindow::InitializeUi()
     // Make sure the right logging level menu item is checked.
     OnSetLogging(spdlog::get_level());
 
-    connect(ui->itemInfoTypeTabs, &QTabWidget::currentChanged, this, [=](int idx) {
+    connect(ui->itemInfoTypeTabs, &QTabWidget::currentChanged, this, [=, this](int idx) {
         auto tabs = ui->itemInfoTypeTabs;
         for (int i = 0; i < tabs->count(); i++) {
             if (i != idx) {
@@ -362,25 +362,25 @@ void MainWindow::InitializeUi()
     connect(ui->actionSetDefaultTheme, &QAction::triggered, this, &MainWindow::OnSetDefaultTheme);
 
     // Connect the Logging submenu
-    connect(ui->actionLoggingOFF, &QAction::triggered, this, [=]() {
+    connect(ui->actionLoggingOFF, &QAction::triggered, this, [=, this]() {
         OnSetLogging(spdlog::level::off);
     });
-    connect(ui->actionLoggingFATAL, &QAction::triggered, this, [=]() {
+    connect(ui->actionLoggingFATAL, &QAction::triggered, this, [=, this]() {
         OnSetLogging(spdlog::level::critical);
     });
-    connect(ui->actionLoggingERROR, &QAction::triggered, this, [=]() {
+    connect(ui->actionLoggingERROR, &QAction::triggered, this, [=, this]() {
         OnSetLogging(spdlog::level::err);
     });
-    connect(ui->actionLoggingWARN, &QAction::triggered, this, [=]() {
+    connect(ui->actionLoggingWARN, &QAction::triggered, this, [=, this]() {
         OnSetLogging(spdlog::level::warn);
     });
-    connect(ui->actionLoggingINFO, &QAction::triggered, this, [=]() {
+    connect(ui->actionLoggingINFO, &QAction::triggered, this, [=, this]() {
         OnSetLogging(spdlog::level::info);
     });
-    connect(ui->actionLoggingDEBUG, &QAction::triggered, this, [=]() {
+    connect(ui->actionLoggingDEBUG, &QAction::triggered, this, [=, this]() {
         OnSetLogging(spdlog::level::debug);
     });
-    connect(ui->actionLoggingTRACE, &QAction::triggered, this, [=]() {
+    connect(ui->actionLoggingTRACE, &QAction::triggered, this, [=, this]() {
         OnSetLogging(spdlog::level::trace);
     });
 
@@ -599,8 +599,8 @@ bool MainWindow::eventFilter(QObject *o, QEvent *e)
                 return true;
             } else if (mouse_event->button() == Qt::RightButton) {
                 QMenu menu;
-                menu.addAction("Rename Tab", this, [=]() { OnRenameTabClicked(index); });
-                menu.addAction("Delete Tab", this, [=]() { OnDeleteTabClicked(index); });
+                menu.addAction("Rename Tab", this, [=, this]() { OnRenameTabClicked(index); });
+                menu.addAction("Delete Tab", this, [=, this]() { OnDeleteTabClicked(index); });
                 menu.exec(QCursor::pos());
             }
         }

@@ -141,7 +141,6 @@ LoginDialog::LoginDialog(const QDir &app_data_dir,
             &LoginDialog::OnAuthenticateButtonClicked);
     connect(ui->sessionIDLineEdit, &QLineEdit::textChanged, this, &LoginDialog::OnSessionIDChanged);
     connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
-    connect(ui->offlineButton, &QPushButton::clicked, this, &LoginDialog::OnOfflineButtonClicked);
 
     // Connects options UI elements.
     connect(ui->advancedCheckBox,
@@ -253,12 +252,12 @@ void LoginDialog::RequestLeagues()
     spdlog::trace("LoginDialog::RequestLeagues() sending request: {}", request.url().toString());
     QNetworkReply *reply = m_network_manager.get(request);
     connect(reply, &QNetworkReply::finished, this, &LoginDialog::OnLeaguesReceived);
-    connect(reply, &QNetworkReply::errorOccurred, this, [=](QNetworkReply::NetworkError code) {
+    connect(reply, &QNetworkReply::errorOccurred, this, [=, this](QNetworkReply::NetworkError code) {
         Q_UNUSED(code);
         DisplayError("Error requesting leagues: " + reply->errorString());
         ui->loginButton->setEnabled(false);
     });
-    connect(reply, &QNetworkReply::sslErrors, this, [=](const QList<QSslError> &errors) {
+    connect(reply, &QNetworkReply::sslErrors, this, [=, this](const QList<QSslError> &errors) {
         for (const auto &error : errors) {
             spdlog::error("SSL Error requesting leagues: {}", error.errorString());
         }
@@ -401,7 +400,7 @@ void LoginDialog::LoginWithSessionID()
     QNetworkReply *reply = m_network_manager.get(request);
 
     connect(reply, &QNetworkReply::finished, this, &LoginDialog::OnStartLegacyLogin);
-    connect(reply, &QNetworkReply::errorOccurred, this, [=](QNetworkReply::NetworkError code) {
+    connect(reply, &QNetworkReply::errorOccurred, this, [=, this](QNetworkReply::NetworkError code) {
         const int error_code = static_cast<int>(code);
         if (error_code == CLOUDFLARE_RATE_LIMITED) {
             DisplayError("Rate limited by Cloudflare! Please report to gerwaric@gmail.com");
@@ -411,7 +410,7 @@ void LoginDialog::LoginWithSessionID()
             ui->loginButton->setEnabled(false);
         }
     });
-    connect(reply, &QNetworkReply::sslErrors, this, [=](const QList<QSslError> &errors) {
+    connect(reply, &QNetworkReply::sslErrors, this, [=, this](const QList<QSslError> &errors) {
         for (const auto &error : errors) {
             spdlog::error("SSL error during legacy login: {}", error.errorString());
         }
@@ -462,7 +461,7 @@ void LoginDialog::OnStartLegacyLogin()
     QNetworkReply *next_reply = m_network_manager.get(request);
 
     connect(next_reply, &QNetworkReply::finished, this, &LoginDialog::OnFinishLegacyLogin);
-    connect(reply, &QNetworkReply::errorOccurred, this, [=](QNetworkReply::NetworkError code) {
+    connect(reply, &QNetworkReply::errorOccurred, this, [=, this](QNetworkReply::NetworkError code) {
         const int error_code = static_cast<int>(code);
         if (error_code == CLOUDFLARE_RATE_LIMITED) {
             DisplayError("Blocked by Cloudflare! Please tell gerwaric@gmail.com. You may need to "
@@ -472,7 +471,7 @@ void LoginDialog::OnStartLegacyLogin()
             ui->loginButton->setEnabled(false);
         }
     });
-    connect(reply, &QNetworkReply::sslErrors, this, [=](const QList<QSslError> &errors) {
+    connect(reply, &QNetworkReply::sslErrors, this, [=, this](const QList<QSslError> &errors) {
         for (const auto &error : errors) {
             spdlog::error("SSL finishing legacy login: {}", error.errorString());
         }
@@ -529,7 +528,7 @@ void LoginDialog::OnLoginTabChanged(int index)
         spdlog::error("LoginDialog: current tab widget is null");
         return;
     }
-    const bool hide_options = (tab == ui->offlineTab);
+    const bool hide_options = false;
     const bool hide_advanced = !ui->advancedCheckBox->isChecked();
     const bool hide_error = ui->errorLabel->text().isEmpty();
     ui->optionsWidget->setHidden(hide_options);
@@ -562,7 +561,7 @@ void LoginDialog::OnAdvancedCheckBoxChanged(Qt::CheckState state)
 {
     spdlog::trace("LoginDialog: advanced options checkbox changed to {}", state);
     const bool checked = (state == Qt::Checked);
-    const bool hide_options = ui->loginTabs->currentWidget() == ui->offlineTab;
+    const bool hide_options = false;
     ui->advancedOptionsFrame->setHidden(!checked || hide_options);
     m_settings.setValue("show_advanced_login_options", checked);
 }

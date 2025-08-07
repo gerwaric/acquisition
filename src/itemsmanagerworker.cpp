@@ -153,7 +153,7 @@ void ItemsManagerWorker::OnRePoEReady()
     // update the status bar while items are being parsed. This operation
     // can take tens of seconds or longer depending on the nubmer of tabs
     // and items.
-    QThread *parser = QThread::create([=]() { ParseItemMods(); });
+    QThread *parser = QThread::create([=, this]() { ParseItemMods(); });
     parser->start();
 }
 
@@ -1072,16 +1072,18 @@ void ItemsManagerWorker::FetchItems()
         std::function<void(QNetworkReply *)> callback;
 
         if (endpoint == kStashItemsUrl) {
-            callback = [=](QNetworkReply *reply) { OnLegacyTabReceived(reply, location); };
+            callback = [=, this](QNetworkReply *reply) { OnLegacyTabReceived(reply, location); };
             ++m_stashes_needed;
         } else if ((endpoint == kCharacterItemsUrl) || (endpoint == kCharacterSocketedJewels)) {
-            callback = [=](QNetworkReply *reply) { OnLegacyTabReceived(reply, location); };
+            callback = [=, this](QNetworkReply *reply) { OnLegacyTabReceived(reply, location); };
             ++m_characters_needed;
         } else if (endpoint == kOAuthGetStashEndpoint) {
-            callback = [=](QNetworkReply *reply) { OnOAuthStashReceived(reply, location); };
+            callback = [=, this](QNetworkReply *reply) { OnOAuthStashReceived(reply, location); };
             ++m_stashes_needed;
         } else if (endpoint == kOAuthGetCharacterEndpoint) {
-            callback = [=](QNetworkReply *reply) { OnOAuthCharacterReceived(reply, location); };
+            callback = [=, this](QNetworkReply *reply) {
+                OnOAuthCharacterReceived(reply, location);
+            };
             ++m_characters_needed;
         } else {
             spdlog::error("FetchItems(): invalid endpoint: {}", request.endpoint);
