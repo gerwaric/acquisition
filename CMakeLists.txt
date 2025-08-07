@@ -124,7 +124,7 @@ if(NOT TARGET rapidjson)
     # Turn off build options. (I'm not sure these are getting through to the subproject)
     set(RAPIDJSON_BUILD_DOC OFF)
     set(RAPIDJSON_BUILD_EXAMPLES OFF)
-    set(RAPIDJSON_BUILD_TEST OFF)
+    set(RAPIDJSON_BUILD_TESTS OFF)
     # Set CXX version options.
     set(RAPIDJSON_BUILD_CXX11 OFF)
     set(RAPIDJSON_BUILD_CXX17 OFF)
@@ -143,9 +143,6 @@ if(NOT TARGET semver)
         GIT_TAG        v0.4.0
         GIT_SHALLOW    TRUE
     )
-    # Set build options for semver.
-    set(SEMVER_BUILD_TESTS OFF)
-    set(SEMVER_BUILD_MODULE OFF)
     FetchContent_MakeAvailable(semver)
 endif()
 
