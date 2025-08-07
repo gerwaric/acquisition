@@ -123,7 +123,7 @@ void RateLimitDialog::OnPolicyUpdate(const RateLimitPolicy &policy)
     // Resize the columns.
     for (int i = 0; i < m_treeWidget->columnCount(); ++i) {
         m_treeWidget->resizeColumnToContents(i);
-    };
+    }
 }
 
 void RateLimitDialog::OnQueueUpdate(const QString &policy_name, int queued_requests)

@@ -92,10 +92,6 @@ RateLimiter::~RateLimiter() {}
 
 RateLimitedReply *RateLimiter::Submit(const QString &endpoint, QNetworkRequest network_request)
 {
-    spdlog::trace("RateLimiter::Submit() endpoint = '{}', url = '{}'",
-                  endpoint,
-                  network_request.url().toString());
-
     // Make sure the user agent is set according to GGG's guidance.
     network_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
 
@@ -107,7 +103,10 @@ RateLimitedReply *RateLimiter::Submit(const QString &endpoint, QNetworkRequest n
     if (it != m_manager_by_endpoint.end()) {
         // This endpoint is handled by an existing policy manager.
         RateLimitManager &manager = *it->second;
-        spdlog::trace("{} is handling {}", manager.policy().name(), endpoint);
+        spdlog::trace("Rate Limit policy {} is handling '{}': {}",
+                      manager.policy().name(),
+                      endpoint,
+                      network_request.url().toString());
         manager.QueueRequest(endpoint, network_request, reply);
 
     } else {
@@ -115,7 +114,9 @@ RateLimitedReply *RateLimiter::Submit(const QString &endpoint, QNetworkRequest n
         // manager, or that this endpoint should be managed by another
         // manager that has already been created, because the same rate limit
         // policy can apply to multiple managers.
-        spdlog::debug("Unknown endpoint encountered: {}", endpoint);
+        spdlog::debug("New endpoint encountered: '{}': {}",
+                      endpoint,
+                      network_request.url().toString());
         SetupEndpoint(endpoint, network_request, reply);
     }
     return reply;
