@@ -289,7 +289,9 @@ void MainWindow::InitializeUi()
     m_update_button.setFlat(true);
     m_update_button.hide();
     statusBar()->addPermanentWidget(&m_update_button);
-    connect(&m_update_button, &QPushButton::clicked, this, [=]() { emit UpdateCheckRequested(); });
+    connect(&m_update_button, &QPushButton::clicked, this, [=, this]() {
+        emit UpdateCheckRequested();
+    });
 
     // resize columns when a tab is expanded/collapsed
     connect(ui->treeView, &QTreeView::collapsed, this, &MainWindow::ResizeTreeColumns);

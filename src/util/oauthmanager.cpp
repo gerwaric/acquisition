@@ -239,7 +239,7 @@ void OAuthManager::requestAuthorization(const QString &state, const QString &cod
     authorization_url.setQuery(query);
 
     // Make sure the state is passed to the function that receives the authorization response.
-    m_http_server->route(REDIRECT_PATH, [=](const QHttpServerRequest &request) {
+    m_http_server->route(REDIRECT_PATH, [=, this](const QHttpServerRequest &request) {
         return receiveAuthorization(request, state);
     });
 
@@ -261,7 +261,7 @@ QString OAuthManager::receiveAuthorization(const QHttpServerRequest &request, co
     // Shut the server down now that an access token response has been received.
     // Don't do it immediately in case the browser wants to request a favicon, even
     // though I've tried to disable that by including icon links in HTML.
-    QTimer::singleShot(1000, this, [=]() { m_http_server = nullptr; });
+    QTimer::singleShot(1000, this, [=, this]() { m_http_server = nullptr; });
 
     const QUrlQuery &query = request.query();
 
@@ -318,7 +318,7 @@ void OAuthManager::requestToken(const QString &code)
     const QByteArray data = query.toString(QUrl::FullyEncoded).toUtf8();
     QNetworkReply *reply = m_network_manager.post(request, data);
 
-    connect(reply, &QNetworkReply::finished, this, [=]() {
+    connect(reply, &QNetworkReply::finished, this, [=, this]() {
         receiveToken(reply);
         reply->deleteLater();
     });
@@ -377,7 +377,7 @@ void OAuthManager::requestRefresh()
     request.setHeader(QNetworkRequest::UserAgentHeader, USER_AGENT);
     QNetworkReply *reply = m_network_manager.post(request, data);
 
-    connect(reply, &QNetworkReply::finished, this, [=]() {
+    connect(reply, &QNetworkReply::finished, this, [=, this]() {
         // Update the user again after the token has been received.
         receiveToken(reply);
         reply->deleteLater();
