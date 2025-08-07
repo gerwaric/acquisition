@@ -113,39 +113,6 @@
        </item>
       </layout>
      </widget>
-     <widget class="QWidget" name="offlineTab">
-      <attribute name="title">
-       <string>Offline Mode</string>
-      </attribute>
-      <layout class="QVBoxLayout" name="verticalLayout_3">
-       <property name="leftMargin">
-        <number>20</number>
-       </property>
-       <property name="topMargin">
-        <number>7</number>
-       </property>
-       <property name="rightMargin">
-        <number>20</number>
-       </property>
-       <item>
-        <widget class="QLabel" name="offlineLabel">
-         <property name="text">
-          <string>Offline mode is not implemented yet.</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QPushButton" name="offlineButton">
-         <property name="enabled">
-          <bool>false</bool>
-         </property>
-         <property name="text">
-          <string>Open an existing data file</string>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </widget>
     </widget>
    </item>
    <item>
