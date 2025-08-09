@@ -19,13 +19,6 @@
 
 cmake_minimum_required(VERSION 3.30)
 
-# Needed to pass normal variables to subprojects.
-cmake_policy(SET CMP0077 NEW)
-
-# Needed because Tencent's rapidjson uses the deprecated
-# modules FindPythonInterp and FindPythonLibs.
-cmake_policy(SET CMP0148 OLD)
-
 # NOTE: For automatic update detection to work, the 'app_version' variable
 # defined below should match a tag in github. Historically, the github tags
 # have been identical to the 'app_version' as defined below, except the 
@@ -105,45 +98,48 @@ if(NOT TARGET boost-headers-only)
 endif()
 
 if(NOT TARGET json_struct)
+    # This is a headers-only library, so we use an invalid SOURCE_DIR to prevent
+    # add_subdirectory() from called and define an interface target manually.
     FetchContent_Declare(
         json_struct
         GIT_REPOSITORY https://github.com/jorgen/json_struct.git
         GIT_TAG        1.0.1
         GIT_SHALLOW    TRUE
+        SOURCE_SUBDIR  /dev/null
     )
     FetchContent_MakeAvailable(json_struct)
+    add_library(json_struct INTERFACE)
+    target_include_directories(json_struct INTERFACE "${json_struct_SOURCE_DIR}/include")
 endif()
 
 if(NOT TARGET rapidjson)
+    # This is a headers-only library, so we use an invalid SOURCE_DIR to prevent
+    # add_subdirectory() from called and define an interface target manually.
     FetchContent_Declare(
         rapidjson
         GIT_REPOSITORY https://github.com/tencent/rapidjson.git
         GIT_TAG        24b5e7a8b27f42fa16b96fc70aade9106cf7102f # There hasn't been a tagged release since 2016
         GIT_SHALLOW    TRUE
+        SOURCE_SUBDIR  /dev/null
     )
-    # Turn off build options. (I'm not sure these are getting through to the subproject)
-    set(RAPIDJSON_BUILD_DOC OFF)
-    set(RAPIDJSON_BUILD_EXAMPLES OFF)
-    set(RAPIDJSON_BUILD_TESTS OFF)
-    # Set CXX version options.
-    set(RAPIDJSON_BUILD_CXX11 OFF)
-    set(RAPIDJSON_BUILD_CXX17 OFF)
-    set(RAPIDJSON_BUILD_CXX20 ON)
     FetchContent_MakeAvailable(rapidjson)
-    # The CMakeLists.txt for rapidjason from Tencent doesn't define an interface library,
-    # so we do it here instead.
-    add_library(rapidjson-headers INTERFACE)
-    target_include_directories(rapidjson-headers INTERFACE "${rapidjson_SOURCE_DIR}/include")
+    add_library(rapidjson INTERFACE)
+    target_include_directories(rapidjson INTERFACE "${rapidjson_SOURCE_DIR}/include")
 endif()
 
 if(NOT TARGET semver)
+    # This is a headers-only library, so we use an invalid SOURCE_DIR to prevent
+    # add_subdirectory() from called and define an interface target manually.
     FetchContent_Declare(
         semver
         GIT_REPOSITORY https://github.com/z4kn4fein/cpp-semver
         GIT_TAG        v0.4.0
         GIT_SHALLOW    TRUE
+        SOURCE_SUBDIR  /dev/null
     )
     FetchContent_MakeAvailable(semver)
+    add_library(semver INTERFACE)
+    target_include_directories(semver INTERFACE "${semver_SOURCE_DIR}/include")
 endif()
 
 if(NOT TARGET spdlog)
@@ -361,7 +357,7 @@ target_link_libraries(acquisition PRIVATE
     json_struct
     libpoe
     qdarkstyle
-    rapidjson-headers
+    rapidjson
     semver
     spdlog::spdlog_header_only
 )
