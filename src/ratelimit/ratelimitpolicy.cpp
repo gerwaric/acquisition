@@ -23,6 +23,8 @@
 #include <QDateTime>
 #include <QNetworkReply>
 
+#include <algorithm>
+
 #include <util/spdlog_qt.h>
 #include <util/util.h>
 
@@ -328,7 +330,7 @@ QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<RateLimi
             QDateTime t;
             if (n < 1) {
                 t = now;
-                lines.append(QString("Using current time: %1").arg(Timestamp(t)));
+                lines.append(QString("%1: using current time: %1").arg(tag, Timestamp(t)));
             } else {
                 const auto &event = history[n - 1];
                 lines.append(QString("%1: using history event:").arg(tag));
@@ -340,12 +342,18 @@ QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<RateLimi
                 lines.append(QString("  reply_time    = %1").arg(Timestamp(event.reply_time)));
                 lines.append(QString("  reply_status  = %1").arg(event.reply_status));
                 lines.append(QString("</EVENT>"));
-                t = event.reply_time;
+                // Find the latest time and use it. This helps us avoid violations due
+                // to things like clock differences and network delays.
+                const QDateTime &request_time = event.request_time.isValid() ? event.request_time : now;
+                const QDateTime &received_time = event.received_time.isValid() ? event.received_time : now;
+                const QDateTime &reply_time = event.reply_time.isValid() ? event.reply_time : now;
+                t = std::max({request_time, received_time, reply_time});
+                lines.append(QString("%1: using most recent time: %2").arg(tag, Timestamp(t)));
             }
 
             // Add the measurement period.
             t = t.addSecs(period);
-            lines.append(QString("%1: send is %2 adding %3 seconds for period")
+            lines.append(QString("%1: send is %2 after adding %3 seconds for period")
                              .arg(tag, Timestamp(t))
                              .arg(period));
 
