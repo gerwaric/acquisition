@@ -371,7 +371,7 @@ QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<RateLimi
 
             // Check to see if we need to update the final result.
             if (next_send < t) {
-                lines.append(QString("%1: updating next send from %1 to %2")
+                lines.append(QString("%1: updating next send from %2 to %3")
                                  .arg(tag, Timestamp(next_send), Timestamp(t)));
                 next_send = t;
             } else {
