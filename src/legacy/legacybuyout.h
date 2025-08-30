@@ -23,7 +23,8 @@
 
 #include <util/json_struct_qt.h>
 
-struct LegacyBuyout {
+struct LegacyBuyout
+{
     double value;
     long long last_update;
     QString type;

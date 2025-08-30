@@ -31,23 +31,25 @@
 
 #include "filters.h"
 
-class CATEGORY_DATA {
+class CATEGORY_DATA
+{
 private:
     CATEGORY_DATA() = default;
+
 public:
-    static CATEGORY_DATA& instance() {
-        spdlog::trace("CATEGORY_DATA::instance() entered");
+    static CATEGORY_DATA &instance()
+    {
         static CATEGORY_DATA data;
         return data;
-    };
+    }
     std::map<QString, QString> m_itemClassKeyToValue;
     std::map<QString, QString> m_itemClassValueToKey;
     std::map<QString, QString> m_itemBaseTypeToClass;
     QStringList categories;
 };
 
-void InitItemClasses(const QByteArray& classes) {
-
+void InitItemClasses(const QByteArray &classes)
+{
     static bool classes_initialized = false;
 
     spdlog::debug("Initializing item classes");
@@ -58,14 +60,14 @@ void InitItemClasses(const QByteArray& classes) {
         const auto reason = rapidjson::GetParseError_En(error);
         spdlog::error("Error parsing RePoE item classes: {}", reason);
         return;
-    };
+    }
 
     spdlog::info("Loading item classes from RePoE.");
     if (classes_initialized) {
         spdlog::warn("Item classes have already been loaded. They will be overwritten.");
-    };
+    }
 
-    auto& data = CATEGORY_DATA::instance();
+    auto &data = CATEGORY_DATA::instance();
     data.m_itemClassKeyToValue.clear();
     data.m_itemClassValueToKey.clear();
 
@@ -76,15 +78,15 @@ void InitItemClasses(const QByteArray& classes) {
         const QString value = itr->value.FindMember("name")->value.GetString();
         if (key.startsWith("DONOTUSE") || (0 == key.compare("Unarmed", Qt::CaseInsensitive))) {
             continue;
-        };
+        }
         if (value.isEmpty()) {
             spdlog::debug("Item class for {} is empty", key);
             continue;
-        };
+        }
         data.m_itemClassKeyToValue[key] = value;
         data.m_itemClassValueToKey[value] = key;
         cats.insert(value);
-    };
+    }
     data.categories = cats.values();
     data.categories.append(CategorySearchFilter::k_Default);
     data.categories.sort();
@@ -92,10 +94,10 @@ void InitItemClasses(const QByteArray& classes) {
     classes_initialized = true;
 }
 
-void InitItemBaseTypes(const QByteArray& baseTypes) {
-
+void InitItemBaseTypes(const QByteArray &baseTypes)
+{
     static bool basetypes_initialized = false;
-    
+
     spdlog::debug("Initializing item base types");
     rapidjson::Document doc;
     doc.Parse(baseTypes.constData());
@@ -104,15 +106,15 @@ void InitItemBaseTypes(const QByteArray& baseTypes) {
         const auto reason = rapidjson::GetParseError_En(error);
         spdlog::error("Error parsing RePoE item base types: {}", reason);
         return;
-    };
+    }
 
     spdlog::info("Loading item base types from RePoE.");
     if (basetypes_initialized) {
         spdlog::warn("Item base types have already been loaded. They will be overwritten.");
-    };
+    }
 
     spdlog::trace("InitItemBaseTypes() processing data");
-    auto& data = CATEGORY_DATA::instance();
+    auto &data = CATEGORY_DATA::instance();
     data.m_itemBaseTypeToClass.clear();
     for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
         // Skip unreleased objects.
@@ -122,28 +124,29 @@ void InitItemBaseTypes(const QByteArray& baseTypes) {
         };
         const QString item_class = itr->value.FindMember("item_class")->value.GetString();
         const QString name = itr->value.FindMember("name")->value.GetString();
-        if (name.isEmpty() || name.startsWith("[DO NOT USE]") || name.startsWith("[UNUSED]") || name.startsWith("[DNT]")) {
+        if (name.isEmpty() || name.startsWith("[DO NOT USE]") || name.startsWith("[UNUSED]")
+            || name.startsWith("[DNT]")) {
             continue;
-        };
+        }
         data.m_itemBaseTypeToClass[name] = item_class;
-    };
+    }
 
     basetypes_initialized = true;
 }
 
-QString GetItemCategory(const QString& baseType) {
-
-    auto& data = CATEGORY_DATA::instance();
+QString GetItemCategory(const QString &baseType)
+{
+    auto &data = CATEGORY_DATA::instance();
 
     if (data.m_itemClassKeyToValue.empty()) {
         spdlog::error("Item classes have not been initialized");
         return "";
-    };
+    }
 
     if (data.m_itemBaseTypeToClass.empty()) {
         spdlog::error("Item base types have not been initialized");
         return "";
-    };
+    }
 
     auto rslt = data.m_itemBaseTypeToClass.find(baseType);
     if (rslt != data.m_itemBaseTypeToClass.end()) {
@@ -151,20 +154,19 @@ QString GetItemCategory(const QString& baseType) {
         rslt = data.m_itemClassKeyToValue.find(key);
         if (rslt != data.m_itemClassKeyToValue.end()) {
             QString category = rslt->second.toLower();
-            spdlog::trace("GetItemCategory: category is {}", category);
             return category;
-        };
-    };
+        }
+    }
 
-    spdlog::trace("GetItemCategory: could not categorize baseType: {}", baseType);
+    spdlog::trace("GetItemCategory: could not categorize baseType: '{}'", baseType);
     return "";
 }
 
-const QStringList& GetItemCategories() {
-    spdlog::trace("GetItemCategories() entered");
-    auto& data = CATEGORY_DATA::instance();
+const QStringList &GetItemCategories()
+{
+    auto &data = CATEGORY_DATA::instance();
     if (data.categories.isEmpty()) {
         spdlog::error("Item categories have not been initialized");
-    };
+    }
     return data.categories;
 }

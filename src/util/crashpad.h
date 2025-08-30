@@ -22,8 +22,7 @@
 #include <QObject>
 #include <QString>
 
-bool initializeCrashpad(
-    const QString& appDataDir,
-    const char* dbName,
-    const char* appName,
-    const char* appVersion);
+bool initializeCrashpad(const QString &appDataDir,
+                        const char *dbName,
+                        const char *appName,
+                        const char *appVersion);

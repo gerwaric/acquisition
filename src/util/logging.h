@@ -25,6 +25,6 @@
 
 namespace logging {
 
-    void init(const QString& filename);
+    void init(const QString &filename);
 
 }

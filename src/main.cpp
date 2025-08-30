@@ -38,18 +38,18 @@
 
 #include "application.h"
 #include "shop.h"
-#include "version_defines.h"
 #include "testmain.h"
+#include "version_defines.h"
 
-constexpr const char* BUILD_TIMESTAMP = (__DATE__ " " __TIME__);
+constexpr const char *BUILD_TIMESTAMP = (__DATE__ " " __TIME__);
 
 #ifdef QT_DEBUG
-constexpr const char* DEFAULT_LOGGING_LEVEL = "debug";
+constexpr const char *DEFAULT_LOGGING_LEVEL = "debug";
 #else
-constexpr const char* DEFAULT_LOGGING_LEVEL = "info";
+constexpr const char *DEFAULT_LOGGING_LEVEL = "info";
 #endif
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
     // Make sure resources from the static qdarkstyle library are available.
     Q_INIT_RESOURCE(darkstyle);
@@ -72,12 +72,13 @@ int main(int argc, char* argv[])
     QCommandLineOption option_data_dir("data-dir");
     option_data_dir.setDescription("Where to save Acquisition data.");
     option_data_dir.setValueName("data-dir");
-    option_data_dir.setDefaultValue(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
-    
+    option_data_dir.setDefaultValue(
+        QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation));
+
     QCommandLineOption option_log_level("log-level");
     option_log_level.setDescription("How much to log.");
     option_log_level.setValueName("log-level");
-    
+
     QCommandLineOption option_crash("crash-test");
     option_crash.setDescription("Trigger a crash dump at startup for testing.");
 
@@ -110,7 +111,7 @@ int main(int argc, char* argv[])
         logging_option = settings.value("log_level").toString();
     } else {
         logging_option = QString(DEFAULT_LOGGING_LEVEL);
-    };
+    }
     const auto loglevel = spdlog::level::from_str(logging_option.toStdString());
 
     logging::init(sLogPath);
@@ -118,12 +119,14 @@ int main(int argc, char* argv[])
     // Start the log with basic info
     spdlog::set_level(spdlog::level::info);
     spdlog::info("-------------------------------------------------------------------------------");
-    spdlog::info("{} {} (version code {})", a.applicationName(), a.applicationVersion(), VERSION_CODE);
+    spdlog::info("{} {} (version code {})",
+                 a.applicationName(),
+                 a.applicationVersion(),
+                 VERSION_CODE);
     spdlog::info("Built with Qt {} on {}", QT_VERSION_STR, build_date.toString());
     spdlog::info("Running on Qt {}", qVersion());
     spdlog::info("Logging level will be {}", loglevel);
     spdlog::set_level(loglevel);
-
 
 #ifdef Q_OS_WINDOWS
     // On Windows, it's possible there are incompatible versions of the MSVC runtime
@@ -136,11 +139,12 @@ int main(int argc, char* argv[])
     spdlog::trace("Checking for SSL support...");
     if (!QSslSocket::supportsSsl()) {
 #ifdef Q_OS_LINUX
-        FatalError("SSL support is missing. Make sure OpenSSL 3.x shared libaries are on the LD_LIBRARY_PATH.");
+        FatalError("SSL support is missing. Make sure OpenSSL 3.x shared libaries are on the "
+                   "LD_LIBRARY_PATH.");
 #else
         FatalError("SSL support is missing.");
 #endif
-    };
+    }
     spdlog::trace("SSL Library Build Version: {}", QSslSocket::sslLibraryBuildVersionString());
     spdlog::trace("SSL Library Version: {}", QSslSocket::sslLibraryVersionString());
 
@@ -148,12 +152,12 @@ int main(int argc, char* argv[])
     if (parser.isSet(option_test)) {
         spdlog::info("Running test suite...");
         return test_main(appDataDir.absolutePath());
-    };
+    }
 
     if (parser.isSet(option_validate_buyouts)) {
         const QString filename = parser.value(option_validate_buyouts);
         spdlog::info("Validating buyouts: {}", filename);
-    };
+    }
 
     // Run the main application, starting with the login dialog.
     spdlog::info("Running application...");
@@ -164,15 +168,17 @@ int main(int argc, char* argv[])
     // Trigger an optional crash.
     if (parser.isSet(option_crash)) {
         spdlog::trace("main(): a forced crash was requested");
-        const int choice = QMessageBox::critical(nullptr, "FATAL ERROR",
-            "Acquisition wants to abort.",
-            QMessageBox::StandardButton::Abort | QMessageBox::StandardButton::Cancel,
-            QMessageBox::StandardButton::Abort);
+        const int choice = QMessageBox::critical(nullptr,
+                                                 "FATAL ERROR",
+                                                 "Acquisition wants to abort.",
+                                                 QMessageBox::StandardButton::Abort
+                                                     | QMessageBox::StandardButton::Cancel,
+                                                 QMessageBox::StandardButton::Abort);
         if (choice == QMessageBox::StandardButton::Abort) {
             spdlog::critical("Forcing acquisition to crash.");
             abort();
-        };
-    };
+        }
+    }
 
     // Starting the application creates and shows the login dialog.
     spdlog::trace("main(): starting the application");

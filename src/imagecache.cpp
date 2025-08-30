@@ -24,8 +24,8 @@
 #include <QFile>
 #include <QImageReader>
 #include <QNetworkAccessManager>
-#include <QNetworkRequest>
 #include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QString>
 
 #include <util/spdlog_qt.h>
@@ -33,24 +33,24 @@
 
 #include "network_info.h"
 
-ImageCache::ImageCache(
-    QNetworkAccessManager& network_manager,
-    const QString& directory)
+ImageCache::ImageCache(QNetworkAccessManager &network_manager, const QString &directory)
     : m_network_manager(network_manager)
     , m_directory(directory)
 {
     if (!QDir(m_directory).exists()) {
         QDir().mkpath(m_directory);
-    };
+    }
 }
 
-bool ImageCache::contains(const QString& url) const {
+bool ImageCache::contains(const QString &url) const
+{
     const QString filename = getImagePath(url);
     const QFile file(filename);
     return file.exists();
 }
 
-void ImageCache::fetch(const QString& url) {
+void ImageCache::fetch(const QString &url)
+{
     if (contains(url)) {
         spdlog::debug("ImageCache: already contains {}", url);
         emit imageReady(url);
@@ -58,18 +58,19 @@ void ImageCache::fetch(const QString& url) {
         spdlog::debug("ImageCache: fetching {}", url);
         QNetworkRequest request = QNetworkRequest(QUrl(url));
         request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-        QNetworkReply* reply = m_network_manager.get(request);
+        QNetworkReply *reply = m_network_manager.get(request);
         connect(reply, &QNetworkReply::finished, this, &ImageCache::onFetched);
-    };
+    }
 }
 
-void ImageCache::onFetched() {
-    QNetworkReply* reply = qobject_cast<QNetworkReply*>(sender());
+void ImageCache::onFetched()
+{
+    QNetworkReply *reply = qobject_cast<QNetworkReply *>(sender());
     const QString url = reply->url().toString();
     if (reply->error() != QNetworkReply::NoError) {
         spdlog::error("ImageCache: failed to fetch image: {}: {}", reply->errorString(), url);
         return;
-    };
+    }
     spdlog::debug("ImageCatch: fetched {}", url);
     QImageReader image_reader(reply);
     const QImage image = image_reader.read();
@@ -77,16 +78,18 @@ void ImageCache::onFetched() {
     emit imageReady(url);
 }
 
-QImage ImageCache::load(const QString& url) const {
+QImage ImageCache::load(const QString &url) const
+{
     const QString filename = getImagePath(url);
     const QFile file(filename);
     if (file.exists()) {
         return QImage(getImagePath(url));
     } else {
         return QImage();
-    };
+    }
 }
 
-QString ImageCache::getImagePath(const QString& url) const {
+QString ImageCache::getImagePath(const QString &url) const
+{
     return m_directory + QDir::separator() + Util::Md5(url) + ".png";
 }

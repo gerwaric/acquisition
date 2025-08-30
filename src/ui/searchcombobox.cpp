@@ -24,7 +24,8 @@
 #include <QLineEdit>
 
 // Set the width of the popup view to the width of the completer options
-void SearchComboCompleter::complete(const QRect& rect) {
+void SearchComboCompleter::complete(const QRect &rect)
+{
     if (popup() == nullptr) {
         return;
     };
@@ -35,12 +36,16 @@ void SearchComboCompleter::complete(const QRect& rect) {
 }
 
 // Return a custom shortened dalay for the combox box hover tooltip
-int SearchComboStyle::styleHint(StyleHint hint, const QStyleOption* option, const QWidget* widget, QStyleHintReturn* returnData) const {
+int SearchComboStyle::styleHint(StyleHint hint,
+                                const QStyleOption *option,
+                                const QWidget *widget,
+                                QStyleHintReturn *returnData) const
+{
     if (hint == QStyle::SH_ToolTip_WakeUpDelay) {
         return TOOLTIP_DELAY_MSEC;
     } else {
         return QProxyStyle::styleHint(hint, option, widget, returnData);
-    };
+    }
 }
 
 SearchComboBox::SearchComboBox(QAbstractItemModel *model, const QString &value, QWidget *parent)
@@ -64,26 +69,28 @@ SearchComboBox::SearchComboBox(QAbstractItemModel *model, const QString &value, 
     m_completer.setModelSorting(QCompleter::CaseInsensitivelySortedModel);
     m_completer.setWidget(this);
 
-    connect(this, &QComboBox::editTextChanged,
-        this, &SearchComboBox::OnTextEdited);
+    connect(this, &QComboBox::editTextChanged, this, &SearchComboBox::OnTextEdited);
 
-    connect(&m_edit_timer, &QTimer::timeout,
-        this, &SearchComboBox::OnEditTimeout);
+    connect(&m_edit_timer, &QTimer::timeout, this, &SearchComboBox::OnEditTimeout);
 
-    connect(&m_completer, QOverload<const QString&>::of(&QCompleter::activated),
-        this, &SearchComboBox::OnCompleterActivated);
+    connect(&m_completer,
+            QOverload<const QString &>::of(&QCompleter::activated),
+            this,
+            &SearchComboBox::OnCompleterActivated);
 }
 
-void SearchComboBox::OnTextEdited() {
+void SearchComboBox::OnTextEdited()
+{
     m_edit_timer.start(350);
 }
 
-void SearchComboBox::OnEditTimeout() {
+void SearchComboBox::OnEditTimeout()
+{
     m_edit_timer.stop();
-    const QString& text = lineEdit()->text();
+    const QString &text = lineEdit()->text();
     if (text.isEmpty()) {
         return;
-    };
+    }
     if (m_skip_completer) {
         setCurrentText(text);
         m_skip_completer = false;
@@ -100,11 +107,12 @@ void SearchComboBox::OnEditTimeout() {
             m_completer.complete();
         } else {
             setCurrentText(text);
-        };
-    };
+        }
+    }
 }
 
-void SearchComboBox::OnCompleterActivated(const QString& text) {
+void SearchComboBox::OnCompleterActivated(const QString &text)
+{
     m_skip_completer = true;
     setCurrentText(text);
     setToolTip(text);

@@ -33,41 +33,41 @@ class QTcpServer;
 
 class DataStore;
 
-class OAuthManager : public QObject {
+class OAuthManager : public QObject
+{
     Q_OBJECT
 public:
-    explicit OAuthManager(
-        QNetworkAccessManager& network_manager,
-        DataStore& datastore);
+    explicit OAuthManager(QNetworkAccessManager &network_manager, DataStore &datastore);
     ~OAuthManager();
-    void setAuthorization(QNetworkRequest& request);
+    void setAuthorization(QNetworkRequest &request);
     void RememberToken(bool remember);
-    const OAuthToken& token() const { return m_token; };
+    const OAuthToken &token() const { return m_token; };
 public slots:
     void requestAccess();
     void requestRefresh();
     void showStatus();
 signals:
-    void accessGranted(const OAuthToken& token);
+    void accessGranted(const OAuthToken &token);
+
 private:
     void createHttpServer();
-    void requestAuthorization(const QString& state, const QString& code_challenge);
-    QString receiveAuthorization(const QHttpServerRequest& request, const QString& state);
-    void requestToken(const QString& code);
-    void receiveToken(QNetworkReply* reply);
+    void requestAuthorization(const QString &state, const QString &code_challenge);
+    QString receiveAuthorization(const QHttpServerRequest &request, const QString &state);
+    void requestToken(const QString &code);
+    void receiveToken(QNetworkReply *reply);
     void setRefreshTimer();
 
-    static QString authorizationError(const QString& message);
+    static QString authorizationError(const QString &message);
 
-    QNetworkAccessManager& m_network_manager;
-    DataStore& m_datastore;
+    QNetworkAccessManager &m_network_manager;
+    DataStore &m_datastore;
 
     // I can't find a way to shutdown a QHttpServer once it's started
     // listening, so use a unique pointer so that we can destory the
     // server once authentication is complete, so it won't stay
     // running in the background.
-    QHttpServer* m_http_server;
-    QTcpServer* m_tcp_server;
+    QHttpServer *m_http_server;
+    QTcpServer *m_tcp_server;
 
     bool m_remember_token;
     OAuthToken m_token;

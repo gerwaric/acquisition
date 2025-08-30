@@ -32,17 +32,17 @@
 #include <QMessageBox>
 #include <QMouseEvent>
 #include <QNetworkAccessManager>
-#include <QNetworkRequest>
 #include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QPainter>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QSettings>
 #include <QString>
 #include <QStringList>
+#include <QStringListModel>
 #include <QTabBar>
 #include <QVersionNumber>
-#include <QSettings>
-#include <QStringListModel>
 
 #include <vector>
 
@@ -63,8 +63,8 @@
 #include <itemcategories.h>
 #include <itemconstants.h>
 #include <itemlocation.h>
-#include <itemsmanager.h>
 #include <items_model.h>
+#include <itemsmanager.h>
 #include <modsfilter.h>
 #include <network_info.h>
 #include <replytimeout.h>
@@ -77,20 +77,20 @@
 #include "logpanel.h"
 #include "verticalscrollarea.h"
 
-constexpr const char* POE_WEBCDN = "http://webcdn.pathofexile.com"; // Should be updated to https://web.poecdn.com ?
+constexpr const char *POE_WEBCDN
+    = "http://webcdn.pathofexile.com"; // Should be updated to https://web.poecdn.com ?
 
 constexpr int CURRENT_ITEM_UPDATE_DELAY_MS = 100;
 constexpr int SEARCH_UPDATE_DELAY_MS = 350;
 
-MainWindow::MainWindow(
-    QSettings& settings,
-    QNetworkAccessManager& network_manager,
-    RateLimiter& rate_limiter,
-    DataStore& datastore,
-    ItemsManager& items_manager,
-    BuyoutManager& buyout_manager,
-    Shop& shop,
-    ImageCache& image_cache)
+MainWindow::MainWindow(QSettings &settings,
+                       QNetworkAccessManager &network_manager,
+                       RateLimiter &rate_limiter,
+                       DataStore &datastore,
+                       ItemsManager &items_manager,
+                       BuyoutManager &buyout_manager,
+                       Shop &shop,
+                       ImageCache &image_cache)
     : m_settings(settings)
     , m_network_manager(network_manager)
     , m_rate_limiter(rate_limiter)
@@ -113,10 +113,10 @@ MainWindow::MainWindow(
     InitializeLogging();
     InitializeSearchForm();
 
-    const QString title = QString("Acquisition [%1] - %2 League [%3]").arg(
-        QString(APP_VERSION_STRING),
-        m_settings.value("league").toString(),
-        m_settings.value("account").toString());
+    const QString title = QString("Acquisition [%1] - %2 League [%3]")
+                              .arg(QString(APP_VERSION_STRING),
+                                   m_settings.value("league").toString(),
+                                   m_settings.value("account").toString());
     setWindowTitle(title);
     setWindowIcon(QIcon(":/icons/assets/icon.svg"));
 
@@ -132,49 +132,61 @@ MainWindow::MainWindow(
     NewSearch();
 }
 
-MainWindow::~MainWindow() {
+MainWindow::~MainWindow()
+{
     delete ui;
-    for (auto& search : m_searches) {
-        delete(search);
+    for (auto &search : m_searches) {
+        delete (search);
     };
     m_rate_limit_dialog->close();
     m_rate_limit_dialog->deleteLater();
 }
 
-void MainWindow::prepare(
-    OAuthManager& oauth_manager,
-    CurrencyManager& currency_manager)
+void MainWindow::prepare(OAuthManager &oauth_manager, CurrencyManager &currency_manager)
 {
-    connect(ui->actionShowOAuthToken, &QAction::triggered, &oauth_manager, &OAuthManager::showStatus);
-    connect(ui->actionRefreshOAuthToken, &QAction::triggered, &oauth_manager, &OAuthManager::requestRefresh);
+    connect(ui->actionShowOAuthToken,
+            &QAction::triggered,
+            &oauth_manager,
+            &OAuthManager::showStatus);
+    connect(ui->actionRefreshOAuthToken,
+            &QAction::triggered,
+            &oauth_manager,
+            &OAuthManager::requestRefresh);
 
-    connect(ui->actionListCurrency, &QAction::triggered, &currency_manager, &CurrencyManager::DisplayCurrency);
-    connect(ui->actionExportCurrency, &QAction::triggered, &currency_manager, &CurrencyManager::ExportCurrency);
+    connect(ui->actionListCurrency,
+            &QAction::triggered,
+            &currency_manager,
+            &CurrencyManager::DisplayCurrency);
+    connect(ui->actionExportCurrency,
+            &QAction::triggered,
+            &currency_manager,
+            &CurrencyManager::ExportCurrency);
 }
 
-void MainWindow::InitializeRateLimitDialog() {
+void MainWindow::InitializeRateLimitDialog()
+{
     m_rate_limit_dialog = new RateLimitDialog(this, &m_rate_limiter);
-    auto* const button = new QPushButton(this);
+    auto *const button = new QPushButton(this);
     button->setFlat(false);
     button->setText("Rate Limit Status");
     connect(button, &QPushButton::clicked, m_rate_limit_dialog, &RateLimitDialog::show);
-    connect(&m_rate_limiter, &RateLimiter::Paused, this,
-        [=](int pause) {
-            if (pause > 0) {
-                button->setText("Rate limited for " + QString::number(pause) + " seconds");
-                button->setStyleSheet("font-weight: bold; color: red");
-            } else if (pause == 0) {
-                button->setText("Rate limiting is OFF");
-                button->setStyleSheet("");
-            } else {
-                button->setText("ERROR: pause is " + QString::number(pause));
-                button->setStyleSheet("");
-            };
-        });
+    connect(&m_rate_limiter, &RateLimiter::Paused, this, [=](int pause) {
+        if (pause > 0) {
+            button->setText("Rate limited for " + QString::number(pause) + " seconds");
+            button->setStyleSheet("font-weight: bold; color: red");
+        } else if (pause == 0) {
+            button->setText("Rate limiting is OFF");
+            button->setStyleSheet("");
+        } else {
+            button->setText("ERROR: pause is " + QString::number(pause));
+            button->setStyleSheet("");
+        }
+    });
     statusBar()->addPermanentWidget(button);
 }
 
-void MainWindow::InitializeLogging() {
+void MainWindow::InitializeLogging()
+{
     m_log_panel = new LogPanel(this, ui);
 #if defined(_DEBUG)
     // display warnings here so it's more visible
@@ -182,7 +194,8 @@ void MainWindow::InitializeLogging() {
 #endif
 }
 
-void MainWindow::InitializeUi() {
+void MainWindow::InitializeUi()
+{
     ui->setupUi(this);
 
     m_status_bar_label = new QLabel("Ready");
@@ -208,17 +221,16 @@ void MainWindow::InitializeUi() {
     connect(ui->buyoutTypeComboBox, &QComboBox::activated, this, &MainWindow::OnBuyoutChange);
     connect(ui->buyoutValueLineEdit, &QLineEdit::textEdited, this, &MainWindow::OnBuyoutChange);
 
-    ui->viewComboBox->addItems({ "By Tab", "By Item" });
-    connect(ui->viewComboBox, &QComboBox::activated, this,
-        [&](int n) {
-            const auto mode = static_cast<Search::ViewMode>(n);
-            m_current_search->SetViewMode(mode);
-            if (mode == Search::ViewMode::ByItem) {
-                OnExpandAll();
-            } else {
-                ResizeTreeColumns();
-            };
-        });
+    ui->viewComboBox->addItems({"By Tab", "By Item"});
+    connect(ui->viewComboBox, &QComboBox::activated, this, [&](int n) {
+        const auto mode = static_cast<Search::ViewMode>(n);
+        m_current_search->SetViewMode(mode);
+        if (mode == Search::ViewMode::ByItem) {
+            OnExpandAll();
+        } else {
+            ResizeTreeColumns();
+        }
+    });
 
     ui->buyoutTypeComboBox->setEnabled(false);
     ui->buyoutValueLineEdit->setEnabled(false);
@@ -262,10 +274,9 @@ void MainWindow::InitializeUi() {
     m_context_menu.addAction("Expand All", this, &MainWindow::OnExpandAll);
     m_context_menu.addAction("Collapse All", this, &MainWindow::OnCollapseAll);
 
-    connect(ui->treeView, &QTreeView::customContextMenuRequested, this,
-        [&](const QPoint& pos) {
-            m_context_menu.popup(ui->treeView->viewport()->mapToGlobal(pos));
-        });
+    connect(ui->treeView, &QTreeView::customContextMenuRequested, this, [&](const QPoint &pos) {
+        m_context_menu.popup(ui->treeView->viewport()->mapToGlobal(pos));
+    });
 
     m_refresh_button.setStyleSheet("color: blue; font-weight: bold;");
     m_refresh_button.setFlat(true);
@@ -278,20 +289,24 @@ void MainWindow::InitializeUi() {
     m_update_button.setFlat(true);
     m_update_button.hide();
     statusBar()->addPermanentWidget(&m_update_button);
-    connect(&m_update_button, &QPushButton::clicked, this, [=]() { emit UpdateCheckRequested(); });
+    connect(&m_update_button, &QPushButton::clicked, this, [=, this]() {
+        emit UpdateCheckRequested();
+    });
 
     // resize columns when a tab is expanded/collapsed
     connect(ui->treeView, &QTreeView::collapsed, this, &MainWindow::ResizeTreeColumns);
     connect(ui->treeView, &QTreeView::expanded, this, &MainWindow::ResizeTreeColumns);
 
-    ui->propertiesLabel->setStyleSheet("QLabel { background-color: black; color: #7f7f7f; padding: 10px; font-size: 17px; }");
+    ui->propertiesLabel->setStyleSheet(
+        "QLabel { background-color: black; color: #7f7f7f; padding: 10px; font-size: 17px; }");
     ui->propertiesLabel->setFont(QFont("Fontin SmallCaps"));
     ui->itemNameFirstLine->setFont(QFont("Fontin SmallCaps"));
     ui->itemNameSecondLine->setFont(QFont("Fontin SmallCaps"));
     ui->itemNameFirstLine->setAlignment(Qt::AlignCenter);
     ui->itemNameSecondLine->setAlignment(Qt::AlignCenter);
 
-    ui->itemTextTooltip->setStyleSheet("QLabel { background-color: black; color: #7f7f7f; padding: 3px; }");
+    ui->itemTextTooltip->setStyleSheet(
+        "QLabel { background-color: black; color: #7f7f7f; padding: 3px; }");
 
     ui->itemTooltipWidget->hide();
     ui->itemButtonsWidget->hide();
@@ -299,35 +314,49 @@ void MainWindow::InitializeUi() {
     // Make sure the right logging level menu item is checked.
     OnSetLogging(spdlog::get_level());
 
-    connect(ui->itemInfoTypeTabs, &QTabWidget::currentChanged, this,
-        [=](int idx) {
-            auto tabs = ui->itemInfoTypeTabs;
-            for (int i = 0; i < tabs->count(); i++) {
-                if (i != idx) {
-                    tabs->widget(i)->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
-                };
-            };
-            auto widget = tabs->widget(idx);
-            widget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
-            widget->resize(tabs->widget(idx)->minimumSizeHint());
-            widget->adjustSize();
-            m_settings.setValue("tooltip_tab", idx);
-        });
+    connect(ui->itemInfoTypeTabs, &QTabWidget::currentChanged, this, [=, this](int idx) {
+        auto tabs = ui->itemInfoTypeTabs;
+        for (int i = 0; i < tabs->count(); i++) {
+            if (i != idx) {
+                tabs->widget(i)->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+            }
+        }
+        auto widget = tabs->widget(idx);
+        widget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+        widget->resize(tabs->widget(idx)->minimumSizeHint());
+        widget->adjustSize();
+        m_settings.setValue("tooltip_tab", idx);
+    });
 
     // Connect the Tabs menu
     connect(ui->actionFetchTabsList, &QAction::triggered, this, &MainWindow::OnFetchTabsList);
-    connect(ui->actionRefreshCheckedTabs, &QAction::triggered, this, &MainWindow::OnRefreshCheckedTabs);
+    connect(ui->actionRefreshCheckedTabs,
+            &QAction::triggered,
+            this,
+            &MainWindow::OnRefreshCheckedTabs);
     connect(ui->actionRefreshAllTabs, &QAction::triggered, this, &MainWindow::OnRefreshAllTabs);
-    connect(ui->actionSetAutomaticTabRefresh, &QAction::triggered, this, &MainWindow::OnSetAutomaticTabRefresh);
-    connect(ui->actionSetTabRefreshInterval, &QAction::triggered, this, &MainWindow::OnSetTabRefreshInterval);
+    connect(ui->actionSetAutomaticTabRefresh,
+            &QAction::triggered,
+            this,
+            &MainWindow::OnSetAutomaticTabRefresh);
+    connect(ui->actionSetTabRefreshInterval,
+            &QAction::triggered,
+            this,
+            &MainWindow::OnSetTabRefreshInterval);
 
     // Connect the Shop menu
     connect(ui->actionSetShopThreads, &QAction::triggered, this, &MainWindow::OnSetShopThreads);
     connect(ui->actionEditShopTemplate, &QAction::triggered, this, &MainWindow::OnEditShopTemplate);
-    connect(ui->actionCopyShopToClipboard, &QAction::triggered, this, &MainWindow::OnCopyShopToClipboard);
-    connect(ui->actionUpdateStashIndex, &QAction::triggered, this, &MainWindow::OnUpdateStashIndex);
+    connect(ui->actionCopyShopToClipboard,
+            &QAction::triggered,
+            this,
+            &MainWindow::OnCopyShopToClipboard);
+    connect(ui->actionUpdateShopPOESESSID, &QAction::triggered, this, &MainWindow::OnShowPOESESSID);
     connect(ui->actionUpdateShops, &QAction::triggered, this, &MainWindow::OnUpdateShops);
-    connect(ui->actionSetAutomaticallyShopUpdate, &QAction::triggered, this, &MainWindow::OnSetAutomaticShopUpdate);
+    connect(ui->actionSetAutomaticallyShopUpdate,
+            &QAction::triggered,
+            this,
+            &MainWindow::OnSetAutomaticShopUpdate);
 
     // Connect the Theme submenu
     connect(ui->actionSetDarkTheme, &QAction::triggered, this, &MainWindow::OnSetDarkTheme);
@@ -335,13 +364,27 @@ void MainWindow::InitializeUi() {
     connect(ui->actionSetDefaultTheme, &QAction::triggered, this, &MainWindow::OnSetDefaultTheme);
 
     // Connect the Logging submenu
-    connect(ui->actionLoggingOFF, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::off); });
-    connect(ui->actionLoggingFATAL, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::critical); });
-    connect(ui->actionLoggingERROR, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::err); });
-    connect(ui->actionLoggingWARN, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::warn); });
-    connect(ui->actionLoggingINFO, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::info); });
-    connect(ui->actionLoggingDEBUG, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::debug); });
-    connect(ui->actionLoggingTRACE, &QAction::triggered, this, [=]() { OnSetLogging(spdlog::level::trace); });
+    connect(ui->actionLoggingOFF, &QAction::triggered, this, [=, this]() {
+        OnSetLogging(spdlog::level::off);
+    });
+    connect(ui->actionLoggingFATAL, &QAction::triggered, this, [=, this]() {
+        OnSetLogging(spdlog::level::critical);
+    });
+    connect(ui->actionLoggingERROR, &QAction::triggered, this, [=, this]() {
+        OnSetLogging(spdlog::level::err);
+    });
+    connect(ui->actionLoggingWARN, &QAction::triggered, this, [=, this]() {
+        OnSetLogging(spdlog::level::warn);
+    });
+    connect(ui->actionLoggingINFO, &QAction::triggered, this, [=, this]() {
+        OnSetLogging(spdlog::level::info);
+    });
+    connect(ui->actionLoggingDEBUG, &QAction::triggered, this, [=, this]() {
+        OnSetLogging(spdlog::level::debug);
+    });
+    connect(ui->actionLoggingTRACE, &QAction::triggered, this, [=, this]() {
+        OnSetLogging(spdlog::level::trace);
+    });
 
     // Connect the POESESSID submenu
     connect(ui->actionShowPOESESSID, &QAction::triggered, this, &MainWindow::OnShowPOESESSID);
@@ -351,8 +394,8 @@ void MainWindow::InitializeUi() {
     connect(ui->pobTooltipButton, &QPushButton::clicked, this, &MainWindow::OnCopyForPOB);
 }
 
-void MainWindow::LoadSettings() {
-
+void MainWindow::LoadSettings()
+{
     // Make sure the theme button is checked.
     const QString theme = m_settings.value("theme", "default").toString().toLower();
     ui->actionSetDarkTheme->setChecked(theme == "dark");
@@ -365,7 +408,8 @@ void MainWindow::LoadSettings() {
     ui->itemInfoTypeTabs->setCurrentIndex(m_settings.value("tooltip_tab").toInt());
 }
 
-void MainWindow::OnExpandAll() {
+void MainWindow::OnExpandAll()
+{
     spdlog::trace("MainWindow::OnExpandAll() entered");
     // Only need to expand the top level, which corresponds to buckets,
     // aka stash tabs and characters. Signals are blocked during this
@@ -379,71 +423,78 @@ void MainWindow::OnExpandAll() {
     unsetCursor();
 }
 
-void MainWindow::OnCollapseAll() {
+void MainWindow::OnCollapseAll()
+{
     spdlog::trace("MainWindow::OnCollapseAll() entered");
     // There is no depth-based collapse method, so manuall looping
     // over rows can be much faster than collapseAll() under some
     // conditions, possibly beecause those funcitons check every
     // element in the tree, which in our case will include all items.
-    // 
+    //
     // Signals are blocked for the same reason as the expand all case.
     setCursor(Qt::WaitCursor);
     ui->treeView->blockSignals(true);
-    const auto& model = *ui->treeView->model();
+    const auto &model = *ui->treeView->model();
     const int rowCount = model.rowCount();
     for (int row = 0; row < rowCount; ++row) {
         const QModelIndex idx = model.index(row, 0, QModelIndex());
         ui->treeView->collapse(idx);
-    };
+    }
     ui->treeView->blockSignals(false);
     ResizeTreeColumns();
     unsetCursor();
 }
 
-void MainWindow::OnCheckAll() {
+void MainWindow::OnCheckAll()
+{
     spdlog::trace("MainWindow::OnCheckAll() entered");
-    for (auto const& bucket : m_current_search->buckets()) {
+    for (auto const &bucket : m_current_search->buckets()) {
         m_buyout_manager.SetRefreshChecked(bucket.location(), true);
-    };
+    }
     emit ui->treeView->model()->layoutChanged();
 }
 
-void MainWindow::OnUncheckAll() {
+void MainWindow::OnUncheckAll()
+{
     spdlog::trace("MainWindow::OnUncheckAll() entered");
-    for (auto const& bucket : m_current_search->buckets()) {
+    for (auto const &bucket : m_current_search->buckets()) {
         m_buyout_manager.SetRefreshChecked(bucket.location(), false);
-    };
+    }
     emit ui->treeView->model()->layoutChanged();
 }
 
-void MainWindow::OnRefreshSelected() {
+void MainWindow::OnRefreshSelected()
+{
     spdlog::trace("MainWindow::OnRefreshSelected()");
     // Get names of tabs to refresh
     std::vector<ItemLocation> locations;
-    const auto& selected_rows = ui->treeView->selectionModel()->selectedRows();
-    for (auto const& index : selected_rows) {
+    const auto &selected_rows = ui->treeView->selectionModel()->selectedRows();
+    for (auto const &index : selected_rows) {
         // Fetch tab names per index
         locations.emplace_back(m_current_search->GetTabLocation(index));
-    };
+    }
     m_items_manager.Update(TabSelection::Selected, locations);
 }
 
-void MainWindow::CheckSelected(bool value) {
+void MainWindow::CheckSelected(bool value)
+{
     spdlog::trace("MainWindow::CheckSelected() entered");
-    const auto& selected_rows = ui->treeView->selectionModel()->selectedRows();
-    for (auto const& index : selected_rows) {
+    const auto &selected_rows = ui->treeView->selectionModel()->selectedRows();
+    for (auto const &index : selected_rows) {
         m_buyout_manager.SetRefreshChecked(m_current_search->GetTabLocation(index), value);
-    };
+    }
 }
 
-void MainWindow::ResizeTreeColumns() {
+void MainWindow::ResizeTreeColumns()
+{
     spdlog::trace("MainWindow::ResizeTreeColumns() entered");
     for (int i = 0; i < ui->treeView->header()->count(); ++i) {
         ui->treeView->resizeColumnToContents(i);
-    };
+    }
 }
 
-void MainWindow::OnBuyoutChange() {
+void MainWindow::OnBuyoutChange()
+{
     spdlog::trace("MainWindow::OnBuyoutChange() entered");
     m_shop.ExpireShopData();
 
@@ -459,74 +510,90 @@ void MainWindow::OnBuyoutChange() {
     } else {
         ui->buyoutCurrencyComboBox->setEnabled(false);
         ui->buyoutValueLineEdit->setEnabled(false);
-    };
+    }
 
     if (!bo.IsValid()) {
         spdlog::trace("MainWindow::OnBuyoutChange() buyout is invalid");
         return;
-    };
+    }
 
     // Don't assign a zero buyout if nothing is entered in the value textbox
     if (ui->buyoutValueLineEdit->text().isEmpty() && bo.IsPriced()) {
         spdlog::trace("MainWindow::OnBuyoutChange() buyout iempty");
         return;
-    };
+    }
 
-    const auto& selected_rows = ui->treeView->selectionModel()->selectedRows();
-    for (auto const& index : selected_rows) {
-        auto const& tab = m_current_search->GetTabLocation(index).GetUniqueHash();
+    const auto &selected_rows = ui->treeView->selectionModel()->selectedRows();
+    for (auto const &index : selected_rows) {
+        auto const &tab = m_current_search->GetTabLocation(index).GetUniqueHash();
 
         // Don't allow users to manually update locked tabs (game priced)
         if (m_buyout_manager.GetTab(tab).IsGameSet()) {
             spdlog::trace("MainWindow::OnBuyoutChange() refusing to update locked tab: {}", tab);
             continue;
-        };
+        }
         if (!index.parent().isValid()) {
             m_buyout_manager.SetTab(tab, bo);
         } else {
             const int bucket_row = index.parent().row();
             if (m_current_search->has_bucket(bucket_row)) {
-                const Bucket& bucket = m_current_search->bucket(bucket_row);
+                const Bucket &bucket = m_current_search->bucket(bucket_row);
                 const int item_row = index.row();
                 if (bucket.has_item(item_row)) {
-                    const Item& item = *bucket.item(item_row);
+                    const Item &item = *bucket.item(item_row);
                     // Don't allow users to manually update locked items (game priced per item in note section)
                     if (m_buyout_manager.Get(item).IsGameSet()) {
-                        spdlog::trace("MainWindow::OnBuyoutChange() refusing to update locked item: {}", item.name());
+                        spdlog::trace(
+                            "MainWindow::OnBuyoutChange() refusing to update locked item: {}",
+                            item.name());
                         continue;
-                    };
+                    }
                     m_buyout_manager.Set(item, bo);
                 } else {
-                    spdlog::error("OnBuyoutChange(): bucket {} does not have {} items", bucket_row, item_row);
-                };
+                    spdlog::error("OnBuyoutChange(): bucket {} does not have {} items",
+                                  bucket_row,
+                                  item_row);
+                }
             } else {
                 spdlog::error("OnBuyoutChange(): bucket {} does not exist", bucket_row);
-            };
-        };
-    };
+            }
+        }
+    }
     m_items_manager.PropagateTabBuyouts();
     ResizeTreeColumns();
 }
 
-void MainWindow::OnStatusUpdate(ProgramState state, const QString& message) {
+void MainWindow::OnStatusUpdate(ProgramState state, const QString &message)
+{
     QString status;
     switch (state) {
-    case ProgramState::Initializing: status = "Initializing"; break;
-    case ProgramState::Ready: status = "Ready"; break;
-    case ProgramState::Busy: status = "Busy"; break;
-    case ProgramState::Waiting: status = "Waiting"; break;
-    case ProgramState::Unknown: status = "Unknown State"; break;
-    };
+    case ProgramState::Initializing:
+        status = "Initializing";
+        break;
+    case ProgramState::Ready:
+        status = "Ready";
+        break;
+    case ProgramState::Busy:
+        status = "Busy";
+        break;
+    case ProgramState::Waiting:
+        status = "Waiting";
+        break;
+    case ProgramState::Unknown:
+        status = "Unknown State";
+        break;
+    }
     if (!message.isEmpty()) {
         status += ": " + message;
-    };
+    }
     m_status_bar_label->setText(status);
     m_status_bar_label->update();
 }
 
-bool MainWindow::eventFilter(QObject* o, QEvent* e) {
+bool MainWindow::eventFilter(QObject *o, QEvent *e)
+{
     if ((o == m_tab_bar) && (e->type() == QEvent::MouseButtonPress)) {
-        QMouseEvent* mouse_event = static_cast<QMouseEvent*>(e);
+        QMouseEvent *mouse_event = static_cast<QMouseEvent *>(e);
         int index = m_tab_bar->tabAt(mouse_event->pos());
         if ((index >= 0) && (index < m_tab_bar->count() - 1)) {
             if (mouse_event->button() == Qt::MiddleButton) {
@@ -534,40 +601,41 @@ bool MainWindow::eventFilter(QObject* o, QEvent* e) {
                 return true;
             } else if (mouse_event->button() == Qt::RightButton) {
                 QMenu menu;
-                menu.addAction("Rename Tab", this, [=]() { OnRenameTabClicked(index); });
-                menu.addAction("Delete Tab", this, [=]() { OnDeleteTabClicked(index); });
+                menu.addAction("Rename Tab", this, [=, this]() { OnRenameTabClicked(index); });
+                menu.addAction("Delete Tab", this, [=, this]() { OnDeleteTabClicked(index); });
                 menu.exec(QCursor::pos());
-            };
-        };
-    };
+            }
+        }
+    }
     return QMainWindow::eventFilter(o, e);
 }
 
-void MainWindow::OnRenameTabClicked(int index) {
+void MainWindow::OnRenameTabClicked(int index)
+{
     bool ok;
-    QString name = QInputDialog::getText(this, "Rename Tab",
-        "Rename Tab here",
-        QLineEdit::Normal, "", &ok);
+    QString name
+        = QInputDialog::getText(this, "Rename Tab", "Rename Tab here", QLineEdit::Normal, "", &ok);
 
     if (ok && !name.isEmpty()) {
         m_searches[index]->RenameCaption(name);
         m_tab_bar->setTabText(index, m_searches[index]->GetCaption());
-    };
+    }
 }
 
-void MainWindow::OnDeleteTabClicked(int index) {
+void MainWindow::OnDeleteTabClicked(int index)
+{
     // If the user is deleting the last search, create a new
     // one to replace it, because the UI breaks without at
     // least one search.
     if (m_searches.size() == 1) {
         NewSearch();
-    };
+    }
 
     // Delete the search.
-    Search* search = m_searches[index];
+    Search *search = m_searches[index];
     if (m_current_search == search) {
         m_current_search = nullptr;
-    };
+    }
     delete search;
     m_searches.erase(m_searches.begin() + index);
 
@@ -575,14 +643,16 @@ void MainWindow::OnDeleteTabClicked(int index) {
     m_tab_bar->removeTab(index);
 }
 
-void MainWindow::OnSearchFormChange() {
+void MainWindow::OnSearchFormChange()
+{
     spdlog::trace("MainWindow::OnSearchFormChange() entered");
     m_current_search->SaveViewProperties();
     m_current_search->SetRefreshReason(RefreshReason::SearchFormChanged);
     ModelViewRefresh();
 }
 
-void MainWindow::ModelViewRefresh() {
+void MainWindow::ModelViewRefresh()
+{
     spdlog::trace("MainWindow::ModelViewRefresh() entered");
     m_buyout_manager.Save();
 
@@ -591,40 +661,49 @@ void MainWindow::ModelViewRefresh() {
     ResizeTreeColumns();
 
     // This updates the item information when current item changes.
-    connect(ui->treeView->selectionModel(), &QItemSelectionModel::currentChanged, this, &MainWindow::OnCurrentItemChanged);
+    connect(ui->treeView->selectionModel(),
+            &QItemSelectionModel::currentChanged,
+            this,
+            &MainWindow::OnCurrentItemChanged);
 
     // This updates the item information when a search or sort order changes.
-    connect(ui->treeView->model(), &QAbstractItemModel::layoutChanged, this, &MainWindow::OnLayoutChanged);
+    connect(ui->treeView->model(),
+            &QAbstractItemModel::layoutChanged,
+            this,
+            &MainWindow::OnLayoutChanged);
 
     ui->viewComboBox->setCurrentIndex(static_cast<int>(m_current_search->GetViewMode()));
 
     m_tab_bar->setTabText(m_tab_bar->currentIndex(), m_current_search->GetCaption());
 }
 
-void MainWindow::OnCurrentItemChanged(const QModelIndex& current, const QModelIndex& previous) {
+void MainWindow::OnCurrentItemChanged(const QModelIndex &current, const QModelIndex &previous)
+{
     Q_UNUSED(previous);
     spdlog::trace("MainWindow::OnCurrentItemChange() entered");
     m_buyout_manager.Save();
 
     if (!current.isValid()) {
         return;
-    };
+    }
 
     if (current.parent().isValid()) {
         // Clicked on an item
         const int bucket_row = current.parent().row();
         if (m_current_search->has_bucket(bucket_row)) {
-            const Bucket& bucket = m_current_search->bucket(bucket_row);
+            const Bucket &bucket = m_current_search->bucket(bucket_row);
             const int item_row = current.row();
             if (bucket.has_item(item_row)) {
                 m_current_item = bucket.item(item_row);
                 m_delayed_update_current_item.start();
             } else {
-                spdlog::warn("OnCurrentItemChanged(): parent bucket {} does not have {} rows", bucket_row, item_row);
-            };
+                spdlog::warn("OnCurrentItemChanged(): parent bucket {} does not have {} rows",
+                             bucket_row,
+                             item_row);
+            }
         } else {
             spdlog::warn("OnCurrentItemChanged(): parent bucket {} does not exist", bucket_row);
-        };
+        }
     } else {
         // Clicked on a bucket
         m_current_item = nullptr;
@@ -634,19 +713,20 @@ void MainWindow::OnCurrentItemChanged(const QModelIndex& current, const QModelIn
             UpdateCurrentBucket();
         } else {
             spdlog::warn("OnCurrentItemChanged(): bucket {} does not exist", bucket_row);
-        };
-    };
+        }
+    }
     UpdateCurrentBuyout();
 }
 
-void MainWindow::OnLayoutChanged() {
+void MainWindow::OnLayoutChanged()
+{
     spdlog::trace("MainWindow::OnLayoutChanged() entered");
 
     // Do nothing is nothing is selected.
     if (m_current_item == nullptr) {
         spdlog::trace("MainWindow::OnLayoutChange() nothing was selected");
         return;
-    };
+    }
 
     // Reset the selection model, because using clear can cause exceptions
     // when after search updates for some reason that's not clear yet.
@@ -664,17 +744,19 @@ void MainWindow::OnLayoutChanged() {
         // Reselect the item in the updated layout.
         spdlog::trace("MainWindow::OnLayouotChange() reselecting the previous item");
         ui->treeView->selectionModel()->select(index,
-            QItemSelectionModel::Current |
-            QItemSelectionModel::Select |
-            QItemSelectionModel::Rows);
-    };
+                                               QItemSelectionModel::Current
+                                                   | QItemSelectionModel::Select
+                                                   | QItemSelectionModel::Rows);
+    }
 }
 
-void MainWindow::OnDelayedSearchFormChange() {
+void MainWindow::OnDelayedSearchFormChange()
+{
     m_delayed_search_form_change.start();
 }
 
-void MainWindow::OnTabChange(int index) {
+void MainWindow::OnTabChange(int index)
+{
     if (static_cast<size_t>(index) == m_searches.size()) {
         // "+" clicked
         NewSearch();
@@ -683,30 +765,32 @@ void MainWindow::OnTabChange(int index) {
         m_current_search->SetRefreshReason(RefreshReason::TabChanged);
         m_current_search->ToForm();
         ModelViewRefresh();
-    };
+    }
 }
 
-void MainWindow::AddSearchGroup(QLayout* layout, const QString& name = "") {
+void MainWindow::AddSearchGroup(QLayout *layout, const QString &name = "")
+{
     if (!name.isEmpty()) {
         auto label = new QLabel(("<h3>" + name + "</h3>"));
         m_search_form_layout->addWidget(label);
-    };
+    }
     layout->setContentsMargins(0, 0, 0, 0);
     auto layout_container = new QWidget;
     layout_container->setLayout(layout);
     m_search_form_layout->addWidget(layout_container);
 }
 
-void MainWindow::InitializeSearchForm() {
-
+void MainWindow::InitializeSearchForm()
+{
     // Initialize category list once.
-    auto* category_model = new QStringListModel(GetItemCategories(), this);
+    auto *category_model = new QStringListModel(GetItemCategories(), this);
 
     // Initialize rarity list once.
-    auto* rarity_model = new QStringListModel(RaritySearchFilter::RARITY_LIST, this);
+    auto *rarity_model = new QStringListModel(RaritySearchFilter::RARITY_LIST, this);
 
     auto name_search = std::make_unique<NameSearchFilter>(m_search_form_layout);
-    auto category_search = std::make_unique<CategorySearchFilter>(m_search_form_layout, category_model);
+    auto category_search = std::make_unique<CategorySearchFilter>(m_search_form_layout,
+                                                                  category_model);
     auto rarity_search = std::make_unique<RaritySearchFilter>(m_search_form_layout, rarity_model);
     auto offense_layout = new FlowLayout;
     auto defense_layout = new FlowLayout;
@@ -727,6 +811,7 @@ void MainWindow::InitializeSearchForm() {
     AddSearchGroup(mods_layout, "Mods");
 
     using move_only = std::unique_ptr<Filter>;
+    // clang-format off
     move_only init[] = {
         std::move(name_search),
         std::move(category_search),
@@ -734,10 +819,10 @@ void MainWindow::InitializeSearchForm() {
         // Offense
         // new DamageFilter(offense_layout, "Damage"),
         std::make_unique<SimplePropertyFilter>(offense_layout, "Critical Strike Chance", "Crit."),
-        std::make_unique<ItemMethodFilter>(offense_layout, [](Item* item) { return item->DPS(); }, "DPS"),
-        std::make_unique<ItemMethodFilter>(offense_layout, [](Item* item) { return item->pDPS(); }, "pDPS"),
-        std::make_unique<ItemMethodFilter>(offense_layout, [](Item* item) { return item->eDPS(); }, "eDPS"),
-        std::make_unique<ItemMethodFilter>(offense_layout, [](Item* item) { return item->cDPS(); }, "cDPS"),
+        std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->DPS(); }, "DPS"),
+        std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->pDPS(); }, "pDPS"),
+        std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->eDPS(); }, "eDPS"),
+        std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->cDPS(); }, "cDPS"),
         std::make_unique<SimplePropertyFilter>(offense_layout, "Attacks per Second", "APS"),
         // Defense
         std::make_unique<SimplePropertyFilter>(defense_layout, "Armour"),
@@ -768,10 +853,13 @@ void MainWindow::InitializeSearchForm() {
         std::make_unique<CorruptedFilter>(misc_flags2_layout, "", "Corrupted"),
         std::make_unique<ModsFilter>(mods_layout)
     };
-    m_filters = std::vector<move_only>(std::make_move_iterator(std::begin(init)), std::make_move_iterator(std::end(init)));
+    // clang-format on
+    m_filters = std::vector<move_only>(std::make_move_iterator(std::begin(init)),
+                                       std::make_move_iterator(std::end(init)));
 }
 
-void MainWindow::NewSearch() {
+void MainWindow::NewSearch()
+{
     spdlog::trace("MainWindow::NewSearch() entered");
 
     ++m_search_count;
@@ -783,11 +871,7 @@ void MainWindow::NewSearch() {
     m_tab_bar->addTab("+");
 
     spdlog::trace("MainWindow::NewSearch() setting current search: {}", caption);
-    m_current_search = new Search(
-        m_buyout_manager,
-        caption,
-        m_filters,
-        ui->treeView);
+    m_current_search = new Search(m_buyout_manager, caption, m_filters, ui->treeView);
     m_current_search->SetRefreshReason(RefreshReason::TabCreated);
 
     // this can't be done in ctor because it'll call OnSearchFormChange slot
@@ -800,7 +884,8 @@ void MainWindow::NewSearch() {
     ModelViewRefresh();
 }
 
-void MainWindow::ClearCurrentItem() {
+void MainWindow::ClearCurrentItem()
+{
     spdlog::trace("MainWindow::ClearCurrentItem() entered");
     ui->imageLabel->hide();
     ui->minimapLabel->hide();
@@ -814,7 +899,8 @@ void MainWindow::ClearCurrentItem() {
     ui->pobTooltipButton->setEnabled(false);
 }
 
-void MainWindow::UpdateCurrentBucket() {
+void MainWindow::UpdateCurrentBucket()
+{
     spdlog::trace("MainWindow::UpdateCurrentBucket() entered");
     ui->imageLabel->hide();
     ui->minimapLabel->hide();
@@ -828,12 +914,13 @@ void MainWindow::UpdateCurrentBucket() {
     ui->pobTooltipButton->setEnabled(false);
 }
 
-void MainWindow::UpdateCurrentItem() {
+void MainWindow::UpdateCurrentItem()
+{
     spdlog::trace("MainWindow::UpdateCurrentItem() entered");
     if (m_current_item == nullptr) {
         ClearCurrentItem();
         return;
-    };
+    }
 
     ui->imageLabel->show();
     ui->minimapLabel->show();
@@ -856,11 +943,12 @@ void MainWindow::UpdateCurrentItem() {
     QString icon = m_current_item->icon();
     if ((icon.size() >= 1) && (icon[0] == '/')) {
         icon = POE_WEBCDN + icon;
-    };
+    }
     emit GetImage(icon);
 }
 
-void MainWindow::OnImageFetched(const QString& url) {
+void MainWindow::OnImageFetched(const QString &url)
+{
     if (m_current_item) {
         const QString icon = m_current_item->icon();
         if (url == icon) {
@@ -868,13 +956,13 @@ void MainWindow::OnImageFetched(const QString& url) {
             if (!image.isNull()) {
                 const QPixmap pixmap = GenerateItemIcon(*m_current_item, image);
                 ui->imageLabel->setPixmap(pixmap);
-            };
-        };
-    };
+            }
+        }
+    }
 }
 
-
-void MainWindow::UpdateBuyoutWidgets(const Buyout& bo) {
+void MainWindow::UpdateBuyoutWidgets(const Buyout &bo)
+{
     spdlog::trace("MainWindow::UpdateBuyoutWidgets() entered");
     ui->buyoutTypeComboBox->setCurrentIndex(bo.type);
     ui->buyoutTypeComboBox->setEnabled(!bo.IsGameSet());
@@ -887,23 +975,25 @@ void MainWindow::UpdateBuyoutWidgets(const Buyout& bo) {
         if (!bo.IsGameSet()) {
             ui->buyoutCurrencyComboBox->setEnabled(true);
             ui->buyoutValueLineEdit->setEnabled(true);
-        };
+        }
     } else {
         ui->buyoutValueLineEdit->setText("");
-    };
+    }
 }
 
-void MainWindow::UpdateCurrentBuyout() {
+void MainWindow::UpdateCurrentBuyout()
+{
     spdlog::trace("MainWindow::UpdateCurrentBuyout() entered");
     if (m_current_item) {
         UpdateBuyoutWidgets(m_buyout_manager.Get(*m_current_item));
     } else {
         QString tab = m_current_bucket_location->GetUniqueHash();
         UpdateBuyoutWidgets(m_buyout_manager.GetTab(tab));
-    };
+    }
 }
 
-void MainWindow::OnItemsRefreshed() {
+void MainWindow::OnItemsRefreshed()
+{
     spdlog::trace("MainWindow::OnItemsRefreshed() entered");
     int tab = 0;
     for (auto search : m_searches) {
@@ -912,27 +1002,33 @@ void MainWindow::OnItemsRefreshed() {
         if (search != m_current_search) {
             search->FilterItems(m_items_manager.items());
             m_tab_bar->setTabText(tab, search->GetCaption());
-        };
+        }
         tab++;
-    };
+    }
     ModelViewRefresh();
 }
 
-void MainWindow::OnSetShopThreads() {
+void MainWindow::OnSetShopThreads()
+{
     bool ok;
-    QString thread = QInputDialog::getText(this, "Shop thread",
-        "Enter thread number. You can enter multiple shops by separating them with a comma. More than one shop may be needed if you have a lot of items.",
-        QLineEdit::Normal, m_shop.threads().join(","), &ok);
+    QString thread = QInputDialog::getText(
+        this,
+        "Shop thread",
+        "Enter thread number. You can enter multiple shops by separating them with a comma. More "
+        "than one shop may be needed if you have a lot of items.",
+        QLineEdit::Normal,
+        m_shop.threads().join(","),
+        &ok);
     if (ok && !thread.isEmpty()) {
         static const auto spaces = QRegularExpression("\\s+");
         m_shop.SetThread(thread.remove(spaces).split(','));
-    };
+    }
     UpdateShopMenu();
 }
 
-void MainWindow::OnShowPOESESSID() {
-
-    static QInputDialog* dialog = nullptr;
+void MainWindow::OnShowPOESESSID()
+{
+    static QInputDialog *dialog = nullptr;
 
     // Create and configure the input dialog.
     if (!dialog) {
@@ -940,7 +1036,7 @@ void MainWindow::OnShowPOESESSID() {
         dialog->setWindowTitle("Path of Exile - Session ID");
         dialog->setLabelText("POESESSID:");
         dialog->setInputMode(QInputDialog::TextInput);
-        auto lineEdit = dialog->findChild<QLineEdit*>();
+        auto lineEdit = dialog->findChild<QLineEdit *>();
         if (lineEdit) {
             // Use a fixed width font for the input, and set it to be exactly
             // as wide as a POESESSID cookie.
@@ -949,8 +1045,8 @@ void MainWindow::OnShowPOESESSID() {
             const int w = metric.horizontalAdvance("00000000000000000000000000000000");
             lineEdit->setFont(font);
             lineEdit->setMinimumWidth(w);
-        };
-    };
+        }
+    }
 
     // Load the session_id if it exists.
     dialog->setTextValue(m_settings.value("session_id").toString());
@@ -960,102 +1056,120 @@ void MainWindow::OnShowPOESESSID() {
     if (code == QDialog::DialogCode::Accepted) {
         const QString poesessid = dialog->textValue();
         emit SetSessionId(poesessid);
-    };
+    }
 }
 
-void MainWindow::UpdateShopMenu() {
+void MainWindow::UpdateShopMenu()
+{
     QString title = "Forum shop thread...";
     if (!m_shop.threads().empty()) {
         title += " [" + m_shop.threads().join(",") + "]";
-    };
+    }
     ui->actionSetShopThreads->setText(title);
     ui->actionSetAutomaticallyShopUpdate->setChecked(m_shop.auto_update());
 }
 
-void MainWindow::OnUpdateAvailable() {
+void MainWindow::OnUpdateAvailable()
+{
     m_update_button.show();
 }
 
-void MainWindow::OnCopyShopToClipboard() {
+void MainWindow::OnCopyShopToClipboard()
+{
     m_shop.CopyToClipboard();
 }
 
-void MainWindow::OnSetTabRefreshInterval() {
-    int interval = QInputDialog::getInt(this, "Auto refresh items", "Refresh items every X minutes",
-        QLineEdit::Normal, m_settings.value("autoupdate_interval").toInt());
+void MainWindow::OnSetTabRefreshInterval()
+{
+    int interval = QInputDialog::getInt(this,
+                                        "Auto refresh items",
+                                        "Refresh items every X minutes",
+                                        QLineEdit::Normal,
+                                        m_settings.value("autoupdate_interval").toInt());
     if (interval > 0) {
         m_items_manager.SetAutoUpdateInterval(interval);
-    };
+    }
 }
 
-void MainWindow::OnFetchTabsList() {
+void MainWindow::OnFetchTabsList()
+{
     m_items_manager.Update(TabSelection::TabsOnly);
 }
 
-void MainWindow::OnRefreshAllTabs() {
+void MainWindow::OnRefreshAllTabs()
+{
     m_items_manager.Update(TabSelection::All);
 }
 
-void MainWindow::OnRefreshCheckedTabs() {
+void MainWindow::OnRefreshCheckedTabs()
+{
     m_items_manager.Update(TabSelection::Checked);
 }
 
-void MainWindow::OnSetAutomaticTabRefresh() {
+void MainWindow::OnSetAutomaticTabRefresh()
+{
     m_items_manager.SetAutoUpdate(ui->actionSetAutomaticTabRefresh->isChecked());
 }
 
-void MainWindow::OnUpdateStashIndex() {
-    m_shop.UpdateStashIndex();
-}
-
-void MainWindow::OnUpdateShops() {
+void MainWindow::OnUpdateShops()
+{
     m_shop.SubmitShopToForum(true);
 }
 
-void MainWindow::OnEditShopTemplate() {
+void MainWindow::OnEditShopTemplate()
+{
     bool ok;
-    QString text = QInputDialog::getMultiLineText(this, "Shop template", "Enter shop template. [items] will be replaced with the list of items you marked for sale.",
-        m_shop.shop_template(), &ok);
+    QString text = QInputDialog::getMultiLineText(
+        this,
+        "Shop template",
+        "Enter shop template. [items] will be replaced with the list of items you marked for sale.",
+        m_shop.shop_template(),
+        &ok);
     if (ok && !text.isEmpty()) {
         m_shop.SetShopTemplate(text);
-    };
+    }
 }
 
-void MainWindow::OnSetAutomaticShopUpdate() {
+void MainWindow::OnSetAutomaticShopUpdate()
+{
     m_shop.SetAutoUpdate(ui->actionSetAutomaticallyShopUpdate->isChecked());
 }
 
-void MainWindow::OnSetDarkTheme(bool toggle) {
+void MainWindow::OnSetDarkTheme(bool toggle)
+{
     if (toggle) {
         emit SetTheme("dark");
         ui->actionSetLightTheme->setChecked(false);
         ui->actionSetDefaultTheme->setChecked(false);
         m_settings.setValue("theme", "dark");
-    };
+    }
     ui->actionSetDarkTheme->setChecked(toggle);
 }
 
-void MainWindow::OnSetLightTheme(bool toggle) {
+void MainWindow::OnSetLightTheme(bool toggle)
+{
     if (toggle) {
         emit SetTheme("light");
         ui->actionSetDarkTheme->setChecked(false);
         ui->actionSetDefaultTheme->setChecked(false);
         m_settings.setValue("theme", "light");
-    };
+    }
     ui->actionSetLightTheme->setChecked(toggle);
 }
 
-void MainWindow::OnSetDefaultTheme(bool toggle) {
+void MainWindow::OnSetDefaultTheme(bool toggle)
+{
     if (toggle) {
         emit SetTheme("default");
         ui->actionSetDarkTheme->setChecked(false);
         ui->actionSetLightTheme->setChecked(false);
         m_settings.setValue("theme", "default");
-    };
+    }
     ui->actionSetDefaultTheme->setChecked(toggle);
 }
 
-void MainWindow::OnSetLogging(spdlog::level::level_enum level) {
+void MainWindow::OnSetLogging(spdlog::level::level_enum level)
+{
     spdlog::set_level(level);
     ui->actionLoggingOFF->setChecked(level == spdlog::level::off);
     ui->actionLoggingFATAL->setChecked(level == spdlog::level::critical);
@@ -1069,12 +1183,12 @@ void MainWindow::OnSetLogging(spdlog::level::level_enum level) {
     m_settings.setValue("log_level", level_name);
 }
 
-void MainWindow::closeEvent(QCloseEvent* event) {
-
+void MainWindow::closeEvent(QCloseEvent *event)
+{
     if (m_quitting) {
         event->accept();
         return;
-    };
+    }
 
     QMessageBox msgbox(this);
     msgbox.setWindowTitle("Acquisition");
@@ -1087,10 +1201,11 @@ void MainWindow::closeEvent(QCloseEvent* event) {
         event->accept();
     } else {
         event->ignore();
-    };
+    }
 }
 
-void MainWindow::OnUploadToImgur() {
+void MainWindow::OnUploadToImgur()
+{
     ui->uploadTooltipButton->setDisabled(true);
     ui->uploadTooltipButton->setText("Uploading...");
 
@@ -1108,48 +1223,56 @@ void MainWindow::OnUploadToImgur() {
     request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
     request.setTransferTimeout(kImgurUploadTimeout);
     QByteArray image_data = "image=" + QUrl::toPercentEncoding(bytes.toBase64());
-    QNetworkReply* reply = m_network_manager.post(request, image_data);
+    QNetworkReply *reply = m_network_manager.post(request, image_data);
     connect(reply, &QNetworkReply::finished, this, &MainWindow::OnUploadFinished);
 }
 
-void MainWindow::OnCopyForPOB() {
+void MainWindow::OnCopyForPOB()
+{
     if (m_current_item == nullptr) {
         return;
-    };
+    }
     // if category isn't wearable, including flasks, don't do anything
     if (!m_current_item->Wearable()) {
-        spdlog::warn("{}, category: {}, should not have been exportable.", m_current_item->PrettyName(), m_current_item->category());
+        spdlog::warn("{}, category: {}, should not have been exportable.",
+                     m_current_item->PrettyName(),
+                     m_current_item->category());
         return;
-    };
+    }
 
     QApplication::clipboard()->setText(m_current_item->POBformat());
-    spdlog::info("{} was copied to your clipboard in Path of Building's \"Create custom\" format.", m_current_item->PrettyName());
+    spdlog::info("{} was copied to your clipboard in Path of Building's \"Create custom\" format.",
+                 m_current_item->PrettyName());
 }
 
-void MainWindow::OnUploadFinished() {
+void MainWindow::OnUploadFinished()
+{
     ui->uploadTooltipButton->setDisabled(false);
     ui->uploadTooltipButton->setText("Upload to imgur");
 
-    QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
+    QNetworkReply *reply = qobject_cast<QNetworkReply *>(QObject::sender());
     QByteArray bytes = reply->readAll();
     reply->deleteLater();
 
     rapidjson::Document doc;
     doc.Parse(bytes.constData());
 
-    if (doc.HasParseError() || !doc.IsObject() || !doc.HasMember("status") || !doc["status"].IsNumber()) {
+    if (doc.HasParseError() || !doc.IsObject() || !doc.HasMember("status")
+        || !doc["status"].IsNumber()) {
         spdlog::error("Imgur API returned invalid data (or timed out): {}", bytes);
         return;
-    };
+    }
     if (doc["status"].GetInt() != 200) {
         spdlog::error("Imgur API returned status!=200: {}", bytes);
         return;
-    };
-    if (!doc.HasMember("data") || !doc["data"].HasMember("link") || !doc["data"]["link"].IsString()) {
+    }
+    if (!doc.HasMember("data") || !doc["data"].HasMember("link")
+        || !doc["data"]["link"].IsString()) {
         spdlog::error("Imgur API returned malformed reply: {}", bytes);
         return;
-    };
+    }
     QString url = doc["data"]["link"].GetString();
     QApplication::clipboard()->setText(url);
-    spdlog::info("Image successfully uploaded, the URL is {}. It also was copied to your clipboard.", url);
+    spdlog::info(
+        "Image successfully uploaded, the URL is {}. It also was copied to your clipboard.", url);
 }

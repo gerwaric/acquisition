@@ -33,8 +33,8 @@ constexpr int MAX_FILES = 20;
 
 constexpr int MAX_LOG_SIZE = 10 * 1024 * 1024; // 10MB
 
-void logging::init(const QString& filename) {
-
+void logging::init(const QString &filename)
+{
     // Create sinks vector
     std::vector<spdlog::sink_ptr> sinks;
 
@@ -49,7 +49,9 @@ void logging::init(const QString& filename) {
     sinks.push_back(debug_sink);
 
     const auto path = filename.toStdString();
-    auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(path, MAX_LOG_SIZE, MAX_FILES);
+    auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(path,
+                                                                            MAX_LOG_SIZE,
+                                                                            MAX_FILES);
     file_sink->set_level(spdlog::level::trace);
     sinks.push_back(file_sink);
 
@@ -58,5 +60,4 @@ void logging::init(const QString& filename) {
 
     spdlog::set_default_logger(logger);
     spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
-
 }

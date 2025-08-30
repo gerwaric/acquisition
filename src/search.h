@@ -23,15 +23,15 @@
 #include <QString>
 
 #include <memory>
-#include <vector>
 #include <set>
+#include <vector>
 
 #include <util/util.h>
 
+#include "bucket.h"
+#include "column.h"
 #include "item.h"
 #include "items_model.h"
-#include "column.h"
-#include "bucket.h"
 
 class BuyoutManager;
 class Filter;
@@ -40,47 +40,45 @@ class ItemsModel;
 class QTreeView;
 class QModelIndex;
 
-class Search {
+class Search
+{
     Q_GADGET
 public:
-
-    enum class ViewMode : int {
-        ByTab = 0,
-        ByItem = 1
-    };
+    enum class ViewMode : int { ByTab = 0, ByItem = 1 };
     Q_ENUM(ViewMode)
 
-    Search(BuyoutManager& bo,
-        const QString& caption,
-        const std::vector<std::unique_ptr<Filter>>& filters,
-        QTreeView* view);
-    void FilterItems(const Items& items);
+    Search(BuyoutManager &bo,
+           const QString &caption,
+           const std::vector<std::unique_ptr<Filter>> &filters,
+           QTreeView *view);
+    void FilterItems(const Items &items);
     void FromForm();
     void ToForm();
     void ResetForm();
-    const QString& caption() const { return m_caption; }
-    const Items& items() const { return m_items; }
-    const std::vector<std::unique_ptr<Column>>& columns() const { return m_columns; }
-    const std::vector<Bucket>& buckets() const;
-    void RenameCaption(const QString& newName);
+    const QString &caption() const { return m_caption; }
+    const Items &items() const { return m_items; }
+    const std::vector<std::unique_ptr<Column>> &columns() const { return m_columns; }
+    const std::vector<Bucket> &buckets() const;
+    void RenameCaption(const QString &newName);
     QString GetCaption() const;
     // Sets this search as current, will display items in passed QTreeView.
-    void Activate(const Items& items);
+    void Activate(const Items &items);
     void RestoreViewProperties();
     void SaveViewProperties();
-    ItemLocation GetTabLocation(const QModelIndex& index) const;
+    ItemLocation GetTabLocation(const QModelIndex &index) const;
     void SetViewMode(ViewMode mode);
     ViewMode GetViewMode() const { return m_current_mode; }
     bool has_bucket(int row) const;
-    const Bucket& bucket(int row) const;
-    const QModelIndex index(const std::shared_ptr<Item>& item) const;
+    const Bucket &bucket(int row) const;
+    const QModelIndex index(const std::shared_ptr<Item> &item) const;
     void SetRefreshReason(RefreshReason reason) { m_refresh_reason = reason; }
     void Sort(int column, Qt::SortOrder order);
-private:
-    std::vector<Bucket>& active_buckets();
 
-    BuyoutManager& m_bo_manager;
-    QTreeView& m_view;
+private:
+    std::vector<Bucket> &active_buckets();
+
+    BuyoutManager &m_bo_manager;
+    QTreeView &m_view;
 
     std::vector<std::unique_ptr<FilterData>> m_filters;
     std::vector<std::unique_ptr<Column>> m_columns;
@@ -98,6 +96,6 @@ private:
     RefreshReason m_refresh_reason;
 };
 
-template <>
-struct fmt::formatter<Search::ViewMode, char> : QtEnumFormatter<Search::ViewMode> {};
-
+template<>
+struct fmt::formatter<Search::ViewMode, char> : QtEnumFormatter<Search::ViewMode>
+{};

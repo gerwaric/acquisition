@@ -34,9 +34,10 @@
 #include "legacyitem.h"
 #include "legacystash.h"
 
-struct LegacyDataStore {
-
-    struct DataTable {
+struct LegacyDataStore
+{
+    struct DataTable
+    {
         QString db_version;
         QString version;
         std::unordered_map<QString, LegacyBuyout> buyouts;
@@ -47,7 +48,8 @@ struct LegacyDataStore {
         JS_OBJ(db_version, version, buyouts, tab_buyouts);
     };
 
-    struct TabsTable {
+    struct TabsTable
+    {
         std::vector<LegacyStash> stashes;
         std::vector<LegacyCharacter> characters;
         JS_OBJ(stashes, characters);
@@ -56,20 +58,19 @@ struct LegacyDataStore {
     using ItemsTable = std::unordered_map<QString, std::vector<LegacyItem>>;
     // IGNORE: using CurrencyTable = std::unordered_map<unsigned long long, QString>;
 
-    LegacyDataStore(const QString& filename);
-    bool exportJson(const QString& filename) const;
-    bool exportTgz(const QString& filename) const;
+    LegacyDataStore(const QString &filename);
+    bool exportJson(const QString &filename) const;
+    bool exportTgz(const QString &filename) const;
 
     bool isValid() const { return m_valid; };
     qint64 itemCount() const { return m_item_count; };
-    const LegacyDataStore::DataTable& data() const { return m_data; };
-    const LegacyDataStore::TabsTable& tabs() const { return m_tabs; };
-    const LegacyDataStore::ItemsTable& items() const { return m_items; };
+    const LegacyDataStore::DataTable &data() const { return m_data; };
+    const LegacyDataStore::TabsTable &tabs() const { return m_tabs; };
+    const LegacyDataStore::ItemsTable &items() const { return m_items; };
 
-    JS_OBJECT(
-        JS_MEMBER_WITH_NAME(m_data, "data"),
-        JS_MEMBER_WITH_NAME(m_tabs, "tabs"),
-        JS_MEMBER_WITH_NAME(m_items, "items"));
+    JS_OBJECT(JS_MEMBER_WITH_NAME(m_data, "data"),
+              JS_MEMBER_WITH_NAME(m_tabs, "tabs"),
+              JS_MEMBER_WITH_NAME(m_items, "items"));
 
 private:
     LegacyDataStore::DataTable m_data;
@@ -77,6 +78,6 @@ private:
     LegacyDataStore::ItemsTable m_items;
     // IGNORE: LegacyDataStore::CurrencyTable currency;
 
-    bool m_valid{ false };
-    qint64 m_item_count{ 0 };
+    bool m_valid{false};
+    qint64 m_item_count{0};
 };

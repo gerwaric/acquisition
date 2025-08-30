@@ -147,59 +147,74 @@ const Currency::StringTypeMap Currency::m_string_to_currency_type = {
     {"silver", CURRENCY_SILVER_COIN},
 };
 
-std::vector<Currency::CurrencyType> Currency::Types() {
+std::vector<Currency::CurrencyType> Currency::Types()
+{
     std::vector<Currency::CurrencyType> tmp;
     for (unsigned int i = 0; i < m_currency_type_as_tag.size(); i++) {
         tmp.push_back(static_cast<CurrencyType>(i));
-    };
+    }
     return tmp;
 }
 
-Currency Currency::FromTag(const QString& tag)
+Currency Currency::FromTag(const QString &tag)
 {
-    auto& m = m_currency_type_as_tag;
-    auto const& it = std::find_if(m.begin(), m.end(), [&](Currency::TypeStringMap::value_type const& x) { return x.second == tag; });
+    auto &m = m_currency_type_as_tag;
+    auto const &it = std::find_if(m.begin(),
+                                  m.end(),
+                                  [&](Currency::TypeStringMap::value_type const &x) {
+                                      return x.second == tag;
+                                  });
     return Currency((it != m.end()) ? it->first : CURRENCY_NONE);
 }
 
-Currency Currency::FromIndex(int index) {
+Currency Currency::FromIndex(int index)
+{
     if (static_cast<unsigned int>(index) >= m_currency_type_as_tag.size()) {
-        spdlog::warn("Currency type index out of bounds: {}. This should never happen - please report.", index);
+        spdlog::warn(
+            "Currency type index out of bounds: {}. This should never happen - please report.",
+            index);
         return CURRENCY_NONE;
     } else {
         return Currency(static_cast<CurrencyType>(index));
-    };
+    }
 }
 
-Currency Currency::FromString(const QString& currency) {
-    auto const& it = m_string_to_currency_type.find(currency);
+Currency Currency::FromString(const QString &currency)
+{
+    auto const &it = m_string_to_currency_type.find(currency);
     if (it != m_string_to_currency_type.end()) {
         return it->second;
-    };
+    }
     return CURRENCY_NONE;
 }
 
-const QString& Currency::AsString() const {
-    auto const& it = m_currency_type_as_string.find(type);
+const QString &Currency::AsString() const
+{
+    auto const &it = m_currency_type_as_string.find(type);
     if (it != m_currency_type_as_string.end()) {
         return it->second;
     } else {
-        spdlog::warn("No mapping from currency type: {} to string. This should never happen - please report.", type);
+        spdlog::warn("No mapping from currency type: {} to string. This should never happen - "
+                     "please report.",
+                     type);
         return m_currency_type_error;
-    };
+    }
 }
 
-const QString& Currency::AsTag() const {
-    auto const& it = m_currency_type_as_tag.find(type);
+const QString &Currency::AsTag() const
+{
+    auto const &it = m_currency_type_as_tag.find(type);
     if (it != m_currency_type_as_tag.end()) {
         return it->second;
     } else {
-        spdlog::warn("No mapping from currency type: {} to tag. This should never happen - please report.", type);
+        spdlog::warn(
+            "No mapping from currency type: {} to tag. This should never happen - please report.",
+            type);
         return m_currency_type_error;
-    };
+    }
 }
 
-const int& Currency::AsRank() const
+const int &Currency::AsRank() const
 {
     return m_currency_type_as_rank.at(type);
 }

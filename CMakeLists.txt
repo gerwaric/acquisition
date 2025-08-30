@@ -17,7 +17,7 @@
 	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 #]]
 
-cmake_minimum_required(VERSION 3.29)
+cmake_minimum_required(VERSION 3.30)
 
 # NOTE: For automatic update detection to work, the 'app_version' variable
 # defined below should match a tag in github. Historically, the github tags
@@ -29,7 +29,7 @@ cmake_minimum_required(VERSION 3.29)
 # version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
-    VERSION 0.13.7
+    VERSION 0.13.9
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
@@ -53,7 +53,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # When building with Qt Creator in Windows, the compiler and linker options
@@ -98,13 +98,48 @@ if(NOT TARGET boost-headers-only)
 endif()
 
 if(NOT TARGET json_struct)
+    # This is a headers-only library, so we use an invalid SOURCE_DIR to prevent
+    # add_subdirectory() from called and define an interface target manually.
     FetchContent_Declare(
         json_struct
         GIT_REPOSITORY https://github.com/jorgen/json_struct.git
         GIT_TAG        1.0.1
         GIT_SHALLOW    TRUE
+        SOURCE_SUBDIR  /dev/null
     )
     FetchContent_MakeAvailable(json_struct)
+    add_library(json_struct INTERFACE)
+    target_include_directories(json_struct INTERFACE "${json_struct_SOURCE_DIR}/include")
+endif()
+
+if(NOT TARGET rapidjson)
+    # This is a headers-only library, so we use an invalid SOURCE_DIR to prevent
+    # add_subdirectory() from called and define an interface target manually.
+    FetchContent_Declare(
+        rapidjson
+        GIT_REPOSITORY https://github.com/tencent/rapidjson.git
+        GIT_TAG        24b5e7a8b27f42fa16b96fc70aade9106cf7102f # There hasn't been a tagged release since 2016
+        GIT_SHALLOW    TRUE
+        SOURCE_SUBDIR  /dev/null
+    )
+    FetchContent_MakeAvailable(rapidjson)
+    add_library(rapidjson INTERFACE)
+    target_include_directories(rapidjson INTERFACE "${rapidjson_SOURCE_DIR}/include")
+endif()
+
+if(NOT TARGET semver)
+    # This is a headers-only library, so we use an invalid SOURCE_DIR to prevent
+    # add_subdirectory() from called and define an interface target manually.
+    FetchContent_Declare(
+        semver
+        GIT_REPOSITORY https://github.com/z4kn4fein/cpp-semver
+        GIT_TAG        v0.4.0
+        GIT_SHALLOW    TRUE
+        SOURCE_SUBDIR  /dev/null
+    )
+    FetchContent_MakeAvailable(semver)
+    add_library(semver INTERFACE)
+    target_include_directories(semver INTERFACE "${semver_SOURCE_DIR}/include")
 endif()
 
 if(NOT TARGET spdlog)
@@ -304,8 +339,6 @@ target_include_directories(acquisition PRIVATE
 add_subdirectory(deps/Crashpad)
 add_subdirectory(deps/libpoe)
 add_subdirectory(deps/qdarkstyle)
-add_subdirectory(deps/rapidjson)
-add_subdirectory(deps/semver)
 
 # Link required libraries.
 target_link_libraries(acquisition PRIVATE
@@ -422,8 +455,10 @@ elseif(UNIX)
     endif()
 
     # Link OpenSSL libraries to acquisition
-    target_include_directories(acquisition PUBLIC ${OPENSSL_INCLUDE_DIR})
-    target_link_libraries(acquisition PUBLIC OpenSSL::SSL OpenSSL::Crypto)
+    target_include_directories(acquisition PUBLIC "${OPENSSL_INCLUDE_DIR}")
+    target_link_libraries(acquisition PUBLIC
+        OpenSSL::SSL
+        OpenSSL::Crypto)
 
     # Generate debug symbols.
     target_compile_options(acquisition PRIVATE -g)

@@ -25,8 +25,8 @@
 #include <QString>
 #include <QTimer>
 
-#include <deque>
 #include <boost/circular_buffer.hpp>
+#include <deque>
 
 #include "network_info.h"
 #include "ratelimit.h"
@@ -39,48 +39,47 @@ struct RateLimitedRequest;
 class RateLimitPolicy;
 
 // Manages a single rate limit policy, which may apply to multiple endpoints.
-class RateLimitManager : public QObject {
+class RateLimitManager : public QObject
+{
     Q_OBJECT
 
 public:
-
     // This is the signature of the function used to send requests.
-    using SendFcn = std::function<QNetworkReply* (QNetworkRequest&)>;
+    using SendFcn = std::function<QNetworkReply *(QNetworkRequest &)>;
 
     RateLimitManager(SendFcn sender);
     ~RateLimitManager();
 
     // Move a request into to this manager's queue.
-    void QueueRequest(
-        const QString& endpoint,
-        const QNetworkRequest& request,
-        RateLimitedReply* reply);
+    void QueueRequest(const QString &endpoint,
+                      const QNetworkRequest &request,
+                      RateLimitedReply *reply);
 
-    void Update(QNetworkReply* reply);
+    void Update(QNetworkReply *reply);
 
-    const RateLimitPolicy& policy();
+    const RateLimitPolicy &policy();
 
     int msecToNextSend() const { return m_activation_timer.remainingTime(); };
 
 signals:
     // Emitted when a network request is ready to go.
-    void RequestReady(RateLimitManager* manager, QNetworkRequest request, POE_API mode);
+    void RequestReady(RateLimitManager *manager, QNetworkRequest request, POE_API mode);
 
     // Emitted when the underlying policy has been updated.
-    void PolicyUpdated(const RateLimitPolicy& policy);
+    void PolicyUpdated(const RateLimitPolicy &policy);
 
     // Emitted when a request has been added to the queue;
     void QueueUpdated(const QString policy_name, int queued_requests);
 
     // Emitted when a network request has to wait to be sent.
-    void Paused(const QString& policy_name, const QDateTime& until);
+    void Paused(const QString &policy_name, const QDateTime &until);
 
     // Emitted when a rate limit violation has been detected.
-    void Violation(const QString& policy_name);
+    void Violation(const QString &policy_name);
 
 public slots:
 
-    // Called whent the timer runs out to sends the active request and 
+    // Called whent the timer runs out to sends the active request and
     // connects the network reply it to ReceiveReply().
     void SendRequest();
 
@@ -91,12 +90,11 @@ public slots:
     void ReceiveReply();
 
 private:
-    
     // Function handle used to send network reqeusts.
     const SendFcn m_sender;
 
     // Used to print log messages about rate limit violations.
-    void LogViolation();
+    void LogPolicyHistory();
 
     // Called right after active_request is loaded with a new request. This
     // will determine when that request can be sent and setup the active

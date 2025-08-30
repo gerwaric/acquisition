@@ -29,44 +29,47 @@
 
 namespace {
 
-    static bool getByteArray(QSqlDatabase db, const QString& query, QByteArray& value) {
+    static bool getByteArray(QSqlDatabase db, const QString &query, QByteArray &value)
+    {
         QSqlQuery q(db);
         q.setForwardOnly(true);
         q.prepare(query);
         if (!q.exec()) {
             spdlog::error("Database error calling exec(): {}: {}", query, db.lastError().text());
             return false;
-        };
+        }
         if (!q.next()) {
             spdlog::error("Database error calling next(): {}: {}", query, db.lastError().text());
             return false;
-        };
+        }
         value = q.value(0).toByteArray();
         return true;
     }
 
-    static bool getString(QSqlDatabase db, const QString& query, QString& value) {
+    static bool getString(QSqlDatabase db, const QString &query, QString &value)
+    {
         QSqlQuery q(db);
         q.setForwardOnly(true);
         q.prepare(query);
         if (!q.exec()) {
             spdlog::error("Database error calling exec(): {}: {}", query, db.lastError().text());
             return false;
-        };
+        }
         if (!q.next()) {
             spdlog::error("Database error calling next(): {}: {}", query, db.lastError().text());
             return false;
-        };
+        }
         value = q.value(0).toString();
         return true;
     }
 
     template<typename T>
-    static bool getStruct(QSqlDatabase db, const QString& query, T& value) {
+    static bool getStruct(QSqlDatabase db, const QString &query, T &value)
+    {
         QByteArray data;
         if (!getByteArray(db, query, data)) {
             return false;
-        };
+        }
         JS::ParseContext context(data);
         context.allow_missing_members = false;
         context.allow_unasigned_required_members = false;
@@ -75,28 +78,30 @@ namespace {
             const auto error = context.makeErrorString();
             spdlog::error("Json error parsing {} from '{}': {}", type, query, error);
             return false;
-        };
+        }
         return true;
-    };
+    }
 
-}
+} // namespace
 
 //-------------------------------------------------------------------------------------------
 
-LegacyDataStore::LegacyDataStore(const QString& filename) {
-
+LegacyDataStore::LegacyDataStore(const QString &filename)
+{
     if (!QFile::exists(filename)) {
         spdlog::error("BuyoutCollection: file not found: {}", filename);
         return;
-    };
+    }
 
     QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", "LegacyDataStore");
     db.setConnectOptions("QSQLITE_OPEN_READONLY");
     db.setDatabaseName(filename);
     if (!db.open()) {
-        spdlog::error("BuyoutCollection: cannot open {} due to error: {}", filename, db.lastError().text());
+        spdlog::error("BuyoutCollection: cannot open {} due to error: {}",
+                      filename,
+                      db.lastError().text());
         return;
-    };
+    }
 
     bool ok = true;
     ok &= getString(db, "SELECT value FROM data WHERE (key = 'db_version')", m_data.db_version);
@@ -108,16 +113,18 @@ LegacyDataStore::LegacyDataStore(const QString& filename) {
     if (!ok) {
         spdlog::error("LegacyDataStore: unable to load all data from {}", filename);
         return;
-    };
+    }
 
     const QString statement = "SELECT loc, value FROM items";
     QSqlQuery query(db);
     query.setForwardOnly(true);
     query.prepare(statement);
     if (!query.exec()) {
-        spdlog::error("LegacyDataStore: error executing '{}': {}", statement, query.lastError().text());
+        spdlog::error("LegacyDataStore: error executing '{}': {}",
+                      statement,
+                      query.lastError().text());
         return;
-    };
+    }
 
     m_item_count = 0;
     while (query.next()) {
@@ -126,17 +133,19 @@ LegacyDataStore::LegacyDataStore(const QString& filename) {
         std::vector<LegacyItem> result;
         JS::ParseContext context(bytes);
         if (context.parseTo(result) != JS::Error::NoError) {
-            spdlog::error("LegacyDataStore: error parsing 'items': {}", QString::fromUtf8(context.makeErrorString()));
+            spdlog::error("LegacyDataStore: error parsing 'items': {}",
+                          QString::fromUtf8(context.makeErrorString()));
             return;
-        };
+        }
         m_items[loc] = result;
         m_item_count += static_cast<qint64>(result.size());
-    };
+    }
 
     if (query.lastError().isValid()) {
-        spdlog::error("LegacyDataStore: error moving to next record in 'items': {}", query.lastError().text());
+        spdlog::error("LegacyDataStore: error moving to next record in 'items': {}",
+                      query.lastError().text());
         return;
-    };
+    }
 
     query.finish();
     db.close();
@@ -145,50 +154,52 @@ LegacyDataStore::LegacyDataStore(const QString& filename) {
     m_valid = true;
 }
 
-bool LegacyDataStore::exportJson(const QString& filename) const {
+bool LegacyDataStore::exportJson(const QString &filename) const
+{
     QFile file(filename);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
         spdlog::error("Export failed: could not open json file: {}", file.errorString());
         return false;
-    };
+    }
     const QByteArray data(JS::serializeStruct(*this, JS::SerializerOptions::Compact));
     file.write(data);
     file.close();
     return true;
 }
 
-bool LegacyDataStore::exportTgz(const QString& filename) const {
-
+bool LegacyDataStore::exportTgz(const QString &filename) const
+{
     // Use a temporary working directory.
     QTemporaryDir dir;
     if (!dir.isValid()) {
-        spdlog::error("Export failed: could not create a temporary directory: {}", dir.errorString());
+        spdlog::error("Export failed: could not create a temporary directory: {}",
+                      dir.errorString());
         return false;
-    };
+    }
 
     // First export to a temporary .json file.
     const QString tempfile = dir.filePath("export.json");
     if (!exportJson(tempfile)) {
         return false;
-    };
+    }
 
     // Next compress the temporary file into a tgz.
     const QString command = "tar";
-    const QStringList arguments = { "czvf", filename, "-C", dir.path(), "export.json" };
+    const QStringList arguments = {"czvf", filename, "-C", dir.path(), "export.json"};
     QProcess process;
     process.start(command, arguments);
     if (!process.waitForFinished()) {
         spdlog::error("Export failed: process failed: {}", process.errorString());
         return false;
-    };
+    }
     if (process.exitCode() != 0) {
         spdlog::error("Export failed: tar error: {}", process.errorString());
         return false;
-    };
+    }
 
     // Remove the temporary .json file.
     if (!QFile(tempfile).remove()) {
         spdlog::warn("Error removing temporary json file: {}", tempfile);
-    };
+    }
     return true;
 }

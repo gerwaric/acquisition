@@ -383,8 +383,10 @@
     <addaction name="actionSetShopThreads"/>
     <addaction name="actionEditShopTemplate"/>
     <addaction name="actionCopyShopToClipboard"/>
-    <addaction name="actionUpdateStashIndex"/>
+    <addaction name="separator"/>
+    <addaction name="actionUpdateShopPOESESSID"/>
     <addaction name="actionUpdateShops"/>
+    <addaction name="separator"/>
     <addaction name="actionSetAutomaticallyShopUpdate"/>
    </widget>
    <widget class="QMenu" name="menuTabs">
@@ -495,7 +497,7 @@
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Update shop thread at forums</string>
+    <string>Update forum shop(s)</string>
    </property>
   </action>
   <action name="actionSetAutomaticallyShopUpdate">
@@ -635,14 +637,14 @@
     <string>Show or edit the session cookie</string>
    </property>
   </action>
-  <action name="actionUpdateStashIndex">
-   <property name="text">
-    <string>Update stash index</string>
-   </property>
-  </action>
   <action name="actionFetchTabsList">
    <property name="text">
     <string>Fetch tabs list</string>
+   </property>
+  </action>
+  <action name="actionUpdateShopPOESESSID">
+   <property name="text">
+    <string>Update shop POESESSID</string>
    </property>
   </action>
  </widget>

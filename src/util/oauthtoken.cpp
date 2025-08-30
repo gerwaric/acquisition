@@ -28,12 +28,12 @@
 // https://www.pathofexile.com/developer/docs/authorization#clients-public
 constexpr long int REFRESH_LIFETIME_DAYS = 7;
 
-OAuthToken::OAuthToken(const QString& json)
+OAuthToken::OAuthToken(const QString &json)
 {
     Util::parseJson<OAuthToken>(json, *this);
 }
 
-OAuthToken::OAuthToken(QNetworkReply* reply)
+OAuthToken::OAuthToken(QNetworkReply *reply)
 {
     const QByteArray bytes = reply->readAll();
     reply->deleteLater();

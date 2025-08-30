@@ -54,14 +54,15 @@ using base::FilePath;
 using crashpad::CrashpadClient;
 using crashpad::CrashReportDatabase;
 
-constexpr const char* CRASHPAD_DIR = "crashpad";
+constexpr const char *CRASHPAD_DIR = "crashpad";
 #if defined(Q_OS_WINDOWS)
-constexpr const char* CRASHPAD_HANDLER = "crashpad_handler.exe";
+constexpr const char *CRASHPAD_HANDLER = "crashpad_handler.exe";
 #else
-constexpr const char* CRASHPAD_HANDLER = "crashpad_handler";
+constexpr const char *CRASHPAD_HANDLER = "crashpad_handler";
 #endif
 
-inline std::filesystem::path to_path(const QString& path) {
+inline std::filesystem::path to_path(const QString &path)
+{
 #if defined(Q_OS_WINDOWS)
     return std::filesystem::path(path.toStdWString());
 #else
@@ -69,7 +70,8 @@ inline std::filesystem::path to_path(const QString& path) {
 #endif
 }
 
-inline std::string to_string(const FilePath& path) {
+inline std::string to_string(const FilePath &path)
+{
 #if defined(Q_OS_WINDOWS)
     return base::WideToUTF8(path.value());
 #else
@@ -77,13 +79,12 @@ inline std::string to_string(const FilePath& path) {
 #endif
 }
 
-bool initializeCrashpad(
-    const QString& appDataDir,
-    const char* dbName,
-    const char* appName,
-    const char* appVersion)
+bool initializeCrashpad(const QString &appDataDir,
+                        const char *dbName,
+                        const char *appName,
+                        const char *appVersion)
 {
-    static CrashpadClient* client = nullptr;
+    static CrashpadClient *client = nullptr;
     if (client != nullptr) {
         spdlog::warn("Crashpad has already been initialized");
         return false;
@@ -94,7 +95,7 @@ bool initializeCrashpad(
     if (!dataDir.exists()) {
         spdlog::error("Crashpad: app data director does not exist: {}", appDataDir);
         return false;
-    };
+    }
 
     // Make sure the executable exists.
     const QString crashpadHandler = QCoreApplication::applicationDirPath() + "/" + CRASHPAD_HANDLER;
@@ -102,7 +103,7 @@ bool initializeCrashpad(
     if (!appInfo.exists()) {
         spdlog::error("Crashpad: the handler does not exist: {}", crashpadHandler);
         return false;
-    };
+    }
 
     spdlog::debug("Crashpad: app data = {}", appDataDir);
     spdlog::debug("Crashpad: database = {}", dbName);
@@ -113,62 +114,58 @@ bool initializeCrashpad(
     // Convert paths to base::FilePath
     const FilePath handlerPath(to_path(crashpadHandler));
     const FilePath crashpadDirPath(to_path(appDataDir + "/crashpad"));
-    const FilePath& reportsDirPath = crashpadDirPath;
-    const FilePath& metricsDirPath = crashpadDirPath;
+    const FilePath &reportsDirPath = crashpadDirPath;
+    const FilePath &metricsDirPath = crashpadDirPath;
 
     // Configure url with your BugSplat database
-    const std::string url = "https://" + std::string(dbName) + ".bugsplat.com/post/bp/crash/crashpad.php";
+    const std::string url = "https://" + std::string(dbName)
+                            + ".bugsplat.com/post/bp/crash/crashpad.php";
 
     // Metadata that will be posted to BugSplat
     const std::map<std::string, std::string> annotations = {
-        { "format", "minidump" }, // Required: Crashpad setting to save crash as a minidump
-        { "database", dbName },   // Required: BugSplat database
-        { "product", appName },   // Required: BugSplat appName
-        { "version", appVersion } // Required: BugSplat appVersion
+        {"format", "minidump"}, // Required: Crashpad setting to save crash as a minidump
+        {"database", dbName},   // Required: BugSplat database
+        {"product", appName},   // Required: BugSplat appName
+        {"version", appVersion} // Required: BugSplat appVersion
     };
 
     // Disable crashpad rate limiting so that all crashes have dmp files
-    const std::vector<std::string> arguments = {
-        "--no-rate-limit"
-    };
+    const std::vector<std::string> arguments = {"--no-rate-limit"};
     const bool restartable = true;
     const bool asynchronous_start = true;
-
 
     // Attachments to be uploaded alongside the crash - default bundle size limit is 20MB
     const QString buyoutData = appDataDir + "/export/buyouts.tgz";
     QFile buyoutDataFile(buyoutData);
     if (buyoutDataFile.exists()) {
         buyoutDataFile.remove();
-    };
-    const std::vector<FilePath> attachments = {
-        FilePath(to_path(buyoutData))
-    };
+    }
+    const std::vector<FilePath> attachments = {FilePath(to_path(buyoutData))};
 
-    // Log the crashpad initialization settings 
+    // Log the crashpad initialization settings
     spdlog::debug("Crashpad: starting the crashpad client");
     spdlog::trace("Crashpad: handler = {}", to_string(handlerPath));
     spdlog::trace("Crashpad: reportsDir = {}", to_string(reportsDirPath));
     spdlog::trace("Crashpad: metricsDir = {}", to_string(metricsDirPath));
     spdlog::trace("Crashpad: url = {}", url);
-    for (const auto& pair : annotations) {
+    for (const auto &pair : annotations) {
         spdlog::trace("Crashpad: annotations[{}] = {}", pair.first, pair.second);
-    };
+    }
     for (size_t i = 0; i < arguments.size(); ++i) {
         spdlog::trace("Crashpad: arguments[{}] = {}", i, arguments[i]);
-    };
+    }
     spdlog::trace("Crashpad: restartable = {}", restartable);
     spdlog::trace("Crashpad: asynchronous_start = {}", asynchronous_start);
     for (size_t i = 0; i < attachments.size(); ++i) {
         spdlog::trace("Crashpad: attachments[{}] = {}", i, to_string(attachments[i]));
-    };
+    }
 
     // Initialize crashpad database
     auto database = CrashReportDatabase::Initialize(reportsDirPath);
     if (database == NULL) {
         spdlog::error("Crashpad: failed to initialize the crash report database.");
         return false;
-    };
+    }
     spdlog::trace("Crashpad: database initialized");
 
     // Enable automated crash uploads
@@ -176,21 +173,27 @@ bool initializeCrashpad(
     if (settings == NULL) {
         spdlog::error("Crashpad: failed to get database settings.");
         return false;
-    };
+    }
     settings->SetUploadsEnabled(true);
     spdlog::trace("Crashpad: upload enabled");
 
     // Create the client and start the handler
     client = new CrashpadClient();
     const bool started = client->StartHandler(handlerPath,
-        reportsDirPath, metricsDirPath, url, annotations,
-        arguments, restartable, asynchronous_start, attachments);
+                                              reportsDirPath,
+                                              metricsDirPath,
+                                              url,
+                                              annotations,
+                                              arguments,
+                                              restartable,
+                                              asynchronous_start,
+                                              attachments);
     if (!started) {
         spdlog::error("Crashpad: unable to start the handler");
-        delete(client);
+        delete (client);
         client = nullptr;
         return false;
-    };
+    }
     spdlog::debug("Crashpad: handler started");
     return true;
 }

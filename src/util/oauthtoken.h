@@ -26,14 +26,14 @@
 
 class QNetworkReply;
 
-struct OAuthToken {
-
+struct OAuthToken
+{
     OAuthToken() = default;
-    explicit OAuthToken(const QString& json);
-    explicit OAuthToken(QNetworkReply* reply);
+    explicit OAuthToken(const QString &json);
+    explicit OAuthToken(QNetworkReply *reply);
 
     QString access_token;
-    int expires_in{ -1 };
+    int expires_in{-1};
     QString scope;
     QString username;
     QString sub;
@@ -43,5 +43,13 @@ struct OAuthToken {
     std::optional<QDateTime> access_expiration;
     std::optional<QDateTime> refresh_expiration;
 
-    JS_OBJ(access_token, expires_in, scope, username, sub, refresh_token, birthday, access_expiration, refresh_expiration);
+    JS_OBJ(access_token,
+           expires_in,
+           scope,
+           username,
+           sub,
+           refresh_token,
+           birthday,
+           access_expiration,
+           refresh_expiration);
 };

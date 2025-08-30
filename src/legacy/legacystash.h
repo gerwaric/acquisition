@@ -25,26 +25,28 @@
 
 #include <util/json_struct_qt.h>
 
-struct LegacyStash {
-
-    struct MapData {
+struct LegacyStash
+{
+    struct MapData
+    {
         int series;
         JS_OBJ(series);
     };
 
-    struct Metadata {
+    struct Metadata
+    {
         std::optional<bool> public_;
         std::optional<bool> folder;
         QString colour;
         std::optional<LegacyStash::MapData> map;
-        JS_OBJECT(
-            JS_MEMBER_WITH_NAME(public_, "public"),
-            JS_MEMBER(folder),
-            JS_MEMBER(colour),
-            JS_MEMBER(map));
+        JS_OBJECT(JS_MEMBER_WITH_NAME(public_, "public"),
+                  JS_MEMBER(folder),
+                  JS_MEMBER(colour),
+                  JS_MEMBER(map));
     };
 
-    struct Colour {
+    struct Colour
+    {
         int r;
         int g;
         int b;
@@ -62,5 +64,4 @@ struct LegacyStash {
     std::optional<QString> n;
     std::optional<LegacyStash::Colour> colour;
     JS_OBJ(id, folder, name, type, index, metadata, children, i, n, colour);
-
 };

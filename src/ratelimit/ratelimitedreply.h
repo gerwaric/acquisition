@@ -27,8 +27,9 @@ class QNetworkReply;
 // When the underlying network request is finished, the complete
 // signal will be issued so that the caller can use a slot to
 // process the reply.
-class RateLimitedReply : public QObject {
+class RateLimitedReply : public QObject
+{
     Q_OBJECT
 signals:
-    void complete(QNetworkReply* reply);
+    void complete(QNetworkReply *reply);
 };
