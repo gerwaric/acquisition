@@ -29,14 +29,14 @@ cmake_minimum_required(VERSION 3.30)
 # version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
-    VERSION 0.13.9
+    VERSION 0.14.0
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
 )
 
 # Use this to define pre-releases
-set(version_postfix "")
+set(version_postfix "-beta.1")
 
 # Variables used to generate version_defines.h and installer.iss
 set(version_code        63) # This doesn't need to be changed with the new update checks.
@@ -152,7 +152,7 @@ if(NOT TARGET spdlog)
     FetchContent_MakeAvailable(spdlog)
 endif()
 
-qt_standard_project_setup(REQUIRES 6.9.1)
+qt_standard_project_setup(REQUIRES 6.10.0)
 
 qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     # Source
