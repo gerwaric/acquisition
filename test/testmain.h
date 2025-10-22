@@ -21,13 +21,13 @@
 
 #include <QObject>
 
-class QNetworkAccessManager;
+class NetworkManager;
 class RePoE;
 
 class TestHelper : public QObject {
     Q_OBJECT
 public slots:
-    int run(QNetworkAccessManager& network_manager, RePoE& app);
+    int run(NetworkManager& network_manager, RePoE& app);
 signals:
     void finished(int status);
 };

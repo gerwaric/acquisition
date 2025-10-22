@@ -245,7 +245,6 @@ void LoginDialog::RequestLeagues()
     // Make a non-API request to get the list of leagues. This currently uses
     // a legacy endpoint that is not rate limited and does not require authentication.
     QNetworkRequest request = QNetworkRequest(QUrl(QString(POE_LEAGUE_LIST_URL)));
-    request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
     request.setTransferTimeout(kPoeApiTimeout);
 
     // Send the request and handle errors.
@@ -396,7 +395,6 @@ void LoginDialog::LoginWithSessionID()
 {
     spdlog::info("Starting legacy login with POESESSID");
     QNetworkRequest request = QNetworkRequest(QUrl(POE_LOGIN_CHECK_URL));
-    request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
     QNetworkReply *reply = m_network_manager.get(request);
 
     connect(reply, &QNetworkReply::finished, this, &LoginDialog::OnStartLegacyLogin);
@@ -457,7 +455,6 @@ void LoginDialog::OnStartLegacyLogin()
 
     // we need one more request to get account name
     QNetworkRequest request = QNetworkRequest(QUrl(POE_MY_ACCOUNT));
-    request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
     QNetworkReply *next_reply = m_network_manager.get(request);
 
     connect(next_reply, &QNetworkReply::finished, this, &LoginDialog::OnFinishLegacyLogin);

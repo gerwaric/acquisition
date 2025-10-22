@@ -430,7 +430,6 @@ void Shop::SubmitSingleShop()
 
         // first, get to the edit-thread page to grab CSRF token
         QNetworkRequest request = QNetworkRequest(QUrl(ShopEditUrl(m_requests_completed)));
-        request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
         request.setRawHeader("Cache-Control", "max-age=0");
         request.setTransferTimeout(kEditThreadTimeout);
         QNetworkReply *fetched = m_network_manager.get(request);
@@ -538,7 +537,6 @@ void Shop::SubmitNextShop(const QString &title, const QString &hash)
     QByteArray data(query.query().toUtf8());
     QNetworkRequest request((QUrl(ShopEditUrl(m_requests_completed))));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-    request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
     request.setRawHeader("Cache-Control", "max-age=0");
     request.setTransferTimeout(kEditThreadTimeout);
 

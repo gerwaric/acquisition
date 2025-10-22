@@ -17,37 +17,37 @@
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+
 #pragma once
 
-#include <QNetworkAccessManager>
-#include <QNetworkInformation>
 #include <QObject>
+#include <QNetworkAccessManager>
 
-class QNetworkAccessManager;
-class QNetworkReply;
-class QNetworkRequest;
+class QNetworkDiskCache;
 
-class NetworkManager : public QObject
+class NetworkManager : public QNetworkAccessManager
 {
     Q_OBJECT
+
 public:
-    NetworkManager();
-    ~NetworkManager();
+    explicit NetworkManager(QObject *parent = nullptr);
 
-    QNetworkReply *get(const QNetworkRequest &request);
-    QNetworkReply *get(const QNetworkRequest &request, QIODevice *data);
-    QNetworkReply *get(const QNetworkRequest &request, const QByteArray &data);
+    void setBearerToken(const QString &token);
 
-    QNetworkReply *head(const QNetworkRequest &request);
+    static void logRequest(const QNetworkRequest &request);
+    static void logReply(const QNetworkReply *reply);
 
-    QNetworkReply *post(const QNetworkRequest &request, QIODevice *data);
-    QNetworkReply *post(const QNetworkRequest &request, QHttpMultiPart *multiPart);
-    QNetworkReply *post(const QNetworkRequest &request, const QByteArray &data);
-    QNetworkReply *post(const QNetworkRequest &request, std::nullptr_t nptr);
+protected:
+    QNetworkReply *createRequest(QNetworkAccessManager::Operation op,
+                                 const QNetworkRequest &originalRequest,
+                                 QIODevice *outgoingData = nullptr) override;
 
 private:
-    QNetworkRequest prepare(const QNetworkRequest &request);
-    std::unique_ptr<QNetworkAccessManager> m_network_manager;
-    QNetworkInformation *m_network_info;
-    bool m_offline{true};
+    QNetworkDiskCache* m_diskCache;
+    QByteArray m_bearerToken;
+
+    using AttributeGetter = std::function<QVariant(QNetworkRequest::Attribute)>;
+
+    static void logAttributes(const QString &name, AttributeGetter attrs);
+    static void logHeaders(const QString &name, const QHttpHeaders &headers);
 };

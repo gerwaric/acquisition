@@ -307,7 +307,6 @@ void OAuthManager::requestToken(const QString &code)
     QNetworkRequest request;
     request.setUrl(QUrl(TOKEN_URL));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-    request.setHeader(QNetworkRequest::UserAgentHeader, USER_AGENT);
 
     const QUrlQuery query = Util::EncodeQueryItems({{"client_id", CLIENT_ID},
                                                     {"grant_type", "authorization_code"},
@@ -374,7 +373,6 @@ void OAuthManager::requestRefresh()
     QNetworkRequest request;
     request.setUrl(QUrl(TOKEN_URL));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-    request.setHeader(QNetworkRequest::UserAgentHeader, USER_AGENT);
     QNetworkReply *reply = m_network_manager.post(request, data);
 
     connect(reply, &QNetworkReply::finished, this, [=, this]() {

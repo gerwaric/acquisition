@@ -70,7 +70,6 @@ void UpdateChecker::CheckForUpdates() {
     // Get the releases from GitHub as a json object.
     spdlog::trace("UpdateChecker: requesting GitHub releases: {}", GITHUB_RELEASES_URL);
     QNetworkRequest request = QNetworkRequest(QUrl(GITHUB_RELEASES_URL));
-    request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
     QNetworkReply* reply = m_nm.get(request);
     connect(reply, &QNetworkReply::errorOccurred, this, &UpdateChecker::OnUpdateErrorOccurred);
     connect(reply, &QNetworkReply::sslErrors, this, &UpdateChecker::OnUpdateSslErrors);

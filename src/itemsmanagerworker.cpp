@@ -408,7 +408,6 @@ void ItemsManagerWorker::LegacyRefresh()
         spdlog::trace("ItemsManagerWorker::LegacyRefresh() requesting main page to capture "
                       "selected character: {}",
                       main_page_request.url().toString());
-        main_page_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
         QNetworkReply *submit = m_network_manager.get(main_page_request);
         connect(submit,
                 &QNetworkReply::finished,

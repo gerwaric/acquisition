@@ -35,6 +35,7 @@
 #include "itemsmanager.h"
 #include "datastore/memorydatastore.h"
 #include "network_info.h"
+#include "util/networkmanager.h"
 #include "util/oauthmanager.h"
 #include "ratelimit/ratelimiter.h"
 #include "util/repoe.h"
@@ -46,7 +47,7 @@
 
 int test_main(const QString& data_dir) {
 
-    QNetworkAccessManager network_manager;
+    NetworkManager network_manager;
     TestHelper helper;
     RePoE repoe(network_manager);
 
@@ -57,7 +58,7 @@ int test_main(const QString& data_dir) {
     return loop.exec();
 }
 
-int TestHelper::run(QNetworkAccessManager& network_manager, RePoE& repoe) {
+int TestHelper::run(NetworkManager& network_manager, RePoE& repoe) {
 
     int overall_result = 0;
 

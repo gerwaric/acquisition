@@ -65,7 +65,6 @@ void RePoE::Init(const QString &data_dir)
     // We start be requesting the current version from Github to see if we need to update.
     spdlog::debug("RePoE: requesting version.txt");
     QNetworkRequest request = QNetworkRequest(QUrl(url));
-    request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
     QNetworkReply *reply = m_network_manager.get(request);
     connect(reply, &QNetworkReply::finished, this, &RePoE::OnVersionReceived);
 }
@@ -167,7 +166,6 @@ void RePoE::RequestNextFile()
         spdlog::debug("RePoE: requesting {}", filename);
         const QString url = QString(REPOE_URL) + "/" + filename;
         QNetworkRequest request = QNetworkRequest(QUrl(url));
-        request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
         QNetworkReply *reply = m_network_manager.get(request);
         connect(reply, &QNetworkReply::finished, this, &RePoE::OnFileReceived);
     }

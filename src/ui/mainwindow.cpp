@@ -1220,7 +1220,6 @@ void MainWindow::OnUploadToImgur()
     QNetworkRequest request(QUrl("https://api.imgur.com/3/upload/"));
     request.setRawHeader("Authorization", "Client-ID d6d2d8a0437a90f");
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-    request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
     request.setTransferTimeout(kImgurUploadTimeout);
     QByteArray image_data = "image=" + QUrl::toPercentEncoding(bytes.toBase64());
     QNetworkReply *reply = m_network_manager.post(request, image_data);

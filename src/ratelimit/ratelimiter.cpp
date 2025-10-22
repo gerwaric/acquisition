@@ -92,9 +92,6 @@ RateLimiter::~RateLimiter() {}
 
 RateLimitedReply *RateLimiter::Submit(const QString &endpoint, QNetworkRequest network_request)
 {
-    // Make sure the user agent is set according to GGG's guidance.
-    network_request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
-
     // Create a new rate limited reply that we can return to the calling function.
     auto *reply = new RateLimitedReply();
 

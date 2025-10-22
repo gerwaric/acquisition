@@ -24,19 +24,18 @@
 #include <QDir>
 #include <QFileDialog>
 #include <QMessageBox>
-#include <QNetworkAccessManager>
 #include <QNetworkCookieJar>
 #include <QSettings>
 #include <QtHttpServer/QHttpServer>
 
 #include <datastore/sqlitedatastore.h>
-// #include <legacy/legacybuyoutvalidator.h> DIABLED v0.12.4
 #include <ratelimit/ratelimiter.h>
 #include <ratelimit/ratelimitmanager.h>
 #include <ui/logindialog.h>
 #include <ui/mainwindow.h>
 #include <util/crashpad.h>
 #include <util/fatalerror.h>
+#include <util/networkmanager.h>
 #include <util/oauthmanager.h>
 #include <util/repoe.h>
 #include <util/spdlog_qt.h>
@@ -55,8 +54,8 @@ Application::Application(const QDir &appDataDir)
 {
     spdlog::debug("Application: created");
 
-    spdlog::trace("Application: creating QNetworkAccessManager");
-    m_network_manager = std::make_unique<QNetworkAccessManager>();
+    spdlog::trace("Application: creating NetworkManager");
+    m_network_manager = std::make_unique<NetworkManager>();
 
     spdlog::trace("Application: creating RePoE");
     m_repoe = std::make_unique<RePoE>(network_manager());
@@ -252,7 +251,7 @@ BuyoutManager &Application::buyout_manager() const
     return *m_buyout_manager;
 }
 
-QNetworkAccessManager &Application::network_manager() const
+NetworkManager &Application::network_manager() const
 {
     if (!m_network_manager) {
         FatalError("Application::network_manager() attempted to dereference a null pointer");
