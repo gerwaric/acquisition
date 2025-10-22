@@ -41,6 +41,7 @@
 #include <libpoe/type/league.h>
 
 // #include "legacy/legacybuyoutvalidator.h" -- DISABLED as of v0.12.3.1
+#include <datastore/datastore.h>
 #include <util/crashpad.h>
 #include <util/oauthmanager.h>
 #include <util/spdlog_qt.h>
@@ -84,12 +85,14 @@ constexpr const char *OFFLINE_TAB = "offlineTab";
 LoginDialog::LoginDialog(const QDir &app_data_dir,
                          QSettings &settings,
                          QNetworkAccessManager &network_manager,
-                         OAuthManager &oauth_manager)
+                         OAuthManager &oauth_manager,
+                         DataStore &datastore)
     : QDialog(nullptr)
     , m_app_data_dir(app_data_dir)
     , m_settings(settings)
     , m_network_manager(network_manager)
     , m_oauth_manager(oauth_manager)
+    , m_datastore(datastore)
     , ui(new Ui::LoginDialog)
 {
     // Setup the dialog box.
@@ -130,9 +133,6 @@ LoginDialog::LoginDialog(const QDir &app_data_dir,
     // Set the proxy.
     QNetworkProxyFactory::setUseSystemConfiguration(ui->proxyCheckBox->isChecked());
 
-    // Let the oath manager know about the remember me selection.
-    m_oauth_manager.RememberToken(ui->rememberMeCheckBox->isChecked());
-
     // Connect main UI buttons.
     connect(ui->loginTabs, &QTabWidget::currentChanged, this, &LoginDialog::OnLoginTabChanged);
     connect(ui->authenticateButton,
@@ -168,18 +168,23 @@ LoginDialog::LoginDialog(const QDir &app_data_dir,
 
     // Listen for access from the OAuth manager.
     connect(&m_oauth_manager,
-            &OAuthManager::accessGranted,
+            &OAuthManager::grantAccess,
             this,
             &LoginDialog::OnOAuthAccessGranted);
 
-    // Load the OAuth token if one is already present.
-    const QDateTime now = QDateTime::currentDateTime();
-    const OAuthToken &token = m_oauth_manager.token();
-    if (token.access_expiration && (now < *token.access_expiration)) {
-        spdlog::trace("Login: found a valid OAuth token");
-        OnOAuthAccessGranted(m_oauth_manager.token());
-    } else if (token.refresh_expiration && (now < *token.refresh_expiration)) {
-        spdlog::info("Login: the OAuth token needs to be refreshed");
+    // Look for an existing token.
+    const QString token_str = m_datastore.Get("oauth_token", "");
+    if (!token_str.isEmpty()) {
+        // Load the OAuth token if one is already present.
+        const QDateTime now = QDateTime::currentDateTime();
+        m_current_token = OAuthToken(token_str);
+        if (m_current_token->access_expiration && (now < *m_current_token->access_expiration)) {
+            spdlog::trace("Login: found a valid OAuth token");
+            m_oauth_manager.setToken(*m_current_token);
+            OnOAuthAccessGranted(*m_current_token);
+        } else if (m_current_token->refresh_expiration && (now < *m_current_token->refresh_expiration)) {
+            spdlog::info("Login: the OAuth token needs to be refreshed");
+        }
     }
 
     // Use OnLoginTabChanged to do things like enable the login button.
@@ -195,6 +200,7 @@ LoginDialog::~LoginDialog()
     if (!ui->rememberMeCheckBox->isChecked()) {
         spdlog::trace("Loging: clearing settings");
         m_settings.clear();
+        m_datastore.Set("oauth_token", "");
     }
     delete ui;
 }
@@ -238,6 +244,8 @@ void LoginDialog::LoadSettings()
             break;
         }
     }
+
+
 }
 
 void LoginDialog::RequestLeagues()
@@ -331,7 +339,7 @@ void LoginDialog::OnAuthenticateButtonClicked()
     ui->errorLabel->setText("");
     ui->authenticateButton->setEnabled(false);
     ui->authenticateButton->setText("Authenticating...");
-    m_oauth_manager.requestAccess();
+    m_oauth_manager.initLogin();
 }
 
 void LoginDialog::OnLoginButtonClicked()
@@ -380,12 +388,16 @@ void LoginDialog::LoginWithOAuth()
 {
     spdlog::info("Starting OAuth authentication");
     const QDateTime now = QDateTime::currentDateTime();
-    const OAuthToken &token = m_oauth_manager.token();
-    if (token.access_expiration && (now < *token.access_expiration)) {
-        m_settings.setValue("account", token.username);
-        emit LoginComplete(POE_API::OAUTH);
-    } else if (token.refresh_expiration && (now < *token.refresh_expiration)) {
-        DisplayError("The OAuth token needs to be refreshed");
+    if (m_current_token.has_value()) {
+        const OAuthToken &token = m_current_token.value();
+        if (token.access_expiration && (now < *token.access_expiration)) {
+            m_settings.setValue("account", token.username);
+            emit LoginComplete(POE_API::OAUTH);
+        } else if (token.refresh_expiration && (now < *token.refresh_expiration)) {
+            DisplayError("The OAuth token needs to be refreshed");
+        } else {
+            DisplayError("The OAuth token is not valid.");
+        }
     } else {
         DisplayError("You are not authenticated.");
     }
@@ -515,6 +527,8 @@ void LoginDialog::OnOAuthAccessGranted(const OAuthToken &token)
     if (ui->loginTabs->currentWidget() == ui->oauthTab) {
         ui->loginButton->setEnabled(true);
     }
+    m_current_token = token;
+    m_datastore.Set("oauth_token", QString::fromStdString(JS::serializeStruct(token)));
 }
 
 void LoginDialog::OnLoginTabChanged(int index)
@@ -533,7 +547,7 @@ void LoginDialog::OnLoginTabChanged(int index)
     ui->errorLabel->setHidden(hide_options || hide_error);
     ui->loginButton->setHidden(hide_options);
     if (tab == ui->oauthTab) {
-        ui->loginButton->setEnabled(!m_oauth_manager.token().access_token.isEmpty());
+        ui->loginButton->setEnabled(m_current_token.has_value());
     } else if (tab == ui->sessionIdTab) {
         ui->loginButton->setEnabled(!ui->sessionIDLineEdit->text().isEmpty());
     }
@@ -575,7 +589,6 @@ void LoginDialog::OnRememberMeCheckBoxChanged(Qt::CheckState state)
 {
     spdlog::trace("LoginDialog: remember me checkbox changed to {}", state);
     const bool checked = (state == Qt::Checked);
-    m_oauth_manager.RememberToken(checked);
     m_settings.setValue("remember_user", checked);
 }
 

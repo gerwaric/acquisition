@@ -20,62 +20,40 @@
 #pragma once
 
 #include <QObject>
+#include <QString>
 #include <QTimer>
+#include <QVariantMap>
 
 #include "oauthtoken.h"
 
-class QHttpServer;
-class QHttpServerRequest;
-class QNetworkAccessManager;
-class QNetworkReply;
-class QNetworkRequest;
-class QTcpServer;
+class QOAuth2AuthorizationCodeFlow;
+class QOAuthHttpServerReplyHandler;
 
-class DataStore;
+class NetworkManager;
 
 class OAuthManager : public QObject
 {
     Q_OBJECT
+
 public:
-    explicit OAuthManager(QNetworkAccessManager &network_manager, DataStore &datastore);
-    ~OAuthManager();
-    void setAuthorization(QNetworkRequest &request);
-    void RememberToken(bool remember);
-    const OAuthToken &token() const { return m_token; };
-public slots:
-    void requestAccess();
-    void requestRefresh();
-    void showStatus();
+    explicit OAuthManager(NetworkManager &manager, QObject *parent = nullptr);
+    void setToken(const OAuthToken &token);
+    void initLogin();
+
+private slots:
+    void receiveToken(const QVariantMap &tokens);
+    void receiveGrant();
+
 signals:
-    void accessGranted(const OAuthToken &token);
+    void grantAccess(const OAuthToken &token);
+    void isAuthenticatedChanged();
 
 private:
-    void createHttpServer();
-    void requestAuthorization(const QString &state, const QString &code_challenge);
-    QString receiveAuthorization(const QHttpServerRequest &request, const QString &state);
-    void requestToken(const QString &code);
-    void receiveToken(QNetworkReply *reply);
-    void setRefreshTimer();
+    QOAuth2AuthorizationCodeFlow* m_oauth;
+    QOAuthHttpServerReplyHandler* m_handler;
 
-    static QString authorizationError(const QString &message);
+    void initOAuth();
 
-    QNetworkAccessManager &m_network_manager;
-    DataStore &m_datastore;
-
-    // I can't find a way to shutdown a QHttpServer once it's started
-    // listening, so use a unique pointer so that we can destory the
-    // server once authentication is complete, so it won't stay
-    // running in the background.
-    QHttpServer *m_http_server;
-    QTcpServer *m_tcp_server;
-
-    bool m_remember_token;
+    bool m_authenticated{false};
     OAuthToken m_token;
-    QString m_code_verifier;
-    QString m_redirect_uri;
-
-    QTimer m_refresh_timer;
-
-    static const QString SUCCESS_HTML;
-    static const QString ERROR_HTML;
 };

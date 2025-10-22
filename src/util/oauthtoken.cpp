@@ -40,9 +40,31 @@ OAuthToken::OAuthToken(QNetworkReply *reply)
 
     Util::parseJson<OAuthToken>(bytes, *this);
 
-    // Determine birthday and expiration time.
+    // Set birthday and expiration times.
     const QString timestamp = Util::FixTimezone(reply->rawHeader("Date"));
-    birthday = QDateTime::fromString(timestamp, Qt::RFC2822Date).toLocalTime();
-    access_expiration = birthday->addSecs(expires_in);
-    refresh_expiration = birthday->addDays(REFRESH_LIFETIME_DAYS);
+    setBirthday(QDateTime::fromString(timestamp, Qt::RFC2822Date));
+}
+
+OAuthToken::OAuthToken(const QVariantMap &tokens)
+{
+    // clang-format off
+    this->access_token  = tokens["access_token"].toString();
+    this->expires_in    = tokens["expires_in"].toLongLong();
+    this->refresh_token = tokens["refresh_token"].toString();
+    this->scope         = tokens["scope"].toString();
+    this->sub           = tokens["sub"].toString();
+    this->token_type    = tokens["token_type"].toString();
+    this->username      = tokens["username"].toString();
+    // clang-format on
+
+    setBirthday(QDateTime::currentDateTime());
+}
+
+void OAuthToken::setBirthday(const QDateTime &date)
+{
+    // clang-format off
+    this->birthday           = date.toLocalTime();
+    this->access_expiration  = this->birthday->addSecs(this->expires_in);
+    this->refresh_expiration = this->birthday->addDays(REFRESH_LIFETIME_DAYS);
+    // clang-format on
 }

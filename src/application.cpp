@@ -96,7 +96,12 @@ void Application::InitUserDir(const QString &dir)
     m_update_checker = std::make_unique<UpdateChecker>(settings(), network_manager());
 
     spdlog::trace("Application: creating OAuth manager");
-    m_oauth_manager = std::make_unique<OAuthManager>(network_manager(), global_data());
+    m_oauth_manager = std::make_unique<OAuthManager>(network_manager());
+
+    connect(m_oauth_manager.get(),
+            &OAuthManager::grantAccess,
+            m_network_manager.get(),
+            [this](const OAuthToken &token) { m_network_manager->setBearerToken(token.access_token); });
 
     // Start the process of fetching RePoE data.
     spdlog::trace("Application: initializing RePoE");
@@ -116,7 +121,8 @@ void Application::Start()
     m_login = std::make_unique<LoginDialog>(m_data_dir,
                                             settings(),
                                             network_manager(),
-                                            oauth_manager());
+                                            oauth_manager(),
+                                            global_data());
 
     // Connect to the update signal in case an update is detected before the main window is open.
     connect(m_update_checker.get(),

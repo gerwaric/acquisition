@@ -23,6 +23,7 @@
 #include <QDir>
 
 #include "network_info.h"
+#include "util/oauthtoken.h"
 
 class QNetworkReply;
 class QSettings;
@@ -30,8 +31,8 @@ class QString;
 class QNetworkAccessManager;
 
 class OAuthManager;
-struct OAuthToken;
 
+class DataStore;
 namespace Ui {
     class LoginDialog;
 }
@@ -43,7 +44,8 @@ public:
     explicit LoginDialog(const QDir &app_data_dir,
                          QSettings &settings,
                          QNetworkAccessManager &network_manager,
-                         OAuthManager &oauth_manager);
+                         OAuthManager &oauth_manager,
+                         DataStore &data_store);
     ~LoginDialog();
 signals:
     void ChangeTheme(const QString &theme);
@@ -83,6 +85,9 @@ private:
     QSettings &m_settings;
     QNetworkAccessManager &m_network_manager;
     OAuthManager &m_oauth_manager;
+    DataStore &m_datastore;
+
+    std::optional<OAuthToken> m_current_token;
 
     Ui::LoginDialog *ui;
 };

@@ -85,7 +85,7 @@ endif()
 
 include(FetchContent)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui HttpServer Network Sql Test WebSockets Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Test Widgets)
 
 if(NOT TARGET boost-headers-only)
     FetchContent_Declare(
@@ -345,12 +345,11 @@ target_link_libraries(acquisition PRIVATE
     # Qt libraries
     Qt::Core
     Qt::Gui
-    Qt::HttpServer
     Qt::Network
+    Qt::NetworkAuth
     Qt::Widgets
     Qt::Sql
     Qt::Test
-    Qt::WebSockets
     # Extenal libraries
     boost-headers-only
     Crashpad

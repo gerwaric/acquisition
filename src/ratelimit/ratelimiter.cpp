@@ -23,12 +23,10 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 
-#include <array>
-#include <memory>
-
 #include <boost/bind/bind.hpp>
 
 #include <util/fatalerror.h>
+#include <util/networkmanager.h>
 #include <util/oauthmanager.h>
 #include <util/spdlog_qt.h>
 
@@ -39,41 +37,6 @@
 #include "ratelimitpolicy.h"
 
 constexpr int UPDATE_INTERVAL_MSEC = 1000;
-
-// Create a list of all the attributes a QNetworkRequest or QNetwork reply can have,
-// since there is no other way to iterate over this list:
-// https://doc.qt.io/qt-6/qnetworkrequest.html#Attribute-enum (as of July 29, 2004)
-// clang-format off
-constexpr std::array ATTRIBUTES = {
-    std::make_pair(QNetworkRequest::HttpStatusCodeAttribute, "HttpStatusCodeAttribute"), //	0	Replies only, type: QMetaType::Int(no default) Indicates the HTTP status code received from the HTTP server(like 200, 304, 404, 401, etc.).If the connection was not HTTP - based, this attribute will not be present.
-    std::make_pair(QNetworkRequest::HttpReasonPhraseAttribute, "HttpReasonPhraseAttribute"), //	1	Replies only, type : QMetaType::QByteArray(no default) Indicates the HTTP reason phrase as received from the HTTP server(like "Ok", "Found", "Not Found", "Access Denied", etc.) This is the human - readable representation of the status code(see above).If the connection was not HTTP - based, this attribute will not be present.
-    std::make_pair(QNetworkRequest::RedirectionTargetAttribute, "RedirectionTargetAttribute"), //	2	Replies only, type : QMetaType::QUrl(no default) If present, it indicates that the server is redirecting the request to a different URL.The Network Access API does follow redirections by default, unless QNetworkRequest::ManualRedirectPolicy is used.Additionally, if QNetworkRequest::UserVerifiedRedirectPolicy is used, then this attribute will be set if the redirect was not followed.The returned URL might be relative.Use QUrl::resolved() to create an absolute URL out of it.
-    std::make_pair(QNetworkRequest::ConnectionEncryptedAttribute, "ConnectionEncryptedAttribute"), //	3	Replies only, type : QMetaType::Bool(default: false) Indicates whether the data was obtained through an encrypted(secure) connection.
-    std::make_pair(QNetworkRequest::CacheLoadControlAttribute, "CacheLoadControlAttribute"), //	4	Requests only, type : QMetaType::Int(default: QNetworkRequest::PreferNetwork) Controls how the cache should be accessed.The possible values are those of QNetworkRequest::CacheLoadControl.Note that the default QNetworkAccessManager implementation does not support caching.However, this attribute may be used by certain backends to modify their requests(for example, for caching proxies).
-    std::make_pair(QNetworkRequest::CacheSaveControlAttribute, "CacheSaveControlAttribute"), //	5	Requests only, type : QMetaType::Bool(default: true) Controls if the data obtained should be saved to cache for future uses.If the value is false, the data obtained will not be automatically cached.If true, data may be cached, provided it is cacheable(what is cacheable depends on the protocol being used).
-    std::make_pair(QNetworkRequest::SourceIsFromCacheAttribute, "SourceIsFromCacheAttribute"), //	6	Replies only, type : QMetaType::Bool(default: false) Indicates whether the data was obtained from cache or not.
-    std::make_pair(QNetworkRequest::DoNotBufferUploadDataAttribute, "DoNotBufferUploadDataAttribute"), //	7	Requests only, type : QMetaType::Bool(default: false) Indicates whether the QNetworkAccessManager code is allowed to buffer the upload data, e.g.when doing a HTTP POST.When using this flag with sequential upload data, the ContentLengthHeader header must be set.
-    std::make_pair(QNetworkRequest::HttpPipeliningAllowedAttribute, "HttpPipeliningAllowedAttribute"), //	8	Requests only, type : QMetaType::Bool(default: false) Indicates whether the QNetworkAccessManager code is allowed to use HTTP pipelining with this request.
-    std::make_pair(QNetworkRequest::HttpPipeliningWasUsedAttribute, "HttpPipeliningWasUsedAttribute"), //	9	Replies only, type : QMetaType::Bool Indicates whether the HTTP pipelining was used for receiving this reply.
-    std::make_pair(QNetworkRequest::CustomVerbAttribute, "CustomVerbAttribute"), //	10	Requests only, type : QMetaType::QByteArray Holds the value for the custom HTTP verb to send(destined for usage of other verbs than GET, POST, PUT and DELETE).This verb is set when calling QNetworkAccessManager::sendCustomRequest().
-    std::make_pair(QNetworkRequest::CookieLoadControlAttribute, "CookieLoadControlAttribute"), //	11	Requests only, type : QMetaType::Int(default: QNetworkRequest::Automatic) Indicates whether to send 'Cookie' headers in the request.This attribute is set to false by Qt WebKit when creating a cross - origin XMLHttpRequest where withCredentials has not been set explicitly to true by the Javascript that created the request.See here for more information. (This value was introduced in 4.7.)
-    std::make_pair(QNetworkRequest::CookieSaveControlAttribute, "CookieSaveControlAttribute"), //	13	Requests only, type : QMetaType::Int(default: QNetworkRequest::Automatic) Indicates whether to save 'Cookie' headers received from the server in reply to the request.This attribute is set to false by Qt WebKit when creating a cross - origin XMLHttpRequest where withCredentials has not been set explicitly to true by the Javascript that created the request.See here for more information. (This value was introduced in 4.7.)
-    std::make_pair(QNetworkRequest::AuthenticationReuseAttribute, "AuthenticationReuseAttribute"), //	12	Requests only, type : QMetaType::Int(default: QNetworkRequest::Automatic) Indicates whether to use cached authorization credentials in the request, if available.If this is set to QNetworkRequest::Manual and the authentication mechanism is 'Basic' or 'Digest', Qt will not send an 'Authorization' HTTP header with any cached credentials it may have for the request's URL. This attribute is set to QNetworkRequest::Manual by Qt WebKit when creating a cross-origin XMLHttpRequest where withCredentials has not been set explicitly to true by the Javascript that created the request. See here for more information. (This value was introduced in 4.7.)
-    std::make_pair(QNetworkRequest::BackgroundRequestAttribute, "BackgroundRequestAttribute"), //	17	Type : QMetaType::Bool(default: false) Indicates that this is a background transfer, rather than a user initiated transfer.Depending on the platform, background transfers may be subject to different policies.
-    std::make_pair(QNetworkRequest::Http2AllowedAttribute, "Http2AllowedAttribute"), //	19	Requests only, type : QMetaType::Bool(default: true) Indicates whether the QNetworkAccessManager code is allowed to use HTTP / 2 with this request.This applies to SSL requests or 'cleartext' HTTP / 2 if Http2CleartextAllowedAttribute is set.
-    std::make_pair(QNetworkRequest::Http2WasUsedAttribute, "Http2WasUsedAttribute"), //	20	Replies only, type : QMetaType::Bool(default: false) Indicates whether HTTP / 2 was used for receiving this reply. (This value was introduced in 5.9.)
-    std::make_pair(QNetworkRequest::EmitAllUploadProgressSignalsAttribute, "EmitAllUploadProgressSignalsAttribute"), //	18	Requests only, type : QMetaType::Bool(default: false) Indicates whether all upload signals should be emitted.By default, the uploadProgress signal is emitted only in 100 millisecond intervals. (This value was introduced in 5.5.)
-    std::make_pair(QNetworkRequest::OriginalContentLengthAttribute, "OriginalContentLengthAttribute"), //	21	Replies only, type QMetaType::Int Holds the original content - length attribute before being invalidated and removed from the header when the data is compressed and the request was marked to be decompressed automatically. (This value was introduced in 5.9.)
-    std::make_pair(QNetworkRequest::RedirectPolicyAttribute, "RedirectPolicyAttribute"), //	22	Requests only, type : QMetaType::Int, should be one of the QNetworkRequest::RedirectPolicy values(default: NoLessSafeRedirectPolicy). (This value was introduced in 5.9.)
-    std::make_pair(QNetworkRequest::Http2DirectAttribute, "Http2DirectAttribute"), //	23	Requests only, type : QMetaType::Bool(default: false) If set, this attribute will force QNetworkAccessManager to use HTTP / 2 protocol without initial HTTP / 2 protocol negotiation.Use of this attribute implies prior knowledge that a particular server supports HTTP / 2. The attribute works with SSL or with 'cleartext' HTTP / 2 if Http2CleartextAllowedAttribute is set.If a server turns out to not support HTTP / 2, when HTTP / 2 direct was specified, QNetworkAccessManager gives up, without attempting to fall back to HTTP / 1.1.If both Http2AllowedAttribute and Http2DirectAttribute are set, Http2DirectAttribute takes priority. (This value was introduced in 5.11.)
-    std::make_pair(QNetworkRequest::AutoDeleteReplyOnFinishAttribute, "AutoDeleteReplyOnFinishAttribute"), //	25	Requests only, type : QMetaType::Bool(default: false) If set, this attribute will make QNetworkAccessManager delete the QNetworkReply after having emitted "finished". (This value was introduced in 5.14.)
-    std::make_pair(QNetworkRequest::ConnectionCacheExpiryTimeoutSecondsAttribute, "ConnectionCacheExpiryTimeoutSecondsAttribute"), //	26	Requests only, type : QMetaType::Int To set when the TCP connections to a server(HTTP1 and HTTP2) should be closed after the last pending request had been processed. (This value was introduced in 6.3.)
-    std::make_pair(QNetworkRequest::Http2CleartextAllowedAttribute, "Http2CleartextAllowedAttribute"), //	27	Requests only, type : QMetaType::Bool(default: false) If set, this attribute will tell QNetworkAccessManager to attempt an upgrade to HTTP / 2 over cleartext(also known as h2c).Until Qt 7 the default value for this attribute can be overridden to true by setting the QT_NETWORK_H2C_ALLOWED environment variable.This attribute is ignored if the Http2AllowedAttribute is not set. (This value was introduced in 6.3.)
-    std::make_pair(QNetworkRequest::UseCredentialsAttribute, "UseCredentialsAttribute"), //	28	Requests only, type : QMetaType::Bool(default: false) Indicates if the underlying XMLHttpRequest cross - site Access - Control requests should be made using credentials.Has no effect on same - origin requests.This only affects the WebAssembly platform. (This value was introduced in 6.5.)
-    std::make_pair(QNetworkRequest::User, "User"), //	1000	Special type.Additional information can be passed in QVariants with types ranging from User to UserMax.The default implementation of Network Access will ignore any request attributes in this range and it will not produce any attributes in this range in replies.The range is reserved for extensions of QNetworkAccessManager.
-    std::make_pair(QNetworkRequest::UserMax, "UserMax"), //	32767
-};
-// clang-format on
 
 RateLimiter::RateLimiter(QNetworkAccessManager &network_manager,
                          OAuthManager &oauth_manager,
@@ -127,12 +90,6 @@ void RateLimiter::SetupEndpoint(const QString &endpoint,
 
     // Use a HEAD request to determine the policy status for a new endpoint.
     spdlog::debug("Sending a HEAD for endpoint: {}", endpoint);
-
-    // Make sure the network request get an OAuth bearer token if necessary.
-    if (m_mode == POE_API::OAUTH) {
-        spdlog::trace("RateLimiter::SetupEndpoint() calling setAuthorization()");
-        m_oauth_manager.setAuthorization(network_request);
-    }
 
     // Make the head request.
     spdlog::trace("RateLimiter::SetupEndpoint() sending a HEAD request for {}", endpoint);
@@ -258,6 +215,10 @@ void RateLimiter::ProcessHeadResponse(const QString &endpoint,
 
 void RateLimiter::LogSetupReply(const QNetworkRequest &request, const QNetworkReply *reply)
 {
+    NetworkManager::logRequest(request);
+    NetworkManager::logReply(reply);
+
+    /*
     // Log the request headers.
     spdlog::info("RateLimiter: request url is {}", request.url().toString());
     const auto &raw_headers = request.rawHeaderList();
@@ -298,6 +259,7 @@ void RateLimiter::LogSetupReply(const QNetworkRequest &request, const QNetworkRe
             spdlog::info("RateLimiter: reply attribute {} = {}", name, value.toString());
         }
     }
+    */
 }
 
 RateLimitManager &RateLimiter::GetManager(const QString &endpoint, const QString &policy_name)
@@ -334,9 +296,6 @@ RateLimitManager &RateLimiter::GetManager(const QString &endpoint, const QString
 
 QNetworkReply *RateLimiter::SendRequest(QNetworkRequest request)
 {
-    if (m_mode == POE_API::OAUTH) {
-        m_oauth_manager.setAuthorization(request);
-    }
     return m_network_manager.get(request);
 }
 

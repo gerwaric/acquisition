@@ -144,6 +144,9 @@ MainWindow::~MainWindow()
 
 void MainWindow::prepare(OAuthManager &oauth_manager, CurrencyManager &currency_manager)
 {
+    /*
+     * TBD: TODO
+     *
     connect(ui->actionShowOAuthToken,
             &QAction::triggered,
             &oauth_manager,
@@ -152,6 +155,7 @@ void MainWindow::prepare(OAuthManager &oauth_manager, CurrencyManager &currency_
             &QAction::triggered,
             &oauth_manager,
             &OAuthManager::requestRefresh);
+    */
 
     connect(ui->actionListCurrency,
             &QAction::triggered,
