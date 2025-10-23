@@ -3,20 +3,24 @@
 
 #pragma once
 
-#include <glaze/glaze.hpp>
-
-#include "util/spdlog_qt.h"
+#include <map>
+#include <string>
+#include <unordered_map>
 
 #include <QByteArray>
 #include <QDateTime>
 #include <QString>
 
-#include <map>
-#include <string>
-#include <unordered_map>
+#include <glaze/glaze.hpp>
 
 // This is a helper define to avoid Qt Creator's warnings that this header is unused.
 constexpr bool ACQUISITION_USE_GLAZE = true;
+
+constexpr glz::opts GLAZE_OPTIONS {
+    .null_terminated = false,
+    .error_on_unknown_keys = true,
+    .error_on_missing_keys = true
+};
 
 // This file adds support to glaze for:
 //
