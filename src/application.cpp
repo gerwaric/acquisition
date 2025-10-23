@@ -51,7 +51,7 @@
 #include "testmain.h"
 #include "version_defines.h"
 
-Application::Application(const QDir &appDataDir)
+Application::Application()
 {
     spdlog::debug("Application: created");
 
@@ -60,8 +60,46 @@ Application::Application(const QDir &appDataDir)
 
     spdlog::trace("Application: creating RePoE");
     m_repoe = std::make_unique<RePoE>(network_manager());
+}
 
+Application::~Application()
+{
+    spdlog::info("Shutting down.");
+    spdlog::shutdown();
+}
+
+void Application::Start(const QDir &appDataDir)
+{
+    spdlog::debug("Application: starting");
     InitUserDir(appDataDir.absolutePath());
+
+    spdlog::trace("Application: creating login dialog");
+    m_login = std::make_unique<LoginDialog>(m_data_dir,
+                                            settings(),
+                                            network_manager(),
+                                            oauth_manager(),
+                                            global_data());
+
+    // Connect to the update signal in case an update is detected before the main window is open.
+    connect(m_update_checker.get(),
+            &UpdateChecker::UpdateAvailable,
+            m_update_checker.get(),
+            &UpdateChecker::AskUserToUpdate);
+
+    // Connect signals from the login dialog.
+    connect(m_login.get(), &LoginDialog::ChangeTheme, this, &Application::SetTheme);
+    connect(m_login.get(), &LoginDialog::ChangeUserDir, this, &Application::SetUserDir);
+    connect(m_login.get(), &LoginDialog::LoginComplete, this, &Application::OnLogin);
+
+    // Look for an initial oauth token.
+
+    // Start the initial check for updates.
+    spdlog::trace("Application: checking for application updates");
+    m_update_checker->CheckForUpdates();
+
+    // Show the login dialog now.
+    spdlog::trace("Application: showing the login dialog");
+    m_login->show();
 }
 
 void Application::InitUserDir(const QString &dir)
@@ -102,45 +140,6 @@ void Application::InitUserDir(const QString &dir)
     // Start the process of fetching RePoE data.
     spdlog::trace("Application: initializing RePoE");
     m_repoe->Init(dir);
-}
-
-Application::~Application()
-{
-    spdlog::shutdown();
-}
-
-void Application::Start()
-{
-    spdlog::debug("Application: starting");
-
-    spdlog::trace("Application: creating login dialog");
-    m_login = std::make_unique<LoginDialog>(m_data_dir,
-                                            settings(),
-                                            network_manager(),
-                                            oauth_manager(),
-                                            global_data());
-
-    // Connect to the update signal in case an update is detected before the main window is open.
-    connect(m_update_checker.get(),
-            &UpdateChecker::UpdateAvailable,
-            m_update_checker.get(),
-            &UpdateChecker::AskUserToUpdate);
-
-    // Connect signals from the login dialog.
-    connect(m_login.get(), &LoginDialog::ChangeTheme, this, &Application::SetTheme);
-    connect(m_login.get(), &LoginDialog::ChangeUserDir, this, &Application::SetUserDir);
-    connect(m_login.get(), &LoginDialog::LoginComplete, this, &Application::OnLogin);
-
-    // Look for an initial oauth token.
-
-
-    // Start the initial check for updates.
-    spdlog::trace("Application: checking for application updates");
-    m_update_checker->CheckForUpdates();
-
-    // Show the login dialog now.
-    spdlog::trace("Application: showing the login dialog");
-    m_login->show();
 }
 
 void Application::Stop()
@@ -416,8 +415,7 @@ void Application::SetTheme(const QString &theme)
 void Application::SetUserDir(const QString &dir)
 {
     Stop();
-    InitUserDir(dir);
-    Start();
+    Start(dir);
 }
 
 void Application::InitLogin(POE_API mode)

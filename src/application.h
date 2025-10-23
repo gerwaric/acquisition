@@ -50,11 +50,10 @@ class Application : public QObject
 {
     Q_OBJECT
 public:
-    explicit Application(const QDir &appDataDir);
+    explicit Application();
     ~Application();
     Application(const Application &) = delete;
     Application &operator=(const Application &) = delete;
-    void Start();
     void InitLogin(POE_API api);
 
 private:
@@ -73,6 +72,7 @@ private:
     RateLimiter &rate_limiter() const;
 
 public slots:
+    void Start(const QDir &appDataDir);
     void SetSessionId(const QString &poesessid);
     void SetTheme(const QString &theme);
     void SetUserDir(const QString &dir);
