@@ -25,16 +25,16 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 
-#include <util/fatalerror.h>
-#include <util/oauthmanager.h>
-#include <util/spdlog_qt.h>
-#include <util/util.h>
-
 #include "ratelimit.h"
 #include "ratelimitedreply.h"
 #include "ratelimitedrequest.h"
 #include "ratelimiter.h"
 #include "ratelimitpolicy.h"
+#include "util/fatalerror.h"
+#include "util/spdlog_qt.h"
+#include "util/util.h"
+
+static_assert(ACQUISITION_USE_SPDLOG);
 
 // For debugging rate limit violations, keep around more history than should be needed
 constexpr int HISTORY_BUFFER = 5;
@@ -140,7 +140,11 @@ void RateLimitManager::ReceiveReply()
     event.received_time = now;
     event.reply_time = RateLimit::ParseDate(reply).toLocalTime();
     event.reply_status = RateLimit::ParseStatus(reply);
+
     m_history.push_front(event);
+    if (m_history.size() > m_history_size) {
+        m_history.pop_back();
+    }
 
     const int response_sec = event.request_time.secsTo(event.reply_time);
     if (response_sec > MAXIMUM_API_RESPONSE_SEC) {
@@ -275,15 +279,14 @@ void RateLimitManager::Update(QNetworkReply *reply)
     m_policy = std::move(new_policy);
 
     // Grow the history capacity if needed.
-    const size_t capacity = m_history.capacity();
     const size_t max_hits = m_policy->maximum_hits();
     const size_t history_size = max_hits + HISTORY_BUFFER;
-    if (capacity < history_size) {
-        spdlog::debug("{} increasing capacity from {} to {}",
+    if (history_size > m_history_size) {
+        spdlog::debug("{}: increasing history size from {} events to {} events.",
                       m_policy->name(),
-                      capacity,
+                      m_history_size,
                       history_size);
-        m_history.set_capacity(history_size);
+        m_history_size = history_size;
     }
 
     emit PolicyUpdated(policy());

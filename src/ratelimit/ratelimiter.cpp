@@ -23,18 +23,16 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 
-#include <boost/bind/bind.hpp>
-
-#include <util/fatalerror.h>
-#include <util/networkmanager.h>
-#include <util/oauthmanager.h>
-#include <util/spdlog_qt.h>
-
-#include <network_info.h>
-
+#include "network_info.h"
 #include "ratelimitedreply.h"
 #include "ratelimitmanager.h"
 #include "ratelimitpolicy.h"
+#include "util/fatalerror.h"
+#include "util/networkmanager.h"
+#include "util/oauthmanager.h"
+#include "util/spdlog_qt.h"
+
+static_assert(ACQUISITION_USE_SPDLOG);
 
 constexpr int UPDATE_INTERVAL_MSEC = 1000;
 
@@ -272,7 +270,7 @@ RateLimitManager &RateLimiter::GetManager(const QString &endpoint, const QString
     if (it == m_manager_by_policy.end()) {
         // Create a new policy manager.
         spdlog::debug("Creating rate limit policy {} for {}", policy_name, endpoint);
-        auto sender = boost::bind(&RateLimiter::SendRequest, this, boost::placeholders::_1);
+        auto sender = std::bind_front(&RateLimiter::SendRequest, this);
         auto mgr = std::make_unique<RateLimitManager>(sender);
         auto &manager = m_managers.emplace_back(std::move(mgr));
         connect(manager.get(),

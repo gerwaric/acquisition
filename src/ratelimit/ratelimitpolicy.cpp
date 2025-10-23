@@ -19,16 +19,17 @@
 
 #include "ratelimitpolicy.h"
 
+#include <algorithm>
+
 #include <QByteArray>
 #include <QDateTime>
 #include <QNetworkReply>
 
-#include <algorithm>
-
-#include <util/spdlog_qt.h>
-#include <util/util.h>
-
 #include "ratelimit.h"
+#include "util/spdlog_qt.h"
+#include "util/util.h"
+
+static_assert(ACQUISITION_USE_SPDLOG);
 
 // GGG has stated that when they are keeping track of request times,
 // they have a timing resolution, which they called a "bucket".
@@ -261,8 +262,7 @@ QString RateLimitPolicy::GetPolicyReport() const
     return lines.join("\n");
 }
 
-QString RateLimitPolicy::GetHistoryReport(
-    const boost::circular_buffer<RateLimit::Event> &history) const
+QString RateLimitPolicy::GetHistoryReport(const std::deque<RateLimit::Event> &history) const
 {
     QStringList lines;
     lines.append(QString("<HISTORY_STATE policy='%1'>").arg(m_name));
@@ -284,7 +284,7 @@ QString RateLimitPolicy::GetHistoryReport(
     return lines.join("\n");
 }
 
-QDateTime RateLimitPolicy::GetNextSafeSend(const boost::circular_buffer<RateLimit::Event> &history)
+QDateTime RateLimitPolicy::GetNextSafeSend(const std::deque<RateLimit::Event> &history)
 {
     const QDateTime now = QDateTime::currentDateTime().toLocalTime();
 

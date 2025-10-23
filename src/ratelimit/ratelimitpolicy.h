@@ -19,12 +19,11 @@
 
 #pragma once
 
-#include <QMetaObject>
-#include <QString>
-
+#include <deque>
 #include <vector>
 
-#include <boost/circular_buffer.hpp>
+#include <QMetaObject>
+#include <QString>
 
 #include "ratelimit.h"
 
@@ -108,12 +107,12 @@ public:
     const std::vector<RateLimitRule> &rules() const { return m_rules; };
     RateLimit::Status status() const { return m_status; };
     int maximum_hits() const { return m_maximum_hits; };
-    QDateTime GetNextSafeSend(const boost::circular_buffer<RateLimit::Event> &history);
+    QDateTime GetNextSafeSend(const std::deque<RateLimit::Event> &history);
     QDateTime EstimateDuration(int request_count, int minimum_delay_msec) const;
 
     // Report generators for logging.
     QString GetPolicyReport() const;
-    QString GetHistoryReport(const boost::circular_buffer<RateLimit::Event> &history) const;
+    QString GetHistoryReport(const std::deque<RateLimit::Event> &history) const;
     QString GetBorderlineReport() const { return m_report; };
 
 private:

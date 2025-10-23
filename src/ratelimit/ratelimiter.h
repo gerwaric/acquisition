@@ -19,14 +19,14 @@
 
 #pragma once
 
+#include <list>
+#include <map>
+#include <memory>
+
 #include <QNetworkRequest>
 #include <QObject>
 #include <QString>
 #include <QTimer>
-
-#include <list>
-#include <map>
-#include <memory>
 
 #include "network_info.h"
 

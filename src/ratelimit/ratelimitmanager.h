@@ -19,14 +19,13 @@
 
 #pragma once
 
+#include <deque>
+
 #include <QDateTime>
 #include <QNetworkRequest>
 #include <QObject>
 #include <QString>
 #include <QTimer>
-
-#include <boost/circular_buffer.hpp>
-#include <deque>
 
 #include "network_info.h"
 #include "ratelimit.h"
@@ -122,5 +121,6 @@ private:
     // A circular buffer is used because it's fast to access, and the number
     // of items we have to store only changes when a rate limit policy
     // changes, which should not happen regularly, but we handle that case, too.
-    boost::circular_buffer<RateLimit::Event> m_history;
+    std::deque<RateLimit::Event> m_history;
+    unsigned m_history_size{0};
 };
