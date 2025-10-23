@@ -43,7 +43,7 @@ namespace poe {
             std::optional<unsigned> parent; // ? uint the parent node identifier
         };
 
-        std::optional<unsigned> skill; // ? uint skill hash
+        std::optional<QString> skill; // ? uint skill hash TODO: uint in docs, but string in result?
         std::optional<QString> name; // ? string
         std::optional<QString> icon; // ? string
         std::optional<bool> isKeystone; // ? bool always true if present
