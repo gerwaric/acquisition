@@ -183,7 +183,9 @@ LoginDialog::LoginDialog(const QDir &app_data_dir,
 LoginDialog::~LoginDialog()
 {
     if (!ui->rememberMeCheckBox->isChecked()) {
-        spdlog::trace("Loging: clearing settings");
+        if (auto lg = spdlog::default_logger(); lg) {
+            lg->trace("Login: clearing settings");
+        }
         m_settings.clear();
         m_datastore.Set("oauth_token", "");
     }
