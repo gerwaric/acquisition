@@ -239,6 +239,41 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/modlist.h
     src/modsfilter.h
     src/network_info.h
+    src/poe/endpoints/accountcharacter.h
+    src/poe/endpoints/accountcharacters.h
+    src/poe/endpoints/accountleagues.h
+    src/poe/endpoints/accountprofile.h
+    src/poe/endpoints/accountstash.h
+    src/poe/endpoints/accountstashes.h
+    src/poe/endpoints/website/webcharacteritems.h
+    src/poe/endpoints/website/webcharacters.h
+    src/poe/endpoints/website/webleagues.h
+    src/poe/endpoints/website/webstashitems.h
+    src/poe/types/account.h
+    src/poe/types/character.h
+    src/poe/types/cruciblenode.h
+    src/poe/types/displaymode.h
+    src/poe/types/eventladderentry.h
+    src/poe/types/frametype.h
+    src/poe/types/guild.h
+    src/poe/types/item.h
+    src/poe/types/itemfilter.h
+    src/poe/types/itemjeweldata.h
+    src/poe/types/itemproperty.h
+    src/poe/types/itemsocket.h
+    src/poe/types/ladderentry.h
+    src/poe/types/league.h
+    src/poe/types/leagueaccount.h
+    src/poe/types/leaguerule.h
+    src/poe/types/passivegroup.h
+    src/poe/types/passivenode.h
+    src/poe/types/publicstashchange.h
+    src/poe/types/pvpladderteamentry.h
+    src/poe/types/pvpladderteammember.h
+    src/poe/types/pvpmatch.h
+    src/poe/types/stashtab.h
+    src/poe/types/website/webcharacter.h
+    src/poe/types/website/webstashtab.h
     src/ratelimit/ratelimit.h
     src/ratelimit/ratelimitdialog.h
     src/ratelimit/ratelimitedreply.h
@@ -333,7 +368,6 @@ target_include_directories(acquisition PRIVATE
 )
 
 add_subdirectory(deps/Crashpad)
-add_subdirectory(deps/libpoe)
 add_subdirectory(deps/qdarkstyle)
 
 # Link required libraries.
@@ -350,8 +384,6 @@ target_link_libraries(acquisition PRIVATE
     boost-headers-only
     Crashpad
     glaze::glaze
-    #json_struct
-    libpoe
     qdarkstyle
     rapidjson
     semver

@@ -38,7 +38,7 @@
 #include <QUrl>
 #include <QUrlQuery>
 
-#include <libpoe/type/league.h>
+#include <poe/types/league.h>
 
 // #include "legacy/legacybuyoutvalidator.h" -- DISABLED as of v0.12.3.1
 #include <datastore/datastore.h>
@@ -274,7 +274,7 @@ void LoginDialog::OnLeaguesReceived()
     }
 
     // Parse the leagues.
-    const auto leagues = Util::parseJson<std::vector<libpoe::League>>(bytes);
+    const auto leagues = Util::parseJson<std::vector<poe::League>>(bytes);
 
     // Get the league from settings.ini
     const QString saved_league = m_settings.value("league").toString();
