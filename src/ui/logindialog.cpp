@@ -64,23 +64,6 @@ constexpr int CLOUDFLARE_RATE_LIMITED = 1015;
 
 constexpr const char *OAUTH_TAB = "oauthTab";
 constexpr const char *SESSIONID_TAB = "sessionIdTab";
-constexpr const char *OFFLINE_TAB = "offlineTab";
-
-/**
- *
- * Possible login flows:
- *
- * Oauth:
- *   1. OnLoginButtonClicked()
- *   2. LoginWithOAuth()
- *
- * Session ID:
- *   1. OnLoginButtonClicked()
- *   2. LoginWithSessionID()
- *	 3. OnStartLegacyLogin()
- *   4. OnFinishLegacyLogin()
- *
- */
 
 LoginDialog::LoginDialog(const QDir &app_data_dir,
                          QSettings &settings,
@@ -363,13 +346,10 @@ void LoginDialog::OnLoginButtonClicked()
             LoginWithSessionID();
             ui->loginButton->setEnabled(false);
         }
-    } else if (tab_name == OFFLINE_TAB) {
     } else {
         DisplayError("Invalid tab selected: " + tab_name);
     }
 }
-
-void LoginDialog::OnOfflineButtonClicked() {}
 
 void LoginDialog::LoginWithOAuth()
 {

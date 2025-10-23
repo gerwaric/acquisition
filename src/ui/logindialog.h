@@ -56,7 +56,6 @@ private slots:
     void OnAuthenticateButtonClicked();
     void OnLoginTabChanged(int index);
     void OnLoginButtonClicked();
-    void OnOfflineButtonClicked();
     void OnStartLegacyLogin();
     void OnFinishLegacyLogin();
     void OnSessionIDChanged(const QString &session_id);

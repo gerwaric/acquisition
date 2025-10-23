@@ -211,8 +211,24 @@ void Application::OnLogin(POE_API api)
     spdlog::trace("Application::OnLogin() closing the login dialog");
     m_login->close();
 
-    spdlog::trace("Application::OnLogin() showing the main window");
-    m_main_window->show();
+    switch (api) {
+    case POE_API::OAUTH:
+        spdlog::trace("Application::OnLogin() showing the main window");
+        m_main_window->show();
+        break;
+    case POE_API::LEGACY: {
+        auto *box = new QMessageBox(QMessageBox::Warning,
+                                    "POESESSION is going away.",
+                                    "In a future release, only OAuth login will "
+                                    "supported.\n\nPOESESSID will still be used for "
+                                    "forum shop management, but OAuth will be required for initial authentication.",
+                                    QMessageBox::Ok);
+        box->setDefaultButton(QMessageBox::Ok);
+        box->setAttribute(Qt::WA_DeleteOnClose);
+        QObject::connect(box, &QDialog::finished, box, [this]() { m_main_window->show(); });
+        box->open();
+    }
+    }
 }
 
 QSettings &Application::settings() const
