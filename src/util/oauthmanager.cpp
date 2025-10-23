@@ -176,7 +176,7 @@ void OAuthManager::receiveGrant()
         spdlog::error("OAuth: was not granted these requested scopes: {}",
                       QStringList(diff.begin(), diff.end()).join(", "));
     }
-    spdlog::info("OAuth access was granted.");
+    spdlog::info("OAuth: access was granted.");
     emit grantAccess(m_token);
     emit isAuthenticatedChanged();
 }
@@ -193,6 +193,10 @@ void OAuthManager::setToken(const OAuthToken &token)
 
 void OAuthManager::initLogin()
 {
-    spdlog::info("OAuth access requested.");
-    m_oauth->grant();
+    if (m_handler->listen()) {
+        spdlog::info("OAuth: access requested.");
+        m_oauth->grant();
+    } else {
+        spdlog::error("OAuth: cannot start handler.");
+    }
 }
