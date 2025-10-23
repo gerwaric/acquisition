@@ -63,20 +63,34 @@ namespace {
         return true;
     }
 
-    template<typename T>
-    static bool getStruct(QSqlDatabase db, const QString &query, T &value)
+    // Strict read: not null-terminated input; error on unknown keys.
+    template <typename T>
+    static bool getStruct(QSqlDatabase db, const QString& query, T& value)
     {
         QByteArray data;
         if (!getByteArray(db, query, data)) {
             return false;
         }
-        JS::ParseContext context(data);
-        context.allow_missing_members = false;
-        context.allow_unasigned_required_members = false;
-        if (context.parseTo(value) != JS::Error::NoError) {
-            const auto type = typeid(T).name();
-            const auto error = context.makeErrorString();
-            spdlog::error("Json error parsing {} from '{}': {}", type, query, error);
+
+        // Create a view over the QByteArray (it may contain '\0', so don't assume C-strings)
+        const std::string_view sv{data.constData(),
+                                  static_cast<std::size_t>(data.size())};
+
+        // Glaze options:
+        // - null_terminated = false: we pass a size-aware view
+        // - error on unknown keys: depending on Glaze minor version, either use
+        //     `.unknown_keys = glz::unknown_keys::error`
+        //   or older `.error_on_unknown_keys = true`.
+        constexpr glz::opts opts{
+            .null_terminated = false,
+            .error_on_unknown_keys = true
+        };
+
+        if (auto ec = glz::read<opts>(value, sv); ec) {
+            spdlog::error("Json error parsing {} from '{}': {}",
+                          typeid(T).name(),
+                          query.toStdString(),
+                          glz::format_error(ec, sv));
             return false;
         }
         return true;
@@ -128,17 +142,29 @@ LegacyDataStore::LegacyDataStore(const QString &filename)
 
     m_item_count = 0;
     while (query.next()) {
-        const QString loc = query.value(0).toString();
-        const QByteArray bytes = query.value(1).toByteArray();
+        const QString loc   = query.value(0).toString();
+        const QByteArray ba = query.value(1).toByteArray();
+
         std::vector<LegacyItem> result;
-        JS::ParseContext context(bytes);
-        if (context.parseTo(result) != JS::Error::NoError) {
-            spdlog::error("LegacyDataStore: error parsing 'items': {}",
-                          QString::fromUtf8(context.makeErrorString()));
-            return;
+
+        // Parse from a size-aware view (don't assume null-terminated input)
+        const std::string_view sv{ba.constData(), static_cast<std::size_t>(ba.size())};
+
+        // Strictish read; set unknown_keys to error if you want to reject extra fields
+        constexpr glz::opts opts{
+            .null_terminated = false,
+            .error_on_unknown_keys = true
+        };
+
+        if (auto ec = glz::read<opts>(result, sv); ec) {
+            spdlog::error("LegacyDataStore: error parsing 'items' for '{}': {}",
+                          loc.toStdString(),
+                          glz::format_error(ec, sv));
+            return; // or 'continue' if you want to skip bad rows
         }
-        m_items[loc] = result;
+
         m_item_count += static_cast<qint64>(result.size());
+        m_items[loc] = std::move(result); // requires your QString adapter in glaze_qt.h
     }
 
     if (query.lastError().isValid()) {
@@ -161,7 +187,15 @@ bool LegacyDataStore::exportJson(const QString &filename) const
         spdlog::error("Export failed: could not open json file: {}", file.errorString());
         return false;
     }
-    const QByteArray data(JS::serializeStruct(*this, JS::SerializerOptions::Compact));
+
+    std::string out;
+    if (auto ec = glz::write_json(*this, out); ec) {
+        // For write errors, format_error still gives a readable message.
+        spdlog::error("Export failed: {}", glz::format_error(ec, out));
+        return false;
+    }
+
+    const QByteArray data = QByteArray::fromStdString(out);
     file.write(data);
     file.close();
     return true;

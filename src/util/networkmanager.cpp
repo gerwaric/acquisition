@@ -35,7 +35,7 @@ constexpr const int CACHE_SIZE_MEGABYTES = 100;
 constexpr const char *POE_API_HOST = "api.pathofexile.com";
 constexpr const char *POE_CDN_HOST = "web.poecdn.com";
 
-// This list is current as of Qt 6.9.1:
+// This list is current as of Qt 6.10.0:
 // https://doc.qt.io/qt-6/qnetworkrequest.html#Attribute-enum
 //
 // clang-format off
@@ -101,7 +101,7 @@ QNetworkReply *NetworkManager::createRequest(QNetworkAccessManager::Operation op
     if (host == POE_API_HOST) {
         // Add a bearer token for api calls.
         if (m_bearerToken.isEmpty()) {
-            spdlog::error("API calls may fail because the bearer token is empty.");
+            spdlog::error("API call may fail because the bearer token is empty: {}", request.url().toString());
         } else {
             request.setRawHeader("Authorization", m_bearerToken);
         }

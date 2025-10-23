@@ -21,13 +21,10 @@
 
 #include <QString>
 
-#include <util/json_struct_qt.h>
-
 struct LegacyCurrency
 {
     int count;
     double chaos_ratio;
     double exalt_ratio;
     QString currency;
-    JS_OBJ(count, chaos_ratio, exalt_ratio, currency);
 };

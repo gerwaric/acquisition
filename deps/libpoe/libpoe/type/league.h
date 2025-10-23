@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include <util/json_struct_qt.h>
+#include <QString>
 
 #include <libpoe/type/leaguerule.h>
 
@@ -35,11 +35,11 @@ namespace libpoe{
         struct Category {
             QString                          id;             // string the league category, e.g.Affliction
             std::optional<bool>                  current;        // ? bool set for the active challenge leagues; always true if present
-            JS_OBJ(id, current);
         };
 
         QString id;                                         // string the league's name
         std::optional<QString>                    realm;          // ? string pc, xbox, or sony
+        std::optional<QString>                    name;           // ? string the league's name
         std::optional<QString>                    description;    // ? string
         std::optional<libpoe::League::Category>     category;       // ? object
         std::optional<std::vector<libpoe::LeagueRule>>   rules;          // ? array of LeagueRule
@@ -53,17 +53,12 @@ namespace libpoe{
         std::optional<bool>                      delveEvent;     // ? bool always true if present
         std::optional<bool>                      ancestorEvent;  // ? bool always true if present
         std::optional<bool>                      leagueEvent;    // ? bool always true if present
-
-        JS_OBJ(id, realm, description, category, rules, registerAt, event, url, startAt,
-            endAt, timedEvent, scoreEvent, delveEvent, ancestorEvent, leagueEvent);
-
     };
 
     using LeagueList = std::vector<std::unique_ptr<libpoe::League>>;
 
     struct LeagueListWrapper {
         std::unique_ptr<LeagueList> leagues;
-        JS_OBJ(leagues);
     };
 
 }

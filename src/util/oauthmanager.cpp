@@ -19,7 +19,9 @@
 
 #include "oauthmanager.h"
 
+#include "datastore/datastore.h"
 #include "networkmanager.h"
+#include "util/glaze_qt.h"
 #include "util/spdlog_qt.h"
 
 static_assert(ACQUISITION_USE_SPDLOG); // Prevents an unused header warning in Qt Creator.
@@ -65,8 +67,10 @@ namespace {
 
 }; // namespace
 
-OAuthManager::OAuthManager(NetworkManager &network_manager, QObject *parent)
+OAuthManager::OAuthManager(NetworkManager &network_manager, DataStore &datastore, QObject *parent)
     : QObject(nullptr)
+    , m_network_manager(network_manager)
+    , m_data(datastore)
 {
     // Create the the reply handler.
     m_handler = new QOAuthHttpServerReplyHandler(this);
@@ -105,35 +109,61 @@ OAuthManager::OAuthManager(NetworkManager &network_manager, QObject *parent)
             }
         });
 
-    // Connect the oauth code flow.
+    // Connect the oauth code flow and add error logging.
     connect(m_oauth, &QAbstractOAuth::authorizeWithBrowser, this, &QDesktopServices::openUrl);
     connect(m_oauth, &QAbstractOAuth::granted, this, &OAuthManager::receiveGrant);
-
-    // Add error logging.
-    connect(m_oauth, &QAbstractOAuth::requestFailed, this, [](const QAbstractOAuth::Error error) {
-        for (const auto &[known_error, name] : KNOWN_OAUTH_ERRORS) {
-            if (error == known_error) {
-                spdlog::error("OAuth: request failed: error {} ({})", static_cast<int>(error), name);
-                return;
-            }
-        }
-        spdlog::error("OAuth: request failed: error {} (unknown error)", static_cast<int>(error));
-    });
+    connect(m_oauth, &QAbstractOAuth::requestFailed, this, &OAuthManager::onRequestFailure);
     connect(m_oauth,
             &QAbstractOAuth2::serverReportedErrorOccurred,
             this,
-            [](const QString &error, const QString &errorDescription, const QUrl &uri) {
-                spdlog::error("Oauth: server reported error: '{}' ({}): {}",
-                              error,
-                              errorDescription,
-                              uri.toDisplayString());
-            });
+            &OAuthManager::onServerError);
+
+    // Check for an existing token.
+    const QString token_str = m_data.Get("oauth_token", "");
+    if (!token_str.isEmpty()) {
+        const OAuthToken token = OAuthToken::fromJson(token_str);
+        m_oauth->setRefreshToken(token.refresh_token);
+        m_oauth->refreshTokens();
+    }
+}
+
+void OAuthManager::onRequestFailure(const QAbstractOAuth::Error error)
+{
+    for (const auto &[known_error, name] : KNOWN_OAUTH_ERRORS) {
+        if (error == known_error) {
+            spdlog::error("OAuth: request failed: error {} ({})", static_cast<int>(error), name);
+            return;
+        }
+    }
+    spdlog::error("OAuth: request failed: error {} (unknown error)", static_cast<int>(error));
+}
+
+void OAuthManager::onServerError(const QString &error,
+                                 const QString &errorDescription,
+                                 const QUrl &uri)
+{
+    spdlog::error("Oauth: server reported error: '{}' ({}): {}",
+                  error,
+                  errorDescription,
+                  uri.toDisplayString());
 }
 
 void OAuthManager::receiveToken(const QVariantMap &tokens)
 {
-    m_token = OAuthToken(tokens);
+    m_token = OAuthToken::fromTokens(tokens);
     spdlog::info("OAuth: tokens recieved for {}", m_token.username);
+
+    // Store the serialized token.
+    std::string serialized_token;
+    auto ec = glz::write_json(m_token, serialized_token);
+    if (ec) {
+        const std::string msg = glz::format_error(ec, serialized_token);
+        spdlog::error("OAuthManager: error serializing received token: {}", msg);
+    } else {
+        spdlog::info("OAuth: storing token");
+        m_data.Set("oauth_token", QString::fromStdString(serialized_token));
+    }
+    m_network_manager.setBearerToken(m_token.access_token);
 }
 
 void OAuthManager::receiveGrant()

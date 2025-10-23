@@ -20,8 +20,10 @@
 #pragma once
 
 #include <QObject>
+#include <QAbstractOAuth>
 #include <QString>
 #include <QTimer>
+#include <QUrl>
 #include <QVariantMap>
 
 #include "oauthtoken.h"
@@ -29,6 +31,7 @@
 class QOAuth2AuthorizationCodeFlow;
 class QOAuthHttpServerReplyHandler;
 
+class DataStore;
 class NetworkManager;
 
 class OAuthManager : public QObject
@@ -36,11 +39,12 @@ class OAuthManager : public QObject
     Q_OBJECT
 
 public:
-    explicit OAuthManager(NetworkManager &manager, QObject *parent = nullptr);
-    void setToken(const OAuthToken &token);
+    explicit OAuthManager(NetworkManager& manager, DataStore &datastore, QObject *parent = nullptr);
     void initLogin();
 
 private slots:
+    void onRequestFailure(const QAbstractOAuth::Error error);
+    void onServerError(const QString &error, const QString &errorDescription, const QUrl &uri);
     void receiveToken(const QVariantMap &tokens);
     void receiveGrant();
 
@@ -49,6 +53,10 @@ signals:
     void isAuthenticatedChanged();
 
 private:
+    void setToken(const OAuthToken &token);
+    NetworkManager &m_network_manager;
+    DataStore &m_data;
+
     QOAuth2AuthorizationCodeFlow* m_oauth;
     QOAuthHttpServerReplyHandler* m_handler;
 

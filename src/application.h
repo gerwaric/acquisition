@@ -38,6 +38,7 @@ class LoginDialog;
 class MainWindow;
 class NetworkManager;
 class OAuthManager;
+class OAuthToken;
 class RateLimiter;
 class RePoE;
 class Shop;

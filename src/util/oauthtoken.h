@@ -23,19 +23,16 @@
 #include <QString>
 #include <QVariantMap>
 
-#include <util/json_struct_qt.h>
-
 class QNetworkReply;
 
 struct OAuthToken
 {
-    OAuthToken() = default;
-    explicit OAuthToken(const QString &json);
-    explicit OAuthToken(QNetworkReply *reply);
-    explicit OAuthToken(const QVariantMap &tokens);
+    static OAuthToken fromJson(const QString &json);
+    static OAuthToken fromReply(QNetworkReply *reply);
+    static OAuthToken fromTokens(const QVariantMap &tokens);
 
     QString access_token;
-    int expires_in{-1};
+    long long expires_in{-1};
     QString refresh_token;
     QString scope;
     QString username;
@@ -45,17 +42,6 @@ struct OAuthToken
     std::optional<QDateTime> birthday;
     std::optional<QDateTime> access_expiration;
     std::optional<QDateTime> refresh_expiration;
-
-    JS_OBJ(access_token,
-           expires_in,
-           refresh_token,
-           scope,
-           username,
-           sub,
-           token_type,
-           birthday,
-           access_expiration,
-           refresh_expiration);
 
 private:
     void setBirthday(const QDateTime& date);

@@ -28,36 +28,40 @@
 // https://www.pathofexile.com/developer/docs/authorization#clients-public
 constexpr long int REFRESH_LIFETIME_DAYS = 7;
 
-OAuthToken::OAuthToken(const QString &json)
+OAuthToken OAuthToken::fromJson(const QString &json)
 {
-    Util::parseJson<OAuthToken>(json, *this);
+    return Util::parseJson<OAuthToken>(json);
 }
 
-OAuthToken::OAuthToken(QNetworkReply *reply)
+OAuthToken OAuthToken::fromReply(QNetworkReply *reply)
 {
     const QByteArray bytes = reply->readAll();
     reply->deleteLater();
 
-    Util::parseJson<OAuthToken>(bytes, *this);
+    OAuthToken token = Util::parseJson<OAuthToken>(bytes);
 
     // Set birthday and expiration times.
     const QString timestamp = Util::FixTimezone(reply->rawHeader("Date"));
-    setBirthday(QDateTime::fromString(timestamp, Qt::RFC2822Date));
+    token.setBirthday(QDateTime::fromString(timestamp, Qt::RFC2822Date));
+    return token;
 }
 
-OAuthToken::OAuthToken(const QVariantMap &tokens)
+OAuthToken OAuthToken::fromTokens(const QVariantMap &tokens)
 {
     // clang-format off
-    this->access_token  = tokens["access_token"].toString();
-    this->expires_in    = tokens["expires_in"].toLongLong();
-    this->refresh_token = tokens["refresh_token"].toString();
-    this->scope         = tokens["scope"].toString();
-    this->sub           = tokens["sub"].toString();
-    this->token_type    = tokens["token_type"].toString();
-    this->username      = tokens["username"].toString();
+    OAuthToken token{
+        .access_token  = tokens["access_token"].toString(),
+        .expires_in    = tokens["expires_in"].toLongLong(),
+        .refresh_token = tokens["refresh_token"].toString(),
+        .scope         = tokens["scope"].toString(),
+        .username      = tokens["username"].toString(),
+        .sub           = tokens["sub"].toString(),
+        .token_type    = tokens["token_type"].toString(),
+    };
     // clang-format on
 
-    setBirthday(QDateTime::currentDateTime());
+    token.setBirthday(QDateTime::currentDateTime());
+    return token;
 }
 
 void OAuthToken::setBirthday(const QDateTime &date)

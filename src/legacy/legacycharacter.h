@@ -23,7 +23,7 @@
 
 #include <optional>
 
-#include <util/json_struct_qt.h>
+#include <util/glaze_qt.h>
 
 struct LegacyCharacter
 {
@@ -35,12 +35,11 @@ struct LegacyCharacter
     unsigned int level;
     unsigned long experience;
     std::optional<bool> current;
-    JS_OBJECT(JS_MEMBER(id),
-              JS_MEMBER(name),
-              JS_MEMBER(realm),
-              JS_MEMBER_WITH_NAME(class_, "class"),
-              JS_MEMBER(league),
-              JS_MEMBER(level),
-              JS_MEMBER(experience),
-              JS_MEMBER(current));
+};
+
+template<>
+struct glz::meta<LegacyCharacter>
+{
+    using T = LegacyCharacter;
+    static constexpr auto modify = glz::object("class", &T::class_);
 };

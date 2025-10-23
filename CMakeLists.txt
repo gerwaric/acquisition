@@ -97,19 +97,14 @@ if(NOT TARGET boost-headers-only)
     FetchContent_MakeAvailable(boost-headers-only)
 endif()
 
-if(NOT TARGET json_struct)
-    # This is a headers-only library, so we use an invalid SOURCE_DIR to prevent
-    # add_subdirectory() from called and define an interface target manually.
+if(NOT TARGET glaze)
     FetchContent_Declare(
-        json_struct
-        GIT_REPOSITORY https://github.com/jorgen/json_struct.git
-        GIT_TAG        1.0.1
+        glaze
+        GIT_REPOSITORY https://github.com/stephenberry/glaze.git
+        GIT_TAG        v6.0.1
         GIT_SHALLOW    TRUE
-        SOURCE_SUBDIR  /dev/null
     )
-    FetchContent_MakeAvailable(json_struct)
-    add_library(json_struct INTERFACE)
-    target_include_directories(json_struct INTERFACE "${json_struct_SOURCE_DIR}/include")
+    FetchContent_MakeAvailable(glaze)
 endif()
 
 if(NOT TARGET rapidjson)
@@ -264,7 +259,8 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/util/checkmsvc.h
     src/util/crashpad.h
     src/util/fatalerror.h
-    src/util/json_struct_qt.h
+    src/util/glaze_qt.h
+    # src/util/json_struct_qt.h
     src/util/logging.h
     src/util/networkmanager.h
     src/util/oauthmanager.h
@@ -353,7 +349,8 @@ target_link_libraries(acquisition PRIVATE
     # Extenal libraries
     boost-headers-only
     Crashpad
-    json_struct
+    glaze::glaze
+    #json_struct
     libpoe
     qdarkstyle
     rapidjson

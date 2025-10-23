@@ -28,7 +28,8 @@
 
 #include <rapidjson/document.h>
 
-#include <util/json_struct_qt.h>
+//#include <util/json_struct_qt.h>
+#include <util/glaze_qt.h>
 #include <util/spdlog_qt.h>
 
 class QComboBox;
@@ -105,14 +106,14 @@ namespace Util {
         return QMetaEnum::fromType<T>().valueToKey(static_cast<std::underlying_type_t<T>>(value));
     }
 
-    template<typename T>
-    void parseJson(const std::string &json, T &out)
+    template <typename T>
+    void parseJson(const std::string& json, T& out)
     {
-        JS::ParseContext context(json);
-        if (context.parseTo<T>(out) != JS::Error::NoError) {
-            const QString type_name(typeid(T).name());
-            const QString error_message = QString::fromStdString(context.makeErrorString());
-            spdlog::error("Error parsing json into {}: {}", type_name, error_message);
+        // glz::read_json returns an error object; it is "truthy" if there WAS an error.
+        const auto ec = glz::read_json<T>(out, json);
+        if (ec) {
+            const auto msg = glz::format_error(ec, json);
+            spdlog::error("Error parsing json into {}: {}", typeid(T).name(), msg);
         }
     }
 

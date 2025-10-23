@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include <util/json_struct_qt.h>
+#include <QString>
 
 #include <optional>
 
@@ -31,7 +31,6 @@ namespace libpoe{
         QString                              id;             // string examples : Hardcore, NoParties(SSF)
         QString                              name;           // string
         std::optional<QString>                    description;    // ? string
-        JS_OBJ(id, name, description);
     };
 
 }

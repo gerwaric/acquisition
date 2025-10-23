@@ -11,5 +11,4 @@ set_target_properties(libpoe PROPERTIES
 
 target_link_libraries(libpoe INTERFACE
     Qt::Core
-    json_struct
 )

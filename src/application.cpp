@@ -37,6 +37,7 @@
 #include <util/fatalerror.h>
 #include <util/networkmanager.h>
 #include <util/oauthmanager.h>
+#include <util/oauthtoken.h>
 #include <util/repoe.h>
 #include <util/spdlog_qt.h>
 #include <util/updatechecker.h>
@@ -96,12 +97,7 @@ void Application::InitUserDir(const QString &dir)
     m_update_checker = std::make_unique<UpdateChecker>(settings(), network_manager());
 
     spdlog::trace("Application: creating OAuth manager");
-    m_oauth_manager = std::make_unique<OAuthManager>(network_manager());
-
-    connect(m_oauth_manager.get(),
-            &OAuthManager::grantAccess,
-            m_network_manager.get(),
-            [this](const OAuthToken &token) { m_network_manager->setBearerToken(token.access_token); });
+    m_oauth_manager = std::make_unique<OAuthManager>(network_manager(), global_data());
 
     // Start the process of fetching RePoE data.
     spdlog::trace("Application: initializing RePoE");
@@ -134,6 +130,9 @@ void Application::Start()
     connect(m_login.get(), &LoginDialog::ChangeTheme, this, &Application::SetTheme);
     connect(m_login.get(), &LoginDialog::ChangeUserDir, this, &Application::SetUserDir);
     connect(m_login.get(), &LoginDialog::LoginComplete, this, &Application::OnLogin);
+
+    // Look for an initial oauth token.
+
 
     // Start the initial check for updates.
     spdlog::trace("Application: checking for application updates");

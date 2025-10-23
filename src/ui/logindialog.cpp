@@ -172,21 +172,6 @@ LoginDialog::LoginDialog(const QDir &app_data_dir,
             this,
             &LoginDialog::OnOAuthAccessGranted);
 
-    // Look for an existing token.
-    const QString token_str = m_datastore.Get("oauth_token", "");
-    if (!token_str.isEmpty()) {
-        // Load the OAuth token if one is already present.
-        const QDateTime now = QDateTime::currentDateTime();
-        m_current_token = OAuthToken(token_str);
-        if (m_current_token->access_expiration && (now < *m_current_token->access_expiration)) {
-            spdlog::trace("Login: found a valid OAuth token");
-            m_oauth_manager.setToken(*m_current_token);
-            OnOAuthAccessGranted(*m_current_token);
-        } else if (m_current_token->refresh_expiration && (now < *m_current_token->refresh_expiration)) {
-            spdlog::info("Login: the OAuth token needs to be refreshed");
-        }
-    }
-
     // Use OnLoginTabChanged to do things like enable the login button.
     OnLoginTabChanged(ui->loginTabs->currentIndex());
 
@@ -528,7 +513,6 @@ void LoginDialog::OnOAuthAccessGranted(const OAuthToken &token)
         ui->loginButton->setEnabled(true);
     }
     m_current_token = token;
-    m_datastore.Set("oauth_token", QString::fromStdString(JS::serializeStruct(token)));
 }
 
 void LoginDialog::OnLoginTabChanged(int index)
