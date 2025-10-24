@@ -28,30 +28,32 @@
 
 namespace poe {
 
-    struct WebStashTab {
-
-        struct Colour {
+    struct WebStashTab
+    {
+        struct Colour
+        {
             unsigned r;
             unsigned g;
             unsigned b;
         };
 
-        struct Tab {
-            QString n;
-            unsigned i;
-            QString id;
-            QString type;
-            bool selected;
-            poe::WebStashTab::Colour colour;
-            QString srcL;
-            QString srcC;
-            QString srcR;
-        };
+        QString n;
+        unsigned i;
+        QString id;
+        QString type;
+        bool selected;
+        poe::WebStashTab::Colour colour;
+        QString srcL;
+        QString srcC;
+        QString srcR;
+    };
 
+    struct WebStashListWrapper
+    {
         unsigned numTabs;
-        std::vector<poe::WebStashTab::Tab> tabs;
+        std::vector<poe::WebStashTab> tabs;
         std::optional<bool> quadLayout;
         std::vector<poe::Item> items;
     };
 
-}
+} // namespace poe

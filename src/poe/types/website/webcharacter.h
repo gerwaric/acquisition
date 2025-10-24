@@ -38,11 +38,11 @@ namespace poe {
         bool pinnable;
     };
 
-    struct LegacyCharacterList {
+    struct WebCharacterList {
         std::vector<poe::WebCharacter> characters;
     };
 
-    struct LegacyCharacterStash {
+    struct WebCharacterStash {
         std::vector<poe::Item> items;
     };
 
