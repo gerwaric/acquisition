@@ -26,7 +26,6 @@
 #include <QMessageBox>
 #include <QNetworkCookieJar>
 #include <QSettings>
-#include <QtHttpServer/QHttpServer>
 
 #include <datastore/sqlitedatastore.h>
 #include <ratelimit/ratelimiter.h>
