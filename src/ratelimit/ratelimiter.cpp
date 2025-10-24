@@ -211,49 +211,6 @@ void RateLimiter::LogSetupReply(const QNetworkRequest &request, const QNetworkRe
 {
     NetworkManager::logRequest(request);
     NetworkManager::logReply(reply);
-
-    /*
-    // Log the request headers.
-    spdlog::info("RateLimiter: request url is {}", request.url().toString());
-    const auto &raw_headers = request.rawHeaderList();
-    for (const auto &name : raw_headers) {
-        const bool is_authorization = (0 == name.compare("Authorization", Qt::CaseInsensitive));
-        QByteArray value = request.rawHeader(name);
-        if (is_authorization) {
-            // Mask the OAuth bearer token so it's not written to the log.
-            value.fill('*');
-            value += " (The OAuth token has been masked for security)";
-        }
-        spdlog::info("RateLimiter: request header {} = {}", name, value);
-    }
-
-    // Log the request attributes.
-    for (const auto &pair : ATTRIBUTES) {
-        const QNetworkRequest::Attribute &code = pair.first;
-        const char *name = pair.second;
-        const QVariant value = request.attribute(code);
-        if (value.isValid()) {
-            spdlog::info("RateLimiter: request attribute {} = {}", name, value.toString());
-        }
-    }
-
-    // Log the reply headers.
-    for (const auto &header : reply->rawHeaderPairs()) {
-        const auto &name = header.first;
-        const auto &value = header.second;
-        spdlog::info("RateLimiter: reply header {} = {}", name, value);
-    }
-
-    // Log the reply attributes.
-    for (const auto &pair : ATTRIBUTES) {
-        const QNetworkRequest::Attribute &code = pair.first;
-        const char *name = pair.second;
-        const QVariant value = reply->attribute(code);
-        if (value.isValid()) {
-            spdlog::info("RateLimiter: reply attribute {} = {}", name, value.toString());
-        }
-    }
-    */
 }
 
 RateLimitManager &RateLimiter::GetManager(const QString &endpoint, const QString &policy_name)
