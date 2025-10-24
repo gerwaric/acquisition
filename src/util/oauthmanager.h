@@ -45,6 +45,7 @@ public:
 private slots:
     void onRequestFailure(const QAbstractOAuth::Error error);
     void onServerError(const QString &error, const QString &errorDescription, const QUrl &uri);
+    void onOAuthError(const QString &error, const QString &errorDescription, const QUrl &uri);
     void receiveToken(const QVariantMap &tokens);
     void receiveGrant();
 

@@ -85,7 +85,8 @@ NetworkManager::NetworkManager(QObject *parent)
 
 void NetworkManager::setBearerToken(const QString &token)
 {
-    m_bearerToken = token.isEmpty() ? "" : ("Bearer " + token.toUtf8());
+    m_bearerToken = token.isEmpty() ? QByteArrayLiteral("")
+                                    : (QByteArrayLiteral("Bearer ") + token.toUtf8());
 }
 
 QNetworkReply *NetworkManager::createRequest(QNetworkAccessManager::Operation op,

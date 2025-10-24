@@ -122,5 +122,5 @@ private:
     // of items we have to store only changes when a rate limit policy
     // changes, which should not happen regularly, but we handle that case, too.
     std::deque<RateLimit::Event> m_history;
-    unsigned m_history_size{0};
+    size_t m_history_size{0};
 };

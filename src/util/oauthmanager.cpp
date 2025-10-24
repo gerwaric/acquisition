@@ -68,7 +68,7 @@ namespace {
 }; // namespace
 
 OAuthManager::OAuthManager(NetworkManager &network_manager, DataStore &datastore, QObject *parent)
-    : QObject(nullptr)
+    : QObject(parent)
     , m_network_manager(network_manager)
     , m_data(datastore)
 {
@@ -117,11 +117,13 @@ OAuthManager::OAuthManager(NetworkManager &network_manager, DataStore &datastore
             &QAbstractOAuth2::serverReportedErrorOccurred,
             this,
             &OAuthManager::onServerError);
+    connect(m_oauth, &QAbstractOAuth2::error, this, &OAuthManager::onOAuthError);
 
     // Check for an existing token.
     const QString token_str = m_data.Get("oauth_token", "");
     if (!token_str.isEmpty()) {
         const OAuthToken token = OAuthToken::fromJson(token_str);
+        spdlog::info("OAuth: refreshing token for '{}'", token.username);
         m_oauth->setRefreshToken(token.refresh_token);
         m_oauth->refreshTokens();
     }
@@ -146,6 +148,13 @@ void OAuthManager::onServerError(const QString &error,
                   error,
                   errorDescription,
                   uri.toDisplayString());
+}
+
+void OAuthManager::onOAuthError(const QString &error,
+                                const QString &errorDescription,
+                                const QUrl &uri)
+{
+    spdlog::error("Oauth: error: '{}' ({}): {}", error, errorDescription, uri.toDisplayString());
 }
 
 void OAuthManager::receiveToken(const QVariantMap &tokens)
@@ -186,6 +195,7 @@ void OAuthManager::setToken(const OAuthToken &token)
     if (token.refresh_token.isEmpty()) {
         spdlog::error("OAuth: trying to refresh with an empty refresh token");
     } else {
+        spdlog::info("OAuth: refreshing token for '{}'", token.username);
         m_oauth->setRefreshToken(token.refresh_token);
         m_oauth->refreshTokens();
     }
@@ -193,10 +203,9 @@ void OAuthManager::setToken(const OAuthToken &token)
 
 void OAuthManager::initLogin()
 {
-    if (m_handler->listen()) {
-        spdlog::info("OAuth: access requested.");
-        m_oauth->grant();
-    } else {
-        spdlog::error("OAuth: cannot start handler.");
+    if (!m_handler->isListening()) {
+        m_handler->listen();
     }
+    spdlog::info("OAuth: starting authentication.");
+    m_oauth->grant();
 }
