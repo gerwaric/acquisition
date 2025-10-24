@@ -472,7 +472,7 @@ void Application::InitLogin(POE_API mode)
     SaveDbOnNewVersion();
 
     spdlog::trace("Application::InitLogin() creating rate limiter");
-    m_rate_limiter = std::make_unique<RateLimiter>(network_manager(), oauth_manager(), mode);
+    m_rate_limiter = std::make_unique<RateLimiter>(network_manager());
 
     spdlog::trace("Application::InitLogin() creating buyout manager");
     m_buyout_manager = std::make_unique<BuyoutManager>(data());

@@ -36,12 +36,8 @@ static_assert(ACQUISITION_USE_SPDLOG);
 
 constexpr int UPDATE_INTERVAL_MSEC = 1000;
 
-RateLimiter::RateLimiter(QNetworkAccessManager &network_manager,
-                         OAuthManager &oauth_manager,
-                         POE_API mode)
+RateLimiter::RateLimiter(QNetworkAccessManager &network_manager)
     : m_network_manager(network_manager)
-    , m_oauth_manager(oauth_manager)
-    , m_mode(mode)
 {
     spdlog::trace("RateLimiter::RateLimiter() entered");
     m_update_timer.setSingleShot(false);
@@ -292,7 +288,7 @@ RateLimitManager &RateLimiter::GetManager(const QString &endpoint, const QString
     }
 }
 
-QNetworkReply *RateLimiter::SendRequest(QNetworkRequest request)
+QNetworkReply *RateLimiter::SendRequest(const QNetworkRequest &request)
 {
     return m_network_manager.get(request);
 }

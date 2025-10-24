@@ -34,7 +34,6 @@
 #include "datastore/datastore.h"
 #include "itemsmanager.h"
 #include "datastore/memorydatastore.h"
-#include "network_info.h"
 #include "util/networkmanager.h"
 #include "util/oauthmanager.h"
 #include "ratelimit/ratelimiter.h"
@@ -75,7 +74,7 @@ int TestHelper::run(NetworkManager& network_manager, RePoE& repoe) {
 
         QSettings settings(tmp->fileName(), QSettings::IniFormat);
         OAuthManager oauth_manager(network_manager, *datastore);
-        RateLimiter rate_limiter(network_manager, oauth_manager, POE_API::LEGACY);
+        RateLimiter rate_limiter(network_manager);
         BuyoutManager buyout_manager(*datastore);
         ItemsManager items_manager(settings, network_manager, repoe, buyout_manager, *datastore, rate_limiter);
         Shop shop(settings, network_manager, rate_limiter, *datastore, items_manager, buyout_manager);
