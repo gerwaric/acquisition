@@ -24,20 +24,19 @@
 #include <QDir>
 #include <QFileDialog>
 #include <QMessageBox>
-#include <QNetworkAccessManager>
 #include <QNetworkCookieJar>
 #include <QSettings>
-#include <QtHttpServer/QHttpServer>
 
 #include <datastore/sqlitedatastore.h>
-// #include <legacy/legacybuyoutvalidator.h> DIABLED v0.12.4
 #include <ratelimit/ratelimiter.h>
 #include <ratelimit/ratelimitmanager.h>
 #include <ui/logindialog.h>
 #include <ui/mainwindow.h>
 #include <util/crashpad.h>
 #include <util/fatalerror.h>
+#include <util/networkmanager.h>
 #include <util/oauthmanager.h>
+#include <util/oauthtoken.h>
 #include <util/repoe.h>
 #include <util/spdlog_qt.h>
 #include <util/updatechecker.h>
@@ -51,17 +50,55 @@
 #include "testmain.h"
 #include "version_defines.h"
 
-Application::Application(const QDir &appDataDir)
+Application::Application()
 {
     spdlog::debug("Application: created");
 
-    spdlog::trace("Application: creating QNetworkAccessManager");
-    m_network_manager = std::make_unique<QNetworkAccessManager>();
+    spdlog::trace("Application: creating NetworkManager");
+    m_network_manager = std::make_unique<NetworkManager>();
 
     spdlog::trace("Application: creating RePoE");
     m_repoe = std::make_unique<RePoE>(network_manager());
+}
 
+Application::~Application()
+{
+    spdlog::info("Shutting down.");
+    spdlog::shutdown();
+}
+
+void Application::Start(const QDir &appDataDir)
+{
+    spdlog::debug("Application: starting");
     InitUserDir(appDataDir.absolutePath());
+
+    spdlog::trace("Application: creating login dialog");
+    m_login = std::make_unique<LoginDialog>(m_data_dir,
+                                            settings(),
+                                            network_manager(),
+                                            oauth_manager(),
+                                            global_data());
+
+    // Connect to the update signal in case an update is detected before the main window is open.
+    connect(m_update_checker.get(),
+            &UpdateChecker::UpdateAvailable,
+            m_update_checker.get(),
+            &UpdateChecker::AskUserToUpdate);
+
+    // Connect signals from the login dialog.
+    connect(m_login.get(), &LoginDialog::ChangeTheme, this, &Application::SetTheme);
+    connect(m_login.get(), &LoginDialog::ChangeUserDir, this, &Application::SetUserDir);
+    connect(m_login.get(), &LoginDialog::LoginComplete, this, &Application::OnLogin);
+
+    // Look for an initial oauth token.
+
+    // Start the initial check for updates.
+    spdlog::trace("Application: checking for application updates");
+    m_update_checker->CheckForUpdates();
+
+    // Show the login dialog now.
+    spdlog::trace("Application: showing the login dialog");
+    m_login->show();
 }
 
 void Application::InitUserDir(const QString &dir)
@@ -102,41 +139,6 @@ void Application::InitUserDir(const QString &dir)
     // Start the process of fetching RePoE data.
     spdlog::trace("Application: initializing RePoE");
     m_repoe->Init(dir);
-}
-
-Application::~Application()
-{
-    spdlog::shutdown();
-}
-
-void Application::Start()
-{
-    spdlog::debug("Application: starting");
-
-    spdlog::trace("Application: creating login dialog");
-    m_login = std::make_unique<LoginDialog>(m_data_dir,
-                                            settings(),
-                                            network_manager(),
-                                            oauth_manager());
-
-    // Connect to the update signal in case an update is detected before the main window is open.
-    connect(m_update_checker.get(),
-            &UpdateChecker::UpdateAvailable,
-            m_update_checker.get(),
-            &UpdateChecker::AskUserToUpdate);
-
-    // Connect signals from the login dialog.
-    connect(m_login.get(), &LoginDialog::ChangeTheme, this, &Application::SetTheme);
-    connect(m_login.get(), &LoginDialog::ChangeUserDir, this, &Application::SetUserDir);
-    connect(m_login.get(), &LoginDialog::LoginComplete, this, &Application::OnLogin);
-
-    // Start the initial check for updates.
-    spdlog::trace("Application: checking for application updates");
-    m_update_checker->CheckForUpdates();
-
-    // Show the login dialog now.
-    spdlog::trace("Application: showing the login dialog");
-    m_login->show();
 }
 
 void Application::Stop()
@@ -208,8 +210,24 @@ void Application::OnLogin(POE_API api)
     spdlog::trace("Application::OnLogin() closing the login dialog");
     m_login->close();
 
-    spdlog::trace("Application::OnLogin() showing the main window");
-    m_main_window->show();
+    switch (api) {
+    case POE_API::OAUTH:
+        spdlog::trace("Application::OnLogin() showing the main window");
+        m_main_window->show();
+        break;
+    case POE_API::LEGACY: {
+        auto *box = new QMessageBox(QMessageBox::Warning,
+                                    "POESESSION is going away.",
+                                    "In a future release, only OAuth login will "
+                                    "supported.\n\nPOESESSID will still be used for "
+                                    "forum shop management, but OAuth will be required for initial authentication.",
+                                    QMessageBox::Ok);
+        box->setDefaultButton(QMessageBox::Ok);
+        box->setAttribute(Qt::WA_DeleteOnClose);
+        QObject::connect(box, &QDialog::finished, box, [this]() { m_main_window->show(); });
+        box->open();
+    }
+    }
 }
 
 QSettings &Application::settings() const
@@ -252,7 +270,7 @@ BuyoutManager &Application::buyout_manager() const
     return *m_buyout_manager;
 }
 
-QNetworkAccessManager &Application::network_manager() const
+NetworkManager &Application::network_manager() const
 {
     if (!m_network_manager) {
         FatalError("Application::network_manager() attempted to dereference a null pointer");
@@ -412,8 +430,7 @@ void Application::SetTheme(const QString &theme)
 void Application::SetUserDir(const QString &dir)
 {
     Stop();
-    InitUserDir(dir);
-    Start();
+    Start(dir);
 }
 
 void Application::InitLogin(POE_API mode)
@@ -455,7 +472,7 @@ void Application::InitLogin(POE_API mode)
     SaveDbOnNewVersion();
 
     spdlog::trace("Application::InitLogin() creating rate limiter");
-    m_rate_limiter = std::make_unique<RateLimiter>(network_manager(), oauth_manager(), mode);
+    m_rate_limiter = std::make_unique<RateLimiter>(network_manager());
 
     spdlog::trace("Application::InitLogin() creating buyout manager");
     m_buyout_manager = std::make_unique<BuyoutManager>(data());

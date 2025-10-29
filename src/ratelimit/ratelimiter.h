@@ -19,16 +19,14 @@
 
 #pragma once
 
-#include <QNetworkRequest>
-#include <QObject>
-#include <QString>
-#include <QTimer>
-
 #include <list>
 #include <map>
 #include <memory>
 
-#include "network_info.h"
+#include <QNetworkRequest>
+#include <QObject>
+#include <QString>
+#include <QTimer>
 
 class QNetworkAccessManager;
 class QNetworkReply;
@@ -44,7 +42,7 @@ class RateLimiter : public QObject
 
 public:
     // Create a rate limiter.
-    RateLimiter(QNetworkAccessManager &network_manager, OAuthManager &oauth_manager, POE_API mode);
+    RateLimiter(QNetworkAccessManager &network_manager);
 
     ~RateLimiter();
 
@@ -104,15 +102,10 @@ private:
     // This function is passed to individual managers via a bound
     // function so they can send network requests without having
     // to know anything about OAuth.
-    QNetworkReply *SendRequest(QNetworkRequest network_request);
+    QNetworkReply *SendRequest(const QNetworkRequest &network_request);
 
     // Reference to the Application's network access manager.
     QNetworkAccessManager &m_network_manager;
-
-    // Reference to the Application's OAuth manager.
-    OAuthManager &m_oauth_manager;
-
-    POE_API m_mode;
 
     QTimer m_update_timer;
 

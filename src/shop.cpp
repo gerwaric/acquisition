@@ -30,8 +30,7 @@
 #include <QUrl>
 #include <QUrlQuery>
 
-#include <rapidjson/document.h>
-
+#include "poe/types/website/webstashtab.h"
 #include <datastore/datastore.h>
 #include <ratelimit/ratelimitedreply.h>
 #include <ratelimit/ratelimiter.h>
@@ -43,7 +42,6 @@
 #include "buyoutmanager.h"
 #include "item.h"
 #include "itemsmanager.h"
-#include "network_info.h"
 #include "replytimeout.h"
 
 namespace {
@@ -241,26 +239,14 @@ void Shop::OnStashIndexReceived(bool force, QNetworkReply *reply)
         spdlog::debug("Shop: http reply status {} indexing stashes", status);
     }
 
-    // Parse the stash tab list.
-    spdlog::debug("Shop: stash tab list received");
-    rapidjson::Document doc;
-    QByteArray bytes = reply->readAll();
-    doc.Parse(bytes.constData());
+    const QByteArray bytes = reply->readAll();
+    const std::string_view sv{bytes.constData(), static_cast<size_t>(bytes.size())};
 
-    // Check the stash tab list for errors.
-    if (!doc.IsObject()) {
-        spdlog::error("Shop: can't even fetch first legacy tab. Failed to update items.");
-        m_submitting = false;
-        return;
-    }
-    if (doc.HasMember("error")) {
-        spdlog::error("Shop: aborting legacy update since first fetch failed due to 'error': {}",
-                      Util::RapidjsonSerialize(doc["error"]));
-        m_submitting = false;
-        return;
-    }
-    if (!HasArray(doc, "tabs") || doc["tabs"].Size() == 0) {
-        spdlog::error("Shop: there are no legacy tabs, this should not happen, bailing out.");
+    // Parse the stash tab list.
+    poe::WebStashListWrapper tabs_wrapper;
+    auto ec = glz::read<GLAZE_OPTIONS>(tabs_wrapper, sv);
+    if (ec) {
+        spdlog::error("Shop: error parsing stash list: {}", glz::format_error(ec, sv));
         m_submitting = false;
         return;
     }
@@ -269,11 +255,11 @@ void Shop::OnStashIndexReceived(bool force, QNetworkReply *reply)
 
     // Rebuild the tab index.
     m_tab_index.clear();
-    const auto &tabs = doc["tabs"];
-    spdlog::debug("Shop: received legacy tabs list, there are {} tabs", tabs.Size());
+    const auto &tabs = tabs_wrapper.tabs;
+    spdlog::debug("Shop: received legacy tabs list, there are {} tabs", tabs.size());
     for (const auto &tab : tabs) {
-        const unsigned index = static_cast<unsigned>(tab["i"].GetInt());
-        const QString uid = QString::fromStdString(tab["id"].GetString()).first(10);
+        const unsigned index = tab.i;
+        const QString uid = tab.id.first(10);
         m_tab_index[uid] = index;
         if ((old_index.count(uid) == 0) || (old_index.at(uid) != index)) {
             m_shop_data_outdated = true;
@@ -430,7 +416,6 @@ void Shop::SubmitSingleShop()
 
         // first, get to the edit-thread page to grab CSRF token
         QNetworkRequest request = QNetworkRequest(QUrl(ShopEditUrl(m_requests_completed)));
-        request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
         request.setRawHeader("Cache-Control", "max-age=0");
         request.setTransferTimeout(kEditThreadTimeout);
         QNetworkReply *fetched = m_network_manager.get(request);
@@ -538,7 +523,6 @@ void Shop::SubmitNextShop(const QString &title, const QString &hash)
     QByteArray data(query.query().toUtf8());
     QNetworkRequest request((QUrl(ShopEditUrl(m_requests_completed))));
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
-    request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
     request.setRawHeader("Cache-Control", "max-age=0");
     request.setTransferTimeout(kEditThreadTimeout);
 

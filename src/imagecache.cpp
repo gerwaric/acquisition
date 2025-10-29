@@ -31,8 +31,6 @@
 #include <util/spdlog_qt.h>
 #include <util/util.h>
 
-#include "network_info.h"
-
 ImageCache::ImageCache(QNetworkAccessManager &network_manager, const QString &directory)
     : m_network_manager(network_manager)
     , m_directory(directory)
@@ -57,7 +55,6 @@ void ImageCache::fetch(const QString &url)
     } else {
         spdlog::debug("ImageCache: fetching {}", url);
         QNetworkRequest request = QNetworkRequest(QUrl(url));
-        request.setHeader(QNetworkRequest::KnownHeaders::UserAgentHeader, USER_AGENT);
         QNetworkReply *reply = m_network_manager.get(request);
         connect(reply, &QNetworkReply::finished, this, &ImageCache::onFetched);
     }

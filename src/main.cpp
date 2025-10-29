@@ -24,6 +24,7 @@
 #include <QLocale>
 #include <QSettings>
 #include <QStandardPaths>
+#include <QTimer>
 
 #include <clocale>
 
@@ -163,7 +164,7 @@ int main(int argc, char *argv[])
     spdlog::info("Running application...");
 
     // Construct an instance of Application.
-    Application app(appDataDir);
+    Application app;
 
     // Trigger an optional crash.
     if (parser.isSet(option_crash)) {
@@ -181,8 +182,7 @@ int main(int argc, char *argv[])
     }
 
     // Starting the application creates and shows the login dialog.
-    spdlog::trace("main(): starting the application");
-    app.Start();
+    QTimer::singleShot(0, &app, [&] { app.Start(appDataDir); });
 
     // Start the main event loop.
     spdlog::trace("main(): starting the event loop");

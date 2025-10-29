@@ -25,8 +25,6 @@
 #include <QObject>
 #include <QString>
 
-#include <boost/circular_buffer.hpp>
-
 class QNetworkReply;
 
 //--------------------------------------------------------------------------

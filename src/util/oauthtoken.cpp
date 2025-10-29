@@ -28,21 +28,47 @@
 // https://www.pathofexile.com/developer/docs/authorization#clients-public
 constexpr long int REFRESH_LIFETIME_DAYS = 7;
 
-OAuthToken::OAuthToken(const QString &json)
+OAuthToken OAuthToken::fromJson(const QString &json)
 {
-    Util::parseJson<OAuthToken>(json, *this);
+    return Util::parseJson<OAuthToken>(json);
 }
 
-OAuthToken::OAuthToken(QNetworkReply *reply)
+OAuthToken OAuthToken::fromReply(QNetworkReply *reply)
 {
     const QByteArray bytes = reply->readAll();
     reply->deleteLater();
 
-    Util::parseJson<OAuthToken>(bytes, *this);
+    OAuthToken token = Util::parseJson<OAuthToken>(bytes);
 
-    // Determine birthday and expiration time.
+    // Set birthday and expiration times.
     const QString timestamp = Util::FixTimezone(reply->rawHeader("Date"));
-    birthday = QDateTime::fromString(timestamp, Qt::RFC2822Date).toLocalTime();
-    access_expiration = birthday->addSecs(expires_in);
-    refresh_expiration = birthday->addDays(REFRESH_LIFETIME_DAYS);
+    token.setBirthday(QDateTime::fromString(timestamp, Qt::RFC2822Date));
+    return token;
+}
+
+OAuthToken OAuthToken::fromTokens(const QVariantMap &tokens)
+{
+    // clang-format off
+    OAuthToken token{
+        .access_token  = tokens["access_token"].toString(),
+        .expires_in    = tokens["expires_in"].toLongLong(),
+        .refresh_token = tokens["refresh_token"].toString(),
+        .scope         = tokens["scope"].toString(),
+        .username      = tokens["username"].toString(),
+        .sub           = tokens["sub"].toString(),
+        .token_type    = tokens["token_type"].toString(),
+    };
+    // clang-format on
+
+    token.setBirthday(QDateTime::currentDateTime());
+    return token;
+}
+
+void OAuthToken::setBirthday(const QDateTime &date)
+{
+    // clang-format off
+    this->birthday           = date.toLocalTime();
+    this->access_expiration  = this->birthday->addSecs(this->expires_in);
+    this->refresh_expiration = this->birthday->addDays(REFRESH_LIFETIME_DAYS);
+    // clang-format on
 }

@@ -28,17 +28,13 @@
 #include <QtDebug>
 #include <QtLogging>
 
-#include <clocale>
-#include <memory>
-#include <vector>
-
 #include <util/spdlog_qt.h>
 
 #include "application.h"
 #include "datastore/datastore.h"
 #include "itemsmanager.h"
 #include "datastore/memorydatastore.h"
-#include "network_info.h"
+#include "util/networkmanager.h"
 #include "util/oauthmanager.h"
 #include "ratelimit/ratelimiter.h"
 #include "util/repoe.h"
@@ -50,7 +46,7 @@
 
 int test_main(const QString& data_dir) {
 
-    QNetworkAccessManager network_manager;
+    NetworkManager network_manager;
     TestHelper helper;
     RePoE repoe(network_manager);
 
@@ -61,48 +57,55 @@ int test_main(const QString& data_dir) {
     return loop.exec();
 }
 
-int TestHelper::run(QNetworkAccessManager& network_manager, RePoE& repoe) {
+int TestHelper::run(NetworkManager& network_manager, RePoE& repoe) {
+
+    int overall_result = 0;
 
     // Create a temporary settings file.
     auto tmp = std::make_unique<QTemporaryFile>();
-    tmp->open();
+    if (tmp->open() == false) {
 
-    std::unique_ptr<DataStore> datastore = std::make_unique<MemoryDataStore>();
+        spdlog::error("TestMain: unable to open temporary file");
+        overall_result = -1;
 
-    QSettings settings(tmp->fileName(), QSettings::IniFormat);
-    OAuthManager oauth_manager(network_manager, *datastore);
-    RateLimiter rate_limiter(network_manager, oauth_manager, POE_API::LEGACY);
-    BuyoutManager buyout_manager(*datastore);
-    ItemsManager items_manager(settings, network_manager, repoe, buyout_manager, *datastore, rate_limiter);
-    Shop shop(settings, network_manager, rate_limiter, *datastore, items_manager, buyout_manager);
+    } else {
 
-    const QString verbosity = "-v2";
+        std::unique_ptr<DataStore> datastore = std::make_unique<MemoryDataStore>();
 
-	int overall_result = 0;
-    {
-		TestItem item_test;
-		const int result = QTest::qExec(&item_test, { verbosity, "-o", "acquisition-test-items.log" });
-        spdlog::info("TestItem result is {}", result);
-		overall_result |= result;
-	};
-    {
-		TestShop shop_test(items_manager, buyout_manager, shop);
-		const int result = QTest::qExec(&shop_test, { verbosity, "-o", "acquisition-test-shop.log" });
-        spdlog::info("TestShop result is {}", result);
-		overall_result |= result;
-	};
-    {
-		TestUtil util_test;
-		const int result = QTest::qExec(&util_test, { verbosity, "-o", "acquisition-test-utils.log" });
-        spdlog::info("TestUtil result is {}", result);
-		overall_result |= result;
-	};
-    {
-		TestItemsManager items_manager_test(*datastore, items_manager, buyout_manager);
-		const int result = QTest::qExec(&items_manager_test, { verbosity, "-o", "acquisition-test-item-manager.log" });
-        spdlog::info("TestItemsManager result is {}", result);
-		overall_result |= result;
-	};
+        QSettings settings(tmp->fileName(), QSettings::IniFormat);
+        OAuthManager oauth_manager(network_manager, *datastore);
+        RateLimiter rate_limiter(network_manager);
+        BuyoutManager buyout_manager(*datastore);
+        ItemsManager items_manager(settings, network_manager, repoe, buyout_manager, *datastore, rate_limiter);
+        Shop shop(settings, network_manager, rate_limiter, *datastore, items_manager, buyout_manager);
+
+        const QString verbosity = "-v2";
+
+        {
+            TestItem item_test;
+            const int result = QTest::qExec(&item_test, { verbosity, "-o", "acquisition-test-items.log" });
+            spdlog::info("TestItem result is {}", result);
+            overall_result |= result;
+        };
+        {
+            TestShop shop_test(items_manager, buyout_manager, shop);
+            const int result = QTest::qExec(&shop_test, { verbosity, "-o", "acquisition-test-shop.log" });
+            spdlog::info("TestShop result is {}", result);
+            overall_result |= result;
+        };
+        {
+            TestUtil util_test;
+            const int result = QTest::qExec(&util_test, { verbosity, "-o", "acquisition-test-utils.log" });
+            spdlog::info("TestUtil result is {}", result);
+            overall_result |= result;
+        };
+        {
+            TestItemsManager items_manager_test(*datastore, items_manager, buyout_manager);
+            const int result = QTest::qExec(&items_manager_test, { verbosity, "-o", "acquisition-test-item-manager.log" });
+            spdlog::info("TestItemsManager result is {}", result);
+            overall_result |= result;
+        };
+    }
 	int status = (overall_result == 0) ? 0 : -1;
     emit finished(status);
     return status;

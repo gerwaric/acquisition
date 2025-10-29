@@ -29,7 +29,7 @@ cmake_minimum_required(VERSION 3.30)
 # version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
-    VERSION 0.13.9
+    VERSION 0.14.0
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
@@ -85,31 +85,16 @@ endif()
 
 include(FetchContent)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui HttpServer Network Sql Test WebSockets Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Test Widgets)
 
-if(NOT TARGET boost-headers-only)
+if(NOT TARGET glaze)
     FetchContent_Declare(
-        boost-headers-only
-        GIT_REPOSITORY https://github.com/gerwaric/boost-headers-only.git
-        GIT_TAG        boost-1.88.0
+        glaze
+        GIT_REPOSITORY https://github.com/stephenberry/glaze.git
+        GIT_TAG        v6.0.1
         GIT_SHALLOW    TRUE
     )
-    FetchContent_MakeAvailable(boost-headers-only)
-endif()
-
-if(NOT TARGET json_struct)
-    # This is a headers-only library, so we use an invalid SOURCE_DIR to prevent
-    # add_subdirectory() from called and define an interface target manually.
-    FetchContent_Declare(
-        json_struct
-        GIT_REPOSITORY https://github.com/jorgen/json_struct.git
-        GIT_TAG        1.0.1
-        GIT_SHALLOW    TRUE
-        SOURCE_SUBDIR  /dev/null
-    )
-    FetchContent_MakeAvailable(json_struct)
-    add_library(json_struct INTERFACE)
-    target_include_directories(json_struct INTERFACE "${json_struct_SOURCE_DIR}/include")
+    FetchContent_MakeAvailable(glaze)
 endif()
 
 if(NOT TARGET rapidjson)
@@ -146,13 +131,13 @@ if(NOT TARGET spdlog)
     FetchContent_Declare(
         spdlog
         GIT_REPOSITORY https://github.com/gabime/spdlog.git
-        GIT_TAG        v1.15.3
+        GIT_TAG        v1.16.0
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(spdlog)
 endif()
 
-qt_standard_project_setup(REQUIRES 6.9.1)
+qt_standard_project_setup(REQUIRES 6.10.0)
 
 qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     # Source
@@ -244,6 +229,43 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/modlist.h
     src/modsfilter.h
     src/network_info.h
+    src/poe/endpoints/accountcharacter.h
+    src/poe/endpoints/accountcharacters.h
+    src/poe/endpoints/accountleagues.h
+    src/poe/endpoints/accountprofile.h
+    src/poe/endpoints/accountstash.h
+    src/poe/endpoints/accountstashes.h
+    src/poe/endpoints/website/webcharacteritems.h
+    src/poe/endpoints/website/webcharacters.h
+    src/poe/endpoints/website/webleagues.h
+    src/poe/endpoints/website/webstashitems.h
+    src/poe/types/account.h
+    src/poe/types/character.h
+    src/poe/types/cruciblenode.h
+    src/poe/types/displaymode.h
+    src/poe/types/eventladderentry.h
+    src/poe/types/frametype.h
+    src/poe/types/gempage.h
+    src/poe/types/gemtab.h
+    src/poe/types/guild.h
+    src/poe/types/item.h
+    src/poe/types/itemfilter.h
+    src/poe/types/itemjeweldata.h
+    src/poe/types/itemproperty.h
+    src/poe/types/itemsocket.h
+    src/poe/types/ladderentry.h
+    src/poe/types/league.h
+    src/poe/types/leagueaccount.h
+    src/poe/types/leaguerule.h
+    src/poe/types/passivegroup.h
+    src/poe/types/passivenode.h
+    src/poe/types/publicstashchange.h
+    src/poe/types/pvpladderteamentry.h
+    src/poe/types/pvpladderteammember.h
+    src/poe/types/pvpmatch.h
+    src/poe/types/stashtab.h
+    src/poe/types/website/webcharacter.h
+    src/poe/types/website/webstashtab.h
     src/ratelimit/ratelimit.h
     src/ratelimit/ratelimitdialog.h
     src/ratelimit/ratelimitedreply.h
@@ -264,7 +286,8 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/util/checkmsvc.h
     src/util/crashpad.h
     src/util/fatalerror.h
-    src/util/json_struct_qt.h
+    src/util/glaze_qt.h
+    # src/util/json_struct_qt.h
     src/util/logging.h
     src/util/networkmanager.h
     src/util/oauthmanager.h
@@ -337,7 +360,6 @@ target_include_directories(acquisition PRIVATE
 )
 
 add_subdirectory(deps/Crashpad)
-add_subdirectory(deps/libpoe)
 add_subdirectory(deps/qdarkstyle)
 
 # Link required libraries.
@@ -345,17 +367,14 @@ target_link_libraries(acquisition PRIVATE
     # Qt libraries
     Qt::Core
     Qt::Gui
-    Qt::HttpServer
     Qt::Network
+    Qt::NetworkAuth
     Qt::Widgets
     Qt::Sql
     Qt::Test
-    Qt::WebSockets
     # Extenal libraries
-    boost-headers-only
     Crashpad
-    json_struct
-    libpoe
+    glaze::glaze
     qdarkstyle
     rapidjson
     semver

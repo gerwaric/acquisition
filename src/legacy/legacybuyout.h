@@ -21,8 +21,6 @@
 
 #include <QString>
 
-#include <util/json_struct_qt.h>
-
 struct LegacyBuyout
 {
     double value;
@@ -31,5 +29,4 @@ struct LegacyBuyout
     QString currency;
     QString source;
     bool inherited;
-    JS_OBJ(value, last_update, type, currency, source, inherited);
 };

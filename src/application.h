@@ -26,7 +26,6 @@
 #include <QObject>
 #include <QString>
 
-class QNetworkAccessManager;
 class QNetworkReply;
 class QSettings;
 
@@ -37,7 +36,9 @@ class ImageCache;
 class ItemsManager;
 class LoginDialog;
 class MainWindow;
+class NetworkManager;
 class OAuthManager;
+struct OAuthToken;
 class RateLimiter;
 class RePoE;
 class Shop;
@@ -49,18 +50,19 @@ class Application : public QObject
 {
     Q_OBJECT
 public:
-    explicit Application(const QDir &appDataDir);
+    explicit Application();
     ~Application();
     Application(const Application &) = delete;
     Application &operator=(const Application &) = delete;
-    void Start();
     void InitLogin(POE_API api);
+
+private:
     QSettings &settings() const;
     ItemsManager &items_manager() const;
     DataStore &global_data() const;
     DataStore &data() const;
     BuyoutManager &buyout_manager() const;
-    QNetworkAccessManager &network_manager() const;
+    NetworkManager &network_manager() const;
     RePoE &repoe() const;
     Shop &shop() const;
     ImageCache &image_cache() const;
@@ -68,7 +70,9 @@ public:
     UpdateChecker &update_checker() const;
     OAuthManager &oauth_manager() const;
     RateLimiter &rate_limiter() const;
+
 public slots:
+    void Start(const QDir &appDataDir);
     void SetSessionId(const QString &poesessid);
     void SetTheme(const QString &theme);
     void SetUserDir(const QString &dir);
@@ -82,8 +86,9 @@ private:
     void InitCrashReporting();
     void SaveDbOnNewVersion();
 
-    std::unique_ptr<QNetworkAccessManager> m_network_manager;
     std::unique_ptr<QSettings> m_settings;
+
+    std::unique_ptr<NetworkManager> m_network_manager;
 
     std::unique_ptr<RePoE> m_repoe;
     std::unique_ptr<DataStore> m_global_data;
