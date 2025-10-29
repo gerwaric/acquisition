@@ -245,6 +245,8 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/poe/types/displaymode.h
     src/poe/types/eventladderentry.h
     src/poe/types/frametype.h
+    src/poe/types/gempage.h
+    src/poe/types/gemtab.h
     src/poe/types/guild.h
     src/poe/types/item.h
     src/poe/types/itemfilter.h

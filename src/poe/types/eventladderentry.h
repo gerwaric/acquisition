@@ -19,25 +19,26 @@
 
 #pragma once
 
-#include <QString>
-
 #include <optional>
+
+#include <QString>
 
 namespace poe {
 
     // https://www.pathofexile.com/developer/docs/reference#type-EventLadderEntry
 
-    struct EventLadderEntry {
-
-        struct PrivateLeague {
+    struct EventLadderEntry
+    {
+        struct PrivateLeague
+        {
             QString name; // string
-            QString url; // string a url link to a Path of Exile Private League
+            QString url;  // string a url link to a Path of Exile Private League
         };
 
-        unsigned rank; // uint
+        unsigned rank;                  // uint
         std::optional<bool> ineligible; // ? bool
         std::optional<unsigned> time; // ? uint time taken to complete the league objective in seconds
         poe::EventLadderEntry::PrivateLeague private_league; // object
     };
 
-}
+} // namespace poe

@@ -24,36 +24,18 @@
 
 #include <QString>
 
-#include "poe/types/item.h"
+#include "poe/types/itemproperty.h"
 
 namespace poe {
 
-    struct WebStashTab
-    {
-        struct Colour
-        {
-            unsigned r;
-            unsigned g;
-            unsigned b;
-        };
+    // https://www.pathofexile.com/developer/docs/reference#type-GemPage
 
-        QString n;
-        unsigned i;
-        QString id;
-        QString type;
-        bool selected;
-        poe::WebStashTab::Colour colour;
-        QString srcL;
-        QString srcC;
-        QString srcR;
-    };
-
-    struct WebStashListWrapper
+    struct GemPage
     {
-        unsigned numTabs;
-        std::vector<poe::WebStashTab> tabs;
-        std::optional<bool> quadLayout;
-        std::vector<poe::Item> items;
+        std::optional<QString> skillName;                         // ?string
+        std::optional<QString> description;                       // ?string
+        std::optional<std::vector<poe::ItemProperty>> properties; // ?array of ItemProperty
+        std::optional<std::vector<QString>> stats;                // ?string
     };
 
 } // namespace poe

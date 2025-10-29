@@ -24,36 +24,16 @@
 
 #include <QString>
 
-#include "poe/types/item.h"
+#include "poe/types/gempage.h"
 
 namespace poe {
 
-    struct WebStashTab
-    {
-        struct Colour
-        {
-            unsigned r;
-            unsigned g;
-            unsigned b;
-        };
+    // https://www.pathofexile.com/developer/docs/reference#type-GemTab
 
-        QString n;
-        unsigned i;
-        QString id;
-        QString type;
-        bool selected;
-        poe::WebStashTab::Colour colour;
-        QString srcL;
-        QString srcC;
-        QString srcR;
-    };
-
-    struct WebStashListWrapper
+    struct GemTab
     {
-        unsigned numTabs;
-        std::vector<poe::WebStashTab> tabs;
-        std::optional<bool> quadLayout;
-        std::vector<poe::Item> items;
+        std::optional<QString> name;     // ?string
+        std::vector<poe::GemPage> pages; // array of GemPage
     };
 
 } // namespace poe

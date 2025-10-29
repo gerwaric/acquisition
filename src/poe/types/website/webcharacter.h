@@ -19,13 +19,13 @@
 
 #pragma once
 
-#include "util/glaze_qt.h"
-
-#include <poe/types/item.h>
+#include <vector>
 
 #include <QString>
 
-#include <vector>
+#include <glaze/glaze.hpp>
+
+#include "poe/types/item.h"
 
 namespace poe {
 

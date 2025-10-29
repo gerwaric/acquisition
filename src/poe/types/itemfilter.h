@@ -19,9 +19,11 @@
 
 #pragma once
 
-#include "util/glaze_qt.h"
-
 #include <optional>
+
+#include <QString>
+
+#include <glaze/glaze.hpp>
 
 namespace poe {
 

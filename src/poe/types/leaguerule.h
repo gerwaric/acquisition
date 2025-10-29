@@ -19,9 +19,9 @@
 
 #pragma once
 
-#include <QString>
-
 #include <optional>
+
+#include <QString>
 
 namespace poe {
 

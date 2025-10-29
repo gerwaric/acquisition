@@ -19,35 +19,36 @@
 
 #pragma once
 
-#include "util/glaze_qt.h"
-
-#include <poe/types/account.h>
+#include <optional>
 
 #include <QString>
 
-#include <optional>
+#include <glaze/glaze.hpp>
+
+#include "poe/types/account.h"
 
 namespace poe {
 
     // https://www.pathofexile.com/developer/docs/reference#type-PvPLadderTeamMember
 
-    struct PvPLadderTeamMember {
-
-        struct Character {
-            QString id; // string a unique 64 digit hexadecimal string
-            QString name; // string
-            unsigned level; // uint
-            QString class_; // string
+    struct PvPLadderTeamMember
+    {
+        struct Character
+        {
+            QString id;                    // string a unique 64 digit hexadecimal string
+            QString name;                  // string
+            unsigned level;                // uint
+            QString class_;                // string
             std::optional<QString> league; // ? string
             std::optional<unsigned> score; // ? uint count of league objective completions
         };
 
-        poe::Account account; // Account
+        poe::Account account;                          // Account
         poe::PvPLadderTeamMember::Character character; // object
-        std::optional<bool> public_; // ? bool always true if present
+        std::optional<bool> public_;                   // ? bool always true if present
     };
 
-}
+} // namespace poe
 
 template<>
 struct glz::meta<poe::PvPLadderTeamMember::Character>

@@ -24,6 +24,7 @@
 #include "util/glaze_qt.h"
 #include "util/spdlog_qt.h"
 
+static_assert(ACQUISITION_USE_GLAZE);
 static_assert(ACQUISITION_USE_SPDLOG); // Prevents an unused header warning in Qt Creator.
 
 #include <QAbstractOAuth>
@@ -117,6 +118,8 @@ OAuthManager::OAuthManager(NetworkManager &network_manager, DataStore &datastore
             &QAbstractOAuth2::serverReportedErrorOccurred,
             this,
             &OAuthManager::onServerError);
+    // The use of QAbstractOAuth2::error is deprecated as of 6.10, but there were some errors
+    // during testing that seemed not to be caught by the other signals.
     connect(m_oauth, &QAbstractOAuth2::error, this, &OAuthManager::onOAuthError);
 
     // Check for an existing token.

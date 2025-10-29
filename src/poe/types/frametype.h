@@ -35,7 +35,9 @@ namespace poe {
         Prophecy = 8,
         Foil = 9,
         SupporterFoil = 10,
-        Necropolis = 11
+        Necropolis = 11,
+        Gold = 12,
+        BreachSkill = 13
     };
 
-}
+} // namespace poe

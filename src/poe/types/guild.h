@@ -25,10 +25,11 @@ namespace poe {
 
     // https://www.pathofexile.com/developer/docs/reference#type-Guild
 
-    struct Guild {
-        unsigned id; // uint
+    struct Guild
+    {
+        unsigned id;  // uint
         QString name; // string
-        QString tag; // string
+        QString tag;  // string
     };
 
-}
+} // namespace poe
