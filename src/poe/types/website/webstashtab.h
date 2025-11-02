@@ -50,10 +50,24 @@ namespace poe {
 
     struct WebStashListWrapper
     {
-        unsigned numTabs;
-        std::vector<poe::WebStashTab> tabs;
-        std::optional<bool> quadLayout;
+        std::optional<glz::raw_json> blightLayout;
+        std::optional<glz::raw_json> currencyLayout;
+        std::optional<glz::raw_json> deliriumLayout;
+        std::optional<glz::raw_json> delveLayout;
+        std::optional<glz::raw_json> divinationLayout;
+        std::optional<glz::raw_json> essenceLayout;
+        std::optional<glz::raw_json> flaskLayout;
+        std::optional<glz::raw_json> fragmentLayout;
+        std::optional<glz::raw_json> gemLayout;
+        std::optional<glz::raw_json> mapLayout;
+        std::optional<glz::raw_json> ultimatumLayout;
+        std::optional<glz::raw_json> uniqueLayout;
+
         std::vector<poe::Item> items;
+        unsigned numTabs;
+
+        std::optional<std::vector<poe::WebStashTab>> tabs;
+        std::optional<bool> quadLayout;
     };
 
 } // namespace poe
