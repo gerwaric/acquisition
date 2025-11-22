@@ -255,7 +255,12 @@ void Shop::OnStashIndexReceived(bool force, QNetworkReply *reply)
 
     // Rebuild the tab index.
     m_tab_index.clear();
-    const auto &tabs = tabs_wrapper.tabs;
+    if (!tabs_wrapper.tabs) {
+        spdlog::error("Shop: stash list result does not contains tabs list.");
+        m_submitting = false;
+        return;
+    }
+    const auto &tabs = tabs_wrapper.tabs.value();
     spdlog::debug("Shop: received legacy tabs list, there are {} tabs", tabs.size());
     for (const auto &tab : tabs) {
         const unsigned index = tab.i;
