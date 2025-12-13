@@ -37,6 +37,7 @@ class QSettings;
 class BuyoutManager;
 class DataStore;
 class ItemsManagerWorker;
+class NetworkManager;
 class RePoE;
 class Shop;
 
@@ -50,7 +51,7 @@ class ItemsManager : public QObject
     Q_OBJECT
 public:
     explicit ItemsManager(QSettings &settings,
-                          QNetworkAccessManager &network_manager,
+                          NetworkManager &network_manager,
                           RePoE &repoe,
                           BuyoutManager &buyout_manager,
                           DataStore &datastore,
@@ -60,8 +61,7 @@ public:
     bool isUpdating() const { return m_worker ? m_worker->isUpdating() : false; }
     // Creates and starts the worker
     void Start(POE_API mode);
-    void Update(TabSelection type,
-                const std::vector<ItemLocation> &tab_names = std::vector<ItemLocation>());
+    void Update(TabSelection type, const std::vector<ItemLocation> &tab_names = {});
     void SetAutoUpdateInterval(int minutes);
     void SetAutoUpdate(bool update);
     const Items &items() const { return m_items; }
@@ -75,8 +75,7 @@ public slots:
                           const std::vector<ItemLocation> &tabs,
                           bool initial_refresh);
 signals:
-    void UpdateSignal(TabSelection type,
-                      const std::vector<ItemLocation> &tab_names = std::vector<ItemLocation>());
+    void UpdateSignal(Util::TabSelection type, const std::vector<ItemLocation> &tab_names = {});
     void ItemsRefreshed(bool initial_refresh);
     void StatusUpdate(ProgramState state, const QString &status);
     void UpdateModListSignal();
@@ -85,7 +84,7 @@ private:
     void MigrateBuyouts();
 
     QSettings &m_settings;
-    QNetworkAccessManager &m_network_manager;
+    NetworkManager &m_network_manager;
     RePoE &m_repoe;
     BuyoutManager &m_buyout_manager;
     DataStore &m_datastore;

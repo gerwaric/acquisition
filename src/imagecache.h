@@ -23,14 +23,15 @@
 #include <QObject>
 #include <QString>
 
-class QNetworkAccessManager;
 class QNetworkReply;
+
+class NetworkManager;
 
 class ImageCache : public QObject
 {
     Q_OBJECT
 public:
-    explicit ImageCache(QNetworkAccessManager &network_manager, const QString &directory);
+    explicit ImageCache(NetworkManager &network_manager, const QString &directory);
     bool contains(const QString &url) const;
     QImage load(const QString &url) const;
 public slots:
@@ -41,6 +42,6 @@ signals:
 
 private:
     QString getImagePath(const QString &url) const;
-    QNetworkAccessManager &m_network_manager;
+    NetworkManager &m_network_manager;
     QString m_directory;
 };

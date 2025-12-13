@@ -21,7 +21,6 @@
 
 #include <QDesktopServices>
 #include <QMessageBox>
-#include <QNetworkAccessManager>
 #include <QNetworkRequest>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -33,6 +32,7 @@
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
 #include <semver/semver.hpp>
+#include <util/networkmanager.h>
 #include <util/spdlog_qt.h>
 
 #include "network_info.h"
@@ -47,7 +47,7 @@ constexpr int UPDATE_INTERVAL = 24 * 60 * 60 * 1000;
 
 UpdateChecker::UpdateChecker(
     QSettings& settings,
-    QNetworkAccessManager& network_manager)
+    NetworkManager& network_manager)
     : m_settings(settings)
     , m_nm(network_manager)
     , m_running_version(semver::version::parse(APP_VERSION_STRING))

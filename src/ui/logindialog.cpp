@@ -25,7 +25,6 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QMessageBox>
-#include <QNetworkAccessManager>
 #include <QNetworkCookie>
 #include <QNetworkCookieJar>
 #include <QNetworkProxyFactory>
@@ -43,6 +42,7 @@
 // #include "legacy/legacybuyoutvalidator.h" -- DISABLED as of v0.12.3.1
 #include <datastore/datastore.h>
 #include <util/crashpad.h>
+#include <util/networkmanager.h>
 #include <util/oauthmanager.h>
 #include <util/spdlog_qt.h>
 #include <util/updatechecker.h>
@@ -67,7 +67,7 @@ constexpr const char *SESSIONID_TAB = "sessionIdTab";
 
 LoginDialog::LoginDialog(const QDir &app_data_dir,
                          QSettings &settings,
-                         QNetworkAccessManager &network_manager,
+                         NetworkManager &network_manager,
                          OAuthManager &oauth_manager,
                          DataStore &datastore)
     : QDialog(nullptr)

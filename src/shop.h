@@ -29,13 +29,13 @@
 
 #include "buyout.h"
 
-class QNetworkAccessManager;
 class QSettings;
 
 class Application;
 class BuyoutManager;
 class DataStore;
 class ItemsManager;
+class NetworkManager;
 class RateLimiter;
 
 class Shop : public QObject
@@ -43,7 +43,7 @@ class Shop : public QObject
     Q_OBJECT
 public:
     explicit Shop(QSettings &settings,
-                  QNetworkAccessManager &network_manager,
+                  NetworkManager &network_manager,
                   RateLimiter &rate_limiter,
                   DataStore &datastore,
                   ItemsManager &items_manager,
@@ -80,7 +80,7 @@ private:
     QString SpoilerBuyout(Buyout &bo);
 
     QSettings &m_settings;
-    QNetworkAccessManager &m_network_manager;
+    NetworkManager &m_network_manager;
     RateLimiter &m_rate_limiter;
     DataStore &m_datastore;
     ItemsManager &m_items_manager;
