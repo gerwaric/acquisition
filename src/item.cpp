@@ -30,6 +30,7 @@
 #include <util/util.h>
 
 #include "itemcategories.h"
+#include "itemconstants.h"
 #include "itemlocation.h"
 #include "modlist.h"
 
@@ -233,17 +234,18 @@ Item::Item(const rapidjson::Value &json, const ItemLocation &loc)
                     }
                 }
             } else if (values.Size() > 0) {
-                if (values[0].IsArray() && values[0].Size() > 0 && values[0][0].IsString()) {
-                    QString val = values[0][0].GetString();
-                    if (name == "Level") {
+                const auto &firstValue = values[0];
+                if (firstValue.IsArray() && (firstValue.Size() > 0) && firstValue[0].IsString()) {
+                    QString strval = firstValue[0].GetString();
+                    if ((m_frameType == ItemEnums::FRAME_TYPE_GEM) && (name == "Level")) {
                         // Gems at max level have the text "(Max)" after the level number.
                         // This needs to be removed so the search field can be matched.
-                        if (val.endsWith("(Max)")) {
-                            // Remove "(Max)" and the space that comes before it.
-                            val.chop(6);
+                        if (strval.endsWith("(Max)")) {
+                            // Remove "(Max)" and the space before it.
+                            strval.chop(6);
                         }
                     }
-                    m_properties[name] = val;
+                    m_properties[name] = strval;
                 }
             }
 
