@@ -35,6 +35,7 @@
 #include <ratelimit/ratelimitedreply.h>
 #include <ratelimit/ratelimiter.h>
 #include <ui/mainwindow.h>
+#include <util/networkmanager.h>
 #include <util/spdlog_qt.h>
 #include <util/util.h>
 
@@ -93,7 +94,7 @@ const QRegularExpression Shop::ratelimit_regex(R"regex(You must wait (\d+) secon
                                                QRegularExpression::CaseInsensitiveOption);
 
 Shop::Shop(QSettings &settings,
-           QNetworkAccessManager &network_manager,
+           NetworkManager &network_manager,
            RateLimiter &rate_limiter,
            DataStore &datastore,
            ItemsManager &items_manager,

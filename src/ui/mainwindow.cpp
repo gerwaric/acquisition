@@ -31,7 +31,6 @@
 #include <QLayout>
 #include <QMessageBox>
 #include <QMouseEvent>
-#include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QPainter>
@@ -50,6 +49,7 @@
 #include <ratelimit/ratelimit.h>
 #include <ratelimit/ratelimitdialog.h>
 #include <ratelimit/ratelimiter.h>
+#include <util/networkmanager.h>
 #include <util/oauthmanager.h>
 #include <util/spdlog_qt.h>
 #include <util/updatechecker.h>
@@ -84,7 +84,7 @@ constexpr int CURRENT_ITEM_UPDATE_DELAY_MS = 100;
 constexpr int SEARCH_UPDATE_DELAY_MS = 350;
 
 MainWindow::MainWindow(QSettings &settings,
-                       QNetworkAccessManager &network_manager,
+                       NetworkManager &network_manager,
                        RateLimiter &rate_limiter,
                        DataStore &datastore,
                        ItemsManager &items_manager,

@@ -20,7 +20,6 @@
 #include "repoe.h"
 
 #include <QDir>
-#include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QRegularExpression>
@@ -28,6 +27,7 @@
 #include <QString>
 
 #include <ui/mainwindow.h>
+#include <util/networkmanager.h>
 #include <util/spdlog_qt.h>
 
 #include "itemcategories.h"
@@ -41,7 +41,7 @@ constexpr std::array REPOE_FILES = {"item_classes.min.json", "base_items.min.jso
 constexpr std::array STAT_TRANSLATIONS = {"stat_translations.min.json",
                                           "stat_translations/necropolis.min.json"};
 
-RePoE::RePoE(QNetworkAccessManager &network_manager)
+RePoE::RePoE(NetworkManager &network_manager)
     : m_network_manager(network_manager)
     , m_initialized(false)
 {

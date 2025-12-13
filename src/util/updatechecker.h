@@ -28,15 +28,16 @@
 
 #include <semver/semver.hpp>
 
-class QNetworkAccessManager;
 class QSettings;
 class QWidget;
+
+class NetworkManager;
 
 class UpdateChecker : public QObject
 {
     Q_OBJECT
 public:
-    explicit UpdateChecker(QSettings &settings, QNetworkAccessManager &network_manager);
+    explicit UpdateChecker(QSettings &settings, NetworkManager &network_manager);
 signals:
     void UpdateAvailable();
 public slots:
@@ -60,7 +61,7 @@ private:
     bool has_newer_prerelease() const;
 
     QSettings &m_settings;
-    QNetworkAccessManager &m_nm;
+    NetworkManager &m_nm;
 
     // Trigger periodic update checks.
     QTimer m_timer;

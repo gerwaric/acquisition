@@ -28,8 +28,8 @@
 class QNetworkReply;
 class QSettings;
 class QString;
-class QNetworkAccessManager;
 
+class NetworkManager;
 class OAuthManager;
 
 class DataStore;
@@ -43,7 +43,7 @@ class LoginDialog : public QDialog
 public:
     explicit LoginDialog(const QDir &app_data_dir,
                          QSettings &settings,
-                         QNetworkAccessManager &network_manager,
+                         NetworkManager &network_manager,
                          OAuthManager &oauth_manager,
                          DataStore &data_store);
     ~LoginDialog();
@@ -82,7 +82,7 @@ private:
 
     const QDir m_app_data_dir;
     QSettings &m_settings;
-    QNetworkAccessManager &m_network_manager;
+    NetworkManager &m_network_manager;
     OAuthManager &m_oauth_manager;
     DataStore &m_datastore;
 

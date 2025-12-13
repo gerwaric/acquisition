@@ -19,7 +19,6 @@
 
 #include "itemsmanagerworker.h"
 
-#include <QNetworkAccessManager>
 #include <QNetworkCookie>
 #include <QNetworkCookieJar>
 #include <QNetworkReply>
@@ -35,10 +34,12 @@
 #include <rapidjson/error/en.h>
 
 #include <datastore/datastore.h>
+#include <itemlocation.h>
 #include <ratelimit/ratelimit.h>
 #include <ratelimit/ratelimitedreply.h>
 #include <ratelimit/ratelimiter.h>
 #include <ui/mainwindow.h>
+#include <util/networkmanager.h>
 #include <util/oauthmanager.h>
 #include <util/rapidjson_util.h>
 #include <util/repoe.h>
@@ -80,7 +81,7 @@ constexpr const char *kOAuthGetCharacterUrl = "https://api.pathofexile.com/chara
 constexpr std::array CHARACTER_ITEM_FIELDS = {"equipment", "inventory", "rucksack", "jewels"};
 
 ItemsManagerWorker::ItemsManagerWorker(QSettings &settings,
-                                       QNetworkAccessManager &network_manager,
+                                       NetworkManager &network_manager,
                                        RePoE &repoe,
                                        BuyoutManager &buyout_manager,
                                        DataStore &datastore,
@@ -191,7 +192,7 @@ void ItemsManagerWorker::ParseItemMods()
 
     // Get cached items
     spdlog::trace("ItemsManagerWorker::ParseItemMods() getting cached items");
-    for (int i = 0; i < m_tabs.size(); i++) {
+    for (size_t i = 0; i < m_tabs.size(); i++) {
         auto &tab = m_tabs[i];
         Items tab_items = m_datastore.GetItems(tab);
         m_items.reserve(m_items.size() + tab_items.size());

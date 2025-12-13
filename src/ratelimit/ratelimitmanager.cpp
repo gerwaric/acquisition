@@ -22,7 +22,6 @@
 #include <QApplication>
 #include <QErrorMessage>
 #include <QMessageBox>
-#include <QNetworkAccessManager>
 #include <QNetworkReply>
 
 #include "ratelimit.h"

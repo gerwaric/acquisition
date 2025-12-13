@@ -23,16 +23,16 @@
 #include <QString>
 #include <QStringList>
 
-class QNetworkAccessManager;
 class QNetworkReply;
 
+class NetworkManager;
 enum class ProgramState;
 
 class RePoE : public QObject
 {
     Q_OBJECT
 public:
-    RePoE(QNetworkAccessManager &network_manager);
+    RePoE(NetworkManager &network_manager);
     void Init(const QString &data_dir);
     bool IsInitialized() const { return m_initialized; };
 signals:
@@ -50,7 +50,7 @@ private:
     QString ParseVersion(const QString &contents);
 
     bool m_initialized;
-    QNetworkAccessManager &m_network_manager;
+    NetworkManager &m_network_manager;
     QString m_data_dir;
     std::vector<QString> m_needed_files;
 };

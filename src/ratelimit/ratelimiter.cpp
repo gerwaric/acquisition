@@ -20,7 +20,6 @@
 #include "ratelimiter.h"
 
 #include <QEventLoop>
-#include <QNetworkAccessManager>
 #include <QNetworkReply>
 
 #include "network_info.h"
@@ -36,7 +35,7 @@ static_assert(ACQUISITION_USE_SPDLOG);
 
 constexpr int UPDATE_INTERVAL_MSEC = 1000;
 
-RateLimiter::RateLimiter(QNetworkAccessManager &network_manager)
+RateLimiter::RateLimiter(NetworkManager &network_manager)
     : m_network_manager(network_manager)
 {
     spdlog::trace("RateLimiter::RateLimiter() entered");

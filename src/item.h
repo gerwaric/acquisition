@@ -31,7 +31,11 @@
 
 #include "itemlocation.h"
 
-extern const std::vector<QString> ITEM_MOD_TYPES;
+constexpr std::array<const char *, 5> ITEM_MOD_TYPES = {"implicitMods",
+                                                        "enchantMods",
+                                                        "explicitMods",
+                                                        "craftedMods",
+                                                        "fracturedMods"};
 
 struct ItemSocketGroup
 {

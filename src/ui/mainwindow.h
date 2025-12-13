@@ -29,7 +29,6 @@
 
 #include <util/spdlog_qt.h>
 
-class QNetworkAccessManager;
 class QNetworkReply;
 class QSettings;
 class QStringListModel;
@@ -46,6 +45,7 @@ class Item;
 class ItemLocation;
 class ItemsManager;
 class LogPanel;
+class NetworkManager;
 class OAuthManager;
 class RateLimiter;
 class RateLimitDialog;
@@ -66,7 +66,7 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 public:
     explicit MainWindow(QSettings &m_settings,
-                        QNetworkAccessManager &network_manager,
+                        NetworkManager &network_manager,
                         RateLimiter &rate_limiter,
                         DataStore &datastore,
                         ItemsManager &items_mangaer,
@@ -154,7 +154,7 @@ private:
     void CheckSelected(bool value);
 
     QSettings &m_settings;
-    QNetworkAccessManager &m_network_manager;
+    NetworkManager &m_network_manager;
     RateLimiter &m_rate_limiter;
     DataStore &m_datastore;
     ItemsManager &m_items_manager;

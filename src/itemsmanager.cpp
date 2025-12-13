@@ -25,6 +25,7 @@
 
 #include <datastore/datastore.h>
 #include <ui/mainwindow.h>
+#include <util/networkmanager.h>
 #include <util/repoe.h>
 #include <util/spdlog_qt.h>
 #include <util/util.h>
@@ -38,7 +39,7 @@
 #include "shop.h"
 
 ItemsManager::ItemsManager(QSettings &settings,
-                           QNetworkAccessManager &network_manager,
+                           NetworkManager &network_manager,
                            RePoE &repoe,
                            BuyoutManager &buyout_manager,
                            DataStore &datastore,

@@ -30,6 +30,7 @@
 #include <util/util.h>
 
 #include "itemcategories.h"
+#include "itemconstants.h"
 #include "itemlocation.h"
 #include "modlist.h"
 
@@ -57,12 +58,6 @@ const std::array<Item::CategoryReplaceMap, Item::k_CategoryLevels> Item::m_repla
                               {"TwoHandAxes", "Axes"},
                               {"TwoHandMaces", "Maces"},
                               {"TwoHandSwords", "Swords"}})};
-
-const std::vector<QString> ITEM_MOD_TYPES = {"implicitMods",
-                                             "enchantMods",
-                                             "explicitMods",
-                                             "craftedMods",
-                                             "fracturedMods"};
 
 static QString item_unique_properties(const rapidjson::Value &json, const QString &name)
 {
@@ -190,12 +185,10 @@ Item::Item(const rapidjson::Value &json, const ItemLocation &loc)
     }
 
     for (auto &mod_type : ITEM_MOD_TYPES) {
-        m_text_mods[mod_type] = std::vector<QString>();
-        const std::string mod_type_s = mod_type.toStdString();
-        const char *mod_type_c = mod_type_s.c_str();
-        if (HasArray(json, mod_type_c)) {
+        m_text_mods[mod_type] = {};
+        if (HasArray(json, mod_type)) {
             auto &mods = m_text_mods[mod_type];
-            for (auto &mod : json[mod_type_c]) {
+            for (auto &mod : json[mod_type]) {
                 if (mod.IsString()) {
                     mods.push_back(mod.GetString());
                 }
@@ -241,8 +234,18 @@ Item::Item(const rapidjson::Value &json, const ItemLocation &loc)
                     }
                 }
             } else if (values.Size() > 0) {
-                if (values[0].IsArray() && values[0].Size() > 0 && values[0][0].IsString()) {
-                    m_properties[name] = values[0][0].GetString();
+                const auto &firstValue = values[0];
+                if (firstValue.IsArray() && (firstValue.Size() > 0) && firstValue[0].IsString()) {
+                    QString strval = firstValue[0].GetString();
+                    if ((m_frameType == ItemEnums::FRAME_TYPE_GEM) && (name == "Level")) {
+                        // Gems at max level have the text "(Max)" after the level number.
+                        // This needs to be removed so the search field can be matched.
+                        if (strval.endsWith("(Max)")) {
+                            // Remove "(Max)" and the space before it.
+                            strval.chop(6);
+                        }
+                    }
+                    m_properties[name] = strval;
                 }
             }
 
@@ -446,7 +449,7 @@ double Item::cDPS() const
 
 void Item::GenerateMods(const rapidjson::Value &json)
 {
-    for (const auto &type : {"implicitMods", "explicitMods", "craftedMods", "fracturedMods"}) {
+    for (const auto &type : ITEM_MOD_TYPES) {
         if (HasArray(json, type)) {
             for (const auto &mod : json[type]) {
                 if (mod.IsString()) {

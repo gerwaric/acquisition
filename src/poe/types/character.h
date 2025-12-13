@@ -55,6 +55,8 @@ namespace poe {
                 pantheon_minor; // ?string; PoE1 only; one of Abberath, Gruthkul, Yugul, Shakari, Tukohama, Ralakesh, Garukhan, or Ryslatha
             std::unordered_map<QString, poe::ItemJewelData>
                 jewel_data; // dictionary of ItemJewelData the key is the string value of the x property of an item from the jewels array in this request
+            std::vector<QString>
+                quest_stats; // ?array of string; PoE2 only; passives granted via quests
             std::optional<QString>
                 alternate_ascendancy; // ?string; PoE1 only; Warden, Warlock, or Primalist (deprecated)
         };

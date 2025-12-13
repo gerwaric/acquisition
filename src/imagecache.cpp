@@ -23,15 +23,15 @@
 #include <QDir>
 #include <QFile>
 #include <QImageReader>
-#include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QString>
 
+#include <util/networkmanager.h>
 #include <util/spdlog_qt.h>
 #include <util/util.h>
 
-ImageCache::ImageCache(QNetworkAccessManager &network_manager, const QString &directory)
+ImageCache::ImageCache(NetworkManager &network_manager, const QString &directory)
     : m_network_manager(network_manager)
     , m_directory(directory)
 {

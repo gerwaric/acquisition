@@ -33,7 +33,6 @@
 #include "item.h"
 #include "network_info.h"
 
-class QNetworkAccessManager;
 class QNetworkReply;
 class QSettings;
 class QSignalMapper;
@@ -41,6 +40,8 @@ class QTimer;
 
 class BuyoutManager;
 class DataStore;
+class ItemLocation;
+class NetworkManager;
 class RateLimiter;
 class RePoE;
 
@@ -63,7 +64,7 @@ class ItemsManagerWorker : public QObject
     Q_OBJECT
 public:
     ItemsManagerWorker(QSettings &m_settings,
-                       QNetworkAccessManager &network_manager,
+                       NetworkManager &network_manager,
                        RePoE &repoe,
                        BuyoutManager &buyout_manager,
                        DataStore &datastore,
@@ -82,8 +83,9 @@ signals:
 public slots:
     void Init();
     void OnRePoEReady();
-    void Update(TabSelection type,
-                const std::vector<ItemLocation> &tab_names = std::vector<ItemLocation>());
+    void Update(Util::TabSelection type,
+                const std::vector<ItemLocation, std::allocator<ItemLocation>> &tab_names
+                = std::vector<ItemLocation, std::allocator<ItemLocation>>());
 
 private slots:
     void OnLegacyMainPageReceived();
@@ -141,7 +143,7 @@ private:
     void ProcessLegacyTab(rapidjson::Value &tab, int &count, rapidjson_allocator &alloc);
 
     QSettings &m_settings;
-    QNetworkAccessManager &m_network_manager;
+    NetworkManager &m_network_manager;
     RePoE &m_repoe;
     DataStore &m_datastore;
     BuyoutManager &m_buyout_manager;

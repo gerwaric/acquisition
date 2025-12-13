@@ -28,9 +28,9 @@
 #include <QString>
 #include <QTimer>
 
-class QNetworkAccessManager;
 class QNetworkReply;
 
+class NetworkManager;
 class OAuthManager;
 class RateLimitedReply;
 class RateLimitManager;
@@ -42,7 +42,7 @@ class RateLimiter : public QObject
 
 public:
     // Create a rate limiter.
-    RateLimiter(QNetworkAccessManager &network_manager);
+    RateLimiter(NetworkManager &network_manager);
 
     ~RateLimiter();
 
@@ -105,7 +105,7 @@ private:
     QNetworkReply *SendRequest(const QNetworkRequest &network_request);
 
     // Reference to the Application's network access manager.
-    QNetworkAccessManager &m_network_manager;
+    NetworkManager &m_network_manager;
 
     QTimer m_update_timer;
 
