@@ -263,7 +263,12 @@ void AddModToTable(const QString &raw_mod, ModTable *output)
 {
     static const QRegularExpression rep("([0-9\\.]+)");
     QString mod = raw_mod;
-    mod.replace(rep, "#");
+    if (mod.startsWith("1 Added Passive Skill")) {
+        // Skip modifiers that appear to be cluster jewel notables.
+        // This is such a terrible hack. The entire mods stuff needs to be completely redone.
+    } else {
+        mod.replace(rep, "#");
+    }
     auto rslt = mods_map.find(mod);
     if (rslt != mods_map.end()) {
         SumModGenerator *gen = rslt->second;
