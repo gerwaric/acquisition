@@ -192,7 +192,7 @@ void ItemsManagerWorker::ParseItemMods()
 
     // Get cached items
     spdlog::trace("ItemsManagerWorker::ParseItemMods() getting cached items");
-    for (int i = 0; i < m_tabs.size(); i++) {
+    for (size_t i = 0; i < m_tabs.size(); i++) {
         auto &tab = m_tabs[i];
         Items tab_items = m_datastore.GetItems(tab);
         m_items.reserve(m_items.size() + tab_items.size());
