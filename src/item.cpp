@@ -234,7 +234,16 @@ Item::Item(const rapidjson::Value &json, const ItemLocation &loc)
                 }
             } else if (values.Size() > 0) {
                 if (values[0].IsArray() && values[0].Size() > 0 && values[0][0].IsString()) {
-                    m_properties[name] = values[0][0].GetString();
+                    QString val = values[0][0].GetString();
+                    if (name == "Level") {
+                        // Gems at max level have the text "(Max)" after the level number.
+                        // This needs to be removed so the search field can be matched.
+                        if (val.endsWith("(Max)")) {
+                            // Remove "(Max)" and the space that comes before it.
+                            val.chop(6);
+                        }
+                    }
+                    m_properties[name] = val;
                 }
             }
 
