@@ -58,12 +58,6 @@ const std::array<Item::CategoryReplaceMap, Item::k_CategoryLevels> Item::m_repla
                               {"TwoHandMaces", "Maces"},
                               {"TwoHandSwords", "Swords"}})};
 
-const std::vector<QString> ITEM_MOD_TYPES = {"implicitMods",
-                                             "enchantMods",
-                                             "explicitMods",
-                                             "craftedMods",
-                                             "fracturedMods"};
-
 static QString item_unique_properties(const rapidjson::Value &json, const QString &name)
 {
     const std::string name_s = name.toStdString();
@@ -190,12 +184,10 @@ Item::Item(const rapidjson::Value &json, const ItemLocation &loc)
     }
 
     for (auto &mod_type : ITEM_MOD_TYPES) {
-        m_text_mods[mod_type] = std::vector<QString>();
-        const std::string mod_type_s = mod_type.toStdString();
-        const char *mod_type_c = mod_type_s.c_str();
-        if (HasArray(json, mod_type_c)) {
+        m_text_mods[mod_type] = {};
+        if (HasArray(json, mod_type)) {
             auto &mods = m_text_mods[mod_type];
-            for (auto &mod : json[mod_type_c]) {
+            for (auto &mod : json[mod_type]) {
                 if (mod.IsString()) {
                     mods.push_back(mod.GetString());
                 }
@@ -446,7 +438,7 @@ double Item::cDPS() const
 
 void Item::GenerateMods(const rapidjson::Value &json)
 {
-    for (const auto &type : {"implicitMods", "explicitMods", "craftedMods", "fracturedMods"}) {
+    for (const auto &type : ITEM_MOD_TYPES) {
         if (HasArray(json, type)) {
             for (const auto &mod : json[type]) {
                 if (mod.IsString()) {
