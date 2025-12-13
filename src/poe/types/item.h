@@ -160,6 +160,7 @@ namespace poe {
         std::optional<bool> duplicated;              // ? bool always true if present
         std::optional<bool> split;                   // ? bool always true if present
         std::optional<bool> corrupted;               // ? bool always true if present
+        std::optional<bool> doubleCorrupted;         // ? bool; PoE2 only; always true if present
         std::optional<bool> sanctified;              // ? bool; PoE2 only; always true if present
         std::optional<bool> unmodifiable;            // ? bool always true if present
         std::optional<bool> unmodifiableExceptChaos; // ? bool always true if present
@@ -188,9 +189,11 @@ namespace poe {
         std::optional<std::vector<QString>> implicitMods; // ? array of string
         std::optional<std::vector<poe::Item::UltimatumMods>> ultimatumMods; // ? array of object
         std::optional<std::vector<QString>> explicitMods;                   // ? array of string
+        std::optional<std::vector<QString>> bondedMods; // ? array of string; PoE2 only
         std::optional<std::vector<QString>> craftedMods;                    // ? array of string
         std::optional<std::vector<QString>> fracturedMods;                  // ? array of string
-        std::optional<std::vector<QString>> mutatedMods; // ? array of string; Foulborn Unique mods
+        std::optional<std::vector<QString>>
+            mutatedMods; // ? array of string; PoE1: Foulborn Unique mods, PoE2: Vaal Unique mods
         std::optional<std::vector<QString>>
             crucibleMods; // ? array of string only allocated mods are included
         std::optional<std::vector<QString>> cosmeticMods; // ? array of string
