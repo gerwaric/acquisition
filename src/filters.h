@@ -311,7 +311,6 @@ public:
     AltartFilter(QLayout *parent, QString property, QString caption)
         : BooleanFilter(parent, property, caption)
     {}
-    using BooleanFilter::BooleanFilter;
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
 };
 
@@ -334,8 +333,10 @@ public:
     UnidentifiedFilter(QLayout *parent, QString property, QString caption)
         : BooleanFilter(parent, property, caption)
     {}
-    using BooleanFilter::BooleanFilter;
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
+    bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
+    {
+        return !data->checked || !item->identified();
+    }
 };
 
 class CraftedFilter : public BooleanFilter
@@ -344,8 +345,10 @@ public:
     CraftedFilter(QLayout *parent, QString property, QString caption)
         : BooleanFilter(parent, property, caption)
     {}
-    using BooleanFilter::BooleanFilter;
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
+    bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
+    {
+        return !data->checked || item->crafted();
+    }
 };
 
 class EnchantedFilter : public BooleanFilter
@@ -354,8 +357,10 @@ public:
     EnchantedFilter(QLayout *parent, QString property, QString caption)
         : BooleanFilter(parent, property, caption)
     {}
-    using BooleanFilter::BooleanFilter;
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
+    bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
+    {
+        return !data->checked || item->enchanted();
+    }
 };
 
 class InfluencedFilter : public BooleanFilter
@@ -364,8 +369,10 @@ public:
     InfluencedFilter(QLayout *parent, QString property, QString caption)
         : BooleanFilter(parent, property, caption)
     {}
-    using BooleanFilter::BooleanFilter;
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
+    bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
+    {
+        return !data->checked || item->hasInfluence();
+    }
 };
 
 class CorruptedFilter : public BooleanFilter
@@ -374,8 +381,58 @@ public:
     CorruptedFilter(QLayout *parent, QString property, QString caption)
         : BooleanFilter(parent, property, caption)
     {}
-    using BooleanFilter::BooleanFilter;
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
+    bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
+    {
+        return !data->checked || item->corrupted();
+    }
+};
+
+class FracturedFilter : public BooleanFilter
+{
+public:
+    FracturedFilter(QLayout *parent, QString property, QString caption)
+        : BooleanFilter(parent, property, caption)
+    {}
+    bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
+    {
+        return !data->checked || item->fractured();
+    }
+};
+
+class SplitFilter : public BooleanFilter
+{
+public:
+    SplitFilter(QLayout *parent, QString property, QString caption)
+        : BooleanFilter(parent, property, caption)
+    {}
+    bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
+    {
+        return !data->checked || item->split();
+    }
+};
+
+class SynthesizedFilter : public BooleanFilter
+{
+public:
+    SynthesizedFilter(QLayout *parent, QString property, QString caption)
+        : BooleanFilter(parent, property, caption)
+    {}
+    bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
+    {
+        return !data->checked || item->synthesized();
+    }
+};
+
+class MutatedFilter : public BooleanFilter
+{
+public:
+    MutatedFilter(QLayout *parent, QString property, QString caption)
+        : BooleanFilter(parent, property, caption)
+    {}
+    bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
+    {
+        return !data->checked || item->mutated();
+    }
 };
 
 class ItemlevelFilter : public MinMaxFilter
@@ -388,5 +445,5 @@ public:
         : MinMaxFilter(parent, property, caption)
     {}
     bool IsValuePresent(const std::shared_ptr<Item> & /* item */) { return true; }
-    double GetValue(const std::shared_ptr<Item> &item);
+    double GetValue(const std::shared_ptr<Item> &item) { return item->ilvl(); }
 };

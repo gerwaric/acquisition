@@ -97,6 +97,8 @@ Item::Item(const rapidjson::Value &json, const ItemLocation &loc)
     : m_location(loc)
     , m_json(Util::RapidjsonSerialize(json))
 {
+    auto getBool = [&](const char *field) { return HasBool(json, field) && json[field].GetBool(); };
+
     if (HasString(json, "name")) {
         m_name = fixup_name(json["name"].GetString());
     }
@@ -122,12 +124,12 @@ Item::Item(const rapidjson::Value &json, const ItemLocation &loc)
     if (HasString(json, "baseType")) {
         m_baseType = fixup_name(json["baseType"].GetString());
     }
-    if (HasBool(json, "identified")) {
-        m_identified = json["identified"].GetBool();
-    }
-    if (HasBool(json, "corrupted")) {
-        m_corrupted = json["corrupted"].GetBool();
-    }
+    m_identified = getBool("identified");
+    m_corrupted = getBool("corrupted");
+    m_fractured = getBool("fractured");
+    m_split = getBool("split");
+    m_synthesized = getBool("synthesized");
+    m_mutated = getBool("mutated");
     if (HasArray(json, "craftedMods") && !json["craftedMods"].Empty()) {
         m_crafted = true;
     }
