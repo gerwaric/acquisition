@@ -239,12 +239,22 @@ Item::Item(const rapidjson::Value &json, const ItemLocation &loc)
                 const auto &firstValue = values[0];
                 if (firstValue.IsArray() && (firstValue.Size() > 0) && firstValue[0].IsString()) {
                     QString strval = firstValue[0].GetString();
-                    if ((m_frameType == ItemEnums::FRAME_TYPE_GEM) && (name == "Level")) {
-                        // Gems at max level have the text "(Max)" after the level number.
-                        // This needs to be removed so the search field can be matched.
-                        if (strval.endsWith("(Max)")) {
-                            // Remove "(Max)" and the space before it.
-                            strval.chop(6);
+                    if (m_frameType == ItemEnums::FRAME_TYPE_GEM) {
+                        if (name == "Level") {
+                            // Gems at max level have the text "(Max)" after the level number.
+                            // This needs to be removed so the search field can be matched.
+                            if (strval.endsWith("(Max)")) {
+                                // Remove "(Max)" and the space before it.
+                                strval.chop(6);
+                            }
+                        } else if (name == "Quality") {
+                            // Gem quality is stored like "+23%" but we want to store that as "23".
+                            if (strval.startsWith("+")) {
+                                strval.removeFirst();
+                            }
+                            if (strval.endsWith("%")) {
+                                strval.chop(1);
+                            }
                         }
                     }
                     m_properties[name] = strval;
