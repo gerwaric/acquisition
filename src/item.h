@@ -98,6 +98,10 @@ public:
     bool corrupted() const { return m_corrupted; }
     bool crafted() const { return m_crafted; }
     bool enchanted() const { return m_enchanted; }
+    bool fractured() const { return m_fractured; }
+    bool split() const { return m_split; }
+    bool synthesized() const { return m_synthesized; }
+    bool mutated() const { return m_mutated; }
     bool hasInfluence(INFLUENCE_TYPES type) const
     {
         return std::find(m_influenceList.begin(), m_influenceList.end(), type)
@@ -168,6 +172,10 @@ private:
     bool m_corrupted{false};
     bool m_crafted{false};
     bool m_enchanted{false};
+    bool m_fractured{false};
+    bool m_split{false};
+    bool m_synthesized{false};
+    bool m_mutated{false};
     std::vector<INFLUENCE_TYPES> m_influenceList;
     int m_w{0}, m_h{0};
     int m_frameType{0};

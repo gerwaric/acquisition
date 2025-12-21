@@ -852,9 +852,13 @@ void MainWindow::InitializeSearchForm()
         std::make_unique<PricedFilter>(misc_flags_layout, "", "Priced", m_buyout_manager),
         std::make_unique<UnidentifiedFilter>(misc_flags2_layout, "", "Unidentified"),
         std::make_unique<InfluencedFilter>(misc_flags2_layout, "", "Influenced"),
-        std::make_unique<CraftedFilter>(misc_flags2_layout, "", "Master-crafted"),
+        std::make_unique<CraftedFilter>(misc_flags2_layout, "", "Crafted"),
         std::make_unique<EnchantedFilter>(misc_flags2_layout, "", "Enchanted"),
         std::make_unique<CorruptedFilter>(misc_flags2_layout, "", "Corrupted"),
+        std::make_unique<FracturedFilter>(misc_flags2_layout, "", "Fractured"),
+        std::make_unique<SplitFilter>(misc_flags2_layout, "", "Split"),
+        std::make_unique<SynthesizedFilter>(misc_flags2_layout, "", "Synthesized"),
+        std::make_unique<MutatedFilter>(misc_flags2_layout, "", "Mutated"),
         std::make_unique<ModsFilter>(mods_layout)
     };
     // clang-format on

@@ -707,33 +707,3 @@ bool PricedFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data)
 {
     return !data->checked || m_bm.Get(*item).IsActive();
 }
-
-bool UnidentifiedFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data)
-{
-    return !data->checked || !item->identified();
-}
-
-bool CraftedFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data)
-{
-    return !data->checked || item->crafted();
-}
-
-bool EnchantedFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data)
-{
-    return !data->checked || item->enchanted();
-}
-
-bool InfluencedFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data)
-{
-    return !data->checked || item->hasInfluence();
-}
-
-bool CorruptedFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data)
-{
-    return !data->checked || item->corrupted();
-}
-
-double ItemlevelFilter::GetValue(const std::shared_ptr<Item> &item)
-{
-    return item->ilvl();
-}

@@ -97,6 +97,8 @@ Item::Item(const rapidjson::Value &json, const ItemLocation &loc)
     : m_location(loc)
     , m_json(Util::RapidjsonSerialize(json))
 {
+    auto getBool = [&](const char *field) { return HasBool(json, field) && json[field].GetBool(); };
+
     if (HasString(json, "name")) {
         m_name = fixup_name(json["name"].GetString());
     }
@@ -122,12 +124,12 @@ Item::Item(const rapidjson::Value &json, const ItemLocation &loc)
     if (HasString(json, "baseType")) {
         m_baseType = fixup_name(json["baseType"].GetString());
     }
-    if (HasBool(json, "identified")) {
-        m_identified = json["identified"].GetBool();
-    }
-    if (HasBool(json, "corrupted")) {
-        m_corrupted = json["corrupted"].GetBool();
-    }
+    m_identified = getBool("identified");
+    m_corrupted = getBool("corrupted");
+    m_fractured = getBool("fractured");
+    m_split = getBool("split");
+    m_synthesized = getBool("synthesized");
+    m_mutated = getBool("mutated");
     if (HasArray(json, "craftedMods") && !json["craftedMods"].Empty()) {
         m_crafted = true;
     }
@@ -237,12 +239,22 @@ Item::Item(const rapidjson::Value &json, const ItemLocation &loc)
                 const auto &firstValue = values[0];
                 if (firstValue.IsArray() && (firstValue.Size() > 0) && firstValue[0].IsString()) {
                     QString strval = firstValue[0].GetString();
-                    if ((m_frameType == ItemEnums::FRAME_TYPE_GEM) && (name == "Level")) {
-                        // Gems at max level have the text "(Max)" after the level number.
-                        // This needs to be removed so the search field can be matched.
-                        if (strval.endsWith("(Max)")) {
-                            // Remove "(Max)" and the space before it.
-                            strval.chop(6);
+                    if (m_frameType == ItemEnums::FRAME_TYPE_GEM) {
+                        if (name == "Level") {
+                            // Gems at max level have the text "(Max)" after the level number.
+                            // This needs to be removed so the search field can be matched.
+                            if (strval.endsWith("(Max)")) {
+                                // Remove "(Max)" and the space before it.
+                                strval.chop(6);
+                            }
+                        } else if (name == "Quality") {
+                            // Gem quality is stored like "+23%" but we want to store that as "23".
+                            if (strval.startsWith("+")) {
+                                strval.removeFirst();
+                            }
+                            if (strval.endsWith("%")) {
+                                strval.chop(1);
+                            }
                         }
                     }
                     m_properties[name] = strval;
