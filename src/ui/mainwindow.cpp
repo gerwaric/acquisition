@@ -852,7 +852,7 @@ void MainWindow::InitializeSearchForm()
         std::make_unique<PricedFilter>(misc_flags_layout, "", "Priced", m_buyout_manager),
         std::make_unique<UnidentifiedFilter>(misc_flags2_layout, "", "Unidentified"),
         std::make_unique<InfluencedFilter>(misc_flags2_layout, "", "Influenced"),
-        std::make_unique<CraftedFilter>(misc_flags2_layout, "", "Master-crafted"),
+        std::make_unique<CraftedFilter>(misc_flags2_layout, "", "Crafted"),
         std::make_unique<EnchantedFilter>(misc_flags2_layout, "", "Enchanted"),
         std::make_unique<CorruptedFilter>(misc_flags2_layout, "", "Corrupted"),
         std::make_unique<FracturedFilter>(misc_flags2_layout, "", "Fractured"),
