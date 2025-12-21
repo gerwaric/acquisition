@@ -29,7 +29,7 @@ cmake_minimum_required(VERSION 3.30)
 # version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
-    VERSION 0.14.2
+    VERSION 0.14.3
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
