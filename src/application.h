@@ -44,8 +44,6 @@ class RePoE;
 class Shop;
 class UpdateChecker;
 
-enum class POE_API;
-
 class Application : public QObject
 {
     Q_OBJECT
@@ -54,7 +52,7 @@ public:
     ~Application();
     Application(const Application &) = delete;
     Application &operator=(const Application &) = delete;
-    void InitLogin(POE_API api);
+    void InitLogin();
 
 private:
     QSettings &settings() const;
@@ -76,7 +74,7 @@ public slots:
     void SetSessionId(const QString &poesessid);
     void SetTheme(const QString &theme);
     void SetUserDir(const QString &dir);
-    void OnLogin(POE_API api);
+    void OnLogin();
     void OnItemsRefreshed(bool initial_refresh);
     void OnRunTests();
 

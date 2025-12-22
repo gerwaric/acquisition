@@ -60,7 +60,7 @@ public:
     bool isInitialized() const { return m_worker ? m_worker->isInitialized() : false; }
     bool isUpdating() const { return m_worker ? m_worker->isUpdating() : false; }
     // Creates and starts the worker
-    void Start(POE_API mode);
+    void Start();
     void Update(TabSelection type, const std::vector<ItemLocation> &tab_names = {});
     void SetAutoUpdateInterval(int minutes);
     void SetAutoUpdate(bool update);

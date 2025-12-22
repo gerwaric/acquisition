@@ -67,7 +67,7 @@ ItemsManager::ItemsManager(QSettings &settings,
 
 ItemsManager::~ItemsManager() {}
 
-void ItemsManager::Start(POE_API mode)
+void ItemsManager::Start()
 {
     spdlog::trace("ItemsManager::Start() entered");
     spdlog::trace("ItemsManager::Start() creating items manager worker");
@@ -76,8 +76,7 @@ void ItemsManager::Start(POE_API mode)
                                                     m_repoe,
                                                     m_buyout_manager,
                                                     m_datastore,
-                                                    m_rate_limiter,
-                                                    mode);
+                                                    m_rate_limiter);
     connect(this, &ItemsManager::UpdateSignal, m_worker.get(), &ItemsManagerWorker::Update);
     connect(m_worker.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
     connect(m_worker.get(),

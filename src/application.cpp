@@ -152,7 +152,7 @@ void Application::Stop()
     m_settings = nullptr;
 }
 
-void Application::OnLogin(POE_API api)
+void Application::OnLogin()
 {
     spdlog::debug("Application: login initiated");
 
@@ -161,7 +161,7 @@ void Application::OnLogin(POE_API api)
 
     // Call init login to setup the shop, items manager, and other objects.
     spdlog::trace("Application: initializing login");
-    InitLogin(api);
+    InitLogin();
 
     // Prepare to show the main window now that everything is initialized.
     spdlog::trace("Application:creating main window");
@@ -210,24 +210,8 @@ void Application::OnLogin(POE_API api)
     spdlog::trace("Application::OnLogin() closing the login dialog");
     m_login->close();
 
-    switch (api) {
-    case POE_API::OAUTH:
-        spdlog::trace("Application::OnLogin() showing the main window");
-        m_main_window->show();
-        break;
-    case POE_API::LEGACY: {
-        auto *box = new QMessageBox(QMessageBox::Warning,
-                                    "POESESSION is going away.",
-                                    "In a future release, only OAuth login will "
-                                    "supported.\n\nPOESESSID will still be used for "
-                                    "forum shop management, but OAuth will be required for initial authentication.",
-                                    QMessageBox::Ok);
-        box->setDefaultButton(QMessageBox::Ok);
-        box->setAttribute(Qt::WA_DeleteOnClose);
-        QObject::connect(box, &QDialog::finished, box, [this]() { m_main_window->show(); });
-        box->open();
-    }
-    }
+    spdlog::trace("Application::OnLogin() showing the main window");
+    m_main_window->show();
 }
 
 QSettings &Application::settings() const
@@ -433,7 +417,7 @@ void Application::SetUserDir(const QString &dir)
     Start(dir);
 }
 
-void Application::InitLogin(POE_API mode)
+void Application::InitLogin()
 {
     spdlog::trace("Application::InitLogin() entered");
 
@@ -502,7 +486,7 @@ void Application::InitLogin(POE_API mode)
             &Application::OnItemsRefreshed);
 
     spdlog::trace("Application::InitLogin() starting items manager");
-    m_items_manager->Start(mode);
+    m_items_manager->Start();
 }
 
 void Application::OnItemsRefreshed(bool initial_refresh)

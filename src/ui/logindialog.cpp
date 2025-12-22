@@ -56,14 +56,8 @@
 
 constexpr const char *POE_LEAGUE_LIST_URL
     = "https://api.pathofexile.com/leagues?type=main&compact=1";
-constexpr const char *POE_MAIN_PAGE = "https://www.pathofexile.com/";
-constexpr const char *POE_MY_ACCOUNT = "https://www.pathofexile.com/my-account";
-constexpr const char *POE_LOGIN_CHECK_URL = POE_MY_ACCOUNT;
 
 constexpr int CLOUDFLARE_RATE_LIMITED = 1015;
-
-constexpr const char *OAUTH_TAB = "oauthTab";
-constexpr const char *SESSIONID_TAB = "sessionIdTab";
 
 LoginDialog::LoginDialog(const QDir &app_data_dir,
                          QSettings &settings,
@@ -122,7 +116,6 @@ LoginDialog::LoginDialog(const QDir &app_data_dir,
             &QPushButton::clicked,
             this,
             &LoginDialog::OnAuthenticateButtonClicked);
-    connect(ui->sessionIDLineEdit, &QLineEdit::textChanged, this, &LoginDialog::OnSessionIDChanged);
     connect(ui->loginButton, &QPushButton::clicked, this, &LoginDialog::OnLoginButtonClicked);
 
     // Connects options UI elements.
@@ -189,9 +182,6 @@ void LoginDialog::LoadSettings()
 
     const QString theme = m_settings.value("theme").toString();
     ui->themeComboBox->setCurrentText(theme);
-
-    const QString session_id = m_settings.value("session_id").toString();
-    ui->sessionIDLineEdit->setText(session_id);
 
     const bool show_advanced = m_settings.value("show_advanced_login_options").toBool();
     ui->advancedCheckBox->setChecked(show_advanced);
@@ -322,33 +312,10 @@ void LoginDialog::OnLoginButtonClicked()
 
     const QString realm = ui->realmComboBox->currentText();
     const QString league = ui->leagueComboBox->currentText();
-    const QString session_id = ui->sessionIDLineEdit->text();
     m_settings.setValue("realm", realm);
     m_settings.setValue("league", league);
-    m_settings.setValue("session_id", session_id);
-    if (!session_id.isEmpty()) {
-        QNetworkCookie poesessid(POE_COOKIE_NAME, session_id.toUtf8());
-        poesessid.setPath(POE_COOKIE_PATH);
-        poesessid.setDomain(POE_COOKIE_DOMAIN);
-        m_network_manager.cookieJar()->insertCookie(poesessid);
-    }
 
-    const QString tab_name = ui->loginTabs->currentWidget()->objectName();
-    if (tab_name == OAUTH_TAB) {
-        LoginWithOAuth();
-    } else if (tab_name == SESSIONID_TAB) {
-        if (session_id.isEmpty()) {
-            spdlog::error("POESESSID is empty");
-            DisplayError("POESESSID cannot be blank");
-            ui->loginButton->setEnabled(true);
-            ui->loginButton->setText("Log in");
-        } else {
-            LoginWithSessionID();
-            ui->loginButton->setEnabled(false);
-        }
-    } else {
-        DisplayError("Invalid tab selected: " + tab_name);
-    }
+    LoginWithOAuth();
 }
 
 void LoginDialog::LoginWithOAuth()
@@ -359,7 +326,7 @@ void LoginDialog::LoginWithOAuth()
         const OAuthToken &token = m_current_token.value();
         if (token.access_expiration && (now < *token.access_expiration)) {
             m_settings.setValue("account", token.username);
-            emit LoginComplete(POE_API::OAUTH);
+            emit LoginComplete();
         } else if (token.refresh_expiration && (now < *token.refresh_expiration)) {
             DisplayError("The OAuth token needs to be refreshed");
         } else {
@@ -368,121 +335,6 @@ void LoginDialog::LoginWithOAuth()
     } else {
         DisplayError("You are not authenticated.");
     }
-}
-
-void LoginDialog::LoginWithSessionID()
-{
-    spdlog::info("Starting legacy login with POESESSID");
-    QNetworkRequest request = QNetworkRequest(QUrl(POE_LOGIN_CHECK_URL));
-    QNetworkReply *reply = m_network_manager.get(request);
-
-    connect(reply, &QNetworkReply::finished, this, &LoginDialog::OnStartLegacyLogin);
-    connect(reply, &QNetworkReply::errorOccurred, this, [=, this](QNetworkReply::NetworkError code) {
-        const int error_code = static_cast<int>(code);
-        if (error_code == CLOUDFLARE_RATE_LIMITED) {
-            DisplayError("Rate limited by Cloudflare! Please report to gerwaric@gmail.com");
-            ui->loginButton->setEnabled(false);
-        } else {
-            DisplayError("Error during legacy login: " + reply->errorString());
-            ui->loginButton->setEnabled(false);
-        }
-    });
-    connect(reply, &QNetworkReply::sslErrors, this, [=, this](const QList<QSslError> &errors) {
-        for (const auto &error : errors) {
-            spdlog::error("SSL error during legacy login: {}", error.errorString());
-        }
-        DisplayError("SSL error during session id login");
-        ui->loginButton->setEnabled(false);
-    });
-}
-
-// Need a separate check since it's just the /login URL that's filtered
-void LoginDialog::OnStartLegacyLogin()
-{
-    spdlog::trace("LoginDialog::OnStartLegacyLogin() entered");
-
-    QNetworkReply *reply = qobject_cast<QNetworkReply *>(QObject::sender());
-    const auto cookies = reply->manager()->cookieJar()->cookiesForUrl(QUrl(POE_MAIN_PAGE));
-    reply->deleteLater();
-
-    // Check for HTTP errors.
-    if (reply->error() != QNetworkReply::NoError) {
-        const int error_code = static_cast<int>(reply->error());
-        QString msg;
-        if (error_code == 204) {
-            msg = "You appear to be logged out. Please try updating your POESESSID.";
-        } else if (error_code == 1015) {
-            msg = "Your account or ip seems to have been blocked by Cloudflare!";
-        } else {
-            msg = QString("Network error %1 during legacy login: %2")
-                      .arg(QString::number(reply->error()), reply->errorString());
-        }
-        DisplayError(msg);
-        return;
-    }
-
-    // Check the session id cookie.
-    const QString session_id = m_settings.value("session_id").toString();
-    for (const QNetworkCookie &cookie : cookies) {
-        if (QString(cookie.name()) == POE_COOKIE_NAME) {
-            if (cookie.value() != session_id) {
-                spdlog::warn("POESESSID mismatch");
-            }
-            break;
-        }
-    }
-
-    // we need one more request to get account name
-    QNetworkRequest request = QNetworkRequest(QUrl(POE_MY_ACCOUNT));
-    QNetworkReply *next_reply = m_network_manager.get(request);
-
-    connect(next_reply, &QNetworkReply::finished, this, &LoginDialog::OnFinishLegacyLogin);
-    connect(reply, &QNetworkReply::errorOccurred, this, [=, this](QNetworkReply::NetworkError code) {
-        const int error_code = static_cast<int>(code);
-        if (error_code == CLOUDFLARE_RATE_LIMITED) {
-            DisplayError("Blocked by Cloudflare! Please tell gerwaric@gmail.com. You may need to "
-                         "contact GGG support :-(");
-        } else {
-            DisplayError("Error finishing legacy login: " + reply->errorString());
-            ui->loginButton->setEnabled(false);
-        }
-    });
-    connect(reply, &QNetworkReply::sslErrors, this, [=, this](const QList<QSslError> &errors) {
-        for (const auto &error : errors) {
-            spdlog::error("SSL finishing legacy login: {}", error.errorString());
-        }
-        DisplayError("SSL error finishing legacy login");
-        ui->loginButton->setEnabled(false);
-    });
-}
-
-void LoginDialog::OnFinishLegacyLogin()
-{
-    spdlog::trace("LoginDialog::OnFinishLegacyLogin() entered");
-
-    QNetworkReply *reply = qobject_cast<QNetworkReply *>(QObject::sender());
-    const QString html(reply->readAll());
-    reply->deleteLater();
-    if (reply->error()) {
-        DisplayError("Network error finishing legacy loging " + reply->errorString());
-        return;
-    }
-
-    static const QRegularExpression regexp("/account/view-profile/.*?>(.*?)<");
-    QRegularExpressionMatch match = regexp.match(html, 0);
-    if (match.hasMatch() == false) {
-        DisplayError("Failed to find account name.");
-        return;
-    }
-
-    const QString account = match.captured(1);
-    const QString realm = m_settings.value("realm").toString();
-    const QString league = m_settings.value("league").toString();
-    m_settings.setValue("account", account);
-
-    spdlog::debug("Logged in as {} to {} league in {} realm", account, league, realm);
-
-    emit LoginComplete(POE_API::LEGACY);
 }
 
 void LoginDialog::OnOAuthAccessGranted(const OAuthToken &token)
@@ -512,11 +364,7 @@ void LoginDialog::OnLoginTabChanged(int index)
     ui->advancedOptionsFrame->setHidden(hide_options || hide_advanced);
     ui->errorLabel->setHidden(hide_options || hide_error);
     ui->loginButton->setHidden(hide_options);
-    if (tab == ui->oauthTab) {
-        ui->loginButton->setEnabled(m_current_token.has_value());
-    } else if (tab == ui->sessionIdTab) {
-        ui->loginButton->setEnabled(!ui->sessionIDLineEdit->text().isEmpty());
-    }
+    ui->loginButton->setEnabled(m_current_token.has_value());
     m_settings.setValue("login_tab", tab->objectName());
 };
 
