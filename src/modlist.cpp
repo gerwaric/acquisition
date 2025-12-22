@@ -29,7 +29,6 @@
 #include <memory>
 #include <set>
 #include <unordered_map>
-#include <utility>
 #include <vector>
 
 #include <util/spdlog_qt.h>
