@@ -36,7 +36,7 @@ project(acquisition
 )
 
 # Use this to define pre-releases
-set(version_postfix "-beta.1")
+set(version_postfix "")
 
 # Variables used to generate version_defines.h and installer.iss
 set(version_code        63) # This doesn't need to be changed with the new update checks.
@@ -91,7 +91,7 @@ if(NOT TARGET glaze)
     FetchContent_Declare(
         glaze
         GIT_REPOSITORY https://github.com/stephenberry/glaze.git
-        GIT_TAG        v6.0.1
+        GIT_TAG        v6.4.0
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(glaze)
