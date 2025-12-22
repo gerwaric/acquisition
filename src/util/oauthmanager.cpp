@@ -118,9 +118,6 @@ OAuthManager::OAuthManager(NetworkManager &network_manager, DataStore &datastore
             &QAbstractOAuth2::serverReportedErrorOccurred,
             this,
             &OAuthManager::onServerError);
-    // The use of QAbstractOAuth2::error is deprecated as of 6.10, but there were some errors
-    // during testing that seemed not to be caught by the other signals.
-    connect(m_oauth, &QAbstractOAuth2::error, this, &OAuthManager::onOAuthError);
 
     // Check for an existing token.
     const QString token_str = m_data.Get("oauth_token", "");

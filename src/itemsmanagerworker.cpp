@@ -50,21 +50,8 @@
 #include "buyoutmanager.h"
 #include "itemcategories.h"
 #include "modlist.h"
-#include "network_info.h"
 
 using rapidjson::HasArray;
-
-constexpr const char *kStashItemsUrl
-    = "https://www.pathofexile.com/character-window/get-stash-items";
-constexpr const char *kCharacterItemsUrl = "https://www.pathofexile.com/character-window/get-items";
-constexpr const char *kGetCharactersUrl
-    = "https://www.pathofexile.com/character-window/get-characters";
-constexpr const char *kMainPage = "https://www.pathofexile.com/";
-//While the page does say "get passive skills", it seems to only send socketed jewels
-constexpr const char *kCharacterSocketedJewels
-    = "https://www.pathofexile.com/character-window/get-passive-skills";
-
-constexpr const char *kPOE_trade_stats = "https://www.pathofexile.com/api/trade/data/stats";
 
 constexpr const char *kOauthListStashesEndpoint = "List Stashes";
 constexpr const char *kOAuthListStashesUrl = "https://api.pathofexile.com/stash";
@@ -85,15 +72,13 @@ ItemsManagerWorker::ItemsManagerWorker(QSettings &settings,
                                        RePoE &repoe,
                                        BuyoutManager &buyout_manager,
                                        DataStore &datastore,
-                                       RateLimiter &rate_limiter,
-                                       POE_API mode)
+                                       RateLimiter &rate_limiter)
     : m_settings(settings)
     , m_network_manager(network_manager)
     , m_repoe(repoe)
     , m_datastore(datastore)
     , m_buyout_manager(buyout_manager)
     , m_rate_limiter(rate_limiter)
-    , m_mode(mode)
     , m_test_mode(false)
     , m_stashes_needed(0)
     , m_stashes_received(0)
@@ -318,14 +303,7 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
     m_has_character_list = false;
     m_requested_locations.clear();
 
-    switch (m_mode) {
-    case POE_API::LEGACY:
-        LegacyRefresh();
-        break;
-    case POE_API::OAUTH:
-        OAuthRefresh();
-        break;
-    }
+    OAuthRefresh();
 }
 
 void ItemsManagerWorker::RemoveUpdatingTabs(const std::set<QString> &tab_ids)
@@ -386,35 +364,6 @@ void ItemsManagerWorker::RemoveUpdatingItems(const std::set<QString> &tab_ids)
     spdlog::debug("Keeping {} items and culling {}",
                   m_items.size(),
                   (current_items.size() - m_items.size()));
-}
-
-void ItemsManagerWorker::LegacyRefresh()
-{
-    spdlog::trace("Items Manager Worker: starting legacy refresh");
-    if (m_need_stash_list) {
-        // This queues stash tab requests.
-        QNetworkRequest tab_request = MakeLegacyTabRequest(m_first_stash_request_index, true);
-        spdlog::trace("ItemsManagerWorker::LegacyRefresh() requesting stash list: {}",
-                      tab_request.url().toString());
-        auto reply = m_rate_limiter.Submit(kStashItemsUrl, tab_request);
-        connect(reply,
-                &RateLimitedReply::complete,
-                this,
-                &ItemsManagerWorker::OnFirstLegacyTabReceived);
-    }
-    if (m_need_character_list) {
-        // Before listing characters we download the main page because it's the only way
-        // to know which character is selected (doesn't apply to OAuth api).
-        QNetworkRequest main_page_request = QNetworkRequest(QUrl(kMainPage));
-        spdlog::trace("ItemsManagerWorker::LegacyRefresh() requesting main page to capture "
-                      "selected character: {}",
-                      main_page_request.url().toString());
-        QNetworkReply *submit = m_network_manager.get(main_page_request);
-        connect(submit,
-                &QNetworkReply::finished,
-                this,
-                &ItemsManagerWorker::OnLegacyMainPageReceived);
-    }
 }
 
 void ItemsManagerWorker::OAuthRefresh()
@@ -848,188 +797,6 @@ void ItemsManagerWorker::OnOAuthCharacterReceived(QNetworkReply *reply, const It
     }
 }
 
-void ItemsManagerWorker::OnLegacyMainPageReceived()
-{
-    spdlog::trace("ItemsManagerWorker::OnLegacyMainPageReceived() entered");
-
-    QNetworkReply *reply = qobject_cast<QNetworkReply *>(QObject::sender());
-    if (reply->error()) {
-        spdlog::warn("Couldn't fetch main page: {} due to error: {}",
-                     reply->url().toDisplayString(),
-                     reply->errorString());
-    } else {
-        QString page(reply->readAll().constData());
-        m_selected_character = Util::FindTextBetween(page, "C({\"name\":\"", "\",\"class");
-        if (m_selected_character.isEmpty()) {
-            spdlog::warn("Couldn't extract currently selected character name from GGG homepage "
-                         "(maintenence?) Text was: {}",
-                         page);
-        }
-    }
-    reply->deleteLater();
-
-    QNetworkRequest characters_request = MakeLegacyCharacterListRequest();
-    spdlog::trace("ItemsManagerWorker::OnLegacyMainPageReceived() requesting characters: {}",
-                  characters_request.url().toString());
-    auto submit = m_rate_limiter.Submit(kGetCharactersUrl, characters_request);
-    connect(submit,
-            &RateLimitedReply::complete,
-            this,
-            &ItemsManagerWorker::OnLegacyCharacterListReceived);
-}
-
-void ItemsManagerWorker::OnLegacyCharacterListReceived(QNetworkReply *reply)
-{
-    spdlog::trace("ItemsManagerWorker::OnLegacyCharacterListReceived() entered");
-
-    auto sender = qobject_cast<RateLimitedReply *>(QObject::sender());
-    sender->deleteLater();
-    reply->deleteLater();
-    if (reply->error()) {
-        spdlog::warn("Couldn't fetch character list: {} due to error: {}. Aborting update.",
-                     reply->url().toDisplayString(),
-                     reply->errorString());
-        m_updating = false;
-        reply->deleteLater();
-        return;
-    }
-
-    const QByteArray bytes = reply->readAll();
-    rapidjson::Document doc;
-    doc.Parse(bytes.constData());
-    if (doc.HasParseError() || !doc.IsArray()) {
-        spdlog::error("Received invalid reply instead of character list: {}", bytes.constData());
-        if (doc.HasParseError()) {
-            spdlog::error("The error was {}", rapidjson::GetParseError_En(doc.GetParseError()));
-        };
-        spdlog::error("");
-        spdlog::error(
-            "(Maybe you need to log in to the website manually and accept new Terms of Service?)");
-        m_updating = false;
-        return;
-    }
-
-    spdlog::debug("Received character list, there are {} characters across all leagues.",
-                  doc.Size());
-
-    auto &alloc = doc.GetAllocator();
-
-    int requested_character_count = 0;
-    for (auto &character : doc) {
-        if (!HasString(character, "name")) {
-            spdlog::error("The legacy character does not have a name. The reply may be invalid: {}",
-                          bytes);
-            continue;
-        }
-        const QString name = character["name"].GetString();
-        if (!HasString(character, "league")) {
-            spdlog::error("Malformed legacy character entry for {}: the reply may be invalid: {}",
-                          name,
-                          bytes);
-            continue;
-        }
-        const QString league = character["league"].GetString();
-        if (league != m_league) {
-            spdlog::debug("Skipping {} because this character is not in league {}", name, m_league);
-            continue;
-        }
-        if (m_tab_id_index.count(name) > 0) {
-            spdlog::debug("Skipping legacy character {} because this item is not being refreshed.",
-                          name);
-            continue;
-        }
-        const int tab_count = static_cast<int>(m_tabs.size());
-        const auto loc_type = ItemLocationType::CHARACTER;
-        ItemLocation location(tab_count, "", name, loc_type, "", 0, 0, 0, character, alloc);
-        m_tabs.push_back(location);
-
-        if (m_update_tab_contents) {
-            ++requested_character_count;
-
-            //Queue request for items on character in character's stash
-            QueueRequest(kCharacterItemsUrl, MakeLegacyCharacterRequest(name), location);
-
-            //Queue request for jewels in character's passive tree
-            QueueRequest(kCharacterSocketedJewels, MakeLegacyPassivesRequest(name), location);
-        }
-    }
-    spdlog::debug("There are {}characters to update in {}", requested_character_count, m_league);
-
-    m_has_character_list = true;
-
-    // Check to see if we can start sending queued requests to fetch items yet.
-    if (!m_need_stash_list || m_has_stash_list) {
-        spdlog::trace("ItemsManagerWorker::OnLegacyCharacterListReceived() fetching items");
-        FetchItems();
-    }
-}
-
-QNetworkRequest ItemsManagerWorker::MakeLegacyCharacterListRequest()
-{
-    spdlog::trace("ItemsManagerWorker::MakeLegacyCharacterListRequest() entered");
-
-    QUrlQuery query;
-    query.addQueryItem("accountName", m_account);
-    query.addQueryItem("realm", m_realm);
-
-    QUrl url(kGetCharactersUrl);
-    url.setQuery(query);
-    return QNetworkRequest(url);
-}
-
-QNetworkRequest ItemsManagerWorker::MakeLegacyTabRequest(int tab_index, bool tabs)
-{
-    spdlog::trace("ItemsManagerWorker::MakeLegacyTabRequest() entered");
-
-    if (tab_index < 0) {
-        spdlog::error("MakeLegacyTabRequest: invalid tab_index = {}", tab_index);
-    }
-    QUrlQuery query;
-    query.addQueryItem("accountName", m_account);
-    query.addQueryItem("realm", m_realm);
-    query.addQueryItem("league", m_league);
-    query.addQueryItem("tabs", tabs ? "1" : "0");
-    query.addQueryItem("tabIndex", QString::number(tab_index));
-
-    QUrl url(kStashItemsUrl);
-    url.setQuery(query);
-    return QNetworkRequest(url);
-}
-
-QNetworkRequest ItemsManagerWorker::MakeLegacyCharacterRequest(const QString &name)
-{
-    spdlog::trace("ItemsManagerWorker::MakeLegacyCharacterRequest() entered");
-
-    if (name.isEmpty()) {
-        spdlog::error("MakeLegacyCharacterRequest: invalid name = '" + name + "'");
-    }
-    QUrlQuery query;
-    query.addQueryItem("accountName", m_account);
-    query.addQueryItem("realm", m_realm);
-    query.addQueryItem("character", name);
-
-    QUrl url(kCharacterItemsUrl);
-    url.setQuery(query);
-    return QNetworkRequest(url);
-}
-
-QNetworkRequest ItemsManagerWorker::MakeLegacyPassivesRequest(const QString &name)
-{
-    spdlog::trace("ItemsManagerWorker::MakeLegacyPassivesRequest() entered");
-
-    if (name.isEmpty()) {
-        spdlog::error("MakeLegacyPassivesRequest: invalid name = '" + name + "'");
-    }
-    QUrlQuery query;
-    query.addQueryItem("accountName", m_account);
-    query.addQueryItem("realm", m_realm);
-    query.addQueryItem("character", name);
-
-    QUrl url(kCharacterSocketedJewels);
-    url.setQuery(query);
-    return QNetworkRequest(url);
-}
-
 void ItemsManagerWorker::QueueRequest(const QString &endpoint,
                                       const QNetworkRequest &request,
                                       const ItemLocation &location)
@@ -1071,13 +838,7 @@ void ItemsManagerWorker::FetchItems()
         const QString endpoint = request.endpoint;
         std::function<void(QNetworkReply *)> callback;
 
-        if (endpoint == kStashItemsUrl) {
-            callback = [=, this](QNetworkReply *reply) { OnLegacyTabReceived(reply, location); };
-            ++m_stashes_needed;
-        } else if ((endpoint == kCharacterItemsUrl) || (endpoint == kCharacterSocketedJewels)) {
-            callback = [=, this](QNetworkReply *reply) { OnLegacyTabReceived(reply, location); };
-            ++m_characters_needed;
-        } else if (endpoint == kOAuthGetStashEndpoint) {
+        if (endpoint == kOAuthGetStashEndpoint) {
             callback = [=, this](QNetworkReply *reply) { OnOAuthStashReceived(reply, location); };
             ++m_stashes_needed;
         } else if (endpoint == kOAuthGetCharacterEndpoint) {
@@ -1106,161 +867,6 @@ void ItemsManagerWorker::FetchItems()
     // (Discovered this was necessary when trying to refresh a single unique stashtab).
     if ((m_stashes_needed == 0) && (m_characters_needed == 0)) {
         m_updating = false;
-    }
-}
-
-bool ItemsManagerWorker::IsLegacyTabValid(rapidjson::Value &tab)
-{
-    if (!HasString(tab, "n")) {
-        spdlog::error("Legacy tab does not have name");
-        return false;
-    }
-
-    if (!HasInt(tab, "i")) {
-        spdlog::error("Legacy tab does not have an index: {}", tab["n"].GetString());
-        return false;
-    }
-
-    // Skip hidden tabs.
-    if (HasBool(tab, "hidden") && tab["hidden"].GetBool()) {
-        spdlog::debug("The legacy tab is hidden: {}", tab["n"].GetString());
-        return false;
-    }
-
-    // Skip tabs that are in the index; they are not being refreshed.
-    if (!HasString(tab, "id")) {
-        spdlog::error("The legacy tab does not have a unique id: {}", tab["n"].GetString());
-        return false;
-    }
-    QString tab_id = tab["id"].GetString();
-    if (tab_id.size() > 10) {
-        // The unique id for stash tabs returned from the legacy API
-        // need to be trimmed to 10 characters.
-        spdlog::debug("Trimming legacy tab unique id: {}", tab["n"].GetString());
-        tab_id = tab_id.first(10);
-    }
-
-    // Get the type of this stash tab.
-    if (!HasString(tab, "type")) {
-        spdlog::error("The stash tab does not have a type: {}", tab["n"].GetString());
-        return false;
-    }
-
-    return true;
-}
-
-void ItemsManagerWorker::ProcessLegacyTab(rapidjson::Value &tab,
-                                          int &count,
-                                          rapidjson_allocator &alloc)
-{
-    if (!IsLegacyTabValid(tab)) {
-        return;
-    }
-
-    const QString label = tab["n"].GetString();
-    const QString tab_type = tab["type"].GetString();
-    const int index = tab["i"].GetInt();
-
-    // The unique id for stash tabs returned from the legacy API
-    // need to be trimmed to 10 characters.
-    QString tab_id = tab["id"].GetString();
-    if (tab_id.size() > 10) {
-        tab_id = tab_id.first(10);
-    }
-
-    if (m_tab_id_index.count(tab_id) == 0) {
-        // Create this tab.
-        int r = 0, g = 0, b = 0;
-        Util::GetTabColor(tab, r, g, b);
-        ItemLocation
-            location(index, tab_id, label, ItemLocationType::STASH, tab_type, r, g, b, tab, alloc);
-
-        // Add this tab.
-        m_tabs.push_back(location);
-        m_tab_id_index.insert(tab_id);
-
-        // Submit a request for this tab.
-        if (m_update_tab_contents) {
-            ++count;
-            QNetworkRequest request = MakeLegacyTabRequest(location.get_tab_id(), true);
-            QueueRequest(kStashItemsUrl, request, location);
-        }
-
-        // Process any children.
-        if (tab.HasMember("children")) {
-            for (auto &child : tab["children"]) {
-                ProcessLegacyTab(child, count, alloc);
-            }
-        }
-    }
-}
-
-void ItemsManagerWorker::OnFirstLegacyTabReceived(QNetworkReply *reply)
-{
-    spdlog::trace("ItemsManagerWorker::OnFirstLegacyTabReceived() entered");
-
-    auto sender = qobject_cast<RateLimitedReply *>(QObject::sender());
-    sender->deleteLater();
-    reply->deleteLater();
-
-    spdlog::trace("First legacy tab received.");
-    rapidjson::Document doc;
-    QByteArray bytes = reply->readAll();
-    doc.Parse(bytes.constData());
-
-    if (!doc.IsObject()) {
-        spdlog::error("Can't even fetch first legacy tab. Failed to update items.");
-        m_updating = false;
-        return;
-    }
-
-    if (doc.HasMember("error")) {
-        spdlog::error("Aborting legacy update since first fetch failed due to 'error': {}",
-                      Util::RapidjsonSerialize(doc["error"]));
-        m_updating = false;
-        return;
-    }
-
-    if (!HasArray(doc, "tabs") || doc["tabs"].Size() == 0) {
-        spdlog::error("There are no legacy tabs, this should not happen, bailing out.");
-        m_updating = false;
-        return;
-    }
-
-    auto &tabs = doc["tabs"];
-
-    spdlog::debug("Received legacy tabs list, there are {} tabs", tabs.Size());
-    m_tabs_signature = CreateTabsSignatureVector(tabs);
-
-    // Remember old tab headers before clearing tabs
-    std::set<QString> old_tab_headers;
-    for (auto const &tab : m_tabs) {
-        old_tab_headers.emplace(tab.GetHeader());
-    }
-
-    // Force refreshes for any stash tabs that were moved or renamed.
-    if (m_update_tab_contents) {
-        for (auto const &tab : m_tabs) {
-            if (!old_tab_headers.count(tab.GetHeader())) {
-                spdlog::debug("Forcing refresh of moved or renamed tab: {}", tab.GetHeader());
-                QueueRequest(kStashItemsUrl, MakeLegacyTabRequest(tab.get_tab_id(), true), tab);
-            }
-        }
-    }
-
-    // Queue stash tab requests.
-    int count = 0;
-    auto &alloc = doc.GetAllocator();
-    for (auto &tab : tabs) {
-        ProcessLegacyTab(tab, count, alloc);
-    }
-
-    m_has_stash_list = true;
-
-    // Check to see if we can start sending queued requests to fetch items yet.
-    if (!m_need_character_list || m_has_character_list) {
-        spdlog::trace("ItemsManagerWorker::OnFirstLegacyTabReceived() fetching items");
-        FetchItems();
     }
 }
 
@@ -1311,80 +917,6 @@ void ItemsManagerWorker::ParseItems(rapidjson::Value &value,
             ParseItems(item["socketedItems"], location, alloc);
             location.set_socketed(false);
         }
-    }
-}
-
-void ItemsManagerWorker::OnLegacyTabReceived(QNetworkReply *reply, const ItemLocation &location)
-{
-    spdlog::trace("ItemsManagerWorker::OnLegacyTabReceived() entered");
-
-    auto sender = qobject_cast<RateLimitedReply *>(QObject::sender());
-    sender->deleteLater();
-    reply->deleteLater();
-
-    spdlog::debug("Legacy tab receivevd: {}", location.GetHeader());
-    rapidjson::Document doc;
-    QByteArray bytes = reply->readAll();
-    doc.Parse(bytes.constData());
-
-    bool error = false;
-    if (!doc.IsObject()) {
-        spdlog::error("Legacy tab is non-object response for: {}", location.GetHeader());
-        error = true;
-    } else if (doc.HasMember("error")) {
-        // this can happen if user is browsing stash in background and we can't know about it
-        spdlog::error("Legacy tab has 'error' instead of stash tab contents for: {}",
-                      location.GetHeader());
-        spdlog::error("The error is: {}", Util::RapidjsonSerialize(doc["error"]));
-        error = true;
-    }
-
-    // We index expected tabs and their locations as part of the first fetch.  It's possible for users
-    // to move or rename tabs during the update which will result in the item data being out-of-sync with
-    // expected index/tab name map.  We need to detect this case and abort the update.
-    if (!m_cancel_update && !error && (location.get_type() == ItemLocationType::STASH)) {
-        m_cancel_update = TabsChanged(doc, reply, location);
-    }
-
-    switch (location.get_type()) {
-    case ItemLocationType::STASH:
-        ++m_stashes_received;
-        break;
-    case ItemLocationType::CHARACTER:
-        ++m_characters_received;
-        break;
-    default:
-        spdlog::error("OnLegacyTabReceived: invalid location type {}", location.get_type());
-    }
-    SendStatusUpdate();
-
-    if ((m_stashes_received == m_stashes_needed) && (m_characters_received == m_characters_needed)) {
-        if (m_cancel_update) {
-            spdlog::trace("ItemsManagerWorker::OnLegacyTabReceived() cancelling update");
-            m_updating = false;
-        }
-    }
-
-    if (error) {
-        return;
-    }
-
-    if (!HasArray(doc, "items")) {
-        spdlog::debug("Legacy stash does not have an 'items' array: {}", location.GetHeader());
-    } else {
-        auto &items = doc["items"];
-        if (items.Size() == 0) {
-            spdlog::debug("Legacy stash 'items' is empty: {}", location.GetHeader());
-        } else {
-            ParseItems(items, location, doc.GetAllocator());
-        }
-    }
-
-    if ((m_stashes_received == m_stashes_needed) && (m_characters_received == m_characters_needed)
-        && !m_cancel_update) {
-        spdlog::trace("ItemsManagerWorker::OnLegacyTabReceived() finishing update");
-        FinishUpdate();
-        PreserveSelectedCharacter();
     }
 }
 
@@ -1513,24 +1045,6 @@ void ItemsManagerWorker::FinishUpdate()
 
     m_updating = false;
     spdlog::debug("Update finished.");
-}
-
-void ItemsManagerWorker::PreserveSelectedCharacter()
-{
-    spdlog::trace("ItemsManagerWorker::PreserveSelectedCharacter() entered");
-
-    if (m_selected_character.isEmpty()) {
-        spdlog::debug("Cannot preserve selected character: no character selected");
-        return;
-    }
-    spdlog::debug("Preserving selected character: {}", m_selected_character);
-    // The act of making this request sets the active character.
-    // We don't need to to anything with the reply.
-    QNetworkRequest character_request = MakeLegacyCharacterRequest(m_selected_character);
-    auto submit = m_rate_limiter.Submit(kCharacterItemsUrl, character_request);
-    connect(submit, &RateLimitedReply::complete, this, [=](QNetworkReply *reply) {
-        reply->deleteLater();
-    });
 }
 
 ItemsManagerWorker::TabsSignatureVector ItemsManagerWorker::CreateTabsSignatureVector(

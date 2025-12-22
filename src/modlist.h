@@ -23,6 +23,7 @@
 #include <QString>
 #include <QStringList>
 #include <QStringListModel>
+#include <QStringView>
 
 #include <memory>
 #include <unordered_map>
@@ -43,8 +44,8 @@ class ModGenerator
 {
 public:
     virtual ~ModGenerator() {};
-    void Generate(const rapidjson::Value &json, ModTable *output);
-    virtual void Generate(const QString &json, ModTable *output) = 0;
+    void Generate(const rapidjson::Value &json, ModTable &output);
+    virtual void Generate(const QString &json, ModTable &output) = 0;
 };
 
 class SumModGenerator : public ModGenerator
@@ -52,10 +53,10 @@ class SumModGenerator : public ModGenerator
 public:
     SumModGenerator(const QString &name, const std::vector<QString> &sum);
     virtual ~SumModGenerator() {};
-    virtual void Generate(const QString &json, ModTable *output);
+    virtual void Generate(const QString &json, ModTable &output);
 
 private:
-    bool Match(const char *mod, double *output);
+    bool Match(const char *mod, double &output);
 
     QString m_name;
     std::vector<QString> m_matches;
@@ -65,4 +66,28 @@ typedef std::shared_ptr<SumModGenerator> SumModGen;
 
 void InitStatTranslations();
 void AddStatTranslations(const QByteArray &statTranslations);
-void AddModToTable(const QString &mod, ModTable *output);
+void AddModToTable(const QString &mod, ModTable &output);
+
+//------------------------------
+/*
+
+struct NormalizedModifier
+{
+    QString normalized;
+    std::vector<int32_t> values_x100;
+};
+
+struct InternedModifier
+{
+    uint32_t id;
+    std::vector<int32_t> values_x100;
+};
+
+static std::unordered_map<QString, uint32_t> modifier_ids;
+static std::vector<QStringView> modifier_strings;
+
+NormalizedModifier normalize_modifier(QStringView s);
+
+InternedModifier intern_modifier(QStringView &modifier);
+
+*/

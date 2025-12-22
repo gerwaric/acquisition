@@ -40,7 +40,6 @@
 #include "application.h"
 #include "shop.h"
 #include "testmain.h"
-#include "version_defines.h"
 
 constexpr const char *BUILD_TIMESTAMP = (__DATE__ " " __TIME__);
 
@@ -120,10 +119,7 @@ int main(int argc, char *argv[])
     // Start the log with basic info
     spdlog::set_level(spdlog::level::info);
     spdlog::info("-------------------------------------------------------------------------------");
-    spdlog::info("{} {} (version code {})",
-                 a.applicationName(),
-                 a.applicationVersion(),
-                 VERSION_CODE);
+    spdlog::info("{} {}", a.applicationName(), a.applicationVersion());
     spdlog::info("Built with Qt {} on {}", QT_VERSION_STR, build_date.toString());
     spdlog::info("Running on Qt {}", qVersion());
     spdlog::info("Logging level will be {}", loglevel);

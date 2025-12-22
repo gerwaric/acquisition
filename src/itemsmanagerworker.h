@@ -68,8 +68,7 @@ public:
                        RePoE &repoe,
                        BuyoutManager &buyout_manager,
                        DataStore &datastore,
-                       RateLimiter &rate_limiter,
-                       POE_API mode);
+                       RateLimiter &rate_limiter);
     bool isInitialized() const { return m_initialized; }
     bool isUpdating() const { return m_updating; };
     void UpdateRequest(TabSelection type, const std::vector<ItemLocation> &locations);
@@ -88,11 +87,6 @@ public slots:
                 = std::vector<ItemLocation, std::allocator<ItemLocation>>());
 
 private slots:
-    void OnLegacyMainPageReceived();
-    void OnLegacyCharacterListReceived(QNetworkReply *reply);
-    void OnFirstLegacyTabReceived(QNetworkReply *reply);
-    void OnLegacyTabReceived(QNetworkReply *reply, const ItemLocation &location);
-
     void OnOAuthStashListReceived(QNetworkReply *reply);
     void OnOAuthStashReceived(QNetworkReply *reply, const ItemLocation &location);
     void OnOAuthCharacterListReceived(QNetworkReply *reply);
@@ -106,13 +100,6 @@ private:
                       const QNetworkRequest &request,
                       const ItemLocation &location);
     void FetchItems();
-    void PreserveSelectedCharacter();
-
-    void LegacyRefresh();
-    QNetworkRequest MakeLegacyCharacterListRequest();
-    QNetworkRequest MakeLegacyTabRequest(int tab_index, bool tabs = false);
-    QNetworkRequest MakeLegacyCharacterRequest(const QString &name);
-    QNetworkRequest MakeLegacyPassivesRequest(const QString &name);
 
     void OAuthRefresh();
     QNetworkRequest MakeOAuthStashListRequest(const QString &realm, const QString &league);
@@ -139,9 +126,6 @@ private:
     bool IsOAuthTabValid(rapidjson::Value &tab);
     void ProcessOAuthTab(rapidjson::Value &tab, int &count, rapidjson_allocator &alloc);
 
-    bool IsLegacyTabValid(rapidjson::Value &tab);
-    void ProcessLegacyTab(rapidjson::Value &tab, int &count, rapidjson_allocator &alloc);
-
     QSettings &m_settings;
     NetworkManager &m_network_manager;
     RePoE &m_repoe;
@@ -149,7 +133,6 @@ private:
     BuyoutManager &m_buyout_manager;
     RateLimiter &m_rate_limiter;
 
-    POE_API m_mode;
     QString m_realm;
     QString m_league;
     QString m_account;

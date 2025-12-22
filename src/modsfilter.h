@@ -53,9 +53,16 @@ private slots:
 
 private:
     ModFilterData m_data;
-    SearchComboBox m_mod_select;
-    QLineEdit m_min_text, m_max_text;
+    //SearchComboBox m_mod_select;
+    QComboBox m_mod_select;
+    QLineEdit m_min_text;
+    QLineEdit m_max_text;
     QPushButton m_delete_button;
+    TokenAndFilterProxy m_proxy;
+    QCompleter m_completer;
+    QTimer m_timer;
+
+    QString m_pending_text;
 };
 
 class ModsFilter;

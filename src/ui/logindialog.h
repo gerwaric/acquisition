@@ -50,14 +50,12 @@ public:
 signals:
     void ChangeTheme(const QString &theme);
     void ChangeUserDir(const QString &user_dir);
-    void LoginComplete(POE_API mode);
+    void LoginComplete();
 private slots:
     void OnLeaguesReceived();
     void OnAuthenticateButtonClicked();
     void OnLoginTabChanged(int index);
     void OnLoginButtonClicked();
-    void OnStartLegacyLogin();
-    void OnFinishLegacyLogin();
     void OnSessionIDChanged(const QString &session_id);
     void OnLeagueChanged(const QString &league);
     void OnAdvancedCheckBoxChanged(Qt::CheckState state);
@@ -76,7 +74,6 @@ private:
     void LoadSettings();
     void RequestLeagues();
     void LoginWithOAuth();
-    void LoginWithSessionID();
     void LeaguesRequestError(const QString &error, const QByteArray &reply);
     void DisplayError(const QString &error);
 

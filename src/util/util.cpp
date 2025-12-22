@@ -385,3 +385,39 @@ QByteArray Util::FixTimezone(const QByteArray &rfc2822_date)
     }
     return rfc2822_date;
 }
+
+QString Util::numbers_to_hash(const QStringView s)
+{
+    QString out;
+    out.reserve(s.size());
+
+    for (qsizetype i = 0; i < s.size();) {
+        QChar c = s[i];
+        const bool starts_decimal = (c == '.') && ((i + 1) < s.size()) && s[i + 1].isDigit();
+        const bool starts_integer = c.isDigit();
+
+        if (starts_integer || starts_decimal) {
+            // Emit one '#' for the whole number token.
+            out.push_back('#');
+
+            // Consume leading digits (if any)
+            while ((i < s.size()) && s[i].isDigit()) {
+                ++i;
+            }
+
+            // Consume optional fractional part: '.' + digits
+            if ((i < s.size()) && (s[i] == '.') && ((i + 1) < s.size()) && s[i + 1].isDigit()) {
+                ++i; // consume '.'
+                while ((i < s.size()) && s[i].isDigit()) {
+                    ++i;
+                }
+            }
+
+            // If we started with ".5", we consumed the '.' in the fractional part logic above.
+            continue;
+        }
+        out.push_back(c);
+        ++i;
+    }
+    return out;
+}

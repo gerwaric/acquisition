@@ -61,7 +61,7 @@ public:
 
 signals:
     // Emitted when a network request is ready to go.
-    void RequestReady(RateLimitManager *manager, QNetworkRequest request, POE_API mode);
+    void RequestReady(RateLimitManager *manager, QNetworkRequest request);
 
     // Emitted when the underlying policy has been updated.
     void PolicyUpdated(const RateLimitPolicy &policy);

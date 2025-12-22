@@ -29,7 +29,7 @@ cmake_minimum_required(VERSION 3.30)
 # version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
-    VERSION 0.14.3
+    VERSION 0.15.0
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
@@ -39,7 +39,6 @@ project(acquisition
 set(version_postfix "")
 
 # Variables used to generate version_defines.h and installer.iss
-set(version_code        63) # This doesn't need to be changed with the new update checks.
 set(app_name            "${CMAKE_PROJECT_NAME}")
 set(app_version         "${CMAKE_PROJECT_VERSION}")
 set(app_version_string  "${CMAKE_PROJECT_VERSION}${version_postfix}")
@@ -91,7 +90,7 @@ if(NOT TARGET glaze)
     FetchContent_Declare(
         glaze
         GIT_REPOSITORY https://github.com/stephenberry/glaze.git
-        GIT_TAG        v6.0.1
+        GIT_TAG        v6.4.0
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(glaze)
