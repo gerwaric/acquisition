@@ -99,6 +99,8 @@ namespace Util {
 
     QByteArray FixTimezone(const QByteArray &rfc2822_date);
 
+    QString numbers_to_hash(const QStringView s);
+
     // Convert Q_ENUM and Q_ENUM_NS objects to their string value.
     template<typename T>
     QString toString(const T &value)

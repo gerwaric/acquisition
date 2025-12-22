@@ -30,13 +30,47 @@
 
 #include "modlist.h"
 
+#include <QSortFilterProxyModel>
+
 SelectedMod::SelectedMod(
     const QString &name, double min, double max, bool min_filled, bool max_filled)
     : m_data(name, min, max, min_filled, max_filled)
-    , m_mod_select(&mod_list_model(), name)
     , m_delete_button("X")
 {
+    auto *baseModel = &mod_list_model();
+
+    m_mod_select.setEditable(true);
+    m_mod_select.setInsertPolicy(QComboBox::NoInsert);
     m_mod_select.setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    m_mod_select.setModel(baseModel);
+
+    spdlog::info("{} mods", baseModel->rowCount());
+
+    //auto *proxy = new TokenAndFilterProxy(combo);
+    m_proxy.setSourceModel(baseModel);
+    m_proxy.setFilterRole(Qt::DisplayRole);
+    m_proxy.setFilterKeyColumn(0);
+    m_proxy.setSortCaseSensitivity(Qt::CaseSensitive);
+    m_proxy.sort(0);
+
+    // Completer uses the proxy
+    //auto *completer = new QCompleter(proxy, combo);
+    m_completer.setModel(&m_proxy);
+    m_completer.setCaseSensitivity(Qt::CaseSensitive);
+    m_completer.setCompletionMode(QCompleter::UnfilteredPopupCompletion);
+    m_mod_select.setCompleter(&m_completer);
+
+    // Debounce updates while typing
+    m_timer.setSingleShot(true);
+    m_timer.setInterval(350);
+    QObject::connect(&m_mod_select, &QComboBox::editTextChanged, this, [&](const QString &text) {
+        m_pending_text = text;
+        m_timer.start();
+    });
+    QObject::connect(&m_timer, &QTimer::timeout, this, [&]() {
+        m_proxy.setQueryText(m_mod_select.currentText());
+        m_completer.complete();
+    });
 
     if (min_filled) {
         m_min_text.setText(QString::number(min));

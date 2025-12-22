@@ -23,6 +23,8 @@
 #include <QAbstractItemView>
 #include <QLineEdit>
 
+const QRegularExpression TokenAndFilterProxy::s_sep = QRegularExpression("\\s+");
+
 // Set the width of the popup view to the width of the completer options
 void SearchComboCompleter::complete(const QRect &rect)
 {

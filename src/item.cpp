@@ -465,7 +465,7 @@ void Item::GenerateMods(const rapidjson::Value &json)
         if (HasArray(json, type)) {
             for (const auto &mod : json[type]) {
                 if (mod.IsString()) {
-                    AddModToTable(mod.GetString(), &m_mod_table);
+                    AddModToTable(mod.GetString(), m_mod_table);
                 }
             }
         }
