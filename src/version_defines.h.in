@@ -18,12 +18,6 @@
 #ifndef VERSION_DEFINES_H
 #define VERSION_DEFINES_H
 
-// Make sure to update version.txt file to match the "VER_CODE" value
-// The program will look to this file in the GitHub repo, and compare it to
-// the VER_CODE in the current installation. If the number in the version.txt
-// file is greater than VER_CODE, then the updater will notify the user.
-#define VERSION_CODE                @version_code@
-
 // These are used by the Inno 6 installer script.
 #define APP_NAME                    "@app_name@"
 #define APP_VERSION                 "@app_version@"
