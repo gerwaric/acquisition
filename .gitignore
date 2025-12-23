@@ -1,3 +1,4 @@
+.qtcreator/
 
 # Visual Studio and Qt Creator 13.0 puts builds here.
 /build/
