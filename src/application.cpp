@@ -32,7 +32,6 @@
 #include <ratelimit/ratelimitmanager.h>
 #include <ui/logindialog.h>
 #include <ui/mainwindow.h>
-#include <util/crashpad.h>
 #include <util/fatalerror.h>
 #include <util/networkmanager.h>
 #include <util/oauthmanager.h>
@@ -109,9 +108,6 @@ void Application::InitUserDir(const QString &dir)
     const QString settings_path = m_data_dir.filePath("settings.ini");
     spdlog::trace("Application: creating the settings object: {}", settings_path);
     m_settings = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
-
-    spdlog::trace("Application:initializing crashpad");
-    InitCrashReporting();
 
     const QDir user_dir(m_data_dir.filePath("data"));
     const QString global_data_file = user_dir.filePath(SqliteDataStore::MakeFilename("", ""));
@@ -339,12 +335,6 @@ void Application::InitCrashReporting()
         // Use the exiting setting.
         report_crashes = m_settings->value("report_crashes").toBool();
         spdlog::trace("Application::InitCrashReporting() 'report_crashes' is {}", report_crashes);
-    }
-
-    // Initialize crash reporting with crashpad.
-    if (report_crashes) {
-        spdlog::trace("Application::InitCrashReporting() initializing crashpad");
-        initializeCrashpad(m_data_dir.absolutePath(), APP_PUBLISHER, APP_NAME, APP_VERSION_STRING);
     }
 }
 

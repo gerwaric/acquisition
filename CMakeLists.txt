@@ -71,6 +71,16 @@ include(FetchContent)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Test Widgets)
 
+if(NOT TARGET sentry-native)
+    FetchContent_Declare(
+        sentry-native
+        GIT_REPOSITORY https://github.com/getsentry/sentry-native
+        GIT_TAG        0.12.2
+        GIT_SHALLOW    TRUE
+    )
+    FetchContent_MakeAvailable(sentry-native)
+endif()
+
 if(NOT TARGET glaze)
     FetchContent_Declare(
         glaze
@@ -167,7 +177,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/ui/searchcombobox.cpp
     src/ui/verticalscrollarea.cpp
     src/util/checkmsvc.cpp
-    src/util/crashpad.cpp
     src/util/fatalerror.cpp
     src/util/logging.cpp
     src/util/networkmanager.cpp
@@ -268,7 +277,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/ui/searchcombobox.h
     src/ui/verticalscrollarea.h
     src/util/checkmsvc.h
-    src/util/crashpad.h
     src/util/fatalerror.h
     src/util/glaze_qt.h
     # src/util/json_struct_qt.h
@@ -343,7 +351,6 @@ target_include_directories(acquisition PRIVATE
     "${CMAKE_BINARY_DIR}"
 )
 
-add_subdirectory(deps/Crashpad)
 add_subdirectory(deps/qdarkstyle)
 
 # Link required libraries.
@@ -357,10 +364,10 @@ target_link_libraries(acquisition PRIVATE
     Qt::Sql
     Qt::Test
     # Extenal libraries
-    Crashpad
     glaze::glaze
     qdarkstyle
     rapidjson
+    sentry
     semver
     spdlog::spdlog_header_only
 )

@@ -41,7 +41,6 @@
 
 // #include "legacy/legacybuyoutvalidator.h" -- DISABLED as of v0.12.3.1
 #include <datastore/datastore.h>
-#include <util/crashpad.h>
 #include <util/networkmanager.h>
 #include <util/oauthmanager.h>
 #include <util/spdlog_qt.h>
@@ -426,10 +425,7 @@ void LoginDialog::OnReportCrashesCheckBoxChanged(Qt::CheckState state)
         const bool enable_reporting = (msgbox.clickedButton() == yes);
         m_settings.setValue("report_crashes", enable_reporting);
         if (enable_reporting) {
-            initializeCrashpad(m_app_data_dir.absolutePath(),
-                               APP_PUBLISHER,
-                               APP_NAME,
-                               APP_VERSION_STRING);
+            spdlog::info("TBD: crash reporting checkbox");
         } else {
             ui->reportCrashesCheckBox->setChecked(false);
         }

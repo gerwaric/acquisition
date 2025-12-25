@@ -15,8 +15,6 @@
 *_resource.rc
 .DS_Store
 
-# There are also special exclusions for Crasshpad at the end of this file.
-
 #------------------------------------------------------------
 # https://github.com/github/gitignore/blob/main/CMake.gitignore
 #------------------------------------------------------------
@@ -495,11 +493,3 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
-
-#------------------------------------------------------------
-# Special exclusions
-#------------------------------------------------------------
-
-# Some of the Crashpad files are excluded by the previous rules,
-# but they need to be included, so we make this exception.
-!/deps/Crashpad/**

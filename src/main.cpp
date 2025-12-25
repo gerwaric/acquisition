@@ -28,6 +28,8 @@
 
 #include <clocale>
 
+#include <sentry.h>
+
 #include <ui/logindialog.h>
 #include <util/fatalerror.h>
 #include <util/logging.h>
@@ -43,6 +45,10 @@
 
 constexpr const char *BUILD_TIMESTAMP = (__DATE__ " " __TIME__);
 
+constexpr const char *SENTRY_DSN
+    = "https://89d30fa945c751603c0dfdde2c574497@o4509396161855488.ingest.us.sentry.io/"
+      "4510597980618752";
+
 #ifdef QT_DEBUG
 constexpr const char *DEFAULT_LOGGING_LEVEL = "debug";
 #else
@@ -54,6 +60,15 @@ int main(int argc, char *argv[])
     // Make sure resources from the static qdarkstyle library are available.
     Q_INIT_RESOURCE(darkstyle);
     Q_INIT_RESOURCE(lightstyle);
+
+    sentry_options_t *options = sentry_options_new();
+    sentry_options_set_dsn(options, SENTRY_DSN);
+    sentry_options_set_database_path(options, ".sentry-native");
+    sentry_options_set_release(options, "acquisition@0.16.0");
+    sentry_options_set_debug(options, 1);
+    sentry_init(options);
+
+    auto sentryClose = qScopeGuard([] { sentry_close(); });
 
     QLocale::setDefault(QLocale::C);
     std::setlocale(LC_ALL, "C");
@@ -176,6 +191,11 @@ int main(int argc, char *argv[])
             abort();
         }
     }
+
+    sentry_capture_event(sentry_value_new_message_event(
+        /*   level */ SENTRY_LEVEL_INFO,
+        /*  logger */ "custom",
+        /* message */ "Hello World!"));
 
     // Starting the application creates and shows the login dialog.
     QTimer::singleShot(0, &app, [&] { app.Start(appDataDir); });
