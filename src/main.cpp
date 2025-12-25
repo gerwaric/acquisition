@@ -61,13 +61,14 @@ int main(int argc, char *argv[])
     Q_INIT_RESOURCE(darkstyle);
     Q_INIT_RESOURCE(lightstyle);
 
+    // Configure Sentry event logging.
     sentry_options_t *options = sentry_options_new();
     sentry_options_set_dsn(options, SENTRY_DSN);
     sentry_options_set_database_path(options, ".sentry-native");
     sentry_options_set_release(options, "acquisition@0.16.0");
-    sentry_options_set_debug(options, 1);
     sentry_init(options);
 
+    // Make sure sentry closes when the program terminates.
     auto sentryClose = qScopeGuard([] { sentry_close(); });
 
     QLocale::setDefault(QLocale::C);
