@@ -54,31 +54,16 @@ set(CMAKE_AUTORCC ON)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-# When building with Qt Creator in Windows, the compiler and linker options
-# need to be set before qt_add_executable(), otherwise these options won't be used.
-# (This is apparently not an issue with Visual Studio 2022).
+# When building with Qt Creator in Windows, use target-scoped flags so
+# dependencies don't inherit MSVC options unintentionally.
 
 if(WIN32)
 
     # Hard-code the MSCV runtime required, because knowing when the runtime really
     # needs to be updated is tricky
     set(msvc_runtime_minimum_version "14.42")
-
-    # Enable more warnings by default
-    add_compile_options(/W4)
-    add_compile_options(/EHsc)
-
-    # There was a change to mutex constructors at some point
-    # that was causing random crashes, which can be avoided
-    # with this preprocessor flag.
-    add_compile_options(/D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
-
-    # Create .pdb files for debugging
-    add_compile_options("$<$<NOT:$<CONFIG:Debug>>:/Zi>")
-    add_link_options("$<$<NOT:$<CONFIG:Debug>>:/DEBUG>")
-    add_link_options("$<$<NOT:$<CONFIG:Debug>>:/OPT:REF>")
-    add_link_options("$<$<NOT:$<CONFIG:Debug>>:/OPT:ICF>")
 
 endif()
 
@@ -380,6 +365,8 @@ target_link_libraries(acquisition PRIVATE
     spdlog::spdlog_header_only
 )
 
+target_compile_features(acquisition PRIVATE cxx_std_23)
+
 #----------------------------------
 # Platform-specific section
 #----------------------------------
@@ -388,6 +375,19 @@ if(WIN32)
 
     # Needed to check the MSVC runtime version
     target_link_libraries(acquisition PRIVATE Version)
+
+    # Enable more warnings by default (MSVC only).
+    target_compile_options(acquisition PRIVATE
+        $<$<CXX_COMPILER_ID:MSVC>:/W4>
+        $<$<CXX_COMPILER_ID:MSVC>:/EHsc>
+        $<$<CXX_COMPILER_ID:MSVC>:/D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR>
+        $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<NOT:$<CONFIG:Debug>>>:/Zi>
+    )
+    target_link_options(acquisition PRIVATE
+        $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<NOT:$<CONFIG:Debug>>>:/DEBUG>
+        $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<NOT:$<CONFIG:Debug>>>:/OPT:REF>
+        $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<NOT:$<CONFIG:Debug>>>:/OPT:ICF>
+    )
 
     # Add the application icon.
     target_sources(acquisition PRIVATE "${PROJECT_SOURCE_DIR}/assets/icon.ico")
@@ -473,19 +473,20 @@ elseif(UNIX)
     endif()
 
     # Link OpenSSL libraries to acquisition
-    target_include_directories(acquisition PUBLIC "${OPENSSL_INCLUDE_DIR}")
-    target_link_libraries(acquisition PUBLIC
+    target_link_libraries(acquisition PRIVATE
         OpenSSL::SSL
         OpenSSL::Crypto)
 
     # Generate debug symbols.
     target_compile_options(acquisition PRIVATE -g)
-    add_custom_command(TARGET acquisition
-        POST_BUILD
-        COMMAND ${CMAKE_OBJCOPY} --only-keep-debug acquisition acquisition.debug
-        COMMAND ${CMAKE_STRIP} --strip-debug --strip-unneeded acquisition
-        COMMAND ${CMAKE_OBJCOPY} --add-gnu-debuglink=acquisition.debug acquisition
-        COMMAND chmod -x acquisition.debug
-    )
+    if(CMAKE_OBJCOPY AND CMAKE_STRIP)
+        add_custom_command(TARGET acquisition
+            POST_BUILD
+            COMMAND ${CMAKE_OBJCOPY} --only-keep-debug acquisition acquisition.debug
+            COMMAND ${CMAKE_STRIP} --strip-debug --strip-unneeded acquisition
+            COMMAND ${CMAKE_OBJCOPY} --add-gnu-debuglink=acquisition.debug acquisition
+            COMMAND chmod -x acquisition.debug
+        )
+    endif()
     
 endif()
