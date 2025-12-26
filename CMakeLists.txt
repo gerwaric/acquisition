@@ -69,7 +69,7 @@ endif()
 
 include(FetchContent)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Test Widgets)
+find_package(Qt6 6.10 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Widgets)
 
 if(NOT TARGET sentry-native)
     FetchContent_Declare(
@@ -185,12 +185,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/util/repoe.cpp
     src/util/updatechecker.cpp
     src/util/util.cpp
-    test/testdata.cpp
-    test/testitem.cpp
-    test/testitemsmanager.cpp
-    test/testmain.cpp
-    test/testshop.cpp
-    test/testutil.cpp
     # Headers
     src/application.h
     src/bucket.h
@@ -289,12 +283,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/util/spdlog_qt.h
     src/util/updatechecker.h
     src/util/util.h
-    test/testdata.h
-    test/testitem.h
-    test/testitemsmanager.h
-    test/testmain.h
-    test/testshop.h
-    test/testutil.h
     # Forms
     src/ui/logindialog.ui
     src/ui/mainwindow.ui
@@ -362,7 +350,6 @@ target_link_libraries(acquisition PRIVATE
     Qt::NetworkAuth
     Qt::Widgets
     Qt::Sql
-    Qt::Test
     # Extenal libraries
     glaze::glaze
     qdarkstyle

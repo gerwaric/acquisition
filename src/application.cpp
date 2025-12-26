@@ -46,7 +46,6 @@
 #include "itemsmanager.h"
 #include "network_info.h"
 #include "shop.h"
-#include "testmain.h"
 #include "version_defines.h"
 
 Application::Application()
@@ -489,30 +488,6 @@ void Application::OnItemsRefreshed(bool initial_refresh)
         spdlog::trace("Application::OnItemsRefreshed() submitting shops");
         m_shop->SubmitShopToForum();
     }
-}
-
-void Application::OnRunTests()
-{
-    spdlog::trace("Application::OnRunTests() entered");
-    if (!m_repoe->IsInitialized()) {
-        spdlog::trace("Application::OnRunTests() RePoE is not initialized");
-        QMessageBox::information(nullptr,
-                                 "Acquisition",
-                                 "RePoE is not initialized yet. Try again later",
-                                 QMessageBox::StandardButton::Ok,
-                                 QMessageBox::StandardButton::Ok);
-        return;
-    }
-    spdlog::trace("Application::OnRunTests() hiding login and running tests");
-    m_login->hide();
-    const int result = test_main(m_data_dir.absolutePath());
-    spdlog::trace("Application::OnRunTests(): test_main returned {}", result);
-    QMessageBox::information(nullptr,
-                             "Acquisition",
-                             "Testing returned " + QString::number(result),
-                             QMessageBox::StandardButton::Ok,
-                             QMessageBox::StandardButton::Ok);
-    m_login->show();
 }
 
 void Application::SaveDbOnNewVersion()

@@ -76,7 +76,6 @@ public slots:
     void SetUserDir(const QString &dir);
     void OnLogin();
     void OnItemsRefreshed(bool initial_refresh);
-    void OnRunTests();
 
 private:
     void Stop();

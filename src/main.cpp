@@ -41,7 +41,6 @@
 
 #include "application.h"
 #include "shop.h"
-#include "testmain.h"
 
 constexpr const char *BUILD_TIMESTAMP = (__DATE__ " " __TIME__);
 
@@ -82,9 +81,6 @@ int main(int argc, char *argv[])
 
     QFontDatabase::addApplicationFont(":/fonts/Fontin-SmallCaps.ttf");
 
-    QCommandLineOption option_test("test");
-    option_test.setDescription("Run tests and exit.");
-
     QCommandLineOption option_data_dir("data-dir");
     option_data_dir.setDescription("Where to save Acquisition data.");
     option_data_dir.setValueName("data-dir");
@@ -105,7 +101,6 @@ int main(int argc, char *argv[])
     QCommandLineParser parser;
     parser.addHelpOption();
     parser.addVersionOption();
-    parser.addOption(option_test);
     parser.addOption(option_data_dir);
     parser.addOption(option_log_level);
     parser.addOption(option_crash);
@@ -160,12 +155,6 @@ int main(int argc, char *argv[])
     }
     spdlog::trace("SSL Library Build Version: {}", QSslSocket::sslLibraryBuildVersionString());
     spdlog::trace("SSL Library Version: {}", QSslSocket::sslLibraryVersionString());
-
-    // Check for test mode.
-    if (parser.isSet(option_test)) {
-        spdlog::info("Running test suite...");
-        return test_main(appDataDir.absolutePath());
-    }
 
     if (parser.isSet(option_validate_buyouts)) {
         const QString filename = parser.value(option_validate_buyouts);
