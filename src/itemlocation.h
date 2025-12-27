@@ -38,7 +38,6 @@ public:
 
     ItemLocation();
     explicit ItemLocation(const rapidjson::Value &root);
-    explicit ItemLocation(int tab_id, const QString &tab_unique_id, const QString &name);
     explicit ItemLocation(int tab_id,
                           const QString &tab_unique_id,
                           const QString &name,

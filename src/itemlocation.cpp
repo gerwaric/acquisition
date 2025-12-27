@@ -49,14 +49,6 @@ ItemLocation::ItemLocation(const rapidjson::Value &root)
     FixUid();
 }
 
-ItemLocation::ItemLocation(int tab_id, const QString &tab_unique_id, const QString &name)
-    : ItemLocation()
-{
-    m_tab_label = name;
-    m_tab_id = tab_id;
-    m_tab_unique_id = tab_unique_id;
-}
-
 ItemLocation::ItemLocation(int tab_id,
                            const QString &tab_unique_id,
                            const QString &name,
