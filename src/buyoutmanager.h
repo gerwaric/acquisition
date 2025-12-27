@@ -60,7 +60,7 @@ public:
     void Save();
     void Load();
 
-    void MigrateItem(const Item &item);
+    void MigrateItem(const QString &old_hash, const QString &new_hash);
 
 private:
     BuyoutType StringToBuyoutType(QString bo_str) const;

@@ -91,6 +91,7 @@ public:
 
     explicit Item(const rapidjson::Value &json, const ItemLocation &loc);
 
+    QString id() const { return m_uid; }
     QString name() const { return m_name; }
     QString typeLine() const { return m_typeLine; }
     QString PrettyName() const;
@@ -127,7 +128,7 @@ public:
     const std::vector<ItemRequirement> &text_requirements() const { return m_text_requirements; }
     const std::map<QString, ItemMods> &text_mods() const { return m_text_mods; }
     const std::vector<ItemSocket> &text_sockets() const { return m_text_sockets; }
-    const QString &hash() const { return m_hash; }
+    const QString &hash_v4() const { return m_hash; }
     const QString &old_hash() const { return m_old_hash; }
     const std::vector<std::pair<QString, int>> &elemental_damage() const
     {

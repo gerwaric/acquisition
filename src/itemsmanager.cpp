@@ -257,18 +257,39 @@ void ItemsManager::OnAutoRefreshTimer()
 void ItemsManager::MigrateBuyouts()
 {
     spdlog::trace("ItemsManager::MigrateBuyouts() entered");
-    int db_version = m_datastore.GetInt("db_version");
-    // Don't migrate twice
-    if (db_version == 4) {
-        spdlog::trace("ItemsManager::MigrateBuyouts() skipping migration because db_version is 4");
+    const int db_version = m_datastore.GetInt("db_version");
+
+    // Do nothing if the database has already been migrated.
+    if (db_version == 5) {
+        spdlog::debug("ItemsManager skipping migration because db_version is {}", db_version);
         return;
     }
-    spdlog::trace("ItemsManager::MigrateBuyouts() migrating {} items", m_items.size());
-    for (auto &item : m_items) {
-        m_buyout_manager.MigrateItem(*item);
+
+    // Migrate from v4 to v5.
+    if (db_version == 4) {
+        spdlog::debug("ItemsManager migrating from db_version {} to 5", db_version);
+        for (const auto &item : m_items) {
+            m_buyout_manager.MigrateItem(item->hash_v4(), item->id());
+        }
+        m_buyout_manager.Save();
+        m_datastore.SetInt("db_version", 5);
+        return;
     }
-    spdlog::trace(
-        "ItemsManager::MigrateBuyouts() saving buyout manager and setting db_version to 4");
+
+    // Log an error if the version is somehow too high.
+    if (db_version > 5) {
+        spdlog::error("ItemsManager cannot migrate because db_version {} is too new", db_version);
+        return;
+    }
+
+    // Migrate from older versions to v4.
+    spdlog::debug("ItemsManager migrating from db_version {} to 4", db_version);
+    for (const auto &item : m_items) {
+        m_buyout_manager.MigrateItem(item->old_hash(), item->hash_v4());
+    }
     m_buyout_manager.Save();
     m_datastore.SetInt("db_version", 4);
+
+    // Trigger another migration from v4 to v5.
+    MigrateBuyouts();
 }

@@ -58,7 +58,7 @@ void BuyoutManager::Set(const Item &item, const Buyout &buyout)
                      item.PrettyName(),
                      buyout.AsText());
     }
-    auto const &it = m_buyouts.find(item.hash());
+    const auto &it = m_buyouts.find(item.id());
     if (it != m_buyouts.end()) {
         // The item hash is present, so check to see if the buyout has changed before saving
         if (buyout != it->second) {
@@ -68,13 +68,13 @@ void BuyoutManager::Set(const Item &item, const Buyout &buyout)
     } else {
         // The item hash is not present, so we need to save buyouts
         m_save_needed = true;
-        m_buyouts[item.hash()] = buyout;
+        m_buyouts[item.id()] = buyout;
     }
 }
 
 Buyout BuyoutManager::Get(const Item &item) const
 {
-    auto const &it = m_buyouts.find(item.hash());
+    const auto &it = m_buyouts.find(item.id());
     if (it != m_buyouts.end()) {
         Buyout buyout = it->second;
         if (buyout.type == Buyout::BUYOUT_TYPE_CURRENT_OFFER) {
@@ -89,7 +89,7 @@ Buyout BuyoutManager::Get(const Item &item) const
 
 Buyout BuyoutManager::GetTab(const QString &tab) const
 {
-    auto const &it = m_tab_buyouts.find(tab);
+    const auto &it = m_tab_buyouts.find(tab);
     if (it != m_tab_buyouts.end()) {
         Buyout buyout = it->second;
         if (buyout.type == Buyout::BUYOUT_TYPE_CURRENT_OFFER) {
@@ -111,7 +111,7 @@ void BuyoutManager::SetTab(const QString &tab, const Buyout &buyout)
             tab,
             buyout.AsText());
     }
-    auto const &it = m_tab_buyouts.lower_bound(tab);
+    const auto &it = m_tab_buyouts.lower_bound(tab);
     if (it != m_tab_buyouts.end() && !(m_tab_buyouts.key_comp()(tab, it->first))) {
         // Entry exists - we don't want to update if buyout is equal to existing
         if (buyout != it->second) {
@@ -130,7 +130,7 @@ void BuyoutManager::CompressTabBuyouts()
     // This function is to remove buyouts associated with tab names that don't
     // currently exist.
     std::set<QString> tmp;
-    for (auto const &loc : m_tabs) {
+    for (const auto &loc : m_tabs) {
         tmp.emplace(loc.GetUniqueHash());
     }
 
@@ -150,9 +150,9 @@ void BuyoutManager::CompressItemBuyouts(const Items &items)
     // This function looks at buyouts and makes sure there is an associated item
     // that exists
     std::set<QString> tmp;
-    for (auto const &item_sp : items) {
+    for (const auto &item_sp : items) {
         const Item &item = *item_sp;
-        tmp.insert(item.hash());
+        tmp.insert(item.id());
     }
 
     for (auto it = m_buyouts.cbegin(); it != m_buyouts.cend();) {
@@ -212,7 +212,7 @@ QString BuyoutManager::Serialize(const std::map<QString, Buyout> &buyouts)
         const Buyout &buyout = bo.second;
         if (!buyout.IsSavable()) {
             continue;
-        };
+        }
         rapidjson::Value item(rapidjson::kObjectType);
         item.AddMember("value", buyout.value, alloc);
 
@@ -232,7 +232,7 @@ QString BuyoutManager::Serialize(const std::map<QString, Buyout> &buyouts)
 
         rapidjson::Value name(bo.first.toStdString().c_str(), alloc);
         doc.AddMember(name, item, alloc);
-    };
+    }
 
     return Util::RapidjsonSerialize(doc);
 }
@@ -348,7 +348,7 @@ const std::vector<ItemLocation> &BuyoutManager::GetStashTabLocations() const
 
 BuyoutType BuyoutManager::StringToBuyoutType(QString bo_str) const
 {
-    auto const &it = m_string_to_buyout_type.find(bo_str);
+    const auto &it = m_string_to_buyout_type.find(bo_str);
     if (it != m_string_to_buyout_type.end()) {
         return it->second;
     }
@@ -375,16 +375,21 @@ Buyout BuyoutManager::StringToBuyout(QString format)
     return tmp;
 }
 
-void BuyoutManager::MigrateItem(const Item &item)
+void BuyoutManager::MigrateItem(const QString &old_hash, const QString &new_hash)
 {
-    QString old_hash = item.old_hash();
-    QString hash = item.hash();
-    auto it = m_buyouts.find(old_hash);
-    auto new_it = m_buyouts.find(hash);
-    if (it != m_buyouts.end()
-        && (new_it == m_buyouts.end() || new_it->second.source != Buyout::BUYOUT_SOURCE_MANUAL)) {
-        m_buyouts[hash] = it->second;
-        m_buyouts.erase(it);
+    const auto old_it = m_buyouts.find(old_hash);
+
+    // Return if there is nothing to migrate.
+    if (old_it == m_buyouts.end()) {
+        return;
+    }
+
+    const auto new_it = m_buyouts.find(new_hash);
+
+    if ((new_it == m_buyouts.end()) || (new_it->second.source != Buyout::BUYOUT_SOURCE_MANUAL)) {
+        const auto buyout = old_it->second;
+        m_buyouts[new_hash] = buyout;
+        m_buyouts.erase(old_it);
         m_save_needed = true;
     }
 }
