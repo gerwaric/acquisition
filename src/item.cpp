@@ -87,12 +87,6 @@ static QString fixup_name(const QString &name)
     }
 }
 
-Item::Item(const QString &name, const ItemLocation &location)
-    : m_name(name)
-    , m_location(location)
-    , m_hash(Util::Md5(name)) // Unique enough for tests
-{}
-
 Item::Item(const rapidjson::Value &json, const ItemLocation &loc)
     : m_location(loc)
     , m_json(Util::RapidjsonSerialize(json))

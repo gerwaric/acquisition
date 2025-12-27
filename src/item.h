@@ -90,7 +90,7 @@ public:
     };
 
     explicit Item(const rapidjson::Value &json, const ItemLocation &loc);
-    explicit Item(const QString &name, const ItemLocation &location); // used by tests
+
     QString name() const { return m_name; }
     QString typeLine() const { return m_typeLine; }
     QString PrettyName() const;
