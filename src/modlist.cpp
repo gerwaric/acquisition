@@ -31,16 +31,13 @@
 #include <unordered_map>
 #include <vector>
 
+#include "pseudomods.h"
 #include <util/spdlog_qt.h>
 #include <util/util.h>
 
 #include "item.h"
 
 using rapidjson::HasBool;
-
-// These are just summed, and the mod named as the first element of a vector is generated with value equaling the sum.
-// Both implicit and explicit fields are considered.
-// This is pretty much the same list as poe.trade uses
 
 namespace {
 
@@ -49,307 +46,11 @@ namespace {
     std::unordered_map<QString, SumModGenerator *> mods_map;
     std::vector<SumModGen> mod_generators;
 
-    using ModMap = std::unordered_map<QString, std::vector<QString>>;
-
-    // clang-format off
-    const ModMap summing_pseudo_mods = {
-        {
-            "+#% total to Cold Resistance",
-            {
-                "+#% to Cold Resistance",
-                "+#% to Fire and Cold Resistances",
-                "+#% to Cold and Lightning Resistances",
-                "+#% to Cold and Chaos Resistances",
-                "+#% to all Elemental Resistances"
-            }
-        },
-        {
-            "+#% total to Fire Resistance",
-            {
-                "+#% to Fire Resistance",
-                "+#% to Fire and Cold Resistances",
-                "+#% to Fire and Lightning Resistances",
-                "+#% to Fire and Chaos Resistances",
-                "+#% to all Elemental Resistances"
-            }
-        },
-        {
-            "+#% total to Lightning Resistance",
-            {
-                "+#% to Lightning Resistance",
-                "+#% to Fire and Lightning Resistances",
-                "+#% to Cold and Lightning Resistances",
-                "+#% to Lightning and Chaos Resistances",
-                "+#% to all Elemental Resistances"
-            }
-        },
-        {
-            "+#% total Elemental Resistance",
-            {
-                // "+#% total to Fire Resistance":
-                "+#% to Fire Resistance",
-                "+#% to Fire and Cold Resistances",
-                "+#% to Fire and Lightning Resistances",
-                "+#% to Fire and Chaos Resistances",
-                "+#% to all Elemental Resistances",
-                // "+#% total to Cold Resistance":
-                "+#% to Cold Resistance",
-                "+#% to Fire and Cold Resistances",
-                "+#% to Cold and Lightning Resistances",
-                "+#% to Cold and Chaos Resistances",
-                "+#% to all Elemental Resistances",
-                // "+#% total to Lightning Resistance":
-                "+#% to Lightning Resistance",
-                "+#% to Fire and Lightning Resistances",
-                "+#% to Cold and Lightning Resistances",
-                "+#% to Lightning and Chaos Resistances",
-                "+#% to all Elemental Resistances"
-            }
-        },
-        {
-            "+#% total to Chaos Resistance",
-            {
-                "+#% to Chaos Resistance",
-                "+#% to Fire and Chaos Resistances",
-                "+#% to Cold and Chaos Resistances",
-                "+#% to Lightning and Chaos Resistances"
-            }
-        },
-        {
-            "+#% total Resistance",
-            {
-                // "+#% total to Fire Resistance":
-                "+#% to Fire Resistance",
-                "+#% to Fire and Cold Resistances",
-                "+#% to Fire and Lightning Resistances",
-                "+#% to Fire and Chaos Resistances",
-                "+#% to all Elemental Resistances",
-                // "+#% total to Cold Resistance":
-                "+#% to Cold Resistance",
-                "+#% to Fire and Cold Resistances",
-                "+#% to Cold and Lightning Resistances",
-                "+#% to Cold and Chaos Resistances",
-                "+#% to all Elemental Resistances",
-                // "+#% total to Lightning Resistance":
-                "+#% to Lightning Resistance",
-                "+#% to Fire and Lightning Resistances",
-                "+#% to Cold and Lightning Resistances",
-                "+#% to Lightning and Chaos Resistances",
-                "+#% to all Elemental Resistances",
-                //"+#% total to Chaos Resistance":
-                "+#% to Chaos Resistance",
-                "+#% to Fire and Chaos Resistances",
-                "+#% to Cold and Chaos Resistances",
-                "+#% to Lightning and Chaos Resistances"
-            }
-        },
-        {
-            "+# total to Strength",
-            {
-                "+# to Strength",
-                "+# to Strength and Dexterity",
-                "+# to Strength and Intelligence",
-                "+# to all Attributes"
-            }
-        },
-        {
-            "+# total to Dexterity",
-            {
-                "+# to Dexterity",
-                "+# to Strength and Dexterity",
-                "+# to Dexterity and Intelligence",
-                "+# to all Attributes"
-            }
-        },
-        {
-            "+# total to Intelligence",
-            {
-                "+# to Intelligence",
-                "+# to Strength and Intelligence",
-                "+# to Dexterity and Intelligence",
-                "+# to all Attributes"
-            }
-        },
-        {
-            "+# total to Level of Socketed Gems",
-            {
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Elemental Gems",
-            {
-                "+# to Level of Socketed Elemental Gems",
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Fire Gems",
-            {
-                "+# to Level of Socketed Fire Gems",
-                "+# to Level of Socketed Elemental Gems",
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Cold Gems",
-            {
-                "+# to Level of Socketed Cold Gems",
-                "+# to Level of Socketed Elemental Gems",
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Lightning Gems",
-            {
-                "+# to Level of Socketed Lightning Gems",
-                "+# to Level of Socketed Elemental Gems",
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Chaos Gems",
-            {
-                "+# to Level of Socketed Chaos Gems",
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Spell Gems",
-            {
-                "+# to Level of Socketed Spell Gems",
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Projectile Gems",
-            {
-                "+# to Level of Socketed Projectile Gems",
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Bow Gems",
-            {
-                "+# to Level of Socketed Bow Gems",
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Melee Gems",
-            {
-                "+# to Level of Socketed Melee Gems",
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Minion Gems",
-            {
-                "+# to Level of Socketed Minion Gems",
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Strength Gems",
-            {
-                "+# to Level of Socketed Strength Gems",
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Deterity Gems",
-            {
-                "+# to Level of Socketed Deterity Gems",
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Intelligence Gems",
-            {
-                "+# to Level of Socketed Intelligence Gems",
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Aura Gems",
-            {
-                "+# to Level of Socketed Aura Gems",
-                "+# to Level of Socketed Gems"
-            }
-            },
-        {
-            "+# total to Level of Socketed Movement Gems",
-            {
-                "+# to Level of Socketed Movement Gems",
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Curse Gems", {
-                "+# to Level of Socketed Curse Gems",
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Vaal Gems",
-            {
-                "+# to Level of Socketed Vaal Gems",
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Support Gems",
-            {
-                "+# to Level of Socketed Support Gems",
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Skill Gems",
-            {
-                "+# to Level of Socketed Skill Gems",
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Warcry Gems",
-            {
-                "+# to Level of Socketed Warcry Gems",
-                "+# to Level of Socketed Gems"
-            }
-        },
-        {
-            "+# total to Level of Socketed Golem Gems",
-            {
-                "+# to Level of Socketed Golem Gems",
-                "+# to Level of Socketed Gems"
-            }
-        }
-    };
-    // clang-format off
-
-    ModMap reverseModMap(const ModMap &map)
-    {
-        ModMap reverse_map;
-
-        for (const auto &[pseudo_mod, real_mods] : map) {
-            for (const auto &real_mod : real_mods) {
-                reverse_map[real_mod].push_back(pseudo_mod);
-            }
-        }
-
-        return reverse_map;
-    }
-
-    const ModMap summing_pseudo_mods_reverse_lookup = reverseModMap(summing_pseudo_mods);
+    const PseudoModManager pseudo_mgr;
 
 } // namespace
 
-// TBD: counting pseudo-mods like "# total Elemental Resistances"
-// TBD: min pseudo-mods like "+#% total to All Elemental Resistances" (i.e. min(Cold, Fire, Lightning)
-
 /*
-
 const std::vector<std::vector<QString>> simple_sum = {
     {"#% increased Quantity of Items found"},
     {"#% increased Rarity of Items found"},
@@ -564,7 +265,7 @@ void InitStatTranslations()
     mods.clear();
 
     // Seed the mods list with pseudo mods.
-    for (const auto &[pseudo_mod, real_mods] : summing_pseudo_mods) {
+    for (const auto &[pseudo_mod, real_mods] : pseudo_mgr.SUMMING_MODS) {
         mods.insert(pseudo_mod);
     }
 }
@@ -696,8 +397,8 @@ void AddModToTable(const QString &raw_mod, ModTable &output)
 
     // Next, process summing pseudo-mods.
     {
-        auto it = summing_pseudo_mods_reverse_lookup.find(generic_mod);
-        if (it != summing_pseudo_mods_reverse_lookup.end()) {
+        auto it = pseudo_mgr.SUMMING_MODS_LOOKUP.find(generic_mod);
+        if (it != pseudo_mgr.SUMMING_MODS_LOOKUP.end()) {
             const std::string generic_str = generic_mod.toStdString();
 
             // Get the list of summing pseudo-mods this modifier impacts.

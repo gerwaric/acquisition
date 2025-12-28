@@ -161,6 +161,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/main.cpp
     src/modlist.cpp
     src/modsfilter.cpp
+    src/pseudomods.cpp
     src/ratelimit/ratelimit.cpp
     src/ratelimit/ratelimitdialog.cpp
     src/ratelimit/ratelimitedrequest.cpp
@@ -253,6 +254,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/poe/types/stashtab.h
     src/poe/types/website/webcharacter.h
     src/poe/types/website/webstashtab.h
+    src/pseudomods.h
     src/ratelimit/ratelimit.h
     src/ratelimit/ratelimitdialog.h
     src/ratelimit/ratelimitedreply.h
