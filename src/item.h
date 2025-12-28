@@ -31,6 +31,12 @@
 
 #include "itemlocation.h"
 
+namespace poe {
+
+    class Item;
+
+}
+
 constexpr std::array<const char *, 5> ITEM_MOD_TYPES = {"implicitMods",
                                                         "enchantMods",
                                                         "explicitMods",
@@ -89,6 +95,7 @@ public:
         EATER_OF_WORLDS
     };
 
+    explicit Item(const poe::Item &item, const ItemLocation &loc);
     explicit Item(const rapidjson::Value &json, const ItemLocation &loc);
 
     QString id() const { return m_uid; }
@@ -162,7 +169,9 @@ private:
     // The point of GenerateMods is to create combined (e.g. implicit+explicit) poe.trade-like mod map to be searched by mod filter.
     // For now it only does that for a small chosen subset of mods (think "popular" + "pseudo" sections at poe.trade)
     void GenerateMods(const rapidjson::Value &json);
+    void GenerateMods(const poe::Item &json);
     void CalculateHash(const rapidjson::Value &json);
+    void CalculateHash(const poe::Item &json);
 
     QString m_name;
     ItemLocation m_location;
@@ -178,14 +187,17 @@ private:
     bool m_synthesized{false};
     bool m_mutated{false};
     std::vector<INFLUENCE_TYPES> m_influenceList;
-    int m_w{0}, m_h{0};
+    int m_w{0};
+    int m_h{0};
     int m_frameType{0};
     QString m_icon;
     std::map<QString, QString> m_properties;
-    QString m_old_hash, m_hash;
+    QString m_old_hash;
+    QString m_hash;
     // vector of pairs [damage, type]
     std::vector<std::pair<QString, int>> m_elemental_damage;
-    int m_sockets_cnt{0}, m_links_cnt{0};
+    int m_sockets_cnt{0};
+    int m_links_cnt{0};
     ItemSocketGroup m_sockets{0, 0, 0, 0};
     std::vector<ItemSocketGroup> m_socket_groups;
     std::map<QString, int> m_requirements;
