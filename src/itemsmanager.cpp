@@ -34,22 +34,13 @@
 #include "buyoutmanager.h"
 #include "filters.h"
 #include "item.h"
-#include "itemsmanagerworker.h"
 #include "modlist.h"
 #include "shop.h"
 
-ItemsManager::ItemsManager(QSettings &settings,
-                           NetworkManager &network_manager,
-                           RePoE &repoe,
-                           BuyoutManager &buyout_manager,
-                           DataStore &datastore,
-                           RateLimiter &rate_limiter)
+ItemsManager::ItemsManager(QSettings &settings, BuyoutManager &buyout_manager, DataStore &datastore)
     : m_settings(settings)
-    , m_network_manager(network_manager)
-    , m_repoe(repoe)
     , m_buyout_manager(buyout_manager)
     , m_datastore(datastore)
-    , m_rate_limiter(rate_limiter)
     , m_auto_update_timer(std::make_unique<QTimer>())
 {
     spdlog::trace("ItemsManager::ItemsManager() entered");
@@ -66,27 +57,6 @@ ItemsManager::ItemsManager(QSettings &settings,
 }
 
 ItemsManager::~ItemsManager() {}
-
-void ItemsManager::Start()
-{
-    spdlog::trace("ItemsManager::Start() entered");
-    spdlog::trace("ItemsManager::Start() creating items manager worker");
-    m_worker = std::make_unique<ItemsManagerWorker>(m_settings,
-                                                    m_network_manager,
-                                                    m_repoe,
-                                                    m_buyout_manager,
-                                                    m_datastore,
-                                                    m_rate_limiter);
-    connect(this, &ItemsManager::UpdateSignal, m_worker.get(), &ItemsManagerWorker::Update);
-    connect(m_worker.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
-    connect(m_worker.get(),
-            &ItemsManagerWorker::ItemsRefreshed,
-            this,
-            &ItemsManager::OnItemsRefreshed);
-
-    spdlog::trace("ItemsManager::Start() initializing the worker");
-    m_worker->Init();
-}
 
 void ItemsManager::OnStatusUpdate(ProgramState state, const QString &status)
 {
@@ -202,25 +172,7 @@ void ItemsManager::OnItemsRefreshed(const Items &items,
 void ItemsManager::Update(TabSelection type, const std::vector<ItemLocation> &locations)
 {
     spdlog::trace("ItemsManager::Update() entered");
-    if (!isInitialized()) {
-        // tell ItemsManagerWorker to run an Update() after it's finished updating mods
-        m_worker->UpdateRequest(type, locations);
-        spdlog::debug("Update deferred until item mods parsing is complete");
-        QMessageBox::information(
-            nullptr,
-            "Acquisition",
-            "This items worker is still initializing, but an update request has been queued.",
-            QMessageBox::Ok,
-            QMessageBox::Ok);
-    } else if (isUpdating()) {
-        QMessageBox::information(nullptr,
-                                 "Acquisition",
-                                 "An update is already in progress.",
-                                 QMessageBox::Ok,
-                                 QMessageBox::Ok);
-    } else {
-        emit UpdateSignal(type, locations);
-    }
+    emit UpdateSignal(type, locations);
 }
 
 void ItemsManager::SetAutoUpdate(bool update)
@@ -247,11 +199,7 @@ void ItemsManager::SetAutoUpdateInterval(int minutes)
 void ItemsManager::OnAutoRefreshTimer()
 {
     spdlog::trace("ItemsManager::OnAutoRefreshTimer() entered");
-    if (!isUpdating()) {
-        Update(TabSelection::Checked);
-    } else {
-        spdlog::info("Skipping auto update because the previous update is not complete.");
-    }
+    Update(TabSelection::Checked);
 }
 
 void ItemsManager::MigrateBuyouts()

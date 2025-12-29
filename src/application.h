@@ -34,6 +34,7 @@ class CurrencyManager;
 class DataStore;
 class ImageCache;
 class ItemsManager;
+class ItemsManagerWorker;
 class LoginDialog;
 class MainWindow;
 class NetworkManager;
@@ -99,6 +100,7 @@ private:
     std::unique_ptr<BuyoutManager> m_buyout_manager;
     std::unique_ptr<Shop> m_shop;
     std::unique_ptr<ItemsManager> m_items_manager;
+    std::unique_ptr<ItemsManagerWorker> m_items_worker;
     std::unique_ptr<CurrencyManager> m_currency_manager;
     std::unique_ptr<RateLimiter> m_rate_limiter;
     std::unique_ptr<ImageCache> m_image_cache;

@@ -31,7 +31,6 @@
 #include <util/util.h>
 
 #include "item.h"
-#include "network_info.h"
 
 class QNetworkReply;
 class QSettings;
@@ -63,14 +62,11 @@ class ItemsManagerWorker : public QObject
 {
     Q_OBJECT
 public:
-    ItemsManagerWorker(QSettings &m_settings,
-                       NetworkManager &network_manager,
-                       RePoE &repoe,
-                       BuyoutManager &buyout_manager,
-                       DataStore &datastore,
-                       RateLimiter &rate_limiter);
-    bool isInitialized() const { return m_initialized; }
-    bool isUpdating() const { return m_updating; };
+    explicit ItemsManagerWorker(QSettings &m_settings,
+                                BuyoutManager &buyout_manager,
+                                DataStore &datastore,
+                                RateLimiter &rate_limiter,
+                                QObject *parent = nullptr);
     void UpdateRequest(TabSelection type, const std::vector<ItemLocation> &locations);
 
 signals:
@@ -80,7 +76,6 @@ signals:
     void StatusUpdate(ProgramState state, const QString &status);
 
 public slots:
-    void Init();
     void OnRePoEReady();
     void Update(Util::TabSelection type,
                 const std::vector<ItemLocation, std::allocator<ItemLocation>> &tab_names
@@ -93,6 +88,8 @@ private slots:
     void OnOAuthCharacterReceived(QNetworkReply *reply, const ItemLocation &location);
 
 private:
+    bool isInitialized() const { return m_initialized; }
+    bool isUpdating() const { return m_updating; };
     void ParseItemMods();
     void RemoveUpdatingTabs(const std::set<QString> &tab_ids);
     void RemoveUpdatingItems(const std::set<QString> &tab_ids);
@@ -127,8 +124,6 @@ private:
     void ProcessOAuthTab(rapidjson::Value &tab, int &count, rapidjson_allocator &alloc);
 
     QSettings &m_settings;
-    NetworkManager &m_network_manager;
-    RePoE &m_repoe;
     DataStore &m_datastore;
     BuyoutManager &m_buyout_manager;
     RateLimiter &m_rate_limiter;
@@ -137,7 +132,6 @@ private:
     QString m_league;
     QString m_account;
 
-    bool m_test_mode;
     std::vector<ItemLocation> m_tabs;
     std::queue<ItemsRequest> m_queue;
 
@@ -146,24 +140,24 @@ private:
 
     Items m_items;
 
-    size_t m_stashes_needed;
-    size_t m_stashes_received;
+    size_t m_stashes_needed{0};
+    size_t m_stashes_received{0};
 
-    size_t m_characters_needed;
-    size_t m_characters_received;
+    size_t m_characters_needed{0};
+    size_t m_characters_received{0};
 
     std::set<QString> m_tab_id_index;
 
-    volatile bool m_initialized;
-    volatile bool m_updating;
+    volatile bool m_initialized{false};
+    volatile bool m_updating{false};
 
-    bool m_cancel_update;
-    bool m_updateRequest;
+    bool m_cancel_update{false};
+    bool m_updateRequest{false};
     TabSelection m_type;
     std::vector<ItemLocation> m_locations;
     std::set<ItemLocation> m_requested_locations;
 
-    int m_queue_id;
+    int m_queue_id{0};
     QString m_selected_character;
 
     int m_first_stash_request_index;

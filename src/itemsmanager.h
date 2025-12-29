@@ -30,15 +30,12 @@
 #include "item.h"
 #include "itemlocation.h"
 #include "itemsmanagerworker.h"
-#include "network_info.h"
+//#include "network_info.h"
 
 class QSettings;
 
 class BuyoutManager;
 class DataStore;
-class ItemsManagerWorker;
-class NetworkManager;
-class RePoE;
 class Shop;
 
 /*
@@ -50,15 +47,10 @@ class ItemsManager : public QObject
 {
     Q_OBJECT
 public:
-    explicit ItemsManager(QSettings &settings,
-                          NetworkManager &network_manager,
-                          RePoE &repoe,
-                          BuyoutManager &buyout_manager,
-                          DataStore &datastore,
-                          RateLimiter &rate_limiter);
+    explicit ItemsManager(QSettings &settings, BuyoutManager &buyout_manager, DataStore &datastore);
     ~ItemsManager();
-    bool isInitialized() const { return m_worker ? m_worker->isInitialized() : false; }
-    bool isUpdating() const { return m_worker ? m_worker->isUpdating() : false; }
+    //bool isInitialized() const { return m_worker ? m_worker->isInitialized() : false; }
+    //bool isUpdating() const { return m_worker ? m_worker->isUpdating() : false; }
     // Creates and starts the worker
     void Start();
     void Update(TabSelection type, const std::vector<ItemLocation> &tab_names = {});
@@ -84,13 +76,9 @@ private:
     void MigrateBuyouts();
 
     QSettings &m_settings;
-    NetworkManager &m_network_manager;
-    RePoE &m_repoe;
     BuyoutManager &m_buyout_manager;
     DataStore &m_datastore;
-    RateLimiter &m_rate_limiter;
 
     std::unique_ptr<QTimer> m_auto_update_timer;
-    std::unique_ptr<ItemsManagerWorker> m_worker;
     Items m_items;
 };

@@ -21,8 +21,6 @@
 #include <QSqlQuery>
 #include <QStringLiteral>
 
-#include "poe/types/character.h"
-#include "poe/types/stashtab.h"
 #include "userstore.h"
 #include "util/spdlog_qt.h"
 

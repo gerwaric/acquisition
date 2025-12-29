@@ -25,12 +25,8 @@
 #include <QString>
 #include <QStringList>
 
-namespace poe {
-
-    class Character;
-    class StashTab;
-
-} // namespace poe
+#include "poe/types/character.h"
+#include "poe/types/stashtab.h"
 
 class UserStore : public QObject
 {

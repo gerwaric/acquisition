@@ -68,28 +68,16 @@ constexpr const char *kOAuthGetCharacterUrl = "https://api.pathofexile.com/chara
 constexpr std::array CHARACTER_ITEM_FIELDS = {"equipment", "inventory", "rucksack", "jewels"};
 
 ItemsManagerWorker::ItemsManagerWorker(QSettings &settings,
-                                       NetworkManager &network_manager,
-                                       RePoE &repoe,
                                        BuyoutManager &buyout_manager,
                                        DataStore &datastore,
-                                       RateLimiter &rate_limiter)
-    : m_settings(settings)
-    , m_network_manager(network_manager)
-    , m_repoe(repoe)
+                                       RateLimiter &rate_limiter,
+                                       QObject *parent)
+    : QObject(parent)
+    , m_settings(settings)
     , m_datastore(datastore)
     , m_buyout_manager(buyout_manager)
     , m_rate_limiter(rate_limiter)
-    , m_test_mode(false)
-    , m_stashes_needed(0)
-    , m_stashes_received(0)
-    , m_characters_needed(0)
-    , m_characters_received(0)
-    , m_initialized(false)
-    , m_updating(false)
-    , m_cancel_update(false)
-    , m_updateRequest(false)
     , m_type(TabSelection::Checked)
-    , m_queue_id(-1)
     , m_first_stash_request_index(-1)
     , m_need_stash_list(false)
     , m_need_character_list(false)
@@ -98,6 +86,13 @@ ItemsManagerWorker::ItemsManagerWorker(QSettings &settings,
     , m_update_tab_contents(true)
 {
     spdlog::trace("ItemsManagerWorker::ItemsManagerWorker() entered");
+
+    m_realm = m_settings.value("realm").toString();
+    m_league = m_settings.value("league").toString();
+    m_account = m_settings.value("account").toString();
+    m_updating = true;
+    spdlog::trace("ItemsManagerWorker: league = {}", m_league);
+    spdlog::trace("ItemsManagerWorker: account = {}", m_account);
 }
 
 void ItemsManagerWorker::UpdateRequest(TabSelection type, const std::vector<ItemLocation> &locations)
@@ -106,30 +101,6 @@ void ItemsManagerWorker::UpdateRequest(TabSelection type, const std::vector<Item
     m_updateRequest = true;
     m_type = type;
     m_locations = locations;
-}
-
-void ItemsManagerWorker::Init()
-{
-    spdlog::trace("ItemsManagerWorker::Init() entered");
-    if (m_updating) {
-        spdlog::warn("ItemsManagerWorker::Init() called while updating, skipping Mod List Update");
-        return;
-    }
-
-    m_realm = m_settings.value("realm").toString();
-    m_league = m_settings.value("league").toString();
-    m_account = m_settings.value("account").toString();
-    m_updating = true;
-    spdlog::trace("ItemsManagerWorker::Init() league = {}", m_league);
-    spdlog::trace("ItemsManagerWorker::Init() account = {}", m_account);
-
-    if (m_repoe.IsInitialized()) {
-        spdlog::debug("RePoE data is available.");
-        OnRePoEReady();
-    } else {
-        spdlog::debug("Waiting for RePoE data.");
-        connect(&m_repoe, &RePoE::finished, this, &ItemsManagerWorker::OnRePoEReady);
-    }
 }
 
 void ItemsManagerWorker::OnRePoEReady()
@@ -210,8 +181,26 @@ void ItemsManagerWorker::ParseItemMods()
 
 void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocation> &locations)
 {
-    if (m_updating) {
+    if (!isInitialized()) {
+        // tell ItemsManagerWorker to run an Update() after it's finished updating mods
+        UpdateRequest(type, locations);
+        spdlog::debug("Update deferred until item mods parsing is complete");
+        QMessageBox::information(
+            nullptr,
+            "Acquisition",
+            "This items worker is still initializing, but an update request has been queued.",
+            QMessageBox::Ok,
+            QMessageBox::Ok);
+        return;
+    }
+
+    if (isUpdating()) {
         spdlog::warn("ItemsManagerWorker: update called while updating");
+        QMessageBox::information(nullptr,
+                                 "Acquisition",
+                                 "An update is already in progress.",
+                                 QMessageBox::Ok,
+                                 QMessageBox::Ok);
         return;
     }
 

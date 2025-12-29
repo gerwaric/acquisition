@@ -45,6 +45,7 @@
 #include "currencymanager.h"
 #include "imagecache.h"
 #include "itemsmanager.h"
+#include "itemsmanagerworker.h"
 #include "network_info.h"
 #include "shop.h"
 #include "version_defines.h"
@@ -440,12 +441,13 @@ void Application::InitLogin()
     m_buyout_manager = std::make_unique<BuyoutManager>(data());
 
     spdlog::trace("Application::InitLogin() creating items manager");
-    m_items_manager = std::make_unique<ItemsManager>(settings(),
-                                                     network_manager(),
-                                                     repoe(),
-                                                     buyout_manager(),
-                                                     data(),
-                                                     rate_limiter());
+    m_items_manager = std::make_unique<ItemsManager>(settings(), buyout_manager(), data());
+
+    spdlog::trace("Application::InitLogin() creating items worker");
+    m_items_worker = std::make_unique<ItemsManagerWorker>(settings(),
+                                                          buyout_manager(),
+                                                          data(),
+                                                          rate_limiter());
 
     spdlog::trace("Application::InitLogin() creating shop");
     m_shop = std::make_unique<Shop>(settings(),
@@ -458,13 +460,22 @@ void Application::InitLogin()
     spdlog::trace("Application::InitLogin() creating currency manager");
     m_currency_manager = std::make_unique<CurrencyManager>(settings(), data(), items_manager());
 
-    connect(m_items_manager.get(),
-            &ItemsManager::ItemsRefreshed,
-            this,
-            &Application::OnItemsRefreshed);
+    auto repoe = m_repoe.get();
+    auto manager = m_items_manager.get();
+    auto worker = m_items_worker.get();
 
-    spdlog::trace("Application::InitLogin() starting items manager");
-    m_items_manager->Start();
+    connect(manager, &ItemsManager::UpdateSignal, worker, &ItemsManagerWorker::Update);
+    connect(worker, &ItemsManagerWorker::StatusUpdate, manager, &ItemsManager::OnStatusUpdate);
+    connect(worker, &ItemsManagerWorker::ItemsRefreshed, manager, &ItemsManager::OnItemsRefreshed);
+    connect(manager, &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
+
+    if (m_repoe->IsInitialized()) {
+        spdlog::debug("Application: RePoE data is available.");
+        m_items_worker->OnRePoEReady();
+    } else {
+        spdlog::debug("Application: Waiting for RePoE data.");
+        connect(repoe, &RePoE::finished, worker, &ItemsManagerWorker::OnRePoEReady);
+    }
 }
 
 void Application::OnItemsRefreshed(bool initial_refresh)
