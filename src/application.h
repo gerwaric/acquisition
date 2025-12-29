@@ -42,6 +42,7 @@ struct OAuthToken;
 class RateLimiter;
 class RePoE;
 class Shop;
+class UserStore;
 class UpdateChecker;
 
 class Application : public QObject
@@ -86,6 +87,8 @@ private:
     std::unique_ptr<QSettings> m_settings;
 
     std::unique_ptr<NetworkManager> m_network_manager;
+
+    std::unique_ptr<UserStore> m_userstore;
 
     std::unique_ptr<RePoE> m_repoe;
     std::unique_ptr<DataStore> m_global_data;

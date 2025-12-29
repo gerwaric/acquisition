@@ -28,6 +28,7 @@
 #include <QSettings>
 
 #include <datastore/sqlitedatastore.h>
+#include <datastore/userstore.h>
 #include <ratelimit/ratelimiter.h>
 #include <ratelimit/ratelimitmanager.h>
 #include <ui/logindialog.h>
@@ -412,13 +413,13 @@ void Application::InitLogin()
 
     const QString league = m_settings->value("league").toString();
     const QString account = m_settings->value("account").toString();
-    const QDir user_dir(m_data_dir.filePath("data"));
     if (league.isEmpty()) {
         FatalError("Login failure: the league has not been set.");
     }
     if (account.isEmpty()) {
         FatalError("Login failure: the account has not been set.");
     }
+    QDir user_dir(m_data_dir.filePath("data"));
     spdlog::trace("Application::InitLogin() league = {}", league);
     spdlog::trace("Application::InitLogin() account = {}", account);
     spdlog::trace("Application::InitLogin() data_dir = {}", user_dir.absolutePath());
@@ -426,23 +427,11 @@ void Application::InitLogin()
     const QString data_path = user_dir.absoluteFilePath(data_file);
     spdlog::trace("Application::InitLogin() data_path = {}", data_path);
 
-    /*
-     * DISABLED as of v0.12.4
-     *
-    const QString skip_buyout_version = m_settings->value(LegacyBuyoutValidator::SettingsKey).toString();
-    if (0 == skip_buyout_version.compare(QStringLiteral(APP_VERSION_STRING), Qt::CaseInsensitive)) {
-        spdlog::debug("Applicaiton: skipping buyout validation because version is" << QStringLiteral(APP_VERSION_STRING));
-    } else {
-        spdlog::info("Application: validating stored buyouts");
-        LegacyBuyoutValidator legacy(*m_settings, data_path);
-        if (legacy.validate() != LegacyBuyoutValidator::ValidationResult::Valid) {
-            legacy.notifyUser();
-        };
-    };
-    */
-
     m_data = std::make_unique<SqliteDataStore>(data_path);
     SaveDbOnNewVersion();
+
+    spdlog::trace("Application::InitLogin() creating user datastore");
+    m_userstore = std::make_unique<UserStore>(user_dir, account);
 
     spdlog::trace("Application::InitLogin() creating rate limiter");
     m_rate_limiter = std::make_unique<RateLimiter>(network_manager());

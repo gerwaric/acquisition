@@ -145,6 +145,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/datastore/datastore.cpp
     src/datastore/memorydatastore.cpp
     src/datastore/sqlitedatastore.cpp
+    src/datastore/userstore.cpp
     src/filters.cpp
     src/imagecache.cpp
     src/influence.cpp
@@ -197,6 +198,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/datastore/datastore.h
     src/datastore/memorydatastore.h
     src/datastore/sqlitedatastore.h
+    src/datastore/userstore.h
     src/filters.h
     src/imagecache.h
     src/influence.h
