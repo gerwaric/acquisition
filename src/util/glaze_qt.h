@@ -5,6 +5,7 @@
 
 #include <map>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 
 #include <QByteArray>
@@ -14,48 +15,26 @@
 #include <glaze/glaze.hpp>
 
 // This is a helper define to avoid Qt Creator's warnings that this header is unused.
-constexpr bool ACQUISITION_USE_GLAZE = true;
+[[maybe_unused]] inline constexpr bool ACQUISITION_USE_GLAZE = true;
 
-constexpr glz::opts GLAZE_OPTIONS {
-    .null_terminated = false,
-    .error_on_unknown_keys = true,
-    .error_on_missing_keys = true
-};
+[[maybe_unused]] inline constexpr glz::opts GLAZE_OPTIONS{.null_terminated = false,
+                                                          .error_on_unknown_keys = true,
+                                                          .error_on_missing_keys = true};
 
 // This file adds support to glaze for:
 //
 //  - QString
 //  - QByteArray
-//  - QDateTime
-//  - std::map<QString,T>
-//  - std::map<QByteArray,T>
-//  - std::unordered_map<QString,T>
-//  - std::unordered_map<QByteArray,T>
-//
-// WARNING: this only works with the two-argument forms of map and unordered_map.
+//  - QDateTime (assuming RFC2822)
+//  - std::map<QString, ...>
+//  - std::map<QByteArray, ...>
+//  - std::unordered_map<QString, ...>
+//  - std::unordered_map<QByteArray, ...>
 
 namespace {
 
-    template<typename T>
-    constexpr bool is_qbytearray = std::is_same_v<T, QByteArray>;
-
-    template<typename T>
-    constexpr bool is_qstring = std::is_same_v<T, QString>;
-
-    template<typename Key>
-    constexpr bool is_qt_key = is_qbytearray<Key> || is_qstring<Key>;
-
-    template<template<typename, typename> class Map, typename Key, typename T>
-    constexpr bool is_map = std::is_same_v<Map<Key, T>, std::map<Key, T>>;
-
-    template<template<typename, typename> class Map, typename Key, typename T>
-    constexpr bool is_unordered_map = std::is_same_v<Map<Key, T>, std::unordered_map<Key, T>>;
-
-    template<template<typename, typename> class Map, typename Key, typename T>
-    constexpr bool is_supported_map = is_map<Map, Key, T> || is_unordered_map<Map, Key, T>;
-
-    template<template<typename, typename> class Map, typename Key, typename T>
-    constexpr bool is_supported_map_with_qt_key = is_qt_key<Key> && is_supported_map<Map, Key, T>;
+    template<typename K>
+    constexpr bool qt_key_v = std::is_same_v<K, QString> || std::is_same_v<K, QByteArray>;
 
 } // namespace
 
@@ -69,9 +48,9 @@ namespace glz {
         template<auto Opts>
         static inline void op(const QString &value, auto &&...args) noexcept
         {
-            const QByteArray utf8{value.toUtf8()};
-            const std::string str{utf8.toStdString()};
-            glz::serialize<JSON>::op<Opts>(str, args...);
+            const QByteArray utf8 = value.toUtf8();
+            const std::string_view sv{utf8.constData(), size_t(utf8.size())};
+            glz::serialize<JSON>::op<Opts>(sv, std::forward<decltype(args)>(args)...);
         }
     };
 
@@ -82,8 +61,8 @@ namespace glz {
         static inline void op(QString &value, auto &&...args) noexcept
         {
             std::string str;
-            glz::parse<JSON>::op<Opts>(str, args...);
-            value = QString::fromUtf8(str);
+            glz::parse<JSON>::op<Opts>(str, std::forward<decltype(args)>(args)...);
+            value = QString::fromUtf8(str.data(), qsizetype(str.size()));
         }
     };
 
@@ -95,8 +74,8 @@ namespace glz {
         template<auto Opts>
         static inline void op(const QByteArray &value, auto &&...args) noexcept
         {
-            const std::string_view str(value.constData(), value.size());
-            glz::serialize<JSON>::op<Opts>(str, args...);
+            const std::string_view str(value.constData(), size_t(value.size()));
+            glz::serialize<JSON>::op<Opts>(str, std::forward<decltype(args)>(args)...);
         }
     };
 
@@ -107,8 +86,8 @@ namespace glz {
         static inline void op(QByteArray &value, auto &&...args) noexcept
         {
             std::string str;
-            glz::parse<JSON>::op<Opts>(str, args...);
-            value = QByteArray::fromStdString(str);
+            glz::parse<JSON>::op<Opts>(str, std::forward<decltype(args)>(args)...);
+            value = QByteArray(str.data(), int(str.size()));
         }
     };
 
@@ -121,8 +100,8 @@ namespace glz {
         static inline void op(const QDateTime &dt, auto &&...args) noexcept
         {
             const QByteArray utf8 = dt.toString(Qt::RFC2822Date).toUtf8();
-            const std::string str(utf8.constData(), utf8.size());
-            serialize<JSON>::op<Opts>(str, std::forward<decltype(args)>(args)...);
+            const std::string_view sv(utf8.constData(), size_t(utf8.size()));
+            glz::serialize<JSON>::op<Opts>(sv, std::forward<decltype(args)>(args)...);
         }
     };
 
@@ -133,52 +112,151 @@ namespace glz {
         static inline void op(QDateTime &dt, auto &&...args) noexcept
         {
             std::string str;
-            parse<JSON>::op<Opts>(str, std::forward<decltype(args)>(args)...);
-            dt = QDateTime::fromString(QString::fromStdString(str), Qt::RFC2822Date);
+            glz::parse<JSON>::op<Opts>(str, std::forward<decltype(args)>(args)...);
+            dt = QDateTime::fromString(QString::fromUtf8(str.data(), qsizetype(str.size())),
+                                       Qt::RFC2822Date);
         }
     };
 
-    // ----- maps with QString and QByteArray keys -----
+    // -------------------- std::unordered_map --------------------
 
-    template<template<typename, typename> class Map, typename Key, typename T>
-        requires is_supported_map_with_qt_key<Map, Key, T>
-    struct to<JSON, Map<Key, T>>
+    // ---- QString keys ----
+
+    template<typename T, typename Hash, typename KeyEq, typename Alloc>
+    struct from<JSON, std::unordered_map<QString, T, Hash, KeyEq, Alloc>>
     {
         template<auto Opts>
-        static void op(const Map<Key, T> &map, auto &&...args) noexcept
+        static void op(std::unordered_map<QString, T, Hash, KeyEq, Alloc> &out,
+                       auto &&...args) noexcept
         {
-            Map<std::string, T> std_map;
-            for (const auto &[k, v] : map) {
-                if constexpr (is_qbytearray<Key>) {
-                    const std::string s(k.constData(), k.size());
-                    std_map.emplace(s, std::move(v));
-                } else if constexpr (is_qstring<Key>) {
-                    const QByteArray utf8 = k.toUtf8();
-                    const std::string s(utf8.constData(), utf8.size());
-                    std_map.emplace(s, std::move(v));
-                }
+            std::unordered_map<std::string, T> tmp;
+            glz::parse<JSON>::op<Opts>(tmp, std::forward<decltype(args)>(args)...);
+
+            out.clear();
+            out.reserve(tmp.size());
+            for (auto &[k, v] : tmp) {
+                out.emplace(QString::fromUtf8(k.data(), int(k.size())), std::move(v));
             }
-            glz::serialize<JSON>::op<Opts>(std_map, std::forward<decltype(args)>(args)...);
         }
     };
 
-    template<template<typename, typename> class Map, typename Key, typename T>
-        requires is_supported_map_with_qt_key<Map, Key, T>
-    struct from<JSON, Map<Key, T>>
+    template<typename T, typename Hash, typename KeyEq, typename Alloc>
+    struct to<JSON, std::unordered_map<QString, T, Hash, KeyEq, Alloc>>
     {
         template<auto Opts>
-        static void op(Map<Key, T> &map, auto &&...args) noexcept
+        static void op(const std::unordered_map<QString, T, Hash, KeyEq, Alloc> &in,
+                       auto &&...args) noexcept
         {
-            Map<std::string, T> std_map;
-            glz::parse<JSON>::op<Opts>(std_map, std::forward<decltype(args)>(args)...);
-            map.clear();
-            for (auto &[k, v] : std_map) {
-                if constexpr (is_qbytearray<Key>) {
-                    map.emplace(QByteArray::fromStdString(k), std::move(v));
-                } else if constexpr (is_qstring<Key>) {
-                    map.emplace(QString::fromUtf8(k), std::move(v));
-                }
+            std::unordered_map<std::string, T> tmp;
+            tmp.reserve(in.size());
+            for (const auto &[k, v] : in) {
+                const QByteArray utf8 = k.toUtf8();
+                tmp.emplace(std::string(utf8.constData(), size_t(utf8.size())), v); // copy v
             }
+            glz::serialize<JSON>::op<Opts>(tmp, std::forward<decltype(args)>(args)...);
+        }
+    };
+
+    // ---- QByteArray keys ----
+
+    template<typename T, typename Hash, typename KeyEq, typename Alloc>
+    struct from<JSON, std::unordered_map<QByteArray, T, Hash, KeyEq, Alloc>>
+    {
+        template<auto Opts>
+        static void op(std::unordered_map<QByteArray, T, Hash, KeyEq, Alloc> &out,
+                       auto &&...args) noexcept
+        {
+            std::unordered_map<std::string, T> tmp;
+            glz::parse<JSON>::op<Opts>(tmp, std::forward<decltype(args)>(args)...);
+
+            out.clear();
+            out.reserve(tmp.size());
+            for (auto &[k, v] : tmp) {
+                out.emplace(QByteArray(k.data(), int(k.size())), std::move(v));
+            }
+        }
+    };
+
+    template<typename T, typename Hash, typename KeyEq, typename Alloc>
+    struct to<JSON, std::unordered_map<QByteArray, T, Hash, KeyEq, Alloc>>
+    {
+        template<auto Opts>
+        static void op(const std::unordered_map<QByteArray, T, Hash, KeyEq, Alloc> &in,
+                       auto &&...args) noexcept
+        {
+            std::unordered_map<std::string, T> tmp;
+            tmp.reserve(in.size());
+            for (const auto &[k, v] : in) {
+                tmp.emplace(std::string(k.constData(), size_t(k.size())), v);
+            }
+            glz::serialize<JSON>::op<Opts>(tmp, std::forward<decltype(args)>(args)...);
+        }
+    };
+
+    // -------------------- std::map --------------------
+
+    // QString keys
+
+    template<typename T, typename Compare, typename Alloc>
+    struct from<JSON, std::map<QString, T, Compare, Alloc>>
+    {
+        template<auto Opts>
+        static void op(std::map<QString, T, Compare, Alloc> &out, auto &&...args) noexcept
+        {
+            std::map<std::string, T> tmp;
+            glz::parse<JSON>::op<Opts>(tmp, std::forward<decltype(args)>(args)...);
+
+            out.clear();
+            for (auto &[k, v] : tmp) {
+                out.emplace(QString::fromUtf8(k.data(), int(k.size())), std::move(v));
+            }
+        }
+    };
+
+    template<typename T, typename Compare, typename Alloc>
+    struct to<JSON, std::map<QString, T, Compare, Alloc>>
+    {
+        template<auto Opts>
+        static void op(const std::map<QString, T, Compare, Alloc> &in, auto &&...args) noexcept
+        {
+            std::map<std::string, T> tmp;
+            for (const auto &[k, v] : in) {
+                const QByteArray utf8 = k.toUtf8();
+                tmp.emplace(std::string(utf8.constData(), size_t(utf8.size())), v);
+            }
+            glz::serialize<JSON>::op<Opts>(tmp, std::forward<decltype(args)>(args)...);
+        }
+    };
+
+    // ---- QByteArray keys ----
+
+    template<typename T, typename Compare, typename Alloc>
+    struct from<JSON, std::map<QByteArray, T, Compare, Alloc>>
+    {
+        template<auto Opts>
+        static void op(std::map<QByteArray, T, Compare, Alloc> &out, auto &&...args) noexcept
+        {
+            std::map<std::string, T> tmp;
+            glz::parse<JSON>::op<Opts>(tmp, std::forward<decltype(args)>(args)...);
+
+            out.clear();
+            for (auto &[k, v] : tmp) {
+                out.emplace(QByteArray(k.data(), int(k.size())), std::move(v));
+            }
+        }
+    };
+
+    template<typename T, typename Compare, typename Alloc>
+    struct to<JSON, std::map<QByteArray, T, Compare, Alloc>>
+    {
+        template<auto Opts>
+        static void op(const std::map<QByteArray, T, Compare, Alloc> &in, auto &&...args) noexcept
+        {
+            std::map<std::string, T> tmp;
+            for (const auto &[k, v] : in) {
+                tmp.emplace(std::string(k.constData(), size_t(k.size())), v);
+            }
+            glz::serialize<JSON>::op<Opts>(tmp, std::forward<decltype(args)>(args)...);
         }
     };
 
