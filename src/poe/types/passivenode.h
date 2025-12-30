@@ -41,8 +41,10 @@ namespace poe {
         {
             std::optional<unsigned> size;   // ? uint
             std::optional<unsigned> index;  // ? uint
-            std::optional<unsigned> proxy;  // ? uint the proxy node identifier
-            std::optional<unsigned> parent; // ? uint the parent node identifier
+            std::optional<QString>
+                proxy; // ? uint the proxy node identifier WARN: TBD: actually a string
+            std::optional<QString>
+                parent; // ? uint the parent node identifier WARN: TBD: actually a string
         };
 
         std::optional<QString> skill; // ? uint skill hash TODO: uint in docs, but string in result?

@@ -20,6 +20,7 @@
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QStringLiteral>
+#include <QUuid>
 
 #include "userstore.h"
 #include "util/spdlog_qt.h"
@@ -33,73 +34,53 @@ static_assert(ACQUISITION_USE_SPDLOG);
 
 const QString UserStore::CREATE_LISTS_TABLE = QStringLiteral(R"(
     CREATE TABLE IF NOT EXISTS lists (
-        name            TEXT,
-        realm           TEXT,
-        league          TEXT,
-        timestamp       INTEGER,
-        data            TEXT
-    )
+        name            TEXT NOT NULL,
+        realm           TEXT NOT NULL,
+        league          TEXT NOT NULL,
+        timestamp       INTEGER NOT NULL,
+        data            TEXT NOT NULL,
+        PRIMARY KEY (name, realm, league)
+    ) WITHOUT ROWID;
 )").simplified();
 
-const QString UserStore::INSERT_CHARACTER_LIST = QStringLiteral(R"(
-    INSERT OR REPLACE INTO lists (
-        name,
-        realm,
-        timestamp,
-        data
-    ) VALUES (
-        "characters",
-        :realm,
-        :timestamp,
-        :data
-    )
+const QString UserStore::INSERT_LIST = QStringLiteral(R"(
+    INSERT INTO lists ( name,  realm,  league,  timestamp,  data)
+    VALUES            (:name, :realm, :league, :timestamp, :data)
+    ON CONFLICT(name, realm, league)
+    DO UPDATE SET
+        timestamp = excluded.timestamp,
+        data      = excluded.data;
 )").simplified();
 
-const QString UserStore::SELECT_CHARACTER_LIST =
-    R"(SELECT FROM lists WHERE (name = "characters") AND (realm = :realm))";
-
-const QString UserStore::INSERT_STASH_LIST = QStringLiteral(R"(
-    INSERT OR REPLACE INTO lists (
-        name,
-        realm,
-        league,
-        timestamp,
-        data
-    ) VALUES (
-        "stashes",
-        :realm,
-        :league,
-        :timestamp,
-        :data
-    )
+const QString UserStore::SELECT_LIST = QStringLiteral(R"(
+    SELECT data, timestamp
+    FROM lists
+    WHERE (name = :name) AND (realm = :realm) AND (league = :league);
 )").simplified();
-
-const QString UserStore::SELECT_STASH_LIST =
-    R"(SELECT FROM lists WHERE (name = "stashes") AND (realm = :realm) AND (league = :league))";
 
 // ---------- CHARACTERS ----------
 
 const QString UserStore::CREATE_CHARACTER_TABLE = QStringLiteral(R"(
     CREATE TABLE IF NOT EXISTS characters (
         id              TEXT PRIMARY KEY,
-        name            TEXT,
-        realm           TEXT,
-        class           TEXT,
+        name            TEXT NOT NULL,
+        realm           TEXT NOT NULL,
+        class           TEXT NOT NULL,
         league          TEXT,
-        level           INTEGER,
-        experience      INTEGER,
-        ruthless        INTEGER,
-        expired         INTEGER,
-        deleted         INTEGER,
-        current         INTEGER,
-        meta_version    TEXT,
-        timestamp       INTEGER,
-        data            BLOB
-    ) WITHOUT ROWID
+        level           INTEGER NOT NULL,
+        experience      INTEGER NOT NULL,
+        ruthless        INTEGER NOT NULL DEFAULT 0 CHECK (ruthless IN (0,1)),
+        expired         INTEGER NOT NULL DEFAULT 0 CHECK (expired IN (0,1)),
+        deleted         INTEGER NOT NULL DEFAULT 0 CHECK (deleted IN (0,1)),
+        current         INTEGER NOT NULL DEFAULT 0 CHECK (current IN (0,1)),
+        meta_version    TEXT NOT NULL,
+        timestamp       INTEGER NOT NULL,
+        data            TEXT NOT NULL
+    ) WITHOUT ROWID;
 )").simplified();
 
 const QString UserStore::INSERT_CHARACTER = QStringLiteral(R"(
-    INSERT OR REPLACE INTO "characters" (
+    INSERT INTO characters (
         id,
         name,
         realm,
@@ -130,46 +111,62 @@ const QString UserStore::INSERT_CHARACTER = QStringLiteral(R"(
         :timestamp,
         :data
     )
+    ON CONFLICT(id) DO UPDATE SET
+      name         = excluded.name,
+      realm        = excluded.realm,
+      class        = excluded.class,
+      league       = excluded.league,
+      level        = excluded.level,
+      experience   = excluded.experience,
+      ruthless     = excluded.ruthless,
+      expired      = excluded.expired,
+      deleted      = excluded.deleted,
+      current      = excluded.current,
+      meta_version = excluded.meta_version,
+      timestamp    = excluded.timestamp,
+      data         = excluded.data;
 )").simplified();
 
 
-const QString UserStore::SELECT_CHARACTER =
-    R"(SELECT FROM characters WHERE (name = :name))";
+const QString UserStore::SELECT_CHARACTER = QStringLiteral(R"(
+    SELECT data, timestamp
+    FROM characters
+    WHERE id = :id;
+)").simplified();
 
 // ---------- STASHES ----------
 
 const QString UserStore::CREATE_STASH_TABLE = QStringLiteral(R"(
     CREATE TABLE IF NOT EXISTS stashes (
-        realm           TEXT,
-        league          TEXT,
         id              TEXT PRIMARY KEY,
+        realm           TEXT NOT NULL,
+        league          TEXT NOT NULL,
         parent          TEXT,
         folder          TEXT,
-        name            TEXT,
-        type            TEXT,
+        name            TEXT NOT NULL,
+        type            TEXT NOT NULL,
         indx            INTEGER,
-        meta_public     INTEGER,
-        meta_folder     INTEGER,
+        meta_public     INTEGER NOT NULL DEFAULT 0 CHECK (meta_public IN (0,1)),
+        meta_folder     INTEGER NOT NULL DEFAULT 0 CHECK (meta_folder IN (0,1)),
         meta_colour     TEXT,
-        children        TEXT,
-        timestamp       INTEGER,
-        data            BLOB
-    ) WITHOUT ROWID
+        timestamp       INTEGER NOT NULL,
+        data            TEXT NOT NULL
+    ) WITHOUT ROWID;
 )").simplified();
 
 const QStringList UserStore::CREATE_STASH_INDEXES = {
-    R"(CREATE INDEX IF NOT EXISTS "idx_stashes_realm"  ON "stashes"("realm"))",
-    R"(CREATE INDEX IF NOT EXISTS "idx_stashes_league" ON "stashes"("league"))",
-    R"(CREATE INDEX IF NOT EXISTS "idx_stashes_parent" ON "stashes"("parent"))",
-    R"(CREATE INDEX IF NOT EXISTS "idx_stashes_folder" ON "stashes"("folder"))",
-    R"(CREATE INDEX IF NOT EXISTS "idx_stashes_type"   ON "stashes"("type"))"
+    R"(CREATE INDEX IF NOT EXISTS idx_stashes_realm  ON stashes(realm);)",
+    R"(CREATE INDEX IF NOT EXISTS idx_stashes_league ON stashes(league);)",
+    R"(CREATE INDEX IF NOT EXISTS idx_stashes_parent ON stashes(parent);)",
+    R"(CREATE INDEX IF NOT EXISTS idx_stashes_folder ON stashes(folder);)",
+    R"(CREATE INDEX IF NOT EXISTS idx_stashes_type   ON stashes(type);)"
 };
 
 const QString UserStore::INSERT_STASH = QStringLiteral(R"(
-    INSERT OR REPLACE INTO stashes (
+    INSERT INTO stashes (
+        id,
         realm,
         league,
-        id,
         parent,
         folder,
         name,
@@ -178,72 +175,98 @@ const QString UserStore::INSERT_STASH = QStringLiteral(R"(
         meta_public,
         meta_folder,
         meta_colour,
-        children,
         timestamp,
         data
     ) VALUES (
+        :id,
         :realm,
         :league,
-        :id,
         :parent,
         :folder,
         :name,
         :type,
-        :index,
+        :indx,
         :meta_public,
         :meta_folder,
         :meta_colour,
-        :children,
         :timestamp,
         :data
     )
+    ON CONFLICT(id) DO UPDATE SET
+        realm       = excluded.realm,
+        league      = excluded.league,
+        parent      = excluded.parent,
+        folder      = excluded.folder,
+        name        = excluded.name,
+        type        = excluded.type,
+        indx        = excluded.indx,
+        meta_public = excluded.meta_public,
+        meta_folder = excluded.meta_folder,
+        meta_colour = excluded.meta_colour,
+        timestamp   = excluded.timestamp,
+        data        = excluded.data;
 )").simplified();
 
-const QString UserStore::SELECT_STASH =
-    R"(SELECT FROM stashes WHERE (id = :id))";
+const QString UserStore::SELECT_STASH = QStringLiteral(R"(
+    SELECT data, timestamp
+    FROM stashes
+    WHERE id = :id;
+)").simplified();
 
 // ---------- STASH CHILDREN ----------
 
 const QString UserStore::CREATE_STASH_CHILDREN_TABLE = QStringLiteral(R"(
     CREATE TABLE IF NOT EXISTS stash_children (
-        parent_id       TEXT,
-        child_id        TEXT
-    )
+        parent_id       TEXT NOT NULL,
+        child_id        TEXT NOT NULL,
+        PRIMARY KEY (parent_id, child_id)
+    ) WITHOUT ROWID;
+)").simplified();
+
+const QString UserStore::DELETE_STASH_CHILDREN = QStringLiteral(R"(
+    DELETE FROM stash_children
+    WHERE parent_id = :parent_id;
 )").simplified();
 
 const QString UserStore::INSERT_STASH_CHILDREN = QStringLiteral(R"(
-    INSERT OR REPLACE INTO stash_children (
-        parent_id       TEXT,
-        child_id        TEXT
+    INSERT OR IGNORE INTO stash_children (
+        parent_id,
+        child_id
     ) VALUES (
         :parent_id,
         :child_id
-    )
+    );
 )").simplified();
 
-const QString UserStore::SELECT_STASH_CHILDREN =
-    R"(SELECT FROM stash_children WHERE (parent_id = :parent_id))";
+const QString UserStore::SELECT_STASH_CHILDREN = QStringLiteral(R"(
+    SELECT child_id
+    FROM stash_children
+    WHERE parent_id = :parent_id;
+)").simplified();
 
 // clang-format on
 //================================================================================
 
-UserStore::UserStore(QDir &dir, const QString &username, QObject *parent)
+UserStore::UserStore(const QDir &dir, const QString &username, QObject *parent)
     : QObject(parent)
 {
-    dir.mkpath(username);
+    QDir dataDir(dir);
+    if (!dataDir.mkpath(dir.absolutePath())) {
+        spdlog::error("UserStore: unable to create directory: {}", dir.absolutePath());
+        return;
+    }
 
-    const auto id = reinterpret_cast<quintptr>(this);
-    m_connection = "userdata:" + QString::number(id);
-    m_filename = dir.absoluteFilePath(username + "/userdata.db");
+    const auto uuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
+    m_connection = "userdata:" + username + ":" + uuid;
+    m_filename = dataDir.absoluteFilePath(username + ".db");
     m_db = QSqlDatabase::addDatabase("QSQLITE", m_connection);
     m_db.setDatabaseName(m_filename);
     if (!m_db.open()) {
         const QString msg = m_db.lastError().text();
         spdlog::error("UserStore: error opening database: '{}': {}", m_filename, msg);
         return;
-    };
-
+    }
     setupDatabase();
 }
 
@@ -258,6 +281,11 @@ UserStore::~UserStore()
 
 void UserStore::setupDatabase()
 {
+    if (!m_db.isOpen()) {
+        spdlog::error("UserStore: cannot setup database: database is not open");
+        return;
+    }
+
     static const QStringList sql_statements = QStringList({CREATE_LISTS_TABLE,
                                                            CREATE_CHARACTER_TABLE,
                                                            CREATE_STASH_TABLE,
@@ -273,7 +301,7 @@ void UserStore::setupDatabase()
 
     for (const auto &sql : sql_statements) {
         if (!query.exec(sql)) {
-            const QString msg = query.lastError().text();
+            const auto msg = query.lastError().text();
             spdlog::error("UserStore: failed to execute statement: '{}': {}", sql, msg);
             m_db.rollback();
             return;
@@ -289,24 +317,28 @@ void UserStore::setupDatabase()
 void UserStore::saveCharacterList(const std::vector<poe::Character> &characters,
                                   const QString &realm)
 {
-    static const QString kInsertCharacterList = QString(INSERT_CHARACTER_LIST).simplified();
+    if (!m_db.isOpen()) {
+        spdlog::error("UserStore: cannot save character list: database is not open");
+        return;
+    }
 
-    auto json = glz::write_json(characters);
+    const auto json = glz::write_json(characters);
     if (!json) {
-        const auto msg = glz::format_error(json.error(), json.value());
+        const auto msg = glz::format_error(json.error());
         spdlog::error("UserStore: error serializing character list: {}", msg);
         return;
     }
 
     QSqlQuery query(m_db);
 
-    query.prepare(kInsertCharacterList);
+    query.prepare(INSERT_LIST);
+    query.bindValue(":name", "characters");
     query.bindValue(":realm", realm);
+    query.bindValue(":league", "*");
     query.bindValue(":timestamp", QDateTime::currentMSecsSinceEpoch());
     query.bindValue(":data", QByteArray::fromStdString(json.value()));
-
     if (!query.exec()) {
-        const QString msg = query.lastError().text();
+        const auto msg = query.lastError().text();
         spdlog::error("UserStore: error saving character list: {}", msg);
     }
 }
@@ -315,37 +347,48 @@ void UserStore::saveStashList(const std::vector<poe::StashTab> &stashes,
                               const QString &realm,
                               const QString &league)
 {
-    static const QString kInsertStashList = QString(INSERT_STASH_LIST).simplified();
+    if (!m_db.isOpen()) {
+        spdlog::error("UserStore: cannot save stash list: database is not open");
+        return;
+    }
 
-    auto json = glz::write_json(stashes);
+    const auto json = glz::write_json(stashes);
     if (!json) {
-        const auto msg = glz::format_error(json.error(), json.value());
+        const auto msg = glz::format_error(json.error());
         spdlog::error("UserStore: error serializing stash list: {}", msg);
         return;
     }
 
     QSqlQuery query(m_db);
 
-    query.prepare(kInsertStashList);
+    query.prepare(INSERT_LIST);
+    query.bindValue(":name", "stashes");
     query.bindValue(":realm", realm);
+    query.bindValue(":league", league);
     query.bindValue(":timestamp", QDateTime::currentMSecsSinceEpoch());
     query.bindValue(":data", QByteArray::fromStdString(json.value()));
-
     if (!query.exec()) {
-        const QString msg = query.lastError().text();
+        const auto msg = query.lastError().text();
         spdlog::error("UserStore: error saving stash list: {}", msg);
+        return;
     }
 }
 
 std::vector<poe::Character> UserStore::getCharacterList(const QString &realm)
 {
+    if (!m_db.isOpen()) {
+        spdlog::error("UserStore: cannot get character list: database is not open");
+        return {};
+    }
+
     QSqlQuery query(m_db);
 
-    query.prepare(SELECT_CHARACTER_LIST);
+    query.prepare(SELECT_LIST);
+    query.bindValue(":name", "characters");
     query.bindValue(":realm", realm);
-
+    query.bindValue(":league", "*");
     if (!query.exec()) {
-        const QString msg = query.lastError().text();
+        const auto msg = query.lastError().text();
         spdlog::error("UserStore: error saving character list: {}", msg);
         return {};
     }
@@ -355,14 +398,19 @@ std::vector<poe::Character> UserStore::getCharacterList(const QString &realm)
 
 std::vector<poe::StashTab> UserStore::getStashList(const QString &realm, const QString &league)
 {
+    if (!m_db.isOpen()) {
+        spdlog::error("UserStore: cannot get stash list: database is not open");
+        return {};
+    }
+
     QSqlQuery query(m_db);
 
-    query.prepare(SELECT_STASH_LIST);
+    query.prepare(SELECT_LIST);
+    query.bindValue(":name", "stashes");
     query.bindValue(":realm", realm);
     query.bindValue(":league", league);
-
     if (!query.exec()) {
-        const QString msg = query.lastError().text();
+        const auto msg = query.lastError().text();
         spdlog::error("UserStore: error saving stash list: {}", msg);
         return {};
     }
@@ -372,14 +420,21 @@ std::vector<poe::StashTab> UserStore::getStashList(const QString &realm, const Q
 
 void UserStore::saveCharacter(const poe::Character &character)
 {
-    const QString version = character.metadata ? character.metadata->version.value_or("") : "";
-    const QString league = character.league.value_or("");
-    const qint64 timestamp = QDateTime::currentMSecsSinceEpoch();
+    if (!m_db.isOpen()) {
+        spdlog::error("UserStore: cannot save character: database is not open");
+        return;
+    }
 
-    std::string json;
-    const auto ec = glz::write_json(character, json);
-    if (ec) {
-        spdlog::error("UserStore: error writing character json: {}", glz::format_error(ec, json));
+    const qint64 timestamp = QDateTime::currentMSecsSinceEpoch();
+    const QVariant version = (character.metadata && character.metadata->version)
+                                 ? *character.metadata->version
+                                 : QVariant();
+
+    const auto json = glz::write_json(character);
+    if (!json) {
+        const auto msg = glz::format_error(json.error());
+        spdlog::error("UserStore: error writing character json: {}", msg);
+        return;
     }
 
     QSqlQuery query(m_db);
@@ -389,7 +444,7 @@ void UserStore::saveCharacter(const poe::Character &character)
     query.bindValue(":name", character.name);
     query.bindValue(":realm", character.realm);
     query.bindValue(":class", character.class_);
-    query.bindValue(":league", league);
+    query.bindValue(":league", character.league ? *character.league : QVariant());
     query.bindValue(":level", character.level);
     query.bindValue(":experience", character.experience);
     query.bindValue(":ruthless", character.ruthless.value_or(false));
@@ -398,66 +453,93 @@ void UserStore::saveCharacter(const poe::Character &character)
     query.bindValue(":current", character.current.value_or(false));
     query.bindValue(":meta_version", version);
     query.bindValue(":timestamp", timestamp);
-    query.bindValue(":data", QByteArray(json.data(), json.size()));
-
+    query.bindValue(":data", QByteArray(json->data(), json->size()));
     if (!query.exec()) {
-        const QString msg = query.lastError().text();
+        const auto msg = query.lastError().text();
         spdlog::error("UserStore: failed to update character: {}", msg);
+        return;
     }
 }
 
 void UserStore::saveStash(const poe::StashTab &stash, const QString &realm, const QString &league)
 {
-    QStringList child_ids;
-    if (stash.children) {
-        const auto children = *stash.children;
-        child_ids.reserve(children.size());
-        for (const auto &child : children) {
-            child_ids.push_back(child.id);
-        }
+    if (!m_db.isOpen()) {
+        spdlog::error("UserStore: cannot save stash: database is not open");
+        return;
     }
-    const QString children = child_ids.join(",");
+
     const qint64 timestamp = QDateTime::currentMSecsSinceEpoch();
 
-    std::string json;
-    const auto ec = glz::write_json(stash, json);
-    if (ec) {
-        spdlog::error("UserStore: error writing stash json: {}", glz::format_error(ec, json));
+    const auto json = glz::write_json(stash);
+    if (!json) {
+        const auto msg = glz::format_error(json.error());
+        spdlog::error("UserStore: error writing stash json: {}", msg);
+        return;
+    }
+
+    if (!m_db.transaction()) {
+        const auto msg = m_db.lastError().text();
+        spdlog::error("UserStore: error starting stash transaction: {}", msg);
+        return;
     }
 
     QSqlQuery query(m_db);
 
     query.prepare(INSERT_STASH);
+    query.bindValue(":id", stash.id);
     query.bindValue(":realm", realm);
     query.bindValue(":league", league);
-    query.bindValue(":id", stash.id);
-    query.bindValue(":parent", stash.parent.value_or(""));
-    query.bindValue(":folder", stash.folder.value_or(""));
+    query.bindValue(":parent", stash.parent ? *stash.parent : QVariant());
+    query.bindValue(":folder", stash.folder ? *stash.folder : QVariant());
     query.bindValue(":name", stash.name);
     query.bindValue(":type", stash.type);
-    query.bindValue(":index", stash.index.value_or(-1));
+    query.bindValue(":indx", stash.index ? *stash.index : QVariant());
     query.bindValue(":meta_public", stash.metadata.public_.value_or(false));
     query.bindValue(":meta_folder", stash.metadata.folder.value_or(false));
-    query.bindValue(":meta_colour", stash.metadata.colour.value_or(""));
-    query.bindValue(":children", children);
+    query.bindValue(":meta_colour", stash.metadata.colour ? *stash.metadata.colour : QVariant());
     query.bindValue(":timestamp", timestamp);
-    query.bindValue(":data", QByteArray(json.data(), json.size()));
-
+    query.bindValue(":data", QByteArray(json->data(), json->size()));
     if (!query.exec()) {
-        const QString msg = query.lastError().text();
+        const auto msg = query.lastError().text();
         spdlog::error("UserStore: failed to update stash: {}", msg);
+        m_db.rollback();
+        return;
+    }
+
+    query.prepare(DELETE_STASH_CHILDREN);
+    query.bindValue(":parent_id", stash.id);
+    if (!query.exec()) {
+        const auto msg = query.lastError().text();
+        spdlog::error("UserStore: failed to delete children: {}", msg);
+        m_db.rollback();
+        return;
     }
 
     if (stash.children) {
-        for (const auto &child : *stash.children) {
-            query.prepare(INSERT_STASH_CHILDREN);
-            query.bindValue(":parent_id", stash.id);
-            query.bindValue(":child_id", child.id);
+        QVariantList parents, children;
 
-            if (!query.exec()) {
-                const QString msg = query.lastError().text();
-                spdlog::error("UserStore: failed to update stash children: {}", msg);
-            }
+        parents.reserve(stash.children->size());
+        children.reserve(stash.children->size());
+        for (const auto &child : *stash.children) {
+            parents.push_back(stash.id);
+            children.push_back(child.id);
         }
+
+        query.prepare(INSERT_STASH_CHILDREN);
+        query.bindValue(":parent_id", parents);
+        query.bindValue(":child_id", children);
+        if (!query.execBatch()) {
+            const auto msg = query.lastError().text();
+            spdlog::error("UserStore: failed to update stash children: {}", msg);
+            m_db.rollback();
+            return;
+        }
+    }
+
+    if (!m_db.commit()) {
+        const auto msg = m_db.lastError().text();
+        spdlog::error("UserStore: error committing stash transaction: {}", msg);
+        m_db.rollback();
+        return;
     }
 }

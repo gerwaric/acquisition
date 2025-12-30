@@ -420,19 +420,19 @@ void Application::InitLogin()
     if (account.isEmpty()) {
         FatalError("Login failure: the account has not been set.");
     }
-    QDir user_dir(m_data_dir.filePath("data"));
+    QDir data_dir(m_data_dir.filePath("data"));
     spdlog::trace("Application::InitLogin() league = {}", league);
     spdlog::trace("Application::InitLogin() account = {}", account);
-    spdlog::trace("Application::InitLogin() data_dir = {}", user_dir.absolutePath());
+    spdlog::trace("Application::InitLogin() data_dir = {}", data_dir.absolutePath());
     const QString data_file = SqliteDataStore::MakeFilename(account, league);
-    const QString data_path = user_dir.absoluteFilePath(data_file);
+    const QString data_path = data_dir.absoluteFilePath(data_file);
     spdlog::trace("Application::InitLogin() data_path = {}", data_path);
 
     m_data = std::make_unique<SqliteDataStore>(data_path);
     SaveDbOnNewVersion();
 
     spdlog::trace("Application::InitLogin() creating user datastore");
-    m_userstore = std::make_unique<UserStore>(user_dir, account);
+    m_userstore = std::make_unique<UserStore>(data_dir, account);
 
     spdlog::trace("Application::InitLogin() creating rate limiter");
     m_rate_limiter = std::make_unique<RateLimiter>(network_manager());
@@ -463,11 +463,20 @@ void Application::InitLogin()
     auto repoe = m_repoe.get();
     auto manager = m_items_manager.get();
     auto worker = m_items_worker.get();
+    auto userstore = m_userstore.get();
 
     connect(manager, &ItemsManager::UpdateSignal, worker, &ItemsManagerWorker::Update);
     connect(worker, &ItemsManagerWorker::StatusUpdate, manager, &ItemsManager::OnStatusUpdate);
     connect(worker, &ItemsManagerWorker::ItemsRefreshed, manager, &ItemsManager::OnItemsRefreshed);
     connect(manager, &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
+
+    connect(worker,
+            &ItemsManagerWorker::characterListReceived,
+            userstore,
+            &UserStore::saveCharacterList);
+    connect(worker, &ItemsManagerWorker::characterReceived, userstore, &UserStore::saveCharacter);
+    connect(worker, &ItemsManagerWorker::stashListReceived, userstore, &UserStore::saveStashList);
+    connect(worker, &ItemsManagerWorker::stashReceived, userstore, &UserStore::saveStash);
 
     if (m_repoe->IsInitialized()) {
         spdlog::debug("Application: RePoE data is available.");

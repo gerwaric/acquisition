@@ -528,6 +528,16 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply *reply)
         return;
     }
     const QByteArray bytes = reply->readAll();
+    const size_t nbytes = static_cast<size_t>(bytes.size());
+    const std::string_view sv{bytes.constBegin(), nbytes};
+
+    const auto result = glz::read_json<poe::StashListWrapper>(sv);
+    if (!result) {
+        const auto msg = glz::format_error(result.error(), sv);
+        spdlog::error("ItemsManagerWorker: unable to parse stash list: {}", msg);
+    } else {
+        emit stashListReceived(result->stashes, m_realm, m_league);
+    }
 
     rapidjson::Document doc;
     doc.Parse(bytes);
@@ -604,6 +614,16 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply *reply)
         return;
     }
     const QByteArray bytes = reply->readAll();
+    const size_t nbytes = static_cast<size_t>(bytes.size());
+    const std::string_view sv{bytes.constBegin(), nbytes};
+
+    const auto result = glz::read_json<poe::CharacterListWrapper>(sv);
+    if (!result) {
+        const auto msg = glz::format_error(result.error(), sv);
+        spdlog::error("ItemsManagerWorker: unable to parse character list: {}", msg);
+    } else {
+        emit characterListReceived(result->characters, m_realm);
+    }
 
     rapidjson::Document doc;
     doc.Parse(bytes);
@@ -699,6 +719,18 @@ void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply *reply, const ItemLo
         return;
     }
     const QByteArray bytes = reply->readAll();
+    const size_t nbytes = static_cast<size_t>(bytes.size());
+    const std::string_view sv{bytes.constBegin(), nbytes};
+
+    const auto result = glz::read_json<poe::StashWrapper>(sv);
+    if (!result) {
+        const auto msg = glz::format_error(result.error(), sv);
+        spdlog::error("ItemsManagerWorker: unable to parse stash: {}", msg);
+    } else if (!result->stash) {
+        spdlog::error("ItemsManagerWorker: emtpy stash repsonse received");
+    } else {
+        emit stashReceived(*result->stash, m_realm, m_league);
+    }
 
     rapidjson::Document doc;
     doc.Parse(bytes);
@@ -753,6 +785,18 @@ void ItemsManagerWorker::OnOAuthCharacterReceived(QNetworkReply *reply, const It
         return;
     }
     const QByteArray bytes = reply->readAll();
+    const size_t nbytes = static_cast<size_t>(bytes.size());
+    const std::string_view sv{bytes.constBegin(), nbytes};
+
+    const auto result = glz::read_json<poe::CharacterWrapper>(sv);
+    if (!result) {
+        const auto msg = glz::format_error(result.error(), sv);
+        spdlog::error("ItemsManagerWorker: unable to parse character: {}", msg);
+    } else if (!result->character) {
+        spdlog::error("ItemsManagerWorker: empty character received");
+    } else {
+        emit characterReceived(*result->character, m_realm);
+    }
 
     rapidjson::Document doc;
     doc.Parse(bytes);

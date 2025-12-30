@@ -32,7 +32,7 @@ class UserStore : public QObject
 {
     Q_OBJECT
 public:
-    explicit UserStore(QDir &dir, const QString &username, QObject *parent = nullptr);
+    explicit UserStore(const QDir &dir, const QString &username, QObject *parent = nullptr);
     ~UserStore();
 
     std::vector<poe::Character> getCharacterList(const QString &realm);
@@ -52,10 +52,8 @@ public slots:
 
 private:
     static const QString CREATE_LISTS_TABLE;
-    static const QString INSERT_CHARACTER_LIST;
-    static const QString SELECT_CHARACTER_LIST;
-    static const QString INSERT_STASH_LIST;
-    static const QString SELECT_STASH_LIST;
+    static const QString INSERT_LIST;
+    static const QString SELECT_LIST;
 
     static const QString CREATE_CHARACTER_TABLE;
     static const QString INSERT_CHARACTER;
@@ -67,6 +65,7 @@ private:
     static const QString SELECT_STASH;
 
     static const QString CREATE_STASH_CHILDREN_TABLE;
+    static const QString DELETE_STASH_CHILDREN;
     static const QString INSERT_STASH_CHILDREN;
     static const QString SELECT_STASH_CHILDREN;
 

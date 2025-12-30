@@ -27,6 +27,8 @@
 #include <queue>
 #include <set>
 
+#include <poe/types/character.h>
+#include <poe/types/stashtab.h>
 #include <ui/mainwindow.h>
 #include <util/util.h>
 
@@ -74,6 +76,13 @@ signals:
                         const std::vector<ItemLocation> &tabs,
                         bool initial_refresh);
     void StatusUpdate(ProgramState state, const QString &status);
+
+    void characterListReceived(const std::vector<poe::Character> &characters, const QString &realm);
+    void characterReceived(const poe::Character &character, const QString &realm);
+    void stashListReceived(const std::vector<poe::StashTab> &stashes,
+                           const QString &realm,
+                           const QString &league);
+    void stashReceived(const poe::StashTab &stash, const QString &realm, const QString &league);
 
 public slots:
     void OnRePoEReady();
