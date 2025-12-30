@@ -25,11 +25,12 @@
 
 #include <QString>
 
-#include <glaze/glaze.hpp>
-
 #include "poe/types/item.h"
 #include "poe/types/itemjeweldata.h"
 #include "poe/types/passivenode.h"
+#include "util/glaze_qt.h"
+
+static_assert(ACQUISITION_USE_GLAZE);
 
 namespace poe {
 
