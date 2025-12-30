@@ -33,7 +33,7 @@
 
 namespace poe {
 
-    class Item;
+    struct Item;
 
 }
 
