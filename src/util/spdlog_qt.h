@@ -28,7 +28,7 @@
 #include <spdlog/spdlog.h>
 
 // This is a helper define to avoid Qt Creator's warnings that this header is unused.
-constexpr bool ACQUISITION_USE_SPDLOG = true;
+[[maybe_unused]] inline constexpr bool ACQUISITION_USE_SPDLOG = true;
 
 // Define an inline helper function to convert levels into QStrings.
 
