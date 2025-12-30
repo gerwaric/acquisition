@@ -109,20 +109,19 @@ Item::Item(const poe::Item &json, const ItemLocation &loc)
 {
     m_name = fixup_name(json.name);
 
-    QString name;
     if (json.hybrid) {
         const auto &hybrid = json.hybrid.value();
         if (hybrid.isVaalGem.value_or(false)) {
             // Do not use the base type for vaal gems.
-            name = json.typeLine;
+            m_typeLine = json.typeLine;
         } else {
             // Use base type for other hybrid items.
-            name = hybrid.baseTypeName;
+            m_typeLine = hybrid.baseTypeName;
         }
     } else {
-        name = json.typeLine;
+        m_typeLine = json.typeLine;
     }
-    m_typeLine = fixup_name(name);
+    m_typeLine = fixup_name(m_typeLine);
     m_baseType = fixup_name(json.baseType);
     m_identified = json.identified;
 
@@ -288,7 +287,7 @@ Item::Item(const poe::Item &json, const ItemLocation &loc)
 
     if (json.sockets) {
         ItemSocketGroup current_group = {0, 0, 0, 0};
-        m_sockets_cnt = json.sockets->size();
+        m_sockets_cnt = static_cast<int>(json.sockets->size());
         int counter = 0;
         int prev_group = -1;
         for (const auto &socket : *json.sockets) {
