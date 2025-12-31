@@ -38,10 +38,10 @@ public:
     std::vector<poe::Character> getCharacterList(const QString &realm);
     std::vector<poe::StashTab> getStashList(const QString &realm, const QString &league);
 
-    poe::Character getCharacter(const QString &name);
+    poe::Character getCharacter(const QString &id);
     poe::StashTab getStash(const QString &id);
+    std::vector<QString> getStashChildren(const QString &parent_id);
 
-public slots:
     void saveCharacterList(const std::vector<poe::Character> &characters, const QString &realm);
     void saveStashList(const std::vector<poe::StashTab> &stashes,
                        const QString &realm,
@@ -51,25 +51,9 @@ public slots:
     void saveStash(const poe::StashTab &stash, const QString &realm, const QString &league);
 
 private:
-    static const QString CREATE_LISTS_TABLE;
-    static const QString INSERT_LIST;
-    static const QString SELECT_LIST;
-
-    static const QString CREATE_CHARACTER_TABLE;
-    static const QString INSERT_CHARACTER;
-    static const QString SELECT_CHARACTER;
-
-    static const QString CREATE_STASH_TABLE;
-    static const QStringList CREATE_STASH_INDEXES;
-    static const QString INSERT_STASH;
-    static const QString SELECT_STASH;
-
-    static const QString CREATE_STASH_CHILDREN_TABLE;
-    static const QString DELETE_STASH_CHILDREN;
-    static const QString INSERT_STASH_CHILDREN;
-    static const QString SELECT_STASH_CHILDREN;
-
-    void setupDatabase();
+    int userVersion();
+    bool setUserVersion(int v);
+    void migrate();
 
     QString m_connection;
     QString m_filename;
