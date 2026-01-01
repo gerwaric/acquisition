@@ -17,8 +17,10 @@
     along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <QSqlDriver>
 #include <QSqlError>
 #include <QSqlQuery>
+#include <QSqlRecord>
 #include <QStringLiteral>
 #include <QUuid>
 
@@ -36,192 +38,123 @@ static constexpr int SCHEMA_VERSION = 1;
 constexpr unsigned int QSQLITE_BUSY_TIMEOUT{5000};
 
 constexpr std::array CONNECTION_PRAGMAS{
-    "PRAGMA busy_timeout=5000;",
-    "PRAGMA temp_store=MEMORY;",
-    "PRAGMA journal_mode=WAL;",
-    "PRAGMA synchronous=NORMAL;",
-    "PRAGMA foreign_keys=ON;",
+    "PRAGMA busy_timeout=5000",
+    "PRAGMA temp_store=MEMORY",
+    "PRAGMA journal_mode=WAL",
+    "PRAGMA synchronous=NORMAL",
+    "PRAGMA foreign_keys=OFF",
 };
-
-// ---------- LISTS ----------
-
-constexpr const char *CREATE_LISTS_TABLE{
-    R"(CREATE TABLE IF NOT EXISTS lists (
-        name            TEXT NOT NULL,
-        realm           TEXT NOT NULL,
-        league          TEXT NOT NULL,
-        timestamp       INTEGER NOT NULL,
-        data            TEXT NOT NULL,
-        PRIMARY KEY (name, realm, league)
-    ) WITHOUT ROWID;)"};
-
-constexpr const char *INSERT_LIST{
-    R"(INSERT INTO lists (
-        name,
-        realm,
-        league,
-        timestamp,
-        data
-    ) VALUES (
-        :name,
-        :realm,
-        :league,
-        :timestamp,
-        :data
-    )
-    ON CONFLICT(name, realm, league)
-    DO UPDATE SET
-        timestamp = excluded.timestamp,
-        data      = excluded.data;)"};
-
-constexpr const char *SELECT_LIST{
-    R"(SELECT data, timestamp
-    FROM lists
-    WHERE name = :name AND realm = :realm AND league = :league;)"};
 
 // ---------- CHARACTERS ----------
 
-constexpr const char *CREATE_CHARACTER_TABLE{
-    R"(CREATE TABLE IF NOT EXISTS characters (
-        id              TEXT PRIMARY KEY,
-        name            TEXT NOT NULL,
-        realm           TEXT NOT NULL,
-        class           TEXT NOT NULL,
-        league          TEXT,
-        level           INTEGER NOT NULL,
-        experience      INTEGER NOT NULL,
-        ruthless        INTEGER NOT NULL DEFAULT 0 CHECK (ruthless IN (0,1)),
-        expired         INTEGER NOT NULL DEFAULT 0 CHECK (expired IN (0,1)),
-        deleted         INTEGER NOT NULL DEFAULT 0 CHECK (deleted IN (0,1)),
-        current         INTEGER NOT NULL DEFAULT 0 CHECK (current IN (0,1)),
-        meta_version    TEXT,
-        timestamp       INTEGER NOT NULL,
-        data            TEXT NOT NULL
-    ) WITHOUT ROWID;)"};
+constexpr const char *CREATE_CHARACTER_TABLE{R"(
+CREATE TABLE IF NOT EXISTS characters (
+    id              TEXT NOT NULL,
+    name            TEXT NOT NULL,
+    realm           TEXT NOT NULL,
+    league          TEXT,
+    listed_at       INTEGER NOT NULL,
+    json_fetched_at INTEGER,
+    json_data       TEXT,
+    PRIMARY KEY (realm, id)
+)
+)"};
 
-constexpr const char *INSERT_CHARACTER{
-    R"(INSERT INTO characters (
-        id,
-        name,
-        realm,
-        class,
-        league,
-        level,
-        experience,
-        ruthless,
-        expired,
-        deleted,
-        current,
-        meta_version,
-        timestamp,
-        data
-    ) VALUES (
-        :id,
-        :name,
-        :realm,
-        :class,
-        :league,
-        :level,
-        :experience,
-        :ruthless,
-        :expired,
-        :deleted,
-        :current,
-        :meta_version,
-        :timestamp,
-        :data
-    )
-    ON CONFLICT(id) DO UPDATE SET
-      name         = excluded.name,
-      realm        = excluded.realm,
-      class        = excluded.class,
-      league       = excluded.league,
-      level        = excluded.level,
-      experience   = excluded.experience,
-      ruthless     = excluded.ruthless,
-      expired      = excluded.expired,
-      deleted      = excluded.deleted,
-      current      = excluded.current,
-      meta_version = excluded.meta_version,
-      timestamp    = excluded.timestamp,
-      data         = excluded.data;)"};
+constexpr const char *UPSERT_CHARACTER_ENTRY{R"(
+INSERT INTO characters (
+    id, name, realm, league, listed_at
+) VALUES (
+    :id, :name, :realm, :league, :listed_at
+)
+ON CONFLICT(realm, id) DO UPDATE SET
+    name            = excluded.name,
+    realm           = excluded.realm,
+    league          = excluded.league,
+    listed_at       = excluded.listed_at
+)"};
 
-constexpr const char *SELECT_CHARACTER{
-    "SELECT data, timestamp FROM characters WHERE name = :name;"};
+constexpr const char *UPDATE_CHARACTER{R"(
+UPDATE characters
+SET
+    name            = :name,
+    league          = :league,
+    json_fetched_at = :json_fetched_at,
+    json_data       = :json_data
+WHERE realm = :realm AND id = :id
+)"};
 
 // ---------- STASHES ----------
 
-constexpr const char *CREATE_STASH_TABLE{
-    R"(CREATE TABLE IF NOT EXISTS stashes (
-        id              TEXT PRIMARY KEY,
-        realm           TEXT NOT NULL,
-        league          TEXT NOT NULL,
-        parent          TEXT,
-        folder          TEXT,
-        name            TEXT NOT NULL,
-        type            TEXT NOT NULL,
-        indx            INTEGER,
-        meta_public     INTEGER NOT NULL DEFAULT 0 CHECK (meta_public IN (0,1)),
-        meta_folder     INTEGER NOT NULL DEFAULT 0 CHECK (meta_folder IN (0,1)),
-        meta_colour     TEXT,
-        timestamp       INTEGER NOT NULL,
-        data            TEXT NOT NULL,
-        FOREIGN KEY(parent) REFERENCES stashes(id) ON DELETE SET NULL,
-        FOREIGN KEY(folder) REFERENCES stashes(id) ON DELETE SET NULL
-    ) WITHOUT ROWID;)"};
+constexpr const char *CREATE_STASH_TABLE{R"(
+CREATE TABLE IF NOT EXISTS stashes (
+    realm           TEXT NOT NULL,
+    league          TEXT NOT NULL,
+    id              TEXT NOT NULL,
+    parent          TEXT,
+    folder          TEXT,
+    name            TEXT NOT NULL,
+    type            TEXT NOT NULL,
+    stash_index     INTEGER,
+    meta_public     INTEGER NOT NULL DEFAULT 0 CHECK (meta_public IN (0,1)),
+    meta_folder     INTEGER NOT NULL DEFAULT 0 CHECK (meta_folder IN (0,1)),
+    meta_colour     TEXT,
+    listed_at       INTEGER NOT NULL,
+    json_fetched_at INTEGER,
+    json_data       TEXT,
+    PRIMARY KEY (realm, league, id)
+)
+)"};
 
-constexpr std::array
-    CREATE_STASH_INDEXES{"CREATE INDEX IF NOT EXISTS idx_stashes_realm  ON stashes(realm);",
-                         "CREATE INDEX IF NOT EXISTS idx_stashes_league ON stashes(league);",
-                         "CREATE INDEX IF NOT EXISTS idx_stashes_parent ON stashes(parent);",
-                         "CREATE INDEX IF NOT EXISTS idx_stashes_folder ON stashes(folder);",
-                         "CREATE INDEX IF NOT EXISTS idx_stashes_type   ON stashes(type);"};
+constexpr const char *CREATE_STASH_PARENT_INDEX{R"(
+CREATE INDEX IF NOT EXISTS idx_stashes_realm_league_parent
+ON stashes(realm, league, parent)
+)"};
 
-constexpr const char *INSERT_STASH =
-    R"(INSERT INTO stashes (
-        id,
-        realm,
-        league,
-        parent,
-        folder,
-        name,
-        type,
-        indx,
-        meta_public,
-        meta_folder,
-        meta_colour,
-        timestamp,
-        data
-    ) VALUES (
-        :id,
-        :realm,
-        :league,
-        :parent,
-        :folder,
-        :name,
-        :type,
-        :indx,
-        :meta_public,
-        :meta_folder,
-        :meta_colour,
-        :timestamp,
-        :data
-    )
-    ON CONFLICT(id) DO UPDATE SET
-        realm       = excluded.realm,
-        league      = excluded.league,
-        parent      = excluded.parent,
-        folder      = excluded.folder,
-        name        = excluded.name,
-        type        = excluded.type,
-        indx        = excluded.indx,
-        meta_public = excluded.meta_public,
-        meta_folder = excluded.meta_folder,
-        meta_colour = excluded.meta_colour,
-        timestamp   = excluded.timestamp,
-        data        = excluded.data;)";
+constexpr const char *CREATE_STASH_FOLDER_INDEX{R"(
+CREATE INDEX IF NOT EXISTS idx_stashes_realm_league_folder
+ON stashes(realm, league, folder)
+)"};
 
-constexpr const char *SELECT_STASH{"SELECT data, timestamp FROM stashes WHERE id = :id;"};
+constexpr const char *UPSERT_STASH_ENTRY{R"(
+INSERT INTO stashes (
+  realm, league, id,
+  parent, folder, name, type, stash_index,
+  meta_public, meta_folder, meta_colour,
+  listed_at
+)
+VALUES (
+  :realm, :league, :id,
+  :parent, :folder, :name, :type, :stash_index,
+  :meta_public, :meta_folder, :meta_colour,
+  :listed_at
+)
+ON CONFLICT(realm, league, id) DO UPDATE SET
+    parent          = excluded.parent,
+    folder          = excluded.folder,
+    name            = excluded.name,
+    type            = excluded.type,
+    stash_index     = excluded.stash_index,
+    meta_public     = excluded.meta_public,
+    meta_folder     = excluded.meta_folder,
+    meta_colour     = excluded.meta_colour,
+    listed_at       = excluded.listed_at
+)"};
+
+constexpr const char *UPDATE_STASH{R"(
+UPDATE stashes
+SET
+    parent          = :parent,
+    folder          = :folder,
+    name            = :name,
+    type            = :type,
+    stash_index     = :stash_index,
+    meta_public     = :meta_public,
+    meta_folder     = :meta_folder,
+    meta_colour     = :meta_colour,
+    json_fetched_at = :json_fetched_at,
+    json_data       = :json_data
+WHERE realm = :realm AND league = :league AND id = :id
+)"};
 
 //================================================================================
 
@@ -235,19 +168,20 @@ UserStore::UserStore(const QDir &dir, const QString &username, QObject *parent)
     }
 
     const auto uuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    const QString connection = "userdata:" + username + ":" + uuid;
+    const QString filename = dataDir.absoluteFilePath("userstore-" + username + ".db");
 
-    m_connection = QString("userdata:%1:%2").arg(username, uuid);
-    m_filename = dataDir.absoluteFilePath("userstore-" + username + ".db");
-
-    spdlog::debug("Creating DataStore {}: '{}'", m_connection, m_filename);
-
-    m_db = QSqlDatabase::addDatabase("QSQLITE", m_connection);
-    m_db.setDatabaseName(m_filename);
+    spdlog::debug("UserStore: creating database connection '{}' to '{}'", connection, filename);
+    m_db = QSqlDatabase::addDatabase("QSQLITE", connection);
+    m_db.setDatabaseName(filename);
     m_db.setConnectOptions(QString("QSQLITE_BUSY_TIMEOUT=%1").arg(QSQLITE_BUSY_TIMEOUT));
 
     if (!m_db.open()) {
         const QString msg = m_db.lastError().text();
-        spdlog::error("UserStore: error opening database: '{}': {}", m_filename, msg);
+        spdlog::error("UserStore: error opening database connection '{}' to '{}': {}",
+                      connection,
+                      filename,
+                      msg);
         return;
     }
 
@@ -268,11 +202,19 @@ UserStore::UserStore(const QDir &dir, const QString &username, QObject *parent)
 
 UserStore::~UserStore()
 {
+    // Grab the connection name.
+    const QString connection = m_db.connectionName();
+
+    // Close the database and clear the member variable.
     if (m_db.isValid()) {
         m_db.close();
     }
     m_db = QSqlDatabase();
-    QSqlDatabase::removeDatabase(m_connection);
+
+    // Remove the database connection.
+    if (QSqlDatabase::contains(connection)) {
+        QSqlDatabase::removeDatabase(connection);
+    }
 }
 
 int UserStore::userVersion()
@@ -299,8 +241,7 @@ void UserStore::migrate()
     QSqlQuery q(m_db);
 
     // Acquire a write lock so only one migrator proceeds.
-    if (!q.exec("BEGIN IMMEDIATE;")) {
-        spdlog::error("UserStore: unable to acquire write lock: {}", q.lastError().text());
+    if (!q.exec("BEGIN IMMEDIATE")) {
         return;
     }
 
@@ -308,57 +249,88 @@ void UserStore::migrate()
     const int v = userVersion();
     if (v >= SCHEMA_VERSION) {
         spdlog::debug("UserStore: migration occured while waiting for the lock");
-        q.exec("COMMIT;");
+        m_db.commit();
         return;
     }
 
-    constexpr const std::array tables{
-        std::make_pair("lists", CREATE_LISTS_TABLE),
-        std::make_pair("characters", CREATE_CHARACTER_TABLE),
-        std::make_pair("stashes", CREATE_STASH_TABLE),
-    };
+    // Assemble an ordered list of setup statements.
+    constexpr std::array statements{"DROP TABLE IF EXISTS characters;",
+                                    CREATE_CHARACTER_TABLE,
+                                    "DROP TABLE IF EXISTS stashes;",
+                                    CREATE_STASH_TABLE,
+                                    CREATE_STASH_PARENT_INDEX,
+                                    CREATE_STASH_FOLDER_INDEX};
 
-    // Create tables.
-    for (const auto &[name, sql] : tables) {
-        spdlog::debug("UserStore: setting up table: {}", name);
-
-        if (!q.exec(QStringLiteral("DROP TABLE IF EXISTS '%1'").arg(name))) {
-            const auto msg = q.lastError().text();
-            spdlog::error("UserStore: error deleting table: '{}': {}", name, msg);
-            q.exec("ROLLBACK;");
-            return;
-        }
-
+    // Run setup statements.
+    for (const auto &sql : statements) {
         if (!q.exec(sql)) {
-            const auto msg = q.lastError().text();
-            spdlog::error("UserStore: error creating table: '{}': {}", sql, msg);
-            q.exec("ROLLBACK;");
+            logError(q);
+            attemptRollback();
             return;
         }
     }
 
-    // Create indexes.
-    for (const auto &sql : CREATE_STASH_INDEXES) {
-        if (!q.exec(sql)) {
-            const auto msg = q.lastError().text();
-            spdlog::error("UserStore: error creating index: '{}': {}", sql, msg);
-            q.exec("ROLLBACK;");
-            return;
-        }
-    }
-
+    // Update the user_version.
     if (!setUserVersion(SCHEMA_VERSION)) {
         spdlog::error("UserStore: unable to set user_version to {}", SCHEMA_VERSION);
-        q.exec("ROLLBACK;");
+        m_db.rollback();
         return;
     }
 
-    if (!q.exec("COMMIT;")) {
-        spdlog::error("UserStore: error committing migration: {}", q.lastError().text());
+    // Commit the transaction.
+    if (!m_db.commit()) {
+        spdlog::error("UserStore: error committing migration: {}", m_db.lastError().text());
         return;
     }
 
     spdlog::info("UserStore: migrated from version {} to {}", v, SCHEMA_VERSION);
+}
+
+void UserStore::logError(const QSqlQuery &q)
+{
+    const QString err = q.lastError().text();
+    const QString sql = q.lastQuery().simplified();
+
+    const QStringList names{q.boundValueNames()};
+    const QVariantList values{q.boundValues()};
+
+    QStringList out;
+    if (names.size() != values.size()) {
+        spdlog::error("UserStore: cannot log bound values: there are {} names and {} values",
+                      names.size(),
+                      values.size());
+        out = names;
+    } else {
+        out.reserve(names.size());
+        for (auto i = 0; i < names.size(); ++i) {
+            out.push_back(QString("%1='%2'").arg(names[i], values[i].toString()));
+        }
+    }
+    const QString bindings = out.join(", ");
+    spdlog::error("UserStore: exec() failed with '{}' executing '{}' with {}", err, sql, bindings);
+}
+
+void UserStore::attemptRollback()
+{
+    // Make sure the database connection is open.
+    if (!m_db.isOpen()) {
+        spdlog::error("UserStore: cannot rollback: the connection '{}' to '{}' is closed",
+                      m_db.connectionName(),
+                      m_db.databaseName());
+        return;
+    }
+
+    // Make sure the database driver supports rollback.
+    if (!m_db.driver()->hasFeature(QSqlDriver::Transactions)) {
+        spdlog::error("UserStore: cannot rollback: the driver '' doesn't suport it",
+                      m_db.driverName());
+        return;
+    }
+
+    // Make sure the rollback succeeded.
+    if (!m_db.rollback()) {
+        spdlog::error("UserStore: error during rollback: {}", m_db.lastError().text());
+    }
 }
 
 void UserStore::saveCharacterList(const std::vector<poe::Character> &characters,
@@ -366,18 +338,88 @@ void UserStore::saveCharacterList(const std::vector<poe::Character> &characters,
 {
     spdlog::debug("UserStore: saving character list: realm='{}', size={}", realm, characters.size());
 
-    const QByteArray json = writeCharacterList(characters);
+    if (characters.empty()) {
+        spdlog::debug("UserStore: nothing to do");
+        return;
+    }
+
+    if (!m_db.transaction()) {
+        spdlog::error("UserStore: transaction() failed: {}", m_db.lastError().text());
+        return;
+    }
 
     QSqlQuery q(m_db);
-    q.prepare(INSERT_LIST);
-    q.bindValue(":name", "characters");
+    if (!q.prepare(UPSERT_CHARACTER_ENTRY)) {
+        spdlog::error("UserStore: prepare() failed: {}", q.lastError().text());
+        return;
+    }
+
+    const qint64 listedAt = QDateTime::currentMSecsSinceEpoch();
+
+    for (const auto &character : characters) {
+        if (character.realm != realm) {
+            spdlog::error("UserStore: skipping character '{}' ({}) because realm is '{}'",
+                          character.name,
+                          character.id,
+                          character.realm);
+            continue;
+        }
+
+        q.bindValue(":id", character.id);
+        q.bindValue(":name", character.name);
+        q.bindValue(":realm", character.realm);
+        q.bindValue(":league", optionalValue(character.league));
+        q.bindValue(":listed_at", listedAt);
+
+        if (!q.exec()) {
+            logError(q);
+            attemptRollback();
+            return;
+        }
+    }
+
+    // Delete characters that don't exist any more.
+    q.prepare("DELETE FROM characters WHERE realm = :realm AND listed_at < :listed_at");
     q.bindValue(":realm", realm);
-    q.bindValue(":league", "*");
-    q.bindValue(":timestamp", QDateTime::currentMSecsSinceEpoch());
-    q.bindValue(":data", json);
+    q.bindValue(":listed_at", listedAt);
 
     if (!q.exec()) {
-        spdlog::error("UserStore: error saving character list: {}", q.lastError().text());
+        logError(q);
+        attemptRollback();
+        return;
+    }
+
+    if (!m_db.commit()) {
+        spdlog::error("UserStore: commit() failed: {}", m_db.lastError().text());
+        attemptRollback();
+    }
+}
+
+void UserStore::saveCharacter(const poe::Character &character)
+{
+    spdlog::debug("UserStore: saving character: realm='{}', id='{}', name='{}'",
+                  character.realm,
+                  character.id,
+                  character.name);
+
+    QSqlQuery q(m_db);
+    if (!q.prepare(UPDATE_CHARACTER)) {
+        spdlog::error("UserStore: prepare() failed: {}", q.lastError().text());
+        return;
+    }
+
+    const qint64 jsonFetchedAt = QDateTime::currentMSecsSinceEpoch();
+    const QByteArray json = writeCharacter(character);
+
+    q.bindValue(":id", character.id);
+    q.bindValue(":name", character.name);
+    q.bindValue(":realm", character.realm);
+    q.bindValue(":league", optionalValue(character.league));
+    q.bindValue(":json_fetched_at", jsonFetchedAt);
+    q.bindValue(":json_data", json);
+
+    if (!q.exec()) {
+        logError(q);
     }
 }
 
@@ -390,109 +432,51 @@ void UserStore::saveStashList(const std::vector<poe::StashTab> &stashes,
                   league,
                   stashes.size());
 
-    const QByteArray json = writeStashList(stashes);
-
-    QSqlQuery q(m_db);
-    q.prepare(INSERT_LIST);
-    q.bindValue(":name", "stashes");
-    q.bindValue(":realm", realm);
-    q.bindValue(":league", league);
-    q.bindValue(":timestamp", QDateTime::currentMSecsSinceEpoch());
-    q.bindValue(":data", json);
-
-    if (!q.exec()) {
-        spdlog::error("UserStore: error saving stash list: {}", q.lastError().text());
+    if (stashes.empty()) {
+        spdlog::debug("UserStore: nothing to do");
         return;
     }
-}
 
-std::vector<poe::Character> UserStore::getCharacterList(const QString &realm)
-{
-    spdlog::debug("UserStore: getting character list: realm='{}'", realm);
-
-    const QString name{"characters"};
-    const QString league{"*"};
-
-    QSqlQuery q(m_db);
-    q.prepare(SELECT_LIST);
-    q.bindValue(":name", name);
-    q.bindValue(":realm", realm);
-    q.bindValue(":league", league);
-
-    if (!q.exec()) {
-        spdlog::error("UserStore: error selecting character list: {}", q.lastError().text());
-        return {};
-    }
-
-    if (!q.next()) {
-        spdlog::debug("No rows. active={} at={} isSelect={}", q.isActive(), q.at(), q.isSelect());
-        return {};
-    }
-
-    const QVariant data = q.value("data");
-    return readCharacterList(data.toByteArray());
-}
-
-std::vector<poe::StashTab> UserStore::getStashList(const QString &realm, const QString &league)
-{
-    spdlog::debug("UserStore: getting stash list: realm='{}', league='{}'", realm, league);
-
-    const QString name{"stashes"};
-
-    QSqlQuery q(m_db);
-    q.prepare(SELECT_LIST);
-    q.bindValue(":name", name);
-    q.bindValue(":realm", realm);
-    q.bindValue(":league", league);
-
-    if (!q.exec()) {
-        spdlog::error("UserStore: error selecting stash list: {}", q.lastError().text());
-        return {};
-    }
-
-    if (!q.next()) {
-        spdlog::debug("No rows. active={} at={} isSelect={}", q.isActive(), q.at(), q.isSelect());
-        return {};
-    }
-
-    const QVariant data = q.value("data");
-    return readStashList(data.toByteArray());
-}
-
-void UserStore::saveCharacter(const poe::Character &character)
-{
-    spdlog::debug("UserStore: saving character: realm='{}', league='{}', id='{}', name='{}'",
-                  character.realm,
-                  character.league.value_or(""),
-                  character.id,
-                  character.name);
-
-    const QByteArray json = writeCharacter(character);
-    const QVariant version = (character.metadata && character.metadata->version)
-                                 ? *character.metadata->version
-                                 : QVariant();
-
-    QSqlQuery q(m_db);
-
-    q.prepare(INSERT_CHARACTER);
-    q.bindValue(":id", character.id);
-    q.bindValue(":name", character.name);
-    q.bindValue(":realm", character.realm);
-    q.bindValue(":class", character.class_);
-    q.bindValue(":league", character.league ? *character.league : QVariant());
-    q.bindValue(":level", character.level);
-    q.bindValue(":experience", character.experience);
-    q.bindValue(":ruthless", character.ruthless.value_or(false));
-    q.bindValue(":expired", character.expired.value_or(false));
-    q.bindValue(":deleted", character.deleted.value_or(false));
-    q.bindValue(":current", character.current.value_or(false));
-    q.bindValue(":meta_version", version);
-    q.bindValue(":timestamp", QDateTime::currentMSecsSinceEpoch());
-    q.bindValue(":data", json);
-
-    if (!q.exec()) {
-        spdlog::error("UserStore: error saving character: {}", q.lastError().text());
+    if (!m_db.transaction()) {
+        spdlog::error("UserStore: transaction() failed: {}", m_db.lastError().text());
         return;
+    }
+
+    QSqlQuery q(m_db);
+    if (!q.prepare(UPSERT_STASH_ENTRY)) {
+        spdlog::error("UserStore: prepare() failed: {}", q.lastError().text());
+        return;
+    }
+
+    const qint64 listedAt = QDateTime::currentMSecsSinceEpoch();
+
+    for (const auto &stash : stashes) {
+        q.bindValue(":realm", realm);
+        q.bindValue(":league", league);
+        q.bindValue(":id", stash.id);
+        q.bindValue(":parent", optionalValue(stash.parent));
+        q.bindValue(":folder", optionalValue(stash.folder));
+        q.bindValue(":name", stash.name);
+        q.bindValue(":type", stash.type);
+        q.bindValue(":stash_index", optionalValue(stash.index));
+        q.bindValue(":meta_public", stash.metadata.public_.value_or(false));
+        q.bindValue(":meta_folder", stash.metadata.folder.value_or(false));
+        q.bindValue(":meta_colour", optionalValue(stash.metadata.colour));
+        q.bindValue(":listed_at", listedAt);
+
+        if (!q.exec()) {
+            logError(q);
+            attemptRollback();
+            return;
+        }
+    }
+
+    // TBD: when can we delete missing stashes, and how do we avoid accidentally
+    // deleting the child stashes of Map, Unique, and Flask tabs?
+
+    if (!m_db.commit()) {
+        spdlog::error("UserStore: commit() failed: {}", m_db.lastError().text());
+        attemptRollback();
     }
 }
 
@@ -504,71 +488,194 @@ void UserStore::saveStash(const poe::StashTab &stash, const QString &realm, cons
                   stash.id,
                   stash.name);
 
+    QSqlQuery q(m_db);
+    if (!q.prepare(UPDATE_STASH)) {
+        spdlog::error("UserStore: prepare() failed: {}", q.lastError().text());
+        return;
+    }
+
+    const qint64 jsonFetchedAt = QDateTime::currentMSecsSinceEpoch();
     const QByteArray json = writeStash(stash);
 
-    QSqlQuery q(m_db);
-
-    q.prepare(INSERT_STASH);
     q.bindValue(":id", stash.id);
     q.bindValue(":realm", realm);
     q.bindValue(":league", league);
-    q.bindValue(":parent", stash.parent ? *stash.parent : QVariant());
-    q.bindValue(":folder", stash.folder ? *stash.folder : QVariant());
+    q.bindValue(":parent", optionalValue(stash.parent));
+    q.bindValue(":folder", optionalValue(stash.folder));
     q.bindValue(":name", stash.name);
     q.bindValue(":type", stash.type);
-    q.bindValue(":indx", stash.index ? *stash.index : QVariant());
+    q.bindValue(":stash_index", optionalValue(stash.index));
     q.bindValue(":meta_public", stash.metadata.public_.value_or(false));
     q.bindValue(":meta_folder", stash.metadata.folder.value_or(false));
-    q.bindValue(":meta_colour", stash.metadata.colour ? *stash.metadata.colour : QVariant());
-    q.bindValue(":timestamp", QDateTime::currentMSecsSinceEpoch());
-    q.bindValue(":data", json);
+    q.bindValue(":meta_colour", optionalValue(stash.metadata.colour));
+    q.bindValue(":json_fetched_at", jsonFetchedAt);
+    q.bindValue(":json_data", json);
 
     if (!q.exec()) {
-        spdlog::error("UserStore: error saving stash: {}", q.lastError().text());
-        return;
+        logError(q);
     }
 }
 
-poe::Character UserStore::getCharacter(const QString &name)
+std::vector<poe::Character> UserStore::getCharacterList(const QString &realm)
 {
-    spdlog::debug("UserStore: getting character: name='{}'", name);
+    spdlog::debug("UserStore: getting character list for realm='{}'", realm);
 
     QSqlQuery q(m_db);
-    q.prepare(SELECT_CHARACTER);
+
+    if (!q.prepare("SELECT id, name, realm, league"
+                   " FROM characters"
+                   " WHERE realm = :realm")) {
+        logError(q);
+        return {};
+    }
+
+    q.bindValue(":realm", realm);
+
+    if (!q.exec()) {
+        logError(q);
+        return {};
+    }
+
+    std::vector<poe::Character> characters;
+
+    while (q.next()) {
+        poe::Character character;
+        character.id = q.value("id").toString();
+        character.name = q.value("name").toString();
+        character.realm = q.value("realm").toString();
+        if (!q.isNull("league")) {
+            character.league = q.value("league").toString();
+        }
+        characters.push_back(character);
+    }
+
+    spdlog::debug("UserStore: returning {} characters", characters.size());
+    return characters;
+}
+
+std::optional<poe::Character> UserStore::getCharacter(const QString &name, const QString &realm)
+{
+    spdlog::debug("UserStore: getting character: name='{}', realm='{}'", name, realm);
+
+    QSqlQuery q(m_db);
+
+    if (!q.prepare("SELECT json_data"
+                   " FROM characters"
+                   " WHERE name = :name AND realm = :realm")) {
+        logError(q);
+        return std::nullopt;
+    }
+
     q.bindValue(":name", name);
+    q.bindValue(":realm", realm);
 
     if (!q.exec()) {
-        spdlog::error("UserStore: error selecting character '{}': {}", name, q.lastError().text());
-        return {};
+        logError(q);
+        return std::nullopt;
+    }
+
+    if (q.size() > 1) {
+        spdlog::error("UserStore: multiple characters found: name='{}', realm='{}'", name, realm);
+        return std::nullopt;
     }
 
     if (!q.next()) {
-        spdlog::error("UserStore: error getting character '{}': {}", name, q.lastError().text());
-        return {};
+        spdlog::error("UserStore: character not found: name='{}', realm='{}'", name, realm);
+        return std::nullopt;
     }
 
-    const QVariant data = q.value("data");
-    return readCharacter(data.toByteArray());
+    if (q.isNull(0)) {
+        spdlog::debug("UserStore: character has not been fetched: name='{}', realm='{}'",
+                      name,
+                      realm);
+        return std::nullopt;
+    }
+
+    const auto json = q.value(0).toByteArray();
+    return readCharacter(json);
 }
 
-poe::StashTab UserStore::getStash(const QString &id)
+std::vector<poe::StashTab> UserStore::getStashList(const QString &realm, const QString &league)
 {
-    spdlog::debug("UserStore: getting stash: id='{}'", id);
+    spdlog::debug("UserStore: getting stash list: realm='{}', league='{}'", realm, league);
 
     QSqlQuery q(m_db);
-    q.prepare(SELECT_STASH);
-    q.bindValue(":id", id);
+
+    if (!q.prepare("SELECT id, name, type, stash_index, meta_colour"
+                   " FROM stashes"
+                   " WHERE realm = :realm AND league = :league")) {
+        logError(q);
+        return {};
+    }
+
+    q.bindValue(":realm", realm);
+    q.bindValue(":league", league);
 
     if (!q.exec()) {
-        spdlog::error("UserStore: error selecting stash '{}': {}", id, q.lastError().text());
+        logError(q);
         return {};
+    }
+
+    std::vector<poe::StashTab> stashes;
+
+    while (q.next()) {
+        poe::StashTab stash;
+        stash.id = q.value("id").toString();
+        stash.name = q.value("name").toString();
+        stash.type = q.value("type").toString();
+        if (!q.isNull("stash_index")) {
+            stash.index = q.value("stash_index").toUInt();
+        }
+        if (!q.isNull("meta_colour")) {
+            stash.metadata.colour = q.value("meta_colour").toString();
+        }
+        stashes.push_back(stash);
+    }
+
+    spdlog::debug("UserStore: returning {} stashes", stashes.size());
+    return stashes;
+}
+
+std::optional<poe::StashTab> UserStore::getStash(const QString &id,
+                                                 const QString &realm,
+                                                 const QString &league)
+{
+    spdlog::debug("UserStore: getting stash: id='{}', realm='{}', league='{}'", id, realm, league);
+
+    QSqlQuery q(m_db);
+
+    if (!q.prepare("SELECT json_data"
+                   " FROM stashes"
+                   " WHERE realm = :realm AND league = :league AND id = :id")) {
+        logError(q);
+        return std::nullopt;
+    }
+
+    q.bindValue(":id", id);
+    q.bindValue(":realm", realm);
+    q.bindValue(":league", league);
+
+    if (!q.exec()) {
+        logError(q);
+        return std::nullopt;
     }
 
     if (!q.next()) {
-        spdlog::error("UserStore: error getting stash '{}': {}", id, q.lastError().text());
-        return {};
+        spdlog::error("UserStore: stash not found: id='{}', realm='{}', league='{}'",
+                      id,
+                      realm,
+                      league);
+        return std::nullopt;
     }
 
-    const QVariant data = q.value("data");
-    return readStash(data.toByteArray());
+    if (q.isNull(0)) {
+        spdlog::debug("UserStore: stash has not been fetched: id='{}', realm='{}', league='{}'",
+                      id,
+                      realm,
+                      league);
+        return std::nullopt;
+    }
+
+    const auto json = q.value(0).toByteArray();
+    return readStash(json);
 }

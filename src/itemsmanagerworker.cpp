@@ -156,18 +156,20 @@ void ItemsManagerWorker::ParseItemMods()
     m_items.clear();
     spdlog::trace("ItemsManagerWorker::ParseItemMods() getting cached items");
     for (size_t i = 0; i < m_tabs.size(); i++) {
-        const auto &tab = m_tabs[i];
-        const auto tab_type = tab.get_type();
-
-        if (tab_type == ItemLocationType::STASH) {
-            const auto stash = userstore.getStash(tab.get_tab_uniq_id());
-            ParseItems(stash, tab);
-        } else if (tab_type == ItemLocationType::CHARACTER) {
-            const auto character = userstore.getCharacter(tab.get_character());
-            ParseItems(character, tab);
-        } else {
-            spdlog::error("ItemManagerWorker::ParseItemMods() invalid tab type: {}", tab_type);
-            continue;
+        const ItemLocation &tab = m_tabs[i];
+        switch (tab.get_type()) {
+        case ItemLocationType::STASH: {
+            const auto stash = userstore.getStash(tab.get_tab_uniq_id(), m_realm, m_league);
+            if (stash) {
+                ParseItems(*stash, tab);
+            }
+        } break;
+        case ItemLocationType::CHARACTER: {
+            const auto character = userstore.getCharacter(tab.get_character(), m_realm);
+            if (character) {
+                ParseItems(*character, tab);
+            }
+        } break;
         }
         emit StatusUpdate(ProgramState::Initializing,
                           QString("Parsing items in %1/%2 tabs").arg(i).arg(m_tabs.size()));
