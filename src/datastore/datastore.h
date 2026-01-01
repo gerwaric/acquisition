@@ -45,6 +45,10 @@ public:
 protected:
     QString Serialize(const Locations &tabs);
     QString Serialize(const Items &items);
-    Locations DeserializeTabs(const QString &json);
+    Locations DeserializeTabs(const QString &json, ItemLocationType type);
     Items DeserializeItems(const QString &json, const ItemLocation &tab);
+
+private:
+    Locations DeserializeStashTabs(std::string_view json);
+    Locations DeserializeCharacterTabs(std::string_view json);
 };

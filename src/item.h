@@ -27,8 +27,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include <rapidjson/document.h>
-
 #include "itemlocation.h"
 
 namespace poe {
@@ -36,12 +34,6 @@ namespace poe {
     struct Item;
 
 }
-
-constexpr std::array<const char *, 5> ITEM_MOD_TYPES = {"implicitMods",
-                                                        "enchantMods",
-                                                        "explicitMods",
-                                                        "craftedMods",
-                                                        "fracturedMods"};
 
 struct ItemSocketGroup
 {
@@ -95,8 +87,7 @@ public:
         EATER_OF_WORLDS
     };
 
-    explicit Item(const poe::Item &item, const ItemLocation &loc);
-    explicit Item(const rapidjson::Value &json, const ItemLocation &loc);
+    Item(const poe::Item &item, const ItemLocation &loc);
 
     QString id() const { return m_uid; }
     QString name() const { return m_name; }
@@ -168,9 +159,7 @@ private:
     void CalculateCategories();
     // The point of GenerateMods is to create combined (e.g. implicit+explicit) poe.trade-like mod map to be searched by mod filter.
     // For now it only does that for a small chosen subset of mods (think "popular" + "pseudo" sections at poe.trade)
-    void GenerateMods(const rapidjson::Value &json);
     void GenerateMods(const poe::Item &json);
-    void CalculateHash(const rapidjson::Value &json);
     void CalculateHash(const poe::Item &json);
 
     QString m_name;

@@ -31,13 +31,13 @@
 #include <datastore/userstore.h>
 #include <ratelimit/ratelimiter.h>
 #include <ratelimit/ratelimitmanager.h>
+#include <repoe/repoe.h>
 #include <ui/logindialog.h>
 #include <ui/mainwindow.h>
 #include <util/fatalerror.h>
 #include <util/networkmanager.h>
 #include <util/oauthmanager.h>
 #include <util/oauthtoken.h>
-#include <util/repoe.h>
 #include <util/spdlog_qt.h>
 #include <util/updatechecker.h>
 
@@ -109,6 +109,8 @@ void Application::InitUserDir(const QString &dir)
     const QString settings_path = m_data_dir.filePath("settings.ini");
     spdlog::trace("Application: creating the settings object: {}", settings_path);
     m_settings = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
+
+    SaveDataOnNewVersion();
 
     const QDir user_dir(m_data_dir.filePath("data"));
     const QString global_data_file = user_dir.filePath(SqliteDataStore::MakeFilename("", ""));
@@ -429,7 +431,6 @@ void Application::InitLogin()
     spdlog::trace("Application::InitLogin() data_path = {}", data_path);
 
     m_data = std::make_unique<SqliteDataStore>(data_path);
-    SaveDbOnNewVersion();
 
     spdlog::trace("Application::InitLogin() creating user datastore");
     m_userstore = std::make_unique<UserStore>(data_dir, account);
@@ -446,7 +447,6 @@ void Application::InitLogin()
     spdlog::trace("Application::InitLogin() creating items worker");
     m_items_worker = std::make_unique<ItemsManagerWorker>(settings(),
                                                           buyout_manager(),
-                                                          data(),
                                                           rate_limiter());
 
     spdlog::trace("Application::InitLogin() creating shop");
@@ -499,42 +499,71 @@ void Application::OnItemsRefreshed(bool initial_refresh)
     }
 }
 
-void Application::SaveDbOnNewVersion()
+void Application::SaveDataOnNewVersion()
 {
-    spdlog::trace("Application::SaveDbOnNewVersion() entered");
+    spdlog::trace("Application::SaveDataOnNewVersion() entered");
     //If user updated from a 0.5c db to a 0.5d, db exists but no "version" in it
-    QString version = m_data->Get("version", "0.5c");
+    //QString version = m_data->Get("version", "0.5c");
     // We call this just after login, so we didn't pulled tabs for the first time ; so "tabs" shouldn't exist in the DB
     // This way we don't create an useless data_save_version folder on the first time you run acquisition
 
-    bool first_start = m_data->Get("tabs", "first_time") == "first_time"
-                       && m_data->GetTabs(ItemLocationType::STASH).size() == 0
-                       && m_data->GetTabs(ItemLocationType::CHARACTER).size() == 0;
-    spdlog::trace("Application::SaveDbOnNewVersion() first_start = {}", first_start);
+    auto version = m_settings->value("version").toString();
 
-    if (version != APP_VERSION_STRING && !first_start) {
-        const QString data_path = m_data_dir.filePath("data");
-        const QString save_path = m_data_dir.filePath("m_data_save" + version);
-        spdlog::trace("Application::SaveDbOnNewVersion() data_path = {}", data_path);
-        spdlog::trace("Application::SaveDbOnNewVersion() save_path = {}", save_path);
-        QDir src(data_path);
-        QDir dst(save_path);
-        if (!dst.exists()) {
-            spdlog::trace("Application::SaveDbOnNewVersion() creating save_path");
-            QDir().mkpath(dst.path());
-        }
-        const QStringList entries = src.entryList();
-        for (const auto &name : entries) {
-            const QString a = QDir(data_path).filePath(name);
-            const QString b = QDir(save_path).filePath(name);
-            spdlog::trace("Application::SaveDbOnNewVersion() copying {} to {}", a, b);
-            QFile::copy(a, b);
-        }
-        spdlog::info("I've created the folder {} in your acquisition folder, containing a save of "
-                     "all your data",
-                     save_path);
+    // The version setting was introduced in v0.16, so for prior versions we
+    // use the global data store.
+    if (version.isEmpty()) {
+        version = m_data->Get("version", "UNKNOWN-VERSION");
     }
 
-    spdlog::trace("Application::SaveDbOnNewVersion() setting 'version' to {}", APP_VERSION_STRING);
-    m_data->Set("version", APP_VERSION_STRING);
+    // Do nothing if the version is current.
+    if (version == APP_VERSION_STRING) {
+        spdlog::debug("Application: skipping backup: version is current");
+        return;
+    }
+
+    const auto src_path = m_data_dir.filePath("data");
+    QDir src{src_path};
+
+    // Do nothing if there's no data directory.
+    if (!src.exists()) {
+        spdlog::debug("Application: skipping backup: directory does not exist: {}", src_path);
+        return;
+    }
+
+    // Do nothing if the data directory is empty.
+    if (src.entryList().isEmpty()) {
+        spdlog::debug("Application: skipping backup: directory is empty: {}", src_path);
+        return;
+    }
+
+    // Find a backup directory we can use.
+    const auto dst_base = m_data_dir.filePath("data-backup-" + version);
+    auto dst_path = dst_base;
+    int n{0};
+    while (m_data_dir.exists(dst_path)) {
+        dst_path = dst_base + QString("-%1").arg(++n);
+        if (n > 20) {
+            spdlog::error("Application: skipping backup: too many backups!");
+            return;
+        }
+    }
+
+    QDir dst{dst_path};
+    if (!dst.exists()) {
+        spdlog::debug("Application: creating backup in '{}'", dst_path);
+        dst.mkpath(dst_path);
+    }
+
+    spdlog::info("Application: backup up data from version '{}' into '{}'", version, dst_path);
+
+    for (const auto &filename : src.entryList()) {
+        const QString a = src.filePath(filename);
+        const QString b = dst.filePath(filename);
+        spdlog::debug("Application: backing up {} to {}", a, b);
+        QFile::copy(a, b);
+    }
+    spdlog::info("Your data is backed up into '{}'", dst_path);
+
+    spdlog::debug("Application: updating 'version' setting to {}", APP_VERSION_STRING);
+    m_settings->setValue("version", APP_VERSION_STRING);
 }

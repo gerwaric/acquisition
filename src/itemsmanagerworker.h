@@ -27,8 +27,6 @@
 #include <queue>
 #include <set>
 
-#include <poe/types/character.h>
-#include <poe/types/stashtab.h>
 #include <ui/mainwindow.h>
 #include <util/util.h>
 
@@ -45,6 +43,11 @@ class ItemLocation;
 class NetworkManager;
 class RateLimiter;
 class RePoE;
+
+namespace poe {
+    struct Character;
+    struct StashTab;
+} // namespace poe
 
 struct ItemsRequest
 {
@@ -66,7 +69,6 @@ class ItemsManagerWorker : public QObject
 public:
     explicit ItemsManagerWorker(QSettings &m_settings,
                                 BuyoutManager &buyout_manager,
-                                DataStore &datastore,
                                 RateLimiter &rate_limiter,
                                 QObject *parent = nullptr);
     void UpdateRequest(TabSelection type, const std::vector<ItemLocation> &locations);
@@ -100,6 +102,8 @@ private:
     bool isInitialized() const { return m_initialized; }
     bool isUpdating() const { return m_updating; };
     void ParseItemMods();
+    void ParseItems(const poe::Character &character, ItemLocation location);
+    void ParseItems(const poe::StashTab &stash, ItemLocation location);
     void RemoveUpdatingTabs(const std::set<QString> &tab_ids);
     void RemoveUpdatingItems(const std::set<QString> &tab_ids);
     void QueueRequest(const QString &endpoint,
@@ -118,22 +122,15 @@ private:
 
     typedef std::pair<QString, QString> TabSignature;
     typedef std::vector<TabSignature> TabsSignatureVector;
-    TabsSignatureVector CreateTabsSignatureVector(const rapidjson::Value &tabs);
+    TabsSignatureVector CreateTabsSignatureVector(const std::vector<poe::StashTab> &tabs);
 
     void SendStatusUpdate();
-    void ParseItems(rapidjson::Value &value,
-                    const ItemLocation &base_location,
-                    rapidjson_allocator &alloc);
-    bool TabsChanged(rapidjson::Document &doc,
-                     QNetworkReply *network_reply,
-                     const ItemLocation &location);
+    void ParseItems(const std::vector<poe::Item> &items, const ItemLocation &base_location);
     void FinishUpdate();
 
-    bool IsOAuthTabValid(rapidjson::Value &tab);
-    void ProcessOAuthTab(rapidjson::Value &tab, int &count, rapidjson_allocator &alloc);
+    void ProcessOAuthTab(const poe::StashTab &tab, int &count);
 
     QSettings &m_settings;
-    DataStore &m_datastore;
     BuyoutManager &m_buyout_manager;
     RateLimiter &m_rate_limiter;
 

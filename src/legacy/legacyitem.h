@@ -25,6 +25,8 @@
 #include <tuple>
 #include <vector>
 
+#include <poe/types/item.h>
+
 struct LegacyItem
 {
     struct Socket

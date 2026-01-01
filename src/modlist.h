@@ -29,8 +29,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include <rapidjson/document.h>
-
 class Item;
 typedef std::unordered_map<QString, double> ModTable;
 
@@ -44,7 +42,6 @@ class ModGenerator
 {
 public:
     virtual ~ModGenerator() {};
-    void Generate(const rapidjson::Value &json, ModTable &output);
     virtual void Generate(const QString &json, ModTable &output) = 0;
 };
 

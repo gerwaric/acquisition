@@ -67,8 +67,8 @@ struct CurrencyItem
         : count(co)
         , currency(curr)
         , name(curr.AsString())
-        , chaos(curr, Currency::CURRENCY_CHAOS_ORB, chaos_ratio, 1)
-        , exalt(curr, Currency::CURRENCY_EXALTED_ORB, exalt_ratio, 1) {};
+        , exalt(curr, Currency::CURRENCY_EXALTED_ORB, exalt_ratio, 1)
+        , chaos(curr, Currency::CURRENCY_CHAOS_ORB, chaos_ratio, 1) {};
 };
 struct CurrencyLabels
 {
@@ -200,6 +200,6 @@ private:
     void InitCurrency();
     void SaveCurrencyItems();
     QString Serialize(const std::vector<std::shared_ptr<CurrencyItem>> &currencies);
-    void Deserialize(const QString &data, std::vector<std::shared_ptr<CurrencyItem>> *currencies);
+    void Deserialize(const QString &data, std::vector<std::shared_ptr<CurrencyItem>> &currencies);
     void Save();
 };

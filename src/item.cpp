@@ -24,9 +24,6 @@
 #include <sstream>
 #include <utility>
 
-#include <rapidjson/document.h>
-
-#include <util/rapidjson_util.h>
 #include <util/util.h>
 
 #include "itemcategories.h"
@@ -35,13 +32,6 @@
 #include "modlist.h"
 #include "poe/types/displaymode.h"
 #include "poe/types/item.h"
-
-using rapidjson::HasArray;
-using rapidjson::HasBool;
-using rapidjson::HasInt;
-using rapidjson::HasObject;
-using rapidjson::HasString;
-using rapidjson::HasUint;
 
 const std::array<Item::CategoryReplaceMap, Item::k_CategoryLevels> Item::m_replace_map = {
     // Category hierarchy 0 replacement map
@@ -60,23 +50,6 @@ const std::array<Item::CategoryReplaceMap, Item::k_CategoryLevels> Item::m_repla
                               {"TwoHandAxes", "Axes"},
                               {"TwoHandMaces", "Maces"},
                               {"TwoHandSwords", "Swords"}})};
-
-static QString item_unique_properties(const rapidjson::Value &json, const QString &name)
-{
-    const std::string name_s = name.toStdString();
-    const char *name_c = name_s.c_str();
-    if (!json.HasMember(name_c)) {
-        return "";
-    }
-    QString result;
-    for (const auto &prop : json[name_c]) {
-        result += QString(prop["name"].GetString()) + "~";
-        for (const auto &value : prop["values"]) {
-            result += QString(value[0].GetString()) + "~";
-        }
-    }
-    return result;
-}
 
 static QString item_unique_properties(const std::optional<std::vector<poe::ItemProperty>> &props)
 {
@@ -352,290 +325,6 @@ Item::Item(const poe::Item &json, const ItemLocation &loc)
     GenerateMods(json);
 }
 
-Item::Item(const rapidjson::Value &json, const ItemLocation &loc)
-    : m_location(loc)
-    , m_json(Util::RapidjsonSerialize(json))
-{
-    auto getBool = [&](const char *field) { return HasBool(json, field) && json[field].GetBool(); };
-
-    if (HasString(json, "name")) {
-        m_name = fixup_name(json["name"].GetString());
-    }
-    if (HasString(json, "typeLine")) {
-        QString name;
-        if (HasObject(json, "hybrid")) {
-            const auto &hybrid = json["hybrid"];
-            if (HasBool(hybrid, "isVaalGem") && hybrid["isVaalGem"].GetBool()) {
-                // Do not use the base type for vaal gems.
-                name = json["typeLine"].GetString();
-            } else if (HasString(hybrid, "baseTypeName")) {
-                // Use base type for other hybrid items.
-                name = hybrid["baseTypeName"].GetString();
-            } else {
-                // Otherwise use the item's root type line.
-                name = json["typeLine"].GetString();
-            }
-        } else {
-            name = json["typeLine"].GetString();
-        }
-        m_typeLine = fixup_name(name);
-    }
-    if (HasString(json, "baseType")) {
-        m_baseType = fixup_name(json["baseType"].GetString());
-    }
-    m_identified = getBool("identified");
-    m_corrupted = getBool("corrupted");
-    m_fractured = getBool("fractured");
-    m_split = getBool("split");
-    m_synthesized = getBool("synthesized");
-    m_mutated = getBool("mutated");
-    if (HasArray(json, "craftedMods") && !json["craftedMods"].Empty()) {
-        m_crafted = true;
-    }
-    if (HasArray(json, "enchantMods") && !json["enchantMods"].Empty()) {
-        m_enchanted = true;
-    }
-    if (HasObject(json, "influences")) {
-        const auto &influences = json["influences"];
-        if (influences.HasMember("shaper")) {
-            m_influenceList.push_back(SHAPER);
-        }
-        if (influences.HasMember("elder")) {
-            m_influenceList.push_back(ELDER);
-        }
-        if (influences.HasMember("crusader")) {
-            m_influenceList.push_back(CRUSADER);
-        }
-        if (influences.HasMember("redeemer")) {
-            m_influenceList.push_back(REDEEMER);
-        }
-        if (influences.HasMember("hunter")) {
-            m_influenceList.push_back(HUNTER);
-        }
-        if (influences.HasMember("warlord")) {
-            m_influenceList.push_back(WARLORD);
-        }
-    }
-
-    if (HasBool(json, "synthesised") && json["synthesised"].GetBool()) {
-        m_influenceList.push_back(SYNTHESISED);
-    }
-    if (HasBool(json, "fractured") && json["fractured"].GetBool()) {
-        m_influenceList.push_back(FRACTURED);
-    }
-    if (HasBool(json, "searing") && json["searing"].GetBool()) {
-        m_influenceList.push_back(SEARING_EXARCH);
-    }
-    if (HasBool(json, "tangled") && json["tangled"].GetBool()) {
-        m_influenceList.push_back(EATER_OF_WORLDS);
-    }
-
-    if (HasInt(json, "w")) {
-        m_w = json["w"].GetInt();
-    }
-    if (HasInt(json, "h")) {
-        m_h = json["h"].GetInt();
-    }
-
-    if (HasInt(json, "frameType")) {
-        m_frameType = json["frameType"].GetInt();
-    }
-
-    if (HasString(json, "icon")) {
-        m_icon = json["icon"].GetString();
-    }
-
-    for (const auto &mod_type : ITEM_MOD_TYPES) {
-        m_text_mods[mod_type] = {};
-        if (HasArray(json, mod_type)) {
-            auto &mods = m_text_mods[mod_type];
-            for (const auto &mod : json[mod_type]) {
-                if (mod.IsString()) {
-                    mods.push_back(mod.GetString());
-                }
-            }
-        }
-    }
-
-    // Other code assumes icon is proper size so force quad=1 to quad=0 here as it's clunky
-    // to handle elsewhere
-    m_icon.replace("quad=1", "quad=0");
-    // quad stashes, currency stashes, etc
-    m_icon.replace("scaleIndex=", "scaleIndex=0&");
-
-    CalculateCategories();
-
-    if (HasUint(json, "talismanTier")) {
-        m_talisman_tier = json["talismanTier"].GetUint();
-    }
-
-    if (HasString(json, "id")) {
-        m_uid = json["id"].GetString();
-    }
-
-    if (HasString(json, "note")) {
-        m_note = json["note"].GetString();
-    }
-
-    if (HasArray(json, "properties")) {
-        for (const auto &prop : json["properties"]) {
-            if (!HasString(prop, "name") || !HasArray(prop, "values")) {
-                continue;
-            }
-
-            const QString name = prop["name"].GetString();
-            const auto &values = prop["values"];
-
-            if (name == "Elemental Damage") {
-                for (const auto &value : values) {
-                    if (value.IsArray() && value.Size() >= 2) {
-                        if (value[0].IsString() && value[1].IsInt()) {
-                            m_elemental_damage.emplace_back(value[0].GetString(), value[1].GetInt());
-                        }
-                    }
-                }
-            } else if (values.Size() > 0) {
-                const auto &firstValue = values[0];
-                if (firstValue.IsArray() && (firstValue.Size() > 0) && firstValue[0].IsString()) {
-                    QString strval = firstValue[0].GetString();
-                    if (m_frameType == ItemEnums::FRAME_TYPE_GEM) {
-                        if (name == "Level") {
-                            // Gems at max level have the text "(Max)" after the level number.
-                            // This needs to be removed so the search field can be matched.
-                            if (strval.endsWith("(Max)")) {
-                                // Remove "(Max)" and the space before it.
-                                strval.chop(6);
-                            }
-                        } else if (name == "Quality") {
-                            // Gem quality is stored like "+23%" but we want to store that as "23".
-                            if (strval.startsWith("+")) {
-                                strval.removeFirst();
-                            }
-                            if (strval.endsWith("%")) {
-                                strval.chop(1);
-                            }
-                        }
-                    }
-                    m_properties[name] = strval;
-                }
-            }
-
-            ItemProperty property;
-            property.name = name;
-            property.display_mode = prop["displayMode"].GetInt();
-            for (const auto &value : values) {
-                if (value.IsArray() && value.Size() >= 2 && value[0].IsString()
-                    && value[1].IsInt()) {
-                    ItemPropertyValue v;
-                    v.str = value[0].GetString();
-                    v.type = value[1].GetInt();
-                    property.values.push_back(v);
-                }
-            }
-            m_text_properties.push_back(property);
-        }
-    }
-
-    if (HasArray(json, "requirements")) {
-        for (const auto &req : json["requirements"]) {
-            if (!req.IsObject()) {
-                continue;
-            }
-            if (!HasString(req, "name") || !HasArray(req, "values")) {
-                continue;
-            }
-            const auto &values = req["values"];
-            if (values.Size() < 1) {
-                continue;
-            }
-            if (!values[0].IsArray() || values[0].Size() < 2) {
-                continue;
-            }
-            if (!values[0][0].IsString() || !values[0][1].IsInt()) {
-                continue;
-            }
-            const QString name = req["name"].GetString();
-            const QString value = values[0][0].GetString();
-            m_requirements[name] = value.toInt();
-            ItemPropertyValue v;
-            v.str = value;
-            v.type = values[0][1].GetInt();
-            m_text_requirements.push_back({name, v});
-        }
-    }
-
-    if (HasArray(json, "sockets")) {
-        ItemSocketGroup current_group = {0, 0, 0, 0};
-        m_sockets_cnt = json["sockets"].Size();
-        int counter = 0, prev_group = -1;
-        for (const auto &socket : json["sockets"]) {
-            if (!socket.IsObject() || !HasInt(socket, "group")) {
-                continue;
-            }
-
-            char attr = '\0';
-            if (HasString(socket, "attr")) {
-                attr = socket["attr"].GetString()[0];
-            } else if (HasString(socket, "sColour")) {
-                attr = socket["sColour"].GetString()[0];
-            }
-
-            if (!attr) {
-                continue;
-            }
-
-            const int group = socket["group"].GetInt();
-            ItemSocket current_socket = {static_cast<unsigned char>(group), attr};
-            m_text_sockets.push_back(current_socket);
-            if (prev_group != current_socket.group) {
-                counter = 0;
-                m_socket_groups.push_back(current_group);
-                current_group = {0, 0, 0, 0};
-            }
-            prev_group = current_socket.group;
-            ++counter;
-            m_links_cnt = std::max(m_links_cnt, counter);
-            switch (current_socket.attr) {
-            case 'S':
-                m_sockets.r++;
-                current_group.r++;
-                break;
-            case 'D':
-                m_sockets.g++;
-                current_group.g++;
-                break;
-            case 'I':
-                m_sockets.b++;
-                current_group.b++;
-                break;
-            case 'G':
-                m_sockets.w++;
-                current_group.w++;
-                break;
-            }
-        }
-        m_socket_groups.push_back(current_group);
-    }
-
-    CalculateHash(json);
-
-    m_count = 1;
-    const auto it = m_properties.find(QStringLiteral("Stack Size"));
-    if (it != m_properties.end()) {
-        const QString stack_size = it->second;
-        if (stack_size.contains("/")) {
-            const auto n = stack_size.indexOf("/");
-            m_count = stack_size.first(n).toInt();
-        }
-    }
-
-    if (HasInt(json, "ilvl")) {
-        m_ilvl = json["ilvl"].GetInt();
-    }
-
-    GenerateMods(json);
-}
-
 QString Item::PrettyName() const
 {
     if (!m_name.isEmpty()) {
@@ -718,19 +407,6 @@ double Item::cDPS() const
     return attacks * Util::AverageDamage(hit);
 }
 
-void Item::GenerateMods(const rapidjson::Value &json)
-{
-    for (const auto &type : ITEM_MOD_TYPES) {
-        if (HasArray(json, type)) {
-            for (const auto &mod : json[type]) {
-                if (mod.IsString()) {
-                    AddModToTable(mod.GetString(), m_mod_table);
-                }
-            }
-        }
-    }
-}
-
 void Item::GenerateMods(const poe::Item &json)
 {
     const std::array mod_sets = {json.implicitMods,
@@ -777,52 +453,6 @@ void Item::CalculateHash(const poe::Item &json)
             }
             const int group = socket.group;
             const QString attr = *socket.attr;
-            unique_common += QString::number(group) + "~" + attr + "~";
-        }
-    }
-
-    unique_common += "~" + m_location.GetUniqueHash();
-
-    unique_old += unique_common;
-    unique_new += unique_common;
-
-    m_old_hash = Util::Md5(unique_old);
-    m_hash = Util::Md5(unique_new);
-}
-
-void Item::CalculateHash(const rapidjson::Value &json)
-{
-    QString unique_new = m_name + "~" + m_typeLine + "~";
-    // GGG removed the <<set>> things in patch 3.4.3e but our hashes all include them, oops
-    QString unique_old = "<<set:MS>><<set:M>><<set:S>>" + unique_new;
-
-    QString unique_common;
-
-    if (HasArray(json, "explicitMods")) {
-        for (const auto &mod : json["explicitMods"]) {
-            if (mod.IsString()) {
-                unique_common += QString(mod.GetString()) + "~";
-            }
-        }
-    }
-    if (HasArray(json, "implicitMods")) {
-        for (const auto &mod : json["implicitMods"]) {
-            if (mod.IsString()) {
-                unique_common += QString(mod.GetString()) + "~";
-            }
-        }
-    }
-
-    unique_common += item_unique_properties(json, "properties") + "~";
-    unique_common += item_unique_properties(json, "additionalProperties") + "~";
-
-    if (HasArray(json, "sockets")) {
-        for (const auto &socket : json["sockets"]) {
-            if (!HasInt(socket, "group") || !HasString(socket, "attr")) {
-                continue;
-            }
-            const int group = socket["group"].GetInt();
-            const QString attr = socket["attr"].GetString();
             unique_common += QString::number(group) + "~" + attr + "~";
         }
     }

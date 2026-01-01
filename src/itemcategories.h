@@ -19,10 +19,9 @@
 
 #pragma once
 
+#include <QByteArray>
+#include <QString>
 #include <QStringList>
-
-class QByteArray;
-class QString;
 
 void InitItemClasses(const QByteArray &classes);
 void InitItemBaseTypes(const QByteArray &baseTypes);

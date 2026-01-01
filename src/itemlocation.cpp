@@ -21,95 +21,69 @@
 
 #include <QString>
 
-#include <util/rapidjson_util.h>
+#include <legacy/legacycharacter.h>
+#include <legacy/legacyitemlocation.h>
+#include <legacy/legacystash.h>
+#include <poe/types/character.h>
+#include <poe/types/stashtab.h>
 #include <util/spdlog_qt.h>
 #include <util/util.h>
 
 #include "itemconstants.h"
 
 ItemLocation::ItemLocation()
-    : m_x(0)
-    , m_y(0)
-    , m_w(0)
-    , m_h(0)
-    , m_red(0)
-    , m_green(0)
-    , m_blue(0)
-    , m_socketed(false)
-    , m_removeonly(false)
-    , m_type(ItemLocationType::STASH)
-    , m_tab_type("")
-    , m_tab_id(0)
+    : m_type(ItemLocationType::STASH)
 {}
 
-ItemLocation::ItemLocation(const rapidjson::Value &root)
-    : ItemLocation()
+ItemLocation::ItemLocation(const poe::Character &character, int tab_id)
+    : m_type{ItemLocationType::CHARACTER}
+    , m_tab_id{tab_id}
+    , m_character{character.name}
+    , m_character_sortname{character.name.toLower()}
+{}
+
+ItemLocation::ItemLocation(const LegacyCharacter &character, int tab_id)
+    : m_type{ItemLocationType::CHARACTER}
+    , m_tab_id{tab_id}
+    , m_character{character.name}
+    , m_character_sortname{character.name.toLower()}
+{}
+
+ItemLocation::ItemLocation(const poe::StashTab &stash)
+    : m_removeonly{stash.name.endsWith("(Remove-only)")}
+    , m_type{ItemLocationType::STASH}
+    , m_tab_id{int(stash.index.value_or(0))}
+    , m_tab_unique_id{stash.id}
+    , m_tab_type{stash.type}
+    , m_tab_label{stash.name}
 {
-    FromItemJson(root);
-    FixUid();
+    Util::GetTabColor(stash, m_red, m_green, m_blue);
 }
 
-ItemLocation::ItemLocation(int tab_id,
-                           const QString &tab_unique_id,
-                           const QString &name,
-                           ItemLocationType type,
-                           const QString &tab_type,
-                           int r,
-                           int g,
-                           int b,
-                           rapidjson::Value &value,
-                           rapidjson_allocator &alloc)
-    : m_x(0)
-    , m_y(0)
-    , m_w(0)
-    , m_h(0)
-    , m_red(r)
-    , m_green(g)
-    , m_blue(b)
-    , m_socketed(false)
-    , m_type(type)
-    , m_tab_id(tab_id)
-    , m_tab_unique_id(tab_unique_id)
+ItemLocation::ItemLocation(const LegacyStash &stash)
+    : m_type{ItemLocationType::STASH}
+    , m_tab_id{stash.index}
+    , m_tab_unique_id{stash.id}
+    , m_tab_type{stash.type}
+    , m_tab_label{stash.name}
 {
-    switch (m_type) {
-    case ItemLocationType::STASH:
-        m_tab_type = tab_type;
-        m_tab_label = name;
-        m_character.clear();
-        m_character_sortname.clear();
-        m_removeonly = name.endsWith("(Remove-only)");
-        break;
-    case ItemLocationType::CHARACTER:
-        m_tab_type.clear();
-        m_tab_label.clear();
-        m_character = name;
-        m_character_sortname = m_character.toLower();
-        m_removeonly = false;
-        break;
+    if (stash.i && (*stash.i != stash.index)) {
+        spdlog::error("ItemLocation: LegacyStash is inconsistent: i = {}, index = {}",
+                      *stash.i,
+                      stash.index);
     }
 
-    FixUid();
-
-    if (m_type == ItemLocationType::STASH) {
-        if (!value.HasMember("i")) {
-            value.AddMember("i", m_tab_id, alloc);
-        }
-        if (!value.HasMember("n")) {
-            rapidjson::Value name_value;
-            name_value.SetString(m_tab_label.toStdString().c_str(), alloc);
-            value.AddMember("n", name_value, alloc);
-        }
-        if (!value.HasMember("colour")) {
-            rapidjson::Value color_value;
-            color_value.SetObject();
-            color_value.AddMember("r", m_red, alloc);
-            color_value.AddMember("g", m_green, alloc);
-            color_value.AddMember("b", m_blue, alloc);
-            value.AddMember("colour", color_value, alloc);
-        }
+    if (stash.n && (*stash.n != stash.name)) {
+        spdlog::error("ItemLocation: LegacyStash is inconsistent: n = {}, name = {}",
+                      *stash.n,
+                      stash.name);
     }
 
-    m_json = Util::RapidjsonSerialize(value);
+    if (stash.colour) {
+        m_red = stash.colour->r;
+        m_green = stash.colour->g;
+        m_blue = stash.colour->b;
+    }
 }
 
 void ItemLocation::FixUid()
@@ -123,67 +97,53 @@ void ItemLocation::FixUid()
     }
 }
 
-void ItemLocation::FromItemJson(const rapidjson::Value &root)
+void ItemLocation::FromItem(const poe::Item &root)
 {
-    if (root.HasMember("_type")) {
-        m_type = static_cast<ItemLocationType>(root["_type"].GetInt());
-        switch (m_type) {
-        case ItemLocationType::STASH:
-            m_tab_label = root["_tab_label"].GetString();
-            m_tab_id = root["_tab"].GetInt();
-            break;
-        case ItemLocationType::CHARACTER:
-            m_character = root["_character"].GetString();
-            break;
-        }
-        m_socketed = false;
-        if (root.HasMember("_socketed")) {
-            m_socketed = root["_socketed"].GetBool();
-        }
-        if (root.HasMember("_removeonly")) {
-            m_removeonly = root["_removeonly"].GetBool();
-        }
-        // socketed items have x/y pointing to parent
-        if (m_socketed) {
-            m_x = root["_x"].GetInt();
-            m_y = root["_y"].GetInt();
-        }
-    }
-    if (root.HasMember("x") && root.HasMember("y") && root["x"].IsInt() && root["y"].IsInt()) {
-        m_x = root["x"].GetInt();
-        m_y = root["y"].GetInt();
-    }
-    if (root.HasMember("w") && root.HasMember("h") && root["w"].IsInt() && root["h"].IsInt()) {
-        m_w = root["w"].GetInt();
-        m_h = root["h"].GetInt();
-    }
-    if (root.HasMember("inventoryId") && root["inventoryId"].IsString()) {
-        m_inventory_id = root["inventoryId"].GetString();
-    }
+    m_x = root.x.value_or(0);
+    m_y = root.y.value_or(0);
+    m_w = root.w;
+    m_h = root.h;
+    m_inventory_id = root.inventoryId.value_or("");
 }
 
-void ItemLocation::ToItemJson(rapidjson::Value *root_ptr, rapidjson_allocator &alloc)
+void ItemLocation::FromLegacyItemLocation(const LegacyItemLocation &item)
 {
-    auto &root = *root_ptr;
-    rapidjson::Value string_val(rapidjson::kStringType);
-    root.AddMember("_type", static_cast<int>(m_type), alloc);
+    m_type = ItemLocationType{item._type};
+    m_socketed = item._socketed;
+    m_removeonly = item._removeonly;
+
+    // The x and y set here override the one set above in FromItem.
+    // I'm not yet sure if this is correct, but it matches the old FromItemJson.
+    if (m_socketed) {
+        if (!item._x) {
+            spdlog::error("ItemLocation: LegacyItemLocation for socketed item is missing _x");
+        }
+        if (!item._y) {
+            spdlog::error("ItemLocation: LegacyItemLocation for socketed item is missing _x");
+        }
+        m_x = *item._x;
+        m_y = *item._y;
+    }
+
     switch (m_type) {
     case ItemLocationType::STASH:
-        root.AddMember("_tab", m_tab_id, alloc);
-        string_val.SetString(m_tab_label.toStdString().c_str(), alloc);
-        root.AddMember("_tab_label", string_val, alloc);
+        if (!item._tab) {
+            spdlog::error("ItemLocation: LegacyItemLocation for stash is missing _tab");
+        }
+        if (!item._tab_label) {
+            spdlog::error("ItemLocation: LegacyItemLocation for stash is missing _tab_label");
+        }
+        m_tab_label = item._tab_label.value_or("<<MISSING_LABEL>>");
+        m_tab_id = item._tab.value_or(0);
         break;
     case ItemLocationType::CHARACTER:
-        string_val.SetString(m_character.toStdString().c_str(), alloc);
-        root.AddMember("_character", string_val, alloc);
+        if (!item._character) {
+            spdlog::error("ItemLocation: LegacyItemLocation for character is missing _character");
+        }
+        m_character = item._character.value_or("<<MISSING_NAME>>");
+        m_character_sortname = m_character.toLower();
         break;
     }
-    if (m_socketed) {
-        root.AddMember("_x", m_x, alloc);
-        root.AddMember("_y", m_y, alloc);
-    }
-    root.AddMember("_socketed", m_socketed, alloc);
-    root.AddMember("_removeonly", m_removeonly, alloc);
 }
 
 QString ItemLocation::GetHeader() const
@@ -235,8 +195,8 @@ QString ItemLocation::GetForumCode(const QString &realm,
 {
     switch (m_type) {
     case ItemLocationType::STASH:
-        return QString(
-                   "[linkItem location=\"Stash%1\" league=\"%2\" x=\"%3\" y=\"%4\" realm=\"%5\"]")
+        return QString("[linkItem location=\"Stash%1\" league=\"%2\" x=\"%3\" y=\"%4\" "
+                       "realm=\"%5\"]")
             .arg(QString::number(tab_index + 1),
                  league,
                  QString::number(m_x),

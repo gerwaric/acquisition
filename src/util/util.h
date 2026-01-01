@@ -26,16 +26,19 @@
 #include <QString>
 #include <QUrlQuery>
 
-#include <rapidjson/document.h>
+#include "util/glaze_qt.h"
+#include "util/spdlog_qt.h"
 
-//#include <util/json_struct_qt.h>
-#include <util/glaze_qt.h>
-#include <util/spdlog_qt.h>
+static_assert(ACQUISITION_USE_GLAZE);
 
 class QComboBox;
 class QNetworkReply;
 
 struct Buyout;
+
+namespace poe {
+    struct StashTab;
+}
 
 namespace Util {
     Q_NAMESPACE
@@ -62,22 +65,11 @@ namespace Util {
 
     int TextWidth(TextWidthId id);
 
-    void ParseJson(QNetworkReply *reply, rapidjson::Document *doc);
+    //void ParseJson(QNetworkReply *reply, rapidjson::Document *doc);
     QString GetCsrfToken(const QByteArray &page, const QString &name);
     QString FindTextBetween(const QString &page, const QString &left, const QString &right);
 
-    QString RapidjsonSerialize(const rapidjson::Value &val);
-    QString RapidjsonPretty(const rapidjson::Value &val);
-    void RapidjsonAddString(rapidjson::Value *object,
-                            const char *const name,
-                            const QString &value,
-                            rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator> &alloc);
-    void RapidjsonAddInt64(rapidjson::Value *object,
-                           const char *const name,
-                           qint64 value,
-                           rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator> &alloc);
-
-    void GetTabColor(rapidjson::Value &json, int &r, int &g, int &b);
+    void GetTabColor(const poe::StashTab &stash, int &r, int &g, int &b);
 
     QString StringReplace(const QString &haystack, const QString &needle, const QString &replace);
     QColor recommendedForegroundTextColor(const QColor &backgroundColor);
@@ -108,8 +100,8 @@ namespace Util {
         return QMetaEnum::fromType<T>().valueToKey(static_cast<std::underlying_type_t<T>>(value));
     }
 
-    template <typename T>
-    void parseJson(const std::string& json, T& out)
+    template<typename T>
+    void parseJson(const std::string &json, T &out)
     {
         // glz::read_json returns an error object; it is "truthy" if there WAS an error.
         const auto ec = glz::read_json<T>(out, json);

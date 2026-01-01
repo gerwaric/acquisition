@@ -237,7 +237,7 @@ void RateLimitManager::ReceiveReply()
     }
 
     if (violation_detected) {
-        spdlog::error("Rate limit violation detector for policy '{}':\n{}",
+        spdlog::error("Rate limit violation detected for policy '{}':\n{}",
                       m_policy->name(),
                       m_policy->GetBorderlineReport());
         LogPolicyHistory();
@@ -245,6 +245,9 @@ void RateLimitManager::ReceiveReply()
     } else {
         // For now, let's print the borderline report for trace debugging.
         if (m_policy->status() == RateLimit::Status::BORDERLINE) {
+            spdlog::warn("Rate limit policy '{}' is BORDERLINE and the next safe send is at {}",
+                         m_policy->name(),
+                         m_policy->GetNextSafeSend(m_history).toString());
             if (spdlog::should_log(spdlog::level::trace)) {
                 spdlog::trace("Rate limit borderline report for policy '{}':\n{}",
                               m_policy->name(),
@@ -344,10 +347,8 @@ void RateLimitManager::ActivateRequest()
         next_send.toString(),
         now.secsTo(next_send));
 
-    if (m_policy->status() >= RateLimit::Status::BORDERLINE) {
-        spdlog::debug("Rate limit policy {} is BORDERLINE.", m_policy->name());
-    } else {
-        spdlog::trace("RateLimitManager::ActivateRequest() {} is NOT borderline, adding {} msecs "
+    if (m_policy->status() < RateLimit::Status::BORDERLINE) {
+        spdlog::trace("RateLimitManager::ActivateRequest() {} is NOT b,orderline, adding {} msecs "
                       "to next send",
                       m_policy->name(),
                       NORMAL_BUFFER_MSEC);

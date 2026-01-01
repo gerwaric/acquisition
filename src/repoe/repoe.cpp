@@ -32,7 +32,6 @@
 
 #include "itemcategories.h"
 #include "modlist.h"
-#include "network_info.h"
 
 constexpr const char *REPOE_URL = "https://repoe-fork.github.io";
 
@@ -42,8 +41,8 @@ constexpr std::array STAT_TRANSLATIONS = {"stat_translations.min.json",
                                           "stat_translations/necropolis.min.json"};
 
 RePoE::RePoE(NetworkManager &network_manager)
-    : m_network_manager(network_manager)
-    , m_initialized(false)
+    : m_initialized(false)
+    , m_network_manager(network_manager)
 {
     spdlog::trace("RePoE::RePoE() entered");
 }

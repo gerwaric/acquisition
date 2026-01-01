@@ -153,7 +153,6 @@ void SqliteDataStore::CleanItemsTable()
         query.finish();
 
         for (const auto &loc : locs) {
-            rapidjson::Document doc;
             bool foundLoc = false;
 
             //check stash tabs
@@ -224,7 +223,7 @@ Locations SqliteDataStore::GetTabs(const ItemLocationType type)
         return {};
     }
     const QString json = query.value(0).toString();
-    return DeserializeTabs(json);
+    return DeserializeTabs(json, type);
 }
 
 Items SqliteDataStore::GetItems(const ItemLocation &loc)

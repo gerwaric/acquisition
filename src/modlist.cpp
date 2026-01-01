@@ -31,13 +31,12 @@
 #include <unordered_map>
 #include <vector>
 
-#include "pseudomods.h"
-#include <util/spdlog_qt.h>
-#include <util/util.h>
-
 #include "item.h"
-
-using rapidjson::HasBool;
+#include "pseudomods.h"
+#include "repoe/stattranslation.h"
+#include "util/glaze_qt.h"
+#include "util/spdlog_qt.h"
+#include "util/util.h"
 
 namespace {
 
@@ -274,17 +273,20 @@ void AddStatTranslations(const QByteArray &statTranslations)
 {
     spdlog::trace("AddStatTranslations() entered");
 
-    rapidjson::Document doc;
-    doc.Parse(statTranslations.constData());
-    if (doc.HasParseError()) {
-        spdlog::error(
-            "Couldn't properly parse Stat Translations from RePoE, canceling Mods Update");
+    std::vector<repoe::StatTranslation> translations;
+
+    constexpr const glz::opts permissive{.error_on_unknown_keys = false};
+    const std::string_view sv{statTranslations.constData(), size_t(statTranslations.size())};
+    const auto ec = glz::read<permissive>(translations, sv);
+    if (ec) {
+        const auto msg = glz::format_error(ec, sv);
+        spdlog::error("Unable to parse RePoE stat translations: {}", msg);
         return;
     }
 
-    for (auto &translation : doc) {
-        for (auto &stat : translation["English"]) {
-            if (HasBool(stat, "is_markup") && (stat["is_markup"].GetBool() == true)) {
+    for (auto &translation : translations) {
+        for (auto &stat : translation.English) {
+            if (stat.is_markup.value_or(false)) {
                 // This was added with the change to process json files inside
                 // the stat_translations directory. In this case, the necropolis
                 // mods from 3.24 have some kind of duplicate formatting with
@@ -295,15 +297,11 @@ void AddStatTranslations(const QByteArray &statTranslations)
                 // files before.
                 continue;
             };
-            std::vector<QString> formats;
-            for (auto &format : stat["format"]) {
-                formats.push_back(format.GetString());
-            }
-            QString stat_string = stat["string"].GetString();
-            if (formats[0].compare("ignore") != 0) {
-                for (size_t i = 0; i < formats.size(); i++) {
-                    QString searchString = "{" + QString::number(i) + "}";
-                    stat_string.replace(searchString, formats[i]);
+            QString stat_string = stat.string;
+            if (stat.format[0].compare("ignore") != 0) {
+                for (size_t i = 0; i < stat.format.size(); i++) {
+                    QString searchString{QStringLiteral("{%1}").arg(i)};
+                    stat_string.replace(searchString, stat.format[i]);
                 }
             }
             if (stat_string.length() > 0) {
@@ -338,11 +336,6 @@ void InitModList()
     }
     mod_list.sort(Qt::CaseInsensitive);
     m_mod_list_model.setStringList(mod_list);
-}
-
-void ModGenerator::Generate(const rapidjson::Value &json, ModTable &output)
-{
-    Generate(json.GetString(), output);
 }
 
 SumModGenerator::SumModGenerator(const QString &name, const std::vector<QString> &matches)

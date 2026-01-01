@@ -27,7 +27,6 @@
 #include <QString>
 #include <QTimer>
 
-#include "network_info.h"
 #include "ratelimit.h"
 
 class QNetworkReply;

@@ -22,7 +22,6 @@
 #include <QEventLoop>
 #include <QNetworkReply>
 
-#include "network_info.h"
 #include "ratelimitedreply.h"
 #include "ratelimitmanager.h"
 #include "ratelimitpolicy.h"

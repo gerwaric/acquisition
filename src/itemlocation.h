@@ -24,33 +24,35 @@
 #include <QRectF>
 #include <QString>
 
-#include <rapidjson/document.h>
+#include "util/spdlog_qt.h"
 
-#include <util/rapidjson_util.h>
-#include <util/spdlog_qt.h>
+static_assert(ACQUISITION_USE_SPDLOG);
+
+struct LegacyCharacter;
+struct LegacyItemLocation;
+struct LegacyStash;
+
+namespace poe {
+    struct Character;
+    struct Item;
+    struct StashTab;
+} // namespace poe
 
 class ItemLocation
 {
     Q_GADGET
 public:
-    enum class ItemLocationType { STASH, CHARACTER };
+    enum class ItemLocationType : int { STASH, CHARACTER };
     Q_ENUM(ItemLocationType)
 
     ItemLocation();
-    explicit ItemLocation(const rapidjson::Value &root);
-    explicit ItemLocation(int tab_id,
-                          const QString &tab_unique_id,
-                          const QString &name,
-                          ItemLocationType type,
-                          const QString &tab_type,
-                          int r,
-                          int g,
-                          int b,
-                          rapidjson::Value &value,
-                          rapidjson_allocator &alloc);
+    ItemLocation(const poe::Character &character, int tab_id);
+    ItemLocation(const poe::StashTab &stash);
+    ItemLocation(const LegacyCharacter &character, int tab_id);
+    ItemLocation(const LegacyStash &stash);
 
-    void ToItemJson(rapidjson::Value *root, rapidjson_allocator &alloc);
-    void FromItemJson(const rapidjson::Value &root);
+    void FromItem(const poe::Item &item);
+    void FromLegacyItemLocation(const LegacyItemLocation &item);
     QString GetHeader() const;
     QRectF GetRect() const;
     QString GetForumCode(const QString &realm,
@@ -79,12 +81,12 @@ public:
 private:
     void FixUid();
 
-    int m_x, m_y, m_w, m_h;
-    int m_red, m_green, m_blue;
-    bool m_socketed;
-    bool m_removeonly;
+    int m_x{0}, m_y{0}, m_w{0}, m_h{0};
+    int m_red{0}, m_green{0}, m_blue{0};
+    bool m_socketed{false};
+    bool m_removeonly{false};
     ItemLocationType m_type;
-    int m_tab_id;
+    int m_tab_id{0};
     QString m_json;
 
     //this would be the value "tabs -> id", which seems to be a hashed value generated on their end

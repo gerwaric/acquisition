@@ -19,15 +19,13 @@
 
 #include "datastore.h"
 
-#include <rapidjson/error/en.h>
-
-#include <util/rapidjson_util.h>
+#include <legacy/legacycharacter.h>
+#include <legacy/legacyitemlocation.h>
+#include <legacy/legacystash.h>
+#include <poe/types/item.h>
+#include <poe/types/stashtab.h>
 #include <util/spdlog_qt.h>
 #include <util/util.h>
-
-using rapidjson::HasInt;
-using rapidjson::HasObject;
-using rapidjson::HasString;
 
 void DataStore::SetInt(const QString &key, int value)
 {
@@ -59,160 +57,113 @@ QString DataStore::Serialize(const Items &items)
     return "[" + json.join(",") + "]";
 }
 
-Locations DataStore::DeserializeTabs(const QString &json)
+Locations DataStore::DeserializeTabs(const QString &json, ItemLocationType type)
 {
-    if (json.isEmpty()) {
-        spdlog::debug("No tabs to deserialize.");
+    const auto bytes = json.toUtf8();
+    const std::string_view sv{bytes, size_t(bytes.size())};
+
+    switch (type) {
+    case ItemLocationType::STASH:
+        return DeserializeStashTabs(sv);
+    case ItemLocationType::CHARACTER:
+        return DeserializeCharacterTabs(sv);
+    }
+
+    spdlog::error("DataStore: cannot deserialize tabs: invalid location type: {}", type);
+    return {};
+}
+
+Locations DataStore::DeserializeStashTabs(std::string_view json)
+{
+    const auto result = glz::read_json<std::vector<LegacyStash>>(json);
+    if (!result) {
+        const auto msg = glz::format_error(result.error(), json);
+        spdlog::error("DataStore: error deserializing stash tabs: {}", msg);
         return {};
     }
 
-    rapidjson::Document doc;
-    doc.Parse(json.toStdString().c_str());
-    if (doc.HasParseError()) {
-        spdlog::error("Error parsing serialized tabs: {}",
-                      rapidjson::GetParseError_En(doc.GetParseError()));
-        spdlog::error("The malformed json is {}", json);
-        return {};
-    }
-    if (doc.IsArray() == false) {
-        spdlog::error("Error parsing serialized tabs: the json is not an array.");
-        return {};
-    }
+    const auto stashes = *result;
 
-    // Preallocate the return value.
     Locations tabs;
-    tabs.reserve(doc.Size());
+    tabs.reserve(stashes.size());
+    for (const auto &stash : stashes) {
+        tabs.emplace_back(stash);
+    }
+    return tabs;
+}
 
-    // Keep track of which tabs have been parsed.
-    std::set<QString> tab_id_index_;
+Locations DataStore::DeserializeCharacterTabs(std::string_view json)
+{
+    const auto result = glz::read_json<std::vector<LegacyCharacter>>(json);
+    if (!result) {
+        const auto msg = glz::format_error(result.error(), json);
+        spdlog::error("DataStore: error deserializing character tabs: {}", msg);
+        return {};
+    }
 
-    for (auto &tab_json : doc) {
-        // Detemine which kind of location this is.
-        ItemLocationType type = (tab_json.HasMember("class")) ? ItemLocationType::CHARACTER
-                                                              : ItemLocationType::STASH;
+    const auto characters = *result;
 
-        // Constructor values to fill in
-        size_t index = 0;
-        QString tabUniqueId = "";
-        QString name = "";
-        QString tabType = "";
-        int r = 0;
-        int g = 0;
-        int b = 0;
-
-        auto &alloc = doc.GetAllocator();
-
-        switch (type) {
-        case ItemLocationType::STASH:
-
-            // Get the unique tab id
-            if (!HasString(tab_json, "id")) {
-                spdlog::error("Malformed tab data missing unique id: {}",
-                              Util::RapidjsonSerialize(tab_json));
-                continue;
-            }
-            tabUniqueId = tab_json["id"].GetString();
-
-            // Make sure we haven't seen this tab before.
-            if (tab_id_index_.count(tabUniqueId)) {
-                spdlog::error("Duplicate tab found while deserializing tabs: {}", tabUniqueId);
-                continue;
-            }
-
-            // Get the tab name from "n" when using the legacy API and "name" when using the OAuth api.
-            if (HasString(tab_json, "n")) {
-                name = tab_json["n"].GetString();
-            } else if (HasString(tab_json, "name")) {
-                name = tab_json["name"].GetString();
-            } else {
-                spdlog::error("Malformed tab data doesn't contain a name: {}",
-                              Util::RapidjsonSerialize(tab_json));
-                continue;
-            }
-
-            // Get the optional tab index.
-            if (HasInt(tab_json, "i")) {
-                index = tab_json["i"].GetInt();
-            } else {
-                index = tabs.size();
-            };
-
-            Util::GetTabColor(tab_json, r, g, b);
-
-            // Get the tab type.
-            if (HasString(tab_json, "type")) {
-                tabType = tab_json["type"].GetString();
-            } else {
-                spdlog::debug("Stash tab does not have a type: {}", name);
-                tabType.clear();
-            }
-
-            break;
-
-        case ItemLocationType::CHARACTER:
-
-            // Get the character name
-            if (!HasString(tab_json, "name")) {
-                continue;
-            };
-            name = tab_json["name"].GetString();
-            tabUniqueId = name;
-
-            // Make sure this isn't a duplicate.
-            if (tab_id_index_.count(name)) {
-                spdlog::error("Duplicate character found while deserializing tabs: {}", tabUniqueId);
-                continue;
-            }
-
-            // Get the optional tab index.
-            if (HasInt(tab_json, "i")) {
-                index = tab_json["i"].GetInt();
-            } else {
-                index = tabs.size();
-            }
-
-            break;
-
-        default:
-
-            spdlog::error("Invalid item location type: {}", type);
-            continue;
-        }
-        const int ind = static_cast<int>(index);
-        ItemLocation loc(ind, tabUniqueId, name, type, tabType, r, g, b, tab_json, alloc);
-        tabs.push_back(loc);
-        tab_id_index_.emplace(loc.get_tab_uniq_id());
+    Locations tabs;
+    tabs.reserve(characters.size());
+    for (const auto &character : characters) {
+        tabs.emplace_back(character, tabs.size());
     }
     return tabs;
 }
 
 Items DataStore::DeserializeItems(const QString &json, const ItemLocation &tab)
 {
-    // Parsed the serialized json and check for errors.
-    rapidjson::Document doc;
-    doc.Parse(json.toStdString().c_str());
-    if (doc.HasParseError()) {
-        spdlog::error("Error parsing serialized items: {}",
-                      rapidjson::GetParseError_En(doc.GetParseError()));
-        spdlog::error("The malformed json is {}", json);
+    const auto bytes{json.toUtf8()};
+    const std::string_view sv{bytes, size_t(bytes.size())};
+
+    std::vector<poe::Item> parsed_items;
+    std::vector<LegacyItemLocation> parsed_locations;
+
+    // We have to allow unknown keys otherwise parsing poe::Item will
+    // break beacuse acquisition has injected it's special location metadata
+    // such as _type, _socketed, _x, and _y.
+    constexpr glz::opts permissive{.error_on_unknown_keys = false};
+
+    // First parse the items ignoring the special location info.
+    auto ec = glz::read<permissive>(parsed_items, sv);
+    if (ec) {
+        const auto msg = glz::format_error(ec, sv);
+        spdlog::error("DataStore: error deserializing items: {}", msg);
         return {};
     }
-    if (doc.IsArray() == false) {
-        spdlog::error("Error parsing serialized items: the json is not an array.");
+
+    // Now parse the magic item location info acquisition attaches to each item.
+    ec = glz::read<permissive>(parsed_locations, sv);
+    if (ec) {
+        const auto msg = glz::format_error(ec, sv);
+        spdlog::error("DataStore: error deserializing legacy item location data: {}", msg);
+        return {};
+    }
+
+    const size_t num_items{parsed_items.size()};
+
+    // Make sure the two results have the same size.
+    if (parsed_locations.size() != num_items) {
+        spdlog::error("DataStore: deserialization mismatch: {} items, {} locations",
+                      parsed_items.size(),
+                      parsed_locations.size());
         return {};
     }
 
     // Preallocate the return value.
     Items items;
-    items.reserve(doc.Size());
+    items.reserve(num_items);
 
     // Iterate over each item in the serialized json.
-    for (auto item_json = doc.Begin(); item_json != doc.End(); ++item_json) {
+    for (size_t i = 0; i < num_items; ++i) {
+        const auto &item = parsed_items[i];
+        const auto &location_info = parsed_locations[i];
         // Create a new location and make sure location-related information
         // such as x and y are pulled from the item json.
         ItemLocation loc = tab;
-        loc.FromItemJson(*item_json);
-        items.push_back(std::make_shared<Item>(*item_json, loc));
+        loc.FromItem(item);
+        loc.FromLegacyItemLocation(location_info);
+        items.push_back(std::make_shared<Item>(item, loc));
     }
     return items;
 }

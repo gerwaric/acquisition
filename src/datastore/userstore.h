@@ -35,20 +35,19 @@ public:
     explicit UserStore(const QDir &dir, const QString &username, QObject *parent = nullptr);
     ~UserStore();
 
+    poe::Character getCharacter(const QString &name);
     std::vector<poe::Character> getCharacterList(const QString &realm);
+
+    poe::StashTab getStash(const QString &id);
     std::vector<poe::StashTab> getStashList(const QString &realm, const QString &league);
 
-    poe::Character getCharacter(const QString &id);
-    poe::StashTab getStash(const QString &id);
-    std::vector<QString> getStashChildren(const QString &parent_id);
-
+    void saveCharacter(const poe::Character &character);
     void saveCharacterList(const std::vector<poe::Character> &characters, const QString &realm);
+
+    void saveStash(const poe::StashTab &stash, const QString &realm, const QString &league);
     void saveStashList(const std::vector<poe::StashTab> &stashes,
                        const QString &realm,
                        const QString &league);
-
-    void saveCharacter(const poe::Character &character);
-    void saveStash(const poe::StashTab &stash, const QString &realm, const QString &league);
 
 private:
     int userVersion();

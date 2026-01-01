@@ -185,9 +185,15 @@ static QString ModListAsString(const ItemMods &list)
 
 static std::vector<QString> GenerateMods(const Item &item)
 {
+    constexpr std::array mod_types = {"implicitMods",
+                                      "enchantMods",
+                                      "explicitMods",
+                                      "craftedMods",
+                                      "fracturedMods"};
+
     std::vector<QString> out;
     auto &mods = item.text_mods();
-    for (auto &mod_type : ITEM_MOD_TYPES) {
+    for (auto &mod_type : mod_types) {
         QString mod_list = ModListAsString(mods.at(mod_type));
         if (!mod_list.isEmpty()) {
             out.push_back(mod_list);

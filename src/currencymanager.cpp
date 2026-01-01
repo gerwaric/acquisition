@@ -26,16 +26,21 @@
 #include <QSettings>
 #include <QVBoxLayout>
 
-#include <rapidjson/document.h>
-#include <rapidjson/error/en.h>
-
-#include <datastore/datastore.h>
-#include <util/spdlog_qt.h>
-#include <util/util.h>
-
 #include "buyoutmanager.h"
+#include "datastore/datastore.h"
 #include "item.h"
 #include "itemsmanager.h"
+#include "util/spdlog_qt.h"
+
+static_assert(ACQUISITION_USE_SPDLOG);
+
+struct SerializedCurrency
+{
+    QString currency;
+    int count;
+    double chaos_ratio;
+    double exalt_ratio;
+};
 
 CurrencyManager::CurrencyManager(QSettings &settings,
                                  DataStore &datastore,
@@ -125,10 +130,11 @@ void CurrencyManager::ClearCurrency()
 }
 void CurrencyManager::InitCurrency()
 {
+    m_currencies.clear();
     for (auto type : Currency::Types()) {
         m_currencies.push_back(std::make_shared<CurrencyItem>(0, Currency(type), 1, 1));
     }
-    Deserialize(m_data.Get("currency_items"), &m_currencies);
+    Deserialize(m_data.Get("currency_items"), m_currencies);
     for (unsigned int i = 0; i < CurrencyWisdomValue.size(); i++) {
         m_wisdoms.push_back(0);
     }
@@ -164,49 +170,53 @@ void CurrencyManager::MigrateCurrency()
 
 QString CurrencyManager::Serialize(const std::vector<std::shared_ptr<CurrencyItem>> &currencies)
 {
-    rapidjson::Document doc;
-    doc.SetObject();
-    auto &alloc = doc.GetAllocator();
-    for (auto &curr : currencies) {
-        rapidjson::Value item(rapidjson::kObjectType);
-        item.AddMember("count", curr->count, alloc);
-        item.AddMember("chaos_ratio", curr->chaos.value1, alloc);
-        item.AddMember("exalt_ratio", curr->exalt.value1, alloc);
-        Util::RapidjsonAddString(&item, "currency", curr->currency.AsTag(), alloc);
-        rapidjson::Value name(curr->name.toStdString().c_str(), alloc);
-        doc.AddMember(name, item, alloc);
+    std::vector<SerializedCurrency> output;
+    output.reserve(currencies.size());
+    for (const auto &currency : currencies) {
+        SerializedCurrency c{.currency = currency->currency.AsTag(),
+                             .count = currency->count,
+                             .chaos_ratio = currency->chaos.value1,
+                             .exalt_ratio = currency->exalt.value1};
+        output.push_back(c);
     }
-    return Util::RapidjsonSerialize(doc);
+
+    const auto result = glz::write_json(output);
+    if (!result) {
+        const auto msg = glz::format_error(result.error());
+        spdlog::error("Error serializing currency: {}", msg);
+        return QString();
+    }
+    return QString::fromStdString(*result);
 }
 
 void CurrencyManager::Deserialize(const QString &string_data,
-                                  std::vector<std::shared_ptr<CurrencyItem>> *currencies)
+                                  std::vector<std::shared_ptr<CurrencyItem>> &currencies)
 {
-    //Maybe clear something would be good
+    // Maybe clear something would be good
     if (string_data.isEmpty()) {
         return;
     }
-    rapidjson::Document doc;
-    if (doc.Parse(string_data.toStdString().c_str()).HasParseError()) {
-        spdlog::error("Error while parsing currency ratios.");
-        spdlog::error(rapidjson::GetParseError_En(doc.GetParseError()));
+
+    const auto bytes = string_data.toUtf8();
+    const std::string_view sv{bytes.constData(), size_t(bytes.size())};
+    const auto result = glz::read_json<std::vector<SerializedCurrency>>(sv);
+    if (!result) {
+        const auto msg = glz::format_error(result.error(), sv);
+        spdlog::error("Error deserializing currency: {}", msg);
         return;
     }
-    if (!doc.IsObject()) {
-        return;
-    }
-    for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
-        auto &object = itr->value;
-        Currency curr = Currency::FromTag(object["currency"].GetString());
-        for (auto &item : *currencies) {
-            if (item->currency == curr) {
-                item = std::make_shared<CurrencyItem>(object["count"].GetDouble(),
+
+    for (const auto &obj : *result) {
+        Currency curr = Currency::FromTag(obj.currency);
+        for (auto &item : currencies) {
+            if (curr == item->currency) {
+                item = std::make_shared<CurrencyItem>(obj.count,
                                                       curr,
-                                                      object["chaos_ratio"].GetDouble(),
-                                                      object["exalt_ratio"].GetDouble());
+                                                      obj.chaos_ratio,
+                                                      obj.exalt_ratio);
+                break;
             }
         }
-        //currencies->push_back(item);
     }
 }
 

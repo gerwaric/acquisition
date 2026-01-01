@@ -25,6 +25,8 @@
 #include <QObject>
 #include <QString>
 
+#include <util/spdlog_qt.h>
+
 class QNetworkReply;
 
 //--------------------------------------------------------------------------
@@ -110,3 +112,8 @@ namespace RateLimit {
     QDateTime ParseDate(QNetworkReply *const reply);
     int ParseStatus(QNetworkReply *const reply);
 } // namespace RateLimit
+
+// Create a formatting so we can print RateLimit::Status with spdlog.
+template<>
+struct fmt::formatter<RateLimit::Status, char> : QtEnumFormatter<RateLimit::Status>
+{};

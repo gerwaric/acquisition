@@ -23,19 +23,19 @@
 #include <QNetworkCookie>
 #include <QSettings>
 
-#include <datastore/datastore.h>
-#include <ui/mainwindow.h>
-#include <util/networkmanager.h>
-#include <util/repoe.h>
-#include <util/spdlog_qt.h>
-#include <util/util.h>
-
 #include "application.h"
 #include "buyoutmanager.h"
+#include "datastore/datastore.h"
 #include "filters.h"
 #include "item.h"
 #include "modlist.h"
+#include "repoe/repoe.h"
 #include "shop.h"
+#include "ui/mainwindow.h"
+#include "util/spdlog_qt.h"
+#include "util/util.h"
+
+static_assert(ACQUISITION_USE_SPDLOG);
 
 ItemsManager::ItemsManager(QSettings &settings, BuyoutManager &buyout_manager, DataStore &datastore)
     : m_settings(settings)

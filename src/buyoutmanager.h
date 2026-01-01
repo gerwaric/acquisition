@@ -66,7 +66,7 @@ private:
     BuyoutType StringToBuyoutType(QString bo_str) const;
 
     QString Serialize(const std::map<QString, Buyout> &buyouts);
-    void Deserialize(const QString &data, std::map<QString, Buyout> *buyouts);
+    void Deserialize(const QString &data, std::map<QString, Buyout> &buyouts);
 
     QString Serialize(const std::map<QString, bool> &obj);
     void Deserialize(const QString &data, std::map<QString, bool> &obj);

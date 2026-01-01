@@ -29,18 +29,25 @@
 #include <QUrl>
 #include <QWidget>
 
-#include <rapidjson/document.h>
-#include <rapidjson/error/en.h>
 #include <semver/semver.hpp>
-#include <util/networkmanager.h>
-#include <util/spdlog_qt.h>
 
-#include "network_info.h"
 #include "util.h"
+#include "util/networkmanager.h"
+#include "util/spdlog_qt.h"
 #include "version_defines.h"
+
+static_assert(ACQUISITION_USE_SPDLOG);
 
 constexpr const char* GITHUB_RELEASES_URL = "https://api.github.com/repos/gerwaric/acquisition/releases";
 constexpr const char* GITHUB_DOWNLOADS_URL = "https://github.com/gerwaric/acquisition/releases";
+
+// This are just the fields used by acquisition. See https://docs.github.com/en/rest/releases/releases
+struct GitHubReleaseTag
+{
+    QString tag_name;
+    bool draft;
+    bool prerelease;
+};
 
 // Check for updates every 24 hours.
 constexpr int UPDATE_INTERVAL = 24 * 60 * 60 * 1000;
@@ -86,7 +93,7 @@ void UpdateChecker::OnUpdateSslErrors(const QList<QSslError>& errors) {
     spdlog::error("{} SSL error(s) checking for an update:", n);
     for (int i = 0; i < n; ++i) {
         spdlog::error("SSL error # {} is {}", i, errors[i].errorString());
-    };
+    }
 }
 
 void UpdateChecker::OnUpdateReplyReceived() {
@@ -98,7 +105,7 @@ void UpdateChecker::OnUpdateReplyReceived() {
     if (reply->error() != QNetworkReply::NoError) {
         spdlog::error("The network reply came with an error: {}", reply->errorString());
         return;
-    };
+    }
 
     // Parse release tags from the json object.
     const QByteArray bytes = reply->readAll();
@@ -111,74 +118,68 @@ void UpdateChecker::OnUpdateReplyReceived() {
         if (release.prerelease) {
             if ((release.version > m_latest_prerelease)) {
                 m_latest_prerelease = release.version;
-            };
+            }
         } else {
             if ((release.version > m_latest_release)) {
                 m_latest_release = release.version;
-            };
-        };
-    };
+            }
+        }
+    }
 
     // Make sure at least one tag was found.
     if ((m_latest_release == semver::version()) && (m_latest_prerelease == semver::version())) {
         spdlog::warn("Unable to find any github releases or pre-releases!");
         return;
-    };
+    }
     if (m_latest_release > semver::version()) {
         spdlog::debug("UpdateChecker: latest release found: {}", m_latest_release.str());
-    };
+    }
     if (m_latest_prerelease > semver::version()) {
         spdlog::debug("UpdateChecker: latest prerelease found: {}", m_latest_prerelease.str());
-    };
+    }
 
     // Send a signal if there's a new version from the last check.
     if (has_newer_release() || has_newer_prerelease()) {
         emit UpdateAvailable();
-    };
+    }
 }
 
 std::vector<UpdateChecker::ReleaseTag> UpdateChecker::ParseReleaseTags(const QByteArray& bytes)
 {
-    // Parse the reply as a json document.
-    rapidjson::Document doc;
-    doc.Parse(bytes.constData());
+    std::vector<GitHubReleaseTag> github_releases;
 
-    // Check for json errors.
-    if (doc.HasParseError()) {
-        spdlog::error("Error parsing github releases: {}", rapidjson::GetParseError_En(doc.GetParseError()));
+    constexpr const glz::opts permissive{.error_on_unknown_keys = false};
+    const std::string_view sv{bytes, size_t(bytes.size())};
+    const auto ec = glz::read<permissive>(github_releases, sv);
+    if (ec) {
+        const auto msg = glz::format_error(ec, sv);
+        spdlog::error("Error parsing GitHub release tags: {}", msg);
         return {};
-    };
-    if (!doc.IsArray()) {
-        spdlog::error("Error parsing github releases: document was not an array");
-        return {};
-    };
+    }
 
     // Reserve the output vector.
     std::vector<ReleaseTag> releases;
-    releases.reserve(doc.GetArray().Size());
+    releases.reserve(github_releases.size());
 
     // Check each of the release objects.
-    for (const auto& json : doc.GetArray()) {
-
+    for (const auto &github_release : github_releases) {
         ReleaseTag release;
 
         // Parse the release version
-        if (json.HasMember("tag_name") && json["tag_name"].IsString()) {
-            QString version_string = json["tag_name"].GetString();
-            if (version_string.startsWith("v", Qt::CaseInsensitive)) {
-                version_string.remove(0, 1);
-            };
-            release.version = semver::version::parse(version_string.toStdString());
-        };
+        QString version_string = github_release.tag_name;
+        if (version_string.startsWith("v", Qt::CaseInsensitive)) {
+            version_string.remove(0, 1);
+        }
+        release.version = semver::version::parse(version_string.toStdString());
 
         // Make sure we found a parseable version number
         if (release.version == semver::version()) {
-            spdlog::warn("Github release does not contain a name: {}", Util::RapidjsonSerialize(json));
-        };
+            spdlog::warn("Error parsing GitHub release version from '{}'", version_string);
+        }
 
         // Parse the release flags
-        release.draft = (json.HasMember("draft") && json["draft"].IsBool() && json["draft"].GetBool());
-        release.prerelease = (json.HasMember("prerelease") && json["prerelease"].IsBool() && json["prerelease"].GetBool());
+        release.draft = github_release.draft;
+        release.prerelease = github_release.prerelease;
 
         // Add this release to the list.
         releases.push_back(release);
@@ -199,27 +200,27 @@ void UpdateChecker::AskUserToUpdate() {
     if (!has_newer_release() && !has_newer_prerelease()) {
         spdlog::warn("UpdateChecker: no newer versions available");
         //return;
-    };
+    }
 
     // Setup the update message.
     QStringList lines;
     if (has_newer_release()) {
         lines.append("A newer release is available:");
         lines.append("   " + QString::fromStdString(m_latest_release.str()));
-    };
+    }
     if (has_newer_prerelease()) {
         if (m_latest_prerelease > m_latest_release) {
             if (!lines.isEmpty()) {
                 lines.append("");
-            };
+            }
             lines.append("A newer prerelease is available:");
             lines.append("   " + QString::fromStdString(m_latest_prerelease.str()));
-        };
-    };
+        }
+    }
     if (lines.isEmpty()) {
         QMessageBox::information(nullptr, "Acquisition Update Checker", "No updates appear to be available", QMessageBox::StandardButton::Ok);
         return;
-    };
+    }
     const QString message = lines.join("\n");
 
     // Create the dialog box.
@@ -248,10 +249,10 @@ void UpdateChecker::AskUserToUpdate() {
     } else {
         m_settings.setValue("skip_release", "");
         m_settings.setValue("skip_prerelease", "");
-    };
+    }
 
     // Open a desktop web browser window if the user clicked that button.
     if (clicked == accept_button) {
         QDesktopServices::openUrl(QUrl(GITHUB_DOWNLOADS_URL));
-    };
+    }
 }

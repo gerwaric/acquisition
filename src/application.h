@@ -83,7 +83,7 @@ private:
     void Stop();
     void InitUserDir(const QString &dir);
     void InitCrashReporting();
-    void SaveDbOnNewVersion();
+    void SaveDataOnNewVersion();
 
     std::unique_ptr<QSettings> m_settings;
 

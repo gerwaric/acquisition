@@ -91,21 +91,6 @@ if(NOT TARGET glaze)
     FetchContent_MakeAvailable(glaze)
 endif()
 
-if(NOT TARGET rapidjson)
-    # This is a headers-only library, so we use an invalid SOURCE_DIR to prevent
-    # add_subdirectory() from called and define an interface target manually.
-    FetchContent_Declare(
-        rapidjson
-        GIT_REPOSITORY https://github.com/tencent/rapidjson.git
-        GIT_TAG        24b5e7a8b27f42fa16b96fc70aade9106cf7102f # There hasn't been a tagged release since 2016
-        GIT_SHALLOW    TRUE
-        SOURCE_SUBDIR  /dev/null
-    )
-    FetchContent_MakeAvailable(rapidjson)
-    add_library(rapidjson INTERFACE)
-    target_include_directories(rapidjson INTERFACE "${rapidjson_SOURCE_DIR}/include")
-endif()
-
 if(NOT TARGET semver)
     # This is a headers-only library, so we use an invalid SOURCE_DIR to prevent
     # add_subdirectory() from called and define an interface target manually.
@@ -156,7 +141,6 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/items_model.cpp
     src/itemsmanager.cpp
     src/itemsmanagerworker.cpp
-    # src/legacy/legacybuyoutvalidator.cpp DISABLED as of v0.12.4
     src/legacy/legacydatastore.cpp
     src/legacy/legacyitem.cpp
     src/main.cpp
@@ -169,6 +153,7 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/ratelimit/ratelimiter.cpp
     src/ratelimit/ratelimitmanager.cpp
     src/ratelimit/ratelimitpolicy.cpp
+    src/repoe/repoe.cpp
     src/search.cpp
     src/shop.cpp
     src/ui/flowlayout.cpp
@@ -180,11 +165,12 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/ui/verticalscrollarea.cpp
     src/util/checkmsvc.cpp
     src/util/fatalerror.cpp
+    src/util/json_readers.cpp
+    src/util/json_writers.cpp
     src/util/logging.cpp
     src/util/networkmanager.cpp
     src/util/oauthmanager.cpp
     src/util/oauthtoken.cpp
-    src/util/repoe.cpp
     src/util/updatechecker.cpp
     src/util/util.cpp
     # Headers
@@ -210,11 +196,11 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/itemsmanager.h
     src/itemsmanagerworker.h
     src/legacy/legacybuyout.h
-    # src/legacy/legacybuyoutvalidator.h DISABLED as of v0.12.4
     src/legacy/legacycharacter.h
     src/legacy/legacycurrency.h
     src/legacy/legacydatastore.h
     src/legacy/legacyitem.h
+    src/legacy/legacyitemlocation.h
     src/legacy/legacystash.h
     src/modlist.h
     src/modsfilter.h
@@ -265,6 +251,10 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/ratelimit/ratelimitmanager.h
     src/ratelimit/ratelimitpolicy.h
     src/replytimeout.h
+    src/repoe/baseitem.h
+    src/repoe/itemclass.h
+    src/repoe/repoe.h
+    src/repoe/stattranslation.h
     src/search.h
     src/shop.h
     src/ui/flowlayout.h
@@ -277,13 +267,12 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/util/checkmsvc.h
     src/util/fatalerror.h
     src/util/glaze_qt.h
-    # src/util/json_struct_qt.h
+    src/util/json_readers.h
+    src/util/json_writers.h
     src/util/logging.h
     src/util/networkmanager.h
     src/util/oauthmanager.h
     src/util/oauthtoken.h
-    src/util/rapidjson_util.h
-    src/util/repoe.h
     src/util/spdlog_qt.h
     src/util/updatechecker.h
     src/util/util.h
@@ -357,7 +346,6 @@ target_link_libraries(acquisition PRIVATE
     # Extenal libraries
     glaze::glaze
     qdarkstyle
-    rapidjson
     sentry
     semver
     spdlog::spdlog_header_only

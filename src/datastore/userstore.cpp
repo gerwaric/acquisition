@@ -23,13 +23,15 @@
 #include <QUuid>
 
 #include "userstore.h"
+#include "util/json_readers.h"
+#include "util/json_writers.h"
 #include "util/spdlog_qt.h"
 
 static_assert(ACQUISITION_USE_SPDLOG);
 
 //================================================================================
 
-static constexpr int SCHEMA_VERSION = 2;
+static constexpr int SCHEMA_VERSION = 1;
 
 constexpr unsigned int QSQLITE_BUSY_TIMEOUT{5000};
 
@@ -144,7 +146,8 @@ constexpr const char *INSERT_CHARACTER{
       timestamp    = excluded.timestamp,
       data         = excluded.data;)"};
 
-constexpr const char *SELECT_CHARACTER{"SELECT data, timestamp FROM characters WHERE id = :id;"};
+constexpr const char *SELECT_CHARACTER{
+    "SELECT data, timestamp FROM characters WHERE name = :name;"};
 
 // ---------- STASHES ----------
 
@@ -220,25 +223,6 @@ constexpr const char *INSERT_STASH =
 
 constexpr const char *SELECT_STASH{"SELECT data, timestamp FROM stashes WHERE id = :id;"};
 
-// ---------- STASH CHILDREN ----------
-
-constexpr const char *CREATE_STASH_CHILDREN_TABLE{
-    R"(CREATE TABLE IF NOT EXISTS stash_children (
-        parent          TEXT NOT NULL,
-        child           TEXT NOT NULL,
-        PRIMARY KEY (parent, child),
-        FOREIGN KEY(parent) REFERENCES stashes(id) ON DELETE CASCADE,
-        FOREIGN KEY(child)  REFERENCES stashes(id) ON DELETE CASCADE
-    ) WITHOUT ROWID;)"};
-
-constexpr const char *DELETE_STASH_CHILDREN{"DELETE FROM stash_children WHERE parent = :parent;"};
-
-constexpr const char *INSERT_STASH_CHILDREN{
-    "INSERT OR IGNORE INTO stash_children (parent, child) VALUES (:parent, :child);"};
-
-constexpr const char *SELECT_STASH_CHILDREN{
-    "SELECT child FROM stash_children WHERE parent = :parent;"};
-
 //================================================================================
 
 UserStore::UserStore(const QDir &dir, const QString &username, QObject *parent)
@@ -253,7 +237,9 @@ UserStore::UserStore(const QDir &dir, const QString &username, QObject *parent)
     const auto uuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
     m_connection = QString("userdata:%1:%2").arg(username, uuid);
-    m_filename = dataDir.absoluteFilePath(username + ".db");
+    m_filename = dataDir.absoluteFilePath("userstore-" + username + ".db");
+
+    spdlog::debug("Creating DataStore {}: '{}'", m_connection, m_filename);
 
     m_db = QSqlDatabase::addDatabase("QSQLITE", m_connection);
     m_db.setDatabaseName(m_filename);
@@ -273,6 +259,7 @@ UserStore::UserStore(const QDir &dir, const QString &username, QObject *parent)
     }
 
     const int v = userVersion();
+    spdlog::debug("UserStore: user_version is {}, schema version is {}", v, SCHEMA_VERSION);
     if (v < SCHEMA_VERSION) {
         spdlog::info("UserStore: migrating from user_version {} to {}", v, SCHEMA_VERSION);
         migrate();
@@ -325,11 +312,23 @@ void UserStore::migrate()
         return;
     }
 
+    constexpr const std::array tables{
+        std::make_pair("lists", CREATE_LISTS_TABLE),
+        std::make_pair("characters", CREATE_CHARACTER_TABLE),
+        std::make_pair("stashes", CREATE_STASH_TABLE),
+    };
+
     // Create tables.
-    for (const auto &sql : {CREATE_LISTS_TABLE,
-                            CREATE_CHARACTER_TABLE,
-                            CREATE_STASH_TABLE,
-                            CREATE_STASH_CHILDREN_TABLE}) {
+    for (const auto &[name, sql] : tables) {
+        spdlog::debug("UserStore: setting up table: {}", name);
+
+        if (!q.exec(QStringLiteral("DROP TABLE IF EXISTS '%1'").arg(name))) {
+            const auto msg = q.lastError().text();
+            spdlog::error("UserStore: error deleting table: '{}': {}", name, msg);
+            q.exec("ROLLBACK;");
+            return;
+        }
+
         if (!q.exec(sql)) {
             const auto msg = q.lastError().text();
             spdlog::error("UserStore: error creating table: '{}': {}", sql, msg);
@@ -354,7 +353,10 @@ void UserStore::migrate()
         return;
     }
 
-    q.exec("COMMIT;");
+    if (!q.exec("COMMIT;")) {
+        spdlog::error("UserStore: error committing migration: {}", q.lastError().text());
+        return;
+    }
 
     spdlog::info("UserStore: migrated from version {} to {}", v, SCHEMA_VERSION);
 }
@@ -362,12 +364,9 @@ void UserStore::migrate()
 void UserStore::saveCharacterList(const std::vector<poe::Character> &characters,
                                   const QString &realm)
 {
-    const auto json = glz::write_json(characters);
-    if (!json) {
-        const auto msg = glz::format_error(json.error());
-        spdlog::error("UserStore: error serializing character list: {}", msg);
-        return;
-    }
+    spdlog::debug("UserStore: saving character list: realm='{}', size={}", realm, characters.size());
+
+    const QByteArray json = writeCharacterList(characters);
 
     QSqlQuery q(m_db);
     q.prepare(INSERT_LIST);
@@ -375,7 +374,7 @@ void UserStore::saveCharacterList(const std::vector<poe::Character> &characters,
     q.bindValue(":realm", realm);
     q.bindValue(":league", "*");
     q.bindValue(":timestamp", QDateTime::currentMSecsSinceEpoch());
-    q.bindValue(":data", QByteArray::fromStdString(json.value()));
+    q.bindValue(":data", json);
 
     if (!q.exec()) {
         spdlog::error("UserStore: error saving character list: {}", q.lastError().text());
@@ -386,12 +385,12 @@ void UserStore::saveStashList(const std::vector<poe::StashTab> &stashes,
                               const QString &realm,
                               const QString &league)
 {
-    const auto json = glz::write_json(stashes);
-    if (!json) {
-        const auto msg = glz::format_error(json.error());
-        spdlog::error("UserStore: error serializing stash list: {}", msg);
-        return;
-    }
+    spdlog::debug("UserStore: saving stash list: realm='{}', league='{}', size={}",
+                  realm,
+                  league,
+                  stashes.size());
+
+    const QByteArray json = writeStashList(stashes);
 
     QSqlQuery q(m_db);
     q.prepare(INSERT_LIST);
@@ -399,7 +398,7 @@ void UserStore::saveStashList(const std::vector<poe::StashTab> &stashes,
     q.bindValue(":realm", realm);
     q.bindValue(":league", league);
     q.bindValue(":timestamp", QDateTime::currentMSecsSinceEpoch());
-    q.bindValue(":data", QByteArray::fromStdString(json.value()));
+    q.bindValue(":data", json);
 
     if (!q.exec()) {
         spdlog::error("UserStore: error saving stash list: {}", q.lastError().text());
@@ -409,11 +408,16 @@ void UserStore::saveStashList(const std::vector<poe::StashTab> &stashes,
 
 std::vector<poe::Character> UserStore::getCharacterList(const QString &realm)
 {
+    spdlog::debug("UserStore: getting character list: realm='{}'", realm);
+
+    const QString name{"characters"};
+    const QString league{"*"};
+
     QSqlQuery q(m_db);
     q.prepare(SELECT_LIST);
-    q.bindValue(":name", "characters");
+    q.bindValue(":name", name);
     q.bindValue(":realm", realm);
-    q.bindValue(":league", "*");
+    q.bindValue(":league", league);
 
     if (!q.exec()) {
         spdlog::error("UserStore: error selecting character list: {}", q.lastError().text());
@@ -421,26 +425,23 @@ std::vector<poe::Character> UserStore::getCharacterList(const QString &realm)
     }
 
     if (!q.next()) {
-        spdlog::error("UserStore: error getting character list: {}", q.lastError().text());
+        spdlog::debug("No rows. active={} at={} isSelect={}", q.isActive(), q.at(), q.isSelect());
         return {};
     }
 
-    const auto json = q.value(0).toByteArray();
-    const std::string_view sv{json.constData(), size_t(json.size())};
-    const auto result = glz::read_json<std::vector<poe::Character>>(sv);
-    if (!result) {
-        const auto msg = glz::format_error(result.error(), sv);
-        spdlog::error("UserStore: error parsing character list: {}", msg);
-        return {};
-    }
-    return result.value();
+    const QVariant data = q.value("data");
+    return readCharacterList(data.toByteArray());
 }
 
 std::vector<poe::StashTab> UserStore::getStashList(const QString &realm, const QString &league)
 {
+    spdlog::debug("UserStore: getting stash list: realm='{}', league='{}'", realm, league);
+
+    const QString name{"stashes"};
+
     QSqlQuery q(m_db);
     q.prepare(SELECT_LIST);
-    q.bindValue(":name", "stashes");
+    q.bindValue(":name", name);
     q.bindValue(":realm", realm);
     q.bindValue(":league", league);
 
@@ -450,33 +451,26 @@ std::vector<poe::StashTab> UserStore::getStashList(const QString &realm, const Q
     }
 
     if (!q.next()) {
-        spdlog::error("UserStore: error getting stash list: {}", q.lastError().text());
+        spdlog::debug("No rows. active={} at={} isSelect={}", q.isActive(), q.at(), q.isSelect());
         return {};
     }
 
-    const auto json = q.value(0).toByteArray();
-    const std::string_view sv{json.constData(), size_t(json.size())};
-    const auto result = glz::read_json<std::vector<poe::StashTab>>(sv);
-    if (!result) {
-        const auto msg = glz::format_error(result.error(), sv);
-        spdlog::error("UserStore: error parsing stash list: {}", msg);
-        return {};
-    }
-    return result.value();
+    const QVariant data = q.value("data");
+    return readStashList(data.toByteArray());
 }
 
 void UserStore::saveCharacter(const poe::Character &character)
 {
+    spdlog::debug("UserStore: saving character: realm='{}', league='{}', id='{}', name='{}'",
+                  character.realm,
+                  character.league.value_or(""),
+                  character.id,
+                  character.name);
+
+    const QByteArray json = writeCharacter(character);
     const QVariant version = (character.metadata && character.metadata->version)
                                  ? *character.metadata->version
                                  : QVariant();
-
-    const auto json = glz::write_json(character);
-    if (!json) {
-        spdlog::error("UserStore: error writing character json: {}",
-                      glz::format_error(json.error()));
-        return;
-    }
 
     QSqlQuery q(m_db);
 
@@ -494,7 +488,7 @@ void UserStore::saveCharacter(const poe::Character &character)
     q.bindValue(":current", character.current.value_or(false));
     q.bindValue(":meta_version", version);
     q.bindValue(":timestamp", QDateTime::currentMSecsSinceEpoch());
-    q.bindValue(":data", QByteArray(json->data(), json->size()));
+    q.bindValue(":data", json);
 
     if (!q.exec()) {
         spdlog::error("UserStore: error saving character: {}", q.lastError().text());
@@ -504,16 +498,13 @@ void UserStore::saveCharacter(const poe::Character &character)
 
 void UserStore::saveStash(const poe::StashTab &stash, const QString &realm, const QString &league)
 {
-    const auto json = glz::write_json(stash);
-    if (!json) {
-        spdlog::error("UserStore: error writing stash json: {}", glz::format_error(json.error()));
-        return;
-    }
+    spdlog::debug("UserStore: saving stash: realm='{}', league='{}', id='{}', name='{}'",
+                  realm,
+                  league,
+                  stash.id,
+                  stash.name);
 
-    if (!m_db.transaction()) {
-        spdlog::error("UserStore: error starting stash transaction: {}", m_db.lastError().text());
-        return;
-    }
+    const QByteArray json = writeStash(stash);
 
     QSqlQuery q(m_db);
 
@@ -530,117 +521,54 @@ void UserStore::saveStash(const poe::StashTab &stash, const QString &realm, cons
     q.bindValue(":meta_folder", stash.metadata.folder.value_or(false));
     q.bindValue(":meta_colour", stash.metadata.colour ? *stash.metadata.colour : QVariant());
     q.bindValue(":timestamp", QDateTime::currentMSecsSinceEpoch());
-    q.bindValue(":data", QByteArray(json->data(), json->size()));
+    q.bindValue(":data", json);
 
     if (!q.exec()) {
         spdlog::error("UserStore: error saving stash: {}", q.lastError().text());
-        m_db.rollback();
-        return;
-    }
-
-    q.prepare(DELETE_STASH_CHILDREN);
-    q.bindValue(":parent", stash.id);
-    if (!q.exec()) {
-        spdlog::error("UserStore: error deleting stash children: {}", q.lastError().text());
-        m_db.rollback();
-        return;
-    }
-
-    if (stash.children) {
-        QVariantList parents, children;
-        parents.reserve(stash.children->size());
-        children.reserve(stash.children->size());
-        for (const auto &child : *stash.children) {
-            parents.push_back(stash.id);
-            children.push_back(child.id);
-        }
-
-        q.prepare(INSERT_STASH_CHILDREN);
-        q.bindValue(":parent", parents);
-        q.bindValue(":child", children);
-
-        if (!q.execBatch()) {
-            spdlog::error("UserStore: error adding stash children: {}", q.lastError().text());
-            m_db.rollback();
-            return;
-        }
-    }
-
-    if (!m_db.commit()) {
-        spdlog::error("UserStore: error committing stash transaction: {}", q.lastError().text());
-        m_db.rollback();
         return;
     }
 }
 
-poe::Character UserStore::getCharacter(const QString &id)
+poe::Character UserStore::getCharacter(const QString &name)
 {
+    spdlog::debug("UserStore: getting character: name='{}'", name);
+
     QSqlQuery q(m_db);
     q.prepare(SELECT_CHARACTER);
-    q.bindValue(":id", id);
+    q.bindValue(":name", name);
 
     if (!q.exec()) {
-        spdlog::error("UserStore: error selecting character: {}", q.lastError().text());
+        spdlog::error("UserStore: error selecting character '{}': {}", name, q.lastError().text());
         return {};
     }
 
     if (!q.next()) {
-        spdlog::error("UserStore: error getting character: {}", q.lastError().text());
+        spdlog::error("UserStore: error getting character '{}': {}", name, q.lastError().text());
         return {};
     }
 
-    const auto json = q.value(0).toByteArray();
-    const std::string_view sv{json.constBegin(), size_t(json.size())};
-    const auto result = glz::read_json<poe::Character>(sv);
-    if (!result) {
-        const auto msg = glz::format_error(result.error(), sv);
-        spdlog::error("UserStore: error parsing character: {}", msg);
-        return {};
-    }
-    return result.value();
+    const QVariant data = q.value("data");
+    return readCharacter(data.toByteArray());
 }
 
 poe::StashTab UserStore::getStash(const QString &id)
 {
+    spdlog::debug("UserStore: getting stash: id='{}'", id);
+
     QSqlQuery q(m_db);
     q.prepare(SELECT_STASH);
     q.bindValue(":id", id);
 
     if (!q.exec()) {
-        spdlog::error("UserStore: error selecting stash: {}", q.lastError().text());
+        spdlog::error("UserStore: error selecting stash '{}': {}", id, q.lastError().text());
         return {};
     }
 
     if (!q.next()) {
-        spdlog::error("UserStore: error getting stash: {}", q.lastError().text());
+        spdlog::error("UserStore: error getting stash '{}': {}", id, q.lastError().text());
         return {};
     }
 
-    const auto json = q.value(0).toByteArray();
-    const std::string_view sv{json.constBegin(), size_t(json.size())};
-    const auto result = glz::read_json<poe::StashTab>(sv);
-    if (!result) {
-        const auto msg = glz::format_error(result.error(), sv);
-        spdlog::error("UserStore: error parsing stash: {}", msg);
-        return {};
-    }
-    return result.value();
-}
-
-std::vector<QString> UserStore::getStashChildren(const QString &parent_id)
-{
-    QSqlQuery q(m_db);
-    q.prepare(SELECT_STASH_CHILDREN);
-    q.bindValue(":parent", parent_id);
-
-    if (!q.exec()) {
-        spdlog::error("UserStore: error selecting stash children: {}", q.lastError().text());
-        return {};
-    }
-
-    std::vector<QString> children;
-    while (q.next()) {
-        children.push_back(q.value(0).toString());
-    }
-    return children;
+    const QVariant data = q.value("data");
+    return readStash(data.toByteArray());
 }

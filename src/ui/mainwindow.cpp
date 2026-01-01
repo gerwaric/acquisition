@@ -45,36 +45,33 @@
 
 #include <vector>
 
-#include <datastore/datastore.h>
-#include <ratelimit/ratelimit.h>
-#include <ratelimit/ratelimitdialog.h>
-#include <ratelimit/ratelimiter.h>
-#include <util/networkmanager.h>
-#include <util/oauthmanager.h>
-#include <util/spdlog_qt.h>
-#include <util/updatechecker.h>
-#include <util/util.h>
-
-#include <buyoutmanager.h>
-#include <currencymanager.h>
-#include <filters.h>
-#include <imagecache.h>
-#include <item.h>
-#include <itemcategories.h>
-#include <itemconstants.h>
-#include <itemlocation.h>
-#include <items_model.h>
-#include <itemsmanager.h>
-#include <modsfilter.h>
-#include <network_info.h>
-#include <replytimeout.h>
-#include <search.h>
-#include <shop.h>
-#include <version_defines.h>
-
+#include "buyoutmanager.h"
+#include "currencymanager.h"
+#include "datastore/datastore.h"
+#include "filters.h"
 #include "flowlayout.h"
+#include "imagecache.h"
+#include "item.h"
+#include "itemcategories.h"
+#include "itemconstants.h"
+#include "itemlocation.h"
+#include "items_model.h"
+#include "itemsmanager.h"
 #include "itemtooltip.h"
 #include "logpanel.h"
+#include "modsfilter.h"
+#include "ratelimit/ratelimit.h"
+#include "ratelimit/ratelimitdialog.h"
+#include "ratelimit/ratelimiter.h"
+#include "replytimeout.h"
+#include "search.h"
+#include "shop.h"
+#include "util/networkmanager.h"
+#include "util/oauthmanager.h"
+#include "util/spdlog_qt.h"
+#include "util/updatechecker.h"
+#include "util/util.h"
+#include "version_defines.h"
 #include "verticalscrollarea.h"
 
 constexpr const char *POE_WEBCDN
@@ -82,6 +79,17 @@ constexpr const char *POE_WEBCDN
 
 constexpr int CURRENT_ITEM_UPDATE_DELAY_MS = 100;
 constexpr int SEARCH_UPDATE_DELAY_MS = 350;
+
+struct ImgurStatus
+{
+    struct Link
+    {
+        QString link;
+    };
+
+    int status;
+    ImgurStatus::Link data;
+};
 
 MainWindow::MainWindow(QSettings &settings,
                        NetworkManager &network_manager,
@@ -1261,25 +1269,23 @@ void MainWindow::OnUploadFinished()
     QByteArray bytes = reply->readAll();
     reply->deleteLater();
 
-    rapidjson::Document doc;
-    doc.Parse(bytes.constData());
+    ImgurStatus result;
 
-    if (doc.HasParseError() || !doc.IsObject() || !doc.HasMember("status")
-        || !doc["status"].IsNumber()) {
-        spdlog::error("Imgur API returned invalid data (or timed out): {}", bytes);
+    constexpr const glz::opts permissive{.error_on_unknown_keys = false};
+    const std::string_view sv{bytes, size_t(bytes.size())};
+    const auto ec = glz::read<permissive>(result, sv);
+    if (!ec) {
+        const auto msg = glz::format_error(ec, sv);
+        spdlog::error("Error parsing Imgur result: {}", msg);
         return;
     }
-    if (doc["status"].GetInt() != 200) {
-        spdlog::error("Imgur API returned status!=200: {}", bytes);
+
+    if (result.status != 200) {
+        spdlog::error("Imgur API returned status != 200: {}", bytes);
         return;
     }
-    if (!doc.HasMember("data") || !doc["data"].HasMember("link")
-        || !doc["data"]["link"].IsString()) {
-        spdlog::error("Imgur API returned malformed reply: {}", bytes);
-        return;
-    }
-    QString url = doc["data"]["link"].GetString();
+
+    const QString url = result.data.link;
     QApplication::clipboard()->setText(url);
-    spdlog::info(
-        "Image successfully uploaded, the URL is {}. It also was copied to your clipboard.", url);
+    spdlog::info("Image uploaded to '{}' and the URL has been copied to your clipboard.", url);
 }
