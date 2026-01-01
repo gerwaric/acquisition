@@ -110,12 +110,12 @@ void Application::InitUserDir(const QString &dir)
     spdlog::trace("Application: creating the settings object: {}", settings_path);
     m_settings = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
 
-    SaveDataOnNewVersion();
-
     const QDir user_dir(m_data_dir.filePath("data"));
     const QString global_data_file = user_dir.filePath(SqliteDataStore::MakeFilename("", ""));
     spdlog::trace("Application: opening global data file: {}", global_data_file);
     m_global_data = std::make_unique<SqliteDataStore>(global_data_file);
+
+    SaveDataOnNewVersion();
 
     const QString image_cache_dir = dir + QDir::separator() + "cache";
     m_image_cache = std::make_unique<ImageCache>(network_manager(), image_cache_dir);
@@ -512,7 +512,7 @@ void Application::SaveDataOnNewVersion()
     // The version setting was introduced in v0.16, so for prior versions we
     // use the global data store.
     if (version.isEmpty()) {
-        version = m_data->Get("version", "UNKNOWN-VERSION");
+        version = m_global_data->Get("version", "UNKNOWN-VERSION");
     }
 
     // Do nothing if the version is current.
