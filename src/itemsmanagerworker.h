@@ -11,10 +11,9 @@
 #include <queue>
 #include <set>
 
-#include <ui/mainwindow.h>
-#include <util/util.h>
-
 #include "item.h"
+#include "ui/mainwindow.h"
+#include "util/util.h"
 
 class QNetworkReply;
 class QSettings;

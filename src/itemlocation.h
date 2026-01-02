@@ -10,8 +10,6 @@
 
 #include "util/spdlog_qt.h"
 
-static_assert(ACQUISITION_USE_SPDLOG);
-
 struct LegacyCharacter;
 struct LegacyItemLocation;
 struct LegacyStash;

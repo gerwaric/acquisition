@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2023 Tom Holz
 
-#include "ratelimitpolicy.h"
+#include "ratelimit/ratelimitpolicy.h"
 
 #include <algorithm>
 
@@ -9,11 +9,9 @@
 #include <QDateTime>
 #include <QNetworkReply>
 
-#include "ratelimit.h"
-#include "util/spdlog_qt.h"
+#include "ratelimit/ratelimit.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
-
-static_assert(ACQUISITION_USE_SPDLOG);
 
 // GGG has stated that when they are keeping track of request times,
 // they have a timing resolution, which they called a "bucket".

@@ -14,20 +14,19 @@
 #include <QUrl>
 #include <QUrlQuery>
 
-#include "poe/types/website/webstashtab.h"
-#include <datastore/datastore.h>
-#include <ratelimit/ratelimitedreply.h>
-#include <ratelimit/ratelimiter.h>
-#include <ui/mainwindow.h>
-#include <util/networkmanager.h>
-#include <util/spdlog_qt.h>
-#include <util/util.h>
-
 #include "application.h"
 #include "buyoutmanager.h"
+#include "datastore/datastore.h"
 #include "item.h"
 #include "itemsmanager.h"
+#include "poe/types/website/webstashtab.h"
+#include "ratelimit/ratelimitedreply.h"
+#include "ratelimit/ratelimiter.h"
 #include "replytimeout.h"
+#include "ui/mainwindow.h"
+#include "util/networkmanager.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
+#include "util/util.h"
 
 namespace {
 

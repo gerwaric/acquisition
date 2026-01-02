@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
-#include "sqlitedatastore.h"
+#include "datastore/sqlitedatastore.h"
 
 #include <QCryptographicHash>
 #include <QDir>
@@ -10,9 +10,8 @@
 #include <QSqlQuery>
 #include <QThread>
 
-#include <util/spdlog_qt.h>
-
-#include <currencymanager.h>
+#include "currencymanager.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
 SqliteDataStore::SqliteDataStore(const QString &filename)
     : m_filename(filename)

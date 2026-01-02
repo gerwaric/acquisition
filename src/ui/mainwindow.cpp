@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
-#include "mainwindow.h"
+#include "ui/mainwindow.h"
 #include "ui_mainwindow.h"
 
 #include <QApplication>
@@ -33,7 +33,6 @@
 #include "currencymanager.h"
 #include "datastore/datastore.h"
 #include "filters.h"
-#include "flowlayout.h"
 #include "imagecache.h"
 #include "item.h"
 #include "itemcategories.h"
@@ -41,8 +40,6 @@
 #include "itemlocation.h"
 #include "items_model.h"
 #include "itemsmanager.h"
-#include "itemtooltip.h"
-#include "logpanel.h"
 #include "modsfilter.h"
 #include "ratelimit/ratelimit.h"
 #include "ratelimit/ratelimitdialog.h"
@@ -50,13 +47,16 @@
 #include "replytimeout.h"
 #include "search.h"
 #include "shop.h"
+#include "ui/flowlayout.h"
+#include "ui/itemtooltip.h"
+#include "ui/logpanel.h"
+#include "ui/verticalscrollarea.h"
 #include "util/networkmanager.h"
 #include "util/oauthmanager.h"
 #include "util/spdlog_qt.h"
 #include "util/updatechecker.h"
 #include "util/util.h"
 #include "version_defines.h"
-#include "verticalscrollarea.h"
 
 constexpr const char *POE_WEBCDN
     = "http://webcdn.pathofexile.com"; // Should be updated to https://web.poecdn.com ?

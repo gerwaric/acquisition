@@ -1,23 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2023 Tom Holz
 
-#include "ratelimitmanager.h"
+#include "ratelimit/ratelimitmanager.h"
 
 #include <QApplication>
 #include <QErrorMessage>
 #include <QMessageBox>
 #include <QNetworkReply>
 
-#include "ratelimit.h"
-#include "ratelimitedreply.h"
-#include "ratelimitedrequest.h"
-#include "ratelimiter.h"
-#include "ratelimitpolicy.h"
+#include "ratelimit/ratelimit.h"
+#include "ratelimit/ratelimitedreply.h"
+#include "ratelimit/ratelimitedrequest.h"
+#include "ratelimit/ratelimiter.h"
+#include "ratelimit/ratelimitpolicy.h"
 #include "util/fatalerror.h"
-#include "util/spdlog_qt.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
-
-static_assert(ACQUISITION_USE_SPDLOG);
 
 // For debugging rate limit violations, keep around more history than should be needed
 constexpr int HISTORY_BUFFER = 5;

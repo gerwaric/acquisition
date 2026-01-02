@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
-#include "util.h"
+#include "util/util.h"
 
 #include <QComboBox>
 #include <QCryptographicHash>
@@ -23,9 +23,6 @@
 
 #include "currency.h"
 #include "poe/types/stashtab.h"
-#include "util/spdlog_qt.h"
-
-static_assert(ACQUISITION_USE_SPDLOG);
 
 QString Util::Md5(const QString &value)
 {

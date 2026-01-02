@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2024 Tom Holz
 
-#include "checkmsvc.h"
+#include "util/checkmsvc.h"
 
 #include <QDesktopServices>
 #include <QDir>
@@ -12,9 +12,8 @@
 #include <QVersionNumber>
 #include <QtGlobal>
 
-#include <util/spdlog_qt.h>
-
-#include "fatalerror.h"
+#include "util/fatalerror.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "version_defines.h"
 
 #ifdef Q_OS_WINDOWS

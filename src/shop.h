@@ -9,9 +9,8 @@
 
 #include <map>
 
-#include <ui/mainwindow.h>
-
 #include "buyout.h"
+#include "ui/mainwindow.h"
 
 class QSettings;
 

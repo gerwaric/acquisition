@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2024 Tom Holz
 
-#include "fatalerror.h"
+#include "util/fatalerror.h"
 
 #include <QObject>
 
@@ -14,8 +14,7 @@
 #include <QUrl>
 #include <QUrlQuery>
 
-#include <util/spdlog_qt.h>
-
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "version_defines.h"
 
 constexpr const char *GITHUB_ISSUES_URL = (APP_URL "/issues");

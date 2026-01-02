@@ -6,9 +6,7 @@
 #include <QString>
 
 #include <sstream>
-#include <utility>
-
-#include <util/util.h>
+#include "utility"
 
 #include "itemcategories.h"
 #include "itemconstants.h"
@@ -16,6 +14,7 @@
 #include "modlist.h"
 #include "poe/types/displaymode.h"
 #include "poe/types/item.h"
+#include "util/util.h"
 
 const std::array<Item::CategoryReplaceMap, Item::k_CategoryLevels> Item::m_replace_map = {
     // Category hierarchy 0 replacement map

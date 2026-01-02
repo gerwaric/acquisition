@@ -8,7 +8,7 @@
 
 #include <map>
 
-#include <util/spdlog_qt.h>
+#include "util/spdlog_qt.h"
 
 namespace ItemEnums {
     Q_NAMESPACE

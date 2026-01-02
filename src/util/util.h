@@ -10,10 +10,8 @@
 #include <QString>
 #include <QUrlQuery>
 
-#include "util/glaze_qt.h"
+#include "util/glaze_qt.h" // IWYU pragma: keep
 #include "util/spdlog_qt.h"
-
-static_assert(ACQUISITION_USE_GLAZE);
 
 class QComboBox;
 class QNetworkReply;

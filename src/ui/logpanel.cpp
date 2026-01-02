@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
-#include "logpanel.h"
+#include "ui/logpanel.h"
 
 #include <QFontDatabase>
 #include <QObject>
@@ -12,7 +12,7 @@
 #include <spdlog/sinks/callback_sink.h>
 #include <spdlog/sinks/qt_sinks.h>
 
-#include "mainwindow.h"
+#include "ui/mainwindow.h"
 #include "ui_mainwindow.h"
 
 constexpr QColor ERROR_COLOR = QColor(255, 0, 0);

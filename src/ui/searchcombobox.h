@@ -8,7 +8,7 @@
 #include <QProxyStyle>
 #include <QTimer>
 
-#include <util/spdlog_qt.h>
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
 class QAbstractItemModel;
 

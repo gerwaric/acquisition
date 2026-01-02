@@ -11,7 +11,7 @@
 #include <QString>
 #include <QTimer>
 
-#include "ratelimit.h"
+#include "ratelimit/ratelimit.h"
 
 class QNetworkReply;
 

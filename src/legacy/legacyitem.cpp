@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 Tom Holz
 
-#include "legacyitem.h"
+#include "legacy/legacyitem.h"
 
 #include <QRegularExpression>
 
-#include <util/spdlog_qt.h>
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
 QString LegacyItem::effectiveTypeLine() const
 {

@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include <memory>
 #include <QCloseEvent>
 #include <QLabel>
 #include <QMainWindow>
@@ -11,7 +10,9 @@
 #include <QPushButton>
 #include <QTimer>
 
-#include <util/spdlog_qt.h>
+#include <memory>
+
+#include <spdlog/spdlog.h>
 
 class QNetworkReply;
 class QSettings;

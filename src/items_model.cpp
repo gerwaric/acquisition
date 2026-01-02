@@ -3,14 +3,13 @@
 
 #include "items_model.h"
 
-#include <util/spdlog_qt.h>
-#include <util/util.h>
-
 #include "application.h"
 #include "bucket.h"
 #include "buyoutmanager.h"
 #include "itemlocation.h"
 #include "search.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
+#include "util/util.h"
 
 ItemsModel::ItemsModel(BuyoutManager &bo_manager, Search &search)
     : m_bo_manager(bo_manager)

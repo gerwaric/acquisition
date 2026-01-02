@@ -7,7 +7,7 @@
 #include <QSet>
 #include <QSqlDatabase>
 
-#include "datastore.h"
+#include "datastore/datastore.h"
 
 class Application;
 struct CurrencyUpdate;

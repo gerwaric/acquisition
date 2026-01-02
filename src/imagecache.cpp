@@ -11,9 +11,9 @@
 #include <QNetworkRequest>
 #include <QString>
 
-#include <util/networkmanager.h>
-#include <util/spdlog_qt.h>
-#include <util/util.h>
+#include "util/networkmanager.h"
+#include "util/spdlog_qt.h"
+#include "util/util.h"
 
 ImageCache::ImageCache(NetworkManager &network_manager, const QString &directory)
     : m_network_manager(network_manager)

@@ -8,13 +8,11 @@
 
 #include <vector>
 
-#include <ui/mainwindow.h>
-#include <util/util.h>
-
 #include "item.h"
 #include "itemlocation.h"
 #include "itemsmanagerworker.h"
-//#include "network_info.h"
+#include "ui/mainwindow.h"
+#include "util/util.h"
 
 class QSettings;
 

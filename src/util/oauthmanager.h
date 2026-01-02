@@ -10,7 +10,7 @@
 #include <QUrl>
 #include <QVariantMap>
 
-#include "oauthtoken.h"
+#include "util/oauthtoken.h"
 
 class QOAuth2AuthorizationCodeFlow;
 class QOAuthHttpServerReplyHandler;

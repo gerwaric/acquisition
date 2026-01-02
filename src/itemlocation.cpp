@@ -5,15 +5,14 @@
 
 #include <QString>
 
-#include <legacy/legacycharacter.h>
-#include <legacy/legacyitemlocation.h>
-#include <legacy/legacystash.h>
-#include <poe/types/character.h>
-#include <poe/types/stashtab.h>
-#include <util/spdlog_qt.h>
-#include <util/util.h>
-
 #include "itemconstants.h"
+#include "legacy/legacycharacter.h"
+#include "legacy/legacyitemlocation.h"
+#include "legacy/legacystash.h"
+#include "poe/types/character.h"
+#include "poe/types/stashtab.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
+#include "util/util.h"
 
 ItemLocation::ItemLocation()
     : m_type(ItemLocationType::STASH)

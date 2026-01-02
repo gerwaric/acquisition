@@ -1,20 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2023 Tom Holz
 
-#include "ratelimiter.h"
+#include "ratelimit/ratelimiter.h"
 
 #include <QEventLoop>
 #include <QNetworkReply>
 
-#include "ratelimitedreply.h"
-#include "ratelimitmanager.h"
-#include "ratelimitpolicy.h"
+#include "ratelimit/ratelimitedreply.h"
+#include "ratelimit/ratelimitmanager.h"
+#include "ratelimit/ratelimitpolicy.h"
 #include "util/fatalerror.h"
 #include "util/networkmanager.h"
 #include "util/oauthmanager.h"
-#include "util/spdlog_qt.h"
-
-static_assert(ACQUISITION_USE_SPDLOG);
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
 constexpr int UPDATE_INTERVAL_MSEC = 1000;
 

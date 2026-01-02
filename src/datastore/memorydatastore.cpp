@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2015 Ilya Zhuravlev
 
-#include "memorydatastore.h"
+#include "datastore/memorydatastore.h"
 
-#include <currencymanager.h>
+#include "currencymanager.h"
 
 QString MemoryDataStore::Get(const QString &key, const QString &default_value)
 {

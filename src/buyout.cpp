@@ -3,8 +3,6 @@
 
 #include "buyout.h"
 
-#include <util/spdlog_qt.h>
-
 const QString Buyout::m_buyout_type_error;
 
 const Buyout::BuyoutTypeMap Buyout::m_buyout_type_as_tag = {{BUYOUT_TYPE_IGNORE, "[ignore]"},
@@ -39,6 +37,7 @@ bool Buyout::IsValid() const
         return (currency != Currency::CURRENCY_NONE) && (source != BUYOUT_SOURCE_NONE);
     default:
         spdlog::error("Invalid buyout type: {}", static_cast<int>(type));
+        spdlog::error("{}", QString("hello"));
         return false;
     };
 }

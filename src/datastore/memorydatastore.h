@@ -5,7 +5,7 @@
 
 #include <map>
 
-#include "datastore.h"
+#include "datastore/datastore.h"
 
 class MemoryDataStore : public DataStore
 {

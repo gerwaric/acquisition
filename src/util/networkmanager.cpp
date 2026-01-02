@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2024 Tom Holz
 
-#include "networkmanager.h"
-#include "network_info.h"
+#include "util/networkmanager.h"
 
-#include "util/spdlog_qt.h"
-
-#include <QNetworkDiskCache>
 #include <QDir>
+#include <QNetworkDiskCache>
 #include <QStandardPaths>
 
-// Prevent unused header warnings in Qt Creator.
-static_assert(ACQUISITION_USE_SPDLOG);
+#include "network_info.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
 // Size of the network disk cache.
 constexpr const int CACHE_SIZE_MEGABYTES = 100;

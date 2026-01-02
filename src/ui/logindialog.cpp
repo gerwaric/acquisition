@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
-#include "logindialog.h"
+#include "ui/logindialog.h"
 #include "ui_logindialog.h"
 
 #include <QDesktopServices>
@@ -21,19 +21,15 @@
 #include <QUrl>
 #include <QUrlQuery>
 
-#include <poe/types/league.h>
-
-// #include "legacy/legacybuyoutvalidator.h" -- DISABLED as of v0.12.3.1
-#include <datastore/datastore.h>
-#include <util/networkmanager.h>
-#include <util/oauthmanager.h>
-#include <util/spdlog_qt.h>
-#include <util/updatechecker.h>
-#include <util/util.h>
-#include <version_defines.h>
-
-#include <network_info.h>
-#include <replytimeout.h>
+#include "datastore/datastore.h"
+#include "poe/types/league.h"
+#include "replytimeout.h"
+#include "util/networkmanager.h"
+#include "util/oauthmanager.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
+#include "util/updatechecker.h"
+#include "util/util.h"
+#include "version_defines.h"
 
 #include "mainwindow.h"
 

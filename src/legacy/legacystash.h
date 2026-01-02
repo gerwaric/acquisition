@@ -7,7 +7,7 @@
 
 #include <optional>
 
-#include <util/glaze_qt.h>
+#include "util/glaze_qt.h" // IWYU pragma: keep
 
 struct LegacyStash
 {

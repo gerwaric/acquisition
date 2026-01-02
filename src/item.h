@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <QHashFunctions> // Needed to avoid obscure errors in std::unordered_map with QString keys.
 #include <QString>
 
 #include <array>

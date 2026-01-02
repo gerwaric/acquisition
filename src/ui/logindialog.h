@@ -6,7 +6,6 @@
 #include <QDialog>
 #include <QDir>
 
-#include "network_info.h"
 #include "util/oauthtoken.h"
 
 class QNetworkReply;

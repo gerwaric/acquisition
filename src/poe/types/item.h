@@ -3,20 +3,18 @@
 
 #pragma once
 
+#include <QHashFunctions> // Needed to avoid errors instantiating std::hash<QString> for std::unordered_map.
+#include <QString>
+
 #include <optional>
 #include <unordered_map>
 #include <vector>
-
-#include <QString>
 
 #include "poe/types/cruciblenode.h"
 #include "poe/types/frametype.h"
 #include "poe/types/gemtab.h"
 #include "poe/types/itemproperty.h"
 #include "poe/types/itemsocket.h"
-#include "util/glaze_qt.h"
-
-static_assert(ACQUISITION_USE_GLAZE);
 
 namespace poe {
 

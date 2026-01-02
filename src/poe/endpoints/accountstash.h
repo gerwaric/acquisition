@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <poe/types/stashtab.h>
+#include "poe/types/stashtab.h"
 
 #include <optional>
 

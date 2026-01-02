@@ -9,14 +9,11 @@
 #include <map>
 #include <unordered_map>
 
+#include "filters.h"
 #include "repoe/baseitem.h"
 #include "repoe/itemclass.h"
-#include "repoe/repoe.h"
-#include "util/glaze_qt.h"
-#include "util/spdlog_qt.h"
-#include "util/util.h"
-
-#include "filters.h"
+#include "util/glaze_qt.h"  // IWYU pragma: keep
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
 class CATEGORY_DATA
 {

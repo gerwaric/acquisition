@@ -10,12 +10,11 @@
 #include <set>
 #include <vector>
 
-#include <util/util.h>
-
 #include "bucket.h"
 #include "column.h"
 #include "item.h"
 #include "items_model.h"
+#include "util/util.h"
 
 class BuyoutManager;
 class Filter;

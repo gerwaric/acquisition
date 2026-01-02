@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <QHashFunctions> // Hash functions seem to be needed for std::unordered_map<QString,*>
+#include <QHashFunctions> // Needed for std::unordered_map<QString, ...>
 #include <QString>
 
 #include <unordered_map>

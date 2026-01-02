@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2023 Tom Holz
 
-#include "ratelimitdialog.h"
+#include "ratelimit/ratelimitdialog.h"
 
 #include <QCoreApplication>
 #include <QLabel>
@@ -11,10 +11,9 @@
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
 
-#include <util/util.h>
-
-#include "ratelimiter.h"
-#include "ratelimitpolicy.h"
+#include "ratelimit/ratelimiter.h"
+#include "ratelimit/ratelimitpolicy.h"
+#include "util/util.h"
 
 RateLimitDialog::RateLimitDialog(QWidget *parent, RateLimiter *limiter)
     : QDialog(parent)

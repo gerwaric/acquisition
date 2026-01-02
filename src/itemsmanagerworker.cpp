@@ -32,8 +32,6 @@
 #include "util/spdlog_qt.h"
 #include "util/util.h"
 
-static_assert(ACQUISITION_USE_SPDLOG);
-
 constexpr const char *kOauthListStashesEndpoint = "List Stashes";
 constexpr const char *kOAuthListStashesUrl = "https://api.pathofexile.com/stash";
 

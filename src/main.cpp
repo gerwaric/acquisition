@@ -14,17 +14,16 @@
 
 #include <sentry.h>
 
-#include <ui/logindialog.h>
-#include <util/fatalerror.h>
-#include <util/logging.h>
-#include <util/spdlog_qt.h>
-
-#ifdef Q_OS_WINDOWS
-#include <util/checkmsvc.h>
-#endif
-
 #include "application.h"
 #include "shop.h"
+#include "ui/logindialog.h"
+#include "util/fatalerror.h"
+#include "util/logging.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
+
+#ifdef Q_OS_WINDOWS
+#include "util/checkmsvc.h"
+#endif
 
 constexpr const char *BUILD_TIMESTAMP = (__DATE__ " " __TIME__);
 

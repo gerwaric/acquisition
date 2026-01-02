@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2015 Ilya Zhuravlev
 
-#include "itemtooltip.h"
+#include "ui/itemtooltip.h"
 
 #include <QImage>
 #include <QPainter>
@@ -10,10 +10,11 @@
 #include <array>
 #include <vector>
 
-#include <util/spdlog_qt.h>
+#include "ui_mainwindow.h"
 
-#include <item.h>
-#include <itemconstants.h>
+#include "item.h"
+#include "itemconstants.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
 constexpr int LINKH_HEIGHT = 16;
 constexpr int LINKH_WIDTH = 38;

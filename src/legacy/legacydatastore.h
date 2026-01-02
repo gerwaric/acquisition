@@ -3,19 +3,18 @@
 
 #pragma once
 
+#include <QHashFunctions> // Needed to avoid obscure errors in std::unordered_map with QString keys.
 #include <QSqlDatabase>
 #include <QString>
 
 #include <unordered_map>
 #include <vector>
 
-#include <util/spdlog_qt.h>
-
-#include "legacybuyout.h"
-// IGNORE: #include "legacycurrency.h"
-#include "legacycharacter.h"
-#include "legacyitem.h"
-#include "legacystash.h"
+#include "legacy/legacybuyout.h"
+#include "legacy/legacycharacter.h"
+#include "legacy/legacyitem.h"
+#include "legacy/legacystash.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
 struct LegacyDataStore
 {

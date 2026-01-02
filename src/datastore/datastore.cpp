@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
-#include "datastore.h"
+#include "datastore/datastore.h"
 
-#include <legacy/legacycharacter.h>
-#include <legacy/legacyitemlocation.h>
-#include <legacy/legacystash.h>
-#include <poe/types/item.h>
-#include <poe/types/stashtab.h>
-#include <util/spdlog_qt.h>
-#include <util/util.h>
+#include "legacy/legacycharacter.h"
+#include "legacy/legacyitemlocation.h"
+#include "legacy/legacystash.h"
+#include "poe/types/item.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
 void DataStore::SetInt(const QString &key, int value)
 {

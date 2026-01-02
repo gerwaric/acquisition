@@ -15,12 +15,11 @@
 
 #include <memory>
 
-#include <ui/mainwindow.h>
-#include <ui/searchcombobox.h>
-#include <util/util.h>
-
 #include "buyoutmanager.h"
 #include "itemconstants.h"
+#include "ui/mainwindow.h"
+#include "ui/searchcombobox.h"
+#include "util/util.h"
 
 const QString CategorySearchFilter::k_Default = "<any>";
 const QString RaritySearchFilter::k_Default = "<any>";

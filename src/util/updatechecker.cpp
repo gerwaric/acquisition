@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2015 Ilya Zhuravlev
 
-#include "updatechecker.h"
+#include "util/updatechecker.h"
 
 #include <QDesktopServices>
 #include <QMessageBox>
@@ -15,12 +15,10 @@
 
 #include <semver/semver.hpp>
 
-#include "util.h"
 #include "util/networkmanager.h"
-#include "util/spdlog_qt.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
+#include "util/util.h"
 #include "version_defines.h"
-
-static_assert(ACQUISITION_USE_SPDLOG);
 
 constexpr const char* GITHUB_RELEASES_URL = "https://api.github.com/repos/gerwaric/acquisition/releases";
 constexpr const char* GITHUB_DOWNLOADS_URL = "https://github.com/gerwaric/acquisition/releases";

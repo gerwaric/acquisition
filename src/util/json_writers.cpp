@@ -5,11 +5,8 @@
 
 #include "poe/types/character.h"
 #include "poe/types/stashtab.h"
-#include "util/glaze_qt.h"
-#include "util/spdlog_qt.h"
-
-static_assert(ACQUISITION_USE_GLAZE);
-static_assert(ACQUISITION_USE_SPDLOG);
+#include "util/glaze_qt.h"  // IWYU pragma: keep
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
 QByteArray writeCharacter(const poe::Character &character)
 {

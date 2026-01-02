@@ -4,8 +4,10 @@
 
 #pragma once
 
+#include <QEvent>
 #include <QObject>
 #include <QScrollArea>
+#include <QWidget>
 
 class VerticalScrollArea : public QScrollArea
 {

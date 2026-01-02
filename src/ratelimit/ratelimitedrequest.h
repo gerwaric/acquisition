@@ -7,7 +7,7 @@
 #include <QNetworkRequest>
 #include <QString>
 
-#include "ratelimitedreply.h"
+#include "ratelimit/ratelimitedreply.h"
 
 class QNetworkRequest;
 

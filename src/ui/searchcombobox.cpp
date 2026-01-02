@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2024 Tom Holz
 
-#include "searchcombobox.h"
+#include "ui/searchcombobox.h"
 
 #include <QAbstractItemModel>
 #include <QAbstractItemView>

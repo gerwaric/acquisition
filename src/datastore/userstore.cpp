@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 Tom Holz
 
+#include "datastore/userstore.h"
+
 #include <QSqlDriver>
 #include <QSqlError>
 #include <QSqlQuery>
@@ -8,12 +10,9 @@
 #include <QStringLiteral>
 #include <QUuid>
 
-#include "userstore.h"
 #include "util/json_readers.h"
 #include "util/json_writers.h"
-#include "util/spdlog_qt.h"
-
-static_assert(ACQUISITION_USE_SPDLOG);
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
 //================================================================================
 

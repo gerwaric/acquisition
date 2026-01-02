@@ -1,15 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2023 Tom Holz
 
-#include "oauthmanager.h"
-
-#include "datastore/datastore.h"
-#include "networkmanager.h"
-#include "util/glaze_qt.h"
-#include "util/spdlog_qt.h"
-
-static_assert(ACQUISITION_USE_GLAZE);
-static_assert(ACQUISITION_USE_SPDLOG); // Prevents an unused header warning in Qt Creator.
+#include "util/oauthmanager.h"
 
 #include <QAbstractOAuth>
 #include <QByteArray>
@@ -19,6 +11,11 @@ static_assert(ACQUISITION_USE_SPDLOG); // Prevents an unused header warning in Q
 #include <QSet>
 
 #include <array>
+
+#include "datastore/datastore.h"
+#include "util/glaze_qt.h" // IWYU pragma: keep
+#include "util/networkmanager.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
 namespace {
 

@@ -3,19 +3,17 @@
 
 #pragma once
 
+#include <QByteArray>
+#include <QDateTime>
+#include <QHashFunctions> // Needed to avoid obscure errors in std::unordered_map with QString keys.
+#include <QString>
+
 #include <map>
 #include <string>
 #include <string_view>
 #include <unordered_map>
 
-#include <QByteArray>
-#include <QDateTime>
-#include <QString>
-
 #include <glaze/glaze.hpp>
-
-// This is a helper define to avoid Qt Creator's warnings that this header is unused.
-[[maybe_unused]] inline constexpr bool ACQUISITION_USE_GLAZE = true;
 
 [[maybe_unused]] inline constexpr glz::opts GLAZE_OPTIONS{.null_terminated = false,
                                                           .error_on_unknown_keys = true,

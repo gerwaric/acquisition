@@ -9,10 +9,8 @@
 #include "application.h"
 #include "datastore/datastore.h"
 #include "itemlocation.h"
-#include "util/spdlog_qt.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
-
-static_assert(ACQUISITION_USE_SPDLOG);
 
 struct SerializedBuyout
 {

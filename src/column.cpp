@@ -10,11 +10,10 @@
 #include <QRegularExpression>
 #include <QVector>
 
-#include <util/util.h>
-
 #include "buyoutmanager.h"
 #include "influence.h"
 #include "itemconstants.h"
+#include "util/util.h"
 
 const double EPS = 1e-6;
 const char *SORT_DOUBLE_MATCH = "^\\+?([\\d.]+)%?$";

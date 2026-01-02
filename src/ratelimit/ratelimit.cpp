@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2023 Tom Holz
 
-#include "ratelimit.h"
+#include "ratelimit/ratelimit.h"
 
 #include <QNetworkReply>
 
-#include <util/spdlog_qt.h>
-#include <util/util.h>
+#include "util/spdlog_qt.h" // IWYU pragma: keep
+#include "util/util.h"
 
 using namespace RateLimit;
 

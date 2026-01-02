@@ -14,9 +14,7 @@
 #include "datastore/datastore.h"
 #include "item.h"
 #include "itemsmanager.h"
-#include "util/spdlog_qt.h"
-
-static_assert(ACQUISITION_USE_SPDLOG);
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
 struct SerializedCurrency
 {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 Tom Holz
 
-#include "legacydatastore.h"
+#include "legacy/legacydatastore.h"
 
 #include <QDir>
 #include <QFile>

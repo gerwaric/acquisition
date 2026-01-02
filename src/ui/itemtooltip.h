@@ -3,9 +3,14 @@
 
 #pragma once
 
-#include "ui_mainwindow.h"
+#include <QImage>
+#include <QPixmap>
 
-#include "item.h"
+namespace Ui {
+    class MainWindow;
+}
+
+class Item;
 
 void UpdateItemTooltip(const Item &item, Ui::MainWindow *ui);
 QPixmap GenerateItemIcon(const Item &item, const QImage &image);

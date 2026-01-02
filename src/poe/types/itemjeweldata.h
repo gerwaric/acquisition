@@ -3,16 +3,14 @@
 
 #pragma once
 
+#include <QHashFunctions> // Needed to avoid obscure errors in std::unordered_map with QString keys.
+#include <QString>
+
 #include <optional>
 #include <unordered_map>
 
-#include <QString>
-
 #include "poe/types/passivegroup.h"
 #include "poe/types/passivenode.h"
-#include "util/glaze_qt.h"
-
-static_assert(ACQUISITION_USE_GLAZE);
 
 namespace poe {
 

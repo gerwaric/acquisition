@@ -9,12 +9,10 @@
 #include <QListView>
 #include <QObject>
 #include <QPushButton>
-
-#include <ui/mainwindow.h>
+#include <QSortFilterProxyModel>
 
 #include "modlist.h"
-
-#include <QSortFilterProxyModel>
+#include "ui/mainwindow.h"
 
 SelectedMod::SelectedMod(
     const QString &name, double min, double max, bool min_filled, bool max_filled)

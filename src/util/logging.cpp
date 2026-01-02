@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2025 Tom Holz
 
-#include "logging.h"
+#include "util/logging.h"
 
 #include <spdlog/sinks/rotating_file_sink.h>
 
@@ -11,7 +11,7 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #endif
 
-#include <util/spdlog_qt.h>
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
 constexpr int MAX_FILES = 20;
 

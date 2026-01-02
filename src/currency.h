@@ -9,7 +9,7 @@
 #include <map>
 #include <vector>
 
-#include <util/spdlog_qt.h>
+#include "util/spdlog_qt.h"
 
 struct Currency
 {

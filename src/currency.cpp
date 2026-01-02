@@ -3,8 +3,6 @@
 
 #include "currency.h"
 
-#include <util/spdlog_qt.h>
-
 const QString Currency::m_currency_type_error;
 
 const Currency::TypeStringMap Currency::m_currency_type_as_string = {

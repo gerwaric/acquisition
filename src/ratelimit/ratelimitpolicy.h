@@ -9,7 +9,7 @@
 #include <QMetaObject>
 #include <QString>
 
-#include "ratelimit.h"
+#include "ratelimit/ratelimit.h"
 
 class QByteArray;
 class QDateTime;

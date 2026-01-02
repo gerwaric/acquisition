@@ -9,7 +9,7 @@
 #include <QObject>
 #include <QString>
 
-#include <util/spdlog_qt.h>
+#include "util/spdlog_qt.h"
 
 class QNetworkReply;
 

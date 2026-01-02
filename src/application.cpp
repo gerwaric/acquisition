@@ -11,27 +11,26 @@
 #include <QNetworkCookieJar>
 #include <QSettings>
 
-#include <datastore/sqlitedatastore.h>
-#include <datastore/userstore.h>
-#include <ratelimit/ratelimiter.h>
-#include <ratelimit/ratelimitmanager.h>
-#include <repoe/repoe.h>
-#include <ui/logindialog.h>
-#include <ui/mainwindow.h>
-#include <util/fatalerror.h>
-#include <util/networkmanager.h>
-#include <util/oauthmanager.h>
-#include <util/oauthtoken.h>
-#include <util/spdlog_qt.h>
-#include <util/updatechecker.h>
-
 #include "buyoutmanager.h"
 #include "currencymanager.h"
+#include "datastore/sqlitedatastore.h"
+#include "datastore/userstore.h"
 #include "imagecache.h"
 #include "itemsmanager.h"
 #include "itemsmanagerworker.h"
 #include "network_info.h"
+#include "ratelimit/ratelimiter.h"
+#include "ratelimit/ratelimitmanager.h"
+#include "repoe/repoe.h"
 #include "shop.h"
+#include "ui/logindialog.h"
+#include "ui/mainwindow.h"
+#include "util/fatalerror.h"
+#include "util/networkmanager.h"
+#include "util/oauthmanager.h"
+#include "util/oauthtoken.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
+#include "util/updatechecker.h"
 #include "version_defines.h"
 
 Application::Application()

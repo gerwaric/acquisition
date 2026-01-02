@@ -10,12 +10,11 @@
 #include <QRegularExpressionMatch>
 #include <QString>
 
-#include <ui/mainwindow.h>
-#include <util/networkmanager.h>
-#include <util/spdlog_qt.h>
-
 #include "itemcategories.h"
 #include "modlist.h"
+#include "ui/mainwindow.h"
+#include "util/networkmanager.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
 constexpr const char *REPOE_URL = "https://repoe-fork.github.io";
 

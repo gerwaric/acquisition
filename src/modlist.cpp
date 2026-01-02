@@ -4,7 +4,6 @@
 #include "modlist.h"
 
 #include <QRegularExpression>
-#include <QStringList>
 #include <QtSql/QSqlDatabase>
 #include <QtSql/QSqlError>
 #include <QtSql/QSqlQuery>

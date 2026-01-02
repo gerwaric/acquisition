@@ -8,14 +8,13 @@
 
 #include <memory>
 
-#include <util/fatalerror.h>
-#include <util/spdlog_qt.h>
-
 #include "bucket.h"
 #include "buyoutmanager.h"
 #include "column.h"
 #include "filters.h"
 #include "items_model.h"
+#include "util/fatalerror.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
 Search::Search(BuyoutManager &bo_manager,
                const QString &caption,

@@ -9,9 +9,8 @@
 
 #include <map>
 
-#include <util/spdlog_qt.h>
-
 #include "currency.h"
+#include "util/spdlog_qt.h"
 
 struct Buyout
 {

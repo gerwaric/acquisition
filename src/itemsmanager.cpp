@@ -16,10 +16,8 @@
 #include "repoe/repoe.h"
 #include "shop.h"
 #include "ui/mainwindow.h"
-#include "util/spdlog_qt.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
-
-static_assert(ACQUISITION_USE_SPDLOG);
 
 ItemsManager::ItemsManager(QSettings &settings, BuyoutManager &buyout_manager, DataStore &datastore)
     : m_settings(settings)
