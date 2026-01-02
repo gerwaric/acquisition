@@ -157,11 +157,11 @@ Item::Item(const poe::Item &json, const ItemLocation &loc)
 
     using mod_set_t = std::pair<const char *, std::optional<std::vector<QString>>>;
 
-    const std::array<mod_set_t, 5> mod_sets{{{"implicitMods", json.implicitMods},
-                                             {"enchantMods", json.enchantMods},
-                                             {"explicitMods", json.enchantMods},
-                                             {"craftedMods", json.craftedMods},
-                                             {"fracturedMods", json.fracturedMods}}};
+    const std::array<mod_set_t, 5> mod_sets{{{"enchantMods", json.enchantMods},
+                                             {"implicitMods", json.implicitMods},
+                                             {"fracturedMods", json.fracturedMods},
+                                             {"explicitMods", json.explicitMods},
+                                             {"craftedMods", json.craftedMods}}};
 
     for (const auto &it : mod_sets) {
         const auto mod_type = it.first;
