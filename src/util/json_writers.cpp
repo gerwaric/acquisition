@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2025 Tom Holz
+
 #include "util/json_writers.h"
 
 #include "poe/types/character.h"

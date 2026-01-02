@@ -1,15 +1,19 @@
 # CONTRIBUTORS
 
-## History
+## Maintainer
 
-Ilya Zhuravlev release the first version of Acquisition in 2014:
-https://github.com/xyzz/acquisition
+The current maintainer is Tom Holz (GERWARIC).
 
-In 2022, Acquisition was forked by Testpushpleaseignore:
-https://github.com/testpushpleaseignore/acquisition
+## Project History
 
-In 2023, Acquisition was forked by Gerwaric:
-https://github.com/gerwaric/acquisition
+Ilya Zhuravlev released the first version of Acquisition in 2014:
+- https://github.com/xyzz/acquisition
+
+In 2022, Acquisition was forked and maintained by Testpushpleaseignore:
+- https://github.com/testpushpleaseignore/acquisition
+
+In 2023, Acquisition was forked and maintained by Tom Holz (GERWARIC):
+- https://github.com/gerwaric/acquisition
 
 ## Individual Contributors
 
@@ -34,4 +38,10 @@ The following is a list of all known contributors, in order of appearance:
 - Daniel Trevize
 - indiavenster
 - testpushpleaseignore
-- GERWARIC
+- Tom Holz (GERWARIC)
+
+This list is curated from git history across this repository; see the git log for authoritative attribution.
+
+## Corrections
+
+If you believe attribution here is incorrect or incomplete, please open an issue or pull request.
