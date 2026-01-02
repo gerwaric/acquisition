@@ -255,9 +255,9 @@ const PseudoModMap PseudoModManager::SUMMING_MODS = {
         }
     },
     {
-        "+# total to Level of Socketed Deterity Gems",
+        "+# total to Level of Socketed Dexterity Gems",
         {
-            "+# to Level of Socketed Deterity Gems",
+            "+# to Level of Socketed Dexterity Gems",
             "+# to Level of Socketed Gems"
         }
     },
