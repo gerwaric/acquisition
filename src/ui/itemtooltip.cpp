@@ -169,37 +169,54 @@ static QString GenerateRequirements(const Item &item)
     return text;
 }
 
-static QString ModListAsString(const ItemMods &list)
+static QString getTextMods(const Item &item, const QString &modType, const char *modColor)
 {
-    QString mods;
-    bool first = true;
-    for (auto &mod : list) {
-        mods += (first ? "" : "<br>") + mod;
-        first = false;
+    const auto &item_mods = item.text_mods();
+    const auto it = item_mods.find(modType);
+    if (it == item_mods.end()) {
+        return QString();
     }
-    if (mods.isEmpty()) {
-        return "";
+    const auto modvec = it->second;
+    if (modvec.empty()) {
+        return QString();
     }
-    return ColorPropertyValue(ItemPropertyValue{mods, 1});
+    const auto mods = QStringList{modvec.begin(), modvec.end()};
+    return QString("<font color='%1'>%2</font>").arg(modColor, mods.join("<br>"));
 }
 
 static std::vector<QString> GenerateMods(const Item &item)
 {
-    constexpr std::array mod_types = {"implicitMods",
-                                      "enchantMods",
-                                      "explicitMods",
-                                      "craftedMods",
-                                      "fracturedMods"};
+    // Create colored strings for each mod set.
+    const auto enchantMods = getTextMods(item, "enchantMods", "#b4b4ff");
+    const auto implicitMods = getTextMods(item, "implicitMods", "#88f");
+    const auto fracturedMods = getTextMods(item, "fracturedMods", "#a29162");
+    const auto explicitMods = getTextMods(item, "explicitMods", "#88f");
+    const auto craftedMods = getTextMods(item, "craftedMods", "#b4b4ff");
 
-    std::vector<QString> out;
-    auto &mods = item.text_mods();
-    for (auto &mod_type : mod_types) {
-        QString mod_list = ModListAsString(mods.at(mod_type));
-        if (!mod_list.isEmpty()) {
-            out.push_back(mod_list);
-        }
+    // There are no spacers between fractured, implicit, and crafted mods.
+    QStringList main_section;
+    if (!fracturedMods.isEmpty()) {
+        main_section.push_back(fracturedMods);
     }
-    return out;
+    if (!explicitMods.isEmpty()) {
+        main_section.push_back(explicitMods);
+    }
+    if (!craftedMods.isEmpty()) {
+        main_section.push_back(craftedMods);
+    }
+
+    // There are spacers between enchants, implicits, and the main section.
+    std::vector<QString> sections;
+    if (!enchantMods.isEmpty()) {
+        sections.push_back(enchantMods);
+    }
+    if (!implicitMods.isEmpty()) {
+        sections.push_back(implicitMods);
+    }
+    if (!main_section.isEmpty()) {
+        sections.push_back(main_section.join("<br>"));
+    }
+    return sections;
 }
 
 static QString GenerateItemInfo(const Item &item, const QString &key, bool fancy)
