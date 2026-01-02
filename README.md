@@ -1,4 +1,5 @@
 # Acquisition
+
 Acquisition is an inventory management tool for [Path of Exile](https://www.pathofexile.com/) that has been around for over a decade:
 
 - You can download all of your stash tabs and character inventories for offline search.
@@ -31,9 +32,6 @@ See [BUILD.md](https://github.com/gerwaric/acquisition/blob/master/BUILD.md) for
  	This option is case-insensitive.
 	The default level for release builds is `INFO`.
 	The default level for debug builds is `TRACE`.
-
-`--test`:
-	run tests. Zero exit code on success, other values indicate errors.
 
 ## Reporting issues
 
