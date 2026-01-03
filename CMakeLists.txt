@@ -100,95 +100,108 @@ if(NOT TARGET spdlog)
     FetchContent_MakeAvailable(spdlog)
 endif()
 
-qt_standard_project_setup(REQUIRES 6.10.0)
+#------------------------------------------------------
+# Acquisition Sources
+#------------------------------------------------------
 
-qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
-    # Source
+set(ACQ_CORE
     src/application.cpp
+    src/application.h
     src/bucket.cpp
+    src/bucket.h
     src/buyout.cpp
+    src/buyout.h
     src/buyoutmanager.cpp
+    src/buyoutmanager.h
     src/column.cpp
+    src/column.h
     src/currency.cpp
+    src/currency.h
     src/currencymanager.cpp
-    src/datastore/datastore.cpp
-    src/datastore/memorydatastore.cpp
-    src/datastore/sqlitedatastore.cpp
-    src/datastore/userstore.cpp
+    src/currencymanager.h
     src/filters.cpp
+    src/filters.h
     src/imagecache.cpp
+    src/imagecache.h
     src/influence.cpp
+    src/influence.h
     src/item.cpp
+    src/item.h
     src/itemcategories.cpp
+    src/itemcategories.h
     src/itemconstants.cpp
+    src/itemconstants.h
     src/itemlocation.cpp
+    src/itemlocation.h
     src/items_model.cpp
+    src/items_model.h
     src/itemsmanager.cpp
+    src/itemsmanager.h
     src/itemsmanagerworker.cpp
-    src/legacy/legacydatastore.cpp
-    src/legacy/legacyitem.cpp
+    src/itemsmanagerworker.h
     src/main.cpp
     src/modlist.cpp
+    src/modlist.h
     src/modsfilter.cpp
+    src/modsfilter.h
+    src/network_info.h
     src/pseudomods.cpp
-    src/ratelimit/ratelimit.cpp
-    src/ratelimit/ratelimitdialog.cpp
-    src/ratelimit/ratelimitedrequest.cpp
-    src/ratelimit/ratelimiter.cpp
-    src/ratelimit/ratelimitmanager.cpp
-    src/ratelimit/ratelimitpolicy.cpp
-    src/repoe/repoe.cpp
+    src/pseudomods.h
+    src/replytimeout.h
     src/search.cpp
+    src/search.h
     src/shop.cpp
-    src/ui/flowlayout.cpp
-    src/ui/itemtooltip.cpp
-    src/ui/logindialog.cpp
-    src/ui/logpanel.cpp
-    src/ui/mainwindow.cpp
-    src/ui/searchcombobox.cpp
-    src/ui/verticalscrollarea.cpp
-    src/util/checkmsvc.cpp
-    src/util/fatalerror.cpp
-    src/util/json_readers.cpp
-    src/util/json_writers.cpp
-    src/util/logging.cpp
-    src/util/networkmanager.cpp
-    src/util/oauthmanager.cpp
-    src/util/oauthtoken.cpp
-    src/util/updatechecker.cpp
-    src/util/util.cpp
-    # Headers
-    src/application.h
-    src/bucket.h
-    src/buyout.h
-    src/buyoutmanager.h
-    src/column.h
-    src/currency.h
-    src/currencymanager.h
+    src/shop.h
+)
+
+set(ACQ_DATASTORE
+    src/datastore/datastore.cpp
     src/datastore/datastore.h
+    src/datastore/memorydatastore.cpp
     src/datastore/memorydatastore.h
+    src/datastore/sqlitedatastore.cpp
     src/datastore/sqlitedatastore.h
+    src/datastore/userstore.cpp
     src/datastore/userstore.h
-    src/filters.h
-    src/imagecache.h
-    src/influence.h
-    src/item.h
-    src/itemcategories.h
-    src/itemconstants.h
-    src/itemlocation.h
-    src/items_model.h
-    src/itemsmanager.h
-    src/itemsmanagerworker.h
+)
+
+set(ACQ_LEGACY
     src/legacy/legacybuyout.h
     src/legacy/legacycharacter.h
     src/legacy/legacycurrency.h
+    src/legacy/legacydatastore.cpp
     src/legacy/legacydatastore.h
+    src/legacy/legacyitem.cpp
     src/legacy/legacyitem.h
     src/legacy/legacyitemlocation.h
     src/legacy/legacystash.h
-    src/modlist.h
-    src/modsfilter.h
-    src/network_info.h
+)
+
+set(ACQ_RATELIMIT
+    src/ratelimit/ratelimit.cpp
+    src/ratelimit/ratelimit.h
+    src/ratelimit/ratelimitdialog.cpp
+    src/ratelimit/ratelimitdialog.h
+    src/ratelimit/ratelimitedreply.h
+    src/ratelimit/ratelimitedrequest.cpp
+    src/ratelimit/ratelimitedrequest.h
+    src/ratelimit/ratelimiter.cpp
+    src/ratelimit/ratelimiter.h
+    src/ratelimit/ratelimitmanager.cpp
+    src/ratelimit/ratelimitmanager.h
+    src/ratelimit/ratelimitpolicy.cpp
+    src/ratelimit/ratelimitpolicy.h
+)
+
+set(ACQ_REPOE
+    src/repoe/repoe.cpp
+    src/repoe/repoe.h
+    src/repoe/baseitem.h
+    src/repoe/itemclass.h
+    src/repoe/stattranslation.h
+)
+
+set(ACQ_POE
     src/poe/endpoints/accountcharacter.h
     src/poe/endpoints/accountcharacters.h
     src/poe/endpoints/accountleagues.h
@@ -226,45 +239,69 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/poe/types/stashtab.h
     src/poe/types/website/webcharacter.h
     src/poe/types/website/webstashtab.h
-    src/pseudomods.h
-    src/ratelimit/ratelimit.h
-    src/ratelimit/ratelimitdialog.h
-    src/ratelimit/ratelimitedreply.h
-    src/ratelimit/ratelimitedrequest.h
-    src/ratelimit/ratelimiter.h
-    src/ratelimit/ratelimitmanager.h
-    src/ratelimit/ratelimitpolicy.h
-    src/replytimeout.h
-    src/repoe/baseitem.h
-    src/repoe/itemclass.h
-    src/repoe/repoe.h
-    src/repoe/stattranslation.h
-    src/search.h
-    src/shop.h
+)
+
+set(ACQ_UI
+    src/ui/flowlayout.cpp
     src/ui/flowlayout.h
+    src/ui/itemtooltip.cpp
     src/ui/itemtooltip.h
+    src/ui/logindialog.cpp
     src/ui/logindialog.h
+    src/ui/logpanel.cpp
     src/ui/logpanel.h
+    src/ui/mainwindow.cpp
     src/ui/mainwindow.h
+    src/ui/searchcombobox.cpp
     src/ui/searchcombobox.h
+    src/ui/verticalscrollarea.cpp
     src/ui/verticalscrollarea.h
-    src/util/checkmsvc.h
-    src/util/fatalerror.h
-    src/util/glaze_qt.h
-    src/util/json_readers.h
-    src/util/json_writers.h
-    src/util/logging.h
-    src/util/networkmanager.h
-    src/util/oauthmanager.h
-    src/util/oauthtoken.h
-    src/util/spdlog_qt.h
-    src/util/updatechecker.h
-    src/util/util.h
     # Forms
     src/ui/logindialog.ui
     src/ui/mainwindow.ui
-    # Resources
+)
+
+set(ACQ_UTIL
+    src/util/checkmsvc.cpp
+    src/util/checkmsvc.h
+    src/util/fatalerror.cpp
+    src/util/fatalerror.h
+    src/util/glaze_qt.h
+    src/util/json_readers.cpp
+    src/util/json_readers.h
+    src/util/json_writers.cpp
+    src/util/json_writers.h
+    src/util/logging.cpp
+    src/util/logging.h
+    src/util/networkmanager.cpp
+    src/util/networkmanager.h
+    src/util/oauthmanager.cpp
+    src/util/oauthmanager.h
+    src/util/oauthtoken.cpp
+    src/util/oauthtoken.h
+    src/util/spdlog_qt.h
+    src/util/updatechecker.cpp
+    src/util/updatechecker.h
+    src/util/util.cpp
+    src/util/util.h
+)
+
+set(ACQ_RESOURCES
     resources.qrc
+)
+
+qt_standard_project_setup(REQUIRES 6.10.0)
+
+qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
+    ${ACQ_CORE}
+    ${ACQ_DATASTORE}
+    ${ACQ_LEGACY}
+    ${ACQ_RATELIMIT}
+    ${ACQ_REPOE}
+    ${ACQ_POE}
+    ${ACQ_UI}
+    ${ACQ_UTIL}
+    ${ACQ_RESOURCES}
     # Generated version header
     "${CMAKE_BINARY_DIR}/version_defines.h"
 )
