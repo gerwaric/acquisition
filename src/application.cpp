@@ -20,7 +20,6 @@
 #include "imagecache.h"
 #include "itemsmanager.h"
 #include "itemsmanagerworker.h"
-#include "network_info.h"
 #include "ratelimit/ratelimiter.h"
 #include "repoe/repoe.h"
 #include "shop.h"
@@ -330,11 +329,7 @@ void Application::SetSessionId(const QString &poesessid)
         spdlog::error("Application: cannot update POESESSID: value is empty");
         return;
     }
-    spdlog::info("Application: updating POESESSID");
-    QNetworkCookie cookie(POE_COOKIE_NAME, poesessid.toUtf8());
-    cookie.setPath(POE_COOKIE_PATH);
-    cookie.setDomain(POE_COOKIE_DOMAIN);
-    m_network_manager->cookieJar()->insertCookie(cookie);
+    m_network_manager->setPoeSessionId(poesessid);
     m_settings->setValue("session_id", poesessid);
 }
 

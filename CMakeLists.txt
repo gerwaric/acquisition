@@ -144,7 +144,6 @@ set(ACQ_CORE
     src/modlist.h
     src/modsfilter.cpp
     src/modsfilter.h
-    src/network_info.h
     src/pseudomods.cpp
     src/pseudomods.h
     src/replytimeout.h

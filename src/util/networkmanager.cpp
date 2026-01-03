@@ -4,11 +4,20 @@
 #include "util/networkmanager.h"
 
 #include <QDir>
+#include <QNetworkCookie>
+#include <QNetworkCookieJar>
 #include <QNetworkDiskCache>
 #include <QStandardPaths>
 
-#include "network_info.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
+#include "version_defines.h"
+
+constexpr const char *USER_AGENT = APP_NAME "/" APP_VERSION_STRING " (contact: " APP_PUBLISHER_EMAIL
+                                            ")";
+
+constexpr const char *POE_COOKIE_NAME = "POESESSID";
+constexpr const char *POE_COOKIE_DOMAIN = ".pathofexile.com";
+constexpr const char *POE_COOKIE_PATH = "/";
 
 // Size of the network disk cache.
 constexpr const int CACHE_SIZE_MEGABYTES = 100;
@@ -62,6 +71,14 @@ NetworkManager::NetworkManager(QObject *parent)
     m_diskCache->setCacheDirectory(cache_dir);
     m_diskCache->setMaximumCacheSize(CACHE_SIZE_MEGABYTES * 1024 * 1024);
     setCache(m_diskCache);
+}
+
+void NetworkManager::setPoeSessionId(const QString &poesessid)
+{
+    QNetworkCookie cookie{POE_COOKIE_NAME, poesessid.toUtf8()};
+    cookie.setPath(POE_COOKIE_PATH);
+    cookie.setDomain(POE_COOKIE_DOMAIN);
+    cookieJar()->insertCookie(cookie);
 }
 
 void NetworkManager::setBearerToken(const QString &token)
