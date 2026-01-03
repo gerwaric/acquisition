@@ -155,12 +155,18 @@ set(ACQ_CORE
 )
 
 set(ACQ_DATASTORE
+    src/datastore/characterrepo.cpp
+    src/datastore/characterrepo.h
     src/datastore/datastore.cpp
     src/datastore/datastore.h
+    src/datastore/datastore_utils.cpp
+    src/datastore/datastore_utils.h
     src/datastore/memorydatastore.cpp
     src/datastore/memorydatastore.h
     src/datastore/sqlitedatastore.cpp
     src/datastore/sqlitedatastore.h
+    src/datastore/stashrepo.cpp
+    src/datastore/stashrepo.h
     src/datastore/userstore.cpp
     src/datastore/userstore.h
 )

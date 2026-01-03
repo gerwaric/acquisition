@@ -18,6 +18,8 @@
 
 #include "application.h"
 #include "buyoutmanager.h"
+#include "datastore/characterrepo.h"
+#include "datastore/stashrepo.h"
 #include "datastore/userstore.h"
 #include "itemlocation.h"
 #include "modlist.h"
@@ -29,7 +31,7 @@
 #include "ratelimit/ratelimiter.h"
 #include "repoe/repoe.h"
 #include "ui/mainwindow.h"
-#include "util/spdlog_qt.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
 
 constexpr const char *kOauthListStashesEndpoint = "List Stashes";
@@ -100,8 +102,8 @@ void ItemsManagerWorker::ParseItemMods()
     UserStore userstore{data_dir, m_account};
 
     // Get cached characters and stash tabs.
-    const auto stashes = userstore.getStashList(m_realm, m_league);
-    const auto characters = userstore.getCharacterList(m_realm);
+    const auto stashes = userstore.stashes().getStashList(m_realm, m_league);
+    const auto characters = userstore.characters().getCharacterList(m_realm);
 
     m_tabs.clear();
     m_tabs.reserve(stashes.size() + characters.size());
@@ -141,13 +143,15 @@ void ItemsManagerWorker::ParseItemMods()
         const ItemLocation &tab = m_tabs[i];
         switch (tab.get_type()) {
         case ItemLocationType::STASH: {
-            const auto stash = userstore.getStash(tab.get_tab_uniq_id(), m_realm, m_league);
+            const auto stash = userstore.stashes().getStash(tab.get_tab_uniq_id(),
+                                                            m_realm,
+                                                            m_league);
             if (stash) {
                 ParseItems(*stash, tab);
             }
         } break;
         case ItemLocationType::CHARACTER: {
-            const auto character = userstore.getCharacter(tab.get_character(), m_realm);
+            const auto character = userstore.characters().getCharacter(tab.get_character(), m_realm);
             if (character) {
                 ParseItems(*character, tab);
             }

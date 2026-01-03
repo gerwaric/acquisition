@@ -13,14 +13,15 @@
 
 #include "buyoutmanager.h"
 #include "currencymanager.h"
+#include "datastore/characterrepo.h"
 #include "datastore/sqlitedatastore.h"
+#include "datastore/stashrepo.h"
 #include "datastore/userstore.h"
 #include "imagecache.h"
 #include "itemsmanager.h"
 #include "itemsmanagerworker.h"
 #include "network_info.h"
 #include "ratelimit/ratelimiter.h"
-#include "ratelimit/ratelimitmanager.h"
 #include "repoe/repoe.h"
 #include "shop.h"
 #include "ui/logindialog.h"
@@ -28,7 +29,6 @@
 #include "util/fatalerror.h"
 #include "util/networkmanager.h"
 #include "util/oauthmanager.h"
-#include "util/oauthtoken.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/updatechecker.h"
 #include "version_defines.h"
@@ -446,7 +446,6 @@ void Application::InitLogin()
     auto repoe = m_repoe.get();
     auto manager = m_items_manager.get();
     auto worker = m_items_worker.get();
-    auto userstore = m_userstore.get();
 
     connect(manager, &ItemsManager::UpdateSignal, worker, &ItemsManagerWorker::Update);
     connect(worker, &ItemsManagerWorker::StatusUpdate, manager, &ItemsManager::OnStatusUpdate);
@@ -455,11 +454,23 @@ void Application::InitLogin()
 
     connect(worker,
             &ItemsManagerWorker::characterListReceived,
-            userstore,
-            &UserStore::saveCharacterList);
-    connect(worker, &ItemsManagerWorker::characterReceived, userstore, &UserStore::saveCharacter);
-    connect(worker, &ItemsManagerWorker::stashListReceived, userstore, &UserStore::saveStashList);
-    connect(worker, &ItemsManagerWorker::stashReceived, userstore, &UserStore::saveStash);
+            &m_userstore->characters(),
+            &CharacterRepo::saveCharacterList);
+
+    connect(worker,
+            &ItemsManagerWorker::characterReceived,
+            &m_userstore->characters(),
+            &CharacterRepo::saveCharacter);
+
+    connect(worker,
+            &ItemsManagerWorker::stashListReceived,
+            &m_userstore->stashes(),
+            &StashRepo::saveStashList);
+
+    connect(worker,
+            &ItemsManagerWorker::stashReceived,
+            &m_userstore->stashes(),
+            &StashRepo::saveStash);
 
     if (m_repoe->IsInitialized()) {
         spdlog::debug("Application: RePoE data is available.");
