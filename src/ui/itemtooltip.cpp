@@ -101,8 +101,10 @@ static QString FormatProperty(const ItemProperty &prop)
 {
     if (prop.display_mode == 3) {
         QString format(prop.name);
-        for (auto &value : prop.values) {
-            format = format.arg(ColorPropertyValue(value));
+        for (size_t i = 0; i < prop.values.size(); ++i) {
+            const QString placeholder = QString("{%1}").arg(i);
+            const QString value = ColorPropertyValue(prop.values[i]);
+            format = format.replace(placeholder, value);
         }
         return format;
     }
