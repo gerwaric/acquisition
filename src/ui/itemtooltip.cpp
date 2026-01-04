@@ -179,8 +179,10 @@ static std::vector<QString> GenerateMods(const Item &item)
     const auto fracturedMods = getTextMods(item, "fracturedMods", "#a29162");
     const auto explicitMods = getTextMods(item, "explicitMods", "#88f");
     const auto craftedMods = getTextMods(item, "craftedMods", "#b4b4ff");
+    const auto mutatedMods = getTextMods(item, "mutatedMods", "#cd2285");
 
     // There are no spacers between fractured, implicit, and crafted mods.
+    // Mutuated mods on foulborn uniques go at the bottom of this section as well.
     QStringList main_section;
     if (!fracturedMods.isEmpty()) {
         main_section.push_back(fracturedMods);
@@ -190,6 +192,9 @@ static std::vector<QString> GenerateMods(const Item &item)
     }
     if (!craftedMods.isEmpty()) {
         main_section.push_back(craftedMods);
+    }
+    if (!mutatedMods.isEmpty()) {
+        main_section.push_back(mutatedMods);
     }
 
     // There are spacers between enchants, implicits, and the main section.

@@ -140,11 +140,14 @@ Item::Item(const poe::Item &json, const ItemLocation &loc)
 
     using mod_set_t = std::pair<const char *, std::optional<std::vector<QString>>>;
 
-    const std::array<mod_set_t, 5> mod_sets{{{"enchantMods", json.enchantMods},
-                                             {"implicitMods", json.implicitMods},
-                                             {"fracturedMods", json.fracturedMods},
-                                             {"explicitMods", json.explicitMods},
-                                             {"craftedMods", json.craftedMods}}};
+    const std::array<mod_set_t, 6> mod_sets{{
+        {"enchantMods", json.enchantMods},
+        {"implicitMods", json.implicitMods},
+        {"fracturedMods", json.fracturedMods},
+        {"explicitMods", json.explicitMods},
+        {"craftedMods", json.craftedMods},
+        {"mutatedMods", json.mutatedMods},
+    }};
 
     for (const auto &it : mod_sets) {
         const auto mod_type = it.first;
@@ -392,11 +395,14 @@ double Item::cDPS() const
 
 void Item::GenerateMods(const poe::Item &json)
 {
-    const std::array mod_sets = {json.implicitMods,
-                                 json.enchantMods,
-                                 json.explicitMods,
-                                 json.craftedMods,
-                                 json.fracturedMods};
+    const std::array mod_sets = {
+        json.implicitMods,
+        json.enchantMods,
+        json.explicitMods,
+        json.craftedMods,
+        json.fracturedMods,
+        json.mutatedMods,
+    };
 
     for (const auto &mod_set : mod_sets) {
         if (mod_set) {
@@ -547,21 +553,17 @@ QString Item::POBformat() const
         pob << "\n" << mod.toStdString();
     }
 
-    const auto &fracturedMods = m_text_mods.at("fracturedMods");
-    if (!fracturedMods.empty()) {
-        for (const auto &mod : fracturedMods) {
-            pob << "\n{fractured}" << mod.toStdString();
-        }
-    }
-
-    const auto &explicitMods = m_text_mods.at("explicitMods");
-    const auto &craftedMods = m_text_mods.at("craftedMods");
-    if (!explicitMods.empty() || !craftedMods.empty()) {
-        for (const auto &mod : explicitMods) {
-            pob << "\n" << mod.toStdString();
-        }
-        for (const auto &mod : craftedMods) {
-            pob << "\n{crafted}" << mod.toStdString();
+    using mod_pair = std::pair<const char *, const char *>;
+    const std::array<mod_pair, 4> mod_sets{{
+        {"fracturedMods", "{fractured}"},
+        {"explicitMods", ""},
+        {"craftedMods", "{crafted}"},
+        {"mutatedMods", "{mutated}"},
+    }};
+    for (const auto &[name, tag] : mod_sets) {
+        const auto mods = m_text_mods.at(name);
+        for (const auto &mod : mods) {
+            pob << "\n" << tag << mod.toStdString();
         }
     }
 
