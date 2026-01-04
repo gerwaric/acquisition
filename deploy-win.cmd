@@ -107,6 +107,3 @@ copy "%BUILD_DIR%\acquisition.exe" .\Output
 
 echo Copying the acquisition debug symbols to the output directory.
 copy "%BUILD_DIR%\acquisition.pdb" .\Output
-
-echo Copying the crashpad handler to the output directory.
-copy "%BUILD_DIR%\crashpad_handler.exe" .\Output
