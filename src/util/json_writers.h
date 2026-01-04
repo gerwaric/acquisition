@@ -16,8 +16,12 @@ namespace poe {
 // too many templated functions in one file causes a build error and would
 // require using /bigobj.
 
-QByteArray writeCharacter(const poe::Character &character);
-QByteArray writeCharacterList(const std::vector<poe::Character> &json);
+namespace json {
 
-QByteArray writeStash(const poe::StashTab &stash);
-QByteArray writeStashList(const std::vector<poe::StashTab> &json);
+    QByteArray writeCharacter(const poe::Character &character);
+    QByteArray writeCharacterList(const std::vector<poe::Character> &json);
+
+    QByteArray writeStash(const poe::StashTab &stash);
+    QByteArray writeStashList(const std::vector<poe::StashTab> &json);
+
+} // namespace json

@@ -3,8 +3,6 @@
 
 #include "poe/poe_utils.h"
 
-#include "poe/types/stashtab.h"
-
 namespace {
 
     constexpr const char *kOauthListStashesEndpoint = "List Stashes";
@@ -20,11 +18,6 @@ namespace {
     constexpr const char *kOAuthGetCharacterUrl = "https://api.pathofexile.com/character";
 
 } // namespace
-
-bool poe::isSpecialStash(const poe::StashTab &stash)
-{
-    return (stash.type == "MapStash") || (stash.type == "UniqueStash");
-}
 
 std::pair<const QString &, QNetworkRequest> poe::MakeStashListRequest(const QString &realm,
                                                                       const QString &league)

@@ -42,11 +42,7 @@ Application::Application(const QDir &appDataDir)
     InitCoreServices();
 }
 
-Application::~Application()
-{
-    spdlog::info("Shutting down.");
-    spdlog::shutdown();
-}
+Application::~Application() = default;
 
 void Application::InitCoreServices()
 {

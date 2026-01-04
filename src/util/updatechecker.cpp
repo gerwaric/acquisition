@@ -15,9 +15,9 @@
 
 #include <semver/semver.hpp>
 
+#include "util/glaze_qt.h" // IWYU pragma: keep
 #include "util/networkmanager.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
-#include "util/util.h"
 #include "version_defines.h"
 
 constexpr const char* GITHUB_RELEASES_URL = "https://api.github.com/repos/gerwaric/acquisition/releases";

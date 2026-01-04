@@ -24,6 +24,11 @@
 #include "currency.h"
 #include "poe/types/stashtab.h"
 
+QByteArray Util::toPathBytes(const QString &path)
+{
+    return QFile::encodeName(QDir::toNativeSeparators(path));
+}
+
 QString Util::Md5(const QString &value)
 {
     const QString hash = QString(

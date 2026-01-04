@@ -5,6 +5,7 @@
 
 #include <QNetworkReply>
 
+#include "util/json_readers.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
 
@@ -14,7 +15,11 @@ constexpr long int REFRESH_LIFETIME_DAYS = 7;
 
 OAuthToken OAuthToken::fromJson(const QString &json)
 {
-    return Util::parseJson<OAuthToken>(json);
+    const auto result = json::readOAuthToken(json.toUtf8());
+    if (!result) {
+        return {};
+    }
+    return *result;
 }
 
 OAuthToken OAuthToken::fromReply(QNetworkReply *reply)
@@ -22,12 +27,15 @@ OAuthToken OAuthToken::fromReply(QNetworkReply *reply)
     const QByteArray bytes = reply->readAll();
     reply->deleteLater();
 
-    OAuthToken token = Util::parseJson<OAuthToken>(bytes);
+    auto result = json::readOAuthToken(bytes);
+    if (!result) {
+        return {};
+    }
 
     // Set birthday and expiration times.
     const QString timestamp = Util::FixTimezone(reply->rawHeader("Date"));
-    token.setBirthday(QDateTime::fromString(timestamp, Qt::RFC2822Date));
-    return token;
+    result->setBirthday(QDateTime::fromString(timestamp, Qt::RFC2822Date));
+    return *result;
 }
 
 OAuthToken OAuthToken::fromTokens(const QVariantMap &tokens)

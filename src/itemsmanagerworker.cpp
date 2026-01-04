@@ -32,6 +32,7 @@
 #include "ratelimit/ratelimiter.h"
 #include "repoe/repoe.h"
 #include "ui/mainwindow.h"
+#include "util/json_readers.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
 
@@ -76,11 +77,11 @@ void ItemsManagerWorker::OnRePoEReady()
     // update the status bar while items are being parsed. This operation
     // can take tens of seconds or longer depending on the nubmer of tabs
     // and items.
-    QThread *parser = QThread::create([=, this]() { ParseItemMods(); });
+    QThread *parser = QThread::create([=, this]() { LoadItems(); });
     parser->start();
 }
 
-void ItemsManagerWorker::ParseItemMods()
+void ItemsManagerWorker::LoadItems()
 {
     spdlog::trace("ItemsManagerWorker::ParseItemMods() entered");
 
@@ -94,20 +95,23 @@ void ItemsManagerWorker::ParseItemMods()
     const auto stashes = userstore.stashes().getStashList(m_realm, m_league);
     const auto characters = userstore.characters().getCharacterList(m_realm);
 
+    // Do not process children from unique and map stashers.
+    auto special = [](const poe::StashTab &stash) {
+        return stash.parent && ((stash.type == "UniqueStash") || (stash.type == "MapStash"));
+    };
+
     m_tabs.clear();
     m_tabs.reserve(stashes.size() + characters.size());
     for (const auto &stash : stashes) {
-        // Do not add substashes from the special stashes.
-        if (stash.parent && poe::isSpecialStash(stash)) {
-            continue;
+        if (!special(stash)) {
+            m_tabs.push_back(ItemLocation(stash));
         }
-        m_tabs.emplace_back(stash);
     }
     for (const auto &character : characters) {
         // The character list has all characters for all leagues, so
         // we have to look for just the league we care about.
         if (character.league == m_league) {
-            m_tabs.emplace_back(character, m_tabs.size());
+            m_tabs.push_back(ItemLocation(character, int(m_tabs.size())));
         }
     }
     m_tabs.shrink_to_fit();
@@ -132,39 +136,55 @@ void ItemsManagerWorker::ParseItemMods()
     // Get cached items
     m_items.clear();
     spdlog::trace("ItemsManagerWorker::ParseItemMods() getting cached items");
-    for (size_t i = 0; i < m_tabs.size(); i++) {
-        const ItemLocation &tab = m_tabs[i];
-        switch (tab.get_type()) {
-        case ItemLocationType::STASH: {
-            const auto stash = userstore.stashes().getStash(tab.get_tab_uniq_id(),
-                                                            m_realm,
-                                                            m_league);
-            if (stash) {
-                ParseItems(*stash, tab);
-                // We have to make separate requests for the special tabs.
-                // This is messy and needs to be reworked.
-                if (stash->children && poe::isSpecialStash(*stash)) {
-                    const auto children = userstore.stashes().getStashChildren(stash->id,
-                                                                               m_realm,
-                                                                               m_league);
-                    for (const auto &child : children) {
-                        if (child.items) {
-                            ParseItems(*child.items, tab);
-                        }
-                    }
-                }
-            }
-        } break;
-        case ItemLocationType::CHARACTER: {
-            const auto character = userstore.characters().getCharacter(tab.get_character(), m_realm);
-            if (character) {
-                ParseItems(*character, tab);
-            }
-        } break;
+
+    // Get stash items.
+    for (size_t i = 0; i < stashes.size(); ++i) {
+        const auto id = stashes[i].id;
+        const auto stash = userstore.stashes().getStash(id, m_realm, m_league);
+        if (!stash) {
+            continue;
         }
         emit StatusUpdate(ProgramState::Initializing,
-                          QString("Parsing items in %1/%2 tabs").arg(i).arg(m_tabs.size()));
+                          QString("Parsing items from stash %1/%2: %3 '%4'")
+                              .arg(QString::number(i),
+                                   QString::number(stashes.size()),
+                                   stash->id,
+                                   stash->name));
+        ItemLocation location;
+        if (!special(*stash)) {
+            location = ItemLocation{*stash};
+        } else {
+            // Items in special tabs should use their parent's ItemLocation.
+            for (const auto &tab : m_tabs) {
+                if (tab.get_tab_uniq_id() == stash->parent) {
+                    location = tab;
+                    break;
+                }
+            }
+            if (!location.IsValid()) {
+                spdlog::error("ItemsManagerWorker: could not find stash parent");
+                continue;
+            }
+        }
+        LoadItems(*stash, location);
     }
+
+    // Get character items.
+    for (size_t i = 0; i < characters.size(); ++i) {
+        const auto name = characters[i].name;
+        const auto character = userstore.characters().getCharacter(name, m_realm);
+        if (!character) {
+            continue;
+        }
+        emit StatusUpdate(ProgramState::Initializing,
+                          QString("Parsing items from character %1/%2: %3")
+                              .arg(i)
+                              .arg(characters.size())
+                              .arg(name));
+        ItemLocation tab{*character, int(stashes.size() + i)};
+        LoadItems(*character, tab);
+    }
+
     emit StatusUpdate(ProgramState::Ready,
                       QString("Parsed %1 items from %2 tabs").arg(m_items.size()).arg(m_tabs.size()));
 
@@ -182,38 +202,44 @@ void ItemsManagerWorker::ParseItemMods()
     }
 }
 
-void ItemsManagerWorker::ParseItems(const poe::StashTab &stash, ItemLocation location)
+void ItemsManagerWorker::LoadItems(const poe::StashTab &stash, ItemLocation location)
 {
-    if (stash.items) {
-        const auto &items = *stash.items;
-        m_items.reserve(m_items.size() + items.size());
-        spdlog::debug("ItemManagerWorker: loading {} items from stash {} ({})",
-                      items.size(),
-                      stash.id,
-                      stash.name);
-        for (const auto &item : items) {
-            m_items.push_back(std::make_shared<Item>(item, location));
-        }
+    const auto items = stash.items;
+    if (!items) {
+        return;
+    }
+    m_items.reserve(m_items.size() + items->size());
+    spdlog::debug("ItemManagerWorker: loading {} items from stash # {}: {} ({})",
+                  items->size(),
+                  stash.index.value_or(-1),
+                  stash.id,
+                  stash.name);
+    for (const auto &item : *items) {
+        m_items.push_back(std::make_shared<Item>(item, location));
     }
 }
 
-void ItemsManagerWorker::ParseItems(const poe::Character &character, ItemLocation location)
+void ItemsManagerWorker::LoadItems(const poe::Character &character, ItemLocation location)
 {
-    const std::array collections{std::make_pair("equipment", character.equipment),
-                                 std::make_pair("inventory", character.inventory),
-                                 std::make_pair("rucksack", character.rucksack),
-                                 std::make_pair("jewels", character.jewels)};
+    const std::array collections{
+        std::make_pair("equipment", character.equipment),
+        std::make_pair("inventory", character.inventory),
+        std::make_pair("rucksack", character.rucksack),
+        std::make_pair("jewels", character.jewels),
+    };
+
     for (const auto &[name, items] : collections) {
-        if (items) {
-            m_items.reserve(m_items.size() + items->size());
-            spdlog::debug("ItemManagerWorker: loading {} items from character {} {} ({})",
-                          items->size(),
-                          name,
-                          character.id,
-                          character.name);
-            for (const auto &item : *items) {
-                m_items.push_back(std::make_shared<Item>(item, location));
-            }
+        if (!items) {
+            continue;
+        }
+        m_items.reserve(m_items.size() + items->size());
+        spdlog::debug("ItemManagerWorker: loading {} items from character {} {} ({})",
+                      items->size(),
+                      name,
+                      character.id,
+                      character.name);
+        for (const auto &item : *items) {
+            m_items.push_back(std::make_shared<Item>(item, location));
         }
     }
 }
@@ -424,7 +450,7 @@ void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, int &count)
     // need to be trimmed to 10 characters.
     QString tab_id = tab.id;
     if (tab_id.size() > 10) {
-        spdlog::debug("Trimming tab unique id: {}", tab.name);
+        spdlog::warn("Trimming tab unique id: {}", tab.name);
         tab_id = tab_id.first(10);
     }
 
@@ -446,6 +472,9 @@ void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, int &count)
 
         // Process any children.
         if (tab.children) {
+            // These children need to be added to the database, since they weren't included
+            // in the original list.
+            emit stashListReceived(*tab.children, m_realm, m_league);
             for (const auto &child : *tab.children) {
                 ProcessTab(child, count);
             }
@@ -468,12 +497,9 @@ void ItemsManagerWorker::OnStashListReceived(QNetworkReply *reply)
         return;
     }
     const QByteArray bytes = reply->readAll();
-    const std::string_view sv{bytes.constBegin(), size_t(bytes.size())};
-
-    const auto result = glz::read_json<poe::StashListWrapper>(sv);
+    const auto result = json::readStashListWrapper(bytes);
     if (!result) {
-        const auto msg = glz::format_error(result.error(), sv);
-        spdlog::error("ItemsManagerWorker: unable to parse stash list: {}", msg);
+        spdlog::error("ItemsManagerWorker: unable to parse stash list");
         m_updating = false;
         return;
     }
@@ -538,12 +564,9 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply *reply)
         return;
     }
     const QByteArray bytes = reply->readAll();
-    const std::string_view sv{bytes.constBegin(), size_t(bytes.size())};
-
-    const auto result = glz::read_json<poe::CharacterListWrapper>(sv);
+    const auto result = json::readCharacterListWrapper(bytes);
     if (!result) {
-        const auto msg = glz::format_error(result.error(), sv);
-        spdlog::error("ItemsManagerWorker: unable to parse character list: {}", msg);
+        spdlog::error("ItemsManagerWorker: unable to parse character list");
         m_updating = false;
         return;
     }
@@ -607,21 +630,20 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
         return;
     }
     const QByteArray bytes = reply->readAll();
-    const std::string_view sv{bytes.constBegin(), size_t(bytes.size())};
-
-    const auto result = glz::read_json<poe::StashWrapper>(sv);
+    const auto result = json::readStashWrapper(bytes);
     if (!result) {
-        const auto msg = glz::format_error(result.error(), sv);
-        spdlog::error("ItemsManagerWorker: unable to parse stash: {}", msg);
-        return;
-    } else if (!result->stash) {
-        spdlog::error("ItemsManagerWorker: emtpy stash repsonse received");
+        spdlog::error("ItemsManagerWorker: unable to parse stash");
         return;
     }
 
     const auto &stash = *result->stash;
 
     emit stashReceived(*result->stash, m_realm, m_league);
+
+    // TBD handle folder children.
+    if (stash.parent == "fc672409b5") {
+        spdlog::info("FOUND");
+    }
 
     if (stash.items) {
         const auto &items = *stash.items;
@@ -643,6 +665,8 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
         get_children = m_settings.value("get_map_stashes", false).toBool();
     } else if (stash.type == "UniqueStash") {
         get_children = m_settings.value("get_unique_stashes", false).toBool();
+    } else if (stash.type == "Folder") {
+        get_children = true;
     }
 
     if (get_children && stash.children) {
@@ -687,16 +711,12 @@ void ItemsManagerWorker::OnCharacterReceived(QNetworkReply *reply, const ItemLoc
         return;
     }
     const QByteArray bytes = reply->readAll();
-    const size_t nbytes = static_cast<size_t>(bytes.size());
-    const std::string_view sv{bytes.constBegin(), nbytes};
-
-    const auto result = glz::read_json<poe::CharacterWrapper>(sv);
+    const auto result = json::readCharacterWrapper(bytes);
     if (!result) {
-        const auto msg = glz::format_error(result.error(), sv);
-        spdlog::error("ItemsManagerWorker: unable to parse character: {}", msg);
+        spdlog::error("ItemsManagerWorker: unable to parse character");
         return;
     } else if (!result->character) {
-        spdlog::error("ItemsManagerWorker: empty character received");
+        spdlog::error("ItemsManagerWorker: character is empty");
         return;
     }
 

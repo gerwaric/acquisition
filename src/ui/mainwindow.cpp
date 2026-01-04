@@ -51,6 +51,7 @@
 #include "ui/itemtooltip.h"
 #include "ui/logpanel.h"
 #include "ui/verticalscrollarea.h"
+#include "util/glaze_qt.h" // IWYU pragma: keep
 #include "util/networkmanager.h"
 #include "util/oauthmanager.h"
 #include "util/spdlog_qt.h"

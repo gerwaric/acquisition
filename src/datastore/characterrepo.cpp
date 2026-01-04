@@ -89,7 +89,7 @@ bool CharacterRepo::saveCharacter(const poe::Character &character)
     }
 
     const QDateTime json_fetched_at = ds::timestamp();
-    const QByteArray json = writeCharacter(character);
+    const QByteArray json = json::writeCharacter(character);
 
     q.bindValue(":id", character.id);
     q.bindValue(":name", character.name);
@@ -185,7 +185,7 @@ std::optional<poe::Character> CharacterRepo::getCharacter(const QString &name, c
     }
 
     const auto json = q.value(0).toByteArray();
-    return readCharacter(json);
+    return json::readCharacter(json);
 }
 
 std::vector<poe::Character> CharacterRepo::getCharacterList(const QString &realm,

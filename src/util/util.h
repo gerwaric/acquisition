@@ -10,7 +10,6 @@
 #include <QString>
 #include <QUrlQuery>
 
-#include "util/glaze_qt.h" // IWYU pragma: keep
 #include "util/spdlog_qt.h"
 
 class QComboBox;
@@ -40,6 +39,7 @@ namespace Util {
     enum class TabSelection { All, Checked, Selected, TabsOnly };
     Q_ENUM_NS(TabSelection)
 
+    QByteArray toPathBytes(const QString &path);
     QString Md5(const QString &value);
     double AverageDamage(const QString &s);
     void PopulateBuyoutTypeComboBox(QComboBox *combobox);
@@ -80,45 +80,6 @@ namespace Util {
     QString toString(const T &value)
     {
         return QMetaEnum::fromType<T>().valueToKey(static_cast<std::underlying_type_t<T>>(value));
-    }
-
-    template<typename T>
-    void parseJson(const std::string &json, T &out)
-    {
-        // glz::read_json returns an error object; it is "truthy" if there WAS an error.
-        const auto ec = glz::read_json<T>(out, json);
-        if (ec) {
-            const auto msg = glz::format_error(ec, json);
-            spdlog::error("Error parsing json into {}: {}", typeid(T).name(), msg);
-        }
-    }
-
-    template<typename T>
-    inline void parseJson(const QByteArray &json, T &out)
-    {
-        parseJson<T>(json.toStdString(), out);
-    }
-
-    template<typename T>
-    inline void parseJson(const QString &json, T &out)
-    {
-        parseJson<T>(json.toUtf8(), out);
-    }
-
-    template<typename T>
-    inline T parseJson(const QByteArray &json)
-    {
-        T result;
-        parseJson<T>(json, result);
-        return result;
-    }
-
-    template<typename T>
-    inline T parseJson(const QString &json)
-    {
-        T result;
-        parseJson<T>(json.toUtf8(), result);
-        return result;
     }
 
 } // namespace Util

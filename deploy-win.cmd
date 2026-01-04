@@ -64,6 +64,10 @@ if not exist "%BUILD_DIR%\acquisition.pdb" (
     echo ERROR: acquisition.pdb not found in "%BUILD_DIR%".
     exit /B
 )
+if not exist "%BUILD_DIR%\crashpad_handler.exe" (
+    echo ERROR: acquisition.exe not found in "%BUILD_DIR%".
+    exit /B
+)
 
 rem Need to use pushd before calling these scripts
 pushd .
@@ -81,6 +85,9 @@ mkdir "%DEPLOY_DIR%"
 
 echo Copying acquisition to deploy directory.
 copy "%BUILD_DIR%\acquisition.exe" "%DEPLOY_DIR%"
+
+echo Copying crashpad_handler to deploy directory.
+copy "%BUILD_DIR%\crashpad_handler.exe" "%DEPLOY_DIR%"
 
 echo Running windeployqt.
 "%WINDEPLOYQT%" "%DEPLOY_DIR%\acquisition.exe" --release --compiler-runtime --dir "%DEPLOY_DIR%"
@@ -100,3 +107,6 @@ copy "%BUILD_DIR%\acquisition.exe" .\Output
 
 echo Copying the acquisition debug symbols to the output directory.
 copy "%BUILD_DIR%\acquisition.pdb" .\Output
+
+echo Copying the crashpad handler to the output directory.
+copy "%BUILD_DIR%\crashpad_handler.exe" .\Output

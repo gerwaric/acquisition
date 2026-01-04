@@ -143,7 +143,7 @@ bool StashRepo::saveStash(const poe::StashTab &stash, const QString &realm, cons
     }
 
     const QDateTime json_fetched_at = ds::timestamp();
-    const QByteArray json = writeStash(stash);
+    const QByteArray json = json::writeStash(stash);
 
     q.bindValue(":id", stash.id);
     q.bindValue(":realm", realm);
@@ -269,7 +269,7 @@ std::optional<poe::StashTab> StashRepo::getStash(const QString &id,
     }
 
     const auto json = q.value(0).toByteArray();
-    return readStash(json);
+    return json::readStash(json);
 }
 
 std::vector<poe::StashTab> StashRepo::getStashList(const QString &realm,
@@ -285,7 +285,8 @@ std::vector<poe::StashTab> StashRepo::getStashList(const QString &realm,
         spdlog::debug("StashRepo: getting stash list: realm='{}', league='{}'", realm, league);
     }
 
-    QString sql{"SELECT id, name, type, stash_index, meta_colour"
+    QString sql{"SELECT realm, league, id, parent, folder, name, type, stash_index, meta_public, "
+                "meta_folder, meta_colour"
                 " FROM stashes"
                 " WHERE realm = :realm AND league = :league"};
 
@@ -316,11 +317,19 @@ std::vector<poe::StashTab> StashRepo::getStashList(const QString &realm,
     while (q.next()) {
         poe::StashTab stash;
         stash.id = q.value("id").toString();
+        if (!q.isNull("parent")) {
+            stash.parent = q.value("parent").toString();
+        }
+        if (!q.isNull("folder")) {
+            stash.folder = q.value("folder").toString();
+        }
         stash.name = q.value("name").toString();
         stash.type = q.value("type").toString();
         if (!q.isNull("stash_index")) {
             stash.index = q.value("stash_index").toUInt();
         }
+        stash.metadata.public_ = q.value("meta_public").toBool();
+        stash.metadata.folder = q.value("meta_folder").toBool();
         if (!q.isNull("meta_colour")) {
             stash.metadata.colour = q.value("meta_colour").toString();
         }
@@ -364,8 +373,10 @@ std::vector<poe::StashTab> StashRepo::getStashChildren(const QString &id,
 
     while (q.next()) {
         const QByteArray json = q.value(0).toByteArray();
-        poe::StashTab stash = readStash(json);
-        stashes.push_back(stash);
+        const auto result = json::readStash(json);
+        if (result) {
+            stashes.push_back(*result);
+        }
     }
 
     spdlog::debug("getStashChildren: returning {} stashes", stashes.size());

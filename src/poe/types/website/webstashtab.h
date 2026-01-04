@@ -3,10 +3,12 @@
 
 #pragma once
 
+#include <QString>
+
 #include <optional>
 #include <vector>
 
-#include <QString>
+#include <glaze/glaze.hpp>
 
 #include "poe/types/item.h"
 

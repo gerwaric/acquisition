@@ -82,9 +82,9 @@ private slots:
 private:
     bool isInitialized() const { return m_initialized; }
     bool isUpdating() const { return m_updating; };
-    void ParseItemMods();
-    void ParseItems(const poe::Character &character, ItemLocation location);
-    void ParseItems(const poe::StashTab &stash, ItemLocation location);
+    void LoadItems();
+    void LoadItems(const poe::Character &character, ItemLocation location);
+    void LoadItems(const poe::StashTab &stash, ItemLocation location);
     void RemoveUpdatingTabs(const std::set<QString> &tab_ids);
     void RemoveUpdatingItems(const std::set<QString> &tab_ids);
     void QueueRequest(const QString &endpoint,

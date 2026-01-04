@@ -24,6 +24,7 @@
 #include "ratelimit/ratelimiter.h"
 #include "replytimeout.h"
 #include "ui/mainwindow.h"
+#include "util/json_readers.h"
 #include "util/networkmanager.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
@@ -223,14 +224,11 @@ void Shop::OnStashIndexReceived(bool force, QNetworkReply *reply)
         spdlog::debug("Shop: http reply status {} indexing stashes", status);
     }
 
-    const QByteArray bytes = reply->readAll();
-    const std::string_view sv{bytes.constData(), static_cast<size_t>(bytes.size())};
-
     // Parse the stash tab list.
-    poe::WebStashListWrapper tabs_wrapper;
-    auto ec = glz::read<GLAZE_OPTIONS>(tabs_wrapper, sv);
-    if (ec) {
-        spdlog::error("Shop: error parsing stash list: {}", glz::format_error(ec, sv));
+    const QByteArray bytes = reply->readAll();
+    const auto tabs_wrapper = json::readWebStashListWrapper(bytes);
+    if (!tabs_wrapper) {
+        spdlog::error("Shop: error parsing stash list");
         m_submitting = false;
         return;
     }
@@ -239,12 +237,12 @@ void Shop::OnStashIndexReceived(bool force, QNetworkReply *reply)
 
     // Rebuild the tab index.
     m_tab_index.clear();
-    if (!tabs_wrapper.tabs) {
+    if (!tabs_wrapper->tabs) {
         spdlog::error("Shop: stash list result does not contains tabs list.");
         m_submitting = false;
         return;
     }
-    const auto &tabs = tabs_wrapper.tabs.value();
+    const auto &tabs = tabs_wrapper->tabs.value();
     spdlog::debug("Shop: received legacy tabs list, there are {} tabs", tabs.size());
     for (const auto &tab : tabs) {
         const unsigned index = tab.i;

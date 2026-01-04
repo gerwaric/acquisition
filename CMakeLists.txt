@@ -374,7 +374,7 @@ target_link_libraries(acquisition PRIVATE
     # Extenal libraries
     glaze::glaze
     qdarkstyle
-    sentry
+    sentry::sentry
     semver
     spdlog::spdlog_header_only
 )
@@ -504,3 +504,17 @@ elseif(UNIX)
     endif()
     
 endif()
+
+# Make sure the crashpad handler is copied next to the output executable.
+set(CRASHPAD_HANDLER_SRC
+    "${sentry-native_BINARY_DIR}/crashpad_build/handler/crashpad_handler${CMAKE_EXECUTABLE_SUFFIX}"
+)
+set(CRASHPAD_HANDLER_DST
+    "$<TARGET_FILE_DIR:acquisition>/crashpad_handler${CMAKE_EXECUTABLE_SUFFIX}"
+)
+add_custom_command(TARGET acquisition POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CRASHPAD_HANDLER_SRC}"
+        "${CRASHPAD_HANDLER_DST}"
+    VERBATIM
+)

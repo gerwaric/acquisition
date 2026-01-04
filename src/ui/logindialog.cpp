@@ -24,6 +24,7 @@
 #include "datastore/datastore.h"
 #include "poe/types/league.h"
 #include "replytimeout.h"
+#include "util/json_readers.h"
 #include "util/networkmanager.h"
 #include "util/oauthmanager.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
@@ -222,11 +223,15 @@ void LoginDialog::OnLeaguesReceived()
     // Check for network errors.
     if (reply->error()) {
         spdlog::trace("LoginDialog::OnLeaguesReceived() reply error {}", reply->error());
-        return LeaguesRequestError(reply->errorString(), bytes);
+        LeaguesRequestError(reply->errorString(), bytes);
+        return;
     }
 
     // Parse the leagues.
-    const auto leagues = Util::parseJson<std::vector<poe::League>>(bytes);
+    const auto leagues = json::readLeagueList(bytes);
+    if (!leagues) {
+        return;
+    }
 
     // Get the league from settings.ini
     const QString saved_league = m_settings.value("league").toString();
@@ -235,7 +240,7 @@ void LoginDialog::OnLeaguesReceived()
     bool use_saved_league = false;
 
     ui->leagueComboBox->clear();
-    for (auto &league : leagues) {
+    for (auto &league : *leagues) {
         // Add the league to the combo box.
         ui->leagueComboBox->addItem(league.id);
 

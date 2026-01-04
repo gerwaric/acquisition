@@ -9,8 +9,8 @@
 #include "application.h"
 #include "datastore/datastore.h"
 #include "itemlocation.h"
+#include "util/glaze_qt.h"  // IWYU pragma: keep
 #include "util/spdlog_qt.h" // IWYU pragma: keep
-#include "util/util.h"
 
 struct SerializedBuyout
 {

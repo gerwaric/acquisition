@@ -4,62 +4,81 @@
 #include "util/json_readers.h"
 
 #include "poe/types/character.h"
+#include "poe/types/league.h"
 #include "poe/types/stashtab.h"
-#include "util/glaze_qt.h"  // IWYU pragma: keep
+#include "poe/types/website/webstashtab.h"
+#include "util/glaze_qt.h" // IWYU pragma: keep
+#include "util/oauthtoken.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 
-poe::Character readCharacter(const QByteArray &json)
-{
-    poe::Character character;
+namespace {
+    template<typename T>
+    std::optional<T> read_json(const QByteArray &json)
+    {
+        T result;
+        const std::string_view str{json.constData(), size_t(json.size())};
+        const auto err = glz::read_json(result, str);
+        if (err) {
+            const auto type = typeid(T).name();
+            const auto msg = glz::format_error(err, str);
+            spdlog::error("Error reading {} from json: {}", type, msg);
+            return std::nullopt;
+        }
+        return result;
+    };
+} // namespace
 
-    const std::string_view sv{json.constBegin(), size_t(json.size())};
-    const auto ec = glz::read_json(character, sv);
-    if (ec) {
-        const auto msg = glz::format_error(ec, sv);
-        spdlog::error("Error parsing character: {}", msg);
-        return {};
-    }
-    return character;
+std::optional<OAuthToken> json::readOAuthToken(const QByteArray &json)
+{
+    return read_json<OAuthToken>(json);
 }
 
-std::vector<poe::Character> readCharacterList(const QByteArray &json)
+std::optional<poe::Character> json::readCharacter(const QByteArray &json)
 {
-    std::vector<poe::Character> characters;
-
-    const std::string_view sv{json.constBegin(), size_t(json.size())};
-    const auto ec = glz::read_json(characters, sv);
-    if (ec) {
-        const auto msg = glz::format_error(ec, sv);
-        spdlog::error("Error parsing character list: {}", msg);
-        return {};
-    }
-    return characters;
+    return read_json<poe::Character>(json);
 }
 
-poe::StashTab readStash(const QByteArray &json)
+std::optional<poe::CharacterListWrapper> json::readCharacterListWrapper(const QByteArray &json)
 {
-    poe::StashTab stash;
-
-    const std::string_view sv{json.constBegin(), size_t(json.size())};
-    const auto ec = glz::read_json(stash, sv);
-    if (ec) {
-        const auto msg = glz::format_error(ec, sv);
-        spdlog::error("Error parsing stash tab: {}", msg);
-        return {};
-    }
-    return stash;
+    return read_json<poe::CharacterListWrapper>(json);
 }
 
-std::vector<poe::StashTab> readStashList(const QByteArray &json)
+std::optional<poe::CharacterWrapper> json::readCharacterWrapper(const QByteArray &json)
 {
-    std::vector<poe::StashTab> stashes;
+    return read_json<poe::CharacterWrapper>(json);
+}
 
-    const std::string_view sv{json.constBegin(), size_t(json.size())};
-    const auto ec = glz::read_json(stashes, sv);
-    if (ec) {
-        const auto msg = glz::format_error(ec, sv);
-        spdlog::error("Error parsing stash tab: {}", msg);
-        return {};
-    }
-    return stashes;
+std::optional<std::vector<poe::Character>> json::readCharacterList(const QByteArray &json)
+{
+    return read_json<std::vector<poe::Character>>(json);
+}
+
+std::optional<std::vector<poe::League>> json::readLeagueList(const QByteArray &json)
+{
+    return read_json<std::vector<poe::League>>(json);
+}
+
+std::optional<poe::StashTab> json::readStash(const QByteArray &json)
+{
+    return read_json<poe::StashTab>(json);
+}
+
+std::optional<poe::StashListWrapper> json::readStashListWrapper(const QByteArray &json)
+{
+    return read_json<poe::StashListWrapper>(json);
+}
+
+std::optional<poe::StashWrapper> json::readStashWrapper(const QByteArray &json)
+{
+    return read_json<poe::StashWrapper>(json);
+}
+
+std::optional<std::vector<poe::StashTab>> json::readStashList(const QByteArray &json)
+{
+    return read_json<std::vector<poe::StashTab>>(json);
+}
+
+std::optional<poe::WebStashListWrapper> json::readWebStashListWrapper(const QByteArray &json)
+{
+    return read_json<poe::WebStashListWrapper>(json);
 }

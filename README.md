@@ -18,7 +18,7 @@ See [BUILD.md](https://github.com/gerwaric/acquisition/blob/master/BUILD.md) for
 
 ## Command line
 
-`acquisition [--data-dir <path>] [--log-level <level>] [--test]`
+`acquisition [--data-dir <path>] [--log-level <level>]`
 
 `--data-dir <path>`:
 	Set the path where Acquisition should save its data.
