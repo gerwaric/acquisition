@@ -373,7 +373,7 @@
      <x>0</x>
      <y>0</y>
      <width>1280</width>
-     <height>37</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuShop">
@@ -399,6 +399,11 @@
     <addaction name="separator"/>
     <addaction name="actionSetAutomaticTabRefresh"/>
     <addaction name="actionSetTabRefreshInterval"/>
+    <addaction name="separator"/>
+    <addaction name="actionGetDivinationStashes"/>
+    <addaction name="actionGetFlaskStashes"/>
+    <addaction name="actionGetMapStashes"/>
+    <addaction name="actionGetUniqueStashes"/>
    </widget>
    <widget class="QMenu" name="menuCurrency">
     <property name="title">
@@ -645,6 +650,38 @@
   <action name="actionUpdateShopPOESESSID">
    <property name="text">
     <string>Update shop POESESSID</string>
+   </property>
+  </action>
+  <action name="actionGetDivinationStashes">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Get divination stashes</string>
+   </property>
+  </action>
+  <action name="actionGetFlaskStashes">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Get flask stashes</string>
+   </property>
+  </action>
+  <action name="actionGetMapStashes">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Get map stashes</string>
+   </property>
+  </action>
+  <action name="actionGetUniqueStashes">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Get unique stashes</string>
    </property>
   </action>
  </widget>

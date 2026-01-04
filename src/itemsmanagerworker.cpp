@@ -23,6 +23,7 @@
 #include "datastore/userstore.h"
 #include "itemlocation.h"
 #include "modlist.h"
+#include "poe/poe_utils.h"
 #include "poe/types/character.h"
 #include "poe/types/item.h"
 #include "poe/types/stashtab.h"
@@ -33,18 +34,6 @@
 #include "ui/mainwindow.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
-
-constexpr const char *kOauthListStashesEndpoint = "List Stashes";
-constexpr const char *kOAuthListStashesUrl = "https://api.pathofexile.com/stash";
-
-constexpr const char *kOAuthListCharactersEndpoint = "List Characters";
-constexpr const char *kOAuthListCharactersUrl = "https://api.pathofexile.com/character";
-
-constexpr const char *kOAuthGetStashEndpoint = "Get Stash";
-constexpr const char *kOAuthGetStashUrl = "https://api.pathofexile.com/stash";
-
-constexpr const char *kOAuthGetCharacterEndpoint = "Get Character";
-constexpr const char *kOAuthGetCharacterUrl = "https://api.pathofexile.com/character";
 
 ItemsManagerWorker::ItemsManagerWorker(QSettings &settings,
                                        BuyoutManager &buyout_manager,
@@ -108,6 +97,13 @@ void ItemsManagerWorker::ParseItemMods()
     m_tabs.clear();
     m_tabs.reserve(stashes.size() + characters.size());
     for (const auto &stash : stashes) {
+        if (stash.parent) {
+            // Do not add substashes from these special stashes.
+            if ((stash.type == "DivinationCardStash") || (stash.type == "FlaskStash")
+                || (stash.type == "MapStash") || (stash.type == "UniqueStash")) {
+                continue;
+            }
+        }
         m_tabs.emplace_back(stash);
     }
     for (const auto &character : characters) {
@@ -148,6 +144,21 @@ void ItemsManagerWorker::ParseItemMods()
                                                             m_league);
             if (stash) {
                 ParseItems(*stash, tab);
+                // We have to make separate requests for the special tabs.
+                // This is messy and needs to be reworked.
+                if (stash->children) {
+                    if ((stash->type == "DivinationCardStash") || (stash->type == "FlaskStash")
+                        || (stash->type == "MapStash") || (stash->type == "UniqueStash")) {
+                        for (const auto &child : *stash->children) {
+                            const auto child_stash = userstore.stashes().getStash(child.id,
+                                                                                  m_realm,
+                                                                                  m_league);
+                            if (child_stash->items) {
+                                ParseItems(*child_stash, tab);
+                            }
+                        }
+                    }
+                }
             }
         } break;
         case ItemLocationType::CHARACTER: {
@@ -393,76 +404,25 @@ void ItemsManagerWorker::OAuthRefresh()
 {
     spdlog::trace("Items Manager Worker: starting OAuth refresh");
     if (m_need_stash_list) {
-        const auto request = MakeOAuthStashListRequest(m_realm, m_league);
+        const auto [endpoint, request] = poe::MakeStashListRequest(m_realm, m_league);
         spdlog::trace("ItemsManagerWorker::OAuthRefresh() requesting stash list: {}",
                       request.url().toString());
-        auto reply = m_rate_limiter.Submit(kOauthListStashesEndpoint, request);
-        connect(reply,
-                &RateLimitedReply::complete,
-                this,
-                &ItemsManagerWorker::OnOAuthStashListReceived);
+        auto reply = m_rate_limiter.Submit(endpoint, request);
+        connect(reply, &RateLimitedReply::complete, this, &ItemsManagerWorker::OnStashListReceived);
     }
     if (m_need_character_list) {
-        const auto request = MakeOAuthCharacterListRequest(m_realm);
+        const auto [endpoint, request] = poe::MakeCharacterListRequest(m_realm);
         spdlog::trace("ItemsManagerWorker::OAuthRefresh() requesting character list: {}",
                       request.url().toString());
-        auto submit = m_rate_limiter.Submit(kOAuthListCharactersEndpoint, request);
+        auto submit = m_rate_limiter.Submit(endpoint, request);
         connect(submit,
                 &RateLimitedReply::complete,
                 this,
-                &ItemsManagerWorker::OnOAuthCharacterListReceived);
+                &ItemsManagerWorker::OnCharacterListReceived);
     }
 }
 
-QNetworkRequest ItemsManagerWorker::MakeOAuthStashListRequest(const QString &realm,
-                                                              const QString &league)
-{
-    QString url(kOAuthListStashesUrl);
-    if (realm != "pc") {
-        url += "/" + realm;
-    }
-    url += "/" + league;
-    return QNetworkRequest(QUrl(url));
-}
-
-QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterListRequest(const QString &realm)
-{
-    QString url(kOAuthListCharactersUrl);
-    if (realm != "pc") {
-        url += "/" + realm;
-    }
-    return QNetworkRequest(QUrl(url));
-}
-
-QNetworkRequest ItemsManagerWorker::MakeOAuthStashRequest(const QString &realm,
-                                                          const QString &league,
-                                                          const QString &stash_id,
-                                                          const QString &substash_id)
-{
-    QString url(kOAuthGetStashUrl);
-    if (realm != "pc") {
-        url += "/" + realm;
-    };
-    url += "/" + league;
-    url += "/" + stash_id;
-    if (!substash_id.isEmpty()) {
-        url += "/" + substash_id;
-    }
-    return QNetworkRequest(QUrl(url));
-}
-
-QNetworkRequest ItemsManagerWorker::MakeOAuthCharacterRequest(const QString &realm,
-                                                              const QString &name)
-{
-    QString url(kOAuthGetCharacterUrl);
-    if (realm != "pc") {
-        url += "/" + realm;
-    }
-    url += "/" + name;
-    return QNetworkRequest(QUrl(url));
-}
-
-void ItemsManagerWorker::ProcessOAuthTab(const poe::StashTab &tab, int &count)
+void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, int &count)
 {
     // Get tab info.
 
@@ -486,20 +446,20 @@ void ItemsManagerWorker::ProcessOAuthTab(const poe::StashTab &tab, int &count)
         if (m_update_tab_contents) {
             ++count;
             const auto uid = location.get_tab_uniq_id();
-            QNetworkRequest request = MakeOAuthStashRequest(m_realm, m_league, uid);
-            QueueRequest(kOAuthGetStashEndpoint, request, location);
+            const auto [endpoint, request] = poe::MakeStashRequest(m_realm, m_league, uid);
+            QueueRequest(endpoint, request, location);
         }
 
         // Process any children.
         if (tab.children) {
             for (const auto &child : *tab.children) {
-                ProcessOAuthTab(child, count);
+                ProcessTab(child, count);
             }
         }
     }
 }
 
-void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply *reply)
+void ItemsManagerWorker::OnStashListReceived(QNetworkReply *reply)
 {
     spdlog::trace("ItemsManagerWorker::OnOAuthStashListReceived() entered");
 
@@ -543,10 +503,10 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply *reply)
         for (auto const &tab : m_tabs) {
             if (!old_tab_headers.count(tab.GetHeader())) {
                 spdlog::debug("Forcing refresh of moved or renamed tab: {}", tab.GetHeader());
-                QNetworkRequest request = MakeOAuthStashRequest(m_realm,
-                                                                m_league,
-                                                                tab.get_tab_uniq_id());
-                QueueRequest(kOAuthGetStashEndpoint, request, tab);
+                const auto [endpoint, request] = poe::MakeStashRequest(m_realm,
+                                                                       m_league,
+                                                                       tab.get_tab_uniq_id());
+                QueueRequest(endpoint, request, tab);
             }
         }
     }
@@ -555,7 +515,7 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply *reply)
     int tabs_requested = 0;
     for (const auto &tab : stashes) {
         // This will process tabs recursively.
-        ProcessOAuthTab(tab, tabs_requested);
+        ProcessTab(tab, tabs_requested);
     }
     spdlog::debug("Requesting {} out of {} stash tabs", tabs_requested, stashes.size());
 
@@ -568,7 +528,7 @@ void ItemsManagerWorker::OnOAuthStashListReceived(QNetworkReply *reply)
     }
 }
 
-void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply *reply)
+void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply *reply)
 {
     spdlog::trace("ItemsManagerWorker::OnOAuthCharacterListReceived() entered");
 
@@ -622,8 +582,8 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply *reply)
         // Queue character request if needed.
         if (m_update_tab_contents) {
             ++requested_character_count;
-            QNetworkRequest request = MakeOAuthCharacterRequest(m_realm, name);
-            QueueRequest(kOAuthGetCharacterEndpoint, request, location);
+            const auto [endpoint, request] = poe::MakeCharacterRequest(m_realm, name);
+            QueueRequest(endpoint, request, location);
         }
     }
     spdlog::debug("There are {} characters to update in '{}'", requested_character_count, m_league);
@@ -637,7 +597,7 @@ void ItemsManagerWorker::OnOAuthCharacterListReceived(QNetworkReply *reply)
     }
 }
 
-void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply *reply, const ItemLocation &location)
+void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocation &location)
 {
     spdlog::trace("ItemsManagerWorker::OnOAuthStashReceived() entered");
 
@@ -683,6 +643,37 @@ void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply *reply, const ItemLo
     ++m_stashes_received;
     SendStatusUpdate();
 
+    bool get_children{false};
+
+    if (stash.type == "DivinationCardStash") {
+        get_children = m_settings.value("get_divination_stashes", false).toBool();
+    } else if (stash.type == "FlaskStash") {
+        get_children = m_settings.value("get_flask_stashes", false).toBool();
+    } else if (stash.type == "MapStash") {
+        get_children = m_settings.value("get_map_stashes", false).toBool();
+    } else if (stash.type == "UniqueStash") {
+        get_children = m_settings.value("get_unique_stashes", false).toBool();
+    }
+
+    if (get_children && stash.children) {
+        spdlog::debug("ItemsManagerWorker: getting {} children of {} '{}' ({})",
+                      stash.children->size(),
+                      stash.type,
+                      stash.name,
+                      stash.id);
+        for (const auto &child : *stash.children) {
+            const auto [endpoint, request] = poe::MakeStashRequest(m_realm,
+                                                                   m_league,
+                                                                   stash.id,
+                                                                   child.id);
+            auto submit = m_rate_limiter.Submit(endpoint, request);
+            connect(submit, &RateLimitedReply::complete, this, [=, this](QNetworkReply *reply) {
+                OnStashReceived(reply, location);
+            });
+            ++m_stashes_needed;
+        }
+    }
+
     if ((m_stashes_received == m_stashes_needed) && (m_characters_received == m_characters_needed)
         && !m_cancel_update) {
         spdlog::trace("ItemsManagerWorker::OnOAuthStashReceived() finishing update");
@@ -690,7 +681,7 @@ void ItemsManagerWorker::OnOAuthStashReceived(QNetworkReply *reply, const ItemLo
     }
 }
 
-void ItemsManagerWorker::OnOAuthCharacterReceived(QNetworkReply *reply, const ItemLocation &location)
+void ItemsManagerWorker::OnCharacterReceived(QNetworkReply *reply, const ItemLocation &location)
 {
     spdlog::trace("ItemsManagerWorker::OnOAuthCharacterReceived() entered");
 
@@ -785,16 +776,15 @@ void ItemsManagerWorker::FetchItems()
         const QString endpoint = request.endpoint;
         std::function<void(QNetworkReply *)> callback;
 
-        if (endpoint == kOAuthGetStashEndpoint) {
-            callback = [=, this](QNetworkReply *reply) { OnOAuthStashReceived(reply, location); };
+        switch (location.get_type()) {
+        case ItemLocationType::STASH:
+            callback = [=, this](QNetworkReply *reply) { OnStashReceived(reply, location); };
             ++m_stashes_needed;
-        } else if (endpoint == kOAuthGetCharacterEndpoint) {
-            callback = [=, this](QNetworkReply *reply) {
-                OnOAuthCharacterReceived(reply, location);
-            };
+            break;
+        case ItemLocationType::CHARACTER:
+            callback = [=, this](QNetworkReply *reply) { OnCharacterReceived(reply, location); };
             ++m_characters_needed;
-        } else {
-            spdlog::error("FetchItems(): invalid endpoint: {}", request.endpoint);
+            break;
         }
 
         // Pass the request to the rate limiter.

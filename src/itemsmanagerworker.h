@@ -71,15 +71,13 @@ signals:
 
 public slots:
     void OnRePoEReady();
-    void Update(Util::TabSelection type,
-                const std::vector<ItemLocation, std::allocator<ItemLocation>> &tab_names
-                = std::vector<ItemLocation, std::allocator<ItemLocation>>());
+    void Update(Util::TabSelection type, const std::vector<ItemLocation> &tab_names = {});
 
 private slots:
-    void OnOAuthStashListReceived(QNetworkReply *reply);
-    void OnOAuthStashReceived(QNetworkReply *reply, const ItemLocation &location);
-    void OnOAuthCharacterListReceived(QNetworkReply *reply);
-    void OnOAuthCharacterReceived(QNetworkReply *reply, const ItemLocation &location);
+    void OnStashListReceived(QNetworkReply *reply);
+    void OnStashReceived(QNetworkReply *reply, const ItemLocation &location);
+    void OnCharacterListReceived(QNetworkReply *reply);
+    void OnCharacterReceived(QNetworkReply *reply, const ItemLocation &location);
 
 private:
     bool isInitialized() const { return m_initialized; }
@@ -95,13 +93,6 @@ private:
     void FetchItems();
 
     void OAuthRefresh();
-    QNetworkRequest MakeOAuthStashListRequest(const QString &realm, const QString &league);
-    QNetworkRequest MakeOAuthStashRequest(const QString &realm,
-                                          const QString &league,
-                                          const QString &stash_id,
-                                          const QString &substash_id = "");
-    QNetworkRequest MakeOAuthCharacterListRequest(const QString &realm);
-    QNetworkRequest MakeOAuthCharacterRequest(const QString &realm, const QString &name);
 
     typedef std::pair<QString, QString> TabSignature;
     typedef std::vector<TabSignature> TabsSignatureVector;
@@ -111,7 +102,7 @@ private:
     void ParseItems(const std::vector<poe::Item> &items, const ItemLocation &base_location);
     void FinishUpdate();
 
-    void ProcessOAuthTab(const poe::StashTab &tab, int &count);
+    void ProcessTab(const poe::StashTab &tab, int &count);
 
     QSettings &m_settings;
     BuyoutManager &m_buyout_manager;
