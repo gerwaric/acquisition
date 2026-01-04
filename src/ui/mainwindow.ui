@@ -400,8 +400,6 @@
     <addaction name="actionSetAutomaticTabRefresh"/>
     <addaction name="actionSetTabRefreshInterval"/>
     <addaction name="separator"/>
-    <addaction name="actionGetDivinationStashes"/>
-    <addaction name="actionGetFlaskStashes"/>
     <addaction name="actionGetMapStashes"/>
     <addaction name="actionGetUniqueStashes"/>
    </widget>
@@ -650,22 +648,6 @@
   <action name="actionUpdateShopPOESESSID">
    <property name="text">
     <string>Update shop POESESSID</string>
-   </property>
-  </action>
-  <action name="actionGetDivinationStashes">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Get divination stashes</string>
-   </property>
-  </action>
-  <action name="actionGetFlaskStashes">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Get flask stashes</string>
    </property>
   </action>
   <action name="actionGetMapStashes">

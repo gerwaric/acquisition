@@ -8,6 +8,10 @@
 
 namespace poe {
 
+    struct StashTab;
+
+    bool isSpecialStash(const poe::StashTab &stash);
+
     std::pair<const QString &, QNetworkRequest> MakeStashListRequest(const QString &realm,
                                                                      const QString &league);
 

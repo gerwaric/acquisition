@@ -92,7 +92,7 @@ private:
                       const ItemLocation &location);
     void FetchItems();
 
-    void OAuthRefresh();
+    void Refresh();
 
     typedef std::pair<QString, QString> TabSignature;
     typedef std::vector<TabSignature> TabsSignatureVector;

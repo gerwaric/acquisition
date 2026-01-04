@@ -97,12 +97,9 @@ void ItemsManagerWorker::ParseItemMods()
     m_tabs.clear();
     m_tabs.reserve(stashes.size() + characters.size());
     for (const auto &stash : stashes) {
-        if (stash.parent) {
-            // Do not add substashes from these special stashes.
-            if ((stash.type == "DivinationCardStash") || (stash.type == "FlaskStash")
-                || (stash.type == "MapStash") || (stash.type == "UniqueStash")) {
-                continue;
-            }
+        // Do not add substashes from the special stashes.
+        if (stash.parent && poe::isSpecialStash(stash)) {
+            continue;
         }
         m_tabs.emplace_back(stash);
     }
@@ -146,16 +143,13 @@ void ItemsManagerWorker::ParseItemMods()
                 ParseItems(*stash, tab);
                 // We have to make separate requests for the special tabs.
                 // This is messy and needs to be reworked.
-                if (stash->children) {
-                    if ((stash->type == "DivinationCardStash") || (stash->type == "FlaskStash")
-                        || (stash->type == "MapStash") || (stash->type == "UniqueStash")) {
-                        for (const auto &child : *stash->children) {
-                            const auto child_stash = userstore.stashes().getStash(child.id,
-                                                                                  m_realm,
-                                                                                  m_league);
-                            if (child_stash->items) {
-                                ParseItems(*child_stash, tab);
-                            }
+                if (stash->children && poe::isSpecialStash(*stash)) {
+                    const auto children = userstore.stashes().getStashChildren(stash->id,
+                                                                               m_realm,
+                                                                               m_league);
+                    for (const auto &child : children) {
+                        if (child.items) {
+                            ParseItems(*child.items, tab);
                         }
                     }
                 }
@@ -337,7 +331,7 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
     m_has_character_list = false;
     m_requested_locations.clear();
 
-    OAuthRefresh();
+    Refresh();
 }
 
 void ItemsManagerWorker::RemoveUpdatingTabs(const std::set<QString> &tab_ids)
@@ -400,7 +394,7 @@ void ItemsManagerWorker::RemoveUpdatingItems(const std::set<QString> &tab_ids)
                   (current_items.size() - m_items.size()));
 }
 
-void ItemsManagerWorker::OAuthRefresh()
+void ItemsManagerWorker::Refresh()
 {
     spdlog::trace("Items Manager Worker: starting OAuth refresh");
     if (m_need_stash_list) {
@@ -645,18 +639,14 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
 
     bool get_children{false};
 
-    if (stash.type == "DivinationCardStash") {
-        get_children = m_settings.value("get_divination_stashes", false).toBool();
-    } else if (stash.type == "FlaskStash") {
-        get_children = m_settings.value("get_flask_stashes", false).toBool();
-    } else if (stash.type == "MapStash") {
+    if (stash.type == "MapStash") {
         get_children = m_settings.value("get_map_stashes", false).toBool();
     } else if (stash.type == "UniqueStash") {
         get_children = m_settings.value("get_unique_stashes", false).toBool();
     }
 
     if (get_children && stash.children) {
-        spdlog::debug("ItemsManagerWorker: getting {} children of {} '{}' ({})",
+        spdlog::debug("ItemsManagerWorker: getting children ({}) of {} '{}' ({})",
                       stash.children->size(),
                       stash.type,
                       stash.name,

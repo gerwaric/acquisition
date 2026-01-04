@@ -331,12 +331,6 @@ void MainWindow::InitializeUi()
             this,
             &MainWindow::OnSetTabRefreshInterval);
 
-    connect(ui->actionGetDivinationStashes, &QAction::triggered, this, [this](bool checked) {
-        m_settings.setValue("get_divination_stashes", checked);
-    });
-    connect(ui->actionGetFlaskStashes, &QAction::triggered, this, [this](bool checked) {
-        m_settings.setValue("get_flask_stashes", checked);
-    });
     connect(ui->actionGetMapStashes, &QAction::triggered, this, [this](bool checked) {
         m_settings.setValue("get_map_stashes", checked);
     });
@@ -411,13 +405,8 @@ void MainWindow::LoadSettings()
     ui->actionSetDarkTheme->setChecked(theme == "dark");
     ui->actionSetLightTheme->setChecked(theme == "light");
     ui->actionSetDefaultTheme->setChecked(theme == "default");
-
-    ui->actionGetDivinationStashes->setChecked(
-        m_settings.value("get_divination_stashes", false).toBool());
-    ui->actionGetFlaskStashes->setChecked(m_settings.value("get_flask_stashes", false).toBool());
     ui->actionGetMapStashes->setChecked(m_settings.value("get_map_stashes", false).toBool());
     ui->actionGetUniqueStashes->setChecked(m_settings.value("get_unique_stashes", false).toBool());
-
     ui->actionSetAutomaticTabRefresh->setChecked(m_settings.value("autoupdate").toBool());
     UpdateShopMenu();
 
