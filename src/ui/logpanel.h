@@ -5,6 +5,8 @@
 
 #include <QObject>
 
+#include <atomic>
+
 class MainWindow;
 class QPushButton;
 class QTextEdit;
@@ -28,7 +30,7 @@ private:
     QPushButton *m_status_button;
     QTextEdit *m_output;
 
-    unsigned int m_num_errors{0};
-    unsigned int m_num_warnings{0};
-    unsigned int m_num_messages{0};
+    std::atomic_uint m_num_errors{0};
+    std::atomic_uint m_num_warnings{0};
+    std::atomic_uint m_num_messages{0};
 };
