@@ -30,6 +30,10 @@ public:
                                             const QString &league,
                                             const std::optional<QString> type = {});
 
+    std::vector<poe::StashTab> getStashChildren(const QString &id,
+                                                const QString &realm,
+                                                const QString &league);
+
     bool ensureSchema();
     bool reset();
 

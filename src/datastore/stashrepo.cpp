@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS stashes (
     meta_public     INTEGER NOT NULL DEFAULT 0 CHECK (meta_public IN (0,1)),
     meta_folder     INTEGER NOT NULL DEFAULT 0 CHECK (meta_folder IN (0,1)),
     meta_colour     TEXT,
-    listed_at       TEXT NOT NULL,
+    listed_at       TEXT,
     json_fetched_at TEXT,
     json_data       TEXT,
     PRIMARY KEY (realm, league, id)
@@ -70,20 +70,30 @@ ON CONFLICT(realm, league, id) DO UPDATE SET
     listed_at       = excluded.listed_at
 )"};
 
-constexpr const char *UPDATE_STASH{R"(
-UPDATE stashes
-SET
-    parent          = :parent,
-    folder          = :folder,
-    name            = :name,
-    type            = :type,
-    stash_index     = :stash_index,
-    meta_public     = :meta_public,
-    meta_folder     = :meta_folder,
-    meta_colour     = :meta_colour,
-    json_fetched_at = :json_fetched_at,
-    json_data       = :json_data
-WHERE realm = :realm AND league = :league AND id = :id
+constexpr const char *UPSERT_STASH{R"(
+INSERT INTO stashes (
+    realm, league, id,
+    parent, folder, name, type, stash_index,
+    meta_public, meta_folder, meta_colour,
+    json_fetched_at, json_data
+)
+VALUES (
+    :realm, :league, :id,
+    :parent, :folder, :name, :type, :stash_index,
+    :meta_public, :meta_folder, :meta_colour,
+    :json_fetched_at, :json_data
+)
+ON CONFLICT(realm, league, id) DO UPDATE SET
+    parent          = excluded.parent,
+    folder          = excluded.folder,
+    name            = excluded.name,
+    type            = excluded.type,
+    stash_index     = excluded.stash_index,
+    meta_public     = excluded.meta_public,
+    meta_folder     = excluded.meta_folder,
+    meta_colour     = excluded.meta_colour,
+    json_fetched_at = excluded.json_fetched_at,
+    json_data       = excluded.json_data
 )"};
 
 bool StashRepo::reset()
@@ -127,7 +137,7 @@ bool StashRepo::saveStash(const poe::StashTab &stash, const QString &realm, cons
                   stash.name);
 
     QSqlQuery q(m_db);
-    if (!q.prepare(UPDATE_STASH)) {
+    if (!q.prepare(UPSERT_STASH)) {
         spdlog::error("StashRepo: prepare() failed: {}", q.lastError().text());
         return false;
     }
@@ -318,5 +328,46 @@ std::vector<poe::StashTab> StashRepo::getStashList(const QString &realm,
     }
 
     spdlog::debug("StashRepo: returning {} stashes", stashes.size());
+    return stashes;
+}
+
+std::vector<poe::StashTab> StashRepo::getStashChildren(const QString &id,
+                                                       const QString &realm,
+                                                       const QString &league)
+{
+    spdlog::debug("StashRepo: getting stash children: realm='{}', league='{}', id='{}'",
+                  realm,
+                  league,
+                  id);
+
+    QString sql{"SELECT json_data"
+                " FROM stashes"
+                " WHERE realm = :realm AND league = :league AND parent = :parent"};
+
+    QSqlQuery q(m_db);
+
+    if (!q.prepare(sql)) {
+        ds::logQueryError("StashRepo::getStashChildren()", q);
+        return {};
+    }
+
+    q.bindValue(":realm", realm);
+    q.bindValue(":league", league);
+    q.bindValue(":parent", id);
+
+    if (!q.exec()) {
+        ds::logQueryError("StashRepo::getStashChildren()", q);
+        return {};
+    }
+
+    std::vector<poe::StashTab> stashes;
+
+    while (q.next()) {
+        const QByteArray json = q.value(0).toByteArray();
+        poe::StashTab stash = readStash(json);
+        stashes.push_back(stash);
+    }
+
+    spdlog::debug("getStashChildren: returning {} stashes", stashes.size());
     return stashes;
 }
