@@ -147,8 +147,6 @@ int main(int argc, char *argv[])
     // Run the main application, starting with the login dialog.
     spdlog::info("Running application...");
 
-    // Construct an instance of Application.
-    Application app;
 
     // Trigger an optional crash.
     if (parser.isSet(option_crash)) {
@@ -165,8 +163,8 @@ int main(int argc, char *argv[])
         }
     }
 
-    // Starting the application creates and shows the login dialog.
-    QTimer::singleShot(0, &app, [&] { app.Start(appDataDir); });
+    // Construct an instance of Application.
+    Application app(appDataDir);
 
     // Start the main event loop.
     spdlog::trace("main(): starting the event loop");

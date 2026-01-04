@@ -32,15 +32,14 @@
 #include "util/updatechecker.h"
 #include "version_defines.h"
 
-Application::Application()
+Application::Application(const QDir &appDataDir)
 {
     spdlog::debug("Application: created");
 
-    spdlog::trace("Application: creating NetworkManager");
-    m_network_manager = std::make_unique<NetworkManager>();
+    spdlog::debug("Application: data directory is {}", appDataDir.absolutePath());
+    m_data_dir = appDataDir;
 
-    spdlog::trace("Application: creating RePoE");
-    m_repoe = std::make_unique<RePoE>(network_manager());
+    InitCoreServices();
 }
 
 Application::~Application()
@@ -49,276 +48,246 @@ Application::~Application()
     spdlog::shutdown();
 }
 
-void Application::Start(const QDir &appDataDir)
+void Application::InitCoreServices()
 {
-    spdlog::debug("Application: starting");
-    InitUserDir(appDataDir.absolutePath());
-
-    spdlog::trace("Application: creating login dialog");
-    m_login = std::make_unique<LoginDialog>(m_data_dir,
-                                            settings(),
-                                            network_manager(),
-                                            oauth_manager(),
-                                            global_data());
+    m_core = std::make_unique<Application::CoreServices>(m_data_dir);
 
     // Connect to the update signal in case an update is detected before the main window is open.
-    connect(m_update_checker.get(),
+    connect(&update_checker(),
             &UpdateChecker::UpdateAvailable,
-            m_update_checker.get(),
+            &update_checker(),
             &UpdateChecker::AskUserToUpdate);
 
     // Connect signals from the login dialog.
-    connect(m_login.get(), &LoginDialog::ChangeTheme, this, &Application::SetTheme);
-    connect(m_login.get(), &LoginDialog::ChangeUserDir, this, &Application::SetUserDir);
-    connect(m_login.get(), &LoginDialog::LoginComplete, this, &Application::OnLogin);
-
-    // Look for an initial oauth token.
-
-    // Start the initial check for updates.
-    spdlog::trace("Application: checking for application updates");
-    m_update_checker->CheckForUpdates();
-
-    // Show the login dialog now.
-    spdlog::trace("Application: showing the login dialog");
-    m_login->show();
-}
-
-void Application::InitUserDir(const QString &dir)
-{
-    m_data_dir = QDir(dir);
-    spdlog::trace("Application: data directory is {}", m_data_dir.absolutePath());
-
-    const QString settings_path = m_data_dir.filePath("settings.ini");
-    spdlog::trace("Application: creating the settings object: {}", settings_path);
-    m_settings = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
-
-    const QDir user_dir(m_data_dir.filePath("data"));
-    const QString global_data_file = user_dir.filePath(SqliteDataStore::MakeFilename("", ""));
-    spdlog::trace("Application: opening global data file: {}", global_data_file);
-    m_global_data = std::make_unique<SqliteDataStore>(global_data_file);
-
-    SaveDataOnNewVersion();
-
-    const QString image_cache_dir = dir + QDir::separator() + "cache";
-    m_image_cache = std::make_unique<ImageCache>(network_manager(), image_cache_dir);
-
-    spdlog::trace("Application: loading theme");
-    const QString theme = settings().value("theme", "default").toString();
-    SetTheme(theme);
+    connect(&login(), &LoginDialog::ChangeTheme, this, &Application::SetTheme);
+    connect(&login(), &LoginDialog::ChangeUserDir, this, &Application::SetUserDir);
+    connect(&login(), &LoginDialog::LoginComplete, this, &Application::OnLogin);
 
     if (settings().value("realm").toString().isEmpty()) {
         settings().setValue("realm", "pc");
     };
     spdlog::trace("Application: realm is {}", settings().value("realm"));
 
-    spdlog::trace("Application: creating update checker");
-    m_update_checker = std::make_unique<UpdateChecker>(settings(), network_manager());
+    SaveDataOnNewVersion();
 
-    spdlog::trace("Application: creating OAuth manager");
-    m_oauth_manager = std::make_unique<OAuthManager>(network_manager(), global_data());
+    spdlog::trace("Application: loading theme");
+    SetTheme(settings().value("theme", "default").toString());
 
     // Start the process of fetching RePoE data.
     spdlog::trace("Application: initializing RePoE");
-    m_repoe->Init(dir);
+    repoe().Init(m_data_dir.absolutePath());
+
+    // Start the initial check for updates.
+    spdlog::trace("Application: checking for application updates");
+    update_checker().CheckForUpdates();
+
+    // Show the login dialog now.
+    spdlog::trace("Application: showing the login dialog");
+    login().show();
 }
 
-void Application::Stop()
+void Application::InitUserSession()
 {
-    // Delete things in the reverse order they were created, just in case
-    // we might otherwise get an invalid point or reference.
-    m_login = nullptr;
-    m_oauth_manager = nullptr;
-    m_update_checker = nullptr;
-    m_global_data = nullptr;
-    m_settings = nullptr;
+    m_session = std::make_unique<Application::UserSession>(core());
+
+    // Disconnect from the update signal so that only the main window gets it from now on.
+    QObject::disconnect(&update_checker(), &UpdateChecker::UpdateAvailable, nullptr, nullptr);
+
+    auto manager = &items_manager();
+    auto worker = &items_worker();
+
+    connect(manager, &ItemsManager::UpdateSignal, worker, &ItemsManagerWorker::Update);
+    connect(worker, &ItemsManagerWorker::StatusUpdate, manager, &ItemsManager::OnStatusUpdate);
+    connect(worker, &ItemsManagerWorker::ItemsRefreshed, manager, &ItemsManager::OnItemsRefreshed);
+    connect(manager, &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
+
+    auto characters = &userstore().characters();
+    auto stashes = &userstore().stashes();
+
+    connect(worker,
+            &ItemsManagerWorker::characterListReceived,
+            characters,
+            &CharacterRepo::saveCharacterList);
+    connect(worker,
+            &ItemsManagerWorker::characterReceived,
+            characters,
+            &CharacterRepo::saveCharacter);
+    connect(worker, &ItemsManagerWorker::stashListReceived, stashes, &StashRepo::saveStashList);
+    connect(worker, &ItemsManagerWorker::stashReceived, stashes, &StashRepo::saveStash);
+
+    auto main = &main_window();
+    auto updater = &update_checker();
+    auto cache = &image_cache();
+
+    // Connect UI signals.
+    connect(main, &MainWindow::SetSessionId, this, &Application::SetSessionId);
+    connect(main, &MainWindow::SetTheme, this, &Application::SetTheme);
+    connect(main, &MainWindow::UpdateCheckRequested, updater, &UpdateChecker::CheckForUpdates);
+
+    connect(manager, &ItemsManager::ItemsRefreshed, main, &MainWindow::OnItemsRefreshed);
+    connect(manager, &ItemsManager::StatusUpdate, main, &MainWindow::OnStatusUpdate);
+
+    connect(main, &MainWindow::GetImage, cache, &ImageCache::fetch);
+    connect(cache, &ImageCache::imageReady, main, &MainWindow::OnImageFetched);
+
+    connect(&shop(), &Shop::StatusUpdate, main, &MainWindow::OnStatusUpdate);
+
+    // Connect the update checker.
+    connect(updater, &UpdateChecker::UpdateAvailable, main, &MainWindow::OnUpdateAvailable);
+}
+
+Application::CoreServices &Application::core() const
+{
+    if (m_core) {
+        return *m_core;
+    }
+    FatalError("Application: core services not initialized");
+}
+
+Application::UserSession &Application::session() const
+{
+    if (m_session) {
+        return *m_session;
+    }
+    FatalError("Application: user session not initialized");
+}
+
+Application::CoreServices::CoreServices(const QDir &appDataDir)
+    : dir(appDataDir)
+{
+    spdlog::trace("Application: creating NetworkManager");
+    network_manager = std::make_unique<NetworkManager>();
+
+    spdlog::trace("Application: creating RePoE");
+    repoe = std::make_unique<RePoE>(*network_manager);
+
+    const QString settings_path = dir.filePath("settings.ini");
+    spdlog::trace("Application: creating the settings object: {}", settings_path);
+    settings = std::make_unique<QSettings>(settings_path, QSettings::IniFormat);
+
+    const QDir user_dir(dir.filePath("data"));
+    const QString global_data_file = user_dir.filePath(SqliteDataStore::MakeFilename("", ""));
+    spdlog::trace("Application: opening global data file: {}", global_data_file);
+    global_data = std::make_unique<SqliteDataStore>(global_data_file);
+
+    const QString image_cache_dir = dir.absoluteFilePath("cache");
+    image_cache = std::make_unique<ImageCache>(*network_manager, image_cache_dir);
+
+    spdlog::trace("Application: creating update checker");
+    update_checker = std::make_unique<UpdateChecker>(*settings, *network_manager);
+
+    spdlog::trace("Application: creating OAuth manager");
+    oauth_manager = std::make_unique<OAuthManager>(*network_manager, *global_data);
+
+    spdlog::trace("Application: creating login dialog");
+    login = std::make_unique<LoginDialog>(dir.absolutePath(),
+                                          *settings,
+                                          *network_manager,
+                                          *oauth_manager,
+                                          *global_data);
+}
+
+Application::UserSession::UserSession(const Application::CoreServices &core)
+{
+    spdlog::trace("Application::InitLogin() entered");
+
+    const auto &dir = core.dir;
+    auto &settings = *core.settings;
+    auto &network_manager = *core.network_manager;
+    auto &image_cache = *core.image_cache;
+
+    const QString league = settings.value("league").toString();
+    const QString account = settings.value("account").toString();
+    if (league.isEmpty()) {
+        FatalError("Login failure: the league has not been set.");
+    }
+    if (account.isEmpty()) {
+        FatalError("Login failure: the account has not been set.");
+    }
+    spdlog::trace("Application::InitLogin() league = {}", league);
+    spdlog::trace("Application::InitLogin() account = {}", account);
+
+    QDir data_dir = dir.filePath("data");
+    const QString data_file = SqliteDataStore::MakeFilename(account, league);
+    const QString data_path = data_dir.absoluteFilePath(data_file);
+    spdlog::trace("Application::InitLogin() data_path = {}", data_path);
+    data = std::make_unique<SqliteDataStore>(data_path);
+
+    spdlog::trace("Application::InitLogin() creating user datastore");
+    userstore = std::make_unique<UserStore>(data_dir, account);
+
+    spdlog::trace("Application::InitLogin() creating rate limiter");
+    rate_limiter = std::make_unique<RateLimiter>(network_manager);
+
+    spdlog::trace("Application::InitLogin() creating buyout manager");
+    buyout_manager = std::make_unique<BuyoutManager>(*data);
+
+    spdlog::trace("Application::InitLogin() creating items manager");
+    items_manager = std::make_unique<ItemsManager>(settings, *buyout_manager, *data);
+
+    spdlog::trace("Application::InitLogin() creating items worker");
+    items_worker = std::make_unique<ItemsManagerWorker>(settings, *buyout_manager, *rate_limiter);
+
+    spdlog::trace("Application::InitLogin() creating shop");
+    shop = std::make_unique<Shop>(settings,
+                                  network_manager,
+                                  *rate_limiter,
+                                  *data,
+                                  *items_manager,
+                                  *buyout_manager);
+
+    spdlog::trace("Application::InitLogin() creating currency manager");
+    currency_manager = std::make_unique<CurrencyManager>(settings, *data, *items_manager);
+
+    // Prepare to show the main window now that everything is initialized.
+    spdlog::trace("Application:creating main window");
+    main_window = std::make_unique<MainWindow>(settings,
+                                               network_manager,
+                                               *rate_limiter,
+                                               *data,
+                                               *items_manager,
+                                               *buyout_manager,
+                                               *currency_manager,
+                                               *shop,
+                                               image_cache);
 }
 
 void Application::OnLogin()
 {
     spdlog::debug("Application: login initiated");
 
-    // Disconnect from the update signal so that only the main window gets it from now on.
-    QObject::disconnect(&update_checker(), &UpdateChecker::UpdateAvailable, nullptr, nullptr);
+    InitUserSession();
 
-    // Call init login to setup the shop, items manager, and other objects.
-    spdlog::trace("Application: initializing login");
-    InitLogin();
-
-    // Prepare to show the main window now that everything is initialized.
-    spdlog::trace("Application:creating main window");
-    m_main_window = std::make_unique<MainWindow>(settings(),
-                                                 network_manager(),
-                                                 rate_limiter(),
-                                                 data(),
-                                                 items_manager(),
-                                                 buyout_manager(),
-                                                 shop(),
-                                                 image_cache());
-
-    // Connect UI signals.
-    connect(m_main_window.get(), &MainWindow::SetSessionId, this, &Application::SetSessionId);
-    connect(m_main_window.get(), &MainWindow::SetTheme, this, &Application::SetTheme);
-    connect(m_main_window.get(),
-            &MainWindow::UpdateCheckRequested,
-            m_update_checker.get(),
-            &UpdateChecker::CheckForUpdates);
-
-    connect(m_items_manager.get(),
-            &ItemsManager::ItemsRefreshed,
-            m_main_window.get(),
-            &MainWindow::OnItemsRefreshed);
-    connect(m_items_manager.get(),
-            &ItemsManager::StatusUpdate,
-            m_main_window.get(),
-            &MainWindow::OnStatusUpdate);
-
-    connect(m_main_window.get(), &MainWindow::GetImage, m_image_cache.get(), &ImageCache::fetch);
-    connect(m_image_cache.get(),
-            &ImageCache::imageReady,
-            m_main_window.get(),
-            &MainWindow::OnImageFetched);
-
-    connect(m_shop.get(), &Shop::StatusUpdate, m_main_window.get(), &MainWindow::OnStatusUpdate);
-
-    m_main_window->prepare(*m_oauth_manager, *m_currency_manager);
-
-    // Connect the update checker.
-    connect(m_update_checker.get(),
-            &UpdateChecker::UpdateAvailable,
-            m_main_window.get(),
-            &MainWindow::OnUpdateAvailable);
+    if (repoe().IsInitialized()) {
+        spdlog::debug("Application: RePoE data is available.");
+        items_worker().OnRePoEReady();
+        emit repoe().finished();
+    } else {
+        spdlog::debug("Application: Waiting for RePoE data.");
+        connect(&repoe(), &RePoE::finished, &items_worker(), &ItemsManagerWorker::OnRePoEReady);
+    }
 
     spdlog::trace("Application::OnLogin() closing the login dialog");
-    m_login->close();
+    login().close();
 
     spdlog::trace("Application::OnLogin() showing the main window");
-    m_main_window->show();
-}
-
-QSettings &Application::settings() const
-{
-    if (!m_settings) {
-        FatalError("Application::settings() attempted to dereference a null pointer");
-    }
-    return *m_settings;
-}
-
-ItemsManager &Application::items_manager() const
-{
-    if (!m_items_manager) {
-        FatalError("Application::items_manager() attempted to dereference a null pointer");
-    }
-    return *m_items_manager;
-}
-
-DataStore &Application::global_data() const
-{
-    if (!m_global_data) {
-        FatalError("Application::global_data() attempted to dereference a null pointer");
-    }
-    return *m_global_data;
-}
-
-DataStore &Application::data() const
-{
-    if (!m_data) {
-        FatalError("Application::data() attempted to dereference a null pointer");
-    }
-    return *m_data;
-}
-
-BuyoutManager &Application::buyout_manager() const
-{
-    if (!m_buyout_manager) {
-        FatalError("Application::buyout_manager() attempted to dereference a null pointer");
-    }
-    return *m_buyout_manager;
-}
-
-NetworkManager &Application::network_manager() const
-{
-    if (!m_network_manager) {
-        FatalError("Application::network_manager() attempted to dereference a null pointer");
-    }
-    return *m_network_manager;
-}
-
-RePoE &Application::repoe() const
-{
-    if (!m_repoe) {
-        FatalError("Application::repoe() attempted to dereference a null pointer");
-    }
-    return *m_repoe;
-}
-
-Shop &Application::shop() const
-{
-    if (!m_shop) {
-        FatalError("Application::shop() attempted to dereference a null pointer");
-    }
-    return *m_shop;
-}
-
-ImageCache &Application::image_cache() const
-{
-    if (!m_image_cache) {
-        FatalError("Application::m_image_cache() attempted to dereference a null pointer");
-    }
-    return *m_image_cache;
-}
-
-CurrencyManager &Application::currency_manager() const
-{
-    if (!m_currency_manager) {
-        FatalError("Application::currency_manager() attempted to dereference a null pointer");
-    }
-    return *m_currency_manager;
-}
-
-UpdateChecker &Application::update_checker() const
-{
-    if (!m_update_checker) {
-        FatalError("Application::update_checker() attempted to dereference a null pointer");
-    }
-    return *m_update_checker;
-}
-
-OAuthManager &Application::oauth_manager() const
-{
-    if (!m_oauth_manager) {
-        FatalError("Application::oauth_manager() attempted to dereference a null pointer");
-    }
-    return *m_oauth_manager;
-}
-
-RateLimiter &Application::rate_limiter() const
-{
-    if (!m_rate_limiter) {
-        FatalError("Application::rate_limiter() attempted to dereference a null pointer");
-    }
-    return *m_rate_limiter;
+    main_window().show();
 }
 
 void Application::InitCrashReporting()
 {
     spdlog::trace("Application::InitCrashReporting() entered");
 
-    // Make sure the settings object exists.
-    if (!m_settings) {
-        spdlog::error("Cannot init crash reporting because settings object is invalid");
-        return;
-    }
-
     // Enable crash reporting by default.
     bool report_crashes = true;
 
-    if (!m_settings->contains("report_crashes")) {
+    if (!settings().contains("report_crashes")) {
         // Update the setting if it didn't exist before.
         spdlog::trace("Application::InitCrashReporting() setting 'report_crashes' to true");
-        m_settings->setValue("report_crashes", true);
+        settings().setValue("report_crashes", true);
     } else {
         // Use the exiting setting.
-        report_crashes = m_settings->value("report_crashes").toBool();
+        report_crashes = settings().value("report_crashes").toBool();
         spdlog::trace("Application::InitCrashReporting() 'report_crashes' is {}", report_crashes);
     }
 }
@@ -329,8 +298,8 @@ void Application::SetSessionId(const QString &poesessid)
         spdlog::error("Application: cannot update POESESSID: value is empty");
         return;
     }
-    m_network_manager->setPoeSessionId(poesessid);
-    m_settings->setValue("session_id", poesessid);
+    network_manager().setPoeSessionId(poesessid);
+    settings().setValue("session_id", poesessid);
 }
 
 void Application::SetTheme(const QString &theme)
@@ -384,107 +353,22 @@ void Application::SetTheme(const QString &theme)
 
 void Application::SetUserDir(const QString &dir)
 {
-    Stop();
-    Start(dir);
-}
+    m_session.reset();
+    m_core.reset();
+    m_data_dir = QDir(dir);
 
-void Application::InitLogin()
-{
-    spdlog::trace("Application::InitLogin() entered");
-
-    const QString league = m_settings->value("league").toString();
-    const QString account = m_settings->value("account").toString();
-    if (league.isEmpty()) {
-        FatalError("Login failure: the league has not been set.");
-    }
-    if (account.isEmpty()) {
-        FatalError("Login failure: the account has not been set.");
-    }
-    QDir data_dir(m_data_dir.filePath("data"));
-    spdlog::trace("Application::InitLogin() league = {}", league);
-    spdlog::trace("Application::InitLogin() account = {}", account);
-    spdlog::trace("Application::InitLogin() data_dir = {}", data_dir.absolutePath());
-    const QString data_file = SqliteDataStore::MakeFilename(account, league);
-    const QString data_path = data_dir.absoluteFilePath(data_file);
-    spdlog::trace("Application::InitLogin() data_path = {}", data_path);
-
-    m_data = std::make_unique<SqliteDataStore>(data_path);
-
-    spdlog::trace("Application::InitLogin() creating user datastore");
-    m_userstore = std::make_unique<UserStore>(data_dir, account);
-
-    spdlog::trace("Application::InitLogin() creating rate limiter");
-    m_rate_limiter = std::make_unique<RateLimiter>(network_manager());
-
-    spdlog::trace("Application::InitLogin() creating buyout manager");
-    m_buyout_manager = std::make_unique<BuyoutManager>(data());
-
-    spdlog::trace("Application::InitLogin() creating items manager");
-    m_items_manager = std::make_unique<ItemsManager>(settings(), buyout_manager(), data());
-
-    spdlog::trace("Application::InitLogin() creating items worker");
-    m_items_worker = std::make_unique<ItemsManagerWorker>(settings(),
-                                                          buyout_manager(),
-                                                          rate_limiter());
-
-    spdlog::trace("Application::InitLogin() creating shop");
-    m_shop = std::make_unique<Shop>(settings(),
-                                    network_manager(),
-                                    rate_limiter(),
-                                    data(),
-                                    items_manager(),
-                                    buyout_manager());
-
-    spdlog::trace("Application::InitLogin() creating currency manager");
-    m_currency_manager = std::make_unique<CurrencyManager>(settings(), data(), items_manager());
-
-    auto repoe = m_repoe.get();
-    auto manager = m_items_manager.get();
-    auto worker = m_items_worker.get();
-
-    connect(manager, &ItemsManager::UpdateSignal, worker, &ItemsManagerWorker::Update);
-    connect(worker, &ItemsManagerWorker::StatusUpdate, manager, &ItemsManager::OnStatusUpdate);
-    connect(worker, &ItemsManagerWorker::ItemsRefreshed, manager, &ItemsManager::OnItemsRefreshed);
-    connect(manager, &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
-
-    connect(worker,
-            &ItemsManagerWorker::characterListReceived,
-            &m_userstore->characters(),
-            &CharacterRepo::saveCharacterList);
-
-    connect(worker,
-            &ItemsManagerWorker::characterReceived,
-            &m_userstore->characters(),
-            &CharacterRepo::saveCharacter);
-
-    connect(worker,
-            &ItemsManagerWorker::stashListReceived,
-            &m_userstore->stashes(),
-            &StashRepo::saveStashList);
-
-    connect(worker,
-            &ItemsManagerWorker::stashReceived,
-            &m_userstore->stashes(),
-            &StashRepo::saveStash);
-
-    if (m_repoe->IsInitialized()) {
-        spdlog::debug("Application: RePoE data is available.");
-        m_items_worker->OnRePoEReady();
-    } else {
-        spdlog::debug("Application: Waiting for RePoE data.");
-        connect(repoe, &RePoE::finished, worker, &ItemsManagerWorker::OnRePoEReady);
-    }
+    InitCoreServices();
 }
 
 void Application::OnItemsRefreshed(bool initial_refresh)
 {
     spdlog::trace("Application::OnItemsRefreshed() entered");
     spdlog::trace("Application::OnItemsRefreshed() initial_refresh = {}", initial_refresh);
-    m_currency_manager->Update();
-    m_shop->ExpireShopData();
-    if (!initial_refresh && m_shop->auto_update()) {
+    currency_manager().Update();
+    shop().ExpireShopData();
+    if (!initial_refresh && shop().auto_update()) {
         spdlog::trace("Application::OnItemsRefreshed() submitting shops");
-        m_shop->SubmitShopToForum();
+        shop().SubmitShopToForum();
     }
 }
 
@@ -496,12 +380,12 @@ void Application::SaveDataOnNewVersion()
     // We call this just after login, so we didn't pulled tabs for the first time ; so "tabs" shouldn't exist in the DB
     // This way we don't create an useless data_save_version folder on the first time you run acquisition
 
-    auto version = m_settings->value("version").toString();
+    auto version = settings().value("version").toString();
 
     // The version setting was introduced in v0.16, so for prior versions we
     // use the global data store.
     if (version.isEmpty()) {
-        version = m_global_data->Get("version", "UNKNOWN-VERSION");
+        version = global_data().Get("version", "UNKNOWN-VERSION");
     }
 
     // Do nothing if the version is current.
@@ -554,5 +438,5 @@ void Application::SaveDataOnNewVersion()
     spdlog::info("Your data is backed up into '{}'", dst_path);
 
     spdlog::debug("Application: updating 'version' setting to {}", APP_VERSION_STRING);
-    m_settings->setValue("version", APP_VERSION_STRING);
+    core().settings->setValue("version", APP_VERSION_STRING);
 }

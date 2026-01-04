@@ -56,13 +56,12 @@ public:
                         DataStore &datastore,
                         ItemsManager &items_mangaer,
                         BuyoutManager &buyout_manager,
+                        CurrencyManager &currency_manager,
                         Shop &shop,
                         ImageCache &image_cache);
     ~MainWindow();
     std::vector<Column *> columns;
     void LoadSettings();
-
-    void prepare(OAuthManager &oauth_manager, CurrencyManager &currency_manager);
 
 signals:
     void UpdateCheckRequested();
@@ -144,6 +143,7 @@ private:
     DataStore &m_datastore;
     ItemsManager &m_items_manager;
     BuyoutManager &m_buyout_manager;
+    CurrencyManager &m_currency_manager;
     Shop &m_shop;
     ImageCache &m_image_cache;
 

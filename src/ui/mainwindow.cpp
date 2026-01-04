@@ -81,6 +81,7 @@ MainWindow::MainWindow(QSettings &settings,
                        DataStore &datastore,
                        ItemsManager &items_manager,
                        BuyoutManager &buyout_manager,
+                       CurrencyManager &currency_manager,
                        Shop &shop,
                        ImageCache &image_cache)
     : m_settings(settings)
@@ -89,6 +90,7 @@ MainWindow::MainWindow(QSettings &settings,
     , m_datastore(datastore)
     , m_items_manager(items_manager)
     , m_buyout_manager(buyout_manager)
+    , m_currency_manager(currency_manager)
     , m_shop(shop)
     , m_image_cache(image_cache)
     , ui(new Ui::MainWindow)
@@ -134,11 +136,9 @@ MainWindow::~MainWindow()
     m_rate_limit_dialog->deleteLater();
 }
 
+/*
 void MainWindow::prepare(OAuthManager &oauth_manager, CurrencyManager &currency_manager)
 {
-    /*
-     * TBD: TODO
-     *
     connect(ui->actionShowOAuthToken,
             &QAction::triggered,
             &oauth_manager,
@@ -147,17 +147,8 @@ void MainWindow::prepare(OAuthManager &oauth_manager, CurrencyManager &currency_
             &QAction::triggered,
             &oauth_manager,
             &OAuthManager::requestRefresh);
-    */
-
-    connect(ui->actionListCurrency,
-            &QAction::triggered,
-            &currency_manager,
-            &CurrencyManager::DisplayCurrency);
-    connect(ui->actionExportCurrency,
-            &QAction::triggered,
-            &currency_manager,
-            &CurrencyManager::ExportCurrency);
 }
+*/
 
 void MainWindow::InitializeRateLimitDialog()
 {
@@ -388,6 +379,16 @@ void MainWindow::InitializeUi()
     // Connect the Tooltip tab buttons
     connect(ui->uploadTooltipButton, &QPushButton::clicked, this, &MainWindow::OnUploadToImgur);
     connect(ui->pobTooltipButton, &QPushButton::clicked, this, &MainWindow::OnCopyForPOB);
+
+    // Connect the currency actions.
+    connect(ui->actionListCurrency,
+            &QAction::triggered,
+            &m_currency_manager,
+            &CurrencyManager::DisplayCurrency);
+    connect(ui->actionExportCurrency,
+            &QAction::triggered,
+            &m_currency_manager,
+            &CurrencyManager::ExportCurrency);
 }
 
 void MainWindow::LoadSettings()
