@@ -53,6 +53,14 @@ if(NOT TARGET sentry-native)
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(sentry-native)
+
+    # Sentry causes some compiler warnings we want to ignore.
+    target_compile_options(sentry PRIVATE
+        $<$<C_COMPILER_ID:GNU,Clang,AppleClang>:-w>
+        $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-w>
+        $<$<C_COMPILER_ID:MSVC>:/w>
+        $<$<CXX_COMPILER_ID:MSVC>:/w>
+    )
 endif()
 
 if(NOT TARGET glaze)
@@ -495,10 +503,6 @@ endif()
 set(CRASHPAD_HANDLER_EXE "crashpad_handler${CMAKE_EXECUTABLE_SUFFIX}")
 set(CRASHPAD_HANDLER_SRC "${sentry-native_BINARY_DIR}/crashpad_build/handler/${CRASHPAD_HANDLER_EXE}")
 set(CRASHPAD_HANDLER_DST "$<TARGET_FILE_DIR:acquisition>/${${CRASHPAD_HANDLER_EXE}}")
-
-if(NOT EXISTS "${CRASHPAD_HANDLER_SRC}")
-    message(FATAL_ERROR "Crashpad handler not found at: ${CRASHPAD_HANDLER_SRC}")
-endif()
 
 # Make sure the crashpad handler is copied next to the output executable.
 add_custom_command(TARGET acquisition POST_BUILD
