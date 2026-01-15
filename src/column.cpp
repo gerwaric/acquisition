@@ -90,8 +90,10 @@ QColor NameColumn::color(const Item &item) const
         return QColor(QRgb(0x4ae63a));
     case FrameType::FRAME_TYPE_PROPHECY:
         return QColor(181, 75, 255);
-    case FrameType::FRAME_TYPE_RELIC:
+    case FrameType::FRAME_TYPE_FOIL:
         return QColor(QRgb(0x82ad6a));
+    case FrameType::FRAME_TYPE_SUPPORTER_FOIL:
+        return QColor(QRgb(0x82ad6a)); // TBD: is this right?
     default:
         return QApplication::palette().color(QPalette::WindowText);
     }

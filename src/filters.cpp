@@ -28,7 +28,8 @@ const QStringList RaritySearchFilter::RARITY_LIST{"<any>",
                                                   "Magic",
                                                   "Rare",
                                                   "Unique",
-                                                  "Unique (Relic)"};
+                                                  "Unique (Foil)",
+                                                  "Any Non-Unique"};
 
 std::unique_ptr<FilterData> Filter::CreateData()
 {
@@ -64,6 +65,55 @@ void FilterData::FromForm()
 void FilterData::ToForm()
 {
     m_filter->ToForm(this);
+}
+
+TabSearchFilter::TabSearchFilter(QLayout *parent)
+{
+    Initialize(parent);
+}
+
+void TabSearchFilter::FromForm(FilterData *data)
+{
+    data->text_query = m_textbox->text().toUtf8().constData();
+    m_active = !data->text_query.isEmpty();
+}
+
+void TabSearchFilter::ToForm(FilterData *data)
+{
+    m_textbox->setText(data->text_query);
+}
+
+void TabSearchFilter::ResetForm()
+{
+    m_textbox->setText("");
+    m_active = false;
+}
+
+bool TabSearchFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data)
+{
+    const QString query = data->text_query.toLower();
+    const QString name = item->location().GetHeader().toLower();
+    return name.contains(query);
+}
+
+void TabSearchFilter::Initialize(QLayout *parent)
+{
+    MainWindow *main_window = qobject_cast<MainWindow *>(parent->parentWidget()->window());
+    QWidget *group = new QWidget;
+    QHBoxLayout *layout = new QHBoxLayout;
+    layout->setContentsMargins(0, 0, 0, 0);
+    QLabel *label = new QLabel("Tab");
+    label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
+    label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    m_textbox = new QLineEdit;
+    layout->addWidget(label);
+    layout->addWidget(m_textbox);
+    group->setLayout(layout);
+    parent->addWidget(group);
+    QObject::connect(m_textbox,
+                     &QLineEdit::textEdited,
+                     main_window,
+                     &MainWindow::OnDelayedSearchFormChange);
 }
 
 NameSearchFilter::NameSearchFilter(QLayout *parent)
@@ -195,17 +245,20 @@ bool RaritySearchFilter::Matches(const std::shared_ptr<Item> &item, FilterData *
     if (data->text_query.isEmpty()) {
         return true;
     }
+    const QString &query = data->text_query;
     switch (item->frameType()) {
     case FrameType::FRAME_TYPE_NORMAL:
-        return (data->text_query == "Normal");
+        return (query == "Normal") || (query == "Any Non-Unique");
     case FrameType::FRAME_TYPE_MAGIC:
-        return (data->text_query == "Magic");
+        return (query == "Magic") || (query == "Any Non-Unique");
     case FrameType::FRAME_TYPE_RARE:
-        return (data->text_query == "Rare");
+        return (query == "Rare") || (query == "Any Non-Unique");
     case FrameType::FRAME_TYPE_UNIQUE:
-        return (data->text_query == "Unique");
-    case FrameType::FRAME_TYPE_RELIC:
-        return (data->text_query == "Unique (Relic)");
+        return (query == "Unique");
+    case FrameType::FRAME_TYPE_FOIL:
+        return (query == "Unique (Foil)");
+    case FrameType::FRAME_TYPE_SUPPORTER_FOIL:
+        return (query == "Unique (Foil)");
     default:
         return false;
     }

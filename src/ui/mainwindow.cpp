@@ -794,6 +794,7 @@ void MainWindow::InitializeSearchForm()
     // Initialize rarity list once.
     auto *rarity_model = new QStringListModel(RaritySearchFilter::RARITY_LIST, this);
 
+    auto tab_search = std::make_unique<TabSearchFilter>(m_search_form_layout);
     auto name_search = std::make_unique<NameSearchFilter>(m_search_form_layout);
     auto category_search = std::make_unique<CategorySearchFilter>(m_search_form_layout,
                                                                   category_model);
@@ -819,6 +820,7 @@ void MainWindow::InitializeSearchForm()
     using move_only = std::unique_ptr<Filter>;
     // clang-format off
     move_only init[] = {
+        std::move(tab_search),
         std::move(name_search),
         std::move(category_search),
         std::move(rarity_search),

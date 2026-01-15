@@ -93,6 +93,20 @@ private:
     Filter *m_filter;
 };
 
+class TabSearchFilter : public Filter
+{
+public:
+    explicit TabSearchFilter(QLayout *parent);
+    void FromForm(FilterData *data);
+    void ToForm(FilterData *data);
+    void ResetForm();
+    bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
+    void Initialize(QLayout *parent);
+
+private:
+    QLineEdit *m_textbox;
+};
+
 class NameSearchFilter : public Filter
 {
 public:

@@ -23,7 +23,11 @@ namespace ItemEnums {
         FRAME_TYPE_DIVINATION_CARD = 6,
         FRAME_TYPE_QUEST_ITEM = 7,
         FRAME_TYPE_PROPHECY = 8,
-        FRAME_TYPE_RELIC = 9
+        FRAME_TYPE_FOIL = 9,
+        FRAME_TYPE_SUPPORTER_FOIL = 10,
+        FRAME_TYPE_NECROPOLIS = 11,
+        FRAME_TYPE_GOLD = 12,
+        FRAME_TYPE_BREACH_SKILL = 13
     };
     Q_ENUM_NS(FrameType)
 
