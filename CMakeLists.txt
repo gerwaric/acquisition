@@ -1,16 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2024 Tom Holz
 
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.22)
 
 # NOTE: For automatic update detection to work, the 'app_version' variable
 # defined below should match a tag in github. Historically, the github tags
 # have been identical to the 'app_version' as defined below, except the 
 # tags on github are prefixed with a 'v'.
-#
-# The version code that used to be used for update detection is no longer
-# needed, except that some users with version of acquisition prior to
-# version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
     VERSION 0.16.0
@@ -20,25 +16,17 @@ project(acquisition
 )
 
 # Use this to define pre-releases
-set(version_postfix "-alpha.2")
+set(app_version_postfix "-alpha.2")
 
 # Variables used to generate version_defines.h and installer.iss
 set(app_name            "${CMAKE_PROJECT_NAME}")
 set(app_version         "${CMAKE_PROJECT_VERSION}")
-set(app_version_string  "${CMAKE_PROJECT_VERSION}${version_postfix}")
+set(app_version_string  "${CMAKE_PROJECT_VERSION}${app_version_postfix}")
 set(app_url             "${CMAKE_PROJECT_HOMEPAGE_URL}")
 set(app_publisher       "GERWARIC")
 set(app_publisher_email "gerwaric@gmail.com")
 set(app_copyright       "Copyright (C) 2014-2025 Ilya Zhuravlev and other Acquisition Contributors")
 set(app_trademark       "Path of Exile is a trademark of Grinding Gear Games, Ltd.")
-
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
-
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
 
 # When building with Qt Creator in Windows, use target-scoped flags so
 # dependencies don't inherit MSVC options unintentionally.
@@ -51,9 +39,11 @@ if(WIN32)
 
 endif()
 
-include(FetchContent)
+#------------------------------------------------------
+# External Dependencies
+#------------------------------------------------------
 
-find_package(Qt6 6.10 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Widgets)
+include(FetchContent)
 
 if(NOT TARGET sentry-native)
     FetchContent_Declare(
@@ -76,18 +66,13 @@ if(NOT TARGET glaze)
 endif()
 
 if(NOT TARGET semver)
-    # This is a headers-only library, so we use an invalid SOURCE_DIR to prevent
-    # add_subdirectory() from called and define an interface target manually.
     FetchContent_Declare(
         semver
         GIT_REPOSITORY https://github.com/z4kn4fein/cpp-semver
         GIT_TAG        v0.4.0
         GIT_SHALLOW    TRUE
-        SOURCE_SUBDIR  /dev/null
     )
     FetchContent_MakeAvailable(semver)
-    add_library(semver INTERFACE)
-    target_include_directories(semver INTERFACE "${semver_SOURCE_DIR}/include")
 endif()
 
 if(NOT TARGET spdlog)
@@ -297,6 +282,15 @@ set(ACQ_RESOURCES
     resources.qrc
 )
 
+# Automatically populate and include the versions header file.
+configure_file("src/version_defines.h.in" "version_defines.h" @ONLY)
+
+#------------------------------------------------------
+# Qt Project Setup
+#------------------------------------------------------
+
+find_package(Qt6 6.10 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Widgets)
+
 qt_standard_project_setup(REQUIRES 6.10.0)
 
 qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
@@ -311,6 +305,15 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     ${ACQ_RESOURCES}
     # Generated version header
     "${CMAKE_BINARY_DIR}/version_defines.h"
+)
+
+set_target_properties(acquisition PROPERTIES
+    AUTOMOC ON
+    AUTOUIC ON
+    AUTORCC ON
+    CXX_STANDARD 23
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
 )
 
 # On Windows, we want to know which version of MSVC was used.
@@ -350,14 +353,10 @@ if(WIN32)
 
 endif()
 
-# Automatically populate and include the versions header file.
-configure_file("src/version_defines.h.in" "version_defines.h" @ONLY)
-
 # Setup include directories.
 target_include_directories(acquisition PRIVATE
-    src/
-    test/
-    "${CMAKE_BINARY_DIR}"
+    "${PROJECT_SOURCE_DIR}/src"
+    "${PROJECT_BINARY_DIR}"
 )
 
 add_subdirectory(deps/qdarkstyle)
@@ -378,8 +377,6 @@ target_link_libraries(acquisition PRIVATE
     semver
     spdlog::spdlog_header_only
 )
-
-target_compile_features(acquisition PRIVATE cxx_std_23)
 
 #----------------------------------
 # Platform-specific section
@@ -421,7 +418,7 @@ if(WIN32)
     setver(app_VERSION_PATCH "${PROJECT_VERSION_PATCH}" 0)
     setver(app_VERSION_TWEAK "${PROJECT_VERSION_TWEAK}" 0)
 
-    # Define the reset of the versioninfo data.
+    # Define the rest of the versioninfo data.
     set(app_COMPANY_NAME        "")
     set(app_FILE_DESCRIPTION    "")
     set(app_FILE_VERSION        "${app_version_string}")
@@ -438,7 +435,7 @@ if(WIN32)
     target_sources(acquisition PUBLIC "${CMAKE_BINARY_DIR}/version_info.rc")
         
 elseif(APPLE)
-    
+
     set(macosx_app_version "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
 
     # Setup the macOS bundle
@@ -455,44 +452,28 @@ elseif(APPLE)
 
     # Add the macOS application icon
     set(macos_app_icon "${PROJECT_SOURCE_DIR}/assets/icon.icns")
-    set_source_files_properties("${macos_app_icon}" PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
+    set_source_files_properties("${macos_app_icon}" PROPERTIES
+        MACOSX_PACKAGE_LOCATION "Resources"
+    )
     target_sources(acquisition PRIVATE "${macos_app_icon}")
     
     # Generate debugging symbols file.
-    target_compile_options(acquisition PRIVATE "-g")
-    set_target_properties(acquisition PROPERTIES
-        XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES"
-        XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT "dwarf-with-dsym"
-        XCODE_ATTRIBUTE_DEPLOYMENT_POSTPROCESING "YES"
-        XCODE_ATTRIBUTE_STRIP_INSTALLED_PRODUCT "YES"
-    )
-    set(macos_exe "${CMAKE_BINARY_DIR}/acquisition.app/Contents/MacOS/acquisition")
-    set(macos_dsym "${CMAKE_BINARY_DIR}/acquisition_${app_version_string}.dSYM")
-    add_custom_command(TARGET acquisition
-        POST_BUILD
-        COMMAND xcrun dsymutil "${macos_exe}" -o "${macos_dsym}"
+    target_compile_options(acquisition PRIVATE $<$<NOT:$<CONFIG:Debug>>:-g>)
+    add_custom_command(TARGET acquisition POST_BUILD
+        COMMAND xcrun dsymutil
+            "$<TARGET_FILE:acquisition>"
+            -o "${CMAKE_BINARY_DIR}/acquisition_${app_version_string}.dSYM"
+        VERBATIM
     )
     
 elseif(UNIX)
 
+    # Link OpenSSL on Linux.
     find_package(OpenSSL REQUIRED)
-
-    # Make sure OpenSSL was found
-    if (OpenSSL_FOUND)
-        message(STATUS "Found OpenSSL: ${OPENSSL_VERSION}")
-        message(STATUS "OpenSSL Include Dir: ${OPENSSL_INCLUDE_DIR}")
-        message(STATUS "OpenSSL Libraries: ${OPENSSL_LIBRARIES}")
-    else()
-        message(FATAL_ERROR "OpenSSL not found on this system!")
-    endif()
-
-    # Link OpenSSL libraries to acquisition
-    target_link_libraries(acquisition PRIVATE
-        OpenSSL::SSL
-        OpenSSL::Crypto)
+    target_link_libraries(acquisition PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 
     # Generate debug symbols.
-    target_compile_options(acquisition PRIVATE -g)
+    target_compile_options(acquisition PRIVATE $<$<NOT:$<CONFIG:Debug>>:-g>)
     if(CMAKE_OBJCOPY AND CMAKE_STRIP)
         add_custom_command(TARGET acquisition
             POST_BUILD
@@ -501,20 +482,29 @@ elseif(UNIX)
             COMMAND ${CMAKE_OBJCOPY} --add-gnu-debuglink=acquisition.debug acquisition
             COMMAND chmod -x acquisition.debug
         )
+    else()
+        message(NOTICE "Could not create acquisition.debug")
     endif()
     
 endif()
 
+#------------------------------------------------------
+# Crashpad for Sentry
+#------------------------------------------------------
+
+set(CRASHPAD_HANDLER_EXE "crashpad_handler${CMAKE_EXECUTABLE_SUFFIX}")
+set(CRASHPAD_HANDLER_SRC "${sentry-native_BINARY_DIR}/crashpad_build/handler/${CRASHPAD_HANDLER_EXE}")
+set(CRASHPAD_HANDLER_DST "$<TARGET_FILE_DIR:acquisition>/${${CRASHPAD_HANDLER_EXE}}")
+
+if(NOT EXISTS "${CRASHPAD_HANDLER_SRC}")
+    message(FATAL_ERROR "Crashpad handler not found at: ${CRASHPAD_HANDLER_SRC}")
+endif()
+
 # Make sure the crashpad handler is copied next to the output executable.
-set(CRASHPAD_HANDLER_SRC
-    "${sentry-native_BINARY_DIR}/crashpad_build/handler/crashpad_handler${CMAKE_EXECUTABLE_SUFFIX}"
-)
-set(CRASHPAD_HANDLER_DST
-    "$<TARGET_FILE_DIR:acquisition>/crashpad_handler${CMAKE_EXECUTABLE_SUFFIX}"
-)
 add_custom_command(TARGET acquisition POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CRASHPAD_HANDLER_SRC}"
         "${CRASHPAD_HANDLER_DST}"
+    COMMAND_EXPAND_LISTS
     VERBATIM
 )
