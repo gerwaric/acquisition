@@ -16,7 +16,7 @@ project(acquisition
 )
 
 # Use this to define pre-releases
-set(app_version_postfix "-alpha.2")
+set(app_version_postfix "-alpha.3")
 
 # Variables used to generate version_defines.h and installer.iss
 set(app_name            "${CMAKE_PROJECT_NAME}")
