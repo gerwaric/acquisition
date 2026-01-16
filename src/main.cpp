@@ -29,6 +29,7 @@
 
 constexpr const char *BUILD_TIMESTAMP = (__DATE__ " " __TIME__);
 
+constexpr const char *SENTRY_RELEASE = APP_NAME "@" APP_VERSION_STRING;
 constexpr const char *SENTRY_DSN
     = "https://89d30fa945c751603c0dfdde2c574497@o4509396161855488.ingest.us.sentry.io/"
       "4510597980618752";
@@ -94,7 +95,7 @@ int main(int argc, char *argv[])
     sentry_options_set_dsn(options, SENTRY_DSN);
     sentry_options_set_handler_path(options, handlerPath.constData());
     sentry_options_set_database_path(options, sentryPath.constData());
-    sentry_options_set_release(options, APP_NAME "@" APP_VERSION_STRING);
+    sentry_options_set_release(options, SENTRY_RELEASE);
     sentry_options_set_enable_logs(options, 1);
     sentry_init(options);
 

@@ -14,6 +14,7 @@
 #include "ratelimit/ratelimiter.h"
 #include "ratelimit/ratelimitpolicy.h"
 #include "util/fatalerror.h"
+#include "util/networkmanager.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
 
@@ -214,6 +215,8 @@ void RateLimitManager::ReceiveReply()
                           m_active_request->id,
                           event.reply_status,
                           reply->error());
+            NetworkManager::logRequest(m_active_request->network_request);
+            NetworkManager::logReply(reply);
         }
         m_active_request->reply = nullptr;
     }

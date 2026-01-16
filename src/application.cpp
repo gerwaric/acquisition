@@ -62,23 +62,23 @@ void Application::InitCoreServices()
     if (settings().value("realm").toString().isEmpty()) {
         settings().setValue("realm", "pc");
     };
-    spdlog::trace("Application: realm is {}", settings().value("realm"));
+    spdlog::debug("Application: realm is {}", settings().value("realm"));
 
     SaveDataOnNewVersion();
 
-    spdlog::trace("Application: loading theme");
+    spdlog::debug("Application: loading theme");
     SetTheme(settings().value("theme", "default").toString());
 
     // Start the process of fetching RePoE data.
-    spdlog::trace("Application: initializing RePoE");
+    spdlog::debug("Application: initializing RePoE");
     repoe().Init(m_data_dir.absolutePath());
 
     // Start the initial check for updates.
-    spdlog::trace("Application: checking for application updates");
+    spdlog::debug("Application: checking for application updates");
     update_checker().CheckForUpdates();
 
     // Show the login dialog now.
-    spdlog::trace("Application: showing the login dialog");
+    spdlog::debug("Application: showing the login dialog");
     login().show();
 }
 
@@ -253,6 +253,15 @@ void Application::OnLogin()
     spdlog::debug("Application: login initiated");
 
     InitUserSession();
+
+    // Look for an existing POESESSID. For some reason doing this in InitCoreServices
+    // doesn't seem to work, even though that's where it logically belongs. Could possibly
+    // be due to the fact that happens from main() before the Qt app is started?
+    if (settings().contains("session_id")) {
+        spdlog::debug("Application: loading an existing POESESSID cookie");
+        const auto session_id = settings().value("session_id").toString();
+        network_manager().setPoeSessionId(session_id);
+    }
 
     if (repoe().IsInitialized()) {
         spdlog::debug("Application: RePoE data is available.");

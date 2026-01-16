@@ -71,7 +71,7 @@ public slots:
     void ReceiveReply();
 
 private:
-    // Function handle used to send network reqeusts.
+    // Function handle used to send network requests.
     const SendFcn m_sender;
 
     // Used to print log messages about rate limit violations.

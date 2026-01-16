@@ -75,6 +75,10 @@ NetworkManager::NetworkManager(QObject *parent)
 
 void NetworkManager::setPoeSessionId(const QString &poesessid)
 {
+    QString masked = poesessid;
+    masked.fill('*');
+    spdlog::debug("NetworkManager: setting POESESSID: {} (masked for security)", masked);
+
     QNetworkCookie cookie{POE_COOKIE_NAME, poesessid.toUtf8()};
     cookie.setPath(POE_COOKIE_PATH);
     cookie.setDomain(POE_COOKIE_DOMAIN);
@@ -100,8 +104,10 @@ QNetworkReply *NetworkManager::createRequest(QNetworkAccessManager::Operation op
     if (host == POE_API_HOST) {
         // Add a bearer token for api calls.
         if (m_bearerToken.isEmpty()) {
-            spdlog::error("API call may fail because the bearer token is empty: {}", request.url().toString());
+            spdlog::error("API call may fail because the bearer token is empty: {}",
+                          request.url().toString());
         } else {
+            spdlog::trace("NetworkManager: setting bearer token: {}", m_bearerToken);
             request.setRawHeader("Authorization", m_bearerToken);
         }
     } else if (host == POE_CDN_HOST) {
