@@ -16,27 +16,34 @@ project(acquisition
 )
 
 # Use this to define pre-releases
-set(app_version_postfix "-alpha.4")
+set(app_version_suffix "-alpha.4")
 
-# Variables used to generate version_defines.h and installer.iss
+# Variables used in version_defines.h and platforn-specific files and properties.
 set(app_name            "${CMAKE_PROJECT_NAME}")
 set(app_version         "${CMAKE_PROJECT_VERSION}")
-set(app_version_string  "${CMAKE_PROJECT_VERSION}${app_version_postfix}")
+set(app_version_string  "${CMAKE_PROJECT_VERSION}${app_version_suffix}")
 set(app_url             "${CMAKE_PROJECT_HOMEPAGE_URL}")
 set(app_publisher       "GERWARIC")
 set(app_publisher_email "gerwaric@gmail.com")
 set(app_copyright       "Copyright (C) 2014-2026 Ilya Zhuravlev and other Acquisition Contributors")
 set(app_trademark       "Path of Exile is a trademark of Grinding Gear Games, Ltd.")
 
-# When building with Qt Creator in Windows, use target-scoped flags so
-# dependencies don't inherit MSVC options unintentionally.
+#------------------------------------------------------
+# Version Checks
+#------------------------------------------------------
 
-if(WIN32)
+# Enforce semantic versioning 2.0 per https://semver.org/spec/v2.0.0.html
 
-    # Hard-code the MSCV runtime required, because knowing when the runtime really
-    # needs to be updated is tricky
-    set(msvc_runtime_minimum_version "14.42")
+if("${acquisition_VERSION_MINOR}" STREQUAL "")
+    message(FATAL_ERROR "Minor version is missing: ${acquisition_VERSION}")
+endif()
 
+if("${acquisition_VERSION_PATCH}" STREQUAL "")
+    message(FATAL_ERROR "Patch version is missing: ${acquisition_VERSION}")
+endif()
+
+if(NOT "${acquisition_VERSION_TWEAK}" STREQUAL "")
+    message(FATAL_ERROR "Tweak version cannot be present: ${acquisition_VERSION}")
 endif()
 
 #------------------------------------------------------
@@ -315,6 +322,14 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     "${CMAKE_BINARY_DIR}/version_defines.h"
 )
 
+# Add configure_file() inputs so they show up in Qt Creator.
+target_sources(acquisition PRIVATE
+    FILE_SET project_files TYPE HEADERS
+    FILES
+        version_info.rc.in
+        src/version_defines.h.in
+)
+
 set_target_properties(acquisition PROPERTIES
     AUTOMOC ON
     AUTOUIC ON
@@ -324,47 +339,10 @@ set_target_properties(acquisition PROPERTIES
     CXX_EXTENSIONS NO
 )
 
-# On Windows, we want to know which version of MSVC was used.
-if(WIN32)
-
-    if(NOT MSVC)
-        message(FATAL_ERROR "Only the MSVC compiler is supported on Windows")
-    endif()
-
-    # The Microsoft Visual C++ Compiler version 19 corresponds to runtime version 14.
-    set(msvc_compiler_ver "19")
-    set(msvc_runtime_ver "14")
-
-    # Run the compiler executable to grab the version printed on the first line.
-    execute_process(
-        COMMAND cl
-        OUTPUT_VARIABLE cl_output
-        ERROR_VARIABLE cl_error
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-
-    # Extract the compiler version.
-    string(REGEX MATCH "Version ([0-9]+\\.[0-9]+\\.[0-9]+)" msvc_version ${cl_error})
-    string(REGEX REPLACE "^Version " "" msvc_version ${msvc_version})
-    if (NOT msvc_version)
-        message(FATAL_ERROR "Could not determine MSVC version from cl.exe output")
-    endif()
-    message(STATUS "MSVC Compiler: ${msvc_version}")
-
-    # Derive the runtime version.
-    string(REGEX REPLACE "^${msvc_compiler_ver}" "${msvc_runtime_ver}" msvc_runtime_build_version ${msvc_version})
-    if (NOT msvc_runtime_build_version)
-        message(FATAL_ERROR "Could not determine MSVC runtime version from cl.exe output")
-    endif()
-    message(STATUS "MSVC Runtime Build Version: ${msvc_runtime_build_version}")
-    message(STATUS "MSVC Runtime Minimum Version: ${msvc_runtime_minimum_version}")
-
-endif()
-
 # Setup include directories.
 target_include_directories(acquisition PRIVATE
-    "${PROJECT_SOURCE_DIR}/src"
-    "${PROJECT_BINARY_DIR}"
+    "${acquisition_SOURCE_DIR}/src"
+    "${acquisition_BINARY_DIR}"
 )
 
 add_subdirectory(deps/qdarkstyle)
@@ -392,9 +370,6 @@ target_link_libraries(acquisition PRIVATE
 
 if(WIN32)
 
-    # Needed to check the MSVC runtime version
-    target_link_libraries(acquisition PRIVATE Version)
-
     # Enable more warnings by default (MSVC only).
     target_compile_options(acquisition PRIVATE
         $<$<CXX_COMPILER_ID:MSVC>:/W4>
@@ -408,62 +383,52 @@ if(WIN32)
         $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<NOT:$<CONFIG:Debug>>>:/OPT:ICF>
     )
 
-    # Add the application icon.
-    target_sources(acquisition PRIVATE "${PROJECT_SOURCE_DIR}/assets/icon.ico")
-
-    # Use a function to set version variables so there can be a default value.
-    function(setver name value default)
-        if (NOT "${value}" STREQUAL "")
-            set("${name}" "${value}" PARENT_SCOPE)
-        else()
-            set("${name}" "${default}" PARENT_SCOPE)
-        endif()
-    endfunction()
-
-    # Define the version variables.
-    setver(app_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}" 1)
-    setver(app_VERSION_MINOR "${PROJECT_VERSION_MINOR}" 0)
-    setver(app_VERSION_PATCH "${PROJECT_VERSION_PATCH}" 0)
-    setver(app_VERSION_TWEAK "${PROJECT_VERSION_TWEAK}" 0)
+    # Define versions for the versioninfo.
+    math(EXPR app_version_major "${acquisition_VERSION_MAJOR} + 0")
+    math(EXPR app_version_minor "${acquisition_VERSION_MINOR} + 0")
+    math(EXPR app_version_patch "${acquisition_VERSION_PATCH} + 0")
+    math(EXPR app_version_tweak "${acquisition_VERSION_PATCH} + 0")
 
     # Define the rest of the versioninfo data.
-    set(app_COMPANY_NAME        "")
-    set(app_FILE_DESCRIPTION    "")
-    set(app_FILE_VERSION        "${app_version_string}")
-    set(app_INTERNAL_NAME       "${CMAKE_PROJECT_NAME}")
-    set(app_LEGAL_COPYRIGHT     "${app_copyright}")
-    set(app_LEGAL_TRADEMARK     "${app_trademark}")
-    set(app_ORIGINAL_FILENAME   "${CMAKE_PROJECT_NAME}.exe")
-    set(app_PRODUCT_NAME        "${CMAKE_PROJECT_NAME}")
-    set(app_PRODUCT_VERSION     "${app_version_string}")
-    set(app_ICON                "${PROJECT_SOURCE_DIR}/assets/icon.ico")
+    set(app_company_name        "")
+    set(app_file_description    "")
+    set(app_file_version        "${app_version_string}")
+    set(app_internal_name       "${app_name}")
+    set(app_legal_copyright     "${app_copyright}")
+    set(app_legal_trademark     "${app_trademark}")
+    set(app_original_filename   "${app_name}.exe")
+    set(app_product_name        "${app_name}")
+    set(app_product_version     "${app_version_string}")
+    set(app_icon                "${acquisition_SOURCE_DIR}/assets/icon.ico")
 
     # Create the windows VERSIONINFO resource file.
     configure_file(version_info.rc.in version_info.rc @ONLY)
-    target_sources(acquisition PUBLIC "${CMAKE_BINARY_DIR}/version_info.rc")
+
+    target_sources(acquisition PRIVATE
+        "${app_icon}"
+        "version_info.rc")
         
 elseif(APPLE)
 
-    set(macosx_app_version "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
+    set(macos_app_icon "${acquisition_SOURCE_DIR}/assets/icon.icns")
 
     # Setup the macOS bundle
     set_target_properties(acquisition PROPERTIES
         MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_BUNDLE_NAME "Acquisition"
-        MACOSX_BUNDLE_BUNDLE_VERSION "${macosx_app_version}"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${app_version}"
         MACOSX_BUNDLE_COPYRIGHT "${app_copyright}"
         #MACOSX_BUNDLE_GUI_IDENTIFIER ""
         MACOSX_BUNDLE_ICON_FILE "icon.icns"
-        MACOSX_BUNDLE_INFO_STRING "${PROJECT_DESCRIPTION}"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "${macosx_app_version}"
+        MACOSX_BUNDLE_INFO_STRING "${acquisition_DESCRIPTION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${app_version}"
     )
 
     # Add the macOS application icon
-    set(macos_app_icon "${PROJECT_SOURCE_DIR}/assets/icon.icns")
+    target_sources(acquisition PRIVATE "${macos_app_icon}")
     set_source_files_properties("${macos_app_icon}" PROPERTIES
         MACOSX_PACKAGE_LOCATION "Resources"
     )
-    target_sources(acquisition PRIVATE "${macos_app_icon}")
     
     # Generate debugging symbols file.
     target_compile_options(acquisition PRIVATE $<$<NOT:$<CONFIG:Debug>>:-g>)
@@ -502,13 +467,11 @@ endif()
 
 set(CRASHPAD_HANDLER_EXE "crashpad_handler${CMAKE_EXECUTABLE_SUFFIX}")
 set(CRASHPAD_HANDLER_SRC "${sentry-native_BINARY_DIR}/crashpad_build/handler/${CRASHPAD_HANDLER_EXE}")
-set(CRASHPAD_HANDLER_DST "$<TARGET_FILE_DIR:acquisition>/${${CRASHPAD_HANDLER_EXE}}")
+set(CRASHPAD_HANDLER_DST "$<TARGET_FILE_DIR:acquisition>${CRASHPAD_HANDLER_EXE}")
 
 # Make sure the crashpad handler is copied next to the output executable.
 add_custom_command(TARGET acquisition POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CRASHPAD_HANDLER_SRC}"
-        "${CRASHPAD_HANDLER_DST}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CRASHPAD_HANDLER_SRC}" "${CRASHPAD_HANDLER_DST}"
     COMMAND_EXPAND_LISTS
     VERBATIM
 )
