@@ -93,7 +93,7 @@ void ItemsManagerWorker::LoadItems()
 
     // Get cached characters and stash tabs.
     const auto stashes = userstore.stashes().getStashList(m_realm, m_league);
-    const auto characters = userstore.characters().getCharacterList(m_realm);
+    const auto characters = userstore.characters().getCharacterList(m_realm, m_league);
 
     // Do not process children from unique and map stashers.
     auto special = [](const poe::StashTab &stash) {
@@ -108,11 +108,7 @@ void ItemsManagerWorker::LoadItems()
         }
     }
     for (const auto &character : characters) {
-        // The character list has all characters for all leagues, so
-        // we have to look for just the league we care about.
-        if (character.league == m_league) {
-            m_tabs.push_back(ItemLocation(character, int(m_tabs.size())));
-        }
+        m_tabs.push_back(ItemLocation(character, int(m_tabs.size())));
     }
     m_tabs.shrink_to_fit();
 
