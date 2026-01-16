@@ -16,7 +16,7 @@ project(acquisition
 )
 
 # Use this to define pre-releases
-set(app_version_postfix "-alpha.3")
+set(app_version_postfix "-alpha.4")
 
 # Variables used to generate version_defines.h and installer.iss
 set(app_name            "${CMAKE_PROJECT_NAME}")
@@ -25,7 +25,7 @@ set(app_version_string  "${CMAKE_PROJECT_VERSION}${app_version_postfix}")
 set(app_url             "${CMAKE_PROJECT_HOMEPAGE_URL}")
 set(app_publisher       "GERWARIC")
 set(app_publisher_email "gerwaric@gmail.com")
-set(app_copyright       "Copyright (C) 2014-2025 Ilya Zhuravlev and other Acquisition Contributors")
+set(app_copyright       "Copyright (C) 2014-2026 Ilya Zhuravlev and other Acquisition Contributors")
 set(app_trademark       "Path of Exile is a trademark of Grinding Gear Games, Ltd.")
 
 # When building with Qt Creator in Windows, use target-scoped flags so
