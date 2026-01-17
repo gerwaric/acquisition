@@ -40,9 +40,65 @@ public:
     {
         static IMAGES images;
         return images;
-    };
-    const QImage link_h{":/sockets/linkH.png"};
-    const QImage link_v{":/sockets/linkV.png"};
+    }
+
+    const QImage getSocketImage(const ItemSocket &socket) const
+    {
+        switch (socket.attr) {
+        case 'A':
+            return socket_a;
+        case 'D':
+            return socket_d;
+        case 'G':
+            return socket_g;
+        case 'I':
+            return socket_i;
+        case 'S':
+            return socket_s;
+        default:
+            spdlog::error("ItemTooltip: invalid socket attr: {}", socket.attr);
+            return {};
+        }
+    }
+
+    const QImage getSymbol(Item::INFLUENCE_TYPES influence) const
+    {
+        switch (influence) {
+        case Item::ELDER:
+            return elder_icon;
+        case Item::SHAPER:
+            return shaper_icon;
+        case Item::HUNTER:
+            return hunter_icon;
+        case Item::WARLORD:
+            return warlord_icon;
+        case Item::CRUSADER:
+            return crusader_icon;
+        case Item::REDEEMER:
+            return redeemer_icon;
+        case Item::SYNTHESISED:
+            return synthesised_icon;
+        case Item::FRACTURED:
+            return fractured_icon;
+        case Item::SEARING_EXARCH:
+            return searing_exarch_icon;
+        case Item::EATER_OF_WORLDS:
+            return eater_of_worlds_icon;
+        case Item::NONE:
+            return {};
+        default:
+            spdlog::error("ItemTooltip: invalid influence type: {}", int(influence));
+            return {};
+        }
+    }
+
+    const QImage socket_a{":/sockets/Socket_A.png"};
+    const QImage socket_d{":/sockets/Socket_D.png"};
+    const QImage socket_g{":/sockets/Socket_G.png"};
+    const QImage socket_i{":/sockets/Socket_I.png"};
+    const QImage socket_s{":/sockets/Socket_S.png"};
+    const QImage link_h{":/sockets/Socket_Link_Horizontal.png"};
+    const QImage link_v{":/sockets/Socket_Link_Vertical.png"};
     const QImage elder_1x1{":/backgrounds/ElderBackground_1x1.png"};
     const QImage elder_1x3{":/backgrounds/ElderBackground_1x3.png"};
     const QImage elder_1x4{":/backgrounds/ElderBackground_1x4.png"};
@@ -57,16 +113,16 @@ public:
     const QImage shaper_2x2{":/backgrounds/ShaperBackground_2x2.png"};
     const QImage shaper_2x3{":/backgrounds/ShaperBackground_2x3.png"};
     const QImage shaper_2x4{":/backgrounds/ShaperBackground_2x4.png"};
-    const QImage shaper_icon{":/tooltip/ShaperItemSymbol.png"};
-    const QImage elder_icon{":/tooltip/ElderItemSymbol.png"};
-    const QImage crusader_icon{":/tooltip/Crusader-item-symbol.png"};
-    const QImage hunter_icon{":/tooltip/Hunter-item-symbol.png"};
-    const QImage redeemer_icon{":/tooltip/Redeemer-item-symbol.png"};
-    const QImage warlord_icon{":/tooltip/Warlord-item-symbol.png"};
-    const QImage synthesised_icon{":/tooltip/Synthesised-item-symbol.png"};
-    const QImage fractured_icon{":/tooltip/Fractured-item-symbol.png"};
-    const QImage searing_exarch_icon{":/tooltip/Searing-exarch-item-symbol.png"};
-    const QImage eater_of_worlds_icon{":/tooltip/Eater-of-worlds-item-symbol.png"};
+    const QImage shaper_icon{":/symbols/ShaperSymbol.png"};
+    const QImage elder_icon{":/symbols/ElderSymbol.png"};
+    const QImage crusader_icon{":/symbols/CrusaderSymbol.png"};
+    const QImage hunter_icon{":/symbols/HunterSymbol.png"};
+    const QImage redeemer_icon{":/symbols/RedeemerSymbol.png"};
+    const QImage warlord_icon{":/symbols/WarlordSymbol.png"};
+    const QImage synthesised_icon{":/symbols/SynthesisedSymbol.png"};
+    const QImage fractured_icon{":/symbols/FracturedSymbol.png"};
+    const QImage searing_exarch_icon{":/symbols/SearingExarchSymbol.png"};
+    const QImage eater_of_worlds_icon{":/symbols/EaterOfWorldsSymbol.png"};
 };
 
 /*
@@ -245,7 +301,7 @@ static QString GenerateItemInfo(const Item &item, const QString &key, bool fancy
         if (!first) {
             text += "<br>";
             if (fancy) {
-                text += "<img src=':/tooltip/Separator" + key + ".png'><br>";
+                text += "<img src=':/separators/Separator" + key + ".png'><br>";
             } else {
                 text += "<hr>";
             }
@@ -285,6 +341,8 @@ void GenerateItemHeaderSide(QLabel *itemHeader,
                             bool singleline,
                             Item::INFLUENCE_TYPES base)
 {
+    static const auto &images = IMAGES::instance();
+
     QImage header(header_path_prefix + (leftNotRight ? "Left.png" : "Right.png"));
     QSize header_size = singleline ? HEADER_SINGLELINE_SIZE : HEADER_DOUBLELINE_SIZE;
     header = header.scaled(header_size);
@@ -296,44 +354,8 @@ void GenerateItemHeaderSide(QLabel *itemHeader,
 
     QImage overlay_image;
 
-    const auto &images = IMAGES::instance();
-
     if (base != Item::NONE) {
-        switch (base) {
-        case Item::ELDER:
-            overlay_image = images.elder_icon;
-            break;
-        case Item::SHAPER:
-            overlay_image = images.shaper_icon;
-            break;
-        case Item::HUNTER:
-            overlay_image = images.hunter_icon;
-            break;
-        case Item::WARLORD:
-            overlay_image = images.warlord_icon;
-            break;
-        case Item::CRUSADER:
-            overlay_image = images.crusader_icon;
-            break;
-        case Item::REDEEMER:
-            overlay_image = images.redeemer_icon;
-            break;
-        case Item::SYNTHESISED:
-            overlay_image = images.synthesised_icon;
-            break;
-        case Item::FRACTURED:
-            overlay_image = images.fractured_icon;
-            break;
-        case Item::SEARING_EXARCH:
-            overlay_image = images.searing_exarch_icon;
-            break;
-        case Item::EATER_OF_WORLDS:
-            overlay_image = images.eater_of_worlds_icon;
-            break;
-        case Item::NONE:
-            break;
-        }
-
+        overlay_image = images.getSymbol(base);
         overlay_image = overlay_image.scaled(HEADER_OVERLAY_SIZE);
         int overlay_x = singleline ? (leftNotRight ? 2 : 1) : (leftNotRight ? 2 : 15);
         int overlay_y = (int) (0.5 * (header.height() - overlay_image.height()));
@@ -372,7 +394,7 @@ void UpdateItemTooltip(const Item &item, Ui::MainWindow *ui)
                           || frame == FrameType::FRAME_TYPE_UNIQUE))
                          ? "SingleLine"
                          : "";
-    QString header_path_prefix = ":/tooltip/ItemsHeader" + key + suffix;
+    QString header_path_prefix = ":/headers/" + key + suffix;
 
     GenerateItemHeaderSide(ui->itemHeaderLeft,
                            true,
@@ -403,6 +425,8 @@ QPixmap GenerateItemSockets(const int width,
                             const int height,
                             const std::vector<ItemSocket> &sockets)
 {
+    static const auto &images = IMAGES::instance();
+
     QPixmap pixmap(width * PIXELS_PER_SLOT,
                    height
                        * PIXELS_PER_SLOT); // This will ensure we have enough room to draw the slots
@@ -418,17 +442,16 @@ QPixmap GenerateItemSockets(const int width,
         // Do nothing
     } else if (sockets.size() == 1) {
         auto &socket = sockets.front();
-        QImage socket_image(":/sockets/" + QString(socket.attr) + ".png");
+        QImage socket_image = images.getSocketImage(socket);
         painter.drawImage(0, PIXELS_PER_SLOT * i, socket_image);
         socket_rows = 1;
         socket_columns = 1;
     } else {
         for (auto &socket : sockets) {
-            const auto &images = IMAGES::instance();
             const auto &link_h = images.link_h;
             const auto &link_v = images.link_v;
             bool link = socket.group == prev.group;
-            QImage socket_image(":/sockets/" + QString(socket.attr) + ".png");
+            QImage socket_image = images.getSocketImage(socket);
             if (width == 1) {
                 painter.drawImage(0, PIXELS_PER_SLOT * i, socket_image);
                 if (link) {
@@ -482,6 +505,7 @@ QPixmap GenerateItemSockets(const int width,
 
 QPixmap GenerateItemIcon(const Item &item, const QImage &image)
 {
+    static const auto &images = IMAGES::instance();
     const int height = item.h();
     const int width = item.w();
 
@@ -491,7 +515,6 @@ QPixmap GenerateItemIcon(const Item &item, const QImage &image)
 
     if (item.hasInfluence(Item::SHAPER) || item.hasInfluence(Item::ELDER)) {
         // Assumes width <= 2
-        const auto &images = IMAGES::instance();
         const QImage *background_image = nullptr;
         if (item.hasInfluence(Item::ELDER)) {
             switch (height) {

@@ -59,7 +59,7 @@ LoginDialog::LoginDialog(const QDir &app_data_dir,
     // Set window properties.
     spdlog::trace("LoginDialog::LoginDialog() setting window properties");
     setWindowTitle(QString("Acquisition Login [") + APP_VERSION_STRING + "]");
-    setWindowIcon(QIcon(":/icons/assets/icon.svg"));
+    setWindowIcon(QIcon(":/icons/icon.svg"));
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
     // Setup the realm options.

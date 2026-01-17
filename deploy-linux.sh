@@ -58,7 +58,7 @@ export LINUXDEPLOY_EXCLUDED_LIBRARIES
 ${LINUXDEPLOY} --appdir=. \
 	--executable=usr/bin/acquisition \
 	--desktop-file="${PROJECT_DIR}/acquisition.desktop" \
-	--icon-file="${PROJECT_DIR}/assets/icon.svg" \
+	--icon-file="${PROJECT_DIR}/assets/icons/icon.svg" \
 	--icon-filename=default \
 	--plugin=qt \
 	--output=appimage

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-FileCopyrightText: 2024 Tom Holz
 
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.24)
 
 # NOTE: For automatic update detection to work, the 'app_version' variable
 # defined below should match a tag in github. Historically, the github tags
@@ -293,8 +293,74 @@ set(ACQ_UTIL
     src/util/util.h
 )
 
+#------------------------------------------------------
+# Resources
+#------------------------------------------------------
+
 set(ACQ_RESOURCES
-    resources.qrc
+    assets/backgrounds/ElderBackground_1x1.png
+    assets/backgrounds/ElderBackground_1x3.png
+    assets/backgrounds/ElderBackground_1x4.png
+    assets/backgrounds/ElderBackground_2x1.png
+    assets/backgrounds/ElderBackground_2x2.png
+    assets/backgrounds/ElderBackground_2x3.png
+    assets/backgrounds/ElderBackground_2x4.png
+    assets/backgrounds/ShaperBackground_1x1.png
+    assets/backgrounds/ShaperBackground_1x3.png
+    assets/backgrounds/ShaperBackground_1x4.png
+    assets/backgrounds/ShaperBackground_2x1.png
+    assets/backgrounds/ShaperBackground_2x2.png
+    assets/backgrounds/ShaperBackground_2x3.png
+    assets/backgrounds/ShaperBackground_2x4.png
+    assets/fonts/Fontin-SmallCaps.ttf
+    assets/headers/CurrencyLeft.png
+    assets/headers/CurrencyRight.png
+    assets/headers/CurrencyMiddle.png
+    assets/headers/GemLeft.png
+    assets/headers/GemRight.png
+    assets/headers/GemMiddle.png
+    assets/headers/MagicLeft.png
+    assets/headers/MagicRight.png
+    assets/headers/MagicMiddle.png
+    assets/headers/RareLeft.png
+    assets/headers/RareRight.png
+    assets/headers/RareMiddle.png
+    assets/headers/RareSingleLineLeft.png
+    assets/headers/RareSingleLineRight.png
+    assets/headers/RareSingleLineMiddle.png
+    assets/headers/UniqueLeft.png
+    assets/headers/UniqueRight.png
+    assets/headers/UniqueMiddle.png
+    assets/headers/UniqueSingleLineLeft.png
+    assets/headers/UniqueSingleLineRight.png
+    assets/headers/UniqueSingleLineMiddle.png
+    assets/headers/WhiteLeft.png
+    assets/headers/WhiteRight.png
+    assets/headers/WhiteMiddle.png
+    assets/icons/icon.svg
+    assets/separators/SeparatorWhite.png
+    assets/separators/SeparatorMagic.png
+    assets/separators/SeparatorRare.png
+    assets/separators/SeparatorUnique.png
+    assets/separators/SeparatorGem.png
+    assets/separators/SeparatorCurrency.png
+    assets/sockets/Socket_A.png
+    assets/sockets/Socket_D.png
+    assets/sockets/Socket_G.png
+    assets/sockets/Socket_I.png
+    assets/sockets/Socket_Link_Horizontal.png
+    assets/sockets/Socket_Link_Vertical.png
+    assets/sockets/Socket_S.png
+    assets/symbols/CrusaderSymbol.png
+    assets/symbols/EaterOfWorldsSymbol.png
+    assets/symbols/ElderSymbol.png
+    assets/symbols/FracturedSymbol.png
+    assets/symbols/HunterSymbol.png
+    assets/symbols/RedeemerSymbol.png
+    assets/symbols/SearingExarchSymbol.png
+    assets/symbols/ShaperSymbol.png
+    assets/symbols/SynthesisedSymbol.png
+    assets/symbols/WarlordSymbol.png
 )
 
 # Automatically populate and include the versions header file.
@@ -306,7 +372,7 @@ configure_file("src/version_defines.h.in" "version_defines.h" @ONLY)
 
 find_package(Qt6 6.10 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Widgets)
 
-qt_standard_project_setup(REQUIRES 6.10.0)
+qt_standard_project_setup()
 
 qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     ${ACQ_CORE}
@@ -317,9 +383,14 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     ${ACQ_POE}
     ${ACQ_UI}
     ${ACQ_UTIL}
-    ${ACQ_RESOURCES}
     # Generated version header
     "${CMAKE_BINARY_DIR}/version_defines.h"
+)
+
+qt_add_resources(acquisition
+    PREFIX "/"
+    BASE "assets"
+    FILES ${ACQ_RESOURCES}
 )
 
 # Add configure_file() inputs so they show up in Qt Creator.
@@ -331,8 +402,6 @@ target_sources(acquisition PRIVATE
 )
 
 set_target_properties(acquisition PROPERTIES
-    AUTOMOC ON
-    AUTOUIC ON
     AUTORCC ON
     CXX_STANDARD 23
     CXX_STANDARD_REQUIRED YES
@@ -350,12 +419,12 @@ add_subdirectory(deps/qdarkstyle)
 # Link required libraries.
 target_link_libraries(acquisition PRIVATE
     # Qt libraries
-    Qt::Core
-    Qt::Gui
-    Qt::Network
-    Qt::NetworkAuth
-    Qt::Widgets
-    Qt::Sql
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Network
+    Qt6::NetworkAuth
+    Qt6::Widgets
+    Qt6::Sql
     # Extenal libraries
     glaze::glaze
     qdarkstyle
@@ -399,7 +468,7 @@ if(WIN32)
     set(app_original_filename   "${app_name}.exe")
     set(app_product_name        "${app_name}")
     set(app_product_version     "${app_version_string}")
-    set(app_icon                "${acquisition_SOURCE_DIR}/assets/icon.ico")
+    set(app_icon                "${acquisition_SOURCE_DIR}/assets/icons/icon.ico")
 
     # Create the windows VERSIONINFO resource file.
     configure_file(version_info.rc.in version_info.rc @ONLY)
@@ -410,7 +479,7 @@ if(WIN32)
         
 elseif(APPLE)
 
-    set(macos_app_icon "${acquisition_SOURCE_DIR}/assets/icon.icns")
+    set(macos_app_icon "${acquisition_SOURCE_DIR}/assets/icons/icon.icns")
 
     # Setup the macOS bundle
     set_target_properties(acquisition PROPERTIES

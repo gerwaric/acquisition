@@ -107,3 +107,5 @@ copy "%BUILD_DIR%\acquisition.exe" .\Output
 
 echo Copying the acquisition debug symbols to the output directory.
 copy "%BUILD_DIR%\acquisition.pdb" .\Output
+
+echo TODO: sentry-cli debug-files upload --org acquisition --project native-qt --wait .\Output\v0.16.0-alpha.4

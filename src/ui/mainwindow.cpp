@@ -113,7 +113,7 @@ MainWindow::MainWindow(QSettings &settings,
                                    m_settings.value("league").toString(),
                                    m_settings.value("account").toString());
     setWindowTitle(title);
-    setWindowIcon(QIcon(":/icons/assets/icon.svg"));
+    setWindowIcon(QIcon(":/icons/icon.svg"));
 
     m_delayed_update_current_item.setInterval(CURRENT_ITEM_UPDATE_DELAY_MS);
     m_delayed_update_current_item.setSingleShot(true);
