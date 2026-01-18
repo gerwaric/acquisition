@@ -80,51 +80,100 @@ void ItemLocation::FixUid()
     }
 }
 
-void ItemLocation::FromItem(const poe::Item &root)
+ItemLocation ItemLocation::getItemLocation(const poe::Item &item) const
 {
-    m_x = root.x.value_or(0);
-    m_y = root.y.value_or(0);
-    m_w = root.w;
-    m_h = root.h;
-    m_inventory_id = root.inventoryId.value_or("");
+    ItemLocation item_location = *this;
+    if (item.x) {
+        item_location.m_x = *item.x;
+    }
+    if (item.y) {
+        item_location.m_y = *item.y;
+    }
+    item_location.m_w = item.w;
+    item_location.m_h = item.h;
+    if (item.inventoryId) {
+        item_location.m_inventory_id = *item.inventoryId;
+    }
+    if (item.socket) {
+        item_location.m_socketed = true;
+    }
+    return item_location;
 }
 
-void ItemLocation::FromLegacyItemLocation(const LegacyItemLocation &item)
+void ItemLocation::AddLegacyItemLocation(const LegacyItemLocation &item)
 {
-    m_type = ItemLocationType{item._type};
+    const auto _type = ItemLocationType{item._type};
+    if (m_type != _type) {
+        spdlog::warn("ItemLocation: legacy item location mismatch: _type");
+    }
+    m_type = _type;
+
+    if (m_socketed != item._socketed) {
+        spdlog::warn("ItemLocation: legacy item location mismatch: _removeonly");
+    }
     m_socketed = item._socketed;
+
+    if (m_removeonly != item._removeonly) {
+        spdlog::warn("ItemLocation: legacy item location mismatch: _removeonly");
+    }
     m_removeonly = item._removeonly;
 
     // The x and y set here override the one set above in FromItem.
     // I'm not yet sure if this is correct, but it matches the old FromItemJson.
     if (m_socketed) {
+        // x-location
         if (!item._x) {
-            spdlog::error("ItemLocation: LegacyItemLocation for socketed item is missing _x");
+            spdlog::warn("ItemLocation: LegacyItemLocation for socketed item is missing _x");
+        } else {
+            if (m_x != *item._x) {
+                spdlog::warn("ItemLocation: legacy item location mismatch: _x");
+            }
+            m_x = *item._x;
         }
+
+        // y-location
         if (!item._y) {
-            spdlog::error("ItemLocation: LegacyItemLocation for socketed item is missing _x");
+            spdlog::warn("ItemLocation: LegacyItemLocation for socketed item is missing _y");
+        } else {
+            if (m_x != *item._y) {
+                spdlog::warn("ItemLocation: legacy item location mismatch: _y");
+            }
+            m_y = *item._y;
         }
-        m_x = *item._x;
-        m_y = *item._y;
     }
 
     switch (m_type) {
     case ItemLocationType::STASH:
+        // m_tab_id
         if (!item._tab) {
             spdlog::error("ItemLocation: LegacyItemLocation for stash is missing _tab");
+        } else {
+            if (m_tab_id != *item._tab) {
+                spdlog::warn("ItemLocation: legacy item location mismatch: _tab");
+            }
+            m_tab_id = *item._tab;
         }
+        // m_tab_label
         if (!item._tab_label) {
             spdlog::error("ItemLocation: LegacyItemLocation for stash is missing _tab_label");
+        } else {
+            if (m_tab_label != *item._tab_label) {
+                spdlog::warn("ItemLocation: legacy item location mismatch: _tab_label");
+            }
+            m_tab_label = *item._tab_label;
         }
-        m_tab_label = item._tab_label.value_or("<<MISSING_LABEL>>");
-        m_tab_id = item._tab.value_or(0);
         break;
     case ItemLocationType::CHARACTER:
+        // m_character
         if (!item._character) {
-            spdlog::error("ItemLocation: LegacyItemLocation for character is missing _character");
+            spdlog::error("ItemLocation: LegacyItemLocation for stash is missing _character");
+        } else {
+            if (m_character != *item._character) {
+                spdlog::warn("ItemLocation: legacy item location mismatch: _character");
+            }
+            m_character = *item._character;
+            m_character_sortname = m_character.toLower();
         }
-        m_character = item._character.value_or("<<MISSING_NAME>>");
-        m_character_sortname = m_character.toLower();
         break;
     }
 }

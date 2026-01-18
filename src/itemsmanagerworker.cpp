@@ -847,17 +847,11 @@ void ItemsManagerWorker::SendStatusUpdate()
 void ItemsManagerWorker::ParseItems(const std::vector<poe::Item> &items,
                                     const ItemLocation &base_location)
 {
-    ItemLocation location = base_location;
-
     for (auto &item : items) {
-        // Make sure location data from the item like x and y is brought over to the location object.
-        location.FromItem(item);
-        //location.ToItemJson(&item, alloc);
+        const ItemLocation location = base_location.getItemLocation(item);
         m_items.push_back(std::make_shared<Item>(item, location));
         if (item.socketedItems) {
-            location.set_socketed(true);
             ParseItems(*item.socketedItems, location);
-            location.set_socketed(false);
         }
     }
 }

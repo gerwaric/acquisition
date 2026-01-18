@@ -60,10 +60,10 @@ static QString fixup_name(const QString &name)
     }
 }
 
-Item::Item(const poe::Item &json, const ItemLocation &loc)
-    : m_location(loc)
+Item::Item(const poe::Item &json, const ItemLocation &base_location)
 {
     m_name = fixup_name(json.name);
+    m_location = base_location.getItemLocation(json);
 
     if (json.hybrid) {
         const auto &hybrid = json.hybrid.value();

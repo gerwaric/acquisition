@@ -72,7 +72,7 @@ public:
         EATER_OF_WORLDS
     };
 
-    Item(const poe::Item &item, const ItemLocation &loc);
+    Item(const poe::Item &item, const ItemLocation &base_location);
 
     QString id() const { return m_uid; }
     QString name() const { return m_name; }

@@ -33,8 +33,8 @@ public:
     ItemLocation(const LegacyCharacter &character, int tab_id);
     ItemLocation(const LegacyStash &stash);
 
-    void FromItem(const poe::Item &item);
-    void FromLegacyItemLocation(const LegacyItemLocation &item);
+    ItemLocation getItemLocation(const poe::Item &item) const;
+    void AddLegacyItemLocation(const LegacyItemLocation &item);
     QString GetHeader() const;
     QRectF GetRect() const;
     QString GetForumCode(const QString &realm,

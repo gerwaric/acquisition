@@ -102,8 +102,8 @@ Items DataStore::DeserializeItems(const QString &json, const ItemLocation &tab)
     std::vector<LegacyItemLocation> parsed_locations;
 
     // We have to allow unknown keys otherwise parsing poe::Item will
-    // break beacuse acquisition has injected it's special location metadata
-    // such as _type, _socketed, _x, and _y.
+    // break beacuse older versions acquisition has injected special location
+    // metadata such as _type, _socketed, _x, and _y.
     constexpr glz::opts permissive{.error_on_unknown_keys = false};
 
     // First parse the items ignoring the special location info.
@@ -142,9 +142,8 @@ Items DataStore::DeserializeItems(const QString &json, const ItemLocation &tab)
         const auto &location_info = parsed_locations[i];
         // Create a new location and make sure location-related information
         // such as x and y are pulled from the item json.
-        ItemLocation loc = tab;
-        loc.FromItem(item);
-        loc.FromLegacyItemLocation(location_info);
+        ItemLocation loc = tab.getItemLocation(item);
+        loc.AddLegacyItemLocation(location_info);
         items.push_back(std::make_shared<Item>(item, loc));
     }
     return items;
