@@ -9,6 +9,7 @@
 #include <QSqlQuery>
 #include <QUuid>
 
+#include "datastore/buyoutrepo.h"
 #include "datastore/characterrepo.h"
 #include "datastore/datastore_utils.h"
 #include "datastore/stashrepo.h"
@@ -28,7 +29,7 @@ constexpr std::array CONNECTION_PRAGMAS{
 
 struct UserStore::Impl
 {
-    Impl(const QString &username, UserStore &store);
+    Impl(const QString &username);
     ~Impl();
 
     int userVersion();
@@ -36,13 +37,14 @@ struct UserStore::Impl
     void migrate();
 
     QSqlDatabase db;
+    std::unique_ptr<BuyoutRepo> buyouts;
     std::unique_ptr<CharacterRepo> characters;
     std::unique_ptr<StashRepo> stashes;
 };
 
 UserStore::UserStore(const QDir &dir, const QString &username)
 {
-    m_impl = std::make_unique<Impl>(username, *this);
+    m_impl = std::make_unique<UserStore::Impl>(username);
 
     QDir dataDir(dir);
     if (!dataDir.mkpath(dir.absolutePath())) {
@@ -83,6 +85,11 @@ UserStore::UserStore(const QDir &dir, const QString &username)
 
 UserStore::~UserStore() = default;
 
+BuyoutRepo &UserStore::buyouts()
+{
+    return *m_impl->buyouts;
+}
+
 CharacterRepo &UserStore::characters()
 {
     return *m_impl->characters;
@@ -93,7 +100,7 @@ StashRepo &UserStore::stashes()
     return *m_impl->stashes;
 }
 
-UserStore::Impl::Impl(const QString &username, UserStore &store)
+UserStore::Impl::Impl(const QString &username)
 {
     const QString uuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
     const QString connection = "UserStore:" + username + ":" + uuid;
@@ -102,8 +109,9 @@ UserStore::Impl::Impl(const QString &username, UserStore &store)
     // until the connection has been opened, but this prevents null pointer
     // dereference errors.
     db = QSqlDatabase::addDatabase("QSQLITE", connection);
-    characters = std::make_unique<CharacterRepo>(db, store);
-    stashes = std::make_unique<StashRepo>(db, store);
+    buyouts = std::make_unique<BuyoutRepo>(db);
+    characters = std::make_unique<CharacterRepo>(db);
+    stashes = std::make_unique<StashRepo>(db);
 }
 
 UserStore::Impl::~Impl()

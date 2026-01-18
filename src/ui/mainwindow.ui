@@ -452,10 +452,17 @@
     <addaction name="menuOAuth"/>
     <addaction name="menuSessionID"/>
    </widget>
+   <widget class="QMenu" name="menuBuyouts">
+    <property name="title">
+     <string>Buyouts</string>
+    </property>
+    <addaction name="actionImportBuyouts"/>
+   </widget>
    <addaction name="menuTabs"/>
    <addaction name="menuShop"/>
    <addaction name="menuCurrency"/>
    <addaction name="menuSettings"/>
+   <addaction name="menuBuyouts"/>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
   <action name="actionSetShopThreads">
@@ -664,6 +671,11 @@
    </property>
    <property name="text">
     <string>Get unique stashes</string>
+   </property>
+  </action>
+  <action name="actionImportBuyouts">
+   <property name="text">
+    <string>Import buyouts</string>
    </property>
   </action>
  </widget>

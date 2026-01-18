@@ -9,7 +9,6 @@
 #include <QString>
 
 #include "datastore/datastore_utils.h"
-#include "datastore/userstore.h"
 #include "poe/types/stashtab.h"
 #include "util/json_readers.h"
 #include "util/json_writers.h"
@@ -101,7 +100,7 @@ bool StashRepo::reset()
     QSqlQuery q(m_db);
 
     if (!q.exec("DROP TABLE IF EXISTS stashes")) {
-        ds::logQueryError("StashRepo::ensureSchema", q);
+        ds::logQueryError("StashRepo::reset", q);
         return false;
     }
     return ensureSchema();

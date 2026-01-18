@@ -7,6 +7,7 @@
 #include <QObject>
 #include <QString>
 
+class BuyoutRepo;
 class CharacterRepo;
 class StashRepo;
 
@@ -19,8 +20,9 @@ public:
 
     CharacterRepo &characters();
     StashRepo &stashes();
+    BuyoutRepo &buyouts();
 
 private:
     struct Impl;
-    std::unique_ptr<Impl> m_impl;
+    std::unique_ptr<UserStore::Impl> m_impl;
 };

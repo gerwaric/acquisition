@@ -362,3 +362,8 @@ void BuyoutManager::MigrateItem(const QString &old_hash, const QString &new_hash
         m_save_needed = true;
     }
 }
+
+void BuyoutManager::ImportBuyouts(const QString &filename)
+{
+    spdlog::info("Importing buyouts from {}", filename);
+}

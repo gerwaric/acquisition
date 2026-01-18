@@ -9,7 +9,6 @@
 #include <QString>
 
 #include "datastore/datastore_utils.h"
-#include "datastore/userstore.h"
 #include "poe/types/character.h"
 #include "util/json_readers.h"
 #include "util/json_writers.h"
@@ -57,7 +56,7 @@ bool CharacterRepo::reset()
     QSqlQuery q(m_db);
 
     if (!q.exec("DROP TABLE IF EXISTS characters")) {
-        ds::logQueryError("StashRepo::ensureSchema", q);
+        ds::logQueryError("StashRepo::reset", q);
         return false;
     }
     return ensureSchema();

@@ -45,6 +45,7 @@ public:
     void Load();
 
     void MigrateItem(const QString &old_hash, const QString &new_hash);
+    void ImportBuyouts(const QString &filename);
 
 private:
     BuyoutType StringToBuyoutType(QString bo_str) const;

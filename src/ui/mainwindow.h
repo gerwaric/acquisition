@@ -115,6 +115,9 @@ private slots:
     // Logging submenu actions
     void OnSetLogging(spdlog::level::level_enum level);
 
+    // Buyouts menu
+    void OnImportBuyouts();
+
     // Tooltip buttons
     void OnCopyForPOB();
     void OnUploadToImgur();

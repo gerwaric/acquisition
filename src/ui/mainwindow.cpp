@@ -9,6 +9,7 @@
 #include <QClipboard>
 #include <QEvent>
 #include <QFile>
+#include <QFileDialog>
 #include <QFontDatabase>
 #include <QImageReader>
 #include <QInputDialog>
@@ -281,7 +282,7 @@ void MainWindow::InitializeUi()
         emit UpdateCheckRequested();
     });
 
-    // resize columns when a tab is expanded/collapsed
+    // Resize columns when a tab is expanded/collapsed.
     connect(ui->treeView, &QTreeView::collapsed, this, &MainWindow::ResizeTreeColumns);
     connect(ui->treeView, &QTreeView::expanded, this, &MainWindow::ResizeTreeColumns);
 
@@ -316,7 +317,7 @@ void MainWindow::InitializeUi()
         m_settings.setValue("tooltip_tab", idx);
     });
 
-    // Connect the Tabs menu
+    // Connect the Tabs menu.
     connect(ui->actionFetchTabsList, &QAction::triggered, this, &MainWindow::OnFetchTabsList);
     connect(ui->actionRefreshCheckedTabs,
             &QAction::triggered,
@@ -339,7 +340,7 @@ void MainWindow::InitializeUi()
         m_settings.setValue("get_unique_stashes", checked);
     });
 
-    // Connect the Shop menu
+    // Connect the Shop menu.
     connect(ui->actionSetShopThreads, &QAction::triggered, this, &MainWindow::OnSetShopThreads);
     connect(ui->actionEditShopTemplate, &QAction::triggered, this, &MainWindow::OnEditShopTemplate);
     connect(ui->actionCopyShopToClipboard,
@@ -353,12 +354,12 @@ void MainWindow::InitializeUi()
             this,
             &MainWindow::OnSetAutomaticShopUpdate);
 
-    // Connect the Theme submenu
+    // Connect the Theme submenu.
     connect(ui->actionSetDarkTheme, &QAction::triggered, this, &MainWindow::OnSetDarkTheme);
     connect(ui->actionSetLightTheme, &QAction::triggered, this, &MainWindow::OnSetLightTheme);
     connect(ui->actionSetDefaultTheme, &QAction::triggered, this, &MainWindow::OnSetDefaultTheme);
 
-    // Connect the Logging submenu
+    // Connect the Logging submenu.
     connect(ui->actionLoggingOFF, &QAction::triggered, this, [=, this]() {
         OnSetLogging(spdlog::level::off);
     });
@@ -381,8 +382,11 @@ void MainWindow::InitializeUi()
         OnSetLogging(spdlog::level::trace);
     });
 
-    // Connect the POESESSID submenu
+    // Connect the POESESSID submenu.
     connect(ui->actionShowPOESESSID, &QAction::triggered, this, &MainWindow::OnShowPOESESSID);
+
+    // Connect the Buyouts menu.
+    connect(ui->actionImportBuyouts, &QAction::triggered, this, &MainWindow::OnImportBuyouts);
 
     // Connect the Tooltip tab buttons
     connect(ui->uploadTooltipButton, &QPushButton::clicked, this, &MainWindow::OnUploadToImgur);
@@ -1193,6 +1197,40 @@ void MainWindow::OnSetLogging(spdlog::level::level_enum level)
     const QString level_name = to_qstring(level);
     spdlog::info("Logging level set to {}", level_name);
     m_settings.setValue("log_level", level_name);
+}
+
+void MainWindow::OnImportBuyouts()
+{
+    const QString settings_path = m_settings.fileName();
+    const QString data_path = QFileInfo(settings_path).absolutePath();
+    const auto opts = QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks;
+
+    const QString import_path = QFileDialog::getExistingDirectory(this,
+                                                                  "Select a data folder",
+                                                                  data_path,
+                                                                  opts);
+    if (import_path.isEmpty()) {
+        return;
+    }
+
+    QDir dir{import_path};
+    dir.setNameFilters({"*-*"});
+    dir.setFilter(QDir::Files | QDir::NoSymLinks | QDir::NoDotAndDotDot | QDir::Readable);
+
+    QStringList files = dir.entryList();
+    if (files.isEmpty()) {
+        return;
+    }
+
+    const QRegularExpression re(QStringLiteral(R"(^[A-Za-z0-9]+-\d+$)"));
+    files.removeIf([&](const QString &s) { return !re.match(s).hasMatch(); });
+    if (files.isEmpty()) {
+        return;
+    }
+
+    for (const auto &file : std::as_const(files)) {
+        m_buyout_manager.ImportBuyouts(file);
+    }
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)

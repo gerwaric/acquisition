@@ -154,6 +154,8 @@ set(ACQ_CORE
 )
 
 set(ACQ_DATASTORE
+    src/datastore/buyoutrepo.cpp
+    src/datastore/buyoutrepo.h
     src/datastore/characterrepo.cpp
     src/datastore/characterrepo.h
     src/datastore/datastore.cpp

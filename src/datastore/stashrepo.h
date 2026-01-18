@@ -13,15 +13,12 @@
 class QSqlDatabase;
 class QString;
 
-class UserStore;
-
 class StashRepo : public QObject
 {
     Q_OBJECT
 public:
-    explicit StashRepo(QSqlDatabase &db, UserStore &store)
-        : m_db(db)
-        , m_store(store) {};
+    explicit StashRepo(QSqlDatabase &db)
+        : m_db(db) {};
 
     std::optional<poe::StashTab> getStash(const QString &id,
                                           const QString &realm,
@@ -49,5 +46,4 @@ private:
                              const QString &league);
 
     QSqlDatabase &m_db;
-    UserStore &m_store;
 };

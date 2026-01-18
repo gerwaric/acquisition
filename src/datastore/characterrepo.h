@@ -13,15 +13,12 @@
 class QSqlDatabase;
 class QString;
 
-class UserStore;
-
 class CharacterRepo : public QObject
 {
     Q_OBJECT
 public:
-    explicit CharacterRepo(QSqlDatabase &db, UserStore &store)
-        : m_db(db)
-        , m_store(store) {};
+    explicit CharacterRepo(QSqlDatabase &db)
+        : m_db(db) {};
 
     std::optional<poe::Character> getCharacter(const QString &name, const QString &realm);
     std::vector<poe::Character> getCharacterList(const QString &realm,
@@ -38,5 +35,4 @@ private:
     bool saveListTransaction(const std::vector<poe::Character> &characters);
 
     QSqlDatabase &m_db;
-    UserStore &m_store;
 };
