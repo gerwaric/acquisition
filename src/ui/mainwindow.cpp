@@ -534,16 +534,17 @@ void MainWindow::OnBuyoutChange()
     }
 
     const auto &selected_rows = ui->treeView->selectionModel()->selectedRows();
-    for (auto const &index : selected_rows) {
-        auto const &tab = m_current_search->GetTabLocation(index).GetUniqueHash();
+    for (const auto &index : selected_rows) {
+        const auto location = m_current_search->GetTabLocation(index);
+        const auto tab = location.GetUniqueHash();
 
         // Don't allow users to manually update locked tabs (game priced)
-        if (m_buyout_manager.GetTab(tab).IsGameSet()) {
+        if (m_buyout_manager.GetTab(location).IsGameSet()) {
             spdlog::trace("MainWindow::OnBuyoutChange() refusing to update locked tab: {}", tab);
             continue;
         }
         if (!index.parent().isValid()) {
-            m_buyout_manager.SetTab(tab, bo);
+            m_buyout_manager.SetTab(location, bo);
         } else {
             const int bucket_row = index.parent().row();
             if (m_current_search->has_bucket(bucket_row)) {
@@ -1003,8 +1004,8 @@ void MainWindow::UpdateCurrentBuyout()
     if (m_current_item) {
         UpdateBuyoutWidgets(m_buyout_manager.Get(*m_current_item));
     } else {
-        QString tab = m_current_bucket_location->GetUniqueHash();
-        UpdateBuyoutWidgets(m_buyout_manager.GetTab(tab));
+        const ItemLocation &location = *m_current_bucket_location;
+        UpdateBuyoutWidgets(m_buyout_manager.GetTab(location));
     }
 }
 

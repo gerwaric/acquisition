@@ -7,16 +7,28 @@
 #include <QSqlQuery>
 
 #include "datastore/datastore_utils.h"
+#include "item.h"
+#include "itemlocation.h"
 
 constexpr const char *CREATE_BUYOUT_TABLE{R"(
 CREATE TABLE IF NOT EXISTS buyouts (
-    item_id         TEXT PRIMARY KEY,
-    item_location   TEXT NOT NULL,
-    location_type   TEXT NOT NULL
+    buyout_id       TEXT PRIMARY KEY,
+    buyout_type     TEXT NOT NULL CHECK (buyout_tyoe IN ('item', 'stash')),
+    location_id     TEXT NOT NULL,
+    location_type   TEXT NOT NULL CHECK (location_type IN ('character', 'stash')),
+    currency        TEXT NOT NULL,
+    inherited       INTEGER NOT NULL CHECK (inherited IN (0,1)),
+    last_update     INTEGER NOT NULL,
+    source          TEXT NOT NULL,
+    type            TEXT NOT NULL,
+    value           REAL NOT NULL
 )
 )"};
 
-bool BuyoutRepo::reset()
+BuyoutRepo::BuyoutRepo(QSqlDatabase &db)
+    : m_db(db) {};
+
+bool BuyoutRepo::resetRepo()
 {
     QSqlQuery q(m_db);
 
@@ -41,5 +53,15 @@ bool BuyoutRepo::ensureSchema()
         }
     }
 
+    return true;
+}
+
+bool BuyoutRepo::saveItemBuyout(const Buyout &buyout, const Item &item)
+{
+    return true;
+}
+
+bool BuyoutRepo::saveLocationBuyout(const Buyout &buyout, const ItemLocation &location)
+{
     return true;
 }

@@ -5,6 +5,7 @@
 
 #include <QDir>
 #include <QObject>
+#include <QSqlDatabase>
 #include <QString>
 
 class BuyoutRepo;
@@ -18,11 +19,16 @@ public:
     explicit UserStore(const QDir &dir, const QString &username);
     ~UserStore();
 
-    CharacterRepo &characters();
-    StashRepo &stashes();
-    BuyoutRepo &buyouts();
+    StashRepo &stashes() { return *m_stashes; };
+    CharacterRepo &characters() { return *m_characters; }
+    BuyoutRepo &buyouts() { return *m_buyouts; };
 
 private:
-    struct Impl;
-    std::unique_ptr<UserStore::Impl> m_impl;
+    int userVersion();
+    void migrate();
+
+    QSqlDatabase m_db;
+    std::unique_ptr<StashRepo> m_stashes;
+    std::unique_ptr<CharacterRepo> m_characters;
+    std::unique_ptr<BuyoutRepo> m_buyouts;
 };

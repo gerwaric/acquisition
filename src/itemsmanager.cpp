@@ -58,7 +58,7 @@ void ItemsManager::ApplyAutoTabBuyouts()
         auto tab_label = loc.get_tab_label();
         Buyout buyout = m_buyout_manager.StringToBuyout(tab_label);
         if (buyout.IsActive()) {
-            m_buyout_manager.SetTab(loc.GetUniqueHash(), buyout);
+            m_buyout_manager.SetTab(loc, buyout);
         }
     }
 
@@ -97,9 +97,8 @@ void ItemsManager::PropagateTabBuyouts()
     m_buyout_manager.ClearRefreshLocks();
     for (auto &item_ptr : m_items) {
         Item &item = *item_ptr;
-        QString hash = item.location().GetUniqueHash();
         auto item_bo = m_buyout_manager.Get(item);
-        auto tab_bo = m_buyout_manager.GetTab(hash);
+        auto tab_bo = m_buyout_manager.GetTab(item.location());
 
         if (item_bo.IsInherited()) {
             if (tab_bo.IsActive()) {

@@ -6,25 +6,29 @@
 #include "item.h"
 
 #include <QDateTime>
+#include <QObject>
 #include <QString>
 
 #include <set>
 
 #include "buyout.h"
 
+class Item;
 class ItemLocation;
 class DataStore;
 
-class BuyoutManager
+class BuyoutManager : public QObject
 {
+    Q_OBJECT
 public:
     explicit BuyoutManager(DataStore &data);
     ~BuyoutManager();
+
     void Set(const Item &item, const Buyout &buyout);
     Buyout Get(const Item &item) const;
 
-    void SetTab(const QString &tab, const Buyout &buyout);
-    Buyout GetTab(const QString &tab) const;
+    void SetTab(const ItemLocation &location, const Buyout &buyout);
+    Buyout GetTab(const ItemLocation &location) const;
     void CompressTabBuyouts();
     void CompressItemBuyouts(const Items &items);
 
@@ -46,6 +50,10 @@ public:
 
     void MigrateItem(const QString &old_hash, const QString &new_hash);
     void ImportBuyouts(const QString &filename);
+
+signals:
+    bool SetItemBuyout(const Buyout &buyout, const Item &item);
+    bool SetLocationBuyout(const Buyout &buyout, const ItemLocation &location);
 
 private:
     BuyoutType StringToBuyoutType(QString bo_str) const;

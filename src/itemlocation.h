@@ -40,7 +40,7 @@ public:
     QString GetForumCode(const QString &realm,
                          const QString &league,
                          unsigned int stash_index) const;
-    QString GetUniqueHash() const;
+    QString GetUniqueHash() const { return m_unique_id; };
     bool IsValid() const;
     bool operator<(const ItemLocation &other) const;
     bool operator==(const ItemLocation &other) const;
@@ -54,10 +54,7 @@ public:
     int getR() const { return m_red; }
     int getG() const { return m_green; }
     int getB() const { return m_blue; }
-    QString get_tab_uniq_id() const
-    {
-        return m_type == ItemLocationType::STASH ? m_tab_unique_id : m_character;
-    }
+    QString get_tab_uniq_id() const { return m_unique_id; }
     QString get_json() const { return m_json; }
 
 private:
@@ -72,7 +69,7 @@ private:
     QString m_json;
 
     //this would be the value "tabs -> id", which seems to be a hashed value generated on their end
-    QString m_tab_unique_id;
+    QString m_unique_id;
 
     // This is the "type" field from GGG, which is different from the ItemLocationType
     // used by Acquisition.

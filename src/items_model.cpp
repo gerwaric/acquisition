@@ -101,7 +101,7 @@ QVariant ItemsModel::data(const QModelIndex &index, int role) const
                 return "All Items";
             }
             QString title(location.GetHeader());
-            auto const &bo = m_bo_manager.GetTab(location.GetUniqueHash());
+            auto const &bo = m_bo_manager.GetTab(location);
             if (bo.IsActive()) {
                 title += QString(" [%1]").arg(bo.AsText());
             }

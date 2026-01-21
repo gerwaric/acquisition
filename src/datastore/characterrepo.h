@@ -17,15 +17,14 @@ class CharacterRepo : public QObject
 {
     Q_OBJECT
 public:
-    explicit CharacterRepo(QSqlDatabase &db)
-        : m_db(db) {};
+    explicit CharacterRepo(QSqlDatabase &db);
 
     std::optional<poe::Character> getCharacter(const QString &name, const QString &realm);
     std::vector<poe::Character> getCharacterList(const QString &realm,
                                                  const std::optional<QString> league = {});
 
+    bool resetRepo();
     bool ensureSchema();
-    bool reset();
 
 public slots:
     bool saveCharacter(const poe::Character &character);

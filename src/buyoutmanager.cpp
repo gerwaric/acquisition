@@ -8,6 +8,7 @@
 
 #include "application.h"
 #include "datastore/datastore.h"
+#include "item.h"
 #include "itemlocation.h"
 #include "util/glaze_qt.h"  // IWYU pragma: keep
 #include "util/spdlog_qt.h" // IWYU pragma: keep
@@ -54,11 +55,13 @@ void BuyoutManager::Set(const Item &item, const Buyout &buyout)
         if (buyout != it->second) {
             m_save_needed = true;
             it->second = buyout;
+            emit SetItemBuyout(buyout, item);
         }
     } else {
         // The item hash is not present, so we need to save buyouts
         m_save_needed = true;
         m_buyouts[item.id()] = buyout;
+        emit SetItemBuyout(buyout, item);
     }
 }
 
@@ -77,8 +80,9 @@ Buyout BuyoutManager::Get(const Item &item) const
     return Buyout();
 }
 
-Buyout BuyoutManager::GetTab(const QString &tab) const
+Buyout BuyoutManager::GetTab(const ItemLocation &location) const
 {
+    const QString tab = location.get_tab_uniq_id();
     const auto &it = m_tab_buyouts.find(tab);
     if (it != m_tab_buyouts.end()) {
         Buyout buyout = it->second;
@@ -93,8 +97,9 @@ Buyout BuyoutManager::GetTab(const QString &tab) const
     return Buyout();
 }
 
-void BuyoutManager::SetTab(const QString &tab, const Buyout &buyout)
+void BuyoutManager::SetTab(const ItemLocation &location, const Buyout &buyout)
 {
+    const auto tab = location.GetUniqueHash();
     if (buyout.type == Buyout::BUYOUT_TYPE_CURRENT_OFFER) {
         spdlog::warn(
             "BuyoutManager: tried to set an obsolete 'current offer' tab buyout for {}: {}",
@@ -107,10 +112,12 @@ void BuyoutManager::SetTab(const QString &tab, const Buyout &buyout)
         if (buyout != it->second) {
             m_save_needed = true;
             it->second = buyout;
+            emit SetLocationBuyout(buyout, location);
         }
     } else {
         m_save_needed = true;
         m_tab_buyouts[tab] = buyout;
+        emit SetLocationBuyout(buyout, location);
     }
 }
 

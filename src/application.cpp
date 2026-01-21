@@ -13,6 +13,7 @@
 
 #include "buyoutmanager.h"
 #include "currencymanager.h"
+#include "datastore/buyoutrepo.h"
 #include "datastore/characterrepo.h"
 #include "datastore/sqlitedatastore.h"
 #include "datastore/stashrepo.h"
@@ -86,16 +87,13 @@ void Application::InitUserSession()
 {
     m_session = std::make_unique<Application::UserSession>(core());
 
-    // Disconnect from the update signal so that only the main window gets it from now on.
-    QObject::disconnect(&update_checker(), &UpdateChecker::UpdateAvailable, nullptr, nullptr);
-
-    auto manager = &items_manager();
+    auto item_mgr = &items_manager();
     auto worker = &items_worker();
 
-    connect(manager, &ItemsManager::UpdateSignal, worker, &ItemsManagerWorker::Update);
-    connect(worker, &ItemsManagerWorker::StatusUpdate, manager, &ItemsManager::OnStatusUpdate);
-    connect(worker, &ItemsManagerWorker::ItemsRefreshed, manager, &ItemsManager::OnItemsRefreshed);
-    connect(manager, &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
+    connect(item_mgr, &ItemsManager::UpdateSignal, worker, &ItemsManagerWorker::Update);
+    connect(worker, &ItemsManagerWorker::StatusUpdate, item_mgr, &ItemsManager::OnStatusUpdate);
+    connect(worker, &ItemsManagerWorker::ItemsRefreshed, item_mgr, &ItemsManager::OnItemsRefreshed);
+    connect(item_mgr, &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
 
     auto characters = &userstore().characters();
     auto stashes = &userstore().stashes();
@@ -111,6 +109,12 @@ void Application::InitUserSession()
     connect(worker, &ItemsManagerWorker::stashListReceived, stashes, &StashRepo::saveStashList);
     connect(worker, &ItemsManagerWorker::stashReceived, stashes, &StashRepo::saveStash);
 
+    auto buyout_mgr = &buyout_manager();
+    auto buyouts = &userstore().buyouts();
+
+    connect(buyout_mgr, &BuyoutManager::SetItemBuyout, buyouts, &BuyoutRepo::saveItemBuyout);
+    connect(buyout_mgr, &BuyoutManager::SetLocationBuyout, buyouts, &BuyoutRepo::saveLocationBuyout);
+
     auto main = &main_window();
     auto updater = &update_checker();
     auto cache = &image_cache();
@@ -120,16 +124,19 @@ void Application::InitUserSession()
     connect(main, &MainWindow::SetTheme, this, &Application::SetTheme);
     connect(main, &MainWindow::UpdateCheckRequested, updater, &UpdateChecker::CheckForUpdates);
 
-    connect(manager, &ItemsManager::ItemsRefreshed, main, &MainWindow::OnItemsRefreshed);
-    connect(manager, &ItemsManager::StatusUpdate, main, &MainWindow::OnStatusUpdate);
+    connect(item_mgr, &ItemsManager::ItemsRefreshed, main, &MainWindow::OnItemsRefreshed);
+    connect(item_mgr, &ItemsManager::StatusUpdate, main, &MainWindow::OnStatusUpdate);
 
     connect(main, &MainWindow::GetImage, cache, &ImageCache::fetch);
     connect(cache, &ImageCache::imageReady, main, &MainWindow::OnImageFetched);
 
     connect(&shop(), &Shop::StatusUpdate, main, &MainWindow::OnStatusUpdate);
 
+    // Disconnect from the update signal so that only the main window gets it from now on.
+    disconnect(updater, &UpdateChecker::UpdateAvailable, nullptr, nullptr);
+
     // Connect the update checker.
-    connect(updater, &UpdateChecker::UpdateAvailable, main, &MainWindow::OnUpdateAvailable);
+    connect(updater, &UpdateChecker::UpdateAvailable, main, &MainWindow::OnUpdateAvailable);    
 }
 
 Application::CoreServices &Application::core() const

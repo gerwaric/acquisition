@@ -17,8 +17,7 @@ class StashRepo : public QObject
 {
     Q_OBJECT
 public:
-    explicit StashRepo(QSqlDatabase &db)
-        : m_db(db) {};
+    explicit StashRepo(QSqlDatabase &db);
 
     std::optional<poe::StashTab> getStash(const QString &id,
                                           const QString &realm,
@@ -31,8 +30,8 @@ public:
                                                 const QString &realm,
                                                 const QString &league);
 
+    bool resetRepo();
     bool ensureSchema();
-    bool reset();
 
 public slots:
     bool saveStash(const poe::StashTab &stash, const QString &realm, const QString &league);

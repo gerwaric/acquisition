@@ -3,7 +3,6 @@
 
 #include "datastore/userstore.h"
 
-#include <QSqlDatabase>
 #include <QSqlDriver>
 #include <QSqlError>
 #include <QSqlQuery>
@@ -27,107 +26,73 @@ constexpr std::array CONNECTION_PRAGMAS{
     "PRAGMA foreign_keys=OFF",
 };
 
-struct UserStore::Impl
-{
-    Impl(const QString &username);
-    ~Impl();
-
-    int userVersion();
-    bool setUserVersion(int v);
-    void migrate();
-
-    QSqlDatabase db;
-    std::unique_ptr<BuyoutRepo> buyouts;
-    std::unique_ptr<CharacterRepo> characters;
-    std::unique_ptr<StashRepo> stashes;
-};
-
 UserStore::UserStore(const QDir &dir, const QString &username)
 {
-    m_impl = std::make_unique<UserStore::Impl>(username);
+    const QString uuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    const QString connection = "UserStore:" + username + ":" + uuid;
+    m_db = QSqlDatabase::addDatabase("QSQLITE", connection);
+
+    m_characters = std::make_unique<CharacterRepo>(m_db);
+    m_stashes = std::make_unique<StashRepo>(m_db);
+    m_buyouts = std::make_unique<BuyoutRepo>(m_db);
+
+    if (!m_db.isValid()) {
+        spdlog::error("UserStore: database is not valid: {}", m_db.lastError().text());
+        return;
+    }
 
     QDir dataDir(dir);
     if (!dataDir.mkpath(dir.absolutePath())) {
         spdlog::error("UserStore: unable to create directory: {}", dir.absolutePath());
         return;
     }
+
     const QString filename = dataDir.absoluteFilePath("userstore-" + username + ".db");
-
-    QSqlDatabase &db = m_impl->db;
-    db.setDatabaseName(filename);
-    db.setConnectOptions(QString("QSQLITE_BUSY_TIMEOUT=%1").arg(QSQLITE_BUSY_TIMEOUT));
+    m_db.setDatabaseName(filename);
+    m_db.setConnectOptions(QString("QSQLITE_BUSY_TIMEOUT=%1").arg(QSQLITE_BUSY_TIMEOUT));
     spdlog::debug("UserStore: created database connection '{}' to '{}'",
-                  db.connectionName(),
-                  db.databaseName());
+                  m_db.connectionName(),
+                  m_db.databaseName());
 
-    if (!db.open()) {
+    if (!m_db.open()) {
         spdlog::error("UserStore: error opening database connection '{}' to '{}': {}",
-                      db.connectionName(),
-                      db.databaseName(),
-                      db.lastError().text());
+                      m_db.connectionName(),
+                      m_db.databaseName(),
+                      m_db.lastError().text());
         return;
     }
 
-    QSqlQuery q(db);
+    QSqlQuery q(m_db);
     for (const auto &pragma : CONNECTION_PRAGMAS) {
         if (!q.exec(pragma)) {
             spdlog::warn("UserStore: pragma failed: {} ({})", pragma, q.lastError().text());
         }
     }
 
-    const int v = m_impl->userVersion();
-    spdlog::debug("UserStore: user_version is {}, schema version is {}", v, SCHEMA_VERSION);
-    if (v < SCHEMA_VERSION) {
-        spdlog::info("UserStore: migrating from user_version {} to {}", v, SCHEMA_VERSION);
-        m_impl->migrate();
+    const int version = userVersion();
+    spdlog::debug("UserStore: user_version is {}, schema version is {}", version, SCHEMA_VERSION);
+    if (version < SCHEMA_VERSION) {
+        spdlog::info("UserStore: migrating from user_version {} to {}", version, SCHEMA_VERSION);
+        migrate();
     }
 }
 
-UserStore::~UserStore() = default;
-
-BuyoutRepo &UserStore::buyouts()
+UserStore::~UserStore()
 {
-    return *m_impl->buyouts;
-}
-
-CharacterRepo &UserStore::characters()
-{
-    return *m_impl->characters;
-}
-
-StashRepo &UserStore::stashes()
-{
-    return *m_impl->stashes;
-}
-
-UserStore::Impl::Impl(const QString &username)
-{
-    const QString uuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    const QString connection = "UserStore:" + username + ":" + uuid;
-
-    // Create the database connection and repos. They will not be usable
-    // until the connection has been opened, but this prevents null pointer
-    // dereference errors.
-    db = QSqlDatabase::addDatabase("QSQLITE", connection);
-    buyouts = std::make_unique<BuyoutRepo>(db);
-    characters = std::make_unique<CharacterRepo>(db);
-    stashes = std::make_unique<StashRepo>(db);
-}
-
-UserStore::Impl::~Impl()
-{
-    // Grab the connection name.
-    const QString connection = db.connectionName();
+    m_buyouts = nullptr;
+    m_characters = nullptr;
+    m_stashes = nullptr;
 
     // Close the database.
-    if (db.isValid()) {
-        db.close();
+    if (m_db.isValid()) {
+        m_db.close();
     }
 
+    // Grab the connection name.
+    const QString connection = m_db.connectionName();
+
     // Clear member variables.
-    db = QSqlDatabase();
-    characters = nullptr;
-    stashes = nullptr;
+    m_db = QSqlDatabase();
 
     // Remove the database connection.
     if (QSqlDatabase::contains(connection)) {
@@ -135,28 +100,18 @@ UserStore::Impl::~Impl()
     }
 }
 
-int UserStore::Impl::userVersion()
+int UserStore::userVersion()
 {
-    QSqlQuery q(db);
+    QSqlQuery q(m_db);
     if (!q.exec("PRAGMA user_version")) {
         spdlog::error("UserStore: error getting user_version: {}", q.lastError().text());
     }
     return q.next() ? q.value(0).toInt() : 0;
 }
 
-bool UserStore::Impl::setUserVersion(int v)
+void UserStore::migrate()
 {
-    QSqlQuery q(db);
-    const bool ok = q.exec(QString("PRAGMA user_version=%1").arg(v));
-    if (!ok) {
-        spdlog::error("UserStore: error setting user_version: {}", q.lastError().text());
-    }
-    return ok;
-}
-
-void UserStore::Impl::migrate()
-{
-    QSqlQuery q(db);
+    QSqlQuery q(m_db);
 
     // Acquire a write lock so only one migrator proceeds.
     if (!q.exec("BEGIN IMMEDIATE")) {
@@ -164,35 +119,40 @@ void UserStore::Impl::migrate()
     }
 
     // Another connection might have migrated while we waited.
-    const int v = userVersion();
-    if (v >= SCHEMA_VERSION) {
+    const int version = userVersion();
+    if (version >= SCHEMA_VERSION) {
         spdlog::debug("UserStore: migration occured while waiting for the lock");
-        db.commit();
+        m_db.commit();
         return;
     }
 
-    if (!characters->reset()) {
-        db.rollback();
+    if (!m_characters->resetRepo()) {
+        m_db.rollback();
         return;
     }
 
-    if (!stashes->reset()) {
-        db.rollback();
+    if (!m_stashes->resetRepo()) {
+        m_db.rollback();
+        return;
+    }
+
+    if (!m_buyouts->resetRepo()) {
+        m_db.rollback();
         return;
     }
 
     // Update the user_version.
-    if (!setUserVersion(SCHEMA_VERSION)) {
-        spdlog::error("UserStore: unable to set user_version to {}", SCHEMA_VERSION);
-        db.rollback();
+    if (!q.exec(QString("PRAGMA user_version=%1").arg(SCHEMA_VERSION))) {
+        spdlog::error("UserStore: error setting user_version: {}", q.lastError().text());
+        m_db.rollback();
         return;
     }
 
     // Commit the transaction.
-    if (!db.commit()) {
-        spdlog::error("UserStore: error committing migration: {}", db.lastError().text());
+    if (!m_db.commit()) {
+        spdlog::error("UserStore: error committing migration: {}", m_db.lastError().text());
         return;
     }
 
-    spdlog::info("UserStore: migrated from version {} to {}", v, SCHEMA_VERSION);
+    spdlog::info("UserStore: migrated from version {} to {}", version, SCHEMA_VERSION);
 }

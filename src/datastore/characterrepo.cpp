@@ -51,7 +51,10 @@ SET
 WHERE id = :id
 )"};
 
-bool CharacterRepo::reset()
+CharacterRepo::CharacterRepo(QSqlDatabase &db)
+    : m_db(db) {};
+
+bool CharacterRepo::resetRepo()
 {
     QSqlQuery q(m_db);
 

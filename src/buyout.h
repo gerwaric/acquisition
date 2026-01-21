@@ -30,19 +30,28 @@ public:
         BUYOUT_SOURCE_NONE,
         BUYOUT_SOURCE_MANUAL,
         BUYOUT_SOURCE_GAME,
-        BUYOUT_SOURCE_AUTO
+        BUYOUT_SOURCE_AUTO,
     };
     Q_ENUM(BuyoutSource)
 
     typedef std::map<BuyoutType, QString> BuyoutTypeMap;
     typedef std::map<BuyoutSource, QString> BuyoutSourceMap;
 
-    double value;
-    BuyoutType type;
+    Buyout() = default;
+    Buyout(double m_value, BuyoutType m_type, Currency m_currency, QDateTime m_last_update)
+        : value(m_value)
+        , type(m_type)
+        , currency(m_currency)
+        , last_update(m_last_update)
+    {}
+
+    double value{0.0};
+    BuyoutType type{BuyoutType::BUYOUT_TYPE_INHERIT};
     BuyoutSource source{BUYOUT_SOURCE_MANUAL};
-    Currency currency;
+    Currency currency{CurrencyType::CURRENCY_NONE};
     QDateTime last_update;
-    bool inherited = false;
+    bool inherited{false};
+
     bool operator==(const Buyout &o) const;
     bool operator!=(const Buyout &o) const;
     bool IsValid() const;
@@ -63,18 +72,6 @@ public:
     const QString &BuyoutTypeAsPrefix() const;
     const QString &BuyoutSourceAsTag() const;
     const QString &CurrencyAsTag() const;
-
-    Buyout()
-        : value(0)
-        , type(BuyoutType::BUYOUT_TYPE_INHERIT)
-        , currency(CurrencyType::CURRENCY_NONE)
-    {}
-    Buyout(double m_value, BuyoutType m_type, Currency m_currency, QDateTime m_last_update)
-        : value(m_value)
-        , type(m_type)
-        , currency(m_currency)
-        , last_update(m_last_update)
-    {}
 
 private:
     static const QString m_buyout_type_error;

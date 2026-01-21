@@ -24,8 +24,8 @@ CREATE TABLE IF NOT EXISTS stashes (
     name            TEXT NOT NULL,
     type            TEXT NOT NULL,
     stash_index     INTEGER,
-    meta_public     INTEGER NOT NULL DEFAULT 0 CHECK (meta_public IN (0,1)),
-    meta_folder     INTEGER NOT NULL DEFAULT 0 CHECK (meta_folder IN (0,1)),
+    meta_public     INTEGER NOT NULL CHECK (meta_public IN (0,1)),
+    meta_folder     INTEGER NOT NULL CHECK (meta_folder IN (0,1)),
     meta_colour     TEXT,
     listed_at       TEXT,
     json_fetched_at TEXT,
@@ -95,7 +95,10 @@ ON CONFLICT(realm, league, id) DO UPDATE SET
     json_data       = excluded.json_data
 )"};
 
-bool StashRepo::reset()
+StashRepo::StashRepo(QSqlDatabase &db)
+    : m_db(db) {};
+
+bool StashRepo::resetRepo()
 {
     QSqlQuery q(m_db);
 
