@@ -19,7 +19,7 @@ namespace ds {
     inline QVariant optionalAsNull(std::optional<T> wrapper)
     {
         return wrapper ? *wrapper : QVariant{QMetaType::fromType<T>()};
-    };
+    }
 
     QDateTime timestamp();
 

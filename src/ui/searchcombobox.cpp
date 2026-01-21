@@ -14,7 +14,7 @@ void SearchComboCompleter::complete(const QRect &rect)
 {
     if (popup() == nullptr) {
         return;
-    };
+    }
     const int rows = completionModel()->rowCount();
     const int width = (rows > 0) ? popup()->sizeHintForColumn(0) : 0;
     popup()->setMinimumWidth(width);

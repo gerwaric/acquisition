@@ -215,7 +215,7 @@ QString Util::TimeAgoInWords(const QDateTime &buyout_time)
         int years = (days / 365);
         if (days % 365 != 0) {
             years++;
-        };
+        }
         return QString("%1 %2 ago").arg(years).arg(years == 1 ? "year" : "years");
     }
 
@@ -224,7 +224,7 @@ QString Util::TimeAgoInWords(const QDateTime &buyout_time)
         int months = (days / 365);
         if (days % 30 != 0) {
             months++;
-        };
+        }
         return QString("%1 %2 ago").arg(months).arg(months == 1 ? "month" : "months");
     }
 

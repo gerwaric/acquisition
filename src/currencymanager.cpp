@@ -377,7 +377,7 @@ void CurrencyDialog::Update()
 {
     for (auto widget : m_currencies_widgets) {
         widget->Update();
-    };
+    }
     UpdateTotalValue();
     UpdateTotalWisdomValue();
 }

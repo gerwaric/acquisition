@@ -83,8 +83,8 @@ public slots:
     void OnCollapseAll();
     void OnCheckAll();
     void OnUncheckAll();
-    void OnCheckSelected() { CheckSelected(true); };
-    void OnUncheckSelected() { CheckSelected(false); };
+    void OnCheckSelected() { CheckSelected(true); }
+    void OnUncheckSelected() { CheckSelected(false); }
     void OnRenameTabClicked(int index);
     void OnDeleteTabClicked(int index);
     void OnRefreshSelected();

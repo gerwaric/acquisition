@@ -101,7 +101,7 @@ void InitItemBaseTypes(const QByteArray &baseTypes)
     for (const auto &[item_key, item_info] : base_items) {
         if (item_info.release_state == "unreleased") {
             continue;
-        };
+        }
         const QString &name{item_info.name};
         if (name.isEmpty() || name.startsWith("[DO NOT USE]") || name.startsWith("[UNUSED]")
             || name.startsWith("[DNT")) {

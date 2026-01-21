@@ -57,7 +57,7 @@ std::pair<const QString &, QNetworkRequest> poe::MakeStashRequest(const QString 
     QString url(kOAuthGetStashUrl);
     if (realm != "pc") {
         url += "/" + realm;
-    };
+    }
     url += "/" + league;
     url += "/" + stash_id;
     if (!substash_id.isEmpty()) {

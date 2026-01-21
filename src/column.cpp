@@ -373,7 +373,7 @@ QVariant ChaosDamageColumn::value(const Item &item) const
     const auto result = properties.find(QStringLiteral("Chaos Damage"));
     if (result != properties.end()) {
         return result->second;
-    };
+    }
     return QVariant();
 }
 

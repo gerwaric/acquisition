@@ -19,9 +19,9 @@ public:
     explicit UserStore(const QDir &dir, const QString &username);
     ~UserStore();
 
-    StashRepo &stashes() { return *m_stashes; };
+    StashRepo &stashes() { return *m_stashes; }
     CharacterRepo &characters() { return *m_characters; }
-    BuyoutRepo &buyouts() { return *m_buyouts; };
+    BuyoutRepo &buyouts() { return *m_buyouts; }
 
 private:
     int userVersion();

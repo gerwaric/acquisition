@@ -70,7 +70,7 @@ namespace poe {
         std::optional<poe::Character::Passives> passives; // ?object
         std::optional<poe::Character::Metadata> metadata; // ?object
 
-        inline bool operator<(const Character &other) const { return name < other.name; };
+        inline bool operator<(const Character &other) const { return name < other.name; }
     };
 
     struct CharacterListWrapper

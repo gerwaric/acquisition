@@ -40,7 +40,7 @@ public:
 
     const RateLimitPolicy &policy();
 
-    int msecToNextSend() const { return m_activation_timer.remainingTime(); };
+    int msecToNextSend() const { return m_activation_timer.remainingTime(); }
 
 signals:
     // Emitted when a network request is ready to go.

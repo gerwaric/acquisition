@@ -279,7 +279,7 @@ void AddStatTranslations(const QByteArray &statTranslations)
                 // folder, but acquisition has never needed to load modifiers from those
                 // files before.
                 continue;
-            };
+            }
             QString stat_string = stat.string;
             if (stat.format[0].compare("ignore") != 0) {
                 for (size_t i = 0; i < stat.format.size(); i++) {

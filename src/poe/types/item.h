@@ -217,7 +217,7 @@ namespace poe {
             const QString b = other.name.isEmpty() ? other.typeLine
                                                    : other.name + " " + other.typeLine;
             return a < b;
-        };
+        }
     };
 
 } // namespace poe

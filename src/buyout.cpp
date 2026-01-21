@@ -39,7 +39,7 @@ bool Buyout::IsValid() const
         spdlog::error("Invalid buyout type: {}", static_cast<int>(type));
         spdlog::error("{}", QString("hello"));
         return false;
-    };
+    }
 }
 
 bool Buyout::IsActive() const

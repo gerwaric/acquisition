@@ -42,11 +42,11 @@ struct LegacyDataStore
     bool exportJson(const QString &filename) const;
     bool exportTgz(const QString &filename) const;
 
-    bool isValid() const { return m_valid; };
-    qint64 itemCount() const { return m_item_count; };
-    const LegacyDataStore::DataTable &data() const { return m_data; };
-    const LegacyDataStore::TabsTable &tabs() const { return m_tabs; };
-    const LegacyDataStore::ItemsTable &items() const { return m_items; };
+    bool isValid() const { return m_valid; }
+    qint64 itemCount() const { return m_item_count; }
+    const LegacyDataStore::DataTable &data() const { return m_data; }
+    const LegacyDataStore::TabsTable &tabs() const { return m_tabs; }
+    const LegacyDataStore::ItemsTable &items() const { return m_items; }
 
 private:
     LegacyDataStore::DataTable m_data;

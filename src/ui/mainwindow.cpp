@@ -133,7 +133,7 @@ MainWindow::~MainWindow()
     delete ui;
     for (auto &search : m_searches) {
         delete (search);
-    };
+    }
     m_rate_limit_dialog->close();
     m_rate_limit_dialog->deleteLater();
 }

@@ -23,9 +23,9 @@ public:
     bool setData(const QModelIndex &index, const QVariant &value, int role = Qt::EditRole);
     void sort(int column, Qt::SortOrder order);
     void sort();
-    Qt::SortOrder GetSortOrder() const { return m_sort_order; };
-    int GetSortColumn() const { return m_sort_column; };
-    void SetSorted(bool val) { m_sorted = val; };
+    Qt::SortOrder GetSortOrder() const { return m_sort_order; }
+    int GetSortColumn() const { return m_sort_column; }
+    void SetSorted(bool val) { m_sorted = val; }
 
 private:
     BuyoutManager &m_bo_manager;

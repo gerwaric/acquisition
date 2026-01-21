@@ -44,7 +44,7 @@ namespace poe {
             const unsigned a = index.value_or(0);
             const unsigned b = other.index.value_or(0);
             return a < b;
-        };
+        }
     };
 
     struct StashListWrapper

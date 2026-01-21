@@ -43,9 +43,9 @@ class RateLimitData
 {
 public:
     RateLimitData(const QByteArray &header_fragment);
-    int hits() const { return m_hits; };
-    int period() const { return m_period; };
-    int restriction() const { return m_restriction; };
+    int hits() const { return m_hits; }
+    int period() const { return m_period; }
+    int restriction() const { return m_restriction; }
 
 private:
     int m_hits;
@@ -58,9 +58,9 @@ class RateLimitItem
 public:
     RateLimitItem(const QByteArray &limit_fragment, const QByteArray &state_fragment);
     bool Check(const RateLimitItem &other) const;
-    const RateLimitData &limit() const { return m_limit; };
-    const RateLimitData &state() const { return m_state; };
-    RateLimit::Status status() const { return m_status; };
+    const RateLimitData &limit() const { return m_limit; }
+    const RateLimitData &state() const { return m_state; }
+    RateLimit::Status status() const { return m_status; }
 
 private:
     RateLimitData m_limit;
@@ -73,8 +73,8 @@ class RateLimitRule
 public:
     RateLimitRule(const QByteArray &name, QNetworkReply *const reply);
     bool Check(const RateLimitRule &other) const;
-    const QString &name() const { return m_name; };
-    const std::vector<RateLimitItem> &items() const { return m_items; };
+    const QString &name() const { return m_name; }
+    const std::vector<RateLimitItem> &items() const { return m_items; }
 
 private:
     const QString m_name;
@@ -87,17 +87,17 @@ class RateLimitPolicy
 public:
     RateLimitPolicy(QNetworkReply *const reply);
     bool Check(const RateLimitPolicy &other) const;
-    const QString &name() const { return m_name; };
-    const std::vector<RateLimitRule> &rules() const { return m_rules; };
-    RateLimit::Status status() const { return m_status; };
-    int maximum_hits() const { return m_maximum_hits; };
+    const QString &name() const { return m_name; }
+    const std::vector<RateLimitRule> &rules() const { return m_rules; }
+    RateLimit::Status status() const { return m_status; }
+    int maximum_hits() const { return m_maximum_hits; }
     QDateTime GetNextSafeSend(const std::deque<RateLimit::Event> &history);
     QDateTime EstimateDuration(int request_count, int minimum_delay_msec) const;
 
     // Report generators for logging.
     QString GetPolicyReport() const;
     QString GetHistoryReport(const std::deque<RateLimit::Event> &history) const;
-    QString GetBorderlineReport() const { return m_report; };
+    QString GetBorderlineReport() const { return m_report; }
 
 private:
     const QString m_name;

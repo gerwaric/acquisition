@@ -12,6 +12,7 @@
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 
 namespace {
+
     template<typename T>
     std::optional<T> read_json(const QByteArray &json)
     {
@@ -25,7 +26,8 @@ namespace {
             return std::nullopt;
         }
         return result;
-    };
+    }
+
 } // namespace
 
 std::optional<OAuthToken> json::readOAuthToken(const QByteArray &json)

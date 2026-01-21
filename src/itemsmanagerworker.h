@@ -81,7 +81,7 @@ private slots:
 
 private:
     bool isInitialized() const { return m_initialized; }
-    bool isUpdating() const { return m_updating; };
+    bool isUpdating() const { return m_updating; }
     void LoadItems();
     void LoadItems(const poe::Character &character, ItemLocation location);
     void LoadItems(const poe::StashTab &stash, ItemLocation location);

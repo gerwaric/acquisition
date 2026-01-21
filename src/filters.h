@@ -45,7 +45,7 @@ public:
     virtual bool Matches(const std::shared_ptr<Item> &item, FilterData *data) = 0;
 
     std::unique_ptr<FilterData> CreateData();
-    bool IsActive() const { return m_active; };
+    bool IsActive() const { return m_active; }
 
 protected:
     bool m_active{false};

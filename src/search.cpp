@@ -141,7 +141,7 @@ const QModelIndex Search::index(const std::shared_ptr<Item> &item) const
     if (!item) {
         // Return an invalid index because there is no current item.
         return QModelIndex();
-    };
+    }
     // Look for a bucket that matches the item's location.
     const auto &bucket_list = buckets();
     const auto &location_id = item->location().get_tab_uniq_id();
@@ -242,7 +242,7 @@ void Search::FilterItems(const Items &items)
             const ItemLocation location = item->location();
             if (!bucketed_tabs.count(location)) {
                 bucketed_tabs[location] = Bucket(location);
-            };
+            }
             bucketed_tabs[location].AddItem(item);
         }
     }

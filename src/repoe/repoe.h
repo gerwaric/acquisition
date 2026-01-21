@@ -18,7 +18,7 @@ class RePoE : public QObject
 public:
     RePoE(NetworkManager &network_manager);
     void Init(const QString &data_dir);
-    bool IsInitialized() const { return m_initialized; };
+    bool IsInitialized() const { return m_initialized; }
 signals:
     void StatusUpdate(ProgramState state, const QString &status);
     void finished();

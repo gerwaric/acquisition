@@ -53,7 +53,7 @@ void LegacyBuyoutValidator::notifyUser()
         const QString &issue = pair.first;
         const int count = pair.second.size();
         lines += QString("    - %1 %2").arg(locale.toString(count), issue);
-    };
+    }
     lines += QString();
     lines += "The data file is: \"" + m_filename + "\"";
     lines += QString();

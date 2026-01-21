@@ -62,7 +62,7 @@ void Application::InitCoreServices()
 
     if (settings().value("realm").toString().isEmpty()) {
         settings().setValue("realm", "pc");
-    };
+    }
     spdlog::debug("Application: realm is {}", settings().value("realm"));
 
     SaveDataOnNewVersion();

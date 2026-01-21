@@ -165,7 +165,7 @@ std::vector<UpdateChecker::ReleaseTag> UpdateChecker::ParseReleaseTags(const QBy
 
         // Add this release to the list.
         releases.push_back(release);
-    };
+    }
     return releases;
 }
 
