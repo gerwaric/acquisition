@@ -60,93 +60,93 @@ static QString fixup_name(const QString &name)
     }
 }
 
-Item::Item(const poe::Item &json, const ItemLocation &base_location)
+Item::Item(const poe::Item &item, const ItemLocation &base_location)
 {
-    m_name = fixup_name(json.name);
-    m_location = base_location.getItemLocation(json);
+    m_name = fixup_name(item.name);
+    m_location = base_location.getItemLocation(item);
 
-    if (json.hybrid) {
-        const auto &hybrid = json.hybrid.value();
+    if (item.hybrid) {
+        const auto &hybrid = item.hybrid.value();
         if (hybrid.isVaalGem.value_or(false)) {
             // Do not use the base type for vaal gems.
-            m_typeLine = json.typeLine;
+            m_typeLine = item.typeLine;
         } else {
             // Use base type for other hybrid items.
             m_typeLine = hybrid.baseTypeName;
         }
     } else {
-        m_typeLine = json.typeLine;
+        m_typeLine = item.typeLine;
     }
     m_typeLine = fixup_name(m_typeLine);
-    m_baseType = fixup_name(json.baseType);
-    m_identified = json.identified;
+    m_baseType = fixup_name(item.baseType);
+    m_identified = item.identified;
 
-    if (json.corrupted) {
-        m_corrupted = *json.corrupted;
+    if (item.corrupted) {
+        m_corrupted = *item.corrupted;
     }
-    if (json.fractured) {
-        m_fractured = *json.fractured;
+    if (item.fractured) {
+        m_fractured = *item.fractured;
     }
-    if (json.split) {
-        m_split = *json.split;
+    if (item.split) {
+        m_split = *item.split;
     }
-    if (json.synthesised) {
-        m_synthesized = *json.synthesised;
+    if (item.synthesised) {
+        m_synthesized = *item.synthesised;
     }
-    if (json.mutated) {
-        m_mutated = *json.mutated;
+    if (item.mutated) {
+        m_mutated = *item.mutated;
     }
 
-    m_crafted = (json.craftedMods && !json.craftedMods->empty());
-    m_enchanted = (json.enchantMods && !json.enchantMods->empty());
+    m_crafted = (item.craftedMods && !item.craftedMods->empty());
+    m_enchanted = (item.enchantMods && !item.enchantMods->empty());
 
-    if (json.influences) {
-        if (json.influences->shaper.value_or(false)) {
+    if (item.influences) {
+        if (item.influences->shaper.value_or(false)) {
             m_influenceList.push_back(SHAPER);
         }
-        if (json.influences->elder.value_or(false)) {
+        if (item.influences->elder.value_or(false)) {
             m_influenceList.push_back(ELDER);
         }
-        if (json.influences->crusader.value_or(false)) {
+        if (item.influences->crusader.value_or(false)) {
             m_influenceList.push_back(CRUSADER);
         }
-        if (json.influences->redeemer.value_or(false)) {
+        if (item.influences->redeemer.value_or(false)) {
             m_influenceList.push_back(REDEEMER);
         }
-        if (json.influences->hunter.value_or(false)) {
+        if (item.influences->hunter.value_or(false)) {
             m_influenceList.push_back(HUNTER);
         }
-        if (json.influences->warlord.value_or(false)) {
+        if (item.influences->warlord.value_or(false)) {
             m_influenceList.push_back(WARLORD);
         }
     }
-    if (json.synthesised.value_or(false)) {
+    if (item.synthesised.value_or(false)) {
         m_influenceList.push_back(SYNTHESISED);
     }
-    if (json.fractured.value_or(false)) {
+    if (item.fractured.value_or(false)) {
         m_influenceList.push_back(FRACTURED);
     }
-    if (json.searing.value_or(false)) {
+    if (item.searing.value_or(false)) {
         m_influenceList.push_back(SEARING_EXARCH);
     }
-    if (json.tangled.value_or(false)) {
+    if (item.tangled.value_or(false)) {
         m_influenceList.push_back(EATER_OF_WORLDS);
     }
 
-    m_w = json.w;
-    m_h = json.h;
-    m_frameType = static_cast<int>(json.frameType);
-    m_icon = json.icon;
+    m_w = item.w;
+    m_h = item.h;
+    m_frameType = static_cast<int>(item.frameType);
+    m_icon = item.icon;
 
     using mod_set_t = std::pair<const char *, std::optional<std::vector<QString>>>;
 
     const std::array<mod_set_t, 6> mod_sets{{
-        {"enchantMods", json.enchantMods},
-        {"implicitMods", json.implicitMods},
-        {"fracturedMods", json.fracturedMods},
-        {"explicitMods", json.explicitMods},
-        {"craftedMods", json.craftedMods},
-        {"mutatedMods", json.mutatedMods},
+        {"enchantMods", item.enchantMods},
+        {"implicitMods", item.implicitMods},
+        {"fracturedMods", item.fracturedMods},
+        {"explicitMods", item.explicitMods},
+        {"craftedMods", item.craftedMods},
+        {"mutatedMods", item.mutatedMods},
     }};
 
     for (const auto &it : mod_sets) {
@@ -170,46 +170,50 @@ Item::Item(const poe::Item &json, const ItemLocation &base_location)
 
     CalculateCategories();
 
-    if (json.talismanTier) {
-        m_talisman_tier = *json.talismanTier;
+    if (item.talismanTier) {
+        m_talisman_tier = *item.talismanTier;
     }
-    if (json.id) {
-        m_uid = *json.id;
+    if (item.id) {
+        m_uid = *item.id;
     }
-    if (json.note) {
-        m_note = *json.note;
+    if (item.note) {
+        m_note = *item.note;
     }
 
-    if (json.properties) {
-        for (const auto &prop : *json.properties) {
+    m_count = 1;
+
+    if (item.properties) {
+        for (const auto &prop : *item.properties) {
             const QString name = prop.name;
             const auto &values = prop.values;
 
             if (name == "Elemental Damage") {
                 m_elemental_damage.reserve(values.size());
                 for (const auto &value : values) {
-                    m_elemental_damage.emplace_back(std::get<0>(value), std::get<1>(value));
+                    m_elemental_damage.emplace_back(value);
                 }
             } else if (values.size() > 0) {
                 const auto &firstValue = values[0];
                 QString strval = std::get<0>(firstValue);
-                if (m_frameType == ItemEnums::FRAME_TYPE_GEM) {
-                    if (name == "Level") {
-                        // Gems at max level have the text "(Max)" after the level number.
-                        // This needs to be removed so the search field can be matched.
-                        if (strval.endsWith("(Max)")) {
-                            // Remove "(Max)" and the space before it.
-                            strval.chop(6);
-                        }
-                    } else if (name == "Quality") {
-                        // Gem quality is stored like "+23%" but we want to store that as "23".
-                        if (strval.startsWith("+")) {
-                            strval.removeFirst();
-                        }
-                        if (strval.endsWith("%")) {
-                            strval.chop(1);
-                        }
+                if (name == "Quality") {
+                    // Quality is stored like "+23%" but we want to use "23".
+                    if (strval.startsWith("+")) {
+                        strval.removeFirst();
                     }
+                    if (strval.endsWith("%")) {
+                        strval.chop(1);
+                    }
+                } else if (name == "Level") {
+                    // Some items like gems at max level have the text "(Max)" after the
+                    // level number. This needs to be removed so the search field can be
+                    // matched.
+                    if (strval.endsWith("(Max)")) {
+                        // Remove "(Max)" and the space before it.
+                        strval.chop(6);
+                    }
+                } else if (name == "Stack Size") {
+                    const auto n = strval.indexOf("/");
+                    m_count = strval.first(n).toInt();
                 }
                 m_properties[name] = strval;
             }
@@ -218,38 +222,32 @@ Item::Item(const poe::Item &json, const ItemLocation &base_location)
             property.name = name;
             property.display_mode = static_cast<int>(
                 prop.displayMode.value_or(poe::DisplayMode::InsertedValues));
-            for (const auto &value : values) {
-                ItemPropertyValue v;
-                v.str = std::get<0>(value);
-                v.type = std::get<1>(value);
-                property.values.push_back(v);
+            for (const auto &[str, type] : values) {
+                property.values.emplace_back(str, type);
             }
             m_text_properties.push_back(property);
         }
     }
 
-    if (json.requirements) {
-        for (const auto &req : *json.requirements) {
+    if (item.requirements) {
+        for (const auto &req : *item.requirements) {
             const auto &values = req.values;
             if (values.size() < 1) {
                 continue;
             }
-            const QString name = req.name;
-            const QString value = std::get<0>(values[0]);
-            m_requirements[name] = value.toInt();
-            ItemPropertyValue v;
-            v.str = value;
-            v.type = std::get<1>(values[0]);
-            m_text_requirements.push_back({name, v});
+            const auto &name = req.name;
+            const auto &[str, type] = values[0];
+            m_requirements[name] = str.toInt();
+            m_text_requirements.push_back({name, ItemPropertyValue{str, type}});
         }
     }
 
-    if (json.sockets) {
+    if (item.sockets) {
         ItemSocketGroup current_group = {0, 0, 0, 0};
-        m_sockets_cnt = static_cast<int>(json.sockets->size());
+        m_sockets_cnt = static_cast<int>(item.sockets->size());
         int counter = 0;
         int prev_group = -1;
-        for (const auto &socket : *json.sockets) {
+        for (const auto &socket : *item.sockets) {
             char attr = '\0';
             if (socket.attr) {
                 attr = (*socket.attr)[0].toLatin1();
@@ -294,21 +292,11 @@ Item::Item(const poe::Item &json, const ItemLocation &base_location)
         m_socket_groups.push_back(current_group);
     }
 
-    CalculateHash(json);
+    CalculateHash(item);
 
-    m_count = 1;
-    const auto it = m_properties.find(QStringLiteral("Stack Size"));
-    if (it != m_properties.end()) {
-        const QString stack_size = it->second;
-        if (stack_size.contains("/")) {
-            const auto n = stack_size.indexOf("/");
-            m_count = stack_size.first(n).toInt();
-        }
-    }
+    m_ilvl = item.ilvl;
 
-    m_ilvl = json.ilvl;
-
-    GenerateMods(json);
+    GenerateMods(item);
 }
 
 QString Item::PrettyName() const
