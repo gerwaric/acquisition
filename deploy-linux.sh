@@ -27,7 +27,7 @@ export QMAKE=${HOME}/Qt/6.10.1/gcc_64/bin/qmake
 LINUXDEPLOY=${HOME}/bin/linuxdeploy-x86_64.AppImage
 LINUXDEPLOY_QT=${HOME}/bin/linuxdeploy-plugin-qt-x86_64.AppImage
 PROJECT_DIR=${PWD}
-BUILD_DIR=${PWD}/build/Desktop_Qt_6_10_1-Release
+BUILD_DIR=${PWD}/build/Desktop_Qt_6_10_2-Release
 
 # Take the version string from version_defines.h
 export LINUXDEPLOY_OUTPUT_VERSION=`grep APP_VERSION_STRING ${BUILD_DIR}/version_defines.h | cut -d'"' -f2`
