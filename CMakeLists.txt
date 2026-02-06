@@ -575,7 +575,7 @@ endif()
 
 set(CRASHPAD_HANDLER_EXE "crashpad_handler${CMAKE_EXECUTABLE_SUFFIX}")
 set(CRASHPAD_HANDLER_SRC "${sentry-native_BINARY_DIR}/crashpad_build/handler/${CRASHPAD_HANDLER_EXE}")
-set(CRASHPAD_HANDLER_DST "$<TARGET_FILE_DIR:acquisition>${CRASHPAD_HANDLER_EXE}")
+set(CRASHPAD_HANDLER_DST "$<TARGET_FILE_DIR:acquisition>/${CRASHPAD_HANDLER_EXE}")
 
 # Make sure the crashpad handler is copied next to the output executable.
 add_custom_command(TARGET acquisition POST_BUILD
