@@ -17,7 +17,7 @@
 # You should have received a copy of the GNU General Public License
 # along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
 
-export QMAKE=${HOME}/Qt/6.10.1/gcc_64/bin/qmake
+export QMAKE=${HOME}/Qt/6.10.2/gcc_64/bin/qmake
 
 # Use commands like this to download the latest linuxdeploy images:
 # wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
