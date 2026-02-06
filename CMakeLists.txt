@@ -34,16 +34,53 @@ set(app_trademark       "Path of Exile is a trademark of Grinding Gear Games, Lt
 
 # Enforce semantic versioning 2.0 per https://semver.org/spec/v2.0.0.html
 
-if("${acquisition_VERSION_MINOR}" STREQUAL "")
+if(acquisition_VERSION_MINOR STREQUAL "")
     message(FATAL_ERROR "Minor version is missing: ${acquisition_VERSION}")
 endif()
 
-if("${acquisition_VERSION_PATCH}" STREQUAL "")
+if(acquisition_VERSION_PATCH STREQUAL "")
     message(FATAL_ERROR "Patch version is missing: ${acquisition_VERSION}")
 endif()
 
-if(NOT "${acquisition_VERSION_TWEAK}" STREQUAL "")
+if(NOT acquisition_VERSION_TWEAK STREQUAL "")
     message(FATAL_ERROR "Tweak version cannot be present: ${acquisition_VERSION}")
+endif()
+
+# Do extra careful checking of the pre-release suffix when it's present.
+if(NOT app_version_suffix STREQUAL "")
+
+    # Check for the leading hyphen.
+    if(NOT app_version_suffix MATCHES "^-")
+        message(FATAL_ERROR "Pre-release suffix does not start with a hyphen: '${app_version_suffix}'")
+    endif()
+
+    # Split into groups after the hyphen into dot-separated parts.
+    string(SUBSTRING "${app_version_suffix}" 1 -1 _parts)
+    string(REPLACE "." ";" _parts "${_parts}")
+
+    # Check each part.
+    foreach(id IN LISTS _parts)
+
+        # Identifiers cannot be empty.
+        if(id STREQUAL "")
+            message(FATAL_ERROR "Pre-release suffix contains and empty identifier in '${app_version_suffix}'")
+        endif()
+
+        # Numeric identifiers cannot have leading zeros.
+        if(id MATCHES "^0[0-9]+$")
+            message(FATAL_ERROR "Numeric identifier has leading zero: '${id}' in '${app_version_suffix}'")
+        endif()
+
+        # Check the identifier against allowable characters.
+        if(NOT id MATCHES "^[0-9A-Za-z-]+$")
+            message(FATAL_ERROR "Invalid pre-release identifier '${id}' in '${app_version_suffix}'")
+        endif()
+
+    endforeach()
+
+    # Get rid of the temporary variable.
+    unset(_parts)
+
 endif()
 
 #------------------------------------------------------
