@@ -248,6 +248,21 @@ bool ItemLocation::IsValid() const
     return !m_unique_id.isEmpty();
 }
 
+QString ItemLocation::GetLegacyHash() const
+{
+    if (!IsValid()) {
+        spdlog::error("ItemLocation is invalid: {}", m_json);
+    };
+    switch (m_type) {
+    case ItemLocationType::STASH:
+        return "stash:" + m_tab_label; // TODO: tab labels are not guaranteed unique
+    case ItemLocationType::CHARACTER:
+        return "character:" + m_character;
+    default:
+        return "";
+    }
+}
+
 bool ItemLocation::operator<(const ItemLocation &rhs) const
 {
     if (m_type == rhs.m_type) {
