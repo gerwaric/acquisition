@@ -20,34 +20,38 @@ ItemLocation::ItemLocation()
 
 ItemLocation::ItemLocation(const poe::Character &character, int tab_id)
     : m_type{ItemLocationType::CHARACTER}
-    , m_tab_id{tab_id}
+    , m_tab_index{tab_id}
     , m_unique_id(character.id)
     , m_character{character.name}
     , m_character_sortname{character.name.toLower()}
+    , m_realm(character.realm)
+    , m_league(character.league.value_or(QString()))
 {}
 
 ItemLocation::ItemLocation(const LegacyCharacter &character, int tab_id)
     : m_type{ItemLocationType::CHARACTER}
-    , m_tab_id{tab_id}
+    , m_tab_index{tab_id}
     , m_unique_id(character.id)
     , m_character{character.name}
     , m_character_sortname{character.name.toLower()}
 {}
 
-ItemLocation::ItemLocation(const poe::StashTab &stash)
+ItemLocation::ItemLocation(const QString &realm, const QString &league, const poe::StashTab &stash)
     : m_removeonly{stash.name.endsWith("(Remove-only)")}
     , m_type{ItemLocationType::STASH}
-    , m_tab_id{int(stash.index.value_or(0))}
+    , m_tab_index{int(stash.index.value_or(0))}
     , m_unique_id{stash.id}
     , m_tab_type{stash.type}
     , m_tab_label{stash.name}
+    , m_realm(realm)
+    , m_league(league)
 {
     Util::GetTabColor(stash, m_red, m_green, m_blue);
 }
 
 ItemLocation::ItemLocation(const LegacyStash &stash)
     : m_type{ItemLocationType::STASH}
-    , m_tab_id{stash.index}
+    , m_tab_index{stash.index}
     , m_unique_id{stash.id}
     , m_tab_type{stash.type}
     , m_tab_label{stash.name}
@@ -150,10 +154,10 @@ void ItemLocation::AddLegacyItemLocation(const LegacyItemLocation &item)
         if (!item._tab) {
             spdlog::error("ItemLocation: LegacyItemLocation for stash is missing _tab");
         } else {
-            if (m_tab_id != *item._tab) {
+            if (m_tab_index != *item._tab) {
                 spdlog::warn("ItemLocation: legacy item location mismatch: _tab");
             }
-            m_tab_id = *item._tab;
+            m_tab_index = *item._tab;
         }
         // m_tab_label
         if (!item._tab_label) {
@@ -184,7 +188,7 @@ QString ItemLocation::GetHeader() const
 {
     switch (m_type) {
     case ItemLocationType::STASH:
-        return QString("#%1, \"%2\"").arg(m_tab_id + 1).arg(m_tab_label);
+        return QString("#%1, \"%2\"").arg(m_tab_index + 1).arg(m_tab_label);
     case ItemLocationType::CHARACTER:
         return m_character;
     default:
@@ -268,7 +272,7 @@ bool ItemLocation::operator<(const ItemLocation &rhs) const
     if (m_type == rhs.m_type) {
         switch (m_type) {
         case ItemLocationType::STASH:
-            return m_tab_id < rhs.m_tab_id;
+            return m_tab_index < rhs.m_tab_index;
         case ItemLocationType::CHARACTER:
             return (QString::localeAwareCompare(m_character_sortname, rhs.m_character_sortname) < 0);
         default:

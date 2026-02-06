@@ -29,7 +29,7 @@ public:
 
     ItemLocation();
     ItemLocation(const poe::Character &character, int tab_id);
-    ItemLocation(const poe::StashTab &stash);
+    ItemLocation(const QString &realm, const QString &league, const poe::StashTab &stash);
     ItemLocation(const LegacyCharacter &character, int tab_id);
     ItemLocation(const LegacyStash &stash);
 
@@ -52,12 +52,14 @@ public:
     QString character() const { return m_character; }
     bool socketed() const { return m_socketed; }
     bool removeonly() const { return m_removeonly; }
-    int tab_index() const { return m_tab_id; }
+    int tab_index() const { return m_tab_index; }
     int getR() const { return m_red; }
     int getG() const { return m_green; }
     int getB() const { return m_blue; }
     QString id() const { return m_unique_id; }
     QString json() const { return m_json; }
+    QString realm() const { return m_realm; }
+    QString league() const { return m_league; }
 
     static QString TypeToString(ItemLocationType type);
     static std::optional<ItemLocationType> TypeFromString(const QString &str);
@@ -70,7 +72,7 @@ private:
     bool m_socketed{false};
     bool m_removeonly{false};
     ItemLocationType m_type;
-    int m_tab_id{0};
+    int m_tab_index{0};
     QString m_json;
 
     //this would be the value "tabs -> id", which seems to be a hashed value generated on their end
@@ -79,12 +81,12 @@ private:
     // This is the "type" field from GGG, which is different from the ItemLocationType
     // used by Acquisition.
     QString m_tab_type;
-
     QString m_tab_label;
     QString m_character;
-    QString m_inventory_id;
-
     QString m_character_sortname;
+    QString m_inventory_id;
+    QString m_realm;
+    QString m_league;
 };
 
 using ItemLocationType = ItemLocation::ItemLocationType;

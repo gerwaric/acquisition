@@ -104,7 +104,7 @@ void ItemsManagerWorker::LoadItems()
     m_tabs.reserve(stashes.size() + characters.size());
     for (const auto &stash : stashes) {
         if (!special(stash)) {
-            m_tabs.push_back(ItemLocation(stash));
+            m_tabs.push_back(ItemLocation(m_realm, m_league, stash));
         }
     }
     for (const auto &character : characters) {
@@ -148,7 +148,7 @@ void ItemsManagerWorker::LoadItems()
                                    stash->name));
         ItemLocation location;
         if (!special(*stash)) {
-            location = ItemLocation{*stash};
+            location = ItemLocation{m_realm, m_league, *stash};
         } else {
             // Items in special tabs should use their parent's ItemLocation.
             for (const auto &tab : m_tabs) {
@@ -452,7 +452,7 @@ void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, int &count)
 
     if (m_tab_id_index.count(tab_id) == 0) {
         // Create this tab.
-        ItemLocation location(tab);
+        ItemLocation location(m_realm, m_league, tab);
 
         // Add this tab.
         m_tabs.push_back(location);

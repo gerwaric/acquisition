@@ -199,14 +199,19 @@ Application::UserSession::UserSession(const Application::CoreServices &core)
     auto &network_manager = *core.network_manager;
     auto &image_cache = *core.image_cache;
 
+    const QString realm = settings.value("realm").toString();
     const QString league = settings.value("league").toString();
     const QString account = settings.value("account").toString();
+    if (realm.isEmpty()) {
+        FatalError("Login failure: the realm has not been set.");
+    }
     if (league.isEmpty()) {
         FatalError("Login failure: the league has not been set.");
     }
     if (account.isEmpty()) {
         FatalError("Login failure: the account has not been set.");
     }
+    spdlog::trace("Application::InitLogin() realm = {}", realm);
     spdlog::trace("Application::InitLogin() league = {}", league);
     spdlog::trace("Application::InitLogin() account = {}", account);
 
