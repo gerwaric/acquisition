@@ -337,10 +337,10 @@ void Shop::UpdateShopData()
         }
         const ItemLocation loc = aug.item->location();
         QString item_string;
-        if (loc.get_type() == ItemLocationType::CHARACTER) {
+        if (loc.type() == ItemLocationType::CHARACTER) {
             item_string = loc.GetForumCode(realm, league, 0);
         } else {
-            const QString uid = loc.get_tab_uniq_id();
+            const QString uid = loc.id();
             const auto it = m_tab_index.find(uid);
             if (it == m_tab_index.end()) {
                 spdlog::error("Shop: cannot determine tab index for {} in {}",

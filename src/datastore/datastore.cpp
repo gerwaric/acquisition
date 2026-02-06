@@ -24,7 +24,7 @@ QString DataStore::Serialize(const Locations &tabs)
     QStringList json;
     json.reserve(tabs.size());
     for (auto &tab : tabs) {
-        json.push_back(tab.get_json());
+        json.push_back(tab.json());
     }
     return "[" + json.join(",") + "]";
 }

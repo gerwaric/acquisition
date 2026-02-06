@@ -46,17 +46,17 @@ public:
     bool operator<(const ItemLocation &other) const;
     bool operator==(const ItemLocation &other) const;
 
-    ItemLocationType get_type() const { return m_type; }
-    QString get_tab_label() const { return m_tab_label; }
-    QString get_character() const { return m_character; }
+    ItemLocationType type() const { return m_type; }
+    QString tab_label() const { return m_tab_label; }
+    QString character() const { return m_character; }
     bool socketed() const { return m_socketed; }
     bool removeonly() const { return m_removeonly; }
-    int get_tab_id() const { return m_tab_id; }
+    int tab_index() const { return m_tab_id; }
     int getR() const { return m_red; }
     int getG() const { return m_green; }
     int getB() const { return m_blue; }
-    QString get_tab_uniq_id() const { return m_unique_id; }
-    QString get_json() const { return m_json; }
+    QString id() const { return m_unique_id; }
+    QString json() const { return m_json; }
 
 private:
     void FixUid();

@@ -140,7 +140,7 @@ void SqliteDataStore::CleanItemsTable()
 
             //check stash tabs
             for (const auto &stashTab : stashTabData) {
-                if (loc == stashTab.get_tab_uniq_id()) {
+                if (loc == stashTab.id()) {
                     foundLoc = true;
                     break;
                 }
@@ -149,7 +149,7 @@ void SqliteDataStore::CleanItemsTable()
             //check character tabs
             if (!foundLoc) {
                 for (const auto &charTab : charsData) {
-                    if (loc == charTab.get_character()) {
+                    if (loc == charTab.character()) {
                         foundLoc = true;
                         break;
                     }
@@ -211,7 +211,7 @@ Locations SqliteDataStore::GetTabs(const ItemLocationType type)
 
 Items SqliteDataStore::GetItems(const ItemLocation &loc)
 {
-    const QString tab_uid = loc.get_tab_uniq_id();
+    const QString tab_uid = loc.id();
     QSqlDatabase db = getThreadLocalDatabase();
     QSqlQuery query(db);
     query.prepare("SELECT value FROM items WHERE loc = ?");
@@ -256,17 +256,17 @@ void SqliteDataStore::SetTabs(const ItemLocationType type, const Locations &tabs
 
 void SqliteDataStore::SetItems(const ItemLocation &loc, const Items &items)
 {
-    if (loc.get_tab_uniq_id().isEmpty()) {
+    if (loc.id().isEmpty()) {
         spdlog::warn("Cannot set items because the location is empty");
         return;
     }
     QSqlDatabase db = getThreadLocalDatabase();
     QSqlQuery query(db);
     query.prepare("INSERT OR REPLACE INTO items (loc, value) VALUES (?, ?)");
-    query.bindValue(0, loc.get_tab_uniq_id());
+    query.bindValue(0, loc.id());
     query.bindValue(1, Serialize(items));
     if (query.exec() == false) {
-        spdlog::error("Error setting tabs for type {}", loc.get_tab_uniq_id());
+        spdlog::error("Error setting tabs for type {}", loc.id());
     }
 }
 

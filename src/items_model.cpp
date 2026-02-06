@@ -107,7 +107,7 @@ QVariant ItemsModel::data(const QModelIndex &index, int role) const
             }
             return title;
         }
-        if (location.IsValid() && location.get_type() == ItemLocationType::STASH) {
+        if (location.IsValid() && location.type() == ItemLocationType::STASH) {
             if (role == Qt::BackgroundRole) {
                 QColor backgroundColor(location.getR(), location.getG(), location.getB());
                 if (backgroundColor.isValid()) {
@@ -174,11 +174,11 @@ bool ItemsModel::setData(const QModelIndex &index, const QVariant &value, int ro
         // way to differentiate these tabs so indicate dataChanged event for each tab with
         // the same name as the current checked tab so the 'check' is properly updated in
         // the layout
-        QString target_hash = location.get_tab_uniq_id();
+        QString target_hash = location.id();
         auto row_count = rowCount();
         for (int i = 0; i < row_count; ++i) {
             auto match_index = this->index(i);
-            if (m_search.GetTabLocation(match_index).get_tab_uniq_id() == target_hash) {
+            if (m_search.GetTabLocation(match_index).id() == target_hash) {
                 emit dataChanged(match_index, match_index);
             }
         }

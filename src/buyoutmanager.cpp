@@ -86,7 +86,7 @@ Buyout BuyoutManager::Get(const Item &item) const
 
 Buyout BuyoutManager::GetTab(const ItemLocation &location) const
 {
-    const QString tab = location.get_tab_uniq_id();
+    const QString tab = location.id();
     const auto &it = m_tab_buyouts.find(tab);
     if (it != m_tab_buyouts.end()) {
         Buyout buyout = it->second;
@@ -106,7 +106,7 @@ void BuyoutManager::SetTab(const ItemLocation &location, const Buyout &buyout)
     if (buyout.type == Buyout::BUYOUT_TYPE_CURRENT_OFFER) {
         spdlog::warn(
             "BuyoutManager: tried to set an obsolete 'current offer' tab buyout for {}: {}",
-            location.get_tab_uniq_id(),
+            location.id(),
             buyout.AsText());
     }
 
@@ -115,9 +115,9 @@ void BuyoutManager::SetTab(const ItemLocation &location, const Buyout &buyout)
         return;
     }
 
-    const auto &it = m_tab_buyouts.find(location.get_tab_uniq_id());
+    const auto &it = m_tab_buyouts.find(location.id());
     if (it == m_tab_buyouts.end()) {
-        m_tab_buyouts[location.get_tab_uniq_id()] = buyout;
+        m_tab_buyouts[location.id()] = buyout;
         emit SetLocationBuyout(buyout, location);
     } else if (buyout != it->second) {
         it->second = buyout;
@@ -132,7 +132,7 @@ void BuyoutManager::CompressTabBuyouts()
     // currently exist.
     std::set<QString> tmp;
     for (const auto &loc : m_tabs) {
-        tmp.emplace(loc.get_tab_uniq_id());
+        tmp.emplace(loc.id());
     }
 
     for (auto it = m_tab_buyouts.begin(), ite = m_tab_buyouts.end(); it != ite;) {
@@ -168,24 +168,24 @@ void BuyoutManager::CompressItemBuyouts(const Items &items)
 void BuyoutManager::SetRefreshChecked(const ItemLocation &loc, bool value)
 {
     m_save_needed = true;
-    m_refresh_checked[loc.get_tab_uniq_id()] = value;
+    m_refresh_checked[loc.id()] = value;
 }
 
 bool BuyoutManager::GetRefreshChecked(const ItemLocation &loc) const
 {
-    auto it = m_refresh_checked.find(loc.get_tab_uniq_id());
+    auto it = m_refresh_checked.find(loc.id());
     bool refresh_checked = (it != m_refresh_checked.end()) ? it->second : true;
     return (refresh_checked || GetRefreshLocked(loc));
 }
 
 bool BuyoutManager::GetRefreshLocked(const ItemLocation &loc) const
 {
-    return m_refresh_locked.count(loc.get_tab_uniq_id());
+    return m_refresh_locked.count(loc.id());
 }
 
 void BuyoutManager::SetRefreshLocked(const ItemLocation &loc)
 {
-    m_refresh_locked.emplace(loc.get_tab_uniq_id());
+    m_refresh_locked.emplace(loc.id());
 }
 
 void BuyoutManager::ClearRefreshLocks()

@@ -25,7 +25,7 @@ Locations MemoryDataStore::GetTabs(const ItemLocationType type)
 
 Items MemoryDataStore::GetItems(const ItemLocation &loc)
 {
-    auto i = m_items.find(loc.get_tab_uniq_id());
+    auto i = m_items.find(loc.id());
     if (i == m_items.end()) {
         return {};
     }
@@ -44,7 +44,7 @@ void MemoryDataStore::SetTabs(const ItemLocationType type, const Locations &tabs
 
 void MemoryDataStore::SetItems(const ItemLocation &loc, const Items &items)
 {
-    m_items[loc.get_tab_uniq_id()] = items;
+    m_items[loc.id()] = items;
 }
 
 void MemoryDataStore::InsertCurrencyUpdate(const CurrencyUpdate &update)

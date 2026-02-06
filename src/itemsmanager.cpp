@@ -55,7 +55,7 @@ void ItemsManager::ApplyAutoTabBuyouts()
 
     // Loop over all tabs, create buyout based on tab name which applies auto-pricing policies
     for (auto const &loc : m_buyout_manager.GetStashTabLocations()) {
-        auto tab_label = loc.get_tab_label();
+        auto tab_label = loc.tab_label();
         Buyout buyout = m_buyout_manager.StringToBuyout(tab_label);
         if (buyout.IsActive()) {
             m_buyout_manager.SetTab(loc, buyout);

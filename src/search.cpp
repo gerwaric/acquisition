@@ -144,12 +144,12 @@ const QModelIndex Search::index(const std::shared_ptr<Item> &item) const
     }
     // Look for a bucket that matches the item's location.
     const auto &bucket_list = buckets();
-    const auto &location_id = item->location().get_tab_uniq_id();
+    const auto &location_id = item->location().id();
     const int bucket_count = static_cast<int>(bucket_list.size());
     for (int row = 0; row < bucket_count; ++row) {
         // Check each search bucket against the item's location.
         const auto &bucket = bucket_list[row];
-        const auto &bucket_id = bucket.location().get_tab_uniq_id();
+        const auto &bucket_id = bucket.location().id();
         if (location_id == bucket_id) {
             // Check each item in the bucket.
             const QModelIndex parent = m_model.index(row);

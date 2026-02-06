@@ -116,7 +116,7 @@ void ItemsManagerWorker::LoadItems()
     spdlog::trace("ItemsManagerWorker::ParseItemMods() saving location ids");
     m_tab_id_index.clear();
     for (const auto &tab : m_tabs) {
-        m_tab_id_index.emplace(tab.get_tab_uniq_id());
+        m_tab_id_index.emplace(tab.id());
     }
 
     // Build the signature vector.
@@ -124,8 +124,8 @@ void ItemsManagerWorker::LoadItems()
     m_tabs_signature.clear();
     m_tabs_signature.reserve(m_tabs.size());
     for (const auto &tab : m_tabs) {
-        const QString tab_name = tab.get_tab_label();
-        const QString tab_id = QString::number(tab.get_tab_id());
+        const QString tab_name = tab.tab_label();
+        const QString tab_id = QString::number(tab.tab_index());
         m_tabs_signature.emplace_back(tab_name, tab_id);
     }
 
@@ -152,7 +152,7 @@ void ItemsManagerWorker::LoadItems()
         } else {
             // Items in special tabs should use their parent's ItemLocation.
             for (const auto &tab : m_tabs) {
-                if (tab.get_tab_uniq_id() == stash->parent) {
+                if (tab.id() == stash->parent) {
                     location = tab;
                     break;
                 }
@@ -270,12 +270,12 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
         QStringList character_names;
         QStringList stash_names;
         for (const auto &location : locations) {
-            switch (location.get_type()) {
+            switch (location.type()) {
             case ItemLocationType::CHARACTER:
-                character_names.append(location.get_character());
+                character_names.append(location.character());
                 break;
             case ItemLocationType::STASH:
-                stash_names.append(location.get_tab_label());
+                stash_names.append(location.tab_label());
                 break;
             }
         }
@@ -322,7 +322,7 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
             spdlog::trace("ItemsManagerWorker: updating checked tabs.");
             for (auto const &tab : m_tabs) {
                 if ((tab.IsValid()) && (m_buyout_manager.GetRefreshChecked(tab) == true)) {
-                    tabs_to_update.emplace(tab.get_tab_uniq_id());
+                    tabs_to_update.emplace(tab.id());
                 }
             }
             break;
@@ -331,7 +331,7 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
             spdlog::trace("ItemsManagerWorker::Update() updating selected tabs");
             for (auto const &tab : locations) {
                 if (tab.IsValid()) {
-                    tabs_to_update.emplace(tab.get_tab_uniq_id());
+                    tabs_to_update.emplace(tab.id());
                 }
             }
             break;
@@ -369,21 +369,21 @@ void ItemsManagerWorker::RemoveUpdatingTabs(const std::set<QString> &tab_ids)
     m_tabs.clear();
     m_tab_id_index.clear();
     for (auto &tab : current_tabs) {
-        const QString tab_uid = tab.get_tab_uniq_id();
+        const QString tab_uid = tab.id();
         bool save_tab = (tab_ids.count(tab_uid) == 0);
         if (save_tab) {
             m_tabs.push_back(tab);
             m_tab_id_index.insert(tab_uid);
         } else {
-            switch (tab.get_type()) {
+            switch (tab.type()) {
             case ItemLocationType::STASH:
                 if (m_first_stash_request_index < 0) {
-                    m_first_stash_request_index = tab.get_tab_id();
+                    m_first_stash_request_index = tab.tab_index();
                 }
                 break;
             case ItemLocationType::CHARACTER:
                 if (m_first_character_request_name.isEmpty()) {
-                    m_first_character_request_name = tab.get_character();
+                    m_first_character_request_name = tab.character();
                 }
                 break;
             }
@@ -406,7 +406,7 @@ void ItemsManagerWorker::RemoveUpdatingItems(const std::set<QString> &tab_ids)
     m_items.clear();
     for (auto const &item : current_items) {
         const ItemLocation &tab = item.get()->location();
-        bool save_item = (tab_ids.count(tab.get_tab_uniq_id()) == 0);
+        bool save_item = (tab_ids.count(tab.id()) == 0);
         if (save_item) {
             m_items.push_back(item);
         }
@@ -461,7 +461,7 @@ void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, int &count)
         // Submit a request for this tab.
         if (m_update_tab_contents) {
             ++count;
-            const auto uid = location.get_tab_uniq_id();
+            const auto uid = location.id();
             const auto [endpoint, request] = poe::MakeStashRequest(m_realm, m_league, uid);
             QueueRequest(endpoint, request, location);
         }
@@ -519,9 +519,7 @@ void ItemsManagerWorker::OnStashListReceived(QNetworkReply *reply)
         for (auto const &tab : m_tabs) {
             if (!old_tab_headers.count(tab.GetHeader())) {
                 spdlog::debug("Forcing refresh of moved or renamed tab: {}", tab.GetHeader());
-                const auto [endpoint, request] = poe::MakeStashRequest(m_realm,
-                                                                       m_league,
-                                                                       tab.get_tab_uniq_id());
+                const auto [endpoint, request] = poe::MakeStashRequest(m_realm, m_league, tab.id());
                 QueueRequest(endpoint, request, tab);
             }
         }
@@ -782,7 +780,7 @@ void ItemsManagerWorker::FetchItems()
         const QString endpoint = request.endpoint;
         std::function<void(QNetworkReply *)> callback;
 
-        switch (location.get_type()) {
+        switch (location.type()) {
         case ItemLocationType::STASH:
             callback = [=, this](QNetworkReply *reply) { OnStashReceived(reply, location); };
             ++m_stashes_needed;

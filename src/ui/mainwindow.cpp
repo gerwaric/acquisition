@@ -536,7 +536,7 @@ void MainWindow::OnBuyoutChange()
     const auto &selected_rows = ui->treeView->selectionModel()->selectedRows();
     for (const auto &index : selected_rows) {
         const auto location = m_current_search->GetTabLocation(index);
-        const auto tab = location.get_tab_uniq_id();
+        const auto tab = location.id();
 
         // Don't allow users to manually update locked tabs (game priced)
         if (m_buyout_manager.GetTab(location).IsGameSet()) {
