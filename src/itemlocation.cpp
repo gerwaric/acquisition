@@ -188,7 +188,7 @@ QString ItemLocation::GetHeader() const
     case ItemLocationType::CHARACTER:
         return m_character;
     default:
-        return "";
+        return QString();
     }
 }
 
@@ -239,7 +239,7 @@ QString ItemLocation::GetForumCode(const QString &realm,
         return QString(R"([linkItem location="%1" character="%2" x="%3" y="%4" realm="%5"])")
             .arg(m_inventory_id, m_character, QString::number(m_x), QString::number(m_y), realm);
     default:
-        return "";
+        return QString();
     }
 }
 
@@ -259,7 +259,7 @@ QString ItemLocation::GetLegacyHash() const
     case ItemLocationType::CHARACTER:
         return "character:" + m_character;
     default:
-        return "";
+        return QString();
     }
 }
 
@@ -284,4 +284,28 @@ bool ItemLocation::operator<(const ItemLocation &rhs) const
 bool ItemLocation::operator==(const ItemLocation &other) const
 {
     return m_unique_id == other.m_unique_id;
+}
+
+QString ItemLocation::TypeToString(ItemLocationType type)
+{
+    switch (type) {
+    case ItemLocationType::STASH:
+        return "stash";
+    case ItemLocationType::CHARACTER:
+        return "character";
+    default:
+        return QString();
+    }
+}
+
+std::optional<ItemLocationType> ItemLocation::TypeFromString(const QString &str)
+{
+    const QString value = str.toLower();
+    if (value == "stash") {
+        return ItemLocationType::STASH;
+    }
+    if (value == "character") {
+        return ItemLocationType::CHARACTER;
+    }
+    return std::nullopt;
 }

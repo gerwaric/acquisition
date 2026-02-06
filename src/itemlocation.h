@@ -47,6 +47,7 @@ public:
     bool operator==(const ItemLocation &other) const;
 
     ItemLocationType type() const { return m_type; }
+    QString typeAsString() const { return TypeToString(m_type); }
     QString tab_label() const { return m_tab_label; }
     QString character() const { return m_character; }
     bool socketed() const { return m_socketed; }
@@ -57,6 +58,9 @@ public:
     int getB() const { return m_blue; }
     QString id() const { return m_unique_id; }
     QString json() const { return m_json; }
+
+    static QString TypeToString(ItemLocationType type);
+    static std::optional<ItemLocationType> TypeFromString(const QString &str);
 
 private:
     void FixUid();

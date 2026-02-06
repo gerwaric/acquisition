@@ -183,19 +183,6 @@ bool BuyoutRepo::saveItemBuyout(const Buyout &buyout, const Item &item)
 
     const ItemLocation &location = item.location();
 
-    QString location_type;
-    switch (location.type()) {
-    case ItemLocationType::STASH:
-        location_type = "stash";
-        break;
-    case ItemLocationType::CHARACTER:
-        location_type = "character";
-        break;
-    default:
-        spdlog::error("BuyoutRepo::saveItemBuyout: invalid item location type: {}", location.type());
-        return false;
-    }
-
     QSqlQuery q(m_db);
     if (!q.prepare(UPSERT_ITEM_BUYOUT)) {
         spdlog::error("BuyoutRepo: prepare() failed: {}", q.lastError().text());
@@ -204,7 +191,7 @@ bool BuyoutRepo::saveItemBuyout(const Buyout &buyout, const Item &item)
 
     q.bindValue(":item_id", item.id());
     q.bindValue(":location_id", location.id());
-    q.bindValue(":location_type", location_type);
+    q.bindValue(":location_type", location.typeAsString());
     q.bindValue(":currency", buyout.CurrencyAsTag());
     q.bindValue(":inherited", buyout.inherited);
     q.bindValue(":last_update", buyout.last_update);
@@ -226,20 +213,6 @@ bool BuyoutRepo::saveLocationBuyout(const Buyout &buyout, const ItemLocation &lo
                   location.id(),
                   buyout.AsText());
 
-    QString location_type;
-    switch (location.type()) {
-    case ItemLocationType::STASH:
-        location_type = "stash";
-        break;
-    case ItemLocationType::CHARACTER:
-        location_type = "character";
-        break;
-    default:
-        spdlog::error("BuyoutRepo::saveLocationBuyout: invalid item location type: {}",
-                      location.type());
-        return false;
-    }
-
     QSqlQuery q(m_db);
     if (!q.prepare(UPSERT_LOCATION_BUYOUT)) {
         spdlog::error("BuyoutRepo: prepare() failed: {}", q.lastError().text());
@@ -247,7 +220,7 @@ bool BuyoutRepo::saveLocationBuyout(const Buyout &buyout, const ItemLocation &lo
     }
 
     q.bindValue(":location_id", location.id());
-    q.bindValue(":location_type", location_type);
+    q.bindValue(":location_type", location.typeAsString());
     q.bindValue(":currency", buyout.CurrencyAsTag());
     q.bindValue(":inherited", buyout.inherited);
     q.bindValue(":last_update", buyout.last_update);
