@@ -16,9 +16,9 @@
 
 constexpr const char *CREATE_STASH_TABLE{R"(
 CREATE TABLE IF NOT EXISTS stashes (
+    id              TEXT PRIMARY KEY,
     realm           TEXT NOT NULL,
     league          TEXT NOT NULL,
-    id              TEXT NOT NULL,
     parent          TEXT,
     folder          TEXT,
     name            TEXT NOT NULL,
@@ -29,8 +29,7 @@ CREATE TABLE IF NOT EXISTS stashes (
     meta_colour     TEXT,
     listed_at       TEXT,
     json_fetched_at TEXT,
-    json_data       TEXT,
-    PRIMARY KEY (realm, league, id)
+    json_data       TEXT
 )
 )"};
 
@@ -46,18 +45,18 @@ ON stashes(realm, league, folder)
 
 constexpr const char *UPSERT_STASH_ENTRY{R"(
 INSERT INTO stashes (
-  realm, league, id,
-  parent, folder, name, type, stash_index,
-  meta_public, meta_folder, meta_colour,
-  listed_at
+    id, realm, league, parent, folder, name, type, stash_index,
+    meta_public, meta_folder, meta_colour,
+    listed_at
 )
 VALUES (
-  :realm, :league, :id,
-  :parent, :folder, :name, :type, :stash_index,
-  :meta_public, :meta_folder, :meta_colour,
-  :listed_at
+    :id, :realm, :league, :parent, :folder, :name, :type, :stash_index,
+    :meta_public, :meta_folder, :meta_colour,
+    :listed_at
 )
-ON CONFLICT(realm, league, id) DO UPDATE SET
+ON CONFLICT(id) DO UPDATE SET
+    realm           = excluded.realm,
+    league          = excluded.league,
     parent          = excluded.parent,
     folder          = excluded.folder,
     name            = excluded.name,
@@ -71,18 +70,18 @@ ON CONFLICT(realm, league, id) DO UPDATE SET
 
 constexpr const char *UPSERT_STASH{R"(
 INSERT INTO stashes (
-    realm, league, id,
-    parent, folder, name, type, stash_index,
+    id, realm, league, parent, folder, name, type, stash_index,
     meta_public, meta_folder, meta_colour,
     json_fetched_at, json_data
 )
 VALUES (
-    :realm, :league, :id,
-    :parent, :folder, :name, :type, :stash_index,
+    :id, :realm, :league, :parent, :folder, :name, :type, :stash_index,
     :meta_public, :meta_folder, :meta_colour,
     :json_fetched_at, :json_data
 )
-ON CONFLICT(realm, league, id) DO UPDATE SET
+ON CONFLICT(id) DO UPDATE SET
+    realm           = excluded.realm,
+    league          = excluded.league,
     parent          = excluded.parent,
     folder          = excluded.folder,
     name            = excluded.name,
@@ -190,9 +189,9 @@ bool StashRepo::saveStashList(const std::vector<poe::StashTab> &stashes,
     }
 
     for (const auto &stash : stashes) {
-        data[0].push_back(realm);
-        data[1].push_back(league);
-        data[2].push_back(stash.id);
+        data[0].push_back(stash.id);
+        data[1].push_back(realm);
+        data[2].push_back(league);
         data[3].push_back(ds::optionalAsNull(stash.parent));
         data[4].push_back(ds::optionalAsNull(stash.folder));
         data[5].push_back(stash.name);
@@ -210,9 +209,9 @@ bool StashRepo::saveStashList(const std::vector<poe::StashTab> &stashes,
         return false;
     }
 
-    q.bindValue(":realm", data[0]);
-    q.bindValue(":league", data[1]);
-    q.bindValue(":id", data[2]);
+    q.bindValue(":id", data[0]);
+    q.bindValue(":realm", data[1]);
+    q.bindValue(":league", data[2]);
     q.bindValue(":parent", data[3]);
     q.bindValue(":folder", data[4]);
     q.bindValue(":name", data[5]);
@@ -381,6 +380,6 @@ std::vector<poe::StashTab> StashRepo::getStashChildren(const QString &id,
         }
     }
 
-    spdlog::debug("getStashChildren: returning {} stashes", stashes.size());
+    spdlog::debug("StashRepo::getStashChildren: returning {} stashes", stashes.size());
     return stashes;
 }
