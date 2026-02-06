@@ -40,16 +40,17 @@ public:
     QString GetForumCode(const QString &realm,
                          const QString &league,
                          unsigned int stash_index) const;
-    QString GetUniqueHash() const { return m_unique_id; };
+    QString GetLegacyHash() const;
+
     bool IsValid() const;
     bool operator<(const ItemLocation &other) const;
     bool operator==(const ItemLocation &other) const;
+
     ItemLocationType get_type() const { return m_type; }
     QString get_tab_label() const { return m_tab_label; }
     QString get_character() const { return m_character; }
     bool socketed() const { return m_socketed; }
     bool removeonly() const { return m_removeonly; }
-    void set_socketed(bool socketed) { m_socketed = socketed; }
     int get_tab_id() const { return m_tab_id; }
     int getR() const { return m_red; }
     int getG() const { return m_green; }

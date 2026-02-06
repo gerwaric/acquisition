@@ -7,6 +7,7 @@
 #include <QVariant>
 
 #include "application.h"
+#include "datastore/buyoutrepo.h"
 #include "datastore/datastore.h"
 #include "item.h"
 #include "itemlocation.h"
@@ -23,15 +24,16 @@ struct SerializedBuyout
     double value;
 };
 
-const std::map<QString, BuyoutType> BuyoutManager::m_string_to_buyout_type = {
+const std::unordered_map<QString, BuyoutType> BuyoutManager::m_string_to_buyout_type = {
     {"~gb/o", Buyout::BUYOUT_TYPE_BUYOUT},
     {"~b/o", Buyout::BUYOUT_TYPE_BUYOUT},
     {"~c/o", Buyout::BUYOUT_TYPE_CURRENT_OFFER},
     {"~price", Buyout::BUYOUT_TYPE_FIXED},
 };
 
-BuyoutManager::BuyoutManager(DataStore &data)
+BuyoutManager::BuyoutManager(DataStore &data, BuyoutRepo &repo)
     : m_data(data)
+    , m_repo(repo)
     , m_save_needed(false)
 {
     Load();
@@ -49,18 +51,20 @@ void BuyoutManager::Set(const Item &item, const Buyout &buyout)
                      item.PrettyName(),
                      buyout.AsText());
     }
+
+    if (buyout.IsNull()) {
+        m_repo.removeItemBuyout(item);
+        return;
+    }
+
     const auto &it = m_buyouts.find(item.id());
-    if (it != m_buyouts.end()) {
-        // The item hash is present, so check to see if the buyout has changed before saving
-        if (buyout != it->second) {
-            m_save_needed = true;
-            it->second = buyout;
-            emit SetItemBuyout(buyout, item);
-        }
-    } else {
-        // The item hash is not present, so we need to save buyouts
-        m_save_needed = true;
+    if (it == m_buyouts.end()) {
+        // The item hash is not present.
         m_buyouts[item.id()] = buyout;
+        emit SetItemBuyout(buyout, item);
+    } else if (buyout != it->second) {
+        // The item hash is present and the buyout has changed.
+        it->second = buyout;
         emit SetItemBuyout(buyout, item);
     }
 }
@@ -99,24 +103,24 @@ Buyout BuyoutManager::GetTab(const ItemLocation &location) const
 
 void BuyoutManager::SetTab(const ItemLocation &location, const Buyout &buyout)
 {
-    const auto tab = location.GetUniqueHash();
     if (buyout.type == Buyout::BUYOUT_TYPE_CURRENT_OFFER) {
         spdlog::warn(
             "BuyoutManager: tried to set an obsolete 'current offer' tab buyout for {}: {}",
-            tab,
+            location.get_tab_uniq_id(),
             buyout.AsText());
     }
-    const auto &it = m_tab_buyouts.lower_bound(tab);
-    if (it != m_tab_buyouts.end() && !(m_tab_buyouts.key_comp()(tab, it->first))) {
-        // Entry exists - we don't want to update if buyout is equal to existing
-        if (buyout != it->second) {
-            m_save_needed = true;
-            it->second = buyout;
-            emit SetLocationBuyout(buyout, location);
-        }
-    } else {
-        m_save_needed = true;
-        m_tab_buyouts[tab] = buyout;
+
+    if (buyout.IsNull()) {
+        m_repo.removeLocationBuyout(location);
+        return;
+    }
+
+    const auto &it = m_tab_buyouts.find(location.get_tab_uniq_id());
+    if (it == m_tab_buyouts.end()) {
+        m_tab_buyouts[location.get_tab_uniq_id()] = buyout;
+        emit SetLocationBuyout(buyout, location);
+    } else if (buyout != it->second) {
+        it->second = buyout;
         emit SetLocationBuyout(buyout, location);
     }
 }
@@ -128,7 +132,7 @@ void BuyoutManager::CompressTabBuyouts()
     // currently exist.
     std::set<QString> tmp;
     for (const auto &loc : m_tabs) {
-        tmp.emplace(loc.GetUniqueHash());
+        tmp.emplace(loc.get_tab_uniq_id());
     }
 
     for (auto it = m_tab_buyouts.begin(), ite = m_tab_buyouts.end(); it != ite;) {
@@ -164,24 +168,24 @@ void BuyoutManager::CompressItemBuyouts(const Items &items)
 void BuyoutManager::SetRefreshChecked(const ItemLocation &loc, bool value)
 {
     m_save_needed = true;
-    m_refresh_checked[loc.GetUniqueHash()] = value;
+    m_refresh_checked[loc.get_tab_uniq_id()] = value;
 }
 
 bool BuyoutManager::GetRefreshChecked(const ItemLocation &loc) const
 {
-    auto it = m_refresh_checked.find(loc.GetUniqueHash());
+    auto it = m_refresh_checked.find(loc.get_tab_uniq_id());
     bool refresh_checked = (it != m_refresh_checked.end()) ? it->second : true;
     return (refresh_checked || GetRefreshLocked(loc));
 }
 
 bool BuyoutManager::GetRefreshLocked(const ItemLocation &loc) const
 {
-    return m_refresh_locked.count(loc.GetUniqueHash());
+    return m_refresh_locked.count(loc.get_tab_uniq_id());
 }
 
 void BuyoutManager::SetRefreshLocked(const ItemLocation &loc)
 {
-    m_refresh_locked.emplace(loc.GetUniqueHash());
+    m_refresh_locked.emplace(loc.get_tab_uniq_id());
 }
 
 void BuyoutManager::ClearRefreshLocks()
@@ -199,9 +203,9 @@ void BuyoutManager::Clear()
     m_tabs.clear();
 }
 
-QString BuyoutManager::Serialize(const std::map<QString, Buyout> &buyouts)
+QString BuyoutManager::Serialize(const std::unordered_map<QString, Buyout> &buyouts)
 {
-    std::map<QString, SerializedBuyout> output;
+    std::unordered_map<QString, SerializedBuyout> output;
 
     for (const auto &[key, buyout] : buyouts) {
         const quint64 last_update = buyout.last_update.isNull()
@@ -225,7 +229,7 @@ QString BuyoutManager::Serialize(const std::map<QString, Buyout> &buyouts)
     return QString::fromStdString(*result);
 }
 
-void BuyoutManager::Deserialize(const QString &data, std::map<QString, Buyout> &buyouts)
+void BuyoutManager::Deserialize(const QString &data, std::unordered_map<QString, Buyout> &buyouts)
 {
     buyouts.clear();
 
@@ -236,7 +240,7 @@ void BuyoutManager::Deserialize(const QString &data, std::map<QString, Buyout> &
 
     const QByteArray bytes{data.toUtf8()};
     const std::string_view sv{bytes.constData(), size_t(bytes.size())};
-    const auto result = glz::read_json<std::map<QString, SerializedBuyout>>(sv);
+    const auto result = glz::read_json<std::unordered_map<QString, SerializedBuyout>>(sv);
     if (!result) {
         const auto msg = glz::format_error(result.error());
         spdlog::error("Error deserializing buyouts: {}", msg);
@@ -261,7 +265,7 @@ void BuyoutManager::Deserialize(const QString &data, std::map<QString, Buyout> &
     }
 }
 
-QString BuyoutManager::Serialize(const std::map<QString, bool> &obj)
+QString BuyoutManager::Serialize(const std::unordered_map<QString, bool> &obj)
 {
     const auto result = glz::write_json(obj);
     if (!result) {
@@ -272,7 +276,7 @@ QString BuyoutManager::Serialize(const std::map<QString, bool> &obj)
     return QString::fromStdString(*result);
 }
 
-void BuyoutManager::Deserialize(const QString &data, std::map<QString, bool> &obj)
+void BuyoutManager::Deserialize(const QString &data, std::unordered_map<QString, bool> &obj)
 {
     obj.clear();
 
@@ -283,7 +287,7 @@ void BuyoutManager::Deserialize(const QString &data, std::map<QString, bool> &ob
 
     const QByteArray bytes{data.toUtf8()};
     const std::string_view sv{bytes.constData(), size_t(bytes.size())};
-    const auto result = glz::read_json<std::map<QString, bool>>(sv);
+    const auto result = glz::read_json<std::unordered_map<QString, bool>>(sv);
     if (!result) {
         const auto msg = glz::format_error(result.error());
         spdlog::error("Error deserializing boolean buyout map: {}", msg);
@@ -297,19 +301,16 @@ void BuyoutManager::Deserialize(const QString &data, std::map<QString, bool> &ob
 
 void BuyoutManager::Save()
 {
-    if (!m_save_needed) {
-        return;
+    if (m_save_needed) {
+        m_data.Set("refresh_checked_state", Serialize(m_refresh_checked));
+        m_save_needed = false;
     }
-    m_save_needed = false;
-    m_data.Set("buyouts", Serialize(m_buyouts));
-    m_data.Set("tab_buyouts", Serialize(m_tab_buyouts));
-    m_data.Set("refresh_checked_state", Serialize(m_refresh_checked));
 }
 
 void BuyoutManager::Load()
 {
-    Deserialize(m_data.Get("buyouts"), m_buyouts);
-    Deserialize(m_data.Get("tab_buyouts"), m_tab_buyouts);
+    m_buyouts = m_repo.getItemBuyouts();
+    m_tab_buyouts = m_repo.getLocationBuyouts();
     Deserialize(m_data.Get("refresh_checked_state"), m_refresh_checked);
 }
 void BuyoutManager::SetStashTabLocations(const std::vector<ItemLocation> &tabs)

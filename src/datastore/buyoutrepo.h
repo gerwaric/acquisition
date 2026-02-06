@@ -5,8 +5,7 @@
 
 #include <QObject>
 
-#include <optional>
-#include <vector>
+#include <unordered_map>
 
 #include "buyout.h"
 
@@ -20,9 +19,11 @@ class BuyoutRepo : public QObject {
 public:
     explicit BuyoutRepo(QSqlDatabase &db);
 
-    std::optional<Buyout> getBuyout(const QString &name, const QString &realm);
-    std::vector<Buyout> getBuyoutList(const QString &realm,
-                                      const std::optional<QString> league = {});
+    std::unordered_map<QString, Buyout> getItemBuyouts();
+    std::unordered_map<QString, Buyout> getLocationBuyouts();
+
+    void removeItemBuyout(const Item &item);
+    void removeLocationBuyout(const ItemLocation &location);
 
     bool resetRepo();
     bool ensureSchema();

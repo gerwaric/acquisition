@@ -101,7 +101,7 @@ QVariant ItemsModel::data(const QModelIndex &index, int role) const
                 return "All Items";
             }
             QString title(location.GetHeader());
-            auto const &bo = m_bo_manager.GetTab(location);
+            const auto bo = m_bo_manager.GetTab(location);
             if (bo.IsActive()) {
                 title += QString(" [%1]").arg(bo.AsText());
             }
@@ -174,11 +174,11 @@ bool ItemsModel::setData(const QModelIndex &index, const QVariant &value, int ro
         // way to differentiate these tabs so indicate dataChanged event for each tab with
         // the same name as the current checked tab so the 'check' is properly updated in
         // the layout
-        QString target_hash = location.GetUniqueHash();
+        QString target_hash = location.get_tab_uniq_id();
         auto row_count = rowCount();
         for (int i = 0; i < row_count; ++i) {
             auto match_index = this->index(i);
-            if (m_search.GetTabLocation(match_index).GetUniqueHash() == target_hash) {
+            if (m_search.GetTabLocation(match_index).get_tab_uniq_id() == target_hash) {
                 emit dataChanged(match_index, match_index);
             }
         }

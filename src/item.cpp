@@ -190,7 +190,8 @@ Item::Item(const poe::Item &item, const ItemLocation &base_location)
             if (name == "Elemental Damage") {
                 m_elemental_damage.reserve(values.size());
                 for (const auto &value : values) {
-                    m_elemental_damage.emplace_back(value);
+                    // We use std::get to explicitly convert from std::tuple to std::pair.
+                    m_elemental_damage.emplace_back(std::get<0>(value), std::get<1>(value));
                 }
             } else if (values.size() > 0) {
                 const auto &firstValue = values[0];
@@ -434,7 +435,7 @@ void Item::CalculateHash(const poe::Item &json)
         }
     }
 
-    unique_common += "~" + m_location.GetUniqueHash();
+    unique_common += "~" + m_location.GetLegacyHash();
 
     unique_old += unique_common;
     unique_new += unique_common;

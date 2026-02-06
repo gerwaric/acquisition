@@ -223,7 +223,7 @@ Application::UserSession::UserSession(const Application::CoreServices &core)
     rate_limiter = std::make_unique<RateLimiter>(network_manager);
 
     spdlog::trace("Application::InitLogin() creating buyout manager");
-    buyout_manager = std::make_unique<BuyoutManager>(*data);
+    buyout_manager = std::make_unique<BuyoutManager>(*data, userstore->buyouts());
 
     spdlog::trace("Application::InitLogin() creating items manager");
     items_manager = std::make_unique<ItemsManager>(settings, *buyout_manager, *data);

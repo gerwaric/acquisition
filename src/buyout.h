@@ -54,6 +54,12 @@ public:
 
     bool operator==(const Buyout &o) const;
     bool operator!=(const Buyout &o) const;
+    bool IsNull() const
+    {
+        return (value == 0.0) && (type == BuyoutType::BUYOUT_TYPE_INHERIT)
+               && (source == BUYOUT_SOURCE_MANUAL) && (currency == CurrencyType::CURRENCY_NONE)
+               && last_update.isNull() && (inherited == false);
+    };
     bool IsValid() const;
     bool IsActive() const;
     bool IsInherited() const { return inherited || type == BuyoutType::BUYOUT_TYPE_INHERIT; }
