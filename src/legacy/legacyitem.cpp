@@ -10,12 +10,15 @@
 QString LegacyItem::effectiveTypeLine() const
 {
     QString result;
-    // Acquisition uses the base typeline for vaal gems.
-    if (hybrid && (!hybrid->isVaalGem || (*hybrid->isVaalGem == false))) {
+
+    if (hybrid && !hybrid->isVaalGem.value_or(false)) {
+        // Use the base type for hybrid items (except Vaal gems).
         result = hybrid->baseTypeName;
     } else {
+        // Otherwise use the typeline.
         result = typeLine;
     }
+
     // Remove legacy set information.
     static const QRegularExpression re("^(<<.*?>>)*");
     result.replace(re, "");
@@ -24,13 +27,6 @@ QString LegacyItem::effectiveTypeLine() const
 
 QString LegacyItem::hash() const
 {
-    if (_character && _tab_label) {
-        spdlog::error("LegacyItem::hash() item contains both '_character' and '_tab_label': {} {}",
-                      name,
-                      id);
-        return QString();
-    }
-
     // This code is intended to exactly replicate the hash calulculated by leqacy acquisition.
     QString input = name + "~" + effectiveTypeLine() + "~";
 
@@ -80,13 +76,14 @@ QString LegacyItem::hash() const
     }
 
     // Finish with the location tag.
-    if (_character) {
-        input += "~character:" + *_character;
-    } else {
+    switch (_type) {
+    case LocationType::STASH:
         input += "~stash:" + *_tab_label;
+    case LocationType::CHARACTER:
+        input += "~character:" + *_character;
     }
 
-    const QString result = QString(
-        QCryptographicHash::hash(input.toUtf8(), QCryptographicHash::Md5).toHex());
-    return result;
+    const QByteArray utf8 = input.toUtf8();
+    const QByteArray hash = QCryptographicHash::hash(utf8, QCryptographicHash::Md5);
+    return QString(hash.toHex());
 }

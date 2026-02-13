@@ -13,13 +13,17 @@ class NetworkManager : public QNetworkAccessManager
     Q_OBJECT
 
 public:
-    explicit NetworkManager(QObject *parent = nullptr);
+    explicit NetworkManager();
 
-    void setPoeSessionId(const QString &poesessid);
-    void setBearerToken(const QString &token);
+    void setPoesessid(const QByteArray &poesessid);
+    void setBearerToken(const QByteArray &token);
 
     static void logRequest(const QNetworkRequest &request);
     static void logReply(const QNetworkReply *reply);
+    static void logReplyErrors(QNetworkReply *reply, const char *context);
+
+signals:
+    void sessionIdChanged(const QByteArray &poesessid);
 
 protected:
     QNetworkReply *createRequest(QNetworkAccessManager::Operation op,
@@ -28,6 +32,7 @@ protected:
 
 private:
     QNetworkDiskCache* m_diskCache;
+    QByteArray m_poesessid;
     QByteArray m_bearerToken;
 
     using AttributeGetter = std::function<QVariant(QNetworkRequest::Attribute)>;

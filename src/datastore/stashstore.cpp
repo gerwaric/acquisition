@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Tom Holz
 
-#include "datastore/stashrepo.h"
+#include "datastore/stashstore.h"
 
 #include <QSqlDatabase>
 #include <QSqlError>
@@ -30,17 +30,17 @@ CREATE TABLE IF NOT EXISTS stashes (
     listed_at       TEXT,
     json_fetched_at TEXT,
     json_data       TEXT
-)
+);
 )"};
 
 constexpr const char *CREATE_STASH_PARENT_INDEX{R"(
 CREATE INDEX IF NOT EXISTS idx_stashes_realm_league_parent
-ON stashes(realm, league, parent)
+ON stashes(realm, league, parent);
 )"};
 
 constexpr const char *CREATE_STASH_FOLDER_INDEX{R"(
 CREATE INDEX IF NOT EXISTS idx_stashes_realm_league_folder
-ON stashes(realm, league, folder)
+ON stashes(realm, league, folder);
 )"};
 
 constexpr const char *UPSERT_STASH_ENTRY{R"(
@@ -65,7 +65,7 @@ ON CONFLICT(id) DO UPDATE SET
     meta_public     = excluded.meta_public,
     meta_folder     = excluded.meta_folder,
     meta_colour     = excluded.meta_colour,
-    listed_at       = excluded.listed_at
+    listed_at       = excluded.listed_at;
 )"};
 
 constexpr const char *UPSERT_STASH{R"(
@@ -91,24 +91,25 @@ ON CONFLICT(id) DO UPDATE SET
     meta_folder     = excluded.meta_folder,
     meta_colour     = excluded.meta_colour,
     json_fetched_at = excluded.json_fetched_at,
-    json_data       = excluded.json_data
+    json_data       = excluded.json_data;
 )"};
 
-StashRepo::StashRepo(QSqlDatabase &db)
-    : m_db(db) {};
+StashStore::StashStore(QStringView connName)
+    : m_connName(connName) {};
 
-bool StashRepo::resetRepo()
+bool StashStore::resetRepo()
 {
-    QSqlQuery q(m_db);
+    QSqlDatabase db = QSqlDatabase::database(m_connName);
+    QSqlQuery q(db);
 
-    if (!q.exec("DROP TABLE IF EXISTS stashes")) {
-        ds::logQueryError("StashRepo::reset", q);
+    if (!q.exec("DROP TABLE IF EXISTS stashes;")) {
+        ds::logQueryError("StashRepo::resetRepo:exec", q);
         return false;
     }
     return ensureSchema();
 }
 
-bool StashRepo::ensureSchema()
+bool StashStore::ensureSchema()
 {
     constexpr std::array statements{
         CREATE_STASH_TABLE,
@@ -116,12 +117,13 @@ bool StashRepo::ensureSchema()
         CREATE_STASH_FOLDER_INDEX,
     };
 
-    QSqlQuery q(m_db);
+    QSqlDatabase db = QSqlDatabase::database(m_connName);
+    QSqlQuery q(db);
 
     // Run setup statements.
     for (const auto &sql : statements) {
         if (!q.exec(sql)) {
-            ds::logQueryError("StashRepo::ensureSchema", q);
+            ds::logQueryError("StashRepo::ensureSchema:exec", q);
             return false;
         }
     }
@@ -129,7 +131,7 @@ bool StashRepo::ensureSchema()
     return true;
 }
 
-bool StashRepo::saveStash(const poe::StashTab &stash, const QString &realm, const QString &league)
+bool StashStore::saveStash(const poe::StashTab &stash, const QString &realm, const QString &league)
 {
     spdlog::debug("StashRepo: saving stash: realm='{}', league='{}', id='{}', name='{}'",
                   realm,
@@ -137,9 +139,10 @@ bool StashRepo::saveStash(const poe::StashTab &stash, const QString &realm, cons
                   stash.id,
                   stash.name);
 
-    QSqlQuery q(m_db);
+    QSqlDatabase db = QSqlDatabase::database(m_connName);
+    QSqlQuery q(db);
     if (!q.prepare(UPSERT_STASH)) {
-        spdlog::error("StashRepo: prepare() failed: {}", q.lastError().text());
+        ds::logQueryError("StashRepo::saveStash:prepare", q);
         return false;
     }
 
@@ -161,15 +164,15 @@ bool StashRepo::saveStash(const poe::StashTab &stash, const QString &realm, cons
     q.bindValue(":json_data", json);
 
     if (!q.exec()) {
-        ds::logQueryError("StashRepo::saveStash()", q);
+        ds::logQueryError("StashRepo::saveStash:exec", q);
         return false;
     }
     return true;
 }
 
-bool StashRepo::saveStashList(const std::vector<poe::StashTab> &stashes,
-                              const QString &realm,
-                              const QString &league)
+bool StashStore::saveStashList(const std::vector<poe::StashTab> &stashes,
+                               const QString &realm,
+                               const QString &league)
 {
     spdlog::debug("StashRepo: saving stash list: realm='{}', league='{}', size={}",
                   realm,
@@ -203,9 +206,10 @@ bool StashRepo::saveStashList(const std::vector<poe::StashTab> &stashes,
         data[11].push_back(listed_at);
     }
 
-    QSqlQuery q(m_db);
+    QSqlDatabase db = QSqlDatabase::database(m_connName);
+    QSqlQuery q(db);
     if (!q.prepare(UPSERT_STASH_ENTRY)) {
-        spdlog::error("StashRepo: prepare() failed: {}", q.lastError().text());
+        ds::logQueryError("StashRepo::saveStashList:prepare", q);
         return false;
     }
 
@@ -223,24 +227,23 @@ bool StashRepo::saveStashList(const std::vector<poe::StashTab> &stashes,
     q.bindValue(":listed_at", data[11]);
 
     if (!q.execBatch(QSqlQuery::ValuesAsRows)) {
-        ds::logQueryError("StashRepo::saveStashList()", q);
+        ds::logQueryError("StashRepo::saveStashList:execBatch", q);
         return false;
     }
     return true;
 }
 
-std::optional<poe::StashTab> StashRepo::getStash(const QString &id,
-                                                 const QString &realm,
-                                                 const QString &league)
+std::optional<poe::StashTab> StashStore::getStash(const QString &id,
+                                                  const QString &realm,
+                                                  const QString &league)
 {
     spdlog::debug("StashRepo: getting stash: id='{}', realm='{}', league='{}'", id, realm, league);
 
-    QSqlQuery q(m_db);
-
-    if (!q.prepare("SELECT json_data"
-                   " FROM stashes"
-                   " WHERE realm = :realm AND league = :league AND id = :id")) {
-        ds::logQueryError("StashRepo::getStash()", q);
+    QSqlDatabase db = QSqlDatabase::database(m_connName);
+    QSqlQuery q(db);
+    if (!q.prepare("SELECT json_data FROM stashes"
+                   " WHERE realm = :realm AND league = :league AND id = :id;")) {
+        ds::logQueryError("StashRepo::getStash:prepare", q);
         return std::nullopt;
     }
 
@@ -249,7 +252,7 @@ std::optional<poe::StashTab> StashRepo::getStash(const QString &id,
     q.bindValue(":league", league);
 
     if (!q.exec()) {
-        ds::logQueryError("StashRepo::getStash()", q);
+        ds::logQueryError("StashRepo::getStash:exec", q);
         return std::nullopt;
     }
 
@@ -273,9 +276,9 @@ std::optional<poe::StashTab> StashRepo::getStash(const QString &id,
     return json::readStash(json);
 }
 
-std::vector<poe::StashTab> StashRepo::getStashList(const QString &realm,
-                                                   const QString &league,
-                                                   const std::optional<QString> type)
+std::vector<poe::StashTab> StashStore::getStashList(const QString &realm,
+                                                    const QString &league,
+                                                    const std::optional<QString> type)
 {
     if (type) {
         spdlog::debug("StashRepo: getting stash list: realm='{}', league='{}', type='{}'",
@@ -286,19 +289,22 @@ std::vector<poe::StashTab> StashRepo::getStashList(const QString &realm,
         spdlog::debug("StashRepo: getting stash list: realm='{}', league='{}'", realm, league);
     }
 
-    QString sql{"SELECT realm, league, id, parent, folder, name, type, stash_index, meta_public, "
-                "meta_folder, meta_colour"
+    QString sql{"SELECT realm, league, id,"
+                "   parent, folder, name, type, stash_index, "
+                "   meta_public, meta_folder, meta_colour"
                 " FROM stashes"
                 " WHERE realm = :realm AND league = :league"};
 
     if (type) {
-        sql += " AND type = :type";
+        sql += " AND type = :type;";
+    } else {
+        sql += ";";
     }
 
-    QSqlQuery q(m_db);
-
+    QSqlDatabase db = QSqlDatabase::database(m_connName);
+    QSqlQuery q(db);
     if (!q.prepare(sql)) {
-        ds::logQueryError("StashRepo::getStashList()", q);
+        ds::logQueryError("StashRepo::getStashList:prepare", q);
         return {};
     }
 
@@ -309,7 +315,7 @@ std::vector<poe::StashTab> StashRepo::getStashList(const QString &realm,
     }
 
     if (!q.exec()) {
-        ds::logQueryError("StashRepo::getStashList()", q);
+        ds::logQueryError("StashRepo::getStashList:exec", q);
         return {};
     }
 
@@ -341,9 +347,9 @@ std::vector<poe::StashTab> StashRepo::getStashList(const QString &realm,
     return stashes;
 }
 
-std::vector<poe::StashTab> StashRepo::getStashChildren(const QString &id,
-                                                       const QString &realm,
-                                                       const QString &league)
+std::vector<poe::StashTab> StashStore::getStashChildren(const QString &id,
+                                                        const QString &realm,
+                                                        const QString &league)
 {
     spdlog::debug("StashRepo: getting stash children: realm='{}', league='{}', id='{}'",
                   realm,
@@ -352,12 +358,12 @@ std::vector<poe::StashTab> StashRepo::getStashChildren(const QString &id,
 
     QString sql{"SELECT json_data"
                 " FROM stashes"
-                " WHERE realm = :realm AND league = :league AND parent = :parent"};
+                " WHERE realm = :realm AND league = :league AND parent = :parent;"};
 
-    QSqlQuery q(m_db);
-
+    QSqlDatabase db = QSqlDatabase::database(m_connName);
+    QSqlQuery q(db);
     if (!q.prepare(sql)) {
-        ds::logQueryError("StashRepo::getStashChildren()", q);
+        ds::logQueryError("StashRepo::getStashChildren:prepare", q);
         return {};
     }
 
@@ -366,7 +372,7 @@ std::vector<poe::StashTab> StashRepo::getStashChildren(const QString &id,
     q.bindValue(":parent", id);
 
     if (!q.exec()) {
-        ds::logQueryError("StashRepo::getStashChildren()", q);
+        ds::logQueryError("StashRepo::getStashChildren:exec", q);
         return {};
     }
 

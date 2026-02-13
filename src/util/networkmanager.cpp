@@ -62,8 +62,7 @@ constexpr std::array<std::pair<QNetworkRequest::Attribute, const char *>, 28> KN
 }};
 // clang-format on
 
-NetworkManager::NetworkManager(QObject *parent)
-    : QNetworkAccessManager(parent)
+NetworkManager::NetworkManager()
 {
     const auto data_dir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
     const auto cache_dir = data_dir + QLatin1StringView("/network_cache/");
@@ -73,22 +72,26 @@ NetworkManager::NetworkManager(QObject *parent)
     setCache(m_diskCache);
 }
 
-void NetworkManager::setPoeSessionId(const QString &poesessid)
+void NetworkManager::setPoesessid(const QByteArray &poesessid)
 {
-    QString masked = poesessid;
-    masked.fill('*');
-    spdlog::debug("NetworkManager: setting POESESSID: {} (masked for security)", masked);
+    spdlog::debug("NetworkManager: setting POESESSID: {}", QByteArray(poesessid.size(), '*'));
 
-    QNetworkCookie cookie{POE_COOKIE_NAME, poesessid.toUtf8()};
-    cookie.setPath(POE_COOKIE_PATH);
-    cookie.setDomain(POE_COOKIE_DOMAIN);
-    cookieJar()->insertCookie(cookie);
+    if (m_poesessid != poesessid) {
+        QNetworkCookie cookie{POE_COOKIE_NAME, poesessid};
+        cookie.setPath(POE_COOKIE_PATH);
+        cookie.setDomain(POE_COOKIE_DOMAIN);
+        cookieJar()->insertCookie(cookie);
+        emit sessionIdChanged(poesessid);
+    }
 }
 
-void NetworkManager::setBearerToken(const QString &token)
+void NetworkManager::setBearerToken(const QByteArray &token)
 {
-    m_bearerToken = token.isEmpty() ? QByteArrayLiteral("")
-                                    : (QByteArrayLiteral("Bearer ") + token.toUtf8());
+    if (!token.isNull() && !token.isEmpty()) {
+        m_bearerToken = "Bearer " + token;
+    } else {
+        m_bearerToken = QByteArray();
+    }
 }
 
 QNetworkReply *NetworkManager::createRequest(QNetworkAccessManager::Operation op,
@@ -103,11 +106,12 @@ QNetworkReply *NetworkManager::createRequest(QNetworkAccessManager::Operation op
 
     if (host == POE_API_HOST) {
         // Add a bearer token for api calls.
-        if (m_bearerToken.isEmpty()) {
-            spdlog::error("API call may fail because the bearer token is empty: {}",
+        if (m_bearerToken.isNull() || m_bearerToken.isEmpty()) {
+            spdlog::error("API request may fail because the bearer token is empty: {}",
                           request.url().toString());
         } else {
-            spdlog::trace("NetworkManager: setting bearer token: {}", m_bearerToken);
+            spdlog::trace("NetworkManager: setting bearer token: {}",
+                          QByteArray(m_bearerToken.size(), '*'));
             request.setRawHeader("Authorization", m_bearerToken);
         }
     } else if (host == POE_CDN_HOST) {
@@ -120,6 +124,25 @@ QNetworkReply *NetworkManager::createRequest(QNetworkAccessManager::Operation op
 
     // Let the base class handle the rest.
     return QNetworkAccessManager::createRequest(op, request, outgoingData);
+}
+
+void NetworkManager::logReplyErrors(QNetworkReply *reply, const char *context)
+{
+    // Log network errors.
+    connect(reply,
+            &QNetworkReply::errorOccurred,
+            [reply, context](QNetworkReply::NetworkError code) {
+                spdlog::error("{}: network error {}: {}", context, code, reply->errorString());
+            });
+
+    // Log SSL errors.
+    connect(reply, &QNetworkReply::sslErrors, [context](const QList<QSslError> &errors) {
+        spdlog::error("{}: {} SSL error(s)", context, errors.size());
+        int i = 0;
+        for (const auto &error : errors) {
+            spdlog::error("{}: SSL error #{}: '{}'", context, ++i, error.errorString());
+        }
+    });
 }
 
 void NetworkManager::logRequest(const QNetworkRequest &request)
@@ -158,14 +181,9 @@ void NetworkManager::logHeaders(const QString &name, const QHttpHeaders &headers
     QStringList lines;
     const auto headerPairs = headers.toListOfPairs();
     for (const auto &[header, value] : headerPairs) {
-        const bool is_authorization = (0 == name.compare("Authorization", Qt::CaseInsensitive));
-        QString v = value;
-        if (is_authorization) {
-            // Mask the OAuth bearer token so it's not written to the log.
-            v.fill('*');
-            v += " (masked for security)";
-        }
-        lines.append(QString("%1 %2 = '%3'").arg(name, header, v));
+        const bool is_auth = (0 == name.compare("Authorization", Qt::CaseInsensitive));
+        const QByteArray val = is_auth ? QByteArray(value.size(), '*') : value;
+        lines.append(QString("%1 %2 = '%3'").arg(name, header, val));
     }
     if (lines.isEmpty()) {
         spdlog::debug("Network: {} has 0 headers.", name);

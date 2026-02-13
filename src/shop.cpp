@@ -5,6 +5,7 @@
 
 #include <QApplication>
 #include <QClipboard>
+#include <QMessageBox>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QRegularExpression>
@@ -14,9 +15,9 @@
 #include <QUrl>
 #include <QUrlQuery>
 
-#include "application.h"
+#include "app/usersettings.h"
 #include "buyoutmanager.h"
-#include "datastore/datastore.h"
+#include "datastore/sessionstore.h"
 #include "item.h"
 #include "itemsmanager.h"
 #include "poe/types/website/webstashtab.h"
@@ -77,16 +78,16 @@ const QRegularExpression Shop::error_regex(
 const QRegularExpression Shop::ratelimit_regex(R"regex(You must wait (\d+) seconds.)regex",
                                                QRegularExpression::CaseInsensitiveOption);
 
-Shop::Shop(QSettings &settings,
+Shop::Shop(app::UserSettings &settings,
            NetworkManager &network_manager,
            RateLimiter &rate_limiter,
-           DataStore &datastore,
+           SessionStore &data,
            ItemsManager &items_manager,
            BuyoutManager &buyout_manager)
     : m_settings(settings)
     , m_network_manager(network_manager)
     , m_rate_limiter(rate_limiter)
-    , m_datastore(datastore)
+    , m_data(data)
     , m_items_manager(items_manager)
     , m_buyout_manager(buyout_manager)
     , m_shop_data_outdated(true)
@@ -94,9 +95,10 @@ Shop::Shop(QSettings &settings,
     , m_requests_completed(0)
 {
     spdlog::debug("Shop: initializing");
-    m_threads = m_datastore.Get("shop").split(";");
-    m_auto_update = m_settings.value("shop_autoupdate").toBool();
-    m_shop_template = m_datastore.Get("shop_template");
+    const auto scope = m_settings.sessionKey();
+    m_threads = m_data.shopThreads().split(";");
+    m_auto_update = m_data.shopAutoupdate();
+    m_shop_template = m_data.shopTemplate();
     if (m_shop_template.isEmpty()) {
         m_shop_template = kShopTemplateItems;
     }
@@ -109,10 +111,11 @@ void Shop::SetThread(const QStringList &threads)
         return;
     }
     spdlog::debug("Shop: setting {} thread(s) to {}", threads.size(), threads.join(";"));
+    const auto scope = m_settings.sessionKey();
     m_threads = threads;
-    m_datastore.Set("shop", threads.join(";"));
+    m_data.shopThreads(threads.join(";"));
     ExpireShopData();
-    m_datastore.Set("shop_hash", "");
+    m_data.shopHash("");
 }
 
 void Shop::SetAutoUpdate(bool update)
@@ -126,7 +129,7 @@ void Shop::SetShopTemplate(const QString &shop_template)
 {
     spdlog::debug("Shop: setting template to {}", shop_template);
     m_shop_template = shop_template;
-    m_datastore.Set("shop_template", shop_template);
+    m_data.shopTemplate(shop_template);
     ExpireShopData();
 }
 
@@ -183,9 +186,9 @@ void Shop::UpdateStashIndex(bool force)
     spdlog::debug("Shop: updating the stash index");
 
     const QString kStashItemsUrl = "https://www.pathofexile.com/character-window/get-stash-items";
-    const QString account = m_settings.value("account").toString();
-    const QString realm = m_settings.value("realm").toString();
-    const QString league = m_settings.value("league").toString();
+    const QString account = m_settings.username();
+    const QString realm = m_settings.realm();
+    const QString league = m_settings.league();
 
     QUrlQuery query;
     query.addQueryItem("accountName", account);
@@ -270,7 +273,7 @@ void Shop::ExpireShopData()
 void Shop::OnStashIndexUpdated(bool force)
 {
     spdlog::debug("Shop: updating {} forum shop threads", m_threads.size());
-    QString previous_hash = m_datastore.Get("shop_hash");
+    QString previous_hash = m_data.shopHash();
 
     // Update shop data as needed.
     if (m_shop_data_outdated) {
@@ -323,8 +326,8 @@ void Shop::UpdateShopData()
 
     std::sort(aug_items.begin(), aug_items.end());
 
-    const QString realm = m_settings.value("realm").toString();
-    const QString league = m_settings.value("league").toString();
+    const QString realm = m_settings.realm();
+    const QString league = m_settings.league();
 
     Buyout current_bo = aug_items[0].bo;
     data += SpoilerBuyout(current_bo);
@@ -416,7 +419,7 @@ void Shop::SubmitSingleShop()
     if (m_requests_completed == m_threads.size()) {
         spdlog::debug("Shop: updated {} threads", m_threads.size());
         emit StatusUpdate(ProgramState::Ready, "Shop threads updated");
-        m_datastore.Set("shop_hash", m_shop_hash);
+        m_data.shopHash(m_shop_hash);
         return;
     }
 

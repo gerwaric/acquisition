@@ -3,34 +3,33 @@
 
 #pragma once
 
-#include <QList>
-#include <QNetworkReply>
 #include <QObject>
-#include <QSslError>
 #include <QTimer>
-#include <QVersionNumber>
 
 #include <semver/semver.hpp>
 
-class QSettings;
-class QWidget;
-
 class NetworkManager;
+namespace app {
+    class UserSettings;
+}
 
 class UpdateChecker : public QObject
 {
     Q_OBJECT
 public:
-    explicit UpdateChecker(QSettings &settings, NetworkManager &network_manager);
-signals:
-    void UpdateAvailable();
+    explicit UpdateChecker(NetworkManager &network_manager, app::UserSettings &settings);
+
 public slots:
+    void setLastSkippedUpdates(const semver::version &release, const semver::version &prerelease);
     void CheckForUpdates();
     void AskUserToUpdate();
+
 private slots:
     void OnUpdateReplyReceived();
-    void OnUpdateErrorOccurred(QNetworkReply::NetworkError code);
-    void OnUpdateSslErrors(const QList<QSslError> &errors);
+
+signals:
+    void UpdateAvailable();
+    void updatesSkipped(const semver::version &release, const semver::version &prerelease);
 
 private:
     struct ReleaseTag
@@ -44,8 +43,8 @@ private:
     bool has_newer_release() const;
     bool has_newer_prerelease() const;
 
-    QSettings &m_settings;
-    NetworkManager &m_nm;
+    NetworkManager &m_network_manager;
+    app::UserSettings &m_settings;
 
     // Trigger periodic update checks.
     QTimer m_timer;

@@ -14,11 +14,12 @@
 #include "ui/mainwindow.h"
 #include "util/util.h"
 
-class QSettings;
-
 class BuyoutManager;
-class DataStore;
+class SessionStore;
 class Shop;
+namespace app {
+    class UserSettings;
+}
 
 /*
  * ItemsManager manages an ItemsManagerWorker (which lives in a separate thread)
@@ -29,8 +30,11 @@ class ItemsManager : public QObject
 {
     Q_OBJECT
 public:
-    explicit ItemsManager(QSettings &settings, BuyoutManager &buyout_manager, DataStore &datastore);
+    explicit ItemsManager(app::UserSettings &settings,
+                          BuyoutManager &buyout_manager,
+                          SessionStore &data);
     ~ItemsManager();
+
     //bool isInitialized() const { return m_worker ? m_worker->isInitialized() : false; }
     //bool isUpdating() const { return m_worker ? m_worker->isUpdating() : false; }
     // Creates and starts the worker
@@ -55,11 +59,9 @@ signals:
     void UpdateModListSignal();
 
 private:
-    void MigrateBuyouts();
-
-    QSettings &m_settings;
+    app::UserSettings &m_settings;
+    SessionStore &m_data;
     BuyoutManager &m_buyout_manager;
-    DataStore &m_datastore;
 
     std::unique_ptr<QTimer> m_auto_update_timer;
     Items m_items;

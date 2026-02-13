@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Tom Holz
 
-#include "datastore/characterrepo.h"
+#include "datastore/characterstore.h"
 
 #include <QSqlDatabase>
 #include <QSqlError>
@@ -27,11 +27,8 @@ CREATE TABLE IF NOT EXISTS characters (
 )"};
 
 constexpr const char *UPSERT_CHARACTER_ENTRY{R"(
-INSERT INTO characters (
-    id, name, realm, league, listed_at
-) VALUES (
-    :id, :name, :realm, :league, :listed_at
-)
+INSERT INTO characters (id, name, realm, league, listed_at)
+VALUES (:id, :name, :realm, :league, :listed_at)
 ON CONFLICT(id) DO UPDATE SET
     name            = excluded.name,
     realm           = excluded.realm,
@@ -50,42 +47,45 @@ SET
 WHERE id = :id
 )"};
 
-CharacterRepo::CharacterRepo(QSqlDatabase &db)
-    : m_db(db) {};
+CharacterStore::CharacterStore(QStringView connName)
+    : m_connName(connName) {};
 
-bool CharacterRepo::resetRepo()
+bool CharacterStore::resetRepo()
 {
-    QSqlQuery q(m_db);
+    QSqlDatabase db = QSqlDatabase::database(m_connName);
+    QSqlQuery q(db);
 
     if (!q.exec("DROP TABLE IF EXISTS characters")) {
-        ds::logQueryError("CharacterRepo::reset", q);
+        ds::logQueryError("CharacterStore::resetRepo:exec", q);
         return false;
     }
     return ensureSchema();
 }
 
-bool CharacterRepo::ensureSchema()
+bool CharacterStore::ensureSchema()
 {
-    QSqlQuery q(m_db);
+    QSqlDatabase db = QSqlDatabase::database(m_connName);
+    QSqlQuery q(db);
 
     if (!q.exec(CREATE_CHARACTER_TABLE)) {
-        ds::logQueryError("CharacterRepo::ensureSchema", q);
+        ds::logQueryError("CharacterStore::ensureSchema:exec", q);
         return false;
     }
     return true;
 }
 
-bool CharacterRepo::saveCharacter(const poe::Character &character)
+bool CharacterStore::saveCharacter(const poe::Character &character)
 {
-    spdlog::debug("CharacterRepo: saving character: name='{}', id='{}', realm='{}', league='{}'",
+    spdlog::debug("CharacterStore: saving character: name='{}', id='{}', realm='{}', league='{}'",
                   character.name,
                   character.id,
                   character.realm,
                   character.league.value_or(""));
 
-    QSqlQuery q(m_db);
+    QSqlDatabase db = QSqlDatabase::database(m_connName);
+    QSqlQuery q(db);
     if (!q.prepare(UPDATE_CHARACTER)) {
-        spdlog::error("CharacterRepo: prepare() failed: {}", q.lastError().text());
+        ds::logQueryError("CharacterStore::saveCharacter:prepare", q);
         return false;
     }
 
@@ -100,18 +100,18 @@ bool CharacterRepo::saveCharacter(const poe::Character &character)
     q.bindValue(":json_data", json);
 
     if (!q.exec()) {
-        ds::logQueryError("CharacterRepo::saveCharacter()", q);
+        ds::logQueryError("CharacterStore::saveCharacter:exec", q);
         return false;
     }
     return true;
 }
 
-bool CharacterRepo::saveCharacterList(const std::vector<poe::Character> &characters)
+bool CharacterStore::saveCharacterList(const std::vector<poe::Character> &characters)
 {
-    spdlog::debug("CharacterRepo: saving character list: size={}", characters.size());
+    spdlog::debug("CharacterStore: saving character list: size={}", characters.size());
 
     if (characters.empty()) {
-        spdlog::debug("CharacterRepo: nothing to do");
+        spdlog::debug("CharacterStore: nothing to do");
         return true;
     }
 
@@ -130,9 +130,10 @@ bool CharacterRepo::saveCharacterList(const std::vector<poe::Character> &charact
         data[4].push_back(listed_at);
     }
 
-    QSqlQuery q(m_db);
+    QSqlDatabase db = QSqlDatabase::database(m_connName);
+    QSqlQuery q(db);
     if (!q.prepare(UPSERT_CHARACTER_ENTRY)) {
-        spdlog::error("CharacterRepo: prepare() failed: {}", q.lastError().text());
+        ds::logQueryError("CharacterStore::saveCharacterList:prepare", q);
         return false;
     }
 
@@ -143,20 +144,20 @@ bool CharacterRepo::saveCharacterList(const std::vector<poe::Character> &charact
     q.bindValue(":listed_at", data[4]);
 
     if (!q.execBatch(QSqlQuery::ValuesAsRows)) {
-        ds::logQueryError("CharacterRepo::saveCharacterList()", q);
+        ds::logQueryError("CharacterStore::saveCharacterList:execBatch", q);
         return false;
     }
     return true;
 }
 
-std::optional<poe::Character> CharacterRepo::getCharacter(const QString &name, const QString &realm)
+std::optional<poe::Character> CharacterStore::getCharacter(const QString &name, const QString &realm)
 {
-    spdlog::debug("CharacterRepo: getting character: name='{}', realm='{}'", name, realm);
+    spdlog::debug("CharacterStore: getting character: name='{}', realm='{}'", name, realm);
 
-    QSqlQuery q(m_db);
-
+    QSqlDatabase db = QSqlDatabase::database(m_connName);
+    QSqlQuery q(db);
     if (!q.prepare("SELECT json_data FROM characters WHERE name = :name AND realm = :realm")) {
-        ds::logQueryError("CharacterRepo::getCharacter()", q);
+        ds::logQueryError("CharacterStore::getCharacter:prepare", q);
         return std::nullopt;
     }
 
@@ -164,24 +165,24 @@ std::optional<poe::Character> CharacterRepo::getCharacter(const QString &name, c
     q.bindValue(":realm", realm);
 
     if (!q.exec()) {
-        ds::logQueryError("CharacterRepo::getCharacter()", q);
+        ds::logQueryError("CharacterStore::getCharacter:exec", q);
         return std::nullopt;
     }
 
     if (q.size() > 1) {
-        spdlog::error("CharacterRepo: multiple characters found: name='{}', realm='{}'",
+        spdlog::error("CharacterStore: multiple characters found: name='{}', realm='{}'",
                       name,
                       realm);
         return std::nullopt;
     }
 
     if (!q.next()) {
-        spdlog::error("CharacterRepo: character not found: name='{}', realm='{}'", name, realm);
+        spdlog::error("CharacterStore: character not found: name='{}', realm='{}'", name, realm);
         return std::nullopt;
     }
 
     if (q.isNull(0)) {
-        spdlog::debug("CharacterRepo: character has not been fetched: name='{}', realm='{}'",
+        spdlog::debug("CharacterStore: character has not been fetched: name='{}', realm='{}'",
                       name,
                       realm);
         return std::nullopt;
@@ -191,15 +192,15 @@ std::optional<poe::Character> CharacterRepo::getCharacter(const QString &name, c
     return json::readCharacter(json);
 }
 
-std::vector<poe::Character> CharacterRepo::getCharacterList(const QString &realm,
-                                                            const std::optional<QString> league)
+std::vector<poe::Character> CharacterStore::getCharacterList(const QString &realm,
+                                                             const std::optional<QString> league)
 {
     if (league) {
-        spdlog::debug("CharacterRepo: getting character list for realm='{}', league='{}'",
+        spdlog::debug("CharacterStore: getting character list for realm='{}', league='{}'",
                       realm,
                       *league);
     } else {
-        spdlog::debug("CharacterRepo: getting character list for realm='{}'", realm);
+        spdlog::debug("CharacterStore: getting character list for realm='{}'", realm);
     }
 
     QString sql{"SELECT id, name, realm, league FROM characters WHERE realm = :realm"};
@@ -207,10 +208,10 @@ std::vector<poe::Character> CharacterRepo::getCharacterList(const QString &realm
         sql += " AND league = :league";
     }
 
-    QSqlQuery q(m_db);
-
+    QSqlDatabase db = QSqlDatabase::database(m_connName);
+    QSqlQuery q(db);
     if (!q.prepare(sql)) {
-        ds::logQueryError("CharacterRepo::getCharacterList()", q);
+        ds::logQueryError("CharacterStore::getCharacterList:prepare", q);
         return {};
     }
 
@@ -220,7 +221,7 @@ std::vector<poe::Character> CharacterRepo::getCharacterList(const QString &realm
     }
 
     if (!q.exec()) {
-        ds::logQueryError("CharacterRepo::getCharacterList()", q);
+        ds::logQueryError("CharacterStore::getCharacterList:exec", q);
         return {};
     }
 
@@ -237,6 +238,6 @@ std::vector<poe::Character> CharacterRepo::getCharacterList(const QString &realm
         characters.push_back(character);
     }
 
-    spdlog::debug("CharacterRepo: returning {} characters", characters.size());
+    spdlog::debug("CharacterStore: returning {} characters", characters.size());
     return characters;
 }

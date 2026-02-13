@@ -87,7 +87,7 @@ namespace {
 LegacyDataStore::LegacyDataStore(const QString &filename)
 {
     if (!QFile::exists(filename)) {
-        spdlog::error("BuyoutCollection: file not found: {}", filename);
+        spdlog::error("LegacyDataStore: file not found: {}", filename);
         return;
     }
 
@@ -95,19 +95,19 @@ LegacyDataStore::LegacyDataStore(const QString &filename)
     db.setConnectOptions("QSQLITE_OPEN_READONLY");
     db.setDatabaseName(filename);
     if (!db.open()) {
-        spdlog::error("BuyoutCollection: cannot open {} due to error: {}",
+        spdlog::error("LegacyDataStore: cannot open '{}' due to error: {}",
                       filename,
                       db.lastError().text());
         return;
     }
 
     bool ok = true;
-    ok &= getString(db, "SELECT value FROM data WHERE (key = 'db_version')", m_data.db_version);
-    ok &= getString(db, "SELECT value FROM data WHERE (key = 'version')", m_data.version);
-    ok &= getStruct(db, "SELECT value FROM data WHERE (key = 'buyouts')", m_data.buyouts);
-    ok &= getStruct(db, "SELECT value FROM data WHERE (key = 'tab_buyouts')", m_data.tab_buyouts);
-    ok &= getStruct(db, "SELECT value FROM tabs WHERE (type = 0)", m_tabs.stashes);
-    ok &= getStruct(db, "SELECT value FROM tabs WHERE (type = 1)", m_tabs.characters);
+    ok &= getString(db, "SELECT value FROM data WHERE key = 'db_version'", m_data.db_version);
+    ok &= getString(db, "SELECT value FROM data WHERE key = 'version'", m_data.version);
+    ok &= getStruct(db, "SELECT value FROM data WHERE key = 'buyouts'", m_data.buyouts);
+    ok &= getStruct(db, "SELECT value FROM data WHERE key = 'tab_buyouts'", m_data.tab_buyouts);
+    ok &= getStruct(db, "SELECT value FROM tabs WHERE type = 0", m_tabs.stashes);
+    ok &= getStruct(db, "SELECT value FROM tabs WHERE type = 1", m_tabs.characters);
     if (!ok) {
         spdlog::error("LegacyDataStore: unable to load all data from {}", filename);
         return;
@@ -159,7 +159,9 @@ LegacyDataStore::LegacyDataStore(const QString &filename)
 
     query.finish();
     db.close();
-    db.removeDatabase("LegacyDataStore");
+    db = QSqlDatabase();
+
+    QSqlDatabase::removeDatabase("LegacyDataStore");
 
     m_valid = true;
 }

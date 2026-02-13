@@ -21,7 +21,7 @@
 #include <QUrl>
 #include <QUrlQuery>
 
-#include "datastore/datastore.h"
+#include "app/usersettings.h"
 #include "poe/types/league.h"
 #include "replytimeout.h"
 #include "util/json_readers.h"
@@ -39,17 +39,12 @@ constexpr const char *POE_LEAGUE_LIST_URL
 
 constexpr int CLOUDFLARE_RATE_LIMITED = 1015;
 
-LoginDialog::LoginDialog(const QDir &app_data_dir,
-                         QSettings &settings,
+LoginDialog::LoginDialog(app::UserSettings &settings,
                          NetworkManager &network_manager,
-                         OAuthManager &oauth_manager,
-                         DataStore &datastore)
-    : QDialog(nullptr)
-    , m_app_data_dir(app_data_dir)
-    , m_settings(settings)
+                         OAuthManager &oauth_manager)
+    : m_settings(settings)
     , m_network_manager(network_manager)
     , m_oauth_manager(oauth_manager)
-    , m_datastore(datastore)
     , ui(new Ui::LoginDialog)
 {
     // Setup the dialog box.
@@ -74,7 +69,7 @@ LoginDialog::LoginDialog(const QDir &app_data_dir,
     }
 
     // Display the data directory
-    ui->userDirButton->setText(m_app_data_dir.absolutePath());
+    ui->userDirButton->setText(m_settings.userDir().absolutePath());
 
     // Hide the error message by default
     ui->errorLabel->setText("");
@@ -107,10 +102,6 @@ LoginDialog::LoginDialog(const QDir &app_data_dir,
             &QCheckBox::checkStateChanged,
             this,
             &LoginDialog::OnRememberMeCheckBoxChanged);
-    connect(ui->reportCrashesCheckBox,
-            &QCheckBox::checkStateChanged,
-            this,
-            &LoginDialog::OnReportCrashesCheckBoxChanged);
     connect(ui->proxyCheckBox,
             &QCheckBox::checkStateChanged,
             this,
@@ -143,49 +134,23 @@ LoginDialog::~LoginDialog()
             lg->trace("Login: clearing settings");
         }
         m_settings.clear();
-        m_datastore.Set("oauth_token", "");
+        emit RemoveOAuthToken();
     }
     delete ui;
 }
 
 void LoginDialog::LoadSettings()
 {
-    const QString realm = m_settings.value("realm").toString();
-    ui->realmComboBox->setCurrentText(realm);
-
-    const QString league = m_settings.value("league").toString();
-    ui->leagueComboBox->setCurrentText(league);
+    ui->realmComboBox->setCurrentText(m_settings.realm());
+    ui->leagueComboBox->setCurrentText(m_settings.league());
+    ui->themeComboBox->setCurrentText(m_settings.theme());
+    ui->advancedCheckBox->setChecked(m_settings.showStartupOptions());
+    ui->rememberMeCheckBox->setChecked(m_settings.rememberUser());
+    ui->proxyCheckBox->setChecked(m_settings.useSystemProxy());
 
     const spdlog::string_view_t sv = spdlog::level::to_string_view(spdlog::get_level());
     const QString logging_level = QString::fromUtf8(sv.data(), sv.size());
     ui->loggingLevelComboBox->setCurrentText(logging_level);
-
-    const QString theme = m_settings.value("theme").toString();
-    ui->themeComboBox->setCurrentText(theme);
-
-    const bool show_advanced = m_settings.value("show_advanced_login_options").toBool();
-    ui->advancedCheckBox->setChecked(show_advanced);
-
-    const bool remember_user = m_settings.value("remember_user").toBool();
-    ui->rememberMeCheckBox->setChecked(remember_user);
-
-    const bool use_proxy = m_settings.value("use_system_proxy").toBool();
-    ui->proxyCheckBox->setChecked(use_proxy);
-
-    const bool report_crashes = m_settings.value("report_crashes").toBool();
-    ui->reportCrashesCheckBox->setChecked(report_crashes);
-
-    const QString login_tab = m_settings.value("login_tab").toString();
-    spdlog::trace("LoginDialog::LoadSettings() login_tab = {}", login_tab);
-    for (auto i = 0; i < ui->loginTabs->count(); ++i) {
-        const QString tab_name = ui->loginTabs->widget(i)->objectName();
-        if (0 == login_tab.compare(tab_name, Qt::CaseInsensitive)) {
-            ui->loginTabs->setCurrentIndex(i);
-            break;
-        }
-    }
-
-
 }
 
 void LoginDialog::RequestLeagues()
@@ -234,7 +199,7 @@ void LoginDialog::OnLeaguesReceived()
     }
 
     // Get the league from settings.ini
-    const QString saved_league = m_settings.value("league").toString();
+    const QString saved_league = m_settings.league();
     spdlog::trace("LoginDialog::OnLeaguesReceived() loaded leage from settings: {}", saved_league);
 
     bool use_saved_league = false;
@@ -259,7 +224,7 @@ void LoginDialog::OnLeaguesReceived()
         ui->leagueComboBox->setCurrentText(saved_league);
     } else {
         spdlog::trace("LoginDialog::OnLeaguesReceived() clearing the saved league");
-        m_settings.setValue("league", "");
+        m_settings.league.clear();
     }
 
     // Now that leagues have been received, start listening for changes.
@@ -295,9 +260,7 @@ void LoginDialog::OnLoginButtonClicked()
     ui->loginButton->setText("Logging in...");
 
     const QString realm = ui->realmComboBox->currentText();
-    const QString league = ui->leagueComboBox->currentText();
-    m_settings.setValue("realm", realm);
-    m_settings.setValue("league", league);
+    m_settings.realm(realm);
 
     LoginWithOAuth();
 }
@@ -309,7 +272,7 @@ void LoginDialog::LoginWithOAuth()
     if (m_current_token.has_value()) {
         const OAuthToken &token = m_current_token.value();
         if (token.access_expiration && (now < *token.access_expiration)) {
-            m_settings.setValue("account", token.username);
+            m_settings.username(token.username);
             emit LoginComplete();
         } else if (token.refresh_expiration && (now < *token.refresh_expiration)) {
             DisplayError("The OAuth token needs to be refreshed");
@@ -349,21 +312,12 @@ void LoginDialog::OnLoginTabChanged(int index)
     ui->errorLabel->setHidden(hide_options || hide_error);
     ui->loginButton->setHidden(hide_options);
     ui->loginButton->setEnabled(m_current_token.has_value());
-    m_settings.setValue("login_tab", tab->objectName());
-};
-
-void LoginDialog::OnSessionIDChanged(const QString &session_id)
-{
-    // Save the new session and make sure the login button is enabled.
-    spdlog::trace("LoginDialog::OnSessionIDChanged() entered");
-    m_settings.setValue("session_id", session_id);
-    ui->loginButton->setEnabled(!session_id.isEmpty());
 }
 
 void LoginDialog::OnLeagueChanged(const QString &league)
 {
     spdlog::trace("LoginDialog::OnLeagueChanged() entered");
-    m_settings.setValue("league", league);
+    m_settings.league(league);
 }
 
 void LoginDialog::OnAdvancedCheckBoxChanged(Qt::CheckState state)
@@ -372,7 +326,7 @@ void LoginDialog::OnAdvancedCheckBoxChanged(Qt::CheckState state)
     const bool checked = (state == Qt::Checked);
     const bool hide_options = false;
     ui->advancedOptionsFrame->setHidden(!checked || hide_options);
-    m_settings.setValue("show_advanced_login_options", checked);
+    m_settings.showStartupOptions(checked);
 }
 
 void LoginDialog::OnProxyCheckBoxChanged(Qt::CheckState state)
@@ -380,79 +334,25 @@ void LoginDialog::OnProxyCheckBoxChanged(Qt::CheckState state)
     spdlog::trace("LoginDialog: proxy checkbox changed to {}", state);
     const bool checked = (state == Qt::Checked);
     QNetworkProxyFactory::setUseSystemConfiguration(checked);
-    m_settings.setValue("use_system_proxy", checked);
+    m_settings.useSystemProxy(checked);
 }
 
 void LoginDialog::OnRememberMeCheckBoxChanged(Qt::CheckState state)
 {
     spdlog::trace("LoginDialog: remember me checkbox changed to {}", state);
-    const bool checked = (state == Qt::Checked);
-    m_settings.setValue("remember_user", checked);
-}
-
-void LoginDialog::OnReportCrashesCheckBoxChanged(Qt::CheckState state)
-{
-    spdlog::trace("LoginDialog: crash reporting checkbox changed to {}", state);
-    const bool checked = (state == Qt::Checked);
-    QMessageBox msgbox(this);
-    msgbox.setWindowTitle("Acquisition Crash Reporting");
-
-    if (checked) {
-        // Before enabling crash reporting, make sure the user
-        // understands and accepts that crash reporting cannot be
-        // disabled without restarting acquisition.
-        msgbox.setText("Once crash reporting is enabled, it cannot be "
-                       "disabled without restarting Acquisition.\n\nDo you want to "
-                       "enable crash reporting?");
-        auto yes = msgbox.addButton("  Enable crash reports  ", msgbox.YesRole);
-        msgbox.addButton("  Cancel  ", msgbox.NoRole);
-        msgbox.exec();
-        const bool enable_reporting = (msgbox.clickedButton() == yes);
-        m_settings.setValue("report_crashes", enable_reporting);
-        if (enable_reporting) {
-            spdlog::info("TBD: crash reporting checkbox");
-        } else {
-            ui->reportCrashesCheckBox->setChecked(false);
-        }
-
-    } else {
-        // Since crashpad cannot be stopped once it is started, acquisition
-        // will have to be exited and restarted to disable crash reporting,
-        // so make sure the user accepts and agrees to this.
-        msgbox.setText("Acquisition will have to restart to disable crash "
-                       "reporting.\n\nDo you want Acquisition to exit now and disable "
-                       "crash reporting the next time it runs?");
-        auto yes = msgbox.addButton("  Yes, exit now  ", msgbox.YesRole);
-        msgbox.addButton("  No, continue without crash reporting  ", msgbox.NoRole);
-        msgbox.exec();
-        const bool disable_reporting = (msgbox.clickedButton() == yes);
-        m_settings.setValue("report_crashes", !disable_reporting);
-        if (disable_reporting) {
-            close();
-        } else {
-            ui->reportCrashesCheckBox->setChecked(true);
-        }
-    }
+    m_settings.rememberUser(state == Qt::Checked);
 }
 
 void LoginDialog::OnUserDirButtonPushed()
 {
-    const QString current_dir = QFileInfo(m_settings.fileName()).absolutePath();
-    const QString parent_dir = QFileInfo(current_dir).absolutePath();
-    const QString new_dir = QFileDialog::getExistingDirectory(this,
-                                                              "Select the user directory",
-                                                              parent_dir);
-    if (new_dir != current_dir) {
-        ui->userDirButton->setText(new_dir);
-        emit ChangeUserDir(new_dir);
-    }
+    // NOTE: TBD: re-implement this.
 }
 
 void LoginDialog::OnLoggingLevelChanged(const QString &level_name)
 {
-    const spdlog::level::level_enum level = spdlog::level::from_str(level_name.toStdString());
+    const auto level = spdlog::level::from_str(level_name.toStdString());
     spdlog::set_level(level);
-    m_settings.setValue("log_level", level_name);
+    m_settings.logLevel(level);
 }
 
 void LoginDialog::OnThemeChanged(const QString &theme)

@@ -26,7 +26,7 @@ class RateLimiter : public QObject
 
 public:
     // Create a rate limiter.
-    RateLimiter(NetworkManager &network_manager);
+    explicit RateLimiter(NetworkManager &network_manager);
 
     ~RateLimiter();
 

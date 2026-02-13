@@ -11,6 +11,8 @@
 
 struct LegacyItem
 {
+    enum class LocationType { STASH, CHARACTER };
+
     struct Socket
     {
         unsigned group;
@@ -40,6 +42,8 @@ struct LegacyItem
     std::optional<std::vector<QString>> implicitMods;
     std::optional<std::vector<QString>> explicitMods;
     std::optional<LegacyItem::HybridInfo> hybrid;
+
+    LegacyItem::LocationType _type;
     std::optional<QString> _character;
     std::optional<QString> _tab_label;
 

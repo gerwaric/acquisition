@@ -10,11 +10,14 @@
 #include <QSqlQuery>
 #include <QThread>
 
-#include "currencymanager.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 
-SqliteDataStore::SqliteDataStore(const QString &filename)
-    : m_filename(filename)
+SqliteDataStore::SqliteDataStore(const QString &realm,
+                                 const QString &league,
+                                 const QString &filename,
+                                 QObject *parent)
+    : DataStore(realm, league, parent)
+    , m_filename(filename)
 {
     QDir dir(QDir::cleanPath(m_filename + "/.."));
     if (!dir.exists()) {
@@ -37,10 +40,6 @@ SqliteDataStore::SqliteDataStore(const QString &filename)
     // Open the database and make sure tables are created if they don't exist.
     QSqlDatabase db = getThreadLocalDatabase();
     CreateTable("data", "key TEXT PRIMARY KEY, value BLOB");
-    CreateTable("tabs", "type INT PRIMARY KEY, value BLOB");
-    CreateTable("items", "loc TEXT PRIMARY KEY, value BLOB");
-    CreateTable("currency", "timestamp INTEGER PRIMARY KEY, value TEXT");
-    CleanItemsTable();
 
     QSqlQuery query(db);
     query.prepare("VACUUM");
@@ -100,75 +99,6 @@ void SqliteDataStore::CreateTable(const QString &name, const QString &fields)
     }
 }
 
-void SqliteDataStore::CleanItemsTable()
-{
-    QSqlDatabase db = getThreadLocalDatabase();
-    QSqlQuery query(db);
-    query.prepare("DELETE FROM items WHERE loc IS NULL");
-    if (query.exec() == false) {
-        spdlog::error("CleanItemsTable(): error deleting items where loc is null.");
-        return;
-    }
-
-    //If tabs table contains two records which are not empty or NULL (i.e. type column is equal to 0 or 1 for the two records)
-    //  * check all "db.items" record keys against 'id' or 'name' values in the "db.tabs" data,
-    //    remove record from 'items' if not anywhere in either 'tabs' record.
-    Locations stashTabData = SqliteDataStore::GetTabs(ItemLocationType::STASH);
-    Locations charsData = SqliteDataStore::GetTabs(ItemLocationType::CHARACTER);
-
-    if (!stashTabData.empty() && !charsData.empty()) {
-        QStringList locs;
-
-        query = QSqlQuery(db);
-        query.setForwardOnly(true);
-        query.prepare("SELECT loc FROM items");
-        if (query.exec() == false) {
-            spdlog::error("CleanItemsTable(): error selecting loc from items.");
-            return;
-        }
-        while (query.next()) {
-            locs.push_back(query.value(0).toString());
-        }
-        if (query.lastError().isValid()) {
-            spdlog::error("CleanItemsTable(): error moving to next loc: {}",
-                          query.lastError().text());
-        }
-        query.finish();
-
-        for (const auto &loc : locs) {
-            bool foundLoc = false;
-
-            //check stash tabs
-            for (const auto &stashTab : stashTabData) {
-                if (loc == stashTab.id()) {
-                    foundLoc = true;
-                    break;
-                }
-            }
-
-            //check character tabs
-            if (!foundLoc) {
-                for (const auto &charTab : charsData) {
-                    if (loc == charTab.character()) {
-                        foundLoc = true;
-                        break;
-                    }
-                }
-            }
-
-            //loc not found in either tab storage, delete record from 'items'
-            if (!foundLoc) {
-                query = QSqlQuery(db);
-                query.prepare("DELETE FROM items WHERE loc = ?");
-                query.bindValue(0, loc);
-                if (query.exec() == false) {
-                    spdlog::error("Error deleting items where loc is {}", loc);
-                }
-            }
-        }
-    }
-}
-
 QString SqliteDataStore::Get(const QString &key, const QString &default_value)
 {
     QSqlDatabase db = getThreadLocalDatabase();
@@ -189,47 +119,6 @@ QString SqliteDataStore::Get(const QString &key, const QString &default_value)
     return result;
 }
 
-Locations SqliteDataStore::GetTabs(const ItemLocationType type)
-{
-    QSqlDatabase db = getThreadLocalDatabase();
-    QSqlQuery query(db);
-    query.prepare("SELECT value FROM tabs WHERE type = ?");
-    query.bindValue(0, (int) type);
-    if (query.exec() == false) {
-        spdlog::error("Error getting tabs for type {}: {}", (int) type, query.lastError().text());
-        return {};
-    }
-    if (query.next() == false) {
-        if (query.isActive() == false) {
-            spdlog::error("Error getting result for {}: {}", (int) type, query.lastError().text());
-        }
-        return {};
-    }
-    const QString json = query.value(0).toString();
-    return DeserializeTabs(json, type);
-}
-
-Items SqliteDataStore::GetItems(const ItemLocation &loc)
-{
-    const QString tab_uid = loc.id();
-    QSqlDatabase db = getThreadLocalDatabase();
-    QSqlQuery query(db);
-    query.prepare("SELECT value FROM items WHERE loc = ?");
-    query.bindValue(0, tab_uid);
-    if (query.exec() == false) {
-        spdlog::error("Error getting items for {}: {}", tab_uid, query.lastError().text());
-        return {};
-    }
-    if (query.next() == false) {
-        if (query.isActive() == false) {
-            spdlog::error("Error getting result for {}: {}", tab_uid, query.lastError().text());
-        }
-        return {};
-    }
-    const QString json = query.value(0).toString();
-    return DeserializeItems(json, loc);
-}
-
 void SqliteDataStore::Set(const QString &key, const QString &value)
 {
     QSqlDatabase db = getThreadLocalDatabase();
@@ -240,69 +129,6 @@ void SqliteDataStore::Set(const QString &key, const QString &value)
     if (query.exec() == false) {
         spdlog::error("Error setting value {}", key);
     }
-}
-
-void SqliteDataStore::SetTabs(const ItemLocationType type, const Locations &tabs)
-{
-    QSqlDatabase db = getThreadLocalDatabase();
-    QSqlQuery query(db);
-    query.prepare("INSERT OR REPLACE INTO tabs (type, value) VALUES (?, ?)");
-    query.bindValue(0, (int) type);
-    query.bindValue(1, Serialize(tabs));
-    if (query.exec() == false) {
-        spdlog::error("Error setting tabs for type {}", (int) type);
-    }
-}
-
-void SqliteDataStore::SetItems(const ItemLocation &loc, const Items &items)
-{
-    if (loc.id().isEmpty()) {
-        spdlog::warn("Cannot set items because the location is empty");
-        return;
-    }
-    QSqlDatabase db = getThreadLocalDatabase();
-    QSqlQuery query(db);
-    query.prepare("INSERT OR REPLACE INTO items (loc, value) VALUES (?, ?)");
-    query.bindValue(0, loc.id());
-    query.bindValue(1, Serialize(items));
-    if (query.exec() == false) {
-        spdlog::error("Error setting tabs for type {}", loc.id());
-    }
-}
-
-void SqliteDataStore::InsertCurrencyUpdate(const CurrencyUpdate &update)
-{
-    QSqlDatabase db = getThreadLocalDatabase();
-    QSqlQuery query(db);
-    query.prepare("INSERT INTO currency (timestamp, value) VALUES (?, ?)");
-    query.bindValue(0, update.timestamp);
-    query.bindValue(1, update.value);
-    if (query.exec() == false) {
-        spdlog::error("Error inserting currency update.");
-    }
-}
-
-std::vector<CurrencyUpdate> SqliteDataStore::GetAllCurrency()
-{
-    QSqlDatabase db = getThreadLocalDatabase();
-    QSqlQuery query(db);
-    query.prepare("SELECT timestamp, value FROM currency ORDER BY timestamp ASC");
-    std::vector<CurrencyUpdate> result;
-    if (query.exec() == false) {
-        spdlog::error("Error getting currency updates: {}", query.lastError().text());
-        return {};
-    }
-    while (query.next()) {
-        CurrencyUpdate update = CurrencyUpdate();
-        update.timestamp = query.value(0).toLongLong();
-        update.value = query.value(1).toString();
-        result.push_back(update);
-    }
-    if (query.lastError().isValid()) {
-        spdlog::error("Error getting currency.");
-        return {};
-    }
-    return result;
 }
 
 QString SqliteDataStore::MakeFilename(const QString &username, const QString &league)

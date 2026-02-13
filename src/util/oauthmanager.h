@@ -15,7 +15,6 @@
 class QOAuth2AuthorizationCodeFlow;
 class QOAuthHttpServerReplyHandler;
 
-class DataStore;
 class NetworkManager;
 
 class OAuthManager : public QObject
@@ -23,10 +22,12 @@ class OAuthManager : public QObject
     Q_OBJECT
 
 public:
-    explicit OAuthManager(NetworkManager& manager, DataStore &datastore, QObject *parent = nullptr);
+    explicit OAuthManager(NetworkManager &manager);
     void initLogin();
 
-private slots:
+public slots:
+    void setToken(const OAuthToken &token);
+
     void onRequestFailure(const QAbstractOAuth::Error error);
     void onServerError(const QString &error, const QString &errorDescription, const QUrl &uri);
     void onOAuthError(const QString &error, const QString &errorDescription, const QUrl &uri);
@@ -38,9 +39,6 @@ signals:
     void isAuthenticatedChanged();
 
 private:
-    void setToken(const OAuthToken &token);
-    NetworkManager &m_network_manager;
-    DataStore &m_data;
 
     QOAuth2AuthorizationCodeFlow* m_oauth;
     QOAuthHttpServerReplyHandler* m_handler;

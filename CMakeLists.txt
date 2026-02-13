@@ -137,9 +137,32 @@ if(NOT TARGET spdlog)
     FetchContent_MakeAvailable(spdlog)
 endif()
 
+if(NOT TARGET qt6keychain)
+    FetchContent_Declare(
+        qt6keychain
+        GIT_REPOSITORY https://github.com/frankosterfeld/qtkeychain.git
+        GIT_TAG        0.15.0
+        GIT_SHALLOW    TRUE
+    )
+    # Set qtkeychain option(s) BEFORE it is configured
+    set(BUILD_WITH_QT6 ON CACHE BOOL "Build qtkeychain with Qt 6" FORCE)
+    FetchContent_MakeAvailable(qt6keychain)
+endif()
+
 #------------------------------------------------------
 # Acquisition Sources
 #------------------------------------------------------
+
+set(ACQ_APP 
+    src/app/coreservices.cpp
+    src/app/coreservices.h
+    src/app/sessioncontext.cpp
+    src/app/sessioncontext.h
+    src/app/sessionservices.cpp
+    src/app/sessionservices.h
+    src/app/usersettings.cpp
+    src/app/usersettings.h
+)
 
 set(ACQ_CORE
     src/application.cpp
@@ -154,8 +177,6 @@ set(ACQ_CORE
     src/column.h
     src/currency.cpp
     src/currency.h
-    src/currencymanager.cpp
-    src/currencymanager.h
     src/filters.cpp
     src/filters.h
     src/imagecache.cpp
@@ -191,20 +212,18 @@ set(ACQ_CORE
 )
 
 set(ACQ_DATASTORE
-    src/datastore/buyoutrepo.cpp
-    src/datastore/buyoutrepo.h
-    src/datastore/characterrepo.cpp
-    src/datastore/characterrepo.h
-    src/datastore/datastore.cpp
-    src/datastore/datastore.h
+    src/datastore/buyoutstore.cpp
+    src/datastore/buyoutstore.h
+    src/datastore/characterstore.cpp
+    src/datastore/characterstore.h
     src/datastore/datastore_utils.cpp
     src/datastore/datastore_utils.h
-    src/datastore/memorydatastore.cpp
-    src/datastore/memorydatastore.h
-    src/datastore/sqlitedatastore.cpp
-    src/datastore/sqlitedatastore.h
-    src/datastore/stashrepo.cpp
-    src/datastore/stashrepo.h
+    src/datastore/keychainstore.cpp
+    src/datastore/keychainstore.h
+    src/datastore/sessionstore.cpp
+    src/datastore/sessionstore.h
+    src/datastore/stashstore.cpp
+    src/datastore/stashstore.h
     src/datastore/userstore.cpp
     src/datastore/userstore.h
 )
@@ -215,6 +234,8 @@ set(ACQ_LEGACY
     src/legacy/legacycurrency.h
     src/legacy/legacydatastore.cpp
     src/legacy/legacydatastore.h
+    src/legacy/legacyfolderimporter.cpp
+    src/legacy/legacyfolderimporter.h
     src/legacy/legacyitem.cpp
     src/legacy/legacyitem.h
     src/legacy/legacyitemlocation.h
@@ -310,11 +331,14 @@ set(ACQ_UI
 set(ACQ_UTIL
     src/util/checkmsvc.cpp
     src/util/checkmsvc.h
+    src/util/codecs.h
+    src/util/deref.h
     src/util/fatalerror.cpp
     src/util/fatalerror.h
     src/util/glaze_qt.h
     src/util/json_readers.cpp
     src/util/json_readers.h
+    src/util/json_utils.h
     src/util/json_writers.cpp
     src/util/json_writers.h
     src/util/logging.cpp
@@ -414,6 +438,7 @@ find_package(Qt6 6.10 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Widge
 qt_standard_project_setup()
 
 qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
+    ${ACQ_APP}
     ${ACQ_CORE}
     ${ACQ_DATASTORE}
     ${ACQ_LEGACY}
@@ -467,6 +492,7 @@ target_link_libraries(acquisition PRIVATE
     # Extenal libraries
     glaze::glaze
     qdarkstyle
+    qt6keychain
     sentry::sentry
     semver
     spdlog::spdlog_header_only

@@ -12,25 +12,27 @@
 #include "buyout.h"
 #include "ui/mainwindow.h"
 
-class QSettings;
-
 class Application;
 class BuyoutManager;
-class DataStore;
+class SessionStore;
 class ItemsManager;
 class NetworkManager;
 class RateLimiter;
+namespace app {
+    class UserSettings;
+}
 
 class Shop : public QObject
 {
     Q_OBJECT
 public:
-    explicit Shop(QSettings &settings,
+    explicit Shop(app::UserSettings &settings,
                   NetworkManager &network_manager,
                   RateLimiter &rate_limiter,
-                  DataStore &datastore,
+                  SessionStore &data,
                   ItemsManager &items_manager,
                   BuyoutManager &buyout_manager);
+
     void SetThread(const QStringList &threads);
     void SetAutoUpdate(bool update);
     void SetShopTemplate(const QString &shop_template);
@@ -62,10 +64,11 @@ private:
     QString ShopEditUrl(int idx);
     QString SpoilerBuyout(Buyout &bo);
 
-    QSettings &m_settings;
+    app::UserSettings &m_settings;
+
     NetworkManager &m_network_manager;
     RateLimiter &m_rate_limiter;
-    DataStore &m_datastore;
+    SessionStore &m_data;
     ItemsManager &m_items_manager;
     BuyoutManager &m_buyout_manager;
 

@@ -7,9 +7,9 @@
 #include <QNetworkCookie>
 #include <QSettings>
 
-#include "application.h"
+#include "app/usersettings.h"
 #include "buyoutmanager.h"
-#include "datastore/datastore.h"
+#include "datastore/sessionstore.h"
 #include "filters.h"
 #include "item.h"
 #include "modlist.h"
@@ -19,20 +19,22 @@
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
 
-ItemsManager::ItemsManager(QSettings &settings, BuyoutManager &buyout_manager, DataStore &datastore)
+ItemsManager::ItemsManager(app::UserSettings &settings,
+                           BuyoutManager &buyout_manager,
+                           SessionStore &data)
     : m_settings(settings)
+    , m_data(data)
     , m_buyout_manager(buyout_manager)
-    , m_datastore(datastore)
     , m_auto_update_timer(std::make_unique<QTimer>())
 {
     spdlog::trace("ItemsManager::ItemsManager() entered");
 
-    const int interval = m_settings.value("autoupdate_interval", 30).toInt();
+    const int interval = m_data.autoupdateInterval();
     m_auto_update_timer->setSingleShot(false);
     m_auto_update_timer->setInterval(interval * 60 * 1000);
     connect(m_auto_update_timer.get(), &QTimer::timeout, this, &ItemsManager::OnAutoRefreshTimer);
 
-    const bool autoupdate = m_settings.value("autoupdate", false).toBool();
+    const bool autoupdate = m_data.autoupdate();
     if (autoupdate) {
         m_auto_update_timer->start();
     }
@@ -61,10 +63,6 @@ void ItemsManager::ApplyAutoTabBuyouts()
             m_buyout_manager.SetTab(loc, buyout);
         }
     }
-
-    // Need to compress tab buyouts here, as the tab names change we accumulate and save BO's
-    // for tabs that no longer exist I think.
-    m_buyout_manager.CompressTabBuyouts();
 }
 
 void ItemsManager::ApplyAutoItemBuyouts()
@@ -142,7 +140,6 @@ void ItemsManager::OnItemsRefreshed(const Items &items,
     }
 
     m_buyout_manager.SetStashTabLocations(tabs);
-    MigrateBuyouts();
     ApplyAutoTabBuyouts();
     ApplyAutoItemBuyouts();
     PropagateTabBuyouts();
@@ -159,7 +156,7 @@ void ItemsManager::Update(TabSelection type, const std::vector<ItemLocation> &lo
 void ItemsManager::SetAutoUpdate(bool update)
 {
     spdlog::trace("ItemsManager::SetAutoUpdate() entered");
-    m_settings.setValue("autoupdate", update);
+    m_data.autoupdate(update);
     if (update) {
         spdlog::trace("ItemsManager::SetAutoUpdate() starting automatic updates");
         m_auto_update_timer->start();
@@ -173,7 +170,7 @@ void ItemsManager::SetAutoUpdateInterval(int minutes)
 {
     spdlog::trace("ItemsManager::SetAutoUpdateInterval() entered");
     spdlog::trace("ItemsManager::SetAutoUpdateInterval() setting interval to {} minutes", minutes);
-    m_settings.setValue("autoupdate_interval", minutes);
+    m_data.autoupdateInterval(minutes);
     m_auto_update_timer->setInterval(minutes * 60 * 1000);
 }
 
@@ -181,44 +178,4 @@ void ItemsManager::OnAutoRefreshTimer()
 {
     spdlog::trace("ItemsManager::OnAutoRefreshTimer() entered");
     Update(TabSelection::Checked);
-}
-
-void ItemsManager::MigrateBuyouts()
-{
-    spdlog::trace("ItemsManager::MigrateBuyouts() entered");
-    const int db_version = m_datastore.GetInt("db_version");
-
-    // Do nothing if the database has already been migrated.
-    if (db_version == 5) {
-        spdlog::debug("ItemsManager skipping migration because db_version is {}", db_version);
-        return;
-    }
-
-    // Migrate from v4 to v5.
-    if (db_version == 4) {
-        spdlog::debug("ItemsManager migrating from db_version {} to 5", db_version);
-        for (const auto &item : m_items) {
-            m_buyout_manager.MigrateItem(item->hash_v4(), item->id());
-        }
-        m_buyout_manager.Save();
-        m_datastore.SetInt("db_version", 5);
-        return;
-    }
-
-    // Log an error if the version is somehow too high.
-    if (db_version > 5) {
-        spdlog::error("ItemsManager cannot migrate because db_version {} is too new", db_version);
-        return;
-    }
-
-    // Migrate from older versions to v4.
-    spdlog::debug("ItemsManager migrating from db_version {} to 4", db_version);
-    for (const auto &item : m_items) {
-        m_buyout_manager.MigrateItem(item->old_hash(), item->hash_v4());
-    }
-    m_buyout_manager.Save();
-    m_datastore.SetInt("db_version", 4);
-
-    // Trigger another migration from v4 to v5.
-    MigrateBuyouts();
 }

@@ -52,8 +52,7 @@ class ItemsManagerWorker : public QObject
 public:
     explicit ItemsManagerWorker(QSettings &m_settings,
                                 BuyoutManager &buyout_manager,
-                                RateLimiter &rate_limiter,
-                                QObject *parent = nullptr);
+                                RateLimiter &rate_limiter);
     void UpdateRequest(TabSelection type, const std::vector<ItemLocation> &locations);
 
 signals:

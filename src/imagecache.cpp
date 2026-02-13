@@ -12,15 +12,16 @@
 #include <QString>
 
 #include "util/networkmanager.h"
-#include "util/spdlog_qt.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
 
 ImageCache::ImageCache(NetworkManager &network_manager, const QString &directory)
     : m_network_manager(network_manager)
     , m_directory(directory)
 {
-    if (!QDir(m_directory).exists()) {
-        QDir().mkpath(m_directory);
+    QDir dir(directory);
+    if (!dir.exists()) {
+        dir.mkpath(directory);
     }
 }
 

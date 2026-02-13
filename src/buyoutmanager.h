@@ -16,14 +16,18 @@
 
 class Item;
 class ItemLocation;
-class DataStore;
-class BuyoutRepo;
+class SessionStore;
+class BuyoutStore;
+class StateRepo;
+namespace app {
+    class UserSettings;
+}
 
 class BuyoutManager : public QObject
 {
     Q_OBJECT
 public:
-    explicit BuyoutManager(DataStore &data, BuyoutRepo &repo);
+    explicit BuyoutManager(app::UserSettings &settings, SessionStore &data, BuyoutStore &repo);
     ~BuyoutManager();
 
     void Set(const Item &item, const Buyout &buyout);
@@ -31,9 +35,6 @@ public:
 
     Buyout Get(const Item &item) const;
     Buyout GetTab(const ItemLocation &location) const;
-
-    void CompressTabBuyouts();
-    void CompressItemBuyouts(const Items &items);
 
     void SetRefreshChecked(const ItemLocation &tab, bool value);
     bool GetRefreshChecked(const ItemLocation &tab) const;
@@ -67,8 +68,9 @@ private:
     QString Serialize(const std::unordered_map<QString, bool> &obj);
     void Deserialize(const QString &data, std::unordered_map<QString, bool> &obj);
 
-    DataStore &m_data;
-    BuyoutRepo &m_repo;
+    app::UserSettings &m_settings;
+    SessionStore &m_data;
+    BuyoutStore &m_repo;
 
     std::unordered_map<QString, Buyout> m_buyouts;
     std::unordered_map<QString, Buyout> m_tab_buyouts;

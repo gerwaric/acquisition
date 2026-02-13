@@ -5,6 +5,7 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QMessageBox>
 #include <QNetworkCookie>
 #include <QNetworkCookieJar>
 #include <QNetworkReply>
@@ -16,10 +17,9 @@
 
 #include <algorithm>
 
-#include "application.h"
 #include "buyoutmanager.h"
-#include "datastore/characterrepo.h"
-#include "datastore/stashrepo.h"
+#include "datastore/characterstore.h"
+#include "datastore/stashstore.h"
 #include "datastore/userstore.h"
 #include "itemlocation.h"
 #include "modlist.h"
@@ -38,10 +38,8 @@
 
 ItemsManagerWorker::ItemsManagerWorker(QSettings &settings,
                                        BuyoutManager &buyout_manager,
-                                       RateLimiter &rate_limiter,
-                                       QObject *parent)
-    : QObject(parent)
-    , m_settings(settings)
+                                       RateLimiter &rate_limiter)
+    : m_settings(settings)
     , m_buyout_manager(buyout_manager)
     , m_rate_limiter(rate_limiter)
     , m_type(TabSelection::Checked)

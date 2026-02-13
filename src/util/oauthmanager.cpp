@@ -12,7 +12,6 @@
 
 #include <array>
 
-#include "datastore/datastore.h"
 #include "util/glaze_qt.h" // IWYU pragma: keep
 #include "util/networkmanager.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
@@ -49,10 +48,7 @@ namespace {
 
 }; // namespace
 
-OAuthManager::OAuthManager(NetworkManager &network_manager, DataStore &datastore, QObject *parent)
-    : QObject(parent)
-    , m_network_manager(network_manager)
-    , m_data(datastore)
+OAuthManager::OAuthManager(NetworkManager &network_manager)
 {
     // Create the the reply handler.
     m_handler = new QOAuthHttpServerReplyHandler(this);
@@ -99,15 +95,6 @@ OAuthManager::OAuthManager(NetworkManager &network_manager, DataStore &datastore
             &QAbstractOAuth2::serverReportedErrorOccurred,
             this,
             &OAuthManager::onServerError);
-
-    // Check for an existing token.
-    const QString token_str = m_data.Get("oauth_token", "");
-    if (!token_str.isEmpty()) {
-        const OAuthToken token = OAuthToken::fromJson(token_str);
-        spdlog::info("OAuth: refreshing token for '{}'", token.username);
-        m_oauth->setRefreshToken(token.refresh_token);
-        m_oauth->refreshTokens();
-    }
 }
 
 void OAuthManager::onRequestFailure(const QAbstractOAuth::Error error)
@@ -142,18 +129,6 @@ void OAuthManager::receiveToken(const QVariantMap &tokens)
 {
     m_token = OAuthToken::fromTokens(tokens);
     spdlog::info("OAuth: tokens recieved for {}", m_token.username);
-
-    // Store the serialized token.
-    std::string serialized_token;
-    auto ec = glz::write_json(m_token, serialized_token);
-    if (ec) {
-        const std::string msg = glz::format_error(ec, serialized_token);
-        spdlog::error("OAuthManager: error serializing received token: {}", msg);
-    } else {
-        spdlog::info("OAuth: storing token");
-        m_data.Set("oauth_token", QString::fromStdString(serialized_token));
-    }
-    m_network_manager.setBearerToken(m_token.access_token);
 }
 
 void OAuthManager::receiveGrant()

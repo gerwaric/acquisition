@@ -21,8 +21,6 @@ class QVBoxLayout;
 
 class BuyoutManager;
 class Column;
-class CurrencyManager;
-class DataStore;
 class Filter;
 class FlowLayout;
 class ImageCache;
@@ -43,6 +41,9 @@ struct Buyout;
 namespace Ui {
     class MainWindow;
 }
+namespace app {
+    class UserSettings;
+}
 
 enum class ProgramState { Unknown, Initializing, Waiting, Ready, Busy };
 
@@ -50,13 +51,11 @@ class MainWindow : public QMainWindow
 {
     Q_OBJECT
 public:
-    explicit MainWindow(QSettings &m_settings,
+    explicit MainWindow(app::UserSettings &settings,
                         NetworkManager &network_manager,
                         RateLimiter &rate_limiter,
-                        DataStore &datastore,
                         ItemsManager &items_mangaer,
                         BuyoutManager &buyout_manager,
-                        CurrencyManager &currency_manager,
                         Shop &shop,
                         ImageCache &image_cache);
     ~MainWindow();
@@ -65,7 +64,7 @@ public:
 
 signals:
     void UpdateCheckRequested();
-    void SetSessionId(const QString &poesessid);
+    void SetSessionId(const QByteArray &poesessid);
     void SetTheme(const QString &theme);
     void GetImage(const QString &url);
 public slots:
@@ -140,13 +139,12 @@ private:
     void closeEvent(QCloseEvent *event);
     void CheckSelected(bool value);
 
-    QSettings &m_settings;
+    app::UserSettings &m_settings;
+
     NetworkManager &m_network_manager;
     RateLimiter &m_rate_limiter;
-    DataStore &m_datastore;
     ItemsManager &m_items_manager;
     BuyoutManager &m_buyout_manager;
-    CurrencyManager &m_currency_manager;
     Shop &m_shop;
     ImageCache &m_image_cache;
 

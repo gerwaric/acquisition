@@ -15,6 +15,7 @@
 
 #include <semver/semver.hpp>
 
+#include "app/usersettings.h"
 #include "util/glaze_qt.h" // IWYU pragma: keep
 #include "util/networkmanager.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
@@ -34,48 +35,36 @@ struct GitHubReleaseTag
 // Check for updates every 24 hours.
 constexpr int UPDATE_INTERVAL = 24 * 60 * 60 * 1000;
 
-UpdateChecker::UpdateChecker(
-    QSettings& settings,
-    NetworkManager& network_manager)
-    : m_settings(settings)
-    , m_nm(network_manager)
+UpdateChecker::UpdateChecker(NetworkManager &network_manager, app::UserSettings &settings)
+    : m_network_manager(network_manager)
+    , m_settings(settings)
     , m_running_version(semver::version::parse(APP_VERSION_STRING))
 {
-    const QString skip_release = m_settings.value("skip_release").toString();
-    const QString skip_prerelease = m_settings.value("skip_prerelease").toString();
-    m_previous_release = skip_release.isEmpty() ? semver::version() : semver::version::parse(skip_release.toStdString());
-    m_previous_prerelease = skip_prerelease.isEmpty() ? semver::version() : semver::version::parse(skip_prerelease.toStdString());
-
     spdlog::debug("UpdateChecker: running version is {}", m_running_version.str());
-    spdlog::debug("UpdateChecker: skipped release is {}", m_previous_release.str());
-    spdlog::debug("UpdateChecker: skipped prerelease is {}", m_previous_prerelease.str());
-
     m_timer.setInterval(UPDATE_INTERVAL);
-    m_timer.start();
     connect(&m_timer, &QTimer::timeout, this, &UpdateChecker::CheckForUpdates);
+}
+
+void UpdateChecker::setLastSkippedUpdates(const semver::version &release,
+                                          const semver::version &prerelease)
+{
+    m_previous_release = release;
+    m_previous_prerelease = prerelease;
 }
 
 void UpdateChecker::CheckForUpdates() {
     // Get the releases from GitHub as a json object.
     spdlog::trace("UpdateChecker: requesting GitHub releases: {}", GITHUB_RELEASES_URL);
-    QNetworkRequest request = QNetworkRequest(QUrl(GITHUB_RELEASES_URL));
-    QNetworkReply* reply = m_nm.get(request);
-    connect(reply, &QNetworkReply::errorOccurred, this, &UpdateChecker::OnUpdateErrorOccurred);
-    connect(reply, &QNetworkReply::sslErrors, this, &UpdateChecker::OnUpdateSslErrors);
+
+    m_previous_release = m_settings.lastSkippedRelease();
+    m_previous_prerelease = m_settings.lastSkippedPreRelease();
+
+    QNetworkRequest request{QUrl(GITHUB_RELEASES_URL)};
+    QNetworkReply *reply = m_network_manager.get(request);
     connect(reply, &QNetworkReply::finished, this, &UpdateChecker::OnUpdateReplyReceived);
-}
 
-void UpdateChecker::OnUpdateErrorOccurred(QNetworkReply::NetworkError code) {
-    QNetworkReply* reply = qobject_cast<QNetworkReply*>(QObject::sender());
-    spdlog::error("Network error {} occurred while checking for an update: {}", code, reply->errorString());
-}
-
-void UpdateChecker::OnUpdateSslErrors(const QList<QSslError>& errors) {
-    const int n = errors.size();
-    spdlog::error("{} SSL error(s) checking for an update:", n);
-    for (int i = 0; i < n; ++i) {
-        spdlog::error("SSL error # {} is {}", i, errors[i].errorString());
-    }
+    // Make sure errors are logged.
+    m_network_manager.logReplyErrors(reply, "UpdateChecker");
 }
 
 void UpdateChecker::OnUpdateReplyReceived() {
@@ -124,6 +113,9 @@ void UpdateChecker::OnUpdateReplyReceived() {
     if (has_newer_release() || has_newer_prerelease()) {
         emit UpdateAvailable();
     }
+
+    // Start the timer for the next udpate check.
+    m_timer.start();
 }
 
 std::vector<UpdateChecker::ReleaseTag> UpdateChecker::ParseReleaseTags(const QByteArray& bytes)
@@ -223,14 +215,11 @@ void UpdateChecker::AskUserToUpdate() {
     msgbox.exec();
     const auto clicked = msgbox.clickedButton();
 
-    // Save the latest releases into the settings file oinly if the
+    // Save the latest releases into the settings file only if the
     // user asked to skip them in the future.
     if (clicked == ignore_button) {
-        m_settings.setValue("skip_release", QString::fromStdString(m_latest_release.str()));
-        m_settings.setValue("skip_prerelease", QString::fromStdString(m_latest_prerelease.str()));
-    } else {
-        m_settings.setValue("skip_release", "");
-        m_settings.setValue("skip_prerelease", "");
+        m_settings.lastSkippedRelease(m_latest_release);
+        m_settings.lastSkippedPreRelease(m_latest_prerelease);
     }
 
     // Open a desktop web browser window if the user clicked that button.

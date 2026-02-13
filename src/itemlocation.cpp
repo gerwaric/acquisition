@@ -18,9 +18,9 @@ ItemLocation::ItemLocation()
     : m_type(ItemLocationType::STASH)
 {}
 
-ItemLocation::ItemLocation(const poe::Character &character, int tab_id)
+ItemLocation::ItemLocation(const poe::Character &character, int tab_index)
     : m_type{ItemLocationType::CHARACTER}
-    , m_tab_index{tab_id}
+    , m_tab_index{tab_index}
     , m_unique_id(character.id)
     , m_character{character.name}
     , m_character_sortname{character.name.toLower()}
@@ -28,12 +28,14 @@ ItemLocation::ItemLocation(const poe::Character &character, int tab_id)
     , m_league(character.league.value_or(QString()))
 {}
 
-ItemLocation::ItemLocation(const LegacyCharacter &character, int tab_id)
+ItemLocation::ItemLocation(const LegacyCharacter &character, int tab_index)
     : m_type{ItemLocationType::CHARACTER}
-    , m_tab_index{tab_id}
+    , m_tab_index{tab_index}
     , m_unique_id(character.id)
     , m_character{character.name}
     , m_character_sortname{character.name.toLower()}
+    , m_realm(character.realm)
+    , m_league(character.league)
 {}
 
 ItemLocation::ItemLocation(const QString &realm, const QString &league, const poe::StashTab &stash)
@@ -49,12 +51,14 @@ ItemLocation::ItemLocation(const QString &realm, const QString &league, const po
     Util::GetTabColor(stash, m_red, m_green, m_blue);
 }
 
-ItemLocation::ItemLocation(const LegacyStash &stash)
+ItemLocation::ItemLocation(const QString &realm, const QString &league, const LegacyStash &stash)
     : m_type{ItemLocationType::STASH}
     , m_tab_index{stash.index}
     , m_unique_id{stash.id}
     , m_tab_type{stash.type}
     , m_tab_label{stash.name}
+    , m_realm(realm)
+    , m_league(league)
 {
     if (stash.i && (*stash.i != stash.index)) {
         spdlog::error("ItemLocation: LegacyStash is inconsistent: i = {}, index = {}",

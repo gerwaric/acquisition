@@ -22,7 +22,20 @@ QDateTime ds::timestamp()
 
 void ds::logQueryError(const char *context, const QSqlQuery &q)
 {
-    const QString err = q.lastError().text();
+    const auto err = q.lastError();
+
+    const std::vector<std::pair<QString, QString>> errors = {
+        {"error", err.text()},
+        {"driverError", err.driverText()},
+        {"databaseError", err.databaseText()},
+        {"nativeErrorCode", err.nativeErrorCode()},
+    };
+    QStringList error_msgs;
+    for (const auto &[name, text] : errors) {
+        if (!text.isEmpty()) {
+            error_msgs.push_back(QString("%1='%2'").arg(name, text));
+        }
+    }
 
     // For some drivers, executedQuery() can be more informative than lastQuery()
     const QString sql = (q.executedQuery().isEmpty() ? q.lastQuery() : q.executedQuery())
@@ -30,7 +43,6 @@ void ds::logQueryError(const char *context, const QSqlQuery &q)
 
     const QStringList names = q.boundValueNames();
     const QVariantList values = q.boundValues();
-
     QStringList binds;
     binds.reserve(std::max(names.size(), values.size()));
 
@@ -50,9 +62,9 @@ void ds::logQueryError(const char *context, const QSqlQuery &q)
         }
     }
 
-    spdlog::error("{}: exec failed: '{}' executing '{}' with {}",
+    spdlog::error("{} query failed: '{}' for query='{}' and {}",
                   context,
-                  err,
+                  error_msgs.join(", "),
                   sql,
                   binds.join(", "));
 }

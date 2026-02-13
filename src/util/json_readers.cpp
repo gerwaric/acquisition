@@ -7,28 +7,8 @@
 #include "poe/types/league.h"
 #include "poe/types/stashtab.h"
 #include "poe/types/website/webstashtab.h"
-#include "util/glaze_qt.h" // IWYU pragma: keep
+#include "util/json_utils.h"
 #include "util/oauthtoken.h"
-#include "util/spdlog_qt.h" // IWYU pragma: keep
-
-namespace {
-
-    template<typename T>
-    std::optional<T> read_json(const QByteArray &json)
-    {
-        T result;
-        const std::string_view str{json.constData(), size_t(json.size())};
-        const auto err = glz::read_json(result, str);
-        if (err) {
-            const auto type = typeid(T).name();
-            const auto msg = glz::format_error(err, str);
-            spdlog::error("Error reading {} from json: {}", type, msg);
-            return std::nullopt;
-        }
-        return result;
-    }
-
-} // namespace
 
 std::optional<OAuthToken> json::readOAuthToken(const QByteArray &json)
 {

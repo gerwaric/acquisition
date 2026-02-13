@@ -4,20 +4,20 @@
 #pragma once
 
 #include <QObject>
+#include <QString>
 
 #include <optional>
 #include <vector>
 
 #include "poe/types/character.h"
 
-class QSqlDatabase;
 class QString;
 
-class CharacterRepo : public QObject
+class CharacterStore : public QObject
 {
     Q_OBJECT
 public:
-    explicit CharacterRepo(QSqlDatabase &db);
+    explicit CharacterStore(QStringView connName);
 
     std::optional<poe::Character> getCharacter(const QString &name, const QString &realm);
     std::vector<poe::Character> getCharacterList(const QString &realm,
@@ -33,5 +33,5 @@ public slots:
 private:
     bool saveListTransaction(const std::vector<poe::Character> &characters);
 
-    QSqlDatabase &m_db;
+    QString m_connName;
 };

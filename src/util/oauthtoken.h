@@ -15,13 +15,13 @@ struct OAuthToken
     static OAuthToken fromReply(QNetworkReply *reply);
     static OAuthToken fromTokens(const QVariantMap &tokens);
 
-    QString access_token;
-    long long expires_in{-1};
-    QString refresh_token;
-    QString scope;
     QString username;
+    QString scope;
     QString sub;
     QString token_type;
+    QByteArray access_token;
+    QByteArray refresh_token;
+    long long expires_in{-1};
 
     std::optional<QDateTime> birthday;
     std::optional<QDateTime> access_expiration;

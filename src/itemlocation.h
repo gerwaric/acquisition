@@ -28,10 +28,10 @@ public:
     Q_ENUM(ItemLocationType)
 
     ItemLocation();
-    ItemLocation(const poe::Character &character, int tab_id);
+    ItemLocation(const poe::Character &character, int tab_index);
+    ItemLocation(const LegacyCharacter &character, int tab_index);
     ItemLocation(const QString &realm, const QString &league, const poe::StashTab &stash);
-    ItemLocation(const LegacyCharacter &character, int tab_id);
-    ItemLocation(const LegacyStash &stash);
+    ItemLocation(const QString &realm, const QString &league, const LegacyStash &stash);
 
     ItemLocation getItemLocation(const poe::Item &item) const;
     void AddLegacyItemLocation(const LegacyItemLocation &item);

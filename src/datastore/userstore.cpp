@@ -8,48 +8,51 @@
 #include <QSqlQuery>
 #include <QUuid>
 
-#include "datastore/buyoutrepo.h"
-#include "datastore/characterrepo.h"
+#include "datastore/buyoutstore.h"
+#include "datastore/characterstore.h"
+#include "datastore/datarepo.h"
 #include "datastore/datastore_utils.h"
-#include "datastore/stashrepo.h"
+#include "datastore/stashstore.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 
-static constexpr int SCHEMA_VERSION = 1;
+static constexpr int SCHEMA_VERSION = 3;
 
 constexpr unsigned int QSQLITE_BUSY_TIMEOUT{5000};
 
 constexpr std::array CONNECTION_PRAGMAS{
-    "PRAGMA busy_timeout=5000",
-    "PRAGMA temp_store=MEMORY",
-    "PRAGMA journal_mode=WAL",
-    "PRAGMA synchronous=NORMAL",
-    "PRAGMA foreign_keys=OFF",
+    "PRAGMA busy_timeout=5000;",
+    "PRAGMA temp_store=MEMORY;",
+    "PRAGMA journal_mode=WAL;",
+    "PRAGMA synchronous=NORMAL;",
+    "PRAGMA foreign_keys=OFF;",
 };
 
 UserStore::UserStore(const QDir &dir, const QString &username)
+    : m_username(username)
+    , m_dir(dir)
 {
     const QString uuid = QUuid::createUuid().toString(QUuid::WithoutBraces);
-    const QString connection = "UserStore:" + username + ":" + uuid;
+    const QString connection = "UserStore:" + m_username + ":" + uuid;
     m_db = QSqlDatabase::addDatabase("QSQLITE", connection);
 
-    m_characters = std::make_unique<CharacterRepo>(m_db);
-    m_stashes = std::make_unique<StashRepo>(m_db);
-    m_buyouts = std::make_unique<BuyoutRepo>(m_db);
+    m_data = new DataRepo(m_db, this);
+    m_stashes = new StashRepo(m_db, this);
+    m_characters = new CharacterStore(m_db, this);
+    m_buyouts = new BuyoutStore(m_db, this);
 
     if (!m_db.isValid()) {
         spdlog::error("UserStore: database is not valid: {}", m_db.lastError().text());
         return;
     }
 
-    QDir dataDir(dir);
-    if (!dataDir.mkpath(dir.absolutePath())) {
-        spdlog::error("UserStore: unable to create directory: {}", dir.absolutePath());
+    if (!m_dir.mkpath(m_dir.absolutePath())) {
+        spdlog::error("UserStore: unable to create directory: {}", m_dir.absolutePath());
         return;
     }
 
-    const QString filename = dataDir.absoluteFilePath("userstore-" + username + ".db");
+    const QString filename = m_dir.absoluteFilePath("userstore-" + m_username + ".db");
     m_db.setDatabaseName(filename);
-    m_db.setConnectOptions(QString("QSQLITE_BUSY_TIMEOUT=%1").arg(QSQLITE_BUSY_TIMEOUT));
+    m_db.setConnectOptions(QString("QSQLITE_BUSY_TIMEOUT=%1;").arg(QSQLITE_BUSY_TIMEOUT));
     spdlog::debug("UserStore: created database connection '{}' to '{}'",
                   m_db.connectionName(),
                   m_db.databaseName());
@@ -103,7 +106,7 @@ UserStore::~UserStore()
 int UserStore::userVersion()
 {
     QSqlQuery q(m_db);
-    if (!q.exec("PRAGMA user_version")) {
+    if (!q.exec("PRAGMA user_version;")) {
         spdlog::error("UserStore: error getting user_version: {}", q.lastError().text());
     }
     return q.next() ? q.value(0).toInt() : 0;
@@ -114,7 +117,7 @@ void UserStore::migrate()
     QSqlQuery q(m_db);
 
     // Acquire a write lock so only one migrator proceeds.
-    if (!q.exec("BEGIN IMMEDIATE")) {
+    if (!q.exec("BEGIN IMMEDIATE;")) {
         return;
     }
 
@@ -126,23 +129,32 @@ void UserStore::migrate()
         return;
     }
 
+    if (!m_data->resetRepo()) {
+        ds::logQueryError("UserStore::migrate", q);
+        m_db.rollback();
+        return;
+    }
+
     if (!m_characters->resetRepo()) {
+        ds::logQueryError("UserStore::migrate", q);
         m_db.rollback();
         return;
     }
 
     if (!m_stashes->resetRepo()) {
+        ds::logQueryError("UserStore::migrate", q);
         m_db.rollback();
         return;
     }
 
     if (!m_buyouts->resetRepo()) {
+        ds::logQueryError("UserStore::migrate", q);
         m_db.rollback();
         return;
     }
 
     // Update the user_version.
-    if (!q.exec(QString("PRAGMA user_version=%1").arg(SCHEMA_VERSION))) {
+    if (!q.exec(QString("PRAGMA user_version=%1;").arg(SCHEMA_VERSION))) {
         spdlog::error("UserStore: error setting user_version: {}", q.lastError().text());
         m_db.rollback();
         return;

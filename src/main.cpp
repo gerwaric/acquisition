@@ -153,13 +153,10 @@ int main(int argc, char *argv[])
     spdlog::trace("SSL Library Build Version: {}", QSslSocket::sslLibraryBuildVersionString());
     spdlog::trace("SSL Library Version: {}", QSslSocket::sslLibraryVersionString());
 
-    // Run the main application, starting with the login dialog.
-    spdlog::info("Running application...");
-
-    // Construct an instance of Application.
-    Application app(appDataDir);
+    // Now we are create to create the application object.
+    Application app{appDataDir};
 
     // Start the main event loop.
-    spdlog::trace("main(): starting the event loop");
+    spdlog::info("Running application...");
     return a.exec();
 }

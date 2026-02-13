@@ -42,13 +42,16 @@ OAuthToken OAuthToken::fromTokens(const QVariantMap &tokens)
 {
     // clang-format off
     OAuthToken token{
-        .access_token  = tokens["access_token"].toString(),
-        .expires_in    = tokens["expires_in"].toLongLong(),
-        .refresh_token = tokens["refresh_token"].toString(),
-        .scope         = tokens["scope"].toString(),
-        .username      = tokens["username"].toString(),
-        .sub           = tokens["sub"].toString(),
-        .token_type    = tokens["token_type"].toString(),
+        .username           = tokens["username"].toString(),
+        .scope              = tokens["scope"].toString(),
+        .sub                = tokens["sub"].toString(),
+        .token_type         = tokens["token_type"].toString(),
+        .access_token       = tokens["access_token"].toByteArray(),
+        .refresh_token      = tokens["refresh_token"].toByteArray(),
+        .expires_in         = tokens["expires_in"].toLongLong(),
+        .birthday           = QDateTime(),
+        .access_expiration  = QDateTime(),
+        .refresh_expiration = QDateTime(),
     };
     // clang-format on
 

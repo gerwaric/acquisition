@@ -6,12 +6,13 @@
 #include <QRegularExpression>
 #include <QVariant>
 
-#include "application.h"
-#include "datastore/buyoutrepo.h"
-#include "datastore/datastore.h"
+#include "app/usersettings.h"
+#include "datastore/buyoutstore.h"
+#include "datastore/sessionstore.h"
 #include "item.h"
 #include "itemlocation.h"
-#include "util/glaze_qt.h"  // IWYU pragma: keep
+#include "util/glaze_qt.h" // IWYU pragma: keep
+#include "util/json_utils.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 
 struct SerializedBuyout
@@ -31,8 +32,9 @@ const std::unordered_map<QString, BuyoutType> BuyoutManager::m_string_to_buyout_
     {"~price", Buyout::BUYOUT_TYPE_FIXED},
 };
 
-BuyoutManager::BuyoutManager(DataStore &data, BuyoutRepo &repo)
-    : m_data(data)
+BuyoutManager::BuyoutManager(app::UserSettings &settings, SessionStore &data, BuyoutStore &repo)
+    : m_settings(settings)
+    , m_data(data)
     , m_repo(repo)
     , m_save_needed(false)
 {
@@ -125,57 +127,35 @@ void BuyoutManager::SetTab(const ItemLocation &location, const Buyout &buyout)
     }
 }
 
-void BuyoutManager::CompressTabBuyouts()
-{
-    // When tabs are renamed we end up with stale tab buyouts that aren't deleted.
-    // This function is to remove buyouts associated with tab names that don't
-    // currently exist.
-    std::set<QString> tmp;
-    for (const auto &loc : m_tabs) {
-        tmp.emplace(loc.id());
-    }
-
-    for (auto it = m_tab_buyouts.begin(), ite = m_tab_buyouts.end(); it != ite;) {
-        if (tmp.count(it->first) == 0) {
-            m_save_needed = true;
-            it = m_tab_buyouts.erase(it);
-        } else {
-            ++it;
-        }
-    }
-}
-
-void BuyoutManager::CompressItemBuyouts(const Items &items)
-{
-    // When items are moved between tabs or deleted their buyouts entries remain
-    // This function looks at buyouts and makes sure there is an associated item
-    // that exists
-    std::set<QString> tmp;
-    for (const auto &item_sp : items) {
-        const Item &item = *item_sp;
-        tmp.insert(item.id());
-    }
-
-    for (auto it = m_buyouts.cbegin(); it != m_buyouts.cend();) {
-        if (tmp.count(it->first) == 0) {
-            m_buyouts.erase(it++);
-        } else {
-            ++it;
-        }
-    }
-}
-
 void BuyoutManager::SetRefreshChecked(const ItemLocation &loc, bool value)
 {
-    m_save_needed = true;
-    m_refresh_checked[loc.id()] = value;
+    const auto it = m_refresh_checked.find(loc.id());
+    if (it != m_refresh_checked.end()) {
+        // The location is already in the map.
+        if (value != it->second) {
+            if (value) {
+                it->second = true;
+            } else {
+                m_refresh_checked.erase(loc.id());
+            }
+            m_save_needed = true;
+        }
+    } else {
+        // The location is not in the map.
+        if (value) {
+            m_refresh_checked[loc.id()] = value;
+            m_save_needed = true;
+        }
+    }
 }
 
 bool BuyoutManager::GetRefreshChecked(const ItemLocation &loc) const
 {
-    auto it = m_refresh_checked.find(loc.id());
-    bool refresh_checked = (it != m_refresh_checked.end()) ? it->second : true;
-    return (refresh_checked || GetRefreshLocked(loc));
+    if (GetRefreshLocked(loc)) {
+        return true;
+    }
+    const auto it = m_refresh_checked.find(loc.id());
+    return (it == m_refresh_checked.end()) ? false : it->second;
 }
 
 bool BuyoutManager::GetRefreshLocked(const ItemLocation &loc) const
@@ -302,7 +282,7 @@ void BuyoutManager::Deserialize(const QString &data, std::unordered_map<QString,
 void BuyoutManager::Save()
 {
     if (m_save_needed) {
-        m_data.Set("refresh_checked_state", Serialize(m_refresh_checked));
+        m_data.refreshChecked(write_json(m_refresh_checked));
         m_save_needed = false;
     }
 }
@@ -311,7 +291,10 @@ void BuyoutManager::Load()
 {
     m_buyouts = m_repo.getItemBuyouts();
     m_tab_buyouts = m_repo.getLocationBuyouts();
-    Deserialize(m_data.Get("refresh_checked_state"), m_refresh_checked);
+
+    const auto json = m_data.refreshChecked();
+    const auto result = read_json<std::unordered_map<QString, bool>>(json);
+    m_refresh_checked = result.value_or({});
 }
 void BuyoutManager::SetStashTabLocations(const std::vector<ItemLocation> &tabs)
 {

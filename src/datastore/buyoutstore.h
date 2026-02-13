@@ -4,20 +4,20 @@
 #pragma once
 
 #include <QObject>
+#include <QString>
 
 #include <unordered_map>
 
 #include "buyout.h"
 
-class QSqlDatabase;
-
 class Item;
 class ItemLocation;
 
-class BuyoutRepo : public QObject {
+class BuyoutStore : public QObject
+{
     Q_OBJECT
 public:
-    explicit BuyoutRepo(QSqlDatabase &db);
+    explicit BuyoutStore(QStringView connName);
 
     std::unordered_map<QString, Buyout> getItemBuyouts();
     std::unordered_map<QString, Buyout> getLocationBuyouts();
@@ -33,5 +33,13 @@ public slots:
     bool saveLocationBuyout(const Buyout &buyout, const ItemLocation &location);
 
 private:
-    QSqlDatabase &m_db;
+    QString m_connName;
+
+    std::unordered_map<QString, Buyout> getBuyouts(const QString &buyout_type);
+
+    bool saveBuyout(const Buyout &buyout,
+                    const ItemLocation &location,
+                    const std::optional<Item> item);
+
+    void removeBuyout(const ItemLocation &location, const std::optional<Item> item);
 };

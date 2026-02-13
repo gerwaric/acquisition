@@ -23,22 +23,21 @@ constexpr std::array REPOE_FILES = {"item_classes.min.json", "base_items.min.jso
 constexpr std::array STAT_TRANSLATIONS = {"stat_translations.min.json",
                                           "stat_translations/necropolis.min.json"};
 
-RePoE::RePoE(NetworkManager &network_manager)
+RePoE::RePoE(NetworkManager &network_manager, const QString &dataDir)
     : m_initialized(false)
     , m_network_manager(network_manager)
+    , m_data_dir(dataDir)
 {
     spdlog::trace("RePoE::RePoE() entered");
 }
 
-void RePoE::Init(const QString &data_dir)
+void RePoE::start()
 {
     spdlog::info("Initializing RePoE");
     if (m_initialized) {
         spdlog::info("RePoE is already initialized.");
         return;
     }
-
-    m_data_dir = data_dir;
 
     emit StatusUpdate(ProgramState::Initializing, "Waiting for RePoE version.");
 
@@ -49,6 +48,9 @@ void RePoE::Init(const QString &data_dir)
     QNetworkRequest request = QNetworkRequest(QUrl(url));
     QNetworkReply *reply = m_network_manager.get(request);
     connect(reply, &QNetworkReply::finished, this, &RePoE::OnVersionReceived);
+
+    // Make sure errors are logged.
+    m_network_manager.logReplyErrors(reply, "RePoE");
 }
 
 void RePoE::OnVersionReceived()
@@ -71,22 +73,22 @@ void RePoE::OnVersionReceived()
     reply->deleteLater();
 
     QDir repoe_dir(m_data_dir);
-    if (!repoe_dir.exists("repoe")) {
-        repoe_dir.mkdir("repoe");
+    if (!repoe_dir.exists()) {
+        repoe_dir.mkdir(m_data_dir);
     }
-    if (!repoe_dir.exists("repoe/stat_translations")) {
-        repoe_dir.mkdir("repoe/stat_translations");
+    if (!repoe_dir.exists("stat_translations")) {
+        repoe_dir.mkdir("stat_translations");
     }
 
     bool update = false;
     for (const auto &filename : REPOE_FILES) {
-        update |= !repoe_dir.exists("repoe/" + QString(filename));
+        update |= !repoe_dir.exists(QString(filename));
     }
     for (const auto &filename : STAT_TRANSLATIONS) {
-        update |= !repoe_dir.exists("repoe/" + QString(filename));
+        update |= !repoe_dir.exists(QString(filename));
     }
 
-    const QString version_path = repoe_dir.absoluteFilePath("repoe/version.txt");
+    const QString version_path = repoe_dir.absoluteFilePath("version.txt");
     QFile version_file(version_path);
     if (version_file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         QTextStream in(&version_file);
@@ -169,7 +171,7 @@ void RePoE::OnFileReceived()
         }
     }
 
-    const QString savefile = m_data_dir + "/repoe/" + filename;
+    const QString savefile = m_data_dir + "/" + filename;
     const QByteArray data = reply->readAll();
     reply->deleteLater();
 
@@ -209,7 +211,7 @@ void RePoE::FinishUpdate()
 
 QByteArray RePoE::ReadFile(const QString &filename)
 {
-    const QString filepath = m_data_dir + "/repoe/" + filename;
+    const QString filepath = m_data_dir + "/" + filename;
     QFile file(filepath);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         spdlog::error("RePoE: cannot open file for reading: {}", filepath);

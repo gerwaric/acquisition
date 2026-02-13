@@ -30,9 +30,8 @@
 
 #include <vector>
 
+#include "app/usersettings.h"
 #include "buyoutmanager.h"
-#include "currencymanager.h"
-#include "datastore/datastore.h"
 #include "filters.h"
 #include "imagecache.h"
 #include "item.h"
@@ -77,22 +76,18 @@ struct ImgurStatus
     ImgurStatus::Link data;
 };
 
-MainWindow::MainWindow(QSettings &settings,
+MainWindow::MainWindow(app::UserSettings &settings,
                        NetworkManager &network_manager,
                        RateLimiter &rate_limiter,
-                       DataStore &datastore,
                        ItemsManager &items_manager,
                        BuyoutManager &buyout_manager,
-                       CurrencyManager &currency_manager,
                        Shop &shop,
                        ImageCache &image_cache)
     : m_settings(settings)
     , m_network_manager(network_manager)
     , m_rate_limiter(rate_limiter)
-    , m_datastore(datastore)
     , m_items_manager(items_manager)
     , m_buyout_manager(buyout_manager)
-    , m_currency_manager(currency_manager)
     , m_shop(shop)
     , m_image_cache(image_cache)
     , ui(new Ui::MainWindow)
@@ -111,8 +106,8 @@ MainWindow::MainWindow(QSettings &settings,
 
     const QString title = QString("Acquisition [%1] - %2 League [%3]")
                               .arg(QString(APP_VERSION_STRING),
-                                   m_settings.value("league").toString(),
-                                   m_settings.value("account").toString());
+                                   m_settings.league(),
+                                   m_settings.username());
     setWindowTitle(title);
     setWindowIcon(QIcon(":/icons/icon.svg"));
 
@@ -314,7 +309,6 @@ void MainWindow::InitializeUi()
         widget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
         widget->resize(tabs->widget(idx)->minimumSizeHint());
         widget->adjustSize();
-        m_settings.setValue("tooltip_tab", idx);
     });
 
     // Connect the Tabs menu.
@@ -334,10 +328,10 @@ void MainWindow::InitializeUi()
             &MainWindow::OnSetTabRefreshInterval);
 
     connect(ui->actionGetMapStashes, &QAction::triggered, this, [this](bool checked) {
-        m_settings.setValue("get_map_stashes", checked);
+        m_settings.fetchMapStashes(checked);
     });
     connect(ui->actionGetUniqueStashes, &QAction::triggered, this, [this](bool checked) {
-        m_settings.setValue("get_unique_stashes", checked);
+        m_settings.fetchUniqueStashes(checked);
     });
 
     // Connect the Shop menu.
@@ -391,31 +385,19 @@ void MainWindow::InitializeUi()
     // Connect the Tooltip tab buttons
     connect(ui->uploadTooltipButton, &QPushButton::clicked, this, &MainWindow::OnUploadToImgur);
     connect(ui->pobTooltipButton, &QPushButton::clicked, this, &MainWindow::OnCopyForPOB);
-
-    // Connect the currency actions.
-    connect(ui->actionListCurrency,
-            &QAction::triggered,
-            &m_currency_manager,
-            &CurrencyManager::DisplayCurrency);
-    connect(ui->actionExportCurrency,
-            &QAction::triggered,
-            &m_currency_manager,
-            &CurrencyManager::ExportCurrency);
 }
 
 void MainWindow::LoadSettings()
 {
     // Make sure the theme button is checked.
-    const QString theme = m_settings.value("theme", "default").toString().toLower();
+    const QString theme = m_settings.theme();
     ui->actionSetDarkTheme->setChecked(theme == "dark");
     ui->actionSetLightTheme->setChecked(theme == "light");
-    ui->actionSetDefaultTheme->setChecked(theme == "default");
-    ui->actionGetMapStashes->setChecked(m_settings.value("get_map_stashes", false).toBool());
-    ui->actionGetUniqueStashes->setChecked(m_settings.value("get_unique_stashes", false).toBool());
-    ui->actionSetAutomaticTabRefresh->setChecked(m_settings.value("autoupdate").toBool());
+    ui->actionSetDefaultTheme->setChecked((theme != "light") && (theme != "dark"));
+    ui->actionGetMapStashes->setChecked(m_settings.fetchMapStashes());
+    ui->actionGetUniqueStashes->setChecked(m_settings.fetchUniqueStashes());
+    ui->actionSetAutomaticTabRefresh->setChecked(m_settings.autoupdate());
     UpdateShopMenu();
-
-    ui->itemInfoTypeTabs->setCurrentIndex(m_settings.value("tooltip_tab").toInt());
 }
 
 void MainWindow::OnExpandAll()
@@ -1066,12 +1048,13 @@ void MainWindow::OnShowPOESESSID()
     }
 
     // Load the session_id if it exists.
-    dialog->setTextValue(m_settings.value("session_id").toString());
+    //dialog->setTextValue(m_settings.value("session_id").toString());
+    spdlog::warn("MainWindow::OnShowPOESESSID: TBD");
 
     // Get the user input and set the session cookie.
     int code = dialog->exec();
     if (code == QDialog::DialogCode::Accepted) {
-        const QString poesessid = dialog->textValue();
+        const QByteArray poesessid = dialog->textValue().toUtf8();
         emit SetSessionId(poesessid);
     }
 }
@@ -1102,7 +1085,7 @@ void MainWindow::OnSetTabRefreshInterval()
                                         "Auto refresh items",
                                         "Refresh items every X minutes",
                                         QLineEdit::Normal,
-                                        m_settings.value("autoupdate_interval").toInt());
+                                        m_settings.autoupdateInterval());
     if (interval > 0) {
         m_items_manager.SetAutoUpdateInterval(interval);
     }
@@ -1158,7 +1141,7 @@ void MainWindow::OnSetDarkTheme(bool toggle)
         emit SetTheme("dark");
         ui->actionSetLightTheme->setChecked(false);
         ui->actionSetDefaultTheme->setChecked(false);
-        m_settings.setValue("theme", "dark");
+        m_settings.theme("dark");
     }
     ui->actionSetDarkTheme->setChecked(toggle);
 }
@@ -1169,7 +1152,7 @@ void MainWindow::OnSetLightTheme(bool toggle)
         emit SetTheme("light");
         ui->actionSetDarkTheme->setChecked(false);
         ui->actionSetDefaultTheme->setChecked(false);
-        m_settings.setValue("theme", "light");
+        m_settings.theme("light");
     }
     ui->actionSetLightTheme->setChecked(toggle);
 }
@@ -1180,7 +1163,7 @@ void MainWindow::OnSetDefaultTheme(bool toggle)
         emit SetTheme("default");
         ui->actionSetDarkTheme->setChecked(false);
         ui->actionSetLightTheme->setChecked(false);
-        m_settings.setValue("theme", "default");
+        m_settings.theme("default");
     }
     ui->actionSetDefaultTheme->setChecked(toggle);
 }
@@ -1197,13 +1180,12 @@ void MainWindow::OnSetLogging(spdlog::level::level_enum level)
     ui->actionLoggingTRACE->setChecked(level == spdlog::level::trace);
     const QString level_name = to_qstring(level);
     spdlog::info("Logging level set to {}", level_name);
-    m_settings.setValue("log_level", level_name);
+    m_settings.logLevel(level);
 }
 
 void MainWindow::OnImportBuyouts()
 {
-    const QString settings_path = m_settings.fileName();
-    const QString data_path = QFileInfo(settings_path).absolutePath();
+    const QString data_path = m_settings.userDir().absolutePath();
     const auto opts = QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks;
 
     const QString import_path = QFileDialog::getExistingDirectory(this,

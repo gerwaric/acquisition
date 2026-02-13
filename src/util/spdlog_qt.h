@@ -4,9 +4,11 @@
 #pragma once
 
 #include <QByteArray>
+#include <QByteArrayView>
 #include <QMetaEnum>
 #include <QNetworkReply>
 #include <QString>
+#include <QStringView>
 #include <QVariant>
 
 #include <spdlog/spdlog.h>
@@ -38,32 +40,63 @@ struct fmt::formatter<spdlog::level::level_enum>
 // Create a specialized formatter for QString.
 
 template<>
-struct fmt::formatter<QString>
+struct fmt::formatter<QString> : fmt::formatter<std::string_view>
 {
-    constexpr auto parse(fmt::format_parse_context &ctx) -> decltype(ctx.begin())
+    auto format(const QString &s, fmt::format_context &ctx) const -> fmt::format_context::iterator
     {
-        return ctx.end();
+        const QByteArray utf8 = s.toUtf8();
+        const std::string_view sv{utf8.constData(), static_cast<size_t>(utf8.size())};
+        return fmt::formatter<std::string_view>::format(sv, ctx);
     }
-    auto format(const QString &str, fmt::format_context &ctx) const -> decltype(ctx.out())
+};
+
+template<>
+struct fmt::formatter<QStringView> : fmt::formatter<std::string_view>
+{
+    auto format(QStringView s, fmt::format_context &ctx) const -> fmt::format_context::iterator
     {
-        const auto utf8 = str.toUtf8();
-        return fmt::format_to(ctx.out(), "{}", std::string_view(utf8.data(), utf8.size()));
+        const QByteArray utf8 = s.toUtf8();
+        const std::string_view sv{utf8.constData(), static_cast<size_t>(utf8.size())};
+        return fmt::formatter<std::string_view>::format(sv, ctx);
+    }
+};
+
+template<>
+struct fmt::formatter<QLatin1StringView> : fmt::formatter<std::string_view>
+{
+    auto format(QStringView s, fmt::format_context &ctx) const -> fmt::format_context::iterator
+    {
+        const QByteArray utf8 = s.toUtf8();
+        const std::string_view sv{utf8.constData(), static_cast<size_t>(s.size())};
+        return fmt::formatter<std::string_view>::format(sv, ctx);
     }
 };
 
 // Create a specialized formatter for QByteArray.
 
 template<>
-struct fmt::formatter<QByteArray>
+struct fmt::formatter<QByteArray> : fmt::formatter<std::string_view>
 {
-    constexpr auto parse(fmt::format_parse_context &ctx) -> decltype(ctx.begin())
+    auto format(const QByteArray &ba, fmt::format_context &ctx) const
+        -> fmt::format_context::iterator
     {
-        return ctx.end();
+        const char *data = reinterpret_cast<const char *>(ba.data());
+        const size_t n = static_cast<size_t>(ba.size());
+        const std::string_view sv{data ? data : "", n};
+        return fmt::formatter<std::string_view>::format(sv, ctx);
     }
-    auto format(const QByteArray &arr, fmt::format_context &ctx) const -> decltype(ctx.out())
+};
+
+template<>
+struct fmt::formatter<QByteArrayView> : fmt::formatter<std::string_view>
+{
+    auto format(QByteArrayView bav, fmt::format_context &ctx) const -> fmt::format_context::iterator
     {
-        const auto str = arr.toStdString();
-        return fmt::format_to(ctx.out(), "{}", str);
+        // QByteArrayView exposes data/size; its data may be null for empty.
+        const char *data = reinterpret_cast<const char *>(bav.data());
+        const size_t n = static_cast<size_t>(bav.size());
+        const std::string_view sv{data ? data : "", n};
+        return fmt::formatter<std::string_view>::format(sv, ctx);
     }
 };
 

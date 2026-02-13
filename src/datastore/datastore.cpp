@@ -1,150 +1,261 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
+// SPDX-FileCopyrightText: 2026 Tom Holz
 
-#include "datastore/datastore.h"
+#include "datastore/datarepo.h"
 
-#include "legacy/legacycharacter.h"
-#include "legacy/legacyitemlocation.h"
-#include "legacy/legacystash.h"
-#include "poe/types/item.h"
-#include "util/spdlog_qt.h" // IWYU pragma: keep
+#include <QSqlDatabase>
+#include <QSqlError>
+#include <QSqlQuery>
 
-void DataStore::SetInt(const QString &key, int value)
+#include "datastore/datastore_utils.h"
+#include "util/json_utils.h"
+
+constexpr const char *CREATE_DATA_TABLE{R"(
+CREATE TABLE IF NOT EXISTS data (
+    name        TEXT NOT NULL,
+    scope       TEXT NOT NULL,
+    updated_at  INT NOT NULL,
+    value       TEXT,
+    PRIMARY KEY(name, scope)
+);
+)"};
+
+constexpr const char *CONTAINS_SCOPED_VALUE{R"(
+SELECT EXISTS(
+    SELECT 1 FROM data WHERE name = :name AND scope = :scope
+);
+)"};
+
+constexpr const char *DELETE_SCOPED_VALUE{R"(
+DELETE FROM data WHERE name = :name AND scope = :scope
+)"};
+
+constexpr const char *INSERT_SCOPED_VALUE{R"(
+INSERT INTO data (name, scope, updated_at, value)
+VALUES (:name, :scope, :updated_at, :value)
+ON CONFLICT (name,scope) DO UPDATE SET
+    updated_at  = excluded.updated_at,
+    value       = excluded.value;
+)"};
+
+constexpr const char *SELECT_SCOPED_VALUE{R"(
+SELECT value FROM data WHERE name = :name AND scope = :scope
+)"};
+
+QString DataRepo::Key::toString() const
 {
-    Set(key, QString::number(value));
+    return write_json(*this);
 }
 
-int DataStore::GetInt(const QString &key, int default_value)
+bool DataRepo::Key::isValid() const
 {
-    return Get(key, QString::number(default_value)).toInt();
+    return !name.isEmpty() && !scope.isEmpty();
 }
 
-QString DataStore::Serialize(const Locations &tabs)
+DataRepo::DataRepo(QSqlDatabase &db, QObject *parent)
+    : QObject(parent)
+    , m_db(db)
+{}
+
+bool DataRepo::resetRepo()
 {
-    QStringList json;
-    json.reserve(tabs.size());
-    for (auto &tab : tabs) {
-        json.push_back(tab.json());
+    QSqlQuery q(m_db);
+
+    if (!q.exec("DROP TABLE IF EXISTS data;")) {
+        ds::logQueryError("DataRepo::resetRepo:exec", q);
+        return false;
     }
-    return "[" + json.join(",") + "]";
+    return ensureSchema();
 }
 
-QString DataStore::Serialize(const Items &items)
+bool DataRepo::ensureSchema()
 {
-    QStringList json;
-    json.reserve(items.size());
-    for (auto &item : items) {
-        json.push_back(item->json());
+    QSqlQuery q(m_db);
+
+    if (!q.exec(CREATE_DATA_TABLE)) {
+        ds::logQueryError("DataRepo::ensureSchema:exec", q);
+        return false;
     }
-    return "[" + json.join(",") + "]";
+    return true;
 }
 
-Locations DataStore::DeserializeTabs(const QString &json, ItemLocationType type)
+bool DataRepo::contains(const DataRepo::Key &key)
 {
-    const auto bytes = json.toUtf8();
-    const std::string_view sv{bytes, size_t(bytes.size())};
-
-    switch (type) {
-    case ItemLocationType::STASH:
-        return DeserializeStashTabs(sv);
-    case ItemLocationType::CHARACTER:
-        return DeserializeCharacterTabs(sv);
+    if (!key.isValid()) {
+        spdlog::error("DataRepo::contains: invalid key: {}", key.toString());
+        return false;
     }
 
-    spdlog::error("DataStore: cannot deserialize tabs: invalid location type: {}", type);
-    return {};
+    QSqlQuery q(m_db);
+    if (!q.prepare(CONTAINS_SCOPED_VALUE)) {
+        ds::logQueryError("DataRepo::contains:prepare", q);
+        return false;
+    }
+    q.bindValue(":name", key.name);
+    q.bindValue(":scope", key.scope);
+
+    if (!q.exec()) {
+        ds::logQueryError("DataRepo::contains:exec", q);
+        return false;
+    }
+    if (!q.next()) {
+        ds::logQueryError("DataRepo::contains:next", q);
+        return false;
+    }
+    return q.value(0).toBool();
 }
 
-Locations DataStore::DeserializeStashTabs(std::string_view json)
+bool DataRepo::remove(const DataRepo::Key &key)
 {
-    const auto result = glz::read_json<std::vector<LegacyStash>>(json);
-    if (!result) {
-        const auto msg = glz::format_error(result.error(), json);
-        spdlog::error("DataStore: error deserializing stash tabs: {}", msg);
-        return {};
+    if (!key.isValid()) {
+        spdlog::error("DataRepo::remove: invalid key: {}", key.toString());
+        return false;
     }
 
-    const auto stashes = *result;
-
-    Locations tabs;
-    tabs.reserve(stashes.size());
-    for (const auto &stash : stashes) {
-        tabs.emplace_back(stash);
+    QSqlQuery q(m_db);
+    if (!q.prepare(DELETE_SCOPED_VALUE)) {
+        ds::logQueryError("DataRepo::contains", q);
+        return false;
     }
-    return tabs;
+    q.bindValue(":name", key.name);
+    q.bindValue(":scope", key.scope);
+
+    if (!q.exec()) {
+        ds::logQueryError("DataRepo::contains:exec", q);
+        return false;
+    }
+    return true;
 }
 
-Locations DataStore::DeserializeCharacterTabs(std::string_view json)
+bool DataRepo::setByteArray(const DataRepo::Key &key, const QByteArray &value)
 {
-    const auto result = glz::read_json<std::vector<LegacyCharacter>>(json);
-    if (!result) {
-        const auto msg = glz::format_error(result.error(), json);
-        spdlog::error("DataStore: error deserializing character tabs: {}", msg);
-        return {};
-    }
-
-    const auto characters = *result;
-
-    Locations tabs;
-    tabs.reserve(characters.size());
-    for (const auto &character : characters) {
-        tabs.emplace_back(character, tabs.size());
-    }
-    return tabs;
+    return setValue(key, QVariant::fromValue(value));
 }
 
-Items DataStore::DeserializeItems(const QString &json, const ItemLocation &tab)
+bool DataRepo::setString(const DataRepo::Key &key, const QString &value)
 {
-    const auto bytes{json.toUtf8()};
-    const std::string_view sv{bytes, size_t(bytes.size())};
+    return setValue(key, QVariant::fromValue(value));
+}
 
-    std::vector<poe::Item> parsed_items;
-    std::vector<LegacyItemLocation> parsed_locations;
+bool DataRepo::setBool(const DataRepo::Key &key, bool value)
+{
+    return setValue(key, QVariant::fromValue(value));
+}
 
-    // We have to allow unknown keys otherwise parsing poe::Item will
-    // break beacuse older versions acquisition has injected special location
-    // metadata such as _type, _socketed, _x, and _y.
-    constexpr glz::opts permissive{.error_on_unknown_keys = false};
+bool DataRepo::setInt(const DataRepo::Key &key, int value)
+{
+    return setValue(key, QVariant::fromValue(value));
+}
 
-    // First parse the items ignoring the special location info.
-    auto ec = glz::read<permissive>(parsed_items, sv);
-    if (ec) {
-        const auto msg = glz::format_error(ec, sv);
-        spdlog::error("DataStore: error deserializing items: {}", msg);
-        return {};
+bool DataRepo::setUInt(const DataRepo::Key &key, uint value)
+{
+    return setValue(key, QVariant::fromValue(value));
+}
+
+bool DataRepo::setDouble(const DataRepo::Key &key, double value)
+{
+    return setValue(key, QVariant::fromValue(value));
+}
+
+bool DataRepo::setDateTime(const DataRepo::Key &key, const QDateTime &value)
+{
+    return setValue(key, QVariant::fromValue(value));
+}
+
+bool DataRepo::setValue(const DataRepo::Key &key, const QVariant &value)
+{
+    if (!key.isValid()) {
+        spdlog::error("DataRepo::setValue: invalid key: {}", key.toString());
+        return false;
     }
 
-    // Now parse the magic item location info acquisition attaches to each item.
-    ec = glz::read<permissive>(parsed_locations, sv);
-    if (ec) {
-        const auto msg = glz::format_error(ec, sv);
-        spdlog::error("DataStore: error deserializing legacy item location data: {}", msg);
-        return {};
+    QSqlQuery q(m_db);
+    if (!q.prepare(INSERT_SCOPED_VALUE)) {
+        ds::logQueryError("DataRepo::setValue", q);
+        return false;
+    }
+    q.bindValue(":name", key.name);
+    q.bindValue(":scope", key.scope);
+    q.bindValue(":updated_at", QDateTime::currentDateTime());
+    q.bindValue(":value", value);
+
+    if (!q.exec()) {
+        ds::logQueryError("DataRepo::setValue:exec", q);
+        return false;
+    }
+    return true;
+}
+
+QByteArray DataRepo::getByteArray(const DataRepo::Key &key, const QByteArray &default_value)
+{
+    QVariant out;
+    return getValue(key, out) ? out.toByteArray() : default_value;
+}
+
+QString DataRepo::getString(const DataRepo::Key &key, const QString &default_value)
+{
+    QVariant out;
+    return getValue(key, out) ? out.toString() : default_value;
+}
+
+bool DataRepo::getBool(const DataRepo::Key &key, bool default_value)
+{
+    QVariant out;
+    return getValue(key, out) ? out.toBool() : default_value;
+}
+
+int DataRepo::getInt(const DataRepo::Key &key, int default_value)
+{
+    QVariant out;
+    return getValue(key, out) ? out.toInt() : default_value;
+}
+
+uint DataRepo::getUInt(const DataRepo::Key &key, uint default_value)
+{
+    QVariant out;
+    return getValue(key, out) ? out.toUInt() : default_value;
+}
+
+QDateTime DataRepo::getDateTime(const DataRepo::Key &key, const QDateTime default_value)
+{
+    QVariant out;
+    return getValue(key, out) ? out.toDateTime() : default_value;
+}
+
+bool DataRepo::getValue(const DataRepo::Key &key, QVariant &out)
+{
+    if (!key.isValid()) {
+        spdlog::error("DataRepo::getValue: invalid key: {}", key.toString());
+        return false;
     }
 
-    const size_t num_items{parsed_items.size()};
+    QSqlQuery q(m_db);
+    if (!q.prepare(SELECT_SCOPED_VALUE)) {
+        ds::logQueryError("DataRepo::getValue:prepare", q);
+        return false;
+    }
+    q.bindValue(":name", key.name);
+    q.bindValue(":scope", key.scope);
 
-    // Make sure the two results have the same size.
-    if (parsed_locations.size() != num_items) {
-        spdlog::error("DataStore: deserialization mismatch: {} items, {} locations",
-                      parsed_items.size(),
-                      parsed_locations.size());
-        return {};
+    if (!q.exec()) {
+        ds::logQueryError("DataRepo::getValue:exec", q);
+        return false;
+    }
+    if (!q.next()) {
+        return false;
     }
 
-    // Preallocate the return value.
-    Items items;
-    items.reserve(num_items);
-
-    // Iterate over each item in the serialized json.
-    for (size_t i = 0; i < num_items; ++i) {
-        const auto &item = parsed_items[i];
-        const auto &location_info = parsed_locations[i];
-        // Create a new location and make sure location-related information
-        // such as x and y are pulled from the item json.
-        ItemLocation loc = tab.getItemLocation(item);
-        loc.AddLegacyItemLocation(location_info);
-        items.push_back(std::make_shared<Item>(item, loc));
+    const QVariant &value = q.value(0);
+    if (value.isNull()) {
+        return false;
     }
-    return items;
+    if (!value.isValid()) {
+        spdlog::warn("DataRepo: invalid value for name='{}', scope='{}': '{}'",
+                     key.name,
+                     key.scope,
+                     value);
+        return false;
+    }
+    out = value;
+    return true;
 }
