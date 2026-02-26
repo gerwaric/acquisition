@@ -1,4 +1,5 @@
 # Acquisition
+
 Acquisition is an inventory management tool for [Path of Exile](https://www.pathofexile.com/) that has been around for over a decade:
 
 - You can download all of your stash tabs and character inventories for offline search.
@@ -8,6 +9,17 @@ Acquisition is an inventory management tool for [Path of Exile](https://www.path
 Acquisition can run on Windows, macOS, Linux.
 
 You can download setup packages from [the releases page](https://github.com/gerwaric/acquisition/releases).
+
+**NOTICE:** I'm on hiatus until May 2026 because of AI bootcamp that is taking 110% of my waking hours. In the meantime, you have two options:
+
+1. [v0.16.0-alpha.7](https://github.com/gerwaric/acquisition/releases/tag/v0.16.0-alpha.7) - has a lot of new stuff including pseudomod support, but the databases are incompatible and you will not see any older buyouts. There are also some crashes happening at startup that I haven't diagnosed yet.
+2. [v0.15.0](https://github.com/gerwaric/acquisition/releases/tag/v0.15.0) - probably the safer bet right now.
+
+Once I'm working on acquisition again, I'll remove this notice.
+
+--gerwaric
+
+---
 
 ## Building Acquisition
 
