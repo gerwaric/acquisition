@@ -21,7 +21,7 @@ echo -------------------------------------------------------------
 
 setlocal
 
-set "QTBIN=C:\Qt\6.10.1\msvc2022_64\bin"
+set "QTBIN=C:\Qt\6.10.2\msvc2022_64\bin"
 if not exist "%QTBIN%\." (
     echo ERROR: QTBIN directory not found: "%QTBIN%"
     exit /B
@@ -51,7 +51,7 @@ if not exist "%ISCC%" (
     exit /B
 )
 
-set "BUILD_DIR=.\build\Desktop_Qt_6_10_1_MSVC2022_64bit-Release"
+set "BUILD_DIR=.\build\Desktop_Qt_6_10_2_MSVC2022_64bit-Release"
 if not exist "%BUILD_DIR%\." (
     echo ERROR: build directory not found: "%BUILD_DIR%"
     exit /B

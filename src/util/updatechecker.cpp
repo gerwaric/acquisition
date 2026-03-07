@@ -168,7 +168,12 @@ std::vector<UpdateChecker::ReleaseTag> UpdateChecker::ParseReleaseTags(const QBy
             if (version_string.startsWith("v", Qt::CaseInsensitive)) {
                 version_string.remove(0, 1);
             };
-            release.version = semver::version::parse(version_string.toStdString());
+            try {
+                release.version = semver::version::parse(version_string.toStdString());
+            } catch (const semver::semver_exception &e) {
+                spdlog::warn("Cannot parse version from GitHub release tag: {}", version_string);
+                continue;
+            }
         };
 
         // Make sure we found a parseable version number
