@@ -16,7 +16,7 @@ project(acquisition
 )
 
 # Use this to define pre-releases
-set(app_version_suffix "-alpha.7")
+set(app_version_suffix "-alpha.8")
 
 # Variables used in version_defines.h and platforn-specific files and properties.
 set(app_name            "${CMAKE_PROJECT_NAME}")

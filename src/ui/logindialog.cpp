@@ -255,11 +255,14 @@ void LoginDialog::OnLeaguesReceived()
     // we need to clear the setting, since the list of leagues may have
     // changed since the last time acquisition was run.
     if (use_saved_league) {
-        spdlog::trace("LoginDialog::OnLeaguesReceived() setting current league to {}", saved_league);
+        spdlog::trace("LoginDialog::OnLeaguesReceived() setting league to saved value: {}",
+                      saved_league);
         ui->leagueComboBox->setCurrentText(saved_league);
     } else {
-        spdlog::trace("LoginDialog::OnLeaguesReceived() clearing the saved league");
-        m_settings.setValue("league", "");
+        const auto league = leagues->front().name.value_or("Standard");
+        spdlog::trace("LoginDialog::OnLeaguesReceived() setting league to default value: {}",
+                      league);
+        m_settings.setValue("league", league);
     }
 
     // Now that leagues have been received, start listening for changes.
@@ -310,6 +313,8 @@ void LoginDialog::LoginWithOAuth()
         const OAuthToken &token = m_current_token.value();
         if (token.access_expiration && (now < *token.access_expiration)) {
             m_settings.setValue("account", token.username);
+            m_settings.setValue("realm", ui->realmComboBox->currentText());
+            m_settings.setValue("league", ui->leagueComboBox->currentText());
             emit LoginComplete();
         } else if (token.refresh_expiration && (now < *token.refresh_expiration)) {
             DisplayError("The OAuth token needs to be refreshed");
