@@ -114,13 +114,16 @@ namespace poe {
         std::optional<QString> id;            // ? string a unique 64 digit hexadecimal string
         std::optional<std::vector<QString>>
             gemSockets; // ? array of string; PoE2 only; string is always W
-        std::optional<poe::Item::Influences> influences;     // ? object
-        std::optional<bool> elder;                           // ? bool always true if present
-        std::optional<bool> shaper;                          // ? bool always true if present
-        std::optional<bool> searing;                         // ? bool always true if present
-        std::optional<bool> tangled;                         // ? bool always true if present
-        std::optional<bool> memoryItem;                      // ? bool always true if present
-        std::optional<bool> mutated;                         // ? bool always true if present
+        std::optional<poe::Item::Influences> influences; // ? object
+        std::optional<bool> elder;                       // ? bool always true if present
+        std::optional<bool> shaper;                      // ? bool always true if present
+        std::optional<bool> searing;                     // ? bool always true if present
+        std::optional<bool> tangled;                     // ? bool always true if present
+        std::optional<bool> memoryItem;                  // ? bool always true if present
+        std::optional<bool> mutated;                     // ? bool always true if present
+        std::optional<QString> builtInSupport; // ? string PoE1 only; Supported by level 1 x
+        std::optional<int>
+            monsterLevel; // ? string PoE1 only; used for items that always display their monster level
         std::optional<bool> abyssJewel;                      // ? bool always true if present
         std::optional<bool> delve;                           // ? bool always true if present
         std::optional<bool> fractured;                       // ? bool always true if present
@@ -171,9 +174,9 @@ namespace poe {
         std::optional<std::vector<QString>> implicitMods; // ? array of string
         std::optional<std::vector<poe::Item::UltimatumMods>> ultimatumMods; // ? array of object
         std::optional<std::vector<QString>> explicitMods;                   // ? array of string
-        std::optional<std::vector<QString>> bondedMods; // ? array of string; PoE2 only
-        std::optional<std::vector<QString>> craftedMods;                    // ? array of string
-        std::optional<std::vector<QString>> fracturedMods;                  // ? array of string
+        std::optional<std::vector<QString>> bondedMods;    // ? array of string; PoE2 only
+        std::optional<std::vector<QString>> craftedMods;   // ? array of string
+        std::optional<std::vector<QString>> fracturedMods; // ? array of string
         std::optional<std::vector<QString>>
             mutatedMods; // ? array of string; PoE1: Foulborn Unique mods, PoE2: Vaal Unique mods
         std::optional<std::vector<QString>>
