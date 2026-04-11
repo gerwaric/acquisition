@@ -11,7 +11,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         submodules: recursive
         fetch-depth: 0
@@ -89,7 +89,7 @@ jobs:
         echo "version=$version" >> $env:GITHUB_OUTPUT
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: acquisition-installer-${{ steps.version.outputs.version }}
         path: |
