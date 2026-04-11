@@ -27,7 +27,15 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y patchelf openssl libfuse2
+        sudo apt-get install -y \
+          patchelf openssl libfuse2 \
+          libcurl4-openssl-dev \
+          libgl-dev \
+          libssl-dev \
+          libvulkan-dev \
+          libxcb-cursor0 \
+          libxcb-cursor-dev \
+          zlib1g-dev
 
     - name: Download linuxdeploy
       run: |
