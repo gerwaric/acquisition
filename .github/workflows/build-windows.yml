@@ -40,7 +40,7 @@ jobs:
           -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}"
 
     - name: Build
-      run: cmake --build build --parallel
+      run: cmake --build build --config Release --parallel 4
 
     - name: Prepare deployment
       run: |
