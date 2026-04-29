@@ -1,33 +1,23 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2024 Tom Holz
 
-    This file is part of Acquisition.
+#include "util/networkmanager.h"
 
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
-#include "networkmanager.h"
-#include "network_info.h"
-
-#include "util/spdlog_qt.h"
-
-#include <QNetworkDiskCache>
 #include <QDir>
+#include <QNetworkCookie>
+#include <QNetworkCookieJar>
+#include <QNetworkDiskCache>
 #include <QStandardPaths>
 
-// Prevent unused header warnings in Qt Creator.
-static_assert(ACQUISITION_USE_SPDLOG);
+#include "util/spdlog_qt.h" // IWYU pragma: keep
+#include "version_defines.h"
+
+constexpr const char *USER_AGENT = APP_NAME "/" APP_VERSION_STRING " (contact: " APP_PUBLISHER_EMAIL
+                                            ")";
+
+constexpr const char *POE_COOKIE_NAME = "POESESSID";
+constexpr const char *POE_COOKIE_DOMAIN = ".pathofexile.com";
+constexpr const char *POE_COOKIE_PATH = "/";
 
 // Size of the network disk cache.
 constexpr const int CACHE_SIZE_MEGABYTES = 100;
@@ -83,6 +73,18 @@ NetworkManager::NetworkManager(QObject *parent)
     setCache(m_diskCache);
 }
 
+void NetworkManager::setPoeSessionId(const QString &poesessid)
+{
+    QString masked = poesessid;
+    masked.fill('*');
+    spdlog::debug("NetworkManager: setting POESESSID: {} (masked for security)", masked);
+
+    QNetworkCookie cookie{POE_COOKIE_NAME, poesessid.toUtf8()};
+    cookie.setPath(POE_COOKIE_PATH);
+    cookie.setDomain(POE_COOKIE_DOMAIN);
+    cookieJar()->insertCookie(cookie);
+}
+
 void NetworkManager::setBearerToken(const QString &token)
 {
     m_bearerToken = token.isEmpty() ? QByteArrayLiteral("")
@@ -102,8 +104,10 @@ QNetworkReply *NetworkManager::createRequest(QNetworkAccessManager::Operation op
     if (host == POE_API_HOST) {
         // Add a bearer token for api calls.
         if (m_bearerToken.isEmpty()) {
-            spdlog::error("API call may fail because the bearer token is empty: {}", request.url().toString());
+            spdlog::error("API call may fail because the bearer token is empty: {}",
+                          request.url().toString());
         } else {
+            spdlog::trace("NetworkManager: setting bearer token: {}", m_bearerToken);
             request.setRawHeader("Authorization", m_bearerToken);
         }
     } else if (host == POE_CDN_HOST) {

@@ -37,6 +37,8 @@ Notes:
     - libssl-dev
     - libvulkan-dev
     - gcc-13 and g++-13 (for std::expected, which is used by the glaze json library)
+    - libcurl4-openssl-dev
+    - zlib1g-dev
 - Other packages may be required on other distributions.
 
 When runing the installer, choose "Custom Installation". Then, in addition to the default selection, add the following:

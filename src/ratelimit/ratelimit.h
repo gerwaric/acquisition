@@ -1,21 +1,5 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
-
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2023 Tom Holz
 
 #pragma once
 
@@ -24,6 +8,8 @@
 #include <QDateTime>
 #include <QObject>
 #include <QString>
+
+#include "util/spdlog_qt.h"
 
 class QNetworkReply;
 
@@ -110,3 +96,8 @@ namespace RateLimit {
     QDateTime ParseDate(QNetworkReply *const reply);
     int ParseStatus(QNetworkReply *const reply);
 } // namespace RateLimit
+
+// Create a formatting so we can print RateLimit::Status with spdlog.
+template<>
+struct fmt::formatter<RateLimit::Status, char> : QtEnumFormatter<RateLimit::Status>
+{};

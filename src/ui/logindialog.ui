@@ -131,10 +131,13 @@
       <enum>QFrame::Shadow::Raised</enum>
      </property>
      <layout class="QFormLayout" name="formLayout_2">
-      <item row="3" column="0">
-       <widget class="QCheckBox" name="proxyCheckBox">
+      <item row="1" column="0">
+       <widget class="QCheckBox" name="rememberMeCheckBox">
         <property name="text">
-         <string>Use system proxy</string>
+         <string>Remember me</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
         </property>
        </widget>
       </item>
@@ -148,54 +151,44 @@
         </property>
        </widget>
       </item>
-      <item row="1" column="0">
-       <widget class="QCheckBox" name="rememberMeCheckBox">
+      <item row="3" column="0">
+       <widget class="QCheckBox" name="proxyCheckBox">
         <property name="text">
-         <string>Remember me</string>
-        </property>
-        <property name="checked">
-         <bool>true</bool>
+         <string>Use system proxy</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="0">
+      <item row="4" column="0">
        <widget class="QLabel" name="loggingLevelLabel">
         <property name="text">
          <string>Logging Level</string>
         </property>
        </widget>
       </item>
-      <item row="5" column="1">
+      <item row="4" column="1">
        <widget class="QComboBox" name="loggingLevelComboBox"/>
       </item>
-      <item row="6" column="0">
+      <item row="5" column="0">
        <widget class="QLabel" name="themeLabel">
         <property name="text">
          <string>Theme</string>
         </property>
        </widget>
       </item>
-      <item row="6" column="1">
+      <item row="5" column="1">
        <widget class="QComboBox" name="themeComboBox"/>
       </item>
-      <item row="7" column="0">
+      <item row="6" column="0">
        <widget class="QLabel" name="userDirLabel">
         <property name="text">
          <string>Profile Folder</string>
         </property>
        </widget>
       </item>
-      <item row="7" column="1">
+      <item row="6" column="1">
        <widget class="QPushButton" name="userDirButton">
         <property name="text">
          <string/>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="0">
-       <widget class="QCheckBox" name="buyoutValidationCheckBox">
-        <property name="text">
-         <string>Re-enable buyout validation</string>
         </property>
        </widget>
       </item>

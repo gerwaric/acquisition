@@ -1,21 +1,5 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
-
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
 #pragma once
 
@@ -61,7 +45,7 @@ public:
     virtual bool Matches(const std::shared_ptr<Item> &item, FilterData *data) = 0;
 
     std::unique_ptr<FilterData> CreateData();
-    bool IsActive() const { return m_active; };
+    bool IsActive() const { return m_active; }
 
 protected:
     bool m_active{false};
@@ -107,6 +91,20 @@ public:
 
 private:
     Filter *m_filter;
+};
+
+class TabSearchFilter : public Filter
+{
+public:
+    explicit TabSearchFilter(QLayout *parent);
+    void FromForm(FilterData *data);
+    void ToForm(FilterData *data);
+    void ResetForm();
+    bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
+    void Initialize(QLayout *parent);
+
+private:
+    QLineEdit *m_textbox;
 };
 
 class NameSearchFilter : public Filter

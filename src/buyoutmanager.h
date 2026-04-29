@@ -1,46 +1,37 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
-
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
 #pragma once
 
 #include "item.h"
 
 #include <QDateTime>
+#include <QObject>
 #include <QString>
 
 #include <set>
+#include <unordered_map>
 
 #include "buyout.h"
 
+class Item;
 class ItemLocation;
 class DataStore;
+class BuyoutRepo;
 
-class BuyoutManager
+class BuyoutManager : public QObject
 {
+    Q_OBJECT
 public:
-    explicit BuyoutManager(DataStore &data);
+    explicit BuyoutManager(DataStore &data, BuyoutRepo &repo);
     ~BuyoutManager();
-    void Set(const Item &item, const Buyout &buyout);
-    Buyout Get(const Item &item) const;
 
-    void SetTab(const QString &tab, const Buyout &buyout);
-    Buyout GetTab(const QString &tab) const;
+    void Set(const Item &item, const Buyout &buyout);
+    void SetTab(const ItemLocation &location, const Buyout &buyout);
+
+    Buyout Get(const Item &item) const;
+    Buyout GetTab(const ItemLocation &location) const;
+
     void CompressTabBuyouts();
     void CompressItemBuyouts(const Items &items);
 
@@ -60,23 +51,30 @@ public:
     void Save();
     void Load();
 
-    void MigrateItem(const Item &item);
+    void MigrateItem(const QString &old_hash, const QString &new_hash);
+    void ImportBuyouts(const QString &filename);
+
+signals:
+    bool SetItemBuyout(const Buyout &buyout, const Item &item);
+    bool SetLocationBuyout(const Buyout &buyout, const ItemLocation &location);
 
 private:
     BuyoutType StringToBuyoutType(QString bo_str) const;
 
-    QString Serialize(const std::map<QString, Buyout> &buyouts);
-    void Deserialize(const QString &data, std::map<QString, Buyout> *buyouts);
+    QString Serialize(const std::unordered_map<QString, Buyout> &buyouts);
+    void Deserialize(const QString &data, std::unordered_map<QString, Buyout> &buyouts);
 
-    QString Serialize(const std::map<QString, bool> &obj);
-    void Deserialize(const QString &data, std::map<QString, bool> &obj);
+    QString Serialize(const std::unordered_map<QString, bool> &obj);
+    void Deserialize(const QString &data, std::unordered_map<QString, bool> &obj);
 
     DataStore &m_data;
-    std::map<QString, Buyout> m_buyouts;
-    std::map<QString, Buyout> m_tab_buyouts;
-    std::map<QString, bool> m_refresh_checked;
+    BuyoutRepo &m_repo;
+
+    std::unordered_map<QString, Buyout> m_buyouts;
+    std::unordered_map<QString, Buyout> m_tab_buyouts;
+    std::unordered_map<QString, bool> m_refresh_checked;
     std::set<QString> m_refresh_locked;
     bool m_save_needed;
     std::vector<ItemLocation> m_tabs;
-    static const std::map<QString, BuyoutType> m_string_to_buyout_type;
+    static const std::unordered_map<QString, BuyoutType> m_string_to_buyout_type;
 };

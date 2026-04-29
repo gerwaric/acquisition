@@ -1,23 +1,7 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
-#include "sqlitedatastore.h"
+#include "datastore/sqlitedatastore.h"
 
 #include <QCryptographicHash>
 #include <QDir>
@@ -26,9 +10,8 @@
 #include <QSqlQuery>
 #include <QThread>
 
-#include <util/spdlog_qt.h>
-
-#include <currencymanager.h>
+#include "currencymanager.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
 SqliteDataStore::SqliteDataStore(const QString &filename)
     : m_filename(filename)
@@ -153,12 +136,11 @@ void SqliteDataStore::CleanItemsTable()
         query.finish();
 
         for (const auto &loc : locs) {
-            rapidjson::Document doc;
             bool foundLoc = false;
 
             //check stash tabs
             for (const auto &stashTab : stashTabData) {
-                if (loc == stashTab.get_tab_uniq_id()) {
+                if (loc == stashTab.id()) {
                     foundLoc = true;
                     break;
                 }
@@ -167,7 +149,7 @@ void SqliteDataStore::CleanItemsTable()
             //check character tabs
             if (!foundLoc) {
                 for (const auto &charTab : charsData) {
-                    if (loc == charTab.get_character()) {
+                    if (loc == charTab.character()) {
                         foundLoc = true;
                         break;
                     }
@@ -224,12 +206,12 @@ Locations SqliteDataStore::GetTabs(const ItemLocationType type)
         return {};
     }
     const QString json = query.value(0).toString();
-    return DeserializeTabs(json);
+    return DeserializeTabs(json, type);
 }
 
 Items SqliteDataStore::GetItems(const ItemLocation &loc)
 {
-    const QString tab_uid = loc.get_tab_uniq_id();
+    const QString tab_uid = loc.id();
     QSqlDatabase db = getThreadLocalDatabase();
     QSqlQuery query(db);
     query.prepare("SELECT value FROM items WHERE loc = ?");
@@ -274,17 +256,17 @@ void SqliteDataStore::SetTabs(const ItemLocationType type, const Locations &tabs
 
 void SqliteDataStore::SetItems(const ItemLocation &loc, const Items &items)
 {
-    if (loc.get_tab_uniq_id().isEmpty()) {
+    if (loc.id().isEmpty()) {
         spdlog::warn("Cannot set items because the location is empty");
         return;
     }
     QSqlDatabase db = getThreadLocalDatabase();
     QSqlQuery query(db);
     query.prepare("INSERT OR REPLACE INTO items (loc, value) VALUES (?, ?)");
-    query.bindValue(0, loc.get_tab_uniq_id());
+    query.bindValue(0, loc.id());
     query.bindValue(1, Serialize(items));
     if (query.exec() == false) {
-        spdlog::error("Error setting tabs for type {}", loc.get_tab_uniq_id());
+        spdlog::error("Error setting tabs for type {}", loc.id());
     }
 }
 

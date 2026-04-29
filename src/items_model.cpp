@@ -1,32 +1,15 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
-
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
 #include "items_model.h"
-
-#include <util/spdlog_qt.h>
-#include <util/util.h>
 
 #include "application.h"
 #include "bucket.h"
 #include "buyoutmanager.h"
 #include "itemlocation.h"
 #include "search.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
+#include "util/util.h"
 
 ItemsModel::ItemsModel(BuyoutManager &bo_manager, Search &search)
     : m_bo_manager(bo_manager)
@@ -118,13 +101,13 @@ QVariant ItemsModel::data(const QModelIndex &index, int role) const
                 return "All Items";
             }
             QString title(location.GetHeader());
-            auto const &bo = m_bo_manager.GetTab(location.GetUniqueHash());
+            const auto bo = m_bo_manager.GetTab(location);
             if (bo.IsActive()) {
                 title += QString(" [%1]").arg(bo.AsText());
             }
             return title;
         }
-        if (location.IsValid() && location.get_type() == ItemLocationType::STASH) {
+        if (location.IsValid() && location.type() == ItemLocationType::STASH) {
             if (role == Qt::BackgroundRole) {
                 QColor backgroundColor(location.getR(), location.getG(), location.getB());
                 if (backgroundColor.isValid()) {
@@ -191,11 +174,11 @@ bool ItemsModel::setData(const QModelIndex &index, const QVariant &value, int ro
         // way to differentiate these tabs so indicate dataChanged event for each tab with
         // the same name as the current checked tab so the 'check' is properly updated in
         // the layout
-        QString target_hash = location.GetUniqueHash();
+        QString target_hash = location.id();
         auto row_count = rowCount();
         for (int i = 0; i < row_count; ++i) {
             auto match_index = this->index(i);
-            if (m_search.GetTabLocation(match_index).GetUniqueHash() == target_hash) {
+            if (m_search.GetTabLocation(match_index).id() == target_hash) {
                 emit dataChanged(match_index, match_index);
             }
         }

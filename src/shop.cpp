@@ -1,21 +1,5 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
-
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
 #include "shop.h"
 
@@ -30,20 +14,20 @@
 #include <QUrl>
 #include <QUrlQuery>
 
-#include "poe/types/website/webstashtab.h"
-#include <datastore/datastore.h>
-#include <ratelimit/ratelimitedreply.h>
-#include <ratelimit/ratelimiter.h>
-#include <ui/mainwindow.h>
-#include <util/networkmanager.h>
-#include <util/spdlog_qt.h>
-#include <util/util.h>
-
 #include "application.h"
 #include "buyoutmanager.h"
+#include "datastore/datastore.h"
 #include "item.h"
 #include "itemsmanager.h"
+#include "poe/types/website/webstashtab.h"
+#include "ratelimit/ratelimitedreply.h"
+#include "ratelimit/ratelimiter.h"
 #include "replytimeout.h"
+#include "ui/mainwindow.h"
+#include "util/json_readers.h"
+#include "util/networkmanager.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
+#include "util/util.h"
 
 namespace {
 
@@ -240,14 +224,11 @@ void Shop::OnStashIndexReceived(bool force, QNetworkReply *reply)
         spdlog::debug("Shop: http reply status {} indexing stashes", status);
     }
 
-    const QByteArray bytes = reply->readAll();
-    const std::string_view sv{bytes.constData(), static_cast<size_t>(bytes.size())};
-
     // Parse the stash tab list.
-    poe::WebStashListWrapper tabs_wrapper;
-    auto ec = glz::read<GLAZE_OPTIONS>(tabs_wrapper, sv);
-    if (ec) {
-        spdlog::error("Shop: error parsing stash list: {}", glz::format_error(ec, sv));
+    const QByteArray bytes = reply->readAll();
+    const auto tabs_wrapper = json::readWebStashListWrapper(bytes);
+    if (!tabs_wrapper) {
+        spdlog::error("Shop: error parsing stash list");
         m_submitting = false;
         return;
     }
@@ -256,12 +237,12 @@ void Shop::OnStashIndexReceived(bool force, QNetworkReply *reply)
 
     // Rebuild the tab index.
     m_tab_index.clear();
-    if (!tabs_wrapper.tabs) {
+    if (!tabs_wrapper->tabs) {
         spdlog::error("Shop: stash list result does not contains tabs list.");
         m_submitting = false;
         return;
     }
-    const auto &tabs = tabs_wrapper.tabs.value();
+    const auto &tabs = tabs_wrapper->tabs.value();
     spdlog::debug("Shop: received legacy tabs list, there are {} tabs", tabs.size());
     for (const auto &tab : tabs) {
         const unsigned index = tab.i;
@@ -356,10 +337,10 @@ void Shop::UpdateShopData()
         }
         const ItemLocation loc = aug.item->location();
         QString item_string;
-        if (loc.get_type() == ItemLocationType::CHARACTER) {
+        if (loc.type() == ItemLocationType::CHARACTER) {
             item_string = loc.GetForumCode(realm, league, 0);
         } else {
-            const QString uid = loc.get_tab_uniq_id();
+            const QString uid = loc.id();
             const auto it = m_tab_index.find(uid);
             if (it == m_tab_index.end()) {
                 spdlog::error("Shop: cannot determine tab index for {} in {}",

@@ -1,21 +1,5 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
-
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
 #pragma once
 
@@ -34,6 +18,7 @@ class CurrencyManager;
 class DataStore;
 class ImageCache;
 class ItemsManager;
+class ItemsManagerWorker;
 class LoginDialog;
 class MainWindow;
 class NetworkManager;
@@ -42,67 +27,89 @@ struct OAuthToken;
 class RateLimiter;
 class RePoE;
 class Shop;
+class UserStore;
 class UpdateChecker;
 
 class Application : public QObject
 {
     Q_OBJECT
 public:
-    explicit Application();
+    explicit Application(const QDir &appDataDir);
     ~Application();
     Application(const Application &) = delete;
     Application &operator=(const Application &) = delete;
+
     void InitLogin();
 
-private:
-    QSettings &settings() const;
-    ItemsManager &items_manager() const;
-    DataStore &global_data() const;
-    DataStore &data() const;
-    BuyoutManager &buyout_manager() const;
-    NetworkManager &network_manager() const;
-    RePoE &repoe() const;
-    Shop &shop() const;
-    ImageCache &image_cache() const;
-    CurrencyManager &currency_manager() const;
-    UpdateChecker &update_checker() const;
-    OAuthManager &oauth_manager() const;
-    RateLimiter &rate_limiter() const;
-
 public slots:
-    void Start(const QDir &appDataDir);
     void SetSessionId(const QString &poesessid);
     void SetTheme(const QString &theme);
     void SetUserDir(const QString &dir);
     void OnLogin();
     void OnItemsRefreshed(bool initial_refresh);
-    void OnRunTests();
 
 private:
-    void Stop();
-    void InitUserDir(const QString &dir);
+    struct CoreServices
+    {
+        CoreServices(const QDir &appDataDir);
+
+        const QDir dir;
+        std::unique_ptr<QSettings> settings;
+        std::unique_ptr<NetworkManager> network_manager;
+        std::unique_ptr<DataStore> global_data;
+        std::unique_ptr<UpdateChecker> update_checker;
+        std::unique_ptr<OAuthManager> oauth_manager;
+        std::unique_ptr<RePoE> repoe;
+        std::unique_ptr<ImageCache> image_cache;
+        std::unique_ptr<LoginDialog> login;
+    };
+
+    struct UserSession
+    {
+        UserSession(const Application::CoreServices &core);
+
+        std::unique_ptr<DataStore> data;
+        std::unique_ptr<UserStore> userstore;
+        std::unique_ptr<RateLimiter> rate_limiter;
+        std::unique_ptr<BuyoutManager> buyout_manager;
+        std::unique_ptr<ItemsManager> items_manager;
+        std::unique_ptr<ItemsManagerWorker> items_worker;
+        std::unique_ptr<Shop> shop;
+        std::unique_ptr<CurrencyManager> currency_manager;
+        std::unique_ptr<MainWindow> main_window;
+    };
+
+    CoreServices &core() const;
+
+    inline QSettings &settings() const { return *core().settings; }
+    inline NetworkManager &network_manager() const { return *core().network_manager; }
+    inline UpdateChecker &update_checker() const { return *core().update_checker; }
+    inline OAuthManager &oauth_manager() const { return *core().oauth_manager; }
+    inline DataStore &global_data() const { return *core().global_data; }
+    inline RePoE &repoe() const { return *core().repoe; }
+    inline ImageCache &image_cache() const { return *core().image_cache; }
+    inline LoginDialog &login() const { return *core().login; }
+
+    UserSession &session() const;
+
+    inline DataStore &data() const { return *session().data; }
+    inline UserStore &userstore() const { return *session().userstore; }
+    inline RateLimiter &rate_limiter() const { return *session().rate_limiter; }
+    inline BuyoutManager &buyout_manager() const { return *session().buyout_manager; }
+    inline ItemsManager &items_manager() const { return *session().items_manager; }
+    inline ItemsManagerWorker &items_worker() const { return *session().items_worker; }
+    inline Shop &shop() const { return *session().shop; }
+    inline CurrencyManager &currency_manager() const { return *session().currency_manager; }
+    inline MainWindow &main_window() const { return *session().main_window; }
+
+    void InitCoreServices();
+    void InitUserSession();
+
     void InitCrashReporting();
-    void SaveDbOnNewVersion();
+    void SaveDataOnNewVersion();
 
-    std::unique_ptr<QSettings> m_settings;
-
-    std::unique_ptr<NetworkManager> m_network_manager;
-
-    std::unique_ptr<RePoE> m_repoe;
-    std::unique_ptr<DataStore> m_global_data;
-    std::unique_ptr<DataStore> m_data;
-    std::unique_ptr<UpdateChecker> m_update_checker;
-    std::unique_ptr<OAuthManager> m_oauth_manager;
-
-    std::unique_ptr<BuyoutManager> m_buyout_manager;
-    std::unique_ptr<Shop> m_shop;
-    std::unique_ptr<ItemsManager> m_items_manager;
-    std::unique_ptr<CurrencyManager> m_currency_manager;
-    std::unique_ptr<RateLimiter> m_rate_limiter;
-    std::unique_ptr<ImageCache> m_image_cache;
-
-    std::unique_ptr<LoginDialog> m_login;
-    std::unique_ptr<MainWindow> m_main_window;
+    std::unique_ptr<CoreServices> m_core;
+    std::unique_ptr<UserSession> m_session;
 
     QDir m_data_dir;
     QString m_active_theme;

@@ -1,24 +1,9 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
-
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
 #pragma once
 
+#include <QHashFunctions> // Needed to avoid obscure errors in std::unordered_map with QString keys.
 #include <QString>
 
 #include <array>
@@ -27,15 +12,13 @@
 #include <unordered_map>
 #include <vector>
 
-#include <rapidjson/document.h>
-
 #include "itemlocation.h"
 
-constexpr std::array<const char *, 5> ITEM_MOD_TYPES = {"implicitMods",
-                                                        "enchantMods",
-                                                        "explicitMods",
-                                                        "craftedMods",
-                                                        "fracturedMods"};
+namespace poe {
+
+    struct Item;
+
+}
 
 struct ItemSocketGroup
 {
@@ -89,8 +72,9 @@ public:
         EATER_OF_WORLDS
     };
 
-    explicit Item(const rapidjson::Value &json, const ItemLocation &loc);
-    explicit Item(const QString &name, const ItemLocation &location); // used by tests
+    Item(const poe::Item &item, const ItemLocation &base_location);
+
+    QString id() const { return m_uid; }
     QString name() const { return m_name; }
     QString typeLine() const { return m_typeLine; }
     QString PrettyName() const;
@@ -127,7 +111,7 @@ public:
     const std::vector<ItemRequirement> &text_requirements() const { return m_text_requirements; }
     const std::map<QString, ItemMods> &text_mods() const { return m_text_mods; }
     const std::vector<ItemSocket> &text_sockets() const { return m_text_sockets; }
-    const QString &hash() const { return m_hash; }
+    const QString &hash_v4() const { return m_hash; }
     const QString &old_hash() const { return m_old_hash; }
     const std::vector<std::pair<QString, int>> &elemental_damage() const
     {
@@ -160,8 +144,8 @@ private:
     void CalculateCategories();
     // The point of GenerateMods is to create combined (e.g. implicit+explicit) poe.trade-like mod map to be searched by mod filter.
     // For now it only does that for a small chosen subset of mods (think "popular" + "pseudo" sections at poe.trade)
-    void GenerateMods(const rapidjson::Value &json);
-    void CalculateHash(const rapidjson::Value &json);
+    void GenerateMods(const poe::Item &json);
+    void CalculateHash(const poe::Item &json);
 
     QString m_name;
     ItemLocation m_location;
@@ -177,14 +161,17 @@ private:
     bool m_synthesized{false};
     bool m_mutated{false};
     std::vector<INFLUENCE_TYPES> m_influenceList;
-    int m_w{0}, m_h{0};
+    int m_w{0};
+    int m_h{0};
     int m_frameType{0};
     QString m_icon;
     std::map<QString, QString> m_properties;
-    QString m_old_hash, m_hash;
+    QString m_old_hash;
+    QString m_hash;
     // vector of pairs [damage, type]
     std::vector<std::pair<QString, int>> m_elemental_damage;
-    int m_sockets_cnt{0}, m_links_cnt{0};
+    int m_sockets_cnt{0};
+    int m_links_cnt{0};
     ItemSocketGroup m_sockets{0, 0, 0, 0};
     std::vector<ItemSocketGroup> m_socket_groups;
     std::map<QString, int> m_requirements;

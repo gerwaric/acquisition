@@ -1,25 +1,9 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2015 Ilya Zhuravlev
 
-    This file is part of Acquisition.
+#include "datastore/memorydatastore.h"
 
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
-#include "memorydatastore.h"
-
-#include <currencymanager.h>
+#include "currencymanager.h"
 
 QString MemoryDataStore::Get(const QString &key, const QString &default_value)
 {
@@ -41,7 +25,7 @@ Locations MemoryDataStore::GetTabs(const ItemLocationType type)
 
 Items MemoryDataStore::GetItems(const ItemLocation &loc)
 {
-    auto i = m_items.find(loc.get_tab_uniq_id());
+    auto i = m_items.find(loc.id());
     if (i == m_items.end()) {
         return {};
     }
@@ -60,7 +44,7 @@ void MemoryDataStore::SetTabs(const ItemLocationType type, const Locations &tabs
 
 void MemoryDataStore::SetItems(const ItemLocation &loc, const Items &items)
 {
-    m_items[loc.get_tab_uniq_id()] = items;
+    m_items[loc.id()] = items;
 }
 
 void MemoryDataStore::InsertCurrencyUpdate(const CurrencyUpdate &update)

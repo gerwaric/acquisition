@@ -4,7 +4,10 @@
 #pragma once
 
 #include <QLayout>
+#include <QLayoutItem>
+#include <QList>
 #include <QRect>
+#include <QSize>
 #include <QStyle>
 
 class FlowLayout : public QLayout

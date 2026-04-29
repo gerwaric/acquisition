@@ -1,23 +1,7 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
-#include "logindialog.h"
+#include "ui/logindialog.h"
 #include "ui_logindialog.h"
 
 #include <QDesktopServices>
@@ -37,20 +21,16 @@
 #include <QUrl>
 #include <QUrlQuery>
 
-#include <poe/types/league.h>
-
-// #include "legacy/legacybuyoutvalidator.h" -- DISABLED as of v0.12.3.1
-#include <datastore/datastore.h>
-#include <util/crashpad.h>
-#include <util/networkmanager.h>
-#include <util/oauthmanager.h>
-#include <util/spdlog_qt.h>
-#include <util/updatechecker.h>
-#include <util/util.h>
-#include <version_defines.h>
-
-#include <network_info.h>
-#include <replytimeout.h>
+#include "datastore/datastore.h"
+#include "poe/types/league.h"
+#include "replytimeout.h"
+#include "util/json_readers.h"
+#include "util/networkmanager.h"
+#include "util/oauthmanager.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
+#include "util/updatechecker.h"
+#include "util/util.h"
+#include "version_defines.h"
 
 #include "mainwindow.h"
 
@@ -79,7 +59,7 @@ LoginDialog::LoginDialog(const QDir &app_data_dir,
     // Set window properties.
     spdlog::trace("LoginDialog::LoginDialog() setting window properties");
     setWindowTitle(QString("Acquisition Login [") + APP_VERSION_STRING + "]");
-    setWindowIcon(QIcon(":/icons/assets/icon.svg"));
+    setWindowIcon(QIcon(":/icons/icon.svg"));
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
     // Setup the realm options.
@@ -243,11 +223,15 @@ void LoginDialog::OnLeaguesReceived()
     // Check for network errors.
     if (reply->error()) {
         spdlog::trace("LoginDialog::OnLeaguesReceived() reply error {}", reply->error());
-        return LeaguesRequestError(reply->errorString(), bytes);
+        LeaguesRequestError(reply->errorString(), bytes);
+        return;
     }
 
     // Parse the leagues.
-    const auto leagues = Util::parseJson<std::vector<poe::League>>(bytes);
+    const auto leagues = json::readLeagueList(bytes);
+    if (!leagues) {
+        return;
+    }
 
     // Get the league from settings.ini
     const QString saved_league = m_settings.value("league").toString();
@@ -256,7 +240,7 @@ void LoginDialog::OnLeaguesReceived()
     bool use_saved_league = false;
 
     ui->leagueComboBox->clear();
-    for (auto &league : leagues) {
+    for (auto &league : *leagues) {
         // Add the league to the combo box.
         ui->leagueComboBox->addItem(league.id);
 
@@ -271,10 +255,11 @@ void LoginDialog::OnLeaguesReceived()
     // we need to clear the setting, since the list of leagues may have
     // changed since the last time acquisition was run.
     if (use_saved_league) {
-        spdlog::trace("LoginDialog::OnLeaguesReceived() setting current league to {}", saved_league);
+        spdlog::trace("LoginDialog::OnLeaguesReceived() setting league to saved value: {}",
+                      saved_league);
         ui->leagueComboBox->setCurrentText(saved_league);
     } else {
-        const auto league = leagues.front().name.value_or("Standard");
+        const auto league = leagues->front().name.value_or("Standard");
         spdlog::trace("LoginDialog::OnLeaguesReceived() setting league to default value: {}",
                       league);
         m_settings.setValue("league", league);
@@ -328,6 +313,8 @@ void LoginDialog::LoginWithOAuth()
         const OAuthToken &token = m_current_token.value();
         if (token.access_expiration && (now < *token.access_expiration)) {
             m_settings.setValue("account", token.username);
+            m_settings.setValue("realm", ui->realmComboBox->currentText());
+            m_settings.setValue("league", ui->leagueComboBox->currentText());
             emit LoginComplete();
         } else if (token.refresh_expiration && (now < *token.refresh_expiration)) {
             DisplayError("The OAuth token needs to be refreshed");
@@ -428,10 +415,7 @@ void LoginDialog::OnReportCrashesCheckBoxChanged(Qt::CheckState state)
         const bool enable_reporting = (msgbox.clickedButton() == yes);
         m_settings.setValue("report_crashes", enable_reporting);
         if (enable_reporting) {
-            initializeCrashpad(m_app_data_dir.absolutePath(),
-                               APP_PUBLISHER,
-                               APP_NAME,
-                               APP_VERSION_STRING);
+            spdlog::info("TBD: crash reporting checkbox");
         } else {
             ui->reportCrashesCheckBox->setChecked(false);
         }

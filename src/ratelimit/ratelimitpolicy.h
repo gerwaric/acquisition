@@ -1,21 +1,5 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
-
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2023 Tom Holz
 
 #pragma once
 
@@ -25,7 +9,7 @@
 #include <QMetaObject>
 #include <QString>
 
-#include "ratelimit.h"
+#include "ratelimit/ratelimit.h"
 
 class QByteArray;
 class QDateTime;
@@ -59,9 +43,9 @@ class RateLimitData
 {
 public:
     RateLimitData(const QByteArray &header_fragment);
-    int hits() const { return m_hits; };
-    int period() const { return m_period; };
-    int restriction() const { return m_restriction; };
+    int hits() const { return m_hits; }
+    int period() const { return m_period; }
+    int restriction() const { return m_restriction; }
 
 private:
     int m_hits;
@@ -74,9 +58,9 @@ class RateLimitItem
 public:
     RateLimitItem(const QByteArray &limit_fragment, const QByteArray &state_fragment);
     bool Check(const RateLimitItem &other) const;
-    const RateLimitData &limit() const { return m_limit; };
-    const RateLimitData &state() const { return m_state; };
-    RateLimit::Status status() const { return m_status; };
+    const RateLimitData &limit() const { return m_limit; }
+    const RateLimitData &state() const { return m_state; }
+    RateLimit::Status status() const { return m_status; }
 
 private:
     RateLimitData m_limit;
@@ -89,8 +73,8 @@ class RateLimitRule
 public:
     RateLimitRule(const QByteArray &name, QNetworkReply *const reply);
     bool Check(const RateLimitRule &other) const;
-    const QString &name() const { return m_name; };
-    const std::vector<RateLimitItem> &items() const { return m_items; };
+    const QString &name() const { return m_name; }
+    const std::vector<RateLimitItem> &items() const { return m_items; }
 
 private:
     const QString m_name;
@@ -103,17 +87,17 @@ class RateLimitPolicy
 public:
     RateLimitPolicy(QNetworkReply *const reply);
     bool Check(const RateLimitPolicy &other) const;
-    const QString &name() const { return m_name; };
-    const std::vector<RateLimitRule> &rules() const { return m_rules; };
-    RateLimit::Status status() const { return m_status; };
-    int maximum_hits() const { return m_maximum_hits; };
+    const QString &name() const { return m_name; }
+    const std::vector<RateLimitRule> &rules() const { return m_rules; }
+    RateLimit::Status status() const { return m_status; }
+    int maximum_hits() const { return m_maximum_hits; }
     QDateTime GetNextSafeSend(const std::deque<RateLimit::Event> &history);
     QDateTime EstimateDuration(int request_count, int minimum_delay_msec) const;
 
     // Report generators for logging.
     QString GetPolicyReport() const;
     QString GetHistoryReport(const std::deque<RateLimit::Event> &history) const;
-    QString GetBorderlineReport() const { return m_report; };
+    QString GetBorderlineReport() const { return m_report; }
 
 private:
     const QString m_name;

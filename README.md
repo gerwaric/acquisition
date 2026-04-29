@@ -29,7 +29,7 @@ See [BUILD.md](https://github.com/gerwaric/acquisition/blob/master/BUILD.md) for
 
 ## Command line
 
-`acquisition [--data-dir <path>] [--log-level <level>] [--test]`
+`acquisition [--data-dir <path>] [--log-level <level>]`
 
 `--data-dir <path>`:
 	Set the path where Acquisition should save its data.
@@ -43,9 +43,6 @@ See [BUILD.md](https://github.com/gerwaric/acquisition/blob/master/BUILD.md) for
  	This option is case-insensitive.
 	The default level for release builds is `INFO`.
 	The default level for debug builds is `TRACE`.
-
-`--test`:
-	run tests. Zero exit code on success, other values indicate errors.
 
 ## Reporting issues
 

@@ -1,21 +1,5 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
-
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
 #pragma once
 
@@ -26,16 +10,16 @@
 #include <QString>
 #include <QUrlQuery>
 
-#include <rapidjson/document.h>
-
-//#include <util/json_struct_qt.h>
-#include <util/glaze_qt.h>
-#include <util/spdlog_qt.h>
+#include "util/spdlog_qt.h"
 
 class QComboBox;
 class QNetworkReply;
 
 struct Buyout;
+
+namespace poe {
+    struct StashTab;
+}
 
 namespace Util {
     Q_NAMESPACE
@@ -55,6 +39,7 @@ namespace Util {
     enum class TabSelection { All, Checked, Selected, TabsOnly };
     Q_ENUM_NS(TabSelection)
 
+    QByteArray toPathBytes(const QString &path);
     QString Md5(const QString &value);
     double AverageDamage(const QString &s);
     void PopulateBuyoutTypeComboBox(QComboBox *combobox);
@@ -62,22 +47,11 @@ namespace Util {
 
     int TextWidth(TextWidthId id);
 
-    void ParseJson(QNetworkReply *reply, rapidjson::Document *doc);
+    //void ParseJson(QNetworkReply *reply, rapidjson::Document *doc);
     QString GetCsrfToken(const QByteArray &page, const QString &name);
     QString FindTextBetween(const QString &page, const QString &left, const QString &right);
 
-    QString RapidjsonSerialize(const rapidjson::Value &val);
-    QString RapidjsonPretty(const rapidjson::Value &val);
-    void RapidjsonAddString(rapidjson::Value *object,
-                            const char *const name,
-                            const QString &value,
-                            rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator> &alloc);
-    void RapidjsonAddInt64(rapidjson::Value *object,
-                           const char *const name,
-                           qint64 value,
-                           rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator> &alloc);
-
-    void GetTabColor(rapidjson::Value &json, int &r, int &g, int &b);
+    void GetTabColor(const poe::StashTab &stash, int &r, int &g, int &b);
 
     QString StringReplace(const QString &haystack, const QString &needle, const QString &replace);
     QColor recommendedForegroundTextColor(const QColor &backgroundColor);
@@ -106,45 +80,6 @@ namespace Util {
     QString toString(const T &value)
     {
         return QMetaEnum::fromType<T>().valueToKey(static_cast<std::underlying_type_t<T>>(value));
-    }
-
-    template <typename T>
-    void parseJson(const std::string& json, T& out)
-    {
-        // glz::read_json returns an error object; it is "truthy" if there WAS an error.
-        const auto ec = glz::read_json<T>(out, json);
-        if (ec) {
-            const auto msg = glz::format_error(ec, json);
-            spdlog::error("Error parsing json into {}: {}", typeid(T).name(), msg);
-        }
-    }
-
-    template<typename T>
-    inline void parseJson(const QByteArray &json, T &out)
-    {
-        parseJson<T>(json.toStdString(), out);
-    }
-
-    template<typename T>
-    inline void parseJson(const QString &json, T &out)
-    {
-        parseJson<T>(json.toUtf8(), out);
-    }
-
-    template<typename T>
-    inline T parseJson(const QByteArray &json)
-    {
-        T result;
-        parseJson<T>(json, result);
-        return result;
-    }
-
-    template<typename T>
-    inline T parseJson(const QString &json)
-    {
-        T result;
-        parseJson<T>(json.toUtf8(), result);
-        return result;
     }
 
 } // namespace Util

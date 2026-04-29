@@ -1,68 +1,77 @@
 name: Build & Package (macOS)
 
 on:
+  push:
+    tags: ['v*']
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: macos-latest-large
+  build-macos-dmg:
+    runs-on: macos-latest
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v6
       with:
         submodules: recursive
+        fetch-depth: 0
 
-    - name: Install Qt
+    - name: Setup Qt
       uses: jurplel/install-qt-action@v4
       with:
-        version: 6.8.1
-        modules: 'qthttpserver qtwebsockets'
+        version: '6.10.2'
+        modules: 'qtnetworkauth'
+        cache: true
+        cache-key-prefix: 'qt-6.10.2-macos'
+
+    - name: Configure CMake
+      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
 
     - name: Build
+      run: cmake --build build --parallel 3
+
+    - name: Get version
+      id: version
       run: |
-        mkdir -p build
-        cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Release
-        cmake --build . --parallel
+        version=$(grep APP_VERSION_STRING build/version_defines.h | cut -d'"' -f2)
+        echo "version=$version"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
 
-    - name: Save Output Name to Environemnt
-      run:
-        echo "OUTPUT_NAME=acquisition-${{ github.ref_name }}" >> $GITHUB_ENV
+    - name: Package DMG
+      run: |
+        $QT_ROOT_DIR/bin/macdeployqt \
+          build/acquisition.app \
+          -verbose=2 \
+          -always-overwrite \
+          -appstore-compliant \
+          -dmg
 
-    - name: Verify Output Name
-      run:
-        echo "Output Name is ${OUTPUT_NAME}"
+    - name: Rename DMG
+      run: |
+        mv build/acquisition.dmg \
+          "build/Acquisition_${{ steps.version.outputs.version }}_arm64.dmg"
 
-    - name: Upload Executable Artifact
-      uses: actions/upload-artifact@v4
+    - name: Upload DMG artifact
+      uses: actions/upload-artifact@v7
       with:
-        name: ${{ env.OUTPUT_NAME }}.app
-        path: build/acquisition.app
+        name: Acquisition_${{ steps.version.outputs.version }}_arm64.dmg
+        path: build/Acquisition_*.dmg
+        retention-days: 30
 
-    - name: Upload Debug Symbols Artifact
-      uses: actions/upload-artifact@v4
+    - name: Upload debug symbols artifact
+      uses: actions/upload-artifact@v7
       with:
-        name: ${{ env.OUTPUT_NAME }}.dSYM
+        name: Acquisition_${{ steps.version.outputs.version }}_arm64.dSYM
         path: build/acquisition*.dSYM
+        retention-days: 30
 
-    - name: Package .dmg
-      run:
-        ${QT_PATH}/bin/macdeployqt acquisition.app -appstore-compliant -dmg
-
-    - name: Rename .dmg
-      run:
-        mv acquisition.dmg ${OUTPUT_NAME}.dmg
-
-    - name: Upload AppImage Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: ${{ env.OUTPUT_NAME }}.dmg
-        path: acquisition*.dmg
-
-    - name: Update Release
+    - name: Create draft release
+      if: startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v2
       with:
-        name: RELEASE_DRAFT
+        files: build/Acquisition_*.dmg
+        generate_release_notes: true
         draft: true
-        files: ${{ env.OUTPUT_NAME }}.dmg
+        prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

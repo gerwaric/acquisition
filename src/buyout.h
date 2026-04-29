@@ -1,21 +1,5 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
-
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
 #pragma once
 
@@ -25,9 +9,8 @@
 
 #include <map>
 
-#include <util/spdlog_qt.h>
-
 #include "currency.h"
+#include "util/spdlog_qt.h"
 
 struct Buyout
 {
@@ -47,25 +30,40 @@ public:
         BUYOUT_SOURCE_NONE,
         BUYOUT_SOURCE_MANUAL,
         BUYOUT_SOURCE_GAME,
-        BUYOUT_SOURCE_AUTO
+        BUYOUT_SOURCE_AUTO,
     };
     Q_ENUM(BuyoutSource)
 
     typedef std::map<BuyoutType, QString> BuyoutTypeMap;
     typedef std::map<BuyoutSource, QString> BuyoutSourceMap;
 
-    double value;
-    BuyoutType type;
+    Buyout() = default;
+    Buyout(double m_value, BuyoutType m_type, Currency m_currency, QDateTime m_last_update)
+        : value(m_value)
+        , type(m_type)
+        , currency(m_currency)
+        , last_update(m_last_update)
+    {}
+
+    double value{0.0};
+    BuyoutType type{BuyoutType::BUYOUT_TYPE_INHERIT};
     BuyoutSource source{BUYOUT_SOURCE_MANUAL};
-    Currency currency;
+    Currency currency{CurrencyType::CURRENCY_NONE};
     QDateTime last_update;
-    bool inherited = false;
+    bool inherited{false};
+
     bool operator==(const Buyout &o) const;
     bool operator!=(const Buyout &o) const;
+    bool IsNull() const
+    {
+        return (value == 0.0) && (type == BuyoutType::BUYOUT_TYPE_INHERIT)
+               && (source == BUYOUT_SOURCE_MANUAL) && (currency == CurrencyType::CURRENCY_NONE)
+               && last_update.isNull() && (inherited == false);
+    };
     bool IsValid() const;
     bool IsActive() const;
-    bool IsInherited() const { return inherited || type == BuyoutType::BUYOUT_TYPE_INHERIT; };
-    bool IsSavable() const { return IsValid() && !(type == BUYOUT_TYPE_INHERIT); };
+    bool IsInherited() const { return inherited || type == BuyoutType::BUYOUT_TYPE_INHERIT; }
+    bool IsSavable() const { return IsValid() && !(type == BUYOUT_TYPE_INHERIT); }
     bool IsPostable() const;
     bool IsPriced() const;
     bool IsGameSet() const;
@@ -80,18 +78,6 @@ public:
     const QString &BuyoutTypeAsPrefix() const;
     const QString &BuyoutSourceAsTag() const;
     const QString &CurrencyAsTag() const;
-
-    Buyout()
-        : value(0)
-        , type(BuyoutType::BUYOUT_TYPE_INHERIT)
-        , currency(CurrencyType::CURRENCY_NONE)
-    {}
-    Buyout(double m_value, BuyoutType m_type, Currency m_currency, QDateTime m_last_update)
-        : value(m_value)
-        , type(m_type)
-        , currency(m_currency)
-        , last_update(m_last_update)
-    {}
 
 private:
     static const QString m_buyout_type_error;

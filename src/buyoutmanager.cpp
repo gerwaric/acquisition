@@ -1,46 +1,39 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
-
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
 #include "buyoutmanager.h"
 
 #include <QRegularExpression>
 #include <QVariant>
 
-#include <rapidjson/document.h>
-#include <rapidjson/error/en.h>
-
-#include <datastore/datastore.h>
-#include <util/spdlog_qt.h>
-#include <util/util.h>
-
 #include "application.h"
+#include "datastore/buyoutrepo.h"
+#include "datastore/datastore.h"
+#include "item.h"
 #include "itemlocation.h"
+#include "util/glaze_qt.h"  // IWYU pragma: keep
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
-const std::map<QString, BuyoutType> BuyoutManager::m_string_to_buyout_type = {
+struct SerializedBuyout
+{
+    QString currency;
+    bool inherited;
+    quint64 last_update;
+    QString source;
+    QString type;
+    double value;
+};
+
+const std::unordered_map<QString, BuyoutType> BuyoutManager::m_string_to_buyout_type = {
     {"~gb/o", Buyout::BUYOUT_TYPE_BUYOUT},
     {"~b/o", Buyout::BUYOUT_TYPE_BUYOUT},
     {"~c/o", Buyout::BUYOUT_TYPE_CURRENT_OFFER},
     {"~price", Buyout::BUYOUT_TYPE_FIXED},
 };
 
-BuyoutManager::BuyoutManager(DataStore &data)
+BuyoutManager::BuyoutManager(DataStore &data, BuyoutRepo &repo)
     : m_data(data)
+    , m_repo(repo)
     , m_save_needed(false)
 {
     Load();
@@ -58,23 +51,27 @@ void BuyoutManager::Set(const Item &item, const Buyout &buyout)
                      item.PrettyName(),
                      buyout.AsText());
     }
-    auto const &it = m_buyouts.find(item.hash());
-    if (it != m_buyouts.end()) {
-        // The item hash is present, so check to see if the buyout has changed before saving
-        if (buyout != it->second) {
-            m_save_needed = true;
-            it->second = buyout;
-        }
-    } else {
-        // The item hash is not present, so we need to save buyouts
-        m_save_needed = true;
-        m_buyouts[item.hash()] = buyout;
+
+    if (buyout.IsNull()) {
+        m_repo.removeItemBuyout(item);
+        return;
+    }
+
+    const auto &it = m_buyouts.find(item.id());
+    if (it == m_buyouts.end()) {
+        // The item hash is not present.
+        m_buyouts[item.id()] = buyout;
+        emit SetItemBuyout(buyout, item);
+    } else if (buyout != it->second) {
+        // The item hash is present and the buyout has changed.
+        it->second = buyout;
+        emit SetItemBuyout(buyout, item);
     }
 }
 
 Buyout BuyoutManager::Get(const Item &item) const
 {
-    auto const &it = m_buyouts.find(item.hash());
+    const auto &it = m_buyouts.find(item.id());
     if (it != m_buyouts.end()) {
         Buyout buyout = it->second;
         if (buyout.type == Buyout::BUYOUT_TYPE_CURRENT_OFFER) {
@@ -87,9 +84,10 @@ Buyout BuyoutManager::Get(const Item &item) const
     return Buyout();
 }
 
-Buyout BuyoutManager::GetTab(const QString &tab) const
+Buyout BuyoutManager::GetTab(const ItemLocation &location) const
 {
-    auto const &it = m_tab_buyouts.find(tab);
+    const QString tab = location.id();
+    const auto &it = m_tab_buyouts.find(tab);
     if (it != m_tab_buyouts.end()) {
         Buyout buyout = it->second;
         if (buyout.type == Buyout::BUYOUT_TYPE_CURRENT_OFFER) {
@@ -103,24 +101,27 @@ Buyout BuyoutManager::GetTab(const QString &tab) const
     return Buyout();
 }
 
-void BuyoutManager::SetTab(const QString &tab, const Buyout &buyout)
+void BuyoutManager::SetTab(const ItemLocation &location, const Buyout &buyout)
 {
     if (buyout.type == Buyout::BUYOUT_TYPE_CURRENT_OFFER) {
         spdlog::warn(
             "BuyoutManager: tried to set an obsolete 'current offer' tab buyout for {}: {}",
-            tab,
+            location.id(),
             buyout.AsText());
     }
-    auto const &it = m_tab_buyouts.lower_bound(tab);
-    if (it != m_tab_buyouts.end() && !(m_tab_buyouts.key_comp()(tab, it->first))) {
-        // Entry exists - we don't want to update if buyout is equal to existing
-        if (buyout != it->second) {
-            m_save_needed = true;
-            it->second = buyout;
-        }
-    } else {
-        m_save_needed = true;
-        m_tab_buyouts[tab] = buyout;
+
+    if (buyout.IsNull()) {
+        m_repo.removeLocationBuyout(location);
+        return;
+    }
+
+    const auto &it = m_tab_buyouts.find(location.id());
+    if (it == m_tab_buyouts.end()) {
+        m_tab_buyouts[location.id()] = buyout;
+        emit SetLocationBuyout(buyout, location);
+    } else if (buyout != it->second) {
+        it->second = buyout;
+        emit SetLocationBuyout(buyout, location);
     }
 }
 
@@ -130,8 +131,8 @@ void BuyoutManager::CompressTabBuyouts()
     // This function is to remove buyouts associated with tab names that don't
     // currently exist.
     std::set<QString> tmp;
-    for (auto const &loc : m_tabs) {
-        tmp.emplace(loc.GetUniqueHash());
+    for (const auto &loc : m_tabs) {
+        tmp.emplace(loc.id());
     }
 
     for (auto it = m_tab_buyouts.begin(), ite = m_tab_buyouts.end(); it != ite;) {
@@ -150,9 +151,9 @@ void BuyoutManager::CompressItemBuyouts(const Items &items)
     // This function looks at buyouts and makes sure there is an associated item
     // that exists
     std::set<QString> tmp;
-    for (auto const &item_sp : items) {
+    for (const auto &item_sp : items) {
         const Item &item = *item_sp;
-        tmp.insert(item.hash());
+        tmp.insert(item.id());
     }
 
     for (auto it = m_buyouts.cbegin(); it != m_buyouts.cend();) {
@@ -167,24 +168,24 @@ void BuyoutManager::CompressItemBuyouts(const Items &items)
 void BuyoutManager::SetRefreshChecked(const ItemLocation &loc, bool value)
 {
     m_save_needed = true;
-    m_refresh_checked[loc.GetUniqueHash()] = value;
+    m_refresh_checked[loc.id()] = value;
 }
 
 bool BuyoutManager::GetRefreshChecked(const ItemLocation &loc) const
 {
-    auto it = m_refresh_checked.find(loc.GetUniqueHash());
+    auto it = m_refresh_checked.find(loc.id());
     bool refresh_checked = (it != m_refresh_checked.end()) ? it->second : true;
     return (refresh_checked || GetRefreshLocked(loc));
 }
 
 bool BuyoutManager::GetRefreshLocked(const ItemLocation &loc) const
 {
-    return m_refresh_locked.count(loc.GetUniqueHash());
+    return m_refresh_locked.count(loc.id());
 }
 
 void BuyoutManager::SetRefreshLocked(const ItemLocation &loc)
 {
-    m_refresh_locked.emplace(loc.GetUniqueHash());
+    m_refresh_locked.emplace(loc.id());
 }
 
 void BuyoutManager::ClearRefreshLocks()
@@ -202,138 +203,114 @@ void BuyoutManager::Clear()
     m_tabs.clear();
 }
 
-QString BuyoutManager::Serialize(const std::map<QString, Buyout> &buyouts)
+QString BuyoutManager::Serialize(const std::unordered_map<QString, Buyout> &buyouts)
 {
-    rapidjson::Document doc;
-    doc.SetObject();
-    auto &alloc = doc.GetAllocator();
+    std::unordered_map<QString, SerializedBuyout> output;
 
-    for (auto &bo : buyouts) {
-        const Buyout &buyout = bo.second;
-        if (!buyout.IsSavable()) {
-            continue;
-        };
-        rapidjson::Value item(rapidjson::kObjectType);
-        item.AddMember("value", buyout.value, alloc);
+    for (const auto &[key, buyout] : buyouts) {
+        const quint64 last_update = buyout.last_update.isNull()
+                                        ? QDateTime::currentSecsSinceEpoch()
+                                        : buyout.last_update.toSecsSinceEpoch();
 
-        // If last_update is null, set as the actual time
-        const auto last_update = buyout.last_update.isNull()
-                                     ? QDateTime::currentSecsSinceEpoch()
-                                     : buyout.last_update.toSecsSinceEpoch();
-        rapidjson::Value value(rapidjson::kNumberType);
-        value.SetInt64(last_update);
-        item.AddMember("last_update", value, alloc);
+        output[key] = SerializedBuyout{.currency = buyout.CurrencyAsTag(),
+                                       .inherited = buyout.inherited,
+                                       .last_update = last_update,
+                                       .source = buyout.BuyoutSourceAsTag(),
+                                       .type = buyout.BuyoutTypeAsTag(),
+                                       .value = buyout.value};
+    }
 
-        Util::RapidjsonAddString(&item, "type", buyout.BuyoutTypeAsTag(), alloc);
-        Util::RapidjsonAddString(&item, "currency", buyout.CurrencyAsTag(), alloc);
-        Util::RapidjsonAddString(&item, "source", buyout.BuyoutSourceAsTag(), alloc);
-
-        item.AddMember("inherited", buyout.inherited, alloc);
-
-        rapidjson::Value name(bo.first.toStdString().c_str(), alloc);
-        doc.AddMember(name, item, alloc);
-    };
-
-    return Util::RapidjsonSerialize(doc);
+    const auto result = glz::write_json(output);
+    if (!result) {
+        const auto msg = glz::format_error(result.error());
+        spdlog::error("Error serializing buyouts: {}", msg);
+        return QString();
+    }
+    return QString::fromStdString(*result);
 }
 
-void BuyoutManager::Deserialize(const QString &data, std::map<QString, Buyout> *buyouts)
+void BuyoutManager::Deserialize(const QString &data, std::unordered_map<QString, Buyout> &buyouts)
 {
-    buyouts->clear();
+    buyouts.clear();
 
     // if data is empty (on first use) we shouldn't make user panic by showing ERROR messages
     if (data.isEmpty()) {
         return;
     }
 
-    rapidjson::Document doc;
-    if (doc.Parse(data.toStdString().c_str()).HasParseError()) {
-        spdlog::error("Error while parsing buyouts.");
-        spdlog::error(rapidjson::GetParseError_En(doc.GetParseError()));
+    const QByteArray bytes{data.toUtf8()};
+    const std::string_view sv{bytes.constData(), size_t(bytes.size())};
+    const auto result = glz::read_json<std::unordered_map<QString, SerializedBuyout>>(sv);
+    if (!result) {
+        const auto msg = glz::format_error(result.error());
+        spdlog::error("Error deserializing buyouts: {}", msg);
         return;
     }
-    if (!doc.IsObject()) {
-        return;
-    }
-    for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
-        auto &object = itr->value;
-        const QString &name = itr->name.GetString();
-        Buyout bo;
 
-        bo.currency = Currency::FromTag(object["currency"].GetString());
-        bo.type = Buyout::TagAsBuyoutType(object["type"].GetString());
-        bo.value = object["value"].GetDouble();
-        if (object.HasMember("last_update")) {
-            bo.last_update = QDateTime::fromSecsSinceEpoch(object["last_update"].GetInt64());
-        }
-        if (object.HasMember("source")) {
-            bo.source = Buyout::TagAsBuyoutSource(object["source"].GetString());
-        }
-        bo.inherited = false;
-        if (object.HasMember("inherited")) {
-            bo.inherited = object["inherited"].GetBool();
-        }
+    for (const auto &[name, obj] : *result) {
+        Buyout bo;
+        bo.currency = Currency::FromTag(obj.currency);
+        bo.type = Buyout::TagAsBuyoutType(obj.type);
+        bo.value = obj.value;
+        bo.last_update = QDateTime::fromSecsSinceEpoch(obj.last_update);
+        bo.source = Buyout::TagAsBuyoutSource(obj.source);
+        bo.inherited = obj.inherited;
+
         if (bo.type == Buyout::BUYOUT_TYPE_CURRENT_OFFER) {
             spdlog::warn(
                 "BuyoutManager::Deserialize() obsolete 'current offer' buyout detected: {}", name);
         }
-        (*buyouts)[name] = bo;
+
+        buyouts[name] = bo;
     }
 }
 
-QString BuyoutManager::Serialize(const std::map<QString, bool> &obj)
+QString BuyoutManager::Serialize(const std::unordered_map<QString, bool> &obj)
 {
-    rapidjson::Document doc;
-    doc.SetObject();
-    auto &alloc = doc.GetAllocator();
-
-    for (auto &pair : obj) {
-        rapidjson::Value key(pair.first.toStdString().c_str(), alloc);
-        rapidjson::Value val(pair.second);
-        doc.AddMember(key, val, alloc);
+    const auto result = glz::write_json(obj);
+    if (!result) {
+        const auto msg = glz::format_error(result.error());
+        spdlog::error("Error serializing boolean buyout map: {}", msg);
+        return QString();
     }
-    return Util::RapidjsonSerialize(doc);
+    return QString::fromStdString(*result);
 }
 
-void BuyoutManager::Deserialize(const QString &data, std::map<QString, bool> &obj)
+void BuyoutManager::Deserialize(const QString &data, std::unordered_map<QString, bool> &obj)
 {
+    obj.clear();
+
     // if data is empty (on first use) we shouldn't make user panic by showing ERROR messages
     if (data.isEmpty()) {
         return;
     }
 
-    rapidjson::Document doc;
-    if (doc.Parse(data.toStdString().c_str()).HasParseError()) {
-        spdlog::error(rapidjson::GetParseError_En(doc.GetParseError()));
+    const QByteArray bytes{data.toUtf8()};
+    const std::string_view sv{bytes.constData(), size_t(bytes.size())};
+    const auto result = glz::read_json<std::unordered_map<QString, bool>>(sv);
+    if (!result) {
+        const auto msg = glz::format_error(result.error());
+        spdlog::error("Error deserializing boolean buyout map: {}", msg);
         return;
     }
 
-    if (!doc.IsObject()) {
-        return;
-    }
-
-    for (auto itr = doc.MemberBegin(); itr != doc.MemberEnd(); ++itr) {
-        const auto &val = itr->value.GetBool();
-        const auto &name = itr->name.GetString();
-        obj[name] = val;
+    for (const auto &[key, value] : *result) {
+        obj[key] = value;
     }
 }
 
 void BuyoutManager::Save()
 {
-    if (!m_save_needed) {
-        return;
+    if (m_save_needed) {
+        m_data.Set("refresh_checked_state", Serialize(m_refresh_checked));
+        m_save_needed = false;
     }
-    m_save_needed = false;
-    m_data.Set("buyouts", Serialize(m_buyouts));
-    m_data.Set("tab_buyouts", Serialize(m_tab_buyouts));
-    m_data.Set("refresh_checked_state", Serialize(m_refresh_checked));
 }
 
 void BuyoutManager::Load()
 {
-    Deserialize(m_data.Get("buyouts"), &m_buyouts);
-    Deserialize(m_data.Get("tab_buyouts"), &m_tab_buyouts);
+    m_buyouts = m_repo.getItemBuyouts();
+    m_tab_buyouts = m_repo.getLocationBuyouts();
     Deserialize(m_data.Get("refresh_checked_state"), m_refresh_checked);
 }
 void BuyoutManager::SetStashTabLocations(const std::vector<ItemLocation> &tabs)
@@ -348,7 +325,7 @@ const std::vector<ItemLocation> &BuyoutManager::GetStashTabLocations() const
 
 BuyoutType BuyoutManager::StringToBuyoutType(QString bo_str) const
 {
-    auto const &it = m_string_to_buyout_type.find(bo_str);
+    const auto &it = m_string_to_buyout_type.find(bo_str);
     if (it != m_string_to_buyout_type.end()) {
         return it->second;
     }
@@ -375,16 +352,26 @@ Buyout BuyoutManager::StringToBuyout(QString format)
     return tmp;
 }
 
-void BuyoutManager::MigrateItem(const Item &item)
+void BuyoutManager::MigrateItem(const QString &old_hash, const QString &new_hash)
 {
-    QString old_hash = item.old_hash();
-    QString hash = item.hash();
-    auto it = m_buyouts.find(old_hash);
-    auto new_it = m_buyouts.find(hash);
-    if (it != m_buyouts.end()
-        && (new_it == m_buyouts.end() || new_it->second.source != Buyout::BUYOUT_SOURCE_MANUAL)) {
-        m_buyouts[hash] = it->second;
-        m_buyouts.erase(it);
+    const auto old_it = m_buyouts.find(old_hash);
+
+    // Return if there is nothing to migrate.
+    if (old_it == m_buyouts.end()) {
+        return;
+    }
+
+    const auto new_it = m_buyouts.find(new_hash);
+
+    if ((new_it == m_buyouts.end()) || (new_it->second.source != Buyout::BUYOUT_SOURCE_MANUAL)) {
+        const auto buyout = old_it->second;
+        m_buyouts[new_hash] = buyout;
+        m_buyouts.erase(old_it);
         m_save_needed = true;
     }
+}
+
+void BuyoutManager::ImportBuyouts(const QString &filename)
+{
+    spdlog::info("Importing buyouts from {}", filename);
 }

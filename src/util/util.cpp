@@ -1,26 +1,12 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
-#include "util.h"
+#include "util/util.h"
 
 #include <QComboBox>
 #include <QCryptographicHash>
+#include <QDir>
+#include <QDirIterator>
 #include <QFontMetrics>
 #include <QLabel>
 #include <QLineEdit>
@@ -35,14 +21,13 @@
 
 #include <cmath>
 
-#include <rapidjson/document.h>
-#include <rapidjson/prettywriter.h>
-#include <rapidjson/writer.h>
-
-#include <util/rapidjson_util.h>
-#include <util/spdlog_qt.h>
-
 #include "currency.h"
+#include "poe/types/stashtab.h"
+
+QByteArray Util::toPathBytes(const QString &path)
+{
+    return QFile::encodeName(QDir::toNativeSeparators(path));
+}
 
 QString Util::Md5(const QString &value)
 {
@@ -94,12 +79,6 @@ int Util::TextWidth(TextWidthId id)
     return result[static_cast<int>(id)];
 }
 
-void Util::ParseJson(QNetworkReply *reply, rapidjson::Document *doc)
-{
-    QByteArray bytes = reply->readAll();
-    doc->Parse(bytes.constData());
-}
-
 QString Util::GetCsrfToken(const QByteArray &page, const QString &name)
 {
     // As of October 2023, the CSRF token can appear in one of two ways:
@@ -138,94 +117,39 @@ QString Util::FindTextBetween(const QString &page, const QString &left, const QS
     }
 }
 
-QString Util::RapidjsonSerialize(const rapidjson::Value &val)
-{
-    rapidjson::StringBuffer buffer;
-    rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-    val.Accept(writer);
-    return buffer.GetString();
-}
-
-QString Util::RapidjsonPretty(const rapidjson::Value &val)
-{
-    rapidjson::StringBuffer buffer;
-    rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
-    val.Accept(writer);
-    return buffer.GetString();
-}
-
-void Util::RapidjsonAddString(rapidjson::Value *object,
-                              const char *const name,
-                              const QString &value,
-                              rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator> &alloc)
-{
-    const QByteArray bytes = value.toUtf8();
-    rapidjson::Value rjson_name(name, rapidjson::SizeType(strlen(name)), alloc);
-    rapidjson::Value rjson_val(bytes.constData(), bytes.length(), alloc);
-    object->AddMember(rjson_name, rjson_val, alloc);
-}
-
-void Util::RapidjsonAddInt64(rapidjson::Value *object,
-                             const char *const name,
-                             qint64 value,
-                             rapidjson::MemoryPoolAllocator<rapidjson::CrtAllocator> &alloc)
-{
-    rapidjson::Value rjson_name(name, rapidjson::SizeType(strlen(name)), alloc);
-    rapidjson::Value rjson_val(static_cast<int64_t>(value));
-    object->AddMember(rjson_name, rjson_val, alloc);
-}
-
-void Util::GetTabColor(rapidjson::Value &json, int &r, int &g, int &b)
+void Util::GetTabColor(const poe::StashTab &stash, int &r, int &g, int &b)
 {
     r = 0;
     g = 0;
     b = 0;
 
-    if (rapidjson::HasObject(json, "colour")) {
-        // Tabs retrieved with the legacy api will have a "colour" field.
-        const auto &colour = json["colour"];
-        if (rapidjson::HasInt(colour, "r")) {
-            r = colour["r"].GetInt();
-        }
-        if (rapidjson::HasInt(colour, "g")) {
-            g = colour["g"].GetInt();
-        }
-        if (rapidjson::HasInt(colour, "b")) {
-            b = colour["b"].GetInt();
-        }
-
-    } else if (rapidjson::HasObject(json, "metadata")) {
-        // Tabs retrieved with the OAuth api have a "metadata" field that may have a colour.
-        const auto &metadata = json["metadata"];
-        if (rapidjson::HasString(metadata, "colour")) {
-            // The colour field is supposed to be a 6-character string, but it some really old
-            // tabs it's only 4 characters or 2 characters, and GGG has confirmed that in these
-            // cases the leading values should be treated as zeros.
-            const std::string colour = metadata["colour"].GetString();
-            switch (colour.length()) {
-            case 6:
-                r = std::stoul(colour.substr(0, 2), nullptr, 16);
-                g = std::stoul(colour.substr(2, 2), nullptr, 16);
-                b = std::stoul(colour.substr(4, 2), nullptr, 16);
-                break;
-            case 4:
-                g = std::stoul(colour.substr(0, 2), nullptr, 16);
-                b = std::stoul(colour.substr(2, 2), nullptr, 16);
-                break;
-            case 2:
-                b = std::stoul(colour.substr(0, 2), nullptr, 16);
-                break;
-            default:
-                spdlog::debug("Could not parse stash tab colour: {}",
-                              Util::RapidjsonSerialize(json));
-                break;
-            }
-        } else {
-            spdlog::debug("Stab tab metadata does not have a colour: {}",
-                          Util::RapidjsonSerialize(json));
+    if (stash.metadata.colour) {
+        // The colour field is supposed to be a 6-character string, but it some really old
+        // tabs it's only 4 characters or 2 characters, and GGG has confirmed that in these
+        // cases the leading values should be treated as zeros.
+        const std::string colour = stash.metadata.colour->toStdString();
+        switch (colour.length()) {
+        case 6:
+            r = std::stoul(colour.substr(0, 2), nullptr, 16);
+            g = std::stoul(colour.substr(2, 2), nullptr, 16);
+            b = std::stoul(colour.substr(4, 2), nullptr, 16);
+            break;
+        case 4:
+            g = std::stoul(colour.substr(0, 2), nullptr, 16);
+            b = std::stoul(colour.substr(2, 2), nullptr, 16);
+            break;
+        case 2:
+            b = std::stoul(colour.substr(0, 2), nullptr, 16);
+            break;
+        default:
+            spdlog::debug("Could not parse stash tab colour from {}: {} ({})",
+                          *stash.metadata.colour,
+                          stash.id,
+                          stash.name);
+            break;
         }
     } else {
-        spdlog::debug("Stash tab does not have a colour: {}", Util::RapidjsonSerialize(json));
+        spdlog::debug("StashTab metadata does not have a colour: {} ({})", stash.id, stash.name);
     }
 }
 
@@ -291,7 +215,7 @@ QString Util::TimeAgoInWords(const QDateTime &buyout_time)
         int years = (days / 365);
         if (days % 365 != 0) {
             years++;
-        };
+        }
         return QString("%1 %2 ago").arg(years).arg(years == 1 ? "year" : "years");
     }
 
@@ -300,7 +224,7 @@ QString Util::TimeAgoInWords(const QDateTime &buyout_time)
         int months = (days / 365);
         if (days % 30 != 0) {
             months++;
-        };
+        }
         return QString("%1 %2 ago").arg(months).arg(months == 1 ? "month" : "months");
     }
 

@@ -1,21 +1,5 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
-
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
 #pragma once
 
@@ -27,11 +11,9 @@
 #include <queue>
 #include <set>
 
-#include <ui/mainwindow.h>
-#include <util/util.h>
-
 #include "item.h"
-#include "network_info.h"
+#include "ui/mainwindow.h"
+#include "util/util.h"
 
 class QNetworkReply;
 class QSettings;
@@ -44,6 +26,11 @@ class ItemLocation;
 class NetworkManager;
 class RateLimiter;
 class RePoE;
+
+namespace poe {
+    struct Character;
+    struct StashTab;
+} // namespace poe
 
 struct ItemsRequest
 {
@@ -63,14 +50,10 @@ class ItemsManagerWorker : public QObject
 {
     Q_OBJECT
 public:
-    ItemsManagerWorker(QSettings &m_settings,
-                       NetworkManager &network_manager,
-                       RePoE &repoe,
-                       BuyoutManager &buyout_manager,
-                       DataStore &datastore,
-                       RateLimiter &rate_limiter);
-    bool isInitialized() const { return m_initialized; }
-    bool isUpdating() const { return m_updating; };
+    explicit ItemsManagerWorker(QSettings &m_settings,
+                                BuyoutManager &buyout_manager,
+                                RateLimiter &rate_limiter,
+                                QObject *parent = nullptr);
     void UpdateRequest(TabSelection type, const std::vector<ItemLocation> &locations);
 
 signals:
@@ -79,21 +62,29 @@ signals:
                         bool initial_refresh);
     void StatusUpdate(ProgramState state, const QString &status);
 
+    void characterListReceived(const std::vector<poe::Character> &characters, const QString &realm);
+    void characterReceived(const poe::Character &character, const QString &realm);
+    void stashListReceived(const std::vector<poe::StashTab> &stashes,
+                           const QString &realm,
+                           const QString &league);
+    void stashReceived(const poe::StashTab &stash, const QString &realm, const QString &league);
+
 public slots:
-    void Init();
     void OnRePoEReady();
-    void Update(Util::TabSelection type,
-                const std::vector<ItemLocation, std::allocator<ItemLocation>> &tab_names
-                = std::vector<ItemLocation, std::allocator<ItemLocation>>());
+    void Update(Util::TabSelection type, const std::vector<ItemLocation> &tab_names = {});
 
 private slots:
-    void OnOAuthStashListReceived(QNetworkReply *reply);
-    void OnOAuthStashReceived(QNetworkReply *reply, const ItemLocation &location);
-    void OnOAuthCharacterListReceived(QNetworkReply *reply);
-    void OnOAuthCharacterReceived(QNetworkReply *reply, const ItemLocation &location);
+    void OnStashListReceived(QNetworkReply *reply);
+    void OnStashReceived(QNetworkReply *reply, const ItemLocation &location);
+    void OnCharacterListReceived(QNetworkReply *reply);
+    void OnCharacterReceived(QNetworkReply *reply, const ItemLocation &location);
 
 private:
-    void ParseItemMods();
+    bool isInitialized() const { return m_initialized; }
+    bool isUpdating() const { return m_updating; }
+    void LoadItems();
+    void LoadItems(const poe::Character &character, ItemLocation location);
+    void LoadItems(const poe::StashTab &stash, ItemLocation location);
     void RemoveUpdatingTabs(const std::set<QString> &tab_ids);
     void RemoveUpdatingItems(const std::set<QString> &tab_ids);
     void QueueRequest(const QString &endpoint,
@@ -101,35 +92,19 @@ private:
                       const ItemLocation &location);
     void FetchItems();
 
-    void OAuthRefresh();
-    QNetworkRequest MakeOAuthStashListRequest(const QString &realm, const QString &league);
-    QNetworkRequest MakeOAuthStashRequest(const QString &realm,
-                                          const QString &league,
-                                          const QString &stash_id,
-                                          const QString &substash_id = "");
-    QNetworkRequest MakeOAuthCharacterListRequest(const QString &realm);
-    QNetworkRequest MakeOAuthCharacterRequest(const QString &realm, const QString &name);
+    void Refresh();
 
     typedef std::pair<QString, QString> TabSignature;
     typedef std::vector<TabSignature> TabsSignatureVector;
-    TabsSignatureVector CreateTabsSignatureVector(const rapidjson::Value &tabs);
+    TabsSignatureVector CreateTabsSignatureVector(const std::vector<poe::StashTab> &tabs);
 
     void SendStatusUpdate();
-    void ParseItems(rapidjson::Value &value,
-                    const ItemLocation &base_location,
-                    rapidjson_allocator &alloc);
-    bool TabsChanged(rapidjson::Document &doc,
-                     QNetworkReply *network_reply,
-                     const ItemLocation &location);
+    void ParseItems(const std::vector<poe::Item> &items, const ItemLocation &base_location);
     void FinishUpdate();
 
-    bool IsOAuthTabValid(rapidjson::Value &tab);
-    void ProcessOAuthTab(rapidjson::Value &tab, int &count, rapidjson_allocator &alloc);
+    void ProcessTab(const poe::StashTab &tab, int &count);
 
     QSettings &m_settings;
-    NetworkManager &m_network_manager;
-    RePoE &m_repoe;
-    DataStore &m_datastore;
     BuyoutManager &m_buyout_manager;
     RateLimiter &m_rate_limiter;
 
@@ -137,7 +112,6 @@ private:
     QString m_league;
     QString m_account;
 
-    bool m_test_mode;
     std::vector<ItemLocation> m_tabs;
     std::queue<ItemsRequest> m_queue;
 
@@ -146,24 +120,24 @@ private:
 
     Items m_items;
 
-    size_t m_stashes_needed;
-    size_t m_stashes_received;
+    size_t m_stashes_needed{0};
+    size_t m_stashes_received{0};
 
-    size_t m_characters_needed;
-    size_t m_characters_received;
+    size_t m_characters_needed{0};
+    size_t m_characters_received{0};
 
     std::set<QString> m_tab_id_index;
 
-    volatile bool m_initialized;
-    volatile bool m_updating;
+    volatile bool m_initialized{false};
+    volatile bool m_updating{false};
 
-    bool m_cancel_update;
-    bool m_updateRequest;
+    bool m_cancel_update{false};
+    bool m_updateRequest{false};
     TabSelection m_type;
     std::vector<ItemLocation> m_locations;
     std::set<ItemLocation> m_requested_locations;
 
-    int m_queue_id;
+    int m_queue_id{0};
     QString m_selected_character;
 
     int m_first_stash_request_index;

@@ -1,35 +1,34 @@
-#include "windows.h"
+#include <windows.h>
 
-#ifdef _WIN32
 LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 #pragma code_page(1252)
-#endif
 
-#define VERSION_MAJOR       @app_VERSION_MAJOR@
-#define VERSION_MINOR       @app_VERSION_MINOR@
-#define VERSION_PATCH       @app_VERSION_PATCH@
-#define VERSION_TWEAK       @app_VERSION_TWEAK@
+#define VERSION_MAJOR       @app_version_major@
+#define VERSION_MINOR       @app_version_minor@
+#define VERSION_PATCH       @app_version_patch@
+#define VERSION_TWEAK       @app_version_tweak@
 
-#define VER_FILEFLAGSMASK   (VS_FF_DEBUG | VS_FF_PRERELEASE)
 #ifdef DEBUG
-#define VER_FILEFLAGS       (VS_FF_DEBUG)
+#define VER_FILEFLAGSMASK   (VS_FF_DEBUG | VS_FF_PRERELEASE)
+#define VER_FILEFLAGS       VS_FF_DEBUG
 #else
-#define VER_FILEFLAGS       (0)
+#define VER_FILEFLAGSMASK   0
+#define VER_FILEFLAGS       0
 #endif
 
-#define COMPANY_NAME	    "\0"
-#define FILE_DESCRIPTION    "@app_FILE_DESCRIPTION@\0"
-#define FILE_VERSION        "@app_FILE_VERSION@\0"
-#define INTERNAL_NAME       "@app_INTERNAL_NAME@\0"
-#define LEGAL_COPYRIGHT     "@app_LEGAL_COPYRIGHT@\0"
-#define LEGAL_TRADEMARK     "@app_LEGAL_TRADEMARK@\0"
-#define ORIGINAL_FILENAME   "@app_ORIGINAL_FILENAME@\0"
-#define PRODUCT_NAME        "@app_PRODUCT_NAME@\0"
-#define PRODUCT_VERSION     "@app_PRODUCT_VERSION@\0"
+#define COMPANY_NAME        "@app_company_name@\0"
+#define FILE_DESCRIPTION    "@app_file_description@\0"
+#define FILE_VERSION        "@app_file_version@\0"
+#define INTERNAL_NAME       "@app_internal_name@\0"
+#define LEGAL_COPYRIGHT     "@app_legal_copyright@\0"
+#define LEGAL_TRADEMARK     "@app_legal_trademark@\0"
+#define ORIGINAL_FILENAME   "@app_original_filename@\0"
+#define PRODUCT_NAME        "@app_product_name@\0"
+#define PRODUCT_VERSION     "@app_product_version@\0"
 
-IDI_ICON1		ICON	    "@app_ICON@"
+IDI_ICON1         ICON      "@app_icon@"
 
-1 VERSIONINFO
+VS_VERSION_INFO VERSIONINFO
   FILEVERSION     VERSION_MAJOR,VERSION_MINOR,VERSION_PATCH,VERSION_TWEAK
   PRODUCTVERSION  VERSION_MAJOR,VERSION_MINOR,VERSION_PATCH,VERSION_TWEAK
   FILEFLAGSMASK   VER_FILEFLAGSMASK
@@ -41,17 +40,17 @@ BEGIN
   BLOCK "StringFileInfo"
   BEGIN
     BLOCK "040904E4"
-	BEGIN
-	  VALUE "CompanyName",		COMPANY_NAME
-	  VALUE "FileDescription",	FILE_DESCRIPTION
-	  VALUE "FileVersion",		FILE_VERSION
-	  VALUE "InternalName",		INTERNAL_NAME
-	  VALUE "LegalCopyright",	LEGAL_COPYRIGHT
+    BEGIN
+      VALUE "CompanyName",      COMPANY_NAME
+      VALUE "FileDescription",  FILE_DESCRIPTION
+      VALUE "FileVersion",      FILE_VERSION
+      VALUE "InternalName",     INTERNAL_NAME
+      VALUE "LegalCopyright",   LEGAL_COPYRIGHT
       VALUE "LegalTrademark",   LEGAL_TRADEMARK
-	  VALUE "OriginalFilename",	ORIGINAL_FILENAME
-	  VALUE "ProductName",		PRODUCT_NAME
-	  VALUE "ProductVersion",	PRODUCT_VERSION
-	END
+      VALUE "OriginalFilename", ORIGINAL_FILENAME
+      VALUE "ProductName",      PRODUCT_NAME
+      VALUE "ProductVersion",   PRODUCT_VERSION
+    END
   END
   BLOCK "VarFileInfo"
   BEGIN

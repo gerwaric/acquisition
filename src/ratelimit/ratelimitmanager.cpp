@@ -1,39 +1,22 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2023 Tom Holz
 
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
-#include "ratelimitmanager.h"
+#include "ratelimit/ratelimitmanager.h"
 
 #include <QApplication>
 #include <QErrorMessage>
 #include <QMessageBox>
 #include <QNetworkReply>
 
-#include "ratelimit.h"
-#include "ratelimitedreply.h"
-#include "ratelimitedrequest.h"
-#include "ratelimiter.h"
-#include "ratelimitpolicy.h"
+#include "ratelimit/ratelimit.h"
+#include "ratelimit/ratelimitedreply.h"
+#include "ratelimit/ratelimitedrequest.h"
+#include "ratelimit/ratelimiter.h"
+#include "ratelimit/ratelimitpolicy.h"
 #include "util/fatalerror.h"
-#include "util/spdlog_qt.h"
+#include "util/networkmanager.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
-
-static_assert(ACQUISITION_USE_SPDLOG);
 
 // For debugging rate limit violations, keep around more history than should be needed
 constexpr int HISTORY_BUFFER = 5;
@@ -232,12 +215,14 @@ void RateLimitManager::ReceiveReply()
                           m_active_request->id,
                           event.reply_status,
                           reply->error());
+            NetworkManager::logRequest(m_active_request->network_request);
+            NetworkManager::logReply(reply);
         }
         m_active_request->reply = nullptr;
     }
 
     if (violation_detected) {
-        spdlog::error("Rate limit violation detector for policy '{}':\n{}",
+        spdlog::error("Rate limit violation detected for policy '{}':\n{}",
                       m_policy->name(),
                       m_policy->GetBorderlineReport());
         LogPolicyHistory();
@@ -245,6 +230,9 @@ void RateLimitManager::ReceiveReply()
     } else {
         // For now, let's print the borderline report for trace debugging.
         if (m_policy->status() == RateLimit::Status::BORDERLINE) {
+            spdlog::warn("Rate limit policy '{}' is BORDERLINE and the next safe send is at {}",
+                         m_policy->name(),
+                         m_policy->GetNextSafeSend(m_history).toString());
             if (spdlog::should_log(spdlog::level::trace)) {
                 spdlog::trace("Rate limit borderline report for policy '{}':\n{}",
                               m_policy->name(),
@@ -344,10 +332,8 @@ void RateLimitManager::ActivateRequest()
         next_send.toString(),
         now.secsTo(next_send));
 
-    if (m_policy->status() >= RateLimit::Status::BORDERLINE) {
-        spdlog::debug("Rate limit policy {} is BORDERLINE.", m_policy->name());
-    } else {
-        spdlog::trace("RateLimitManager::ActivateRequest() {} is NOT borderline, adding {} msecs "
+    if (m_policy->status() < RateLimit::Status::BORDERLINE) {
+        spdlog::trace("RateLimitManager::ActivateRequest() {} is NOT b,orderline, adding {} msecs "
                       "to next send",
                       m_policy->name(),
                       NORMAL_BUFFER_MSEC);

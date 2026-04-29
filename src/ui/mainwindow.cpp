@@ -1,23 +1,7 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
-#include "mainwindow.h"
+#include "ui/mainwindow.h"
 #include "ui_mainwindow.h"
 
 #include <QApplication>
@@ -25,6 +9,7 @@
 #include <QClipboard>
 #include <QEvent>
 #include <QFile>
+#include <QFileDialog>
 #include <QFontDatabase>
 #include <QImageReader>
 #include <QInputDialog>
@@ -45,37 +30,35 @@
 
 #include <vector>
 
-#include <datastore/datastore.h>
-#include <ratelimit/ratelimit.h>
-#include <ratelimit/ratelimitdialog.h>
-#include <ratelimit/ratelimiter.h>
-#include <util/networkmanager.h>
-#include <util/oauthmanager.h>
-#include <util/spdlog_qt.h>
-#include <util/updatechecker.h>
-#include <util/util.h>
-
-#include <buyoutmanager.h>
-#include <currencymanager.h>
-#include <filters.h>
-#include <imagecache.h>
-#include <item.h>
-#include <itemcategories.h>
-#include <itemconstants.h>
-#include <itemlocation.h>
-#include <items_model.h>
-#include <itemsmanager.h>
-#include <modsfilter.h>
-#include <network_info.h>
-#include <replytimeout.h>
-#include <search.h>
-#include <shop.h>
-#include <version_defines.h>
-
-#include "flowlayout.h"
-#include "itemtooltip.h"
-#include "logpanel.h"
-#include "verticalscrollarea.h"
+#include "buyoutmanager.h"
+#include "currencymanager.h"
+#include "datastore/datastore.h"
+#include "filters.h"
+#include "imagecache.h"
+#include "item.h"
+#include "itemcategories.h"
+#include "itemconstants.h"
+#include "itemlocation.h"
+#include "items_model.h"
+#include "itemsmanager.h"
+#include "modsfilter.h"
+#include "ratelimit/ratelimit.h"
+#include "ratelimit/ratelimitdialog.h"
+#include "ratelimit/ratelimiter.h"
+#include "replytimeout.h"
+#include "search.h"
+#include "shop.h"
+#include "ui/flowlayout.h"
+#include "ui/itemtooltip.h"
+#include "ui/logpanel.h"
+#include "ui/verticalscrollarea.h"
+#include "util/glaze_qt.h" // IWYU pragma: keep
+#include "util/networkmanager.h"
+#include "util/oauthmanager.h"
+#include "util/spdlog_qt.h"
+#include "util/updatechecker.h"
+#include "util/util.h"
+#include "version_defines.h"
 
 constexpr const char *POE_WEBCDN
     = "http://webcdn.pathofexile.com"; // Should be updated to https://web.poecdn.com ?
@@ -83,12 +66,24 @@ constexpr const char *POE_WEBCDN
 constexpr int CURRENT_ITEM_UPDATE_DELAY_MS = 100;
 constexpr int SEARCH_UPDATE_DELAY_MS = 350;
 
+struct ImgurStatus
+{
+    struct Link
+    {
+        QString link;
+    };
+
+    int status;
+    ImgurStatus::Link data;
+};
+
 MainWindow::MainWindow(QSettings &settings,
                        NetworkManager &network_manager,
                        RateLimiter &rate_limiter,
                        DataStore &datastore,
                        ItemsManager &items_manager,
                        BuyoutManager &buyout_manager,
+                       CurrencyManager &currency_manager,
                        Shop &shop,
                        ImageCache &image_cache)
     : m_settings(settings)
@@ -97,6 +92,7 @@ MainWindow::MainWindow(QSettings &settings,
     , m_datastore(datastore)
     , m_items_manager(items_manager)
     , m_buyout_manager(buyout_manager)
+    , m_currency_manager(currency_manager)
     , m_shop(shop)
     , m_image_cache(image_cache)
     , ui(new Ui::MainWindow)
@@ -118,7 +114,7 @@ MainWindow::MainWindow(QSettings &settings,
                                    m_settings.value("league").toString(),
                                    m_settings.value("account").toString());
     setWindowTitle(title);
-    setWindowIcon(QIcon(":/icons/assets/icon.svg"));
+    setWindowIcon(QIcon(":/icons/icon.svg"));
 
     m_delayed_update_current_item.setInterval(CURRENT_ITEM_UPDATE_DELAY_MS);
     m_delayed_update_current_item.setSingleShot(true);
@@ -137,16 +133,14 @@ MainWindow::~MainWindow()
     delete ui;
     for (auto &search : m_searches) {
         delete (search);
-    };
+    }
     m_rate_limit_dialog->close();
     m_rate_limit_dialog->deleteLater();
 }
 
+/*
 void MainWindow::prepare(OAuthManager &oauth_manager, CurrencyManager &currency_manager)
 {
-    /*
-     * TBD: TODO
-     *
     connect(ui->actionShowOAuthToken,
             &QAction::triggered,
             &oauth_manager,
@@ -155,17 +149,8 @@ void MainWindow::prepare(OAuthManager &oauth_manager, CurrencyManager &currency_
             &QAction::triggered,
             &oauth_manager,
             &OAuthManager::requestRefresh);
-    */
-
-    connect(ui->actionListCurrency,
-            &QAction::triggered,
-            &currency_manager,
-            &CurrencyManager::DisplayCurrency);
-    connect(ui->actionExportCurrency,
-            &QAction::triggered,
-            &currency_manager,
-            &CurrencyManager::ExportCurrency);
 }
+*/
 
 void MainWindow::InitializeRateLimitDialog()
 {
@@ -297,7 +282,7 @@ void MainWindow::InitializeUi()
         emit UpdateCheckRequested();
     });
 
-    // resize columns when a tab is expanded/collapsed
+    // Resize columns when a tab is expanded/collapsed.
     connect(ui->treeView, &QTreeView::collapsed, this, &MainWindow::ResizeTreeColumns);
     connect(ui->treeView, &QTreeView::expanded, this, &MainWindow::ResizeTreeColumns);
 
@@ -332,7 +317,7 @@ void MainWindow::InitializeUi()
         m_settings.setValue("tooltip_tab", idx);
     });
 
-    // Connect the Tabs menu
+    // Connect the Tabs menu.
     connect(ui->actionFetchTabsList, &QAction::triggered, this, &MainWindow::OnFetchTabsList);
     connect(ui->actionRefreshCheckedTabs,
             &QAction::triggered,
@@ -348,7 +333,14 @@ void MainWindow::InitializeUi()
             this,
             &MainWindow::OnSetTabRefreshInterval);
 
-    // Connect the Shop menu
+    connect(ui->actionGetMapStashes, &QAction::triggered, this, [this](bool checked) {
+        m_settings.setValue("get_map_stashes", checked);
+    });
+    connect(ui->actionGetUniqueStashes, &QAction::triggered, this, [this](bool checked) {
+        m_settings.setValue("get_unique_stashes", checked);
+    });
+
+    // Connect the Shop menu.
     connect(ui->actionSetShopThreads, &QAction::triggered, this, &MainWindow::OnSetShopThreads);
     connect(ui->actionEditShopTemplate, &QAction::triggered, this, &MainWindow::OnEditShopTemplate);
     connect(ui->actionCopyShopToClipboard,
@@ -362,12 +354,12 @@ void MainWindow::InitializeUi()
             this,
             &MainWindow::OnSetAutomaticShopUpdate);
 
-    // Connect the Theme submenu
+    // Connect the Theme submenu.
     connect(ui->actionSetDarkTheme, &QAction::triggered, this, &MainWindow::OnSetDarkTheme);
     connect(ui->actionSetLightTheme, &QAction::triggered, this, &MainWindow::OnSetLightTheme);
     connect(ui->actionSetDefaultTheme, &QAction::triggered, this, &MainWindow::OnSetDefaultTheme);
 
-    // Connect the Logging submenu
+    // Connect the Logging submenu.
     connect(ui->actionLoggingOFF, &QAction::triggered, this, [=, this]() {
         OnSetLogging(spdlog::level::off);
     });
@@ -390,12 +382,25 @@ void MainWindow::InitializeUi()
         OnSetLogging(spdlog::level::trace);
     });
 
-    // Connect the POESESSID submenu
+    // Connect the POESESSID submenu.
     connect(ui->actionShowPOESESSID, &QAction::triggered, this, &MainWindow::OnShowPOESESSID);
+
+    // Connect the Buyouts menu.
+    connect(ui->actionImportBuyouts, &QAction::triggered, this, &MainWindow::OnImportBuyouts);
 
     // Connect the Tooltip tab buttons
     connect(ui->uploadTooltipButton, &QPushButton::clicked, this, &MainWindow::OnUploadToImgur);
     connect(ui->pobTooltipButton, &QPushButton::clicked, this, &MainWindow::OnCopyForPOB);
+
+    // Connect the currency actions.
+    connect(ui->actionListCurrency,
+            &QAction::triggered,
+            &m_currency_manager,
+            &CurrencyManager::DisplayCurrency);
+    connect(ui->actionExportCurrency,
+            &QAction::triggered,
+            &m_currency_manager,
+            &CurrencyManager::ExportCurrency);
 }
 
 void MainWindow::LoadSettings()
@@ -405,7 +410,8 @@ void MainWindow::LoadSettings()
     ui->actionSetDarkTheme->setChecked(theme == "dark");
     ui->actionSetLightTheme->setChecked(theme == "light");
     ui->actionSetDefaultTheme->setChecked(theme == "default");
-
+    ui->actionGetMapStashes->setChecked(m_settings.value("get_map_stashes", false).toBool());
+    ui->actionGetUniqueStashes->setChecked(m_settings.value("get_unique_stashes", false).toBool());
     ui->actionSetAutomaticTabRefresh->setChecked(m_settings.value("autoupdate").toBool());
     UpdateShopMenu();
 
@@ -528,16 +534,17 @@ void MainWindow::OnBuyoutChange()
     }
 
     const auto &selected_rows = ui->treeView->selectionModel()->selectedRows();
-    for (auto const &index : selected_rows) {
-        auto const &tab = m_current_search->GetTabLocation(index).GetUniqueHash();
+    for (const auto &index : selected_rows) {
+        const auto location = m_current_search->GetTabLocation(index);
+        const auto tab = location.id();
 
         // Don't allow users to manually update locked tabs (game priced)
-        if (m_buyout_manager.GetTab(tab).IsGameSet()) {
+        if (m_buyout_manager.GetTab(location).IsGameSet()) {
             spdlog::trace("MainWindow::OnBuyoutChange() refusing to update locked tab: {}", tab);
             continue;
         }
         if (!index.parent().isValid()) {
-            m_buyout_manager.SetTab(tab, bo);
+            m_buyout_manager.SetTab(location, bo);
         } else {
             const int bucket_row = index.parent().row();
             if (m_current_search->has_bucket(bucket_row)) {
@@ -792,6 +799,7 @@ void MainWindow::InitializeSearchForm()
     // Initialize rarity list once.
     auto *rarity_model = new QStringListModel(RaritySearchFilter::RARITY_LIST, this);
 
+    auto tab_search = std::make_unique<TabSearchFilter>(m_search_form_layout);
     auto name_search = std::make_unique<NameSearchFilter>(m_search_form_layout);
     auto category_search = std::make_unique<CategorySearchFilter>(m_search_form_layout,
                                                                   category_model);
@@ -817,6 +825,7 @@ void MainWindow::InitializeSearchForm()
     using move_only = std::unique_ptr<Filter>;
     // clang-format off
     move_only init[] = {
+        std::move(tab_search),
         std::move(name_search),
         std::move(category_search),
         std::move(rarity_search),
@@ -995,8 +1004,8 @@ void MainWindow::UpdateCurrentBuyout()
     if (m_current_item) {
         UpdateBuyoutWidgets(m_buyout_manager.Get(*m_current_item));
     } else {
-        QString tab = m_current_bucket_location->GetUniqueHash();
-        UpdateBuyoutWidgets(m_buyout_manager.GetTab(tab));
+        const ItemLocation &location = *m_current_bucket_location;
+        UpdateBuyoutWidgets(m_buyout_manager.GetTab(location));
     }
 }
 
@@ -1191,6 +1200,40 @@ void MainWindow::OnSetLogging(spdlog::level::level_enum level)
     m_settings.setValue("log_level", level_name);
 }
 
+void MainWindow::OnImportBuyouts()
+{
+    const QString settings_path = m_settings.fileName();
+    const QString data_path = QFileInfo(settings_path).absolutePath();
+    const auto opts = QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks;
+
+    const QString import_path = QFileDialog::getExistingDirectory(this,
+                                                                  "Select a data folder",
+                                                                  data_path,
+                                                                  opts);
+    if (import_path.isEmpty()) {
+        return;
+    }
+
+    QDir dir{import_path};
+    dir.setNameFilters({"*-*"});
+    dir.setFilter(QDir::Files | QDir::NoSymLinks | QDir::NoDotAndDotDot | QDir::Readable);
+
+    QStringList files = dir.entryList();
+    if (files.isEmpty()) {
+        return;
+    }
+
+    const QRegularExpression re(QStringLiteral(R"(^[A-Za-z0-9]+-\d+$)"));
+    files.removeIf([&](const QString &s) { return !re.match(s).hasMatch(); });
+    if (files.isEmpty()) {
+        return;
+    }
+
+    for (const auto &file : std::as_const(files)) {
+        m_buyout_manager.ImportBuyouts(file);
+    }
+}
+
 void MainWindow::closeEvent(QCloseEvent *event)
 {
     if (m_quitting) {
@@ -1261,25 +1304,23 @@ void MainWindow::OnUploadFinished()
     QByteArray bytes = reply->readAll();
     reply->deleteLater();
 
-    rapidjson::Document doc;
-    doc.Parse(bytes.constData());
+    ImgurStatus result;
 
-    if (doc.HasParseError() || !doc.IsObject() || !doc.HasMember("status")
-        || !doc["status"].IsNumber()) {
-        spdlog::error("Imgur API returned invalid data (or timed out): {}", bytes);
+    constexpr const glz::opts permissive{.error_on_unknown_keys = false};
+    const std::string_view sv{bytes, size_t(bytes.size())};
+    const auto ec = glz::read<permissive>(result, sv);
+    if (!ec) {
+        const auto msg = glz::format_error(ec, sv);
+        spdlog::error("Error parsing Imgur result: {}", msg);
         return;
     }
-    if (doc["status"].GetInt() != 200) {
-        spdlog::error("Imgur API returned status!=200: {}", bytes);
+
+    if (result.status != 200) {
+        spdlog::error("Imgur API returned status != 200: {}", bytes);
         return;
     }
-    if (!doc.HasMember("data") || !doc["data"].HasMember("link")
-        || !doc["data"]["link"].IsString()) {
-        spdlog::error("Imgur API returned malformed reply: {}", bytes);
-        return;
-    }
-    QString url = doc["data"]["link"].GetString();
+
+    const QString url = result.data.link;
     QApplication::clipboard()->setText(url);
-    spdlog::info(
-        "Image successfully uploaded, the URL is {}. It also was copied to your clipboard.", url);
+    spdlog::info("Image uploaded to '{}' and the URL has been copied to your clipboard.", url);
 }

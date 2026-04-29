@@ -1,23 +1,7 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
-#include "logpanel.h"
+#include "ui/logpanel.h"
 
 #include <QFontDatabase>
 #include <QObject>
@@ -28,7 +12,7 @@
 #include <spdlog/sinks/callback_sink.h>
 #include <spdlog/sinks/qt_sinks.h>
 
-#include "mainwindow.h"
+#include "ui/mainwindow.h"
 #include "ui_mainwindow.h"
 
 constexpr QColor ERROR_COLOR = QColor(255, 0, 0);
@@ -72,12 +56,18 @@ LogPanel::LogPanel(MainWindow *window, Ui::MainWindow *ui)
     auto callback_sink = std::make_shared<spdlog::sinks::callback_sink_mt>(
         [this](const spdlog::details::log_msg &msg) {
             if (msg.level >= spdlog::level::err) {
-                ++m_num_errors;
+                m_num_errors.fetch_add(1, std::memory_order_relaxed);
             } else if (msg.level == spdlog::level::warn) {
-                ++m_num_warnings;
+                m_num_warnings.fetch_add(1, std::memory_order_relaxed);
+            } else {
+                m_num_messages.fetch_add(1, std::memory_order_relaxed);
             }
-            UpdateStatusLabel();
+            // IMPORTANT: queue UI update onto LogPanel's thread (GUI thread)
+            // Otherwise calls to spdlog from other threads (e.g. ItemsWorkerManager)
+            // will cause exceptions.
+            QMetaObject::invokeMethod(this, [this] { UpdateStatusLabel(); }, Qt::QueuedConnection);
         });
+
     callback_sink->set_level(spdlog::level::warn);
 
     // Attach the sinks to the logger.
@@ -90,21 +80,25 @@ LogPanel::LogPanel(MainWindow *window, Ui::MainWindow *ui)
 
 void LogPanel::UpdateStatusLabel()
 {
+    const unsigned int errors = m_num_errors.load(std::memory_order_relaxed);
+    const unsigned int warnings = m_num_warnings.load(std::memory_order_relaxed);
+    const unsigned int messages = m_num_messages.load(std::memory_order_relaxed);
+
     QString label = "Event Log";
     QString style = "";
     unsigned int k = 0;
 
-    if (m_num_errors > 0) {
+    if (errors > 0) {
         label = "error(s)";
         style = "font-weight: bold; color: " + ERROR_COLOR.name();
-        k = m_num_errors;
-    } else if (m_num_warnings > 0) {
+        k = errors;
+    } else if (warnings > 0) {
         label = "warning(s)";
         style = "font-weight: bold; color: " + WARNING_COLOR.name();
-        k = m_num_warnings;
-    } else if (m_num_messages > 0) {
+        k = warnings;
+    } else if (messages > 0) {
         label = "message(s)";
-        k = m_num_messages;
+        k = messages;
     }
 
     if (k > 0) {
@@ -123,9 +117,9 @@ void LogPanel::TogglePanelVisibility()
         // Since we'll be showing the panel to the user, we can
         // reset the message counters.
         m_output->show();
-        m_num_messages = 0;
-        m_num_warnings = 0;
-        m_num_errors = 0;
+        m_num_messages.store(0, std::memory_order_relaxed);
+        m_num_warnings.store(0, std::memory_order_relaxed);
+        m_num_errors.store(0, std::memory_order_relaxed);
         UpdateStatusLabel();
     }
 }

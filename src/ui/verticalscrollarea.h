@@ -1,11 +1,13 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 // Ref: http://qt-project.org/forums/viewthread/13728
 
 #pragma once
 
+#include <QEvent>
 #include <QObject>
 #include <QScrollArea>
-
-// http://qt-project.org/forums/viewthread/13728
+#include <QWidget>
 
 class VerticalScrollArea : public QScrollArea
 {

@@ -65,7 +65,7 @@ if not exist "%BUILD_DIR%\acquisition.pdb" (
     exit /B
 )
 if not exist "%BUILD_DIR%\crashpad_handler.exe" (
-    echo ERROR: crashpad_handler.exe not found in "%BUILD_DIR%".
+    echo ERROR: acquisition.exe not found in "%BUILD_DIR%".
     exit /B
 )
 
@@ -86,7 +86,7 @@ mkdir "%DEPLOY_DIR%"
 echo Copying acquisition to deploy directory.
 copy "%BUILD_DIR%\acquisition.exe" "%DEPLOY_DIR%"
 
-echo Copying crashpad handler to deploy directory.
+echo Copying crashpad_handler to deploy directory.
 copy "%BUILD_DIR%\crashpad_handler.exe" "%DEPLOY_DIR%"
 
 echo Running windeployqt.
@@ -107,3 +107,5 @@ copy "%BUILD_DIR%\acquisition.exe" .\Output
 
 echo Copying the acquisition debug symbols to the output directory.
 copy "%BUILD_DIR%\acquisition.pdb" .\Output
+
+echo TODO: sentry-cli debug-files upload --org acquisition --project native-qt --wait .\Output\v0.16.0-alpha.4

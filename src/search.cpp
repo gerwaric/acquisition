@@ -1,21 +1,5 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
-
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
 #include "search.h"
 
@@ -24,14 +8,13 @@
 
 #include <memory>
 
-#include <util/fatalerror.h>
-#include <util/spdlog_qt.h>
-
 #include "bucket.h"
 #include "buyoutmanager.h"
 #include "column.h"
 #include "filters.h"
 #include "items_model.h"
+#include "util/fatalerror.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
 Search::Search(BuyoutManager &bo_manager,
                const QString &caption,
@@ -158,15 +141,15 @@ const QModelIndex Search::index(const std::shared_ptr<Item> &item) const
     if (!item) {
         // Return an invalid index because there is no current item.
         return QModelIndex();
-    };
+    }
     // Look for a bucket that matches the item's location.
     const auto &bucket_list = buckets();
-    const auto &location_id = item->location().get_tab_uniq_id();
+    const auto &location_id = item->location().id();
     const int bucket_count = static_cast<int>(bucket_list.size());
     for (int row = 0; row < bucket_count; ++row) {
         // Check each search bucket against the item's location.
         const auto &bucket = bucket_list[row];
-        const auto &bucket_id = bucket.location().get_tab_uniq_id();
+        const auto &bucket_id = bucket.location().id();
         if (location_id == bucket_id) {
             // Check each item in the bucket.
             const QModelIndex parent = m_model.index(row);
@@ -259,7 +242,7 @@ void Search::FilterItems(const Items &items)
             const ItemLocation location = item->location();
             if (!bucketed_tabs.count(location)) {
                 bucketed_tabs[location] = Bucket(location);
-            };
+            }
             bucketed_tabs[location].AddItem(item);
         }
     }

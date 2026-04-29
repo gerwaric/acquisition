@@ -1,28 +1,13 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2023 Tom Holz
 
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
-#include "oauthtoken.h"
+#include "util/oauthtoken.h"
 
 #include <QNetworkReply>
 
-#include <util/spdlog_qt.h>
-#include <util/util.h>
+#include "util/json_readers.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
+#include "util/util.h"
 
 // Hard-code the token refresh lifetime for a public client:
 // https://www.pathofexile.com/developer/docs/authorization#clients-public
@@ -30,7 +15,11 @@ constexpr long int REFRESH_LIFETIME_DAYS = 7;
 
 OAuthToken OAuthToken::fromJson(const QString &json)
 {
-    return Util::parseJson<OAuthToken>(json);
+    const auto result = json::readOAuthToken(json.toUtf8());
+    if (!result) {
+        return {};
+    }
+    return *result;
 }
 
 OAuthToken OAuthToken::fromReply(QNetworkReply *reply)
@@ -38,12 +27,15 @@ OAuthToken OAuthToken::fromReply(QNetworkReply *reply)
     const QByteArray bytes = reply->readAll();
     reply->deleteLater();
 
-    OAuthToken token = Util::parseJson<OAuthToken>(bytes);
+    auto result = json::readOAuthToken(bytes);
+    if (!result) {
+        return {};
+    }
 
     // Set birthday and expiration times.
     const QString timestamp = Util::FixTimezone(reply->rawHeader("Date"));
-    token.setBirthday(QDateTime::fromString(timestamp, Qt::RFC2822Date));
-    return token;
+    result->setBirthday(QDateTime::fromString(timestamp, Qt::RFC2822Date));
+    return *result;
 }
 
 OAuthToken OAuthToken::fromTokens(const QVariantMap &tokens)

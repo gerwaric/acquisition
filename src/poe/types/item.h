@@ -1,38 +1,20 @@
-/*
-    Copyright (C) 2024-2025 Gerwaric
-
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2024 Tom Holz
 
 #pragma once
+
+#include <QHashFunctions> // Needed to avoid errors instantiating std::hash<QString> for std::unordered_map.
+#include <QString>
 
 #include <optional>
 #include <unordered_map>
 #include <vector>
-
-#include <QString>
 
 #include "poe/types/cruciblenode.h"
 #include "poe/types/frametype.h"
 #include "poe/types/gemtab.h"
 #include "poe/types/itemproperty.h"
 #include "poe/types/itemsocket.h"
-#include "util/glaze_qt.h"
-
-static_assert(ACQUISITION_USE_GLAZE);
 
 namespace poe {
 
@@ -132,13 +114,16 @@ namespace poe {
         std::optional<QString> id;            // ? string a unique 64 digit hexadecimal string
         std::optional<std::vector<QString>>
             gemSockets; // ? array of string; PoE2 only; string is always W
-        std::optional<poe::Item::Influences> influences;     // ? object
-        std::optional<bool> elder;                           // ? bool always true if present
-        std::optional<bool> shaper;                          // ? bool always true if present
-        std::optional<bool> searing;                         // ? bool always true if present
-        std::optional<bool> tangled;                         // ? bool always true if present
-        std::optional<bool> memoryItem;                      // ? bool always true if present
-        std::optional<bool> mutated;                         // ? bool always true if present
+        std::optional<poe::Item::Influences> influences; // ? object
+        std::optional<bool> elder;                       // ? bool always true if present
+        std::optional<bool> shaper;                      // ? bool always true if present
+        std::optional<bool> searing;                     // ? bool always true if present
+        std::optional<bool> tangled;                     // ? bool always true if present
+        std::optional<bool> memoryItem;                  // ? bool always true if present
+        std::optional<bool> mutated;                     // ? bool always true if present
+        std::optional<QString> builtInSupport; // ? string PoE1 only; Supported by level 1 x
+        std::optional<int>
+            monsterLevel; // ? string PoE1 only; used for items that always display their monster level
         std::optional<bool> abyssJewel;                      // ? bool always true if present
         std::optional<bool> delve;                           // ? bool always true if present
         std::optional<bool> fractured;                       // ? bool always true if present
@@ -189,9 +174,9 @@ namespace poe {
         std::optional<std::vector<QString>> implicitMods; // ? array of string
         std::optional<std::vector<poe::Item::UltimatumMods>> ultimatumMods; // ? array of object
         std::optional<std::vector<QString>> explicitMods;                   // ? array of string
-        std::optional<std::vector<QString>> bondedMods; // ? array of string; PoE2 only
-        std::optional<std::vector<QString>> craftedMods;                    // ? array of string
-        std::optional<std::vector<QString>> fracturedMods;                  // ? array of string
+        std::optional<std::vector<QString>> bondedMods;    // ? array of string; PoE2 only
+        std::optional<std::vector<QString>> craftedMods;   // ? array of string
+        std::optional<std::vector<QString>> fracturedMods; // ? array of string
         std::optional<std::vector<QString>>
             mutatedMods; // ? array of string; PoE1: Foulborn Unique mods, PoE2: Vaal Unique mods
         std::optional<std::vector<QString>>
@@ -235,7 +220,7 @@ namespace poe {
             const QString b = other.name.isEmpty() ? other.typeLine
                                                    : other.name + " " + other.typeLine;
             return a < b;
-        };
+        }
     };
 
 } // namespace poe

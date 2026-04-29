@@ -1,21 +1,5 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
-
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
 #include "column.h"
 
@@ -26,11 +10,10 @@
 #include <QRegularExpression>
 #include <QVector>
 
-#include <util/util.h>
-
 #include "buyoutmanager.h"
 #include "influence.h"
 #include "itemconstants.h"
+#include "util/util.h"
 
 const double EPS = 1e-6;
 const char *SORT_DOUBLE_MATCH = "^\\+?([\\d.]+)%?$";
@@ -107,8 +90,10 @@ QColor NameColumn::color(const Item &item) const
         return QColor(QRgb(0x4ae63a));
     case FrameType::FRAME_TYPE_PROPHECY:
         return QColor(181, 75, 255);
-    case FrameType::FRAME_TYPE_RELIC:
+    case FrameType::FRAME_TYPE_FOIL:
         return QColor(QRgb(0x82ad6a));
+    case FrameType::FRAME_TYPE_SUPPORTER_FOIL:
+        return QColor(QRgb(0x82ad6a)); // TBD: is this right?
     default:
         return QApplication::palette().color(QPalette::WindowText);
     }
@@ -388,7 +373,7 @@ QVariant ChaosDamageColumn::value(const Item &item) const
     const auto result = properties.find(QStringLiteral("Chaos Damage"));
     if (result != properties.end()) {
         return result->second;
-    };
+    }
     return QVariant();
 }
 

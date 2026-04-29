@@ -1,31 +1,7 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2023 Tom Holz
 
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
-#include "oauthmanager.h"
-
-#include "datastore/datastore.h"
-#include "networkmanager.h"
-#include "util/glaze_qt.h"
-#include "util/spdlog_qt.h"
-
-static_assert(ACQUISITION_USE_GLAZE);
-static_assert(ACQUISITION_USE_SPDLOG); // Prevents an unused header warning in Qt Creator.
+#include "util/oauthmanager.h"
 
 #include <QAbstractOAuth>
 #include <QByteArray>
@@ -35,6 +11,11 @@ static_assert(ACQUISITION_USE_SPDLOG); // Prevents an unused header warning in Q
 #include <QSet>
 
 #include <array>
+
+#include "datastore/datastore.h"
+#include "util/glaze_qt.h" // IWYU pragma: keep
+#include "util/networkmanager.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
 
 namespace {
 

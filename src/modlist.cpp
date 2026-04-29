@@ -1,26 +1,9 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
-
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
 #include "modlist.h"
 
 #include <QRegularExpression>
-#include <QStringList>
 #include <QtSql/QSqlDatabase>
 #include <QtSql/QSqlError>
 #include <QtSql/QSqlQuery>
@@ -31,16 +14,12 @@
 #include <unordered_map>
 #include <vector>
 
-#include <util/spdlog_qt.h>
-#include <util/util.h>
-
 #include "item.h"
-
-using rapidjson::HasBool;
-
-// These are just summed, and the mod named as the first element of a vector is generated with value equaling the sum.
-// Both implicit and explicit fields are considered.
-// This is pretty much the same list as poe.trade uses
+#include "pseudomods.h"
+#include "repoe/stattranslation.h"
+#include "util/glaze_qt.h"
+#include "util/spdlog_qt.h"
+#include "util/util.h"
 
 namespace {
 
@@ -49,133 +28,11 @@ namespace {
     std::unordered_map<QString, SumModGenerator *> mods_map;
     std::vector<SumModGen> mod_generators;
 
-    using ModMap = std::unordered_map<QString, std::vector<QString>>;
-
-    const ModMap summing_pseudo_mods = {
-        {"+#% total to Cold Resistance",
-         {
-             "+#% to Cold Resistance",
-             "+#% to Fire and Cold Resistances",
-             "+#% to Cold and Lightning Resistances",
-             "+#% to Cold and Chaos Resistances",
-             "+#% to all Elemental Resistances",
-         }},
-        {"+#% total to Fire Resistance",
-         {
-             "+#% to Fire Resistance",
-             "+#% to Fire and Cold Resistances",
-             "+#% to Fire and Lightning Resistances",
-             "+#% to Fire and Chaos Resistances",
-             "+#% to all Elemental Resistances",
-         }},
-        {"+#% total to Lightning Resistance",
-         {
-             "+#% to Lightning Resistance",
-             "+#% to Fire and Lightning Resistances",
-             "+#% to Cold and Lightning Resistances",
-             "+#% to Lightning and Chaos Resistances",
-             "+#% to all Elemental Resistances",
-         }},
-        {"+#% total Elemental Resistance",
-         {
-             //"+#% total to Fire Resistance", (eventually we should just use the pseudo mods here)
-             "+#% to Fire Resistance",
-             "+#% to Fire and Cold Resistances",
-             "+#% to Fire and Lightning Resistances",
-             "+#% to Fire and Chaos Resistances",
-             "+#% to all Elemental Resistances",
-             //"+#% total to Cold Resistance",
-             "+#% to Cold Resistance",
-             "+#% to Fire and Cold Resistances",
-             "+#% to Cold and Lightning Resistances",
-             "+#% to Cold and Chaos Resistances",
-             "+#% to all Elemental Resistances",
-             //"+#% total to Lightning Resistance",
-             "+#% to Lightning Resistance",
-             "+#% to Fire and Lightning Resistances",
-             "+#% to Cold and Lightning Resistances",
-             "+#% to Lightning and Chaos Resistances",
-             "+#% to all Elemental Resistances",
-         }},
-        {"+#% total to Chaos Resistance",
-         {
-             "+#% to Chaos Resistance",
-             "+#% to Fire and Chaos Resistances",
-             "+#% to Cold and Chaos Resistances",
-             "+#% to Lightning and Chaos Resistances",
-         }},
-        {"+#% total Resistance",
-         {
-             //"+#% total Elemental Resistance", (again, this should be replaced by other pseudo mods ideally)
-             // --> "+#% total to Fire Resistance",
-             "+#% to Fire Resistance",
-             "+#% to Fire and Cold Resistances",
-             "+#% to Fire and Lightning Resistances",
-             "+#% to Fire and Chaos Resistances",
-             "+#% to all Elemental Resistances",
-             // --> "+#% total to Cold Resistance",
-             "+#% to Cold Resistance",
-             "+#% to Fire and Cold Resistances",
-             "+#% to Cold and Lightning Resistances",
-             "+#% to Cold and Chaos Resistances",
-             "+#% to all Elemental Resistances",
-             // --> "+#% total to Lightning Resistance",
-             "+#% to Lightning Resistance",
-             "+#% to Fire and Lightning Resistances",
-             "+#% to Cold and Lightning Resistances",
-             "+#% to Lightning and Chaos Resistances",
-             "+#% to all Elemental Resistances",
-             //"+#% total to Chaos Resistance",
-             "+#% to Chaos Resistance",
-             "+#% to Fire and Chaos Resistances",
-             "+#% to Cold and Chaos Resistances",
-             "+#% to Lightning and Chaos Resistances",
-         }},
-        {"+# total to Strength",
-         {
-             "+# to Strength",
-             "+# to Strength and Dexterity",
-             "+# to Strength and Intelligence",
-             "+# to all Attributes",
-         }},
-        {"+# total to Dexterity",
-         {
-             "+# to Dexterity",
-             "+# to Strength and Dexterity",
-             "+# to Dexterity and Intelligence",
-             "+# to all Attributes",
-         }},
-        {"+# total to Intelligence",
-         {
-             "+# to Intelligence",
-             "+# to Strength and Intelligence",
-             "+# to Dexterity and Intelligence",
-             "+# to all Attributes",
-         }},
-    };
-
-    ModMap reverseModMap(const ModMap &map)
-    {
-        ModMap reverse_map;
-
-        for (const auto &[pseudo_mod, real_mods] : map) {
-            for (const auto &real_mod : real_mods) {
-                reverse_map[real_mod].push_back(pseudo_mod);
-            }
-        }
-
-        return reverse_map;
-    }
-
-    const ModMap summing_pseudo_mods_reverse_lookup = reverseModMap(summing_pseudo_mods);
+    const PseudoModManager pseudo_mgr;
 
 } // namespace
 
-// TBD: counting pseudo-mods like "# total Elemental Resistances"
-// TBD: min pseudo-mods like "+#% total to All Elemental Resistances" (i.e. min(Cold, Fire, Lightning)
-
 /*
-
 const std::vector<std::vector<QString>> simple_sum = {
     {"#% increased Quantity of Items found"},
     {"#% increased Rarity of Items found"},
@@ -390,7 +247,7 @@ void InitStatTranslations()
     mods.clear();
 
     // Seed the mods list with pseudo mods.
-    for (const auto &[pseudo_mod, real_mods] : summing_pseudo_mods) {
+    for (const auto &[pseudo_mod, real_mods] : pseudo_mgr.SUMMING_MODS) {
         mods.insert(pseudo_mod);
     }
 }
@@ -399,17 +256,20 @@ void AddStatTranslations(const QByteArray &statTranslations)
 {
     spdlog::trace("AddStatTranslations() entered");
 
-    rapidjson::Document doc;
-    doc.Parse(statTranslations.constData());
-    if (doc.HasParseError()) {
-        spdlog::error(
-            "Couldn't properly parse Stat Translations from RePoE, canceling Mods Update");
+    std::vector<repoe::StatTranslation> translations;
+
+    constexpr const glz::opts permissive{.error_on_unknown_keys = false};
+    const std::string_view sv{statTranslations.constData(), size_t(statTranslations.size())};
+    const auto ec = glz::read<permissive>(translations, sv);
+    if (ec) {
+        const auto msg = glz::format_error(ec, sv);
+        spdlog::error("Unable to parse RePoE stat translations: {}", msg);
         return;
     }
 
-    for (auto &translation : doc) {
-        for (auto &stat : translation["English"]) {
-            if (HasBool(stat, "is_markup") && (stat["is_markup"].GetBool() == true)) {
+    for (auto &translation : translations) {
+        for (auto &stat : translation.English) {
+            if (stat.is_markup.value_or(false)) {
                 // This was added with the change to process json files inside
                 // the stat_translations directory. In this case, the necropolis
                 // mods from 3.24 have some kind of duplicate formatting with
@@ -419,16 +279,12 @@ void AddStatTranslations(const QByteArray &statTranslations)
                 // folder, but acquisition has never needed to load modifiers from those
                 // files before.
                 continue;
-            };
-            std::vector<QString> formats;
-            for (auto &format : stat["format"]) {
-                formats.push_back(format.GetString());
             }
-            QString stat_string = stat["string"].GetString();
-            if (formats[0].compare("ignore") != 0) {
-                for (size_t i = 0; i < formats.size(); i++) {
-                    QString searchString = "{" + QString::number(i) + "}";
-                    stat_string.replace(searchString, formats[i]);
+            QString stat_string = stat.string;
+            if (stat.format[0].compare("ignore") != 0) {
+                for (size_t i = 0; i < stat.format.size(); i++) {
+                    QString searchString{QStringLiteral("{%1}").arg(i)};
+                    stat_string.replace(searchString, stat.format[i]);
                 }
             }
             if (stat_string.length() > 0) {
@@ -463,11 +319,6 @@ void InitModList()
     }
     mod_list.sort(Qt::CaseInsensitive);
     m_mod_list_model.setStringList(mod_list);
-}
-
-void ModGenerator::Generate(const rapidjson::Value &json, ModTable &output)
-{
-    Generate(json.GetString(), output);
 }
 
 SumModGenerator::SumModGenerator(const QString &name, const std::vector<QString> &matches)
@@ -522,8 +373,8 @@ void AddModToTable(const QString &raw_mod, ModTable &output)
 
     // Next, process summing pseudo-mods.
     {
-        auto it = summing_pseudo_mods_reverse_lookup.find(generic_mod);
-        if (it != summing_pseudo_mods_reverse_lookup.end()) {
+        auto it = pseudo_mgr.SUMMING_MODS_LOOKUP.find(generic_mod);
+        if (it != pseudo_mgr.SUMMING_MODS_LOOKUP.end()) {
             const std::string generic_str = generic_mod.toStdString();
 
             // Get the list of summing pseudo-mods this modifier impacts.

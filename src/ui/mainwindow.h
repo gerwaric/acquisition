@@ -1,25 +1,8 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
-
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
 #pragma once
 
-#include <memory>
 #include <QCloseEvent>
 #include <QLabel>
 #include <QMainWindow>
@@ -27,7 +10,9 @@
 #include <QPushButton>
 #include <QTimer>
 
-#include <util/spdlog_qt.h>
+#include <memory>
+
+#include <spdlog/spdlog.h>
 
 class QNetworkReply;
 class QSettings;
@@ -71,13 +56,12 @@ public:
                         DataStore &datastore,
                         ItemsManager &items_mangaer,
                         BuyoutManager &buyout_manager,
+                        CurrencyManager &currency_manager,
                         Shop &shop,
                         ImageCache &image_cache);
     ~MainWindow();
     std::vector<Column *> columns;
     void LoadSettings();
-
-    void prepare(OAuthManager &oauth_manager, CurrencyManager &currency_manager);
 
 signals:
     void UpdateCheckRequested();
@@ -99,8 +83,8 @@ public slots:
     void OnCollapseAll();
     void OnCheckAll();
     void OnUncheckAll();
-    void OnCheckSelected() { CheckSelected(true); };
-    void OnUncheckSelected() { CheckSelected(false); };
+    void OnCheckSelected() { CheckSelected(true); }
+    void OnUncheckSelected() { CheckSelected(false); }
     void OnRenameTabClicked(int index);
     void OnDeleteTabClicked(int index);
     void OnRefreshSelected();
@@ -131,6 +115,9 @@ private slots:
     // Logging submenu actions
     void OnSetLogging(spdlog::level::level_enum level);
 
+    // Buyouts menu
+    void OnImportBuyouts();
+
     // Tooltip buttons
     void OnCopyForPOB();
     void OnUploadToImgur();
@@ -159,6 +146,7 @@ private:
     DataStore &m_datastore;
     ItemsManager &m_items_manager;
     BuyoutManager &m_buyout_manager;
+    CurrencyManager &m_currency_manager;
     Shop &m_shop;
     ImageCache &m_image_cache;
 

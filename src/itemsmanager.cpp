@@ -1,21 +1,5 @@
-/*
-    Copyright (C) 2014-2025 Acquisition Contributors
-
-    This file is part of Acquisition.
-
-    Acquisition is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    Acquisition is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-*/
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2014 Ilya Zhuravlev
 
 #include "itemsmanager.h"
 
@@ -23,33 +7,22 @@
 #include <QNetworkCookie>
 #include <QSettings>
 
-#include <datastore/datastore.h>
-#include <ui/mainwindow.h>
-#include <util/networkmanager.h>
-#include <util/repoe.h>
-#include <util/spdlog_qt.h>
-#include <util/util.h>
-
 #include "application.h"
 #include "buyoutmanager.h"
+#include "datastore/datastore.h"
 #include "filters.h"
 #include "item.h"
-#include "itemsmanagerworker.h"
 #include "modlist.h"
+#include "repoe/repoe.h"
 #include "shop.h"
+#include "ui/mainwindow.h"
+#include "util/spdlog_qt.h" // IWYU pragma: keep
+#include "util/util.h"
 
-ItemsManager::ItemsManager(QSettings &settings,
-                           NetworkManager &network_manager,
-                           RePoE &repoe,
-                           BuyoutManager &buyout_manager,
-                           DataStore &datastore,
-                           RateLimiter &rate_limiter)
+ItemsManager::ItemsManager(QSettings &settings, BuyoutManager &buyout_manager, DataStore &datastore)
     : m_settings(settings)
-    , m_network_manager(network_manager)
-    , m_repoe(repoe)
     , m_buyout_manager(buyout_manager)
     , m_datastore(datastore)
-    , m_rate_limiter(rate_limiter)
     , m_auto_update_timer(std::make_unique<QTimer>())
 {
     spdlog::trace("ItemsManager::ItemsManager() entered");
@@ -67,27 +40,6 @@ ItemsManager::ItemsManager(QSettings &settings,
 
 ItemsManager::~ItemsManager() {}
 
-void ItemsManager::Start()
-{
-    spdlog::trace("ItemsManager::Start() entered");
-    spdlog::trace("ItemsManager::Start() creating items manager worker");
-    m_worker = std::make_unique<ItemsManagerWorker>(m_settings,
-                                                    m_network_manager,
-                                                    m_repoe,
-                                                    m_buyout_manager,
-                                                    m_datastore,
-                                                    m_rate_limiter);
-    connect(this, &ItemsManager::UpdateSignal, m_worker.get(), &ItemsManagerWorker::Update);
-    connect(m_worker.get(), &ItemsManagerWorker::StatusUpdate, this, &ItemsManager::OnStatusUpdate);
-    connect(m_worker.get(),
-            &ItemsManagerWorker::ItemsRefreshed,
-            this,
-            &ItemsManager::OnItemsRefreshed);
-
-    spdlog::trace("ItemsManager::Start() initializing the worker");
-    m_worker->Init();
-}
-
 void ItemsManager::OnStatusUpdate(ProgramState state, const QString &status)
 {
     emit StatusUpdate(state, status);
@@ -103,10 +55,10 @@ void ItemsManager::ApplyAutoTabBuyouts()
 
     // Loop over all tabs, create buyout based on tab name which applies auto-pricing policies
     for (auto const &loc : m_buyout_manager.GetStashTabLocations()) {
-        auto tab_label = loc.get_tab_label();
+        auto tab_label = loc.tab_label();
         Buyout buyout = m_buyout_manager.StringToBuyout(tab_label);
         if (buyout.IsActive()) {
-            m_buyout_manager.SetTab(loc.GetUniqueHash(), buyout);
+            m_buyout_manager.SetTab(loc, buyout);
         }
     }
 
@@ -145,9 +97,8 @@ void ItemsManager::PropagateTabBuyouts()
     m_buyout_manager.ClearRefreshLocks();
     for (auto &item_ptr : m_items) {
         Item &item = *item_ptr;
-        QString hash = item.location().GetUniqueHash();
         auto item_bo = m_buyout_manager.Get(item);
-        auto tab_bo = m_buyout_manager.GetTab(hash);
+        auto tab_bo = m_buyout_manager.GetTab(item.location());
 
         if (item_bo.IsInherited()) {
             if (tab_bo.IsActive()) {
@@ -202,25 +153,7 @@ void ItemsManager::OnItemsRefreshed(const Items &items,
 void ItemsManager::Update(TabSelection type, const std::vector<ItemLocation> &locations)
 {
     spdlog::trace("ItemsManager::Update() entered");
-    if (!isInitialized()) {
-        // tell ItemsManagerWorker to run an Update() after it's finished updating mods
-        m_worker->UpdateRequest(type, locations);
-        spdlog::debug("Update deferred until item mods parsing is complete");
-        QMessageBox::information(
-            nullptr,
-            "Acquisition",
-            "This items worker is still initializing, but an update request has been queued.",
-            QMessageBox::Ok,
-            QMessageBox::Ok);
-    } else if (isUpdating()) {
-        QMessageBox::information(nullptr,
-                                 "Acquisition",
-                                 "An update is already in progress.",
-                                 QMessageBox::Ok,
-                                 QMessageBox::Ok);
-    } else {
-        emit UpdateSignal(type, locations);
-    }
+    emit UpdateSignal(type, locations);
 }
 
 void ItemsManager::SetAutoUpdate(bool update)
@@ -247,28 +180,45 @@ void ItemsManager::SetAutoUpdateInterval(int minutes)
 void ItemsManager::OnAutoRefreshTimer()
 {
     spdlog::trace("ItemsManager::OnAutoRefreshTimer() entered");
-    if (!isUpdating()) {
-        Update(TabSelection::Checked);
-    } else {
-        spdlog::info("Skipping auto update because the previous update is not complete.");
-    }
+    Update(TabSelection::Checked);
 }
 
 void ItemsManager::MigrateBuyouts()
 {
     spdlog::trace("ItemsManager::MigrateBuyouts() entered");
-    int db_version = m_datastore.GetInt("db_version");
-    // Don't migrate twice
-    if (db_version == 4) {
-        spdlog::trace("ItemsManager::MigrateBuyouts() skipping migration because db_version is 4");
+    const int db_version = m_datastore.GetInt("db_version");
+
+    // Do nothing if the database has already been migrated.
+    if (db_version == 5) {
+        spdlog::debug("ItemsManager skipping migration because db_version is {}", db_version);
         return;
     }
-    spdlog::trace("ItemsManager::MigrateBuyouts() migrating {} items", m_items.size());
-    for (auto &item : m_items) {
-        m_buyout_manager.MigrateItem(*item);
+
+    // Migrate from v4 to v5.
+    if (db_version == 4) {
+        spdlog::debug("ItemsManager migrating from db_version {} to 5", db_version);
+        for (const auto &item : m_items) {
+            m_buyout_manager.MigrateItem(item->hash_v4(), item->id());
+        }
+        m_buyout_manager.Save();
+        m_datastore.SetInt("db_version", 5);
+        return;
     }
-    spdlog::trace(
-        "ItemsManager::MigrateBuyouts() saving buyout manager and setting db_version to 4");
+
+    // Log an error if the version is somehow too high.
+    if (db_version > 5) {
+        spdlog::error("ItemsManager cannot migrate because db_version {} is too new", db_version);
+        return;
+    }
+
+    // Migrate from older versions to v4.
+    spdlog::debug("ItemsManager migrating from db_version {} to 4", db_version);
+    for (const auto &item : m_items) {
+        m_buyout_manager.MigrateItem(item->old_hash(), item->hash_v4());
+    }
     m_buyout_manager.Save();
     m_datastore.SetInt("db_version", 4);
+
+    // Trigger another migration from v4 to v5.
+    MigrateBuyouts();
 }

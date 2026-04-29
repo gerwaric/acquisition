@@ -1,233 +1,251 @@
-#[[
-	Copyright (C) 2014-2025 Acquisition Contributors
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-FileCopyrightText: 2024 Tom Holz
 
-	This file is part of Acquisition.
-
-	Acquisition is free software: you can redistribute it and/or modify
-	it under the terms of the GNU General Public License as published by
-	the Free Software Foundation, either version 3 of the License, or
-	(at your option) any later version.
-
-	Acquisition is distributed in the hope that it will be useful,
-	but WITHOUT ANY WARRANTY; without even the implied warranty of
-	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-	GNU General Public License for more details.
-
-	You should have received a copy of the GNU General Public License
-	along with Acquisition.  If not, see <http://www.gnu.org/licenses/>.
-#]]
-
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.24)
 
 # NOTE: For automatic update detection to work, the 'app_version' variable
 # defined below should match a tag in github. Historically, the github tags
 # have been identical to the 'app_version' as defined below, except the 
 # tags on github are prefixed with a 'v'.
-#
-# The version code that used to be used for update detection is no longer
-# needed, except that some users with version of acquisition prior to
-# version 0.10.5 will still need it, so we can't outright get rid of it.
 
 project(acquisition
-    VERSION 0.15.2
+    VERSION 0.16.0
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
 )
 
 # Use this to define pre-releases
-set(version_postfix "")
+set(app_version_suffix "")
 
-# Variables used to generate version_defines.h and installer.iss
+# Variables used in version_defines.h and platforn-specific files and properties.
 set(app_name            "${CMAKE_PROJECT_NAME}")
 set(app_version         "${CMAKE_PROJECT_VERSION}")
-set(app_version_string  "${CMAKE_PROJECT_VERSION}${version_postfix}")
+set(app_version_string  "${CMAKE_PROJECT_VERSION}${app_version_suffix}")
 set(app_url             "${CMAKE_PROJECT_HOMEPAGE_URL}")
 set(app_publisher       "GERWARIC")
 set(app_publisher_email "gerwaric@gmail.com")
-set(app_copyright       "Copyright (C) 2014-2025 Ilya Zhuravlev and other Acquisition Contributors")
+set(app_copyright       "Copyright (C) 2014-2026 Ilya Zhuravlev and other Acquisition Contributors")
 set(app_trademark       "Path of Exile is a trademark of Grinding Gear Games, Ltd.")
 
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
+#------------------------------------------------------
+# Version Checks
+#------------------------------------------------------
 
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# Enforce semantic versioning 2.0 per https://semver.org/spec/v2.0.0.html
 
-# When building with Qt Creator in Windows, the compiler and linker options
-# need to be set before qt_add_executable(), otherwise these options won't be used.
-# (This is apparently not an issue with Visual Studio 2022).
+if(acquisition_VERSION_MINOR STREQUAL "")
+    message(FATAL_ERROR "Minor version is missing: ${acquisition_VERSION}")
+endif()
 
-if(WIN32)
+if(acquisition_VERSION_PATCH STREQUAL "")
+    message(FATAL_ERROR "Patch version is missing: ${acquisition_VERSION}")
+endif()
 
-    # Hard-code the MSCV runtime required, because knowing when the runtime really
-    # needs to be updated is tricky
-    set(msvc_runtime_minimum_version "14.42")
+if(NOT acquisition_VERSION_TWEAK STREQUAL "")
+    message(FATAL_ERROR "Tweak version cannot be present: ${acquisition_VERSION}")
+endif()
 
-    # Enable more warnings by default
-    add_compile_options(/W4)
-    add_compile_options(/EHsc)
+# Do extra careful checking of the pre-release suffix when it's present.
+if(NOT app_version_suffix STREQUAL "")
 
-    # There was a change to mutex constructors at some point
-    # that was causing random crashes, which can be avoided
-    # with this preprocessor flag.
-    add_compile_options(/D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR)
+    # Check for the leading hyphen.
+    if(NOT app_version_suffix MATCHES "^-")
+        message(FATAL_ERROR "Pre-release suffix does not start with a hyphen: '${app_version_suffix}'")
+    endif()
 
-    # Create .pdb files for debugging
-    add_compile_options("$<$<NOT:$<CONFIG:Debug>>:/Zi>")
-    add_link_options("$<$<NOT:$<CONFIG:Debug>>:/DEBUG>")
-    add_link_options("$<$<NOT:$<CONFIG:Debug>>:/OPT:REF>")
-    add_link_options("$<$<NOT:$<CONFIG:Debug>>:/OPT:ICF>")
+    # Split into groups after the hyphen into dot-separated parts.
+    string(SUBSTRING "${app_version_suffix}" 1 -1 _parts)
+    string(REPLACE "." ";" _parts "${_parts}")
+
+    # Check each part.
+    foreach(id IN LISTS _parts)
+
+        # Identifiers cannot be empty.
+        if(id STREQUAL "")
+            message(FATAL_ERROR "Pre-release suffix contains and empty identifier in '${app_version_suffix}'")
+        endif()
+
+        # Numeric identifiers cannot have leading zeros.
+        if(id MATCHES "^0[0-9]+$")
+            message(FATAL_ERROR "Numeric identifier has leading zero: '${id}' in '${app_version_suffix}'")
+        endif()
+
+        # Check the identifier against allowable characters.
+        if(NOT id MATCHES "^[0-9A-Za-z-]+$")
+            message(FATAL_ERROR "Invalid pre-release identifier '${id}' in '${app_version_suffix}'")
+        endif()
+
+    endforeach()
+
+    # Get rid of the temporary variable.
+    unset(_parts)
 
 endif()
 
+#------------------------------------------------------
+# External Dependencies
+#------------------------------------------------------
+
 include(FetchContent)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Test Widgets)
+if(NOT TARGET sentry-native)
+    FetchContent_Declare(
+        sentry-native
+        GIT_REPOSITORY https://github.com/getsentry/sentry-native
+        GIT_TAG        0.13.8
+        GIT_SHALLOW    TRUE
+    )
+    FetchContent_MakeAvailable(sentry-native)
+
+    # Sentry causes some compiler warnings we want to ignore.
+    target_compile_options(sentry PRIVATE
+        $<$<C_COMPILER_ID:GNU,Clang,AppleClang>:-w>
+        $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-w>
+        $<$<C_COMPILER_ID:MSVC>:/w>
+        $<$<CXX_COMPILER_ID:MSVC>:/w>
+    )
+endif()
 
 if(NOT TARGET glaze)
     FetchContent_Declare(
         glaze
         GIT_REPOSITORY https://github.com/stephenberry/glaze.git
-        GIT_TAG        v6.4.0
+        GIT_TAG        v7.5.0
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(glaze)
 endif()
 
-if(NOT TARGET rapidjson)
-    # This is a headers-only library, so we use an invalid SOURCE_DIR to prevent
-    # add_subdirectory() from called and define an interface target manually.
-    FetchContent_Declare(
-        rapidjson
-        GIT_REPOSITORY https://github.com/tencent/rapidjson.git
-        GIT_TAG        24b5e7a8b27f42fa16b96fc70aade9106cf7102f # There hasn't been a tagged release since 2016
-        GIT_SHALLOW    TRUE
-        SOURCE_SUBDIR  /dev/null
-    )
-    FetchContent_MakeAvailable(rapidjson)
-    add_library(rapidjson INTERFACE)
-    target_include_directories(rapidjson INTERFACE "${rapidjson_SOURCE_DIR}/include")
-endif()
-
 if(NOT TARGET semver)
-    # This is a headers-only library, so we use an invalid SOURCE_DIR to prevent
-    # add_subdirectory() from called and define an interface target manually.
     FetchContent_Declare(
         semver
         GIT_REPOSITORY https://github.com/z4kn4fein/cpp-semver
         GIT_TAG        v0.4.0
         GIT_SHALLOW    TRUE
-        SOURCE_SUBDIR  /dev/null
     )
     FetchContent_MakeAvailable(semver)
-    add_library(semver INTERFACE)
-    target_include_directories(semver INTERFACE "${semver_SOURCE_DIR}/include")
 endif()
 
 if(NOT TARGET spdlog)
     FetchContent_Declare(
         spdlog
         GIT_REPOSITORY https://github.com/gabime/spdlog.git
-        GIT_TAG        v1.16.0
+        GIT_TAG        v1.17.0
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(spdlog)
 endif()
 
-qt_standard_project_setup(REQUIRES 6.10.0)
+#------------------------------------------------------
+# Acquisition Sources
+#------------------------------------------------------
 
-qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
-    # Source
+set(ACQ_CORE
     src/application.cpp
+    src/application.h
     src/bucket.cpp
+    src/bucket.h
     src/buyout.cpp
+    src/buyout.h
     src/buyoutmanager.cpp
+    src/buyoutmanager.h
     src/column.cpp
+    src/column.h
     src/currency.cpp
+    src/currency.h
     src/currencymanager.cpp
-    src/datastore/datastore.cpp
-    src/datastore/memorydatastore.cpp
-    src/datastore/sqlitedatastore.cpp
+    src/currencymanager.h
     src/filters.cpp
+    src/filters.h
     src/imagecache.cpp
+    src/imagecache.h
     src/influence.cpp
+    src/influence.h
     src/item.cpp
+    src/item.h
     src/itemcategories.cpp
+    src/itemcategories.h
     src/itemconstants.cpp
+    src/itemconstants.h
     src/itemlocation.cpp
+    src/itemlocation.h
     src/items_model.cpp
+    src/items_model.h
     src/itemsmanager.cpp
+    src/itemsmanager.h
     src/itemsmanagerworker.cpp
-    # src/legacy/legacybuyoutvalidator.cpp DISABLED as of v0.12.4
-    src/legacy/legacydatastore.cpp
-    src/legacy/legacyitem.cpp
+    src/itemsmanagerworker.h
     src/main.cpp
     src/modlist.cpp
+    src/modlist.h
     src/modsfilter.cpp
-    src/ratelimit/ratelimit.cpp
-    src/ratelimit/ratelimitdialog.cpp
-    src/ratelimit/ratelimitedrequest.cpp
-    src/ratelimit/ratelimiter.cpp
-    src/ratelimit/ratelimitmanager.cpp
-    src/ratelimit/ratelimitpolicy.cpp
+    src/modsfilter.h
+    src/pseudomods.cpp
+    src/pseudomods.h
+    src/replytimeout.h
     src/search.cpp
+    src/search.h
     src/shop.cpp
-    src/ui/flowlayout.cpp
-    src/ui/itemtooltip.cpp
-    src/ui/logindialog.cpp
-    src/ui/logpanel.cpp
-    src/ui/mainwindow.cpp
-    src/ui/searchcombobox.cpp
-    src/ui/verticalscrollarea.cpp
-    src/util/checkmsvc.cpp
-    src/util/crashpad.cpp
-    src/util/fatalerror.cpp
-    src/util/logging.cpp
-    src/util/networkmanager.cpp
-    src/util/oauthmanager.cpp
-    src/util/oauthtoken.cpp
-    src/util/repoe.cpp
-    src/util/updatechecker.cpp
-    src/util/util.cpp
-    test/testdata.cpp
-    test/testitem.cpp
-    test/testitemsmanager.cpp
-    test/testmain.cpp
-    test/testshop.cpp
-    test/testutil.cpp
-    # Headers
-    src/application.h
-    src/bucket.h
-    src/buyout.h
-    src/buyoutmanager.h
-    src/column.h
-    src/currency.h
-    src/currencymanager.h
+    src/shop.h
+)
+
+set(ACQ_DATASTORE
+    src/datastore/buyoutrepo.cpp
+    src/datastore/buyoutrepo.h
+    src/datastore/characterrepo.cpp
+    src/datastore/characterrepo.h
+    src/datastore/datastore.cpp
     src/datastore/datastore.h
+    src/datastore/datastore_utils.cpp
+    src/datastore/datastore_utils.h
+    src/datastore/memorydatastore.cpp
     src/datastore/memorydatastore.h
+    src/datastore/sqlitedatastore.cpp
     src/datastore/sqlitedatastore.h
-    src/filters.h
-    src/imagecache.h
-    src/influence.h
-    src/item.h
-    src/itemcategories.h
-    src/itemconstants.h
-    src/itemlocation.h
-    src/items_model.h
-    src/itemsmanager.h
-    src/itemsmanagerworker.h
+    src/datastore/stashrepo.cpp
+    src/datastore/stashrepo.h
+    src/datastore/userstore.cpp
+    src/datastore/userstore.h
+)
+
+set(ACQ_LEGACY
     src/legacy/legacybuyout.h
-    # src/legacy/legacybuyoutvalidator.h DISABLED as of v0.12.4
     src/legacy/legacycharacter.h
     src/legacy/legacycurrency.h
+    src/legacy/legacydatastore.cpp
     src/legacy/legacydatastore.h
+    src/legacy/legacyitem.cpp
     src/legacy/legacyitem.h
+    src/legacy/legacyitemlocation.h
     src/legacy/legacystash.h
-    src/modlist.h
-    src/modsfilter.h
-    src/network_info.h
+)
+
+set(ACQ_RATELIMIT
+    src/ratelimit/ratelimit.cpp
+    src/ratelimit/ratelimit.h
+    src/ratelimit/ratelimitdialog.cpp
+    src/ratelimit/ratelimitdialog.h
+    src/ratelimit/ratelimitedreply.h
+    src/ratelimit/ratelimitedrequest.cpp
+    src/ratelimit/ratelimitedrequest.h
+    src/ratelimit/ratelimiter.cpp
+    src/ratelimit/ratelimiter.h
+    src/ratelimit/ratelimitmanager.cpp
+    src/ratelimit/ratelimitmanager.h
+    src/ratelimit/ratelimitpolicy.cpp
+    src/ratelimit/ratelimitpolicy.h
+)
+
+set(ACQ_REPOE
+    src/repoe/repoe.cpp
+    src/repoe/repoe.h
+    src/repoe/baseitem.h
+    src/repoe/itemclass.h
+    src/repoe/stattranslation.h
+)
+
+set(ACQ_POE
     src/poe/endpoints/accountcharacter.h
     src/poe/endpoints/accountcharacters.h
     src/poe/endpoints/accountleagues.h
@@ -238,6 +256,8 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/poe/endpoints/website/webcharacters.h
     src/poe/endpoints/website/webleagues.h
     src/poe/endpoints/website/webstashitems.h
+    src/poe/poe_utils.cpp
+    src/poe/poe_utils.h
     src/poe/types/account.h
     src/poe/types/character.h
     src/poe/types/cruciblenode.h
@@ -265,117 +285,189 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     src/poe/types/stashtab.h
     src/poe/types/website/webcharacter.h
     src/poe/types/website/webstashtab.h
-    src/ratelimit/ratelimit.h
-    src/ratelimit/ratelimitdialog.h
-    src/ratelimit/ratelimitedreply.h
-    src/ratelimit/ratelimitedrequest.h
-    src/ratelimit/ratelimiter.h
-    src/ratelimit/ratelimitmanager.h
-    src/ratelimit/ratelimitpolicy.h
-    src/replytimeout.h
-    src/search.h
-    src/shop.h
+)
+
+set(ACQ_UI
+    src/ui/flowlayout.cpp
     src/ui/flowlayout.h
+    src/ui/itemtooltip.cpp
     src/ui/itemtooltip.h
+    src/ui/logindialog.cpp
     src/ui/logindialog.h
+    src/ui/logpanel.cpp
     src/ui/logpanel.h
+    src/ui/mainwindow.cpp
     src/ui/mainwindow.h
+    src/ui/searchcombobox.cpp
     src/ui/searchcombobox.h
+    src/ui/verticalscrollarea.cpp
     src/ui/verticalscrollarea.h
-    src/util/checkmsvc.h
-    src/util/crashpad.h
-    src/util/fatalerror.h
-    src/util/glaze_qt.h
-    # src/util/json_struct_qt.h
-    src/util/logging.h
-    src/util/networkmanager.h
-    src/util/oauthmanager.h
-    src/util/oauthtoken.h
-    src/util/rapidjson_util.h
-    src/util/repoe.h
-    src/util/spdlog_qt.h
-    src/util/updatechecker.h
-    src/util/util.h
-    test/testdata.h
-    test/testitem.h
-    test/testitemsmanager.h
-    test/testmain.h
-    test/testshop.h
-    test/testutil.h
     # Forms
     src/ui/logindialog.ui
     src/ui/mainwindow.ui
-    # Resources
-    resources.qrc
-    # Generated version header
-    "${CMAKE_BINARY_DIR}/version_defines.h"
 )
 
-# On Windows, we want to know which version of MSVC was used.
-if(WIN32)
+set(ACQ_UTIL
+    src/util/checkmsvc.cpp
+    src/util/checkmsvc.h
+    src/util/fatalerror.cpp
+    src/util/fatalerror.h
+    src/util/glaze_qt.h
+    src/util/json_readers.cpp
+    src/util/json_readers.h
+    src/util/json_writers.cpp
+    src/util/json_writers.h
+    src/util/logging.cpp
+    src/util/logging.h
+    src/util/networkmanager.cpp
+    src/util/networkmanager.h
+    src/util/oauthmanager.cpp
+    src/util/oauthmanager.h
+    src/util/oauthtoken.cpp
+    src/util/oauthtoken.h
+    src/util/spdlog_qt.h
+    src/util/updatechecker.cpp
+    src/util/updatechecker.h
+    src/util/util.cpp
+    src/util/util.h
+)
 
-    if(NOT MSVC)
-        message(FATAL_ERROR "Only the MSVC compiler is supported on Windows")
-    endif()
+#------------------------------------------------------
+# Resources
+#------------------------------------------------------
 
-    # The Microsoft Visual C++ Compiler version 19 corresponds to runtime version 14.
-    set(msvc_compiler_ver "19")
-    set(msvc_runtime_ver "14")
-
-    # Run the compiler executable to grab the version printed on the first line.
-    execute_process(
-        COMMAND cl
-        OUTPUT_VARIABLE cl_output
-        ERROR_VARIABLE cl_error
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-
-    # Extract the compiler version.
-    string(REGEX MATCH "Version ([0-9]+\\.[0-9]+\\.[0-9]+)" msvc_version ${cl_error})
-    string(REGEX REPLACE "^Version " "" msvc_version ${msvc_version})
-    if (NOT msvc_version)
-        message(FATAL_ERROR "Could not determine MSVC version from cl.exe output")
-    endif()
-    message(STATUS "MSVC Compiler: ${msvc_version}")
-
-    # Derive the runtime version.
-    string(REGEX REPLACE "^${msvc_compiler_ver}" "${msvc_runtime_ver}" msvc_runtime_build_version ${msvc_version})
-    if (NOT msvc_runtime_build_version)
-        message(FATAL_ERROR "Could not determine MSVC runtime version from cl.exe output")
-    endif()
-    message(STATUS "MSVC Runtime Build Version: ${msvc_runtime_build_version}")
-    message(STATUS "MSVC Runtime Minimum Version: ${msvc_runtime_minimum_version}")
-
-endif()
+set(ACQ_RESOURCES
+    assets/backgrounds/ElderBackground_1x1.png
+    assets/backgrounds/ElderBackground_1x3.png
+    assets/backgrounds/ElderBackground_1x4.png
+    assets/backgrounds/ElderBackground_2x1.png
+    assets/backgrounds/ElderBackground_2x2.png
+    assets/backgrounds/ElderBackground_2x3.png
+    assets/backgrounds/ElderBackground_2x4.png
+    assets/backgrounds/ShaperBackground_1x1.png
+    assets/backgrounds/ShaperBackground_1x3.png
+    assets/backgrounds/ShaperBackground_1x4.png
+    assets/backgrounds/ShaperBackground_2x1.png
+    assets/backgrounds/ShaperBackground_2x2.png
+    assets/backgrounds/ShaperBackground_2x3.png
+    assets/backgrounds/ShaperBackground_2x4.png
+    assets/fonts/Fontin-SmallCaps.ttf
+    assets/headers/CurrencyLeft.png
+    assets/headers/CurrencyRight.png
+    assets/headers/CurrencyMiddle.png
+    assets/headers/GemLeft.png
+    assets/headers/GemRight.png
+    assets/headers/GemMiddle.png
+    assets/headers/MagicLeft.png
+    assets/headers/MagicRight.png
+    assets/headers/MagicMiddle.png
+    assets/headers/RareLeft.png
+    assets/headers/RareRight.png
+    assets/headers/RareMiddle.png
+    assets/headers/RareSingleLineLeft.png
+    assets/headers/RareSingleLineRight.png
+    assets/headers/RareSingleLineMiddle.png
+    assets/headers/UniqueLeft.png
+    assets/headers/UniqueRight.png
+    assets/headers/UniqueMiddle.png
+    assets/headers/UniqueSingleLineLeft.png
+    assets/headers/UniqueSingleLineRight.png
+    assets/headers/UniqueSingleLineMiddle.png
+    assets/headers/WhiteLeft.png
+    assets/headers/WhiteRight.png
+    assets/headers/WhiteMiddle.png
+    assets/icons/icon.svg
+    assets/separators/SeparatorWhite.png
+    assets/separators/SeparatorMagic.png
+    assets/separators/SeparatorRare.png
+    assets/separators/SeparatorUnique.png
+    assets/separators/SeparatorGem.png
+    assets/separators/SeparatorCurrency.png
+    assets/sockets/Socket_A.png
+    assets/sockets/Socket_D.png
+    assets/sockets/Socket_G.png
+    assets/sockets/Socket_I.png
+    assets/sockets/Socket_Link_Horizontal.png
+    assets/sockets/Socket_Link_Vertical.png
+    assets/sockets/Socket_S.png
+    assets/symbols/CrusaderSymbol.png
+    assets/symbols/EaterOfWorldsSymbol.png
+    assets/symbols/ElderSymbol.png
+    assets/symbols/FracturedSymbol.png
+    assets/symbols/HunterSymbol.png
+    assets/symbols/RedeemerSymbol.png
+    assets/symbols/SearingExarchSymbol.png
+    assets/symbols/ShaperSymbol.png
+    assets/symbols/SynthesisedSymbol.png
+    assets/symbols/WarlordSymbol.png
+)
 
 # Automatically populate and include the versions header file.
 configure_file("src/version_defines.h.in" "version_defines.h" @ONLY)
 
-# Setup include directories.
-target_include_directories(acquisition PRIVATE
-    src/
-    test/
-    "${CMAKE_BINARY_DIR}"
+#------------------------------------------------------
+# Qt Project Setup
+#------------------------------------------------------
+
+find_package(Qt6 6.10 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Widgets)
+
+qt_standard_project_setup()
+
+qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
+    ${ACQ_CORE}
+    ${ACQ_DATASTORE}
+    ${ACQ_LEGACY}
+    ${ACQ_RATELIMIT}
+    ${ACQ_REPOE}
+    ${ACQ_POE}
+    ${ACQ_UI}
+    ${ACQ_UTIL}
+    # Generated version header
+    "${CMAKE_BINARY_DIR}/version_defines.h"
 )
 
-add_subdirectory(deps/Crashpad)
+qt_add_resources(acquisition
+    PREFIX "/"
+    BASE "assets"
+    FILES ${ACQ_RESOURCES}
+)
+
+# Add configure_file() inputs so they show up in Qt Creator.
+target_sources(acquisition PRIVATE
+    FILE_SET project_files TYPE HEADERS
+    FILES
+        version_info.rc.in
+        src/version_defines.h.in
+)
+
+set_target_properties(acquisition PROPERTIES
+    AUTORCC ON
+    CXX_STANDARD 23
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+)
+
+# Setup include directories.
+target_include_directories(acquisition PRIVATE
+    "${acquisition_SOURCE_DIR}/src"
+    "${acquisition_BINARY_DIR}"
+)
+
 add_subdirectory(deps/qdarkstyle)
 
 # Link required libraries.
 target_link_libraries(acquisition PRIVATE
     # Qt libraries
-    Qt::Core
-    Qt::Gui
-    Qt::Network
-    Qt::NetworkAuth
-    Qt::Widgets
-    Qt::Sql
-    Qt::Test
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Network
+    Qt6::NetworkAuth
+    Qt6::Widgets
+    Qt6::Sql
     # Extenal libraries
-    Crashpad
     glaze::glaze
     qdarkstyle
-    rapidjson
+    sentry::sentry
     semver
     spdlog::spdlog_header_only
 )
@@ -386,106 +478,108 @@ target_link_libraries(acquisition PRIVATE
 
 if(WIN32)
 
-    # Needed to check the MSVC runtime version
-    target_link_libraries(acquisition PRIVATE Version)
+    # Enable more warnings by default (MSVC only).
+    target_compile_options(acquisition PRIVATE
+        $<$<CXX_COMPILER_ID:MSVC>:/W4>
+        $<$<CXX_COMPILER_ID:MSVC>:/EHsc>
+        $<$<CXX_COMPILER_ID:MSVC>:/D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR>
+        $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<NOT:$<CONFIG:Debug>>>:/Zi>
+    )
+    target_link_options(acquisition PRIVATE
+        $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<NOT:$<CONFIG:Debug>>>:/DEBUG>
+        $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<NOT:$<CONFIG:Debug>>>:/OPT:REF>
+        $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<NOT:$<CONFIG:Debug>>>:/OPT:ICF>
+    )
 
-    # Add the application icon.
-    target_sources(acquisition PRIVATE "${PROJECT_SOURCE_DIR}/assets/icon.ico")
+    # Define versions for the versioninfo.
+    math(EXPR app_version_major "${acquisition_VERSION_MAJOR} + 0")
+    math(EXPR app_version_minor "${acquisition_VERSION_MINOR} + 0")
+    math(EXPR app_version_patch "${acquisition_VERSION_PATCH} + 0")
+    math(EXPR app_version_tweak "${acquisition_VERSION_PATCH} + 0")
 
-    # Use a function to set version variables so there can be a default value.
-    function(setver name value default)
-        if (NOT "${value}" STREQUAL "")
-            set("${name}" "${value}" PARENT_SCOPE)
-        else()
-            set("${name}" "${default}" PARENT_SCOPE)
-        endif()
-    endfunction()
-
-    # Define the version variables.
-    setver(app_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}" 1)
-    setver(app_VERSION_MINOR "${PROJECT_VERSION_MINOR}" 0)
-    setver(app_VERSION_PATCH "${PROJECT_VERSION_PATCH}" 0)
-    setver(app_VERSION_TWEAK "${PROJECT_VERSION_TWEAK}" 0)
-
-    # Define the reset of the versioninfo data.
-    set(app_COMPANY_NAME        "")
-    set(app_FILE_DESCRIPTION    "")
-    set(app_FILE_VERSION        "${app_version_string}")
-    set(app_INTERNAL_NAME       "${CMAKE_PROJECT_NAME}")
-    set(app_LEGAL_COPYRIGHT     "${app_copyright}")
-    set(app_LEGAL_TRADEMARK     "${app_trademark}")
-    set(app_ORIGINAL_FILENAME   "${CMAKE_PROJECT_NAME}.exe")
-    set(app_PRODUCT_NAME        "${CMAKE_PROJECT_NAME}")
-    set(app_PRODUCT_VERSION     "${app_version_string}")
-    set(app_ICON                "${PROJECT_SOURCE_DIR}/assets/icon.ico")
+    # Define the rest of the versioninfo data.
+    set(app_company_name        "")
+    set(app_file_description    "")
+    set(app_file_version        "${app_version_string}")
+    set(app_internal_name       "${app_name}")
+    set(app_legal_copyright     "${app_copyright}")
+    set(app_legal_trademark     "${app_trademark}")
+    set(app_original_filename   "${app_name}.exe")
+    set(app_product_name        "${app_name}")
+    set(app_product_version     "${app_version_string}")
+    set(app_icon                "${acquisition_SOURCE_DIR}/assets/icons/icon.ico")
 
     # Create the windows VERSIONINFO resource file.
     configure_file(version_info.rc.in version_info.rc @ONLY)
-    target_sources(acquisition PUBLIC "${CMAKE_BINARY_DIR}/version_info.rc")
+
+    target_sources(acquisition PRIVATE
+        "${app_icon}"
+        "version_info.rc")
         
 elseif(APPLE)
-    
-    set(macosx_app_version "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}")
+
+    set(macos_app_icon "${acquisition_SOURCE_DIR}/assets/icons/icon.icns")
 
     # Setup the macOS bundle
     set_target_properties(acquisition PROPERTIES
         MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_BUNDLE_NAME "Acquisition"
-        MACOSX_BUNDLE_BUNDLE_VERSION "${macosx_app_version}"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${app_version}"
         MACOSX_BUNDLE_COPYRIGHT "${app_copyright}"
         #MACOSX_BUNDLE_GUI_IDENTIFIER ""
         MACOSX_BUNDLE_ICON_FILE "icon.icns"
-        MACOSX_BUNDLE_INFO_STRING "${PROJECT_DESCRIPTION}"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "${macosx_app_version}"
+        MACOSX_BUNDLE_INFO_STRING "${acquisition_DESCRIPTION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${app_version}"
     )
 
     # Add the macOS application icon
-    set(macos_app_icon "${PROJECT_SOURCE_DIR}/assets/icon.icns")
-    set_source_files_properties("${macos_app_icon}" PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
     target_sources(acquisition PRIVATE "${macos_app_icon}")
+    set_source_files_properties("${macos_app_icon}" PROPERTIES
+        MACOSX_PACKAGE_LOCATION "Resources"
+    )
     
     # Generate debugging symbols file.
-    target_compile_options(acquisition PRIVATE "-g")
-    set_target_properties(acquisition PROPERTIES
-        XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS "YES"
-        XCODE_ATTRIBUTE_DEBUG_INFORMATION_FORMAT "dwarf-with-dsym"
-        XCODE_ATTRIBUTE_DEPLOYMENT_POSTPROCESING "YES"
-        XCODE_ATTRIBUTE_STRIP_INSTALLED_PRODUCT "YES"
-    )
-    set(macos_exe "${CMAKE_BINARY_DIR}/acquisition.app/Contents/MacOS/acquisition")
-    set(macos_dsym "${CMAKE_BINARY_DIR}/acquisition_${app_version_string}.dSYM")
-    add_custom_command(TARGET acquisition
-        POST_BUILD
-        COMMAND xcrun dsymutil "${macos_exe}" -o "${macos_dsym}"
+    target_compile_options(acquisition PRIVATE $<$<NOT:$<CONFIG:Debug>>:-g>)
+    add_custom_command(TARGET acquisition POST_BUILD
+        COMMAND xcrun dsymutil
+            "$<TARGET_FILE:acquisition>"
+            -o "${CMAKE_BINARY_DIR}/acquisition_${app_version_string}.dSYM"
+        VERBATIM
     )
     
 elseif(UNIX)
 
+    # Link OpenSSL on Linux.
     find_package(OpenSSL REQUIRED)
-
-    # Make sure OpenSSL was found
-    if (OpenSSL_FOUND)
-        message(STATUS "Found OpenSSL: ${OPENSSL_VERSION}")
-        message(STATUS "OpenSSL Include Dir: ${OPENSSL_INCLUDE_DIR}")
-        message(STATUS "OpenSSL Libraries: ${OPENSSL_LIBRARIES}")
-    else()
-        message(FATAL_ERROR "OpenSSL not found on this system!")
-    endif()
-
-    # Link OpenSSL libraries to acquisition
-    target_include_directories(acquisition PUBLIC "${OPENSSL_INCLUDE_DIR}")
-    target_link_libraries(acquisition PUBLIC
-        OpenSSL::SSL
-        OpenSSL::Crypto)
+    target_link_libraries(acquisition PRIVATE OpenSSL::SSL OpenSSL::Crypto)
 
     # Generate debug symbols.
-    target_compile_options(acquisition PRIVATE -g)
-    add_custom_command(TARGET acquisition
-        POST_BUILD
-        COMMAND ${CMAKE_OBJCOPY} --only-keep-debug acquisition acquisition.debug
-        COMMAND ${CMAKE_STRIP} --strip-debug --strip-unneeded acquisition
-        COMMAND ${CMAKE_OBJCOPY} --add-gnu-debuglink=acquisition.debug acquisition
-        COMMAND chmod -x acquisition.debug
-    )
+    target_compile_options(acquisition PRIVATE $<$<NOT:$<CONFIG:Debug>>:-g>)
+    if(CMAKE_OBJCOPY AND CMAKE_STRIP)
+        add_custom_command(TARGET acquisition
+            POST_BUILD
+            COMMAND ${CMAKE_OBJCOPY} --only-keep-debug acquisition acquisition.debug
+            COMMAND ${CMAKE_STRIP} --strip-debug --strip-unneeded acquisition
+            COMMAND ${CMAKE_OBJCOPY} --add-gnu-debuglink=acquisition.debug acquisition
+            COMMAND chmod -x acquisition.debug
+        )
+    else()
+        message(NOTICE "Could not create acquisition.debug")
+    endif()
     
 endif()
+
+#------------------------------------------------------
+# Crashpad for Sentry
+#------------------------------------------------------
+
+set(CRASHPAD_HANDLER_EXE "crashpad_handler${CMAKE_EXECUTABLE_SUFFIX}")
+set(CRASHPAD_HANDLER_SRC "${sentry-native_BINARY_DIR}/crashpad_build/handler/${CRASHPAD_HANDLER_EXE}")
+set(CRASHPAD_HANDLER_DST "$<TARGET_FILE_DIR:acquisition>/${CRASHPAD_HANDLER_EXE}")
+
+# Make sure the crashpad handler is copied next to the output executable.
+add_custom_command(TARGET acquisition POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CRASHPAD_HANDLER_SRC}" "${CRASHPAD_HANDLER_DST}"
+    COMMAND_EXPAND_LISTS
+    VERBATIM
+)
