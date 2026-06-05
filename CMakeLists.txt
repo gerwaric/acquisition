@@ -9,7 +9,7 @@ cmake_minimum_required(VERSION 3.24)
 # tags on github are prefixed with a 'v'.
 
 project(acquisition
-    VERSION 0.16.0
+    VERSION 0.16.1
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
