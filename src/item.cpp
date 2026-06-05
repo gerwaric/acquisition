@@ -135,7 +135,10 @@ Item::Item(const poe::Item &item, const ItemLocation &base_location)
 
     m_w = item.w;
     m_h = item.h;
-    m_frameType = static_cast<int>(item.frameType);
+    if (item.frameType) {
+        m_frameType = static_cast<int>(*item.frameType);
+    }
+    m_frameTypeId = item.frameTypeId;
     m_icon = item.icon;
 
     using mod_set_t = std::pair<const char *, std::optional<std::vector<QString>>>;
