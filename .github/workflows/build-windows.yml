@@ -19,13 +19,13 @@ jobs:
     - name: Setup Qt
       uses: jurplel/install-qt-action@v4
       with:
-        version: '6.10.2'
+        version: '6.10.3'
         host: 'windows'
         target: 'desktop'
         arch: 'win64_msvc2022_64'
         modules: 'qtnetworkauth'
         cache: true
-        cache-key-prefix: 'qt-6.10.2-win64'
+        cache-key-prefix: 'qt-6.10.3-win64'
 
     - name: Setup MSVC
       uses: ilammy/msvc-dev-cmd@v1

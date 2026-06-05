@@ -160,6 +160,8 @@ namespace poe {
         std::optional<std::vector<poe::ItemProperty>>
             supportGemRequirements; // ? array of ItemProperty; PoE2 only
         std::optional<std::vector<poe::ItemProperty>> additionalProperties; // ? array of ItemProperty
+        std::optional<std::vector<poe::ItemProperty>>
+            tamedBeastProperties; // ? array of ItemProperty; PoE2 only
         std::optional<std::vector<poe::ItemProperty>> nextLevelRequirements; // ? array of ItemProperty
         std::optional<std::vector<poe::ItemProperty>>
             grantedSkills;               // ? array of ItemProperty; PoE2 only
@@ -203,7 +205,8 @@ namespace poe {
         std::optional<poe::Item::ScourgedInfo> scourged;        // ? object
         std::optional<poe::Item::CrucibleInfo> crucible;        // ? object
         std::optional<bool> ruthless;                           // ? bool always true if present
-        poe::FrameType frameType;                               // ? uint as FrameType
+        std::optional<poe::FrameType> frameType;                // ? uint as FrameType
+        QString frameTypeId;
         std::optional<QString> artFilename;                     // ? string
         std::optional<poe::Item::HybridInfo> hybrid;            // ? object
         std::optional<poe::Item::ExtendedInfo>
@@ -213,6 +216,8 @@ namespace poe {
         std::optional<QString> inventoryId; // ? string
         std::optional<unsigned> socket;     // ? uint
         std::optional<QString> colour;      // ? string S, D, I, or G
+        std::optional<QString>
+            socketedIcon; // ? string PoE2 only; an image URL to use when this item is in the socket of another item
 
         inline bool operator<(const Item &other) const
         {

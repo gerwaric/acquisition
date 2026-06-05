@@ -163,7 +163,8 @@ private:
     std::vector<INFLUENCE_TYPES> m_influenceList;
     int m_w{0};
     int m_h{0};
-    int m_frameType{0};
+    int m_frameType{-1};
+    QString m_frameTypeId;
     QString m_icon;
     std::map<QString, QString> m_properties;
     QString m_old_hash;
