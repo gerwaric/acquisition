@@ -1,77 +1,94 @@
 # Building Acquisition
 
-Acquisition can be build on Windows, macOS, and Linux using CMake and Qt 6.
+Acquisition is a C++23 Qt Widgets application. It can be built on Windows,
+macOS, and Linux with CMake and Qt 6.
 
-Acquisition should be buildable with Qt Creator (Community) on any platform that supports Qt.
+The CMake project currently requires Qt 6.11 or newer with these Qt modules:
 
-Acquisition depends on the following Qt modules, which should be installed from the Qt Maintenance Tool:
-- Qt Network Authorization
+- Core
+- Gui
+- Network
+- Network Authorization
+- Sql
+- Widgets
 
-## Windows
+For day-to-day development, Qt Creator Community is the easiest setup on all
+supported platforms. Open the repository as a CMake project, configure a Qt 6.11+
+desktop kit, and build the `acquisition` target.
 
-Windows releases are currently built with:
-- Windows 11
-- Qt Creator (Community) with Qt 6.10.x using MSVC 2022 64-bit
-- Inno Setup 6.5.4 for installer creation
+## Command Line Build
 
-You can also build Acquisition with Visual Studio 2022 and the Qt Visual Studio Tools extension.
+From the repository root:
+
+```sh
+cmake -S . -B build
+cmake --build build
+```
+
+For a release-style local build:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+```
+
+The executable is written to the CMake build directory. You can run it with a
+temporary data directory while testing:
+
+```sh
+./build/acquisition --data-dir /tmp/acq-data --log-level debug
+```
+
+There is no checked-in standalone test suite at the moment.
+
+## Code Scanning
+
+Static analysis is run by `.github/workflows/codeql.yml` using GitHub CodeQL.
+The workflow performs a manual Linux CMake build so CodeQL sees the same Qt,
+compiler, generated sources, and include paths used by the application build.
+
+The workflow runs on pushes and pull requests to `main`, on a weekly schedule,
+and by `workflow_dispatch`.
 
 ## Linux
 
-These instructions are based on using Ubuntu 22.04 LTS. Not every step is explicit--e.g. you will have to figure out how to use git and/or install packages on your distribution of choice.
+Linux builds require OpenSSL 3.x support at build and runtime. On Ubuntu-like
+systems, the GitHub Actions workflow installs these packages:
 
-You might need to modify some of the deploy scripts and/or CMakeLists.txt depending on which specific version of Qt you have installed and where you've installed it.
+```sh
+sudo apt-get install -y \
+  patchelf openssl libfuse2 \
+  libcurl4-openssl-dev \
+  libgl-dev \
+  libssl-dev \
+  libvulkan-dev \
+  libxcb-cursor0 \
+  libxcb-cursor-dev \
+  zlib1g-dev
+```
 
-1. Start from a working Ubuntu installation.
+Other distributions may need equivalent packages. If Qt cannot find OpenSSL, set
+`OPENSSL_ROOT_DIR` or adjust your library path for your local installation.
 
-2. Download and run the Qt Online Installer for open-source use:
+## Release Packaging
 
-https://www.qt.io/download-open-source
+Release artifacts are built by GitHub Actions:
 
-Notes:
-- You may need to sign up for a Qt account.
-- Make sure the following packages are installed:
-    - libxcb-cursor0
-    - libxcb-cursor-dev
-	- libgl-dev
-    - libssl-dev
-    - libvulkan-dev
-    - gcc-13 and g++-13 (for std::expected, which is used by the glaze json library)
-    - libcurl4-openssl-dev
-    - zlib1g-dev
-- Other packages may be required on other distributions.
+- `.github/workflows/build-linux.yml` builds the Linux AppImage.
+- `.github/workflows/build-macos.yml` builds the macOS DMG.
+- `.github/workflows/build-windows.yml` builds the Windows installer.
 
-When runing the installer, choose "Custom Installation". Then, in addition to the default selection, add the following:
-- Select "Desktop" under Qt -> Qt 6.10.x
-- Select "Qt Network Authorization" under Qt -> Qt 6.10.x -> Additional Libraries
+The workflows run on `workflow_dispatch` and on tags matching `v*`. Tag builds
+create draft GitHub releases and attach the platform artifacts. They currently
+install Qt 6.11.1 with the `qtnetworkauth` module.
 
-Ubuntu 22.04 LTS comes with OpenSSL 3.x, buf if you are using a distribution that does not, you may need to build and install it yourself:
-- Select "OpenSSL 3.x Toolkit" under Qt -> Build Tools
-- Build OpenSSL 3.x from the toolkit that Qt installed.
-- Make sure OPENSSL_ROOT_DIR is set properly.
+## Platform Notes
 
-3. Open the acquisition project in Qt Creator. If something wasn't configured properly, you'll get an error in this step, which is often difficult to debug. Once you've got the project opened, you should be able to build it.
+Windows release packaging uses MSVC 2022, `windeployqt`, the Visual C++
+Redistributable, and Inno Setup via `installer.iss`.
 
-4. Create the AppImage for deployment.
+macOS release packaging uses `macdeployqt` to produce a DMG. The current workflow
+runs on `macos-latest` and names the uploaded artifact as an arm64 DMG.
 
-You will need to make sure you have linuxdeploy:
-- `wget https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage`
-- `wget https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage`
-
-**NOTE**: older version of linuxdeploy prior to August of 2025 will not work because were not able to handle changes in Qt 6.6 that broke library packaging for SQL drivers in some circumstances.
-
-Make sure they moved into ~/bin because this location is hard-coded in the deploy script.
-Make sure they are executable, e.g. via chmod u+x *.AppImage
-
-Run deploy-linux.sh from within the acquisition project folder.
-
-5. Run Acquisition.
-
-Look for an AppImage file in the deploy/ directory.
-
-## macOS
-
-macOS releases are currently built with:
-- macOS Sequoia 15.x on Apple silicon
-- Qt Creator with Qt 6.10.x for macOS
-- XCode 26.x
+Linux release packaging uses `linuxdeploy` and `linuxdeploy-plugin-qt` to produce
+an AppImage.

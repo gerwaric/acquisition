@@ -4,28 +4,17 @@ Acquisition is an inventory management tool for [Path of Exile](https://www.path
 
 - You can download all of your stash tabs and character inventories for offline search.
 
-- You can list items for trade using forum shop threads, which are indexed by the official trade site. This allows you to list items in remove-only tabs as well as character invetories, which are not otherwise indexed on the official trade site.
+- You can list items for trade using forum shop threads, which are indexed by the official trade site. This allows you to list items in remove-only tabs as well as character inventories, which are not otherwise indexed on the official trade site.
 
 Acquisition can run on Windows, macOS, Linux.
 
 You can download setup packages from [the releases page](https://github.com/gerwaric/acquisition/releases).
 
-**NOTICE:** I'm on hiatus until May 2026 because of AI bootcamp that is taking 110% of my waking hours. In the meantime, you have two options:
-
-1. [v0.16.0-alpha.7](https://github.com/gerwaric/acquisition/releases/tag/v0.16.0-alpha.7) - has a lot of new stuff including pseudomod support, but the databases are incompatible and you will not see any older buyouts. There are also some crashes happening at startup that I haven't diagnosed yet.
-2. [v0.15.0](https://github.com/gerwaric/acquisition/releases/tag/v0.15.0) - probably the safer bet right now.
-
-Once I'm working on acquisition again, I'll remove this notice.
-
---gerwaric
-
----
-
 ## Building Acquisition
 
 Acquisition is written in C++ and uses the Qt widget toolkit. It was originally a qmake project, but has been migrated to cmake.
 
-See [BUILD.md](https://github.com/gerwaric/acquisition/blob/master/BUILD.md) for more detailed build guidance.
+See [BUILD.md](BUILD.md) for more detailed build and release packaging guidance.
 
 ## Command line
 
@@ -40,9 +29,9 @@ See [BUILD.md](https://github.com/gerwaric/acquisition/blob/master/BUILD.md) for
 `--log-level <level>`:
 	Controls the amount of detail in the log.
 	Options are `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, and `OFF`.
- 	This option is case-insensitive.
+	This option is case-insensitive.
 	The default level for release builds is `INFO`.
-	The default level for debug builds is `TRACE`.
+	The default level for debug builds is `DEBUG`.
 
 ## Reporting issues
 
