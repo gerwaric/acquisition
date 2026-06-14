@@ -411,12 +411,20 @@ configure_file("src/version_defines.h.in" "version_defines.h" @ONLY)
 
 # Add other project files so they show up in Qt Creator.
 add_custom_target(project_files SOURCES
+    .clang-format
+    .gitignore
     .github/workflows/build-linux.yml
     .github/workflows/build-macos.yml
     .github/workflows/build-windows.yml
+    .github/workflows/codeql.yml
     AGENTS.md
+    CLAUDE.md
+    CONTRIBUTORS.md
+    LICENSE
     README.md
     BUILD.md
+    acquisition.desktop
+    installer.iss
 )
 
 #------------------------------------------------------
