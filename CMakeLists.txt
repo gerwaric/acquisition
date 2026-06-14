@@ -9,7 +9,7 @@ cmake_minimum_required(VERSION 3.24)
 # tags on github are prefixed with a 'v'.
 
 project(acquisition
-    VERSION 0.16.1
+    VERSION 0.16.2
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
@@ -93,7 +93,7 @@ if(NOT TARGET sentry-native)
     FetchContent_Declare(
         sentry-native
         GIT_REPOSITORY https://github.com/getsentry/sentry-native
-        GIT_TAG        0.14.2
+        GIT_TAG        0.15.0
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(sentry-native)
@@ -111,7 +111,7 @@ if(NOT TARGET glaze)
     FetchContent_Declare(
         glaze
         GIT_REPOSITORY https://github.com/stephenberry/glaze.git
-        GIT_TAG        v7.7.1
+        GIT_TAG        v7.8.1
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(glaze)
@@ -402,14 +402,28 @@ set(ACQ_RESOURCES
     assets/symbols/WarlordSymbol.png
 )
 
+#------------------------------------------------------
+# Other files
+#------------------------------------------------------
+
 # Automatically populate and include the versions header file.
 configure_file("src/version_defines.h.in" "version_defines.h" @ONLY)
+
+# Add other project files so they show up in Qt Creator.
+add_custom_target(project_files SOURCES
+    .github/workflows/build-linux.yml
+    .github/workflows/build-macos.yml
+    .github/workflows/build-windows.yml
+    AGENTS.md
+    README.md
+    BUILD.md
+)
 
 #------------------------------------------------------
 # Qt Project Setup
 #------------------------------------------------------
 
-find_package(Qt6 6.10 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Widgets)
+find_package(Qt6 6.11 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Widgets)
 
 qt_standard_project_setup()
 
