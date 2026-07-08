@@ -67,13 +67,15 @@ public:
     std::unique_ptr<BuyoutManager> manager;
 };
 
-inline ItemLocation makeTestStashLocation()
+inline ItemLocation makeTestStashLocation(const QString &id = "stash00001",
+                                          const QString &name = "Test Tab",
+                                          unsigned index = 0)
 {
     poe::StashTab stash;
-    stash.id = "stash00001";
-    stash.name = "Test Tab";
+    stash.id = id;
+    stash.name = name;
     stash.type = "PremiumStash";
-    stash.index = 0;
+    stash.index = index;
     return ItemLocation(stash);
 }
 
