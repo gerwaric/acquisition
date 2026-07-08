@@ -197,6 +197,15 @@ stash list signature) and either fix or delete.
 `OnStashReceived()` contains `if (stash.parent == "fc672409b5") {
 spdlog::info("FOUND"); }` — a hardcoded personal stash id. Delete.
 
+### F24. Dead update-cancellation members in the worker — Confirmed
+
+`ItemsManagerWorker::m_cancel_update` is assigned `false` in `Update()` and
+read in three places (`OnStashReceived`, `OnCharacterReceived`,
+`SendStatusUpdate`) but is never set `true` anywhere — cancellation cannot
+occur, and the "Update cancelled." status branch is unreachable.
+`m_selected_character` is only ever `clear()`ed, never assigned or read.
+Remove both as part of the Phase 2 state-machine work.
+
 ### F17. Signals declared with non-void return types — Confirmed
 
 `BuyoutManager::SetItemBuyout` and `SetLocationBuyout` are declared as

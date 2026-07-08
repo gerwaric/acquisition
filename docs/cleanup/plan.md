@@ -48,7 +48,7 @@ codebase strictly better off.
 |-------|----------|-----------|--------|
 | 0. Test harness + characterization tests | `phase-0-test-harness.md` | safety net for all later phases | Spec ready |
 | 1. Layering fixes | `phase-1-layering.md` | F3, F6–F8, F13, F16, F17 | Spec ready |
-| 2. Worker threading + update state machine | `phase-2-worker-threading.md` (to be written) | F1, F2, F4, F5, F15 | Planned |
+| 2. Worker threading + update state machine | `phase-2-worker-threading.md` | F1, F2, F4, F5, F15, F24 | Spec ready |
 | 3. Model/view signal hygiene | `phase-3-model-signals.md` (to be written) | F10–F12, F23 | Planned |
 | 4. Decouple `Search` from `QTreeView` | `phase-4-search-decoupling.md` (to be written) | F18 | Planned |
 | 5. Filters as data + matching | `phase-5-filters-as-data.md` (to be written) | F19 | Planned |
@@ -92,14 +92,16 @@ behavior-affecting and belong to Phase 6.
 
 **Phase 2 — Worker threading.** Keep the background parse (it exists for good
 reason — parsing can take tens of seconds) but make it correct: the parse
-runs as a pure function delivering results to the main thread via a queued
-signal; no member mutation off-thread; `volatile` flags replaced by a proper
-single-threaded state machine on the main thread; the end-of-parse `Update()`
-marshaled to the main thread; the thread owned and cleaned up. Fix the error
-paths so every update ends in exactly one of finished/failed (F4), and
+accumulates into thread-local state and hands its result to the main thread
+in a single O(1) move (move-capturing lambda via `QMetaObject::invokeMethod`,
+not a queued-signal argument copy); no member mutation off-thread; `volatile`
+flags replaced by a proper single-threaded state machine on the main thread;
+the end-of-parse `Update()` marshaled to the main thread; the thread owned
+and cleaned up. Fix the error paths so every update ends in exactly one of
+finished/failed (F4), remove the dead cancellation members (F24), and
 resolve the dead moved/renamed-tab detection (F15). Constraint: preserve the
 rate limiter's one-HEAD-at-a-time behavior (F5) — do not call
-`RateLimiter::Submit` from any thread but main.
+`RateLimiter::Submit` from any thread but main; a `Q_ASSERT` enforces this.
 
 **Phase 3 — Model signals.** `ItemsModel` gains proper
 `beginResetModel`/`endResetModel` around bucket rebuilds and correct
