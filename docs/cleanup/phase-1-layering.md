@@ -17,8 +17,8 @@ code facts if the phase is implemented much later:
 ## Goal
 
 Core code no longer includes `src/ui/mainwindow.h`; the worker no longer
-creates widgets; confirmed dead/vestigial code (F13, F15, F16, F17) is
-removed. Findings addressed: F3, F6, F7, F8, F13, F15, F16, F17.
+creates widgets; confirmed dead/vestigial code (F13, F15, F16, F17, F26) is
+removed. Findings addressed: F3, F6, F7, F8, F13, F15, F16, F17, F26.
 
 Low-risk and behavior-preserving **by intent**, with two deliberate
 exceptions: the retired Import Buyouts menu item (F13) and the worker
@@ -137,7 +137,14 @@ check" comment. This is pure deletion of write-only state and an
 unreachable branch; doing it here keeps Phase 2's rewrite of this file
 clean.
 
-### Step 8: Void signal returns (F17)
+### Step 8: Delete `MemoryDataStore` (F26)
+
+Remove `src/datastore/memorydatastore.cpp/.h` and their `CMakeLists.txt`
+entries. Verify first that Phase 0 landed without using it (the spec says
+`SqliteDataStore` + `QTemporaryDir`); if a test *does* use it, reconcile
+with the Phase 0 spec before deleting.
+
+### Step 9: Void signal returns (F17)
 
 - Change `BuyoutManager::SetItemBuyout` / `SetLocationBuyout` signal
   declarations from `bool` to `void`. The connected `BuyoutRepo` slots may

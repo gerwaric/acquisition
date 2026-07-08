@@ -11,7 +11,8 @@ Written July 2026 against the codebase at the start of the cleanup
 - `Filter` subclasses construct widgets and look up `MainWindow` through the
   widget tree (changes in Phase 1/F8 and Phase 5).
 - `BuyoutRepo`'s constructor takes `QSqlDatabase &`.
-- `MemoryDataStore` exists in `src/datastore/`.
+- `SqliteDataStore`'s constructor takes a filename and manages its own
+  connections, named by `(filename, thread-id)`.
 
 ## Goal
 
@@ -40,8 +41,19 @@ generators).
    `QSqlDatabase &`, so tests create a `QSQLITE` connection with database name
    `:memory:`, open it, construct `BuyoutRepo`, and call `ensureSchema()`. No
    repo interface/fake is introduced (deliberate: prefer existing patterns).
-4. **`MemoryDataStore` for `DataStore`** paths (e.g. `BuyoutManager`'s
-   `refresh_checked_state`).
+4. **Real `SqliteDataStore` on a `QTemporaryDir` file for `DataStore`**
+   paths (e.g. `BuyoutManager`'s `refresh_checked_state`). Not
+   `MemoryDataStore` — it has zero users anywhere (F26, deleted in Phase 1),
+   so it is an unexercised fake with pure drift risk; the real class gets
+   the schema/serialization code under test for free. And **not**
+   `SqliteDataStore(":memory:")`: connections are named by
+   `(filename, thread-id)`, so two instances with the same `":memory:"`
+   string on one thread would silently share a connection *and* the first
+   destructor would `removeDatabase` the shared connection out from under
+   the survivor; the constructor's path-cleanup/rename-probe logic also
+   misbehaves on resource-syntax strings. A unique temp file per test
+   exercises the production path exactly as shipped. Do not "optimize" this
+   back to `:memory:`.
 5. **Item fixtures from inline JSON.** Build `poe::Item` by parsing small JSON
    literals with glaze in a shared test helper, then construct `Item` with an
    `ItemLocation`. Do not add a test resource system yet.
@@ -112,9 +124,11 @@ Each step leaves the build green.
 - Shared helper (`tests/testfixtures.h`): creates a uniquely-named `QSQLITE`
   connection (`QUuid`-based name) with database `:memory:`, opens it,
   constructs `BuyoutRepo`, calls `ensureSchema()`. Tear down with
-  `QSqlDatabase::removeDatabase` after the repo/manager are destroyed.
+  `QSqlDatabase::removeDatabase` after the repo/manager are destroyed. The
+  same helper owns a `QTemporaryDir` and a `SqliteDataStore` on a file
+  inside it (see design decision 4).
   **Hazard:** `BuyoutManager`'s destructor calls `Save()`, so the
-  `MemoryDataStore` and repo must outlive it.
+  datastore and repo must outlive it.
 - `tests/tst_buyoutmanager.cpp` (`QTEST_GUILESS_MAIN`):
   - `Set`/`Get` and `SetTab`/`GetTab` round-trips.
   - Tab-buyout propagation logic: replicate `ItemsManager::PropagateTabBuyouts`

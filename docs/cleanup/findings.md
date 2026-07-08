@@ -244,6 +244,16 @@ occur, and the "Update cancelled." status branch is unreachable.
 `m_selected_character` is only ever `clear()`ed, never assigned or read.
 Remove both as part of the Phase 2 state-machine work.
 
+### F26. `MemoryDataStore` is dead code — Confirmed
+
+`MemoryDataStore` (`src/datastore/memorydatastore.*`) implements the
+`DataStore` interface but is instantiated nowhere — it is compiled into the
+binary with zero users. Phase 0 originally planned to make it the test
+fixture, but an unexercised parallel implementation is exactly the drift
+risk fakes are accused of; Phase 0 instead tests through the real
+`SqliteDataStore` on a `QTemporaryDir` file. Delete `MemoryDataStore` in
+Phase 1's dead-code sweep.
+
 ### F17. Signals declared with non-void return types — Confirmed
 
 `BuyoutManager::SetItemBuyout` and `SetLocationBuyout` are declared as

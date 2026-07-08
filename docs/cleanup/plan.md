@@ -48,7 +48,7 @@ codebase strictly better off.
 | Phase | Document | Addresses | Status |
 |-------|----------|-----------|--------|
 | 0. Test harness + characterization tests | `phase-0-test-harness.md` | safety net for all later phases | Spec ready |
-| 1. Layering fixes | `phase-1-layering.md` | F3, F6–F8, F13, F15, F16, F17 | Spec ready |
+| 1. Layering fixes | `phase-1-layering.md` | F3, F6–F8, F13, F15, F16, F17, F26 | Spec ready |
 | 2. Worker threading + update state machine | `phase-2-worker-threading.md` | F1, F2, F4, F5, F24 | Spec ready |
 | 3. Model/view signal hygiene | `phase-3-model-signals.md` | F10–F12, F23, F25 | Spec ready |
 | 4. Decouple `Search` from `QTreeView` | `phase-4-search-decoupling.md` | F18 | Design intent |
@@ -66,11 +66,15 @@ dependencies). This includes real CMake restructuring, not just a new target:
 the app sources currently build as a single `qt_add_executable` with
 `main.cpp` mixed into `ACQ_CORE`, so Phase 0 must split reusable sources into
 a static/object library consumed by both a thin `acquisition` executable and
-the test executable, and link `Qt6::Test`. Test fixtures: `MemoryDataStore`
-already covers the `DataStore` paths; `BuyoutManager` additionally needs a
-`BuyoutRepo`, which takes a `QSqlDatabase&` directly — use an in-memory
-SQLite database (`QSQLITE` / `:memory:`) plus `ensureSchema()` rather than
-introducing a repo interface. First characterization targets:
+the test executable, and link `Qt6::Test`. Test fixtures: the real
+`SqliteDataStore` on a `QTemporaryDir` file covers the `DataStore` paths
+(not the never-used `MemoryDataStore` — F26 — and not
+`SqliteDataStore(":memory:")`, whose per-`(filename, thread)` connection
+naming makes same-named instances alias and sabotage each other; see the
+phase doc); `BuyoutManager` additionally needs a `BuyoutRepo`, which takes a
+`QSqlDatabase&` directly — use an in-memory SQLite database
+(`QSQLITE` / `:memory:`) plus `ensureSchema()` rather than introducing a
+repo interface. First characterization targets:
 `BuyoutManager::StringToBuyout` and buyout propagation
 (`ItemsManager::PropagateTabBuyouts` logic), `Search::FilterItems` bucket
 construction, filter `Matches()` behavior, and the tooltip text generators in
@@ -85,7 +89,8 @@ filters from locating `MainWindow` via the widget tree. Also sweep the
 confirmed dead/vestigial code: the `ImportBuyouts` stub (F13), the dead and
 incoherent tab-signature machinery (F15 — deleted, not repaired; see the
 finding for the accepted limitation and future-design sketch), the debug
-probe (F16), and the bool-returning signals (F17). Low-risk and
+probe (F16), the bool-returning signals (F17), and the never-instantiated
+`MemoryDataStore` (F26). Low-risk and
 behavior-preserving by intent, with two deliberate exceptions: explicitly
 retired dead UI (F13), and the worker dialog-to-signal change (F3), which
 alters presentation and timing — the current `QMessageBox` is modal and
