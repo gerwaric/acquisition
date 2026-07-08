@@ -14,3 +14,4 @@ endfunction()
 
 acq_add_test(tst_buyout)
 acq_add_test(tst_buyoutmanager)
+acq_add_test(tst_itemtooltiptext)

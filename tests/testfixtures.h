@@ -30,8 +30,7 @@ public:
         db.emplace(QSqlDatabase::addDatabase("QSQLITE", connectionName));
         db->setDatabaseName(":memory:");
         if (!db->open()) {
-            qFatal("Failed to open test QSQLITE database: %s",
-                   qPrintable(db->lastError().text()));
+            qFatal("Failed to open test QSQLITE database: %s", qPrintable(db->lastError().text()));
         }
 
         repo = std::make_unique<BuyoutRepo>(*db);

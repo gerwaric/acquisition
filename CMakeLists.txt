@@ -293,6 +293,8 @@ set(ACQ_UI
     src/ui/flowlayout.h
     src/ui/itemtooltip.cpp
     src/ui/itemtooltip.h
+    src/ui/itemtooltiptext.cpp
+    src/ui/itemtooltiptext.h
     src/ui/logindialog.cpp
     src/ui/logindialog.h
     src/ui/logpanel.cpp
