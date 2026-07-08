@@ -15,6 +15,8 @@ project(acquisition
     LANGUAGES CXX
 )
 
+include(CTest)
+
 # Use this to define pre-releases
 set(app_version_suffix "")
 
@@ -430,7 +432,7 @@ add_custom_target(project_files SOURCES
 # Qt Project Setup
 #------------------------------------------------------
 
-find_package(Qt6 6.11 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Widgets)
+find_package(Qt6 6.11 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Test Widgets)
 
 qt_standard_project_setup()
 
@@ -617,3 +619,7 @@ add_custom_command(TARGET acquisition POST_BUILD
     COMMAND_EXPAND_LISTS
     VERBATIM
 )
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
