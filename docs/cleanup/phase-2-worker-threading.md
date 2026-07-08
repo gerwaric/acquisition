@@ -13,9 +13,12 @@ Code facts this spec was written against — re-verify before implementing:
 
 - `ItemsManagerWorker` lives on the main thread; `OnRePoEReady()` starts a
   detached `QThread::create([this]{ LoadItems(); })`.
-- `LoadItems()` mutates members (`m_items`, `m_tabs`, `m_tab_id_index`,
-  `m_tabs_signature`) and, when `m_updateRequest` is set, calls `Update()`
-  directly on the parser thread.
+- `LoadItems()` mutates members (`m_items`, `m_tabs`, `m_tab_id_index`) and,
+  when `m_updateRequest` is set, calls `Update()` directly on the parser
+  thread.
+- The tab-signature machinery (`m_tabs_signature` and friends) was already
+  deleted in Phase 1 (F15); if it is still present, Phase 1 did not land as
+  specified — stop and reconcile.
 - `RateLimiter::Submit` → `SetupEndpoint` (new endpoints) calls
   `NetworkManager::head()` and spins a nested `QEventLoop` on the calling
   thread (F5).
@@ -31,8 +34,8 @@ Code facts this spec was written against — re-verify before implementing:
 The initial cached-items parse still runs on a background thread (it can take
 tens of seconds), but with no shared mutable state, a correct handoff, an
 owned thread, and an update flow whose every outcome ends in exactly one of
-finished/failed. Findings addressed: F1, F2, F4, F15, F24. Constraint
-honored: F5.
+finished/failed. Findings addressed: F1, F2, F4, F24. Constraint honored:
+F5.
 
 ## Non-Goals
 
@@ -56,17 +59,20 @@ struct ParseResult {
     std::vector<ItemLocation> tabs;
     Items items;
     std::set<QString> tab_id_index;
-    TabsSignatureVector tabs_signature;
 };
-ParseResult ParseCachedItems() const;   // runs on the parser thread
+ParseResult ParseCachedItems(const QString &dataDir) const;  // parser thread
 ```
 
 `ParseCachedItems()` may read members that are set in the constructor and
-never written afterwards (`m_realm`, `m_league`, `m_account`, `m_settings`
-reads) and may `emit StatusUpdate(...)` for progress (signal emission is
-thread-safe; delivery is queued). It creates its own `UserStore` exactly as
-today (per-thread SQLite connections are already supported). It must not
-write any member.
+never written afterwards (`m_realm`, `m_league`, `m_account`) and may
+`emit StatusUpdate(...)` for progress (signal emission is thread-safe;
+delivery is queued). It creates its own `UserStore` exactly as today
+(per-thread SQLite connections are already supported). It must not write any
+member, and it must not touch `m_settings`: `QSettings` is reentrant but
+**not** thread-safe, and the main thread writes to the same object on every
+settings-backed menu action. Anything the parse needs from settings (today:
+the data directory derived from `m_settings.fileName()`) is snapshotted on
+the main thread before the thread starts and passed in as a parameter.
 
 Handoff by move, not by queued-signal argument copy. A queued signal copies
 its arguments (for `Items`, an O(N) vector-of-`shared_ptr` copy — the current
@@ -93,7 +99,7 @@ Non-issue, for the record: `Item` objects created on the parser thread and
 destroyed on the main thread are plain heap objects with no thread affinity;
 the queued event provides the happens-before edge.
 
-### Thread lifecycle
+### Thread lifecycle — hard requirements
 
 - Keep `QThread::create`, but store the pointer, `connect(thread,
   &QThread::finished, thread, &QThread::deleteLater)`.
@@ -102,6 +108,24 @@ the queued event provides the happens-before edge.
 - The worker destructor sets `m_shutdown`, then `wait()`s on the thread if
   running. Quitting mid-parse now blocks briefly instead of racing a live
   thread (previously a crash window).
+
+Two rules are load-bearing for the handoff's safety and **must not be
+"simplified" away**:
+
+1. **`invokeMethod` must pass `this` as the context object.** That is what
+   binds delivery to the worker's lifetime: Qt removes an object's pending
+   posted events in `~QObject`, so a queued call targeting a destroyed
+   context is discarded, never delivered. A `nullptr` context (or a lambda
+   posted via other means) has no such binding and *would* crash on
+   shutdown.
+2. **The destructor must `wait()` on the parser thread before returning.**
+   With both rules in place the feared lifetime races are excluded by
+   construction: the callback cannot run *after* destruction (destruction
+   happens on the delivery thread, and `~QObject` removes the pending
+   event), and cannot run *during* destruction (the dtor body's `wait()`
+   completes before `~QObject` runs, and cross-thread event posting during
+   teardown is internally synchronized by Qt). No `QPointer` or additional
+   guard machinery is needed — but only while both rules hold.
 
 ### Update state machine (F4)
 
@@ -147,27 +171,6 @@ Q_ASSERT(QThread::currentThread() == QCoreApplication::instance()->thread());
 Cheap, and turns any future reintroduction of cross-thread submission into an
 immediate debug-build failure instead of a latent race.
 
-### Moved/renamed tab detection (F15) — behavior restoration
-
-In `OnStashListReceived`, the current check builds `old_tab_headers` from
-`m_tabs` and then tests members of the same `m_tabs` — it can never fire.
-Additionally, `m_tabs_signature` is overwritten with the *new* list before
-the comparison. Fix:
-
-1. Capture `previous_signature = std::move(m_tabs_signature)` **before**
-   assigning the new one.
-2. For each incoming stash tab whose id is already in `m_tab_id_index` (i.e.
-   a kept tab not already scheduled for refresh), compare its (name, index)
-   against `previous_signature`; if it moved or was renamed, queue a request
-   for it (`m_update_tab_contents` permitting).
-
-This restores a dead feature, so treat it as an intended behavior change:
-stale item locations in renamed/moved tabs get re-fetched during partial
-refreshes. If implementation turns out gnarly (signature bookkeeping across
-`TabSelection` modes), the fallback is to delete the dead block and record a
-finding that renamed-tab contents stay stale until manually refreshed —
-do not ship a half-working version.
-
 ## Steps
 
 1. **Parse restructure + handoff + thread lifecycle** (F1, F2): everything
@@ -177,8 +180,7 @@ do not ship a half-working version.
 2. **Reply-handler completion discipline** (F4): centralize
    `CheckUpdateFinished()`, make every handler exit path count, add
    `m_request_failures`, remove F24 members.
-3. **F15 fix** as described, or the documented fallback.
-4. **Rate limiter assertion** (one line, any time).
+3. **Rate limiter assertion** (one line, any time).
 
 ## Testing
 
@@ -188,7 +190,7 @@ do not ship a half-working version.
   `ParseCachedItems()` synchronously on the test thread, assert tab and item
   counts. This pins the parse output shape across the restructure.
 - The network flow has no seam for unit testing (no network abstraction, out
-  of scope), so F4/F15 validation is manual.
+  of scope), so F4 validation is manual.
 
 ## Acceptance criteria
 
@@ -205,7 +207,5 @@ do not ship a half-working version.
   - Kill network connectivity mid-refresh: status reports failure, state
     returns to idle, and a subsequent refresh works (previously: permanent
     "update in progress" or inconsistent state).
-  - F15: rename a stash tab in game, refresh a *different* tab via Refresh
-    Selected, confirm the renamed tab's contents are re-fetched.
   - Debug build: full session with no `Q_ASSERT` trips in
     `RateLimiter::Submit`.

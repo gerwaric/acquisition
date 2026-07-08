@@ -30,7 +30,8 @@ The problems being fixed are cataloged with code anchors in
 
 ## Non-Goals
 
-- No user-visible UI/UX changes.
+- No intentional UI/UX redesign; documented bug/dead-feature behavior
+  changes only (F3, F13, F14, F15).
 - No QML, no theming changes, no packaging changes.
 - No rework of the datastore, rate limiter internals, shop logic, or the
   `Item` class (F21, F22 are recorded but out of scope).
@@ -47,9 +48,9 @@ codebase strictly better off.
 | Phase | Document | Addresses | Status |
 |-------|----------|-----------|--------|
 | 0. Test harness + characterization tests | `phase-0-test-harness.md` | safety net for all later phases | Spec ready |
-| 1. Layering fixes | `phase-1-layering.md` | F3, F6–F8, F13, F16, F17 | Spec ready |
-| 2. Worker threading + update state machine | `phase-2-worker-threading.md` | F1, F2, F4, F5, F15, F24 | Spec ready |
-| 3. Model/view signal hygiene | `phase-3-model-signals.md` | F10–F12, F23 | Spec ready |
+| 1. Layering fixes | `phase-1-layering.md` | F3, F6–F8, F13, F15, F16, F17 | Spec ready |
+| 2. Worker threading + update state machine | `phase-2-worker-threading.md` | F1, F2, F4, F5, F24 | Spec ready |
+| 3. Model/view signal hygiene | `phase-3-model-signals.md` | F10–F12, F23, F25 | Spec ready |
 | 4. Decouple `Search` from `QTreeView` | `phase-4-search-decoupling.md` | F18 | Design intent |
 | 5. Filters as data + matching | `phase-5-filters-as-data.md` | F19 | Design intent |
 | 6. Opportunistic `MainWindow` slimming | `phase-6-mainwindow-slimming.md` | F20, F9 remainder, F14 | Design intent |
@@ -81,7 +82,9 @@ including pinning the user-visible impact of F14 (stale buyout cache).
 own header; remove every `ui/` include from core code; drop gratuitous
 `application.h` includes; replace worker message boxes with signals; stop
 filters from locating `MainWindow` via the widget tree. Also sweep the
-confirmed dead/vestigial code: the `ImportBuyouts` stub (F13), the debug
+confirmed dead/vestigial code: the `ImportBuyouts` stub (F13), the dead and
+incoherent tab-signature machinery (F15 — deleted, not repaired; see the
+finding for the accepted limitation and future-design sketch), the debug
 probe (F16), and the bool-returning signals (F17). Low-risk and
 behavior-preserving by intent, with two deliberate exceptions: explicitly
 retired dead UI (F13), and the worker dialog-to-signal change (F3), which
@@ -98,8 +101,8 @@ not a queued-signal argument copy); no member mutation off-thread; `volatile`
 flags replaced by a proper single-threaded state machine on the main thread;
 the end-of-parse `Update()` marshaled to the main thread; the thread owned
 and cleaned up. Fix the error paths so every update ends in exactly one of
-finished/failed (F4), remove the dead cancellation members (F24), and
-resolve the dead moved/renamed-tab detection (F15). Constraint: preserve the
+finished/failed (F4) and remove the dead cancellation members (F24).
+Constraint: preserve the
 rate limiter's one-HEAD-at-a-time behavior (F5) — do not call
 `RateLimiter::Submit` from any thread but main; a `Q_ASSERT` enforces this.
 
@@ -111,9 +114,13 @@ stops emitting the model's signals (F10); the compensating hacks
 `blockSignals`) are deleted. Connection lifecycle is fixed alongside (F23):
 `ModelViewRefresh` currently re-connects `currentChanged`/`layoutChanged` on
 every refresh with no disconnect, accumulating duplicate connections
-unboundedly; after this phase, connections are made once per `Search` at
-creation. Expected side benefit: the unexplained selection-model exceptions
-noted in `MainWindow::OnLayoutChanged` comments should disappear.
+unboundedly; after this phase, `MainWindow` stores the connection handles
+and explicitly replaces them at each activation. The model's index-contract
+holes (F25 — unvalidated rows/columns in `index()`, unchecked section in
+`headerData()`) are hardened in the same phase, gated by
+`QAbstractItemModelTester`. Expected side benefit: the unexplained
+selection-model exceptions noted in `MainWindow::OnLayoutChanged` comments
+should disappear.
 
 **Phase 4 — Search decoupling.** `Search` becomes pure state (items, buckets,
 filter data, expansion state keyed by location header, view mode, sort
@@ -137,7 +144,7 @@ classes out of `currencymanager.h`, move `Search*` ownership to
    make this possible.
 3. **Tests gate refactors.** A phase that changes behavior covered by Phase 0
    tests must either keep them green or explicitly document the intended
-   behavior change (bug fixes: F14, F15 may change behavior deliberately).
+   behavior change (e.g. the F14 fix changes pricing behavior deliberately).
 4. **No drive-by scope creep.** If new problems surface mid-phase, add them to
    `findings.md` instead of fixing them inline, unless the fix is required for
    the phase to proceed.

@@ -17,8 +17,8 @@ code facts if the phase is implemented much later:
 ## Goal
 
 Core code no longer includes `src/ui/mainwindow.h`; the worker no longer
-creates widgets; confirmed dead/vestigial code (F13, F16, F17) is removed.
-Findings addressed: F3, F6, F7, F8, F13, F16, F17.
+creates widgets; confirmed dead/vestigial code (F13, F15, F16, F17) is
+removed. Findings addressed: F3, F6, F7, F8, F13, F15, F16, F17.
 
 Low-risk and behavior-preserving **by intent**, with two deliberate
 exceptions: the retired Import Buyouts menu item (F13) and the worker
@@ -125,7 +125,19 @@ Each step compiles and passes tests on its own.
 - Remove the `if (stash.parent == "fc672409b5") { spdlog::info("FOUND"); }`
   block from `ItemsManagerWorker::OnStashReceived()`.
 
-### Step 7: Void signal returns (F17)
+### Step 7: Delete the tab-signature machinery (F15) — intended behavior codification
+
+Per the F15 decision (see findings.md for rationale, accepted limitation,
+and the future-design sketch), remove from `ItemsManagerWorker`: the dead
+moved/renamed-tab check block in `OnStashListReceived()` (the
+`old_tab_headers` loop), the `m_tabs_signature` member and both code paths
+that populate it, `CreateTabsSignatureVector()`, the
+`TabSignature`/`TabsSignatureVector` typedefs, and the "used as consistency
+check" comment. This is pure deletion of write-only state and an
+unreachable branch; doing it here keeps Phase 2's rewrite of this file
+clean.
+
+### Step 8: Void signal returns (F17)
 
 - Change `BuyoutManager::SetItemBuyout` / `SetLocationBuyout` signal
   declarations from `bool` to `void`. The connected `BuyoutRepo` slots may
@@ -135,6 +147,7 @@ Each step compiles and passes tests on its own.
 
 - `grep -rn '#include "ui/mainwindow.h"' src | grep -v '^src/ui/'` → empty.
 - `grep -rn 'qobject_cast<MainWindow' src/filters.cpp src/modsfilter.cpp` → empty.
+- `grep -rn 'TabSignature\|tabs_signature' src` → empty.
 - Build green; `ctest` green; the Phase 0 filter/search tests run without
   connect warnings.
 - Manual smoke, with particular attention to:

@@ -142,6 +142,18 @@ index remapping. Selection correctness after sort currently depends on
 comment noting `clear()` "can cause exceptions ... for some reason that's not
 clear yet", which is this bug's signature.
 
+### F25. `ItemsModel` mints out-of-contract indexes — Confirmed
+
+`ItemsModel::index()` validates `row >= bucket_count` for top-level rows but
+does not reject negative rows, out-of-range columns, or child rows beyond
+the parent bucket's item count. `headerData()` indexes
+`m_search.columns()[section]` with no bounds check. Because `data()` trusts
+`index.column()`, an out-of-contract index minted by `index()` flows into
+out-of-bounds `std::vector` access (undefined behavior).
+`QAbstractItemModelTester` probes exactly these paths, so Phase 3's tester
+test will hit them — bounds validation is explicit Phase 3 scope, not an
+incidental discovery.
+
 ### F23. `ModelViewRefresh` accumulates duplicate signal connections — Confirmed
 
 `MainWindow::ModelViewRefresh()` connects
@@ -159,8 +171,13 @@ when passed the already-set model: either the connection duplicates the same
 way (if the view keeps its selection model), or the view creates a fresh
 selection model per refresh and the abandoned ones accumulate as children of
 the view. Both flavors are defects; the fix is the same. Fix in Phase 3:
-connect once per `Search` at creation with explicit lifecycle, instead of
-per refresh — which the Phase 3 model-reset work enables.
+`MainWindow` stores the two connections as `QMetaObject::Connection` handles
+and explicitly disconnects/reconnects them at each activation. (An earlier
+idea — "connect once per `Search` at creation" — is wrong on both counts:
+the `currentChanged` connection targets the view's selection model, which
+does not belong to any `Search`, and connecting every search's
+`layoutChanged` at creation would fire `OnLayoutChanged` for background
+searches' models during `OnItemsRefreshed`.)
 
 ---
 
@@ -184,13 +201,34 @@ clear inherited buyouts, so the path is exercised routinely. The defect is
 confirmed by reading; a Phase 0 characterization test should pin down the
 user-visible impact (display/shop/export of the stale price) before the fix.
 
-### F15. Moved/renamed-tab refresh detection compares a set against itself — Confirmed
+### F15. Tab-signature machinery is dead and incoherent — Confirmed; resolution: delete (Phase 1)
 
-In `ItemsManagerWorker::OnStashListReceived()`, `old_tab_headers` is built
-from `m_tabs`, then the loop checks members of the same `m_tabs` against it.
-The condition can never be true; the "force refresh of moved or renamed tab"
-feature is dead code. Determine intended behavior (compare against the *new*
-stash list signature) and either fix or delete.
+Two related defects in `ItemsManagerWorker`:
+
+- In `OnStashListReceived()`, `old_tab_headers` is built from `m_tabs`, then
+  the loop checks members of the same `m_tabs` against it. The condition can
+  never be true; the "force refresh of moved or renamed tab" feature is dead
+  code.
+- `m_tabs_signature` has two producers that disagree about its meaning —
+  `LoadItems()` stores `(tab_label, index-as-string)` while
+  `CreateTabsSignatureVector()` stores `(name, id)` — and **zero readers**.
+  The "used as consistency check" comment describes a consumer that no
+  longer exists.
+
+**Decision (July 2026): delete the machinery entirely** rather than repair
+it. The mechanism dates to the reverse-engineered website API era; shipped
+behavior has been "renamed/moved tabs keep stale cached metadata until they
+are individually refreshed or a full refresh runs" for years, so deletion is
+strictly behavior-preserving. Remove: the dead check block, the
+`m_tabs_signature` member, both producers, `CreateTabsSignatureVector`, the
+`TabSignature`/`TabsSignatureVector` typedefs, and the comment.
+
+**Known limitation (accepted):** stale tab names/positions on cached tabs
+after in-game renames/moves, until refresh. If this ever becomes a proven
+problem, the right design is *not* re-fetching contents (renames do not
+change items) but updating kept tabs' metadata from the fresh stash list a
+partial refresh already receives — zero extra API calls. Recorded here so a
+future need starts from that sketch instead of resurrecting the old code.
 
 ### F16. Leftover debug probe — Confirmed
 

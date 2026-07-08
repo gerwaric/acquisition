@@ -25,8 +25,8 @@ written against — re-verify before implementing:
 
 `ItemsModel` becomes a well-behaved `QAbstractItemModel`: every backing-store
 mutation is bracketed by the correct signals, nobody outside the model emits
-its signals, and the view-level compensating hacks are deleted. Findings
-addressed: F10, F11, F12, F23.
+its signals, out-of-contract indexes are rejected, and the view-level
+compensating hacks are deleted. Findings addressed: F10, F11, F12, F23, F25.
 
 ## Non-Goals
 
@@ -130,18 +130,23 @@ behavior, which is deliberately not relied upon.
 2. Proper sort signaling with persistent-index remapping.
 3. `refreshCheckStates()` replacing external emissions (F10).
 4. Connection handles in `ModelViewRefresh` (F23).
-5. Add `tests/tst_itemsmodel.cpp`: construct a `Search` with fixture items and
+5. Bounds hardening (F25): `index()` returns `QModelIndex()` for negative
+   rows, out-of-range columns, and child rows beyond the parent bucket's
+   item count; `headerData()` returns `QVariant()` for out-of-range
+   sections; audit `data()`/`flags()`/`setData()` for the same trust in
+   caller-supplied indexes.
+6. Add `tests/tst_itemsmodel.cpp`: construct a `Search` with fixture items and
    run **`QAbstractItemModelTester`** (failure mode `Fatal`) over the model
    while exercising `FilterItems`, `SetViewMode`, and `sort`. Add
    `QSignalSpy` checks: exactly one `modelAboutToBeReset`/`modelReset` pair
    per rebuild; `layoutAboutToBeChanged` precedes `layoutChanged` on sort;
    `dataChanged` with `CheckStateRole` on check-all.
 
-Step 5 may be written first (TDD-style) — the tester will fail loudly against
-the current model and go quiet as steps 1–3 land. **Hazard:** the tester may
-also surface pre-existing index/parent bugs unrelated to F10–F12; fix them if
-small, otherwise record as findings and constrain the tester's exercise
-surface, documenting why.
+Step 6 may be written first (TDD-style) — the tester will fail loudly against
+the current model (the F25 defects guarantee it) and go quiet as steps 1–5
+land. **Hazard:** the tester may surface further pre-existing bugs beyond
+F25; fix them if small, otherwise record as findings and constrain the
+tester's exercise surface, documenting why.
 
 ## Acceptance criteria
 

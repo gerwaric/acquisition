@@ -79,6 +79,9 @@ Each step leaves the build green.
 
 ### Step 2: Test scaffolding + first test
 
+- Add `Test` to the Qt component list in `find_package(Qt6 ...)` — the
+  current list (`Core Gui Network NetworkAuth Sql Widgets`) does not include
+  it, and `Qt6::Test` below will fail at configure time without this.
 - Add `include(CTest)` at top level and `add_subdirectory(tests)` guarded by
   `BUILD_TESTING`.
 - Create `tests/CMakeLists.txt` with a helper:
