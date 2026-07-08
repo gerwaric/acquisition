@@ -47,7 +47,7 @@ codebase strictly better off.
 
 | Phase | Document | Addresses | Status |
 |-------|----------|-----------|--------|
-| 0. Test harness + characterization tests | `phase-0-test-harness.md` | safety net for all later phases | Spec ready |
+| 0. Test harness + characterization tests | `phase-0-test-harness.md` | safety net for all later phases | Done |
 | 1. Layering fixes | `phase-1-layering.md` | F3, F6–F8, F13, F15, F16, F17, F26 | Spec ready |
 | 2. Worker threading + update state machine | `phase-2-worker-threading.md` | F1, F2, F4, F5, F24 | Spec ready |
 | 3. Model/view signal hygiene | `phase-3-model-signals.md` | F10–F12, F23, F25 | Spec ready |
@@ -164,7 +164,7 @@ After each phase, in addition to its own acceptance criteria:
 - Configure and build: `cmake -S . -B build && cmake --build build`.
 - Run tests: `ctest --test-dir build` (from Phase 0 onward).
 - Manual smoke test with a scratch data dir:
-  `./build/acquisition --data-dir /tmp/acq-data --log-level debug`.
+  `./build/acquisition.app/Contents/MacOS/acquisition --data-dir /tmp/acq-data --log-level debug`.
   - Login; refresh tabs; watch status bar progress.
   - Create, rename, switch, and delete search tabs.
   - Change filters and verify item counts; reset filters.

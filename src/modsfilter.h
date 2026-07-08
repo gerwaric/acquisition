@@ -75,7 +75,7 @@ class ModsFilter : public Filter
 
 public:
     enum LayoutColumn { kMinField, kMaxField, kDeleteButton, kColumnCount };
-    explicit ModsFilter(QLayout *parent);
+    ModsFilter(QLayout *parent, const FilterCallbacks &callbacks);
     void FromForm(FilterData *data);
     void ToForm(FilterData *data);
     void ResetForm();

@@ -12,7 +12,7 @@
 #include <set>
 
 #include "item.h"
-#include "ui/mainwindow.h"
+#include "util/programstate.h"
 #include "util/util.h"
 
 class QNetworkReply;
@@ -61,6 +61,7 @@ signals:
                         const std::vector<ItemLocation> &tabs,
                         bool initial_refresh);
     void StatusUpdate(ProgramState state, const QString &status);
+    void NotifyUser(const QString &message);
 
     void characterListReceived(const std::vector<poe::Character> &characters, const QString &realm);
     void characterReceived(const poe::Character &character, const QString &realm);
@@ -94,10 +95,6 @@ private:
 
     void Refresh();
 
-    typedef std::pair<QString, QString> TabSignature;
-    typedef std::vector<TabSignature> TabsSignatureVector;
-    TabsSignatureVector CreateTabsSignatureVector(const std::vector<poe::StashTab> &tabs);
-
     void SendStatusUpdate();
     void ParseItems(const std::vector<poe::Item> &items, const ItemLocation &base_location);
     void FinishUpdate();
@@ -114,9 +111,6 @@ private:
 
     std::vector<ItemLocation> m_tabs;
     std::queue<ItemsRequest> m_queue;
-
-    // m_tabs_signature captures <"n", "id"> from JSON tab list, used as consistency check
-    TabsSignatureVector m_tabs_signature;
 
     Items m_items;
 

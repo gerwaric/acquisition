@@ -11,7 +11,7 @@
 #include "item.h"
 #include "itemlocation.h"
 #include "itemsmanagerworker.h"
-#include "ui/mainwindow.h"
+#include "util/programstate.h"
 #include "util/util.h"
 
 class QSettings;

@@ -52,11 +52,10 @@ public:
     void Load();
 
     void MigrateItem(const QString &old_hash, const QString &new_hash);
-    void ImportBuyouts(const QString &filename);
 
 signals:
-    bool SetItemBuyout(const Buyout &buyout, const Item &item);
-    bool SetLocationBuyout(const Buyout &buyout, const ItemLocation &location);
+    void SetItemBuyout(const Buyout &buyout, const Item &item);
+    void SetLocationBuyout(const Buyout &buyout, const ItemLocation &location);
 
 private:
     BuyoutType StringToBuyoutType(QString bo_str) const;

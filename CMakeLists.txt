@@ -9,7 +9,7 @@ cmake_minimum_required(VERSION 3.24)
 # tags on github are prefixed with a 'v'.
 
 project(acquisition
-    VERSION 0.16.2
+    VERSION 0.17.0
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
@@ -18,7 +18,7 @@ project(acquisition
 include(CTest)
 
 # Use this to define pre-releases
-set(app_version_suffix "")
+set(app_version_suffix "-beta.1")
 
 # Variables used in version_defines.h and platforn-specific files and properties.
 set(app_name            "${CMAKE_PROJECT_NAME}")
@@ -113,7 +113,7 @@ if(NOT TARGET glaze)
     FetchContent_Declare(
         glaze
         GIT_REPOSITORY https://github.com/stephenberry/glaze.git
-        GIT_TAG        v7.8.1
+        GIT_TAG        v7.8.4
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(glaze)
@@ -200,8 +200,6 @@ set(ACQ_DATASTORE
     src/datastore/datastore.h
     src/datastore/datastore_utils.cpp
     src/datastore/datastore_utils.h
-    src/datastore/memorydatastore.cpp
-    src/datastore/memorydatastore.h
     src/datastore/sqlitedatastore.cpp
     src/datastore/sqlitedatastore.h
     src/datastore/stashrepo.cpp
@@ -299,6 +297,8 @@ set(ACQ_UI
     src/ui/logindialog.h
     src/ui/logpanel.cpp
     src/ui/logpanel.h
+    src/ui/mainwindow_bridge.cpp
+    src/ui/mainwindow_bridge.h
     src/ui/mainwindow.cpp
     src/ui/mainwindow.h
     src/ui/searchcombobox.cpp

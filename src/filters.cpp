@@ -17,7 +17,6 @@
 
 #include "buyoutmanager.h"
 #include "itemconstants.h"
-#include "ui/mainwindow.h"
 #include "ui/searchcombobox.h"
 #include "util/util.h"
 
@@ -35,6 +34,10 @@ std::unique_ptr<FilterData> Filter::CreateData()
 {
     return std::make_unique<FilterData>(this);
 }
+
+Filter::Filter(const FilterCallbacks &callbacks)
+    : m_callbacks(callbacks)
+{}
 
 FilterData::FilterData(Filter *filter)
     : text_query("")
@@ -67,9 +70,10 @@ void FilterData::ToForm()
     m_filter->ToForm(this);
 }
 
-TabSearchFilter::TabSearchFilter(QLayout *parent)
+TabSearchFilter::TabSearchFilter(QLayout *parent, const FilterCallbacks &callbacks)
+    : Filter(callbacks)
 {
-    Initialize(parent);
+    Initialize(parent, callbacks);
 }
 
 void TabSearchFilter::FromForm(FilterData *data)
@@ -96,9 +100,9 @@ bool TabSearchFilter::Matches(const std::shared_ptr<Item> &item, FilterData *dat
     return name.contains(query);
 }
 
-void TabSearchFilter::Initialize(QLayout *parent)
+void TabSearchFilter::Initialize(QLayout *parent, const FilterCallbacks &callbacks)
 {
-    MainWindow *main_window = qobject_cast<MainWindow *>(parent->parentWidget()->window());
+    m_callbacks = callbacks;
     QWidget *group = new QWidget;
     QHBoxLayout *layout = new QHBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
@@ -112,13 +116,14 @@ void TabSearchFilter::Initialize(QLayout *parent)
     parent->addWidget(group);
     QObject::connect(m_textbox,
                      &QLineEdit::textEdited,
-                     main_window,
-                     &MainWindow::OnDelayedSearchFormChange);
+                     m_callbacks.receiver,
+                     m_callbacks.onChangedDelayed);
 }
 
-NameSearchFilter::NameSearchFilter(QLayout *parent)
+NameSearchFilter::NameSearchFilter(QLayout *parent, const FilterCallbacks &callbacks)
+    : Filter(callbacks)
 {
-    Initialize(parent);
+    Initialize(parent, callbacks);
 }
 
 void NameSearchFilter::FromForm(FilterData *data)
@@ -145,9 +150,9 @@ bool NameSearchFilter::Matches(const std::shared_ptr<Item> &item, FilterData *da
     return name.contains(query);
 }
 
-void NameSearchFilter::Initialize(QLayout *parent)
+void NameSearchFilter::Initialize(QLayout *parent, const FilterCallbacks &callbacks)
 {
-    MainWindow *main_window = qobject_cast<MainWindow *>(parent->parentWidget()->window());
+    m_callbacks = callbacks;
     QWidget *group = new QWidget;
     QHBoxLayout *layout = new QHBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
@@ -161,14 +166,17 @@ void NameSearchFilter::Initialize(QLayout *parent)
     parent->addWidget(group);
     QObject::connect(m_textbox,
                      &QLineEdit::textEdited,
-                     main_window,
-                     &MainWindow::OnDelayedSearchFormChange);
+                     m_callbacks.receiver,
+                     m_callbacks.onChangedDelayed);
 }
 
-CategorySearchFilter::CategorySearchFilter(QLayout *parent, QAbstractListModel *model)
-    : m_model(model)
+CategorySearchFilter::CategorySearchFilter(QLayout *parent,
+                                           QAbstractListModel *model,
+                                           const FilterCallbacks &callbacks)
+    : Filter(callbacks)
+    , m_model(model)
 {
-    Initialize(parent);
+    Initialize(parent, callbacks);
 }
 
 void CategorySearchFilter::FromForm(FilterData *data)
@@ -195,9 +203,9 @@ bool CategorySearchFilter::Matches(const std::shared_ptr<Item> &item, FilterData
     return item->category().contains(data->text_query);
 }
 
-void CategorySearchFilter::Initialize(QLayout *parent)
+void CategorySearchFilter::Initialize(QLayout *parent, const FilterCallbacks &callbacks)
 {
-    MainWindow *main_window = qobject_cast<MainWindow *>(parent->parentWidget()->window());
+    m_callbacks = callbacks;
     QWidget *group = new QWidget;
     QHBoxLayout *layout = new QHBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
@@ -211,14 +219,17 @@ void CategorySearchFilter::Initialize(QLayout *parent)
     parent->addWidget(group);
     QObject::connect(m_combobox,
                      &QComboBox::currentIndexChanged,
-                     main_window,
-                     &MainWindow::OnDelayedSearchFormChange);
+                     m_callbacks.receiver,
+                     m_callbacks.onChangedDelayed);
 }
 
-RaritySearchFilter::RaritySearchFilter(QLayout *parent, QAbstractListModel *model)
-    : m_model(model)
+RaritySearchFilter::RaritySearchFilter(QLayout *parent,
+                                       QAbstractListModel *model,
+                                       const FilterCallbacks &callbacks)
+    : Filter(callbacks)
+    , m_model(model)
 {
-    Initialize(parent);
+    Initialize(parent, callbacks);
 }
 
 void RaritySearchFilter::FromForm(FilterData *data)
@@ -264,9 +275,9 @@ bool RaritySearchFilter::Matches(const std::shared_ptr<Item> &item, FilterData *
     }
 }
 
-void RaritySearchFilter::Initialize(QLayout *parent)
+void RaritySearchFilter::Initialize(QLayout *parent, const FilterCallbacks &callbacks)
 {
-    MainWindow *main_window = qobject_cast<MainWindow *>(parent->parentWidget()->window());
+    m_callbacks = callbacks;
     QWidget *group = new QWidget;
     QHBoxLayout *layout = new QHBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
@@ -283,27 +294,32 @@ void RaritySearchFilter::Initialize(QLayout *parent)
     parent->addWidget(group);
     QObject::connect(m_combobox,
                      &QComboBox::currentIndexChanged,
-                     main_window,
-                     &MainWindow::OnDelayedSearchFormChange);
+                     m_callbacks.receiver,
+                     m_callbacks.onChangedDelayed);
 }
 
-MinMaxFilter::MinMaxFilter(QLayout *parent, QString property)
-    : m_property(property)
+MinMaxFilter::MinMaxFilter(QLayout *parent, QString property, const FilterCallbacks &callbacks)
+    : Filter(callbacks)
+    , m_property(property)
     , m_caption(property)
 {
-    Initialize(parent);
+    Initialize(parent, callbacks);
 }
 
-MinMaxFilter::MinMaxFilter(QLayout *parent, QString property, QString caption)
-    : m_property(property)
+MinMaxFilter::MinMaxFilter(QLayout *parent,
+                           QString property,
+                           QString caption,
+                           const FilterCallbacks &callbacks)
+    : Filter(callbacks)
+    , m_property(property)
     , m_caption(caption)
 {
-    Initialize(parent);
+    Initialize(parent, callbacks);
 }
 
-void MinMaxFilter::Initialize(QLayout *parent)
+void MinMaxFilter::Initialize(QLayout *parent, const FilterCallbacks &callbacks)
 {
-    MainWindow *main_window = qobject_cast<MainWindow *>(parent->parentWidget()->window());
+    m_callbacks = callbacks;
     QWidget *group = new QWidget;
     QHBoxLayout *layout = new QHBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
@@ -323,12 +339,12 @@ void MinMaxFilter::Initialize(QLayout *parent)
     label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
     QObject::connect(m_textbox_min,
                      &QLineEdit::textEdited,
-                     main_window,
-                     &MainWindow::OnDelayedSearchFormChange);
+                     m_callbacks.receiver,
+                     m_callbacks.onChangedDelayed);
     QObject::connect(m_textbox_max,
                      &QLineEdit::textEdited,
-                     main_window,
-                     &MainWindow::OnDelayedSearchFormChange);
+                     m_callbacks.receiver,
+                     m_callbacks.onChangedDelayed);
 }
 
 void MinMaxFilter::FromForm(FilterData *data)
@@ -406,8 +422,9 @@ double RequiredStatFilter::GetValue(const std::shared_ptr<Item> &item)
 
 ItemMethodFilter::ItemMethodFilter(QLayout *parent,
                                    std::function<double(Item *)> func,
-                                   QString caption)
-    : MinMaxFilter(parent, caption, caption)
+                                   QString caption,
+                                   const FilterCallbacks &callbacks)
+    : MinMaxFilter(parent, caption, caption, callbacks)
     , m_func(func)
 {}
 
@@ -426,16 +443,19 @@ double LinksFilter::GetValue(const std::shared_ptr<Item> &item)
     return item->links_cnt();
 }
 
-SocketsColorsFilter::SocketsColorsFilter(QLayout *parent)
+SocketsColorsFilter::SocketsColorsFilter(QLayout *parent, const FilterCallbacks &callbacks)
+    : Filter(callbacks)
 {
-    Initialize(parent, "Colors");
+    Initialize(parent, "Colors", callbacks);
 }
 
 // TODO(xyz): ugh, a lot of copypasta below, perhaps this could be done
 // in a nice way?
-void SocketsColorsFilter::Initialize(QLayout *parent, const char *caption)
+void SocketsColorsFilter::Initialize(QLayout *parent,
+                                     const char *caption,
+                                     const FilterCallbacks &callbacks)
 {
-    MainWindow *main_window = qobject_cast<MainWindow *>(parent->parentWidget()->window());
+    m_callbacks = callbacks;
     QWidget *group = new QWidget;
     QHBoxLayout *layout = new QHBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
@@ -459,16 +479,16 @@ void SocketsColorsFilter::Initialize(QLayout *parent, const char *caption)
     label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
     QObject::connect(m_textbox_r,
                      &QLineEdit::textEdited,
-                     main_window,
-                     &MainWindow::OnSearchFormChange);
+                     m_callbacks.receiver,
+                     m_callbacks.onChanged);
     QObject::connect(m_textbox_g,
                      &QLineEdit::textEdited,
-                     main_window,
-                     &MainWindow::OnSearchFormChange);
+                     m_callbacks.receiver,
+                     m_callbacks.onChanged);
     QObject::connect(m_textbox_b,
                      &QLineEdit::textEdited,
-                     main_window,
-                     &MainWindow::OnSearchFormChange);
+                     m_callbacks.receiver,
+                     m_callbacks.onChanged);
 }
 
 void SocketsColorsFilter::FromForm(FilterData *data)
@@ -523,9 +543,9 @@ bool SocketsColorsFilter::Matches(const std::shared_ptr<Item> &item, FilterData 
     return Check(need_r, need_g, need_b, sockets.r, sockets.g, sockets.b, sockets.w);
 }
 
-LinksColorsFilter::LinksColorsFilter(QLayout *parent)
+LinksColorsFilter::LinksColorsFilter(QLayout *parent, const FilterCallbacks &callbacks)
 {
-    Initialize(parent, "Linked");
+    Initialize(parent, "Linked", callbacks);
 }
 
 bool LinksColorsFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data)
@@ -544,16 +564,20 @@ bool LinksColorsFilter::Matches(const std::shared_ptr<Item> &item, FilterData *d
     return false;
 }
 
-BooleanFilter::BooleanFilter(QLayout *parent, QString property, QString caption)
-    : m_property(property)
+BooleanFilter::BooleanFilter(QLayout *parent,
+                             QString property,
+                             QString caption,
+                             const FilterCallbacks &callbacks)
+    : Filter(callbacks)
+    , m_property(property)
     , m_caption(caption)
 {
-    Initialize(parent);
+    Initialize(parent, callbacks);
 }
 
-void BooleanFilter::Initialize(QLayout *parent)
+void BooleanFilter::Initialize(QLayout *parent, const FilterCallbacks &callbacks)
 {
-    MainWindow *main_window = qobject_cast<MainWindow *>(parent->parentWidget()->window());
+    m_callbacks = callbacks;
     QWidget *group = new QWidget;
     QHBoxLayout *layout = new QHBoxLayout;
     layout->setContentsMargins(0, 0, 0, 0);
@@ -566,7 +590,7 @@ void BooleanFilter::Initialize(QLayout *parent)
     parent->addWidget(group);
     label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_BOOL_LABEL));
 
-    QObject::connect(m_checkbox, &QCheckBox::clicked, main_window, &MainWindow::OnSearchFormChange);
+    QObject::connect(m_checkbox, &QCheckBox::clicked, m_callbacks.receiver, m_callbacks.onChanged);
 }
 
 void BooleanFilter::FromForm(FilterData *data)

@@ -16,7 +16,6 @@
 
 #include <algorithm>
 
-#include "application.h"
 #include "buyoutmanager.h"
 #include "datastore/characterrepo.h"
 #include "datastore/stashrepo.h"
@@ -31,7 +30,6 @@
 #include "ratelimit/ratelimitedreply.h"
 #include "ratelimit/ratelimiter.h"
 #include "repoe/repoe.h"
-#include "ui/mainwindow.h"
 #include "util/json_readers.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
@@ -117,16 +115,6 @@ void ItemsManagerWorker::LoadItems()
     m_tab_id_index.clear();
     for (const auto &tab : m_tabs) {
         m_tab_id_index.emplace(tab.id());
-    }
-
-    // Build the signature vector.
-    spdlog::trace("ItemsManangerWorker::ParseItemMods() building tabs signature");
-    m_tabs_signature.clear();
-    m_tabs_signature.reserve(m_tabs.size());
-    for (const auto &tab : m_tabs) {
-        const QString tab_name = tab.tab_label();
-        const QString tab_id = QString::number(tab.tab_index());
-        m_tabs_signature.emplace_back(tab_name, tab_id);
     }
 
     // Get cached items
@@ -246,22 +234,14 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
         // tell ItemsManagerWorker to run an Update() after it's finished updating mods
         UpdateRequest(type, locations);
         spdlog::debug("Update deferred until item mods parsing is complete");
-        QMessageBox::information(
-            nullptr,
-            "Acquisition",
-            "This items worker is still initializing, but an update request has been queued.",
-            QMessageBox::Ok,
-            QMessageBox::Ok);
+        emit NotifyUser(
+            "This items worker is still initializing, but an update request has been queued.");
         return;
     }
 
     if (isUpdating()) {
         spdlog::warn("ItemsManagerWorker: update called while updating");
-        QMessageBox::information(nullptr,
-                                 "Acquisition",
-                                 "An update is already in progress.",
-                                 QMessageBox::Ok,
-                                 QMessageBox::Ok);
+        emit NotifyUser("An update is already in progress.");
         return;
     }
 
@@ -506,25 +486,6 @@ void ItemsManagerWorker::OnStashListReceived(QNetworkReply *reply)
 
     spdlog::debug("Received stash list, there are {} stash tabs", stashes.size());
 
-    m_tabs_signature = CreateTabsSignatureVector(stashes);
-
-    // Remember old tab headers before clearing tabs
-    std::set<QString> old_tab_headers;
-    for (auto const &tab : m_tabs) {
-        old_tab_headers.emplace(tab.GetHeader());
-    }
-
-    // Force refreshes for any stash tabs that were moved or renamed.
-    if (m_update_tab_contents) {
-        for (auto const &tab : m_tabs) {
-            if (!old_tab_headers.count(tab.GetHeader())) {
-                spdlog::debug("Forcing refresh of moved or renamed tab: {}", tab.GetHeader());
-                const auto [endpoint, request] = poe::MakeStashRequest(m_realm, m_league, tab.id());
-                QueueRequest(endpoint, request, tab);
-            }
-        }
-    }
-
     // Queue stash tab requests.
     int tabs_requested = 0;
     for (const auto &tab : stashes) {
@@ -634,11 +595,6 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
 
     emit stashReceived(*result->stash, m_realm, m_league);
 
-    // TBD handle folder children.
-    if (stash.parent == "fc672409b5") {
-        spdlog::info("FOUND");
-    }
-
     if (stash.items) {
         const auto &items = *stash.items;
         if (items.size() > 0) {
@@ -670,10 +626,8 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
                       stash.name,
                       stash.id);
         for (const auto &child : *stash.children) {
-            const auto [endpoint, request] = poe::MakeStashRequest(m_realm,
-                                                                   m_league,
-                                                                   stash.id,
-                                                                   child.id);
+            const auto [endpoint,
+                        request] = poe::MakeStashRequest(m_realm, m_league, stash.id, child.id);
             auto submit = m_rate_limiter.Submit(endpoint, request);
             connect(submit, &RateLimitedReply::complete, this, [=, this](QNetworkReply *reply) {
                 OnStashReceived(reply, location);
@@ -899,16 +853,4 @@ void ItemsManagerWorker::FinishUpdate()
 
     m_updating = false;
     spdlog::debug("Update finished.");
-}
-
-ItemsManagerWorker::TabsSignatureVector ItemsManagerWorker::CreateTabsSignatureVector(
-    const std::vector<poe::StashTab> &tabs)
-{
-    spdlog::trace("ItemsManagerWorker::CreateTabsSignatureVector() entered");
-
-    TabsSignatureVector signature;
-    for (auto &tab : tabs) {
-        signature.emplace_back(tab.name, tab.id);
-    }
-    return signature;
 }

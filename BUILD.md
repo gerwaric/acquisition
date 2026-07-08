@@ -37,7 +37,7 @@ The executable is written to the CMake build directory. You can run it with a
 temporary data directory while testing:
 
 ```sh
-./build/acquisition --data-dir /tmp/acq-data --log-level debug
+./build/acquisition.app/Contents/MacOS/acquisition --data-dir /tmp/acq-data --log-level debug
 ```
 
 ## Tests

@@ -3,11 +3,9 @@
 
 #include "itemsmanager.h"
 
-#include <QMessageBox>
 #include <QNetworkCookie>
 #include <QSettings>
 
-#include "application.h"
 #include "buyoutmanager.h"
 #include "datastore/datastore.h"
 #include "filters.h"
@@ -15,7 +13,6 @@
 #include "modlist.h"
 #include "repoe/repoe.h"
 #include "shop.h"
-#include "ui/mainwindow.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
 

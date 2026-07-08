@@ -5,6 +5,7 @@
 
 #include <QApplication>
 #include <QClipboard>
+#include <QMessageBox>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QRegularExpression>
@@ -14,7 +15,6 @@
 #include <QUrl>
 #include <QUrlQuery>
 
-#include "application.h"
 #include "buyoutmanager.h"
 #include "datastore/datastore.h"
 #include "item.h"
@@ -23,9 +23,9 @@
 #include "ratelimit/ratelimitedreply.h"
 #include "ratelimit/ratelimiter.h"
 #include "replytimeout.h"
-#include "ui/mainwindow.h"
 #include "util/json_readers.h"
 #include "util/networkmanager.h"
+#include "util/programstate.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
 

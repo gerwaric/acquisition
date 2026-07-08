@@ -12,7 +12,6 @@
 #include <QSortFilterProxyModel>
 
 #include "modlist.h"
-#include "ui/mainwindow.h"
 
 SelectedMod::SelectedMod(
     const QString &name, double min, double max, bool min_filled, bool max_filled)
@@ -113,8 +112,9 @@ void SelectedMod::RemoveFromLayout(QGridLayout *layout)
     layout->removeWidget(&m_delete_button);
 }
 
-ModsFilter::ModsFilter(QLayout *parent)
-    : m_add_button("Add mod")
+ModsFilter::ModsFilter(QLayout *parent, const FilterCallbacks &callbacks)
+    : Filter(callbacks)
+    , m_add_button("Add mod")
     , m_signal_handler(*this)
 {
     // Create a widget to hold all of the search mods.
@@ -132,11 +132,10 @@ ModsFilter::ModsFilter(QLayout *parent)
                      &ModsFilterSignalHandler::OnAddButtonClicked);
 
     // Make sure the main window knows when the search form has changed.
-    MainWindow *main_window = qobject_cast<MainWindow *>(parent->parentWidget()->window());
     QObject::connect(&m_signal_handler,
                      &ModsFilterSignalHandler::SearchFormChanged,
-                     main_window,
-                     &MainWindow::OnDelayedSearchFormChange);
+                     m_callbacks.receiver,
+                     m_callbacks.onChangedDelayed);
 }
 
 void ModsFilter::FromForm(FilterData *data)

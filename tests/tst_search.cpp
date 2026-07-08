@@ -30,13 +30,21 @@ struct SearchHarness
     QStringListModel rarityModel{RaritySearchFilter::RARITY_LIST};
     std::vector<std::unique_ptr<Filter>> filters;
     QTreeView view;
+    QObject receiver;
+    FilterCallbacks callbacks{
+        &receiver,
+        [] {},
+        [] {},
+    };
 
     SearchHarness()
     {
-        auto tab_search = std::make_unique<TabSearchFilter>(&layout);
-        auto name_search = std::make_unique<NameSearchFilter>(&layout);
-        auto category_search = std::make_unique<CategorySearchFilter>(&layout, &categoryModel);
-        auto rarity_search = std::make_unique<RaritySearchFilter>(&layout, &rarityModel);
+        auto tab_search = std::make_unique<TabSearchFilter>(&layout, callbacks);
+        auto name_search = std::make_unique<NameSearchFilter>(&layout, callbacks);
+        auto category_search = std::make_unique<CategorySearchFilter>(&layout,
+                                                                      &categoryModel,
+                                                                      callbacks);
+        auto rarity_search = std::make_unique<RaritySearchFilter>(&layout, &rarityModel, callbacks);
         auto *offense_layout = new FlowLayout;
         auto *defense_layout = new FlowLayout;
         auto *sockets_layout = new FlowLayout;
@@ -62,40 +70,40 @@ struct SearchHarness
             std::move(name_search),
             std::move(category_search),
             std::move(rarity_search),
-            std::make_unique<SimplePropertyFilter>(offense_layout, "Critical Strike Chance", "Crit."),
-            std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->DPS(); }, "DPS"),
-            std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->pDPS(); }, "pDPS"),
-            std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->eDPS(); }, "eDPS"),
-            std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->cDPS(); }, "cDPS"),
-            std::make_unique<SimplePropertyFilter>(offense_layout, "Attacks per Second", "APS"),
-            std::make_unique<SimplePropertyFilter>(defense_layout, "Armour"),
-            std::make_unique<SimplePropertyFilter>(defense_layout, "Evasion Rating", "Evasion"),
-            std::make_unique<SimplePropertyFilter>(defense_layout, "Energy Shield", "Shield"),
-            std::make_unique<SimplePropertyFilter>(defense_layout, "Chance to Block", "Block"),
-            std::make_unique<SocketsFilter>(sockets_layout, "Sockets"),
-            std::make_unique<LinksFilter>(sockets_layout, "Links"),
-            std::make_unique<SocketsColorsFilter>(sockets_layout),
-            std::make_unique<LinksColorsFilter>(sockets_layout),
-            std::make_unique<RequiredStatFilter>(requirements_layout, "Level", "R. Level"),
-            std::make_unique<RequiredStatFilter>(requirements_layout, "Str", "R. Str"),
-            std::make_unique<RequiredStatFilter>(requirements_layout, "Dex", "R. Dex"),
-            std::make_unique<RequiredStatFilter>(requirements_layout, "Int", "R. Int"),
-            std::make_unique<DefaultPropertyFilter>(misc_layout, "Quality", 0),
-            std::make_unique<SimplePropertyFilter>(misc_layout, "Level"),
-            std::make_unique<SimplePropertyFilter>(misc_layout, "Map Tier"),
-            std::make_unique<ItemlevelFilter>(misc_layout, "ilvl"),
-            std::make_unique<AltartFilter>(misc_flags_layout, "", "Alt. art"),
-            std::make_unique<PricedFilter>(misc_flags_layout, "", "Priced", *buyoutFixture.manager),
-            std::make_unique<UnidentifiedFilter>(misc_flags2_layout, "", "Unidentified"),
-            std::make_unique<InfluencedFilter>(misc_flags2_layout, "", "Influenced"),
-            std::make_unique<CraftedFilter>(misc_flags2_layout, "", "Crafted"),
-            std::make_unique<EnchantedFilter>(misc_flags2_layout, "", "Enchanted"),
-            std::make_unique<CorruptedFilter>(misc_flags2_layout, "", "Corrupted"),
-            std::make_unique<FracturedFilter>(misc_flags2_layout, "", "Fractured"),
-            std::make_unique<SplitFilter>(misc_flags2_layout, "", "Split"),
-            std::make_unique<SynthesizedFilter>(misc_flags2_layout, "", "Synthesized"),
-            std::make_unique<MutatedFilter>(misc_flags2_layout, "", "Mutated"),
-            std::make_unique<ModsFilter>(mods_layout),
+            std::make_unique<SimplePropertyFilter>(offense_layout, "Critical Strike Chance", "Crit.", callbacks),
+            std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->DPS(); }, "DPS", callbacks),
+            std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->pDPS(); }, "pDPS", callbacks),
+            std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->eDPS(); }, "eDPS", callbacks),
+            std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->cDPS(); }, "cDPS", callbacks),
+            std::make_unique<SimplePropertyFilter>(offense_layout, "Attacks per Second", "APS", callbacks),
+            std::make_unique<SimplePropertyFilter>(defense_layout, "Armour", callbacks),
+            std::make_unique<SimplePropertyFilter>(defense_layout, "Evasion Rating", "Evasion", callbacks),
+            std::make_unique<SimplePropertyFilter>(defense_layout, "Energy Shield", "Shield", callbacks),
+            std::make_unique<SimplePropertyFilter>(defense_layout, "Chance to Block", "Block", callbacks),
+            std::make_unique<SocketsFilter>(sockets_layout, "Sockets", callbacks),
+            std::make_unique<LinksFilter>(sockets_layout, "Links", callbacks),
+            std::make_unique<SocketsColorsFilter>(sockets_layout, callbacks),
+            std::make_unique<LinksColorsFilter>(sockets_layout, callbacks),
+            std::make_unique<RequiredStatFilter>(requirements_layout, "Level", "R. Level", callbacks),
+            std::make_unique<RequiredStatFilter>(requirements_layout, "Str", "R. Str", callbacks),
+            std::make_unique<RequiredStatFilter>(requirements_layout, "Dex", "R. Dex", callbacks),
+            std::make_unique<RequiredStatFilter>(requirements_layout, "Int", "R. Int", callbacks),
+            std::make_unique<DefaultPropertyFilter>(misc_layout, "Quality", 0, callbacks),
+            std::make_unique<SimplePropertyFilter>(misc_layout, "Level", callbacks),
+            std::make_unique<SimplePropertyFilter>(misc_layout, "Map Tier", callbacks),
+            std::make_unique<ItemlevelFilter>(misc_layout, "ilvl", callbacks),
+            std::make_unique<AltartFilter>(misc_flags_layout, "", "Alt. art", callbacks),
+            std::make_unique<PricedFilter>(misc_flags_layout, "", "Priced", callbacks, *buyoutFixture.manager),
+            std::make_unique<UnidentifiedFilter>(misc_flags2_layout, "", "Unidentified", callbacks),
+            std::make_unique<InfluencedFilter>(misc_flags2_layout, "", "Influenced", callbacks),
+            std::make_unique<CraftedFilter>(misc_flags2_layout, "", "Crafted", callbacks),
+            std::make_unique<EnchantedFilter>(misc_flags2_layout, "", "Enchanted", callbacks),
+            std::make_unique<CorruptedFilter>(misc_flags2_layout, "", "Corrupted", callbacks),
+            std::make_unique<FracturedFilter>(misc_flags2_layout, "", "Fractured", callbacks),
+            std::make_unique<SplitFilter>(misc_flags2_layout, "", "Split", callbacks),
+            std::make_unique<SynthesizedFilter>(misc_flags2_layout, "", "Synthesized", callbacks),
+            std::make_unique<MutatedFilter>(misc_flags2_layout, "", "Mutated", callbacks),
+            std::make_unique<ModsFilter>(mods_layout, callbacks),
         };
         // clang-format on
         filters = std::vector<move_only>(std::make_move_iterator(std::begin(init)),
