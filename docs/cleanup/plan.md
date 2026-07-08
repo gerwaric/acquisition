@@ -49,10 +49,10 @@ codebase strictly better off.
 | 0. Test harness + characterization tests | `phase-0-test-harness.md` | safety net for all later phases | Spec ready |
 | 1. Layering fixes | `phase-1-layering.md` | F3, F6–F8, F13, F16, F17 | Spec ready |
 | 2. Worker threading + update state machine | `phase-2-worker-threading.md` | F1, F2, F4, F5, F15, F24 | Spec ready |
-| 3. Model/view signal hygiene | `phase-3-model-signals.md` (to be written) | F10–F12, F23 | Planned |
-| 4. Decouple `Search` from `QTreeView` | `phase-4-search-decoupling.md` (to be written) | F18 | Planned |
-| 5. Filters as data + matching | `phase-5-filters-as-data.md` (to be written) | F19 | Planned |
-| 6. Opportunistic `MainWindow` slimming | `phase-6-mainwindow-slimming.md` (to be written) | F20, F9 remainder, F14 | Planned |
+| 3. Model/view signal hygiene | `phase-3-model-signals.md` | F10–F12, F23 | Spec ready |
+| 4. Decouple `Search` from `QTreeView` | `phase-4-search-decoupling.md` | F18 | Design intent |
+| 5. Filters as data + matching | `phase-5-filters-as-data.md` | F19 | Design intent |
+| 6. Opportunistic `MainWindow` slimming | `phase-6-mainwindow-slimming.md` | F20, F9 remainder, F14 | Design intent |
 
 Phases 0–3 are the committed core. Phases 4–6 are worthwhile continuations
 with full design intent documented, but their step-by-step details must be
