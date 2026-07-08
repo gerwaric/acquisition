@@ -49,6 +49,9 @@ jobs:
     - name: Build
       run: cmake --build build --parallel 2
 
+    - name: Test
+      run: ctest --test-dir build --output-on-failure
+
     - name: Get version
       id: version
       run: |

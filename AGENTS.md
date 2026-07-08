@@ -12,7 +12,7 @@
 - Configure and build with `cmake -S . -B build` and `cmake --build build`.
 - CMake requires Qt 6.11+ and the Qt Network Authorization module. Linux also requires OpenSSL.
 - Run locally with `./build/acquisition --data-dir /tmp/acq-data` to avoid touching a user's real Acquisition data.
-- There is no checked-in standalone test suite at the moment. Verify changes with a build and targeted manual checks unless tests are added.
+- Run the checked-in Qt Test suite with `ctest --test-dir build --output-on-failure` after building.
 
 ## Design Cleanup (in progress)
 - An interior design cleanup is underway; read `docs/cleanup/plan.md` before making structural changes to core code.

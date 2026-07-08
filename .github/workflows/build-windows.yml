@@ -43,6 +43,9 @@ jobs:
     - name: Build
       run: cmake --build build --config Release --parallel 4
 
+    - name: Test
+      run: ctest --test-dir build --output-on-failure
+
     - name: Prepare deployment
       run: |
         $deploy = "build\deploy"
