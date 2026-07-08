@@ -176,7 +176,6 @@ set(ACQ_CORE
     src/itemsmanager.h
     src/itemsmanagerworker.cpp
     src/itemsmanagerworker.h
-    src/main.cpp
     src/modlist.cpp
     src/modlist.h
     src/modsfilter.cpp
@@ -435,7 +434,7 @@ find_package(Qt6 6.11 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Widge
 
 qt_standard_project_setup()
 
-qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
+qt_add_library(acquisition_core STATIC
     ${ACQ_CORE}
     ${ACQ_DATASTORE}
     ${ACQ_LEGACY}
@@ -448,21 +447,13 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     "${CMAKE_BINARY_DIR}/version_defines.h"
 )
 
-qt_add_resources(acquisition
+qt_add_resources(acquisition_core
     PREFIX "/"
     BASE "assets"
     FILES ${ACQ_RESOURCES}
 )
 
-# Add configure_file() inputs so they show up in Qt Creator.
-target_sources(acquisition PRIVATE
-    FILE_SET project_files TYPE HEADERS
-    FILES
-        version_info.rc.in
-        src/version_defines.h.in
-)
-
-set_target_properties(acquisition PROPERTIES
+set_target_properties(acquisition_core PROPERTIES
     AUTORCC ON
     CXX_STANDARD 23
     CXX_STANDARD_REQUIRED YES
@@ -470,7 +461,7 @@ set_target_properties(acquisition PROPERTIES
 )
 
 # Setup include directories.
-target_include_directories(acquisition PRIVATE
+target_include_directories(acquisition_core PUBLIC
     "${acquisition_SOURCE_DIR}/src"
     "${acquisition_BINARY_DIR}"
 )
@@ -478,7 +469,7 @@ target_include_directories(acquisition PRIVATE
 add_subdirectory(deps/qdarkstyle)
 
 # Link required libraries.
-target_link_libraries(acquisition PRIVATE
+target_link_libraries(acquisition_core PUBLIC
     # Qt libraries
     Qt6::Core
     Qt6::Gui
@@ -494,6 +485,26 @@ target_link_libraries(acquisition PRIVATE
     spdlog::spdlog_header_only
 )
 
+qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
+    src/main.cpp
+)
+
+# Add configure_file() inputs so they show up in Qt Creator.
+target_sources(acquisition PRIVATE
+    FILE_SET project_files TYPE HEADERS
+    FILES
+        version_info.rc.in
+        src/version_defines.h.in
+)
+
+set_target_properties(acquisition PROPERTIES
+    CXX_STANDARD 23
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+)
+
+target_link_libraries(acquisition PRIVATE acquisition_core)
+
 #----------------------------------
 # Platform-specific section
 #----------------------------------
@@ -501,7 +512,7 @@ target_link_libraries(acquisition PRIVATE
 if(WIN32)
 
     # Enable more warnings by default (MSVC only).
-    target_compile_options(acquisition PRIVATE
+    target_compile_options(acquisition_core PRIVATE
         $<$<CXX_COMPILER_ID:MSVC>:/W4>
         $<$<CXX_COMPILER_ID:MSVC>:/EHsc>
         $<$<CXX_COMPILER_ID:MSVC>:/D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR>
@@ -573,9 +584,10 @@ elseif(UNIX)
 
     # Link OpenSSL on Linux.
     find_package(OpenSSL REQUIRED)
-    target_link_libraries(acquisition PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+    target_link_libraries(acquisition_core PUBLIC OpenSSL::SSL OpenSSL::Crypto)
 
     # Generate debug symbols.
+    target_compile_options(acquisition_core PRIVATE $<$<NOT:$<CONFIG:Debug>>:-g>)
     target_compile_options(acquisition PRIVATE $<$<NOT:$<CONFIG:Debug>>:-g>)
     if(CMAKE_OBJCOPY AND CMAKE_STRIP)
         add_custom_command(TARGET acquisition
