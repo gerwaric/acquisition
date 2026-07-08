@@ -46,8 +46,8 @@ codebase strictly better off.
 
 | Phase | Document | Addresses | Status |
 |-------|----------|-----------|--------|
-| 0. Test harness + characterization tests | `phase-0-test-harness.md` (to be written) | safety net for all later phases | Planned |
-| 1. Layering fixes | `phase-1-layering.md` (to be written) | F3, F6–F8, F13, F16, F17 | Planned |
+| 0. Test harness + characterization tests | `phase-0-test-harness.md` | safety net for all later phases | Spec ready |
+| 1. Layering fixes | `phase-1-layering.md` | F3, F6–F8, F13, F16, F17 | Spec ready |
 | 2. Worker threading + update state machine | `phase-2-worker-threading.md` (to be written) | F1, F2, F4, F5, F15 | Planned |
 | 3. Model/view signal hygiene | `phase-3-model-signals.md` (to be written) | F10–F12, F23 | Planned |
 | 4. Decouple `Search` from `QTreeView` | `phase-4-search-decoupling.md` (to be written) | F18 | Planned |
