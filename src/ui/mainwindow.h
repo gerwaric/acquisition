@@ -14,6 +14,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include "util/programstate.h"
+
 class QNetworkReply;
 class QSettings;
 class QStringListModel;
@@ -43,8 +45,6 @@ struct Buyout;
 namespace Ui {
     class MainWindow;
 }
-
-enum class ProgramState { Unknown, Initializing, Waiting, Ready, Busy };
 
 class MainWindow : public QMainWindow
 {
@@ -77,6 +77,7 @@ public slots:
     void OnImageFetched(const QString &url);
     void OnItemsRefreshed();
     void OnStatusUpdate(ProgramState state, const QString &status);
+    void OnNotifyUser(const QString &message);
     void OnBuyoutChange();
     void ResizeTreeColumns();
     void OnExpandAll();
@@ -114,9 +115,6 @@ private slots:
 
     // Logging submenu actions
     void OnSetLogging(spdlog::level::level_enum level);
-
-    // Buyouts menu
-    void OnImportBuyouts();
 
     // Tooltip buttons
     void OnCopyForPOB();

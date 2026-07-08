@@ -14,10 +14,18 @@ class QComboBox;
 class QCompleter;
 class QAbstractListModel;
 class QLayout;
+class QObject;
 
 class BuyoutManager;
 class FilterData;
 class SearchComboBox;
+
+struct FilterCallbacks
+{
+    QObject *receiver = nullptr;
+    std::function<void()> onChanged;
+    std::function<void()> onChangedDelayed;
+};
 
 /*
  * Objects of subclasses of this class do the following:
@@ -28,7 +36,7 @@ class SearchComboBox;
 class Filter
 {
 public:
-    Filter() = default;
+    explicit Filter(const FilterCallbacks &callbacks = {});
     virtual ~Filter() {};
 
     // Non-copyable
@@ -49,6 +57,7 @@ public:
 
 protected:
     bool m_active{false};
+    FilterCallbacks m_callbacks;
 };
 
 struct ModFilterData
@@ -96,12 +105,12 @@ private:
 class TabSearchFilter : public Filter
 {
 public:
-    explicit TabSearchFilter(QLayout *parent);
+    TabSearchFilter(QLayout *parent, const FilterCallbacks &callbacks);
     void FromForm(FilterData *data);
     void ToForm(FilterData *data);
     void ResetForm();
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
-    void Initialize(QLayout *parent);
+    void Initialize(QLayout *parent, const FilterCallbacks &callbacks);
 
 private:
     QLineEdit *m_textbox;
@@ -110,12 +119,12 @@ private:
 class NameSearchFilter : public Filter
 {
 public:
-    explicit NameSearchFilter(QLayout *parent);
+    NameSearchFilter(QLayout *parent, const FilterCallbacks &callbacks);
     void FromForm(FilterData *data);
     void ToForm(FilterData *data);
     void ResetForm();
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
-    void Initialize(QLayout *parent);
+    void Initialize(QLayout *parent, const FilterCallbacks &callbacks);
 
 private:
     QLineEdit *m_textbox;
@@ -124,12 +133,14 @@ private:
 class CategorySearchFilter : public Filter
 {
 public:
-    explicit CategorySearchFilter(QLayout *parent, QAbstractListModel *model);
+    CategorySearchFilter(QLayout *parent,
+                         QAbstractListModel *model,
+                         const FilterCallbacks &callbacks);
     void FromForm(FilterData *data);
     void ToForm(FilterData *data);
     void ResetForm();
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
-    void Initialize(QLayout *parent);
+    void Initialize(QLayout *parent, const FilterCallbacks &callbacks);
     static const QString k_Default;
 
 private:
@@ -140,12 +151,12 @@ private:
 class RaritySearchFilter : public Filter
 {
 public:
-    explicit RaritySearchFilter(QLayout *parent, QAbstractListModel *model);
+    RaritySearchFilter(QLayout *parent, QAbstractListModel *model, const FilterCallbacks &callbacks);
     void FromForm(FilterData *data);
     void ToForm(FilterData *data);
     void ResetForm();
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
-    void Initialize(QLayout *parent);
+    void Initialize(QLayout *parent, const FilterCallbacks &callbacks);
     static const QString k_Default;
     static const QStringList RARITY_LIST;
 
@@ -157,13 +168,16 @@ private:
 class MinMaxFilter : public Filter
 {
 public:
-    MinMaxFilter(QLayout *parent, QString property);
-    MinMaxFilter(QLayout *parent, QString property, QString caption);
+    MinMaxFilter(QLayout *parent, QString property, const FilterCallbacks &callbacks);
+    MinMaxFilter(QLayout *parent,
+                 QString property,
+                 QString caption,
+                 const FilterCallbacks &callbacks);
     void FromForm(FilterData *data);
     void ToForm(FilterData *data);
     void ResetForm();
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
-    void Initialize(QLayout *parent);
+    void Initialize(QLayout *parent, const FilterCallbacks &callbacks);
 
 protected:
     virtual double GetValue(const std::shared_ptr<Item> &item) = 0;
@@ -178,11 +192,14 @@ private:
 class SimplePropertyFilter : public MinMaxFilter
 {
 public:
-    SimplePropertyFilter(QLayout *parent, QString property)
-        : MinMaxFilter(parent, property)
+    SimplePropertyFilter(QLayout *parent, QString property, const FilterCallbacks &callbacks)
+        : MinMaxFilter(parent, property, callbacks)
     {}
-    SimplePropertyFilter(QLayout *parent, QString property, QString caption)
-        : MinMaxFilter(parent, property, caption)
+    SimplePropertyFilter(QLayout *parent,
+                         QString property,
+                         QString caption,
+                         const FilterCallbacks &callbacks)
+        : MinMaxFilter(parent, property, caption, callbacks)
     {}
 
 protected:
@@ -194,12 +211,19 @@ protected:
 class DefaultPropertyFilter : public SimplePropertyFilter
 {
 public:
-    DefaultPropertyFilter(QLayout *parent, QString property, double default_value)
-        : SimplePropertyFilter(parent, property)
+    DefaultPropertyFilter(QLayout *parent,
+                          QString property,
+                          double default_value,
+                          const FilterCallbacks &callbacks)
+        : SimplePropertyFilter(parent, property, callbacks)
         , m_default_value(default_value)
     {}
-    DefaultPropertyFilter(QLayout *parent, QString property, QString caption, double default_value)
-        : SimplePropertyFilter(parent, property, caption)
+    DefaultPropertyFilter(QLayout *parent,
+                          QString property,
+                          QString caption,
+                          double default_value,
+                          const FilterCallbacks &callbacks)
+        : SimplePropertyFilter(parent, property, caption, callbacks)
         , m_default_value(default_value)
     {}
 
@@ -214,11 +238,14 @@ private:
 class RequiredStatFilter : public MinMaxFilter
 {
 public:
-    RequiredStatFilter(QLayout *parent, QString property)
-        : MinMaxFilter(parent, property)
+    RequiredStatFilter(QLayout *parent, QString property, const FilterCallbacks &callbacks)
+        : MinMaxFilter(parent, property, callbacks)
     {}
-    RequiredStatFilter(QLayout *parent, QString property, QString caption)
-        : MinMaxFilter(parent, property, caption)
+    RequiredStatFilter(QLayout *parent,
+                       QString property,
+                       QString caption,
+                       const FilterCallbacks &callbacks)
+        : MinMaxFilter(parent, property, caption, callbacks)
     {}
 
 private:
@@ -229,7 +256,10 @@ private:
 class ItemMethodFilter : public MinMaxFilter
 {
 public:
-    ItemMethodFilter(QLayout *parent, std::function<double(Item *)> func, QString caption);
+    ItemMethodFilter(QLayout *parent,
+                     std::function<double(Item *)> func,
+                     QString caption,
+                     const FilterCallbacks &callbacks);
 
 private:
     bool IsValuePresent(const std::shared_ptr<Item> & /* item */) { return true; }
@@ -240,11 +270,14 @@ private:
 class SocketsFilter : public MinMaxFilter
 {
 public:
-    SocketsFilter(QLayout *parent, QString property)
-        : MinMaxFilter(parent, property)
+    SocketsFilter(QLayout *parent, QString property, const FilterCallbacks &callbacks)
+        : MinMaxFilter(parent, property, callbacks)
     {}
-    SocketsFilter(QLayout *parent, QString property, QString caption)
-        : MinMaxFilter(parent, property, caption)
+    SocketsFilter(QLayout *parent,
+                  QString property,
+                  QString caption,
+                  const FilterCallbacks &callbacks)
+        : MinMaxFilter(parent, property, caption, callbacks)
     {}
     bool IsValuePresent(const std::shared_ptr<Item> & /* item */) { return true; }
     double GetValue(const std::shared_ptr<Item> &item);
@@ -253,11 +286,11 @@ public:
 class LinksFilter : public MinMaxFilter
 {
 public:
-    LinksFilter(QLayout *parent, QString property)
-        : MinMaxFilter(parent, property)
+    LinksFilter(QLayout *parent, QString property, const FilterCallbacks &callbacks)
+        : MinMaxFilter(parent, property, callbacks)
     {}
-    LinksFilter(QLayout *parent, QString property, QString caption)
-        : MinMaxFilter(parent, property, caption)
+    LinksFilter(QLayout *parent, QString property, QString caption, const FilterCallbacks &callbacks)
+        : MinMaxFilter(parent, property, caption, callbacks)
     {}
     bool IsValuePresent(const std::shared_ptr<Item> & /* item */) { return true; }
     double GetValue(const std::shared_ptr<Item> &item);
@@ -267,12 +300,12 @@ class SocketsColorsFilter : public Filter
 {
 public:
     SocketsColorsFilter() {};
-    explicit SocketsColorsFilter(QLayout *parent);
+    SocketsColorsFilter(QLayout *parent, const FilterCallbacks &callbacks);
     void FromForm(FilterData *data);
     void ToForm(FilterData *data);
     void ResetForm();
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
-    void Initialize(QLayout *parent, const char *caption);
+    void Initialize(QLayout *parent, const char *caption, const FilterCallbacks &callbacks);
 
 protected:
     bool Check(int need_r, int need_g, int need_b, int got_r, int got_g, int got_b, int got_w);
@@ -282,19 +315,22 @@ protected:
 class LinksColorsFilter : public SocketsColorsFilter
 {
 public:
-    explicit LinksColorsFilter(QLayout *parent);
+    LinksColorsFilter(QLayout *parent, const FilterCallbacks &callbacks);
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
 };
 
 class BooleanFilter : public Filter
 {
 public:
-    BooleanFilter(QLayout *parent, QString property, QString caption);
+    BooleanFilter(QLayout *parent,
+                  QString property,
+                  QString caption,
+                  const FilterCallbacks &callbacks);
     void FromForm(FilterData *data);
     void ToForm(FilterData *data);
     void ResetForm();
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
-    void Initialize(QLayout *parent);
+    void Initialize(QLayout *parent, const FilterCallbacks &callbacks);
 
 private:
     QCheckBox *m_checkbox;
@@ -306,8 +342,11 @@ protected:
 class AltartFilter : public BooleanFilter
 {
 public:
-    AltartFilter(QLayout *parent, QString property, QString caption)
-        : BooleanFilter(parent, property, caption)
+    AltartFilter(QLayout *parent,
+                 QString property,
+                 QString caption,
+                 const FilterCallbacks &callbacks)
+        : BooleanFilter(parent, property, caption, callbacks)
     {}
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
 };
@@ -315,8 +354,12 @@ public:
 class PricedFilter : public BooleanFilter
 {
 public:
-    PricedFilter(QLayout *parent, QString property, QString caption, const BuyoutManager &bm)
-        : BooleanFilter(parent, property, caption)
+    PricedFilter(QLayout *parent,
+                 QString property,
+                 QString caption,
+                 const FilterCallbacks &callbacks,
+                 const BuyoutManager &bm)
+        : BooleanFilter(parent, property, caption, callbacks)
         , m_bm(bm)
     {}
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
@@ -328,8 +371,11 @@ private:
 class UnidentifiedFilter : public BooleanFilter
 {
 public:
-    UnidentifiedFilter(QLayout *parent, QString property, QString caption)
-        : BooleanFilter(parent, property, caption)
+    UnidentifiedFilter(QLayout *parent,
+                       QString property,
+                       QString caption,
+                       const FilterCallbacks &callbacks)
+        : BooleanFilter(parent, property, caption, callbacks)
     {}
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
     {
@@ -340,8 +386,11 @@ public:
 class CraftedFilter : public BooleanFilter
 {
 public:
-    CraftedFilter(QLayout *parent, QString property, QString caption)
-        : BooleanFilter(parent, property, caption)
+    CraftedFilter(QLayout *parent,
+                  QString property,
+                  QString caption,
+                  const FilterCallbacks &callbacks)
+        : BooleanFilter(parent, property, caption, callbacks)
     {}
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
     {
@@ -352,8 +401,11 @@ public:
 class EnchantedFilter : public BooleanFilter
 {
 public:
-    EnchantedFilter(QLayout *parent, QString property, QString caption)
-        : BooleanFilter(parent, property, caption)
+    EnchantedFilter(QLayout *parent,
+                    QString property,
+                    QString caption,
+                    const FilterCallbacks &callbacks)
+        : BooleanFilter(parent, property, caption, callbacks)
     {}
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
     {
@@ -364,8 +416,11 @@ public:
 class InfluencedFilter : public BooleanFilter
 {
 public:
-    InfluencedFilter(QLayout *parent, QString property, QString caption)
-        : BooleanFilter(parent, property, caption)
+    InfluencedFilter(QLayout *parent,
+                     QString property,
+                     QString caption,
+                     const FilterCallbacks &callbacks)
+        : BooleanFilter(parent, property, caption, callbacks)
     {}
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
     {
@@ -376,8 +431,11 @@ public:
 class CorruptedFilter : public BooleanFilter
 {
 public:
-    CorruptedFilter(QLayout *parent, QString property, QString caption)
-        : BooleanFilter(parent, property, caption)
+    CorruptedFilter(QLayout *parent,
+                    QString property,
+                    QString caption,
+                    const FilterCallbacks &callbacks)
+        : BooleanFilter(parent, property, caption, callbacks)
     {}
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
     {
@@ -388,8 +446,11 @@ public:
 class FracturedFilter : public BooleanFilter
 {
 public:
-    FracturedFilter(QLayout *parent, QString property, QString caption)
-        : BooleanFilter(parent, property, caption)
+    FracturedFilter(QLayout *parent,
+                    QString property,
+                    QString caption,
+                    const FilterCallbacks &callbacks)
+        : BooleanFilter(parent, property, caption, callbacks)
     {}
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
     {
@@ -400,8 +461,8 @@ public:
 class SplitFilter : public BooleanFilter
 {
 public:
-    SplitFilter(QLayout *parent, QString property, QString caption)
-        : BooleanFilter(parent, property, caption)
+    SplitFilter(QLayout *parent, QString property, QString caption, const FilterCallbacks &callbacks)
+        : BooleanFilter(parent, property, caption, callbacks)
     {}
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
     {
@@ -412,8 +473,11 @@ public:
 class SynthesizedFilter : public BooleanFilter
 {
 public:
-    SynthesizedFilter(QLayout *parent, QString property, QString caption)
-        : BooleanFilter(parent, property, caption)
+    SynthesizedFilter(QLayout *parent,
+                      QString property,
+                      QString caption,
+                      const FilterCallbacks &callbacks)
+        : BooleanFilter(parent, property, caption, callbacks)
     {}
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
     {
@@ -424,8 +488,11 @@ public:
 class MutatedFilter : public BooleanFilter
 {
 public:
-    MutatedFilter(QLayout *parent, QString property, QString caption)
-        : BooleanFilter(parent, property, caption)
+    MutatedFilter(QLayout *parent,
+                  QString property,
+                  QString caption,
+                  const FilterCallbacks &callbacks)
+        : BooleanFilter(parent, property, caption, callbacks)
     {}
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
     {
@@ -436,11 +503,14 @@ public:
 class ItemlevelFilter : public MinMaxFilter
 {
 public:
-    ItemlevelFilter(QLayout *parent, QString property)
-        : MinMaxFilter(parent, property)
+    ItemlevelFilter(QLayout *parent, QString property, const FilterCallbacks &callbacks)
+        : MinMaxFilter(parent, property, callbacks)
     {}
-    ItemlevelFilter(QLayout *parent, QString property, QString caption)
-        : MinMaxFilter(parent, property, caption)
+    ItemlevelFilter(QLayout *parent,
+                    QString property,
+                    QString caption,
+                    const FilterCallbacks &callbacks)
+        : MinMaxFilter(parent, property, caption, callbacks)
     {}
     bool IsValuePresent(const std::shared_ptr<Item> & /* item */) { return true; }
     double GetValue(const std::shared_ptr<Item> &item) { return item->ilvl(); }

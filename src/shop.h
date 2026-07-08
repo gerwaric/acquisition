@@ -10,7 +10,7 @@
 #include <map>
 
 #include "buyout.h"
-#include "ui/mainwindow.h"
+#include "util/programstate.h"
 
 class QSettings;
 

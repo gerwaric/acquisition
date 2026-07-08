@@ -3,7 +3,6 @@
 
 #include "items_model.h"
 
-#include "application.h"
 #include "bucket.h"
 #include "buyoutmanager.h"
 #include "itemlocation.h"

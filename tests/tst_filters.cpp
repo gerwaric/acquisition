@@ -24,6 +24,12 @@ struct FilterHarness
     QWidget host;
     QVBoxLayout layout{&host};
     QStringListModel rarityModel{RaritySearchFilter::RARITY_LIST};
+    QObject receiver;
+    FilterCallbacks callbacks{
+        &receiver,
+        [] {},
+        [] {},
+    };
 };
 
 static std::shared_ptr<Item> makeFilterItem(const QString &id,
@@ -55,7 +61,7 @@ static std::shared_ptr<Item> makeFilterItem(const QString &id,
 void FiltersTest::nameFilter()
 {
     FilterHarness harness;
-    NameSearchFilter filter(&harness.layout);
+    NameSearchFilter filter(&harness.layout, harness.callbacks);
     FilterData data(&filter);
     data.text_query = "alpha";
 
@@ -71,7 +77,7 @@ void FiltersTest::nameFilter()
 void FiltersTest::minMaxFilter()
 {
     FilterHarness harness;
-    SimplePropertyFilter filter(&harness.layout, "Quality");
+    SimplePropertyFilter filter(&harness.layout, "Quality", harness.callbacks);
     const auto withQuality = makeFilterItem("quality",
                                             R"json(,
         "properties": [
@@ -120,7 +126,7 @@ void FiltersTest::socketColorFilters()
             {"group": 1, "attr": "I", "sColour": "B"}
         ])json");
 
-    SocketsColorsFilter socketsFilter(&harness.layout);
+    SocketsColorsFilter socketsFilter(&harness.layout, harness.callbacks);
     FilterData socketsData(&socketsFilter);
     socketsData.r_filled = true;
     socketsData.r = 1;
@@ -131,7 +137,7 @@ void FiltersTest::socketColorFilters()
     socketsData.b = 3;
     QVERIFY(!socketsFilter.Matches(item, &socketsData));
 
-    LinksColorsFilter linksFilter(&harness.layout);
+    LinksColorsFilter linksFilter(&harness.layout, harness.callbacks);
     FilterData linksData(&linksFilter);
     linksData.r_filled = true;
     linksData.r = 1;
@@ -146,7 +152,7 @@ void FiltersTest::socketColorFilters()
 void FiltersTest::booleanFilter()
 {
     FilterHarness harness;
-    CorruptedFilter filter(&harness.layout, "", "Corrupted");
+    CorruptedFilter filter(&harness.layout, "", "Corrupted", harness.callbacks);
     FilterData data(&filter);
     data.checked = true;
 
@@ -160,7 +166,7 @@ void FiltersTest::booleanFilter()
 void FiltersTest::rarityFilter()
 {
     FilterHarness harness;
-    RaritySearchFilter filter(&harness.layout, &harness.rarityModel);
+    RaritySearchFilter filter(&harness.layout, &harness.rarityModel, harness.callbacks);
     FilterData data(&filter);
 
     const auto normal = makeFilterItem("normal", "", 0, "Normal");

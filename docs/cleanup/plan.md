@@ -164,7 +164,7 @@ After each phase, in addition to its own acceptance criteria:
 - Configure and build: `cmake -S . -B build && cmake --build build`.
 - Run tests: `ctest --test-dir build` (from Phase 0 onward).
 - Manual smoke test with a scratch data dir:
-  `./build/acquisition --data-dir /tmp/acq-data --log-level debug`.
+  `./build/acquisition.app/Contents/MacOS/acquisition --data-dir /tmp/acq-data --log-level debug`.
   - Login; refresh tabs; watch status bar progress.
   - Create, rename, switch, and delete search tabs.
   - Change filters and verify item counts; reset filters.

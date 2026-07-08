@@ -6,7 +6,6 @@
 #include <QRegularExpression>
 #include <QVariant>
 
-#include "application.h"
 #include "datastore/buyoutrepo.h"
 #include "datastore/datastore.h"
 #include "item.h"
@@ -369,9 +368,4 @@ void BuyoutManager::MigrateItem(const QString &old_hash, const QString &new_hash
         m_buyouts.erase(old_it);
         m_save_needed = true;
     }
-}
-
-void BuyoutManager::ImportBuyouts(const QString &filename)
-{
-    spdlog::info("Importing buyouts from {}", filename);
 }
