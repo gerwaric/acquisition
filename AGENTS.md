@@ -14,6 +14,10 @@
 - Run locally with `./build/acquisition --data-dir /tmp/acq-data` to avoid touching a user's real Acquisition data.
 - There is no checked-in standalone test suite at the moment. Verify changes with a build and targeted manual checks unless tests are added.
 
+## Design Cleanup (in progress)
+- An interior design cleanup is underway; read `docs/cleanup/plan.md` before making structural changes to core code.
+- Known design/correctness problems are cataloged in `docs/cleanup/findings.md`. Check it before fixing something that looks broken — it may already be assigned to a phase.
+
 ## Development Guidance
 - Use `.clang-format` for C++ formatting when touching formatted source, respect existing `// clang-format off/on` blocks, and preserve nearby style for naming and code organization.
 - Prefer existing Qt and local helper patterns over new abstractions.
