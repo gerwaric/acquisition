@@ -55,9 +55,16 @@ ItemsManagerWorker::ItemsManagerWorker(QSettings &settings,
     m_realm = m_settings.value("realm").toString();
     m_league = m_settings.value("league").toString();
     m_account = m_settings.value("account").toString();
-    m_updating = true;
     spdlog::trace("ItemsManagerWorker: league = {}", m_league);
     spdlog::trace("ItemsManagerWorker: account = {}", m_account);
+}
+
+ItemsManagerWorker::~ItemsManagerWorker()
+{
+    m_shutdown.store(true);
+    if (m_parser_thread && m_parser_thread->isRunning()) {
+        m_parser_thread->wait();
+    }
 }
 
 void ItemsManagerWorker::UpdateRequest(TabSelection type, const std::vector<ItemLocation> &locations)
@@ -71,22 +78,43 @@ void ItemsManagerWorker::UpdateRequest(TabSelection type, const std::vector<Item
 void ItemsManagerWorker::OnRePoEReady()
 {
     spdlog::trace("ItemsManagerWorker::OnRePoEReady() entered");
+    StartParseThread();
+}
+
+void ItemsManagerWorker::StartParseThread()
+{
     // Create a separate thread to load the items, which allows the UI to
     // update the status bar while items are being parsed. This operation
     // can take tens of seconds or longer depending on the nubmer of tabs
     // and items.
-    QThread *parser = QThread::create([=, this]() { LoadItems(); });
-    parser->start();
+    const QFileInfo info(m_settings.fileName());
+    const QString dataDir = info.absolutePath() + "/data/";
+    m_shutdown.store(false);
+    m_parser_thread = QThread::create([this, dataDir]() {
+        auto result = ParseCachedItems(dataDir);
+        if (m_shutdown.load()) {
+            return;
+        }
+        QMetaObject::invokeMethod(
+            this,
+            [this, result = std::move(result)]() mutable { OnParseCompleted(std::move(result)); },
+            Qt::QueuedConnection);
+    });
+    connect(m_parser_thread, &QThread::finished, m_parser_thread, &QThread::deleteLater);
+    m_parser_thread->start();
 }
 
-void ItemsManagerWorker::LoadItems()
+ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir) const
 {
     spdlog::trace("ItemsManagerWorker::ParseItemMods() entered");
+    ParseResult result;
+    auto sendStatusUpdate = [this](ProgramState state, const QString &status) {
+        emit const_cast<ItemsManagerWorker *>(this)->StatusUpdate(state, status);
+    };
 
     // Create a datastore to get a connection to the database.
     // NOTE: we only need read access, but this isn't enforced or checked.
-    const QFileInfo info(m_settings.fileName());
-    QDir data_dir{info.absolutePath() + "/data/"};
+    QDir data_dir{dataDir};
     UserStore userstore{data_dir, m_account};
 
     // Get cached characters and stash tabs.
@@ -98,48 +126,48 @@ void ItemsManagerWorker::LoadItems()
         return stash.parent && ((stash.type == "UniqueStash") || (stash.type == "MapStash"));
     };
 
-    m_tabs.clear();
-    m_tabs.reserve(stashes.size() + characters.size());
+    result.tabs.reserve(stashes.size() + characters.size());
     for (const auto &stash : stashes) {
         if (!special(stash)) {
-            m_tabs.push_back(ItemLocation(stash));
+            result.tabs.push_back(ItemLocation(stash));
         }
     }
     for (const auto &character : characters) {
-        m_tabs.push_back(ItemLocation(character, int(m_tabs.size())));
+        result.tabs.push_back(ItemLocation(character, int(result.tabs.size())));
     }
-    m_tabs.shrink_to_fit();
+    result.tabs.shrink_to_fit();
 
     // Save location ids.
     spdlog::trace("ItemsManagerWorker::ParseItemMods() saving location ids");
-    m_tab_id_index.clear();
-    for (const auto &tab : m_tabs) {
-        m_tab_id_index.emplace(tab.id());
+    for (const auto &tab : result.tabs) {
+        result.tab_id_index.emplace(tab.id());
     }
 
     // Get cached items
-    m_items.clear();
     spdlog::trace("ItemsManagerWorker::ParseItemMods() getting cached items");
 
     // Get stash items.
     for (size_t i = 0; i < stashes.size(); ++i) {
+        if (m_shutdown.load()) {
+            return result;
+        }
         const auto id = stashes[i].id;
         const auto stash = userstore.stashes().getStash(id, m_realm, m_league);
         if (!stash) {
             continue;
         }
-        emit StatusUpdate(ProgramState::Initializing,
-                          QString("Parsing items from stash %1/%2: %3 '%4'")
-                              .arg(QString::number(i),
-                                   QString::number(stashes.size()),
-                                   stash->id,
-                                   stash->name));
+        sendStatusUpdate(ProgramState::Initializing,
+                         QString("Parsing items from stash %1/%2: %3 '%4'")
+                             .arg(QString::number(i),
+                                  QString::number(stashes.size()),
+                                  stash->id,
+                                  stash->name));
         ItemLocation location;
         if (!special(*stash)) {
             location = ItemLocation{*stash};
         } else {
             // Items in special tabs should use their parent's ItemLocation.
-            for (const auto &tab : m_tabs) {
+            for (const auto &tab : result.tabs) {
                 if (tab.id() == stash->parent) {
                     location = tab;
                     break;
@@ -150,31 +178,42 @@ void ItemsManagerWorker::LoadItems()
                 continue;
             }
         }
-        LoadItems(*stash, location);
+        LoadItems(*stash, location, result);
     }
 
     // Get character items.
     for (size_t i = 0; i < characters.size(); ++i) {
+        if (m_shutdown.load()) {
+            return result;
+        }
         const auto name = characters[i].name;
         const auto character = userstore.characters().getCharacter(name, m_realm);
         if (!character) {
             continue;
         }
-        emit StatusUpdate(ProgramState::Initializing,
-                          QString("Parsing items from character %1/%2: %3")
-                              .arg(i)
-                              .arg(characters.size())
-                              .arg(name));
+        sendStatusUpdate(ProgramState::Initializing,
+                         QString("Parsing items from character %1/%2: %3")
+                             .arg(i)
+                             .arg(characters.size())
+                             .arg(name));
         ItemLocation tab{*character, int(stashes.size() + i)};
-        LoadItems(*character, tab);
+        LoadItems(*character, tab, result);
     }
 
-    emit StatusUpdate(ProgramState::Ready,
-                      QString("Parsed %1 items from %2 tabs").arg(m_items.size()).arg(m_tabs.size()));
+    sendStatusUpdate(ProgramState::Ready,
+                     QString("Parsed %1 items from %2 tabs")
+                         .arg(result.items.size())
+                         .arg(result.tabs.size()));
 
-    m_initialized = true;
-    m_updating = false;
+    return result;
+}
 
+void ItemsManagerWorker::OnParseCompleted(ParseResult result)
+{
+    m_tabs = std::move(result.tabs);
+    m_items = std::move(result.items);
+    m_tab_id_index = std::move(result.tab_id_index);
+    m_state = WorkerState::Idle;
     // let ItemManager know that the retrieval of cached items/tabs has been completed (calls ItemsManager::OnItemsRefreshed method)
     spdlog::trace("ItemsManagerWorker::ParseItemMods() emitting ItemsRefreshed signal");
     emit ItemsRefreshed(m_items, m_tabs, true);
@@ -186,24 +225,28 @@ void ItemsManagerWorker::LoadItems()
     }
 }
 
-void ItemsManagerWorker::LoadItems(const poe::StashTab &stash, ItemLocation location)
+void ItemsManagerWorker::LoadItems(const poe::StashTab &stash,
+                                   ItemLocation location,
+                                   ParseResult &result) const
 {
     const auto items = stash.items;
     if (!items) {
         return;
     }
-    m_items.reserve(m_items.size() + items->size());
+    result.items.reserve(result.items.size() + items->size());
     spdlog::debug("ItemManagerWorker: loading {} items from stash # {}: {} ({})",
                   items->size(),
                   stash.index.value_or(-1),
                   stash.id,
                   stash.name);
     for (const auto &item : *items) {
-        m_items.push_back(std::make_shared<Item>(item, location));
+        result.items.push_back(std::make_shared<Item>(item, location));
     }
 }
 
-void ItemsManagerWorker::LoadItems(const poe::Character &character, ItemLocation location)
+void ItemsManagerWorker::LoadItems(const poe::Character &character,
+                                   ItemLocation location,
+                                   ParseResult &result) const
 {
     const std::array collections{
         std::make_pair("equipment", character.equipment),
@@ -216,14 +259,14 @@ void ItemsManagerWorker::LoadItems(const poe::Character &character, ItemLocation
         if (!items) {
             continue;
         }
-        m_items.reserve(m_items.size() + items->size());
+        result.items.reserve(result.items.size() + items->size());
         spdlog::debug("ItemManagerWorker: loading {} items from character {} {} ({})",
                       items->size(),
                       name,
                       character.id,
                       character.name);
         for (const auto &item : *items) {
-            m_items.push_back(std::make_shared<Item>(item, location));
+            result.items.push_back(std::make_shared<Item>(item, location));
         }
     }
 }
@@ -262,15 +305,13 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
         spdlog::trace("ItemsManagerWorker: characters = {}", character_names.join(", "));
         spdlog::trace("ItemsManagerWorker: stashes = {}", stash_names.join(", "));
     }
-    m_updating = true;
-    m_cancel_update = false;
+    m_state = WorkerState::Updating;
+    m_request_failures = 0;
     m_update_tab_contents = (type != TabSelection::TabsOnly);
 
     // remove all pending requests
     m_queue = {};
     m_queue_id = 0;
-
-    m_selected_character.clear();
 
     m_need_stash_list = false;
     m_need_character_list = false;
@@ -416,6 +457,7 @@ void ItemsManagerWorker::Refresh()
                 this,
                 &ItemsManagerWorker::OnCharacterListReceived);
     }
+    CheckUpdateFinished();
 }
 
 void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, int &count)
@@ -469,14 +511,18 @@ void ItemsManagerWorker::OnStashListReceived(QNetworkReply *reply)
     if (reply->error() != QNetworkReply::NoError) {
         spdlog::warn("Aborting update because there was an error fetching the stash list: {}",
                      reply->errorString());
-        m_updating = false;
+        ++m_request_failures;
+        m_has_stash_list = true;
+        CheckUpdateFinished();
         return;
     }
     const QByteArray bytes = reply->readAll();
     const auto result = json::readStashListWrapper(bytes);
     if (!result) {
         spdlog::error("ItemsManagerWorker: unable to parse stash list");
-        m_updating = false;
+        ++m_request_failures;
+        m_has_stash_list = true;
+        CheckUpdateFinished();
         return;
     }
 
@@ -501,6 +547,7 @@ void ItemsManagerWorker::OnStashListReceived(QNetworkReply *reply)
         spdlog::trace("ItemsManagerWorker::OnOAuthStashListReceived() fetching items");
         FetchItems();
     }
+    CheckUpdateFinished();
 }
 
 void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply *reply)
@@ -515,14 +562,18 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply *reply)
     if (reply->error() != QNetworkReply::NoError) {
         spdlog::warn("Aborting update because there was an error fetching the character list: {}",
                      reply->errorString());
-        m_updating = false;
+        ++m_request_failures;
+        m_has_character_list = true;
+        CheckUpdateFinished();
         return;
     }
     const QByteArray bytes = reply->readAll();
     const auto result = json::readCharacterListWrapper(bytes);
     if (!result) {
         spdlog::error("ItemsManagerWorker: unable to parse character list");
-        m_updating = false;
+        ++m_request_failures;
+        m_has_character_list = true;
+        CheckUpdateFinished();
         return;
     }
 
@@ -567,6 +618,7 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply *reply)
         spdlog::trace("ItemsManagerWorker::OnOAuthCharacterListReceived() fetching items");
         FetchItems();
     }
+    CheckUpdateFinished();
 }
 
 void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocation &location)
@@ -581,13 +633,20 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
     if (reply->error() != QNetworkReply::NoError) {
         spdlog::warn("Aborting update because there was an error fetching the stash: {}",
                      reply->errorString());
-        m_updating = false;
+        ++m_request_failures;
+        ++m_stashes_received;
+        SendStatusUpdate();
+        CheckUpdateFinished();
         return;
     }
     const QByteArray bytes = reply->readAll();
     const auto result = json::readStashWrapper(bytes);
     if (!result) {
         spdlog::error("ItemsManagerWorker: unable to parse stash");
+        ++m_request_failures;
+        ++m_stashes_received;
+        SendStatusUpdate();
+        CheckUpdateFinished();
         return;
     }
 
@@ -636,11 +695,7 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
         }
     }
 
-    if ((m_stashes_received == m_stashes_needed) && (m_characters_received == m_characters_needed)
-        && !m_cancel_update) {
-        spdlog::trace("ItemsManagerWorker::OnOAuthStashReceived() finishing update");
-        FinishUpdate();
-    }
+    CheckUpdateFinished();
 }
 
 void ItemsManagerWorker::OnCharacterReceived(QNetworkReply *reply, const ItemLocation &location)
@@ -655,16 +710,27 @@ void ItemsManagerWorker::OnCharacterReceived(QNetworkReply *reply, const ItemLoc
     if (reply->error() != QNetworkReply::NoError) {
         spdlog::warn("Aborting update because there was an error fetching the character: {}",
                      reply->errorString());
-        m_updating = false;
+        ++m_request_failures;
+        ++m_characters_received;
+        SendStatusUpdate();
+        CheckUpdateFinished();
         return;
     }
     const QByteArray bytes = reply->readAll();
     const auto result = json::readCharacterWrapper(bytes);
     if (!result) {
         spdlog::error("ItemsManagerWorker: unable to parse character");
+        ++m_request_failures;
+        ++m_characters_received;
+        SendStatusUpdate();
+        CheckUpdateFinished();
         return;
     } else if (!result->character) {
         spdlog::error("ItemsManagerWorker: character is empty");
+        ++m_request_failures;
+        ++m_characters_received;
+        SendStatusUpdate();
+        CheckUpdateFinished();
         return;
     }
 
@@ -686,11 +752,7 @@ void ItemsManagerWorker::OnCharacterReceived(QNetworkReply *reply, const ItemLoc
     ++m_characters_received;
     SendStatusUpdate();
 
-    if ((m_stashes_received == m_stashes_needed) && (m_characters_received == m_characters_needed)
-        && !m_cancel_update) {
-        spdlog::trace("ItemsManagerWorker::OnOAuthCharacterReceived() finishing update");
-        FinishUpdate();
-    }
+    CheckUpdateFinished();
 }
 
 void ItemsManagerWorker::QueueRequest(const QString &endpoint,
@@ -713,7 +775,7 @@ void ItemsManagerWorker::FetchItems()
 
     if (!m_update_tab_contents) {
         spdlog::trace("ItemsManagerWorker: not fetching items.");
-        FinishUpdate();
+        CheckUpdateFinished();
         return;
     }
 
@@ -758,42 +820,33 @@ void ItemsManagerWorker::FetchItems()
     spdlog::debug("Requested {} stashes and {} characters.", m_stashes_needed, m_characters_needed);
     spdlog::debug("Tab titles: {}", tab_titles);
 
-    // Make sure we cancel the update if there was nothing to do.
-    // (Discovered this was necessary when trying to refresh a single unique stashtab).
-    if ((m_stashes_needed == 0) && (m_characters_needed == 0)) {
-        m_updating = false;
-    }
+    CheckUpdateFinished();
 }
 
 void ItemsManagerWorker::SendStatusUpdate()
 {
     spdlog::trace("ItemsManagerWorker::SendStatusUpdate() entered");
 
-    if (m_cancel_update) {
-        emit StatusUpdate(ProgramState::Ready, "Update cancelled.");
+    QString message;
+    if ((m_stashes_needed > 0) && (m_characters_needed > 0)) {
+        message = QString("Receieved %1/%2 stash tabs and %3/%4 character locations")
+                      .arg(QString::number(m_stashes_received),
+                           QString::number(m_stashes_needed),
+                           QString::number(m_characters_received),
+                           QString::number(m_characters_needed));
+    } else if (m_stashes_needed > 0) {
+        message = QString("Received %1/%2 stash tabs")
+                      .arg(QString::number(m_stashes_received), QString::number(m_stashes_needed));
+    } else if (m_characters_needed > 0) {
+        message = QString("Received %1/%2 character locations")
+                      .arg(QString::number(m_characters_received),
+                           QString::number(m_characters_needed));
+    } else if (!m_update_tab_contents) {
+        message = "Received tab lists";
     } else {
-        QString message;
-        if ((m_stashes_needed > 0) && (m_characters_needed > 0)) {
-            message = QString("Receieved %1/%2 stash tabs and %3/%4 character locations")
-                          .arg(QString::number(m_stashes_received),
-                               QString::number(m_stashes_needed),
-                               QString::number(m_characters_received),
-                               QString::number(m_characters_needed));
-        } else if (m_stashes_needed > 0) {
-            message = QString("Received %1/%2 stash tabs")
-                          .arg(QString::number(m_stashes_received),
-                               QString::number(m_stashes_needed));
-        } else if (m_characters_needed > 0) {
-            message = QString("Received %1/%2 character locations")
-                          .arg(QString::number(m_characters_received),
-                               QString::number(m_characters_needed));
-        } else if (!m_update_tab_contents) {
-            message = "Received tab lists";
-        } else {
-            message = "Received nothing; needed nothing.";
-        }
-        emit StatusUpdate(ProgramState::Busy, message);
+        message = "Received nothing; needed nothing.";
     }
+    emit StatusUpdate(ProgramState::Busy, message);
 }
 
 void ItemsManagerWorker::ParseItems(const std::vector<poe::Item> &items,
@@ -805,6 +858,32 @@ void ItemsManagerWorker::ParseItems(const std::vector<poe::Item> &items,
         if (item.socketedItems) {
             ParseItems(*item.socketedItems, location);
         }
+    }
+}
+
+void ItemsManagerWorker::CheckUpdateFinished()
+{
+    if (m_state != WorkerState::Updating) {
+        return;
+    }
+
+    const bool lists_received = (!m_need_stash_list || m_has_stash_list)
+                                && (!m_need_character_list || m_has_character_list);
+    const bool items_received = (m_stashes_received == m_stashes_needed)
+                                && (m_characters_received == m_characters_needed);
+    if (!lists_received || !items_received) {
+        return;
+    }
+
+    if (m_request_failures == 0) {
+        spdlog::trace("ItemsManagerWorker::CheckUpdateFinished() finishing update");
+        FinishUpdate();
+    } else {
+        emit StatusUpdate(ProgramState::Ready,
+                          QString("Update failed: %1 requests failed")
+                              .arg(QString::number(m_request_failures)));
+        m_state = WorkerState::Idle;
+        spdlog::debug("Update failed.");
     }
 }
 
@@ -851,6 +930,6 @@ void ItemsManagerWorker::FinishUpdate()
     spdlog::trace("ItemsManagerWorker::FinishUpdate() emitting ItemsRefreshed");
     emit ItemsRefreshed(m_items, m_tabs, false);
 
-    m_updating = false;
+    m_state = WorkerState::Idle;
     spdlog::debug("Update finished.");
 }

@@ -6,8 +6,10 @@
 #include <QNetworkCookie>
 #include <QNetworkRequest>
 #include <QObject>
+#include <QPointer>
 #include <QString>
 
+#include <atomic>
 #include <queue>
 #include <set>
 
@@ -18,6 +20,7 @@
 class QNetworkReply;
 class QSettings;
 class QSignalMapper;
+class QThread;
 class QTimer;
 
 class BuyoutManager;
@@ -46,6 +49,13 @@ struct ItemsReply
     ItemsRequest request;
 };
 
+struct ParseResult
+{
+    std::vector<ItemLocation> tabs;
+    Items items;
+    std::set<QString> tab_id_index;
+};
+
 class ItemsManagerWorker : public QObject
 {
     Q_OBJECT
@@ -54,7 +64,10 @@ public:
                                 BuyoutManager &buyout_manager,
                                 RateLimiter &rate_limiter,
                                 QObject *parent = nullptr);
+    ~ItemsManagerWorker() override;
+
     void UpdateRequest(TabSelection type, const std::vector<ItemLocation> &locations);
+    ParseResult ParseCachedItems(const QString &dataDir) const;
 
 signals:
     void ItemsRefreshed(const Items &items,
@@ -81,11 +94,16 @@ private slots:
     void OnCharacterReceived(QNetworkReply *reply, const ItemLocation &location);
 
 private:
-    bool isInitialized() const { return m_initialized; }
-    bool isUpdating() const { return m_updating; }
-    void LoadItems();
-    void LoadItems(const poe::Character &character, ItemLocation location);
-    void LoadItems(const poe::StashTab &stash, ItemLocation location);
+    enum class WorkerState { Initializing, Idle, Updating };
+
+    bool isInitialized() const { return m_state != WorkerState::Initializing; }
+    bool isUpdating() const { return m_state == WorkerState::Updating; }
+    void StartParseThread();
+    void OnParseCompleted(ParseResult result);
+    void LoadItems(const poe::Character &character,
+                   ItemLocation location,
+                   ParseResult &result) const;
+    void LoadItems(const poe::StashTab &stash, ItemLocation location, ParseResult &result) const;
     void RemoveUpdatingTabs(const std::set<QString> &tab_ids);
     void RemoveUpdatingItems(const std::set<QString> &tab_ids);
     void QueueRequest(const QString &endpoint,
@@ -97,6 +115,7 @@ private:
 
     void SendStatusUpdate();
     void ParseItems(const std::vector<poe::Item> &items, const ItemLocation &base_location);
+    void CheckUpdateFinished();
     void FinishUpdate();
 
     void ProcessTab(const poe::StashTab &tab, int &count);
@@ -122,17 +141,17 @@ private:
 
     std::set<QString> m_tab_id_index;
 
-    volatile bool m_initialized{false};
-    volatile bool m_updating{false};
+    WorkerState m_state{WorkerState::Initializing};
+    QPointer<QThread> m_parser_thread;
+    std::atomic<bool> m_shutdown{false};
 
-    bool m_cancel_update{false};
     bool m_updateRequest{false};
     TabSelection m_type;
     std::vector<ItemLocation> m_locations;
     std::set<ItemLocation> m_requested_locations;
+    size_t m_request_failures{0};
 
     int m_queue_id{0};
-    QString m_selected_character;
 
     int m_first_stash_request_index;
     QString m_first_character_request_name;

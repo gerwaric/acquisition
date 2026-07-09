@@ -3,8 +3,10 @@
 
 #include "ratelimit/ratelimiter.h"
 
+#include <QCoreApplication>
 #include <QEventLoop>
 #include <QNetworkReply>
+#include <QThread>
 
 #include "ratelimit/ratelimitedreply.h"
 #include "ratelimit/ratelimitmanager.h"
@@ -29,6 +31,8 @@ RateLimiter::~RateLimiter() {}
 
 RateLimitedReply *RateLimiter::Submit(const QString &endpoint, QNetworkRequest network_request)
 {
+    Q_ASSERT(QThread::currentThread() == QCoreApplication::instance()->thread());
+
     // Create a new rate limited reply that we can return to the calling function.
     auto *reply = new RateLimitedReply();
 
