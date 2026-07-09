@@ -463,23 +463,29 @@ void ItemsManagerWorker::Refresh()
 {
     spdlog::trace("Items Manager Worker: starting OAuth refresh");
     if (m_need_stash_list) {
-        const auto [endpoint, request] = poe::MakeStashListRequest(m_realm, m_league);
-        spdlog::trace("ItemsManagerWorker::OAuthRefresh() requesting stash list: {}",
-                      request.url().toString());
-        auto reply = m_rate_limiter.Submit(endpoint, request);
-        connect(reply, &RateLimitedReply::complete, this, &ItemsManagerWorker::OnStashListReceived);
-    }
-    if (m_need_character_list) {
-        const auto [endpoint, request] = poe::MakeCharacterListRequest(m_realm);
-        spdlog::trace("ItemsManagerWorker::OAuthRefresh() requesting character list: {}",
-                      request.url().toString());
-        auto submit = m_rate_limiter.Submit(endpoint, request);
-        connect(submit,
-                &RateLimitedReply::complete,
-                this,
-                &ItemsManagerWorker::OnCharacterListReceived);
+        SubmitStashListRequest();
+    } else if (m_need_character_list) {
+        SubmitCharacterListRequest();
     }
     CheckUpdateFinished();
+}
+
+void ItemsManagerWorker::SubmitStashListRequest()
+{
+    const auto [endpoint, request] = poe::MakeStashListRequest(m_realm, m_league);
+    spdlog::trace("ItemsManagerWorker::OAuthRefresh() requesting stash list: {}",
+                  request.url().toString());
+    auto reply = m_rate_limiter.Submit(endpoint, request);
+    connect(reply, &RateLimitedReply::complete, this, &ItemsManagerWorker::OnStashListReceived);
+}
+
+void ItemsManagerWorker::SubmitCharacterListRequest()
+{
+    const auto [endpoint, request] = poe::MakeCharacterListRequest(m_realm);
+    spdlog::trace("ItemsManagerWorker::OAuthRefresh() requesting character list: {}",
+                  request.url().toString());
+    auto submit = m_rate_limiter.Submit(endpoint, request);
+    connect(submit, &RateLimitedReply::complete, this, &ItemsManagerWorker::OnCharacterListReceived);
 }
 
 void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, int &count)
@@ -535,6 +541,8 @@ void ItemsManagerWorker::OnStashListReceived(QNetworkReply *reply)
                      reply->errorString());
         ++m_request_failures;
         m_has_stash_list = true;
+        m_has_character_list = true;
+        m_queue = {};
         CheckUpdateFinished();
         return;
     }
@@ -544,6 +552,8 @@ void ItemsManagerWorker::OnStashListReceived(QNetworkReply *reply)
         spdlog::error("ItemsManagerWorker: unable to parse stash list");
         ++m_request_failures;
         m_has_stash_list = true;
+        m_has_character_list = true;
+        m_queue = {};
         CheckUpdateFinished();
         return;
     }
@@ -565,7 +575,9 @@ void ItemsManagerWorker::OnStashListReceived(QNetworkReply *reply)
     m_has_stash_list = true;
 
     // Check to see if we can start sending queued requests to fetch items yet.
-    if (!m_need_character_list || m_has_character_list) {
+    if (m_need_character_list && !m_has_character_list) {
+        SubmitCharacterListRequest();
+    } else {
         spdlog::trace("ItemsManagerWorker::OnOAuthStashListReceived() fetching items");
         FetchItems();
     }
@@ -585,7 +597,9 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply *reply)
         spdlog::warn("Aborting update because there was an error fetching the character list: {}",
                      reply->errorString());
         ++m_request_failures;
+        m_has_stash_list = true;
         m_has_character_list = true;
+        m_queue = {};
         CheckUpdateFinished();
         return;
     }
@@ -594,7 +608,9 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply *reply)
     if (!result) {
         spdlog::error("ItemsManagerWorker: unable to parse character list");
         ++m_request_failures;
+        m_has_stash_list = true;
         m_has_character_list = true;
+        m_queue = {};
         CheckUpdateFinished();
         return;
     }
@@ -657,6 +673,9 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
                      reply->errorString());
         ++m_request_failures;
         ++m_stashes_received;
+        m_stashes_needed = m_stashes_received;
+        m_characters_needed = m_characters_received;
+        m_queue = {};
         SendStatusUpdate();
         CheckUpdateFinished();
         return;
@@ -667,6 +686,9 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
         spdlog::error("ItemsManagerWorker: unable to parse stash");
         ++m_request_failures;
         ++m_stashes_received;
+        m_stashes_needed = m_stashes_received;
+        m_characters_needed = m_characters_received;
+        m_queue = {};
         SendStatusUpdate();
         CheckUpdateFinished();
         return;
@@ -709,14 +731,12 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
         for (const auto &child : *stash.children) {
             const auto [endpoint,
                         request] = poe::MakeStashRequest(m_realm, m_league, stash.id, child.id);
-            auto submit = m_rate_limiter.Submit(endpoint, request);
-            connect(submit, &RateLimitedReply::complete, this, [=, this](QNetworkReply *reply) {
-                OnStashReceived(reply, location);
-            });
+            QueueRequest(endpoint, request, location);
             ++m_stashes_needed;
         }
     }
 
+    SubmitNextItemRequest();
     CheckUpdateFinished();
 }
 
@@ -734,6 +754,9 @@ void ItemsManagerWorker::OnCharacterReceived(QNetworkReply *reply, const ItemLoc
                      reply->errorString());
         ++m_request_failures;
         ++m_characters_received;
+        m_stashes_needed = m_stashes_received;
+        m_characters_needed = m_characters_received;
+        m_queue = {};
         SendStatusUpdate();
         CheckUpdateFinished();
         return;
@@ -744,6 +767,9 @@ void ItemsManagerWorker::OnCharacterReceived(QNetworkReply *reply, const ItemLoc
         spdlog::error("ItemsManagerWorker: unable to parse character");
         ++m_request_failures;
         ++m_characters_received;
+        m_stashes_needed = m_stashes_received;
+        m_characters_needed = m_characters_received;
+        m_queue = {};
         SendStatusUpdate();
         CheckUpdateFinished();
         return;
@@ -751,6 +777,9 @@ void ItemsManagerWorker::OnCharacterReceived(QNetworkReply *reply, const ItemLoc
         spdlog::error("ItemsManagerWorker: character is empty");
         ++m_request_failures;
         ++m_characters_received;
+        m_stashes_needed = m_stashes_received;
+        m_characters_needed = m_characters_received;
+        m_queue = {};
         SendStatusUpdate();
         CheckUpdateFinished();
         return;
@@ -774,6 +803,7 @@ void ItemsManagerWorker::OnCharacterReceived(QNetworkReply *reply, const ItemLoc
     ++m_characters_received;
     SendStatusUpdate();
 
+    SubmitNextItemRequest();
     CheckUpdateFinished();
 }
 
@@ -807,33 +837,19 @@ void ItemsManagerWorker::FetchItems()
     m_characters_needed = 0;
     m_characters_received = 0;
 
+    std::queue<ItemsRequest> requests = m_queue;
     QString tab_titles;
-    while (!m_queue.empty()) {
-        // Take the next request out of the queue.
-        ItemsRequest request = m_queue.front();
-        m_queue.pop();
-
-        // Setup the right callback for this endpoint.
-        const ItemLocation location = request.location;
-        const QString endpoint = request.endpoint;
-        std::function<void(QNetworkReply *)> callback;
-
-        switch (location.type()) {
+    while (!requests.empty()) {
+        const ItemsRequest request = requests.front();
+        requests.pop();
+        switch (request.location.type()) {
         case ItemLocationType::STASH:
-            callback = [=, this](QNetworkReply *reply) { OnStashReceived(reply, location); };
             ++m_stashes_needed;
             break;
         case ItemLocationType::CHARACTER:
-            callback = [=, this](QNetworkReply *reply) { OnCharacterReceived(reply, location); };
             ++m_characters_needed;
             break;
         }
-
-        // Pass the request to the rate limiter.
-        auto submit = m_rate_limiter.Submit(request.endpoint, request.network_request);
-        connect(submit, &RateLimitedReply::complete, this, callback);
-
-        // Keep track of the tabs requested.
         tab_titles += request.location.GetHeader() + " ";
     }
 
@@ -842,7 +858,33 @@ void ItemsManagerWorker::FetchItems()
     spdlog::debug("Requested {} stashes and {} characters.", m_stashes_needed, m_characters_needed);
     spdlog::debug("Tab titles: {}", tab_titles);
 
+    SubmitNextItemRequest();
     CheckUpdateFinished();
+}
+
+void ItemsManagerWorker::SubmitNextItemRequest()
+{
+    if (m_state != WorkerState::Updating || m_request_failures > 0 || m_queue.empty()) {
+        return;
+    }
+
+    ItemsRequest request = m_queue.front();
+    m_queue.pop();
+
+    const ItemLocation location = request.location;
+    std::function<void(QNetworkReply *)> callback;
+
+    switch (location.type()) {
+    case ItemLocationType::STASH:
+        callback = [=, this](QNetworkReply *reply) { OnStashReceived(reply, location); };
+        break;
+    case ItemLocationType::CHARACTER:
+        callback = [=, this](QNetworkReply *reply) { OnCharacterReceived(reply, location); };
+        break;
+    }
+
+    auto submit = m_rate_limiter.Submit(request.endpoint, request.network_request);
+    connect(submit, &RateLimitedReply::complete, this, callback);
 }
 
 void ItemsManagerWorker::SendStatusUpdate()

@@ -116,9 +116,10 @@ void RateLimitManager::ReceiveReply()
                       m_policy->name(),
                       reply->error(),
                       reply->errorString());
-        reply->deleteLater();
         if (m_active_request->reply) {
             emit m_active_request->reply->complete(reply);
+        } else {
+            reply->deleteLater();
         }
         m_active_request = nullptr;
         ActivateRequest();
@@ -194,8 +195,6 @@ void RateLimitManager::ReceiveReply()
         ActivateRequest();
 
     } else {
-        reply->deleteLater();
-
         if (event.reply_status == VIOLATION_STATUS) {
             if (!reply->hasRawHeader("Retry-After")) {
                 spdlog::error(
@@ -220,6 +219,7 @@ void RateLimitManager::ReceiveReply()
             m_activation_timer.setInterval(retry_msec);
             m_activation_timer.start();
             m_active_request->reply = nullptr;
+            reply->deleteLater();
 
         } else {
             // Some other HTTP error was encountered. There is no retry for
@@ -234,6 +234,8 @@ void RateLimitManager::ReceiveReply()
             NetworkManager::logReply(reply);
             if (m_active_request->reply) {
                 emit m_active_request->reply->complete(reply);
+            } else {
+                reply->deleteLater();
             }
             m_active_request = nullptr;
             ActivateRequest();

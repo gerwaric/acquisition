@@ -110,6 +110,9 @@ private:
                       const QNetworkRequest &request,
                       const ItemLocation &location);
     void FetchItems();
+    void SubmitStashListRequest();
+    void SubmitCharacterListRequest();
+    void SubmitNextItemRequest();
 
     void Refresh();
 
