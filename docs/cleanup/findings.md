@@ -307,6 +307,23 @@ Buyouts persist through `BuyoutRepo` (signal-driven, newer) while
 (older). Works, but the split is a trap for contributors. Unify only if a
 phase touches it anyway.
 
+### F29. `spdlog::shutdown()` on `aboutToQuit` raced logging threads — Confirmed; fixed during Phase 2
+
+Found during Phase 2 manual validation (quit-during-parse segfault, minidump
+verified: `logger::should_log(this=nullptr)` on the parser thread under
+`ItemsManagerWorker::LoadItems`). `main.cpp` connected `spdlog::shutdown()`
+to `QCoreApplication::aboutToQuit`, which fires while the event loop is
+exiting — *before* the `Application` object (and thus
+`~ItemsManagerWorker`'s thread join) is destroyed. Any thread logging after
+that point dereferenced a null default logger. This was part of the original
+F1 "quit during parse crashes" symptom and survived the Phase 2 worker fixes
+because it lives in `main.cpp`, not the worker. Fixed in Phase 2 (required
+to meet its "no crash on quit during parse" acceptance criterion): the
+shutdown moved to a `qScopeGuard` declared before `Application`, so it runs
+after all application threads are joined. Note for the future: any log call
+after `spdlog::shutdown()` crashes the same way, from any thread — logging
+teardown must always come last.
+
 ### F27. Reply delivery during `FetchItems` submission can finish an update prematurely — Likely
 
 Found during Phase 2 review; pre-existing (the old per-handler completion
