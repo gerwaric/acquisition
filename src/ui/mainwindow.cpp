@@ -457,7 +457,7 @@ void MainWindow::OnCheckAll()
     for (auto const &bucket : m_current_search->buckets()) {
         m_buyout_manager.SetRefreshChecked(bucket.location(), true);
     }
-    emit ui->treeView->model()->layoutChanged();
+    static_cast<ItemsModel *>(ui->treeView->model())->refreshCheckStates();
 }
 
 void MainWindow::OnUncheckAll()
@@ -466,7 +466,7 @@ void MainWindow::OnUncheckAll()
     for (auto const &bucket : m_current_search->buckets()) {
         m_buyout_manager.SetRefreshChecked(bucket.location(), false);
     }
-    emit ui->treeView->model()->layoutChanged();
+    static_cast<ItemsModel *>(ui->treeView->model())->refreshCheckStates();
 }
 
 void MainWindow::OnRefreshSelected()
@@ -489,6 +489,7 @@ void MainWindow::CheckSelected(bool value)
     for (auto const &index : selected_rows) {
         m_buyout_manager.SetRefreshChecked(m_current_search->GetTabLocation(index), value);
     }
+    static_cast<ItemsModel *>(ui->treeView->model())->refreshCheckStates();
 }
 
 void MainWindow::ResizeTreeColumns()
@@ -666,6 +667,9 @@ void MainWindow::OnSearchFormChange()
 void MainWindow::ModelViewRefresh()
 {
     spdlog::trace("MainWindow::ModelViewRefresh() entered");
+    disconnect(m_current_item_conn);
+    disconnect(m_layout_changed_conn);
+
     m_buyout_manager.Save();
 
     spdlog::trace("MainWindow::ModelViewRefresh() activing current search");
@@ -673,16 +677,16 @@ void MainWindow::ModelViewRefresh()
     ResizeTreeColumns();
 
     // This updates the item information when current item changes.
-    connect(ui->treeView->selectionModel(),
-            &QItemSelectionModel::currentChanged,
-            this,
-            &MainWindow::OnCurrentItemChanged);
+    m_current_item_conn = connect(ui->treeView->selectionModel(),
+                                  &QItemSelectionModel::currentChanged,
+                                  this,
+                                  &MainWindow::OnCurrentItemChanged);
 
     // This updates the item information when a search or sort order changes.
-    connect(ui->treeView->model(),
-            &QAbstractItemModel::layoutChanged,
-            this,
-            &MainWindow::OnLayoutChanged);
+    m_layout_changed_conn = connect(ui->treeView->model(),
+                                    &QAbstractItemModel::layoutChanged,
+                                    this,
+                                    &MainWindow::OnLayoutChanged);
 
     ui->viewComboBox->setCurrentIndex(static_cast<int>(m_current_search->GetViewMode()));
 

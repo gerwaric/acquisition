@@ -166,6 +166,8 @@ private:
     QPushButton m_refresh_button;
     QTimer m_delayed_update_current_item;
     QTimer m_delayed_search_form_change;
+    QMetaObject::Connection m_current_item_conn;
+    QMetaObject::Connection m_layout_changed_conn;
     RateLimitDialog *m_rate_limit_dialog;
     bool m_quitting;
 };
