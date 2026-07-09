@@ -309,6 +309,14 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
     m_request_failures = 0;
     m_update_tab_contents = (type != TabSelection::TabsOnly);
 
+    // Reset the completion counters here so that CheckUpdateFinished() never
+    // depends on leftover values from a previous update. (FetchItems() resets
+    // them again before queueing requests, but it is not reached on every path.)
+    m_stashes_needed = 0;
+    m_stashes_received = 0;
+    m_characters_needed = 0;
+    m_characters_received = 0;
+
     // remove all pending requests
     m_queue = {};
     m_queue_id = 0;

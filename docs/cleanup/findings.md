@@ -306,3 +306,38 @@ Buyouts persist through `BuyoutRepo` (signal-driven, newer) while
 `refresh_checked_state` persists through `DataStore` JSON serialization
 (older). Works, but the split is a trap for contributors. Unify only if a
 phase touches it anyway.
+
+### F27. Reply delivery during `FetchItems` submission can finish an update prematurely — Likely
+
+Found during Phase 2 review; pre-existing (the old per-handler completion
+checks had the same exposure). `ItemsManagerWorker::FetchItems()` increments
+`m_stashes_needed` / `m_characters_needed` one request at a time while
+submitting through `RateLimiter::Submit()`. For a not-yet-seen endpoint,
+`Submit()` spins the nested HEAD-request event loop (F5), which can deliver
+completions for *already submitted* requests re-entrantly. If every request
+submitted so far completes inside that window — plausible on the first
+update of a session, when the burst allowance is full and the character
+endpoint's HEAD handshake stalls the loop mid-queue — `CheckUpdateFinished()`
+sees `received == needed` with the remaining requests not yet counted and
+finishes the update early. The Phase 2 state guard
+(`m_state != WorkerState::Updating`) prevents a double-finish, but late
+replies then mutate `m_items` with no subsequent `ItemsRefreshed` emission.
+"Likely" because the window has been traced but not reproduced. A fix should
+count all needed requests *before* submitting any (or defer the completion
+check until the queue is drained); out of scope for Phase 2.
+
+### F28. In-flight replies from an aborted update are misattributed to the next one — Confirmed
+
+Found during Phase 2 review; pre-existing. When an update fails (e.g. the
+stash list request errors while the character list is still in flight), the
+worker returns to idle but the outstanding replies stay connected to their
+handlers. If a new update starts before they arrive, the stale replies are
+processed as if they belonged to the current update: a stale list reply can
+set `m_has_stash_list` / `m_has_character_list` early and queue duplicate
+requests (partially deduplicated by `m_tab_id_index`), and a stale item reply
+perturbs the received counters. Requests carry no generation tag, so handlers
+cannot tell which update they answer. Convergent in practice (the next full
+refresh repairs state) but a correctness hole; fixing it means tagging
+requests with an update generation and discarding mismatches, or
+disconnecting outstanding replies on terminal failure. Out of scope for
+Phase 2.
