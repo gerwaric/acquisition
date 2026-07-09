@@ -112,6 +112,14 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir) const
         emit const_cast<ItemsManagerWorker *>(this)->StatusUpdate(state, status);
     };
 
+    // Manual-testing aid: delay each cached tab so that mid-parse GUI actions
+    // (quit, refresh-while-initializing) can be exercised by hand. Unset or
+    // zero in normal use.
+    const int parse_delay_ms = qEnvironmentVariableIntValue("ACQ_PARSE_DELAY_MS");
+    if (parse_delay_ms > 0) {
+        spdlog::warn("ACQ_PARSE_DELAY_MS is set: delaying {}ms per cached tab", parse_delay_ms);
+    }
+
     // Create a datastore to get a connection to the database.
     // NOTE: we only need read access, but this isn't enforced or checked.
     QDir data_dir{dataDir};
@@ -151,6 +159,9 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir) const
         if (m_shutdown.load()) {
             return result;
         }
+        if (parse_delay_ms > 0) {
+            QThread::msleep(parse_delay_ms);
+        }
         const auto id = stashes[i].id;
         const auto stash = userstore.stashes().getStash(id, m_realm, m_league);
         if (!stash) {
@@ -185,6 +196,9 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir) const
     for (size_t i = 0; i < characters.size(); ++i) {
         if (m_shutdown.load()) {
             return result;
+        }
+        if (parse_delay_ms > 0) {
+            QThread::msleep(parse_delay_ms);
         }
         const auto name = characters[i].name;
         const auto character = userstore.characters().getCharacter(name, m_realm);
