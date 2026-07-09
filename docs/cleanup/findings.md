@@ -306,3 +306,80 @@ Buyouts persist through `BuyoutRepo` (signal-driven, newer) while
 `refresh_checked_state` persists through `DataStore` JSON serialization
 (older). Works, but the split is a trap for contributors. Unify only if a
 phase touches it anyway.
+
+### F29. `spdlog::shutdown()` on `aboutToQuit` raced logging threads — Confirmed; fixed during Phase 2
+
+Found during Phase 2 manual validation (quit-during-parse segfault, minidump
+verified: `logger::should_log(this=nullptr)` on the parser thread under
+`ItemsManagerWorker::LoadItems`). `main.cpp` connected `spdlog::shutdown()`
+to `QCoreApplication::aboutToQuit`, which fires while the event loop is
+exiting — *before* the `Application` object (and thus
+`~ItemsManagerWorker`'s thread join) is destroyed. Any thread logging after
+that point dereferenced a null default logger. This was part of the original
+F1 "quit during parse crashes" symptom and survived the Phase 2 worker fixes
+because it lives in `main.cpp`, not the worker. Fixed in Phase 2 (required
+to meet its "no crash on quit during parse" acceptance criterion): the
+shutdown moved to a `qScopeGuard` declared before `Application`, so it runs
+after all application threads are joined. Note for the future: any log call
+after `spdlog::shutdown()` crashes the same way, from any thread — logging
+teardown must always come last.
+
+### F30. `RateLimitManager` never surfaced failed replies — Confirmed; fixed during Phase 2
+
+Found during Phase 2 manual validation (network-kill test): the entire log
+history contained zero "Update failed" / "Aborting update" lines because the
+worker's error paths were unreachable through the rate limiter.
+`RateLimitManager::ReceiveReply` only emitted `RateLimitedReply::complete`
+for successful replies. A reply with no `X-Rate-Limit-Policy` header (any
+network-level failure) hit an early return, and a non-429 HTTP error hit a
+log-only branch; in both cases the caller was never notified, and
+`m_active_request` stayed set with no timer running — permanently jamming
+that policy's queue until restart. User-visible symptom: killing the network
+mid-refresh froze the update silently (looking like a rate-limit pause), and
+every later request for that endpoint queued forever. Fixed in Phase 2
+(required by its "network failure terminates the update cleanly" acceptance
+criterion): non-retryable failures now emit `complete` (all consumers check
+`reply->error()`), clear the active request, and activate the next queued
+request. The 429 Retry-After resend path is unchanged. Related diagnostic
+note: the frequent "policy is BORDERLINE" warnings during refreshes are
+normal saturation pacing, not an error signal — arguably worth downgrading
+from `warn` in a future pass.
+
+### F27. Reply delivery during `FetchItems` submission can finish an update prematurely — Resolved during Phase 2
+
+Found during Phase 2 review; pre-existing (the old per-handler completion
+checks had the same exposure). `ItemsManagerWorker::FetchItems()` increments
+`m_stashes_needed` / `m_characters_needed` one request at a time while
+submitting through `RateLimiter::Submit()`. For a not-yet-seen endpoint,
+`Submit()` spins the nested HEAD-request event loop (F5), which can deliver
+completions for *already submitted* requests re-entrantly. If every request
+submitted so far completes inside that window — plausible on the first
+update of a session, when the burst allowance is full and the character
+endpoint's HEAD handshake stalls the loop mid-queue — `CheckUpdateFinished()`
+sees `received == needed` with the remaining requests not yet counted and
+finishes the update early. The Phase 2 state guard
+(`m_state != WorkerState::Updating`) prevents a double-finish, but late
+replies then mutate `m_items` with no subsequent `ItemsRefreshed` emission.
+"Likely" because the window was traced but not reproduced. Resolved by the
+network-failure rework late in Phase 2: `FetchItems` now counts all needed
+requests before submitting any, and item requests are held in a worker-side
+queue with only one request in the rate limiter at a time
+(`SubmitNextItemRequest`), so the completion check can no longer observe a
+partially-submitted batch. This also narrows F28's exposure to at most one
+stale in-flight reply.
+
+### F28. In-flight replies from an aborted update are misattributed to the next one — Confirmed
+
+Found during Phase 2 review; pre-existing. When an update fails (e.g. the
+stash list request errors while the character list is still in flight), the
+worker returns to idle but the outstanding replies stay connected to their
+handlers. If a new update starts before they arrive, the stale replies are
+processed as if they belonged to the current update: a stale list reply can
+set `m_has_stash_list` / `m_has_character_list` early and queue duplicate
+requests (partially deduplicated by `m_tab_id_index`), and a stale item reply
+perturbs the received counters. Requests carry no generation tag, so handlers
+cannot tell which update they answer. Convergent in practice (the next full
+refresh repairs state) but a correctness hole; fixing it means tagging
+requests with an update generation and discarding mismatches, or
+disconnecting outstanding replies on terminal failure. Out of scope for
+Phase 2.

@@ -129,9 +129,6 @@ int main(int argc, char *argv[])
     spdlog::info("Logging level will be {}", loglevel);
     spdlog::set_level(loglevel);
 
-    QObject::connect(&a, &QCoreApplication::aboutToQuit, [] {
-        spdlog::shutdown(); // flushes and stops background threads
-    });
 
 #ifdef Q_OS_WINDOWS
     // On Windows, it's possible there are incompatible versions of the MSVC runtime
@@ -155,6 +152,14 @@ int main(int argc, char *argv[])
 
     // Run the main application, starting with the login dialog.
     spdlog::info("Running application...");
+
+    // Shut down logging when main() exits. This guard is declared before the
+    // Application object so it runs after Application's destructor, which joins
+    // the item parser thread — that thread logs, so spdlog must outlive it.
+    // (An aboutToQuit hook is too early: it fires before Application is
+    // destroyed, and a still-running parser thread would then log through a
+    // destroyed default logger and crash.)
+    auto loggingShutdown = qScopeGuard([] { spdlog::shutdown(); });
 
     // Construct an instance of Application.
     Application app(appDataDir);

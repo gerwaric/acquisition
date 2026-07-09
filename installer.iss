@@ -54,7 +54,7 @@
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
 ;
 ; This is the same GUID as the testpushpleaseignore fork of Acquisition:
-AppId={{53E25C0C-0305-47BB-9884-F0F202297AF4} 
+AppId={{53E25C0C-0305-47BB-9884-F0F202297AF4}
 AppName={#APP_NAME}
 AppVersion={#APP_VERSION_STRING}
 AppPublisher={#APP_PUBLISHER}
