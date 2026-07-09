@@ -345,7 +345,7 @@ note: the frequent "policy is BORDERLINE" warnings during refreshes are
 normal saturation pacing, not an error signal — arguably worth downgrading
 from `warn` in a future pass.
 
-### F27. Reply delivery during `FetchItems` submission can finish an update prematurely — Likely
+### F27. Reply delivery during `FetchItems` submission can finish an update prematurely — Resolved during Phase 2
 
 Found during Phase 2 review; pre-existing (the old per-handler completion
 checks had the same exposure). `ItemsManagerWorker::FetchItems()` increments
@@ -360,9 +360,13 @@ sees `received == needed` with the remaining requests not yet counted and
 finishes the update early. The Phase 2 state guard
 (`m_state != WorkerState::Updating`) prevents a double-finish, but late
 replies then mutate `m_items` with no subsequent `ItemsRefreshed` emission.
-"Likely" because the window has been traced but not reproduced. A fix should
-count all needed requests *before* submitting any (or defer the completion
-check until the queue is drained); out of scope for Phase 2.
+"Likely" because the window was traced but not reproduced. Resolved by the
+network-failure rework late in Phase 2: `FetchItems` now counts all needed
+requests before submitting any, and item requests are held in a worker-side
+queue with only one request in the rate limiter at a time
+(`SubmitNextItemRequest`), so the completion check can no longer observe a
+partially-submitted batch. This also narrows F28's exposure to at most one
+stale in-flight reply.
 
 ### F28. In-flight replies from an aborted update are misattributed to the next one — Confirmed
 
