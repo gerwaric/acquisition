@@ -107,10 +107,21 @@ void RateLimitManager::ReceiveReply()
         return;
     }
 
-    // Make sure the reply has a rate-limit header.
+    // Make sure the reply has a rate-limit header. Network-level failures
+    // (e.g. no connectivity) produce replies without headers; surface them to
+    // the caller as failed requests and move on, so the queue does not jam.
     if (!reply->hasRawHeader("X-Rate-Limit-Policy")) {
-        spdlog::error("The rate limit manager received a reply for {} without rate limit headers.",
-                      m_policy->name());
+        spdlog::error("The rate limit manager received a reply for {} without rate limit headers: "
+                      "error {} ({})",
+                      m_policy->name(),
+                      reply->error(),
+                      reply->errorString());
+        reply->deleteLater();
+        if (m_active_request->reply) {
+            emit m_active_request->reply->complete(reply);
+        }
+        m_active_request = nullptr;
+        ActivateRequest();
         return;
     }
 
@@ -198,7 +209,8 @@ void RateLimitManager::ReceiveReply()
         }
 
         if (reply->hasRawHeader("Retry-After")) {
-            // There was a rate limit violation.
+            // There was a rate limit violation. Keep the active request so it
+            // is resent when the timer fires.
             violation_detected = true;
             const int retry_sec = reply->rawHeader("Retry-After").toInt();
             const int retry_msec = (1000 * retry_sec);
@@ -207,9 +219,12 @@ void RateLimitManager::ReceiveReply()
                           (retry_msec / 1000));
             m_activation_timer.setInterval(retry_msec);
             m_activation_timer.start();
+            m_active_request->reply = nullptr;
 
         } else {
-            // Some other HTTP error was encountered.
+            // Some other HTTP error was encountered. There is no retry for
+            // these; surface the failure to the caller so it can count the
+            // request as complete, and move on to the next queued request.
             spdlog::error("policy manager for {} request {} reply status was {} and error was {}",
                           m_policy->name(),
                           m_active_request->id,
@@ -217,8 +232,12 @@ void RateLimitManager::ReceiveReply()
                           reply->error());
             NetworkManager::logRequest(m_active_request->network_request);
             NetworkManager::logReply(reply);
+            if (m_active_request->reply) {
+                emit m_active_request->reply->complete(reply);
+            }
+            m_active_request = nullptr;
+            ActivateRequest();
         }
-        m_active_request->reply = nullptr;
     }
 
     if (violation_detected) {

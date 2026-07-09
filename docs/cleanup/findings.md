@@ -324,6 +324,27 @@ after all application threads are joined. Note for the future: any log call
 after `spdlog::shutdown()` crashes the same way, from any thread — logging
 teardown must always come last.
 
+### F30. `RateLimitManager` never surfaced failed replies — Confirmed; fixed during Phase 2
+
+Found during Phase 2 manual validation (network-kill test): the entire log
+history contained zero "Update failed" / "Aborting update" lines because the
+worker's error paths were unreachable through the rate limiter.
+`RateLimitManager::ReceiveReply` only emitted `RateLimitedReply::complete`
+for successful replies. A reply with no `X-Rate-Limit-Policy` header (any
+network-level failure) hit an early return, and a non-429 HTTP error hit a
+log-only branch; in both cases the caller was never notified, and
+`m_active_request` stayed set with no timer running — permanently jamming
+that policy's queue until restart. User-visible symptom: killing the network
+mid-refresh froze the update silently (looking like a rate-limit pause), and
+every later request for that endpoint queued forever. Fixed in Phase 2
+(required by its "network failure terminates the update cleanly" acceptance
+criterion): non-retryable failures now emit `complete` (all consumers check
+`reply->error()`), clear the active request, and activate the next queued
+request. The 429 Retry-After resend path is unchanged. Related diagnostic
+note: the frequent "policy is BORDERLINE" warnings during refreshes are
+normal saturation pacing, not an error signal — arguably worth downgrading
+from `warn` in a future pass.
+
 ### F27. Reply delivery during `FetchItems` submission can finish an update prematurely — Likely
 
 Found during Phase 2 review; pre-existing (the old per-handler completion
