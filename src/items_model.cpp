@@ -10,6 +10,11 @@
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
 
+#include <algorithm>
+#include <iterator>
+#include <memory>
+#include <vector>
+
 ItemsModel::ItemsModel(BuyoutManager &bo_manager, Search &search)
     : m_bo_manager(bo_manager)
     , m_search(search)
@@ -38,8 +43,11 @@ int ItemsModel::rowCount(const QModelIndex &parent) const
     if (!parent.isValid()) {
         return static_cast<int>(m_search.buckets().size());
     }
+    if ((parent.model() != this) || (parent.column() != 0)) {
+        return 0;
+    }
     // Bucket, contains elements
-    if (parent.isValid() && !parent.parent().isValid()) {
+    if (!parent.parent().isValid()) {
         const int bucket_row = parent.row();
         if (m_search.has_bucket(bucket_row)) {
             return static_cast<int>(m_search.bucket(bucket_row).items().size());
@@ -53,21 +61,25 @@ int ItemsModel::rowCount(const QModelIndex &parent) const
 
 int ItemsModel::columnCount(const QModelIndex &parent) const
 {
+    if (parent.isValid() && (parent.model() != this)) {
+        return 0;
+    }
     // Root element, contains buckets
     if (!parent.isValid()) {
         return static_cast<int>(m_search.columns().size());
     }
     // Bucket, contains elements
-    if (parent.isValid() && !parent.parent().isValid()) {
+    if (!parent.parent().isValid()) {
         return static_cast<int>(m_search.columns().size());
     }
     // Element, contains nothing
     return 0;
 }
 
-QVariant ItemsModel::headerData(int section, Qt::Orientation /* orientation */, int role) const
+QVariant ItemsModel::headerData(int section, Qt::Orientation orientation, int role) const
 {
-    if (role == Qt::DisplayRole) {
+    if (orientation == Qt::Horizontal && role == Qt::DisplayRole && section >= 0
+        && section < static_cast<int>(m_search.columns().size())) {
         return QString(m_search.columns()[section]->name());
     }
     return QVariant();
@@ -77,6 +89,10 @@ QVariant ItemsModel::data(const QModelIndex &index, int role) const
 {
     // Bucket title
     if (!index.isValid()) {
+        return QVariant();
+    }
+    if ((index.model() != this) || (index.column() < 0)
+        || (index.column() >= static_cast<int>(m_search.columns().size()))) {
         return QVariant();
     }
 
@@ -150,6 +166,10 @@ Qt::ItemFlags ItemsModel::flags(const QModelIndex &index) const
     if (!index.isValid()) {
         return Qt::ItemFlags();
     }
+    if ((index.model() != this) || (index.column() < 0)
+        || (index.column() >= static_cast<int>(m_search.columns().size()))) {
+        return Qt::ItemFlags();
+    }
     if (index.column() == 0 && index.internalId() == 0) {
         const ItemLocation &location = m_search.GetTabLocation(index);
         if (location.IsValid() && !m_bo_manager.GetRefreshLocked(location)) {
@@ -161,12 +181,15 @@ Qt::ItemFlags ItemsModel::flags(const QModelIndex &index) const
 
 bool ItemsModel::setData(const QModelIndex &index, const QVariant &value, int role)
 {
-    if (!index.isValid()) {
+    if (!index.isValid() || (index.model() != this)) {
         return false;
     }
 
-    if (role == Qt::CheckStateRole) {
+    if (role == Qt::CheckStateRole && index.column() == 0 && index.internalId() == 0) {
         const ItemLocation &location = m_search.GetTabLocation(index);
+        if (!location.IsValid() || m_bo_manager.GetRefreshLocked(location)) {
+            return false;
+        }
         m_bo_manager.SetRefreshChecked(location, value.toBool());
 
         // It's possible that our tabs can have the same name.  Right now we don't have a
@@ -178,7 +201,7 @@ bool ItemsModel::setData(const QModelIndex &index, const QVariant &value, int ro
         for (int i = 0; i < row_count; ++i) {
             auto match_index = this->index(i);
             if (m_search.GetTabLocation(match_index).id() == target_hash) {
-                emit dataChanged(match_index, match_index);
+                emit dataChanged(match_index, match_index, {Qt::CheckStateRole});
             }
         }
         return true;
@@ -186,8 +209,20 @@ bool ItemsModel::setData(const QModelIndex &index, const QVariant &value, int ro
     return false;
 }
 
+void ItemsModel::refreshCheckStates()
+{
+    const int rows = rowCount();
+    if (rows > 0) {
+        emit dataChanged(index(0, 0), index(rows - 1, 0), {Qt::CheckStateRole});
+    }
+}
+
 void ItemsModel::sort(int column, Qt::SortOrder order)
 {
+    if ((column < 0) || (column >= columnCount())) {
+        return;
+    }
+
     // Ignore sort requests if we're already sorted
     if (m_sorted && (m_sort_column == column) && (m_sort_order == order)) {
         return;
@@ -197,41 +232,95 @@ void ItemsModel::sort(int column, Qt::SortOrder order)
     m_sort_order = order;
     m_sort_column = column;
 
-    m_search.Sort(column, order);
-    emit layoutChanged();
-    SetSorted(true);
-}
+    struct ItemIndexSnapshot
+    {
+        QModelIndex from;
+        int bucket_row;
+        int column;
+        std::shared_ptr<Item> item;
+    };
 
-void ItemsModel::sort()
-{
-    sort(m_sort_column, m_sort_order);
+    // Emit before snapshotting: listeners such as QItemSelectionModel create
+    // persistent indexes inside their layoutAboutToBeChanged handlers, and
+    // those must be included in the remapping below.
+    emit layoutAboutToBeChanged({}, QAbstractItemModel::VerticalSortHint);
+
+    std::vector<ItemIndexSnapshot> snapshots;
+    const auto persistent_indexes = persistentIndexList();
+    snapshots.reserve(persistent_indexes.size());
+    for (const QModelIndex &persistent_index : persistent_indexes) {
+        if (!persistent_index.isValid() || persistent_index.internalId() == 0) {
+            continue;
+        }
+
+        const int bucket_row = static_cast<int>(persistent_index.internalId() - 1);
+        if (!m_search.has_bucket(bucket_row)) {
+            continue;
+        }
+
+        const Bucket &bucket = m_search.bucket(bucket_row);
+        const int item_row = persistent_index.row();
+        if (!bucket.has_item(item_row)) {
+            continue;
+        }
+
+        snapshots.push_back(
+            {persistent_index, bucket_row, persistent_index.column(), bucket.item(item_row)});
+    }
+
+    m_search.Sort(column, order);
+
+    QModelIndexList from;
+    QModelIndexList to;
+    from.reserve(snapshots.size());
+    to.reserve(snapshots.size());
+    for (const ItemIndexSnapshot &snapshot : snapshots) {
+        if (!m_search.has_bucket(snapshot.bucket_row)) {
+            continue;
+        }
+
+        const Bucket &bucket = m_search.bucket(snapshot.bucket_row);
+        const auto &items = bucket.items();
+        const auto item = std::find(items.begin(), items.end(), snapshot.item);
+        if (item == items.end()) {
+            continue;
+        }
+
+        const int item_row = static_cast<int>(std::distance(items.begin(), item));
+        const QModelIndex parent_index = index(snapshot.bucket_row, 0);
+        from.push_back(snapshot.from);
+        to.push_back(index(item_row, snapshot.column, parent_index));
+    }
+    changePersistentIndexList(from, to);
+    emit layoutChanged({}, QAbstractItemModel::VerticalSortHint);
+    SetSorted(true);
 }
 
 QModelIndex ItemsModel::parent(const QModelIndex &index) const
 {
     // bucket
-    if (!index.isValid() || index.internalId() == 0) {
+    if (!index.isValid() || index.model() != this || index.internalId() == 0) {
         return QModelIndex();
     }
     // item
-    return createIndex(index.internalId() - 1, 0, static_cast<quintptr>(0));
+    const int bucket_row = static_cast<int>(index.internalId() - 1);
+    if (!m_search.has_bucket(bucket_row)) {
+        return QModelIndex();
+    }
+    return createIndex(bucket_row, 0, static_cast<quintptr>(0));
 }
 
 QModelIndex ItemsModel::index(int row, int column, const QModelIndex &parent) const
 {
-    int bucket_count = static_cast<int>(m_search.buckets().size());
+    if ((row < 0) || (column < 0) || (parent.isValid() && parent.model() != this)
+        || !hasIndex(row, column, parent)) {
+        return QModelIndex();
+    }
+
     if (parent.isValid()) {
-        if (parent.row() >= bucket_count) {
-            spdlog::warn("ItemsModel: index parent row is invalid");
-            return QModelIndex();
-        }
         // item, we pass parent's (bucket's) row through ID parameter
         return createIndex(row, column, static_cast<quintptr>(parent.row()) + 1);
     } else {
-        if (row >= bucket_count) {
-            spdlog::warn("ItemsModel: index row is invalid:" + QString::number(row));
-            return QModelIndex();
-        }
         return createIndex(row, column, static_cast<quintptr>(0));
     }
 }

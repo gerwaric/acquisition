@@ -50,7 +50,7 @@ codebase strictly better off.
 | 0. Test harness + characterization tests | `phase-0-test-harness.md` | safety net for all later phases | Done |
 | 1. Layering fixes | `phase-1-layering.md` | F3, F6–F8, F13, F15, F16, F17, F26 | Done |
 | 2. Worker threading + update state machine | `phase-2-worker-threading.md` | F1, F2, F4, F5, F24, F27, F29, F30 | Done |
-| 3. Model/view signal hygiene | `phase-3-model-signals.md` | F10–F12, F23, F25 | Spec ready |
+| 3. Model/view signal hygiene | `phase-3-model-signals.md` | F10–F12, F23, F25 | Done |
 | 4. Decouple `Search` from `QTreeView` | `phase-4-search-decoupling.md` | F18 | Design intent |
 | 5. Filters as data + matching | `phase-5-filters-as-data.md` | F19 | Design intent |
 | 6. Opportunistic `MainWindow` slimming | `phase-6-mainwindow-slimming.md` | F20, F9 remainder, F14 | Design intent |

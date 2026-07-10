@@ -189,6 +189,8 @@ void Search::FilterItems(const Items &items)
         return;
     }
 
+    m_model.beginUpdate();
+
     // Create a temporary vector of only the filters that are
     // active, so we don't have to check every filter against
     // every item.
@@ -267,6 +269,7 @@ void Search::FilterItems(const Items &items)
 
     // Let the model know that current sort order has been invalidated
     m_model.SetSorted(false);
+    m_model.endUpdate();
 }
 
 void Search::RenameCaption(const QString &newName)
@@ -318,14 +321,11 @@ void Search::SetViewMode(ViewMode mode)
     if (mode != m_current_mode) {
         SaveViewProperties();
 
+        m_model.beginUpdate();
         m_current_mode = mode;
-
-        // Force immediate view update
-        m_view.reset();
-        m_model.blockSignals(true);
-        m_model.SetSorted(false);
-        m_model.sort();
-        m_model.blockSignals(false);
+        Sort(m_model.GetSortColumn(), m_model.GetSortOrder());
+        m_model.SetSorted(true);
+        m_model.endUpdate();
 
         RestoreViewProperties();
     }
@@ -336,7 +336,9 @@ void Search::Activate(const Items &items)
     FromForm();
     FilterItems(items);
     m_view.setSortingEnabled(false);
-    m_view.setModel(&m_model);
+    if (m_view.model() != &m_model) {
+        m_view.setModel(&m_model);
+    }
     m_view.header()->setSortIndicator(m_model.GetSortColumn(), m_model.GetSortOrder());
     m_view.setSortingEnabled(true);
     RestoreViewProperties();
@@ -360,7 +362,6 @@ void Search::SaveViewProperties()
 
 void Search::RestoreViewProperties()
 {
-    m_view.blockSignals(true);
     if (m_filtered || (m_current_mode == Search::ViewMode::ByItem)) {
         m_view.expandToDepth(0);
     } else {
@@ -379,5 +380,4 @@ void Search::RestoreViewProperties()
             }
         }
     }
-    m_view.blockSignals(false);
 }

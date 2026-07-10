@@ -1,5 +1,34 @@
 # Phase 3: Model/View Signal Hygiene
 
+> **Post-implementation amendment (July 2026, F31):** the acceptance
+> criterion below requiring `grep -n 'blockSignals\|m_view.reset'
+> src/search.cpp` to be empty contradicted the non-goal that view-level
+> signal suppression stays. Removing `m_view.blockSignals` from
+> `RestoreViewProperties` made programmatic expansion fire one
+> `ResizeTreeColumns` per expanded/collapsed index, noticeably slowing
+> view-mode switches. Fixed by coalescing column resizes behind a 0 ms
+> single-shot timer in `MainWindow` (see F31 in `findings.md`); the grep
+> criterion is now satisfiable without the regression.
+
+> **Post-implementation amendment (July 2026, pre-merge review):** two
+> defects were caught and fixed before merge. (1) `ItemsModel::sort()`
+> snapshotted `persistentIndexList()` *before* emitting
+> `layoutAboutToBeChanged`, inverting the step order in the Design section.
+> `QItemSelectionModel` creates persistent indexes inside its
+> `layoutAboutToBeChanged` handler (it expands multi-row selection ranges
+> into per-row indexes), so those missed the snapshot and were never
+> remapped — a shift-selected range silently became different items after a
+> sort. Fixed by emitting first; `tst_itemsmodel` now has a
+> selection-survives-sort regression test. (2) `ModelViewRefresh()`
+> disconnected `m_layout_changed_conn` before `Activate()` and reconnected
+> after, but the only `layoutChanged` of a rebuild fires *inside*
+> `Activate()` (via `setSortingEnabled(true)` re-sorting the unsorted
+> model), so `OnLayoutChanged`'s reselect-or-clear logic never ran on filter
+> changes — the tree highlight was lost and the item panel went stale when
+> the selected item was filtered out. Fixed by calling `OnLayoutChanged()`
+> explicitly at the end of `ModelViewRefresh()`. This narrowed F32's
+> selection symptom; see the F32 amendment in `findings.md`.
+
 ## Assumptions
 
 Written July 2026. Assumes Phases 0–2 have landed. Code facts this spec was
