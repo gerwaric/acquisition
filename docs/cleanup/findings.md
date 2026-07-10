@@ -281,6 +281,29 @@ mod_data) shared by all filter types. `ModsFilter` additionally owns a
 dynamic grid of rows, a completer, and a debounce timer. Matching logic
 should be separable and testable without instantiating widgets.
 
+### F33. Filter activity flags are shared across searches — Likely
+
+Found during the Phase 4 spec verification pass (July 2026).
+`Filter::m_active` lives on the `Filter` object (`filters.h`), which is
+shared by every `Search`; per-search values live in `FilterData`.
+`m_active` is recomputed in `Filter::FromForm(FilterData *)` — i.e.
+whenever a search reads the form, normally the *current* one.
+`Search::FilterItems()` builds its active-filter list via
+`filter->filter()->IsActive()`, so it filters with the current search's
+activity flags against its own search's values. Exposed path:
+`MainWindow::OnItemsRefreshed()` calls `FilterItems()` on every
+*background* search — a background search with a saved name query will skip
+that filter entirely if the current search's name box is empty, producing
+wrong buckets and caption counts until that search is next activated.
+"Likely" because traced end-to-end but not runtime-verified. Fix belongs to
+Phase 5, whose per-search typed state absorbs activity — this upgrades its
+"activity must move into the state structs" hazard from refactoring note to
+correctness fix; pin the current wrong behavior with a characterization
+test at the start of Phase 5. Note the phase-5 doc's hazard wording
+("`FilterData::FromForm()` is also where `m_active` gets computed")
+misplaces it: `m_active` is on `Filter`, not `FilterData` — the
+misattribution is the bug.
+
 ### F20. `MainWindow` owns workflow state — Confirmed
 
 Raw-pointer ownership of `Search*` objects with manual `delete`, current
@@ -292,6 +315,23 @@ UI consumer.
 ---
 
 ## Recorded but out of scope
+
+### F34. `Bucket::Sort` inverts the Qt sort-order semantics — Confirmed
+
+Found during the Phase 4 review while hardening
+`tst_itemsmodel::selectionSurvivesSort`. `Bucket::Sort()` (`bucket.cpp`)
+maps `Qt::AscendingOrder` to `column.lt(rhs, lhs)` — a *descending*
+arrangement — and `Qt::DescendingOrder` to ascending; `Column::lt` is a
+plain less-than, so nothing cancels the inversion. User-visible symptom:
+the header sort-indicator arrow points opposite to the actual row order
+(e.g. an "ascending" indicator shows Z→A). Pre-existing and long-shipped;
+Phase 4 did not touch sorting. Fixing it flips behavior users may have
+acclimated to, so it needs its own deliberate change (swap the two lambda
+branches, re-check the persistent-index remap test, release-note it) —
+out of scope for the cleanup phases unless Phase 6 wants it as an
+opportunistic item. `tst_itemsmodel` deliberately asserts only that a
+re-sort *changes* the arrangement, not which direction each enum produces,
+so it will survive the fix.
 
 ### F21. Every `Item` stores its raw JSON — Confirmed (impact unmeasured)
 
@@ -434,3 +474,14 @@ through a tab that filters the item out clears the global pointer (and now
 also clears the item detail panel, which previously went stale), so the
 selection is lost in that case. The expansion-state symptom and the
 underlying ownership problem are unchanged and remain deferred.
+
+Decision (July 2026, Phase 4 spec upgrade): F32 is deferred to Phase 6, not
+absorbed into Phase 4. Phase 4's verification gate is behavior-identical
+relocation; fixing F32 changes user-visible behavior and would invalidate
+that gate (the F31 lesson applied in advance). Phase 4 does make the fix
+cheap: `MainWindow` owns the expansion save/restore adapters after it, so
+the expansion half becomes a single `SaveViewExpansion()` call in
+`OnTabChange()` before switching `m_current_search`; the selection half
+requires per-search current-item state, which belongs with Phase 6's
+`MainWindow` slimming (item 6.6, alongside 6.5's `OnLayoutChanged` work —
+do the two together).

@@ -20,7 +20,6 @@ class BuyoutManager;
 class Filter;
 class FilterData;
 class ItemsModel;
-class QTreeView;
 class QModelIndex;
 
 class Search
@@ -32,8 +31,7 @@ public:
 
     Search(BuyoutManager &bo,
            const QString &caption,
-           const std::vector<std::unique_ptr<Filter>> &filters,
-           QTreeView *view);
+           const std::vector<std::unique_ptr<Filter>> &filters);
     void FilterItems(const Items &items);
     void FromForm();
     void ToForm();
@@ -41,13 +39,15 @@ public:
     const QString &caption() const { return m_caption; }
     const Items &items() const { return m_items; }
     const std::vector<std::unique_ptr<Column>> &columns() const { return m_columns; }
+    ItemsModel &model() { return m_model; }
+    const std::set<QString> &expandedHeaders() const { return m_expanded_property; }
+    void setExpandedHeaders(std::set<QString> headers);
+    bool defaultExpanded() const { return m_filtered || (m_current_mode == ViewMode::ByItem); }
     const std::vector<Bucket> &buckets() const;
     void RenameCaption(const QString &newName);
     QString GetCaption() const;
-    // Sets this search as current, will display items in passed QTreeView.
+    // Updates this search from the current form and item data.
     void Activate(const Items &items);
-    void RestoreViewProperties();
-    void SaveViewProperties();
     ItemLocation GetTabLocation(const QModelIndex &index) const;
     void SetViewMode(ViewMode mode);
     ViewMode GetViewMode() const { return m_current_mode; }
@@ -61,7 +61,6 @@ private:
     std::vector<Bucket> &active_buckets();
 
     BuyoutManager &m_bo_manager;
-    QTreeView &m_view;
 
     std::vector<std::unique_ptr<FilterData>> m_filters;
     std::vector<std::unique_ptr<Column>> m_columns;

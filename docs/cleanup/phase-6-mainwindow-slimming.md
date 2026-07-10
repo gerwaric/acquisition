@@ -10,7 +10,7 @@
 
 Clean up what the earlier phases deliberately deferred, without introducing
 a controller architecture. Findings addressed: F20 (scoped down), F9
-remainder, F14. Optionally F22.
+remainder, F14, F32. Optionally F22.
 
 ## Explicit non-goal, restated
 
@@ -66,7 +66,19 @@ storage, or document the split clearly in the code. Skip freely.
 Deferred from Phase 3: if the selection-model exceptions its comments
 describe are confirmed gone (post Phase 3 resets + persistent-index sorts),
 the manual reset/reselect can likely shrink. Verify with the Phase 3 smoke
-list before and after.
+list before and after. Coordinate with 6.6 — both touch the current-item
+handling.
+
+### 6.6 Fix F32 (per-search view state on tab switch)
+
+Deferred from Phase 4 (see the decision recorded in F32). Expansion half:
+call the Phase 4 `SaveViewExpansion()` adapter on the outgoing search in
+`OnTabChange()` before switching `m_current_search`. Selection half: the
+current item is global (`m_current_item`); making it per-search interacts
+with 6.5's `OnLayoutChanged` simplification — do the two together.
+Deliberate behavior change: switching search tabs and back preserves
+expansion and selection where it previously reverted to last-saved
+expansion and (sometimes) lost the selection; note it in the release notes.
 
 ## Acceptance criteria
 

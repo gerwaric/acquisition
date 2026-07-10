@@ -27,6 +27,7 @@
 #include <QTabBar>
 #include <QVersionNumber>
 
+#include <set>
 #include <vector>
 
 #include "buyoutmanager.h"
@@ -215,11 +216,18 @@ void MainWindow::InitializeUi()
 
     ui->viewComboBox->addItems({"By Tab", "By Item"});
     connect(ui->viewComboBox, &QComboBox::activated, this, [&](int n) {
-        // SetViewMode() restores the expansion state for the new mode, which
-        // schedules a column resize via the expanded/collapsed signals. Also
-        // schedule one here because column contents change between modes even
-        // when the expansion state does not.
-        m_current_search->SetViewMode(static_cast<Search::ViewMode>(n));
+        // activated() also fires when the user re-selects the current mode;
+        // save/restore must not run then (restore would force-expand rows the
+        // user collapsed under a filtered or By Item view).
+        const auto mode = static_cast<Search::ViewMode>(n);
+        if (mode != m_current_search->GetViewMode()) {
+            SaveViewExpansion(*m_current_search);
+            m_current_search->SetViewMode(mode);
+            RestoreViewExpansion(*m_current_search);
+        }
+        // Restoring expansion schedules a resize via the expanded/collapsed
+        // signals. Also schedule one here because column contents change
+        // between modes even when the expansion state does not.
         ScheduleResizeTreeColumns();
     });
 
@@ -285,8 +293,8 @@ void MainWindow::InitializeUi()
     });
 
     // Resize columns when a tab is expanded/collapsed. Programmatic expansion
-    // (e.g. Search::RestoreViewProperties after a model reset) emits these
-    // signals once per index, so coalesce them into a single deferred resize.
+    // (e.g. RestoreViewExpansion after a model reset) emits these signals once
+    // per index, so coalesce them into a single deferred resize.
     connect(ui->treeView, &QTreeView::collapsed, this, &MainWindow::ScheduleResizeTreeColumns);
     connect(ui->treeView, &QTreeView::expanded, this, &MainWindow::ScheduleResizeTreeColumns);
 
@@ -665,9 +673,44 @@ void MainWindow::OnDeleteTabClicked(int index)
 void MainWindow::OnSearchFormChange()
 {
     spdlog::trace("MainWindow::OnSearchFormChange() entered");
-    m_current_search->SaveViewProperties();
+    SaveViewExpansion(*m_current_search);
     m_current_search->SetRefreshReason(RefreshReason::SearchFormChanged);
     ModelViewRefresh();
+}
+
+void MainWindow::SaveViewExpansion(Search &search)
+{
+    std::set<QString> expanded;
+    if (!search.defaultExpanded()) {
+        const int rows = search.model().rowCount();
+        for (int row = 0; row < rows; ++row) {
+            const QModelIndex index = search.model().index(row, 0);
+            if (index.isValid() && ui->treeView->isExpanded(index) && search.has_bucket(row)) {
+                expanded.emplace(search.bucket(row).location().GetHeader());
+            }
+        }
+    }
+    search.setExpandedHeaders(std::move(expanded));
+}
+
+void MainWindow::RestoreViewExpansion(Search &search)
+{
+    if (search.defaultExpanded()) {
+        ui->treeView->expandToDepth(0);
+        return;
+    }
+    const auto &headers = search.expandedHeaders();
+    const int rows = search.model().rowCount();
+    for (int row = 0; row < rows; ++row) {
+        const QModelIndex index = search.model().index(row, 0);
+        if (headers.empty()) {
+            ui->treeView->collapse(index);
+        } else if (headers.count(search.bucket(row).location().GetHeader()) > 0) {
+            ui->treeView->expand(index);
+        } else {
+            ui->treeView->collapse(index);
+        }
+    }
 }
 
 void MainWindow::ModelViewRefresh()
@@ -680,6 +723,14 @@ void MainWindow::ModelViewRefresh()
 
     spdlog::trace("MainWindow::ModelViewRefresh() activing current search");
     m_current_search->Activate(m_items_manager.items());
+    ItemsModel &model = m_current_search->model();
+    ui->treeView->setSortingEnabled(false);
+    if (ui->treeView->model() != &model) {
+        ui->treeView->setModel(&model);
+    }
+    ui->treeView->header()->setSortIndicator(model.GetSortColumn(), model.GetSortOrder());
+    ui->treeView->setSortingEnabled(true);
+    RestoreViewExpansion(*m_current_search);
     ScheduleResizeTreeColumns();
 
     // This updates the item information when current item changes.
@@ -698,8 +749,8 @@ void MainWindow::ModelViewRefresh()
 
     m_tab_bar->setTabText(m_tab_bar->currentIndex(), m_current_search->GetCaption());
 
-    // Activate() rebuilds and re-sorts the model while the connections above
-    // are down, so the layoutChanged emitted during the rebuild is never
+    // The model rebuild and view-triggered re-sort happen while the connections
+    // above are down, so the layoutChanged emitted during the re-sort is never
     // seen. Reselect the current item (or clear it if it was filtered out)
     // explicitly.
     OnLayoutChanged();
@@ -914,7 +965,7 @@ void MainWindow::NewSearch()
     m_tab_bar->addTab("+");
 
     spdlog::trace("MainWindow::NewSearch() setting current search: {}", caption);
-    m_current_search = new Search(m_buyout_manager, caption, m_filters, ui->treeView);
+    m_current_search = new Search(m_buyout_manager, caption, m_filters);
     m_current_search->SetRefreshReason(RefreshReason::TabCreated);
 
     // this can't be done in ctor because it'll call OnSearchFormChange slot

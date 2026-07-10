@@ -123,6 +123,8 @@ private slots:
 
 private:
     void ModelViewRefresh();
+    void SaveViewExpansion(Search &search);
+    void RestoreViewExpansion(Search &search);
     void ClearCurrentItem();
     void UpdateCurrentBucket();
     void UpdateCurrentItem();
