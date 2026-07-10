@@ -48,7 +48,7 @@ public:
     const std::vector<Bucket> &buckets() const;
     void RenameCaption(const QString &newName);
     QString GetCaption() const;
-    // Sets this search as current, will display items in passed QTreeView.
+    // Updates this search from the current form and item data.
     void Activate(const Items &items);
     ItemLocation GetTabLocation(const QModelIndex &index) const;
     void SetViewMode(ViewMode mode);

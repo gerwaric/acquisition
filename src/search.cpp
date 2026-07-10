@@ -336,10 +336,4 @@ void Search::Activate(const Items &items)
 {
     FromForm();
     FilterItems(items);
-    m_view.setSortingEnabled(false);
-    if (m_view.model() != &m_model) {
-        m_view.setModel(&m_model);
-    }
-    m_view.header()->setSortIndicator(m_model.GetSortColumn(), m_model.GetSortOrder());
-    m_view.setSortingEnabled(true);
 }

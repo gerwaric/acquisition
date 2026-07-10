@@ -717,6 +717,13 @@ void MainWindow::ModelViewRefresh()
 
     spdlog::trace("MainWindow::ModelViewRefresh() activing current search");
     m_current_search->Activate(m_items_manager.items());
+    ItemsModel &model = m_current_search->model();
+    ui->treeView->setSortingEnabled(false);
+    if (ui->treeView->model() != &model) {
+        ui->treeView->setModel(&model);
+    }
+    ui->treeView->header()->setSortIndicator(model.GetSortColumn(), model.GetSortOrder());
+    ui->treeView->setSortingEnabled(true);
     RestoreViewExpansion(*m_current_search);
     ScheduleResizeTreeColumns();
 
@@ -736,8 +743,8 @@ void MainWindow::ModelViewRefresh()
 
     m_tab_bar->setTabText(m_tab_bar->currentIndex(), m_current_search->GetCaption());
 
-    // Activate() rebuilds and re-sorts the model while the connections above
-    // are down, so the layoutChanged emitted during the rebuild is never
+    // The model rebuild and view-triggered re-sort happen while the connections
+    // above are down, so the layoutChanged emitted during the re-sort is never
     // seen. Reselect the current item (or clear it if it was filtered out)
     // explicitly.
     OnLayoutChanged();

@@ -63,6 +63,7 @@ void ItemsModelTest::testerSurvivesRebuildModeSwitchAndSort()
     std::vector<std::unique_ptr<Filter>> filters;
     Search search(*buyoutFixture.manager, "Model", filters, &view);
     search.Activate(items);
+    view.setModel(&search.model());
 
     auto *model = qobject_cast<ItemsModel *>(view.model());
     QVERIFY(model != nullptr);
@@ -132,6 +133,7 @@ void ItemsModelTest::selectionSurvivesSort()
     std::vector<std::unique_ptr<Filter>> filters;
     Search search(*buyoutFixture.manager, "Model", filters, &view);
     search.Activate(items);
+    view.setModel(&search.model());
 
     auto *model = qobject_cast<ItemsModel *>(view.model());
     QVERIFY(model != nullptr);
