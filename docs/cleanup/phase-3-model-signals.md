@@ -1,5 +1,15 @@
 # Phase 3: Model/View Signal Hygiene
 
+> **Post-implementation amendment (July 2026, F31):** the acceptance
+> criterion below requiring `grep -n 'blockSignals\|m_view.reset'
+> src/search.cpp` to be empty contradicted the non-goal that view-level
+> signal suppression stays. Removing `m_view.blockSignals` from
+> `RestoreViewProperties` made programmatic expansion fire one
+> `ResizeTreeColumns` per expanded/collapsed index, noticeably slowing
+> view-mode switches. Fixed by coalescing column resizes behind a 0 ms
+> single-shot timer in `MainWindow` (see F31 in `findings.md`); the grep
+> criterion is now satisfiable without the regression.
+
 ## Assumptions
 
 Written July 2026. Assumes Phases 0–2 have landed. Code facts this spec was

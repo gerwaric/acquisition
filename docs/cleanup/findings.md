@@ -383,3 +383,44 @@ refresh repairs state) but a correctness hole; fixing it means tagging
 requests with an update generation and discarding mismatches, or
 disconnecting outstanding replies on terminal failure. Out of scope for
 Phase 2.
+
+### F31. Phase 3 spec forced out a load-bearing view-signal guard — Resolved after Phase 3
+
+Introduced by Phase 3 itself: the acceptance criterion
+`grep -n 'blockSignals\|m_view.reset' src/search.cpp` → empty contradicted
+the phase's own non-goal ("the `blockSignals` on the *view* in
+`OnExpandAll`/`OnCollapseAll` stay — they suppress repeated column-resize
+slots"). The `m_view.blockSignals` pair in `Search::RestoreViewProperties()`
+served exactly that view-level purpose, but the grep criterion demanded its
+removal, so the implementation deleted it. Result: every programmatic
+expand/collapse during expansion restore fired `QTreeView::expanded`/
+`collapsed` → `MainWindow::ResizeTreeColumns` (a full column-contents scan),
+and the By Tab → By Item combo path additionally ran `OnExpandAll` after
+`RestoreViewProperties` had already expanded — a duplicate full tree layout.
+Noticeable slowdown when switching view modes; the unfiltered By Tab restore
+loop (one resize per tab) was worse still, one resize per stash tab.
+Resolved by coalescing: `expanded`/`collapsed` now start a 0 ms single-shot
+timer (`m_delayed_resize_columns`) so any burst of expansion signals yields
+one deferred `ResizeTreeColumns` per event-loop turn; all direct call sites
+go through `ScheduleResizeTreeColumns()`; the now-redundant view
+`blockSignals` in `OnExpandAll`/`OnCollapseAll` and the redundant
+`OnExpandAll` in the view-mode combo handler were removed. Lesson recorded:
+grep-shaped acceptance criteria must be checked against the phase's
+non-goals before being treated as authoritative.
+
+### F32. Search tab activation does not preserve per-search view state — Confirmed
+
+Found during Phase 3 manual smoke; likely pre-existing because Phase 3 did
+not add per-search state ownership, and `MainWindow::OnTabChange()` already
+activated the selected `Search` without first saving the outgoing search's
+selection/expansion state. Tab refresh checkbox state persists across search
+tabs because it lives in `BuyoutManager`, not in the view. By contrast,
+expanded bucket state is only saved on specific paths such as filter changes
+and view-mode switches, and the currently selected item is held globally in
+`MainWindow` rather than per `Search`. User-visible symptom: switch from one
+search tab to another and back; the first search tab's bucket checkbox states
+remain, but its buckets return to the default expanded/collapsed state and
+the previously selected item is not restored. This is a view-state ownership
+problem, not model signal hygiene. Defer until the Phase 4 `Search` state
+cleanup or Phase 6 `MainWindow` slimming unless a regression is later traced
+directly to a phase change.
