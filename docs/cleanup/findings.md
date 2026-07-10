@@ -281,6 +281,29 @@ mod_data) shared by all filter types. `ModsFilter` additionally owns a
 dynamic grid of rows, a completer, and a debounce timer. Matching logic
 should be separable and testable without instantiating widgets.
 
+### F33. Filter activity flags are shared across searches — Likely
+
+Found during the Phase 4 spec verification pass (July 2026).
+`Filter::m_active` lives on the `Filter` object (`filters.h`), which is
+shared by every `Search`; per-search values live in `FilterData`.
+`m_active` is recomputed in `Filter::FromForm(FilterData *)` — i.e.
+whenever a search reads the form, normally the *current* one.
+`Search::FilterItems()` builds its active-filter list via
+`filter->filter()->IsActive()`, so it filters with the current search's
+activity flags against its own search's values. Exposed path:
+`MainWindow::OnItemsRefreshed()` calls `FilterItems()` on every
+*background* search — a background search with a saved name query will skip
+that filter entirely if the current search's name box is empty, producing
+wrong buckets and caption counts until that search is next activated.
+"Likely" because traced end-to-end but not runtime-verified. Fix belongs to
+Phase 5, whose per-search typed state absorbs activity — this upgrades its
+"activity must move into the state structs" hazard from refactoring note to
+correctness fix; pin the current wrong behavior with a characterization
+test at the start of Phase 5. Note the phase-5 doc's hazard wording
+("`FilterData::FromForm()` is also where `m_active` gets computed")
+misplaces it: `m_active` is on `Filter`, not `FilterData` — the
+misattribution is the bug.
+
 ### F20. `MainWindow` owns workflow state — Confirmed
 
 Raw-pointer ownership of `Search*` objects with manual `delete`, current
@@ -434,3 +457,14 @@ through a tab that filters the item out clears the global pointer (and now
 also clears the item detail panel, which previously went stale), so the
 selection is lost in that case. The expansion-state symptom and the
 underlying ownership problem are unchanged and remain deferred.
+
+Decision (July 2026, Phase 4 spec upgrade): F32 is deferred to Phase 6, not
+absorbed into Phase 4. Phase 4's verification gate is behavior-identical
+relocation; fixing F32 changes user-visible behavior and would invalidate
+that gate (the F31 lesson applied in advance). Phase 4 does make the fix
+cheap: `MainWindow` owns the expansion save/restore adapters after it, so
+the expansion half becomes a single `SaveViewExpansion()` call in
+`OnTabChange()` before switching `m_current_search`; the selection half
+requires per-search current-item state, which belongs with Phase 6's
+`MainWindow` slimming (item 6.6, alongside 6.5's `OnLayoutChanged` work —
+do the two together).
