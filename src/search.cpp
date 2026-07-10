@@ -85,6 +85,11 @@ void Search::ResetForm()
     }
 }
 
+void Search::setExpandedHeaders(std::set<QString> headers)
+{
+    m_expanded_property = std::move(headers);
+}
+
 const std::vector<Bucket> &Search::buckets() const
 {
     switch (m_current_mode) {

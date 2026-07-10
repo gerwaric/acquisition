@@ -41,6 +41,13 @@ public:
     const QString &caption() const { return m_caption; }
     const Items &items() const { return m_items; }
     const std::vector<std::unique_ptr<Column>> &columns() const { return m_columns; }
+    ItemsModel &model() { return m_model; }
+    const std::set<QString> &expandedHeaders() const { return m_expanded_property; }
+    void setExpandedHeaders(std::set<QString> headers);
+    bool defaultExpanded() const
+    {
+        return m_filtered || (m_current_mode == ViewMode::ByItem);
+    }
     const std::vector<Bucket> &buckets() const;
     void RenameCaption(const QString &newName);
     QString GetCaption() const;
