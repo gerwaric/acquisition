@@ -18,6 +18,7 @@ class ItemsModelTest : public QObject
 
 private slots:
     void testerSurvivesRebuildModeSwitchAndSort();
+    void selectionSurvivesSort();
 };
 
 static std::shared_ptr<Item> makeModelItem(const QString &id,
@@ -112,6 +113,54 @@ void ItemsModelTest::testerSurvivesRebuildModeSwitchAndSort()
     QCOMPARE(layoutAboutToChange.count(), 1);
     QCOMPARE(layoutChanged.count(), 1);
     QCOMPARE(layoutEvents, QStringList({"about", "changed"}));
+}
+
+void ItemsModelTest::selectionSurvivesSort()
+{
+    BuyoutManagerFixture buyoutFixture;
+    const ItemLocation firstTab = makeTestStashLocation("stash-a", "Alpha Tab", 0);
+    buyoutFixture.manager->SetStashTabLocations({firstTab});
+
+    Items items;
+    items.push_back(makeModelItem("alpha-2", "Zulu Bite", "Vaal Axe", firstTab));
+    items.push_back(makeModelItem("alpha-1", "Alpha Bite", "Copper Sword", firstTab));
+    items.push_back(makeModelItem("alpha-3", "Mid Bite", "Iron Hammer", firstTab));
+    items.push_back(makeModelItem("alpha-4", "Omega Bite", "Steel Dagger", firstTab));
+    items.push_back(makeModelItem("alpha-5", "Beta Bite", "Bronze Mace", firstTab));
+
+    QTreeView view;
+    std::vector<std::unique_ptr<Filter>> filters;
+    Search search(*buyoutFixture.manager, "Model", filters, &view);
+    search.Activate(items);
+
+    auto *model = qobject_cast<ItemsModel *>(view.model());
+    QVERIFY(model != nullptr);
+
+    const QModelIndex bucket0 = model->index(0, 0);
+    QCOMPARE(model->rowCount(bucket0), 5);
+
+    // Select rows 0-2 as one range, like a user shift-clicking three items.
+    // The selection model tracks multi-row ranges with persistent indexes it
+    // creates during layoutAboutToBeChanged; the model must remap them.
+    const QItemSelection range(model->index(0, 0, bucket0), model->index(2, 0, bucket0));
+    view.selectionModel()->select(range,
+                                  QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    QStringList selected_before;
+    for (const QModelIndex &idx : view.selectionModel()->selectedRows()) {
+        selected_before << model->data(idx).toString();
+    }
+    selected_before.sort();
+    QCOMPARE(selected_before.size(), 3);
+
+    // Re-sort in the opposite order; the selection should follow the items.
+    model->sort(0, Qt::AscendingOrder);
+
+    QStringList selected_after;
+    for (const QModelIndex &idx : view.selectionModel()->selectedRows()) {
+        selected_after << model->data(idx).toString();
+    }
+    selected_after.sort();
+    QCOMPARE(selected_after, selected_before);
 }
 
 QTEST_MAIN(ItemsModelTest)

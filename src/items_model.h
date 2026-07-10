@@ -22,7 +22,6 @@ public:
     Qt::ItemFlags flags(const QModelIndex &index) const;
     bool setData(const QModelIndex &index, const QVariant &value, int role = Qt::EditRole);
     void sort(int column, Qt::SortOrder order);
-    void sort();
     Qt::SortOrder GetSortOrder() const { return m_sort_order; }
     int GetSortColumn() const { return m_sort_column; }
     void SetSorted(bool val) { m_sorted = val; }

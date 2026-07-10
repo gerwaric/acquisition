@@ -697,6 +697,12 @@ void MainWindow::ModelViewRefresh()
     ui->viewComboBox->setCurrentIndex(static_cast<int>(m_current_search->GetViewMode()));
 
     m_tab_bar->setTabText(m_tab_bar->currentIndex(), m_current_search->GetCaption());
+
+    // Activate() rebuilds and re-sorts the model while the connections above
+    // are down, so the layoutChanged emitted during the rebuild is never
+    // seen. Reselect the current item (or clear it if it was filtered out)
+    // explicitly.
+    OnLayoutChanged();
 }
 
 void MainWindow::OnCurrentItemChanged(const QModelIndex &current, const QModelIndex &previous)

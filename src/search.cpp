@@ -323,7 +323,6 @@ void Search::SetViewMode(ViewMode mode)
 
         m_model.beginUpdate();
         m_current_mode = mode;
-        m_model.SetSorted(false);
         Sort(m_model.GetSortColumn(), m_model.GetSortOrder());
         m_model.SetSorted(true);
         m_model.endUpdate();

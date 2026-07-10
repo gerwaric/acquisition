@@ -240,6 +240,11 @@ void ItemsModel::sort(int column, Qt::SortOrder order)
         std::shared_ptr<Item> item;
     };
 
+    // Emit before snapshotting: listeners such as QItemSelectionModel create
+    // persistent indexes inside their layoutAboutToBeChanged handlers, and
+    // those must be included in the remapping below.
+    emit layoutAboutToBeChanged({}, QAbstractItemModel::VerticalSortHint);
+
     std::vector<ItemIndexSnapshot> snapshots;
     const auto persistent_indexes = persistentIndexList();
     snapshots.reserve(persistent_indexes.size());
@@ -263,7 +268,6 @@ void ItemsModel::sort(int column, Qt::SortOrder order)
             {persistent_index, bucket_row, persistent_index.column(), bucket.item(item_row)});
     }
 
-    emit layoutAboutToBeChanged({}, QAbstractItemModel::VerticalSortHint);
     m_search.Sort(column, order);
 
     QModelIndexList from;
@@ -290,11 +294,6 @@ void ItemsModel::sort(int column, Qt::SortOrder order)
     changePersistentIndexList(from, to);
     emit layoutChanged({}, QAbstractItemModel::VerticalSortHint);
     SetSorted(true);
-}
-
-void ItemsModel::sort()
-{
-    sort(m_sort_column, m_sort_order);
 }
 
 QModelIndex ItemsModel::parent(const QModelIndex &index) const

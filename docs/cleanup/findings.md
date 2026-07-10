@@ -424,3 +424,13 @@ the previously selected item is not restored. This is a view-state ownership
 problem, not model signal hygiene. Defer until the Phase 4 `Search` state
 cleanup or Phase 6 `MainWindow` slimming unless a regression is later traced
 directly to a phase change.
+
+Amended after the pre-merge review fix (see the Phase 3 post-implementation
+amendments): `ModelViewRefresh()` now explicitly reselects the globally-held
+current item at the end of every activation, so the selection half of the
+symptom is narrower — switching tabs and back *does* restore the selected
+item as long as every intermediate tab's search also matched it. Switching
+through a tab that filters the item out clears the global pointer (and now
+also clears the item detail panel, which previously went stale), so the
+selection is lost in that case. The expansion-state symptom and the
+underlying ownership problem are unchanged and remain deferred.
