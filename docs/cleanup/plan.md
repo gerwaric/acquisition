@@ -51,12 +51,12 @@ codebase strictly better off.
 | 1. Layering fixes | `phase-1-layering.md` | F3, F6–F8, F13, F15, F16, F17, F26 | Done |
 | 2. Worker threading + update state machine | `phase-2-worker-threading.md` | F1, F2, F4, F5, F24, F27, F29, F30 | Done |
 | 3. Model/view signal hygiene | `phase-3-model-signals.md` | F10–F12, F23, F25 | Done |
-| 4. Decouple `Search` from `QTreeView` | `phase-4-search-decoupling.md` | F18 | Spec ready |
+| 4. Decouple `Search` from `QTreeView` | `phase-4-search-decoupling.md` | F18 | Done |
 | 5. Filters as data + matching | `phase-5-filters-as-data.md` | F19, F33 | Design intent |
 | 6. Opportunistic `MainWindow` slimming | `phase-6-mainwindow-slimming.md` | F20, F9 remainder, F14, F32 | Design intent |
 
-Phases 0–3 are the committed core. Phase 4's spec was upgraded to
-implementation grade in July 2026 (verified against the post-Phase-3 code).
+Phases 0–4 are the committed core. Phase 4's spec was upgraded to
+implementation grade in July 2026 and implemented against the post-Phase-3 code.
 Phases 5–6 are worthwhile continuations with full design intent documented,
 but their step-by-step details must be re-verified against the codebase
 state at implementation time.

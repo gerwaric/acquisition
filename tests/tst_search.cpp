@@ -2,7 +2,6 @@
 
 #include <QLineEdit>
 #include <QStringListModel>
-#include <QTreeView>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -29,7 +28,6 @@ struct SearchHarness
     QStringListModel categoryModel{GetItemCategories()};
     QStringListModel rarityModel{RaritySearchFilter::RARITY_LIST};
     std::vector<std::unique_ptr<Filter>> filters;
-    QTreeView view;
     QObject receiver;
     FilterCallbacks callbacks{
         &receiver,

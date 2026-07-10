@@ -65,8 +65,7 @@ void ItemsModelTest::testerSurvivesRebuildModeSwitchAndSort()
     search.Activate(items);
     view.setModel(&search.model());
 
-    auto *model = qobject_cast<ItemsModel *>(view.model());
-    QVERIFY(model != nullptr);
+    auto *model = &search.model();
     QAbstractItemModelTester tester(model,
                                     QAbstractItemModelTester::FailureReportingMode::Fatal,
                                     this);
@@ -135,8 +134,7 @@ void ItemsModelTest::selectionSurvivesSort()
     search.Activate(items);
     view.setModel(&search.model());
 
-    auto *model = qobject_cast<ItemsModel *>(view.model());
-    QVERIFY(model != nullptr);
+    auto *model = &search.model();
 
     const QModelIndex bucket0 = model->index(0, 0);
     QCOMPARE(model->rowCount(bucket0), 5);
