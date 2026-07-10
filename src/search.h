@@ -20,7 +20,6 @@ class BuyoutManager;
 class Filter;
 class FilterData;
 class ItemsModel;
-class QTreeView;
 class QModelIndex;
 
 class Search
@@ -32,8 +31,7 @@ public:
 
     Search(BuyoutManager &bo,
            const QString &caption,
-           const std::vector<std::unique_ptr<Filter>> &filters,
-           QTreeView *view);
+           const std::vector<std::unique_ptr<Filter>> &filters);
     void FilterItems(const Items &items);
     void FromForm();
     void ToForm();
@@ -63,7 +61,6 @@ private:
     std::vector<Bucket> &active_buckets();
 
     BuyoutManager &m_bo_manager;
-    QTreeView &m_view;
 
     std::vector<std::unique_ptr<FilterData>> m_filters;
     std::vector<std::unique_ptr<Column>> m_columns;

@@ -167,7 +167,7 @@ void SearchTest::bucketConstruction()
     items.push_back(makeSearchItem("alpha-item", "Alpha Bite", "Vaal Axe", firstTab));
     items.push_back(makeSearchItem("beta-item", "Beta Guard", "Copper Shield", secondTab));
 
-    Search search(*harness.buyoutFixture.manager, "All", harness.filters, &harness.view);
+    Search search(*harness.buyoutFixture.manager, "All", harness.filters);
     search.FromForm();
     search.FilterItems(items);
 
@@ -198,7 +198,7 @@ void SearchTest::nameFilterMembership()
     items.push_back(makeSearchItem("alpha-item", "Alpha Bite", "Vaal Axe", firstTab));
     items.push_back(makeSearchItem("beta-item", "Beta Guard", "Copper Shield", secondTab));
 
-    Search search(*harness.buyoutFixture.manager, "Filtered", harness.filters, &harness.view);
+    Search search(*harness.buyoutFixture.manager, "Filtered", harness.filters);
     search.FromForm();
     search.FilterItems(items);
 

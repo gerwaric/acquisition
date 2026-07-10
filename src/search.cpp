@@ -3,9 +3,6 @@
 
 #include "search.h"
 
-#include <QHeaderView>
-#include <QTreeView>
-
 #include <memory>
 
 #include "bucket.h"
@@ -18,10 +15,8 @@
 
 Search::Search(BuyoutManager &bo_manager,
                const QString &caption,
-               const std::vector<std::unique_ptr<Filter>> &filters,
-               QTreeView *view)
+               const std::vector<std::unique_ptr<Filter>> &filters)
     : m_bo_manager(bo_manager)
-    , m_view(*view)
     , m_model(bo_manager, *this)
     , m_caption(caption)
     , m_filtered(false)

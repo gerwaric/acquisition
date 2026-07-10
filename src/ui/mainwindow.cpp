@@ -959,7 +959,7 @@ void MainWindow::NewSearch()
     m_tab_bar->addTab("+");
 
     spdlog::trace("MainWindow::NewSearch() setting current search: {}", caption);
-    m_current_search = new Search(m_buyout_manager, caption, m_filters, ui->treeView);
+    m_current_search = new Search(m_buyout_manager, caption, m_filters);
     m_current_search->SetRefreshReason(RefreshReason::TabCreated);
 
     // this can't be done in ctor because it'll call OnSearchFormChange slot

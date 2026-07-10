@@ -61,7 +61,7 @@ void ItemsModelTest::testerSurvivesRebuildModeSwitchAndSort()
 
     QTreeView view;
     std::vector<std::unique_ptr<Filter>> filters;
-    Search search(*buyoutFixture.manager, "Model", filters, &view);
+    Search search(*buyoutFixture.manager, "Model", filters);
     search.Activate(items);
     view.setModel(&search.model());
 
@@ -131,7 +131,7 @@ void ItemsModelTest::selectionSurvivesSort()
 
     QTreeView view;
     std::vector<std::unique_ptr<Filter>> filters;
-    Search search(*buyoutFixture.manager, "Model", filters, &view);
+    Search search(*buyoutFixture.manager, "Model", filters);
     search.Activate(items);
     view.setModel(&search.model());
 
