@@ -44,17 +44,12 @@ public:
     ItemsModel &model() { return m_model; }
     const std::set<QString> &expandedHeaders() const { return m_expanded_property; }
     void setExpandedHeaders(std::set<QString> headers);
-    bool defaultExpanded() const
-    {
-        return m_filtered || (m_current_mode == ViewMode::ByItem);
-    }
+    bool defaultExpanded() const { return m_filtered || (m_current_mode == ViewMode::ByItem); }
     const std::vector<Bucket> &buckets() const;
     void RenameCaption(const QString &newName);
     QString GetCaption() const;
     // Sets this search as current, will display items in passed QTreeView.
     void Activate(const Items &items);
-    void RestoreViewProperties();
-    void SaveViewProperties();
     ItemLocation GetTabLocation(const QModelIndex &index) const;
     void SetViewMode(ViewMode mode);
     ViewMode GetViewMode() const { return m_current_mode; }

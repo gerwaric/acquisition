@@ -27,6 +27,7 @@
 #include <QTabBar>
 #include <QVersionNumber>
 
+#include <set>
 #include <vector>
 
 #include "buyoutmanager.h"
@@ -215,11 +216,12 @@ void MainWindow::InitializeUi()
 
     ui->viewComboBox->addItems({"By Tab", "By Item"});
     connect(ui->viewComboBox, &QComboBox::activated, this, [&](int n) {
-        // SetViewMode() restores the expansion state for the new mode, which
-        // schedules a column resize via the expanded/collapsed signals. Also
-        // schedule one here because column contents change between modes even
-        // when the expansion state does not.
+        SaveViewExpansion(*m_current_search);
         m_current_search->SetViewMode(static_cast<Search::ViewMode>(n));
+        RestoreViewExpansion(*m_current_search);
+        // Restoring expansion schedules a resize via the expanded/collapsed
+        // signals. Also schedule one here because column contents change
+        // between modes even when the expansion state does not.
         ScheduleResizeTreeColumns();
     });
 
@@ -285,8 +287,8 @@ void MainWindow::InitializeUi()
     });
 
     // Resize columns when a tab is expanded/collapsed. Programmatic expansion
-    // (e.g. Search::RestoreViewProperties after a model reset) emits these
-    // signals once per index, so coalesce them into a single deferred resize.
+    // (e.g. RestoreViewExpansion after a model reset) emits these signals once
+    // per index, so coalesce them into a single deferred resize.
     connect(ui->treeView, &QTreeView::collapsed, this, &MainWindow::ScheduleResizeTreeColumns);
     connect(ui->treeView, &QTreeView::expanded, this, &MainWindow::ScheduleResizeTreeColumns);
 
@@ -665,9 +667,44 @@ void MainWindow::OnDeleteTabClicked(int index)
 void MainWindow::OnSearchFormChange()
 {
     spdlog::trace("MainWindow::OnSearchFormChange() entered");
-    m_current_search->SaveViewProperties();
+    SaveViewExpansion(*m_current_search);
     m_current_search->SetRefreshReason(RefreshReason::SearchFormChanged);
     ModelViewRefresh();
+}
+
+void MainWindow::SaveViewExpansion(Search &search)
+{
+    std::set<QString> expanded;
+    if (!search.defaultExpanded()) {
+        const int rows = search.model().rowCount();
+        for (int row = 0; row < rows; ++row) {
+            const QModelIndex index = search.model().index(row, 0);
+            if (index.isValid() && ui->treeView->isExpanded(index) && search.has_bucket(row)) {
+                expanded.emplace(search.bucket(row).location().GetHeader());
+            }
+        }
+    }
+    search.setExpandedHeaders(std::move(expanded));
+}
+
+void MainWindow::RestoreViewExpansion(Search &search)
+{
+    if (search.defaultExpanded()) {
+        ui->treeView->expandToDepth(0);
+        return;
+    }
+    const auto &headers = search.expandedHeaders();
+    const int rows = search.model().rowCount();
+    for (int row = 0; row < rows; ++row) {
+        const QModelIndex index = search.model().index(row, 0);
+        if (headers.empty()) {
+            ui->treeView->collapse(index);
+        } else if (headers.count(search.bucket(row).location().GetHeader()) > 0) {
+            ui->treeView->expand(index);
+        } else {
+            ui->treeView->collapse(index);
+        }
+    }
 }
 
 void MainWindow::ModelViewRefresh()
@@ -680,6 +717,7 @@ void MainWindow::ModelViewRefresh()
 
     spdlog::trace("MainWindow::ModelViewRefresh() activing current search");
     m_current_search->Activate(m_items_manager.items());
+    RestoreViewExpansion(*m_current_search);
     ScheduleResizeTreeColumns();
 
     // This updates the item information when current item changes.

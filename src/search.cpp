@@ -324,15 +324,11 @@ ItemLocation Search::GetTabLocation(const QModelIndex &index) const
 void Search::SetViewMode(ViewMode mode)
 {
     if (mode != m_current_mode) {
-        SaveViewProperties();
-
         m_model.beginUpdate();
         m_current_mode = mode;
         Sort(m_model.GetSortColumn(), m_model.GetSortOrder());
         m_model.SetSorted(true);
         m_model.endUpdate();
-
-        RestoreViewProperties();
     }
 }
 
@@ -346,43 +342,4 @@ void Search::Activate(const Items &items)
     }
     m_view.header()->setSortIndicator(m_model.GetSortColumn(), m_model.GetSortOrder());
     m_view.setSortingEnabled(true);
-    RestoreViewProperties();
-}
-
-void Search::SaveViewProperties()
-{
-    m_expanded_property.clear();
-    if (!m_filtered && (m_current_mode == Search::ViewMode::ByTab)) {
-        const int rowCount = m_model.rowCount();
-        for (int row = 0; row < rowCount; ++row) {
-            QModelIndex index = m_model.index(row, 0, QModelIndex());
-            if (index.isValid() && m_view.isExpanded(index)) {
-                if (has_bucket(row)) {
-                    m_expanded_property.emplace(bucket(row).location().GetHeader());
-                }
-            }
-        }
-    }
-}
-
-void Search::RestoreViewProperties()
-{
-    if (m_filtered || (m_current_mode == Search::ViewMode::ByItem)) {
-        m_view.expandToDepth(0);
-    } else {
-        const int row_count = m_model.rowCount();
-        for (int row = 0; row < row_count; ++row) {
-            QModelIndex index = m_model.index(row, 0, QModelIndex());
-            if (m_expanded_property.empty()) {
-                m_view.collapse(index);
-            } else {
-                const auto key = bucket(row).location().GetHeader();
-                if (m_expanded_property.count(key) > 0) {
-                    m_view.expand(index);
-                } else {
-                    m_view.collapse(index);
-                }
-            }
-        }
-    }
 }
