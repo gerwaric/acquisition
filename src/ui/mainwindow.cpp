@@ -216,9 +216,15 @@ void MainWindow::InitializeUi()
 
     ui->viewComboBox->addItems({"By Tab", "By Item"});
     connect(ui->viewComboBox, &QComboBox::activated, this, [&](int n) {
-        SaveViewExpansion(*m_current_search);
-        m_current_search->SetViewMode(static_cast<Search::ViewMode>(n));
-        RestoreViewExpansion(*m_current_search);
+        // activated() also fires when the user re-selects the current mode;
+        // save/restore must not run then (restore would force-expand rows the
+        // user collapsed under a filtered or By Item view).
+        const auto mode = static_cast<Search::ViewMode>(n);
+        if (mode != m_current_search->GetViewMode()) {
+            SaveViewExpansion(*m_current_search);
+            m_current_search->SetViewMode(mode);
+            RestoreViewExpansion(*m_current_search);
+        }
         // Restoring expansion schedules a resize via the expanded/collapsed
         // signals. Also schedule one here because column contents change
         // between modes even when the expansion state does not.

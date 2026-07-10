@@ -139,6 +139,14 @@ void ItemsModelTest::selectionSurvivesSort()
     const QModelIndex bucket0 = model->index(0, 0);
     QCOMPARE(model->rowCount(bucket0), 5);
 
+    // Sort one way first so the opposite re-sort below is guaranteed to
+    // reorder rows regardless of fixture insertion order; a no-op sort would
+    // make the remap assertion vacuous. (Note Bucket::Sort maps the Qt order
+    // enums to arrangements invertedly — F34 — so assert on the arrangement
+    // changing, not on a specific direction.)
+    model->sort(0, Qt::DescendingOrder);
+    const QString first_before = model->index(0, 0, bucket0).data().toString();
+
     // Select rows 0-2 as one range, like a user shift-clicking three items.
     // The selection model tracks multi-row ranges with persistent indexes it
     // creates during layoutAboutToBeChanged; the model must remap them.
@@ -154,6 +162,7 @@ void ItemsModelTest::selectionSurvivesSort()
 
     // Re-sort in the opposite order; the selection should follow the items.
     model->sort(0, Qt::AscendingOrder);
+    QVERIFY(model->index(0, 0, bucket0).data().toString() != first_before);
 
     QStringList selected_after;
     for (const QModelIndex &idx : view.selectionModel()->selectedRows()) {

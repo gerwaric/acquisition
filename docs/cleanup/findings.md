@@ -316,6 +316,23 @@ UI consumer.
 
 ## Recorded but out of scope
 
+### F34. `Bucket::Sort` inverts the Qt sort-order semantics — Confirmed
+
+Found during the Phase 4 review while hardening
+`tst_itemsmodel::selectionSurvivesSort`. `Bucket::Sort()` (`bucket.cpp`)
+maps `Qt::AscendingOrder` to `column.lt(rhs, lhs)` — a *descending*
+arrangement — and `Qt::DescendingOrder` to ascending; `Column::lt` is a
+plain less-than, so nothing cancels the inversion. User-visible symptom:
+the header sort-indicator arrow points opposite to the actual row order
+(e.g. an "ascending" indicator shows Z→A). Pre-existing and long-shipped;
+Phase 4 did not touch sorting. Fixing it flips behavior users may have
+acclimated to, so it needs its own deliberate change (swap the two lambda
+branches, re-check the persistent-index remap test, release-note it) —
+out of scope for the cleanup phases unless Phase 6 wants it as an
+opportunistic item. `tst_itemsmodel` deliberately asserts only that a
+re-sort *changes* the arrangement, not which direction each enum produces,
+so it will survive the fix.
+
 ### F21. Every `Item` stores its raw JSON — Confirmed (impact unmeasured)
 
 `Item::m_json` keeps the full JSON text of each item. With the large stash
