@@ -3,6 +3,8 @@
 
 #include "filters/filtermatchers.h"
 
+#include <algorithm>
+
 #include <QStringList>
 #include <QtGlobal>
 
@@ -208,9 +210,41 @@ bool matches(const Item &item, const MinMaxState &state, const MinMaxPayload &pa
     }
     return true;
 }
-bool matches(const Item &, const ColorsState &, const ColorsPayload &)
+namespace {
+
+    bool Check(int need_r, int need_g, int need_b, int got_r, int got_g, int got_b, int got_w)
+    {
+        int diff = std::max(0, need_r - got_r) + std::max(0, need_g - got_g)
+                   + std::max(0, need_b - got_b);
+        return diff <= got_w;
+    }
+
+} // namespace
+
+bool matches(const Item &item, const ColorsState &state, const ColorsPayload &payload)
 {
-    return true;
+    if (!state.r.has_value() && !state.g.has_value() && !state.b.has_value()) {
+        return true;
+    }
+    const int need_r = state.r.value_or(0);
+    const int need_g = state.g.value_or(0);
+    const int need_b = state.b.value_or(0);
+    switch (payload.matchKind) {
+    case ColorsMatchKind::Sockets: {
+        const ItemSocketGroup &sockets = item.sockets();
+        return Check(need_r, need_g, need_b, sockets.r, sockets.g, sockets.b, sockets.w);
+    }
+    case ColorsMatchKind::Links:
+        for (const auto &group : item.socket_groups()) {
+            if (Check(need_r, need_g, need_b, group.r, group.g, group.b, group.w)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    Q_ASSERT(false);
+    return false;
 }
 bool matches(const Item &item, const BoolState &state, const BoolPayload &payload)
 {

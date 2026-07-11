@@ -52,6 +52,9 @@ FilterCatalog BuildFilterCatalog(const BuyoutManager &buyoutManager)
                           Debounced,
                           ComboPayload{matchKind, kAnyFilterChoice, std::move(choices)}};
     };
+    const auto colors = [](const char *caption, ColorsMatchKind matchKind) {
+        return FilterSpec{caption, FilterGroup::Sockets, Immediate, ColorsPayload{matchKind}};
+    };
     const auto minMax = [](const char *caption,
                            FilterGroup group,
                            std::function<double(const Item &)> value,
@@ -139,8 +142,8 @@ FilterCatalog BuildFilterCatalog(const BuyoutManager &buyoutManager)
     specs.push_back(itemMethod("Links", FilterGroup::Sockets, [](const Item &item) {
         return item.links_cnt();
     }));
-    specs.push_back(legacy(SocketColors, "Sockets", FilterGroup::Sockets, Immediate));
-    specs.push_back(legacy(LinkColors, "Links", FilterGroup::Sockets, Immediate));
+    specs.push_back(colors("Colors", ColorsMatchKind::Sockets));
+    specs.push_back(colors("Linked", ColorsMatchKind::Links));
     specs.push_back(requiredStat("Level", "R. Level", FilterGroup::Requirements));
     specs.push_back(requiredStat("Str", "R. Str", FilterGroup::Requirements));
     specs.push_back(requiredStat("Dex", "R. Dex", FilterGroup::Requirements));

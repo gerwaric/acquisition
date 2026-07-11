@@ -265,6 +265,95 @@ namespace {
         QLineEdit *m_textboxMax = nullptr;
     };
 
+    class ColorsFilterForm final : public FilterFormAdapter
+    {
+    public:
+        ColorsFilterForm(QLayout *parent, const QString &caption, const FilterCallbacks &callbacks)
+        {
+            auto *group = new QWidget;
+            auto *layout = new QHBoxLayout;
+            layout->setContentsMargins(0, 0, 0, 0);
+            auto *label = new QLabel(caption);
+            label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+            m_textboxR = new QLineEdit;
+            m_textboxR->setPlaceholderText("R");
+            m_textboxG = new QLineEdit;
+            m_textboxG->setPlaceholderText("G");
+            m_textboxB = new QLineEdit;
+            m_textboxB->setPlaceholderText("B");
+            layout->addWidget(label);
+            layout->addWidget(m_textboxR);
+            layout->addWidget(m_textboxG);
+            layout->addWidget(m_textboxB);
+            group->setLayout(layout);
+            parent->addWidget(group);
+            m_textboxR->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_RGB));
+            m_textboxG->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_RGB));
+            m_textboxB->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_RGB));
+            label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
+
+            QObject::connect(m_textboxR,
+                             &QLineEdit::textEdited,
+                             callbacks.receiver,
+                             callbacks.onChanged);
+            QObject::connect(m_textboxG,
+                             &QLineEdit::textEdited,
+                             callbacks.receiver,
+                             callbacks.onChanged);
+            QObject::connect(m_textboxB,
+                             &QLineEdit::textEdited,
+                             callbacks.receiver,
+                             callbacks.onChanged);
+        }
+
+        void saveTo(FilterState &state) const override
+        {
+            auto *colorsState = std::get_if<ColorsState>(&state);
+            Q_ASSERT(colorsState);
+            if (colorsState) {
+                colorsState->r = parse(m_textboxR);
+                colorsState->g = parse(m_textboxG);
+                colorsState->b = parse(m_textboxB);
+            }
+        }
+
+        void loadFrom(const FilterState &state) override
+        {
+            const auto *colorsState = std::get_if<ColorsState>(&state);
+            Q_ASSERT(colorsState);
+            if (colorsState) {
+                m_textboxR->setText(toText(colorsState->r));
+                m_textboxG->setText(toText(colorsState->g));
+                m_textboxB->setText(toText(colorsState->b));
+            }
+        }
+
+        void reset() override
+        {
+            m_textboxR->setText("");
+            m_textboxG->setText("");
+            m_textboxB->setText("");
+        }
+
+    private:
+        static std::optional<int> parse(const QLineEdit *textbox)
+        {
+            if (textbox->text().isEmpty()) {
+                return std::nullopt;
+            }
+            return textbox->text().toInt();
+        }
+
+        static QString toText(const std::optional<int> &value)
+        {
+            return value.has_value() ? QString::number(*value) : QString{};
+        }
+
+        QLineEdit *m_textboxR = nullptr;
+        QLineEdit *m_textboxG = nullptr;
+        QLineEdit *m_textboxB = nullptr;
+    };
+
 } // namespace
 
 SearchForm::SearchForm(QVBoxLayout &layout,
@@ -314,6 +403,13 @@ SearchForm::SearchForm(QVBoxLayout &layout,
                                   const FilterCallbacks &formCallbacks) {
         Q_ASSERT(!m_legacyFilters.at(static_cast<size_t>(index)));
         m_slots.emplace_back(std::make_unique<MinMaxFilterForm>(parent, caption, formCallbacks));
+    };
+    const auto addColors = [this](QLayout *parent,
+                                  qsizetype index,
+                                  const QString &caption,
+                                  const FilterCallbacks &formCallbacks) {
+        Q_ASSERT(!m_legacyFilters.at(static_cast<size_t>(index)));
+        m_slots.emplace_back(std::make_unique<ColorsFilterForm>(parent, caption, formCallbacks));
     };
 
     Q_ASSERT(m_catalog.size() >= 4);
@@ -389,6 +485,12 @@ SearchForm::SearchForm(QVBoxLayout &layout,
             }
             continue;
         }
+        if (std::holds_alternative<ColorsPayload>(spec.payload)) {
+            Q_ASSERT(spec.group == FilterGroup::Sockets);
+            Q_ASSERT(spec.refreshMode == RefreshMode::Immediate);
+            addColors(socketsLayout, index, spec.caption, callbacks);
+            continue;
+        }
 
         const auto *legacy = std::get_if<LegacyPayload>(&spec.payload);
         Q_ASSERT(legacy);
@@ -398,12 +500,6 @@ SearchForm::SearchForm(QVBoxLayout &layout,
 
         using Kind = LegacyFilterKind;
         switch (legacy->kind) {
-        case Kind::SocketColors:
-            addLegacy.template operator()<SocketsColorsFilter>(index, socketsLayout, callbacks);
-            break;
-        case Kind::LinkColors:
-            addLegacy.template operator()<LinksColorsFilter>(index, socketsLayout, callbacks);
-            break;
         case Kind::Mods:
             addLegacy.template operator()<ModsFilter>(index, modsLayout, callbacks);
             break;

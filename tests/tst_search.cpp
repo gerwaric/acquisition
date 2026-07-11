@@ -27,6 +27,7 @@ private slots:
     void filterStateRestoresAcrossTabSwitch();
     void booleanFormAdapterRoundTrip();
     void minMaxFormAdapterRoundTrip();
+    void colorsFormAdapterRoundTrip();
     void textAndComboFormAdapterRoundTrip();
 };
 
@@ -57,6 +58,17 @@ static qsizetype findMinMaxFilterIndex(const FilterCatalog &catalog, const QStri
     for (qsizetype index = 0; index < catalog.size(); ++index) {
         const auto &spec = catalog[index];
         if ((spec.caption == caption) && std::holds_alternative<MinMaxPayload>(spec.payload)) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+static qsizetype findColorsFilterIndex(const FilterCatalog &catalog, ColorsMatchKind matchKind)
+{
+    for (qsizetype index = 0; index < catalog.size(); ++index) {
+        const auto *payload = std::get_if<ColorsPayload>(&catalog[index].payload);
+        if (payload && payload->matchKind == matchKind) {
             return index;
         }
     }
@@ -463,6 +475,137 @@ void SearchTest::minMaxFormAdapterRoundTrip()
     QCOMPARE(critMax->text(), "12.5");
     QCOMPARE(harness.immediateChanges, 0);
     QCOMPARE(harness.delayedChanges, 1);
+}
+
+void SearchTest::colorsFormAdapterRoundTrip()
+{
+    SearchHarness harness;
+    const qsizetype socketsIndex = findColorsFilterIndex(harness.catalog, ColorsMatchKind::Sockets);
+    const qsizetype linksIndex = findColorsFilterIndex(harness.catalog, ColorsMatchKind::Links);
+    QVERIFY(socketsIndex >= 0);
+    QVERIFY(linksIndex >= 0);
+
+    const auto &legacyFilters = harness.form.legacyFilters();
+    QCOMPARE(static_cast<qsizetype>(legacyFilters.size()), harness.catalog.size());
+    QVERIFY(legacyFilters.at(static_cast<size_t>(socketsIndex)) == nullptr);
+    QVERIFY(legacyFilters.at(static_cast<size_t>(linksIndex)) == nullptr);
+
+    auto *socketR = harness.findByLabel<QLineEdit>("Colors", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "R";
+    });
+    auto *socketG = harness.findByLabel<QLineEdit>("Colors", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "G";
+    });
+    auto *socketB = harness.findByLabel<QLineEdit>("Colors", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "B";
+    });
+    auto *linkR = harness.findByLabel<QLineEdit>("Linked", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "R";
+    });
+    auto *linkG = harness.findByLabel<QLineEdit>("Linked", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "G";
+    });
+    auto *linkB = harness.findByLabel<QLineEdit>("Linked", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "B";
+    });
+    QVERIFY(socketR);
+    QVERIFY(socketG);
+    QVERIFY(socketB);
+    QVERIFY(linkR);
+    QVERIFY(linkG);
+    QVERIFY(linkB);
+
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 0);
+    socketR->setFocus();
+    QTest::keyClick(socketR, Qt::Key_1);
+    QCOMPARE(harness.immediateChanges, 1);
+    QCOMPARE(harness.delayedChanges, 0);
+    linkB->setFocus();
+    QTest::keyClick(linkB, Qt::Key_1);
+    QCOMPARE(harness.immediateChanges, 2);
+    QCOMPARE(harness.delayedChanges, 0);
+
+    socketR->setText("garbage");
+    socketG->setText("2");
+    socketB->setText("");
+    linkR->setText("1");
+    linkG->setText("");
+    linkB->setText("3");
+    QCOMPARE(harness.immediateChanges, 2);
+    QCOMPARE(harness.delayedChanges, 0);
+
+    Search searchA(*harness.buyoutFixture.manager,
+                   "A",
+                   harness.catalog,
+                   harness.form.legacyFilters());
+    harness.form.saveTo(searchA);
+
+    const auto &socketsState = std::get<ColorsState>(searchA.filterStateAt(socketsIndex));
+    QVERIFY(socketsState.r.has_value());
+    QCOMPARE(*socketsState.r, 0);
+    QVERIFY(socketsState.g.has_value());
+    QCOMPARE(*socketsState.g, 2);
+    QVERIFY(!socketsState.b.has_value());
+    QVERIFY(socketsState.isActive());
+
+    const auto &linksState = std::get<ColorsState>(searchA.filterStateAt(linksIndex));
+    QVERIFY(linksState.r.has_value());
+    QCOMPARE(*linksState.r, 1);
+    QVERIFY(!linksState.g.has_value());
+    QVERIFY(linksState.b.has_value());
+    QCOMPARE(*linksState.b, 3);
+    QVERIFY(linksState.isActive());
+
+    harness.form.reset();
+    Search searchB(*harness.buyoutFixture.manager,
+                   "B",
+                   harness.catalog,
+                   harness.form.legacyFilters());
+    harness.form.saveTo(searchB);
+
+    const auto &emptySocketsState = std::get<ColorsState>(searchB.filterStateAt(socketsIndex));
+    QVERIFY(!emptySocketsState.r.has_value());
+    QVERIFY(!emptySocketsState.g.has_value());
+    QVERIFY(!emptySocketsState.b.has_value());
+    QVERIFY(!emptySocketsState.isActive());
+
+    const auto &emptyLinksState = std::get<ColorsState>(searchB.filterStateAt(linksIndex));
+    QVERIFY(!emptyLinksState.r.has_value());
+    QVERIFY(!emptyLinksState.g.has_value());
+    QVERIFY(!emptyLinksState.b.has_value());
+    QVERIFY(!emptyLinksState.isActive());
+
+    harness.immediateChanges = 0;
+    harness.delayedChanges = 0;
+    harness.form.loadFrom(searchA);
+    QCOMPARE(socketR->text(), "0");
+    QCOMPARE(socketG->text(), "2");
+    QCOMPARE(socketB->text(), "");
+    QCOMPARE(linkR->text(), "1");
+    QCOMPARE(linkG->text(), "");
+    QCOMPARE(linkB->text(), "3");
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 0);
+
+    // F35: switching to a search without colors clears all color boxes.
+    harness.form.loadFrom(searchB);
+    QCOMPARE(socketR->text(), "");
+    QCOMPARE(socketG->text(), "");
+    QCOMPARE(socketB->text(), "");
+    QCOMPARE(linkR->text(), "");
+    QCOMPARE(linkG->text(), "");
+    QCOMPARE(linkB->text(), "");
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 0);
+
+    harness.form.loadFrom(searchA);
+    QCOMPARE(socketR->text(), "0");
+    QCOMPARE(socketG->text(), "2");
+    QCOMPARE(socketB->text(), "");
+    QCOMPARE(linkR->text(), "1");
+    QCOMPARE(linkG->text(), "");
+    QCOMPARE(linkB->text(), "3");
 }
 
 void SearchTest::textAndComboFormAdapterRoundTrip()

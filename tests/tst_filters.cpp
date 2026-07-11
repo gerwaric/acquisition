@@ -25,12 +25,10 @@ private slots:
     void minMaxFilter();
     void defaultAndRequiredFilters();
     void socketColorFilters();
-    void colorsGarbageTextIsActiveZero();
     void booleanFilter();
     void booleanPredicates();
     void rarityFilter();
     void modsFilter();
-    void colorsToFormKeepsStaleText();
     void modsFormSyncQuirks();
 };
 
@@ -116,6 +114,18 @@ static const FilterSpec *findComboFilterSpec(const FilterCatalog &catalog, const
 {
     for (const auto &spec : catalog) {
         if ((spec.caption == caption) && std::holds_alternative<ComboPayload>(spec.payload)) {
+            return &spec;
+        }
+    }
+    return nullptr;
+}
+
+static const FilterSpec *findColorsFilterSpec(const FilterCatalog &catalog,
+                                              ColorsMatchKind matchKind)
+{
+    for (const auto &spec : catalog) {
+        const auto *payload = std::get_if<ColorsPayload>(&spec.payload);
+        if (payload && payload->matchKind == matchKind) {
             return &spec;
         }
     }
@@ -278,7 +288,23 @@ void FiltersTest::defaultAndRequiredFilters()
 
 void FiltersTest::socketColorFilters()
 {
-    FilterHarness harness;
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const auto *sockets = findColorsFilterSpec(catalog, ColorsMatchKind::Sockets);
+    const auto *links = findColorsFilterSpec(catalog, ColorsMatchKind::Links);
+    QVERIFY(sockets);
+    QVERIFY(links);
+    QCOMPARE(sockets->caption, "Colors");
+    QCOMPARE(links->caption, "Linked");
+    QCOMPARE(sockets->group, FilterGroup::Sockets);
+    QCOMPARE(links->group, FilterGroup::Sockets);
+    QCOMPARE(sockets->refreshMode, RefreshMode::Immediate);
+    QCOMPARE(links->refreshMode, RefreshMode::Immediate);
+    QVERIFY(std::holds_alternative<ColorsState>(MakeDefaultState(*sockets)));
+    QVERIFY(std::holds_alternative<ColorsState>(MakeDefaultState(*links)));
+    QVERIFY(!IsActive(MakeDefaultState(*sockets)));
+    QVERIFY(!IsActive(MakeDefaultState(*links)));
+
     const auto item = makeFilterItem("sockets",
                                      R"json(,
         "sockets": [
@@ -287,43 +313,21 @@ void FiltersTest::socketColorFilters()
             {"group": 1, "attr": "I", "sColour": "B"}
         ])json");
 
-    SocketsColorsFilter socketsFilter(&harness.layout, harness.callbacks);
-    FilterData socketsData(&socketsFilter);
-    socketsData.r_filled = true;
-    socketsData.r = 1;
-    socketsData.b_filled = true;
-    socketsData.b = 1;
-    QVERIFY(socketsFilter.Matches(item, &socketsData));
+    ColorsState socketsState;
+    socketsState.r = 1;
+    socketsState.b = 1;
+    QVERIFY(MatchesFilter(*item, *sockets, socketsState));
 
-    socketsData.b = 3;
-    QVERIFY(!socketsFilter.Matches(item, &socketsData));
+    socketsState.b = 3;
+    QVERIFY(!MatchesFilter(*item, *sockets, socketsState));
 
-    LinksColorsFilter linksFilter(&harness.layout, harness.callbacks);
-    FilterData linksData(&linksFilter);
-    linksData.r_filled = true;
-    linksData.r = 1;
-    linksData.b_filled = true;
-    linksData.b = 1;
-    QVERIFY(linksFilter.Matches(item, &linksData));
+    ColorsState linksState;
+    linksState.r = 1;
+    linksState.b = 1;
+    QVERIFY(MatchesFilter(*item, *links, linksState));
 
-    linksData.b = 2;
-    QVERIFY(!linksFilter.Matches(item, &linksData));
-}
-
-void FiltersTest::colorsGarbageTextIsActiveZero()
-{
-    FilterHarness harness;
-    SocketsColorsFilter filter(&harness.layout, harness.callbacks);
-    FilterData data(&filter);
-    const auto edits = harness.host.findChildren<QLineEdit *>();
-    QCOMPARE(edits.size(), 3);
-
-    edits[0]->setText("garbage");
-    data.FromForm();
-
-    QVERIFY(data.r_filled);
-    QCOMPARE(data.r, 0);
-    QVERIFY(filter.IsActive());
+    linksState.b = 2;
+    QVERIFY(!MatchesFilter(*item, *links, linksState));
 }
 
 void FiltersTest::booleanFilter()
@@ -491,29 +495,6 @@ void FiltersTest::modsFilter()
     data.mod_data.back().max = 45.0;
     data.mod_data.emplace_back("+# to missing stat", 0.0, 0.0, false, false);
     QVERIFY(!filter.Matches(item, &data));
-}
-
-void FiltersTest::colorsToFormKeepsStaleText()
-{
-    FilterHarness harness;
-    SocketsColorsFilter filter(&harness.layout, harness.callbacks);
-    FilterData withColors(&filter);
-    withColors.r_filled = true;
-    withColors.r = 2;
-    withColors.g_filled = true;
-    withColors.g = 1;
-    withColors.b_filled = true;
-    withColors.b = 3;
-    withColors.ToForm();
-
-    FilterData withoutColors(&filter);
-    withoutColors.ToForm();
-
-    const auto edits = harness.host.findChildren<QLineEdit *>();
-    QCOMPARE(edits.size(), 3);
-    QCOMPARE(edits[0]->text(), "2");
-    QCOMPARE(edits[1]->text(), "1");
-    QCOMPARE(edits[2]->text(), "3");
 }
 
 void FiltersTest::modsFormSyncQuirks()

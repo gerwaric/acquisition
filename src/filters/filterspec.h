@@ -29,8 +29,6 @@ enum class RefreshMode { Immediate, Debounced };
 // Transitional tags identify the legacy constructor used by SearchForm. They
 // disappear as each family acquires a real payload.
 enum class LegacyFilterKind {
-    SocketColors,
-    LinkColors,
     Mods,
 };
 
