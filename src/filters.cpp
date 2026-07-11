@@ -3,26 +3,14 @@
 
 #include "filters.h"
 
-#include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 
+#include <algorithm>
 #include <memory>
 
-#include "itemconstants.h"
-#include "ui/searchcombobox.h"
 #include "util/util.h"
-
-const QString CategorySearchFilter::k_Default = "<any>";
-const QString RaritySearchFilter::k_Default = "<any>";
-const QStringList RaritySearchFilter::RARITY_LIST{"<any>",
-                                                  "Normal",
-                                                  "Magic",
-                                                  "Rare",
-                                                  "Unique",
-                                                  "Unique (Foil)",
-                                                  "Any Non-Unique"};
 
 std::unique_ptr<FilterData> Filter::CreateData()
 {
@@ -34,8 +22,7 @@ Filter::Filter(const FilterCallbacks &callbacks)
 {}
 
 FilterData::FilterData(Filter *filter)
-    : text_query("")
-    , r(0)
+    : r(0)
     , g(0)
     , b(0)
     , r_filled(false)
@@ -57,234 +44,6 @@ void FilterData::FromForm()
 void FilterData::ToForm()
 {
     m_filter->ToForm(this);
-}
-
-TabSearchFilter::TabSearchFilter(QLayout *parent, const FilterCallbacks &callbacks)
-    : Filter(callbacks)
-{
-    Initialize(parent, callbacks);
-}
-
-void TabSearchFilter::FromForm(FilterData *data)
-{
-    data->text_query = m_textbox->text().toUtf8().constData();
-    m_active = !data->text_query.isEmpty();
-}
-
-void TabSearchFilter::ToForm(FilterData *data)
-{
-    m_textbox->setText(data->text_query);
-}
-
-void TabSearchFilter::ResetForm()
-{
-    m_textbox->setText("");
-    m_active = false;
-}
-
-bool TabSearchFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data)
-{
-    const QString query = data->text_query.toLower();
-    const QString name = item->location().GetHeader().toLower();
-    return name.contains(query);
-}
-
-void TabSearchFilter::Initialize(QLayout *parent, const FilterCallbacks &callbacks)
-{
-    m_callbacks = callbacks;
-    QWidget *group = new QWidget;
-    QHBoxLayout *layout = new QHBoxLayout;
-    layout->setContentsMargins(0, 0, 0, 0);
-    QLabel *label = new QLabel("Tab");
-    label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
-    label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    m_textbox = new QLineEdit;
-    layout->addWidget(label);
-    layout->addWidget(m_textbox);
-    group->setLayout(layout);
-    parent->addWidget(group);
-    QObject::connect(m_textbox,
-                     &QLineEdit::textEdited,
-                     m_callbacks.receiver,
-                     m_callbacks.onChangedDelayed);
-}
-
-NameSearchFilter::NameSearchFilter(QLayout *parent, const FilterCallbacks &callbacks)
-    : Filter(callbacks)
-{
-    Initialize(parent, callbacks);
-}
-
-void NameSearchFilter::FromForm(FilterData *data)
-{
-    data->text_query = m_textbox->text().toUtf8().constData();
-    m_active = !data->text_query.isEmpty();
-}
-
-void NameSearchFilter::ToForm(FilterData *data)
-{
-    m_textbox->setText(data->text_query);
-}
-
-void NameSearchFilter::ResetForm()
-{
-    m_textbox->setText("");
-    m_active = false;
-}
-
-bool NameSearchFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data)
-{
-    const QString query = data->text_query.toLower();
-    const QString name = item->PrettyName().toLower();
-    return name.contains(query);
-}
-
-void NameSearchFilter::Initialize(QLayout *parent, const FilterCallbacks &callbacks)
-{
-    m_callbacks = callbacks;
-    QWidget *group = new QWidget;
-    QHBoxLayout *layout = new QHBoxLayout;
-    layout->setContentsMargins(0, 0, 0, 0);
-    QLabel *label = new QLabel("Name");
-    label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
-    label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    m_textbox = new QLineEdit;
-    layout->addWidget(label);
-    layout->addWidget(m_textbox);
-    group->setLayout(layout);
-    parent->addWidget(group);
-    QObject::connect(m_textbox,
-                     &QLineEdit::textEdited,
-                     m_callbacks.receiver,
-                     m_callbacks.onChangedDelayed);
-}
-
-CategorySearchFilter::CategorySearchFilter(QLayout *parent,
-                                           QAbstractListModel *model,
-                                           const FilterCallbacks &callbacks)
-    : Filter(callbacks)
-    , m_model(model)
-{
-    Initialize(parent, callbacks);
-}
-
-void CategorySearchFilter::FromForm(FilterData *data)
-{
-    QString current_text = m_combobox->currentText().toLower();
-    data->text_query = (current_text == k_Default) ? "" : current_text;
-    m_active = !data->text_query.isEmpty();
-}
-
-void CategorySearchFilter::ToForm(FilterData *data)
-{
-    auto index = m_combobox->findText(data->text_query, Qt::MatchFixedString);
-    m_combobox->setCurrentIndex(std::max(0, index));
-}
-
-void CategorySearchFilter::ResetForm()
-{
-    m_combobox->setCurrentText(k_Default);
-    m_active = false;
-}
-
-bool CategorySearchFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data)
-{
-    return item->category().contains(data->text_query);
-}
-
-void CategorySearchFilter::Initialize(QLayout *parent, const FilterCallbacks &callbacks)
-{
-    m_callbacks = callbacks;
-    QWidget *group = new QWidget;
-    QHBoxLayout *layout = new QHBoxLayout;
-    layout->setContentsMargins(0, 0, 0, 0);
-    QLabel *label = new QLabel("Type");
-    label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
-    label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    m_combobox = new SearchComboBox(m_model, "", group);
-    layout->addWidget(label);
-    layout->addWidget(m_combobox);
-    group->setLayout(layout);
-    parent->addWidget(group);
-    QObject::connect(m_combobox,
-                     &QComboBox::currentIndexChanged,
-                     m_callbacks.receiver,
-                     m_callbacks.onChangedDelayed);
-}
-
-RaritySearchFilter::RaritySearchFilter(QLayout *parent,
-                                       QAbstractListModel *model,
-                                       const FilterCallbacks &callbacks)
-    : Filter(callbacks)
-    , m_model(model)
-{
-    Initialize(parent, callbacks);
-}
-
-void RaritySearchFilter::FromForm(FilterData *data)
-{
-    QString current_text = m_combobox->currentText();
-    data->text_query = (current_text == k_Default) ? "" : current_text;
-    m_active = !data->text_query.isEmpty();
-}
-
-void RaritySearchFilter::ToForm(FilterData *data)
-{
-    auto index = m_combobox->findText(data->text_query, Qt::MatchFixedString);
-    m_combobox->setCurrentIndex(std::max(0, index));
-}
-
-void RaritySearchFilter::ResetForm()
-{
-    m_combobox->setCurrentText(k_Default);
-    m_active = false;
-}
-
-bool RaritySearchFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data)
-{
-    if (data->text_query.isEmpty()) {
-        return true;
-    }
-    const QString &query = data->text_query;
-    switch (item->frameType()) {
-    case FrameType::FRAME_TYPE_NORMAL:
-        return (query == "Normal") || (query == "Any Non-Unique");
-    case FrameType::FRAME_TYPE_MAGIC:
-        return (query == "Magic") || (query == "Any Non-Unique");
-    case FrameType::FRAME_TYPE_RARE:
-        return (query == "Rare") || (query == "Any Non-Unique");
-    case FrameType::FRAME_TYPE_UNIQUE:
-        return (query == "Unique");
-    case FrameType::FRAME_TYPE_FOIL:
-        return (query == "Unique (Foil)");
-    case FrameType::FRAME_TYPE_SUPPORTER_FOIL:
-        return (query == "Unique (Foil)");
-    default:
-        return false;
-    }
-}
-
-void RaritySearchFilter::Initialize(QLayout *parent, const FilterCallbacks &callbacks)
-{
-    m_callbacks = callbacks;
-    QWidget *group = new QWidget;
-    QHBoxLayout *layout = new QHBoxLayout;
-    layout->setContentsMargins(0, 0, 0, 0);
-    QLabel *label = new QLabel("Rarity");
-    label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
-    label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    m_combobox = new QComboBox;
-    m_combobox->setModel(m_model);
-    m_combobox->setEditable(false);
-    m_combobox->setInsertPolicy(QComboBox::NoInsert);
-    layout->addWidget(label);
-    layout->addWidget(m_combobox);
-    group->setLayout(layout);
-    parent->addWidget(group);
-    QObject::connect(m_combobox,
-                     &QComboBox::currentIndexChanged,
-                     m_callbacks.receiver,
-                     m_callbacks.onChangedDelayed);
 }
 
 SocketsColorsFilter::SocketsColorsFilter(QLayout *parent, const FilterCallbacks &callbacks)

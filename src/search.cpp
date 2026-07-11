@@ -4,6 +4,7 @@
 #include "search.h"
 
 #include <memory>
+#include <type_traits>
 
 #include "bucket.h"
 #include "buyoutmanager.h"
@@ -68,12 +69,27 @@ Search::Search(BuyoutManager &bo_manager,
             m_filter_slots.emplace_back(filter->CreateData());
         } else {
             FilterState state = MakeDefaultState(spec);
-            if (std::holds_alternative<BoolPayload>(spec.payload)) {
-                Q_ASSERT(std::holds_alternative<BoolState>(state));
-            } else {
-                Q_ASSERT(std::holds_alternative<MinMaxPayload>(spec.payload));
-                Q_ASSERT(std::holds_alternative<MinMaxState>(state));
-            }
+            const bool matchingState = std::visit(
+                [&state](const auto &payload) {
+                    using Payload = std::decay_t<decltype(payload)>;
+                    if constexpr (std::is_same_v<Payload, TextPayload>) {
+                        return std::holds_alternative<TextState>(state);
+                    } else if constexpr (std::is_same_v<Payload, ComboPayload>) {
+                        return std::holds_alternative<ComboState>(state);
+                    } else if constexpr (std::is_same_v<Payload, MinMaxPayload>) {
+                        return std::holds_alternative<MinMaxState>(state);
+                    } else if constexpr (std::is_same_v<Payload, ColorsPayload>) {
+                        return std::holds_alternative<ColorsState>(state);
+                    } else if constexpr (std::is_same_v<Payload, BoolPayload>) {
+                        return std::holds_alternative<BoolState>(state);
+                    } else if constexpr (std::is_same_v<Payload, ModsPayload>) {
+                        return std::holds_alternative<ModsState>(state);
+                    } else {
+                        return false;
+                    }
+                },
+                spec.payload);
+            Q_ASSERT(matchingState);
             m_filter_slots.emplace_back(std::move(state));
         }
     }

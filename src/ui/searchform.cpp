@@ -5,6 +5,7 @@
 
 #include <QAbstractItemModel>
 #include <QCheckBox>
+#include <QComboBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -12,16 +13,136 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
-#include <array>
+#include <algorithm>
 #include <optional>
 
-#include "itemcategories.h"
 #include "modsfilter.h"
 #include "search.h"
 #include "ui/flowlayout.h"
+#include "ui/searchcombobox.h"
 #include "util/util.h"
 
 namespace {
+
+    class TextFilterForm final : public FilterFormAdapter
+    {
+    public:
+        TextFilterForm(QLayout *parent, const QString &caption, const FilterCallbacks &callbacks)
+        {
+            auto *group = new QWidget;
+            auto *layout = new QHBoxLayout;
+            layout->setContentsMargins(0, 0, 0, 0);
+            auto *label = new QLabel(caption);
+            label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
+            label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+            m_textbox = new QLineEdit;
+            layout->addWidget(label);
+            layout->addWidget(m_textbox);
+            group->setLayout(layout);
+            parent->addWidget(group);
+
+            QObject::connect(m_textbox,
+                             &QLineEdit::textEdited,
+                             callbacks.receiver,
+                             callbacks.onChangedDelayed);
+        }
+
+        void saveTo(FilterState &state) const override
+        {
+            auto *textState = std::get_if<TextState>(&state);
+            Q_ASSERT(textState);
+            if (textState) {
+                textState->query = m_textbox->text();
+            }
+        }
+
+        void loadFrom(const FilterState &state) override
+        {
+            const auto *textState = std::get_if<TextState>(&state);
+            Q_ASSERT(textState);
+            if (textState) {
+                m_textbox->setText(textState->query);
+            }
+        }
+
+        void reset() override { m_textbox->setText(""); }
+
+    private:
+        QLineEdit *m_textbox = nullptr;
+    };
+
+    class ComboFilterForm final : public FilterFormAdapter
+    {
+    public:
+        ComboFilterForm(QLayout *parent,
+                        const QString &caption,
+                        const ComboPayload &payload,
+                        QAbstractItemModel *model,
+                        const FilterCallbacks &callbacks)
+            : m_matchKind(payload.matchKind)
+            , m_anySentinel(payload.anySentinel)
+        {
+            auto *group = new QWidget;
+            auto *layout = new QHBoxLayout;
+            layout->setContentsMargins(0, 0, 0, 0);
+            const QString labelText = m_matchKind == ComboMatchKind::CategoryContains ? "Type"
+                                                                                      : caption;
+            auto *label = new QLabel(labelText);
+            label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
+            label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+            switch (m_matchKind) {
+            case ComboMatchKind::CategoryContains:
+                m_combobox = new SearchComboBox(model, "", group);
+                break;
+            case ComboMatchKind::Rarity:
+                m_combobox = new QComboBox;
+                m_combobox->setModel(model);
+                m_combobox->setEditable(false);
+                m_combobox->setInsertPolicy(QComboBox::NoInsert);
+                break;
+            }
+
+            layout->addWidget(label);
+            layout->addWidget(m_combobox);
+            group->setLayout(layout);
+            parent->addWidget(group);
+            QObject::connect(m_combobox,
+                             &QComboBox::currentIndexChanged,
+                             callbacks.receiver,
+                             callbacks.onChangedDelayed);
+        }
+
+        void saveTo(FilterState &state) const override
+        {
+            auto *comboState = std::get_if<ComboState>(&state);
+            Q_ASSERT(comboState);
+            if (comboState) {
+                QString value = m_combobox->currentText();
+                if (m_matchKind == ComboMatchKind::CategoryContains) {
+                    value = value.toLower();
+                }
+                comboState->value = value == m_anySentinel ? QString{} : value;
+            }
+        }
+
+        void loadFrom(const FilterState &state) override
+        {
+            const auto *comboState = std::get_if<ComboState>(&state);
+            Q_ASSERT(comboState);
+            if (comboState) {
+                const int index = m_combobox->findText(comboState->value, Qt::MatchFixedString);
+                m_combobox->setCurrentIndex(std::max(0, index));
+            }
+        }
+
+        void reset() override { m_combobox->setCurrentText(m_anySentinel); }
+
+    private:
+        ComboMatchKind m_matchKind;
+        QString m_anySentinel;
+        QComboBox *m_combobox = nullptr;
+    };
 
     class BoolFilterForm final : public FilterFormAdapter
     {
@@ -152,13 +273,6 @@ SearchForm::SearchForm(QVBoxLayout &layout,
     : m_layout(layout)
     , m_catalog(catalog)
 {
-    auto categoryModel = std::make_unique<QStringListModel>(GetItemCategories());
-    auto rarityModel = std::make_unique<QStringListModel>(RaritySearchFilter::RARITY_LIST);
-    auto *const categoryModelPtr = categoryModel.get();
-    auto *const rarityModelPtr = rarityModel.get();
-    m_models.push_back(std::move(categoryModel));
-    m_models.push_back(std::move(rarityModel));
-
     m_slots.reserve(static_cast<size_t>(m_catalog.size()));
     m_legacyFilters.resize(static_cast<size_t>(m_catalog.size()));
     const auto addLegacy = [this]<typename FilterType, typename... Args>(qsizetype index,
@@ -166,6 +280,26 @@ SearchForm::SearchForm(QVBoxLayout &layout,
         auto filter = std::make_unique<FilterType>(std::forward<Args>(args)...);
         m_legacyFilters.at(static_cast<size_t>(index)) = filter.get();
         m_slots.emplace_back(std::move(filter));
+    };
+    const auto addText = [this](QLayout *parent,
+                                qsizetype index,
+                                const QString &caption,
+                                const FilterCallbacks &formCallbacks) {
+        Q_ASSERT(!m_legacyFilters.at(static_cast<size_t>(index)));
+        m_slots.emplace_back(std::make_unique<TextFilterForm>(parent, caption, formCallbacks));
+    };
+    const auto addCombo = [this](QLayout *parent,
+                                 qsizetype index,
+                                 const QString &caption,
+                                 const ComboPayload &payload,
+                                 const FilterCallbacks &formCallbacks) {
+        Q_ASSERT(!m_legacyFilters.at(static_cast<size_t>(index)));
+        Q_ASSERT(payload.choices);
+        auto model = std::make_unique<QStringListModel>(payload.choices());
+        auto *const modelPtr = model.get();
+        m_models.push_back(std::move(model));
+        m_slots.emplace_back(
+            std::make_unique<ComboFilterForm>(parent, caption, payload, modelPtr, formCallbacks));
     };
     const auto addBoolean = [this](QLayout *parent,
                                    qsizetype index,
@@ -183,18 +317,18 @@ SearchForm::SearchForm(QVBoxLayout &layout,
     };
 
     Q_ASSERT(m_catalog.size() >= 4);
-    constexpr std::array topKinds{LegacyFilterKind::Tab,
-                                  LegacyFilterKind::Name,
-                                  LegacyFilterKind::Category,
-                                  LegacyFilterKind::Rarity};
-    for (qsizetype index = 0; index < static_cast<qsizetype>(topKinds.size()); ++index) {
-        const auto *legacy = std::get_if<LegacyPayload>(&m_catalog[index].payload);
-        Q_ASSERT(legacy && legacy->kind == topKinds[static_cast<size_t>(index)]);
+    for (qsizetype index = 0; index < 4; ++index) {
+        const auto &spec = m_catalog[index];
+        Q_ASSERT(spec.group == FilterGroup::TopForm);
+        Q_ASSERT(spec.refreshMode == RefreshMode::Debounced);
+        if (std::holds_alternative<TextPayload>(spec.payload)) {
+            addText(&m_layout, index, spec.caption, callbacks);
+        } else if (const auto *payload = std::get_if<ComboPayload>(&spec.payload)) {
+            addCombo(&m_layout, index, spec.caption, *payload, callbacks);
+        } else {
+            Q_ASSERT(false);
+        }
     }
-    addLegacy.template operator()<TabSearchFilter>(0, &m_layout, callbacks);
-    addLegacy.template operator()<NameSearchFilter>(1, &m_layout, callbacks);
-    addLegacy.template operator()<CategorySearchFilter>(2, &m_layout, categoryModelPtr, callbacks);
-    addLegacy.template operator()<RaritySearchFilter>(3, &m_layout, rarityModelPtr, callbacks);
 
     auto *offenseLayout = new FlowLayout;
     auto *defenseLayout = new FlowLayout;
@@ -264,24 +398,6 @@ SearchForm::SearchForm(QVBoxLayout &layout,
 
         using Kind = LegacyFilterKind;
         switch (legacy->kind) {
-        case Kind::Tab:
-            addLegacy.template operator()<TabSearchFilter>(index, &m_layout, callbacks);
-            break;
-        case Kind::Name:
-            addLegacy.template operator()<NameSearchFilter>(index, &m_layout, callbacks);
-            break;
-        case Kind::Category:
-            addLegacy.template operator()<CategorySearchFilter>(index,
-                                                                &m_layout,
-                                                                categoryModelPtr,
-                                                                callbacks);
-            break;
-        case Kind::Rarity:
-            addLegacy.template operator()<RaritySearchFilter>(index,
-                                                              &m_layout,
-                                                              rarityModelPtr,
-                                                              callbacks);
-            break;
         case Kind::SocketColors:
             addLegacy.template operator()<SocketsColorsFilter>(index, socketsLayout, callbacks);
             break;

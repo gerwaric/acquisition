@@ -3,7 +3,6 @@
 #include <QComboBox>
 #include <QLineEdit>
 #include <QPushButton>
-#include <QStringListModel>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -23,7 +22,6 @@ private slots:
     void tabFilter();
     void nameFilter();
     void categoryFilter();
-    void categoryAnySentinel();
     void minMaxFilter();
     void defaultAndRequiredFilters();
     void socketColorFilters();
@@ -40,7 +38,6 @@ struct FilterHarness
 {
     QWidget host;
     QVBoxLayout layout{&host};
-    QStringListModel rarityModel{RaritySearchFilter::RARITY_LIST};
     QObject receiver;
     FilterCallbacks callbacks{
         &receiver,
@@ -105,6 +102,26 @@ static const FilterSpec *findMinMaxFilterSpec(const FilterCatalog &catalog, cons
     return nullptr;
 }
 
+static const FilterSpec *findTextFilterSpec(const FilterCatalog &catalog, const QString &caption)
+{
+    for (const auto &spec : catalog) {
+        if ((spec.caption == caption) && std::holds_alternative<TextPayload>(spec.payload)) {
+            return &spec;
+        }
+    }
+    return nullptr;
+}
+
+static const FilterSpec *findComboFilterSpec(const FilterCatalog &catalog, const QString &caption)
+{
+    for (const auto &spec : catalog) {
+        if ((spec.caption == caption) && std::holds_alternative<ComboPayload>(spec.payload)) {
+            return &spec;
+        }
+    }
+    return nullptr;
+}
+
 static void verifyBooleanPredicate(const FilterSpec &spec,
                                    const std::shared_ptr<Item> &matching,
                                    const std::shared_ptr<Item> &notMatching)
@@ -119,30 +136,37 @@ static void verifyBooleanPredicate(const FilterSpec &spec,
 
 void FiltersTest::tabFilter()
 {
-    FilterHarness harness;
-    TabSearchFilter filter(&harness.layout, harness.callbacks);
-    FilterData data(&filter);
-    data.text_query = "test";
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const auto *tab = findTextFilterSpec(catalog, "Tab");
+    QVERIFY(tab);
+    QCOMPARE(tab->refreshMode, RefreshMode::Debounced);
+    const FilterState defaultState = MakeDefaultState(*tab);
+    QVERIFY(std::holds_alternative<TextState>(defaultState));
+    QVERIFY(!IsActive(defaultState));
 
-    QVERIFY(filter.Matches(makeFilterItem("tab-match", ""), &data));
-    data.text_query = "missing";
-    QVERIFY(!filter.Matches(makeFilterItem("tab-miss", ""), &data));
+    TextState state{"test"};
+    QVERIFY(MatchesFilter(*makeFilterItem("tab-match", ""), *tab, state));
+    state.query = "missing";
+    QVERIFY(!MatchesFilter(*makeFilterItem("tab-miss", ""), *tab, state));
 }
 
 void FiltersTest::nameFilter()
 {
-    FilterHarness harness;
-    NameSearchFilter filter(&harness.layout, harness.callbacks);
-    FilterData data(&filter);
-    data.text_query = "alpha";
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const auto *name = findTextFilterSpec(catalog, "Name");
+    QVERIFY(name);
+    QCOMPARE(name->refreshMode, RefreshMode::Debounced);
 
-    QVERIFY(filter.Matches(makeFilterItem("name-match", ""), &data));
+    TextState state{"alpha"};
+    QVERIFY(MatchesFilter(*makeFilterItem("name-match", ""), *name, state));
 
-    data.text_query = "ALPHA";
-    QVERIFY(filter.Matches(makeFilterItem("name-match-case", ""), &data));
+    state.query = "ALPHA";
+    QVERIFY(MatchesFilter(*makeFilterItem("name-match-case", ""), *name, state));
 
-    data.text_query = "missing";
-    QVERIFY(!filter.Matches(makeFilterItem("name-miss", ""), &data));
+    state.query = "missing";
+    QVERIFY(!MatchesFilter(*makeFilterItem("name-miss", ""), *name, state));
 }
 
 void FiltersTest::categoryFilter()
@@ -151,32 +175,22 @@ void FiltersTest::categoryFilter()
     InitItemBaseTypes(
         R"json({"Metadata/Items/TestSword":{"item_class":"TestClass","name":"Test Sword","release_state":"released"}})json");
 
-    FilterHarness harness;
-    QStringListModel model;
-    CategorySearchFilter filter(&harness.layout, &model, harness.callbacks);
-    FilterData data(&filter);
-    data.text_query = "weapons";
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const auto *category = findComboFilterSpec(catalog, "Category");
+    QVERIFY(category);
+    QCOMPARE(category->refreshMode, RefreshMode::Debounced);
+    const auto *payload = std::get_if<ComboPayload>(&category->payload);
+    QVERIFY(payload);
+    QCOMPARE(payload->matchKind, ComboMatchKind::CategoryContains);
+    QCOMPARE(payload->anySentinel, kAnyFilterChoice);
+
+    ComboState state{"weapons"};
 
     const auto weapon = makeFilterItem("category-match", "", 2, "Rare", {}, "Test Sword");
     const auto unknown = makeFilterItem("category-miss", "");
-    QVERIFY(filter.Matches(weapon, &data));
-    QVERIFY(!filter.Matches(unknown, &data));
-}
-
-void FiltersTest::categoryAnySentinel()
-{
-    FilterHarness harness;
-    QStringListModel model{{CategorySearchFilter::k_Default, "Weapons"}};
-    CategorySearchFilter filter(&harness.layout, &model, harness.callbacks);
-    FilterData data(&filter);
-
-    auto *combo = harness.host.findChild<QComboBox *>();
-    QVERIFY(combo);
-    combo->setCurrentText(CategorySearchFilter::k_Default);
-    data.FromForm();
-
-    QVERIFY(data.text_query.isEmpty());
-    QVERIFY(!filter.IsActive());
+    QVERIFY(MatchesFilter(*weapon, *category, state));
+    QVERIFY(!MatchesFilter(*unknown, *category, state));
 }
 
 void FiltersTest::minMaxFilter()
@@ -419,27 +433,33 @@ void FiltersTest::booleanPredicates()
 
 void FiltersTest::rarityFilter()
 {
-    FilterHarness harness;
-    RaritySearchFilter filter(&harness.layout, &harness.rarityModel, harness.callbacks);
-    FilterData data(&filter);
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const auto *rarity = findComboFilterSpec(catalog, "Rarity");
+    QVERIFY(rarity);
+    QCOMPARE(rarity->refreshMode, RefreshMode::Debounced);
+    const auto *payload = std::get_if<ComboPayload>(&rarity->payload);
+    QVERIFY(payload);
+    QCOMPARE(payload->matchKind, ComboMatchKind::Rarity);
+    QCOMPARE(payload->anySentinel, kAnyFilterChoice);
 
     const auto normal = makeFilterItem("normal", "", 0, "Normal");
     const auto rare = makeFilterItem("rare", "", 2, "Rare");
     const auto unique = makeFilterItem("unique", "", 3, "Unique");
     const auto foil = makeFilterItem("foil", "", 9, "Foil");
 
-    data.text_query = "Any Non-Unique";
-    QVERIFY(filter.Matches(normal, &data));
-    QVERIFY(filter.Matches(rare, &data));
-    QVERIFY(!filter.Matches(unique, &data));
+    ComboState state{"Any Non-Unique"};
+    QVERIFY(MatchesFilter(*normal, *rarity, state));
+    QVERIFY(MatchesFilter(*rare, *rarity, state));
+    QVERIFY(!MatchesFilter(*unique, *rarity, state));
 
-    data.text_query = "Unique";
-    QVERIFY(filter.Matches(unique, &data));
-    QVERIFY(!filter.Matches(foil, &data));
+    state.value = "Unique";
+    QVERIFY(MatchesFilter(*unique, *rarity, state));
+    QVERIFY(!MatchesFilter(*foil, *rarity, state));
 
-    data.text_query = "Unique (Foil)";
-    QVERIFY(filter.Matches(foil, &data));
-    QVERIFY(!filter.Matches(unique, &data));
+    state.value = "Unique (Foil)";
+    QVERIFY(MatchesFilter(*foil, *rarity, state));
+    QVERIFY(!MatchesFilter(*unique, *rarity, state));
 }
 
 void FiltersTest::modsFilter()

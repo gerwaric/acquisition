@@ -9,6 +9,7 @@
 #include <type_traits>
 
 #include "item.h"
+#include "itemconstants.h"
 
 bool MatchesAltart(const Item &item)
 {
@@ -155,13 +156,42 @@ bool MatchesAltart(const Item &item)
     return false;
 }
 
-bool matches(const Item &, const TextState &, const TextPayload &)
+bool matches(const Item &item, const TextState &state, const TextPayload &payload)
 {
-    return true;
+    return payload.value(item).toLower().contains(state.query.toLower());
 }
-bool matches(const Item &, const ComboState &, const ComboPayload &)
+bool matches(const Item &item, const ComboState &state, const ComboPayload &payload)
 {
-    return true;
+    if (state.value.isEmpty()) {
+        return true;
+    }
+
+    switch (payload.matchKind) {
+    case ComboMatchKind::CategoryContains:
+        return item.category().contains(state.value);
+    case ComboMatchKind::Rarity: {
+        const QString &query = state.value;
+        const QStringList &choices = RarityChoices();
+        switch (item.frameType()) {
+        case FrameType::FRAME_TYPE_NORMAL:
+            return (query == choices[1]) || (query == choices[6]);
+        case FrameType::FRAME_TYPE_MAGIC:
+            return (query == choices[2]) || (query == choices[6]);
+        case FrameType::FRAME_TYPE_RARE:
+            return (query == choices[3]) || (query == choices[6]);
+        case FrameType::FRAME_TYPE_UNIQUE:
+            return query == choices[4];
+        case FrameType::FRAME_TYPE_FOIL:
+        case FrameType::FRAME_TYPE_SUPPORTER_FOIL:
+            return query == choices[5];
+        default:
+            return false;
+        }
+    }
+    }
+
+    Q_ASSERT(false);
+    return false;
 }
 bool matches(const Item &item, const MinMaxState &state, const MinMaxPayload &payload)
 {

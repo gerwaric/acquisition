@@ -5,17 +5,15 @@
 
 #include <functional>
 #include <memory>
+#include <vector>
 
 #include "item.h"
 
 class QLineEdit;
-class QComboBox;
-class QAbstractListModel;
 class QLayout;
 class QObject;
 
 class FilterData;
-class SearchComboBox;
 
 struct FilterCallbacks
 {
@@ -84,78 +82,12 @@ public:
     bool Matches(const std::shared_ptr<Item> &item);
     void FromForm();
     void ToForm();
-    // Various types of data for various filters
-    // It's probably not a very elegant solution but it works.
-    QString text_query;
     int r, g, b;
     bool r_filled, g_filled, b_filled;
     std::vector<ModFilterData> mod_data;
 
 private:
     Filter *m_filter;
-};
-
-class TabSearchFilter : public Filter
-{
-public:
-    TabSearchFilter(QLayout *parent, const FilterCallbacks &callbacks);
-    void FromForm(FilterData *data);
-    void ToForm(FilterData *data);
-    void ResetForm();
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
-    void Initialize(QLayout *parent, const FilterCallbacks &callbacks);
-
-private:
-    QLineEdit *m_textbox;
-};
-
-class NameSearchFilter : public Filter
-{
-public:
-    NameSearchFilter(QLayout *parent, const FilterCallbacks &callbacks);
-    void FromForm(FilterData *data);
-    void ToForm(FilterData *data);
-    void ResetForm();
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
-    void Initialize(QLayout *parent, const FilterCallbacks &callbacks);
-
-private:
-    QLineEdit *m_textbox;
-};
-
-class CategorySearchFilter : public Filter
-{
-public:
-    CategorySearchFilter(QLayout *parent,
-                         QAbstractListModel *model,
-                         const FilterCallbacks &callbacks);
-    void FromForm(FilterData *data);
-    void ToForm(FilterData *data);
-    void ResetForm();
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
-    void Initialize(QLayout *parent, const FilterCallbacks &callbacks);
-    static const QString k_Default;
-
-private:
-    SearchComboBox *m_combobox;
-    QAbstractListModel *m_model;
-};
-
-class RaritySearchFilter : public Filter
-{
-public:
-    RaritySearchFilter(QLayout *parent, QAbstractListModel *model, const FilterCallbacks &callbacks);
-    void FromForm(FilterData *data);
-    void ToForm(FilterData *data);
-    void ResetForm();
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
-    void Initialize(QLayout *parent, const FilterCallbacks &callbacks);
-    static const QString k_Default;
-    static const QStringList RARITY_LIST;
-
-private:
-    QComboBox *m_combobox;
-    QAbstractListModel *m_model;
 };
 
 class SocketsColorsFilter : public Filter

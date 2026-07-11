@@ -8,6 +8,19 @@
 #include "buyoutmanager.h"
 #include "filters/filtermatchers.h"
 #include "item.h"
+#include "itemcategories.h"
+
+const QStringList &RarityChoices()
+{
+    static const QStringList choices{kAnyFilterChoice,
+                                     "Normal",
+                                     "Magic",
+                                     "Rare",
+                                     "Unique",
+                                     "Unique (Foil)",
+                                     "Any Non-Unique"};
+    return choices;
+}
 
 FilterCatalog::FilterCatalog(std::vector<FilterSpec> specs)
     : m_specs(std::move(specs))
@@ -26,6 +39,19 @@ FilterCatalog BuildFilterCatalog(const BuyoutManager &buyoutManager)
         [](const char *caption, FilterGroup group, std::function<bool(const Item &)> predicate) {
             return FilterSpec{caption, group, Immediate, BoolPayload{std::move(predicate)}};
         };
+    const auto text =
+        [](const char *caption, FilterGroup group, std::function<QString(const Item &)> value) {
+            return FilterSpec{caption, group, Debounced, TextPayload{std::move(value)}};
+        };
+    const auto combo = [](const char *caption,
+                          FilterGroup group,
+                          ComboMatchKind matchKind,
+                          std::function<QStringList()> choices) {
+        return FilterSpec{caption,
+                          group,
+                          Debounced,
+                          ComboPayload{matchKind, kAnyFilterChoice, std::move(choices)}};
+    };
     const auto minMax = [](const char *caption,
                            FilterGroup group,
                            std::function<double(const Item &)> value,
@@ -82,10 +108,17 @@ FilterCatalog BuildFilterCatalog(const BuyoutManager &buyoutManager)
 
     std::vector<FilterSpec> specs;
     specs.reserve(38);
-    specs.push_back(legacy(Tab, "Tab", FilterGroup::TopForm, Debounced));
-    specs.push_back(legacy(Name, "Name", FilterGroup::TopForm, Debounced));
-    specs.push_back(legacy(Category, "Category", FilterGroup::TopForm, Debounced));
-    specs.push_back(legacy(Rarity, "Rarity", FilterGroup::TopForm, Debounced));
+    specs.push_back(text("Tab", FilterGroup::TopForm, [](const Item &item) {
+        return item.location().GetHeader();
+    }));
+    specs.push_back(
+        text("Name", FilterGroup::TopForm, [](const Item &item) { return item.PrettyName(); }));
+    specs.push_back(combo("Category", FilterGroup::TopForm, ComboMatchKind::CategoryContains, [] {
+        return GetItemCategories();
+    }));
+    specs.push_back(combo("Rarity", FilterGroup::TopForm, ComboMatchKind::Rarity, [] {
+        return RarityChoices();
+    }));
     specs.push_back(simpleProperty("Critical Strike Chance", "Crit.", FilterGroup::Offense));
     specs.push_back(
         itemMethod("DPS", FilterGroup::Offense, [](const Item &item) { return item.DPS(); }));

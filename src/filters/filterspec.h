@@ -29,14 +29,12 @@ enum class RefreshMode { Immediate, Debounced };
 // Transitional tags identify the legacy constructor used by SearchForm. They
 // disappear as each family acquires a real payload.
 enum class LegacyFilterKind {
-    Tab,
-    Name,
-    Category,
-    Rarity,
     SocketColors,
     LinkColors,
     Mods,
 };
+
+inline const QString kAnyFilterChoice = QStringLiteral("<any>");
 
 struct LegacyPayload
 {
@@ -107,4 +105,5 @@ private:
     std::vector<FilterSpec> m_specs;
 };
 
+const QStringList &RarityChoices();
 FilterCatalog BuildFilterCatalog(const BuyoutManager &buyoutManager);
