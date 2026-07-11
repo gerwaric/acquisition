@@ -658,6 +658,7 @@ void MainWindow::OnDeleteTabClicked(int index)
 
     // Delete the search.
     Search *search = m_searches[index];
+    m_search_form->unbind(*search);
     if (m_current_search == search) {
         m_current_search = nullptr;
     }

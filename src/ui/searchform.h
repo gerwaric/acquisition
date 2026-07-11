@@ -41,6 +41,7 @@ public:
     const std::vector<Filter *> &legacyFilters() const { return m_legacyFilters; }
     void saveTo(Search &search);
     void loadFrom(Search &search);
+    void unbind(Search &search);
     void reset();
 
 private:

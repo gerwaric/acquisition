@@ -7,6 +7,8 @@
 #include <memory>
 #include <vector>
 
+#include <QMetaObject>
+
 #include "ui/searchform.h"
 
 class QGridLayout;
@@ -35,6 +37,7 @@ private:
     void addNewRow();
     void deleteRow(Row &row);
     void clearRows();
+    void repackRows();
     void onRowsChanged();
     void updateRowContainerVisibility();
 
@@ -43,6 +46,7 @@ private:
     QGridLayout *m_rowsLayout = nullptr;
     QWidget *m_rowsContainer = nullptr;
     QPushButton *m_addButton = nullptr;
+    QMetaObject::Connection m_addButtonConnection;
     std::vector<std::unique_ptr<Row>> m_rows;
     bool m_loading = false;
 };

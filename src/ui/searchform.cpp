@@ -577,6 +577,13 @@ void SearchForm::loadFrom(Search &search)
     }
 }
 
+void SearchForm::unbind(Search &search)
+{
+    if (m_boundSearch == &search) {
+        m_boundSearch = nullptr;
+    }
+}
+
 void SearchForm::reset()
 {
     m_boundSearch = nullptr;

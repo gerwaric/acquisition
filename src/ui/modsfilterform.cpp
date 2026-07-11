@@ -78,9 +78,13 @@ namespace {
 class ModsFilterForm::Row
 {
 public:
-    Row(const ModRow &state, std::function<void()> onChanged, std::function<void(Row &)> onDeleted)
+    Row(const ModRow &state,
+        std::function<void()> onChanged,
+        std::function<void(Row &)> onDeleted,
+        std::function<bool()> isLoading)
         : m_onChanged(std::move(onChanged))
         , m_onDeleted(std::move(onDeleted))
+        , m_isLoading(std::move(isLoading))
         , m_modSelect(new QComboBox)
         , m_minText(new QLineEdit)
         , m_maxText(new QLineEdit)
@@ -107,46 +111,41 @@ public:
 
         m_completer->setCaseSensitivity(Qt::CaseSensitive);
         m_completer->setCompletionMode(QCompleter::UnfilteredPopupCompletion);
-        m_modSelect->setCompleter(m_completer);
 
         m_timer->setSingleShot(true);
         m_timer->setInterval(350);
+        m_timer->setObjectName("modsRowCompleterTimer");
+
+        restore(state);
+        m_modSelect->setCompleter(m_completer);
+
         QObject::connect(m_modSelect, &QComboBox::editTextChanged, m_modSelect, [this] {
+            if (m_isLoading()) {
+                return;
+            }
+            m_onChanged();
             m_timer->start();
         });
         QObject::connect(m_timer, &QTimer::timeout, m_modSelect, [this] {
             m_proxy->setQueryText(m_modSelect->currentText());
             m_completer->complete();
         });
-
-        QObject::connect(m_modSelect, &QComboBox::currentIndexChanged, m_modSelect, [this] {
-            m_onChanged();
-        });
         QObject::connect(m_minText, &QLineEdit::textEdited, m_minText, [this] { m_onChanged(); });
         QObject::connect(m_maxText, &QLineEdit::textEdited, m_maxText, [this] { m_onChanged(); });
         QObject::connect(m_deleteButton, &QPushButton::clicked, m_deleteButton, [this] {
             m_onDeleted(*this);
         });
-
-        m_modSelect->setCurrentText(state.mod);
-        if (state.min.has_value()) {
-            m_minText->setText(QString::number(*state.min));
-        }
-        if (state.max.has_value()) {
-            m_maxText->setText(QString::number(*state.max));
-        }
     }
 
-    void addToLayout(QGridLayout *layout)
+    void addToLayout(QGridLayout *layout, int row)
     {
-        const int row = layout->rowCount();
         layout->addWidget(m_modSelect, row, 0, 1, kColumnCount);
         layout->addWidget(m_minText, row + 1, kMinField);
         layout->addWidget(m_maxText, row + 1, kMaxField);
         layout->addWidget(m_deleteButton, row + 1, kDeleteButton);
     }
 
-    void removeFromLayout(QGridLayout *layout)
+    void destroyWidgets(QGridLayout *layout)
     {
         layout->removeWidget(m_modSelect);
         layout->removeWidget(m_minText);
@@ -165,10 +164,28 @@ public:
     }
 
 private:
+    void restore(const ModRow &state)
+    {
+        const int index = state.mod.isEmpty()
+                              ? -1
+                              : m_modSelect->findText(state.mod, Qt::MatchFixedString);
+        m_modSelect->setCurrentIndex(index);
+        if (index < 0) {
+            m_modSelect->setEditText(state.mod);
+        }
+        if (state.min.has_value()) {
+            m_minText->setText(QString::number(*state.min));
+        }
+        if (state.max.has_value()) {
+            m_maxText->setText(QString::number(*state.max));
+        }
+    }
+
     enum LayoutColumn { kMinField, kMaxField, kDeleteButton, kColumnCount };
 
     std::function<void()> m_onChanged;
     std::function<void(Row &)> m_onDeleted;
+    std::function<bool()> m_isLoading;
     QComboBox *m_modSelect = nullptr;
     QLineEdit *m_minText = nullptr;
     QLineEdit *m_maxText = nullptr;
@@ -195,11 +212,15 @@ ModsFilterForm::ModsFilterForm(QLayout *parent,
     parent->addWidget(m_addButton);
     m_rowsContainer->hide();
 
-    QObject::connect(m_addButton, &QPushButton::clicked, m_addButton, [this] { addNewRow(); });
+    m_addButtonConnection = QObject::connect(m_addButton,
+                                             &QPushButton::clicked,
+                                             m_addButton,
+                                             [this] { addNewRow(); });
 }
 
 ModsFilterForm::~ModsFilterForm()
 {
+    QObject::disconnect(m_addButtonConnection);
     clearRows();
 }
 
@@ -231,6 +252,7 @@ void ModsFilterForm::loadFrom(const FilterState &state)
     for (const auto &row : modsState->rows) {
         addRow(row);
     }
+    repackRows();
     m_loading = false;
     updateRowContainerVisibility();
 }
@@ -243,15 +265,18 @@ void ModsFilterForm::reset()
 void ModsFilterForm::addRow(const ModRow &state)
 {
     auto row = std::make_unique<Row>(
-        state, [this] { onRowsChanged(); }, [this](Row &deletedRow) { deleteRow(deletedRow); });
-    row->addToLayout(m_rowsLayout);
+        state,
+        [this] { onRowsChanged(); },
+        [this](Row &deletedRow) { deleteRow(deletedRow); },
+        [this] { return m_loading; });
     m_rows.push_back(std::move(row));
-    updateRowContainerVisibility();
 }
 
 void ModsFilterForm::addNewRow()
 {
     addRow({});
+    repackRows();
+    updateRowContainerVisibility();
     onRowsChanged();
 }
 
@@ -264,8 +289,9 @@ void ModsFilterForm::deleteRow(Row &row)
         return;
     }
 
-    (*found)->removeFromLayout(m_rowsLayout);
+    (*found)->destroyWidgets(m_rowsLayout);
     m_rows.erase(found);
+    repackRows();
     updateRowContainerVisibility();
     onRowsChanged();
 }
@@ -273,15 +299,29 @@ void ModsFilterForm::deleteRow(Row &row)
 void ModsFilterForm::clearRows()
 {
     for (const auto &row : m_rows) {
-        row->removeFromLayout(m_rowsLayout);
+        row->destroyWidgets(m_rowsLayout);
     }
     m_rows.clear();
+    repackRows();
     updateRowContainerVisibility();
+}
+
+void ModsFilterForm::repackRows()
+{
+    delete m_rowsLayout;
+    m_rowsLayout = new QGridLayout;
+    m_rowsContainer->setLayout(m_rowsLayout);
+    for (qsizetype index = 0; index < static_cast<qsizetype>(m_rows.size()); ++index) {
+        m_rows.at(static_cast<size_t>(index))->addToLayout(m_rowsLayout, static_cast<int>(index * 2));
+    }
 }
 
 void ModsFilterForm::onRowsChanged()
 {
-    if (!m_loading && m_stateChanged) {
+    if (m_loading) {
+        return;
+    }
+    if (m_stateChanged) {
         m_stateChanged();
     }
     if (m_callbacks.onChangedDelayed) {
