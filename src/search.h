@@ -8,16 +8,19 @@
 
 #include <memory>
 #include <set>
+#include <variant>
 #include <vector>
 
 #include "bucket.h"
 #include "column.h"
+#include "filters/filterstate.h"
 #include "item.h"
 #include "items_model.h"
 #include "util/util.h"
 
 class BuyoutManager;
 class Filter;
+class FilterCatalog;
 class FilterData;
 class ItemsModel;
 class QModelIndex;
@@ -31,7 +34,8 @@ public:
 
     Search(BuyoutManager &bo,
            const QString &caption,
-           const std::vector<std::unique_ptr<Filter>> &filters);
+           const FilterCatalog &catalog,
+           const std::vector<Filter *> &filters);
     void FilterItems(const Items &items);
     void FromForm();
     void ToForm();
@@ -62,7 +66,11 @@ private:
 
     BuyoutManager &m_bo_manager;
 
-    std::vector<std::unique_ptr<FilterData>> m_filters;
+    // Catalog, form slots, and filter data are index-aligned. MainWindow owns
+    // the catalog and outlives every Search.
+    const FilterCatalog &m_filter_catalog;
+    using FilterSlot = std::variant<std::unique_ptr<FilterData>, FilterState>;
+    std::vector<FilterSlot> m_filter_slots;
     std::vector<std::unique_ptr<Column>> m_columns;
 
     ItemsModel m_model;

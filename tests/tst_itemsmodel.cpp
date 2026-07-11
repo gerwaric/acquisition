@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "filters.h"
+#include "filters/filterspec.h"
 #include "items_model.h"
 #include "search.h"
 #include "testfixtures.h"
@@ -60,8 +61,9 @@ void ItemsModelTest::testerSurvivesRebuildModeSwitchAndSort()
     items.push_back(makeModelItem("beta-1", "Beta Guard", "Copper Shield", secondTab));
 
     QTreeView view;
-    std::vector<std::unique_ptr<Filter>> filters;
-    Search search(*buyoutFixture.manager, "Model", filters);
+    FilterCatalog catalog({});
+    std::vector<Filter *> filters;
+    Search search(*buyoutFixture.manager, "Model", catalog, filters);
     search.Activate(items);
     view.setModel(&search.model());
 
@@ -129,8 +131,9 @@ void ItemsModelTest::selectionSurvivesSort()
     items.push_back(makeModelItem("alpha-5", "Beta Bite", "Bronze Mace", firstTab));
 
     QTreeView view;
-    std::vector<std::unique_ptr<Filter>> filters;
-    Search search(*buyoutFixture.manager, "Model", filters);
+    FilterCatalog catalog({});
+    std::vector<Filter *> filters;
+    Search search(*buyoutFixture.manager, "Model", catalog, filters);
     search.Activate(items);
     view.setModel(&search.model());
 

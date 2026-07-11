@@ -9,14 +9,17 @@
 #include "buyoutmanager.h"
 #include "column.h"
 #include "filters.h"
+#include "filters/filterspec.h"
 #include "items_model.h"
 #include "util/fatalerror.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 
 Search::Search(BuyoutManager &bo_manager,
                const QString &caption,
-               const std::vector<std::unique_ptr<Filter>> &filters)
+               const FilterCatalog &catalog,
+               const std::vector<Filter *> &filters)
     : m_bo_manager(bo_manager)
+    , m_filter_catalog(catalog)
     , m_model(bo_manager, *this)
     , m_caption(caption)
     , m_filtered(false)
@@ -24,6 +27,8 @@ Search::Search(BuyoutManager &bo_manager,
     , m_current_mode(ViewMode::ByTab)
     , m_refresh_reason(RefreshReason::Unknown)
 {
+    Q_ASSERT(filters.size() == static_cast<size_t>(m_filter_catalog.size()));
+
     using move_only = std::unique_ptr<Column>;
     move_only init[] = {std::make_unique<NameColumn>(),
                         std::make_unique<PriceColumn>(bo_manager),
@@ -54,28 +59,38 @@ Search::Search(BuyoutManager &bo_manager,
     m_columns = std::vector<move_only>(std::make_move_iterator(std::begin(init)),
                                        std::make_move_iterator(std::end(init)));
 
-    for (auto &filter : filters) {
-        m_filters.emplace_back(filter->CreateData());
+    for (qsizetype index = 0; index < m_filter_catalog.size(); ++index) {
+        const auto &spec = m_filter_catalog[index];
+        if (std::holds_alternative<LegacyPayload>(spec.payload)) {
+            auto *filter = filters.at(static_cast<size_t>(index));
+            Q_ASSERT(filter);
+            m_filter_slots.emplace_back(filter->CreateData());
+        } else {
+            m_filter_slots.emplace_back(MakeDefaultState(spec));
+        }
     }
 }
 
 void Search::FromForm()
 {
-    for (auto &filter : m_filters) {
+    for (auto &slot : m_filter_slots) {
+        auto &filter = std::get<std::unique_ptr<FilterData>>(slot);
         filter->FromForm();
     }
 }
 
 void Search::ToForm()
 {
-    for (auto &filter : m_filters) {
+    for (auto &slot : m_filter_slots) {
+        auto &filter = std::get<std::unique_ptr<FilterData>>(slot);
         filter->ToForm();
     }
 }
 
 void Search::ResetForm()
 {
-    for (auto &filter : m_filters) {
+    for (auto &slot : m_filter_slots) {
+        auto &filter = std::get<std::unique_ptr<FilterData>>(slot);
         filter->filter()->ResetForm();
     }
 }
@@ -195,8 +210,9 @@ void Search::FilterItems(const Items &items)
     // active, so we don't have to check every filter against
     // every item.
     std::vector<FilterData *> active_filters;
-    active_filters.reserve(m_filters.size());
-    for (auto &filter : m_filters) {
+    active_filters.reserve(m_filter_slots.size());
+    for (auto &slot : m_filter_slots) {
+        auto &filter = std::get<std::unique_ptr<FilterData>>(slot);
         if (filter->filter()->IsActive()) {
             active_filters.push_back(filter.get());
         }
