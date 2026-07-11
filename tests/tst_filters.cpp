@@ -1,17 +1,11 @@
 #include <QtTest/QtTest>
 
-#include <QComboBox>
-#include <QLineEdit>
-#include <QPushButton>
-#include <QVBoxLayout>
-#include <QWidget>
+#include <optional>
 
-#include "filters.h"
 #include "filters/filtermatchers.h"
 #include "filters/filterspec.h"
 #include "itemcategories.h"
 #include "modlist.h"
-#include "modsfilter.h"
 #include "testfixtures.h"
 
 class FiltersTest : public QObject
@@ -29,19 +23,6 @@ private slots:
     void booleanPredicates();
     void rarityFilter();
     void modsFilter();
-    void modsFormSyncQuirks();
-};
-
-struct FilterHarness
-{
-    QWidget host;
-    QVBoxLayout layout{&host};
-    QObject receiver;
-    FilterCallbacks callbacks{
-        &receiver,
-        [] {},
-        [] {},
-    };
 };
 
 static std::shared_ptr<Item> makeFilterItem(
@@ -474,73 +455,44 @@ void FiltersTest::modsFilter()
     ])json");
     InitModList();
 
-    FilterHarness harness;
-    ModsFilter filter(&harness.layout, harness.callbacks);
     const auto item = makeFilterItem("mods",
                                      R"json(,
         "explicitMods": ["+42 to maximum Life"]
     )json");
-    FilterData data(&filter);
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const auto *mods = findFilterSpec(catalog, "Mods");
+    QVERIFY(mods);
+    QCOMPARE(mods->group, FilterGroup::Mods);
+    QCOMPARE(mods->refreshMode, RefreshMode::Debounced);
+    QVERIFY(std::holds_alternative<ModsPayload>(mods->payload));
 
-    data.mod_data.emplace_back("", 100.0, 1.0, true, true);
-    QVERIFY(filter.Matches(item, &data));
+    const FilterState defaultState = MakeDefaultState(*mods);
+    const auto *defaultMods = std::get_if<ModsState>(&defaultState);
+    QVERIFY(defaultMods);
+    QVERIFY(defaultMods->rows.empty());
+    QVERIFY(!defaultMods->isActive());
 
-    data.mod_data.emplace_back("+# to maximum Life", 40.0, 45.0, true, true);
-    QVERIFY(filter.Matches(item, &data));
-    data.mod_data.back().min = 43.0;
-    QVERIFY(!filter.Matches(item, &data));
-    data.mod_data.back().min = 40.0;
-    data.mod_data.back().max = 41.0;
-    QVERIFY(!filter.Matches(item, &data));
-    data.mod_data.back().max = 45.0;
-    data.mod_data.emplace_back("+# to missing stat", 0.0, 0.0, false, false);
-    QVERIFY(!filter.Matches(item, &data));
-}
+    ModsState state;
+    ModRow emptyRow;
+    emptyRow.min = 100.0;
+    emptyRow.max = 1.0;
+    state.rows.push_back(emptyRow);
+    QVERIFY(state.isActive());
+    QCOMPARE(state.rows.size(), 1);
+    QVERIFY(state.rows.front().mod.isEmpty());
+    QVERIFY(MatchesFilter(*item, *mods, state));
 
-void FiltersTest::modsFormSyncQuirks()
-{
-    FilterHarness harness;
-    mod_list_model().setStringList({"Default mod", "Saved mod"});
-    ModsFilter filter(&harness.layout, harness.callbacks);
-    auto *addButton = harness.host.findChild<QPushButton *>();
-    QVERIFY(addButton);
-    QCOMPARE(addButton->text(), "Add mod");
-
-    FilterData searchA(&filter);
-    searchA.FromForm();
-    addButton->click();
-    QCOMPARE(harness.host.findChildren<QComboBox *>().size(), 1);
-
-    FilterData searchB(&filter);
-    searchB.ToForm();
-    searchA.ToForm();
-    QCOMPARE(harness.host.findChildren<QComboBox *>().size(), 0);
-
-    searchA.mod_data.emplace_back("Saved mod", 1.0, 2.0, true, true);
-    searchA.ToForm();
-    const auto combos = harness.host.findChildren<QComboBox *>();
-    QCOMPARE(combos.size(), 1);
-    QCOMPARE(searchA.mod_data.front().mod, "Saved mod");
-    QCOMPARE(combos.front()->currentText(), "Default mod");
-
-    FilterHarness visibilityHarness;
-    ModsFilter visibilityFilter(&visibilityHarness.layout, visibilityHarness.callbacks);
-    auto *rowContainer = visibilityHarness.layout.itemAt(0)->widget();
-    auto *visibilityAddButton = visibilityHarness.host.findChild<QPushButton *>();
-    QVERIFY(rowContainer);
-    QVERIFY(visibilityAddButton);
-
-    FilterData withRow(&visibilityFilter);
-    withRow.mod_data.emplace_back("Saved mod", 0.0, 0.0, false, false);
-    withRow.ToForm();
-    QVERIFY(rowContainer->isHidden());
-
-    visibilityAddButton->click();
-    QVERIFY(!rowContainer->isHidden());
-    FilterData empty(&visibilityFilter);
-    empty.ToForm();
-    QCOMPARE(visibilityHarness.host.findChildren<QComboBox *>().size(), 0);
-    QVERIFY(!rowContainer->isHidden());
+    state.rows.push_back(ModRow{"+# to maximum Life", 40.0, 45.0});
+    QVERIFY(MatchesFilter(*item, *mods, state));
+    state.rows.back().min = 43.0;
+    QVERIFY(!MatchesFilter(*item, *mods, state));
+    state.rows.back().min = 40.0;
+    state.rows.back().max = 41.0;
+    QVERIFY(!MatchesFilter(*item, *mods, state));
+    state.rows.back().max = 45.0;
+    state.rows.push_back(ModRow{"+# to missing stat", std::nullopt, std::nullopt});
+    QVERIFY(!MatchesFilter(*item, *mods, state));
 }
 
 QTEST_MAIN(FiltersTest)

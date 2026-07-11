@@ -250,8 +250,26 @@ bool matches(const Item &item, const BoolState &state, const BoolPayload &payloa
 {
     return !state.checked || payload.predicate(item);
 }
-bool matches(const Item &, const ModsState &, const ModsPayload &)
+bool matches(const Item &item, const ModsState &state, const ModsPayload &)
 {
+    for (const auto &row : state.rows) {
+        if (row.mod.isEmpty()) {
+            continue;
+        }
+
+        const ModTable &modTable = item.mod_table();
+        if (!modTable.count(row.mod)) {
+            return false;
+        }
+
+        const double value = modTable.at(row.mod);
+        if (row.min.has_value() && value < *row.min) {
+            return false;
+        }
+        if (row.max.has_value() && value > *row.max) {
+            return false;
+        }
+    }
     return true;
 }
 

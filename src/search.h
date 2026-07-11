@@ -36,6 +36,7 @@ public:
            const QString &caption,
            const FilterCatalog &catalog,
            const std::vector<Filter *> &filters);
+    ~Search();
     void FilterItems(const Items &items);
     const QString &caption() const { return m_caption; }
     const Items &items() const { return m_items; }

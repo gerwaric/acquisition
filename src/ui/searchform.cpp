@@ -16,9 +16,9 @@
 #include <algorithm>
 #include <optional>
 
-#include "modsfilter.h"
 #include "search.h"
 #include "ui/flowlayout.h"
+#include "ui/modsfilterform.h"
 #include "ui/searchcombobox.h"
 #include "util/util.h"
 
@@ -364,12 +364,6 @@ SearchForm::SearchForm(QVBoxLayout &layout,
 {
     m_slots.reserve(static_cast<size_t>(m_catalog.size()));
     m_legacyFilters.resize(static_cast<size_t>(m_catalog.size()));
-    const auto addLegacy = [this]<typename FilterType, typename... Args>(qsizetype index,
-                                                                         Args &&...args) {
-        auto filter = std::make_unique<FilterType>(std::forward<Args>(args)...);
-        m_legacyFilters.at(static_cast<size_t>(index)) = filter.get();
-        m_slots.emplace_back(std::move(filter));
-    };
     const auto addText = [this](QLayout *parent,
                                 qsizetype index,
                                 const QString &caption,
@@ -410,6 +404,14 @@ SearchForm::SearchForm(QVBoxLayout &layout,
                                   const FilterCallbacks &formCallbacks) {
         Q_ASSERT(!m_legacyFilters.at(static_cast<size_t>(index)));
         m_slots.emplace_back(std::make_unique<ColorsFilterForm>(parent, caption, formCallbacks));
+    };
+    const auto addMods = [this](QLayout *parent,
+                                qsizetype index,
+                                const FilterCallbacks &formCallbacks) {
+        Q_ASSERT(!m_legacyFilters.at(static_cast<size_t>(index)));
+        m_slots.emplace_back(std::make_unique<ModsFilterForm>(parent, formCallbacks, [this, index] {
+            saveBoundState(index);
+        }));
     };
 
     Q_ASSERT(m_catalog.size() >= 4);
@@ -491,6 +493,12 @@ SearchForm::SearchForm(QVBoxLayout &layout,
             addColors(socketsLayout, index, spec.caption, callbacks);
             continue;
         }
+        if (std::holds_alternative<ModsPayload>(spec.payload)) {
+            Q_ASSERT(spec.group == FilterGroup::Mods);
+            Q_ASSERT(spec.refreshMode == RefreshMode::Debounced);
+            addMods(modsLayout, index, callbacks);
+            continue;
+        }
 
         const auto *legacy = std::get_if<LegacyPayload>(&spec.payload);
         Q_ASSERT(legacy);
@@ -498,12 +506,7 @@ SearchForm::SearchForm(QVBoxLayout &layout,
             continue;
         }
 
-        using Kind = LegacyFilterKind;
-        switch (legacy->kind) {
-        case Kind::Mods:
-            addLegacy.template operator()<ModsFilter>(index, modsLayout, callbacks);
-            break;
-        }
+        Q_ASSERT(false);
     }
 
     Q_ASSERT(m_slots.size() == static_cast<size_t>(m_catalog.size()));
@@ -532,6 +535,7 @@ void SearchForm::addSearchGroup(QLayout *layout, const QString &name)
 
 void SearchForm::saveTo(Search &search)
 {
+    m_boundSearch = &search;
     Q_ASSERT(search.filterSlotCount() == m_catalog.size());
     Q_ASSERT(m_slots.size() == static_cast<size_t>(m_catalog.size()));
     for (qsizetype index = 0; index < m_catalog.size(); ++index) {
@@ -553,6 +557,7 @@ void SearchForm::saveTo(Search &search)
 
 void SearchForm::loadFrom(Search &search)
 {
+    m_boundSearch = &search;
     Q_ASSERT(search.filterSlotCount() == m_catalog.size());
     Q_ASSERT(m_slots.size() == static_cast<size_t>(m_catalog.size()));
     for (qsizetype index = 0; index < m_catalog.size(); ++index) {
@@ -574,6 +579,7 @@ void SearchForm::loadFrom(Search &search)
 
 void SearchForm::reset()
 {
+    m_boundSearch = nullptr;
     for (qsizetype index = 0; index < m_catalog.size(); ++index) {
         auto &slot = m_slots.at(static_cast<size_t>(index));
         if (auto *legacy = std::get_if<std::unique_ptr<Filter>>(&slot)) {
@@ -586,5 +592,20 @@ void SearchForm::reset()
             Q_ASSERT(!std::holds_alternative<LegacyPayload>(m_catalog[index].payload));
             (*adapter)->reset();
         }
+    }
+}
+
+void SearchForm::saveBoundState(qsizetype index)
+{
+    if (!m_boundSearch) {
+        return;
+    }
+
+    Q_ASSERT(m_boundSearch->filterSlotCount() == m_catalog.size());
+    auto *adapter = std::get_if<std::unique_ptr<FilterFormAdapter>>(
+        &m_slots.at(static_cast<size_t>(index)));
+    Q_ASSERT(adapter && *adapter);
+    if (adapter && *adapter) {
+        (*adapter)->saveTo(m_boundSearch->filterStateAt(index));
     }
 }

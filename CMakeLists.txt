@@ -180,8 +180,6 @@ set(ACQ_CORE
     src/itemsmanagerworker.h
     src/modlist.cpp
     src/modlist.h
-    src/modsfilter.cpp
-    src/modsfilter.h
     src/pseudomods.cpp
     src/pseudomods.h
     src/replytimeout.h
@@ -310,6 +308,8 @@ set(ACQ_UI
     src/ui/mainwindow_bridge.h
     src/ui/mainwindow.cpp
     src/ui/mainwindow.h
+    src/ui/modsfilterform.cpp
+    src/ui/modsfilterform.h
     src/ui/searchcombobox.cpp
     src/ui/searchcombobox.h
     src/ui/searchform.cpp

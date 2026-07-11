@@ -28,13 +28,8 @@ FilterCatalog::FilterCatalog(std::vector<FilterSpec> specs)
 
 FilterCatalog BuildFilterCatalog(const BuyoutManager &buyoutManager)
 {
-    using enum LegacyFilterKind;
     using enum RefreshMode;
 
-    const auto legacy =
-        [](LegacyFilterKind kind, const char *caption, FilterGroup group, RefreshMode refreshMode) {
-            return FilterSpec{caption, group, refreshMode, LegacyPayload{kind}};
-        };
     const auto boolean =
         [](const char *caption, FilterGroup group, std::function<bool(const Item &)> predicate) {
             return FilterSpec{caption, group, Immediate, BoolPayload{std::move(predicate)}};
@@ -183,6 +178,6 @@ FilterCatalog BuildFilterCatalog(const BuyoutManager &buyoutManager)
     specs.push_back(boolean("Mutated", FilterGroup::MiscFlags2, [](const Item &item) {
         return item.mutated();
     }));
-    specs.push_back(legacy(Mods, "Mods", FilterGroup::Mods, Debounced));
+    specs.push_back(FilterSpec{"Mods", FilterGroup::Mods, Debounced, ModsPayload{}});
     return FilterCatalog(std::move(specs));
 }

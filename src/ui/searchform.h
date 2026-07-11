@@ -45,10 +45,14 @@ public:
 
 private:
     void addSearchGroup(QLayout *layout, const QString &name = {});
+    void saveBoundState(qsizetype index);
 
     QVBoxLayout &m_layout;
     const FilterCatalog &m_catalog;
     std::vector<std::unique_ptr<QAbstractItemModel>> m_models;
     std::vector<FormSlot> m_slots;
     std::vector<Filter *> m_legacyFilters;
+    // The search currently represented by the form. Dynamic rows save into it
+    // before the delayed refresh runs, so an immediate tab switch cannot drop them.
+    Search *m_boundSearch = nullptr;
 };

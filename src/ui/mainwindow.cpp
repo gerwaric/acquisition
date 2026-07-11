@@ -131,6 +131,7 @@ MainWindow::MainWindow(QSettings &settings,
 
 MainWindow::~MainWindow()
 {
+    m_search_form.reset();
     delete ui;
     for (auto &search : m_searches) {
         delete (search);

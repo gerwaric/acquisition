@@ -95,6 +95,8 @@ Search::Search(BuyoutManager &bo_manager,
     }
 }
 
+Search::~Search() = default;
+
 FilterData &Search::legacyFilterDataAt(qsizetype index)
 {
     auto *filter = std::get_if<std::unique_ptr<FilterData>>(
