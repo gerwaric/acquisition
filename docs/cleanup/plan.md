@@ -52,14 +52,16 @@ codebase strictly better off.
 | 2. Worker threading + update state machine | `phase-2-worker-threading.md` | F1, F2, F4, F5, F24, F27, F29, F30 | Done |
 | 3. Model/view signal hygiene | `phase-3-model-signals.md` | F10–F12, F23, F25 | Done |
 | 4. Decouple `Search` from `QTreeView` | `phase-4-search-decoupling.md` | F18 | Done |
-| 5. Filters as data + matching | `phase-5-filters-as-data.md` | F19, F33 | Design intent |
+| 5. Filters as data + matching | `phase-5-filters-as-data.md` | F19, F33, F35, F36 | Implementation-ready |
 | 6. Opportunistic `MainWindow` slimming | `phase-6-mainwindow-slimming.md` | F20, F9 remainder, F14, F32 | Design intent |
 
 Phases 0–4 are the committed core. Phase 4's spec was upgraded to
 implementation grade in July 2026 and implemented against the post-Phase-3 code.
-Phases 5–6 are worthwhile continuations with full design intent documented,
-but their step-by-step details must be re-verified against the codebase
-state at implementation time.
+Phase 5's spec was likewise upgraded to implementation grade in July 2026,
+verified against the post-Phase-4 code and hardened by a second review pass
+(the two passes surfaced F35 and F36).
+Phase 6 remains design intent; its step-by-step details must be re-verified
+against the codebase state at implementation time.
 
 ### Phase summaries
 
@@ -140,7 +142,10 @@ with per-filter typed state. `ModsFilter` migrates last — it is the most
 complex (dynamic rows, completer, debounce). Also fixes F33 (filter
 activity flags are shared across searches, so background searches can be
 mis-filtered after an items refresh) — per-search state absorbs the
-activity flag.
+activity flag — F35 (socket-color boxes are never cleared on tab switch,
+leaking one search's colors into another's filter data), and F36 (mods
+filter form-sync quirks: unsaved new rows, stale combo text, orphaned
+row-container visibility).
 
 **Phase 6 — MainWindow slimming.** Opportunistic only: extract the dialog
 classes out of `currencymanager.h`, move `Search*` ownership to

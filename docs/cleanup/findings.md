@@ -304,6 +304,54 @@ test at the start of Phase 5. Note the phase-5 doc's hazard wording
 misplaces it: `m_active` is on `Filter`, not `FilterData` — the
 misattribution is the bug.
 
+### F35. `SocketsColorsFilter::ToForm` never clears unfilled boxes — stale colors leak across searches — Likely
+
+Found during the Phase 5 spec revision pass (July 2026). Every other
+filter's `ToForm` unconditionally writes the widget (clearing it when the
+search's value is unset), but `SocketsColorsFilter::ToForm` (`filters.cpp`,
+shared by `LinksColorsFilter`) only calls `setText` when the corresponding
+`r/g/b_filled` flag is set — it never clears a box. Switching from a search
+with colors filled to one without (`MainWindow::OnTabChange` → `ToForm`)
+leaves the previous search's text visible in the R/G/B boxes; the next
+`FromForm` on the now-current search (any form change triggers one, and the
+color boxes are on the *immediate*, undebounced path) reads that stale text
+into the new search's `FilterData` — cross-search data corruption, not just
+a display glitch. "Likely" because traced end-to-end but not
+runtime-verified. Fix belongs to Phase 5: the colors widget adapter's
+state→widget sync is symmetric by construction. Pin the current behavior in
+the Phase 5 step-0 characterization pass and document the fix as a
+deliberate behavior change (working rule 3).
+
+### F36. Mods filter form-sync quirks: unsaved new rows, stale combo text, orphaned visibility — Likely
+
+Found during the second (adversarial) review pass of the Phase 5 spec
+(July 2026). Three related defects in `modsfilter.cpp`, all in the
+widget↔data sync rather than in matching:
+
+- **(a) New rows are not saved.** `ModsFilterSignalHandler::
+  OnAddButtonClicked` → `AddNewMod()` never emits `SearchFormChanged`, so a
+  newly added (still blank) row is never captured into `FilterData` by a
+  `FromForm`. Switching tabs away and back discards the row, because
+  `ToForm` rebuilds rows from data.
+- **(b) Rebuilt rows display the wrong mod.** `SelectedMod`'s constructor
+  stores the saved mod name in `m_data` but never sets the combo box's
+  visible text, so rows rebuilt on a tab switch display the combo's default
+  entry while matching against the saved name.
+- **(c) Row-container visibility depends on add/delete history.** The
+  container is shown only by `AddNewMod` and hidden only by `DeleteMod`
+  (when the last row goes); `ResetForm`/`ToForm` never sync it. Deleting
+  the last row on one search (container hides) and switching to a search
+  with saved mods rebuilds those rows into a hidden container — they
+  filter, invisibly.
+
+"Likely" — each traced end-to-end, none runtime-verified. Fix belongs to
+Phase 5 step 6: the natural mods-adapter shape (row edits mutate `ModsState`
+directly, `loadFrom` writes the combo text, visibility derived from row
+count) fixes all three structurally, and preserving them bug-for-bug would
+require deliberate contortions. Pin the current behavior in the Phase 5
+step-0 characterization pass and document the fix as the phase's third
+deliberate behavior change alongside F33/F35 (working rule 3).
+
 ### F20. `MainWindow` owns workflow state — Confirmed
 
 Raw-pointer ownership of `Search*` objects with manual `delete`, current
