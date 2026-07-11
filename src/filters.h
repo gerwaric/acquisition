@@ -10,7 +10,6 @@
 
 class QLineEdit;
 class QComboBox;
-class QCompleter;
 class QAbstractListModel;
 class QLayout;
 class QObject;
@@ -75,8 +74,7 @@ struct ModFilterData
 };
 
 /*
- * This is used to store filter data in Search,
- * i.e. min-max values that the user has specified.
+ * This is used to store legacy filter data in Search.
  */
 class FilterData
 {
@@ -89,8 +87,6 @@ public:
     // Various types of data for various filters
     // It's probably not a very elegant solution but it works.
     QString text_query;
-    double min, max;
-    bool min_filled, max_filled;
     int r, g, b;
     bool r_filled, g_filled, b_filled;
     std::vector<ModFilterData> mod_data;
@@ -162,137 +158,6 @@ private:
     QAbstractListModel *m_model;
 };
 
-class MinMaxFilter : public Filter
-{
-public:
-    MinMaxFilter(QLayout *parent, QString property, const FilterCallbacks &callbacks);
-    MinMaxFilter(QLayout *parent,
-                 QString property,
-                 QString caption,
-                 const FilterCallbacks &callbacks);
-    void FromForm(FilterData *data);
-    void ToForm(FilterData *data);
-    void ResetForm();
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
-    void Initialize(QLayout *parent, const FilterCallbacks &callbacks);
-
-protected:
-    virtual double GetValue(const std::shared_ptr<Item> &item) = 0;
-    virtual bool IsValuePresent(const std::shared_ptr<Item> &item) = 0;
-
-    QString m_property, m_caption;
-
-private:
-    QLineEdit *m_textbox_min, *m_textbox_max;
-};
-
-class SimplePropertyFilter : public MinMaxFilter
-{
-public:
-    SimplePropertyFilter(QLayout *parent, QString property, const FilterCallbacks &callbacks)
-        : MinMaxFilter(parent, property, callbacks)
-    {}
-    SimplePropertyFilter(QLayout *parent,
-                         QString property,
-                         QString caption,
-                         const FilterCallbacks &callbacks)
-        : MinMaxFilter(parent, property, caption, callbacks)
-    {}
-
-protected:
-    bool IsValuePresent(const std::shared_ptr<Item> &item);
-    double GetValue(const std::shared_ptr<Item> &item);
-};
-
-// Just like SimplePropertyFilter but assumes given default value instead of excluding items
-class DefaultPropertyFilter : public SimplePropertyFilter
-{
-public:
-    DefaultPropertyFilter(QLayout *parent,
-                          QString property,
-                          double default_value,
-                          const FilterCallbacks &callbacks)
-        : SimplePropertyFilter(parent, property, callbacks)
-        , m_default_value(default_value)
-    {}
-    DefaultPropertyFilter(QLayout *parent,
-                          QString property,
-                          QString caption,
-                          double default_value,
-                          const FilterCallbacks &callbacks)
-        : SimplePropertyFilter(parent, property, caption, callbacks)
-        , m_default_value(default_value)
-    {}
-
-protected:
-    bool IsValuePresent(const std::shared_ptr<Item> & /* item */) { return true; }
-    double GetValue(const std::shared_ptr<Item> &item);
-
-private:
-    double m_default_value;
-};
-
-class RequiredStatFilter : public MinMaxFilter
-{
-public:
-    RequiredStatFilter(QLayout *parent, QString property, const FilterCallbacks &callbacks)
-        : MinMaxFilter(parent, property, callbacks)
-    {}
-    RequiredStatFilter(QLayout *parent,
-                       QString property,
-                       QString caption,
-                       const FilterCallbacks &callbacks)
-        : MinMaxFilter(parent, property, caption, callbacks)
-    {}
-
-private:
-    bool IsValuePresent(const std::shared_ptr<Item> & /* item */) { return true; }
-    double GetValue(const std::shared_ptr<Item> &item);
-};
-
-class ItemMethodFilter : public MinMaxFilter
-{
-public:
-    ItemMethodFilter(QLayout *parent,
-                     std::function<double(Item *)> func,
-                     QString caption,
-                     const FilterCallbacks &callbacks);
-
-private:
-    bool IsValuePresent(const std::shared_ptr<Item> & /* item */) { return true; }
-    double GetValue(const std::shared_ptr<Item> &item);
-    std::function<double(Item *)> m_func;
-};
-
-class SocketsFilter : public MinMaxFilter
-{
-public:
-    SocketsFilter(QLayout *parent, QString property, const FilterCallbacks &callbacks)
-        : MinMaxFilter(parent, property, callbacks)
-    {}
-    SocketsFilter(QLayout *parent,
-                  QString property,
-                  QString caption,
-                  const FilterCallbacks &callbacks)
-        : MinMaxFilter(parent, property, caption, callbacks)
-    {}
-    bool IsValuePresent(const std::shared_ptr<Item> & /* item */) { return true; }
-    double GetValue(const std::shared_ptr<Item> &item);
-};
-
-class LinksFilter : public MinMaxFilter
-{
-public:
-    LinksFilter(QLayout *parent, QString property, const FilterCallbacks &callbacks)
-        : MinMaxFilter(parent, property, callbacks)
-    {}
-    LinksFilter(QLayout *parent, QString property, QString caption, const FilterCallbacks &callbacks)
-        : MinMaxFilter(parent, property, caption, callbacks)
-    {}
-    bool IsValuePresent(const std::shared_ptr<Item> & /* item */) { return true; }
-    double GetValue(const std::shared_ptr<Item> &item);
-};
-
 class SocketsColorsFilter : public Filter
 {
 public:
@@ -314,20 +179,4 @@ class LinksColorsFilter : public SocketsColorsFilter
 public:
     LinksColorsFilter(QLayout *parent, const FilterCallbacks &callbacks);
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
-};
-
-class ItemlevelFilter : public MinMaxFilter
-{
-public:
-    ItemlevelFilter(QLayout *parent, QString property, const FilterCallbacks &callbacks)
-        : MinMaxFilter(parent, property, callbacks)
-    {}
-    ItemlevelFilter(QLayout *parent,
-                    QString property,
-                    QString caption,
-                    const FilterCallbacks &callbacks)
-        : MinMaxFilter(parent, property, caption, callbacks)
-    {}
-    bool IsValuePresent(const std::shared_ptr<Item> & /* item */) { return true; }
-    double GetValue(const std::shared_ptr<Item> &item) { return item->ilvl(); }
 };

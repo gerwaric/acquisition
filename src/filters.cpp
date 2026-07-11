@@ -3,14 +3,10 @@
 
 #include "filters.h"
 
-#include <QAbstractItemView>
 #include <QComboBox>
-#include <QCompleter>
-#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <QListView>
 
 #include <memory>
 
@@ -39,10 +35,6 @@ Filter::Filter(const FilterCallbacks &callbacks)
 
 FilterData::FilterData(Filter *filter)
     : text_query("")
-    , min(0.0)
-    , max(0.0)
-    , min_filled(false)
-    , max_filled(false)
     , r(0)
     , g(0)
     , b(0)
@@ -293,151 +285,6 @@ void RaritySearchFilter::Initialize(QLayout *parent, const FilterCallbacks &call
                      &QComboBox::currentIndexChanged,
                      m_callbacks.receiver,
                      m_callbacks.onChangedDelayed);
-}
-
-MinMaxFilter::MinMaxFilter(QLayout *parent, QString property, const FilterCallbacks &callbacks)
-    : Filter(callbacks)
-    , m_property(property)
-    , m_caption(property)
-{
-    Initialize(parent, callbacks);
-}
-
-MinMaxFilter::MinMaxFilter(QLayout *parent,
-                           QString property,
-                           QString caption,
-                           const FilterCallbacks &callbacks)
-    : Filter(callbacks)
-    , m_property(property)
-    , m_caption(caption)
-{
-    Initialize(parent, callbacks);
-}
-
-void MinMaxFilter::Initialize(QLayout *parent, const FilterCallbacks &callbacks)
-{
-    m_callbacks = callbacks;
-    QWidget *group = new QWidget;
-    QHBoxLayout *layout = new QHBoxLayout;
-    layout->setContentsMargins(0, 0, 0, 0);
-    QLabel *label = new QLabel(m_caption);
-    label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    m_textbox_min = new QLineEdit;
-    m_textbox_max = new QLineEdit;
-    layout->addWidget(label);
-    layout->addWidget(m_textbox_min);
-    layout->addWidget(m_textbox_max);
-    group->setLayout(layout);
-    parent->addWidget(group);
-    m_textbox_min->setPlaceholderText("min");
-    m_textbox_max->setPlaceholderText("max");
-    m_textbox_min->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_MIN_MAX));
-    m_textbox_max->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_MIN_MAX));
-    label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
-    QObject::connect(m_textbox_min,
-                     &QLineEdit::textEdited,
-                     m_callbacks.receiver,
-                     m_callbacks.onChangedDelayed);
-    QObject::connect(m_textbox_max,
-                     &QLineEdit::textEdited,
-                     m_callbacks.receiver,
-                     m_callbacks.onChangedDelayed);
-}
-
-void MinMaxFilter::FromForm(FilterData *data)
-{
-    data->min_filled = m_textbox_min->text().size() > 0;
-    data->min = m_textbox_min->text().toDouble();
-    data->max_filled = m_textbox_max->text().size() > 0;
-    data->max = m_textbox_max->text().toDouble();
-    m_active = data->min_filled || data->max_filled;
-}
-
-void MinMaxFilter::ToForm(FilterData *data)
-{
-    if (data->min_filled) {
-        m_textbox_min->setText(QString::number(data->min));
-    } else {
-        m_textbox_min->setText("");
-    }
-    if (data->max_filled) {
-        m_textbox_max->setText(QString::number(data->max));
-    } else {
-        m_textbox_max->setText("");
-    }
-}
-
-void MinMaxFilter::ResetForm()
-{
-    m_textbox_min->setText("");
-    m_textbox_max->setText("");
-    m_active = false;
-}
-
-bool MinMaxFilter::Matches(const std::shared_ptr<Item> &item, FilterData *data)
-{
-    if (IsValuePresent(item)) {
-        double value = GetValue(item);
-        if (data->min_filled && data->min > value) {
-            return false;
-        }
-        if (data->max_filled && data->max < value) {
-            return false;
-        }
-        return true;
-    } else {
-        return !data->max_filled && !data->min_filled;
-    }
-}
-
-bool SimplePropertyFilter::IsValuePresent(const std::shared_ptr<Item> &item)
-{
-    return item->properties().count(m_property);
-}
-
-double SimplePropertyFilter::GetValue(const std::shared_ptr<Item> &item)
-{
-    return item->properties().at(m_property).toDouble();
-}
-
-double DefaultPropertyFilter::GetValue(const std::shared_ptr<Item> &item)
-{
-    if (!item->properties().count(m_property)) {
-        return m_default_value;
-    }
-    return SimplePropertyFilter::GetValue(item);
-}
-
-double RequiredStatFilter::GetValue(const std::shared_ptr<Item> &item)
-{
-    auto &requirements = item->requirements();
-    if (requirements.count(m_property)) {
-        return requirements.at(m_property);
-    }
-    return 0;
-}
-
-ItemMethodFilter::ItemMethodFilter(QLayout *parent,
-                                   std::function<double(Item *)> func,
-                                   QString caption,
-                                   const FilterCallbacks &callbacks)
-    : MinMaxFilter(parent, caption, caption, callbacks)
-    , m_func(func)
-{}
-
-double ItemMethodFilter::GetValue(const std::shared_ptr<Item> &item)
-{
-    return m_func(&*item);
-}
-
-double SocketsFilter::GetValue(const std::shared_ptr<Item> &item)
-{
-    return item->sockets_cnt();
-}
-
-double LinksFilter::GetValue(const std::shared_ptr<Item> &item)
-{
-    return item->links_cnt();
 }
 
 SocketsColorsFilter::SocketsColorsFilter(QLayout *parent, const FilterCallbacks &callbacks)

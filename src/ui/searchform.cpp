@@ -7,11 +7,13 @@
 #include <QCheckBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QLineEdit>
 #include <QStringListModel>
 #include <QVBoxLayout>
 #include <QWidget>
 
 #include <array>
+#include <optional>
 
 #include "itemcategories.h"
 #include "modsfilter.h"
@@ -68,6 +70,80 @@ namespace {
         QCheckBox *m_checkbox = nullptr;
     };
 
+    class MinMaxFilterForm final : public FilterFormAdapter
+    {
+    public:
+        MinMaxFilterForm(QLayout *parent, const QString &caption, const FilterCallbacks &callbacks)
+        {
+            auto *group = new QWidget;
+            auto *layout = new QHBoxLayout;
+            layout->setContentsMargins(0, 0, 0, 0);
+            auto *label = new QLabel(caption);
+            label->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+            m_textboxMin = new QLineEdit;
+            m_textboxMax = new QLineEdit;
+            layout->addWidget(label);
+            layout->addWidget(m_textboxMin);
+            layout->addWidget(m_textboxMax);
+            group->setLayout(layout);
+            parent->addWidget(group);
+            m_textboxMin->setPlaceholderText("min");
+            m_textboxMax->setPlaceholderText("max");
+            m_textboxMin->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_MIN_MAX));
+            m_textboxMax->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_MIN_MAX));
+            label->setFixedWidth(Util::TextWidth(TextWidthId::WIDTH_LABEL));
+
+            QObject::connect(m_textboxMin,
+                             &QLineEdit::textEdited,
+                             callbacks.receiver,
+                             callbacks.onChangedDelayed);
+            QObject::connect(m_textboxMax,
+                             &QLineEdit::textEdited,
+                             callbacks.receiver,
+                             callbacks.onChangedDelayed);
+        }
+
+        void saveTo(FilterState &state) const override
+        {
+            auto *minMaxState = std::get_if<MinMaxState>(&state);
+            Q_ASSERT(minMaxState);
+            if (minMaxState) {
+                minMaxState->min = parse(m_textboxMin);
+                minMaxState->max = parse(m_textboxMax);
+            }
+        }
+
+        void loadFrom(const FilterState &state) override
+        {
+            const auto *minMaxState = std::get_if<MinMaxState>(&state);
+            Q_ASSERT(minMaxState);
+            if (minMaxState) {
+                m_textboxMin->setText(
+                    minMaxState->min.has_value() ? QString::number(*minMaxState->min) : QString{});
+                m_textboxMax->setText(
+                    minMaxState->max.has_value() ? QString::number(*minMaxState->max) : QString{});
+            }
+        }
+
+        void reset() override
+        {
+            m_textboxMin->setText("");
+            m_textboxMax->setText("");
+        }
+
+    private:
+        static std::optional<double> parse(const QLineEdit *textbox)
+        {
+            if (textbox->text().isEmpty()) {
+                return std::nullopt;
+            }
+            return textbox->text().toDouble();
+        }
+
+        QLineEdit *m_textboxMin = nullptr;
+        QLineEdit *m_textboxMax = nullptr;
+    };
+
 } // namespace
 
 SearchForm::SearchForm(QVBoxLayout &layout,
@@ -97,6 +173,13 @@ SearchForm::SearchForm(QVBoxLayout &layout,
                                    const FilterCallbacks &formCallbacks) {
         Q_ASSERT(!m_legacyFilters.at(static_cast<size_t>(index)));
         m_slots.emplace_back(std::make_unique<BoolFilterForm>(parent, caption, formCallbacks));
+    };
+    const auto addMinMax = [this](QLayout *parent,
+                                  qsizetype index,
+                                  const QString &caption,
+                                  const FilterCallbacks &formCallbacks) {
+        Q_ASSERT(!m_legacyFilters.at(static_cast<size_t>(index)));
+        m_slots.emplace_back(std::make_unique<MinMaxFilterForm>(parent, caption, formCallbacks));
     };
 
     Q_ASSERT(m_catalog.size() >= 4);
@@ -148,6 +231,30 @@ SearchForm::SearchForm(QVBoxLayout &layout,
             }
             continue;
         }
+        if (std::holds_alternative<MinMaxPayload>(spec.payload)) {
+            Q_ASSERT(spec.refreshMode == RefreshMode::Debounced);
+            switch (spec.group) {
+            case FilterGroup::Offense:
+                addMinMax(offenseLayout, index, spec.caption, callbacks);
+                break;
+            case FilterGroup::Defense:
+                addMinMax(defenseLayout, index, spec.caption, callbacks);
+                break;
+            case FilterGroup::Sockets:
+                addMinMax(socketsLayout, index, spec.caption, callbacks);
+                break;
+            case FilterGroup::Requirements:
+                addMinMax(requirementsLayout, index, spec.caption, callbacks);
+                break;
+            case FilterGroup::Misc:
+                addMinMax(miscLayout, index, spec.caption, callbacks);
+                break;
+            default:
+                Q_ASSERT(false);
+                break;
+            }
+            continue;
+        }
 
         const auto *legacy = std::get_if<LegacyPayload>(&spec.payload);
         Q_ASSERT(legacy);
@@ -175,124 +282,11 @@ SearchForm::SearchForm(QVBoxLayout &layout,
                                                               rarityModelPtr,
                                                               callbacks);
             break;
-        case Kind::CriticalStrikeChance:
-            addLegacy.template operator()<SimplePropertyFilter>(index,
-                                                                offenseLayout,
-                                                                "Critical Strike Chance",
-                                                                "Crit.",
-                                                                callbacks);
-            break;
-        case Kind::Dps:
-            addLegacy.template operator()<ItemMethodFilter>(
-                index, offenseLayout, [](Item *item) { return item->DPS(); }, "DPS", callbacks);
-            break;
-        case Kind::PhysicalDps:
-            addLegacy.template operator()<ItemMethodFilter>(
-                index, offenseLayout, [](Item *item) { return item->pDPS(); }, "pDPS", callbacks);
-            break;
-        case Kind::ElementalDps:
-            addLegacy.template operator()<ItemMethodFilter>(
-                index, offenseLayout, [](Item *item) { return item->eDPS(); }, "eDPS", callbacks);
-            break;
-        case Kind::ChaosDps:
-            addLegacy.template operator()<ItemMethodFilter>(
-                index, offenseLayout, [](Item *item) { return item->cDPS(); }, "cDPS", callbacks);
-            break;
-        case Kind::AttacksPerSecond:
-            addLegacy.template operator()<SimplePropertyFilter>(index,
-                                                                offenseLayout,
-                                                                "Attacks per Second",
-                                                                "APS",
-                                                                callbacks);
-            break;
-        case Kind::Armour:
-            addLegacy.template operator()<SimplePropertyFilter>(index,
-                                                                defenseLayout,
-                                                                "Armour",
-                                                                callbacks);
-            break;
-        case Kind::Evasion:
-            addLegacy.template operator()<SimplePropertyFilter>(index,
-                                                                defenseLayout,
-                                                                "Evasion Rating",
-                                                                "Evasion",
-                                                                callbacks);
-            break;
-        case Kind::EnergyShield:
-            addLegacy.template operator()<SimplePropertyFilter>(index,
-                                                                defenseLayout,
-                                                                "Energy Shield",
-                                                                "Shield",
-                                                                callbacks);
-            break;
-        case Kind::Block:
-            addLegacy.template operator()<SimplePropertyFilter>(index,
-                                                                defenseLayout,
-                                                                "Chance to Block",
-                                                                "Block",
-                                                                callbacks);
-            break;
-        case Kind::Sockets:
-            addLegacy.template operator()<SocketsFilter>(index, socketsLayout, "Sockets", callbacks);
-            break;
-        case Kind::Links:
-            addLegacy.template operator()<LinksFilter>(index, socketsLayout, "Links", callbacks);
-            break;
         case Kind::SocketColors:
             addLegacy.template operator()<SocketsColorsFilter>(index, socketsLayout, callbacks);
             break;
         case Kind::LinkColors:
             addLegacy.template operator()<LinksColorsFilter>(index, socketsLayout, callbacks);
-            break;
-        case Kind::RequiredLevel:
-            addLegacy.template operator()<RequiredStatFilter>(index,
-                                                              requirementsLayout,
-                                                              "Level",
-                                                              "R. Level",
-                                                              callbacks);
-            break;
-        case Kind::RequiredStrength:
-            addLegacy.template operator()<RequiredStatFilter>(index,
-                                                              requirementsLayout,
-                                                              "Str",
-                                                              "R. Str",
-                                                              callbacks);
-            break;
-        case Kind::RequiredDexterity:
-            addLegacy.template operator()<RequiredStatFilter>(index,
-                                                              requirementsLayout,
-                                                              "Dex",
-                                                              "R. Dex",
-                                                              callbacks);
-            break;
-        case Kind::RequiredIntelligence:
-            addLegacy.template operator()<RequiredStatFilter>(index,
-                                                              requirementsLayout,
-                                                              "Int",
-                                                              "R. Int",
-                                                              callbacks);
-            break;
-        case Kind::Quality:
-            addLegacy.template operator()<DefaultPropertyFilter>(index,
-                                                                 miscLayout,
-                                                                 "Quality",
-                                                                 0,
-                                                                 callbacks);
-            break;
-        case Kind::Level:
-            addLegacy.template operator()<SimplePropertyFilter>(index,
-                                                                miscLayout,
-                                                                "Level",
-                                                                callbacks);
-            break;
-        case Kind::MapTier:
-            addLegacy.template operator()<SimplePropertyFilter>(index,
-                                                                miscLayout,
-                                                                "Map Tier",
-                                                                callbacks);
-            break;
-        case Kind::ItemLevel:
-            addLegacy.template operator()<ItemlevelFilter>(index, miscLayout, "ilvl", callbacks);
             break;
         case Kind::Mods:
             addLegacy.template operator()<ModsFilter>(index, modsLayout, callbacks);
@@ -339,7 +333,7 @@ void SearchForm::saveTo(Search &search)
         } else {
             const auto *adapter = std::get_if<std::unique_ptr<FilterFormAdapter>>(&slot);
             Q_ASSERT(adapter && *adapter);
-            Q_ASSERT(std::holds_alternative<BoolPayload>(m_catalog[index].payload));
+            Q_ASSERT(!std::holds_alternative<LegacyPayload>(m_catalog[index].payload));
             (*adapter)->saveTo(search.filterStateAt(index));
         }
     }
@@ -360,7 +354,7 @@ void SearchForm::loadFrom(Search &search)
         } else {
             auto *adapter = std::get_if<std::unique_ptr<FilterFormAdapter>>(&slot);
             Q_ASSERT(adapter && *adapter);
-            Q_ASSERT(std::holds_alternative<BoolPayload>(m_catalog[index].payload));
+            Q_ASSERT(!std::holds_alternative<LegacyPayload>(m_catalog[index].payload));
             (*adapter)->loadFrom(search.filterStateAt(index));
         }
     }
@@ -377,7 +371,7 @@ void SearchForm::reset()
         } else {
             auto *adapter = std::get_if<std::unique_ptr<FilterFormAdapter>>(&slot);
             Q_ASSERT(adapter && *adapter);
-            Q_ASSERT(std::holds_alternative<BoolPayload>(m_catalog[index].payload));
+            Q_ASSERT(!std::holds_alternative<LegacyPayload>(m_catalog[index].payload));
             (*adapter)->reset();
         }
     }

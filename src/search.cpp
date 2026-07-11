@@ -68,8 +68,12 @@ Search::Search(BuyoutManager &bo_manager,
             m_filter_slots.emplace_back(filter->CreateData());
         } else {
             FilterState state = MakeDefaultState(spec);
-            Q_ASSERT(std::holds_alternative<BoolPayload>(spec.payload));
-            Q_ASSERT(std::holds_alternative<BoolState>(state));
+            if (std::holds_alternative<BoolPayload>(spec.payload)) {
+                Q_ASSERT(std::holds_alternative<BoolState>(state));
+            } else {
+                Q_ASSERT(std::holds_alternative<MinMaxPayload>(spec.payload));
+                Q_ASSERT(std::holds_alternative<MinMaxState>(state));
+            }
             m_filter_slots.emplace_back(std::move(state));
         }
     }

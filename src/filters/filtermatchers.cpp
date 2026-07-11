@@ -163,8 +163,19 @@ bool matches(const Item &, const ComboState &, const ComboPayload &)
 {
     return true;
 }
-bool matches(const Item &, const MinMaxState &, const MinMaxPayload &)
+bool matches(const Item &item, const MinMaxState &state, const MinMaxPayload &payload)
 {
+    if (!payload.present(item)) {
+        return !state.min.has_value() && !state.max.has_value();
+    }
+
+    const double value = payload.value(item);
+    if (state.min.has_value() && *state.min > value) {
+        return false;
+    }
+    if (state.max.has_value() && *state.max < value) {
+        return false;
+    }
     return true;
 }
 bool matches(const Item &, const ColorsState &, const ColorsPayload &)

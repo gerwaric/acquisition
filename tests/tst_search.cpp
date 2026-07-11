@@ -22,9 +22,22 @@ private slots:
     void nameFilterMembership();
     void backgroundRefilterUsesCurrentSearchActivity();
     void backgroundBooleanRefilterUsesOwnState();
+    void backgroundMinMaxRefilterUsesOwnState();
     void filterStateRestoresAcrossTabSwitch();
     void booleanFormAdapterRoundTrip();
+    void minMaxFormAdapterRoundTrip();
 };
+
+static qsizetype findMinMaxFilterIndex(const FilterCatalog &catalog, const QString &caption)
+{
+    for (qsizetype index = 0; index < catalog.size(); ++index) {
+        const auto &spec = catalog[index];
+        if ((spec.caption == caption) && std::holds_alternative<MinMaxPayload>(spec.payload)) {
+            return index;
+        }
+    }
+    return -1;
+}
 
 struct SearchHarness
 {
@@ -228,6 +241,53 @@ void SearchTest::backgroundBooleanRefilterUsesOwnState()
     QCOMPARE(background.items().front()->id(), "corrupted-item");
 }
 
+void SearchTest::backgroundMinMaxRefilterUsesOwnState()
+{
+    SearchHarness harness;
+    const ItemLocation firstTab = makeTestStashLocation("stash-a", "Alpha Tab", 0);
+    const ItemLocation secondTab = makeTestStashLocation("stash-b", "Beta Tab", 1);
+    harness.buyoutFixture.manager->SetStashTabLocations({firstTab, secondTab});
+
+    Items items;
+    items.push_back(makeSearchItem("critical-item",
+                                   "Critical Bite",
+                                   "Vaal Axe",
+                                   firstTab,
+                                   R"json(,
+        "properties": [
+            {
+                "displayMode": 0,
+                "name": "Critical Strike Chance",
+                "type": 6,
+                "values": [["6", 1]]
+            }
+        ])json"));
+    items.push_back(makeSearchItem("ordinary-item", "Ordinary Guard", "Copper Shield", secondTab));
+
+    auto *critMin = harness.findByLabel<QLineEdit>("Crit.", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "min";
+    });
+    QVERIFY(critMin);
+    critMin->setText("5");
+    Search background(*harness.buyoutFixture.manager,
+                      "Background",
+                      harness.catalog,
+                      harness.form.legacyFilters());
+    harness.form.saveTo(background);
+
+    critMin->setText("");
+    Search current(*harness.buyoutFixture.manager,
+                   "Current",
+                   harness.catalog,
+                   harness.form.legacyFilters());
+    harness.form.saveTo(current);
+    background.FilterItems(items);
+
+    QCOMPARE(background.GetCaption(), "Background [1]");
+    QCOMPARE(background.items().size(), 1);
+    QCOMPARE(background.items().front()->id(), "critical-item");
+}
+
 void SearchTest::filterStateRestoresAcrossTabSwitch()
 {
     SearchHarness harness;
@@ -318,6 +378,66 @@ void SearchTest::booleanFormAdapterRoundTrip()
     QVERIFY(corrupted->isChecked());
     QCOMPARE(harness.immediateChanges, 1);
     QCOMPARE(harness.delayedChanges, 0);
+}
+
+void SearchTest::minMaxFormAdapterRoundTrip()
+{
+    SearchHarness harness;
+    const auto &legacyFilters = harness.form.legacyFilters();
+    QCOMPARE(static_cast<qsizetype>(legacyFilters.size()), harness.catalog.size());
+    for (qsizetype index = 0; index < harness.catalog.size(); ++index) {
+        QCOMPARE(legacyFilters.at(static_cast<size_t>(index)) != nullptr,
+                 std::holds_alternative<LegacyPayload>(harness.catalog[index].payload));
+    }
+
+    auto *critMin = harness.findByLabel<QLineEdit>("Crit.", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "min";
+    });
+    auto *critMax = harness.findByLabel<QLineEdit>("Crit.", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "max";
+    });
+    QVERIFY(critMin);
+    QVERIFY(critMax);
+    const qsizetype critIndex = findMinMaxFilterIndex(harness.catalog, "Crit.");
+    QVERIFY(critIndex >= 0);
+
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 0);
+    critMin->setFocus();
+    QTest::keyClick(critMin, Qt::Key_1);
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 1);
+
+    critMin->setText("garbage");
+    critMax->setText("12.5");
+    Search searchA(*harness.buyoutFixture.manager,
+                   "A",
+                   harness.catalog,
+                   harness.form.legacyFilters());
+    harness.form.saveTo(searchA);
+
+    const auto &state = std::get<MinMaxState>(searchA.filterStateAt(critIndex));
+    QVERIFY(state.min.has_value());
+    QCOMPARE(*state.min, 0.0);
+    QVERIFY(state.max.has_value());
+    QCOMPARE(*state.max, 12.5);
+    QVERIFY(state.isActive());
+
+    harness.form.reset();
+    Search searchB(*harness.buyoutFixture.manager,
+                   "B",
+                   harness.catalog,
+                   harness.form.legacyFilters());
+    harness.form.saveTo(searchB);
+    harness.form.loadFrom(searchB);
+    QCOMPARE(critMin->text(), "");
+    QCOMPARE(critMax->text(), "");
+    harness.form.loadFrom(searchA);
+
+    QCOMPARE(critMin->text(), "0");
+    QCOMPARE(critMax->text(), "12.5");
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 1);
 }
 
 QTEST_MAIN(SearchTest)

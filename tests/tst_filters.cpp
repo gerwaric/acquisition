@@ -25,7 +25,6 @@ private slots:
     void categoryFilter();
     void categoryAnySentinel();
     void minMaxFilter();
-    void minMaxGarbageTextIsActiveZero();
     void defaultAndRequiredFilters();
     void socketColorFilters();
     void colorsGarbageTextIsActiveZero();
@@ -90,6 +89,16 @@ static const FilterSpec *findFilterSpec(const FilterCatalog &catalog, const QStr
 {
     for (const auto &spec : catalog) {
         if (spec.caption == caption) {
+            return &spec;
+        }
+    }
+    return nullptr;
+}
+
+static const FilterSpec *findMinMaxFilterSpec(const FilterCatalog &catalog, const QString &caption)
+{
+    for (const auto &spec : catalog) {
+        if ((spec.caption == caption) && std::holds_alternative<MinMaxPayload>(spec.payload)) {
             return &spec;
         }
     }
@@ -172,73 +181,69 @@ void FiltersTest::categoryAnySentinel()
 
 void FiltersTest::minMaxFilter()
 {
-    FilterHarness harness;
-    SimplePropertyFilter filter(&harness.layout, "Quality", harness.callbacks);
-    const auto withQuality = makeFilterItem("quality",
-                                            R"json(,
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+
+    for (const QString &caption :
+         {"Crit.",   "DPS",    "pDPS",    "eDPS",    "cDPS",     "APS",      "Armour",
+          "Evasion", "Shield", "Block",   "Sockets", "Links",    "R. Level", "R. Str",
+          "R. Dex",  "R. Int", "Quality", "Level",   "Map Tier", "ilvl"}) {
+        const auto *spec = findMinMaxFilterSpec(catalog, caption);
+        QVERIFY(spec);
+        QCOMPARE(spec->refreshMode, RefreshMode::Debounced);
+        const FilterState defaultState = MakeDefaultState(*spec);
+        QVERIFY(std::holds_alternative<MinMaxState>(defaultState));
+        QVERIFY(!IsActive(defaultState));
+    }
+
+    const auto *crit = findMinMaxFilterSpec(catalog, "Crit.");
+    QVERIFY(crit);
+    const auto withCrit = makeFilterItem("crit",
+                                         R"json(,
         "properties": [
             {
                 "displayMode": 0,
-                "name": "Quality",
+                "name": "Critical Strike Chance",
                 "type": 6,
-                "values": [["+20%", 1]]
+                "values": [["20", 1]]
             }
         ])json");
-    const auto withoutQuality = makeFilterItem("missing-quality", "");
+    const auto withoutCrit = makeFilterItem("missing-crit", "");
 
-    FilterData data(&filter);
-    data.min_filled = true;
-    data.min = 10.0;
-    QVERIFY(filter.Matches(withQuality, &data));
+    MinMaxState state;
+    state.min = 10.0;
+    QVERIFY(MatchesFilter(*withCrit, *crit, state));
 
-    data.min = 25.0;
-    QVERIFY(!filter.Matches(withQuality, &data));
+    state.min = 25.0;
+    QVERIFY(!MatchesFilter(*withCrit, *crit, state));
 
-    data.min_filled = false;
-    data.max_filled = true;
-    data.max = 20.0;
-    QVERIFY(filter.Matches(withQuality, &data));
+    state.min.reset();
+    state.max = 20.0;
+    QVERIFY(MatchesFilter(*withCrit, *crit, state));
 
-    data.max = 19.0;
-    QVERIFY(!filter.Matches(withQuality, &data));
+    state.max = 19.0;
+    QVERIFY(!MatchesFilter(*withCrit, *crit, state));
 
-    data.min_filled = true;
-    data.min = 1.0;
-    data.max_filled = false;
-    QVERIFY(!filter.Matches(withoutQuality, &data));
+    state.min = 1.0;
+    state.max.reset();
+    QVERIFY(!MatchesFilter(*withoutCrit, *crit, state));
 
-    data.min_filled = false;
-    QVERIFY(filter.Matches(withoutQuality, &data));
-}
-
-void FiltersTest::minMaxGarbageTextIsActiveZero()
-{
-    FilterHarness harness;
-    SimplePropertyFilter filter(&harness.layout, "Quality", harness.callbacks);
-    FilterData data(&filter);
-    const auto edits = harness.host.findChildren<QLineEdit *>();
-    QCOMPARE(edits.size(), 2);
-
-    edits[0]->setText("garbage");
-    data.FromForm();
-
-    QVERIFY(data.min_filled);
-    QCOMPARE(data.min, 0.0);
-    QVERIFY(!data.max_filled);
-    QVERIFY(filter.IsActive());
+    state.min.reset();
+    QVERIFY(MatchesFilter(*withoutCrit, *crit, state));
 }
 
 void FiltersTest::defaultAndRequiredFilters()
 {
-    FilterHarness harness;
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
     const auto withoutQuality = makeFilterItem("default-quality", "");
-    DefaultPropertyFilter quality(&harness.layout, "Quality", 0.0, harness.callbacks);
-    FilterData qualityData(&quality);
-    qualityData.min_filled = true;
-    qualityData.min = 0.0;
-    QVERIFY(quality.Matches(withoutQuality, &qualityData));
-    qualityData.min = 1.0;
-    QVERIFY(!quality.Matches(withoutQuality, &qualityData));
+    const auto *quality = findMinMaxFilterSpec(catalog, "Quality");
+    QVERIFY(quality);
+    MinMaxState qualityState;
+    qualityState.min = 0.0;
+    QVERIFY(MatchesFilter(*withoutQuality, *quality, qualityState));
+    qualityState.min = 1.0;
+    QVERIFY(!MatchesFilter(*withoutQuality, *quality, qualityState));
 
     const auto withRequirement = makeFilterItem("requirement",
                                                 R"json(,
@@ -246,16 +251,15 @@ void FiltersTest::defaultAndRequiredFilters()
             {"displayMode": 0, "name": "Level", "values": [["12", 0]]}
         ])json");
     const auto withoutRequirement = makeFilterItem("no-requirement", "");
-    RequiredStatFilter required(&harness.layout, "Level", harness.callbacks);
-    FilterData requiredData(&required);
-    requiredData.min_filled = true;
-    requiredData.min = 12.0;
-    QVERIFY(required.Matches(withRequirement, &requiredData));
-    QVERIFY(!required.Matches(withoutRequirement, &requiredData));
-    requiredData.min_filled = false;
-    requiredData.max_filled = true;
-    requiredData.max = 0.0;
-    QVERIFY(required.Matches(withoutRequirement, &requiredData));
+    const auto *required = findMinMaxFilterSpec(catalog, "R. Level");
+    QVERIFY(required);
+    MinMaxState requiredState;
+    requiredState.min = 12.0;
+    QVERIFY(MatchesFilter(*withRequirement, *required, requiredState));
+    QVERIFY(!MatchesFilter(*withoutRequirement, *required, requiredState));
+    requiredState.min.reset();
+    requiredState.max = 0.0;
+    QVERIFY(MatchesFilter(*withoutRequirement, *required, requiredState));
 }
 
 void FiltersTest::socketColorFilters()
