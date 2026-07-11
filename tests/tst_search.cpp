@@ -581,9 +581,17 @@ void SearchTest::textAndComboFormAdapterRoundTrip()
     QCOMPARE(harness.immediateChanges, 0);
     QCOMPARE(harness.delayedChanges, 1);
 
+    category->setCurrentIndex(weaponsIndex);
+    auto &categoryState = std::get<ComboState>(searchB.filterStateAt(categoryIndex));
+    categoryState.value = "Missing category";
+    harness.form.loadFrom(searchB);
+    QCOMPARE(category->currentIndex(), 0);
+    QCOMPARE(category->currentText(), categoryPayload->anySentinel);
+
     harness.form.loadFrom(searchA);
     QCOMPARE(tab->text(), "Alpha Tab");
     QCOMPARE(name->text(), "Alpha");
+    QCOMPARE(category->currentText(), "Weapons");
     QCOMPARE(rarity->currentText(), "Rare");
 }
 
