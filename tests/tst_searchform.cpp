@@ -1,0 +1,740 @@
+#include <QtTest/QtTest>
+
+#include <QCheckBox>
+#include <QComboBox>
+#include <QGridLayout>
+#include <QLabel>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QSignalSpy>
+#include <QTimer>
+#include <QVBoxLayout>
+#include <QWidget>
+
+#include <algorithm>
+#include <functional>
+#include <memory>
+#include <optional>
+
+#include "itemcategories.h"
+#include "modlist.h"
+#include "search.h"
+#include "testfixtures.h"
+#include "ui/modsfilterform.h"
+#include "ui/searchform.h"
+
+class SearchTest : public QObject
+{
+    Q_OBJECT
+
+private slots:
+    void filterStateRestoresAcrossTabSwitch();
+    void booleanFormAdapterRoundTrip();
+    void minMaxFormAdapterRoundTrip();
+    void colorsFormAdapterRoundTrip();
+    void modsFormAdapterRoundTrip();
+    void modsFormAdapterFreeTextPersistsAndRestoresIndex();
+    void modsFormAdapterDoesNotArmCompleterOnProgrammaticRows();
+    void modsFormAdapterRepacksRows();
+    void modsFormAdapterDisconnectsOnDestruction();
+    void searchFormUnbindsDeletedSearch();
+    void textAndComboFormAdapterRoundTrip();
+};
+
+static qsizetype findTextFilterIndex(const FilterCatalog &catalog, const QString &caption)
+{
+    for (qsizetype index = 0; index < catalog.size(); ++index) {
+        const auto &spec = catalog[index];
+        if ((spec.caption == caption) && std::holds_alternative<TextPayload>(spec.payload)) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+static qsizetype findComboFilterIndex(const FilterCatalog &catalog, const QString &caption)
+{
+    for (qsizetype index = 0; index < catalog.size(); ++index) {
+        const auto &spec = catalog[index];
+        if ((spec.caption == caption) && std::holds_alternative<ComboPayload>(spec.payload)) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+static qsizetype findMinMaxFilterIndex(const FilterCatalog &catalog, const QString &caption)
+{
+    for (qsizetype index = 0; index < catalog.size(); ++index) {
+        const auto &spec = catalog[index];
+        if ((spec.caption == caption) && std::holds_alternative<MinMaxPayload>(spec.payload)) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+static qsizetype findColorsFilterIndex(const FilterCatalog &catalog, ColorsMatchKind matchKind)
+{
+    for (qsizetype index = 0; index < catalog.size(); ++index) {
+        const auto *payload = std::get_if<ColorsPayload>(&catalog[index].payload);
+        if (payload && payload->matchKind == matchKind) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+static qsizetype findModsFilterIndex(const FilterCatalog &catalog)
+{
+    for (qsizetype index = 0; index < catalog.size(); ++index) {
+        const auto &spec = catalog[index];
+        if ((spec.caption == "Mods") && std::holds_alternative<ModsPayload>(spec.payload)) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+struct SearchHarness
+{
+    BuyoutManagerFixture buyoutFixture;
+    QWidget host;
+    QVBoxLayout layout{&host};
+    QObject receiver;
+    int immediateChanges = 0;
+    int delayedChanges = 0;
+    FilterCallbacks callbacks{
+        &receiver,
+        [this] { ++immediateChanges; },
+        [this] { ++delayedChanges; },
+    };
+    FilterCatalog catalog{BuildFilterCatalog(*buyoutFixture.manager)};
+    SearchForm form{layout, catalog, callbacks};
+
+    template<typename Widget>
+    Widget *findByLabel(const QString &labelText,
+                        const std::function<bool(const Widget *)> &matches = {})
+    {
+        for (auto *label : host.findChildren<QLabel *>()) {
+            if (label->text() != labelText) {
+                continue;
+            }
+            for (auto *widget : label->parentWidget()->findChildren<Widget *>()) {
+                if (!matches || matches(widget)) {
+                    return widget;
+                }
+            }
+        }
+        return nullptr;
+    }
+};
+
+void SearchTest::filterStateRestoresAcrossTabSwitch()
+{
+    SearchHarness harness;
+    auto *tab = harness.findByLabel<QLineEdit>("Tab");
+    auto *name = harness.findByLabel<QLineEdit>("Name");
+    auto *critMin = harness.findByLabel<QLineEdit>("Crit.", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "min";
+    });
+    auto *critMax = harness.findByLabel<QLineEdit>("Crit.", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "max";
+    });
+    auto *colorR = harness.findByLabel<QLineEdit>("Colors", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "R";
+    });
+    auto *colorG = harness.findByLabel<QLineEdit>("Colors", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "G";
+    });
+    auto *rarity = harness.findByLabel<QComboBox>("Rarity");
+    auto *corrupted = harness.findByLabel<QCheckBox>("Corrupted");
+    QVERIFY(tab);
+    QVERIFY(name);
+    QVERIFY(critMin);
+    QVERIFY(critMax);
+    QVERIFY(colorR);
+    QVERIFY(colorG);
+    QVERIFY(rarity);
+    QVERIFY(corrupted);
+
+    tab->setText("Alpha Tab");
+    name->setText("alpha");
+    critMin->setText("5");
+    critMax->setText("10");
+    colorR->setText("2");
+    colorG->setText("1");
+    rarity->setCurrentText("Rare");
+    corrupted->setChecked(true);
+
+    Search searchA(*harness.buyoutFixture.manager, "A", harness.catalog);
+    harness.form.saveTo(searchA);
+
+    Search searchB(*harness.buyoutFixture.manager, "B", harness.catalog);
+    harness.form.reset();
+    harness.form.saveTo(searchB);
+    harness.form.loadFrom(searchA);
+
+    QCOMPARE(tab->text(), "Alpha Tab");
+    QCOMPARE(name->text(), "alpha");
+    QCOMPARE(critMin->text(), "5");
+    QCOMPARE(critMax->text(), "10");
+    QCOMPARE(colorR->text(), "2");
+    QCOMPARE(colorG->text(), "1");
+    QCOMPARE(rarity->currentText(), "Rare");
+    QVERIFY(corrupted->isChecked());
+}
+
+void SearchTest::booleanFormAdapterRoundTrip()
+{
+    SearchHarness harness;
+    auto *corrupted = harness.findByLabel<QCheckBox>("Corrupted");
+    QVERIFY(corrupted);
+
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 0);
+    corrupted->click();
+    QCOMPARE(harness.immediateChanges, 1);
+    QCOMPARE(harness.delayedChanges, 0);
+
+    Search searchA(*harness.buyoutFixture.manager, "A", harness.catalog);
+    harness.form.saveTo(searchA);
+
+    harness.form.reset();
+    Search searchB(*harness.buyoutFixture.manager, "B", harness.catalog);
+    harness.form.saveTo(searchB);
+    harness.form.loadFrom(searchA);
+
+    QVERIFY(corrupted->isChecked());
+    QCOMPARE(harness.immediateChanges, 1);
+    QCOMPARE(harness.delayedChanges, 0);
+}
+
+void SearchTest::minMaxFormAdapterRoundTrip()
+{
+    SearchHarness harness;
+    auto *critMin = harness.findByLabel<QLineEdit>("Crit.", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "min";
+    });
+    auto *critMax = harness.findByLabel<QLineEdit>("Crit.", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "max";
+    });
+    QVERIFY(critMin);
+    QVERIFY(critMax);
+    const qsizetype critIndex = findMinMaxFilterIndex(harness.catalog, "Crit.");
+    QVERIFY(critIndex >= 0);
+
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 0);
+    critMin->setFocus();
+    QTest::keyClick(critMin, Qt::Key_1);
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 1);
+
+    critMin->setText("garbage");
+    critMax->setText("12.5");
+    Search searchA(*harness.buyoutFixture.manager, "A", harness.catalog);
+    harness.form.saveTo(searchA);
+
+    const auto &state = std::get<MinMaxState>(searchA.filterStateAt(critIndex));
+    QVERIFY(state.min.has_value());
+    QCOMPARE(*state.min, 0.0);
+    QVERIFY(state.max.has_value());
+    QCOMPARE(*state.max, 12.5);
+    QVERIFY(state.isActive());
+
+    harness.form.reset();
+    Search searchB(*harness.buyoutFixture.manager, "B", harness.catalog);
+    harness.form.saveTo(searchB);
+    harness.form.loadFrom(searchB);
+    QCOMPARE(critMin->text(), "");
+    QCOMPARE(critMax->text(), "");
+    harness.form.loadFrom(searchA);
+
+    QCOMPARE(critMin->text(), "0");
+    QCOMPARE(critMax->text(), "12.5");
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 1);
+}
+
+void SearchTest::colorsFormAdapterRoundTrip()
+{
+    SearchHarness harness;
+    const qsizetype socketsIndex = findColorsFilterIndex(harness.catalog, ColorsMatchKind::Sockets);
+    const qsizetype linksIndex = findColorsFilterIndex(harness.catalog, ColorsMatchKind::Links);
+    QVERIFY(socketsIndex >= 0);
+    QVERIFY(linksIndex >= 0);
+
+    auto *socketR = harness.findByLabel<QLineEdit>("Colors", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "R";
+    });
+    auto *socketG = harness.findByLabel<QLineEdit>("Colors", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "G";
+    });
+    auto *socketB = harness.findByLabel<QLineEdit>("Colors", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "B";
+    });
+    auto *linkR = harness.findByLabel<QLineEdit>("Linked", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "R";
+    });
+    auto *linkG = harness.findByLabel<QLineEdit>("Linked", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "G";
+    });
+    auto *linkB = harness.findByLabel<QLineEdit>("Linked", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "B";
+    });
+    QVERIFY(socketR);
+    QVERIFY(socketG);
+    QVERIFY(socketB);
+    QVERIFY(linkR);
+    QVERIFY(linkG);
+    QVERIFY(linkB);
+
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 0);
+    socketR->setFocus();
+    QTest::keyClick(socketR, Qt::Key_1);
+    QCOMPARE(harness.immediateChanges, 1);
+    QCOMPARE(harness.delayedChanges, 0);
+    linkB->setFocus();
+    QTest::keyClick(linkB, Qt::Key_1);
+    QCOMPARE(harness.immediateChanges, 2);
+    QCOMPARE(harness.delayedChanges, 0);
+
+    socketR->setText("garbage");
+    socketG->setText("2");
+    socketB->setText("");
+    linkR->setText("1");
+    linkG->setText("");
+    linkB->setText("3");
+    QCOMPARE(harness.immediateChanges, 2);
+    QCOMPARE(harness.delayedChanges, 0);
+
+    Search searchA(*harness.buyoutFixture.manager, "A", harness.catalog);
+    harness.form.saveTo(searchA);
+
+    const auto &socketsState = std::get<ColorsState>(searchA.filterStateAt(socketsIndex));
+    QVERIFY(socketsState.r.has_value());
+    QCOMPARE(*socketsState.r, 0);
+    QVERIFY(socketsState.g.has_value());
+    QCOMPARE(*socketsState.g, 2);
+    QVERIFY(!socketsState.b.has_value());
+    QVERIFY(socketsState.isActive());
+
+    const auto &linksState = std::get<ColorsState>(searchA.filterStateAt(linksIndex));
+    QVERIFY(linksState.r.has_value());
+    QCOMPARE(*linksState.r, 1);
+    QVERIFY(!linksState.g.has_value());
+    QVERIFY(linksState.b.has_value());
+    QCOMPARE(*linksState.b, 3);
+    QVERIFY(linksState.isActive());
+
+    harness.form.reset();
+    Search searchB(*harness.buyoutFixture.manager, "B", harness.catalog);
+    harness.form.saveTo(searchB);
+
+    const auto &emptySocketsState = std::get<ColorsState>(searchB.filterStateAt(socketsIndex));
+    QVERIFY(!emptySocketsState.r.has_value());
+    QVERIFY(!emptySocketsState.g.has_value());
+    QVERIFY(!emptySocketsState.b.has_value());
+    QVERIFY(!emptySocketsState.isActive());
+
+    const auto &emptyLinksState = std::get<ColorsState>(searchB.filterStateAt(linksIndex));
+    QVERIFY(!emptyLinksState.r.has_value());
+    QVERIFY(!emptyLinksState.g.has_value());
+    QVERIFY(!emptyLinksState.b.has_value());
+    QVERIFY(!emptyLinksState.isActive());
+
+    harness.immediateChanges = 0;
+    harness.delayedChanges = 0;
+    harness.form.loadFrom(searchA);
+    QCOMPARE(socketR->text(), "0");
+    QCOMPARE(socketG->text(), "2");
+    QCOMPARE(socketB->text(), "");
+    QCOMPARE(linkR->text(), "1");
+    QCOMPARE(linkG->text(), "");
+    QCOMPARE(linkB->text(), "3");
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 0);
+
+    // F35: switching to a search without colors clears all color boxes.
+    harness.form.loadFrom(searchB);
+    QCOMPARE(socketR->text(), "");
+    QCOMPARE(socketG->text(), "");
+    QCOMPARE(socketB->text(), "");
+    QCOMPARE(linkR->text(), "");
+    QCOMPARE(linkG->text(), "");
+    QCOMPARE(linkB->text(), "");
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 0);
+
+    harness.form.loadFrom(searchA);
+    QCOMPARE(socketR->text(), "0");
+    QCOMPARE(socketG->text(), "2");
+    QCOMPARE(socketB->text(), "");
+    QCOMPARE(linkR->text(), "1");
+    QCOMPARE(linkG->text(), "");
+    QCOMPARE(linkB->text(), "3");
+}
+
+void SearchTest::modsFormAdapterRoundTrip()
+{
+    mod_list_model().setStringList({"Default mod", "Saved mod"});
+    SearchHarness harness;
+    const qsizetype modsIndex = findModsFilterIndex(harness.catalog);
+    QVERIFY(modsIndex >= 0);
+    auto *addButton = harness.host.findChild<QPushButton *>("modsAddButton");
+    auto *rowsContainer = harness.host.findChild<QWidget *>("modsRowsContainer");
+    QVERIFY(addButton);
+    QVERIFY(rowsContainer);
+    QCOMPARE(addButton->text(), "Add mod");
+    QVERIFY(rowsContainer->isHidden());
+
+    Search searchA(*harness.buyoutFixture.manager, "A", harness.catalog);
+    harness.form.saveTo(searchA);
+
+    harness.immediateChanges = 0;
+    harness.delayedChanges = 0;
+    addButton->click();
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 1);
+
+    const auto &blankState = std::get<ModsState>(searchA.filterStateAt(modsIndex));
+    QCOMPARE(blankState.rows.size(), 1);
+    QVERIFY(blankState.rows.front().mod.isEmpty());
+    QVERIFY(blankState.isActive());
+    QVERIFY(!rowsContainer->isHidden());
+
+    // F36(a): adding a blank row saves it before a tab switch can rebuild the form.
+    Search searchB(*harness.buyoutFixture.manager, "B", harness.catalog);
+    harness.form.loadFrom(searchB);
+    QVERIFY(rowsContainer->isHidden());
+    harness.form.loadFrom(searchA);
+    auto *modCombo = harness.host.findChild<QComboBox *>("modsRowCombo");
+    QVERIFY(modCombo);
+    QCOMPARE(modCombo->currentText(), "");
+    QCOMPARE(modCombo->currentIndex(), -1);
+    QVERIFY(!rowsContainer->isHidden());
+
+    // F36(b): rebuilt rows show their state value rather than the model's first entry.
+    auto &savedState = std::get<ModsState>(searchA.filterStateAt(modsIndex));
+    savedState.rows = {ModRow{"Saved mod", 1.0, 2.0}};
+    harness.form.loadFrom(searchB);
+    QVERIFY(rowsContainer->isHidden());
+    harness.form.loadFrom(searchA);
+    modCombo = harness.host.findChild<QComboBox *>("modsRowCombo");
+    QVERIFY(modCombo);
+    QCOMPARE(modCombo->currentText(), "Saved mod");
+    QVERIFY(!rowsContainer->isHidden());
+
+    // Row edits and deletes keep the existing delayed, not immediate, refresh path.
+    harness.immediateChanges = 0;
+    harness.delayedChanges = 0;
+    const int savedModIndex = modCombo->findText("Saved mod", Qt::MatchFixedString);
+    const int defaultModIndex = modCombo->findText("Default mod", Qt::MatchFixedString);
+    QVERIFY(savedModIndex >= 0);
+    QVERIFY(defaultModIndex >= 0);
+    QCOMPARE(modCombo->currentIndex(), savedModIndex);
+    modCombo->setCurrentIndex(defaultModIndex);
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 1);
+    QCOMPARE(std::get<ModsState>(searchA.filterStateAt(modsIndex)).rows.front().mod, "Default mod");
+
+    const auto buttons = harness.host.findChildren<QPushButton *>();
+    const auto deleteButton = std::find_if(buttons.cbegin(),
+                                           buttons.cend(),
+                                           [](const QPushButton *button) {
+                                               return button->text() == "X";
+                                           });
+    QVERIFY(deleteButton != buttons.cend());
+    (*deleteButton)->click();
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 2);
+    QVERIFY(std::get<ModsState>(searchA.filterStateAt(modsIndex)).rows.empty());
+
+    // F36(c): row-container visibility is entirely derived from the current row count.
+    QVERIFY(rowsContainer->isHidden());
+    harness.form.loadFrom(searchB);
+    QVERIFY(rowsContainer->isHidden());
+}
+
+void SearchTest::modsFormAdapterFreeTextPersistsAndRestoresIndex()
+{
+    mod_list_model().setStringList({"First mod", "Saved mod"});
+    SearchHarness harness;
+    const qsizetype modsIndex = findModsFilterIndex(harness.catalog);
+    QVERIFY(modsIndex >= 0);
+
+    Search searchA(*harness.buyoutFixture.manager, "A", harness.catalog);
+    Search searchB(*harness.buyoutFixture.manager, "B", harness.catalog);
+    harness.form.saveTo(searchA);
+
+    auto *addButton = harness.host.findChild<QPushButton *>("modsAddButton");
+    QVERIFY(addButton);
+    addButton->click();
+
+    auto *modCombo = harness.host.findChild<QComboBox *>("modsRowCombo");
+    QVERIFY(modCombo);
+    QCOMPARE(modCombo->currentIndex(), -1);
+    auto *lineEdit = modCombo->lineEdit();
+    QVERIFY(lineEdit);
+    lineEdit->setFocus();
+    QTest::keyClicks(lineEdit, "Free typed mod");
+
+    const auto &typedState = std::get<ModsState>(searchA.filterStateAt(modsIndex));
+    QCOMPARE(typedState.rows.size(), 1);
+    QCOMPARE(typedState.rows.front().mod, "Free typed mod");
+
+    harness.form.loadFrom(searchB);
+    harness.form.loadFrom(searchA);
+    modCombo = harness.host.findChild<QComboBox *>("modsRowCombo");
+    QVERIFY(modCombo);
+    QCOMPARE(modCombo->currentText(), "Free typed mod");
+    QCOMPARE(modCombo->currentIndex(), -1);
+
+    auto &savedState = std::get<ModsState>(searchA.filterStateAt(modsIndex));
+    savedState.rows = {ModRow{"Saved mod", std::nullopt, std::nullopt}};
+    harness.form.loadFrom(searchA);
+    modCombo = harness.host.findChild<QComboBox *>("modsRowCombo");
+    QVERIFY(modCombo);
+    const int savedModIndex = modCombo->findText("Saved mod", Qt::MatchFixedString);
+    const int firstModIndex = modCombo->findText("First mod", Qt::MatchFixedString);
+    QVERIFY(savedModIndex >= 0);
+    QVERIFY(firstModIndex >= 0);
+    QCOMPARE(modCombo->currentIndex(), savedModIndex);
+
+    modCombo->setCurrentIndex(firstModIndex);
+    QCOMPARE(std::get<ModsState>(searchA.filterStateAt(modsIndex)).rows.front().mod, "First mod");
+}
+
+void SearchTest::modsFormAdapterDoesNotArmCompleterOnProgrammaticRows()
+{
+    mod_list_model().setStringList({"Default mod", "Saved mod"});
+    SearchHarness harness;
+    const qsizetype modsIndex = findModsFilterIndex(harness.catalog);
+    QVERIFY(modsIndex >= 0);
+
+    Search searchA(*harness.buyoutFixture.manager, "A", harness.catalog);
+    harness.form.saveTo(searchA);
+
+    auto *addButton = harness.host.findChild<QPushButton *>("modsAddButton");
+    QVERIFY(addButton);
+    addButton->click();
+    auto *modCombo = harness.host.findChild<QComboBox *>("modsRowCombo");
+    QVERIFY(modCombo);
+    auto *timer = modCombo->findChild<QTimer *>("modsRowCompleterTimer");
+    QVERIFY(timer);
+    QVERIFY(!timer->isActive());
+    QSignalSpy blankRowTimeouts(timer, &QTimer::timeout);
+    QTest::qWait(timer->interval() + 75);
+    QCOMPARE(blankRowTimeouts.count(), 0);
+
+    auto &savedState = std::get<ModsState>(searchA.filterStateAt(modsIndex));
+    savedState.rows = {ModRow{"Saved mod", std::nullopt, std::nullopt}};
+    harness.form.loadFrom(searchA);
+    modCombo = harness.host.findChild<QComboBox *>("modsRowCombo");
+    QVERIFY(modCombo);
+    timer = modCombo->findChild<QTimer *>("modsRowCompleterTimer");
+    QVERIFY(timer);
+    QVERIFY(!timer->isActive());
+    QSignalSpy restoredRowTimeouts(timer, &QTimer::timeout);
+    QTest::qWait(timer->interval() + 75);
+    QCOMPARE(restoredRowTimeouts.count(), 0);
+}
+
+void SearchTest::modsFormAdapterRepacksRows()
+{
+    mod_list_model().setStringList({"Saved mod"});
+    SearchHarness harness;
+    const qsizetype modsIndex = findModsFilterIndex(harness.catalog);
+    QVERIFY(modsIndex >= 0);
+
+    Search searchA(*harness.buyoutFixture.manager, "A", harness.catalog);
+    Search searchB(*harness.buyoutFixture.manager, "B", harness.catalog);
+    std::get<ModsState>(searchA.filterStateAt(modsIndex)).rows = {
+        ModRow{"Saved mod", std::nullopt, std::nullopt}};
+
+    auto *rowsContainer = harness.host.findChild<QWidget *>("modsRowsContainer");
+    QVERIFY(rowsContainer);
+    for (int cycle = 0; cycle < 3; ++cycle) {
+        harness.form.loadFrom(searchB);
+        harness.form.loadFrom(searchA);
+
+        auto *modCombo = harness.host.findChild<QComboBox *>("modsRowCombo");
+        QVERIFY(modCombo);
+        auto *grid = static_cast<QGridLayout *>(rowsContainer->layout());
+        QVERIFY(grid);
+        const auto *topLeft = grid->itemAtPosition(0, 0);
+        QVERIFY(topLeft);
+        QCOMPARE(topLeft->widget(), modCombo);
+        QCOMPARE(grid->rowCount(), 2);
+        QVERIFY(grid->itemAtPosition(2, 0) == nullptr);
+    }
+}
+
+void SearchTest::modsFormAdapterDisconnectsOnDestruction()
+{
+    QWidget host;
+    QVBoxLayout layout{&host};
+    QObject receiver;
+    int delayedChanges = 0;
+    int stateChanges = 0;
+    const FilterCallbacks callbacks{
+        &receiver,
+        [] {},
+        [&delayedChanges] { ++delayedChanges; },
+    };
+    QPushButton *addButton = nullptr;
+    {
+        auto form = std::make_unique<ModsFilterForm>(&layout, callbacks, [&stateChanges] {
+            ++stateChanges;
+        });
+        addButton = host.findChild<QPushButton *>("modsAddButton");
+        QVERIFY(addButton);
+    }
+
+    addButton->click();
+    QCOMPARE(stateChanges, 0);
+    QCOMPARE(delayedChanges, 0);
+}
+
+void SearchTest::searchFormUnbindsDeletedSearch()
+{
+    mod_list_model().setStringList({"Saved mod"});
+    SearchHarness harness;
+    const qsizetype modsIndex = findModsFilterIndex(harness.catalog);
+    QVERIFY(modsIndex >= 0);
+
+    auto search = std::make_unique<Search>(*harness.buyoutFixture.manager, "A", harness.catalog);
+    harness.form.saveTo(*search);
+    harness.form.unbind(*search);
+
+    auto *addButton = harness.host.findChild<QPushButton *>("modsAddButton");
+    QVERIFY(addButton);
+    addButton->click();
+    QVERIFY(std::get<ModsState>(search->filterStateAt(modsIndex)).rows.empty());
+
+    search.reset();
+    addButton->click();
+}
+
+void SearchTest::textAndComboFormAdapterRoundTrip()
+{
+    InitItemClasses(R"json({"TestClass":{"name":"Weapons"}})json");
+
+    SearchHarness harness;
+    const qsizetype tabIndex = findTextFilterIndex(harness.catalog, "Tab");
+    const qsizetype nameIndex = findTextFilterIndex(harness.catalog, "Name");
+    const qsizetype categoryIndex = findComboFilterIndex(harness.catalog, "Category");
+    const qsizetype rarityIndex = findComboFilterIndex(harness.catalog, "Rarity");
+    QVERIFY(tabIndex >= 0);
+    QVERIFY(nameIndex >= 0);
+    QVERIFY(categoryIndex >= 0);
+    QVERIFY(rarityIndex >= 0);
+
+    auto *tab = harness.findByLabel<QLineEdit>("Tab");
+    auto *name = harness.findByLabel<QLineEdit>("Name");
+    auto *category = harness.findByLabel<QComboBox>("Type");
+    auto *rarity = harness.findByLabel<QComboBox>("Rarity");
+    QVERIFY(tab);
+    QVERIFY(name);
+    QVERIFY(category);
+    QVERIFY(rarity);
+
+    const auto *categoryPayload = std::get_if<ComboPayload>(&harness.catalog[categoryIndex].payload);
+    const auto *rarityPayload = std::get_if<ComboPayload>(&harness.catalog[rarityIndex].payload);
+    QVERIFY(categoryPayload);
+    QVERIFY(rarityPayload);
+    const QStringList categoryChoices = categoryPayload->choices();
+    const QStringList rarityChoices = rarityPayload->choices();
+    QCOMPARE(category->count(), categoryChoices.size());
+    QCOMPARE(rarity->count(), rarityChoices.size());
+    for (qsizetype index = 0; index < categoryChoices.size(); ++index) {
+        QCOMPARE(category->itemText(static_cast<int>(index)), categoryChoices.at(index));
+    }
+    for (qsizetype index = 0; index < rarityChoices.size(); ++index) {
+        QCOMPARE(rarity->itemText(static_cast<int>(index)), rarityChoices.at(index));
+    }
+
+    const int weaponsIndex = category->findText("Weapons", Qt::MatchFixedString);
+    QVERIFY(weaponsIndex >= 0);
+    const int rareIndex = rarity->findText("Rare", Qt::MatchFixedString);
+    QVERIFY(rareIndex >= 0);
+
+    harness.immediateChanges = 0;
+    harness.delayedChanges = 0;
+    tab->setFocus();
+    QTest::keyClick(tab, Qt::Key_T);
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 1);
+    name->setFocus();
+    QTest::keyClick(name, Qt::Key_N);
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 2);
+
+    tab->setText("Alpha Tab");
+    name->setText("Alpha");
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 2);
+
+    QVERIFY(category->currentIndex() != weaponsIndex);
+    category->setCurrentIndex(weaponsIndex);
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 3);
+    QVERIFY(rarity->currentIndex() != rareIndex);
+    rarity->setCurrentIndex(rareIndex);
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 4);
+
+    Search searchA(*harness.buyoutFixture.manager, "A", harness.catalog);
+    harness.form.saveTo(searchA);
+    QCOMPARE(std::get<TextState>(searchA.filterStateAt(tabIndex)).query, "Alpha Tab");
+    QCOMPARE(std::get<TextState>(searchA.filterStateAt(nameIndex)).query, "Alpha");
+    QCOMPARE(std::get<ComboState>(searchA.filterStateAt(categoryIndex)).value, "weapons");
+    QCOMPARE(std::get<ComboState>(searchA.filterStateAt(rarityIndex)).value, "Rare");
+
+    harness.form.reset();
+    Search searchB(*harness.buyoutFixture.manager, "B", harness.catalog);
+    harness.form.saveTo(searchB);
+    QCOMPARE(std::get<ComboState>(searchB.filterStateAt(categoryIndex)).value, "");
+    QCOMPARE(std::get<ComboState>(searchB.filterStateAt(rarityIndex)).value, "");
+
+    category->setCurrentText("");
+    harness.form.saveTo(searchB);
+    QCOMPARE(std::get<ComboState>(searchB.filterStateAt(categoryIndex)).value, "");
+
+    auto &rarityState = std::get<ComboState>(searchB.filterStateAt(rarityIndex));
+    rarityState.value = "Rare";
+    harness.immediateChanges = 0;
+    harness.delayedChanges = 0;
+    harness.form.loadFrom(searchB);
+    QCOMPARE(rarity->currentText(), "Rare");
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 2);
+
+    rarityState.value = "Missing rarity";
+    harness.immediateChanges = 0;
+    harness.delayedChanges = 0;
+    harness.form.loadFrom(searchB);
+    QCOMPARE(rarity->currentIndex(), 0);
+    QCOMPARE(rarity->currentText(), rarityPayload->anySentinel);
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 1);
+
+    category->setCurrentIndex(weaponsIndex);
+    auto &categoryState = std::get<ComboState>(searchB.filterStateAt(categoryIndex));
+    categoryState.value = "Missing category";
+    harness.form.loadFrom(searchB);
+    QCOMPARE(category->currentIndex(), 0);
+    QCOMPARE(category->currentText(), categoryPayload->anySentinel);
+
+    harness.form.loadFrom(searchA);
+    QCOMPARE(tab->text(), "Alpha Tab");
+    QCOMPARE(name->text(), "Alpha");
+    QCOMPARE(category->currentText(), "Weapons");
+    QCOMPARE(rarity->currentText(), "Rare");
+}
+
+QTEST_MAIN(SearchTest)
+
+#include "tst_searchform.moc"

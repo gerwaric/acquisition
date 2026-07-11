@@ -8,7 +8,6 @@
 
 #include <memory>
 #include <set>
-#include <variant>
 #include <vector>
 
 #include "bucket.h"
@@ -19,9 +18,7 @@
 #include "util/util.h"
 
 class BuyoutManager;
-class Filter;
 class FilterCatalog;
-class FilterData;
 class ItemsModel;
 class QModelIndex;
 
@@ -32,10 +29,7 @@ public:
     enum class ViewMode : int { ByTab = 0, ByItem = 1 };
     Q_ENUM(ViewMode)
 
-    Search(BuyoutManager &bo,
-           const QString &caption,
-           const FilterCatalog &catalog,
-           const std::vector<Filter *> &filters);
+    Search(BuyoutManager &bo, const QString &caption, const FilterCatalog &catalog);
     ~Search();
     void FilterItems(const Items &items);
     const QString &caption() const { return m_caption; }
@@ -57,8 +51,7 @@ public:
     void SetRefreshReason(RefreshReason reason) { m_refresh_reason = reason; }
     void Sort(int column, Qt::SortOrder order);
 
-    qsizetype filterSlotCount() const { return static_cast<qsizetype>(m_filter_slots.size()); }
-    FilterData &legacyFilterDataAt(qsizetype index);
+    qsizetype filterStateCount() const { return static_cast<qsizetype>(m_filter_states.size()); }
     FilterState &filterStateAt(qsizetype index);
     const FilterState &filterStateAt(qsizetype index) const;
 
@@ -67,11 +60,10 @@ private:
 
     BuyoutManager &m_bo_manager;
 
-    // Catalog, form slots, and filter data are index-aligned. MainWindow owns
-    // the catalog and outlives every Search.
+    // Catalog and filter states are index-aligned. MainWindow owns the catalog
+    // and outlives every Search.
     const FilterCatalog &m_filter_catalog;
-    using FilterSlot = std::variant<std::unique_ptr<FilterData>, FilterState>;
-    std::vector<FilterSlot> m_filter_slots;
+    std::vector<FilterState> m_filter_states;
     std::vector<std::unique_ptr<Column>> m_columns;
 
     ItemsModel m_model;

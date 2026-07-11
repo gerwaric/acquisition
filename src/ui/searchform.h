@@ -3,18 +3,25 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
-#include <variant>
 #include <vector>
 
-#include "filters.h"
 #include "filters/filterspec.h"
 #include "filters/filterstate.h"
 
 class QAbstractItemModel;
 class QLayout;
+class QObject;
 class QVBoxLayout;
 class Search;
+
+struct FilterCallbacks
+{
+    QObject *receiver = nullptr;
+    std::function<void()> onChanged;
+    std::function<void()> onChangedDelayed;
+};
 
 class FilterFormAdapter
 {
@@ -26,8 +33,6 @@ public:
     virtual void reset() = 0;
 };
 
-using FormSlot = std::variant<std::unique_ptr<Filter>, std::unique_ptr<FilterFormAdapter>>;
-
 class SearchForm
 {
 public:
@@ -37,8 +42,6 @@ public:
     SearchForm(const SearchForm &) = delete;
     SearchForm &operator=(const SearchForm &) = delete;
 
-    // Catalog-indexed; migrated adapter slots contain nullptr.
-    const std::vector<Filter *> &legacyFilters() const { return m_legacyFilters; }
     void saveTo(Search &search);
     void loadFrom(Search &search);
     void unbind(Search &search);
@@ -51,8 +54,7 @@ private:
     QVBoxLayout &m_layout;
     const FilterCatalog &m_catalog;
     std::vector<std::unique_ptr<QAbstractItemModel>> m_models;
-    std::vector<FormSlot> m_slots;
-    std::vector<Filter *> m_legacyFilters;
+    std::vector<std::unique_ptr<FilterFormAdapter>> m_adapters;
     // The search currently represented by the form. Dynamic rows save into it
     // before the delayed refresh runs, so an immediate tab switch cannot drop them.
     Search *m_boundSearch = nullptr;

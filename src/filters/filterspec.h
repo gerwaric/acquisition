@@ -26,18 +26,7 @@ enum class FilterGroup {
 };
 enum class RefreshMode { Immediate, Debounced };
 
-// Transitional tags identify the legacy constructor used by SearchForm. They
-// disappear as each family acquires a real payload.
-enum class LegacyFilterKind {
-    Mods,
-};
-
 inline const QString kAnyFilterChoice = QStringLiteral("<any>");
-
-struct LegacyPayload
-{
-    LegacyFilterKind kind;
-};
 
 struct TextPayload
 {
@@ -72,13 +61,8 @@ struct ColorsPayload
 struct ModsPayload
 {};
 
-using FilterPayload = std::variant<LegacyPayload,
-                                   TextPayload,
-                                   ComboPayload,
-                                   MinMaxPayload,
-                                   BoolPayload,
-                                   ColorsPayload,
-                                   ModsPayload>;
+using FilterPayload
+    = std::variant<TextPayload, ComboPayload, MinMaxPayload, BoolPayload, ColorsPayload, ModsPayload>;
 
 struct FilterSpec
 {

@@ -278,28 +278,23 @@ bool MatchesFilter(const Item &item, const FilterSpec &spec, const FilterState &
     return std::visit(
         [&item, &state](const auto &payload) {
             using Payload = std::decay_t<decltype(payload)>;
-            if constexpr (std::is_same_v<Payload, LegacyPayload>) {
-                Q_ASSERT(std::holds_alternative<LegacyState>(state));
-                return true;
-            } else {
-                using State = std::conditional_t<
-                    std::is_same_v<Payload, TextPayload>,
-                    TextState,
+            using State = std::conditional_t<
+                std::is_same_v<Payload, TextPayload>,
+                TextState,
+                std::conditional_t<
+                    std::is_same_v<Payload, ComboPayload>,
+                    ComboState,
                     std::conditional_t<
-                        std::is_same_v<Payload, ComboPayload>,
-                        ComboState,
-                        std::conditional_t<
-                            std::is_same_v<Payload, MinMaxPayload>,
-                            MinMaxState,
-                            std::conditional_t<std::is_same_v<Payload, ColorsPayload>,
-                                               ColorsState,
-                                               std::conditional_t<std::is_same_v<Payload, BoolPayload>,
-                                                                  BoolState,
-                                                                  ModsState>>>>>;
-                const auto *typedState = std::get_if<State>(&state);
-                Q_ASSERT(typedState);
-                return typedState ? matches(item, *typedState, payload) : false;
-            }
+                        std::is_same_v<Payload, MinMaxPayload>,
+                        MinMaxState,
+                        std::conditional_t<std::is_same_v<Payload, ColorsPayload>,
+                                           ColorsState,
+                                           std::conditional_t<std::is_same_v<Payload, BoolPayload>,
+                                                              BoolState,
+                                                              ModsState>>>>>;
+            const auto *typedState = std::get_if<State>(&state);
+            Q_ASSERT(typedState);
+            return typedState ? matches(item, *typedState, payload) : false;
         },
         spec.payload);
 }

@@ -5,9 +5,7 @@
 #include <QTreeView>
 
 #include <memory>
-#include <vector>
 
-#include "filters.h"
 #include "filters/filterspec.h"
 #include "items_model.h"
 #include "search.h"
@@ -62,8 +60,7 @@ void ItemsModelTest::testerSurvivesRebuildModeSwitchAndSort()
 
     QTreeView view;
     FilterCatalog catalog({});
-    std::vector<Filter *> filters;
-    Search search(*buyoutFixture.manager, "Model", catalog, filters);
+    Search search(*buyoutFixture.manager, "Model", catalog);
     search.FilterItems(items);
     view.setModel(&search.model());
 
@@ -132,8 +129,7 @@ void ItemsModelTest::selectionSurvivesSort()
 
     QTreeView view;
     FilterCatalog catalog({});
-    std::vector<Filter *> filters;
-    Search search(*buyoutFixture.manager, "Model", catalog, filters);
+    Search search(*buyoutFixture.manager, "Model", catalog);
     search.FilterItems(items);
     view.setModel(&search.model());
 

@@ -158,8 +158,6 @@ set(ACQ_CORE
     src/currency.h
     src/currencymanager.cpp
     src/currencymanager.h
-    src/filters.cpp
-    src/filters.h
     src/imagecache.cpp
     src/imagecache.h
     src/influence.cpp

@@ -11,11 +11,6 @@
 
 struct FilterSpec;
 
-struct LegacyState
-{
-    bool isActive() const { return false; }
-};
-
 struct TextState
 {
     QString query;
@@ -63,7 +58,7 @@ struct ModsState
 };
 
 using FilterState
-    = std::variant<LegacyState, TextState, ComboState, MinMaxState, ColorsState, BoolState, ModsState>;
+    = std::variant<TextState, ComboState, MinMaxState, ColorsState, BoolState, ModsState>;
 
 bool IsActive(const FilterState &state);
 FilterState MakeDefaultState(const FilterSpec &spec);

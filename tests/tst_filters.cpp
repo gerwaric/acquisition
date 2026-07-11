@@ -495,6 +495,6 @@ void FiltersTest::modsFilter()
     QVERIFY(!MatchesFilter(*item, *mods, state));
 }
 
-QTEST_MAIN(FiltersTest)
+QTEST_GUILESS_MAIN(FiltersTest)
 
 #include "tst_filters.moc"

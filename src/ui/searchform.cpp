@@ -362,57 +362,45 @@ SearchForm::SearchForm(QVBoxLayout &layout,
     : m_layout(layout)
     , m_catalog(catalog)
 {
-    m_slots.reserve(static_cast<size_t>(m_catalog.size()));
-    m_legacyFilters.resize(static_cast<size_t>(m_catalog.size()));
+    m_adapters.reserve(static_cast<size_t>(m_catalog.size()));
     const auto addText = [this](QLayout *parent,
-                                qsizetype index,
                                 const QString &caption,
                                 const FilterCallbacks &formCallbacks) {
-        Q_ASSERT(!m_legacyFilters.at(static_cast<size_t>(index)));
-        m_slots.emplace_back(std::make_unique<TextFilterForm>(parent, caption, formCallbacks));
+        m_adapters.emplace_back(std::make_unique<TextFilterForm>(parent, caption, formCallbacks));
     };
     const auto addCombo = [this](QLayout *parent,
-                                 qsizetype index,
                                  const QString &caption,
                                  const ComboPayload &payload,
                                  const FilterCallbacks &formCallbacks) {
-        Q_ASSERT(!m_legacyFilters.at(static_cast<size_t>(index)));
         Q_ASSERT(payload.choices);
         auto model = std::make_unique<QStringListModel>(payload.choices());
         auto *const modelPtr = model.get();
         m_models.push_back(std::move(model));
-        m_slots.emplace_back(
+        m_adapters.emplace_back(
             std::make_unique<ComboFilterForm>(parent, caption, payload, modelPtr, formCallbacks));
     };
     const auto addBoolean = [this](QLayout *parent,
-                                   qsizetype index,
                                    const QString &caption,
                                    const FilterCallbacks &formCallbacks) {
-        Q_ASSERT(!m_legacyFilters.at(static_cast<size_t>(index)));
-        m_slots.emplace_back(std::make_unique<BoolFilterForm>(parent, caption, formCallbacks));
+        m_adapters.emplace_back(std::make_unique<BoolFilterForm>(parent, caption, formCallbacks));
     };
     const auto addMinMax = [this](QLayout *parent,
-                                  qsizetype index,
                                   const QString &caption,
                                   const FilterCallbacks &formCallbacks) {
-        Q_ASSERT(!m_legacyFilters.at(static_cast<size_t>(index)));
-        m_slots.emplace_back(std::make_unique<MinMaxFilterForm>(parent, caption, formCallbacks));
+        m_adapters.emplace_back(std::make_unique<MinMaxFilterForm>(parent, caption, formCallbacks));
     };
     const auto addColors = [this](QLayout *parent,
-                                  qsizetype index,
                                   const QString &caption,
                                   const FilterCallbacks &formCallbacks) {
-        Q_ASSERT(!m_legacyFilters.at(static_cast<size_t>(index)));
-        m_slots.emplace_back(std::make_unique<ColorsFilterForm>(parent, caption, formCallbacks));
+        m_adapters.emplace_back(std::make_unique<ColorsFilterForm>(parent, caption, formCallbacks));
     };
-    const auto addMods = [this](QLayout *parent,
-                                qsizetype index,
-                                const FilterCallbacks &formCallbacks) {
-        Q_ASSERT(!m_legacyFilters.at(static_cast<size_t>(index)));
-        m_slots.emplace_back(std::make_unique<ModsFilterForm>(parent, formCallbacks, [this, index] {
-            saveBoundState(index);
-        }));
-    };
+    const auto addMods =
+        [this](QLayout *parent, qsizetype index, const FilterCallbacks &formCallbacks) {
+            m_adapters.emplace_back(
+                std::make_unique<ModsFilterForm>(parent, formCallbacks, [this, index] {
+                    saveBoundState(index);
+                }));
+        };
 
     Q_ASSERT(m_catalog.size() >= 4);
     for (qsizetype index = 0; index < 4; ++index) {
@@ -420,9 +408,9 @@ SearchForm::SearchForm(QVBoxLayout &layout,
         Q_ASSERT(spec.group == FilterGroup::TopForm);
         Q_ASSERT(spec.refreshMode == RefreshMode::Debounced);
         if (std::holds_alternative<TextPayload>(spec.payload)) {
-            addText(&m_layout, index, spec.caption, callbacks);
+            addText(&m_layout, spec.caption, callbacks);
         } else if (const auto *payload = std::get_if<ComboPayload>(&spec.payload)) {
-            addCombo(&m_layout, index, spec.caption, *payload, callbacks);
+            addCombo(&m_layout, spec.caption, *payload, callbacks);
         } else {
             Q_ASSERT(false);
         }
@@ -452,10 +440,10 @@ SearchForm::SearchForm(QVBoxLayout &layout,
             Q_ASSERT(spec.refreshMode == RefreshMode::Immediate);
             switch (spec.group) {
             case FilterGroup::MiscFlags:
-                addBoolean(miscFlagsLayout, index, spec.caption, callbacks);
+                addBoolean(miscFlagsLayout, spec.caption, callbacks);
                 break;
             case FilterGroup::MiscFlags2:
-                addBoolean(miscFlags2Layout, index, spec.caption, callbacks);
+                addBoolean(miscFlags2Layout, spec.caption, callbacks);
                 break;
             default:
                 Q_ASSERT(false);
@@ -467,19 +455,19 @@ SearchForm::SearchForm(QVBoxLayout &layout,
             Q_ASSERT(spec.refreshMode == RefreshMode::Debounced);
             switch (spec.group) {
             case FilterGroup::Offense:
-                addMinMax(offenseLayout, index, spec.caption, callbacks);
+                addMinMax(offenseLayout, spec.caption, callbacks);
                 break;
             case FilterGroup::Defense:
-                addMinMax(defenseLayout, index, spec.caption, callbacks);
+                addMinMax(defenseLayout, spec.caption, callbacks);
                 break;
             case FilterGroup::Sockets:
-                addMinMax(socketsLayout, index, spec.caption, callbacks);
+                addMinMax(socketsLayout, spec.caption, callbacks);
                 break;
             case FilterGroup::Requirements:
-                addMinMax(requirementsLayout, index, spec.caption, callbacks);
+                addMinMax(requirementsLayout, spec.caption, callbacks);
                 break;
             case FilterGroup::Misc:
-                addMinMax(miscLayout, index, spec.caption, callbacks);
+                addMinMax(miscLayout, spec.caption, callbacks);
                 break;
             default:
                 Q_ASSERT(false);
@@ -490,7 +478,7 @@ SearchForm::SearchForm(QVBoxLayout &layout,
         if (std::holds_alternative<ColorsPayload>(spec.payload)) {
             Q_ASSERT(spec.group == FilterGroup::Sockets);
             Q_ASSERT(spec.refreshMode == RefreshMode::Immediate);
-            addColors(socketsLayout, index, spec.caption, callbacks);
+            addColors(socketsLayout, spec.caption, callbacks);
             continue;
         }
         if (std::holds_alternative<ModsPayload>(spec.payload)) {
@@ -499,25 +487,10 @@ SearchForm::SearchForm(QVBoxLayout &layout,
             addMods(modsLayout, index, callbacks);
             continue;
         }
-
-        const auto *legacy = std::get_if<LegacyPayload>(&spec.payload);
-        Q_ASSERT(legacy);
-        if (!legacy) {
-            continue;
-        }
-
         Q_ASSERT(false);
     }
 
-    Q_ASSERT(m_slots.size() == static_cast<size_t>(m_catalog.size()));
-    Q_ASSERT(m_legacyFilters.size() == static_cast<size_t>(m_catalog.size()));
-    for (qsizetype index = 0; index < m_catalog.size(); ++index) {
-        const bool isLegacy = std::holds_alternative<LegacyPayload>(m_catalog[index].payload);
-        Q_ASSERT((m_legacyFilters.at(static_cast<size_t>(index)) != nullptr) == isLegacy);
-        Q_ASSERT(
-            std::holds_alternative<std::unique_ptr<Filter>>(m_slots.at(static_cast<size_t>(index)))
-            == isLegacy);
-    }
+    Q_ASSERT(m_adapters.size() == static_cast<size_t>(m_catalog.size()));
 }
 
 SearchForm::~SearchForm() = default;
@@ -536,44 +509,24 @@ void SearchForm::addSearchGroup(QLayout *layout, const QString &name)
 void SearchForm::saveTo(Search &search)
 {
     m_boundSearch = &search;
-    Q_ASSERT(search.filterSlotCount() == m_catalog.size());
-    Q_ASSERT(m_slots.size() == static_cast<size_t>(m_catalog.size()));
+    Q_ASSERT(search.filterStateCount() == m_catalog.size());
+    Q_ASSERT(m_adapters.size() == static_cast<size_t>(m_catalog.size()));
     for (qsizetype index = 0; index < m_catalog.size(); ++index) {
-        const auto &slot = m_slots.at(static_cast<size_t>(index));
-        if (const auto *legacy = std::get_if<std::unique_ptr<Filter>>(&slot)) {
-            Q_ASSERT(*legacy);
-            Q_ASSERT(std::holds_alternative<LegacyPayload>(m_catalog[index].payload));
-            auto &data = search.legacyFilterDataAt(index);
-            Q_ASSERT(data.filter() == legacy->get());
-            data.FromForm();
-        } else {
-            const auto *adapter = std::get_if<std::unique_ptr<FilterFormAdapter>>(&slot);
-            Q_ASSERT(adapter && *adapter);
-            Q_ASSERT(!std::holds_alternative<LegacyPayload>(m_catalog[index].payload));
-            (*adapter)->saveTo(search.filterStateAt(index));
-        }
+        const auto &adapter = m_adapters.at(static_cast<size_t>(index));
+        Q_ASSERT(adapter);
+        adapter->saveTo(search.filterStateAt(index));
     }
 }
 
 void SearchForm::loadFrom(Search &search)
 {
     m_boundSearch = &search;
-    Q_ASSERT(search.filterSlotCount() == m_catalog.size());
-    Q_ASSERT(m_slots.size() == static_cast<size_t>(m_catalog.size()));
+    Q_ASSERT(search.filterStateCount() == m_catalog.size());
+    Q_ASSERT(m_adapters.size() == static_cast<size_t>(m_catalog.size()));
     for (qsizetype index = 0; index < m_catalog.size(); ++index) {
-        auto &slot = m_slots.at(static_cast<size_t>(index));
-        if (auto *legacy = std::get_if<std::unique_ptr<Filter>>(&slot)) {
-            Q_ASSERT(*legacy);
-            Q_ASSERT(std::holds_alternative<LegacyPayload>(m_catalog[index].payload));
-            auto &data = search.legacyFilterDataAt(index);
-            Q_ASSERT(data.filter() == legacy->get());
-            data.ToForm();
-        } else {
-            auto *adapter = std::get_if<std::unique_ptr<FilterFormAdapter>>(&slot);
-            Q_ASSERT(adapter && *adapter);
-            Q_ASSERT(!std::holds_alternative<LegacyPayload>(m_catalog[index].payload));
-            (*adapter)->loadFrom(search.filterStateAt(index));
-        }
+        auto &adapter = m_adapters.at(static_cast<size_t>(index));
+        Q_ASSERT(adapter);
+        adapter->loadFrom(search.filterStateAt(index));
     }
 }
 
@@ -587,18 +540,9 @@ void SearchForm::unbind(Search &search)
 void SearchForm::reset()
 {
     m_boundSearch = nullptr;
-    for (qsizetype index = 0; index < m_catalog.size(); ++index) {
-        auto &slot = m_slots.at(static_cast<size_t>(index));
-        if (auto *legacy = std::get_if<std::unique_ptr<Filter>>(&slot)) {
-            Q_ASSERT(*legacy);
-            Q_ASSERT(std::holds_alternative<LegacyPayload>(m_catalog[index].payload));
-            (*legacy)->ResetForm();
-        } else {
-            auto *adapter = std::get_if<std::unique_ptr<FilterFormAdapter>>(&slot);
-            Q_ASSERT(adapter && *adapter);
-            Q_ASSERT(!std::holds_alternative<LegacyPayload>(m_catalog[index].payload));
-            (*adapter)->reset();
-        }
+    for (const auto &adapter : m_adapters) {
+        Q_ASSERT(adapter);
+        adapter->reset();
     }
 }
 
@@ -608,11 +552,10 @@ void SearchForm::saveBoundState(qsizetype index)
         return;
     }
 
-    Q_ASSERT(m_boundSearch->filterSlotCount() == m_catalog.size());
-    auto *adapter = std::get_if<std::unique_ptr<FilterFormAdapter>>(
-        &m_slots.at(static_cast<size_t>(index)));
-    Q_ASSERT(adapter && *adapter);
-    if (adapter && *adapter) {
-        (*adapter)->saveTo(m_boundSearch->filterStateAt(index));
+    Q_ASSERT(m_boundSearch->filterStateCount() == m_catalog.size());
+    const auto &adapter = m_adapters.at(static_cast<size_t>(index));
+    Q_ASSERT(adapter);
+    if (adapter) {
+        adapter->saveTo(m_boundSearch->filterStateAt(index));
     }
 }
