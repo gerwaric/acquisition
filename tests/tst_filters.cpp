@@ -1,10 +1,16 @@
 #include <QtTest/QtTest>
 
+#include <QComboBox>
+#include <QLineEdit>
+#include <QPushButton>
 #include <QStringListModel>
 #include <QVBoxLayout>
 #include <QWidget>
 
 #include "filters.h"
+#include "itemcategories.h"
+#include "modlist.h"
+#include "modsfilter.h"
 #include "testfixtures.h"
 
 class FiltersTest : public QObject
@@ -12,11 +18,21 @@ class FiltersTest : public QObject
     Q_OBJECT
 
 private slots:
+    void tabFilter();
     void nameFilter();
+    void categoryFilter();
+    void categoryAnySentinel();
     void minMaxFilter();
+    void minMaxGarbageTextIsActiveZero();
+    void defaultAndRequiredFilters();
     void socketColorFilters();
+    void colorsGarbageTextIsActiveZero();
     void booleanFilter();
+    void booleanPredicates();
     void rarityFilter();
+    void modsFilter();
+    void colorsToFormKeepsStaleText();
+    void modsFormSyncQuirks();
 };
 
 struct FilterHarness
@@ -32,19 +48,23 @@ struct FilterHarness
     };
 };
 
-static std::shared_ptr<Item> makeFilterItem(const QString &id,
-                                            const QString &extraJson,
-                                            int frameType = 2,
-                                            const QString &frameTypeId = "Rare")
+static std::shared_ptr<Item> makeFilterItem(
+    const QString &id,
+    const QString &extraJson,
+    int frameType = 2,
+    const QString &frameTypeId = "Rare",
+    const QString &icon = "https://web.poecdn.com/image/test.png",
+    const QString &baseType = "Test Item",
+    bool identified = true)
 {
     const QByteArray json = QString(R"json({
-        "baseType": "Test Item",
+        "baseType": "%6",
         "frameType": %3,
         "frameTypeId": "%4",
         "h": 1,
-        "icon": "https://web.poecdn.com/image/test.png",
+        "icon": "%5",
         "id": "%1",
-        "identified": true,
+        "identified": %7,
         "ilvl": 1,
         "name": "Alpha Bite",
         "typeLine": "Test Item",
@@ -53,9 +73,40 @@ static std::shared_ptr<Item> makeFilterItem(const QString &id,
         "x": 0,
         "y": 0%2
     })json")
-                                .arg(id, extraJson, QString::number(frameType), frameTypeId)
+                                .arg(id,
+                                     extraJson,
+                                     QString::number(frameType),
+                                     frameTypeId,
+                                     icon,
+                                     baseType,
+                                     identified ? "true" : "false")
                                 .toUtf8();
     return std::make_shared<Item>(makeTestItem(json.constData(), makeTestStashLocation()));
+}
+
+static void verifyBooleanPredicate(Filter &filter,
+                                   const std::shared_ptr<Item> &matching,
+                                   const std::shared_ptr<Item> &notMatching)
+{
+    FilterData data(&filter);
+    data.checked = true;
+    QVERIFY(filter.Matches(matching, &data));
+    QVERIFY(!filter.Matches(notMatching, &data));
+
+    data.checked = false;
+    QVERIFY(filter.Matches(notMatching, &data));
+}
+
+void FiltersTest::tabFilter()
+{
+    FilterHarness harness;
+    TabSearchFilter filter(&harness.layout, harness.callbacks);
+    FilterData data(&filter);
+    data.text_query = "test";
+
+    QVERIFY(filter.Matches(makeFilterItem("tab-match", ""), &data));
+    data.text_query = "missing";
+    QVERIFY(!filter.Matches(makeFilterItem("tab-miss", ""), &data));
 }
 
 void FiltersTest::nameFilter()
@@ -72,6 +123,40 @@ void FiltersTest::nameFilter()
 
     data.text_query = "missing";
     QVERIFY(!filter.Matches(makeFilterItem("name-miss", ""), &data));
+}
+
+void FiltersTest::categoryFilter()
+{
+    InitItemClasses(R"json({"TestClass":{"name":"Weapons"}})json");
+    InitItemBaseTypes(
+        R"json({"Metadata/Items/TestSword":{"item_class":"TestClass","name":"Test Sword","release_state":"released"}})json");
+
+    FilterHarness harness;
+    QStringListModel model;
+    CategorySearchFilter filter(&harness.layout, &model, harness.callbacks);
+    FilterData data(&filter);
+    data.text_query = "weapons";
+
+    const auto weapon = makeFilterItem("category-match", "", 2, "Rare", {}, "Test Sword");
+    const auto unknown = makeFilterItem("category-miss", "");
+    QVERIFY(filter.Matches(weapon, &data));
+    QVERIFY(!filter.Matches(unknown, &data));
+}
+
+void FiltersTest::categoryAnySentinel()
+{
+    FilterHarness harness;
+    QStringListModel model{{CategorySearchFilter::k_Default, "Weapons"}};
+    CategorySearchFilter filter(&harness.layout, &model, harness.callbacks);
+    FilterData data(&filter);
+
+    auto *combo = harness.host.findChild<QComboBox *>();
+    QVERIFY(combo);
+    combo->setCurrentText(CategorySearchFilter::k_Default);
+    data.FromForm();
+
+    QVERIFY(data.text_query.isEmpty());
+    QVERIFY(!filter.IsActive());
 }
 
 void FiltersTest::minMaxFilter()
@@ -115,6 +200,53 @@ void FiltersTest::minMaxFilter()
     QVERIFY(filter.Matches(withoutQuality, &data));
 }
 
+void FiltersTest::minMaxGarbageTextIsActiveZero()
+{
+    FilterHarness harness;
+    SimplePropertyFilter filter(&harness.layout, "Quality", harness.callbacks);
+    FilterData data(&filter);
+    const auto edits = harness.host.findChildren<QLineEdit *>();
+    QCOMPARE(edits.size(), 2);
+
+    edits[0]->setText("garbage");
+    data.FromForm();
+
+    QVERIFY(data.min_filled);
+    QCOMPARE(data.min, 0.0);
+    QVERIFY(!data.max_filled);
+    QVERIFY(filter.IsActive());
+}
+
+void FiltersTest::defaultAndRequiredFilters()
+{
+    FilterHarness harness;
+    const auto withoutQuality = makeFilterItem("default-quality", "");
+    DefaultPropertyFilter quality(&harness.layout, "Quality", 0.0, harness.callbacks);
+    FilterData qualityData(&quality);
+    qualityData.min_filled = true;
+    qualityData.min = 0.0;
+    QVERIFY(quality.Matches(withoutQuality, &qualityData));
+    qualityData.min = 1.0;
+    QVERIFY(!quality.Matches(withoutQuality, &qualityData));
+
+    const auto withRequirement = makeFilterItem("requirement",
+                                                R"json(,
+        "requirements": [
+            {"displayMode": 0, "name": "Level", "values": [["12", 0]]}
+        ])json");
+    const auto withoutRequirement = makeFilterItem("no-requirement", "");
+    RequiredStatFilter required(&harness.layout, "Level", harness.callbacks);
+    FilterData requiredData(&required);
+    requiredData.min_filled = true;
+    requiredData.min = 12.0;
+    QVERIFY(required.Matches(withRequirement, &requiredData));
+    QVERIFY(!required.Matches(withoutRequirement, &requiredData));
+    requiredData.min_filled = false;
+    requiredData.max_filled = true;
+    requiredData.max = 0.0;
+    QVERIFY(required.Matches(withoutRequirement, &requiredData));
+}
+
 void FiltersTest::socketColorFilters()
 {
     FilterHarness harness;
@@ -149,6 +281,22 @@ void FiltersTest::socketColorFilters()
     QVERIFY(!linksFilter.Matches(item, &linksData));
 }
 
+void FiltersTest::colorsGarbageTextIsActiveZero()
+{
+    FilterHarness harness;
+    SocketsColorsFilter filter(&harness.layout, harness.callbacks);
+    FilterData data(&filter);
+    const auto edits = harness.host.findChildren<QLineEdit *>();
+    QCOMPARE(edits.size(), 3);
+
+    edits[0]->setText("garbage");
+    data.FromForm();
+
+    QVERIFY(data.r_filled);
+    QCOMPARE(data.r, 0);
+    QVERIFY(filter.IsActive());
+}
+
 void FiltersTest::booleanFilter()
 {
     FilterHarness harness;
@@ -161,6 +309,69 @@ void FiltersTest::booleanFilter()
 
     data.checked = false;
     QVERIFY(filter.Matches(makeFilterItem("unchecked", ""), &data));
+}
+
+void FiltersTest::booleanPredicates()
+{
+    FilterHarness harness;
+    const auto ordinary = makeFilterItem("ordinary", "");
+
+    AltartFilter altart(&harness.layout, "", "Alt. art", harness.callbacks);
+    for (const QString &needle : {"RedBeak2.png", "dGlsbGF0ZUFsdCI7czoy", "WinterHeart.png"}) {
+        const auto item = makeFilterItem("alt-" + needle,
+                                         "",
+                                         2,
+                                         "Rare",
+                                         "https://web.poecdn.com/image/" + needle);
+        FilterData data(&altart);
+        data.checked = true;
+        QVERIFY(altart.Matches(item, &data));
+    }
+    verifyBooleanPredicate(altart,
+                           makeFilterItem("alt-match",
+                                          "",
+                                          2,
+                                          "Rare",
+                                          "https://web.poecdn.com/image/RedBeak2.png"),
+                           ordinary);
+
+    BuyoutManagerFixture buyoutFixture;
+    const auto pricedItem = makeFilterItem("priced", "");
+    buyoutFixture.manager->Set(*pricedItem, makeChaosBuyout(5.0));
+    PricedFilter priced(&harness.layout, "", "Priced", harness.callbacks, *buyoutFixture.manager);
+    verifyBooleanPredicate(priced, pricedItem, ordinary);
+
+    const auto flags = makeFilterItem("flags",
+                                      R"json(,
+        "influences": {"shaper": true},
+        "craftedMods": ["Crafted modifier"],
+        "enchantMods": ["Enchanted modifier"],
+        "fractured": true,
+        "split": true,
+        "synthesised": true,
+        "mutated": true
+    )json",
+                                      2,
+                                      "Rare",
+                                      "https://web.poecdn.com/image/test.png",
+                                      "Test Item",
+                                      false);
+    UnidentifiedFilter unidentified(&harness.layout, "", "Unidentified", harness.callbacks);
+    InfluencedFilter influenced(&harness.layout, "", "Influenced", harness.callbacks);
+    CraftedFilter crafted(&harness.layout, "", "Crafted", harness.callbacks);
+    EnchantedFilter enchanted(&harness.layout, "", "Enchanted", harness.callbacks);
+    FracturedFilter fractured(&harness.layout, "", "Fractured", harness.callbacks);
+    SplitFilter split(&harness.layout, "", "Split", harness.callbacks);
+    SynthesizedFilter synthesized(&harness.layout, "", "Synthesized", harness.callbacks);
+    MutatedFilter mutated(&harness.layout, "", "Mutated", harness.callbacks);
+    verifyBooleanPredicate(unidentified, flags, ordinary);
+    verifyBooleanPredicate(influenced, flags, ordinary);
+    verifyBooleanPredicate(crafted, flags, ordinary);
+    verifyBooleanPredicate(enchanted, flags, ordinary);
+    verifyBooleanPredicate(fractured, flags, ordinary);
+    verifyBooleanPredicate(split, flags, ordinary);
+    verifyBooleanPredicate(synthesized, flags, ordinary);
+    verifyBooleanPredicate(mutated, flags, ordinary);
 }
 
 void FiltersTest::rarityFilter()
@@ -186,6 +397,106 @@ void FiltersTest::rarityFilter()
     data.text_query = "Unique (Foil)";
     QVERIFY(filter.Matches(foil, &data));
     QVERIFY(!filter.Matches(unique, &data));
+}
+
+void FiltersTest::modsFilter()
+{
+    InitStatTranslations();
+    AddStatTranslations(R"json([
+        {"English":[{"format":["+#"],"string":"{0} to maximum Life"}]}
+    ])json");
+    InitModList();
+
+    FilterHarness harness;
+    ModsFilter filter(&harness.layout, harness.callbacks);
+    const auto item = makeFilterItem("mods",
+                                     R"json(,
+        "explicitMods": ["+42 to maximum Life"]
+    )json");
+    FilterData data(&filter);
+
+    data.mod_data.emplace_back("", 100.0, 1.0, true, true);
+    QVERIFY(filter.Matches(item, &data));
+
+    data.mod_data.emplace_back("+# to maximum Life", 40.0, 45.0, true, true);
+    QVERIFY(filter.Matches(item, &data));
+    data.mod_data.back().min = 43.0;
+    QVERIFY(!filter.Matches(item, &data));
+    data.mod_data.back().min = 40.0;
+    data.mod_data.back().max = 41.0;
+    QVERIFY(!filter.Matches(item, &data));
+    data.mod_data.back().max = 45.0;
+    data.mod_data.emplace_back("+# to missing stat", 0.0, 0.0, false, false);
+    QVERIFY(!filter.Matches(item, &data));
+}
+
+void FiltersTest::colorsToFormKeepsStaleText()
+{
+    FilterHarness harness;
+    SocketsColorsFilter filter(&harness.layout, harness.callbacks);
+    FilterData withColors(&filter);
+    withColors.r_filled = true;
+    withColors.r = 2;
+    withColors.g_filled = true;
+    withColors.g = 1;
+    withColors.b_filled = true;
+    withColors.b = 3;
+    withColors.ToForm();
+
+    FilterData withoutColors(&filter);
+    withoutColors.ToForm();
+
+    const auto edits = harness.host.findChildren<QLineEdit *>();
+    QCOMPARE(edits.size(), 3);
+    QCOMPARE(edits[0]->text(), "2");
+    QCOMPARE(edits[1]->text(), "1");
+    QCOMPARE(edits[2]->text(), "3");
+}
+
+void FiltersTest::modsFormSyncQuirks()
+{
+    FilterHarness harness;
+    mod_list_model().setStringList({"Default mod", "Saved mod"});
+    ModsFilter filter(&harness.layout, harness.callbacks);
+    auto *addButton = harness.host.findChild<QPushButton *>();
+    QVERIFY(addButton);
+    QCOMPARE(addButton->text(), "Add mod");
+
+    FilterData searchA(&filter);
+    searchA.FromForm();
+    addButton->click();
+    QCOMPARE(harness.host.findChildren<QComboBox *>().size(), 1);
+
+    FilterData searchB(&filter);
+    searchB.ToForm();
+    searchA.ToForm();
+    QCOMPARE(harness.host.findChildren<QComboBox *>().size(), 0);
+
+    searchA.mod_data.emplace_back("Saved mod", 1.0, 2.0, true, true);
+    searchA.ToForm();
+    const auto combos = harness.host.findChildren<QComboBox *>();
+    QCOMPARE(combos.size(), 1);
+    QCOMPARE(searchA.mod_data.front().mod, "Saved mod");
+    QCOMPARE(combos.front()->currentText(), "Default mod");
+
+    FilterHarness visibilityHarness;
+    ModsFilter visibilityFilter(&visibilityHarness.layout, visibilityHarness.callbacks);
+    auto *rowContainer = visibilityHarness.layout.itemAt(0)->widget();
+    auto *visibilityAddButton = visibilityHarness.host.findChild<QPushButton *>();
+    QVERIFY(rowContainer);
+    QVERIFY(visibilityAddButton);
+
+    FilterData withRow(&visibilityFilter);
+    withRow.mod_data.emplace_back("Saved mod", 0.0, 0.0, false, false);
+    withRow.ToForm();
+    QVERIFY(rowContainer->isHidden());
+
+    visibilityAddButton->click();
+    QVERIFY(!rowContainer->isHidden());
+    FilterData empty(&visibilityFilter);
+    empty.ToForm();
+    QCOMPARE(visibilityHarness.host.findChildren<QComboBox *>().size(), 0);
+    QVERIFY(!rowContainer->isHidden());
 }
 
 QTEST_MAIN(FiltersTest)

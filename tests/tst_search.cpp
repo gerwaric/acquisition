@@ -1,9 +1,14 @@
 #include <QtTest/QtTest>
 
+#include <QCheckBox>
+#include <QComboBox>
+#include <QLabel>
 #include <QLineEdit>
 #include <QStringListModel>
 #include <QVBoxLayout>
 #include <QWidget>
+
+#include <functional>
 
 #include "filters.h"
 #include "itemcategories.h"
@@ -19,6 +24,8 @@ class SearchTest : public QObject
 private slots:
     void bucketConstruction();
     void nameFilterMembership();
+    void backgroundRefilterUsesCurrentSearchActivity();
+    void filterStateRestoresAcrossTabSwitch();
 };
 
 struct SearchHarness
@@ -108,11 +115,21 @@ struct SearchHarness
                                          std::make_move_iterator(std::end(init)));
     }
 
-    void setNameFilter(const QString &text)
+    template<typename Widget>
+    Widget *findByLabel(const QString &labelText,
+                        const std::function<bool(const Widget *)> &matches = {})
     {
-        const auto edits = host.findChildren<QLineEdit *>();
-        QVERIFY(edits.size() >= 2);
-        edits[1]->setText(text);
+        for (auto *label : host.findChildren<QLabel *>()) {
+            if (label->text() != labelText) {
+                continue;
+            }
+            for (auto *widget : label->parentWidget()->findChildren<Widget *>()) {
+                if (!matches || matches(widget)) {
+                    return widget;
+                }
+            }
+        }
+        return nullptr;
     }
 
     BuyoutManagerFixture buyoutFixture;
@@ -190,7 +207,9 @@ void SearchTest::nameFilterMembership()
     const ItemLocation secondTab = makeTestStashLocation("stash-b", "Beta Tab", 1);
     const ItemLocation emptyTab = makeTestStashLocation("stash-empty", "Empty Tab", 2);
     harness.buyoutFixture.manager->SetStashTabLocations({firstTab, secondTab, emptyTab});
-    harness.setNameFilter("alpha");
+    auto *name = harness.findByLabel<QLineEdit>("Name");
+    QVERIFY(name);
+    name->setText("alpha");
 
     Items items;
     items.push_back(makeSearchItem("alpha-item", "Alpha Bite", "Vaal Axe", firstTab));
@@ -210,6 +229,92 @@ void SearchTest::nameFilterMembership()
     QCOMPARE(search.buckets().size(), 1);
     QCOMPARE(search.buckets()[0].items().size(), 1);
     QCOMPARE(search.buckets()[0].items()[0]->id(), "alpha-item");
+}
+
+void SearchTest::backgroundRefilterUsesCurrentSearchActivity()
+{
+    SearchHarness harness;
+    const ItemLocation firstTab = makeTestStashLocation("stash-a", "Alpha Tab", 0);
+    const ItemLocation secondTab = makeTestStashLocation("stash-b", "Beta Tab", 1);
+    harness.buyoutFixture.manager->SetStashTabLocations({firstTab, secondTab});
+
+    Items items;
+    items.push_back(makeSearchItem("alpha-item", "Alpha Bite", "Vaal Axe", firstTab));
+    items.push_back(makeSearchItem("beta-item", "Beta Guard", "Copper Shield", secondTab));
+
+    auto *name = harness.findByLabel<QLineEdit>("Name");
+    QVERIFY(name);
+    name->setText("alpha");
+    Search background(*harness.buyoutFixture.manager, "Background", harness.filters);
+    background.FromForm();
+
+    name->setText("");
+    Search current(*harness.buyoutFixture.manager, "Current", harness.filters);
+    current.FromForm();
+    background.FilterItems(items);
+
+    // Characterizes F33: the current search's inactive flag causes the
+    // background search to skip its saved name query.
+    QCOMPARE(background.GetCaption(), "Background [2]");
+    QCOMPARE(background.items().size(), 2);
+
+    background.ToForm();
+    QCOMPARE(name->text(), "alpha");
+}
+
+void SearchTest::filterStateRestoresAcrossTabSwitch()
+{
+    SearchHarness harness;
+    auto *tab = harness.findByLabel<QLineEdit>("Tab");
+    auto *name = harness.findByLabel<QLineEdit>("Name");
+    auto *critMin = harness.findByLabel<QLineEdit>("Crit.", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "min";
+    });
+    auto *critMax = harness.findByLabel<QLineEdit>("Crit.", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "max";
+    });
+    auto *colorR = harness.findByLabel<QLineEdit>("Colors", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "R";
+    });
+    auto *colorG = harness.findByLabel<QLineEdit>("Colors", [](const QLineEdit *edit) {
+        return edit->placeholderText() == "G";
+    });
+    auto *rarity = harness.findByLabel<QComboBox>("Rarity");
+    auto *corrupted = harness.findByLabel<QCheckBox>("Corrupted");
+    QVERIFY(tab);
+    QVERIFY(name);
+    QVERIFY(critMin);
+    QVERIFY(critMax);
+    QVERIFY(colorR);
+    QVERIFY(colorG);
+    QVERIFY(rarity);
+    QVERIFY(corrupted);
+
+    tab->setText("Alpha Tab");
+    name->setText("alpha");
+    critMin->setText("5");
+    critMax->setText("10");
+    colorR->setText("2");
+    colorG->setText("1");
+    rarity->setCurrentText("Rare");
+    corrupted->setChecked(true);
+
+    Search searchA(*harness.buyoutFixture.manager, "A", harness.filters);
+    searchA.FromForm();
+
+    Search searchB(*harness.buyoutFixture.manager, "B", harness.filters);
+    searchB.ResetForm();
+    searchB.FromForm();
+    searchA.ToForm();
+
+    QCOMPARE(tab->text(), "Alpha Tab");
+    QCOMPARE(name->text(), "alpha");
+    QCOMPARE(critMin->text(), "5");
+    QCOMPARE(critMax->text(), "10");
+    QCOMPARE(colorR->text(), "2");
+    QCOMPARE(colorG->text(), "1");
+    QCOMPARE(rarity->currentText(), "Rare");
+    QVERIFY(corrupted->isChecked());
 }
 
 QTEST_MAIN(SearchTest)
