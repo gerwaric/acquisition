@@ -37,9 +37,6 @@ public:
            const FilterCatalog &catalog,
            const std::vector<Filter *> &filters);
     void FilterItems(const Items &items);
-    void FromForm();
-    void ToForm();
-    void ResetForm();
     const QString &caption() const { return m_caption; }
     const Items &items() const { return m_items; }
     const std::vector<std::unique_ptr<Column>> &columns() const { return m_columns; }
@@ -50,8 +47,6 @@ public:
     const std::vector<Bucket> &buckets() const;
     void RenameCaption(const QString &newName);
     QString GetCaption() const;
-    // Updates this search from the current form and item data.
-    void Activate(const Items &items);
     ItemLocation GetTabLocation(const QModelIndex &index) const;
     void SetViewMode(ViewMode mode);
     ViewMode GetViewMode() const { return m_current_mode; }
@@ -60,6 +55,11 @@ public:
     const QModelIndex index(const std::shared_ptr<Item> &item) const;
     void SetRefreshReason(RefreshReason reason) { m_refresh_reason = reason; }
     void Sort(int column, Qt::SortOrder order);
+
+    qsizetype filterSlotCount() const { return static_cast<qsizetype>(m_filter_slots.size()); }
+    FilterData &legacyFilterDataAt(qsizetype index);
+    FilterState &filterStateAt(qsizetype index);
+    const FilterState &filterStateAt(qsizetype index) const;
 
 private:
     std::vector<Bucket> &active_buckets();

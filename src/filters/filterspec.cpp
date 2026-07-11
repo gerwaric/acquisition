@@ -5,11 +5,15 @@
 
 #include <utility>
 
+#include "buyoutmanager.h"
+#include "filters/filtermatchers.h"
+#include "item.h"
+
 FilterCatalog::FilterCatalog(std::vector<FilterSpec> specs)
     : m_specs(std::move(specs))
 {}
 
-FilterCatalog BuildFilterCatalog(const BuyoutManager & /* buyoutManager */)
+FilterCatalog BuildFilterCatalog(const BuyoutManager &buyoutManager)
 {
     using enum LegacyFilterKind;
     using enum RefreshMode;
@@ -17,6 +21,10 @@ FilterCatalog BuildFilterCatalog(const BuyoutManager & /* buyoutManager */)
     const auto legacy =
         [](LegacyFilterKind kind, const char *caption, FilterGroup group, RefreshMode refreshMode) {
             return FilterSpec{caption, group, refreshMode, LegacyPayload{kind}};
+        };
+    const auto boolean =
+        [](const char *caption, FilterGroup group, std::function<bool(const Item &)> predicate) {
+            return FilterSpec{caption, group, Immediate, BoolPayload{std::move(predicate)}};
         };
 
     std::vector<FilterSpec> specs;
@@ -47,17 +55,36 @@ FilterCatalog BuildFilterCatalog(const BuyoutManager & /* buyoutManager */)
     specs.push_back(legacy(Level, "Level", FilterGroup::Misc, Debounced));
     specs.push_back(legacy(MapTier, "Map Tier", FilterGroup::Misc, Debounced));
     specs.push_back(legacy(ItemLevel, "ilvl", FilterGroup::Misc, Debounced));
-    specs.push_back(legacy(AlternateArt, "Alt. art", FilterGroup::MiscFlags, Immediate));
-    specs.push_back(legacy(Priced, "Priced", FilterGroup::MiscFlags, Immediate));
-    specs.push_back(legacy(Unidentified, "Unidentified", FilterGroup::MiscFlags2, Immediate));
-    specs.push_back(legacy(Influenced, "Influenced", FilterGroup::MiscFlags2, Immediate));
-    specs.push_back(legacy(Crafted, "Crafted", FilterGroup::MiscFlags2, Immediate));
-    specs.push_back(legacy(Enchanted, "Enchanted", FilterGroup::MiscFlags2, Immediate));
-    specs.push_back(legacy(Corrupted, "Corrupted", FilterGroup::MiscFlags2, Immediate));
-    specs.push_back(legacy(Fractured, "Fractured", FilterGroup::MiscFlags2, Immediate));
-    specs.push_back(legacy(Split, "Split", FilterGroup::MiscFlags2, Immediate));
-    specs.push_back(legacy(Synthesized, "Synthesized", FilterGroup::MiscFlags2, Immediate));
-    specs.push_back(legacy(Mutated, "Mutated", FilterGroup::MiscFlags2, Immediate));
+    specs.push_back(boolean("Alt. art", FilterGroup::MiscFlags, MatchesAltart));
+    specs.push_back(boolean("Priced", FilterGroup::MiscFlags, [&buyoutManager](const Item &item) {
+        return buyoutManager.Get(item).IsActive();
+    }));
+    specs.push_back(boolean("Unidentified", FilterGroup::MiscFlags2, [](const Item &item) {
+        return !item.identified();
+    }));
+    specs.push_back(boolean("Influenced", FilterGroup::MiscFlags2, [](const Item &item) {
+        return item.hasInfluence();
+    }));
+    specs.push_back(boolean("Crafted", FilterGroup::MiscFlags2, [](const Item &item) {
+        return item.crafted();
+    }));
+    specs.push_back(boolean("Enchanted", FilterGroup::MiscFlags2, [](const Item &item) {
+        return item.enchanted();
+    }));
+    specs.push_back(boolean("Corrupted", FilterGroup::MiscFlags2, [](const Item &item) {
+        return item.corrupted();
+    }));
+    specs.push_back(boolean("Fractured", FilterGroup::MiscFlags2, [](const Item &item) {
+        return item.fractured();
+    }));
+    specs.push_back(
+        boolean("Split", FilterGroup::MiscFlags2, [](const Item &item) { return item.split(); }));
+    specs.push_back(boolean("Synthesized", FilterGroup::MiscFlags2, [](const Item &item) {
+        return item.synthesized();
+    }));
+    specs.push_back(boolean("Mutated", FilterGroup::MiscFlags2, [](const Item &item) {
+        return item.mutated();
+    }));
     specs.push_back(legacy(Mods, "Mods", FilterGroup::Mods, Debounced));
     return FilterCatalog(std::move(specs));
 }

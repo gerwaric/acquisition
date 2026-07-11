@@ -458,7 +458,16 @@ set_target_properties(acquisition_filters PROPERTIES
     CXX_EXTENSIONS NO
 )
 target_include_directories(acquisition_filters PUBLIC "${acquisition_SOURCE_DIR}/src")
-target_link_libraries(acquisition_filters PUBLIC Qt6::Core Qt6::Gui)
+target_link_libraries(acquisition_filters
+    PUBLIC
+        Qt6::Core
+        Qt6::Gui
+    # Item's include closure reaches ItemLocation's Qt Network/spdlog formatter.
+    # These remain deliberately non-widget so the filter-core boundary stays intact.
+    PRIVATE
+        Qt6::Network
+        spdlog::spdlog_header_only
+)
 
 qt_add_library(acquisition_core STATIC
     ${ACQ_CORE}

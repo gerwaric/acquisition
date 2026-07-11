@@ -21,7 +21,9 @@ private slots:
     void bucketConstruction();
     void nameFilterMembership();
     void backgroundRefilterUsesCurrentSearchActivity();
+    void backgroundBooleanRefilterUsesOwnState();
     void filterStateRestoresAcrossTabSwitch();
+    void booleanFormAdapterRoundTrip();
 };
 
 struct SearchHarness
@@ -30,13 +32,15 @@ struct SearchHarness
     QWidget host;
     QVBoxLayout layout{&host};
     QObject receiver;
+    int immediateChanges = 0;
+    int delayedChanges = 0;
     FilterCallbacks callbacks{
         &receiver,
-        [] {},
-        [] {},
+        [this] { ++immediateChanges; },
+        [this] { ++delayedChanges; },
     };
     FilterCatalog catalog{BuildFilterCatalog(*buyoutFixture.manager)};
-    SearchForm form{layout, catalog, *buyoutFixture.manager, callbacks};
+    SearchForm form{layout, catalog, callbacks};
 
     template<typename Widget>
     Widget *findByLabel(const QString &labelText,
@@ -59,7 +63,8 @@ struct SearchHarness
 static std::shared_ptr<Item> makeSearchItem(const QString &id,
                                             const QString &name,
                                             const QString &typeLine,
-                                            const ItemLocation &location)
+                                            const ItemLocation &location,
+                                            const QString &extraJson = {})
 {
     const QByteArray json = QString(R"json({
         "baseType": "%3",
@@ -75,9 +80,9 @@ static std::shared_ptr<Item> makeSearchItem(const QString &id,
         "verified": false,
         "w": 1,
         "x": 0,
-        "y": 0
+        "y": 0%4
     })json")
-                                .arg(id, name, typeLine)
+                                .arg(id, name, typeLine, extraJson)
                                 .toUtf8();
     return std::make_shared<Item>(makeTestItem(json.constData(), location));
 }
@@ -98,7 +103,7 @@ void SearchTest::bucketConstruction()
                   "All",
                   harness.catalog,
                   harness.form.legacyFilters());
-    search.FromForm();
+    harness.form.saveTo(search);
     search.FilterItems(items);
 
     QCOMPARE(search.GetCaption(), "All [2]");
@@ -134,7 +139,7 @@ void SearchTest::nameFilterMembership()
                   "Filtered",
                   harness.catalog,
                   harness.form.legacyFilters());
-    search.FromForm();
+    harness.form.saveTo(search);
     search.FilterItems(items);
 
     QCOMPARE(search.GetCaption(), "Filtered [1]");
@@ -167,14 +172,14 @@ void SearchTest::backgroundRefilterUsesCurrentSearchActivity()
                       "Background",
                       harness.catalog,
                       harness.form.legacyFilters());
-    background.FromForm();
+    harness.form.saveTo(background);
 
     name->setText("");
     Search current(*harness.buyoutFixture.manager,
                    "Current",
                    harness.catalog,
                    harness.form.legacyFilters());
-    current.FromForm();
+    harness.form.saveTo(current);
     background.FilterItems(items);
 
     // Characterizes F33: the current search's inactive flag causes the
@@ -182,8 +187,45 @@ void SearchTest::backgroundRefilterUsesCurrentSearchActivity()
     QCOMPARE(background.GetCaption(), "Background [2]");
     QCOMPARE(background.items().size(), 2);
 
-    background.ToForm();
+    harness.form.loadFrom(background);
     QCOMPARE(name->text(), "alpha");
+}
+
+void SearchTest::backgroundBooleanRefilterUsesOwnState()
+{
+    SearchHarness harness;
+    const ItemLocation firstTab = makeTestStashLocation("stash-a", "Alpha Tab", 0);
+    const ItemLocation secondTab = makeTestStashLocation("stash-b", "Beta Tab", 1);
+    harness.buyoutFixture.manager->SetStashTabLocations({firstTab, secondTab});
+
+    Items items;
+    items.push_back(makeSearchItem("corrupted-item",
+                                   "Corrupted Bite",
+                                   "Vaal Axe",
+                                   firstTab,
+                                   R"json(, "corrupted": true)json"));
+    items.push_back(makeSearchItem("ordinary-item", "Ordinary Guard", "Copper Shield", secondTab));
+
+    auto *corrupted = harness.findByLabel<QCheckBox>("Corrupted");
+    QVERIFY(corrupted);
+    corrupted->setChecked(true);
+    Search background(*harness.buyoutFixture.manager,
+                      "Background",
+                      harness.catalog,
+                      harness.form.legacyFilters());
+    harness.form.saveTo(background);
+
+    corrupted->setChecked(false);
+    Search current(*harness.buyoutFixture.manager,
+                   "Current",
+                   harness.catalog,
+                   harness.form.legacyFilters());
+    harness.form.saveTo(current);
+    background.FilterItems(items);
+
+    QCOMPARE(background.GetCaption(), "Background [1]");
+    QCOMPARE(background.items().size(), 1);
+    QCOMPARE(background.items().front()->id(), "corrupted-item");
 }
 
 void SearchTest::filterStateRestoresAcrossTabSwitch()
@@ -227,15 +269,15 @@ void SearchTest::filterStateRestoresAcrossTabSwitch()
                    "A",
                    harness.catalog,
                    harness.form.legacyFilters());
-    searchA.FromForm();
+    harness.form.saveTo(searchA);
 
     Search searchB(*harness.buyoutFixture.manager,
                    "B",
                    harness.catalog,
                    harness.form.legacyFilters());
-    searchB.ResetForm();
-    searchB.FromForm();
-    searchA.ToForm();
+    harness.form.reset();
+    harness.form.saveTo(searchB);
+    harness.form.loadFrom(searchA);
 
     QCOMPARE(tab->text(), "Alpha Tab");
     QCOMPARE(name->text(), "alpha");
@@ -245,6 +287,37 @@ void SearchTest::filterStateRestoresAcrossTabSwitch()
     QCOMPARE(colorG->text(), "1");
     QCOMPARE(rarity->currentText(), "Rare");
     QVERIFY(corrupted->isChecked());
+}
+
+void SearchTest::booleanFormAdapterRoundTrip()
+{
+    SearchHarness harness;
+    auto *corrupted = harness.findByLabel<QCheckBox>("Corrupted");
+    QVERIFY(corrupted);
+
+    QCOMPARE(harness.immediateChanges, 0);
+    QCOMPARE(harness.delayedChanges, 0);
+    corrupted->click();
+    QCOMPARE(harness.immediateChanges, 1);
+    QCOMPARE(harness.delayedChanges, 0);
+
+    Search searchA(*harness.buyoutFixture.manager,
+                   "A",
+                   harness.catalog,
+                   harness.form.legacyFilters());
+    harness.form.saveTo(searchA);
+
+    harness.form.reset();
+    Search searchB(*harness.buyoutFixture.manager,
+                   "B",
+                   harness.catalog,
+                   harness.form.legacyFilters());
+    harness.form.saveTo(searchB);
+    harness.form.loadFrom(searchA);
+
+    QVERIFY(corrupted->isChecked());
+    QCOMPARE(harness.immediateChanges, 1);
+    QCOMPARE(harness.delayedChanges, 0);
 }
 
 QTEST_MAIN(SearchTest)

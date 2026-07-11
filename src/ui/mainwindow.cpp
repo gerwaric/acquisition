@@ -718,8 +718,9 @@ void MainWindow::ModelViewRefresh()
 
     m_buyout_manager.Save();
 
-    spdlog::trace("MainWindow::ModelViewRefresh() activing current search");
-    m_current_search->Activate(m_items_manager.items());
+    spdlog::trace("MainWindow::ModelViewRefresh() activating current search");
+    m_search_form->saveTo(*m_current_search);
+    m_current_search->FilterItems(m_items_manager.items());
     ItemsModel &model = m_current_search->model();
     ui->treeView->setSortingEnabled(false);
     if (ui->treeView->model() != &model) {
@@ -839,7 +840,7 @@ void MainWindow::OnTabChange(int index)
     } else {
         m_current_search = m_searches[index];
         m_current_search->SetRefreshReason(RefreshReason::TabChanged);
-        m_current_search->ToForm();
+        m_search_form->loadFrom(*m_current_search);
         ModelViewRefresh();
     }
 }
@@ -851,10 +852,7 @@ void MainWindow::InitializeSearchForm()
         [this] { OnSearchFormChange(); },
         [this] { OnDelayedSearchFormChange(); },
     };
-    m_search_form = std::make_unique<SearchForm>(*m_search_form_layout,
-                                                 m_filter_catalog,
-                                                 m_buyout_manager,
-                                                 callbacks);
+    m_search_form = std::make_unique<SearchForm>(*m_search_form_layout, m_filter_catalog, callbacks);
 }
 
 void MainWindow::NewSearch()
@@ -879,7 +877,7 @@ void MainWindow::NewSearch()
     // this can't be done in ctor because it'll call OnSearchFormChange slot
     // and remove all previous search data
     spdlog::trace("MainWindow::NewSearch() reseting search form and adding the search");
-    m_current_search->ResetForm();
+    m_search_form->reset();
     m_searches.push_back(m_current_search);
 
     spdlog::trace("MainWindow::NewSearch() triggering model view refresh");

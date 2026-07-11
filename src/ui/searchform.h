@@ -9,27 +9,39 @@
 
 #include "filters.h"
 #include "filters/filterspec.h"
+#include "filters/filterstate.h"
 
-class BuyoutManager;
 class QAbstractItemModel;
 class QLayout;
 class QVBoxLayout;
+class Search;
 
-using FormSlot = std::variant<std::unique_ptr<Filter>>;
+class FilterFormAdapter
+{
+public:
+    virtual ~FilterFormAdapter() = default;
+
+    virtual void saveTo(FilterState &state) const = 0;
+    virtual void loadFrom(const FilterState &state) = 0;
+    virtual void reset() = 0;
+};
+
+using FormSlot = std::variant<std::unique_ptr<Filter>, std::unique_ptr<FilterFormAdapter>>;
 
 class SearchForm
 {
 public:
-    SearchForm(QVBoxLayout &layout,
-               const FilterCatalog &catalog,
-               BuyoutManager &buyoutManager,
-               const FilterCallbacks &callbacks);
+    SearchForm(QVBoxLayout &layout, const FilterCatalog &catalog, const FilterCallbacks &callbacks);
     ~SearchForm();
 
     SearchForm(const SearchForm &) = delete;
     SearchForm &operator=(const SearchForm &) = delete;
 
+    // Catalog-indexed; migrated adapter slots contain nullptr.
     const std::vector<Filter *> &legacyFilters() const { return m_legacyFilters; }
+    void saveTo(Search &search);
+    void loadFrom(Search &search);
+    void reset();
 
 private:
     void addSearchGroup(QLayout *layout, const QString &name = {});

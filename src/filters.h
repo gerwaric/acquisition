@@ -9,14 +9,12 @@
 #include "item.h"
 
 class QLineEdit;
-class QCheckBox;
 class QComboBox;
 class QCompleter;
 class QAbstractListModel;
 class QLayout;
 class QObject;
 
-class BuyoutManager;
 class FilterData;
 class SearchComboBox;
 
@@ -95,7 +93,6 @@ public:
     bool min_filled, max_filled;
     int r, g, b;
     bool r_filled, g_filled, b_filled;
-    bool checked;
     std::vector<ModFilterData> mod_data;
 
 private:
@@ -317,187 +314,6 @@ class LinksColorsFilter : public SocketsColorsFilter
 public:
     LinksColorsFilter(QLayout *parent, const FilterCallbacks &callbacks);
     bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
-};
-
-class BooleanFilter : public Filter
-{
-public:
-    BooleanFilter(QLayout *parent,
-                  QString property,
-                  QString caption,
-                  const FilterCallbacks &callbacks);
-    void FromForm(FilterData *data);
-    void ToForm(FilterData *data);
-    void ResetForm();
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
-    void Initialize(QLayout *parent, const FilterCallbacks &callbacks);
-
-private:
-    QCheckBox *m_checkbox;
-
-protected:
-    QString m_property, m_caption;
-};
-
-class AltartFilter : public BooleanFilter
-{
-public:
-    AltartFilter(QLayout *parent,
-                 QString property,
-                 QString caption,
-                 const FilterCallbacks &callbacks)
-        : BooleanFilter(parent, property, caption, callbacks)
-    {}
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
-};
-
-class PricedFilter : public BooleanFilter
-{
-public:
-    PricedFilter(QLayout *parent,
-                 QString property,
-                 QString caption,
-                 const FilterCallbacks &callbacks,
-                 const BuyoutManager &bm)
-        : BooleanFilter(parent, property, caption, callbacks)
-        , m_bm(bm)
-    {}
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data);
-
-private:
-    const BuyoutManager &m_bm;
-};
-
-class UnidentifiedFilter : public BooleanFilter
-{
-public:
-    UnidentifiedFilter(QLayout *parent,
-                       QString property,
-                       QString caption,
-                       const FilterCallbacks &callbacks)
-        : BooleanFilter(parent, property, caption, callbacks)
-    {}
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
-    {
-        return !data->checked || !item->identified();
-    }
-};
-
-class CraftedFilter : public BooleanFilter
-{
-public:
-    CraftedFilter(QLayout *parent,
-                  QString property,
-                  QString caption,
-                  const FilterCallbacks &callbacks)
-        : BooleanFilter(parent, property, caption, callbacks)
-    {}
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
-    {
-        return !data->checked || item->crafted();
-    }
-};
-
-class EnchantedFilter : public BooleanFilter
-{
-public:
-    EnchantedFilter(QLayout *parent,
-                    QString property,
-                    QString caption,
-                    const FilterCallbacks &callbacks)
-        : BooleanFilter(parent, property, caption, callbacks)
-    {}
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
-    {
-        return !data->checked || item->enchanted();
-    }
-};
-
-class InfluencedFilter : public BooleanFilter
-{
-public:
-    InfluencedFilter(QLayout *parent,
-                     QString property,
-                     QString caption,
-                     const FilterCallbacks &callbacks)
-        : BooleanFilter(parent, property, caption, callbacks)
-    {}
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
-    {
-        return !data->checked || item->hasInfluence();
-    }
-};
-
-class CorruptedFilter : public BooleanFilter
-{
-public:
-    CorruptedFilter(QLayout *parent,
-                    QString property,
-                    QString caption,
-                    const FilterCallbacks &callbacks)
-        : BooleanFilter(parent, property, caption, callbacks)
-    {}
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
-    {
-        return !data->checked || item->corrupted();
-    }
-};
-
-class FracturedFilter : public BooleanFilter
-{
-public:
-    FracturedFilter(QLayout *parent,
-                    QString property,
-                    QString caption,
-                    const FilterCallbacks &callbacks)
-        : BooleanFilter(parent, property, caption, callbacks)
-    {}
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
-    {
-        return !data->checked || item->fractured();
-    }
-};
-
-class SplitFilter : public BooleanFilter
-{
-public:
-    SplitFilter(QLayout *parent, QString property, QString caption, const FilterCallbacks &callbacks)
-        : BooleanFilter(parent, property, caption, callbacks)
-    {}
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
-    {
-        return !data->checked || item->split();
-    }
-};
-
-class SynthesizedFilter : public BooleanFilter
-{
-public:
-    SynthesizedFilter(QLayout *parent,
-                      QString property,
-                      QString caption,
-                      const FilterCallbacks &callbacks)
-        : BooleanFilter(parent, property, caption, callbacks)
-    {}
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
-    {
-        return !data->checked || item->synthesized();
-    }
-};
-
-class MutatedFilter : public BooleanFilter
-{
-public:
-    MutatedFilter(QLayout *parent,
-                  QString property,
-                  QString caption,
-                  const FilterCallbacks &callbacks)
-        : BooleanFilter(parent, property, caption, callbacks)
-    {}
-    bool Matches(const std::shared_ptr<Item> &item, FilterData *data)
-    {
-        return !data->checked || item->mutated();
-    }
 };
 
 class ItemlevelFilter : public MinMaxFilter

@@ -55,17 +55,6 @@ enum class LegacyFilterKind {
     Level,
     MapTier,
     ItemLevel,
-    AlternateArt,
-    Priced,
-    Unidentified,
-    Influenced,
-    Crafted,
-    Enchanted,
-    Corrupted,
-    Fractured,
-    Split,
-    Synthesized,
-    Mutated,
     Mods,
 };
 

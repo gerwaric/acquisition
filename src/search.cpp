@@ -9,6 +9,7 @@
 #include "buyoutmanager.h"
 #include "column.h"
 #include "filters.h"
+#include "filters/filtermatchers.h"
 #include "filters/filterspec.h"
 #include "items_model.h"
 #include "util/fatalerror.h"
@@ -66,33 +67,34 @@ Search::Search(BuyoutManager &bo_manager,
             Q_ASSERT(filter);
             m_filter_slots.emplace_back(filter->CreateData());
         } else {
-            m_filter_slots.emplace_back(MakeDefaultState(spec));
+            FilterState state = MakeDefaultState(spec);
+            Q_ASSERT(std::holds_alternative<BoolPayload>(spec.payload));
+            Q_ASSERT(std::holds_alternative<BoolState>(state));
+            m_filter_slots.emplace_back(std::move(state));
         }
     }
 }
 
-void Search::FromForm()
+FilterData &Search::legacyFilterDataAt(qsizetype index)
 {
-    for (auto &slot : m_filter_slots) {
-        auto &filter = std::get<std::unique_ptr<FilterData>>(slot);
-        filter->FromForm();
-    }
+    auto *filter = std::get_if<std::unique_ptr<FilterData>>(
+        &m_filter_slots.at(static_cast<size_t>(index)));
+    Q_ASSERT(filter && *filter);
+    return **filter;
 }
 
-void Search::ToForm()
+FilterState &Search::filterStateAt(qsizetype index)
 {
-    for (auto &slot : m_filter_slots) {
-        auto &filter = std::get<std::unique_ptr<FilterData>>(slot);
-        filter->ToForm();
-    }
+    auto *state = std::get_if<FilterState>(&m_filter_slots.at(static_cast<size_t>(index)));
+    Q_ASSERT(state);
+    return *state;
 }
 
-void Search::ResetForm()
+const FilterState &Search::filterStateAt(qsizetype index) const
 {
-    for (auto &slot : m_filter_slots) {
-        auto &filter = std::get<std::unique_ptr<FilterData>>(slot);
-        filter->filter()->ResetForm();
-    }
+    const auto *state = std::get_if<FilterState>(&m_filter_slots.at(static_cast<size_t>(index)));
+    Q_ASSERT(state);
+    return *state;
 }
 
 void Search::setExpandedHeaders(std::set<QString> headers)
@@ -209,12 +211,21 @@ void Search::FilterItems(const Items &items)
     // Create a temporary vector of only the filters that are
     // active, so we don't have to check every filter against
     // every item.
-    std::vector<FilterData *> active_filters;
+    std::vector<qsizetype> active_filters;
     active_filters.reserve(m_filter_slots.size());
-    for (auto &slot : m_filter_slots) {
-        auto &filter = std::get<std::unique_ptr<FilterData>>(slot);
-        if (filter->filter()->IsActive()) {
-            active_filters.push_back(filter.get());
+    for (qsizetype index = 0; index < static_cast<qsizetype>(m_filter_slots.size()); ++index) {
+        const auto &slot = m_filter_slots.at(static_cast<size_t>(index));
+        if (const auto *filter = std::get_if<std::unique_ptr<FilterData>>(&slot)) {
+            Q_ASSERT(*filter);
+            if ((*filter)->filter()->IsActive()) {
+                active_filters.push_back(index);
+            }
+        } else {
+            const auto *state = std::get_if<FilterState>(&slot);
+            Q_ASSERT(state);
+            if (state && IsActive(*state)) {
+                active_filters.push_back(index);
+            }
         }
     }
     active_filters.shrink_to_fit();
@@ -238,8 +249,18 @@ void Search::FilterItems(const Items &items)
         // filter until we find that one that will filter out the
         // current item.
         bool matches = true;
-        for (const auto &filter : active_filters) {
-            if (!filter->Matches(item)) {
+        for (const qsizetype index : active_filters) {
+            const auto &slot = m_filter_slots.at(static_cast<size_t>(index));
+            bool filterMatches = false;
+            if (const auto *filter = std::get_if<std::unique_ptr<FilterData>>(&slot)) {
+                Q_ASSERT(*filter);
+                filterMatches = (*filter)->Matches(item);
+            } else {
+                const auto *state = std::get_if<FilterState>(&slot);
+                Q_ASSERT(state);
+                filterMatches = state && MatchesFilter(*item, m_filter_catalog[index], *state);
+            }
+            if (!filterMatches) {
                 // Now that we know this item will be filtered out,
                 // we don't need to check any more filters.
                 matches = false;
@@ -341,10 +362,4 @@ void Search::SetViewMode(ViewMode mode)
         m_model.SetSorted(true);
         m_model.endUpdate();
     }
-}
-
-void Search::Activate(const Items &items)
-{
-    FromForm();
-    FilterItems(items);
 }

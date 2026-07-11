@@ -8,6 +8,8 @@
 #include <QWidget>
 
 #include "filters.h"
+#include "filters/filtermatchers.h"
+#include "filters/filterspec.h"
 #include "itemcategories.h"
 #include "modlist.h"
 #include "modsfilter.h"
@@ -84,17 +86,26 @@ static std::shared_ptr<Item> makeFilterItem(
     return std::make_shared<Item>(makeTestItem(json.constData(), makeTestStashLocation()));
 }
 
-static void verifyBooleanPredicate(Filter &filter,
+static const FilterSpec *findFilterSpec(const FilterCatalog &catalog, const QString &caption)
+{
+    for (const auto &spec : catalog) {
+        if (spec.caption == caption) {
+            return &spec;
+        }
+    }
+    return nullptr;
+}
+
+static void verifyBooleanPredicate(const FilterSpec &spec,
                                    const std::shared_ptr<Item> &matching,
                                    const std::shared_ptr<Item> &notMatching)
 {
-    FilterData data(&filter);
-    data.checked = true;
-    QVERIFY(filter.Matches(matching, &data));
-    QVERIFY(!filter.Matches(notMatching, &data));
+    BoolState state{true};
+    QVERIFY(MatchesFilter(*matching, spec, state));
+    QVERIFY(!MatchesFilter(*notMatching, spec, state));
 
-    data.checked = false;
-    QVERIFY(filter.Matches(notMatching, &data));
+    state.checked = false;
+    QVERIFY(MatchesFilter(*notMatching, spec, state));
 }
 
 void FiltersTest::tabFilter()
@@ -299,35 +310,65 @@ void FiltersTest::colorsGarbageTextIsActiveZero()
 
 void FiltersTest::booleanFilter()
 {
-    FilterHarness harness;
-    CorruptedFilter filter(&harness.layout, "", "Corrupted", harness.callbacks);
-    FilterData data(&filter);
-    data.checked = true;
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const auto *corrupted = findFilterSpec(catalog, "Corrupted");
+    QVERIFY(corrupted);
+    QVERIFY(std::holds_alternative<BoolPayload>(corrupted->payload));
 
-    QVERIFY(filter.Matches(makeFilterItem("corrupted", R"json(, "corrupted": true)json"), &data));
-    QVERIFY(!filter.Matches(makeFilterItem("not-corrupted", ""), &data));
+    const FilterState defaultState = MakeDefaultState(*corrupted);
+    QVERIFY(std::holds_alternative<BoolState>(defaultState));
+    QVERIFY(!IsActive(defaultState));
 
-    data.checked = false;
-    QVERIFY(filter.Matches(makeFilterItem("unchecked", ""), &data));
+    BoolState state{true};
+
+    QVERIFY(MatchesFilter(*makeFilterItem("corrupted", R"json(, "corrupted": true)json"),
+                          *corrupted,
+                          state));
+    QVERIFY(!MatchesFilter(*makeFilterItem("not-corrupted", ""), *corrupted, state));
+
+    state.checked = false;
+    QVERIFY(MatchesFilter(*makeFilterItem("unchecked", ""), *corrupted, state));
 }
 
 void FiltersTest::booleanPredicates()
 {
-    FilterHarness harness;
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
     const auto ordinary = makeFilterItem("ordinary", "");
 
-    AltartFilter altart(&harness.layout, "", "Alt. art", harness.callbacks);
+    for (const QString &caption : {"Alt. art",
+                                   "Priced",
+                                   "Unidentified",
+                                   "Influenced",
+                                   "Crafted",
+                                   "Enchanted",
+                                   "Corrupted",
+                                   "Fractured",
+                                   "Split",
+                                   "Synthesized",
+                                   "Mutated"}) {
+        const auto *spec = findFilterSpec(catalog, caption);
+        QVERIFY(spec);
+        QVERIFY(std::holds_alternative<BoolPayload>(spec->payload));
+        QCOMPARE(spec->refreshMode, RefreshMode::Immediate);
+        const FilterState defaultState = MakeDefaultState(*spec);
+        QVERIFY(std::holds_alternative<BoolState>(defaultState));
+        QVERIFY(!IsActive(defaultState));
+    }
+
+    const auto *altart = findFilterSpec(catalog, "Alt. art");
+    QVERIFY(altart);
+    QVERIFY(std::holds_alternative<BoolPayload>(altart->payload));
     for (const QString &needle : {"RedBeak2.png", "dGlsbGF0ZUFsdCI7czoy", "WinterHeart.png"}) {
         const auto item = makeFilterItem("alt-" + needle,
                                          "",
                                          2,
                                          "Rare",
                                          "https://web.poecdn.com/image/" + needle);
-        FilterData data(&altart);
-        data.checked = true;
-        QVERIFY(altart.Matches(item, &data));
+        QVERIFY(MatchesFilter(*item, *altart, BoolState{true}));
     }
-    verifyBooleanPredicate(altart,
+    verifyBooleanPredicate(*altart,
                            makeFilterItem("alt-match",
                                           "",
                                           2,
@@ -335,11 +376,12 @@ void FiltersTest::booleanPredicates()
                                           "https://web.poecdn.com/image/RedBeak2.png"),
                            ordinary);
 
-    BuyoutManagerFixture buyoutFixture;
     const auto pricedItem = makeFilterItem("priced", "");
     buyoutFixture.manager->Set(*pricedItem, makeChaosBuyout(5.0));
-    PricedFilter priced(&harness.layout, "", "Priced", harness.callbacks, *buyoutFixture.manager);
-    verifyBooleanPredicate(priced, pricedItem, ordinary);
+    const auto *priced = findFilterSpec(catalog, "Priced");
+    QVERIFY(priced);
+    QVERIFY(std::holds_alternative<BoolPayload>(priced->payload));
+    verifyBooleanPredicate(*priced, pricedItem, ordinary);
 
     const auto flags = makeFilterItem("flags",
                                       R"json(,
@@ -356,22 +398,19 @@ void FiltersTest::booleanPredicates()
                                       "https://web.poecdn.com/image/test.png",
                                       "Test Item",
                                       false);
-    UnidentifiedFilter unidentified(&harness.layout, "", "Unidentified", harness.callbacks);
-    InfluencedFilter influenced(&harness.layout, "", "Influenced", harness.callbacks);
-    CraftedFilter crafted(&harness.layout, "", "Crafted", harness.callbacks);
-    EnchantedFilter enchanted(&harness.layout, "", "Enchanted", harness.callbacks);
-    FracturedFilter fractured(&harness.layout, "", "Fractured", harness.callbacks);
-    SplitFilter split(&harness.layout, "", "Split", harness.callbacks);
-    SynthesizedFilter synthesized(&harness.layout, "", "Synthesized", harness.callbacks);
-    MutatedFilter mutated(&harness.layout, "", "Mutated", harness.callbacks);
-    verifyBooleanPredicate(unidentified, flags, ordinary);
-    verifyBooleanPredicate(influenced, flags, ordinary);
-    verifyBooleanPredicate(crafted, flags, ordinary);
-    verifyBooleanPredicate(enchanted, flags, ordinary);
-    verifyBooleanPredicate(fractured, flags, ordinary);
-    verifyBooleanPredicate(split, flags, ordinary);
-    verifyBooleanPredicate(synthesized, flags, ordinary);
-    verifyBooleanPredicate(mutated, flags, ordinary);
+    for (const QString &caption : {"Unidentified",
+                                   "Influenced",
+                                   "Crafted",
+                                   "Enchanted",
+                                   "Fractured",
+                                   "Split",
+                                   "Synthesized",
+                                   "Mutated"}) {
+        const auto *spec = findFilterSpec(catalog, caption);
+        QVERIFY(spec);
+        QVERIFY(std::holds_alternative<BoolPayload>(spec->payload));
+        verifyBooleanPredicate(*spec, flags, ordinary);
+    }
 }
 
 void FiltersTest::rarityFilter()

@@ -137,7 +137,8 @@ version of this doc:
 - **D5 — the widget-free boundary is build-enforced.** A new
   `acquisition_filters` static/object library compiles `src/filters/*` and
   links only the non-widget Qt modules its include closure needs (expected:
-  `Qt6::Core`, `Qt6::Gui`; possibly `Qt6::Sql` via `buyoutmanager.h`) —
+  `Qt6::Core`, `Qt6::Gui`, `Qt6::Network` via `Item`'s `ItemLocation`
+  formatter; possibly `Qt6::Sql` via `buyoutmanager.h`) —
   **never `Qt6::Widgets`**. Any transitive widget header fails the build.
   `acquisition_core` (and thus the app and tests) consume this target. Note
   the gate proves *widget*-freedom; the "no `src/ui/` includes under

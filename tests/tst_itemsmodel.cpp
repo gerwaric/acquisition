@@ -64,7 +64,7 @@ void ItemsModelTest::testerSurvivesRebuildModeSwitchAndSort()
     FilterCatalog catalog({});
     std::vector<Filter *> filters;
     Search search(*buyoutFixture.manager, "Model", catalog, filters);
-    search.Activate(items);
+    search.FilterItems(items);
     view.setModel(&search.model());
 
     auto *model = &search.model();
@@ -134,7 +134,7 @@ void ItemsModelTest::selectionSurvivesSort()
     FilterCatalog catalog({});
     std::vector<Filter *> filters;
     Search search(*buyoutFixture.manager, "Model", catalog, filters);
-    search.Activate(items);
+    search.FilterItems(items);
     view.setModel(&search.model());
 
     auto *model = &search.model();

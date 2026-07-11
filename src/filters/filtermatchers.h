@@ -8,6 +8,8 @@
 
 class Item;
 
+bool MatchesAltart(const Item &item);
+
 bool matches(const Item &item, const TextState &state, const TextPayload &payload);
 bool matches(const Item &item, const ComboState &state, const ComboPayload &payload);
 bool matches(const Item &item, const MinMaxState &state, const MinMaxPayload &payload);
