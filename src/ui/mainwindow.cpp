@@ -27,6 +27,7 @@
 #include <QVersionNumber>
 
 #include <set>
+#include <utility>
 #include <vector>
 
 #include "buyoutmanager.h"
@@ -50,7 +51,6 @@
 #include "ui/verticalscrollarea.h"
 #include "util/glaze_qt.h" // IWYU pragma: keep
 #include "util/networkmanager.h"
-#include "util/oauthmanager.h"
 #include "util/spdlog_qt.h"
 #include "util/updatechecker.h"
 #include "util/util.h"
@@ -133,26 +133,9 @@ MainWindow::~MainWindow()
 {
     m_search_form.reset();
     delete ui;
-    for (auto &search : m_searches) {
-        delete (search);
-    }
     m_rate_limit_dialog->close();
     m_rate_limit_dialog->deleteLater();
 }
-
-/*
-void MainWindow::prepare(OAuthManager &oauth_manager, CurrencyManager &currency_manager)
-{
-    connect(ui->actionShowOAuthToken,
-            &QAction::triggered,
-            &oauth_manager,
-            &OAuthManager::showStatus);
-    connect(ui->actionRefreshOAuthToken,
-            &QAction::triggered,
-            &oauth_manager,
-            &OAuthManager::requestRefresh);
-}
-*/
 
 void MainWindow::InitializeRateLimitDialog()
 {
@@ -657,15 +640,17 @@ void MainWindow::OnDeleteTabClicked(int index)
     }
 
     // Delete the search.
-    Search *search = m_searches[index];
+    auto &search = m_searches[index];
     m_search_form->unbind(*search);
-    if (m_current_search == search) {
+    if (m_current_search == search.get()) {
         m_current_search = nullptr;
     }
-    delete search;
     m_searches.erase(m_searches.begin() + index);
 
-    // Remove the tab from the UI
+    // removeTab emits currentChanged synchronously, re-entering OnTabChange.
+    // When the deleted search was current, FlushPendingSearchFormChange is a
+    // no-op because m_current_search is null, and the view receives its new
+    // model before repaint can touch the destroyed search.
     m_tab_bar->removeTab(index);
 }
 
@@ -853,7 +838,7 @@ void MainWindow::OnTabChange(int index)
         // "+" clicked
         NewSearch();
     } else {
-        m_current_search = m_searches[index];
+        m_current_search = m_searches[index].get();
         m_current_search->SetRefreshReason(RefreshReason::TabChanged);
         m_search_form->loadFrom(*m_current_search);
         ModelViewRefresh();
@@ -883,14 +868,15 @@ void MainWindow::NewSearch()
     m_tab_bar->addTab("+");
 
     spdlog::trace("MainWindow::NewSearch() setting current search: {}", caption);
-    m_current_search = new Search(m_buyout_manager, caption, m_filter_catalog);
+    auto search = std::make_unique<Search>(m_buyout_manager, caption, m_filter_catalog);
+    m_current_search = search.get();
     m_current_search->SetRefreshReason(RefreshReason::TabCreated);
 
     // this can't be done in ctor because it'll call OnSearchFormChange slot
     // and remove all previous search data
     spdlog::trace("MainWindow::NewSearch() reseting search form and adding the search");
     m_search_form->reset();
-    m_searches.push_back(m_current_search);
+    m_searches.push_back(std::move(search));
 
     spdlog::trace("MainWindow::NewSearch() triggering model view refresh");
     ModelViewRefresh();
@@ -1008,10 +994,10 @@ void MainWindow::OnItemsRefreshed()
 {
     spdlog::trace("MainWindow::OnItemsRefreshed() entered");
     int tab = 0;
-    for (auto search : m_searches) {
+    for (const auto &search : m_searches) {
         search->SetRefreshReason(RefreshReason::ItemsChanged);
         // Don't update current search - it will be updated in OnSearchFormChange
-        if (search != m_current_search) {
+        if (search.get() != m_current_search) {
             search->FilterItems(m_items_manager.items());
             m_tab_bar->setTabText(tab, search->GetCaption());
         }

@@ -488,6 +488,19 @@ filter state and returns the correct rows on reactivation; only its inactive
 tab caption is stale. `tst_mainwindow` pins both observations. Record it for
 a Phase 6 follow-up rather than fixing it inside 6.7's fixture/test work.
 
+### F42. `LogPanel` sink detachment still has a teardown lifetime race — Confirmed
+
+Found in the Phase 6 item 6.7 review (July 2026). The F40 fix gives
+`LogPanel` a destructor that removes its sinks, but `~MainWindow`'s child
+cleanup destroys the panel's `m_output` `QTextEdit` before the `LogPanel`
+child. The `qt_color_sink` retains a raw `QTextEdit *`, so worker-thread
+logging can still reach the destroyed widget before `~LogPanel` detaches the
+sink.
+Additionally, removing entries from `logger::sinks()` mutates that vector
+without synchronization against worker-thread logging. This is a narrow,
+teardown-only residue of F40 and the same lifetime-ordering family as F29.
+Record it for a follow-up; do not extend the 6.7/F40 fix inline.
+
 ---
 
 ## Recorded but out of scope

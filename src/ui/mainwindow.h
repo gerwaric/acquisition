@@ -11,6 +11,7 @@
 #include <QTimer>
 
 #include <memory>
+#include <vector>
 
 #include <spdlog/spdlog.h>
 
@@ -22,7 +23,6 @@ class QSettings;
 class QVBoxLayout;
 
 class BuyoutManager;
-class Column;
 class CurrencyManager;
 class DataStore;
 class ImageCache;
@@ -31,7 +31,6 @@ class ItemLocation;
 class ItemsManager;
 class LogPanel;
 class NetworkManager;
-class OAuthManager;
 class RateLimiter;
 class RateLimitDialog;
 class Search;
@@ -59,7 +58,6 @@ public:
                         Shop &shop,
                         ImageCache &image_cache);
     ~MainWindow();
-    std::vector<Column *> columns;
     void LoadSettings();
 
 signals:
@@ -150,15 +148,16 @@ private:
     Shop &m_shop;
     ImageCache &m_image_cache;
 
-    // Application owns BuyoutManager and outlives MainWindow. MainWindow owns
-    // the catalog and explicitly deletes every Search before catalog teardown.
+    // Application owns BuyoutManager and outlives MainWindow. Keep m_searches
+    // declared after m_filter_catalog so reverse destruction destroys searches
+    // before the catalog they reference.
     FilterCatalog m_filter_catalog;
 
     Ui::MainWindow *ui;
 
     std::shared_ptr<Item> m_current_item;
     const ItemLocation *m_current_bucket_location;
-    std::vector<Search *> m_searches;
+    std::vector<std::unique_ptr<Search>> m_searches;
     Search *m_current_search;
     QTabBar *m_tab_bar;
     LogPanel *m_log_panel;
