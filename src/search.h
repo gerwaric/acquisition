@@ -7,7 +7,9 @@
 #include <QString>
 
 #include <memory>
+#include <optional>
 #include <set>
+#include <utility>
 #include <vector>
 
 #include "bucket.h"
@@ -38,6 +40,13 @@ public:
     ItemsModel &model() { return m_model; }
     const std::set<QString> &expandedHeaders() const { return m_expanded_property; }
     void setExpandedHeaders(std::set<QString> headers);
+    const std::shared_ptr<Item> &currentItem() const { return m_current_item; }
+    void setCurrentItem(std::shared_ptr<Item> item) { m_current_item = std::move(item); }
+    const std::optional<ItemLocation> &currentBucket() const { return m_current_bucket; }
+    void setCurrentBucket(std::optional<ItemLocation> bucket)
+    {
+        m_current_bucket = std::move(bucket);
+    }
     bool defaultExpanded() const { return m_filtered || (m_current_mode == ViewMode::ByItem); }
     const std::vector<Bucket> &buckets() const;
     void RenameCaption(const QString &newName);
@@ -85,6 +94,8 @@ private:
     bool m_filtered;
     size_t m_filtered_item_count;
     std::set<QString> m_expanded_property;
+    std::shared_ptr<Item> m_current_item;
+    std::optional<ItemLocation> m_current_bucket;
     ViewMode m_current_mode;
     RefreshReason m_refresh_reason;
 };

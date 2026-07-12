@@ -11,11 +11,13 @@
 #include <QTimer>
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 #include <spdlog/spdlog.h>
 
 #include "filters/filterspec.h"
+#include "itemlocation.h"
 #include "util/programstate.h"
 
 class QNetworkReply;
@@ -67,7 +69,6 @@ signals:
     void GetImage(const QString &url);
 public slots:
     void OnCurrentItemChanged(const QModelIndex &current, const QModelIndex &previous);
-    void OnLayoutChanged();
     void OnSearchFormChange();
     void OnDelayedSearchFormChange();
     void OnTabChange(int index);
@@ -120,6 +121,7 @@ private slots:
 
 private:
     void ModelViewRefresh();
+    void ReselectCurrentItem();
     void FlushPendingSearchFormChange();
     void SaveViewExpansion(Search &search);
     void RestoreViewExpansion(Search &search);
@@ -127,6 +129,7 @@ private:
     void UpdateCurrentBucket();
     void UpdateCurrentItem();
     void UpdateCurrentBuyout();
+    void ResetBuyoutWidgets();
     void NewSearch();
     void InitializeRateLimitDialog();
     void InitializeLogging();
@@ -156,7 +159,7 @@ private:
     Ui::MainWindow *ui;
 
     std::shared_ptr<Item> m_current_item;
-    const ItemLocation *m_current_bucket_location;
+    std::optional<ItemLocation> m_current_bucket_location;
     std::vector<std::unique_ptr<Search>> m_searches;
     Search *m_current_search;
     QTabBar *m_tab_bar;
@@ -173,7 +176,6 @@ private:
     QTimer m_delayed_search_form_change;
     QTimer m_delayed_resize_columns;
     QMetaObject::Connection m_current_item_conn;
-    QMetaObject::Connection m_layout_changed_conn;
     RateLimitDialog *m_rate_limit_dialog;
     bool m_quitting;
 };

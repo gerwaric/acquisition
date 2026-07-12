@@ -18,6 +18,8 @@
 #include <spdlog/logger.h>
 #include <spdlog/spdlog.h>
 
+#include "buyout.h"
+#include "currency.h"
 #include "mainwindowfixture.h"
 
 class MainWindowTest : public QObject
@@ -285,22 +287,38 @@ void MainWindowTest::currentViewStatePins()
         MainWindowFixture fixture;
         auto *tabs = findSearchTabs(*fixture.window);
         auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+        auto *name = findNameFilter(*fixture.window);
         QVERIFY(tabs);
         QVERIFY(tree);
+        QVERIFY(name);
 
         const ItemLocation alphaTab = makeTestStashLocation("stash-alpha", "Alpha Tab", 0);
+        const ItemLocation betaTab = makeTestStashLocation("stash-beta", "Beta Tab", 1);
         Items items;
         items.push_back(makeMainWindowItem("alpha-item", "Alpha", "Sword", alphaTab));
-        fixture.itemsManager->OnItemsRefreshed(items, {alphaTab}, false);
+        items.push_back(makeMainWindowItem("beta-item", "Beta", "Shield", betaTab));
+        fixture.itemsManager->OnItemsRefreshed(items, {alphaTab, betaTab}, false);
 
-        const QModelIndex bucket = tree->model()->index(0, 0);
+        const QModelIndex bucket = findBucket(*tree->model(), alphaTab.GetHeader());
         QVERIFY(bucket.isValid());
         tree->expand(bucket);
         QVERIFY(tree->isExpanded(bucket));
+        const QModelIndex item = tree->model()->index(0, 0, bucket);
+        QVERIFY(item.isValid());
+        tree->selectionModel()->setCurrentIndex(item,
+                                                QItemSelectionModel::ClearAndSelect
+                                                    | QItemSelectionModel::Rows);
 
         tabs->setCurrentIndex(1);
+        name->setFocus();
+        QTest::keyClicks(name, "beta");
         tabs->setCurrentIndex(0);
-        QVERIFY(!tree->isExpanded(tree->model()->index(0, 0)));
+        const QModelIndex restoredBucket = findBucket(*tree->model(), alphaTab.GetHeader());
+        QVERIFY(restoredBucket.isValid());
+        QVERIFY(tree->isExpanded(restoredBucket));
+        const QModelIndexList selectedRows = tree->selectionModel()->selectedRows();
+        QCOMPARE(selectedRows.size(), 1);
+        QCOMPARE(selectedRows.front().data().toString(), "Alpha Sword");
     }
 
     {
@@ -341,17 +359,20 @@ void MainWindowTest::currentViewStatePins()
                                                     | QItemSelectionModel::Rows);
         QCOMPARE(nameLabel->text(), alphaTab.GetHeader());
         QCOMPARE(buyoutValue->text(), "7");
-        const int previousType = buyoutType->currentIndex();
-        const int previousCurrency = buyoutCurrency->currentIndex();
 
-        // ModelViewRefresh only calls OnLayoutChanged, which returns early
-        // with no current item. It does not clear a selected bucket's panel.
         tabs->setCurrentIndex(1);
         QVERIFY(!findBucket(*tree->model(), alphaTab.GetHeader()).isValid());
         QVERIFY(findBucket(*tree->model(), betaTab.GetHeader()).isValid());
+        QCOMPARE(nameLabel->text(), "Select an item");
+        QCOMPARE(buyoutType->currentIndex(), static_cast<int>(Buyout::BUYOUT_TYPE_INHERIT));
+        QCOMPARE(buyoutCurrency->currentIndex(), static_cast<int>(Currency::CURRENCY_NONE));
+        QCOMPARE(buyoutValue->text(), "");
+        QVERIFY(!buyoutType->isEnabled());
+        QVERIFY(!buyoutCurrency->isEnabled());
+        QVERIFY(!buyoutValue->isEnabled());
+
+        tabs->setCurrentIndex(0);
         QCOMPARE(nameLabel->text(), alphaTab.GetHeader());
-        QCOMPARE(buyoutType->currentIndex(), previousType);
-        QCOMPARE(buyoutCurrency->currentIndex(), previousCurrency);
         QCOMPARE(buyoutValue->text(), "7");
     }
 
@@ -380,7 +401,11 @@ void MainWindowTest::currentViewStatePins()
         tree->selectionModel()->select(secondItem,
                                        QItemSelectionModel::Select | QItemSelectionModel::Rows);
         QCOMPARE(tree->selectionModel()->selectedRows().size(), 2);
-        const QString originallyCurrent = firstItem.data().toString();
+        QStringList initiallySelectedNames;
+        for (const QModelIndex &selected : tree->selectionModel()->selectedRows()) {
+            initiallySelectedNames.append(selected.data().toString());
+        }
+        initiallySelectedNames.sort();
 
         QSignalSpy layoutChanged(model, &QAbstractItemModel::layoutChanged);
         const Qt::SortOrder nextOrder = tree->header()->sortIndicatorOrder() == Qt::AscendingOrder
@@ -391,9 +416,14 @@ void MainWindowTest::currentViewStatePins()
         tree->header()->setSortIndicator(0, nextOrder);
 
         QCOMPARE(layoutChanged.count(), 1);
-        QCOMPARE(tree->selectionModel()->selectedRows().size(), 1);
-        QCOMPARE(tree->selectionModel()->selectedRows().front().data().toString(),
-                 originallyCurrent);
+        const QModelIndexList selectedRows = tree->selectionModel()->selectedRows();
+        QCOMPARE(selectedRows.size(), 2);
+        QStringList selectedNames;
+        for (const QModelIndex &selected : selectedRows) {
+            selectedNames.append(selected.data().toString());
+        }
+        selectedNames.sort();
+        QCOMPARE(selectedNames, initiallySelectedNames);
     }
 }
 
