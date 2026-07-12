@@ -4,19 +4,20 @@
 #include "search.h"
 
 #include <memory>
+#include <type_traits>
 
 #include "bucket.h"
 #include "buyoutmanager.h"
 #include "column.h"
-#include "filters.h"
+#include "filters/filtermatchers.h"
+#include "filters/filterspec.h"
 #include "items_model.h"
 #include "util/fatalerror.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 
-Search::Search(BuyoutManager &bo_manager,
-               const QString &caption,
-               const std::vector<std::unique_ptr<Filter>> &filters)
+Search::Search(BuyoutManager &bo_manager, const QString &caption, const FilterCatalog &catalog)
     : m_bo_manager(bo_manager)
+    , m_filter_catalog(catalog)
     , m_model(bo_manager, *this)
     , m_caption(caption)
     , m_filtered(false)
@@ -54,30 +55,50 @@ Search::Search(BuyoutManager &bo_manager,
     m_columns = std::vector<move_only>(std::make_move_iterator(std::begin(init)),
                                        std::make_move_iterator(std::end(init)));
 
-    for (auto &filter : filters) {
-        m_filters.emplace_back(filter->CreateData());
+    m_filter_states.reserve(static_cast<size_t>(m_filter_catalog.size()));
+    for (qsizetype index = 0; index < m_filter_catalog.size(); ++index) {
+        const auto &spec = m_filter_catalog[index];
+        FilterState state = MakeDefaultState(spec);
+        const bool matchingState = std::visit(
+            [&state](const auto &payload) {
+                using Payload = std::decay_t<decltype(payload)>;
+                if constexpr (std::is_same_v<Payload, TextPayload>) {
+                    return std::holds_alternative<TextState>(state);
+                } else if constexpr (std::is_same_v<Payload, ComboPayload>) {
+                    return std::holds_alternative<ComboState>(state);
+                } else if constexpr (std::is_same_v<Payload, MinMaxPayload>) {
+                    return std::holds_alternative<MinMaxState>(state);
+                } else if constexpr (std::is_same_v<Payload, ColorsPayload>) {
+                    return std::holds_alternative<ColorsState>(state);
+                } else if constexpr (std::is_same_v<Payload, BoolPayload>) {
+                    return std::holds_alternative<BoolState>(state);
+                } else {
+                    return std::holds_alternative<ModsState>(state);
+                }
+            },
+            spec.payload);
+        Q_ASSERT(matchingState);
+        m_filter_states.emplace_back(std::move(state));
     }
+    Q_ASSERT(m_filter_states.size() == static_cast<size_t>(m_filter_catalog.size()));
 }
 
-void Search::FromForm()
+Search::~Search() = default;
+
+const FilterState &Search::filterStateAt(qsizetype index) const
 {
-    for (auto &filter : m_filters) {
-        filter->FromForm();
-    }
+    return m_filter_states.at(static_cast<size_t>(index));
 }
 
-void Search::ToForm()
+void Search::setFilterState(qsizetype index, FilterState state)
 {
-    for (auto &filter : m_filters) {
-        filter->ToForm();
+    auto &current = m_filter_states.at(static_cast<size_t>(index));
+    Q_ASSERT(current.index() == state.index());
+    if (current == state) {
+        return;
     }
-}
-
-void Search::ResetForm()
-{
-    for (auto &filter : m_filters) {
-        filter->filter()->ResetForm();
-    }
+    current = std::move(state);
+    m_states_dirty = true;
 }
 
 void Search::setExpandedHeaders(std::set<QString> headers)
@@ -184,8 +205,11 @@ void Search::FilterItems(const Items &items)
 {
     spdlog::debug("FilterItems: reason({})", m_refresh_reason);
 
-    // If we're just changing tabs we don't need to update anything
-    if (m_refresh_reason == RefreshReason::TabChanged) {
+    // If we're just changing tabs we don't need to update anything, unless a
+    // filter state changed since we last filtered. That happens when a form
+    // edit writes through to this search and the debounced refresh lands on a
+    // different one: the buckets and caption would otherwise stay stale.
+    if ((m_refresh_reason == RefreshReason::TabChanged) && !m_states_dirty) {
         return;
     }
 
@@ -194,11 +218,11 @@ void Search::FilterItems(const Items &items)
     // Create a temporary vector of only the filters that are
     // active, so we don't have to check every filter against
     // every item.
-    std::vector<FilterData *> active_filters;
-    active_filters.reserve(m_filters.size());
-    for (auto &filter : m_filters) {
-        if (filter->filter()->IsActive()) {
-            active_filters.push_back(filter.get());
+    std::vector<qsizetype> active_filters;
+    active_filters.reserve(m_filter_states.size());
+    for (qsizetype index = 0; index < static_cast<qsizetype>(m_filter_states.size()); ++index) {
+        if (IsActive(m_filter_states.at(static_cast<size_t>(index)))) {
+            active_filters.push_back(index);
         }
     }
     active_filters.shrink_to_fit();
@@ -222,8 +246,9 @@ void Search::FilterItems(const Items &items)
         // filter until we find that one that will filter out the
         // current item.
         bool matches = true;
-        for (const auto &filter : active_filters) {
-            if (!filter->Matches(item)) {
+        for (const qsizetype index : active_filters) {
+            const auto &state = m_filter_states.at(static_cast<size_t>(index));
+            if (!MatchesFilter(*item, m_filter_catalog[index], state)) {
                 // Now that we know this item will be filtered out,
                 // we don't need to check any more filters.
                 matches = false;
@@ -270,6 +295,8 @@ void Search::FilterItems(const Items &items)
     // Let the model know that current sort order has been invalidated
     m_model.SetSorted(false);
     m_model.endUpdate();
+
+    m_states_dirty = false;
 }
 
 void Search::RenameCaption(const QString &newName)
@@ -325,10 +352,4 @@ void Search::SetViewMode(ViewMode mode)
         m_model.SetSorted(true);
         m_model.endUpdate();
     }
-}
-
-void Search::Activate(const Items &items)
-{
-    FromForm();
-    FilterItems(items);
 }

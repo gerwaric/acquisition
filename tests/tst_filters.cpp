@@ -1,10 +1,11 @@
 #include <QtTest/QtTest>
 
-#include <QStringListModel>
-#include <QVBoxLayout>
-#include <QWidget>
+#include <optional>
 
-#include "filters.h"
+#include "filters/filtermatchers.h"
+#include "filters/filterspec.h"
+#include "itemcategories.h"
+#include "modlist.h"
 #include "testfixtures.h"
 
 class FiltersTest : public QObject
@@ -12,39 +13,35 @@ class FiltersTest : public QObject
     Q_OBJECT
 
 private slots:
+    void tabFilter();
     void nameFilter();
+    void categoryFilter();
     void minMaxFilter();
+    void defaultAndRequiredFilters();
     void socketColorFilters();
     void booleanFilter();
+    void booleanPredicates();
     void rarityFilter();
+    void modsFilter();
 };
 
-struct FilterHarness
-{
-    QWidget host;
-    QVBoxLayout layout{&host};
-    QStringListModel rarityModel{RaritySearchFilter::RARITY_LIST};
-    QObject receiver;
-    FilterCallbacks callbacks{
-        &receiver,
-        [] {},
-        [] {},
-    };
-};
-
-static std::shared_ptr<Item> makeFilterItem(const QString &id,
-                                            const QString &extraJson,
-                                            int frameType = 2,
-                                            const QString &frameTypeId = "Rare")
+static std::shared_ptr<Item> makeFilterItem(
+    const QString &id,
+    const QString &extraJson,
+    int frameType = 2,
+    const QString &frameTypeId = "Rare",
+    const QString &icon = "https://web.poecdn.com/image/test.png",
+    const QString &baseType = "Test Item",
+    bool identified = true)
 {
     const QByteArray json = QString(R"json({
-        "baseType": "Test Item",
+        "baseType": "%6",
         "frameType": %3,
         "frameTypeId": "%4",
         "h": 1,
-        "icon": "https://web.poecdn.com/image/test.png",
+        "icon": "%5",
         "id": "%1",
-        "identified": true,
+        "identified": %7,
         "ilvl": 1,
         "name": "Alpha Bite",
         "typeLine": "Test Item",
@@ -53,71 +50,242 @@ static std::shared_ptr<Item> makeFilterItem(const QString &id,
         "x": 0,
         "y": 0%2
     })json")
-                                .arg(id, extraJson, QString::number(frameType), frameTypeId)
+                                .arg(id,
+                                     extraJson,
+                                     QString::number(frameType),
+                                     frameTypeId,
+                                     icon,
+                                     baseType,
+                                     identified ? "true" : "false")
                                 .toUtf8();
     return std::make_shared<Item>(makeTestItem(json.constData(), makeTestStashLocation()));
 }
 
+static const FilterSpec *findFilterSpec(const FilterCatalog &catalog, const QString &caption)
+{
+    for (const auto &spec : catalog) {
+        if (spec.caption == caption) {
+            return &spec;
+        }
+    }
+    return nullptr;
+}
+
+static const FilterSpec *findMinMaxFilterSpec(const FilterCatalog &catalog, const QString &caption)
+{
+    for (const auto &spec : catalog) {
+        if ((spec.caption == caption) && std::holds_alternative<MinMaxPayload>(spec.payload)) {
+            return &spec;
+        }
+    }
+    return nullptr;
+}
+
+static const FilterSpec *findTextFilterSpec(const FilterCatalog &catalog, const QString &caption)
+{
+    for (const auto &spec : catalog) {
+        if ((spec.caption == caption) && std::holds_alternative<TextPayload>(spec.payload)) {
+            return &spec;
+        }
+    }
+    return nullptr;
+}
+
+static const FilterSpec *findComboFilterSpec(const FilterCatalog &catalog, const QString &caption)
+{
+    for (const auto &spec : catalog) {
+        if ((spec.caption == caption) && std::holds_alternative<ComboPayload>(spec.payload)) {
+            return &spec;
+        }
+    }
+    return nullptr;
+}
+
+static const FilterSpec *findColorsFilterSpec(const FilterCatalog &catalog,
+                                              ColorsMatchKind matchKind)
+{
+    for (const auto &spec : catalog) {
+        const auto *payload = std::get_if<ColorsPayload>(&spec.payload);
+        if (payload && payload->matchKind == matchKind) {
+            return &spec;
+        }
+    }
+    return nullptr;
+}
+
+static void verifyBooleanPredicate(const FilterSpec &spec,
+                                   const std::shared_ptr<Item> &matching,
+                                   const std::shared_ptr<Item> &notMatching)
+{
+    BoolState state{true};
+    QVERIFY(MatchesFilter(*matching, spec, state));
+    QVERIFY(!MatchesFilter(*notMatching, spec, state));
+
+    state.checked = false;
+    QVERIFY(MatchesFilter(*notMatching, spec, state));
+}
+
+void FiltersTest::tabFilter()
+{
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const auto *tab = findTextFilterSpec(catalog, "Tab");
+    QVERIFY(tab);
+    QCOMPARE(tab->refreshMode, RefreshMode::Debounced);
+    const FilterState defaultState = MakeDefaultState(*tab);
+    QVERIFY(std::holds_alternative<TextState>(defaultState));
+    QVERIFY(!IsActive(defaultState));
+
+    TextState state{"test"};
+    QVERIFY(MatchesFilter(*makeFilterItem("tab-match", ""), *tab, state));
+    state.query = "missing";
+    QVERIFY(!MatchesFilter(*makeFilterItem("tab-miss", ""), *tab, state));
+}
+
 void FiltersTest::nameFilter()
 {
-    FilterHarness harness;
-    NameSearchFilter filter(&harness.layout, harness.callbacks);
-    FilterData data(&filter);
-    data.text_query = "alpha";
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const auto *name = findTextFilterSpec(catalog, "Name");
+    QVERIFY(name);
+    QCOMPARE(name->refreshMode, RefreshMode::Debounced);
 
-    QVERIFY(filter.Matches(makeFilterItem("name-match", ""), &data));
+    TextState state{"alpha"};
+    QVERIFY(MatchesFilter(*makeFilterItem("name-match", ""), *name, state));
 
-    data.text_query = "ALPHA";
-    QVERIFY(filter.Matches(makeFilterItem("name-match-case", ""), &data));
+    state.query = "ALPHA";
+    QVERIFY(MatchesFilter(*makeFilterItem("name-match-case", ""), *name, state));
 
-    data.text_query = "missing";
-    QVERIFY(!filter.Matches(makeFilterItem("name-miss", ""), &data));
+    state.query = "missing";
+    QVERIFY(!MatchesFilter(*makeFilterItem("name-miss", ""), *name, state));
+}
+
+void FiltersTest::categoryFilter()
+{
+    InitItemClasses(R"json({"TestClass":{"name":"Weapons"}})json");
+    InitItemBaseTypes(
+        R"json({"Metadata/Items/TestSword":{"item_class":"TestClass","name":"Test Sword","release_state":"released"}})json");
+
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const auto *category = findComboFilterSpec(catalog, "Category");
+    QVERIFY(category);
+    QCOMPARE(category->refreshMode, RefreshMode::Debounced);
+    const auto *payload = std::get_if<ComboPayload>(&category->payload);
+    QVERIFY(payload);
+    QCOMPARE(payload->matchKind, ComboMatchKind::CategoryContains);
+    QCOMPARE(payload->anySentinel, kAnyFilterChoice);
+
+    ComboState state{"weapons"};
+
+    const auto weapon = makeFilterItem("category-match", "", 2, "Rare", {}, "Test Sword");
+    const auto unknown = makeFilterItem("category-miss", "");
+    QVERIFY(MatchesFilter(*weapon, *category, state));
+    QVERIFY(!MatchesFilter(*unknown, *category, state));
 }
 
 void FiltersTest::minMaxFilter()
 {
-    FilterHarness harness;
-    SimplePropertyFilter filter(&harness.layout, "Quality", harness.callbacks);
-    const auto withQuality = makeFilterItem("quality",
-                                            R"json(,
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+
+    for (const QString &caption :
+         {"Crit.",   "DPS",    "pDPS",    "eDPS",    "cDPS",     "APS",      "Armour",
+          "Evasion", "Shield", "Block",   "Sockets", "Links",    "R. Level", "R. Str",
+          "R. Dex",  "R. Int", "Quality", "Level",   "Map Tier", "ilvl"}) {
+        const auto *spec = findMinMaxFilterSpec(catalog, caption);
+        QVERIFY(spec);
+        QCOMPARE(spec->refreshMode, RefreshMode::Debounced);
+        const FilterState defaultState = MakeDefaultState(*spec);
+        QVERIFY(std::holds_alternative<MinMaxState>(defaultState));
+        QVERIFY(!IsActive(defaultState));
+    }
+
+    const auto *crit = findMinMaxFilterSpec(catalog, "Crit.");
+    QVERIFY(crit);
+    const auto withCrit = makeFilterItem("crit",
+                                         R"json(,
         "properties": [
             {
                 "displayMode": 0,
-                "name": "Quality",
+                "name": "Critical Strike Chance",
                 "type": 6,
-                "values": [["+20%", 1]]
+                "values": [["20", 1]]
             }
         ])json");
-    const auto withoutQuality = makeFilterItem("missing-quality", "");
+    const auto withoutCrit = makeFilterItem("missing-crit", "");
 
-    FilterData data(&filter);
-    data.min_filled = true;
-    data.min = 10.0;
-    QVERIFY(filter.Matches(withQuality, &data));
+    MinMaxState state;
+    state.min = 10.0;
+    QVERIFY(MatchesFilter(*withCrit, *crit, state));
 
-    data.min = 25.0;
-    QVERIFY(!filter.Matches(withQuality, &data));
+    state.min = 25.0;
+    QVERIFY(!MatchesFilter(*withCrit, *crit, state));
 
-    data.min_filled = false;
-    data.max_filled = true;
-    data.max = 20.0;
-    QVERIFY(filter.Matches(withQuality, &data));
+    state.min.reset();
+    state.max = 20.0;
+    QVERIFY(MatchesFilter(*withCrit, *crit, state));
 
-    data.max = 19.0;
-    QVERIFY(!filter.Matches(withQuality, &data));
+    state.max = 19.0;
+    QVERIFY(!MatchesFilter(*withCrit, *crit, state));
 
-    data.min_filled = true;
-    data.min = 1.0;
-    data.max_filled = false;
-    QVERIFY(!filter.Matches(withoutQuality, &data));
+    state.min = 1.0;
+    state.max.reset();
+    QVERIFY(!MatchesFilter(*withoutCrit, *crit, state));
 
-    data.min_filled = false;
-    QVERIFY(filter.Matches(withoutQuality, &data));
+    state.min.reset();
+    QVERIFY(MatchesFilter(*withoutCrit, *crit, state));
+}
+
+void FiltersTest::defaultAndRequiredFilters()
+{
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const auto withoutQuality = makeFilterItem("default-quality", "");
+    const auto *quality = findMinMaxFilterSpec(catalog, "Quality");
+    QVERIFY(quality);
+    MinMaxState qualityState;
+    qualityState.min = 0.0;
+    QVERIFY(MatchesFilter(*withoutQuality, *quality, qualityState));
+    qualityState.min = 1.0;
+    QVERIFY(!MatchesFilter(*withoutQuality, *quality, qualityState));
+
+    const auto withRequirement = makeFilterItem("requirement",
+                                                R"json(,
+        "requirements": [
+            {"displayMode": 0, "name": "Level", "values": [["12", 0]]}
+        ])json");
+    const auto withoutRequirement = makeFilterItem("no-requirement", "");
+    const auto *required = findMinMaxFilterSpec(catalog, "R. Level");
+    QVERIFY(required);
+    MinMaxState requiredState;
+    requiredState.min = 12.0;
+    QVERIFY(MatchesFilter(*withRequirement, *required, requiredState));
+    QVERIFY(!MatchesFilter(*withoutRequirement, *required, requiredState));
+    requiredState.min.reset();
+    requiredState.max = 0.0;
+    QVERIFY(MatchesFilter(*withoutRequirement, *required, requiredState));
 }
 
 void FiltersTest::socketColorFilters()
 {
-    FilterHarness harness;
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const auto *sockets = findColorsFilterSpec(catalog, ColorsMatchKind::Sockets);
+    const auto *links = findColorsFilterSpec(catalog, ColorsMatchKind::Links);
+    QVERIFY(sockets);
+    QVERIFY(links);
+    QCOMPARE(sockets->caption, "Colors");
+    QCOMPARE(links->caption, "Linked");
+    QCOMPARE(sockets->group, FilterGroup::Sockets);
+    QCOMPARE(links->group, FilterGroup::Sockets);
+    QCOMPARE(sockets->refreshMode, RefreshMode::Immediate);
+    QCOMPARE(links->refreshMode, RefreshMode::Immediate);
+    QVERIFY(std::holds_alternative<ColorsState>(MakeDefaultState(*sockets)));
+    QVERIFY(std::holds_alternative<ColorsState>(MakeDefaultState(*links)));
+    QVERIFY(!IsActive(MakeDefaultState(*sockets)));
+    QVERIFY(!IsActive(MakeDefaultState(*links)));
+
     const auto item = makeFilterItem("sockets",
                                      R"json(,
         "sockets": [
@@ -126,68 +294,219 @@ void FiltersTest::socketColorFilters()
             {"group": 1, "attr": "I", "sColour": "B"}
         ])json");
 
-    SocketsColorsFilter socketsFilter(&harness.layout, harness.callbacks);
-    FilterData socketsData(&socketsFilter);
-    socketsData.r_filled = true;
-    socketsData.r = 1;
-    socketsData.b_filled = true;
-    socketsData.b = 1;
-    QVERIFY(socketsFilter.Matches(item, &socketsData));
+    ColorsState socketsState;
+    socketsState.r = 1;
+    socketsState.b = 1;
+    QVERIFY(MatchesFilter(*item, *sockets, socketsState));
 
-    socketsData.b = 3;
-    QVERIFY(!socketsFilter.Matches(item, &socketsData));
+    socketsState.b = 3;
+    QVERIFY(!MatchesFilter(*item, *sockets, socketsState));
 
-    LinksColorsFilter linksFilter(&harness.layout, harness.callbacks);
-    FilterData linksData(&linksFilter);
-    linksData.r_filled = true;
-    linksData.r = 1;
-    linksData.b_filled = true;
-    linksData.b = 1;
-    QVERIFY(linksFilter.Matches(item, &linksData));
+    ColorsState linksState;
+    linksState.r = 1;
+    linksState.b = 1;
+    QVERIFY(MatchesFilter(*item, *links, linksState));
 
-    linksData.b = 2;
-    QVERIFY(!linksFilter.Matches(item, &linksData));
+    linksState.b = 2;
+    QVERIFY(!MatchesFilter(*item, *links, linksState));
 }
 
 void FiltersTest::booleanFilter()
 {
-    FilterHarness harness;
-    CorruptedFilter filter(&harness.layout, "", "Corrupted", harness.callbacks);
-    FilterData data(&filter);
-    data.checked = true;
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const auto *corrupted = findFilterSpec(catalog, "Corrupted");
+    QVERIFY(corrupted);
+    QVERIFY(std::holds_alternative<BoolPayload>(corrupted->payload));
 
-    QVERIFY(filter.Matches(makeFilterItem("corrupted", R"json(, "corrupted": true)json"), &data));
-    QVERIFY(!filter.Matches(makeFilterItem("not-corrupted", ""), &data));
+    const FilterState defaultState = MakeDefaultState(*corrupted);
+    QVERIFY(std::holds_alternative<BoolState>(defaultState));
+    QVERIFY(!IsActive(defaultState));
 
-    data.checked = false;
-    QVERIFY(filter.Matches(makeFilterItem("unchecked", ""), &data));
+    BoolState state{true};
+
+    QVERIFY(MatchesFilter(*makeFilterItem("corrupted", R"json(, "corrupted": true)json"),
+                          *corrupted,
+                          state));
+    QVERIFY(!MatchesFilter(*makeFilterItem("not-corrupted", ""), *corrupted, state));
+
+    state.checked = false;
+    QVERIFY(MatchesFilter(*makeFilterItem("unchecked", ""), *corrupted, state));
+}
+
+void FiltersTest::booleanPredicates()
+{
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const auto ordinary = makeFilterItem("ordinary", "");
+
+    // One item per predicate, each setting only the flag that predicate is
+    // supposed to read. Every item is then checked against every other
+    // predicate, so a payload wired to the wrong Item accessor fails here
+    // rather than passing on an item that happens to have every flag set.
+    struct BooleanCase
+    {
+        QString caption;
+        std::shared_ptr<Item> item;
+    };
+    const std::vector<BooleanCase> cases{
+        {"Alt. art",
+         makeFilterItem("alt-art",
+                        "",
+                        2,
+                        "Rare",
+                        "https://web.poecdn.com/image/RedBeak2.png")},
+        {"Priced", makeFilterItem("priced", "")},
+        {"Unidentified",
+         makeFilterItem("unidentified",
+                        "",
+                        2,
+                        "Rare",
+                        "https://web.poecdn.com/image/test.png",
+                        "Test Item",
+                        false)},
+        {"Influenced", makeFilterItem("influenced", R"json(, "influences": {"shaper": true})json")},
+        {"Crafted", makeFilterItem("crafted", R"json(, "craftedMods": ["Crafted modifier"])json")},
+        {"Enchanted",
+         makeFilterItem("enchanted", R"json(, "enchantMods": ["Enchanted modifier"])json")},
+        {"Corrupted", makeFilterItem("corrupted", R"json(, "corrupted": true)json")},
+        {"Fractured", makeFilterItem("fractured", R"json(, "fractured": true)json")},
+        {"Split", makeFilterItem("split", R"json(, "split": true)json")},
+        {"Synthesized", makeFilterItem("synthesized", R"json(, "synthesised": true)json")},
+        {"Mutated", makeFilterItem("mutated", R"json(, "mutated": true)json")},
+    };
+
+    // The priced predicate reads the buyout manager rather than the item JSON.
+    const auto &pricedItem = cases.at(1).item;
+    buyoutFixture.manager->Set(*pricedItem, makeChaosBuyout(5.0));
+
+    for (const auto &current : cases) {
+        const auto *spec = findFilterSpec(catalog, current.caption);
+        QVERIFY2(spec, qPrintable(current.caption));
+        QVERIFY(std::holds_alternative<BoolPayload>(spec->payload));
+        QCOMPARE(spec->refreshMode, RefreshMode::Immediate);
+        const FilterState defaultState = MakeDefaultState(*spec);
+        QVERIFY(std::holds_alternative<BoolState>(defaultState));
+        QVERIFY(!IsActive(defaultState));
+
+        // Matches its own item, rejects a plain one, and an unchecked box
+        // matches everything.
+        verifyBooleanPredicate(*spec, current.item, ordinary);
+
+        // ...and rejects every other predicate's item, except where the
+        // predicates genuinely overlap: Item::hasInfluence() is true whenever
+        // the influence list is non-empty, and that list carries the fractured
+        // and synthesised markers alongside the six real influences
+        // (item.cpp). Pre-existing behavior, not a wiring slip -- see F38.
+        const bool influenceOverlap = (current.caption == "Influenced");
+        for (const auto &other : cases) {
+            if (other.caption == current.caption) {
+                continue;
+            }
+            const bool matched = MatchesFilter(*other.item, *spec, BoolState{true});
+            if (influenceOverlap
+                && ((other.caption == "Fractured") || (other.caption == "Synthesized"))) {
+                QVERIFY2(matched, qPrintable(other.caption));
+                continue;
+            }
+            QVERIFY2(!matched,
+                     qPrintable(QString("%1 matched the %2 item")
+                                    .arg(current.caption, other.caption)));
+        }
+    }
+
+    // The altart predicate is an icon-needle list, so check a few more needles.
+    const auto *altart = findFilterSpec(catalog, "Alt. art");
+    QVERIFY(altart);
+    for (const QString &needle : {"RedBeak2.png", "dGlsbGF0ZUFsdCI7czoy", "WinterHeart.png"}) {
+        const auto item = makeFilterItem("alt-" + needle,
+                                         "",
+                                         2,
+                                         "Rare",
+                                         "https://web.poecdn.com/image/" + needle);
+        QVERIFY(MatchesFilter(*item, *altart, BoolState{true}));
+    }
 }
 
 void FiltersTest::rarityFilter()
 {
-    FilterHarness harness;
-    RaritySearchFilter filter(&harness.layout, &harness.rarityModel, harness.callbacks);
-    FilterData data(&filter);
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const auto *rarity = findComboFilterSpec(catalog, "Rarity");
+    QVERIFY(rarity);
+    QCOMPARE(rarity->refreshMode, RefreshMode::Debounced);
+    const auto *payload = std::get_if<ComboPayload>(&rarity->payload);
+    QVERIFY(payload);
+    QCOMPARE(payload->matchKind, ComboMatchKind::Rarity);
+    QCOMPARE(payload->anySentinel, kAnyFilterChoice);
 
     const auto normal = makeFilterItem("normal", "", 0, "Normal");
     const auto rare = makeFilterItem("rare", "", 2, "Rare");
     const auto unique = makeFilterItem("unique", "", 3, "Unique");
     const auto foil = makeFilterItem("foil", "", 9, "Foil");
 
-    data.text_query = "Any Non-Unique";
-    QVERIFY(filter.Matches(normal, &data));
-    QVERIFY(filter.Matches(rare, &data));
-    QVERIFY(!filter.Matches(unique, &data));
+    ComboState state{"Any Non-Unique"};
+    QVERIFY(MatchesFilter(*normal, *rarity, state));
+    QVERIFY(MatchesFilter(*rare, *rarity, state));
+    QVERIFY(!MatchesFilter(*unique, *rarity, state));
 
-    data.text_query = "Unique";
-    QVERIFY(filter.Matches(unique, &data));
-    QVERIFY(!filter.Matches(foil, &data));
+    state.value = "Unique";
+    QVERIFY(MatchesFilter(*unique, *rarity, state));
+    QVERIFY(!MatchesFilter(*foil, *rarity, state));
 
-    data.text_query = "Unique (Foil)";
-    QVERIFY(filter.Matches(foil, &data));
-    QVERIFY(!filter.Matches(unique, &data));
+    state.value = "Unique (Foil)";
+    QVERIFY(MatchesFilter(*foil, *rarity, state));
+    QVERIFY(!MatchesFilter(*unique, *rarity, state));
 }
 
-QTEST_MAIN(FiltersTest)
+void FiltersTest::modsFilter()
+{
+    InitStatTranslations();
+    AddStatTranslations(R"json([
+        {"English":[{"format":["+#"],"string":"{0} to maximum Life"}]}
+    ])json");
+    InitModList();
+
+    const auto item = makeFilterItem("mods",
+                                     R"json(,
+        "explicitMods": ["+42 to maximum Life"]
+    )json");
+    BuyoutManagerFixture buyoutFixture;
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const auto *mods = findFilterSpec(catalog, "Mods");
+    QVERIFY(mods);
+    QCOMPARE(mods->group, FilterGroup::Mods);
+    QCOMPARE(mods->refreshMode, RefreshMode::Debounced);
+    QVERIFY(std::holds_alternative<ModsPayload>(mods->payload));
+
+    const FilterState defaultState = MakeDefaultState(*mods);
+    const auto *defaultMods = std::get_if<ModsState>(&defaultState);
+    QVERIFY(defaultMods);
+    QVERIFY(defaultMods->rows.empty());
+    QVERIFY(!defaultMods->isActive());
+
+    ModsState state;
+    ModRow emptyRow;
+    emptyRow.min = 100.0;
+    emptyRow.max = 1.0;
+    state.rows.push_back(emptyRow);
+    QVERIFY(state.isActive());
+    QCOMPARE(state.rows.size(), 1);
+    QVERIFY(state.rows.front().mod.isEmpty());
+    QVERIFY(MatchesFilter(*item, *mods, state));
+
+    state.rows.push_back(ModRow{"+# to maximum Life", 40.0, 45.0});
+    QVERIFY(MatchesFilter(*item, *mods, state));
+    state.rows.back().min = 43.0;
+    QVERIFY(!MatchesFilter(*item, *mods, state));
+    state.rows.back().min = 40.0;
+    state.rows.back().max = 41.0;
+    QVERIFY(!MatchesFilter(*item, *mods, state));
+    state.rows.back().max = 45.0;
+    state.rows.push_back(ModRow{"+# to missing stat", std::nullopt, std::nullopt});
+    QVERIFY(!MatchesFilter(*item, *mods, state));
+}
+
+QTEST_GUILESS_MAIN(FiltersTest)
 
 #include "tst_filters.moc"

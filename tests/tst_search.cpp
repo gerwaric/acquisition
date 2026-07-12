@@ -1,16 +1,11 @@
 #include <QtTest/QtTest>
 
-#include <QLineEdit>
-#include <QStringListModel>
-#include <QVBoxLayout>
-#include <QWidget>
+#include <memory>
+#include <variant>
 
-#include "filters.h"
-#include "itemcategories.h"
-#include "modsfilter.h"
+#include "filters/filterspec.h"
 #include "search.h"
 #include "testfixtures.h"
-#include "ui/flowlayout.h"
 
 class SearchTest : public QObject
 {
@@ -19,118 +14,30 @@ class SearchTest : public QObject
 private slots:
     void bucketConstruction();
     void nameFilterMembership();
+    void backgroundRefilterUsesOwnState();
+    void backgroundBooleanRefilterUsesOwnState();
+    void backgroundMinMaxRefilterUsesOwnState();
+    void tabChangeSkipsRefilterWhenStateIsUnchanged();
+    void tabChangeRefiltersAfterStateChange();
 };
 
-struct SearchHarness
+template<typename Payload>
+static qsizetype findFilterIndex(const FilterCatalog &catalog, const QString &caption)
 {
-    QWidget host;
-    QVBoxLayout layout{&host};
-    QStringListModel categoryModel{GetItemCategories()};
-    QStringListModel rarityModel{RaritySearchFilter::RARITY_LIST};
-    std::vector<std::unique_ptr<Filter>> filters;
-    QObject receiver;
-    FilterCallbacks callbacks{
-        &receiver,
-        [] {},
-        [] {},
-    };
-
-    SearchHarness()
-    {
-        auto tab_search = std::make_unique<TabSearchFilter>(&layout, callbacks);
-        auto name_search = std::make_unique<NameSearchFilter>(&layout, callbacks);
-        auto category_search = std::make_unique<CategorySearchFilter>(&layout,
-                                                                      &categoryModel,
-                                                                      callbacks);
-        auto rarity_search = std::make_unique<RaritySearchFilter>(&layout, &rarityModel, callbacks);
-        auto *offense_layout = new FlowLayout;
-        auto *defense_layout = new FlowLayout;
-        auto *sockets_layout = new FlowLayout;
-        auto *requirements_layout = new FlowLayout;
-        auto *misc_layout = new FlowLayout;
-        auto *misc_flags_layout = new FlowLayout;
-        auto *misc_flags2_layout = new FlowLayout;
-        auto *mods_layout = new QVBoxLayout;
-
-        addSearchGroup(offense_layout);
-        addSearchGroup(defense_layout);
-        addSearchGroup(sockets_layout);
-        addSearchGroup(requirements_layout);
-        addSearchGroup(misc_layout);
-        addSearchGroup(misc_flags_layout);
-        addSearchGroup(misc_flags2_layout);
-        addSearchGroup(mods_layout);
-
-        using move_only = std::unique_ptr<Filter>;
-        // clang-format off
-        move_only init[] = {
-            std::move(tab_search),
-            std::move(name_search),
-            std::move(category_search),
-            std::move(rarity_search),
-            std::make_unique<SimplePropertyFilter>(offense_layout, "Critical Strike Chance", "Crit.", callbacks),
-            std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->DPS(); }, "DPS", callbacks),
-            std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->pDPS(); }, "pDPS", callbacks),
-            std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->eDPS(); }, "eDPS", callbacks),
-            std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->cDPS(); }, "cDPS", callbacks),
-            std::make_unique<SimplePropertyFilter>(offense_layout, "Attacks per Second", "APS", callbacks),
-            std::make_unique<SimplePropertyFilter>(defense_layout, "Armour", callbacks),
-            std::make_unique<SimplePropertyFilter>(defense_layout, "Evasion Rating", "Evasion", callbacks),
-            std::make_unique<SimplePropertyFilter>(defense_layout, "Energy Shield", "Shield", callbacks),
-            std::make_unique<SimplePropertyFilter>(defense_layout, "Chance to Block", "Block", callbacks),
-            std::make_unique<SocketsFilter>(sockets_layout, "Sockets", callbacks),
-            std::make_unique<LinksFilter>(sockets_layout, "Links", callbacks),
-            std::make_unique<SocketsColorsFilter>(sockets_layout, callbacks),
-            std::make_unique<LinksColorsFilter>(sockets_layout, callbacks),
-            std::make_unique<RequiredStatFilter>(requirements_layout, "Level", "R. Level", callbacks),
-            std::make_unique<RequiredStatFilter>(requirements_layout, "Str", "R. Str", callbacks),
-            std::make_unique<RequiredStatFilter>(requirements_layout, "Dex", "R. Dex", callbacks),
-            std::make_unique<RequiredStatFilter>(requirements_layout, "Int", "R. Int", callbacks),
-            std::make_unique<DefaultPropertyFilter>(misc_layout, "Quality", 0, callbacks),
-            std::make_unique<SimplePropertyFilter>(misc_layout, "Level", callbacks),
-            std::make_unique<SimplePropertyFilter>(misc_layout, "Map Tier", callbacks),
-            std::make_unique<ItemlevelFilter>(misc_layout, "ilvl", callbacks),
-            std::make_unique<AltartFilter>(misc_flags_layout, "", "Alt. art", callbacks),
-            std::make_unique<PricedFilter>(misc_flags_layout, "", "Priced", callbacks, *buyoutFixture.manager),
-            std::make_unique<UnidentifiedFilter>(misc_flags2_layout, "", "Unidentified", callbacks),
-            std::make_unique<InfluencedFilter>(misc_flags2_layout, "", "Influenced", callbacks),
-            std::make_unique<CraftedFilter>(misc_flags2_layout, "", "Crafted", callbacks),
-            std::make_unique<EnchantedFilter>(misc_flags2_layout, "", "Enchanted", callbacks),
-            std::make_unique<CorruptedFilter>(misc_flags2_layout, "", "Corrupted", callbacks),
-            std::make_unique<FracturedFilter>(misc_flags2_layout, "", "Fractured", callbacks),
-            std::make_unique<SplitFilter>(misc_flags2_layout, "", "Split", callbacks),
-            std::make_unique<SynthesizedFilter>(misc_flags2_layout, "", "Synthesized", callbacks),
-            std::make_unique<MutatedFilter>(misc_flags2_layout, "", "Mutated", callbacks),
-            std::make_unique<ModsFilter>(mods_layout, callbacks),
-        };
-        // clang-format on
-        filters = std::vector<move_only>(std::make_move_iterator(std::begin(init)),
-                                         std::make_move_iterator(std::end(init)));
+    for (qsizetype index = 0; index < catalog.size(); ++index) {
+        const auto &spec = catalog[index];
+        if ((spec.caption == caption) && std::holds_alternative<Payload>(spec.payload)) {
+            return index;
+        }
     }
-
-    void setNameFilter(const QString &text)
-    {
-        const auto edits = host.findChildren<QLineEdit *>();
-        QVERIFY(edits.size() >= 2);
-        edits[1]->setText(text);
-    }
-
-    BuyoutManagerFixture buyoutFixture;
-
-private:
-    void addSearchGroup(QLayout *child)
-    {
-        child->setContentsMargins(0, 0, 0, 0);
-        auto *layout_container = new QWidget;
-        layout_container->setLayout(child);
-        layout.addWidget(layout_container);
-    }
-};
+    return -1;
+}
 
 static std::shared_ptr<Item> makeSearchItem(const QString &id,
                                             const QString &name,
                                             const QString &typeLine,
-                                            const ItemLocation &location)
+                                            const ItemLocation &location,
+                                            const QString &extraJson = {})
 {
     const QByteArray json = QString(R"json({
         "baseType": "%3",
@@ -146,27 +53,27 @@ static std::shared_ptr<Item> makeSearchItem(const QString &id,
         "verified": false,
         "w": 1,
         "x": 0,
-        "y": 0
+        "y": 0%4
     })json")
-                                .arg(id, name, typeLine)
+                                .arg(id, name, typeLine, extraJson)
                                 .toUtf8();
     return std::make_shared<Item>(makeTestItem(json.constData(), location));
 }
 
 void SearchTest::bucketConstruction()
 {
-    SearchHarness harness;
+    BuyoutManagerFixture buyoutFixture;
     const ItemLocation firstTab = makeTestStashLocation("stash-a", "Alpha Tab", 0);
     const ItemLocation secondTab = makeTestStashLocation("stash-b", "Beta Tab", 1);
     const ItemLocation emptyTab = makeTestStashLocation("stash-empty", "Empty Tab", 2);
-    harness.buyoutFixture.manager->SetStashTabLocations({firstTab, secondTab, emptyTab});
+    buyoutFixture.manager->SetStashTabLocations({firstTab, secondTab, emptyTab});
 
     Items items;
     items.push_back(makeSearchItem("alpha-item", "Alpha Bite", "Vaal Axe", firstTab));
     items.push_back(makeSearchItem("beta-item", "Beta Guard", "Copper Shield", secondTab));
 
-    Search search(*harness.buyoutFixture.manager, "All", harness.filters);
-    search.FromForm();
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    Search search(*buyoutFixture.manager, "All", catalog);
     search.FilterItems(items);
 
     QCOMPARE(search.GetCaption(), "All [2]");
@@ -185,19 +92,22 @@ void SearchTest::bucketConstruction()
 
 void SearchTest::nameFilterMembership()
 {
-    SearchHarness harness;
+    BuyoutManagerFixture buyoutFixture;
     const ItemLocation firstTab = makeTestStashLocation("stash-a", "Alpha Tab", 0);
     const ItemLocation secondTab = makeTestStashLocation("stash-b", "Beta Tab", 1);
     const ItemLocation emptyTab = makeTestStashLocation("stash-empty", "Empty Tab", 2);
-    harness.buyoutFixture.manager->SetStashTabLocations({firstTab, secondTab, emptyTab});
-    harness.setNameFilter("alpha");
+    buyoutFixture.manager->SetStashTabLocations({firstTab, secondTab, emptyTab});
+
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const qsizetype nameIndex = findFilterIndex<TextPayload>(catalog, "Name");
+    QVERIFY(nameIndex >= 0);
+    Search search(*buyoutFixture.manager, "Filtered", catalog);
+    search.setFilterState(nameIndex, TextState{"alpha"});
 
     Items items;
     items.push_back(makeSearchItem("alpha-item", "Alpha Bite", "Vaal Axe", firstTab));
     items.push_back(makeSearchItem("beta-item", "Beta Guard", "Copper Shield", secondTab));
 
-    Search search(*harness.buyoutFixture.manager, "Filtered", harness.filters);
-    search.FromForm();
     search.FilterItems(items);
 
     QCOMPARE(search.GetCaption(), "Filtered [1]");
@@ -210,6 +120,165 @@ void SearchTest::nameFilterMembership()
     QCOMPARE(search.buckets().size(), 1);
     QCOMPARE(search.buckets()[0].items().size(), 1);
     QCOMPARE(search.buckets()[0].items()[0]->id(), "alpha-item");
+}
+
+void SearchTest::backgroundRefilterUsesOwnState()
+{
+    BuyoutManagerFixture buyoutFixture;
+    const ItemLocation firstTab = makeTestStashLocation("stash-a", "Alpha Tab", 0);
+    const ItemLocation secondTab = makeTestStashLocation("stash-b", "Beta Tab", 1);
+    buyoutFixture.manager->SetStashTabLocations({firstTab, secondTab});
+
+    Items items;
+    items.push_back(makeSearchItem("alpha-item", "Alpha Bite", "Vaal Axe", firstTab));
+    items.push_back(makeSearchItem("beta-item", "Beta Guard", "Copper Shield", secondTab));
+
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const qsizetype nameIndex = findFilterIndex<TextPayload>(catalog, "Name");
+    QVERIFY(nameIndex >= 0);
+    Search background(*buyoutFixture.manager, "Background", catalog);
+    background.setFilterState(nameIndex, TextState{"alpha"});
+    // The current search leaves its name empty: under the old shared-activity
+    // design that made the name filter inactive for every search, so the
+    // background search's own query was skipped and it kept both items.
+    Search current(*buyoutFixture.manager, "Current", catalog);
+    background.FilterItems(items);
+
+    // F33: a background search uses its own saved activity and query.
+    QCOMPARE(background.GetCaption(), "Background [1]");
+    QCOMPARE(background.items().size(), 1);
+    QCOMPARE(background.items().front()->id(), "alpha-item");
+}
+
+void SearchTest::backgroundBooleanRefilterUsesOwnState()
+{
+    BuyoutManagerFixture buyoutFixture;
+    const ItemLocation firstTab = makeTestStashLocation("stash-a", "Alpha Tab", 0);
+    const ItemLocation secondTab = makeTestStashLocation("stash-b", "Beta Tab", 1);
+    buyoutFixture.manager->SetStashTabLocations({firstTab, secondTab});
+
+    Items items;
+    items.push_back(makeSearchItem("corrupted-item",
+                                   "Corrupted Bite",
+                                   "Vaal Axe",
+                                   firstTab,
+                                   R"json(, "corrupted": true)json"));
+    items.push_back(makeSearchItem("ordinary-item", "Ordinary Guard", "Copper Shield", secondTab));
+
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const qsizetype corruptedIndex = findFilterIndex<BoolPayload>(catalog, "Corrupted");
+    QVERIFY(corruptedIndex >= 0);
+    Search background(*buyoutFixture.manager, "Background", catalog);
+    background.setFilterState(corruptedIndex, BoolState{true});
+    Search current(*buyoutFixture.manager, "Current", catalog);
+    current.setFilterState(corruptedIndex, BoolState{false});
+    background.FilterItems(items);
+
+    QCOMPARE(background.GetCaption(), "Background [1]");
+    QCOMPARE(background.items().size(), 1);
+    QCOMPARE(background.items().front()->id(), "corrupted-item");
+}
+
+void SearchTest::backgroundMinMaxRefilterUsesOwnState()
+{
+    BuyoutManagerFixture buyoutFixture;
+    const ItemLocation firstTab = makeTestStashLocation("stash-a", "Alpha Tab", 0);
+    const ItemLocation secondTab = makeTestStashLocation("stash-b", "Beta Tab", 1);
+    buyoutFixture.manager->SetStashTabLocations({firstTab, secondTab});
+
+    Items items;
+    items.push_back(makeSearchItem("critical-item",
+                                   "Critical Bite",
+                                   "Vaal Axe",
+                                   firstTab,
+                                   R"json(,
+        "properties": [
+            {
+                "displayMode": 0,
+                "name": "Critical Strike Chance",
+                "type": 6,
+                "values": [["6", 1]]
+            }
+        ])json"));
+    items.push_back(makeSearchItem("ordinary-item", "Ordinary Guard", "Copper Shield", secondTab));
+
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const qsizetype critIndex = findFilterIndex<MinMaxPayload>(catalog, "Crit.");
+    QVERIFY(critIndex >= 0);
+    Search background(*buyoutFixture.manager, "Background", catalog);
+    background.setFilterState(critIndex, MinMaxState{5.0, std::nullopt});
+    // As above: the current search leaves both bounds empty, which is what made
+    // the old shared activity flag drop the background search's own bounds.
+    Search current(*buyoutFixture.manager, "Current", catalog);
+    background.FilterItems(items);
+
+    QCOMPARE(background.GetCaption(), "Background [1]");
+    QCOMPARE(background.items().size(), 1);
+    QCOMPARE(background.items().front()->id(), "critical-item");
+}
+
+// The TabChanged short-circuit is an optimization: switching tabs alone cannot
+// change what a search matches, so it keeps its buckets.
+void SearchTest::tabChangeSkipsRefilterWhenStateIsUnchanged()
+{
+    BuyoutManagerFixture buyoutFixture;
+    const ItemLocation firstTab = makeTestStashLocation("stash-a", "Alpha Tab", 0);
+    const ItemLocation secondTab = makeTestStashLocation("stash-b", "Beta Tab", 1);
+    buyoutFixture.manager->SetStashTabLocations({firstTab, secondTab});
+
+    Items items;
+    items.push_back(makeSearchItem("alpha-item", "Alpha Bite", "Vaal Axe", firstTab));
+    items.push_back(makeSearchItem("beta-item", "Beta Guard", "Copper Shield", secondTab));
+
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    Search search(*buyoutFixture.manager, "Search", catalog);
+    search.FilterItems(items);
+    QCOMPARE(search.items().size(), 2);
+
+    // Nothing changed, so a tab change must not re-run the filters: the new
+    // item list is ignored entirely.
+    Items moreItems = items;
+    moreItems.push_back(makeSearchItem("gamma-item", "Gamma Blade", "Vaal Axe", firstTab));
+    search.SetRefreshReason(RefreshReason::TabChanged);
+    search.FilterItems(moreItems);
+    QCOMPARE(search.items().size(), 2);
+}
+
+// ...but a filter state edited while this search was in the background (the
+// mods form writes through to the bound search) must force the refilter that
+// the debounced refresh gave to whichever search was current when it fired.
+void SearchTest::tabChangeRefiltersAfterStateChange()
+{
+    BuyoutManagerFixture buyoutFixture;
+    const ItemLocation firstTab = makeTestStashLocation("stash-a", "Alpha Tab", 0);
+    const ItemLocation secondTab = makeTestStashLocation("stash-b", "Beta Tab", 1);
+    buyoutFixture.manager->SetStashTabLocations({firstTab, secondTab});
+
+    Items items;
+    items.push_back(makeSearchItem("alpha-item", "Alpha Bite", "Vaal Axe", firstTab));
+    items.push_back(makeSearchItem("beta-item", "Beta Guard", "Copper Shield", secondTab));
+
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const qsizetype nameIndex = findFilterIndex<TextPayload>(catalog, "Name");
+    QVERIFY(nameIndex >= 0);
+    Search search(*buyoutFixture.manager, "Search", catalog);
+    search.FilterItems(items);
+    QCOMPARE(search.items().size(), 2);
+
+    search.setFilterState(nameIndex, TextState{"alpha"});
+    search.SetRefreshReason(RefreshReason::TabChanged);
+    search.FilterItems(items);
+
+    QCOMPARE(search.GetCaption(), "Search [1]");
+    QCOMPARE(search.items().size(), 1);
+    QCOMPARE(search.items().front()->id(), "alpha-item");
+
+    // The refilter clears the dirty flag: the short-circuit is back in force.
+    Items moreItems = items;
+    moreItems.push_back(makeSearchItem("gamma-item", "Alpha Blade", "Vaal Axe", firstTab));
+    search.SetRefreshReason(RefreshReason::TabChanged);
+    search.FilterItems(moreItems);
+    QCOMPARE(search.items().size(), 1);
 }
 
 QTEST_MAIN(SearchTest)

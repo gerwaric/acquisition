@@ -23,7 +23,6 @@
 #include <QSettings>
 #include <QString>
 #include <QStringList>
-#include <QStringListModel>
 #include <QTabBar>
 #include <QVersionNumber>
 
@@ -33,24 +32,21 @@
 #include "buyoutmanager.h"
 #include "currencymanager.h"
 #include "datastore/datastore.h"
-#include "filters.h"
 #include "imagecache.h"
 #include "item.h"
-#include "itemcategories.h"
 #include "itemconstants.h"
 #include "itemlocation.h"
 #include "items_model.h"
 #include "itemsmanager.h"
-#include "modsfilter.h"
 #include "ratelimit/ratelimit.h"
 #include "ratelimit/ratelimitdialog.h"
 #include "ratelimit/ratelimiter.h"
 #include "replytimeout.h"
 #include "search.h"
 #include "shop.h"
-#include "ui/flowlayout.h"
 #include "ui/itemtooltip.h"
 #include "ui/logpanel.h"
+#include "ui/searchform.h"
 #include "ui/verticalscrollarea.h"
 #include "util/glaze_qt.h" // IWYU pragma: keep
 #include "util/networkmanager.h"
@@ -95,6 +91,7 @@ MainWindow::MainWindow(QSettings &settings,
     , m_currency_manager(currency_manager)
     , m_shop(shop)
     , m_image_cache(image_cache)
+    , m_filter_catalog(BuildFilterCatalog(buyout_manager))
     , ui(new Ui::MainWindow)
     , m_current_bucket_location(nullptr)
     , m_current_search(nullptr)
@@ -134,6 +131,7 @@ MainWindow::MainWindow(QSettings &settings,
 
 MainWindow::~MainWindow()
 {
+    m_search_form.reset();
     delete ui;
     for (auto &search : m_searches) {
         delete (search);
@@ -660,6 +658,7 @@ void MainWindow::OnDeleteTabClicked(int index)
 
     // Delete the search.
     Search *search = m_searches[index];
+    m_search_form->unbind(*search);
     if (m_current_search == search) {
         m_current_search = nullptr;
     }
@@ -721,8 +720,9 @@ void MainWindow::ModelViewRefresh()
 
     m_buyout_manager.Save();
 
-    spdlog::trace("MainWindow::ModelViewRefresh() activing current search");
-    m_current_search->Activate(m_items_manager.items());
+    spdlog::trace("MainWindow::ModelViewRefresh() activating current search");
+    m_search_form->saveTo(*m_current_search);
+    m_current_search->FilterItems(m_items_manager.items());
     ItemsModel &model = m_current_search->model();
     ui->treeView->setSortingEnabled(false);
     if (ui->treeView->model() != &model) {
@@ -834,122 +834,40 @@ void MainWindow::OnDelayedSearchFormChange()
     m_delayed_search_form_change.start();
 }
 
+void MainWindow::FlushPendingSearchFormChange()
+{
+    // A debounced form change belongs to the search that was current when the
+    // edit was made. Apply it before the form is rebound, or the timer fires
+    // against the wrong search and the edited one is left with stale buckets
+    // and caption.
+    if (m_current_search && m_delayed_search_form_change.isActive()) {
+        m_delayed_search_form_change.stop();
+        OnSearchFormChange();
+    }
+}
+
 void MainWindow::OnTabChange(int index)
 {
+    FlushPendingSearchFormChange();
     if (static_cast<size_t>(index) == m_searches.size()) {
         // "+" clicked
         NewSearch();
     } else {
         m_current_search = m_searches[index];
         m_current_search->SetRefreshReason(RefreshReason::TabChanged);
-        m_current_search->ToForm();
+        m_search_form->loadFrom(*m_current_search);
         ModelViewRefresh();
     }
 }
 
-void MainWindow::AddSearchGroup(QLayout *layout, const QString &name = "")
-{
-    if (!name.isEmpty()) {
-        auto label = new QLabel(("<h3>" + name + "</h3>"));
-        m_search_form_layout->addWidget(label);
-    }
-    layout->setContentsMargins(0, 0, 0, 0);
-    auto layout_container = new QWidget;
-    layout_container->setLayout(layout);
-    m_search_form_layout->addWidget(layout_container);
-}
-
 void MainWindow::InitializeSearchForm()
 {
-    // Initialize category list once.
-    auto *category_model = new QStringListModel(GetItemCategories(), this);
-
-    // Initialize rarity list once.
-    auto *rarity_model = new QStringListModel(RaritySearchFilter::RARITY_LIST, this);
-
     const FilterCallbacks callbacks{
         this,
         [this] { OnSearchFormChange(); },
         [this] { OnDelayedSearchFormChange(); },
     };
-
-    auto tab_search = std::make_unique<TabSearchFilter>(m_search_form_layout, callbacks);
-    auto name_search = std::make_unique<NameSearchFilter>(m_search_form_layout, callbacks);
-    auto category_search = std::make_unique<CategorySearchFilter>(m_search_form_layout,
-                                                                  category_model,
-                                                                  callbacks);
-    auto rarity_search = std::make_unique<RaritySearchFilter>(m_search_form_layout,
-                                                              rarity_model,
-                                                              callbacks);
-    auto offense_layout = new FlowLayout;
-    auto defense_layout = new FlowLayout;
-    auto sockets_layout = new FlowLayout;
-    auto requirements_layout = new FlowLayout;
-    auto misc_layout = new FlowLayout;
-    auto misc_flags_layout = new FlowLayout;
-    auto misc_flags2_layout = new FlowLayout;
-    auto mods_layout = new QVBoxLayout;
-
-    AddSearchGroup(offense_layout, "Offense");
-    AddSearchGroup(defense_layout, "Defense");
-    AddSearchGroup(sockets_layout, "Sockets");
-    AddSearchGroup(requirements_layout, "Requirements");
-    AddSearchGroup(misc_layout, "Misc");
-    AddSearchGroup(misc_flags_layout);
-    AddSearchGroup(misc_flags2_layout);
-    AddSearchGroup(mods_layout, "Mods");
-
-    using move_only = std::unique_ptr<Filter>;
-    // clang-format off
-    move_only init[] = {
-        std::move(tab_search),
-        std::move(name_search),
-        std::move(category_search),
-        std::move(rarity_search),
-        // Offense
-        // new DamageFilter(offense_layout, "Damage"),
-        std::make_unique<SimplePropertyFilter>(offense_layout, "Critical Strike Chance", "Crit.", callbacks),
-        std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->DPS(); }, "DPS", callbacks),
-        std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->pDPS(); }, "pDPS", callbacks),
-        std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->eDPS(); }, "eDPS", callbacks),
-        std::make_unique<ItemMethodFilter>(offense_layout, [](Item *item) { return item->cDPS(); }, "cDPS", callbacks),
-        std::make_unique<SimplePropertyFilter>(offense_layout, "Attacks per Second", "APS", callbacks),
-        // Defense
-        std::make_unique<SimplePropertyFilter>(defense_layout, "Armour", callbacks),
-        std::make_unique<SimplePropertyFilter>(defense_layout, "Evasion Rating", "Evasion", callbacks),
-        std::make_unique<SimplePropertyFilter>(defense_layout, "Energy Shield", "Shield", callbacks),
-        std::make_unique<SimplePropertyFilter>(defense_layout, "Chance to Block", "Block", callbacks),
-        // Sockets
-        std::make_unique<SocketsFilter>(sockets_layout, "Sockets", callbacks),
-        std::make_unique<LinksFilter>(sockets_layout, "Links", callbacks),
-        std::make_unique<SocketsColorsFilter>(sockets_layout, callbacks),
-        std::make_unique<LinksColorsFilter>(sockets_layout, callbacks),
-        // Requirements
-        std::make_unique<RequiredStatFilter>(requirements_layout, "Level", "R. Level", callbacks),
-        std::make_unique<RequiredStatFilter>(requirements_layout, "Str", "R. Str", callbacks),
-        std::make_unique<RequiredStatFilter>(requirements_layout, "Dex", "R. Dex", callbacks),
-        std::make_unique<RequiredStatFilter>(requirements_layout, "Int", "R. Int", callbacks),
-        // Misc
-        std::make_unique<DefaultPropertyFilter>(misc_layout, "Quality", 0, callbacks),
-        std::make_unique<SimplePropertyFilter>(misc_layout, "Level", callbacks),
-        std::make_unique<SimplePropertyFilter>(misc_layout, "Map Tier", callbacks),
-        std::make_unique<ItemlevelFilter>(misc_layout, "ilvl", callbacks),
-        std::make_unique<AltartFilter>(misc_flags_layout, "", "Alt. art", callbacks),
-        std::make_unique<PricedFilter>(misc_flags_layout, "", "Priced", callbacks, m_buyout_manager),
-        std::make_unique<UnidentifiedFilter>(misc_flags2_layout, "", "Unidentified", callbacks),
-        std::make_unique<InfluencedFilter>(misc_flags2_layout, "", "Influenced", callbacks),
-        std::make_unique<CraftedFilter>(misc_flags2_layout, "", "Crafted", callbacks),
-        std::make_unique<EnchantedFilter>(misc_flags2_layout, "", "Enchanted", callbacks),
-        std::make_unique<CorruptedFilter>(misc_flags2_layout, "", "Corrupted", callbacks),
-        std::make_unique<FracturedFilter>(misc_flags2_layout, "", "Fractured", callbacks),
-        std::make_unique<SplitFilter>(misc_flags2_layout, "", "Split", callbacks),
-        std::make_unique<SynthesizedFilter>(misc_flags2_layout, "", "Synthesized", callbacks),
-        std::make_unique<MutatedFilter>(misc_flags2_layout, "", "Mutated", callbacks),
-        std::make_unique<ModsFilter>(mods_layout, callbacks)
-    };
-    // clang-format on
-    m_filters = std::vector<move_only>(std::make_move_iterator(std::begin(init)),
-                                       std::make_move_iterator(std::end(init)));
+    m_search_form = std::make_unique<SearchForm>(*m_search_form_layout, m_filter_catalog, callbacks);
 }
 
 void MainWindow::NewSearch()
@@ -965,13 +883,13 @@ void MainWindow::NewSearch()
     m_tab_bar->addTab("+");
 
     spdlog::trace("MainWindow::NewSearch() setting current search: {}", caption);
-    m_current_search = new Search(m_buyout_manager, caption, m_filters);
+    m_current_search = new Search(m_buyout_manager, caption, m_filter_catalog);
     m_current_search->SetRefreshReason(RefreshReason::TabCreated);
 
     // this can't be done in ctor because it'll call OnSearchFormChange slot
     // and remove all previous search data
     spdlog::trace("MainWindow::NewSearch() reseting search form and adding the search");
-    m_current_search->ResetForm();
+    m_search_form->reset();
     m_searches.push_back(m_current_search);
 
     spdlog::trace("MainWindow::NewSearch() triggering model view refresh");

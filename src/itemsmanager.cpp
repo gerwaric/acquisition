@@ -8,7 +8,6 @@
 
 #include "buyoutmanager.h"
 #include "datastore/datastore.h"
-#include "filters.h"
 #include "item.h"
 #include "modlist.h"
 #include "repoe/repoe.h"

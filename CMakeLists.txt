@@ -158,8 +158,6 @@ set(ACQ_CORE
     src/currency.h
     src/currencymanager.cpp
     src/currencymanager.h
-    src/filters.cpp
-    src/filters.h
     src/imagecache.cpp
     src/imagecache.h
     src/influence.cpp
@@ -180,8 +178,6 @@ set(ACQ_CORE
     src/itemsmanagerworker.h
     src/modlist.cpp
     src/modlist.h
-    src/modsfilter.cpp
-    src/modsfilter.h
     src/pseudomods.cpp
     src/pseudomods.h
     src/replytimeout.h
@@ -189,6 +185,15 @@ set(ACQ_CORE
     src/search.h
     src/shop.cpp
     src/shop.h
+)
+
+set(ACQ_FILTERS
+    src/filters/filtermatchers.cpp
+    src/filters/filtermatchers.h
+    src/filters/filterstate.cpp
+    src/filters/filterstate.h
+    src/filters/filterspec.cpp
+    src/filters/filterspec.h
 )
 
 set(ACQ_DATASTORE
@@ -301,8 +306,12 @@ set(ACQ_UI
     src/ui/mainwindow_bridge.h
     src/ui/mainwindow.cpp
     src/ui/mainwindow.h
+    src/ui/modsfilterform.cpp
+    src/ui/modsfilterform.h
     src/ui/searchcombobox.cpp
     src/ui/searchcombobox.h
+    src/ui/searchform.cpp
+    src/ui/searchform.h
     src/ui/verticalscrollarea.cpp
     src/ui/verticalscrollarea.h
     # Forms
@@ -438,6 +447,26 @@ find_package(Qt6 6.11 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Test 
 
 qt_standard_project_setup()
 
+# This target is the build gate for the filter core: its include and link
+# closure deliberately contains no Qt Widgets module.
+qt_add_library(acquisition_filters STATIC ${ACQ_FILTERS})
+set_target_properties(acquisition_filters PROPERTIES
+    CXX_STANDARD 23
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+)
+target_include_directories(acquisition_filters PUBLIC "${acquisition_SOURCE_DIR}/src")
+target_link_libraries(acquisition_filters
+    PUBLIC
+        Qt6::Core
+        Qt6::Gui
+    # Item's include closure reaches ItemLocation's Qt Network/spdlog formatter.
+    # These remain deliberately non-widget so the filter-core boundary stays intact.
+    PRIVATE
+        Qt6::Network
+        spdlog::spdlog_header_only
+)
+
 qt_add_library(acquisition_core STATIC
     ${ACQ_CORE}
     ${ACQ_DATASTORE}
@@ -474,6 +503,7 @@ add_subdirectory(deps/qdarkstyle)
 
 # Link required libraries.
 target_link_libraries(acquisition_core PUBLIC
+    acquisition_filters
     # Qt libraries
     Qt6::Core
     Qt6::Gui

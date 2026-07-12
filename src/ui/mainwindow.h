@@ -14,19 +14,17 @@
 
 #include <spdlog/spdlog.h>
 
+#include "filters/filterspec.h"
 #include "util/programstate.h"
 
 class QNetworkReply;
 class QSettings;
-class QStringListModel;
 class QVBoxLayout;
 
 class BuyoutManager;
 class Column;
 class CurrencyManager;
 class DataStore;
-class Filter;
-class FlowLayout;
 class ImageCache;
 class Item;
 class ItemLocation;
@@ -37,6 +35,7 @@ class OAuthManager;
 class RateLimiter;
 class RateLimitDialog;
 class Search;
+class SearchForm;
 class Shop;
 class UpdateChecker;
 
@@ -123,6 +122,7 @@ private slots:
 
 private:
     void ModelViewRefresh();
+    void FlushPendingSearchFormChange();
     void SaveViewExpansion(Search &search);
     void RestoreViewExpansion(Search &search);
     void ClearCurrentItem();
@@ -134,7 +134,6 @@ private:
     void InitializeLogging();
     void InitializeSearchForm();
     void InitializeUi();
-    void AddSearchGroup(QLayout *layout, const QString &name);
     bool eventFilter(QObject *o, QEvent *e);
     void UpdateShopMenu();
     void UpdateBuyoutWidgets(const Buyout &bo);
@@ -151,6 +150,10 @@ private:
     Shop &m_shop;
     ImageCache &m_image_cache;
 
+    // Application owns BuyoutManager and outlives MainWindow. MainWindow owns
+    // the catalog and explicitly deletes every Search before catalog teardown.
+    FilterCatalog m_filter_catalog;
+
     Ui::MainWindow *ui;
 
     std::shared_ptr<Item> m_current_item;
@@ -159,7 +162,7 @@ private:
     Search *m_current_search;
     QTabBar *m_tab_bar;
     LogPanel *m_log_panel;
-    std::vector<std::unique_ptr<Filter>> m_filters;
+    std::unique_ptr<SearchForm> m_search_form;
     int m_search_count;
 
     QLabel *m_status_bar_label;
