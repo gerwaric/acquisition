@@ -81,7 +81,7 @@ version of this doc:
   compares against its entries), while category choices are
   presentation-only (the matcher is a substring test on
   `item->category()`).
-- `tst_search.cpp`'s harness duplicates the entire 37-filter construction
+- `tst_search.cpp`'s harness duplicates the entire 38-filter construction
   list from `InitializeSearchForm`. The catalog (D2 below) makes the
   canonical list definable once and removes this duplication.
 - Signal-mapping quirk to preserve: the socket/link **color text boxes are
@@ -237,7 +237,7 @@ layout) is unchanged throughout:
   constructor sequence moves **verbatim** from `InitializeSearchForm` into
   `searchform.cpp`, index-aligned with the catalog and length-asserted:
   a slot whose spec has a real payload gets an adapter; a legacy-payload
-  slot invokes the corresponding legacy constructor. The 37 constructors
+  slot invokes the corresponding legacy constructor. The 38 constructors
   exist in exactly one place from step 1 onward, shrinking per family
   commit.
 - **`Search`** owns a parallel per-slot choice of `FilterData` (legacy) or
@@ -272,7 +272,7 @@ All transitional scaffolding is deleted in the final step.
    `InitializeSearchForm`. `MainWindow::InitializeSearchForm` reduces to
    building the catalog + `SearchForm`; `tst_search`'s duplicated harness
    dies here — it constructs a `SearchForm` (or calls the same UI-side
-   factory) instead of hand-building 37 filters. Pure mechanical move; zero
+   factory) instead of hand-building 38 filters. Pure mechanical move; zero
    behavior change.
 2. **Boolean family** (11 instances: altart, priced, unidentified,
    influenced, crafted, enchanted, corrupted, fractured, split,
@@ -390,3 +390,48 @@ All transitional scaffolding is deleted in the final step.
   immediate refresh behavior unchanged; filter state restores across
   search-tab switches; mods completer + row add/edit/delete behave as
   before (modulo the documented F36 fixes).
+
+## Outcome (July 2026)
+
+Implemented and reviewed. Corrections to the spec above, recorded because
+they matter to anyone reading it as a description of the code:
+
+- **D5 was weaker than this doc claimed; it is now enforced explicitly.**
+  "Any transitive widget header fails the build" is not what
+  `target_link_libraries` on a STATIC library buys: an archive has no link
+  step, so it can never reject a widget symbol, and whether a widget header
+  even *compiles* under `acquisition_filters` depends on the Qt layout (it
+  does not with macOS frameworks; a normal Unix install exposes it through
+  the umbrella include dir). The boundary is now a CTest
+  (`cmake/filters_boundary_check.cmake`, test `filters_boundary`) that bans
+  `ui/` and widget includes under `src/filters/` and asserts the archive
+  asks the linker for no widget symbols.
+- **The catalog has 38 filters, not 37** (corrected above). The old
+  `InitializeSearchForm` list had the same 38.
+- **Two mods behavior changes beyond F36's three.** Deleting a row now
+  compacts the remaining rows (the old grid left the hole), and a mod name
+  typed but not chosen from the list now persists and filters (the old form
+  only stored the mod on `currentIndexChanged`, so free text was dropped).
+  Both follow from the adapter shape, both are tested, and both are
+  release-note items.
+- **A fourth deliberate behavior change: pending edits follow their
+  search.** The mods form writes through to the bound search immediately but
+  only arms the one global debounced refresh, so a fast tab switch left the
+  edited search showing a criterion its buckets did not reflect.
+  `MainWindow` now flushes a pending debounced change onto the outgoing
+  search before rebinding the form — an edit applies to the search it was
+  made in rather than being discarded — and `FilterItems`'s `TabChanged`
+  short-circuit consults a dirty flag instead of assuming a tab change means
+  nothing changed.
+- **`RefreshMode` drives the wiring.** As first written, adapters hardcoded
+  their signal path and merely asserted the spec agreed — an assert that
+  compiles out in release. Adapters now resolve the callback from
+  `spec.refreshMode` (`FilterCallbacks::forMode`), so the catalog is the
+  single source of truth for the debounce mapping.
+- **The `<any>` sentinel belongs to the filter, not to the item data.**
+  `InitItemClasses` no longer appends it to the category list (which had
+  made `itemcategories` depend on `filterspec`); the category choices
+  provider prepends it instead.
+- **F38 surfaced**: the "Influenced" filter also matches fractured and
+  synthesised items, because `Item::hasInfluence()` reads an influence list
+  carrying those markers. Pre-existing; recorded, pinned by test, not fixed.

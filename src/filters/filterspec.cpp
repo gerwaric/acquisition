@@ -112,7 +112,11 @@ FilterCatalog BuildFilterCatalog(const BuyoutManager &buyoutManager)
     specs.push_back(
         text("Name", FilterGroup::TopForm, [](const Item &item) { return item.PrettyName(); }));
     specs.push_back(combo("Category", FilterGroup::TopForm, ComboMatchKind::CategoryContains, [] {
-        return GetItemCategories();
+        // The sentinel belongs to the filter, not to the item data: it is a
+        // choice the form offers, and the matcher never sees it.
+        QStringList choices{kAnyFilterChoice};
+        choices.append(GetItemCategories());
+        return choices;
     }));
     specs.push_back(combo("Rarity", FilterGroup::TopForm, ComboMatchKind::Rarity, [] {
         return RarityChoices();

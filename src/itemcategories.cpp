@@ -9,7 +9,6 @@
 #include <map>
 #include <unordered_map>
 
-#include "filters/filterspec.h"
 #include "repoe/baseitem.h"
 #include "repoe/itemclass.h"
 #include "util/glaze_qt.h"  // IWYU pragma: keep
@@ -68,7 +67,6 @@ void InitItemClasses(const QByteArray &classes)
         cats.insert(class_name);
     }
     data.categories = cats.values();
-    data.categories.append(kAnyFilterChoice);
     data.categories.sort();
 
     classes_initialized = true;

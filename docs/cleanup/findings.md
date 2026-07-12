@@ -373,6 +373,30 @@ structurally gone, and the behavior is covered by the `modsFormAdapter*`
 cases in `tst_searchform`. Deliberate behavior changes; verified in the
 Phase 5 manual smoke pass.
 
+Two further mods behavior changes came with the adapter shape and are kept
+deliberately — both are release-note items alongside (a)–(c):
+
+- **(d) Deleting a row compacts the rows below it.** The old `DeleteMod`
+  removed the row's widgets from the grid and left the hole; `repackRows()`
+  rebuilds the layout, so the remaining rows close up. Pinned by
+  `tst_searchform::modsFormAdapterRepacksRows`.
+- **(e) A mod name typed but not chosen from the list now persists and
+  filters.** The old `SelectedMod` stored the mod only on
+  `currentIndexChanged`, so free text was dropped and never refiltered; the
+  row now saves what is in the box (`editTextChanged`), which is how the
+  Name box already behaves. The visible cost is that a half-typed mod name
+  filters to nothing until it is finished. Pinned by
+  `tst_searchform::modsFormAdapterFreeTextPersistsAndRestoresIndex`.
+
+A third consequence needed a fix rather than a note: because row edits write
+through to the bound search immediately while the refresh stays debounced, a
+fast tab switch left the edited search displaying a criterion its buckets did
+not reflect. `MainWindow` now flushes a pending debounced change onto the
+outgoing search, and `Search::FilterItems`'s `TabChanged` short-circuit
+consults a dirty flag. Pinned by
+`tst_search::tabChangeRefiltersAfterStateChange` and
+`tst_searchform::modsEditSurvivesTabSwitchBeforeDebouncedRefresh`.
+
 ### F20. `MainWindow` owns workflow state — Confirmed
 
 Raw-pointer ownership of `Search*` objects with manual `delete`, current

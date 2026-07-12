@@ -197,8 +197,10 @@ private:
 
 ModsFilterForm::ModsFilterForm(QLayout *parent,
                                const FilterCallbacks &callbacks,
+                               RefreshMode mode,
                                StateChangedCallback stateChanged)
     : m_callbacks(callbacks)
+    , m_mode(mode)
     , m_stateChanged(std::move(stateChanged))
     , m_rowsLayout(new QGridLayout)
     , m_rowsContainer(new QWidget)
@@ -324,8 +326,9 @@ void ModsFilterForm::onRowsChanged()
     if (m_stateChanged) {
         m_stateChanged();
     }
-    if (m_callbacks.onChangedDelayed) {
-        m_callbacks.onChangedDelayed();
+    const auto &onChanged = m_callbacks.forMode(m_mode);
+    if (onChanged) {
+        onChanged();
     }
 }
 

@@ -21,6 +21,15 @@ struct FilterCallbacks
     QObject *receiver = nullptr;
     std::function<void()> onChanged;
     std::function<void()> onChangedDelayed;
+
+    // Which path a widget signal takes is the spec's business: resolving it
+    // here keeps the catalog the single source of truth for the debounce
+    // mapping, instead of every adapter hardcoding a path that can drift from
+    // the mode it claims.
+    const std::function<void()> &forMode(RefreshMode mode) const
+    {
+        return (mode == RefreshMode::Immediate) ? onChanged : onChangedDelayed;
+    }
 };
 
 class FilterFormAdapter

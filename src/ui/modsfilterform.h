@@ -23,6 +23,7 @@ public:
 
     ModsFilterForm(QLayout *parent,
                    const FilterCallbacks &callbacks,
+                   RefreshMode mode,
                    StateChangedCallback stateChanged);
     ~ModsFilterForm() override;
 
@@ -42,6 +43,7 @@ private:
     void updateRowContainerVisibility();
 
     const FilterCallbacks m_callbacks;
+    const RefreshMode m_mode;
     const StateChangedCallback m_stateChanged;
     QGridLayout *m_rowsLayout = nullptr;
     QWidget *m_rowsContainer = nullptr;

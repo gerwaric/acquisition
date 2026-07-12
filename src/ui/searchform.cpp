@@ -27,7 +27,10 @@ namespace {
     class TextFilterForm final : public FilterFormAdapter
     {
     public:
-        TextFilterForm(QLayout *parent, const QString &caption, const FilterCallbacks &callbacks)
+        TextFilterForm(QLayout *parent,
+                       const QString &caption,
+                       const FilterCallbacks &callbacks,
+                       RefreshMode mode)
         {
             auto *group = new QWidget;
             auto *layout = new QHBoxLayout;
@@ -44,7 +47,7 @@ namespace {
             QObject::connect(m_textbox,
                              &QLineEdit::textEdited,
                              callbacks.receiver,
-                             callbacks.onChangedDelayed);
+                             callbacks.forMode(mode));
         }
 
         void saveTo(FilterState &state) const override
@@ -78,7 +81,8 @@ namespace {
                         const QString &caption,
                         const ComboPayload &payload,
                         QAbstractItemModel *model,
-                        const FilterCallbacks &callbacks)
+                        const FilterCallbacks &callbacks,
+                        RefreshMode mode)
             : m_matchKind(payload.matchKind)
             , m_anySentinel(payload.anySentinel)
         {
@@ -110,7 +114,7 @@ namespace {
             QObject::connect(m_combobox,
                              &QComboBox::currentIndexChanged,
                              callbacks.receiver,
-                             callbacks.onChangedDelayed);
+                             callbacks.forMode(mode));
         }
 
         void saveTo(FilterState &state) const override
@@ -147,7 +151,10 @@ namespace {
     class BoolFilterForm final : public FilterFormAdapter
     {
     public:
-        BoolFilterForm(QLayout *parent, const QString &caption, const FilterCallbacks &callbacks)
+        BoolFilterForm(QLayout *parent,
+                       const QString &caption,
+                       const FilterCallbacks &callbacks,
+                       RefreshMode mode)
         {
             auto *group = new QWidget;
             auto *layout = new QHBoxLayout;
@@ -164,7 +171,7 @@ namespace {
             QObject::connect(m_checkbox,
                              &QCheckBox::clicked,
                              callbacks.receiver,
-                             callbacks.onChanged);
+                             callbacks.forMode(mode));
         }
 
         void saveTo(FilterState &state) const override
@@ -194,7 +201,10 @@ namespace {
     class MinMaxFilterForm final : public FilterFormAdapter
     {
     public:
-        MinMaxFilterForm(QLayout *parent, const QString &caption, const FilterCallbacks &callbacks)
+        MinMaxFilterForm(QLayout *parent,
+                         const QString &caption,
+                         const FilterCallbacks &callbacks,
+                         RefreshMode mode)
         {
             auto *group = new QWidget;
             auto *layout = new QHBoxLayout;
@@ -217,11 +227,11 @@ namespace {
             QObject::connect(m_textboxMin,
                              &QLineEdit::textEdited,
                              callbacks.receiver,
-                             callbacks.onChangedDelayed);
+                             callbacks.forMode(mode));
             QObject::connect(m_textboxMax,
                              &QLineEdit::textEdited,
                              callbacks.receiver,
-                             callbacks.onChangedDelayed);
+                             callbacks.forMode(mode));
         }
 
         void saveTo(FilterState &state) const override
@@ -268,7 +278,10 @@ namespace {
     class ColorsFilterForm final : public FilterFormAdapter
     {
     public:
-        ColorsFilterForm(QLayout *parent, const QString &caption, const FilterCallbacks &callbacks)
+        ColorsFilterForm(QLayout *parent,
+                         const QString &caption,
+                         const FilterCallbacks &callbacks,
+                         RefreshMode mode)
         {
             auto *group = new QWidget;
             auto *layout = new QHBoxLayout;
@@ -295,15 +308,15 @@ namespace {
             QObject::connect(m_textboxR,
                              &QLineEdit::textEdited,
                              callbacks.receiver,
-                             callbacks.onChanged);
+                             callbacks.forMode(mode));
             QObject::connect(m_textboxG,
                              &QLineEdit::textEdited,
                              callbacks.receiver,
-                             callbacks.onChanged);
+                             callbacks.forMode(mode));
             QObject::connect(m_textboxB,
                              &QLineEdit::textEdited,
                              callbacks.receiver,
-                             callbacks.onChanged);
+                             callbacks.forMode(mode));
         }
 
         void saveTo(FilterState &state) const override
@@ -364,53 +377,67 @@ SearchForm::SearchForm(QVBoxLayout &layout,
 {
     m_adapters.reserve(static_cast<size_t>(m_catalog.size()));
     const auto addText = [this](QLayout *parent,
-                                const QString &caption,
+                                const FilterSpec &spec,
                                 const FilterCallbacks &formCallbacks) {
-        m_adapters.emplace_back(std::make_unique<TextFilterForm>(parent, caption, formCallbacks));
+        m_adapters.emplace_back(
+            std::make_unique<TextFilterForm>(parent, spec.caption, formCallbacks, spec.refreshMode));
     };
     const auto addCombo = [this](QLayout *parent,
-                                 const QString &caption,
+                                 const FilterSpec &spec,
                                  const ComboPayload &payload,
                                  const FilterCallbacks &formCallbacks) {
         Q_ASSERT(payload.choices);
         auto model = std::make_unique<QStringListModel>(payload.choices());
         auto *const modelPtr = model.get();
         m_models.push_back(std::move(model));
-        m_adapters.emplace_back(
-            std::make_unique<ComboFilterForm>(parent, caption, payload, modelPtr, formCallbacks));
+        m_adapters.emplace_back(std::make_unique<ComboFilterForm>(parent,
+                                                                  spec.caption,
+                                                                  payload,
+                                                                  modelPtr,
+                                                                  formCallbacks,
+                                                                  spec.refreshMode));
     };
     const auto addBoolean = [this](QLayout *parent,
-                                   const QString &caption,
+                                   const FilterSpec &spec,
                                    const FilterCallbacks &formCallbacks) {
-        m_adapters.emplace_back(std::make_unique<BoolFilterForm>(parent, caption, formCallbacks));
+        m_adapters.emplace_back(
+            std::make_unique<BoolFilterForm>(parent, spec.caption, formCallbacks, spec.refreshMode));
     };
     const auto addMinMax = [this](QLayout *parent,
-                                  const QString &caption,
+                                  const FilterSpec &spec,
                                   const FilterCallbacks &formCallbacks) {
-        m_adapters.emplace_back(std::make_unique<MinMaxFilterForm>(parent, caption, formCallbacks));
+        m_adapters.emplace_back(std::make_unique<MinMaxFilterForm>(parent,
+                                                                   spec.caption,
+                                                                   formCallbacks,
+                                                                   spec.refreshMode));
     };
     const auto addColors = [this](QLayout *parent,
-                                  const QString &caption,
+                                  const FilterSpec &spec,
                                   const FilterCallbacks &formCallbacks) {
-        m_adapters.emplace_back(std::make_unique<ColorsFilterForm>(parent, caption, formCallbacks));
+        m_adapters.emplace_back(std::make_unique<ColorsFilterForm>(parent,
+                                                                   spec.caption,
+                                                                   formCallbacks,
+                                                                   spec.refreshMode));
     };
-    const auto addMods =
-        [this](QLayout *parent, qsizetype index, const FilterCallbacks &formCallbacks) {
-            m_adapters.emplace_back(
-                std::make_unique<ModsFilterForm>(parent, formCallbacks, [this, index] {
-                    saveBoundState(index);
-                }));
-        };
+    const auto addMods = [this](QLayout *parent,
+                                const FilterSpec &spec,
+                                qsizetype index,
+                                const FilterCallbacks &formCallbacks) {
+        m_adapters.emplace_back(
+            std::make_unique<ModsFilterForm>(parent,
+                                             formCallbacks,
+                                             spec.refreshMode,
+                                             [this, index] { saveBoundState(index); }));
+    };
 
     Q_ASSERT(m_catalog.size() >= 4);
     for (qsizetype index = 0; index < 4; ++index) {
         const auto &spec = m_catalog[index];
         Q_ASSERT(spec.group == FilterGroup::TopForm);
-        Q_ASSERT(spec.refreshMode == RefreshMode::Debounced);
         if (std::holds_alternative<TextPayload>(spec.payload)) {
-            addText(&m_layout, spec.caption, callbacks);
+            addText(&m_layout, spec, callbacks);
         } else if (const auto *payload = std::get_if<ComboPayload>(&spec.payload)) {
-            addCombo(&m_layout, spec.caption, *payload, callbacks);
+            addCombo(&m_layout, spec, *payload, callbacks);
         } else {
             Q_ASSERT(false);
         }
@@ -437,13 +464,12 @@ SearchForm::SearchForm(QVBoxLayout &layout,
     for (qsizetype index = 4; index < m_catalog.size(); ++index) {
         const auto &spec = m_catalog[index];
         if (std::holds_alternative<BoolPayload>(spec.payload)) {
-            Q_ASSERT(spec.refreshMode == RefreshMode::Immediate);
             switch (spec.group) {
             case FilterGroup::MiscFlags:
-                addBoolean(miscFlagsLayout, spec.caption, callbacks);
+                addBoolean(miscFlagsLayout, spec, callbacks);
                 break;
             case FilterGroup::MiscFlags2:
-                addBoolean(miscFlags2Layout, spec.caption, callbacks);
+                addBoolean(miscFlags2Layout, spec, callbacks);
                 break;
             default:
                 Q_ASSERT(false);
@@ -452,22 +478,21 @@ SearchForm::SearchForm(QVBoxLayout &layout,
             continue;
         }
         if (std::holds_alternative<MinMaxPayload>(spec.payload)) {
-            Q_ASSERT(spec.refreshMode == RefreshMode::Debounced);
             switch (spec.group) {
             case FilterGroup::Offense:
-                addMinMax(offenseLayout, spec.caption, callbacks);
+                addMinMax(offenseLayout, spec, callbacks);
                 break;
             case FilterGroup::Defense:
-                addMinMax(defenseLayout, spec.caption, callbacks);
+                addMinMax(defenseLayout, spec, callbacks);
                 break;
             case FilterGroup::Sockets:
-                addMinMax(socketsLayout, spec.caption, callbacks);
+                addMinMax(socketsLayout, spec, callbacks);
                 break;
             case FilterGroup::Requirements:
-                addMinMax(requirementsLayout, spec.caption, callbacks);
+                addMinMax(requirementsLayout, spec, callbacks);
                 break;
             case FilterGroup::Misc:
-                addMinMax(miscLayout, spec.caption, callbacks);
+                addMinMax(miscLayout, spec, callbacks);
                 break;
             default:
                 Q_ASSERT(false);
@@ -477,14 +502,12 @@ SearchForm::SearchForm(QVBoxLayout &layout,
         }
         if (std::holds_alternative<ColorsPayload>(spec.payload)) {
             Q_ASSERT(spec.group == FilterGroup::Sockets);
-            Q_ASSERT(spec.refreshMode == RefreshMode::Immediate);
-            addColors(socketsLayout, spec.caption, callbacks);
+            addColors(socketsLayout, spec, callbacks);
             continue;
         }
         if (std::holds_alternative<ModsPayload>(spec.payload)) {
             Q_ASSERT(spec.group == FilterGroup::Mods);
-            Q_ASSERT(spec.refreshMode == RefreshMode::Debounced);
-            addMods(modsLayout, index, callbacks);
+            addMods(modsLayout, spec, index, callbacks);
             continue;
         }
         Q_ASSERT(false);

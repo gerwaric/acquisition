@@ -760,9 +760,10 @@ void SearchTest::modsFormAdapterDisconnectsOnDestruction()
     };
     QPushButton *addButton = nullptr;
     {
-        auto form = std::make_unique<ModsFilterForm>(&layout, callbacks, [&stateChanges] {
-            ++stateChanges;
-        });
+        auto form = std::make_unique<ModsFilterForm>(&layout,
+                                                     callbacks,
+                                                     RefreshMode::Debounced,
+                                                     [&stateChanges] { ++stateChanges; });
         addButton = host.findChild<QPushButton *>("modsAddButton");
         QVERIFY(addButton);
     }
