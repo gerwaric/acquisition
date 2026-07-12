@@ -29,6 +29,8 @@ class SearchTest : public QObject
 
 private slots:
     void filterStateRestoresAcrossTabSwitch();
+    void backgroundSearchIgnoresCurrentFormState();
+    void categoryAnySentinelDeactivatesFilter();
     void booleanFormAdapterRoundTrip();
     void minMaxFormAdapterRoundTrip();
     void colorsFormAdapterRoundTrip();
@@ -96,9 +98,29 @@ static qsizetype findModsFilterIndex(const FilterCatalog &catalog)
     return -1;
 }
 
+// SearchForm materializes its combo models at construction, so the category
+// choices must exist before the form is built or GetItemCategories() logs an
+// error. Declared ahead of the catalog and form so it initializes first. The
+// category tables are process-global singletons that warn on reload, so load
+// them once for the whole test binary.
+struct ItemCategoryFixture
+{
+    ItemCategoryFixture()
+    {
+        static const bool loaded = [] {
+            InitItemClasses(R"json({"TestClass":{"name":"Weapons"}})json");
+            InitItemBaseTypes(
+                R"json({"Metadata/Items/TestSword":{"item_class":"TestClass","name":"Test Sword","release_state":"released"}})json");
+            return true;
+        }();
+        Q_UNUSED(loaded);
+    }
+};
+
 struct SearchHarness
 {
     BuyoutManagerFixture buyoutFixture;
+    ItemCategoryFixture categoryFixture;
     QWidget host;
     QVBoxLayout layout{&host};
     QObject receiver;
@@ -129,6 +151,31 @@ struct SearchHarness
         return nullptr;
     }
 };
+
+static std::shared_ptr<Item> makeFormItem(const QString &id,
+                                          const QString &name,
+                                          const ItemLocation &location)
+{
+    const QByteArray json = QString(R"json({
+        "baseType": "Test Item",
+        "frameType": 2,
+        "frameTypeId": "Rare",
+        "h": 1,
+        "icon": "https://web.poecdn.com/image/test.png",
+        "id": "%1",
+        "identified": true,
+        "ilvl": 1,
+        "name": "%2",
+        "typeLine": "Test Item",
+        "verified": false,
+        "w": 1,
+        "x": 0,
+        "y": 0
+    })json")
+                                .arg(id, name)
+                                .toUtf8();
+    return std::make_shared<Item>(makeTestItem(json.constData(), location));
+}
 
 void SearchTest::filterStateRestoresAcrossTabSwitch()
 {
@@ -183,6 +230,86 @@ void SearchTest::filterStateRestoresAcrossTabSwitch()
     QCOMPARE(colorG->text(), "1");
     QCOMPARE(rarity->currentText(), "Rare");
     QVERIFY(corrupted->isChecked());
+}
+
+// F33, driven through the form the way MainWindow does: the user fills in a
+// name on search A, switches to B (which empties the form), and a background
+// refilter of A must still use A's saved query. The old shared activity flag
+// lived on the Filter object, so an empty form made the name filter inactive
+// for every search and A came back with both items.
+void SearchTest::backgroundSearchIgnoresCurrentFormState()
+{
+    SearchHarness harness;
+    const ItemLocation firstTab = makeTestStashLocation("stash-a", "Alpha Tab", 0);
+    const ItemLocation secondTab = makeTestStashLocation("stash-b", "Beta Tab", 1);
+    harness.buyoutFixture.manager->SetStashTabLocations({firstTab, secondTab});
+
+    Items items;
+    items.push_back(makeFormItem("alpha-item", "Alpha Bite", firstTab));
+    items.push_back(makeFormItem("beta-item", "Beta Guard", secondTab));
+
+    auto *name = harness.findByLabel<QLineEdit>("Name");
+    QVERIFY(name);
+
+    Search background(*harness.buyoutFixture.manager, "Background", harness.catalog);
+    name->setText("alpha");
+    harness.form.saveTo(background);
+
+    Search current(*harness.buyoutFixture.manager, "Current", harness.catalog);
+    harness.form.reset();
+    harness.form.saveTo(current);
+    harness.form.loadFrom(current);
+    QCOMPARE(name->text(), "");
+
+    background.FilterItems(items);
+
+    QCOMPARE(background.GetCaption(), "Background [1]");
+    QCOMPARE(background.items().size(), 1);
+    QCOMPARE(background.items().front()->id(), "alpha-item");
+}
+
+void SearchTest::categoryAnySentinelDeactivatesFilter()
+{
+    SearchHarness harness;
+    const ItemLocation tab = makeTestStashLocation("stash-a", "Alpha Tab", 0);
+    harness.buyoutFixture.manager->SetStashTabLocations({tab});
+
+    Items items;
+    items.push_back(makeFormItem("alpha-item", "Alpha Bite", tab));
+    items.push_back(makeFormItem("beta-item", "Beta Guard", tab));
+
+    const qsizetype categoryIndex = findComboFilterIndex(harness.catalog, "Category");
+    QVERIFY(categoryIndex >= 0);
+    const auto *payload = std::get_if<ComboPayload>(&harness.catalog[categoryIndex].payload);
+    QVERIFY(payload);
+
+    auto *category = harness.findByLabel<QComboBox>("Type");
+    QVERIFY(category);
+
+    Search search(*harness.buyoutFixture.manager, "Search", harness.catalog);
+
+    const int weaponsIndex = category->findText("Weapons", Qt::MatchFixedString);
+    QVERIFY(weaponsIndex >= 0);
+    category->setCurrentIndex(weaponsIndex);
+    harness.form.saveTo(search);
+    QCOMPARE(std::get<ComboState>(search.filterStateAt(categoryIndex)).value, "weapons");
+    QVERIFY(IsActive(search.filterStateAt(categoryIndex)));
+
+    // Neither test item is a weapon, so an active category filter excludes both.
+    search.FilterItems(items);
+    QCOMPARE(search.items().size(), 0);
+
+    // <any> saves as an empty string, which is what makes the filter inactive
+    // and therefore match every item.
+    const int anyIndex = category->findText(payload->anySentinel, Qt::MatchFixedString);
+    QCOMPARE(anyIndex, 0);
+    category->setCurrentIndex(anyIndex);
+    harness.form.saveTo(search);
+    QCOMPARE(std::get<ComboState>(search.filterStateAt(categoryIndex)).value, "");
+    QVERIFY(!IsActive(search.filterStateAt(categoryIndex)));
+
+    search.FilterItems(items);
+    QCOMPARE(search.items().size(), 2);
 }
 
 void SearchTest::booleanFormAdapterRoundTrip()
@@ -620,8 +747,6 @@ void SearchTest::searchFormUnbindsDeletedSearch()
 
 void SearchTest::textAndComboFormAdapterRoundTrip()
 {
-    InitItemClasses(R"json({"TestClass":{"name":"Weapons"}})json");
-
     SearchHarness harness;
     const qsizetype tabIndex = findTextFilterIndex(harness.catalog, "Tab");
     const qsizetype nameIndex = findTextFilterIndex(harness.catalog, "Name");

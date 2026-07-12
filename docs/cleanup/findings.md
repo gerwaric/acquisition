@@ -360,6 +360,20 @@ live in `MainWindow` (~1,300 lines). Scoped down in this plan (Phase 6):
 extract opportunistically, no full controller architecture without a second
 UI consumer.
 
+### F37. The MainWindow tab-change / items-refresh sequence has no test — Confirmed
+
+Found during the Phase 5 review (July 2026). `MainWindow::OnTabChange` →
+`loadFrom` → `ModelViewRefresh` → `saveTo` → `FilterItems`, and
+`OnItemsRefreshed`'s refilter of every background search, are the sequences
+F33 and F35 actually broke, but nothing tests them end-to-end.
+`tst_searchform` covers the pieces — the form save/restore cycle and a
+background search refiltering while the form holds another search's state
+(`backgroundSearchIgnoresCurrentFormState`) — which is why Phase 5 shipped
+without this. Closing it properly needs `MainWindow` constructible in a test,
+which today drags in `ItemsManager`, the rate limiter, and network fixtures;
+that is exactly what Phase 6 (F20) makes tractable. Deferred to Phase 6
+rather than built now, and covered in the interim by the manual smoke pass.
+
 ---
 
 ## Recorded but out of scope

@@ -136,8 +136,10 @@ void SearchTest::backgroundRefilterUsesOwnState()
     QVERIFY(nameIndex >= 0);
     Search background(*buyoutFixture.manager, "Background", catalog);
     std::get<TextState>(background.filterStateAt(nameIndex)).query = "alpha";
+    // The current search leaves its name empty: under the old shared-activity
+    // design that made the name filter inactive for every search, so the
+    // background search's own query was skipped and it kept both items.
     Search current(*buyoutFixture.manager, "Current", catalog);
-    std::get<TextState>(current.filterStateAt(nameIndex)).query = "beta";
     background.FilterItems(items);
 
     // F33: a background search uses its own saved activity and query.
@@ -203,8 +205,9 @@ void SearchTest::backgroundMinMaxRefilterUsesOwnState()
     QVERIFY(critIndex >= 0);
     Search background(*buyoutFixture.manager, "Background", catalog);
     std::get<MinMaxState>(background.filterStateAt(critIndex)).min = 5.0;
+    // As above: the current search leaves both bounds empty, which is what made
+    // the old shared activity flag drop the background search's own bounds.
     Search current(*buyoutFixture.manager, "Current", catalog);
-    std::get<MinMaxState>(current.filterStateAt(critIndex)).min = 7.0;
     background.FilterItems(items);
 
     QCOMPARE(background.GetCaption(), "Background [1]");

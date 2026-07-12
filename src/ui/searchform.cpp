@@ -509,6 +509,10 @@ void SearchForm::addSearchGroup(QLayout *layout, const QString &name)
 void SearchForm::saveTo(Search &search)
 {
     m_boundSearch = &search;
+    // Adapters and states are only aligned if both were built from this catalog:
+    // each adapter is created from its spec's payload, and Search asserts every
+    // state against its spec. A different catalog would silently misapply state.
+    Q_ASSERT(&search.catalog() == &m_catalog);
     Q_ASSERT(search.filterStateCount() == m_catalog.size());
     Q_ASSERT(m_adapters.size() == static_cast<size_t>(m_catalog.size()));
     for (qsizetype index = 0; index < m_catalog.size(); ++index) {
@@ -521,6 +525,7 @@ void SearchForm::saveTo(Search &search)
 void SearchForm::loadFrom(Search &search)
 {
     m_boundSearch = &search;
+    Q_ASSERT(&search.catalog() == &m_catalog);
     Q_ASSERT(search.filterStateCount() == m_catalog.size());
     Q_ASSERT(m_adapters.size() == static_cast<size_t>(m_catalog.size()));
     for (qsizetype index = 0; index < m_catalog.size(); ++index) {

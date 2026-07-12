@@ -51,6 +51,7 @@ public:
     void SetRefreshReason(RefreshReason reason) { m_refresh_reason = reason; }
     void Sort(int column, Qt::SortOrder order);
 
+    const FilterCatalog &catalog() const { return m_filter_catalog; }
     qsizetype filterStateCount() const { return static_cast<qsizetype>(m_filter_states.size()); }
     FilterState &filterStateAt(qsizetype index);
     const FilterState &filterStateAt(qsizetype index) const;
