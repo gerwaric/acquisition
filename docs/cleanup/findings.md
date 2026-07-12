@@ -272,7 +272,7 @@ state (`Activate`, `SaveViewProperties`, `RestoreViewProperties`,
 `SetViewMode`). Search state (items, buckets, filters, expansion-by-header)
 should be view-independent; `MainWindow` should adapt it to the tree.
 
-### F19. `Filter` subclasses are widgets-plus-logic — Confirmed
+### F19. `Filter` subclasses are widgets-plus-logic — Resolved during Phase 5
 
 Every filter class in `filters.h` owns `QLineEdit`/`QComboBox`/`QCheckBox`
 members and builds its UI in `Initialize(QLayout*)`, while also implementing
@@ -281,7 +281,13 @@ mod_data) shared by all filter types. `ModsFilter` additionally owns a
 dynamic grid of rows, a completer, and a debounce timer. Matching logic
 should be separable and testable without instantiating widgets.
 
-### F33. Filter activity flags are shared across searches — Likely
+Resolved by Phase 5: definitions and matching live in `src/filters/`
+(`acquisition_filters`, build-gated against `Qt6::Widgets`), widgets live in
+`src/ui/searchform.*` and `src/ui/modsfilterform.*`, and `FilterData` is
+replaced by the typed `FilterState` variant. `filters.{h,cpp}` and
+`modsfilter.{h,cpp}` are gone.
+
+### F33. Filter activity flags are shared across searches — Resolved during Phase 5
 
 Found during the Phase 4 spec verification pass (July 2026).
 `Filter::m_active` lives on the `Filter` object (`filters.h`), which is
@@ -304,7 +310,12 @@ test at the start of Phase 5. Note the phase-5 doc's hazard wording
 misplaces it: `m_active` is on `Filter`, not `FilterData` — the
 misattribution is the bug.
 
-### F35. `SocketsColorsFilter::ToForm` never clears unfilled boxes — stale colors leak across searches — Likely
+Resolved by Phase 5: activity is derived (`FilterState::isActive()`) from
+per-search state, so there is no flag to share. Pinned by
+`tst_search::background*RefilterUsesOwnState` and, through the form,
+`tst_searchform::backgroundSearchIgnoresCurrentFormState`.
+
+### F35. `SocketsColorsFilter::ToForm` never clears unfilled boxes — stale colors leak across searches — Resolved during Phase 5
 
 Found during the Phase 5 spec revision pass (July 2026). Every other
 filter's `ToForm` unconditionally writes the widget (clearing it when the
@@ -322,7 +333,11 @@ state→widget sync is symmetric by construction. Pin the current behavior in
 the Phase 5 step-0 characterization pass and document the fix as a
 deliberate behavior change (working rule 3).
 
-### F36. Mods filter form-sync quirks: unsaved new rows, stale combo text, orphaned visibility — Likely
+Resolved by Phase 5: the colors adapter's `loadFrom` writes all three boxes
+unconditionally, so a search without colors clears them. Deliberate
+behavior change; verified in the Phase 5 manual smoke pass.
+
+### F36. Mods filter form-sync quirks: unsaved new rows, stale combo text, orphaned visibility — Resolved during Phase 5
 
 Found during the second (adversarial) review pass of the Phase 5 spec
 (July 2026). Three related defects in `modsfilter.cpp`, all in the
@@ -351,6 +366,12 @@ count) fixes all three structurally, and preserving them bug-for-bug would
 require deliberate contortions. Pin the current behavior in the Phase 5
 step-0 characterization pass and document the fix as the phase's third
 deliberate behavior change alongside F33/F35 (working rule 3).
+
+Resolved by Phase 5 step 6, in the full shared shape (D3, no hybrid
+fallback): `src/ui/modsfilterform.*` owns the rows, all three defects are
+structurally gone, and the behavior is covered by the `modsFormAdapter*`
+cases in `tst_searchform`. Deliberate behavior changes; verified in the
+Phase 5 manual smoke pass.
 
 ### F20. `MainWindow` owns workflow state — Confirmed
 
@@ -485,6 +506,30 @@ refresh repairs state) but a correctness hole; fixing it means tagging
 requests with an update generation and discarding mismatches, or
 disconnecting outstanding replies on terminal failure. Out of scope for
 Phase 2.
+
+**Possibly-related symptom observed during the Phase 5 manual smoke pass
+(July 2026) — unconfirmed, and it is not even known how to reproduce it.**
+After a session that included refreshing some tabs, a single item
+("Damnation Hoof Two-Toned Boots") was missing from the *unfiltered* item
+list and reappeared after restarting the app — so the datastore still had
+it and only the in-memory list was short. That shape fits the
+partial-refresh path: `RemoveUpdatingTabs` / `RemoveUpdatingItems` cull an
+updating tab's items up front and the re-fetched items are added back only
+as replies land, so a reply that is lost, failed, or misattributed (this
+finding) leaves items culled until the next full refresh or a restart.
+Filters are not implicated — they can only subset
+`ItemsManager::items()`, and Phase 5 touched nothing in the items pipeline.
+
+The session was too confounded to conclude anything: two app versions
+(0.16.2 and 0.17.0) shared one data directory and migrated its datastore
+version back and forth, at least one refresh in the window was heavily
+rate-limited, and logging was at `info`, so the `debug`-level cull/re-add
+accounting ("Keeping {} items and culling {}") was never written. Which
+tabs were refreshed is not known, and no deliberate reproduction has
+succeeded. A clean attempt needs a single app version on a private copy of
+the data dir with logging at DEBUG, comparing the unfiltered item count
+across a partial refresh. Recorded so the symptom is not lost — not because
+the mechanism is established.
 
 ### F31. Phase 3 spec forced out a load-bearing view-signal guard — Resolved after Phase 3
 
