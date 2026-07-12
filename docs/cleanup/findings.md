@@ -531,6 +531,20 @@ not occur. The fix is to reset both members in those branches (matching the
 bucket path), accepting that the panel clears instead of showing leftover
 content. Untested path, so pin it when fixed; follow-up, not urgent.
 
+### F45. Shop threads cannot be cleared from the UI — Confirmed
+
+Found during the Phase 6 item 6.2 manual smoke (July 2026), but pre-existing.
+`MainWindow::OnSetShopThreads` guards with `if (ok && !thread.isEmpty())`, so
+clearing the input box and confirming silently discards the edit — the old
+threads stay in the datastore and the dialog reopens pre-filled with them.
+There is no UI path to an empty thread list, which also makes the "No forum
+threads have been set" warning unreachable except on a fresh data directory.
+The fix has two layers: treat a confirmed empty input as "clear the threads"
+(drop the `isEmpty` guard), and split with `Qt::SkipEmptyParts` — otherwise
+`QString("").split(',')` yields `{""}`, `m_threads.empty()` stays false, and
+submission would fetch thread `""`. User-visible behavior change; ship it as
+its own small PR with a release note, not inside Phase 6's refactor PRs.
+
 ---
 
 ## Recorded but out of scope
