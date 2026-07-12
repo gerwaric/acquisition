@@ -531,19 +531,32 @@ not occur. The fix is to reset both members in those branches (matching the
 bucket path), accepting that the panel clears instead of showing leftover
 content. Untested path, so pin it when fixed; follow-up, not urgent.
 
-### F45. Shop threads cannot be cleared from the UI — Confirmed
+### F45. Shop threads cannot be cleared, and the no-threads warning is unreachable — Confirmed
 
 Found during the Phase 6 item 6.2 manual smoke (July 2026), but pre-existing.
-`MainWindow::OnSetShopThreads` guards with `if (ok && !thread.isEmpty())`, so
-clearing the input box and confirming silently discards the edit — the old
-threads stay in the datastore and the dialog reopens pre-filled with them.
-There is no UI path to an empty thread list, which also makes the "No forum
-threads have been set" warning unreachable except on a fresh data directory.
-The fix has two layers: treat a confirmed empty input as "clear the threads"
-(drop the `isEmpty` guard), and split with `Qt::SkipEmptyParts` — otherwise
-`QString("").split(',')` yields `{""}`, `m_threads.empty()` stays false, and
-submission would fetch thread `""`. User-visible behavior change; ship it as
-its own small PR with a release note, not inside Phase 6's refactor PRs.
+Two sites, one root cause (`QString::split` on an empty string yields `{""}`,
+not an empty list):
+
+1. `MainWindow::OnSetShopThreads` guards with `if (ok && !thread.isEmpty())`,
+   so clearing the input box and confirming silently discards the edit — the
+   old threads stay in the datastore and the dialog reopens pre-filled with
+   them. There is no UI path to an empty thread list.
+2. `Shop`'s constructor does `m_threads = m_datastore.Get("shop").split(";")`,
+   so even a fresh data directory (or a hand-cleared `"shop"` key) loads
+   `m_threads == {""}`. `m_threads.empty()` is therefore never true in
+   practice: the "No forum threads have been set" warning is dead code, and
+   submission instead fetches the edit page for thread `""`, failing in the
+   CSRF branch with only a status-bar error. Verified live: clearing the
+   `"shop"` key in the datastore and submitting produces "Shop threads not
+   updated due to an error." and no warning box — same behavior before and
+   after the 6.2 signal conversion, since the old `QMessageBox` on that
+   branch was equally unreachable.
+
+The fix: treat a confirmed empty input as "clear the threads" (drop the
+`isEmpty` guard), and split with `Qt::SkipEmptyParts` at both sites. That
+makes the no-threads warning reachable for the first time. User-visible
+behavior change; ship it as its own small PR with a release note, not inside
+Phase 6's refactor PRs.
 
 ---
 
