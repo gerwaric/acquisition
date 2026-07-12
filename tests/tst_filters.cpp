@@ -340,29 +340,84 @@ void FiltersTest::booleanPredicates()
     const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
     const auto ordinary = makeFilterItem("ordinary", "");
 
-    for (const QString &caption : {"Alt. art",
-                                   "Priced",
-                                   "Unidentified",
-                                   "Influenced",
-                                   "Crafted",
-                                   "Enchanted",
-                                   "Corrupted",
-                                   "Fractured",
-                                   "Split",
-                                   "Synthesized",
-                                   "Mutated"}) {
-        const auto *spec = findFilterSpec(catalog, caption);
-        QVERIFY(spec);
+    // One item per predicate, each setting only the flag that predicate is
+    // supposed to read. Every item is then checked against every other
+    // predicate, so a payload wired to the wrong Item accessor fails here
+    // rather than passing on an item that happens to have every flag set.
+    struct BooleanCase
+    {
+        QString caption;
+        std::shared_ptr<Item> item;
+    };
+    const std::vector<BooleanCase> cases{
+        {"Alt. art",
+         makeFilterItem("alt-art",
+                        "",
+                        2,
+                        "Rare",
+                        "https://web.poecdn.com/image/RedBeak2.png")},
+        {"Priced", makeFilterItem("priced", "")},
+        {"Unidentified",
+         makeFilterItem("unidentified",
+                        "",
+                        2,
+                        "Rare",
+                        "https://web.poecdn.com/image/test.png",
+                        "Test Item",
+                        false)},
+        {"Influenced", makeFilterItem("influenced", R"json(, "influences": {"shaper": true})json")},
+        {"Crafted", makeFilterItem("crafted", R"json(, "craftedMods": ["Crafted modifier"])json")},
+        {"Enchanted",
+         makeFilterItem("enchanted", R"json(, "enchantMods": ["Enchanted modifier"])json")},
+        {"Corrupted", makeFilterItem("corrupted", R"json(, "corrupted": true)json")},
+        {"Fractured", makeFilterItem("fractured", R"json(, "fractured": true)json")},
+        {"Split", makeFilterItem("split", R"json(, "split": true)json")},
+        {"Synthesized", makeFilterItem("synthesized", R"json(, "synthesised": true)json")},
+        {"Mutated", makeFilterItem("mutated", R"json(, "mutated": true)json")},
+    };
+
+    // The priced predicate reads the buyout manager rather than the item JSON.
+    const auto &pricedItem = cases.at(1).item;
+    buyoutFixture.manager->Set(*pricedItem, makeChaosBuyout(5.0));
+
+    for (const auto &current : cases) {
+        const auto *spec = findFilterSpec(catalog, current.caption);
+        QVERIFY2(spec, qPrintable(current.caption));
         QVERIFY(std::holds_alternative<BoolPayload>(spec->payload));
         QCOMPARE(spec->refreshMode, RefreshMode::Immediate);
         const FilterState defaultState = MakeDefaultState(*spec);
         QVERIFY(std::holds_alternative<BoolState>(defaultState));
         QVERIFY(!IsActive(defaultState));
+
+        // Matches its own item, rejects a plain one, and an unchecked box
+        // matches everything.
+        verifyBooleanPredicate(*spec, current.item, ordinary);
+
+        // ...and rejects every other predicate's item, except where the
+        // predicates genuinely overlap: Item::hasInfluence() is true whenever
+        // the influence list is non-empty, and that list carries the fractured
+        // and synthesised markers alongside the six real influences
+        // (item.cpp). Pre-existing behavior, not a wiring slip -- see F38.
+        const bool influenceOverlap = (current.caption == "Influenced");
+        for (const auto &other : cases) {
+            if (other.caption == current.caption) {
+                continue;
+            }
+            const bool matched = MatchesFilter(*other.item, *spec, BoolState{true});
+            if (influenceOverlap
+                && ((other.caption == "Fractured") || (other.caption == "Synthesized"))) {
+                QVERIFY2(matched, qPrintable(other.caption));
+                continue;
+            }
+            QVERIFY2(!matched,
+                     qPrintable(QString("%1 matched the %2 item")
+                                    .arg(current.caption, other.caption)));
+        }
     }
 
+    // The altart predicate is an icon-needle list, so check a few more needles.
     const auto *altart = findFilterSpec(catalog, "Alt. art");
     QVERIFY(altart);
-    QVERIFY(std::holds_alternative<BoolPayload>(altart->payload));
     for (const QString &needle : {"RedBeak2.png", "dGlsbGF0ZUFsdCI7czoy", "WinterHeart.png"}) {
         const auto item = makeFilterItem("alt-" + needle,
                                          "",
@@ -370,49 +425,6 @@ void FiltersTest::booleanPredicates()
                                          "Rare",
                                          "https://web.poecdn.com/image/" + needle);
         QVERIFY(MatchesFilter(*item, *altart, BoolState{true}));
-    }
-    verifyBooleanPredicate(*altart,
-                           makeFilterItem("alt-match",
-                                          "",
-                                          2,
-                                          "Rare",
-                                          "https://web.poecdn.com/image/RedBeak2.png"),
-                           ordinary);
-
-    const auto pricedItem = makeFilterItem("priced", "");
-    buyoutFixture.manager->Set(*pricedItem, makeChaosBuyout(5.0));
-    const auto *priced = findFilterSpec(catalog, "Priced");
-    QVERIFY(priced);
-    QVERIFY(std::holds_alternative<BoolPayload>(priced->payload));
-    verifyBooleanPredicate(*priced, pricedItem, ordinary);
-
-    const auto flags = makeFilterItem("flags",
-                                      R"json(,
-        "influences": {"shaper": true},
-        "craftedMods": ["Crafted modifier"],
-        "enchantMods": ["Enchanted modifier"],
-        "fractured": true,
-        "split": true,
-        "synthesised": true,
-        "mutated": true
-    )json",
-                                      2,
-                                      "Rare",
-                                      "https://web.poecdn.com/image/test.png",
-                                      "Test Item",
-                                      false);
-    for (const QString &caption : {"Unidentified",
-                                   "Influenced",
-                                   "Crafted",
-                                   "Enchanted",
-                                   "Fractured",
-                                   "Split",
-                                   "Synthesized",
-                                   "Mutated"}) {
-        const auto *spec = findFilterSpec(catalog, caption);
-        QVERIFY(spec);
-        QVERIFY(std::holds_alternative<BoolPayload>(spec->payload));
-        verifyBooleanPredicate(*spec, flags, ordinary);
     }
 }
 

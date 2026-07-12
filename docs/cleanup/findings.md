@@ -399,6 +399,27 @@ rather than built now, and covered in the interim by the manual smoke pass.
 
 ## Recorded but out of scope
 
+### F38. The "Influenced" filter also matches fractured and synthesised items — Confirmed
+
+Found during the Phase 5 review (July 2026) by the rewritten boolean
+cross-check in `tst_filters`. The predicate is `Item::hasInfluence()`, which
+is `!m_influenceList.empty()` — and `Item`'s constructor pushes `FRACTURED`,
+`SYNTHESISED`, `SEARING_EXARCH` and `TANGLED_EATER` onto that list alongside
+the six real influences (shaper, elder, crusader, redeemer, hunter,
+warlord). So checking "Influenced" also returns every fractured and
+synthesised item, which is unlikely to be what a user means: in game those
+are separate concepts, and the form has its own Fractured and Synthesized
+checkboxes.
+
+Pre-existing and unchanged by Phase 5 (the old `InfluencedFilter::Matches`
+called the same accessor), so it was recorded rather than fixed inline
+(working rule 4). The influence list is also what drives the item's
+influence icons, so narrowing `hasInfluence()` would affect display too; a
+fix should give the filter its own predicate (the six influences only)
+rather than change the accessor. The current behavior is pinned by
+`tst_filters::booleanPredicates`, which asserts the overlap explicitly — so
+a fix must flip that assertion deliberately.
+
 ### F34. `Bucket::Sort` inverts the Qt sort-order semantics — Confirmed
 
 Found during the Phase 4 review while hardening

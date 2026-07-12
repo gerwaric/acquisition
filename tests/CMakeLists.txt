@@ -12,6 +12,14 @@ function(acq_add_test name)
         ENVIRONMENT "${test_environment}")
 endfunction()
 
+# The filter core must stay free of the UI (Phase 5, D5). A STATIC archive has
+# no link step, so this cannot be left to target_link_libraries.
+add_test(NAME filters_boundary
+    COMMAND ${CMAKE_COMMAND}
+        -D "FILTERS_DIR=${acquisition_SOURCE_DIR}/src/filters"
+        -D "FILTERS_ARCHIVE=$<TARGET_FILE:acquisition_filters>"
+        -P "${acquisition_SOURCE_DIR}/cmake/filters_boundary_check.cmake")
+
 acq_add_test(tst_buyout)
 acq_add_test(tst_buyoutmanager)
 acq_add_test(tst_itemtooltiptext)
