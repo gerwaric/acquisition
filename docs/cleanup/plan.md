@@ -53,15 +53,18 @@ codebase strictly better off.
 | 3. Model/view signal hygiene | `phase-3-model-signals.md` | F10–F12, F23, F25 | Done |
 | 4. Decouple `Search` from `QTreeView` | `phase-4-search-decoupling.md` | F18 | Done |
 | 5. Filters as data + matching | `phase-5-filters-as-data.md` | F19, F33, F35, F36 | Done |
-| 6. Opportunistic `MainWindow` slimming | `phase-6-mainwindow-slimming.md` | F20, F9 remainder, F14, F32 | Design intent |
+| 6. Opportunistic `MainWindow` slimming | `phase-6-mainwindow-slimming.md` | F14, F32, F37, F39, F40, F9 remainder, F20 (scoped), F34 (optional) | Spec ready |
 
 Phases 0–4 are the committed core. Phase 4's spec was upgraded to
 implementation grade in July 2026 and implemented against the post-Phase-3 code.
 Phase 5's spec was likewise upgraded to implementation grade in July 2026,
 verified against the post-Phase-4 code and hardened by a second review pass
 (the two passes surfaced F35 and F36).
-Phase 6 remains design intent; its step-by-step details must be re-verified
-against the codebase state at implementation time.
+Phase 6's spec was upgraded to implementation grade in July 2026, verified
+against the post-Phase-5 code (after PR #155); the verification pass
+surfaced F39 and F40, promoted the F37 test-fixture work to an explicit
+item, dropped the F22 unification item, and adopted F34 as an optional
+item.
 
 ### Phase summaries
 
@@ -147,10 +150,15 @@ leaking one search's colors into another's filter data), and F36 (mods
 filter form-sync quirks: unsaved new rows, stale combo text, orphaned
 row-container visibility).
 
-**Phase 6 — MainWindow slimming.** Opportunistic only: extract the dialog
-classes out of `currencymanager.h`, move `Search*` ownership to
-`std::unique_ptr`, and relocate non-UI logic encountered while doing Phases
-3–5. No new controller architecture.
+**Phase 6 — MainWindow slimming.** Opportunistic only: fix the stale buyout
+cache (F14), build a `MainWindow` test fixture and end-to-end
+characterization tests (F37, unblocked by the F40 `LogPanel` sink fix),
+move `Search*` ownership to `std::unique_ptr`, give each search its own
+view state on tab switches (F32, plus the F39 pointer hardening and the
+`OnLayoutChanged` reselect removal), and extract the dialogs out of
+`currencymanager.h` and `Shop`'s error paths (F9 remainder). Optionally fix
+the sort-order inversion (F34). No new controller architecture; the F22
+persistence split is documented rather than unified.
 
 ## Working rules
 
