@@ -119,7 +119,6 @@ void BuyoutManagerTest::clearingItemBuyoutRemovesInMemoryValue()
 
     fixture.manager->Set(item, Buyout());
 
-    QEXPECT_FAIL("", "F14: stale in-memory buyout after clear", Continue);
     QVERIFY(fixture.manager->Get(item).IsNull());
 }
 
@@ -133,7 +132,6 @@ void BuyoutManagerTest::clearingTabBuyoutRemovesInMemoryValue()
 
     fixture.manager->SetTab(location, Buyout());
 
-    QEXPECT_FAIL("", "F14: stale in-memory buyout after clear", Continue);
     QVERIFY(fixture.manager->GetTab(location).IsNull());
 }
 

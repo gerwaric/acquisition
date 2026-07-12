@@ -53,6 +53,7 @@ void BuyoutManager::Set(const Item &item, const Buyout &buyout)
 
     if (buyout.IsNull()) {
         m_repo.removeItemBuyout(item);
+        m_buyouts.erase(item.id());
         return;
     }
 
@@ -111,6 +112,7 @@ void BuyoutManager::SetTab(const ItemLocation &location, const Buyout &buyout)
 
     if (buyout.IsNull()) {
         m_repo.removeLocationBuyout(location);
+        m_tab_buyouts.erase(location.id());
         return;
     }
 
