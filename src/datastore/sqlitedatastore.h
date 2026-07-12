@@ -10,7 +10,6 @@
 #include "datastore/datastore.h"
 
 class Application;
-struct CurrencyUpdate;
 
 class SqliteDataStore : public DataStore
 {

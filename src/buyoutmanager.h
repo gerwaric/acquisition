@@ -71,6 +71,8 @@ private:
 
     std::unordered_map<QString, Buyout> m_buyouts;
     std::unordered_map<QString, Buyout> m_tab_buyouts;
+    // Buyouts persist through BuyoutRepo signals. Refresh-check state is DataStore JSON in
+    // Save()/Load(); this split is intentional (see F22).
     std::unordered_map<QString, bool> m_refresh_checked;
     std::set<QString> m_refresh_locked;
     bool m_save_needed;

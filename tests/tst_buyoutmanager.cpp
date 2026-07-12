@@ -12,6 +12,7 @@ private slots:
     void tabBuyoutRoundTrip();
     void tabBuyoutPropagation();
     void clearingItemBuyoutRemovesInMemoryValue();
+    void clearingTabBuyoutRemovesInMemoryValue();
 };
 
 void BuyoutManagerTest::stringToBuyout()
@@ -118,8 +119,20 @@ void BuyoutManagerTest::clearingItemBuyoutRemovesInMemoryValue()
 
     fixture.manager->Set(item, Buyout());
 
-    QEXPECT_FAIL("", "F14: stale in-memory buyout after clear", Continue);
     QVERIFY(fixture.manager->Get(item).IsNull());
+}
+
+void BuyoutManagerTest::clearingTabBuyoutRemovesInMemoryValue()
+{
+    BuyoutManagerFixture fixture;
+    const ItemLocation location = makeTestStashLocation("f14-tab");
+
+    fixture.manager->SetTab(location, makeChaosBuyout(14.0));
+    QVERIFY(fixture.manager->GetTab(location).IsActive());
+
+    fixture.manager->SetTab(location, Buyout());
+
+    QVERIFY(fixture.manager->GetTab(location).IsNull());
 }
 
 QTEST_GUILESS_MAIN(BuyoutManagerTest)

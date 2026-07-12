@@ -419,6 +419,88 @@ which today drags in `ItemsManager`, the rate limiter, and network fixtures;
 that is exactly what Phase 6 (F20) makes tractable. Deferred to Phase 6
 rather than built now, and covered in the interim by the manual smoke pass.
 
+Amended during the Phase 6 spec upgrade (July 2026): the premise was
+overstated. Verified constructor-by-constructor, every `MainWindow`
+dependency is inert to construct offline (constructing `ItemsManager`, the
+rate limiter, and `NetworkManager` touches no network; only
+`ItemsManager::Update` does, and a test never calls it), tests already link
+the `MainWindow` code via `acquisition_core`, and items can be injected
+through the public `ItemsManager::OnItemsRefreshed` slot. The one hard
+blocker found is F40 (`LogPanel` crashes on the unregistered "main" logger
+in a test binary). Resolution is Phase 6 item 6.7: fix F40, then a
+test-only fixture over the real dependency graph — no controller
+extraction, no interfaces, no mocks.
+
+### F39. `MainWindow`'s current-bucket pointer can dangle or start null — Likely
+
+Found during the Phase 6 spec upgrade (July 2026).
+`MainWindow::m_current_bucket_location` is a raw `const ItemLocation *`
+aimed at an element of `Search`'s bucket vector
+(`OnCurrentItemChanged` does
+`m_current_bucket_location = &m_current_search->bucket(row).location()`),
+but `Search::FilterItems` clears and rebuilds that vector on every
+refilter. Today both dereferences (`UpdateCurrentBucket`,
+`UpdateCurrentBuyout`) happen synchronously right after assignment, so the
+common paths are safe — the reachable defect is the `!has_bucket` warning
+branch in `OnCurrentItemChanged`, which leaves the pointer stale (or still
+null, on a first-ever click) and then falls through to
+`UpdateCurrentBuyout`, which dereferences it unconditionally when
+`m_current_item` is null. "Likely" because traced but not reproduced (it
+needs a click landing on a bucket row the search no longer has). Fix
+belongs to Phase 6 item 6.6, which reworks exactly this state: store the
+location by value (`std::optional<ItemLocation>`) and guard the
+no-item-no-bucket case.
+
+### F40. `LogPanel` leaks dangling spdlog sinks on window teardown — Confirmed
+
+Found during the Phase 6 spec upgrade (July 2026), while designing the
+`MainWindow` test fixture (F37). `LogPanel`'s constructor pushes two sinks
+onto the "main" logger — a `qt_color_sink` writing into the panel's
+`QTextEdit` and a callback sink updating the status button — and nothing
+ever removes them: there is no `~LogPanel` and no sink cleanup. Two
+consequences: (a) `Application::SetUserDir` destroys and recreates the
+session including `MainWindow`, so each user-directory switch leaves two
+sinks pointing at destroyed widgets and adds two more — the next
+warn-or-higher log message after a switch writes to a dangling `QTextEdit`
+(same family as F29: logging teardown must respect object lifetimes); and
+(b) in a test binary, where `logging::init` never ran,
+`spdlog::get("main")` returns null and the constructor dereferences it —
+the actual blocker behind F37's "MainWindow can't be constructed in a
+test". Fix in Phase 6 item 6.7 (it gates the fixture): `LogPanel` stores
+its two `sink_ptr`s, removes them from the logger in a destructor, and
+null-checks the logger lookup.
+
+### F41. A fast tab switch leaves the outgoing search's tab caption stale — Confirmed
+
+Found while implementing Phase 6 item 6.7 (July 2026). When a user edits a
+debounced filter and switches tabs before its timer fires,
+`MainWindow::OnTabChange` correctly calls `FlushPendingSearchFormChange`
+while `m_current_search` still refers to the outgoing search. The flush calls
+`ModelViewRefresh`, but by then `QTabBar::currentIndex()` already names the
+destination tab. `ModelViewRefresh` consequently writes the outgoing
+search's refreshed caption to the destination tab; the destination refresh
+then overwrites itself, leaving the outgoing tab's old count visible until
+that search is activated again (or an items refresh rewrites background
+captions).
+
+This is separate from F33: the outgoing `Search` really does save its edited
+filter state and returns the correct rows on reactivation; only its inactive
+tab caption is stale. `tst_mainwindow` pins both observations. Record it for
+a Phase 6 follow-up rather than fixing it inside 6.7's fixture/test work.
+
+### F42. `LogPanel` sink detachment still has a teardown lifetime race — Confirmed
+
+Found in the Phase 6 item 6.7 review (July 2026). The F40 fix gives
+`LogPanel` a destructor that removes its sinks, but `~MainWindow`'s child
+cleanup destroys the panel's `m_output` `QTextEdit` before the `LogPanel`
+child. The `qt_color_sink` retains a raw `QTextEdit *`, so worker-thread
+logging can still reach the destroyed widget before `~LogPanel` detaches the
+sink.
+Additionally, removing entries from `logger::sinks()` mutates that vector
+without synchronization against worker-thread logging. This is a narrow,
+teardown-only residue of F40 and the same lifetime-ordering family as F29.
+Record it for a follow-up; do not extend the 6.7/F40 fix inline.
+
 ---
 
 ## Recorded but out of scope
@@ -459,7 +541,9 @@ branches, re-check the persistent-index remap test, release-note it) —
 out of scope for the cleanup phases unless Phase 6 wants it as an
 opportunistic item. `tst_itemsmodel` deliberately asserts only that a
 re-sort *changes* the arrangement, not which direction each enum produces,
-so it will survive the fix.
+so it will survive the fix. The Phase 6 spec upgrade (July 2026) took it up
+as explicitly optional item 6.8 (own PR, prominent release note, drop
+freely).
 
 ### F21. Every `Item` stores its raw JSON — Confirmed (impact unmeasured)
 
@@ -473,7 +557,10 @@ this cleanup.
 Buyouts persist through `BuyoutRepo` (signal-driven, newer) while
 `refresh_checked_state` persists through `DataStore` JSON serialization
 (older). Works, but the split is a trap for contributors. Unify only if a
-phase touches it anyway.
+phase touches it anyway. Decision (Phase 6 spec upgrade, July 2026):
+nothing in Phase 6 forces storage changes here, so unification is dropped
+(old item 6.4); item 6.1 documents the split with a comment at the
+`m_refresh_checked` declaration instead. The finding stays recorded.
 
 ### F29. `spdlog::shutdown()` on `aboutToQuit` raced logging threads — Confirmed; fixed during Phase 2
 

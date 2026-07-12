@@ -11,10 +11,13 @@
 #include <QTimer>
 
 #include <memory>
+#include <optional>
+#include <vector>
 
 #include <spdlog/spdlog.h>
 
 #include "filters/filterspec.h"
+#include "itemlocation.h"
 #include "util/programstate.h"
 
 class QNetworkReply;
@@ -22,7 +25,7 @@ class QSettings;
 class QVBoxLayout;
 
 class BuyoutManager;
-class Column;
+class CurrencyDialog;
 class CurrencyManager;
 class DataStore;
 class ImageCache;
@@ -31,7 +34,6 @@ class ItemLocation;
 class ItemsManager;
 class LogPanel;
 class NetworkManager;
-class OAuthManager;
 class RateLimiter;
 class RateLimitDialog;
 class Search;
@@ -59,7 +61,6 @@ public:
                         Shop &shop,
                         ImageCache &image_cache);
     ~MainWindow();
-    std::vector<Column *> columns;
     void LoadSettings();
 
 signals:
@@ -69,7 +70,6 @@ signals:
     void GetImage(const QString &url);
 public slots:
     void OnCurrentItemChanged(const QModelIndex &current, const QModelIndex &previous);
-    void OnLayoutChanged();
     void OnSearchFormChange();
     void OnDelayedSearchFormChange();
     void OnTabChange(int index);
@@ -77,6 +77,7 @@ public slots:
     void OnItemsRefreshed();
     void OnStatusUpdate(ProgramState state, const QString &status);
     void OnNotifyUser(const QString &message);
+    void OnShopWarning(const QString &message);
     void OnBuyoutChange();
     void ResizeTreeColumns();
     void ScheduleResizeTreeColumns();
@@ -108,6 +109,10 @@ private slots:
     void OnSetAutomaticShopUpdate();
     void OnShowPOESESSID();
 
+    // Currency menu actions
+    void OnListCurrency();
+    void OnExportCurrency();
+
     // Theme submenu actions
     void OnSetDarkTheme(bool toggle);
     void OnSetLightTheme(bool toggle);
@@ -122,6 +127,7 @@ private slots:
 
 private:
     void ModelViewRefresh();
+    void ReselectCurrentItem();
     void FlushPendingSearchFormChange();
     void SaveViewExpansion(Search &search);
     void RestoreViewExpansion(Search &search);
@@ -129,6 +135,7 @@ private:
     void UpdateCurrentBucket();
     void UpdateCurrentItem();
     void UpdateCurrentBuyout();
+    void ResetBuyoutWidgets();
     void NewSearch();
     void InitializeRateLimitDialog();
     void InitializeLogging();
@@ -150,15 +157,17 @@ private:
     Shop &m_shop;
     ImageCache &m_image_cache;
 
-    // Application owns BuyoutManager and outlives MainWindow. MainWindow owns
-    // the catalog and explicitly deletes every Search before catalog teardown.
+    // Application owns BuyoutManager and outlives MainWindow. Keep m_searches
+    // declared after m_filter_catalog so reverse destruction destroys searches
+    // before the catalog they reference.
     FilterCatalog m_filter_catalog;
 
     Ui::MainWindow *ui;
+    CurrencyDialog *m_currency_dialog;
 
     std::shared_ptr<Item> m_current_item;
-    const ItemLocation *m_current_bucket_location;
-    std::vector<Search *> m_searches;
+    std::optional<ItemLocation> m_current_bucket_location;
+    std::vector<std::unique_ptr<Search>> m_searches;
     Search *m_current_search;
     QTabBar *m_tab_bar;
     LogPanel *m_log_panel;
@@ -174,7 +183,6 @@ private:
     QTimer m_delayed_search_form_change;
     QTimer m_delayed_resize_columns;
     QMetaObject::Connection m_current_item_conn;
-    QMetaObject::Connection m_layout_changed_conn;
     RateLimitDialog *m_rate_limit_dialog;
     bool m_quitting;
 };

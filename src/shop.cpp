@@ -5,7 +5,6 @@
 
 #include <QApplication>
 #include <QClipboard>
-#include <QMessageBox>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QRegularExpression>
@@ -151,25 +150,21 @@ void Shop::SubmitShopToForum(bool force)
     }
     if (m_threads.empty()) {
         spdlog::error("Shop: cannot submit shops because shop threads are not set.");
-        QMessageBox::warning(nullptr,
-                             "Acquisition Shop Manager",
-                             "No forum threads have been set."
-                             "\n\n"
-                             "Use the Shop --> 'Forum shop thread...' menu item.");
+        emit UserWarning("No forum threads have been set."
+                         "\n\n"
+                         "Use the Shop --> 'Forum shop thread...' menu item.");
         return;
     }
 
     const QString session_id = m_settings.value("session_id").toString();
     if (session_id.isEmpty()) {
         spdlog::error("Shop: cannot submit a shop because the POESESSID is not set");
-        QMessageBox::warning(nullptr,
-                             "Acquisition Shop Manager",
-                             "Cannot update forum shop threads because POESESSID has not been set."
-                             "\n\n"
-                             "Use the Shop --> 'Update Shop POESESSID' menu item."
-                             "\n\n"
-                             "This is required even if you have logged in with OAuth, because the "
-                             "forums do not support OAuth.");
+        emit UserWarning("Cannot update forum shop threads because POESESSID has not been set."
+                         "\n\n"
+                         "Use the Shop --> 'Update Shop POESESSID' menu item."
+                         "\n\n"
+                         "This is required even if you have logged in with OAuth, because the "
+                         "forums do not support OAuth.");
         return;
     }
 
@@ -434,9 +429,7 @@ void Shop::OnEditPageFinished()
     if (hash.isEmpty()) {
         if (bytes.contains("Login Required")) {
             spdlog::error("Cannot update shop: the POESESSID is missing or invalid.");
-            QMessageBox::warning(
-                nullptr,
-                "Acquisition Shop Manager",
+            emit UserWarning(
                 "Cannot update forum shop threads because POESESSID is missing or invalid."
                 "\n\n"
                 "Use the Shop --> 'Update Shop POESESSID' menu item."
@@ -450,9 +443,7 @@ void Shop::OnEditPageFinished()
         } else if (bytes.contains("Permission Denied")) {
             spdlog::error("Cannot update shop: the POESESSID may be invalid or associated with "
                           "another account.");
-            QMessageBox::warning(
-                nullptr,
-                "Acquisition Shop Manager",
+            emit UserWarning(
                 "Cannot update forum shop threads because POESESSID is invalid or associated with "
                 "the wrong account."
                 "\n\n"

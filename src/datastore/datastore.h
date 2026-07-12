@@ -7,9 +7,16 @@
 
 #include <vector>
 
-#include "currencymanager.h"
 #include "item.h"
 #include "itemlocation.h"
+
+// For now we just serialize/deserialize 'value' inside CurrencyManager
+// Later we might need more logic if GGG adds more currency types and we want to be backwards compatible
+struct CurrencyUpdate
+{
+    long long timestamp{0};
+    QString value;
+};
 
 class DataStore
 {

@@ -10,7 +10,6 @@
 #include <QSqlQuery>
 #include <QThread>
 
-#include "currencymanager.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 
 SqliteDataStore::SqliteDataStore(const QString &filename)

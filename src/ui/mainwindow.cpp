@@ -7,8 +7,10 @@
 #include <QApplication>
 #include <QBuffer>
 #include <QClipboard>
+#include <QDir>
 #include <QEvent>
 #include <QFile>
+#include <QFileDialog>
 #include <QFontDatabase>
 #include <QImageReader>
 #include <QInputDialog>
@@ -27,6 +29,7 @@
 #include <QVersionNumber>
 
 #include <set>
+#include <utility>
 #include <vector>
 
 #include "buyoutmanager.h"
@@ -44,13 +47,13 @@
 #include "replytimeout.h"
 #include "search.h"
 #include "shop.h"
+#include "ui/currencydialog.h"
 #include "ui/itemtooltip.h"
 #include "ui/logpanel.h"
 #include "ui/searchform.h"
 #include "ui/verticalscrollarea.h"
 #include "util/glaze_qt.h" // IWYU pragma: keep
 #include "util/networkmanager.h"
-#include "util/oauthmanager.h"
 #include "util/spdlog_qt.h"
 #include "util/updatechecker.h"
 #include "util/util.h"
@@ -93,7 +96,7 @@ MainWindow::MainWindow(QSettings &settings,
     , m_image_cache(image_cache)
     , m_filter_catalog(BuildFilterCatalog(buyout_manager))
     , ui(new Ui::MainWindow)
-    , m_current_bucket_location(nullptr)
+    , m_currency_dialog(nullptr)
     , m_current_search(nullptr)
     , m_search_count(0)
     , m_rate_limit_dialog(nullptr)
@@ -133,26 +136,9 @@ MainWindow::~MainWindow()
 {
     m_search_form.reset();
     delete ui;
-    for (auto &search : m_searches) {
-        delete (search);
-    }
     m_rate_limit_dialog->close();
     m_rate_limit_dialog->deleteLater();
 }
-
-/*
-void MainWindow::prepare(OAuthManager &oauth_manager, CurrencyManager &currency_manager)
-{
-    connect(ui->actionShowOAuthToken,
-            &QAction::triggered,
-            &oauth_manager,
-            &OAuthManager::showStatus);
-    connect(ui->actionRefreshOAuthToken,
-            &QAction::triggered,
-            &oauth_manager,
-            &OAuthManager::requestRefresh);
-}
-*/
 
 void MainWindow::InitializeRateLimitDialog()
 {
@@ -400,14 +386,8 @@ void MainWindow::InitializeUi()
     connect(ui->pobTooltipButton, &QPushButton::clicked, this, &MainWindow::OnCopyForPOB);
 
     // Connect the currency actions.
-    connect(ui->actionListCurrency,
-            &QAction::triggered,
-            &m_currency_manager,
-            &CurrencyManager::DisplayCurrency);
-    connect(ui->actionExportCurrency,
-            &QAction::triggered,
-            &m_currency_manager,
-            &CurrencyManager::ExportCurrency);
+    connect(ui->actionListCurrency, &QAction::triggered, this, &MainWindow::OnListCurrency);
+    connect(ui->actionExportCurrency, &QAction::triggered, this, &MainWindow::OnExportCurrency);
 }
 
 void MainWindow::LoadSettings()
@@ -615,6 +595,37 @@ void MainWindow::OnNotifyUser(const QString &message)
     QMessageBox::information(this, "Acquisition", message);
 }
 
+void MainWindow::OnShopWarning(const QString &message)
+{
+    QMessageBox::warning(this, "Acquisition Shop Manager", message);
+}
+
+void MainWindow::OnListCurrency()
+{
+    if (m_currency_dialog == nullptr) {
+        m_currency_dialog = new CurrencyDialog(m_settings, m_currency_manager, this);
+        connect(&m_currency_manager,
+                &CurrencyManager::Updated,
+                m_currency_dialog,
+                &CurrencyDialog::Update);
+    }
+    m_currency_dialog->show();
+    m_currency_dialog->raise();
+    m_currency_dialog->activateWindow();
+}
+
+void MainWindow::OnExportCurrency()
+{
+    const QString file_name = QFileDialog::getSaveFileName(
+        this,
+        tr("Save Export file"),
+        QDir::toNativeSeparators(QDir::homePath() + "/" + "acquisition_export_currency.csv"));
+    if (file_name.isEmpty()) {
+        return;
+    }
+    m_currency_manager.ExportCurrency(file_name);
+}
+
 bool MainWindow::eventFilter(QObject *o, QEvent *e)
 {
     if ((o == m_tab_bar) && (e->type() == QEvent::MouseButtonPress)) {
@@ -657,15 +668,17 @@ void MainWindow::OnDeleteTabClicked(int index)
     }
 
     // Delete the search.
-    Search *search = m_searches[index];
+    auto &search = m_searches[index];
     m_search_form->unbind(*search);
-    if (m_current_search == search) {
+    if (m_current_search == search.get()) {
         m_current_search = nullptr;
     }
-    delete search;
     m_searches.erase(m_searches.begin() + index);
 
-    // Remove the tab from the UI
+    // removeTab emits currentChanged synchronously, re-entering OnTabChange.
+    // When the deleted search was current, FlushPendingSearchFormChange is a
+    // no-op because m_current_search is null, and the view receives its new
+    // model before repaint can touch the destroyed search.
     m_tab_bar->removeTab(index);
 }
 
@@ -716,7 +729,6 @@ void MainWindow::ModelViewRefresh()
 {
     spdlog::trace("MainWindow::ModelViewRefresh() entered");
     disconnect(m_current_item_conn);
-    disconnect(m_layout_changed_conn);
 
     m_buyout_manager.Save();
 
@@ -739,21 +751,11 @@ void MainWindow::ModelViewRefresh()
                                   this,
                                   &MainWindow::OnCurrentItemChanged);
 
-    // This updates the item information when a search or sort order changes.
-    m_layout_changed_conn = connect(ui->treeView->model(),
-                                    &QAbstractItemModel::layoutChanged,
-                                    this,
-                                    &MainWindow::OnLayoutChanged);
-
     ui->viewComboBox->setCurrentIndex(static_cast<int>(m_current_search->GetViewMode()));
 
     m_tab_bar->setTabText(m_tab_bar->currentIndex(), m_current_search->GetCaption());
 
-    // The model rebuild and view-triggered re-sort happen while the connections
-    // above are down, so the layoutChanged emitted during the re-sort is never
-    // seen. Reselect the current item (or clear it if it was filtered out)
-    // explicitly.
-    OnLayoutChanged();
+    ReselectCurrentItem();
 }
 
 void MainWindow::OnCurrentItemChanged(const QModelIndex &current, const QModelIndex &previous)
@@ -774,6 +776,7 @@ void MainWindow::OnCurrentItemChanged(const QModelIndex &current, const QModelIn
             const int item_row = current.row();
             if (bucket.has_item(item_row)) {
                 m_current_item = bucket.item(item_row);
+                m_current_bucket_location.reset();
                 m_delayed_update_current_item.start();
             } else {
                 spdlog::warn("OnCurrentItemChanged(): parent bucket {} does not have {} rows",
@@ -788,40 +791,42 @@ void MainWindow::OnCurrentItemChanged(const QModelIndex &current, const QModelIn
         m_current_item = nullptr;
         const int bucket_row = current.row();
         if (m_current_search->has_bucket(bucket_row)) {
-            m_current_bucket_location = &m_current_search->bucket(bucket_row).location();
+            m_current_bucket_location = m_current_search->bucket(bucket_row).location();
             UpdateCurrentBucket();
         } else {
             spdlog::warn("OnCurrentItemChanged(): bucket {} does not exist", bucket_row);
+            m_current_bucket_location.reset();
         }
     }
-    UpdateCurrentBuyout();
+    if (m_current_item || m_current_bucket_location) {
+        UpdateCurrentBuyout();
+    } else {
+        ResetBuyoutWidgets();
+    }
 }
 
-void MainWindow::OnLayoutChanged()
+void MainWindow::ReselectCurrentItem()
 {
-    spdlog::trace("MainWindow::OnLayoutChanged() entered");
+    spdlog::trace("MainWindow::ReselectCurrentItem() entered");
 
     // Do nothing is nothing is selected.
     if (m_current_item == nullptr) {
-        spdlog::trace("MainWindow::OnLayoutChange() nothing was selected");
+        spdlog::trace("MainWindow::ReselectCurrentItem() nothing was selected");
         return;
     }
-
-    // Reset the selection model, because using clear can cause exceptions
-    // when after search updates for some reason that's not clear yet.
-    ui->treeView->selectionModel()->reset();
 
     // Look for the new index of the currently selected item.
     const QModelIndex index = m_current_search->index(m_current_item);
 
     if (!index.isValid()) {
         // The previously selected item is no longer in search results.
-        spdlog::trace("MainWindow::OnLayoutChange() the previously selected item is gone");
+        spdlog::trace("MainWindow::ReselectCurrentItem() the previously selected item is gone");
         m_current_item = nullptr;
+        m_current_bucket_location.reset();
         ClearCurrentItem();
     } else {
         // Reselect the item in the updated layout.
-        spdlog::trace("MainWindow::OnLayouotChange() reselecting the previous item");
+        spdlog::trace("MainWindow::ReselectCurrentItem() reselecting the previous item");
         ui->treeView->selectionModel()->select(index,
                                                QItemSelectionModel::Current
                                                    | QItemSelectionModel::Select
@@ -849,14 +854,30 @@ void MainWindow::FlushPendingSearchFormChange()
 void MainWindow::OnTabChange(int index)
 {
     FlushPendingSearchFormChange();
+    if (m_current_search) {
+        SaveViewExpansion(*m_current_search);
+        m_current_search->setCurrentItem(m_current_item);
+        m_current_search->setCurrentBucket(m_current_bucket_location);
+    }
     if (static_cast<size_t>(index) == m_searches.size()) {
         // "+" clicked
         NewSearch();
     } else {
-        m_current_search = m_searches[index];
+        m_current_search = m_searches[index].get();
+        m_current_item = m_current_search->currentItem();
+        m_current_bucket_location = m_current_search->currentBucket();
         m_current_search->SetRefreshReason(RefreshReason::TabChanged);
         m_search_form->loadFrom(*m_current_search);
         ModelViewRefresh();
+        UpdateCurrentItem();
+        if (m_current_bucket_location) {
+            UpdateCurrentBucket();
+        }
+        if (m_current_item || m_current_bucket_location) {
+            UpdateCurrentBuyout();
+        } else {
+            ResetBuyoutWidgets();
+        }
     }
 }
 
@@ -883,17 +904,22 @@ void MainWindow::NewSearch()
     m_tab_bar->addTab("+");
 
     spdlog::trace("MainWindow::NewSearch() setting current search: {}", caption);
-    m_current_search = new Search(m_buyout_manager, caption, m_filter_catalog);
+    auto search = std::make_unique<Search>(m_buyout_manager, caption, m_filter_catalog);
+    m_current_search = search.get();
+    m_current_item = m_current_search->currentItem();
+    m_current_bucket_location = m_current_search->currentBucket();
     m_current_search->SetRefreshReason(RefreshReason::TabCreated);
 
     // this can't be done in ctor because it'll call OnSearchFormChange slot
     // and remove all previous search data
     spdlog::trace("MainWindow::NewSearch() reseting search form and adding the search");
     m_search_form->reset();
-    m_searches.push_back(m_current_search);
+    m_searches.push_back(std::move(search));
 
     spdlog::trace("MainWindow::NewSearch() triggering model view refresh");
     ModelViewRefresh();
+    UpdateCurrentItem();
+    ResetBuyoutWidgets();
 }
 
 void MainWindow::ClearCurrentItem()
@@ -998,20 +1024,28 @@ void MainWindow::UpdateCurrentBuyout()
     spdlog::trace("MainWindow::UpdateCurrentBuyout() entered");
     if (m_current_item) {
         UpdateBuyoutWidgets(m_buyout_manager.Get(*m_current_item));
+    } else if (m_current_bucket_location) {
+        UpdateBuyoutWidgets(m_buyout_manager.GetTab(*m_current_bucket_location));
     } else {
-        const ItemLocation &location = *m_current_bucket_location;
-        UpdateBuyoutWidgets(m_buyout_manager.GetTab(location));
+        ResetBuyoutWidgets();
     }
+}
+
+void MainWindow::ResetBuyoutWidgets()
+{
+    UpdateBuyoutWidgets(Buyout());
+    ui->buyoutTypeComboBox->setEnabled(false);
+    ui->buyoutCurrencyComboBox->setCurrentIndex(Currency::CURRENCY_NONE);
 }
 
 void MainWindow::OnItemsRefreshed()
 {
     spdlog::trace("MainWindow::OnItemsRefreshed() entered");
     int tab = 0;
-    for (auto search : m_searches) {
+    for (const auto &search : m_searches) {
         search->SetRefreshReason(RefreshReason::ItemsChanged);
         // Don't update current search - it will be updated in OnSearchFormChange
-        if (search != m_current_search) {
+        if (search.get() != m_current_search) {
             search->FilterItems(m_items_manager.items());
             m_tab_bar->setTabText(tab, search->GetCaption());
         }

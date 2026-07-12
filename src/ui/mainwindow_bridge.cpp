@@ -75,6 +75,11 @@ void ConnectMainWindow(Application &application,
                      &MainWindow::OnImageFetched);
 
     QObject::connect(&shop, &Shop::StatusUpdate, &main_window, &MainWindow::OnStatusUpdate);
+    QObject::connect(&shop,
+                     &Shop::UserWarning,
+                     &main_window,
+                     &MainWindow::OnShopWarning,
+                     Qt::QueuedConnection);
     QObject::connect(&update_checker,
                      &UpdateChecker::UpdateAvailable,
                      &main_window,
