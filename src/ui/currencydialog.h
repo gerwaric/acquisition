@@ -16,7 +16,7 @@ class QLabel;
 class QSettings;
 class QVBoxLayout;
 
-class CurrencyItem;
+struct CurrencyItem;
 class CurrencyManager;
 struct CurrencyLabels;
 

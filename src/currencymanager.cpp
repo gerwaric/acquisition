@@ -229,6 +229,9 @@ void CurrencyManager::SaveCurrencyValue()
 
 void CurrencyManager::ExportCurrency(const QString &file_name)
 {
+    if (file_name.isEmpty()) {
+        return;
+    }
     QString header_csv = "Date,Total value";
     for (auto &item : m_currencies) {
         auto &label = item->currency.AsString();
@@ -237,10 +240,6 @@ void CurrencyManager::ExportCurrency(const QString &file_name)
         }
     }
     std::vector<CurrencyUpdate> result = m_data.GetAllCurrency();
-
-    if (file_name.isEmpty()) {
-        return;
-    }
     QFile file(QDir::toNativeSeparators(file_name));
     if (!file.open(QFile::WriteOnly | QFile::Text)) {
         spdlog::warn("CurrencyManager::ExportCurrency : couldn't open CSV export file ");
