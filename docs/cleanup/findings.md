@@ -470,6 +470,24 @@ test". Fix in Phase 6 item 6.7 (it gates the fixture): `LogPanel` stores
 its two `sink_ptr`s, removes them from the logger in a destructor, and
 null-checks the logger lookup.
 
+### F41. A fast tab switch leaves the outgoing search's tab caption stale — Confirmed
+
+Found while implementing Phase 6 item 6.7 (July 2026). When a user edits a
+debounced filter and switches tabs before its timer fires,
+`MainWindow::OnTabChange` correctly calls `FlushPendingSearchFormChange`
+while `m_current_search` still refers to the outgoing search. The flush calls
+`ModelViewRefresh`, but by then `QTabBar::currentIndex()` already names the
+destination tab. `ModelViewRefresh` consequently writes the outgoing
+search's refreshed caption to the destination tab; the destination refresh
+then overwrites itself, leaving the outgoing tab's old count visible until
+that search is activated again (or an items refresh rewrites background
+captions).
+
+This is separate from F33: the outgoing `Search` really does save its edited
+filter state and returns the correct rows on reactivation; only its inactive
+tab caption is stale. `tst_mainwindow` pins both observations. Record it for
+a Phase 6 follow-up rather than fixing it inside 6.7's fixture/test work.
+
 ---
 
 ## Recorded but out of scope

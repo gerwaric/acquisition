@@ -419,14 +419,16 @@ Per D1/D5. Steps, each green:
    sequences F33/F35 actually broke, now end-to-end:
    - *tabChangeActivatesSelectedSearch*: two searches with different name
      filters (typed via `QTest::keyClicks`, debounce flushed by the tab
-     switch itself); captions/counts and visible rows correct after
-     switching each way.
+     switch itself); captions/counts and visible rows correct when each
+     search is activated. F41 additionally pins the current stale outgoing
+     caption immediately after the fast switch.
    - *itemsRefreshRefiltersBackgroundSearches*: inject a changed item set
      via `ItemsManager::OnItemsRefreshed`; background tab captions update
      (the window-level F33 regression guard).
    - *pendingEditFollowsOutgoingSearch*: edit, switch tabs within the
-     350 ms debounce, assert the outgoing search's caption reflects the
-     edit (window-level pin of Phase 5's flush).
+     350 ms debounce, assert the outgoing search's state and caption reflect
+     the edit when reactivated (window-level pin of Phase 5's flush). The
+     immediate stale caption remains an F41 pin, not a 6.7 fix.
    - *deleteTabDance*: middle-click-delete paths — deleting the last
      search creates a replacement; deleting the current search activates
      the left neighbor (guards 6.3).
