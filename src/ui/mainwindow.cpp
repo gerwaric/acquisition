@@ -7,8 +7,10 @@
 #include <QApplication>
 #include <QBuffer>
 #include <QClipboard>
+#include <QDir>
 #include <QEvent>
 #include <QFile>
+#include <QFileDialog>
 #include <QFontDatabase>
 #include <QImageReader>
 #include <QInputDialog>
@@ -45,6 +47,7 @@
 #include "replytimeout.h"
 #include "search.h"
 #include "shop.h"
+#include "ui/currencydialog.h"
 #include "ui/itemtooltip.h"
 #include "ui/logpanel.h"
 #include "ui/searchform.h"
@@ -93,6 +96,7 @@ MainWindow::MainWindow(QSettings &settings,
     , m_image_cache(image_cache)
     , m_filter_catalog(BuildFilterCatalog(buyout_manager))
     , ui(new Ui::MainWindow)
+    , m_currency_dialog(nullptr)
     , m_current_search(nullptr)
     , m_search_count(0)
     , m_rate_limit_dialog(nullptr)
@@ -382,14 +386,8 @@ void MainWindow::InitializeUi()
     connect(ui->pobTooltipButton, &QPushButton::clicked, this, &MainWindow::OnCopyForPOB);
 
     // Connect the currency actions.
-    connect(ui->actionListCurrency,
-            &QAction::triggered,
-            &m_currency_manager,
-            &CurrencyManager::DisplayCurrency);
-    connect(ui->actionExportCurrency,
-            &QAction::triggered,
-            &m_currency_manager,
-            &CurrencyManager::ExportCurrency);
+    connect(ui->actionListCurrency, &QAction::triggered, this, &MainWindow::OnListCurrency);
+    connect(ui->actionExportCurrency, &QAction::triggered, this, &MainWindow::OnExportCurrency);
 }
 
 void MainWindow::LoadSettings()
@@ -595,6 +593,32 @@ void MainWindow::OnStatusUpdate(ProgramState state, const QString &message)
 void MainWindow::OnNotifyUser(const QString &message)
 {
     QMessageBox::information(this, "Acquisition", message);
+}
+
+void MainWindow::OnListCurrency()
+{
+    if (m_currency_dialog == nullptr) {
+        m_currency_dialog = new CurrencyDialog(m_settings, m_currency_manager, this);
+        connect(&m_currency_manager,
+                &CurrencyManager::Updated,
+                m_currency_dialog,
+                &CurrencyDialog::Update);
+    }
+    m_currency_dialog->show();
+    m_currency_dialog->raise();
+    m_currency_dialog->activateWindow();
+}
+
+void MainWindow::OnExportCurrency()
+{
+    const QString file_name = QFileDialog::getSaveFileName(
+        this,
+        tr("Save Export file"),
+        QDir::toNativeSeparators(QDir::homePath() + "/" + "acquisition_export_currency.csv"));
+    if (file_name.isEmpty()) {
+        return;
+    }
+    m_currency_manager.ExportCurrency(file_name);
 }
 
 bool MainWindow::eventFilter(QObject *o, QEvent *e)

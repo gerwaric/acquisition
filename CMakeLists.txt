@@ -292,6 +292,8 @@ set(ACQ_POE
 )
 
 set(ACQ_UI
+    src/ui/currencydialog.cpp
+    src/ui/currencydialog.h
     src/ui/flowlayout.cpp
     src/ui/flowlayout.h
     src/ui/itemtooltip.cpp

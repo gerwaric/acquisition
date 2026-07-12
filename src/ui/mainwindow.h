@@ -25,6 +25,7 @@ class QSettings;
 class QVBoxLayout;
 
 class BuyoutManager;
+class CurrencyDialog;
 class CurrencyManager;
 class DataStore;
 class ImageCache;
@@ -107,6 +108,10 @@ private slots:
     void OnSetAutomaticShopUpdate();
     void OnShowPOESESSID();
 
+    // Currency menu actions
+    void OnListCurrency();
+    void OnExportCurrency();
+
     // Theme submenu actions
     void OnSetDarkTheme(bool toggle);
     void OnSetLightTheme(bool toggle);
@@ -157,6 +162,7 @@ private:
     FilterCatalog m_filter_catalog;
 
     Ui::MainWindow *ui;
+    CurrencyDialog *m_currency_dialog;
 
     std::shared_ptr<Item> m_current_item;
     std::optional<ItemLocation> m_current_bucket_location;
