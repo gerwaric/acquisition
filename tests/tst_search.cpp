@@ -17,6 +17,8 @@ private slots:
     void backgroundRefilterUsesOwnState();
     void backgroundBooleanRefilterUsesOwnState();
     void backgroundMinMaxRefilterUsesOwnState();
+    void tabChangeSkipsRefilterWhenStateIsUnchanged();
+    void tabChangeRefiltersAfterStateChange();
 };
 
 template<typename Payload>
@@ -100,7 +102,7 @@ void SearchTest::nameFilterMembership()
     const qsizetype nameIndex = findFilterIndex<TextPayload>(catalog, "Name");
     QVERIFY(nameIndex >= 0);
     Search search(*buyoutFixture.manager, "Filtered", catalog);
-    std::get<TextState>(search.filterStateAt(nameIndex)).query = "alpha";
+    search.setFilterState(nameIndex, TextState{"alpha"});
 
     Items items;
     items.push_back(makeSearchItem("alpha-item", "Alpha Bite", "Vaal Axe", firstTab));
@@ -135,7 +137,7 @@ void SearchTest::backgroundRefilterUsesOwnState()
     const qsizetype nameIndex = findFilterIndex<TextPayload>(catalog, "Name");
     QVERIFY(nameIndex >= 0);
     Search background(*buyoutFixture.manager, "Background", catalog);
-    std::get<TextState>(background.filterStateAt(nameIndex)).query = "alpha";
+    background.setFilterState(nameIndex, TextState{"alpha"});
     // The current search leaves its name empty: under the old shared-activity
     // design that made the name filter inactive for every search, so the
     // background search's own query was skipped and it kept both items.
@@ -167,9 +169,9 @@ void SearchTest::backgroundBooleanRefilterUsesOwnState()
     const qsizetype corruptedIndex = findFilterIndex<BoolPayload>(catalog, "Corrupted");
     QVERIFY(corruptedIndex >= 0);
     Search background(*buyoutFixture.manager, "Background", catalog);
-    std::get<BoolState>(background.filterStateAt(corruptedIndex)).checked = true;
+    background.setFilterState(corruptedIndex, BoolState{true});
     Search current(*buyoutFixture.manager, "Current", catalog);
-    std::get<BoolState>(current.filterStateAt(corruptedIndex)).checked = false;
+    current.setFilterState(corruptedIndex, BoolState{false});
     background.FilterItems(items);
 
     QCOMPARE(background.GetCaption(), "Background [1]");
@@ -204,7 +206,7 @@ void SearchTest::backgroundMinMaxRefilterUsesOwnState()
     const qsizetype critIndex = findFilterIndex<MinMaxPayload>(catalog, "Crit.");
     QVERIFY(critIndex >= 0);
     Search background(*buyoutFixture.manager, "Background", catalog);
-    std::get<MinMaxState>(background.filterStateAt(critIndex)).min = 5.0;
+    background.setFilterState(critIndex, MinMaxState{5.0, std::nullopt});
     // As above: the current search leaves both bounds empty, which is what made
     // the old shared activity flag drop the background search's own bounds.
     Search current(*buyoutFixture.manager, "Current", catalog);
@@ -213,6 +215,70 @@ void SearchTest::backgroundMinMaxRefilterUsesOwnState()
     QCOMPARE(background.GetCaption(), "Background [1]");
     QCOMPARE(background.items().size(), 1);
     QCOMPARE(background.items().front()->id(), "critical-item");
+}
+
+// The TabChanged short-circuit is an optimization: switching tabs alone cannot
+// change what a search matches, so it keeps its buckets.
+void SearchTest::tabChangeSkipsRefilterWhenStateIsUnchanged()
+{
+    BuyoutManagerFixture buyoutFixture;
+    const ItemLocation firstTab = makeTestStashLocation("stash-a", "Alpha Tab", 0);
+    const ItemLocation secondTab = makeTestStashLocation("stash-b", "Beta Tab", 1);
+    buyoutFixture.manager->SetStashTabLocations({firstTab, secondTab});
+
+    Items items;
+    items.push_back(makeSearchItem("alpha-item", "Alpha Bite", "Vaal Axe", firstTab));
+    items.push_back(makeSearchItem("beta-item", "Beta Guard", "Copper Shield", secondTab));
+
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    Search search(*buyoutFixture.manager, "Search", catalog);
+    search.FilterItems(items);
+    QCOMPARE(search.items().size(), 2);
+
+    // Nothing changed, so a tab change must not re-run the filters: the new
+    // item list is ignored entirely.
+    Items moreItems = items;
+    moreItems.push_back(makeSearchItem("gamma-item", "Gamma Blade", "Vaal Axe", firstTab));
+    search.SetRefreshReason(RefreshReason::TabChanged);
+    search.FilterItems(moreItems);
+    QCOMPARE(search.items().size(), 2);
+}
+
+// ...but a filter state edited while this search was in the background (the
+// mods form writes through to the bound search) must force the refilter that
+// the debounced refresh gave to whichever search was current when it fired.
+void SearchTest::tabChangeRefiltersAfterStateChange()
+{
+    BuyoutManagerFixture buyoutFixture;
+    const ItemLocation firstTab = makeTestStashLocation("stash-a", "Alpha Tab", 0);
+    const ItemLocation secondTab = makeTestStashLocation("stash-b", "Beta Tab", 1);
+    buyoutFixture.manager->SetStashTabLocations({firstTab, secondTab});
+
+    Items items;
+    items.push_back(makeSearchItem("alpha-item", "Alpha Bite", "Vaal Axe", firstTab));
+    items.push_back(makeSearchItem("beta-item", "Beta Guard", "Copper Shield", secondTab));
+
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    const qsizetype nameIndex = findFilterIndex<TextPayload>(catalog, "Name");
+    QVERIFY(nameIndex >= 0);
+    Search search(*buyoutFixture.manager, "Search", catalog);
+    search.FilterItems(items);
+    QCOMPARE(search.items().size(), 2);
+
+    search.setFilterState(nameIndex, TextState{"alpha"});
+    search.SetRefreshReason(RefreshReason::TabChanged);
+    search.FilterItems(items);
+
+    QCOMPARE(search.GetCaption(), "Search [1]");
+    QCOMPARE(search.items().size(), 1);
+    QCOMPARE(search.items().front()->id(), "alpha-item");
+
+    // The refilter clears the dirty flag: the short-circuit is back in force.
+    Items moreItems = items;
+    moreItems.push_back(makeSearchItem("gamma-item", "Alpha Blade", "Vaal Axe", firstTab));
+    search.SetRefreshReason(RefreshReason::TabChanged);
+    search.FilterItems(moreItems);
+    QCOMPARE(search.items().size(), 1);
 }
 
 QTEST_MAIN(SearchTest)

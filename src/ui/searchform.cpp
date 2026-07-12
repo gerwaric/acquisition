@@ -518,7 +518,9 @@ void SearchForm::saveTo(Search &search)
     for (qsizetype index = 0; index < m_catalog.size(); ++index) {
         const auto &adapter = m_adapters.at(static_cast<size_t>(index));
         Q_ASSERT(adapter);
-        adapter->saveTo(search.filterStateAt(index));
+        FilterState state = search.filterStateAt(index);
+        adapter->saveTo(state);
+        search.setFilterState(index, std::move(state));
     }
 }
 
@@ -561,6 +563,8 @@ void SearchForm::saveBoundState(qsizetype index)
     const auto &adapter = m_adapters.at(static_cast<size_t>(index));
     Q_ASSERT(adapter);
     if (adapter) {
-        adapter->saveTo(m_boundSearch->filterStateAt(index));
+        FilterState state = m_boundSearch->filterStateAt(index);
+        adapter->saveTo(state);
+        m_boundSearch->setFilterState(index, std::move(state));
     }
 }

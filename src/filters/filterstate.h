@@ -11,16 +11,22 @@
 
 struct FilterSpec;
 
+// Every state is comparable: Search uses equality to tell whether a save
+// actually changed anything, which is what keeps the tab-change refilter
+// short-circuit honest (see Search::FilterItems).
+
 struct TextState
 {
     QString query;
     bool isActive() const { return !query.isEmpty(); }
+    bool operator==(const TextState &) const = default;
 };
 
 struct ComboState
 {
     QString value;
     bool isActive() const { return !value.isEmpty(); }
+    bool operator==(const ComboState &) const = default;
 };
 
 struct MinMaxState
@@ -28,6 +34,7 @@ struct MinMaxState
     std::optional<double> min;
     std::optional<double> max;
     bool isActive() const { return min.has_value() || max.has_value(); }
+    bool operator==(const MinMaxState &) const = default;
 };
 
 struct ColorsState
@@ -36,12 +43,14 @@ struct ColorsState
     std::optional<int> g;
     std::optional<int> b;
     bool isActive() const { return r.has_value() || g.has_value() || b.has_value(); }
+    bool operator==(const ColorsState &) const = default;
 };
 
 struct BoolState
 {
     bool checked = false;
     bool isActive() const { return checked; }
+    bool operator==(const BoolState &) const = default;
 };
 
 struct ModRow
@@ -49,12 +58,14 @@ struct ModRow
     QString mod;
     std::optional<double> min;
     std::optional<double> max;
+    bool operator==(const ModRow &) const = default;
 };
 
 struct ModsState
 {
     std::vector<ModRow> rows;
     bool isActive() const { return !rows.empty(); }
+    bool operator==(const ModsState &) const = default;
 };
 
 using FilterState

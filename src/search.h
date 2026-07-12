@@ -53,8 +53,12 @@ public:
 
     const FilterCatalog &catalog() const { return m_filter_catalog; }
     qsizetype filterStateCount() const { return static_cast<qsizetype>(m_filter_states.size()); }
-    FilterState &filterStateAt(qsizetype index);
     const FilterState &filterStateAt(qsizetype index) const;
+
+    // The only way to change a filter state. Marks the search dirty when the
+    // new state differs, so a state changed while this search is in the
+    // background still forces a refilter when it is next shown.
+    void setFilterState(qsizetype index, FilterState state);
 
 private:
     std::vector<Bucket> &active_buckets();
@@ -65,6 +69,11 @@ private:
     // and outlives every Search.
     const FilterCatalog &m_filter_catalog;
     std::vector<FilterState> m_filter_states;
+
+    // True when a filter state changed since the last time this search
+    // actually filtered. A tab change alone does not need a refilter; a tab
+    // change after a state change does.
+    bool m_states_dirty{false};
     std::vector<std::unique_ptr<Column>> m_columns;
 
     ItemsModel m_model;

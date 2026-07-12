@@ -34,6 +34,7 @@ private slots:
     void booleanFormAdapterRoundTrip();
     void minMaxFormAdapterRoundTrip();
     void colorsFormAdapterRoundTrip();
+    void modsEditSurvivesTabSwitchBeforeDebouncedRefresh();
     void modsFormAdapterRoundTrip();
     void modsFormAdapterFreeTextPersistsAndRestoresIndex();
     void modsFormAdapterDoesNotArmCompleterOnProgrammaticRows();
@@ -504,6 +505,53 @@ void SearchTest::colorsFormAdapterRoundTrip()
     QCOMPARE(linkB->text(), "3");
 }
 
+// A mods edit writes through to the bound search immediately but only arms the
+// one global debounced refresh. Switching tabs before it fires gives that
+// refresh to the other search, so the edited one must refilter when it is shown
+// again — otherwise it displays a mod criterion its buckets do not reflect.
+void SearchTest::modsEditSurvivesTabSwitchBeforeDebouncedRefresh()
+{
+    mod_list_model().setStringList({"Saved mod"});
+    SearchHarness harness;
+    const ItemLocation tab = makeTestStashLocation("stash-a", "Alpha Tab", 0);
+    harness.buyoutFixture.manager->SetStashTabLocations({tab});
+
+    Items items;
+    items.push_back(makeFormItem("alpha-item", "Alpha Bite", tab));
+    items.push_back(makeFormItem("beta-item", "Beta Guard", tab));
+
+    const qsizetype modsIndex = findModsFilterIndex(harness.catalog);
+    QVERIFY(modsIndex >= 0);
+
+    Search searchA(*harness.buyoutFixture.manager, "A", harness.catalog);
+    Search searchB(*harness.buyoutFixture.manager, "B", harness.catalog);
+    harness.form.saveTo(searchA);
+    searchA.FilterItems(items);
+    QCOMPARE(searchA.items().size(), 2);
+
+    // Edit a mod row on A. Neither test item carries the mod, so A should end
+    // up matching nothing.
+    auto *addButton = harness.host.findChild<QPushButton *>("modsAddButton");
+    QVERIFY(addButton);
+    addButton->click();
+    auto *modCombo = harness.host.findChild<QComboBox *>("modsRowCombo");
+    QVERIFY(modCombo);
+    const int savedModIndex = modCombo->findText("Saved mod", Qt::MatchFixedString);
+    QVERIFY(savedModIndex >= 0);
+    modCombo->setCurrentIndex(savedModIndex);
+    QCOMPARE(std::get<ModsState>(searchA.filterStateAt(modsIndex)).rows.front().mod, "Saved mod");
+
+    // Switch to B before the debounced refresh fires, then come back to A. The
+    // tab-change path never re-runs the filters on its own.
+    harness.form.loadFrom(searchB);
+    harness.form.loadFrom(searchA);
+    searchA.SetRefreshReason(RefreshReason::TabChanged);
+    searchA.FilterItems(items);
+
+    QCOMPARE(searchA.items().size(), 0);
+    QCOMPARE(searchA.GetCaption(), "A [0]");
+}
+
 void SearchTest::modsFormAdapterRoundTrip()
 {
     mod_list_model().setStringList({"Default mod", "Saved mod"});
@@ -544,8 +592,7 @@ void SearchTest::modsFormAdapterRoundTrip()
     QVERIFY(!rowsContainer->isHidden());
 
     // F36(b): rebuilt rows show their state value rather than the model's first entry.
-    auto &savedState = std::get<ModsState>(searchA.filterStateAt(modsIndex));
-    savedState.rows = {ModRow{"Saved mod", 1.0, 2.0}};
+    searchA.setFilterState(modsIndex, ModsState{{ModRow{"Saved mod", 1.0, 2.0}}});
     harness.form.loadFrom(searchB);
     QVERIFY(rowsContainer->isHidden());
     harness.form.loadFrom(searchA);
@@ -619,8 +666,8 @@ void SearchTest::modsFormAdapterFreeTextPersistsAndRestoresIndex()
     QCOMPARE(modCombo->currentText(), "Free typed mod");
     QCOMPARE(modCombo->currentIndex(), -1);
 
-    auto &savedState = std::get<ModsState>(searchA.filterStateAt(modsIndex));
-    savedState.rows = {ModRow{"Saved mod", std::nullopt, std::nullopt}};
+    searchA.setFilterState(modsIndex,
+                           ModsState{{ModRow{"Saved mod", std::nullopt, std::nullopt}}});
     harness.form.loadFrom(searchA);
     modCombo = harness.host.findChild<QComboBox *>("modsRowCombo");
     QVERIFY(modCombo);
@@ -656,8 +703,8 @@ void SearchTest::modsFormAdapterDoesNotArmCompleterOnProgrammaticRows()
     QTest::qWait(timer->interval() + 75);
     QCOMPARE(blankRowTimeouts.count(), 0);
 
-    auto &savedState = std::get<ModsState>(searchA.filterStateAt(modsIndex));
-    savedState.rows = {ModRow{"Saved mod", std::nullopt, std::nullopt}};
+    searchA.setFilterState(modsIndex,
+                           ModsState{{ModRow{"Saved mod", std::nullopt, std::nullopt}}});
     harness.form.loadFrom(searchA);
     modCombo = harness.host.findChild<QComboBox *>("modsRowCombo");
     QVERIFY(modCombo);
@@ -678,8 +725,8 @@ void SearchTest::modsFormAdapterRepacksRows()
 
     Search searchA(*harness.buyoutFixture.manager, "A", harness.catalog);
     Search searchB(*harness.buyoutFixture.manager, "B", harness.catalog);
-    std::get<ModsState>(searchA.filterStateAt(modsIndex)).rows = {
-        ModRow{"Saved mod", std::nullopt, std::nullopt}};
+    searchA.setFilterState(modsIndex,
+                           ModsState{{ModRow{"Saved mod", std::nullopt, std::nullopt}}});
 
     auto *rowsContainer = harness.host.findChild<QWidget *>("modsRowsContainer");
     QVERIFY(rowsContainer);
@@ -828,8 +875,7 @@ void SearchTest::textAndComboFormAdapterRoundTrip()
     harness.form.saveTo(searchB);
     QCOMPARE(std::get<ComboState>(searchB.filterStateAt(categoryIndex)).value, "");
 
-    auto &rarityState = std::get<ComboState>(searchB.filterStateAt(rarityIndex));
-    rarityState.value = "Rare";
+    searchB.setFilterState(rarityIndex, ComboState{"Rare"});
     harness.immediateChanges = 0;
     harness.delayedChanges = 0;
     harness.form.loadFrom(searchB);
@@ -837,7 +883,7 @@ void SearchTest::textAndComboFormAdapterRoundTrip()
     QCOMPARE(harness.immediateChanges, 0);
     QCOMPARE(harness.delayedChanges, 2);
 
-    rarityState.value = "Missing rarity";
+    searchB.setFilterState(rarityIndex, ComboState{"Missing rarity"});
     harness.immediateChanges = 0;
     harness.delayedChanges = 0;
     harness.form.loadFrom(searchB);
@@ -847,8 +893,7 @@ void SearchTest::textAndComboFormAdapterRoundTrip()
     QCOMPARE(harness.delayedChanges, 1);
 
     category->setCurrentIndex(weaponsIndex);
-    auto &categoryState = std::get<ComboState>(searchB.filterStateAt(categoryIndex));
-    categoryState.value = "Missing category";
+    searchB.setFilterState(categoryIndex, ComboState{"Missing category"});
     harness.form.loadFrom(searchB);
     QCOMPARE(category->currentIndex(), 0);
     QCOMPARE(category->currentText(), categoryPayload->anySentinel);

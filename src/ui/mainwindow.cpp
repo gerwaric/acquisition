@@ -834,8 +834,21 @@ void MainWindow::OnDelayedSearchFormChange()
     m_delayed_search_form_change.start();
 }
 
+void MainWindow::FlushPendingSearchFormChange()
+{
+    // A debounced form change belongs to the search that was current when the
+    // edit was made. Apply it before the form is rebound, or the timer fires
+    // against the wrong search and the edited one is left with stale buckets
+    // and caption.
+    if (m_current_search && m_delayed_search_form_change.isActive()) {
+        m_delayed_search_form_change.stop();
+        OnSearchFormChange();
+    }
+}
+
 void MainWindow::OnTabChange(int index)
 {
+    FlushPendingSearchFormChange();
     if (static_cast<size_t>(index) == m_searches.size()) {
         // "+" clicked
         NewSearch();

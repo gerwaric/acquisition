@@ -85,14 +85,20 @@ Search::Search(BuyoutManager &bo_manager, const QString &caption, const FilterCa
 
 Search::~Search() = default;
 
-FilterState &Search::filterStateAt(qsizetype index)
+const FilterState &Search::filterStateAt(qsizetype index) const
 {
     return m_filter_states.at(static_cast<size_t>(index));
 }
 
-const FilterState &Search::filterStateAt(qsizetype index) const
+void Search::setFilterState(qsizetype index, FilterState state)
 {
-    return m_filter_states.at(static_cast<size_t>(index));
+    auto &current = m_filter_states.at(static_cast<size_t>(index));
+    Q_ASSERT(current.index() == state.index());
+    if (current == state) {
+        return;
+    }
+    current = std::move(state);
+    m_states_dirty = true;
 }
 
 void Search::setExpandedHeaders(std::set<QString> headers)
@@ -199,8 +205,11 @@ void Search::FilterItems(const Items &items)
 {
     spdlog::debug("FilterItems: reason({})", m_refresh_reason);
 
-    // If we're just changing tabs we don't need to update anything
-    if (m_refresh_reason == RefreshReason::TabChanged) {
+    // If we're just changing tabs we don't need to update anything, unless a
+    // filter state changed since we last filtered. That happens when a form
+    // edit writes through to this search and the debounced refresh lands on a
+    // different one: the buckets and caption would otherwise stay stale.
+    if ((m_refresh_reason == RefreshReason::TabChanged) && !m_states_dirty) {
         return;
     }
 
@@ -286,6 +295,8 @@ void Search::FilterItems(const Items &items)
     // Let the model know that current sort order has been invalidated
     m_model.SetSorted(false);
     m_model.endUpdate();
+
+    m_states_dirty = false;
 }
 
 void Search::RenameCaption(const QString &newName)
