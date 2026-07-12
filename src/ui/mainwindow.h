@@ -77,6 +77,7 @@ public slots:
     void OnItemsRefreshed();
     void OnStatusUpdate(ProgramState state, const QString &status);
     void OnNotifyUser(const QString &message);
+    void OnShopWarning(const QString &message);
     void OnBuyoutChange();
     void ResizeTreeColumns();
     void ScheduleResizeTreeColumns();

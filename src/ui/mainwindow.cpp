@@ -595,6 +595,11 @@ void MainWindow::OnNotifyUser(const QString &message)
     QMessageBox::information(this, "Acquisition", message);
 }
 
+void MainWindow::OnShopWarning(const QString &message)
+{
+    QMessageBox::warning(this, "Acquisition Shop Manager", message);
+}
+
 void MainWindow::OnListCurrency()
 {
     if (m_currency_dialog == nullptr) {

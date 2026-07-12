@@ -51,6 +51,7 @@ public slots:
 signals:
     void StashesIndexed();
     void StatusUpdate(ProgramState state, const QString &status);
+    void UserWarning(const QString &message);
 
 private:
     void UpdateStashIndex(bool force);
