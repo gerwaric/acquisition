@@ -501,6 +501,36 @@ without synchronization against worker-thread logging. This is a narrow,
 teardown-only residue of F40 and the same lifetime-ordering family as F29.
 Record it for a follow-up; do not extend the 6.7/F40 fix inline.
 
+### F43. Restored bucket selection shows in the panel but not in the tree — Confirmed
+
+Found in the Phase 6 item 6.5/6.6 review (July 2026). When a *bucket* (stash
+tab header row) is the current selection and the user switches tabs and back,
+`OnTabChange` restores the detail panel and buyout widgets from the search's
+stored `currentBucket`, but `ReselectCurrentItem` handles only items and
+early-returns when `m_current_item` is null — so no row is highlighted in the
+tree while the panel names the bucket. Not a regression (the highlight was
+never restored before 6.6 either) and conformant with the 6.6 spec, whose
+step 4 requires only panel/buyout sync; but the per-search restore now makes
+the mismatch visible: the panel claims a selection the view does not show. A
+fix means teaching `ReselectCurrentItem` (or `OnTabChange`) to reselect the
+bucket row via `Search`'s bucket lookup and updating the
+`tst_mainwindow::currentViewStatePins` assertions to pin the highlight.
+Follow-up; do not extend the 6.5/6.6 work inline.
+
+### F44. `OnCurrentItemChanged`'s item-path warning branches keep stale state — Confirmed
+
+Found in the Phase 6 item 6.5/6.6 review (July 2026). F39's fix covered the
+bucket-click path (`!has_bucket` now clears the stored location) and removed
+the dangling-pointer risk everywhere by storing the location by value. But
+the two warning branches in the *item*-click path — parent bucket row missing,
+or item row missing within an existing bucket — still leave the previous
+`m_current_item`/`m_current_bucket_location` in place and fall through to the
+panel/buyout sync, which then renders the stale pair. Same shape as F39 minus
+the crash; only reachable through a model/search inconsistency that should
+not occur. The fix is to reset both members in those branches (matching the
+bucket path), accepting that the panel clears instead of showing leftover
+content. Untested path, so pin it when fixed; follow-up, not urgent.
+
 ---
 
 ## Recorded but out of scope
