@@ -93,7 +93,10 @@ Shop::Shop(QSettings &settings,
     , m_requests_completed(0)
 {
     spdlog::debug("Shop: initializing");
-    m_threads = m_datastore.Get("shop").split(";");
+    // SkipEmptyParts: an empty or missing "shop" key must load as no
+    // threads, or the no-threads warning in SubmitShopToForum is
+    // unreachable (F45).
+    m_threads = m_datastore.Get("shop").split(";", Qt::SkipEmptyParts);
     m_auto_update = m_settings.value("shop_autoupdate").toBool();
     m_shop_template = m_datastore.Get("shop_template");
     if (m_shop_template.isEmpty()) {

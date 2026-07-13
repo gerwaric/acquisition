@@ -558,6 +558,11 @@ makes the no-threads warning reachable for the first time. User-visible
 behavior change; ship it as its own small PR with a release note, not inside
 Phase 6's refactor PRs.
 
+Fixed (July 2026): both sites split with `Qt::SkipEmptyParts` and
+`OnSetShopThreads` treats a confirmed empty input as a clear. Pinned by
+`tst_shop`: a fresh datastore loads no threads, and clearing round-trips
+through the datastore.
+
 ---
 
 ## Recorded but out of scope
