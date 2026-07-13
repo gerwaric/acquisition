@@ -9,11 +9,13 @@ cmake_minimum_required(VERSION 3.24)
 # tags on github are prefixed with a 'v'.
 
 project(acquisition
-    VERSION 0.16.2
+    VERSION 0.17.0
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
 )
+
+include(CTest)
 
 # Use this to define pre-releases
 set(app_version_suffix "")
@@ -111,7 +113,7 @@ if(NOT TARGET glaze)
     FetchContent_Declare(
         glaze
         GIT_REPOSITORY https://github.com/stephenberry/glaze.git
-        GIT_TAG        v7.8.1
+        GIT_TAG        v7.9.0
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(glaze)
@@ -156,8 +158,6 @@ set(ACQ_CORE
     src/currency.h
     src/currencymanager.cpp
     src/currencymanager.h
-    src/filters.cpp
-    src/filters.h
     src/imagecache.cpp
     src/imagecache.h
     src/influence.cpp
@@ -176,11 +176,8 @@ set(ACQ_CORE
     src/itemsmanager.h
     src/itemsmanagerworker.cpp
     src/itemsmanagerworker.h
-    src/main.cpp
     src/modlist.cpp
     src/modlist.h
-    src/modsfilter.cpp
-    src/modsfilter.h
     src/pseudomods.cpp
     src/pseudomods.h
     src/replytimeout.h
@@ -188,6 +185,15 @@ set(ACQ_CORE
     src/search.h
     src/shop.cpp
     src/shop.h
+)
+
+set(ACQ_FILTERS
+    src/filters/filtermatchers.cpp
+    src/filters/filtermatchers.h
+    src/filters/filterstate.cpp
+    src/filters/filterstate.h
+    src/filters/filterspec.cpp
+    src/filters/filterspec.h
 )
 
 set(ACQ_DATASTORE
@@ -199,8 +205,6 @@ set(ACQ_DATASTORE
     src/datastore/datastore.h
     src/datastore/datastore_utils.cpp
     src/datastore/datastore_utils.h
-    src/datastore/memorydatastore.cpp
-    src/datastore/memorydatastore.h
     src/datastore/sqlitedatastore.cpp
     src/datastore/sqlitedatastore.h
     src/datastore/stashrepo.cpp
@@ -288,18 +292,28 @@ set(ACQ_POE
 )
 
 set(ACQ_UI
+    src/ui/currencydialog.cpp
+    src/ui/currencydialog.h
     src/ui/flowlayout.cpp
     src/ui/flowlayout.h
     src/ui/itemtooltip.cpp
     src/ui/itemtooltip.h
+    src/ui/itemtooltiptext.cpp
+    src/ui/itemtooltiptext.h
     src/ui/logindialog.cpp
     src/ui/logindialog.h
     src/ui/logpanel.cpp
     src/ui/logpanel.h
+    src/ui/mainwindow_bridge.cpp
+    src/ui/mainwindow_bridge.h
     src/ui/mainwindow.cpp
     src/ui/mainwindow.h
+    src/ui/modsfilterform.cpp
+    src/ui/modsfilterform.h
     src/ui/searchcombobox.cpp
     src/ui/searchcombobox.h
+    src/ui/searchform.cpp
+    src/ui/searchform.h
     src/ui/verticalscrollarea.cpp
     src/ui/verticalscrollarea.h
     # Forms
@@ -431,11 +445,31 @@ add_custom_target(project_files SOURCES
 # Qt Project Setup
 #------------------------------------------------------
 
-find_package(Qt6 6.11 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Widgets)
+find_package(Qt6 6.11 REQUIRED COMPONENTS Core Gui Network NetworkAuth Sql Test Widgets)
 
 qt_standard_project_setup()
 
-qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
+# This target is the build gate for the filter core: its include and link
+# closure deliberately contains no Qt Widgets module.
+qt_add_library(acquisition_filters STATIC ${ACQ_FILTERS})
+set_target_properties(acquisition_filters PROPERTIES
+    CXX_STANDARD 23
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+)
+target_include_directories(acquisition_filters PUBLIC "${acquisition_SOURCE_DIR}/src")
+target_link_libraries(acquisition_filters
+    PUBLIC
+        Qt6::Core
+        Qt6::Gui
+    # Item's include closure reaches ItemLocation's Qt Network/spdlog formatter.
+    # These remain deliberately non-widget so the filter-core boundary stays intact.
+    PRIVATE
+        Qt6::Network
+        spdlog::spdlog_header_only
+)
+
+qt_add_library(acquisition_core STATIC
     ${ACQ_CORE}
     ${ACQ_DATASTORE}
     ${ACQ_LEGACY}
@@ -448,21 +482,13 @@ qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
     "${CMAKE_BINARY_DIR}/version_defines.h"
 )
 
-qt_add_resources(acquisition
+qt_add_resources(acquisition_core
     PREFIX "/"
     BASE "assets"
     FILES ${ACQ_RESOURCES}
 )
 
-# Add configure_file() inputs so they show up in Qt Creator.
-target_sources(acquisition PRIVATE
-    FILE_SET project_files TYPE HEADERS
-    FILES
-        version_info.rc.in
-        src/version_defines.h.in
-)
-
-set_target_properties(acquisition PROPERTIES
+set_target_properties(acquisition_core PROPERTIES
     AUTORCC ON
     CXX_STANDARD 23
     CXX_STANDARD_REQUIRED YES
@@ -470,7 +496,7 @@ set_target_properties(acquisition PROPERTIES
 )
 
 # Setup include directories.
-target_include_directories(acquisition PRIVATE
+target_include_directories(acquisition_core PUBLIC
     "${acquisition_SOURCE_DIR}/src"
     "${acquisition_BINARY_DIR}"
 )
@@ -478,7 +504,8 @@ target_include_directories(acquisition PRIVATE
 add_subdirectory(deps/qdarkstyle)
 
 # Link required libraries.
-target_link_libraries(acquisition PRIVATE
+target_link_libraries(acquisition_core PUBLIC
+    acquisition_filters
     # Qt libraries
     Qt6::Core
     Qt6::Gui
@@ -494,6 +521,26 @@ target_link_libraries(acquisition PRIVATE
     spdlog::spdlog_header_only
 )
 
+qt_add_executable(acquisition WIN32 MACOSX_BUNDLE
+    src/main.cpp
+)
+
+# Add configure_file() inputs so they show up in Qt Creator.
+target_sources(acquisition PRIVATE
+    FILE_SET project_files TYPE HEADERS
+    FILES
+        version_info.rc.in
+        src/version_defines.h.in
+)
+
+set_target_properties(acquisition PROPERTIES
+    CXX_STANDARD 23
+    CXX_STANDARD_REQUIRED YES
+    CXX_EXTENSIONS NO
+)
+
+target_link_libraries(acquisition PRIVATE acquisition_core)
+
 #----------------------------------
 # Platform-specific section
 #----------------------------------
@@ -501,7 +548,7 @@ target_link_libraries(acquisition PRIVATE
 if(WIN32)
 
     # Enable more warnings by default (MSVC only).
-    target_compile_options(acquisition PRIVATE
+    target_compile_options(acquisition_core PRIVATE
         $<$<CXX_COMPILER_ID:MSVC>:/W4>
         $<$<CXX_COMPILER_ID:MSVC>:/EHsc>
         $<$<CXX_COMPILER_ID:MSVC>:/D_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR>
@@ -573,9 +620,10 @@ elseif(UNIX)
 
     # Link OpenSSL on Linux.
     find_package(OpenSSL REQUIRED)
-    target_link_libraries(acquisition PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+    target_link_libraries(acquisition_core PUBLIC OpenSSL::SSL OpenSSL::Crypto)
 
     # Generate debug symbols.
+    target_compile_options(acquisition_core PRIVATE $<$<NOT:$<CONFIG:Debug>>:-g>)
     target_compile_options(acquisition PRIVATE $<$<NOT:$<CONFIG:Debug>>:-g>)
     if(CMAKE_OBJCOPY AND CMAKE_STRIP)
         add_custom_command(TARGET acquisition
@@ -605,3 +653,7 @@ add_custom_command(TARGET acquisition POST_BUILD
     COMMAND_EXPAND_LISTS
     VERBATIM
 )
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

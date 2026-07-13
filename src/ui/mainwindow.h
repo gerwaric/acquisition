@@ -11,30 +11,33 @@
 #include <QTimer>
 
 #include <memory>
+#include <optional>
+#include <vector>
 
 #include <spdlog/spdlog.h>
 
+#include "filters/filterspec.h"
+#include "itemlocation.h"
+#include "util/programstate.h"
+
 class QNetworkReply;
 class QSettings;
-class QStringListModel;
 class QVBoxLayout;
 
 class BuyoutManager;
-class Column;
+class CurrencyDialog;
 class CurrencyManager;
 class DataStore;
-class Filter;
-class FlowLayout;
 class ImageCache;
 class Item;
 class ItemLocation;
 class ItemsManager;
 class LogPanel;
 class NetworkManager;
-class OAuthManager;
 class RateLimiter;
 class RateLimitDialog;
 class Search;
+class SearchForm;
 class Shop;
 class UpdateChecker;
 
@@ -43,8 +46,6 @@ struct Buyout;
 namespace Ui {
     class MainWindow;
 }
-
-enum class ProgramState { Unknown, Initializing, Waiting, Ready, Busy };
 
 class MainWindow : public QMainWindow
 {
@@ -60,7 +61,6 @@ public:
                         Shop &shop,
                         ImageCache &image_cache);
     ~MainWindow();
-    std::vector<Column *> columns;
     void LoadSettings();
 
 signals:
@@ -70,15 +70,17 @@ signals:
     void GetImage(const QString &url);
 public slots:
     void OnCurrentItemChanged(const QModelIndex &current, const QModelIndex &previous);
-    void OnLayoutChanged();
     void OnSearchFormChange();
     void OnDelayedSearchFormChange();
     void OnTabChange(int index);
     void OnImageFetched(const QString &url);
     void OnItemsRefreshed();
     void OnStatusUpdate(ProgramState state, const QString &status);
+    void OnNotifyUser(const QString &message);
+    void OnShopWarning(const QString &message);
     void OnBuyoutChange();
     void ResizeTreeColumns();
+    void ScheduleResizeTreeColumns();
     void OnExpandAll();
     void OnCollapseAll();
     void OnCheckAll();
@@ -107,6 +109,10 @@ private slots:
     void OnSetAutomaticShopUpdate();
     void OnShowPOESESSID();
 
+    // Currency menu actions
+    void OnListCurrency();
+    void OnExportCurrency();
+
     // Theme submenu actions
     void OnSetDarkTheme(bool toggle);
     void OnSetLightTheme(bool toggle);
@@ -115,25 +121,26 @@ private slots:
     // Logging submenu actions
     void OnSetLogging(spdlog::level::level_enum level);
 
-    // Buyouts menu
-    void OnImportBuyouts();
-
     // Tooltip buttons
     void OnCopyForPOB();
     void OnUploadToImgur();
 
 private:
     void ModelViewRefresh();
+    void ReselectCurrentItem();
+    void FlushPendingSearchFormChange();
+    void SaveViewExpansion(Search &search);
+    void RestoreViewExpansion(Search &search);
     void ClearCurrentItem();
     void UpdateCurrentBucket();
     void UpdateCurrentItem();
     void UpdateCurrentBuyout();
+    void ResetBuyoutWidgets();
     void NewSearch();
     void InitializeRateLimitDialog();
     void InitializeLogging();
     void InitializeSearchForm();
     void InitializeUi();
-    void AddSearchGroup(QLayout *layout, const QString &name);
     bool eventFilter(QObject *o, QEvent *e);
     void UpdateShopMenu();
     void UpdateBuyoutWidgets(const Buyout &bo);
@@ -150,15 +157,21 @@ private:
     Shop &m_shop;
     ImageCache &m_image_cache;
 
+    // Application owns BuyoutManager and outlives MainWindow. Keep m_searches
+    // declared after m_filter_catalog so reverse destruction destroys searches
+    // before the catalog they reference.
+    FilterCatalog m_filter_catalog;
+
     Ui::MainWindow *ui;
+    CurrencyDialog *m_currency_dialog;
 
     std::shared_ptr<Item> m_current_item;
-    const ItemLocation *m_current_bucket_location;
-    std::vector<Search *> m_searches;
+    std::optional<ItemLocation> m_current_bucket_location;
+    std::vector<std::unique_ptr<Search>> m_searches;
     Search *m_current_search;
     QTabBar *m_tab_bar;
     LogPanel *m_log_panel;
-    std::vector<std::unique_ptr<Filter>> m_filters;
+    std::unique_ptr<SearchForm> m_search_form;
     int m_search_count;
 
     QLabel *m_status_bar_label;
@@ -168,6 +181,8 @@ private:
     QPushButton m_refresh_button;
     QTimer m_delayed_update_current_item;
     QTimer m_delayed_search_form_change;
+    QTimer m_delayed_resize_columns;
+    QMetaObject::Connection m_current_item_conn;
     RateLimitDialog *m_rate_limit_dialog;
     bool m_quitting;
 };

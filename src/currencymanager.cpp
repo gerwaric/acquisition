@@ -4,13 +4,13 @@
 #include "currencymanager.h"
 
 #include <QDateTime>
-#include <QDoubleSpinBox>
+#include <QDir>
 #include <QFile>
-#include <QFileDialog>
 #include <QSettings>
-#include <QVBoxLayout>
+#include <QTextStream>
 
-#include "buyoutmanager.h"
+#include <cmath>
+
 #include "datastore/datastore.h"
 #include "item.h"
 #include "itemsmanager.h"
@@ -42,9 +42,6 @@ CurrencyManager::CurrencyManager(QSettings &settings,
     } else {
         InitCurrency();
     }
-    const bool show_chaos = m_settings.value("show_chaos", false).toBool();
-    const bool show_exalt = m_settings.value("show_exalt", false).toBool();
-    m_dialog = std::make_shared<CurrencyDialog>(*this, show_chaos, show_exalt);
 }
 
 CurrencyManager::~CurrencyManager()
@@ -56,8 +53,6 @@ void CurrencyManager::Save()
 {
     SaveCurrencyItems();
     SaveCurrencyValue();
-    m_settings.setValue("show_chaos", m_dialog->ShowChaos());
-    m_settings.setValue("show_exalt", m_dialog->ShowExalt());
 }
 
 void CurrencyManager::Update()
@@ -67,7 +62,7 @@ void CurrencyManager::Update()
         ParseSingleItem(*item);
     }
     SaveCurrencyValue();
-    m_dialog->Update();
+    emit Updated();
 }
 
 const double EPS = 1e-6;
@@ -232,8 +227,11 @@ void CurrencyManager::SaveCurrencyValue()
     }
 }
 
-void CurrencyManager::ExportCurrency()
+void CurrencyManager::ExportCurrency(const QString &file_name)
 {
+    if (file_name.isEmpty()) {
+        return;
+    }
     QString header_csv = "Date,Total value";
     for (auto &item : m_currencies) {
         auto &label = item->currency.AsString();
@@ -242,16 +240,7 @@ void CurrencyManager::ExportCurrency()
         }
     }
     std::vector<CurrencyUpdate> result = m_data.GetAllCurrency();
-
-    QString fileName = QFileDialog::getSaveFileName(nullptr,
-                                                    tr("Save Export file"),
-                                                    QDir::toNativeSeparators(
-                                                        QDir::homePath() + "/"
-                                                        + "acquisition_export_currency.csv"));
-    if (fileName.isEmpty()) {
-        return;
-    }
-    QFile file(QDir::toNativeSeparators(fileName));
+    QFile file(QDir::toNativeSeparators(file_name));
     if (!file.open(QFile::WriteOnly | QFile::Text)) {
         spdlog::warn("CurrencyManager::ExportCurrency : couldn't open CSV export file ");
         return;
@@ -279,212 +268,4 @@ void CurrencyManager::ParseSingleItem(const Item &item)
             m_wisdoms[i] += item.count();
         }
     }
-}
-
-void CurrencyManager::DisplayCurrency()
-{
-    m_dialog->show();
-}
-
-CurrencyWidget::CurrencyWidget(std::shared_ptr<CurrencyItem> currency)
-    : QWidget()
-    , m_currency(currency)
-{
-    name = new QLabel("");
-    count = new QLabel("");
-    chaos_ratio = new QDoubleSpinBox;
-    chaos_ratio->setMaximum(100000);
-    chaos_ratio->setValue(currency->chaos.value1);
-    chaos_value = new QDoubleSpinBox;
-    chaos_value->setMaximum(100000);
-    chaos_value->setEnabled(false);
-    exalt_ratio = new QDoubleSpinBox;
-    exalt_ratio->setMaximum(100000);
-    exalt_ratio->setValue(currency->exalt.value1);
-    exalt_value = new QDoubleSpinBox;
-    exalt_value->setMaximum(100000);
-    exalt_value->setEnabled(false);
-    Update();
-    connect(chaos_ratio, &QDoubleSpinBox::valueChanged, this, &CurrencyWidget::Update);
-    connect(exalt_ratio, &QDoubleSpinBox::valueChanged, this, &CurrencyWidget::Update);
-}
-
-void CurrencyWidget::UpdateVisual(bool show_chaos, bool show_exalt)
-{
-    chaos_value->setVisible(show_chaos);
-    chaos_ratio->setVisible(show_chaos);
-    exalt_value->setVisible(show_exalt);
-    exalt_ratio->setVisible(show_exalt);
-}
-
-void CurrencyWidget::Update()
-{
-    auto &chaos = m_currency->chaos;
-    auto &exalt = m_currency->exalt;
-    chaos.value1 = chaos_ratio->value();
-    exalt.value1 = exalt_ratio->value();
-    name->setText(m_currency->name);
-    count->setText(QString::number(m_currency->count));
-    if (fabs(chaos.value1) > EPS) {
-        chaos_value->setValue(m_currency->count / chaos.value1);
-    }
-    if (fabs(exalt.value1) > EPS) {
-        exalt_value->setValue(m_currency->count / exalt.value1);
-    }
-}
-
-CurrencyDialog::CurrencyDialog(CurrencyManager &manager, bool show_chaos, bool show_exalt)
-    : m_currency_manager(manager)
-{
-    m_headers = new CurrencyLabels;
-    for (auto &curr : m_currency_manager.currencies()) {
-        CurrencyWidget *tmp = new CurrencyWidget(curr);
-        // To keep every vector the same size, we DO create spinboxes for the empty currency, just don't display them
-        if (curr->currency == Currency::CURRENCY_NONE) {
-            continue;
-        }
-        connect(tmp->exalt_ratio,
-                &QDoubleSpinBox::valueChanged,
-                this,
-                &CurrencyDialog::UpdateTotalValue);
-        connect(tmp->chaos_ratio,
-                &QDoubleSpinBox::valueChanged,
-                this,
-                &CurrencyDialog::UpdateTotalValue);
-        m_currencies_widgets.push_back(tmp);
-    }
-    m_separator = new QFrame;
-    m_separator->setFrameShape(QFrame::Shape::HLine);
-    m_total_exalt_value = new QLabel("");
-    m_show_exalt = new QCheckBox("show exalt ratio");
-    m_show_exalt->setChecked(show_exalt);
-    connect(m_show_exalt, &QCheckBox::checkStateChanged, this, &CurrencyDialog::UpdateVisual);
-
-    m_total_chaos_value = new QLabel("");
-    m_show_chaos = new QCheckBox("show chaos ratio");
-    m_show_chaos->setChecked(show_chaos);
-    connect(m_show_chaos, &QCheckBox::checkStateChanged, this, &CurrencyDialog::UpdateVisual);
-    m_total_wisdom_value = new QLabel("");
-    m_layout = new QVBoxLayout;
-    Update();
-    UpdateVisual();
-#if defined(Q_OS_LINUX)
-    setWindowFlags(Qt::WindowCloseButtonHint);
-#endif
-}
-
-void CurrencyDialog::Update()
-{
-    for (auto widget : m_currencies_widgets) {
-        widget->Update();
-    }
-    UpdateTotalValue();
-    UpdateTotalWisdomValue();
-}
-
-void CurrencyDialog::UpdateVisual()
-{
-    //Destroy old layout (because you can't replace a layout, that would be too fun :/)
-    delete m_layout;
-    m_layout = GenerateLayout(ShowChaos(), ShowExalt());
-    setLayout(m_layout);
-    UpdateVisibility(ShowChaos(), ShowExalt());
-    adjustSize();
-}
-
-void CurrencyDialog::UpdateVisibility(bool show_chaos, bool show_exalt)
-{
-    m_headers->chaos_value->setVisible(show_chaos);
-    m_headers->chaos_ratio->setVisible(show_chaos);
-    m_headers->exalt_value->setVisible(show_exalt);
-    m_headers->exalt_ratio->setVisible(show_exalt);
-
-    for (auto &item : m_currencies_widgets) {
-        item->UpdateVisual(show_chaos, show_exalt);
-    }
-
-    m_headers->chaos_total->setVisible(show_chaos);
-    m_total_chaos_value->setVisible(show_chaos);
-    m_headers->exalt_total->setVisible(show_exalt);
-    m_total_exalt_value->setVisible(show_exalt);
-}
-
-QVBoxLayout *CurrencyDialog::GenerateLayout(bool show_chaos, bool show_exalt)
-{
-    //Header
-    QGridLayout *grid = new QGridLayout;
-    grid->addWidget(m_headers->name, 0, 0);
-    grid->addWidget(m_headers->count, 0, 1);
-    int col = 2;
-
-    //Qt is shit, if we don't hide widget that aren't in the grid, it still display them like shit
-    //Also, if we don't show widget in the grid, if they weren't in it before, it doesn't display them
-    if (show_chaos) {
-        grid->addWidget(m_headers->chaos_value, 0, col);
-        grid->addWidget(m_headers->chaos_ratio, 0, col + 1);
-        col += 2;
-    }
-    if (show_exalt) {
-        grid->addWidget(m_headers->exalt_value, 0, col);
-        grid->addWidget(m_headers->exalt_ratio, 0, col + 1);
-    }
-
-    //Main part
-    for (auto &item : m_currencies_widgets) {
-        int curr_row = grid->rowCount() + 1;
-        // To keep every vector the same size, we DO create spinboxes for the empty currency, just don't display them
-        if (item->IsNone()) {
-            continue;
-        }
-        grid->addWidget(item->name, curr_row, 0);
-        grid->addWidget(item->count, curr_row, 1, 1, -1);
-        col = 2;
-
-        if (show_chaos) {
-            grid->addWidget(item->chaos_value, curr_row, col);
-            grid->addWidget(item->chaos_ratio, curr_row, col + 1);
-            col += 2;
-        }
-        if (show_exalt) {
-            grid->addWidget(item->exalt_value, curr_row, col);
-            grid->addWidget(item->exalt_ratio, curr_row, col + 1);
-        }
-    }
-
-    //Bottom header
-    QGridLayout *bottom = new QGridLayout;
-    //Used to display in the first column the checkbox if we don't display chaos/exalt
-    col = 0;
-
-    if (show_chaos) {
-        bottom->addWidget(m_headers->chaos_total, 0, 0);
-        bottom->addWidget(m_total_chaos_value, 0, 1);
-        col = 2;
-    }
-    bottom->addWidget(m_show_chaos, 0, col);
-    col = 0;
-    if (show_exalt) {
-        bottom->addWidget(m_headers->exalt_total, 1, 0);
-        bottom->addWidget(m_total_exalt_value, 1, 1);
-        col = 2;
-    }
-    bottom->addWidget(m_show_exalt, 1, col);
-    bottom->addWidget(m_headers->wisdom_total, 2, 0);
-    bottom->addWidget(m_total_wisdom_value, 2, 1);
-    QVBoxLayout *layout = new QVBoxLayout;
-    layout->addLayout(grid);
-    layout->addWidget(m_separator);
-    layout->addLayout(bottom);
-    return layout;
-}
-
-void CurrencyDialog::UpdateTotalValue()
-{
-    m_total_exalt_value->setText(QString::number(m_currency_manager.TotalExaltedValue()));
-    m_total_chaos_value->setText(QString::number(m_currency_manager.TotalChaosValue()));
-}
-
-void CurrencyDialog::UpdateTotalWisdomValue()
-{
-    m_total_wisdom_value->setText(QString::number(m_currency_manager.TotalWisdomValue()));
 }

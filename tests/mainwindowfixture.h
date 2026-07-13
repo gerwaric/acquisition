@@ -1,0 +1,91 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 Tom Holz
+
+#pragma once
+
+#include <memory>
+
+#include <QSettings>
+#include <QStandardPaths>
+#include <QTemporaryDir>
+
+#include <spdlog/spdlog.h>
+
+#include "currencymanager.h"
+#include "imagecache.h"
+#include "itemcategories.h"
+#include "itemsmanager.h"
+#include "ratelimit/ratelimiter.h"
+#include "shop.h"
+#include "testfixtures.h"
+#include "ui/mainwindow.h"
+#include "util/networkmanager.h"
+
+inline void InitializeMainWindowTestCategories()
+{
+    // SearchForm materializes the Category choices during MainWindow
+    // construction. The category tables are process-global, so initialize
+    // them exactly once for this test binary.
+    static const bool loaded = [] {
+        InitItemClasses(R"json({"TestClass":{"name":"Weapons"}})json");
+        InitItemBaseTypes(
+            R"json({"Metadata/Items/TestSword":{"item_class":"TestClass","name":"Test Sword","release_state":"released"}})json");
+        return true;
+    }();
+    Q_UNUSED(loaded);
+}
+
+class MainWindowFixture
+{
+public:
+    MainWindowFixture()
+    {
+        // NetworkManager creates a disk cache in AppLocalDataLocation.
+        QStandardPaths::setTestModeEnabled(true);
+        InitializeMainWindowTestCategories();
+        Q_ASSERT(spdlog::get("main"));
+
+        settings = std::make_unique<QSettings>(tempDir.filePath("settings.ini"),
+                                               QSettings::IniFormat);
+        networkManager = std::make_unique<NetworkManager>();
+        rateLimiter = std::make_unique<RateLimiter>(*networkManager);
+        itemsManager = std::make_unique<ItemsManager>(*settings,
+                                                      *buyoutFixture.manager,
+                                                      *buyoutFixture.data);
+        currencyManager = std::make_unique<CurrencyManager>(*settings,
+                                                            *buyoutFixture.data,
+                                                            *itemsManager);
+        shop = std::make_unique<Shop>(*settings,
+                                      *networkManager,
+                                      *rateLimiter,
+                                      *buyoutFixture.data,
+                                      *itemsManager,
+                                      *buyoutFixture.manager);
+        imageCache = std::make_unique<ImageCache>(*networkManager, tempDir.filePath("cache"));
+        window = std::make_unique<MainWindow>(*settings,
+                                              *networkManager,
+                                              *rateLimiter,
+                                              *buyoutFixture.data,
+                                              *itemsManager,
+                                              *buyoutFixture.manager,
+                                              *currencyManager,
+                                              *shop,
+                                              *imageCache);
+
+        QObject::connect(itemsManager.get(),
+                         &ItemsManager::ItemsRefreshed,
+                         window.get(),
+                         &MainWindow::OnItemsRefreshed);
+    }
+
+    QTemporaryDir tempDir;
+    BuyoutManagerFixture buyoutFixture;
+    std::unique_ptr<QSettings> settings;
+    std::unique_ptr<NetworkManager> networkManager;
+    std::unique_ptr<RateLimiter> rateLimiter;
+    std::unique_ptr<ItemsManager> itemsManager;
+    std::unique_ptr<CurrencyManager> currencyManager;
+    std::unique_ptr<Shop> shop;
+    std::unique_ptr<ImageCache> imageCache;
+    std::unique_ptr<MainWindow> window;
+};

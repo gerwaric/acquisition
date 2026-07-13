@@ -3,6 +3,8 @@
 
 #include "ui/logpanel.h"
 
+#include <algorithm>
+
 #include <QFontDatabase>
 #include <QObject>
 #include <QPushButton>
@@ -45,15 +47,23 @@ LogPanel::LogPanel(MainWindow *window, Ui::MainWindow *ui)
 
     QObject::connect(m_status_button, &QPushButton::clicked, this, &LogPanel::TogglePanelVisibility);
 
-    // Create a sinke for the text panel.
-    auto panel_sink = std::make_shared<spdlog::sinks::qt_color_sink_mt>(m_output,
-                                                                        MAX_LINES,
-                                                                        DARK_COLORS,
-                                                                        IS_UTF8);
-    panel_sink->set_level(spdlog::level::warn);
+    ui->mainLayout->addWidget(m_output);
+
+    m_logger = spdlog::get("main");
+    if (!m_logger) {
+        spdlog::warn("LogPanel: main logger is not registered; panel sinks are disabled");
+        return;
+    }
+
+    // Create a sink for the text panel.
+    m_panel_sink = std::make_shared<spdlog::sinks::qt_color_sink_mt>(m_output,
+                                                                     MAX_LINES,
+                                                                     DARK_COLORS,
+                                                                     IS_UTF8);
+    m_panel_sink->set_level(spdlog::level::warn);
 
     // Create a custom callback sink to change the status button label.
-    auto callback_sink = std::make_shared<spdlog::sinks::callback_sink_mt>(
+    m_callback_sink = std::make_shared<spdlog::sinks::callback_sink_mt>(
         [this](const spdlog::details::log_msg &msg) {
             if (msg.level >= spdlog::level::err) {
                 m_num_errors.fetch_add(1, std::memory_order_relaxed);
@@ -68,14 +78,25 @@ LogPanel::LogPanel(MainWindow *window, Ui::MainWindow *ui)
             QMetaObject::invokeMethod(this, [this] { UpdateStatusLabel(); }, Qt::QueuedConnection);
         });
 
-    callback_sink->set_level(spdlog::level::warn);
+    m_callback_sink->set_level(spdlog::level::warn);
 
-    // Attach the sinks to the logger.
-    auto logger = spdlog::get("main");
-    logger->sinks().push_back(panel_sink);
-    logger->sinks().push_back(callback_sink);
+    m_logger->sinks().push_back(m_panel_sink);
+    m_logger->sinks().push_back(m_callback_sink);
+}
 
-    ui->mainLayout->addWidget(m_output);
+LogPanel::~LogPanel()
+{
+    if (!m_logger) {
+        return;
+    }
+
+    auto &sinks = m_logger->sinks();
+    if (m_panel_sink) {
+        std::erase(sinks, m_panel_sink);
+    }
+    if (m_callback_sink) {
+        std::erase(sinks, m_callback_sink);
+    }
 }
 
 void LogPanel::UpdateStatusLabel()

@@ -10,6 +10,7 @@ The CMake project currently requires Qt 6.11 or newer with these Qt modules:
 - Network
 - Network Authorization
 - Sql
+- Test
 - Widgets
 
 For day-to-day development, Qt Creator Community is the easiest setup on all
@@ -36,10 +37,19 @@ The executable is written to the CMake build directory. You can run it with a
 temporary data directory while testing:
 
 ```sh
-./build/acquisition --data-dir /tmp/acq-data --log-level debug
+./build/acquisition.app/Contents/MacOS/acquisition --data-dir /tmp/acq-data --log-level debug
 ```
 
-There is no checked-in standalone test suite at the moment.
+## Tests
+
+The checked-in tests use Qt Test and are registered with CTest. After building,
+run them from the repository root:
+
+```sh
+ctest --test-dir build --output-on-failure
+```
+
+GUI-dependent tests are configured by CMake to use Qt's offscreen platform.
 
 ## Code Scanning
 

@@ -7,20 +7,21 @@
 #include <QString>
 
 #include <memory>
+#include <optional>
 #include <set>
+#include <utility>
 #include <vector>
 
 #include "bucket.h"
 #include "column.h"
+#include "filters/filterstate.h"
 #include "item.h"
 #include "items_model.h"
 #include "util/util.h"
 
 class BuyoutManager;
-class Filter;
-class FilterData;
+class FilterCatalog;
 class ItemsModel;
-class QTreeView;
 class QModelIndex;
 
 class Search
@@ -30,24 +31,26 @@ public:
     enum class ViewMode : int { ByTab = 0, ByItem = 1 };
     Q_ENUM(ViewMode)
 
-    Search(BuyoutManager &bo,
-           const QString &caption,
-           const std::vector<std::unique_ptr<Filter>> &filters,
-           QTreeView *view);
+    Search(BuyoutManager &bo, const QString &caption, const FilterCatalog &catalog);
+    ~Search();
     void FilterItems(const Items &items);
-    void FromForm();
-    void ToForm();
-    void ResetForm();
     const QString &caption() const { return m_caption; }
     const Items &items() const { return m_items; }
     const std::vector<std::unique_ptr<Column>> &columns() const { return m_columns; }
+    ItemsModel &model() { return m_model; }
+    const std::set<QString> &expandedHeaders() const { return m_expanded_property; }
+    void setExpandedHeaders(std::set<QString> headers);
+    const std::shared_ptr<Item> &currentItem() const { return m_current_item; }
+    void setCurrentItem(std::shared_ptr<Item> item) { m_current_item = std::move(item); }
+    const std::optional<ItemLocation> &currentBucket() const { return m_current_bucket; }
+    void setCurrentBucket(std::optional<ItemLocation> bucket)
+    {
+        m_current_bucket = std::move(bucket);
+    }
+    bool defaultExpanded() const { return m_filtered || (m_current_mode == ViewMode::ByItem); }
     const std::vector<Bucket> &buckets() const;
     void RenameCaption(const QString &newName);
     QString GetCaption() const;
-    // Sets this search as current, will display items in passed QTreeView.
-    void Activate(const Items &items);
-    void RestoreViewProperties();
-    void SaveViewProperties();
     ItemLocation GetTabLocation(const QModelIndex &index) const;
     void SetViewMode(ViewMode mode);
     ViewMode GetViewMode() const { return m_current_mode; }
@@ -57,13 +60,29 @@ public:
     void SetRefreshReason(RefreshReason reason) { m_refresh_reason = reason; }
     void Sort(int column, Qt::SortOrder order);
 
+    const FilterCatalog &catalog() const { return m_filter_catalog; }
+    qsizetype filterStateCount() const { return static_cast<qsizetype>(m_filter_states.size()); }
+    const FilterState &filterStateAt(qsizetype index) const;
+
+    // The only way to change a filter state. Marks the search dirty when the
+    // new state differs, so a state changed while this search is in the
+    // background still forces a refilter when it is next shown.
+    void setFilterState(qsizetype index, FilterState state);
+
 private:
     std::vector<Bucket> &active_buckets();
 
     BuyoutManager &m_bo_manager;
-    QTreeView &m_view;
 
-    std::vector<std::unique_ptr<FilterData>> m_filters;
+    // Catalog and filter states are index-aligned. MainWindow owns the catalog
+    // and outlives every Search.
+    const FilterCatalog &m_filter_catalog;
+    std::vector<FilterState> m_filter_states;
+
+    // True when a filter state changed since the last time this search
+    // actually filtered. A tab change alone does not need a refilter; a tab
+    // change after a state change does.
+    bool m_states_dirty{false};
     std::vector<std::unique_ptr<Column>> m_columns;
 
     ItemsModel m_model;
@@ -75,6 +94,8 @@ private:
     bool m_filtered;
     size_t m_filtered_item_count;
     std::set<QString> m_expanded_property;
+    std::shared_ptr<Item> m_current_item;
+    std::optional<ItemLocation> m_current_bucket;
     ViewMode m_current_mode;
     RefreshReason m_refresh_reason;
 };

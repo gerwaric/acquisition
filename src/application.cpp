@@ -25,7 +25,7 @@
 #include "repoe/repoe.h"
 #include "shop.h"
 #include "ui/logindialog.h"
-#include "ui/mainwindow.h"
+#include "ui/mainwindow_bridge.h"
 #include "util/fatalerror.h"
 #include "util/networkmanager.h"
 #include "util/oauthmanager.h"
@@ -115,28 +115,14 @@ void Application::InitUserSession()
     connect(buyout_mgr, &BuyoutManager::SetItemBuyout, buyouts, &BuyoutRepo::saveItemBuyout);
     connect(buyout_mgr, &BuyoutManager::SetLocationBuyout, buyouts, &BuyoutRepo::saveLocationBuyout);
 
-    auto main = &main_window();
     auto updater = &update_checker();
     auto cache = &image_cache();
-
-    // Connect UI signals.
-    connect(main, &MainWindow::SetSessionId, this, &Application::SetSessionId);
-    connect(main, &MainWindow::SetTheme, this, &Application::SetTheme);
-    connect(main, &MainWindow::UpdateCheckRequested, updater, &UpdateChecker::CheckForUpdates);
-
-    connect(item_mgr, &ItemsManager::ItemsRefreshed, main, &MainWindow::OnItemsRefreshed);
-    connect(item_mgr, &ItemsManager::StatusUpdate, main, &MainWindow::OnStatusUpdate);
-
-    connect(main, &MainWindow::GetImage, cache, &ImageCache::fetch);
-    connect(cache, &ImageCache::imageReady, main, &MainWindow::OnImageFetched);
-
-    connect(&shop(), &Shop::StatusUpdate, main, &MainWindow::OnStatusUpdate);
 
     // Disconnect from the update signal so that only the main window gets it from now on.
     disconnect(updater, &UpdateChecker::UpdateAvailable, nullptr, nullptr);
 
-    // Connect the update checker.
-    connect(updater, &UpdateChecker::UpdateAvailable, main, &MainWindow::OnUpdateAvailable);    
+    // Connect UI signals.
+    ConnectMainWindow(*this, main_window(), *item_mgr, *worker, shop(), *updater, *cache);
 }
 
 Application::CoreServices &Application::core() const
@@ -244,15 +230,15 @@ Application::UserSession::UserSession(const Application::CoreServices &core)
 
     // Prepare to show the main window now that everything is initialized.
     spdlog::trace("Application:creating main window");
-    main_window = std::make_unique<MainWindow>(settings,
-                                               network_manager,
-                                               *rate_limiter,
-                                               *data,
-                                               *items_manager,
-                                               *buyout_manager,
-                                               *currency_manager,
-                                               *shop,
-                                               image_cache);
+    main_window.reset(CreateMainWindow(settings,
+                                       network_manager,
+                                       *rate_limiter,
+                                       *data,
+                                       *items_manager,
+                                       *buyout_manager,
+                                       *currency_manager,
+                                       *shop,
+                                       image_cache));
 }
 
 void Application::OnLogin()
@@ -283,7 +269,7 @@ void Application::OnLogin()
     login().close();
 
     spdlog::trace("Application::OnLogin() showing the main window");
-    main_window().show();
+    ShowMainWindow(main_window());
 }
 
 void Application::InitCrashReporting()

@@ -52,11 +52,10 @@ public:
     void Load();
 
     void MigrateItem(const QString &old_hash, const QString &new_hash);
-    void ImportBuyouts(const QString &filename);
 
 signals:
-    bool SetItemBuyout(const Buyout &buyout, const Item &item);
-    bool SetLocationBuyout(const Buyout &buyout, const ItemLocation &location);
+    void SetItemBuyout(const Buyout &buyout, const Item &item);
+    void SetLocationBuyout(const Buyout &buyout, const ItemLocation &location);
 
 private:
     BuyoutType StringToBuyoutType(QString bo_str) const;
@@ -72,6 +71,8 @@ private:
 
     std::unordered_map<QString, Buyout> m_buyouts;
     std::unordered_map<QString, Buyout> m_tab_buyouts;
+    // Buyouts persist through BuyoutRepo signals. Refresh-check state is DataStore JSON in
+    // Save()/Load(); this split is intentional (see F22).
     std::unordered_map<QString, bool> m_refresh_checked;
     std::set<QString> m_refresh_locked;
     bool m_save_needed;

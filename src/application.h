@@ -30,6 +30,11 @@ class Shop;
 class UserStore;
 class UpdateChecker;
 
+struct MainWindowDeleter
+{
+    void operator()(MainWindow *window) const;
+};
+
 class Application : public QObject
 {
     Q_OBJECT
@@ -76,7 +81,7 @@ private:
         std::unique_ptr<ItemsManagerWorker> items_worker;
         std::unique_ptr<Shop> shop;
         std::unique_ptr<CurrencyManager> currency_manager;
-        std::unique_ptr<MainWindow> main_window;
+        std::unique_ptr<MainWindow, MainWindowDeleter> main_window;
     };
 
     CoreServices &core() const;

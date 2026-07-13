@@ -14,7 +14,6 @@
 #include <QUrl>
 #include <QUrlQuery>
 
-#include "application.h"
 #include "buyoutmanager.h"
 #include "datastore/datastore.h"
 #include "item.h"
@@ -23,9 +22,9 @@
 #include "ratelimit/ratelimitedreply.h"
 #include "ratelimit/ratelimiter.h"
 #include "replytimeout.h"
-#include "ui/mainwindow.h"
 #include "util/json_readers.h"
 #include "util/networkmanager.h"
+#include "util/programstate.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
 
@@ -94,7 +93,10 @@ Shop::Shop(QSettings &settings,
     , m_requests_completed(0)
 {
     spdlog::debug("Shop: initializing");
-    m_threads = m_datastore.Get("shop").split(";");
+    // SkipEmptyParts: an empty or missing "shop" key must load as no
+    // threads, or the no-threads warning in SubmitShopToForum is
+    // unreachable (F45).
+    m_threads = m_datastore.Get("shop").split(";", Qt::SkipEmptyParts);
     m_auto_update = m_settings.value("shop_autoupdate").toBool();
     m_shop_template = m_datastore.Get("shop_template");
     if (m_shop_template.isEmpty()) {
@@ -151,25 +153,21 @@ void Shop::SubmitShopToForum(bool force)
     }
     if (m_threads.empty()) {
         spdlog::error("Shop: cannot submit shops because shop threads are not set.");
-        QMessageBox::warning(nullptr,
-                             "Acquisition Shop Manager",
-                             "No forum threads have been set."
-                             "\n\n"
-                             "Use the Shop --> 'Forum shop thread...' menu item.");
+        emit UserWarning("No forum threads have been set."
+                         "\n\n"
+                         "Use the Shop --> 'Forum shop thread...' menu item.");
         return;
     }
 
     const QString session_id = m_settings.value("session_id").toString();
     if (session_id.isEmpty()) {
         spdlog::error("Shop: cannot submit a shop because the POESESSID is not set");
-        QMessageBox::warning(nullptr,
-                             "Acquisition Shop Manager",
-                             "Cannot update forum shop threads because POESESSID has not been set."
-                             "\n\n"
-                             "Use the Shop --> 'Update Shop POESESSID' menu item."
-                             "\n\n"
-                             "This is required even if you have logged in with OAuth, because the "
-                             "forums do not support OAuth.");
+        emit UserWarning("Cannot update forum shop threads because POESESSID has not been set."
+                         "\n\n"
+                         "Use the Shop --> 'Update Shop POESESSID' menu item."
+                         "\n\n"
+                         "This is required even if you have logged in with OAuth, because the "
+                         "forums do not support OAuth.");
         return;
     }
 
@@ -434,9 +432,7 @@ void Shop::OnEditPageFinished()
     if (hash.isEmpty()) {
         if (bytes.contains("Login Required")) {
             spdlog::error("Cannot update shop: the POESESSID is missing or invalid.");
-            QMessageBox::warning(
-                nullptr,
-                "Acquisition Shop Manager",
+            emit UserWarning(
                 "Cannot update forum shop threads because POESESSID is missing or invalid."
                 "\n\n"
                 "Use the Shop --> 'Update Shop POESESSID' menu item."
@@ -450,9 +446,7 @@ void Shop::OnEditPageFinished()
         } else if (bytes.contains("Permission Denied")) {
             spdlog::error("Cannot update shop: the POESESSID may be invalid or associated with "
                           "another account.");
-            QMessageBox::warning(
-                nullptr,
-                "Acquisition Shop Manager",
+            emit UserWarning(
                 "Cannot update forum shop threads because POESESSID is invalid or associated with "
                 "the wrong account."
                 "\n\n"

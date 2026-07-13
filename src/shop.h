@@ -10,7 +10,7 @@
 #include <map>
 
 #include "buyout.h"
-#include "ui/mainwindow.h"
+#include "util/programstate.h"
 
 class QSettings;
 
@@ -51,6 +51,7 @@ public slots:
 signals:
     void StashesIndexed();
     void StatusUpdate(ProgramState state, const QString &status);
+    void UserWarning(const QString &message);
 
 private:
     void UpdateStashIndex(bool force);

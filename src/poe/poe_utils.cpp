@@ -3,6 +3,8 @@
 
 #include "poe/poe_utils.h"
 
+#include "replytimeout.h"
+
 namespace {
 
     constexpr const char *kOauthListStashesEndpoint = "List Stashes";
@@ -17,6 +19,13 @@ namespace {
     constexpr const char *kOAuthGetCharacterEndpoint = "Get Character";
     constexpr const char *kOAuthGetCharacterUrl = "https://api.pathofexile.com/character";
 
+    QNetworkRequest MakeApiRequest(const QString &url)
+    {
+        QNetworkRequest request{QUrl(url)};
+        request.setTransferTimeout(kPoeApiTimeout);
+        return request;
+    }
+
 } // namespace
 
 std::pair<const QString &, QNetworkRequest> poe::MakeStashListRequest(const QString &realm,
@@ -29,7 +38,7 @@ std::pair<const QString &, QNetworkRequest> poe::MakeStashListRequest(const QStr
         url += "/" + realm;
     }
     url += "/" + league;
-    const QNetworkRequest request{QUrl(url)};
+    const QNetworkRequest request = MakeApiRequest(url);
 
     return {endpoint, request};
 }
@@ -42,7 +51,7 @@ std::pair<const QString &, QNetworkRequest> poe::MakeCharacterListRequest(const 
     if (realm != "pc") {
         url += "/" + realm;
     }
-    const QNetworkRequest request{QUrl(url)};
+    const QNetworkRequest request = MakeApiRequest(url);
 
     return {endpoint, request};
 }
@@ -63,7 +72,7 @@ std::pair<const QString &, QNetworkRequest> poe::MakeStashRequest(const QString 
     if (!substash_id.isEmpty()) {
         url += "/" + substash_id;
     }
-    const QNetworkRequest request{QUrl(url)};
+    const QNetworkRequest request = MakeApiRequest(url);
 
     return {endpoint, request};
 }
@@ -78,7 +87,7 @@ std::pair<const QString &, QNetworkRequest> poe::MakeCharacterRequest(const QStr
         url += "/" + realm;
     }
     url += "/" + name;
-    const QNetworkRequest request{QUrl(url)};
+    const QNetworkRequest request = MakeApiRequest(url);
 
     return {endpoint, request};
 }
