@@ -1065,9 +1065,11 @@ void MainWindow::OnSetShopThreads()
         QLineEdit::Normal,
         m_shop.threads().join(","),
         &ok);
-    if (ok && !thread.isEmpty()) {
+    // A confirmed empty input clears the threads; SkipEmptyParts keeps
+    // stray commas or a blank box from storing an empty thread id (F45).
+    if (ok) {
         static const auto spaces = QRegularExpression("\\s+");
-        m_shop.SetThread(thread.remove(spaces).split(','));
+        m_shop.SetThread(thread.remove(spaces).split(',', Qt::SkipEmptyParts));
     }
     UpdateShopMenu();
 }
