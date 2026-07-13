@@ -4,6 +4,7 @@
 #include <QSignalSpy>
 #include <QTreeView>
 
+#include <algorithm>
 #include <memory>
 
 #include "filters/filterspec.h"
@@ -18,6 +19,7 @@ class ItemsModelTest : public QObject
 private slots:
     void testerSurvivesRebuildModeSwitchAndSort();
     void selectionSurvivesSort();
+    void sortDirectionMatchesOrder();
 };
 
 static std::shared_ptr<Item> makeModelItem(const QString &id,
@@ -140,9 +142,9 @@ void ItemsModelTest::selectionSurvivesSort()
 
     // Sort one way first so the opposite re-sort below is guaranteed to
     // reorder rows regardless of fixture insertion order; a no-op sort would
-    // make the remap assertion vacuous. (Note Bucket::Sort maps the Qt order
-    // enums to arrangements invertedly — F34 — so assert on the arrangement
-    // changing, not on a specific direction.)
+    // make the remap assertion vacuous. (This test asserts only that the
+    // arrangement changes; sortDirectionMatchesOrder pins which direction
+    // each order enum produces.)
     model->sort(0, Qt::DescendingOrder);
     const QString first_before = model->index(0, 0, bucket0).data().toString();
 
@@ -169,6 +171,46 @@ void ItemsModelTest::selectionSurvivesSort()
     }
     selected_after.sort();
     QCOMPARE(selected_after, selected_before);
+}
+
+// F34: the Qt sort-order enums must produce the arrangement they name, so
+// the header's sort indicator points the way the rows actually run.
+void ItemsModelTest::sortDirectionMatchesOrder()
+{
+    BuyoutManagerFixture buyoutFixture;
+    const ItemLocation firstTab = makeTestStashLocation("stash-a", "Alpha Tab", 0);
+    buyoutFixture.manager->SetStashTabLocations({firstTab});
+
+    Items items;
+    items.push_back(makeModelItem("alpha-2", "Zulu Bite", "Vaal Axe", firstTab));
+    items.push_back(makeModelItem("alpha-1", "Alpha Bite", "Copper Sword", firstTab));
+    items.push_back(makeModelItem("alpha-3", "Mid Bite", "Iron Hammer", firstTab));
+
+    FilterCatalog catalog({});
+    Search search(*buyoutFixture.manager, "Model", catalog);
+    search.FilterItems(items);
+    auto *model = &search.model();
+    const QModelIndex bucket0 = model->index(0, 0);
+    QCOMPARE(model->rowCount(bucket0), 3);
+
+    const auto rowNames = [&]() {
+        QStringList names;
+        for (int row = 0; row < model->rowCount(bucket0); ++row) {
+            names << model->index(row, 0, bucket0).data().toString();
+        }
+        return names;
+    };
+
+    model->sort(0, Qt::AscendingOrder);
+    const QStringList ascending = rowNames();
+    QStringList expected = ascending;
+    std::sort(expected.begin(), expected.end());
+    QCOMPARE(ascending, expected);
+
+    model->sort(0, Qt::DescendingOrder);
+    const QStringList descending = rowNames();
+    std::reverse(expected.begin(), expected.end());
+    QCOMPARE(descending, expected);
 }
 
 QTEST_MAIN(ItemsModelTest)

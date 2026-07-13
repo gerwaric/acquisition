@@ -45,9 +45,9 @@ void Bucket::Sort(const Column &column, Qt::SortOrder order)
               end(m_items),
               [&](const std::shared_ptr<Item> &lhs, const std::shared_ptr<Item> &rhs) {
                   if (order == Qt::AscendingOrder) {
-                      return column.lt(rhs.get(), lhs.get());
-                  } else {
                       return column.lt(lhs.get(), rhs.get());
+                  } else {
+                      return column.lt(rhs.get(), lhs.get());
                   }
               });
 }
