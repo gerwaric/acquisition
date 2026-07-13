@@ -16,9 +16,12 @@ namespace {
     template<typename T>
     std::optional<T> read_json(const QByteArray &json)
     {
+        // Tolerate unknown keys so new fields in GGG's API responses do
+        // not break parsing.
+        static constexpr glz::opts opts{.error_on_unknown_keys = false};
         T result;
         const std::string_view str{json.constData(), size_t(json.size())};
-        const auto err = glz::read_json(result, str);
+        const auto err = glz::read<opts>(result, str);
         if (err) {
             const auto type = typeid(T).name();
             const auto msg = glz::format_error(err, str);
