@@ -602,6 +602,12 @@ so it will survive the fix. The Phase 6 spec upgrade (July 2026) took it up
 as explicitly optional item 6.8 (own PR, prominent release note, drop
 freely).
 
+Fixed (July 2026, item 6.8): the two lambda branches in `Bucket::Sort` are
+swapped, so each Qt order enum produces the arrangement it names. Pinned by
+`tst_itemsmodel::sortDirectionMatchesOrder` (ascending order ⇒ ascending
+rows, descending ⇒ reversed); `selectionSurvivesSort` was direction-agnostic
+and survived unchanged.
+
 ### F21. Every `Item` stores its raw JSON — Confirmed (impact unmeasured)
 
 `Item::m_json` keeps the full JSON text of each item. With the large stash
