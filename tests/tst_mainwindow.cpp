@@ -169,11 +169,10 @@ void MainWindowTest::tabChangeActivatesSelectedSearch()
     QCOMPARE(name->text(), "alpha");
     QCOMPARE(nameEdited.count(), 5);
     // The tab switch deterministically flushes the debounced edit before the
-    // form is rebound to Search 2.
+    // form is rebound to Search 2, and the flushed caption lands on the
+    // outgoing search's own tab (F41).
     tabs->setCurrentIndex(1);
-    // F41: the outgoing Search 1 state is refreshed, but its inactive tab
-    // label still has the old count until Search 1 is activated again.
-    QCOMPARE(tabs->tabText(0), "Search 1 [2]");
+    QCOMPARE(tabs->tabText(0), "Search 1 [1]");
     QCOMPARE(tabs->tabText(1), "Search 2 [2]");
 
     QTest::keyClicks(name, "beta");
@@ -234,13 +233,14 @@ void MainWindowTest::pendingEditFollowsOutgoingSearch()
 
     name->setFocus();
     QTest::keyClicks(name, "alpha");
+    // No elapsed-time wait: OnTabChange synchronously flushes the 350ms
+    // debounce while Search 1 is still the outgoing search, and the flushed
+    // caption targets Search 1's own tab (F41).
     tabs->setCurrentIndex(1);
-    QCOMPARE(tabs->tabText(0), "Search 1 [2]");
+    QCOMPARE(tabs->tabText(0), "Search 1 [1]");
     tabs->setCurrentIndex(0);
 
-    // No elapsed-time wait: OnTabChange synchronously flushes the 350ms
-    // debounce while Search 1 is still the outgoing search. Re-activating it
-    // renders the saved caption through the widget tree.
+    // Re-activating renders the saved caption through the widget tree.
     QCOMPARE(tabs->tabText(0), "Search 1 [1]");
 }
 
@@ -374,6 +374,13 @@ void MainWindowTest::currentViewStatePins()
         tabs->setCurrentIndex(0);
         QCOMPARE(nameLabel->text(), alphaTab.GetHeader());
         QCOMPARE(buyoutValue->text(), "7");
+        // The restored bucket is highlighted in the tree, not just named in
+        // the panel (F43).
+        const QModelIndex restoredBucket = findBucket(*tree->model(), alphaTab.GetHeader());
+        QVERIFY(restoredBucket.isValid());
+        const QModelIndexList selectedRows = tree->selectionModel()->selectedRows();
+        QCOMPARE(selectedRows.size(), 1);
+        QCOMPARE(selectedRows.front(), restoredBucket);
     }
 
     {

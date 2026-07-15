@@ -53,7 +53,7 @@ codebase strictly better off.
 | 3. Model/view signal hygiene | `phase-3-model-signals.md` | F10–F12, F23, F25 | Done |
 | 4. Decouple `Search` from `QTreeView` | `phase-4-search-decoupling.md` | F18 | Done |
 | 5. Filters as data + matching | `phase-5-filters-as-data.md` | F19, F33, F35, F36 | Done |
-| 6. Opportunistic `MainWindow` slimming | `phase-6-mainwindow-slimming.md` | F14, F32, F37, F39, F40, F9 remainder, F20 (scoped), F34 (optional) | Spec ready |
+| 6. Opportunistic `MainWindow` slimming | `phase-6-mainwindow-slimming.md` | F14, F32, F37, F39, F40, F9 remainder, F20 (scoped), F34 (optional) | Done |
 
 Phases 0–4 are the committed core. Phase 4's spec was upgraded to
 implementation grade in July 2026 and implemented against the post-Phase-3 code.

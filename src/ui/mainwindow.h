@@ -128,6 +128,7 @@ private slots:
 private:
     void ModelViewRefresh();
     void ReselectCurrentItem();
+    void ReselectCurrentBucket();
     void FlushPendingSearchFormChange();
     void SaveViewExpansion(Search &search);
     void RestoreViewExpansion(Search &search);

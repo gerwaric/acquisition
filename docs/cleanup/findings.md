@@ -470,7 +470,7 @@ test". Fix in Phase 6 item 6.7 (it gates the fixture): `LogPanel` stores
 its two `sink_ptr`s, removes them from the logger in a destructor, and
 null-checks the logger lookup.
 
-### F41. A fast tab switch leaves the outgoing search's tab caption stale — Confirmed
+### F41. A fast tab switch leaves the outgoing search's tab caption stale — Confirmed; fixed after Phase 6
 
 Found while implementing Phase 6 item 6.7 (July 2026). When a user edits a
 debounced filter and switches tabs before its timer fires,
@@ -488,6 +488,13 @@ filter state and returns the correct rows on reactivation; only its inactive
 tab caption is stale. `tst_mainwindow` pins both observations. Record it for
 a Phase 6 follow-up rather than fixing it inside 6.7's fixture/test work.
 
+Fixed (July 2026, post-Phase-6 follow-ups): `ModelViewRefresh` resolves the
+caption's tab from `m_searches` (the index of `m_current_search`) instead of
+`QTabBar::currentIndex()`, so a flush during a tab switch writes the
+outgoing search's caption to its own tab. The
+`tabChangeActivatesSelectedSearch` and `pendingEditFollowsOutgoingSearch`
+pins in `tst_mainwindow` now assert the corrected caption.
+
 ### F42. `LogPanel` sink detachment still has a teardown lifetime race — Confirmed
 
 Found in the Phase 6 item 6.7 review (July 2026). The F40 fix gives
@@ -501,7 +508,7 @@ without synchronization against worker-thread logging. This is a narrow,
 teardown-only residue of F40 and the same lifetime-ordering family as F29.
 Record it for a follow-up; do not extend the 6.7/F40 fix inline.
 
-### F43. Restored bucket selection shows in the panel but not in the tree — Confirmed
+### F43. Restored bucket selection shows in the panel but not in the tree — Confirmed; fixed after Phase 6
 
 Found in the Phase 6 item 6.5/6.6 review (July 2026). When a *bucket* (stash
 tab header row) is the current selection and the user switches tabs and back,
@@ -517,7 +524,13 @@ bucket row via `Search`'s bucket lookup and updating the
 `tst_mainwindow::currentViewStatePins` assertions to pin the highlight.
 Follow-up; do not extend the 6.5/6.6 work inline.
 
-### F44. `OnCurrentItemChanged`'s item-path warning branches keep stale state — Confirmed
+Fixed (July 2026, post-Phase-6 follow-ups): `ReselectCurrentItem` delegates
+to a new `ReselectCurrentBucket` when only a bucket is stored, which finds
+the bucket row by location and selects it (or clears the stored location and
+the panel when the bucket is gone from the search results, matching the
+item path). `tst_mainwindow::currentViewStatePins` pins the highlight.
+
+### F44. `OnCurrentItemChanged`'s item-path warning branches keep stale state — Confirmed; fixed after Phase 6
 
 Found in the Phase 6 item 6.5/6.6 review (July 2026). F39's fix covered the
 bucket-click path (`!has_bucket` now clears the stored location) and removed
@@ -530,6 +543,17 @@ the crash; only reachable through a model/search inconsistency that should
 not occur. The fix is to reset both members in those branches (matching the
 bucket path), accepting that the panel clears instead of showing leftover
 content. Untested path, so pin it when fixed; follow-up, not urgent.
+
+Fixed (July 2026, post-Phase-6 follow-ups): both item-path warning branches
+now reset `m_current_item` and `m_current_bucket_location` and clear the
+panel (`ClearCurrentItem`), and the bucket-path warning branch clears the
+panel too. Not pinned by a test, deliberately: the branches are only
+reachable through a model/search inconsistency that the post-Phase-3 model
+contract prevents, and `ItemsModel::index()`'s F25 validation makes it
+impossible to mint an out-of-contract index to drive them from a test
+(`createIndex` is protected, and the selection model rejects foreign
+indexes). If the warnings ever fire in the field, the state is now cleared
+instead of stale.
 
 ### F45. Shop threads cannot be cleared, and the no-threads warning is unreachable — Confirmed
 
