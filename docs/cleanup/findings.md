@@ -567,7 +567,7 @@ through the datastore.
 
 ## Recorded but out of scope
 
-### F38. The "Influenced" filter also matches fractured and synthesised items — Confirmed
+### F38. The "Influenced" filter also matches fractured and synthesised items — Confirmed; fixed after Phase 6
 
 Found during the Phase 5 review (July 2026) by the rewritten boolean
 cross-check in `tst_filters`. The predicate is `Item::hasInfluence()`, which
@@ -578,6 +578,13 @@ warlord). So checking "Influenced" also returns every fractured and
 synthesised item, which is unlikely to be what a user means: in game those
 are separate concepts, and the form has its own Fractured and Synthesized
 checkboxes.
+
+Fixed (July 2026, post-Phase-6 follow-ups): the Influenced filter has its
+own predicate over the six real influences (`filterspec.cpp`);
+`Item::hasInfluence()` is unchanged, so influence icons still show for
+fractured/synthesised/eldritch items. The overlap carve-out in
+`tst_filters::booleanPredicates` was removed, so the cross-check now
+asserts the exclusion. User-visible behavior change; release-note it.
 
 Pre-existing and unchanged by Phase 5 (the old `InfluencedFilter::Matches`
 called the same accessor), so it was recorded rather than fixed inline

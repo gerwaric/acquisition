@@ -393,22 +393,16 @@ void FiltersTest::booleanPredicates()
         // matches everything.
         verifyBooleanPredicate(*spec, current.item, ordinary);
 
-        // ...and rejects every other predicate's item, except where the
-        // predicates genuinely overlap: Item::hasInfluence() is true whenever
-        // the influence list is non-empty, and that list carries the fractured
-        // and synthesised markers alongside the six real influences
-        // (item.cpp). Pre-existing behavior, not a wiring slip -- see F38.
-        const bool influenceOverlap = (current.caption == "Influenced");
+        // ...and rejects every other predicate's item. This includes the
+        // Influenced/Fractured and Influenced/Synthesized pairs: the F38 fix
+        // gave the Influenced filter its own six-influence predicate, so the
+        // fractured/synthesised markers on Item's influence list no longer
+        // leak into it.
         for (const auto &other : cases) {
             if (other.caption == current.caption) {
                 continue;
             }
             const bool matched = MatchesFilter(*other.item, *spec, BoolState{true});
-            if (influenceOverlap
-                && ((other.caption == "Fractured") || (other.caption == "Synthesized"))) {
-                QVERIFY2(matched, qPrintable(other.caption));
-                continue;
-            }
             QVERIFY2(!matched,
                      qPrintable(QString("%1 matched the %2 item")
                                     .arg(current.caption, other.caption)));
