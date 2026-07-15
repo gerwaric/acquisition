@@ -49,9 +49,24 @@ LogPanel::LogPanel(MainWindow *window, Ui::MainWindow *ui)
 
     ui->mainLayout->addWidget(m_output);
 
-    m_logger = spdlog::get("main");
-    if (!m_logger) {
+    const auto logger = spdlog::get("main");
+    if (!logger) {
         spdlog::warn("LogPanel: main logger is not registered; panel sinks are disabled");
+        return;
+    }
+
+    // The panel's sinks attach through the dist-sink hub that logging::init
+    // installed, never directly to the logger: the logger's sink vector is
+    // not synchronized against logging threads, while the hub's
+    // add_sink/remove_sink share the delivery mutex (F42).
+    for (const auto &sink : logger->sinks()) {
+        m_sink_hub = std::dynamic_pointer_cast<spdlog::sinks::dist_sink_mt>(sink);
+        if (m_sink_hub) {
+            break;
+        }
+    }
+    if (!m_sink_hub) {
+        spdlog::warn("LogPanel: the main logger has no sink hub; panel sinks are disabled");
         return;
     }
 
@@ -80,22 +95,29 @@ LogPanel::LogPanel(MainWindow *window, Ui::MainWindow *ui)
 
     m_callback_sink->set_level(spdlog::level::warn);
 
-    m_logger->sinks().push_back(m_panel_sink);
-    m_logger->sinks().push_back(m_callback_sink);
+    m_sink_hub->add_sink(m_panel_sink);
+    m_sink_hub->add_sink(m_callback_sink);
 }
 
 LogPanel::~LogPanel()
 {
-    if (!m_logger) {
+    DetachSinks();
+}
+
+void LogPanel::DetachSinks()
+{
+    if (!m_sink_hub) {
         return;
     }
-
-    auto &sinks = m_logger->sinks();
+    // remove_sink locks the hub's delivery mutex, so once it returns no
+    // logging thread can still be inside the removed sink.
     if (m_panel_sink) {
-        std::erase(sinks, m_panel_sink);
+        m_sink_hub->remove_sink(m_panel_sink);
+        m_panel_sink.reset();
     }
     if (m_callback_sink) {
-        std::erase(sinks, m_callback_sink);
+        m_sink_hub->remove_sink(m_callback_sink);
+        m_callback_sink.reset();
     }
 }
 

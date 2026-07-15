@@ -16,6 +16,7 @@
 #include <memory>
 
 #include <spdlog/logger.h>
+#include <spdlog/sinks/dist_sink.h>
 #include <spdlog/spdlog.h>
 
 #include "buyout.h"
@@ -38,6 +39,7 @@ private slots:
 
 private:
     std::shared_ptr<spdlog::logger> m_main_logger;
+    std::shared_ptr<spdlog::sinks::dist_sink_mt> m_sink_hub;
 };
 
 static std::shared_ptr<Item> makeMainWindowItem(const QString &id,
@@ -123,26 +125,32 @@ static QModelIndex findBucket(const QAbstractItemModel &model, const QString &he
 void MainWindowTest::initTestCase()
 {
     QStandardPaths::setTestModeEnabled(true);
+    // LogPanel attaches its sinks through the dist-sink hub that
+    // logging::init installs on the main logger (F42), so the test logger
+    // needs one too.
     m_main_logger = std::make_shared<spdlog::logger>("main");
+    m_sink_hub = std::make_shared<spdlog::sinks::dist_sink_mt>();
+    m_main_logger->sinks().push_back(m_sink_hub);
     spdlog::register_logger(m_main_logger);
 }
 
 void MainWindowTest::cleanupTestCase()
 {
-    QCOMPARE(static_cast<int>(m_main_logger->sinks().size()), 0);
+    QCOMPARE(static_cast<int>(m_sink_hub->sinks().size()), 0);
     spdlog::drop("main");
+    m_sink_hub.reset();
     m_main_logger.reset();
 }
 
 void MainWindowTest::fixtureConstructsOffline()
 {
-    QCOMPARE(static_cast<int>(m_main_logger->sinks().size()), 0);
+    QCOMPARE(static_cast<int>(m_sink_hub->sinks().size()), 0);
     {
         MainWindowFixture fixture;
         QVERIFY(fixture.window);
-        QCOMPARE(static_cast<int>(m_main_logger->sinks().size()), 2);
+        QCOMPARE(static_cast<int>(m_sink_hub->sinks().size()), 2);
     }
-    QCOMPARE(static_cast<int>(m_main_logger->sinks().size()), 0);
+    QCOMPARE(static_cast<int>(m_sink_hub->sinks().size()), 0);
 }
 
 void MainWindowTest::tabChangeActivatesSelectedSearch()

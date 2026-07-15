@@ -98,6 +98,7 @@ MainWindow::MainWindow(QSettings &settings,
     , ui(new Ui::MainWindow)
     , m_currency_dialog(nullptr)
     , m_current_search(nullptr)
+    , m_log_panel(nullptr)
     , m_search_count(0)
     , m_rate_limit_dialog(nullptr)
     , m_quitting(false)
@@ -134,6 +135,13 @@ MainWindow::MainWindow(QSettings &settings,
 
 MainWindow::~MainWindow()
 {
+    // Detach the log panel's sinks while its widgets are still alive: child
+    // cleanup destroys the panel's QTextEdit before ~LogPanel would run, and
+    // a worker thread logging in that window would write to a dead widget
+    // (F42).
+    if (m_log_panel) {
+        m_log_panel->DetachSinks();
+    }
     m_search_form.reset();
     delete ui;
     m_rate_limit_dialog->close();

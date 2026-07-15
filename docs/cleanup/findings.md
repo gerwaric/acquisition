@@ -495,7 +495,7 @@ outgoing search's caption to its own tab. The
 `tabChangeActivatesSelectedSearch` and `pendingEditFollowsOutgoingSearch`
 pins in `tst_mainwindow` now assert the corrected caption.
 
-### F42. `LogPanel` sink detachment still has a teardown lifetime race — Confirmed
+### F42. `LogPanel` sink detachment still has a teardown lifetime race — Confirmed; fixed after Phase 6
 
 Found in the Phase 6 item 6.7 review (July 2026). The F40 fix gives
 `LogPanel` a destructor that removes its sinks, but `~MainWindow`'s child
@@ -507,6 +507,25 @@ Additionally, removing entries from `logger::sinks()` mutates that vector
 without synchronization against worker-thread logging. This is a narrow,
 teardown-only residue of F40 and the same lifetime-ordering family as F29.
 Record it for a follow-up; do not extend the 6.7/F40 fix inline.
+
+Fixed (July 2026, post-Phase-6 follow-ups), both halves:
+
+- **Synchronization:** `logging::init` installs a permanent
+  `spdlog::sinks::dist_sink_mt` hub on the main logger, and `LogPanel`
+  attaches/detaches its two sinks through the hub instead of mutating the
+  logger's unsynchronized sink vector. The hub's `add_sink`/`remove_sink`
+  take the same mutex the hub holds while delivering log messages, so
+  detach is safe against concurrent worker-thread logging — this matters
+  because `UserSession` destroys `main_window` *before* `items_worker`,
+  so the parse thread can outlive the window.
+- **Ordering:** `~MainWindow` calls `LogPanel::DetachSinks()` in its body,
+  before QObject child cleanup destroys the panel's `QTextEdit`; once
+  `remove_sink` returns, no thread can still be inside the removed sink.
+
+`tst_mainwindow` installs the hub on its test logger and asserts the
+attach/detach counts through it. Note for future sinks: never mutate
+`logger->sinks()` outside `logging::init`; attach UI-lifetime sinks
+through the hub.
 
 ### F43. Restored bucket selection shows in the panel but not in the tree — Confirmed; fixed after Phase 6
 
