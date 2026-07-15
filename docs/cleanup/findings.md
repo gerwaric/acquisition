@@ -663,12 +663,30 @@ swapped, so each Qt order enum produces the arrangement it names. Pinned by
 rows, descending ⇒ reversed); `selectionSurvivesSort` was direction-agnostic
 and survived unchanged.
 
-### F21. Every `Item` stores its raw JSON — Confirmed (impact unmeasured)
+### F21. Every `Item` stores its raw JSON — Overtaken by events; dead code deleted after Phase 6
 
 `Item::m_json` keeps the full JSON text of each item. With the large stash
 counts this app targets (code comments mention hundreds of thousands of
 items), this may be significant memory. Measure before acting; not part of
 this cleanup.
+
+Re-investigated (July 2026, post-Phase-6 follow-ups): the premise was stale.
+The December 2025 glaze migration (`f05444a`) removed the only assignment to
+`Item::m_json`, so it had been a permanently empty `QString` — no memory
+impact, nothing to measure. Its lone reader chain was equally dead:
+`Item::json()` → `DataStore::Serialize(Items)` →
+`SqliteDataStore::SetItems`, which nothing called; the read side
+(`GetItems`/`GetTabs`/`Deserialize*`) had zero callers too, since
+persistence moved to `StashRepo`/`CharacterRepo` storing typed `poe::`
+objects. Swept: `Item::m_json`/`json()`, `ItemLocation::m_json`/`json()`,
+the `ItemLocation` constructors from `LegacyStash`/`LegacyCharacter`,
+`AddLegacyItemLocation`, `legacy/legacyitemlocation.h` (orphaned), the
+`DataStore` tabs/items API (`Set/Get{Tabs,Items}`, both `Serialize`
+overloads, all `Deserialize*`), and `SqliteDataStore::CleanItemsTable` plus
+creation of the unused `tabs`/`items` SQL tables (old databases keep those
+tables; they are simply ignored, as they already were). No per-item JSON is
+retained in any form — `Item`'s constructor extracts what it needs from
+`poe::Item` and drops the source.
 
 ### F22. Dual persistence paths in `BuyoutManager` — Confirmed
 

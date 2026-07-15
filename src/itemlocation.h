@@ -10,10 +10,6 @@
 
 #include "util/spdlog_qt.h"
 
-struct LegacyCharacter;
-struct LegacyItemLocation;
-struct LegacyStash;
-
 namespace poe {
     struct Character;
     struct Item;
@@ -30,11 +26,8 @@ public:
     ItemLocation();
     ItemLocation(const poe::Character &character, int tab_id);
     ItemLocation(const poe::StashTab &stash);
-    ItemLocation(const LegacyCharacter &character, int tab_id);
-    ItemLocation(const LegacyStash &stash);
 
     ItemLocation getItemLocation(const poe::Item &item) const;
-    void AddLegacyItemLocation(const LegacyItemLocation &item);
     QString GetHeader() const;
     QRectF GetRect() const;
     QString GetForumCode(const QString &realm,
@@ -56,7 +49,6 @@ public:
     int getG() const { return m_green; }
     int getB() const { return m_blue; }
     QString id() const { return m_unique_id; }
-    QString json() const { return m_json; }
 
 private:
     void FixUid();
@@ -67,7 +59,6 @@ private:
     bool m_removeonly{false};
     ItemLocationType m_type;
     int m_tab_id{0};
-    QString m_json;
 
     //this would be the value "tabs -> id", which seems to be a hashed value generated on their end
     QString m_unique_id;

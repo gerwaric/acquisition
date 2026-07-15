@@ -6,9 +6,6 @@
 #include <QString>
 
 #include "itemconstants.h"
-#include "legacy/legacycharacter.h"
-#include "legacy/legacyitemlocation.h"
-#include "legacy/legacystash.h"
 #include "poe/types/character.h"
 #include "poe/types/stashtab.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
@@ -26,14 +23,6 @@ ItemLocation::ItemLocation(const poe::Character &character, int tab_id)
     , m_character_sortname{character.name.toLower()}
 {}
 
-ItemLocation::ItemLocation(const LegacyCharacter &character, int tab_id)
-    : m_type{ItemLocationType::CHARACTER}
-    , m_tab_id{tab_id}
-    , m_unique_id(character.id)
-    , m_character{character.name}
-    , m_character_sortname{character.name.toLower()}
-{}
-
 ItemLocation::ItemLocation(const poe::StashTab &stash)
     : m_removeonly{stash.name.endsWith("(Remove-only)")}
     , m_type{ItemLocationType::STASH}
@@ -43,32 +32,6 @@ ItemLocation::ItemLocation(const poe::StashTab &stash)
     , m_tab_label{stash.name}
 {
     Util::GetTabColor(stash, m_red, m_green, m_blue);
-}
-
-ItemLocation::ItemLocation(const LegacyStash &stash)
-    : m_type{ItemLocationType::STASH}
-    , m_tab_id{stash.index}
-    , m_unique_id{stash.id}
-    , m_tab_type{stash.type}
-    , m_tab_label{stash.name}
-{
-    if (stash.i && (*stash.i != stash.index)) {
-        spdlog::error("ItemLocation: LegacyStash is inconsistent: i = {}, index = {}",
-                      *stash.i,
-                      stash.index);
-    }
-
-    if (stash.n && (*stash.n != stash.name)) {
-        spdlog::error("ItemLocation: LegacyStash is inconsistent: n = {}, name = {}",
-                      *stash.n,
-                      stash.name);
-    }
-
-    if (stash.colour) {
-        m_red = stash.colour->r;
-        m_green = stash.colour->g;
-        m_blue = stash.colour->b;
-    }
 }
 
 void ItemLocation::FixUid()
@@ -100,84 +63,6 @@ ItemLocation ItemLocation::getItemLocation(const poe::Item &item) const
         item_location.m_socketed = true;
     }
     return item_location;
-}
-
-void ItemLocation::AddLegacyItemLocation(const LegacyItemLocation &item)
-{
-    const auto _type = ItemLocationType{item._type};
-    if (m_type != _type) {
-        spdlog::warn("ItemLocation: legacy item location mismatch: _type");
-    }
-    m_type = _type;
-
-    if (m_socketed != item._socketed) {
-        spdlog::warn("ItemLocation: legacy item location mismatch: _removeonly");
-    }
-    m_socketed = item._socketed;
-
-    if (m_removeonly != item._removeonly) {
-        spdlog::warn("ItemLocation: legacy item location mismatch: _removeonly");
-    }
-    m_removeonly = item._removeonly;
-
-    // The x and y set here override the one set above in FromItem.
-    // I'm not yet sure if this is correct, but it matches the old FromItemJson.
-    if (m_socketed) {
-        // x-location
-        if (!item._x) {
-            spdlog::warn("ItemLocation: LegacyItemLocation for socketed item is missing _x");
-        } else {
-            if (m_x != *item._x) {
-                spdlog::warn("ItemLocation: legacy item location mismatch: _x");
-            }
-            m_x = *item._x;
-        }
-
-        // y-location
-        if (!item._y) {
-            spdlog::warn("ItemLocation: LegacyItemLocation for socketed item is missing _y");
-        } else {
-            if (m_x != *item._y) {
-                spdlog::warn("ItemLocation: legacy item location mismatch: _y");
-            }
-            m_y = *item._y;
-        }
-    }
-
-    switch (m_type) {
-    case ItemLocationType::STASH:
-        // m_tab_id
-        if (!item._tab) {
-            spdlog::error("ItemLocation: LegacyItemLocation for stash is missing _tab");
-        } else {
-            if (m_tab_id != *item._tab) {
-                spdlog::warn("ItemLocation: legacy item location mismatch: _tab");
-            }
-            m_tab_id = *item._tab;
-        }
-        // m_tab_label
-        if (!item._tab_label) {
-            spdlog::error("ItemLocation: LegacyItemLocation for stash is missing _tab_label");
-        } else {
-            if (m_tab_label != *item._tab_label) {
-                spdlog::warn("ItemLocation: legacy item location mismatch: _tab_label");
-            }
-            m_tab_label = *item._tab_label;
-        }
-        break;
-    case ItemLocationType::CHARACTER:
-        // m_character
-        if (!item._character) {
-            spdlog::error("ItemLocation: LegacyItemLocation for stash is missing _character");
-        } else {
-            if (m_character != *item._character) {
-                spdlog::warn("ItemLocation: legacy item location mismatch: _character");
-            }
-            m_character = *item._character;
-            m_character_sortname = m_character.toLower();
-        }
-        break;
-    }
 }
 
 QString ItemLocation::GetHeader() const
@@ -251,7 +136,7 @@ bool ItemLocation::IsValid() const
 QString ItemLocation::GetLegacyHash() const
 {
     if (!IsValid()) {
-        spdlog::error("ItemLocation is invalid: {}", m_json);
+        spdlog::error("ItemLocation is invalid: {}", GetHeader());
     };
     switch (m_type) {
     case ItemLocationType::STASH:

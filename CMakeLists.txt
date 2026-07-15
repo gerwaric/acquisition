@@ -221,7 +221,6 @@ set(ACQ_LEGACY
     src/legacy/legacydatastore.h
     src/legacy/legacyitem.cpp
     src/legacy/legacyitem.h
-    src/legacy/legacyitemlocation.h
     src/legacy/legacystash.h
 )
 
