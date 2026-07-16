@@ -105,8 +105,7 @@ private:
                    ItemLocation location,
                    ParseResult &result) const;
     void LoadItems(const poe::StashTab &stash, ItemLocation location, ParseResult &result) const;
-    void RemoveUpdatingTabs(const std::set<QString> &tab_ids);
-    void RemoveUpdatingItems(const std::set<QString> &tab_ids);
+    void RemoveItemsFetchedBy(const QString &fetch_id);
     void QueueRequest(const QString &endpoint,
                       const QNetworkRequest &request,
                       const ItemLocation &location);
@@ -123,7 +122,7 @@ private:
     void CheckUpdateFinished();
     void FinishUpdate();
 
-    void ProcessTab(const poe::StashTab &tab, int &count);
+    void ProcessTab(const poe::StashTab &tab, int &count, const std::set<QString> &previously_known);
 
     QSettings &m_settings;
     BuyoutManager &m_buyout_manager;
@@ -157,13 +156,16 @@ private:
     bool m_updateRequest{false};
     TabSelection m_type;
     std::vector<ItemLocation> m_locations;
-    std::set<ItemLocation> m_requested_locations;
     size_t m_request_failures{0};
 
     int m_queue_id{0};
 
-    int m_first_stash_request_index;
-    QString m_first_character_request_name;
+    // The current update's content selection: refresh everything
+    // (All/TabsOnly), or only the tabs/characters whose ids are listed.
+    // Tabs not previously known (brand new on the server) are always
+    // fetched.
+    bool m_update_all;
+    std::set<QString> m_tabs_to_update;
 
     bool m_need_stash_list;
     bool m_need_character_list;

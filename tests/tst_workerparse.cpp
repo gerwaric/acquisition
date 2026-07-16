@@ -19,6 +19,7 @@ class WorkerParseTest : public QObject
 
 private slots:
     void parsesCachedStashItems();
+    void specialChildItemsKeyedByChildFetchId();
 };
 
 static poe::Item makePoeItem(const char *id)
@@ -84,6 +85,62 @@ void WorkerParseTest::parsesCachedStashItems()
     QCOMPARE(result.items.size(), 1);
     QCOMPARE(result.items[0]->id(), QString("worker-parse-item"));
     QCOMPARE(result.items[0]->location().id(), stash.id);
+    // A normal tab's items are fetched by the tab itself (items-pipeline M1).
+    QCOMPARE(result.items[0]->location().fetch_id(), stash.id);
+}
+
+// Items in children of MapStash/UniqueStash tabs display under the parent
+// location but are fetched per child; the parse must key them by the child's
+// id so the per-reply atomic replacement can target exactly one child
+// (items-pipeline M1).
+void WorkerParseTest::specialChildItemsKeyedByChildFetchId()
+{
+    BuyoutManagerFixture fixture;
+    const QString account = "worker-parse-account-2";
+    const QString realm = "pc";
+    const QString league = "Worker Parse League";
+    const QString dataDir = fixture.tempDir.filePath("data");
+
+    poe::StashTab parent;
+    parent.id = "parent0001";
+    parent.name = "Maps";
+    parent.type = "MapStash";
+    parent.index = 0;
+
+    poe::StashTab child;
+    child.id = "child00001";
+    child.name = "Tier 1";
+    child.type = "MapStash";
+    child.parent = parent.id;
+    child.items = std::vector<poe::Item>{makePoeItem("child-item")};
+
+    {
+        UserStore store(QDir(dataDir), account);
+        QVERIFY(store.stashes().saveStashList({parent, child}, realm, league));
+        QVERIFY(store.stashes().saveStash(child, realm, league));
+    }
+
+    QSettings settings(fixture.tempDir.filePath("settings.ini"), QSettings::IniFormat);
+    settings.setValue("account", account);
+    settings.setValue("realm", realm);
+    settings.setValue("league", league);
+    settings.sync();
+
+    NetworkManager network;
+    RateLimiter rateLimiter(network);
+    ItemsManagerWorker worker(settings, *fixture.manager, rateLimiter);
+
+    const ParseResult result = worker.ParseCachedItems(dataDir);
+
+    // Only the parent is a tab; the child is not.
+    QCOMPARE(result.tabs.size(), 1);
+    QCOMPARE(result.tabs[0].id(), parent.id);
+
+    // The child's item displays under the parent but is keyed by the child.
+    QCOMPARE(result.items.size(), 1);
+    QCOMPARE(result.items[0]->id(), QString("child-item"));
+    QCOMPARE(result.items[0]->location().id(), parent.id);
+    QCOMPARE(result.items[0]->location().fetch_id(), child.id);
 }
 
 QTEST_GUILESS_MAIN(WorkerParseTest)

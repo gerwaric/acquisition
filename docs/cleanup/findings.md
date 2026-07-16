@@ -33,7 +33,7 @@ spec upgrade, July 2026): nothing forces storage changes here, so
 unification was dropped; a comment at the `m_refresh_checked` declaration
 documents the split. Unify only if other work touches this storage anyway.
 
-### F28. In-flight replies from an aborted update are misattributed to the next one — Confirmed; fix in progress (items-pipeline M1)
+### F28. In-flight replies from an aborted update are misattributed to the next one — Confirmed; fix implemented, awaiting manual validation
 
 Found during Phase 2 review; pre-existing. When an update fails, the worker
 returns to idle but outstanding replies stay connected to their handlers. If
@@ -69,10 +69,13 @@ repro attempt needs a single app version on a private copy of the data dir
 with `--log-level debug`, comparing unfiltered item counts across a partial
 refresh.
 
-**Fix assigned:** items-pipeline Milestone 1 (`docs/design/items-pipeline.md`)
-— an update generation tag (discard mismatched replies), plus atomic
-per-reply replacement so updates never begin destructively. The repro
-protocol above is M1's manual validation.
+**Fix implemented** (items-pipeline Milestone 1,
+`docs/design/items-pipeline.md`): an update generation tag discards
+mismatched replies, and updates no longer begin destructively — each reply
+atomically replaces the items keyed by its fetch-source id
+(`ItemLocation::fetch_id()`), and tab entries are reconciled against the
+fresh lists on receipt. The finding stays open until M1's manual
+validation runs: the network-kill test and the repro protocol above.
 
 ### F46. `ItemsManager::OnItemsRefreshed` runs an O(items) scan purely for logging — Confirmed
 
@@ -85,13 +88,27 @@ emit; gate it behind `spdlog::should_log` or drop it. Opportunistic —
 absorb into items-pipeline M2/M3 work on this function rather than fixing
 inline (working rule 3).
 
-### F47. `ItemLocation::FixUid()` is dead code — Confirmed
+### F49. Folder children may be fetched twice, through two different paths — Likely
 
-`ItemLocation::FixUid()` (`itemlocation.cpp`) has no callers anywhere in
-the tree. Its legacy-API uid-trimming concern survives elsewhere
-(`ItemsManagerWorker::ProcessTab` trims long ids inline). Delete the method
-next time `ItemLocation` is touched — items-pipeline M1 touches the class
-and may sweep it.
+Found during the items-pipeline M1 implementation (July 2026); traced but
+not runtime-verified, because it depends on what the live API actually
+returns. `ProcessTab` recurses into `tab.children` from the *stash list*,
+adding each child as its own tab with its own location and its own content
+request. Separately, `OnStashReceived`'s `get_children` branch is
+unconditionally true for `type == "Folder"`, so if an individually fetched
+folder's reply also carries `children`, those children are queued *again*
+— under the folder's location rather than their own. If both paths fire
+for the same folder, its children are fetched twice per update and, before
+M1, their items were duplicated under two display locations. Since M1 the
+duplication self-heals — both requests carry the same fetch-source id, so
+whichever reply lands last replaces the other's items — but the redundant
+fetch (and the non-deterministic display location) remains. Needs a live
+observation during M1's manual validation: refresh an account with folder
+tabs at DEBUG and check whether folder children appear in both request
+paths. The fix would be consulting `m_tab_id_index` before queueing
+children in `OnStashReceived`, but do not change it blind — MapStash and
+UniqueStash children genuinely need that path (they are absent from the
+stash list).
 
 ---
 
@@ -176,3 +193,5 @@ above). "PR #161" refers to the post-Phase-6 follow-ups branch
 | F43 | Restored bucket selection not highlighted in the tree | Fixed, PR #161 |
 | F44 | Item-path warning branches kept stale selection state | Fixed, PR #161 |
 | F45 | Shop threads could not be cleared; no-threads warning unreachable | Fixed, July 2026 (own change) |
+| F47 | `ItemLocation::FixUid()` was dead code | Deleted, items-pipeline M1 |
+| F48 | Character-list skip-check compared names against an id-keyed index (never matched), so a partial update re-added and re-fetched every character in the league, duplicating their tab entries and items | Found and fixed, items-pipeline M1 (character entries rebuilt from the fresh list, keyed by id) |

@@ -50,9 +50,16 @@ public:
     int getB() const { return m_blue; }
     QString id() const { return m_unique_id; }
 
-private:
-    void FixUid();
+    // The id of the stash or character an item was actually fetched from.
+    // For children of MapStash/UniqueStash/folder tabs this is the child's
+    // own id while id() stays the parent's (the display tab). It keys the
+    // per-reply atomic item replacement in ItemsManagerWorker and is
+    // deliberately excluded from operator==, operator<, and GetLegacyHash,
+    // so buyout keys and sort order do not depend on it.
+    QString fetch_id() const { return m_fetch_id; }
+    void setFetchId(const QString &id) { m_fetch_id = id; }
 
+private:
     int m_x{0}, m_y{0}, m_w{0}, m_h{0};
     int m_red{0}, m_green{0}, m_blue{0};
     bool m_socketed{false};
@@ -62,6 +69,8 @@ private:
 
     //this would be the value "tabs -> id", which seems to be a hashed value generated on their end
     QString m_unique_id;
+
+    QString m_fetch_id;
 
     // This is the "type" field from GGG, which is different from the ItemLocationType
     // used by Acquisition.

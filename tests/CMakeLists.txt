@@ -22,6 +22,7 @@ add_test(NAME filters_boundary
 
 acq_add_test(tst_buyout)
 acq_add_test(tst_buyoutmanager)
+acq_add_test(tst_itemlocation)
 acq_add_test(tst_itemtooltiptext)
 acq_add_test(tst_itemsmodel)
 acq_add_test(tst_mainwindow)
