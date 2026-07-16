@@ -128,6 +128,20 @@ children in `OnStashReceived`, but do not change it blind — MapStash and
 UniqueStash children genuinely need that path (they are absent from the
 stash list).
 
+**Partial observation (2026-07-16, full `All` refresh at debug, 48-tab
+account, Mirage, map/unique stashes enabled):** no redundant fetch — 122
+item fetches (48 top-level tabs, 46 MapStash + 27 UniqueStash children,
+1 character) produced 122 distinct fetch-source ids, one atomic replace
+each. The stash list carried no children ("Requesting 48 out of 48"; the
+`FetchItems` queue listed only top-level tabs), confirming that MapStash
+and UniqueStash children genuinely need the `OnStashReceived` path. The
+Folder branch remains unexercised — this account has no folder tabs — so
+the double-fetch hypothesis is still open for folders specifically. The
+worker-side behavior is already established by code trace (if the list
+ever carries folder children, they *will* be queued twice); the only open
+question is whether the live API actually lists them, which the offline
+harness cannot answer. Verdict unchanged: Likely, folders only.
+
 ---
 
 ## Standing constraints and lessons
