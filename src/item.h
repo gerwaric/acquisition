@@ -127,7 +127,6 @@ public:
     const ItemSocketGroup &sockets() const { return m_sockets; }
     const std::vector<ItemSocketGroup> &socket_groups() const { return m_socket_groups; }
     const ItemLocation &location() const { return m_location; }
-    const QString &json() const { return m_json; }
     const QString &note() const { return m_note; }
     const QString &category() const { return m_category; }
     uint talisman_tier() const { return m_talisman_tier; }
@@ -176,7 +175,6 @@ private:
     ItemSocketGroup m_sockets{0, 0, 0, 0};
     std::vector<ItemSocketGroup> m_socket_groups;
     std::map<QString, int> m_requirements;
-    QString m_json;
     int m_count{0};
     int m_ilvl{0};
     std::vector<ItemProperty> m_text_properties;

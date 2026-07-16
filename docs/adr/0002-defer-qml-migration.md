@@ -58,5 +58,9 @@ Negative:
 
 ## Follow-Up
 
-- Top-level plan: `docs/cleanup/plan.md`
-- Investigation findings that motivated this decision: `docs/cleanup/findings.md`
+- Top-level plan: `docs/cleanup/plan.md` (completed July 2026 and retired;
+  see git history)
+- Investigation findings that motivated this decision:
+  `docs/cleanup/findings.md` (still live, trimmed to open findings plus a
+  resolved ledger)
+- Successor effort: `docs/design/items-pipeline.md`

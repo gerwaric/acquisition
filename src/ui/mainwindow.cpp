@@ -98,6 +98,7 @@ MainWindow::MainWindow(QSettings &settings,
     , ui(new Ui::MainWindow)
     , m_currency_dialog(nullptr)
     , m_current_search(nullptr)
+    , m_log_panel(nullptr)
     , m_search_count(0)
     , m_rate_limit_dialog(nullptr)
     , m_quitting(false)
@@ -134,6 +135,13 @@ MainWindow::MainWindow(QSettings &settings,
 
 MainWindow::~MainWindow()
 {
+    // Detach the log panel's sinks while its widgets are still alive: child
+    // cleanup destroys the panel's QTextEdit before ~LogPanel would run, and
+    // a worker thread logging in that window would write to a dead widget
+    // (F42).
+    if (m_log_panel) {
+        m_log_panel->DetachSinks();
+    }
     m_search_form.reset();
     delete ui;
     m_rate_limit_dialog->close();
@@ -753,7 +761,15 @@ void MainWindow::ModelViewRefresh()
 
     ui->viewComboBox->setCurrentIndex(static_cast<int>(m_current_search->GetViewMode()));
 
-    m_tab_bar->setTabText(m_tab_bar->currentIndex(), m_current_search->GetCaption());
+    // During a tab-switch flush the tab bar already points at the destination
+    // tab while m_current_search is still the outgoing search, so resolve the
+    // caption's tab from the search list rather than the bar (F41).
+    for (size_t i = 0; i < m_searches.size(); ++i) {
+        if (m_searches[i].get() == m_current_search) {
+            m_tab_bar->setTabText(static_cast<int>(i), m_current_search->GetCaption());
+            break;
+        }
+    }
 
     ReselectCurrentItem();
 }
@@ -769,7 +785,9 @@ void MainWindow::OnCurrentItemChanged(const QModelIndex &current, const QModelIn
     }
 
     if (current.parent().isValid()) {
-        // Clicked on an item
+        // Clicked on an item. The warning branches reset the stored selection
+        // instead of keeping the previous item/bucket pair, so the panel
+        // clears rather than rendering stale state (F44).
         const int bucket_row = current.parent().row();
         if (m_current_search->has_bucket(bucket_row)) {
             const Bucket &bucket = m_current_search->bucket(bucket_row);
@@ -782,9 +800,15 @@ void MainWindow::OnCurrentItemChanged(const QModelIndex &current, const QModelIn
                 spdlog::warn("OnCurrentItemChanged(): parent bucket {} does not have {} rows",
                              bucket_row,
                              item_row);
+                m_current_item = nullptr;
+                m_current_bucket_location.reset();
+                ClearCurrentItem();
             }
         } else {
             spdlog::warn("OnCurrentItemChanged(): parent bucket {} does not exist", bucket_row);
+            m_current_item = nullptr;
+            m_current_bucket_location.reset();
+            ClearCurrentItem();
         }
     } else {
         // Clicked on a bucket
@@ -796,6 +820,7 @@ void MainWindow::OnCurrentItemChanged(const QModelIndex &current, const QModelIn
         } else {
             spdlog::warn("OnCurrentItemChanged(): bucket {} does not exist", bucket_row);
             m_current_bucket_location.reset();
+            ClearCurrentItem();
         }
     }
     if (m_current_item || m_current_bucket_location) {
@@ -809,9 +834,13 @@ void MainWindow::ReselectCurrentItem()
 {
     spdlog::trace("MainWindow::ReselectCurrentItem() entered");
 
-    // Do nothing is nothing is selected.
+    // A bucket (stash tab header row) can be the current selection too (F43).
     if (m_current_item == nullptr) {
-        spdlog::trace("MainWindow::ReselectCurrentItem() nothing was selected");
+        if (m_current_bucket_location) {
+            ReselectCurrentBucket();
+        } else {
+            spdlog::trace("MainWindow::ReselectCurrentItem() nothing was selected");
+        }
         return;
     }
 
@@ -832,6 +861,26 @@ void MainWindow::ReselectCurrentItem()
                                                    | QItemSelectionModel::Select
                                                    | QItemSelectionModel::Rows);
     }
+}
+
+void MainWindow::ReselectCurrentBucket()
+{
+    const auto &buckets = m_current_search->buckets();
+    for (size_t row = 0; row < buckets.size(); ++row) {
+        if (buckets[row].location() == *m_current_bucket_location) {
+            spdlog::trace("MainWindow::ReselectCurrentBucket() reselecting the previous bucket");
+            const QModelIndex index = m_current_search->model().index(static_cast<int>(row), 0);
+            ui->treeView->selectionModel()->select(index,
+                                                   QItemSelectionModel::Current
+                                                       | QItemSelectionModel::Select
+                                                       | QItemSelectionModel::Rows);
+            return;
+        }
+    }
+    // The previously selected bucket is no longer in the search results.
+    spdlog::trace("MainWindow::ReselectCurrentBucket() the previously selected bucket is gone");
+    m_current_bucket_location.reset();
+    ClearCurrentItem();
 }
 
 void MainWindow::OnDelayedSearchFormChange()

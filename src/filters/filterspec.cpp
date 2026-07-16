@@ -160,7 +160,12 @@ FilterCatalog BuildFilterCatalog(const BuyoutManager &buyoutManager)
         return !item.identified();
     }));
     specs.push_back(boolean("Influenced", FilterGroup::MiscFlags2, [](const Item &item) {
-        return item.hasInfluence();
+        // Only the six conqueror/elder-war influences: Item::hasInfluence()
+        // would also match fractured, synthesised, and eldritch items, which
+        // have their own filters and are separate concepts in game (F38).
+        return item.hasInfluence(Item::SHAPER) || item.hasInfluence(Item::ELDER)
+               || item.hasInfluence(Item::CRUSADER) || item.hasInfluence(Item::REDEEMER)
+               || item.hasInfluence(Item::HUNTER) || item.hasInfluence(Item::WARLORD);
     }));
     specs.push_back(boolean("Crafted", FilterGroup::MiscFlags2, [](const Item &item) {
         return item.crafted();

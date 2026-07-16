@@ -14,9 +14,9 @@
 - Run locally with `./build/acquisition --data-dir /tmp/acq-data` to avoid touching a user's real Acquisition data.
 - Run the checked-in Qt Test suite with `ctest --test-dir build --output-on-failure` after building.
 
-## Design Cleanup (in progress)
-- An interior design cleanup is underway; read `docs/cleanup/plan.md` before making structural changes to core code.
-- Known design/correctness problems are cataloged in `docs/cleanup/findings.md`. Check it before fixing something that looks broken — it may already be assigned to a phase.
+## Items Pipeline Redesign (in progress)
+- The July 2026 interior design cleanup is complete. Current work is a delta-native redesign of the items refresh pipeline; read `docs/design/items-pipeline.md` before making structural changes to the worker, `ItemsManager`, or the search/model refresh paths.
+- Known design/correctness problems are recorded in `docs/cleanup/findings.md` (open findings, standing constraints, and a ledger of resolved ones). Check it before fixing something that looks broken — it may already be recorded or assigned.
 
 ## Development Guidance
 - Use `.clang-format` for C++ formatting when touching formatted source, respect existing `// clang-format off/on` blocks, and preserve nearby style for naming and code organization.

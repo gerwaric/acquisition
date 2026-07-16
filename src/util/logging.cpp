@@ -5,6 +5,7 @@
 
 #include <sentry.h>
 #include <spdlog/sinks/callback_sink.h>
+#include <spdlog/sinks/dist_sink.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 
 #ifdef _WIN32
@@ -55,10 +56,19 @@ void logging::init(const QString &filename)
     sentry_sink->set_level(spdlog::level::err);
     */
 
+    // Create a permanent hub for sinks that come and go with UI objects
+    // (LogPanel). The logger's own sink vector is not synchronized, so it
+    // must never be mutated while other threads may be logging; the dist
+    // sink's add_sink/remove_sink share the delivery mutex, which makes
+    // attach and detach safe at any time (F42).
+    auto ui_sink_hub = std::make_shared<spdlog::sinks::dist_sink_mt>();
+    ui_sink_hub->set_level(spdlog::level::warn); // raise if a sub-sink needs lower
+
     // Create sinks vector
     std::vector<spdlog::sink_ptr> sinks = {
         debug_sink,
         file_sink,
+        ui_sink_hub,
         // sentry_sink,
     };
 
