@@ -320,6 +320,7 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
         spdlog::trace("ItemsManagerWorker: stashes = {}", stash_names.join(", "));
     }
     m_state = WorkerState::Updating;
+    ++m_update_generation;
     m_request_failures = 0;
     m_update_tab_contents = (type != TabSelection::TabsOnly);
 
@@ -476,7 +477,15 @@ void ItemsManagerWorker::SubmitStashListRequest()
     spdlog::trace("ItemsManagerWorker::OAuthRefresh() requesting stash list: {}",
                   request.url().toString());
     auto reply = m_rate_limiter.Submit(endpoint, request);
-    connect(reply, &RateLimitedReply::complete, this, &ItemsManagerWorker::OnStashListReceived);
+    const int generation = m_update_generation;
+    connect(reply,
+            &RateLimitedReply::complete,
+            this,
+            [this, generation, reply](QNetworkReply *network_reply) {
+                if (!DiscardIfStale(generation, reply, network_reply)) {
+                    OnStashListReceived(network_reply);
+                }
+            });
 }
 
 void ItemsManagerWorker::SubmitCharacterListRequest()
@@ -484,8 +493,16 @@ void ItemsManagerWorker::SubmitCharacterListRequest()
     const auto [endpoint, request] = poe::MakeCharacterListRequest(m_realm);
     spdlog::trace("ItemsManagerWorker::OAuthRefresh() requesting character list: {}",
                   request.url().toString());
-    auto submit = m_rate_limiter.Submit(endpoint, request);
-    connect(submit, &RateLimitedReply::complete, this, &ItemsManagerWorker::OnCharacterListReceived);
+    auto reply = m_rate_limiter.Submit(endpoint, request);
+    const int generation = m_update_generation;
+    connect(reply,
+            &RateLimitedReply::complete,
+            this,
+            [this, generation, reply](QNetworkReply *network_reply) {
+                if (!DiscardIfStale(generation, reply, network_reply)) {
+                    OnCharacterListReceived(network_reply);
+                }
+            });
 }
 
 void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, int &count)
@@ -883,8 +900,37 @@ void ItemsManagerWorker::SubmitNextItemRequest()
         break;
     }
 
-    auto submit = m_rate_limiter.Submit(request.endpoint, request.network_request);
-    connect(submit, &RateLimitedReply::complete, this, callback);
+    auto reply = m_rate_limiter.Submit(request.endpoint, request.network_request);
+    const int generation = m_update_generation;
+    connect(reply,
+            &RateLimitedReply::complete,
+            this,
+            [this, generation, reply, callback](QNetworkReply *network_reply) {
+                if (!DiscardIfStale(generation, reply, network_reply)) {
+                    callback(network_reply);
+                }
+            });
+}
+
+bool ItemsManagerWorker::DiscardIfStale(int generation,
+                                        RateLimitedReply *reply,
+                                        QNetworkReply *network_reply)
+{
+    // A reply is stale if it belongs to an earlier update, or if no update is
+    // running at all: every request is submitted during an update, a
+    // successful finish requires all of them to have been counted, and a
+    // failed update abandons whatever is still in flight (F28).
+    if ((m_state == WorkerState::Updating) && (generation == m_update_generation)) {
+        return false;
+    }
+    spdlog::debug(
+        "ItemsManagerWorker: discarding a stale reply from update {} (current is {}): {}",
+        generation,
+        m_update_generation,
+        network_reply->url().toString());
+    reply->deleteLater();
+    network_reply->deleteLater();
+    return true;
 }
 
 void ItemsManagerWorker::SendStatusUpdate()

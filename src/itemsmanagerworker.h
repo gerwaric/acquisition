@@ -27,6 +27,7 @@ class BuyoutManager;
 class DataStore;
 class ItemLocation;
 class NetworkManager;
+class RateLimitedReply;
 class RateLimiter;
 class RePoE;
 
@@ -113,6 +114,7 @@ private:
     void SubmitStashListRequest();
     void SubmitCharacterListRequest();
     void SubmitNextItemRequest();
+    bool DiscardIfStale(int generation, RateLimitedReply *reply, QNetworkReply *network_reply);
 
     void Refresh();
 
@@ -147,6 +149,10 @@ private:
     WorkerState m_state{WorkerState::Initializing};
     QPointer<QThread> m_parser_thread;
     std::atomic<bool> m_shutdown{false};
+
+    // Incremented by every update; reply handlers discard replies whose
+    // generation is not the currently running update's (F28).
+    int m_update_generation{0};
 
     bool m_updateRequest{false};
     TabSelection m_type;
