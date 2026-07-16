@@ -88,6 +88,24 @@ emit; gate it behind `spdlog::should_log` or drop it. Opportunistic —
 absorb into items-pipeline M2/M3 work on this function rather than fixing
 inline (working rule 3).
 
+### F50. Network failures are logged as rate-limit-header anomalies — Confirmed
+
+Found during the items-pipeline M1 manual validation (July 2026,
+network-kill test). The handling is correct — this is the F30 fix working
+as designed: `RateLimitManager::ReceiveReply` surfaces a header-less reply
+to the caller as a failed request and moves the queue along, and the
+worker aborts cleanly with items intact. But the diagnostic wording is
+wrong: "The rate limit manager received a reply for stash-request-limit
+without rate limit headers: error TimeoutError" frames a plain network
+failure as a rate-limit anomaly, and it reads as if the rate limiter
+misinterpreted the event (it was misread exactly that way in testing).
+The branch also conflates two distinct cases: `reply->error() != NoError`
+(an expected network-level failure — should be a `warn` saying "network
+error for <endpoint>: <errorString>; failing the request") and a reply
+with *no* error but missing headers (a genuine API anomaly deserving
+`error`). Split the two and reword. Same diagnostics family as the F30
+BORDERLINE note.
+
 ### F49. Folder children may be fetched twice, through two different paths — Likely
 
 Found during the items-pipeline M1 implementation (July 2026); traced but
