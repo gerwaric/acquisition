@@ -30,6 +30,7 @@ private slots:
     void partialUpdateDoesNotDuplicateCharacters();
     void renamedTabMetadataRefreshesWithoutFetch();
     void vanishedMapChildItemsAreRemovedOnParentRefresh();
+    void failedUpdateDoesNotRebasePublishedLocations();
 };
 
 namespace {
@@ -504,6 +505,66 @@ void WorkerUpdateTest::vanishedMapChildItemsAreRemovedOnParentRefresh()
     QVERIFY(item_m2 != f.last_items.cend());
     QCOMPARE((*item_m2)->location().id(), QString("mapstash01"));
     QCOMPARE((*item_m2)->location().fetch_id(), QString("mapchild02"));
+}
+
+// The emitted Items share Item objects with ItemsManager and the UI, so
+// rebasing surviving item locations may only happen when an update
+// finishes successfully (in FinishUpdate, just before the emit). Rebasing
+// at list receipt would mutate the already-published snapshot mid-update —
+// and a terminal failure would leave it mutated indefinitely, with no emit
+// to rebuild the search buckets around the new metadata.
+void WorkerUpdateTest::failedUpdateDoesNotRebasePublishedLocations()
+{
+    WorkerFixture f("worker-update-account-6");
+
+    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Old Name", 0, QStringList{"a1"}));
+    const auto tab_b = json::readStash(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b1"}));
+    QVERIFY(tab_a && tab_b);
+    {
+        UserStore store(QDir(f.dataDir()), "worker-update-account-6");
+        QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b}, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*tab_b, kRealm, kLeague));
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    // Hold the published item the way ItemsManager and the UI do: a
+    // shared_ptr into the emitted snapshot.
+    std::shared_ptr<Item> item_a;
+    for (const auto &item : f.last_items) {
+        if (item->id() == "a1") {
+            item_a = item;
+        }
+    }
+    QVERIFY(item_a);
+
+    const QByteArray fresh_list = stashListBody(
+        {stashJson("stashaaaa1", "New Name", 0), stashJson("stashbbbb1", "Tab B", 1)});
+
+    // Refresh only tab B; the fresh list renames tab A, then tab B's fetch
+    // dies, terminating the update without an emit.
+    f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_b)});
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
+    f.rate_limiter.deliver(0, fresh_list);
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
+    f.rate_limiter.deliver(1, {}, QNetworkReply::ConnectionRefusedError);
+    QCOMPARE(f.refresh_count, 1);
+
+    // The published snapshot is untouched by the failed update.
+    QCOMPARE(item_a->location().tab_label(), QString("Old Name"));
+
+    // A subsequent successful update applies the rename to the same shared
+    // object the UI holds.
+    f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_b)});
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(3));
+    f.rate_limiter.deliver(2, fresh_list);
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(4));
+    f.rate_limiter.deliver(3,
+                           stashBody(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b1-new"})));
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(item_a->location().tab_label(), QString("New Name"));
 }
 
 QTEST_GUILESS_MAIN(WorkerUpdateTest)

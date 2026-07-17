@@ -601,8 +601,6 @@ void ItemsManagerWorker::OnStashListReceived(QNetworkReply *reply)
                       (before - m_items.size()));
     }
 
-    RebaseItemLocations(ItemLocationType::STASH);
-
     m_has_stash_list = true;
 
     // Check to see if we can start sending queued requests to fetch items yet.
@@ -716,8 +714,6 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply *reply)
         spdlog::debug("ItemsManagerWorker: dropped {} items from deleted characters",
                       (before - m_items.size()));
     }
-
-    RebaseItemLocations(ItemLocationType::CHARACTER);
 
     m_has_character_list = true;
 
@@ -1126,6 +1122,15 @@ void ItemsManagerWorker::FinishUpdate()
     }
 
     emit StatusUpdate(ProgramState::Ready, message);
+
+    // Rebase surviving items' locations onto the fresh tab metadata only
+    // now that the update has succeeded: the emitted Items share Item
+    // objects with ItemsManager and the UI, so rebasing any earlier would
+    // mutate the already-published snapshot mid-update — and a terminal
+    // failure would leave it mutated, with no emit to rebuild the search
+    // buckets around the new metadata.
+    RebaseItemLocations(ItemLocationType::STASH);
+    RebaseItemLocations(ItemLocationType::CHARACTER);
 
     // Sort tabs.
     std::sort(begin(m_tabs), end(m_tabs));
