@@ -155,6 +155,40 @@ row, delete the hash-keyed one) inside `MigrateItem`, or have
 (dual persistence), F51 ledger entry (do not rekey `GetLegacyHash` — a
 correct future v4→v5 migration depends on it).
 
+### F55. A failed first fetch permanently consumes a new tab's newness — Confirmed; release-blocking for M1
+
+Found July 17, 2026, in the post-review pass over items-pipeline M1
+(PR #162). M1's always-fetch contract promises that tabs and characters
+created server-side since the last list are fetched even by partial
+refreshes. The mechanism breaks under failure: list reconciliation adds a
+newly discovered tab to `m_tabs`/`m_tab_id_index` as soon as the list is
+processed (`ProcessTab`), and `OnStashListReceived` emits
+`stashListReceived` *before* any item fetch, persisting the tab's
+metadata to the datastore at list receipt. If the update then fails
+terminally before that tab's first item request completes (every terminal
+failure path clears `m_queue`), the tab is already "previously known" to
+all later refreshes — in memory for the session, and across restarts via
+`ParseCachedItems` — so nothing fetches it unless it is selected,
+checked, or part of a full refresh. The next successful partial refresh
+then publishes the tab empty. The trigger window (list received, queue
+discarded before the new tab's reply) is exactly the environment M1
+exists for: hours-long refreshes that will fail mid-flight.
+
+Fix shape: track "contents known" separately from "metadata known". A
+session-only set is insufficient — metadata persistence at list receipt
+consumes newness across restarts — so derive contents-known from the
+datastore: a tab whose items were never saved has no items row, which is
+distinguishable from "fetched and legitimately empty" if the datastore
+exposes it. Add an offline regression pin to the fake-network harness:
+fail an update after list receipt but before the new tab's first reply,
+run a successful partial refresh, and assert the new tab's contents are
+still fetched.
+
+Assigned: the post-M1 follow-up PR, alongside F53 (both are
+datastore-persistence edges of list reconciliation). Release-blocking
+for M1: the release notes advertise the always-fetch behavior, which is
+false in this window until fixed.
+
 ---
 
 ## Standing constraints and lessons
@@ -240,6 +274,6 @@ above). "PR #161" refers to the post-Phase-6 follow-ups branch
 | F44 | Item-path warning branches kept stale selection state | Fixed, PR #161 |
 | F45 | Shop threads could not be cleared; no-threads warning unreachable | Fixed, July 2026 (own change) |
 | F47 | `ItemLocation::FixUid()` was dead code | Deleted, items-pipeline M1 |
-| F49 | Folder children suspected of being fetched twice via two paths | Closed by live observation, July 2026: the paths are complementary in the live API — folder children arrive only via the stash list (Standard, 16 child lists; the two individually fetched folders returned no `children` and no items), map/unique children only via the individual reply (Mirage, 73 children). The `OnStashReceived` tripwire warning stays in the code as a permanent guard should the API ever change |
+| F49 | Folder children suspected of being fetched twice via two paths | Closed by live observation, July 2026: the paths are complementary in the live API — folder children arrive only via the stash list (Standard, 16 child lists; the two individually fetched folders returned no `children` and no items), map/unique children only via the individual reply (Mirage, 73 children). The `OnStashReceived` tripwire warning stays in the code as a permanent guard should the API ever change. July 17 amendment: the warning's "fetched twice this update" claim can be false — during a partial refresh a known-but-unselected child is never queued from the stash list, so the parent path would be its only fetch. Reword to "may be fetched twice" or check a per-update set of queued fetch ids; assigned alongside F55 |
 | F48 | Character-list skip-check compared names against an id-keyed index (never matched), so a partial update re-added and re-fetched every character in the league, duplicating their tab entries and items | Found and fixed, items-pipeline M1 (character entries rebuilt from the fresh list, keyed by id) |
 | F51 | Unnamed stash tabs (~30 on the validating account, real in-game data) collapse the label component of the legacy item-buyout hash, suspected of shadowing item buyouts across tabs | Reframed and closed, July 2026: active item buyouts key on the API item id (`BuyoutManager::Set`/`Get` use `item.id()`); the label-based `hash_v4` is consumed only by the one-time v4→v5 migration, where colliding tabs made that migration ambiguous — an accepted legacy quirk. Do not rekey `GetLegacyHash`: it would break future v4→v5 migrations without improving live lookups |

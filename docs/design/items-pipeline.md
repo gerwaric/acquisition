@@ -99,20 +99,28 @@ re-parallelization.)
   cull: tabs present in the fresh stash/character list are upserted
   (metadata refreshed in place — this absorbs the F15 accepted-limitation
   sketch: renamed/moved tabs now get fresh names/colors/positions on any
-  refresh, at zero extra API calls; deliberate behavior change,
-  release-note it); tabs absent from the fresh list are removed along
-  with their items — in memory, for the session: the datastore keeps
-  their rows until F53 (follow-up PR) makes the deletion durable.
+  refresh, at zero extra API calls; deliberate behavior change, final
+  wording in the release notes below); tabs absent from the fresh list
+  are removed along with their items — in memory, for the session: the
+  datastore keeps their rows until F53 (follow-up PR) makes the deletion
+  durable.
 - **Update modes unify**: `All` becomes "selection = every tab",
   `TabsOnly` becomes "selection with contents off", `Checked`/`Selected`
   are the general case. `RemoveUpdatingTabs`, `RemoveUpdatingItems`,
   `m_first_stash_request_index`, and `m_first_character_request_name` are
   deleted. Tabs and characters not previously known (created server-side
-  since the last list) are **always fetched**, even in `Checked`/
-  `Selected` updates — a new tab would otherwise sit empty until the next
-  full refresh. Deliberate behavior change (one extra tab fetch per new
-  tab on a partial refresh); release-note it alongside the F15 rename
-  absorption.
+  since the last list) are **always fetched when they appear in a list
+  the selection already requires** — even in `Checked`/`Selected`
+  updates, where a new tab would otherwise sit empty until the next full
+  refresh. Narrowed July 2026 (post-review): a partial refresh requests
+  only the lists its selection needs, so a stash-only refresh does not
+  discover new characters, and a brand-new first character waits for a
+  refresh that requests the character list (`All`, `TabsOnly`, or any
+  character selection). Deliberate behavior change (one extra tab fetch
+  per new tab on a partial refresh); final wording in the release notes
+  below. Known edge (F55, fix assigned before the M1 release): a
+  terminal failure before a new tab's first successful fetch consumes
+  its newness, leaving it published empty by later partial refreshes.
 - **Failure semantics unchanged at the boundary**: no `ItemsRefreshed`
   emit on terminal failure — but now that's safe, because `m_items` is
   never left culled. Emit-on-failure / partial-application policy is a
@@ -130,6 +138,23 @@ Validation (complete, July 2026): the offline fake-network harness covers
 the worker's update cycle, the live network-kill ran July 16, and the
 recorded missing-item repro was retired as moot once the destructive cull
 path was deleted — see the F28 ledger entry.
+
+**M1 release notes (final user-facing wording).** Two deliberate
+behavior changes ship with M1; this is the source text for the release
+(copy into the PR body / release entry):
+
+- *Stash tab renames and moves now show up on any refresh.* Renaming,
+  moving, or recoloring a stash tab in the game is reflected by the next
+  refresh of any kind, without refetching the tab's contents. Previously
+  the old name could persist until that specific tab was refreshed.
+- *Newly created tabs and characters are fetched automatically.* A stash
+  tab or character created since your last refresh is now fetched by any
+  refresh that consults the corresponding tab or character list, even if
+  you only refreshed a selection. Previously it sat empty until the next
+  full refresh. (Costs one extra tab fetch per newly created tab.)
+
+The second note must not ship while F55 is open (a failure edge makes it
+untrue); F55's fix is release-blocking for M1.
 
 ### Milestone 2 — Streaming refresh signal (next PR)
 
