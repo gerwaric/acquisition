@@ -62,81 +62,6 @@ with *no* error but missing headers (a genuine API anomaly deserving
 `error`). Split the two and reword. Same diagnostics family as the F30
 BORDERLINE note.
 
-### F52. `PropagateTabBuyouts` issues a database delete per item on every refresh — Confirmed
-
-Observed July 16, 2026, during the M1 folder validation (Standard league,
-18,491 items): every `ItemsRefreshed` emit produced ~17,250 consecutive
-`BuyoutRepo: removing item buyout` lines — once after the initial cached
-parse, again after a 4-tab checked refresh, identical both times (they are
-the bulk of a 5.8 MB debug log). Mechanism, verified in code:
-`ItemsManager::PropagateTabBuyouts` calls `Set(item, Buyout())` for every
-item whose buyout is inherited when its tab has no active buyout — which
-for most accounts is nearly every item — and `BuyoutManager::Set`'s
-`IsNull` branch calls `m_repo.removeItemBuyout(item)` **unconditionally**,
-even when neither the memory map nor the database has an entry for that
-item. Net effect: one SQL DELETE (plus a debug log line) per item per
-refresh, ~17k no-op statements each time for this account. The fix shape:
-only call `removeItemBuyout` when the map actually holds an entry for the
-item. Caveat on the guard (July 17 review of PR #163): the memory
-map does **not** strictly mirror the repo — `CompressTabBuyouts` (runs
-every refresh via `ApplyAutoTabBuyouts`) erases vanished tabs' entries
-from the map without repo deletes, and `MigrateItem` rekeys map entries
-without repo writes (see F54). Both drift in the same direction — repo
-holds rows the map lacks — which is exactly the case the guard declines
-to delete, so the fix loses nothing; orphan rows persist in the DB and
-are re-erased from the map each session (accepted tradeoff, pinned by
-`clearingAbsentBuyoutSkipsRepo` / `clearingAbsentTabBuyoutSkipsRepo`).
-Second caveat (same review): erasing the map entry *before* the repo
-delete would make a failed DELETE unretryable — the guard would skip
-every later clear and the row would resurrect at the next `Load()`.
-Fixed shape: `removeItemBuyout`/`removeLocationBuyout` return success
-and the map entry is erased only afterward, so a failed delete is
-retried on the next clear (pinned by `failedDeleteKeepsEntryForRetry`).
-The save path still discards failures — `saveItemBuyout` returns bool
-but is invoked via signal connection (`application.cpp`), so a failed
-save silently drops the buyout at the next restart; accepted for now,
-noted here so the delete/save asymmetry is deliberate. Same
-snapshot-cascade family as F46; also a hard constraint on
-items-pipeline M2 — the per-tab delta path must scope buyout
-propagation to the delta, not rerun this loop per tab reply.
-Fix assigned: PR #163.
-
-### F53. Deleted stash tabs and characters resurrect from the cache at restart — Confirmed; follow-up PR assigned
-
-Found during the July 2026 review of items-pipeline M1 (PR #162). The
-worker treats the fresh stash/character lists as authoritative and drops
-server-deleted tabs with their items — but only in memory. The connected
-repositories only upsert the rows a list returns and never delete absent
-ones (`StashRepo::saveStashList`, `CharacterRepo::saveCharacterList`),
-and both return early for an empty list, so even "everything was deleted"
-cannot be expressed. `getStashList`/`getCharacterList` return every row
-for the realm/league, so `ParseCachedItems()` reloads deleted locations
-and their saved item JSON at the next startup.
-
-**Fix shape (amended July 17 — the original "delete rows absent from the
-top-level list" would have erased every Map/Unique child's cached JSON,
-since special children are never in any list; see the F49 ledger entry).**
-Three parts:
-
-1. **On a fresh top-level list:** delete rows absent from the
-   *recursively flattened* list (folder children included) — except rows
-   whose `parent` is a surviving Map/Unique tab, which live only in
-   parent replies. Handle the empty-list case. Key deletion off top-level
-   lists only: `ProcessTab` re-emits `stashListReceived` for folder
-   children, and a partial child-list save must never drive deletion.
-2. **On a parent stash reply:** reconcile that parent's child rows
-   against its fresh child list — the datastore mirror of the worker's
-   in-memory ghost-child reconcile (without it, dropped ghosts resurrect
-   via `ParseCachedItems` at the next startup). Cascade-delete child rows
-   when the parent itself disappears from the list.
-3. **Policy note:** with `get_map_stashes`/`get_unique_stashes` off, the
-   parent-reply reconcile deletes cached child rows, matching the
-   in-memory and pre-M1 full-refresh semantics; toggling the setting back
-   on then requires a refetch rather than showing stale cache.
-
-Assigned: standalone PR after M1 merges (deliberately kept out of
-PR #162).
-
 ### F54. The v4→v5 buyout migration never persists under the repo-backed store — Confirmed (mechanism); reachability unverified
 
 Found July 17, 2026, while validating the F52 fix's map-mirrors-repo
@@ -155,76 +80,19 @@ re-migration. The buyout data still exists in the repo under keys
 nothing consults — silent, permanent-looking loss from the user's view.
 
 Reachability: dormant for any install already at `db_version` 5. The
-plausible live path is the legacy importer (`LegacyDataStore` reads
-`db_version` from the old database); whether the import writes a
-`db_version < 5` into the new store — arming the migration — is
-unverified. Check that before sizing the fix.
+plausible live path was the legacy importer (`LegacyDataStore` reads
+`db_version` from the old database) — but `LegacyDataStore` has no
+callers outside `src/legacy/` (verified July 17 during the F55 work):
+the importer is not wired into the application at all, so that path
+cannot arm the migration today. Whether any other path can put a
+`db_version < 5` into a live store remains unverified; check before
+sizing the fix.
 
 Fix shape: make the migration write through the repo (save the id-keyed
 row, delete the hash-keyed one) inside `MigrateItem`, or have
 `MigrateBuyouts` flush the affected entries after the loop. Related: F22
 (dual persistence), F51 ledger entry (do not rekey `GetLegacyHash` — a
 correct future v4→v5 migration depends on it).
-
-### F55. A failed first fetch permanently consumes a new tab's newness — Confirmed; release-blocking for M1
-
-Found July 17, 2026, in the post-review pass over items-pipeline M1
-(PR #162). M1's always-fetch contract promises that tabs and characters
-created server-side since the last list are fetched even by partial
-refreshes. The mechanism breaks under failure: list reconciliation adds a
-newly discovered tab to `m_tabs`/`m_tab_id_index` as soon as the list is
-processed (`ProcessTab`), and `OnStashListReceived` emits
-`stashListReceived` *before* any item fetch, persisting the tab's
-metadata to the datastore at list receipt. If the update then fails
-terminally before that tab's first item request completes (every terminal
-failure path clears `m_queue`), the tab is already "previously known" to
-all later refreshes — in memory for the session, and across restarts via
-`ParseCachedItems` — so nothing fetches it unless it is selected,
-checked, or part of a full refresh. The next successful partial refresh
-then publishes the tab empty. The trigger window (list received, queue
-discarded before the new tab's reply) is exactly the environment M1
-exists for: hours-long refreshes that will fail mid-flight.
-
-Fix shape (sharpened July 17 after checking the schema): track
-"contents known" separately from "metadata known" — and the datastore
-already does. Both `stashes` and `characters` carry `listed_at`
-(written by the list-receipt upsert, which leaves the json columns
-alone) next to `json_fetched_at`/`json_data` (written only when the
-tab's items are fetched; a fetched-but-empty tab gets a timestamp and
-an empty array, so the states are distinguishable). No schema change
-needed. The bug is that nothing consults the split: "previously known"
-is membership in `m_tab_id_index`, which `ParseCachedItems` builds from
-every `getStashList`/`getCharacterList` row regardless of fetched-ness.
-Fix: the repos expose fetched-ness, and the always-fetch decision keys
-on `json_fetched_at` being set rather than on row existence; listed-only
-rows still appear as locations but count as new for fetching. Characters
-get the identical treatment. Rejected alternative (considered July 17):
-skipping the metadata save at list receipt — it would regress the
-deliberate M1 list-upsert behavior (the absorbed F15 metadata refresh,
-release-noted) and would not even fix the in-session case, since
-`ProcessTab` indexes the tab in memory at list processing regardless of
-persistence; a contents-known check is needed either way. The
-legacy-import edge is resolved (verified July 17): `saveStash` /
-`saveCharacter` are the only writers of `json_data` and set
-`json_fetched_at` in the same upsert, and `LegacyDataStore` has no
-callers outside `src/legacy/` — no path can create a
-json-without-timestamp row, so fetched-ness is safe to trust. (The
-unwired importer is also relevant to F54's reachability question.)
-Change points located: `previously_known` is built from the in-memory
-`m_tabs` at list receipt (`OnStashListReceived` and the character
-equivalent), seeded at startup by `ParseCachedItems` from every cached
-row — so the worker needs a contents-known set seeded from fetched-ness
-and updated on successful tab replies, consulted where
-`previously_known` is today. Add an offline regression pin to the
-fake-network harness:
-fail an update after list receipt but before the new tab's first reply,
-run a successful partial refresh, and assert the new tab's contents are
-still fetched.
-
-Assigned: the post-M1 follow-up PR, alongside F53 (both are
-datastore-persistence edges of list reconciliation). Release-blocking
-for M1: the release notes advertise the always-fetch behavior, which is
-false in this window until fixed.
 
 ---
 
@@ -311,6 +179,9 @@ above). "PR #161" refers to the post-Phase-6 follow-ups branch
 | F44 | Item-path warning branches kept stale selection state | Fixed, PR #161 |
 | F45 | Shop threads could not be cleared; no-threads warning unreachable | Fixed, July 2026 (own change) |
 | F47 | `ItemLocation::FixUid()` was dead code | Deleted, items-pipeline M1 |
-| F49 | Folder children suspected of being fetched twice via two paths | Closed by live observation, July 2026: the paths are complementary in the live API — folder children arrive only via the stash list (Standard, 16 child lists; the two individually fetched folders returned no `children` and no items), map/unique children only via the individual reply (Mirage, 73 children). The `OnStashReceived` tripwire warning stays in the code as a permanent guard should the API ever change. July 17 amendment: the warning's "fetched twice this update" claim can be false — during a partial refresh a known-but-unselected child is never queued from the stash list, so the parent path would be its only fetch. Reword to "may be fetched twice" or check a per-update set of queued fetch ids; assigned alongside F55 |
+| F49 | Folder children suspected of being fetched twice via two paths | Closed by live observation, July 2026: the paths are complementary in the live API — folder children arrive only via the stash list (Standard, 16 child lists; the two individually fetched folders returned no `children` and no items), map/unique children only via the individual reply (Mirage, 73 children). The `OnStashReceived` tripwire warning stays in the code as a permanent guard should the API ever change. July 17 amendment: the warning's "fetched twice this update" claim can be false — during a partial refresh a known-but-unselected child is never queued from the stash list, so the parent path would be its only fetch. Reworded to "may be fetched twice" in the F53/F55 follow-up PR |
 | F48 | Character-list skip-check compared names against an id-keyed index (never matched), so a partial update re-added and re-fetched every character in the league, duplicating their tab entries and items | Found and fixed, items-pipeline M1 (character entries rebuilt from the fresh list, keyed by id) |
 | F51 | Unnamed stash tabs (~30 on the validating account, real in-game data) collapse the label component of the legacy item-buyout hash, suspected of shadowing item buyouts across tabs | Reframed and closed, July 2026: active item buyouts key on the API item id (`BuyoutManager::Set`/`Get` use `item.id()`); the label-based `hash_v4` is consumed only by the one-time v4→v5 migration, where colliding tabs made that migration ambiguous — an accepted legacy quirk. Do not rekey `GetLegacyHash`: it would break future v4→v5 migrations without improving live lookups |
+| F52 | `PropagateTabBuyouts` issued one no-op buyout DELETE per item on every refresh (~17k per refresh on an 18.5k-item account) | Fixed, PR #163: the clear path touches the repo only when the in-memory map holds an entry; per review, `removeItemBuyout`/`removeLocationBuyout` report success and the map entry is erased only afterward, so a failed DELETE is retried on the next clear (pinned by a `BEFORE DELETE RAISE(FAIL)` trigger test). Accepted, test-pinned: a row written behind the manager's back survives an in-session clear and heals at the next `Load()`; save-path failures are still discarded by the signal connection (deliberate asymmetry). Drift note: cleanup/migration paths (`Compress*`, `MigrateItem`) drift the map only toward orphan repo rows, which the guard leaves alone; a failed save drifts the other way, healed by a later clear's zero-row DELETE. Standing M2 constraint: the per-tab delta path must scope buyout propagation to the delta, not rerun the loop per tab reply |
+| F53 | Deleted stash tabs and characters resurrected from the cache at restart: the repos only upserted listed rows and could not even express "everything was deleted" (empty lists returned early) | Fixed, F53/F55 follow-up PR: authoritative-list signals (`stashListReplaced`/`characterListReplaced`, emitted only for fresh top-level lists — never for `ProcessTab`'s folder-children re-emits) drive `reconcileStashList`/`reconcileCharacterList`, deleting rows absent from the recursively flattened list (realm-wide for characters, matching the endpoint) with empty lists handled; children of surviving Map/Unique parents are preserved and reconciled by `stashChildrenReplaced` on the parent's reply instead — scoped to Map/Unique parents only, because live folder replies carry no children (F49) and keying off them would wipe legitimate child rows. With child fetching disabled the parent reply deletes cached child rows, so re-enabling the setting refetches instead of showing stale cache (documented policy). Pinned at repo level (`tst_reconcile`) and end-to-end through the fake network |
+| F55 | A terminal failure between list receipt and a new tab's first fetch consumed the tab's newness durably (metadata persists at list receipt), so later partial refreshes published the tab empty — release-blocking for M1's always-fetch note | Fixed, F53/F55 follow-up PR: the always-fetch decision keys on a contents-known set — seeded in `ParseCachedItems` from rows whose stash/character json was actually saved, extended on successful replies — instead of list membership (`previously_known` removed). No schema change: the `listed_at` vs `json_fetched_at`/`json_data` split already existed, and no path writes json without its timestamp (`LegacyDataStore` is unwired). Rejected: skipping the list-receipt metadata save (regresses the absorbed-F15 metadata refresh and misses the in-session case). Pinned by `failedFirstFetchDoesNotConsumeNewness` (the ledger-specified scenario) and `listedButNeverFetchedTabIsFetchedOnNextUpdate` (the restart shape) |

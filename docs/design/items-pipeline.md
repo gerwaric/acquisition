@@ -101,9 +101,10 @@ re-parallelization.)
   sketch: renamed/moved tabs now get fresh names/colors/positions on any
   refresh, at zero extra API calls; deliberate behavior change, final
   wording in the release notes below); tabs absent from the fresh list
-  are removed along with their items — in memory, for the session: the
-  datastore keeps their rows until F53 (follow-up PR) makes the deletion
-  durable.
+  are removed along with their items — in memory as the list arrives,
+  and durably: the datastore reconciles its rows against fresh top-level
+  lists and against Map/Unique parent replies (F53, fixed in the
+  follow-up PR).
 - **Update modes unify**: `All` becomes "selection = every tab",
   `TabsOnly` becomes "selection with contents off", `Checked`/`Selected`
   are the general case. `RemoveUpdatingTabs`, `RemoveUpdatingItems`,
@@ -118,9 +119,9 @@ re-parallelization.)
   refresh that requests the character list (`All`, `TabsOnly`, or any
   character selection). Deliberate behavior change (one extra tab fetch
   per new tab on a partial refresh); final wording in the release notes
-  below. Known edge (F55, fix assigned before the M1 release): a
-  terminal failure before a new tab's first successful fetch consumes
-  its newness, leaving it published empty by later partial refreshes.
+  below. (The F55 failure edge — a terminal failure before a new tab's
+  first successful fetch used to consume its newness — is fixed in the
+  follow-up PR: newness keys on fetched contents, not list membership.)
 - **Failure semantics unchanged at the boundary**: no `ItemsRefreshed`
   emit on terminal failure — but now that's safe, because `m_items` is
   never left culled. Emit-on-failure / partial-application policy is a
@@ -153,8 +154,8 @@ behavior changes ship with M1; this is the source text for the release
   you only refreshed a selection. Previously it sat empty until the next
   full refresh. (Costs one extra tab fetch per newly created tab.)
 
-The second note must not ship while F55 is open (a failure edge makes it
-untrue); F55's fix is release-blocking for M1.
+The second note was blocked on F55 (a failure edge made it untrue);
+F55's fix in the follow-up PR clears the release-blocking condition.
 
 ### Milestone 2 — Streaming refresh signal (next PR)
 
