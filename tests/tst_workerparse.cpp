@@ -76,7 +76,7 @@ void WorkerParseTest::parsesCachedStashItems()
     RateLimiter rateLimiter(network);
     ItemsManagerWorker worker(settings, *fixture.manager, rateLimiter);
 
-    const ParseResult result = worker.ParseCachedItems(dataDir);
+    const ParseResult result = worker.ParseCachedItems(dataDir, false, false);
 
     QCOMPARE(result.tabs.size(), 1);
     QCOMPARE(result.tabs[0].id(), stash.id);
@@ -130,7 +130,7 @@ void WorkerParseTest::specialChildItemsKeyedByChildFetchId()
     RateLimiter rateLimiter(network);
     ItemsManagerWorker worker(settings, *fixture.manager, rateLimiter);
 
-    const ParseResult result = worker.ParseCachedItems(dataDir);
+    const ParseResult result = worker.ParseCachedItems(dataDir, false, false);
 
     // Only the parent is a tab; the child is not.
     QCOMPARE(result.tabs.size(), 1);

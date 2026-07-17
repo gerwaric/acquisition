@@ -90,9 +90,13 @@ void ItemsManagerWorker::StartParseThread()
     // and items.
     const QFileInfo info(m_settings.fileName());
     const QString dataDir = info.absolutePath() + "/data/";
+    // Read on the main thread: the parser thread must not touch the shared
+    // QSettings instance, which the UI writes concurrently.
+    const bool get_map_stashes = m_settings.value("get_map_stashes", false).toBool();
+    const bool get_unique_stashes = m_settings.value("get_unique_stashes", false).toBool();
     m_shutdown.store(false);
-    m_parser_thread = QThread::create([this, dataDir]() {
-        auto result = ParseCachedItems(dataDir);
+    m_parser_thread = QThread::create([this, dataDir, get_map_stashes, get_unique_stashes]() {
+        auto result = ParseCachedItems(dataDir, get_map_stashes, get_unique_stashes);
         if (m_shutdown.load()) {
             return;
         }
@@ -105,7 +109,9 @@ void ItemsManagerWorker::StartParseThread()
     m_parser_thread->start();
 }
 
-ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir) const
+ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir,
+                                                 bool get_map_stashes,
+                                                 bool get_unique_stashes) const
 {
     spdlog::trace("ItemsManagerWorker::ParseItemMods() entered");
     ParseResult result;
@@ -156,6 +162,7 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir) const
     spdlog::trace("ItemsManagerWorker::ParseItemMods() getting cached items");
 
     // Get stash items.
+    std::vector<std::pair<QString, QStringList>> required_children;
     for (size_t i = 0; i < stashes.size(); ++i) {
         if (m_shutdown.load()) {
             return result;
@@ -166,7 +173,22 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir) const
         const auto id = stashes[i].id;
         const auto stash = userstore.stashes().getStash(id, m_realm, m_league);
         if (!stash) {
+            // The row exists but its contents were never fetched: the tab
+            // was listed and must stay "new" so the next content update
+            // fetches it (F55).
             continue;
+        }
+        result.contents_known.insert(id);
+        // A Map/Unique parent's saved reply records the children a fetch of
+        // it implies; collect them so completeness can be checked below.
+        const bool children_enabled = ((stash->type == "MapStash") && get_map_stashes)
+                                      || ((stash->type == "UniqueStash") && get_unique_stashes);
+        if (children_enabled && stash->children && !stash->children->empty()) {
+            QStringList child_ids;
+            for (const auto &child : *stash->children) {
+                child_ids.append(child.id);
+            }
+            required_children.emplace_back(id, child_ids);
         }
         sendStatusUpdate(ProgramState::Initializing,
                          QString("Parsing items from stash %1/%2: %3 '%4'")
@@ -196,6 +218,20 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir) const
         LoadItems(*stash, location, result);
     }
 
+    // A Map/Unique parent's contents are complete only if every enabled
+    // child fetch also landed: a cached parent with a missing child row
+    // must stay "new" so the next content update refetches it and
+    // re-queues its children — they never appear in a top-level list, so
+    // nothing else would retry them (F55).
+    for (const auto &[parent_id, child_ids] : required_children) {
+        for (const auto &child_id : child_ids) {
+            if (result.contents_known.count(child_id) == 0) {
+                result.contents_known.erase(parent_id);
+                break;
+            }
+        }
+    }
+
     // Get character items.
     for (size_t i = 0; i < characters.size(); ++i) {
         if (m_shutdown.load()) {
@@ -207,8 +243,10 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir) const
         const auto name = characters[i].name;
         const auto character = userstore.characters().getCharacter(name, m_realm);
         if (!character) {
+            // Listed but never fetched: stays "new" (F55).
             continue;
         }
+        result.contents_known.insert(characters[i].id);
         sendStatusUpdate(ProgramState::Initializing,
                          QString("Parsing items from character %1/%2: %3")
                              .arg(i)
@@ -231,6 +269,7 @@ void ItemsManagerWorker::OnParseCompleted(ParseResult result)
     m_tabs = std::move(result.tabs);
     m_items = std::move(result.items);
     m_tab_id_index = std::move(result.tab_id_index);
+    m_contents_known = std::move(result.contents_known);
     m_state = WorkerState::Idle;
     // let ItemManager know that the retrieval of cached items/tabs has been completed (calls ItemsManager::OnItemsRefreshed method)
     spdlog::trace("ItemsManagerWorker::ParseItemMods() emitting ItemsRefreshed signal");
@@ -339,6 +378,9 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
     // remove all pending requests
     m_queue = {};
     m_queue_id = 0;
+    // Counts left over from a failed update are stale: this update queues
+    // its own child fetches afresh.
+    m_pending_children.clear();
 
     // Build the content selection. Nothing is culled here: tab entries are
     // reconciled against the fresh lists as they arrive, and each tab's
@@ -484,9 +526,7 @@ void ItemsManagerWorker::SubmitCharacterListRequest()
             });
 }
 
-void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab,
-                                    int &count,
-                                    const std::set<QString> &previously_known)
+void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, int &count)
 {
     // The modern API documents stash ids as 10 hexadecimal digits; longer
     // ids were a legacy-API artifact. Warn if one ever shows up.
@@ -505,10 +545,13 @@ void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab,
     m_tabs.push_back(location);
     m_tab_id_index.insert(location.id());
 
-    // Fetch this tab's contents if it is part of the update selection, or if
-    // it was never seen before (created on the server since the last list).
+    // Fetch this tab's contents if it is part of the update selection, or
+    // if its contents were never successfully fetched. Keying on
+    // contents-known rather than list membership keeps a new tab "new"
+    // across a failed first fetch — list receipt alone (which persists
+    // metadata) must not consume newness (F55).
     const bool selected = m_update_all || (m_tabs_to_update.count(location.id()) > 0)
-                          || (previously_known.count(location.id()) == 0);
+                          || (m_contents_known.count(location.id()) == 0);
     if (m_update_tab_contents && selected) {
         ++count;
         const auto [endpoint, request] = poe::MakeStashRequest(m_realm, m_league, location.id());
@@ -521,7 +564,7 @@ void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab,
         // in the original list.
         emit stashListReceived(*tab.children, m_realm, m_league);
         for (const auto &child : *tab.children) {
-            ProcessTab(child, count, previously_known);
+            ProcessTab(child, count);
         }
     }
 }
@@ -559,19 +602,20 @@ void ItemsManagerWorker::OnStashListReceived(QNetworkReply *reply)
     const auto &stashes = result->stashes;
 
     emit stashListReceived(stashes, m_realm, m_league);
+    // Only a fresh top-level list may drive datastore deletion — never the
+    // partial stashListReceived re-emits ProcessTab makes for folder
+    // children (F53).
+    emit stashListReplaced(stashes, m_realm, m_league);
 
     spdlog::debug("Received stash list, there are {} stash tabs", stashes.size());
 
     // The fresh list is authoritative for stash tabs: rebuild the stash
     // entries of m_tabs from it (fresh metadata, server-deleted tabs
     // dropped), keeping character entries untouched.
-    std::set<QString> previously_known;
     std::vector<ItemLocation> kept_tabs;
     kept_tabs.reserve(m_tabs.size());
     for (auto const &tab : m_tabs) {
-        if (tab.type() == ItemLocationType::STASH) {
-            previously_known.insert(tab.id());
-        } else {
+        if (tab.type() != ItemLocationType::STASH) {
             kept_tabs.push_back(tab);
         }
     }
@@ -585,7 +629,7 @@ void ItemsManagerWorker::OnStashListReceived(QNetworkReply *reply)
     int tabs_requested = 0;
     for (const auto &tab : stashes) {
         // This will process tabs recursively.
-        ProcessTab(tab, tabs_requested, previously_known);
+        ProcessTab(tab, tabs_requested);
     }
     spdlog::debug("Requesting {} out of {} stash tabs", tabs_requested, stashes.size());
 
@@ -647,19 +691,18 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply *reply)
     const auto &characters = result->characters;
 
     emit characterListReceived(characters, m_realm);
+    // The fresh list is authoritative for the datastore too (F53).
+    emit characterListReplaced(characters, m_realm);
 
     // The fresh list is authoritative for characters: rebuild the character
     // entries of m_tabs from it, keeping stash entries untouched. This also
     // fixes the old skip-check, which compared character *names* against an
     // index keyed by character *ids* and so never matched (F48): a partial
     // update used to re-add and re-fetch every character in the league.
-    std::set<QString> previously_known;
     std::vector<ItemLocation> kept_tabs;
     kept_tabs.reserve(m_tabs.size());
     for (auto const &tab : m_tabs) {
-        if (tab.type() == ItemLocationType::CHARACTER) {
-            previously_known.insert(tab.id());
-        } else {
+        if (tab.type() != ItemLocationType::CHARACTER) {
             kept_tabs.push_back(tab);
         }
     }
@@ -692,9 +735,10 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply *reply)
         m_tab_id_index.insert(location.id());
 
         // Fetch this character's items if it is part of the update
-        // selection, or if it was never seen before.
+        // selection, or if its contents were never successfully fetched
+        // (same contents-known rule as ProcessTab, F55).
         const bool selected = m_update_all || (m_tabs_to_update.count(location.id()) > 0)
-                              || (previously_known.count(location.id()) == 0);
+                              || (m_contents_known.count(location.id()) == 0);
         if (m_update_tab_contents && selected) {
             ++requested_character_count;
             const auto [endpoint, request] = poe::MakeCharacterRequest(m_realm, name);
@@ -800,13 +844,16 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
                       stash.name,
                       stash.id);
         for (const auto &child : *stash.children) {
-            // F49 tripwire: a child that is already a known tab was also
-            // queued from the stash list, so this request fetches it a
-            // second time. Warn (visible in the Event Log) so a live
-            // account with folder tabs can confirm or refute the finding.
+            // F49 tripwire: a child that is already a known tab may also
+            // have been queued from the stash list, in which case this
+            // request fetches it a second time (during a partial refresh a
+            // known-but-unselected child is never queued from the list, so
+            // this can be its only fetch). Warn (visible in the Event Log)
+            // so a live account with folder tabs can confirm or refute the
+            // finding.
             if (m_tab_id_index.count(child.id) > 0) {
                 spdlog::warn("F49: child '{}' ({}) of {} '{}' is already a known tab; "
-                             "its contents are being fetched twice this update",
+                             "its contents may be fetched twice this update",
                              child.name,
                              child.id,
                              stash.type,
@@ -823,6 +870,35 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
         }
     }
 
+    // A tab's contents count as known only once everything a fetch of it
+    // implies has landed. For a Map/Unique parent that includes every
+    // enabled child fetch, so completion is deferred to the last child
+    // reply — marking the parent at its own reply would let a failed child
+    // fetch strand the children, since they never appear in a top-level
+    // list to be retried (F55).
+    if (location.fetch_id() == location.id()) {
+        const int queued_children = (get_children && stash.children) ? int(stash.children->size())
+                                                                     : 0;
+        if (queued_children > 0) {
+            // Starting a child-fetch cycle makes the parent incomplete
+            // until the last child lands — an already-known parent whose
+            // reply introduces a child that then fails must not stay
+            // known, or the child would never be retried. The cost of a
+            // mid-cycle terminal failure is one redundant refetch of the
+            // parent and its children on the next update.
+            m_contents_known.erase(location.id());
+            m_pending_children[location.id()] = queued_children;
+        } else {
+            m_contents_known.insert(location.id());
+        }
+    } else {
+        const auto pending = m_pending_children.find(location.id());
+        if ((pending != m_pending_children.end()) && (--pending->second <= 0)) {
+            m_pending_children.erase(pending);
+            m_contents_known.insert(location.id());
+        }
+    }
+
     // The parent's reply is authoritative for its children: drop cached
     // items that display under this tab but were fetched from a child it
     // no longer lists — or whose fetching is disabled in the settings.
@@ -830,10 +906,20 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
     // replace or remove them, not even a full refresh.
     if (location.fetch_id() == location.id()) {
         std::set<QString> expected_fetch_ids{location.id()};
+        QStringList child_ids;
         if (get_children && stash.children) {
             for (const auto &child : *stash.children) {
                 expected_fetch_ids.insert(child.id);
+                child_ids.append(child.id);
             }
+        }
+        // Mirror the reconcile into the datastore, but only for Map/Unique
+        // parents — their child rows exist solely under parent replies
+        // (F53). Folder children are governed by the top-level list, and a
+        // folder's own reply carries no children in the live API (F49), so
+        // keying off a folder reply would wipe its legitimate child rows.
+        if ((stash.type == "MapStash") || (stash.type == "UniqueStash")) {
+            emit stashChildrenReplaced(location.id(), child_ids, m_realm, m_league);
         }
         const size_t before = m_items.size();
         std::erase_if(m_items, [&](const std::shared_ptr<Item> &item) {
@@ -901,6 +987,9 @@ void ItemsManagerWorker::OnCharacterReceived(QNetworkReply *reply, const ItemLoc
     const auto &character = *result->character;
 
     emit characterReceived(character, m_realm);
+
+    // The fetch landed, so this character is no longer "new" (F55).
+    m_contents_known.insert(location.id());
 
     // Atomically replace this character's items.
     RemoveItemsFetchedBy(location.fetch_id());

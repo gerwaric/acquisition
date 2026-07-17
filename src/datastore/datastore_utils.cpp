@@ -20,6 +20,16 @@ QDateTime ds::timestamp()
     return now;
 }
 
+QString ds::placeholders(qsizetype n)
+{
+    QStringList list;
+    list.reserve(n);
+    for (qsizetype i = 0; i < n; ++i) {
+        list.append("?");
+    }
+    return list.join(", ");
+}
+
 void ds::logQueryError(const char *context, const QSqlQuery &q)
 {
     const QString err = q.lastError().text();
