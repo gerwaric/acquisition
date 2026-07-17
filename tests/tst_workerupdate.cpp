@@ -28,6 +28,7 @@ private slots:
     void failedUpdateKeepsItemsIntact();
     void staleReplyFromSupersededUpdateIsDiscarded();
     void partialUpdateDoesNotDuplicateCharacters();
+    void renamedTabMetadataRefreshesWithoutFetch();
 };
 
 namespace {
@@ -83,15 +84,19 @@ namespace {
         return R"({"stashes":[)" + list.join(",") + "]}";
     }
 
-    QByteArray stashBody(const QByteArray &stash) { return R"({"stash":)" + stash + "}"; }
+    QByteArray stashBody(const QByteArray &stash)
+    {
+        return R"({"stash":)" + stash + "}";
+    }
 
     QByteArray characterJson(const QString &id,
                              const QString &name,
                              const std::optional<QStringList> &item_ids = {})
     {
-        QString json = QString(
-                           R"({"id":"%1","name":"%2","realm":"%3","class":"Witch","league":"%4","level":1,"experience":0)")
-                           .arg(id, name, kRealm, kLeague);
+        QString json
+            = QString(
+                  R"({"id":"%1","name":"%2","realm":"%3","class":"Witch","league":"%4","level":1,"experience":0)")
+                  .arg(id, name, kRealm, kLeague);
         if (item_ids) {
             json += QString(R"(,"equipment":[%1])").arg(joinItems(*item_ids));
         }
@@ -209,8 +214,11 @@ void WorkerUpdateTest::failedUpdateKeepsItemsIntact()
     QCOMPARE(f.rate_limiter.requestCount(), size_t(3));
     QCOMPARE(f.rate_limiter.request(2).endpoint, QString("Get Stash"));
     QVERIFY(f.rate_limiter.request(2).request.url().path().endsWith("stashaaaa1"));
-    f.rate_limiter.deliver(
-        2, stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1-new", "a2-new", "a3-new"})));
+    f.rate_limiter.deliver(2,
+                           stashBody(stashJson("stashaaaa1",
+                                               "Tab A",
+                                               0,
+                                               QStringList{"a1-new", "a2-new", "a3-new"})));
 
     // ...then tab B's fetch dies, terminating the update without an emit.
     QCOMPARE(f.rate_limiter.requestCount(), size_t(4));
@@ -226,8 +234,11 @@ void WorkerUpdateTest::failedUpdateKeepsItemsIntact()
 
     QCOMPARE(f.rate_limiter.requestCount(), size_t(6));
     QVERIFY(f.rate_limiter.request(5).request.url().path().endsWith("stashaaaa1"));
-    f.rate_limiter.deliver(
-        5, stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1-new", "a2-new", "a3-new"})));
+    f.rate_limiter.deliver(5,
+                           stashBody(stashJson("stashaaaa1",
+                                               "Tab A",
+                                               0,
+                                               QStringList{"a1-new", "a2-new", "a3-new"})));
 
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1-new", "a2-new", "a3-new", "b1"}));
@@ -276,7 +287,8 @@ void WorkerUpdateTest::staleReplyFromSupersededUpdateIsDiscarded()
     f.rate_limiter.deliver(1, {}, QNetworkReply::TimeoutError);
     f.rate_limiter.deliver(2, fresh_list);
     QCOMPARE(f.rate_limiter.requestCount(), size_t(4));
-    f.rate_limiter.deliver(3, stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1-after"})));
+    f.rate_limiter.deliver(3,
+                           stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1-after"})));
 
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1-after"}));
@@ -319,8 +331,9 @@ void WorkerUpdateTest::partialUpdateDoesNotDuplicateCharacters()
     QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
     QCOMPARE(f.rate_limiter.request(1).endpoint, QString("Get Character"));
     QVERIFY(f.rate_limiter.request(1).request.url().path().endsWith("CharOne"));
-    f.rate_limiter.deliver(
-        1, characterBody(characterJson("charid0001", "CharOne", QStringList{"c1-item-new"})));
+    f.rate_limiter.deliver(1,
+                           characterBody(
+                               characterJson("charid0001", "CharOne", QStringList{"c1-item-new"})));
 
     QCOMPARE(f.refresh_count, 2);
 
@@ -333,6 +346,53 @@ void WorkerUpdateTest::partialUpdateDoesNotDuplicateCharacters()
     tab_ids.sort();
     QCOMPARE(tab_ids, QStringList({"charid0001", "charid0002"}));
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"c1-item-new", "c2-item"}));
+}
+
+// Tab-list reconciliation gives every listed tab fresh metadata, even tabs
+// outside the update selection: a tab renamed in-game updates its label on
+// any partial refresh, with no extra fetch (the M1 behavior change that
+// absorbed the F15 sketch), and its cached items are kept.
+void WorkerUpdateTest::renamedTabMetadataRefreshesWithoutFetch()
+{
+    WorkerFixture f("worker-update-account-4");
+
+    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Old Name", 0, QStringList{"a1"}));
+    const auto tab_b = json::readStash(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b1"}));
+    QVERIFY(tab_a && tab_b);
+    {
+        UserStore store(QDir(f.dataDir()), "worker-update-account-4");
+        QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b}, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*tab_b, kRealm, kLeague));
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+    QCOMPARE(f.last_items.size(), size_t(2));
+
+    // Refresh only tab B; the fresh list shows tab A renamed in-game.
+    f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_b)});
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
+    f.rate_limiter.deliver(0,
+                           stashListBody({stashJson("stashaaaa1", "New Name", 0),
+                                          stashJson("stashbbbb1", "Tab B", 1)}));
+
+    // Only tab B is fetched; the rename costs no extra request.
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
+    QVERIFY(f.rate_limiter.request(1).request.url().path().endsWith("stashbbbb1"));
+    f.rate_limiter.deliver(1, stashBody(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b1-new"})));
+
+    QCOMPARE(f.refresh_count, 2);
+
+    // Tab A carries the new label and its cached item survived.
+    const auto renamed = std::find_if(f.last_tabs.cbegin(),
+                                      f.last_tabs.cend(),
+                                      [](const ItemLocation &tab) {
+                                          return tab.id() == "stashaaaa1";
+                                      });
+    QVERIFY(renamed != f.last_tabs.cend());
+    QCOMPARE(renamed->tab_label(), QString("New Name"));
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "b1-new"}));
 }
 
 QTEST_GUILESS_MAIN(WorkerUpdateTest)
