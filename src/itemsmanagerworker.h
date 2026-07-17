@@ -74,7 +74,13 @@ public:
     ~ItemsManagerWorker() override;
 
     void UpdateRequest(TabSelection type, const std::vector<ItemLocation> &locations);
-    ParseResult ParseCachedItems(const QString &dataDir) const;
+    // The setting values are parameters because this runs on the parser
+    // thread: QSettings is reentrant but not thread-safe for one shared
+    // instance, and the UI writes these keys on the main thread. The
+    // caller must read them on the thread that owns m_settings.
+    ParseResult ParseCachedItems(const QString &dataDir,
+                                 bool get_map_stashes,
+                                 bool get_unique_stashes) const;
 
 signals:
     void ItemsRefreshed(const Items &items,

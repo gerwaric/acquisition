@@ -90,9 +90,13 @@ void ItemsManagerWorker::StartParseThread()
     // and items.
     const QFileInfo info(m_settings.fileName());
     const QString dataDir = info.absolutePath() + "/data/";
+    // Read on the main thread: the parser thread must not touch the shared
+    // QSettings instance, which the UI writes concurrently.
+    const bool get_map_stashes = m_settings.value("get_map_stashes", false).toBool();
+    const bool get_unique_stashes = m_settings.value("get_unique_stashes", false).toBool();
     m_shutdown.store(false);
-    m_parser_thread = QThread::create([this, dataDir]() {
-        auto result = ParseCachedItems(dataDir);
+    m_parser_thread = QThread::create([this, dataDir, get_map_stashes, get_unique_stashes]() {
+        auto result = ParseCachedItems(dataDir, get_map_stashes, get_unique_stashes);
         if (m_shutdown.load()) {
             return;
         }
@@ -105,7 +109,9 @@ void ItemsManagerWorker::StartParseThread()
     m_parser_thread->start();
 }
 
-ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir) const
+ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir,
+                                                 bool get_map_stashes,
+                                                 bool get_unique_stashes) const
 {
     spdlog::trace("ItemsManagerWorker::ParseItemMods() entered");
     ParseResult result;
@@ -156,8 +162,6 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir) const
     spdlog::trace("ItemsManagerWorker::ParseItemMods() getting cached items");
 
     // Get stash items.
-    const bool get_map_stashes = m_settings.value("get_map_stashes", false).toBool();
-    const bool get_unique_stashes = m_settings.value("get_unique_stashes", false).toBool();
     std::vector<std::pair<QString, QStringList>> required_children;
     for (size_t i = 0; i < stashes.size(); ++i) {
         if (m_shutdown.load()) {
@@ -876,6 +880,13 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
         const int queued_children = (get_children && stash.children) ? int(stash.children->size())
                                                                      : 0;
         if (queued_children > 0) {
+            // Starting a child-fetch cycle makes the parent incomplete
+            // until the last child lands — an already-known parent whose
+            // reply introduces a child that then fails must not stay
+            // known, or the child would never be retried. The cost of a
+            // mid-cycle terminal failure is one redundant refetch of the
+            // parent and its children on the next update.
+            m_contents_known.erase(location.id());
             m_pending_children[location.id()] = queued_children;
         } else {
             m_contents_known.insert(location.id());
