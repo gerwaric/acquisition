@@ -52,8 +52,13 @@ void BuyoutManager::Set(const Item &item, const Buyout &buyout)
     }
 
     if (buyout.IsNull()) {
-        m_repo.removeItemBuyout(item);
-        m_buyouts.erase(item.id());
+        // Only touch the database when there was an entry to clear: the map
+        // mirrors the repo within a session, and PropagateTabBuyouts clears
+        // nearly every item on every refresh, which used to issue one no-op
+        // DELETE per item (F52).
+        if (m_buyouts.erase(item.id()) > 0) {
+            m_repo.removeItemBuyout(item);
+        }
         return;
     }
 
@@ -111,8 +116,10 @@ void BuyoutManager::SetTab(const ItemLocation &location, const Buyout &buyout)
     }
 
     if (buyout.IsNull()) {
-        m_repo.removeLocationBuyout(location);
-        m_tab_buyouts.erase(location.id());
+        // Same no-op-delete guard as Set() (F52).
+        if (m_tab_buyouts.erase(location.id()) > 0) {
+            m_repo.removeLocationBuyout(location);
+        }
         return;
     }
 
