@@ -185,12 +185,29 @@ then publishes the tab empty. The trigger window (list received, queue
 discarded before the new tab's reply) is exactly the environment M1
 exists for: hours-long refreshes that will fail mid-flight.
 
-Fix shape: track "contents known" separately from "metadata known". A
-session-only set is insufficient — metadata persistence at list receipt
-consumes newness across restarts — so derive contents-known from the
-datastore: a tab whose items were never saved has no items row, which is
-distinguishable from "fetched and legitimately empty" if the datastore
-exposes it. Add an offline regression pin to the fake-network harness:
+Fix shape (sharpened July 17 after checking the schema): track
+"contents known" separately from "metadata known" — and the datastore
+already does. Both `stashes` and `characters` carry `listed_at`
+(written by the list-receipt upsert, which leaves the json columns
+alone) next to `json_fetched_at`/`json_data` (written only when the
+tab's items are fetched; a fetched-but-empty tab gets a timestamp and
+an empty array, so the states are distinguishable). No schema change
+needed. The bug is that nothing consults the split: "previously known"
+is membership in `m_tab_id_index`, which `ParseCachedItems` builds from
+every `getStashList`/`getCharacterList` row regardless of fetched-ness.
+Fix: the repos expose fetched-ness, and the always-fetch decision keys
+on `json_fetched_at` being set rather than on row existence; listed-only
+rows still appear as locations but count as new for fetching. Characters
+get the identical treatment. Rejected alternative (considered July 17):
+skipping the metadata save at list receipt — it would regress the
+deliberate M1 list-upsert behavior (the absorbed F15 metadata refresh,
+release-noted) and would not even fix the in-session case, since
+`ProcessTab` indexes the tab in memory at list processing regardless of
+persistence; a contents-known check is needed either way. Implementation
+edge to verify: the legacy import path must populate `json_fetched_at`
+together with `json_data`, or old caches would look never-fetched and
+trigger a one-time full refetch (safe but slow — know which way it
+falls). Add an offline regression pin to the fake-network harness:
 fail an update after list receipt but before the new tab's first reply,
 run a successful partial refresh, and assert the new tab's contents are
 still fetched.
