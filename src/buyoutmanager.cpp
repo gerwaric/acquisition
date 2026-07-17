@@ -52,8 +52,19 @@ void BuyoutManager::Set(const Item &item, const Buyout &buyout)
     }
 
     if (buyout.IsNull()) {
-        m_repo.removeItemBuyout(item);
-        m_buyouts.erase(item.id());
+        // Only touch the database when the manager holds an entry to clear:
+        // PropagateTabBuyouts clears nearly every item on every refresh, which
+        // used to issue one no-op DELETE per item (F52). The in-memory cleanup
+        // paths (CompressItemBuyouts, MigrateItem) drift the map from the repo
+        // only toward orphan repo rows, which this guard leaves alone; a
+        // failed save drifts the other way (map entry without a row), but
+        // clearing such an entry is just a harmless zero-row DELETE. The map
+        // entry is erased only after a successful delete so that a failed
+        // delete is retried the next time this entry is cleared, instead of
+        // leaving the row to resurrect at the next Load().
+        if (m_buyouts.contains(item.id()) && m_repo.removeItemBuyout(item)) {
+            m_buyouts.erase(item.id());
+        }
         return;
     }
 
@@ -111,8 +122,10 @@ void BuyoutManager::SetTab(const ItemLocation &location, const Buyout &buyout)
     }
 
     if (buyout.IsNull()) {
-        m_repo.removeLocationBuyout(location);
-        m_tab_buyouts.erase(location.id());
+        // Same no-op-delete guard and erase-after-success ordering as Set() (F52).
+        if (m_tab_buyouts.contains(location.id()) && m_repo.removeLocationBuyout(location)) {
+            m_tab_buyouts.erase(location.id());
+        }
         return;
     }
 

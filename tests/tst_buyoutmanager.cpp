@@ -1,3 +1,4 @@
+#include <QSqlQuery>
 #include <QtTest/QtTest>
 
 #include "testfixtures.h"
@@ -13,6 +14,11 @@ private slots:
     void tabBuyoutPropagation();
     void clearingItemBuyoutRemovesInMemoryValue();
     void clearingTabBuyoutRemovesInMemoryValue();
+    void clearingItemBuyoutRemovesRepoRow();
+    void clearingTabBuyoutRemovesRepoRow();
+    void clearingAbsentBuyoutSkipsRepo();
+    void clearingAbsentTabBuyoutSkipsRepo();
+    void failedDeleteKeepsEntryForRetry();
 };
 
 void BuyoutManagerTest::stringToBuyout()
@@ -133,6 +139,94 @@ void BuyoutManagerTest::clearingTabBuyoutRemovesInMemoryValue()
     fixture.manager->SetTab(location, Buyout());
 
     QVERIFY(fixture.manager->GetTab(location).IsNull());
+}
+
+// The F52 guard must not weaken the F14 behavior: clearing a buyout that
+// exists still removes the database row, not just the in-memory entry.
+void BuyoutManagerTest::clearingItemBuyoutRemovesRepoRow()
+{
+    BuyoutManagerFixture fixture;
+    const Item item = makeTestItem("f52-item");
+
+    fixture.manager->Set(item, makeChaosBuyout(52.0));
+    QVERIFY(fixture.repo->getItemBuyouts().contains(item.id()));
+
+    fixture.manager->Set(item, Buyout());
+
+    QVERIFY(!fixture.repo->getItemBuyouts().contains(item.id()));
+}
+
+void BuyoutManagerTest::clearingTabBuyoutRemovesRepoRow()
+{
+    BuyoutManagerFixture fixture;
+    const ItemLocation location = makeTestStashLocation("f52-tab");
+
+    fixture.manager->SetTab(location, makeChaosBuyout(52.0));
+    QVERIFY(fixture.repo->getLocationBuyouts().contains(location.id()));
+
+    fixture.manager->SetTab(location, Buyout());
+
+    QVERIFY(!fixture.repo->getLocationBuyouts().contains(location.id()));
+}
+
+// Clearing a buyout the manager does not hold must not touch the repo (F52:
+// PropagateTabBuyouts clears nearly every item on every refresh, which used
+// to issue one no-op DELETE per item). Pinned by seeding a row behind the
+// manager's back: with the guard, the row survives the clear. This is the
+// accepted tradeoff — a desynced row lasts until the next Load() picks it
+// up — in exchange for not running ~item-count DELETEs per refresh.
+void BuyoutManagerTest::clearingAbsentBuyoutSkipsRepo()
+{
+    BuyoutManagerFixture fixture;
+    const Item item = makeTestItem("f52-desynced-item");
+
+    fixture.repo->saveItemBuyout(makeChaosBuyout(52.0), item);
+    QVERIFY(fixture.manager->Get(item).IsNull());
+
+    fixture.manager->Set(item, Buyout());
+
+    QVERIFY(fixture.repo->getItemBuyouts().contains(item.id()));
+}
+
+// SetTab carries the same F52 guard as Set; pin the tab side too.
+void BuyoutManagerTest::clearingAbsentTabBuyoutSkipsRepo()
+{
+    BuyoutManagerFixture fixture;
+    const ItemLocation location = makeTestStashLocation("f52-desynced-tab");
+
+    fixture.repo->saveLocationBuyout(makeChaosBuyout(52.0), location);
+    QVERIFY(fixture.manager->GetTab(location).IsNull());
+
+    fixture.manager->SetTab(location, Buyout());
+
+    QVERIFY(fixture.repo->getLocationBuyouts().contains(location.id()));
+}
+
+// The map entry must survive a failed repo delete so a later clear retries
+// it — otherwise the F52 guard would skip every retry and the undeleted row
+// would resurrect at the next Load(). A BEFORE DELETE trigger forces the
+// failure without disturbing the row, so both states are observable after
+// the failed clear and the retry deletes both for real.
+void BuyoutManagerTest::failedDeleteKeepsEntryForRetry()
+{
+    BuyoutManagerFixture fixture;
+    const Item item = makeTestItem("f52-failed-delete-item");
+
+    fixture.manager->Set(item, makeChaosBuyout(52.0));
+
+    QSqlQuery q(*fixture.db);
+    QVERIFY(q.exec("CREATE TRIGGER f52_block_delete BEFORE DELETE ON item_buyouts "
+                   "BEGIN SELECT RAISE(FAIL, 'f52 test: delete blocked'); END"));
+
+    fixture.manager->Set(item, Buyout());
+    QVERIFY(fixture.manager->Get(item).IsActive());
+    QVERIFY(fixture.repo->getItemBuyouts().contains(item.id()));
+
+    QVERIFY(q.exec("DROP TRIGGER f52_block_delete"));
+
+    fixture.manager->Set(item, Buyout());
+    QVERIFY(fixture.manager->Get(item).IsNull());
+    QVERIFY(!fixture.repo->getItemBuyouts().contains(item.id()));
 }
 
 QTEST_GUILESS_MAIN(BuyoutManagerTest)

@@ -262,7 +262,7 @@ bool BuyoutRepo::saveLocationBuyout(const Buyout &buyout, const ItemLocation &lo
     return true;
 }
 
-void BuyoutRepo::removeItemBuyout(const Item &item)
+bool BuyoutRepo::removeItemBuyout(const Item &item)
 {
     spdlog::debug("BuyoutRepo: removing item buyout: PrettyName='{}' ({})",
                   item.PrettyName(),
@@ -271,17 +271,19 @@ void BuyoutRepo::removeItemBuyout(const Item &item)
     QSqlQuery q(m_db);
     if (!q.prepare("DELETE FROM item_buyouts WHERE item_id = :item_id")) {
         spdlog::error("BuyoutRepo: prepare() failed: {}", q.lastError().text());
-        return;
+        return false;
     }
 
     q.bindValue(":item_id", item.id());
 
     if (!q.exec()) {
         ds::logQueryError("BuyoutRepo::removeItemBuyout()", q);
+        return false;
     }
+    return true;
 }
 
-void BuyoutRepo::removeLocationBuyout(const ItemLocation &location)
+bool BuyoutRepo::removeLocationBuyout(const ItemLocation &location)
 {
     spdlog::debug("BuyoutRepo: removing location buyout: '{}' ({})",
                   location.GetHeader(),
@@ -290,12 +292,14 @@ void BuyoutRepo::removeLocationBuyout(const ItemLocation &location)
     QSqlQuery q(m_db);
     if (!q.prepare("DELETE FROM location_buyouts WHERE location_id = :location_id")) {
         spdlog::error("BuyoutRepo: prepare() failed: {}", q.lastError().text());
-        return;
+        return false;
     }
 
     q.bindValue(":location_id", location.id());
 
     if (!q.exec()) {
         ds::logQueryError("BuyoutRepo::removeLocationBuyout()", q);
+        return false;
     }
+    return true;
 }
