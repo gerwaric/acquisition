@@ -32,8 +32,9 @@ public:
 
     // Submit a request-callback pair to the rate limiter. The caller is responsible
     // for freeing the RateLimitedReply object with deleteLater() when the completed()
-    // signal has been emitted.
-    RateLimitedReply *Submit(const QString &endpoint, QNetworkRequest network_request);
+    // signal has been emitted. Virtual so tests can substitute an offline fake
+    // network (tests/fakenetwork.h).
+    virtual RateLimitedReply *Submit(const QString &endpoint, QNetworkRequest network_request);
 
 public slots:
     // Used by the GUI to request a manual refresh.

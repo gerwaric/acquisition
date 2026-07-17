@@ -83,9 +83,11 @@ re-parallelization.)
 **Commit 2 — atomic per-reply replacement.** The engine of the redesign:
 
 - `ItemLocation` gains a **fetch-source id**: the id of the stash or
-  character actually fetched. For children of MapStash/UniqueStash/folder
-  tabs this is the child's own id even though the display location stays
-  the parent's. Excluded from `operator==`, `operator<`, and
+  character actually fetched. For children of MapStash/UniqueStash tabs
+  this is the child's own id even though the display location stays the
+  parent's. (Folder children are ordinary tabs: they arrive via the stash
+  list and display under their own id — see the F49 ledger entry.)
+  Excluded from `operator==`, `operator<`, and
   `GetLegacyHash()` so buyout keys and sort order are untouched.
   `ParseCachedItems` sets it too (the datastore keys child stashes by
   their own ids), so cached and live items agree.
@@ -97,24 +99,62 @@ re-parallelization.)
   cull: tabs present in the fresh stash/character list are upserted
   (metadata refreshed in place — this absorbs the F15 accepted-limitation
   sketch: renamed/moved tabs now get fresh names/colors/positions on any
-  refresh, at zero extra API calls; deliberate behavior change,
-  release-note it); tabs in the update selection but absent from the fresh
-  list are removed along with their items.
+  refresh, at zero extra API calls; deliberate behavior change, final
+  wording in the release notes below); tabs absent from the fresh list
+  are removed along with their items — in memory, for the session: the
+  datastore keeps their rows until F53 (follow-up PR) makes the deletion
+  durable.
 - **Update modes unify**: `All` becomes "selection = every tab",
   `TabsOnly` becomes "selection with contents off", `Checked`/`Selected`
   are the general case. `RemoveUpdatingTabs`, `RemoveUpdatingItems`,
   `m_first_stash_request_index`, and `m_first_character_request_name` are
-  deleted.
+  deleted. Tabs and characters not previously known (created server-side
+  since the last list) are **always fetched when they appear in a list
+  the selection already requires** — even in `Checked`/`Selected`
+  updates, where a new tab would otherwise sit empty until the next full
+  refresh. Narrowed July 2026 (post-review): a partial refresh requests
+  only the lists its selection needs, so a stash-only refresh does not
+  discover new characters, and a brand-new first character waits for a
+  refresh that requests the character list (`All`, `TabsOnly`, or any
+  character selection). Deliberate behavior change (one extra tab fetch
+  per new tab on a partial refresh); final wording in the release notes
+  below. Known edge (F55, fix assigned before the M1 release): a
+  terminal failure before a new tab's first successful fetch consumes
+  its newness, leaving it published empty by later partial refreshes.
 - **Failure semantics unchanged at the boundary**: no `ItemsRefreshed`
   emit on terminal failure — but now that's safe, because `m_items` is
   never left culled. Emit-on-failure / partial-application policy is a
-  deliberate non-goal (below).
+  deliberate non-goal (below). One nuance: list-reconciliation effects
+  (fresh tab metadata, deleted tabs dropped with their items) apply to
+  worker memory as the lists arrive and are kept even if the update then
+  fails terminally — unpublished until the next successful emit. "A
+  failed update loses nothing" means nothing *the server still has*.
+  Surviving items' embedded locations, by contrast, are rebased onto the
+  fresh tab metadata only in `FinishUpdate`, because the emitted `Items`
+  share `Item` objects with `ItemsManager` and the UI — shared state may
+  only be mutated at the moment an emit rebuilds everything downstream.
 
-Validation: unit tests over the worker where the harness allows, plus the
-F28 manual protocol — network-kill mid-refresh, and the recorded
-missing-item repro attempt (single app version, private copy of the data
-dir, `--log-level debug`, compare unfiltered item counts across a partial
-refresh). Tom must be present for login/refresh.
+Validation (complete, July 2026): the offline fake-network harness covers
+the worker's update cycle, the live network-kill ran July 16, and the
+recorded missing-item repro was retired as moot once the destructive cull
+path was deleted — see the F28 ledger entry.
+
+**M1 release notes (final user-facing wording).** Two deliberate
+behavior changes ship with M1; this is the source text for the release
+(copy into the PR body / release entry):
+
+- *Stash tab renames and moves now show up on any refresh.* Renaming,
+  moving, or recoloring a stash tab in the game is reflected by the next
+  refresh of any kind, without refetching the tab's contents. Previously
+  the old name could persist until that specific tab was refreshed.
+- *Newly created tabs and characters are fetched automatically.* A stash
+  tab or character created since your last refresh is now fetched by any
+  refresh that consults the corresponding tab or character list, even if
+  you only refreshed a selection. Previously it sat empty until the next
+  full refresh. (Costs one extra tab fetch per newly created tab.)
+
+The second note must not ship while F55 is open (a failure edge makes it
+untrue); F55's fix is release-blocking for M1.
 
 ### Milestone 2 — Streaming refresh signal (next PR)
 
@@ -136,6 +176,19 @@ Surface per-tab progress without triggering the snapshot cascade:
 Hard constraints for the M2 spec, from the cascade recon: no per-delta
 forum submission, no per-delta whole-collection scans, no per-delta
 uncoalesced model reset.
+
+A fourth constraint, from the M1 review (July 2026): **the
+rebase-on-success design does not compose with streaming deltas.** M1
+defers `RebaseItemLocations` to the successful `FinishUpdate` path
+precisely because publication is single-shot — shared `Item` objects may
+only be mutated when an emit immediately rebuilds everything downstream.
+Streaming publication breaks that assumption: once `TabRefreshed`
+consumers hold references mid-update, the spec must choose a rebase
+point. Either per-delta consumers tolerate stale embedded tab metadata
+until the final `ItemsRefreshed` (and the M2 UI must not render anything
+that would expose the mismatch), or the rebase moves earlier and the
+failed-update-mutates-published-state problem M1 solved returns and needs
+a new answer.
 
 ### Milestone 3 — Delta-native items model (later)
 

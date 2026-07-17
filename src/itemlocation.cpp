@@ -19,6 +19,7 @@ ItemLocation::ItemLocation(const poe::Character &character, int tab_id)
     : m_type{ItemLocationType::CHARACTER}
     , m_tab_id{tab_id}
     , m_unique_id(character.id)
+    , m_fetch_id(character.id)
     , m_character{character.name}
     , m_character_sortname{character.name.toLower()}
 {}
@@ -28,21 +29,11 @@ ItemLocation::ItemLocation(const poe::StashTab &stash)
     , m_type{ItemLocationType::STASH}
     , m_tab_id{int(stash.index.value_or(0))}
     , m_unique_id{stash.id}
+    , m_fetch_id{stash.id}
     , m_tab_type{stash.type}
     , m_tab_label{stash.name}
 {
     Util::GetTabColor(stash, m_red, m_green, m_blue);
-}
-
-void ItemLocation::FixUid()
-{
-    // With the legacy API, stash tabs have a 64-digit identifier, but
-    // the modern API only ten, and it appears to be the first 10.
-    if (m_type == ItemLocationType::STASH) {
-        if (m_unique_id.size() > 10) {
-            m_unique_id = m_unique_id.first(10);
-        }
-    }
 }
 
 ItemLocation ItemLocation::getItemLocation(const poe::Item &item) const
@@ -63,6 +54,19 @@ ItemLocation ItemLocation::getItemLocation(const poe::Item &item) const
         item_location.m_socketed = true;
     }
     return item_location;
+}
+
+void ItemLocation::rebaseTabMetadata(const ItemLocation &fresh)
+{
+    m_red = fresh.m_red;
+    m_green = fresh.m_green;
+    m_blue = fresh.m_blue;
+    m_removeonly = fresh.m_removeonly;
+    m_tab_id = fresh.m_tab_id;
+    m_tab_type = fresh.m_tab_type;
+    m_tab_label = fresh.m_tab_label;
+    m_character = fresh.m_character;
+    m_character_sortname = fresh.m_character_sortname;
 }
 
 QString ItemLocation::GetHeader() const
