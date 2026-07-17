@@ -204,7 +204,9 @@ void BuyoutManagerTest::clearingAbsentTabBuyoutSkipsRepo()
 
 // The map entry must survive a failed repo delete so a later clear retries
 // it — otherwise the F52 guard would skip every retry and the undeleted row
-// would resurrect at the next Load().
+// would resurrect at the next Load(). A BEFORE DELETE trigger forces the
+// failure without disturbing the row, so both states are observable after
+// the failed clear and the retry deletes both for real.
 void BuyoutManagerTest::failedDeleteKeepsEntryForRetry()
 {
     BuyoutManagerFixture fixture;
@@ -213,12 +215,14 @@ void BuyoutManagerTest::failedDeleteKeepsEntryForRetry()
     fixture.manager->Set(item, makeChaosBuyout(52.0));
 
     QSqlQuery q(*fixture.db);
-    QVERIFY(q.exec("DROP TABLE item_buyouts"));
+    QVERIFY(q.exec("CREATE TRIGGER f52_block_delete BEFORE DELETE ON item_buyouts "
+                   "BEGIN SELECT RAISE(FAIL, 'f52 test: delete blocked'); END"));
 
     fixture.manager->Set(item, Buyout());
     QVERIFY(fixture.manager->Get(item).IsActive());
+    QVERIFY(fixture.repo->getItemBuyouts().contains(item.id()));
 
-    QVERIFY(fixture.repo->ensureSchema());
+    QVERIFY(q.exec("DROP TRIGGER f52_block_delete"));
 
     fixture.manager->Set(item, Buyout());
     QVERIFY(fixture.manager->Get(item).IsNull());
