@@ -774,6 +774,18 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
                       stash.name,
                       stash.id);
         for (const auto &child : *stash.children) {
+            // F49 tripwire: a child that is already a known tab was also
+            // queued from the stash list, so this request fetches it a
+            // second time. Warn (visible in the Event Log) so a live
+            // account with folder tabs can confirm or refute the finding.
+            if (m_tab_id_index.count(child.id) > 0) {
+                spdlog::warn("F49: child '{}' ({}) of {} '{}' is already a known tab; "
+                             "its contents are being fetched twice this update",
+                             child.name,
+                             child.id,
+                             stash.type,
+                             stash.name);
+            }
             const auto [endpoint,
                         request] = poe::MakeStashRequest(m_realm, m_league, stash.id, child.id);
             // The child's items display under the parent's location, but

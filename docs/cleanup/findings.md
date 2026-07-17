@@ -142,6 +142,34 @@ ever carries folder children, they *will* be queued twice); the only open
 question is whether the live API actually lists them, which the offline
 harness cannot answer. Verdict unchanged: Likely, folders only.
 
+**Tripwire in place (July 16, 2026):** `OnStashReceived` now warns —
+visible in the Event Log — when a child it queues is already in
+`m_tab_id_index`, which is exactly the double-fetch signature (map/unique
+children are never in the index, so they cannot false-positive). Any
+refresh of a folder-owning account settles the question; a deliberate
+folder test on the validating account is planned for on or after
+July 18, 2026.
+
+### F51. Unnamed stash tabs collapse the label component of item buyout hashes — Confirmed
+
+Observed July 16, 2026, during M1 validation: the validating account has
+roughly 30 stash tabs whose API `name` is the empty string, in both the
+stash list and each individual fetch, and the owner confirms they are
+genuinely unnamed in-game — so this is real data, not a parsing loss.
+Tab-level buyouts are unaffected (`BuyoutManager::GetTab`/`SetTab` key on
+`location.id()`). But `Item::CalculateHash` folds
+`ItemLocation::GetLegacyHash()` — `"stash:" + tab_label` — into the item
+buyout hash, so every unnamed tab contributes the identical component:
+two otherwise-identical items in different unnamed tabs share a hash and
+shadow each other's item buyouts. Pre-existing — `GetLegacyHash` already
+carries a TODO that labels are not unique, and any two same-named tabs
+collide the same way; unnamed tabs just widen the equivalence class to
+dozens of tabs. Untouched by M1 (the fetch-source id is deliberately
+excluded from the hash, test-pinned). Fix direction if ever needed: key
+the location component by stash id instead of label, migrated through
+`BuyoutManager::MigrateItem` — do not change the hash casually, since
+every user's saved item buyouts are keyed by it.
+
 ---
 
 ## Standing constraints and lessons
