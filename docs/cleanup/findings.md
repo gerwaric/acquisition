@@ -203,11 +203,20 @@ skipping the metadata save at list receipt — it would regress the
 deliberate M1 list-upsert behavior (the absorbed F15 metadata refresh,
 release-noted) and would not even fix the in-session case, since
 `ProcessTab` indexes the tab in memory at list processing regardless of
-persistence; a contents-known check is needed either way. Implementation
-edge to verify: the legacy import path must populate `json_fetched_at`
-together with `json_data`, or old caches would look never-fetched and
-trigger a one-time full refetch (safe but slow — know which way it
-falls). Add an offline regression pin to the fake-network harness:
+persistence; a contents-known check is needed either way. The
+legacy-import edge is resolved (verified July 17): `saveStash` /
+`saveCharacter` are the only writers of `json_data` and set
+`json_fetched_at` in the same upsert, and `LegacyDataStore` has no
+callers outside `src/legacy/` — no path can create a
+json-without-timestamp row, so fetched-ness is safe to trust. (The
+unwired importer is also relevant to F54's reachability question.)
+Change points located: `previously_known` is built from the in-memory
+`m_tabs` at list receipt (`OnStashListReceived` and the character
+equivalent), seeded at startup by `ParseCachedItems` from every cached
+row — so the worker needs a contents-known set seeded from fetched-ness
+and updated on successful tab replies, consulted where
+`previously_known` is today. Add an offline regression pin to the
+fake-network harness:
 fail an update after list receipt but before the new tab's first reply,
 run a successful partial refresh, and assert the new tab's contents are
 still fetched.
