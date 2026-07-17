@@ -29,6 +29,7 @@ private slots:
     void staleReplyFromSupersededUpdateIsDiscarded();
     void partialUpdateDoesNotDuplicateCharacters();
     void renamedTabMetadataRefreshesWithoutFetch();
+    void vanishedMapChildItemsAreRemovedOnParentRefresh();
 };
 
 namespace {
@@ -67,12 +68,22 @@ namespace {
     QByteArray stashJson(const QString &id,
                          const QString &name,
                          unsigned index,
-                         const std::optional<QStringList> &item_ids = {})
+                         const std::optional<QStringList> &item_ids = {},
+                         const QString &type = "PremiumStash",
+                         const QString &parent = {},
+                         const QList<QByteArray> &children = {})
     {
-        QString json = QString(R"({"id":"%1","name":"%2","type":"PremiumStash","index":%3)")
-                           .arg(id, name, QString::number(index));
+        QString json = QString(R"({"id":"%1","name":"%2","type":"%3","index":%4)")
+                           .arg(id, name, type, QString::number(index));
+        if (!parent.isEmpty()) {
+            json += QString(R"(,"parent":"%1")").arg(parent);
+        }
         if (item_ids) {
             json += QString(R"(,"items":[%1])").arg(joinItems(*item_ids));
+        }
+        if (!children.isEmpty()) {
+            QByteArrayList list(children.cbegin(), children.cend());
+            json += R"(,"children":[)" + list.join(",") + "]";
         }
         json += "}";
         return json.toUtf8();
@@ -419,6 +430,80 @@ void WorkerUpdateTest::renamedTabMetadataRefreshesWithoutFetch()
     QVERIFY(item_a != f.last_items.cend());
     QCOMPARE((*item_a)->location().tab_label(), QString("New Name"));
     QCOMPARE((*item_a)->location().tab_index(), 2);
+}
+
+// A parent's reply is authoritative for its children: cached items fetched
+// from a Map/Unique child the parent no longer lists must be removed when
+// the parent is refreshed. Without this reconciliation they would survive
+// every refresh, even a full one — the per-reply replacement only erases
+// fetch ids it is about to re-fetch, and the tab-list cleanup keys on the
+// display id, which for child items is the (still-listed) parent.
+void WorkerUpdateTest::vanishedMapChildItemsAreRemovedOnParentRefresh()
+{
+    WorkerFixture f("worker-update-account-5");
+    f.settings.setValue("get_map_stashes", true);
+
+    // Cached state: a MapStash whose child holds one item. Child stashes
+    // are cached under their own ids with a parent reference, and are not
+    // part of the stash list (matching the live API).
+    const auto parent_tab = json::readStash(
+        stashJson("mapstash01", "Maps", 0, QStringList{"p1"}, "MapStash"));
+    const auto child_tab = json::readStash(
+        stashJson("mapchild01", "Tier 1", 0, QStringList{"m1"}, "MapStash", "mapstash01"));
+    QVERIFY(parent_tab && child_tab);
+    {
+        UserStore store(QDir(f.dataDir()), "worker-update-account-5");
+        QVERIFY(store.stashes().saveStashList({*parent_tab}, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*parent_tab, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*child_tab, kRealm, kLeague));
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"m1", "p1"}));
+    QCOMPARE(f.last_tabs.size(), size_t(1));
+
+    // Refresh the map stash. Its reply lists a different child: the old
+    // child's cached item must go, the new child's contents arrive.
+    f.worker->Update(TabSelection::Selected, {ItemLocation(*parent_tab)});
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
+    f.rate_limiter.deliver(0, stashListBody({stashJson("mapstash01", "Maps", 0, {}, "MapStash")}));
+
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
+    QVERIFY(f.rate_limiter.request(1).request.url().path().endsWith("mapstash01"));
+    f.rate_limiter.deliver(
+        1,
+        stashBody(stashJson("mapstash01",
+                            "Maps",
+                            0,
+                            QStringList{"p1-new"},
+                            "MapStash",
+                            {},
+                            {stashJson("mapchild02", "Tier 2", 0, {}, "MapStash", "mapstash01")})));
+
+    // The new child is fetched by its own id...
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(3));
+    QVERIFY(f.rate_limiter.request(2).request.url().path().endsWith("mapchild02"));
+    f.rate_limiter.deliver(2,
+                           stashBody(stashJson("mapchild02",
+                                               "Tier 2",
+                                               0,
+                                               QStringList{"m2"},
+                                               "MapStash",
+                                               "mapstash01")));
+
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"m2", "p1-new"}));
+
+    // ...and its items display under the parent tab.
+    const auto item_m2 = std::find_if(f.last_items.cbegin(),
+                                      f.last_items.cend(),
+                                      [](const std::shared_ptr<Item> &item) {
+                                          return item->id() == "m2";
+                                      });
+    QVERIFY(item_m2 != f.last_items.cend());
+    QCOMPARE((*item_m2)->location().id(), QString("mapstash01"));
+    QCOMPARE((*item_m2)->location().fetch_id(), QString("mapchild02"));
 }
 
 QTEST_GUILESS_MAIN(WorkerUpdateTest)

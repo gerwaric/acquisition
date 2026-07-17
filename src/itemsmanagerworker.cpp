@@ -827,6 +827,32 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
         }
     }
 
+    // The parent's reply is authoritative for its children: drop cached
+    // items that display under this tab but were fetched from a child it
+    // no longer lists — or whose fetching is disabled in the settings.
+    // Their fetch ids are never re-fetched, so nothing else would ever
+    // replace or remove them, not even a full refresh.
+    if (location.fetch_id() == location.id()) {
+        std::set<QString> expected_fetch_ids{location.id()};
+        if (get_children && stash.children) {
+            for (const auto &child : *stash.children) {
+                expected_fetch_ids.insert(child.id);
+            }
+        }
+        const size_t before = m_items.size();
+        std::erase_if(m_items, [&](const std::shared_ptr<Item> &item) {
+            const ItemLocation &item_location = item->location();
+            return (item_location.type() == ItemLocationType::STASH)
+                   && (item_location.id() == location.id())
+                   && (expected_fetch_ids.count(item_location.fetch_id()) == 0);
+        });
+        if (before > m_items.size()) {
+            spdlog::debug("ItemsManagerWorker: dropped {} ghost child items from {}",
+                          (before - m_items.size()),
+                          location.GetHeader());
+        }
+    }
+
     SubmitNextItemRequest();
     CheckUpdateFinished();
 }
