@@ -92,13 +92,31 @@ ones (`StashRepo::saveStashList`, `CharacterRepo::saveCharacterList`),
 and both return early for an empty list, so even "everything was deleted"
 cannot be expressed. `getStashList`/`getCharacterList` return every row
 for the realm/league, so `ParseCachedItems()` reloads deleted locations
-and their saved item JSON at the next startup. Fix shape: when a fresh
-top-level list arrives, delete rows (and their item JSON) whose ids are
-absent from it, including the empty-list case — but mind that
-`ProcessTab` re-emits `stashListReceived` for folder children, so
-deletion must be keyed off the top-level list only, never the partial
-child-list saves. Assigned: standalone PR after M1 merges (deliberately
-kept out of PR #162).
+and their saved item JSON at the next startup.
+
+**Fix shape (amended July 17 — the original "delete rows absent from the
+top-level list" would have erased every Map/Unique child's cached JSON,
+since special children are never in any list; see the F49 ledger entry).**
+Three parts:
+
+1. **On a fresh top-level list:** delete rows absent from the
+   *recursively flattened* list (folder children included) — except rows
+   whose `parent` is a surviving Map/Unique tab, which live only in
+   parent replies. Handle the empty-list case. Key deletion off top-level
+   lists only: `ProcessTab` re-emits `stashListReceived` for folder
+   children, and a partial child-list save must never drive deletion.
+2. **On a parent stash reply:** reconcile that parent's child rows
+   against its fresh child list — the datastore mirror of the worker's
+   in-memory ghost-child reconcile (without it, dropped ghosts resurrect
+   via `ParseCachedItems` at the next startup). Cascade-delete child rows
+   when the parent itself disappears from the list.
+3. **Policy note:** with `get_map_stashes`/`get_unique_stashes` off, the
+   parent-reply reconcile deletes cached child rows, matching the
+   in-memory and pre-M1 full-refresh semantics; toggling the setting back
+   on then requires a refetch rather than showing stale cache.
+
+Assigned: standalone PR after M1 merges (deliberately kept out of
+PR #162).
 
 ---
 
