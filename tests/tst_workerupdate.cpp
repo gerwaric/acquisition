@@ -319,13 +319,14 @@ void WorkerUpdateTest::partialUpdateDoesNotDuplicateCharacters()
     QCOMPARE(f.last_tabs.size(), size_t(2));
     QCOMPARE(f.last_items.size(), size_t(2));
 
-    // Refresh only CharOne. The fresh list mentions both characters.
+    // Refresh only CharOne. The fresh list mentions both characters, with
+    // CharTwo renamed in-game (same id, new name).
     f.worker->Update(TabSelection::Selected, {ItemLocation(*char_1, 0)});
     QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
     QCOMPARE(f.rate_limiter.request(0).endpoint, QString("List Characters"));
     f.rate_limiter.deliver(0,
                            characterListBody({characterJson("charid0001", "CharOne"),
-                                              characterJson("charid0002", "CharTwo")}));
+                                              characterJson("charid0002", "CharTwoRenamed")}));
 
     // Only the selected character is fetched.
     QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
@@ -346,12 +347,25 @@ void WorkerUpdateTest::partialUpdateDoesNotDuplicateCharacters()
     tab_ids.sort();
     QCOMPARE(tab_ids, QStringList({"charid0001", "charid0002"}));
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"c1-item-new", "c2-item"}));
+
+    // The unfetched character's surviving item carries the fresh name —
+    // forum codes and sort order read the item's embedded location.
+    const auto item_c2 = std::find_if(f.last_items.cbegin(),
+                                      f.last_items.cend(),
+                                      [](const std::shared_ptr<Item> &item) {
+                                          return item->id() == "c2-item";
+                                      });
+    QVERIFY(item_c2 != f.last_items.cend());
+    QCOMPARE((*item_c2)->location().character(), QString("CharTwoRenamed"));
 }
 
 // Tab-list reconciliation gives every listed tab fresh metadata, even tabs
-// outside the update selection: a tab renamed in-game updates its label on
-// any partial refresh, with no extra fetch (the M1 behavior change that
-// absorbed the F15 sketch), and its cached items are kept.
+// outside the update selection: a tab renamed or moved in-game updates its
+// label and position on any partial refresh, with no extra fetch (the M1
+// behavior change that absorbed the F15 sketch), and its cached items are
+// kept. The surviving items' embedded locations are rebased too — search
+// buckets are built from item locations, so a stale embedded copy would
+// show the old name (and a moved tab would bucket twice, once per index).
 void WorkerUpdateTest::renamedTabMetadataRefreshesWithoutFetch()
 {
     WorkerFixture f("worker-update-account-4");
@@ -370,12 +384,13 @@ void WorkerUpdateTest::renamedTabMetadataRefreshesWithoutFetch()
     QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
     QCOMPARE(f.last_items.size(), size_t(2));
 
-    // Refresh only tab B; the fresh list shows tab A renamed in-game.
+    // Refresh only tab B; the fresh list shows tab A renamed and moved
+    // in-game (index 0 -> 2).
     f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_b)});
     QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
     f.rate_limiter.deliver(0,
-                           stashListBody({stashJson("stashaaaa1", "New Name", 0),
-                                          stashJson("stashbbbb1", "Tab B", 1)}));
+                           stashListBody({stashJson("stashbbbb1", "Tab B", 1),
+                                          stashJson("stashaaaa1", "New Name", 2)}));
 
     // Only tab B is fetched; the rename costs no extra request.
     QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
@@ -384,7 +399,7 @@ void WorkerUpdateTest::renamedTabMetadataRefreshesWithoutFetch()
 
     QCOMPARE(f.refresh_count, 2);
 
-    // Tab A carries the new label and its cached item survived.
+    // Tab A carries the new label and position, and its cached item survived.
     const auto renamed = std::find_if(f.last_tabs.cbegin(),
                                       f.last_tabs.cend(),
                                       [](const ItemLocation &tab) {
@@ -392,7 +407,18 @@ void WorkerUpdateTest::renamedTabMetadataRefreshesWithoutFetch()
                                       });
     QVERIFY(renamed != f.last_tabs.cend());
     QCOMPARE(renamed->tab_label(), QString("New Name"));
+    QCOMPARE(renamed->tab_index(), 2);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "b1-new"}));
+
+    // The surviving item's embedded location was rebased to match.
+    const auto item_a = std::find_if(f.last_items.cbegin(),
+                                     f.last_items.cend(),
+                                     [](const std::shared_ptr<Item> &item) {
+                                         return item->id() == "a1";
+                                     });
+    QVERIFY(item_a != f.last_items.cend());
+    QCOMPARE((*item_a)->location().tab_label(), QString("New Name"));
+    QCOMPARE((*item_a)->location().tab_index(), 2);
 }
 
 QTEST_GUILESS_MAIN(WorkerUpdateTest)

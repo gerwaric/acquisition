@@ -59,6 +59,12 @@ public:
     QString fetch_id() const { return m_fetch_id; }
     void setFetchId(const QString &id) { m_fetch_id = id; }
 
+    // Refresh the tab-level metadata (label, colours, position, type,
+    // character name) from a freshly listed location for the same tab,
+    // keeping the per-item fields (slot position, size, sockets,
+    // inventory) and the fetch id.
+    void rebaseTabMetadata(const ItemLocation &fresh);
+
 private:
     int m_x{0}, m_y{0}, m_w{0}, m_h{0};
     int m_red{0}, m_green{0}, m_blue{0};

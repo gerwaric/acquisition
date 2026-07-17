@@ -127,6 +127,11 @@ public:
     const ItemSocketGroup &sockets() const { return m_sockets; }
     const std::vector<ItemSocketGroup> &socket_groups() const { return m_socket_groups; }
     const ItemLocation &location() const { return m_location; }
+    // Rebase the embedded location onto fresh tab metadata after a tab-list
+    // reconciliation. hash_v4() is deliberately not recomputed: it folds the
+    // tab label, but it is only consumed by the one-time startup buyout
+    // migration, which runs before any refresh can rebase a location.
+    void RebaseLocation(const ItemLocation &fresh_tab) { m_location.rebaseTabMetadata(fresh_tab); }
     const QString &note() const { return m_note; }
     const QString &category() const { return m_category; }
     uint talisman_tier() const { return m_talisman_tier; }

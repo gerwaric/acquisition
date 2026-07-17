@@ -106,6 +106,7 @@ private:
                    ParseResult &result) const;
     void LoadItems(const poe::StashTab &stash, ItemLocation location, ParseResult &result) const;
     void RemoveItemsFetchedBy(const QString &fetch_id);
+    void RebaseItemLocations(ItemLocationType type);
     void QueueRequest(const QString &endpoint,
                       const QNetworkRequest &request,
                       const ItemLocation &location);

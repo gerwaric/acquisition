@@ -15,6 +15,7 @@
 #include <QUrlQuery>
 
 #include <algorithm>
+#include <unordered_map>
 
 #include "buyoutmanager.h"
 #include "datastore/characterrepo.h"
@@ -413,6 +414,31 @@ void ItemsManagerWorker::RemoveItemsFetchedBy(const QString &fetch_id)
                   fetch_id);
 }
 
+void ItemsManagerWorker::RebaseItemLocations(ItemLocationType type)
+{
+    // After a list reconciliation m_tabs carries fresh metadata, but
+    // surviving items still embed the ItemLocation they were parsed with.
+    // Rebase them so a renamed or moved tab is fresh everywhere the UI
+    // reads a location (search buckets, headers, forum codes), not just in
+    // the tab list.
+    std::unordered_map<QString, const ItemLocation *> fresh_tabs;
+    for (const auto &tab : m_tabs) {
+        if (tab.type() == type) {
+            fresh_tabs.emplace(tab.id(), &tab);
+        }
+    }
+    for (auto &item : m_items) {
+        const ItemLocation &location = item->location();
+        if (location.type() != type) {
+            continue;
+        }
+        const auto it = fresh_tabs.find(location.id());
+        if (it != fresh_tabs.end()) {
+            item->RebaseLocation(*it->second);
+        }
+    }
+}
+
 void ItemsManagerWorker::Refresh()
 {
     spdlog::trace("Items Manager Worker: starting OAuth refresh");
@@ -575,6 +601,8 @@ void ItemsManagerWorker::OnStashListReceived(QNetworkReply *reply)
                       (before - m_items.size()));
     }
 
+    RebaseItemLocations(ItemLocationType::STASH);
+
     m_has_stash_list = true;
 
     // Check to see if we can start sending queued requests to fetch items yet.
@@ -688,6 +716,8 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply *reply)
         spdlog::debug("ItemsManagerWorker: dropped {} items from deleted characters",
                       (before - m_items.size()));
     }
+
+    RebaseItemLocations(ItemLocationType::CHARACTER);
 
     m_has_character_list = true;
 
