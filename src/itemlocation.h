@@ -51,11 +51,13 @@ public:
     QString id() const { return m_unique_id; }
 
     // The id of the stash or character an item was actually fetched from.
-    // For children of MapStash/UniqueStash/folder tabs this is the child's
-    // own id while id() stays the parent's (the display tab). It keys the
-    // per-reply atomic item replacement in ItemsManagerWorker and is
-    // deliberately excluded from operator==, operator<, and GetLegacyHash,
-    // so buyout keys and sort order do not depend on it.
+    // For children of MapStash/UniqueStash tabs this is the child's own id
+    // while id() stays the parent's (the display tab). Folder children are
+    // ordinary tabs: they arrive via the stash list and display under their
+    // own id (see the F49 ledger entry). The fetch id keys the per-reply
+    // atomic item replacement in ItemsManagerWorker and is deliberately
+    // excluded from operator==, operator<, and GetLegacyHash, so buyout
+    // keys and sort order do not depend on it.
     QString fetch_id() const { return m_fetch_id; }
     void setFetchId(const QString &id) { m_fetch_id = id; }
 

@@ -33,50 +33,6 @@ spec upgrade, July 2026): nothing forces storage changes here, so
 unification was dropped; a comment at the `m_refresh_checked` declaration
 documents the split. Unify only if other work touches this storage anyway.
 
-### F28. In-flight replies from an aborted update are misattributed to the next one — Confirmed; fix implemented, awaiting manual validation
-
-Found during Phase 2 review; pre-existing. When an update fails, the worker
-returns to idle but outstanding replies stay connected to their handlers. If
-a new update starts before they arrive, the stale replies are processed as
-if they belonged to the current update: a stale list reply can set
-`m_has_stash_list` / `m_has_character_list` early and queue duplicate
-requests, and a stale item reply perturbs the received counters. Requests
-carry no generation tag, so handlers cannot tell which update they answer.
-The Phase 2 network rework narrowed the exposure (list requests are
-submitted serially and item requests go one at a time through
-`SubmitNextItemRequest`), so at most one reply can be outstanding when a
-terminal failure lands — but the hole is real and unguarded.
-
-**Mechanism established (July 2026 items-pipeline recon):** the
-more load-bearing adjacent hole is that updates *begin destructively*.
-`ItemsManagerWorker::Update()` culls the updating tabs' items up front
-(`RemoveUpdatingTabs` / `RemoveUpdatingItems`) and re-adds them only as
-replies land. On terminal failure, `CheckUpdateFinished()` returns to idle
-*without* emitting `ItemsRefreshed`, silently leaving `m_items` short; the
-UI survives that moment because `ItemsManager` holds the last emitted copy,
-but the **next successful partial refresh** emits the still-short `m_items`
-and the missing items propagate to the UI — gone until a full refresh or
-restart (the datastore is unaffected, which is why a restart restores them).
-
-**Possibly-related symptom (Phase 5 manual smoke, July 2026) —
-unconfirmed.** A single item ("Damnation Hoof Two-Toned Boots") was missing
-from the *unfiltered* item list after a session that included partial
-refreshes, and reappeared after restart. That two-step shape fits the
-mechanism above exactly. The session was too confounded to conclude
-anything (two app versions sharing one data dir, heavy rate limiting,
-logging at `info` so the cull/re-add accounting was never written). A clean
-repro attempt needs a single app version on a private copy of the data dir
-with `--log-level debug`, comparing unfiltered item counts across a partial
-refresh.
-
-**Fix implemented** (items-pipeline Milestone 1,
-`docs/design/items-pipeline.md`): an update generation tag discards
-mismatched replies, and updates no longer begin destructively — each reply
-atomically replaces the items keyed by its fetch-source id
-(`ItemLocation::fetch_id()`), and tab entries are reconciled against the
-fresh lists on receipt. The finding stays open until M1's manual
-validation runs: the network-kill test and the repro protocol above.
-
 ### F46. `ItemsManager::OnItemsRefreshed` runs an O(items) scan purely for logging — Confirmed
 
 Found during the July 2026 items-pipeline recon. The uncategorized-items
@@ -126,25 +82,23 @@ so the map is an accurate guard). Same snapshot-cascade family as F46;
 also a hard constraint on items-pipeline M2 — the per-tab delta path must
 scope buyout propagation to the delta, not rerun this loop per tab reply.
 
-### F51. Unnamed stash tabs collapse the label component of item buyout hashes — Confirmed
+### F53. Deleted stash tabs and characters resurrect from the cache at restart — Confirmed; follow-up PR assigned
 
-Observed July 16, 2026, during M1 validation: the validating account has
-roughly 30 stash tabs whose API `name` is the empty string, in both the
-stash list and each individual fetch, and the owner confirms they are
-genuinely unnamed in-game — so this is real data, not a parsing loss.
-Tab-level buyouts are unaffected (`BuyoutManager::GetTab`/`SetTab` key on
-`location.id()`). But `Item::CalculateHash` folds
-`ItemLocation::GetLegacyHash()` — `"stash:" + tab_label` — into the item
-buyout hash, so every unnamed tab contributes the identical component:
-two otherwise-identical items in different unnamed tabs share a hash and
-shadow each other's item buyouts. Pre-existing — `GetLegacyHash` already
-carries a TODO that labels are not unique, and any two same-named tabs
-collide the same way; unnamed tabs just widen the equivalence class to
-dozens of tabs. Untouched by M1 (the fetch-source id is deliberately
-excluded from the hash, test-pinned). Fix direction if ever needed: key
-the location component by stash id instead of label, migrated through
-`BuyoutManager::MigrateItem` — do not change the hash casually, since
-every user's saved item buyouts are keyed by it.
+Found during the July 2026 review of items-pipeline M1 (PR #162). The
+worker treats the fresh stash/character lists as authoritative and drops
+server-deleted tabs with their items — but only in memory. The connected
+repositories only upsert the rows a list returns and never delete absent
+ones (`StashRepo::saveStashList`, `CharacterRepo::saveCharacterList`),
+and both return early for an empty list, so even "everything was deleted"
+cannot be expressed. `getStashList`/`getCharacterList` return every row
+for the realm/league, so `ParseCachedItems()` reloads deleted locations
+and their saved item JSON at the next startup. Fix shape: when a fresh
+top-level list arrives, delete rows (and their item JSON) whose ids are
+absent from it, including the empty-list case — but mind that
+`ProcessTab` re-emits `stashListReceived` for folder children, so
+deletion must be keyed off the top-level list only, never the partial
+child-list saves. Assigned: standalone PR after M1 merges (deliberately
+kept out of PR #162).
 
 ---
 
@@ -212,6 +166,7 @@ above). "PR #161" refers to the post-Phase-6 follow-ups branch
 | F25 | `ItemsModel` minted out-of-contract indexes | Fixed, Phase 3 |
 | F26 | `MemoryDataStore` dead code | Deleted, Phase 1 |
 | F27 | Re-entrant completions could finish an update early | Resolved by the Phase 2 network rework (single request in flight) |
+| F28 | In-flight replies from an aborted update were misattributed to the next one, and updates began destructively — a terminal failure left `m_items` silently short, published by the next successful partial refresh (the likely "item missing until restart" mechanism) | Fixed, items-pipeline M1 (update generation tag + atomic per-reply replacement). Validated by the offline fake-network harness (mutation-verified stale-discard and fail-mid-update pins) and the July 16 live network-kill; the recorded missing-item repro was retired as moot once the destructive cull path was deleted |
 | F29 | `spdlog::shutdown()` raced logging threads | Fixed, Phase 2; standing lesson (above) |
 | F30 | Rate limiter never surfaced failed replies | Fixed, Phase 2; BORDERLINE note (above) |
 | F31 | Phase 3 spec forced out a load-bearing view-signal guard | Resolved after Phase 3 (coalesced resize); standing lesson (above) |
@@ -232,3 +187,4 @@ above). "PR #161" refers to the post-Phase-6 follow-ups branch
 | F47 | `ItemLocation::FixUid()` was dead code | Deleted, items-pipeline M1 |
 | F49 | Folder children suspected of being fetched twice via two paths | Closed by live observation, July 2026: the paths are complementary in the live API — folder children arrive only via the stash list (Standard, 16 child lists; the two individually fetched folders returned no `children` and no items), map/unique children only via the individual reply (Mirage, 73 children). The `OnStashReceived` tripwire warning stays in the code as a permanent guard should the API ever change |
 | F48 | Character-list skip-check compared names against an id-keyed index (never matched), so a partial update re-added and re-fetched every character in the league, duplicating their tab entries and items | Found and fixed, items-pipeline M1 (character entries rebuilt from the fresh list, keyed by id) |
+| F51 | Unnamed stash tabs (~30 on the validating account, real in-game data) collapse the label component of the legacy item-buyout hash, suspected of shadowing item buyouts across tabs | Reframed and closed, July 2026: active item buyouts key on the API item id (`BuyoutManager::Set`/`Get` use `item.id()`); the label-based `hash_v4` is consumed only by the one-time v4→v5 migration, where colliding tabs made that migration ambiguous — an accepted legacy quirk. Do not rekey `GetLegacyHash`: it would break future v4→v5 migrations without improving live lookups |

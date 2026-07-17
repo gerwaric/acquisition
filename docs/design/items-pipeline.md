@@ -83,9 +83,11 @@ re-parallelization.)
 **Commit 2 — atomic per-reply replacement.** The engine of the redesign:
 
 - `ItemLocation` gains a **fetch-source id**: the id of the stash or
-  character actually fetched. For children of MapStash/UniqueStash/folder
-  tabs this is the child's own id even though the display location stays
-  the parent's. Excluded from `operator==`, `operator<`, and
+  character actually fetched. For children of MapStash/UniqueStash tabs
+  this is the child's own id even though the display location stays the
+  parent's. (Folder children are ordinary tabs: they arrive via the stash
+  list and display under their own id — see the F49 ledger entry.)
+  Excluded from `operator==`, `operator<`, and
   `GetLegacyHash()` so buyout keys and sort order are untouched.
   `ParseCachedItems` sets it too (the datastore keys child stashes by
   their own ids), so cached and live items agree.
@@ -98,8 +100,9 @@ re-parallelization.)
   (metadata refreshed in place — this absorbs the F15 accepted-limitation
   sketch: renamed/moved tabs now get fresh names/colors/positions on any
   refresh, at zero extra API calls; deliberate behavior change,
-  release-note it); tabs in the update selection but absent from the fresh
-  list are removed along with their items.
+  release-note it); tabs absent from the fresh list are removed along
+  with their items — in memory, for the session: the datastore keeps
+  their rows until F53 (follow-up PR) makes the deletion durable.
 - **Update modes unify**: `All` becomes "selection = every tab",
   `TabsOnly` becomes "selection with contents off", `Checked`/`Selected`
   are the general case. `RemoveUpdatingTabs`, `RemoveUpdatingItems`,
@@ -110,11 +113,10 @@ re-parallelization.)
   never left culled. Emit-on-failure / partial-application policy is a
   deliberate non-goal (below).
 
-Validation: unit tests over the worker where the harness allows, plus the
-F28 manual protocol — network-kill mid-refresh, and the recorded
-missing-item repro attempt (single app version, private copy of the data
-dir, `--log-level debug`, compare unfiltered item counts across a partial
-refresh). Tom must be present for login/refresh.
+Validation (complete, July 2026): the offline fake-network harness covers
+the worker's update cycle, the live network-kill ran July 16, and the
+recorded missing-item repro was retired as moot once the destructive cull
+path was deleted — see the F28 ledger entry.
 
 ### Milestone 2 — Streaming refresh signal (next PR)
 
