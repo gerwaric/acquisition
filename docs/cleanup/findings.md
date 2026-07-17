@@ -106,49 +106,25 @@ with *no* error but missing headers (a genuine API anomaly deserving
 `error`). Split the two and reword. Same diagnostics family as the F30
 BORDERLINE note.
 
-### F49. Folder children may be fetched twice, through two different paths — Likely
+### F52. `PropagateTabBuyouts` issues a database delete per item on every refresh — Confirmed
 
-Found during the items-pipeline M1 implementation (July 2026); traced but
-not runtime-verified, because it depends on what the live API actually
-returns. `ProcessTab` recurses into `tab.children` from the *stash list*,
-adding each child as its own tab with its own location and its own content
-request. Separately, `OnStashReceived`'s `get_children` branch is
-unconditionally true for `type == "Folder"`, so if an individually fetched
-folder's reply also carries `children`, those children are queued *again*
-— under the folder's location rather than their own. If both paths fire
-for the same folder, its children are fetched twice per update and, before
-M1, their items were duplicated under two display locations. Since M1 the
-duplication self-heals — both requests carry the same fetch-source id, so
-whichever reply lands last replaces the other's items — but the redundant
-fetch (and the non-deterministic display location) remains. Needs a live
-observation during M1's manual validation: refresh an account with folder
-tabs at DEBUG and check whether folder children appear in both request
-paths. The fix would be consulting `m_tab_id_index` before queueing
-children in `OnStashReceived`, but do not change it blind — MapStash and
-UniqueStash children genuinely need that path (they are absent from the
-stash list).
-
-**Partial observation (2026-07-16, full `All` refresh at debug, 48-tab
-account, Mirage, map/unique stashes enabled):** no redundant fetch — 122
-item fetches (48 top-level tabs, 46 MapStash + 27 UniqueStash children,
-1 character) produced 122 distinct fetch-source ids, one atomic replace
-each. The stash list carried no children ("Requesting 48 out of 48"; the
-`FetchItems` queue listed only top-level tabs), confirming that MapStash
-and UniqueStash children genuinely need the `OnStashReceived` path. The
-Folder branch remains unexercised — this account has no folder tabs — so
-the double-fetch hypothesis is still open for folders specifically. The
-worker-side behavior is already established by code trace (if the list
-ever carries folder children, they *will* be queued twice); the only open
-question is whether the live API actually lists them, which the offline
-harness cannot answer. Verdict unchanged: Likely, folders only.
-
-**Tripwire in place (July 16, 2026):** `OnStashReceived` now warns —
-visible in the Event Log — when a child it queues is already in
-`m_tab_id_index`, which is exactly the double-fetch signature (map/unique
-children are never in the index, so they cannot false-positive). Any
-refresh of a folder-owning account settles the question; a deliberate
-folder test on the validating account is planned for on or after
-July 18, 2026.
+Observed July 16, 2026, during the M1 folder validation (Standard league,
+18,491 items): every `ItemsRefreshed` emit produced ~17,250 consecutive
+`BuyoutRepo: removing item buyout` lines — once after the initial cached
+parse, again after a 4-tab checked refresh, identical both times (they are
+the bulk of a 5.8 MB debug log). Mechanism, verified in code:
+`ItemsManager::PropagateTabBuyouts` calls `Set(item, Buyout())` for every
+item whose buyout is inherited when its tab has no active buyout — which
+for most accounts is nearly every item — and `BuyoutManager::Set`'s
+`IsNull` branch calls `m_repo.removeItemBuyout(item)` **unconditionally**,
+even when neither the memory map nor the database has an entry for that
+item. Net effect: one SQL DELETE (plus a debug log line) per item per
+refresh, ~17k no-op statements each time for this account. The fix shape:
+only call `removeItemBuyout` when `m_buyouts.erase` actually erased
+something (the memory map and the repo are kept in sync by `Load`/`Set`,
+so the map is an accurate guard). Same snapshot-cascade family as F46;
+also a hard constraint on items-pipeline M2 — the per-tab delta path must
+scope buyout propagation to the delta, not rerun this loop per tab reply.
 
 ### F51. Unnamed stash tabs collapse the label component of item buyout hashes — Confirmed
 
@@ -254,4 +230,5 @@ above). "PR #161" refers to the post-Phase-6 follow-ups branch
 | F44 | Item-path warning branches kept stale selection state | Fixed, PR #161 |
 | F45 | Shop threads could not be cleared; no-threads warning unreachable | Fixed, July 2026 (own change) |
 | F47 | `ItemLocation::FixUid()` was dead code | Deleted, items-pipeline M1 |
+| F49 | Folder children suspected of being fetched twice via two paths | Closed by live observation, July 2026: the paths are complementary in the live API — folder children arrive only via the stash list (Standard, 16 child lists; the two individually fetched folders returned no `children` and no items), map/unique children only via the individual reply (Mirage, 73 children). The `OnStashReceived` tripwire warning stays in the code as a permanent guard should the API ever change |
 | F48 | Character-list skip-check compared names against an id-keyed index (never matched), so a partial update re-added and re-fetched every character in the league, duplicating their tab entries and items | Found and fixed, items-pipeline M1 (character entries rebuilt from the fresh list, keyed by id) |
