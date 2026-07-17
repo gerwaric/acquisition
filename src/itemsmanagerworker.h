@@ -11,6 +11,7 @@
 #include <QStringList>
 
 #include <atomic>
+#include <map>
 #include <queue>
 #include <set>
 
@@ -96,8 +97,7 @@ signals:
     void stashListReplaced(const std::vector<poe::StashTab> &stashes,
                            const QString &realm,
                            const QString &league);
-    void characterListReplaced(const std::vector<poe::Character> &characters,
-                               const QString &realm);
+    void characterListReplaced(const std::vector<poe::Character> &characters, const QString &realm);
     // Emitted when a parent stash reply arrives (F53): the reply is
     // authoritative for the parent's children, so the datastore can drop
     // child rows it no longer lists. child_ids is empty when child
@@ -175,6 +175,13 @@ private:
     // keys on this instead of list membership, so a new tab whose first
     // fetch failed (or never ran) stays "new" until a fetch lands (F55).
     std::set<QString> m_contents_known;
+
+    // Child fetches still outstanding per Map/Unique parent: the parent
+    // joins m_contents_known only when its last enabled child fetch lands,
+    // so a failed child fetch leaves the parent "new" and the children get
+    // retried — they never appear in a top-level list, so nothing else
+    // would ever refetch them (F55).
+    std::map<QString, int> m_pending_children;
 
     WorkerState m_state{WorkerState::Initializing};
     QPointer<QThread> m_parser_thread;

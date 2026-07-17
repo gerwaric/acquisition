@@ -29,8 +29,7 @@ public:
 public slots:
     bool saveCharacter(const poe::Character &character);
     bool saveCharacterList(const std::vector<poe::Character> &characters);
-    bool reconcileCharacterList(const std::vector<poe::Character> &characters,
-                                const QString &realm);
+    bool reconcileCharacterList(const std::vector<poe::Character> &characters, const QString &realm);
 
 private:
     bool saveListTransaction(const std::vector<poe::Character> &characters);

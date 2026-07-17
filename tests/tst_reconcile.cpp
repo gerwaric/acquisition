@@ -43,8 +43,7 @@ namespace {
     struct RepoFixture
     {
         RepoFixture()
-            : connectionName("reconcile-test-"
-                             + QUuid::createUuid().toString(QUuid::WithoutBraces))
+            : connectionName("reconcile-test-" + QUuid::createUuid().toString(QUuid::WithoutBraces))
         {
             db.emplace(QSqlDatabase::addDatabase("QSQLITE", connectionName));
             db->setDatabaseName(":memory:");
@@ -240,8 +239,8 @@ void ReconcileTest::emptyChildListDeletesAllChildren()
 void ReconcileTest::characterRowsAbsentFromFreshListAreDeleted()
 {
     RepoFixture f;
-    QVERIFY(f.characters->saveCharacterList({makeCharacter("charid0001", "CharOne"),
-                                             makeCharacter("charid0002", "CharTwo")}));
+    QVERIFY(f.characters->saveCharacterList(
+        {makeCharacter("charid0001", "CharOne"), makeCharacter("charid0002", "CharTwo")}));
     QVERIFY(f.characters->saveCharacterList({makeCharacter("charid0003", "OtherRealm", "sony")}));
 
     QVERIFY(f.characters->reconcileCharacterList({makeCharacter("charid0001", "CharOne")}, kRealm));

@@ -117,11 +117,16 @@ re-parallelization.)
   only the lists its selection needs, so a stash-only refresh does not
   discover new characters, and a brand-new first character waits for a
   refresh that requests the character list (`All`, `TabsOnly`, or any
-  character selection). Deliberate behavior change (one extra tab fetch
+  character selection). A `TabsOnly` refresh fetches no contents at all,
+  so it *records* a new tab without fetching it; because newness keys on
+  fetched contents (F55), the next content refresh picks the tab up.
+  Deliberate behavior change (one extra tab fetch
   per new tab on a partial refresh); final wording in the release notes
   below. (The F55 failure edge — a terminal failure before a new tab's
   first successful fetch used to consume its newness — is fixed in the
-  follow-up PR: newness keys on fetched contents, not list membership.)
+  follow-up PR: newness keys on fetched contents, not list membership,
+  and a Map/Unique parent only counts as fetched once every enabled
+  child fetch has landed.)
 - **Failure semantics unchanged at the boundary**: no `ItemsRefreshed`
   emit on terminal failure — but now that's safe, because `m_items` is
   never left culled. Emit-on-failure / partial-application policy is a
@@ -150,9 +155,11 @@ behavior changes ship with M1; this is the source text for the release
   the old name could persist until that specific tab was refreshed.
 - *Newly created tabs and characters are fetched automatically.* A stash
   tab or character created since your last refresh is now fetched by any
-  refresh that consults the corresponding tab or character list, even if
-  you only refreshed a selection. Previously it sat empty until the next
-  full refresh. (Costs one extra tab fetch per newly created tab.)
+  content refresh that consults the corresponding tab or character list,
+  even if you only refreshed a selection. Previously it sat empty until
+  the next full refresh. (Costs one extra tab fetch per newly created
+  tab. A tab-list-only refresh records the new tab without fetching it;
+  the next content refresh picks it up.)
 
 The second note was blocked on F55 (a failure edge made it untrue);
 F55's fix in the follow-up PR clears the release-blocking condition.

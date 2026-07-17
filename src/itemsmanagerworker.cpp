@@ -156,6 +156,9 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir) const
     spdlog::trace("ItemsManagerWorker::ParseItemMods() getting cached items");
 
     // Get stash items.
+    const bool get_map_stashes = m_settings.value("get_map_stashes", false).toBool();
+    const bool get_unique_stashes = m_settings.value("get_unique_stashes", false).toBool();
+    std::vector<std::pair<QString, QStringList>> required_children;
     for (size_t i = 0; i < stashes.size(); ++i) {
         if (m_shutdown.load()) {
             return result;
@@ -172,6 +175,17 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir) const
             continue;
         }
         result.contents_known.insert(id);
+        // A Map/Unique parent's saved reply records the children a fetch of
+        // it implies; collect them so completeness can be checked below.
+        const bool children_enabled = ((stash->type == "MapStash") && get_map_stashes)
+                                      || ((stash->type == "UniqueStash") && get_unique_stashes);
+        if (children_enabled && stash->children && !stash->children->empty()) {
+            QStringList child_ids;
+            for (const auto &child : *stash->children) {
+                child_ids.append(child.id);
+            }
+            required_children.emplace_back(id, child_ids);
+        }
         sendStatusUpdate(ProgramState::Initializing,
                          QString("Parsing items from stash %1/%2: %3 '%4'")
                              .arg(QString::number(i),
@@ -198,6 +212,20 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir) const
             location.setFetchId(stash->id);
         }
         LoadItems(*stash, location, result);
+    }
+
+    // A Map/Unique parent's contents are complete only if every enabled
+    // child fetch also landed: a cached parent with a missing child row
+    // must stay "new" so the next content update refetches it and
+    // re-queues its children — they never appear in a top-level list, so
+    // nothing else would retry them (F55).
+    for (const auto &[parent_id, child_ids] : required_children) {
+        for (const auto &child_id : child_ids) {
+            if (result.contents_known.count(child_id) == 0) {
+                result.contents_known.erase(parent_id);
+                break;
+            }
+        }
     }
 
     // Get character items.
@@ -346,6 +374,9 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
     // remove all pending requests
     m_queue = {};
     m_queue_id = 0;
+    // Counts left over from a failed update are stale: this update queues
+    // its own child fetches afresh.
+    m_pending_children.clear();
 
     // Build the content selection. Nothing is culled here: tab entries are
     // reconciled against the fresh lists as they arrive, and each tab's
@@ -773,9 +804,6 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
 
     emit stashReceived(*result->stash, m_realm, m_league);
 
-    // The fetch landed, so this tab is no longer "new" (F55).
-    m_contents_known.insert(location.id());
-
     // Atomically replace whatever this request fetched last time: for a
     // normal tab that is the tab's items, for a child of a special tab it
     // is just that child's share of the parent location's items.
@@ -835,6 +863,28 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
             child_location.setFetchId(child.id);
             QueueRequest(endpoint, request, child_location);
             ++m_stashes_needed;
+        }
+    }
+
+    // A tab's contents count as known only once everything a fetch of it
+    // implies has landed. For a Map/Unique parent that includes every
+    // enabled child fetch, so completion is deferred to the last child
+    // reply — marking the parent at its own reply would let a failed child
+    // fetch strand the children, since they never appear in a top-level
+    // list to be retried (F55).
+    if (location.fetch_id() == location.id()) {
+        const int queued_children = (get_children && stash.children) ? int(stash.children->size())
+                                                                     : 0;
+        if (queued_children > 0) {
+            m_pending_children[location.id()] = queued_children;
+        } else {
+            m_contents_known.insert(location.id());
+        }
+    } else {
+        const auto pending = m_pending_children.find(location.id());
+        if ((pending != m_pending_children.end()) && (--pending->second <= 0)) {
+            m_pending_children.erase(pending);
+            m_contents_known.insert(location.id());
         }
     }
 

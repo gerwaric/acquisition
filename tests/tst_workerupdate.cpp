@@ -33,6 +33,8 @@ private slots:
     void failedUpdateDoesNotRebasePublishedLocations();
     void listedButNeverFetchedTabIsFetchedOnNextUpdate();
     void failedFirstFetchDoesNotConsumeNewness();
+    void failedChildFetchKeepsParentNew();
+    void cachedParentWithMissingChildRowStaysNew();
     void datastoreFollowsServerDeletions();
     void datastoreFollowsCharacterDeletions();
 };
@@ -651,8 +653,7 @@ void WorkerUpdateTest::listedButNeverFetchedTabIsFetchedOnNextUpdate()
 
     QCOMPARE(f.rate_limiter.requestCount(), size_t(3));
     QVERIFY(f.rate_limiter.request(2).request.url().path().endsWith("stashnnnn1"));
-    f.rate_limiter.deliver(2,
-                           stashBody(stashJson("stashnnnn1", "New Tab", 1, QStringList{"n1"})));
+    f.rate_limiter.deliver(2, stashBody(stashJson("stashnnnn1", "New Tab", 1, QStringList{"n1"})));
 
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "n1"}));
@@ -703,11 +704,143 @@ void WorkerUpdateTest::failedFirstFetchDoesNotConsumeNewness()
     f.rate_limiter.deliver(4, stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
     QCOMPARE(f.rate_limiter.requestCount(), size_t(6));
     QVERIFY(f.rate_limiter.request(5).request.url().path().endsWith("stashnnnn1"));
-    f.rate_limiter.deliver(5,
-                           stashBody(stashJson("stashnnnn1", "New Tab", 1, QStringList{"n1"})));
+    f.rate_limiter.deliver(5, stashBody(stashJson("stashnnnn1", "New Tab", 1, QStringList{"n1"})));
 
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "n1"}));
+}
+
+// A Map/Unique parent's contents are complete only when every enabled
+// child fetch lands: marking the parent known at its own reply would let
+// a failed child fetch strand the children, since they never appear in a
+// top-level list to be retried (F55, review follow-up).
+void WorkerUpdateTest::failedChildFetchKeepsParentNew()
+{
+    WorkerFixture f("worker-update-account-11");
+    f.settings.setValue("get_map_stashes", true);
+
+    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"}));
+    QVERIFY(tab_a);
+    {
+        UserStore store(QDir(f.dataDir()), "worker-update-account-11");
+        QVERIFY(store.stashes().saveStashList({*tab_a}, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    const QByteArray list_with_new_map = stashListBody(
+        {stashJson("stashaaaa1", "Tab A", 0), stashJson("mapstash01", "Maps", 1, {}, "MapStash")});
+    const QByteArray map_parent_body = stashBody(
+        stashJson("mapstash01",
+                  "Maps",
+                  1,
+                  QStringList{"p1"},
+                  "MapStash",
+                  {},
+                  {stashJson("mapchild01", "Tier 1", 0, {}, "MapStash", "mapstash01")}));
+
+    // Update 1: the list reveals new Map stash M; its parent fetch lands,
+    // but the child fetch it queues dies.
+    f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
+    f.rate_limiter.deliver(0, list_with_new_map);
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
+    f.rate_limiter.deliver(1, stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(3));
+    QVERIFY(f.rate_limiter.request(2).request.url().path().endsWith("mapstash01"));
+    f.rate_limiter.deliver(2, map_parent_body);
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(4));
+    QVERIFY(f.rate_limiter.request(3).request.url().path().endsWith("mapchild01"));
+    f.rate_limiter.deliver(3, {}, QNetworkReply::ConnectionRefusedError);
+    QCOMPARE(f.refresh_count, 1);
+
+    // Update 2 selects only tab A again: the parent is still incomplete,
+    // so it is refetched and its child fetch retried.
+    f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(5));
+    f.rate_limiter.deliver(4, list_with_new_map);
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(6));
+    f.rate_limiter.deliver(5, stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(7));
+    QVERIFY(f.rate_limiter.request(6).request.url().path().endsWith("mapstash01"));
+    f.rate_limiter.deliver(6, map_parent_body);
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(8));
+    QVERIFY(f.rate_limiter.request(7).request.url().path().endsWith("mapchild01"));
+    f.rate_limiter.deliver(7,
+                           stashBody(stashJson("mapchild01",
+                                               "Tier 1",
+                                               0,
+                                               QStringList{"m1"},
+                                               "MapStash",
+                                               "mapstash01")));
+
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "m1", "p1"}));
+}
+
+// The restart shape of the same gap: a cached Map parent whose reply
+// recorded children must stay "new" at startup if a child row is missing,
+// so the next content update refetches it.
+void WorkerUpdateTest::cachedParentWithMissingChildRowStaysNew()
+{
+    WorkerFixture f("worker-update-account-12");
+    f.settings.setValue("get_map_stashes", true);
+
+    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"}));
+    const auto map_parent = json::readStash(
+        stashJson("mapstash01",
+                  "Maps",
+                  1,
+                  QStringList{"p1"},
+                  "MapStash",
+                  {},
+                  {stashJson("mapchild01", "Tier 1", 0, {}, "MapStash", "mapstash01")}));
+    QVERIFY(tab_a && map_parent);
+    {
+        UserStore store(QDir(f.dataDir()), "worker-update-account-12");
+        QVERIFY(store.stashes().saveStashList({*tab_a, *map_parent}, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*map_parent, kRealm, kLeague));
+        // The child row is missing: its fetch never landed before restart.
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "p1"}));
+
+    // Refresh only tab A: the incomplete parent must be fetched anyway.
+    f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
+    f.rate_limiter.deliver(0,
+                           stashListBody({stashJson("stashaaaa1", "Tab A", 0),
+                                          stashJson("mapstash01", "Maps", 1, {}, "MapStash")}));
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
+    f.rate_limiter.deliver(1, stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(3));
+    QVERIFY(f.rate_limiter.request(2).request.url().path().endsWith("mapstash01"));
+    f.rate_limiter.deliver(
+        2,
+        stashBody(stashJson("mapstash01",
+                            "Maps",
+                            1,
+                            QStringList{"p1"},
+                            "MapStash",
+                            {},
+                            {stashJson("mapchild01", "Tier 1", 0, {}, "MapStash", "mapstash01")})));
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(4));
+    QVERIFY(f.rate_limiter.request(3).request.url().path().endsWith("mapchild01"));
+    f.rate_limiter.deliver(3,
+                           stashBody(stashJson("mapchild01",
+                                               "Tier 1",
+                                               0,
+                                               QStringList{"m1"},
+                                               "MapStash",
+                                               "mapstash01")));
+
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "m1", "p1"}));
 }
 
 // End-to-end F53: with the persistence wiring in place, a fresh top-level

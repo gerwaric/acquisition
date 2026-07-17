@@ -115,10 +115,7 @@ void Application::InitUserSession()
             &ItemsManagerWorker::characterListReplaced,
             characters,
             &CharacterRepo::reconcileCharacterList);
-    connect(worker,
-            &ItemsManagerWorker::stashListReplaced,
-            stashes,
-            &StashRepo::reconcileStashList);
+    connect(worker, &ItemsManagerWorker::stashListReplaced, stashes, &StashRepo::reconcileStashList);
     connect(worker,
             &ItemsManagerWorker::stashChildrenReplaced,
             stashes,
