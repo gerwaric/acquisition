@@ -4,6 +4,7 @@
 #pragma once
 
 #include <QObject>
+#include <QStringList>
 
 #include <optional>
 #include <vector>
@@ -38,6 +39,13 @@ public slots:
     bool saveStashList(const std::vector<poe::StashTab> &stashes,
                        const QString &realm,
                        const QString &league);
+    bool reconcileStashList(const std::vector<poe::StashTab> &stashes,
+                            const QString &realm,
+                            const QString &league);
+    bool reconcileStashChildren(const QString &parent_id,
+                                const QStringList &child_ids,
+                                const QString &realm,
+                                const QString &league);
 
 private:
     bool saveListTransaction(const std::vector<poe::StashTab> &stashes,

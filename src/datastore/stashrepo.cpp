@@ -229,6 +229,130 @@ bool StashRepo::saveStashList(const std::vector<poe::StashTab> &stashes,
     return true;
 }
 
+namespace {
+
+    // Folder children are ordinary tabs carried inline in the list, so the
+    // authoritative id set is the recursive flattening. Map and Unique stash
+    // tabs are collected separately: their children never appear in any list,
+    // so child rows under a surviving special parent must not be deleted here.
+    void flattenStashList(const std::vector<poe::StashTab> &stashes,
+                          QStringList &ids,
+                          QStringList &special_parents)
+    {
+        for (const auto &stash : stashes) {
+            ids.append(stash.id);
+            if ((stash.type == "MapStash") || (stash.type == "UniqueStash")) {
+                special_parents.append(stash.id);
+            }
+            if (stash.children) {
+                flattenStashList(*stash.children, ids, special_parents);
+            }
+        }
+    }
+
+} // namespace
+
+bool StashRepo::reconcileStashList(const std::vector<poe::StashTab> &stashes,
+                                   const QString &realm,
+                                   const QString &league)
+{
+    // A fresh top-level stash list is authoritative: rows the server no
+    // longer lists are deleted so deleted tabs cannot resurrect from the
+    // cache at the next startup (F53). An empty list deletes every row for
+    // the realm and league. Children of surviving Map/Unique tabs are
+    // preserved; they are reconciled against their parent's replies by
+    // reconcileStashChildren() instead.
+    spdlog::debug("StashRepo: reconciling stash list: realm='{}', league='{}', size={}",
+                  realm,
+                  league,
+                  stashes.size());
+
+    QStringList keep_ids;
+    QStringList special_parents;
+    flattenStashList(stashes, keep_ids, special_parents);
+
+    QString sql{"DELETE FROM stashes WHERE realm = ? AND league = ?"};
+    if (!keep_ids.isEmpty()) {
+        sql += " AND id NOT IN (" + ds::placeholders(keep_ids.size()) + ")";
+    }
+    if (!special_parents.isEmpty()) {
+        sql += " AND (parent IS NULL OR parent NOT IN (" + ds::placeholders(special_parents.size())
+               + "))";
+    }
+
+    QSqlQuery q(m_db);
+    if (!q.prepare(sql)) {
+        spdlog::error("StashRepo: prepare() failed: {}", q.lastError().text());
+        return false;
+    }
+
+    q.addBindValue(realm);
+    q.addBindValue(league);
+    for (const auto &id : keep_ids) {
+        q.addBindValue(id);
+    }
+    for (const auto &id : special_parents) {
+        q.addBindValue(id);
+    }
+
+    if (!q.exec()) {
+        ds::logQueryError("StashRepo::reconcileStashList()", q);
+        return false;
+    }
+    if (q.numRowsAffected() > 0) {
+        spdlog::debug("StashRepo: deleted {} rows absent from the fresh stash list",
+                      q.numRowsAffected());
+    }
+    return true;
+}
+
+bool StashRepo::reconcileStashChildren(const QString &parent_id,
+                                       const QStringList &child_ids,
+                                       const QString &realm,
+                                       const QString &league)
+{
+    // A parent's reply is authoritative for its children: delete child rows
+    // it no longer lists — the datastore mirror of the worker's in-memory
+    // ghost-child reconcile (F53). When child fetching is disabled in the
+    // settings the worker passes an empty list, so the cached child rows
+    // are deleted; re-enabling the setting then requires a refetch instead
+    // of showing stale cache (documented policy).
+    spdlog::debug("StashRepo: reconciling children of '{}': realm='{}', league='{}', size={}",
+                  parent_id,
+                  realm,
+                  league,
+                  child_ids.size());
+
+    QString sql{"DELETE FROM stashes WHERE realm = ? AND league = ? AND parent = ?"};
+    if (!child_ids.isEmpty()) {
+        sql += " AND id NOT IN (" + ds::placeholders(child_ids.size()) + ")";
+    }
+
+    QSqlQuery q(m_db);
+    if (!q.prepare(sql)) {
+        spdlog::error("StashRepo: prepare() failed: {}", q.lastError().text());
+        return false;
+    }
+
+    q.addBindValue(realm);
+    q.addBindValue(league);
+    q.addBindValue(parent_id);
+    for (const auto &id : child_ids) {
+        q.addBindValue(id);
+    }
+
+    if (!q.exec()) {
+        ds::logQueryError("StashRepo::reconcileStashChildren()", q);
+        return false;
+    }
+    if (q.numRowsAffected() > 0) {
+        spdlog::debug("StashRepo: deleted {} child rows no longer listed by '{}'",
+                      q.numRowsAffected(),
+                      parent_id);
+    }
+    return true;
+}
+
 std::optional<poe::StashTab> StashRepo::getStash(const QString &id,
                                                  const QString &realm,
                                                  const QString &league)

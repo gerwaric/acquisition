@@ -23,6 +23,9 @@ namespace ds {
 
     QDateTime timestamp();
 
+    // "?, ?, ?" for building IN (...) clauses with positional binds.
+    QString placeholders(qsizetype n);
+
     void logQueryError(const char *context, const QSqlQuery &q);
 
     QString summarizeVariant(const QVariant &v);

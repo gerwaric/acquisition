@@ -31,6 +31,10 @@ private slots:
     void renamedTabMetadataRefreshesWithoutFetch();
     void vanishedMapChildItemsAreRemovedOnParentRefresh();
     void failedUpdateDoesNotRebasePublishedLocations();
+    void listedButNeverFetchedTabIsFetchedOnNextUpdate();
+    void failedFirstFetchDoesNotConsumeNewness();
+    void datastoreFollowsServerDeletions();
+    void datastoreFollowsCharacterDeletions();
 };
 
 namespace {
@@ -185,6 +189,49 @@ namespace {
         bool last_initial{false};
         int refresh_count{0};
     };
+
+    // Wire the worker's persistence signals to a store the way
+    // Application does, including the F53 reconciliation connections.
+    void connectPersistence(ItemsManagerWorker *worker, UserStore &store)
+    {
+        auto stashes = &store.stashes();
+        auto characters = &store.characters();
+        QObject::connect(worker,
+                         &ItemsManagerWorker::stashListReceived,
+                         stashes,
+                         &StashRepo::saveStashList);
+        QObject::connect(worker, &ItemsManagerWorker::stashReceived, stashes, &StashRepo::saveStash);
+        QObject::connect(worker,
+                         &ItemsManagerWorker::characterListReceived,
+                         characters,
+                         &CharacterRepo::saveCharacterList);
+        QObject::connect(worker,
+                         &ItemsManagerWorker::characterReceived,
+                         characters,
+                         &CharacterRepo::saveCharacter);
+        QObject::connect(worker,
+                         &ItemsManagerWorker::stashListReplaced,
+                         stashes,
+                         &StashRepo::reconcileStashList);
+        QObject::connect(worker,
+                         &ItemsManagerWorker::characterListReplaced,
+                         characters,
+                         &CharacterRepo::reconcileCharacterList);
+        QObject::connect(worker,
+                         &ItemsManagerWorker::stashChildrenReplaced,
+                         stashes,
+                         &StashRepo::reconcileStashChildren);
+    }
+
+    QStringList storedStashIds(UserStore &store)
+    {
+        QStringList ids;
+        for (const auto &stash : store.stashes().getStashList(kRealm, kLeague)) {
+            ids.append(stash.id);
+        }
+        ids.sort();
+        return ids;
+    }
 
 } // namespace
 
@@ -565,6 +612,226 @@ void WorkerUpdateTest::failedUpdateDoesNotRebasePublishedLocations()
                            stashBody(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b1-new"})));
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(item_a->location().tab_label(), QString("New Name"));
+}
+
+// A tab whose metadata was cached but whose contents were never fetched —
+// the durable footprint of an update that died between list receipt and
+// the tab's first item request — must still count as "new" after a
+// restart, so the next content update fetches it (F55).
+void WorkerUpdateTest::listedButNeverFetchedTabIsFetchedOnNextUpdate()
+{
+    WorkerFixture f("worker-update-account-7");
+
+    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"}));
+    const auto tab_n = json::readStash(stashJson("stashnnnn1", "New Tab", 1));
+    QVERIFY(tab_a && tab_n);
+    {
+        UserStore store(QDir(f.dataDir()), "worker-update-account-7");
+        QVERIFY(store.stashes().saveStashList({*tab_a, *tab_n}, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+        // tab N: listed, never fetched.
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+    QCOMPARE(f.last_tabs.size(), size_t(2));
+    QCOMPARE(f.last_items.size(), size_t(1));
+
+    // Refresh only tab A: tab N must be fetched anyway, because its
+    // contents were never seen.
+    f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
+    f.rate_limiter.deliver(0,
+                           stashListBody({stashJson("stashaaaa1", "Tab A", 0),
+                                          stashJson("stashnnnn1", "New Tab", 1)}));
+
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
+    QVERIFY(f.rate_limiter.request(1).request.url().path().endsWith("stashaaaa1"));
+    f.rate_limiter.deliver(1, stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(3));
+    QVERIFY(f.rate_limiter.request(2).request.url().path().endsWith("stashnnnn1"));
+    f.rate_limiter.deliver(2,
+                           stashBody(stashJson("stashnnnn1", "New Tab", 1, QStringList{"n1"})));
+
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "n1"}));
+}
+
+// The ledger-specified F55 pin: an update that fails after list receipt
+// but before a newly discovered tab's first reply must not consume the
+// tab's newness — the next partial refresh still fetches it. (Before the
+// fix, list receipt alone marked the tab previously-known, so a later
+// partial refresh skipped it and published the tab empty.)
+void WorkerUpdateTest::failedFirstFetchDoesNotConsumeNewness()
+{
+    WorkerFixture f("worker-update-account-8");
+
+    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"}));
+    QVERIFY(tab_a);
+    {
+        UserStore store(QDir(f.dataDir()), "worker-update-account-8");
+        QVERIFY(store.stashes().saveStashList({*tab_a}, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    const QByteArray list_with_new_tab = stashListBody(
+        {stashJson("stashaaaa1", "Tab A", 0), stashJson("stashnnnn1", "New Tab", 1)});
+
+    // Update 1: the list reveals new tab N; its first fetch dies.
+    f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
+    f.rate_limiter.deliver(0, list_with_new_tab);
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
+    QVERIFY(f.rate_limiter.request(1).request.url().path().endsWith("stashaaaa1"));
+    f.rate_limiter.deliver(1, stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(3));
+    QVERIFY(f.rate_limiter.request(2).request.url().path().endsWith("stashnnnn1"));
+    f.rate_limiter.deliver(2, {}, QNetworkReply::ConnectionRefusedError);
+    QCOMPARE(f.refresh_count, 1);
+
+    // Update 2 selects only tab A again: tab N is still new and must be
+    // fetched.
+    f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(4));
+    f.rate_limiter.deliver(3, list_with_new_tab);
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(5));
+    QVERIFY(f.rate_limiter.request(4).request.url().path().endsWith("stashaaaa1"));
+    f.rate_limiter.deliver(4, stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(6));
+    QVERIFY(f.rate_limiter.request(5).request.url().path().endsWith("stashnnnn1"));
+    f.rate_limiter.deliver(5,
+                           stashBody(stashJson("stashnnnn1", "New Tab", 1, QStringList{"n1"})));
+
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "n1"}));
+}
+
+// End-to-end F53: with the persistence wiring in place, a fresh top-level
+// list deletes the rows of server-deleted tabs (a surviving Map child row
+// is untouched — it is never in any list), and a Map parent's reply
+// replaces its child rows.
+void WorkerUpdateTest::datastoreFollowsServerDeletions()
+{
+    WorkerFixture f("worker-update-account-9");
+    f.settings.setValue("get_map_stashes", true);
+
+    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"}));
+    const auto tab_b = json::readStash(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b1"}));
+    const auto map_parent = json::readStash(
+        stashJson("mapstash01", "Maps", 2, QStringList{"p1"}, "MapStash"));
+    const auto map_child = json::readStash(
+        stashJson("mapchild01", "Tier 1", 0, QStringList{"m1"}, "MapStash", "mapstash01"));
+    QVERIFY(tab_a && tab_b && map_parent && map_child);
+    {
+        UserStore store(QDir(f.dataDir()), "worker-update-account-9");
+        QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b, *map_parent}, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*tab_b, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*map_parent, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*map_child, kRealm, kLeague));
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "b1", "m1", "p1"}));
+
+    UserStore store(QDir(f.dataDir()), "worker-update-account-9");
+    connectPersistence(f.worker.get(), store);
+
+    // Server-side, Tab B was deleted; the fresh list omits it.
+    f.worker->Update(TabSelection::All);
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
+    f.rate_limiter.deliver(0,
+                           stashListBody({stashJson("stashaaaa1", "Tab A", 0),
+                                          stashJson("mapstash01", "Maps", 1, {}, "MapStash")}));
+
+    // Tab B's row is gone at list receipt; the Map child row survives.
+    QCOMPARE(storedStashIds(store), QStringList({"mapchild01", "mapstash01", "stashaaaa1"}));
+
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
+    f.rate_limiter.deliver(1, R"({"characters":[]})");
+
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(3));
+    QVERIFY(f.rate_limiter.request(2).request.url().path().endsWith("stashaaaa1"));
+    f.rate_limiter.deliver(2, stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+
+    // The Map parent's reply lists a different child: the old child row is
+    // replaced in the datastore.
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(4));
+    QVERIFY(f.rate_limiter.request(3).request.url().path().endsWith("mapstash01"));
+    f.rate_limiter.deliver(
+        3,
+        stashBody(stashJson("mapstash01",
+                            "Maps",
+                            1,
+                            QStringList{"p1"},
+                            "MapStash",
+                            {},
+                            {stashJson("mapchild02", "Tier 2", 0, {}, "MapStash", "mapstash01")})));
+    QCOMPARE(storedStashIds(store), QStringList({"mapstash01", "stashaaaa1"}));
+
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(5));
+    QVERIFY(f.rate_limiter.request(4).request.url().path().endsWith("mapchild02"));
+    f.rate_limiter.deliver(4,
+                           stashBody(stashJson("mapchild02",
+                                               "Tier 2",
+                                               0,
+                                               QStringList{"m2"},
+                                               "MapStash",
+                                               "mapstash01")));
+
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(storedStashIds(store), QStringList({"mapchild02", "mapstash01", "stashaaaa1"}));
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "m2", "p1"}));
+}
+
+// End-to-end F53 for characters: a fresh character list deletes the rows
+// of server-deleted characters.
+void WorkerUpdateTest::datastoreFollowsCharacterDeletions()
+{
+    WorkerFixture f("worker-update-account-10");
+
+    const auto char_1 = json::readCharacter(
+        characterJson("charid0001", "CharOne", QStringList{"c1-item"}));
+    const auto char_2 = json::readCharacter(
+        characterJson("charid0002", "CharTwo", QStringList{"c2-item"}));
+    QVERIFY(char_1 && char_2);
+    {
+        UserStore store(QDir(f.dataDir()), "worker-update-account-10");
+        QVERIFY(store.characters().saveCharacterList({*char_1, *char_2}));
+        QVERIFY(store.characters().saveCharacter(*char_1));
+        QVERIFY(store.characters().saveCharacter(*char_2));
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+    QCOMPARE(f.last_items.size(), size_t(2));
+
+    UserStore store(QDir(f.dataDir()), "worker-update-account-10");
+    connectPersistence(f.worker.get(), store);
+
+    // Server-side, CharTwo was deleted; the fresh list omits it.
+    f.worker->Update(TabSelection::Selected, {ItemLocation(*char_1, 0)});
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
+    f.rate_limiter.deliver(0, characterListBody({characterJson("charid0001", "CharOne")}));
+
+    QStringList ids;
+    for (const auto &character : store.characters().getCharacterList(kRealm)) {
+        ids.append(character.id);
+    }
+    QCOMPARE(ids, QStringList({"charid0001"}));
+
+    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
+    f.rate_limiter.deliver(1,
+                           characterBody(
+                               characterJson("charid0001", "CharOne", QStringList{"c1-item"})));
+
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"c1-item"}));
 }
 
 QTEST_GUILESS_MAIN(WorkerUpdateTest)

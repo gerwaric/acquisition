@@ -8,6 +8,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QString>
+#include <QStringList>
 
 #include <atomic>
 #include <queue>
@@ -55,6 +56,10 @@ struct ParseResult
     std::vector<ItemLocation> tabs;
     Items items;
     std::set<QString> tab_id_index;
+    // Ids whose contents exist in the datastore — a strict subset of
+    // tab_id_index, since a tab can be listed (metadata saved) without its
+    // items ever having been fetched (F55).
+    std::set<QString> contents_known;
 };
 
 class ItemsManagerWorker : public QObject
@@ -83,6 +88,24 @@ signals:
                            const QString &realm,
                            const QString &league);
     void stashReceived(const poe::StashTab &stash, const QString &realm, const QString &league);
+
+    // Authoritative-list signals (F53): emitted only for a fresh top-level
+    // list (never for ProcessTab's folder-children re-emits of
+    // stashListReceived, which are partial and must not drive deletion) so
+    // the datastore can drop rows the server no longer lists.
+    void stashListReplaced(const std::vector<poe::StashTab> &stashes,
+                           const QString &realm,
+                           const QString &league);
+    void characterListReplaced(const std::vector<poe::Character> &characters,
+                               const QString &realm);
+    // Emitted when a parent stash reply arrives (F53): the reply is
+    // authoritative for the parent's children, so the datastore can drop
+    // child rows it no longer lists. child_ids is empty when child
+    // fetching is disabled in the settings.
+    void stashChildrenReplaced(const QString &parent_id,
+                               const QStringList &child_ids,
+                               const QString &realm,
+                               const QString &league);
 
 public slots:
     void OnRePoEReady();
@@ -123,7 +146,7 @@ private:
     void CheckUpdateFinished();
     void FinishUpdate();
 
-    void ProcessTab(const poe::StashTab &tab, int &count, const std::set<QString> &previously_known);
+    void ProcessTab(const poe::StashTab &tab, int &count);
 
     QSettings &m_settings;
     BuyoutManager &m_buyout_manager;
@@ -145,6 +168,13 @@ private:
     size_t m_characters_received{0};
 
     std::set<QString> m_tab_id_index;
+
+    // Ids whose contents have actually been fetched — seeded from the
+    // datastore at startup, extended on every successful stash/character
+    // reply, never consumed by list receipt alone. The always-fetch check
+    // keys on this instead of list membership, so a new tab whose first
+    // fetch failed (or never ran) stays "new" until a fetch lands (F55).
+    std::set<QString> m_contents_known;
 
     WorkerState m_state{WorkerState::Initializing};
     QPointer<QThread> m_parser_thread;

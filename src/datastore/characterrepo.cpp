@@ -149,6 +149,45 @@ bool CharacterRepo::saveCharacterList(const std::vector<poe::Character> &charact
     return true;
 }
 
+bool CharacterRepo::reconcileCharacterList(const std::vector<poe::Character> &characters,
+                                           const QString &realm)
+{
+    // A fresh character list is authoritative: rows the server no longer
+    // lists are deleted so deleted characters cannot resurrect from the
+    // cache at the next startup (F53). The list endpoint returns every
+    // character in the realm regardless of league, so reconciliation is
+    // realm-wide, and an empty list deletes every row for the realm.
+    spdlog::debug("CharacterRepo: reconciling character list: realm='{}', size={}",
+                  realm,
+                  characters.size());
+
+    QString sql{"DELETE FROM characters WHERE realm = ?"};
+    if (!characters.empty()) {
+        sql += " AND id NOT IN (" + ds::placeholders(qsizetype(characters.size())) + ")";
+    }
+
+    QSqlQuery q(m_db);
+    if (!q.prepare(sql)) {
+        spdlog::error("CharacterRepo: prepare() failed: {}", q.lastError().text());
+        return false;
+    }
+
+    q.addBindValue(realm);
+    for (const auto &character : characters) {
+        q.addBindValue(character.id);
+    }
+
+    if (!q.exec()) {
+        ds::logQueryError("CharacterRepo::reconcileCharacterList()", q);
+        return false;
+    }
+    if (q.numRowsAffected() > 0) {
+        spdlog::debug("CharacterRepo: deleted {} rows absent from the fresh character list",
+                      q.numRowsAffected());
+    }
+    return true;
+}
+
 std::optional<poe::Character> CharacterRepo::getCharacter(const QString &name, const QString &realm)
 {
     spdlog::debug("CharacterRepo: getting character: name='{}', realm='{}'", name, realm);

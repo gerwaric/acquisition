@@ -109,6 +109,21 @@ void Application::InitUserSession()
     connect(worker, &ItemsManagerWorker::stashListReceived, stashes, &StashRepo::saveStashList);
     connect(worker, &ItemsManagerWorker::stashReceived, stashes, &StashRepo::saveStash);
 
+    // Authoritative-list reconciliation: rows the server no longer lists
+    // are deleted so they cannot resurrect from the cache (F53).
+    connect(worker,
+            &ItemsManagerWorker::characterListReplaced,
+            characters,
+            &CharacterRepo::reconcileCharacterList);
+    connect(worker,
+            &ItemsManagerWorker::stashListReplaced,
+            stashes,
+            &StashRepo::reconcileStashList);
+    connect(worker,
+            &ItemsManagerWorker::stashChildrenReplaced,
+            stashes,
+            &StashRepo::reconcileStashChildren);
+
     auto buyout_mgr = &buyout_manager();
     auto buyouts = &userstore().buyouts();
 
