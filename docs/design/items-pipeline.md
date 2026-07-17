@@ -107,11 +107,24 @@ re-parallelization.)
   `TabsOnly` becomes "selection with contents off", `Checked`/`Selected`
   are the general case. `RemoveUpdatingTabs`, `RemoveUpdatingItems`,
   `m_first_stash_request_index`, and `m_first_character_request_name` are
-  deleted.
+  deleted. Tabs and characters not previously known (created server-side
+  since the last list) are **always fetched**, even in `Checked`/
+  `Selected` updates — a new tab would otherwise sit empty until the next
+  full refresh. Deliberate behavior change (one extra tab fetch per new
+  tab on a partial refresh); release-note it alongside the F15 rename
+  absorption.
 - **Failure semantics unchanged at the boundary**: no `ItemsRefreshed`
   emit on terminal failure — but now that's safe, because `m_items` is
   never left culled. Emit-on-failure / partial-application policy is a
-  deliberate non-goal (below).
+  deliberate non-goal (below). One nuance: list-reconciliation effects
+  (fresh tab metadata, deleted tabs dropped with their items) apply to
+  worker memory as the lists arrive and are kept even if the update then
+  fails terminally — unpublished until the next successful emit. "A
+  failed update loses nothing" means nothing *the server still has*.
+  Surviving items' embedded locations, by contrast, are rebased onto the
+  fresh tab metadata only in `FinishUpdate`, because the emitted `Items`
+  share `Item` objects with `ItemsManager` and the UI — shared state may
+  only be mutated at the moment an emit rebuilds everything downstream.
 
 Validation (complete, July 2026): the offline fake-network harness covers
 the worker's update cycle, the live network-kill ran July 16, and the
@@ -138,6 +151,19 @@ Surface per-tab progress without triggering the snapshot cascade:
 Hard constraints for the M2 spec, from the cascade recon: no per-delta
 forum submission, no per-delta whole-collection scans, no per-delta
 uncoalesced model reset.
+
+A fourth constraint, from the M1 review (July 2026): **the
+rebase-on-success design does not compose with streaming deltas.** M1
+defers `RebaseItemLocations` to the successful `FinishUpdate` path
+precisely because publication is single-shot — shared `Item` objects may
+only be mutated when an emit immediately rebuilds everything downstream.
+Streaming publication breaks that assumption: once `TabRefreshed`
+consumers hold references mid-update, the spec must choose a rebase
+point. Either per-delta consumers tolerate stale embedded tab metadata
+until the final `ItemsRefreshed` (and the M2 UI must not render anything
+that would expose the mismatch), or the rebase moves earlier and the
+failed-update-mutates-published-state problem M1 solved returns and needs
+a new answer.
 
 ### Milestone 3 — Delta-native items model (later)
 

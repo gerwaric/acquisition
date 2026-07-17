@@ -77,10 +77,18 @@ even when neither the memory map nor the database has an entry for that
 item. Net effect: one SQL DELETE (plus a debug log line) per item per
 refresh, ~17k no-op statements each time for this account. The fix shape:
 only call `removeItemBuyout` when `m_buyouts.erase` actually erased
-something (the memory map and the repo are kept in sync by `Load`/`Set`,
-so the map is an accurate guard). Same snapshot-cascade family as F46;
+something. Caveat on the guard (July 17 review of PR #163): the memory
+map does **not** strictly mirror the repo — `CompressTabBuyouts` (runs
+every refresh via `ApplyAutoTabBuyouts`) erases vanished tabs' entries
+from the map without repo deletes, and `MigrateItem` rekeys map entries
+without repo writes (see F54). Both drift in the same direction — repo
+holds rows the map lacks — which is exactly the case the guard declines
+to delete, so the fix loses nothing; orphan rows persist in the DB and
+are re-erased from the map each session (accepted tradeoff, pinned by
+`clearingAbsentBuyoutSkipsRepo`). Same snapshot-cascade family as F46;
 also a hard constraint on items-pipeline M2 — the per-tab delta path must
 scope buyout propagation to the delta, not rerun this loop per tab reply.
+Fix assigned: PR #163.
 
 ### F53. Deleted stash tabs and characters resurrect from the cache at restart — Confirmed; follow-up PR assigned
 
@@ -117,6 +125,35 @@ Three parts:
 
 Assigned: standalone PR after M1 merges (deliberately kept out of
 PR #162).
+
+### F54. The v4→v5 buyout migration never persists under the repo-backed store — Confirmed (mechanism); reachability unverified
+
+Found July 17, 2026, while validating the F52 fix's map-mirrors-repo
+assumption. Pre-existing on master; unrelated to PRs #162/#163.
+
+`BuyoutManager::MigrateItem` moves `m_buyouts` entries from legacy hash
+keys to item-id keys **in memory only**. The `m_buyout_manager.Save()`
+call that follows the migration loop in `ItemsManager::MigrateBuyouts`
+persists nothing but `refresh_checked_state` (the F22 split), and no
+path writes the migrated rows to `BuyoutRepo` or deletes the old-keyed
+ones. So a store that reaches `MigrateBuyouts` at `db_version <= 4`
+migrates in memory, works for one session, then loses those buyouts at
+the next restart: `Load()` refills the map with hash-keyed rows that
+id-based `Get()` never reads, and the `db_version == 5` guard prevents
+re-migration. The buyout data still exists in the repo under keys
+nothing consults — silent, permanent-looking loss from the user's view.
+
+Reachability: dormant for any install already at `db_version` 5. The
+plausible live path is the legacy importer (`LegacyDataStore` reads
+`db_version` from the old database); whether the import writes a
+`db_version < 5` into the new store — arming the migration — is
+unverified. Check that before sizing the fix.
+
+Fix shape: make the migration write through the repo (save the id-keyed
+row, delete the hash-keyed one) inside `MigrateItem`, or have
+`MigrateBuyouts` flush the affected entries after the loop. Related: F22
+(dual persistence), F51 ledger entry (do not rekey `GetLegacyHash` — a
+correct future v4→v5 migration depends on it).
 
 ---
 
