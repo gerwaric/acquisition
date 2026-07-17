@@ -76,8 +76,8 @@ for most accounts is nearly every item — and `BuyoutManager::Set`'s
 even when neither the memory map nor the database has an entry for that
 item. Net effect: one SQL DELETE (plus a debug log line) per item per
 refresh, ~17k no-op statements each time for this account. The fix shape:
-only call `removeItemBuyout` when `m_buyouts.erase` actually erased
-something. Caveat on the guard (July 17 review of PR #163): the memory
+only call `removeItemBuyout` when the map actually holds an entry for the
+item. Caveat on the guard (July 17 review of PR #163): the memory
 map does **not** strictly mirror the repo — `CompressTabBuyouts` (runs
 every refresh via `ApplyAutoTabBuyouts`) erases vanished tabs' entries
 from the map without repo deletes, and `MigrateItem` rekeys map entries
@@ -85,9 +85,20 @@ without repo writes (see F54). Both drift in the same direction — repo
 holds rows the map lacks — which is exactly the case the guard declines
 to delete, so the fix loses nothing; orphan rows persist in the DB and
 are re-erased from the map each session (accepted tradeoff, pinned by
-`clearingAbsentBuyoutSkipsRepo`). Same snapshot-cascade family as F46;
-also a hard constraint on items-pipeline M2 — the per-tab delta path must
-scope buyout propagation to the delta, not rerun this loop per tab reply.
+`clearingAbsentBuyoutSkipsRepo` / `clearingAbsentTabBuyoutSkipsRepo`).
+Second caveat (same review): erasing the map entry *before* the repo
+delete would make a failed DELETE unretryable — the guard would skip
+every later clear and the row would resurrect at the next `Load()`.
+Fixed shape: `removeItemBuyout`/`removeLocationBuyout` return success
+and the map entry is erased only afterward, so a failed delete is
+retried on the next clear (pinned by `failedDeleteKeepsEntryForRetry`).
+The save path still discards failures — `saveItemBuyout` returns bool
+but is invoked via signal connection (`application.cpp`), so a failed
+save silently drops the buyout at the next restart; accepted for now,
+noted here so the delete/save asymmetry is deliberate. Same
+snapshot-cascade family as F46; also a hard constraint on
+items-pipeline M2 — the per-tab delta path must scope buyout
+propagation to the delta, not rerun this loop per tab reply.
 Fix assigned: PR #163.
 
 ### F53. Deleted stash tabs and characters resurrect from the cache at restart — Confirmed; follow-up PR assigned

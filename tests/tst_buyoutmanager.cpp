@@ -1,3 +1,4 @@
+#include <QSqlQuery>
 #include <QtTest/QtTest>
 
 #include "testfixtures.h"
@@ -16,6 +17,8 @@ private slots:
     void clearingItemBuyoutRemovesRepoRow();
     void clearingTabBuyoutRemovesRepoRow();
     void clearingAbsentBuyoutSkipsRepo();
+    void clearingAbsentTabBuyoutSkipsRepo();
+    void failedDeleteKeepsEntryForRetry();
 };
 
 void BuyoutManagerTest::stringToBuyout()
@@ -183,6 +186,43 @@ void BuyoutManagerTest::clearingAbsentBuyoutSkipsRepo()
     fixture.manager->Set(item, Buyout());
 
     QVERIFY(fixture.repo->getItemBuyouts().contains(item.id()));
+}
+
+// SetTab carries the same F52 guard as Set; pin the tab side too.
+void BuyoutManagerTest::clearingAbsentTabBuyoutSkipsRepo()
+{
+    BuyoutManagerFixture fixture;
+    const ItemLocation location = makeTestStashLocation("f52-desynced-tab");
+
+    fixture.repo->saveLocationBuyout(makeChaosBuyout(52.0), location);
+    QVERIFY(fixture.manager->GetTab(location).IsNull());
+
+    fixture.manager->SetTab(location, Buyout());
+
+    QVERIFY(fixture.repo->getLocationBuyouts().contains(location.id()));
+}
+
+// The map entry must survive a failed repo delete so a later clear retries
+// it — otherwise the F52 guard would skip every retry and the undeleted row
+// would resurrect at the next Load().
+void BuyoutManagerTest::failedDeleteKeepsEntryForRetry()
+{
+    BuyoutManagerFixture fixture;
+    const Item item = makeTestItem("f52-failed-delete-item");
+
+    fixture.manager->Set(item, makeChaosBuyout(52.0));
+
+    QSqlQuery q(*fixture.db);
+    QVERIFY(q.exec("DROP TABLE item_buyouts"));
+
+    fixture.manager->Set(item, Buyout());
+    QVERIFY(fixture.manager->Get(item).IsActive());
+
+    QVERIFY(fixture.repo->ensureSchema());
+
+    fixture.manager->Set(item, Buyout());
+    QVERIFY(fixture.manager->Get(item).IsNull());
+    QVERIFY(!fixture.repo->getItemBuyouts().contains(item.id()));
 }
 
 QTEST_GUILESS_MAIN(BuyoutManagerTest)

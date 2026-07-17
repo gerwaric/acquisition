@@ -22,8 +22,8 @@ public:
     std::unordered_map<QString, Buyout> getItemBuyouts();
     std::unordered_map<QString, Buyout> getLocationBuyouts();
 
-    void removeItemBuyout(const Item &item);
-    void removeLocationBuyout(const ItemLocation &location);
+    bool removeItemBuyout(const Item &item);
+    bool removeLocationBuyout(const ItemLocation &location);
 
     bool resetRepo();
     bool ensureSchema();
