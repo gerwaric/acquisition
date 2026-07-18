@@ -380,6 +380,65 @@ separate the protocol is.
 
 ---
 
+### First capture — observed claims (July 18, 2026)
+
+Source for all claims in this group: the first instrumented session
+[OBS — Confirmed for this session; one account, OAuth auth, PC realm],
+July 18, 2026: full refresh of 121 stash fetches (~47 top-level +
+folder/special children) plus one shop stash-index call and one
+character. 132 records, zero errors, zero violations. Capture file
+retained locally (not committed — it contains account/stash
+identifiers).
+
+**N23. Observed policy topology and definitions (OAuth session).**
+Five policies, confirming N7's four plus a distinct legacy policy:
+
+| Policy | Rules | Limits (`hits:period:restriction`) |
+|---|---|---|
+| `stash-list-request-limit` | Account | `10:15:60, 30:60:300` |
+| `stash-request-limit` | Account | `15:10:60, 30:300:300` |
+| `character-list-request-limit` | Account | `2:10:60, 5:300:300` |
+| `character-request-limit` | Account | `5:10:60, 30:300:300` |
+| `backend-item-request-limit` (legacy `get-stash-items`) | Account, Ip | Account `30:60:60, 100:1800:600`; Ip `45:60:120, 180:1800:600` |
+
+Under OAuth the API rules are all **Account**-scoped (no Client rule
+observed — so other tools on the same account share these counters).
+The legacy endpoint has its own policy — **no counter sharing with
+`stash-request-limit`** (answers N21c) — and is the only one with an
+Ip rule.
+
+**N24. HEAD probes return the full header set and do not appear to
+increment the counters.** API HEADs returned **204** (legacy: 200)
+with complete limits+state+rules — the Dec 2023 regression (N16/N20)
+is fixed. All four API states were `0` hits at HEAD time and the first
+GET reported exactly `1`, so HEADs don't count against the policy.
+Caveat: the legacy policy's 1800s window already showed 1 hit at HEAD
+time — unexplained residue (earlier session within 30 min?); worth
+confirming before treating N24 as settled for the legacy host.
+
+**N25. The state header is post-increment and tracks 1:1.** Each
+reply's state included that request (first request = 1), incremented
+exactly once per request through both windows, hit exactly `15/15` and
+`30/30` at saturation and never over, and reset cleanly after the
+padded wait. No bucket-quantization artifacts were *visible* — but at
+full bucket padding none would be; the quantization only shows at
+tighter margins (N15).
+
+**N26. The client's pacing arithmetic is empirically exact, and the
+resulting shape is burst-then-stall.** Observed cycle: 15 sends at
+~0.2s spacing (10s window full) → wait ≈ 10+5+1s → 15 more sends
+(300s window full) → wait ≈ 300+60+1s; the long-wait send landed
+within 0.4s of `history[max_hits-1] + period + bucket + buffer`.
+Cost of the padding: ~61s idle per 30-fetch cycle (~17% overhead);
+121 tabs took ~24 minutes. Design note for later (not a finding):
+even pacing at ~period/hits spacing would avoid saturation entirely —
+no bucket stalls (~20% faster) and no 0.2s bursts (friendlier to
+layer 1) — at the cost of never using the initial-burst allowance.
+Also observed: the worker queue is not strictly stashes-first — the
+character fetch (request id 54) sat behind only the ~47 initially
+queued tabs, with ~74 children appended behind it as parents resolved
+(refines F56's description).
+
 ## Open questions
 
 - **Q1. HEAD sanction verbatim. RESOLVED July 18, 2026** — Tom
@@ -387,20 +446,17 @@ separate the protocol is.
   quotes are captured in N16; consequences split into N17 (first
   reporter), N20 (degraded-HEAD handling), and the upgraded N2
   (incident details from GGG's own report).
-- **Q2. Auth-mode topology.** Do OAuth and POESESSID sessions see the
-  same policy names and rules for the same endpoints? Do rules differ
-  in scope (client vs account vs IP)? Answerable from instrumented
-  captures of both auth modes (`X-Rate-Limit-Rules` + per-rule
-  headers).
-- **Q3. HEAD mechanics.** Intended behavior is now known: a HEAD
-  response carries the full header set (N20). Still open: do HEAD
-  requests increment the policy counters? Did the Dec 2023
-  missing-headers fix actually ship — does today's API honor the
-  intent on every endpoint? And what *should* the client do with a
-  degraded HEAD reply (today: unpaced until the first real reply,
-  N20)? Answerable from captures (inspect probe replies; compare state
-  across a HEAD). Affects whether setup probes must be paced like real
-  requests.
+- **Q2. Auth-mode topology. LARGELY RESOLVED July 18, 2026** (N23):
+  under OAuth, API rules are Account-scoped (no Client rule); the
+  POESESSID legacy endpoint has its own policy with Account+Ip rules.
+  Residual: whether the API policies look different under any other
+  auth arrangement is untested but no longer load-bearing.
+- **Q3. HEAD mechanics. LARGELY RESOLVED July 18, 2026** (N24): full
+  header sets confirmed on all five endpoints (Dec 2023 fix shipped);
+  HEADs do not appear to increment counters. Residual: the legacy
+  1800s-window residue caveat in N24, and the design decision of what
+  a client *should* do with a degraded HEAD reply (today: run unpaced
+  until the first real reply — N20).
 - **Q4. Initial-vs-sustained classification.** The client classifies a
   limit as initial (5s bucket) vs sustained (60s bucket) by `period <=
   75s`. Provenance (Tom, July 2026): the cutoff came from eyeballing
@@ -412,16 +468,27 @@ separate the protocol is.
   *relatively* — pair up rules that differ only in period; the shorter
   of the pair is the initial limit, the longer is sustained. Captured
   policy definitions would let us evaluate both against the real
-  shapes.
+  shapes. **Sharpened July 18, 2026 (N23): the danger case is live.**
+  `stash-list-request-limit`'s sustained rule is `30:60:300` — a
+  60-second period, classified as *initial* (5s bucket) by the 75s
+  cutoff. If GGG's "1 minute intervals for the sustained limit" (N12)
+  applies to that rule, it is under-padded by 55s, and it is a prime
+  suspect for the historically unexplained intermittent violations
+  (N15). The relative pair-heuristic would classify it correctly. Not
+  yet observed failing (the rule never saturated in the first
+  capture); saturating stash-list — e.g. many rapid manual refreshes
+  — would test it, but see the no-active-probing constraint.
 - **Q5. Current live violation rate.** With bucket-padded pacing, are
   violations actually zero in real sessions? If not, under what
   conditions? (Instrumented sessions, especially at saturation on the
-  many-tab account.)
-- **Q6. What does the reported state reflect at response time?** Is
-  `current-hits` post-increment for the request that carried it? Is it
-  bucket-quantized? Does it ever run backwards or jump? Captures answer
-  this and calibrate how much the client can trust state vs its own
-  history.
+  many-tab account.) First data point (July 18, 2026): a full
+  24-minute saturated refresh, zero violations.
+- **Q6. What does the reported state reflect at response time?
+  LARGELY RESOLVED July 18, 2026** (N25): post-increment, 1:1 with
+  requests, no backwards jumps, clean reset after the padded wait.
+  Residual: quantization is only observable at margins tighter than
+  the full bucket padding, so N25 cannot rule it out — it just
+  confirms the padded regime is safe.
 - **Q7. Cloudflare incident reconstruction.** Magnitude and shape now
   known from GGG's own report (N2): over a thousand HEADs in one
   minute, ~20+ repeats per tab. Still unknown, from the user's side:
