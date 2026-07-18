@@ -112,10 +112,12 @@ anticipated re-parallelization ("protects any future re-parallelization")
 and the failure paths hold under it (a failure snaps counters and goes
 Idle; the other lane's late reply is swallowed by `DiscardIfStale`).
 
-Fix shape (decided July 17 with Tom, sequenced after F57): keep worker-side
-queueing but one queue per `ItemLocationType` with one in-flight each, and
-submit the two list requests concurrently again — no rate limiter API
-changes, abort stays trivial (≤2 stale replies). The larger question —
+Fix shape (proposed July 17; **paused same day pending the network
+ground-truth research phase** — see the note at the end of this entry):
+keep worker-side queueing but one queue per `ItemLocationType` with one
+in-flight each, and submit the two list requests concurrently again — no
+rate limiter API changes, abort stays trivial (≤2 stale replies). The
+larger question —
 worker-owned scheduling with the limiter as a pure gatekeeper vs. queueing
 returning to the limiter with cancellation APIs — is deliberately deferred
 to the M2 spec, which must state where scheduling lives (priorities,
@@ -123,6 +125,23 @@ per-tab retry, durable progress all pull toward the worker) and formally
 amend the "no rate limiter redesign" non-goal if it chooses the
 gatekeeper. Testable today at worker level with `FakeRateLimiter`: assert
 character requests are submitted while stash replies are outstanding.
+
+Paused July 17 before implementation: all of F56–F59's *fix shapes* (the
+findings themselves stand — they describe code as it is) rest on
+code-derived premises about the API that have not been checked against
+the API's actual contract: that stash and character policies are
+independent and parallel-safe, that policy topology is stable and fully
+discoverable via HEAD headers, that no account/IP-level limit sits above
+the per-policy ones, that 429s are rare and cleanly retryable. Tom holds
+unshared knowledge about the API that may contradict some of these — it
+is even possible the accidental serialization is conservatively correct
+and parallelism is the mistake. A dedicated research phase (official API
+docs, real-world logs, Tom's knowledge) produces a network ground-truth
+document first; fix shapes and the F56/F57 sequencing get re-derived
+against it. Note the F5/HEAD interaction flagged during this analysis:
+today's serialization incidentally guarantees first-use HEAD setups
+never overlap; any parallelism must re-establish that property
+deliberately.
 
 ### F57. A 429 retry destroys the caller's `RateLimitedReply` and wedges the update — Confirmed (code path); runtime repro pending the F-harness
 
