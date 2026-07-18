@@ -37,6 +37,11 @@ struct RateLimitedRequest
     // The time the request was made.
     QDateTime send_time;
 
+    // The time the manager decided this request should be sent (the computed
+    // next safe send, buffers included). Recorded so the network capture can
+    // compare predicted against actual timing.
+    QDateTime scheduled_time;
+
     std::unique_ptr<RateLimitedReply> reply;
 
 private:

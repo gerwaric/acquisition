@@ -451,7 +451,7 @@ separate the protocol is.
 
 ---
 
-## Instrumentation plan
+## Instrumentation
 
 The current logs cannot answer the open questions: raw
 `X-Rate-Limit-*` headers are logged only once per endpoint (initial
@@ -459,23 +459,31 @@ HEAD probe, debug level), steady-state replies never log raw headers,
 per-request send timestamps are trace-only, and non-violating state
 evolution is invisible above trace.
 
-Planned research instrument (not a behavior change — capture only): a
-dedicated structured capture (JSONL, separate from `log.txt`)
-recording, for every rate-limited exchange (HEAD probes included):
+**Implemented July 18, 2026** (`src/ratelimit/networkcapture.h/.cpp`,
+pinned by `tests/tst_networkcapture.cpp`): a capture-only instrument —
+it observes traffic and never influences it. Durable, off by default;
+enable with `network_capture_enabled=true` in `settings.ini`. Writes
+`network-capture.jsonl` in the data directory (20 MB cap, one rotated
+`.1` backup, flushed per record so a crash loses nothing). One JSON
+object per line, `v` = schema version (currently 1):
 
-- endpoint label, URL, HTTP method
-- local send timestamp, local receive timestamp (ms)
-- server `Date` header
-- HTTP status
-- all `X-Rate-Limit-*` headers, verbatim
-- `Retry-After` if present
-- the client's computed next-safe-send at the moment of scheduling
-  (so predicted vs actual can be compared)
+- `kind: "reply"` — every exchange through a `RateLimitManager`,
+  including network failures and 429s: policy, endpoint, request id,
+  URL, `scheduled` (the computed next-safe-send, buffers included;
+  updated to the intended retry time on a Retry-After retry), `sent`
+  and `received` (local, ms), HTTP `status`, `error`/`error_string`
+  when present, and a `headers` object with the verbatim
+  `x-rate-limit-*`, `retry-after`, and `date` values (names
+  lowercased — Qt normalizes header case anyway; values verbatim).
+- `kind: "head"` — every setup probe, recorded *before* validation so
+  degraded HEAD replies (N20) are captured: endpoint, URL, status,
+  error, headers.
 
-Every normal refresh session then becomes research data. Saturation
-sessions on a many-tab account are the most valuable (that is where
-pacing decisions actually bind). Captures from both auth modes serve
-Q2.
+Every normal refresh session with the setting on becomes research
+data. Saturation sessions on a many-tab account are the most valuable
+(that is where pacing decisions actually bind). Captures from both
+auth modes serve Q2; a shop stash-index run captures the legacy
+endpoint's policy identity (N21c).
 
 ## Research method constraints
 
