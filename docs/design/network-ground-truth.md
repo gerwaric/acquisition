@@ -639,3 +639,7 @@ probe, blocking in a nested event loop (F5/N18); non-2xx or missing
   feeds. F5/F29/F30 standing constraints.
 - `docs/design/items-pipeline.md` — the M2 spec must state where
   scheduling lives; it consumes this document's conclusions.
+- `docs/design/network-redesign.md` — the design derived from this
+  document (July 18, 2026): typed facade, coroutine pumps, the gate.
+  Cites claims here by number; supersedes the paused F56–F59 fix
+  shapes.

@@ -221,8 +221,12 @@ Make Layer 3 consume deltas natively, eliminating the full reset:
   no-emit-on-terminal-failure through M1. Revisit once M2's streaming
   makes "what the user sees during/after a failed refresh" a designed
   surface rather than an accident.
-- **Rate limiter redesign.** Preserve the one-HEAD-at-a-time property
-  (F5) and the existing retry semantics.
+- **Rate limiter redesign.** ~~Preserve the one-HEAD-at-a-time property
+  (F5) and the existing retry semantics.~~ **Amended July 18, 2026:**
+  the redesign is now in scope, specified in
+  `docs/design/network-redesign.md` (which preserves the F5 property
+  deliberately via its gate). That spec also answers the
+  where-does-scheduling-live question this plan deferred to M2.
 - **Datastore schema changes.** Per-tab persistence already works.
 - **UI/UX redesign** beyond refresh behavior; no theming, packaging, or
   `Item` class rework.

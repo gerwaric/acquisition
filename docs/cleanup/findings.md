@@ -138,7 +138,12 @@ is even possible the accidental serialization is conservatively correct
 and parallelism is the mistake. A dedicated research phase (official API
 docs, real-world logs, Tom's knowledge) produces a network ground-truth
 document first; fix shapes and the F56/F57 sequencing get re-derived
-against it. Note the F5/HEAD interaction flagged during this analysis:
+against it. **Re-derivation complete July 18, 2026:** the superseding
+fix shapes for F56–F59 are specified in
+`docs/design/network-redesign.md` (draft, under review) — queueing
+returns to the limiter with QFuture-based cancellation, policy managers
+become coroutine pumps, and a global gate carries the F5/N18 and F58
+obligations deliberately. Note the F5/HEAD interaction flagged during this analysis:
 today's serialization incidentally guarantees first-use HEAD setups
 never overlap; any parallelism must re-establish that property
 deliberately.
