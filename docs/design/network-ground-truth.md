@@ -412,9 +412,13 @@ increment the counters.** API HEADs returned **204** (legacy: 200)
 with complete limits+state+rules — the Dec 2023 regression (N16/N20)
 is fixed. All four API states were `0` hits at HEAD time and the first
 GET reported exactly `1`, so HEADs don't count against the policy.
-Caveat: the legacy policy's 1800s window already showed 1 hit at HEAD
-time — unexplained residue (earlier session within 30 min?); worth
-confirming before treating N24 as settled for the legacy host.
+The legacy policy's 1800s window showed 1 pre-existing hit at HEAD
+time — confirmed by Tom as residue from an earlier acquisition
+session. That residue is itself worth stating: **the counters are
+server-side per account and persist across client restarts**, so a
+freshly started client can begin mid-window with hits already
+consumed — which is exactly why the HEAD-at-boot pattern (N16)
+matters.
 
 **N25. The state header is post-increment and tracks 1:1.** Each
 reply's state included that request (first request = 1), incremented
@@ -453,10 +457,10 @@ queued tabs, with ~74 children appended behind it as parents resolved
   auth arrangement is untested but no longer load-bearing.
 - **Q3. HEAD mechanics. LARGELY RESOLVED July 18, 2026** (N24): full
   header sets confirmed on all five endpoints (Dec 2023 fix shipped);
-  HEADs do not appear to increment counters. Residual: the legacy
-  1800s-window residue caveat in N24, and the design decision of what
-  a client *should* do with a degraded HEAD reply (today: run unpaced
-  until the first real reply — N20).
+  HEADs do not appear to increment counters (the one anomalous-looking
+  state value was confirmed as cross-session residue). Residual: only
+  the design decision of what a client *should* do with a degraded
+  HEAD reply (today: run unpaced until the first real reply — N20).
 - **Q4. Initial-vs-sustained classification.** The client classifies a
   limit as initial (5s bucket) vs sustained (60s bucket) by `period <=
   75s`. Provenance (Tom, July 2026): the cutoff came from eyeballing
