@@ -94,6 +94,97 @@ row, delete the hash-keyed one) inside `MigrateItem`, or have
 (dual persistence), F51 ledger entry (do not rekey `GetLegacyHash` — a
 correct future v4→v5 migration depends on it).
 
+### F56. Single-lane item-request serialization starves the character policy — Confirmed
+
+Found July 17, 2026, from Tom's live observation that character requests
+stall while the stash rate limit is pacing. `ea9dd95` (in v0.17.0) moved
+request scheduling out of the rate limiter to fix the abort-after-failure
+desync: `ItemsManagerWorker` now holds one FIFO (`m_queue`) mixing stash
+and character requests and `SubmitNextItemRequest` keeps at most one in
+flight, submitting the next only when a reply lands. The queue is
+stashes-first by construction, and the two list requests are chained
+else-if as well — so while the stash policy paces (~20s/tab at
+saturation), the character policy's manager sits idle with its requests
+still in the worker's FIFO, never submitted. Refresh time degrades from
+max(stash, character) to stash + character. The per-policy managers were
+designed for exactly this parallelism; M1's generation tag explicitly
+anticipated re-parallelization ("protects any future re-parallelization")
+and the failure paths hold under it (a failure snaps counters and goes
+Idle; the other lane's late reply is swallowed by `DiscardIfStale`).
+
+Fix shape (decided July 17 with Tom, sequenced after F57): keep worker-side
+queueing but one queue per `ItemLocationType` with one in-flight each, and
+submit the two list requests concurrently again — no rate limiter API
+changes, abort stays trivial (≤2 stale replies). The larger question —
+worker-owned scheduling with the limiter as a pure gatekeeper vs. queueing
+returning to the limiter with cancellation APIs — is deliberately deferred
+to the M2 spec, which must state where scheduling lives (priorities,
+per-tab retry, durable progress all pull toward the worker) and formally
+amend the "no rate limiter redesign" non-goal if it chooses the
+gatekeeper. Testable today at worker level with `FakeRateLimiter`: assert
+character requests are submitted while stash replies are outstanding.
+
+### F57. A 429 retry destroys the caller's `RateLimitedReply` and wedges the update — Confirmed (code path); runtime repro pending the F-harness
+
+Found July 17, 2026, during the F56 investigation. Shipped in v0.17.0:
+the nulling line arrived in `2e3cba6` (the F30 fix, July 8).
+`RateLimitedRequest::reply` is a `std::unique_ptr<RateLimitedReply>`, so
+in the Retry-After branch of `RateLimitManager::ReceiveReply`,
+`m_active_request->reply = nullptr;` *destroys* the caller's reply object
+— the one the worker's completion lambda is connected to. The comment
+above it ("Keep the active request so it is resent") describes the
+pre-F30 semantics the code no longer has. The manager dutifully resends
+after the pause, but the retried response then hits the "Cannot complete
+the rate limited request because the reply is null" branch: the caller
+never hears back and that `QNetworkReply` leaks. For the worker this
+means the received/needed counters never reconcile, `m_state` stays
+`Updating` forever, and every subsequent refresh is refused with "An
+update is already in progress" until app restart. One 429 during any
+refresh is sufficient. Rare only because BORDERLINE pacing works;
+violations demonstrably occur (the violation counter exists because they
+were observed).
+
+Fix shape: keep the reply handle alive through the retry and complete it
+when the retried request resolves. Must land with a
+`RateLimitManager`-level test harness (fake `SendFcn` serving synthetic
+`X-Rate-Limit-*` headers) — this layer currently has zero test coverage
+because `FakeRateLimiter` overrides `Submit()` and bypasses the managers
+entirely, which is how this survived. Related: F59 (ownership contract),
+F50 (diagnostics rewording in the same function, can ride along).
+
+### F58. The minimum-send-interval spacing is dead code — Confirmed
+
+Found July 17, 2026, during the F56 investigation. In
+`RateLimitManager::ActivateRequest`, `static QDateTime last_send` is
+declared and read but never assigned, so it is never valid and the
+`MINIMUM_INTERVAL_MSEC` (1s) spacing between sends never applies. Note
+the latent scope: being function-static it is shared across *all* policy
+managers — if revived as-is it would be a deliberate cross-policy global
+pacer (plausibly motivated by the same Cloudflare history as F5), and
+under F56's parallelism it would stagger stash/character sends by 1s.
+Decision needed from Tom before fixing: is cross-policy spacing a real
+requirement? If yes, implement it deliberately (a shared pacer in
+`RateLimiter`, not a function-static); if no, delete the dead code.
+Either way the current state — intended protection silently absent — is
+wrong.
+
+### F59. `RateLimitedReply` ownership contract is contradictory — Confirmed
+
+Found July 17, 2026, during the F56 investigation.
+`RateLimiter::Submit`'s comment says the caller is responsible for
+freeing the `RateLimitedReply` with `deleteLater()` after `complete`;
+meanwhile `RateLimitedRequest` owns the same object via
+`std::unique_ptr` and the manager destroys it synchronously when the
+request completes (`m_active_request = nullptr` right after the emit).
+Callers (`ItemsManagerWorker` handlers, `DiscardIfStale`) do call
+`deleteLater()` — benign today only because `complete` is a direct
+same-thread connection (handlers finish before the unique_ptr delete)
+and a QObject destructor cancels its own pending deferred delete. Any
+reordering, queued connection, or threading change turns this into a
+use-after-free. Pick one owner as part of the F57 fix (manager ownership
+via the unique_ptr is the natural one; then the Submit comment and
+callers' `deleteLater()` calls should change together).
+
 ---
 
 ## Standing constraints and lessons
