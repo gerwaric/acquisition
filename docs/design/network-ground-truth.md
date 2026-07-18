@@ -478,10 +478,18 @@ queued tabs, with ~74 children appended behind it as parents resolved
   cutoff. If GGG's "1 minute intervals for the sustained limit" (N12)
   applies to that rule, it is under-padded by 55s, and it is a prime
   suspect for the historically unexplained intermittent violations
-  (N15). The relative pair-heuristic would classify it correctly. Not
-  yet observed failing (the rule never saturated in the first
-  capture); saturating stash-list — e.g. many rapid manual refreshes
-  — would test it, but see the no-active-probing constraint.
+  (N15). Not yet observed failing (the rule never saturated in the
+  first capture); saturating stash-list — e.g. many rapid manual
+  refreshes — would test it, but see the no-active-probing
+  constraint. **Tom's hypothesis (July 18, 2026) [HYP]:**
+  classification is *positional* — when a rule carries two
+  `hits:period:restriction` triplets, the first is the initial limit
+  (5s bucket) and the second is the sustained limit (60s bucket).
+  This needs no period arithmetic, matches every rule in the first
+  capture (shorter period always listed first, N23), and classifies
+  the stash-list danger case conservatively where the 75s cutoff does
+  not. Strictly safer than the cutoff on all observed data; still
+  worth confirming with GGG alongside the bucket-tier question.
 - **Q5. Current live violation rate.** With bucket-padded pacing, are
   violations actually zero in real sessions? If not, under what
   conditions? (Instrumented sessions, especially at saturation on the
