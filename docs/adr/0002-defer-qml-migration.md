@@ -6,8 +6,9 @@ Accepted (July 2026)
 
 ## Context
 
-ADR 0001 (on the unmerged `prepare-qml` branch, together with
-`docs/qml-migration-plan.md`) proposed an incremental migration of the UI from
+ADR 0001 (`0001-qml-ui-migration-strategy.md`, drafted on the `prepare-qml`
+branch together with `docs/qml-migration-plan.md`, which remains there)
+proposed an incremental migration of the UI from
 Qt Widgets to QML. A code investigation performed while evaluating that plan
 found that the preparatory refactoring it required — decoupling `Search` from
 `QTreeView`, separating filter logic from widget construction, fixing
@@ -32,9 +33,10 @@ Invest instead in an interior design cleanup that fixes correctness and
 structure problems in the existing code, documented in `docs/cleanup/plan.md`
 with detailed per-phase implementation documents in `docs/cleanup/`.
 
-This decision supersedes ADR 0001. The QML plan documents remain on the
-`prepare-qml` branch for reference; much of their analysis (coupling points,
-validation checklist) is carried forward into the cleanup plan.
+This decision supersedes ADR 0001 (now in this directory, marked
+superseded). Its implementation plan remains on the `prepare-qml` branch
+for reference; much of its analysis (coupling points, validation
+checklist) is carried forward into the cleanup plan.
 
 ## Consequences
 

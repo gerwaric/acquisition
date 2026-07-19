@@ -219,6 +219,9 @@ Application::UserSession::UserSession(const Application::CoreServices &core)
 
     spdlog::trace("Application::InitLogin() creating rate limiter");
     rate_limiter = std::make_unique<RateLimiter>(network_manager);
+    if (settings.value("network_capture_enabled", false).toBool()) {
+        rate_limiter->EnableCapture(dir.filePath("network-capture.jsonl"));
+    }
 
     spdlog::trace("Application::InitLogin() creating buyout manager");
     buyout_manager = std::make_unique<BuyoutManager>(*data, userstore->buyouts());

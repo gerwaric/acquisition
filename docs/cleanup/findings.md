@@ -94,6 +94,139 @@ row, delete the hash-keyed one) inside `MigrateItem`, or have
 (dual persistence), F51 ledger entry (do not rekey `GetLegacyHash` — a
 correct future v4→v5 migration depends on it).
 
+### F56. Single-lane item-request serialization starves the character policy — Confirmed
+
+Found July 17, 2026, from Tom's live observation that character requests
+stall while the stash rate limit is pacing. `ea9dd95` (in v0.17.0) moved
+request scheduling out of the rate limiter to fix the abort-after-failure
+desync: `ItemsManagerWorker` now holds one FIFO (`m_queue`) mixing stash
+and character requests and `SubmitNextItemRequest` keeps at most one in
+flight, submitting the next only when a reply lands. The queue is
+stashes-first by construction, and the two list requests are chained
+else-if as well — so while the stash policy paces (~20s/tab at
+saturation), the character policy's manager sits idle with its requests
+still in the worker's FIFO, never submitted. Refresh time degrades from
+max(stash, character) to stash + character. The per-policy managers were
+designed for exactly this parallelism; M1's generation tag explicitly
+anticipated re-parallelization ("protects any future re-parallelization")
+and the failure paths hold under it (a failure snaps counters and goes
+Idle; the other lane's late reply is swallowed by `DiscardIfStale`).
+
+Fix shape (proposed July 17; **paused same day pending the network
+ground-truth research phase** — see the note at the end of this entry):
+keep worker-side queueing but one queue per `ItemLocationType` with one
+in-flight each, and submit the two list requests concurrently again — no
+rate limiter API changes, abort stays trivial (≤2 stale replies). The
+larger question —
+worker-owned scheduling with the limiter as a pure gatekeeper vs. queueing
+returning to the limiter with cancellation APIs — is deliberately deferred
+to the M2 spec, which must state where scheduling lives (priorities,
+per-tab retry, durable progress all pull toward the worker) and formally
+amend the "no rate limiter redesign" non-goal if it chooses the
+gatekeeper. Testable today at worker level with `FakeRateLimiter`: assert
+character requests are submitted while stash replies are outstanding.
+
+Paused July 17 before implementation: all of F56–F59's *fix shapes* (the
+findings themselves stand — they describe code as it is) rest on
+code-derived premises about the API that have not been checked against
+the API's actual contract: that stash and character policies are
+independent and parallel-safe, that policy topology is stable and fully
+discoverable via HEAD headers, that no account/IP-level limit sits above
+the per-policy ones, that 429s are rare and cleanly retryable. Tom holds
+unshared knowledge about the API that may contradict some of these — it
+is even possible the accidental serialization is conservatively correct
+and parallelism is the mistake. A dedicated research phase (official API
+docs, real-world logs, Tom's knowledge) produces a network ground-truth
+document first; fix shapes and the F56/F57 sequencing get re-derived
+against it. **Re-derivation complete July 18, 2026:** the superseding
+fix shapes for F56–F59 are specified in
+`docs/design/network-redesign.md` (accepted July 19, 2026, revision 7;
+frozen for implementation) — queueing
+returns to the limiter with QFuture-based cancellation, policy managers
+become coroutine pumps, and a global gate carries the F5/N18 and F58
+obligations deliberately. Note the F5/HEAD interaction flagged during this analysis:
+today's serialization incidentally guarantees first-use HEAD setups
+never overlap; any parallelism must re-establish that property
+deliberately.
+
+### F57. A 429 retry destroys the caller's `RateLimitedReply` and wedges the update — Confirmed (code path); runtime repro pending the F-harness
+
+Found July 17, 2026, during the F56 investigation. Shipped in v0.17.0:
+the nulling line arrived in `2e3cba6` (the F30 fix, July 8).
+`RateLimitedRequest::reply` is a `std::unique_ptr<RateLimitedReply>`, so
+in the Retry-After branch of `RateLimitManager::ReceiveReply`,
+`m_active_request->reply = nullptr;` *destroys* the caller's reply object
+— the one the worker's completion lambda is connected to. The comment
+above it ("Keep the active request so it is resent") describes the
+pre-F30 semantics the code no longer has. The manager dutifully resends
+after the pause, but the retried response then hits the "Cannot complete
+the rate limited request because the reply is null" branch: the caller
+never hears back and that `QNetworkReply` leaks. For the worker this
+means the received/needed counters never reconcile, `m_state` stays
+`Updating` forever, and every subsequent refresh is refused with "An
+update is already in progress" until app restart. One 429 during any
+refresh is sufficient. Rare only because BORDERLINE pacing works;
+violations demonstrably occur (the violation counter exists because they
+were observed).
+
+Fix shape: keep the reply handle alive through the retry and complete it
+when the retried request resolves. Must land with a
+`RateLimitManager`-level test harness (fake `SendFcn` serving synthetic
+`X-Rate-Limit-*` headers) — this layer currently has zero test coverage
+because `FakeRateLimiter` overrides `Submit()` and bypasses the managers
+entirely, which is how this survived. Related: F59 (ownership contract),
+F50 (diagnostics rewording in the same function, can ride along).
+
+### F58. The minimum-send-interval spacing is dead code — Confirmed
+
+Found July 17, 2026, during the F56 investigation. In
+`RateLimitManager::ActivateRequest`, `static QDateTime last_send` is
+declared and read but never assigned, so it is never valid and the
+`MINIMUM_INTERVAL_MSEC` (1s) spacing between sends never applies. Note
+the latent scope: being function-static it is shared across *all* policy
+managers — if revived as-is it would be a deliberate cross-policy global
+pacer (plausibly motivated by the same Cloudflare history as F5), and
+under F56's parallelism it would stagger stash/character sends by 1s.
+Decision needed from Tom before fixing: is cross-policy spacing a real
+requirement? If yes, implement it deliberately (a shared pacer in
+`RateLimiter`, not a function-static); if no, delete the dead code.
+Either way the current state — intended protection silently absent — is
+wrong.
+
+### F59. `RateLimitedReply` ownership contract is contradictory — Confirmed
+
+Found July 17, 2026, during the F56 investigation.
+`RateLimiter::Submit`'s comment says the caller is responsible for
+freeing the `RateLimitedReply` with `deleteLater()` after `complete`;
+meanwhile `RateLimitedRequest` owns the same object via
+`std::unique_ptr` and the manager destroys it synchronously when the
+request completes (`m_active_request = nullptr` right after the emit).
+Callers (`ItemsManagerWorker` handlers, `DiscardIfStale`) do call
+`deleteLater()` — benign today only because `complete` is a direct
+same-thread connection (handlers finish before the unique_ptr delete)
+and a QObject destructor cancels its own pending deferred delete. Any
+reordering, queued connection, or threading change turns this into a
+use-after-free. Pick one owner as part of the F57 fix (manager ownership
+via the unique_ptr is the natural one; then the Submit comment and
+callers' `deleteLater()` calls should change together).
+
+### F60. The legacy stash-index request has no transfer timeout — Confirmed
+
+Found July 19, 2026, during the network-redesign round-5 review
+(R5-3 in `docs/design/network-redesign-reviews.md`). `Shop::UpdateStashIndex`
+builds its `QNetworkRequest` bare — no `setTransferTimeout` — unlike
+the OAuth API builders (`poe::MakeApiRequest` sets 10 s) and the
+forum-thread calls (300 s). A stalled legacy GET, or the endpoint's
+HEAD probe (which inherits the request), therefore has no client-side
+bound at all and can hang until the OS gives up on the connection,
+leaving the shop update waiting on a reply that never finishes.
+Under the network redesign this would also hold a gate permit
+indefinitely — with a HEAD waiting under writer preference, the whole
+hub stops — which is why the redesign makes the timeout a facade-owned
+invariant (spec D5/D7, test over every builder). Fix shape: the facade
+closes this by construction; if anything touches `UpdateStashIndex`
+before the facade lands, add the timeout there directly.
+
 ---
 
 ## Standing constraints and lessons

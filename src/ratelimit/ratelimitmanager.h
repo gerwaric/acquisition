@@ -15,6 +15,7 @@
 
 class QNetworkReply;
 
+class NetworkCapture;
 class RateLimitedReply;
 struct RateLimitedRequest;
 class RateLimitPolicy;
@@ -28,7 +29,7 @@ public:
     // This is the signature of the function used to send requests.
     using SendFcn = std::function<QNetworkReply *(QNetworkRequest &)>;
 
-    RateLimitManager(SendFcn sender);
+    RateLimitManager(SendFcn sender, NetworkCapture *capture = nullptr);
     ~RateLimitManager();
 
     // Move a request into to this manager's queue.
@@ -73,6 +74,10 @@ public slots:
 private:
     // Function handle used to send network requests.
     const SendFcn m_sender;
+
+    // Optional research instrument (see docs/design/network-ground-truth.md);
+    // owned by the RateLimiter, null when capture is disabled.
+    NetworkCapture *const m_capture;
 
     // Used to print log messages about rate limit violations.
     void LogPolicyHistory();

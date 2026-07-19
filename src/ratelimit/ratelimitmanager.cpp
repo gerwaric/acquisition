@@ -8,6 +8,7 @@
 #include <QMessageBox>
 #include <QNetworkReply>
 
+#include "ratelimit/networkcapture.h"
 #include "ratelimit/ratelimit.h"
 #include "ratelimit/ratelimitedreply.h"
 #include "ratelimit/ratelimitedrequest.h"
@@ -38,8 +39,9 @@ constexpr int MAXIMUM_API_RESPONSE_SEC = 60;
 constexpr int MAXIMUM_EARLY_ARRIVAL_SEC = 30;
 
 // Create a new rate limit manager based on an existing policy.
-RateLimitManager::RateLimitManager(SendFcn sender)
+RateLimitManager::RateLimitManager(SendFcn sender, NetworkCapture *capture)
     : m_sender(sender)
+    , m_capture(capture)
     , m_policy(nullptr)
 {
     spdlog::trace("RateLimitManager::RateLimitManager() entered");
@@ -105,6 +107,10 @@ void RateLimitManager::ReceiveReply()
     if (!m_active_request) {
         spdlog::error("The rate limit manager received a reply without an active request.");
         return;
+    }
+
+    if (m_capture) {
+        m_capture->RecordReply(m_policy->name(), *m_active_request, reply, now);
     }
 
     // Make sure the reply has a rate-limit header. Network-level failures
@@ -218,6 +224,7 @@ void RateLimitManager::ReceiveReply()
                           (retry_msec / 1000));
             m_activation_timer.setInterval(retry_msec);
             m_activation_timer.start();
+            m_active_request->scheduled_time = now.addMSecs(retry_msec);
             m_active_request->reply = nullptr;
             reply->deleteLater();
 
@@ -370,6 +377,8 @@ void RateLimitManager::ActivateRequest()
             next_send = last_send.addMSecs(MINIMUM_INTERVAL_MSEC);
         }
     }
+
+    m_active_request->scheduled_time = next_send;
 
     int delay = QDateTime::currentDateTime().msecsTo(next_send);
     if (delay < 0) {

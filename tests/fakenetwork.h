@@ -21,7 +21,9 @@ public:
     explicit FakeNetworkReply(const QNetworkRequest &request,
                               const QByteArray &body,
                               QNetworkReply::NetworkError error = QNetworkReply::NoError,
-                              QObject *parent = nullptr)
+                              QObject *parent = nullptr,
+                              const QList<QNetworkReply::RawHeaderPair> &headers = {},
+                              int http_status = 0)
         : QNetworkReply(parent)
         , m_body(body)
     {
@@ -31,6 +33,12 @@ public:
         setFinished(true);
         if (error != QNetworkReply::NoError) {
             setError(error, "fake network error");
+        }
+        for (const auto &header : headers) {
+            setRawHeader(header.first, header.second);
+        }
+        if (http_status != 0) {
+            setAttribute(QNetworkRequest::HttpStatusCodeAttribute, http_status);
         }
     }
 

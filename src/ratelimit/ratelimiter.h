@@ -14,6 +14,7 @@
 
 class QNetworkReply;
 
+class NetworkCapture;
 class NetworkManager;
 class OAuthManager;
 class RateLimitedReply;
@@ -35,6 +36,11 @@ public:
     // signal has been emitted. Virtual so tests can substitute an offline fake
     // network (tests/fakenetwork.h).
     virtual RateLimitedReply *Submit(const QString &endpoint, QNetworkRequest network_request);
+
+    // Start recording every rate-limited exchange to a JSONL capture file
+    // (see docs/design/network-ground-truth.md). Call before the first
+    // Submit() so no manager is created without the capture hook.
+    void EnableCapture(const QString &file_path);
 
 public slots:
     // Used by the GUI to request a manual refresh.
@@ -91,6 +97,10 @@ private:
 
     // Reference to the Application's network access manager.
     NetworkManager &m_network_manager;
+
+    // Research instrument shared by all policy managers; null unless
+    // capture is enabled.
+    std::unique_ptr<NetworkCapture> m_capture;
 
     QTimer m_update_timer;
 

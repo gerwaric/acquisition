@@ -225,6 +225,8 @@ set(ACQ_LEGACY
 )
 
 set(ACQ_RATELIMIT
+    src/ratelimit/networkcapture.cpp
+    src/ratelimit/networkcapture.h
     src/ratelimit/ratelimit.cpp
     src/ratelimit/ratelimit.h
     src/ratelimit/ratelimitdialog.cpp

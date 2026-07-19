@@ -8,6 +8,7 @@
 #include <QNetworkReply>
 #include <QThread>
 
+#include "ratelimit/networkcapture.h"
 #include "ratelimit/ratelimitedreply.h"
 #include "ratelimit/ratelimitmanager.h"
 #include "ratelimit/ratelimitpolicy.h"
@@ -28,6 +29,12 @@ RateLimiter::RateLimiter(NetworkManager &network_manager)
 }
 
 RateLimiter::~RateLimiter() {}
+
+void RateLimiter::EnableCapture(const QString &file_path)
+{
+    spdlog::info("Network capture enabled: {}", file_path);
+    m_capture = std::make_unique<NetworkCapture>(file_path);
+}
 
 RateLimitedReply *RateLimiter::Submit(const QString &endpoint, QNetworkRequest network_request)
 {
@@ -129,6 +136,12 @@ void RateLimiter::ProcessHeadResponse(const QString &endpoint,
         FatalError(QString("The HEAD reply was null"));
     }
 
+    // Capture the probe before any validation, so degraded HEAD replies are
+    // recorded too.
+    if (m_capture) {
+        m_capture->RecordHeadResponse(endpoint, network_reply);
+    }
+
     // Check for network errors.
     const auto error_code = network_reply->error();
     if (error_code != QNetworkReply::NoError) {
@@ -208,7 +221,7 @@ RateLimitManager &RateLimiter::GetManager(const QString &endpoint, const QString
         // Create a new policy manager.
         spdlog::debug("Creating rate limit policy {} for {}", policy_name, endpoint);
         auto sender = std::bind_front(&RateLimiter::SendRequest, this);
-        auto mgr = std::make_unique<RateLimitManager>(sender);
+        auto mgr = std::make_unique<RateLimitManager>(sender, m_capture.get());
         auto &manager = m_managers.emplace_back(std::move(mgr));
         connect(manager.get(),
                 &RateLimitManager::PolicyUpdated,
