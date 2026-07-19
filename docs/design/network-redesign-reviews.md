@@ -402,7 +402,8 @@ with no parent-future retention; eager per-fetch worker suspended on
 handles in a worker-owned container; one `stop_source`). The
 parsed-outcome stand-in is sized to the real facade payload —
 `sizeof(std::expected<poe::StashWrapper, FetchError>)` is 336 bytes
-against the actual headers (static_asserted in the spike;
+against the actual headers (the spike static_asserts the probed
+numbers, not the production types — re-probe manually if they change;
 `poe::CharacterWrapper`'s outcome is 744, so a character-scale run
 costs ~0.8 KB more per entry) — because the outcome occupies
 compile-time frame slots per entry, not just completed shared state
