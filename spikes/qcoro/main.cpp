@@ -570,8 +570,10 @@ static void e7(QNetworkAccessManager *nam, const QUrl &silentUrl)
 
 static E5State g_e8Timer;
 static E6State g_e8Future;
+static E6State g_e8Chain;
 static E7State g_e8Reply;
 static QPromise<int> *g_e8Promise = nullptr;
+static bool g_e8ParseRan = false;
 
 static void e8_setup(QNetworkAccessManager *nam, const QUrl &silentUrl)
 {
@@ -583,25 +585,33 @@ static void e8_setup(QNetworkAccessManager *nam, const QUrl &silentUrl)
         g_e8Promise = new QPromise<int>();
         g_e8Promise->start();
         auto t2 = e6_awaiter(&g_e8Future, g_e8Promise->future());
-        auto t3 = e7_fetch(&g_e8Reply, nam, silentUrl);
+        // The production topology (D7): the facade returns .then(parse)'s
+        // CHILD future and the worker awaits the child, not the parent.
+        QFuture<int> child = g_e8Promise->future().then([](int v) {
+            g_e8ParseRan = true;
+            return v + 1;
+        });
+        auto t3 = e6_awaiter(&g_e8Chain, child);
+        auto t4 = e7_fetch(&g_e8Reply, nam, silentUrl);
         spin(100); // reply becomes in-flight; this is the LAST event processing
         check(!g_e8Reply.reply.isNull() && !g_e8Reply.reply->isFinished(),
               "shutdown-analog reply is in-flight");
-    } // all three handles destroyed while suspended → three detached frames
-    check(!g_e8Timer.localDestroyed && !g_e8Future.localDestroyed && !g_e8Reply.localDestroyed,
-          "all three frames detached (locals alive), matching E5-E7");
+    } // all four handles destroyed while suspended → four detached frames
+    check(!g_e8Timer.localDestroyed && !g_e8Future.localDestroyed && !g_e8Chain.localDestroyed
+              && !g_e8Reply.localDestroyed,
+          "all four frames detached (locals alive), matching E5-E7");
 }
 
-static void e8_verifyAfterOwnersDestroyed(bool namDestroyedRepliesGone, bool brokenThenRan)
+static void e8_verifyAfterOwnersDestroyed(bool namDestroyedRepliesGone)
 {
-    check(!g_e8Timer.resumed && !g_e8Future.resumed && !g_e8Reply.resumed,
+    check(!g_e8Timer.resumed && !g_e8Future.resumed && !g_e8Chain.resumed && !g_e8Reply.resumed,
           "nothing resumed during owner destruction: no event loop, queued delivery never happens");
-    check(!g_e8Future.localDestroyed && !g_e6a.localDestroyed,
+    check(!g_e8Future.localDestroyed && !g_e8Chain.localDestroyed && !g_e6a.localDestroyed,
           "destroying the unfinished promises canceled their futures without resuming the detached "
           "awaiters");
-    check(
-        !brokenThenRan,
-        ".then continuations on the broken promises' futures did not run (Qt canceled the chain)");
+    check(!g_e8ParseRan,
+          "the parse continuation on the chained child future never ran — promise death broke the "
+          "production .then topology without parsing or resuming its awaiter");
     check(namDestroyedRepliesGone, "QNAM parent destroyed the in-flight reply at owner destruction");
     finding("with no live event loop, detached frames are inert: promises die unfinished (their "
             "futures cancel, "
@@ -770,31 +780,29 @@ int main(int argc, char **argv)
     QPointer<QNetworkReply> e8Reply = g_e8Reply.reply;
 
     // Real shutdown destroys queued entries' unfinished QPromises (the hub's
-    // deques die with it). Pin that here: attach continuations, then destroy
-    // the promises unfinished — futures cancel, chains break, detached
-    // awaiters must not resume. Nulling the globals also makes the leaked
-    // frames unreachable, so `leaks --atExit` can see them as roots.
-    bool brokenThenRan = false;
-    g_e8Promise->future().then([&brokenThenRan](int) { brokenThenRan = true; });
-    g_e6aPromise->future().then([&brokenThenRan](int) { brokenThenRan = true; });
+    // deques die with it). Destroy them here — the parent future, its
+    // .then(parse) chain, and the child future the chain awaiter suspends on
+    // must all cancel without parsing or resuming anything.
     delete g_e8Promise;
     g_e8Promise = nullptr;
     delete g_e6aPromise;
     g_e6aPromise = nullptr;
 
     nam.reset(); // QNAM destroyed with an in-flight reply, loop never spins again
-    e8_verifyAfterOwnersDestroyed(e8Reply.isNull(), brokenThenRan);
+    e8_verifyAfterOwnersDestroyed(e8Reply.isNull());
 
     section("end-of-run leak accounting");
     check(!g_e6a.localDestroyed,
           "E6a frame (future never finished) is still leaked at exit, as predicted");
-    check(!g_e8Timer.localDestroyed && !g_e8Future.localDestroyed && !g_e8Reply.localDestroyed,
+    check(!g_e8Timer.localDestroyed && !g_e8Future.localDestroyed && !g_e8Chain.localDestroyed
+              && !g_e8Reply.localDestroyed,
           "E8 detached frames are still leaked at exit, as predicted");
-    std::printf("\n%d CHECK failure(s). Deliberate detached-frame leaks at exit: 4 tasks "
-                "(E6a + 3x E8, plus inner awaitable frames). The sentinel checks above are the "
-                "authoritative accounting; `leaks` reports the reply frame as a root, while the "
-                "timer/future frames stay reachable from Qt thread-data (pending cancel "
-                "call-outs, timer registrations).\n",
+    std::printf("\n%d CHECK failure(s). Deliberate detached-frame leaks at exit: 5 tasks "
+                "(E6a + 4x E8, plus inner awaitable frames and whatever only they retain — "
+                "future shared state included). The sentinel checks above are the authoritative "
+                "accounting; what `leaks` roots varies by run — the reply frame is a stable root, "
+                "timer frames surface as root cycles, and the future frames usually stay hidden "
+                "behind Qt thread-data (pending cancel call-outs).\n",
                 g_checkFailures);
     return g_checkFailures;
 }

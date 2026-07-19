@@ -245,7 +245,9 @@ v0.13.0, Qt 6.11.1) exercised the spec's phasing-step-0 question
 list. Ten findings; one falsifies the shutdown *mechanism* (the
 shutdown *conclusion* survives by a different route), the rest
 confirm premises or sharpen contracts. Verified plain and under
-AddressSanitizer; leak accounting confirmed with macOS `leaks`.
+AddressSanitizer; the spike's in-process sentinel checks are the
+authoritative leak accounting, with macOS `leaks` as a cross-check
+on the subset it can root (see the second follow-up below).
 
 - **S1-1 (falsifies R5-2's mechanism — spec shutdown section
   rewritten):** destroying a `QCoro::Task` handle while its
@@ -342,10 +344,34 @@ suspended — and the same destruction mid-session would be ER1's
 resume-into-`result()` hazard, which is why D2 confines
 unfinished-promise death to post-loop shutdown; (3) the S1-10
 CMake flag correction above; (4) leak-accounting honesty: the
-in-process sentinels are authoritative — `leaks` reports the reply
-frame as a root but the timer/future frames remain *reachable* from
-Qt thread-data (pending cancel call-out events, timer
-registrations), so the tool undercounts by design.
+in-process sentinels are authoritative — `leaks` cannot see
+everything (details corrected in the second follow-up below).
+
+**S1 second follow-up (external review, same day).** Four more
+corrections: (1) the integration leak criterion was **impossible as
+written** — it demanded that no promise shared state leak with a
+detached frame, but QCoro's `QFuture` awaiter stores a `QFuture`
+inside the frame, so the shared state is necessarily retained while
+the frame leaks; the pin now specifies the bounded **transitive
+closure** of the detached frames (frame + awaiter objects + watcher
+and context QObjects + retained future handles and their shared
+state + sleep timers) with replies and independently owned objects
+explicitly outside it. (2) The shutdown analog previously discarded
+the `.then` child future unawaited — production's worker awaits
+`.then(parse)`'s **child**, not the parent; E8 now builds exactly
+that topology (parent → parse continuation → child future → detached
+awaiter suspended on the child) and pins that promise death cancels
+the whole chain without running parse or resuming the child's
+awaiter. (3) The leak-tool description contradicted the output:
+observed on Qt 6.11.1/macOS, the reply frame is a stable root, the
+**timer frames surface as root cycles**, and only the future frames
+stay hidden behind Qt thread-data reachability (pending cancel
+call-outs) — and the rooted set varies between runs, so the
+sentinels remain the count and `leaks` is a cross-check on its
+rooted subset. (4) D3 lifecycle wording: the reply wrapper's local
+unwinds when the coroutine **body** completes; the frame
+*allocation* lingers until the retained handle is swept (D6) — the
+two events were previously conflated.
 
 The 2,000-tab batch measurement — the other half of phasing step 0 —
 remains open.
@@ -500,4 +526,10 @@ remains open.
   extended to destroy unfinished promises (futures cancel, `.then`
   chains break, detached awaiters stay suspended), and the S1-10
   guidance corrected — QCoro's flags only, never the global
-  `BUILD_TESTING`.
+  `BUILD_TESTING`. A second follow-up (external review, same day)
+  replaced the impossible no-shared-state leak criterion with the
+  transitive-closure bound, gave E8 the production chained-future
+  topology (worker awaits `.then(parse)`'s child), matched the
+  leak-tool description to its actual output, and separated
+  body-completion local unwinding from frame-allocation reclamation
+  in D3.

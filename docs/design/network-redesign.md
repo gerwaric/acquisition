@@ -352,8 +352,10 @@ server counted them all, N25).
   first await** — dispatch and await are separate steps — making the
   wrapper a local in the pump's frame. The frame owns the reply on
   **every live-session path**, including through suspension: the
-  wrapper runs whenever the frame is destroyed, which happens at
-  completion (normal, error, exception, cancellation-after-landing).
+  wrapper runs when the coroutine body completes and its locals
+  unwind (normal, error, exception, cancellation-after-landing) —
+  the frame *allocation* itself lingers until the retained handle
+  is swept (D6), but its locals are already gone by then.
   At shutdown the frame is *detached*, not destroyed (S1-1), so the
   wrapper never runs there — the reply's `QNetworkAccessManager`
   parent, destroyed after the hub, is the sole shutdown cleanup
@@ -1127,14 +1129,23 @@ sleep.)
    iterations, while a pump is mid-pacing-sleep, mid-retry-sleep,
    mid-gate-wait, and mid-flight resumes nothing and crashes
    nothing; suspended frames detach and leak by design (S1-1/S1-2)
-   — the leak check pins that the leak is *bounded to the detached
-   frames* and that no reply, promise shared state, or owner
-   object leaks with them; promises die unfinished — no awaiter can
-   be resumed to observe them, and destroying an unfinished
-   `QPromise` cancels its future without resuming its detached
-   awaiter or running `.then` continuations; destruction
-   mid-update; completed-future retention (memory does not grow
-   with completed fetches across a long update).
+   — the leak check pins that the leak is bounded to the **transitive
+   closure of the detached frames**: the frame allocations plus what
+   only they retain (the awaiter objects, their `QFutureWatcher` and
+   context QObjects, retained `QFuture` handles — which necessarily
+   keep their promise shared state alive, since QCoro's awaiter
+   stores a `QFuture` inside the frame — and sleep timers). Outside
+   that closure nothing may leak: not a reply (the QNAM parent must
+   free it), not an owner object (hub, pump, worker, facade
+   members), not anything reachable other than through a detached
+   frame; promises die unfinished — no awaiter can be resumed to
+   observe them, and destroying an unfinished `QPromise` cancels
+   its future and its `.then` chain without running a parse
+   continuation or resuming the detached awaiter of the chained
+   child future (the production topology: the worker awaits
+   `.then(parse)`'s child, not the parent — S1 follow-up 2);
+   destruction mid-update; completed-future retention (memory does
+   not grow with completed fetches across a long update).
 7. Every commit compiles and passes `ctest` (working rule #2). The
    capture instrument's tests (`tst_networkcapture.cpp`) must keep
    passing — captures are live research data (Q5, Q9).
