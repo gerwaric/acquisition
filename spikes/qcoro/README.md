@@ -2,8 +2,9 @@
 
 Running-code evidence for the network-redesign spec's phasing step 0
 (`docs/design/network-redesign.md`). Findings are recorded as review
-round **S1** in `docs/design/network-redesign-reviews.md`; the spec's
-D2/D6/shutdown/dependency sections cite them inline.
+rounds **S1** (semantics, `main.cpp`) and **S2** (batch-scale
+measurement, `batch.cpp`) in `docs/design/network-redesign-reviews.md`;
+the spec's D2/D6/shutdown/dependency sections cite them inline.
 
 Standalone throwaway project — not part of the acquisition build.
 
@@ -13,13 +14,38 @@ cmake --build build-spike
 ./build-spike/qcoro_spike            # exit code = number of failed CHECKs
 ```
 
+## Batch-scale measurement (`qcoro_batch`)
+
+Second binary, same project: peak memory and abort cost for the full
+promise/future/frame/token population at the 2,000-tab scale (S2). It
+is a separate executable so it gets a fresh process — clean memory
+baselines, away from `qcoro_spike`'s deliberate leaks. Build it
+Release for quotable numbers:
+
+```sh
+cmake -S spikes/qcoro -B build-spike-release -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_PREFIX_PATH=$HOME/Qt/6.11.1/macos
+cmake --build build-spike-release --target qcoro_batch
+./build-spike-release/qcoro_batch            # default scales: 200 (warm-up), 2000
+./build-spike-release/qcoro_batch 2000 10000 # explicit scales
+```
+
+Headline numbers (Release, Qt 6.11.1/macOS): ~5.8 KB heap per entry,
+linear through 10,000 (≈11 MB standing population at 2,000 tabs);
+full-abort cost ~2–4 ms at 2,000 (Canceled burst + queued
+resumptions + sweep — the ~22 ms per-pump sleep wake from S1-5
+dominates); heap returns to baseline afterward and `leaks --atExit`
+reports zero leaks.
+
 Optional verification passes:
 
 ```sh
 cmake -S spikes/qcoro -B build-spike-asan -DSPIKE_ASAN=ON \
       -DCMAKE_PREFIX_PATH=$HOME/Qt/6.11.1/macos
 cmake --build build-spike-asan && ./build-spike-asan/qcoro_spike
+./build-spike-asan/qcoro_batch                # S2 validity checks under ASAN
 leaks --atExit -- ./build-spike/qcoro_spike   # macOS leak accounting
+leaks --atExit -- ./build-spike-release/qcoro_batch  # expects ZERO leaks
 ```
 
 The binary prints CHECK lines (internal validity of each experiment)

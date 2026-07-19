@@ -7,6 +7,7 @@
 # Phase-0 spike build trees (spikes/qcoro/README.md).
 /build-spike/
 /build-spike-asan/
+/build-spike-release/
 
 # Acquisitions installers are currently built here.
 /deploy/

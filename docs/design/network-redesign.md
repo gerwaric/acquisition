@@ -1,7 +1,8 @@
 # Network Redesign: Typed Facade, Coroutine Pumps, and the Gate
 
 **Status: ACCEPTED July 19, 2026 (revision 8) — frozen for
-implementation; phase-0 spike executed.** Drafted July 18 and
+implementation; phase 0 complete (spike + batch-scale
+measurement).** Drafted July 18 and
 reviewed through six rounds in two days, plus one post-freeze errata
 batch (rev 7: eight corrections and contract completions, all
 shrinking — R7 in the review history). The review process converged
@@ -14,8 +15,11 @@ Rev 8 is the first such evidence round: the phase-0 QCoro spike
 destroy-while-suspended mechanism — QCoro task handles detach, not
 destroy — and the shutdown section now rests on
 detach-plus-no-delivery (S1-1..S1-4); every other spike-tested
-premise held (S1-5..S1-10). The finding tables (ER, IR, R4-\*,
-R5-\*, R6-\*, R7, S1), the round narratives, the reversal records,
+premise held (S1-5..S1-10). The batch-scale measurement (round S2,
+same spike project) closed phasing step 0's open question with
+numbers: ~5.8 KB per entry, milliseconds to abort 2,000 tabs — no
+flow control (S2-1..S2-4). The finding tables (ER, IR, R4-\*,
+R5-\*, R6-\*, R7, S1, S2), the round narratives, the reversal records,
 and the revision log live in `network-redesign-reviews.md`; this
 spec records only current decisions and cites finding IDs inline
 where a decision's shape came from a review. No production code has
@@ -612,8 +616,11 @@ forum and login traffic as-is, documented here.
   held in owned members (a handle container for the per-fetch tasks)
   — no fire-and-forget anywhere. A task handle owns a coroutine
   frame, not a payload, so this does not conflict with D2's
-  no-future-retention rule; but 2,000 frames are memory, which is
-  exactly what the phase-0 measurement weighs. Ownership is for
+  no-future-retention rule; 2,000 frames are memory, which the
+  phase-0 measurement weighed: ~5.8 KB per entry for the whole
+  standing machinery (entry + promise + chain + suspended frames +
+  watcher + handle), ~11 MB at the 2,000-tab scale, linear to
+  10,000 (S2-1) — acceptable. Ownership is for
   **lifetime control only** — it supervises nothing (R5-1, exception
   policy). Handles are reclaimed by a **deferred sweep that runs
   outside any completing coroutine** (R5-1): finalization triggered
@@ -625,8 +632,10 @@ forum and login traffic as-is, documented here.
   destroys **completed** tasks only — destroying a suspended task's
   handle would detach it, not stop it (S1-1/S1-4), and the frame
   would still resume later while the loop runs. No
-  incremental per-completion reclamation beyond that sweep until the
-  measurement demands it. "Update done" remains completion counting:
+  incremental per-completion reclamation beyond that sweep — the
+  measurement did not demand it: sweeping 2,000 completed frames
+  takes ~0.3 ms and releases everything (heap back to baseline,
+  zero leaks — S2-2, S2-3). "Update done" remains completion counting:
   each per-fetch coroutine increments its counter after its await
   resolves (post-await check first), and the completion that
   reconciles the counters triggers finalization, exactly as today's
@@ -1168,11 +1177,15 @@ sleep.)
    hygiene flags. Headline result: R5-2's mechanism was falsified
    (handle destruction detaches, S1-1) and the shutdown contract now
    rests on detach-plus-no-delivery (S1-2); everything else held.
-   **Still open from this step, one measurement:** batch submission
-   at the 2,000-tab scale the items-pipeline doc names — peak memory
-   and abort cost for the full promise/future/frame/token
-   population. Measure first; bounded flow control is speculative
-   machinery until numbers demand it.
+   **The step's one open measurement — batch submission at the
+   2,000-tab scale the items-pipeline doc names — executed July 19,
+   2026** (round S2, `spikes/qcoro/batch.cpp` in the same spike
+   project): the full promise/future/frame/token population costs
+   ~5.8 KB per entry (~11 MB at 2,000 tabs, linear to 10,000), a
+   full abort drains in ~2–4 ms with the per-pump ~22 ms sleep wake
+   dominating, and memory unwinds to baseline with zero leaks after
+   the sweep (S2-1..S2-4). The numbers did not demand flow control,
+   so none is designed; step 0 is closed.
 1. Manager test harness against current code (no behavior change).
 2. QCoro dependency + primitives (stop-interruptible sleep, gate)
    with their tests.

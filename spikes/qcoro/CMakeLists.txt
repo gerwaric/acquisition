@@ -56,8 +56,20 @@ target_link_libraries(qcoro_spike PRIVATE
     QCoro6::Network
 )
 
+# Batch-scale measurement (phasing step 0's open measurement): peak memory and
+# abort cost at the 2,000-tab scale. Separate binary so it gets a fresh
+# process — clean memory baselines, away from qcoro_spike's deliberate leaks.
+add_executable(qcoro_batch batch.cpp)
+target_link_libraries(qcoro_batch PRIVATE
+    Qt6::Core
+    Qt6::Network
+    QCoro6::Core
+)
+
 option(SPIKE_ASAN "Build the spike with AddressSanitizer" OFF)
 if(SPIKE_ASAN)
-    target_compile_options(qcoro_spike PRIVATE -fsanitize=address -fno-omit-frame-pointer)
-    target_link_options(qcoro_spike PRIVATE -fsanitize=address)
+    foreach(tgt qcoro_spike qcoro_batch)
+        target_compile_options(${tgt} PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+        target_link_options(${tgt} PRIVATE -fsanitize=address)
+    endforeach()
 endif()
