@@ -31,7 +31,8 @@ P-A/P-B) or findings (F-numbers) it rests on. If a cited claim falls,
 the decision that cites it must be re-examined.
 
 **Staleness preamble** (per the items-pipeline working rules): written
-against branch `fix-f57-f59-ratelimit-retry` at `b135ff5` (code
+against branch `network-redesign` (named `fix-f57-f59-ratelimit-retry`
+until the July 19 rename) at `b135ff5` (code
 identical to master merge `03b15a3` plus the capture instrument). Code
 anchors: `src/ratelimit/ratelimiter.{h,cpp}`,
 `src/ratelimit/ratelimitmanager.{h,cpp}`,

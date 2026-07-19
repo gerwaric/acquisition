@@ -594,7 +594,8 @@ endpoint's policy identity (N21c).
 ## Appendix A — What the current client does (evidence, July 17, 2026)
 
 Condensed factual map; anchors are to code as of branch
-`fix-f57-f59-ratelimit-retry` (docs-only commits over `03b15a3`).
+`network-redesign` — named `fix-f57-f59-ratelimit-retry` until the
+July 19 rename (docs-only commits over `03b15a3`).
 
 **Rate-limited endpoints** (via `RateLimiter::Submit`, keyed by
 endpoint label, managers deduplicated by policy name):
