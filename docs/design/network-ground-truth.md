@@ -337,11 +337,18 @@ mechanism the client's startup depends on — each live for an extended
 period, each fixed only after Tom reported it. Design consequence: the
 client must degrade gracefully when a HEAD comes back partial. Today
 `RateLimiter::ProcessHeadResponse` is fatal only on a missing
-`X-Rate-Limit-Policy`; a Dec-2023-shaped reply (policy present, rules
-absent) would parse into an empty policy whose status is OK — i.e. the
-endpoint would run effectively unpaced until the first real reply
-reseeds it. Whether the Dec 2023 fix actually shipped, and what the
-degraded-HEAD behavior *should* be, are open (Q3).
+`X-Rate-Limit-Policy`. **Correction (July 18, 2026, by code trace
+during the redesign review):** this claim previously said a
+Dec-2023-shaped reply (policy present, rules absent) would parse into
+an empty policy and run effectively unpaced — wrong. A missing header
+parses to a one-element `[""]` list (Qt `split` on an empty array),
+passes the only size check in `RateLimitRule`, and `RateLimitData`
+indexes `parts[1]` out of bounds (`ratelimitpolicy.cpp:52`) —
+undefined behavior/crash, not unpaced running. The redesign's
+validation tiers remove the path
+(`docs/design/network-redesign.md`, D8); the degraded-HEAD design
+decision itself is made there too (D4 discovery state), closing the
+Q3 residual.
 
 ### Other regimes — legacy website API and forum
 
@@ -458,9 +465,12 @@ queued tabs, with ~74 children appended behind it as parents resolved
 - **Q3. HEAD mechanics. LARGELY RESOLVED July 18, 2026** (N24): full
   header sets confirmed on all five endpoints (Dec 2023 fix shipped);
   HEADs do not appear to increment counters (the one anomalous-looking
-  state value was confirmed as cross-session residue). Residual: only
-  the design decision of what a client *should* do with a degraded
-  HEAD reply (today: run unpaced until the first real reply — N20).
+  state value was confirmed as cross-session residue). **Residual
+  closed July 18, 2026:** the degraded-HEAD design decision is made in
+  `docs/design/network-redesign.md` (D4 discovery state — stop rather
+  than drain). Note the previously recorded "today" behavior was wrong
+  — a degraded reply is undefined behavior in the current parser, not
+  unpaced running (see the N20 correction).
 - **Q4. Initial-vs-sustained classification.** The client classifies a
   limit as initial (5s bucket) vs sustained (60s bucket) by `period <=
   75s`. Provenance (Tom, July 2026): the cutoff came from eyeballing
