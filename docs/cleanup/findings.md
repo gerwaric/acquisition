@@ -212,7 +212,7 @@ callers' `deleteLater()` calls should change together).
 ### F60. The legacy stash-index request has no transfer timeout — Confirmed
 
 Found July 19, 2026, during the network-redesign round-5 review
-(R5-3 in `docs/design/network-redesign.md`). `Shop::UpdateStashIndex`
+(R5-3 in `docs/design/network-redesign-reviews.md`). `Shop::UpdateStashIndex`
 builds its `QNetworkRequest` bare — no `setTransferTimeout` — unlike
 the OAuth API builders (`poe::MakeApiRequest` sets 10 s) and the
 forum-thread calls (300 s). A stalled legacy GET, or the endpoint's

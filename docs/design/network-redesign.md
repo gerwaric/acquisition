@@ -1,27 +1,12 @@
 # Network Redesign: Typed Facade, Coroutine Pumps, and the Gate
 
-**Status: ACCEPTED July 19, 2026 (revision 5).** Drafted and accepted
-July 18; reopened the same day by an external review (four finding
-groups); groups 1–2 resolved through three review rounds. On July 19
-Tom directed a simplification pass under the containment principle
-(below), which resolved groups 3–4 and deleted the Discovery state,
-the steady-state `Protocol` threshold, and rename containment. Later
-the same day Tom's **implementation-readiness review** (line-level,
-against the code and Qt/QCoro documentation) found six correctness
-gaps in the simplified spec and three further simplifications
-(IR1–IR6). A **fourth review round** the same day (R4-1–R4-4 plus
-minor items) pinned four implementation ambiguities without reopening
-any design decision. A **fifth round** — Tom's implications review of
-revision 4 against the code it must live in — found four blockers
-(R5-1–R5-4, Appendix B), two of which resolved by deletion: exception
-supervision moved into every root coroutine (owned handles supervise
-nothing), the asynchronous teardown choreography and the hub shutdown
-stop_source were deleted (shutdown is destruction order, which
-`Application` already implements), the facade now establishes the
-transfer-timeout invariant (false-for-legacy today, F60), and raw
-reply ownership is assigned. The full review backlog, the reversal
-records, and the revision history are in Appendix B. No code has been
-written against this spec.
+**Status: ACCEPTED July 19, 2026 (revision 5).** Drafted July 18 and
+reviewed through five rounds in two days. The finding tables (ER, IR,
+R4-\*, R5-\*), the round narratives, the reversal records, and the
+revision log live in `network-redesign-reviews.md`; this spec records
+only current decisions and cites finding IDs inline where a
+decision's shape came from a review. No code has been written against
+this spec.
 
 This document specifies the redesign of acquisition's rate-limited
 networking: how the items worker, the rate limiter, and the network
@@ -104,7 +89,7 @@ implementation-readiness review then applied it once more to the
 simplification's own output (IR1: log-and-continue on degraded
 headers turned out to be silent continuation on bad state — it is now
 a clean error). The reversals are recorded in the sections they touch
-and in Appendix B.
+and in the review history (`network-redesign-reviews.md`).
 
 ## Layer contracts
 
@@ -227,7 +212,7 @@ hazard is unconstructible:
 **Revised July 19 (IR round):** each `RateLimitManager` owns a plain
 `std::deque` of entries and an **on-demand drain coroutine** — the
 earlier long-lived awaitable FIFO is deleted (its retention rationale
-was circular; Appendix B). Submission pushes an entry and starts the
+was circular; see the review history). Submission pushes an entry and starts the
 drain task if none is running; since submission is main-thread-only
 (the `Q_ASSERT` stays), "is one running" is a plain bool with no
 races. The drain processes entries until the deque is empty, then
@@ -347,7 +332,8 @@ regardless of what the client does next.
 **Rewritten July 19, 2026 (simplification pass).** The Discovery state
 and everything built on it — the discovery GET, adoption-seeding
 rules, the discovery-429 split, the setup-cancellation promotion
-protocol — are **deleted** (reversal recorded in Appendix B). Every
+protocol — are **deleted** (reversal recorded in the review
+history). Every
 endpoint the hub knows is in exactly one state:
 
 ```
@@ -1036,269 +1022,13 @@ tests in the same PR.
 
 ---
 
-## Appendix B — Review history
+## Review history
 
-This appendix preserves the decision history: the first review round's
-open items, the external review backlog, the July 19 simplification
-pass, and the implementation-readiness review. Where a later round
-superseded an earlier resolution, both are recorded. Git history holds
-the full text of superseded designs.
-
-### Open items from the first review round — resolved July 18, 2026
-
-1. Gate constants: **blessed as spec'd** — in-flight cap 2, spacing
-   floor 250 ms, retry cap 3. Named constants, provisional until
-   capture data says otherwise; the revisit trigger for all three is
-   capture evidence (lane idling at the gate, spike-correlated
-   anomalies, retry exhaustion in the wild).
-2. Degraded-HEAD behavior: **degrade and proceed** — decided; folded
-   into D4. *(Rescinded July 19, 2026: the decision predated the
-   containment principle; re-examined under it, Tom chose clean
-   failure — see D4. The Discovery mechanism built for it is
-   deleted.)*
-3. `cancelChain()` semantics: verified against Qt docs (available
-   since Qt 6.10, backwards propagation, nested-future limitation) —
-   then **superseded the same day** by the external-review revision:
-   the design no longer uses QFuture cancellation at all. See D2
-   (stop_token; futures always finish) and the revision log.
-4. Naming: **deferred to phase 3 by design.** `RateLimiter` keeps its
-   name (app-facing surface; continuity with this research corpus).
-   `RateLimitManager`'s name is decided when phase 3 rewrites the file
-   anyway — rename is free at that moment and never again; proposals
-   welcome then. Naming care goes to the new primitives (the gate, the
-   stop-interruptible sleep), which have no history and will be read
-   forever.
-
-### External review backlog
-
-The July 18 external review is recorded here so its identifiers and
-scope do not depend on a chat transcript. `ER` means external-review
-finding and is deliberately distinct from the cleanup register's
-permanent `F` numbers.
-
-| ID | Group | Finding | Status |
-|---|---|---|---|
-| ER1 | Cancellation and lifetime | Canceling a `QFuture` already awaited by a sibling coroutine makes QCoro call `result()` before a post-await liveness guard can run. | Resolved in D1/D2: stop tokens replace QFuture cancellation and every future finishes with a value. |
-| ER2 | Degraded HEAD and topology | A provisional pump does not guarantee exactly one unpaced request; multiple provisional/established pumps can overlap, and queue-only merging loses history and ordering. | Resolved in D4: explicit endpoint state machine; no provisional pump exists. (July 19: the Discovery state that resolution introduced was itself deleted — setup now fails cleanly instead of degrading through a discovery GET; the no-two-pumps property stands.) |
-| ER3 | Gate ownership and scope | A hub-owned gate cannot cover pre-session login/OAuth traffic; the literal host wildcard also includes legacy CDN image traffic, and the API must accommodate GET/HEAD/POST. | Resolved July 19 in D5 by shrinking the scope: pre-session login/OAuth traffic is a documented exclusion (N2 magnitude rationale); CDN hosts are outside. (IR round, same day: forum traffic also excluded — the gate is fully internal to the hub, no public permit API.) |
-| ER4 | Cancellation and lifetime | Cancellation checkpoints, interruptible waits, top-level task ownership, and teardown were unspecified; a stopped request could still send or a coroutine could resume through a destroyed owner. | Resolved in D2/D3 and the shutdown/task-ownership section (IR3 later added the hub shutdown stop_source the teardown sequence was missing). |
-| ER5 | Cancellation and lifetime | Retaining every facade future for abort can retain completed parsed payloads for a multi-hour update. | Resolved in D2: the stop source is the abort handle and no future registry exists. |
-| ER6 | Degraded HEAD and topology | Header validity and policy-name/topology changes are not modeled; the current parser assumes structurally valid triplets and current hub maps can remain keyed by an old policy name. | Resolved in D8 (verification found the missing-header path is UB in today's parser, N20 corrected) and D4/D8 (July 19: rename handling simplified; hub maps cannot go stale because a pump's name never changes; IR1 made steady-state anomalies strict `Protocol` errors). |
-| ER7 | Degraded HEAD and topology | Retry timing is underspecified: the applicable bucket depends on Q4, the attempt count is ambiguous, and the retry deadline should be reconciled with policy and gate deadlines. | Resolved in D3: deadline = max(padded Retry-After, GetNextSafeSend) through the gate; unconditional 60 s pad (round 2) fully decouples Q4; Retry-After strict-accepted in [1, 900]; 3 = total sends. (IR5 later fixed the exhausted-attempt sleep and violation-ordering holes and made the attempt table normative.) |
-| ER8 | Degraded HEAD and topology | `FetchError` needs precise HTTP-vs-network precedence and a protocol/header failure that can represent a successful HTTP response with unusable rate-limit headers. | Resolved in D1/D8: status-first precedence, `Protocol` kind, full field inventory. (IR round added `Internal`.) |
-| ER9 | Cancellation and lifetime | QCoro 0.11 was stale; 0.13 contains directly relevant QFuture-destruction and FetchContent fixes, and C++23 alone does not enforce the claimed compiler floor. | Resolved in the dependency section. |
-
-**Round 2 (July 18, group 2 re-review):** nine corrections to the
-group-2 resolutions, all verified and adopted at the time — evidence
-is endpoint-scoped, setup traffic is gate-exclusive, the
-discovery-429 split, transport-error-over-2xx precedence, the
-unconditional 60 s retry pad, the setup-failure cooldown, reset-scope
-limits, and two documentation fixes. Of these, the retry pad, the
-cooldown, the precedence rule, and established-keeps-topology survive
-in the spec; the discovery and per-endpoint-counter machinery was
-deleted July 19.
-
-**Round 3 (July 19, group 2 re-re-review):** five blockers and four
-smaller gaps, all resolved — the substantive outcome was the
-**containment principle** (see the design-principle section). Of the
-round-3 resolutions, the HEAD-429 definition and the
-cancellation-is-not-failure cooldown rule survive; the rename
-containment path, the name-check-before-mutation ordering rule, and
-the discovery-seeding rules were deleted in the July 19 simplification
-(subsumed by the single policy-update rule in D3/D8 and the removal of
-Discovery).
-
-**Group 4 — complexity and testing: resolved July 19, 2026.** The
-simplification pass *was* the complexity review, conducted with Tom
-against the containment principle. Outcomes: the Discovery state
-deleted (degraded HEAD = clean setup failure — Tom's explicit call:
-"I'd rather have an error … if that allows us to simplify"); the
-steady-state `Protocol` threshold, per-endpoint counters, and
-queue-extraction primitive deleted; rename handling reduced to
-detection; the `NameOnly` tier deleted; the gate's scope shrunk (also
-resolving ER3); the injected clock/scheduler and integration coverage
-folded into the testing plan. *(The pass initially retained the
-awaitable FIFO; the implementation-readiness review below reversed
-that hours later — deque + on-demand drain — and corrected the pass's
-log-and-continue rule for steady-state anomalies, IR1.)*
-
-### Implementation-readiness review — July 19, 2026 (Tom)
-
-After the simplification pass, Tom reviewed the spec line-by-line
-against the code and the Qt/QCoro documentation: six findings, three
-further simplifications, and four pre-implementation investigations —
-all verified and adopted in revision 3.
-
-| ID | Finding | Resolution |
-|---|---|---|
-| IR1 | "Pace on the last-known policy" was unsound: `GetNextSafeSend` is state-driven (`ratelimitpolicy.cpp:274` returns *now* whenever the stored status is OK), so frozen-OK state means unpaced sends until 429 — repeatedly, since the retry then succeeds degraded. | D8: a steady-state parse failure or name mismatch records history + capture and completes `Protocol` immediately; the worker's first-failure stop ends the update; the endpoint stays Established and self-heals. Simpler than the rule it replaces. |
-| IR2 | A stop token is not an update-generation barrier by itself: a future can succeed just before `request_stop()` and its consumer resumes after; Qt runs `.then` continuations synchronously on already-finished futures. | D6: post-await identity invariant and initialize-before-launch invariant, both pinned (ready-success/ready-error futures; late-resuming successful straggler). Generation tag stays deleted. |
-| IR3 | The teardown sequence could not reach a pump suspended in a pacing/retry sleep or gate wait (queue closure only wakes a dequeue), and an aborted reply's entry could still retry during shutdown; worker task ownership was vague. | Shutdown rewritten: hub-owned shutdown stop_source observed at every wait and checkpoint; explicit completion inventory (active entries, deque remainders, parked setup entries, HEAD probes, gate waiters); task handles are owned members with destruction order verified by the spike. |
-| IR4 | Always-finish was incomplete under exceptions: a dead pump loop wedges queued promises behind a dead consumer, and a destroyed `QPromise` notifies its future without a result — the exact resultless state D2 forbids. | D1 `Internal` kind; scoped completion guard on every entry; terminal pump-failed state that fail-fasts later submissions; facade parse continuations exception-tight (D7). |
-| IR5 | Retry-loop holes: an exhausted attempt slept up to ~961 s before reporting; violation recording was inconsistent (non-retryable and stopped 429s uncounted); Full-HEAD-429-without-valid-Retry-After was undefined; D3/D4 disagreed on the buffer term. | D3: normative attempt table; bookkeeping (history, capture, violation) always precedes stop/retry decisions; exhaustion completes immediately. D4: Full HEAD 429 without valid Retry-After is a setup failure. Buffer term unified. |
-| IR6 | Gate contract underspecified: a permit released at dispatch makes the cap meaningless; without writer preference a busy pump starves HEAD setup; completing a promise before releasing the permit invites synchronous re-entrancy. | D5: permit span = acquisition through reply-finished; HEAD writer preference; release-permit-and-stabilize-before-completing rule (restated in D3). |
-
-**Simplifications adopted:** the awaitable FIFO deleted — deque +
-on-demand drain coroutine (no permanently suspended task, no
-queue-close semantics; the earlier "the pump is built on it"
-retention rationale was circular, and the genuinely required
-primitive was the stop-interruptible sleep all along, since QCoro's
-sleeps take no stop token); forum traffic removed from the gate
-(`Shop` is strictly sequential with deliberate delays, `shop.cpp:388`
-— the login-traffic magnitude argument applies identically, and the
-gate becomes fully internal with no public API); validation and
-parsing unified into a single total `parse(headers) → expected`
-(the same grammar implemented twice would drift; arithmetic
-untouched).
-
-**Pre-implementation investigations:** the phase-0 QCoro spike (task
-destruction, ready futures, `result()` vs `takeResult()`, synchronous
-completion re-entrancy, stopped waits); the 2,000-tab batch-scale
-measurement (memory and abort cost — measure before adding flow
-control); QCoro FetchContent example/test flags. All folded into the
-phasing sketch.
-
-**Standing boundary (restated from the review):** no further design
-effort on policy-rename recovery, degraded-HEAD discovery, endpoint
-migration, reprioritization, or gate-constant tuning. Detecting those
-conditions and failing cleanly is the right level until real evidence
-arrives.
-
-### Review round 4 — July 19, 2026
-
-A post-acceptance review of revision 3 (design bugs, inconsistencies,
-gaps, complexity; conducted by Claude, adopted by Tom). No design
-decision was reopened; four ambiguities were pinned and six minor
-items fixed in place. The complexity pass came up empty: everything
-remaining (writer preference, the setup cooldown, the terminal
-pump-failed state, the completion guard) carries observed weight, and
-nothing in the spec designs choreography for an unobserved event.
-
-| ID | Finding | Resolution |
-|---|---|---|
-| R4-1 | D3's pseudocode read as holding the gate permit across a retry sleep (up to ~961 s) — one retrying entry plus a waiting HEAD under writer preference would stall the whole hub: a gate-shaped F57. | D3/D5: permits release at reply-finish and are never held across a retry sleep; each attempt re-acquires the gate. Pseudocode corrected; pump and gate pins added. |
-| R4-2 | Resumption discipline was unspecified: `std::stop_callback` runs synchronously inside `request_stop()`, which the worker calls from a completion continuation — an unbounded synchronous cascade; and the teardown sequence presumed a wait-for-drains mechanism it never named. | D2: stop wakeups resume via the event loop; `request_stop()` returns before any coroutine resumes. Shutdown: teardown needs a live event loop; the concrete await mechanism is a phase-0 spike deliverable. |
-| R4-3 | Worker task topology was unspecified: where per-fetch task handles live, who owns them, how "update done" is detected — with apparent tension against D2's no-retention rule at the 2,000-tab scale. | D6: handles are owned members released at update end; a handle owns a frame, not a payload (no conflict with D2); update completion is counter reconciliation, as today. |
-| R4-4 | Gate liveness silently depends on the 10 s transfer timeout (permit turnover, HEAD acquirability, stopped-entry drain under never-abort) — stated only in the ground-truth appendix. | D5: the timeout is an explicit invariant of the gate design. |
-
-Minor items, fixed in place: HEAD 429s record their violation (D4); a
-probe joining an existing pump updates its policy under the normal
-rule (D4); the `Http`/`RateLimited` split for 429s is documented as
-deliberate (D8); the D5 exclusion rationale no longer claims all
-OAuth traffic is pre-session (token refresh is mid-session; the
-magnitude argument is unchanged); the main-thread invariant is stated
-explicitly (D7); batch-submit `QueueUpdated` volume is noted as a
-UI-side concern (D6).
-
-### Review round 5 — July 19, 2026 (Tom)
-
-Tom's implications review of revision 4: not new edge cases, but
-whether the accumulated design fits the code it must live in. Four
-blockers, each verified against the code; two resolutions are net
-deletions. One framing correction recorded: R4-2/R4-3 patched the
-shutdown story instead of asking whether an asynchronous shutdown
-should exist at all — R5-2 is the containment answer that question
-deserved.
-
-| ID | Finding | Resolution |
-|---|---|---|
-| R5-1 | Owned task handles do not supervise exceptions: QCoro rethrows a stored exception only to an awaiting consumer, so an escaped drain never runs the terminal-state transition and an escaped per-fetch task never counts its completion — a wedge with the exception sitting silently in the handle. Also: rev 4's release-on-abort rule contradicted D2's stragglers-resolve-later contract, and finalization triggered by the last completion could destroy the frame it runs in. | Exception policy rewritten: no exception ever escapes a root coroutine — every root task catch-alls and finishes non-exceptionally; the drain's catch implements the terminal state; a per-fetch catch feeds the first-failure path. Handles are lifetime-only; deferred sweep outside any completing coroutine; abort never destroys live handles. Spike + pump/worker pins. |
-| R5-2 | The rev-4 shutdown required queued resumptions and a live event loop — but `Application` is destroyed after `a.exec()` returns (`src/main.cpp`) and `UserSession` destroys `Shop`/`ItemsManagerWorker` before `RateLimiter` (`src/application.h`): the hub-driven teardown was unreachable at the only moment it would run. | Teardown choreography and the hub shutdown stop_source deleted. Shutdown is destruction order — which `Application` already implements: consumers first, task handles destroyed while suspended, hub aborts replies after all awaiters are gone. Every-future-finishes is scoped to live sessions (safe: no awaiter survives to observe a broken promise). Every wait takes one token. Destroy-while-suspended becomes a load-bearing spike deliverable. |
-| R5-3 | D5's timeout-liveness premise was false for the legacy endpoint: `Shop::UpdateStashIndex` builds its request with no transfer timeout (only the OAuth builders set one) — a stalled legacy request could hold a permit indefinitely; with a HEAD waiting under writer preference, the whole hub stops. | D5/D7: the facade establishes the timeout invariant on every request it builds (all five), test over every builder. The live pre-existing gap is recorded as F60 in the findings register. |
-| R5-4 | Raw `QNetworkReply` ownership was never assigned — `NetworkManager` does not enable auto-deletion (default false), and today's callers double-`deleteLater`: the contradictory-ownership mistake that motivated the redesign (F59), re-created one level down. | D3: after dispatch the pump (or setup path, for HEADs) solely owns the reply via RAII with a `deleteLater` deleter; body and headers consumed before any completion or retry decision; the permit observes `finished` but never owns. Leak and double-deletion pins. |
-
-### Revision log
-
-- **July 18, 2026** — drafted; open items reviewed with Tom and
-  resolved; accepted.
-- **July 18, 2026 (later)** — external review reopened the spec:
-  correctness gaps in cancellation/lifetime, degraded-HEAD handling,
-  and gate ownership; findings organized into four groups. **Group 1
-  (cancellation and lifetime — ER1/ER4/ER5/ER9) resolved:**
-  `std::stop_token` replaces QFuture cancellation wholesale (D2
-  rewritten — ER1's UB is now unconstructible; futures always
-  finish), pump token checkpoints and stop-interruptible sleeps
-  specified (D3), never-abort-in-flight rule stated with its N25
-  rationale, shutdown and task-ownership contract added, the
-  future-retention registry deleted, QCoro pinned to 0.13.0 as a hard
-  floor, explicit compiler floors required in CMake.
-- **July 18, 2026 (group 2)** — degraded HEAD and policy topology
-  (ER2/ER6/ER7/ER8) resolved: D4 rewritten as an explicit endpoint
-  state machine with a Discovery fallback; D8 added (validity tiers,
-  status-first classification, the `Protocol` error kind); D3 retry
-  timing resolved. Verification found the degraded-header path is
-  **UB in today's parser** (`ratelimitpolicy.cpp:52`): ground-truth
-  N20 corrected in place, Q3 residual closed.
-- **July 18, 2026 (group 2, round 2)** — nine re-review corrections
-  verified and adopted (endpoint-scoped evidence, gate-exclusive
-  discovery, unconditional 60 s retry pad, 60 s setup-failure
-  cooldown, per-endpoint `Protocol` counter, transport-error
-  precedence, discovery-429 split, reset-scope limits, two
-  documentation fixes).
-- **July 19, 2026 (group 2, round 3 + design principle)** — round-3
-  findings resolved under the newly stated **containment principle**:
-  rename handling rewritten from live migration to containment; name
-  check ordered before mutation; discovery seeding restricted to new
-  pumps; HEAD 429 defined; setup cancellation specified; pumps live
-  to shutdown; round-3 pins added.
-- **July 19, 2026 (simplification pass)** — Tom reviewed the
-  accumulated design against the containment principle and directed a
-  simplification; groups 3 and 4 resolved in the same pass.
-  **Deleted:** the Discovery state and all its machinery (degraded or
-  failed HEADs now fail the endpoint's requests cleanly under the
-  setup cooldown — reversing the first round's degrade-and-proceed
-  decision); the steady-state `Protocol` threshold, per-endpoint
-  consecutive counters, and the queue-extraction primitive; rename
-  containment; the `NameOnly` tier and join shortcut. **Resolved:**
-  ER3 by shrinking the gate with pre-session login traffic as a
-  documented exclusion; group 4 by the pass itself. The spec was
-  rewritten clean from the surviving decisions; review history moved
-  to this appendix. Status returned to **accepted**.
-- **July 19, 2026 (implementation-readiness review — rev. 3)** —
-  Tom's line-level review against the code and Qt/QCoro
-  docs; six findings (IR1–IR6), three simplifications, four
-  investigations, all adopted. **Substantive reversals:** steady-state
-  degraded or mismatched headers are a strict `Protocol` error (IR1 —
-  the simplification pass's log-and-continue rule was silent
-  continuation on bad state: the arithmetic is state-driven and a
-  frozen-OK policy paces nothing); the awaitable FIFO is deleted
-  (deque + on-demand drain); forum traffic leaves the gate (fully
-  internal now). **Added — invariants and error paths, not
-  mechanism:** hub shutdown stop_source observed at every wait;
-  `Internal` error kind with scoped completion guards and a terminal
-  pump-failed state; worker post-await and initialize-before-launch
-  invariants; gate permit span, HEAD writer preference, and
-  complete-promise-last ordering; the normative attempt table
-  (exhaustion never sleeps; violations recorded before stop/retry
-  decisions; Full HEAD 429 without valid Retry-After = setup
-  failure); phase-0 QCoro spike and 2,000-tab measurement;
-  exception-tight facade continuations; QCoro FetchContent hygiene.
-- **July 19, 2026 (review round 4 — rev. 4)** — a post-acceptance
-  review pinned four implementation ambiguities (R4-1–R4-4): permits
-  are never held across retry sleeps (the pseudocode read otherwise —
-  a ~16-minute stall hazard); stop wakeups resume via the event loop,
-  never synchronously inside `request_stop()`, and teardown's
-  drain-await mechanism became a phase-0 spike deliverable; worker
-  task-handle ownership and update completion are specified; the 10 s
-  transfer timeout is named a gate liveness invariant. Six minor
-  items fixed in place (Appendix B). No design decision reopened; the
-  complexity pass found nothing to delete.
-- **July 19, 2026 (review round 5 — this revision, rev. 5)** — Tom's
-  implications review of rev 4 against the code it must live in: four
-  blockers (R5-1–R5-4), two resolved by deletion. **Exception
-  supervision moved into the coroutines** — no exception ever escapes
-  a root task; owned handles supervise nothing (QCoro rethrows only
-  to an awaiter); the drain's catch-all implements the terminal pump
-  state; deferred handle sweep; abort never destroys live handles.
-  **The asynchronous teardown choreography and the hub shutdown
-  stop_source are deleted** — rev 4's sequence needed a live event
-  loop after `a.exec()` had returned and a worker the destruction
-  order had already destroyed; shutdown is now destruction order
-  (consumers first, handles destroyed while suspended, replies
-  aborted after awaiters are gone), every wait takes one token, and
-  every-future-finishes is scoped to live sessions. **The facade
-  establishes the transfer-timeout invariant** — rev 4 called it
-  existing behavior, false for the legacy stash-index request (F60).
-  **Raw reply ownership assigned** — the pump/setup path solely owns
-  replies via RAII (F59's lesson, applied one level down). Net
-  complexity: negative.
+The full review history — the finding tables (ER, IR, R4-\*, R5-\*)
+whose IDs this spec cites inline, the round narratives, and the
+revision log — lives in `network-redesign-reviews.md` (split out of
+this file's Appendix B at revision 5; the appendix's earlier
+evolution is in this file's git history). New review rounds and
+revision-log entries append there; this spec records only current
+decisions, and its status line is updated in the same commit as any
+new round.

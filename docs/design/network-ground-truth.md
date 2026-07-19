@@ -656,3 +656,6 @@ probe, blocking in a nested event loop (F5/N18); non-2xx or missing
   document (July 18, 2026): typed facade, coroutine pumps, the gate.
   Cites claims here by number; supersedes the paused F56–F59 fix
   shapes.
+- `docs/design/network-redesign-reviews.md` — the spec's review
+  history (finding tables ER/IR/R4-\*/R5-\*, round narratives,
+  revision log), split from the spec July 19, 2026.
