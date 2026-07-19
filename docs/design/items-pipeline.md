@@ -66,7 +66,7 @@ refreshed"), starting at the source. Three milestones, each independently
 shippable and valuable, each specified doc-first before its implementation
 begins:
 
-### Milestone 1 — Delta-native worker (next PR)
+### Milestone 1 — Delta-native worker (shipped July 17, 2026 — PR #162)
 
 Make `ItemsManagerWorker` know and control what changes, and make updates
 non-destructive. Two commits:
@@ -164,7 +164,7 @@ behavior changes ship with M1; this is the source text for the release
 The second note was blocked on F55 (a failure edge made it untrue);
 F55's fix in the follow-up PR clears the release-blocking condition.
 
-### Milestone 2 — Streaming refresh signal (next PR)
+### Milestone 2 — Streaming refresh signal (next; spec pending)
 
 Surface per-tab progress without triggering the snapshot cascade:
 
