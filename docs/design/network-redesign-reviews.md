@@ -170,9 +170,27 @@ deserved.
 | ID | Finding | Resolution |
 |---|---|---|
 | R5-1 | Owned task handles do not supervise exceptions: QCoro rethrows a stored exception only to an awaiting consumer, so an escaped drain never runs the terminal-state transition and an escaped per-fetch task never counts its completion — a wedge with the exception sitting silently in the handle. Also: rev 4's release-on-abort rule contradicted D2's stragglers-resolve-later contract, and finalization triggered by the last completion could destroy the frame it runs in. | Exception policy rewritten: no exception ever escapes a root coroutine — every root task catch-alls and finishes non-exceptionally; the drain's catch implements the terminal state; a per-fetch catch feeds the first-failure path. Handles are lifetime-only; deferred sweep outside any completing coroutine; abort never destroys live handles. Spike + pump/worker pins. |
-| R5-2 | The rev-4 shutdown required queued resumptions and a live event loop — but `Application` is destroyed after `a.exec()` returns (`src/main.cpp`) and `UserSession` destroys `Shop`/`ItemsManagerWorker` before `RateLimiter` (`src/application.h`): the hub-driven teardown was unreachable at the only moment it would run. | Teardown choreography and the hub shutdown stop_source deleted. Shutdown is destruction order — which `Application` already implements: consumers first, task handles destroyed while suspended, hub aborts replies after all awaiters are gone. Every-future-finishes is scoped to live sessions (safe: no awaiter survives to observe a broken promise). Every wait takes one token. Destroy-while-suspended becomes a load-bearing spike deliverable. |
+| R5-2 | The rev-4 shutdown required queued resumptions and a live event loop — but `Application` is destroyed after `a.exec()` returns (`src/main.cpp`) and `UserSession` destroys `Shop`/`ItemsManagerWorker` before `RateLimiter` (`src/application.h`): the hub-driven teardown was unreachable at the only moment it would run. | Teardown choreography and the hub shutdown stop_source deleted. Shutdown is destruction order — which `Application` already implements: consumers first, task handles destroyed while suspended, hub aborts replies after all awaiters are gone. Every-future-finishes is scoped to live sessions (safe: no awaiter survives to observe a broken promise). Every wait takes one token. Destroy-while-suspended becomes a load-bearing spike deliverable. *(R6-1 later deleted the shutdown abort itself — the hub aborts and tracks nothing.)* |
 | R5-3 | D5's timeout-liveness premise was false for the legacy endpoint: `Shop::UpdateStashIndex` builds its request with no transfer timeout (only the OAuth builders set one) — a stalled legacy request could hold a permit indefinitely; with a HEAD waiting under writer preference, the whole hub stops. | D5/D7: the facade establishes the timeout invariant on every request it builds (all five), test over every builder. The live pre-existing gap is recorded as F60 in the findings register. |
-| R5-4 | Raw `QNetworkReply` ownership was never assigned — `NetworkManager` does not enable auto-deletion (default false), and today's callers double-`deleteLater`: the contradictory-ownership mistake that motivated the redesign (F59), re-created one level down. | D3: after dispatch the pump (or setup path, for HEADs) solely owns the reply via RAII with a `deleteLater` deleter; body and headers consumed before any completion or retry decision; the permit observes `finished` but never owns. Leak and double-deletion pins. |
+| R5-4 | Raw `QNetworkReply` ownership was never assigned — `NetworkManager` does not enable auto-deletion (default false), and today's callers double-`deleteLater`: the contradictory-ownership mistake that motivated the redesign (F59), re-created one level down. | D3: after dispatch the pump (or setup path, for HEADs) solely owns the reply via RAII with a `deleteLater` deleter; body and headers consumed before any completion or retry decision; the permit observes `finished` but never owns. Leak and double-deletion pins. *(R6-1 corrected the install point: at dispatch, not at await-return — rev 5's rule left the in-flight span ownerless.)* |
+
+## Review round 6 — July 19, 2026 (Tom)
+
+Tom's third implications round, asked with the explicit question
+"are we over-specifying?" Assessment: no — R6-1 and R6-3 are
+contradictions between existing normative sections (an implementer
+would have to guess which sentence wins), and R6-2 is in scope only
+because R5-2 made destruction order the shutdown mechanism, which
+turned participant lifetimes into spec content. Two of the three
+resolutions delete machinery. **Convergence declared: the spec is
+frozen for implementation after this round** — further findings are
+filed against phase-0/harness evidence, not re-readings.
+
+| ID | Finding | Resolution |
+|---|---|---|
+| R6-1 | Reply ownership was still contradictory: the RAII wrapper installed at await-return left the in-flight span — the reply's longest phase — ownerless; shutdown step 2 had the hub abort replies whose pointers lived only in already-destroyed frames (an implied registry the spec denied having); and `deleteLater` never runs once the event loop has stopped, so the claimed shutdown cleanup mechanism was wrong. | Wrapper installed at dispatch, before the first await — the owner is the pump frame at every instant, including suspension (destroying a suspended coroutine runs its locals' destructors; spike-verified, not assumed). The shutdown abort step is deleted: nothing aborted, nothing tracked; `abort()` is now never called anywhere. Post-loop `deleteLater` is inert; the `QNetworkAccessManager` parent (destroyed after the hub) is the documented backstop. |
+| R6-2 | Shutdown step 1 said `Shop` destroys "its task handles," but Shop has no tasks in this design; and `PoeApiClient` had no specified owner. | `Shop` stays callback-style: a context-bound `.then(this, …)` continuation that Qt discards on context destruction — the future equivalent of today's `this`-context connection (`shop.cpp:199`). `PoeApiClient` is a `UserSession` member declared after `rate_limiter` (destroyed after all consumers, before the limiter); its parse continuations capture values only, never the facade. |
+| R6-3 | Policy mutation and response classification disagreed: D3 updated the policy from any Full matching landed reply, while D8 reached the total parse only on clean 2xx — leaving 429s, 403/500s, and 2xx-plus-transport-error ambiguous for pacing state, which would drift stale across non-2xx runs (today's code updates on every headered reply; N25: the server counts every exchange). | Observation separated from classification (D3/D8): header parsing is attempted independently on every landed response and Full + matching updates pacing; classification stays status/network-driven and decides only the caller's outcome; missing/malformed headers become `Protocol` only where the reply would otherwise be a clean 2xx success. |
 
 ## Revision log
 
@@ -275,3 +293,19 @@ deserved.
   decisions, inline finding-ID citations, and a pointer here. No
   content change beyond heading levels, cross-reference wording, and
   superseded-by notes added to the ER4/IR3/IR4/R4-2/R4-3/R4-4 rows.
+- **July 19, 2026 (review round 6 — rev. 6; spec frozen for
+  implementation)** — third implications round; convergence
+  declared. **Reply ownership made total (R6-1):** the RAII wrapper
+  installs at dispatch, so the pump frame owns the reply through
+  suspension; the shutdown abort step and its implied in-flight
+  registry are deleted — `abort()` is never called anywhere; QNAM
+  parent cleanup is the documented post-loop backstop (`deleteLater`
+  is inert without a running loop). **Consumer lifetimes specified
+  (R6-2):** `Shop` stays callback-style via a context-bound
+  continuation; `PoeApiClient` is a `UserSession` member declared
+  after `rate_limiter`, its continuations capture values only.
+  **Observation separated from classification (R6-3):** every landed
+  reply with Full matching headers updates pacing regardless of
+  status; outcomes stay status-driven; `Protocol` only on a
+  would-be-clean 2xx. Further findings are filed against
+  phase-0/harness evidence, not re-readings.

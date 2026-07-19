@@ -1,12 +1,15 @@
 # Network Redesign: Typed Facade, Coroutine Pumps, and the Gate
 
-**Status: ACCEPTED July 19, 2026 (revision 5).** Drafted July 18 and
-reviewed through five rounds in two days. The finding tables (ER, IR,
-R4-\*, R5-\*), the round narratives, the reversal records, and the
-revision log live in `network-redesign-reviews.md`; this spec records
-only current decisions and cites finding IDs inline where a
-decision's shape came from a review. No code has been written against
-this spec.
+**Status: ACCEPTED July 19, 2026 (revision 6) — frozen for
+implementation.** Drafted July 18 and reviewed through six rounds in
+two days; the review process converged (later rounds found
+contradictions among earlier fixes and resolved them by deletion),
+so further findings are filed against phase-0/harness evidence, not
+re-readings. The finding tables (ER, IR, R4-\*, R5-\*, R6-\*), the
+round narratives, the reversal records, and the revision log live in
+`network-redesign-reviews.md`; this spec records only current
+decisions and cites finding IDs inline where a decision's shape came
+from a review. No code has been written against this spec.
 
 This document specifies the redesign of acquisition's rate-limited
 networking: how the items worker, the rate limiter, and the network
@@ -193,9 +196,13 @@ hazard is unconstructible:
   event the server's counters include — exactly the client-model
   divergence P-A warns against. A stopped in-flight request lands,
   is recorded in history and capture (a 429 still records its
-  violation — D3), and then completes `Canceled`. Hard `abort()` is
-  reserved for application shutdown (see the shutdown contract), where
-  history no longer matters.
+  violation — D3), and then completes `Canceled`. **`abort()` is
+  never called at all (R6-1):** its one remaining purpose — waking
+  awaiters at shutdown — vanished when R5-2 made shutdown destroy
+  the awaiters first. At shutdown a still-in-flight reply is
+  released by its owning frame's destruction (D3's dispatch-time
+  wrapper) and finally cleaned up by its `QNetworkAccessManager`
+  parent.
 - **No future retention** (resolves ER5): the
   worker does not keep a registry of outstanding futures — the
   stop_source is the abort handle. Each per-fetch coroutine holds its
@@ -231,7 +238,8 @@ drain():                                   // started by submit when none is run
         for attempt in 1..MAX_ATTEMPTS:            // 3 total sends: 1 original + 2 retries
             permit = co_await m_gate.acquire()     // global gate, D5
             if stopped(entry): complete Canceled; break
-            reply = co_await permit.send(entry)    // permit released when the reply finishes (D5)
+            reply = own(permit.dispatch(entry))    // RAII owner installed before any await (R6-1)
+            co_await reply.finished()              // permit released when the reply finishes (D5)
             // no permit is held past this line — a retry sleep is permit-free (R4-1)
             record history; feed capture
             if 429: record violation               // always — before stop/retry decisions
@@ -247,7 +255,13 @@ drain():                                   // started by submit when none is run
 its history event and its capture record, and every 429 records a
 violation (counter + log) — *before* the stop check and *before* any
 retry decision, because the server counted the exchange (N25)
-regardless of what the client does next.
+regardless of what the client does next. **Observation follows
+bookkeeping and precedes classification (R6-3, D8):** the rate-limit
+headers are parse-attempted on every landed reply regardless of
+status, and a Full set with a matching policy name updates pacing
+state — 429s, 403/500s, and a 2xx-plus-transport-error all keep the
+policy current (today's code updates on every headered reply; the
+server counted them all, N25).
 
 **Attempt table (normative):**
 
@@ -294,19 +308,28 @@ regardless of what the client does next.
   gate's two permits through it, with a waiting HEAD blocking the
   rest under writer preference, would stall the entire hub behind one
   429 — a gate-shaped F57.
-- **Raw reply ownership (R5-4):** after dispatch the pump is the
-  reply's sole owner — `NetworkManager` never enables Qt's
-  auto-deletion (default false), and rev 4 assigned no owner at all:
-  the contradictory-ownership mistake this redesign exists to kill
-  (F59), re-created one level down. The moment the reply await
-  returns, the reply is wrapped in RAII with a `deleteLater` deleter;
-  body copied and headers consumed before any completion or retry
-  decision. Every path — success, error, each retry attempt,
-  exception (composes with the completion guard),
-  cancellation-after-landing, hub destruction — cleans up through
-  that one wrapper; no per-path deletion code. The gate permit
-  observes `finished` but never owns or deletes the reply. The setup
-  path owns its HEAD reply under the same rule (D4).
+- **Raw reply ownership (R5-4; corrected R6-1 — rev 5's
+  install-at-await-return left the in-flight span, the reply's
+  longest phase, ownerless):** `NetworkManager` never enables Qt's
+  auto-deletion (default false), so ownership must be explicit — the
+  contradictory-ownership mistake this redesign exists to kill (F59)
+  must not be re-created one level down. The RAII wrapper (a
+  `deleteLater` deleter) is installed **at dispatch, before the
+  first await** — dispatch and await are separate steps — making the
+  wrapper a local in the pump's frame. The owner is therefore the
+  frame at every instant, *including suspension*: destroying a
+  suspended coroutine runs the destructors of its in-scope locals,
+  so task destruction at shutdown releases the reply with no other
+  mechanism, no registry, and no abort. Body copied and headers
+  consumed before any completion or retry decision. Every path —
+  success, error, each retry attempt, exception (composes with the
+  completion guard), cancellation-after-landing, task destruction —
+  cleans up through that one wrapper; no per-path deletion code.
+  After the event loop has stopped, `deleteLater` is inert; the
+  reply's `QNetworkAccessManager` parent (destroyed after the hub)
+  is the documented backstop. The gate permit observes `finished`
+  but never owns or deletes the reply. The setup path owns its HEAD
+  reply under the same rule (D4).
 - Retries are bounded (`MAX_ATTEMPTS = 3`) so a systemically broken
   policy cannot hammer the API — each 429 still increments the violation
   counter and logs (N10: layer-4 goodwill is finite).
@@ -412,8 +435,9 @@ one policy (ER2 resolved structurally).
   sanction. `SETUP_RETRY_COOLDOWN = 60 s`, named, provisional.
 - **Setup cancellation:** parked entries whose token stops are pruned —
   completed `Canceled` — without affecting the endpoint's state. An
-  in-flight HEAD is never aborted outside shutdown (D2's let-it-land
-  rule): its reply is processed for topology and capture even if every
+  in-flight HEAD is never aborted (D2's let-it-land rule; R6-1
+  removed even the shutdown abort): its reply is processed for
+  topology and capture even if every
   parked entry has been canceled — knowledge the server already
   charged us for is kept. A probe that succeeds with no live entries
   simply leaves the endpoint `Established` and idle; a probe that
@@ -624,7 +648,18 @@ boundary between domain and network:
 - `Shop`'s legacy stash-index call moves to the facade
   (`getLegacyStashIndex`); the forum-thread POSTs keep their own path
   entirely — scrape-based protocol and sequential pacing unchanged
-  (N22), outside the gate (D5).
+  (N22), outside the gate (D5). `Shop` itself stays callback-style —
+  no coroutines: it consumes the future with a **context-bound
+  continuation** (`.then(this, …)`), which Qt discards if the
+  context is destroyed — the future-flavored equivalent of the
+  `this`-context signal connection that makes it safe today
+  (`shop.cpp:199`) (R6-2).
+- **Ownership (R6-2):** `PoeApiClient` is a `UserSession` member
+  declared immediately after `rate_limiter` — destroyed after every
+  consumer (worker, `Shop`), before the limiter, by the same member
+  order shutdown rides on. Its parse continuations capture values
+  and free functions only, never the facade itself, so the facade's
+  lifetime cannot matter to an in-flight chain.
 
 ### D8. Response classification and header validity
 
@@ -660,6 +695,19 @@ reads `parts[1]` out of bounds (`ratelimitpolicy.cpp:52`) — so the
 ground-truth ledger's N20 claim that a degraded HEAD "runs unpaced"
 was wrong; it crashes. (Ledger corrected in place, July 18, 2026.)
 
+**Observation before classification (R6-3).** Header parsing is
+attempted **independently on every landed response**, whatever its
+status: a Full set with a matching policy name updates pacing state —
+a 429, a 403/500, and a 2xx followed by a transport error all keep
+the policy current (the server counted them, N25; today's code
+updates on every headered reply — a design that observed only 2xx
+replies would let pacing state go stale across a run of errors while
+history grows). The classification below is status/network-driven
+and decides only the caller's outcome; missing or malformed headers
+become `Protocol` **only** where the response would otherwise be a
+clean 2xx success. Observation never changes an outcome;
+classification never blocks an observation.
+
 **Classification precedence** (ER8; amended in round 2 — a 2xx status
 must not override a transport error, because Qt can report a status
 and then fail mid-body: `RemoteHostClosedError` is defined as the
@@ -673,7 +721,8 @@ remote closing "before the complete response was received"):
    truncated-body case), and the no-status-at-all transport failures
    (connection refused, timeout, SSL, …) → `FetchError{Network}`,
    carrying the Qt error code and string.
-4. Clean 2xx → total parse (above) → success, or `Protocol`:
+4. Clean 2xx → success if the observation above parsed Full with a
+   matching policy name; otherwise `Protocol`:
 
 **Steady-state anomalies are strict errors (IR1 — reversing the
 simplification pass's log-and-continue rule).** A clean 2xx whose
@@ -738,17 +787,23 @@ existed solely for the deleted choreography).
 **Shutdown = destruction, in the existing order:**
 
 1. Consumers die first (`UserSession` member order): `Shop`, then
-   `ItemsManagerWorker`. Each destroys its task handles **while
-   suspended** — a destroyed coroutine never resumes, so no awaiter
-   outlives this step. Within each destructor, task handles are
-   destroyed before any member they might observe.
-2. The hub dies next: its destructor destroys every drain task
-   (while suspended — nothing resumes into a dying pump), then
-   `QNetworkReply::abort()`s and releases in-flight replies —
-   including a HEAD probe — the one place hard abort is permitted
-   (D2; history no longer matters). Aborting *after* the awaiters
-   are gone means the `finished` signal resumes nothing. Pumps and
-   the gate are destroyed last.
+   `ItemsManagerWorker`, with the facade following (R6-2), still
+   ahead of the hub. `Shop` has no tasks — its context-bound
+   continuation dies with it (D7, R6-2). The worker destroys its
+   task handles **while suspended** — a destroyed coroutine never
+   resumes, so no awaiter outlives this step. Within each
+   destructor, task handles are destroyed before any member they
+   might observe.
+2. The hub dies next: its destructor destroys every drain task and
+   setup task (while suspended — nothing resumes into a dying pump).
+   Destroying a frame runs its locals' destructors, which releases
+   that task's in-flight reply through the dispatch-time RAII
+   wrapper (D3, R6-1); post-loop `deleteLater` is inert, and the
+   reply's `QNetworkAccessManager` parent — destroyed after the hub
+   — is the documented backstop. **Nothing is `abort()`ed and the
+   hub tracks no in-flight replies** (R6-1 deleted the abort step:
+   its only purpose was waking awaiters, which no longer exist by
+   this point). Pumps and the gate are destroyed last.
 3. Promises die unfinished, **safely by construction**: the
    every-future-finishes guarantee (D1/D2) exists for live awaiters,
    and steps 1–2 guarantee none exists — every consumer coroutine is
@@ -876,7 +931,7 @@ sleep.)
    completes `Canceled`, nothing sent; stop while in flight → the
    reply lands, history and capture record it — **and a stopped
    in-flight 429 still records its violation** — then `Canceled` (and
-   `QNetworkReply::abort()` is never called outside shutdown — N25);
+   `QNetworkReply::abort()` is never called at all — N25, R6-1);
    **the ER1 regression pin**: two awaited fetches, one fails
    and stops the update while the sibling is still suspended — the
    sibling must resume safely into a finished `Canceled` future;
@@ -894,10 +949,15 @@ sleep.)
    *value*, never an exceptional future; **permit-free retry
    (R4-1)**: a retrying entry holds no permit during its retry sleep
    — a sibling pump acquires the gate and sends while that sleep
-   runs; **reply ownership (R5-4)**: every reply the fake sender
+   runs; **reply ownership (R5-4/R6-1)**: every reply the fake sender
    hands out is destroyed exactly once on every path — success,
    non-retryable error, each retry attempt, cancel-after-landing,
-   drain exception (leak and double-deletion pins).
+   drain exception, and task destruction mid-flight (the
+   dispatch-time wrapper releases it) — leak and double-deletion
+   pins; **observation (R6-3)**: a 429 and a 500 carrying Full
+   matching headers update the policy while completing their
+   status-driven outcomes, and a 2xx-plus-transport-error updates
+   from its headers and completes `Network`.
 3. **Setup and validation pins**: a total-parse suite over malformed
    headers — missing rules list, missing per-rule headers, short
    triplets, non-numeric fields, mismatched periods (the current
@@ -944,7 +1004,9 @@ sleep.)
    task whose body throws counts its completion and triggers the
    first-failure stop — the update finishes (aborted), never wedges;
    the handle sweep runs outside any completing coroutine (the last
-   completion does not destroy its own frame).
+   completion does not destroy its own frame); **R6-2 pin**: a
+   context-bound `Shop` continuation does not run after `Shop` is
+   destroyed.
 6. **Integration coverage** (group 4 + IR3; shutdown pins rewritten
    R5-2): cancellation races across layers (abort mid-pacing-sleep,
    mid-gate-wait, mid-flight); **destruction reaches every
@@ -968,12 +1030,15 @@ sleep.)
    `result()` vs `takeResult()` on the single-consumer path (the
    worker should move the parsed payload out, not copy a stash
    wrapper); synchronous promise-completion re-entrancy; stopped
-   waits; queued-vs-synchronous resumption on stop and on `abort()`
-   (R4-2 requires queued); **destroy-while-suspended as the shutdown
+   waits; queued-vs-synchronous resumption on stop (R4-2 requires
+   queued; `abort()` no longer exists anywhere, R6-1);
+   **destroy-while-suspended as the shutdown
    mechanism (R5-2)** — destruction while suspended on each awaitable,
-   with no live event loop, and that a destroyed task's reply-awaiter
+   with no live event loop, that a destroyed task's reply-awaiter
    connection dies with it (a later `finished` emission resumes
-   nothing); task destruction from inside its own continuation vs a
+   nothing), and **that destroying a suspended frame runs its
+   locals' destructors** (R6-1's reply-release mechanism — verify,
+   don't assume); task destruction from inside its own continuation vs a
    deferred sweep (R5-1); the stored-exception behavior of an
    unawaited task (confirming R5-1's premise). Plus the FetchContent hygiene flags (QCoro examples off,
    tests out of our CTest). Findings feed back into D2/D6/shutdown
