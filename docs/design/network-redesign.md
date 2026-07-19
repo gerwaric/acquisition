@@ -1,18 +1,21 @@
 # Network Redesign: Typed Facade, Coroutine Pumps, and the Gate
 
-**Status: ACCEPTED July 19, 2026 (revision 3 — post
-implementation-readiness review).** Drafted and accepted July 18;
-reopened the same day by an external review (four finding groups);
-groups 1–2 resolved through three review rounds. On July 19 Tom
-directed a simplification pass under the containment principle
+**Status: ACCEPTED July 19, 2026 (revision 4).** Drafted and accepted
+July 18; reopened the same day by an external review (four finding
+groups); groups 1–2 resolved through three review rounds. On July 19
+Tom directed a simplification pass under the containment principle
 (below), which resolved groups 3–4 and deleted the Discovery state,
 the steady-state `Protocol` threshold, and rename containment. Later
 the same day Tom's **implementation-readiness review** (line-level,
 against the code and Qt/QCoro documentation) found six correctness
-gaps in the simplified spec and three further simplifications — all
-adopted in this revision (IR1–IR6, Appendix B). The full review
-backlog, the reversal records, and the revision history are in
-Appendix B. No code has been written against this spec.
+gaps in the simplified spec and three further simplifications
+(IR1–IR6). A **fourth review round** the same day (R4-1–R4-4 plus
+minor items, Appendix B) pinned four implementation ambiguities —
+permit lifetime on the retry path, queued resumption discipline,
+worker task ownership, and the gate's timeout-liveness assumption —
+without reopening any design decision. The full review backlog, the
+reversal records, and the revision history are in Appendix B. No code
+has been written against this spec.
 
 This document specifies the redesign of acquisition's rate-limited
 networking: how the items worker, the rate limiter, and the network
@@ -177,6 +180,17 @@ hazard is unconstructible:
   of at pacing speed. The failure mode of a *missed* checkpoint is one
   wasted — but paced, gated, harmless — send, not undefined behavior;
   that graceful degradation is a deliberate property of this design.
+- **Queued resumption (R4-2):** stop-triggered wakeups are delivered
+  through the event loop — `request_stop()` returns before any
+  suspended coroutine resumes; no stop callback resumes a coroutine
+  synchronously. The worker's first-failure `request_stop()` runs
+  inside a promise-completion continuation; synchronous resumption
+  there (`std::stop_callback` runs on the requesting thread, inside
+  the `request_stop()` call) would cascade every suspended pump drain
+  and worker coroutine onto the current stack — exactly the unbounded
+  re-entrancy D5's complete-promise-last rule exists to avoid. The
+  stop-interruptible sleep and the gate implement wake-on-stop as a
+  queued resume; verified by the phase-0 spike.
 - **In-flight requests are never `QNetworkReply::abort()`ed by
   cancellation.** The server has already counted an in-flight request
   (N25: state headers are post-increment, 1:1); aborting it would
@@ -222,14 +236,16 @@ drain():                                   // started by submit when none is run
         for attempt in 1..MAX_ATTEMPTS:            // 3 total sends: 1 original + 2 retries
             permit = co_await m_gate.acquire()     // global gate, D5
             if stopped(entry): complete Canceled; break
-            reply = co_await permit.send(entry)    // permit held until the reply finishes (D5)
+            reply = co_await permit.send(entry)    // permit released when the reply finishes (D5)
+            // no permit is held past this line — a retry sleep is permit-free (R4-1)
             record history; feed capture
             if 429: record violation               // always — before stop/retry decisions
             if Full headers and policy name matches: m_policy->Update(headers)
             emit signals
             outcome per the attempt table; retryable 429 sleeps and continues,
             everything else breaks with a final outcome
-        release permit; reach a stable pump state; only then complete the promise
+        reach a stable pump state; only then complete the promise
+        (the permit was already released at reply-finish — D5)
 ```
 
 **Per-send bookkeeping (always first):** every landed reply records
@@ -276,6 +292,13 @@ regardless of what the client does next.
   else is treated as absent (non-retryable, clean failure), because
   silently obeying a corrupt server-supplied wait would be an
   invisible stall — a stealth F57.
+- **Retry sleeps are permit-free (R4-1):** the permit is released the
+  moment the reply finishes (D5's permit span) and each attempt
+  re-acquires the gate — a permit is never held across a retry sleep.
+  A retry sleep can run to ~961 s (900 + 60 + 1); holding one of the
+  gate's two permits through it, with a waiting HEAD blocking the
+  rest under writer preference, would stall the entire hub behind one
+  429 — a gate-shaped F57.
 - Retries are bounded (`MAX_ATTEMPTS = 3`) so a systemically broken
   policy cannot hammer the API — each 429 still increments the violation
   counter and logs (N10: layer-4 goodwill is finite).
@@ -328,15 +351,19 @@ one policy (ER2 resolved structurally).
   per D8): create-or-join the pump by policy name (N6: same-named
   policies share counters; the observed topology is strictly 1:1 —
   five endpoints, five policies, N23 — but the join is a map lookup
-  and it is the documented contract). Parked entries forward to the
-  pump in submission order.
+  and it is the documented contract). A probe that joins an existing
+  pump updates that pump's policy under the same rule as any reply
+  (Full headers, matching name — D3/D8; R4 minor). Parked entries
+  forward to the pump in submission order.
 - **HEAD 429 with Full headers and a valid `Retry-After`** (genuinely
   reachable: counters persist across restarts, N24, so booting during
   an active restriction can 429 the boot probe; GGG itself floated
   HEAD-after-429 resync, N16): the reply still teaches the topology —
   establish the pump, with its first send scheduled no earlier than
   `now + RetryAfter + RETRY_BUCKET_PAD + buffer` (the D3 formula's
-  degenerate case); the HEAD consumes no send attempt. A Full HEAD
+  degenerate case); the HEAD consumes no send attempt. The 429 is a
+  real server-side violation and is recorded — counter, log, capture
+  — like any pump-path 429 (R4 minor). A Full HEAD
   429 whose `Retry-After` is missing or invalid (IR5) is a **setup
   failure** under the cooldown below — containment declines to invent
   a hold time.
@@ -429,20 +456,30 @@ contract rules:
   of ~17 req/s sustained (N2); this keeps normal traffic an order of
   magnitude inside that. Tunable; revisit with capture data. F58's
   dead code is deleted.
-- **Permit span (IR6):** a permit is held from acquisition until the
-  reply finishes (`QNetworkReply::finished`) — released at dispatch,
-  the in-flight cap would bound nothing.
+- **Permit span (IR6; sharpened R4-1):** a permit is held from
+  acquisition until the reply finishes (`QNetworkReply::finished`) —
+  released at dispatch, the in-flight cap would bound nothing — and
+  never longer: release happens at reply-finish, so a permit is never
+  held across a retry sleep (D3).
+- **Liveness rests on the transfer timeout (R4-4):** every request
+  the gate sees carries the existing 10 s transfer timeout, and the
+  gate's liveness — permit turnover, HEAD exclusivity ever becoming
+  acquirable, prompt drain of stopped in-flight entries under the
+  never-abort rule (D2) — depends on every reply finishing in
+  bounded time. The timeout is a stated invariant of this design;
+  removing or unbounding it requires redesigning the gate.
 - **Completion ordering (IR6):** the permit is released, and the pump
   reaches a stable state, *before* the entry's promise is completed —
   promise completion may synchronously re-enter the limiter (D3, D6).
 
 **Scope rationale:** layer 1 watches the user's IP (N2, N22), and the
 traffic that can plausibly burst is exactly the traffic the hub
-paces. **Pre-session traffic stays outside**: the login league list
-and the OAuth authorize/token exchanges happen before the hub exists
-and amount to a handful of requests per session; layer 1's one known
-trigger was over a thousand requests in a minute (N2), three orders
-of magnitude away. **Forum traffic is likewise outside (IR round,
+paces. **Login and OAuth traffic stays outside**: the login league
+list and the OAuth authorize/token exchanges precede the hub, and
+mid-session token refreshes add a handful more (R4 wording fix —
+refresh is not pre-session, but the magnitude argument is
+unchanged); layer 1's one known trigger was over a thousand requests
+in a minute (N2), three orders of magnitude away. **Forum traffic is likewise outside (IR round,
 reversing this spec's earlier revisions):** `Shop` is strictly
 sequential today — one thread at a time with deliberate delays
 (`shop.cpp:388`) — user-triggered, and has never brushed layer 1; the
@@ -478,6 +515,25 @@ forum and login traffic as-is, documented here.
   and the callback pyramid with its flag pairs
   (`m_need_*` / `m_has_*`) collapses into control flow. Completion
   counting (`m_stashes_received` etc.) stays — it drives the status bar.
+- **Task topology and handle ownership (R4-3):** the worker owns one
+  update task plus one per-fetch `QCoro::Task<>` per submission, all
+  held in owned members (a handle container for the per-fetch tasks)
+  — no fire-and-forget anywhere. A task handle owns a coroutine
+  frame, not a payload, so this does not conflict with D2's
+  no-future-retention rule; but 2,000 frames are memory, which is
+  exactly what the phase-0 measurement weighs. Handles are released
+  when the update ends (completed or aborted), not incrementally
+  mid-update — reclamation machinery is speculative until the
+  measurement demands it. "Update done" remains completion counting:
+  each per-fetch coroutine increments its counter after its await
+  resolves (post-await check first), and the completion that
+  reconciles the counters triggers finalization, exactly as today's
+  handlers do.
+- **Batch-submit signal volume (R4 minor):** submitting thousands of
+  entries fires as many synchronous `QueueUpdated` emissions in one
+  loop. Not a correctness issue; if the status dialog measurably
+  stutters, coalesce on the UI side (M2's coalescing work), not in
+  the limiter.
 - **Post-await identity invariant (IR2):** the update token is the
   update's identity *only because* every worker coroutine checks
   `stop_requested()` immediately after every `co_await`, before
@@ -532,6 +588,13 @@ boundary between domain and network:
 - The facade is intentionally boring: no coroutines inside, no state
   beyond references to the limiter and settings (realm/league move in as
   call parameters, as today).
+- **Everything runs on the main thread (R4 minor, stated
+  explicitly):** submission is main-thread-only, pumps complete
+  promises on the main thread, and the parse continuations attach
+  with no threading context, so they run there too — where today's
+  wrapper parsing already happens. This is an invariant, not an
+  accident: giving a continuation a threaded context invalidates the
+  single-threaded assumptions in D2–D6.
 - `Shop`'s legacy stash-index call moves to the facade
   (`getLegacyStashIndex`); the forum-thread POSTs keep their own path
   entirely — scrape-based protocol and sequential pacing unchanged
@@ -611,8 +674,12 @@ per D3 (the pump has a policy for the deadline formula) but does not
 update the policy; a successful retry whose reply then fails to parse
 completes `Protocol` per the rule above. A 429 with no valid
 `Retry-After` (missing, unparseable, or outside D3's [1, 900]) is
-non-retryable: `FetchError{Http}`, violation recorded. HEAD 429s are
-handled in D4.
+non-retryable: `FetchError{Http}`, violation recorded. (Deliberate
+taxonomy split, R4 minor: "the server 429ed us" spans two kinds —
+`Http` here, `RateLimited` only for exhausted retries. Today's
+consumers treat all failures alike; a future consumer that
+special-cases rate limiting must match `Http` with status 429 as
+well.) HEAD 429s are handled in D4.
 
 **`FetchError` shape:** kind (`Network` / `Http` / `Parse` /
 `Protocol` / `RateLimited` / `Internal` / `Canceled`), endpoint, URL,
@@ -661,6 +728,16 @@ design there are no queue-close semantics at all.)
 5. Only after every drain task has run to completion are pumps
    destroyed; the worker's update task is completed or destroyed
    (per the spike's verified semantics) before `ItemsManagerWorker`.
+
+**Teardown needs a live event loop (R4-2).** Steps 2–4 are queued
+resumptions and reply `finished` signals, so shutdown is
+asynchronous: the hub requests stop, the event loop keeps turning,
+and step 5's destruction runs when the last drain completes — never
+as a blocking wait. How the application's shutdown path awaits this
+(and whether QCoro's destroy-while-suspended semantics are a safe
+fallback if the loop is already gone) is a phase-0 spike
+deliverable: the invariant below is fixed; the spike verifies the
+mechanism.
 
 **Invariant: no coroutine resumes through a destroyed `this`.** Every
 suspension point a pump or worker task uses (sleep, gate, reply,
@@ -775,7 +852,10 @@ sleep.)
    completes the active entry `Internal`, puts the pump in its
    terminal failed state, and later submissions fail fast `Internal`;
    a throwing facade parse continuation yields a `Parse`/`Internal`
-   *value*, never an exceptional future.
+   *value*, never an exceptional future; **permit-free retry
+   (R4-1)**: a retrying entry holds no permit during its retry sleep
+   — a sibling pump acquires the gate and sends while that sleep
+   runs.
 3. **Setup and validation pins**: a total-parse suite over malformed
    headers — missing rules list, missing per-rule headers, short
    triplets, non-numeric fields, mismatched periods (the current
@@ -799,11 +879,14 @@ sleep.)
 4. **Primitives tested standalone** with an **injected monotonic
    clock/scheduler** (group 4) so timing behavior is deterministic
    and the tests never sleep: the stop-interruptible sleep (wakes on
-   either token, completes on deadline) and the gate — cap, HEAD
-   exclusivity **with writer preference** (a waiting HEAD blocks new
-   ordinary permits; a busy pump cannot starve setup), spacing floor,
-   and **permit span** (a permit is held until the reply finishes;
-   the cap genuinely bounds in-flight requests).
+   either token, completes on deadline, and resumes via the event
+   loop — `request_stop()` returns before the waiter resumes, R4-2)
+   and the gate — cap, HEAD exclusivity **with writer preference** (a
+   waiting HEAD blocks new ordinary permits; a busy pump cannot
+   starve setup), spacing floor, and **permit span** (a permit is
+   held until — and released at — reply-finish; the cap genuinely
+   bounds in-flight requests, and no permit survives into a retry
+   sleep).
 5. **Worker tests move to a facade fake** ("when asked for stash X,
    return this tab / this error") — simpler than today's byte-crafting
    `FakeRateLimiter`, and it closes the fake-bypasses-the-managers blind
@@ -835,7 +918,9 @@ sleep.)
    `result()` vs `takeResult()` on the single-consumer path (the
    worker should move the parsed payload out, not copy a stash
    wrapper); synchronous promise-completion re-entrancy; stopped
-   waits. Plus the FetchContent hygiene flags (QCoro examples off,
+   waits; queued-vs-synchronous resumption on stop and on `abort()`
+   (R4-2 requires queued); how teardown awaits drain completion on
+   the main thread (R4-2). Plus the FetchContent hygiene flags (QCoro examples off,
    tests out of our CTest). Findings feed back into D2/D6/shutdown
    before any production code. **Alongside it, one measurement:**
    batch submission at the 2,000-tab scale the items-pipeline doc
@@ -1010,6 +1095,32 @@ migration, reprioritization, or gate-constant tuning. Detecting those
 conditions and failing cleanly is the right level until real evidence
 arrives.
 
+### Review round 4 — July 19, 2026
+
+A post-acceptance review of revision 3 (design bugs, inconsistencies,
+gaps, complexity; conducted by Claude, adopted by Tom). No design
+decision was reopened; four ambiguities were pinned and six minor
+items fixed in place. The complexity pass came up empty: everything
+remaining (writer preference, the setup cooldown, the terminal
+pump-failed state, the completion guard) carries observed weight, and
+nothing in the spec designs choreography for an unobserved event.
+
+| ID | Finding | Resolution |
+|---|---|---|
+| R4-1 | D3's pseudocode read as holding the gate permit across a retry sleep (up to ~961 s) — one retrying entry plus a waiting HEAD under writer preference would stall the whole hub: a gate-shaped F57. | D3/D5: permits release at reply-finish and are never held across a retry sleep; each attempt re-acquires the gate. Pseudocode corrected; pump and gate pins added. |
+| R4-2 | Resumption discipline was unspecified: `std::stop_callback` runs synchronously inside `request_stop()`, which the worker calls from a completion continuation — an unbounded synchronous cascade; and the teardown sequence presumed a wait-for-drains mechanism it never named. | D2: stop wakeups resume via the event loop; `request_stop()` returns before any coroutine resumes. Shutdown: teardown needs a live event loop; the concrete await mechanism is a phase-0 spike deliverable. |
+| R4-3 | Worker task topology was unspecified: where per-fetch task handles live, who owns them, how "update done" is detected — with apparent tension against D2's no-retention rule at the 2,000-tab scale. | D6: handles are owned members released at update end; a handle owns a frame, not a payload (no conflict with D2); update completion is counter reconciliation, as today. |
+| R4-4 | Gate liveness silently depends on the 10 s transfer timeout (permit turnover, HEAD acquirability, stopped-entry drain under never-abort) — stated only in the ground-truth appendix. | D5: the timeout is an explicit invariant of the gate design. |
+
+Minor items, fixed in place: HEAD 429s record their violation (D4); a
+probe joining an existing pump updates its policy under the normal
+rule (D4); the `Http`/`RateLimited` split for 429s is documented as
+deliberate (D8); the D5 exclusion rationale no longer claims all
+OAuth traffic is pre-session (token refresh is mid-session; the
+magnitude argument is unchanged); the main-thread invariant is stated
+explicitly (D7); batch-submit `QueueUpdated` volume is noted as a
+UI-side concern (D6).
+
 ### Revision log
 
 - **July 18, 2026** — drafted; open items reviewed with Tom and
@@ -1057,8 +1168,8 @@ arrives.
   documented exclusion; group 4 by the pass itself. The spec was
   rewritten clean from the surviving decisions; review history moved
   to this appendix. Status returned to **accepted**.
-- **July 19, 2026 (implementation-readiness review — this revision,
-  rev. 3)** — Tom's line-level review against the code and Qt/QCoro
+- **July 19, 2026 (implementation-readiness review — rev. 3)** —
+  Tom's line-level review against the code and Qt/QCoro
   docs; six findings (IR1–IR6), three simplifications, four
   investigations, all adopted. **Substantive reversals:** steady-state
   degraded or mismatched headers are a strict `Protocol` error (IR1 —
@@ -1076,3 +1187,14 @@ arrives.
   decisions; Full HEAD 429 without valid Retry-After = setup
   failure); phase-0 QCoro spike and 2,000-tab measurement;
   exception-tight facade continuations; QCoro FetchContent hygiene.
+- **July 19, 2026 (review round 4 — this revision, rev. 4)** — a
+  post-acceptance review pinned four implementation ambiguities
+  (R4-1–R4-4): permits are never held across retry sleeps (the
+  pseudocode read otherwise — a ~16-minute stall hazard); stop
+  wakeups resume via the event loop, never synchronously inside
+  `request_stop()`, and teardown's drain-await mechanism became a
+  phase-0 spike deliverable; worker task-handle ownership and update
+  completion are specified; the 10 s transfer timeout is named a gate
+  liveness invariant. Six minor items fixed in place (Appendix B).
+  No design decision reopened; the complexity pass found nothing to
+  delete.
