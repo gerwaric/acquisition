@@ -1,15 +1,17 @@
 # Network Redesign: Typed Facade, Coroutine Pumps, and the Gate
 
-**Status: ACCEPTED (simplified) July 19, 2026.** Drafted and accepted
-July 18; reopened the same day by an external review that organized
-its findings into four groups. Groups 1 (cancellation and lifetime)
-and 2 (degraded HEAD and policy topology) were resolved through three
-review rounds. On July 19 Tom directed a simplification pass under the
-containment principle (below), which resolved groups 3 (gate scope)
-and 4 (complexity) and **deleted the largest machinery the review
-rounds had accreted**: the Discovery state, the steady-state
-`Protocol` threshold, and rename containment. The full review backlog,
-the reversal records, and the revision history are preserved in
+**Status: ACCEPTED July 19, 2026 (revision 3 — post
+implementation-readiness review).** Drafted and accepted July 18;
+reopened the same day by an external review (four finding groups);
+groups 1–2 resolved through three review rounds. On July 19 Tom
+directed a simplification pass under the containment principle
+(below), which resolved groups 3–4 and deleted the Discovery state,
+the steady-state `Protocol` threshold, and rename containment. Later
+the same day Tom's **implementation-readiness review** (line-level,
+against the code and Qt/QCoro documentation) found six correctness
+gaps in the simplified spec and three further simplifications — all
+adopted in this revision (IR1–IR6, Appendix B). The full review
+backlog, the reversal records, and the revision history are in
 Appendix B. No code has been written against this spec.
 
 This document specifies the redesign of acquisition's rate-limited
@@ -59,10 +61,11 @@ The redesign dissolves these with three moves rather than four fixes:
 2. **Queueing returns to the rate limiter** — the worker batch-submits
    and counts completions; per-policy parallelism returns automatically
    (F56); the worker stops doing flow control at all.
-3. **Each policy manager becomes a coroutine "pump"** — one linear loop
-   (take, wait, send, maybe retry, deliver) instead of a state machine
-   smeared across timer and signal handlers. The 429 retry becomes a
-   loop iteration that is impossible to wedge and trivial to test.
+3. **Each policy manager becomes a coroutine "pump"** — one linear
+   drain loop (take, wait, send, maybe retry, deliver) instead of a
+   state machine smeared across timer and signal handlers. The 429
+   retry becomes a loop iteration that is impossible to wedge and
+   trivial to test.
 
 ## Design principle: contain the unexpected (added July 19, 2026)
 
@@ -87,9 +90,12 @@ construction; what it must never cost is a wedge, a crash, or silent
 continuation on bad state.
 
 The July 19 simplification pass applied this principle retroactively
-to the decisions that predated its statement. The reversals — the
-degrade-and-proceed HEAD decision and the machinery built on it — are
-recorded in the sections they touch and in Appendix B.
+to the decisions that predated its statement; the
+implementation-readiness review then applied it once more to the
+simplification's own output (IR1: log-and-continue on degraded
+headers turned out to be silent continuation on bad state — it is now
+a clean error). The reversals are recorded in the sections they touch
+and in Appendix B.
 
 ## Layer contracts
 
@@ -101,7 +107,7 @@ Five layers, each speaking one language, each testable alone:
 | Typed facade | `PoeApiClient` (new) | PoE domain types ↔ HTTP | request building, response parsing, error taxonomy |
 | Hub | `RateLimiter` | endpoints, policies, the IP | endpoint→policy topology, HEAD setup, the gate, capture |
 | Policy pump | `RateLimitManager` | one policy's pacing | queue, timing, send, 429 retry, history |
-| Policy arithmetic | `RateLimitPolicy` | header math | next-safe-send calculation — arithmetic **unchanged** (N25, N26); gains a total validation front-end (D8) |
+| Policy arithmetic | `RateLimitPolicy` | header math | next-safe-send calculation — arithmetic **unchanged** (N25, N26); parsing becomes a total function (D8) |
 
 ### D1. The boundary type: `QFuture<std::expected<T, FetchError>>`
 
@@ -117,10 +123,11 @@ Five layers, each speaking one language, each testable alone:
   2xx status arrived; carries the Qt error; precedence is D8's),
   `Http` (non-2xx status; carries the status),
   `Parse` (facade-level JSON failure),
-  `Protocol` (2xx during endpoint setup whose rate-limit headers fail
-  validation — see D4/D8; steady-state degraded headers are not an
-  error, see D8),
+  `Protocol` (2xx whose rate-limit headers fail to parse or carry a
+  mismatched policy name — setup or steady state, D4/D8),
   `RateLimited` (429 retries exhausted — see D3),
+  `Internal` (an exception escaped inside the pump or facade — a bug,
+  contained as a value; see the exception policy),
   `Canceled` (the caller requested stop — see D2). `Canceled` is an
   outcome, not a failure: consumers treat it as "return silently" and
   it never counts toward request-failure accounting. **Futures are
@@ -157,26 +164,29 @@ hazard is unconstructible:
   pump. Abort = `request_stop()` — the worker proceeds with its own
   abort bookkeeping immediately and never waits on stragglers; they
   resolve `Canceled` asynchronously and their coroutines return
-  silently.
-- **Pump checkpoints** (ER4): the token is
+  silently. (The token is the update's *identity* only under the
+  worker's post-await invariant — D6.)
+- **Pump checkpoints** (ER4): the stop state is
   checked at dequeue, after the pacing sleep, after gate acquisition,
   after the reply lands, and after a retry sleep — before every send.
-  A stopped entry completes `Canceled` at the first checkpoint that
-  sees it. Pacing and retry sleeps are **stop-interruptible** (the
-  sleep primitive takes the token and wakes on stop), so an aborted
-  update's queue drains promptly instead of at pacing speed. The
-  failure mode of a *missed* checkpoint is one wasted — but paced,
-  gated, harmless — send, not undefined behavior; that graceful
-  degradation is a deliberate property of this design.
+  "Stopped" means the entry's token **or the hub's shutdown token**
+  (the shutdown contract). A stopped entry completes `Canceled` at the
+  first checkpoint that sees it. Pacing and retry sleeps are
+  **stop-interruptible** (the sleep primitive takes the tokens and
+  wakes on stop), so an aborted update's queue drains promptly instead
+  of at pacing speed. The failure mode of a *missed* checkpoint is one
+  wasted — but paced, gated, harmless — send, not undefined behavior;
+  that graceful degradation is a deliberate property of this design.
 - **In-flight requests are never `QNetworkReply::abort()`ed by
   cancellation.** The server has already counted an in-flight request
   (N25: state headers are post-increment, 1:1); aborting it would
   discard the reply's headers and leave the pacing history missing an
   event the server's counters include — exactly the client-model
   divergence P-A warns against. A stopped in-flight request lands,
-  is recorded in history and capture, and then completes `Canceled`.
-  Hard `abort()` is reserved for application shutdown (see the
-  shutdown contract), where history no longer matters.
+  is recorded in history and capture (a 429 still records its
+  violation — D3), and then completes `Canceled`. Hard `abort()` is
+  reserved for application shutdown (see the shutdown contract), where
+  history no longer matters.
 - **No future retention** (resolves ER5): the
   worker does not keep a registry of outstanding futures — the
   stop_source is the abort handle. Each per-fetch coroutine holds its
@@ -190,44 +200,57 @@ hazard is unconstructible:
 
 ### D3. Policy managers become coroutine pumps
 
-Each `RateLimitManager` runs one long-lived coroutine per policy:
+**Revised July 19 (IR round):** each `RateLimitManager` owns a plain
+`std::deque` of entries and an **on-demand drain coroutine** — the
+earlier long-lived awaitable FIFO is deleted (its retention rationale
+was circular; Appendix B). Submission pushes an entry and starts the
+drain task if none is running; since submission is main-thread-only
+(the `Q_ASSERT` stays), "is one running" is a plain bool with no
+races. The drain processes entries until the deque is empty, then
+returns. There is no permanently suspended task and no queue-close
+protocol.
+
+Illustrative shape (the attempt table below is normative):
 
 ```
-loop:
-    entry = co_await m_queue.next()            // awaitable queue; closes at shutdown
-    if stopped(entry): complete Canceled; continue
-    co_await sleepUntil(m_policy->GetNextSafeSend(m_history), entry.token)
-    if stopped(entry): complete Canceled; continue
-    for attempt in 1..MAX_ATTEMPTS:            // 3 total sends: 1 original + 2 retries
-        permit = co_await m_gate.acquire()     // global gate, D5
-        if stopped(entry): complete Canceled; break
-        reply = co_await permit.send(entry)
-        classify per D8; feed capture; record history
-        if Full headers and policy name matches:
-            m_policy->Update(headers)
-        else:
-            log loudly; anomaly is captured    // policy unchanged (D8)
-        emit signals
-        if stopped(entry): complete Canceled; break   // landed & counted; history kept (D2)
-        if 429 with valid Retry-After:                // strict-accepted, [1, 900]
-            emit Violation
-            co_await sleepUntil(max(now + retryAfter + RETRY_BUCKET_PAD + buffer,
-                                    m_policy->GetNextSafeSend(m_history)),
-                                entry.token)          // N19; reconciled deadline
-            continue
-        complete with payload or FetchError
-        break
-    else: complete FetchError{RateLimited}
+drain():                                   // started by submit when none is running
+    while not m_deque.empty():
+        entry = m_deque.pop_front()
+        if stopped(entry): complete Canceled; continue
+        co_await sleepUntil(m_policy->GetNextSafeSend(m_history), entry)  // stop-interruptible
+        if stopped(entry): complete Canceled; continue
+        for attempt in 1..MAX_ATTEMPTS:            // 3 total sends: 1 original + 2 retries
+            permit = co_await m_gate.acquire()     // global gate, D5
+            if stopped(entry): complete Canceled; break
+            reply = co_await permit.send(entry)    // permit held until the reply finishes (D5)
+            record history; feed capture
+            if 429: record violation               // always — before stop/retry decisions
+            if Full headers and policy name matches: m_policy->Update(headers)
+            emit signals
+            outcome per the attempt table; retryable 429 sleeps and continues,
+            everything else breaks with a final outcome
+        release permit; reach a stable pump state; only then complete the promise
 ```
 
-- **One policy-update rule (July 19, replacing round 3's
-  check-before-mutation ordering):** only a Full reply (D8) whose
-  policy name matches updates the pump's policy. *Every* landed reply
-  records its history event — the exchange happened and the server
-  counted it (N25), so pacing must not forget it. A mismatched name or
-  a less-than-Full header set is logged loudly and captured, its
-  payload is still delivered (the data is real), and the pump keeps
-  pacing on its last-known Full policy. Rationale and precedent in D8.
+**Per-send bookkeeping (always first):** every landed reply records
+its history event and its capture record, and every 429 records a
+violation (counter + log) — *before* the stop check and *before* any
+retry decision, because the server counted the exchange (N25)
+regardless of what the client does next.
+
+**Attempt table (normative):**
+
+| Landed reply (after bookkeeping) | Outcome |
+|---|---|
+| entry stopped (entry token or shutdown) | complete `Canceled` (the violation of a stopped 429 is already recorded) |
+| 429, valid `Retry-After`, attempt < `MAX_ATTEMPTS` | stop-interruptible sleep to `max(now + RetryAfter + RETRY_BUCKET_PAD + buffer, GetNextSafeSend(history))`, then re-send |
+| 429, valid `Retry-After`, attempt = `MAX_ATTEMPTS` | complete `FetchError{RateLimited}` **immediately — never sleep on an exhausted attempt** |
+| 429, no valid `Retry-After` | complete `FetchError{Http}` (non-retryable — today's behavior; violation already recorded) |
+| any other non-2xx status | complete `FetchError{Http}` |
+| Qt transport error (incl. alongside a 2xx — D8 precedence) | complete `FetchError{Network}` |
+| clean 2xx, Full headers, matching policy name | `Update(headers)`; complete success (payload) |
+| clean 2xx, headers fail to parse **or** mismatched policy name | complete `FetchError{Protocol}` (strict — D8/IR1) |
+
 - The retry is invisible to callers: the future completes only on a
   final outcome — success, non-retryable error, or retries exhausted.
   P-A (graceful 429 recovery is a first-class requirement) is satisfied
@@ -256,8 +279,10 @@ loop:
 - Retries are bounded (`MAX_ATTEMPTS = 3`) so a systemically broken
   policy cannot hammer the API — each 429 still increments the violation
   counter and logs (N10: layer-4 goodwill is finite).
-- A 429 **without** `Retry-After` is treated as non-retryable (today's
-  behavior) and surfaces as `FetchError{Http}` with the violation logged.
+- **Completion ordering (IR6):** the promise is completed only after
+  the permit is released and the pump has reached a stable state —
+  completion can synchronously run facade parsing and worker
+  continuations (D6), which may immediately re-enter the limiter.
 - `RateLimitPolicy` and its history-based arithmetic are untouched —
   N25/N26 confirmed the pacing empirically exact. The pump calls the
   same `GetNextSafeSend(m_history)`.
@@ -265,12 +290,11 @@ loop:
   `Violation`) are preserved — the status bar and rate-limit dialog keep
   working. The capture instrument keeps its hooks (record every
   exchange including retries, `scheduled` updated on retry).
-- Requires two small primitives (new, `src/ratelimit/`): an awaitable
-  FIFO (`co_await queue.next()`) and the gate below. Estimated ~70
-  lines combined; unit-tested standalone. (Group 4 asked whether the
-  long-lived awaitable FIFO is necessary; answer: yes, retained
-  deliberately — it is small, standalone-tested, and the pump loop is
-  built on it.)
+- Requires two small primitives (new, `src/ratelimit/`), unit-tested
+  standalone with an injected clock: a **stop-interruptible sleep**
+  (QCoro's sleeps take no stop token, so this is required regardless
+  of queue design) and the gate (D5). The deque + drain is ordinary
+  code in the pump, not a primitive.
 
 ### D4. Endpoint setup: probe once, establish or fail cleanly
 
@@ -306,24 +330,27 @@ one policy (ER2 resolved structurally).
   five endpoints, five policies, N23 — but the join is a map lookup
   and it is the documented contract). Parked entries forward to the
   pump in submission order.
-- **HEAD 429 with Full headers** (genuinely reachable: counters
-  persist across restarts, N24, so booting during an active
-  restriction can 429 the boot probe; GGG itself floated
+- **HEAD 429 with Full headers and a valid `Retry-After`** (genuinely
+  reachable: counters persist across restarts, N24, so booting during
+  an active restriction can 429 the boot probe; GGG itself floated
   HEAD-after-429 resync, N16): the reply still teaches the topology —
   establish the pump, with its first send scheduled no earlier than
-  `now + validated Retry-After + RETRY_BUCKET_PAD` (the D3 formula's
-  degenerate case); the HEAD consumes no send attempt.
+  `now + RetryAfter + RETRY_BUCKET_PAD + buffer` (the D3 formula's
+  degenerate case); the HEAD consumes no send attempt. A Full HEAD
+  429 whose `Retry-After` is missing or invalid (IR5) is a **setup
+  failure** under the cooldown below — containment declines to invent
+  a hold time.
 - **Setup failure — anything else:** a HEAD that fails in transport,
-  returns a non-2xx status (including a 429 with less-than-Full
-  headers), or returns 2xx/204 with a less-than-Full header set. Every
-  parked entry for that endpoint completes with the corresponding
-  `FetchError` (`Protocol` for degraded headers, `Network` or `Http`
-  otherwise); the failure is logged at error, surfaced as a
-  user-visible notification, and captured (probes are captured before
-  validation — already implemented); the endpoint resets to `Unknown`
-  under the cooldown below. In a worker update the first failure also
-  triggers `request_stop()`, washing the update's remaining entries
-  through `Canceled`.
+  returns a non-2xx status (including any 429 not covered above), or
+  returns 2xx/204 with headers that fail to parse. Every parked entry
+  for that endpoint completes with the corresponding `FetchError`
+  (`Protocol` for unparseable headers, `Network` or `Http` otherwise);
+  the failure is logged at error, surfaced as a user-visible
+  notification, and captured (probes are captured before validation —
+  already implemented); the endpoint resets to `Unknown` under the
+  cooldown below. In a worker update the first failure also triggers
+  `request_stop()`, washing the update's remaining entries through
+  `Canceled`.
 
   **This is the July 19 reversal of the first round's
   degrade-and-proceed decision** (Tom's call, under the containment
@@ -335,11 +362,11 @@ one policy (ER2 resolved structurally).
   fail with a clear error, the capture records the regression's actual
   shape from the first affected session, and a fallback can then be
   built against evidence instead of guesses. Two invariants bound the
-  failure mode: it must never crash (the D8 validator removes today's
-  UB path — a degraded reply crashes the current parser) and it must
-  never run unpaced. A synthetic default policy remains rejected
-  (inventing pacing numbers GGG never sent). `FatalError` leaves the
-  hub entirely.
+  failure mode: it must never crash (the D8 total parse removes
+  today's UB path — a degraded reply crashes the current parser) and
+  it must never run unpaced. A synthetic default policy remains
+  rejected (inventing pacing numbers GGG never sent). `FatalError`
+  leaves the hub entirely.
 - **Setup-failure cooldown** (round 2): every failure-driven reset to
   `Unknown` records `earliest_next_probe = now +
   max(SETUP_RETRY_COOLDOWN, validated Retry-After when one was
@@ -349,23 +376,25 @@ one policy (ER2 resolved structurally).
   sanction. `SETUP_RETRY_COOLDOWN = 60 s`, named, provisional.
 - **Setup cancellation:** parked entries whose token stops are pruned —
   completed `Canceled` — without affecting the endpoint's state. An
-  in-flight HEAD is never aborted (D2's let-it-land rule): its reply
-  is processed for topology and capture even if every parked entry has
-  been canceled — knowledge the server already charged us for is
-  kept. A probe that succeeds with no live entries simply leaves the
-  endpoint `Established` and idle; a probe that fails applies the
-  normal failure path (the cooldown is failure-driven, not
-  entry-driven). Cancellation alone never installs a cooldown.
+  in-flight HEAD is never aborted outside shutdown (D2's let-it-land
+  rule): its reply is processed for topology and capture even if every
+  parked entry has been canceled — knowledge the server already
+  charged us for is kept. A probe that succeeds with no live entries
+  simply leaves the endpoint `Established` and idle; a probe that
+  fails applies the normal failure path (the cooldown is
+  failure-driven, not entry-driven). Cancellation alone never installs
+  a cooldown.
 - **Established is sticky:** an established endpoint keeps its mapping
   through ordinary request failures (a timeout must not discard valid
   topology and burn a HEAD — N16's sanction is one HEAD at boot), and
-  with the steady-state threshold and rename machinery deleted (D8),
-  **no steady-state event resets topology at all**. Pumps, once
-  created, live until shutdown; a pump left idle suspends on its
-  queue. The hub's maps cannot go stale: a pump's policy name never
-  changes after creation (D8's update rule), unlike today, where
-  `Update()` swaps the policy while `GetManager`'s maps keep the old
-  key forever.
+  **no steady-state event resets topology**: a steady-state `Protocol`
+  error (D8) fails the request, not the endpoint, and self-heals — if
+  the server recovers, the next update's Full replies update the
+  policy normally. Pumps, once created, live until shutdown; a pump
+  with an empty deque simply has no drain task running. The hub's maps
+  cannot go stale: a pump's policy name never changes after creation
+  (D8's update rule), unlike today, where `Update()` swaps the policy
+  while `GetManager`'s maps keep the old key forever.
 - **Ordering and identity during setup:** parked entries keep their
   own submission order. Capture records and queue-status signals label
   parked traffic by endpoint until the endpoint is established, then
@@ -373,14 +402,14 @@ one policy (ER2 resolved structurally).
 
 ### D5. The gate: one object for layer 1
 
-**Scope resolved July 19, 2026 (ER3) — by shrinking the promise, not
-engineering the placement.**
+**Scope resolved July 19 (ER3) by shrinking the promise; contract
+sharpened and forum traffic removed later the same day (IR round).**
 
-A small async gate in the hub through which **every request the hub
-dispatches** passes: the five rate-limited endpoints (the four API
-endpoints plus the legacy stash index) and the forum-thread traffic
-(`Shop` acquires the gate around its GET/POSTs; its scrape-based limit
-protocol is unchanged, N22). Three properties, each a named constant:
+The gate is **internal to the hub**: every send the pumps and the
+setup path dispatch — the five rate-limited endpoints (the four API
+endpoints plus the legacy stash index) — acquires it. It has no
+public API. Three properties, each a named constant, plus three
+contract rules:
 
 - **In-flight cap: 2.** P-B requires re-parallelization to state its
   global burst bound explicitly; this is it. The point is to stop
@@ -388,7 +417,10 @@ protocol is unchanged, N22). Three properties, each a named constant:
   "seconds per request" reality, lanes are rarely ready simultaneously,
   so 2 already captures nearly all of the win. Tunable; revisit with
   capture data.
-- **HEAD exclusive:** a HEAD probe takes the whole gate (N18, F5, N2).
+- **HEAD exclusive, with writer preference (IR6):** a HEAD probe takes
+  the whole gate (N18, F5, N2), and once a HEAD is *waiting*, no new
+  ordinary permits are issued — without this, a busy established pump
+  could starve endpoint setup indefinitely.
 - **Minimum inter-send spacing: 250 ms** across everything the gate
   sees. This is F58's intent — silently dead today — implemented
   deliberately at the right scope: it flattens the ~0.2 s intra-burst
@@ -397,25 +429,34 @@ protocol is unchanged, N22). Three properties, each a named constant:
   of ~17 req/s sustained (N2); this keeps normal traffic an order of
   magnitude inside that. Tunable; revisit with capture data. F58's
   dead code is deleted.
+- **Permit span (IR6):** a permit is held from acquisition until the
+  reply finishes (`QNetworkReply::finished`) — released at dispatch,
+  the in-flight cap would bound nothing.
+- **Completion ordering (IR6):** the permit is released, and the pump
+  reaches a stable state, *before* the entry's promise is completed —
+  promise completion may synchronously re-enter the limiter (D3, D6).
 
-**Scope rationale:** layer 1 watches the user's IP (N2, N22), so the
-gate covers the traffic regimes that share that IP against GGG's API
-infrastructure and can plausibly burst — API, legacy website, forum.
-**Pre-session traffic stays outside**: the login league list and the
-OAuth authorize/token exchanges happen before the hub exists and
-amount to a handful of requests per session; layer 1's one known
-trigger was over a thousand requests in a minute (N2), three orders of
-magnitude away. Documented here as a deliberate exclusion rather than
-worked around with pre-hub gate plumbing. Non-GGG hosts (GitHub,
-imgur, Sentry) and CDN image traffic (poecdn, webcdn) are likewise
-outside — they are not API infrastructure. The gate API is a **permit
-acquired around dispatch** (GET/HEAD/POST alike, OAuth-managed
-requests included), not a `send()` wrapper.
+**Scope rationale:** layer 1 watches the user's IP (N2, N22), and the
+traffic that can plausibly burst is exactly the traffic the hub
+paces. **Pre-session traffic stays outside**: the login league list
+and the OAuth authorize/token exchanges happen before the hub exists
+and amount to a handful of requests per session; layer 1's one known
+trigger was over a thousand requests in a minute (N2), three orders
+of magnitude away. **Forum traffic is likewise outside (IR round,
+reversing this spec's earlier revisions):** `Shop` is strictly
+sequential today — one thread at a time with deliberate delays
+(`shop.cpp:388`) — user-triggered, and has never brushed layer 1; the
+same magnitude argument applies. Gating it bought a public permit
+API, external reply-lifetime tracking, and shutdown obligations for
+non-hub code, for no demonstrated risk reduction. Non-GGG hosts
+(GitHub, imgur, Sentry) and CDN image traffic (poecdn, webcdn) are
+likewise outside — they are not API infrastructure. P-B still holds:
+the stated global bound is the gate cap over the parallel lanes, and
+forum adds at most one slow, serialized request on top.
 
 This resolves the Q10b design question: the redesign *coordinates* the
-API, legacy, and forum regimes at layer 1 (their layer-2 handling is
-untouched — the forum keeps its scrape-based detection in `Shop`) and
-*tolerates* login traffic as-is.
+API and legacy regimes (both flow through the hub) and *tolerates*
+forum and login traffic as-is, documented here.
 
 ### D6. The worker: batch submit, count completions, no flow control
 
@@ -437,6 +478,22 @@ untouched — the forum keeps its scrape-based detection in `Shop`) and
   and the callback pyramid with its flag pairs
   (`m_need_*` / `m_has_*`) collapses into control flow. Completion
   counting (`m_stashes_received` etc.) stays — it drives the status bar.
+- **Post-await identity invariant (IR2):** the update token is the
+  update's identity *only because* every worker coroutine checks
+  `stop_requested()` immediately after every `co_await`, before
+  touching worker state. A future can complete successfully an
+  instant before `request_stop()`; its consumer resumes afterward and
+  must not mutate state that now belongs to a later update. Each
+  per-fetch coroutine has essentially one await site, so the check
+  surface is small; pinned with ready-future tests.
+- **Initialize-before-launch invariant (IR2):** Qt runs `.then`
+  continuations synchronously when attached to an already-finished
+  future, and QCoro resumes without suspending on ready futures — so
+  a fail-fast submission (setup cooldown, shutdown) can run
+  completion logic *during the batch-submit loop*. All per-update
+  counters and batch state are initialized before the first
+  submission is made. Pinned with ready-success and ready-error
+  futures.
 - Failure semantics at the update level are unchanged from M1: a
   terminal failure aborts the update (`request_stop()` on the update's
   stop_source, no emit); atomic per-reply replacement already
@@ -444,10 +501,10 @@ untouched — the forum keeps its scrape-based detection in `Shop`) and
   concerns and are not blocked by anything here.
 - The update generation tag is deleted outright, not shrunk (revised
   July 18): each update owns its stop_source, and identity is carried
-  by the token. A straggler from a stopped update resolves `Canceled`
-  and its coroutine returns silently — there is nothing to compare
-  generations against, and awaiting the straggler is safe by D2's
-  always-finish guarantee. `DiscardIfStale` and `m_update_generation`
+  by the token under the post-await invariant above. A straggler from
+  a stopped update resolves `Canceled` and its coroutine returns
+  silently, and a straggler that resolved successfully is discarded by
+  the invariant's check. `DiscardIfStale` and `m_update_generation`
   go away.
 
 ### D7. The typed facade: `PoeApiClient`
@@ -464,6 +521,12 @@ boundary between domain and network:
   (absorbing the `json::read*Wrapper` calls and their error handling)
   into a `.then()` continuation. Returns
   `QFuture<std::expected<Payload, FetchError>>`.
+- **The parse continuation is exception-tight (IR4):** the `.then`
+  body wraps its work in a catch-all that converts any escaped
+  exception into `FetchError{Parse}` (or `Internal` for a non-parsing
+  failure) — otherwise a throwing continuation produces an
+  exceptional `QFuture`, which crosses the value-only boundary and
+  rethrows out of `co_await`.
 - The worker never sees `QNetworkRequest`, `QNetworkReply`, or bytes;
   networking never sees items. The compiler enforces the boundary.
 - The facade is intentionally boring: no coroutines inside, no state
@@ -471,31 +534,35 @@ boundary between domain and network:
   call parameters, as today).
 - `Shop`'s legacy stash-index call moves to the facade
   (`getLegacyStashIndex`); the forum-thread POSTs keep their own path
-  (their protocol is scrape-based, N22) but acquire the gate (D5).
+  entirely — scrape-based protocol and sequential pacing unchanged
+  (N22), outside the gate (D5).
 
 ### D8. Response classification and header validity
 
-Added July 18, 2026 (group 2 — ER6, ER8; also the source of the N20
-ledger correction). **Simplified July 19**: the tiers collapse to Full
-vs. not-Full, and the steady-state `Protocol` threshold machinery is
-deleted.
+Added July 18, 2026 (group 2 — ER6, ER8). Simplified July 19 (tiers
+collapse to Full vs. not-Full; the steady-state threshold machinery
+deleted), then **corrected in the IR round: steady-state anomalies
+are strict errors, and validation and parsing are one total
+function.**
 
-**Header validity.** A total validation front-end — new code in
-`src/ratelimit/`, leaving `RateLimitPolicy`'s arithmetic untouched —
-classifies every reply's rate-limit headers before anything else
-touches them:
+**Total parsing (IR simplification).** Header validation *is* the
+parser: a total factory in the shape
+`RateLimitPolicy::parse(headers) → std::expected<RateLimitPolicy,
+error>` replaces the current throwing/UB constructors. A separate
+validator in front of the existing parser would implement the same
+grammar twice and let the two drift. The arithmetic methods
+(`GetNextSafeSend` and friends) are untouched — they are the
+empirically validated part (N25, N26). **Full** means the parse
+succeeds, which requires: policy name present; rules list present;
+every named rule has limit and state lists of equal length; every
+triplet is exactly three in-range integers (hits ≥ 0, period > 0,
+restriction ≥ 0); each state period matches its limit period.
+(July 19: the former `NameOnly` tier and its join-an-existing-pump
+shortcut are deleted — the observed topology is strictly 1:1, N23.
+The policy name, when present in a failed parse, is logged and
+captured; that is the detection the containment principle asks for.)
 
-- **Full**: policy name present; rules list present; every named rule
-  has limit and state lists of equal length; every triplet is exactly
-  three in-range integers (hits ≥ 0, period > 0, restriction ≥ 0);
-  each state period matches its limit period.
-- **Not Full**: everything else. (July 19: the former `NameOnly` tier
-  and its join-an-existing-pump shortcut are deleted — the observed
-  topology is strictly 1:1, N23, so a name-only HEAD almost never has
-  a pump to join. The policy name, when present, is logged and
-  captured; that is the detection the containment principle asks for.)
-
-**Only Full replies whose policy name matches the pump's update the
+**Only a Full reply whose policy name matches the pump's updates the
 policy**, and nothing downstream ever indexes an unvalidated triplet.
 This deletes a live UB path found while verifying ER6: today a missing
 header parses to a one-element `[""]` list (Qt's `split` on an empty
@@ -517,76 +584,115 @@ remote closing "before the complete response was received"):
    truncated-body case), and the no-status-at-all transport failures
    (connection refused, timeout, SSL, …) → `FetchError{Network}`,
    carrying the Qt error code and string.
-4. Clean 2xx → header validation (above) → success.
+4. Clean 2xx → total parse (above) → success, or `Protocol`:
 
-**Steady-state anomalies are logged, not errored (July 19).** At
-steady state, a 2xx reply with a less-than-Full header set — or a Full
-set bearing a mismatched policy name (never observed; N9's tempering
-note records years of stable definitions) — **is not an error**: the
-payload is delivered, the history event is recorded, the anomaly is
-logged loudly and captured, and the pump keeps pacing on its
-last-known Full policy. Pacing on a slightly stale model is exactly
-what P-A already prices in; if the model drifts far enough to 429,
-D3's retry path handles it. This replaces the former two-consecutive
-`Protocol` threshold, its per-endpoint counters, the "consecutive"
-bookkeeping rules, and the queue-extraction primitive — machinery
-defending against a steady-state header regression that has never been
-observed (both real regressions were HEAD-specific, N20). `Protocol`
-as an error kind survives only in setup (D4), where strictness is
-cheap and correct: there is no last-known policy to fall back on.
+**Steady-state anomalies are strict errors (IR1 — reversing the
+simplification pass's log-and-continue rule).** A clean 2xx whose
+rate-limit headers fail to parse, or parse to a policy name that does
+not match the pump's, records its history event and capture record,
+logs loudly, and completes `FetchError{Protocol}`. The
+log-and-continue rule was unsound: `GetNextSafeSend` is
+*state-driven*, not history-driven — it returns "send now" whenever
+the stored status is below BORDERLINE (`ratelimitpolicy.cpp:274`) and
+consults history only for rules the stored state says are saturated.
+With updates frozen at an OK state, the pump would send at gate speed
+until the server 429s, retry, succeed with another degraded reply,
+and resume unpaced — *repeated* violations (N10), not P-A's priced-in
+mistimed request. Strictness is also the only honest boundary:
+`expected<Payload, FetchError>` cannot deliver a payload and flag an
+anomaly at once. The worker's existing first-failure `request_stop()`
+ends the update cleanly; the endpoint stays `Established` and
+self-heals (D4). No threshold, no counters, no reset — this is
+containment at its simplest: one anomalous reply, one clean error.
 
 **429 under the tiers:** `Retry-After` is the retry authority — a
-steady-state 429 whose rate-limit headers are less than Full still
-retries per D3 (the pump has a policy for the deadline formula) but
-does not update the policy. A 429 with no valid `Retry-After`
-(missing, unparseable, or outside D3's [1, 900]) is non-retryable:
-`FetchError{Http}`, violation logged. HEAD 429s are handled in D4.
+steady-state 429 whose rate-limit headers fail to parse still retries
+per D3 (the pump has a policy for the deadline formula) but does not
+update the policy; a successful retry whose reply then fails to parse
+completes `Protocol` per the rule above. A 429 with no valid
+`Retry-After` (missing, unparseable, or outside D3's [1, 900]) is
+non-retryable: `FetchError{Http}`, violation recorded. HEAD 429s are
+handled in D4.
 
 **`FetchError` shape:** kind (`Network` / `Http` / `Parse` /
-`Protocol` / `RateLimited` / `Canceled`), endpoint, URL, HTTP status
-(when present), Qt error code and string (when present), message.
-F50's diagnostics rewording rides along here.
+`Protocol` / `RateLimited` / `Internal` / `Canceled`), endpoint, URL,
+HTTP status (when present), Qt error code and string (when present),
+message. F50's diagnostics rewording rides along here.
 
 ## Shutdown and task ownership
 
-Added July 18, 2026 (ER4): the coroutine design
-needs an explicit teardown contract, not an implicit one.
+Added July 18, 2026 (ER4); **rewritten in the IR round (IR3, IR4):**
+the original sequence could not reach a pump suspended in a
+several-minute pacing sleep, and the always-finish guarantee did not
+survive exceptions.
 
-**Ownership chain:** the hub owns the gate and the pumps; each pump
-owns its queue and its loop coroutine; the worker owns its update
-coroutines; the facade owns nothing stateful. The hub lives for the
-application session — teardown below happens only at shutdown.
+**Ownership chain:** the hub owns the gate, the pumps, and a
+**shutdown `std::stop_source`**; each pump owns its deque and its
+drain-task handle (a member — never fire-and-forget); the worker owns
+its update-task handle as a member; the facade owns nothing stateful.
+Task-handle destruction order and destroy-while-suspended semantics
+are verified by the phase-0 QCoro spike before any of this is built.
+The hub lives for the application session — teardown below happens
+only at shutdown.
 
-**Teardown sequence** (hub destruction):
+**Every wait observes shutdown.** The pacing sleep, the retry sleep,
+and gate acquisition all take the entry token *and* the hub's
+shutdown token; every D2 checkpoint checks both. This — not queue
+closure — is what reaches a pump mid-sleep. (With the deque + drain
+design there are no queue-close semantics at all.)
 
-1. The hub stops accepting submissions (submits after this point
-   complete immediately with `Canceled`).
-2. Queues close: every queued promise completes `Canceled`; each
-   pump's `queue.next()` await resumes with a closed signal and the
-   loop coroutine runs to completion.
-3. In-flight replies are `QNetworkReply::abort()`ed — the one place
-   hard abort is permitted (D2): history no longer matters at
-   shutdown. The abort resumes the pump's reply await with an error;
-   the iteration completes (promise finished) before the pump object
-   is destroyed.
-4. The gate wakes all waiters with a shutdown outcome and issues no
-   further permits.
-5. Only then are pumps destroyed.
+**Teardown sequence** (hub shutdown):
+
+1. The hub requests stop on its shutdown source and stops accepting
+   submissions (submits after this point complete immediately with
+   `Canceled`).
+2. Every suspended wait — pacing sleeps, retry sleeps, gate waits —
+   wakes promptly via the shutdown token; each drain completes its
+   active entry `Canceled` and then drains its remaining deque
+   entries as `Canceled` without sending. Hub-parked setup entries
+   complete `Canceled`.
+3. In-flight replies — including a HEAD probe — are
+   `QNetworkReply::abort()`ed: the one place hard abort is permitted
+   (D2); history no longer matters at shutdown. The abort resumes the
+   drain's reply await; the shutdown checkpoint there forbids any
+   retry or gate re-acquisition, and the entry completes `Canceled`.
+4. The gate wakes all remaining waiters with a shutdown outcome and
+   issues no further permits.
+5. Only after every drain task has run to completion are pumps
+   destroyed; the worker's update task is completed or destroyed
+   (per the spike's verified semantics) before `ItemsManagerWorker`.
 
 **Invariant: no coroutine resumes through a destroyed `this`.** Every
-suspension point a pump or worker task uses (queue, gate, sleep,
-reply, future) must either resume before its owner is destroyed
-(steps 2–4 guarantee this for pumps) or be safely destructible while
-suspended — which is why QCoro ≥ 0.13 is a hard floor: it fixed the
-leak when a task is destroyed while awaiting a `QFuture`.
+suspension point a pump or worker task uses (sleep, gate, reply,
+future) must either resume before its owner is destroyed (steps 2–4
+guarantee this for pumps) or be safely destructible while suspended —
+which is why QCoro ≥ 0.13 is a hard floor: it fixed the leak when a
+task is destroyed while awaiting a `QFuture`.
 
-**Exception policy:** boundary payloads are `expected`, so an
+**Exception policy (IR4).** Boundary payloads are `expected`, so an
 exception crossing a layer boundary is a bug — but coroutine bodies
-can still throw (Qt, stdlib). Every top-level task entry point (pump
-loops, the worker's update task) wraps its body in a catch-all that
-logs and fails the operation safely; no fire-and-forget task is left
-unobserved, so no exception can vanish silently (QCoro stores
-unhandled task exceptions for a co_await that may never come).
+can still throw (Qt, stdlib). Logging alone is not containment: a
+pump loop that dies leaves every queued promise unfinished — a wedge
+(F57's ghost) — and destroying a `QPromise` notifies its future
+*without a result*, exactly the resultless state D2 exists to make
+unconstructible. Therefore:
+
+- Every dequeued or parked entry is protected by a **scoped
+  completion guard**: if the promise has not been completed when the
+  guard unwinds — any exceptional path included — it completes
+  `FetchError{Internal}`.
+- A pump whose drain escapes with an exception enters a **terminal
+  failed state**: the event is logged loudly and captured, remaining
+  and future submissions to that pump complete `FetchError{Internal}`
+  fast, and no restart is attempted (restart-on-throw risks a tight
+  crash loop; terminal-and-loud is the containment answer — the app
+  keeps running, the next session starts clean).
+- The worker's top-level update task keeps its catch-all: log, fail
+  the update safely. The facade's parse continuations are
+  exception-tight (D7). No fire-and-forget task exists anywhere
+  (handles are owned members), so no exception can vanish silently
+  (QCoro stores unhandled task exceptions for a co_await that may
+  never come).
 
 ## What gets deleted
 
@@ -599,7 +705,7 @@ fail the affected requests cleanly instead of killing the app), F58's
 dead `last_send` block, and `tests/fakenetwork.h`'s `FakeRateLimiter`
 (replaced by a facade fake). The pinball machine
 (`ActivateRequest`/`SendRequest`/`ReceiveReply` state smear) is
-replaced by the pump loop.
+replaced by the drain loop.
 
 ## Dependency: QCoro
 
@@ -612,6 +718,10 @@ replaced by the pump loop.
   while awaiting a `QFuture`, which the shutdown contract leans on.
   (The spec's first draft said 0.11.x was current — stale; caught by
   ER9.)
+- **FetchContent hygiene (IR round):** QCoro's examples default ON
+  and its tests inherit `BUILD_TESTING`, which acquisition enables
+  globally — both must be disabled explicitly in the FetchContent
+  configuration.
 - Qt has **no native** `QFuture` coroutine support as of 6.11; an
   upstreaming effort exists targeting 6.12 at the earliest. If it
   lands, the future-awaiting uses of QCoro can migrate; the
@@ -630,10 +740,9 @@ replaced by the pump loop.
 ## Testing plan (harness-first, non-negotiable)
 
 Ordering is part of the spec, because the pump rewrite touches the most
-battle-tested code in the app. (Pruned July 19: the pins for the
-deleted Discovery, `Protocol`-threshold, and rename machinery are
-gone; the group-4 asks — an injected clock and integration coverage —
-are folded in.)
+battle-tested code in the app. (Revised in the IR round: pins added
+for IR1–IR6; primitives are now the gate and the stop-interruptible
+sleep.)
 
 1. **Manager harness before any rewrite.** A `RateLimitManager`-level
    test rig with a fake sender serving synthetic `X-Rate-Limit-*`
@@ -644,61 +753,98 @@ are folded in.)
    pin, then flipped by the pump).
 2. **The pump must pass the same harness**, minus the pinned bugs, plus
    new pins: 429 → retry with N19 padding → caller sees exactly one
-   final completion; retries exhausted → `FetchError{RateLimited}`;
+   final completion; retries exhausted → `FetchError{RateLimited}`
+   **completed immediately after the final 429, with no retry sleep**;
    stop while queued → completes `Canceled`, never sent; stop during
    the pacing sleep, a gate wait, or a retry sleep → wakes promptly,
    completes `Canceled`, nothing sent; stop while in flight → the
-   reply lands, history and capture record it, then `Canceled` (and
+   reply lands, history and capture record it — **and a stopped
+   in-flight 429 still records its violation** — then `Canceled` (and
    `QNetworkReply::abort()` is never called outside shutdown — N25);
    **the ER1 regression pin**: two awaited fetches, one fails
    and stops the update while the sibling is still suspended — the
    sibling must resume safely into a finished `Canceled` future;
-   a steady-state reply with degraded headers or a mismatched policy
-   name delivers its payload, records its history event, leaves the
-   pump's policy byte-for-byte un-updated, and stops nothing;
-   `Retry-After` validation vectors (missing / 0 / negative /
-   non-numeric / > 900); shutdown mid-update → queues close, every
-   promise finishes, no leaked coroutine frames.
-3. **Setup and validation pins**: a Full-vs-not-Full validation suite
-   over malformed headers — missing rules list, missing per-rule
-   headers, short triplets, non-numeric fields, mismatched periods
-   (the current parser's UB inputs become ordinary test vectors); each
-   setup-failure flavor (transport error, non-2xx, degraded 2xx
+   a steady-state reply with unparseable headers or a mismatched
+   policy name records history and capture, leaves the policy
+   byte-for-byte un-updated, and completes `Protocol` — and the pump
+   sends nothing unpaced afterward (IR1); `Retry-After` validation
+   vectors (missing / 0 / negative / non-numeric / > 900); **drain
+   lifecycle**: submit while a drain is running joins it, submit
+   after it finished starts a new one, the drain exits when the deque
+   empties; **exception pins (IR4)**: an exception escaping the drain
+   completes the active entry `Internal`, puts the pump in its
+   terminal failed state, and later submissions fail fast `Internal`;
+   a throwing facade parse continuation yields a `Parse`/`Internal`
+   *value*, never an exceptional future.
+3. **Setup and validation pins**: a total-parse suite over malformed
+   headers — missing rules list, missing per-rule headers, short
+   triplets, non-numeric fields, mismatched periods (the current
+   parser's UB inputs become ordinary test vectors); each
+   setup-failure flavor (transport error, non-2xx, unparseable 2xx
    headers) fails every parked entry with the right `FetchError` kind
    and sets the cooldown; a caller resubmitting from its completion
    handler cannot provoke a probe inside `SETUP_RETRY_COOLDOWN`; a
-   Full HEAD 429 establishes the pump with the first send held past
-   Retry-After + pad, consuming no attempt; a non-Full HEAD 429 is a
-   setup failure whose cooldown honors Retry-After; an established
-   endpoint keeps its topology through an ordinary timeout (no HEAD
-   re-probe); setup cancellation — canceled parked entries complete
-   `Canceled` without disturbing the endpoint state, an in-flight
-   probe's reply still establishes the endpoint after all entries
-   cancel, and cancellation alone never installs a cooldown;
-   concurrent endpoint setups serialize their HEADs at the gate; an
-   idle pump persists to shutdown without leaking or waking.
-4. **Primitives tested standalone**: awaitable queue (FIFO order,
-   cancellation), gate (cap, exclusivity, spacing floor) — pure logic,
-   fast tests, with an **injected monotonic clock/scheduler** (group
-   4) so timing behavior is deterministic and the tests never sleep.
+   Full HEAD 429 with a valid Retry-After establishes the pump with
+   the first send held past `Retry-After + pad + buffer`, consuming
+   no attempt; a Full HEAD 429 **without** a valid Retry-After, and a
+   non-Full HEAD 429, are setup failures whose cooldown honors
+   Retry-After when validly present; an established endpoint keeps
+   its topology through an ordinary timeout (no HEAD re-probe);
+   setup cancellation — canceled parked entries complete `Canceled`
+   without disturbing the endpoint state, an in-flight probe's reply
+   still establishes the endpoint after all entries cancel, and
+   cancellation alone never installs a cooldown; concurrent endpoint
+   setups serialize their HEADs at the gate; an idle pump persists to
+   shutdown without leaking or waking.
+4. **Primitives tested standalone** with an **injected monotonic
+   clock/scheduler** (group 4) so timing behavior is deterministic
+   and the tests never sleep: the stop-interruptible sleep (wakes on
+   either token, completes on deadline) and the gate — cap, HEAD
+   exclusivity **with writer preference** (a waiting HEAD blocks new
+   ordinary permits; a busy pump cannot starve setup), spacing floor,
+   and **permit span** (a permit is held until the reply finishes;
+   the cap genuinely bounds in-flight requests).
 5. **Worker tests move to a facade fake** ("when asked for stash X,
    return this tab / this error") — simpler than today's byte-crafting
    `FakeRateLimiter`, and it closes the fake-bypasses-the-managers blind
    spot. Existing worker-update behavior pins (`tst_workerupdate.cpp`)
-   are ported, not weakened.
-6. **Integration coverage** (group 4): cancellation races across
-   layers (abort mid-pacing-sleep, mid-gate-wait, mid-flight),
-   host/gate classification (what does and does not acquire the gate),
-   shutdown mid-update, and completed-future retention (memory does
-   not grow with completed fetches across a long update).
+   are ported, not weakened. **IR2 invariant pins**: an
+   already-finished success and an already-finished error future
+   (fail-fast submit) run their continuations synchronously during
+   the batch-submit loop without corrupting counters
+   (initialize-before-launch); a fetch that completed successfully
+   just before `request_stop()` resumes its consumer afterward and
+   mutates nothing (post-await identity).
+6. **Integration coverage** (group 4 + IR3): cancellation races across
+   layers (abort mid-pacing-sleep, mid-gate-wait, mid-flight);
+   **shutdown reaches every suspension** — teardown while a pump is
+   mid-pacing-sleep, mid-retry-sleep, and mid-gate-wait completes
+   promptly with every promise finished and no leaked frames;
+   shutdown mid-update; completed-future retention (memory does not
+   grow with completed fetches across a long update).
 7. Every commit compiles and passes `ctest` (working rule #2). The
    capture instrument's tests (`tst_networkcapture.cpp`) must keep
    passing — captures are live research data (Q5, Q9).
 
 ## Phasing sketch (an implementation plan derives from this)
 
+0. **QCoro integration spike (IR round; gates everything
+   QCoro-dependent).** A throwaway target exercising: task-handle
+   ownership and destruction while suspended on each awaitable we use
+   (future, reply, timer); awaiting already-finished futures;
+   `result()` vs `takeResult()` on the single-consumer path (the
+   worker should move the parsed payload out, not copy a stash
+   wrapper); synchronous promise-completion re-entrancy; stopped
+   waits. Plus the FetchContent hygiene flags (QCoro examples off,
+   tests out of our CTest). Findings feed back into D2/D6/shutdown
+   before any production code. **Alongside it, one measurement:**
+   batch submission at the 2,000-tab scale the items-pipeline doc
+   names — peak memory and abort cost for the full
+   promise/future/frame/token population. Measure first; bounded
+   flow control is speculative machinery until numbers demand it.
 1. Manager test harness against current code (no behavior change).
-2. QCoro dependency + primitives (queue, gate) with their tests.
+2. QCoro dependency + primitives (stop-interruptible sleep, gate)
+   with their tests.
 3. Pump rewrite inside `RateLimitManager`; hub gains the gate and async
    HEAD setup. Boundary still the old `Submit` shape via a thin adapter
    so the worker compiles unchanged. Resolves F57, F58, F5-modernization.
@@ -739,10 +885,10 @@ tests in the same PR.
 ## Appendix B — Review history
 
 This appendix preserves the decision history: the first review round's
-open items, the external review backlog, and the revision log. The
-July 19 simplification pass superseded several earlier resolutions;
-where it did, both the original resolution and the reversal are
-recorded. Git history holds the full text of superseded designs.
+open items, the external review backlog, the July 19 simplification
+pass, and the implementation-readiness review. Where a later round
+superseded an earlier resolution, both are recorded. Git history holds
+the full text of superseded designs.
 
 ### Open items from the first review round — resolved July 18, 2026
 
@@ -766,7 +912,8 @@ recorded. Git history holds the full text of superseded designs.
    `RateLimitManager`'s name is decided when phase 3 rewrites the file
    anyway — rename is free at that moment and never again; proposals
    welcome then. Naming care goes to the new primitives (the gate, the
-   awaitable queue), which have no history and will be read forever.
+   stop-interruptible sleep), which have no history and will be read
+   forever.
 
 ### External review backlog
 
@@ -779,12 +926,12 @@ permanent `F` numbers.
 |---|---|---|---|
 | ER1 | Cancellation and lifetime | Canceling a `QFuture` already awaited by a sibling coroutine makes QCoro call `result()` before a post-await liveness guard can run. | Resolved in D1/D2: stop tokens replace QFuture cancellation and every future finishes with a value. |
 | ER2 | Degraded HEAD and topology | A provisional pump does not guarantee exactly one unpaced request; multiple provisional/established pumps can overlap, and queue-only merging loses history and ordering. | Resolved in D4: explicit endpoint state machine; no provisional pump exists. (July 19: the Discovery state that resolution introduced was itself deleted — setup now fails cleanly instead of degrading through a discovery GET; the no-two-pumps property stands.) |
-| ER3 | Gate ownership and scope | A hub-owned gate cannot cover pre-session login/OAuth traffic; the literal host wildcard also includes legacy CDN image traffic, and the API must accommodate GET/HEAD/POST. | Resolved July 19 in D5 by shrinking the scope: the gate covers hub-dispatched traffic only; pre-session login/OAuth traffic is a documented exclusion (N2 magnitude rationale); CDN hosts are outside; the API is a permit around dispatch. |
-| ER4 | Cancellation and lifetime | Cancellation checkpoints, interruptible waits, top-level task ownership, and teardown were unspecified; a stopped request could still send or a coroutine could resume through a destroyed owner. | Resolved in D2/D3 and the shutdown/task-ownership section. |
+| ER3 | Gate ownership and scope | A hub-owned gate cannot cover pre-session login/OAuth traffic; the literal host wildcard also includes legacy CDN image traffic, and the API must accommodate GET/HEAD/POST. | Resolved July 19 in D5 by shrinking the scope: pre-session login/OAuth traffic is a documented exclusion (N2 magnitude rationale); CDN hosts are outside. (IR round, same day: forum traffic also excluded — the gate is fully internal to the hub, no public permit API.) |
+| ER4 | Cancellation and lifetime | Cancellation checkpoints, interruptible waits, top-level task ownership, and teardown were unspecified; a stopped request could still send or a coroutine could resume through a destroyed owner. | Resolved in D2/D3 and the shutdown/task-ownership section (IR3 later added the hub shutdown stop_source the teardown sequence was missing). |
 | ER5 | Cancellation and lifetime | Retaining every facade future for abort can retain completed parsed payloads for a multi-hour update. | Resolved in D2: the stop source is the abort handle and no future registry exists. |
-| ER6 | Degraded HEAD and topology | Header validity and policy-name/topology changes are not modeled; the current parser assumes structurally valid triplets and current hub maps can remain keyed by an old policy name. | Resolved in D8 (validation front-end — verification found the missing-header path is UB in today's parser, N20 corrected) and D4/D8 (July 19: rename handling simplified to log-and-capture with the policy un-updated; hub maps cannot go stale because a pump's name never changes). |
-| ER7 | Degraded HEAD and topology | Retry timing is underspecified: the applicable bucket depends on Q4, the attempt count is ambiguous, and the retry deadline should be reconciled with policy and gate deadlines. | Resolved in D3: deadline = max(padded Retry-After, GetNextSafeSend) through the gate; unconditional 60 s pad (round 2) fully decouples Q4; Retry-After strict-accepted in [1, 900]; 3 = total sends. |
-| ER8 | Degraded HEAD and topology | `FetchError` needs precise HTTP-vs-network precedence and a protocol/header failure that can represent a successful HTTP response with unusable rate-limit headers. | Resolved in D1/D8: status-first precedence, `Protocol` kind, full field inventory. (July 19: `Protocol` is now setup-only; steady-state degraded headers are logged, not errored.) |
+| ER6 | Degraded HEAD and topology | Header validity and policy-name/topology changes are not modeled; the current parser assumes structurally valid triplets and current hub maps can remain keyed by an old policy name. | Resolved in D8 (verification found the missing-header path is UB in today's parser, N20 corrected) and D4/D8 (July 19: rename handling simplified; hub maps cannot go stale because a pump's name never changes; IR1 made steady-state anomalies strict `Protocol` errors). |
+| ER7 | Degraded HEAD and topology | Retry timing is underspecified: the applicable bucket depends on Q4, the attempt count is ambiguous, and the retry deadline should be reconciled with policy and gate deadlines. | Resolved in D3: deadline = max(padded Retry-After, GetNextSafeSend) through the gate; unconditional 60 s pad (round 2) fully decouples Q4; Retry-After strict-accepted in [1, 900]; 3 = total sends. (IR5 later fixed the exhausted-attempt sleep and violation-ordering holes and made the attempt table normative.) |
+| ER8 | Degraded HEAD and topology | `FetchError` needs precise HTTP-vs-network precedence and a protocol/header failure that can represent a successful HTTP response with unusable rate-limit headers. | Resolved in D1/D8: status-first precedence, `Protocol` kind, full field inventory. (IR round added `Internal`.) |
 | ER9 | Cancellation and lifetime | QCoro 0.11 was stale; 0.13 contains directly relevant QFuture-destruction and FetchContent fixes, and C++23 alone does not enforce the claimed compiler floor. | Resolved in the dependency section. |
 
 **Round 2 (July 18, group 2 re-review):** nine corrections to the
@@ -813,13 +960,55 @@ against the containment principle. Outcomes: the Discovery state
 deleted (degraded HEAD = clean setup failure — Tom's explicit call:
 "I'd rather have an error … if that allows us to simplify"); the
 steady-state `Protocol` threshold, per-endpoint counters, and
-queue-extraction primitive deleted (stale-policy pacing is P-A's
-priced-in residual); rename handling reduced to log-and-capture; the
-`NameOnly` tier deleted; the gate's scope shrunk to hub-dispatched
-traffic (also resolving ER3); the awaitable FIFO **retained**
-deliberately (small, standalone-tested, the pump loop's foundation);
-the injected clock/scheduler and integration coverage folded into the
-testing plan (items 4 and 6).
+queue-extraction primitive deleted; rename handling reduced to
+detection; the `NameOnly` tier deleted; the gate's scope shrunk (also
+resolving ER3); the injected clock/scheduler and integration coverage
+folded into the testing plan. *(The pass initially retained the
+awaitable FIFO; the implementation-readiness review below reversed
+that hours later — deque + on-demand drain — and corrected the pass's
+log-and-continue rule for steady-state anomalies, IR1.)*
+
+### Implementation-readiness review — July 19, 2026 (Tom)
+
+After the simplification pass, Tom reviewed the spec line-by-line
+against the code and the Qt/QCoro documentation: six findings, three
+further simplifications, and four pre-implementation investigations —
+all verified and adopted in revision 3.
+
+| ID | Finding | Resolution |
+|---|---|---|
+| IR1 | "Pace on the last-known policy" was unsound: `GetNextSafeSend` is state-driven (`ratelimitpolicy.cpp:274` returns *now* whenever the stored status is OK), so frozen-OK state means unpaced sends until 429 — repeatedly, since the retry then succeeds degraded. | D8: a steady-state parse failure or name mismatch records history + capture and completes `Protocol` immediately; the worker's first-failure stop ends the update; the endpoint stays Established and self-heals. Simpler than the rule it replaces. |
+| IR2 | A stop token is not an update-generation barrier by itself: a future can succeed just before `request_stop()` and its consumer resumes after; Qt runs `.then` continuations synchronously on already-finished futures. | D6: post-await identity invariant and initialize-before-launch invariant, both pinned (ready-success/ready-error futures; late-resuming successful straggler). Generation tag stays deleted. |
+| IR3 | The teardown sequence could not reach a pump suspended in a pacing/retry sleep or gate wait (queue closure only wakes a dequeue), and an aborted reply's entry could still retry during shutdown; worker task ownership was vague. | Shutdown rewritten: hub-owned shutdown stop_source observed at every wait and checkpoint; explicit completion inventory (active entries, deque remainders, parked setup entries, HEAD probes, gate waiters); task handles are owned members with destruction order verified by the spike. |
+| IR4 | Always-finish was incomplete under exceptions: a dead pump loop wedges queued promises behind a dead consumer, and a destroyed `QPromise` notifies its future without a result — the exact resultless state D2 forbids. | D1 `Internal` kind; scoped completion guard on every entry; terminal pump-failed state that fail-fasts later submissions; facade parse continuations exception-tight (D7). |
+| IR5 | Retry-loop holes: an exhausted attempt slept up to ~961 s before reporting; violation recording was inconsistent (non-retryable and stopped 429s uncounted); Full-HEAD-429-without-valid-Retry-After was undefined; D3/D4 disagreed on the buffer term. | D3: normative attempt table; bookkeeping (history, capture, violation) always precedes stop/retry decisions; exhaustion completes immediately. D4: Full HEAD 429 without valid Retry-After is a setup failure. Buffer term unified. |
+| IR6 | Gate contract underspecified: a permit released at dispatch makes the cap meaningless; without writer preference a busy pump starves HEAD setup; completing a promise before releasing the permit invites synchronous re-entrancy. | D5: permit span = acquisition through reply-finished; HEAD writer preference; release-permit-and-stabilize-before-completing rule (restated in D3). |
+
+**Simplifications adopted:** the awaitable FIFO deleted — deque +
+on-demand drain coroutine (no permanently suspended task, no
+queue-close semantics; the earlier "the pump is built on it"
+retention rationale was circular, and the genuinely required
+primitive was the stop-interruptible sleep all along, since QCoro's
+sleeps take no stop token); forum traffic removed from the gate
+(`Shop` is strictly sequential with deliberate delays, `shop.cpp:388`
+— the login-traffic magnitude argument applies identically, and the
+gate becomes fully internal with no public API); validation and
+parsing unified into a single total `parse(headers) → expected`
+(the same grammar implemented twice would drift; arithmetic
+untouched).
+
+**Pre-implementation investigations:** the phase-0 QCoro spike (task
+destruction, ready futures, `result()` vs `takeResult()`, synchronous
+completion re-entrancy, stopped waits); the 2,000-tab batch-scale
+measurement (memory and abort cost — measure before adding flow
+control); QCoro FetchContent example/test flags. All folded into the
+phasing sketch.
+
+**Standing boundary (restated from the review):** no further design
+effort on policy-rename recovery, degraded-HEAD discovery, endpoint
+migration, reprioritization, or gate-constant tuning. Detecting those
+conditions and failing cleanly is the right level until real evidence
+arrives.
 
 ### Revision log
 
@@ -855,25 +1044,35 @@ testing plan (items 4 and 6).
   check ordered before mutation; discovery seeding restricted to new
   pumps; HEAD 429 defined; setup cancellation specified; pumps live
   to shutdown; round-3 pins added.
-- **July 19, 2026 (simplification pass — this revision)** — Tom
-  reviewed the accumulated design against the containment principle
-  and directed a simplification; groups 3 and 4 resolved in the same
-  pass. **Deleted:** the Discovery state and all its machinery
-  (degraded or failed HEADs now fail the endpoint's requests cleanly
-  under the setup cooldown — reversing the first round's
-  degrade-and-proceed decision; rationale in D4); the steady-state
-  `Protocol` threshold, per-endpoint consecutive counters, and the
-  queue-extraction primitive (steady-state header anomalies are
-  logged and captured while the pump paces on its last-known policy);
-  rename containment (same treatment; a pump's policy name never
-  changes after creation); the `NameOnly` tier and join shortcut.
-  **Resolved:** ER3 by shrinking the gate to hub-dispatched traffic
-  with pre-session login traffic as a documented exclusion; group 4
-  by this pass itself, with the injected clock and integration
-  coverage folded into the testing plan and the awaitable FIFO
-  retained deliberately. **Kept from the review rounds:** everything
-  in groups 1's resolution, the retry-timing formula and constants,
-  the setup cooldown, the Full-HEAD-429 rule, transport-error
-  precedence, and the let-it-land cancellation rules. The spec was
+- **July 19, 2026 (simplification pass)** — Tom reviewed the
+  accumulated design against the containment principle and directed a
+  simplification; groups 3 and 4 resolved in the same pass.
+  **Deleted:** the Discovery state and all its machinery (degraded or
+  failed HEADs now fail the endpoint's requests cleanly under the
+  setup cooldown — reversing the first round's degrade-and-proceed
+  decision); the steady-state `Protocol` threshold, per-endpoint
+  consecutive counters, and the queue-extraction primitive; rename
+  containment; the `NameOnly` tier and join shortcut. **Resolved:**
+  ER3 by shrinking the gate with pre-session login traffic as a
+  documented exclusion; group 4 by the pass itself. The spec was
   rewritten clean from the surviving decisions; review history moved
   to this appendix. Status returned to **accepted**.
+- **July 19, 2026 (implementation-readiness review — this revision,
+  rev. 3)** — Tom's line-level review against the code and Qt/QCoro
+  docs; six findings (IR1–IR6), three simplifications, four
+  investigations, all adopted. **Substantive reversals:** steady-state
+  degraded or mismatched headers are a strict `Protocol` error (IR1 —
+  the simplification pass's log-and-continue rule was silent
+  continuation on bad state: the arithmetic is state-driven and a
+  frozen-OK policy paces nothing); the awaitable FIFO is deleted
+  (deque + on-demand drain); forum traffic leaves the gate (fully
+  internal now). **Added — invariants and error paths, not
+  mechanism:** hub shutdown stop_source observed at every wait;
+  `Internal` error kind with scoped completion guards and a terminal
+  pump-failed state; worker post-await and initialize-before-launch
+  invariants; gate permit span, HEAD writer preference, and
+  complete-promise-last ordering; the normative attempt table
+  (exhaustion never sleeps; violations recorded before stop/retry
+  decisions; Full HEAD 429 without valid Retry-After = setup
+  failure); phase-0 QCoro spike and 2,000-tab measurement;
+  exception-tight facade continuations; QCoro FetchContent hygiene.
