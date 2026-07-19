@@ -1,19 +1,26 @@
 # Network Redesign: Typed Facade, Coroutine Pumps, and the Gate
 
-**Status: ACCEPTED July 19, 2026 (revision 7) — frozen for
-implementation.** Drafted July 18 and reviewed through six rounds in
-two days, plus one post-freeze errata batch (rev 7: eight
-corrections and contract completions, all shrinking — R7 in the
-review history). The review process converged (later rounds found
-contradictions among earlier fixes and resolved them by deletion),
-so further findings are filed against phase-0/harness evidence, not
-re-readings; any further paper finding must show a false statement
-or a missing harness-needed contract. The finding tables (ER, IR,
-R4-\*, R5-\*, R6-\*, R7), the round narratives, the reversal
-records, and the revision log live in `network-redesign-reviews.md`;
-this spec records only current decisions and cites finding IDs
-inline where a decision's shape came from a review. No code has been
-written against this spec.
+**Status: ACCEPTED July 19, 2026 (revision 8) — frozen for
+implementation; phase-0 spike executed.** Drafted July 18 and
+reviewed through six rounds in two days, plus one post-freeze errata
+batch (rev 7: eight corrections and contract completions, all
+shrinking — R7 in the review history). The review process converged
+(later rounds found contradictions among earlier fixes and resolved
+them by deletion), so further findings are filed against
+phase-0/harness evidence, not re-readings; any further paper finding
+must show a false statement or a missing harness-needed contract.
+Rev 8 is the first such evidence round: the phase-0 QCoro spike
+(round S1, code in `spikes/qcoro/`) falsified R5-2's
+destroy-while-suspended mechanism — QCoro task handles detach, not
+destroy — and the shutdown section now rests on
+detach-plus-no-delivery (S1-1..S1-4); every other spike-tested
+premise held (S1-5..S1-10). The finding tables (ER, IR, R4-\*,
+R5-\*, R6-\*, R7, S1), the round narratives, the reversal records,
+and the revision log live in `network-redesign-reviews.md`; this
+spec records only current decisions and cites finding IDs inline
+where a decision's shape came from a review. No production code has
+been written against this spec; the spike is throwaway evidence, not
+production code.
 
 This document specifies the redesign of acquisition's rate-limited
 networking: how the items worker, the rate limiter, and the network
@@ -195,7 +202,19 @@ hazard is unconstructible:
   and worker coroutine onto the current stack — exactly the unbounded
   re-entrancy D5's complete-promise-last rule exists to avoid. The
   stop-interruptible sleep and the gate implement wake-on-stop as a
-  queued resume; verified by the phase-0 spike.
+  queued resume; spike-verified (S1-5): `std::stop_callback` runs
+  synchronously inside `request_stop()`, the queued indirection
+  delivers the contract, and QCoro's `QFuture` awaiter itself
+  resumes through the event loop (`QFutureWatcher`), so promise
+  completion never re-enters an awaiter synchronously. (Completion
+  of a *task* awaited by another coroutine, by contrast, resumes the
+  awaiter synchronously on the completing stack — S1-9.)
+- **Destroying a task handle is never cancellation (S1-4):** QCoro
+  0.13 task handles are shared references, not owners — destroying
+  one while the coroutine is suspended *detaches* the frame, which
+  survives and resumes normally when its awaited event is delivered
+  (see the shutdown section). The stop token is the only cancellation
+  channel; handle sweeps destroy completed tasks only (D6).
 - **In-flight requests are never `QNetworkReply::abort()`ed by
   cancellation.** The server has already counted an in-flight request
   (N25: state headers are post-increment, 1:1); aborting it would
@@ -205,11 +224,12 @@ hazard is unconstructible:
   is recorded in history and capture (a 429 still records its
   violation — D3), and then completes `Canceled`. **`abort()` is
   never called at all (R6-1):** its one remaining purpose — waking
-  awaiters at shutdown — vanished when R5-2 made shutdown destroy
-  the awaiters first. At shutdown a still-in-flight reply is
-  released by its owning frame's destruction (D3's dispatch-time
-  wrapper) and finally cleaned up by its `QNetworkAccessManager`
-  parent.
+  awaiters at shutdown — vanished when R5-2 made shutdown stop
+  delivering events to the awaiters. At shutdown a still-in-flight
+  reply is cleaned up by its `QNetworkAccessManager` parent — the
+  only shutdown cleanup, since the owning frame is detached, not
+  destroyed, and its RAII wrapper never runs there (S1-3); the
+  wrapper owns the reply on every live-session path.
 - **No future retention** (resolves ER5): the
   worker does not keep a registry of outstanding futures — the
   stop_source is the abort handle. Each per-fetch coroutine holds its
@@ -598,7 +618,10 @@ forum and login traffic as-is, documented here.
   frame it is running in, and **abort never destroys live handles**
   — rev 4's released-on-abort rule contradicted D2's
   stragglers-resolve-later contract; stragglers finish `Canceled`
-  (bounded by the transfer timeout) and are then swept. No
+  (bounded by the transfer timeout) and are then swept. The sweep
+  destroys **completed** tasks only — destroying a suspended task's
+  handle would detach it, not stop it (S1-1/S1-4), and the frame
+  would still resume later while the loop runs. No
   incremental per-completion reclamation beyond that sweep until the
   measurement demands it. "Update done" remains completion counting:
   each per-fetch coroutine increments its counter after its await
@@ -618,14 +641,18 @@ forum and login traffic as-is, documented here.
   must not mutate state that now belongs to a later update. Each
   per-fetch coroutine has essentially one await site, so the check
   surface is small; pinned with ready-future tests.
-- **Initialize-before-launch invariant (IR2):** Qt runs `.then`
-  continuations synchronously when attached to an already-finished
-  future, and QCoro resumes without suspending on ready futures — so
-  a fail-fast submission (setup cooldown, shutdown) can run
-  completion logic *during the batch-submit loop*. All per-update
-  counters and batch state are initialized before the first
-  submission is made. Pinned with ready-success and ready-error
-  futures.
+- **Initialize-before-launch invariant (IR2; spike-verified S1-6):**
+  Qt runs `.then` continuations synchronously when attached to an
+  already-finished future, and QCoro resumes without suspending on
+  ready futures — so a fail-fast submission (setup cooldown,
+  shutdown) can run completion logic *during the batch-submit loop*.
+  All per-update counters and batch state are initialized before the
+  first submission is made. Pinned with ready-success and
+  ready-error futures.
+- **Payload extraction (S1-7):** the worker's single-consumer path
+  moves the parsed payload out with `co_await
+  qCoro(future).takeResult()` (0 copies, spike-measured); plain
+  `co_await future` copies via `QFuture::result()`.
 - Failure semantics at the update level are unchanged from M1: a
   terminal failure aborts the update (`request_stop()` on the update's
   stop_source, no emit); atomic per-reply replacement already
@@ -802,9 +829,11 @@ R7), message. F50's diagnostics rewording rides along here.
 ## Shutdown and task ownership
 
 Added July 18, 2026 (ER4); rewritten in the IR round (IR3, IR4);
-**rewritten again July 19 (R5-2): the asynchronous teardown
-choreography is deleted.** Rev 4 required queued resumptions and a
-live event loop during shutdown — but `Application` is destroyed
+rewritten July 19 (R5-2: the asynchronous teardown choreography is
+deleted); **mechanism corrected by the phase-0 spike (S1-1..S1-4):
+shutdown safety comes from detach-plus-no-delivery, not from
+destroying suspended frames.** Rev 4 required queued resumptions and
+a live event loop during shutdown — but `Application` is destroyed
 after `a.exec()` returns (`src/main.cpp`), when the loop is already
 gone, and `UserSession`'s member order destroys `Shop` and
 `ItemsManagerWorker` *before* `RateLimiter` (`src/application.h`), so
@@ -812,6 +841,16 @@ a hub-driven drain of worker tasks was unreachable. Rather than build
 an asynchronous shutdown subsystem for consumers that are already
 destroyed, shutdown is now **destruction order, not choreography** —
 which the existing member order already implements.
+
+**What destroying a task handle actually does (S1-1):** QCoro 0.13
+tasks are reference-counted — the promise holds its own reference
+until `final_suspend`, the handle holds a second. Destroying the
+handle of a suspended coroutine *detaches* it: the frame survives,
+its locals' destructors do not run, and it resumes normally if its
+awaited event is later delivered, self-destroying at completion.
+There is no API to destroy a suspended coroutine from outside.
+Handle ownership therefore controls the lifetime of *completed*
+frames only; it neither cancels nor stops a live one (D2).
 
 **Ownership chain:** the hub owns the gate and the pumps; each pump
 owns its deque and its drain-task handle (a member — never
@@ -828,41 +867,56 @@ existed solely for the deleted choreography).
    `ItemsManagerWorker`, with the facade following (R6-2), still
    ahead of the hub. `Shop` has no tasks — its context-bound
    continuation dies with it (D7, R6-2). The worker destroys its
-   task handles **while suspended** — a destroyed coroutine never
-   resumes, so no awaiter outlives this step. Within each
-   destructor, task handles are destroyed before any member they
-   might observe.
-2. The hub dies next: its destructor destroys every drain task and
-   setup task (while suspended — nothing resumes into a dying pump).
-   Destroying a frame runs its locals' destructors, which releases
-   that task's in-flight reply through the dispatch-time RAII
-   wrapper (D3, R6-1); post-loop `deleteLater` is inert, and the
-   reply's `QNetworkAccessManager` parent — destroyed after the hub
-   — is the documented backstop. **Nothing is `abort()`ed and the
-   hub tracks no in-flight replies** (R6-1 deleted the abort step:
-   its only purpose was waking awaiters, which no longer exist by
-   this point). Pumps and the gate are destroyed last.
+   task handles: completed frames are destroyed outright, suspended
+   frames are **detached** (S1-1). Neither ever resumes, because
+   nothing delivers events after `a.exec()` returns — see below.
+   Within each destructor, task handles are destroyed before any
+   member they might observe.
+2. The hub dies next: its destructor destroys every drain-task and
+   setup-task handle (detaching any suspended frame — nothing
+   resumes into a dying pump). A still-in-flight reply is cleaned up
+   by its `QNetworkAccessManager` parent, destroyed after the hub —
+   the **only** shutdown reply cleanup (S1-3): the detached frame's
+   dispatch-time RAII wrapper never runs, and post-loop `deleteLater`
+   is inert anyway. **Nothing is `abort()`ed and the hub tracks no
+   in-flight replies** (R6-1 deleted the abort step: its only
+   purpose was waking awaiters, which nothing can resume by this
+   point). Pumps and the gate are destroyed last.
 3. Promises die unfinished, **safely by construction**: the
-   every-future-finishes guarantee (D1/D2) exists for live awaiters,
-   and steps 1–2 guarantee none exists — every consumer coroutine is
-   destroyed before the promise it awaited. `.then()` continuations
-   on broken promises do not run (Qt cancels the chain).
+   every-future-finishes guarantee (D1/D2) exists for awaiters that
+   can still resume, and steps 1–2 plus the dead loop guarantee none
+   can — every consumer coroutine is completed-and-destroyed or
+   detached-and-undeliverable before the promise it awaited dies.
+   `.then()` continuations on broken promises do not run (Qt cancels
+   the chain).
 
-This works identically whether the event loop is alive or not —
-destruction is synchronous and depends on no event delivery. **QCoro
-0.13's destroy-while-suspended semantics are load-bearing here, not
-a fallback:** the phase-0 spike must verify destruction while
-suspended on each awaitable we use (future, reply, timer, gate) and
-that a destroyed task's reply-awaiter connection dies with it — a
-later `finished` emission resumes nothing.
+**Why nothing resumes (S1-2):** every awaiter we use delivers
+resumption only through the event loop — the reply awaiter connects
+`finished` via `Qt::QueuedConnection` to a context object owned by
+the frame, the `QFuture` awaiter resumes through `QFutureWatcher`
+event delivery, the timer awaiter rides timer events, and the gate
+and stop-interruptible sleep are built on the `QFuture` path (D5).
+After `a.exec()` returns no loop iteration ever runs, so a detached
+frame is inert no matter what signals fire during destruction —
+spike-verified for the full analog (handles destroyed while
+suspended on timer/future/reply, then QNAM destroyed with an
+in-flight reply: nothing resumed, nothing crashed). The cost is
+bounded and accepted: each detached frame plus its locals leaks a
+few hundred bytes at process exit. Consequently **this shutdown is
+only valid after the event loop has stopped** — destroying owners
+while the loop still runs would let detached frames resume into
+freed memory. No live-session path destroys owners (the invariant
+below), and `Application` teardown runs after `a.exec()` returns.
 
 **Invariant: no coroutine resumes through a destroyed `this`.**
 During a live session the invariant holds because owners (hub,
 worker) outlive their tasks and no live-session path destroys them;
-at shutdown every suspension point (sleep, gate, reply, future) is
-destroyed while suspended and never resumed — which is why QCoro ≥
-0.13 is a hard floor: it fixed the leak when a task is destroyed
-while awaiting a `QFuture`.
+at shutdown it holds because nothing delivers a resumption once the
+loop has stopped (S1-2). QCoro ≥ 0.13 stays a hard floor: the
+`QFuture` awaiter's `QFutureWatcher` lives inside the frame
+(spike-verified at 0.13), so a completed-and-destroyed frame can
+never be resumed by a later finish, and the FetchContent
+include-path fix landed in 0.13; earlier releases are unverified.
 
 **Exception policy (IR4; rewritten R5-1).** Boundary payloads are
 `expected`, so an exception crossing a layer boundary is a bug — but
@@ -925,14 +979,20 @@ replaced by the drain loop.
   release). Requires Qt ≥ 6.8 — satisfied by our 6.11 floor; MIT
   license. Used for: awaiting `QFuture`/`QNetworkReply`/timers,
   `QCoro::Task<>` in the worker and pumps. **0.13 is a hard floor, not
-  a preference**: it fixed a memory leak when a task is destroyed
-  while awaiting a `QFuture`, which the shutdown contract leans on.
+  a preference**: the semantics the shutdown contract leans on —
+  the `QFuture` awaiter's `QFutureWatcher` living inside the frame,
+  queued reply-awaiter delivery, refcounted detach behavior — are
+  spike-verified at 0.13 exactly (S1); earlier releases are
+  unverified, and the FetchContent include-path fix landed in 0.13.
   (The spec's first draft said 0.11.x was current — stale; caught by
   ER9.)
-- **FetchContent hygiene (IR round):** QCoro's examples default ON
-  and its tests inherit `BUILD_TESTING`, which acquisition enables
-  globally — both must be disabled explicitly in the FetchContent
-  configuration.
+- **FetchContent hygiene (IR round; spike-verified S1-10):** QCoro's
+  examples default ON and its tests inherit `BUILD_TESTING`, which
+  acquisition enables globally — both must be disabled explicitly in
+  the FetchContent configuration (`QCORO_BUILD_EXAMPLES=OFF`,
+  `QCORO_BUILD_TESTING=OFF`, and `BUILD_TESTING` forced off for the
+  subproject; the spike's `spikes/qcoro/CMakeLists.txt` is the
+  working reference).
 - Qt has **no native** `QFuture` coroutine support as of 6.11; an
   upstreaming effort exists targeting 6.12 at the earliest. If it
   lands, the future-awaiting uses of QCoro can migrate; the
@@ -1070,29 +1130,26 @@ sleep.)
 ## Phasing sketch (an implementation plan derives from this)
 
 0. **QCoro integration spike (IR round; gates everything
-   QCoro-dependent).** A throwaway target exercising: task-handle
-   ownership and destruction while suspended on each awaitable we use
-   (future, reply, timer); awaiting already-finished futures;
-   `result()` vs `takeResult()` on the single-consumer path (the
-   worker should move the parsed payload out, not copy a stash
-   wrapper); synchronous promise-completion re-entrancy; stopped
-   waits; queued-vs-synchronous resumption on stop (R4-2 requires
-   queued; `abort()` no longer exists anywhere, R6-1);
-   **destroy-while-suspended as the shutdown
-   mechanism (R5-2)** — destruction while suspended on each awaitable,
-   with no live event loop, that a destroyed task's reply-awaiter
-   connection dies with it (a later `finished` emission resumes
-   nothing), and **that destroying a suspended frame runs its
-   locals' destructors** (R6-1's reply-release mechanism — verify,
-   don't assume); task destruction from inside its own continuation vs a
-   deferred sweep (R5-1); the stored-exception behavior of an
-   unawaited task (confirming R5-1's premise). Plus the FetchContent hygiene flags (QCoro examples off,
-   tests out of our CTest). Findings feed back into D2/D6/shutdown
-   before any production code. **Alongside it, one measurement:**
-   batch submission at the 2,000-tab scale the items-pipeline doc
-   names — peak memory and abort cost for the full
-   promise/future/frame/token population. Measure first; bounded
-   flow control is speculative machinery until numbers demand it.
+   QCoro-dependent). Executed July 19, 2026** — code in
+   `spikes/qcoro/` (a standalone CMake project, not part of the
+   acquisition build), findings recorded as round S1 in the review
+   history and folded into D2, D6, the shutdown section, and the
+   dependency section in the same commit. The question list it
+   exercised: task-handle ownership and destruction while suspended
+   on each awaitable we use (future, reply, timer); awaiting
+   already-finished futures; `result()` vs `takeResult()`;
+   promise-completion re-entrancy; stopped waits;
+   queued-vs-synchronous resumption on stop; destroy-while-suspended
+   as the shutdown mechanism; continuation self-destruction vs the
+   deferred sweep; unawaited-task exceptions; the FetchContent
+   hygiene flags. Headline result: R5-2's mechanism was falsified
+   (handle destruction detaches, S1-1) and the shutdown contract now
+   rests on detach-plus-no-delivery (S1-2); everything else held.
+   **Still open from this step, one measurement:** batch submission
+   at the 2,000-tab scale the items-pipeline doc names — peak memory
+   and abort cost for the full promise/future/frame/token
+   population. Measure first; bounded flow control is speculative
+   machinery until numbers demand it.
 1. Manager test harness against current code (no behavior change).
 2. QCoro dependency + primitives (stop-interruptible sleep, gate)
    with their tests.
