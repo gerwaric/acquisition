@@ -345,10 +345,12 @@ parses to a one-element `[""]` list (Qt `split` on an empty array),
 passes the only size check in `RateLimitRule`, and `RateLimitData`
 indexes `parts[1]` out of bounds (`ratelimitpolicy.cpp:52`) —
 undefined behavior/crash, not unpaced running. The redesign's
-validation tiers remove the path
+validation front-end removes the path
 (`docs/design/network-redesign.md`, D8); the degraded-HEAD design
-decision itself is made there too (D4 discovery state), closing the
-Q3 residual.
+decision itself is made there too (D4 — a degraded probe fails its
+endpoint's requests cleanly under a cooldown; the July 19
+simplification chose clean failure over a discovery fallback),
+closing the Q3 residual.
 
 ### Other regimes — legacy website API and forum
 
@@ -467,8 +469,9 @@ queued tabs, with ~74 children appended behind it as parents resolved
   HEADs do not appear to increment counters (the one anomalous-looking
   state value was confirmed as cross-session residue). **Residual
   closed July 18, 2026:** the degraded-HEAD design decision is made in
-  `docs/design/network-redesign.md` (D4 discovery state — stop rather
-  than drain). Note the previously recorded "today" behavior was wrong
+  `docs/design/network-redesign.md` (D4 — clean setup failure with a
+  cooldown; the earlier discovery-fallback design was deleted in the
+  July 19 simplification). Note the previously recorded "today" behavior was wrong
   — a degraded reply is undefined behavior in the current parser, not
   unpaced running (see the N20 correction).
 - **Q4. Initial-vs-sustained classification.** The client classifies a
