@@ -8,10 +8,10 @@
 //
 // Exit code: number of failed CHECKs (0 = every experiment ran as designed).
 
-#include <QCoroTask>
 #include <QCoroFuture>
-#include <QCoroTimer>
 #include <QCoroNetworkReply>
+#include <QCoroTask>
+#include <QCoroTimer>
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -29,6 +29,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -38,51 +39,97 @@ using namespace std::chrono_literals;
 
 static int g_checkFailures = 0;
 
-static void check(bool ok, const char* what) {
+static void check(bool ok, const char *what)
+{
     std::printf("  %s CHECK   %s\n", ok ? "[ok]" : "[!!]", what);
     if (!ok) {
         ++g_checkFailures;
     }
 }
 
-static void finding(const char* what) {
+static void finding(const char *what)
+{
     std::printf("  ==== FINDING %s\n", what);
 }
 
-static void section(const char* name) {
+static void section(const char *name)
+{
     std::printf("\n[%s]\n", name);
 }
 
 // Process events for roughly `ms` milliseconds.
-static void spin(int ms) {
+static void spin(int ms)
+{
     QEventLoop loop;
     QTimer::singleShot(ms, &loop, &QEventLoop::quit);
     loop.exec();
 }
 
+// Process events until `done` returns true, or fail after a generous timeout.
+// Condition-driven waiting keeps the experiments robust under load — fixed
+// spin windows were an intermittent-flake source.
+static bool spinUntil(const std::function<bool()> &done, int maxMs = 5000)
+{
+    QElapsedTimer timer;
+    timer.start();
+    while (!done() && timer.elapsed() < maxMs) {
+        spin(10);
+    }
+    return done();
+}
+
 // Frame-local RAII sentinel: proves whether a suspended frame's locals'
 // destructors ran (the R6-1 reply-release mechanism the spec leans on).
-struct Sentinel {
-    explicit Sentinel(bool* flag) : m_flag(flag) {}
-    Sentinel(const Sentinel&) = delete;
-    Sentinel& operator=(const Sentinel&) = delete;
+struct Sentinel
+{
+    explicit Sentinel(bool *flag)
+        : m_flag(flag)
+    {}
+    Sentinel(const Sentinel &) = delete;
+    Sentinel &operator=(const Sentinel &) = delete;
     ~Sentinel() { *m_flag = true; }
+
 private:
-    bool* m_flag;
+    bool *m_flag;
 };
 
 // Copy/move-counting payload for the result() vs takeResult() experiment.
-struct Counted {
+struct Counted
+{
     static inline int copies = 0;
     static inline int moves = 0;
-    static void reset() { copies = 0; moves = 0; }
+    static void reset()
+    {
+        copies = 0;
+        moves = 0;
+    }
     int v = 0;
     Counted() = default;
-    explicit Counted(int x) : v(x) {}
-    Counted(const Counted& o) : v(o.v) { ++copies; }
-    Counted(Counted&& o) noexcept : v(o.v) { ++moves; }
-    Counted& operator=(const Counted& o) { v = o.v; ++copies; return *this; }
-    Counted& operator=(Counted&& o) noexcept { v = o.v; ++moves; return *this; }
+    explicit Counted(int x)
+        : v(x)
+    {}
+    Counted(const Counted &o)
+        : v(o.v)
+    {
+        ++copies;
+    }
+    Counted(Counted &&o) noexcept
+        : v(o.v)
+    {
+        ++moves;
+    }
+    Counted &operator=(const Counted &o)
+    {
+        v = o.v;
+        ++copies;
+        return *this;
+    }
+    Counted &operator=(Counted &&o) noexcept
+    {
+        v = o.v;
+        ++moves;
+        return *this;
+    }
 };
 
 // ---------------------------------------------------------------------------
@@ -91,25 +138,30 @@ struct Counted {
 // run synchronously.)
 // ---------------------------------------------------------------------------
 
-struct E1State {
+struct E1State
+{
     bool resumed = false;
     int value = 0;
 };
 
-static QCoro::Task<> e1_awaitReady(E1State* s) {
+static QCoro::Task<> e1_awaitReady(E1State *s)
+{
     QFuture<int> f = QtFuture::makeReadyValueFuture(42);
     s->value = co_await f;
     s->resumed = true;
 }
 
-static void e1() {
+static void e1()
+{
     section("E1: co_await on an already-finished QFuture");
     E1State s;
     auto t = e1_awaitReady(&s);
-    check(s.resumed && s.value == 42, "coroutine ran to completion during the call, no event loop involved");
+    check(s.resumed && s.value == 42,
+          "coroutine ran to completion during the call, no event loop involved");
     check(t.isReady(), "task handle reports ready immediately");
     if (s.resumed) {
-        finding("awaiting a finished future never suspends: continuation runs synchronously inside the call");
+        finding("awaiting a finished future never suspends: continuation runs synchronously inside "
+                "the call");
     } else {
         finding("awaiting a finished future SUSPENDS (needs the event loop to resume)");
     }
@@ -119,7 +171,8 @@ static void e1() {
     auto f2 = f.then([&thenRan](int) { thenRan = true; });
     check(f2.isFinished(), "contextless .then chain on a finished future is itself finished");
     if (thenRan) {
-        finding("QFuture::then (no context) on a finished future runs the continuation synchronously");
+        finding(
+            "QFuture::then (no context) on a finished future runs the continuation synchronously");
     } else {
         finding("QFuture::then (no context) on a finished future did NOT run synchronously");
     }
@@ -132,19 +185,22 @@ static void e1() {
 // to bound re-entrancy if this is synchronous.)
 // ---------------------------------------------------------------------------
 
-struct E2State {
+struct E2State
+{
     std::atomic<bool> insideFinish{false};
     bool resumedInsideFinish = false;
     bool resumed = false;
 };
 
-static QCoro::Task<> e2_await(E2State* s, QFuture<int> f) {
+static QCoro::Task<> e2_await(E2State *s, QFuture<int> f)
+{
     co_await f;
     s->resumedInsideFinish = s->insideFinish.load();
     s->resumed = true;
 }
 
-static void e2() {
+static void e2()
+{
     section("E2: resumption when a QPromise finishes while a coroutine is suspended on its future");
     E2State s;
     QPromise<int> p;
@@ -156,12 +212,12 @@ static void e2() {
     p.finish();
     s.insideFinish = false;
     const bool resumedSynchronously = s.resumed;
-    spin(50);
-    check(s.resumed, "coroutine resumed once events were processed");
+    check(spinUntil([&] { return s.resumed; }), "coroutine resumed once events were processed");
     if (resumedSynchronously || s.resumedInsideFinish) {
         finding("QPromise::finish() resumed the awaiter SYNCHRONOUSLY on the finishing stack");
     } else {
-        finding("QPromise::finish() returned before the awaiter resumed — QCoro's QFuture awaiter delivers "
+        finding("QPromise::finish() returned before the awaiter resumed — QCoro's QFuture awaiter "
+                "delivers "
                 "resumption through the event loop (QFutureWatcher), i.e. queued");
     }
 }
@@ -170,24 +226,28 @@ static void e2() {
 // E3: result() vs takeResult() on the single-consumer path — copy/move counts.
 // ---------------------------------------------------------------------------
 
-struct E3State {
+struct E3State
+{
     int value = 0;
     bool done = false;
 };
 
-static QCoro::Task<> e3_direct(E3State* s, QFuture<Counted> f) {
+static QCoro::Task<> e3_direct(E3State *s, QFuture<Counted> f)
+{
     Counted c = co_await f;
     s->value = c.v;
     s->done = true;
 }
 
-static QCoro::Task<> e3_take(E3State* s, QFuture<Counted> f) {
+static QCoro::Task<> e3_take(E3State *s, QFuture<Counted> f)
+{
     Counted c = co_await qCoro(f).takeResult();
     s->value = c.v;
     s->done = true;
 }
 
-static QFuture<Counted> e3_makeReady(int v) {
+static QFuture<Counted> e3_makeReady(int v)
+{
     QPromise<Counted> p;
     p.start();
     p.addResult(Counted(v));
@@ -195,7 +255,8 @@ static QFuture<Counted> e3_makeReady(int v) {
     return p.future();
 }
 
-static void e3() {
+static void e3()
+{
     section("E3: result() vs takeResult() on the single-consumer path");
     {
         QFuture<Counted> f = e3_makeReady(5);
@@ -203,8 +264,11 @@ static void e3() {
         E3State s;
         auto t = e3_direct(&s, f);
         check(s.done && s.value == 5, "direct co_await returned the payload");
-        std::printf("       plain `co_await future`:            %d copies, %d moves\n", Counted::copies, Counted::moves);
-        check(Counted::copies >= 1, "plain co_await copies the payload out of the future (QFuture::result())");
+        std::printf("       plain `co_await future`:            %d copies, %d moves\n",
+                    Counted::copies,
+                    Counted::moves);
+        check(Counted::copies >= 1,
+              "plain co_await copies the payload out of the future (QFuture::result())");
     }
     {
         QFuture<Counted> f = e3_makeReady(6);
@@ -212,9 +276,12 @@ static void e3() {
         E3State s;
         auto t = e3_take(&s, f);
         check(s.done && s.value == 6, "takeResult co_await returned the payload");
-        std::printf("       `co_await qCoro(f).takeResult()`:   %d copies, %d moves\n", Counted::copies, Counted::moves);
+        std::printf("       `co_await qCoro(f).takeResult()`:   %d copies, %d moves\n",
+                    Counted::copies,
+                    Counted::moves);
         check(Counted::copies == 0, "takeResult path performs no copies (moves only)");
-        finding("qCoro(future).takeResult() is the move-out path for the worker's single-consumer payloads");
+        finding("qCoro(future).takeResult() is the move-out path for the worker's single-consumer "
+                "payloads");
     }
 }
 
@@ -223,10 +290,12 @@ static void e3() {
 // stop, resumption queued (request_stop() returns before the sleeper resumes).
 // ---------------------------------------------------------------------------
 
-struct SleepShared {
+struct SleepShared
+{
     QPromise<bool> p;
     std::atomic_flag fired = ATOMIC_FLAG_INIT;
-    void complete(bool stopped) {
+    void complete(bool stopped)
+    {
         if (!fired.test_and_set()) {
             p.addResult(stopped);
             p.finish();
@@ -235,9 +304,10 @@ struct SleepShared {
 };
 
 // Returns true if woken by stop, false if the full duration elapsed.
-static QCoro::Task<bool> stopSleep(std::chrono::milliseconds ms, std::stop_token tok, QObject* ctx) {
+static QCoro::Task<bool> stopSleep(std::chrono::milliseconds ms, std::stop_token tok, QObject *ctx)
+{
     if (tok.stop_requested()) {
-        co_return true;  // checkpoint: a pre-stopped wait never suspends
+        co_return true; // checkpoint: a pre-stopped wait never suspends
     }
     auto st = std::make_shared<SleepShared>();
     st->p.start();
@@ -252,7 +322,8 @@ static QCoro::Task<bool> stopSleep(std::chrono::milliseconds ms, std::stop_token
     co_return stopped;
 }
 
-struct E4State {
+struct E4State
+{
     std::atomic<bool> insideRequestStop{false};
     bool resumedInsideRequestStop = false;
     bool stopped = false;
@@ -260,7 +331,11 @@ struct E4State {
     qint64 elapsedMs = 0;
 };
 
-static QCoro::Task<> e4_run(E4State* s, std::chrono::milliseconds ms, std::stop_token tok, QObject* ctx) {
+static QCoro::Task<> e4_run(E4State *s,
+                            std::chrono::milliseconds ms,
+                            std::stop_token tok,
+                            QObject *ctx)
+{
     QElapsedTimer timer;
     timer.start();
     s->stopped = co_await stopSleep(ms, tok, ctx);
@@ -269,7 +344,8 @@ static QCoro::Task<> e4_run(E4State* s, std::chrono::milliseconds ms, std::stop_
     s->done = true;
 }
 
-static void e4() {
+static void e4()
+{
     section("E4: stop-interruptible sleep primitive (queued wake on stop)");
     QObject ctx;
 
@@ -284,12 +360,13 @@ static void e4() {
         src.request_stop();
         s.insideRequestStop = false;
         const bool resumedDuringRequestStop = s.done;
-        spin(100);
-        check(s.done && s.stopped, "sleeper woke promptly and reported 'stopped'");
+        check(spinUntil([&] { return s.done; }) && s.stopped,
+              "sleeper woke promptly and reported 'stopped'");
         check(!resumedDuringRequestStop && !s.resumedInsideRequestStop,
               "request_stop() returned before the sleeper resumed (queued wakeup, R4-2)");
         check(s.elapsedMs < 1000, "wake latency far below the 5s sleep duration");
-        std::printf("       stop wake latency: ~%lldms after request_stop()\n", static_cast<long long>(s.elapsedMs));
+        std::printf("       stop wake latency: ~%lldms after request_stop()\n",
+                    static_cast<long long>(s.elapsedMs));
     }
 
     // b) undisturbed sleep completes normally
@@ -297,8 +374,8 @@ static void e4() {
         std::stop_source src;
         E4State s;
         auto t = e4_run(&s, 50ms, src.get_token(), &ctx);
-        spin(200);
-        check(s.done && !s.stopped, "undisturbed 50ms sleep completed normally");
+        check(spinUntil([&] { return s.done; }) && !s.stopped,
+              "undisturbed 50ms sleep completed normally");
     }
 
     // c) pre-stopped token: never suspends
@@ -307,9 +384,11 @@ static void e4() {
         src.request_stop();
         E4State s;
         auto t = e4_run(&s, 5000ms, src.get_token(), &ctx);
-        check(s.done && s.stopped, "sleep with an already-stopped token completed synchronously (checkpoint)");
+        check(s.done && s.stopped,
+              "sleep with an already-stopped token completed synchronously (checkpoint)");
     }
-    finding("a stop-interruptible sleep built on QPromise + queued stop_callback delivers R4-2's contract");
+    finding("a stop-interruptible sleep built on QPromise + queued stop_callback delivers R4-2's "
+            "contract");
 }
 
 // ---------------------------------------------------------------------------
@@ -318,39 +397,48 @@ static void e4() {
 // (R5-2/R6-1).
 // ---------------------------------------------------------------------------
 
-struct E5State {
+struct E5State
+{
     bool localDestroyed = false;
     bool resumed = false;
 };
 
-static QCoro::Task<> e5_sleeper(E5State* s, std::chrono::milliseconds duration) {
+static QCoro::Task<> e5_sleeper(E5State *s, std::chrono::milliseconds duration)
+{
     Sentinel guard(&s->localDestroyed);
     co_await QCoro::sleepFor(duration);
     s->resumed = true;
 }
 
-static void e5() {
+static void e5()
+{
     section("E5: destroy Task handle while suspended on a timer");
     E5State s;
     {
         auto t = e5_sleeper(&s, 100ms);
         check(!t.isReady(), "sleeper is suspended");
-    }  // Task handle destroyed here, coroutine still suspended
+    } // Task handle destroyed here, coroutine still suspended
     const bool destroyedWithHandle = s.localDestroyed;
     if (destroyedWithHandle) {
-        finding("destroying the Task handle destroyed the suspended frame (locals' destructors ran)");
+        finding(
+            "destroying the Task handle destroyed the suspended frame (locals' destructors ran)");
     } else {
-        finding("destroying the Task handle mid-suspend DETACHES the coroutine: the frame survives and "
-                "frame locals' destructors do NOT run (falsifies R5-2/R6-1's mechanism)");
+        finding(
+            "destroying the Task handle mid-suspend DETACHES the coroutine: the frame survives and "
+            "frame locals' destructors do NOT run (falsifies R5-2/R6-1's mechanism)");
     }
-    spin(300);
+    spinUntil([&] { return s.localDestroyed; });
     if (s.resumed) {
-        finding("the detached coroutine RESUMED when its timer later fired — a destroyed handle does not "
+        finding("the detached coroutine RESUMED when its timer later fired — a destroyed handle "
+                "does not "
                 "prevent resumption while an event loop still runs");
     }
-    check(s.localDestroyed, "frame was destroyed by the end of the experiment (either with the handle, or at completion)");
+    check(s.localDestroyed,
+          "frame was destroyed by the end of the experiment (either with the handle, or at "
+          "completion)");
     if (!destroyedWithHandle && s.resumed && s.localDestroyed) {
-        finding("a detached coroutine that runs to completion self-destroys at final_suspend (refcount drops to 0)");
+        finding("a detached coroutine that runs to completion self-destroys at final_suspend "
+                "(refcount drops to 0)");
     }
 }
 
@@ -359,12 +447,14 @@ static void e5() {
 // (frame leak) checked at the end of main.
 // ---------------------------------------------------------------------------
 
-struct E6State {
+struct E6State
+{
     bool localDestroyed = false;
     bool resumed = false;
 };
 
-static QCoro::Task<> e6_awaiter(E6State* s, QFuture<int> f) {
+static QCoro::Task<> e6_awaiter(E6State *s, QFuture<int> f)
+{
     Sentinel guard(&s->localDestroyed);
     co_await f;
     s->resumed = true;
@@ -373,9 +463,10 @@ static QCoro::Task<> e6_awaiter(E6State* s, QFuture<int> f) {
 // E6a state is global: the never-finished frame is deliberately leaked and
 // re-checked at the end of main.
 static E6State g_e6a;
-static QPromise<int>* g_e6aPromise = nullptr;
+static QPromise<int> *g_e6aPromise = nullptr;
 
-static void e6() {
+static void e6()
+{
     section("E6: destroy Task handle while suspended on a QFuture");
 
     // a) promise never finishes, no live handle: what happens to the frame?
@@ -385,7 +476,8 @@ static void e6() {
         auto t = e6_awaiter(&g_e6a, g_e6aPromise->future());
     }
     if (!g_e6a.localDestroyed) {
-        finding("with the handle destroyed and the future never finishing, the suspended frame is LEAKED — "
+        finding("with the handle destroyed and the future never finishing, the suspended frame is "
+                "LEAKED — "
                 "QCoro 0.13 has no way to destroy a suspended detached coroutine from outside");
     } else {
         finding("frame was destroyed with the handle despite the pending future");
@@ -401,10 +493,11 @@ static void e6() {
     check(!s.localDestroyed, "frame detached (matches E5)");
     p.addResult(1);
     p.finish();
-    spin(50);
+    spinUntil([&] { return s.localDestroyed; });
     if (s.resumed) {
-        finding("finishing the future after the handle was destroyed RESUMED the detached coroutine "
-                "(QFutureWatcher lives in the frame, so it survives handle destruction)");
+        finding(
+            "finishing the future after the handle was destroyed RESUMED the detached coroutine "
+            "(QFutureWatcher lives in the frame, so it survives handle destruction)");
     }
     check(s.localDestroyed, "detached frame self-destroyed after completing");
 }
@@ -414,18 +507,21 @@ static void e6() {
 // dispatch-time RAII reply wrapper (D3).
 // ---------------------------------------------------------------------------
 
-struct E7State {
+struct E7State
+{
     bool localDestroyed = false;
     bool resumed = false;
     QPointer<QNetworkReply> reply;
 };
 
-static QCoro::Task<> e7_fetch(E7State* s, QNetworkAccessManager* nam, QUrl url) {
-    QNetworkReply* r = nam->get(QNetworkRequest(url));
+static QCoro::Task<> e7_fetch(E7State *s, QNetworkAccessManager *nam, QUrl url)
+{
+    QNetworkReply *r = nam->get(QNetworkRequest(url));
     s->reply = r;
     // D3's dispatch-time RAII wrapper, one level down: the frame owns the reply.
-    struct ReplyReleaser {
-        QNetworkReply* r;
+    struct ReplyReleaser
+    {
+        QNetworkReply *r;
         ~ReplyReleaser() { r->deleteLater(); }
     } releaser{r};
     Sentinel guard(&s->localDestroyed);
@@ -433,27 +529,36 @@ static QCoro::Task<> e7_fetch(E7State* s, QNetworkAccessManager* nam, QUrl url) 
     s->resumed = true;
 }
 
-static void e7(QNetworkAccessManager* nam, const QUrl& silentUrl) {
+static void e7(QNetworkAccessManager *nam, const QUrl &silentUrl)
+{
     section("E7: destroy Task handle while suspended on an in-flight QNetworkReply");
     E7State s;
     {
         auto t = e7_fetch(&s, nam, silentUrl);
-        spin(100);  // let the request reach the silent server: genuinely in-flight
-        check(!t.isReady() && !s.reply.isNull() && !s.reply->isFinished(), "reply is in-flight, coroutine suspended");
+        spin(100); // let the request reach the silent server: genuinely in-flight
+        check(!t.isReady() && !s.reply.isNull() && !s.reply->isFinished(),
+              "reply is in-flight, coroutine suspended");
     }
-    check(!s.localDestroyed, "frame detached, so the RAII reply wrapper did NOT run at handle destruction");
-    check(!s.reply.isNull(), "reply still alive (owned by the detached frame's wrapper + QNAM parent)");
-    s.reply->abort();  // force a finished emission after the handle is gone
+    check(!s.localDestroyed,
+          "frame detached, so the RAII reply wrapper did NOT run at handle destruction");
+    check(!s.reply.isNull(),
+          "reply still alive (owned by the detached frame's wrapper + QNAM parent)");
+    s.reply->abort(); // force a finished emission after the handle is gone
     const bool resumedDuringAbort = s.resumed;
-    spin(50);
-    check(!resumedDuringAbort, "abort()'s finished emission did not resume the coroutine synchronously (queued connection)");
+    spinUntil([&] { return s.localDestroyed; });
+    check(!resumedDuringAbort,
+          "abort()'s finished emission did not resume the coroutine synchronously (queued "
+          "connection)");
     if (s.resumed) {
-        finding("a finished emission after handle destruction RESUMED the detached coroutine via its still-live "
-                "queued connection — handle destruction does NOT sever the reply-awaiter connection");
+        finding(
+            "a finished emission after handle destruction RESUMED the detached coroutine via its "
+            "still-live "
+            "queued connection — handle destruction does NOT sever the reply-awaiter connection");
     }
-    check(s.localDestroyed, "detached frame self-destroyed after completing; RAII wrapper released the reply");
-    spin(50);  // let deleteLater run
-    check(s.reply.isNull(), "reply deleted via the wrapper's deleteLater once the loop spun");
+    check(s.localDestroyed,
+          "detached frame self-destroyed after completing; RAII wrapper released the reply");
+    check(spinUntil([&] { return s.reply.isNull(); }),
+          "reply deleted via the wrapper's deleteLater once the loop spun");
 }
 
 // ---------------------------------------------------------------------------
@@ -466,9 +571,10 @@ static void e7(QNetworkAccessManager* nam, const QUrl& silentUrl) {
 static E5State g_e8Timer;
 static E6State g_e8Future;
 static E7State g_e8Reply;
-static QPromise<int>* g_e8Promise = nullptr;
+static QPromise<int> *g_e8Promise = nullptr;
 
-static void e8_setup(QNetworkAccessManager* nam, const QUrl& silentUrl) {
+static void e8_setup(QNetworkAccessManager *nam, const QUrl &silentUrl)
+{
     section("E8: post-exec shutdown analog (no further event processing after this point)");
     {
         // Duration far beyond the setup spin below — the timer must still be
@@ -478,20 +584,38 @@ static void e8_setup(QNetworkAccessManager* nam, const QUrl& silentUrl) {
         g_e8Promise->start();
         auto t2 = e6_awaiter(&g_e8Future, g_e8Promise->future());
         auto t3 = e7_fetch(&g_e8Reply, nam, silentUrl);
-        spin(100);  // reply becomes in-flight; this is the LAST event processing
-        check(!g_e8Reply.reply.isNull() && !g_e8Reply.reply->isFinished(), "shutdown-analog reply is in-flight");
-    }  // all three handles destroyed while suspended → three detached frames
+        spin(100); // reply becomes in-flight; this is the LAST event processing
+        check(!g_e8Reply.reply.isNull() && !g_e8Reply.reply->isFinished(),
+              "shutdown-analog reply is in-flight");
+    } // all three handles destroyed while suspended → three detached frames
     check(!g_e8Timer.localDestroyed && !g_e8Future.localDestroyed && !g_e8Reply.localDestroyed,
           "all three frames detached (locals alive), matching E5-E7");
 }
 
-static void e8_verifyAfterOwnersDestroyed(bool namDestroyedRepliesGone) {
+static void e8_verifyAfterOwnersDestroyed(bool namDestroyedRepliesGone, bool brokenThenRan)
+{
     check(!g_e8Timer.resumed && !g_e8Future.resumed && !g_e8Reply.resumed,
           "nothing resumed during owner destruction: no event loop, queued delivery never happens");
-    check(namDestroyedRepliesGone, "QNAM parent backstop destroyed the in-flight reply at owner destruction");
-    finding("with no live event loop, detached frames are inert: destroying owners (QNAM included) resumes "
-            "nothing — but the frames and their locals are permanently leaked, and the reply cleanup falls "
-            "entirely to the QNAM parent backstop (the RAII wrapper never ran)");
+    check(!g_e8Future.localDestroyed && !g_e6a.localDestroyed,
+          "destroying the unfinished promises canceled their futures without resuming the detached "
+          "awaiters");
+    check(
+        !brokenThenRan,
+        ".then continuations on the broken promises' futures did not run (Qt canceled the chain)");
+    check(namDestroyedRepliesGone, "QNAM parent destroyed the in-flight reply at owner destruction");
+    finding("with no live event loop, detached frames are inert: promises die unfinished (their "
+            "futures cancel, "
+            ".then chains do not run, awaiters stay suspended), destroying owners (QNAM included) "
+            "resumes "
+            "nothing — but the frames and their locals are permanently leaked, and the reply "
+            "cleanup falls "
+            "entirely to the QNAM parent (the RAII wrapper never ran)");
+    finding("mid-session the same promise destruction would be ER1's hazard — the watcher would "
+            "deliver a "
+            "canceled-future resumption into result() once the loop spun — which is why D2 "
+            "requires every "
+            "live promise to reach a final state and confines unfinished-promise death to "
+            "post-loop shutdown");
 }
 
 // ---------------------------------------------------------------------------
@@ -499,25 +623,29 @@ static void e8_verifyAfterOwnersDestroyed(bool namDestroyedRepliesGone) {
 // awaited tasks rethrow.
 // ---------------------------------------------------------------------------
 
-static QCoro::Task<> e9_throwerSync() {
+static QCoro::Task<> e9_throwerSync()
+{
     throw std::runtime_error("boom-sync");
-    co_return;  // unreachable; makes this a coroutine
+    co_return; // unreachable; makes this a coroutine
 }
 
-static QCoro::Task<> e9_throwerAsync() {
+static QCoro::Task<> e9_throwerAsync()
+{
     co_await QCoro::sleepFor(10ms);
     throw std::runtime_error("boom-async");
 }
 
-static QCoro::Task<> e9_awaitThrower(bool* caught) {
+static QCoro::Task<> e9_awaitThrower(bool *caught)
+{
     try {
         co_await e9_throwerSync();
-    } catch (const std::runtime_error&) {
+    } catch (const std::runtime_error &) {
         *caught = true;
     }
 }
 
-static void e9() {
+static void e9()
+{
     section("E9: stored-exception behavior of unawaited tasks");
     bool threwAtCall = false;
     try {
@@ -530,11 +658,12 @@ static void e9() {
 
     {
         auto t = e9_throwerAsync();
-        spin(100);
-        check(t.isReady(), "task that threw after resuming is ready");
-    }  // destroyed unawaited, exception stored inside
-    finding("an unawaited task's exception is stored in the promise and vanishes silently when the handle "
-            "dies — no terminate, no log, nothing observes it (confirms R5-1: root coroutines need catch-alls)");
+        check(spinUntil([&] { return t.isReady(); }), "task that threw after resuming is ready");
+    } // destroyed unawaited, exception stored inside
+    finding("an unawaited task's exception is stored in the promise and vanishes silently when the "
+            "handle "
+            "dies — no terminate, no log, nothing observes it (confirms R5-1: root coroutines need "
+            "catch-alls)");
 
     bool caught = false;
     auto t = e9_awaitThrower(&caught);
@@ -546,34 +675,41 @@ static void e9() {
 // cascade (the sweep question, R5-1) — self-destruction vs deferred sweep.
 // ---------------------------------------------------------------------------
 
-struct E10State {
+struct E10State
+{
     std::optional<QCoro::Task<>> slot;
     bool innerDone = false;
     bool contRan = false;
     bool afterReset = false;
 };
 
-static QCoro::Task<> e10_inner(E10State* s) {
+static QCoro::Task<> e10_inner(E10State *s)
+{
     co_await QCoro::sleepFor(20ms);
     s->innerDone = true;
 }
 
-static QCoro::Task<> e10_watcher(E10State* s) {
-    co_await *s->slot;  // resumes synchronously inside inner's final_suspend
+static QCoro::Task<> e10_watcher(E10State *s)
+{
+    co_await *s->slot; // resumes synchronously inside inner's final_suspend
     s->contRan = true;
-    s->slot.reset();  // destroy the completed task's handle from its own completion cascade
+    s->slot.reset(); // destroy the completed task's handle from its own completion cascade
     s->afterReset = true;
 }
 
-static void e10() {
+static void e10()
+{
     section("E10: destroy a completed task's handle from inside its own completion cascade");
     E10State s;
     s.slot = e10_inner(&s);
     auto w = e10_watcher(&s);
-    spin(200);
-    check(s.innerDone && s.contRan && s.afterReset, "continuation ran and reset the slot without crashing");
-    finding("destroying a completed task's handle from within its own completion cascade did not crash here "
-            "(final_suspend resumes awaiters before releasing its own ref) — but a deferred sweep remains the "
+    spinUntil([&] { return s.afterReset; });
+    check(s.innerDone && s.contRan && s.afterReset,
+          "continuation ran and reset the slot without crashing");
+    finding("destroying a completed task's handle from within its own completion cascade did not "
+            "crash here "
+            "(final_suspend resumes awaiters before releasing its own ref) — but a deferred sweep "
+            "remains the "
             "defensive choice; verify under ASAN before relying on this");
 }
 
@@ -582,7 +718,8 @@ static void e10() {
 // premise that forces queued indirection (R4-2).
 // ---------------------------------------------------------------------------
 
-static void e11() {
+static void e11()
+{
     section("E11: std::stop_callback synchrony");
     std::atomic<bool> inside{false};
     bool ranInside = false;
@@ -591,13 +728,15 @@ static void e11() {
     inside = true;
     src.request_stop();
     inside = false;
-    check(ranInside, "stop_callback ran synchronously inside request_stop() — raw callbacks must never "
-                     "resume coroutines directly");
+    check(ranInside,
+          "stop_callback ran synchronously inside request_stop() — raw callbacks must never "
+          "resume coroutines directly");
 }
 
 // ---------------------------------------------------------------------------
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv)
+{
     QCoreApplication app(argc, argv);
     std::printf("QCoro v0.13.0 phase-0 spike (Qt %s)\n", qVersion());
 
@@ -609,7 +748,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     QObject::connect(&server, &QTcpServer::newConnection, &server, [&server] {
-        server.nextPendingConnection();  // parented to the server; never respond
+        server.nextPendingConnection(); // parented to the server; never respond
     });
     const QUrl silentUrl(QStringLiteral("http://127.0.0.1:%1/").arg(server.serverPort()));
 
@@ -629,13 +768,33 @@ int main(int argc, char** argv) {
     // Shutdown analog last: after e8_setup, no more event processing happens.
     e8_setup(nam.get(), silentUrl);
     QPointer<QNetworkReply> e8Reply = g_e8Reply.reply;
-    nam.reset();  // QNAM destroyed with an in-flight reply, loop never spins again
-    e8_verifyAfterOwnersDestroyed(e8Reply.isNull());
+
+    // Real shutdown destroys queued entries' unfinished QPromises (the hub's
+    // deques die with it). Pin that here: attach continuations, then destroy
+    // the promises unfinished — futures cancel, chains break, detached
+    // awaiters must not resume. Nulling the globals also makes the leaked
+    // frames unreachable, so `leaks --atExit` can see them as roots.
+    bool brokenThenRan = false;
+    g_e8Promise->future().then([&brokenThenRan](int) { brokenThenRan = true; });
+    g_e6aPromise->future().then([&brokenThenRan](int) { brokenThenRan = true; });
+    delete g_e8Promise;
+    g_e8Promise = nullptr;
+    delete g_e6aPromise;
+    g_e6aPromise = nullptr;
+
+    nam.reset(); // QNAM destroyed with an in-flight reply, loop never spins again
+    e8_verifyAfterOwnersDestroyed(e8Reply.isNull(), brokenThenRan);
 
     section("end-of-run leak accounting");
-    check(!g_e6a.localDestroyed, "E6a frame (future never finished) is still leaked at exit, as predicted");
+    check(!g_e6a.localDestroyed,
+          "E6a frame (future never finished) is still leaked at exit, as predicted");
     check(!g_e8Timer.localDestroyed && !g_e8Future.localDestroyed && !g_e8Reply.localDestroyed,
           "E8 detached frames are still leaked at exit, as predicted");
-    std::printf("\n%d CHECK failure(s). Deliberate frame leaks at exit: 4 (E6a + 3x E8).\n", g_checkFailures);
+    std::printf("\n%d CHECK failure(s). Deliberate detached-frame leaks at exit: 4 tasks "
+                "(E6a + 3x E8, plus inner awaitable frames). The sentinel checks above are the "
+                "authoritative accounting; `leaks` reports the reply frame as a root, while the "
+                "timer/future frames stay reachable from Qt thread-data (pending cancel "
+                "call-outs, timer registrations).\n",
+                g_checkFailures);
     return g_checkFailures;
 }

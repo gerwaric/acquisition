@@ -23,9 +23,13 @@ leaks --atExit -- ./build-spike/qcoro_spike   # macOS leak accounting
 ```
 
 The binary prints CHECK lines (internal validity of each experiment)
-and FINDING lines (the observed QCoro v0.13.0 semantics). Four frame
-leaks at exit are deliberate — they demonstrate S1-1/S1-2's
-detached-frame behavior.
+and FINDING lines (the observed QCoro v0.13.0 semantics). Four
+detached-frame leaks at exit are deliberate — they demonstrate
+S1-1/S1-2's detach behavior. The in-process sentinel checks are the
+authoritative leak accounting: `leaks` reports the reply frame as a
+root but the timer/future frames remain *reachable* from Qt
+thread-data (pending cancel call-out events, timer registrations),
+so it undercounts by design, not by error.
 
 Headline result (S1-1): destroying a `QCoro::Task` handle while the
 coroutine is suspended does **not** destroy the frame — it detaches

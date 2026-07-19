@@ -20,14 +20,22 @@ set(CMAKE_AUTOMOC ON)
 
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Network)
 
+# Reproduce acquisition's situation: the root project enables testing
+# globally (BUILD_TESTING=ON). The QCORO_* flags below must keep QCoro's
+# tests and examples out WITHOUT touching the parent's BUILD_TESTING —
+# forcing the global flag off here would disable the host project's own
+# test suite when this file is used as the integration reference.
+include(CTest)
+
 include(FetchContent)
 
-# FetchContent hygiene (spec "Dependency: QCoro"): QCoro's examples default ON
-# and its tests inherit BUILD_TESTING, which acquisition enables globally.
-# Both must be forced off. The spike verifies these are the right knobs.
+# FetchContent hygiene (spec "Dependency: QCoro"): QCoro's examples default
+# ON, and its tests follow BUILD_TESTING unless QCORO_BUILD_TESTING is set —
+# QCoro maps QCORO_BUILD_TESTING onto a directory-scoped BUILD_TESTING of its
+# own, so the parent's flag stays untouched. Verified: with BUILD_TESTING=ON
+# in the parent, `ctest -N` lists zero QCoro tests and no examples build.
 set(QCORO_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(QCORO_BUILD_TESTING OFF CACHE BOOL "" FORCE)
-set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 set(QCORO_WITH_QTDBUS OFF CACHE BOOL "" FORCE)
 set(QCORO_WITH_QTWEBSOCKETS OFF CACHE BOOL "" FORCE)
 set(QCORO_WITH_QTQUICK OFF CACHE BOOL "" FORCE)

@@ -350,20 +350,21 @@ server counted them all, N25).
   must not be re-created one level down. The RAII wrapper (a
   `deleteLater` deleter) is installed **at dispatch, before the
   first await** — dispatch and await are separate steps — making the
-  wrapper a local in the pump's frame. The owner is therefore the
-  frame at every instant, *including suspension*: destroying a
-  suspended coroutine runs the destructors of its in-scope locals,
-  so task destruction at shutdown releases the reply with no other
-  mechanism, no registry, and no abort. Body copied and headers
-  consumed before any completion or retry decision. Every path —
-  success, error, each retry attempt, exception (composes with the
-  completion guard), cancellation-after-landing, task destruction —
+  wrapper a local in the pump's frame. The frame owns the reply on
+  **every live-session path**, including through suspension: the
+  wrapper runs whenever the frame is destroyed, which happens at
+  completion (normal, error, exception, cancellation-after-landing).
+  At shutdown the frame is *detached*, not destroyed (S1-1), so the
+  wrapper never runs there — the reply's `QNetworkAccessManager`
+  parent, destroyed after the hub, is the sole shutdown cleanup
+  (S1-3); still no registry and no abort. Body copied and headers
+  consumed before any completion or retry decision. Every
+  live-session path — success, error, each retry attempt, exception
+  (composes with the completion guard), cancellation-after-landing —
   cleans up through that one wrapper; no per-path deletion code.
-  After the event loop has stopped, `deleteLater` is inert; the
-  reply's `QNetworkAccessManager` parent (destroyed after the hub)
-  is the documented backstop. The gate permit observes `finished`
-  but never owns or deletes the reply. The setup path owns its HEAD
-  reply under the same rule (D4).
+  The gate permit observes `finished` but never owns or deletes the
+  reply. The setup path owns its HEAD reply under the same rule
+  (D4).
 - Retries are bounded (`MAX_ATTEMPTS = 3`) so a systemically broken
   policy cannot hammer the API — each 429 still increments the violation
   counter and logs (N10: layer-4 goodwill is finite).
@@ -987,12 +988,15 @@ replaced by the drain loop.
   (The spec's first draft said 0.11.x was current — stale; caught by
   ER9.)
 - **FetchContent hygiene (IR round; spike-verified S1-10):** QCoro's
-  examples default ON and its tests inherit `BUILD_TESTING`, which
-  acquisition enables globally — both must be disabled explicitly in
-  the FetchContent configuration (`QCORO_BUILD_EXAMPLES=OFF`,
-  `QCORO_BUILD_TESTING=OFF`, and `BUILD_TESTING` forced off for the
-  subproject; the spike's `spikes/qcoro/CMakeLists.txt` is the
-  working reference).
+  examples default ON and its tests follow `BUILD_TESTING`, which
+  acquisition enables globally — set `QCORO_BUILD_EXAMPLES=OFF` and
+  `QCORO_BUILD_TESTING=OFF`, and **do not touch the global
+  `BUILD_TESTING`** (that would disable acquisition's own test
+  suite; QCoro maps `QCORO_BUILD_TESTING` onto a directory-scoped
+  `BUILD_TESTING` of its own, so the parent's flag stays intact).
+  The spike's `spikes/qcoro/CMakeLists.txt` is the working
+  reference: it enables testing in the parent and verifies `ctest`
+  lists zero QCoro tests.
 - Qt has **no native** `QFuture` coroutine support as of 6.11; an
   upstreaming effort exists targeting 6.12 at the earliest. If it
   lands, the future-awaiting uses of QCoro can migrate; the
@@ -1051,12 +1055,14 @@ sleep.)
    *value*, never an exceptional future; **permit-free retry
    (R4-1)**: a retrying entry holds no permit during its retry sleep
    — a sibling pump acquires the gate and sends while that sleep
-   runs; **reply ownership (R5-4/R6-1)**: every reply the fake sender
-   hands out is destroyed exactly once on every path — success,
-   non-retryable error, each retry attempt, cancel-after-landing,
-   drain exception, and task destruction mid-flight (the
-   dispatch-time wrapper releases it) — leak and double-deletion
-   pins; **observation (R6-3)**: a 429 and a 500 carrying Full
+   runs; **reply ownership (R5-4/R6-1; corrected S1)**: every reply
+   the fake sender hands out is destroyed exactly once on every
+   live-session path — success, non-retryable error, each retry
+   attempt, cancel-after-landing, drain exception — via the
+   dispatch-time wrapper when the frame completes; destroying a
+   task handle mid-flight detaches the frame (S1-1), which still
+   completes when the reply lands and releases it through the same
+   wrapper — leak and double-deletion pins; **observation (R6-3)**: a 429 and a 500 carrying Full
    matching headers update the policy while completing their
    status-driven outcomes, and a 2xx-plus-transport-error updates
    from its headers and completes `Network`.
@@ -1114,15 +1120,21 @@ sleep.)
    context-bound `Shop` continuation does not run after `Shop` is
    destroyed.
 6. **Integration coverage** (group 4 + IR3; shutdown pins rewritten
-   R5-2): cancellation races across layers (abort mid-pacing-sleep,
-   mid-gate-wait, mid-flight); **destruction reaches every
-   suspension** — destroying worker-then-hub in the `UserSession`
-   member order while a pump is mid-pacing-sleep, mid-retry-sleep,
-   mid-gate-wait, and mid-flight resumes nothing and leaks nothing
-   (leak-checked; promises may die unfinished — no awaiter exists to
-   observe them); destruction mid-update; completed-future retention
-   (memory does not grow with completed fetches across a long
-   update).
+   R5-2, corrected S1): cancellation races across layers (abort
+   mid-pacing-sleep, mid-gate-wait, mid-flight); **destruction
+   reaches every suspension** — destroying worker-then-hub in the
+   `UserSession` member order, with no further event-loop
+   iterations, while a pump is mid-pacing-sleep, mid-retry-sleep,
+   mid-gate-wait, and mid-flight resumes nothing and crashes
+   nothing; suspended frames detach and leak by design (S1-1/S1-2)
+   — the leak check pins that the leak is *bounded to the detached
+   frames* and that no reply, promise shared state, or owner
+   object leaks with them; promises die unfinished — no awaiter can
+   be resumed to observe them, and destroying an unfinished
+   `QPromise` cancels its future without resuming its detached
+   awaiter or running `.then` continuations; destruction
+   mid-update; completed-future retention (memory does not grow
+   with completed fetches across a long update).
 7. Every commit compiles and passes `ctest` (working rule #2). The
    capture instrument's tests (`tst_networkcapture.cpp`) must keep
    passing — captures are live research data (Q5, Q9).

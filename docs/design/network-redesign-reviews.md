@@ -188,7 +188,7 @@ filed against phase-0/harness evidence, not re-readings.
 
 | ID | Finding | Resolution |
 |---|---|---|
-| R6-1 | Reply ownership was still contradictory: the RAII wrapper installed at await-return left the in-flight span — the reply's longest phase — ownerless; shutdown step 2 had the hub abort replies whose pointers lived only in already-destroyed frames (an implied registry the spec denied having); and `deleteLater` never runs once the event loop has stopped, so the claimed shutdown cleanup mechanism was wrong. | Wrapper installed at dispatch, before the first await — the owner is the pump frame at every instant, including suspension (destroying a suspended coroutine runs its locals' destructors; spike-verified, not assumed). The shutdown abort step is deleted: nothing aborted, nothing tracked; `abort()` is now never called anywhere. Post-loop `deleteLater` is inert; the `QNetworkAccessManager` parent (destroyed after the hub) is the documented backstop. |
+| R6-1 | Reply ownership was still contradictory: the RAII wrapper installed at await-return left the in-flight span — the reply's longest phase — ownerless; shutdown step 2 had the hub abort replies whose pointers lived only in already-destroyed frames (an implied registry the spec denied having); and `deleteLater` never runs once the event loop has stopped, so the claimed shutdown cleanup mechanism was wrong. | Wrapper installed at dispatch, before the first await — the owner is the pump frame at every instant, including suspension (destroying a suspended coroutine runs its locals' destructors; spike-verified, not assumed). The shutdown abort step is deleted: nothing aborted, nothing tracked; `abort()` is now never called anywhere. Post-loop `deleteLater` is inert; the `QNetworkAccessManager` parent (destroyed after the hub) is the documented backstop. *(The locals'-destructors premise was falsified by the spike — handle destruction detaches the frame and the wrapper never runs at shutdown; QNAM parent cleanup is the sole shutdown mechanism. The dispatch-time wrapper survives as the live-session owner. S1-1/S1-3.)* |
 | R6-2 | Shutdown step 1 said `Shop` destroys "its task handles," but Shop has no tasks in this design; and `PoeApiClient` had no specified owner. | `Shop` stays callback-style: a context-bound `.then(this, …)` continuation that Qt discards on context destruction — the future equivalent of today's `this`-context connection (`shop.cpp:199`). `PoeApiClient` is a `UserSession` member declared after `rate_limiter` (destroyed after all consumers, before the limiter); its parse continuations capture values only, never the facade. |
 | R6-3 | Policy mutation and response classification disagreed: D3 updated the policy from any Full matching landed reply, while D8 reached the total parse only on clean 2xx — leaving 429s, 403/500s, and 2xx-plus-transport-error ambiguous for pacing state, which would drift stale across non-2xx runs (today's code updates on every headered reply; N25: the server counts every exchange). | Observation separated from classification (D3/D8): header parsing is attempted independently on every landed response and Full + matching updates pacing; classification stays status/network-driven and decides only the caller's outcome; missing/malformed headers become `Protocol` only where the reply would otherwise be a clean 2xx success. |
 
@@ -315,11 +315,37 @@ AddressSanitizer; leak accounting confirmed with macOS `leaks`.
   coroutine completion is the synchronous re-entrancy path; QFuture
   boundaries are the queued ones — relevant to D5/D6 stack-depth
   reasoning.
-- **S1-10 (FetchContent hygiene confirmed):**
-  `QCORO_BUILD_EXAMPLES=OFF` and `QCORO_BUILD_TESTING=OFF` (with
-  `BUILD_TESTING` off for the subproject) build no examples and
-  register no QCoro tests with CTest; the configure-time feature
-  summary reports both disabled.
+- **S1-10 (FetchContent hygiene confirmed; sharpened by Tom's
+  review):** `QCORO_BUILD_EXAMPLES=OFF` and `QCORO_BUILD_TESTING=OFF`
+  build no examples and register no QCoro tests with CTest, **with
+  the parent's `BUILD_TESTING` left ON** — QCoro maps
+  `QCORO_BUILD_TESTING` onto a directory-scoped `BUILD_TESTING` of
+  its own, so the host's flag must not be forced (the spike's first
+  cut forced it globally, which would have disabled acquisition's
+  entire test suite if copied into the root project; caught in
+  review, the checked-in reference now enables testing in the parent
+  and verifies zero QCoro tests are registered).
+
+**S1 follow-up (Tom's review of the spike round, same day).** Four
+corrections: (1) three spec clauses still stated the falsified
+mechanism — D3's reply-ownership bullet ("destroying a suspended
+coroutine runs the destructors of its in-scope locals"), the
+manager-harness reply-ownership pin ("task destruction mid-flight —
+the dispatch-time wrapper releases it"), and the integration
+shutdown pin ("resumes nothing and leaks nothing") — all rewritten
+around live-session RAII versus shutdown-time QNAM parent cleanup
+and the bounded detached-frame leak; (2) the shutdown analog now
+also **destroys the unfinished `QPromise`s** the way the hub's deque
+entries die (Tom verified the edge externally on Qt 6.11.1 first):
+futures cancel, `.then` chains do not run, detached awaiters stay
+suspended — and the same destruction mid-session would be ER1's
+resume-into-`result()` hazard, which is why D2 confines
+unfinished-promise death to post-loop shutdown; (3) the S1-10
+CMake flag correction above; (4) leak-accounting honesty: the
+in-process sentinels are authoritative — `leaks` reports the reply
+frame as a root but the timer/future frames remain *reachable* from
+Qt thread-data (pending cancel call-out events, timer
+registrations), so the tool undercounts by design.
 
 The 2,000-tab batch measurement — the other half of phasing step 0 —
 remains open.
@@ -468,4 +494,10 @@ remains open.
   silent unawaited exceptions and the sweep (S1-8), synchronous task
   completion cascades (S1-9), FetchContent hygiene (S1-10). Spike
   code lives in `spikes/qcoro/`; the 2,000-tab measurement remains
-  open.
+  open. Same-day follow-up from Tom's review: three leftover spec
+  clauses still stating the falsified mechanism rewritten (D3
+  reply ownership, two testing-plan pins), the shutdown analog
+  extended to destroy unfinished promises (futures cancel, `.then`
+  chains break, detached awaiters stay suspended), and the S1-10
+  guidance corrected — QCoro's flags only, never the global
+  `BUILD_TESTING`.
