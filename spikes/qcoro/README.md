@@ -31,9 +31,10 @@ cmake --build build-spike-release --target qcoro_batch
 ```
 
 Headline numbers (Release, Qt 6.11.1/macOS): ~6.5 KB heap per entry
-with outcome slots sized to the real stash wrapper (336 bytes;
-static_asserted), linear through 10,000 (≈12.4 MB standing
-population at 2,000 tabs);
+with outcome slots sized to the real stash wrapper (336 bytes,
+pinned by static_asserts to a July 19, 2026 size probe — re-verify
+manually if the production types change), linear through 10,000
+(≈12.4 MB standing population at 2,000 tabs);
 full-abort cost ~2–4 ms at 2,000 (Canceled burst + queued
 resumptions + sweep — the ~22 ms per-pump sleep wake from S1-5
 dominates); heap returns to baseline afterward and `leaks --atExit`

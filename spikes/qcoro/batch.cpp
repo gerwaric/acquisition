@@ -125,12 +125,16 @@ struct FetchError
 using RawOutcome = std::expected<QByteArray, FetchError>;
 
 // Sized to the real facade payload: sizeof(std::expected<poe::StashWrapper,
-// FetchError>) is 336 bytes against the actual headers (measured July 19,
-// 2026; poe::CharacterWrapper's outcome is 744 — a character-scale run costs
-// ~0.8 KB more per entry). The size matters because the outcome occupies two
-// compile-time frame slots per entry — fetchOne's local and the inner
-// takeResult task's promise — plus, transiently, the child future's shared
-// state; an undersized stand-in undercounts every one of them.
+// FetchError>) probed at 336 bytes against the actual headers on July 19,
+// 2026 (poe::CharacterWrapper's outcome: 744 — a character-scale run costs
+// ~0.8 KB more per entry). The size matters because the outcome occupies
+// three compile-time frame slots per entry along the takeResult path —
+// fetchOne's local, the inner task's promise result storage, and the
+// awaiter's move-out path (the measured +706 B/entry over the 104-byte
+// first cut matches three slots) — plus, transiently, the child future's
+// shared state. The static_asserts below pin the stand-in to that probe's
+// NUMBERS, not to the production types: if poe::StashWrapper changes,
+// nothing here fires — re-run the size probe and re-pad by hand.
 struct ParsedTab
 {
     QString id;
