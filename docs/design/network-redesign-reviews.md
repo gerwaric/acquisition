@@ -387,8 +387,100 @@ coroutine frame allocations leak — five top-level task frames (E6a +
 four E8) plus the two inner task frames (`QCoro::sleepFor`'s,
 `qCoro().takeResult()`'s).
 
-The 2,000-tab batch measurement — the other half of phasing step 0 —
-remains open.
+## Phase-0 batch-scale measurement (round S2) — July 19, 2026
+
+The other half of phasing step 0: peak memory and abort cost for the
+full promise/future/frame/token population at the 2,000-tab scale
+the items-pipeline doc names. Second binary in the spike project
+(`spikes/qcoro/batch.cpp`, target `qcoro_batch`) — a fresh process
+for clean memory baselines, away from `qcoro_spike`'s deliberate
+leaks. It builds the spec's production topology per entry (pump
+deque entry with realistic `QNetworkRequest` + endpoint label +
+timestamp + `QPromise` + stop token; facade `.then(parse)` chain
+with no parent-future retention; eager per-fetch worker suspended on
+`co_await qCoro(child).takeResult()` with the post-await stop check;
+handles in a worker-owned container; one `stop_source`). The
+parsed-outcome stand-in is sized to the real facade payload —
+`sizeof(std::expected<poe::StashWrapper, FetchError>)` is 336 bytes
+against the actual headers (the spike static_asserts the probed
+numbers, not the production types — re-probe manually if they change;
+`poe::CharacterWrapper`'s outcome is 744, so a character-scale run
+costs ~0.8 KB more per entry) — because the outcome occupies
+compile-time frame slots per entry, not just completed shared state
+(see the follow-up below). It then aborts
+the maximal standing population — every entry still queued:
+`request_stop()` → drain loop completes each entry `Canceled` at the
+dequeue checkpoint → queued watcher resumptions → deferred sweep.
+Numbers from a Release build, Qt 6.11.1/macOS, allocator bytes via
+`malloc_zone_statistics`, footprint via `task_vm_info`; validity
+checks also pass under ASAN.
+
+- **S2-1 (standing population ≈ 6.5 KB/entry, linear):** the full
+  per-entry machinery — queue entry (request with auth/UA headers
+  and transfer timeout, label, timestamp, promise, token), parse
+  chain and child future, suspended worker frame plus its inner
+  `takeResult` task frame and `QFutureWatcher`, owned handle, with
+  the outcome slots sized to the real stash wrapper — costs
+  ~6.5 KB of heap. Measured 6542/6516/6520 bytes per entry at
+  N=200/2,000/10,000 — linear, no superlinear surprise. The 2,000-tab
+  population is **~12.4 MB heap (~11–13 MB footprint)**; even
+  10,000 tabs is ~62 MB.
+- **S2-2 (abort cost is milliseconds):** at N=2,000 the whole abort
+  runs ~2–4 ms: Canceled-completion burst ~2.4 ms (2,000 promise
+  completions with the pass-through parse continuations running
+  inline on the completing stack), resumption drain ~1.1 ms (2,000
+  queued `QFutureWatcher` resumptions through the event loop),
+  handle sweep ~0.3 ms. N=10,000 stays ~13 ms. The dominant abort
+  latency is therefore the one-time ~22 ms stop-interruptible
+  pacing-sleep wake per pump (S1-5), not anything that scales with
+  population. The batch-submit burst itself (build + chain + launch
+  to first suspension, synchronous on the main thread) is ~8 ms at
+  N=2,000.
+- **S2-3 (memory fully unwinds; no retention at scale):** heap
+  returns to ~baseline after the sweep (+0.23 MB at N=2,000,
+  allocator noise) and `leaks --atExit` reports **zero leaks** —
+  the canceled population leaves nothing behind: no completed-future
+  retention, no frame residue (ER5/D2's no-retention rule holds at
+  the population level). Intermediate points: after the Canceled
+  burst the child shared states hold 2,000 stored outcomes
+  (+6.6 MB over baseline); after resumption only the completed
+  frames remain (+2.3 MB); the sweep releases those.
+- **S2-4 (scale does not bend the S1 contracts):** at 2,000 entries
+  no worker resumed during submission (all suspended), none resumed
+  on the completing stack (queued delivery holds under a 2,000-
+  completion burst), every post-await stop check fired, no parse
+  continuation did real work on the abort path, and every handle was
+  ready before the sweep.
+
+**Verdict:** the numbers do not demand flow control — bounded
+flow control stays unbuilt (the spec's "measure first" is resolved),
+and D6's deferred sweep needs no incremental per-completion
+reclamation. Not simulated: `QueueUpdated` signal emissions (D6
+already routes any stutter to UI-side coalescing), real dispatch and
+replies (at most the gate cap of 2 in flight — negligible against
+the queued population), and success-path payload memory (an
+items-pipeline sizing concern, not machinery cost).
+
+**S2 follow-up (external review, same day).** Two corrections. (1)
+The first cut's 104-byte synthetic outcome **undercounted the
+standing population**: the real stash outcome is 336 bytes
+(character: 744), and `sizeof` of the outcome type is baked into
+the population at compile time — it landed in three frame slots per
+entry along the `takeResult` path (the worker frame's local, the
+inner task's promise result storage, and the awaiter's move-out
+path), not just in completed shared state. The stand-in is now
+padded to the real stash wrapper and static_asserted against
+drift; per-entry cost rose 5.8 → ~6.5 KB (measured +706 bytes,
+consistent with three 232-byte slot growths) and every number above
+was re-measured. The verdict is unchanged. (2) The resumption-wait
+**timeout path was itself an S1-1 hazard**: after a 30 s timeout the
+code went on to sweep the handles and destroy the update — detaching
+any still-suspended worker frames while they retain pointers into
+the update's counters, which a later scale's event processing could
+resume into freed state. On timeout the binary now deliberately
+leaks the update (mirroring the shutdown contract: detached frames
+must outlive nothing that can still be delivered to them) and runs
+no further scales.
 
 ## Revision log
 
@@ -547,3 +639,18 @@ remains open.
   leak-tool description to its actual output, and separated
   body-completion local unwinding from frame-allocation reclamation
   in D3.
+- **July 19, 2026 (batch-scale measurement, round S2 — freeze
+  holds)** — phasing step 0 completed: the 2,000-tab measurement ran
+  (`spikes/qcoro/batch.cpp`). Standing population ~6.5 KB/entry,
+  linear to 10,000 (~12.4 MB at 2,000 tabs); abort costs milliseconds
+  end to end (~2–4 ms at 2,000; the ~22 ms per-pump sleep wake
+  dominates) and memory unwinds to baseline with zero leaks after
+  the sweep. Verdict: no flow control, no incremental reclamation —
+  the spec's "measure first" clauses resolved with numbers; D6 and
+  the phasing sketch cite S2 inline. Same-day follow-up (external
+  review): the outcome stand-in resized from 104 bytes to the real
+  336-byte stash wrapper (it occupies three compile-time frame slots
+  per entry — the first cut undercounted by ~0.7 KB/entry; numbers
+  re-measured, verdict unchanged), and the resumption-wait timeout
+  path fixed to leak the update deliberately instead of sweeping
+  live frames into a use-after-free.
