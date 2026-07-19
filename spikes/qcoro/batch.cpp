@@ -51,6 +51,7 @@
 #include <QTimer>
 #include <QUrl>
 
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <deque>
@@ -123,15 +124,26 @@ struct FetchError
 
 using RawOutcome = std::expected<QByteArray, FetchError>;
 
+// Sized to the real facade payload: sizeof(std::expected<poe::StashWrapper,
+// FetchError>) is 336 bytes against the actual headers (measured July 19,
+// 2026; poe::CharacterWrapper's outcome is 744 — a character-scale run costs
+// ~0.8 KB more per entry). The size matters because the outcome occupies two
+// compile-time frame slots per entry — fetchOne's local and the inner
+// takeResult task's promise — plus, transiently, the child future's shared
+// state; an undersized stand-in undercounts every one of them.
 struct ParsedTab
 {
     QString id;
     QString name;
     QString type;
     std::vector<int> items;
+    std::byte pad[232]; // pad to sizeof(poe::StashWrapper) == 328
 };
 
 using ParsedOutcome = std::expected<ParsedTab, FetchError>;
+static_assert(sizeof(ParsedTab) == 328, "stand-in drifted from poe::StashWrapper");
+static_assert(sizeof(ParsedOutcome) == 336,
+              "stand-in outcome drifted from std::expected<poe::StashWrapper, FetchError>");
 
 // A pump queue entry (D1): request, endpoint label, capture timestamp,
 // promise, and the update's stop token.
@@ -230,7 +242,8 @@ static void drainCanceled(Update &u)
 
 // ---------------------------------------------------------------------------
 
-static void measureScale(int n, bool warmup)
+// Returns false if the run had to be abandoned (workers never finished).
+static bool measureScale(int n, bool warmup)
 {
     std::printf("\n[batch-scale measurement, N=%d%s]\n", n, warmup ? " (warm-up)" : "");
 
@@ -279,6 +292,20 @@ static void measureScale(int n, bool warmup)
     }
     check(allReady, "every handle reports ready before the sweep (sweep destroys completed only)");
 
+    if (u->stats.finished < n || !allReady) {
+        // An unfinished worker is still suspended holding pointers into *u.
+        // Destroying the update now would detach live frames (S1-1) that a
+        // later scale's event processing could resume into freed state —
+        // retain the update until process exit instead, and run no further
+        // scales.
+        std::printf("       measurement abandoned: %d/%d workers finished — leaking the update "
+                    "deliberately (sweeping now would detach live frames, S1-1/S1-4)\n",
+                    u->stats.finished,
+                    n);
+        (void) u.release();
+        return false;
+    }
+
     // --- deferred sweep (D6): destroy the completed handles ---
     t.restart();
     u->handles.clear();
@@ -316,6 +343,7 @@ static void measureScale(int n, bool warmup)
                 asMB(afterTeardown.heapInUse - base.heapInUse));
     std::printf("       footprint vs baseline:   after teardown %+.2f MB\n",
                 asMB(afterTeardown.footprint - base.footprint));
+    return true;
 }
 
 int main(int argc, char **argv)
@@ -348,7 +376,9 @@ int main(int argc, char **argv)
     }
 
     for (size_t i = 0; i < scales.size(); ++i) {
-        measureScale(scales[i], scales.size() > 1 && i == 0);
+        if (!measureScale(scales[i], scales.size() > 1 && i == 0)) {
+            break; // a leaked update must not meet another scale's event loop
+        }
     }
 
     std::printf("\n%d CHECK failure(s)\n", g_checkFailures);
