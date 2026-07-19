@@ -1,6 +1,6 @@
 # Network Redesign: Typed Facade, Coroutine Pumps, and the Gate
 
-**Status: ACCEPTED July 19, 2026 (revision 4).** Drafted and accepted
+**Status: ACCEPTED July 19, 2026 (revision 5).** Drafted and accepted
 July 18; reopened the same day by an external review (four finding
 groups); groups 1–2 resolved through three review rounds. On July 19
 Tom directed a simplification pass under the containment principle
@@ -10,12 +10,18 @@ the same day Tom's **implementation-readiness review** (line-level,
 against the code and Qt/QCoro documentation) found six correctness
 gaps in the simplified spec and three further simplifications
 (IR1–IR6). A **fourth review round** the same day (R4-1–R4-4 plus
-minor items, Appendix B) pinned four implementation ambiguities —
-permit lifetime on the retry path, queued resumption discipline,
-worker task ownership, and the gate's timeout-liveness assumption —
-without reopening any design decision. The full review backlog, the
-reversal records, and the revision history are in Appendix B. No code
-has been written against this spec.
+minor items) pinned four implementation ambiguities without reopening
+any design decision. A **fifth round** — Tom's implications review of
+revision 4 against the code it must live in — found four blockers
+(R5-1–R5-4, Appendix B), two of which resolved by deletion: exception
+supervision moved into every root coroutine (owned handles supervise
+nothing), the asynchronous teardown choreography and the hub shutdown
+stop_source were deleted (shutdown is destruction order, which
+`Application` already implements), the facade now establishes the
+transfer-timeout invariant (false-for-legacy today, F60), and raw
+reply ownership is assigned. The full review backlog, the reversal
+records, and the revision history are in Appendix B. No code has been
+written against this spec.
 
 This document specifies the redesign of acquisition's rate-limited
 networking: how the items worker, the rate limiter, and the network
@@ -135,8 +141,11 @@ Five layers, each speaking one language, each testable alone:
   outcome, not a failure: consumers treat it as "return silently" and
   it never counts toward request-failure accounting. **Futures are
   never canceled in the `QFuture` sense — every future finishes**
-  (revised July 18 after external review; the whole cancellation design
-  is D2).
+  while any consumer is alive to await it (revised July 18 after
+  external review; scoped to live sessions by R5-2 — at application
+  destruction promises may die unobserved, safely, because every
+  awaiter is destroyed first: see the shutdown section; the whole
+  cancellation design is D2).
 - `RateLimitedReply` and `RateLimitedRequest` are deleted. The pump's
   internal queue entry holds the `QNetworkRequest`, the endpoint label,
   timestamps for capture, and the `QPromise`.
@@ -172,12 +181,13 @@ hazard is unconstructible:
 - **Pump checkpoints** (ER4): the stop state is
   checked at dequeue, after the pacing sleep, after gate acquisition,
   after the reply lands, and after a retry sleep — before every send.
-  "Stopped" means the entry's token **or the hub's shutdown token**
-  (the shutdown contract). A stopped entry completes `Canceled` at the
-  first checkpoint that sees it. Pacing and retry sleeps are
-  **stop-interruptible** (the sleep primitive takes the tokens and
-  wakes on stop), so an aborted update's queue drains promptly instead
-  of at pacing speed. The failure mode of a *missed* checkpoint is one
+  "Stopped" means the entry's token — the *only* token anywhere
+  (R5-2 deleted the hub shutdown token: shutdown is destruction, not
+  a signal — see the shutdown section). A stopped entry completes
+  `Canceled` at the first checkpoint that sees it. Pacing and retry
+  sleeps are **stop-interruptible** (the sleep primitive takes the
+  entry token and wakes on stop), so an aborted update's queue drains
+  promptly instead of at pacing speed. The failure mode of a *missed* checkpoint is one
   wasted — but paced, gated, harmless — send, not undefined behavior;
   that graceful degradation is a deliberate property of this design.
 - **Queued resumption (R4-2):** stop-triggered wakeups are delivered
@@ -258,7 +268,7 @@ regardless of what the client does next.
 
 | Landed reply (after bookkeeping) | Outcome |
 |---|---|
-| entry stopped (entry token or shutdown) | complete `Canceled` (the violation of a stopped 429 is already recorded) |
+| entry stopped (its token) | complete `Canceled` (the violation of a stopped 429 is already recorded) |
 | 429, valid `Retry-After`, attempt < `MAX_ATTEMPTS` | stop-interruptible sleep to `max(now + RetryAfter + RETRY_BUCKET_PAD + buffer, GetNextSafeSend(history))`, then re-send |
 | 429, valid `Retry-After`, attempt = `MAX_ATTEMPTS` | complete `FetchError{RateLimited}` **immediately — never sleep on an exhausted attempt** |
 | 429, no valid `Retry-After` | complete `FetchError{Http}` (non-retryable — today's behavior; violation already recorded) |
@@ -299,6 +309,19 @@ regardless of what the client does next.
   gate's two permits through it, with a waiting HEAD blocking the
   rest under writer preference, would stall the entire hub behind one
   429 — a gate-shaped F57.
+- **Raw reply ownership (R5-4):** after dispatch the pump is the
+  reply's sole owner — `NetworkManager` never enables Qt's
+  auto-deletion (default false), and rev 4 assigned no owner at all:
+  the contradictory-ownership mistake this redesign exists to kill
+  (F59), re-created one level down. The moment the reply await
+  returns, the reply is wrapped in RAII with a `deleteLater` deleter;
+  body copied and headers consumed before any completion or retry
+  decision. Every path — success, error, each retry attempt,
+  exception (composes with the completion guard),
+  cancellation-after-landing, hub destruction — cleans up through
+  that one wrapper; no per-path deletion code. The gate permit
+  observes `finished` but never owns or deletes the reply. The setup
+  path owns its HEAD reply under the same rule (D4).
 - Retries are bounded (`MAX_ATTEMPTS = 3`) so a systemically broken
   policy cannot hammer the API — each 429 still increments the violation
   counter and logs (N10: layer-4 goodwill is finite).
@@ -461,13 +484,18 @@ contract rules:
   released at dispatch, the in-flight cap would bound nothing — and
   never longer: release happens at reply-finish, so a permit is never
   held across a retry sleep (D3).
-- **Liveness rests on the transfer timeout (R4-4):** every request
-  the gate sees carries the existing 10 s transfer timeout, and the
-  gate's liveness — permit turnover, HEAD exclusivity ever becoming
-  acquirable, prompt drain of stopped in-flight entries under the
-  never-abort rule (D2) — depends on every reply finishing in
-  bounded time. The timeout is a stated invariant of this design;
-  removing or unbounding it requires redesigning the gate.
+- **Liveness rests on the transfer timeout (R4-4; corrected R5-3):**
+  the gate's liveness — permit turnover, HEAD exclusivity ever
+  becoming acquirable, prompt drain of stopped in-flight entries
+  under the never-abort rule (D2) — depends on every reply finishing
+  in bounded time. R4 called the 10 s timeout "existing behavior";
+  that was **false for the legacy stash-index request**, which today
+  has no transfer timeout at all (`Shop::UpdateStashIndex` builds a
+  bare request; only the OAuth builders set one — F60). The invariant
+  is therefore *established by the facade* (D7), which sets the
+  timeout on every request it builds — all five — with a test over
+  every builder. Removing or unbounding the timeout requires
+  redesigning the gate.
 - **Completion ordering (IR6):** the permit is released, and the pump
   reaches a stable state, *before* the entry's promise is completed —
   promise completion may synchronously re-enter the limiter (D3, D6).
@@ -521,9 +549,16 @@ forum and login traffic as-is, documented here.
   — no fire-and-forget anywhere. A task handle owns a coroutine
   frame, not a payload, so this does not conflict with D2's
   no-future-retention rule; but 2,000 frames are memory, which is
-  exactly what the phase-0 measurement weighs. Handles are released
-  when the update ends (completed or aborted), not incrementally
-  mid-update — reclamation machinery is speculative until the
+  exactly what the phase-0 measurement weighs. Ownership is for
+  **lifetime control only** — it supervises nothing (R5-1, exception
+  policy). Handles are reclaimed by a **deferred sweep that runs
+  outside any completing coroutine** (R5-1): finalization triggered
+  by the last completion must not clear the container holding the
+  frame it is running in, and **abort never destroys live handles**
+  — rev 4's released-on-abort rule contradicted D2's
+  stragglers-resolve-later contract; stragglers finish `Canceled`
+  (bounded by the transfer timeout) and are then swept. No
+  incremental per-completion reclamation beyond that sweep until the
   measurement demands it. "Update done" remains completion counting:
   each per-fetch coroutine increments its counter after its await
   resolves (post-await check first), and the completion that
@@ -588,6 +623,11 @@ boundary between domain and network:
 - The facade is intentionally boring: no coroutines inside, no state
   beyond references to the limiter and settings (realm/league move in as
   call parameters, as today).
+- **The facade owns the transfer-timeout invariant (R5-3):** every
+  request it builds carries the 10 s transfer timeout — the gate's
+  liveness depends on it (D5). Today only the OAuth builders set it;
+  the legacy stash-index request is built bare (F60) — the facade
+  closes that gap by construction, and a test covers every builder.
 - **Everything runs on the main thread (R4 minor, stated
   explicitly):** submission is main-thread-only, pumps complete
   promises on the main thread, and the parse continuations attach
@@ -688,88 +728,101 @@ message. F50's diagnostics rewording rides along here.
 
 ## Shutdown and task ownership
 
-Added July 18, 2026 (ER4); **rewritten in the IR round (IR3, IR4):**
-the original sequence could not reach a pump suspended in a
-several-minute pacing sleep, and the always-finish guarantee did not
-survive exceptions.
+Added July 18, 2026 (ER4); rewritten in the IR round (IR3, IR4);
+**rewritten again July 19 (R5-2): the asynchronous teardown
+choreography is deleted.** Rev 4 required queued resumptions and a
+live event loop during shutdown — but `Application` is destroyed
+after `a.exec()` returns (`src/main.cpp`), when the loop is already
+gone, and `UserSession`'s member order destroys `Shop` and
+`ItemsManagerWorker` *before* `RateLimiter` (`src/application.h`), so
+a hub-driven drain of worker tasks was unreachable. Rather than build
+an asynchronous shutdown subsystem for consumers that are already
+destroyed, shutdown is now **destruction order, not choreography** —
+which the existing member order already implements.
 
-**Ownership chain:** the hub owns the gate, the pumps, and a
-**shutdown `std::stop_source`**; each pump owns its deque and its
-drain-task handle (a member — never fire-and-forget); the worker owns
-its update-task handle as a member; the facade owns nothing stateful.
-Task-handle destruction order and destroy-while-suspended semantics
-are verified by the phase-0 QCoro spike before any of this is built.
-The hub lives for the application session — teardown below happens
-only at shutdown.
+**Ownership chain:** the hub owns the gate and the pumps; each pump
+owns its deque and its drain-task handle (a member — never
+fire-and-forget); the worker owns its update-task handle and its
+per-fetch handles as members (D6); the facade owns nothing stateful.
+The hub lives for the application session. There is **no shutdown
+`std::stop_source`** — every wait takes the entry's token only, one
+token in every signature (R5-2 simplification; rev 4's second token
+existed solely for the deleted choreography).
 
-**Every wait observes shutdown.** The pacing sleep, the retry sleep,
-and gate acquisition all take the entry token *and* the hub's
-shutdown token; every D2 checkpoint checks both. This — not queue
-closure — is what reaches a pump mid-sleep. (With the deque + drain
-design there are no queue-close semantics at all.)
+**Shutdown = destruction, in the existing order:**
 
-**Teardown sequence** (hub shutdown):
+1. Consumers die first (`UserSession` member order): `Shop`, then
+   `ItemsManagerWorker`. Each destroys its task handles **while
+   suspended** — a destroyed coroutine never resumes, so no awaiter
+   outlives this step. Within each destructor, task handles are
+   destroyed before any member they might observe.
+2. The hub dies next: its destructor destroys every drain task
+   (while suspended — nothing resumes into a dying pump), then
+   `QNetworkReply::abort()`s and releases in-flight replies —
+   including a HEAD probe — the one place hard abort is permitted
+   (D2; history no longer matters). Aborting *after* the awaiters
+   are gone means the `finished` signal resumes nothing. Pumps and
+   the gate are destroyed last.
+3. Promises die unfinished, **safely by construction**: the
+   every-future-finishes guarantee (D1/D2) exists for live awaiters,
+   and steps 1–2 guarantee none exists — every consumer coroutine is
+   destroyed before the promise it awaited. `.then()` continuations
+   on broken promises do not run (Qt cancels the chain).
 
-1. The hub requests stop on its shutdown source and stops accepting
-   submissions (submits after this point complete immediately with
-   `Canceled`).
-2. Every suspended wait — pacing sleeps, retry sleeps, gate waits —
-   wakes promptly via the shutdown token; each drain completes its
-   active entry `Canceled` and then drains its remaining deque
-   entries as `Canceled` without sending. Hub-parked setup entries
-   complete `Canceled`.
-3. In-flight replies — including a HEAD probe — are
-   `QNetworkReply::abort()`ed: the one place hard abort is permitted
-   (D2); history no longer matters at shutdown. The abort resumes the
-   drain's reply await; the shutdown checkpoint there forbids any
-   retry or gate re-acquisition, and the entry completes `Canceled`.
-4. The gate wakes all remaining waiters with a shutdown outcome and
-   issues no further permits.
-5. Only after every drain task has run to completion are pumps
-   destroyed; the worker's update task is completed or destroyed
-   (per the spike's verified semantics) before `ItemsManagerWorker`.
+This works identically whether the event loop is alive or not —
+destruction is synchronous and depends on no event delivery. **QCoro
+0.13's destroy-while-suspended semantics are load-bearing here, not
+a fallback:** the phase-0 spike must verify destruction while
+suspended on each awaitable we use (future, reply, timer, gate) and
+that a destroyed task's reply-awaiter connection dies with it — a
+later `finished` emission resumes nothing.
 
-**Teardown needs a live event loop (R4-2).** Steps 2–4 are queued
-resumptions and reply `finished` signals, so shutdown is
-asynchronous: the hub requests stop, the event loop keeps turning,
-and step 5's destruction runs when the last drain completes — never
-as a blocking wait. How the application's shutdown path awaits this
-(and whether QCoro's destroy-while-suspended semantics are a safe
-fallback if the loop is already gone) is a phase-0 spike
-deliverable: the invariant below is fixed; the spike verifies the
-mechanism.
+**Invariant: no coroutine resumes through a destroyed `this`.**
+During a live session the invariant holds because owners (hub,
+worker) outlive their tasks and no live-session path destroys them;
+at shutdown every suspension point (sleep, gate, reply, future) is
+destroyed while suspended and never resumed — which is why QCoro ≥
+0.13 is a hard floor: it fixed the leak when a task is destroyed
+while awaiting a `QFuture`.
 
-**Invariant: no coroutine resumes through a destroyed `this`.** Every
-suspension point a pump or worker task uses (sleep, gate, reply,
-future) must either resume before its owner is destroyed (steps 2–4
-guarantee this for pumps) or be safely destructible while suspended —
-which is why QCoro ≥ 0.13 is a hard floor: it fixed the leak when a
-task is destroyed while awaiting a `QFuture`.
+**Exception policy (IR4; rewritten R5-1).** Boundary payloads are
+`expected`, so an exception crossing a layer boundary is a bug — but
+coroutine bodies can still throw (Qt, stdlib). Rev 4's rationale —
+"handles are owned members, so no exception can vanish" — was
+unsound: QCoro stores an unhandled exception in the task and
+rethrows it only to an awaiting consumer or `.then()` continuation;
+a retained-but-never-awaited handle observes nothing. A drain that
+escaped would never run the code that sets the terminal state, and a
+per-fetch task that escaped would never count its completion — a
+wedge (F57's ghost), with the exception sitting silently in the
+handle. Logging alone is not containment either, and destroying a
+`QPromise` unfinished mid-session is the resultless state D2 forbids.
+Therefore:
 
-**Exception policy (IR4).** Boundary payloads are `expected`, so an
-exception crossing a layer boundary is a bug — but coroutine bodies
-can still throw (Qt, stdlib). Logging alone is not containment: a
-pump loop that dies leaves every queued promise unfinished — a wedge
-(F57's ghost) — and destroying a `QPromise` notifies its future
-*without a result*, exactly the resultless state D2 exists to make
-unconstructible. Therefore:
-
-- Every dequeued or parked entry is protected by a **scoped
-  completion guard**: if the promise has not been completed when the
-  guard unwinds — any exceptional path included — it completes
+- **No exception ever escapes a root coroutine.** Every root task —
+  the pump drain, the worker's update task, each per-fetch task —
+  wraps its entire body in a catch-all and finishes
+  non-exceptionally. QCoro's stored-exception machinery is
+  deliberately never exercised; handle ownership is for lifetime
+  only and supervises nothing (D6).
+- The drain's catch-all is what *implements* the terminal failed
+  state: it completes the active entry `Internal` (the guard below
+  already guarantees that), transitions the pump, and fails the
+  remaining deque entries fast. A pump in the terminal failed state
+  stays there — the event is logged loudly and captured, later
+  submissions complete `FetchError{Internal}` fast, and no restart
+  is attempted (restart-on-throw risks a tight crash loop;
+  terminal-and-loud is the containment answer — the app keeps
+  running, the next session starts clean).
+- A per-fetch task's catch-all feeds the same first-failure path as
+  a `FetchError{Internal}` result: count the completion, then
+  `request_stop()` — the update aborts cleanly instead of waiting
+  forever on a counter that will never move.
+- Every dequeued or parked entry keeps its **scoped completion
+  guard**: if the promise has not been completed when the guard
+  unwinds — any exceptional path included — it completes
   `FetchError{Internal}`.
-- A pump whose drain escapes with an exception enters a **terminal
-  failed state**: the event is logged loudly and captured, remaining
-  and future submissions to that pump complete `FetchError{Internal}`
-  fast, and no restart is attempted (restart-on-throw risks a tight
-  crash loop; terminal-and-loud is the containment answer — the app
-  keeps running, the next session starts clean).
-- The worker's top-level update task keeps its catch-all: log, fail
-  the update safely. The facade's parse continuations are
-  exception-tight (D7). No fire-and-forget task exists anywhere
-  (handles are owned members), so no exception can vanish silently
-  (QCoro stores unhandled task exceptions for a co_await that may
-  never come).
+- The facade's parse continuations are exception-tight (D7).
 
 ## What gets deleted
 
@@ -855,7 +908,10 @@ sleep.)
    *value*, never an exceptional future; **permit-free retry
    (R4-1)**: a retrying entry holds no permit during its retry sleep
    — a sibling pump acquires the gate and sends while that sleep
-   runs.
+   runs; **reply ownership (R5-4)**: every reply the fake sender
+   hands out is destroyed exactly once on every path — success,
+   non-retryable error, each retry attempt, cancel-after-landing,
+   drain exception (leak and double-deletion pins).
 3. **Setup and validation pins**: a total-parse suite over malformed
    headers — missing rules list, missing per-rule headers, short
    triplets, non-numeric fields, mismatched periods (the current
@@ -878,9 +934,10 @@ sleep.)
    shutdown without leaking or waking.
 4. **Primitives tested standalone** with an **injected monotonic
    clock/scheduler** (group 4) so timing behavior is deterministic
-   and the tests never sleep: the stop-interruptible sleep (wakes on
-   either token, completes on deadline, and resumes via the event
-   loop — `request_stop()` returns before the waiter resumes, R4-2)
+   and the tests never sleep: the stop-interruptible sleep (one
+   token per R5-2; wakes on stop, completes on deadline, and resumes
+   via the event loop — `request_stop()` returns before the waiter
+   resumes, R4-2)
    and the gate — cap, HEAD exclusivity **with writer preference** (a
    waiting HEAD blocks new ordinary permits; a busy pump cannot
    starve setup), spacing floor, and **permit span** (a permit is
@@ -897,14 +954,21 @@ sleep.)
    the batch-submit loop without corrupting counters
    (initialize-before-launch); a fetch that completed successfully
    just before `request_stop()` resumes its consumer afterward and
-   mutates nothing (post-await identity).
-6. **Integration coverage** (group 4 + IR3): cancellation races across
-   layers (abort mid-pacing-sleep, mid-gate-wait, mid-flight);
-   **shutdown reaches every suspension** — teardown while a pump is
-   mid-pacing-sleep, mid-retry-sleep, and mid-gate-wait completes
-   promptly with every promise finished and no leaked frames;
-   shutdown mid-update; completed-future retention (memory does not
-   grow with completed fetches across a long update).
+   mutates nothing (post-await identity); **R5-1 pin**: a per-fetch
+   task whose body throws counts its completion and triggers the
+   first-failure stop — the update finishes (aborted), never wedges;
+   the handle sweep runs outside any completing coroutine (the last
+   completion does not destroy its own frame).
+6. **Integration coverage** (group 4 + IR3; shutdown pins rewritten
+   R5-2): cancellation races across layers (abort mid-pacing-sleep,
+   mid-gate-wait, mid-flight); **destruction reaches every
+   suspension** — destroying worker-then-hub in the `UserSession`
+   member order while a pump is mid-pacing-sleep, mid-retry-sleep,
+   mid-gate-wait, and mid-flight resumes nothing and leaks nothing
+   (leak-checked; promises may die unfinished — no awaiter exists to
+   observe them); destruction mid-update; completed-future retention
+   (memory does not grow with completed fetches across a long
+   update).
 7. Every commit compiles and passes `ctest` (working rule #2). The
    capture instrument's tests (`tst_networkcapture.cpp`) must keep
    passing — captures are live research data (Q5, Q9).
@@ -919,8 +983,13 @@ sleep.)
    worker should move the parsed payload out, not copy a stash
    wrapper); synchronous promise-completion re-entrancy; stopped
    waits; queued-vs-synchronous resumption on stop and on `abort()`
-   (R4-2 requires queued); how teardown awaits drain completion on
-   the main thread (R4-2). Plus the FetchContent hygiene flags (QCoro examples off,
+   (R4-2 requires queued); **destroy-while-suspended as the shutdown
+   mechanism (R5-2)** — destruction while suspended on each awaitable,
+   with no live event loop, and that a destroyed task's reply-awaiter
+   connection dies with it (a later `finished` emission resumes
+   nothing); task destruction from inside its own continuation vs a
+   deferred sweep (R5-1); the stored-exception behavior of an
+   unawaited task (confirming R5-1's premise). Plus the FetchContent hygiene flags (QCoro examples off,
    tests out of our CTest). Findings feed back into D2/D6/shutdown
    before any production code. **Alongside it, one measurement:**
    batch submission at the 2,000-tab scale the items-pipeline doc
@@ -1121,6 +1190,23 @@ magnitude argument is unchanged); the main-thread invariant is stated
 explicitly (D7); batch-submit `QueueUpdated` volume is noted as a
 UI-side concern (D6).
 
+### Review round 5 — July 19, 2026 (Tom)
+
+Tom's implications review of revision 4: not new edge cases, but
+whether the accumulated design fits the code it must live in. Four
+blockers, each verified against the code; two resolutions are net
+deletions. One framing correction recorded: R4-2/R4-3 patched the
+shutdown story instead of asking whether an asynchronous shutdown
+should exist at all — R5-2 is the containment answer that question
+deserved.
+
+| ID | Finding | Resolution |
+|---|---|---|
+| R5-1 | Owned task handles do not supervise exceptions: QCoro rethrows a stored exception only to an awaiting consumer, so an escaped drain never runs the terminal-state transition and an escaped per-fetch task never counts its completion — a wedge with the exception sitting silently in the handle. Also: rev 4's release-on-abort rule contradicted D2's stragglers-resolve-later contract, and finalization triggered by the last completion could destroy the frame it runs in. | Exception policy rewritten: no exception ever escapes a root coroutine — every root task catch-alls and finishes non-exceptionally; the drain's catch implements the terminal state; a per-fetch catch feeds the first-failure path. Handles are lifetime-only; deferred sweep outside any completing coroutine; abort never destroys live handles. Spike + pump/worker pins. |
+| R5-2 | The rev-4 shutdown required queued resumptions and a live event loop — but `Application` is destroyed after `a.exec()` returns (`src/main.cpp`) and `UserSession` destroys `Shop`/`ItemsManagerWorker` before `RateLimiter` (`src/application.h`): the hub-driven teardown was unreachable at the only moment it would run. | Teardown choreography and the hub shutdown stop_source deleted. Shutdown is destruction order — which `Application` already implements: consumers first, task handles destroyed while suspended, hub aborts replies after all awaiters are gone. Every-future-finishes is scoped to live sessions (safe: no awaiter survives to observe a broken promise). Every wait takes one token. Destroy-while-suspended becomes a load-bearing spike deliverable. |
+| R5-3 | D5's timeout-liveness premise was false for the legacy endpoint: `Shop::UpdateStashIndex` builds its request with no transfer timeout (only the OAuth builders set one) — a stalled legacy request could hold a permit indefinitely; with a HEAD waiting under writer preference, the whole hub stops. | D5/D7: the facade establishes the timeout invariant on every request it builds (all five), test over every builder. The live pre-existing gap is recorded as F60 in the findings register. |
+| R5-4 | Raw `QNetworkReply` ownership was never assigned — `NetworkManager` does not enable auto-deletion (default false), and today's callers double-`deleteLater`: the contradictory-ownership mistake that motivated the redesign (F59), re-created one level down. | D3: after dispatch the pump (or setup path, for HEADs) solely owns the reply via RAII with a `deleteLater` deleter; body and headers consumed before any completion or retry decision; the permit observes `finished` but never owns. Leak and double-deletion pins. |
+
 ### Revision log
 
 - **July 18, 2026** — drafted; open items reviewed with Tom and
@@ -1187,14 +1273,32 @@ UI-side concern (D6).
   decisions; Full HEAD 429 without valid Retry-After = setup
   failure); phase-0 QCoro spike and 2,000-tab measurement;
   exception-tight facade continuations; QCoro FetchContent hygiene.
-- **July 19, 2026 (review round 4 — this revision, rev. 4)** — a
-  post-acceptance review pinned four implementation ambiguities
-  (R4-1–R4-4): permits are never held across retry sleeps (the
-  pseudocode read otherwise — a ~16-minute stall hazard); stop
-  wakeups resume via the event loop, never synchronously inside
-  `request_stop()`, and teardown's drain-await mechanism became a
-  phase-0 spike deliverable; worker task-handle ownership and update
-  completion are specified; the 10 s transfer timeout is named a gate
-  liveness invariant. Six minor items fixed in place (Appendix B).
-  No design decision reopened; the complexity pass found nothing to
-  delete.
+- **July 19, 2026 (review round 4 — rev. 4)** — a post-acceptance
+  review pinned four implementation ambiguities (R4-1–R4-4): permits
+  are never held across retry sleeps (the pseudocode read otherwise —
+  a ~16-minute stall hazard); stop wakeups resume via the event loop,
+  never synchronously inside `request_stop()`, and teardown's
+  drain-await mechanism became a phase-0 spike deliverable; worker
+  task-handle ownership and update completion are specified; the 10 s
+  transfer timeout is named a gate liveness invariant. Six minor
+  items fixed in place (Appendix B). No design decision reopened; the
+  complexity pass found nothing to delete.
+- **July 19, 2026 (review round 5 — this revision, rev. 5)** — Tom's
+  implications review of rev 4 against the code it must live in: four
+  blockers (R5-1–R5-4), two resolved by deletion. **Exception
+  supervision moved into the coroutines** — no exception ever escapes
+  a root task; owned handles supervise nothing (QCoro rethrows only
+  to an awaiter); the drain's catch-all implements the terminal pump
+  state; deferred handle sweep; abort never destroys live handles.
+  **The asynchronous teardown choreography and the hub shutdown
+  stop_source are deleted** — rev 4's sequence needed a live event
+  loop after `a.exec()` had returned and a worker the destruction
+  order had already destroyed; shutdown is now destruction order
+  (consumers first, handles destroyed while suspended, replies
+  aborted after awaiters are gone), every wait takes one token, and
+  every-future-finishes is scoped to live sessions. **The facade
+  establishes the transfer-timeout invariant** — rev 4 called it
+  existing behavior, false for the legacy stash-index request (F60).
+  **Raw reply ownership assigned** — the pump/setup path solely owns
+  replies via RAII (F59's lesson, applied one level down). Net
+  complexity: negative.

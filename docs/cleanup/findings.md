@@ -209,6 +209,23 @@ use-after-free. Pick one owner as part of the F57 fix (manager ownership
 via the unique_ptr is the natural one; then the Submit comment and
 callers' `deleteLater()` calls should change together).
 
+### F60. The legacy stash-index request has no transfer timeout — Confirmed
+
+Found July 19, 2026, during the network-redesign round-5 review
+(R5-3 in `docs/design/network-redesign.md`). `Shop::UpdateStashIndex`
+builds its `QNetworkRequest` bare — no `setTransferTimeout` — unlike
+the OAuth API builders (`poe::MakeApiRequest` sets 10 s) and the
+forum-thread calls (300 s). A stalled legacy GET, or the endpoint's
+HEAD probe (which inherits the request), therefore has no client-side
+bound at all and can hang until the OS gives up on the connection,
+leaving the shop update waiting on a reply that never finishes.
+Under the network redesign this would also hold a gate permit
+indefinitely — with a HEAD waiting under writer preference, the whole
+hub stops — which is why the redesign makes the timeout a facade-owned
+invariant (spec D5/D7, test over every builder). Fix shape: the facade
+closes this by construction; if anything touches `UpdateStashIndex`
+before the facade lands, add the timeout there directly.
+
 ---
 
 ## Standing constraints and lessons
