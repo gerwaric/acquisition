@@ -188,7 +188,7 @@ filed against phase-0/harness evidence, not re-readings.
 
 | ID | Finding | Resolution |
 |---|---|---|
-| R6-1 | Reply ownership was still contradictory: the RAII wrapper installed at await-return left the in-flight span — the reply's longest phase — ownerless; shutdown step 2 had the hub abort replies whose pointers lived only in already-destroyed frames (an implied registry the spec denied having); and `deleteLater` never runs once the event loop has stopped, so the claimed shutdown cleanup mechanism was wrong. | Wrapper installed at dispatch, before the first await — the owner is the pump frame at every instant, including suspension (destroying a suspended coroutine runs its locals' destructors; spike-verified, not assumed). The shutdown abort step is deleted: nothing aborted, nothing tracked; `abort()` is now never called anywhere. Post-loop `deleteLater` is inert; the `QNetworkAccessManager` parent (destroyed after the hub) is the documented backstop. |
+| R6-1 | Reply ownership was still contradictory: the RAII wrapper installed at await-return left the in-flight span — the reply's longest phase — ownerless; shutdown step 2 had the hub abort replies whose pointers lived only in already-destroyed frames (an implied registry the spec denied having); and `deleteLater` never runs once the event loop has stopped, so the claimed shutdown cleanup mechanism was wrong. | Wrapper installed at dispatch, before the first await — the owner is the pump frame at every instant, including suspension (destroying a suspended coroutine runs its locals' destructors; spike-verified, not assumed). The shutdown abort step is deleted: nothing aborted, nothing tracked; `abort()` is now never called anywhere. Post-loop `deleteLater` is inert; the `QNetworkAccessManager` parent (destroyed after the hub) is the documented backstop. *(The locals'-destructors premise was falsified by the spike — handle destruction detaches the frame and the wrapper never runs at shutdown; QNAM parent cleanup is the sole shutdown mechanism. The dispatch-time wrapper survives as the live-session owner. S1-1/S1-3.)* |
 | R6-2 | Shutdown step 1 said `Shop` destroys "its task handles," but Shop has no tasks in this design; and `PoeApiClient` had no specified owner. | `Shop` stays callback-style: a context-bound `.then(this, …)` continuation that Qt discards on context destruction — the future equivalent of today's `this`-context connection (`shop.cpp:199`). `PoeApiClient` is a `UserSession` member declared after `rate_limiter` (destroyed after all consumers, before the limiter); its parse continuations capture values only, never the facade. |
 | R6-3 | Policy mutation and response classification disagreed: D3 updated the policy from any Full matching landed reply, while D8 reached the total parse only on clean 2xx — leaving 429s, 403/500s, and 2xx-plus-transport-error ambiguous for pacing state, which would drift stale across non-2xx runs (today's code updates on every headered reply; N25: the server counts every exchange). | Observation separated from classification (D3/D8): header parsing is attempted independently on every landed response and Full + matching updates pacing; classification stays status/network-driven and decides only the caller's outcome; missing/malformed headers become `Protocol` only where the reply would otherwise be a clean 2xx success. |
 
@@ -236,6 +236,159 @@ qualify.
 - **"Empirically exact" scoped:** N25/N26 validated the arithmetic
   for the captured, saturated policies; Q4's classification risk is
   independent and stands (D3, D8).
+
+## Phase-0 QCoro spike (round S1) — July 19, 2026
+
+First evidence round after the freeze, from running code rather than
+re-reading: a standalone spike (`spikes/qcoro/`, QCoro pinned at
+v0.13.0, Qt 6.11.1) exercised the spec's phasing-step-0 question
+list. Ten findings; one falsifies the shutdown *mechanism* (the
+shutdown *conclusion* survives by a different route), the rest
+confirm premises or sharpen contracts. Verified plain and under
+AddressSanitizer; the spike's in-process sentinel checks are the
+authoritative leak accounting, with macOS `leaks` as a cross-check
+on the subset it can root (see the second follow-up below).
+
+- **S1-1 (falsifies R5-2's mechanism — spec shutdown section
+  rewritten):** destroying a `QCoro::Task` handle while its
+  coroutine is suspended does **not** destroy the frame. QCoro 0.13
+  tasks are reference-counted: the promise holds its own reference
+  until `final_suspend`, the handle holds a second. Handle
+  destruction *detaches* — the frame survives, frame locals'
+  destructors do **not** run (R6-1's premise), and the coroutine
+  resumes normally if its awaited event is later delivered (verified
+  for timer, `QFuture`, and `QNetworkReply` awaitables). A detached
+  coroutine that runs to completion self-destroys at
+  `final_suspend`; one that never resumes is leaked. QCoro has no
+  API to destroy a suspended coroutine from outside.
+- **S1-2 (shutdown conclusion survives via no-delivery):** all three
+  awaiters resume only through the event loop — the reply awaiter
+  connects `finished` with `Qt::QueuedConnection` to a context
+  object owned by the frame, the `QFuture` awaiter resumes through
+  `QFutureWatcher` event delivery, and timer awaits ride timer
+  events. The shutdown-analog experiment (handles destroyed while
+  suspended, then owners destroyed including a `QNAM` with an
+  in-flight reply, with **no** further loop iterations) resumed
+  nothing and did not crash. Cost: detached frames and their locals
+  leak at process exit — a few hundred bytes per frame
+  (`leaks`-verified) — acceptable, the process is exiting.
+- **S1-3 (R6-1's reply release corrected):** because the frame is
+  not destroyed at shutdown, the dispatch-time RAII wrapper never
+  runs there; `QNetworkAccessManager` parent cleanup is the **only**
+  shutdown reply cleanup, not a backstop. The wrapper still owns the
+  reply on every live-session path (observed releasing the reply via
+  `deleteLater` when a detached frame completed).
+- **S1-4 (handle destruction is never cancellation):** mid-session,
+  destroying a suspended task's handle detaches it and a later event
+  resumes it while the loop runs — destroying handles neither stops
+  nor cancels anything. D2's stop-token-only rule and D6's
+  "abort never destroys live handles" + completed-only sweep are
+  therefore load-bearing for lifetime, not merely stylistic; owners
+  must never be destroyed while their suspended tasks could still be
+  resumed by a live loop.
+- **S1-5 (queued resumption verified, R4-2):**
+  `QPromise::finish()` returns before the awaiter resumes — the
+  `QFuture` awaiter delivers through the loop, so promise completion
+  never re-enters synchronously. The stop-interruptible sleep
+  prototype (QPromise + `std::stop_callback` posting a queued
+  completion) delivered the full D2 contract: `request_stop()`
+  returned before resumption, ~22 ms wake versus a 5 s sleep,
+  pre-stopped tokens complete without suspending, undisturbed sleeps
+  complete normally. `std::stop_callback` itself runs synchronously
+  inside `request_stop()` — the queued indirection is mandatory.
+- **S1-6 (ready awaits are synchronous):** `co_await` on a finished
+  future does not suspend — the continuation runs inline in the
+  caller, as does contextless `QFuture::then` on a finished future.
+  Confirms the initialize-before-launch premise (IR2, D6).
+- **S1-7 (move-out path):** `co_await qCoro(future).takeResult()`
+  produced 0 copies / 3 moves; plain `co_await future` copies
+  (`QFuture::result()`). The worker's single-consumer payload path
+  should use `takeResult()` (D6).
+- **S1-8 (R5-1 premises confirmed):** an unawaited task's exception
+  is stored in the promise and vanishes silently when the handle
+  dies — no terminate, no log; awaiting rethrows. Root-coroutine
+  catch-alls stay mandatory. Destroying a completed task's handle
+  from inside its own completion cascade did not fault (ASAN-clean;
+  `final_suspend` resumes awaiters before dropping its own
+  reference) — the deferred sweep remains the defensive choice.
+- **S1-9 (completion cascades are synchronous):** a completing task
+  resumes its awaiting coroutines directly on the completing stack
+  (`TaskFinalSuspend`, source- and E10-verified). Coroutine-to-
+  coroutine completion is the synchronous re-entrancy path; QFuture
+  boundaries are the queued ones — relevant to D5/D6 stack-depth
+  reasoning.
+- **S1-10 (FetchContent hygiene confirmed; sharpened by Tom's
+  review):** `QCORO_BUILD_EXAMPLES=OFF` and `QCORO_BUILD_TESTING=OFF`
+  build no examples and register no QCoro tests with CTest, **with
+  the parent's `BUILD_TESTING` left ON** — QCoro maps
+  `QCORO_BUILD_TESTING` onto a directory-scoped `BUILD_TESTING` of
+  its own, so the host's flag must not be forced (the spike's first
+  cut forced it globally, which would have disabled acquisition's
+  entire test suite if copied into the root project; caught in
+  review, the checked-in reference now enables testing in the parent
+  and verifies zero QCoro tests are registered).
+
+**S1 follow-up (Tom's review of the spike round, same day).** Four
+corrections: (1) three spec clauses still stated the falsified
+mechanism — D3's reply-ownership bullet ("destroying a suspended
+coroutine runs the destructors of its in-scope locals"), the
+manager-harness reply-ownership pin ("task destruction mid-flight —
+the dispatch-time wrapper releases it"), and the integration
+shutdown pin ("resumes nothing and leaks nothing") — all rewritten
+around live-session RAII versus shutdown-time QNAM parent cleanup
+and the bounded detached-frame leak; (2) the shutdown analog now
+also **destroys the unfinished `QPromise`s** the way the hub's deque
+entries die (Tom verified the edge externally on Qt 6.11.1 first):
+futures cancel, `.then` chains do not run, detached awaiters stay
+suspended — and the same destruction mid-session would be ER1's
+resume-into-`result()` hazard, which is why D2 confines
+unfinished-promise death to post-loop shutdown; (3) the S1-10
+CMake flag correction above; (4) leak-accounting honesty: the
+in-process sentinels are authoritative — `leaks` cannot see
+everything (details corrected in the second follow-up below).
+
+**S1 second follow-up (external review, same day).** Four more
+corrections: (1) the integration leak criterion was **impossible as
+written** — it demanded that no promise shared state leak with a
+detached frame, but QCoro's `QFuture` awaiter stores a `QFuture`
+inside the frame, so the shared state is necessarily retained while
+the frame leaks; the pin now specifies the bounded **transitive
+closure** of the detached frames (frame + awaiter objects + watcher
+and context QObjects + retained future handles and their shared
+state + sleep timers) with replies and independently owned objects
+explicitly outside it. (2) The shutdown analog previously discarded
+the `.then` child future unawaited — production's worker awaits
+`.then(parse)`'s **child**, not the parent; E8 now builds exactly
+that topology (parent → parse continuation → child future → detached
+awaiter suspended on the child) and pins that promise death cancels
+the whole chain without running parse or resuming the child's
+awaiter. (3) The leak-tool description contradicted the output:
+observed on Qt 6.11.1/macOS, the reply frame is a stable root, the
+**timer frames surface as root cycles**, and only the future frames
+stay hidden behind Qt thread-data reachability (pending cancel
+call-outs) — and the rooted set varies between runs, so the
+sentinels remain the count and `leaks` is a cross-check on its
+rooted subset. (4) D3 lifecycle wording: the reply wrapper's local
+unwinds when the coroutine **body** completes; the frame
+*allocation* lingers until the retained handle is swept (D6) — the
+two events were previously conflated.
+
+**S1 third follow-up (external review, same day).** Two refinements
+to the E8 chain pin: the chain awaiter now uses the worker's actual
+production await — `co_await qCoro(future).takeResult()`, which runs
+as its own inner QCoro task frame — instead of a plain `co_await`;
+and the child future's terminal state is asserted directly
+(`isCanceled() && isFinished()` hold synchronously after promise
+destruction, no event loop involved) rather than inferred from the
+absence of parsing/resumption, with main's own child-future copy
+released before leak accounting so only the detached frames retain
+its shared state. Frame arithmetic corrected everywhere: seven
+coroutine frame allocations leak — five top-level task frames (E6a +
+four E8) plus the two inner task frames (`QCoro::sleepFor`'s,
+`qCoro().takeResult()`'s).
+
+The 2,000-tab batch measurement — the other half of phasing step 0 —
+remains open.
 
 ## Revision log
 
@@ -365,3 +518,32 @@ qualify.
   an inactivity bound; "empirically exact" scoped to the captured
   policies. Bar for any further paper finding: a false statement or
   a missing harness-needed contract.
+- **July 19, 2026 (phase-0 spike, round S1 — rev. 8)** — first
+  running-code evidence round. S1-1 falsified R5-2's
+  destroy-while-suspended mechanism (QCoro tasks are refcounted;
+  handle destruction detaches, locals' destructors do not run, a
+  detached frame resumes if its event is later delivered). The
+  shutdown section was rewritten around **detach plus no delivery**:
+  every awaiter resumes only via the event loop, so post-`exec()`
+  destruction resumes nothing; detached frames leak a few hundred
+  bytes each at process exit; QNAM parent cleanup is the only
+  shutdown reply cleanup (S1-2, S1-3). Handle destruction is never
+  cancellation (S1-4). All other spike-verified premises held:
+  queued stop wakeups and the sleep primitive (S1-5), synchronous
+  ready-future continuation (S1-6), `takeResult()` move-out (S1-7),
+  silent unawaited exceptions and the sweep (S1-8), synchronous task
+  completion cascades (S1-9), FetchContent hygiene (S1-10). Spike
+  code lives in `spikes/qcoro/`; the 2,000-tab measurement remains
+  open. Same-day follow-up from Tom's review: three leftover spec
+  clauses still stating the falsified mechanism rewritten (D3
+  reply ownership, two testing-plan pins), the shutdown analog
+  extended to destroy unfinished promises (futures cancel, `.then`
+  chains break, detached awaiters stay suspended), and the S1-10
+  guidance corrected — QCoro's flags only, never the global
+  `BUILD_TESTING`. A second follow-up (external review, same day)
+  replaced the impossible no-shared-state leak criterion with the
+  transitive-closure bound, gave E8 the production chained-future
+  topology (worker awaits `.then(parse)`'s child), matched the
+  leak-tool description to its actual output, and separated
+  body-completion local unwinding from frame-allocation reclamation
+  in D3.

@@ -13,8 +13,12 @@ when this map and a header disagree, the header wins.
   rate-limited networking redesign (typed facade, coroutine pumps, gate).
   Records current decisions only; cites review finding IDs inline.
 - `design/network-redesign-reviews.md` — that spec's decision history:
-  review-round finding tables (ER, IR, R4–R7), round narratives,
+  review-round finding tables (ER, IR, R4–R7, S1), round narratives,
   reversal records, and the revision log.
+- `../spikes/qcoro/` — phase-0 QCoro spike (standalone CMake project,
+  not part of the acquisition build): the running-code evidence behind
+  the S1 findings. Throwaway by design; kept while the network
+  redesign is in flight.
 - `design/network-ground-truth.md` — living ledger of numbered claims
   (N1, N2, …) about how the Path of Exile API actually limits requests,
   each with cited evidence. Designs are derived from these claims.
