@@ -192,6 +192,51 @@ filed against phase-0/harness evidence, not re-readings.
 | R6-2 | Shutdown step 1 said `Shop` destroys "its task handles," but Shop has no tasks in this design; and `PoeApiClient` had no specified owner. | `Shop` stays callback-style: a context-bound `.then(this, …)` continuation that Qt discards on context destruction — the future equivalent of today's `this`-context connection (`shop.cpp:199`). `PoeApiClient` is a `UserSession` member declared after `rate_limiter` (destroyed after all consumers, before the limiter); its parse continuations capture values only, never the facade. |
 | R6-3 | Policy mutation and response classification disagreed: D3 updated the policy from any Full matching landed reply, while D8 reached the total parse only on clean 2xx — leaving 429s, 403/500s, and 2xx-plus-transport-error ambiguous for pacing state, which would drift stale across non-2xx runs (today's code updates on every headered reply; N25: the server counts every exchange). | Observation separated from classification (D3/D8): header parsing is attempted independently on every landed response and Full + matching updates pacing; classification stays status/network-driven and decides only the caller's outcome; missing/malformed headers become `Protocol` only where the reply would otherwise be a clean 2xx success. |
 
+## Errata batch (round 7) — July 19, 2026 (Tom)
+
+Eight small corrections, adopted after the freeze under an explicit
+test: each either corrects a statement that was factually false
+(RFC 9110, Qt documentation, stale design references) or completes a
+contract the harness would otherwise pin by accident. All eight
+shrink or correct; none adds mechanism. The freeze holds, with the
+bar restated: a further paper finding must show a false statement or
+a missing harness-needed contract — "could be crisper" does not
+qualify.
+
+- **Gate fairness:** ordinary permits grant in arrival order (FIFO,
+  no bypass) — a hot pump repeatedly beating a waiting one is lane
+  starvation in miniature (F56-adjacent); the HEAD writer preference
+  is the only queue-jump. Primitive-suite pin added (D5, testing §4).
+- **Full grammar tightened:** nonempty policy/rule names, at least
+  one rule with at least one item, limit hits > 0 (state hits ≥ 0
+  stays — they start at zero, N24). Dead
+  `RateLimitPolicy::EstimateDuration` (zero callers; contains the
+  one reachable `/ max_hits` divide) added to the deletion list
+  (D8, deletions, testing §3).
+- **Retry-After reframed:** the grammar accepts any nonnegative
+  integer — RFC 9110 delay-seconds permits 0 and arbitrary lengths,
+  and 0 costs nothing (the pad dominates); the 900 s bound stays as
+  explicit product policy (`RETRY_AFTER_CAP_SECS`), not validity —
+  the old "stealth F57" rationale died when retry sleeps became
+  visible, stop-interruptible, and permit-free (D3, D8, testing §2).
+- **Unified terminal 429:** the R4-documented `Http{429}` /
+  `RateLimited` split is deleted; every terminal 429 is
+  `RateLimited`, carrying status, attempt count, and Retry-After
+  acceptability (D1, D3 attempt table, D8).
+- **Stale reprioritization claim removed:** "cheap later via
+  cancel+resubmit" predated the per-update token — per-entry
+  cancellation does not exist; reprioritization would need a new
+  mechanism, still out of scope (D6).
+- **Facade genuinely stateless:** the `QSettings` reference is
+  dropped — account/realm/league are call parameters (D7).
+- **Timeout wording corrected:** Qt's transfer timeout is an
+  *inactivity* bound, not a total-duration bound; it bounds the
+  observed stall class, and a byte-trickling reply is accepted
+  rather than designed against (D5).
+- **"Empirically exact" scoped:** N25/N26 validated the arithmetic
+  for the captured, saturated policies; Q4's classification risk is
+  independent and stands (D3, D8).
+
 ## Revision log
 
 - **July 18, 2026** — drafted; open items reviewed with Tom and
@@ -309,3 +354,14 @@ filed against phase-0/harness evidence, not re-readings.
   status; outcomes stay status-driven; `Protocol` only on a
   would-be-clean 2xx. Further findings are filed against
   phase-0/harness evidence, not re-readings.
+- **July 19, 2026 (errata batch, round 7 — rev. 7; freeze holds)** —
+  eight corrections and contract completions, all shrinking (list
+  above): gate ordinary-waiter FIFO; Full grammar tightened and dead
+  `EstimateDuration` slated for deletion; Retry-After grammar per
+  RFC 9110 with the 900 s cap relabeled product policy; one
+  `RateLimited` kind for every terminal 429; the stale
+  cancel+resubmit reprioritization claim removed; the facade made
+  genuinely stateless; the transfer timeout correctly described as
+  an inactivity bound; "empirically exact" scoped to the captured
+  policies. Bar for any further paper finding: a false statement or
+  a missing harness-needed contract.

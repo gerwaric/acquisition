@@ -1,15 +1,19 @@
 # Network Redesign: Typed Facade, Coroutine Pumps, and the Gate
 
-**Status: ACCEPTED July 19, 2026 (revision 6) — frozen for
+**Status: ACCEPTED July 19, 2026 (revision 7) — frozen for
 implementation.** Drafted July 18 and reviewed through six rounds in
-two days; the review process converged (later rounds found
+two days, plus one post-freeze errata batch (rev 7: eight
+corrections and contract completions, all shrinking — R7 in the
+review history). The review process converged (later rounds found
 contradictions among earlier fixes and resolved them by deletion),
 so further findings are filed against phase-0/harness evidence, not
-re-readings. The finding tables (ER, IR, R4-\*, R5-\*, R6-\*), the
-round narratives, the reversal records, and the revision log live in
-`network-redesign-reviews.md`; this spec records only current
-decisions and cites finding IDs inline where a decision's shape came
-from a review. No code has been written against this spec.
+re-readings; any further paper finding must show a false statement
+or a missing harness-needed contract. The finding tables (ER, IR,
+R4-\*, R5-\*, R6-\*, R7), the round narratives, the reversal
+records, and the revision log live in `network-redesign-reviews.md`;
+this spec records only current decisions and cites finding IDs
+inline where a decision's shape came from a review. No code has been
+written against this spec.
 
 This document specifies the redesign of acquisition's rate-limited
 networking: how the items worker, the rate limiter, and the network
@@ -122,7 +126,9 @@ Five layers, each speaking one language, each testable alone:
   `Parse` (facade-level JSON failure),
   `Protocol` (2xx whose rate-limit headers fail to parse or carry a
   mismatched policy name — setup or steady state, D4/D8),
-  `RateLimited` (429 retries exhausted — see D3),
+  `RateLimited` (a terminal 429 — retries exhausted *or*
+  non-retryable; carries the attempt count and Retry-After
+  acceptability; one kind for every terminal 429, R7 — see D3/D8),
   `Internal` (an exception escaped inside the pump or facade — a bug,
   contained as a value; see the exception policy),
   `Canceled` (the caller requested stop — see D2). `Canceled` is an
@@ -270,7 +276,7 @@ server counted them all, N25).
 | entry stopped (its token) | complete `Canceled` (the violation of a stopped 429 is already recorded) |
 | 429, valid `Retry-After`, attempt < `MAX_ATTEMPTS` | stop-interruptible sleep to `max(now + RetryAfter + RETRY_BUCKET_PAD + buffer, GetNextSafeSend(history))`, then re-send |
 | 429, valid `Retry-After`, attempt = `MAX_ATTEMPTS` | complete `FetchError{RateLimited}` **immediately — never sleep on an exhausted attempt** |
-| 429, no valid `Retry-After` | complete `FetchError{Http}` (non-retryable — today's behavior; violation already recorded) |
+| 429, no acceptable `Retry-After` (missing, non-numeric, negative, or above the cap) | complete `FetchError{RateLimited}` (non-retryable; violation already recorded; unified kind — R7) |
 | any other non-2xx status | complete `FetchError{Http}` |
 | Qt transport error (incl. alongside a 2xx — D8 precedence) | complete `FetchError{Network}` |
 | clean 2xx, Full headers, matching policy name | `Update(headers)`; complete success (payload) |
@@ -294,13 +300,20 @@ server counted them all, N25).
   legacy policy too — the N14 ask-GGG channel is the remedy if
   evidence ever contradicts. A rare retry over-pays ≤ 55 s for this;
   accepted. (N19's padding remains provisional pending Q9 capture
-  data either way.) `Retry-After` is validated by **strict
-  acceptance, not clamping** (round 2 wording fix): a value is
-  accepted iff it parses as an integer in **[1, 900]** — the longest
-  observed restriction is 600 s (N23) plus 50% headroom; anything
-  else is treated as absent (non-retryable, clean failure), because
-  silently obeying a corrupt server-supplied wait would be an
-  invisible stall — a stealth F57.
+  data either way.) `Retry-After` — **grammar vs product policy
+  (reworded R7; the old [1, 900] "validity" window mislabeled both
+  ends):** the grammar accepts any nonnegative integer — RFC 9110
+  delay-seconds permits 0 and arbitrary lengths; 0 is valid and
+  costs nothing (the pad and `GetNextSafeSend` dominate the
+  formula). A **product-policy cap**, `RETRY_AFTER_CAP_SECS = 900`
+  (longest observed restriction 600 s, N23, plus headroom), declines
+  longer waits as terminal `RateLimited` — not because they are
+  invalid HTTP but because obeying a never-observed multi-hour wait
+  is continuation through the unexpected; the pause would be visible
+  (`Paused`) and stop-interruptible and permit-free, so nothing
+  wedges — containment simply prefers a clean, actionable error.
+  Missing, non-numeric, and negative values are non-retryable the
+  same way (terminal `RateLimited`, D8).
 - **Retry sleeps are permit-free (R4-1):** the permit is released the
   moment the reply finishes (D5's permit span) and each attempt
   re-acquires the gate — a permit is never held across a retry sleep.
@@ -338,8 +351,11 @@ server counted them all, N25).
   completion can synchronously run facade parsing and worker
   continuations (D6), which may immediately re-enter the limiter.
 - `RateLimitPolicy` and its history-based arithmetic are untouched —
-  N25/N26 confirmed the pacing empirically exact. The pump calls the
-  same `GetNextSafeSend(m_history)`.
+  N25/N26 confirmed the pacing empirically exact **for the captured,
+  saturated policies (scoped R7)**; Q4's initial-vs-sustained
+  classification remains a known, independent risk, deliberately out
+  of scope (see the items-pipeline interaction section). The pump
+  calls the same `GetNextSafeSend(m_history)`.
 - Existing UI signals (`PolicyUpdated`, `QueueUpdated`, `Paused`,
   `Violation`) are preserved — the status bar and rate-limit dialog keep
   working. The capture instrument keeps its hooks (record every
@@ -396,9 +412,9 @@ one policy (ER2 resolved structurally).
   degenerate case); the HEAD consumes no send attempt. The 429 is a
   real server-side violation and is recorded — counter, log, capture
   — like any pump-path 429 (R4 minor). A Full HEAD
-  429 whose `Retry-After` is missing or invalid (IR5) is a **setup
-  failure** under the cooldown below — containment declines to invent
-  a hold time.
+  429 whose `Retry-After` is missing or unacceptable (per D3's
+  grammar and cap; IR5/R7) is a **setup failure** under the cooldown
+  below — containment declines to invent a hold time.
 - **Setup failure — anything else:** a HEAD that fails in transport,
   returns a non-2xx status (including any 429 not covered above), or
   returns 2xx/204 with headers that fail to parse. Every parked entry
@@ -481,6 +497,12 @@ contract rules:
   the whole gate (N18, F5, N2), and once a HEAD is *waiting*, no new
   ordinary permits are issued — without this, a busy established pump
   could starve endpoint setup indefinitely.
+- **FIFO among ordinary waiters (R7):** ordinary permits are granted
+  in arrival order — no bypass. Without this, a hot stash pump could
+  repeatedly beat a waiting character pump at every release: lane
+  starvation in miniature, exactly what the gate exists to prevent
+  (F56-adjacent, not hypothetical). The HEAD writer preference is
+  the only queue-jump.
 - **Minimum inter-send spacing: 250 ms** across everything the gate
   sees. This is F58's intent — silently dead today — implemented
   deliberately at the right scope: it flattens the ~0.2 s intra-burst
@@ -497,8 +519,14 @@ contract rules:
 - **Liveness rests on the transfer timeout (R4-4; corrected R5-3):**
   the gate's liveness — permit turnover, HEAD exclusivity ever
   becoming acquirable, prompt drain of stopped in-flight entries
-  under the never-abort rule (D2) — depends on every reply finishing
-  in bounded time. R4 called the 10 s timeout "existing behavior";
+  under the never-abort rule (D2) — depends on replies not stalling
+  indefinitely. **Precision (R7):** Qt's transfer timeout is an
+  *inactivity* bound — it aborts a transfer only after a period with
+  no bytes exchanged, not after a total duration — so it bounds the
+  stall class (the observed one); a byte-trickling reply could hold
+  a permit longer, accepted (never observed, and a speculative
+  absolute deadline is exactly the machinery containment declines to
+  build). R4 called the 10 s timeout "existing behavior";
   that was **false for the legacy stash-index request**, which today
   has no transfer timeout at all (`Shop::UpdateStashIndex` builds a
   bare request; only the OAuth builders set one — F60). The invariant
@@ -540,8 +568,10 @@ forum and login traffic as-is, documented here.
   appended as parent replies land, same as today). Per-policy FIFOs in
   the pumps preserve submission order — ordering is priority, which
   satisfies "walk requests as the items model iterates them";
-  reprioritization stays out of scope (M2+, cheap later via
-  cancel+resubmit).
+  reprioritization stays out of scope (M2+ — and it is **not** cheap
+  later, R7: the stop token is per-update, so per-entry cancellation
+  does not exist; reprioritization would need a new mechanism,
+  deliberately not designed now).
 - Worker-side serialization is explicitly rejected: one-at-a-time
   submission *is* F56 — it recreates idle policy lanes by construction.
   Batching is also strictly less state: no `m_queue`, no
@@ -631,8 +661,9 @@ boundary between domain and network:
 - The worker never sees `QNetworkRequest`, `QNetworkReply`, or bytes;
   networking never sees items. The compiler enforces the boundary.
 - The facade is intentionally boring: no coroutines inside, no state
-  beyond references to the limiter and settings (realm/league move in as
-  call parameters, as today).
+  beyond a reference to the limiter — account/realm/league are call
+  parameters, so there is no `QSettings` reference and the facade is
+  genuinely stateless (R7).
 - **The facade owns the transfer-timeout invariant (R5-3):** every
   request it builds carries the 10 s transfer timeout — the gate's
   liveness depends on it (D5). Today only the OAuth builders set it;
@@ -675,12 +706,18 @@ parser: a total factory in the shape
 error>` replaces the current throwing/UB constructors. A separate
 validator in front of the existing parser would implement the same
 grammar twice and let the two drift. The arithmetic methods
-(`GetNextSafeSend` and friends) are untouched — they are the
-empirically validated part (N25, N26). **Full** means the parse
-succeeds, which requires: policy name present; rules list present;
-every named rule has limit and state lists of equal length; every
-triplet is exactly three in-range integers (hits ≥ 0, period > 0,
-restriction ≥ 0); each state period matches its limit period.
+(`GetNextSafeSend` and friends) are untouched — empirically
+validated for the captured, saturated policies (N25, N26; Q4's
+classification risk stands apart, R7). **Full** means the parse
+succeeds, which requires (tightened R7): a nonempty policy name; a
+nonempty rules list; every rule name nonempty, with at least one
+item and limit/state lists of equal length; every triplet exactly
+three in-range integers — limit: hits > 0, period > 0, restriction
+≥ 0; state: hits ≥ 0, period > 0, restriction ≥ 0 — and each state
+period matching its limit period. (Limit hits must be positive: a
+zero-hit limit is meaningless as a lookback and was a live
+divide-by-zero in the now-deleted `EstimateDuration`; state hits
+legitimately start at zero, N24.)
 (July 19: the former `NameOnly` tier and its join-an-existing-pump
 shortcut are deleted — the observed topology is strictly 1:1, N23.
 The policy name, when present in a failed parse, is logged and
@@ -747,19 +784,19 @@ containment at its simplest: one anomalous reply, one clean error.
 steady-state 429 whose rate-limit headers fail to parse still retries
 per D3 (the pump has a policy for the deadline formula) but does not
 update the policy; a successful retry whose reply then fails to parse
-completes `Protocol` per the rule above. A 429 with no valid
-`Retry-After` (missing, unparseable, or outside D3's [1, 900]) is
-non-retryable: `FetchError{Http}`, violation recorded. (Deliberate
-taxonomy split, R4 minor: "the server 429ed us" spans two kinds —
-`Http` here, `RateLimited` only for exhausted retries. Today's
-consumers treat all failures alike; a future consumer that
-special-cases rate limiting must match `Http` with status 429 as
-well.) HEAD 429s are handled in D4.
+completes `Protocol` per the rule above. A 429 with no acceptable
+`Retry-After` (missing, non-numeric, negative, or above D3's
+product cap) is non-retryable: `FetchError{RateLimited}`, violation
+recorded — **one kind for every terminal 429 (R7)**, carrying the
+status, the attempt count, and whether an acceptable `Retry-After`
+was present; the R4-documented `Http{429}`/`RateLimited` split is
+deleted rather than apologized for. HEAD 429s are handled in D4.
 
 **`FetchError` shape:** kind (`Network` / `Http` / `Parse` /
 `Protocol` / `RateLimited` / `Internal` / `Canceled`), endpoint, URL,
 HTTP status (when present), Qt error code and string (when present),
-message. F50's diagnostics rewording rides along here.
+retry-attempt count and Retry-After acceptability (`RateLimited`,
+R7), message. F50's diagnostics rewording rides along here.
 
 ## Shutdown and task ownership
 
@@ -873,7 +910,9 @@ five error-path queue clears with counter-snapping, `DiscardIfStale`
 and the generation-tag plumbing outright (D2/D6), the `SetupEndpoint`
 nested event loop, the hub's `FatalError` paths (D4: setup failures
 fail the affected requests cleanly instead of killing the app), F58's
-dead `last_send` block, and `tests/fakenetwork.h`'s `FakeRateLimiter`
+dead `last_send` block, the dead `RateLimitPolicy::EstimateDuration`
+(zero callers; contains the one reachable `/ max_hits` divide — R7),
+and `tests/fakenetwork.h`'s `FakeRateLimiter`
 (replaced by a facade fake). The pinball machine
 (`ActivateRequest`/`SendRequest`/`ReceiveReply` state smear) is
 replaced by the drain loop.
@@ -938,8 +977,10 @@ sleep.)
    a steady-state reply with unparseable headers or a mismatched
    policy name records history and capture, leaves the policy
    byte-for-byte un-updated, and completes `Protocol` — and the pump
-   sends nothing unpaced afterward (IR1); `Retry-After` validation
-   vectors (missing / 0 / negative / non-numeric / > 900); **drain
+   sends nothing unpaced afterward (IR1); `Retry-After` vectors
+   (R7): 0 is accepted and retries with the pad dominating; missing
+   / negative / non-numeric / above-the-cap are terminal
+   `RateLimited`; **drain
    lifecycle**: submit while a drain is running joins it, submit
    after it finished starts a new one, the drain exits when the deque
    empties; **exception pins (IR4)**: an exception escaping the drain
@@ -960,8 +1001,10 @@ sleep.)
    from its headers and completes `Network`.
 3. **Setup and validation pins**: a total-parse suite over malformed
    headers — missing rules list, missing per-rule headers, short
-   triplets, non-numeric fields, mismatched periods (the current
-   parser's UB inputs become ordinary test vectors); each
+   triplets, non-numeric fields, mismatched periods, and the R7
+   vectors: empty policy/rule names, zero-rule and zero-item
+   replies, zero-hit limits (the current parser's UB inputs become
+   ordinary test vectors); each
    setup-failure flavor (transport error, non-2xx, unparseable 2xx
    headers) fails every parked entry with the right `FetchError` kind
    and sets the cooldown; a caller resubmitting from its completion
@@ -986,7 +1029,9 @@ sleep.)
    resumes, R4-2)
    and the gate — cap, HEAD exclusivity **with writer preference** (a
    waiting HEAD blocks new ordinary permits; a busy pump cannot
-   starve setup), spacing floor, and **permit span** (a permit is
+   starve setup), **ordinary-waiter FIFO** (permits grant in arrival
+   order; two contending pumps alternate and neither starves — R7),
+   spacing floor, and **permit span** (a permit is
    held until — and released at — reply-finish; the cap genuinely
    bounds in-flight requests, and no permit survives into a retry
    sleep).
