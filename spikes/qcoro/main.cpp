@@ -574,6 +574,16 @@ static E6State g_e8Chain;
 static E7State g_e8Reply;
 static QPromise<int> *g_e8Promise = nullptr;
 static bool g_e8ParseRan = false;
+static QFuture<int> g_e8Child;
+
+// The worker's production await (D6): move the payload out through
+// qCoro(future).takeResult() — which runs as its own inner QCoro task frame.
+static QCoro::Task<> e8_chainAwaiter(E6State *s, QFuture<int> f)
+{
+    Sentinel guard(&s->localDestroyed);
+    co_await qCoro(f).takeResult();
+    s->resumed = true;
+}
 
 static void e8_setup(QNetworkAccessManager *nam, const QUrl &silentUrl)
 {
@@ -585,21 +595,23 @@ static void e8_setup(QNetworkAccessManager *nam, const QUrl &silentUrl)
         g_e8Promise = new QPromise<int>();
         g_e8Promise->start();
         auto t2 = e6_awaiter(&g_e8Future, g_e8Promise->future());
-        // The production topology (D7): the facade returns .then(parse)'s
-        // CHILD future and the worker awaits the child, not the parent.
-        QFuture<int> child = g_e8Promise->future().then([](int v) {
+        // The production topology (D7/D6): the facade returns .then(parse)'s
+        // CHILD future and the worker awaits the child via takeResult().
+        g_e8Child = g_e8Promise->future().then([](int v) {
             g_e8ParseRan = true;
             return v + 1;
         });
-        auto t3 = e6_awaiter(&g_e8Chain, child);
+        auto t3 = e8_chainAwaiter(&g_e8Chain, g_e8Child);
         auto t4 = e7_fetch(&g_e8Reply, nam, silentUrl);
         spin(100); // reply becomes in-flight; this is the LAST event processing
         check(!g_e8Reply.reply.isNull() && !g_e8Reply.reply->isFinished(),
               "shutdown-analog reply is in-flight");
-    } // all four handles destroyed while suspended → four detached frames
+    } // all four handles destroyed while suspended → four detached top-level
+    // task frames (the sleeper and chain awaiter each also carry a detached
+    // inner frame: QCoro::sleepFor's and qCoro().takeResult()'s)
     check(!g_e8Timer.localDestroyed && !g_e8Future.localDestroyed && !g_e8Chain.localDestroyed
               && !g_e8Reply.localDestroyed,
-          "all four frames detached (locals alive), matching E5-E7");
+          "all four top-level frames detached (locals alive), matching E5-E7");
 }
 
 static void e8_verifyAfterOwnersDestroyed(bool namDestroyedRepliesGone)
@@ -612,6 +624,9 @@ static void e8_verifyAfterOwnersDestroyed(bool namDestroyedRepliesGone)
     check(!g_e8ParseRan,
           "the parse continuation on the chained child future never ran — promise death broke the "
           "production .then topology without parsing or resuming its awaiter");
+    check(g_e8Child.isCanceled() && g_e8Child.isFinished(),
+          "the chained child future is canceled and finished after promise destruction — the chain "
+          "reached its terminal state synchronously, no event loop involved");
     check(namDestroyedRepliesGone, "QNAM parent destroyed the in-flight reply at owner destruction");
     finding("with no live event loop, detached frames are inert: promises die unfinished (their "
             "futures cancel, "
@@ -791,18 +806,24 @@ int main(int argc, char **argv)
     nam.reset(); // QNAM destroyed with an in-flight reply, loop never spins again
     e8_verifyAfterOwnersDestroyed(e8Reply.isNull());
 
+    // Release main's own copy of the child future before leak accounting so
+    // the only remaining retainers of its shared state are the detached
+    // frames themselves.
+    g_e8Child = QFuture<int>();
+
     section("end-of-run leak accounting");
     check(!g_e6a.localDestroyed,
           "E6a frame (future never finished) is still leaked at exit, as predicted");
     check(!g_e8Timer.localDestroyed && !g_e8Future.localDestroyed && !g_e8Chain.localDestroyed
               && !g_e8Reply.localDestroyed,
           "E8 detached frames are still leaked at exit, as predicted");
-    std::printf("\n%d CHECK failure(s). Deliberate detached-frame leaks at exit: 5 tasks "
-                "(E6a + 4x E8, plus inner awaitable frames and whatever only they retain — "
-                "future shared state included). The sentinel checks above are the authoritative "
-                "accounting; what `leaks` roots varies by run — the reply frame is a stable root, "
-                "timer frames surface as root cycles, and the future frames usually stay hidden "
-                "behind Qt thread-data (pending cancel call-outs).\n",
+    std::printf("\n%d CHECK failure(s). Deliberate detached-frame leaks at exit: seven coroutine "
+                "frame allocations — five top-level task frames (E6a + 4x E8) plus two inner task "
+                "frames (QCoro::sleepFor's, qCoro().takeResult()'s) — and whatever only they "
+                "retain, future shared state included. The sentinel checks above are the "
+                "authoritative accounting; what `leaks` roots varies by run — the reply frame is "
+                "a stable root, timer frames surface as root cycles, and the future frames "
+                "usually stay hidden behind Qt thread-data (pending cancel call-outs).\n",
                 g_checkFailures);
     return g_checkFailures;
 }

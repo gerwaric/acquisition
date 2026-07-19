@@ -373,6 +373,20 @@ unwinds when the coroutine **body** completes; the frame
 *allocation* lingers until the retained handle is swept (D6) — the
 two events were previously conflated.
 
+**S1 third follow-up (external review, same day).** Two refinements
+to the E8 chain pin: the chain awaiter now uses the worker's actual
+production await — `co_await qCoro(future).takeResult()`, which runs
+as its own inner QCoro task frame — instead of a plain `co_await`;
+and the child future's terminal state is asserted directly
+(`isCanceled() && isFinished()` hold synchronously after promise
+destruction, no event loop involved) rather than inferred from the
+absence of parsing/resumption, with main's own child-future copy
+released before leak accounting so only the detached frames retain
+its shared state. Frame arithmetic corrected everywhere: seven
+coroutine frame allocations leak — five top-level task frames (E6a +
+four E8) plus the two inner task frames (`QCoro::sleepFor`'s,
+`qCoro().takeResult()`'s).
+
 The 2,000-tab batch measurement — the other half of phasing step 0 —
 remains open.
 

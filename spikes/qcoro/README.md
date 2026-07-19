@@ -23,9 +23,11 @@ leaks --atExit -- ./build-spike/qcoro_spike   # macOS leak accounting
 ```
 
 The binary prints CHECK lines (internal validity of each experiment)
-and FINDING lines (the observed QCoro v0.13.0 semantics). Five
-detached-frame leaks at exit are deliberate — they demonstrate
-S1-1/S1-2's detach behavior, and each frame transitively retains its
+and FINDING lines (the observed QCoro v0.13.0 semantics). Seven
+deliberate coroutine-frame leaks remain at exit — five top-level
+task frames (E6a + four E8 tasks) plus two inner task frames
+(`QCoro::sleepFor`'s and `qCoro().takeResult()`'s) — demonstrating
+S1-1/S1-2's detach behavior; each frame transitively retains its
 awaiter state (`QFutureWatcher`, context QObjects, `QFuture` handles
 keeping promise shared state alive, sleep timers). The in-process
 sentinel checks are the authoritative leak accounting; what `leaks`
