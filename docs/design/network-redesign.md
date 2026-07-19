@@ -185,7 +185,10 @@ loop:
   structurally: a 429 can no longer wedge anything (F57).
 - The retried send waits `Retry-After` **plus the applicable timing
   bucket plus buffer** (N19, provisional — the capture instrument will
-  confirm; the padding constant is one line to adjust).
+  confirm; the padding constant is one line to adjust). ⚠ *Contested
+  by ER7 (which bucket is "applicable" depends on Q4; the deadline
+  should reconcile with `GetNextSafeSend` and the gate; Retry-After
+  needs input validation) — under revision in group 2.*
 - Retries are bounded (`MAX_ATTEMPTS = 3`) so a systemically broken
   policy cannot hammer the API — each 429 still increments the violation
   counter and logs (N10: layer-4 goodwill is finite).
@@ -203,6 +206,14 @@ loop:
   lines combined; unit-tested standalone.
 
 ### D4. HEAD setup goes async inside the hub; the nested event loop dies
+
+⚠ *Contested by ER2 — under revision in group 2. In particular the
+"exposure is exactly one request" argument below does not hold as
+stated: multiple degraded endpoints can each run a provisional pump,
+a provisional pump can overlap an established same-policy pump, a
+successful first reply may itself lack usable headers, and
+merge-by-queue-forwarding ignores history, ordering, and identity.
+Do not implement this section as written.*
 
 - First request to an unknown endpoint: the hub queues the request,
   fires the HEAD, and completes setup in the HEAD's continuation —
@@ -245,6 +256,15 @@ loop:
   its own risk. `FatalError` leaves the hub entirely.
 
 ### D5. The gate: one object for layer 1
+
+⚠ *Contested by ER3 — under revision in group 3. As written, the gate
+cannot cover the traffic its contract promises: the hub is created
+only after login, while the league list and OAuth token requests are
+sent earlier through other paths; the literal `*.pathofexile.com`
+wildcard also wrongly captures `webcdn.pathofexile.com` image
+traffic; and the gate API must handle GET/HEAD/POST and OAuth-managed
+requests (likely as a permit around dispatch, not a `send()` wrapper).
+The constants and intent stand; the placement and scope do not.*
 
 A small async gate in the hub through which **every request to
 `*.pathofexile.com` passes** — API, legacy website, forum, login league
@@ -492,7 +512,7 @@ tests in the same PR.
 
 (Historical: these were the pre-external-review open items. The
 external review's findings and their resolutions are tracked in the
-revision log below.)
+external review backlog and revision log below.)
 
 1. Gate constants: **blessed as spec'd** — in-flight cap 2, spacing
    floor 250 ms, retry cap 3. Named constants, provisional until
