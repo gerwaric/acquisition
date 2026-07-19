@@ -190,17 +190,23 @@ loop:
   `max(now + RetryAfter + maxBucket + buffer, GetNextSafeSend(updated
   history))`, and it passes the gate like every send — so the three
   deadlines (server's, policy's, gate's) reconcile by construction.
-  `maxBucket` is the policy's **maximum** bucket across all rules
-  (60 s if any sustained rule exists): deliberately over-padded so the
-  retry path is immune to the initial-vs-sustained classification
-  question (Q4) — a rare retry pays ≤ 55 s for that immunity. (N19's
-  padding remains provisional pending Q9 capture data either way.)
-  `Retry-After` is validated strictly: integer seconds clamped to
-  **[1, 900]** — the longest observed restriction is 600 s (N23) plus
-  50% headroom; missing, unparseable, or out-of-range values are
-  treated as absent (non-retryable, clean failure), because silently
-  obeying a corrupt server-supplied wait would be an invisible stall —
-  a stealth F57.
+  `maxBucket` is an **unconditional named constant,
+  `RETRY_BUCKET_PAD_SECS = 60`** (round 2 — "the policy's maximum
+  bucket" still required classifying rules, and the legacy policy's
+  bucket tiers are unknown, N21b): no policy inspection at all, so the
+  retry path is genuinely immune to the initial-vs-sustained question
+  (Q4). Recorded assumption: 60 s is the largest bucket tier GGG has
+  named for any policy (N12) and is assumed to be a ceiling for the
+  legacy policy too — the N14 ask-GGG channel is the remedy if
+  evidence ever contradicts. A rare retry over-pays ≤ 55 s for this;
+  accepted. (N19's padding remains provisional pending Q9 capture
+  data either way.) `Retry-After` is validated by **strict
+  acceptance, not clamping** (round 2 wording fix): a value is
+  accepted iff it parses as an integer in **[1, 900]** — the longest
+  observed restriction is 600 s (N23) plus 50% headroom; anything
+  else is treated as absent (non-retryable, clean failure), because
+  silently obeying a corrupt server-supplied wait would be an
+  invisible stall — a stealth F57.
 - Retries are bounded (`MAX_ATTEMPTS = 3`) so a systemically broken
   policy cannot hammer the API — each 429 still increments the violation
   counter and logs (N10: layer-4 goodwill is finite).
@@ -222,11 +228,17 @@ loop:
 **Rewritten July 18, 2026 (group 2, resolving ER2).** The original
 "provisional pump" sketch and its "exactly one request" exposure claim
 are superseded. Every endpoint the hub knows is in exactly one state —
-`Unknown → Probing → (Established | Discovery) → Established` — and
-every failure path resets to `Unknown`. **No provisional pump object
-exists in any state**: two pumps can never serve one policy, which
-removes ER2's pump-overlap hazards structurally rather than
-procedurally.
+`Unknown → Probing → (Established | Discovery) → Established`. **No
+provisional pump object exists in any state**: two pumps can never
+serve one policy, which removes ER2's pump-overlap hazards
+structurally rather than procedurally. Reset to `Unknown` is limited
+to setup/discovery failures, the per-endpoint `Protocol` threshold
+(D8), and topology change — an **established endpoint keeps its
+mapping through ordinary request failures** (round 2: a timeout must
+not discard valid topology and burn a HEAD). A guiding rule from the
+round-2 review runs through this whole section: **evidence is
+endpoint-scoped, so actions are endpoint-scoped** — a reply from one
+endpoint never moves, stops, or reseeds another.
 
 - **Unknown → Probing:** the first submission for an unknown endpoint
   parks in the hub and fires the HEAD asynchronously (no nested event
@@ -254,29 +266,44 @@ procedurally.
   round, which stands): the hub sends **exactly one discovery GET**
   (the first parked entry); everything else for that endpoint stays
   parked. **No state drains requests unpaced** — the review's "stop
-  rather than drain," adopted. Concurrent discoveries on distinct
-  endpoints are each limited to their one GET and jointly bounded by
-  the gate's in-flight cap: the false global "exactly one request"
-  claim is replaced by a stated bound — at most one discovery GET per
-  endpoint per probe cycle, at most gate-cap in flight at once.
+  rather than drain," adopted. **Discovery GETs are gate-exclusive,
+  like HEADs** (round 2): all setup traffic serializes at the gate, so
+  a discovery exchange never overlaps established traffic or another
+  discovery. This makes the out-of-order state-adoption race
+  unconstructible — non-overlapping HTTP exchanges are strictly
+  ordered, so "the newest exchange" is well-defined — and it bounds
+  setup traffic harder than the old claim: at most one discovery GET
+  per endpoint per probe cycle, at most one setup request of any kind
+  in flight, ever.
 - **Discovery → Established** (the GET's reply is Full): create-or-join
   the pump by the discovered policy name; forward parked entries in
   submission order; **insert the discovery exchange into the adopting
-  pump's history in received-time order** — one event, not a queue
-  merge, and it supplies exactly the timestamp `GetNextSafeSend`'s
-  lookback needs (closing ER2's saturated-state-without-timestamps
-  hazard). The pump's policy state adopts whichever exchange is newest
-  by received time. If a NameOnly HEAD promised a different name than
-  the reply delivered: log loudly, trust the reply (N9).
+  pump's history** — one event, not a queue merge, and it supplies
+  exactly the timestamp `GetNextSafeSend`'s lookback needs (closing
+  ER2's saturated-state-without-timestamps hazard). Because setup
+  traffic is gate-exclusive (above), the discovery exchange is
+  strictly ordered against all other traffic: it is unambiguously the
+  pump's newest exchange, so inserting it and adopting its policy
+  state is race-free (round 2 — received time alone was not a safe
+  ordering). If a NameOnly HEAD promised a different name than the
+  reply delivered: log loudly, trust the reply (N9).
 - **Discovery failure → Unknown** (the GET fails, or its reply is less
   than Full): the discovery entry **and every parked entry for that
   endpoint** complete with the appropriate `FetchError` (`Network`,
-  `Http`, or `Protocol` — D8); the endpoint resets to `Unknown`, and
-  the next submission wave re-probes, HEAD first. Re-probing is
-  naturally bounded by update cadence — no tight probe loop is
-  constructible. (In a worker update the first failure also triggers
-  `request_stop()`, washing the update's remaining entries through
-  `Canceled`.)
+  `Http`, or `Protocol` — D8); the endpoint resets to `Unknown`. (In a
+  worker update the first failure also triggers `request_stop()`,
+  washing the update's remaining entries through `Canceled`.)
+- **Setup-failure cooldown** (round 2): "bounded by update cadence"
+  assumed caller behavior nothing enforces — a caller resubmitting
+  from its completion handler could loop HEAD→discovery cycles against
+  N16's narrow sanction. So every failure-driven reset to `Unknown`
+  (setup/discovery failure, `Protocol` threshold) records
+  `earliest_next_probe = now + max(SETUP_RETRY_COOLDOWN, validated
+  Retry-After when one was present)`; submissions during the cooldown
+  fail fast with the prior failure's kind, no probe sent.
+  `SETUP_RETRY_COOLDOWN = 60 s`, named, provisional. Topology-change
+  resets (below) are not failures and carry no cooldown — their
+  entries are waiting and re-probe immediately.
 - **Ordering and identity during setup:** parked entries keep their own
   submission order; global cross-endpoint order within one policy is
   not guaranteed across an adoption (pacing never depends on queue
@@ -284,15 +311,25 @@ procedurally.
   accepted and documented). Capture records and queue-status signals
   label parked/discovery traffic by endpoint until a pump adopts it,
   then by policy name.
-- **Topology change at steady state (ER6):** a pump receiving a Full
-  reply bearing a *different* policy name notifies the hub, which
-  rekeys `policy → pump`; on a name collision the losing pump folds
-  into the winner via the same adoption mechanism — queue forwarded in
-  order, recent history events inserted by received time — and is
-  destroyed once its in-flight entry completes. Loudly logged: N9 says
-  this is legal, years of observation say it is rare. The hub's maps
-  can no longer go stale (today they can: `Update()` swaps the policy
-  while `GetManager`'s maps keep the old key forever).
+- **Topology change at steady state (ER6; rewritten in round 2 —
+  endpoint-scoped, the fold is deleted):** a Full reply *to endpoint X*
+  bearing a different policy name is evidence about X only. The reply's
+  payload is delivered normally; then X detaches — its queued entries
+  are extracted from the pump's FIFO in submission order (entries carry
+  endpoint labels; order-preserving remove-if) — and X re-enters
+  `Probing` with them parked, no cooldown. The fresh HEAD reseeds
+  current state (N24) and the normal join/Discovery paths take over.
+  Other endpoints on the old pump are untouched, and **history never
+  moves between pumps** — events counted under policy A cannot pollute
+  policy B's lookback. There is no fold, no collision merge, and no
+  losing-pump teardown protocol: a pump with no endpoints and an empty
+  queue is simply collected. (The rename exchange itself is not
+  inserted into the new policy's history — the reseeding HEAD makes
+  its state current, at the cost of one conservative event.) Loudly
+  logged: N9 says renames are legal, years of observation say they are
+  rare. The hub's maps can no longer go stale (today they can:
+  `Update()` swaps the policy while `GetManager`'s maps keep the old
+  key forever).
 - **Degraded or failed HEADs never kill the app** (stands from the
   first review round): log at error, surface a user-visible
   notification, capture the probe (already implemented), and proceed —
@@ -431,31 +468,52 @@ only size check, and `RateLimitData` reads `parts[1]` out of bounds
 that a degraded HEAD "runs unpaced" was wrong; it crashes. (Ledger
 corrected in place, July 18, 2026.)
 
-**Classification precedence** (ER8 — status-first, one function):
+**Classification precedence** (ER8; amended in round 2 — a 2xx status
+must not override a transport error, because Qt can report a status
+and then fail mid-body: `RemoteHostClosedError` is defined as the
+remote closing "before the complete response was received"):
 
-1. No HTTP status available (connection refused, timeout, SSL, …) →
-   `FetchError{Network}`, carrying the Qt error code and string.
-2. Status 429 → the rate-limit path (D3), regardless of the reply
-   error Qt also raises for it.
-3. Any other non-2xx → `FetchError{Http}` carrying the status (Qt
-   reports many of these as reply errors too; the status governs).
-4. 2xx → header validation (above) → success, or `Protocol` handling:
+1. Status 429 → the rate-limit path (D3), regardless of any reply
+   error Qt also raises for it (`Retry-After` is validated either way).
+2. Any other non-2xx status → `FetchError{Http}` carrying the status
+   (Qt reports many of these as reply errors too; the status governs).
+3. Any remaining Qt error — **including alongside a 2xx status** (the
+   truncated-body case), and the no-status-at-all transport failures
+   (connection refused, timeout, SSL, …) → `FetchError{Network}`,
+   carrying the Qt error code and string.
+4. Clean 2xx → header validation (above) → success, or `Protocol`
+   handling:
 
-**`Protocol` at steady state:** a 2xx reply with less-than-Full
-headers **delivers its payload** (the data is real) and records its
-history event, with the error logged and captured — but **two
-consecutive** such replies stop the lane: queued entries complete with
-`FetchError{Protocol}` and the endpoint resets to `Unknown` (re-probe
-on the next submission wave, D4). One malformed reply cannot kill an
-update; a systemic header regression (N20 — it has happened twice)
-cannot drain a queue unpaced. During Discovery the rule is strict:
-one less-than-Full reply is a discovery failure (D4).
+**`Protocol` at steady state (per endpoint — round 2):** a 2xx reply
+with less-than-Full headers **delivers its payload** (the data is
+real) and records its history event, with the error logged and
+captured — but **two consecutive such replies for the same endpoint**
+trip that endpoint's threshold: its queued entries are extracted from
+the pump's FIFO (the D4 extraction primitive) and complete with
+`FetchError{Protocol}`, and that endpoint resets to `Unknown` under
+the setup cooldown (D4). The counter is per endpoint: a healthy reply
+from endpoint Y neither resets X's count nor is endangered by it — X
+cannot stop Y's lane, and Y cannot mask X's breakage. One malformed
+reply cannot kill an update; a systemic header regression cannot
+drain a queue unpaced (header regressions have real precedent
+server-side — N20 — though the two documented cases were
+HEAD-specific; this defense is cheap either way). During Discovery
+the rule is strict: one less-than-Full reply is a discovery failure
+(D4).
 
-**429 under the tiers:** `Retry-After` is the retry authority — a 429
-whose rate-limit headers are less than Full still retries per D3 but
-does not update the policy. A 429 with no valid `Retry-After`
-(missing, unparseable, or outside D3's [1, 900]) is non-retryable:
-`FetchError{Http}`, violation logged.
+**429 under the tiers:** `Retry-After` is the retry authority — at
+steady state a 429 whose rate-limit headers are less than Full still
+retries per D3 (the pump has a policy for the deadline formula) but
+does not update the policy. **During Discovery, "retry per D3" is
+undefined — there is no pump and no policy (round 2). The split:** a
+discovery 429 with **Full** headers has just taught us the topology —
+adopt the pump per D4, insert the exchange, and transfer the entry
+*with its attempt count* (three total sends spans both regimes); the
+pump owns the retry from there. A discovery 429 with less-than-Full
+headers is a discovery failure (D4), with its validated `Retry-After`
+feeding the setup cooldown. In every regime, a 429 with no valid
+`Retry-After` (missing, unparseable, or outside D3's [1, 900]) is
+non-retryable: `FetchError{Http}`, violation logged.
 
 **`FetchError` shape:** kind (`Network` / `Http` / `Parse` /
 `Protocol` / `RateLimited` / `Canceled`), endpoint, URL, HTTP status
@@ -572,13 +630,25 @@ battle-tested code in the app:
    non-numeric fields, mismatched periods (the current parser's UB
    inputs become ordinary test vectors); concurrent degraded endpoints
    each limited to one discovery GET; discovery adoption inserts the
-   exchange into pump history in received-time order and
+   exchange into pump history as the newest exchange (trivially
+   ordered under round 2's gate-exclusive setup traffic) and
    `GetNextSafeSend` sees it; NameOnly-join without a discovery GET;
    discovery failure fails all parked entries and re-probes on the
    next wave; steady-state two-consecutive-`Protocol` stop (one fluke
-   survives, two stop the lane); policy rename rekeys the hub and a
-   collision folds the losing pump; `Retry-After` validation vectors
-   (missing / 0 / negative / non-numeric / > 900).
+   survives, two trip the threshold); `Retry-After` validation vectors
+   (missing / 0 / negative / non-numeric / > 900). **Round-2 pins:**
+   endpoints X and Y share a policy, only X reports a rename — only X
+   re-probes, Y's lane and the pump's history are untouched, and no
+   history events cross pumps; interleaved X/Y `Protocol` counters
+   (Y's healthy replies neither reset nor trip X's); setup traffic is
+   gate-exclusive and state adoption is monotonic (no out-of-order
+   regression constructible); a 200 status paired with
+   `RemoteHostClosedError` classifies as `Network`, not success; a
+   caller resubmitting from its completion handler cannot provoke a
+   probe inside `SETUP_RETRY_COOLDOWN`; an established endpoint keeps
+   its topology through an ordinary timeout (no HEAD re-probe); a
+   discovery 429 with Full headers adopts the pump and retries there
+   with its attempt count carried over.
 4. **Primitives tested standalone**: awaitable queue (FIFO order,
    cancellation), gate (cap, exclusivity, spacing floor) — pure logic,
    fast tests.
@@ -643,7 +713,10 @@ external review backlog and revision log below.)
    anomalies, retry exhaustion in the wild).
 2. Degraded-HEAD behavior: **degrade and proceed** — decided; folded
    into D4 (one-request exposure, provisional pump, `FatalError`
-   removed from the hub).
+   removed from the hub). *(The provisional-pump mechanism and the
+   one-request-exposure claim were later superseded by the D4 state
+   machine — see the revision log; the degrade-and-proceed decision
+   itself stands.)*
 3. `cancelChain()` semantics: verified against Qt docs (available
    since Qt 6.10, backwards propagation, nested-future limitation) —
    then **superseded the same day** by the external-review revision:
@@ -666,14 +739,26 @@ permanent `F` numbers.
 | ID | Group | Finding | Status |
 |---|---|---|---|
 | ER1 | Cancellation and lifetime | Canceling a `QFuture` already awaited by a sibling coroutine makes QCoro call `result()` before a post-await liveness guard can run. | Resolved in D1/D2: stop tokens replace QFuture cancellation and every future finishes with a value. |
-| ER2 | Degraded HEAD and topology | A provisional pump does not guarantee exactly one unpaced request; multiple provisional/established pumps can overlap, and queue-only merging loses history and ordering. | Resolved in D4: explicit endpoint state machine; no provisional pump exists; one discovery GET per endpoint per probe cycle, parked entries stop rather than drain; adoption inserts the discovery exchange into pump history by received time. |
+| ER2 | Degraded HEAD and topology | A provisional pump does not guarantee exactly one unpaced request; multiple provisional/established pumps can overlap, and queue-only merging loses history and ordering. | Resolved in D4: explicit endpoint state machine; no provisional pump exists; one discovery GET per endpoint per probe cycle, parked entries stop rather than drain; adoption inserts the discovery exchange into pump history, race-free under gate-exclusive setup traffic (round 2). |
 | ER3 | Gate ownership and scope | A hub-owned gate cannot cover pre-session login/OAuth traffic; the literal host wildcard also includes legacy CDN image traffic, and the API must accommodate GET/HEAD/POST. | Pending group 3. |
 | ER4 | Cancellation and lifetime | Cancellation checkpoints, interruptible waits, top-level task ownership, and teardown were unspecified; a stopped request could still send or a coroutine could resume through a destroyed owner. | Resolved in D2/D3 and the shutdown/task-ownership section. |
 | ER5 | Cancellation and lifetime | Retaining every facade future for abort can retain completed parsed payloads for a multi-hour update. | Resolved in D2: the stop source is the abort handle and no future registry exists. |
-| ER6 | Degraded HEAD and topology | Header validity and policy-name/topology changes are not modeled; the current parser assumes structurally valid triplets and current hub maps can remain keyed by an old policy name. | Resolved in D8 (validity tiers; total validation front-end — verification found the missing-header path is UB in today's parser, N20 corrected) and D4 (steady-state rekey/fold on policy rename). |
-| ER7 | Degraded HEAD and topology | Retry timing is underspecified: the applicable bucket depends on Q4, the attempt count is ambiguous, and the retry deadline should be reconciled with policy and gate deadlines. | Resolved in D3: deadline = max(padded Retry-After, GetNextSafeSend) through the gate; max-bucket padding decouples Q4; Retry-After validated and clamped [1, 900]; 3 = total sends. |
+| ER6 | Degraded HEAD and topology | Header validity and policy-name/topology changes are not modeled; the current parser assumes structurally valid triplets and current hub maps can remain keyed by an old policy name. | Resolved in D8 (validity tiers; total validation front-end — verification found the missing-header path is UB in today's parser, N20 corrected) and D4 (round 2: endpoint-scoped reset-and-reprobe on rename; the fold was deleted). |
+| ER7 | Degraded HEAD and topology | Retry timing is underspecified: the applicable bucket depends on Q4, the attempt count is ambiguous, and the retry deadline should be reconciled with policy and gate deadlines. | Resolved in D3: deadline = max(padded Retry-After, GetNextSafeSend) through the gate; unconditional 60 s pad (round 2) fully decouples Q4; Retry-After strict-accepted in [1, 900]; 3 = total sends. |
 | ER8 | Degraded HEAD and topology | `FetchError` needs precise HTTP-vs-network precedence and a protocol/header failure that can represent a successful HTTP response with unusable rate-limit headers. | Resolved in D1/D8: status-first precedence, new `Protocol` kind, full field inventory (endpoint, URL, HTTP status, Qt error, message). |
 | ER9 | Cancellation and lifetime | QCoro 0.11 was stale; 0.13 contains directly relevant QFuture-destruction and FetchContent fixes, and C++23 alone does not enforce the claimed compiler floor. | Resolved in the dependency section. |
+
+**Round 2 (July 18, group 2 re-review):** nine corrections to the
+group-2 resolutions, all verified and adopted — evidence is
+endpoint-scoped (rename reset-and-reprobe with the fold deleted;
+per-endpoint `Protocol` counters), setup traffic is gate-exclusive
+(the received-time adoption race is unconstructible), the
+discovery-429 split, transport-error-over-2xx precedence, the
+unconditional 60 s retry pad, the setup-failure cooldown, reset-scope
+limits (established endpoints keep topology through ordinary
+failures), and two documentation fixes (N20's evidence is
+HEAD-specific; the historical provisional-pump entry is marked
+superseded). Details in the revision log.
 
 **Group 4 — complexity and testing** is a cross-cutting review after
 ER2/ER3/ER6–ER8 settle rather than a separate correctness finding. It
@@ -724,3 +809,21 @@ than becoming independent redesigns.
   (`ratelimitpolicy.cpp:52` — a missing header yields `[""]` and
   `parts[1]` indexes out of bounds): ground-truth N20 corrected in
   place, Q3 residual closed. Groups 3 (ER3) and 4 pending.
+- **July 18, 2026 (group 2, round 2)** — nine re-review corrections
+  verified and adopted (decisions blessed by Tom: endpoint-scoped
+  reset-and-reprobe with the fold deleted; gate-exclusive discovery;
+  unconditional 60 s retry pad; 60 s setup-failure cooldown;
+  per-endpoint `Protocol` counter). D4: evidence-is-endpoint-scoped
+  rule stated; reset-to-Unknown limited to setup/discovery failures,
+  `Protocol` threshold, and topology change; setup-failure cooldown
+  added (`SETUP_RETRY_COOLDOWN = 60 s`, Retry-After feeds it);
+  topology change rewritten as endpoint reset into the setup machine —
+  history never crosses pumps, pump GC replaces teardown protocol.
+  D8: precedence puts any Qt transport error above a 2xx status (the
+  truncated-body case); `Protocol` threshold scoped per endpoint;
+  discovery-429 split defined (Full → adopt and retry in the pump
+  with attempt count carried; else discovery failure); N20
+  overstatement fixed. D3: retry pad is an unconditional named 60 s
+  constant (no rule classification; legacy-bucket assumption
+  recorded); Retry-After strict-acceptance wording. Round-2 test pins
+  added. Groups 3 (ER3) and 4 pending.
