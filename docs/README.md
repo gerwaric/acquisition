@@ -18,6 +18,10 @@ when this map and a header disagree, the header wins.
 - `design/network-ground-truth.md` — living ledger of numbered claims
   (N1, N2, …) about how the Path of Exile API actually limits requests,
   each with cited evidence. Designs are derived from these claims.
+- `design/network-ggg-email-draft.md` — transient: the consolidated
+  ask-GGG email (Q4 positional hypothesis, legacy bucket resolutions,
+  retry-pad ceiling). Deleted once sent and the answers are transcribed
+  into the ground-truth ledger.
 - `cleanup/findings.md` — project-wide register of design/correctness
   findings (F1, F2, …): open findings, standing constraints, and a
   resolved ledger. The `cleanup/` path is historical — the register
