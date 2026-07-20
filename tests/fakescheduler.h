@@ -4,6 +4,7 @@
 #pragma once
 
 #include <QPointer>
+#include <QtGlobal>
 
 #include <chrono>
 #include <cstddef>
@@ -42,8 +43,15 @@ public:
     void AdvanceTo(std::chrono::milliseconds t)
     {
         // Now() is a monotonic clock (Scheduler contract): time never moves
-        // backward, and a negative AdvanceBy() is a test bug.
-        Q_ASSERT(t >= m_now);
+        // backward, and a negative AdvanceBy() is a test bug. Unconditional
+        // on purpose — Q_ASSERT compiles out under QT_NO_DEBUG, and CI
+        // builds Release, which is precisely where an unnoticed backward
+        // clock would silently weaken these timing tests.
+        if (t < m_now) {
+            qFatal("FakeScheduler: time moved backward, from %lldms to %lldms",
+                   static_cast<long long>(m_now.count()),
+                   static_cast<long long>(t.count()));
+        }
         while (true) {
             // The earliest (when, seq) pending callback due at or before t.
             // Re-scanned every iteration because a fired callback may have
