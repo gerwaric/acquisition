@@ -44,24 +44,6 @@ emit; gate it behind `spdlog::should_log` or drop it. Opportunistic —
 absorb into items-pipeline M2/M3 work on this function rather than fixing
 inline (working rule 3).
 
-### F50. Network failures are logged as rate-limit-header anomalies — Confirmed
-
-Found during the items-pipeline M1 manual validation (July 2026,
-network-kill test). The handling is correct — this is the F30 fix working
-as designed: `RateLimitManager::ReceiveReply` surfaces a header-less reply
-to the caller as a failed request and moves the queue along, and the
-worker aborts cleanly with items intact. But the diagnostic wording is
-wrong: "The rate limit manager received a reply for stash-request-limit
-without rate limit headers: error TimeoutError" frames a plain network
-failure as a rate-limit anomaly, and it reads as if the rate limiter
-misinterpreted the event (it was misread exactly that way in testing).
-The branch also conflates two distinct cases: `reply->error() != NoError`
-(an expected network-level failure — should be a `warn` saying "network
-error for <endpoint>: <errorString>; failing the request") and a reply
-with *no* error but missing headers (a genuine API anomaly deserving
-`error`). Split the two and reword. Same diagnostics family as the F30
-BORDERLINE note.
-
 ### F54. The v4→v5 buyout migration never persists under the repo-backed store — Confirmed (mechanism); reachability unverified
 
 Found July 17, 2026, while validating the F52 fix's map-mirrors-repo
@@ -166,28 +148,16 @@ Callers (`ItemsManagerWorker` handlers, `DiscardIfStale`) do call
 same-thread connection (handlers finish before the unique_ptr delete)
 and a QObject destructor cancels its own pending deferred delete. Any
 reordering, queued connection, or threading change turns this into a
-use-after-free. Status after network-redesign phase 3 (July 20, 2026):
-the pump preserves these semantics deliberately (pinned in
-`tst_ratelimitmanager.cpp` as the kept F59 behavior); the resolution is
-phase 4's `QFuture` boundary, which deletes `RateLimitedReply` outright
-so the contradiction stops being expressible (spec D1).
-
-### F60. The legacy stash-index request has no transfer timeout — Confirmed
-
-Found July 19, 2026, during the network-redesign round-5 review
-(R5-3 in `docs/design/network-redesign-reviews.md`). `Shop::UpdateStashIndex`
-builds its `QNetworkRequest` bare — no `setTransferTimeout` — unlike
-the OAuth API builders (`poe::MakeApiRequest` sets 10 s) and the
-forum-thread calls (300 s). A stalled legacy GET, or the endpoint's
-HEAD probe (which inherits the request), therefore has no client-side
-bound at all and can hang until the OS gives up on the connection,
-leaving the shop update waiting on a reply that never finishes.
-Under the network redesign this would also hold a gate permit
-indefinitely — with a HEAD waiting under writer preference, the whole
-hub stops — which is why the redesign makes the timeout a facade-owned
-invariant (spec D5/D7, test over every builder). Fix shape: the facade
-closes this by construction; if anything touches `UpdateStashIndex`
-before the facade lands, add the timeout there directly.
+use-after-free. Status after network-redesign phase 4a (July 20, 2026):
+**resolved by construction** — the limiter's boundary is
+`QFuture<FetchOutcome>`, so no reply object is handed to a caller at
+all and there is nothing whose ownership could be contradictory. Qt's
+shared state is the single owner of the outcome, and the pump now
+releases every reply it creates, final ones included. `RateLimitedReply`
+itself survives one more phase behind the legacy `Submit` wrapper (which
+preserves the old destroy-after-emit semantics for the worker call sites
+that have not moved yet); phase 4b deletes the class outright once those
+call sites are on the facade.
 
 ---
 
@@ -281,6 +251,8 @@ above). "PR #161" refers to the post-Phase-6 follow-ups branch
 | F51 | Unnamed stash tabs (~30 on the validating account, real in-game data) collapse the label component of the legacy item-buyout hash, suspected of shadowing item buyouts across tabs | Reframed and closed, July 2026: active item buyouts key on the API item id (`BuyoutManager::Set`/`Get` use `item.id()`); the label-based `hash_v4` is consumed only by the one-time v4→v5 migration, where colliding tabs made that migration ambiguous — an accepted legacy quirk. Do not rekey `GetLegacyHash`: it would break future v4→v5 migrations without improving live lookups |
 | F52 | `PropagateTabBuyouts` issued one no-op buyout DELETE per item on every refresh (~17k per refresh on an 18.5k-item account) | Fixed, PR #163: the clear path touches the repo only when the in-memory map holds an entry; per review, `removeItemBuyout`/`removeLocationBuyout` report success and the map entry is erased only afterward, so a failed DELETE is retried on the next clear (pinned by a `BEFORE DELETE RAISE(FAIL)` trigger test). Accepted, test-pinned: a row written behind the manager's back survives an in-session clear and heals at the next `Load()`; save-path failures are still discarded by the signal connection (deliberate asymmetry). Drift note: `Compress*` drifts the map only toward orphan repo rows, which the guard leaves alone; `MigrateItem` rekeys in memory only and so drifts both ways at once (old row orphaned, new key rowless — see F54); a failed save also leaves a rowless map entry; clearing a rowless entry is healed by a zero-row DELETE. Standing M2 constraint: the per-tab delta path must scope buyout propagation to the delta, not rerun the loop per tab reply |
 | F53 | Deleted stash tabs and characters resurrected from the cache at restart: the repos only upserted listed rows and could not even express "everything was deleted" (empty lists returned early) | Fixed, F53/F55 follow-up PR: authoritative-list signals (`stashListReplaced`/`characterListReplaced`, emitted only for fresh top-level lists — never for `ProcessTab`'s folder-children re-emits) drive `reconcileStashList`/`reconcileCharacterList`, deleting rows absent from the recursively flattened list (realm-wide for characters, matching the endpoint) with empty lists handled; children of surviving Map/Unique parents are preserved and reconciled by `stashChildrenReplaced` on the parent's reply instead — scoped to Map/Unique parents only, because live folder replies carry no children (F49) and keying off them would wipe legitimate child rows. With child fetching disabled the parent reply deletes cached child rows, so re-enabling the setting refetches instead of showing stale cache (documented policy). Pinned at repo level (`tst_reconcile`) and end-to-end through the fake network |
+| F50 | Header-less and transport-failed replies were logged as rate-limit-header anomalies, framing plain network failures as protocol problems (they were misread that way during M1 validation) and conflating two distinct cases | Fixed in network-redesign phase 4a: `RateLimitManager::Update()` logs the parse failure at `debug` when the reply carried a transport error or no `X-Rate-Limit-Policy` header at all — neither indicates anything about the protocol, and GGG does not header every error response. The loud `error` is reserved for the case that genuinely does indicate a protocol change: a would-be-clean 2xx, which classification now also completes as `FetchError{Protocol}` rather than delivering it as a success (D8/IR1). The split the finding asked for is therefore structural, not just a rewording — the two cases now differ in outcome, not only in log level |
+| F60 | The legacy stash-index request was built bare — no `setTransferTimeout` — so a stalled GET (or the endpoint's HEAD probe, which inherits the request) had no client-side bound and could hang until the OS gave up, leaving the shop update waiting forever; under the redesign it would also hold a gate permit indefinitely and, with a HEAD waiting under writer preference, stall the entire hub | Fixed in network-redesign phase 4a by construction: `PoeApiClient` owns request building for every API call including this one, and sets the 10 s transfer timeout the gate's liveness invariant depends on (D5/R5-3). `Shop` no longer builds a request at all. Pinned by `tst_poeapiclient`'s `everyRequestCarriesTheTransferTimeout`, which checks EVERY builder rather than only the one that was broken — verified to fail when the call is removed |
 | F55 | A terminal failure between list receipt and a new tab's first fetch consumed the tab's newness durably (metadata persists at list receipt), so later partial refreshes published the tab empty — release-blocking for M1's always-fetch note | Fixed, F53/F55 follow-up PR: the always-fetch decision keys on a contents-known set — seeded in `ParseCachedItems` from rows whose stash/character json was actually saved, extended on successful replies — instead of list membership (`previously_known` removed). No schema change: the `listed_at` vs `json_fetched_at`/`json_data` split already existed, and no path writes json without its timestamp (`LegacyDataStore` is unwired). Rejected: skipping the list-receipt metadata save (regresses the absorbed-F15 metadata refresh and misses the in-session case). Pinned by `failedFirstFetchDoesNotConsumeNewness` (the ledger-specified scenario) and `listedButNeverFetchedTabIsFetchedOnNextUpdate` (the restart shape). Review follow-up (July 17): a Map/Unique parent counts as contents-known only once every enabled child fetch has landed — completion is deferred to the last child reply in-session, and a cached parent whose saved reply records children with a missing child row stays "new" at startup (special children never appear in a top-level list, so nothing else would retry them); pinned by `failedChildFetchKeepsParentNew` and `cachedParentWithMissingChildRowStaysNew`. Round 2: starting a child-fetch cycle also *evicts* an already-known parent from contents-known (chosen over per-child-id completeness tracking: eviction is uniformly conservative — worst case one redundant refetch after a mid-cycle failure — while stale in-memory child known-ness could re-strand a child after rows were cleared under a disabled setting), pinned by `knownParentWithNewFailedChildIsRetried`; and the `ParseCachedItems` settings reads were hoisted to the main thread (the parser thread must not touch the shared `QSettings` instance the UI writes — reentrant, not thread-safe). Known residual, accepted: re-enabling `get_map_stashes`/`get_unique_stashes` mid-session leaves the parent known until it is next fetched (full refresh or selection) or the next restart's seed check. Release-note wording narrowed to "any content refresh": `TabsOnly` records a new tab without fetching it and the next content refresh picks it up |
 | F57 | A 429 retry destroyed the caller's `RateLimitedReply`, dropped the retried completion, and wedged the update until restart (reproduced offline by the phase-1 harness) | Fixed, network-redesign phase 3 (July 20, 2026): the pump retries invisibly inside the drain loop — bounded attempts, padded deadline, permit-free sleep — and the caller sees exactly one final completion; the phase-1 wedge pin flipped to `retry429CompletesCallerExactlyOnce` |
 | F58 | The minimum-send-interval spacing was dead code (`last_send` never assigned) | Fixed, network-redesign phase 3 (July 20, 2026): the dead block deleted with `ActivateRequest`; the intent is implemented deliberately at the right scope as the gate's `MIN_SEND_SPACING` floor (250 ms across everything the hub sends, measured from dispatch stamps — spec D5), pinned exactly on the injected clock |
