@@ -73,9 +73,10 @@ jobs:
 
     - name: Install Inno Setup
       run: |
-        $installer = "$env:TEMP\innosetup.exe"
-        Invoke-WebRequest -Uri "https://jrsoftware.org/download.php/is.exe" -OutFile $installer
-        Start-Process -FilePath $installer -ArgumentList "/VERYSILENT", "/NORESTART" -Wait
+        # Installed via chocolatey, pinned: the jrsoftware.org download.php
+        # URL has served an HTML page instead of the installer (observed
+        # July 2026), which silently produced a corrupt innosetup.exe.
+        choco install innosetup --version=6.7.1 -y --no-progress
         echo "${env:ProgramFiles(x86)}\Inno Setup 6" >> $env:GITHUB_PATH
 
     - name: Build installer
