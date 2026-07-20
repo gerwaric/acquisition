@@ -86,6 +86,43 @@ if(NOT app_version_suffix STREQUAL "")
 endif()
 
 #------------------------------------------------------
+# Compiler Floors
+#------------------------------------------------------
+
+# The coroutine code (QCoro and the ratelimit primitives) needs more than
+# CXX_STANDARD 23, which does not enforce a compiler version (network-redesign
+# spec, ER9). GCC below 13 miscompiles coroutines with captures in temporary
+# lambdas; the Clang, AppleClang, and MSVC minimums are the ones QCoro v0.13.0
+# documents. BUILD.md states the same floors.
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 13)
+        message(FATAL_ERROR "GCC ${CMAKE_CXX_COMPILER_VERSION} is not supported: "
+            "acquisition requires GCC 13 or newer (earlier GCC miscompiles "
+            "coroutines with captures in temporary lambdas).")
+    endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15)
+        message(FATAL_ERROR "Clang ${CMAKE_CXX_COMPILER_VERSION} is not supported: "
+            "acquisition requires Clang 15 or newer (QCoro v0.13.0 floor).")
+    endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 15)
+        message(FATAL_ERROR "AppleClang ${CMAKE_CXX_COMPILER_VERSION} is not supported: "
+            "acquisition requires AppleClang 15 or newer / Xcode 15.2 (QCoro v0.13.0 floor).")
+    endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 19.40)
+        message(FATAL_ERROR "MSVC ${CMAKE_CXX_COMPILER_VERSION} is not supported: "
+            "acquisition requires MSVC 19.40 / Visual Studio 2022 17.10 or newer "
+            "(QCoro v0.13.0 floor).")
+    endif()
+else()
+    message(WARNING "Unrecognized compiler '${CMAKE_CXX_COMPILER_ID}': the coroutine "
+        "compiler floors (see BUILD.md) cannot be checked.")
+endif()
+
+#------------------------------------------------------
 # External Dependencies
 #------------------------------------------------------
 
@@ -127,6 +164,32 @@ if(NOT TARGET semver)
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(semver)
+endif()
+
+if(NOT TARGET QCoro6::Core)
+    # QCoro v0.13.0 is a hard floor, pinned exactly (network-redesign spec,
+    # "Dependency: QCoro"): the semantics the shutdown contract leans on are
+    # spike-verified at 0.13 exactly, and the FetchContent include-path fix
+    # landed in that release. spikes/qcoro/CMakeLists.txt is the verified
+    # integration reference for the flags below.
+    #
+    # FetchContent hygiene (spike-verified S1-10): QCoro's examples default ON
+    # and its tests follow BUILD_TESTING, which this project enables globally.
+    # QCORO_BUILD_TESTING maps onto a directory-scoped BUILD_TESTING of QCoro's
+    # own, so the parent flag — and acquisition's own test suite — stay
+    # intact. Never force the global BUILD_TESTING off here.
+    set(QCORO_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(QCORO_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+    set(QCORO_WITH_QTDBUS OFF CACHE BOOL "" FORCE)
+    set(QCORO_WITH_QTWEBSOCKETS OFF CACHE BOOL "" FORCE)
+    set(QCORO_WITH_QTQUICK OFF CACHE BOOL "" FORCE)
+    set(QCORO_WITH_QML OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+        qcoro
+        GIT_REPOSITORY https://github.com/qcoro/qcoro.git
+        GIT_TAG        v0.13.0
+    )
+    FetchContent_MakeAvailable(qcoro)
 endif()
 
 if(NOT TARGET spdlog)
@@ -516,6 +579,8 @@ target_link_libraries(acquisition_core PUBLIC
     Qt6::Sql
     # Extenal libraries
     glaze::glaze
+    QCoro6::Core
+    QCoro6::Network
     qdarkstyle
     sentry::sentry
     semver

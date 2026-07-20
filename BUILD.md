@@ -13,6 +13,32 @@ The CMake project currently requires Qt 6.11 or newer with these Qt modules:
 - Test
 - Widgets
 
+## Compiler Requirements
+
+Acquisition uses C++ coroutines (via QCoro), which need more than a compiler
+that accepts `-std=c++23`. CMake checks these floors explicitly and fails the
+configure step below them:
+
+- GCC 13 or newer (earlier GCC miscompiles coroutines with captures in
+  temporary lambdas)
+- Clang 15 or newer
+- AppleClang 15 or newer (Xcode 15.2)
+- MSVC 19.40 or newer (Visual Studio 2022 17.10)
+
+The Clang, AppleClang, and MSVC minimums are the ones QCoro v0.13.0 documents;
+the GCC floor is stricter for the miscompilation above.
+
+## Third-Party Dependencies
+
+CMake fetches third-party libraries (sentry-native, glaze, cpp-semver, spdlog,
+and QCoro) at configure time via FetchContent; the vendored qdarkstyle lives in
+`deps/`. QCoro is pinned exactly at v0.13.0 — a hard floor, not a preference:
+the coroutine semantics acquisition relies on are verified at that release (see
+`docs/design/network-redesign.md`, "Dependency: QCoro"). Its examples and tests
+are kept out of the build with `QCORO_BUILD_EXAMPLES=OFF` and
+`QCORO_BUILD_TESTING=OFF`; the global `BUILD_TESTING` flag is never touched, so
+acquisition's own test suite stays enabled.
+
 For day-to-day development, Qt Creator Community is the easiest setup on all
 supported platforms. Open the repository as a CMake project, configure a Qt 6.11+
 desktop kit, and build the `acquisition` target.
