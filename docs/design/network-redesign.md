@@ -25,9 +25,9 @@ flow control (S2-1..S2-4). The finding tables (ER, IR, R4-\*,
 R5-\*, R6-\*, R7, S1, S2), the round narratives, the reversal records,
 and the revision log live in `network-redesign-reviews.md`; this
 spec records only current decisions and cites finding IDs inline
-where a decision's shape came from a review. No production code has
-been written against this spec; the spike is throwaway evidence, not
-production code.
+where a decision's shape came from a review. The spike is throwaway
+evidence, not production code; production code against this spec
+begins with phasing step 2 (the primitives).
 
 This document specifies the redesign of acquisition's rate-limited
 networking: how the items worker, the rate limiter, and the network
@@ -1212,7 +1212,15 @@ sleep.)
    `RateLimit::Gate` (`src/ratelimit/gate.{h,cpp}`), pinned
    standalone per testing-plan item 4 by `tests/tst_stopsleep.cpp`
    and `tests/tst_gate.cpp` against a fake scheduler
-   (`tests/fakescheduler.h`) — deterministic, never sleeping.
+   (`tests/fakescheduler.h`) — deterministic, never sleeping; the
+   production `TimerScheduler` adapter is real-timer code with its
+   own condition-driven smoke tests (`tests/tst_timerscheduler.cpp`),
+   kept out of the primitive suites so item 4's never-sleep property
+   stays true of them as stated. Post-review correction (P1, July
+   20): the gate's spacing floor is measured from each permit's
+   dispatch stamp (recorded at waiter resume), not from grant time —
+   a queued resume delayed by a busy main thread would otherwise let
+   two sends land back-to-back inside the floor.
 3. Pump rewrite inside `RateLimitManager`; hub gains the gate and async
    HEAD setup. Boundary still the old `Submit` shape via a thin adapter
    so the worker compiles unchanged. Resolves F57, F58, F5-modernization.

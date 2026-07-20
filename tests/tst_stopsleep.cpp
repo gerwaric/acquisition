@@ -16,7 +16,9 @@
 // "Testing plan" item 4): one token per wait; wakes on stop; completes on
 // deadline; resumes via the event loop — request_stop() returns before the
 // waiter resumes (R4-2). The injected FakeScheduler makes every timing
-// assertion exact: the tests never sleep and no coarse-timer slack applies.
+// assertion exact: these tests never sleep and no coarse-timer slack
+// applies. The production TimerScheduler adapter is real-timer code and has
+// its own condition-driven smoke tests in tst_timerscheduler.cpp.
 
 // moc-lexer note (see tst_workerupdate.cpp): declare the Q_OBJECT class
 // before any helpers containing string literals with '//' in them.
@@ -31,7 +33,6 @@ private slots:
     void pastDeadlineCompletesThroughTheEventLoop();
     void stopAfterDeadlineChangesNothing();
     void twoWaitsOnOneTokenBothWake();
-    void timerSchedulerSmoke();
 };
 
 namespace {
@@ -193,41 +194,6 @@ void StopSleepTest::twoWaitsOnOneTokenBothWake()
     QVERIFY(second.done);
     QCOMPARE(*first.result, RateLimit::SleepResult::Stopped);
     QCOMPARE(*second.result, RateLimit::SleepResult::Stopped);
-}
-
-void StopSleepTest::timerSchedulerSmoke()
-{
-    // The production scheduler is real-timer code, so this is a smoke test
-    // only — condition-driven waits, no timing bounds (the ±6% lesson from
-    // tst_ratelimitmanager.cpp).
-    RateLimit::TimerScheduler scheduler;
-
-    // A destroyed context drops the callback.
-    bool dropped_fired = false;
-    {
-        QObject context;
-        scheduler.CallAt(scheduler.Now() + 5ms, &context, [&] { dropped_fired = true; });
-    }
-    QTest::qWait(30);
-    QVERIFY(!dropped_fired);
-
-    // A live context fires.
-    bool fired = false;
-    QObject context;
-    scheduler.CallAt(scheduler.Now() + 5ms, &context, [&] { fired = true; });
-    QTRY_VERIFY(fired);
-
-    // A null context fires (self-guarding callbacks).
-    bool null_context_fired = false;
-    scheduler.CallAt(scheduler.Now(), nullptr, [&] { null_context_fired = true; });
-    QTRY_VERIFY(null_context_fired);
-
-    // The sleep composes with the production scheduler.
-    std::stop_source stop;
-    Probe probe;
-    auto task = Run(probe, scheduler, scheduler.Now() + 10ms, stop.get_token());
-    QTRY_VERIFY(probe.done);
-    QCOMPARE(*probe.result, RateLimit::SleepResult::Deadline);
 }
 
 QTEST_GUILESS_MAIN(StopSleepTest)
