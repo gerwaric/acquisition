@@ -319,7 +319,16 @@ QCoro::Task<> RateLimitManager::ProcessEntry(RateLimitedRequest &entry)
         // invalid permit without ever holding a slot — that is the stop
         // checkpoint for gate acquisition.
         auto permit = co_await m_gate.Acquire(entry.token);
-        if (!permit.valid()) {
+        // An invalid permit means the wait lost to the token. A VALID permit
+        // does not mean the token is still live: the gate settles a grant
+        // and the waiter resumes through the event loop, so a stop landing
+        // in that window still yields a granted permit (gate.cpp's
+        // GrantPass says so explicitly — a granted waiter always resumes).
+        // Checking only validity would dispatch an already-stopped request,
+        // which is the one thing this checkpoint exists to prevent.
+        // Releasing without dispatching charges no spacing interval.
+        if (!permit.valid() || entry.token.stop_requested()) {
+            permit.Release();
             CompleteRequest(entry,
                             RateLimit::FetchError::Kind::Canceled,
                             "canceled while waiting at the gate");
@@ -354,7 +363,9 @@ QCoro::Task<> RateLimitManager::ProcessEntry(RateLimitedRequest &entry)
                 co_return;
             }
             permit = co_await m_gate.Acquire(entry.token);
-            if (!permit.valid()) {
+            // Same grant-then-stop window as the acquisition above.
+            if (!permit.valid() || entry.token.stop_requested()) {
+                permit.Release();
                 CompleteRequest(entry,
                                 RateLimit::FetchError::Kind::Canceled,
                                 "canceled while waiting at the gate");

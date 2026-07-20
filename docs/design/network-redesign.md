@@ -10,8 +10,9 @@ measurement); phase 1 complete (manager harness,
 with parking and cooldown — F57, F58, and F5-modernization resolved);
 phase 4a complete (July 20, 2026: the `QFuture<FetchOutcome>` boundary,
 the pump's stop checkpoints, the `Protocol` outcome half, the
-`PoeApiClient` facade, and `Shop` — F59, F60, and F50 resolved; phase 4
-split into 4a/4b for harness reasons, recorded in the phasing sketch).** Drafted July 18 and
+`PoeApiClient` facade, and `Shop` — F60 and F50 resolved, F59 narrowed to
+the legacy adapter and resolved in 4b; phase 4 split into 4a/4b for
+harness reasons, recorded in the phasing sketch).** Drafted July 18 and
 reviewed through six rounds in two days, plus one post-freeze errata
 batch (rev 7: eight corrections and contract completions, all
 shrinking — R7 in the review history). The review process converged
@@ -1283,11 +1284,14 @@ sleep.)
    scheduled stop-callback prune, `SetupFailure` carries a
    `FetchError::Kind`, and `SetupFailureReply` is deleted;
    `PoeApiClient` with the transfer-timeout invariant (F60) and `Shop`
-   moved onto it. F59 is resolved by construction here — no reply object
-   leaves the limiter — though the class survives one more phase behind
-   the wrapper. No production caller can cancel yet (every call site
-   passes a default token per D7), so the stop behavior is
-   harness-pinned only.
+   moved onto it. **F59 is narrowed, not resolved:** the pump hands out
+   no reply object, but the legacy `Submit()` adapter still returns one
+   under the same contradictory ownership contract (the declaration says
+   the caller frees it; the adapter deletes it after emitting) —
+   deliberately preserved so the worker call sites are untouched, and
+   resolved in 4b when the adapter is deleted. No production caller can
+   cancel yet (every call site passes a default token per D7), so the
+   stop behavior is harness-pinned only.
 
    **4b:** worker call sites move to the facade (mechanical — the
    callback pyramid stays, parsing moves out of the handlers; coroutines

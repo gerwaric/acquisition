@@ -239,7 +239,6 @@ Application::UserSession::UserSession(const Application::CoreServices &core)
     spdlog::trace("Application::InitLogin() creating shop");
     shop = std::make_unique<Shop>(settings,
                                   network_manager,
-                                  *rate_limiter,
                                   *api,
                                   *data,
                                   *items_manager,

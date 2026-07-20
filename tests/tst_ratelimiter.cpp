@@ -55,6 +55,8 @@ private slots:
     void cooldownFailFastCompletesFutureImmediately();
     void canceledParkedEntryIsPrunedAndProbeContinues();
     void cancelingEveryParkedEntryStillEstablishes();
+    void resubmitFromCancellationHandlerIsSafe();
+    void cancellationWinsOverAConcurrentSetupFailure();
     void legacySubmitNeverCompletesSynchronously();
 };
 
@@ -147,6 +149,12 @@ namespace {
         bool succeeded = false;
         std::optional<RateLimit::FetchError> error;
 
+        // Runs at the end of the recording continuation, on the same stack.
+        // A QFuture takes only ONE continuation — a second .then() on the
+        // same future replaces the first rather than chaining — so tests
+        // that need to act on completion hook in here.
+        std::function<void()> on_complete;
+
         std::stop_token token() { return source.get_token(); }
         void abort() { source.request_stop(); }
 
@@ -157,6 +165,9 @@ namespace {
                 ++completions;
                 succeeded = outcome.has_value();
                 error = outcome ? std::nullopt : std::optional(outcome.error());
+                if (on_complete) {
+                    on_complete();
+                }
             });
         }
 
@@ -761,6 +772,100 @@ void RateLimiterTest::cancelingEveryParkedEntryStillEstablishes()
     rig.network.sent(1).reply->finish(policyHeaders("10:60:60", "1:60:0"), 200);
     drainEvents();
     QVERIFY(after.succeeded);
+}
+
+void RateLimiterTest::resubmitFromCancellationHandlerIsSafe()
+{
+    // A default QFuture continuation runs SYNCHRONOUSLY on the completing
+    // stack, so a caller can resubmit to the same probing endpoint from
+    // inside its own cancellation handler. That reaches ParkEntry, which
+    // push_backs onto the very deque the prune is walking — and
+    // deque::push_back invalidates all iterators into it. The prune must
+    // therefore stabilize the deque before completing, not after.
+    //
+    // HONEST SCOPE: this pins the observable behavior — one completion, one
+    // probe, nothing lost, order preserved. It does NOT reproduce the
+    // iterator-invalidation UB in a plain build: with a handful of parked
+    // entries libc++'s deque does not reallocate, so the stale iterator
+    // happens to still address the right element. Forcing a reallocation
+    // would need hundreds of parked entries. The fix rests on the standard's
+    // guarantee, not on this test failing without it.
+    Rig rig;
+
+    FutureSubmission victim;
+    FutureSubmission survivor;
+    victim.attach(rig.limiter.SubmitFuture("ep", request("one"), victim.token()));
+    survivor.attach(rig.limiter.SubmitFuture("ep", request("two"), survivor.token()));
+    settle(rig.scheduler);
+    QCOMPARE(rig.network.headCount(), 1);
+
+    // Resubmit from the cancellation handler, the re-entrant shape.
+    FutureSubmission resubmitted;
+    bool resubmit_ran = false;
+    victim.on_complete = [&] {
+        resubmitted.attach(rig.limiter.SubmitFuture("ep", request("three"), resubmitted.token()));
+        resubmit_ran = true;
+    };
+
+    victim.abort();
+    settle(rig.scheduler);
+
+    QVERIFY(resubmit_ran);
+    QCOMPARE(victim.kind(), RateLimit::FetchError::Kind::Canceled);
+    // Still exactly one probe: the resubmission parked behind the in-flight
+    // HEAD rather than starting another.
+    QCOMPARE(rig.network.headCount(), 1);
+
+    // Both survivors forward, in order, and the queue is intact.
+    rig.network.sent(0).reply->finish(policyHeaders("10:60:60", "0:60:0"), 200);
+    settle(rig.scheduler);
+    advanceAndSettle(rig.scheduler, 1s);
+    QCOMPARE(rig.network.count(), 2);
+    QCOMPARE(rig.network.sent(1).request.url(), request("two").url());
+    rig.network.sent(1).reply->finish(policyHeaders("10:60:60", "1:60:0"), 200);
+    settle(rig.scheduler);
+    advanceAndSettle(rig.scheduler, 1s);
+    QCOMPARE(rig.network.count(), 3);
+    QCOMPARE(rig.network.sent(2).request.url(), request("three").url());
+    rig.network.sent(2).reply->finish(policyHeaders("10:60:60", "2:60:0"), 200);
+    drainEvents();
+    QVERIFY(survivor.succeeded);
+    QVERIFY(resubmitted.succeeded);
+}
+
+void RateLimiterTest::cancellationWinsOverAConcurrentSetupFailure()
+{
+    // Stopping a parked entry only SCHEDULES its prune. If the HEAD fails
+    // before that callback runs, FailSetup would otherwise complete the
+    // stopped entry with the setup failure's kind — while on the success
+    // path the same entry always ends up Canceled. Cancellation is the
+    // caller's own decision, so it must win either way; otherwise the
+    // outcome depends on event ordering.
+    Rig rig;
+
+    FutureSubmission victim;
+    FutureSubmission bystander;
+    victim.attach(rig.limiter.SubmitFuture("ep", request("one"), victim.token()));
+    bystander.attach(rig.limiter.SubmitFuture("ep", request("two"), bystander.token()));
+    settle(rig.scheduler);
+    QCOMPARE(rig.network.headCount(), 1);
+
+    // Stop, then fail the HEAD, and only THEN advance the scheduler — so
+    // the setup failure is processed while the prune is still pending.
+    victim.abort();
+    rig.network.sent(0).reply->finish({}, 0, QNetworkReply::ConnectionRefusedError);
+    drainEvents();
+
+    QCOMPARE(victim.completions, 1);
+    QCOMPARE(victim.kind(), RateLimit::FetchError::Kind::Canceled);
+    // The entry that never cancelled still gets the real failure.
+    QCOMPARE(bystander.completions, 1);
+    QCOMPARE(bystander.kind(), RateLimit::FetchError::Kind::Network);
+
+    // The pending prune fires against an endpoint that is no longer
+    // probing: it must find nothing and complete nothing a second time.
+    settle(rig.scheduler);
+    QCOMPARE(victim.completions, 1);
 }
 
 void RateLimiterTest::legacySubmitNeverCompletesSynchronously()

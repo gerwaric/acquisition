@@ -61,7 +61,6 @@ public:
                                                             *itemsManager);
         shop = std::make_unique<Shop>(*settings,
                                       *networkManager,
-                                      *rateLimiter,
                                       *api,
                                       *buyoutFixture.data,
                                       *itemsManager,

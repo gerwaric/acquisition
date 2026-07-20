@@ -44,10 +44,12 @@
 //    FetchError{Protocol} (D8/IR1 — both halves, as of phase 4a).
 //  - Queue-before-install: Update() now starts the drain for held entries
 //    instead of leaving them stuck until the next QueueRequest.
-//  - F59: resolved by construction (phase 4a). The boundary is
-//    QFuture<FetchOutcome>, so no reply object is handed out at all — Qt's
-//    shared state is the single owner, and the pump releases every reply it
-//    creates, final ones included.
+//  - F59 (the PUMP's half): this boundary is QFuture<FetchOutcome>, so no
+//    reply object is handed out here at all — Qt's shared state is the
+//    single owner, and the pump releases every reply it creates, final ones
+//    included. F59 itself stays OPEN: the hub's legacy Submit() adapter
+//    still hands out a RateLimitedReply under the contradictory ownership
+//    contract, and phase 4b resolves it by deleting the adapter.
 //  - The terminal failed state completes its queued entries Internal instead
 //    of dropping them: no caller waits on a promise that never settles.
 // Kept pins: terminal 429s (missing or unacceptable Retry-After) and error
@@ -86,6 +88,7 @@ private slots:
     void cancelBeforeDequeueCompletesCanceled();
     void cancelDuringPacingSleepCompletesCanceled();
     void cancelWaitingAtGateCompletesCanceled();
+    void cancelAfterGateGrantStillPreventsTheSend();
     void cancelDuringRetrySleepCompletesCanceled();
     void cancelInFlightLetsReplyLandAndRecordsViolation();
     void awaitingCoroutineResumesSafelyOnCancel();
@@ -389,9 +392,10 @@ void RateLimitManagerTest::okPolicySendsAfterNormalBuffer()
     QCOMPARE(caller.completions, 1);
     QCOMPARE(caller.last_status(), 200);
     QCOMPARE(caller.last_error(), QNetworkReply::NoError);
-    // F59 is resolved by construction: there is no caller-owned object to
-    // destroy. The promise settled exactly once, and the shared state is the
-    // single owner of the outcome.
+    // No caller-owned object to destroy at this boundary: the promise
+    // settled exactly once and the shared state is the single owner of the
+    // outcome. (F59's remaining half lives in the legacy adapter — see the
+    // header note.)
     QVERIFY(caller.future.isFinished());
     QVERIFY(caller.succeeded);
 }
@@ -670,9 +674,9 @@ void RateLimitManagerTest::retry429CompletesCallerExactlyOnce()
 
     // The retried request succeeds: the caller sees exactly one final
     // completion, carrying bytes rather than a reply. The FINAL reply is now
-    // released by the pump's dispatch-time owner too (the flipped half of
-    // F59): no reply object escapes the limiter any more, so there is
-    // nothing for a caller to own, leak, or destroy at the wrong moment.
+    // released by the pump's dispatch-time owner too: no reply object
+    // escapes the PUMP any more, so there is nothing for a caller to own,
+    // leak, or destroy at the wrong moment at this boundary.
     rig.sender.sent(1).reply->finish(policyHeaders("2:60:60", "1:60:0"), 200);
     drainEvents();
     QCOMPARE(victim.completions, 1);
@@ -1139,6 +1143,58 @@ void RateLimitManagerTest::cancelWaitingAtGateCompletesCanceled()
     Caller after;
     after.attach(rig.manager.QueueRequest(kEndpoint, request("two"), after.token()));
     advanceAndSettle(rig.scheduler, 1s);
+    QCOMPARE(rig.sender.count(), 1);
+}
+
+void RateLimitManagerTest::cancelAfterGateGrantStillPreventsTheSend()
+{
+    // The grant-then-stop window, which the gate deliberately allows: it
+    // settles a grant, and the winner resumes through the event loop, so a
+    // stop landing in between still yields a VALID permit (GrantPass says
+    // so outright — a granted waiter always resumes). Checking only
+    // permit.valid() would let the pump dispatch an already-stopped
+    // request, which is the one thing this checkpoint exists to prevent.
+    //
+    // cancelWaitingAtGateCompletesCanceled does NOT cover this: it aborts
+    // while a HEAD occupies the gate, so its waiter is never granted at all.
+    Rig rig;
+    installPolicy(rig.manager, "10:60:60", "0:60:0");
+
+    // Occupy the gate so the entry queues as a waiter rather than taking
+    // the fast path.
+    GateBlocker blocker;
+    auto head = takeHead(blocker, rig.gate);
+    settle(rig.scheduler);
+    QVERIFY(blocker.done);
+
+    Caller victim;
+    victim.attach(rig.manager.QueueRequest(kEndpoint, request("one"), victim.token()));
+    // Past both the pacing deadline and the gate's spacing floor, so the
+    // release below grants immediately instead of scheduling a later pass.
+    advanceAndSettle(rig.scheduler, kGateSpacing + std::chrono::milliseconds(kNormalBufferMsec));
+    QCOMPARE(rig.sender.count(), 0);
+
+    // Releasing the HEAD runs GrantPass synchronously, which settles the
+    // waiter's grant true — but its resume is queued. Stop the token in
+    // exactly that window, before any events are delivered.
+    blocker.permit.Release();
+    victim.abort();
+
+    // Now let the granted waiter resume: it holds a VALID permit and a
+    // stopped token.
+    settle(rig.scheduler);
+
+    QCOMPARE(victim.completions, 1);
+    QCOMPARE(victim.kind(), RateLimit::FetchError::Kind::Canceled);
+    // Nothing was sent: the permit was released without dispatching.
+    QCOMPARE(rig.sender.count(), 0);
+
+    // The gate charged no spacing for the undispatched permit, so a fresh
+    // request goes out on the next pacing deadline rather than waiting out
+    // a phantom send interval.
+    Caller after;
+    after.attach(rig.manager.QueueRequest(kEndpoint, request("two"), after.token()));
+    advanceAndSettle(rig.scheduler, std::chrono::milliseconds(kNormalBufferMsec));
     QCOMPARE(rig.sender.count(), 1);
 }
 

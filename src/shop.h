@@ -23,7 +23,6 @@ class DataStore;
 class ItemsManager;
 class NetworkManager;
 class PoeApiClient;
-class RateLimiter;
 
 class Shop : public QObject
 {
@@ -31,7 +30,6 @@ class Shop : public QObject
 public:
     explicit Shop(QSettings &settings,
                   NetworkManager &network_manager,
-                  RateLimiter &rate_limiter,
                   PoeApiClient &api,
                   DataStore &datastore,
                   ItemsManager &items_manager,
@@ -71,7 +69,6 @@ private:
 
     QSettings &m_settings;
     NetworkManager &m_network_manager;
-    RateLimiter &m_rate_limiter;
     PoeApiClient &m_api;
     DataStore &m_datastore;
     ItemsManager &m_items_manager;

@@ -256,11 +256,22 @@ void RateLimiter::PruneParkedEntry(const QString &endpoint, unsigned long id)
     }
     spdlog::debug("Rate limiter: a request parked for '{}' was canceled before setup finished",
                   endpoint);
-    CompleteRequest(*it->entry,
-                    RateLimit::FetchError::Kind::Canceled,
-                    "canceled while waiting for endpoint setup");
+
+    // Stabilize the deque BEFORE completing, the way EstablishEndpoint and
+    // FailSetup already do. A default QFuture continuation runs
+    // synchronously on the completing stack, so a caller can resubmit to
+    // this very endpoint from its cancellation handler — that reaches
+    // ParkEntry, which push_backs onto this same deque and invalidates
+    // every iterator into it. Erasing after completing would then be
+    // undefined behavior.
+    auto slot = std::move(*it);
+    slot.prune.reset();
     parked.erase(it);
     emit QueueUpdate(endpoint, static_cast<int>(parked.size()));
+
+    CompleteRequest(*slot.entry,
+                    RateLimit::FetchError::Kind::Canceled,
+                    "canceled while waiting for endpoint setup");
     // The probe is deliberately left running: it teaches the topology even
     // with nothing behind it, and cancellation is not a setup failure — no
     // cooldown is installed (D4).
@@ -519,6 +530,19 @@ void RateLimiter::FailSetup(const QString &endpoint, SetupFailure failure)
         m_probing.erase(probing);
         for (auto &slot : parked) {
             slot.prune.reset();
+            // A stopped entry completes Canceled even though setup also
+            // failed. Its prune was already scheduled and would have said
+            // Canceled; without this check the outcome would depend on
+            // whether the HEAD failed before that callback ran — and on the
+            // success path it always ends up Canceled. Cancellation is the
+            // caller's own decision, so it wins over a failure the caller
+            // never waited to see.
+            if (slot.entry->token.stop_requested()) {
+                CompleteRequest(*slot.entry,
+                                RateLimit::FetchError::Kind::Canceled,
+                                "canceled while waiting for endpoint setup");
+                continue;
+            }
             CompleteWithFailure(*slot.entry, failure);
         }
     }

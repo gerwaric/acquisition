@@ -148,16 +148,23 @@ Callers (`ItemsManagerWorker` handlers, `DiscardIfStale`) do call
 same-thread connection (handlers finish before the unique_ptr delete)
 and a QObject destructor cancels its own pending deferred delete. Any
 reordering, queued connection, or threading change turns this into a
-use-after-free. Status after network-redesign phase 4a (July 20, 2026):
-**resolved by construction** — the limiter's boundary is
-`QFuture<FetchOutcome>`, so no reply object is handed to a caller at
-all and there is nothing whose ownership could be contradictory. Qt's
-shared state is the single owner of the outcome, and the pump now
-releases every reply it creates, final ones included. `RateLimitedReply`
-itself survives one more phase behind the legacy `Submit` wrapper (which
-preserves the old destroy-after-emit semantics for the worker call sites
-that have not moved yet); phase 4b deletes the class outright once those
-call sites are on the facade.
+use-after-free. Status after network-redesign phase 4a (July 20, 2026): **STILL OPEN —
+narrowed, not resolved.** An earlier draft of this entry claimed 4a
+resolved it by construction; that was wrong and is corrected here. The
+*pump's* boundary is now `QFuture<FetchOutcome>` and hands out no reply
+object, so the contradiction is gone from every path the facade uses.
+But the legacy `Submit()` adapter still returns a `RateLimitedReply`,
+its declaration still tells callers to `deleteLater()` it
+(`ratelimiter.h`), and the adapter still deletes it synchronously after
+emitting (`ratelimiter.cpp`) — which is verbatim the contradictory
+contract this finding describes. The behavior is deliberately preserved
+byte-for-byte so the worker call sites and `tst_workerupdate` are
+untouched in 4a. Resolution is phase 4b, which moves those call sites to
+the facade and then deletes `RateLimitedReply`, the adapter, and its
+synthetic reply together. Rejected for 4a: making the adapter honor
+caller ownership instead — it would flip ownership semantics that have
+shipped for years, inside a class scheduled for deletion, one
+non-`deleteLater`ing call site away from a leak.
 
 ---
 

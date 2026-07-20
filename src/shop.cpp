@@ -20,8 +20,6 @@
 #include "itemsmanager.h"
 #include "poe/poeapiclient.h"
 #include "poe/types/website/webstashtab.h"
-#include "ratelimit/ratelimitedreply.h"
-#include "ratelimit/ratelimiter.h"
 #include "replytimeout.h"
 #include "util/json_readers.h"
 #include "util/networkmanager.h"
@@ -79,14 +77,12 @@ const QRegularExpression Shop::ratelimit_regex(R"regex(You must wait (\d+) secon
 
 Shop::Shop(QSettings &settings,
            NetworkManager &network_manager,
-           RateLimiter &rate_limiter,
            PoeApiClient &api,
            DataStore &datastore,
            ItemsManager &items_manager,
            BuyoutManager &buyout_manager)
     : m_settings(settings)
     , m_network_manager(network_manager)
-    , m_rate_limiter(rate_limiter)
     , m_api(api)
     , m_datastore(datastore)
     , m_items_manager(items_manager)
