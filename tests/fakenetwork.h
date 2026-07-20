@@ -5,8 +5,13 @@
 #include <QPointer>
 
 #include <cstring>
+#include <stop_token>
 #include <vector>
 
+#include <QFuture>
+#include <QPromise>
+
+#include "ratelimit/fetcherror.h"
 #include "ratelimit/ratelimitedreply.h"
 #include "ratelimit/ratelimiter.h"
 
@@ -108,6 +113,57 @@ public:
         emit pending.reply->complete(network_reply);
     }
 
+    // The future-shaped boundary (D1), recorded the same way: the facade and
+    // Shop tests submit here, then resolve with resolve()/reject(). The
+    // legacy Submit() override above stays until the worker's call sites
+    // move to the facade (phase 4b), so both boundaries are exercised.
+    struct PendingFuture
+    {
+        QString endpoint;
+        QNetworkRequest request;
+        std::stop_token token;
+        std::shared_ptr<QPromise<RateLimit::FetchOutcome>> promise;
+    };
+
+    QFuture<RateLimit::FetchOutcome> SubmitFuture(const QString &endpoint,
+                                                  QNetworkRequest network_request,
+                                                  std::stop_token token = {}) override
+    {
+        auto promise = std::make_shared<QPromise<RateLimit::FetchOutcome>>();
+        promise->start();
+        QFuture<RateLimit::FetchOutcome> future = promise->future();
+        m_futures.push_back({endpoint, network_request, std::move(token), std::move(promise)});
+        return future;
+    }
+
+    size_t futureCount() const { return m_futures.size(); }
+    const PendingFuture &pendingFuture(size_t i) const { return m_futures.at(i); }
+
+    void resolve(size_t i, const QByteArray &body) { complete(i, RateLimit::FetchOutcome(body)); }
+
+    void reject(size_t i, RateLimit::FetchError::Kind kind, const QString &message = {})
+    {
+        const PendingFuture &pending = m_futures.at(i);
+        RateLimit::FetchError error;
+        error.kind = kind;
+        error.endpoint = pending.endpoint;
+        error.url = pending.request.url();
+        error.message = message;
+        complete(i, RateLimit::FetchOutcome(std::unexpected(std::move(error))));
+    }
+
+    void complete(size_t i, RateLimit::FetchOutcome outcome)
+    {
+        auto &promise = m_futures.at(i).promise;
+        if (!promise) {
+            qFatal("FakeRateLimiter::complete: request %zu was already completed", i);
+        }
+        promise->addResult(std::move(outcome));
+        promise->finish();
+        promise.reset();
+    }
+
 private:
     std::vector<PendingRequest> m_requests;
+    std::vector<PendingFuture> m_futures;
 };

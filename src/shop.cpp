@@ -18,9 +18,8 @@
 #include "datastore/datastore.h"
 #include "item.h"
 #include "itemsmanager.h"
+#include "poe/poeapiclient.h"
 #include "poe/types/website/webstashtab.h"
-#include "ratelimit/ratelimitedreply.h"
-#include "ratelimit/ratelimiter.h"
 #include "replytimeout.h"
 #include "util/json_readers.h"
 #include "util/networkmanager.h"
@@ -78,13 +77,13 @@ const QRegularExpression Shop::ratelimit_regex(R"regex(You must wait (\d+) secon
 
 Shop::Shop(QSettings &settings,
            NetworkManager &network_manager,
-           RateLimiter &rate_limiter,
+           PoeApiClient &api,
            DataStore &datastore,
            ItemsManager &items_manager,
            BuyoutManager &buyout_manager)
     : m_settings(settings)
     , m_network_manager(network_manager)
-    , m_rate_limiter(rate_limiter)
+    , m_api(api)
     , m_datastore(datastore)
     , m_items_manager(items_manager)
     , m_buyout_manager(buyout_manager)
@@ -180,56 +179,39 @@ void Shop::UpdateStashIndex(bool force)
 {
     spdlog::debug("Shop: updating the stash index");
 
-    const QString kStashItemsUrl = "https://www.pathofexile.com/character-window/get-stash-items";
     const QString account = m_settings.value("account").toString();
     const QString realm = m_settings.value("realm").toString();
     const QString league = m_settings.value("league").toString();
 
-    QUrlQuery query;
-    query.addQueryItem("accountName", account);
-    query.addQueryItem("realm", realm);
-    query.addQueryItem("league", league);
-    query.addQueryItem("tabs", "1");
-    query.addQueryItem("tabIndex", "0");
-
-    QUrl url(kStashItemsUrl);
-    url.setQuery(query);
-    QNetworkRequest request(url);
-
-    RateLimitedReply *reply = m_rate_limiter.Submit(kStashItemsUrl, request);
-    connect(reply, &RateLimitedReply::complete, this, [=, this](QNetworkReply *reply) {
-        OnStashIndexReceived(force, reply);
-        reply->deleteLater();
-    });
-    // TODO: catch rate limiting errors to cancel the update.
+    // Context-bound (R6-2): the continuation is tied to this Shop, so it
+    // never runs against a destroyed one. Shop stays callback-style — no
+    // coroutines here (R6-3).
+    m_api.getLegacyStashIndex(account, realm, league)
+        .then(this,
+              [this, force](
+                  const std::expected<poe::WebStashListWrapper, RateLimit::FetchError> &result) {
+                  OnStashIndexReceived(force, result);
+              });
 }
 
-void Shop::OnStashIndexReceived(bool force, QNetworkReply *reply)
+void Shop::OnStashIndexReceived(
+    bool force, const std::expected<poe::WebStashListWrapper, RateLimit::FetchError> &result)
 {
-    // Make sure the reply is deleted.
-    reply->deleteLater();
-
-    // Check the http status of the reply.
-    if (reply->error() != QNetworkReply::NetworkError::NoError) {
-        const int status = reply->error();
-        if ((status < 200) || (status > 299)) {
-            spdlog::error("Shop: network error indexing stashes: {} {}",
-                          status,
-                          reply->errorString());
-            m_submitting = false;
-            return;
+    // Every failure the network can produce arrives as one value, already
+    // classified — the transport check, the status check, and the parse
+    // check this function used to do all live below the facade now.
+    if (!result) {
+        if (result.error().kind == RateLimit::FetchError::Kind::Canceled) {
+            spdlog::debug("Shop: the stash index request was canceled");
+        } else {
+            spdlog::error("Shop: could not index stashes ({}): {}",
+                          RateLimit::ToString(result.error().kind),
+                          result.error().message);
         }
-        spdlog::debug("Shop: http reply status {} indexing stashes", status);
-    }
-
-    // Parse the stash tab list.
-    const QByteArray bytes = reply->readAll();
-    const auto tabs_wrapper = json::readWebStashListWrapper(bytes);
-    if (!tabs_wrapper) {
-        spdlog::error("Shop: error parsing stash list");
         m_submitting = false;
         return;
     }
+    const poe::WebStashListWrapper *tabs_wrapper = &result.value();
 
     const auto &old_index = m_tab_index;
 

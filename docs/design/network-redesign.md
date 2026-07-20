@@ -7,9 +7,12 @@ measurement); phase 1 complete (manager harness,
 (QCoro dependency + primitives, `src/ratelimit/scheduler.{h,cpp}` /
 `stopsleep.{h,cpp}` / `gate.{h,cpp}`, July 19, 2026); phase 3 complete
 (July 20, 2026: the D8 total parse, the pump rewrite, async HEAD setup
-with parking and cooldown — F57, F58, and F5-modernization resolved;
-the phase-3 boundary notes in the phasing sketch record what waits for
-phase 4's `FetchError`).** Drafted July 18 and
+with parking and cooldown — F57, F58, and F5-modernization resolved);
+phase 4a complete (July 20, 2026: the `QFuture<FetchOutcome>` boundary,
+the pump's stop checkpoints, the `Protocol` outcome half, the
+`PoeApiClient` facade, and `Shop` — F60 and F50 resolved, F59 narrowed to
+the legacy adapter and resolved in 4b; phase 4 split into 4a/4b for
+harness reasons, recorded in the phasing sketch).** Drafted July 18 and
 reviewed through six rounds in two days, plus one post-freeze errata
 batch (rev 7: eight corrections and contract completions, all
 shrinking — R7 in the review history). The review process converged
@@ -1260,6 +1263,42 @@ sleep.)
 4. `QFuture` boundary + `PoeApiClient`; `Shop` and worker call sites
    move over; `RateLimitedReply`/`RateLimitedRequest` deleted. Resolves
    F59.
+
+   **Sequencing refinement (July 20, 2026): phase 4 splits into 4a and
+   4b.** The split follows from the test harness, not from the design:
+   `tests/fakenetwork.h`'s `FakeRateLimiter` overrides the legacy
+   `Submit()`, so deleting `RateLimitedReply` forces the worker-test
+   fake to migrate in the same commit as the boundary change — two
+   large, unrelated diffs landing together. Keeping the legacy `Submit`
+   as a thin wrapper over `SubmitFuture` for one phase lets
+   `tst_workerupdate` survive 4a untouched.
+
+   **4a — executed July 20, 2026** (three green commits): `FetchError`
+   and `FetchOutcome` (`src/ratelimit/fetcherror.h`); the queue entry
+   gains a `stop_token` and a `QPromise`, and the free
+   `CompleteRequest()` settles it exactly once, which is what makes the
+   drain's scoped completion guard safe; the pump's stop checkpoints and
+   the D8 classification order; `Update()` returns an observation, which
+   lands the deferred `Protocol` outcome half (both flavors) and F50's
+   log rewording; the hub's parked entries become owned entries with a
+   scheduled stop-callback prune, `SetupFailure` carries a
+   `FetchError::Kind`, and `SetupFailureReply` is deleted;
+   `PoeApiClient` with the transfer-timeout invariant (F60) and `Shop`
+   moved onto it. **F59 is narrowed, not resolved:** the pump hands out
+   no reply object, but the legacy `Submit()` adapter still returns one
+   under the same contradictory ownership contract (the declaration says
+   the caller frees it; the adapter deletes it after emitting) —
+   deliberately preserved so the worker call sites are untouched, and
+   resolved in 4b when the adapter is deleted. No production caller can
+   cancel yet (every call site passes a default token per D7), so the
+   stop behavior is harness-pinned only.
+
+   **4b:** worker call sites move to the facade (mechanical — the
+   callback pyramid stays, parsing moves out of the handlers; coroutines
+   are phase 5); a facade fake replaces `FakeRateLimiter`;
+   `tst_workerupdate`'s pins are ported, not weakened (testing-plan item
+   5); then `RateLimitedReply`, the legacy `Submit` wrapper, and its
+   synthetic reply are deleted.
 5. Worker rewrite: batch submission, coroutine orchestration, abort via
    cancellation; worker queue and generation machinery deleted. Resolves
    F56.

@@ -24,6 +24,7 @@ class MainWindow;
 class NetworkManager;
 class OAuthManager;
 struct OAuthToken;
+class PoeApiClient;
 class RateLimiter;
 class RePoE;
 class Shop;
@@ -76,6 +77,9 @@ private:
         std::unique_ptr<DataStore> data;
         std::unique_ptr<UserStore> userstore;
         std::unique_ptr<RateLimiter> rate_limiter;
+        // Declared immediately after the limiter it references, so it dies
+        // before the limiter and after every consumer that holds it (R6-2).
+        std::unique_ptr<PoeApiClient> api;
         std::unique_ptr<BuyoutManager> buyout_manager;
         std::unique_ptr<ItemsManager> items_manager;
         std::unique_ptr<ItemsManagerWorker> items_worker;

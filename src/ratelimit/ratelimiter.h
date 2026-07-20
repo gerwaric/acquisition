@@ -11,7 +11,9 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <stop_token>
 
+#include <QFuture>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QObject>
@@ -19,7 +21,9 @@
 #include <QString>
 #include <QTimer>
 
+#include "ratelimit/fetcherror.h"
 #include "ratelimit/gate.h"
+#include "ratelimit/ratelimitedrequest.h"
 #include "ratelimit/scheduler.h"
 
 class NetworkCapture;
@@ -48,11 +52,25 @@ public:
 
     ~RateLimiter();
 
-    // Submit a request-callback pair to the rate limiter. The caller is responsible
-    // for freeing the RateLimitedReply object with deleteLater() when the completed()
-    // signal has been emitted. Virtual so tests can substitute an offline fake
-    // network (tests/fakenetwork.h). Completion is never synchronous within
-    // Submit — the caller connects after it returns.
+    // Submit a request and get the future its outcome arrives on (D1): body
+    // bytes on success, a FetchError value otherwise. The token is the
+    // caller's cancellation channel (D2); callers with no abort story pass a
+    // default, never-stopped one. Virtual so tests can substitute an offline
+    // fake (tests/fakenetwork.h).
+    //
+    // The future may already be finished when it is returned (the cooldown
+    // fail-fast path), which is safe: a continuation attached to a finished
+    // future still runs.
+    virtual QFuture<RateLimit::FetchOutcome> SubmitFuture(const QString &endpoint,
+                                                          QNetworkRequest network_request,
+                                                          std::stop_token token = {});
+
+    // The legacy signal-based boundary, kept until the worker's call sites
+    // move to the facade (phase 4b). A thin wrapper over SubmitFuture that
+    // synthesizes a QNetworkReply from the outcome. The caller is
+    // responsible for freeing the RateLimitedReply object with deleteLater()
+    // when the complete() signal has been emitted. Completion is never
+    // synchronous within Submit — the caller connects after it returns.
     virtual RateLimitedReply *Submit(const QString &endpoint, QNetworkRequest network_request);
 
     // Start recording every rate-limited exchange to a JSONL capture file
@@ -93,12 +111,25 @@ private slots:
     void OnViolation(const QString &policy_name);
 
 private:
-    // An entry parked while its endpoint is Probing. The QPointer guards
-    // against a caller that destroyed its reply before setup resolved.
+    // An entry parked while its endpoint is Probing. The hub owns the entry
+    // (and therefore its promise) until setup resolves and it is either
+    // forwarded to a pump or completed here.
+    //
+    // A parked entry whose token stops is pruned: the callback fires
+    // synchronously inside request_stop(), so it only schedules the prune on
+    // the scheduler — the same queued-resume discipline the gate and the
+    // sleep primitive use, so request_stop() returns before anything is
+    // completed or destroyed. Cancellation never installs a cooldown and
+    // never abandons the probe: the HEAD continues and teaches the topology
+    // even when every entry behind it is gone (D4).
+    // std::stop_callback is neither movable nor copyable, so it is held
+    // indirectly — the parked deque has to stay movable for erase().
+    using PruneCallback = std::stop_callback<std::function<void()>>;
+
     struct ParkedEntry
     {
-        QNetworkRequest request;
-        QPointer<RateLimitedReply> reply;
+        std::unique_ptr<RateLimitedRequest> entry;
+        std::unique_ptr<PruneCallback> prune;
     };
 
     // What a setup failure leaves behind: the fail-fast window and the
@@ -106,6 +137,7 @@ private:
     struct SetupFailure
     {
         std::chrono::milliseconds cooldown_until;
+        RateLimit::FetchError::Kind kind;
         QNetworkReply::NetworkError error;
         int http_status;
         QString message;
@@ -130,17 +162,20 @@ private:
                            const QString &policy_name,
                            std::optional<std::chrono::milliseconds> hold_until);
 
-    // Probing -> Unknown under a cooldown: fail every parked entry with an
-    // errored synthetic reply carrying the failure's shape.
+    // Probing -> Unknown under a cooldown: fail every parked entry with the
+    // FetchError the failure's shape describes.
     void FailSetup(const QString &endpoint, SetupFailure failure);
 
-    // Complete a caller's reply with a synthetic errored network reply
-    // describing a setup failure. Emits synchronously; callers are only
-    // reached through the event loop (probe resumption or the fail-fast
-    // queued hop), never inside Submit.
-    void CompleteWithFailure(RateLimitedReply *reply,
-                             const QNetworkRequest &request,
-                             const SetupFailure &failure);
+    // Complete a parked entry with the setup failure's FetchError.
+    void CompleteWithFailure(RateLimitedRequest &entry, const SetupFailure &failure);
+
+    // Park an entry behind an in-flight (or about to be fired) HEAD probe,
+    // installing its cancellation prune.
+    void ParkEntry(const QString &endpoint, std::unique_ptr<RateLimitedRequest> entry);
+
+    // Drop a parked entry whose token stopped, completing it Canceled.
+    // Scheduled, never called from inside request_stop().
+    void PruneParkedEntry(const QString &endpoint, unsigned long id);
 
     // Log extra details about the HEAD request and replies
     void LogSetupReply(const QNetworkRequest &request, const QNetworkReply *reply);

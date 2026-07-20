@@ -9,6 +9,10 @@
 #include <QNetworkReply>
 #include <QThread>
 
+#include <algorithm>
+#include <cstring>
+
+#include "ratelimit/fetcherror.h"
 #include "ratelimit/networkcapture.h"
 #include "ratelimit/ratelimit.h"
 #include "ratelimit/ratelimitedreply.h"
@@ -32,18 +36,21 @@ constexpr int RETRY_BUFFER_SECS = 1;
 
 namespace {
 
-    // A finished, errored reply describing a setup failure — the only
-    // failure shape the RateLimitedReply boundary can express for a request
-    // that was never sent. Phase 4's FetchError values replace this.
-    class SetupFailureReply : public QNetworkReply
+    // The synthetic reply the legacy Submit() boundary hands to callers that
+    // have not yet moved to futures: a finished reply carrying whatever the
+    // outcome expressed. Deleted with the rest of the legacy wrapper once
+    // the worker's call sites move to the facade (phase 4b).
+    class SyntheticReply : public QNetworkReply
     {
     public:
-        SetupFailureReply(const QNetworkRequest &request,
-                          QNetworkReply::NetworkError error,
-                          const QString &message,
-                          int http_status,
-                          QObject *parent)
+        SyntheticReply(const QNetworkRequest &request,
+                       const QByteArray &body,
+                       QNetworkReply::NetworkError error,
+                       const QString &message,
+                       int http_status,
+                       QObject *parent)
             : QNetworkReply(parent)
+            , m_body(body)
         {
             setRequest(request);
             setUrl(request.url());
@@ -51,15 +58,86 @@ namespace {
             if (http_status != 0) {
                 setAttribute(QNetworkRequest::HttpStatusCodeAttribute, http_status);
             }
-            setError(error, message);
+            if (error != QNetworkReply::NoError) {
+                setError(error, message);
+            }
             setFinished(true);
         }
 
         void abort() override {}
+        bool isSequential() const override { return true; }
+        qint64 bytesAvailable() const override
+        {
+            return (m_body.size() - m_offset) + QNetworkReply::bytesAvailable();
+        }
 
     protected:
-        qint64 readData(char *, qint64) override { return -1; }
+        qint64 readData(char *data, qint64 max_size) override
+        {
+            const qint64 n = std::min<qint64>(max_size, m_body.size() - m_offset);
+            if (n <= 0) {
+                return -1;
+            }
+            std::memcpy(data, m_body.constData() + m_offset, static_cast<size_t>(n));
+            m_offset += n;
+            return n;
+        }
+
+    private:
+        QByteArray m_body;
+        qint64 m_offset{0};
     };
+
+    // Present a FetchOutcome as the QNetworkReply the legacy boundary
+    // promises. Protocol errors are deliberately presented as errors: a
+    // legacy caller has no way to express "the payload is fine but the
+    // headers are not", and IR1 says the request must fail.
+    QNetworkReply *SynthesizeReply(const QNetworkRequest &request,
+                                   const RateLimit::FetchOutcome &outcome,
+                                   QObject *parent)
+    {
+        if (outcome) {
+            return new SyntheticReply(request,
+                                      *outcome,
+                                      QNetworkReply::NoError,
+                                      QString(),
+                                      200,
+                                      parent);
+        }
+        const RateLimit::FetchError &error = outcome.error();
+        QNetworkReply::NetworkError qt_error = error.network_error;
+        int status = error.http_status;
+        switch (error.kind) {
+        case RateLimit::FetchError::Kind::Http:
+            // Keep whatever Qt reported alongside the status, if anything.
+            if (qt_error == QNetworkReply::NoError) {
+                qt_error = QNetworkReply::UnknownServerError;
+            }
+            break;
+        case RateLimit::FetchError::Kind::RateLimited:
+            status = 429;
+            if (qt_error == QNetworkReply::NoError) {
+                qt_error = QNetworkReply::UnknownServerError;
+            }
+            break;
+        case RateLimit::FetchError::Kind::Network:
+            if (qt_error == QNetworkReply::NoError) {
+                qt_error = QNetworkReply::UnknownNetworkError;
+            }
+            break;
+        case RateLimit::FetchError::Kind::Protocol:
+            qt_error = QNetworkReply::ProtocolFailure;
+            break;
+        case RateLimit::FetchError::Kind::Parse:
+        case RateLimit::FetchError::Kind::Internal:
+        case RateLimit::FetchError::Kind::Canceled:
+            if (qt_error == QNetworkReply::NoError) {
+                qt_error = QNetworkReply::UnknownNetworkError;
+            }
+            break;
+        }
+        return new SyntheticReply(request, QByteArray(), qt_error, error.message, status, parent);
+    }
 
 } // namespace
 
@@ -81,12 +159,11 @@ void RateLimiter::EnableCapture(const QString &file_path)
     m_capture = std::make_unique<NetworkCapture>(file_path);
 }
 
-RateLimitedReply *RateLimiter::Submit(const QString &endpoint, QNetworkRequest network_request)
+QFuture<RateLimit::FetchOutcome> RateLimiter::SubmitFuture(const QString &endpoint,
+                                                           QNetworkRequest network_request,
+                                                           std::stop_token token)
 {
     Q_ASSERT(QThread::currentThread() == QCoreApplication::instance()->thread());
-
-    // Create a new rate limited reply that we can return to the calling function.
-    auto *reply = new RateLimitedReply();
 
     // Established: the endpoint is handled by an existing policy manager.
     auto it = m_manager_by_endpoint.find(endpoint);
@@ -96,21 +173,13 @@ RateLimitedReply *RateLimiter::Submit(const QString &endpoint, QNetworkRequest n
                       manager.policy().name(),
                       endpoint,
                       network_request.url().toString());
-        manager.QueueRequest(endpoint, network_request, reply);
-        return reply;
-    }
-
-    // Probing: park behind the in-flight HEAD, keeping submission order.
-    auto probing = m_probing.find(endpoint);
-    if (probing != m_probing.end()) {
-        probing->second.push_back({network_request, QPointer<RateLimitedReply>(reply)});
-        emit QueueUpdate(endpoint, static_cast<int>(probing->second.size()));
-        return reply;
+        return manager.QueueRequest(endpoint, network_request, std::move(token));
     }
 
     // Unknown under a cooldown: fail fast with the recorded failure — no
-    // probe is sent inside the window (D4). The completion is delivered
-    // through the event loop; the caller connects after Submit returns.
+    // probe is sent inside the window (D4). The completion is synchronous,
+    // which futures make safe: a continuation attached after the fact still
+    // runs (the queued hop the signal boundary needed is unnecessary here).
     auto cooldown = m_cooldowns.find(endpoint);
     if (cooldown != m_cooldowns.end()) {
         if (m_scheduler.Now() < cooldown->second.cooldown_until) {
@@ -118,31 +187,123 @@ RateLimitedReply *RateLimiter::Submit(const QString &endpoint, QNetworkRequest n
                           "failing fast: {}",
                           endpoint,
                           cooldown->second.message);
-            const SetupFailure failure = cooldown->second;
-            QPointer<RateLimitedReply> guarded(reply);
-            QMetaObject::invokeMethod(
-                this,
-                [this, guarded, network_request, failure]() {
-                    if (guarded) {
-                        CompleteWithFailure(guarded.data(), network_request, failure);
-                    }
-                },
-                Qt::QueuedConnection);
-            return reply;
+            RateLimitedRequest entry(endpoint, network_request, std::move(token));
+            QFuture<RateLimit::FetchOutcome> future = entry.promise.future();
+            CompleteWithFailure(entry, cooldown->second);
+            return future;
         }
         m_cooldowns.erase(cooldown);
     }
 
-    // Unknown: park the entry and fire the HEAD probe asynchronously.
-    spdlog::debug("New endpoint encountered: '{}': {}",
-                  endpoint,
-                  network_request.url().toString());
-    m_probing[endpoint].push_back({network_request, QPointer<RateLimitedReply>(reply)});
-    emit QueueUpdate(endpoint, 1);
+    auto entry = std::make_unique<RateLimitedRequest>(endpoint, network_request, std::move(token));
+    QFuture<RateLimit::FetchOutcome> future = entry->promise.future();
 
-    // Sweep completed probe handles; a live one is never destroyed (S1-1).
-    m_probe_tasks.remove_if([](const QCoro::Task<> &task) { return task.isReady(); });
-    m_probe_tasks.push_back(ProbeEndpoint(endpoint, network_request));
+    // Probing: park behind the in-flight HEAD, keeping submission order.
+    auto probing = m_probing.find(endpoint);
+    const bool already_probing = probing != m_probing.end();
+    if (!already_probing) {
+        spdlog::debug("New endpoint encountered: '{}': {}",
+                      endpoint,
+                      network_request.url().toString());
+    }
+    ParkEntry(endpoint, std::move(entry));
+    emit QueueUpdate(endpoint, static_cast<int>(m_probing[endpoint].size()));
+
+    if (!already_probing) {
+        // Sweep completed probe handles; a live one is never destroyed (S1-1).
+        m_probe_tasks.remove_if([](const QCoro::Task<> &task) { return task.isReady(); });
+        m_probe_tasks.push_back(ProbeEndpoint(endpoint, network_request));
+    }
+
+    return future;
+}
+
+void RateLimiter::ParkEntry(const QString &endpoint, std::unique_ptr<RateLimitedRequest> entry)
+{
+    const unsigned long id = entry->id;
+    const std::stop_token token = entry->token;
+    auto &parked = m_probing[endpoint];
+    parked.push_back({std::move(entry), nullptr});
+
+    if (!token.stop_possible()) {
+        return;
+    }
+    // The callback runs synchronously inside request_stop(), so it may only
+    // schedule: completing or destroying the entry here would run caller
+    // code before request_stop() returned. The scheduled prune guards its
+    // own lookup, so a pruned-in-the-meantime entry is simply not found.
+    parked.back().prune = std::make_unique<PruneCallback>(token, [this, endpoint, id]() {
+        m_scheduler.CallAt(m_scheduler.Now(), this, [this, endpoint, id]() {
+            PruneParkedEntry(endpoint, id);
+        });
+    });
+}
+
+void RateLimiter::PruneParkedEntry(const QString &endpoint, unsigned long id)
+{
+    auto probing = m_probing.find(endpoint);
+    if (probing == m_probing.end()) {
+        // Setup resolved first: the entry was forwarded or failed, and its
+        // own path completed it.
+        return;
+    }
+    auto &parked = probing->second;
+    const auto it = std::find_if(parked.begin(), parked.end(), [id](const ParkedEntry &p) {
+        return p.entry && p.entry->id == id;
+    });
+    if (it == parked.end()) {
+        return;
+    }
+    spdlog::debug("Rate limiter: a request parked for '{}' was canceled before setup finished",
+                  endpoint);
+
+    // Stabilize the deque BEFORE completing, the way EstablishEndpoint and
+    // FailSetup already do. A default QFuture continuation runs
+    // synchronously on the completing stack, so a caller can resubmit to
+    // this very endpoint from its cancellation handler — that reaches
+    // ParkEntry, which push_backs onto this same deque and invalidates
+    // every iterator into it. Erasing after completing would then be
+    // undefined behavior.
+    auto slot = std::move(*it);
+    slot.prune.reset();
+    parked.erase(it);
+    emit QueueUpdate(endpoint, static_cast<int>(parked.size()));
+
+    CompleteRequest(*slot.entry,
+                    RateLimit::FetchError::Kind::Canceled,
+                    "canceled while waiting for endpoint setup");
+    // The probe is deliberately left running: it teaches the topology even
+    // with nothing behind it, and cancellation is not a setup failure — no
+    // cooldown is installed (D4).
+}
+
+RateLimitedReply *RateLimiter::Submit(const QString &endpoint, QNetworkRequest network_request)
+{
+    auto *reply = new RateLimitedReply();
+    QFuture<RateLimit::FetchOutcome> future = SubmitFuture(endpoint, network_request, {});
+
+    // The hop is ALWAYS queued: Qt runs a continuation on an already-ready
+    // future synchronously (S1-6), and the fail-fast path returns exactly
+    // such a future — emitting there would fire complete() before the caller
+    // had connected to it. The legacy boundary's contract is that completion
+    // is never synchronous within Submit.
+    QPointer<RateLimitedReply> guarded(reply);
+    future.then(this, [this, guarded, network_request](const RateLimit::FetchOutcome &outcome) {
+        QMetaObject::invokeMethod(
+            this,
+            [this, guarded, network_request, outcome]() {
+                if (!guarded) {
+                    return;
+                }
+                QNetworkReply *synthetic = SynthesizeReply(network_request, outcome, this);
+                emit guarded->complete(synthetic);
+                // The caller's handle is destroyed synchronously after the
+                // emission — the F59 ownership behavior, preserved until
+                // this wrapper is deleted in phase 4b.
+                delete guarded.data();
+            },
+            Qt::QueuedConnection);
+    });
 
     return reply;
 }
@@ -164,8 +325,9 @@ QCoro::Task<> RateLimiter::ProbeEndpoint(QString endpoint, QNetworkRequest reque
         // The dispatch-time RAII owner (R5-4): the probe frame owns the
         // HEAD reply on every live-session path; parked entries are only
         // ever handed synthetic replies, never this one.
-        std::unique_ptr<QNetworkReply, void (*)(QNetworkReply *)>
-            reply(raw, [](QNetworkReply *r) { r->deleteLater(); });
+        std::unique_ptr<QNetworkReply, void (*)(QNetworkReply *)> reply(raw, [](QNetworkReply *r) {
+            r->deleteLater();
+        });
 
         co_await raw;
 
@@ -179,14 +341,15 @@ QCoro::Task<> RateLimiter::ProbeEndpoint(QString endpoint, QNetworkRequest reque
                       e.what());
         FailSetup(endpoint,
                   {m_scheduler.Now() + std::chrono::seconds(SETUP_RETRY_COOLDOWN_SECS),
+                   RateLimit::FetchError::Kind::Internal,
                    QNetworkReply::UnknownNetworkError,
                    0,
                    QString("HEAD probe failed internally: %1").arg(e.what())});
     } catch (...) {
-        spdlog::error("Rate limiter: the HEAD probe for '{}' threw an unknown exception",
-                      endpoint);
+        spdlog::error("Rate limiter: the HEAD probe for '{}' threw an unknown exception", endpoint);
         FailSetup(endpoint,
                   {m_scheduler.Now() + std::chrono::seconds(SETUP_RETRY_COOLDOWN_SECS),
+                   RateLimit::FetchError::Kind::Internal,
                    QNetworkReply::UnknownNetworkError,
                    0,
                    QString("HEAD probe failed internally")});
@@ -213,8 +376,8 @@ void RateLimiter::ProcessHeadResponse(const QString &endpoint,
 
     // The failure-side cooldown honors a validly-present Retry-After (D4).
     const auto cooldown_until = m_scheduler.Now()
-                                + std::chrono::seconds(std::max(SETUP_RETRY_COOLDOWN_SECS,
-                                                                retry_after.value_or(0)));
+                                + std::chrono::seconds(
+                                    std::max(SETUP_RETRY_COOLDOWN_SECS, retry_after.value_or(0)));
 
     // A HEAD 429 is genuinely reachable (counters persist across restarts,
     // N24) and is a real server-side violation either way: record it.
@@ -237,13 +400,12 @@ void RateLimiter::ProcessHeadResponse(const QString &endpoint,
         LogSetupReply(request, reply);
         FailSetup(endpoint,
                   {cooldown_until,
+                   RateLimit::FetchError::Kind::RateLimited,
                    QNetworkReply::UnknownServerError,
                    status,
                    QString("HEAD probe for '%1' was rate limited without a usable reply "
                            "(Full headers: %2, acceptable Retry-After: %3)")
-                       .arg(endpoint,
-                            parsed ? "yes" : "no",
-                            retry_after ? "yes" : "no")});
+                       .arg(endpoint, parsed ? "yes" : "no", retry_after ? "yes" : "no")});
         return;
     }
 
@@ -258,6 +420,7 @@ void RateLimiter::ProcessHeadResponse(const QString &endpoint,
         LogSetupReply(request, reply);
         FailSetup(endpoint,
                   {cooldown_until,
+                   RateLimit::FetchError::Kind::Http,
                    reply->error() != QNetworkReply::NoError ? reply->error()
                                                             : QNetworkReply::UnknownServerError,
                    status,
@@ -277,6 +440,7 @@ void RateLimiter::ProcessHeadResponse(const QString &endpoint,
         LogSetupReply(request, reply);
         FailSetup(endpoint,
                   {cooldown_until,
+                   RateLimit::FetchError::Kind::Network,
                    reply->error(),
                    status,
                    QString("Network error in HEAD reply for '%1': %2")
@@ -294,6 +458,7 @@ void RateLimiter::ProcessHeadResponse(const QString &endpoint,
         LogSetupReply(request, reply);
         FailSetup(endpoint,
                   {cooldown_until,
+                   RateLimit::FetchError::Kind::Protocol,
                    QNetworkReply::ProtocolFailure,
                    status,
                    QString("The HEAD response for '%1' did not contain a usable rate limit "
@@ -333,10 +498,11 @@ void RateLimiter::EstablishEndpoint(const QString &endpoint,
     // established and idle.
     auto parked = std::move(m_probing.at(endpoint));
     m_probing.erase(endpoint);
-    for (auto &entry : parked) {
-        if (entry.reply) {
-            manager.QueueRequest(endpoint, entry.request, entry.reply.data());
-        }
+    for (auto &slot : parked) {
+        // Drop the prune first: once the pump owns the entry, the hub must
+        // not reach for it again.
+        slot.prune.reset();
+        manager.Enqueue(std::move(slot.entry));
     }
 
     // Emit a status update for anyone listening.
@@ -354,35 +520,54 @@ void RateLimiter::FailSetup(const QString &endpoint, SetupFailure failure)
     // run caller code synchronously, and a caller that resubmits from its
     // completion handler must hit the fail-fast branch, not find the
     // endpoint Unknown and start another HEAD — the exact probe loop the
-    // cooldown exists to prevent (D4). The fail-fast completion is
-    // queued, so the re-entrancy is bounded.
+    // cooldown exists to prevent (D4).
+    //
+    // The re-entrancy is bounded by state, not by a queued hop: the
+    // fail-fast path completes SYNCHRONOUSLY on the future boundary
+    // (SubmitFuture), which is safe precisely because the cooldown here and
+    // the parked deque below are both stabilized before anything settles, so
+    // a re-entrant submission always sees consistent state. Only the legacy
+    // Submit() adapter adds a queued hop, and for a different reason — a
+    // signal emitted before the caller connects would simply be lost.
     m_cooldowns[endpoint] = failure;
 
     auto probing = m_probing.find(endpoint);
     if (probing != m_probing.end()) {
         auto parked = std::move(probing->second);
         m_probing.erase(probing);
-        for (auto &entry : parked) {
-            if (entry.reply) {
-                CompleteWithFailure(entry.reply.data(), entry.request, failure);
+        for (auto &slot : parked) {
+            slot.prune.reset();
+            // A stopped entry completes Canceled even though setup also
+            // failed. Its prune was already scheduled and would have said
+            // Canceled; without this check the outcome would depend on
+            // whether the HEAD failed before that callback ran — and on the
+            // success path it always ends up Canceled. Cancellation is the
+            // caller's own decision, so it wins over a failure the caller
+            // never waited to see.
+            if (slot.entry->token.stop_requested()) {
+                CompleteRequest(*slot.entry,
+                                RateLimit::FetchError::Kind::Canceled,
+                                "canceled while waiting for endpoint setup");
+                continue;
             }
+            CompleteWithFailure(*slot.entry, failure);
         }
     }
 }
 
-void RateLimiter::CompleteWithFailure(RateLimitedReply *reply,
-                                      const QNetworkRequest &request,
-                                      const SetupFailure &failure)
+void RateLimiter::CompleteWithFailure(RateLimitedRequest &entry, const SetupFailure &failure)
 {
-    // Each caller gets its own synthetic reply (no shared ownership); the
-    // caller deleteLater()s it like any completed reply, with the hub as
-    // the backstop parent.
-    auto *synthetic
-        = new SetupFailureReply(request, failure.error, failure.message, failure.http_status, this);
-    emit reply->complete(synthetic);
-    // Mirror the pump's contract: the caller's handle is destroyed
-    // synchronously after the completion (F59, unchanged until phase 4).
-    delete reply;
+    RateLimit::FetchError error;
+    error.kind = failure.kind;
+    error.endpoint = entry.endpoint;
+    error.url = entry.network_request.url();
+    error.http_status = failure.http_status;
+    error.network_error = failure.error;
+    if (failure.error != QNetworkReply::NoError) {
+        error.network_error_string = failure.message;
+    }
+    error.message = failure.message;
+    CompleteRequest(entry, RateLimit::FetchOutcome(std::unexpected(std::move(error))));
 }
 
 void RateLimiter::LogSetupReply(const QNetworkRequest &request, const QNetworkReply *reply)

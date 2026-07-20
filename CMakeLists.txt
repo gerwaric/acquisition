@@ -288,6 +288,7 @@ set(ACQ_LEGACY
 )
 
 set(ACQ_RATELIMIT
+    src/ratelimit/fetcherror.h
     src/ratelimit/gate.cpp
     src/ratelimit/gate.h
     src/ratelimit/networkcapture.cpp
@@ -332,6 +333,8 @@ set(ACQ_POE
     src/poe/endpoints/website/webstashitems.h
     src/poe/poe_utils.cpp
     src/poe/poe_utils.h
+    src/poe/poeapiclient.cpp
+    src/poe/poeapiclient.h
     src/poe/types/account.h
     src/poe/types/character.h
     src/poe/types/cruciblenode.h

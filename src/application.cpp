@@ -23,6 +23,7 @@
 #include "itemsmanagerworker.h"
 #include "ratelimit/ratelimiter.h"
 #include "repoe/repoe.h"
+#include "poe/poeapiclient.h"
 #include "shop.h"
 #include "ui/logindialog.h"
 #include "ui/mainwindow_bridge.h"
@@ -223,6 +224,9 @@ Application::UserSession::UserSession(const Application::CoreServices &core)
         rate_limiter->EnableCapture(dir.filePath("network-capture.jsonl"));
     }
 
+    spdlog::trace("Application::InitLogin() creating the api client");
+    api = std::make_unique<PoeApiClient>(*rate_limiter);
+
     spdlog::trace("Application::InitLogin() creating buyout manager");
     buyout_manager = std::make_unique<BuyoutManager>(*data, userstore->buyouts());
 
@@ -235,7 +239,7 @@ Application::UserSession::UserSession(const Application::CoreServices &core)
     spdlog::trace("Application::InitLogin() creating shop");
     shop = std::make_unique<Shop>(settings,
                                   network_manager,
-                                  *rate_limiter,
+                                  *api,
                                   *data,
                                   *items_manager,
                                   *buyout_manager);

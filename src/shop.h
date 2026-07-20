@@ -7,9 +7,12 @@
 #include <QObject>
 #include <QUrlQuery>
 
+#include <expected>
 #include <map>
 
 #include "buyout.h"
+#include "poe/types/website/webstashtab.h"
+#include "ratelimit/fetcherror.h"
 #include "util/programstate.h"
 
 class QSettings;
@@ -19,7 +22,7 @@ class BuyoutManager;
 class DataStore;
 class ItemsManager;
 class NetworkManager;
-class RateLimiter;
+class PoeApiClient;
 
 class Shop : public QObject
 {
@@ -27,7 +30,7 @@ class Shop : public QObject
 public:
     explicit Shop(QSettings &settings,
                   NetworkManager &network_manager,
-                  RateLimiter &rate_limiter,
+                  PoeApiClient &api,
                   DataStore &datastore,
                   ItemsManager &items_manager,
                   BuyoutManager &buyout_manager);
@@ -55,7 +58,8 @@ signals:
 
 private:
     void UpdateStashIndex(bool force);
-    void OnStashIndexReceived(bool force, QNetworkReply *reply);
+    void OnStashIndexReceived(
+        bool force, const std::expected<poe::WebStashListWrapper, RateLimit::FetchError> &result);
     void OnStashIndexUpdated(bool force);
 
     void SubmitSingleShop();
@@ -65,7 +69,7 @@ private:
 
     QSettings &m_settings;
     NetworkManager &m_network_manager;
-    RateLimiter &m_rate_limiter;
+    PoeApiClient &m_api;
     DataStore &m_datastore;
     ItemsManager &m_items_manager;
     BuyoutManager &m_buyout_manager;
