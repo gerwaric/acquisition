@@ -28,8 +28,6 @@
 #include "poe/types/character.h"
 #include "poe/types/item.h"
 #include "poe/types/stashtab.h"
-#include "ratelimit/ratelimit.h"
-#include "ratelimit/ratelimitedreply.h"
 #include "repoe/repoe.h"
 #include "util/json_readers.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep

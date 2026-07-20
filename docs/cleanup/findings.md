@@ -135,7 +135,7 @@ July 20, 2026: the pump, the gate wiring, async HEAD setup — F57, F58,
 and F5-modernization resolved); F56 itself resolves in phase 5's worker
 rewrite, after phase 4's `QFuture` boundary.
 
-### F59. `RateLimitedReply` ownership contract is contradictory — Confirmed
+### F59. `RateLimitedReply` ownership contract is contradictory — RESOLVED
 
 Found July 17, 2026, during the F56 investigation.
 `RateLimiter::Submit`'s comment says the caller is responsible for
@@ -159,12 +159,21 @@ its declaration still tells callers to `deleteLater()` it
 emitting (`ratelimiter.cpp`) — which is verbatim the contradictory
 contract this finding describes. The behavior is deliberately preserved
 byte-for-byte so the worker call sites and `tst_workerupdate` are
-untouched in 4a. Resolution is phase 4b, which moves those call sites to
-the facade and then deletes `RateLimitedReply`, the adapter, and its
-synthetic reply together. Rejected for 4a: making the adapter honor
-caller ownership instead — it would flip ownership semantics that have
-shipped for years, inside a class scheduled for deletion, one
+untouched in 4a. Rejected for 4a: making the adapter honor caller
+ownership instead — it would flip ownership semantics that have shipped
+for years, inside a class scheduled for deletion, one
 non-`deleteLater`ing call site away from a leak.
+
+**RESOLVED in network-redesign phase 4b (July 20, 2026).** The worker's
+call sites moved to `PoeApiClient`, so nothing above the network line
+holds a reply object at all. With the last caller gone, the legacy
+`Submit()` adapter, `RateLimitedReply` (`.h`/`.cpp`), and the synthetic
+reply that fed it were deleted together — the contradictory contract no
+longer exists to describe. `tst_workerupdate` moved to a typed facade
+fake and `tst_ratelimiter` lost its legacy-wrapper pins (the queued-hop
+property they checked was the adapter's, and the adapter is gone); the
+future boundary's fail-fast now completes synchronously, which the ported
+pins assert directly.
 
 ---
 
@@ -234,7 +243,7 @@ above). "PR #161" refers to the post-Phase-6 follow-ups branch
 | F25 | `ItemsModel` minted out-of-contract indexes | Fixed, Phase 3 |
 | F26 | `MemoryDataStore` dead code | Deleted, Phase 1 |
 | F27 | Re-entrant completions could finish an update early | Resolved by the Phase 2 network rework (single request in flight) |
-| F28 | In-flight replies from an aborted update were misattributed to the next one, and updates began destructively — a terminal failure left `m_items` silently short, published by the next successful partial refresh (the likely "item missing until restart" mechanism) | Fixed, items-pipeline M1 (update generation tag + atomic per-reply replacement). Validated by the offline fake-network harness (mutation-verified stale-discard and fail-mid-update pins) and the July 16 live network-kill; the recorded missing-item repro was retired as moot once the destructive cull path was deleted |
+| F28 | In-flight replies from an aborted update were misattributed to the next one, and updates began destructively — a terminal failure left `m_items` silently short, published by the next successful partial refresh (the likely "item missing until restart" mechanism) | Fixed, items-pipeline M1 (update generation tag + atomic per-reply replacement). Validated by the offline fake-network harness (mutation-verified stale-discard and fail-mid-update pins) and the July 16 live network-kill; the recorded missing-item repro was retired as moot once the destructive cull path was deleted. **Network-redesign phase 4b note:** the generation guard (`ItemsManagerWorker::IsStale`) is now unreachable by any black-box test — the worker submits strictly serially and only aborts an update from inside a handler, so nothing is ever in flight when one aborts, and the future boundary settles each request exactly once (the old duplicate-emission the stale-discard pin relied on is impossible). The guard is kept as a defensive check; phase 5's batch submission puts several fetches in flight at once and makes it live again. `tst_workerupdate`'s stale pin now asserts the reachable half — a terminal failure loses nothing and the next update starts clean |
 | F29 | `spdlog::shutdown()` raced logging threads | Fixed, Phase 2; standing lesson (above) |
 | F30 | Rate limiter never surfaced failed replies | Fixed, Phase 2; BORDERLINE note (above) |
 | F31 | Phase 3 spec forced out a load-bearing view-signal guard | Resolved after Phase 3 (coalesced resize); standing lesson (above) |

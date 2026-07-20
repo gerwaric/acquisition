@@ -28,7 +28,6 @@
 
 class NetworkCapture;
 class NetworkManager;
-class RateLimitedReply;
 class RateLimitManager;
 class RateLimitPolicy;
 
@@ -65,17 +64,9 @@ public:
                                                           QNetworkRequest network_request,
                                                           std::stop_token token = {});
 
-    // The legacy signal-based boundary, kept until the worker's call sites
-    // move to the facade (phase 4b). A thin wrapper over SubmitFuture that
-    // synthesizes a QNetworkReply from the outcome. The caller is
-    // responsible for freeing the RateLimitedReply object with deleteLater()
-    // when the complete() signal has been emitted. Completion is never
-    // synchronous within Submit — the caller connects after it returns.
-    virtual RateLimitedReply *Submit(const QString &endpoint, QNetworkRequest network_request);
-
     // Start recording every rate-limited exchange to a JSONL capture file
     // (see docs/design/network-ground-truth.md). Call before the first
-    // Submit() so no manager is created without the capture hook.
+    // submission so no manager is created without the capture hook.
     void EnableCapture(const QString &file_path);
 
 public slots:

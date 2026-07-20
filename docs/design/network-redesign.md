@@ -11,8 +11,12 @@ with parking and cooldown — F57, F58, and F5-modernization resolved);
 phase 4a complete (July 20, 2026: the `QFuture<FetchOutcome>` boundary,
 the pump's stop checkpoints, the `Protocol` outcome half, the
 `PoeApiClient` facade, and `Shop` — F60 and F50 resolved, F59 narrowed to
-the legacy adapter and resolved in 4b; phase 4 split into 4a/4b for
-harness reasons, recorded in the phasing sketch).** Drafted July 18 and
+the legacy adapter; phase 4 split into 4a/4b for harness reasons,
+recorded in the phasing sketch); phase 4b complete (July 20, 2026: the
+worker's call sites moved to the facade, `tst_workerupdate` onto a typed
+facade fake, `tst_ratelimiter` off the legacy wrapper, and
+`RateLimitedReply` + the `Submit()` adapter + its synthetic reply deleted
+— F59 resolved).** Drafted July 18 and
 reviewed through six rounds in two days, plus one post-freeze errata
 batch (rev 7: eight corrections and contract completions, all
 shrinking — R7 in the review history). The review process converged
@@ -1304,12 +1308,27 @@ sleep.)
    cancel yet (every call site passes a default token per D7), so the
    stop behavior is harness-pinned only.
 
-   **4b:** worker call sites move to the facade (mechanical — the
-   callback pyramid stays, parsing moves out of the handlers; coroutines
-   are phase 5); a facade fake replaces `FakeRateLimiter`;
-   `tst_workerupdate`'s pins are ported, not weakened (testing-plan item
-   5); then `RateLimitedReply`, the legacy `Submit` wrapper, and its
-   synthetic reply are deleted.
+   **4b — executed July 20, 2026.** The worker's call sites moved to the
+   facade: `ItemsManagerWorker` takes a `PoeApiClient` instead of a
+   `RateLimiter`, the queue carries a fetch intent (`StashFetch` /
+   `CharacterFetch`) rather than a prebuilt `QNetworkRequest`, and every
+   handler takes one already-classified
+   `std::expected<T, FetchError>` — the transport, status, and parse
+   checks each handler used to do collapse into a single error branch.
+   The callback pyramid stays (coroutines are phase 5); `DiscardIfStale`
+   became the generation-only `IsStale`. `tst_workerupdate` moved to a
+   typed facade fake (`FakePoeApiClient`, testing-plan item 5) that
+   records the domain arguments the worker asked with rather than
+   crafting bytes; its pins were ported, not weakened, except the F28
+   stale-arrival half, which the future boundary makes unreachable (a
+   `QPromise` settles once; the worker never has a request in flight when
+   an update aborts) — `IsStale` is kept for phase 5 and the pin records
+   why. `tst_ratelimiter` lost its legacy-wrapper pins; the future
+   boundary's fail-fast completes synchronously, which the ported pins
+   assert. Then `RateLimitedReply` (`.h`/`.cpp`), the `Submit()` adapter,
+   and its synthetic reply were deleted together — F59 resolved. Item 5's
+   claim that a facade fake closes a manager blind spot was corrected in
+   the same pass (it does not; neither fake runs manager code).
 5. Worker rewrite: batch submission, coroutine orchestration, abort via
    cancellation; worker queue and generation machinery deleted. Resolves
    F56.

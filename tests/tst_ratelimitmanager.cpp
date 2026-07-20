@@ -22,7 +22,6 @@
 #include "ratelimit/gate.h"
 #include "ratelimit/networkcapture.h"
 #include "ratelimit/ratelimit.h"
-#include "ratelimit/ratelimitedreply.h"
 #include "ratelimit/ratelimitmanager.h"
 #include "ratelimit/ratelimitpolicy.h"
 
@@ -44,12 +43,12 @@
 //    FetchError{Protocol} (D8/IR1 — both halves, as of phase 4a).
 //  - Queue-before-install: Update() now starts the drain for held entries
 //    instead of leaving them stuck until the next QueueRequest.
-//  - F59 (the PUMP's half): this boundary is QFuture<FetchOutcome>, so no
-//    reply object is handed out here at all — Qt's shared state is the
-//    single owner, and the pump releases every reply it creates, final ones
-//    included. F59 itself stays OPEN: the hub's legacy Submit() adapter
-//    still hands out a RateLimitedReply under the contradictory ownership
-//    contract, and phase 4b resolves it by deleting the adapter.
+//  - F59: this boundary is QFuture<FetchOutcome>, so no reply object is
+//    handed out here at all — Qt's shared state is the single owner, and the
+//    pump releases every reply it creates, final ones included. Phase 4b
+//    resolved F59 outright by deleting the last thing that still handed
+//    callers an object: the hub's legacy Submit() adapter and its
+//    RateLimitedReply.
 //  - The terminal failed state completes its queued entries Internal instead
 //    of dropping them: no caller waits on a promise that never settles.
 // Kept pins: terminal 429s (missing or unacceptable Retry-After) and error

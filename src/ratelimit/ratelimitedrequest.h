@@ -17,9 +17,10 @@
 // timestamps the network capture compares, and the promise the caller is
 // waiting on (network-redesign spec, D1). The entry owns the only handle to
 // that promise, so completion has exactly one owner — the ownership problem
-// F59 described is unconstructible at this boundary. (F59 stays open until
-// phase 4b deletes the legacy Submit() adapter, which still hands callers a
-// RateLimitedReply under the contradictory contract.)
+// F59 described is unconstructible at this boundary. (F59 was resolved in
+// phase 4b, which deleted the legacy Submit() adapter and its
+// RateLimitedReply — the last thing that still handed callers an object
+// under the contradictory contract.)
 struct RateLimitedRequest
 {
     RateLimitedRequest(const QString &endpoint_,
