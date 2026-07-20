@@ -274,9 +274,19 @@ void RateLimitManager::Update(QNetworkReply *reply)
 {
     spdlog::trace("RateLimitManager::Update() entered");
 
-    // Get the rate limit policy from this reply.
+    // Get the rate limit policy from this reply. The parse is total (D8):
+    // a reply whose rate-limit headers fail the grammar updates nothing —
+    // today's parser crashed on these inputs.
     spdlog::trace("RateLimitManager::Update() parsing policy");
-    auto new_policy = std::make_unique<RateLimitPolicy>(reply);
+    auto parsed = RateLimitPolicy::Parse(reply);
+    if (!parsed) {
+        spdlog::error("Rate Limit Policy: not updating '{}': the reply's rate-limit headers "
+                      "failed to parse: {}",
+                      m_policy ? m_policy->name() : QString("<no policy>"),
+                      parsed.error());
+        return;
+    }
+    auto new_policy = std::make_unique<RateLimitPolicy>(std::move(*parsed));
 
     // If there was an existing policy, compare them.
     if (m_policy) {
