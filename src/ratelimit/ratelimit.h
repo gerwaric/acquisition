@@ -49,8 +49,12 @@ class QNetworkReply;
 // read the `X-Rate-Limit-*` fields off a reply. The machinery that acts on
 // them — the hub, the gate, the per-endpoint pumps — lives in `ratelimiter.h`
 // / `ratelimitmanager.h` and is specified in
-// `docs/design/network-redesign.md`. Nothing hard-codes a delay: every rate
-// limit is read from the reply headers at runtime.
+// `docs/design/network-redesign.md`. The policy *limits* are never
+// hard-coded — every rule, period, and hit count is read from the reply
+// headers at runtime — but the redesign does hard-code a small set of
+// documented safety constants on top of them (the gate's 250 ms send spacing,
+// the 60 s retry padding and setup cooldown, the bucket sizes, and the
+// buffers), so the derived delays are header-driven limits plus fixed margins.
 //
 // WARNING: throttling can still break where there are other sources of
 // rate-limited API requests for the same account — e.g. two tools running on

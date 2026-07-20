@@ -82,9 +82,11 @@ loop for HEAD setup (F5).
 The redesign dissolves these with three moves rather than four fixes:
 
 1. **Ownership and completion move to Qt-native types** — `QFuture` with
-   `std::expected` payloads. The custom `RateLimitedReply` /
-   `RateLimitedRequest` classes are deleted; cancellation becomes the
-   abort mechanism; F57 and F59 stop being expressible.
+   `std::expected` payloads. `RateLimitedReply` (the custom reply
+   boundary) is deleted; the limiter's internal `RateLimitedRequest`
+   queue entry stops owning a reply and carries a `QPromise` instead;
+   cancellation becomes the abort mechanism; F57 and F59 stop being
+   expressible.
 2. **Queueing returns to the rate limiter** — the worker batch-submits
    and counts completions; per-policy parallelism returns automatically
    (F56); the worker stops doing flow control at all.
@@ -166,16 +168,17 @@ Five layers, each speaking one language, each testable alone:
   destruction promises may die unobserved, safely, because every
   awaiter is destroyed first: see the shutdown section; the whole
   cancellation design is D2).
-- `RateLimitedReply` and `RateLimitedRequest` are deleted **as
-  worker-facing boundary types** — nothing above the network line names
-  either after phase 4b. The pump keeps an internal queue entry (holding
-  the `QNetworkRequest`, the endpoint label, capture timestamps, the
-  `QPromise`, and the stop token); it is not a boundary type, and as
-  built it retains the `RateLimitedRequest` name. That the internal entry
-  and the deleted boundary type share a name is a deliberate, recorded
-  choice, not an oversight (a rename to something like `RequestEntry`
-  remains available as a cosmetic follow-up). `NetworkCapture` consumes
-  this entry.
+- `RateLimitedReply` and the worker-facing reply boundary (the
+  `Submit()`/callback shape) are deleted. `RateLimitedRequest` is **not**
+  deleted: it was always the limiter's internal queue entry — never a
+  type the worker named — and it is transformed in place. The field that
+  used to own a reply (`std::unique_ptr<RateLimitedReply>`) becomes the
+  `QPromise` the caller's future is built on; the entry also holds the
+  `QNetworkRequest`, the endpoint label, capture timestamps, and the stop
+  token, and `NetworkCapture` still consumes it. (An earlier draft of
+  this section listed the entry as deleted; that was wrong — the type
+  persists. A rename to something like `RequestEntry` is available as a
+  cosmetic follow-up, but is not required.)
 - Resolves F59 by construction (Qt's shared state is the single owner)
   and removes the object F57 destroyed.
 
@@ -993,9 +996,10 @@ Therefore:
 
 ## What gets deleted
 
-`RateLimitedReply` and `RateLimitedRequest` **as worker-facing boundary
-types** (the pump retains an internal queue entry under the
-`RateLimitedRequest` name — see D1), the worker's `m_queue` /
+`RateLimitedReply` and the worker-facing reply boundary
+(`RateLimitedRequest` is **not** deleted — it is the limiter's internal
+queue entry, transformed in place to carry a `QPromise`; see D1), the
+worker's `m_queue` /
 `m_queue_id` / `SubmitNextItemRequest` / `FetchItems`'s queue walk, the
 five error-path queue clears with counter-snapping, `DiscardIfStale`
 and the generation-tag plumbing outright (D2/D6), the `SetupEndpoint`
@@ -1285,8 +1289,9 @@ sleep.)
    shape — becomes a clean `Internal` value in phase 4); and the
    F59 ownership pin is kept byte-for-byte.
 4. `QFuture` boundary + `PoeApiClient`; `Shop` and worker call sites
-   move over; `RateLimitedReply`/`RateLimitedRequest` deleted. Resolves
-   F59.
+   move over; `RateLimitedReply` and the worker-facing reply boundary
+   deleted (`RateLimitedRequest` transformed in place into the pump's
+   promise-carrying entry — see D1). Resolves F59.
 
    **Sequencing refinement (July 20, 2026): phase 4 splits into 4a and
    4b.** The split follows from the test harness, not from the design:

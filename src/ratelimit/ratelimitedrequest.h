@@ -22,11 +22,14 @@
 // RateLimitedReply — the last thing that still handed callers an object
 // under the contradictory contract.)
 //
-// This is NOT a worker-facing boundary type. D1 lists RateLimitedRequest as
-// "deleted": that means deleted as a type anything above the network line
-// names — which it is, nothing outside src/ratelimit/ references it. This
-// internal pump entry deliberately keeps the name (a rename to e.g.
-// RequestEntry is an available cosmetic follow-up, tracked in D1).
+// This type was never worker-facing. It has always been the limiter's
+// internal queue entry; the worker saw only the RateLimitedReply that Submit()
+// returned. Phase 4b transformed this entry in place — the field that used to
+// own that reply (unique_ptr<RateLimitedReply>) is now the QPromise below —
+// and deleted RateLimitedReply and the Submit()/callback boundary. So D1's
+// "RateLimitedRequest deleted" is a misnomer the spec now corrects: the type
+// persists as this pump-private entry (a rename to e.g. RequestEntry is an
+// available cosmetic follow-up, not required).
 struct RateLimitedRequest
 {
     RateLimitedRequest(const QString &endpoint_,
