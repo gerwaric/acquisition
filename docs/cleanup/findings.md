@@ -149,7 +149,15 @@ today's serialization incidentally guarantees first-use HEAD setups
 never overlap; any parallelism must re-establish that property
 deliberately.
 
-### F57. A 429 retry destroys the caller's `RateLimitedReply` and wedges the update — Confirmed (code path); runtime repro pending the F-harness
+### F57. A 429 retry destroys the caller's `RateLimitedReply` and wedges the update — Confirmed; reproduced offline by the phase-1 harness
+
+**Reproduced July 19, 2026** by the phase-1 manager harness
+(`tests/tst_ratelimitmanager.cpp`,
+`f57RetryDestroysCallerReplyAndDropsCompletion`): the caller's
+`RateLimitedReply` is destroyed at the 429, the retried completion is
+dropped, and only the caller-side wedge remains — the manager itself
+keeps serving later requests. Pinned as current (failing) behavior;
+the phase-3 pump flips the pin.
 
 Found July 17, 2026, during the F56 investigation. Shipped in v0.17.0:
 the nulling line arrived in `2e3cba6` (the F30 fix, July 8).
