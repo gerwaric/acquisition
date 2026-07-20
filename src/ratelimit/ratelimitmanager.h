@@ -9,19 +9,21 @@
 #include <deque>
 #include <memory>
 #include <optional>
+#include <stop_token>
 
 #include <QDateTime>
+#include <QFuture>
 #include <QNetworkRequest>
 #include <QObject>
 #include <QString>
 
+#include "ratelimit/fetcherror.h"
 #include "ratelimit/ratelimit.h"
+#include "ratelimit/ratelimitedrequest.h"
 
 class QNetworkReply;
 
 class NetworkCapture;
-class RateLimitedReply;
-struct RateLimitedRequest;
 class RateLimitPolicy;
 
 namespace RateLimit {
@@ -37,11 +39,9 @@ namespace RateLimit {
 // The 429 retry is a loop iteration: invisible to the caller, who sees
 // exactly one final completion (the F57 wedge is unconstructible).
 //
-// Phase-3 boundary note: completion is still the RateLimitedReply shape —
-// the caller receives the final QNetworkReply, errored or not, and owns it.
-// Entries carry no stop token yet (nothing can cancel them until the
-// QFuture boundary lands in phase 4), so every wait passes an explicit
-// never-stopped token.
+// Completion is a QFuture<FetchOutcome> (D1): body bytes on success, a
+// FetchError value otherwise. Every entry's promise reaches a final state —
+// payload, error, or Canceled — so awaiting is unconditionally safe (D2/ER1).
 class RateLimitManager : public QObject
 {
     Q_OBJECT
@@ -56,12 +56,29 @@ public:
                      NetworkCapture *capture = nullptr);
     ~RateLimitManager();
 
-    // Move a request into this manager's queue. The drain starts (or is
-    // joined) if a policy is installed; entries queued before the first
-    // Update() wait for it.
-    void QueueRequest(const QString &endpoint,
-                      const QNetworkRequest &request,
-                      RateLimitedReply *reply);
+    // Queue a request and return the future the caller awaits. The drain
+    // starts (or is joined) if a policy is installed; entries queued before
+    // the first Update() wait for it.
+    QFuture<RateLimit::FetchOutcome> QueueRequest(const QString &endpoint,
+                                                  const QNetworkRequest &request,
+                                                  std::stop_token token);
+
+    // Adopt an entry whose future was already handed to a caller — the hub's
+    // path for forwarding requests parked during endpoint setup.
+    void Enqueue(std::unique_ptr<RateLimitedRequest> entry);
+
+    // What a landed reply's rate-limit headers told us. Separating
+    // observation from classification (R6-3/D8) is what lets the pump keep
+    // pacing current from a 429 or a 500 while still failing a would-be-clean
+    // 2xx that carries unusable headers.
+    enum class Observation {
+        // Full headers naming this pump's policy: the policy was updated.
+        Updated,
+        // The headers failed the total parse (absent, malformed, partial).
+        Unparseable,
+        // Full headers naming a different policy: nothing was updated.
+        NameMismatch,
+    };
 
     // Install or update the policy from a reply's rate-limit headers.
     // Total-parse gated (D8): headers that fail the grammar update nothing,
@@ -69,7 +86,7 @@ public:
     // policy's is refused loudly — a pump's policy name never changes after
     // creation (D4). Definition changes under the same name are adopted
     // (logged by Check()).
-    void Update(QNetworkReply *reply);
+    Observation Update(QNetworkReply *reply);
 
     const RateLimitPolicy &policy();
 
@@ -115,8 +132,16 @@ private:
 
     // Per-send bookkeeping, always first (D3): every landed reply records
     // its history event and capture record, then is parse-attempted for a
-    // policy update (observation precedes classification, R6-3/D8).
-    void RecordLandedReply(RateLimitedRequest &entry, QNetworkReply *reply);
+    // policy update (observation precedes classification, R6-3/D8). Returns
+    // what the headers said, which classification then consults.
+    Observation RecordLandedReply(RateLimitedRequest &entry, QNetworkReply *reply);
+
+    // Build a FetchError pre-filled with everything the entry and its reply
+    // know: endpoint, URL, status, and the Qt error. The caller sets the
+    // kind, the attempt count, and the message.
+    RateLimit::FetchError MakeError(const RateLimitedRequest &entry,
+                                    QNetworkReply *reply,
+                                    int status) const;
 
     // Emit Paused and remember the deadline msecToNextSend() reports.
     void AnnouncePause(const QDateTime &until, std::chrono::milliseconds deadline);

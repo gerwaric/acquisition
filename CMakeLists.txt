@@ -288,6 +288,7 @@ set(ACQ_LEGACY
 )
 
 set(ACQ_RATELIMIT
+    src/ratelimit/fetcherror.h
     src/ratelimit/gate.cpp
     src/ratelimit/gate.h
     src/ratelimit/networkcapture.cpp

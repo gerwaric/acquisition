@@ -96,7 +96,7 @@ void NetworkCaptureTest::replyRecordCarriesHeadersAndTiming()
     NetworkCapture capture(path);
 
     const QUrl url("https://api.pathofexile.com/stash/Standard");
-    RateLimitedRequest request("List Stashes", QNetworkRequest(url), nullptr);
+    RateLimitedRequest request("List Stashes", QNetworkRequest(url), std::stop_token{});
     request.send_time = QDateTime::fromString("2026-07-18T12:00:01.500", Qt::ISODateWithMs);
     request.scheduled_time = QDateTime::fromString("2026-07-18T12:00:01.400", Qt::ISODateWithMs);
     const QDateTime received = QDateTime::fromString("2026-07-18T12:00:02.250", Qt::ISODateWithMs);

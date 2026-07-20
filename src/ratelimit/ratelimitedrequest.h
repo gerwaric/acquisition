@@ -3,26 +3,33 @@
 
 #pragma once
 
+#include <stop_token>
+
 #include <QDateTime>
+#include <QFuture>
 #include <QNetworkRequest>
+#include <QPromise>
 #include <QString>
 
-#include "ratelimit/ratelimitedreply.h"
+#include "ratelimit/fetcherror.h"
 
-class QNetworkRequest;
-
-// Represents a single rate-limited request.
+// One entry in a policy pump's queue: what to send, where it came from, the
+// timestamps the network capture compares, and the promise the caller is
+// waiting on (network-redesign spec, D1). The entry owns the only handle to
+// that promise, so completion has exactly one owner — the ownership problem
+// F59 described is unconstructible here.
 struct RateLimitedRequest
 {
-    // Construct a new rate-limited request.
     RateLimitedRequest(const QString &endpoint_,
                        const QNetworkRequest &network_request_,
-                       RateLimitedReply *reply_)
+                       std::stop_token token_)
         : id(++s_request_count)
         , endpoint(endpoint_)
         , network_request(network_request_)
-        , reply(reply_)
-    {}
+        , token(std::move(token_))
+    {
+        promise.start();
+    }
 
     // Unique identified for each request, even through different requests can be
     // routed to different policy managers based on different endpoints.
@@ -42,9 +49,33 @@ struct RateLimitedRequest
     // compare predicted against actual timing.
     QDateTime scheduled_time;
 
-    std::unique_ptr<RateLimitedReply> reply;
+    // The caller's cancellation channel (D2): one token per update, checked
+    // at every pump checkpoint. Callers with no abort story pass a default,
+    // never-stopped token.
+    std::stop_token token;
+
+    // The caller's outcome. Started at construction so the future exists
+    // before the entry is queued, and finished exactly once by
+    // CompleteRequest() — every promise reaches a final state (D2/ER1), so
+    // awaiting is unconditionally safe.
+    QPromise<RateLimit::FetchOutcome> promise;
+
+    // Set by CompleteRequest(): a completed entry is never completed again.
+    bool completed = false;
 
 private:
     // Total number of requests that have every been constructed.
     static unsigned long s_request_count;
 };
+
+// Complete an entry exactly once. Repeat calls are no-ops, which is what
+// makes the drain's scoped completion guard safe: it can unconditionally
+// complete an abandoned entry without knowing whether the entry's own path
+// already did.
+void CompleteRequest(RateLimitedRequest &entry, RateLimit::FetchOutcome outcome);
+
+// Complete an entry with a FetchError of the given kind, filling in the
+// endpoint and URL from the entry itself.
+void CompleteRequest(RateLimitedRequest &entry,
+                     RateLimit::FetchError::Kind kind,
+                     const QString &message);
