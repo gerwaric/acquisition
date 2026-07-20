@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 Tom Holz
 
+#include <QCoroFuture>
 #include <QtTest>
 
 #include <QDateTime>
@@ -81,6 +82,13 @@ private slots:
     void observationUpdatesPolicyOnErrorReplies();
     void retrySleepIsPermitFree();
     void senderExceptionFailsPumpTerminally();
+    void protocolErrorOnUnparseableCleanReply();
+    void cancelBeforeDequeueCompletesCanceled();
+    void cancelDuringPacingSleepCompletesCanceled();
+    void cancelWaitingAtGateCompletesCanceled();
+    void cancelDuringRetrySleepCompletesCanceled();
+    void cancelInFlightLetsReplyLandAndRecordsViolation();
+    void awaitingCoroutineResumesSafelyOnCancel();
 };
 
 namespace {
@@ -1002,6 +1010,251 @@ void RateLimitManagerTest::senderExceptionFailsPumpTerminally()
     QCOMPARE(after.kind(), RateLimit::FetchError::Kind::Internal);
     advanceAndSettle(scheduler, 1s);
     QCOMPARE(after.completions, 1);
+}
+
+void RateLimitManagerTest::protocolErrorOnUnparseableCleanReply()
+{
+    // The other Protocol flavor (D8 rule 4): a clean 2xx whose rate-limit
+    // headers fail the total parse. The pump cannot pace on them and cannot
+    // deliver a payload alongside an anomaly flag, so the request fails —
+    // while the endpoint stays established and self-heals.
+    Rig rig;
+    installPolicy(rig.manager, "10:60:60", "0:60:0");
+
+    Caller c1;
+    c1.attach(rig.manager.QueueRequest(kEndpoint, request("one"), c1.token()));
+    advanceAndSettle(rig.scheduler, std::chrono::milliseconds(kNormalBufferMsec));
+    QCOMPARE(rig.sender.count(), 1);
+
+    // A 200 carrying a policy name and rule list but no rule headers: Full
+    // is unreachable, so the parse fails.
+    rig.sender.sent(0).reply->finish({{"X-Rate-Limit-Policy", kPolicyName},
+                                      {"X-Rate-Limit-Rules", "Ip"},
+                                      {"Date", rfcDateNow()}},
+                                     200);
+    drainEvents();
+
+    QCOMPARE(c1.completions, 1);
+    QCOMPARE(c1.kind(), RateLimit::FetchError::Kind::Protocol);
+    // The policy is left exactly as it was — nothing was adopted from the
+    // unusable reply.
+    QCOMPARE(rig.manager.policy().maximum_hits(), 10);
+
+    // Self-healing: the next request goes out and succeeds normally.
+    Caller c2;
+    c2.attach(rig.manager.QueueRequest(kEndpoint, request("two"), c2.token()));
+    advanceAndSettle(rig.scheduler, 1s);
+    QCOMPARE(rig.sender.count(), 2);
+    rig.sender.sent(1).reply->finish(policyHeaders("10:60:60", "2:60:0"), 200);
+    drainEvents();
+    QCOMPARE(c2.completions, 1);
+    QVERIFY(c2.succeeded);
+}
+
+void RateLimitManagerTest::cancelBeforeDequeueCompletesCanceled()
+{
+    // Stop checkpoint 1 (D2/ER4): an entry stopped before the drain reaches
+    // it never sends. Canceled is an outcome, not a failure — but it is
+    // still a completion: the promise always settles (ER1).
+    Rig rig;
+    installPolicy(rig.manager, "10:60:60", "0:60:0");
+
+    Caller first;
+    Caller victim;
+    first.attach(rig.manager.QueueRequest(kEndpoint, request("one"), first.token()));
+    victim.attach(rig.manager.QueueRequest(kEndpoint, request("two"), victim.token()));
+
+    // Stop the second entry while the first is still being paced.
+    victim.abort();
+    QCOMPARE(victim.completions, 0);
+
+    advanceAndSettle(rig.scheduler, std::chrono::milliseconds(kNormalBufferMsec));
+    QCOMPARE(rig.sender.count(), 1);
+    rig.sender.sent(0).reply->finish(policyHeaders("10:60:60", "1:60:0"), 200);
+    advanceAndSettle(rig.scheduler, 1s);
+
+    QCOMPARE(first.completions, 1);
+    QVERIFY(first.succeeded);
+    QCOMPARE(victim.completions, 1);
+    QCOMPARE(victim.kind(), RateLimit::FetchError::Kind::Canceled);
+    // The canceled entry was never sent.
+    QCOMPARE(rig.sender.count(), 1);
+}
+
+void RateLimitManagerTest::cancelDuringPacingSleepCompletesCanceled()
+{
+    // Stop checkpoint 2: the pacing sleep is stop-interruptible, so the
+    // entry resolves as soon as the token stops rather than at the deadline.
+    Rig rig;
+    // A saturated policy: the first send waits a long time.
+    installPolicy(rig.manager, "2:60:60", "2:60:0");
+
+    Caller victim;
+    victim.attach(rig.manager.QueueRequest(kEndpoint, request("one"), victim.token()));
+    settle(rig.scheduler);
+    QVERIFY(rig.manager.msecToNextSend() > 1000);
+    QCOMPARE(rig.sender.count(), 0);
+
+    victim.abort();
+    settle(rig.scheduler);
+
+    QCOMPARE(victim.completions, 1);
+    QCOMPARE(victim.kind(), RateLimit::FetchError::Kind::Canceled);
+    QCOMPARE(rig.sender.count(), 0);
+    // Nothing is left scheduled: the pump went idle rather than sleeping out
+    // a deadline for a request nobody wants.
+    QCOMPARE(rig.manager.msecToNextSend(), -1);
+}
+
+void RateLimitManagerTest::cancelWaitingAtGateCompletesCanceled()
+{
+    // Stop checkpoint 3: a stopped gate wait yields an invalid permit
+    // without ever holding a slot, so the entry completes Canceled and no
+    // spacing interval is charged against the other lanes.
+    Rig rig;
+    installPolicy(rig.manager, "10:60:60", "0:60:0");
+
+    // Occupy the gate exclusively so the entry cannot be granted.
+    GateBlocker blocker;
+    auto head = takeHead(blocker, rig.gate);
+    settle(rig.scheduler);
+    QVERIFY(blocker.done);
+
+    Caller victim;
+    victim.attach(rig.manager.QueueRequest(kEndpoint, request("one"), victim.token()));
+    advanceAndSettle(rig.scheduler, std::chrono::milliseconds(kNormalBufferMsec));
+    // Paced through, now waiting behind the HEAD.
+    QCOMPARE(rig.sender.count(), 0);
+    QCOMPARE(victim.completions, 0);
+
+    victim.abort();
+    settle(rig.scheduler);
+
+    QCOMPARE(victim.completions, 1);
+    QCOMPARE(victim.kind(), RateLimit::FetchError::Kind::Canceled);
+    QCOMPARE(rig.sender.count(), 0);
+
+    // The gate is undamaged: releasing the HEAD lets a fresh request through.
+    blocker.permit.Release();
+    Caller after;
+    after.attach(rig.manager.QueueRequest(kEndpoint, request("two"), after.token()));
+    advanceAndSettle(rig.scheduler, 1s);
+    QCOMPARE(rig.sender.count(), 1);
+}
+
+void RateLimitManagerTest::cancelDuringRetrySleepCompletesCanceled()
+{
+    // Stop checkpoint 5: the 429 retry sleep is interruptible too. The
+    // violation was already recorded when the 429 landed — cancellation
+    // never rewrites what the server counted.
+    Rig rig;
+    installPolicy(rig.manager, "2:60:60", "0:60:0");
+
+    QSignalSpy violation_spy(&rig.manager, &RateLimitManager::Violation);
+
+    Caller victim;
+    victim.attach(rig.manager.QueueRequest(kEndpoint, request("one"), victim.token()));
+    advanceAndSettle(rig.scheduler, std::chrono::milliseconds(kNormalBufferMsec));
+    QCOMPARE(rig.sender.count(), 1);
+
+    auto headers = policyHeaders("2:60:60", "3:60:60");
+    headers.append(QNetworkReply::RawHeaderPair{"Retry-After", "5"});
+    rig.sender.sent(0).reply->finish(headers, 429, QNetworkReply::UnknownContentError);
+    drainEvents();
+
+    // Sleeping until the padded retry deadline, nothing completed yet.
+    QCOMPARE(violation_spy.count(), 1);
+    QCOMPARE(victim.completions, 0);
+    QVERIFY(rig.manager.msecToNextSend() > 1000);
+
+    victim.abort();
+    settle(rig.scheduler);
+
+    QCOMPARE(victim.completions, 1);
+    QCOMPARE(victim.kind(), RateLimit::FetchError::Kind::Canceled);
+    // No retry was sent, and the violation record stands.
+    QCOMPARE(rig.sender.count(), 1);
+    QCOMPARE(violation_spy.count(), 1);
+}
+
+void RateLimitManagerTest::cancelInFlightLetsReplyLandAndRecordsViolation()
+{
+    // The let-it-land rule (N25) and checkpoint 4's placement: a request
+    // stopped while in flight is NOT abandoned mid-air. The reply lands, its
+    // history event and violation are recorded — the server counted the
+    // exchange whatever the client wants — and only then does the entry
+    // complete Canceled instead of surfacing the outcome.
+    Rig rig;
+    installPolicy(rig.manager, "2:60:60", "0:60:0");
+
+    QSignalSpy violation_spy(&rig.manager, &RateLimitManager::Violation);
+
+    Caller victim;
+    victim.attach(rig.manager.QueueRequest(kEndpoint, request("one"), victim.token()));
+    advanceAndSettle(rig.scheduler, std::chrono::milliseconds(kNormalBufferMsec));
+    QCOMPARE(rig.sender.count(), 1);
+
+    // Stop while the request is in flight, then let the 429 land.
+    victim.abort();
+    settle(rig.scheduler);
+    QCOMPARE(victim.completions, 0); // still in flight — nothing to do but wait
+
+    auto headers = policyHeaders("2:60:60", "3:60:60");
+    headers.append(QNetworkReply::RawHeaderPair{"Retry-After", "5"});
+    rig.sender.sent(0).reply->finish(headers, 429, QNetworkReply::UnknownContentError);
+    drainEvents();
+
+    // The violation was recorded from the landed reply...
+    QCOMPARE(violation_spy.count(), 1);
+    QCOMPARE(rig.manager.policy().status(), RateLimit::Status::VIOLATION);
+    // ...and the caller sees Canceled, not RateLimited: the retry decision
+    // is never reached.
+    QCOMPARE(victim.completions, 1);
+    QCOMPARE(victim.kind(), RateLimit::FetchError::Kind::Canceled);
+    QCOMPARE(rig.sender.count(), 1);
+}
+
+namespace {
+
+    // A coroutine suspended on a fetch future — the ER1 shape. If a canceled
+    // outcome were delivered as a QFuture cancellation rather than as a
+    // value, QCoro's awaiter would resume and call result() on a resultless
+    // future: undefined behavior no guard written after co_await could
+    // prevent. Every promise reaching a final state is what makes this safe.
+    QCoro::Task<> awaitOutcome(QFuture<RateLimit::FetchOutcome> future,
+                               std::optional<RateLimit::FetchError::Kind> &kind,
+                               bool &resumed)
+    {
+        const RateLimit::FetchOutcome outcome = co_await qCoro(future).takeResult();
+        resumed = true;
+        if (!outcome) {
+            kind = outcome.error().kind;
+        }
+    }
+
+} // namespace
+
+void RateLimitManagerTest::awaitingCoroutineResumesSafelyOnCancel()
+{
+    // The ER1 regression pin: a coroutine suspended on its future when the
+    // update is aborted resumes normally and reads a Canceled value.
+    Rig rig;
+    installPolicy(rig.manager, "2:60:60", "2:60:0");
+
+    Caller victim;
+    victim.attach(rig.manager.QueueRequest(kEndpoint, request("one"), victim.token()));
+
+    bool resumed = false;
+    std::optional<RateLimit::FetchError::Kind> kind;
+    auto waiter = awaitOutcome(victim.future, kind, resumed);
+    settle(rig.scheduler);
+    QVERIFY(!resumed);
+
+    victim.abort();
+    settle(rig.scheduler);
+
+    QVERIFY(resumed);
+    QCOMPARE(kind, RateLimit::FetchError::Kind::Canceled);
 }
 
 QTEST_GUILESS_MAIN(RateLimitManagerTest)

@@ -24,9 +24,12 @@
 // hub blocked in a nested event loop and killed the app with FatalError.
 // The injected FakeScheduler drives all timing; nothing here sleeps.
 //
-// Phase-3 boundary note: failure "kinds" are expressed as errored synthetic
-// replies (error code, HTTP status, message) — phase 4 maps these onto
-// FetchError values. Cancellation pins wait for stop tokens (phase 4/5).
+// As of phase 4a the hub speaks QFuture<FetchOutcome>: setup failures carry
+// typed FetchError kinds, and a parked entry whose token stops is pruned and
+// completed Canceled while the probe carries on. The legacy Submit() wrapper
+// is pinned here too until the worker's call sites move to the facade
+// (phase 4b) — including the property that makes it correct: a completion is
+// never emitted synchronously inside Submit.
 
 // moc-lexer note (see tst_workerupdate.cpp): declare the Q_OBJECT class
 // before any helpers containing string literals with '//' in them.
@@ -47,6 +50,12 @@ private slots:
     void nonFull429CooldownHonorsRetryAfter();
     void establishedEndpointSticksThroughRequestFailures();
     void concurrentSetupsSerializeHeadsAtGate();
+    void setupFailureKindsSurfaceAsFetchErrors_data();
+    void setupFailureKindsSurfaceAsFetchErrors();
+    void cooldownFailFastCompletesFutureImmediately();
+    void canceledParkedEntryIsPrunedAndProbeContinues();
+    void cancelingEveryParkedEntryStillEstablishes();
+    void legacySubmitNeverCompletesSynchronously();
 };
 
 namespace {
@@ -61,10 +70,10 @@ namespace {
         return QDateTime::currentDateTimeUtc().toString(Qt::RFC2822Date).toUtf8();
     }
 
-    QList<QNetworkReply::RawHeaderPair> policyHeaders(const QByteArray &limit,
-                                                      const QByteArray &state,
-                                                      const QByteArray &policy_name
-                                                      = "test-request-limit")
+    QList<QNetworkReply::RawHeaderPair> policyHeaders(
+        const QByteArray &limit,
+        const QByteArray &state,
+        const QByteArray &policy_name = "test-request-limit")
     {
         return {
             {"X-Rate-Limit-Policy", policy_name},
@@ -126,6 +135,36 @@ namespace {
         scheduler.AdvanceBy(delta);
         settle(scheduler);
     }
+
+    // Caller-side observations for one SubmitFuture(): the future boundary
+    // the hub actually speaks (D1). The legacy Submission above stays
+    // because the wrapper it exercises stays until phase 4b.
+    struct FutureSubmission
+    {
+        std::stop_source source;
+        QFuture<RateLimit::FetchOutcome> future;
+        int completions = 0;
+        bool succeeded = false;
+        std::optional<RateLimit::FetchError> error;
+
+        std::stop_token token() { return source.get_token(); }
+        void abort() { source.request_stop(); }
+
+        void attach(QFuture<RateLimit::FetchOutcome> f)
+        {
+            future = f;
+            future.then([this](const RateLimit::FetchOutcome &outcome) {
+                ++completions;
+                succeeded = outcome.has_value();
+                error = outcome ? std::nullopt : std::optional(outcome.error());
+            });
+        }
+
+        std::optional<RateLimit::FetchError::Kind> kind() const
+        {
+            return error ? std::optional(error->kind) : std::nullopt;
+        }
+    };
 
     // The network outlives the limiter (declared first).
     struct Rig
@@ -270,8 +309,7 @@ void RateLimiterTest::headHttpErrorFailsParked()
     QCOMPARE(s1.completions, 1);
     QCOMPARE(s1.last_status, 500);
     QCOMPARE(s1.last_error, QNetworkReply::InternalServerError);
-    QVERIFY2(s1.last_error_string.startsWith("HTTP status 500"),
-             qPrintable(s1.last_error_string));
+    QVERIFY2(s1.last_error_string.startsWith("HTTP status 500"), qPrintable(s1.last_error_string));
 }
 
 void RateLimiterTest::headTruncated2xxIsNetworkFailure()
@@ -293,8 +331,7 @@ void RateLimiterTest::headTruncated2xxIsNetworkFailure()
     drainEvents();
     QCOMPARE(s1.completions, 1);
     QCOMPARE(s1.last_error, QNetworkReply::RemoteHostClosedError);
-    QVERIFY2(s1.last_error_string.startsWith("Network error"),
-             qPrintable(s1.last_error_string));
+    QVERIFY2(s1.last_error_string.startsWith("Network error"), qPrintable(s1.last_error_string));
 
     // A setup failure, not an establishment: the resubmission fail-fasts
     // inside the cooldown with no new probe.
@@ -568,6 +605,191 @@ void RateLimiterTest::concurrentSetupsSerializeHeadsAtGate()
     drainEvents();
     QCOMPARE(s1.completions, 1);
     QCOMPARE(s2.completions, 1);
+}
+
+void RateLimiterTest::setupFailureKindsSurfaceAsFetchErrors_data()
+{
+    // Every setup-failure flavor D4 distinguishes, now carrying a typed
+    // kind rather than only an errored reply. The kind is what the worker
+    // and the facade will branch on, so each flavor is pinned to the kind
+    // the spec names for it.
+    QTest::addColumn<QList<QNetworkReply::RawHeaderPair>>("headers");
+    QTest::addColumn<int>("status");
+    QTest::addColumn<QNetworkReply::NetworkError>("error");
+    QTest::addColumn<RateLimit::FetchError::Kind>("kind");
+
+    QTest::newRow("transport") << QList<QNetworkReply::RawHeaderPair>{} << 0
+                               << QNetworkReply::ConnectionRefusedError
+                               << RateLimit::FetchError::Kind::Network;
+    QTest::newRow("http-500") << QList<QNetworkReply::RawHeaderPair>{} << 500
+                              << QNetworkReply::InternalServerError
+                              << RateLimit::FetchError::Kind::Http;
+    QTest::newRow("unparseable-2xx")
+        << QList<QNetworkReply::RawHeaderPair>{{"Content-Type", "text/html"}} << 200
+        << QNetworkReply::NoError << RateLimit::FetchError::Kind::Protocol;
+    QTest::newRow("429-without-usable-reply")
+        << QList<QNetworkReply::RawHeaderPair>{} << 429 << QNetworkReply::UnknownContentError
+        << RateLimit::FetchError::Kind::RateLimited;
+}
+
+void RateLimiterTest::setupFailureKindsSurfaceAsFetchErrors()
+{
+    QFETCH(QList<QNetworkReply::RawHeaderPair>, headers);
+    QFETCH(int, status);
+    QFETCH(QNetworkReply::NetworkError, error);
+    QFETCH(RateLimit::FetchError::Kind, kind);
+
+    Rig rig;
+
+    FutureSubmission s1;
+    FutureSubmission s2;
+    s1.attach(rig.limiter.SubmitFuture("ep", request("one"), s1.token()));
+    s2.attach(rig.limiter.SubmitFuture("ep", request("two"), s2.token()));
+    settle(rig.scheduler);
+    QCOMPARE(rig.network.count(), 1);
+
+    rig.network.sent(0).reply->finish(headers, status, error);
+    drainEvents();
+
+    // Every parked entry fails with the same shape, and each error names
+    // the endpoint it belongs to.
+    QCOMPARE(s1.completions, 1);
+    QCOMPARE(s1.kind(), kind);
+    QCOMPARE(s1.error->endpoint, QString("ep"));
+    QCOMPARE(s2.completions, 1);
+    QCOMPARE(s2.kind(), kind);
+}
+
+void RateLimiterTest::cooldownFailFastCompletesFutureImmediately()
+{
+    // The fail-fast completion is synchronous on the future boundary, and
+    // that is safe by construction: a continuation attached to an already
+    // finished future still runs. The queued hop the signal boundary needs
+    // exists only because a signal emitted before the caller connects is
+    // lost — a value in shared state is not.
+    Rig rig;
+
+    FutureSubmission s1;
+    s1.attach(rig.limiter.SubmitFuture("ep", request("one"), s1.token()));
+    settle(rig.scheduler);
+    rig.network.sent(0).reply->finish({}, 0, QNetworkReply::ConnectionRefusedError);
+    drainEvents();
+    QCOMPARE(s1.kind(), RateLimit::FetchError::Kind::Network);
+
+    // Inside the cooldown: the returned future is already finished, and
+    // attaching afterwards still delivers.
+    FutureSubmission s2;
+    QFuture<RateLimit::FetchOutcome> future = rig.limiter.SubmitFuture("ep",
+                                                                       request("two"),
+                                                                       s2.token());
+    QVERIFY(future.isFinished());
+    s2.attach(future);
+    QCOMPARE(s2.completions, 1);
+    QCOMPARE(s2.kind(), RateLimit::FetchError::Kind::Network);
+    // No probe was sent inside the window.
+    QCOMPARE(rig.network.count(), 1);
+}
+
+void RateLimiterTest::canceledParkedEntryIsPrunedAndProbeContinues()
+{
+    // A parked entry whose token stops is pruned and completed Canceled.
+    // The entries around it are untouched, and setup carries on: the probe
+    // is already in flight and teaches the topology regardless.
+    Rig rig;
+
+    FutureSubmission victim;
+    FutureSubmission survivor;
+    victim.attach(rig.limiter.SubmitFuture("ep", request("one"), victim.token()));
+    survivor.attach(rig.limiter.SubmitFuture("ep", request("two"), survivor.token()));
+    settle(rig.scheduler);
+    QCOMPARE(rig.network.headCount(), 1);
+
+    victim.abort();
+    settle(rig.scheduler);
+    QCOMPARE(victim.completions, 1);
+    QCOMPARE(victim.kind(), RateLimit::FetchError::Kind::Canceled);
+    QCOMPARE(survivor.completions, 0);
+
+    // Setup completes normally and forwards only the survivor.
+    rig.network.sent(0).reply->finish(policyHeaders("10:60:60", "0:60:0"), 200);
+    // Settle BEFORE advancing: establishment has to run so the forwarded
+    // entry's pacing deadline exists on the clock. Advancing first would
+    // move past an instant nothing was scheduled at yet, and the deadline
+    // would then be set a full second into the future.
+    settle(rig.scheduler);
+    advanceAndSettle(rig.scheduler, 1s);
+    QCOMPARE(rig.network.count(), 2);
+    QCOMPARE(rig.network.sent(1).request.url(), request("two").url());
+
+    rig.network.sent(1).reply->finish(policyHeaders("10:60:60", "1:60:0"), 200);
+    drainEvents();
+    QCOMPARE(survivor.completions, 1);
+    QVERIFY(survivor.succeeded);
+    // Cancellation is not a setup failure: the entry completed exactly once
+    // and nothing else changed.
+    QCOMPARE(victim.completions, 1);
+}
+
+void RateLimiterTest::cancelingEveryParkedEntryStillEstablishes()
+{
+    // The D4 clause stated directly: the probe proceeds even when every
+    // parked entry is gone. Cancellation installs no cooldown, so the next
+    // submission finds an established endpoint rather than a fail-fast
+    // window — the opposite of what treating cancellation as a failure
+    // would produce.
+    Rig rig;
+
+    FutureSubmission victim;
+    victim.attach(rig.limiter.SubmitFuture("ep", request("one"), victim.token()));
+    settle(rig.scheduler);
+    QCOMPARE(rig.network.headCount(), 1);
+
+    victim.abort();
+    settle(rig.scheduler);
+    QCOMPARE(victim.kind(), RateLimit::FetchError::Kind::Canceled);
+
+    // The HEAD still lands and still establishes the endpoint.
+    rig.network.sent(0).reply->finish(policyHeaders("10:60:60", "0:60:0"), 200);
+    settle(rig.scheduler);
+
+    FutureSubmission after;
+    after.attach(rig.limiter.SubmitFuture("ep", request("two"), after.token()));
+    advanceAndSettle(rig.scheduler, std::chrono::milliseconds(kNormalBufferMsec) + kGateSpacing);
+    // Sent by the established pump — no second HEAD, no fail-fast.
+    QCOMPARE(rig.network.headCount(), 1);
+    QCOMPARE(rig.network.count(), 2);
+    rig.network.sent(1).reply->finish(policyHeaders("10:60:60", "1:60:0"), 200);
+    drainEvents();
+    QVERIFY(after.succeeded);
+}
+
+void RateLimiterTest::legacySubmitNeverCompletesSynchronously()
+{
+    // The legacy wrapper's contract, at its sharpest: the cooldown
+    // fail-fast path returns an ALREADY FINISHED future, and Qt runs a
+    // continuation on such a future synchronously (S1-6). Without the
+    // always-queued hop, complete() would fire inside Submit — before the
+    // caller had connected — and the completion would be lost.
+    Rig rig;
+
+    Submission s1;
+    s1.attach(rig.limiter.Submit("ep", request("one")));
+    settle(rig.scheduler);
+    rig.network.sent(0).reply->finish({}, 0, QNetworkReply::ConnectionRefusedError);
+    drainEvents();
+    QCOMPARE(s1.completions, 1);
+
+    // Connect AFTER Submit returns, exactly as a real caller does.
+    RateLimitedReply *reply = rig.limiter.Submit("ep", request("two"));
+    Submission s2;
+    s2.attach(reply);
+    QCOMPARE(s2.completions, 0);
+    drainEvents();
+    QCOMPARE(s2.completions, 1);
+    QCOMPARE(s2.last_error, QNetworkReply::ConnectionRefusedError);
+    // And the handle is destroyed right after the emission (F59 semantics,
+    // preserved until this wrapper goes away in phase 4b).
+    QVERIFY(s2.reply.isNull());
 }
 
 QTEST_GUILESS_MAIN(RateLimiterTest)
