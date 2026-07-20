@@ -45,17 +45,13 @@ namespace RateLimit {
         : m_gate(gate)
         , m_head(head)
         , m_held(true)
-    {
-        // Constructed at waiter resume, one event-loop iteration before the
-        // caller dispatches: this is the send stamp the spacing floor is
-        // measured from (grant time is not — see the class comment).
-        gate->RecordDispatch();
-    }
+    {}
 
     Gate::Permit::Permit(Permit &&other) noexcept
         : m_gate(std::move(other.m_gate))
         , m_head(other.m_head)
         , m_held(std::exchange(other.m_held, false))
+        , m_dispatched(std::exchange(other.m_dispatched, false))
     {}
 
     Gate::Permit &Gate::Permit::operator=(Permit &&other) noexcept
@@ -65,6 +61,7 @@ namespace RateLimit {
             m_gate = std::move(other.m_gate);
             m_head = other.m_head;
             m_held = std::exchange(other.m_held, false);
+            m_dispatched = std::exchange(other.m_dispatched, false);
         }
         return *this;
     }
@@ -74,6 +71,17 @@ namespace RateLimit {
         Release();
     }
 
+    void Gate::Permit::MarkDispatched()
+    {
+        if (!m_held || m_dispatched) {
+            return;
+        }
+        m_dispatched = true;
+        if (m_gate) {
+            m_gate->RecordDispatch();
+        }
+    }
+
     void Gate::Permit::Release()
     {
         if (!m_held) {
@@ -81,7 +89,7 @@ namespace RateLimit {
         }
         m_held = false;
         if (m_gate) {
-            m_gate->ReleasePermit(m_head);
+            m_gate->ReleasePermit(m_head, m_dispatched);
         }
     }
 
@@ -142,9 +150,9 @@ namespace RateLimit {
 
             // The previous winner has not stamped its dispatch yet, so
             // there is no timestamp to space the next grant from. Its
-            // Permit constructor re-runs this pass (a granted waiter
-            // always resumes and constructs its Permit in a live session
-            // — even one whose token stopped after the grant).
+            // MarkDispatched() — or a release without ever dispatching —
+            // re-runs this pass (a granted waiter always resumes in a live
+            // session — even one whose token stopped after the grant).
             if (m_grant_pending) {
                 return;
             }
@@ -188,9 +196,9 @@ namespace RateLimit {
             }
             // Counted at grant time, not at resumption: the cap must bound
             // in-flight permits even while the winner's resume is still
-            // queued. The send stamp arrives when the Permit is
-            // constructed; until then m_grant_pending holds further
-            // grants.
+            // queued. The send stamp arrives when the holder calls
+            // MarkDispatched() at its send site; until then (or a no-send
+            // release) m_grant_pending holds further grants.
             if (head) {
                 m_head_active = true;
             } else {
@@ -222,8 +230,14 @@ namespace RateLimit {
         });
     }
 
-    void Gate::ReleasePermit(bool head)
+    void Gate::ReleasePermit(bool head, bool dispatched)
     {
+        // A permit released without ever dispatching (stopped after
+        // acquire) leaves no send to space from: un-defer grants without
+        // charging a spacing interval.
+        if (!dispatched) {
+            m_grant_pending = false;
+        }
         if (head) {
             m_head_active = false;
         } else {
