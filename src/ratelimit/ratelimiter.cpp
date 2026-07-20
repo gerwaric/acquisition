@@ -221,7 +221,7 @@ RateLimitManager &RateLimiter::GetManager(const QString &endpoint, const QString
         // Create a new policy manager.
         spdlog::debug("Creating rate limit policy {} for {}", policy_name, endpoint);
         auto sender = std::bind_front(&RateLimiter::SendRequest, this);
-        auto mgr = std::make_unique<RateLimitManager>(sender, m_capture.get());
+        auto mgr = std::make_unique<RateLimitManager>(sender, m_scheduler, m_gate, m_capture.get());
         auto &manager = m_managers.emplace_back(std::move(mgr));
         connect(manager.get(),
                 &RateLimitManager::PolicyUpdated,

@@ -12,6 +12,9 @@
 #include <QString>
 #include <QTimer>
 
+#include "ratelimit/gate.h"
+#include "ratelimit/scheduler.h"
+
 class QNetworkReply;
 
 class NetworkCapture;
@@ -97,6 +100,11 @@ private:
 
     // Reference to the Application's network access manager.
     NetworkManager &m_network_manager;
+
+    // The injected clock/timer and the layer-1 gate (D5), shared by every
+    // policy pump. Declared before the managers so they outlive them.
+    RateLimit::TimerScheduler m_scheduler;
+    RateLimit::Gate m_gate{m_scheduler};
 
     // Research instrument shared by all policy managers; null unless
     // capture is enabled.
