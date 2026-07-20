@@ -37,6 +37,7 @@ class RateLimiterTest : public QObject
 private slots:
     void headEstablishesEndpointAndForwardsParkedFifo();
     void headTransportFailureFailsParkedAndCoolsDown();
+    void resubmitInsideFailureHandlerCannotProvokeProbe();
     void headHttpErrorFailsParked();
     void headUnparseable2xxFailsParked();
     void cooldownExpiryAllowsReprobe();
@@ -211,6 +212,40 @@ void RateLimiterTest::headTransportFailureFailsParkedAndCoolsDown()
     QCOMPARE(s3.completions, 1);
     QCOMPARE(s3.last_error, QNetworkReply::ConnectionRefusedError);
     QCOMPARE(rig.network.count(), 1);
+}
+
+void RateLimiterTest::resubmitInsideFailureHandlerCannotProvokeProbe()
+{
+    // The re-entrant shape of the D4 cooldown clause: a caller that
+    // resubmits synchronously from its failure-completion handler must
+    // hit the fail-fast branch — the cooldown is installed before any
+    // completion is emitted, so the handler can never find the endpoint
+    // Unknown and start another HEAD.
+    Rig rig;
+
+    Submission s1;
+    Submission s2;
+    bool resubmitted = false;
+    s1.attach(rig.limiter.Submit("ep", request("one")));
+    QObject::connect(s1.reply, &RateLimitedReply::complete, [&](QNetworkReply *) {
+        s2.attach(rig.limiter.Submit("ep", request("two")));
+        resubmitted = true;
+    });
+    settle(rig.scheduler);
+    QCOMPARE(rig.network.headCount(), 1);
+
+    rig.network.sent(0).reply->finish({}, 0, QNetworkReply::ConnectionRefusedError);
+    drainEvents();
+
+    QVERIFY(resubmitted);
+    QCOMPARE(s1.completions, 1);
+    // No second probe went out, in the handler or afterwards...
+    QCOMPARE(rig.network.headCount(), 1);
+    // ...and the re-entrant submission fail-fasted through the queued hop.
+    QCOMPARE(s2.completions, 1);
+    QCOMPARE(s2.last_error, QNetworkReply::ConnectionRefusedError);
+    advanceAndSettle(rig.scheduler, 1s);
+    QCOMPARE(rig.network.headCount(), 1);
 }
 
 void RateLimiterTest::headHttpErrorFailsParked()

@@ -342,6 +342,14 @@ void RateLimiter::FailSetup(const QString &endpoint, SetupFailure failure)
                   endpoint,
                   failure.message);
 
+    // Install the cooldown BEFORE any completion is emitted: completions
+    // run caller code synchronously, and a caller that resubmits from its
+    // completion handler must hit the fail-fast branch, not find the
+    // endpoint Unknown and start another HEAD — the exact probe loop the
+    // cooldown exists to prevent (D4). The fail-fast completion is
+    // queued, so the re-entrancy is bounded.
+    m_cooldowns[endpoint] = failure;
+
     auto probing = m_probing.find(endpoint);
     if (probing != m_probing.end()) {
         auto parked = std::move(probing->second);
@@ -352,8 +360,6 @@ void RateLimiter::FailSetup(const QString &endpoint, SetupFailure failure)
             }
         }
     }
-
-    m_cooldowns[endpoint] = std::move(failure);
 }
 
 void RateLimiter::CompleteWithFailure(RateLimitedReply *reply,
