@@ -43,7 +43,9 @@ public:
         // NetworkManager creates a disk cache in AppLocalDataLocation.
         QStandardPaths::setTestModeEnabled(true);
         InitializeMainWindowTestCategories();
-        Q_ASSERT(spdlog::get("main"));
+        if (!spdlog::get("main")) {
+            qFatal("MainWindowFixture: the 'main' logger was not registered");
+        }
 
         settings = std::make_unique<QSettings>(tempDir.filePath("settings.ini"),
                                                QSettings::IniFormat);

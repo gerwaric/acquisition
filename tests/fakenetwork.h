@@ -101,7 +101,9 @@ public:
                  QNetworkReply::NetworkError error = QNetworkReply::NoError)
     {
         PendingRequest &pending = m_requests.at(i);
-        Q_ASSERT(pending.reply);
+        if (!pending.reply) {
+            qFatal("FakeRateLimiter::deliver: request %zu has no reply to complete", i);
+        }
         auto *network_reply = new FakeNetworkReply(pending.request, body, error);
         emit pending.reply->complete(network_reply);
     }

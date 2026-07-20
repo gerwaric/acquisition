@@ -37,7 +37,10 @@ public:
                 int http_status = 0,
                 QNetworkReply::NetworkError error = QNetworkReply::NoError)
     {
-        Q_ASSERT(!isFinished());
+        if (isFinished()) {
+            qFatal("InFlightReply::finish: reply for %s was already finished",
+                   qPrintable(url().toString()));
+        }
         for (const auto &header : headers) {
             setRawHeader(header.first, header.second);
         }

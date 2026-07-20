@@ -99,7 +99,9 @@ static QLineEdit *findNameFilter(MainWindow &window)
 static QStringList visibleItemNames(const QTreeView &view)
 {
     const QAbstractItemModel *model = view.model();
-    Q_ASSERT(model);
+    if (!model) {
+        qFatal("visibleItemNames: the tree view has no model");
+    }
 
     QStringList names;
     for (int bucketRow = 0; bucketRow < model->rowCount(); ++bucketRow) {

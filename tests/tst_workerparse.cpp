@@ -40,8 +40,12 @@ static poe::Item makePoeItem(const char *id)
     })")
                                 .arg(id)
                                 .toUtf8();
-    auto item = glz::read_json<poe::Item>(std::string_view(json.constData(), json.size()));
-    Q_ASSERT(item);
+    const std::string_view input(json.constData(), json.size());
+    auto item = glz::read_json<poe::Item>(input);
+    if (!item) {
+        qFatal("makeItem: could not parse the test item json: %s",
+               glz::format_error(item.error(), input).c_str());
+    }
     return *item;
 }
 
