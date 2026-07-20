@@ -520,8 +520,15 @@ void RateLimiter::FailSetup(const QString &endpoint, SetupFailure failure)
     // run caller code synchronously, and a caller that resubmits from its
     // completion handler must hit the fail-fast branch, not find the
     // endpoint Unknown and start another HEAD — the exact probe loop the
-    // cooldown exists to prevent (D4). The fail-fast completion is
-    // queued, so the re-entrancy is bounded.
+    // cooldown exists to prevent (D4).
+    //
+    // The re-entrancy is bounded by state, not by a queued hop: the
+    // fail-fast path completes SYNCHRONOUSLY on the future boundary
+    // (SubmitFuture), which is safe precisely because the cooldown here and
+    // the parked deque below are both stabilized before anything settles, so
+    // a re-entrant submission always sees consistent state. Only the legacy
+    // Submit() adapter adds a queued hop, and for a different reason — a
+    // signal emitted before the caller connects would simply be lost.
     m_cooldowns[endpoint] = failure;
 
     auto probing = m_probing.find(endpoint);

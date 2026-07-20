@@ -9,6 +9,7 @@
 #include <memory>
 
 #include "fakenetwork.h"
+#include "fakenetworkmanager.h"
 #include "itemsmanager.h"
 #include "poe/poeapiclient.h"
 #include "shop.h"
@@ -24,7 +25,10 @@ public:
         QStandardPaths::setTestModeEnabled(true);
         settings = std::make_unique<QSettings>(buyoutFixture.tempDir.filePath("settings.ini"),
                                                QSettings::IniFormat);
-        networkManager = std::make_unique<NetworkManager>();
+        // Offline: the success path goes on to fetch the forum edit-thread
+        // page, which against a real NetworkManager would be a live GET to
+        // pathofexile.com from a unit test.
+        networkManager = std::make_unique<FakeNetworkManager>();
         rateLimiter = std::make_unique<FakeRateLimiter>(*networkManager);
         api = std::make_unique<PoeApiClient>(*rateLimiter);
         itemsManager = std::make_unique<ItemsManager>(*settings,
@@ -47,7 +51,7 @@ public:
 
     BuyoutManagerFixture buyoutFixture;
     std::unique_ptr<QSettings> settings;
-    std::unique_ptr<NetworkManager> networkManager;
+    std::unique_ptr<FakeNetworkManager> networkManager;
     std::unique_ptr<FakeRateLimiter> rateLimiter;
     std::unique_ptr<PoeApiClient> api;
     std::unique_ptr<ItemsManager> itemsManager;
@@ -142,6 +146,9 @@ void ShopTest::stashIndexFailureReleasesTheSubmitLock()
     fixture.rateLimiter->reject(0, RateLimit::FetchError::Kind::Http, "HTTP status 503");
     drainEvents();
 
+    // The failure stops the update: nothing is sent to the forum.
+    QCOMPARE(fixture.networkManager->count(), 0);
+
     // The lock is released: a second submission starts a new index request.
     fixture.shop->SubmitShopToForum();
     QCOMPARE(fixture.rateLimiter->futureCount(), size_t(2));
@@ -149,19 +156,29 @@ void ShopTest::stashIndexFailureReleasesTheSubmitLock()
 
 void ShopTest::stashIndexSuccessProceedsToShopSubmission()
 {
-    // The success path parses below the facade and carries on into the
-    // forum submission, which does not go through the limiter — so the
-    // observable is that the lock is still HELD (no new index request),
-    // the exact opposite of the failure case above.
+    // The success path parses below the facade and carries on into the forum
+    // submission, which goes through the NetworkManager rather than the
+    // limiter. The forum GET is the pin that actually proves the continuation
+    // RAN: the submission lock staying held would look identical if the
+    // continuation had never executed at all.
     ShopFixture fixture;
     armForSubmission(fixture);
 
     fixture.shop->SubmitShopToForum(true);
     QCOMPARE(fixture.rateLimiter->futureCount(), size_t(1));
+    QCOMPARE(fixture.networkManager->count(), 0);
 
     fixture.rateLimiter->resolve(0, R"({"tabs":[{"n":"one","i":0,"id":"0123456789abcdef"}]})");
     drainEvents();
 
+    // Exactly one forum request: the edit-thread page for the single
+    // configured thread, fetched for its CSRF token.
+    QCOMPARE(fixture.networkManager->count(), 1);
+    QCOMPARE(fixture.networkManager->sent(0).op, QNetworkAccessManager::GetOperation);
+    QCOMPARE(fixture.networkManager->sent(0).request.url().toString(),
+             QString("https://www.pathofexile.com/forum/edit-thread/123"));
+
+    // And the lock is still held while that submission is in flight.
     fixture.shop->SubmitShopToForum(true);
     QCOMPARE(fixture.rateLimiter->futureCount(), size_t(1));
 }
@@ -182,11 +199,15 @@ void ShopTest::continuationDoesNotRunAfterShopDestruction()
     fixture.shop.reset();
     drainEvents();
 
-    // Completing after destruction is safe; the handler never runs.
+    // Completing after destruction is safe, and the handler never runs —
+    // proved directly: a continuation that ran would have gone on to fetch
+    // the forum edit-thread page, so zero requests is the evidence. (No
+    // crash alone would not distinguish "dropped" from "ran and happened
+    // not to fault".)
     fixture.rateLimiter->resolve(0, R"({"tabs":[{"n":"one","i":0,"id":"0123456789abcdef"}]})");
     drainEvents();
-    // Reaching here without a crash IS the assertion; assert the promise
-    // did settle so the test cannot pass by never completing at all.
+    QCOMPARE(fixture.networkManager->count(), 0);
+    // The promise did settle, so the test cannot pass by never completing.
     QVERIFY(fixture.rateLimiter->pendingFuture(0).promise == nullptr);
 }
 
