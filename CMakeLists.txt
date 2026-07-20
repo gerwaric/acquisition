@@ -303,6 +303,10 @@ set(ACQ_RATELIMIT
     src/ratelimit/ratelimitmanager.h
     src/ratelimit/ratelimitpolicy.cpp
     src/ratelimit/ratelimitpolicy.h
+    src/ratelimit/scheduler.cpp
+    src/ratelimit/scheduler.h
+    src/ratelimit/stopsleep.cpp
+    src/ratelimit/stopsleep.h
 )
 
 set(ACQ_REPOE
