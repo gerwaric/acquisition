@@ -41,6 +41,9 @@ public:
 
     void AdvanceTo(std::chrono::milliseconds t)
     {
+        // Now() is a monotonic clock (Scheduler contract): time never moves
+        // backward, and a negative AdvanceBy() is a test bug.
+        Q_ASSERT(t >= m_now);
         while (true) {
             // The earliest (when, seq) pending callback due at or before t.
             // Re-scanned every iteration because a fired callback may have

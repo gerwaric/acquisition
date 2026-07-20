@@ -45,7 +45,12 @@ namespace RateLimit {
         : m_gate(gate)
         , m_head(head)
         , m_held(true)
-    {}
+    {
+        // Constructed at waiter resume, one event-loop iteration before the
+        // caller dispatches: this is the send stamp the spacing floor is
+        // measured from (grant time is not — see the class comment).
+        gate->RecordDispatch();
+    }
 
     Gate::Permit::Permit(Permit &&other) noexcept
         : m_gate(std::move(other.m_gate))
@@ -135,6 +140,15 @@ namespace RateLimit {
             std::erase_if(m_ordinary, settled);
             std::erase_if(m_heads, settled);
 
+            // The previous winner has not stamped its dispatch yet, so
+            // there is no timestamp to space the next grant from. Its
+            // Permit constructor re-runs this pass (a granted waiter
+            // always resumes and constructs its Permit in a live session
+            // — even one whose token stopped after the grant).
+            if (m_grant_pending) {
+                return;
+            }
+
             std::shared_ptr<WaiterState> next;
             bool head = false;
             if (!m_heads.empty()) {
@@ -154,11 +168,14 @@ namespace RateLimit {
                 return;
             }
 
-            // Spacing floor: grants are what dispatch sends, so grants are
-            // what the floor spaces — HEADs included.
+            // Spacing floor, measured from the previous DISPATCH stamp —
+            // HEADs included. A grant issued 250 ms after the previous
+            // grant could still dispatch back-to-back with it when the
+            // winner's queued resume is delayed by a busy main thread;
+            // dispatch stamps are what the floor actually spaces.
             const auto now = m_scheduler.Now();
-            if (m_last_grant) {
-                const auto earliest = *m_last_grant + MIN_SEND_SPACING;
+            if (m_last_send) {
+                const auto earliest = *m_last_send + MIN_SEND_SPACING;
                 if (now < earliest) {
                     ScheduleGrantPass(earliest);
                     return;
@@ -171,14 +188,23 @@ namespace RateLimit {
             }
             // Counted at grant time, not at resumption: the cap must bound
             // in-flight permits even while the winner's resume is still
-            // queued.
+            // queued. The send stamp arrives when the Permit is
+            // constructed; until then m_grant_pending holds further
+            // grants.
             if (head) {
                 m_head_active = true;
             } else {
                 ++m_active;
             }
-            m_last_grant = now;
+            m_grant_pending = true;
         }
+    }
+
+    void Gate::RecordDispatch()
+    {
+        m_grant_pending = false;
+        m_last_send = m_scheduler.Now();
+        GrantPass();
     }
 
     void Gate::ScheduleGrantPass(std::chrono::milliseconds when)

@@ -26,6 +26,7 @@ class GateTest : public QObject
 private slots:
     void capBoundsInFlightPermits();
     void spacingFloorIsExactAndResumeIsQueued();
+    void spacingIsMeasuredFromDispatchNotGrant();
     void ordinaryWaitersGrantInFifoOrder();
     void contendingLanesAlternateWithoutStarvation();
     void headIsExclusiveWithWriterPreference();
@@ -80,7 +81,7 @@ namespace {
     QCoro::Task<> Lane(std::vector<int> &order, int id, RateLimit::Gate &gate, int rounds)
     {
         for (int i = 0; i < rounds; ++i) {
-            auto permit = co_await gate.Acquire();
+            auto permit = co_await gate.Acquire(std::stop_token{});
             order.push_back(id);
             permit.Release();
         }
@@ -156,6 +157,57 @@ void GateTest::spacingFloorIsExactAndResumeIsQueued()
     // run until the event loop delivers it.
     scheduler.AdvanceBy(1ms);
     QVERIFY(!b.done);
+    drainEvents();
+    QVERIFY(b.done && b.permit.valid());
+}
+
+void GateTest::spacingIsMeasuredFromDispatchNotGrant()
+{
+    // The P1 review pin: a grant settles a promise, but the winner
+    // dispatches only after its queued resume, which a busy main thread
+    // can delay. The floor must space actual sends, so the next grant is
+    // decided 250 ms after the previous winner's RESUME (its dispatch
+    // stamp), not 250 ms after its grant. Here the fake clock advances
+    // 750 ms between A's grant and A's resume — the undelivered-resume
+    // window a blocked event loop would produce.
+    FakeScheduler scheduler;
+    RateLimit::Gate gate(scheduler);
+
+    // A blocker takes the immediate synchronous grant so A suspends.
+    Taker blocker;
+    auto tblocker = Take(blocker, gate);
+    QVERIFY(blocker.done);
+    blocker.permit.Release();
+
+    Taker a;
+    Taker b;
+    auto ta = Take(a, gate);
+    auto tb = Take(b, gate);
+    drainEvents();
+    QVERIFY(!a.done && !b.done);
+
+    // A is granted at t=250 — but its resume is deliberately NOT
+    // delivered yet (no drain): the grant is outstanding and unstamped.
+    scheduler.AdvanceBy(SPACING);
+    QVERIFY(!a.done);
+
+    // Time passes far beyond grant-time spacing. B must not be granted:
+    // there is no dispatch stamp to space it from, and granting it now
+    // could produce two back-to-back sends once the loop unblocks.
+    scheduler.AdvanceBy(3 * SPACING);
+    QVERIFY(!b.done);
+
+    // The loop unblocks: A resumes and stamps its dispatch at t=1000.
+    drainEvents();
+    QVERIFY(a.done && a.permit.valid());
+    QVERIFY(!b.done);
+
+    // B's grant lands exactly one spacing interval after A's DISPATCH
+    // (t=1250), not after A's grant (t=250, long past).
+    scheduler.AdvanceBy(SPACING - 1ms);
+    drainEvents();
+    QVERIFY(!b.done);
+    scheduler.AdvanceBy(1ms);
     drainEvents();
     QVERIFY(b.done && b.permit.valid());
 }

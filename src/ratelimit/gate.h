@@ -30,8 +30,20 @@ namespace RateLimit {
     //    are issued — a busy pump cannot starve endpoint setup.
     //  - FIFO among ordinary waiters (R7): permits grant in arrival order;
     //    the HEAD writer preference is the only queue-jump.
-    //  - Minimum inter-send spacing: MIN_SEND_SPACING between grants,
+    //  - Minimum inter-send spacing: MIN_SEND_SPACING between sends,
     //    across everything the gate sees (F58's intent, done deliberately).
+    //    Grant and dispatch are separate moments — the grant settles a
+    //    promise, but the winner dispatches only after its queued resume,
+    //    which a busy main thread can delay — so the floor is measured
+    //    from a dispatch stamp, not from grant time: the Permit stamps the
+    //    gate when it is constructed (at waiter resume, in the same event-
+    //    loop iteration as the dispatch that follows), and a granted-but-
+    //    unstamped permit defers every further grant until its stamp or
+    //    release arrives. One conservative consequence: an entry that
+    //    acquires, sees its stop, and releases without sending still
+    //    charges one spacing interval (over-spacing, the harmless
+    //    direction). Phase 3's permit-dispatch API can refine the stamp
+    //    point.
     //  - Permit span (IR6/R4-1): a permit is held from acquisition until the
     //    holder releases it — the pump releases at reply-finish, so a permit
     //    never survives into a retry sleep. Release is explicit or RAII.
@@ -82,12 +94,17 @@ namespace RateLimit {
         };
 
         // Wait for an ordinary permit. Returns an invalid Permit if the
-        // token stops first; a pre-stopped token never enqueues.
-        QCoro::Task<Permit> Acquire(std::stop_token token = {});
+        // token stops first; a pre-stopped token never enqueues. The token
+        // is deliberately not defaulted: every pump wait carries its
+        // entry's token (D2) — a wait that is genuinely non-cancelable
+        // passes {} explicitly.
+        QCoro::Task<Permit> Acquire(std::stop_token token);
 
         // Wait for the exclusive HEAD permit (writer preference over
-        // ordinary waiters; FIFO among HEADs).
-        QCoro::Task<Permit> AcquireHead(std::stop_token token = {});
+        // ordinary waiters; FIFO among HEADs). The setup path's probe
+        // proceeds even when every parked entry cancels (D4), so its wait
+        // passes {} explicitly.
+        QCoro::Task<Permit> AcquireHead(std::stop_token token);
 
     private:
         struct WaiterState;
@@ -95,6 +112,7 @@ namespace RateLimit {
         QCoro::Task<Permit> AcquireImpl(bool head, std::stop_token token);
         void GrantPass();
         void ScheduleGrantPass(std::chrono::milliseconds when);
+        void RecordDispatch();
         void ReleasePermit(bool head);
 
         Scheduler &m_scheduler;
@@ -102,7 +120,10 @@ namespace RateLimit {
         std::deque<std::shared_ptr<WaiterState>> m_heads;
         int m_active = 0;
         bool m_head_active = false;
-        std::optional<std::chrono::milliseconds> m_last_grant;
+        // A grant whose Permit has not yet stamped its dispatch time; no
+        // further grant is decided while one is outstanding.
+        bool m_grant_pending = false;
+        std::optional<std::chrono::milliseconds> m_last_send;
         std::optional<std::chrono::milliseconds> m_scheduled_pass;
     };
 
