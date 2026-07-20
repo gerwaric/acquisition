@@ -3,7 +3,9 @@
 **Status: ACCEPTED July 19, 2026 (revision 8) — frozen for
 implementation; phase 0 complete (spike + batch-scale
 measurement); phase 1 complete (manager harness,
-`tests/tst_ratelimitmanager.cpp`, July 19, 2026).** Drafted July 18 and
+`tests/tst_ratelimitmanager.cpp`, July 19, 2026); phase 2 complete
+(QCoro dependency + primitives, `src/ratelimit/scheduler.{h,cpp}` /
+`stopsleep.{h,cpp}` / `gate.{h,cpp}`, July 19, 2026).** Drafted July 18 and
 reviewed through six rounds in two days, plus one post-freeze errata
 batch (rev 7: eight corrections and contract completions, all
 shrinking — R7 in the review history). The review process converged
@@ -23,9 +25,9 @@ flow control (S2-1..S2-4). The finding tables (ER, IR, R4-\*,
 R5-\*, R6-\*, R7, S1, S2), the round narratives, the reversal records,
 and the revision log live in `network-redesign-reviews.md`; this
 spec records only current decisions and cites finding IDs inline
-where a decision's shape came from a review. No production code has
-been written against this spec; the spike is throwaway evidence, not
-production code.
+where a decision's shape came from a review. The spike is throwaway
+evidence, not production code; production code against this spec
+begins with phasing step 2 (the primitives).
 
 This document specifies the redesign of acquisition's rate-limited
 networking: how the items worker, the rate limiter, and the network
@@ -1197,7 +1199,28 @@ sleep.)
    and F59 synchronous-destruction behaviors the pump will change
    deliberately.
 2. QCoro dependency + primitives (stop-interruptible sleep, gate)
-   with their tests.
+   with their tests. **Executed July 19, 2026** — QCoro v0.13.0
+   pinned in the root build with the spike's FetchContent hygiene
+   flags, plus ER9's compiler floors as explicit configure-time
+   checks (GCC ≥ 13; Clang 15 / AppleClang 15 / MSVC 19.40 per the
+   pinned QCoro release), stated in `BUILD.md`. The injected
+   monotonic clock/scheduler the primitives — and the phase-3 pump —
+   are built against is `RateLimit::Scheduler`
+   (`src/ratelimit/scheduler.{h,cpp}`; `TimerScheduler` is the
+   production implementation on precise timers). The primitives are
+   `RateLimit::SleepUntil` (`src/ratelimit/stopsleep.{h,cpp}`) and
+   `RateLimit::Gate` (`src/ratelimit/gate.{h,cpp}`), pinned
+   standalone per testing-plan item 4 by `tests/tst_stopsleep.cpp`
+   and `tests/tst_gate.cpp` against a fake scheduler
+   (`tests/fakescheduler.h`) — deterministic, never sleeping; the
+   production `TimerScheduler` adapter is real-timer code with its
+   own condition-driven smoke tests (`tests/tst_timerscheduler.cpp`),
+   kept out of the primitive suites so item 4's never-sleep property
+   stays true of them as stated. Post-review correction (P1, July
+   20): the gate's spacing floor is measured from each permit's
+   dispatch stamp (recorded at waiter resume), not from grant time —
+   a queued resume delayed by a busy main thread would otherwise let
+   two sends land back-to-back inside the floor.
 3. Pump rewrite inside `RateLimitManager`; hub gains the gate and async
    HEAD setup. Boundary still the old `Submit` shape via a thin adapter
    so the worker compiles unchanged. Resolves F57, F58, F5-modernization.
