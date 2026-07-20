@@ -2,7 +2,8 @@
 
 **Status: ACCEPTED July 19, 2026 (revision 8) — frozen for
 implementation; phase 0 complete (spike + batch-scale
-measurement).** Drafted July 18 and
+measurement); phase 1 complete (manager harness,
+`tests/tst_ratelimitmanager.cpp`, July 19, 2026).** Drafted July 18 and
 reviewed through six rounds in two days, plus one post-freeze errata
 batch (rev 7: eight corrections and contract completions, all
 shrinking — R7 in the review history). The review process converged
@@ -1188,6 +1189,13 @@ sleep.)
    the sweep (S2-1..S2-4). The numbers did not demand flow control,
    so none is designed; step 0 is closed.
 1. Manager test harness against current code (no behavior change).
+   **Executed July 19, 2026** — `tests/tst_ratelimitmanager.cpp` plus
+   the fake sender (`tests/fakesender.h`), pinning pacing timing,
+   saturation waits, non-retryable error surfacing, and the F57 wedge
+   (as current, failing behavior — the pin shows the retried
+   completion dropped on the floor), along with the F58 dead-spacing
+   and F59 synchronous-destruction behaviors the pump will change
+   deliberately.
 2. QCoro dependency + primitives (stop-interruptible sleep, gate)
    with their tests.
 3. Pump rewrite inside `RateLimitManager`; hub gains the gate and async
