@@ -16,6 +16,7 @@
 #include "itemcategories.h"
 #include "itemsmanager.h"
 #include "ratelimit/ratelimiter.h"
+#include "poe/poeapiclient.h"
 #include "shop.h"
 #include "testfixtures.h"
 #include "ui/mainwindow.h"
@@ -51,6 +52,7 @@ public:
                                                QSettings::IniFormat);
         networkManager = std::make_unique<NetworkManager>();
         rateLimiter = std::make_unique<RateLimiter>(*networkManager);
+        api = std::make_unique<PoeApiClient>(*rateLimiter);
         itemsManager = std::make_unique<ItemsManager>(*settings,
                                                       *buyoutFixture.manager,
                                                       *buyoutFixture.data);
@@ -60,6 +62,7 @@ public:
         shop = std::make_unique<Shop>(*settings,
                                       *networkManager,
                                       *rateLimiter,
+                                      *api,
                                       *buyoutFixture.data,
                                       *itemsManager,
                                       *buyoutFixture.manager);
@@ -85,6 +88,7 @@ public:
     std::unique_ptr<QSettings> settings;
     std::unique_ptr<NetworkManager> networkManager;
     std::unique_ptr<RateLimiter> rateLimiter;
+    std::unique_ptr<PoeApiClient> api;
     std::unique_ptr<ItemsManager> itemsManager;
     std::unique_ptr<CurrencyManager> currencyManager;
     std::unique_ptr<Shop> shop;

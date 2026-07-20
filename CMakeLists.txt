@@ -333,6 +333,8 @@ set(ACQ_POE
     src/poe/endpoints/website/webstashitems.h
     src/poe/poe_utils.cpp
     src/poe/poe_utils.h
+    src/poe/poeapiclient.cpp
+    src/poe/poeapiclient.h
     src/poe/types/account.h
     src/poe/types/character.h
     src/poe/types/cruciblenode.h
