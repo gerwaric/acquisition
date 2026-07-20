@@ -21,6 +21,12 @@
 // phase 4b, which deleted the legacy Submit() adapter and its
 // RateLimitedReply — the last thing that still handed callers an object
 // under the contradictory contract.)
+//
+// This is NOT a worker-facing boundary type. D1 lists RateLimitedRequest as
+// "deleted": that means deleted as a type anything above the network line
+// names — which it is, nothing outside src/ratelimit/ references it. This
+// internal pump entry deliberately keeps the name (a rename to e.g.
+// RequestEntry is an available cosmetic follow-up, tracked in D1).
 struct RateLimitedRequest
 {
     RateLimitedRequest(const QString &endpoint_,

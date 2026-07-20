@@ -166,9 +166,16 @@ Five layers, each speaking one language, each testable alone:
   destruction promises may die unobserved, safely, because every
   awaiter is destroyed first: see the shutdown section; the whole
   cancellation design is D2).
-- `RateLimitedReply` and `RateLimitedRequest` are deleted. The pump's
-  internal queue entry holds the `QNetworkRequest`, the endpoint label,
-  timestamps for capture, and the `QPromise`.
+- `RateLimitedReply` and `RateLimitedRequest` are deleted **as
+  worker-facing boundary types** — nothing above the network line names
+  either after phase 4b. The pump keeps an internal queue entry (holding
+  the `QNetworkRequest`, the endpoint label, capture timestamps, the
+  `QPromise`, and the stop token); it is not a boundary type, and as
+  built it retains the `RateLimitedRequest` name. That the internal entry
+  and the deleted boundary type share a name is a deliberate, recorded
+  choice, not an oversight (a rename to something like `RequestEntry`
+  remains available as a cosmetic follow-up). `NetworkCapture` consumes
+  this entry.
 - Resolves F59 by construction (Qt's shared state is the single owner)
   and removes the object F57 destroyed.
 
@@ -986,7 +993,9 @@ Therefore:
 
 ## What gets deleted
 
-`RateLimitedReply`, `RateLimitedRequest`, the worker's `m_queue` /
+`RateLimitedReply` and `RateLimitedRequest` **as worker-facing boundary
+types** (the pump retains an internal queue entry under the
+`RateLimitedRequest` name — see D1), the worker's `m_queue` /
 `m_queue_id` / `SubmitNextItemRequest` / `FetchItems`'s queue walk, the
 five error-path queue clears with counter-snapping, `DiscardIfStale`
 and the generation-tag plumbing outright (D2/D6), the `SetupEndpoint`
@@ -1320,10 +1329,10 @@ sleep.)
    typed facade fake (`FakePoeApiClient`, testing-plan item 5) that
    records the domain arguments the worker asked with rather than
    crafting bytes; its pins were ported, not weakened, except the F28
-   stale-arrival half, which the future boundary makes unreachable (a
-   `QPromise` settles once; the worker never has a request in flight when
-   an update aborts) — `IsStale` is kept for phase 5 and the pin records
-   why. `tst_ratelimiter` lost its legacy-wrapper pins; the future
+   stale-arrival half, which the future boundary makes unreachable (each
+   fetch is completed once by the pump; the worker never has a request in
+   flight when an update aborts) — `IsStale` is kept for phase 5 and the
+   pin records why. `tst_ratelimiter` lost its legacy-wrapper pins; the future
    boundary's fail-fast completes synchronously, which the ported pins
    assert. Then `RateLimitedReply` (`.h`/`.cpp`), the `Submit()` adapter,
    and its synthetic reply were deleted together — F59 resolved. Item 5's

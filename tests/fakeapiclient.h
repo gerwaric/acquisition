@@ -31,9 +31,11 @@
 // id in two successive updates simply settles the two calls differently — no
 // per-id scripting needed.
 //
-// Note that a future settles exactly once here, because a QPromise does. The
-// legacy signal boundary this replaced could emit the same reply repeatedly;
-// nothing in this fake reproduces that, deliberately.
+// Each call is settled exactly once: not because a QFuture forbids more (it is
+// a multi-result container — addResult() may be called repeatedly), but because
+// settling a call clears its slot and a second attempt qFatals. This mirrors
+// the pump's own one-shot completion. The legacy signal boundary this replaced
+// could re-emit the same reply; nothing here reproduces that, deliberately.
 class FakePoeApiClient : public PoeApiClient
 {
 public:
@@ -172,6 +174,9 @@ public:
         slot.resolve_type = nullptr;
         slot.reject = nullptr;
         reject_fn(std::move(error));
+        // See settle(): drop the settled promise so its payload is not
+        // retained past completion.
+        slot.promise.reset();
     }
 
 private:
@@ -228,6 +233,11 @@ private:
         slot.reject = nullptr;
         promise->addResult(std::move(result));
         promise->finish();
+        // Drop the settled promise: the returned QFuture keeps the result
+        // alive for as long as a consumer holds it, so nothing here needs to.
+        // Holding it would retain every settled payload (whole stash bodies)
+        // until fixture teardown and skew phase-5 batch/memory tests.
+        slot.promise.reset();
     }
 
     std::vector<Slot> m_pending;

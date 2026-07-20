@@ -13,10 +13,11 @@
 
 // Offline update-cycle tests for ItemsManagerWorker, driven through a fake
 // typed API facade (items-pipeline M1; moved off the byte-crafting network
-// fake in network-redesign phase 4b). These pin the F28 semantics — a failed
-// update loses nothing and the next one starts clean — and the F48
-// no-duplicate-characters fix, none of which can be produced reliably by
-// hand against the live API.
+// fake in network-redesign phase 4b). These pin the reachable F28 semantics —
+// a failed update loses nothing and the next one starts clean (the stale-reply
+// half became unreachable under the future boundary; see
+// failedUpdateDoesNotLeakIntoTheNext) — and the F48 no-duplicate-characters
+// fix, none of which can be produced reliably by hand against the live API.
 //
 // The worker's request building and endpoint labels are not pinned here;
 // they belong to the facade and are pinned in tst_poeapiclient. What these
@@ -31,7 +32,7 @@ class WorkerUpdateTest : public QObject
 
 private slots:
     void failedUpdateKeepsItemsIntact();
-    void staleReplyFromSupersededUpdateIsDiscarded();
+    void failedUpdateDoesNotLeakIntoTheNext();
     void partialUpdateDoesNotDuplicateCharacters();
     void renamedTabMetadataRefreshesWithoutFetch();
     void vanishedMapChildItemsAreRemovedOnParentRefresh();
@@ -388,22 +389,22 @@ void WorkerUpdateTest::failedUpdateKeepsItemsIntact()
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1-new", "a2-new", "a3-new", "b1"}));
 }
 
-// A terminal failure ends the update, and the next update starts from a
-// clean slate and succeeds (F28).
+// A terminal failure ends the update losing nothing, and the next update
+// starts from a clean slate and succeeds — no failure count or in-flight work
+// carries across the boundary (F28).
 //
 // This test used to also pin the stale-reply half of F28 by delivering the
 // same recorded reply three times — once while the worker was idle, once
-// mid-update-2 — which the legacy signal boundary allowed. The future
-// boundary does not: a QPromise settles exactly once, so no fake can
-// reproduce it. Nor can the scenario arise on its own, because the worker
-// submits strictly serially (SubmitNextItemRequest sends one request and an
-// update only terminates inside a handler), so nothing is ever in flight at
-// the moment an update aborts. The generation guard ItemsManagerWorker::
-// IsStale() implements is therefore unreachable today and is kept as a
-// defensive check; phase 5's batch submission puts several fetches in flight
-// at once and makes it live again, which is where the pin belongs. See the
-// F28 entry in docs/cleanup/findings.md.
-void WorkerUpdateTest::staleReplyFromSupersededUpdateIsDiscarded()
+// mid-update-2 — which the legacy signal boundary allowed. That half is no
+// longer reachable, so this test no longer covers it: the worker submits
+// strictly serially (SubmitNextItemRequest sends one request, and an update
+// only terminates inside a handler), so nothing is ever in flight at the
+// moment an update aborts, and each fetch settles exactly once. The generation
+// guard ItemsManagerWorker::IsStale() is therefore unexercised today and kept
+// as a defensive check; phase 5's batch submission puts several fetches in
+// flight at once and makes it live again, which is where that pin belongs.
+// See the F28 entry in docs/cleanup/findings.md.
+void WorkerUpdateTest::failedUpdateDoesNotLeakIntoTheNext()
 {
     WorkerFixture f("worker-update-account-2");
 
