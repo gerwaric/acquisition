@@ -83,7 +83,10 @@ inline Item makeTestItem(const char *json, const ItemLocation &loc)
 {
     const std::string_view input(json);
     auto item = glz::read_json<poe::Item>(input);
-    Q_ASSERT(item);
+    if (!item) {
+        qFatal("makeTestItem: could not parse the test item json: %s",
+               glz::format_error(item.error(), input).c_str());
+    }
     return Item(*item, loc);
 }
 
