@@ -3,7 +3,9 @@
 **Status: ACCEPTED July 19, 2026 (revision 8) — frozen for
 implementation; phase 0 complete (spike + batch-scale
 measurement); phase 1 complete (manager harness,
-`tests/tst_ratelimitmanager.cpp`, July 19, 2026).** Drafted July 18 and
+`tests/tst_ratelimitmanager.cpp`, July 19, 2026); phase 2 complete
+(QCoro dependency + primitives, `src/ratelimit/scheduler.{h,cpp}` /
+`stopsleep.{h,cpp}` / `gate.{h,cpp}`, July 19, 2026).** Drafted July 18 and
 reviewed through six rounds in two days, plus one post-freeze errata
 batch (rev 7: eight corrections and contract completions, all
 shrinking — R7 in the review history). The review process converged
@@ -1197,7 +1199,20 @@ sleep.)
    and F59 synchronous-destruction behaviors the pump will change
    deliberately.
 2. QCoro dependency + primitives (stop-interruptible sleep, gate)
-   with their tests.
+   with their tests. **Executed July 19, 2026** — QCoro v0.13.0
+   pinned in the root build with the spike's FetchContent hygiene
+   flags, plus ER9's compiler floors as explicit configure-time
+   checks (GCC ≥ 13; Clang 15 / AppleClang 15 / MSVC 19.40 per the
+   pinned QCoro release), stated in `BUILD.md`. The injected
+   monotonic clock/scheduler the primitives — and the phase-3 pump —
+   are built against is `RateLimit::Scheduler`
+   (`src/ratelimit/scheduler.{h,cpp}`; `TimerScheduler` is the
+   production implementation on precise timers). The primitives are
+   `RateLimit::SleepUntil` (`src/ratelimit/stopsleep.{h,cpp}`) and
+   `RateLimit::Gate` (`src/ratelimit/gate.{h,cpp}`), pinned
+   standalone per testing-plan item 4 by `tests/tst_stopsleep.cpp`
+   and `tests/tst_gate.cpp` against a fake scheduler
+   (`tests/fakescheduler.h`) — deterministic, never sleeping.
 3. Pump rewrite inside `RateLimitManager`; hub gains the gate and async
    HEAD setup. Boundary still the old `Submit` shape via a thin adapter
    so the worker compiles unchanged. Resolves F57, F58, F5-modernization.
