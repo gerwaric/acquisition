@@ -5,7 +5,11 @@ implementation; phase 0 complete (spike + batch-scale
 measurement); phase 1 complete (manager harness,
 `tests/tst_ratelimitmanager.cpp`, July 19, 2026); phase 2 complete
 (QCoro dependency + primitives, `src/ratelimit/scheduler.{h,cpp}` /
-`stopsleep.{h,cpp}` / `gate.{h,cpp}`, July 19, 2026).** Drafted July 18 and
+`stopsleep.{h,cpp}` / `gate.{h,cpp}`, July 19, 2026); phase 3 complete
+(July 20, 2026: the D8 total parse, the pump rewrite, async HEAD setup
+with parking and cooldown — F57, F58, and F5-modernization resolved;
+the phase-3 boundary notes in the phasing sketch record what waits for
+phase 4's `FetchError`).** Drafted July 18 and
 reviewed through six rounds in two days, plus one post-freeze errata
 batch (rev 7: eight corrections and contract completions, all
 shrinking — R7 in the review history). The review process converged
@@ -1224,6 +1228,35 @@ sleep.)
 3. Pump rewrite inside `RateLimitManager`; hub gains the gate and async
    HEAD setup. Boundary still the old `Submit` shape via a thin adapter
    so the worker compiles unchanged. Resolves F57, F58, F5-modernization.
+   **Executed July 20, 2026**, in four green commits: the gate's
+   dispatch stamp moved to the real send site
+   (`Permit::MarkDispatched()`; a no-send release charges no spacing);
+   the D8 total parse (`RateLimitPolicy::Parse`, `tst_ratelimitpolicy`
+   — pulled forward from phase 4 because the pump's Full-check and
+   D4's unparseable-HEAD detection both need it, and the spec forbids
+   a separate validator); the drain-loop pump
+   (`tst_ratelimitmanager` rewritten onto the injected scheduler —
+   exact fake-clock pins, no ±6% slack, no real sleeping); and the
+   D4 hub (probe coroutine behind the exclusive HEAD permit, parking,
+   every setup-failure flavor under the cooldown, `tst_ratelimiter`
+   with a `createRequest`-level fake network). **Phase-3 boundary
+   notes — what deliberately waits for phase 4's `FetchError`:**
+   entries carry no stop token (nothing can cancel them; every pump
+   wait passes an explicit never-stopped token), so the stop pins of
+   testing-plan item 2 land in phase 4; a steady-state name mismatch
+   or unparseable 2xx leaves the policy un-updated (the D8 policy
+   half, pinned) but completes the clean 200 to the caller — the
+   old boundary can only express failure as an errored reply, and
+   fabricating an error onto a clean 200 would misreport the server,
+   so the `Protocol` outcome half lands with the phase-4 boundary
+   (IR1's frozen-pacing residual is accepted for the one-phase
+   window: never-observed event, gate-bounded rate, loud logs);
+   setup failures and the fail-fast cooldown are expressed as errored
+   synthetic replies (`SetupFailureReply`, phase-4 scaffolding);
+   the drain's terminal failed state drops the active entry's
+   `RateLimitedReply` without a completion (the only expressible
+   shape — becomes a clean `Internal` value in phase 4); and the
+   F59 ownership pin is kept byte-for-byte.
 4. `QFuture` boundary + `PoeApiClient`; `Shop` and worker call sites
    move over; `RateLimitedReply`/`RateLimitedRequest` deleted. Resolves
    F59.
