@@ -3,24 +3,69 @@
 
 #include "ratelimit/ratelimiter.h"
 
+#include <QCoroNetworkReply>
+
 #include <QCoreApplication>
-#include <QEventLoop>
 #include <QNetworkReply>
 #include <QThread>
 
 #include "ratelimit/networkcapture.h"
+#include "ratelimit/ratelimit.h"
 #include "ratelimit/ratelimitedreply.h"
 #include "ratelimit/ratelimitmanager.h"
 #include "ratelimit/ratelimitpolicy.h"
-#include "util/fatalerror.h"
 #include "util/networkmanager.h"
-#include "util/oauthmanager.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 
 constexpr int UPDATE_INTERVAL_MSEC = 1000;
 
-RateLimiter::RateLimiter(NetworkManager &network_manager)
+// The setup-failure cooldown (D4, named, provisional): a caller
+// resubmitting from its completion handler cannot loop HEAD probes against
+// N16's narrow one-HEAD-at-boot sanction.
+constexpr int SETUP_RETRY_COOLDOWN_SECS = 60;
+
+// The HEAD-429 hold (D4): the D3 retry formula's degenerate case, applied
+// to the established pump's first send. Mirrors the constants in
+// ratelimitmanager.cpp.
+constexpr int RETRY_BUCKET_PAD_SECS = 60;
+constexpr int RETRY_BUFFER_SECS = 1;
+
+namespace {
+
+    // A finished, errored reply describing a setup failure — the only
+    // failure shape the RateLimitedReply boundary can express for a request
+    // that was never sent. Phase 4's FetchError values replace this.
+    class SetupFailureReply : public QNetworkReply
+    {
+    public:
+        SetupFailureReply(const QNetworkRequest &request,
+                          QNetworkReply::NetworkError error,
+                          const QString &message,
+                          int http_status,
+                          QObject *parent)
+            : QNetworkReply(parent)
+        {
+            setRequest(request);
+            setUrl(request.url());
+            setOpenMode(QIODevice::ReadOnly);
+            if (http_status != 0) {
+                setAttribute(QNetworkRequest::HttpStatusCodeAttribute, http_status);
+            }
+            setError(error, message);
+            setFinished(true);
+        }
+
+        void abort() override {}
+
+    protected:
+        qint64 readData(char *, qint64) override { return -1; }
+    };
+
+} // namespace
+
+RateLimiter::RateLimiter(NetworkManager &network_manager, RateLimit::Scheduler *scheduler)
     : m_network_manager(network_manager)
+    , m_scheduler(scheduler ? *scheduler : m_own_scheduler)
 {
     spdlog::trace("RateLimiter::RateLimiter() entered");
     m_update_timer.setSingleShot(false);
@@ -43,165 +88,287 @@ RateLimitedReply *RateLimiter::Submit(const QString &endpoint, QNetworkRequest n
     // Create a new rate limited reply that we can return to the calling function.
     auto *reply = new RateLimitedReply();
 
-    // Look for a rate limit manager for this endpoint.
+    // Established: the endpoint is handled by an existing policy manager.
     auto it = m_manager_by_endpoint.find(endpoint);
     if (it != m_manager_by_endpoint.end()) {
-        // This endpoint is handled by an existing policy manager.
         RateLimitManager &manager = *it->second;
         spdlog::trace("Rate Limit policy {} is handling '{}': {}",
                       manager.policy().name(),
                       endpoint,
                       network_request.url().toString());
         manager.QueueRequest(endpoint, network_request, reply);
-
-    } else {
-        // This is a new endpoint, so it's possible we need a new policy
-        // manager, or that this endpoint should be managed by another
-        // manager that has already been created, because the same rate limit
-        // policy can apply to multiple managers.
-        spdlog::debug("New endpoint encountered: '{}': {}",
-                      endpoint,
-                      network_request.url().toString());
-        SetupEndpoint(endpoint, network_request, reply);
+        return reply;
     }
+
+    // Probing: park behind the in-flight HEAD, keeping submission order.
+    auto probing = m_probing.find(endpoint);
+    if (probing != m_probing.end()) {
+        probing->second.push_back({network_request, QPointer<RateLimitedReply>(reply)});
+        emit QueueUpdate(endpoint, static_cast<int>(probing->second.size()));
+        return reply;
+    }
+
+    // Unknown under a cooldown: fail fast with the recorded failure — no
+    // probe is sent inside the window (D4). The completion is delivered
+    // through the event loop; the caller connects after Submit returns.
+    auto cooldown = m_cooldowns.find(endpoint);
+    if (cooldown != m_cooldowns.end()) {
+        if (m_scheduler.Now() < cooldown->second.cooldown_until) {
+            spdlog::error("Rate limiter: endpoint '{}' is cooling down after a setup failure; "
+                          "failing fast: {}",
+                          endpoint,
+                          cooldown->second.message);
+            const SetupFailure failure = cooldown->second;
+            QPointer<RateLimitedReply> guarded(reply);
+            QMetaObject::invokeMethod(
+                this,
+                [this, guarded, network_request, failure]() {
+                    if (guarded) {
+                        CompleteWithFailure(guarded.data(), network_request, failure);
+                    }
+                },
+                Qt::QueuedConnection);
+            return reply;
+        }
+        m_cooldowns.erase(cooldown);
+    }
+
+    // Unknown: park the entry and fire the HEAD probe asynchronously.
+    spdlog::debug("New endpoint encountered: '{}': {}",
+                  endpoint,
+                  network_request.url().toString());
+    m_probing[endpoint].push_back({network_request, QPointer<RateLimitedReply>(reply)});
+    emit QueueUpdate(endpoint, 1);
+
+    // Sweep completed probe handles; a live one is never destroyed (S1-1).
+    m_probe_tasks.remove_if([](const QCoro::Task<> &task) { return task.isReady(); });
+    m_probe_tasks.push_back(ProbeEndpoint(endpoint, network_request));
+
     return reply;
 }
 
-void RateLimiter::SetupEndpoint(const QString &endpoint,
-                                QNetworkRequest network_request,
-                                RateLimitedReply *reply)
+QCoro::Task<> RateLimiter::ProbeEndpoint(QString endpoint, QNetworkRequest request)
 {
-    spdlog::trace("RateLimiter::SetupEndpoint() entered");
+    // No exception escapes a root coroutine (IR4): an escape is contained
+    // as a setup failure under the normal cooldown.
+    try {
+        // A HEAD takes the whole gate (D5): nothing else in flight while a
+        // probe runs, and concurrent endpoint setups serialize here. The
+        // probe proceeds even if every parked entry dies (D4), so the wait
+        // is explicitly non-cancelable.
+        auto permit = co_await m_gate.AcquireHead(std::stop_token{});
 
-    // Use a HEAD request to determine the policy status for a new endpoint.
-    spdlog::debug("Sending a HEAD for endpoint: {}", endpoint);
+        spdlog::debug("Sending a HEAD for endpoint: {}", endpoint);
+        permit.MarkDispatched();
+        QNetworkReply *raw = m_network_manager.head(request);
+        // The dispatch-time RAII owner (R5-4): the probe frame owns the
+        // HEAD reply on every live-session path; parked entries are only
+        // ever handed synthetic replies, never this one.
+        std::unique_ptr<QNetworkReply, void (*)(QNetworkReply *)>
+            reply(raw, [](QNetworkReply *r) { r->deleteLater(); });
 
-    // Make the head request.
-    spdlog::trace("RateLimiter::SetupEndpoint() sending a HEAD request for {}", endpoint);
-    QNetworkReply *network_reply = m_network_manager.head(network_request);
+        co_await raw;
 
-    // Cause a fatal error if there was a network error.
-    connect(network_reply, &QNetworkReply::errorOccurred, this, [=]() {
-        const auto error_code = network_reply->error();
-        if ((error_code >= 200) && (error_code <= 299)) {
-            spdlog::debug("RateLimit::SetupEndpoint() HEAD reply status is {}", error_code);
-            return;
-        }
-        const QString error_value = QString::number(error_code);
-        const QString error_string = network_reply->errorString();
-        spdlog::error("RateLimiter::SetupEndpoint() network error in HEAD reply for {}", endpoint);
-        FatalError(QString("Network error %1 in HEAD reply for '%2': %3")
-                       .arg(error_value, endpoint, error_string));
-    });
+        // The permit span ends at reply-finish (D5).
+        permit.Release();
 
-    // Cause a fatal error if there were any SSL errors.
-    connect(network_reply, &QNetworkReply::sslErrors, this, [=](const QList<QSslError> &errors) {
-        spdlog::error("RateLimiter::SetupEndpoint() SSL error in HEAD reply for endpoint: {}",
+        ProcessHeadResponse(endpoint, request, raw);
+    } catch (const std::exception &e) {
+        spdlog::error("Rate limiter: the HEAD probe for '{}' threw an exception: {}",
+                      endpoint,
+                      e.what());
+        FailSetup(endpoint,
+                  {m_scheduler.Now() + std::chrono::seconds(SETUP_RETRY_COOLDOWN_SECS),
+                   QNetworkReply::UnknownNetworkError,
+                   0,
+                   QString("HEAD probe failed internally: %1").arg(e.what())});
+    } catch (...) {
+        spdlog::error("Rate limiter: the HEAD probe for '{}' threw an unknown exception",
                       endpoint);
-        QStringList messages;
-        for (const auto &error : errors) {
-            messages.append(error.errorString());
-        }
-        FatalError(
-            QString("SSL error(s) in HEAD reply for '%1': %2").arg(endpoint, messages.join(", ")));
-    });
-
-    // WARNING: it is important to wait for this head request to finish before proceeding,
-    // because otherwise acquisition may end up flooding the network with a series of HEAD
-    // requests, which has gotten users blocked before by Cloudflare, which is a problem
-    // GGG may not have control over.
-    //
-    // Another solution to this problem would be to allow requests to queue here instead,
-    // but that would be a lot more complex.
-    QEventLoop loop;
-    connect(network_reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    loop.exec();
-
-    spdlog::trace("RateLimiter::SetupEndpoint() received a HEAD reply for {}", endpoint);
-    ProcessHeadResponse(endpoint, network_request, reply, network_reply);
+        FailSetup(endpoint,
+                  {m_scheduler.Now() + std::chrono::seconds(SETUP_RETRY_COOLDOWN_SECS),
+                   QNetworkReply::UnknownNetworkError,
+                   0,
+                   QString("HEAD probe failed internally")});
+    }
 }
 
 void RateLimiter::ProcessHeadResponse(const QString &endpoint,
-                                      QNetworkRequest network_request,
-                                      RateLimitedReply *reply,
-                                      QNetworkReply *network_reply)
+                                      const QNetworkRequest &request,
+                                      QNetworkReply *reply)
 {
     spdlog::trace("RateLimiter::ProcessHeadResponse() endpoint='{}', url='{}'",
                   endpoint,
-                  network_request.url().toString());
-
-    // Make sure the network reply is a valid pointer before using it.
-    if (network_reply == nullptr) {
-        spdlog::error("The HEAD reply was null.");
-        FatalError(QString("The HEAD reply was null"));
-    }
+                  request.url().toString());
 
     // Capture the probe before any validation, so degraded HEAD replies are
     // recorded too.
     if (m_capture) {
-        m_capture->RecordHeadResponse(endpoint, network_reply);
+        m_capture->RecordHeadResponse(endpoint, reply);
     }
 
-    // Check for network errors.
-    const auto error_code = network_reply->error();
-    if (error_code != QNetworkReply::NoError) {
-        if ((error_code >= 200) && (error_code <= 299)) {
-            spdlog::debug("The HEAD reply has status {}", error_code);
-        } else {
-            spdlog::error("The HEAD reply had a network error.");
-            LogSetupReply(network_request, network_reply);
-            FatalError(QString("Network error %1 in HEAD reply for '%2': %3")
-                           .arg(QString::number(network_reply->error()),
-                                endpoint,
-                                network_reply->errorString()));
+    const int status = RateLimit::ParseStatus(reply);
+    const auto parsed = RateLimitPolicy::Parse(reply);
+    const auto retry_after = RateLimit::ParseRetryAfter(reply);
+
+    // The failure-side cooldown honors a validly-present Retry-After (D4).
+    const auto cooldown_until = m_scheduler.Now()
+                                + std::chrono::seconds(std::max(SETUP_RETRY_COOLDOWN_SECS,
+                                                                retry_after.value_or(0)));
+
+    // A HEAD 429 is genuinely reachable (counters persist across restarts,
+    // N24) and is a real server-side violation either way: record it.
+    if (status == 429) {
+        ++m_violation_count;
+        spdlog::error("Rate limiter: the HEAD probe for '{}' was 429ed (violation {} this "
+                      "session)",
+                      endpoint,
+                      m_violation_count);
+        if (parsed && retry_after) {
+            // Full headers with a valid Retry-After still teach the
+            // topology: establish the pump with its first send held past
+            // Retry-After + pad + buffer; the HEAD consumes no attempt.
+            const QDateTime hold = QDateTime::currentDateTime().addSecs(
+                *retry_after + RETRY_BUCKET_PAD_SECS + RETRY_BUFFER_SECS);
+            EstablishEndpoint(endpoint, reply, parsed->name(), hold);
+            return;
         }
+        LogSetupReply(request, reply);
+        FailSetup(endpoint,
+                  {cooldown_until,
+                   QNetworkReply::UnknownServerError,
+                   status,
+                   QString("HEAD probe for '%1' was rate limited without a usable reply "
+                           "(Full headers: %2, acceptable Retry-After: %3)")
+                       .arg(endpoint,
+                            parsed ? "yes" : "no",
+                            retry_after ? "yes" : "no")});
+        return;
     }
 
-    // Check for other HTTP errors.
-    const int response_code = RateLimit::ParseStatus(network_reply);
-    const bool response_failed = (response_code < 200) || (response_code > 299);
-    if (response_failed) {
-        spdlog::error("The HEAD request failed");
-        LogSetupReply(network_request, network_reply);
-        FatalError(QString("HTTP status %1 in HEAD reply for '%2'")
-                       .arg(QString::number(response_code), endpoint));
+    // Transport failures — including one alongside a 2xx status (the
+    // truncated-reply case, D8 precedence adapted to setup).
+    if (reply->error() != QNetworkReply::NoError) {
+        spdlog::error("The HEAD reply for '{}' had a network error: {} ({})",
+                      endpoint,
+                      reply->error(),
+                      reply->errorString());
+        LogSetupReply(request, reply);
+        FailSetup(endpoint,
+                  {cooldown_until,
+                   reply->error(),
+                   status,
+                   QString("Network error in HEAD reply for '%1': %2")
+                       .arg(endpoint, reply->errorString())});
+        return;
     }
 
-    // All endpoints should be rate limited.
-    if (!network_reply->hasRawHeader("X-Rate-Limit-Policy")) {
-        spdlog::error("The HEAD response did not contain a rate limit policy for endpoint: {}",
-                      endpoint);
-        LogSetupReply(network_request, network_reply);
-        FatalError(
-            QString("he HEAD response did not contain a rate limit policy for endpoint: '%1'")
-                .arg(endpoint));
+    // Any other non-2xx status.
+    if (status < 200 || status > 299) {
+        spdlog::error("The HEAD request for '{}' failed with HTTP status {}", endpoint, status);
+        LogSetupReply(request, reply);
+        FailSetup(endpoint,
+                  {cooldown_until,
+                   QNetworkReply::UnknownServerError,
+                   status,
+                   QString("HTTP status %1 in HEAD reply for '%2'")
+                       .arg(QString::number(status), endpoint)});
+        return;
     }
 
-    // Extract the policy name.
-    const QString policy_name = network_reply->rawHeader("X-Rate-Limit-Policy");
+    // A clean 2xx whose rate-limit headers fail the total parse is a setup
+    // failure too (D4/D8): the endpoint must never run unpaced, and a
+    // synthetic default policy is rejected by design.
+    if (!parsed) {
+        spdlog::error("The HEAD response for '{}' did not contain a usable rate limit policy: {}",
+                      endpoint,
+                      parsed.error());
+        LogSetupReply(request, reply);
+        FailSetup(endpoint,
+                  {cooldown_until,
+                   QNetworkReply::ProtocolFailure,
+                   status,
+                   QString("The HEAD response for '%1' did not contain a usable rate limit "
+                           "policy: %2")
+                       .arg(endpoint, parsed.error())});
+        return;
+    }
 
-    // Log the headers.
+    // Log the rate-limit headers the probe taught us.
     QStringList lines;
-    lines.reserve(network_reply->rawHeaderList().size() + 2);
-    lines.append(QString("<HEAD_RESPONSE_HEADERS policy_name='%1'>").arg(policy_name));
-    const auto raw_headers = network_reply->rawHeaderList();
+    lines.append(QString("<HEAD_RESPONSE_HEADERS policy_name='%1'>").arg(parsed->name()));
+    const auto raw_headers = reply->rawHeaderList();
     for (const auto &name : raw_headers) {
         if (QString::fromUtf8(name).startsWith("X-Rate-Limit", Qt::CaseInsensitive)) {
-            lines.append(QString("%1 = '%2'").arg(name, network_reply->rawHeader(name)));
+            lines.append(QString("%1 = '%2'").arg(name, reply->rawHeader(name)));
         }
     }
     lines.append("</HEAD_RESPONSE_HEADERS>");
-    spdlog::debug("HEAD response received for {}:\n{}", policy_name, lines.join("\n"));
+    spdlog::debug("HEAD response received for {}:\n{}", parsed->name(), lines.join("\n"));
 
-    // Create the rate limit manager.
+    EstablishEndpoint(endpoint, reply, parsed->name(), QDateTime());
+}
+
+void RateLimiter::EstablishEndpoint(const QString &endpoint,
+                                    QNetworkReply *head_reply,
+                                    const QString &policy_name,
+                                    const QDateTime &hold_until)
+{
     RateLimitManager &manager = GetManager(endpoint, policy_name);
+    manager.Update(head_reply);
+    if (hold_until.isValid()) {
+        manager.HoldUntil(hold_until);
+    }
 
-    // Update the policy manager and queue the request.
-    manager.Update(network_reply);
-    manager.QueueRequest(endpoint, network_request, reply);
+    // Forward the parked entries in submission order. A probe that
+    // succeeded with no live entries simply leaves the endpoint
+    // established and idle.
+    auto parked = std::move(m_probing.at(endpoint));
+    m_probing.erase(endpoint);
+    for (auto &entry : parked) {
+        if (entry.reply) {
+            manager.QueueRequest(endpoint, entry.request, entry.reply.data());
+        }
+    }
 
     // Emit a status update for anyone listening.
     SendStatusUpdate();
+}
+
+void RateLimiter::FailSetup(const QString &endpoint, SetupFailure failure)
+{
+    spdlog::error("Rate limiter: endpoint setup FAILED for '{}': {} — cooling down before any "
+                  "re-probe",
+                  endpoint,
+                  failure.message);
+
+    auto probing = m_probing.find(endpoint);
+    if (probing != m_probing.end()) {
+        auto parked = std::move(probing->second);
+        m_probing.erase(probing);
+        for (auto &entry : parked) {
+            if (entry.reply) {
+                CompleteWithFailure(entry.reply.data(), entry.request, failure);
+            }
+        }
+    }
+
+    m_cooldowns[endpoint] = std::move(failure);
+}
+
+void RateLimiter::CompleteWithFailure(RateLimitedReply *reply,
+                                      const QNetworkRequest &request,
+                                      const SetupFailure &failure)
+{
+    // Each caller gets its own synthetic reply (no shared ownership); the
+    // caller deleteLater()s it like any completed reply, with the hub as
+    // the backstop parent.
+    auto *synthetic
+        = new SetupFailureReply(request, failure.error, failure.message, failure.http_status, this);
+    emit reply->complete(synthetic);
+    // Mirror the pump's contract: the caller's handle is destroyed
+    // synchronously after the completion (F59, unchanged until phase 4).
+    delete reply;
 }
 
 void RateLimiter::LogSetupReply(const QNetworkRequest &request, const QNetworkReply *reply)

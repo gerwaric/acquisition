@@ -73,6 +73,11 @@ public:
 
     const RateLimitPolicy &policy();
 
+    // Hold the next send until no earlier than the given time — the D4
+    // HEAD-429 case: the hub establishes the pump but its first send waits
+    // out Retry-After + pad + buffer. Sends pace normally afterwards.
+    void HoldUntil(const QDateTime &until);
+
     // Milliseconds until the next scheduled send: the remaining pacing or
     // retry sleep, measured on the injected scheduler; -1 when no send is
     // scheduled (idle, waiting at the gate, or in flight).
@@ -150,6 +155,9 @@ private:
     // The deadline of the pacing or retry sleep currently in progress, on
     // the scheduler's clock; empty when no send is scheduled.
     std::optional<std::chrono::milliseconds> m_next_send_deadline;
+
+    // Sends are held until this time when valid (HoldUntil).
+    QDateTime m_earliest_send;
 
     // We use a history of the received reply times so that we can calculate
     // when the next safe send time will be. This allows us to calculate the

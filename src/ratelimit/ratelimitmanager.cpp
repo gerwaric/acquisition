@@ -44,12 +44,6 @@ constexpr int MAX_ATTEMPTS = 3;
 constexpr int RETRY_BUCKET_PAD_SECS = 60;
 constexpr int RETRY_BUFFER_SECS = 1;
 
-// Product-policy cap on Retry-After (D3): the grammar accepts any
-// nonnegative integer, but obeying a never-observed multi-hour wait would be
-// continuation through the unexpected — longer waits complete as terminal
-// 429s instead. Longest observed restriction is 600 s (N23), plus headroom.
-constexpr int RETRY_AFTER_CAP_SECS = 900;
-
 // Maximum time we expect a request to take. This is used to detect
 // issues like timezones and clock errors.
 constexpr int MAXIMUM_API_RESPONSE_SEC = 60;
@@ -68,22 +62,6 @@ namespace {
     };
     using ReplyGuard = std::unique_ptr<QNetworkReply, DeferredDelete>;
 
-    // Retry-After grammar and product policy in one place (D3): accepted iff
-    // present, an integer, nonnegative, and at or below the cap. 0 is valid
-    // (the pad and GetNextSafeSend dominate the deadline formula).
-    std::optional<int> AcceptableRetryAfter(QNetworkReply *reply)
-    {
-        if (!reply->hasRawHeader("Retry-After")) {
-            return std::nullopt;
-        }
-        bool ok = false;
-        const int seconds = reply->rawHeader("Retry-After").toInt(&ok);
-        if (!ok || seconds < 0 || seconds > RETRY_AFTER_CAP_SECS) {
-            return std::nullopt;
-        }
-        return seconds;
-    }
-
 } // namespace
 
 RateLimitManager::RateLimitManager(SendFcn sender,
@@ -100,6 +78,13 @@ RateLimitManager::RateLimitManager(SendFcn sender,
 }
 
 RateLimitManager::~RateLimitManager() {}
+
+void RateLimitManager::HoldUntil(const QDateTime &until)
+{
+    if (!m_earliest_send.isValid() || m_earliest_send < until) {
+        m_earliest_send = until;
+    }
+}
 
 const RateLimitPolicy &RateLimitManager::policy()
 {
@@ -245,10 +230,14 @@ QCoro::Task<> RateLimitManager::Drain()
 QCoro::Task<> RateLimitManager::ProcessEntry(RateLimitedRequest &entry)
 {
     // Pacing sleep: the same GetNextSafeSend arithmetic as ever (N25/N26),
-    // plus the normal buffer while the policy is below borderline.
+    // plus the normal buffer while the policy is below borderline, plus
+    // any externally-imposed hold (the D4 HEAD-429 case).
     QDateTime next_send = m_policy->GetNextSafeSend(m_history);
     if (m_policy->status() < RateLimit::Status::BORDERLINE) {
         next_send = next_send.addMSecs(NORMAL_BUFFER_MSEC);
+    }
+    if (m_earliest_send.isValid() && next_send < m_earliest_send) {
+        next_send = m_earliest_send;
     }
     entry.scheduled_time = next_send;
     const qint64 pacing_delay = QDateTime::currentDateTime().msecsTo(next_send);
@@ -295,7 +284,7 @@ QCoro::Task<> RateLimitManager::ProcessEntry(RateLimitedRequest &entry)
             LogPolicyHistory();
             emit Violation(m_policy->name());
 
-            const auto retry_after = AcceptableRetryAfter(reply.get());
+            const auto retry_after = RateLimit::ParseRetryAfter(reply.get());
             if (retry_after && attempt < MAX_ATTEMPTS) {
                 const QDateTime now = QDateTime::currentDateTime();
                 QDateTime retry_at = now.addSecs(*retry_after + RETRY_BUCKET_PAD_SECS
