@@ -247,8 +247,28 @@ void RateLimiter::ProcessHeadResponse(const QString &endpoint,
         return;
     }
 
-    // Transport failures — including one alongside a 2xx status (the
-    // truncated-reply case, D8 precedence adapted to setup).
+    // Any other non-2xx status. The status governs even though Qt also
+    // reports these as reply errors — InternalServerError for a 500, and
+    // so on (D8 precedence rule 2). A pure transport failure carries no
+    // status line at all (ParseStatus yields 0) and belongs to the
+    // network branch below. The reply's own Qt error code is kept on the
+    // synthetic for diagnostics; the message carries the classification.
+    if (status != 0 && (status < 200 || status > 299)) {
+        spdlog::error("The HEAD request for '{}' failed with HTTP status {}", endpoint, status);
+        LogSetupReply(request, reply);
+        FailSetup(endpoint,
+                  {cooldown_until,
+                   reply->error() != QNetworkReply::NoError ? reply->error()
+                                                            : QNetworkReply::UnknownServerError,
+                   status,
+                   QString("HTTP status %1 in HEAD reply for '%2'")
+                       .arg(QString::number(status), endpoint)});
+        return;
+    }
+
+    // Transport failures — no status at all (connection refused, timeout,
+    // SSL, ...) or an error alongside a 2xx status (the truncated-reply
+    // case; D8 precedence rule 3).
     if (reply->error() != QNetworkReply::NoError) {
         spdlog::error("The HEAD reply for '{}' had a network error: {} ({})",
                       endpoint,
@@ -261,19 +281,6 @@ void RateLimiter::ProcessHeadResponse(const QString &endpoint,
                    status,
                    QString("Network error in HEAD reply for '%1': %2")
                        .arg(endpoint, reply->errorString())});
-        return;
-    }
-
-    // Any other non-2xx status.
-    if (status < 200 || status > 299) {
-        spdlog::error("The HEAD request for '{}' failed with HTTP status {}", endpoint, status);
-        LogSetupReply(request, reply);
-        FailSetup(endpoint,
-                  {cooldown_until,
-                   QNetworkReply::UnknownServerError,
-                   status,
-                   QString("HTTP status %1 in HEAD reply for '%2'")
-                       .arg(QString::number(status), endpoint)});
         return;
     }
 

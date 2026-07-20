@@ -39,6 +39,7 @@ private slots:
     void headTransportFailureFailsParkedAndCoolsDown();
     void resubmitInsideFailureHandlerCannotProvokeProbe();
     void headHttpErrorFailsParked();
+    void headTruncated2xxIsNetworkFailure();
     void headUnparseable2xxFailsParked();
     void cooldownExpiryAllowsReprobe();
     void headFull429WithValidRetryAfterEstablishesWithHold();
@@ -88,6 +89,7 @@ namespace {
         int completions = 0;
         int last_status = 0;
         QNetworkReply::NetworkError last_error = QNetworkReply::NoError;
+        QString last_error_string;
 
         void attach(RateLimitedReply *r)
         {
@@ -96,6 +98,7 @@ namespace {
                 ++completions;
                 last_status = RateLimit::ParseStatus(network_reply);
                 last_error = network_reply->error();
+                last_error_string = network_reply->errorString();
                 network_reply->deleteLater();
             });
         }
@@ -258,11 +261,48 @@ void RateLimiterTest::headHttpErrorFailsParked()
     settle(rig.scheduler);
     QCOMPARE(rig.network.count(), 1);
 
+    // Qt reports HTTP failures as reply errors too (InternalServerError
+    // for a 500); the status governs (D8 precedence): the failure is
+    // classified as an HTTP setup failure — the message says so — with
+    // the reply's own Qt error code kept for diagnostics.
     rig.network.sent(0).reply->finish({}, 500, QNetworkReply::InternalServerError);
     drainEvents();
     QCOMPARE(s1.completions, 1);
     QCOMPARE(s1.last_status, 500);
-    QVERIFY(s1.last_error != QNetworkReply::NoError);
+    QCOMPARE(s1.last_error, QNetworkReply::InternalServerError);
+    QVERIFY2(s1.last_error_string.startsWith("HTTP status 500"),
+             qPrintable(s1.last_error_string));
+}
+
+void RateLimiterTest::headTruncated2xxIsNetworkFailure()
+{
+    Rig rig;
+
+    Submission s1;
+    s1.attach(rig.limiter.Submit("ep", request("one")));
+    settle(rig.scheduler);
+    QCOMPARE(rig.network.count(), 1);
+
+    // A 2xx status alongside a transport error (Qt can report a status
+    // and then fail mid-body) is a network failure, not a success and
+    // not an HTTP failure — D8 precedence rule 3 — even with parseable
+    // rate-limit headers on the reply.
+    rig.network.sent(0).reply->finish(policyHeaders("10:60:60", "0:60:0"),
+                                      200,
+                                      QNetworkReply::RemoteHostClosedError);
+    drainEvents();
+    QCOMPARE(s1.completions, 1);
+    QCOMPARE(s1.last_error, QNetworkReply::RemoteHostClosedError);
+    QVERIFY2(s1.last_error_string.startsWith("Network error"),
+             qPrintable(s1.last_error_string));
+
+    // A setup failure, not an establishment: the resubmission fail-fasts
+    // inside the cooldown with no new probe.
+    Submission s2;
+    s2.attach(rig.limiter.Submit("ep", request("two")));
+    drainEvents();
+    QCOMPARE(s2.completions, 1);
+    QCOMPARE(rig.network.headCount(), 1);
 }
 
 void RateLimiterTest::headUnparseable2xxFailsParked()
