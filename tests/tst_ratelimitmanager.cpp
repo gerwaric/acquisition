@@ -4,10 +4,13 @@
 #include <QtTest>
 
 #include <QDateTime>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QPointer>
 #include <QSignalSpy>
+#include <QTemporaryDir>
 
 #include <chrono>
 #include <stdexcept>
@@ -16,6 +19,7 @@
 #include "fakescheduler.h"
 #include "fakesender.h"
 #include "ratelimit/gate.h"
+#include "ratelimit/networkcapture.h"
 #include "ratelimit/ratelimit.h"
 #include "ratelimit/ratelimitedreply.h"
 #include "ratelimit/ratelimitmanager.h"
@@ -764,40 +768,69 @@ void RateLimitManagerTest::holdInstalledWhileWaitingAtGateIsHonored()
     // suspended in the gate wait (a HEAD-429 probe joining this pump —
     // the shared-policy case, D4) must still be honored. The entry
     // releases its permit undispatched, sleeps out the hold, and
-    // reacquires.
-    Rig rig;
-    installPolicy(rig.manager, "10:60:60", "0:60:0");
+    // reacquires. The capture rides along to pin that the hold becomes
+    // the recorded scheduling decision.
+    QTemporaryDir capture_dir;
+    QVERIFY(capture_dir.isValid());
+    const QString capture_path = capture_dir.filePath("capture.jsonl");
+
+    FakeScheduler scheduler;
+    RateLimit::Gate gate{scheduler};
+    FakeSender sender;
+    NetworkCapture capture{capture_path};
+    RateLimitManager manager{sender.fcn(), scheduler, gate, &capture};
+    installPolicy(manager, "10:60:60", "0:60:0");
 
     // An exclusive HEAD holds the whole gate, dispatched at t=0.
     GateBlocker head;
-    auto head_task = takeHead(head, rig.gate);
+    auto head_task = takeHead(head, gate);
     QVERIFY(head.done && head.permit.valid());
 
     // The entry paces normally, then parks in Acquire() behind the HEAD.
     Caller caller;
-    rig.manager.QueueRequest(kEndpoint, request("one"), caller.reply);
-    advanceAndSettle(rig.scheduler, std::chrono::milliseconds(kNormalBufferMsec));
-    QCOMPARE(rig.sender.count(), 0);
+    manager.QueueRequest(kEndpoint, request("one"), caller.reply);
+    advanceAndSettle(scheduler, std::chrono::milliseconds(kNormalBufferMsec));
+    QCOMPARE(sender.count(), 0);
 
     // The probe 429s and joins this pump: a 180s hold lands while the
     // entry is still suspended at the gate; then the HEAD releases.
-    rig.manager.HoldUntil(rig.scheduler.Now() + 180s);
+    manager.HoldUntil(scheduler.Now() + 180s);
     head.permit.Release();
 
     // The entry is granted at the spacing floor (t=250, from the HEAD's
     // dispatch stamp) but must not send: it gives the permit back
     // undispatched and sleeps to the hold deadline — installed at t=100,
     // so exactly 179750ms remain when queried at t=350.
-    advanceAndSettle(rig.scheduler, kGateSpacing);
-    QCOMPARE(rig.sender.count(), 0);
-    QCOMPARE(rig.manager.msecToNextSend(), 179750);
+    advanceAndSettle(scheduler, kGateSpacing);
+    QCOMPARE(sender.count(), 0);
+    QCOMPARE(manager.msecToNextSend(), 179750);
 
-    advanceAndSettle(rig.scheduler, 180s);
-    QCOMPARE(rig.sender.count(), 1);
-    rig.sender.sent(0).reply->finish(policyHeaders("10:60:60", "1:60:0"), 200);
+    advanceAndSettle(scheduler, 180s);
+    QCOMPARE(sender.count(), 1);
+    sender.sent(0).reply->finish(policyHeaders("10:60:60", "1:60:0"), 200);
     drainEvents();
     QCOMPARE(caller.completions, 1);
     QCOMPARE(caller.last_status, 200);
+
+    // The capture recorded the hold as the entry's scheduling decision:
+    // 'scheduled' must be the hold deadline, not the stale pre-hold
+    // pacing time. Fake time swallowed the 180s wait while wall time
+    // barely moved, so the honest record puts 'scheduled' far AFTER
+    // 'sent' (both wall-clock) — the stale value would sit within
+    // milliseconds of it.
+    QFile capture_file(capture_path);
+    QVERIFY(capture_file.open(QIODevice::ReadOnly));
+    const QList<QByteArray> lines = capture_file.readAll().split('\n');
+    QCOMPARE(lines.size(), 2); // one record plus the trailing newline
+    const QJsonObject record = QJsonDocument::fromJson(lines[0]).object();
+    QCOMPARE(record["kind"].toString(), QString("reply"));
+    const QDateTime scheduled
+        = QDateTime::fromString(record["scheduled"].toString(), Qt::ISODateWithMs);
+    const QDateTime sent = QDateTime::fromString(record["sent"].toString(), Qt::ISODateWithMs);
+    QVERIFY(scheduled.isValid() && sent.isValid());
+    const qint64 announced_hold_msec = sent.msecsTo(scheduled);
+    QVERIFY2(announced_hold_msec > 170000, qPrintable(QString::number(announced_hold_msec)));
+    QVERIFY2(announced_hold_msec <= 180000, qPrintable(QString::number(announced_hold_msec)));
 }
 
 void RateLimitManagerTest::observationUpdatesPolicyOnErrorReplies()

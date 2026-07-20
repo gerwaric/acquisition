@@ -275,6 +275,11 @@ QCoro::Task<> RateLimitManager::ProcessEntry(RateLimitedRequest &entry)
             const std::chrono::milliseconds hold = *m_earliest_send;
             const QDateTime hold_until = QDateTime::currentDateTime().addMSecs(
                 (hold - m_scheduler.Now()).count());
+            // The hold is now this entry's scheduling decision: keep the
+            // capture's expected-send timestamp honest (the same rule as
+            // the retry path), or the record would portray the deliberate
+            // hold as unexplained lateness.
+            entry.scheduled_time = hold_until;
             permit.Release();
             AnnouncePause(hold_until, hold);
             co_await RateLimit::SleepUntil(m_scheduler, hold, {});
