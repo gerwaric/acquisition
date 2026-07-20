@@ -4,6 +4,7 @@
 #pragma once
 
 #include <deque>
+#include <expected>
 #include <vector>
 
 #include <QMetaObject>
@@ -38,11 +39,20 @@ class QNetworkReply;
 //
 // For any request against a rate-limited endpoint, only one policy applies, but
 // all of limitations for each item of every rule within that policy are checked.
+//
+// Parsing is a total function (network-redesign spec, D8): validation IS the
+// parser — RateLimitPolicy::Parse() either yields a policy whose every triplet
+// is three in-range integers, or a description of the first grammar failure.
+// Nothing downstream ever indexes an unvalidated header fragment.
 
 class RateLimitData
 {
 public:
-    RateLimitData(const QByteArray &header_fragment);
+    RateLimitData(int hits, int period, int restriction)
+        : m_hits(hits)
+        , m_period(period)
+        , m_restriction(restriction)
+    {}
     int hits() const { return m_hits; }
     int period() const { return m_period; }
     int restriction() const { return m_restriction; }
@@ -56,7 +66,7 @@ private:
 class RateLimitItem
 {
 public:
-    RateLimitItem(const QByteArray &limit_fragment, const QByteArray &state_fragment);
+    RateLimitItem(const RateLimitData &limit, const RateLimitData &state);
     bool Check(const RateLimitItem &other) const;
     const RateLimitData &limit() const { return m_limit; }
     const RateLimitData &state() const { return m_state; }
@@ -71,13 +81,13 @@ private:
 class RateLimitRule
 {
 public:
-    RateLimitRule(const QByteArray &name, QNetworkReply *const reply);
+    RateLimitRule(const QString &name, std::vector<RateLimitItem> items);
     bool Check(const RateLimitRule &other) const;
     const QString &name() const { return m_name; }
     const std::vector<RateLimitItem> &items() const { return m_items; }
 
 private:
-    const QString m_name;
+    QString m_name;
     std::vector<RateLimitItem> m_items;
 };
 
@@ -85,14 +95,22 @@ class RateLimitPolicy
 {
     Q_GADGET
 public:
-    RateLimitPolicy(QNetworkReply *const reply);
+    // The total parse (D8): Full means this succeeds, which requires a
+    // nonempty policy name; a nonempty rules list; every rule name nonempty,
+    // with at least one item and limit/state lists of equal length; every
+    // triplet exactly three in-range integers — limit: hits > 0, period > 0,
+    // restriction >= 0; state: hits >= 0, period > 0, restriction >= 0 — and
+    // each state period matching its limit period. The error is a
+    // human-readable description of the first failure, for logging and
+    // capture.
+    static std::expected<RateLimitPolicy, QString> Parse(QNetworkReply *const reply);
+
     bool Check(const RateLimitPolicy &other) const;
     const QString &name() const { return m_name; }
     const std::vector<RateLimitRule> &rules() const { return m_rules; }
     RateLimit::Status status() const { return m_status; }
     int maximum_hits() const { return m_maximum_hits; }
     QDateTime GetNextSafeSend(const std::deque<RateLimit::Event> &history);
-    QDateTime EstimateDuration(int request_count, int minimum_delay_msec) const;
 
     // Report generators for logging.
     QString GetPolicyReport() const;
@@ -100,7 +118,9 @@ public:
     QString GetBorderlineReport() const { return m_report; }
 
 private:
-    const QString m_name;
+    RateLimitPolicy(const QString &name, std::vector<RateLimitRule> rules);
+
+    QString m_name;
     std::vector<RateLimitRule> m_rules;
     RateLimit::Status m_status;
     int m_maximum_hits;

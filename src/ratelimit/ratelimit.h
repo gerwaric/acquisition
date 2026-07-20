@@ -9,6 +9,8 @@
 #include <QObject>
 #include <QString>
 
+#include <optional>
+
 #include "util/spdlog_qt.h"
 
 class QNetworkReply;
@@ -75,6 +77,13 @@ namespace RateLimit {
     enum class Status { OK, BORDERLINE, VIOLATION, INVALID };
     Q_ENUM_NS(Status)
 
+    // Product-policy cap on Retry-After (network-redesign spec, D3): the
+    // grammar accepts any nonnegative integer, but obeying a never-observed
+    // multi-hour wait would be continuation through the unexpected — longer
+    // waits are declined. Longest observed restriction is 600 s (N23), plus
+    // headroom.
+    constexpr int RETRY_AFTER_CAP_SECS = 900;
+
     struct Event
     {
         unsigned long request_id;
@@ -84,6 +93,12 @@ namespace RateLimit {
         QDateTime reply_time;
         int reply_status;
     };
+
+    // Retry-After grammar and product policy in one place (D3): accepted
+    // iff present, an integer, nonnegative, and at or below the cap. 0 is
+    // valid (the retry pad and GetNextSafeSend dominate the deadline
+    // formula). Anything else is nullopt: the 429 is terminal.
+    std::optional<int> ParseRetryAfter(QNetworkReply *const reply);
 
     QByteArray ParseHeader(QNetworkReply *const reply, const QByteArray &name);
     QByteArrayList ParseHeaderList(QNetworkReply *const reply,

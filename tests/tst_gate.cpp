@@ -35,6 +35,7 @@ private slots:
     void stoppedHeadReleasesTheWriterPreference();
     void preStoppedAcquireNeverEnqueues();
     void destroyedPermitReleasesItsSlot();
+    void releaseWithoutDispatchChargesNoSpacing();
 };
 
 namespace {
@@ -49,6 +50,9 @@ namespace {
         RateLimit::Gate::Permit permit;
     };
 
+    // Takers model the pump: acquire, then stamp the dispatch at the "send
+    // site" (the moment after resume, same event-loop iteration). A stopped
+    // wait yields an invalid permit, which MarkDispatched ignores.
     QCoro::Task<> Take(Taker &taker,
                        RateLimit::Gate &gate,
                        std::vector<int> *order = nullptr,
@@ -56,6 +60,7 @@ namespace {
                        std::stop_token token = {})
     {
         taker.permit = co_await gate.Acquire(std::move(token));
+        taker.permit.MarkDispatched();
         if (order) {
             order->push_back(id);
         }
@@ -69,6 +74,7 @@ namespace {
                            std::stop_token token = {})
     {
         taker.permit = co_await gate.AcquireHead(std::move(token));
+        taker.permit.MarkDispatched();
         if (order) {
             order->push_back(id);
         }
@@ -82,6 +88,7 @@ namespace {
     {
         for (int i = 0; i < rounds; ++i) {
             auto permit = co_await gate.Acquire(std::stop_token{});
+            permit.MarkDispatched();
             order.push_back(id);
             permit.Release();
         }
@@ -477,6 +484,45 @@ void GateTest::destroyedPermitReleasesItsSlot()
     }
     drainEvents();
     QVERIFY(b.done && b.permit.valid());
+}
+
+void GateTest::releaseWithoutDispatchChargesNoSpacing()
+{
+    FakeScheduler scheduler;
+    RateLimit::Gate gate(scheduler);
+
+    // A dispatches normally at t=0: the floor now runs from t=0.
+    Taker a;
+    auto ta = Take(a, gate);
+    drainEvents();
+    QVERIFY(a.done && a.permit.valid());
+    a.permit.Release();
+
+    // B acquires but releases without ever dispatching (the phase-4
+    // stopped-after-acquire path). While B is granted-but-unstamped, no
+    // further grant is decided — then its no-send release un-defers grants
+    // without charging a spacing interval.
+    scheduler.AdvanceBy(SPACING);
+    Taker b;
+    auto tb = [](Taker &taker, RateLimit::Gate &g) -> QCoro::Task<> {
+        taker.permit = co_await g.Acquire(std::stop_token{});
+        taker.done = true;
+    }(b, gate);
+    drainEvents();
+    QVERIFY(b.done && b.permit.valid());
+
+    Taker c;
+    auto tc = Take(c, gate);
+    scheduler.AdvanceBy(10 * SPACING);
+    drainEvents();
+    QVERIFY(!c.done); // deferred behind B's outstanding, unstamped grant
+
+    // C is granted the moment B releases: the only spacing charged is from
+    // A's dispatch at t=0, long past. If B's no-send release charged an
+    // interval, C would wait another SPACING from here.
+    b.permit.Release();
+    drainEvents();
+    QVERIFY(c.done && c.permit.valid());
 }
 
 QTEST_GUILESS_MAIN(GateTest)

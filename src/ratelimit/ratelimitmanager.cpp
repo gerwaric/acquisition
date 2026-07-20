@@ -3,17 +3,20 @@
 
 #include "ratelimit/ratelimitmanager.h"
 
-#include <QApplication>
-#include <QErrorMessage>
-#include <QMessageBox>
+#include <QCoroNetworkReply>
+
 #include <QNetworkReply>
 
+#include <algorithm>
+
+#include "ratelimit/gate.h"
 #include "ratelimit/networkcapture.h"
 #include "ratelimit/ratelimit.h"
 #include "ratelimit/ratelimitedreply.h"
 #include "ratelimit/ratelimitedrequest.h"
-#include "ratelimit/ratelimiter.h"
 #include "ratelimit/ratelimitpolicy.h"
+#include "ratelimit/scheduler.h"
+#include "ratelimit/stopsleep.h"
 #include "util/fatalerror.h"
 #include "util/networkmanager.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
@@ -28,8 +31,18 @@ constexpr int VIOLATION_STATUS = 429;
 // A delay added to every send to avoid flooding the server.
 constexpr int NORMAL_BUFFER_MSEC = 100;
 
-// Minium time between sends for any given policy.
-constexpr int MINIMUM_INTERVAL_MSEC = 1000;
+// Total sends per entry: one original plus two retries (D3). Bounded so a
+// systemically broken policy cannot hammer the API (N10).
+constexpr int MAX_ATTEMPTS = 3;
+
+// The retry deadline is max(now + Retry-After + pad + buffer,
+// GetNextSafeSend(history)) — D3. The pad is unconditional: 60 s is the
+// largest bucket tier GGG has named for any policy (N12), assumed to cover
+// the legacy policy too; no policy inspection, so the retry path is immune
+// to the initial-vs-sustained question (Q4). The buffer matches the timing
+// bucket buffer in ratelimitpolicy.cpp.
+constexpr int RETRY_BUCKET_PAD_SECS = 60;
+constexpr int RETRY_BUFFER_SECS = 1;
 
 // Maximum time we expect a request to take. This is used to detect
 // issues like timezones and clock errors.
@@ -38,19 +51,40 @@ constexpr int MAXIMUM_API_RESPONSE_SEC = 60;
 // This is another parameter used to check the system clock.
 constexpr int MAXIMUM_EARLY_ARRIVAL_SEC = 30;
 
-// Create a new rate limit manager based on an existing policy.
-RateLimitManager::RateLimitManager(SendFcn sender, NetworkCapture *capture)
+namespace {
+
+    // The dispatch-time RAII reply owner (D3/R5-4): every attempt's reply is
+    // released exactly once — by this guard for retried or abandoned
+    // attempts, or by the caller after the final reply is handed over.
+    struct DeferredDelete
+    {
+        void operator()(QNetworkReply *reply) const { reply->deleteLater(); }
+    };
+    using ReplyGuard = std::unique_ptr<QNetworkReply, DeferredDelete>;
+
+} // namespace
+
+RateLimitManager::RateLimitManager(SendFcn sender,
+                                   RateLimit::Scheduler &scheduler,
+                                   RateLimit::Gate &gate,
+                                   NetworkCapture *capture)
     : m_sender(sender)
+    , m_scheduler(scheduler)
+    , m_gate(gate)
     , m_capture(capture)
     , m_policy(nullptr)
 {
     spdlog::trace("RateLimitManager::RateLimitManager() entered");
-    // Setup the active request timer to call SendRequest each time it's done.
-    m_activation_timer.setSingleShot(true);
-    connect(&m_activation_timer, &QTimer::timeout, this, &RateLimitManager::SendRequest);
 }
 
 RateLimitManager::~RateLimitManager() {}
+
+void RateLimitManager::HoldUntil(std::chrono::milliseconds until)
+{
+    if (!m_earliest_send || *m_earliest_send < until) {
+        m_earliest_send = until;
+    }
+}
 
 const RateLimitPolicy &RateLimitManager::policy()
 {
@@ -60,238 +94,56 @@ const RateLimitPolicy &RateLimitManager::policy()
     return *m_policy;
 }
 
-// Send the active request immediately.
-void RateLimitManager::SendRequest()
+int RateLimitManager::msecToNextSend() const
 {
-    spdlog::trace("RateLimitManager::SendRequest() entered");
-    if (!m_policy) {
-        spdlog::error("The rate limit manager attempted to send a request without a policy.");
-        return;
+    if (!m_next_send_deadline) {
+        return -1;
     }
-
-    if (!m_active_request) {
-        spdlog::error(
-            "The rate limit manager attempted to send a request with no request to send.");
-        return;
-    }
-
-    auto &request = *m_active_request;
-    spdlog::trace("{} sending request {} to {} via {}",
-                  m_policy->name(),
-                  request.id,
-                  request.endpoint,
-                  request.network_request.url().toString());
-
-    if (!m_sender) {
-        spdlog::error("Rate limit manager cannot send requests.");
-        return;
-    }
-    m_active_request->send_time = QDateTime::currentDateTime().toLocalTime();
-    QNetworkReply *reply = m_sender(request.network_request);
-    connect(reply, &QNetworkReply::finished, this, &RateLimitManager::ReceiveReply);
-}
-
-// Called when the active request's reply is finished.
-void RateLimitManager::ReceiveReply()
-{
-    spdlog::trace("RateLimitManager::ReceiveReply() entered");
-    QNetworkReply *reply = qobject_cast<QNetworkReply *>(sender());
-
-    const QDateTime now = QDateTime::currentDateTime().toLocalTime();
-
-    if (!m_policy) {
-        spdlog::error("The rate limit manager cannot recieve a reply when the policy is null.");
-        return;
-    }
-
-    if (!m_active_request) {
-        spdlog::error("The rate limit manager received a reply without an active request.");
-        return;
-    }
-
-    if (m_capture) {
-        m_capture->RecordReply(m_policy->name(), *m_active_request, reply, now);
-    }
-
-    // Make sure the reply has a rate-limit header. Network-level failures
-    // (e.g. no connectivity) produce replies without headers; surface them to
-    // the caller as failed requests and move on, so the queue does not jam.
-    if (!reply->hasRawHeader("X-Rate-Limit-Policy")) {
-        spdlog::error("The rate limit manager received a reply for {} without rate limit headers: "
-                      "error {} ({})",
-                      m_policy->name(),
-                      reply->error(),
-                      reply->errorString());
-        if (m_active_request->reply) {
-            emit m_active_request->reply->complete(reply);
-        } else {
-            reply->deleteLater();
-        }
-        m_active_request = nullptr;
-        ActivateRequest();
-        return;
-    }
-
-    // Add this reply to the history.
-    RateLimit::Event event;
-    event.request_id = m_active_request->id;
-    event.request_url = m_active_request->network_request.url().toString();
-    event.request_time = m_active_request->send_time;
-    event.received_time = now;
-    event.reply_time = RateLimit::ParseDate(reply).toLocalTime();
-    event.reply_status = RateLimit::ParseStatus(reply);
-
-    m_history.push_front(event);
-    if (m_history.size() > m_history_size) {
-        m_history.pop_back();
-    }
-
-    const int response_sec = event.request_time.secsTo(event.reply_time);
-    if (response_sec > MAXIMUM_API_RESPONSE_SEC) {
-        spdlog::error("WARNING: The system clock may be wrong: an API call seems to have taken too "
-                      "long: {} seconds."
-                      " This may lead to API rate limit violations.",
-                      response_sec);
-    } else if (response_sec < -MAXIMUM_EARLY_ARRIVAL_SEC) {
-        spdlog::error("WARNING: The system clock may be wrong: an API call seems to have been "
-                      "answered {}s before it was made."
-                      " This may lead to API rate limit violations.",
-                      -response_sec);
-    }
-
-    spdlog::trace("RateLimitManager {} received reply for request {} with status {}",
-                  m_policy->name(),
-                  event.request_id,
-                  event.reply_status);
-
-    // Now examine the new policy and update ourselves accordingly.
-    Update(reply);
-
-    bool violation_detected = false;
-
-    if (reply->error() == QNetworkReply::NoError) {
-        // Check for errors.
-        if (m_policy->status() >= RateLimit::Status::VIOLATION) {
-            spdlog::error("Reply did not have an error, but the rate limit policy shows a "
-                          "violation occured.");
-            violation_detected = true;
-        }
-        if (event.reply_status == VIOLATION_STATUS) {
-            spdlog::error("Reply did not have an error, but the HTTP status indicates a rate limit "
-                          "violation.");
-            violation_detected = true;
-        }
-
-        // Since the request finished successfully, signal complete()
-        // so anyone listening can handle the reply.
-        if (m_active_request->reply) {
-            spdlog::trace("RateLimiteManager::ReceiveReply() about to emit 'complete' signal");
-            emit m_active_request->reply->complete(reply);
-        } else {
-            spdlog::error("Cannot complete the rate limited request because the reply is null: {} "
-                          "request {}: {}",
-                          m_policy->name(),
-                          m_active_request->id,
-                          m_active_request->network_request.url().toString());
-        }
-
-        m_active_request = nullptr;
-
-        // Activate the next queued reqeust.
-        ActivateRequest();
-
-    } else {
-        if (event.reply_status == VIOLATION_STATUS) {
-            if (!reply->hasRawHeader("Retry-After")) {
-                spdlog::error(
-                    "HTTP status indicates a rate limit violation, but 'Retry-After' is missing");
-            }
-            if (m_policy->status() != RateLimit::Status::VIOLATION) {
-                spdlog::error("HTTP status indicates a rate limit violation, but was not flagged "
-                              "in the policy update");
-            }
-            violation_detected = true;
-        }
-
-        if (reply->hasRawHeader("Retry-After")) {
-            // There was a rate limit violation. Keep the active request so it
-            // is resent when the timer fires.
-            violation_detected = true;
-            const int retry_sec = reply->rawHeader("Retry-After").toInt();
-            const int retry_msec = (1000 * retry_sec);
-            spdlog::error("Rate limit VIOLATION for policy {} (retrying after {} seconds)",
-                          m_policy->name(),
-                          (retry_msec / 1000));
-            m_activation_timer.setInterval(retry_msec);
-            m_activation_timer.start();
-            m_active_request->scheduled_time = now.addMSecs(retry_msec);
-            m_active_request->reply = nullptr;
-            reply->deleteLater();
-
-        } else {
-            // Some other HTTP error was encountered. There is no retry for
-            // these; surface the failure to the caller so it can count the
-            // request as complete, and move on to the next queued request.
-            spdlog::error("policy manager for {} request {} reply status was {} and error was {}",
-                          m_policy->name(),
-                          m_active_request->id,
-                          event.reply_status,
-                          reply->error());
-            NetworkManager::logRequest(m_active_request->network_request);
-            NetworkManager::logReply(reply);
-            if (m_active_request->reply) {
-                emit m_active_request->reply->complete(reply);
-            } else {
-                reply->deleteLater();
-            }
-            m_active_request = nullptr;
-            ActivateRequest();
-        }
-    }
-
-    if (violation_detected) {
-        spdlog::error("Rate limit violation detected for policy '{}':\n{}",
-                      m_policy->name(),
-                      m_policy->GetBorderlineReport());
-        LogPolicyHistory();
-        emit Violation(m_policy->name());
-    } else {
-        // For now, let's print the borderline report for trace debugging.
-        if (m_policy->status() == RateLimit::Status::BORDERLINE) {
-            spdlog::warn("Rate limit policy '{}' is BORDERLINE and the next safe send is at {}",
-                         m_policy->name(),
-                         m_policy->GetNextSafeSend(m_history).toString());
-            if (spdlog::should_log(spdlog::level::trace)) {
-                spdlog::trace("Rate limit borderline report for policy '{}':\n{}",
-                              m_policy->name(),
-                              m_policy->GetBorderlineReport());
-            }
-        }
-    }
+    const auto remaining = *m_next_send_deadline - m_scheduler.Now();
+    return static_cast<int>(std::max<std::chrono::milliseconds::rep>(remaining.count(), 0));
 }
 
 void RateLimitManager::Update(QNetworkReply *reply)
 {
     spdlog::trace("RateLimitManager::Update() entered");
 
-    // Get the rate limit policy from this reply.
-    spdlog::trace("RateLimitManager::Update() parsing policy");
-    auto new_policy = std::make_unique<RateLimitPolicy>(reply);
+    // Get the rate limit policy from this reply. The parse is total (D8):
+    // a reply whose rate-limit headers fail the grammar updates nothing —
+    // today's parser crashed on these inputs.
+    auto parsed = RateLimitPolicy::Parse(reply);
+    if (!parsed) {
+        spdlog::error("Rate Limit Policy: not updating '{}': the reply's rate-limit headers "
+                      "failed to parse: {}",
+                      m_policy ? m_policy->name() : QString("<no policy>"),
+                      parsed.error());
+        return;
+    }
 
     // If there was an existing policy, compare them.
     if (m_policy) {
-        spdlog::trace("RateLimitManager::Update() {} checking update against existing policy",
-                      m_policy->name());
-        if (!m_policy->Check(*new_policy)) {
+        // A pump's policy name never changes after creation (D4/D8): a
+        // mismatched name leaves the policy byte-for-byte un-updated.
+        // Phase 4 surfaces the affected request as a Protocol error; until
+        // then the loud log and the capture record are the detection.
+        if (m_policy->name() != parsed->name()) {
+            spdlog::error("Rate Limit Policy: REFUSING to update '{}' from a reply naming a "
+                          "different policy '{}' — the policy is left un-updated (D8)",
+                          m_policy->name(),
+                          parsed->name());
+            return;
+        }
+        // A changed definition under the same name is adopted: dynamic
+        // limit changes must update pacing state. Check() logs the diff.
+        if (!m_policy->Check(*parsed)) {
             spdlog::error("Rate Limit Policy: the updated policy is mismatched:\nCurrent "
                           "Policy:\n{}\nNew Policy:\n{}",
                           m_policy->GetPolicyReport(),
-                          new_policy->GetPolicyReport());
+                          parsed->GetPolicyReport());
         }
     }
 
     // Update the rate limit policy.
-    m_policy = std::move(new_policy);
+    m_policy = std::make_unique<RateLimitPolicy>(std::move(*parsed));
 
     // Grow the history capacity if needed.
     const size_t max_hits = m_policy->maximum_hits();
@@ -305,97 +157,299 @@ void RateLimitManager::Update(QNetworkReply *reply)
     }
 
     emit PolicyUpdated(policy());
+
+    // Entries queued before the policy arrived can drain now.
+    if (!m_draining && !m_failed && !m_queue.empty()) {
+        m_draining = true;
+        m_drain_task = Drain();
+    }
 }
 
-// If the rate limit manager is busy, the request will be queued.
-// Otherwise, the request will be sent immediately, making the
-// manager busy and causing subsequent requests to be queued.
 void RateLimitManager::QueueRequest(const QString &endpoint,
                                     const QNetworkRequest &network_request,
                                     RateLimitedReply *reply)
 {
-    auto request = std::make_unique<RateLimitedRequest>(endpoint, network_request, reply);
-    m_queued_requests.push_back(std::move(request));
-    if (m_active_request) {
-        emit QueueUpdated(m_policy->name(), static_cast<int>(m_queued_requests.size()));
-    } else {
-        ActivateRequest();
+    if (m_failed) {
+        spdlog::error("The rate limit pump for '{}' is in the terminal failed state; refusing "
+                      "the request for {}",
+                      m_policy ? m_policy->name() : QString("<no policy>"),
+                      endpoint);
+        reply->deleteLater();
+        return;
+    }
+    m_queue.push_back(std::make_unique<RateLimitedRequest>(endpoint, network_request, reply));
+    if (m_draining) {
+        emit QueueUpdated(m_policy->name(), static_cast<int>(m_queue.size()));
+        return;
+    }
+    if (!m_policy) {
+        // Held until Update() installs a policy: the drain needs pacing
+        // state to run (the hub's Update-before-Queue contract).
+        return;
+    }
+    m_draining = true;
+    m_drain_task = Drain();
+}
+
+QCoro::Task<> RateLimitManager::Drain()
+{
+    // No exception ever escapes a root coroutine (IR4/R5-1): the catch-all
+    // is what implements the terminal failed state.
+    try {
+        while (!m_queue.empty()) {
+            auto entry = std::move(m_queue.front());
+            m_queue.pop_front();
+            emit QueueUpdated(m_policy->name(), static_cast<int>(m_queue.size()));
+            co_await ProcessEntry(*entry);
+        }
+    } catch (const std::exception &e) {
+        m_failed = true;
+        spdlog::error("The rate limit pump for '{}' FAILED with an exception: {} — {} queued "
+                      "requests dropped; later submissions will be refused",
+                      m_policy ? m_policy->name() : QString("<no policy>"),
+                      e.what(),
+                      m_queue.size());
+    } catch (...) {
+        m_failed = true;
+        spdlog::error("The rate limit pump for '{}' FAILED with an unknown exception — {} queued "
+                      "requests dropped; later submissions will be refused",
+                      m_policy ? m_policy->name() : QString("<no policy>"),
+                      m_queue.size());
+    }
+    if (m_failed) {
+        // Fail the remaining entries fast. Destroying the caller's
+        // RateLimitedReply without a completion is the only failure this
+        // boundary can express for an unsent request; phase 4's FetchError
+        // makes these clean Internal errors.
+        m_queue.clear();
+        m_next_send_deadline.reset();
+    }
+    m_draining = false;
+}
+
+QCoro::Task<> RateLimitManager::ProcessEntry(RateLimitedRequest &entry)
+{
+    // Pacing sleep: the same GetNextSafeSend arithmetic as ever (N25/N26),
+    // plus the normal buffer while the policy is below borderline.
+    QDateTime next_send = m_policy->GetNextSafeSend(m_history);
+    if (m_policy->status() < RateLimit::Status::BORDERLINE) {
+        next_send = next_send.addMSecs(NORMAL_BUFFER_MSEC);
+    }
+    std::chrono::milliseconds deadline
+        = m_scheduler.Now()
+          + std::chrono::milliseconds(
+              std::max<qint64>(QDateTime::currentDateTime().msecsTo(next_send), 0));
+    // An externally-imposed hold (the D4 HEAD-429 case) is a deadline on
+    // the scheduler's clock; when it is later than the pacing deadline it
+    // governs, and the announced wall time is derived from it.
+    if (m_earliest_send && *m_earliest_send > deadline) {
+        deadline = *m_earliest_send;
+        next_send = QDateTime::currentDateTime().addMSecs(
+            (deadline - m_scheduler.Now()).count());
+    }
+    entry.scheduled_time = next_send;
+    if (deadline > m_scheduler.Now()) {
+        spdlog::trace("{} waiting {} msecs to send request {}",
+                      m_policy->name(),
+                      (deadline - m_scheduler.Now()).count(),
+                      entry.id);
+        AnnouncePause(next_send, deadline);
+        co_await RateLimit::SleepUntil(m_scheduler, deadline, {});
+        m_next_send_deadline.reset();
+    }
+
+    for (int attempt = 1; attempt <= MAX_ATTEMPTS; ++attempt) {
+        // Every send acquires the gate (D5). Phase-3 entries carry no stop
+        // token, so the wait is explicitly non-cancelable.
+        auto permit = co_await m_gate.Acquire(std::stop_token{});
+
+        // A hold may have been installed while this entry waited at the
+        // gate: a HEAD-429 probe joining this pump (shared policy, D4)
+        // installs its hold behind the very HEAD the entry is queued
+        // behind, and the pacing check above ran long before. Release
+        // without dispatching (an undispatched release charges no spacing
+        // interval, so other lanes proceed while we wait), sleep out the
+        // hold, and reacquire — re-checking, in case it was extended
+        // meanwhile. A hold-wait consumes no attempt: nothing was sent.
+        while (m_earliest_send && *m_earliest_send > m_scheduler.Now()) {
+            const std::chrono::milliseconds hold = *m_earliest_send;
+            const QDateTime hold_until = QDateTime::currentDateTime().addMSecs(
+                (hold - m_scheduler.Now()).count());
+            // The hold is now this entry's scheduling decision: keep the
+            // capture's expected-send timestamp honest (the same rule as
+            // the retry path), or the record would portray the deliberate
+            // hold as unexplained lateness.
+            entry.scheduled_time = hold_until;
+            permit.Release();
+            AnnouncePause(hold_until, hold);
+            co_await RateLimit::SleepUntil(m_scheduler, hold, {});
+            m_next_send_deadline.reset();
+            permit = co_await m_gate.Acquire(std::stop_token{});
+        }
+
+        entry.send_time = QDateTime::currentDateTime().toLocalTime();
+        permit.MarkDispatched();
+        ReplyGuard reply(m_sender(entry.network_request));
+        if (!reply) {
+            // A sender that cannot send is a wiring bug; contained as a
+            // pump failure rather than a null dereference.
+            throw std::runtime_error("the rate limit manager's sender returned no reply");
+        }
+
+        co_await reply.get();
+
+        // The permit span ends at reply-finish (D5): a permit is never
+        // held across a retry sleep (R4-1).
+        permit.Release();
+
+        // Bookkeeping first, then observation, then classification (D3).
+        RecordLandedReply(entry, reply.get());
+
+        const int status = RateLimit::ParseStatus(reply.get());
+        if (status == VIOLATION_STATUS) {
+            // Every 429 records its violation before any retry decision:
+            // the server counted the exchange (N25).
+            spdlog::error("Rate limit violation detected for policy '{}':\n{}",
+                          m_policy->name(),
+                          m_policy->GetBorderlineReport());
+            LogPolicyHistory();
+            emit Violation(m_policy->name());
+
+            const auto retry_after = RateLimit::ParseRetryAfter(reply.get());
+            if (retry_after && attempt < MAX_ATTEMPTS) {
+                const QDateTime now = QDateTime::currentDateTime();
+                QDateTime retry_at = now.addSecs(*retry_after + RETRY_BUCKET_PAD_SECS
+                                                 + RETRY_BUFFER_SECS);
+                const QDateTime safe_send = m_policy->GetNextSafeSend(m_history);
+                if (retry_at < safe_send) {
+                    retry_at = safe_send;
+                }
+                spdlog::error("Rate limit VIOLATION for policy {} (retrying at {}, attempt "
+                              "{} of {})",
+                              m_policy->name(),
+                              retry_at.toString(),
+                              attempt + 1,
+                              MAX_ATTEMPTS);
+                entry.scheduled_time = retry_at;
+                const qint64 retry_delay = std::max<qint64>(now.msecsTo(retry_at), 0);
+                AnnouncePause(retry_at, m_scheduler.Now() + std::chrono::milliseconds(retry_delay));
+                co_await RateLimit::SleepUntil(m_scheduler, *m_next_send_deadline, {});
+                m_next_send_deadline.reset();
+                // The guard releases this attempt's 429 reply; the next
+                // attempt re-acquires the gate like every send (ER7).
+                continue;
+            }
+            // Terminal 429: retries exhausted, or no acceptable Retry-After
+            // (missing, non-numeric, negative, or above the cap). Complete
+            // immediately — never sleep on an exhausted attempt (D3).
+            if (!retry_after) {
+                spdlog::error("Rate limit violation for policy {} is not retryable: no "
+                              "acceptable Retry-After",
+                              m_policy->name());
+            } else {
+                spdlog::error("Rate limit violation for policy {}: retries exhausted after {} "
+                              "attempts",
+                              m_policy->name(),
+                              attempt);
+            }
+        } else if (reply->error() == QNetworkReply::NoError
+                   && m_policy->status() >= RateLimit::Status::VIOLATION) {
+            // The reply looked fine but the headers report a violation.
+            spdlog::error("Reply did not have an error, but the rate limit policy shows a "
+                          "violation occured.");
+            spdlog::error("Rate limit violation detected for policy '{}':\n{}",
+                          m_policy->name(),
+                          m_policy->GetBorderlineReport());
+            LogPolicyHistory();
+            emit Violation(m_policy->name());
+        } else if (reply->error() != QNetworkReply::NoError) {
+            // Non-429 failures are not retried: the errored reply is
+            // surfaced to the caller, who counts the request as complete.
+            spdlog::error("policy manager for {} request {} reply status was {} and error was {}",
+                          m_policy->name(),
+                          entry.id,
+                          status,
+                          reply->error());
+            NetworkManager::logRequest(entry.network_request);
+            NetworkManager::logReply(reply.get());
+        }
+
+        // Final outcome — success, non-retryable error, or terminal 429:
+        // hand the reply to the caller, who owns it now (the pump is
+        // stable and the permit long released — IR6).
+        if (entry.reply) {
+            QNetworkReply *raw = reply.release();
+            emit entry.reply->complete(raw);
+            // The caller's handle is destroyed synchronously after the
+            // emission — the pinned F59 ownership behavior, unchanged
+            // until the QFuture boundary replaces it in phase 4.
+            entry.reply.reset();
+        }
+        co_return;
     }
 }
 
-// Send the active request at the next time it will be safe to do so
-// without violating the rate limit policy.
-void RateLimitManager::ActivateRequest()
+void RateLimitManager::RecordLandedReply(RateLimitedRequest &entry, QNetworkReply *reply)
 {
-    spdlog::trace("RateLimitManager::ActivateRequest() entered");
-    if (!m_policy) {
-        spdlog::error("Cannot activate a request because the policy is null.");
-        return;
-    }
-    if (m_active_request) {
-        spdlog::debug("Cannot activate a request because a request is already active.");
-        return;
-    }
-    if (m_queued_requests.empty()) {
-        spdlog::debug("Cannot active a request because the queue is empty.");
-        return;
+    const QDateTime now = QDateTime::currentDateTime().toLocalTime();
+
+    // Capture before any validation, so degraded replies are recorded too.
+    if (m_capture) {
+        m_capture->RecordReply(m_policy->name(), entry, reply, now);
     }
 
-    m_active_request = std::move(m_queued_requests.front());
-    m_queued_requests.pop_front();
-    emit QueueUpdated(m_policy->name(), static_cast<int>(m_queued_requests.size()));
-
-    const QDateTime now = QDateTime::currentDateTime();
-
-    QDateTime next_send = m_policy->GetNextSafeSend(m_history);
-
-    if (next_send.isValid() == false) {
-        spdlog::error("Cannot activate a request because the next send is invalid");
-        return;
+    // Every landed reply records its history event (D3) — the server
+    // counted the exchange whatever the client does next (N25).
+    RateLimit::Event event;
+    event.request_id = entry.id;
+    event.request_url = entry.network_request.url().toString();
+    event.request_time = entry.send_time;
+    event.received_time = now;
+    event.reply_time = RateLimit::ParseDate(reply).toLocalTime();
+    event.reply_status = RateLimit::ParseStatus(reply);
+    m_history.push_front(event);
+    if (m_history.size() > m_history_size) {
+        m_history.pop_back();
     }
 
-    spdlog::trace(
-        "RateLimitManager::ActivateRequest() {} next_send before adjustment is {} (in {} seconds)",
-        m_policy->name(),
-        next_send.toString(),
-        now.secsTo(next_send));
-
-    if (m_policy->status() < RateLimit::Status::BORDERLINE) {
-        spdlog::trace("RateLimitManager::ActivateRequest() {} is NOT b,orderline, adding {} msecs "
-                      "to next send",
-                      m_policy->name(),
-                      NORMAL_BUFFER_MSEC);
-        next_send = next_send.addMSecs(NORMAL_BUFFER_MSEC);
-    }
-
-    static QDateTime last_send;
-
-    if (last_send.isValid()) {
-        if (last_send.msecsTo(next_send) < MINIMUM_INTERVAL_MSEC) {
-            spdlog::trace("RateLimitManager::ActivateRequest() adding {} to next send",
-                          MINIMUM_INTERVAL_MSEC);
-            next_send = last_send.addMSecs(MINIMUM_INTERVAL_MSEC);
+    if (event.reply_time.isValid()) {
+        const int response_sec = event.request_time.secsTo(event.reply_time);
+        if (response_sec > MAXIMUM_API_RESPONSE_SEC) {
+            spdlog::error("WARNING: The system clock may be wrong: an API call seems to have "
+                          "taken too long: {} seconds."
+                          " This may lead to API rate limit violations.",
+                          response_sec);
+        } else if (response_sec < -MAXIMUM_EARLY_ARRIVAL_SEC) {
+            spdlog::error("WARNING: The system clock may be wrong: an API call seems to have "
+                          "been answered {}s before it was made."
+                          " This may lead to API rate limit violations.",
+                          -response_sec);
         }
     }
 
-    m_active_request->scheduled_time = next_send;
+    spdlog::trace("RateLimitManager {} received reply for request {} with status {}",
+                  m_policy->name(),
+                  event.request_id,
+                  event.reply_status);
 
-    int delay = QDateTime::currentDateTime().msecsTo(next_send);
-    if (delay < 0) {
-        delay = 0;
-    }
+    // Observation follows bookkeeping and precedes classification
+    // (R6-3/D8): the headers are parse-attempted on every landed reply,
+    // whatever its status — a 429, a 500, and a 2xx-plus-transport-error
+    // all keep the policy current. Update() applies the Full-and-matching
+    // gate and logs failures loudly.
+    Update(reply);
 
-    spdlog::trace(
-        "RateLimitManager::ActivateRequest() {} waiting {} msecs to send request {} at {}",
-        m_policy->name(),
-        delay,
-        m_active_request->id,
-        next_send.toLocalTime().toString());
-    m_activation_timer.setInterval(delay);
-    m_activation_timer.start();
-    if (delay > 0) {
-        emit Paused(m_policy->name(), next_send);
+    if (m_policy->status() == RateLimit::Status::BORDERLINE) {
+        spdlog::warn("Rate limit policy '{}' is BORDERLINE and the next safe send is at {}",
+                     m_policy->name(),
+                     m_policy->GetNextSafeSend(m_history).toString());
     }
+}
+
+void RateLimitManager::AnnouncePause(const QDateTime &until, std::chrono::milliseconds deadline)
+{
+    m_next_send_deadline = deadline;
+    emit Paused(m_policy->name(), until);
 }
 
 void RateLimitManager::LogPolicyHistory()

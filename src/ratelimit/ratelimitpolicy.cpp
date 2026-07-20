@@ -46,32 +46,16 @@ constexpr const int INITIAL_VS_SUSTAINED_PERIOD_CUTOFF = 75;
 constexpr const int TIMING_BUCKET_BUFFER_SECS = 1;
 
 //=========================================================================================
-// RateLimitData
-//=========================================================================================
-
-RateLimitData::RateLimitData(const QByteArray &header_fragment)
-    : m_hits(-1)
-    , m_period(-1)
-    , m_restriction(-1)
-{
-    const QByteArrayList parts = header_fragment.split(':');
-    m_hits = parts[0].toInt();
-    m_period = parts[1].toInt();
-    m_restriction = parts[2].toInt();
-}
-
-//=========================================================================================
 // RateLimitItem
 //=========================================================================================
 
-RateLimitItem::RateLimitItem(const QByteArray &limit_fragment, const QByteArray &state_fragment)
-    : m_limit(limit_fragment)
-    , m_state(state_fragment)
+RateLimitItem::RateLimitItem(const RateLimitData &limit, const RateLimitData &state)
+    : m_limit(limit)
+    , m_state(state)
 {
-    // Determine the status of this item.
-    if (m_state.period() != m_limit.period()) {
-        m_status = RateLimit::Status::INVALID;
-    } else if (m_state.hits() > m_limit.hits()) {
+    // Determine the status of this item. The parse guarantees the periods
+    // match, so status is purely a hits comparison.
+    if (m_state.hits() > m_limit.hits()) {
         m_status = RateLimit::Status::VIOLATION;
     } else if (m_state.hits() == m_limit.hits()) {
         m_status = RateLimit::Status::BORDERLINE;
@@ -107,22 +91,10 @@ bool RateLimitItem::Check(const RateLimitItem &other) const
 // RateLimitRule
 //=========================================================================================
 
-RateLimitRule::RateLimitRule(const QByteArray &name, QNetworkReply *const reply)
+RateLimitRule::RateLimitRule(const QString &name, std::vector<RateLimitItem> items)
     : m_name(name)
-{
-    const QByteArrayList limit_fragments = RateLimit::ParseRateLimit(reply, name);
-    const QByteArrayList state_fragments = RateLimit::ParseRateLimitState(reply, name);
-    const int item_count = limit_fragments.size();
-    if (state_fragments.size() != limit_fragments.size()) {
-        spdlog::error("Invalid data for policy role.");
-        return;
-    }
-    m_items.reserve(item_count);
-    for (int j = 0; j < item_count; ++j) {
-        // Create a new rule item from the next pair of fragments.
-        m_items.emplace_back(limit_fragments[j], state_fragments[j]);
-    }
-}
+    , m_items(std::move(items))
+{}
 
 bool RateLimitRule::Check(const RateLimitRule &other) const
 {
@@ -155,23 +127,124 @@ bool RateLimitRule::Check(const RateLimitRule &other) const
 // RateLimitPolicy
 //=========================================================================================
 
-RateLimitPolicy::RateLimitPolicy(QNetworkReply *const reply)
-    : m_name(RateLimit::ParseRateLimitPolicy(reply))
+namespace {
+
+    // One strictly-validated "hits:period:restriction" triplet. `is_limit`
+    // selects the in-range rules that differ between limit and state
+    // triplets (a zero-hit limit is meaningless as a lookback and was a
+    // live divide-by-zero risk; state hits legitimately start at zero).
+    std::expected<RateLimitData, QString> ParseTriplet(const QByteArray &fragment, bool is_limit)
+    {
+        const QByteArrayList parts = fragment.split(':');
+        if (parts.size() != 3) {
+            return std::unexpected(
+                QString("triplet '%1' does not have exactly three fields").arg(fragment));
+        }
+        int values[3];
+        for (int i = 0; i < 3; ++i) {
+            bool ok = false;
+            values[i] = parts[i].toInt(&ok);
+            if (!ok) {
+                return std::unexpected(
+                    QString("triplet '%1' field %2 is not an integer").arg(fragment).arg(i + 1));
+            }
+        }
+        const auto [hits, period, restriction] = std::tie(values[0], values[1], values[2]);
+        if (is_limit ? (hits <= 0) : (hits < 0)) {
+            return std::unexpected(QString("triplet '%1' hits out of range").arg(fragment));
+        }
+        if (period <= 0) {
+            return std::unexpected(QString("triplet '%1' period out of range").arg(fragment));
+        }
+        if (restriction < 0) {
+            return std::unexpected(QString("triplet '%1' restriction out of range").arg(fragment));
+        }
+        return RateLimitData(hits, period, restriction);
+    }
+
+} // namespace
+
+std::expected<RateLimitPolicy, QString> RateLimitPolicy::Parse(QNetworkReply *const reply)
+{
+    if (!reply->hasRawHeader("X-Rate-Limit-Policy")) {
+        return std::unexpected(QString("missing X-Rate-Limit-Policy header"));
+    }
+    const QString policy_name = QString::fromUtf8(reply->rawHeader("X-Rate-Limit-Policy"));
+    if (policy_name.isEmpty()) {
+        return std::unexpected(QString("empty policy name"));
+    }
+
+    if (!reply->hasRawHeader("X-Rate-Limit-Rules")) {
+        return std::unexpected(QString("missing X-Rate-Limit-Rules header"));
+    }
+    const QByteArrayList rule_names = reply->rawHeader("X-Rate-Limit-Rules").split(',');
+    // Qt's split turns an empty value into a one-element [""] list — the
+    // shape behind the out-of-bounds read this parse replaces — so the
+    // empty-name check below also rejects an empty rules list.
+    for (const auto &rule_name : rule_names) {
+        if (rule_name.isEmpty()) {
+            return std::unexpected(QString("empty rule name in rules list"));
+        }
+    }
+
+    std::vector<RateLimitRule> rules;
+    rules.reserve(rule_names.size());
+    for (const auto &rule_name : rule_names) {
+        const QByteArray limit_header = "X-Rate-Limit-" + rule_name;
+        const QByteArray state_header = limit_header + "-State";
+        if (!reply->hasRawHeader(limit_header)) {
+            return std::unexpected(QString("missing %1 header").arg(QString(limit_header)));
+        }
+        if (!reply->hasRawHeader(state_header)) {
+            return std::unexpected(QString("missing %1 header").arg(QString(state_header)));
+        }
+        const QByteArrayList limit_fragments = reply->rawHeader(limit_header).split(',');
+        const QByteArrayList state_fragments = reply->rawHeader(state_header).split(',');
+        if (limit_fragments.size() != state_fragments.size()) {
+            return std::unexpected(QString("rule '%1' has %2 limits but %3 states")
+                                       .arg(QString(rule_name))
+                                       .arg(limit_fragments.size())
+                                       .arg(state_fragments.size()));
+        }
+
+        std::vector<RateLimitItem> items;
+        items.reserve(limit_fragments.size());
+        for (int j = 0; j < limit_fragments.size(); ++j) {
+            const auto limit = ParseTriplet(limit_fragments[j], true);
+            if (!limit) {
+                return std::unexpected(
+                    QString("rule '%1' limit: %2").arg(QString(rule_name), limit.error()));
+            }
+            const auto state = ParseTriplet(state_fragments[j], false);
+            if (!state) {
+                return std::unexpected(
+                    QString("rule '%1' state: %2").arg(QString(rule_name), state.error()));
+            }
+            if (state->period() != limit->period()) {
+                return std::unexpected(QString("rule '%1' state period %2 does not match "
+                                               "limit period %3")
+                                           .arg(QString(rule_name))
+                                           .arg(state->period())
+                                           .arg(limit->period()));
+            }
+            items.emplace_back(*limit, *state);
+        }
+        if (items.empty()) {
+            return std::unexpected(QString("rule '%1' has no items").arg(QString(rule_name)));
+        }
+        rules.emplace_back(QString::fromUtf8(rule_name), std::move(items));
+    }
+
+    return RateLimitPolicy(policy_name, std::move(rules));
+}
+
+RateLimitPolicy::RateLimitPolicy(const QString &name, std::vector<RateLimitRule> rules)
+    : m_name(name)
+    , m_rules(std::move(rules))
     , m_status(RateLimit::Status::OK)
     , m_maximum_hits(0)
 {
-    spdlog::trace("RateLimit::Policy::Policy() entered");
-    const QByteArrayList rule_names = RateLimit::ParseRateLimitRules(reply);
-
-    // Parse the name of the rate limit policy and all the rules for this reply.
-    m_rules.reserve(rule_names.size());
-
-    // Iterate over all the rule names expected.
-    for (const auto &rule_name : rule_names) {
-        // Create a new rule and add it to the list.
-        const auto &rule = m_rules.emplace_back(rule_name, reply);
-
-        // Process each item in this rule.
+    for (const auto &rule : m_rules) {
         for (const auto &item : rule.items()) {
             // Log any violations.
             if (item.status() >= RateLimit::Status::VIOLATION) {
@@ -370,46 +443,3 @@ QDateTime RateLimitPolicy::GetNextSafeSend(const std::deque<RateLimit::Event> &h
     return next_send;
 }
 
-QDateTime RateLimitPolicy::EstimateDuration(int num_requests, int minimum_delay_msec) const
-{
-    spdlog::trace("RateLimit::Policy::EstimateDuration() entered");
-
-    int longest_wait = 0;
-
-    for (const auto &rule : m_rules) {
-        for (const auto &item : rule.items()) {
-            int wait = 0;
-
-            const int current_hits = item.state().hits();
-            const int max_hits = item.limit().hits();
-            const int period_length = item.limit().period();
-            const int restriction = item.limit().restriction();
-
-            int initial_burst = max_hits - current_hits;
-            if (initial_burst < 0) {
-                initial_burst = 0;
-                wait += restriction;
-            }
-
-            int remaining_requests = num_requests - initial_burst;
-            if (remaining_requests < 0) {
-                remaining_requests = 0;
-            }
-
-            const int full_periods = (remaining_requests / max_hits);
-            const int final_burst = (remaining_requests % max_hits);
-
-            const int a = initial_burst * minimum_delay_msec;
-            const int b = full_periods * period_length * 1000;
-            const int c = final_burst * minimum_delay_msec;
-            const int total_msec = a + b + c;
-
-            wait += (total_msec / 1000);
-
-            if (longest_wait < wait) {
-                longest_wait = wait;
-            }
-        }
-    }
-    return QDateTime::currentDateTime().toLocalTime().addSecs(longest_wait);
-}

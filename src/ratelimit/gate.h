@@ -35,15 +35,12 @@ namespace RateLimit {
     //    Grant and dispatch are separate moments — the grant settles a
     //    promise, but the winner dispatches only after its queued resume,
     //    which a busy main thread can delay — so the floor is measured
-    //    from a dispatch stamp, not from grant time: the Permit stamps the
-    //    gate when it is constructed (at waiter resume, in the same event-
-    //    loop iteration as the dispatch that follows), and a granted-but-
+    //    from a dispatch stamp, not from grant time: the holder calls
+    //    MarkDispatched() at the actual send site, and a granted-but-
     //    unstamped permit defers every further grant until its stamp or
-    //    release arrives. One conservative consequence: an entry that
-    //    acquires, sees its stop, and releases without sending still
-    //    charges one spacing interval (over-spacing, the harmless
-    //    direction). Phase 3's permit-dispatch API can refine the stamp
-    //    point.
+    //    release arrives. A permit released without ever dispatching (the
+    //    stopped-after-acquire path) charges no spacing interval — nothing
+    //    was sent, so there is nothing to space from.
     //  - Permit span (IR6/R4-1): a permit is held from acquisition until the
     //    holder releases it — the pump releases at reply-finish, so a permit
     //    never survives into a retry sleep. Release is explicit or RAII.
@@ -82,6 +79,13 @@ namespace RateLimit {
             ~Permit();
 
             bool valid() const { return m_held; }
+
+            // Stamp the gate's spacing floor at the real send site: call
+            // immediately before dispatching the request this permit
+            // covers. Idempotent; further grants stay deferred until the
+            // stamp (or a no-send Release) arrives.
+            void MarkDispatched();
+
             void Release();
 
         private:
@@ -91,6 +95,7 @@ namespace RateLimit {
             QPointer<Gate> m_gate;
             bool m_head = false;
             bool m_held = false;
+            bool m_dispatched = false;
         };
 
         // Wait for an ordinary permit. Returns an invalid Permit if the
@@ -113,7 +118,7 @@ namespace RateLimit {
         void GrantPass();
         void ScheduleGrantPass(std::chrono::milliseconds when);
         void RecordDispatch();
-        void ReleasePermit(bool head);
+        void ReleasePermit(bool head, bool dispatched);
 
         Scheduler &m_scheduler;
         std::deque<std::shared_ptr<WaiterState>> m_ordinary;

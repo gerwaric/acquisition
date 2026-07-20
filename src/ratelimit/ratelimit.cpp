@@ -10,6 +10,19 @@
 
 using namespace RateLimit;
 
+std::optional<int> RateLimit::ParseRetryAfter(QNetworkReply *const reply)
+{
+    if (!reply->hasRawHeader("Retry-After")) {
+        return std::nullopt;
+    }
+    bool ok = false;
+    const int seconds = reply->rawHeader("Retry-After").toInt(&ok);
+    if (!ok || seconds < 0 || seconds > RETRY_AFTER_CAP_SECS) {
+        return std::nullopt;
+    }
+    return seconds;
+}
+
 // Get a header field from an HTTP reply.
 QByteArray RateLimit::ParseHeader(QNetworkReply *const reply, const QByteArray &name)
 {
