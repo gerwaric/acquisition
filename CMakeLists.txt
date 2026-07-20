@@ -297,7 +297,6 @@ set(ACQ_RATELIMIT
     src/ratelimit/ratelimit.h
     src/ratelimit/ratelimitdialog.cpp
     src/ratelimit/ratelimitdialog.h
-    src/ratelimit/ratelimitedreply.h
     src/ratelimit/ratelimitedrequest.cpp
     src/ratelimit/ratelimitedrequest.h
     src/ratelimit/ratelimiter.cpp

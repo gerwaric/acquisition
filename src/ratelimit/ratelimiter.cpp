@@ -10,12 +10,10 @@
 #include <QThread>
 
 #include <algorithm>
-#include <cstring>
 
 #include "ratelimit/fetcherror.h"
 #include "ratelimit/networkcapture.h"
 #include "ratelimit/ratelimit.h"
-#include "ratelimit/ratelimitedreply.h"
 #include "ratelimit/ratelimitmanager.h"
 #include "ratelimit/ratelimitpolicy.h"
 #include "util/networkmanager.h"
@@ -33,113 +31,6 @@ constexpr int SETUP_RETRY_COOLDOWN_SECS = 60;
 // ratelimitmanager.cpp.
 constexpr int RETRY_BUCKET_PAD_SECS = 60;
 constexpr int RETRY_BUFFER_SECS = 1;
-
-namespace {
-
-    // The synthetic reply the legacy Submit() boundary hands to callers that
-    // have not yet moved to futures: a finished reply carrying whatever the
-    // outcome expressed. Deleted with the rest of the legacy wrapper once
-    // the worker's call sites move to the facade (phase 4b).
-    class SyntheticReply : public QNetworkReply
-    {
-    public:
-        SyntheticReply(const QNetworkRequest &request,
-                       const QByteArray &body,
-                       QNetworkReply::NetworkError error,
-                       const QString &message,
-                       int http_status,
-                       QObject *parent)
-            : QNetworkReply(parent)
-            , m_body(body)
-        {
-            setRequest(request);
-            setUrl(request.url());
-            setOpenMode(QIODevice::ReadOnly);
-            if (http_status != 0) {
-                setAttribute(QNetworkRequest::HttpStatusCodeAttribute, http_status);
-            }
-            if (error != QNetworkReply::NoError) {
-                setError(error, message);
-            }
-            setFinished(true);
-        }
-
-        void abort() override {}
-        bool isSequential() const override { return true; }
-        qint64 bytesAvailable() const override
-        {
-            return (m_body.size() - m_offset) + QNetworkReply::bytesAvailable();
-        }
-
-    protected:
-        qint64 readData(char *data, qint64 max_size) override
-        {
-            const qint64 n = std::min<qint64>(max_size, m_body.size() - m_offset);
-            if (n <= 0) {
-                return -1;
-            }
-            std::memcpy(data, m_body.constData() + m_offset, static_cast<size_t>(n));
-            m_offset += n;
-            return n;
-        }
-
-    private:
-        QByteArray m_body;
-        qint64 m_offset{0};
-    };
-
-    // Present a FetchOutcome as the QNetworkReply the legacy boundary
-    // promises. Protocol errors are deliberately presented as errors: a
-    // legacy caller has no way to express "the payload is fine but the
-    // headers are not", and IR1 says the request must fail.
-    QNetworkReply *SynthesizeReply(const QNetworkRequest &request,
-                                   const RateLimit::FetchOutcome &outcome,
-                                   QObject *parent)
-    {
-        if (outcome) {
-            return new SyntheticReply(request,
-                                      *outcome,
-                                      QNetworkReply::NoError,
-                                      QString(),
-                                      200,
-                                      parent);
-        }
-        const RateLimit::FetchError &error = outcome.error();
-        QNetworkReply::NetworkError qt_error = error.network_error;
-        int status = error.http_status;
-        switch (error.kind) {
-        case RateLimit::FetchError::Kind::Http:
-            // Keep whatever Qt reported alongside the status, if anything.
-            if (qt_error == QNetworkReply::NoError) {
-                qt_error = QNetworkReply::UnknownServerError;
-            }
-            break;
-        case RateLimit::FetchError::Kind::RateLimited:
-            status = 429;
-            if (qt_error == QNetworkReply::NoError) {
-                qt_error = QNetworkReply::UnknownServerError;
-            }
-            break;
-        case RateLimit::FetchError::Kind::Network:
-            if (qt_error == QNetworkReply::NoError) {
-                qt_error = QNetworkReply::UnknownNetworkError;
-            }
-            break;
-        case RateLimit::FetchError::Kind::Protocol:
-            qt_error = QNetworkReply::ProtocolFailure;
-            break;
-        case RateLimit::FetchError::Kind::Parse:
-        case RateLimit::FetchError::Kind::Internal:
-        case RateLimit::FetchError::Kind::Canceled:
-            if (qt_error == QNetworkReply::NoError) {
-                qt_error = QNetworkReply::UnknownNetworkError;
-            }
-            break;
-        }
-        return new SyntheticReply(request, QByteArray(), qt_error, error.message, status, parent);
-    }
-
-} // namespace
 
 RateLimiter::RateLimiter(NetworkManager &network_manager, RateLimit::Scheduler *scheduler)
     : m_network_manager(network_manager)
@@ -275,37 +166,6 @@ void RateLimiter::PruneParkedEntry(const QString &endpoint, unsigned long id)
     // The probe is deliberately left running: it teaches the topology even
     // with nothing behind it, and cancellation is not a setup failure — no
     // cooldown is installed (D4).
-}
-
-RateLimitedReply *RateLimiter::Submit(const QString &endpoint, QNetworkRequest network_request)
-{
-    auto *reply = new RateLimitedReply();
-    QFuture<RateLimit::FetchOutcome> future = SubmitFuture(endpoint, network_request, {});
-
-    // The hop is ALWAYS queued: Qt runs a continuation on an already-ready
-    // future synchronously (S1-6), and the fail-fast path returns exactly
-    // such a future — emitting there would fire complete() before the caller
-    // had connected to it. The legacy boundary's contract is that completion
-    // is never synchronous within Submit.
-    QPointer<RateLimitedReply> guarded(reply);
-    future.then(this, [this, guarded, network_request](const RateLimit::FetchOutcome &outcome) {
-        QMetaObject::invokeMethod(
-            this,
-            [this, guarded, network_request, outcome]() {
-                if (!guarded) {
-                    return;
-                }
-                QNetworkReply *synthetic = SynthesizeReply(network_request, outcome, this);
-                emit guarded->complete(synthetic);
-                // The caller's handle is destroyed synchronously after the
-                // emission — the F59 ownership behavior, preserved until
-                // this wrapper is deleted in phase 4b.
-                delete guarded.data();
-            },
-            Qt::QueuedConnection);
-    });
-
-    return reply;
 }
 
 QCoro::Task<> RateLimiter::ProbeEndpoint(QString endpoint, QNetworkRequest request)
@@ -526,9 +386,7 @@ void RateLimiter::FailSetup(const QString &endpoint, SetupFailure failure)
     // fail-fast path completes SYNCHRONOUSLY on the future boundary
     // (SubmitFuture), which is safe precisely because the cooldown here and
     // the parked deque below are both stabilized before anything settles, so
-    // a re-entrant submission always sees consistent state. Only the legacy
-    // Submit() adapter adds a queued hop, and for a different reason — a
-    // signal emitted before the caller connects would simply be lost.
+    // a re-entrant submission always sees consistent state.
     m_cooldowns[endpoint] = failure;
 
     auto probing = m_probing.find(endpoint);

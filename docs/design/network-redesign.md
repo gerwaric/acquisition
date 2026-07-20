@@ -11,8 +11,12 @@ with parking and cooldown — F57, F58, and F5-modernization resolved);
 phase 4a complete (July 20, 2026: the `QFuture<FetchOutcome>` boundary,
 the pump's stop checkpoints, the `Protocol` outcome half, the
 `PoeApiClient` facade, and `Shop` — F60 and F50 resolved, F59 narrowed to
-the legacy adapter and resolved in 4b; phase 4 split into 4a/4b for
-harness reasons, recorded in the phasing sketch).** Drafted July 18 and
+the legacy adapter; phase 4 split into 4a/4b for harness reasons,
+recorded in the phasing sketch); phase 4b complete (July 20, 2026: the
+worker's call sites moved to the facade, `tst_workerupdate` onto a typed
+facade fake, `tst_ratelimiter` off the legacy wrapper, and
+`RateLimitedReply` + the `Submit()` adapter + its synthetic reply deleted
+— F59 resolved).** Drafted July 18 and
 reviewed through six rounds in two days, plus one post-freeze errata
 batch (rev 7: eight corrections and contract completions, all
 shrinking — R7 in the review history). The review process converged
@@ -78,9 +82,11 @@ loop for HEAD setup (F5).
 The redesign dissolves these with three moves rather than four fixes:
 
 1. **Ownership and completion move to Qt-native types** — `QFuture` with
-   `std::expected` payloads. The custom `RateLimitedReply` /
-   `RateLimitedRequest` classes are deleted; cancellation becomes the
-   abort mechanism; F57 and F59 stop being expressible.
+   `std::expected` payloads. `RateLimitedReply` (the custom reply
+   boundary) is deleted; the limiter's internal `RateLimitedRequest`
+   queue entry stops owning a reply and carries a `QPromise` instead;
+   cancellation becomes the abort mechanism; F57 and F59 stop being
+   expressible.
 2. **Queueing returns to the rate limiter** — the worker batch-submits
    and counts completions; per-policy parallelism returns automatically
    (F56); the worker stops doing flow control at all.
@@ -162,9 +168,17 @@ Five layers, each speaking one language, each testable alone:
   destruction promises may die unobserved, safely, because every
   awaiter is destroyed first: see the shutdown section; the whole
   cancellation design is D2).
-- `RateLimitedReply` and `RateLimitedRequest` are deleted. The pump's
-  internal queue entry holds the `QNetworkRequest`, the endpoint label,
-  timestamps for capture, and the `QPromise`.
+- `RateLimitedReply` and the worker-facing reply boundary (the
+  `Submit()`/callback shape) are deleted. `RateLimitedRequest` is **not**
+  deleted: it was always the limiter's internal queue entry — never a
+  type the worker named — and it is transformed in place. The field that
+  used to own a reply (`std::unique_ptr<RateLimitedReply>`) becomes the
+  `QPromise` the caller's future is built on; the entry also holds the
+  `QNetworkRequest`, the endpoint label, capture timestamps, and the stop
+  token, and `NetworkCapture` still consumes it. (An earlier draft of
+  this section listed the entry as deleted; that was wrong — the type
+  persists. A rename to something like `RequestEntry` is available as a
+  cosmetic follow-up, but is not required.)
 - Resolves F59 by construction (Qt's shared state is the single owner)
   and removes the object F57 destroyed.
 
@@ -982,7 +996,10 @@ Therefore:
 
 ## What gets deleted
 
-`RateLimitedReply`, `RateLimitedRequest`, the worker's `m_queue` /
+`RateLimitedReply` and the worker-facing reply boundary
+(`RateLimitedRequest` is **not** deleted — it is the limiter's internal
+queue entry, transformed in place to carry a `QPromise`; see D1), the
+worker's `m_queue` /
 `m_queue_id` / `SubmitNextItemRequest` / `FetchItems`'s queue walk, the
 five error-path queue clears with counter-snapping, `DiscardIfStale`
 and the generation-tag plumbing outright (D2/D6), the `SetupEndpoint`
@@ -1126,8 +1143,19 @@ sleep.)
    sleep).
 5. **Worker tests move to a facade fake** ("when asked for stash X,
    return this tab / this error") — simpler than today's byte-crafting
-   `FakeRateLimiter`, and it closes the fake-bypasses-the-managers blind
-   spot. Existing worker-update behavior pins (`tst_workerupdate.cpp`)
+   `FakeRateLimiter`, and it makes the worker suite's unit boundary
+   explicit. (Corrected in 4b: the earlier wording claimed this closed
+   a fake-bypasses-the-managers blind spot, which was wrong — a
+   `FakeRateLimiter` overrides `SubmitFuture`, so no `RateLimiter`,
+   hub, gate, or pump code runs under it either. Both fakes bypass the
+   managers equally; manager behavior is covered by the dedicated
+   manager and hub harnesses and by item 6's integration coverage,
+   never by `tst_workerupdate`.) The coverage split is: worker suite —
+   real worker over a fake typed facade; `tst_poeapiclient` — real
+   facade over a fake limiter, which is where request building and
+   endpoint labels are pinned; limiter and manager suites — real
+   networking layers over their own lower-level fakes.
+   Existing worker-update behavior pins (`tst_workerupdate.cpp`)
    are ported, not weakened. **IR2 invariant pins**: an
    already-finished success and an already-finished error future
    (fail-fast submit) run their continuations synchronously during
@@ -1261,8 +1289,9 @@ sleep.)
    shape — becomes a clean `Internal` value in phase 4); and the
    F59 ownership pin is kept byte-for-byte.
 4. `QFuture` boundary + `PoeApiClient`; `Shop` and worker call sites
-   move over; `RateLimitedReply`/`RateLimitedRequest` deleted. Resolves
-   F59.
+   move over; `RateLimitedReply` and the worker-facing reply boundary
+   deleted (`RateLimitedRequest` transformed in place into the pump's
+   promise-carrying entry — see D1). Resolves F59.
 
    **Sequencing refinement (July 20, 2026): phase 4 splits into 4a and
    4b.** The split follows from the test harness, not from the design:
@@ -1293,12 +1322,27 @@ sleep.)
    cancel yet (every call site passes a default token per D7), so the
    stop behavior is harness-pinned only.
 
-   **4b:** worker call sites move to the facade (mechanical — the
-   callback pyramid stays, parsing moves out of the handlers; coroutines
-   are phase 5); a facade fake replaces `FakeRateLimiter`;
-   `tst_workerupdate`'s pins are ported, not weakened (testing-plan item
-   5); then `RateLimitedReply`, the legacy `Submit` wrapper, and its
-   synthetic reply are deleted.
+   **4b — executed July 20, 2026.** The worker's call sites moved to the
+   facade: `ItemsManagerWorker` takes a `PoeApiClient` instead of a
+   `RateLimiter`, the queue carries a fetch intent (`StashFetch` /
+   `CharacterFetch`) rather than a prebuilt `QNetworkRequest`, and every
+   handler takes one already-classified
+   `std::expected<T, FetchError>` — the transport, status, and parse
+   checks each handler used to do collapse into a single error branch.
+   The callback pyramid stays (coroutines are phase 5); `DiscardIfStale`
+   became the generation-only `IsStale`. `tst_workerupdate` moved to a
+   typed facade fake (`FakePoeApiClient`, testing-plan item 5) that
+   records the domain arguments the worker asked with rather than
+   crafting bytes; its pins were ported, not weakened, except the F28
+   stale-arrival half, which the future boundary makes unreachable (each
+   fetch is completed once by the pump; the worker never has a request in
+   flight when an update aborts) — `IsStale` is kept for phase 5 and the
+   pin records why. `tst_ratelimiter` lost its legacy-wrapper pins; the future
+   boundary's fail-fast completes synchronously, which the ported pins
+   assert. Then `RateLimitedReply` (`.h`/`.cpp`), the `Submit()` adapter,
+   and its synthetic reply were deleted together — F59 resolved. Item 5's
+   claim that a facade fake closes a manager blind spot was corrected in
+   the same pass (it does not; neither fake runs manager code).
 5. Worker rewrite: batch submission, coroutine orchestration, abort via
    cancellation; worker queue and generation machinery deleted. Resolves
    F56.

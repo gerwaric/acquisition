@@ -7,6 +7,7 @@
 #include "datastore/stashrepo.h"
 #include "datastore/userstore.h"
 #include "itemsmanagerworker.h"
+#include "poe/poeapiclient.h"
 #include "poe/types/item.h"
 #include "ratelimit/ratelimiter.h"
 #include "testfixtures.h"
@@ -76,9 +77,12 @@ void WorkerParseTest::parsesCachedStashItems()
     settings.setValue("league", league);
     settings.sync();
 
+    // The worker needs a PoeApiClient, but ParseCachedItems touches neither
+    // it nor the limiter — this is a pure cache-parse test.
     NetworkManager network;
     RateLimiter rateLimiter(network);
-    ItemsManagerWorker worker(settings, *fixture.manager, rateLimiter);
+    PoeApiClient api(rateLimiter);
+    ItemsManagerWorker worker(settings, *fixture.manager, api);
 
     const ParseResult result = worker.ParseCachedItems(dataDir, false, false);
 
@@ -130,9 +134,12 @@ void WorkerParseTest::specialChildItemsKeyedByChildFetchId()
     settings.setValue("league", league);
     settings.sync();
 
+    // The worker needs a PoeApiClient, but ParseCachedItems touches neither
+    // it nor the limiter — this is a pure cache-parse test.
     NetworkManager network;
     RateLimiter rateLimiter(network);
-    ItemsManagerWorker worker(settings, *fixture.manager, rateLimiter);
+    PoeApiClient api(rateLimiter);
+    ItemsManagerWorker worker(settings, *fixture.manager, api);
 
     const ParseResult result = worker.ParseCachedItems(dataDir, false, false);
 

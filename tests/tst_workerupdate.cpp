@@ -5,17 +5,23 @@
 #include "datastore/characterrepo.h"
 #include "datastore/stashrepo.h"
 #include "datastore/userstore.h"
-#include "fakenetwork.h"
+#include "fakeapiclient.h"
 #include "itemsmanagerworker.h"
 #include "testfixtures.h"
 #include "util/json_readers.h"
 #include "util/networkmanager.h"
 
-// Offline update-cycle tests for ItemsManagerWorker, driven through the
-// fake-network harness (items-pipeline M1). These pin the F28 semantics —
-// a failed update loses nothing, stale replies from a superseded update
-// are discarded — and the F48 no-duplicate-characters fix, none of which
-// can be produced reliably by hand against the live API.
+// Offline update-cycle tests for ItemsManagerWorker, driven through a fake
+// typed API facade (items-pipeline M1; moved off the byte-crafting network
+// fake in network-redesign phase 4b). These pin the reachable F28 semantics —
+// a failed update loses nothing and the next one starts clean (the stale-reply
+// half became unreachable under the future boundary; see
+// failedUpdateDoesNotLeakIntoTheNext) — and the F48 no-duplicate-characters
+// fix, none of which can be produced reliably by hand against the live API.
+//
+// The worker's request building and endpoint labels are not pinned here;
+// they belong to the facade and are pinned in tst_poeapiclient. What these
+// tests pin is what the worker asked for, in domain terms.
 
 // NOTE: this class must be declared before the JSON helpers below: moc's
 // lexer treats the // in a raw string literal (the icon URL) as a comment
@@ -26,7 +32,7 @@ class WorkerUpdateTest : public QObject
 
 private slots:
     void failedUpdateKeepsItemsIntact();
-    void staleReplyFromSupersededUpdateIsDiscarded();
+    void failedUpdateDoesNotLeakIntoTheNext();
     void partialUpdateDoesNotDuplicateCharacters();
     void renamedTabMetadataRefreshesWithoutFetch();
     void vanishedMapChildItemsAreRemovedOnParentRefresh();
@@ -97,15 +103,26 @@ namespace {
         return json.toUtf8();
     }
 
-    QByteArray stashListBody(const QList<QByteArray> &stashes)
+    // The JSON helpers stay because the datastore seeding path needs them.
+    // The network side does not: the worker suite drives a typed facade
+    // fake, so responses are domain objects, not bytes. These turn one into
+    // the other so a test can express both sides the same way.
+    poe::StashTab stashOf(const QByteArray &json)
     {
-        QByteArrayList list(stashes.cbegin(), stashes.cend());
-        return R"({"stashes":[)" + list.join(",") + "]}";
+        const auto stash = json::readStash(json);
+        if (!stash) {
+            qFatal("test bug: stashOf() could not read the stash json");
+        }
+        return *stash;
     }
 
-    QByteArray stashBody(const QByteArray &stash)
+    std::vector<poe::StashTab> stashList(const QList<QByteArray> &stashes)
     {
-        return R"({"stash":)" + stash + "}";
+        std::vector<poe::StashTab> list;
+        for (const auto &stash : stashes) {
+            list.push_back(stashOf(stash));
+        }
+        return list;
     }
 
     QByteArray characterJson(const QString &id,
@@ -123,15 +140,22 @@ namespace {
         return json.toUtf8();
     }
 
-    QByteArray characterListBody(const QList<QByteArray> &characters)
+    poe::Character characterOf(const QByteArray &json)
     {
-        QByteArrayList list(characters.cbegin(), characters.cend());
-        return R"({"characters":[)" + list.join(",") + "]}";
+        const auto character = json::readCharacter(json);
+        if (!character) {
+            qFatal("test bug: characterOf() could not read the character json");
+        }
+        return *character;
     }
 
-    QByteArray characterBody(const QByteArray &character)
+    std::vector<poe::Character> characterList(const QList<QByteArray> &characters)
     {
-        return R"({"character":)" + character + "}";
+        std::vector<poe::Character> list;
+        for (const auto &character : characters) {
+            list.push_back(characterOf(character));
+        }
+        return list;
     }
 
     QStringList sortedItemIds(const Items &items)
@@ -144,15 +168,21 @@ namespace {
         return ids;
     }
 
-    // A worker wired to the fake network, with the last ItemsRefreshed
-    // emission captured for inspection. Deliveries are synchronous, so
-    // outside of initialize() no event loop runs and every assertion sees
-    // the worker's settled state.
+    // A worker wired to a fake typed facade, with the last ItemsRefreshed
+    // emission captured for inspection.
+    //
+    // The facade's continuations are context-bound, so a delivery lands on a
+    // later event-loop pass rather than inside the call. Each deliver* helper
+    // settles the call and then pumps, so every assertion after it still sees
+    // the worker's settled state — and if a pump were ever insufficient, the
+    // call-count assertion that follows fails loudly rather than silently
+    // passing.
     struct WorkerFixture
     {
         explicit WorkerFixture(const QString &account)
             : settings(bm.tempDir.filePath("settings.ini"), QSettings::IniFormat)
-            , rate_limiter(network)
+            , unused_limiter(network)
+            , api(unused_limiter)
         {
             settings.setValue("account", account);
             settings.setValue("realm", kRealm);
@@ -164,7 +194,7 @@ namespace {
         // construction paths keyed off the settings file's directory.
         void start()
         {
-            worker = std::make_unique<ItemsManagerWorker>(settings, *bm.manager, rate_limiter);
+            worker = std::make_unique<ItemsManagerWorker>(settings, *bm.manager, api);
             QObject::connect(worker.get(),
                              &ItemsManagerWorker::ItemsRefreshed,
                              worker.get(),
@@ -181,10 +211,60 @@ namespace {
 
         QString dataDir() const { return bm.tempDir.filePath("data"); }
 
+        // --- what the worker asked for ------------------------------------
+
+        size_t callCount() const { return api.callCount(); }
+        const FakePoeApiClient::Call &call(size_t i) const { return api.call(i); }
+
+        // --- delivery -----------------------------------------------------
+
+        void deliverStashList(size_t i, std::vector<poe::StashTab> stashes)
+        {
+            api.resolveStashList(i, std::move(stashes));
+            pump();
+        }
+
+        void deliverStash(size_t i, poe::StashTab stash)
+        {
+            api.resolveStash(i, std::move(stash));
+            pump();
+        }
+
+        void deliverCharacterList(size_t i, std::vector<poe::Character> characters)
+        {
+            api.resolveCharacterList(i, std::move(characters));
+            pump();
+        }
+
+        void deliverCharacter(size_t i, poe::Character character)
+        {
+            api.resolveCharacter(i, std::move(character));
+            pump();
+        }
+
+        // Fail call i. The kind is immaterial to every pin here — the worker
+        // treats each non-Canceled failure the same way — so these read as
+        // "this fetch died" rather than naming a transport error.
+        void deliverFailure(size_t i,
+                            RateLimit::FetchError::Kind kind = RateLimit::FetchError::Kind::Network)
+        {
+            api.reject(i, kind);
+            pump();
+        }
+
+        // A settled future reaches the worker through one queued call, and
+        // the handler it runs submits the next request synchronously, so a
+        // single pass is enough. If it ever stopped being enough, the
+        // call-count assertion after each delivery fails loudly.
+        static void pump() { QCoreApplication::processEvents(); }
+
         BuyoutManagerFixture bm;
         QSettings settings;
         NetworkManager network;
-        FakeRateLimiter rate_limiter;
+        // Never called: FakePoeApiClient overrides every method. It exists
+        // only to satisfy the facade's base constructor.
+        RateLimiter unused_limiter;
+        FakePoeApiClient api;
         std::unique_ptr<ItemsManagerWorker> worker;
 
         Items last_items;
@@ -259,58 +339,72 @@ void WorkerUpdateTest::failedUpdateKeepsItemsIntact()
     QVERIFY(f.last_initial);
     QCOMPARE(f.last_items.size(), size_t(3));
 
-    const QByteArray fresh_list = stashListBody(
+    const std::vector<poe::StashTab> fresh_list = stashList(
         {stashJson("stashaaaa1", "Tab A", 0), stashJson("stashbbbb1", "Tab B", 1)});
 
     // A full update fetches both lists, then one request per tab.
     f.worker->Update(TabSelection::All);
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
-    QCOMPARE(f.rate_limiter.request(0).endpoint, QString("List Stashes"));
-    f.rate_limiter.deliver(0, fresh_list);
+    QCOMPARE(f.callCount(), size_t(1));
+    QCOMPARE(f.call(0).kind, FakePoeApiClient::Call::Kind::ListStashes);
+    f.deliverStashList(0, fresh_list);
 
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
-    QCOMPARE(f.rate_limiter.request(1).endpoint, QString("List Characters"));
-    f.rate_limiter.deliver(1, R"({"characters":[]})");
+    QCOMPARE(f.callCount(), size_t(2));
+    QCOMPARE(f.call(1).kind, FakePoeApiClient::Call::Kind::ListCharacters);
+    f.deliverCharacterList(1, {});
 
     // Tab A lands with a new set of items...
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(3));
-    QCOMPARE(f.rate_limiter.request(2).endpoint, QString("Get Stash"));
-    QVERIFY(f.rate_limiter.request(2).request.url().path().endsWith("stashaaaa1"));
-    f.rate_limiter.deliver(2,
-                           stashBody(stashJson("stashaaaa1",
-                                               "Tab A",
-                                               0,
-                                               QStringList{"a1-new", "a2-new", "a3-new"})));
+    QCOMPARE(f.callCount(), size_t(3));
+    QCOMPARE(f.call(2).kind, FakePoeApiClient::Call::Kind::GetStash);
+    QCOMPARE(f.call(2).stash_id, QString("stashaaaa1"));
+    QVERIFY(f.call(2).substash_id.isEmpty());
+    f.deliverStash(2,
+                   stashOf(stashJson("stashaaaa1",
+                                     "Tab A",
+                                     0,
+                                     QStringList{"a1-new", "a2-new", "a3-new"})));
 
     // ...then tab B's fetch dies, terminating the update without an emit.
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(4));
-    QVERIFY(f.rate_limiter.request(3).request.url().path().endsWith("stashbbbb1"));
-    f.rate_limiter.deliver(3, {}, QNetworkReply::ConnectionRefusedError);
+    QCOMPARE(f.callCount(), size_t(4));
+    QCOMPARE(f.call(3).stash_id, QString("stashbbbb1"));
+    QVERIFY(f.call(3).substash_id.isEmpty());
+    f.deliverFailure(3);
     QCOMPARE(f.refresh_count, 1);
 
     // A follow-up update of tab A alone succeeds and shows that the failed
     // update lost nothing: tab B's cached item is still present.
     f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(5));
-    f.rate_limiter.deliver(4, fresh_list);
+    QCOMPARE(f.callCount(), size_t(5));
+    f.deliverStashList(4, fresh_list);
 
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(6));
-    QVERIFY(f.rate_limiter.request(5).request.url().path().endsWith("stashaaaa1"));
-    f.rate_limiter.deliver(5,
-                           stashBody(stashJson("stashaaaa1",
-                                               "Tab A",
-                                               0,
-                                               QStringList{"a1-new", "a2-new", "a3-new"})));
+    QCOMPARE(f.callCount(), size_t(6));
+    QCOMPARE(f.call(5).stash_id, QString("stashaaaa1"));
+    QVERIFY(f.call(5).substash_id.isEmpty());
+    f.deliverStash(5,
+                   stashOf(stashJson("stashaaaa1",
+                                     "Tab A",
+                                     0,
+                                     QStringList{"a1-new", "a2-new", "a3-new"})));
 
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1-new", "a2-new", "a3-new", "b1"}));
 }
 
-// Replies left in flight by a failed update must be discarded, both while
-// the worker is idle and after a new update has begun (F28). Re-delivering
-// the same recorded reply works because no event loop runs in between, so
-// the receiver's deleteLater() calls have not executed yet.
-void WorkerUpdateTest::staleReplyFromSupersededUpdateIsDiscarded()
+// A terminal failure ends the update losing nothing, and the next update
+// starts from a clean slate and succeeds — no failure count or in-flight work
+// carries across the boundary (F28).
+//
+// This test used to also pin the stale-reply half of F28 by delivering the
+// same recorded reply three times — once while the worker was idle, once
+// mid-update-2 — which the legacy signal boundary allowed. That half is no
+// longer reachable, so this test no longer covers it: the worker submits
+// strictly serially (SubmitNextItemRequest sends one request, and an update
+// only terminates inside a handler), so nothing is ever in flight at the
+// moment an update aborts, and each fetch settles exactly once. The generation
+// guard ItemsManagerWorker::IsStale() is therefore unexercised today and kept
+// as a defensive check; phase 5's batch submission puts several fetches in
+// flight at once and makes it live again, which is where that pin belongs.
+// See the F28 entry in docs/cleanup/findings.md.
+void WorkerUpdateTest::failedUpdateDoesNotLeakIntoTheNext()
 {
     WorkerFixture f("worker-update-account-2");
 
@@ -327,30 +421,28 @@ void WorkerUpdateTest::staleReplyFromSupersededUpdateIsDiscarded()
     QCOMPARE(f.last_items.size(), size_t(1));
 
     const ItemLocation loc_a(*tab_a);
-    const QByteArray fresh_list = stashListBody({stashJson("stashaaaa1", "Tab A", 0)});
+    const std::vector<poe::StashTab> fresh_list = stashList({stashJson("stashaaaa1", "Tab A", 0)});
 
     // Update 1: the item fetch for tab A fails, terminating the update.
     f.worker->Update(TabSelection::Selected, {loc_a});
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
-    f.rate_limiter.deliver(0, fresh_list);
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
-    f.rate_limiter.deliver(1, {}, QNetworkReply::TimeoutError);
+    QCOMPARE(f.callCount(), size_t(1));
+    f.deliverStashList(0, fresh_list);
+    QCOMPARE(f.callCount(), size_t(2));
+    f.deliverFailure(1);
     QCOMPARE(f.refresh_count, 1);
 
-    // The same reply surfacing again while no update is running must be
-    // discarded without disturbing anything.
-    f.rate_limiter.deliver(1, {}, QNetworkReply::TimeoutError);
+    // Nothing from update 1 is left in flight, and the failure did not
+    // disturb the cached items.
+    QCOMPARE(f.callCount(), size_t(2));
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1"}));
 
-    // Update 2 begins; the stale failure from update 1 arrives mid-update.
-    // If it were processed, it would count as a request failure and abort
-    // update 2 with no emit.
+    // Update 2 starts clean: the failure count from update 1 must not carry
+    // over, or it would abort update 2 with no emit.
     f.worker->Update(TabSelection::Selected, {loc_a});
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(3));
-    f.rate_limiter.deliver(1, {}, QNetworkReply::TimeoutError);
-    f.rate_limiter.deliver(2, fresh_list);
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(4));
-    f.rate_limiter.deliver(3,
-                           stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1-after"})));
+    QCOMPARE(f.callCount(), size_t(3));
+    f.deliverStashList(2, fresh_list);
+    QCOMPARE(f.callCount(), size_t(4));
+    f.deliverStash(3, stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1-after"})));
 
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1-after"}));
@@ -384,19 +476,19 @@ void WorkerUpdateTest::partialUpdateDoesNotDuplicateCharacters()
     // Refresh only CharOne. The fresh list mentions both characters, with
     // CharTwo renamed in-game (same id, new name).
     f.worker->Update(TabSelection::Selected, {ItemLocation(*char_1, 0)});
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
-    QCOMPARE(f.rate_limiter.request(0).endpoint, QString("List Characters"));
-    f.rate_limiter.deliver(0,
-                           characterListBody({characterJson("charid0001", "CharOne"),
-                                              characterJson("charid0002", "CharTwoRenamed")}));
+    QCOMPARE(f.callCount(), size_t(1));
+    QCOMPARE(f.call(0).kind, FakePoeApiClient::Call::Kind::ListCharacters);
+    f.deliverCharacterList(0,
+                           characterList({characterJson("charid0001", "CharOne"),
+                                          characterJson("charid0002", "CharTwoRenamed")}));
 
     // Only the selected character is fetched.
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
-    QCOMPARE(f.rate_limiter.request(1).endpoint, QString("Get Character"));
-    QVERIFY(f.rate_limiter.request(1).request.url().path().endsWith("CharOne"));
-    f.rate_limiter.deliver(1,
-                           characterBody(
-                               characterJson("charid0001", "CharOne", QStringList{"c1-item-new"})));
+    QCOMPARE(f.callCount(), size_t(2));
+    QCOMPARE(f.call(1).kind, FakePoeApiClient::Call::Kind::GetCharacter);
+    QCOMPARE(f.call(1).name, QString("CharOne"));
+    f.deliverCharacter(1,
+                       characterOf(
+                           characterJson("charid0001", "CharOne", QStringList{"c1-item-new"})));
 
     QCOMPARE(f.refresh_count, 2);
 
@@ -449,15 +541,16 @@ void WorkerUpdateTest::renamedTabMetadataRefreshesWithoutFetch()
     // Refresh only tab B; the fresh list shows tab A renamed and moved
     // in-game (index 0 -> 2).
     f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_b)});
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
-    f.rate_limiter.deliver(0,
-                           stashListBody({stashJson("stashbbbb1", "Tab B", 1),
-                                          stashJson("stashaaaa1", "New Name", 2)}));
+    QCOMPARE(f.callCount(), size_t(1));
+    f.deliverStashList(0,
+                       stashList({stashJson("stashbbbb1", "Tab B", 1),
+                                  stashJson("stashaaaa1", "New Name", 2)}));
 
     // Only tab B is fetched; the rename costs no extra request.
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
-    QVERIFY(f.rate_limiter.request(1).request.url().path().endsWith("stashbbbb1"));
-    f.rate_limiter.deliver(1, stashBody(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b1-new"})));
+    QCOMPARE(f.callCount(), size_t(2));
+    QCOMPARE(f.call(1).stash_id, QString("stashbbbb1"));
+    QVERIFY(f.call(1).substash_id.isEmpty());
+    f.deliverStash(1, stashOf(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b1-new"})));
 
     QCOMPARE(f.refresh_count, 2);
 
@@ -517,31 +610,29 @@ void WorkerUpdateTest::vanishedMapChildItemsAreRemovedOnParentRefresh()
     // Refresh the map stash. Its reply lists a different child: the old
     // child's cached item must go, the new child's contents arrive.
     f.worker->Update(TabSelection::Selected, {ItemLocation(*parent_tab)});
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
-    f.rate_limiter.deliver(0, stashListBody({stashJson("mapstash01", "Maps", 0, {}, "MapStash")}));
+    QCOMPARE(f.callCount(), size_t(1));
+    f.deliverStashList(0, stashList({stashJson("mapstash01", "Maps", 0, {}, "MapStash")}));
 
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
-    QVERIFY(f.rate_limiter.request(1).request.url().path().endsWith("mapstash01"));
-    f.rate_limiter.deliver(
+    QCOMPARE(f.callCount(), size_t(2));
+    QCOMPARE(f.call(1).stash_id, QString("mapstash01"));
+    QVERIFY(f.call(1).substash_id.isEmpty());
+    f.deliverStash(
         1,
-        stashBody(stashJson("mapstash01",
-                            "Maps",
-                            0,
-                            QStringList{"p1-new"},
-                            "MapStash",
-                            {},
-                            {stashJson("mapchild02", "Tier 2", 0, {}, "MapStash", "mapstash01")})));
+        stashOf(stashJson("mapstash01",
+                          "Maps",
+                          0,
+                          QStringList{"p1-new"},
+                          "MapStash",
+                          {},
+                          {stashJson("mapchild02", "Tier 2", 0, {}, "MapStash", "mapstash01")})));
 
     // The new child is fetched by its own id...
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(3));
-    QVERIFY(f.rate_limiter.request(2).request.url().path().endsWith("mapchild02"));
-    f.rate_limiter.deliver(2,
-                           stashBody(stashJson("mapchild02",
-                                               "Tier 2",
-                                               0,
-                                               QStringList{"m2"},
-                                               "MapStash",
-                                               "mapstash01")));
+    QCOMPARE(f.callCount(), size_t(3));
+    QCOMPARE(f.call(2).stash_id, QString("mapstash01"));
+    QCOMPARE(f.call(2).substash_id, QString("mapchild02"));
+    f.deliverStash(
+        2,
+        stashOf(stashJson("mapchild02", "Tier 2", 0, QStringList{"m2"}, "MapStash", "mapstash01")));
 
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"m2", "p1-new"}));
@@ -590,16 +681,16 @@ void WorkerUpdateTest::failedUpdateDoesNotRebasePublishedLocations()
     }
     QVERIFY(item_a);
 
-    const QByteArray fresh_list = stashListBody(
+    const std::vector<poe::StashTab> fresh_list = stashList(
         {stashJson("stashaaaa1", "New Name", 0), stashJson("stashbbbb1", "Tab B", 1)});
 
     // Refresh only tab B; the fresh list renames tab A, then tab B's fetch
     // dies, terminating the update without an emit.
     f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_b)});
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
-    f.rate_limiter.deliver(0, fresh_list);
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
-    f.rate_limiter.deliver(1, {}, QNetworkReply::ConnectionRefusedError);
+    QCOMPARE(f.callCount(), size_t(1));
+    f.deliverStashList(0, fresh_list);
+    QCOMPARE(f.callCount(), size_t(2));
+    f.deliverFailure(1);
     QCOMPARE(f.refresh_count, 1);
 
     // The published snapshot is untouched by the failed update.
@@ -608,11 +699,10 @@ void WorkerUpdateTest::failedUpdateDoesNotRebasePublishedLocations()
     // A subsequent successful update applies the rename to the same shared
     // object the UI holds.
     f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_b)});
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(3));
-    f.rate_limiter.deliver(2, fresh_list);
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(4));
-    f.rate_limiter.deliver(3,
-                           stashBody(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b1-new"})));
+    QCOMPARE(f.callCount(), size_t(3));
+    f.deliverStashList(2, fresh_list);
+    QCOMPARE(f.callCount(), size_t(4));
+    f.deliverStash(3, stashOf(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b1-new"})));
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(item_a->location().tab_label(), QString("New Name"));
 }
@@ -643,18 +733,20 @@ void WorkerUpdateTest::listedButNeverFetchedTabIsFetchedOnNextUpdate()
     // Refresh only tab A: tab N must be fetched anyway, because its
     // contents were never seen.
     f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
-    f.rate_limiter.deliver(0,
-                           stashListBody({stashJson("stashaaaa1", "Tab A", 0),
-                                          stashJson("stashnnnn1", "New Tab", 1)}));
+    QCOMPARE(f.callCount(), size_t(1));
+    f.deliverStashList(0,
+                       stashList({stashJson("stashaaaa1", "Tab A", 0),
+                                  stashJson("stashnnnn1", "New Tab", 1)}));
 
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
-    QVERIFY(f.rate_limiter.request(1).request.url().path().endsWith("stashaaaa1"));
-    f.rate_limiter.deliver(1, stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    QCOMPARE(f.callCount(), size_t(2));
+    QCOMPARE(f.call(1).stash_id, QString("stashaaaa1"));
+    QVERIFY(f.call(1).substash_id.isEmpty());
+    f.deliverStash(1, stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
 
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(3));
-    QVERIFY(f.rate_limiter.request(2).request.url().path().endsWith("stashnnnn1"));
-    f.rate_limiter.deliver(2, stashBody(stashJson("stashnnnn1", "New Tab", 1, QStringList{"n1"})));
+    QCOMPARE(f.callCount(), size_t(3));
+    QCOMPARE(f.call(2).stash_id, QString("stashnnnn1"));
+    QVERIFY(f.call(2).substash_id.isEmpty());
+    f.deliverStash(2, stashOf(stashJson("stashnnnn1", "New Tab", 1, QStringList{"n1"})));
 
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "n1"}));
@@ -680,32 +772,36 @@ void WorkerUpdateTest::failedFirstFetchDoesNotConsumeNewness()
     f.start();
     QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
 
-    const QByteArray list_with_new_tab = stashListBody(
+    const std::vector<poe::StashTab> list_with_new_tab = stashList(
         {stashJson("stashaaaa1", "Tab A", 0), stashJson("stashnnnn1", "New Tab", 1)});
 
     // Update 1: the list reveals new tab N; its first fetch dies.
     f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
-    f.rate_limiter.deliver(0, list_with_new_tab);
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
-    QVERIFY(f.rate_limiter.request(1).request.url().path().endsWith("stashaaaa1"));
-    f.rate_limiter.deliver(1, stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(3));
-    QVERIFY(f.rate_limiter.request(2).request.url().path().endsWith("stashnnnn1"));
-    f.rate_limiter.deliver(2, {}, QNetworkReply::ConnectionRefusedError);
+    QCOMPARE(f.callCount(), size_t(1));
+    f.deliverStashList(0, list_with_new_tab);
+    QCOMPARE(f.callCount(), size_t(2));
+    QCOMPARE(f.call(1).stash_id, QString("stashaaaa1"));
+    QVERIFY(f.call(1).substash_id.isEmpty());
+    f.deliverStash(1, stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    QCOMPARE(f.callCount(), size_t(3));
+    QCOMPARE(f.call(2).stash_id, QString("stashnnnn1"));
+    QVERIFY(f.call(2).substash_id.isEmpty());
+    f.deliverFailure(2);
     QCOMPARE(f.refresh_count, 1);
 
     // Update 2 selects only tab A again: tab N is still new and must be
     // fetched.
     f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(4));
-    f.rate_limiter.deliver(3, list_with_new_tab);
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(5));
-    QVERIFY(f.rate_limiter.request(4).request.url().path().endsWith("stashaaaa1"));
-    f.rate_limiter.deliver(4, stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(6));
-    QVERIFY(f.rate_limiter.request(5).request.url().path().endsWith("stashnnnn1"));
-    f.rate_limiter.deliver(5, stashBody(stashJson("stashnnnn1", "New Tab", 1, QStringList{"n1"})));
+    QCOMPARE(f.callCount(), size_t(4));
+    f.deliverStashList(3, list_with_new_tab);
+    QCOMPARE(f.callCount(), size_t(5));
+    QCOMPARE(f.call(4).stash_id, QString("stashaaaa1"));
+    QVERIFY(f.call(4).substash_id.isEmpty());
+    f.deliverStash(4, stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    QCOMPARE(f.callCount(), size_t(6));
+    QCOMPARE(f.call(5).stash_id, QString("stashnnnn1"));
+    QVERIFY(f.call(5).substash_id.isEmpty());
+    f.deliverStash(5, stashOf(stashJson("stashnnnn1", "New Tab", 1, QStringList{"n1"})));
 
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "n1"}));
@@ -731,9 +827,9 @@ void WorkerUpdateTest::failedChildFetchKeepsParentNew()
     f.start();
     QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
 
-    const QByteArray list_with_new_map = stashListBody(
+    const std::vector<poe::StashTab> list_with_new_map = stashList(
         {stashJson("stashaaaa1", "Tab A", 0), stashJson("mapstash01", "Maps", 1, {}, "MapStash")});
-    const QByteArray map_parent_body = stashBody(
+    const poe::StashTab map_parent_body = stashOf(
         stashJson("mapstash01",
                   "Maps",
                   1,
@@ -745,37 +841,37 @@ void WorkerUpdateTest::failedChildFetchKeepsParentNew()
     // Update 1: the list reveals new Map stash M; its parent fetch lands,
     // but the child fetch it queues dies.
     f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
-    f.rate_limiter.deliver(0, list_with_new_map);
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
-    f.rate_limiter.deliver(1, stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(3));
-    QVERIFY(f.rate_limiter.request(2).request.url().path().endsWith("mapstash01"));
-    f.rate_limiter.deliver(2, map_parent_body);
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(4));
-    QVERIFY(f.rate_limiter.request(3).request.url().path().endsWith("mapchild01"));
-    f.rate_limiter.deliver(3, {}, QNetworkReply::ConnectionRefusedError);
+    QCOMPARE(f.callCount(), size_t(1));
+    f.deliverStashList(0, list_with_new_map);
+    QCOMPARE(f.callCount(), size_t(2));
+    f.deliverStash(1, stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    QCOMPARE(f.callCount(), size_t(3));
+    QCOMPARE(f.call(2).stash_id, QString("mapstash01"));
+    QVERIFY(f.call(2).substash_id.isEmpty());
+    f.deliverStash(2, map_parent_body);
+    QCOMPARE(f.callCount(), size_t(4));
+    QCOMPARE(f.call(3).stash_id, QString("mapstash01"));
+    QCOMPARE(f.call(3).substash_id, QString("mapchild01"));
+    f.deliverFailure(3);
     QCOMPARE(f.refresh_count, 1);
 
     // Update 2 selects only tab A again: the parent is still incomplete,
     // so it is refetched and its child fetch retried.
     f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(5));
-    f.rate_limiter.deliver(4, list_with_new_map);
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(6));
-    f.rate_limiter.deliver(5, stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(7));
-    QVERIFY(f.rate_limiter.request(6).request.url().path().endsWith("mapstash01"));
-    f.rate_limiter.deliver(6, map_parent_body);
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(8));
-    QVERIFY(f.rate_limiter.request(7).request.url().path().endsWith("mapchild01"));
-    f.rate_limiter.deliver(7,
-                           stashBody(stashJson("mapchild01",
-                                               "Tier 1",
-                                               0,
-                                               QStringList{"m1"},
-                                               "MapStash",
-                                               "mapstash01")));
+    QCOMPARE(f.callCount(), size_t(5));
+    f.deliverStashList(4, list_with_new_map);
+    QCOMPARE(f.callCount(), size_t(6));
+    f.deliverStash(5, stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    QCOMPARE(f.callCount(), size_t(7));
+    QCOMPARE(f.call(6).stash_id, QString("mapstash01"));
+    QVERIFY(f.call(6).substash_id.isEmpty());
+    f.deliverStash(6, map_parent_body);
+    QCOMPARE(f.callCount(), size_t(8));
+    QCOMPARE(f.call(7).stash_id, QString("mapstash01"));
+    QCOMPARE(f.call(7).substash_id, QString("mapchild01"));
+    f.deliverStash(
+        7,
+        stashOf(stashJson("mapchild01", "Tier 1", 0, QStringList{"m1"}, "MapStash", "mapstash01")));
 
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "m1", "p1"}));
@@ -813,32 +909,30 @@ void WorkerUpdateTest::cachedParentWithMissingChildRowStaysNew()
 
     // Refresh only tab A: the incomplete parent must be fetched anyway.
     f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
-    f.rate_limiter.deliver(0,
-                           stashListBody({stashJson("stashaaaa1", "Tab A", 0),
-                                          stashJson("mapstash01", "Maps", 1, {}, "MapStash")}));
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
-    f.rate_limiter.deliver(1, stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(3));
-    QVERIFY(f.rate_limiter.request(2).request.url().path().endsWith("mapstash01"));
-    f.rate_limiter.deliver(
+    QCOMPARE(f.callCount(), size_t(1));
+    f.deliverStashList(0,
+                       stashList({stashJson("stashaaaa1", "Tab A", 0),
+                                  stashJson("mapstash01", "Maps", 1, {}, "MapStash")}));
+    QCOMPARE(f.callCount(), size_t(2));
+    f.deliverStash(1, stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    QCOMPARE(f.callCount(), size_t(3));
+    QCOMPARE(f.call(2).stash_id, QString("mapstash01"));
+    QVERIFY(f.call(2).substash_id.isEmpty());
+    f.deliverStash(
         2,
-        stashBody(stashJson("mapstash01",
-                            "Maps",
-                            1,
-                            QStringList{"p1"},
-                            "MapStash",
-                            {},
-                            {stashJson("mapchild01", "Tier 1", 0, {}, "MapStash", "mapstash01")})));
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(4));
-    QVERIFY(f.rate_limiter.request(3).request.url().path().endsWith("mapchild01"));
-    f.rate_limiter.deliver(3,
-                           stashBody(stashJson("mapchild01",
-                                               "Tier 1",
-                                               0,
-                                               QStringList{"m1"},
-                                               "MapStash",
-                                               "mapstash01")));
+        stashOf(stashJson("mapstash01",
+                          "Maps",
+                          1,
+                          QStringList{"p1"},
+                          "MapStash",
+                          {},
+                          {stashJson("mapchild01", "Tier 1", 0, {}, "MapStash", "mapstash01")})));
+    QCOMPARE(f.callCount(), size_t(4));
+    QCOMPARE(f.call(3).stash_id, QString("mapstash01"));
+    QCOMPARE(f.call(3).substash_id, QString("mapchild01"));
+    f.deliverStash(
+        3,
+        stashOf(stashJson("mapchild01", "Tier 1", 0, QStringList{"m1"}, "MapStash", "mapstash01")));
 
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "m1", "p1"}));
@@ -879,9 +973,9 @@ void WorkerUpdateTest::knownParentWithNewFailedChildIsRetried()
     QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "m1", "p1"}));
 
-    const QByteArray stash_list = stashListBody(
+    const std::vector<poe::StashTab> stash_list = stashList(
         {stashJson("stashaaaa1", "Tab A", 0), stashJson("mapstash01", "Maps", 1, {}, "MapStash")});
-    const QByteArray parent_with_new_child = stashBody(
+    const poe::StashTab parent_with_new_child = stashOf(
         stashJson("mapstash01",
                   "Maps",
                   1,
@@ -894,53 +988,47 @@ void WorkerUpdateTest::knownParentWithNewFailedChildIsRetried()
     // Update 1 selects the known parent. Its reply introduces child C2;
     // C1's refetch lands, C2's fetch dies.
     f.worker->Update(TabSelection::Selected, {ItemLocation(*map_parent)});
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
-    f.rate_limiter.deliver(0, stash_list);
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
-    QVERIFY(f.rate_limiter.request(1).request.url().path().endsWith("mapstash01"));
-    f.rate_limiter.deliver(1, parent_with_new_child);
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(3));
-    QVERIFY(f.rate_limiter.request(2).request.url().path().endsWith("mapchild01"));
-    f.rate_limiter.deliver(2,
-                           stashBody(stashJson("mapchild01",
-                                               "Tier 1",
-                                               0,
-                                               QStringList{"m1"},
-                                               "MapStash",
-                                               "mapstash01")));
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(4));
-    QVERIFY(f.rate_limiter.request(3).request.url().path().endsWith("mapchild02"));
-    f.rate_limiter.deliver(3, {}, QNetworkReply::ConnectionRefusedError);
+    QCOMPARE(f.callCount(), size_t(1));
+    f.deliverStashList(0, stash_list);
+    QCOMPARE(f.callCount(), size_t(2));
+    QCOMPARE(f.call(1).stash_id, QString("mapstash01"));
+    QVERIFY(f.call(1).substash_id.isEmpty());
+    f.deliverStash(1, parent_with_new_child);
+    QCOMPARE(f.callCount(), size_t(3));
+    QCOMPARE(f.call(2).stash_id, QString("mapstash01"));
+    QCOMPARE(f.call(2).substash_id, QString("mapchild01"));
+    f.deliverStash(
+        2,
+        stashOf(stashJson("mapchild01", "Tier 1", 0, QStringList{"m1"}, "MapStash", "mapstash01")));
+    QCOMPARE(f.callCount(), size_t(4));
+    QCOMPARE(f.call(3).stash_id, QString("mapstash01"));
+    QCOMPARE(f.call(3).substash_id, QString("mapchild02"));
+    f.deliverFailure(3);
     QCOMPARE(f.refresh_count, 1);
 
     // Update 2 selects only tab A: the parent is incomplete again, so it
     // is refetched and the new child retried.
     f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(5));
-    f.rate_limiter.deliver(4, stash_list);
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(6));
-    f.rate_limiter.deliver(5, stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(7));
-    QVERIFY(f.rate_limiter.request(6).request.url().path().endsWith("mapstash01"));
-    f.rate_limiter.deliver(6, parent_with_new_child);
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(8));
-    QVERIFY(f.rate_limiter.request(7).request.url().path().endsWith("mapchild01"));
-    f.rate_limiter.deliver(7,
-                           stashBody(stashJson("mapchild01",
-                                               "Tier 1",
-                                               0,
-                                               QStringList{"m1"},
-                                               "MapStash",
-                                               "mapstash01")));
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(9));
-    QVERIFY(f.rate_limiter.request(8).request.url().path().endsWith("mapchild02"));
-    f.rate_limiter.deliver(8,
-                           stashBody(stashJson("mapchild02",
-                                               "Tier 2",
-                                               1,
-                                               QStringList{"m2"},
-                                               "MapStash",
-                                               "mapstash01")));
+    QCOMPARE(f.callCount(), size_t(5));
+    f.deliverStashList(4, stash_list);
+    QCOMPARE(f.callCount(), size_t(6));
+    f.deliverStash(5, stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    QCOMPARE(f.callCount(), size_t(7));
+    QCOMPARE(f.call(6).stash_id, QString("mapstash01"));
+    QVERIFY(f.call(6).substash_id.isEmpty());
+    f.deliverStash(6, parent_with_new_child);
+    QCOMPARE(f.callCount(), size_t(8));
+    QCOMPARE(f.call(7).stash_id, QString("mapstash01"));
+    QCOMPARE(f.call(7).substash_id, QString("mapchild01"));
+    f.deliverStash(
+        7,
+        stashOf(stashJson("mapchild01", "Tier 1", 0, QStringList{"m1"}, "MapStash", "mapstash01")));
+    QCOMPARE(f.callCount(), size_t(9));
+    QCOMPARE(f.call(8).stash_id, QString("mapstash01"));
+    QCOMPARE(f.call(8).substash_id, QString("mapchild02"));
+    f.deliverStash(
+        8,
+        stashOf(stashJson("mapchild02", "Tier 2", 1, QStringList{"m2"}, "MapStash", "mapstash01")));
 
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "m1", "m2", "p1"}));
@@ -980,45 +1068,44 @@ void WorkerUpdateTest::datastoreFollowsServerDeletions()
 
     // Server-side, Tab B was deleted; the fresh list omits it.
     f.worker->Update(TabSelection::All);
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
-    f.rate_limiter.deliver(0,
-                           stashListBody({stashJson("stashaaaa1", "Tab A", 0),
-                                          stashJson("mapstash01", "Maps", 1, {}, "MapStash")}));
+    QCOMPARE(f.callCount(), size_t(1));
+    f.deliverStashList(0,
+                       stashList({stashJson("stashaaaa1", "Tab A", 0),
+                                  stashJson("mapstash01", "Maps", 1, {}, "MapStash")}));
 
     // Tab B's row is gone at list receipt; the Map child row survives.
     QCOMPARE(storedStashIds(store), QStringList({"mapchild01", "mapstash01", "stashaaaa1"}));
 
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
-    f.rate_limiter.deliver(1, R"({"characters":[]})");
+    QCOMPARE(f.callCount(), size_t(2));
+    f.deliverCharacterList(1, {});
 
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(3));
-    QVERIFY(f.rate_limiter.request(2).request.url().path().endsWith("stashaaaa1"));
-    f.rate_limiter.deliver(2, stashBody(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    QCOMPARE(f.callCount(), size_t(3));
+    QCOMPARE(f.call(2).stash_id, QString("stashaaaa1"));
+    QVERIFY(f.call(2).substash_id.isEmpty());
+    f.deliverStash(2, stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
 
     // The Map parent's reply lists a different child: the old child row is
     // replaced in the datastore.
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(4));
-    QVERIFY(f.rate_limiter.request(3).request.url().path().endsWith("mapstash01"));
-    f.rate_limiter.deliver(
+    QCOMPARE(f.callCount(), size_t(4));
+    QCOMPARE(f.call(3).stash_id, QString("mapstash01"));
+    QVERIFY(f.call(3).substash_id.isEmpty());
+    f.deliverStash(
         3,
-        stashBody(stashJson("mapstash01",
-                            "Maps",
-                            1,
-                            QStringList{"p1"},
-                            "MapStash",
-                            {},
-                            {stashJson("mapchild02", "Tier 2", 0, {}, "MapStash", "mapstash01")})));
+        stashOf(stashJson("mapstash01",
+                          "Maps",
+                          1,
+                          QStringList{"p1"},
+                          "MapStash",
+                          {},
+                          {stashJson("mapchild02", "Tier 2", 0, {}, "MapStash", "mapstash01")})));
     QCOMPARE(storedStashIds(store), QStringList({"mapstash01", "stashaaaa1"}));
 
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(5));
-    QVERIFY(f.rate_limiter.request(4).request.url().path().endsWith("mapchild02"));
-    f.rate_limiter.deliver(4,
-                           stashBody(stashJson("mapchild02",
-                                               "Tier 2",
-                                               0,
-                                               QStringList{"m2"},
-                                               "MapStash",
-                                               "mapstash01")));
+    QCOMPARE(f.callCount(), size_t(5));
+    QCOMPARE(f.call(4).stash_id, QString("mapstash01"));
+    QCOMPARE(f.call(4).substash_id, QString("mapchild02"));
+    f.deliverStash(
+        4,
+        stashOf(stashJson("mapchild02", "Tier 2", 0, QStringList{"m2"}, "MapStash", "mapstash01")));
 
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(storedStashIds(store), QStringList({"mapchild02", "mapstash01", "stashaaaa1"}));
@@ -1052,8 +1139,8 @@ void WorkerUpdateTest::datastoreFollowsCharacterDeletions()
 
     // Server-side, CharTwo was deleted; the fresh list omits it.
     f.worker->Update(TabSelection::Selected, {ItemLocation(*char_1, 0)});
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(1));
-    f.rate_limiter.deliver(0, characterListBody({characterJson("charid0001", "CharOne")}));
+    QCOMPARE(f.callCount(), size_t(1));
+    f.deliverCharacterList(0, characterList({characterJson("charid0001", "CharOne")}));
 
     QStringList ids;
     for (const auto &character : store.characters().getCharacterList(kRealm)) {
@@ -1061,10 +1148,9 @@ void WorkerUpdateTest::datastoreFollowsCharacterDeletions()
     }
     QCOMPARE(ids, QStringList({"charid0001"}));
 
-    QCOMPARE(f.rate_limiter.requestCount(), size_t(2));
-    f.rate_limiter.deliver(1,
-                           characterBody(
-                               characterJson("charid0001", "CharOne", QStringList{"c1-item"})));
+    QCOMPARE(f.callCount(), size_t(2));
+    f.deliverCharacter(1,
+                       characterOf(characterJson("charid0001", "CharOne", QStringList{"c1-item"})));
 
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"c1-item"}));
