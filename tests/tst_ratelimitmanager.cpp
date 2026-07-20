@@ -36,7 +36,8 @@ class RateLimitManagerTest : public QObject
 
 private slots:
     void updateInstallsPolicyFromHeadReply();
-    void updateReplacesMismatchedPolicy();
+    void updateAdoptsChangedPolicyDefinition();
+    void nameMismatchSilentlyReplacesPolicy();
     void queueBeforePolicyInstallHoldsRequests();
     void okPolicySendsAfterNormalBuffer();
     void queueDrainsFifoWithoutMinimumIntervalSpacing();
@@ -66,10 +67,11 @@ namespace {
     // Synthetic headers for a single-rule ("Ip") policy — the shape GGG
     // actually serves (see the captured example in tst_networkcapture.cpp).
     QList<QNetworkReply::RawHeaderPair> policyHeaders(const QByteArray &limit,
-                                                      const QByteArray &state)
+                                                      const QByteArray &state,
+                                                      const QByteArray &policy_name = kPolicyName)
     {
         return {
-            {"X-Rate-Limit-Policy", kPolicyName},
+            {"X-Rate-Limit-Policy", policy_name},
             {"X-Rate-Limit-Rules", "Ip"},
             {"X-Rate-Limit-Ip", limit},
             {"X-Rate-Limit-Ip-State", state},
@@ -139,7 +141,7 @@ void RateLimitManagerTest::updateInstallsPolicyFromHeadReply()
     QCOMPARE(sender.count(), 0);
 }
 
-void RateLimitManagerTest::updateReplacesMismatchedPolicy()
+void RateLimitManagerTest::updateAdoptsChangedPolicyDefinition()
 {
     FakeSender sender;
     RateLimitManager manager(sender.fcn());
@@ -150,13 +152,35 @@ void RateLimitManagerTest::updateReplacesMismatchedPolicy()
     });
 
     installPolicy(manager, "2:60:60", "0:60:0");
-    // A mismatched update (limit changed 2 -> 5) is logged but silently
-    // replaces the policy. (The pump's IR1 contract differs: a mismatched
-    // steady-state reply must leave the policy un-updated.)
+    // A changed definition under the SAME name (limit 2 -> 5) is logged as
+    // a mismatch by Check() but adopted. The pump keeps this: D8 requires
+    // dynamic limit changes to update pacing state, so this pin does not
+    // flip in phase 3 — unlike the name-mismatch pin below.
     installPolicy(manager, "5:60:60", "0:60:0");
 
     QCOMPARE(policy_updates, 2);
     QCOMPARE(manager.policy().maximum_hits(), 5);
+}
+
+void RateLimitManagerTest::nameMismatchSilentlyReplacesPolicy()
+{
+    FakeSender sender;
+    RateLimitManager manager(sender.fcn());
+    installPolicy(manager, "10:60:60", "0:60:0");
+
+    Caller c1;
+    manager.QueueRequest(kEndpoint, request("one"), c1.reply);
+    QTRY_COMPARE(sender.count(), 1);
+
+    // A steady-state reply carrying a DIFFERENT policy name is logged as a
+    // mismatch but silently adopted, name and all, and the request
+    // completes normally. This is the pin the pump flips: under D8/IR1 a
+    // mismatched policy name is a strict Protocol error that leaves the
+    // policy byte-for-byte un-updated.
+    sender.sent(0).reply->finish(policyHeaders("10:60:60", "1:60:0", "renamed-request-limit"), 200);
+    QCOMPARE(c1.completions, 1);
+    QCOMPARE(c1.last_status, 200);
+    QCOMPARE(manager.policy().name(), QString("renamed-request-limit"));
 }
 
 void RateLimitManagerTest::queueBeforePolicyInstallHoldsRequests()
