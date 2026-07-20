@@ -79,9 +79,9 @@ RateLimitManager::RateLimitManager(SendFcn sender,
 
 RateLimitManager::~RateLimitManager() {}
 
-void RateLimitManager::HoldUntil(const QDateTime &until)
+void RateLimitManager::HoldUntil(std::chrono::milliseconds until)
 {
-    if (!m_earliest_send.isValid() || m_earliest_send < until) {
+    if (!m_earliest_send || *m_earliest_send < until) {
         m_earliest_send = until;
     }
 }
@@ -230,24 +230,31 @@ QCoro::Task<> RateLimitManager::Drain()
 QCoro::Task<> RateLimitManager::ProcessEntry(RateLimitedRequest &entry)
 {
     // Pacing sleep: the same GetNextSafeSend arithmetic as ever (N25/N26),
-    // plus the normal buffer while the policy is below borderline, plus
-    // any externally-imposed hold (the D4 HEAD-429 case).
+    // plus the normal buffer while the policy is below borderline.
     QDateTime next_send = m_policy->GetNextSafeSend(m_history);
     if (m_policy->status() < RateLimit::Status::BORDERLINE) {
         next_send = next_send.addMSecs(NORMAL_BUFFER_MSEC);
     }
-    if (m_earliest_send.isValid() && next_send < m_earliest_send) {
-        next_send = m_earliest_send;
+    std::chrono::milliseconds deadline
+        = m_scheduler.Now()
+          + std::chrono::milliseconds(
+              std::max<qint64>(QDateTime::currentDateTime().msecsTo(next_send), 0));
+    // An externally-imposed hold (the D4 HEAD-429 case) is a deadline on
+    // the scheduler's clock; when it is later than the pacing deadline it
+    // governs, and the announced wall time is derived from it.
+    if (m_earliest_send && *m_earliest_send > deadline) {
+        deadline = *m_earliest_send;
+        next_send = QDateTime::currentDateTime().addMSecs(
+            (deadline - m_scheduler.Now()).count());
     }
     entry.scheduled_time = next_send;
-    const qint64 pacing_delay = QDateTime::currentDateTime().msecsTo(next_send);
-    if (pacing_delay > 0) {
+    if (deadline > m_scheduler.Now()) {
         spdlog::trace("{} waiting {} msecs to send request {}",
                       m_policy->name(),
-                      pacing_delay,
+                      (deadline - m_scheduler.Now()).count(),
                       entry.id);
-        AnnouncePause(next_send, m_scheduler.Now() + std::chrono::milliseconds(pacing_delay));
-        co_await RateLimit::SleepUntil(m_scheduler, *m_next_send_deadline, {});
+        AnnouncePause(next_send, deadline);
+        co_await RateLimit::SleepUntil(m_scheduler, deadline, {});
         m_next_send_deadline.reset();
     }
 
@@ -255,6 +262,25 @@ QCoro::Task<> RateLimitManager::ProcessEntry(RateLimitedRequest &entry)
         // Every send acquires the gate (D5). Phase-3 entries carry no stop
         // token, so the wait is explicitly non-cancelable.
         auto permit = co_await m_gate.Acquire(std::stop_token{});
+
+        // A hold may have been installed while this entry waited at the
+        // gate: a HEAD-429 probe joining this pump (shared policy, D4)
+        // installs its hold behind the very HEAD the entry is queued
+        // behind, and the pacing check above ran long before. Release
+        // without dispatching (an undispatched release charges no spacing
+        // interval, so other lanes proceed while we wait), sleep out the
+        // hold, and reacquire — re-checking, in case it was extended
+        // meanwhile. A hold-wait consumes no attempt: nothing was sent.
+        while (m_earliest_send && *m_earliest_send > m_scheduler.Now()) {
+            const std::chrono::milliseconds hold = *m_earliest_send;
+            const QDateTime hold_until = QDateTime::currentDateTime().addMSecs(
+                (hold - m_scheduler.Now()).count());
+            permit.Release();
+            AnnouncePause(hold_until, hold);
+            co_await RateLimit::SleepUntil(m_scheduler, hold, {});
+            m_next_send_deadline.reset();
+            permit = co_await m_gate.Acquire(std::stop_token{});
+        }
 
         entry.send_time = QDateTime::currentDateTime().toLocalTime();
         permit.MarkDispatched();

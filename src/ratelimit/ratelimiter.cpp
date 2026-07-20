@@ -226,10 +226,11 @@ void RateLimiter::ProcessHeadResponse(const QString &endpoint,
                       m_violation_count);
         if (parsed && retry_after) {
             // Full headers with a valid Retry-After still teach the
-            // topology: establish the pump with its first send held past
+            // topology: establish the pump with its next send held past
             // Retry-After + pad + buffer; the HEAD consumes no attempt.
-            const QDateTime hold = QDateTime::currentDateTime().addSecs(
-                *retry_after + RETRY_BUCKET_PAD_SECS + RETRY_BUFFER_SECS);
+            const auto hold = m_scheduler.Now()
+                              + std::chrono::seconds(*retry_after + RETRY_BUCKET_PAD_SECS
+                                                     + RETRY_BUFFER_SECS);
             EstablishEndpoint(endpoint, reply, parsed->name(), hold);
             return;
         }
@@ -306,18 +307,18 @@ void RateLimiter::ProcessHeadResponse(const QString &endpoint,
     lines.append("</HEAD_RESPONSE_HEADERS>");
     spdlog::debug("HEAD response received for {}:\n{}", parsed->name(), lines.join("\n"));
 
-    EstablishEndpoint(endpoint, reply, parsed->name(), QDateTime());
+    EstablishEndpoint(endpoint, reply, parsed->name(), std::nullopt);
 }
 
 void RateLimiter::EstablishEndpoint(const QString &endpoint,
                                     QNetworkReply *head_reply,
                                     const QString &policy_name,
-                                    const QDateTime &hold_until)
+                                    std::optional<std::chrono::milliseconds> hold_until)
 {
     RateLimitManager &manager = GetManager(endpoint, policy_name);
     manager.Update(head_reply);
-    if (hold_until.isValid()) {
-        manager.HoldUntil(hold_until);
+    if (hold_until) {
+        manager.HoldUntil(*hold_until);
     }
 
     // Forward the parked entries in submission order. A probe that

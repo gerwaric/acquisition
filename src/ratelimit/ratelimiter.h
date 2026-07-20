@@ -10,6 +10,7 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <optional>
 
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -122,11 +123,12 @@ private:
 
     // Probing -> Established: create-or-join the pump by policy name,
     // update it from the HEAD reply, and forward the parked entries in
-    // submission order. A HEAD 429's hold is applied first (D4).
+    // submission order. A HEAD 429's hold (a deadline on the scheduler's
+    // clock) is applied first (D4).
     void EstablishEndpoint(const QString &endpoint,
                            QNetworkReply *head_reply,
                            const QString &policy_name,
-                           const QDateTime &hold_until);
+                           std::optional<std::chrono::milliseconds> hold_until);
 
     // Probing -> Unknown under a cooldown: fail every parked entry with an
     // errored synthetic reply carrying the failure's shape.

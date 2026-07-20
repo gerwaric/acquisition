@@ -42,6 +42,7 @@ private slots:
     void headUnparseable2xxFailsParked();
     void cooldownExpiryAllowsReprobe();
     void headFull429WithValidRetryAfterEstablishesWithHold();
+    void sharedPolicyJoin429HoldsEntriesWaitingAtGate();
     void nonFull429CooldownHonorsRetryAfter();
     void establishedEndpointSticksThroughRequestFailures();
     void concurrentSetupsSerializeHeadsAtGate();
@@ -349,6 +350,74 @@ void RateLimiterTest::headFull429WithValidRetryAfterEstablishesWithHold()
     drainEvents();
     QCOMPARE(s1.completions, 1);
     QCOMPARE(s1.last_status, 200);
+}
+
+void RateLimiterTest::sharedPolicyJoin429HoldsEntriesWaitingAtGate()
+{
+    // The review-#2 join path (untested until now): a HEAD-429 probe that
+    // resolves to an EXISTING pump's policy (same-named policies share
+    // counters, N6) installs its hold on that pump — and an entry already
+    // suspended at the gate behind that very HEAD must honor it instead
+    // of dispatching the moment the probe releases.
+    Rig rig;
+
+    // Establish ep-one under the shared policy and complete one request.
+    Submission s1;
+    s1.attach(rig.limiter.Submit("ep-one", request("one")));
+    settle(rig.scheduler);
+    QCOMPARE(rig.network.count(), 1);
+    rig.network.sent(0).reply->finish(policyHeaders("10:60:60", "0:60:0", "shared-limit"), 200);
+    drainEvents();
+    advanceAndSettle(rig.scheduler, kGateSpacing);
+    QCOMPARE(rig.network.count(), 2);
+    rig.network.sent(1).reply->finish(policyHeaders("10:60:60", "1:60:0", "shared-limit"), 200);
+    drainEvents();
+    QCOMPARE(s1.completions, 1);
+
+    // A second, unknown endpoint starts probing (its HEAD waits out the
+    // spacing floor), and a new ep-one request paces and then parks at
+    // the gate behind the writer preference.
+    Submission s2;
+    Submission s3;
+    s2.attach(rig.limiter.Submit("ep-two", request("two")));
+    s3.attach(rig.limiter.Submit("ep-one", request("three")));
+    advanceAndSettle(rig.scheduler, std::chrono::milliseconds(kNormalBufferMsec));
+    QCOMPARE(rig.network.count(), 2);
+    advanceAndSettle(rig.scheduler, kGateSpacing - std::chrono::milliseconds(kNormalBufferMsec));
+    QCOMPARE(rig.network.count(), 3);
+    QCOMPARE(rig.network.sent(2).op, QNetworkAccessManager::HeadOperation);
+
+    // The probe 429s with Full headers naming the SAME policy and a valid
+    // Retry-After: ep-two joins the existing pump and the 120+60+1=181s
+    // hold lands while the ep-one entry is still suspended at the gate.
+    auto headers = policyHeaders("10:60:60", "0:60:0", "shared-limit");
+    headers.append(QNetworkReply::RawHeaderPair{"Retry-After", "120"});
+    rig.network.sent(2).reply->finish(headers, 429, QNetworkReply::UnknownContentError);
+    drainEvents();
+    QCOMPARE(s2.completions, 0); // joined, not failed
+
+    // The entry is granted once the HEAD releases and spacing passes, but
+    // it must honor the hold: no send at the grant, none deep into it.
+    advanceAndSettle(rig.scheduler, kGateSpacing);
+    QCOMPARE(rig.network.count(), 3);
+    advanceAndSettle(rig.scheduler, 100s);
+    QCOMPARE(rig.network.count(), 3);
+
+    // The hold passes: the parked ep-one entry sends first (FIFO), then
+    // ep-two's own forwarded entry follows on the same pump.
+    advanceAndSettle(rig.scheduler, 85s);
+    QCOMPARE(rig.network.count(), 4);
+    QCOMPARE(rig.network.sent(3).request.url(), request("three").url());
+    rig.network.sent(3).reply->finish(policyHeaders("10:60:60", "2:60:0", "shared-limit"), 200);
+    drainEvents();
+    QCOMPARE(s3.completions, 1);
+
+    advanceAndSettle(rig.scheduler, kGateSpacing);
+    QCOMPARE(rig.network.count(), 5);
+    QCOMPARE(rig.network.sent(4).request.url(), request("two").url());
+    rig.network.sent(4).reply->finish(policyHeaders("10:60:60", "3:60:0", "shared-limit"), 200);
+    drainEvents();
+    QCOMPARE(s2.completions, 1);
 }
 
 void RateLimiterTest::nonFull429CooldownHonorsRetryAfter()

@@ -68,6 +68,7 @@ private slots:
     void unacceptableRetryAfterIsTerminal_data();
     void unacceptableRetryAfterIsTerminal();
     void drainRestartsAfterQueueEmpties();
+    void holdInstalledWhileWaitingAtGateIsHonored();
     void observationUpdatesPolicyOnErrorReplies();
     void retrySleepIsPermitFree();
     void senderExceptionFailsPumpTerminally();
@@ -185,6 +186,21 @@ namespace {
         FakeSender sender;
         RateLimitManager manager{sender.fcn(), scheduler, gate};
     };
+
+    // A probe-shaped exclusive HEAD occupant for the gate, dispatched like
+    // the hub's setup path.
+    struct GateBlocker
+    {
+        bool done = false;
+        RateLimit::Gate::Permit permit;
+    };
+
+    QCoro::Task<> takeHead(GateBlocker &blocker, RateLimit::Gate &gate)
+    {
+        blocker.permit = co_await gate.AcquireHead(std::stop_token{});
+        blocker.permit.MarkDispatched();
+        blocker.done = true;
+    }
 
 } // namespace
 
@@ -740,6 +756,48 @@ void RateLimitManagerTest::drainRestartsAfterQueueEmpties()
     rig.sender.sent(1).reply->finish(policyHeaders("10:60:60", "2:60:0"), 200);
     drainEvents();
     QCOMPARE(c2.completions, 1);
+}
+
+void RateLimitManagerTest::holdInstalledWhileWaitingAtGateIsHonored()
+{
+    // The review-#2 pin: a hold installed while an entry is already
+    // suspended in the gate wait (a HEAD-429 probe joining this pump —
+    // the shared-policy case, D4) must still be honored. The entry
+    // releases its permit undispatched, sleeps out the hold, and
+    // reacquires.
+    Rig rig;
+    installPolicy(rig.manager, "10:60:60", "0:60:0");
+
+    // An exclusive HEAD holds the whole gate, dispatched at t=0.
+    GateBlocker head;
+    auto head_task = takeHead(head, rig.gate);
+    QVERIFY(head.done && head.permit.valid());
+
+    // The entry paces normally, then parks in Acquire() behind the HEAD.
+    Caller caller;
+    rig.manager.QueueRequest(kEndpoint, request("one"), caller.reply);
+    advanceAndSettle(rig.scheduler, std::chrono::milliseconds(kNormalBufferMsec));
+    QCOMPARE(rig.sender.count(), 0);
+
+    // The probe 429s and joins this pump: a 180s hold lands while the
+    // entry is still suspended at the gate; then the HEAD releases.
+    rig.manager.HoldUntil(rig.scheduler.Now() + 180s);
+    head.permit.Release();
+
+    // The entry is granted at the spacing floor (t=250, from the HEAD's
+    // dispatch stamp) but must not send: it gives the permit back
+    // undispatched and sleeps to the hold deadline — installed at t=100,
+    // so exactly 179750ms remain when queried at t=350.
+    advanceAndSettle(rig.scheduler, kGateSpacing);
+    QCOMPARE(rig.sender.count(), 0);
+    QCOMPARE(rig.manager.msecToNextSend(), 179750);
+
+    advanceAndSettle(rig.scheduler, 180s);
+    QCOMPARE(rig.sender.count(), 1);
+    rig.sender.sent(0).reply->finish(policyHeaders("10:60:60", "1:60:0"), 200);
+    drainEvents();
+    QCOMPARE(caller.completions, 1);
+    QCOMPARE(caller.last_status, 200);
 }
 
 void RateLimitManagerTest::observationUpdatesPolicyOnErrorReplies()
