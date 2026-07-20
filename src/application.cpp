@@ -234,7 +234,7 @@ Application::UserSession::UserSession(const Application::CoreServices &core)
     items_manager = std::make_unique<ItemsManager>(settings, *buyout_manager, *data);
 
     spdlog::trace("Application::InitLogin() creating items worker");
-    items_worker = std::make_unique<ItemsManagerWorker>(settings, *buyout_manager, *rate_limiter);
+    items_worker = std::make_unique<ItemsManagerWorker>(settings, *buyout_manager, *api);
 
     spdlog::trace("Application::InitLogin() creating shop");
     shop = std::make_unique<Shop>(settings,

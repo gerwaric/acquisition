@@ -24,12 +24,12 @@
 #include "itemlocation.h"
 #include "modlist.h"
 #include "poe/poe_utils.h"
+#include "poe/poeapiclient.h"
 #include "poe/types/character.h"
 #include "poe/types/item.h"
 #include "poe/types/stashtab.h"
 #include "ratelimit/ratelimit.h"
 #include "ratelimit/ratelimitedreply.h"
-#include "ratelimit/ratelimiter.h"
 #include "repoe/repoe.h"
 #include "util/json_readers.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
@@ -37,12 +37,12 @@
 
 ItemsManagerWorker::ItemsManagerWorker(QSettings &settings,
                                        BuyoutManager &buyout_manager,
-                                       RateLimiter &rate_limiter,
+                                       PoeApiClient &api,
                                        QObject *parent)
     : QObject(parent)
     , m_settings(settings)
     , m_buyout_manager(buyout_manager)
-    , m_rate_limiter(rate_limiter)
+    , m_api(api)
     , m_type(TabSelection::Checked)
     , m_update_all(false)
     , m_need_stash_list(false)
@@ -494,36 +494,30 @@ void ItemsManagerWorker::Refresh()
 
 void ItemsManagerWorker::SubmitStashListRequest()
 {
-    const auto [endpoint, request] = poe::MakeStashListRequest(m_realm, m_league);
-    spdlog::trace("ItemsManagerWorker::OAuthRefresh() requesting stash list: {}",
-                  request.url().toString());
-    auto reply = m_rate_limiter.Submit(endpoint, request);
+    spdlog::trace("ItemsManagerWorker: requesting the stash list");
     const int generation = m_update_generation;
-    connect(reply,
-            &RateLimitedReply::complete,
-            this,
-            [this, generation, reply](QNetworkReply *network_reply) {
-                if (!DiscardIfStale(generation, reply, network_reply)) {
-                    OnStashListReceived(network_reply);
-                }
-            });
+    // Context-bound: the continuation is tied to this worker, so it never
+    // runs against a destroyed one. The generation check still discards
+    // replies from a superseded update (F28).
+    m_api.listStashes(m_realm, m_league)
+        .then(this, [this, generation](const Result<poe::StashListWrapper> &result) {
+            if (!IsStale(generation)) {
+                OnStashListReceived(result);
+            }
+        });
 }
 
 void ItemsManagerWorker::SubmitCharacterListRequest()
 {
-    const auto [endpoint, request] = poe::MakeCharacterListRequest(m_realm);
-    spdlog::trace("ItemsManagerWorker::OAuthRefresh() requesting character list: {}",
-                  request.url().toString());
-    auto reply = m_rate_limiter.Submit(endpoint, request);
+    spdlog::trace("ItemsManagerWorker: requesting the character list");
     const int generation = m_update_generation;
-    connect(reply,
-            &RateLimitedReply::complete,
-            this,
-            [this, generation, reply](QNetworkReply *network_reply) {
-                if (!DiscardIfStale(generation, reply, network_reply)) {
-                    OnCharacterListReceived(network_reply);
-                }
-            });
+    m_api.listCharacters(m_realm).then(this,
+                                       [this, generation](
+                                           const Result<poe::CharacterListWrapper> &result) {
+                                           if (!IsStale(generation)) {
+                                               OnCharacterListReceived(result);
+                                           }
+                                       });
 }
 
 void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, int &count)
@@ -554,8 +548,7 @@ void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, int &count)
                           || (m_contents_known.count(location.id()) == 0);
     if (m_update_tab_contents && selected) {
         ++count;
-        const auto [endpoint, request] = poe::MakeStashRequest(m_realm, m_league, location.id());
-        QueueRequest(endpoint, request, location);
+        QueueRequest(StashFetch{location.id(), {}}, location);
     }
 
     // Process any children.
@@ -569,28 +562,14 @@ void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, int &count)
     }
 }
 
-void ItemsManagerWorker::OnStashListReceived(QNetworkReply *reply)
+void ItemsManagerWorker::OnStashListReceived(const Result<poe::StashListWrapper> &result)
 {
-    spdlog::trace("ItemsManagerWorker::OnOAuthStashListReceived() entered");
+    spdlog::trace("ItemsManagerWorker::OnStashListReceived() entered");
 
-    auto sender = qobject_cast<RateLimitedReply *>(QObject::sender());
-    sender->deleteLater();
-    reply->deleteLater();
-
-    if (reply->error() != QNetworkReply::NoError) {
-        spdlog::warn("Aborting update because there was an error fetching the stash list: {}",
-                     reply->errorString());
-        ++m_request_failures;
-        m_has_stash_list = true;
-        m_has_character_list = true;
-        m_queue = {};
-        CheckUpdateFinished();
-        return;
-    }
-    const QByteArray bytes = reply->readAll();
-    const auto result = json::readStashListWrapper(bytes);
     if (!result) {
-        spdlog::error("ItemsManagerWorker: unable to parse stash list");
+        spdlog::warn("Aborting update because there was an error fetching the stash list ({}): {}",
+                     RateLimit::ToString(result.error().kind),
+                     result.error().message);
         ++m_request_failures;
         m_has_stash_list = true;
         m_has_character_list = true;
@@ -657,29 +636,15 @@ void ItemsManagerWorker::OnStashListReceived(QNetworkReply *reply)
     CheckUpdateFinished();
 }
 
-void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply *reply)
+void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterListWrapper> &result)
 {
-    spdlog::trace("ItemsManagerWorker::OnOAuthCharacterListReceived() entered");
+    spdlog::trace("ItemsManagerWorker::OnCharacterListReceived() entered");
 
-    auto sender = qobject_cast<RateLimitedReply *>(QObject::sender());
-    sender->deleteLater();
-    reply->deleteLater();
-
-    spdlog::trace("OAuth character list received");
-    if (reply->error() != QNetworkReply::NoError) {
-        spdlog::warn("Aborting update because there was an error fetching the character list: {}",
-                     reply->errorString());
-        ++m_request_failures;
-        m_has_stash_list = true;
-        m_has_character_list = true;
-        m_queue = {};
-        CheckUpdateFinished();
-        return;
-    }
-    const QByteArray bytes = reply->readAll();
-    const auto result = json::readCharacterListWrapper(bytes);
     if (!result) {
-        spdlog::error("ItemsManagerWorker: unable to parse character list");
+        spdlog::warn("Aborting update because there was an error fetching the character list "
+                     "({}): {}",
+                     RateLimit::ToString(result.error().kind),
+                     result.error().message);
         ++m_request_failures;
         m_has_stash_list = true;
         m_has_character_list = true;
@@ -741,8 +706,7 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply *reply)
                               || (m_contents_known.count(location.id()) == 0);
         if (m_update_tab_contents && selected) {
             ++requested_character_count;
-            const auto [endpoint, request] = poe::MakeCharacterRequest(m_realm, name);
-            QueueRequest(endpoint, request, location);
+            QueueRequest(CharacterFetch{name}, location);
         }
     }
     spdlog::debug("There are {} characters to update in '{}'", requested_character_count, m_league);
@@ -769,31 +733,19 @@ void ItemsManagerWorker::OnCharacterListReceived(QNetworkReply *reply)
     CheckUpdateFinished();
 }
 
-void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocation &location)
+void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result,
+                                         const ItemLocation &location)
 {
-    spdlog::trace("ItemsManagerWorker::OnOAuthStashReceived() entered");
+    spdlog::trace("ItemsManagerWorker::OnStashReceived() entered");
 
-    auto sender = qobject_cast<RateLimitedReply *>(QObject::sender());
-    sender->deleteLater();
-    reply->deleteLater();
-
-    spdlog::trace("OAuth stash recieved");
-    if (reply->error() != QNetworkReply::NoError) {
-        spdlog::warn("Aborting update because there was an error fetching the stash: {}",
-                     reply->errorString());
-        ++m_request_failures;
-        ++m_stashes_received;
-        m_stashes_needed = m_stashes_received;
-        m_characters_needed = m_characters_received;
-        m_queue = {};
-        SendStatusUpdate();
-        CheckUpdateFinished();
-        return;
-    }
-    const QByteArray bytes = reply->readAll();
-    const auto result = json::readStashWrapper(bytes);
-    if (!result) {
-        spdlog::error("ItemsManagerWorker: unable to parse stash");
+    if (!result || !result->stash) {
+        if (!result) {
+            spdlog::warn("Aborting update because there was an error fetching the stash ({}): {}",
+                         RateLimit::ToString(result.error().kind),
+                         result.error().message);
+        } else {
+            spdlog::error("ItemsManagerWorker: stash is empty");
+        }
         ++m_request_failures;
         ++m_stashes_received;
         m_stashes_needed = m_stashes_received;
@@ -859,13 +811,11 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
                              stash.type,
                              stash.name);
             }
-            const auto [endpoint,
-                        request] = poe::MakeStashRequest(m_realm, m_league, stash.id, child.id);
             // The child's items display under the parent's location, but
             // they are fetched (and atomically replaced) by the child's id.
             ItemLocation child_location = location;
             child_location.setFetchId(child.id);
-            QueueRequest(endpoint, request, child_location);
+            QueueRequest(StashFetch{stash.id, child.id}, child_location);
             ++m_stashes_needed;
         }
     }
@@ -939,41 +889,20 @@ void ItemsManagerWorker::OnStashReceived(QNetworkReply *reply, const ItemLocatio
     CheckUpdateFinished();
 }
 
-void ItemsManagerWorker::OnCharacterReceived(QNetworkReply *reply, const ItemLocation &location)
+void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterWrapper> &result,
+                                             const ItemLocation &location)
 {
-    spdlog::trace("ItemsManagerWorker::OnOAuthCharacterReceived() entered");
+    spdlog::trace("ItemsManagerWorker::OnCharacterReceived() entered");
 
-    auto sender = qobject_cast<RateLimitedReply *>(QObject::sender());
-    sender->deleteLater();
-    reply->deleteLater();
-
-    spdlog::trace("OAuth character recieved");
-    if (reply->error() != QNetworkReply::NoError) {
-        spdlog::warn("Aborting update because there was an error fetching the character: {}",
-                     reply->errorString());
-        ++m_request_failures;
-        ++m_characters_received;
-        m_stashes_needed = m_stashes_received;
-        m_characters_needed = m_characters_received;
-        m_queue = {};
-        SendStatusUpdate();
-        CheckUpdateFinished();
-        return;
-    }
-    const QByteArray bytes = reply->readAll();
-    const auto result = json::readCharacterWrapper(bytes);
-    if (!result) {
-        spdlog::error("ItemsManagerWorker: unable to parse character");
-        ++m_request_failures;
-        ++m_characters_received;
-        m_stashes_needed = m_stashes_received;
-        m_characters_needed = m_characters_received;
-        m_queue = {};
-        SendStatusUpdate();
-        CheckUpdateFinished();
-        return;
-    } else if (!result->character) {
-        spdlog::error("ItemsManagerWorker: character is empty");
+    if (!result || !result->character) {
+        if (!result) {
+            spdlog::warn("Aborting update because there was an error fetching the character "
+                         "({}): {}",
+                         RateLimit::ToString(result.error().kind),
+                         result.error().message);
+        } else {
+            spdlog::error("ItemsManagerWorker: character is empty");
+        }
         ++m_request_failures;
         ++m_characters_received;
         m_stashes_needed = m_stashes_received;
@@ -1012,15 +941,13 @@ void ItemsManagerWorker::OnCharacterReceived(QNetworkReply *reply, const ItemLoc
     CheckUpdateFinished();
 }
 
-void ItemsManagerWorker::QueueRequest(const QString &endpoint,
-                                      const QNetworkRequest &request,
+void ItemsManagerWorker::QueueRequest(std::variant<StashFetch, CharacterFetch> what,
                                       const ItemLocation &location)
 {
     spdlog::trace("Queued ({}) -- {}", (m_queue_id + 1), location.GetHeader());
     ItemsRequest items_request;
-    items_request.endpoint = endpoint;
-    items_request.network_request = request;
     items_request.id = m_queue_id++;
+    items_request.what = std::move(what);
     items_request.location = location;
     m_queue.push(items_request);
 }
@@ -1076,32 +1003,34 @@ void ItemsManagerWorker::SubmitNextItemRequest()
     m_queue.pop();
 
     const ItemLocation location = request.location;
-    std::function<void(QNetworkReply *)> callback;
-
-    switch (location.type()) {
-    case ItemLocationType::STASH:
-        callback = [=, this](QNetworkReply *reply) { OnStashReceived(reply, location); };
-        break;
-    case ItemLocationType::CHARACTER:
-        callback = [=, this](QNetworkReply *reply) { OnCharacterReceived(reply, location); };
-        break;
-    }
-
-    auto reply = m_rate_limiter.Submit(request.endpoint, request.network_request);
     const int generation = m_update_generation;
-    connect(reply,
-            &RateLimitedReply::complete,
-            this,
-            [this, generation, reply, callback](QNetworkReply *network_reply) {
-                if (!DiscardIfStale(generation, reply, network_reply)) {
-                    callback(network_reply);
-                }
-            });
+
+    // The queue carries what to fetch, not how: each branch names the
+    // resource and the facade builds the request.
+    std::visit(
+        [&](const auto &what) {
+            using What = std::decay_t<decltype(what)>;
+            if constexpr (std::is_same_v<What, StashFetch>) {
+                m_api.getStash(m_realm, m_league, what.stash_id, what.substash_id)
+                    .then(this, [this, generation, location](const Result<poe::StashWrapper> &r) {
+                        if (!IsStale(generation)) {
+                            OnStashReceived(r, location);
+                        }
+                    });
+            } else {
+                m_api.getCharacter(m_realm, what.name)
+                    .then(this,
+                          [this, generation, location](const Result<poe::CharacterWrapper> &r) {
+                              if (!IsStale(generation)) {
+                                  OnCharacterReceived(r, location);
+                              }
+                          });
+            }
+        },
+        request.what);
 }
 
-bool ItemsManagerWorker::DiscardIfStale(int generation,
-                                        RateLimitedReply *reply,
-                                        QNetworkReply *network_reply)
+bool ItemsManagerWorker::IsStale(int generation) const
 {
     // A reply is stale if it belongs to an earlier update, or if no update is
     // running at all: every request is submitted during an update, a
@@ -1110,12 +1039,9 @@ bool ItemsManagerWorker::DiscardIfStale(int generation,
     if ((m_state == WorkerState::Updating) && (generation == m_update_generation)) {
         return false;
     }
-    spdlog::debug("ItemsManagerWorker: discarding a stale reply from update {} (current is {}): {}",
+    spdlog::debug("ItemsManagerWorker: discarding a stale reply from update {} (current is {})",
                   generation,
-                  m_update_generation,
-                  network_reply->url().toString());
-    reply->deleteLater();
-    network_reply->deleteLater();
+                  m_update_generation);
     return true;
 }
 

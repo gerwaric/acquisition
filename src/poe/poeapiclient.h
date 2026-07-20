@@ -27,6 +27,13 @@ class RateLimiter;
 // not remembered settings, which is what makes the class genuinely stateless
 // (R7).
 //
+// The methods are virtual for exactly one reason: the worker suite substitutes
+// a fake facade for them (testing-plan item 5), so worker tests can say "when
+// asked for stash X, return this tab" instead of crafting response bytes. That
+// is the whole intent of the vtable — this is not an extension point, and
+// production has and should have exactly one implementation. Request building
+// and endpoint labels are pinned against the real class in tst_poeapiclient.
+//
 // The facade owns the transfer-timeout invariant (R5-3): every request it
 // builds carries the 10 s inactivity timeout the gate's liveness depends on
 // (D5). That is not a convention here — a request without it can hold a gate
@@ -45,31 +52,33 @@ public:
         : m_rate_limiter(rate_limiter)
     {}
 
-    Result<poe::StashListWrapper> listStashes(const QString &realm,
-                                              const QString &league,
-                                              std::stop_token token = {});
+    virtual ~PoeApiClient() = default;
 
-    Result<poe::StashWrapper> getStash(const QString &realm,
-                                       const QString &league,
-                                       const QString &stash_id,
-                                       const QString &substash_id = {},
-                                       std::stop_token token = {});
+    virtual Result<poe::StashListWrapper> listStashes(const QString &realm,
+                                                      const QString &league,
+                                                      std::stop_token token = {});
 
-    Result<poe::CharacterListWrapper> listCharacters(const QString &realm,
-                                                     std::stop_token token = {});
-
-    Result<poe::CharacterWrapper> getCharacter(const QString &realm,
-                                               const QString &name,
+    virtual Result<poe::StashWrapper> getStash(const QString &realm,
+                                               const QString &league,
+                                               const QString &stash_id,
+                                               const QString &substash_id = {},
                                                std::stop_token token = {});
+
+    virtual Result<poe::CharacterListWrapper> listCharacters(const QString &realm,
+                                                             std::stop_token token = {});
+
+    virtual Result<poe::CharacterWrapper> getCharacter(const QString &realm,
+                                                       const QString &name,
+                                                       std::stop_token token = {});
 
     // The legacy character-window stash index the forum shop uses. It is not
     // an OAuth endpoint and has no poe:: builder, so the request is built
     // here — WITH the transfer timeout, which the hand-rolled request in
     // Shop never had (F60).
-    Result<poe::WebStashListWrapper> getLegacyStashIndex(const QString &account,
-                                                         const QString &realm,
-                                                         const QString &league,
-                                                         std::stop_token token = {});
+    virtual Result<poe::WebStashListWrapper> getLegacyStashIndex(const QString &account,
+                                                                 const QString &realm,
+                                                                 const QString &league,
+                                                                 std::stop_token token = {});
 
 private:
     RateLimiter &m_rate_limiter;

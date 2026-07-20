@@ -1126,8 +1126,19 @@ sleep.)
    sleep).
 5. **Worker tests move to a facade fake** ("when asked for stash X,
    return this tab / this error") — simpler than today's byte-crafting
-   `FakeRateLimiter`, and it closes the fake-bypasses-the-managers blind
-   spot. Existing worker-update behavior pins (`tst_workerupdate.cpp`)
+   `FakeRateLimiter`, and it makes the worker suite's unit boundary
+   explicit. (Corrected in 4b: the earlier wording claimed this closed
+   a fake-bypasses-the-managers blind spot, which was wrong — a
+   `FakeRateLimiter` overrides `SubmitFuture`, so no `RateLimiter`,
+   hub, gate, or pump code runs under it either. Both fakes bypass the
+   managers equally; manager behavior is covered by the dedicated
+   manager and hub harnesses and by item 6's integration coverage,
+   never by `tst_workerupdate`.) The coverage split is: worker suite —
+   real worker over a fake typed facade; `tst_poeapiclient` — real
+   facade over a fake limiter, which is where request building and
+   endpoint labels are pinned; limiter and manager suites — real
+   networking layers over their own lower-level fakes.
+   Existing worker-update behavior pins (`tst_workerupdate.cpp`)
    are ported, not weakened. **IR2 invariant pins**: an
    already-finished success and an already-finished error future
    (fail-fast submit) run their continuations synchronously during

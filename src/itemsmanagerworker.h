@@ -4,22 +4,25 @@
 #pragma once
 
 #include <QNetworkCookie>
-#include <QNetworkRequest>
 #include <QObject>
 #include <QPointer>
 #include <QString>
 #include <QStringList>
 
 #include <atomic>
+#include <expected>
 #include <map>
 #include <queue>
 #include <set>
+#include <variant>
 
 #include "item.h"
+#include "poe/types/character.h"
+#include "poe/types/stashtab.h"
+#include "ratelimit/fetcherror.h"
 #include "util/programstate.h"
 #include "util/util.h"
 
-class QNetworkReply;
 class QSettings;
 class QSignalMapper;
 class QThread;
@@ -29,27 +32,28 @@ class BuyoutManager;
 class DataStore;
 class ItemLocation;
 class NetworkManager;
-class RateLimitedReply;
-class RateLimiter;
+class PoeApiClient;
 class RePoE;
 
-namespace poe {
-    struct Character;
-    struct StashTab;
-} // namespace poe
+// What a queued fetch asks the API for. The worker names the resource; the
+// facade builds the request (phase 4b) — above this line nothing sees a
+// QNetworkRequest.
+struct StashFetch
+{
+    QString stash_id;
+    QString substash_id;
+};
+
+struct CharacterFetch
+{
+    QString name;
+};
 
 struct ItemsRequest
 {
     int id{-1};
-    QString endpoint;
-    QNetworkRequest network_request;
+    std::variant<StashFetch, CharacterFetch> what;
     ItemLocation location;
-};
-
-struct ItemsReply
-{
-    QNetworkReply *network_reply;
-    ItemsRequest request;
 };
 
 struct ParseResult
@@ -69,7 +73,7 @@ class ItemsManagerWorker : public QObject
 public:
     explicit ItemsManagerWorker(QSettings &m_settings,
                                 BuyoutManager &buyout_manager,
-                                RateLimiter &rate_limiter,
+                                PoeApiClient &api,
                                 QObject *parent = nullptr);
     ~ItemsManagerWorker() override;
 
@@ -117,13 +121,20 @@ public slots:
     void OnRePoEReady();
     void Update(Util::TabSelection type, const std::vector<ItemLocation> &tab_names = {});
 
-private slots:
-    void OnStashListReceived(QNetworkReply *reply);
-    void OnStashReceived(QNetworkReply *reply, const ItemLocation &location);
-    void OnCharacterListReceived(QNetworkReply *reply);
-    void OnCharacterReceived(QNetworkReply *reply, const ItemLocation &location);
-
 private:
+    // Every handler takes one already-classified result (phase 4b): the
+    // transport check, the status check, and the parse the handlers used to
+    // do all live below the facade now, so a failure of any flavour arrives
+    // as the same unexpected value.
+    template<typename T>
+    using Result = std::expected<T, RateLimit::FetchError>;
+
+    void OnStashListReceived(const Result<poe::StashListWrapper> &result);
+    void OnStashReceived(const Result<poe::StashWrapper> &result, const ItemLocation &location);
+    void OnCharacterListReceived(const Result<poe::CharacterListWrapper> &result);
+    void OnCharacterReceived(const Result<poe::CharacterWrapper> &result,
+                             const ItemLocation &location);
+
     enum class WorkerState { Initializing, Idle, Updating };
 
     bool isInitialized() const { return m_state != WorkerState::Initializing; }
@@ -136,14 +147,12 @@ private:
     void LoadItems(const poe::StashTab &stash, ItemLocation location, ParseResult &result) const;
     void RemoveItemsFetchedBy(const QString &fetch_id);
     void RebaseItemLocations(ItemLocationType type);
-    void QueueRequest(const QString &endpoint,
-                      const QNetworkRequest &request,
-                      const ItemLocation &location);
+    void QueueRequest(std::variant<StashFetch, CharacterFetch> what, const ItemLocation &location);
     void FetchItems();
     void SubmitStashListRequest();
     void SubmitCharacterListRequest();
     void SubmitNextItemRequest();
-    bool DiscardIfStale(int generation, RateLimitedReply *reply, QNetworkReply *network_reply);
+    bool IsStale(int generation) const;
 
     void Refresh();
 
@@ -156,7 +165,7 @@ private:
 
     QSettings &m_settings;
     BuyoutManager &m_buyout_manager;
-    RateLimiter &m_rate_limiter;
+    PoeApiClient &m_api;
 
     QString m_realm;
     QString m_league;
