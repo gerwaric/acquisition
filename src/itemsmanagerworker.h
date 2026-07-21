@@ -39,7 +39,7 @@ class NetworkManager;
 class PoeApiClient;
 class RePoE;
 
-// What a queued fetch asks the API for. The worker names the resource; the
+// What a content fetch asks the API for. The worker names the resource; the
 // facade builds the request (phase 4b) — above this line nothing sees a
 // QNetworkRequest.
 struct StashFetch
@@ -186,21 +186,24 @@ private:
     // future runs its completion synchronously inside the launch loop (IR2/S1-6).
     void LaunchContent(std::vector<ItemsRequest> batch);
 
-    // The root update task (D6, rev. 10): it launches the update's required
-    // list(s) and returns — it never co_awaits, so it is a coroutine only for
-    // its owned handle (R4-3) and its root catch-all (R5-1). It deliberately
-    // owns no flow control: the orchestration is a counter-driven join, not a
-    // linear await, because content and reply-discovered child batches fan out
-    // dynamically and cannot be a static co_await sequence. It launches every
-    // required list without awaiting one another (D6); each list handler then
-    // launches its own complete content batch (character content is never held
-    // behind the stash list), each per-fetch coroutine self-drives, and the
-    // completion that reconciles the counters finalizes the update. The
-    // m_has_*_list / m_need_*_list flags stay because a counter-driven join
-    // cannot tell a required-but-empty list from one that has not arrived yet
-    // (rev. 10); they are the minimal list-arrival state, not a residual
-    // callback pyramid.
-    QCoro::Task<> RunUpdate();
+    // The root orchestration (D6, rev. 10): it launches the update's required
+    // list(s) without awaiting one another and returns. It is an ordinary
+    // synchronous method, NOT a coroutine — the fan-out is a counter-driven join,
+    // not a linear await (content and reply-discovered child batches are
+    // discovered dynamically and cannot be a static co_await sequence), so it
+    // never suspends and there is no asynchronous lifetime for an owned task
+    // handle to manage. Only the per-fetch tasks suspend, and they are owned in
+    // m_fetch_tasks (R4-3). Its whole body is wrapped in a catch-all (R5-1) so a
+    // throw in orchestration aborts and finalizes rather than escaping into the
+    // caller; a plain function's try/catch does this exactly as a coroutine's
+    // would, since nothing here suspends. Each list handler launches its own
+    // complete content batch (character content is never held behind the stash
+    // list), each per-fetch coroutine self-drives, and the completion that
+    // reconciles the counters finalizes the update. The m_has_*_list /
+    // m_need_*_list flags stay because a counter-driven join cannot tell a
+    // required-but-empty list from one that has not arrived yet; they are the
+    // minimal list-arrival state, not a residual callback pyramid.
+    void RunUpdate();
 
     // Per-fetch tasks (D6): each co_awaits one facade future via
     // qCoro(future).takeResult(), checks the update token immediately after
@@ -335,11 +338,12 @@ private:
     // turn coalesce into a single SweepTasks() run.
     bool m_sweep_scheduled{false};
 
-    // Owned coroutine handles (D6/R4-3). Declared LAST so they destruct FIRST:
-    // at worker destruction a suspended frame is detached (S1-1), and it must
-    // be released before any member its frame could still observe. m_update_task
-    // is the single root handle (reused each update); m_fetch_tasks holds every
-    // per-fetch handle until the deferred sweep reclaims the completed ones.
-    QCoro::Task<> m_update_task;
+    // Owned per-fetch coroutine handles (D6/R4-3). Declared LAST so they
+    // destruct FIRST: at worker destruction a suspended frame is detached
+    // (S1-1), and it must be released before any member its frame could still
+    // observe. m_fetch_tasks holds every per-fetch handle until the deferred
+    // sweep reclaims the completed ones. The root orchestration (RunUpdate) is a
+    // synchronous method that never suspends, so it needs no owned handle here
+    // (rev. 10).
     std::vector<QCoro::Task<>> m_fetch_tasks;
 };

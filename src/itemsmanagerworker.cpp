@@ -461,10 +461,10 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
     m_has_character_list = false;
 
     // Every per-update counter and selection flag above is initialized before
-    // the root task launches its first fetch: a ready/fail-fast future can run
-    // its continuation synchronously during launch (S1-6/IR2), so nothing it
-    // touches may still be uninitialized. Launch the owned root task last.
-    m_update_task = RunUpdate();
+    // the root orchestration launches its first fetch: a ready/fail-fast future
+    // can run its continuation synchronously during launch (S1-6/IR2), so nothing
+    // it touches may still be uninitialized. Run the root orchestration last.
+    RunUpdate();
 }
 
 void ItemsManagerWorker::RemoveItemsFetchedBy(const QString &fetch_id)
@@ -503,19 +503,20 @@ void ItemsManagerWorker::RebaseItemLocations(ItemLocationType type)
     }
 }
 
-QCoro::Task<> ItemsManagerWorker::RunUpdate()
+void ItemsManagerWorker::RunUpdate()
 {
-    // The root update task (D6): it launches the update's required list(s) and
-    // then reconciles the terminal state; the per-fetch tasks self-drive from
-    // there. 5B keeps list submission serial — the stash list first, the
-    // character list from its handler — exactly as the old Refresh() did; 5C
-    // launches both without awaiting one another. This body never co_awaits,
-    // so it runs synchronously to completion on assignment; the co_return
-    // makes it a coroutine so the root catch-all and the owned handle exist.
+    // The root orchestration (D6, rev. 10): it launches the update's required
+    // list(s) without awaiting one another and returns; the per-fetch tasks
+    // self-drive from there and the completion that reconciles the counters
+    // finalizes the update. This is an ordinary synchronous method, not a
+    // coroutine: it never co_awaits (the fan-out is counter-driven, not a linear
+    // await), so there is no asynchronous lifetime for an owned task handle to
+    // manage — only the per-fetch tasks suspend and are owned in m_fetch_tasks.
     //
-    // No exception ever escapes a root coroutine (R5-1): a throw in
-    // orchestration itself aborts and finalizes the update rather than
-    // unwinding into the caller (ItemsManager / the UI).
+    // The whole body is wrapped in a catch-all (R5-1): a throw in orchestration
+    // itself aborts and finalizes the update rather than unwinding into the
+    // caller (ItemsManager / the UI). A plain function's try/catch does this
+    // exactly as a coroutine's would, since nothing here suspends.
     try {
         spdlog::trace("ItemsManagerWorker: starting the update");
         // Root orchestration fault site (test-only; no-op in production).
@@ -541,7 +542,6 @@ QCoro::Task<> ItemsManagerWorker::RunUpdate()
         spdlog::error("ItemsManagerWorker: the update orchestration threw an unknown exception");
         AbortUpdate();
     }
-    co_return;
 }
 
 void ItemsManagerWorker::AbortUpdate()

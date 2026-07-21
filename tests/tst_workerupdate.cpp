@@ -50,10 +50,11 @@ private slots:
     void datastoreFollowsServerDeletions();
     void datastoreFollowsCharacterDeletions();
 
-    // Direct FakePoeApiClient harness pins. The 5A worker passes only default
-    // tokens (D7), so the stopped-straggler and cross-update-overlap paths the
-    // shared-token worker will exercise in 5B/5D cannot yet be driven through
-    // the worker; these prove the harness capability against the fake directly.
+    // Direct FakePoeApiClient harness pins: the stopped-straggler settlement and
+    // cross-update-overlap identity rules the fake enforces, pinned against the
+    // fake in isolation. The worker-level behavior that relies on them is pinned
+    // separately (W-ER1, W-IDENTITY); these keep the harness contract honest on
+    // its own.
     void fakeSettlesStoppedStragglersCanceledExactlyOnce();
     void fakeTreatsCrossUpdateIdentityOverlapAsLive();
 
@@ -1448,8 +1449,8 @@ void WorkerUpdateTest::datastoreFollowsCharacterDeletions()
 // The straggler-settle path: stopped calls are settled Canceled in bulk,
 // exactly once, while live calls are untouched and remain deliverable. The
 // finders exclude stopped stragglers, so an active update never delivers to
-// one. Driven directly against the fake because the 5A worker cannot stop a
-// token.
+// one. Driven directly against the fake to pin these harness semantics in
+// isolation (the worker-level use is pinned by W-ER1/W-IDENTITY).
 void WorkerUpdateTest::fakeSettlesStoppedStragglersCanceledExactlyOnce()
 {
     NetworkManager network;

@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <functional>
+#include <utility>
 
 #include "itemsmanagerworker.h"
 
