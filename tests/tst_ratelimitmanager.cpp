@@ -91,6 +91,7 @@ private slots:
     void cancelDuringRetrySleepCompletesCanceled();
     void cancelInFlightLetsReplyLandAndRecordsViolation();
     void awaitingCoroutineResumesSafelyOnCancel();
+    void siblingResumesCanceledWhenSharedSourceStops();
 };
 
 namespace {
@@ -1310,6 +1311,55 @@ void RateLimitManagerTest::awaitingCoroutineResumesSafelyOnCancel()
 
     QVERIFY(resumed);
     QCOMPARE(kind, RateLimit::FetchError::Kind::Canceled);
+}
+
+void RateLimitManagerTest::siblingResumesCanceledWhenSharedSourceStops()
+{
+    // M-ER1, the manager-level guarantee the phase-5 worker leans on: a whole
+    // update runs several fetches off one shared std::stop_source, and a
+    // first-failure handler requests stop the instant any one of them fails.
+    // A sibling suspended awaiting its own future at that moment must resume
+    // from a *finished* Canceled value — never a QFuture cancellation, which
+    // would make QCoro call result() on a resultless future (the ER1 UB; see
+    // awaitingCoroutineResumesSafelyOnCancel for the single-fetch shape).
+    Rig rig;
+    installPolicy(rig.manager, "10:60:60", "0:60:0");
+
+    // Both fetches share one source, the way an update's requests will.
+    std::stop_source shared;
+
+    // The first fetch is awaited by a plain Caller so its terminal failure is
+    // observable and can drive the shared stop.
+    Caller first;
+    first.attach(rig.manager.QueueRequest(kEndpoint, request("one"), shared.get_token()));
+
+    // The second shares the source and suspends inside a coroutine, held back
+    // by the gate's send spacing behind the first.
+    auto second = rig.manager.QueueRequest(kEndpoint, request("two"), shared.get_token());
+    bool resumed = false;
+    std::optional<RateLimit::FetchError::Kind> kind;
+    auto waiter = awaitOutcome(second, kind, resumed);
+
+    advanceAndSettle(rig.scheduler, std::chrono::milliseconds(kNormalBufferMsec));
+    QCOMPARE(rig.sender.count(), 1); // only the first sent; the second is spacing-gated
+    QVERIFY(!resumed);
+
+    // The first fetch fails terminally — a real network failure, not a cancel.
+    rig.sender.sent(0).reply->finish({}, 0, QNetworkReply::ConnectionRefusedError);
+    drainEvents();
+    QCOMPARE(first.completions, 1);
+    QCOMPARE(first.kind(), RateLimit::FetchError::Kind::Network);
+    QVERIFY(!resumed); // the sibling is still suspended, waiting to send
+
+    // The worker-style first-failure handler stops the shared source. No clock
+    // advance: the gate spacing has not elapsed, so the sibling could not send
+    // on its own — the only thing that moves it is the stop.
+    shared.request_stop();
+    settle(rig.scheduler);
+
+    QVERIFY(resumed);
+    QCOMPARE(kind, RateLimit::FetchError::Kind::Canceled);
+    QCOMPARE(rig.sender.count(), 1); // the sibling never sent
 }
 
 QTEST_GUILESS_MAIN(RateLimitManagerTest)
