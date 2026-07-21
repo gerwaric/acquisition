@@ -1,6 +1,6 @@
 # Network Redesign: Typed Facade, Coroutine Pumps, and the Gate
 
-**Status: ACCEPTED July 19, 2026 (revision 8) — frozen for
+**Status: ACCEPTED July 20, 2026 (revision 9) — frozen for
 implementation; phase 0 complete (spike + batch-scale
 measurement); phase 1 complete (manager harness,
 `tests/tst_ratelimitmanager.cpp`, July 19, 2026); phase 2 complete
@@ -32,7 +32,10 @@ detach-plus-no-delivery (S1-1..S1-4); every other spike-tested
 premise held (S1-5..S1-10). The batch-scale measurement (round S2,
 same spike project) closed phasing step 0's open question with
 numbers: ~6.5 KB per entry, milliseconds to abort 2,000 tabs — no
-flow control (S2-1..S2-4). The finding tables (ER, IR, R4-\*,
+flow control (S2-1..S2-4). Rev 9 is the phase-5 planning-readiness
+amendment: it makes D6's staged batch shape and active-update policy
+explicit and adds the missing F56 and preservation acceptance criteria;
+it changes no network-layer design. The finding tables (ER, IR, R4-\*,
 R5-\*, R6-\*, R7, S1, S2), the round narratives, the reversal records,
 and the revision log live in `network-redesign-reviews.md`; this
 spec records only current decisions and cites finding IDs inline
@@ -615,21 +618,31 @@ forum and login traffic as-is, documented here.
 
 ### D6. The worker: batch submit, count completions, no flow control
 
-- On update start the worker submits **all** selected fetches
-  immediately through the facade (folder/Map/Unique children are
-  appended as parent replies land, same as today). Per-policy FIFOs in
-  the pumps preserve submission order — ordering is priority, which
-  satisfies "walk requests as the items model iterates them";
-  reprioritization stays out of scope (M2+ — and it is **not** cheap
-  later, R7: the stop token is per-update, so per-entry cancellation
-  does not exist; reprioritization would need a new mechanism,
+- "Submit all selected fetches" is **staged by discovery, not paced by
+  the worker**. `All` and `TabsOnly` require both fresh lists; a partial
+  refresh requires only the location types represented by its selection,
+  preserving M1. Required list requests are launched without awaiting one
+  another. The complete stage is initialized before its first launch and every
+  member is invoked even if an earlier synchronously ready/fail-fast result
+  stops the update; later submissions receive that stopped token and complete
+  through the ordinary cancellation path. As each required list result is
+  processed, it independently defines and launches that list's complete
+  content batch; character content is never held behind the stash list. Folder
+  children discovered in the stash list join that list's batch. Map/Unique
+  children discovered in a parent content reply are appended as one complete
+  child batch. There is no wait between entries inside a batch.
+- Per-policy FIFOs preserve the source traversal order that defines each
+  batch: fresh-list/model order, recursive Folder-child order, and
+  parent-reply child order. There is no global order between the independent
+  stash and character lanes, and request priority never comes from unordered
+  container iteration. Reprioritization stays out of scope (M2+ — and it is
+  **not** cheap later, R7: the stop token is per-update, so per-entry
+  cancellation does not exist; reprioritization would need a new mechanism,
   deliberately not designed now).
 - Worker-side serialization is explicitly rejected: one-at-a-time
   submission *is* F56 — it recreates idle policy lanes by construction.
   Batching is also strictly less state: no `m_queue`, no
   `SubmitNextItemRequest`, no re-entrancy dance.
-- The two list requests are submitted concurrently again (they are
-  distinct policies — N6, N7; the else-if chaining is deleted).
 - Orchestration becomes coroutines (`QCoro::Task<>` methods,
   `co_await` on facade futures): the update sequence reads top-to-bottom
   and the callback pyramid with its flag pairs
@@ -690,11 +703,23 @@ forum and login traffic as-is, documented here.
   moves the parsed payload out with `co_await
   qCoro(future).takeResult()` (0 copies, spike-measured); plain
   `co_await future` copies via `QFuture::result()`.
-- Failure semantics at the update level are unchanged from M1: a
-  terminal failure aborts the update (`request_stop()` on the update's
-  stop_source, no emit); atomic per-reply replacement already
-  guarantees nothing is lost. Per-tab retry/durable progress remain M2
-  concerns and are not blocked by anything here.
+- **Update-state policy:** an `Update()` received while an initialized update
+  is active is refused: it submits nothing and neither stops, replaces, nor
+  queues behind the active update. Deferral while the worker is still
+  initializing remains a separate existing behavior. Whole-update
+  replacement/coalescing is an M2 concern alongside reprioritization and
+  durable progress.
+- Failure semantics at the update level are unchanged from M1: a terminal
+  failure aborts the update (`request_stop()` on the update's stop_source,
+  no `ItemsRefreshed`, no rebase). Replies already processed and atomically
+  applied before the failure remain applied; a consumer that resumes after
+  stop applies nothing. Canceled siblings return silently, do not add request
+  failures, and cannot produce another terminal transition. The first terminal
+  failure returns the worker to idle immediately rather than waiting for those
+  siblings, so a new update may be active while stopped tasks from the old one
+  are still settling. Completion/status counters remain monotonic and include
+  each child before that child is launched. Per-tab retry/durable progress
+  remain M2 concerns and are not blocked by anything here.
 - The update generation tag is deleted outright, not shrunk (revised
   July 18): each update owns its stop_source, and identity is carried
   by the token under the post-await invariant above. A straggler from
@@ -1155,8 +1180,22 @@ sleep.)
    facade over a fake limiter, which is where request building and
    endpoint labels are pinned; limiter and manager suites — real
    networking layers over their own lower-level fakes.
+   **The F56 regression shape is an acceptance requirement:** for an update
+   requiring both lists and pending fake futures, both list calls exist before
+   the harness settles either; each arriving list launches its complete content
+   batch before any content reply is delivered; character calls are in flight
+   while stash calls remain outstanding; Folder children and reply-discovered
+   Map/Unique children join complete batches; and call order within each policy
+   lane follows D6's source traversal order. Partial updates still request only
+   their required list type. Every list/content/child call in one update carries
+   the same non-default token, a terminal failure stops it, and the next update
+   carries a distinct unstopped token.
    Existing worker-update behavior pins (`tst_workerupdate.cpp`)
-   are ported, not weakened. **IR2 invariant pins**: an
+   are ported, not weakened. In particular, reordered completion must preserve
+   M1's atomic replacement/rebase boundary, F53's reconciliation signals,
+   F55's `m_contents_known` parent/child rules, exactly one terminal status
+   transition, and D6's active-`Update()` refusal policy. **IR2 invariant
+   pins**: an
    already-finished success and an already-finished error future
    (fail-fast submit) run their continuations synchronously during
    the batch-submit loop without corrupting counters
@@ -1345,7 +1384,9 @@ sleep.)
    the same pass (it does not; neither fake runs manager code).
 5. Worker rewrite: batch submission, coroutine orchestration, abort via
    cancellation; worker queue and generation machinery deleted. Resolves
-   F56.
+   F56. The transient execution packages and completion-evidence IDs live in
+   `network-redesign-phase5-plan.md` and
+   `network-redesign-phase5-verification.md`; neither overrides this spec.
 
 Each phase is independently shippable; 3, 4, 5 each land with their
 tests in the same PR.

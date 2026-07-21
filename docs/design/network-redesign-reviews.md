@@ -4,8 +4,8 @@
 Appendix B on July 19, 2026, at revision 5; the appendix's earlier
 evolution is in the spec file's git history). This file preserves the
 decision history for the network redesign: the review-round finding
-tables (ER, IR, R4-\*, R5-\*), the round narratives, and the revision
-log. The spec cites these IDs inline and records only current
+tables (ER, IR, R4-\* through R7, S1, S2), the round narratives, and the
+revision log. The spec cites these IDs inline and records only current
 decisions; new review rounds and revision-log entries append here,
 with the spec's status line updated in the same commit. Where a later
 round superseded an earlier resolution, both are recorded. Git
@@ -654,3 +654,15 @@ no further scales.
   re-measured, verdict unchanged), and the resumption-wait timeout
   path fixed to leak the update deliberately instead of sweeping
   live frames into a use-after-free.
+- **July 20, 2026 (phase-5 planning-readiness amendment — rev. 9;
+  freeze holds)** — the phase-5 planning handoff exposed an authority gap:
+  D6 required batching but the testing plan did not require a regression
+  test that would fail if worker-side serialization returned, and several
+  preservation expectations existed only as planning prose. D6 now states
+  the staged discovery/batch shape, per-policy order, active-`Update()`
+  refusal, and cancellation/status accounting explicitly. Testing-plan item
+  5 now requires the F56 concurrency shape, shared update-token identity, and
+  preservation of the M1/F53/F55 boundaries under reordered completion.
+  Test seams, mutation mechanics, shutdown-runner layout, and commit ordering
+  remain in the phase-local verification contract and execution plan; no
+  network-layer design changed.

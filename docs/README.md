@@ -10,11 +10,18 @@ when this map and a header disagree, the header wins.
   items refresh pipeline. Milestone 1 shipped July 2026; M2/M3 get their
   own specs before their code begins.
 - `design/network-redesign.md` — accepted, frozen spec for the
-  rate-limited networking redesign (typed facade, coroutine pumps, gate).
-  Records current decisions only; cites review finding IDs inline.
+  rate-limited networking redesign (typed facade, coroutine pumps, gate),
+  revision 9. Records current decisions only; cites review finding IDs inline.
 - `design/network-redesign-reviews.md` — that spec's decision history:
-  review-round finding tables (ER, IR, R4–R7, S1), round narratives,
-  reversal records, and the revision log.
+  review-round finding tables (ER, IR, R4–R7, S1/S2), round narratives,
+  reversal records, and the revision log, including the phase-5
+  planning-readiness amendment.
+- `design/network-redesign-phase5-plan.md` — transient execution plan for the
+  final worker-rewrite phase: session-sized packages, dependency order, and
+  current package status. Removed after phase 5 lands.
+- `design/network-redesign-phase5-verification.md` — transient phase-5
+  verification contract: stable evidence IDs, worker preservation matrix, and
+  the full-chain shutdown/retention harness. Removed after phase 5 lands.
 - `../spikes/qcoro/` — phase-0 QCoro spike (standalone CMake project,
   not part of the acquisition build): the running-code evidence behind
   the S1 findings. Throwaway by design; kept while the network
@@ -50,5 +57,8 @@ when this map and a header disagree, the header wins.
 - Spec review findings get round-scoped IDs (ER, IR, R4-\*, …) recorded
   in the review-history file; specs cite the IDs inline and record only
   current decisions.
+- Phase-5 verification IDs (`M-*`, `W-*`, `P-*`, `I-*`) are local to its
+  transient verification contract. They organize completion evidence but are
+  not permanent project-wide finding IDs.
 - Retired documents (the cleanup plan and its phase documents, superseded
   spec text) live in git history, not in the tree.

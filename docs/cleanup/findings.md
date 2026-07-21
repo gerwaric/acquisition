@@ -122,7 +122,7 @@ docs, real-world logs, Tom's knowledge) produces a network ground-truth
 document first; fix shapes and the F56/F57 sequencing get re-derived
 against it. **Re-derivation complete July 18, 2026:** the superseding
 fix shapes for F56–F59 are specified in
-`docs/design/network-redesign.md` (accepted July 19, 2026, revision 8;
+`docs/design/network-redesign.md` (accepted July 20, 2026, revision 9;
 frozen for implementation) — queueing
 returns to the limiter with QFuture-based cancellation, policy managers
 become coroutine pumps, and a global gate carries the F5/N18 and F58
@@ -130,10 +130,11 @@ obligations deliberately. Note the F5/HEAD interaction flagged during this analy
 today's serialization incidentally guarantees first-use HEAD setups
 never overlap; any parallelism must re-establish that property
 deliberately — done in phase 3, where HEAD exclusivity became a gate
-property. Status: spec phases 0–3 are implemented and merged (phase 3,
-July 20, 2026: the pump, the gate wiring, async HEAD setup — F57, F58,
-and F5-modernization resolved); F56 itself resolves in phase 5's worker
-rewrite, after phase 4's `QFuture` boundary.
+property. Status: spec phases 0–4b are implemented and merged (the
+pump/gate/setup, `QFuture` boundary, typed facade, and worker migration are in
+place). Revision 9 makes the F56 regression shape an explicit acceptance
+requirement: worker tests must prove character work is submitted while stash
+work remains outstanding. F56 itself resolves in phase 5's worker rewrite.
 
 ---
 
