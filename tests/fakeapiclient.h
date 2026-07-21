@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <stop_token>
 #include <variant>
 #include <vector>
@@ -27,15 +28,18 @@
 // worker suite entirely. Request building and endpoint labels are pinned
 // against the real facade in tst_poeapiclient.
 //
-// Deliveries are settled by call index, so a test that fetches the same stash
-// id in two successive updates simply settles the two calls differently — no
-// per-id scripting needed.
+// Deliveries name a call by its domain identity, never a global submission
+// index (phase 5): the pending-call finders below match only unsettled calls,
+// so a test that fetches the same stash id in two successive updates settles
+// each update's call in turn with no per-id scripting. Exactly one pending call
+// may match an identity; two would be a duplicate in flight (F49 tripwire).
 //
 // Each call is settled exactly once: not because a QFuture forbids more (it is
 // a multi-result container — addResult() may be called repeatedly), but because
 // settling a call clears its slot and a second attempt qFatals. This mirrors
-// the pump's own one-shot completion. The legacy signal boundary this replaced
-// could re-emit the same reply; nothing here reproduces that, deliberately.
+// the worker's own one-shot completion. The legacy signal boundary this
+// replaced could re-emit the same reply; nothing here reproduces that,
+// deliberately.
 class FakePoeApiClient : public PoeApiClient
 {
 public:
@@ -124,8 +128,94 @@ public:
 
     // --- inspection ------------------------------------------------------
 
+    // Total calls ever recorded, settled or not. This is a submission count,
+    // not a request identity: a test may assert "N requests have been issued
+    // so far" (no over-fetching, no premature next call), but it must address
+    // an individual call by its domain identity below, never by this index.
     size_t callCount() const { return m_pending.size(); }
     const Call &call(size_t i) const { return m_pending.at(i).call; }
+
+    // --- identity-based lookup (phase 5) ---------------------------------
+    //
+    // Tests name a call by what the worker asked for — realm/league, stash id
+    // + substash id, or character name — never by a global submission index.
+    // With serial submission exactly one call is pending at a time; once
+    // phase-5 batching lands, several are, and the identity selects which one
+    // a delivery settles. Exactly one *pending* (unsettled) call must match an
+    // identity: none means the worker never issued it, more than one means two
+    // identical requests are in flight at once — the F49 duplicate-fetch
+    // tripwire, not something a test may silently settle.
+
+    // Calls recorded but not yet settled.
+    size_t pendingCount() const
+    {
+        size_t n = 0;
+        for (const auto &slot : m_pending) {
+            if (slot.reject) {
+                ++n;
+            }
+        }
+        return n;
+    }
+
+    bool hasPendingStashList(const QString &realm, const QString &league) const
+    {
+        return countPending(Call::Kind::ListStashes,
+                            [&](const Call &c) { return c.realm == realm && c.league == league; })
+               == 1;
+    }
+
+    bool hasPendingCharacterList(const QString &realm) const
+    {
+        return countPending(Call::Kind::ListCharacters,
+                            [&](const Call &c) { return c.realm == realm; })
+               == 1;
+    }
+
+    bool hasPendingStash(const QString &stash_id, const QString &substash_id = {}) const
+    {
+        return countPending(Call::Kind::GetStash,
+                            [&](const Call &c) {
+                                return c.stash_id == stash_id && c.substash_id == substash_id;
+                            })
+               == 1;
+    }
+
+    bool hasPendingCharacter(const QString &name) const
+    {
+        return countPending(Call::Kind::GetCharacter, [&](const Call &c) { return c.name == name; })
+               == 1;
+    }
+
+    // The index of the single pending call matching an identity, for the
+    // delivery helpers to settle. qFatal unless exactly one matches.
+    size_t pendingStashList(const QString &realm, const QString &league) const
+    {
+        return findPending("list-stashes", Call::Kind::ListStashes, [&](const Call &c) {
+            return c.realm == realm && c.league == league;
+        });
+    }
+
+    size_t pendingCharacterList(const QString &realm) const
+    {
+        return findPending("list-characters", Call::Kind::ListCharacters, [&](const Call &c) {
+            return c.realm == realm;
+        });
+    }
+
+    size_t pendingStash(const QString &stash_id, const QString &substash_id = {}) const
+    {
+        return findPending("get-stash", Call::Kind::GetStash, [&](const Call &c) {
+            return c.stash_id == stash_id && c.substash_id == substash_id;
+        });
+    }
+
+    size_t pendingCharacter(const QString &name) const
+    {
+        return findPending("get-character", Call::Kind::GetCharacter, [&](const Call &c) {
+            return c.name == name;
+        });
+    }
 
     // --- delivery --------------------------------------------------------
 
@@ -197,6 +287,42 @@ private:
     {
         static const char tag{};
         return &tag;
+    }
+
+    // Count pending (unsettled) calls of a kind whose recorded arguments match.
+    template<typename Pred>
+    size_t countPending(Call::Kind kind, Pred pred) const
+    {
+        size_t n = 0;
+        for (const auto &slot : m_pending) {
+            if (slot.reject && slot.call.kind == kind && pred(slot.call)) {
+                ++n;
+            }
+        }
+        return n;
+    }
+
+    // The index of the unique pending call matching an identity, or a fatal
+    // test bug if the match is not exactly one.
+    template<typename Pred>
+    size_t findPending(const char *what, Call::Kind kind, Pred pred) const
+    {
+        std::optional<size_t> found;
+        for (size_t i = 0; i < m_pending.size(); ++i) {
+            const Slot &slot = m_pending[i];
+            if (slot.reject && slot.call.kind == kind && pred(slot.call)) {
+                if (found) {
+                    qFatal("FakePoeApiClient: two pending %s calls share an identity — a "
+                           "duplicate request is in flight (F49 tripwire)",
+                           what);
+                }
+                found = i;
+            }
+        }
+        if (!found) {
+            qFatal("FakePoeApiClient: no pending %s call matches the requested identity", what);
+        }
+        return *found;
     }
 
     template<typename T>
