@@ -186,14 +186,20 @@ private:
     // future runs its completion synchronously inside the launch loop (IR2/S1-6).
     void LaunchContent(std::vector<ItemsRequest> batch);
 
-    // The root update task (D6): launches the update's required list(s) and
-    // reconciles the terminal state through the completion counters. Owns no
-    // flow control of its own — the per-fetch tasks self-drive. Its whole body
-    // is wrapped in a catch-all so a throw in orchestration itself aborts and
-    // finalizes rather than escaping (R5-1 root catch-all). It launches every
+    // The root update task (D6, rev. 10): it launches the update's required
+    // list(s) and returns — it never co_awaits, so it is a coroutine only for
+    // its owned handle (R4-3) and its root catch-all (R5-1). It deliberately
+    // owns no flow control: the orchestration is a counter-driven join, not a
+    // linear await, because content and reply-discovered child batches fan out
+    // dynamically and cannot be a static co_await sequence. It launches every
     // required list without awaiting one another (D6); each list handler then
-    // launches its own complete content batch, so character content is never
-    // held behind the stash list.
+    // launches its own complete content batch (character content is never held
+    // behind the stash list), each per-fetch coroutine self-drives, and the
+    // completion that reconciles the counters finalizes the update. The
+    // m_has_*_list / m_need_*_list flags stay because a counter-driven join
+    // cannot tell a required-but-empty list from one that has not arrived yet
+    // (rev. 10); they are the minimal list-arrival state, not a residual
+    // callback pyramid.
     QCoro::Task<> RunUpdate();
 
     // Per-fetch tasks (D6): each co_awaits one facade future via

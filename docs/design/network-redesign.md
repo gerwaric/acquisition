@@ -35,7 +35,13 @@ numbers: ~6.5 KB per entry, milliseconds to abort 2,000 tabs — no
 flow control (S2-1..S2-4). Rev 9 is the phase-5 planning-readiness
 amendment: it makes D6's staged batch shape and active-update policy
 explicit and adds the missing F56 and preservation acceptance criteria;
-it changes no network-layer design. The finding tables (ER, IR, R4-\*,
+it changes no network-layer design. Rev 10 (July 21, 2026) is a phase-5
+implementation reconciliation: D6's "the callback pyramid with its flag
+pairs collapses into control flow" overstated the realized shape — the
+per-fetch pyramid collapsed into coroutines, but the root is a
+counter-driven join and the `m_has_*` list-arrival flags are irreducible
+under it; the prose is reconciled to the (already correct) implementation,
+no design or behavior change. The finding tables (ER, IR, R4-\*,
 R5-\*, R6-\*, R7, S1, S2), the round narratives, the reversal records,
 and the revision log live in `network-redesign-reviews.md`; this
 spec records only current decisions and cites finding IDs inline
@@ -644,10 +650,32 @@ forum and login traffic as-is, documented here.
   Batching is also strictly less state: no `m_queue`, no
   `SubmitNextItemRequest`, no re-entrancy dance.
 - Orchestration becomes coroutines (`QCoro::Task<>` methods,
-  `co_await` on facade futures): the update sequence reads top-to-bottom
-  and the callback pyramid with its flag pairs
-  (`m_need_*` / `m_has_*`) collapses into control flow. Completion
-  counting (`m_stashes_received` etc.) stays — it drives the status bar.
+  `co_await` on facade futures): the per-fetch callback *pyramid* collapses
+  into one flat coroutine per fetch, each reading top-to-bottom — await its
+  facade future, check the token, process. The root does **not** linearize
+  into a single top-to-bottom await, and cannot: this section's own
+  requirements — required lists launched without awaiting one another, each
+  list's content launched from its own handler and never held behind the
+  sibling list, child batches discovered dynamically in replies — make the
+  update a growing, data-dependent fan-out, not a static `co_await` sequence
+  over a known set. So the root launches the required lists and returns; each
+  per-fetch coroutine self-drives (process, launch any follow-on batch,
+  increment its counter), and the completion that reconciles the counters
+  finalizes the update (counter-driven join, rev. 10). Completion counting
+  (`m_stashes_received` etc.) stays — it drives both the status bar and
+  finalization.
+- The flag pairs do **not** all vanish, and the `m_has_*` list-arrival flags
+  cannot: under a counter-driven join `received == needed` is trivially true
+  for a required-but-empty list (an empty list, or a `TabsOnly` update that
+  fetches no content), so a separate "the list itself arrived" signal is
+  required to keep finalization from firing before the list lands — and it is
+  also what the concurrent content-during-list-arrival window above depends
+  on, since a ready content fetch can complete while its sibling list is still
+  outstanding and the finalization check it triggers must know the sibling has
+  not arrived. `m_need_*` is derived once from the selection (config, not
+  callback state). What collapsed is the nested-callback pyramid; the residual
+  flags are the minimal list-arrival state the counter-driven join needs
+  (rev. 10).
 - **Task topology and handle ownership (R4-3):** the worker owns one
   update task plus one per-fetch `QCoro::Task<>` per submission, all
   held in owned members (a handle container for the per-fetch tasks)

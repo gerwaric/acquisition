@@ -666,3 +666,24 @@ no further scales.
   Test seams, mutation mechanics, shutdown-runner layout, and commit ordering
   remain in the phase-local verification contract and execution plan; no
   network-layer design changed.
+- **July 21, 2026 (phase-5 implementation reconciliation — rev. 10;
+  freeze holds)** — a phase-5D review found D6's "the callback pyramid with
+  its flag pairs (`m_need_*` / `m_has_*`) collapses into control flow"
+  overstated the realized shape. The per-fetch pyramid did collapse into one
+  flat coroutine per fetch, but the root orchestration is a counter-driven
+  join, not a linear top-to-bottom await: D6's own concurrency requirements
+  (required lists launched without awaiting one another; each list's content
+  launched from its own handler, never held behind the sibling list; child
+  batches discovered dynamically in replies) make a static `co_await` sequence
+  over the update tree impossible, and the `m_has_*` list-arrival flags are
+  irreducible under a counter-driven join — they distinguish "list not
+  arrived" from "required list arrived empty," which `received == needed`
+  cannot, and the concurrent content-during-list-arrival window depends on the
+  same signal. D6 amended to describe the counter-driven topology and the
+  residual flags accurately; `m_need_*` reclassified as selection config. No
+  code or behavior changed — the implementation (5B's fire-and-owned per-fetch
+  tasks + counter-driven finalization) was already correct; the prose was
+  reconciled to it. The owned root task handle (R4-3) is retained for lifetime
+  uniformity even though the current root never suspends. Two stale test
+  comments and a test-only header backdoor were fixed in the same review; a
+  friend accessor moved out of the production header.
