@@ -278,6 +278,27 @@ being masked by it.
 Required evidence: `W-IDENTITY`, every `P-*` preservation pin, and the full
 worker suite under representative reordered completion.
 
+Carried from the 5C review (deferred here deliberately, not gaps in 5C):
+
+- Missing `P-*` pins to add with the rest of the preservation contract:
+  `P-REFUSE` (an `Update()` during an initialized active update notifies/refuses,
+  submits nothing, and leaves the active token/update untouched); the negative
+  half of `P-LIST-SIGNALS` (a failed or stopped list emits no list-received or
+  F53 reconciliation signal); and reply-discovered children accepted on all three
+  parent types — the suite covers Map reply children and Folder list children,
+  but not Folder/Unique reply children. Note when writing the Folder case: a live
+  Folder reply carries no children (F49), so that pin exercises a defensive code
+  path the live API does not produce — say so in the test.
+- Test-seam consolidation: the worker header now exposes several standing
+  test-only entry points (`SetSweepObserver`, `SetFaultHook`,
+  `OutstandingFetchTasksForTest`, `ProgressCountersForTest`). Verification §2
+  prefers a friend fixture / test-build-gated hook / injected observer over a
+  standing production API; consolidate these behind one seam before 5D/5E add
+  more observability.
+- Note: `FetchItems`/`SubmitNextItemRequest` were already deleted in 5C, so the
+  first commit above only needs to remove `m_queue`/`m_queue_id`/`QueueRequest`
+  and the one-new-call-at-a-time test assumptions.
+
 Exit criteria: no queue/generation symbols remain; old stopped stragglers and a
 new active update coexist safely; the mutation test detects state corruption
 when the token check is removed.
