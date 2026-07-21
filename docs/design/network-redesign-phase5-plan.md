@@ -150,7 +150,7 @@ member their frames could observe.
 | 5B — task lifecycle | **Complete** | Owned coroutine topology and one stop source work while request submission remains serial |
 | 5C — staged batching | **Complete** | F56 shape and worker cancellation pass under reordered completion |
 | 5D — cleanup and proof | **Complete** | Queue and generation machinery are gone; post-await identity mutation test fails without the check |
-| 5E — full-stack verification | **Next** | Every item-6 scenario and retention pin is registered and green in isolation |
+| 5E — full-stack verification | **Complete** | Every item-6 scenario and retention pin is registered and green in isolation |
 
 Only this table carries package status. Avoid duplicating progress prose across
 the verification contract or authoritative documents.
@@ -328,6 +328,19 @@ Required evidence: every `I-*` pin in verification §6.
 Exit criteria: all scenario processes and the ordinary suite are green; no
 ordinary test leaks pending fake calls/tasks; item-6 coverage is not deferred
 outside phase 5.
+
+**Implemented (July 21, 2026).** The runner is `tests/tst_workerintegration.cpp`,
+registered by the new `acq_add_scenario_test` CMake helper as one CTest per
+scenario (`tst_workerintegration.<slot>`); `QTEST_GUILESS_MAIN` forwards the
+slot name so each destructive scenario runs in its own process. A single
+established endpoint reaches all three pump checkpoints by how far the
+`FakeScheduler` is advanced (pacing < 100 ms; gate 100–250 ms; in-flight
+≥ 250 ms), plus a 429 retry sleep. Cancel scenarios use a two-lane `TabsOnly`
+update (stash-list victim, character-list trigger) with distinct policy names
+where concurrent in-flight lanes are needed. `InFlightReply` gained an optional
+response body so the full-chain path parses real payloads. All nine `I-*` pins
+plus a full-chain sanity check are green (ten CTest invocations); the full
+`ctest` suite passes (32/32). F56 moved to the resolved ledger.
 
 ---
 

@@ -76,68 +76,6 @@ row, delete the hash-keyed one) inside `MigrateItem`, or have
 (dual persistence), F51 ledger entry (do not rekey `GetLegacyHash` — a
 correct future v4→v5 migration depends on it).
 
-### F56. Single-lane item-request serialization starves the character policy — Confirmed
-
-Found July 17, 2026, from Tom's live observation that character requests
-stall while the stash rate limit is pacing. `ea9dd95` (in v0.17.0) moved
-request scheduling out of the rate limiter to fix the abort-after-failure
-desync: `ItemsManagerWorker` now holds one FIFO (`m_queue`) mixing stash
-and character requests and `SubmitNextItemRequest` keeps at most one in
-flight, submitting the next only when a reply lands. The queue is
-stashes-first by construction, and the two list requests are chained
-else-if as well — so while the stash policy paces (~20s/tab at
-saturation), the character policy's manager sits idle with its requests
-still in the worker's FIFO, never submitted. Refresh time degrades from
-max(stash, character) to stash + character. The per-policy managers were
-designed for exactly this parallelism; M1's generation tag explicitly
-anticipated re-parallelization ("protects any future re-parallelization")
-and the failure paths hold under it (a failure snaps counters and goes
-Idle; the other lane's late reply is swallowed by `DiscardIfStale`).
-
-Fix shape (proposed July 17; **paused same day pending the network
-ground-truth research phase** — see the note at the end of this entry):
-keep worker-side queueing but one queue per `ItemLocationType` with one
-in-flight each, and submit the two list requests concurrently again — no
-rate limiter API changes, abort stays trivial (≤2 stale replies). The
-larger question —
-worker-owned scheduling with the limiter as a pure gatekeeper vs. queueing
-returning to the limiter with cancellation APIs — is deliberately deferred
-to the M2 spec, which must state where scheduling lives (priorities,
-per-tab retry, durable progress all pull toward the worker) and formally
-amend the "no rate limiter redesign" non-goal if it chooses the
-gatekeeper. Testable today at worker level with `FakeRateLimiter`: assert
-character requests are submitted while stash replies are outstanding.
-
-Paused July 17 before implementation: all of F56–F59's *fix shapes* (the
-findings themselves stand — they describe code as it is) rest on
-code-derived premises about the API that have not been checked against
-the API's actual contract: that stash and character policies are
-independent and parallel-safe, that policy topology is stable and fully
-discoverable via HEAD headers, that no account/IP-level limit sits above
-the per-policy ones, that 429s are rare and cleanly retryable. Tom holds
-unshared knowledge about the API that may contradict some of these — it
-is even possible the accidental serialization is conservatively correct
-and parallelism is the mistake. A dedicated research phase (official API
-docs, real-world logs, Tom's knowledge) produces a network ground-truth
-document first; fix shapes and the F56/F57 sequencing get re-derived
-against it. **Re-derivation complete July 18, 2026:** the superseding
-fix shapes for F56–F59 are specified in
-`docs/design/network-redesign.md` (accepted July 20, 2026, revision 9;
-frozen for implementation) — queueing
-returns to the limiter with QFuture-based cancellation, policy managers
-become coroutine pumps, and a global gate carries the F5/N18 and F58
-obligations deliberately. Note the F5/HEAD interaction flagged during this analysis:
-today's serialization incidentally guarantees first-use HEAD setups
-never overlap; any parallelism must re-establish that property
-deliberately — done in phase 3, where HEAD exclusivity became a gate
-property. Status: spec phases 0–4b are implemented and merged (the
-pump/gate/setup, `QFuture` boundary, typed facade, and worker migration are in
-place). Revision 9 makes the F56 regression shape an explicit acceptance
-requirement: worker tests must prove character work is submitted while stash
-work remains outstanding. F56 itself resolves in phase 5's worker rewrite.
-
----
-
 ## Standing constraints and lessons
 
 Rules distilled from resolved findings that remain binding on future work.
@@ -232,5 +170,6 @@ above). "PR #161" refers to the post-Phase-6 follow-ups branch
 | F59 | `RateLimitedReply`'s ownership contract was contradictory: `RateLimiter::Submit`'s declaration told the caller to `deleteLater()` the reply, while the pump's entry owned it via `unique_ptr` and destroyed it synchronously after the completion emit — benign only because `complete` was a direct same-thread connection, one reordering or queued connection away from a use-after-free | Resolved in network-redesign phase 4b: the worker's call sites moved to `PoeApiClient`, and with no caller left holding a reply object the legacy `Submit()` adapter, `RateLimitedReply` (`.h`/`.cpp`), and the synthetic reply were deleted together — the contract no longer exists. (Phase 4a had narrowed it to the adapter only; an earlier claim that 4a resolved it by construction was wrong and corrected then.) `tst_workerupdate` moved to a typed facade fake and `tst_ratelimiter` lost its legacy-wrapper pins |
 | F60 | The legacy stash-index request was built bare — no `setTransferTimeout` — so a stalled GET (or the endpoint's HEAD probe, which inherits the request) had no client-side bound and could hang until the OS gave up, leaving the shop update waiting forever; under the redesign it would also hold a gate permit indefinitely and, with a HEAD waiting under writer preference, stall the entire hub | Fixed in network-redesign phase 4a by construction: `PoeApiClient` owns request building for every API call including this one, and sets the 10 s transfer timeout the gate's liveness invariant depends on (D5/R5-3). `Shop` no longer builds a request at all. Pinned by `tst_poeapiclient`'s `everyRequestCarriesTheTransferTimeout`, which checks EVERY builder rather than only the one that was broken — verified to fail when the call is removed |
 | F55 | A terminal failure between list receipt and a new tab's first fetch consumed the tab's newness durably (metadata persists at list receipt), so later partial refreshes published the tab empty — release-blocking for M1's always-fetch note | Fixed, F53/F55 follow-up PR: the always-fetch decision keys on a contents-known set — seeded in `ParseCachedItems` from rows whose stash/character json was actually saved, extended on successful replies — instead of list membership (`previously_known` removed). No schema change: the `listed_at` vs `json_fetched_at`/`json_data` split already existed, and no path writes json without its timestamp (`LegacyDataStore` is unwired). Rejected: skipping the list-receipt metadata save (regresses the absorbed-F15 metadata refresh and misses the in-session case). Pinned by `failedFirstFetchDoesNotConsumeNewness` (the ledger-specified scenario) and `listedButNeverFetchedTabIsFetchedOnNextUpdate` (the restart shape). Review follow-up (July 17): a Map/Unique parent counts as contents-known only once every enabled child fetch has landed — completion is deferred to the last child reply in-session, and a cached parent whose saved reply records children with a missing child row stays "new" at startup (special children never appear in a top-level list, so nothing else would retry them); pinned by `failedChildFetchKeepsParentNew` and `cachedParentWithMissingChildRowStaysNew`. Round 2: starting a child-fetch cycle also *evicts* an already-known parent from contents-known (chosen over per-child-id completeness tracking: eviction is uniformly conservative — worst case one redundant refetch after a mid-cycle failure — while stale in-memory child known-ness could re-strand a child after rows were cleared under a disabled setting), pinned by `knownParentWithNewFailedChildIsRetried`; and the `ParseCachedItems` settings reads were hoisted to the main thread (the parser thread must not touch the shared `QSettings` instance the UI writes — reentrant, not thread-safe). Known residual, accepted: re-enabling `get_map_stashes`/`get_unique_stashes` mid-session leaves the parent known until it is next fetched (full refresh or selection) or the next restart's seed check. Release-note wording narrowed to "any content refresh": `TabsOnly` records a new tab without fetching it and the next content refresh picks it up |
+| F56 | Single-lane item-request serialization (`m_queue` / `SubmitNextItemRequest`, at most one request in flight, stashes-first) starved the character policy: with the per-policy managers idle behind the worker's mixed FIFO, refresh time degraded from max(stash, character) to stash + character | Fixed, network-redesign phase 5 (July 21, 2026): the worker's queue and update-generation machinery are deleted. The root orchestration (`RunUpdate`, a synchronous counter-driven join) launches every required list without awaiting one another, and each list handler launches its whole content batch through `LaunchContent`, so all lanes are concurrently outstanding under the hub's per-policy coroutine pumps and the global gate (cap 2). One `std::stop_source` per update is the sole cancellation-and-identity channel — the post-await token check replaces the deleted generation guard (`IsStale`), and per-fetch coroutine handles are owned in `m_fetch_tasks` and reclaimed by a deferred, coalesced sweep. Pinned at worker level by `tst_workerupdate`'s staged-batching pins (`W-F56-*`: both lists submitted before either settles, each lane's whole content batch out before any reply lands, folder/Map/Unique child batches, lane-local source order, a stopped sibling that mutates nothing) and end-to-end by the `tst_workerintegration` full-chain runner (real worker → facade → hub with `FakeScheduler`/`FakeNetworkManager`): cross-layer cancellation at every pump checkpoint (`I-CANCEL-PACING/GATE/FLIGHT`), the post-event-loop destruction contract (`I-SHUT-PACING/GATE/FLIGHT/RETRY`), bounded detached-frame leaks (`I-LEAK-BOUND`), and non-accumulating completed-frame retention (`I-RETENTION`), each shutdown scenario in its own CTest process |
 | F57 | A 429 retry destroyed the caller's `RateLimitedReply`, dropped the retried completion, and wedged the update until restart (reproduced offline by the phase-1 harness) | Fixed, network-redesign phase 3 (July 20, 2026): the pump retries invisibly inside the drain loop — bounded attempts, padded deadline, permit-free sleep — and the caller sees exactly one final completion; the phase-1 wedge pin flipped to `retry429CompletesCallerExactlyOnce` |
 | F58 | The minimum-send-interval spacing was dead code (`last_send` never assigned) | Fixed, network-redesign phase 3 (July 20, 2026): the dead block deleted with `ActivateRequest`; the intent is implemented deliberately at the right scope as the gate's `MIN_SEND_SPACING` floor (250 ms across everything the hub sends, measured from dispatch stamps — spec D5), pinned exactly on the injected clock |
