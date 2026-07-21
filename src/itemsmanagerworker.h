@@ -227,9 +227,10 @@ private:
     // qCoro(future).takeResult(), checks the update token immediately after
     // (post-await identity invariant, IR2), then hands the result to the
     // matching handler. A per-fetch catch-all turns an exceptional future
-    // (R5-1) into an ordinary Internal failure so it counts its completion and
-    // enters the first-failure stop path instead of wedging the update. Every
-    // handle is owned in m_fetch_tasks — no fire-and-forget.
+    // (R5-1) into an ordinary Internal failure so it flows through the handler's
+    // failure branch and takes the direct terminal abort, instead of escaping
+    // into the unawaited task and wedging the update. Every handle is owned in
+    // m_fetch_tasks — no fire-and-forget.
     QCoro::Task<> FetchStashList(int generation, std::stop_token token);
     QCoro::Task<> FetchCharacterList(int generation, std::stop_token token);
     QCoro::Task<> FetchStash(ItemLocation location,
@@ -242,21 +243,23 @@ private:
                                  int generation,
                                  std::stop_token token);
 
-    // Unconditional terminal transition for the exceptional paths (R5-1): stop
-    // the token, record a failure, drop queued work, and force both
-    // list-received flags and the content counters to a state where
-    // CheckUpdateFinished() must take the terminal (failed) branch — so a throw
-    // in orchestration or in a fetch continuation can never leave the update
-    // wedged in Updating waiting on a list/completion that will never arrive.
-    // The ordinary value-level failure branches keep their own precise
-    // bookkeeping; this is the catch-all's blunt, always-terminal fallback.
+    // The single, idempotent terminal transition for a failed update (R5-1):
+    // every failure — a list/content error, an exceptional future, or a throw in
+    // orchestration or a handler — routes here. It requests stop, records at
+    // least one request failure, drops queued work, and returns the worker to
+    // Idle immediately, abandoning in-flight siblings as stopped stragglers. It
+    // is deliberately INDEPENDENT of the completion counters: success reconciles
+    // the counters in CheckUpdateFinished(); failure takes this direct path, so
+    // the two never contend and a failed fetch never rewrites the counters
+    // (which drove reported progress backward, P-STATUS).
     void AbortUpdate();
 
     // First-failure stop for the value-level failure branches: stop the update
     // token, then fire the test fault hook (a no-op in production) at the point
-    // between stopping the token and setting completion flags — the window in
-    // which the update is stopped but still active, which the catch-alls must
-    // still recognize as theirs to abort.
+    // after stopping the token but before the handler finishes its failure
+    // bookkeeping and its direct AbortUpdate() — the window in which the update
+    // is stopped but still active, which the catch-alls must still recognize as
+    // theirs to abort.
     void StopUpdateForFailure();
 
     // Invoke the test fault hook once if armed (test-only; may throw — that is

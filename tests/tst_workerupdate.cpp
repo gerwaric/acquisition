@@ -63,7 +63,7 @@ private slots:
     void everyCallInAnUpdateSharesOneTokenAndTheNextUpdateGetsAFreshOne(); // W-TOKEN
     void readyFirstListRunsInlineWithoutCorruptingCounters();              // W-INIT (success)
     void readyFirstListErrorAbortsLeavingTheSecondListAStraggler();        // W-INIT (error)
-    void exceptionalFetchIsCaughtCountedAndAbortsTheUpdate();              // W-THROW
+    void exceptionalFetchIsCaughtAndAbortsTheUpdate();                     // W-THROW
     void handlerExceptionAbortsToIdleInsteadOfWedging();                   // W-THROW (handler)
     void rootOrchestrationExceptionAbortsToIdle();                         // W-THROW (root)
     void completionsScheduleADeferredSweepThatReclaimsFinishedHandles();   // W-SWEEP
@@ -1599,9 +1599,11 @@ void WorkerUpdateTest::readyFirstListErrorAbortsLeavingTheSecondListAStraggler()
 
 // W-THROW: an exceptional facade future (an IR4 boundary violation) is caught by
 // the per-fetch task's root catch-all, which turns it into an ordinary failure:
-// the completion is counted, the first-failure stop fires, and the update aborts
-// to idle instead of wedging on a counter that would never move.
-void WorkerUpdateTest::exceptionalFetchIsCaughtCountedAndAbortsTheUpdate()
+// the first-failure stop fires and the update aborts to idle through the direct
+// terminal path instead of wedging. The failed fetch is NOT counted as received
+// — success reconciles the counters, failure aborts directly and leaves them
+// untouched (P-STATUS) — so this pins the abort, not a counter move.
+void WorkerUpdateTest::exceptionalFetchIsCaughtAndAbortsTheUpdate()
 {
     WorkerFixture f("wthrow");
     f.start();
@@ -1623,6 +1625,12 @@ void WorkerUpdateTest::exceptionalFetchIsCaughtCountedAndAbortsTheUpdate()
     // the first-failure path the catch-all fed into.
     QCOMPARE(f.refresh_count, 1);
     QVERIFY(token.stop_requested());
+
+    // The failed fetch is NOT counted as received: failure takes the direct
+    // terminal abort and leaves the counters untouched (P-STATUS). The one tab
+    // was needed but never received.
+    QCOMPARE(f.worker->ProgressCountersForTest().stashes_needed, size_t(1));
+    QCOMPARE(f.worker->ProgressCountersForTest().stashes_received, size_t(0));
 
     // Not wedged: the worker is idle again and a fresh update completes.
     f.worker->Update(TabSelection::All);

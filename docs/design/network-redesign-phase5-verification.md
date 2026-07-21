@@ -78,7 +78,7 @@ destroy owners with suspended work.
 | `W-INIT` | Ready success/error during initial, content, and child launch cannot finalize early or corrupt counters/parent bookkeeping; the complete initialized stage is still invoked with the stopped token after an inline failure | 5B–5C |
 | `W-ER1` | One of two in-flight worker fetches fails; the shared token stops; the fake sibling settles `Canceled`; it mutates no state and adds no failure | 5C |
 | `W-IDENTITY` | A stopped old update's successful straggler resumes while a subsequent update is active and mutates nothing belonging to the new update | 5D |
-| `W-THROW` | An exceptional future is caught by its per-fetch root; completion is counted, first-failure stop occurs, and the update aborts instead of wedging | 5B |
+| `W-THROW` | An exceptional future is caught by its per-fetch root; it routes through the direct terminal abort (not counted as received), first-failure stop occurs, and the update aborts instead of wedging | 5B |
 | `W-SWEEP` | The last completion schedules a sweep outside its own coroutine; only ready handles are destroyed; a later straggler schedules another sweep | 5B–5D |
 
 ### F56 headline construction
@@ -102,7 +102,8 @@ special case.
 
 Per-fetch and root catch-alls prove different behavior:
 
-- A per-fetch catch-all counts that fetch and enters the first-failure path.
+- A per-fetch catch-all routes that fetch through the first-failure path's
+  direct terminal abort; the fetch is not counted as received.
 - The update root catch-all aborts/finalizes if orchestration itself throws.
 
 An exceptional facade future is defense in depth against an IR4 boundary
@@ -248,6 +249,16 @@ Phase 5 is complete only when:
 
 ## Revision note
 
+- **July 21, 2026 — W-THROW failure counting.** Dropped the "completion is
+  counted" clause from `W-THROW` (and the matching exception-policy bullet in
+  §3). The implementation finalizes a failed update through a direct terminal
+  `AbortUpdate()` that is independent of the completion counters; counting a
+  failed fetch as received is functionally dead (no path reads the counter on
+  failure) and would report a failed request as "received." The anti-wedge
+  guarantee `W-THROW` protects is now supplied by the direct abort, which is
+  stronger than counter reconciliation because it does not depend on every
+  straggler counting. Equivalent-or-stronger evidence; no production behavior
+  change. Success-path counting is unchanged.
 - **July 20, 2026 — initial contract.** Extracted from the phase-5 planning
   handoff after rev 9 promoted staged batching, active-update behavior, shared
   token identity, and preservation outcomes into the accepted spec. This file

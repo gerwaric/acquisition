@@ -1,7 +1,8 @@
 # Phase 5 Execution Plan — Network Redesign (Items-Worker Rewrite)
 
-**Status: ACTIVE execution plan, July 20, 2026.** Phase 5 implementation has
-not started. This document organizes the work; it does not define production
+**Status: ACTIVE execution plan, updated July 21, 2026.** Packages 5A–5C are
+implemented, committed, and green; 5D is next. This document organizes the work;
+it does not define production
 behavior or the evidence required for acceptance. Required behavior lives in
 the accepted network spec, the shipped items-pipeline M1 contract, and the
 findings register. Required evidence lives in
@@ -144,10 +145,10 @@ member their frames could observe.
 
 | Package | Status | Exit artifact |
 | --- | --- | --- |
-| 5A — harness foundation | **Next** | Serial worker tests use identity/condition helpers; inherited manager ER1 debt is closed or explicitly separated |
-| 5B — task lifecycle | Pending | Owned coroutine topology and one stop source work while request submission remains serial |
-| 5C — staged batching | Pending | F56 shape and worker cancellation pass under reordered completion |
-| 5D — cleanup and proof | Pending | Queue and generation machinery are gone; post-await identity mutation test fails without the check |
+| 5A — harness foundation | **Complete** | Serial worker tests use identity/condition helpers; inherited manager ER1 debt is closed or explicitly separated |
+| 5B — task lifecycle | **Complete** | Owned coroutine topology and one stop source work while request submission remains serial |
+| 5C — staged batching | **Complete** | F56 shape and worker cancellation pass under reordered completion |
+| 5D — cleanup and proof | **Next** | Queue and generation machinery are gone; post-await identity mutation test fails without the check |
 | 5E — full-stack verification | Pending | Every item-6 scenario and retention pin is registered and green in isolation |
 
 Only this table carries package status. Avoid duplicating progress prose across
