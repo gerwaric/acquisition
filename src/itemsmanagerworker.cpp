@@ -379,13 +379,11 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
         spdlog::trace("ItemsManagerWorker: stashes = {}", stash_names.join(", "));
     }
     m_state = WorkerState::Updating;
-    ++m_update_generation;
     // A fresh stop_source per update (D2): every facade call below takes this
     // update's token, and a terminal failure request_stop()s it. The previous
     // update's source (stopped or not) is dropped here, so the new update's
     // calls carry a distinct, unstopped token — which is what makes the token
-    // the update's identity under the post-await check. The generation tag
-    // still runs alongside as an overlapping guard until 5D removes it.
+    // the update's sole identity under the post-await check (W-IDENTITY).
     m_stop_source = std::stop_source{};
     m_request_failures = 0;
     m_update_tab_contents = (type != TabSelection::TabsOnly);
@@ -596,13 +594,13 @@ void ItemsManagerWorker::FireFaultHook()
 void ItemsManagerWorker::SubmitStashListRequest()
 {
     spdlog::trace("ItemsManagerWorker: requesting the stash list");
-    m_fetch_tasks.push_back(FetchStashList(m_update_generation, m_stop_source.get_token()));
+    m_fetch_tasks.push_back(FetchStashList(m_stop_source.get_token()));
 }
 
 void ItemsManagerWorker::SubmitCharacterListRequest()
 {
     spdlog::trace("ItemsManagerWorker: requesting the character list");
-    m_fetch_tasks.push_back(FetchCharacterList(m_update_generation, m_stop_source.get_token()));
+    m_fetch_tasks.push_back(FetchCharacterList(m_stop_source.get_token()));
 }
 
 // Each per-fetch task wraps its ENTIRE body in a catch-all (R5-1): nothing —
@@ -614,12 +612,13 @@ void ItemsManagerWorker::SubmitCharacterListRequest()
 //     Internal failure value, so it flows through the handler's failure branch;
 //   * the outer try contains anything the handler (or a launch it triggers)
 //     throws, and forces a terminal AbortUpdate() so the update cannot wedge.
-// The post-await identity check (IR2) gates the handler: the token first, then
-// the overlapping generation guard. A future can resolve an instant before
-// request_stop(); its consumer must not touch state that now belongs to a later
-// update, and a straggler whose update already ended aborts nothing. The sweep
-// is scheduled unconditionally on every exit so no completed handle leaks.
-QCoro::Task<> ItemsManagerWorker::FetchStashList(int generation, std::stop_token token)
+// The post-await identity check (IR2) gates the handler on the token alone: a
+// future can resolve an instant before request_stop(), and its consumer must
+// not touch state that now belongs to a later update. The token IS the update's
+// identity — a straggler from a failed update carries that update's stopped
+// token, so `!token.stop_requested()` discards it (W-IDENTITY). The sweep is
+// scheduled unconditionally on every exit so no completed handle leaks.
+QCoro::Task<> ItemsManagerWorker::FetchStashList(std::stop_token token)
 {
     try {
         Result<poe::StashListWrapper> result;
@@ -630,26 +629,23 @@ QCoro::Task<> ItemsManagerWorker::FetchStashList(int generation, std::stop_token
         } catch (...) {
             result = std::unexpected(MakeInternalError("the stash list fetch threw"));
         }
-        if (!token.stop_requested() && !IsStale(generation)) {
+        if (!token.stop_requested()) {
             OnStashListReceived(result);
         }
     } catch (...) {
         spdlog::error("ItemsManagerWorker: a stash list continuation threw; aborting the update");
-        // Ownership by generation/state, NOT token state: a failure handler
-        // stops the token before it finishes its bookkeeping, so a throw after
-        // that point still belongs to the active update and must abort it. A
-        // genuinely stale straggler (superseded update, or already idle) is
-        // excluded by IsStale and leaves state alone. AbortUpdate() is
-        // idempotent, so a handler that already recorded a failure is not
-        // double-counted.
-        if (!IsStale(generation)) {
-            AbortUpdate();
-        }
+        // A handler that reached this catch ran because the token was live at the
+        // post-await gate, so it belongs to the active update — even if its own
+        // failure branch stopped the token before throwing. Abort it. A resumed
+        // straggler is gated out above and never enters the handler, so it never
+        // reaches here; and AbortUpdate() guards on WorkerState and is idempotent,
+        // so an already-terminal update is left untouched.
+        AbortUpdate();
     }
     ScheduleSweep();
 }
 
-QCoro::Task<> ItemsManagerWorker::FetchCharacterList(int generation, std::stop_token token)
+QCoro::Task<> ItemsManagerWorker::FetchCharacterList(std::stop_token token)
 {
     try {
         Result<poe::CharacterListWrapper> result;
@@ -659,22 +655,13 @@ QCoro::Task<> ItemsManagerWorker::FetchCharacterList(int generation, std::stop_t
         } catch (...) {
             result = std::unexpected(MakeInternalError("the character list fetch threw"));
         }
-        if (!token.stop_requested() && !IsStale(generation)) {
+        if (!token.stop_requested()) {
             OnCharacterListReceived(result);
         }
     } catch (...) {
         spdlog::error(
             "ItemsManagerWorker: a character list continuation threw; aborting the update");
-        // Ownership by generation/state, NOT token state: a failure handler
-        // stops the token before it finishes its bookkeeping, so a throw after
-        // that point still belongs to the active update and must abort it. A
-        // genuinely stale straggler (superseded update, or already idle) is
-        // excluded by IsStale and leaves state alone. AbortUpdate() is
-        // idempotent, so a handler that already recorded a failure is not
-        // double-counted.
-        if (!IsStale(generation)) {
-            AbortUpdate();
-        }
+        AbortUpdate();
     }
     ScheduleSweep();
 }
@@ -682,7 +669,6 @@ QCoro::Task<> ItemsManagerWorker::FetchCharacterList(int generation, std::stop_t
 QCoro::Task<> ItemsManagerWorker::FetchStash(ItemLocation location,
                                              QString stash_id,
                                              QString substash_id,
-                                             int generation,
                                              std::stop_token token)
 {
     try {
@@ -693,28 +679,18 @@ QCoro::Task<> ItemsManagerWorker::FetchStash(ItemLocation location,
         } catch (...) {
             result = std::unexpected(MakeInternalError("the stash fetch threw"));
         }
-        if (!token.stop_requested() && !IsStale(generation)) {
+        if (!token.stop_requested()) {
             OnStashReceived(result, location);
         }
     } catch (...) {
         spdlog::error("ItemsManagerWorker: a stash continuation threw; aborting the update");
-        // Ownership by generation/state, NOT token state: a failure handler
-        // stops the token before it finishes its bookkeeping, so a throw after
-        // that point still belongs to the active update and must abort it. A
-        // genuinely stale straggler (superseded update, or already idle) is
-        // excluded by IsStale and leaves state alone. AbortUpdate() is
-        // idempotent, so a handler that already recorded a failure is not
-        // double-counted.
-        if (!IsStale(generation)) {
-            AbortUpdate();
-        }
+        AbortUpdate();
     }
     ScheduleSweep();
 }
 
 QCoro::Task<> ItemsManagerWorker::FetchCharacter(ItemLocation location,
                                                  QString name,
-                                                 int generation,
                                                  std::stop_token token)
 {
     try {
@@ -725,21 +701,12 @@ QCoro::Task<> ItemsManagerWorker::FetchCharacter(ItemLocation location,
         } catch (...) {
             result = std::unexpected(MakeInternalError("the character fetch threw"));
         }
-        if (!token.stop_requested() && !IsStale(generation)) {
+        if (!token.stop_requested()) {
             OnCharacterReceived(result, location);
         }
     } catch (...) {
         spdlog::error("ItemsManagerWorker: a character continuation threw; aborting the update");
-        // Ownership by generation/state, NOT token state: a failure handler
-        // stops the token before it finishes its bookkeeping, so a throw after
-        // that point still belongs to the active update and must abort it. A
-        // genuinely stale straggler (superseded update, or already idle) is
-        // excluded by IsStale and leaves state alone. AbortUpdate() is
-        // idempotent, so a handler that already recorded a failure is not
-        // double-counted.
-        if (!IsStale(generation)) {
-            AbortUpdate();
-        }
+        AbortUpdate();
     }
     ScheduleSweep();
 }
@@ -1200,11 +1167,10 @@ void ItemsManagerWorker::LaunchContent(std::vector<ItemsRequest> batch)
     SendStatusUpdate();
     spdlog::debug("Launching a batch of {} item requests.", batch.size());
 
-    const int generation = m_update_generation;
     const std::stop_token token = m_stop_source.get_token();
 
     // Each entry names the resource, not how to fetch it; launch an owned
-    // per-fetch task per entry, in the queue's source traversal order (D6's
+    // per-fetch task per entry, in the batch's source traversal order (D6's
     // per-lane FIFO). Every handle lives in m_fetch_tasks — no fire-and-forget.
     for (const auto &request : batch) {
         const ItemLocation location = request.location;
@@ -1213,28 +1179,13 @@ void ItemsManagerWorker::LaunchContent(std::vector<ItemsRequest> batch)
                 using What = std::decay_t<decltype(what)>;
                 if constexpr (std::is_same_v<What, StashFetch>) {
                     m_fetch_tasks.push_back(
-                        FetchStash(location, what.stash_id, what.substash_id, generation, token));
+                        FetchStash(location, what.stash_id, what.substash_id, token));
                 } else {
-                    m_fetch_tasks.push_back(FetchCharacter(location, what.name, generation, token));
+                    m_fetch_tasks.push_back(FetchCharacter(location, what.name, token));
                 }
             },
             request.what);
     }
-}
-
-bool ItemsManagerWorker::IsStale(int generation) const
-{
-    // A reply is stale if it belongs to an earlier update, or if no update is
-    // running at all: every request is submitted during an update, a
-    // successful finish requires all of them to have been counted, and a
-    // failed update abandons whatever is still in flight (F28).
-    if ((m_state == WorkerState::Updating) && (generation == m_update_generation)) {
-        return false;
-    }
-    spdlog::debug("ItemsManagerWorker: discarding a stale reply from update {} (current is {})",
-                  generation,
-                  m_update_generation);
-    return true;
 }
 
 void ItemsManagerWorker::ScheduleSweep()

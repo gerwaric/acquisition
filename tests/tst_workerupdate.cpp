@@ -81,6 +81,13 @@ private slots:
     void readyChildErrorStillLaunchesTheRestAndParentStaysRetryable();  // W-INIT (child error)
     void failureKeepsProgressMonotonicWithOneTerminalTransition();      // P-STATUS / P-FAILURE
     void tabsOnlyRequestsBothListsButNoContent();                       // P-SELECTION (TabsOnly)
+
+    // Phase 5D — identity replacement proof (verification §5). The generation
+    // guard is gone, so the update token is the sole identity: a successful
+    // straggler from a failed update must not touch a subsequent active update's
+    // state. Deleting the post-await token check makes this test fail (mutation
+    // proof recorded in the commit).
+    void oldSuccessfulStragglerDoesNotCorruptASubsequentUpdate(); // W-IDENTITY
 };
 
 namespace {
@@ -372,6 +379,18 @@ namespace {
                 qFatal("settleStragglers: the worker never reached quiescence");
             }
             return settled;
+        }
+
+        // Resolve an old update's stopped straggler with SUCCESS — the W-IDENTITY
+        // case (verification §5): a successful old reply resumes while a
+        // subsequent update is active. The deliver* helpers address only
+        // deliverable calls and so exclude stragglers; this targets the stopped
+        // slot by identity, then drains so the consumer resumes and (under correct
+        // behavior) discards the reply on the stopped token.
+        void resolveStragglerStash(const QString &stash_id, poe::StashTab stash)
+        {
+            api.resolveStash(api.stoppedStash(stash_id), std::move(stash));
+            QVERIFY(drainUntilIdle());
         }
 
         // Fail an outstanding stash fetch. The kind is immaterial to every pin
@@ -2322,6 +2341,87 @@ void WorkerUpdateTest::tabsOnlyRequestsBothListsButNoContent()
     QCOMPARE(renamed->tab_label(), QString("New Name"));
     // The cached items survived untouched (no content refetch).
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "c1"}));
+}
+
+// W-IDENTITY (verification §5): with the generation guard deleted, the update
+// token is the update's SOLE identity. A failed update stops its token and goes
+// idle immediately, leaving an in-flight sibling as a straggler that still owes
+// a settlement. If that straggler later settles SUCCESSFULLY while a SUBSEQUENT
+// update is active, its consumer must discard the reply on the stopped token and
+// touch nothing belonging to the new update.
+//
+// The observable is constructed (verification §5) so the old success WOULD
+// corrupt the new update if it were processed: the new update fetches the same
+// tab, needs exactly that one content fetch, and the straggler carries a
+// different item set. Under correct behavior the straggler resolves with no emit
+// and no counter movement; the new update then finishes with its OWN item, the
+// stale item nowhere in the result. Mutation proof: deleting the post-await
+// `!token.stop_requested()` gate in FetchStash makes the straggler finalize the
+// new update early with the stale item, and this test fails.
+void WorkerUpdateTest::oldSuccessfulStragglerDoesNotCorruptASubsequentUpdate()
+{
+    WorkerFixture f("widentity");
+
+    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a-old"}));
+    const auto tab_b = json::readStash(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b-old"}));
+    QVERIFY(tab_a && tab_b);
+    {
+        UserStore store(QDir(f.dataDir()), "widentity");
+        QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b}, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*tab_b, kRealm, kLeague));
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a-old", "b-old"}));
+
+    const std::vector<poe::StashTab> fresh = stashList(
+        {stashJson("stashaaaa1", "Tab A", 0), stashJson("stashbbbb1", "Tab B", 1)});
+
+    // Update 1 (All): both tab contents go in flight under token1; then tab B
+    // fails. First-failure stops token1 and the worker goes idle at once, leaving
+    // tab A's fetch as a stopped straggler that still owes a settlement.
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(fresh);
+    f.deliverCharacterList({});
+    QVERIFY(f.hasPendingStash("stashaaaa1"));
+    QVERIFY(f.hasPendingStash("stashbbbb1"));
+    const std::stop_token token1 = f.api.tokenForStash("stashaaaa1");
+    f.failStash("stashbbbb1");
+    QVERIFY(token1.stop_requested());
+    QCOMPARE(f.refresh_count, 1);
+    QCOMPARE(f.api.stoppedStragglerCount(), size_t(1)); // tab A's fetch
+
+    // Update 2 (Selected tab A): a fresh, unstopped token2. Only tab A is
+    // fetched — tab B is a known tab and unselected, so nothing needs its
+    // content. The stash list carries both tabs; its content batch is just A.
+    f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
+    f.deliverStashList(fresh);
+    QVERIFY(f.hasPendingStash("stashaaaa1")); // the NEW A fetch (token2), deliverable
+    const std::stop_token token2 = f.api.tokenForStash("stashaaaa1");
+    QVERIFY(token2 != token1);
+    QVERIFY(!token2.stop_requested());
+    // Two GetStash calls for A now coexist: the stopped straggler (token1) and
+    // the new deliverable call (token2). The identity finder settles them apart.
+    QCOMPARE(f.api.stoppedStragglerCount(), size_t(1));
+    QCOMPARE(f.worker->ProgressCountersForTest().stashes_needed, size_t(1));
+
+    // The OLD straggler resolves SUCCESSFULLY, carrying a stale item set. On the
+    // stopped token1 its consumer discards the reply: no emit, no counter
+    // movement, no premature finish of the active update 2.
+    f.resolveStragglerStash("stashaaaa1",
+                            stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a-STALE"})));
+    QCOMPARE(f.refresh_count, 1);
+    QCOMPARE(f.worker->ProgressCountersForTest().stashes_received, size_t(0));
+    QCOMPARE(f.api.stoppedStragglerCount(), size_t(0)); // the straggler is now settled
+
+    // Update 2 then finishes on its OWN reply (token2), with tab A's fresh item
+    // and tab B's untouched cache. The stale item the straggler carried is
+    // nowhere in the result.
+    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a-new"})));
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a-new", "b-old"}));
 }
 
 QTEST_GUILESS_MAIN(WorkerUpdateTest)

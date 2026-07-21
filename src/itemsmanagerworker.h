@@ -213,7 +213,6 @@ private:
     // counters are initialized before its first launch, because a ready/fail-fast
     // future runs its completion synchronously inside the launch loop (IR2/S1-6).
     void LaunchContent(std::vector<ItemsRequest> batch);
-    bool IsStale(int generation) const;
 
     // The root update task (D6): launches the update's required list(s) and
     // reconciles the terminal state through the completion counters. Owns no
@@ -228,22 +227,21 @@ private:
     // Per-fetch tasks (D6): each co_awaits one facade future via
     // qCoro(future).takeResult(), checks the update token immediately after
     // (post-await identity invariant, IR2), then hands the result to the
-    // matching handler. A per-fetch catch-all turns an exceptional future
-    // (R5-1) into an ordinary Internal failure so it flows through the handler's
-    // failure branch and takes the direct terminal abort, instead of escaping
-    // into the unawaited task and wedging the update. Every handle is owned in
-    // m_fetch_tasks — no fire-and-forget.
-    QCoro::Task<> FetchStashList(int generation, std::stop_token token);
-    QCoro::Task<> FetchCharacterList(int generation, std::stop_token token);
+    // matching handler. The token is the update's sole identity: a straggler
+    // from a failed update carries that update's stopped token, so the post-await
+    // check discards it before it can touch a later update's state (W-IDENTITY).
+    // A per-fetch catch-all turns an exceptional future (R5-1) into an ordinary
+    // Internal failure so it flows through the handler's failure branch and takes
+    // the direct terminal abort, instead of escaping into the unawaited task and
+    // wedging the update. Every handle is owned in m_fetch_tasks — no
+    // fire-and-forget.
+    QCoro::Task<> FetchStashList(std::stop_token token);
+    QCoro::Task<> FetchCharacterList(std::stop_token token);
     QCoro::Task<> FetchStash(ItemLocation location,
                              QString stash_id,
                              QString substash_id,
-                             int generation,
                              std::stop_token token);
-    QCoro::Task<> FetchCharacter(ItemLocation location,
-                                 QString name,
-                                 int generation,
-                                 std::stop_token token);
+    QCoro::Task<> FetchCharacter(ItemLocation location, QString name, std::stop_token token);
 
     // The single, idempotent terminal transition for a failed update (R5-1):
     // every failure — a list/content error, an exceptional future, or a throw in
@@ -321,10 +319,6 @@ private:
     QPointer<QThread> m_parser_thread;
     std::atomic<bool> m_shutdown{false};
 
-    // Incremented by every update; reply handlers discard replies whose
-    // generation is not the currently running update's (F28).
-    int m_update_generation{0};
-
     bool m_updateRequest{false};
     TabSelection m_type;
     std::vector<ItemLocation> m_locations;
@@ -348,9 +342,9 @@ private:
     // One stop_source per update (D2): every facade call in the update takes
     // its token, and a terminal failure request_stop()s it. Reset to a fresh
     // source at the start of each Update(), so the next update's calls carry a
-    // distinct, unstopped token. In 5B this overlaps the still-present
-    // generation guard (IsStale); 5D deletes the generation guard once the
-    // post-await token check is mutation-proven to replace it.
+    // distinct, unstopped token. This token IS the update's identity: the
+    // post-await check discards any resumed straggler whose token is stopped,
+    // which replaces the deleted generation guard (W-IDENTITY, verification §5).
     std::stop_source m_stop_source;
 
     // Read-only sweep observation (verification §2); null in production.

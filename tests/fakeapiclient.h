@@ -240,6 +240,29 @@ public:
         });
     }
 
+    // --- stopped-straggler lookup, by identity (never a global index) --------
+    //
+    // The index of the unique STOPPED straggler (token stopped, still unsettled)
+    // matching an identity, so a test can settle an old update's straggler with a
+    // SUCCESS value — the W-IDENTITY case (verification §5) where a successful old
+    // reply resumes while a subsequent update is active. This is the mirror image
+    // of the deliverable finders above, which deliberately EXCLUDE stopped
+    // stragglers (so a new update's same-identity call is the one delivery
+    // settles). qFatal unless exactly one stopped straggler matches.
+    size_t stoppedStash(const QString &stash_id, const QString &substash_id = {}) const
+    {
+        return findStopped("get-stash", Call::Kind::GetStash, [&](const Call &c) {
+            return c.stash_id == stash_id && c.substash_id == substash_id;
+        });
+    }
+
+    size_t stoppedCharacter(const QString &name) const
+    {
+        return findStopped("get-character", Call::Kind::GetCharacter, [&](const Call &c) {
+            return c.name == name;
+        });
+    }
+
     // --- lane-local submission order, by identity (never a global index) ------
     //
     // The order in which each lane's calls were submitted, expressed as the
@@ -533,6 +556,32 @@ private:
         }
         if (!found) {
             qFatal("FakePoeApiClient: no deliverable %s call matches the requested identity", what);
+        }
+        return *found;
+    }
+
+    // The index of the unique STOPPED straggler (unsettled, token stopped)
+    // matching an identity. Unlike findPending it matches non-deliverable
+    // stopped slots — an old update's straggler awaiting settlement — so a test
+    // can resolve one with a success value (W-IDENTITY). qFatal unless the match
+    // is exactly one; a deliverable (unstopped) slot of the same identity is a
+    // live call, not a straggler, and is excluded here.
+    template<typename Pred>
+    size_t findStopped(const char *what, Call::Kind kind, Pred pred) const
+    {
+        std::optional<size_t> found;
+        for (size_t i = 0; i < m_pending.size(); ++i) {
+            const Slot &slot = m_pending[i];
+            if (slot.reject && slot.call.token.stop_requested() && slot.call.kind == kind
+                && pred(slot.call)) {
+                if (found) {
+                    qFatal("FakePoeApiClient: two stopped %s stragglers share an identity", what);
+                }
+                found = i;
+            }
+        }
+        if (!found) {
+            qFatal("FakePoeApiClient: no stopped %s straggler matches the requested identity", what);
         }
         return *found;
     }
