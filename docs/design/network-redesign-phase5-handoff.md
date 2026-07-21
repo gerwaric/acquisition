@@ -50,17 +50,27 @@ queue and the update-generation machinery are deleted.
 ### "At once" means staged, not literally simultaneous
 
 Content requests cannot be built until their list lands, so the batch is
-three stages — and within each stage submission is unconditional (no
-worker-side pacing, count-downs, or waiting between entries):
+staged — and within each stage submission is unconditional (no worker-side
+pacing, count-downs, or waiting between entries):
 
-1. Submit both list requests concurrently (distinct policies — D6).
-2. As **each** list arrives, submit that list's complete content batch
+1. Determine which lists the selection requires with the **existing M1
+   semantics**: `All` / `TabsOnly` require both; a partial refresh requires
+   only the location types represented by its selection. Submit every required
+   list request immediately. When both are required, submit both before either
+   settles (distinct policies — D6). Do **not** turn a stash-only partial
+   refresh into character discovery, or vice versa.
+2. As **each required** list arrives, submit that list's complete content batch
    immediately. Character content keys off the character list **only** —
    holding it behind a slow stash-list response would reintroduce the
    cross-policy head-of-line blocking that *is* F56. Treat this as decided,
    not an open choice.
-3. As each Folder/Map/Unique parent arrives, submit its complete child
-   batch (see §10 item 4 for the counter bookkeeping).
+3. Child discovery has two existing paths and both must remain explicit:
+   Folder children normally arrive nested in the stash list and join that
+   list's content batch during recursive `ProcessTab`; Map/Unique children
+   normally arrive in the parent's content reply and are appended then as one
+   complete child batch. The reply handler still accepts children on any of
+   the three parent types and preserves the F49 duplicate-fetch tripwire; this
+   phase does not invent a new deduplication policy (see §10 item 4).
 
 ### Explicitly OUT of scope (do not design these in)
 - **Reprioritization / per-entry cancellation.** The stop token is per-update,
@@ -102,8 +112,9 @@ current state.
 section.** Required reading per `AGENTS.md` before any structural worker
 change, and directly load-bearing here: it defines the semantics phase 5
 must preserve (atomic per-reply replacement, tab-list reconciliation on
-list receipt, terminal-failure-loses-nothing, the rebase-on-finish rule),
-and its M1 commit 1 is the very generation tag this phase deletes.
+list receipt, terminal-failure-loses-nothing, the rebase-on-finish rule, and
+partial updates requesting only the list types their selection needs), and
+its M1 commit 1 is the very generation tag this phase deletes.
 
 **Code — the current worker (post-4b):**
 - `src/itemsmanagerworker.h` / `.cpp`. Note what 4b already did: takes a
@@ -131,6 +142,12 @@ and its M1 commit 1 is the very generation tag this phase deletes.
 - `tests/tst_workerupdate.cpp` — the worker suite the new pins extend.
 - `tests/fakeapiclient.h` — `FakePoeApiClient`, the typed facade fake the worker
   suite uses (see §6).
+- `tests/fakenetworkmanager.h`, `tests/fakescheduler.h`, and
+  `tests/fakesender.h` — the offline seams for item 6. The first two reach
+  through the hub; `FakeSender` is manager-only (see §8).
+- `tests/CMakeLists.txt` — the ordinary helper registers one executable as one
+  CTest. Item 6 needs explicit per-scenario process registrations. Read
+  `BUILD.md` before planning that CMake change, per `AGENTS.md`.
 
 **Spike references (if present): `spikes/qcoro/`** — the phase-0 spike (S1-\*)
 and batch measurement (S2-\*) the design leans on (distilled in §5).
@@ -215,6 +232,14 @@ these is wrong.
   call (stubbed in 4b specifically for phase 5's cancellation pins — nothing
   asserts them yet). Single completion is enforced by the fake's own guard (a
   second settle `qFatal`s), **not** by `QFuture` semantics.
+- **The fake's stop tokens are passive observations.** Requesting stop does not
+  settle any pending fake future; production pumps do that, but the facade fake
+  deliberately leaves delivery order under the test's control. Every ordinary
+  worker test that aborts with siblings outstanding must therefore settle all
+  remaining calls (normally as `Canceled`), drain their resumptions and the
+  deferred sweep, and assert that no pending call/task remains before fixture
+  teardown. Only the isolated shutdown scenarios in item 6 may intentionally
+  destroy owners with suspended work.
 - **Correct framing of "settles once":** a `QFuture` is a multi-result container
   (`addResult()` may be called repeatedly). Exactly-once completion in
   production comes from the pump's one-shot `CompleteRequest`; in the fake, from
@@ -271,13 +296,16 @@ Absent from both the spec's item 5 and earlier drafts of this doc: nothing
 would fail if `SubmitNextItemRequest`-style serialization quietly returned.
 At least one worker test must pin the concurrent shape directly:
 
-- Both list requests are submitted before either settles.
+- In an update that requires both lists, both requests are submitted before
+  either settles; stash-only and character-only partial updates still submit
+  only their required list.
 - A list's complete content batch is submitted before the first content
   reply is delivered.
 - Character requests are in flight while stash requests are still
   outstanding (the exact starvation F56 names).
-- Dynamically discovered children are appended as a batch, not one at a
-  time.
+- List-discovered Folder children join the stash content batch, and
+  reply-discovered Map/Unique children are appended as a complete batch rather
+  than one at a time.
 
 **Stop-token identity pins** (the fake records tokens — 4b stubbed that
 exactly for this): every list/content/child call in one update carries the
@@ -291,12 +319,18 @@ existing pins assert serialization *itself*: strict call indices with
 exactly one new call after each delivery (`tst_workerupdate.cpp` ≈l.345),
 and a single-pass `pump()` documented as sufficient only because the
 worker is serial (≈l.255). Ported literally, they would pin the bug F56
-removes. The port therefore translates ordering assertions into
-identity-based ones — locate calls by kind/resource identity, settle them
-in arbitrary order, drain until an observable condition — while keeping
-every behavioral outcome pin at full strength. This migration works
-against the current serial worker too, so it lands as its own green commit
-*before* any behavior change (§10 item 7).
+removes.
+
+The migration has **two steps**, because a serial worker has not submitted
+later calls yet and therefore cannot settle them in arbitrary order:
+
+1. Before behavior changes, add identity-based lookup, observable-condition
+   drains, and pending-call inspection; port tests away from raw indices while
+   retaining the only delivery order the serial worker can currently accept.
+   This is the independently green harness commit.
+2. With batch submission, reorder representative deliveries and remove the
+   remaining one-new-call-at-a-time expectations. Every behavioral outcome pin
+   remains at full strength (§10 item 7).
 
 ### Item 5 pins to write, with their test seams
 
@@ -330,8 +364,17 @@ against the current serial worker too, so it lands as its own green commit
   per-fetch (count the completion + first-failure stop) and the root
   update task (abort + finalize) — S1-8, an escaped exception otherwise
   vanishes silently. "The last completion does not destroy its own frame"
-  needs either counted instrumentation (test-visible sweep executions /
-  ready-handle counts) or an ASAN-visible crash; the plan must pick one.
+  needs deterministic instrumentation in the normal `ctest` run
+  (test-visible sweep executions / ready-handle counts). ASAN is useful
+  supplemental coverage, but an ASAN-only crash is not the item-5 regression
+  pin and does not satisfy the every-commit-green rule by itself.
+
+**Overlapping-guard proof obligation:** while `IsStale` and the post-await
+token check coexist, either guard can make the stale-mutation test pass. The
+test only proves that cancellation *replaces* the generation guard after the
+generation machinery is removed. In that removal commit, mutation-verify the
+pin specifically by deleting/bypassing the post-await check and observing the
+test fail; a pass while `IsStale` still masks the path is not evidence.
 
 ### Preservation matrix — "same semantics" made concrete
 
@@ -339,16 +382,20 @@ Once completions reorder, "keep the status / reconciliation /
 `ItemsRefreshed` semantics" is too loose to implement against. Pin
 explicitly (sources: items-pipeline M1, D6, F53/F55):
 
-- List-received and F53 reconciliation signals fire only for successful
-  fresh lists.
-- Successful replies that land before a later terminal failure still apply
-  their atomic replacement (memory + datastore) — nothing already applied
-  is lost.
+- List-received and F53 reconciliation signals fire only for successful fresh
+  lists processed while their update is still active.
+- Successful replies whose consumers **already processed and applied them**
+  before a later terminal failure keep their atomic replacement (memory +
+  datastore) — nothing already applied is lost. A future that completes before
+  stop but whose consumer resumes afterward is instead discarded by the
+  post-await invariant; "the reply landed" is too ambiguous for this boundary.
 - A terminal failure emits no `ItemsRefreshed` and performs no rebase.
 - Canceled siblings do not count as request failures in status accounting.
 - Exactly one terminal status transition per update.
 - Status counters stay monotonic and include children initialized before
   launch.
+- Request selection is unchanged: stash-only / character-only partial updates
+  request only their list type, while `All` / `TabsOnly` request both.
 
 ### Item 6 (integration / shutdown) — needs an architecture, not a list
 
@@ -369,21 +416,45 @@ The cases:
 - Completed-future retention (made measurable below).
 
 **Isolation is mandatory, not stylistic:** the leak closure includes live
-sleep timers. In a shared test executable, a later test's event-loop
-iteration fires them and resumes a detached frame into freed pump state.
-These scenarios must run in a dedicated executable or
-subprocess-per-scenario, driven by the existing fake scheduler / fake
-sender infrastructure, with an explicit strategy for the by-design leaks
-(LSAN suppressions or annotations). Distinguish what partly exists
-(manager-level cancellation races in `tst_ratelimitmanager`) from what is
-genuinely missing (worker → facade → hub).
+sleep timers. In a shared test process, a later event-loop iteration can fire
+one and resume a detached frame into freed pump state. The unit of isolation is
+therefore **one destruction scenario per process**, not merely one executable
+containing several Qt Test methods. A practical shape is one purpose-built
+scenario runner registered as several CTest tests, with one scenario argument
+per invocation: drive the event loop only until the named suspension is
+reached, destroy worker/facade consumers before the hub and the fake network
+parent after the hub, make synchronous sentinel assertions at the relevant
+destruction points, and return without another `processEvents()` / `exec()`
+turn. A separate executable per scenario is also valid; a multi-case process
+is not.
 
-**Completed-future retention, made measurable:** the worker suite cannot
-measure it — the fake retains call records for the fixture lifetime — and
-the spec places this pin under item 6 anyway. The precise subject: payload
-/ future shared state is released at `takeResult`; frame allocations may
-persist until the deferred sweep; nothing outside that. Prefer counted
-lifetime instrumentation over process RSS.
+Use `FakeScheduler` plus `FakeNetworkManager` for the real
+worker → facade → hub path. `FakeNetworkManager::createRequest()` is the seam
+that intercepts both HEAD probes and pump sends; `FakeSender` injects directly
+into `RateLimitManager` and therefore cannot provide item-6 hub integration by
+itself. Extend the in-flight reply minimally if a scenario needs a response
+body. Manager-only cancellation coverage already in `tst_ratelimitmanager`
+continues to use `FakeSender`.
+
+The leak strategy must distinguish an accepted detached-frame closure from an
+accidental leak: use counted/sentinel assertions for owner and reply destruction
+and for "no callback resumed"; any LSAN annotation or suppression must target
+only the known detached-frame roots, never blanket the scenario. The normal
+worker suite must instead finish every fake future and sweep every task (§6).
+
+**Completed-future retention, made measurable:** the spec places the full-chain
+pin under item 6. `FakePoeApiClient` does **not** retain settled payloads — it
+resets each promise — but its call metadata and recorded stop tokens still grow
+for the fixture lifetime, so process RSS cannot isolate worker retention.
+Counted payload lifetime is still useful worker-level support; the item-6 pin
+must exercise the real facade/hub chain. State the contract narrowly:
+`takeResult()` moves the payload out; body locals unwind when the per-fetch task
+completes; the completed frame allocation (and any state inherently resident in
+that frame) may persist until the deferred sweep. No dynamic payload/future
+population may accumulate beyond that, and the sweep must release the completed
+frames. Prefer counted lifetime instrumentation over process RSS; do not assert
+that every shared-state reference disappears at the `takeResult()` expression
+unless the harness measures that exact fact.
 
 **Item 7 — every commit compiles and passes `ctest`;** `tst_networkcapture.cpp`
 must keep passing (captures are live research data).
@@ -406,6 +477,10 @@ must keep passing (captures are live research data).
   test holding a real `NetworkManager` once fired a live request at
   pathofexile.com; the worker suite must stay fully offline (that is why the
   facade fake exists).
+- **A stopped fake call is still pending.** In ordinary worker tests, explicitly
+  settle every stopped sibling and drain until the task sweep has run before
+  destroying the fixture. Pending work at teardown is allowed only in the
+  one-scenario-per-process shutdown runner.
 - **For every behavior fix, verify the test FAILS without it.** Standing review
   rule from the phase-3/4 rounds.
 - **`clang-format`** touched C++ files; respect `// clang-format off/on` blocks.
@@ -445,46 +520,61 @@ must keep passing (captures are live research data).
    counters and then `CheckUpdateFinished()`. Preserve that the completion which
    reconciles the counters triggers finalization, under coroutines, without
    re-entrancy hazards (S1-9: awaiting a *task* resumes synchronously).
-4. **Children appended mid-update.** Folder/Map/Unique children are still
-   discovered when a parent reply lands and must be submitted then; work out how
-   that composes with a batch-submitted update and the completion counters
-   (`m_pending_children`, `m_contents_known` semantics from F55 must be
-   preserved). The initialize-before-launch invariant applies **per child
-   launch**, not just to the initial batch — a ready child future completes
-   inline before the test (or the worker) regains control, so counters and
-   parent bookkeeping must exist before each child submission (§8).
+4. **Both child-discovery paths.** Folder children normally arrive nested in
+   the stash list and must join that list's content batch during recursive
+   processing; Map/Unique children normally arrive when the parent reply lands
+   and must be appended then as one batch. The existing generic reply path and
+   F49 duplicate-fetch tripwire remain (no new deduplication policy). Work out
+   how both paths compose with completion counters while preserving
+   `m_pending_children` / `m_contents_known` semantics from F55. The
+   initialize-before-launch invariant applies **per child launch**, not just to
+   the initial batch — a ready child future completes inline before the test
+   (or the worker) regains control, so the complete child count and parent
+   bookkeeping must exist before the first launch in that child batch (§8).
 5. **Interaction with `ItemsManager` / status-bar signals.** `SendStatusUpdate`,
    `ItemsRefreshed`, and the F53 reconciliation signals must keep firing with
    the same semantics; the emitted `Items` still share `Item` objects with the
    UI (the rebase-on-finish rule).
-6. **`FakePoeApiClient` capability gaps.** Confirm what the new pins need beyond
-   what 4b built, and note each as a fake-extension in the plan. Known so
-   far (§8): pre-completed ("ready") success and error futures for the
+6. **`FakePoeApiClient` capability gaps and teardown discipline.** Confirm what
+   the new pins need beyond what 4b built, and note each as a fake-extension in
+   the plan. Known so far (§8): identity-based call lookup; pending/settled
+   inspection; pre-completed ("ready") success and error futures for the
    initialize-before-launch pin; an *exceptional* future for the R5-1
-   throwing-body pin; assertions on the recorded stop tokens for the
-   identity pins. The post-await identity pin probably needs **no**
-   extension — settle-after-stop through the existing helpers produces the
-   same consumer-visible state (§8); add a scripted cross-call seam only if
-   that proves insufficient.
+   throwing-body pin; assertions on recorded stop tokens; and a deterministic
+   way to settle every stopped straggler and drain until the sweep is observed.
+   The post-await identity pin probably needs **no** cross-call extension —
+   settle-after-stop through the existing helpers produces the same
+   consumer-visible state (§8); add scripting only if that proves insufficient.
 7. **Commit sequencing where every intermediate is behaviorally correct** —
    not merely compiling and passing incomplete tests. An earlier draft's
    example sequence (batch-submit, then delete the generation machinery,
-   then add cancellation) was unsafe twice over: after batching, old
-   requests can still complete, and the generation guard is the only thing
-   preventing a stopped update's stragglers from mutating a later one — so
-   the guard must outlive batching until cancellation and the post-await
-   checks are live; and ordering cancellation last piles the entire §8 test
-   plan into the final commit. The safe skeleton:
-   1. Harness migration to identity-based call lookup (§8's porting trap) —
-      green against the current serial worker, before any behavior change.
-   2. Stop-token plumbing + post-await checks while still serial — inert
-      but testable.
-   3. Batch-submit — now protected by both the token and the still-present
-      generation guard.
-   4. Delete the queue.
-   5. Delete the generation machinery **last**, once the cancellation pins
-      demonstrably cover what it guarded (each pin failing without the
-      mechanism, per the standing review rule).
+   then add cancellation) was unsafe: after batching, old requests can still
+   complete, so the generation guard must outlive batching until cancellation
+   and post-await checks are live. The reverse claim was also too strong:
+   post-await identity cannot be black-box tested while the worker is serial,
+   and while both guards coexist `IsStale` can mask a missing token check. The
+   safe skeleton is:
+   1. Harness foundation: identity-based call lookup, condition drains, and
+      pending-call inspection — green against the current serial worker while
+      retaining its only legal delivery order (§8's porting trap).
+   2. Coroutine/task ownership plus one update stop source, still serial.
+      Pin that every submitted call carries the same non-default token and a
+      terminal failure stops it. Add the ready-success / ready-error coverage
+      needed to make this eager launch lifecycle independently safe. Install
+      the post-await check, but do not claim its stale-success race is
+      independently proven yet.
+   3. Batch-submit required lists/content/children. Add the F56 shape, ready-
+      future batch/child variants, reordered-completion, and cancellation-race
+      pins. Both the token and generation guard protect this intermediate.
+   4. Delete the worker queue and finish porting representative tests to
+      arbitrary completion order.
+   5. Delete the generation machinery **last**. Now mutation-verify that the
+      post-await identity pin fails when its token check is removed/bypassed;
+      this is the proof that cancellation actually replaced the old guard.
+   6. Land item-6 integration/retention and one-scenario-per-process shutdown
+      coverage in the commit(s) that introduce the required harness, with every
+      registered CTest green. The implementation plan may split this by harness
+      layer, but may not defer it outside phase 5.
 
 ---
 
