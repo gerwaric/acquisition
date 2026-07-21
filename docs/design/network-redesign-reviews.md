@@ -683,7 +683,11 @@ no further scales.
   residual flags accurately; `m_need_*` reclassified as selection config. No
   code or behavior changed — the implementation (5B's fire-and-owned per-fetch
   tasks + counter-driven finalization) was already correct; the prose was
-  reconciled to it. The owned root task handle (R4-3) is retained for lifetime
-  uniformity even though the current root never suspends. Two stale test
-  comments and a test-only header backdoor were fixed in the same review; a
-  friend accessor moved out of the production header.
+  reconciled to it. The ceremonial root task handle (R4-3) is also removed:
+  RunUpdate becomes a synchronous `void` method — a root that never suspends
+  owns no asynchronous lifetime, and its catch-all works identically in an
+  ordinary function — so `m_update_task` is deleted and R4-3 / the plan's
+  cross-package invariant 3 are amended to match (only the per-fetch tasks are
+  owned handles now). Two stale test comments and a test-only header backdoor
+  were fixed in the same review; a friend accessor moved out of the production
+  header.

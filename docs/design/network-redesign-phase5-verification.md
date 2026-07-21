@@ -1,7 +1,7 @@
 # Phase 5 Verification Contract — Network Redesign
 
 **Status: REQUIRED evidence for phase 5, July 20, 2026.** Production behavior
-is defined by `network-redesign.md` revision 9, items-pipeline M1, and findings
+is defined by `network-redesign.md` revision 10, items-pipeline M1, and findings
 F49/F53/F55/F56. This document defines how phase completion is proved. A pin
 may be changed when the replacement supplies equivalent or stronger evidence;
 record the substitution and reason in the revision note at the end. Test names,

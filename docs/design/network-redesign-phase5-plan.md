@@ -43,7 +43,7 @@ Out of scope:
 
 | Layer | Source | Owns | How it changes |
 | --- | --- | --- | --- |
-| Behavior contract | `network-redesign.md` rev 9, items-pipeline M1, findings F49/F53/F55/F56 | Required production behavior and observable semantics | Amend deliberately before implementing a conflicting behavior |
+| Behavior contract | `network-redesign.md` rev 10, items-pipeline M1, findings F49/F53/F55/F56 | Required production behavior and observable semantics | Amend deliberately before implementing a conflicting behavior |
 | Verification contract | `network-redesign-phase5-verification.md` | Evidence required to call phase 5 complete | Replace only with equivalent or stronger evidence, recording the reason |
 | Execution plan | This document | Packages, commits, files, seams, and session order | Expected to evolve while the two contracts remain satisfied |
 
@@ -98,8 +98,8 @@ Every package must preserve these, including intermediate commits:
    a future that may already be ready.
 2. Check the update token immediately after every `co_await` and before touching
    worker state.
-3. Own one root update-task handle and every per-fetch task handle; no
-   fire-and-forget task exists.
+3. Own every per-fetch task handle; the root orchestration is a synchronous
+   method with no owned handle (rev. 10); no fire-and-forget task exists.
 4. A deferred, queued/coalesced sweep runs outside completing coroutines and
    destroys completed handles only. Abort never destroys a live handle.
 5. A failed old update may have stopped stragglers while a new update is active;

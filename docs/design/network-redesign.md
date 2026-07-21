@@ -1,6 +1,6 @@
 # Network Redesign: Typed Facade, Coroutine Pumps, and the Gate
 
-**Status: ACCEPTED July 20, 2026 (revision 9) — frozen for
+**Status: ACCEPTED July 20, 2026 (revision 10, July 21, 2026) — frozen for
 implementation; phase 0 complete (spike + batch-scale
 measurement); phase 1 complete (manager harness,
 `tests/tst_ratelimitmanager.cpp`, July 19, 2026); phase 2 complete
@@ -40,8 +40,10 @@ implementation reconciliation: D6's "the callback pyramid with its flag
 pairs collapses into control flow" overstated the realized shape — the
 per-fetch pyramid collapsed into coroutines, but the root is a
 counter-driven join and the `m_has_*` list-arrival flags are irreducible
-under it; the prose is reconciled to the (already correct) implementation,
-no design or behavior change. The finding tables (ER, IR, R4-\*,
+under it; the prose is reconciled to the (already correct) implementation, and the
+ceremonial root task handle — dead weight for a root that never suspends —
+is removed (RunUpdate becomes a synchronous method; R4-3 amended). No design
+or observable-behavior change. The finding tables (ER, IR, R4-\*,
 R5-\*, R6-\*, R7, S1, S2), the round narratives, the reversal records,
 and the revision log live in `network-redesign-reviews.md`; this
 spec records only current decisions and cites finding IDs inline
@@ -676,10 +678,11 @@ forum and login traffic as-is, documented here.
   callback state). What collapsed is the nested-callback pyramid; the residual
   flags are the minimal list-arrival state the counter-driven join needs
   (rev. 10).
-- **Task topology and handle ownership (R4-3):** the worker owns one
-  update task plus one per-fetch `QCoro::Task<>` per submission, all
-  held in owned members (a handle container for the per-fetch tasks)
-  — no fire-and-forget anywhere. A task handle owns a coroutine
+- **Task topology and handle ownership (R4-3; rev. 10):** the root
+  orchestration is a synchronous method that never awaits, so it owns no
+  task handle; the worker owns one per-fetch `QCoro::Task<>` per
+  submission, held in an owned handle container — no fire-and-forget
+  anywhere. A task handle owns a coroutine
   frame, not a payload, so this does not conflict with D2's
   no-future-retention rule; 2,000 frames are memory, which the
   phase-0 measurement weighed: ~6.5 KB per entry for the whole
