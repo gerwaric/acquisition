@@ -104,8 +104,9 @@ Every package must preserve these, including intermediate commits:
    destroys completed handles only. Abort never destroys a live handle.
 5. A failed old update may have stopped stragglers while a new update is active;
    task storage and sweep state must not conflate those populations.
-6. No exception escapes a root coroutine. Per-fetch and root catch-alls have
-   distinct completion/finalization responsibilities.
+6. No exception escapes the root orchestration (a synchronous method, rev. 10)
+   or a per-fetch coroutine. Per-fetch and root catch-alls have distinct
+   completion/finalization responsibilities.
 7. `QFuture::cancel()`/`cancelChain()` and `QNetworkReply::abort()` are never
    cancellation mechanisms.
 8. The generation guard outlives batching and is deleted last, after the token
@@ -197,8 +198,9 @@ Before code, draw and record in the commit plan:
 
 - The exact root-update, list-fetch, content-fetch, and child-fetch coroutine
   boundaries.
-- The update-task and per-fetch handle containers, including old stopped
-  stragglers and the coalesced deferred-sweep state machine.
+- The per-fetch handle container (the root orchestration is a synchronous
+  method with no handle, rev. 10), including old stopped stragglers and the
+  coalesced deferred-sweep state machine.
 - Which method performs first-failure stop, which counts a completion, and
   which performs the single terminal transition.
 - How ready child launches initialize both counters and `m_pending_children`

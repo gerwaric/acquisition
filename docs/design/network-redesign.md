@@ -947,8 +947,9 @@ frames only; it neither cancels nor stops a live one (D2).
 
 **Ownership chain:** the hub owns the gate and the pumps; each pump
 owns its deque and its drain-task handle (a member — never
-fire-and-forget); the worker owns its update-task handle and its
-per-fetch handles as members (D6); the facade owns nothing stateful.
+fire-and-forget); the worker owns its per-fetch handles as members, and
+its root orchestration is a synchronous method that owns no handle (D6,
+rev. 10); the facade owns nothing stateful.
 The hub lives for the application session. There is **no shutdown
 `std::stop_source`** — every wait takes the entry's token only, one
 token in every signature (R5-2 simplification; rev 4's second token
@@ -1025,12 +1026,14 @@ handle. Logging alone is not containment either, and destroying a
 `QPromise` unfinished mid-session is the resultless state D2 forbids.
 Therefore:
 
-- **No exception ever escapes a root coroutine.** Every root task —
-  the pump drain, the worker's update task, each per-fetch task —
-  wraps its entire body in a catch-all and finishes
-  non-exceptionally. QCoro's stored-exception machinery is
-  deliberately never exercised; handle ownership is for lifetime
-  only and supervises nothing (D6).
+- **No exception ever escapes a root frame.** Every root task — the
+  pump drain and each per-fetch task — wraps its entire body in a
+  catch-all and finishes non-exceptionally; the worker's root
+  orchestration is a synchronous method rather than a task (rev. 10),
+  but it likewise wraps its body in a catch-all so nothing escapes into
+  the caller. QCoro's stored-exception machinery is deliberately never
+  exercised; handle ownership is for lifetime only and supervises
+  nothing (D6).
 - The drain's catch-all is what *implements* the terminal failed
   state: it completes the active entry `Internal` (the guard below
   already guarantees that), transitions the pump, and fails the
