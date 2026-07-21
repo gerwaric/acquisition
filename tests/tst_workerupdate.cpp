@@ -88,6 +88,16 @@ private slots:
     // state. Deleting the post-await token check makes this test fail (mutation
     // proof recorded in the commit).
     void oldSuccessfulStragglerDoesNotCorruptASubsequentUpdate(); // W-IDENTITY
+
+    // Preservation pins carried from the 5C review (verification §4): the active
+    // update refuses a concurrent one, a failed/stopped list emits no
+    // authoritative-list signals, and reply-discovered children are accepted on
+    // Folder and Unique parents (the generic path accepts them on all three
+    // parent types, F49/F53).
+    void updateDuringActiveUpdateRefusesWithoutDisturbingIt(); // P-REFUSE
+    void failedOrStoppedListEmitsNoListSignals();              // P-LIST-SIGNALS (neg)
+    void folderReplyChildrenAreFetchedButNotReconciled();      // Folder reply children
+    void uniqueReplyChildrenAreFetchedAndReconciled();         // Unique reply children
 };
 
 namespace {
@@ -302,6 +312,43 @@ namespace {
                                  status_updates.push_back(
                                      {state, message, worker->ProgressCountersForTest()});
                              });
+            QObject::connect(worker.get(),
+                             &ItemsManagerWorker::NotifyUser,
+                             worker.get(),
+                             [this](const QString &message) { notify_messages.append(message); });
+            QObject::connect(worker.get(),
+                             &ItemsManagerWorker::stashListReceived,
+                             worker.get(),
+                             [this](const std::vector<poe::StashTab> &,
+                                    const QString &,
+                                    const QString &) { ++stash_list_received; });
+            QObject::connect(worker.get(),
+                             &ItemsManagerWorker::stashListReplaced,
+                             worker.get(),
+                             [this](const std::vector<poe::StashTab> &,
+                                    const QString &,
+                                    const QString &) { ++stash_list_replaced; });
+            QObject::connect(worker.get(),
+                             &ItemsManagerWorker::characterListReceived,
+                             worker.get(),
+                             [this](const std::vector<poe::Character> &, const QString &) {
+                                 ++character_list_received;
+                             });
+            QObject::connect(worker.get(),
+                             &ItemsManagerWorker::characterListReplaced,
+                             worker.get(),
+                             [this](const std::vector<poe::Character> &, const QString &) {
+                                 ++character_list_replaced;
+                             });
+            QObject::connect(worker.get(),
+                             &ItemsManagerWorker::stashChildrenReplaced,
+                             worker.get(),
+                             [this](const QString &parent_id,
+                                    const QStringList &,
+                                    const QString &,
+                                    const QString &) {
+                                 stash_children_replaced_parents.append(parent_id);
+                             });
             worker->OnRePoEReady();
         }
 
@@ -482,6 +529,20 @@ namespace {
         std::vector<ItemLocation> last_tabs;
         bool last_initial{false};
         int refresh_count{0};
+
+        // Every NotifyUser message, in order — used to pin that a refused update
+        // notifies the user (P-REFUSE).
+        QStringList notify_messages;
+
+        // Authoritative-list signal counts (P-LIST-SIGNALS): a failed or stopped
+        // list must emit neither the *-received signal nor the F53 *-replaced
+        // reconciliation. stash_children_replaced_parents records one parent id
+        // per stashChildrenReplaced emit (Map/Unique reply reconciliation, F53).
+        int stash_list_received{0};
+        int stash_list_replaced{0};
+        int character_list_received{0};
+        int character_list_replaced{0};
+        QStringList stash_children_replaced_parents;
 
         // Every StatusUpdate the worker emitted, with the counter snapshot live
         // when it fired. Progress messages report received/needed; the terminal
@@ -2422,6 +2483,186 @@ void WorkerUpdateTest::oldSuccessfulStragglerDoesNotCorruptASubsequentUpdate()
     f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a-new"})));
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"a-new", "b-old"}));
+}
+
+// P-REFUSE (verification §4): an Update() issued while an initialized update is
+// already active is refused — it notifies the user, submits nothing, and neither
+// stops, replaces, nor queues behind the running update. (Deferral while the
+// worker is still initializing is a separate branch, exercised elsewhere.)
+void WorkerUpdateTest::updateDuringActiveUpdateRefusesWithoutDisturbingIt()
+{
+    WorkerFixture f("prefuse");
+
+    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a-old"}));
+    QVERIFY(tab_a);
+    {
+        UserStore store(QDir(f.dataDir()), "prefuse");
+        QVERIFY(store.stashes().saveStashList({*tab_a}, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    const std::vector<poe::StashTab> fresh = stashList({stashJson("stashaaaa1", "Tab A", 0)});
+
+    // Update 1 goes active with tab A's content in flight under a live token.
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(fresh);
+    f.deliverCharacterList({});
+    QVERIFY(f.hasPendingStash("stashaaaa1"));
+    const std::stop_token token = f.api.tokenForStash("stashaaaa1");
+    const size_t calls_before = f.callCount();
+    const int notifies_before = int(f.notify_messages.size());
+
+    // A second Update() while the first is active is refused: notify, submit
+    // nothing, do not stop or replace the active token/update.
+    f.worker->Update(TabSelection::All);
+    QVERIFY(WorkerFixture::drainUntilIdle());
+    QCOMPARE(f.notify_messages.size(), notifies_before + 1);
+    QVERIFY(f.notify_messages.last().contains("in progress"));
+    QCOMPARE(f.callCount(), calls_before); // nothing submitted
+    QVERIFY(!token.stop_requested());      // active token untouched
+    QCOMPARE(f.refresh_count, 1);          // refusal did not finalize anything
+
+    // The original update completes normally on its own token — the refusal left
+    // it entirely intact.
+    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a-new"})));
+    QCOMPARE(f.refresh_count, 2);
+    QVERIFY(!token.stop_requested());
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a-new"}));
+}
+
+// P-LIST-SIGNALS negative half (verification §4): the authoritative-list signals
+// (list-received and the F53 *-replaced reconciliation) fire only for a
+// successful fresh list processed while its update is active. A list that FAILS
+// emits neither; and a list left STOPPED by a first-failure abort emits neither
+// when its straggler resumes, because the post-await token gate discards it
+// before the handler runs.
+void WorkerUpdateTest::failedOrStoppedListEmitsNoListSignals()
+{
+    WorkerFixture f("plistsignals-neg");
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    // Update All launches both lists under one shared token.
+    f.worker->Update(TabSelection::All);
+    QCOMPARE(f.callCount(), size_t(2));
+    QVERIFY(f.hasPendingStashList());
+    QVERIFY(f.hasPendingCharacterList());
+
+    const int sr = f.stash_list_received;
+    const int srr = f.stash_list_replaced;
+    const int cr = f.character_list_received;
+    const int crr = f.character_list_replaced;
+
+    // The stash list FAILS: its handler returns before emitting either the
+    // received signal or the stashListReplaced reconciliation. First-failure
+    // stops the shared token, leaving the character list a stopped straggler.
+    f.failStashList();
+    QCOMPARE(f.stash_list_received, sr);
+    QCOMPARE(f.stash_list_replaced, srr);
+    QCOMPARE(f.api.stoppedStragglerCount(), size_t(1)); // the character list
+
+    // The STOPPED character list resumes: gated out on the stopped token, its
+    // handler never runs, so no character-list signal fires either.
+    QCOMPARE(f.settleStragglers(), size_t(1));
+    QCOMPARE(f.character_list_received, cr);
+    QCOMPARE(f.character_list_replaced, crr);
+    QCOMPARE(f.refresh_count, 1); // a failed update emits no refresh
+}
+
+// Reply-discovered children on a FOLDER parent (verification §4). The generic
+// reply path accepts children on all three parent types; this pins the Folder
+// case. NOTE: a live Folder reply carries no children — folder children arrive
+// in the top-level list (F49) — so this exercises the worker's DEFENSIVE
+// reply-child path on a Folder parent, not a shape the live API produces. A
+// Folder reply drives no F53 child reconciliation (stashChildrenReplaced is
+// emitted only for Map/Unique parents; folder child rows follow the top list).
+void WorkerUpdateTest::folderReplyChildrenAreFetchedButNotReconciled()
+{
+    WorkerFixture f("folder-reply-children");
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    // Update All. The stash list carries a single Folder tab (no list children);
+    // the folder's reply then defensively carries a child.
+    f.worker->Update(TabSelection::All);
+    f.deliverCharacterList({});
+    f.deliverStashList(stashList({stashJson("folder0001", "Folder", 0, {}, "Folder")}));
+    QVERIFY(f.hasPendingStash("folder0001"));
+
+    const int reconciled_before = int(f.stash_children_replaced_parents.size());
+
+    f.deliverStash("folder0001",
+                   stashOf(stashJson(
+                       "folder0001",
+                       "Folder",
+                       0,
+                       {},
+                       "Folder",
+                       {},
+                       {stashJson("folderchild1", "Sub", 0, {}, "PremiumStash", "folder0001")})));
+
+    // The reply-discovered child is fetched as its own batch by its own id...
+    QVERIFY(f.hasPendingStash("folder0001", "folderchild1"));
+    // ...but a Folder reply drives NO child reconciliation.
+    QCOMPARE(int(f.stash_children_replaced_parents.size()), reconciled_before);
+
+    f.deliverChild("folder0001",
+                   "folderchild1",
+                   stashOf(stashJson("folderchild1",
+                                     "Sub",
+                                     0,
+                                     QStringList{"fc1"},
+                                     "PremiumStash",
+                                     "folder0001")));
+    QCOMPARE(f.refresh_count, 2);
+    QVERIFY(sortedItemIds(f.last_items).contains("fc1"));
+}
+
+// Reply-discovered children on a UNIQUE parent (verification §4). Like the Map
+// reply-child path, a Unique reply's children (with get_unique_stashes enabled)
+// launch as one complete batch, and the Unique reply IS authoritative for its
+// children, so it drives one F53 stashChildrenReplaced reconciliation.
+void WorkerUpdateTest::uniqueReplyChildrenAreFetchedAndReconciled()
+{
+    WorkerFixture f("unique-reply-children");
+    f.settings.setValue("get_unique_stashes", true);
+    f.settings.sync();
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    f.worker->Update(TabSelection::All);
+    f.deliverCharacterList({});
+    f.deliverStashList(stashList({stashJson("unique0001", "Uniques", 0, {}, "UniqueStash")}));
+    QVERIFY(f.hasPendingStash("unique0001"));
+
+    const int reconciled_before = int(f.stash_children_replaced_parents.size());
+
+    f.deliverStash(
+        "unique0001",
+        stashOf(stashJson("unique0001",
+                          "Uniques",
+                          0,
+                          {},
+                          "UniqueStash",
+                          {},
+                          {stashJson("uniquechild1", "Set", 0, {}, "UniqueStash", "unique0001")})));
+
+    // The Unique reply's child launches as its own batch...
+    QVERIFY(f.hasPendingStash("unique0001", "uniquechild1"));
+    // ...and a Unique reply drives exactly one child reconciliation for the
+    // parent (F53).
+    QCOMPARE(int(f.stash_children_replaced_parents.size()), reconciled_before + 1);
+    QCOMPARE(f.stash_children_replaced_parents.last(), QString("unique0001"));
+
+    f.deliverChild("unique0001",
+                   "uniquechild1",
+                   stashOf(stashJson(
+                       "uniquechild1", "Set", 0, QStringList{"uc1"}, "UniqueStash", "unique0001")));
+    QCOMPARE(f.refresh_count, 2);
+    QVERIFY(sortedItemIds(f.last_items).contains("uc1"));
 }
 
 QTEST_GUILESS_MAIN(WorkerUpdateTest)
