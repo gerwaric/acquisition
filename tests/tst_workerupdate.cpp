@@ -87,19 +87,23 @@ private slots:
     // Phase 5D — identity replacement proof (verification §5). The generation
     // guard is gone, so the update token is the sole identity: a successful
     // straggler from a failed update must not touch a subsequent active update's
-    // state. Deleting the post-await token check makes this test fail (mutation
-    // proof recorded in the commit).
-    void oldSuccessfulStragglerDoesNotCorruptASubsequentUpdate(); // W-IDENTITY
+    // state. Bypassing the shared post-await token gate (ProcessIfLive) makes
+    // these fail (mutation proof recorded in the commit). Two lanes are pinned —
+    // stash content and character content — so the one gate every fetch coroutine
+    // routes through is regression-covered from both.
+    void oldSuccessfulStragglerDoesNotCorruptASubsequentUpdate();          // W-IDENTITY (stash)
+    void oldSuccessfulCharacterStragglerDoesNotCorruptASubsequentUpdate(); // W-IDENTITY (character)
 
     // Preservation pins carried from the 5C review (verification §4): the active
     // update refuses a concurrent one, a failed/stopped list emits no
     // authoritative-list signals, and reply-discovered children are accepted on
     // Folder and Unique parents (the generic path accepts them on all three
     // parent types, F49/F53).
-    void updateDuringActiveUpdateRefusesWithoutDisturbingIt(); // P-REFUSE
-    void failedOrStoppedListEmitsNoListSignals();              // P-LIST-SIGNALS (neg)
-    void folderReplyChildrenAreFetchedButNotReconciled();      // Folder reply children
-    void uniqueReplyChildrenAreFetchedAndReconciled();         // Unique reply children
+    void updateDuringActiveUpdateRefusesWithoutDisturbingIt();   // P-REFUSE
+    void failedOrStoppedListEmitsNoListSignals();                // P-LIST-SIGNALS (neg)
+    void folderReplyChildrenAreFetchedButNotReconciled();        // Folder reply children
+    void uniqueReplyChildrenAreFetchedAndReconciled();           // Unique reply children
+    void appliedReplySurvivesLaterFailureInMemoryAndDatastore(); // P-APPLIED
 };
 
 namespace {
@@ -1776,7 +1780,7 @@ void WorkerUpdateTest::handlerExceptionAbortsToIdleInsteadOfWedging()
     QCOMPARE(f.refresh_count, 2);
 }
 
-// W-THROW (root orchestration): the update root task's own body has a catch-all
+// W-THROW (root orchestration): the root orchestration's own body has a catch-all
 // distinct from the per-fetch tasks' (verification §3). A throw in orchestration
 // itself — before any list is launched — is contained there and drives the same
 // terminal AbortUpdate(), rather than escaping into the caller (ItemsManager /
@@ -2430,9 +2434,12 @@ void WorkerUpdateTest::tabsOnlyRequestsBothListsButNoContent()
 // tab, needs exactly that one content fetch, and the straggler carries a
 // different item set. Under correct behavior the straggler resolves with no emit
 // and no counter movement; the new update then finishes with its OWN item, the
-// stale item nowhere in the result. Mutation proof: deleting the post-await
-// `!token.stop_requested()` gate in FetchStash makes the straggler finalize the
-// new update early with the stale item, and this test fails.
+// stale item nowhere in the result. Mutation proof: bypassing the post-await
+// `!token.stop_requested()` gate in the shared ProcessIfLive helper makes the
+// straggler finalize the new update early with the stale item, and this test
+// fails. Every fetch coroutine routes through that one helper, so this stash
+// variant and the character variant below regression-cover the single gate for
+// all four fetch kinds.
 void WorkerUpdateTest::oldSuccessfulStragglerDoesNotCorruptASubsequentUpdate()
 {
     WorkerFixture f("widentity");
@@ -2497,6 +2504,81 @@ void WorkerUpdateTest::oldSuccessfulStragglerDoesNotCorruptASubsequentUpdate()
     f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a-new"})));
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"a-new", "b-old"}));
+}
+
+// W-IDENTITY (character lane): the same proof as the stash variant above, but the
+// straggler is a character content fetch (FetchCharacter). Each fetch coroutine
+// routes its handler through the one shared post-await gate (ProcessIfLive), so
+// pinning a second lane confirms the character coroutine really does gate before
+// touching state — the single gate is regression-covered from both content lanes,
+// not just the stash one. The stoppedCharacter() fake finder settles the old
+// character straggler with SUCCESS by identity.
+void WorkerUpdateTest::oldSuccessfulCharacterStragglerDoesNotCorruptASubsequentUpdate()
+{
+    WorkerFixture f("widentity-char");
+
+    const auto char_1 = json::readCharacter(
+        characterJson("charid0001", "CharOne", QStringList{"c1-old"}));
+    const auto char_2 = json::readCharacter(
+        characterJson("charid0002", "CharTwo", QStringList{"c2-old"}));
+    QVERIFY(char_1 && char_2);
+    {
+        UserStore store(QDir(f.dataDir()), "widentity-char");
+        QVERIFY(store.characters().saveCharacterList({*char_1, *char_2}));
+        QVERIFY(store.characters().saveCharacter(*char_1));
+        QVERIFY(store.characters().saveCharacter(*char_2));
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"c1-old", "c2-old"}));
+
+    const std::vector<poe::Character> fresh = characterList(
+        {characterJson("charid0001", "CharOne"), characterJson("charid0002", "CharTwo")});
+
+    // Update 1 (All): both character contents go in flight under token1; then
+    // CharTwo fails. First-failure stops token1 and the worker goes idle at once,
+    // leaving CharOne's fetch a stopped straggler.
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList({});
+    f.deliverCharacterList(fresh);
+    QVERIFY(f.hasPendingCharacter("CharOne"));
+    QVERIFY(f.hasPendingCharacter("CharTwo"));
+    const std::stop_token token1 = f.api.tokenForCharacter("CharOne");
+    f.api.reject(f.api.pendingCharacter("CharTwo"), RateLimit::FetchError::Kind::Network);
+    QVERIFY(WorkerFixture::drainUntilIdle());
+    QVERIFY(token1.stop_requested());
+    QCOMPARE(f.refresh_count, 1);
+    QCOMPARE(f.api.stoppedStragglerCount(), size_t(1)); // CharOne's fetch
+
+    // Update 2 (Selected CharOne): a fresh, unstopped token2. Only CharOne is
+    // fetched — CharTwo is a known character and unselected.
+    f.worker->Update(TabSelection::Selected, {ItemLocation(*char_1, 0)});
+    f.deliverCharacterList(fresh);
+    QVERIFY(f.hasPendingCharacter("CharOne")); // the NEW fetch (token2), deliverable
+    const std::stop_token token2 = f.api.tokenForCharacter("CharOne");
+    QVERIFY(token2 != token1);
+    QVERIFY(!token2.stop_requested());
+    QCOMPARE(f.api.stoppedStragglerCount(), size_t(1));
+    QCOMPARE(f.access().progressCounters().characters_needed, size_t(1));
+
+    // The OLD character straggler resolves SUCCESSFULLY with a stale item set. On
+    // the stopped token1 its consumer discards the reply: no emit, no counter
+    // movement, no premature finish of update 2.
+    f.api.resolveCharacter(f.api.stoppedCharacter("CharOne"),
+                           characterOf(
+                               characterJson("charid0001", "CharOne", QStringList{"c1-STALE"})));
+    QVERIFY(WorkerFixture::drainUntilIdle());
+    QCOMPARE(f.refresh_count, 1);
+    QCOMPARE(f.access().progressCounters().characters_received, size_t(0));
+    QCOMPARE(f.api.stoppedStragglerCount(), size_t(0));
+
+    // Update 2 finishes on its OWN reply (token2), with CharOne's fresh item and
+    // CharTwo's untouched cache. The stale item is nowhere in the result.
+    f.deliverCharacter("CharOne",
+                       characterOf(characterJson("charid0001", "CharOne", QStringList{"c1-new"})));
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"c1-new", "c2-old"}));
 }
 
 // P-REFUSE (verification §4): an Update() issued while an initialized update is
@@ -2677,6 +2759,82 @@ void WorkerUpdateTest::uniqueReplyChildrenAreFetchedAndReconciled()
                        "uniquechild1", "Set", 0, QStringList{"uc1"}, "UniqueStash", "unique0001")));
     QCOMPARE(f.refresh_count, 2);
     QVERIFY(sortedItemIds(f.last_items).contains("uc1"));
+}
+
+// P-APPLIED (verification §4): a reply processed and atomically applied before a
+// later terminal failure remains applied in BOTH memory and datastore. The
+// earlier failedUpdateKeepsItemsIntact pin masks this: it refetches tab A in its
+// recovery update, so clearing A on abort would still pass, and it never connects
+// persistence. This pins the two halves the contract actually requires:
+//   * memory — after A is applied and B fails, a TabsOnly update publishes the
+//     in-memory items WITHOUT refetching A, and A's applied item is still there;
+//   * datastore — A's reply persisted through the connected stashReceived slot
+//     before the failure, and the abort does not roll it back.
+void WorkerUpdateTest::appliedReplySurvivesLaterFailureInMemoryAndDatastore()
+{
+    WorkerFixture f("papplied");
+
+    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a-old"}));
+    const auto tab_b = json::readStash(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b-old"}));
+    QVERIFY(tab_a && tab_b);
+    {
+        UserStore store(QDir(f.dataDir()), "papplied");
+        QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b}, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*tab_b, kRealm, kLeague));
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a-old", "b-old"}));
+
+    // Persist replies the way Application does, so the datastore half is real.
+    UserStore store(QDir(f.dataDir()), "papplied");
+    connectPersistence(f.worker.get(), store);
+
+    const std::vector<poe::StashTab> fresh = stashList(
+        {stashJson("stashaaaa1", "Tab A", 0), stashJson("stashbbbb1", "Tab B", 1)});
+
+    // Update 1 (All): both tab contents go in flight. Tab A lands and is applied
+    // — to memory and, through the connected stashReceived slot, to the
+    // datastore. Then tab B fails, terminating the update with no emit.
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(fresh);
+    f.deliverCharacterList({});
+    f.deliverStash("stashaaaa1",
+                   stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a-applied"})));
+    QVERIFY(f.hasPendingStash("stashbbbb1"));
+    f.failStash("stashbbbb1");
+    QCOMPARE(f.refresh_count, 1); // the failed update emits nothing
+
+    // Datastore half: A's applied reply persisted before the failure and the
+    // abort did not roll it back.
+    auto storedItemIds = [&](const QString &id) {
+        const auto stored = store.stashes().getStash(id, kRealm, kLeague);
+        QStringList ids;
+        if (stored && stored->items) {
+            for (const auto &item : *stored->items) {
+                if (item.id) {
+                    ids.append(*item.id);
+                }
+            }
+        }
+        ids.sort();
+        return ids;
+    };
+    QCOMPARE(storedItemIds("stashaaaa1"), QStringList({"a-applied"}));
+
+    // Memory half: publish the in-memory snapshot WITHOUT refetching A. A TabsOnly
+    // update fetches both lists but no content, so no getStash for A is issued —
+    // if the abort had cleared A's applied items, they would be absent from the
+    // emit.
+    const size_t calls_before = f.callCount();
+    f.worker->Update(TabSelection::TabsOnly);
+    f.deliverStashList(fresh);
+    f.deliverCharacterList({});
+    QCOMPARE(f.callCount(), calls_before + 2); // only the two lists — no content refetch
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a-applied", "b-old"}));
 }
 
 QTEST_GUILESS_MAIN(WorkerUpdateTest)

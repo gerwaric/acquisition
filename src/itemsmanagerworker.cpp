@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <unordered_map>
+#include <utility>
 
 #include "buyoutmanager.h"
 #include "datastore/characterrepo.h"
@@ -47,6 +48,23 @@ namespace {
         error.kind = RateLimit::FetchError::Kind::Internal;
         error.message = message;
         return error;
+    }
+
+    // The single post-await identity gate (IR2/W-IDENTITY). Every per-fetch
+    // coroutine routes its handler through this ONE helper after its co_await, so
+    // there is one gate to get right — not four independent copies — and the
+    // W-IDENTITY mutation proof (bypassing the token check here) regression-covers
+    // all four fetch kinds at once. The update token is the update's identity: a
+    // straggler from a failed update carries that update's stopped token, so its
+    // result is discarded rather than applied to whatever update is now active.
+    // The handler runs on the completing stack, still inside the caller's
+    // catch-all, so a throw from it flows to the per-fetch terminal abort.
+    template<typename Handler>
+    void ProcessIfLive(const std::stop_token &token, Handler &&handler)
+    {
+        if (!token.stop_requested()) {
+            std::forward<Handler>(handler)();
+        }
     }
 
 } // namespace
@@ -612,12 +630,14 @@ void ItemsManagerWorker::SubmitCharacterListRequest()
 //     Internal failure value, so it flows through the handler's failure branch;
 //   * the outer try contains anything the handler (or a launch it triggers)
 //     throws, and forces a terminal AbortUpdate() so the update cannot wedge.
-// The post-await identity check (IR2) gates the handler on the token alone: a
-// future can resolve an instant before request_stop(), and its consumer must
-// not touch state that now belongs to a later update. The token IS the update's
-// identity — a straggler from a failed update carries that update's stopped
-// token, so `!token.stop_requested()` discards it (W-IDENTITY). The sweep is
-// scheduled unconditionally on every exit so no completed handle leaks.
+// The post-await identity gate is centralized in ProcessIfLive (see above): each
+// of the four fetch coroutines routes its handler through that one helper right
+// after its co_await, so there is a single gate to protect rather than four
+// copies, and one W-IDENTITY mutation regression-covers them all. A future can
+// resolve an instant before request_stop(), and its consumer must not touch
+// state that now belongs to a later update; the token IS the update's identity.
+// The sweep is scheduled unconditionally on every exit so no completed handle
+// leaks.
 QCoro::Task<> ItemsManagerWorker::FetchStashList(std::stop_token token)
 {
     try {
@@ -629,9 +649,7 @@ QCoro::Task<> ItemsManagerWorker::FetchStashList(std::stop_token token)
         } catch (...) {
             result = std::unexpected(MakeInternalError("the stash list fetch threw"));
         }
-        if (!token.stop_requested()) {
-            OnStashListReceived(result);
-        }
+        ProcessIfLive(token, [&] { OnStashListReceived(result); });
     } catch (...) {
         spdlog::error("ItemsManagerWorker: a stash list continuation threw; aborting the update");
         // A handler that reached this catch ran because the token was live at the
@@ -655,9 +673,7 @@ QCoro::Task<> ItemsManagerWorker::FetchCharacterList(std::stop_token token)
         } catch (...) {
             result = std::unexpected(MakeInternalError("the character list fetch threw"));
         }
-        if (!token.stop_requested()) {
-            OnCharacterListReceived(result);
-        }
+        ProcessIfLive(token, [&] { OnCharacterListReceived(result); });
     } catch (...) {
         spdlog::error(
             "ItemsManagerWorker: a character list continuation threw; aborting the update");
@@ -679,9 +695,7 @@ QCoro::Task<> ItemsManagerWorker::FetchStash(ItemLocation location,
         } catch (...) {
             result = std::unexpected(MakeInternalError("the stash fetch threw"));
         }
-        if (!token.stop_requested()) {
-            OnStashReceived(result, location);
-        }
+        ProcessIfLive(token, [&] { OnStashReceived(result, location); });
     } catch (...) {
         spdlog::error("ItemsManagerWorker: a stash continuation threw; aborting the update");
         AbortUpdate();
@@ -701,9 +715,7 @@ QCoro::Task<> ItemsManagerWorker::FetchCharacter(ItemLocation location,
         } catch (...) {
             result = std::unexpected(MakeInternalError("the character fetch threw"));
         }
-        if (!token.stop_requested()) {
-            OnCharacterReceived(result, location);
-        }
+        ProcessIfLive(token, [&] { OnCharacterReceived(result, location); });
     } catch (...) {
         spdlog::error("ItemsManagerWorker: a character continuation threw; aborting the update");
         AbortUpdate();
