@@ -73,4 +73,6 @@ acq_add_scenario_test(tst_workerintegration
     i_shut_pacing
     i_shut_gate
     i_shut_flight
-    i_shut_retry)
+    i_shut_retry
+    i_leak_bound
+    i_retention)

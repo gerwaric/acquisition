@@ -74,6 +74,15 @@ private slots:
     void i_shut_gate();
     void i_shut_flight();
     void i_shut_retry();
+
+    // I-LEAK-BOUND : at shutdown only the detached frame leaks; every owner and
+    // reply outside its closure is destroyed (§6).
+    void i_leak_bound();
+
+    // I-RETENTION : across a long full-chain update the completed
+    // payload/future population does not accumulate; the deferred sweep releases
+    // completed frames (§6).
+    void i_retention();
 };
 
 namespace {
@@ -106,6 +115,34 @@ namespace {
             {"X-Rate-Limit-Ip-State", state},
             {"Date", rfcDateNow()},
         };
+    }
+
+    // A minimal stash-tab JSON object (metadata/items default). Ids match the
+    // datastore seed so the worker reconciles and selects them.
+    QByteArray stashTabJson(const QString &id, int index)
+    {
+        return QString(R"({"id":"%1","name":"Tab %2","type":"PremiumStash","index":%3})")
+            .arg(id, QString::number(index + 1), QString::number(index))
+            .toUtf8();
+    }
+
+    // A StashListWrapper body listing the given ids in order.
+    QByteArray stashListBody(const QStringList &ids)
+    {
+        QByteArrayList tabs;
+        for (int i = 0; i < ids.size(); ++i) {
+            tabs.append(stashTabJson(ids.at(i), i));
+        }
+        return "{\"stashes\":[" + tabs.join(",") + "]}";
+    }
+
+    // A StashWrapper body for one tab (empty items — the retention pin cares
+    // about frame/future lifetime, not payload contents).
+    QByteArray stashContentBody(const QString &id, int index)
+    {
+        QByteArray tab = stashTabJson(id, index);
+        tab.chop(1); // drop the closing brace to append items
+        return "{\"stash\":" + tab + ",\"items\":[]}}";
     }
 
     void drainEvents()
@@ -153,6 +190,7 @@ namespace {
             limiter = std::make_unique<RateLimiter>(*network, &scheduler);
             api = std::make_unique<PoeApiClient>(*limiter);
             worker = std::make_unique<ItemsManagerWorker>(settings, *bm.manager, *api);
+            WorkerTestAccess(*worker).setSweepObserver(&sweep);
 
             QObject::connect(worker.get(),
                              &ItemsManagerWorker::ItemsRefreshed,
@@ -191,34 +229,44 @@ namespace {
 
         QString dataDir() const { return bm.tempDir.filePath("data"); }
 
-        // Seed one stash tab into the datastore so a Selected update of it needs
+        // Seed N stash tabs into the datastore so a Selected update of them needs
         // exactly the stash list — one endpoint. The Selected list-need logic
         // keys off already-known tabs (m_tabs), so an unseeded selection would
-        // fetch nothing. Returns the location to pass to Update().
-        ItemLocation seedOneStashTab()
+        // fetch nothing. Returns the locations to pass to Update().
+        std::vector<ItemLocation> seedStashTabs(int n)
         {
-            poe::StashTab stash;
-            stash.id = "stash00001";
-            stash.name = "Integration Tab";
-            stash.type = "PremiumStash";
-            stash.index = 0;
-
-            UserStore store(QDir(dataDir()), account_name);
-            if (!store.stashes().saveStashList({stash}, kRealm, kLeague)
-                || !store.stashes().saveStash(stash, kRealm, kLeague)) {
-                qFatal("seedOneStashTab: failed to persist the seed tab");
+            std::vector<poe::StashTab> stashes;
+            std::vector<ItemLocation> locations;
+            for (int i = 0; i < n; ++i) {
+                poe::StashTab stash;
+                stash.id = QString("stash%1").arg(i + 1, 5, 10, QChar('0'));
+                stash.name = QString("Integration Tab %1").arg(i + 1);
+                stash.type = "PremiumStash";
+                stash.index = static_cast<unsigned>(i);
+                stashes.push_back(stash);
+                locations.push_back(ItemLocation(stash));
             }
-            return ItemLocation(stash);
+            UserStore store(QDir(dataDir()), account_name);
+            if (!store.stashes().saveStashList(stashes, kRealm, kLeague)) {
+                qFatal("seedStashTabs: failed to persist the seed list");
+            }
+            for (const auto &stash : stashes) {
+                if (!store.stashes().saveStash(stash, kRealm, kLeague)) {
+                    qFatal("seedStashTabs: failed to persist a seed tab");
+                }
+            }
+            return locations;
         }
 
         // Seed one stash tab, then run the worker to Idle: OnRePoEReady starts
         // the (real) parse thread, which reads the cache and emits the initial
         // ItemsRefreshed. Wait for that on the event loop, not the fake scheduler
         // (the parse thread is a real QThread unrelated to the hub's clock).
-        // Stores the seeded tab's location for Update() to select.
-        void seedAndReachIdle()
+        // Stores the seeded tabs' locations for Update() to select.
+        void seedAndReachIdle(int tab_count = 1)
         {
-            selection = seedOneStashTab();
+            selections = seedStashTabs(tab_count);
+            selection = selections.front();
             worker->OnRePoEReady();
             QTRY_COMPARE_WITH_TIMEOUT(initial_refreshes, 1, 10000);
         }
@@ -227,7 +275,11 @@ namespace {
         QSettings settings;
         QString account_name;
         ItemLocation selection;
+        std::vector<ItemLocation> selections;
         FakeScheduler scheduler;
+        // Declared before the worker so it outlives it: the worker holds a raw
+        // pointer to it and writes sweep counts through it (verification §2).
+        WorkerSweepObserver sweep;
         std::unique_ptr<FakeNetworkManager> network;
         std::unique_ptr<RateLimiter> limiter;
         std::unique_ptr<PoeApiClient> api;
@@ -576,6 +628,125 @@ void WorkerIntegrationTest::i_cancel_flight()
     QCOMPARE(rig.ready_transitions, ready_before + 1);
     QVERIFY(rig.last_ready_message.contains("failed"));
     QCOMPARE(rig.access().outstandingFetchTasks(), size_t(0));
+}
+
+void WorkerIntegrationTest::i_leak_bound()
+{
+    Rig rig("integration-leak-bound");
+    rig.seedAndReachIdle();
+
+    // Owners that must be destroyed at shutdown, not leaked. Both are QObjects,
+    // so a QPointer nulls when the object is destroyed.
+    QPointer<ItemsManagerWorker> worker_obj = rig.worker.get();
+    QPointer<RateLimiter> limiter_obj = rig.limiter.get();
+
+    // Drive the list request into flight (one suspended per-fetch frame).
+    rig.worker->Update(TabSelection::Selected, {rig.selection});
+    settle(rig.scheduler);
+    QCOMPARE(rig.network->count(), 1);
+    rig.network->sent(0).reply->finish(policyHeaders(), 200);
+    drainEvents();
+    advanceAndSettle(rig.scheduler, std::chrono::milliseconds(kNormalBufferMsec));
+    advanceAndSettle(rig.scheduler, kGateSpacing - std::chrono::milliseconds(kNormalBufferMsec));
+    const int list_get = findSent(rig, QNetworkAccessManager::GetOperation, "/stash/");
+    QVERIFY(list_get >= 0);
+    QPointer<InFlightReply> reply = rig.network->sent(list_get).reply;
+    QVERIFY(!reply.isNull());
+    QCOMPARE(rig.access().outstandingFetchTasks(), size_t(1));
+
+    // Shutdown in UserSession order. The suspended frame detaches and leaks by
+    // accepted design (§6) — but nothing OUTSIDE its closure may: the worker and
+    // hub owners are destroyed as their unique_ptrs reset, and the in-flight
+    // reply (owned by the QNAM parent, not the frame) is freed when the network
+    // dies. No processEvents() runs after destruction.
+    rig.worker.reset();
+    QVERIFY2(worker_obj.isNull(), "the worker owner must be destroyed, not leaked");
+    rig.api.reset();
+    rig.limiter.reset();
+    QVERIFY2(limiter_obj.isNull(), "the hub owner must be destroyed, not leaked");
+    QVERIFY2(!reply.isNull(), "the in-flight reply outlives the hub (R6-1)");
+    rig.network.reset();
+    QVERIFY2(reply.isNull(),
+             "the reply, outside the detached frame's closure, must be freed by its QNAM parent");
+}
+
+void WorkerIntegrationTest::i_retention()
+{
+    Rig rig("integration-retention");
+    constexpr int kTabs = 6;
+    rig.seedAndReachIdle(kTabs);
+
+    QStringList ids;
+    for (const auto &loc : rig.selections) {
+        ids.append(loc.id());
+    }
+
+    // A Selected update of all seeded tabs: the stash list, then a content batch
+    // of kTabs stash fetches.
+    rig.worker->Update(TabSelection::Selected, rig.selections);
+    settle(rig.scheduler);
+    QCOMPARE(rig.network->count(), 1);
+    QCOMPARE(rig.network->sent(0).op, QNetworkAccessManager::HeadOperation);
+
+    // Establish the list endpoint and return the whole list.
+    rig.network->sent(0).reply->finish(policyHeaders(), 200);
+    drainEvents();
+    int list_get = -1;
+    for (int step = 0; step < 12 && list_get < 0; ++step) {
+        advanceAndSettle(rig.scheduler, kGateSpacing);
+        list_get = findSent(rig, QNetworkAccessManager::GetOperation, "/stash/Standard");
+        // The content GETs also match "/stash/"; pin the list GET to the bare
+        // league URL so a content GET is never mistaken for it.
+        if (list_get >= 0 && urlOf(rig.network->sent(list_get)) != "https://api.pathofexile.com/stash/Standard") {
+            list_get = -1;
+        }
+    }
+    QVERIFY(list_get >= 0);
+    rig.network->sent(list_get).reply->finish(policyHeaders("10:60:60", "1:60:0"),
+                                              200,
+                                              QNetworkReply::NoError,
+                                              stashListBody(ids));
+    drainEvents();
+
+    // Drive the whole content batch to completion, finishing each content HEAD
+    // (endpoint setup) and content GET as it dispatches. Track the peak number
+    // of outstanding per-fetch handles: the batch launches all at once, so the
+    // peak is the launch set — it must NOT grow per completion, and the deferred
+    // sweep must drain it back to zero as replies land.
+    size_t peak = 0;
+    for (int step = 0; step < 200 && rig.update_refreshes == 0; ++step) {
+        peak = std::max(peak, rig.access().outstandingFetchTasks());
+        for (int i = 0; i < rig.network->count(); ++i) {
+            const FakeNetworkManager::Sent &s = rig.network->sent(i);
+            if (s.reply.isNull() || s.reply->isFinished()) {
+                continue;
+            }
+            const QString last = urlOf(s).section('/', -1);
+            if (s.op == QNetworkAccessManager::HeadOperation) {
+                s.reply->finish(policyHeaders(), 200); // establish the content endpoint
+            } else if (last.startsWith("stash")) {
+                s.reply->finish(policyHeaders("10:60:60", "1:60:0"),
+                                200,
+                                QNetworkReply::NoError,
+                                stashContentBody(last, 0));
+            }
+        }
+        drainEvents();
+        advanceAndSettle(rig.scheduler, kGateSpacing);
+    }
+
+    // The update succeeded exactly once...
+    QCOMPARE(rig.update_refreshes, 1);
+    // ...and every per-fetch frame was reclaimed by the deferred sweep — nothing
+    // accumulated for the update's lifetime.
+    QCOMPARE(rig.access().outstandingFetchTasks(), size_t(0));
+    QCOMPARE(rig.sweep.live_after, size_t(0));
+    // One stash-list handle plus kTabs content handles, all destroyed.
+    QVERIFY2(rig.sweep.destroyed >= 1 + kTabs, "the sweep must reclaim every completed handle");
+    // The population never grew beyond the launched set: 1 list + kTabs content.
+    // (A small allowance covers a not-yet-swept completion coexisting with the
+    // launch set; the point is it is bounded, not linear in completions.)
+    QVERIFY2(peak <= size_t(1 + kTabs + 1), "the outstanding-handle population must stay bounded");
 }
 
 QTEST_GUILESS_MAIN(WorkerIntegrationTest)
