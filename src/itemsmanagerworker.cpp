@@ -391,17 +391,14 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
     m_update_tab_contents = (type != TabSelection::TabsOnly);
 
     // Reset the completion counters here, once per update: this is their only
-    // reset. Each lane's LaunchQueuedContent() accumulates into them (never
-    // resets), so a fresh update must not inherit a previous one's totals.
+    // reset. Each lane's LaunchContent() accumulates into them (never resets),
+    // so a fresh update must not inherit a previous one's totals.
     m_stashes_needed = 0;
     m_stashes_received = 0;
     m_characters_needed = 0;
     m_characters_received = 0;
 
-    // remove all pending requests
-    m_queue = {};
-    m_queue_id = 0;
-    // Counts left over from a failed update are stale: this update queues
+    // Counts left over from a failed update are stale: this update launches
     // its own child fetches afresh.
     m_pending_children.clear();
 
@@ -572,7 +569,6 @@ void ItemsManagerWorker::AbortUpdate()
     if (m_request_failures == 0) {
         ++m_request_failures;
     }
-    m_queue = {};
     emit StatusUpdate(ProgramState::Ready,
                       QString("Update failed: %1 requests failed")
                           .arg(QString::number(m_request_failures)));
@@ -748,7 +744,7 @@ QCoro::Task<> ItemsManagerWorker::FetchCharacter(ItemLocation location,
     ScheduleSweep();
 }
 
-void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, int &count)
+void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, std::vector<ItemsRequest> &batch)
 {
     // The modern API documents stash ids as 10 hexadecimal digits; longer
     // ids were a legacy-API artifact. Warn if one ever shows up.
@@ -775,8 +771,7 @@ void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, int &count)
     const bool selected = m_update_all || (m_tabs_to_update.count(location.id()) > 0)
                           || (m_contents_known.count(location.id()) == 0);
     if (m_update_tab_contents && selected) {
-        ++count;
-        QueueRequest(StashFetch{location.id(), {}}, location);
+        batch.push_back(ItemsRequest{StashFetch{location.id(), {}}, location});
     }
 
     // Process any children.
@@ -785,7 +780,7 @@ void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, int &count)
         // in the original list.
         emit stashListReceived(*tab.children, m_realm, m_league);
         for (const auto &child : *tab.children) {
-            ProcessTab(child, count);
+            ProcessTab(child, batch);
         }
     }
 }
@@ -834,13 +829,15 @@ void ItemsManagerWorker::OnStashListReceived(const Result<poe::StashListWrapper>
         m_tab_id_index.insert(tab.id());
     }
 
-    // Queue stash tab requests.
-    int tabs_requested = 0;
+    // Accumulate this list's whole content batch (D6): ProcessTab appends each
+    // selected tab — and, recursively, its folder children — in source
+    // traversal order.
+    std::vector<ItemsRequest> batch;
     for (const auto &tab : stashes) {
         // This will process tabs recursively.
-        ProcessTab(tab, tabs_requested);
+        ProcessTab(tab, batch);
     }
-    spdlog::debug("Requesting {} out of {} stash tabs", tabs_requested, stashes.size());
+    spdlog::debug("Requesting {} out of {} stash tabs", batch.size(), stashes.size());
 
     // Drop items belonging to stash tabs the server no longer lists.
     const size_t before = m_items.size();
@@ -859,9 +856,9 @@ void ItemsManagerWorker::OnStashListReceived(const Result<poe::StashListWrapper>
     // Launch this list's complete stash content batch now (D6): it is never
     // held behind the character list, which RunUpdate already requested and
     // whose own content launches from its handler. ProcessTab accumulated the
-    // batch above in source traversal order; LaunchQueuedContent drains it all
-    // at once.
-    LaunchQueuedContent();
+    // batch above in source traversal order; LaunchContent launches it all at
+    // once.
+    LaunchContent(std::move(batch));
     CheckUpdateFinished();
 }
 
@@ -906,7 +903,7 @@ void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterList
         m_tab_id_index.insert(tab.id());
     }
 
-    int requested_character_count = 0;
+    std::vector<ItemsRequest> batch;
 
     for (auto &character : characters) {
         const QString name = character.name;
@@ -934,11 +931,10 @@ void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterList
         const bool selected = m_update_all || (m_tabs_to_update.count(location.id()) > 0)
                               || (m_contents_known.count(location.id()) == 0);
         if (m_update_tab_contents && selected) {
-            ++requested_character_count;
-            QueueRequest(CharacterFetch{name}, location);
+            batch.push_back(ItemsRequest{CharacterFetch{name}, location});
         }
     }
-    spdlog::debug("There are {} characters to update in '{}'", requested_character_count, m_league);
+    spdlog::debug("There are {} characters to update in '{}'", batch.size(), m_league);
 
     // Drop items belonging to characters the server no longer lists.
     const size_t before = m_items.size();
@@ -956,7 +952,7 @@ void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterList
 
     // Launch this list's complete character content batch now (D6): it is
     // independent of the stash lane, so it is never held behind the stash list.
-    LaunchQueuedContent();
+    LaunchContent(std::move(batch));
     CheckUpdateFinished();
 }
 
@@ -1015,6 +1011,7 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
         get_children = true;
     }
 
+    std::vector<ItemsRequest> batch;
     if (get_children && stash.children) {
         spdlog::debug("ItemsManagerWorker: getting children ({}) of {} '{}' ({})",
                       stash.children->size(),
@@ -1039,12 +1036,12 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
             }
             // The child's items display under the parent's location, but
             // they are fetched (and atomically replaced) by the child's id.
-            // Queue the whole child batch first; LaunchQueuedContent below
-            // counts it into m_stashes_needed before launching any of it, so a
-            // ready child future cannot complete against a half-tallied count.
+            // Accumulate the whole child batch first; LaunchContent below counts
+            // it into m_stashes_needed before launching any of it, so a ready
+            // child future cannot complete against a half-tallied count.
             ItemLocation child_location = location;
             child_location.setFetchId(child.id);
-            QueueRequest(StashFetch{stash.id, child.id}, child_location);
+            batch.push_back(ItemsRequest{StashFetch{stash.id, child.id}, child_location});
         }
     }
 
@@ -1115,10 +1112,10 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
 
     // Launch the child batch (D6): reply-discovered Map/Unique children go out
     // as one complete batch, with m_pending_children[parent] already set above
-    // so a ready child's completion sees the pending count. No children queued
+    // so a ready child's completion sees the pending count. An empty batch
     // (a normal tab, or a parent whose children are disabled) makes this a
     // no-op.
-    LaunchQueuedContent();
+    LaunchContent(std::move(batch));
     CheckUpdateFinished();
 }
 
@@ -1172,30 +1169,13 @@ void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterWrapper>
     CheckUpdateFinished();
 }
 
-void ItemsManagerWorker::QueueRequest(std::variant<StashFetch, CharacterFetch> what,
-                                      const ItemLocation &location)
+void ItemsManagerWorker::LaunchContent(std::vector<ItemsRequest> batch)
 {
-    spdlog::trace("Queued ({}) -- {}", (m_queue_id + 1), location.GetHeader());
-    ItemsRequest items_request;
-    items_request.id = m_queue_id++;
-    items_request.what = std::move(what);
-    items_request.location = location;
-    m_queue.push(items_request);
-}
-
-void ItemsManagerWorker::LaunchQueuedContent()
-{
-    // The whole accumulated batch goes out at once (D6, F56): no worker-side
-    // pacing, no one-at-a-time submission. Snapshot the queue into a local batch
-    // and clear it first, so a ready fetch whose handler queues and launches its
-    // own child batch inline re-enters against a fresh queue instead of mutating
-    // the batch being iterated here.
-    std::vector<ItemsRequest> batch;
-    batch.reserve(m_queue.size());
-    while (!m_queue.empty()) {
-        batch.push_back(m_queue.front());
-        m_queue.pop();
-    }
+    // The whole batch goes out at once (D6, F56): no worker-side pacing, no
+    // one-at-a-time submission. The caller owns the batch as a local vector, so a
+    // ready fetch whose handler discovers and launches its own child batch inline
+    // builds a separate local batch — there is no shared queue for the inline
+    // re-entry to mutate mid-iteration.
     if (batch.empty()) {
         // A TabsOnly update (no content) or a lane with nothing to fetch.
         return;

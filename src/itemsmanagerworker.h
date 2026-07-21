@@ -15,7 +15,6 @@
 #include <expected>
 #include <functional>
 #include <map>
-#include <queue>
 #include <set>
 #include <stop_token>
 #include <variant>
@@ -54,9 +53,13 @@ struct CharacterFetch
     QString name;
 };
 
+// One entry in a content batch: what to fetch and where its items belong. A
+// batch is a plain local vector built inside the handler that discovered it
+// (the stash list, the character list, or a parent reply's children) and
+// launched all at once by LaunchContent — there is no persistent worker queue
+// (F56).
 struct ItemsRequest
 {
-    int id{-1};
     std::variant<StashFetch, CharacterFetch> what;
     ItemLocation location;
 };
@@ -201,16 +204,15 @@ private:
     void LoadItems(const poe::StashTab &stash, ItemLocation location, ParseResult &result) const;
     void RemoveItemsFetchedBy(const QString &fetch_id);
     void RebaseItemLocations(ItemLocationType type);
-    void QueueRequest(std::variant<StashFetch, CharacterFetch> what, const ItemLocation &location);
     void SubmitStashListRequest();
     void SubmitCharacterListRequest();
-    // Drain the accumulated request queue and launch the whole batch at once
-    // (D6, F56): no worker-side pacing, no one-at-a-time submission. Called once
-    // per policy lane as its list result is processed, and again for each
-    // parent reply's discovered child batch. The whole batch's needed counters
-    // are initialized before its first launch, because a ready/fail-fast future
-    // runs its completion synchronously inside the launch loop (IR2/S1-6).
-    void LaunchQueuedContent();
+    // Launch a whole content batch at once (D6, F56): no worker-side pacing, no
+    // one-at-a-time submission. The batch is a local vector the caller built —
+    // one policy lane's worth of fetches (a list's content, or a parent reply's
+    // discovered children) in source traversal order. The whole batch's needed
+    // counters are initialized before its first launch, because a ready/fail-fast
+    // future runs its completion synchronously inside the launch loop (IR2/S1-6).
+    void LaunchContent(std::vector<ItemsRequest> batch);
     bool IsStale(int generation) const;
 
     // The root update task (D6): launches the update's required list(s) and
@@ -246,8 +248,8 @@ private:
     // The single, idempotent terminal transition for a failed update (R5-1):
     // every failure — a list/content error, an exceptional future, or a throw in
     // orchestration or a handler — routes here. It requests stop, records at
-    // least one request failure, drops queued work, and returns the worker to
-    // Idle immediately, abandoning in-flight siblings as stopped stragglers. It
+    // least one request failure, and returns the worker to Idle immediately,
+    // abandoning in-flight siblings as stopped stragglers. It
     // is deliberately INDEPENDENT of the completion counters: success reconciles
     // the counters in CheckUpdateFinished(); failure takes this direct path, so
     // the two never contend and a failed fetch never rewrites the counters
@@ -279,7 +281,7 @@ private:
     void CheckUpdateFinished();
     void FinishUpdate();
 
-    void ProcessTab(const poe::StashTab &tab, int &count);
+    void ProcessTab(const poe::StashTab &tab, std::vector<ItemsRequest> &batch);
 
     QSettings &m_settings;
     BuyoutManager &m_buyout_manager;
@@ -290,7 +292,6 @@ private:
     QString m_account;
 
     std::vector<ItemLocation> m_tabs;
-    std::queue<ItemsRequest> m_queue;
 
     Items m_items;
 
@@ -328,8 +329,6 @@ private:
     TabSelection m_type;
     std::vector<ItemLocation> m_locations;
     size_t m_request_failures{0};
-
-    int m_queue_id{0};
 
     // The current update's content selection: refresh everything
     // (All/TabsOnly), or only the tabs/characters whose ids are listed.
