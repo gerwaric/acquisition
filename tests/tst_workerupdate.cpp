@@ -281,16 +281,21 @@ namespace {
             // resumes and the sweep reclaims it. A non-zero count here means a
             // handle leaked or a straggler was never settled.
             if (worker) {
-                QCOMPARE(worker->OutstandingFetchTasksForTest(), size_t(0));
+                QCOMPARE(access().outstandingFetchTasks(), size_t(0));
             }
         }
+
+        // The single test seam into the worker (verification §2): every
+        // observation/injection goes through one friend accessor, not standing
+        // *ForTest / Set* methods on the worker's production API.
+        WorkerTestAccess access() const { return WorkerTestAccess(*worker); }
 
         // Call after seeding the datastore: the worker reads the cache on
         // construction paths keyed off the settings file's directory.
         void start()
         {
             worker = std::make_unique<ItemsManagerWorker>(settings, *bm.manager, api);
-            worker->SetSweepObserver(&sweep);
+            access().setSweepObserver(&sweep);
             QObject::connect(worker.get(),
                              &ItemsManagerWorker::ItemsRefreshed,
                              worker.get(),
@@ -310,7 +315,7 @@ namespace {
                              worker.get(),
                              [this](ProgramState state, const QString &message) {
                                  status_updates.push_back(
-                                     {state, message, worker->ProgressCountersForTest()});
+                                     {state, message, access().progressCounters()});
                              });
             QObject::connect(worker.get(),
                              &ItemsManagerWorker::NotifyUser,
@@ -1713,8 +1718,8 @@ void WorkerUpdateTest::exceptionalFetchIsCaughtAndAbortsTheUpdate()
     // The failed fetch is NOT counted as received: failure takes the direct
     // terminal abort and leaves the counters untouched (P-STATUS). The one tab
     // was needed but never received.
-    QCOMPARE(f.worker->ProgressCountersForTest().stashes_needed, size_t(1));
-    QCOMPARE(f.worker->ProgressCountersForTest().stashes_received, size_t(0));
+    QCOMPARE(f.access().progressCounters().stashes_needed, size_t(1));
+    QCOMPARE(f.access().progressCounters().stashes_received, size_t(0));
 
     // Not wedged: the worker is idle again and a fresh update completes.
     f.worker->Update(TabSelection::All);
@@ -1750,12 +1755,12 @@ void WorkerUpdateTest::handlerExceptionAbortsToIdleInsteadOfWedging()
     f.deliverCharacterList({});
     QVERIFY(f.hasPendingStash("shthrow1"));
 
-    f.worker->SetFaultHook([] { throw std::runtime_error("failure handler exploded"); });
+    f.access().setFaultHook([] { throw std::runtime_error("failure handler exploded"); });
     f.failStash("shthrow1");
 
     // Contained and forced terminal: no refresh, no leaked handle, no wedge.
     QCOMPARE(f.refresh_count, 1);
-    QCOMPARE(f.worker->OutstandingFetchTasksForTest(), size_t(0));
+    QCOMPARE(f.access().outstandingFetchTasks(), size_t(0));
 
     // Recovery reaches Idle: a fresh update is accepted and completes.
     f.worker->Update(TabSelection::All);
@@ -1778,13 +1783,13 @@ void WorkerUpdateTest::rootOrchestrationExceptionAbortsToIdle()
 
     // Armed before Update(): RunUpdate() hits the root fault site at the top of
     // its body, before launching any list.
-    f.worker->SetFaultHook([] { throw std::runtime_error("orchestration exploded"); });
+    f.access().setFaultHook([] { throw std::runtime_error("orchestration exploded"); });
     f.worker->Update(TabSelection::All);
 
     // Aborted before any request was issued, and it did not escape or wedge.
     QCOMPARE(f.callCount(), size_t(0));
     QCOMPARE(f.refresh_count, 1);
-    QCOMPARE(f.worker->OutstandingFetchTasksForTest(), size_t(0));
+    QCOMPARE(f.access().outstandingFetchTasks(), size_t(0));
 
     // Recovery reaches Idle.
     const auto s1 = stashJson("srthrow1", "Tab R1", 0);
@@ -1822,7 +1827,7 @@ void WorkerUpdateTest::completionsScheduleADeferredSweepThatReclaimsFinishedHand
     QCOMPARE(f.sweep.executed, 1);
     QCOMPARE(f.sweep.destroyed, 1);
     QCOMPARE(f.sweep.live_after, size_t(2)); // character list + content, both suspended
-    QCOMPARE(f.worker->OutstandingFetchTasksForTest(), size_t(2));
+    QCOMPARE(f.access().outstandingFetchTasks(), size_t(2));
 
     // The character-list completion schedules another sweep (a later completion
     // always schedules its own), which reclaims the character-list handle and
@@ -1839,7 +1844,7 @@ void WorkerUpdateTest::completionsScheduleADeferredSweepThatReclaimsFinishedHand
     QCOMPARE(f.sweep.executed, 3);
     QCOMPARE(f.sweep.destroyed, 3);
     QCOMPARE(f.sweep.live_after, size_t(0));
-    QCOMPARE(f.worker->OutstandingFetchTasksForTest(), size_t(0));
+    QCOMPARE(f.access().outstandingFetchTasks(), size_t(0));
 }
 
 // W-F56 headline (verification §3): the batch worker submits both lists and each
@@ -2466,7 +2471,7 @@ void WorkerUpdateTest::oldSuccessfulStragglerDoesNotCorruptASubsequentUpdate()
     // Two GetStash calls for A now coexist: the stopped straggler (token1) and
     // the new deliverable call (token2). The identity finder settles them apart.
     QCOMPARE(f.api.stoppedStragglerCount(), size_t(1));
-    QCOMPARE(f.worker->ProgressCountersForTest().stashes_needed, size_t(1));
+    QCOMPARE(f.access().progressCounters().stashes_needed, size_t(1));
 
     // The OLD straggler resolves SUCCESSFULLY, carrying a stale item set. On the
     // stopped token1 its consumer discards the reply: no emit, no counter
@@ -2474,7 +2479,7 @@ void WorkerUpdateTest::oldSuccessfulStragglerDoesNotCorruptASubsequentUpdate()
     f.resolveStragglerStash("stashaaaa1",
                             stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a-STALE"})));
     QCOMPARE(f.refresh_count, 1);
-    QCOMPARE(f.worker->ProgressCountersForTest().stashes_received, size_t(0));
+    QCOMPARE(f.access().progressCounters().stashes_received, size_t(0));
     QCOMPARE(f.api.stoppedStragglerCount(), size_t(0)); // the straggler is now settled
 
     // Update 2 then finishes on its OWN reply (token2), with tab A's fresh item
