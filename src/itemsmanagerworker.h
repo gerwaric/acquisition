@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <QCoroTask>
+
 #include <QNetworkCookie>
 #include <QObject>
 #include <QPointer>
@@ -11,10 +13,13 @@
 
 #include <atomic>
 #include <expected>
+#include <functional>
 #include <map>
 #include <queue>
 #include <set>
+#include <stop_token>
 #include <variant>
+#include <vector>
 
 #include "item.h"
 #include "poe/types/character.h"
@@ -67,6 +72,19 @@ struct ParseResult
     std::set<QString> contents_known;
 };
 
+// Read-only observation of the deferred task sweep (network-redesign phase 5,
+// verification §2). Injected by the worker suite; null in production. The
+// worker only ever writes to it — the seam observes lifecycle, it never drives
+// it. W-SWEEP asserts that a completion schedules a sweep that runs on a later
+// event-loop turn and destroys only completed (ready) per-fetch handles.
+struct WorkerSweepObserver
+{
+    int scheduled = 0;     // ScheduleSweep() actually queued a sweep (coalesced)
+    int executed = 0;      // SweepTasks() ran
+    int destroyed = 0;     // ready handles erased, summed across every sweep
+    size_t live_after = 0; // per-fetch handles still held after the last sweep
+};
+
 class ItemsManagerWorker : public QObject
 {
     Q_OBJECT
@@ -78,6 +96,27 @@ public:
     ~ItemsManagerWorker() override;
 
     void UpdateRequest(TabSelection type, const std::vector<ItemLocation> &locations);
+
+    // Test-only: inject a read-only sweep observer (verification §2). The
+    // worker writes counts as it schedules/runs sweeps; nothing here changes
+    // production behavior when the observer is null.
+    void SetSweepObserver(WorkerSweepObserver *observer) { m_sweep_observer = observer; }
+
+    // Test-only fault injection (verification §3). Fires once, at the next
+    // fault site reached — the root orchestration body (RunUpdate) or a failure
+    // handler immediately after it stops the token, before it sets completion
+    // flags. A test arms it to prove each catch-all contains a throw and drives
+    // a terminal AbortUpdate() from a stopped-but-still-active update, without
+    // depending on Qt's undefined slot-throwing behavior. Null in production.
+    void SetFaultHook(std::function<void()> hook) { m_fault_hook = std::move(hook); }
+
+    // Test-only: how many per-fetch task handles the worker still holds. This
+    // reaches zero only after every future the worker awaited — including any
+    // stopped old-update straggler — has settled and the deferred sweep has
+    // drained, not merely when an update reaches its terminal state. (In 5C an
+    // aborted update's stopped straggler handles intentionally outlive it.)
+    // Ordinary fixtures assert this is zero at teardown (verification §2).
+    size_t OutstandingFetchTasksForTest() const { return m_fetch_tasks.size(); }
     // The setting values are parameters because this runs on the parser
     // thread: QSettings is reentrant but not thread-safe for one shared
     // instance, and the UI writes these keys on the main thread. The
@@ -154,7 +193,62 @@ private:
     void SubmitNextItemRequest();
     bool IsStale(int generation) const;
 
-    void Refresh();
+    // The root update task (D6): launches the update's required list(s) and
+    // reconciles the terminal state through the completion counters. Owns no
+    // flow control of its own — the per-fetch tasks self-drive. Its whole body
+    // is wrapped in a catch-all so a throw in orchestration itself aborts and
+    // finalizes rather than escaping (R5-1 root catch-all). 5B keeps list and
+    // content submission serial; 5C launches both lists and the full content
+    // batch from here.
+    QCoro::Task<> RunUpdate();
+
+    // Per-fetch tasks (D6): each co_awaits one facade future via
+    // qCoro(future).takeResult(), checks the update token immediately after
+    // (post-await identity invariant, IR2), then hands the result to the
+    // matching handler. A per-fetch catch-all turns an exceptional future
+    // (R5-1) into an ordinary Internal failure so it counts its completion and
+    // enters the first-failure stop path instead of wedging the update. Every
+    // handle is owned in m_fetch_tasks — no fire-and-forget.
+    QCoro::Task<> FetchStashList(int generation, std::stop_token token);
+    QCoro::Task<> FetchCharacterList(int generation, std::stop_token token);
+    QCoro::Task<> FetchStash(ItemLocation location,
+                             QString stash_id,
+                             QString substash_id,
+                             int generation,
+                             std::stop_token token);
+    QCoro::Task<> FetchCharacter(ItemLocation location,
+                                 QString name,
+                                 int generation,
+                                 std::stop_token token);
+
+    // Unconditional terminal transition for the exceptional paths (R5-1): stop
+    // the token, record a failure, drop queued work, and force both
+    // list-received flags and the content counters to a state where
+    // CheckUpdateFinished() must take the terminal (failed) branch — so a throw
+    // in orchestration or in a fetch continuation can never leave the update
+    // wedged in Updating waiting on a list/completion that will never arrive.
+    // The ordinary value-level failure branches keep their own precise
+    // bookkeeping; this is the catch-all's blunt, always-terminal fallback.
+    void AbortUpdate();
+
+    // First-failure stop for the value-level failure branches: stop the update
+    // token, then fire the test fault hook (a no-op in production) at the point
+    // between stopping the token and setting completion flags — the window in
+    // which the update is stopped but still active, which the catch-alls must
+    // still recognize as theirs to abort.
+    void StopUpdateForFailure();
+
+    // Invoke the test fault hook once if armed (test-only; may throw — that is
+    // the point). See SetFaultHook.
+    void FireFaultHook();
+
+    // Queue a deferred, coalesced reclaim of completed per-fetch handles. Runs
+    // outside any completing coroutine (D6/R5-1): the completion that
+    // finalizes the update must not destroy the frame it is running in. Only
+    // ready (finished) handles are destroyed — destroying a suspended
+    // straggler's handle would detach, not stop, it (S1-1/S1-4).
+    void ScheduleSweep();
+    void SweepTasks();
 
     void SendStatusUpdate();
     void ParseItems(const std::vector<poe::Item> &items, const ItemLocation &base_location);
@@ -227,4 +321,30 @@ private:
     bool m_has_character_list;
 
     bool m_update_tab_contents;
+
+    // One stop_source per update (D2): every facade call in the update takes
+    // its token, and a terminal failure request_stop()s it. Reset to a fresh
+    // source at the start of each Update(), so the next update's calls carry a
+    // distinct, unstopped token. In 5B this overlaps the still-present
+    // generation guard (IsStale); 5D deletes the generation guard once the
+    // post-await token check is mutation-proven to replace it.
+    std::stop_source m_stop_source;
+
+    // Read-only sweep observation (verification §2); null in production.
+    WorkerSweepObserver *m_sweep_observer{nullptr};
+
+    // Test-only one-shot fault injection (verification §3); null in production.
+    std::function<void()> m_fault_hook;
+
+    // Set while a deferred sweep is already queued, so many completions in one
+    // turn coalesce into a single SweepTasks() run.
+    bool m_sweep_scheduled{false};
+
+    // Owned coroutine handles (D6/R4-3). Declared LAST so they destruct FIRST:
+    // at worker destruction a suspended frame is detached (S1-1), and it must
+    // be released before any member its frame could still observe. m_update_task
+    // is the single root handle (reused each update); m_fetch_tasks holds every
+    // per-fetch handle until the deferred sweep reclaims the completed ones.
+    QCoro::Task<> m_update_task;
+    std::vector<QCoro::Task<>> m_fetch_tasks;
 };

@@ -3,6 +3,8 @@
 
 #include "itemsmanagerworker.h"
 
+#include <QCoroFuture>
+
 #include <QDir>
 #include <QFileInfo>
 #include <QNetworkCookie>
@@ -32,6 +34,22 @@
 #include "util/json_readers.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
+
+namespace {
+
+    // The Internal FetchError a per-fetch task's catch-all synthesizes from an
+    // exceptional future (R5-1): it routes an unexpected throw through the same
+    // failure branch a value-level failure takes, so the update aborts cleanly
+    // instead of wedging on a completion that never counts.
+    RateLimit::FetchError MakeInternalError(const QString &message)
+    {
+        RateLimit::FetchError error;
+        error.kind = RateLimit::FetchError::Kind::Internal;
+        error.message = message;
+        return error;
+    }
+
+} // namespace
 
 ItemsManagerWorker::ItemsManagerWorker(QSettings &settings,
                                        BuyoutManager &buyout_manager,
@@ -362,6 +380,13 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
     }
     m_state = WorkerState::Updating;
     ++m_update_generation;
+    // A fresh stop_source per update (D2): every facade call below takes this
+    // update's token, and a terminal failure request_stop()s it. The previous
+    // update's source (stopped or not) is dropped here, so the new update's
+    // calls carry a distinct, unstopped token — which is what makes the token
+    // the update's identity under the post-await check. The generation tag
+    // still runs alongside as an overlapping guard until 5D removes it.
+    m_stop_source = std::stop_source{};
     m_request_failures = 0;
     m_update_tab_contents = (type != TabSelection::TabsOnly);
 
@@ -440,7 +465,11 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
     m_has_stash_list = false;
     m_has_character_list = false;
 
-    Refresh();
+    // Every per-update counter and selection flag above is initialized before
+    // the root task launches its first fetch: a ready/fail-fast future can run
+    // its continuation synchronously during launch (S1-6/IR2), so nothing it
+    // touches may still be uninitialized. Launch the owned root task last.
+    m_update_task = RunUpdate();
 }
 
 void ItemsManagerWorker::RemoveItemsFetchedBy(const QString &fetch_id)
@@ -479,43 +508,229 @@ void ItemsManagerWorker::RebaseItemLocations(ItemLocationType type)
     }
 }
 
-void ItemsManagerWorker::Refresh()
+QCoro::Task<> ItemsManagerWorker::RunUpdate()
 {
-    spdlog::trace("Items Manager Worker: starting OAuth refresh");
-    if (m_need_stash_list) {
-        SubmitStashListRequest();
-    } else if (m_need_character_list) {
-        SubmitCharacterListRequest();
+    // The root update task (D6): it launches the update's required list(s) and
+    // then reconciles the terminal state; the per-fetch tasks self-drive from
+    // there. 5B keeps list submission serial — the stash list first, the
+    // character list from its handler — exactly as the old Refresh() did; 5C
+    // launches both without awaiting one another. This body never co_awaits,
+    // so it runs synchronously to completion on assignment; the co_return
+    // makes it a coroutine so the root catch-all and the owned handle exist.
+    //
+    // No exception ever escapes a root coroutine (R5-1): a throw in
+    // orchestration itself aborts and finalizes the update rather than
+    // unwinding into the caller (ItemsManager / the UI).
+    try {
+        spdlog::trace("ItemsManagerWorker: starting the update");
+        // Root orchestration fault site (test-only; no-op in production).
+        FireFaultHook();
+        if (m_need_stash_list) {
+            SubmitStashListRequest();
+        } else if (m_need_character_list) {
+            SubmitCharacterListRequest();
+        }
+        CheckUpdateFinished();
+    } catch (const std::exception &e) {
+        spdlog::error("ItemsManagerWorker: the update orchestration threw: {}", e.what());
+        AbortUpdate();
+    } catch (...) {
+        spdlog::error("ItemsManagerWorker: the update orchestration threw an unknown exception");
+        AbortUpdate();
     }
+    co_return;
+}
+
+void ItemsManagerWorker::AbortUpdate()
+{
+    // Stop this update's token so any straggler resolves Canceled and returns
+    // silently, then force an unconditional terminal transition. Both list
+    // flags AND the content counters are driven to "received" so
+    // CheckUpdateFinished() sees lists_received && items_received and takes the
+    // failed branch — an exceptional abort has no reliable knowledge of how far
+    // orchestration or a continuation got, so it must not depend on a list or a
+    // completion still being outstanding.
+    m_stop_source.request_stop();
+    // Idempotent: only ensure the update is marked failed. A per-fetch handler
+    // that already recorded its own failure before throwing must not be
+    // double-counted when the catch-all calls this.
+    if (m_request_failures == 0) {
+        ++m_request_failures;
+    }
+    m_queue = {};
+    m_has_stash_list = true;
+    m_has_character_list = true;
+    m_stashes_needed = m_stashes_received;
+    m_characters_needed = m_characters_received;
     CheckUpdateFinished();
+}
+
+void ItemsManagerWorker::StopUpdateForFailure()
+{
+    m_stop_source.request_stop();
+    FireFaultHook();
+}
+
+void ItemsManagerWorker::FireFaultHook()
+{
+    if (m_fault_hook) {
+        // One-shot: consume before invoking so a re-entrant path cannot fire it
+        // again, and so it never fires on the recovery update.
+        auto hook = std::move(m_fault_hook);
+        m_fault_hook = nullptr;
+        hook();
+    }
 }
 
 void ItemsManagerWorker::SubmitStashListRequest()
 {
     spdlog::trace("ItemsManagerWorker: requesting the stash list");
-    const int generation = m_update_generation;
-    // Context-bound: the continuation is tied to this worker, so it never
-    // runs against a destroyed one. The generation check still discards
-    // replies from a superseded update (F28).
-    m_api.listStashes(m_realm, m_league)
-        .then(this, [this, generation](const Result<poe::StashListWrapper> &result) {
-            if (!IsStale(generation)) {
-                OnStashListReceived(result);
-            }
-        });
+    m_fetch_tasks.push_back(FetchStashList(m_update_generation, m_stop_source.get_token()));
 }
 
 void ItemsManagerWorker::SubmitCharacterListRequest()
 {
     spdlog::trace("ItemsManagerWorker: requesting the character list");
-    const int generation = m_update_generation;
-    m_api.listCharacters(m_realm).then(this,
-                                       [this, generation](
-                                           const Result<poe::CharacterListWrapper> &result) {
-                                           if (!IsStale(generation)) {
-                                               OnCharacterListReceived(result);
-                                           }
-                                       });
+    m_fetch_tasks.push_back(FetchCharacterList(m_update_generation, m_stop_source.get_token()));
+}
+
+// Each per-fetch task wraps its ENTIRE body in a catch-all (R5-1): nothing —
+// not an exceptional facade future, not the OnX handler, not a nested launch,
+// not a connected persistence slot — may escape into the unawaited task, where
+// it would vanish silently (S1-8) and wedge the update on a completion that
+// never counts. There are two layers:
+//   * the inner try converts an exceptional facade future into an ordinary
+//     Internal failure value, so it flows through the handler's failure branch;
+//   * the outer try contains anything the handler (or a launch it triggers)
+//     throws, and forces a terminal AbortUpdate() so the update cannot wedge.
+// The post-await identity check (IR2) gates the handler: the token first, then
+// the overlapping generation guard. A future can resolve an instant before
+// request_stop(); its consumer must not touch state that now belongs to a later
+// update, and a straggler whose update already ended aborts nothing. The sweep
+// is scheduled unconditionally on every exit so no completed handle leaks.
+QCoro::Task<> ItemsManagerWorker::FetchStashList(int generation, std::stop_token token)
+{
+    try {
+        Result<poe::StashListWrapper> result;
+        try {
+            // Move the payload out (S1-7): the worker is the single consumer.
+            auto future = m_api.listStashes(m_realm, m_league, token);
+            result = co_await qCoro(future).takeResult();
+        } catch (...) {
+            result = std::unexpected(MakeInternalError("the stash list fetch threw"));
+        }
+        if (!token.stop_requested() && !IsStale(generation)) {
+            OnStashListReceived(result);
+        }
+    } catch (...) {
+        spdlog::error("ItemsManagerWorker: a stash list continuation threw; aborting the update");
+        // Ownership by generation/state, NOT token state: a failure handler
+        // stops the token before it finishes its bookkeeping, so a throw after
+        // that point still belongs to the active update and must abort it. A
+        // genuinely stale straggler (superseded update, or already idle) is
+        // excluded by IsStale and leaves state alone. AbortUpdate() is
+        // idempotent, so a handler that already recorded a failure is not
+        // double-counted.
+        if (!IsStale(generation)) {
+            AbortUpdate();
+        }
+    }
+    ScheduleSweep();
+}
+
+QCoro::Task<> ItemsManagerWorker::FetchCharacterList(int generation, std::stop_token token)
+{
+    try {
+        Result<poe::CharacterListWrapper> result;
+        try {
+            auto future = m_api.listCharacters(m_realm, token);
+            result = co_await qCoro(future).takeResult();
+        } catch (...) {
+            result = std::unexpected(MakeInternalError("the character list fetch threw"));
+        }
+        if (!token.stop_requested() && !IsStale(generation)) {
+            OnCharacterListReceived(result);
+        }
+    } catch (...) {
+        spdlog::error(
+            "ItemsManagerWorker: a character list continuation threw; aborting the update");
+        // Ownership by generation/state, NOT token state: a failure handler
+        // stops the token before it finishes its bookkeeping, so a throw after
+        // that point still belongs to the active update and must abort it. A
+        // genuinely stale straggler (superseded update, or already idle) is
+        // excluded by IsStale and leaves state alone. AbortUpdate() is
+        // idempotent, so a handler that already recorded a failure is not
+        // double-counted.
+        if (!IsStale(generation)) {
+            AbortUpdate();
+        }
+    }
+    ScheduleSweep();
+}
+
+QCoro::Task<> ItemsManagerWorker::FetchStash(ItemLocation location,
+                                             QString stash_id,
+                                             QString substash_id,
+                                             int generation,
+                                             std::stop_token token)
+{
+    try {
+        Result<poe::StashWrapper> result;
+        try {
+            auto future = m_api.getStash(m_realm, m_league, stash_id, substash_id, token);
+            result = co_await qCoro(future).takeResult();
+        } catch (...) {
+            result = std::unexpected(MakeInternalError("the stash fetch threw"));
+        }
+        if (!token.stop_requested() && !IsStale(generation)) {
+            OnStashReceived(result, location);
+        }
+    } catch (...) {
+        spdlog::error("ItemsManagerWorker: a stash continuation threw; aborting the update");
+        // Ownership by generation/state, NOT token state: a failure handler
+        // stops the token before it finishes its bookkeeping, so a throw after
+        // that point still belongs to the active update and must abort it. A
+        // genuinely stale straggler (superseded update, or already idle) is
+        // excluded by IsStale and leaves state alone. AbortUpdate() is
+        // idempotent, so a handler that already recorded a failure is not
+        // double-counted.
+        if (!IsStale(generation)) {
+            AbortUpdate();
+        }
+    }
+    ScheduleSweep();
+}
+
+QCoro::Task<> ItemsManagerWorker::FetchCharacter(ItemLocation location,
+                                                 QString name,
+                                                 int generation,
+                                                 std::stop_token token)
+{
+    try {
+        Result<poe::CharacterWrapper> result;
+        try {
+            auto future = m_api.getCharacter(m_realm, name, token);
+            result = co_await qCoro(future).takeResult();
+        } catch (...) {
+            result = std::unexpected(MakeInternalError("the character fetch threw"));
+        }
+        if (!token.stop_requested() && !IsStale(generation)) {
+            OnCharacterReceived(result, location);
+        }
+    } catch (...) {
+        spdlog::error("ItemsManagerWorker: a character continuation threw; aborting the update");
+        // Ownership by generation/state, NOT token state: a failure handler
+        // stops the token before it finishes its bookkeeping, so a throw after
+        // that point still belongs to the active update and must abort it. A
+        // genuinely stale straggler (superseded update, or already idle) is
+        // excluded by IsStale and leaves state alone. AbortUpdate() is
+        // idempotent, so a handler that already recorded a failure is not
+        // double-counted.
+        if (!IsStale(generation)) {
+            AbortUpdate();
+        }
+    }
+    ScheduleSweep();
 }
 
 void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, int &count)
@@ -568,6 +783,13 @@ void ItemsManagerWorker::OnStashListReceived(const Result<poe::StashListWrapper>
         spdlog::warn("Aborting update because there was an error fetching the stash list ({}): {}",
                      RateLimit::ToString(result.error().kind),
                      result.error().message);
+        // First-failure stop (D2): request_stop on the update's token so any
+        // straggler resolves Canceled and returns silently. In 5B's serial
+        // submission nothing else is in flight, so this only stamps the token
+        // (which W-TOKEN reads and the next update replaces); it becomes
+        // load-bearing once 5C puts siblings in flight. Overlaps the existing
+        // queue-clear + counter-snap abort bookkeeping.
+        StopUpdateForFailure();
         ++m_request_failures;
         m_has_stash_list = true;
         m_has_character_list = true;
@@ -643,6 +865,13 @@ void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterList
                      "({}): {}",
                      RateLimit::ToString(result.error().kind),
                      result.error().message);
+        // First-failure stop (D2): request_stop on the update's token so any
+        // straggler resolves Canceled and returns silently. In 5B's serial
+        // submission nothing else is in flight, so this only stamps the token
+        // (which W-TOKEN reads and the next update replaces); it becomes
+        // load-bearing once 5C puts siblings in flight. Overlaps the existing
+        // queue-clear + counter-snap abort bookkeeping.
+        StopUpdateForFailure();
         ++m_request_failures;
         m_has_stash_list = true;
         m_has_character_list = true;
@@ -744,6 +973,8 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
         } else {
             spdlog::error("ItemsManagerWorker: stash is empty");
         }
+        // First-failure stop (D2), overlapping the queue-clear + counter-snap.
+        StopUpdateForFailure();
         ++m_request_failures;
         ++m_stashes_received;
         m_stashes_needed = m_stashes_received;
@@ -901,6 +1132,8 @@ void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterWrapper>
         } else {
             spdlog::error("ItemsManagerWorker: character is empty");
         }
+        // First-failure stop (D2), overlapping the queue-clear + counter-snap.
+        StopUpdateForFailure();
         ++m_request_failures;
         ++m_characters_received;
         m_stashes_needed = m_stashes_received;
@@ -1002,27 +1235,20 @@ void ItemsManagerWorker::SubmitNextItemRequest()
 
     const ItemLocation location = request.location;
     const int generation = m_update_generation;
+    const std::stop_token token = m_stop_source.get_token();
 
-    // The queue carries what to fetch, not how: each branch names the
-    // resource and the facade builds the request.
+    // The queue carries what to fetch, not how: each branch names the resource
+    // and launches an owned per-fetch task, which the facade turns into a
+    // request. Submission stays serial in 5B — one content fetch is in flight,
+    // and its completion launches the next; 5C launches the whole batch here.
     std::visit(
         [&](const auto &what) {
             using What = std::decay_t<decltype(what)>;
             if constexpr (std::is_same_v<What, StashFetch>) {
-                m_api.getStash(m_realm, m_league, what.stash_id, what.substash_id)
-                    .then(this, [this, generation, location](const Result<poe::StashWrapper> &r) {
-                        if (!IsStale(generation)) {
-                            OnStashReceived(r, location);
-                        }
-                    });
+                m_fetch_tasks.push_back(
+                    FetchStash(location, what.stash_id, what.substash_id, generation, token));
             } else {
-                m_api.getCharacter(m_realm, what.name)
-                    .then(this,
-                          [this, generation, location](const Result<poe::CharacterWrapper> &r) {
-                              if (!IsStale(generation)) {
-                                  OnCharacterReceived(r, location);
-                              }
-                          });
+                m_fetch_tasks.push_back(FetchCharacter(location, what.name, generation, token));
             }
         },
         request.what);
@@ -1041,6 +1267,44 @@ bool ItemsManagerWorker::IsStale(int generation) const
                   generation,
                   m_update_generation);
     return true;
+}
+
+void ItemsManagerWorker::ScheduleSweep()
+{
+    // Coalesce: many completions in one event-loop turn queue a single sweep.
+    if (m_sweep_scheduled) {
+        return;
+    }
+    m_sweep_scheduled = true;
+    if (m_sweep_observer) {
+        ++m_sweep_observer->scheduled;
+    }
+    // Queued, so the sweep runs on a later turn — outside the completing
+    // coroutine whose final_suspend has not yet released its own handle
+    // (D6/R5-1): finalization must never destroy the frame it is running in.
+    QMetaObject::invokeMethod(this, [this]() { SweepTasks(); }, Qt::QueuedConnection);
+}
+
+void ItemsManagerWorker::SweepTasks()
+{
+    m_sweep_scheduled = false;
+    int destroyed = 0;
+    // Destroy completed handles only. isReady() is true for a finished (or
+    // empty) coroutine; a suspended straggler is not ready and survives —
+    // destroying its handle would detach the frame, not stop it (S1-1/S1-4),
+    // and it would still resume later.
+    std::erase_if(m_fetch_tasks, [&destroyed](const QCoro::Task<> &task) {
+        if (task.isReady()) {
+            ++destroyed;
+            return true;
+        }
+        return false;
+    });
+    if (m_sweep_observer) {
+        ++m_sweep_observer->executed;
+        m_sweep_observer->destroyed += destroyed;
+        m_sweep_observer->live_after = m_fetch_tasks.size();
+    }
 }
 
 void ItemsManagerWorker::SendStatusUpdate()

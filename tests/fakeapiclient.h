@@ -1,8 +1,11 @@
 #pragma once
 
+#include <deque>
+#include <exception>
 #include <functional>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <stop_token>
 #include <variant>
 #include <vector>
@@ -282,10 +285,62 @@ public:
         auto reject_fn = std::move(slot.reject);
         slot.resolve_type = nullptr;
         slot.reject = nullptr;
+        // Clear the throw hook too: it also captures the promise, so leaving it
+        // set would keep the shared future state (and any payload) alive past
+        // completion, exactly the retention promise.reset() exists to avoid.
+        slot.throw_exception = nullptr;
         reject_fn(std::move(error));
         // See settle(): drop the settled promise so its payload is not
         // retained past completion.
         slot.promise.reset();
+    }
+
+    // Settle call i with an EXCEPTIONAL future: its shared state carries a
+    // std::exception_ptr, so a consumer's co_await (qCoro(future).takeResult())
+    // rethrows at the await instead of yielding a value. This is the real
+    // R5-1 shape the worker's per-fetch catch-all must contain — an IR4
+    // boundary violation that produces a throwing future rather than an
+    // expected value (verification §2/§3, W-THROW). Settled exactly once, like
+    // every other delivery.
+    void throwAt(size_t i)
+    {
+        Slot &slot = m_pending.at(i);
+        if (!slot.reject) {
+            qFatal("FakePoeApiClient::throwAt: call %zu was already settled", i);
+        }
+        auto throw_fn = std::move(slot.throw_exception);
+        slot.resolve_type = nullptr;
+        slot.reject = nullptr;
+        slot.throw_exception = nullptr;
+        throw_fn();
+        slot.promise.reset();
+    }
+
+    // --- pre-completed (ready) futures -----------------------------------
+    //
+    // Arm the NEXT call of a kind to return an ALREADY-FINISHED future, so its
+    // consumer's co_await does not suspend (S1-6) and runs inline during the
+    // worker's launch loop. This is how the initialize-before-launch invariant
+    // is exercised (IR2/W-INIT): a synchronously ready success or error must
+    // not finalize early or corrupt counters that were set before the launch.
+    // FIFO per registration; the call is still recorded (callCount and the
+    // token are observable) but never pending.
+    void preresolveStashList(std::vector<poe::StashTab> stashes)
+    {
+        armReady<poe::StashListWrapper>(Call::Kind::ListStashes,
+                                        poe::StashListWrapper{.stashes = std::move(stashes)});
+    }
+
+    void prerejectStashList(RateLimit::FetchError::Kind kind)
+    {
+        armRejected<poe::StashListWrapper>(Call::Kind::ListStashes, kind);
+    }
+
+    void preresolveCharacterList(std::vector<poe::Character> characters)
+    {
+        armReady<poe::CharacterListWrapper>(Call::Kind::ListCharacters,
+                                            poe::CharacterListWrapper{
+                                                .characters = std::move(characters)});
     }
 
     // Settle every stopped straggler Canceled, exactly once, and return how
@@ -316,8 +371,21 @@ private:
         // Identifies the payload type, so resolve<T> can reject a mismatch.
         const void *resolve_type{nullptr};
         std::function<void(RateLimit::FetchError)> reject;
-        // Holds the typed promise; erased behind the two hooks above.
+        // Settle this call with an exceptional future (throwAt). Typed at
+        // record() time, like reject.
+        std::function<void()> throw_exception;
+        // Holds the typed promise; erased behind the hooks above.
         std::shared_ptr<void> promise;
+    };
+
+    // A pre-armed ready outcome for the next call of a kind (preresolve* /
+    // prereject*). Applied inside record() to a freshly created promise,
+    // finishing it before the future is handed back so the consumer's co_await
+    // does not suspend.
+    struct Canned
+    {
+        Call::Kind kind;
+        std::function<void(const std::shared_ptr<void> &)> apply;
     };
 
     template<typename T>
@@ -377,6 +445,31 @@ private:
         return *found;
     }
 
+    // Arm the next call of a kind with an already-finished successful value.
+    template<typename T>
+    void armReady(Call::Kind kind, T value)
+    {
+        m_canned.push_back(
+            {kind, [value = std::move(value)](const std::shared_ptr<void> &erased) mutable {
+                 auto promise = std::static_pointer_cast<QPromise<Value<T>>>(erased);
+                 promise->addResult(Value<T>(std::move(value)));
+                 promise->finish();
+             }});
+    }
+
+    // Arm the next call of a kind with an already-finished failure.
+    template<typename T>
+    void armRejected(Call::Kind kind, RateLimit::FetchError::Kind error_kind)
+    {
+        m_canned.push_back({kind, [error_kind](const std::shared_ptr<void> &erased) {
+                                auto promise = std::static_pointer_cast<QPromise<Value<T>>>(erased);
+                                RateLimit::FetchError error;
+                                error.kind = error_kind;
+                                promise->addResult(Value<T>(std::unexpected(std::move(error))));
+                                promise->finish();
+                            }});
+    }
+
     template<typename T>
     PoeApiClient::Result<T> record(Call call)
     {
@@ -392,6 +485,32 @@ private:
             promise->addResult(Value<T>(std::unexpected(std::move(error))));
             promise->finish();
         };
+        slot.throw_exception = [promise]() {
+            promise->setException(std::make_exception_ptr(
+                std::runtime_error("FakePoeApiClient: exceptional future")));
+            promise->finish();
+        };
+
+        // A pre-armed ready outcome finishes the promise now, so the returned
+        // future is already complete and the call is recorded but never
+        // pending (the token stays observable via call()). Match the FIRST
+        // canned entry of THIS call's kind — per-kind FIFO, not head-of-line:
+        // arming a character outcome must not block a stash call from matching
+        // its own stash outcome (needed once 5C arms multiple lanes' ready
+        // paths at once).
+        for (auto it = m_canned.begin(); it != m_canned.end(); ++it) {
+            if (it->kind == slot.call.kind) {
+                Canned canned = std::move(*it);
+                m_canned.erase(it);
+                canned.apply(slot.promise);
+                slot.resolve_type = nullptr;
+                slot.reject = nullptr;
+                slot.throw_exception = nullptr;
+                slot.promise.reset();
+                break;
+            }
+        }
+
         m_pending.push_back(std::move(slot));
         return future;
     }
@@ -409,6 +528,9 @@ private:
         auto promise = std::static_pointer_cast<QPromise<Value<T>>>(slot.promise);
         slot.resolve_type = nullptr;
         slot.reject = nullptr;
+        // Clear the throw hook too: it captures the promise, so leaving it set
+        // would retain the shared future state (and payload) past completion.
+        slot.throw_exception = nullptr;
         promise->addResult(std::move(result));
         promise->finish();
         // Drop the settled promise: the returned QFuture keeps the result
@@ -419,4 +541,5 @@ private:
     }
 
     std::vector<Slot> m_pending;
+    std::deque<Canned> m_canned;
 };

@@ -3,6 +3,7 @@
 #include <QEventLoop>
 #include <QSettings>
 
+#include <stdexcept>
 #include <stop_token>
 
 #include "datastore/characterrepo.h"
@@ -54,6 +55,18 @@ private slots:
     // the worker; these prove the harness capability against the fake directly.
     void fakeSettlesStoppedStragglersCanceledExactlyOnce();
     void fakeTreatsCrossUpdateIdentityOverlapAsLive();
+
+    // Phase 5B — task lifecycle, update identity, and the deferred sweep,
+    // while submission is still serial (verification §3, W-TOKEN/W-INIT/
+    // W-THROW/W-SWEEP). These install the coroutine foundation; they do not
+    // yet prove the generation guard is replaced (that is W-IDENTITY, 5D).
+    void everyCallInAnUpdateSharesOneTokenAndTheNextUpdateGetsAFreshOne(); // W-TOKEN
+    void readyFirstListRunsInlineWithoutCorruptingCounters();              // W-INIT (success)
+    void readyFirstListErrorFailsCleanlyWithoutRequestingASecondList();    // W-INIT (error)
+    void exceptionalFetchIsCaughtCountedAndAbortsTheUpdate();              // W-THROW
+    void handlerExceptionAbortsToIdleInsteadOfWedging();                   // W-THROW (handler)
+    void rootOrchestrationExceptionAbortsToIdle();                         // W-THROW (root)
+    void completionsScheduleADeferredSweepThatReclaimsFinishedHandles();   // W-SWEEP
 };
 
 namespace {
@@ -229,6 +242,13 @@ namespace {
         {
             QVERIFY(drainUntilIdle());
             QCOMPARE(api.pendingCount(), size_t(0));
+            // No task handle may outlive its update (verification §2): after the
+            // drain every per-fetch coroutine has completed and the deferred
+            // sweep has reclaimed its handle. A non-zero count means a handle
+            // leaked or a sweep was never scheduled.
+            if (worker) {
+                QCOMPARE(worker->OutstandingFetchTasksForTest(), size_t(0));
+            }
         }
 
         // Call after seeding the datastore: the worker reads the cache on
@@ -236,6 +256,7 @@ namespace {
         void start()
         {
             worker = std::make_unique<ItemsManagerWorker>(settings, *bm.manager, api);
+            worker->SetSweepObserver(&sweep);
             QObject::connect(worker.get(),
                              &ItemsManagerWorker::ItemsRefreshed,
                              worker.get(),
@@ -318,6 +339,20 @@ namespace {
             QVERIFY(drainUntilIdle());
         }
 
+        // Settle an outstanding fetch with an EXCEPTIONAL future: the worker's
+        // co_await rethrows, exercising the per-fetch catch-all (W-THROW).
+        void throwStash(const QString &stash_id, const QString &substash_id = {})
+        {
+            api.throwAt(api.pendingStash(stash_id, substash_id));
+            QVERIFY(drainUntilIdle());
+        }
+
+        void throwCharacter(const QString &name)
+        {
+            api.throwAt(api.pendingCharacter(name));
+            QVERIFY(drainUntilIdle());
+        }
+
         // Pump queued coroutine resumptions and any deferred deletions until the
         // event loop is quiescent — a full pass that delivers nothing — or the
         // bound trips. Condition-driven on the loop emptying (not a fixed pass
@@ -364,6 +399,9 @@ namespace {
         // only to satisfy the facade's base constructor.
         RateLimiter unused_limiter;
         FakePoeApiClient api;
+        // Declared before `worker` so it outlives it: the worker holds a raw
+        // pointer to it and writes sweep counts through it (W-SWEEP).
+        WorkerSweepObserver sweep;
         std::unique_ptr<ItemsManagerWorker> worker;
 
         Items last_items;
@@ -1343,6 +1381,273 @@ void WorkerUpdateTest::fakeTreatsCrossUpdateIdentityOverlapAsLive()
     QCOMPARE(f_straggler.resultCount(), 1);
     QVERIFY(!f_straggler.result().has_value());
     QCOMPARE(f_straggler.result().error().kind, RateLimit::FetchError::Kind::Canceled);
+}
+
+// W-TOKEN: every list/content call in one update carries the same non-default
+// stop_token; a terminal failure stops that token; the next update carries a
+// distinct, unstopped one. This is what makes the token the update's identity
+// (the post-await check discards a straggler whose token was stopped). 5B keeps
+// the generation guard alongside — W-IDENTITY (5D) proves the token replaces it.
+void WorkerUpdateTest::everyCallInAnUpdateSharesOneTokenAndTheNextUpdateGetsAFreshOne()
+{
+    WorkerFixture f("wtoken");
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    const auto s1 = stashJson("stok1", "Tab S1", 0);
+
+    f.worker->Update(TabSelection::All);
+    // Call 0: the stash list. Its token is a real update token — it can be
+    // stopped (non-default) and has not been stopped yet.
+    QCOMPARE(f.callCount(), size_t(1));
+    const std::stop_token token = f.api.call(0).token;
+    QVERIFY(token.stop_possible());
+    QVERIFY(!token.stop_requested());
+
+    f.deliverStashList(stashList({s1}));
+    QCOMPARE(f.callCount(), size_t(2)); // + character list
+    f.deliverCharacterList({});
+    QCOMPARE(f.callCount(), size_t(3)); // + content fetch for stok1
+
+    // Every call so far shares the one update token — the same object identity,
+    // not merely an equal value.
+    QVERIFY(f.api.call(1).token == token);
+    QVERIFY(f.api.call(2).token == token);
+
+    // A terminal failure stops that shared token (first-failure stop).
+    QVERIFY(f.hasPendingStash("stok1"));
+    f.failStash("stok1");
+    QVERIFY(token.stop_requested());
+    QCOMPARE(f.refresh_count, 1);
+
+    // The next update gets a fresh source: its token can still be stopped, has
+    // not been, and is a different token from the stopped one.
+    f.worker->Update(TabSelection::All);
+    QCOMPARE(f.callCount(), size_t(4));
+    const std::stop_token token2 = f.api.call(3).token;
+    QVERIFY(token2.stop_possible());
+    QVERIFY(!token2.stop_requested());
+    QVERIFY(token2 != token);
+
+    // Run the second update to a clean terminal state so teardown finds nothing
+    // pending.
+    f.deliverStashList(stashList({s1}));
+    f.deliverCharacterList({});
+    f.deliverStash("stok1", stashOf(stashJson("stok1", "Tab S1", 0, QStringList{"i1"})));
+    QCOMPARE(f.refresh_count, 2);
+}
+
+// W-INIT (success): a first list whose future is already finished runs its
+// continuation INLINE during the launch loop (S1-6). It must not finalize early
+// or corrupt the counters that were initialized before the launch — the update
+// proceeds and completes normally.
+void WorkerUpdateTest::readyFirstListRunsInlineWithoutCorruptingCounters()
+{
+    WorkerFixture f("winit-ok");
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    // Arm the stash list to come back already-finished with one tab.
+    f.api.preresolveStashList(stashList({stashJson("sready1", "Tab R1", 0)}));
+
+    f.worker->Update(TabSelection::All);
+    // The ready stash list was processed inline during launch: the character
+    // list is already requested, but nothing finalized and no content fetch was
+    // launched yet (it waits on the character list).
+    QCOMPARE(f.callCount(), size_t(2));
+    QVERIFY(f.hasPendingCharacterList());
+    QCOMPARE(f.refresh_count, 1);
+
+    f.deliverCharacterList({});
+    QCOMPARE(f.callCount(), size_t(3));
+    QVERIFY(f.hasPendingStash("sready1"));
+    f.deliverStash("sready1", stashOf(stashJson("sready1", "Tab R1", 0, QStringList{"r1"})));
+
+    // The inline-ready first list did not corrupt the run: exactly one fresh
+    // refresh with the expected item.
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"r1"}));
+}
+
+// W-INIT (error): a first list whose future is already finished with a FAILURE
+// runs inline during launch and aborts the update cleanly — no early emit, and
+// the character list is never requested because the stash-list failure ends the
+// update before the serial path reaches it.
+void WorkerUpdateTest::readyFirstListErrorFailsCleanlyWithoutRequestingASecondList()
+{
+    WorkerFixture f("winit-err");
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    f.api.prerejectStashList(RateLimit::FetchError::Kind::Network);
+
+    f.worker->Update(TabSelection::All);
+    // Only the stash list was ever issued, and it failed inline: no character
+    // list, no content, no emit.
+    QCOMPARE(f.callCount(), size_t(1));
+    QVERIFY(!f.hasPendingCharacterList());
+    QCOMPARE(f.refresh_count, 1);
+    QCOMPARE(f.api.pendingCount(), size_t(0));
+
+    // The worker returned to idle: a fresh update is accepted and completes,
+    // proving the inline failure did not wedge anything.
+    const auto s1 = stashJson("sready1", "Tab R1", 0);
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(stashList({s1}));
+    f.deliverCharacterList({});
+    f.deliverStash("sready1", stashOf(stashJson("sready1", "Tab R1", 0, QStringList{"r1"})));
+    QCOMPARE(f.refresh_count, 2);
+}
+
+// W-THROW: an exceptional facade future (an IR4 boundary violation) is caught by
+// the per-fetch task's root catch-all, which turns it into an ordinary failure:
+// the completion is counted, the first-failure stop fires, and the update aborts
+// to idle instead of wedging on a counter that would never move.
+void WorkerUpdateTest::exceptionalFetchIsCaughtCountedAndAbortsTheUpdate()
+{
+    WorkerFixture f("wthrow");
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    const auto s1 = stashJson("sthrow1", "Tab T1", 0);
+
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(stashList({s1}));
+    f.deliverCharacterList({});
+    QCOMPARE(f.callCount(), size_t(3));
+    QVERIFY(f.hasPendingStash("sthrow1"));
+
+    // The content fetch's future rethrows at co_await.
+    f.throwStash("sthrow1");
+
+    // No new refresh (the update aborted), and the shared token was stopped by
+    // the first-failure path the catch-all fed into.
+    QCOMPARE(f.refresh_count, 1);
+    QVERIFY(f.api.call(2).token.stop_requested());
+
+    // Not wedged: the worker is idle again and a fresh update completes.
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(stashList({s1}));
+    f.deliverCharacterList({});
+    f.deliverStash("sthrow1", stashOf(stashJson("sthrow1", "Tab T1", 0, QStringList{"t1"})));
+    QCOMPARE(f.refresh_count, 2);
+}
+
+// W-THROW (handler body, stopped-but-active): an exception from inside a fetch
+// continuation is contained by the per-fetch task's WHOLE-body catch-all, which
+// forces a terminal AbortUpdate(). The fault fires from a failure handler AFTER
+// it has already stopped the update token but BEFORE it records its completion
+// flags — so the catch-all must decide ownership by generation/state, not token
+// state: a token-based guard would misread this active update as a stale
+// straggler, skip the abort, and wedge. This single pin proves the catch
+// contains the throw, a stopped-but-active update still aborts, AbortUpdate()
+// forces list+counter completion, and recovery reaches Idle. Uses the injected
+// fault hook — never Qt's undefined slot-throwing behavior.
+void WorkerUpdateTest::handlerExceptionAbortsToIdleInsteadOfWedging()
+{
+    WorkerFixture f("whandlerthrow");
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    const auto s1 = stashJson("shthrow1", "Tab H1", 0);
+
+    // Drive to the content stage with the hook unarmed (so RunUpdate does not
+    // consume it), then arm it: the content failure's handler stops the token
+    // and hits the fault site before setting its completion flags.
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(stashList({s1}));
+    f.deliverCharacterList({});
+    QVERIFY(f.hasPendingStash("shthrow1"));
+
+    f.worker->SetFaultHook([] { throw std::runtime_error("failure handler exploded"); });
+    f.failStash("shthrow1");
+
+    // Contained and forced terminal: no refresh, no leaked handle, no wedge.
+    QCOMPARE(f.refresh_count, 1);
+    QCOMPARE(f.worker->OutstandingFetchTasksForTest(), size_t(0));
+
+    // Recovery reaches Idle: a fresh update is accepted and completes.
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(stashList({s1}));
+    f.deliverCharacterList({});
+    f.deliverStash("shthrow1", stashOf(stashJson("shthrow1", "Tab H1", 0, QStringList{"h1"})));
+    QCOMPARE(f.refresh_count, 2);
+}
+
+// W-THROW (root orchestration): the update root task's own body has a catch-all
+// distinct from the per-fetch tasks' (verification §3). A throw in orchestration
+// itself — before any list is launched — is contained there and drives the same
+// terminal AbortUpdate(), rather than escaping into the caller (ItemsManager /
+// the UI). Recovery proves the worker reached Idle.
+void WorkerUpdateTest::rootOrchestrationExceptionAbortsToIdle()
+{
+    WorkerFixture f("wrootthrow");
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    // Armed before Update(): RunUpdate() hits the root fault site at the top of
+    // its body, before launching any list.
+    f.worker->SetFaultHook([] { throw std::runtime_error("orchestration exploded"); });
+    f.worker->Update(TabSelection::All);
+
+    // Aborted before any request was issued, and it did not escape or wedge.
+    QCOMPARE(f.callCount(), size_t(0));
+    QCOMPARE(f.refresh_count, 1);
+    QCOMPARE(f.worker->OutstandingFetchTasksForTest(), size_t(0));
+
+    // Recovery reaches Idle.
+    const auto s1 = stashJson("srthrow1", "Tab R1", 0);
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(stashList({s1}));
+    f.deliverCharacterList({});
+    f.deliverStash("srthrow1", stashOf(stashJson("srthrow1", "Tab R1", 0, QStringList{"r1"})));
+    QCOMPARE(f.refresh_count, 2);
+}
+
+// W-SWEEP: each per-fetch completion schedules a deferred sweep that runs on a
+// later event-loop turn (via a queued invocation — outside the completing
+// coroutine) and destroys only finished handles. Across a full update every
+// launched per-fetch handle is reclaimed and none is left live.
+void WorkerUpdateTest::completionsScheduleADeferredSweepThatReclaimsFinishedHandles()
+{
+    WorkerFixture f("wsweep");
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    // The observer starts clean: the initial parse launches no fetches.
+    QCOMPARE(f.sweep.scheduled, 0);
+    QCOMPARE(f.sweep.executed, 0);
+
+    const auto s1 = stashJson("ssweep1", "Tab W1", 0);
+
+    f.worker->Update(TabSelection::All);
+
+    // The stash-list completion schedules and runs one deferred sweep. That
+    // sweep destroys the finished stash-list handle but PRESERVES the still-
+    // suspended character-list handle it left in flight — only ready handles are
+    // reclaimed; destroying a suspended one would detach, not stop, it.
+    f.deliverStashList(stashList({s1}));
+    QCOMPARE(f.sweep.executed, 1);
+    QCOMPARE(f.sweep.destroyed, 1);
+    QCOMPARE(f.sweep.live_after, size_t(1)); // the suspended character-list handle survived
+    QCOMPARE(f.worker->OutstandingFetchTasksForTest(), size_t(1));
+
+    // The character-list completion schedules another sweep (a later completion
+    // always schedules its own), which reclaims the character-list handle and
+    // leaves the newly suspended content handle live.
+    f.deliverCharacterList({});
+    QCOMPARE(f.sweep.executed, 2);
+    QCOMPARE(f.sweep.destroyed, 2);
+    QCOMPARE(f.sweep.live_after, size_t(1));
+
+    // The final content completion sweeps the last handle; nothing is left live.
+    f.deliverStash("ssweep1", stashOf(stashJson("ssweep1", "Tab W1", 0, QStringList{"w1"})));
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(f.sweep.scheduled, 3);
+    QCOMPARE(f.sweep.executed, 3);
+    QCOMPARE(f.sweep.destroyed, 3);
+    QCOMPARE(f.sweep.live_after, size_t(0));
+    QCOMPARE(f.worker->OutstandingFetchTasksForTest(), size_t(0));
 }
 
 QTEST_GUILESS_MAIN(WorkerUpdateTest)
