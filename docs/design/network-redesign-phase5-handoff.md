@@ -49,9 +49,13 @@ queue and the update-generation machinery are deleted.
 
 ### "At once" means staged, not literally simultaneous
 
-Content requests cannot be built until their list lands, so the batch is
-staged — and within each stage submission is unconditional (no worker-side
-pacing, count-downs, or waiting between entries):
+Content requests *could* be built from cached ids before their list lands, but
+M1 does not permit that shortcut: each fresh required list is authoritative
+for reconciliation and defines this update's selected/new/incomplete content
+fetch set. The batch is therefore staged for semantic reasons — and within
+each stage submission is unconditional (no worker-side pacing, count-downs, or
+waiting between entries). This is D6 read together with M1, not a deviation
+from D6:
 
 1. Determine which lists the selection requires with the **existing M1
    semantics**: `All` / `TabsOnly` require both; a partial refresh requires
@@ -71,6 +75,12 @@ pacing, count-downs, or waiting between entries):
    complete child batch. The reply handler still accepts children on any of
    the three parent types and preserves the F49 duplicate-fetch tripwire; this
    phase does not invent a new deduplication policy (see §10 item 4).
+
+Within each policy lane, preserve the source traversal order that defines the
+fetch set: fresh-list/model order, recursive Folder-child order, and parent-
+reply child order. Never let a hash/set/container iteration choose request
+priority. The stash and character lanes are independent, so this does not
+impose a global relative order between them.
 
 ### Explicitly OUT of scope (do not design these in)
 - **Reprioritization / per-entry cancellation.** The stop token is per-update,
@@ -165,12 +175,13 @@ and batch measurement (S2-\*) the design leans on (distilled in §5).
   reply continuations run on the main thread, where an event loop is present —
   so QCoro tasks are viable and resume on the main thread.
 - **Destruction order already satisfies the shutdown contract.** In
-  `src/application.h`'s `session()` struct the declaration order is
-  `rate_limiter` (≈l.79), `api` (≈l.82), `items_manager`, `items_worker`
-  (≈l.85), `shop` (≈l.86). Members destruct in reverse, so `shop` and
-  `items_worker` are destroyed **before** `rate_limiter` — exactly what D2's
-  shutdown contract requires (worker/facade consumers gone before the hub). **Do
-  not reorder these members.**
+  `src/application.h`'s `Application::UserSession`, the relevant declaration
+  subsequence is `rate_limiter` (≈l.79), `api` (≈l.82), `buyout_manager`,
+  `items_manager`, `items_worker` (≈l.85), `shop` (≈l.86). Members
+  destruct in reverse, so `shop` and `items_worker` are destroyed **before**
+  `api` and `rate_limiter` — exactly what D2's shutdown contract requires
+  (worker/facade consumers gone before the hub). **Do not reorder these
+  members.**
 - The one open precondition for this phase — the 2,000-tab batch-submit memory
   measurement — was settled in phase 0 (round S2): **no flow control needed**,
   memory is linear and acceptable (see §5).
@@ -232,6 +243,9 @@ these is wrong.
   call (stubbed in 4b specifically for phase 5's cancellation pins — nothing
   asserts them yet). Single completion is enforced by the fake's own guard (a
   second settle `qFatal`s), **not** by `QFuture` semantics.
+- The fake also records `account` and overrides the facade's fifth method,
+  `getLegacyStashIndex`. Only `Shop` calls that method; it is irrelevant to the
+  worker batch design and needs no phase-5 worker coverage.
 - **The fake's stop tokens are passive observations.** Requesting stop does not
   settle any pending fake future; production pumps do that, but the facade fake
   deliberately leaves delivery order under the test's control. Every ordinary
@@ -268,7 +282,7 @@ these is wrong.
 
 ---
 
-## 8. The test plan phase 5 must produce (testing-plan items 5 & 6)
+## 8. The test plan phase 5 must produce (items 5 & 6 + ER1 closure)
 
 The worker suite keeps using `FakePoeApiClient`. This is the first phase where
 production can actually cancel, so most cancellation pins go live here — but
@@ -277,7 +291,7 @@ not every spec pin is missing. Status matrix (verified in the tree
 
 | Pin | Spec home | Status |
 | --- | --- | --- |
-| ER1 — failed sibling; suspended sibling resumes into finished `Canceled` | item 2 (pump) | **Exists** — `tst_ratelimitmanager.cpp` (the ER1 regression pin test). |
+| ER1 — failed sibling; suspended sibling resumes into finished `Canceled` | item 2 (pump) | **Partial** — `tst_ratelimitmanager.cpp` proves one explicitly stopped fetch resumes its awaiter safely from a finished `Canceled` value, but not the spec's two-fetch failing-sibling → stop shape. |
 | IR2 initialize-before-launch | item 5 | Missing — this phase. |
 | IR2 post-await identity | item 5 | Missing — this phase. |
 | R5-1 throwing body + deferred sweep | item 5 | Missing — this phase. |
@@ -285,10 +299,19 @@ not every spec pin is missing. Status matrix (verified in the tree
 | F56 batch-concurrency pin | neither — see below | Missing — this phase. |
 | Item 6 integration / shutdown | item 6 | Missing — this phase (see the architecture note). |
 
-A worker-level ER1-shaped test (the real worker's coroutines as the two
-awaiters) is still worth writing, but label it *additional integration
-coverage*, not an unmet item-5 requirement — the spec places ER1 in pump
-testing, where it already exists.
+Close both halves deliberately; they pin different layers and may share
+supporting harness code:
+
+- Extend the manager pin to the exact item-2 shape: two fetch futures share one
+  stop source; the first awaiter observes a terminal failure and requests stop
+  while the sibling is suspended; the sibling resumes safely with a finished
+  `Canceled` value. This closes inherited pump-test debt.
+- Require the worker-level shape too: fail one of two in-flight worker fetches,
+  observe the shared update token become stopped, settle the fake's still-
+  pending sibling as `Canceled`, drain its real worker coroutine, and verify no
+  state mutation or extra failure accounting. This may be combined with the
+  stop-token/post-await/F55 cancellation pins below rather than being a
+  standalone test.
 
 ### The F56 regression pin — the headline test of the phase
 
@@ -303,9 +326,14 @@ At least one worker test must pin the concurrent shape directly:
   reply is delivered.
 - Character requests are in flight while stash requests are still
   outstanding (the exact starvation F56 names).
-- List-discovered Folder children join the stash content batch, and
-  reply-discovered Map/Unique children are appended as a complete batch rather
-  than one at a time.
+- Both child-discovery paths defined in §2 are exercised: list-discovered
+  Folder children join the stash content batch, and reply-discovered
+  Map/Unique children are appended as a complete batch rather than one at a
+  time.
+- Within each policy lane, calls retain §2's source traversal order. Use
+  deliberately non-sorted identities so an unordered-container implementation
+  cannot pass accidentally; do not assert a global order between the
+  independent stash and character lanes.
 
 **Stop-token identity pins** (the fake records tokens — 4b stubbed that
 exactly for this): every list/content/child call in one update carries the
@@ -394,8 +422,21 @@ explicitly (sources: items-pipeline M1, D6, F53/F55):
 - Exactly one terminal status transition per update.
 - Status counters stay monotonic and include children initialized before
   launch.
+- A location joins `m_contents_known` only after its content reply is
+  successfully applied. Failure or cancellation before that point leaves a
+  newly listed location eligible for the next content refresh.
+- Starting a Map/Unique child cycle evicts the parent from
+  `m_contents_known`; the parent returns only after every enabled child
+  succeeds. A failed or canceled child keeps the parent incomplete and
+  retryable (port the existing F55 pins under reordered completion).
+- Within each policy lane, content calls preserve §2's source traversal
+  order; request priority never comes from an arbitrary container order.
 - Request selection is unchanged: stash-only / character-only partial updates
   request only their list type, while `All` / `TabsOnly` request both.
+- An `Update()` received while an initialized update is active is refused, not
+  deferred: it submits nothing and neither stops nor replaces nor queues behind
+  the current update. Initialization-time deferral is a separate existing
+  behavior.
 
 ### Item 6 (integration / shutdown) — needs an architecture, not a list
 
@@ -404,9 +445,9 @@ The cases:
 - Cancellation races across layers (abort mid-pacing-sleep, mid-gate-wait,
   mid-flight).
 - **Destruction reaches every suspension** — destroying worker-then-hub in the
-  session member order, with no further event-loop iterations, while a pump is
-  mid-pacing-sleep / mid-retry-sleep / mid-gate-wait / mid-flight, resumes
-  nothing and crashes nothing.
+  `UserSession` member order, with no further event-loop iterations, while a
+  pump is mid-pacing-sleep / mid-retry-sleep / mid-gate-wait / mid-flight,
+  resumes nothing and crashes nothing.
 - **Leak bound** — suspended frames detach and leak *by design*, bounded to the
   transitive closure of the detached frames (frames + their awaiters +
   `QFutureWatcher`/context QObjects + retained `QFuture` handles + sleep
@@ -415,18 +456,24 @@ The cases:
   awaiter is resumed to observe them.
 - Completed-future retention (made measurable below).
 
-**Isolation is mandatory, not stylistic:** the leak closure includes live
-sleep timers. In a shared test process, a later event-loop iteration can fire
-one and resume a detached frame into freed pump state. The unit of isolation is
-therefore **one destruction scenario per process**, not merely one executable
-containing several Qt Test methods. A practical shape is one purpose-built
-scenario runner registered as several CTest tests, with one scenario argument
-per invocation: drive the event loop only until the named suspension is
-reached, destroy worker/facade consumers before the hub and the fake network
-parent after the hub, make synchronous sentinel assertions at the relevant
-destruction points, and return without another `processEvents()` / `exec()`
-turn. A separate executable per scenario is also valid; a multi-case process
-is not.
+**Isolation is mandatory, not stylistic:** each scenario intentionally leaves
+detached suspended frames, and the shutdown proof is conditional on *no later
+event-loop iteration* after owner destruction. A shared Qt Test process must
+continue to later methods and therefore violates that premise; destruction may
+also leave queued reply/context or other Qt delivery pending. `FakeScheduler`
+makes its sleep deadlines inert unless the test explicitly advances it, but it
+does not strengthen the production shutdown invariant. Independently, the
+accepted detached-frame leak closure is a process-exit fact: sentinel/LSAN
+attribution is meaningful only when the process ends immediately after the
+scenario. The unit of isolation is therefore **one destruction scenario per
+process**, not merely one executable containing several Qt Test methods. A
+practical shape is one purpose-built scenario runner registered as several
+CTest tests, with one scenario argument per invocation: drive the event loop
+only until the named suspension is reached, destroy worker/facade consumers
+before the hub and the fake network parent after the hub, make synchronous
+sentinel assertions at the relevant destruction points, and return without
+another `processEvents()` / `exec()` turn. A separate executable per scenario
+is also valid; a multi-case process is not.
 
 Use `FakeScheduler` plus `FakeNetworkManager` for the real
 worker → facade → hub path. `FakeNetworkManager::createRequest()` is the seam
@@ -504,6 +551,10 @@ must keep passing (captures are live research data).
    full lifecycle that answers all of:
    - A terminal failure returns the worker to idle immediately; it does not
      wait for canceled siblings to settle.
+   - `Update()` while an initialized update is still active retains today's
+     refusal policy: notify, submit nothing, and neither stop, replace, nor
+     defer behind the active update. Add a preservation pin; none exists
+     today. Initialization-time deferral is separate.
    - A new update may begin while stopped stragglers from the old update
      still exist — the container must not conflate the two populations.
    - A straggler completing *after* the abort-time sweep must trigger
@@ -520,13 +571,10 @@ must keep passing (captures are live research data).
    counters and then `CheckUpdateFinished()`. Preserve that the completion which
    reconciles the counters triggers finalization, under coroutines, without
    re-entrancy hazards (S1-9: awaiting a *task* resumes synchronously).
-4. **Both child-discovery paths.** Folder children normally arrive nested in
-   the stash list and must join that list's content batch during recursive
-   processing; Map/Unique children normally arrive when the parent reply lands
-   and must be appended then as one batch. The existing generic reply path and
-   F49 duplicate-fetch tripwire remain (no new deduplication policy). Work out
-   how both paths compose with completion counters while preserving
-   `m_pending_children` / `m_contents_known` semantics from F55. The
+4. **Both child-discovery paths.** Resolve how the two canonical paths in §2
+   compose with completion counters while preserving `m_pending_children` /
+   `m_contents_known` semantics from F55. The existing generic reply path and
+   F49 duplicate-fetch tripwire remain (no new deduplication policy). The
    initialize-before-launch invariant applies **per child launch**, not just to
    the initial batch — a ready child future completes inline before the test
    (or the worker) regains control, so the complete child count and parent
@@ -535,16 +583,24 @@ must keep passing (captures are live research data).
    `ItemsRefreshed`, and the F53 reconciliation signals must keep firing with
    the same semantics; the emitted `Items` still share `Item` objects with the
    UI (the rebase-on-finish rule).
-6. **`FakePoeApiClient` capability gaps and teardown discipline.** Confirm what
-   the new pins need beyond what 4b built, and note each as a fake-extension in
-   the plan. Known so far (§8): identity-based call lookup; pending/settled
-   inspection; pre-completed ("ready") success and error futures for the
-   initialize-before-launch pin; an *exceptional* future for the R5-1
-   throwing-body pin; assertions on recorded stop tokens; and a deterministic
-   way to settle every stopped straggler and drain until the sweep is observed.
-   The post-await identity pin probably needs **no** cross-call extension —
-   settle-after-stop through the existing helpers produces the same
-   consumer-visible state (§8); add scripting only if that proves insufficient.
+6. **Test-seam capability gaps and teardown discipline.** Confirm what the new
+   pins need beyond what 4b built, and note each seam in the plan.
+   `FakePoeApiClient` gaps known so far (§8): identity-based call lookup;
+   pending/settled inspection; pre-completed ("ready") success and error
+   futures for the initialize-before-launch pin; an *exceptional* future for
+   the R5-1 throwing-body pin; assertions on recorded stop tokens; and a
+   deterministic way to settle every stopped straggler and drain until the
+   sweep is observed. The post-await identity pin probably needs **no** cross-
+   call extension — settle-after-stop through the existing helpers produces
+   the same consumer-visible state (§8); add scripting only if that proves
+   insufficient.
+
+   Also choose a minimal read-only **production-worker observability seam** for
+   R5-1's deterministic normal-test pin: sweep scheduling/execution count,
+   ready handles observed/destroyed, and remaining live handles (including old-
+   update stragglers). The seam must observe rather than drive lifecycle, and
+   the plan must name its concrete shape instead of improvising it during the
+   rewrite.
 7. **Commit sequencing where every intermediate is behaviorally correct** —
    not merely compiling and passing incomplete tests. An earlier draft's
    example sequence (batch-submit, then delete the generation machinery,
@@ -556,7 +612,9 @@ must keep passing (captures are live research data).
    safe skeleton is:
    1. Harness foundation: identity-based call lookup, condition drains, and
       pending-call inspection — green against the current serial worker while
-      retaining its only legal delivery order (§8's porting trap).
+      retaining its only legal delivery order (§8's porting trap). Close the
+      inherited manager-level ER1 debt by extending its pin to the exact two-
+      fetch failing-sibling shape.
    2. Coroutine/task ownership plus one update stop source, still serial.
       Pin that every submitted call carries the same non-default token and a
       terminal failure stops it. Add the ready-success / ready-error coverage
@@ -565,7 +623,8 @@ must keep passing (captures are live research data).
       independently proven yet.
    3. Batch-submit required lists/content/children. Add the F56 shape, ready-
       future batch/child variants, reordered-completion, and cancellation-race
-      pins. Both the token and generation guard protect this intermediate.
+      pins, including the required worker-level ER1/F55 stopped-sibling shape.
+      Both the token and generation guard protect this intermediate.
    4. Delete the worker queue and finish porting representative tests to
       arbitrary completion order.
    5. Delete the generation machinery **last**. Now mutation-verify that the
