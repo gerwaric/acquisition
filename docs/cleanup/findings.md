@@ -122,7 +122,7 @@ docs, real-world logs, Tom's knowledge) produces a network ground-truth
 document first; fix shapes and the F56/F57 sequencing get re-derived
 against it. **Re-derivation complete July 18, 2026:** the superseding
 fix shapes for F56–F59 are specified in
-`docs/design/network-redesign.md` (accepted July 19, 2026, revision 7;
+`docs/design/network-redesign.md` (accepted July 19, 2026, revision 8;
 frozen for implementation) — queueing
 returns to the limiter with QFuture-based cancellation, policy managers
 become coroutine pumps, and a global gate carries the F5/N18 and F58
