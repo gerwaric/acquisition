@@ -67,6 +67,9 @@ acq_add_test(tst_workerupdate)
 
 acq_add_scenario_test(tst_workerintegration
     fullChainStashListSucceeds
+    i_cancel_pacing
+    i_cancel_gate
+    i_cancel_flight
     i_shut_pacing
     i_shut_gate
     i_shut_flight
