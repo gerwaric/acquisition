@@ -1,6 +1,9 @@
 #include <QtTest/QtTest>
 
+#include <QEventLoop>
 #include <QSettings>
+
+#include <stop_token>
 
 #include "datastore/characterrepo.h"
 #include "datastore/stashrepo.h"
@@ -44,6 +47,13 @@ private slots:
     void knownParentWithNewFailedChildIsRetried();
     void datastoreFollowsServerDeletions();
     void datastoreFollowsCharacterDeletions();
+
+    // Direct FakePoeApiClient harness pins. The 5A worker passes only default
+    // tokens (D7), so the stopped-straggler and cross-update-overlap paths the
+    // shared-token worker will exercise in 5B/5D cannot yet be driven through
+    // the worker; these prove the harness capability against the fake directly.
+    void fakeSettlesStoppedStragglersCanceledExactlyOnce();
+    void fakeTreatsCrossUpdateIdentityOverlapAsLive();
 };
 
 namespace {
@@ -191,11 +201,19 @@ namespace {
         }
 
         // Verification §2: an ordinary worker fixture must leave no fake call
-        // pending. Every update here runs to a terminal state — a refresh emit
-        // or a failure — so nothing should still be awaiting a result once the
-        // fixture goes out of scope. The check runs while `f` is still a live
-        // local inside the test method, so a leak is attributed to that test.
-        ~WorkerFixture() { QCOMPARE(api.pendingCount(), size_t(0)); }
+        // pending and no worker resumption queued. Every update here runs to a
+        // terminal state — a refresh emit or a failure — so once the fixture
+        // goes out of scope, draining to quiescence must reach idle and leave
+        // nothing awaiting a result. Draining first is essential: a fake call is
+        // settled before its consumer resumes, so a bare pendingCount() could
+        // read zero with a resumption still queued. The check runs while `f` is
+        // still a live local inside the test method, so a leak is attributed to
+        // that test.
+        ~WorkerFixture()
+        {
+            QVERIFY(drainUntilIdle());
+            QCOMPARE(api.pendingCount(), size_t(0));
+        }
 
         // Call after seeding the datastore: the worker reads the cache on
         // construction paths keyed off the settings file's directory.
@@ -245,32 +263,32 @@ namespace {
         void deliverStashList(std::vector<poe::StashTab> stashes)
         {
             api.resolveStashList(api.pendingStashList(kRealm, kLeague), std::move(stashes));
-            drain();
+            QVERIFY(drainUntilIdle());
         }
 
         void deliverCharacterList(std::vector<poe::Character> characters)
         {
             api.resolveCharacterList(api.pendingCharacterList(kRealm), std::move(characters));
-            drain();
+            QVERIFY(drainUntilIdle());
         }
 
         void deliverStash(const QString &stash_id, poe::StashTab stash)
         {
             api.resolveStash(api.pendingStash(stash_id), std::move(stash));
-            drain();
+            QVERIFY(drainUntilIdle());
         }
 
         // A child fetch: same parent stash id, a non-empty substash id.
         void deliverChild(const QString &stash_id, const QString &substash_id, poe::StashTab stash)
         {
             api.resolveStash(api.pendingStash(stash_id, substash_id), std::move(stash));
-            drain();
+            QVERIFY(drainUntilIdle());
         }
 
         void deliverCharacter(const QString &name, poe::Character character)
         {
             api.resolveCharacter(api.pendingCharacter(name), std::move(character));
-            drain();
+            QVERIFY(drainUntilIdle());
         }
 
         // Fail an outstanding stash fetch. The kind is immaterial to every pin
@@ -281,21 +299,33 @@ namespace {
                        RateLimit::FetchError::Kind kind = RateLimit::FetchError::Kind::Network)
         {
             api.reject(api.pendingStash(stash_id, substash_id), kind);
-            drain();
+            QVERIFY(drainUntilIdle());
         }
 
-        // Deliver queued coroutine resumptions and any deferred deletions
-        // (deleteLater() posted outside a running event loop is not delivered
-        // by nested processEvents alone). A bounded pass count keeps this
-        // deterministic and, unlike a single pass, does not assume the whole
-        // resumption chain settles on the first turn — mirroring the drain the
-        // rate-limit manager suite uses.
-        static void drain()
+        // Pump queued coroutine resumptions and any deferred deletions until the
+        // event loop is quiescent — a full pass that processes nothing — or the
+        // bound trips. Condition-driven on the loop emptying (not a fixed pass
+        // count): it neither under-drains a multi-hop resumption nor assumes the
+        // chain settles on the first turn, and it flushes deleteLater() work
+        // posted outside a running loop, which processEvents alone does not.
+        //
+        // This is what makes zero-pending meaningful at teardown: a fake call is
+        // marked settled before its consumer's queued .then/co_await resumes, so
+        // pendingCount() can read zero with a resumption still queued. Draining
+        // to quiescence first closes that window. Returns false if the loop
+        // never settled — a runaway resumption the caller surfaces via QVERIFY.
+        [[nodiscard]] static bool drainUntilIdle()
         {
-            for (int i = 0; i < 20; ++i) {
-                QCoreApplication::processEvents();
+            constexpr int kMaxPasses = 1000;
+            for (int pass = 0; pass < kMaxPasses; ++pass) {
+                QEventLoop loop;
+                const bool processed = loop.processEvents(QEventLoop::AllEvents);
                 QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+                if (!processed) {
+                    return true;
+                }
             }
+            return false;
         }
 
         BuyoutManagerFixture bm;
@@ -1173,6 +1203,85 @@ void WorkerUpdateTest::datastoreFollowsCharacterDeletions()
 
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"c1-item"}));
+}
+
+// The straggler-settle path: stopped calls are settled Canceled in bulk,
+// exactly once, while live calls are untouched and remain deliverable. The
+// finders exclude stopped stragglers, so an active update never delivers to
+// one. Driven directly against the fake because the 5A worker cannot stop a
+// token.
+void WorkerUpdateTest::fakeSettlesStoppedStragglersCanceledExactlyOnce()
+{
+    NetworkManager network;
+    RateLimiter limiter(network);
+    FakePoeApiClient api(limiter);
+
+    std::stop_source dead_a;
+    std::stop_source dead_bob;
+    std::stop_source live;
+    dead_a.request_stop();
+    dead_bob.request_stop();
+
+    // Two stopped stragglers from an aborted update and one live call from the
+    // next. The returned futures are intentionally dropped: the fake keeps the
+    // call recorded until settled regardless.
+    api.getStash(kRealm, kLeague, "A", {}, dead_a.get_token());
+    api.getCharacter(kRealm, "Bob", dead_bob.get_token());
+    api.getStash(kRealm, kLeague, "C", {}, live.get_token());
+
+    QCOMPARE(api.callCount(), size_t(3));
+    QCOMPARE(api.pendingCount(), size_t(3));
+    QCOMPARE(api.stoppedStragglerCount(), size_t(2));
+
+    // Only the live call is deliverable; the stopped stragglers are not.
+    QVERIFY(api.hasPendingStash("C"));
+    QVERIFY(!api.hasPendingStash("A"));
+    QVERIFY(!api.hasPendingCharacter("Bob"));
+
+    // Settling the stragglers Canceled leaves only the live call pending.
+    QCOMPARE(api.settleStoppedStragglers(), size_t(2));
+    QCOMPARE(api.pendingCount(), size_t(1));
+    QCOMPARE(api.stoppedStragglerCount(), size_t(0));
+
+    // A second sweep finds nothing to settle — no double-settle qFatal.
+    QCOMPARE(api.settleStoppedStragglers(), size_t(0));
+
+    // The live call is still deliverable and settles normally.
+    QVERIFY(api.hasPendingStash("C"));
+    api.resolveStash(api.pendingStash("C"), stashOf(stashJson("C", "Tab C", 0, QStringList{"c1"})));
+    QCOMPARE(api.pendingCount(), size_t(0));
+}
+
+// A stopped old-update straggler and a live new-update call may share a domain
+// identity — a legitimate cross-update overlap that must NOT trip the F49
+// duplicate tripwire. The finder resolves to the single live call; the
+// straggler settles Canceled independently.
+void WorkerUpdateTest::fakeTreatsCrossUpdateIdentityOverlapAsLive()
+{
+    NetworkManager network;
+    RateLimiter limiter(network);
+    FakePoeApiClient api(limiter);
+
+    std::stop_source dead;
+    std::stop_source live;
+    dead.request_stop();
+
+    // Both fetch stash "X": the first is an aborted update's straggler, the
+    // second the new update's live request.
+    api.getStash(kRealm, kLeague, "X", {}, dead.get_token());
+    api.getStash(kRealm, kLeague, "X", {}, live.get_token());
+    QCOMPARE(api.pendingCount(), size_t(2));
+
+    // Exactly one *deliverable* "X" exists, so the finder does not qFatal as an
+    // F49 duplicate — it selects the live call.
+    QVERIFY(api.hasPendingStash("X"));
+    api.resolveStash(api.pendingStash("X"), stashOf(stashJson("X", "Tab X", 0, QStringList{"x1"})));
+
+    // The straggler is still owed a settlement; the sweep clears it Canceled.
+    QCOMPARE(api.pendingCount(), size_t(1));
+    QCOMPARE(api.stoppedStragglerCount(), size_t(1));
+    QCOMPARE(api.settleStoppedStragglers(), size_t(1));
+    QCOMPARE(api.pendingCount(), size_t(0));
 }
 
 QTEST_GUILESS_MAIN(WorkerUpdateTest)

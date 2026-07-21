@@ -29,10 +29,14 @@
 // against the real facade in tst_poeapiclient.
 //
 // Deliveries name a call by its domain identity, never a global submission
-// index (phase 5): the pending-call finders below match only unsettled calls,
-// so a test that fetches the same stash id in two successive updates settles
-// each update's call in turn with no per-id scripting. Exactly one pending call
-// may match an identity; two would be a duplicate in flight (F49 tripwire).
+// index (phase 5): the pending-call finders below match only DELIVERABLE calls
+// — unsettled and not stopped — so a test that fetches the same stash id in two
+// successive updates settles each update's call in turn with no per-id
+// scripting. Exactly one deliverable call may match an identity; two is a
+// within-update duplicate fetch (F49 tripwire). A stopped old-update straggler
+// that shares a new call's identity is a legitimate cross-update overlap, not a
+// duplicate: it is excluded from delivery and settled Canceled in bulk via
+// settleStoppedStragglers().
 //
 // Each call is settled exactly once: not because a QFuture forbids more (it is
 // a multi-result container — addResult() may be called repeatedly), but because
@@ -146,12 +150,27 @@ public:
     // identical requests are in flight at once — the F49 duplicate-fetch
     // tripwire, not something a test may silently settle.
 
-    // Calls recorded but not yet settled.
+    // Calls recorded but not yet settled — including stopped stragglers, which
+    // still owe a settlement. A fixture proves this is zero at teardown.
     size_t pendingCount() const
     {
         size_t n = 0;
         for (const auto &slot : m_pending) {
             if (slot.reject) {
+                ++n;
+            }
+        }
+        return n;
+    }
+
+    // Unsettled calls whose recorded token has been stopped: old-update
+    // stragglers awaiting deterministic Canceled settlement. The active update
+    // never delivers to these (the identity finders exclude them).
+    size_t stoppedStragglerCount() const
+    {
+        size_t n = 0;
+        for (const auto &slot : m_pending) {
+            if (slot.reject && slot.call.token.stop_requested()) {
                 ++n;
             }
         }
@@ -269,6 +288,25 @@ public:
         slot.promise.reset();
     }
 
+    // Settle every stopped straggler Canceled, exactly once, and return how
+    // many were settled. This is the deterministic straggler path the worker's
+    // shared-token cancellation needs: it scans the LIVE slots (never call
+    // history by index — a settled slot still carries the now-stopped token and
+    // rejecting it again would qFatal), so it is safe to call after any number
+    // of updates have shared and stopped their tokens.
+    size_t settleStoppedStragglers()
+    {
+        size_t settled = 0;
+        for (size_t i = 0; i < m_pending.size(); ++i) {
+            Slot &slot = m_pending[i];
+            if (slot.reject && slot.call.token.stop_requested()) {
+                reject(i, RateLimit::FetchError::Kind::Canceled);
+                ++settled;
+            }
+        }
+        return settled;
+    }
+
 private:
     // Type-erased settle hooks, so calls of different payload types can live
     // in one indexed list.
@@ -289,38 +327,52 @@ private:
         return &tag;
     }
 
-    // Count pending (unsettled) calls of a kind whose recorded arguments match.
+    // A slot is deliverable if it is unsettled AND its recorded token is not
+    // stopped. A stopped-but-unsettled slot is an old update's straggler: it
+    // still owes a settlement (so it counts as pending), but the active update
+    // never delivers to it and it must not collide with a new call that shares
+    // its domain identity. Every identity finder below matches deliverable
+    // slots only; settleStoppedStragglers() handles the stopped ones.
+    static bool deliverable(const Slot &slot)
+    {
+        return slot.reject && !slot.call.token.stop_requested();
+    }
+
+    // Count deliverable calls of a kind whose recorded arguments match.
     template<typename Pred>
     size_t countPending(Call::Kind kind, Pred pred) const
     {
         size_t n = 0;
         for (const auto &slot : m_pending) {
-            if (slot.reject && slot.call.kind == kind && pred(slot.call)) {
+            if (deliverable(slot) && slot.call.kind == kind && pred(slot.call)) {
                 ++n;
             }
         }
         return n;
     }
 
-    // The index of the unique pending call matching an identity, or a fatal
-    // test bug if the match is not exactly one.
+    // The index of the unique deliverable call matching an identity, or a fatal
+    // test bug if the match is not exactly one. Two deliverable matches is a
+    // genuine within-update duplicate fetch (F49 tripwire); a stopped
+    // old-update straggler with the same identity is excluded by deliverable()
+    // and so is correctly NOT counted as a duplicate.
     template<typename Pred>
     size_t findPending(const char *what, Call::Kind kind, Pred pred) const
     {
         std::optional<size_t> found;
         for (size_t i = 0; i < m_pending.size(); ++i) {
             const Slot &slot = m_pending[i];
-            if (slot.reject && slot.call.kind == kind && pred(slot.call)) {
+            if (deliverable(slot) && slot.call.kind == kind && pred(slot.call)) {
                 if (found) {
-                    qFatal("FakePoeApiClient: two pending %s calls share an identity — a "
-                           "duplicate request is in flight (F49 tripwire)",
+                    qFatal("FakePoeApiClient: two deliverable %s calls share an identity — a "
+                           "duplicate fetch is in flight within one update (F49 tripwire)",
                            what);
                 }
                 found = i;
             }
         }
         if (!found) {
-            qFatal("FakePoeApiClient: no pending %s call matches the requested identity", what);
+            qFatal("FakePoeApiClient: no deliverable %s call matches the requested identity", what);
         }
         return *found;
     }
