@@ -62,11 +62,23 @@ private slots:
     // yet prove the generation guard is replaced (that is W-IDENTITY, 5D).
     void everyCallInAnUpdateSharesOneTokenAndTheNextUpdateGetsAFreshOne(); // W-TOKEN
     void readyFirstListRunsInlineWithoutCorruptingCounters();              // W-INIT (success)
-    void readyFirstListErrorFailsCleanlyWithoutRequestingASecondList();    // W-INIT (error)
+    void readyFirstListErrorAbortsLeavingTheSecondListAStraggler();        // W-INIT (error)
     void exceptionalFetchIsCaughtCountedAndAbortsTheUpdate();              // W-THROW
     void handlerExceptionAbortsToIdleInsteadOfWedging();                   // W-THROW (handler)
     void rootOrchestrationExceptionAbortsToIdle();                         // W-THROW (root)
     void completionsScheduleADeferredSweepThatReclaimsFinishedHandles();   // W-SWEEP
+
+    // Phase 5C — staged batching (verification §3). These prove F56 is resolved:
+    // both lists and each lane's whole content batch go out without worker-side
+    // serialization, folder and Map children batch correctly, source order is
+    // preserved per lane, and a stopped sibling resumes safely.
+    void stagedBatchesRunConcurrentlyPreservingLaneOrder();             // W-F56-*
+    void stoppedSiblingResumesCanceledAndMutatesNothing();              // W-ER1
+    void listFailureWithSiblingContentInFlightTerminatesCleanly();      // W-ER1 (list lane)
+    void readyContentBatchInitializesCountsBeforeInlineCompletion();    // W-INIT (content)
+    void readyContentErrorStillLaunchesTheRestOfTheBatch();             // W-INIT (content error)
+    void readyChildCompletesInlineWithoutCorruptingParentBookkeeping(); // W-INIT (child)
+    void tabsOnlyRequestsBothListsButNoContent();                       // P-SELECTION (TabsOnly)
 };
 
 namespace {
@@ -328,6 +340,25 @@ namespace {
             QVERIFY(drainUntilIdle());
         }
 
+        // Settle every in-flight sibling a first-failure abort left behind, then
+        // drain (verification §2, W-ER1). Under batching a terminal failure
+        // returns the worker to idle immediately (D6), leaving any concurrently
+        // launched request outstanding with the now-stopped shared token.
+        // Production settles those through the limiter's cancellation/transfer
+        // timeout; here the test settles them deterministically Canceled. Their
+        // consumers resume, see the stopped token, mutate nothing, and their
+        // handles are swept — so an ordinary fixture reaches zero pending at
+        // teardown. Returns how many stragglers were settled so a test can pin
+        // it. A clean single-fetch failure leaves none and this is a no-op.
+        size_t settleStragglers()
+        {
+            const size_t settled = api.settleStoppedStragglers();
+            if (!drainUntilIdle()) {
+                qFatal("settleStragglers: the worker never reached quiescence");
+            }
+            return settled;
+        }
+
         // Fail an outstanding stash fetch. The kind is immaterial to every pin
         // here — the worker treats each non-Canceled failure the same way — so
         // these read as "this fetch died" rather than naming a transport error.
@@ -336,6 +367,15 @@ namespace {
                        RateLimit::FetchError::Kind kind = RateLimit::FetchError::Kind::Network)
         {
             api.reject(api.pendingStash(stash_id, substash_id), kind);
+            QVERIFY(drainUntilIdle());
+        }
+
+        // Fail an outstanding top-level list fetch (the stash or character
+        // list), for the scenarios where a list dies while the OTHER lane's
+        // content is already in flight.
+        void failStashList(RateLimit::FetchError::Kind kind = RateLimit::FetchError::Kind::Network)
+        {
+            api.reject(api.pendingStashList(kRealm, kLeague), kind);
             QVERIFY(drainUntilIdle());
         }
 
@@ -479,27 +519,31 @@ void WorkerUpdateTest::failedUpdateKeepsItemsIntact()
     const std::vector<poe::StashTab> fresh_list = stashList(
         {stashJson("stashaaaa1", "Tab A", 0), stashJson("stashbbbb1", "Tab B", 1)});
 
-    // A full update fetches both lists, then one request per tab.
+    // A full update launches both lists at once (D6): neither is held behind
+    // the other.
     f.worker->Update(TabSelection::All);
-    QCOMPARE(f.callCount(), size_t(1));
-    QVERIFY(f.hasPendingStashList());
-    f.deliverStashList(fresh_list);
-
     QCOMPARE(f.callCount(), size_t(2));
+    QVERIFY(f.hasPendingStashList());
     QVERIFY(f.hasPendingCharacterList());
+
+    // The stash list's whole content batch — both tabs — goes out at once, not
+    // one request at a time.
+    f.deliverStashList(fresh_list);
+    QCOMPARE(f.callCount(), size_t(4));
+    QVERIFY(f.hasPendingStash("stashaaaa1"));
+    QVERIFY(f.hasPendingStash("stashbbbb1"));
     f.deliverCharacterList({});
+    QCOMPARE(f.callCount(), size_t(4)); // the empty character list adds no content
 
     // Tab A lands with a new set of items...
-    QCOMPARE(f.callCount(), size_t(3));
-    QVERIFY(f.hasPendingStash("stashaaaa1"));
     f.deliverStash("stashaaaa1",
                    stashOf(stashJson("stashaaaa1",
                                      "Tab A",
                                      0,
                                      QStringList{"a1-new", "a2-new", "a3-new"})));
 
-    // ...then tab B's fetch dies, terminating the update without an emit.
-    QCOMPARE(f.callCount(), size_t(4));
+    // ...then tab B's fetch dies. It was the only sibling still in flight, so
+    // the update terminates with nothing left stranded and no emit.
     QVERIFY(f.hasPendingStash("stashbbbb1"));
     f.failStash("stashbbbb1");
     QCOMPARE(f.refresh_count, 1);
@@ -529,14 +573,11 @@ void WorkerUpdateTest::failedUpdateKeepsItemsIntact()
 // This test used to also pin the stale-reply half of F28 by delivering the
 // same recorded reply three times — once while the worker was idle, once
 // mid-update-2 — which the legacy signal boundary allowed. That half is no
-// longer reachable, so this test no longer covers it: the worker submits
-// strictly serially (SubmitNextItemRequest sends one request, and an update
-// only terminates inside a handler), so nothing is ever in flight at the
-// moment an update aborts, and each fetch settles exactly once. The generation
-// guard ItemsManagerWorker::IsStale() is therefore unexercised today and kept
-// as a defensive check; phase 5's batch submission puts several fetches in
-// flight at once and makes it live again, which is where that pin belongs.
-// See the F28 entry in docs/cleanup/findings.md.
+// longer reachable through this single-tab scenario: each fetch settles
+// exactly once, and this update never has a sibling in flight when it aborts.
+// The cross-update straggler the batch worker CAN produce — a stopped old
+// request that resumes while a new update is active — is pinned separately by
+// W-ER1 and (in 5D) W-IDENTITY. See the F28 entry in docs/cleanup/findings.md.
 void WorkerUpdateTest::failedUpdateDoesNotLeakIntoTheNext()
 {
     WorkerFixture f("worker-update-account-2");
@@ -870,12 +911,12 @@ void WorkerUpdateTest::listedButNeverFetchedTabIsFetchedOnNextUpdate()
     f.deliverStashList(
         stashList({stashJson("stashaaaa1", "Tab A", 0), stashJson("stashnnnn1", "New Tab", 1)}));
 
-    QCOMPARE(f.callCount(), size_t(2));
-    QVERIFY(f.hasPendingStash("stashaaaa1"));
-    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
-
+    // Tab A (selected) and tab N (never fetched, so still new) launch together
+    // as one batch — N is not held behind A.
     QCOMPARE(f.callCount(), size_t(3));
+    QVERIFY(f.hasPendingStash("stashaaaa1"));
     QVERIFY(f.hasPendingStash("stashnnnn1"));
+    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
     f.deliverStash("stashnnnn1", stashOf(stashJson("stashnnnn1", "New Tab", 1, QStringList{"n1"})));
 
     QCOMPARE(f.refresh_count, 2);
@@ -909,11 +950,12 @@ void WorkerUpdateTest::failedFirstFetchDoesNotConsumeNewness()
     f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
     QCOMPARE(f.callCount(), size_t(1));
     f.deliverStashList(list_with_new_tab);
-    QCOMPARE(f.callCount(), size_t(2));
-    QVERIFY(f.hasPendingStash("stashaaaa1"));
-    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    // Tab A (selected) and new tab N launch together.
     QCOMPARE(f.callCount(), size_t(3));
+    QVERIFY(f.hasPendingStash("stashaaaa1"));
     QVERIFY(f.hasPendingStash("stashnnnn1"));
+    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    // N's first fetch dies; A has already landed, so nothing else is stranded.
     f.failStash("stashnnnn1");
     QCOMPARE(f.refresh_count, 1);
 
@@ -922,11 +964,10 @@ void WorkerUpdateTest::failedFirstFetchDoesNotConsumeNewness()
     f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
     QCOMPARE(f.callCount(), size_t(4));
     f.deliverStashList(list_with_new_tab);
-    QCOMPARE(f.callCount(), size_t(5));
-    QVERIFY(f.hasPendingStash("stashaaaa1"));
-    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
     QCOMPARE(f.callCount(), size_t(6));
+    QVERIFY(f.hasPendingStash("stashaaaa1"));
     QVERIFY(f.hasPendingStash("stashnnnn1"));
+    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
     f.deliverStash("stashnnnn1", stashOf(stashJson("stashnnnn1", "New Tab", 1, QStringList{"n1"})));
 
     QCOMPARE(f.refresh_count, 2);
@@ -969,10 +1010,12 @@ void WorkerUpdateTest::failedChildFetchKeepsParentNew()
     f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
     QCOMPARE(f.callCount(), size_t(1));
     f.deliverStashList(list_with_new_map);
-    QCOMPARE(f.callCount(), size_t(2));
-    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    // Tab A and the new Map stash M launch together.
     QCOMPARE(f.callCount(), size_t(3));
+    QVERIFY(f.hasPendingStash("stashaaaa1"));
     QVERIFY(f.hasPendingStash("mapstash01"));
+    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    // M's parent reply discovers one child, launched as its own batch.
     f.deliverStash("mapstash01", map_parent_body);
     QCOMPARE(f.callCount(), size_t(4));
     QVERIFY(f.hasPendingStash("mapstash01", "mapchild01"));
@@ -984,10 +1027,10 @@ void WorkerUpdateTest::failedChildFetchKeepsParentNew()
     f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
     QCOMPARE(f.callCount(), size_t(5));
     f.deliverStashList(list_with_new_map);
-    QCOMPARE(f.callCount(), size_t(6));
-    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
     QCOMPARE(f.callCount(), size_t(7));
+    QVERIFY(f.hasPendingStash("stashaaaa1"));
     QVERIFY(f.hasPendingStash("mapstash01"));
+    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
     f.deliverStash("mapstash01", map_parent_body);
     QCOMPARE(f.callCount(), size_t(8));
     QVERIFY(f.hasPendingStash("mapstash01", "mapchild01"));
@@ -1035,10 +1078,11 @@ void WorkerUpdateTest::cachedParentWithMissingChildRowStaysNew()
     QCOMPARE(f.callCount(), size_t(1));
     f.deliverStashList(stashList(
         {stashJson("stashaaaa1", "Tab A", 0), stashJson("mapstash01", "Maps", 1, {}, "MapStash")}));
-    QCOMPARE(f.callCount(), size_t(2));
-    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    // Tab A and the incomplete parent launch together.
     QCOMPARE(f.callCount(), size_t(3));
+    QVERIFY(f.hasPendingStash("stashaaaa1"));
     QVERIFY(f.hasPendingStash("mapstash01"));
+    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
     f.deliverStash(
         "mapstash01",
         stashOf(stashJson("mapstash01",
@@ -1111,17 +1155,20 @@ void WorkerUpdateTest::knownParentWithNewFailedChildIsRetried()
     f.worker->Update(TabSelection::Selected, {ItemLocation(*map_parent)});
     QCOMPARE(f.callCount(), size_t(1));
     f.deliverStashList(stash_list);
+    // Only the selected Map parent is fetched; tab A is known and unselected.
     QCOMPARE(f.callCount(), size_t(2));
     QVERIFY(f.hasPendingStash("mapstash01"));
     f.deliverStash("mapstash01", parent_with_new_child);
-    QCOMPARE(f.callCount(), size_t(3));
+    // Both children — C1's refetch and the newly introduced C2 — launch
+    // together as one child batch.
+    QCOMPARE(f.callCount(), size_t(4));
     QVERIFY(f.hasPendingStash("mapstash01", "mapchild01"));
+    QVERIFY(f.hasPendingStash("mapstash01", "mapchild02"));
     f.deliverChild(
         "mapstash01",
         "mapchild01",
         stashOf(stashJson("mapchild01", "Tier 1", 0, QStringList{"m1"}, "MapStash", "mapstash01")));
-    QCOMPARE(f.callCount(), size_t(4));
-    QVERIFY(f.hasPendingStash("mapstash01", "mapchild02"));
+    // C2 dies; C1 already landed, so nothing is stranded.
     f.failStash("mapstash01", "mapchild02");
     QCOMPARE(f.refresh_count, 1);
 
@@ -1130,19 +1177,20 @@ void WorkerUpdateTest::knownParentWithNewFailedChildIsRetried()
     f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
     QCOMPARE(f.callCount(), size_t(5));
     f.deliverStashList(stash_list);
-    QCOMPARE(f.callCount(), size_t(6));
-    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    // Tab A and the incomplete parent launch together.
     QCOMPARE(f.callCount(), size_t(7));
+    QVERIFY(f.hasPendingStash("stashaaaa1"));
     QVERIFY(f.hasPendingStash("mapstash01"));
+    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
     f.deliverStash("mapstash01", parent_with_new_child);
-    QCOMPARE(f.callCount(), size_t(8));
+    // Both children launch together.
+    QCOMPARE(f.callCount(), size_t(9));
     QVERIFY(f.hasPendingStash("mapstash01", "mapchild01"));
+    QVERIFY(f.hasPendingStash("mapstash01", "mapchild02"));
     f.deliverChild(
         "mapstash01",
         "mapchild01",
         stashOf(stashJson("mapchild01", "Tier 1", 0, QStringList{"m1"}, "MapStash", "mapstash01")));
-    QCOMPARE(f.callCount(), size_t(9));
-    QVERIFY(f.hasPendingStash("mapstash01", "mapchild02"));
     f.deliverChild(
         "mapstash01",
         "mapchild02",
@@ -1186,24 +1234,24 @@ void WorkerUpdateTest::datastoreFollowsServerDeletions()
 
     // Server-side, Tab B was deleted; the fresh list omits it.
     f.worker->Update(TabSelection::All);
-    QCOMPARE(f.callCount(), size_t(1));
+    QCOMPARE(f.callCount(), size_t(2)); // both lists
     f.deliverStashList(stashList(
         {stashJson("stashaaaa1", "Tab A", 0), stashJson("mapstash01", "Maps", 1, {}, "MapStash")}));
 
+    // Tab A and the Map parent launch as one stash content batch; the character
+    // list is still outstanding.
+    QCOMPARE(f.callCount(), size_t(4));
+    QVERIFY(f.hasPendingStash("stashaaaa1"));
+    QVERIFY(f.hasPendingStash("mapstash01"));
     // Tab B's row is gone at list receipt; the Map child row survives.
     QCOMPARE(storedStashIds(store), QStringList({"mapchild01", "mapstash01", "stashaaaa1"}));
 
-    QCOMPARE(f.callCount(), size_t(2));
     f.deliverCharacterList({});
-
-    QCOMPARE(f.callCount(), size_t(3));
-    QVERIFY(f.hasPendingStash("stashaaaa1"));
+    QCOMPARE(f.callCount(), size_t(4)); // the empty character list adds no content
     f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
 
     // The Map parent's reply lists a different child: the old child row is
-    // replaced in the datastore.
-    QCOMPARE(f.callCount(), size_t(4));
-    QVERIFY(f.hasPendingStash("mapstash01"));
+    // replaced in the datastore and the new child launches.
     f.deliverStash(
         "mapstash01",
         stashOf(stashJson("mapstash01",
@@ -1397,21 +1445,21 @@ void WorkerUpdateTest::everyCallInAnUpdateSharesOneTokenAndTheNextUpdateGetsAFre
     const auto s1 = stashJson("stok1", "Tab S1", 0);
 
     f.worker->Update(TabSelection::All);
-    // Call 0: the stash list. Its token is a real update token — it can be
-    // stopped (non-default) and has not been stopped yet.
-    QCOMPARE(f.callCount(), size_t(1));
+    // Calls 0 and 1: both lists, issued up front under one update token that can
+    // be stopped (non-default) and has not been stopped yet.
+    QCOMPARE(f.callCount(), size_t(2));
     const std::stop_token token = f.api.call(0).token;
     QVERIFY(token.stop_possible());
     QVERIFY(!token.stop_requested());
+    QVERIFY(f.api.call(1).token == token); // the character list shares it
 
     f.deliverStashList(stashList({s1}));
-    QCOMPARE(f.callCount(), size_t(2)); // + character list
-    f.deliverCharacterList({});
     QCOMPARE(f.callCount(), size_t(3)); // + content fetch for stok1
+    f.deliverCharacterList({});
+    QCOMPARE(f.callCount(), size_t(3)); // the empty character list adds no content
 
-    // Every call so far shares the one update token — the same object identity,
+    // The content fetch shares the same update token — the same object identity,
     // not merely an equal value.
-    QVERIFY(f.api.call(1).token == token);
     QVERIFY(f.api.call(2).token == token);
 
     // A terminal failure stops that shared token (first-failure stop).
@@ -1421,13 +1469,15 @@ void WorkerUpdateTest::everyCallInAnUpdateSharesOneTokenAndTheNextUpdateGetsAFre
     QCOMPARE(f.refresh_count, 1);
 
     // The next update gets a fresh source: its token can still be stopped, has
-    // not been, and is a different token from the stopped one.
+    // not been, and is a different token from the stopped one — and both its
+    // lists share that new token.
     f.worker->Update(TabSelection::All);
-    QCOMPARE(f.callCount(), size_t(4));
+    QCOMPARE(f.callCount(), size_t(5));
     const std::stop_token token2 = f.api.call(3).token;
     QVERIFY(token2.stop_possible());
     QVERIFY(!token2.stop_requested());
     QVERIFY(token2 != token);
+    QVERIFY(f.api.call(4).token == token2);
 
     // Run the second update to a clean terminal state so teardown finds nothing
     // pending.
@@ -1451,16 +1501,17 @@ void WorkerUpdateTest::readyFirstListRunsInlineWithoutCorruptingCounters()
     f.api.preresolveStashList(stashList({stashJson("sready1", "Tab R1", 0)}));
 
     f.worker->Update(TabSelection::All);
-    // The ready stash list was processed inline during launch: the character
-    // list is already requested, but nothing finalized and no content fetch was
-    // launched yet (it waits on the character list).
-    QCOMPARE(f.callCount(), size_t(2));
+    // The ready stash list ran inline during launch: it processed its tab and
+    // launched that tab's content batch immediately (D6, not held behind the
+    // character list), then RunUpdate issued the character list. The needed
+    // counter was initialized before that inline content launch, so nothing
+    // finalized early or corrupted the run.
+    QCOMPARE(f.callCount(), size_t(3)); // stash list + sready1 content + character list
     QVERIFY(f.hasPendingCharacterList());
+    QVERIFY(f.hasPendingStash("sready1"));
     QCOMPARE(f.refresh_count, 1);
 
     f.deliverCharacterList({});
-    QCOMPARE(f.callCount(), size_t(3));
-    QVERIFY(f.hasPendingStash("sready1"));
     f.deliverStash("sready1", stashOf(stashJson("sready1", "Tab R1", 0, QStringList{"r1"})));
 
     // The inline-ready first list did not corrupt the run: exactly one fresh
@@ -1470,10 +1521,11 @@ void WorkerUpdateTest::readyFirstListRunsInlineWithoutCorruptingCounters()
 }
 
 // W-INIT (error): a first list whose future is already finished with a FAILURE
-// runs inline during launch and aborts the update cleanly — no early emit, and
-// the character list is never requested because the stash-list failure ends the
-// update before the serial path reaches it.
-void WorkerUpdateTest::readyFirstListErrorFailsCleanlyWithoutRequestingASecondList()
+// runs inline during launch and aborts the update cleanly — no early emit. The
+// character list is still issued (D6: every required list is launched even when
+// an earlier ready failure has already stopped the token), so it comes back a
+// stopped straggler that settles Canceled and mutates nothing.
+void WorkerUpdateTest::readyFirstListErrorAbortsLeavingTheSecondListAStraggler()
 {
     WorkerFixture f("winit-err");
     f.start();
@@ -1482,10 +1534,18 @@ void WorkerUpdateTest::readyFirstListErrorFailsCleanlyWithoutRequestingASecondLi
     f.api.prerejectStashList(RateLimit::FetchError::Kind::Network);
 
     f.worker->Update(TabSelection::All);
-    // Only the stash list was ever issued, and it failed inline: no character
-    // list, no content, no emit.
-    QCOMPARE(f.callCount(), size_t(1));
+    // Both lists were launched. The stash list failed inline and stopped the
+    // shared token before the update went idle; the character list still went
+    // out and now carries that stopped token — a straggler, not deliverable. No
+    // content, no emit.
+    QCOMPARE(f.callCount(), size_t(2));
     QVERIFY(!f.hasPendingCharacterList());
+    QCOMPARE(f.api.stoppedStragglerCount(), size_t(1));
+    QCOMPARE(f.refresh_count, 1);
+
+    // Settling the straggler Canceled mutates nothing and leaves no emit; the
+    // worker is already idle.
+    QCOMPARE(f.settleStragglers(), size_t(1));
     QCOMPARE(f.refresh_count, 1);
     QCOMPARE(f.api.pendingCount(), size_t(0));
 
@@ -1622,19 +1682,20 @@ void WorkerUpdateTest::completionsScheduleADeferredSweepThatReclaimsFinishedHand
 
     f.worker->Update(TabSelection::All);
 
-    // The stash-list completion schedules and runs one deferred sweep. That
-    // sweep destroys the finished stash-list handle but PRESERVES the still-
-    // suspended character-list handle it left in flight — only ready handles are
-    // reclaimed; destroying a suspended one would detach, not stop, it.
+    // The stash-list completion launches its content batch and schedules one
+    // deferred sweep. That sweep destroys the finished stash-list handle but
+    // PRESERVES the two suspended handles it left in flight — the still-pending
+    // character list and the just-launched content fetch. Only ready handles
+    // are reclaimed; destroying a suspended one would detach, not stop, it.
     f.deliverStashList(stashList({s1}));
     QCOMPARE(f.sweep.executed, 1);
     QCOMPARE(f.sweep.destroyed, 1);
-    QCOMPARE(f.sweep.live_after, size_t(1)); // the suspended character-list handle survived
-    QCOMPARE(f.worker->OutstandingFetchTasksForTest(), size_t(1));
+    QCOMPARE(f.sweep.live_after, size_t(2)); // character list + content, both suspended
+    QCOMPARE(f.worker->OutstandingFetchTasksForTest(), size_t(2));
 
     // The character-list completion schedules another sweep (a later completion
     // always schedules its own), which reclaims the character-list handle and
-    // leaves the newly suspended content handle live.
+    // leaves the suspended content handle live.
     f.deliverCharacterList({});
     QCOMPARE(f.sweep.executed, 2);
     QCOMPARE(f.sweep.destroyed, 2);
@@ -1648,6 +1709,408 @@ void WorkerUpdateTest::completionsScheduleADeferredSweepThatReclaimsFinishedHand
     QCOMPARE(f.sweep.destroyed, 3);
     QCOMPARE(f.sweep.live_after, size_t(0));
     QCOMPARE(f.worker->OutstandingFetchTasksForTest(), size_t(0));
+}
+
+// W-F56 headline (verification §3): the batch worker submits both lists and each
+// lane's complete content batch without one-at-a-time serialization. One scenario
+// covers W-F56-LISTS (both lists up front), W-F56-CONTENT (each list's whole
+// content batch; character work in flight while stash work is outstanding),
+// W-F56-CHILDREN (folder children join the list batch; reply-discovered Map
+// children launch as one batch), and W-F56-ORDER (deliberately non-sorted
+// identities keep source traversal order within each lane, with no global lane
+// order asserted). It FAILS if SubmitNextItemRequest-style serialization returns:
+// a serial worker would leave only one content fetch in flight at a time, so the
+// simultaneous-pending and lane-order assertions below could not all hold.
+void WorkerUpdateTest::stagedBatchesRunConcurrentlyPreservingLaneOrder()
+{
+    WorkerFixture f("wf56");
+    f.settings.setValue("get_map_stashes", true);
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    // A stash list in deliberately non-sorted order: s_zzz1 (sorts LAST) is
+    // listed first, a folder with two nested children sits in the middle, and a
+    // Map stash is last. A serial or sorted worker would not launch these in
+    // this order.
+    const std::vector<poe::StashTab> stashes = stashList(
+        {stashJson("s_zzz1", "Zzz Tab", 5),
+         stashJson("s_aaa1", "Aaa Tab", 2),
+         stashJson("fold01",
+                   "My Folder",
+                   0,
+                   {},
+                   "Folder",
+                   {},
+                   {stashJson("fchild1", "Child One", 0, {}, "PremiumStash", "fold01"),
+                    stashJson("fchild2", "Child Two", 1, {}, "PremiumStash", "fold01")}),
+         stashJson("map01", "Maps", 9, {}, "MapStash")});
+    const std::vector<poe::Character> characters = characterList(
+        {characterJson("zedid00001", "Zed"), characterJson("annid00001", "Ann")});
+
+    // A full update issues both lists at once.
+    f.worker->Update(TabSelection::All);
+    QCOMPARE(f.callCount(), size_t(2));
+    QVERIFY(f.hasPendingStashList());
+    QVERIFY(f.hasPendingCharacterList());
+
+    // The stash list's whole content batch goes out at once: the two plain tabs,
+    // the folder, its two recursively discovered children (which join this list
+    // batch), and the Map parent — six fetches, none held behind another.
+    f.deliverStashList(stashes);
+    QCOMPARE(f.callCount(), size_t(8));
+    QVERIFY(f.hasPendingStash("s_zzz1"));
+    QVERIFY(f.hasPendingStash("s_aaa1"));
+    QVERIFY(f.hasPendingStash("fold01"));
+    QVERIFY(f.hasPendingStash("fchild1"));
+    QVERIFY(f.hasPendingStash("fchild2"));
+    QVERIFY(f.hasPendingStash("map01"));
+
+    // W-F56-ORDER: within the stash lane the launch order is the list's source
+    // traversal order (folder children immediately after their folder), NOT the
+    // ids' sorted order — s_zzz1 sorts last but launched first.
+    QCOMPARE(f.api.call(2).stash_id, QString("s_zzz1"));
+    QCOMPARE(f.api.call(3).stash_id, QString("s_aaa1"));
+    QCOMPARE(f.api.call(4).stash_id, QString("fold01"));
+    QCOMPARE(f.api.call(5).stash_id, QString("fchild1"));
+    QCOMPARE(f.api.call(6).stash_id, QString("fchild2"));
+    QCOMPARE(f.api.call(7).stash_id, QString("map01"));
+
+    // The character list's content batch launches from its own handler — while
+    // every stash fetch above is still outstanding. This is the cross-lane
+    // concurrency F56 is about: character work is not queued behind stash work.
+    f.deliverCharacterList(characters);
+    QCOMPARE(f.callCount(), size_t(10));
+    QVERIFY(f.hasPendingCharacter("Zed"));
+    QVERIFY(f.hasPendingCharacter("Ann"));
+    QVERIFY(f.hasPendingStash("s_zzz1")); // stash lane still outstanding meanwhile
+    QVERIFY(f.hasPendingStash("map01"));
+    // Character lane keeps its own source order (Zed before Ann, though Ann sorts
+    // first). No order is asserted BETWEEN the lanes.
+    QCOMPARE(f.api.call(8).name, QString("Zed"));
+    QCOMPARE(f.api.call(9).name, QString("Ann"));
+
+    // Deliver the whole population in a deliberately scrambled order — arbitrary
+    // completion order is supported.
+    f.deliverStash("s_aaa1", stashOf(stashJson("s_aaa1", "Aaa Tab", 2, QStringList{"a1"})));
+    f.deliverCharacter("Ann", characterOf(characterJson("annid00001", "Ann", QStringList{"ann1"})));
+    f.deliverStash("fchild2", stashOf(stashJson("fchild2", "Child Two", 1, QStringList{"fc2"})));
+
+    // The Map parent's reply discovers two children; they launch as one complete
+    // child batch (W-F56-CHILDREN), not one at a time.
+    f.deliverStash("map01",
+                   stashOf(stashJson("map01",
+                                     "Maps",
+                                     9,
+                                     QStringList{"mp1"},
+                                     "MapStash",
+                                     {},
+                                     {stashJson("mc1", "Tier 1", 0, {}, "MapStash", "map01"),
+                                      stashJson("mc2", "Tier 2", 1, {}, "MapStash", "map01")})));
+    QCOMPARE(f.callCount(), size_t(12));
+    QVERIFY(f.hasPendingStash("map01", "mc1"));
+    QVERIFY(f.hasPendingStash("map01", "mc2"));
+
+    f.deliverStash("s_zzz1", stashOf(stashJson("s_zzz1", "Zzz Tab", 5, QStringList{"z1"})));
+    f.deliverStash("fold01", stashOf(stashJson("fold01", "My Folder", 0, {}, "Folder")));
+    f.deliverCharacter("Zed", characterOf(characterJson("zedid00001", "Zed", QStringList{"zed1"})));
+    f.deliverStash("fchild1", stashOf(stashJson("fchild1", "Child One", 0, QStringList{"fc1"})));
+    f.deliverChild("map01",
+                   "mc2",
+                   stashOf(stashJson("mc2", "Tier 2", 1, QStringList{"m2"}, "MapStash", "map01")));
+    // Still one child outstanding: the update has not finished.
+    QCOMPARE(f.refresh_count, 1);
+    f.deliverChild("map01",
+                   "mc1",
+                   stashOf(stashJson("mc1", "Tier 1", 0, QStringList{"m1"}, "MapStash", "map01")));
+
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(sortedItemIds(f.last_items),
+             QStringList({"a1", "ann1", "fc1", "fc2", "m1", "m2", "mp1", "z1", "zed1"}));
+}
+
+// W-ER1 (verification §3): two worker fetches are in flight under one shared
+// token; one fails terminally, which stops the token and returns the worker to
+// idle immediately, leaving the sibling as a straggler. When the sibling settles
+// Canceled its consumer resumes, sees the stopped token, and returns without
+// running the handler — it mutates no state, emits nothing, causes no second
+// terminal transition, and adds no failure that could corrupt the next update.
+void WorkerUpdateTest::stoppedSiblingResumesCanceledAndMutatesNothing()
+{
+    WorkerFixture f("wer1");
+
+    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"}));
+    const auto tab_b = json::readStash(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b1"}));
+    QVERIFY(tab_a && tab_b);
+    {
+        UserStore store(QDir(f.dataDir()), "wer1");
+        QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b}, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*tab_b, kRealm, kLeague));
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "b1"}));
+
+    const std::vector<poe::StashTab> fresh = stashList(
+        {stashJson("stashaaaa1", "Tab A", 0), stashJson("stashbbbb1", "Tab B", 1)});
+
+    f.worker->Update(TabSelection::All);
+    QCOMPARE(f.callCount(), size_t(2));
+    f.deliverStashList(fresh);
+    // Both tab contents are in flight at once under the same update token.
+    QCOMPARE(f.callCount(), size_t(4));
+    QVERIFY(f.hasPendingStash("stashaaaa1"));
+    QVERIFY(f.hasPendingStash("stashbbbb1"));
+    f.deliverCharacterList({});
+    const std::stop_token token = f.api.call(2).token;
+    QVERIFY(token.stop_possible());
+    QVERIFY(f.api.call(3).token == token); // the sibling shares the token
+
+    // Tab A's fetch fails: first-failure stops the shared token and the update
+    // goes idle at once, leaving tab B's fetch in flight as a straggler.
+    f.failStash("stashaaaa1");
+    QVERIFY(token.stop_requested());
+    QCOMPARE(f.refresh_count, 1);
+    QCOMPARE(f.api.stoppedStragglerCount(), size_t(1));
+
+    const QStringList before = sortedItemIds(f.last_items);
+
+    // The sibling settles Canceled and resumes: no emit, no state change, no
+    // second terminal transition.
+    QCOMPARE(f.settleStragglers(), size_t(1));
+    QCOMPARE(f.refresh_count, 1);
+    QCOMPARE(sortedItemIds(f.last_items), before);
+
+    // The straggler carried no failure or corruption into the next update, which
+    // completes cleanly.
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(fresh);
+    f.deliverCharacterList({});
+    f.deliverStash("stashaaaa1",
+                   stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1-new"})));
+    f.deliverStash("stashbbbb1",
+                   stashOf(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b1-new"})));
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1-new", "b1-new"}));
+}
+
+// W-ER1 (list lane): the character list succeeds and launches its content while
+// the stash list is still outstanding; then the stash list fails. First-failure
+// must terminate the update immediately (D6), snapping BOTH lane counters — not
+// only the list flags — so it does not wedge waiting on the character content it
+// just abandoned. Without the content-counter snap in the list-failure branch,
+// CheckUpdateFinished would never see items_received and the worker would hang in
+// Updating, refusing the next update.
+void WorkerUpdateTest::listFailureWithSiblingContentInFlightTerminatesCleanly()
+{
+    WorkerFixture f("wer1-list");
+
+    const auto char_1 = json::readCharacter(
+        characterJson("charid0001", "CharOne", QStringList{"c1"}));
+    QVERIFY(char_1);
+    {
+        UserStore store(QDir(f.dataDir()), "wer1-list");
+        QVERIFY(store.characters().saveCharacterList({*char_1}));
+        QVERIFY(store.characters().saveCharacter(*char_1));
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    f.worker->Update(TabSelection::All);
+    QCOMPARE(f.callCount(), size_t(2));
+    // The character list arrives first and launches its content while the stash
+    // list is still in flight.
+    f.deliverCharacterList(characterList({characterJson("charid0001", "CharOne")}));
+    QCOMPARE(f.callCount(), size_t(3));
+    QVERIFY(f.hasPendingCharacter("CharOne"));
+    QVERIFY(f.hasPendingStashList());
+
+    // Now the stash list fails. The update must return to idle at once, leaving
+    // the character content as a stopped straggler — not wedge on it.
+    f.failStashList();
+    QCOMPARE(f.refresh_count, 1);
+    QCOMPARE(f.api.stoppedStragglerCount(), size_t(1)); // the character content
+    QCOMPARE(f.settleStragglers(), size_t(1));
+
+    // Not wedged: a fresh update is accepted and completes.
+    f.worker->Update(TabSelection::All);
+    QCOMPARE(f.callCount(), size_t(5)); // + both lists of the recovery update
+    f.deliverStashList({});
+    f.deliverCharacterList(characterList({characterJson("charid0001", "CharOne")}));
+    f.deliverCharacter("CharOne",
+                       characterOf(characterJson("charid0001", "CharOne", QStringList{"c1-new"})));
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"c1-new"}));
+}
+
+// W-INIT (content batch): both content fetches of a stash batch come back
+// already-finished and run inline during the launch loop. Because the whole
+// batch's needed counter is initialized before the first launch, the first
+// inline completion cannot finalize the update on its own — only after BOTH
+// complete does it finish, with both tabs' items. The character list is
+// delivered first so both lists are already done when the ready batch launches,
+// which is exactly the ordering under which an incrementally initialized counter
+// would finalize early after only one tab.
+void WorkerUpdateTest::readyContentBatchInitializesCountsBeforeInlineCompletion()
+{
+    WorkerFixture f("winit-content");
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    f.api.preresolveStash(stashOf(stashJson("sc_a", "Tab A", 0, QStringList{"a1"})));
+    f.api.preresolveStash(stashOf(stashJson("sc_b", "Tab B", 1, QStringList{"b1"})));
+
+    f.worker->Update(TabSelection::All);
+    QCOMPARE(f.callCount(), size_t(2));
+    f.deliverCharacterList({}); // both lists done before the ready batch launches
+    f.deliverStashList(stashList({stashJson("sc_a", "Tab A", 0), stashJson("sc_b", "Tab B", 1)}));
+
+    // Both ready fetches ran inline; the update finished exactly once, with both.
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "b1"}));
+}
+
+// W-INIT (content batch, inline error): the first fetch of a stash batch comes
+// back already-failed. The inline failure stops the shared token and returns the
+// worker to idle, but the whole initialized batch must still be launched — the
+// second fetch goes out carrying the stopped token and becomes a straggler. A
+// launch loop that bailed on the inline failure would never issue it.
+void WorkerUpdateTest::readyContentErrorStillLaunchesTheRestOfTheBatch()
+{
+    WorkerFixture f("winit-content-err");
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    f.api.prerejectStash(RateLimit::FetchError::Kind::Network);
+
+    f.worker->Update(TabSelection::All);
+    f.deliverCharacterList({});
+    f.deliverStashList(stashList({stashJson("sc_a", "Tab A", 0), stashJson("sc_b", "Tab B", 1)}));
+
+    // Both content fetches were issued even though the first failed inline: sc_a
+    // is settled (ready-error), sc_b is a stopped straggler.
+    QCOMPARE(f.callCount(), size_t(4));
+    QCOMPARE(f.refresh_count, 1);
+    QVERIFY(!f.hasPendingStash("sc_a"));
+    QCOMPARE(f.api.stoppedStragglerCount(), size_t(1));
+
+    QCOMPARE(f.settleStragglers(), size_t(1));
+    QCOMPARE(f.refresh_count, 1);
+    QCOMPARE(f.api.pendingCount(), size_t(0));
+
+    // Recovery: the inline failure did not wedge the worker.
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(stashList({stashJson("sc_a", "Tab A", 0), stashJson("sc_b", "Tab B", 1)}));
+    f.deliverCharacterList({});
+    f.deliverStash("sc_a", stashOf(stashJson("sc_a", "Tab A", 0, QStringList{"a1"})));
+    f.deliverStash("sc_b", stashOf(stashJson("sc_b", "Tab B", 1, QStringList{"b1"})));
+    QCOMPARE(f.refresh_count, 2);
+}
+
+// W-INIT (child batch): a Map parent's reply discovers two children and one of
+// them comes back already-finished, running inline during the child batch launch.
+// Because m_pending_children and the child count are set before the launch, the
+// inline child completion neither finalizes the update early nor marks the parent
+// contents-known before its last child lands — the update finishes only after the
+// second child arrives, with both children's items.
+void WorkerUpdateTest::readyChildCompletesInlineWithoutCorruptingParentBookkeeping()
+{
+    WorkerFixture f("winit-child");
+    f.settings.setValue("get_map_stashes", true);
+
+    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"}));
+    QVERIFY(tab_a);
+    {
+        UserStore store(QDir(f.dataDir()), "winit-child");
+        QVERIFY(store.stashes().saveStashList({*tab_a}, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(stashList(
+        {stashJson("stashaaaa1", "Tab A", 0), stashJson("map01", "Maps", 1, {}, "MapStash")}));
+    f.deliverCharacterList({});
+    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+
+    // Arm the first child to come back already-finished, then deliver the parent:
+    // its reply launches the [mc1, mc2] child batch and mc1 completes inline.
+    f.api.preresolveStash(
+        stashOf(stashJson("mc1", "Tier 1", 0, QStringList{"m1"}, "MapStash", "map01")));
+    f.deliverStash("map01",
+                   stashOf(stashJson("map01",
+                                     "Maps",
+                                     1,
+                                     QStringList{"mp1"},
+                                     "MapStash",
+                                     {},
+                                     {stashJson("mc1", "Tier 1", 0, {}, "MapStash", "map01"),
+                                      stashJson("mc2", "Tier 2", 1, {}, "MapStash", "map01")})));
+
+    // mc1 ran inline, but the update is NOT finished: mc2 is still outstanding.
+    QCOMPARE(f.refresh_count, 1);
+    QVERIFY(!f.hasPendingStash("map01", "mc1")); // ready, settled inline
+    QVERIFY(f.hasPendingStash("map01", "mc2"));
+
+    f.deliverChild("map01",
+                   "mc2",
+                   stashOf(stashJson("mc2", "Tier 2", 1, QStringList{"m2"}, "MapStash", "map01")));
+
+    // Only now does the update finish, with the parent's and both children's items.
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "m1", "m2", "mp1"}));
+}
+
+// P-SELECTION (TabsOnly): a TabsOnly update requests BOTH lists (like All) but
+// fetches no tab or character content — the lists refresh metadata only. Under
+// batching this means each list handler's content batch is empty, and the update
+// finishes on the two list receipts alone.
+void WorkerUpdateTest::tabsOnlyRequestsBothListsButNoContent()
+{
+    WorkerFixture f("tabsonly");
+
+    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Old Name", 0, QStringList{"a1"}));
+    const auto char_1 = json::readCharacter(
+        characterJson("charid0001", "CharOne", QStringList{"c1"}));
+    QVERIFY(tab_a && char_1);
+    {
+        UserStore store(QDir(f.dataDir()), "tabsonly");
+        QVERIFY(store.stashes().saveStashList({*tab_a}, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+        QVERIFY(store.characters().saveCharacterList({*char_1}));
+        QVERIFY(store.characters().saveCharacter(*char_1));
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    f.worker->Update(TabSelection::TabsOnly);
+    // Both lists are requested, exactly as a full update.
+    QCOMPARE(f.callCount(), size_t(2));
+    QVERIFY(f.hasPendingStashList());
+    QVERIFY(f.hasPendingCharacterList());
+
+    // Each list refreshes metadata (tab A renamed) but launches no content.
+    f.deliverStashList(stashList({stashJson("stashaaaa1", "New Name", 0)}));
+    f.deliverCharacterList(characterList({characterJson("charid0001", "CharOne")}));
+
+    // No content fetch was ever issued, and the update finished on the lists
+    // alone with the fresh metadata applied.
+    QCOMPARE(f.callCount(), size_t(2));
+    QCOMPARE(f.refresh_count, 2);
+    const auto renamed = std::find_if(f.last_tabs.cbegin(),
+                                      f.last_tabs.cend(),
+                                      [](const ItemLocation &tab) {
+                                          return tab.id() == "stashaaaa1";
+                                      });
+    QVERIFY(renamed != f.last_tabs.cend());
+    QCOMPARE(renamed->tab_label(), QString("New Name"));
+    // The cached items survived untouched (no content refetch).
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "c1"}));
 }
 
 QTEST_GUILESS_MAIN(WorkerUpdateTest)

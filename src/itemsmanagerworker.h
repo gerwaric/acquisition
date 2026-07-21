@@ -187,19 +187,25 @@ private:
     void RemoveItemsFetchedBy(const QString &fetch_id);
     void RebaseItemLocations(ItemLocationType type);
     void QueueRequest(std::variant<StashFetch, CharacterFetch> what, const ItemLocation &location);
-    void FetchItems();
     void SubmitStashListRequest();
     void SubmitCharacterListRequest();
-    void SubmitNextItemRequest();
+    // Drain the accumulated request queue and launch the whole batch at once
+    // (D6, F56): no worker-side pacing, no one-at-a-time submission. Called once
+    // per policy lane as its list result is processed, and again for each
+    // parent reply's discovered child batch. The whole batch's needed counters
+    // are initialized before its first launch, because a ready/fail-fast future
+    // runs its completion synchronously inside the launch loop (IR2/S1-6).
+    void LaunchQueuedContent();
     bool IsStale(int generation) const;
 
     // The root update task (D6): launches the update's required list(s) and
     // reconciles the terminal state through the completion counters. Owns no
     // flow control of its own — the per-fetch tasks self-drive. Its whole body
     // is wrapped in a catch-all so a throw in orchestration itself aborts and
-    // finalizes rather than escaping (R5-1 root catch-all). 5B keeps list and
-    // content submission serial; 5C launches both lists and the full content
-    // batch from here.
+    // finalizes rather than escaping (R5-1 root catch-all). It launches every
+    // required list without awaiting one another (D6); each list handler then
+    // launches its own complete content batch, so character content is never
+    // held behind the stash list.
     QCoro::Task<> RunUpdate();
 
     // Per-fetch tasks (D6): each co_awaits one facade future via

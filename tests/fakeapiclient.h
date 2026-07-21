@@ -343,6 +343,24 @@ public:
                                                 .characters = std::move(characters)});
     }
 
+    // Arm the next stash content (or child) fetch to come back already-finished.
+    // Per-kind FIFO: arming several applies to successive GetStash calls in the
+    // order they are launched, so a whole ready content batch can be scripted.
+    // These drive the content/child variants of the initialize-before-launch
+    // invariant (W-INIT): a ready fetch runs its handler inline in the batch
+    // launch loop, and must not finalize early or corrupt the counters and
+    // parent bookkeeping that were set before the launch.
+    void preresolveStash(poe::StashTab stash)
+    {
+        armReady<poe::StashWrapper>(Call::Kind::GetStash,
+                                    poe::StashWrapper{.stash = std::move(stash)});
+    }
+
+    void prerejectStash(RateLimit::FetchError::Kind kind)
+    {
+        armRejected<poe::StashWrapper>(Call::Kind::GetStash, kind);
+    }
+
     // Settle every stopped straggler Canceled, exactly once, and return how
     // many were settled. This is the deterministic straggler path the worker's
     // shared-token cancellation needs: it scans the LIVE slots (never call

@@ -525,9 +525,17 @@ QCoro::Task<> ItemsManagerWorker::RunUpdate()
         spdlog::trace("ItemsManagerWorker: starting the update");
         // Root orchestration fault site (test-only; no-op in production).
         FireFaultHook();
+        // Launch every required list without awaiting one another (D6): with
+        // ordinary pending futures both are concurrently outstanding, resolving
+        // F56's one-lane serialization. Each submission is made unconditionally
+        // even if the first ran a ready/fail-fast handler inline that already
+        // stopped the token — the second list simply carries that stopped token
+        // and completes through the ordinary cancellation path. Every per-update
+        // counter was initialized in Update() before this launch (IR2/S1-6).
         if (m_need_stash_list) {
             SubmitStashListRequest();
-        } else if (m_need_character_list) {
+        }
+        if (m_need_character_list) {
             SubmitCharacterListRequest();
         }
         CheckUpdateFinished();
@@ -784,15 +792,18 @@ void ItemsManagerWorker::OnStashListReceived(const Result<poe::StashListWrapper>
                      RateLimit::ToString(result.error().kind),
                      result.error().message);
         // First-failure stop (D2): request_stop on the update's token so any
-        // straggler resolves Canceled and returns silently. In 5B's serial
-        // submission nothing else is in flight, so this only stamps the token
-        // (which W-TOKEN reads and the next update replaces); it becomes
-        // load-bearing once 5C puts siblings in flight. Overlaps the existing
-        // queue-clear + counter-snap abort bookkeeping.
+        // sibling in flight — the character list or its content, already
+        // launched concurrently (D6) — resolves Canceled and returns silently.
+        // Snap the content counters to received as well as the list flags: the
+        // first terminal failure returns the worker to idle immediately rather
+        // than waiting on those siblings (D6), so CheckUpdateFinished must see a
+        // reconciled state now, not once the stragglers settle.
         StopUpdateForFailure();
         ++m_request_failures;
         m_has_stash_list = true;
         m_has_character_list = true;
+        m_stashes_needed = m_stashes_received;
+        m_characters_needed = m_characters_received;
         m_queue = {};
         CheckUpdateFinished();
         return;
@@ -846,13 +857,12 @@ void ItemsManagerWorker::OnStashListReceived(const Result<poe::StashListWrapper>
 
     m_has_stash_list = true;
 
-    // Check to see if we can start sending queued requests to fetch items yet.
-    if (m_need_character_list && !m_has_character_list) {
-        SubmitCharacterListRequest();
-    } else {
-        spdlog::trace("ItemsManagerWorker::OnOAuthStashListReceived() fetching items");
-        FetchItems();
-    }
+    // Launch this list's complete stash content batch now (D6): it is never
+    // held behind the character list, which RunUpdate already requested and
+    // whose own content launches from its handler. ProcessTab accumulated the
+    // batch above in source traversal order; LaunchQueuedContent drains it all
+    // at once.
+    LaunchQueuedContent();
     CheckUpdateFinished();
 }
 
@@ -865,16 +875,17 @@ void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterList
                      "({}): {}",
                      RateLimit::ToString(result.error().kind),
                      result.error().message);
-        // First-failure stop (D2): request_stop on the update's token so any
-        // straggler resolves Canceled and returns silently. In 5B's serial
-        // submission nothing else is in flight, so this only stamps the token
-        // (which W-TOKEN reads and the next update replaces); it becomes
-        // load-bearing once 5C puts siblings in flight. Overlaps the existing
-        // queue-clear + counter-snap abort bookkeeping.
+        // First-failure stop (D2): request_stop so any sibling in flight — the
+        // stash list or its content, launched concurrently (D6) — resolves
+        // Canceled and returns silently. Snap the content counters to received
+        // as well as the list flags so CheckUpdateFinished terminates the update
+        // immediately rather than waiting on those stragglers (D6).
         StopUpdateForFailure();
         ++m_request_failures;
         m_has_stash_list = true;
         m_has_character_list = true;
+        m_stashes_needed = m_stashes_received;
+        m_characters_needed = m_characters_received;
         m_queue = {};
         CheckUpdateFinished();
         return;
@@ -952,11 +963,9 @@ void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterList
 
     m_has_character_list = true;
 
-    // Check to see if we can start sending queued requests to fetch items yet.
-    if (!m_need_stash_list || m_has_stash_list) {
-        spdlog::trace("ItemsManagerWorker::OnOAuthCharacterListReceived() fetching items");
-        FetchItems();
-    }
+    // Launch this list's complete character content batch now (D6): it is
+    // independent of the stash lane, so it is never held behind the stash list.
+    LaunchQueuedContent();
     CheckUpdateFinished();
 }
 
@@ -1042,10 +1051,12 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
             }
             // The child's items display under the parent's location, but
             // they are fetched (and atomically replaced) by the child's id.
+            // Queue the whole child batch first; LaunchQueuedContent below
+            // counts it into m_stashes_needed before launching any of it, so a
+            // ready child future cannot complete against a half-tallied count.
             ItemLocation child_location = location;
             child_location.setFetchId(child.id);
             QueueRequest(StashFetch{stash.id, child.id}, child_location);
-            ++m_stashes_needed;
         }
     }
 
@@ -1114,7 +1125,12 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
         }
     }
 
-    SubmitNextItemRequest();
+    // Launch the child batch (D6): reply-discovered Map/Unique children go out
+    // as one complete batch, with m_pending_children[parent] already set above
+    // so a ready child's completion sees the pending count. No children queued
+    // (a normal tab, or a parent whose children are disabled) makes this a
+    // no-op.
+    LaunchQueuedContent();
     CheckUpdateFinished();
 }
 
@@ -1168,7 +1184,8 @@ void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterWrapper>
     ++m_characters_received;
     SendStatusUpdate();
 
-    SubmitNextItemRequest();
+    // No follow-up launch (D6): a character reply discovers no children, and its
+    // whole content batch went out at once when the character list arrived.
     CheckUpdateFinished();
 }
 
@@ -1183,27 +1200,31 @@ void ItemsManagerWorker::QueueRequest(std::variant<StashFetch, CharacterFetch> w
     m_queue.push(items_request);
 }
 
-void ItemsManagerWorker::FetchItems()
+void ItemsManagerWorker::LaunchQueuedContent()
 {
-    spdlog::trace("ItemsManagerWorker::FetchItems() entered");
-
-    if (!m_update_tab_contents) {
-        spdlog::trace("ItemsManagerWorker: not fetching items.");
-        CheckUpdateFinished();
+    // The whole accumulated batch goes out at once (D6, F56): no worker-side
+    // pacing, no one-at-a-time submission. Snapshot the queue into a local batch
+    // and clear it first, so a ready fetch whose handler queues and launches its
+    // own child batch inline re-enters against a fresh queue instead of mutating
+    // the batch being iterated here.
+    std::vector<ItemsRequest> batch;
+    batch.reserve(m_queue.size());
+    while (!m_queue.empty()) {
+        batch.push_back(m_queue.front());
+        m_queue.pop();
+    }
+    if (batch.empty()) {
+        // A TabsOnly update (no content) or a lane with nothing to fetch.
         return;
     }
 
-    m_stashes_needed = 0;
-    m_stashes_received = 0;
-
-    m_characters_needed = 0;
-    m_characters_received = 0;
-
-    std::queue<ItemsRequest> requests = m_queue;
-    QString tab_titles;
-    while (!requests.empty()) {
-        const ItemsRequest request = requests.front();
-        requests.pop();
+    // Initialize the entire batch's needed counters BEFORE the first launch
+    // (IR2/S1-6): a ready or fail-fast future runs its completion inline in the
+    // launch loop below, and it must never observe a needed count still being
+    // tallied. These accumulate across the update's lanes — the stash list, the
+    // character list, and each parent reply's child batch each add their own
+    // and never reset a sibling lane's progress (D6).
+    for (const auto &request : batch) {
         switch (request.location.type()) {
         case ItemLocationType::STASH:
             ++m_stashes_needed;
@@ -1212,46 +1233,30 @@ void ItemsManagerWorker::FetchItems()
             ++m_characters_needed;
             break;
         }
-        tab_titles += request.location.GetHeader() + " ";
     }
-
     SendStatusUpdate();
+    spdlog::debug("Launching a batch of {} item requests.", batch.size());
 
-    spdlog::debug("Requested {} stashes and {} characters.", m_stashes_needed, m_characters_needed);
-    spdlog::debug("Tab titles: {}", tab_titles);
-
-    SubmitNextItemRequest();
-    CheckUpdateFinished();
-}
-
-void ItemsManagerWorker::SubmitNextItemRequest()
-{
-    if (m_state != WorkerState::Updating || m_request_failures > 0 || m_queue.empty()) {
-        return;
-    }
-
-    ItemsRequest request = m_queue.front();
-    m_queue.pop();
-
-    const ItemLocation location = request.location;
     const int generation = m_update_generation;
     const std::stop_token token = m_stop_source.get_token();
 
-    // The queue carries what to fetch, not how: each branch names the resource
-    // and launches an owned per-fetch task, which the facade turns into a
-    // request. Submission stays serial in 5B — one content fetch is in flight,
-    // and its completion launches the next; 5C launches the whole batch here.
-    std::visit(
-        [&](const auto &what) {
-            using What = std::decay_t<decltype(what)>;
-            if constexpr (std::is_same_v<What, StashFetch>) {
-                m_fetch_tasks.push_back(
-                    FetchStash(location, what.stash_id, what.substash_id, generation, token));
-            } else {
-                m_fetch_tasks.push_back(FetchCharacter(location, what.name, generation, token));
-            }
-        },
-        request.what);
+    // Each entry names the resource, not how to fetch it; launch an owned
+    // per-fetch task per entry, in the queue's source traversal order (D6's
+    // per-lane FIFO). Every handle lives in m_fetch_tasks — no fire-and-forget.
+    for (const auto &request : batch) {
+        const ItemLocation location = request.location;
+        std::visit(
+            [&](const auto &what) {
+                using What = std::decay_t<decltype(what)>;
+                if constexpr (std::is_same_v<What, StashFetch>) {
+                    m_fetch_tasks.push_back(
+                        FetchStash(location, what.stash_id, what.substash_id, generation, token));
+                } else {
+                    m_fetch_tasks.push_back(FetchCharacter(location, what.name, generation, token));
+                }
+            },
+            request.what);
+    }
 }
 
 bool ItemsManagerWorker::IsStale(int generation) const
