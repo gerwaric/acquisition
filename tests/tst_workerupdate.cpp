@@ -14,6 +14,7 @@
 #include "testfixtures.h"
 #include "util/json_readers.h"
 #include "util/networkmanager.h"
+#include "workertestaccess.h"
 
 // Offline update-cycle tests for ItemsManagerWorker, driven through a fake
 // typed API facade (items-pipeline M1; moved off the byte-crafting network
@@ -556,7 +557,7 @@ namespace {
         {
             ProgramState state;
             QString message;
-            ItemsManagerWorker::ProgressForTest counters;
+            WorkerTestAccess::ProgressForTest counters;
         };
         std::vector<StatusRecord> status_updates;
 
@@ -1731,14 +1732,18 @@ void WorkerUpdateTest::exceptionalFetchIsCaughtAndAbortsTheUpdate()
 
 // W-THROW (handler body, stopped-but-active): an exception from inside a fetch
 // continuation is contained by the per-fetch task's WHOLE-body catch-all, which
-// forces a terminal AbortUpdate(). The fault fires from a failure handler AFTER
-// it has already stopped the update token but BEFORE it records its completion
-// flags — so the catch-all must decide ownership by generation/state, not token
-// state: a token-based guard would misread this active update as a stale
-// straggler, skip the abort, and wedge. This single pin proves the catch
-// contains the throw, a stopped-but-active update still aborts, AbortUpdate()
-// forces list+counter completion, and recovery reaches Idle. Uses the injected
-// fault hook — never Qt's undefined slot-throwing behavior.
+// takes the direct terminal AbortUpdate() path. The fault fires from a failure
+// handler AFTER it has already stopped the update token but BEFORE it reaches its
+// own AbortUpdate() — so the catch-all must NOT gate on the token: it aborts
+// unconditionally. A token-guarded catch would misread this still-active update
+// as already cancelled, skip the abort, and wedge. Two things make the
+// unconditional abort safe: AbortUpdate() is idempotent and WorkerState-guarded,
+// and a genuinely stale straggler never reaches the handler at all (the
+// post-await token gate discards it before the try body runs), so the only throw
+// that can reach this catch belongs to the active update. This single pin proves
+// the catch contains the throw, a stopped-but-active update still aborts to Idle,
+// and recovery succeeds. Uses the injected fault hook — never Qt's undefined
+// slot-throwing behavior.
 void WorkerUpdateTest::handlerExceptionAbortsToIdleInsteadOfWedging()
 {
     WorkerFixture f("whandlerthrow");
@@ -2060,11 +2065,14 @@ void WorkerUpdateTest::stoppedSiblingResumesCanceledAndMutatesNothing()
 
 // W-ER1 (list lane): the character list succeeds and launches its content while
 // the stash list is still outstanding; then the stash list fails. First-failure
-// must terminate the update immediately (D6), snapping BOTH lane counters — not
-// only the list flags — so it does not wedge waiting on the character content it
-// just abandoned. Without the content-counter snap in the list-failure branch,
-// CheckUpdateFinished would never see items_received and the worker would hang in
-// Updating, refusing the next update.
+// must terminate the update immediately (D6): the list-failure branch takes the
+// direct terminal AbortUpdate() path, which returns the worker to Idle at once
+// regardless of the completion counters, abandoning the in-flight character
+// content as a stopped straggler. A design that instead waited for
+// CheckUpdateFinished's success-equality would hang here — the abandoned
+// character content is never received — which is exactly why the failure path is
+// counter-independent (P-STATUS/P-FAILURE). This pins that the worker is not
+// wedged: it accepts and completes a fresh update afterward.
 void WorkerUpdateTest::listFailureWithSiblingContentInFlightTerminatesCleanly()
 {
     WorkerFixture f("wer1-list");

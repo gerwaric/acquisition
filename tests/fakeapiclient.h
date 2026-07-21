@@ -74,9 +74,11 @@ public:
         QString stash_id;
         QString substash_id;
         QString name;
-        // Recorded for phase 5, when the worker starts passing real tokens.
-        // Every phase-4b call site passes a default token (D7), so there is
-        // nothing here worth asserting yet.
+        // The stop_token the worker passed with this call. From phase 5 the
+        // worker threads one per-update token through every call in the update;
+        // the identity/token finders below expose it so tests can assert token
+        // sharing, first-failure stopping, and cross-update distinctness
+        // (W-TOKEN/W-IDENTITY).
         std::stop_token token;
     };
 
