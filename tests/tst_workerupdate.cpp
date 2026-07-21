@@ -178,6 +178,22 @@ namespace {
         return ids;
     }
 
+    // A global event filter that flags any event delivered while it is
+    // installed. Installed on the application object, it observes events for
+    // every object — including QEvent::DeferredDelete deliveries, whose effect
+    // QEventLoop::processEvents() cannot report. The drain uses it to declare
+    // quiescence only when a full pass delivered nothing through EITHER the
+    // processEvents phase or the deferred-delete flush.
+    struct EventActivityFilter : QObject
+    {
+        bool active = false;
+        bool eventFilter(QObject *, QEvent *) override
+        {
+            active = true;
+            return false; // observe only; never consume
+        }
+    };
+
     // A worker wired to a fake typed facade, with the last ItemsRefreshed
     // emission captured for inspection.
     //
@@ -303,11 +319,18 @@ namespace {
         }
 
         // Pump queued coroutine resumptions and any deferred deletions until the
-        // event loop is quiescent — a full pass that processes nothing — or the
+        // event loop is quiescent — a full pass that delivers nothing — or the
         // bound trips. Condition-driven on the loop emptying (not a fixed pass
         // count): it neither under-drains a multi-hop resumption nor assumes the
         // chain settles on the first turn, and it flushes deleteLater() work
         // posted outside a running loop, which processEvents alone does not.
+        //
+        // Quiescence is judged by a global event filter, not by
+        // processEvents()'s return value: a deferred delete flushed by
+        // sendPostedEvents() may run a destructor that schedules more work, and
+        // processEvents() cannot report that. So each pass runs both phases with
+        // the filter armed and only counts as empty when the filter saw no event
+        // at all — otherwise another pass runs.
         //
         // This is what makes zero-pending meaningful at teardown: a fake call is
         // marked settled before its consumer's queued .then/co_await resumes, so
@@ -317,15 +340,21 @@ namespace {
         [[nodiscard]] static bool drainUntilIdle()
         {
             constexpr int kMaxPasses = 1000;
+            EventActivityFilter filter;
+            QCoreApplication::instance()->installEventFilter(&filter);
+            bool idle = false;
             for (int pass = 0; pass < kMaxPasses; ++pass) {
+                filter.active = false;
                 QEventLoop loop;
-                const bool processed = loop.processEvents(QEventLoop::AllEvents);
+                loop.processEvents(QEventLoop::AllEvents);
                 QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
-                if (!processed) {
-                    return true;
+                if (!filter.active) {
+                    idle = true;
+                    break;
                 }
             }
-            return false;
+            QCoreApplication::instance()->removeEventFilter(&filter);
+            return idle;
         }
 
         BuyoutManagerFixture bm;
@@ -1223,11 +1252,11 @@ void WorkerUpdateTest::fakeSettlesStoppedStragglersCanceledExactlyOnce()
     dead_bob.request_stop();
 
     // Two stopped stragglers from an aborted update and one live call from the
-    // next. The returned futures are intentionally dropped: the fake keeps the
-    // call recorded until settled regardless.
-    api.getStash(kRealm, kLeague, "A", {}, dead_a.get_token());
-    api.getCharacter(kRealm, "Bob", dead_bob.get_token());
-    api.getStash(kRealm, kLeague, "C", {}, live.get_token());
+    // next. The returned futures are retained so the settlement outcome — not
+    // just the counts — is pinned.
+    auto fa = api.getStash(kRealm, kLeague, "A", {}, dead_a.get_token());
+    auto fbob = api.getCharacter(kRealm, "Bob", dead_bob.get_token());
+    auto fc = api.getStash(kRealm, kLeague, "C", {}, live.get_token());
 
     QCOMPARE(api.callCount(), size_t(3));
     QCOMPARE(api.pendingCount(), size_t(3));
@@ -1238,18 +1267,40 @@ void WorkerUpdateTest::fakeSettlesStoppedStragglersCanceledExactlyOnce()
     QVERIFY(!api.hasPendingStash("A"));
     QVERIFY(!api.hasPendingCharacter("Bob"));
 
+    // Nothing is settled yet — every future is still outstanding.
+    QVERIFY(!fa.isFinished());
+    QVERIFY(!fbob.isFinished());
+    QVERIFY(!fc.isFinished());
+
     // Settling the stragglers Canceled leaves only the live call pending.
     QCOMPARE(api.settleStoppedStragglers(), size_t(2));
     QCOMPARE(api.pendingCount(), size_t(1));
     QCOMPARE(api.stoppedStragglerCount(), size_t(0));
 
+    // Each straggler finished with exactly one Canceled result — the outcome,
+    // not merely a count. A Network settlement here would fail the test.
+    QVERIFY(fa.isFinished());
+    QCOMPARE(fa.resultCount(), 1);
+    QVERIFY(!fa.result().has_value());
+    QCOMPARE(fa.result().error().kind, RateLimit::FetchError::Kind::Canceled);
+    QVERIFY(fbob.isFinished());
+    QCOMPARE(fbob.resultCount(), 1);
+    QVERIFY(!fbob.result().has_value());
+    QCOMPARE(fbob.result().error().kind, RateLimit::FetchError::Kind::Canceled);
+
+    // The live call was untouched by the sweep and is still outstanding.
+    QVERIFY(!fc.isFinished());
+
     // A second sweep finds nothing to settle — no double-settle qFatal.
     QCOMPARE(api.settleStoppedStragglers(), size_t(0));
 
-    // The live call is still deliverable and settles normally.
+    // The live call is still deliverable and settles to a value on demand.
     QVERIFY(api.hasPendingStash("C"));
     api.resolveStash(api.pendingStash("C"), stashOf(stashJson("C", "Tab C", 0, QStringList{"c1"})));
     QCOMPARE(api.pendingCount(), size_t(0));
+    QVERIFY(fc.isFinished());
+    QCOMPARE(fc.resultCount(), 1);
+    QVERIFY(fc.result().has_value());
 }
 
 // A stopped old-update straggler and a live new-update call may share a domain
@@ -1267,21 +1318,31 @@ void WorkerUpdateTest::fakeTreatsCrossUpdateIdentityOverlapAsLive()
     dead.request_stop();
 
     // Both fetch stash "X": the first is an aborted update's straggler, the
-    // second the new update's live request.
-    api.getStash(kRealm, kLeague, "X", {}, dead.get_token());
-    api.getStash(kRealm, kLeague, "X", {}, live.get_token());
+    // second the new update's live request. Futures retained to pin outcomes.
+    auto f_straggler = api.getStash(kRealm, kLeague, "X", {}, dead.get_token());
+    auto f_live = api.getStash(kRealm, kLeague, "X", {}, live.get_token());
     QCOMPARE(api.pendingCount(), size_t(2));
 
     // Exactly one *deliverable* "X" exists, so the finder does not qFatal as an
-    // F49 duplicate — it selects the live call.
+    // F49 duplicate — it selects the live call, and the straggler stays put.
     QVERIFY(api.hasPendingStash("X"));
     api.resolveStash(api.pendingStash("X"), stashOf(stashJson("X", "Tab X", 0, QStringList{"x1"})));
+
+    // The live call — and only it — finished with a value; the straggler is
+    // still outstanding, not collateral of the delivery.
+    QVERIFY(f_live.isFinished());
+    QVERIFY(f_live.result().has_value());
+    QVERIFY(!f_straggler.isFinished());
 
     // The straggler is still owed a settlement; the sweep clears it Canceled.
     QCOMPARE(api.pendingCount(), size_t(1));
     QCOMPARE(api.stoppedStragglerCount(), size_t(1));
     QCOMPARE(api.settleStoppedStragglers(), size_t(1));
     QCOMPARE(api.pendingCount(), size_t(0));
+    QVERIFY(f_straggler.isFinished());
+    QCOMPARE(f_straggler.resultCount(), 1);
+    QVERIFY(!f_straggler.result().has_value());
+    QCOMPARE(f_straggler.result().error().kind, RateLimit::FetchError::Kind::Canceled);
 }
 
 QTEST_GUILESS_MAIN(WorkerUpdateTest)
