@@ -1475,6 +1475,10 @@ void WorkerUpdateTest::fakeTreatsCrossUpdateIdentityOverlapAsLive()
 // distinct, unstopped one. This is what makes the token the update's identity
 // (the post-await check discards a straggler whose token was stopped). 5B keeps
 // the generation guard alongside — W-IDENTITY (5D) proves the token replaces it.
+// This pin covers the list + stash-content + failure-stops + fresh-token
+// lifecycle; character-content and reply-discovered child calls sharing the same
+// token are pinned in stagedBatchesRunConcurrentlyPreservingLaneOrder, where all
+// four call kinds are concurrently in flight under one token.
 void WorkerUpdateTest::everyCallInAnUpdateSharesOneTokenAndTheNextUpdateGetsAFreshOne()
 {
     WorkerFixture f("wtoken");
@@ -1764,10 +1768,13 @@ void WorkerUpdateTest::completionsScheduleADeferredSweepThatReclaimsFinishedHand
 // content batch; character work in flight while stash work is outstanding),
 // W-F56-CHILDREN (folder children join the list batch; reply-discovered Map
 // children launch as one batch), and W-F56-ORDER (deliberately non-sorted
-// identities keep source traversal order within each lane, with no global lane
-// order asserted). It FAILS if SubmitNextItemRequest-style serialization returns:
-// a serial worker would leave only one content fetch in flight at a time, so the
-// simultaneous-pending and lane-order assertions below could not all hold.
+// identities keep source traversal order within every lane — stash, character,
+// AND the reply-discovered child lane — with no global lane order asserted). It
+// also carries W-TOKEN's content and child coverage: every list, content, and
+// child call in the update shares the one update token. It FAILS if
+// SubmitNextItemRequest-style serialization returns: a serial worker would leave
+// only one content fetch in flight at a time, so the simultaneous-pending and
+// lane-order assertions below could not all hold.
 void WorkerUpdateTest::stagedBatchesRunConcurrentlyPreservingLaneOrder()
 {
     WorkerFixture f("wf56");
@@ -1800,6 +1807,13 @@ void WorkerUpdateTest::stagedBatchesRunConcurrentlyPreservingLaneOrder()
     QVERIFY(f.hasPendingStashList());
     QVERIFY(f.hasPendingCharacterList());
 
+    // Capture the update token while both lists are pending; W-TOKEN below
+    // asserts every list, content, and child call in this update shares it.
+    const std::stop_token token = f.api.tokenForStashList(kRealm, kLeague);
+    QVERIFY(token.stop_possible());
+    QVERIFY(!token.stop_requested());
+    QVERIFY(f.api.tokenForCharacterList(kRealm) == token);
+
     // The stash list's whole content batch goes out at once: the two plain tabs,
     // the folder, its two recursively discovered children (which join this list
     // batch), and the Map parent — six fetches, none held behind another.
@@ -1819,6 +1833,11 @@ void WorkerUpdateTest::stagedBatchesRunConcurrentlyPreservingLaneOrder()
     QCOMPARE(f.api.stashFetchOrder(),
              QStringList({"s_zzz1", "s_aaa1", "fold01", "fchild1", "fchild2", "map01"}));
 
+    // W-TOKEN (stash content): every content fetch carries the same update token
+    // the lists did — same object identity, not merely an equal value.
+    QVERIFY(f.api.tokenForStash("s_zzz1") == token);
+    QVERIFY(f.api.tokenForStash("fchild1") == token);
+
     // The character list's content batch launches from its own handler — while
     // every stash fetch above is still outstanding. This is the cross-lane
     // concurrency F56 is about: character work is not queued behind stash work.
@@ -1832,14 +1851,20 @@ void WorkerUpdateTest::stagedBatchesRunConcurrentlyPreservingLaneOrder()
     // first). No order is asserted BETWEEN the lanes.
     QCOMPARE(f.api.characterFetchOrder(), QStringList({"Zed", "Ann"}));
 
+    // W-TOKEN (character content): the character content batch carries the same
+    // update token, proving it is not just the stash lane that shares identity.
+    QVERIFY(f.api.tokenForCharacter("Zed") == token);
+    QVERIFY(f.api.tokenForCharacter("Ann") == token);
+
     // Deliver the whole population in a deliberately scrambled order — arbitrary
     // completion order is supported.
     f.deliverStash("s_aaa1", stashOf(stashJson("s_aaa1", "Aaa Tab", 2, QStringList{"a1"})));
     f.deliverCharacter("Ann", characterOf(characterJson("annid00001", "Ann", QStringList{"ann1"})));
     f.deliverStash("fchild2", stashOf(stashJson("fchild2", "Child Two", 1, QStringList{"fc2"})));
 
-    // The Map parent's reply discovers two children; they launch as one complete
-    // child batch (W-F56-CHILDREN), not one at a time.
+    // The Map parent's reply discovers two children in deliberately non-sorted
+    // source order (mc2 before mc1); they launch as one complete child batch
+    // (W-F56-CHILDREN), not one at a time.
     f.deliverStash("map01",
                    stashOf(stashJson("map01",
                                      "Maps",
@@ -1847,11 +1872,21 @@ void WorkerUpdateTest::stagedBatchesRunConcurrentlyPreservingLaneOrder()
                                      QStringList{"mp1"},
                                      "MapStash",
                                      {},
-                                     {stashJson("mc1", "Tier 1", 0, {}, "MapStash", "map01"),
-                                      stashJson("mc2", "Tier 2", 1, {}, "MapStash", "map01")})));
+                                     {stashJson("mc2", "Tier 2", 1, {}, "MapStash", "map01"),
+                                      stashJson("mc1", "Tier 1", 0, {}, "MapStash", "map01")})));
     QCOMPARE(f.callCount(), size_t(12));
     QVERIFY(f.hasPendingStash("map01", "mc1"));
     QVERIFY(f.hasPendingStash("map01", "mc2"));
+
+    // W-F56-ORDER (child lane): the reply-discovered child batch keeps its source
+    // traversal order, addressed by parent/substash identity. Non-sorted on
+    // purpose — a sorted or serialized launch would flip it to {mc1, mc2} here.
+    QCOMPARE(f.api.substashFetchOrder("map01"), QStringList({"mc2", "mc1"}));
+
+    // W-TOKEN (child): the reply-discovered children share the one update token
+    // too, so every list, content, AND child call in this update has one identity.
+    QVERIFY(f.api.tokenForStash("map01", "mc1") == token);
+    QVERIFY(f.api.tokenForStash("map01", "mc2") == token);
 
     f.deliverStash("s_zzz1", stashOf(stashJson("s_zzz1", "Zzz Tab", 5, QStringList{"z1"})));
     f.deliverStash("fold01", stashOf(stashJson("fold01", "My Folder", 0, {}, "Folder")));

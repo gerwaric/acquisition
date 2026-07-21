@@ -271,6 +271,22 @@ public:
         return names;
     }
 
+    // Every reply-discovered child (non-empty substash) of one parent stash id,
+    // by substash id, in submission order. The child batch is its own policy
+    // lane, so W-F56-ORDER's source-order guarantee applies to it too; this
+    // addresses children by parent/substash identity rather than a global index.
+    QStringList substashFetchOrder(const QString &parent_stash_id) const
+    {
+        QStringList ids;
+        for (const auto &slot : m_pending) {
+            if (slot.call.kind == Call::Kind::GetStash && slot.call.stash_id == parent_stash_id
+                && !slot.call.substash_id.isEmpty()) {
+                ids.append(slot.call.substash_id);
+            }
+        }
+        return ids;
+    }
+
     // --- token lookup, by identity (never a global index) --------------------
     //
     // The recorded stop_token of the single deliverable call of an identity, so a
