@@ -1,7 +1,7 @@
 # Phase 5 Execution Plan — Network Redesign (Items-Worker Rewrite)
 
-**Status: ACTIVE execution plan, updated July 21, 2026.** Packages 5A–5C are
-implemented, committed, and green; 5D is next. This document organizes the work;
+**Status: ACTIVE execution plan, updated July 21, 2026.** Packages 5A–5D are
+implemented, committed, and green; 5E is next. This document organizes the work;
 it does not define production
 behavior or the evidence required for acceptance. Required behavior lives in
 the accepted network spec, the shipped items-pipeline M1 contract, and the
@@ -148,8 +148,8 @@ member their frames could observe.
 | 5A — harness foundation | **Complete** | Serial worker tests use identity/condition helpers; inherited manager ER1 debt is closed or explicitly separated |
 | 5B — task lifecycle | **Complete** | Owned coroutine topology and one stop source work while request submission remains serial |
 | 5C — staged batching | **Complete** | F56 shape and worker cancellation pass under reordered completion |
-| 5D — cleanup and proof | **Next** | Queue and generation machinery are gone; post-await identity mutation test fails without the check |
-| 5E — full-stack verification | Pending | Every item-6 scenario and retention pin is registered and green in isolation |
+| 5D — cleanup and proof | **Complete** | Queue and generation machinery are gone; post-await identity mutation test fails without the check |
+| 5E — full-stack verification | **Next** | Every item-6 scenario and retention pin is registered and green in isolation |
 
 Only this table carries package status. Avoid duplicating progress prose across
 the verification contract or authoritative documents.
@@ -257,50 +257,44 @@ paths and per-lane priority are pinned.
 
 ---
 
-## 5D — Queue deletion and identity replacement proof
+## 5D — Queue deletion and identity replacement proof — **Complete**
 
 **Objective:** remove obsolete state only after its replacement is active and
 observable.
 
-Recommended green commits:
+Landed across four green commits (each with the full `ctest` suite passing):
 
-1. Delete `m_queue`, `m_queue_id`, `QueueRequest`, `FetchItems`,
-   `SubmitNextItemRequest`, and the remaining one-new-call-at-a-time test
-   assumptions. Keep the generation guard.
-2. Construct `W-IDENTITY` with a subsequent update active, remove the generation
-   machinery, and mutation-verify that bypassing the post-await token check now
-   fails the test.
+1. `refactor(worker): delete m_queue…` — removed `m_queue`, `m_queue_id`,
+   `QueueRequest`; each policy lane now launches a plain local
+   `std::vector<ItemsRequest>` batch through `LaunchContent`. This also retired
+   the queue-snapshot re-entrancy guard: an inline child launch builds a separate
+   local batch, so there is no shared queue to mutate mid-iteration.
+   (`FetchItems`/`SubmitNextItemRequest` were already gone in 5C.)
+2. `feat(worker): delete generation guard, prove token identity` — removed
+   `m_update_generation`, `IsStale`, and the generation param on every `Fetch*`
+   task; the post-await gate is now `!token.stop_requested()` alone and the
+   per-fetch catch-all is an unconditional idempotent `AbortUpdate()`. Added
+   `W-IDENTITY` (`oldSuccessfulStragglerDoesNotCorruptASubsequentUpdate`) with a
+   subsequent active update, plus the fake seam `findStopped`/`stoppedStash` that
+   settles a stopped straggler with SUCCESS by identity. Mutation-verified per
+   verification §5: replacing the `FetchStash` gate with `if (true)` finalizes the
+   new update early (refresh_count 2 vs 1) and fails the test; restoring it passes.
+3. `test(worker): add carried-over 5C-review preservation pins` — `P-REFUSE`,
+   the negative half of `P-LIST-SIGNALS` (failed list emits no received/replaced
+   signal; a stopped list straggler emits none when it resumes), and
+   reply-discovered children on Folder (defensive, no F53 reconciliation) and
+   Unique (batch + one `stashChildrenReplaced`) parents. Added NotifyUser and
+   authoritative-list signal capture to the fixture.
+4. `refactor(worker): consolidate test seams behind one friend accessor` —
+   replaced the four standing `*ForTest`/`Set*` public methods with a single
+   friend `WorkerTestAccess`; the fixture reaches it through one `access()`
+   helper.
 
-The first commit completes the harness migration begun in 5A. The second is
-the proof that cancellation identity actually replaced `IsStale`, rather than
-being masked by it.
+Required evidence delivered: `W-IDENTITY` (with §5 mutation proof), every `P-*`
+preservation pin, and the full worker suite under reordered completion.
 
-Required evidence: `W-IDENTITY`, every `P-*` preservation pin, and the full
-worker suite under representative reordered completion.
-
-Carried from the 5C review (deferred here deliberately, not gaps in 5C):
-
-- Missing `P-*` pins to add with the rest of the preservation contract:
-  `P-REFUSE` (an `Update()` during an initialized active update notifies/refuses,
-  submits nothing, and leaves the active token/update untouched); the negative
-  half of `P-LIST-SIGNALS` (a failed or stopped list emits no list-received or
-  F53 reconciliation signal); and reply-discovered children accepted on all three
-  parent types — the suite covers Map reply children and Folder list children,
-  but not Folder/Unique reply children. Note when writing the Folder case: a live
-  Folder reply carries no children (F49), so that pin exercises a defensive code
-  path the live API does not produce — say so in the test.
-- Test-seam consolidation: the worker header now exposes several standing
-  test-only entry points (`SetSweepObserver`, `SetFaultHook`,
-  `OutstandingFetchTasksForTest`, `ProgressCountersForTest`). Verification §2
-  prefers a friend fixture / test-build-gated hook / injected observer over a
-  standing production API; consolidate these behind one seam before 5D/5E add
-  more observability.
-- Note: `FetchItems`/`SubmitNextItemRequest` were already deleted in 5C, so the
-  first commit above only needs to remove `m_queue`/`m_queue_id`/`QueueRequest`
-  and the one-new-call-at-a-time test assumptions.
-
-Exit criteria: no queue/generation symbols remain; old stopped stragglers and a
-new active update coexist safely; the mutation test detects state corruption
+Exit criteria met: no queue/generation symbols remain; old stopped stragglers and
+a new active update coexist safely; the mutation test detects state corruption
 when the token check is removed.
 
 ---
