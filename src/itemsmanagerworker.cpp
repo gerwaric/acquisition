@@ -390,9 +390,9 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
     m_request_failures = 0;
     m_update_tab_contents = (type != TabSelection::TabsOnly);
 
-    // Reset the completion counters here so that CheckUpdateFinished() never
-    // depends on leftover values from a previous update. (FetchItems() resets
-    // them again before queueing requests, but it is not reached on every path.)
+    // Reset the completion counters here, once per update: this is their only
+    // reset. Each lane's LaunchQueuedContent() accumulates into them (never
+    // resets), so a fresh update must not inherit a previous one's totals.
     m_stashes_needed = 0;
     m_stashes_received = 0;
     m_characters_needed = 0;
@@ -551,26 +551,33 @@ QCoro::Task<> ItemsManagerWorker::RunUpdate()
 
 void ItemsManagerWorker::AbortUpdate()
 {
-    // Stop this update's token so any straggler resolves Canceled and returns
-    // silently, then force an unconditional terminal transition. Both list
-    // flags AND the content counters are driven to "received" so
-    // CheckUpdateFinished() sees lists_received && items_received and takes the
-    // failed branch — an exceptional abort has no reliable knowledge of how far
-    // orchestration or a continuation got, so it must not depend on a list or a
-    // completion still being outstanding.
+    // The single, idempotent terminal transition for a failed update. Every
+    // failure — a list error, a content error, an exceptional future, a throw in
+    // orchestration or a handler — routes here. It is deliberately INDEPENDENT of
+    // the completion counters: the first terminal failure returns the worker to
+    // idle immediately (D6), abandoning in-flight siblings as stopped stragglers
+    // that resolve Canceled later. It must never rewrite the counters to force
+    // CheckUpdateFinished()'s success-equality — doing so drove `needed` backward
+    // below `received` and made the reported progress non-monotonic (P-STATUS).
+    // Success uses the counter equality in CheckUpdateFinished(); failure uses
+    // this direct path, so the two never contend.
+    if (m_state != WorkerState::Updating) {
+        // Already terminal: a later straggler or a second failure must not emit a
+        // second Ready/failure transition (P-FAILURE) or reset a live update.
+        return;
+    }
     m_stop_source.request_stop();
-    // Idempotent: only ensure the update is marked failed. A per-fetch handler
-    // that already recorded its own failure before throwing must not be
-    // double-counted when the catch-all calls this.
+    // A failed update aborts on the first failure, so the count is at least one;
+    // a handler that recorded nothing still yields a truthful "1 failed".
     if (m_request_failures == 0) {
         ++m_request_failures;
     }
     m_queue = {};
-    m_has_stash_list = true;
-    m_has_character_list = true;
-    m_stashes_needed = m_stashes_received;
-    m_characters_needed = m_characters_received;
-    CheckUpdateFinished();
+    emit StatusUpdate(ProgramState::Ready,
+                      QString("Update failed: %1 requests failed")
+                          .arg(QString::number(m_request_failures)));
+    m_state = WorkerState::Idle;
+    spdlog::debug("Update failed.");
 }
 
 void ItemsManagerWorker::StopUpdateForFailure()
@@ -791,21 +798,13 @@ void ItemsManagerWorker::OnStashListReceived(const Result<poe::StashListWrapper>
         spdlog::warn("Aborting update because there was an error fetching the stash list ({}): {}",
                      RateLimit::ToString(result.error().kind),
                      result.error().message);
-        // First-failure stop (D2): request_stop on the update's token so any
-        // sibling in flight — the character list or its content, already
-        // launched concurrently (D6) — resolves Canceled and returns silently.
-        // Snap the content counters to received as well as the list flags: the
-        // first terminal failure returns the worker to idle immediately rather
-        // than waiting on those siblings (D6), so CheckUpdateFinished must see a
-        // reconciled state now, not once the stragglers settle.
+        // First-failure terminal (D2/D6): stop the token so any sibling launched
+        // concurrently — the character list or its content — resolves Canceled,
+        // then take the direct terminal path. AbortUpdate() returns the worker to
+        // idle immediately without touching the progress counters, so a six-tab
+        // batch reporting 0/6 does not lurch to 1/1 (P-STATUS).
         StopUpdateForFailure();
-        ++m_request_failures;
-        m_has_stash_list = true;
-        m_has_character_list = true;
-        m_stashes_needed = m_stashes_received;
-        m_characters_needed = m_characters_received;
-        m_queue = {};
-        CheckUpdateFinished();
+        AbortUpdate();
         return;
     }
 
@@ -875,19 +874,11 @@ void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterList
                      "({}): {}",
                      RateLimit::ToString(result.error().kind),
                      result.error().message);
-        // First-failure stop (D2): request_stop so any sibling in flight — the
-        // stash list or its content, launched concurrently (D6) — resolves
-        // Canceled and returns silently. Snap the content counters to received
-        // as well as the list flags so CheckUpdateFinished terminates the update
-        // immediately rather than waiting on those stragglers (D6).
+        // First-failure terminal (D2/D6): stop the token so the concurrently
+        // launched stash list or its content resolves Canceled, then take the
+        // direct terminal path — see the stash-list branch above.
         StopUpdateForFailure();
-        ++m_request_failures;
-        m_has_stash_list = true;
-        m_has_character_list = true;
-        m_stashes_needed = m_stashes_received;
-        m_characters_needed = m_characters_received;
-        m_queue = {};
-        CheckUpdateFinished();
+        AbortUpdate();
         return;
     }
 
@@ -982,15 +973,12 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
         } else {
             spdlog::error("ItemsManagerWorker: stash is empty");
         }
-        // First-failure stop (D2), overlapping the queue-clear + counter-snap.
+        // First-failure terminal (D2/D6): stop the token and take the direct
+        // terminal path. The progress counters are left untouched — this failed
+        // fetch is not counted as received, and the batch's `needed` total is not
+        // snapped down, so reported progress stays monotonic (P-STATUS).
         StopUpdateForFailure();
-        ++m_request_failures;
-        ++m_stashes_received;
-        m_stashes_needed = m_stashes_received;
-        m_characters_needed = m_characters_received;
-        m_queue = {};
-        SendStatusUpdate();
-        CheckUpdateFinished();
+        AbortUpdate();
         return;
     }
 
@@ -1148,15 +1136,10 @@ void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterWrapper>
         } else {
             spdlog::error("ItemsManagerWorker: character is empty");
         }
-        // First-failure stop (D2), overlapping the queue-clear + counter-snap.
+        // First-failure terminal (D2/D6): stop the token and take the direct
+        // terminal path, leaving the progress counters untouched (P-STATUS).
         StopUpdateForFailure();
-        ++m_request_failures;
-        ++m_characters_received;
-        m_stashes_needed = m_stashes_received;
-        m_characters_needed = m_characters_received;
-        m_queue = {};
-        SendStatusUpdate();
-        CheckUpdateFinished();
+        AbortUpdate();
         return;
     }
 
@@ -1352,6 +1335,12 @@ void ItemsManagerWorker::ParseItems(const std::vector<poe::Item> &items,
 
 void ItemsManagerWorker::CheckUpdateFinished()
 {
+    // The SUCCESS terminal only. A failed update never reaches its counter
+    // equality — the first failure routes through AbortUpdate() and sets Idle
+    // directly (D6) — so by the time this runs while still Updating, no failure
+    // has occurred. It is called after every completion that could reconcile the
+    // counters; when they line up with both required lists received, the update
+    // succeeded.
     if (m_state != WorkerState::Updating) {
         return;
     }
@@ -1364,16 +1353,8 @@ void ItemsManagerWorker::CheckUpdateFinished()
         return;
     }
 
-    if (m_request_failures == 0) {
-        spdlog::trace("ItemsManagerWorker::CheckUpdateFinished() finishing update");
-        FinishUpdate();
-    } else {
-        emit StatusUpdate(ProgramState::Ready,
-                          QString("Update failed: %1 requests failed")
-                              .arg(QString::number(m_request_failures)));
-        m_state = WorkerState::Idle;
-        spdlog::debug("Update failed.");
-    }
+    spdlog::trace("ItemsManagerWorker::CheckUpdateFinished() finishing update");
+    FinishUpdate();
 }
 
 void ItemsManagerWorker::FinishUpdate()

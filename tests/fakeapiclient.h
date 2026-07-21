@@ -13,6 +13,7 @@
 #include <QFuture>
 #include <QPromise>
 #include <QString>
+#include <QStringList>
 
 #include "poe/poeapiclient.h"
 #include "ratelimit/fetcherror.h"
@@ -237,6 +238,63 @@ public:
         return findPending("get-character", Call::Kind::GetCharacter, [&](const Call &c) {
             return c.name == name;
         });
+    }
+
+    // --- lane-local submission order, by identity (never a global index) ------
+    //
+    // The order in which each lane's calls were submitted, expressed as the
+    // calls' own identities. A test pins D6/P-ORDER source traversal order with
+    // these instead of indexing into the global call history, which would bake
+    // in unrelated cross-lane positions the harness forbids as identity.
+
+    // Every top-level GetStash (empty substash) stash id, in submission order.
+    QStringList stashFetchOrder() const
+    {
+        QStringList ids;
+        for (const auto &slot : m_pending) {
+            if (slot.call.kind == Call::Kind::GetStash && slot.call.substash_id.isEmpty()) {
+                ids.append(slot.call.stash_id);
+            }
+        }
+        return ids;
+    }
+
+    // Every GetCharacter name, in submission order.
+    QStringList characterFetchOrder() const
+    {
+        QStringList names;
+        for (const auto &slot : m_pending) {
+            if (slot.call.kind == Call::Kind::GetCharacter) {
+                names.append(slot.call.name);
+            }
+        }
+        return names;
+    }
+
+    // --- token lookup, by identity (never a global index) --------------------
+    //
+    // The recorded stop_token of the single deliverable call of an identity, so a
+    // test can assert token sharing/stopping while calls are still in flight
+    // without addressing them by submission index. Same exactly-one-deliverable
+    // rule as the pending* finders.
+    std::stop_token tokenForStashList(const QString &realm, const QString &league) const
+    {
+        return m_pending.at(pendingStashList(realm, league)).call.token;
+    }
+
+    std::stop_token tokenForCharacterList(const QString &realm) const
+    {
+        return m_pending.at(pendingCharacterList(realm)).call.token;
+    }
+
+    std::stop_token tokenForStash(const QString &stash_id, const QString &substash_id = {}) const
+    {
+        return m_pending.at(pendingStash(stash_id, substash_id)).call.token;
+    }
+
+    std::stop_token tokenForCharacter(const QString &name) const
+    {
+        return m_pending.at(pendingCharacter(name)).call.token;
     }
 
     // --- delivery --------------------------------------------------------

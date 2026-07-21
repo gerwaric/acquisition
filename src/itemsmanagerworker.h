@@ -117,6 +117,21 @@ public:
     // aborted update's stopped straggler handles intentionally outlive it.)
     // Ordinary fixtures assert this is zero at teardown (verification §2).
     size_t OutstandingFetchTasksForTest() const { return m_fetch_tasks.size(); }
+
+    // Test-only: a snapshot of the completion counters, read on each StatusUpdate
+    // to pin that reported progress is monotonic (P-STATUS) — `needed` never
+    // drops below `received`, and neither counter decreases within an update.
+    struct ProgressForTest
+    {
+        size_t stashes_received;
+        size_t stashes_needed;
+        size_t characters_received;
+        size_t characters_needed;
+    };
+    ProgressForTest ProgressCountersForTest() const
+    {
+        return {m_stashes_received, m_stashes_needed, m_characters_received, m_characters_needed};
+    }
     // The setting values are parameters because this runs on the parser
     // thread: QSettings is reentrant but not thread-safe for one shared
     // instance, and the UI writes these keys on the main thread. The
