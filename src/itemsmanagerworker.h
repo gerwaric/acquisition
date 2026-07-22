@@ -69,10 +69,6 @@ struct ParseResult
     std::vector<ItemLocation> tabs;
     Items items;
     std::set<QString> tab_id_index;
-    // Ids whose contents exist in the datastore — a strict subset of
-    // tab_id_index, since a tab can be listed (metadata saved) without its
-    // items ever having been fetched (F55).
-    std::set<QString> contents_known;
 };
 
 // Read-only observation of the deferred task sweep (network-redesign phase 5,
@@ -107,13 +103,10 @@ public:
     // and the worker's public API carries no standing *ForTest / Set* methods.
     friend class WorkerTestAccess;
 
-    // The setting values are parameters because this runs on the parser
-    // thread: QSettings is reentrant but not thread-safe for one shared
-    // instance, and the UI writes these keys on the main thread. The
-    // caller must read them on the thread that owns m_settings.
-    ParseResult ParseCachedItems(const QString &dataDir,
-                                 bool get_map_stashes,
-                                 bool get_unique_stashes) const;
+    // Runs on the parser thread and must not touch m_settings (QSettings is
+    // not thread-safe for one shared instance the UI writes concurrently); it
+    // reads only the datastore and the realm/league captured at construction.
+    ParseResult ParseCachedItems(const QString &dataDir) const;
 
 signals:
     void ItemsRefreshed(const Items &items,
@@ -282,20 +275,6 @@ private:
 
     std::set<QString> m_tab_id_index;
 
-    // Ids whose contents have actually been fetched — seeded from the
-    // datastore at startup, extended on every successful stash/character
-    // reply, never consumed by list receipt alone. The always-fetch check
-    // keys on this instead of list membership, so a new tab whose first
-    // fetch failed (or never ran) stays "new" until a fetch lands (F55).
-    std::set<QString> m_contents_known;
-
-    // Child fetches still outstanding per Map/Unique parent: the parent
-    // joins m_contents_known only when its last enabled child fetch lands,
-    // so a failed child fetch leaves the parent "new" and the children get
-    // retried — they never appear in a top-level list, so nothing else
-    // would ever refetch them (F55).
-    std::map<QString, int> m_pending_children;
-
     WorkerState m_state{WorkerState::Initializing};
     QPointer<QThread> m_parser_thread;
     std::atomic<bool> m_shutdown{false};
@@ -306,9 +285,10 @@ private:
     size_t m_request_failures{0};
 
     // The current update's content selection: refresh everything
-    // (All/TabsOnly), or only the tabs/characters whose ids are listed.
-    // Tabs not previously known (brand new on the server) are always
-    // fetched.
+    // (All/TabsOnly), or only the tabs/characters whose ids are listed. A
+    // partial refresh fetches strictly its selection; a newly discovered
+    // tab is listed but not fetched until a full refresh or a selection
+    // reaches it (F55, revised).
     bool m_update_all;
     std::set<QString> m_tabs_to_update;
 

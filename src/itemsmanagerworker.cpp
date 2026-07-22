@@ -124,13 +124,9 @@ void ItemsManagerWorker::StartParseThread()
     // and items.
     const QFileInfo info(m_settings.fileName());
     const QString dataDir = info.absolutePath() + "/data/";
-    // Read on the main thread: the parser thread must not touch the shared
-    // QSettings instance, which the UI writes concurrently.
-    const bool get_map_stashes = m_settings.value("get_map_stashes", false).toBool();
-    const bool get_unique_stashes = m_settings.value("get_unique_stashes", false).toBool();
     m_shutdown.store(false);
-    m_parser_thread = QThread::create([this, dataDir, get_map_stashes, get_unique_stashes]() {
-        auto result = ParseCachedItems(dataDir, get_map_stashes, get_unique_stashes);
+    m_parser_thread = QThread::create([this, dataDir]() {
+        auto result = ParseCachedItems(dataDir);
         if (m_shutdown.load()) {
             return;
         }
@@ -143,9 +139,7 @@ void ItemsManagerWorker::StartParseThread()
     m_parser_thread->start();
 }
 
-ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir,
-                                                 bool get_map_stashes,
-                                                 bool get_unique_stashes) const
+ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir) const
 {
     spdlog::trace("ItemsManagerWorker::ParseItemMods() entered");
     ParseResult result;
@@ -196,7 +190,6 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir,
     spdlog::trace("ItemsManagerWorker::ParseItemMods() getting cached items");
 
     // Get stash items.
-    std::vector<std::pair<QString, QStringList>> required_children;
     for (size_t i = 0; i < stashes.size(); ++i) {
         if (m_shutdown.load()) {
             return result;
@@ -207,22 +200,9 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir,
         const auto id = stashes[i].id;
         const auto stash = userstore.stashes().getStash(id, m_realm, m_league);
         if (!stash) {
-            // The row exists but its contents were never fetched: the tab
-            // was listed and must stay "new" so the next content update
-            // fetches it (F55).
+            // The row was listed but its contents were never fetched, so
+            // there is nothing cached to load for it here.
             continue;
-        }
-        result.contents_known.insert(id);
-        // A Map/Unique parent's saved reply records the children a fetch of
-        // it implies; collect them so completeness can be checked below.
-        const bool children_enabled = ((stash->type == "MapStash") && get_map_stashes)
-                                      || ((stash->type == "UniqueStash") && get_unique_stashes);
-        if (children_enabled && stash->children && !stash->children->empty()) {
-            QStringList child_ids;
-            for (const auto &child : *stash->children) {
-                child_ids.append(child.id);
-            }
-            required_children.emplace_back(id, child_ids);
         }
         sendStatusUpdate(ProgramState::Initializing,
                          QString("Parsing items from stash %1/%2: %3 '%4'")
@@ -252,20 +232,6 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir,
         LoadItems(*stash, location, result);
     }
 
-    // A Map/Unique parent's contents are complete only if every enabled
-    // child fetch also landed: a cached parent with a missing child row
-    // must stay "new" so the next content update refetches it and
-    // re-queues its children — they never appear in a top-level list, so
-    // nothing else would retry them (F55).
-    for (const auto &[parent_id, child_ids] : required_children) {
-        for (const auto &child_id : child_ids) {
-            if (result.contents_known.count(child_id) == 0) {
-                result.contents_known.erase(parent_id);
-                break;
-            }
-        }
-    }
-
     // Get character items.
     for (size_t i = 0; i < characters.size(); ++i) {
         if (m_shutdown.load()) {
@@ -277,10 +243,9 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir,
         const auto name = characters[i].name;
         const auto character = userstore.characters().getCharacter(name, m_realm);
         if (!character) {
-            // Listed but never fetched: stays "new" (F55).
+            // Listed but never fetched: nothing cached to load here.
             continue;
         }
-        result.contents_known.insert(characters[i].id);
         sendStatusUpdate(ProgramState::Initializing,
                          QString("Parsing items from character %1/%2: %3")
                              .arg(i)
@@ -303,7 +268,6 @@ void ItemsManagerWorker::OnParseCompleted(ParseResult result)
     m_tabs = std::move(result.tabs);
     m_items = std::move(result.items);
     m_tab_id_index = std::move(result.tab_id_index);
-    m_contents_known = std::move(result.contents_known);
     m_state = WorkerState::Idle;
     // let ItemManager know that the retrieval of cached items/tabs has been completed (calls ItemsManager::OnItemsRefreshed method)
     spdlog::trace("ItemsManagerWorker::ParseItemMods() emitting ItemsRefreshed signal");
@@ -413,10 +377,6 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
     m_stashes_received = 0;
     m_characters_needed = 0;
     m_characters_received = 0;
-
-    // Counts left over from a failed update are stale: this update launches
-    // its own child fetches afresh.
-    m_pending_children.clear();
 
     // Build the content selection. Nothing is culled here: tab entries are
     // reconciled against the fresh lists as they arrive, and each tab's
@@ -742,13 +702,12 @@ void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, std::vector<ItemsR
     m_tabs.push_back(location);
     m_tab_id_index.insert(location.id());
 
-    // Fetch this tab's contents if it is part of the update selection, or
-    // if its contents were never successfully fetched. Keying on
-    // contents-known rather than list membership keeps a new tab "new"
-    // across a failed first fetch — list receipt alone (which persists
-    // metadata) must not consume newness (F55).
-    const bool selected = m_update_all || (m_tabs_to_update.count(location.id()) > 0)
-                          || (m_contents_known.count(location.id()) == 0);
+    // Fetch this tab's contents only if it is part of the update selection.
+    // A newly discovered tab (not in the selection) is added to the tab list
+    // above but left unfetched: a partial refresh touches only what it was
+    // asked to, so new tabs wait for a full refresh or an explicit selection
+    // rather than turning a partial refresh into a full one (F55, revised).
+    const bool selected = m_update_all || (m_tabs_to_update.count(location.id()) > 0);
     if (m_update_tab_contents && selected) {
         batch.push_back(ItemsRequest{StashFetch{location.id(), {}}, location});
     }
@@ -904,11 +863,10 @@ void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterList
         m_tabs.push_back(location);
         m_tab_id_index.insert(location.id());
 
-        // Fetch this character's items if it is part of the update
-        // selection, or if its contents were never successfully fetched
-        // (same contents-known rule as ProcessTab, F55).
-        const bool selected = m_update_all || (m_tabs_to_update.count(location.id()) > 0)
-                              || (m_contents_known.count(location.id()) == 0);
+        // Fetch this character's items only if it is part of the update
+        // selection (same rule as ProcessTab): a newly discovered character
+        // waits for a full refresh or an explicit selection (F55, revised).
+        const bool selected = m_update_all || (m_tabs_to_update.count(location.id()) > 0);
         if (m_update_tab_contents && selected) {
             batch.push_back(ItemsRequest{CharacterFetch{name}, location});
         }
@@ -1024,35 +982,6 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
         }
     }
 
-    // A tab's contents count as known only once everything a fetch of it
-    // implies has landed. For a Map/Unique parent that includes every
-    // enabled child fetch, so completion is deferred to the last child
-    // reply — marking the parent at its own reply would let a failed child
-    // fetch strand the children, since they never appear in a top-level
-    // list to be retried (F55).
-    if (location.fetch_id() == location.id()) {
-        const int queued_children = (get_children && stash.children) ? int(stash.children->size())
-                                                                     : 0;
-        if (queued_children > 0) {
-            // Starting a child-fetch cycle makes the parent incomplete
-            // until the last child lands — an already-known parent whose
-            // reply introduces a child that then fails must not stay
-            // known, or the child would never be retried. The cost of a
-            // mid-cycle terminal failure is one redundant refetch of the
-            // parent and its children on the next update.
-            m_contents_known.erase(location.id());
-            m_pending_children[location.id()] = queued_children;
-        } else {
-            m_contents_known.insert(location.id());
-        }
-    } else {
-        const auto pending = m_pending_children.find(location.id());
-        if ((pending != m_pending_children.end()) && (--pending->second <= 0)) {
-            m_pending_children.erase(pending);
-            m_contents_known.insert(location.id());
-        }
-    }
-
     // The parent's reply is authoritative for its children: drop cached
     // items that display under this tab but were fetched from a child it
     // no longer lists — or whose fetching is disabled in the settings.
@@ -1090,10 +1019,8 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
     }
 
     // Launch the child batch (D6): reply-discovered Map/Unique children go out
-    // as one complete batch, with m_pending_children[parent] already set above
-    // so a ready child's completion sees the pending count. An empty batch
-    // (a normal tab, or a parent whose children are disabled) makes this a
-    // no-op.
+    // as one complete batch. An empty batch (a normal tab, or a parent whose
+    // children are disabled) makes this a no-op.
     LaunchContent(std::move(batch));
     CheckUpdateFinished();
 }
@@ -1122,9 +1049,6 @@ void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterWrapper>
     const auto &character = *result->character;
 
     emit characterReceived(character, m_realm);
-
-    // The fetch landed, so this character is no longer "new" (F55).
-    m_contents_known.insert(location.id());
 
     // Atomically replace this character's items.
     RemoveItemsFetchedBy(location.fetch_id());

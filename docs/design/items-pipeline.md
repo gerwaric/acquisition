@@ -109,24 +109,29 @@ re-parallelization.)
   `TabsOnly` becomes "selection with contents off", `Checked`/`Selected`
   are the general case. `RemoveUpdatingTabs`, `RemoveUpdatingItems`,
   `m_first_stash_request_index`, and `m_first_character_request_name` are
-  deleted. Tabs and characters not previously known (created server-side
-  since the last list) are **always fetched when they appear in a list
-  the selection already requires** — even in `Checked`/`Selected`
-  updates, where a new tab would otherwise sit empty until the next full
-  refresh. Narrowed July 2026 (post-review): a partial refresh requests
-  only the lists its selection needs, so a stash-only refresh does not
-  discover new characters, and a brand-new first character waits for a
-  refresh that requests the character list (`All`, `TabsOnly`, or any
-  character selection). A `TabsOnly` refresh fetches no contents at all,
-  so it *records* a new tab without fetching it; because newness keys on
-  fetched contents (F55), the next content refresh picks the tab up.
-  Deliberate behavior change (one extra tab fetch
-  per new tab on a partial refresh); final wording in the release notes
-  below. (The F55 failure edge — a terminal failure before a new tab's
-  first successful fetch used to consume its newness — is fixed in the
-  follow-up PR: newness keys on fetched contents, not list membership,
-  and a Map/Unique parent only counts as fetched once every enabled
-  child fetch has landed.)
+  deleted. A partial refresh (`Checked`/`Selected`) fetches **only the
+  tabs in its selection**. A tab or character newly discovered in a fresh
+  list is added to the tab list (its metadata surfaces in the UI) but is
+  left unfetched until a full refresh — or an explicit selection — picks
+  it up; a `TabsOnly` refresh fetches no contents at all. The children of
+  a selected Map/Unique parent are still fetched, because they are
+  discovered in the parent's reply and ride its fetch decision — they
+  never appear in a top-level list, so nothing else would reach them.
+
+  **F55, revised (supersedes the original F55 always-fetch rule).** The
+  original design auto-fetched any not-previously-known tab whenever it
+  appeared in a list the selection required, keying "new" on whether the
+  tab's *contents* were already cached. That conflated a genuinely new tab
+  with an existing tab whose contents were merely cold, so a partial
+  refresh ballooned into a full one whenever the contents cache was cold —
+  a fresh install, an upgrade from an older Acquisition (whose contents
+  live in a different datastore that is never migrated), or a datastore
+  that had only ever stored tab lists. The revised rule keys purely on the
+  selection: partial refreshes never fetch outside their selection, so the
+  whole `m_contents_known` apparatus (parse-time seeding, the never-consume
+  failure edge, the Map/Unique deferred-completion accounting) is deleted.
+  Cost of the revision: a newly created tab waits for a full refresh (or an
+  explicit selection) instead of filling in on the next partial refresh.
 - **Failure semantics unchanged at the boundary**: no `ItemsRefreshed`
   emit on terminal failure — but now that's safe, because `m_items` is
   never left culled. Emit-on-failure / partial-application policy is a
@@ -153,16 +158,20 @@ behavior changes ship with M1; this is the source text for the release
   moving, or recoloring a stash tab in the game is reflected by the next
   refresh of any kind, without refetching the tab's contents. Previously
   the old name could persist until that specific tab was refreshed.
-- *Newly created tabs and characters are fetched automatically.* A stash
-  tab or character created since your last refresh is now fetched by any
-  content refresh that consults the corresponding tab or character list,
-  even if you only refreshed a selection. Previously it sat empty until
-  the next full refresh. (Costs one extra tab fetch per newly created
-  tab. A tab-list-only refresh records the new tab without fetching it;
-  the next content refresh picks it up.)
+- *Newly created tabs and characters show up right away and fill in on a
+  full refresh.* A stash tab or character created since your last refresh
+  appears in the tab list as soon as any refresh consults the
+  corresponding list, and its contents are fetched by the next full
+  refresh — or immediately, if you select it. A partial refresh (refresh
+  selected or refresh checked) fetches only the tabs you asked for, so it
+  never turns into a full refresh just because some tabs have not been
+  fetched yet.
 
-The second note was blocked on F55 (a failure edge made it untrue);
-F55's fix in the follow-up PR clears the release-blocking condition.
+The second note originally promised the opposite — that a partial refresh
+would auto-fetch newly created tabs. That was revised (see "F55, revised"
+above): keying "new" on cached contents made a partial refresh balloon
+into a full one on a cold contents cache, so the auto-fetch was dropped in
+favor of fetching strictly the selection.
 
 ### Milestone 2 — Streaming refresh signal (next; spec pending)
 

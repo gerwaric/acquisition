@@ -42,11 +42,8 @@ private slots:
     void renamedTabMetadataRefreshesWithoutFetch();
     void vanishedMapChildItemsAreRemovedOnParentRefresh();
     void failedUpdateDoesNotRebasePublishedLocations();
-    void listedButNeverFetchedTabIsFetchedOnNextUpdate();
-    void failedFirstFetchDoesNotConsumeNewness();
-    void failedChildFetchKeepsParentNew();
-    void cachedParentWithMissingChildRowStaysNew();
-    void knownParentWithNewFailedChildIsRetried();
+    void partialRefreshSkipsNeverFetchedTabs();
+    void partialRefreshFetchesChildrenOfSelectedMapParent();
     void datastoreFollowsServerDeletions();
     void datastoreFollowsCharacterDeletions();
 
@@ -1011,11 +1008,11 @@ void WorkerUpdateTest::failedUpdateDoesNotRebasePublishedLocations()
     QCOMPARE(item_a->location().tab_label(), QString("New Name"));
 }
 
-// A tab whose metadata was cached but whose contents were never fetched —
-// the durable footprint of an update that died between list receipt and
-// the tab's first item request — must still count as "new" after a
-// restart, so the next content update fetches it (F55).
-void WorkerUpdateTest::listedButNeverFetchedTabIsFetchedOnNextUpdate()
+// A partial refresh fetches only the tabs it was asked to. A tab that was
+// listed but whose contents were never fetched is left untouched by a
+// selection that excludes it, so a partial refresh never balloons into a
+// full one (F55, revised). A full refresh still fetches it.
+void WorkerUpdateTest::partialRefreshSkipsNeverFetchedTabs()
 {
     WorkerFixture f("worker-update-account-7");
 
@@ -1034,97 +1031,63 @@ void WorkerUpdateTest::listedButNeverFetchedTabIsFetchedOnNextUpdate()
     QCOMPARE(f.last_tabs.size(), size_t(2));
     QCOMPARE(f.last_items.size(), size_t(1));
 
-    // Refresh only tab A: tab N must be fetched anyway, because its
-    // contents were never seen.
-    f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
-    QCOMPARE(f.callCount(), size_t(1));
-    f.deliverStashList(
-        stashList({stashJson("stashaaaa1", "Tab A", 0), stashJson("stashnnnn1", "New Tab", 1)}));
-
-    // Tab A (selected) and tab N (never fetched, so still new) launch together
-    // as one batch — N is not held behind A.
-    QCOMPARE(f.callCount(), size_t(3));
-    QVERIFY(f.hasPendingStash("stashaaaa1"));
-    QVERIFY(f.hasPendingStash("stashnnnn1"));
-    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
-    f.deliverStash("stashnnnn1", stashOf(stashJson("stashnnnn1", "New Tab", 1, QStringList{"n1"})));
-
-    QCOMPARE(f.refresh_count, 2);
-    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "n1"}));
-}
-
-// The ledger-specified F55 pin: an update that fails after list receipt
-// but before a newly discovered tab's first reply must not consume the
-// tab's newness — the next partial refresh still fetches it. (Before the
-// fix, list receipt alone marked the tab previously-known, so a later
-// partial refresh skipped it and published the tab empty.)
-void WorkerUpdateTest::failedFirstFetchDoesNotConsumeNewness()
-{
-    WorkerFixture f("worker-update-account-8");
-
-    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"}));
-    QVERIFY(tab_a);
-    {
-        UserStore store(QDir(f.dataDir()), "worker-update-account-8");
-        QVERIFY(store.stashes().saveStashList({*tab_a}, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
-    }
-
-    f.start();
-    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
-
-    const std::vector<poe::StashTab> list_with_new_tab = stashList(
+    const std::vector<poe::StashTab> stash_list = stashList(
         {stashJson("stashaaaa1", "Tab A", 0), stashJson("stashnnnn1", "New Tab", 1)});
 
-    // Update 1: the list reveals new tab N; its first fetch dies.
+    // Refresh only tab A: tab N is left alone even though its contents were
+    // never fetched — a partial refresh touches only its selection.
     f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
     QCOMPARE(f.callCount(), size_t(1));
-    f.deliverStashList(list_with_new_tab);
-    // Tab A (selected) and new tab N launch together.
-    QCOMPARE(f.callCount(), size_t(3));
+    f.deliverStashList(stash_list);
+    // Only tab A is fetched; the never-fetched tab N is not pulled in.
+    QCOMPARE(f.callCount(), size_t(2));
     QVERIFY(f.hasPendingStash("stashaaaa1"));
-    QVERIFY(f.hasPendingStash("stashnnnn1"));
+    QVERIFY(!f.hasPendingStash("stashnnnn1"));
     f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
-    // N's first fetch dies; A has already landed, so nothing else is stranded.
-    f.failStash("stashnnnn1");
-    QCOMPARE(f.refresh_count, 1);
+    QCOMPARE(f.refresh_count, 2);
+    // Tab N is still empty.
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1"}));
 
-    // Update 2 selects only tab A again: tab N is still new and must be
-    // fetched.
-    f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
-    QCOMPARE(f.callCount(), size_t(4));
-    f.deliverStashList(list_with_new_tab);
-    QCOMPARE(f.callCount(), size_t(6));
+    // A full refresh does fetch the never-fetched tab.
+    f.worker->Update(TabSelection::All);
+    QCOMPARE(f.callCount(), size_t(4)); // + stash list + character list
+    QVERIFY(f.hasPendingStashList());
+    f.deliverStashList(stash_list);
+    QCOMPARE(f.callCount(), size_t(6)); // both tabs launch
     QVERIFY(f.hasPendingStash("stashaaaa1"));
     QVERIFY(f.hasPendingStash("stashnnnn1"));
+    f.deliverCharacterList({});
     f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
     f.deliverStash("stashnnnn1", stashOf(stashJson("stashnnnn1", "New Tab", 1, QStringList{"n1"})));
-
-    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(f.refresh_count, 3);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "n1"}));
 }
 
-// A Map/Unique parent's contents are complete only when every enabled
-// child fetch lands: marking the parent known at its own reply would let
-// a failed child fetch strand the children, since they never appear in a
-// top-level list to be retried (F55, review follow-up).
-void WorkerUpdateTest::failedChildFetchKeepsParentNew()
+// Selecting a Map/Unique parent in a partial refresh fetches the parent and
+// its reply-discovered children, while a known, unselected tab is left alone.
+// Children are never top-level list entries, so they ride the parent's fetch
+// decision — a partial refresh that reaches a special stash still reaches its
+// children (F55, revised).
+void WorkerUpdateTest::partialRefreshFetchesChildrenOfSelectedMapParent()
 {
-    WorkerFixture f("worker-update-account-11");
+    WorkerFixture f("worker-update-account-8");
     f.settings.setValue("get_map_stashes", true);
 
     const auto tab_a = json::readStash(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"}));
-    QVERIFY(tab_a);
+    const auto map_parent = json::readStash(
+        stashJson("mapstash01", "Maps", 1, QStringList{"p1"}, "MapStash"));
+    QVERIFY(tab_a && map_parent);
     {
-        UserStore store(QDir(f.dataDir()), "worker-update-account-11");
-        QVERIFY(store.stashes().saveStashList({*tab_a}, kRealm, kLeague));
+        UserStore store(QDir(f.dataDir()), "worker-update-account-8");
+        QVERIFY(store.stashes().saveStashList({*tab_a, *map_parent}, kRealm, kLeague));
         QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+        QVERIFY(store.stashes().saveStash(*map_parent, kRealm, kLeague));
     }
 
     f.start();
     QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
 
-    const std::vector<poe::StashTab> list_with_new_map = stashList(
+    const std::vector<poe::StashTab> stash_list = stashList(
         {stashJson("stashaaaa1", "Tab A", 0), stashJson("mapstash01", "Maps", 1, {}, "MapStash")});
     const poe::StashTab map_parent_body = stashOf(
         stashJson("mapstash01",
@@ -1135,199 +1098,26 @@ void WorkerUpdateTest::failedChildFetchKeepsParentNew()
                   {},
                   {stashJson("mapchild01", "Tier 1", 0, {}, "MapStash", "mapstash01")}));
 
-    // Update 1: the list reveals new Map stash M; its parent fetch lands,
-    // but the child fetch it queues dies.
-    f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
-    QCOMPARE(f.callCount(), size_t(1));
-    f.deliverStashList(list_with_new_map);
-    // Tab A and the new Map stash M launch together.
-    QCOMPARE(f.callCount(), size_t(3));
-    QVERIFY(f.hasPendingStash("stashaaaa1"));
-    QVERIFY(f.hasPendingStash("mapstash01"));
-    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
-    // M's parent reply discovers one child, launched as its own batch.
-    f.deliverStash("mapstash01", map_parent_body);
-    QCOMPARE(f.callCount(), size_t(4));
-    QVERIFY(f.hasPendingStash("mapstash01", "mapchild01"));
-    f.failStash("mapstash01", "mapchild01");
-    QCOMPARE(f.refresh_count, 1);
-
-    // Update 2 selects only tab A again: the parent is still incomplete,
-    // so it is refetched and its child fetch retried.
-    f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
-    QCOMPARE(f.callCount(), size_t(5));
-    f.deliverStashList(list_with_new_map);
-    QCOMPARE(f.callCount(), size_t(7));
-    QVERIFY(f.hasPendingStash("stashaaaa1"));
-    QVERIFY(f.hasPendingStash("mapstash01"));
-    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
-    f.deliverStash("mapstash01", map_parent_body);
-    QCOMPARE(f.callCount(), size_t(8));
-    QVERIFY(f.hasPendingStash("mapstash01", "mapchild01"));
-    f.deliverChild(
-        "mapstash01",
-        "mapchild01",
-        stashOf(stashJson("mapchild01", "Tier 1", 0, QStringList{"m1"}, "MapStash", "mapstash01")));
-
-    QCOMPARE(f.refresh_count, 2);
-    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "m1", "p1"}));
-}
-
-// The restart shape of the same gap: a cached Map parent whose reply
-// recorded children must stay "new" at startup if a child row is missing,
-// so the next content update refetches it.
-void WorkerUpdateTest::cachedParentWithMissingChildRowStaysNew()
-{
-    WorkerFixture f("worker-update-account-12");
-    f.settings.setValue("get_map_stashes", true);
-
-    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"}));
-    const auto map_parent = json::readStash(
-        stashJson("mapstash01",
-                  "Maps",
-                  1,
-                  QStringList{"p1"},
-                  "MapStash",
-                  {},
-                  {stashJson("mapchild01", "Tier 1", 0, {}, "MapStash", "mapstash01")}));
-    QVERIFY(tab_a && map_parent);
-    {
-        UserStore store(QDir(f.dataDir()), "worker-update-account-12");
-        QVERIFY(store.stashes().saveStashList({*tab_a, *map_parent}, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*map_parent, kRealm, kLeague));
-        // The child row is missing: its fetch never landed before restart.
-    }
-
-    f.start();
-    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
-    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "p1"}));
-
-    // Refresh only tab A: the incomplete parent must be fetched anyway.
-    f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
-    QCOMPARE(f.callCount(), size_t(1));
-    f.deliverStashList(stashList(
-        {stashJson("stashaaaa1", "Tab A", 0), stashJson("mapstash01", "Maps", 1, {}, "MapStash")}));
-    // Tab A and the incomplete parent launch together.
-    QCOMPARE(f.callCount(), size_t(3));
-    QVERIFY(f.hasPendingStash("stashaaaa1"));
-    QVERIFY(f.hasPendingStash("mapstash01"));
-    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
-    f.deliverStash(
-        "mapstash01",
-        stashOf(stashJson("mapstash01",
-                          "Maps",
-                          1,
-                          QStringList{"p1"},
-                          "MapStash",
-                          {},
-                          {stashJson("mapchild01", "Tier 1", 0, {}, "MapStash", "mapstash01")})));
-    QCOMPARE(f.callCount(), size_t(4));
-    QVERIFY(f.hasPendingStash("mapstash01", "mapchild01"));
-    f.deliverChild(
-        "mapstash01",
-        "mapchild01",
-        stashOf(stashJson("mapchild01", "Tier 1", 0, QStringList{"m1"}, "MapStash", "mapstash01")));
-
-    QCOMPARE(f.refresh_count, 2);
-    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "m1", "p1"}));
-}
-
-// Starting a child-fetch cycle must evict the parent from contents-known:
-// an already-known parent whose reply introduces a new child that then
-// fails would otherwise stay known, and the new child would never be
-// retried (F55, review round 2).
-void WorkerUpdateTest::knownParentWithNewFailedChildIsRetried()
-{
-    WorkerFixture f("worker-update-account-13");
-    f.settings.setValue("get_map_stashes", true);
-
-    // Cached state: tab A and a fully fetched Map stash whose saved reply
-    // records child C1, with C1's row present — the parent starts known.
-    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"}));
-    const auto map_parent = json::readStash(
-        stashJson("mapstash01",
-                  "Maps",
-                  1,
-                  QStringList{"p1"},
-                  "MapStash",
-                  {},
-                  {stashJson("mapchild01", "Tier 1", 0, {}, "MapStash", "mapstash01")}));
-    const auto map_child = json::readStash(
-        stashJson("mapchild01", "Tier 1", 0, QStringList{"m1"}, "MapStash", "mapstash01"));
-    QVERIFY(tab_a && map_parent && map_child);
-    {
-        UserStore store(QDir(f.dataDir()), "worker-update-account-13");
-        QVERIFY(store.stashes().saveStashList({*tab_a, *map_parent}, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*map_parent, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*map_child, kRealm, kLeague));
-    }
-
-    f.start();
-    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
-    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "m1", "p1"}));
-
-    const std::vector<poe::StashTab> stash_list = stashList(
-        {stashJson("stashaaaa1", "Tab A", 0), stashJson("mapstash01", "Maps", 1, {}, "MapStash")});
-    const poe::StashTab parent_with_new_child = stashOf(
-        stashJson("mapstash01",
-                  "Maps",
-                  1,
-                  QStringList{"p1"},
-                  "MapStash",
-                  {},
-                  {stashJson("mapchild01", "Tier 1", 0, {}, "MapStash", "mapstash01"),
-                   stashJson("mapchild02", "Tier 2", 1, {}, "MapStash", "mapstash01")}));
-
-    // Update 1 selects the known parent. Its reply introduces child C2;
-    // C1's refetch lands, C2's fetch dies.
+    // Select only the Map parent.
     f.worker->Update(TabSelection::Selected, {ItemLocation(*map_parent)});
     QCOMPARE(f.callCount(), size_t(1));
     f.deliverStashList(stash_list);
-    // Only the selected Map parent is fetched; tab A is known and unselected.
+    // Only the selected Map parent is fetched; the known, unselected tab A is not.
     QCOMPARE(f.callCount(), size_t(2));
     QVERIFY(f.hasPendingStash("mapstash01"));
-    f.deliverStash("mapstash01", parent_with_new_child);
-    // Both children — C1's refetch and the newly introduced C2 — launch
-    // together as one child batch.
-    QCOMPARE(f.callCount(), size_t(4));
+    QVERIFY(!f.hasPendingStash("stashaaaa1"));
+    // The parent's reply discovers its child, which is fetched even though the
+    // child was never in the selection — it rides the parent's fetch.
+    f.deliverStash("mapstash01", map_parent_body);
+    QCOMPARE(f.callCount(), size_t(3));
     QVERIFY(f.hasPendingStash("mapstash01", "mapchild01"));
-    QVERIFY(f.hasPendingStash("mapstash01", "mapchild02"));
     f.deliverChild(
         "mapstash01",
         "mapchild01",
         stashOf(stashJson("mapchild01", "Tier 1", 0, QStringList{"m1"}, "MapStash", "mapstash01")));
-    // C2 dies; C1 already landed, so nothing is stranded.
-    f.failStash("mapstash01", "mapchild02");
-    QCOMPARE(f.refresh_count, 1);
-
-    // Update 2 selects only tab A: the parent is incomplete again, so it
-    // is refetched and the new child retried.
-    f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
-    QCOMPARE(f.callCount(), size_t(5));
-    f.deliverStashList(stash_list);
-    // Tab A and the incomplete parent launch together.
-    QCOMPARE(f.callCount(), size_t(7));
-    QVERIFY(f.hasPendingStash("stashaaaa1"));
-    QVERIFY(f.hasPendingStash("mapstash01"));
-    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
-    f.deliverStash("mapstash01", parent_with_new_child);
-    // Both children launch together.
-    QCOMPARE(f.callCount(), size_t(9));
-    QVERIFY(f.hasPendingStash("mapstash01", "mapchild01"));
-    QVERIFY(f.hasPendingStash("mapstash01", "mapchild02"));
-    f.deliverChild(
-        "mapstash01",
-        "mapchild01",
-        stashOf(stashJson("mapchild01", "Tier 1", 0, QStringList{"m1"}, "MapStash", "mapstash01")));
-    f.deliverChild(
-        "mapstash01",
-        "mapchild02",
-        stashOf(stashJson("mapchild02", "Tier 2", 1, QStringList{"m2"}, "MapStash", "mapstash01")));
 
     QCOMPARE(f.refresh_count, 2);
-    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "m1", "m2", "p1"}));
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a1", "m1", "p1"}));
 }
 
 // End-to-end F53: with the persistence wiring in place, a fresh top-level
@@ -2187,10 +1977,9 @@ void WorkerUpdateTest::readyContentErrorStillLaunchesTheRestOfTheBatch()
 
 // W-INIT (child batch): a Map parent's reply discovers two children and one of
 // them comes back already-finished, running inline during the child batch launch.
-// Because m_pending_children and the child count are set before the launch, the
-// inline child completion neither finalizes the update early nor marks the parent
-// contents-known before its last child lands — the update finishes only after the
-// second child arrives, with both children's items.
+// Because the child batch's count is tallied into the completion total before the
+// launch, the inline child completion does not finalize the update early — it
+// finishes only after the second child arrives, with both children's items.
 void WorkerUpdateTest::readyChildCompletesInlineWithoutCorruptingParentBookkeeping()
 {
     WorkerFixture f("winit-child");
@@ -2294,9 +2083,12 @@ void WorkerUpdateTest::readyChildErrorStillLaunchesTheRestAndParentStaysRetryabl
     QCOMPARE(f.readyTransitionsSince(mark), 1);
     QCOMPARE(f.settleStragglers(), size_t(1));
 
-    // The parent's child cycle never completed, so it stays retryable: a
-    // follow-up update refetches it and both children now succeed.
-    f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a)});
+    // The parent's child cycle failed. Refetch it by including it in the
+    // selection (a partial refresh reaches only its selection — new/incomplete
+    // tabs are no longer auto-fetched, F55 revised): both children now succeed.
+    const auto map_parent = json::readStash(stashJson("map01", "Maps", 1, {}, "MapStash"));
+    QVERIFY(map_parent);
+    f.worker->Update(TabSelection::Selected, {ItemLocation(*tab_a), ItemLocation(*map_parent)});
     f.deliverStashList(stash_list);
     QVERIFY(f.hasPendingStash("stashaaaa1"));
     QVERIFY(f.hasPendingStash("map01"));
