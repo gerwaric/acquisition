@@ -784,17 +784,6 @@ void WorkerIntegrationTest::i_leak_bound()
     QPointer<ItemsManagerWorker> worker_obj = rig.worker.get();
     QPointer<RateLimiter> limiter_obj = rig.limiter.get();
 
-    // === STEP-2 TEETH MUTATION — REVERT BEFORE MERGE (phase5e-lsan-session-b) ===
-    // Deliberately leak an allocation OUTSIDE the detached-frame closure to prove
-    // tests/lsan.supp is TIGHT, not a whole-runner silencer. Its leak stack tops
-    // out in WorkerIntegrationTest::i_leak_bound (operator new[]), matching none
-    // of the suppression templates, so LSan must report it and turn the CI job
-    // red — even though this scenario's accepted detached-frame leaks ARE
-    // suppressed. Session B reverts this immediately once CI confirms the red.
-    int *out_of_closure_leak = new int[64];
-    out_of_closure_leak[0] = 1; // touch it so the alloc cannot be optimized away
-    // === END STEP-2 TEETH MUTATION ===
-
     // Drive the list request into flight (one suspended per-fetch frame).
     rig.worker->Update(TabSelection::Selected, {rig.selection});
     settle(rig.scheduler);
