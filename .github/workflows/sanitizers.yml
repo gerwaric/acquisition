@@ -64,8 +64,14 @@ jobs:
       # Build ONLY the integration runner. acquisition_core + sentry/crashpad
       # compile under ASan (a heavy from-scratch build), but the `acquisition`
       # app target must never be sanitized. Allow generous build time.
+      #
+      # Cap at --parallel 2 (matching codeql.yml / build-linux.yml): ASan cc1plus
+      # uses far more memory per translation unit than a plain build, so building
+      # the heavy C++23/Qt TUs at full runner width (4 cores) exhausts RAM and
+      # systemd-oomd kills the build cgroup with SIGTERM (exit 143). Two-wide
+      # keeps peak memory well under the runner's limit.
       - name: Build integration runner
-        run: cmake --build build-asan --target tst_workerintegration --parallel
+        run: cmake --build build-asan --target tst_workerintegration --parallel 2
 
       # detect_leaks=1 is the Linux default under ASan; set it explicitly.
       # abort_on_error=1 makes any ASan/LSan report fail the process (and the
