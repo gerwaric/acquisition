@@ -78,9 +78,16 @@ jobs:
       # test). print_suppressions=1 shows which suppressions matched, so Session
       # B can see whether the tight closure held. llvm-symbolizer (from the llvm
       # apt package) gives symbolized leak stacks that the leak: substrings match.
+      #
+      # -V (not --output-on-failure): LSan writes its suppression accounting and
+      # leak stacks to each scenario's stderr, which ctest captures but only
+      # prints on failure by default. The shutdown scenarios PASS (their leaks are
+      # suppressed), so on-failure output would hide exactly the leak diagnostics
+      # Session B needs to tune the suppression and prove it is load-bearing.
+      # Verbose surfaces them on every run without changing the pass/fail gate.
       - name: Run integration runner under ASan + LSan
         env:
           ASAN_OPTIONS: abort_on_error=1:detect_leaks=1
           LSAN_OPTIONS: suppressions=${{ github.workspace }}/tests/lsan.supp:print_suppressions=1
         run: |
-          ctest --test-dir build-asan -R tst_workerintegration --output-on-failure
+          ctest --test-dir build-asan -R tst_workerintegration -V
