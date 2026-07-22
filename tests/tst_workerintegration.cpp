@@ -585,6 +585,25 @@ namespace {
         return -1;
     }
 
+    // The index of the first still-in-flight (unfinished) content-endpoint call
+    // of the given op, or -1. A content URL ends in a stash id (.../stash/<league>/
+    // <stash_id>), so its last path segment starts with "stash" — which the list
+    // URL (.../stash/<league>, last segment the league) does not. Used to walk the
+    // serial content pump one reply at a time.
+    int firstInFlightContent(Rig &rig, QNetworkAccessManager::Operation op)
+    {
+        for (int i = 0; i < rig.network->count(); ++i) {
+            const FakeNetworkManager::Sent &s = rig.network->sent(i);
+            if (s.op != op || s.reply.isNull() || s.reply->isFinished()) {
+                continue;
+            }
+            if (urlOf(s).section('/', -1).startsWith("stash")) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     // A TabsOnly update needs both lists (two endpoints); the stash list is
     // submitted first, so its HEAD probe is sent(0). Drive to there.
     void beginTabsOnly(Rig &rig)
@@ -826,45 +845,67 @@ void WorkerIntegrationTest::i_retention()
                                               stashListBody(ids));
     drainEvents();
 
-    // Drive the whole content batch to completion, finishing each content HEAD
-    // (endpoint setup) and content GET as it dispatches. Track the peak number
-    // of outstanding per-fetch handles: the batch launches all at once, so the
-    // peak is the launch set — it must NOT grow per completion, and the deferred
-    // sweep must drain it back to zero as replies land.
-    size_t peak = 0;
-    for (int step = 0; step < 200 && rig.update_refreshes == 0; ++step) {
-        peak = std::max(peak, rig.access().outstandingFetchTasks());
-        for (int i = 0; i < rig.network->count(); ++i) {
-            const FakeNetworkManager::Sent &s = rig.network->sent(i);
-            if (s.reply.isNull() || s.reply->isFinished()) {
-                continue;
-            }
-            const QString last = urlOf(s).section('/', -1);
-            if (s.op == QNetworkAccessManager::HeadOperation) {
-                s.reply->finish(policyHeaders(), 200); // establish the content endpoint
-            } else if (last.startsWith("stash")) {
-                s.reply->finish(policyHeaders("10:60:60", "1:60:0"),
-                                200,
-                                QNetworkReply::NoError,
-                                stashContentBody(last, 0));
-            }
+    // Establish the "Get Stash" content endpoint (the first content request
+    // probes it). This is a hub-side probe, not a worker fetch, so it does not
+    // change the per-fetch handle count.
+    int content_head = -1;
+    for (int step = 0; step < 12 && content_head < 0; ++step) {
+        content_head = firstInFlightContent(rig, QNetworkAccessManager::HeadOperation);
+        if (content_head < 0) {
+            advanceAndSettle(rig.scheduler, kGateSpacing);
         }
-        drainEvents();
-        advanceAndSettle(rig.scheduler, kGateSpacing);
+    }
+    QVERIFY(content_head >= 0);
+    rig.network->sent(content_head).reply->finish(policyHeaders(), 200);
+    settle(rig.scheduler);
+
+    // All kTabs content frames are now launched and suspended awaiting their
+    // futures; the list frame has been swept. This is the launch set — the whole
+    // batch exists up front, which is exactly why a peak-only assertion cannot
+    // tell incremental release from retain-everything-and-sweep-once.
+    const size_t launch_set = rig.access().outstandingFetchTasks();
+    QCOMPARE(launch_set, size_t(kTabs));
+
+    // Complete the content GETs ONE AT A TIME (they drain serially through the
+    // one "Get Stash" pump) and assert the live handle count strictly FALLS after
+    // each deferred sweep, and never exceeds the launch set. THIS is the retention
+    // contract, not eventual cleanup: a sweep that hoarded completed frames until
+    // the end would keep the count pinned at launch_set here and only drop at the
+    // final zero. Payload/future lifetime rides with the frame — takeResult()
+    // moved the payload into the frame local, so a released frame is a released
+    // payload and future shared-state.
+    int completed = 0;
+    for (int step = 0; step < 400 && completed < kTabs; ++step) {
+        const int get = firstInFlightContent(rig, QNetworkAccessManager::GetOperation);
+        if (get < 0) {
+            advanceAndSettle(rig.scheduler, kGateSpacing);
+            continue;
+        }
+        const size_t before = rig.access().outstandingFetchTasks();
+        const int destroyed_before = rig.sweep.destroyed;
+        const QString last = urlOf(rig.network->sent(get)).section('/', -1);
+        rig.network->sent(get).reply->finish(policyHeaders("10:60:60", "1:60:0"),
+                                             200,
+                                             QNetworkReply::NoError,
+                                             stashContentBody(last, 0));
+        settle(rig.scheduler);
+        ++completed;
+        // The just-completed frame was reclaimed by THIS turn's sweep...
+        QCOMPARE(rig.access().outstandingFetchTasks(), before - 1);
+        QVERIFY2(rig.sweep.destroyed >= destroyed_before + 1,
+                 "each completion's deferred sweep must reclaim its frame");
+        // ...and the population never grew past the launch set.
+        QVERIFY2(rig.access().outstandingFetchTasks() <= launch_set,
+                 "the outstanding-handle population must not accumulate");
     }
 
-    // The update succeeded exactly once...
+    // The update succeeded exactly once, and every frame — list plus kTabs
+    // content — was reclaimed; nothing accumulated across the update's lifetime.
+    QCOMPARE(completed, kTabs);
     QCOMPARE(rig.update_refreshes, 1);
-    // ...and every per-fetch frame was reclaimed by the deferred sweep — nothing
-    // accumulated for the update's lifetime.
     QCOMPARE(rig.access().outstandingFetchTasks(), size_t(0));
     QCOMPARE(rig.sweep.live_after, size_t(0));
-    // One stash-list handle plus kTabs content handles, all destroyed.
     QVERIFY2(rig.sweep.destroyed >= 1 + kTabs, "the sweep must reclaim every completed handle");
-    // The population never grew beyond the launched set: 1 list + kTabs content.
-    // (A small allowance covers a not-yet-swept completion coexisting with the
-    // launch set; the point is it is bounded, not linear in completions.)
-    QVERIFY2(peak <= size_t(1 + kTabs + 1), "the outstanding-handle population must stay bounded");
 }
 
 QTEST_GUILESS_MAIN(WorkerIntegrationTest)
