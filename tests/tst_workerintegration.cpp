@@ -4,12 +4,16 @@
 #include <QtTest>
 
 #include <QDateTime>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QPointer>
 #include <QSettings>
 
 #include <chrono>
+#include <expected>
 #include <memory>
 
 #include "datastore/stashrepo.h"
@@ -171,13 +175,68 @@ namespace {
         settle(scheduler);
     }
 
+    // A pass-through recording layer over the REAL facade (used only by
+    // I-CANCEL-FLIGHT). It delegates to PoeApiClient for the actual request
+    // building and parsing, then chains one recording continuation onto the
+    // returned future so the test can observe the OUTCOME the worker received —
+    // success payload vs a FetchError kind. This is what lets the flight pin
+    // distinguish "the pump delivered Canceled" from "the pump delivered success
+    // and the worker's own post-await token gate discarded it" (the two are
+    // otherwise byte-identical at the worker). A second continuation on the
+    // facade's returned future is safe: it has none of its own yet, and the
+    // worker awaits THIS future via a QCoroFutureWatcher, a separate mechanism.
+    class RecordingApiClient : public PoeApiClient
+    {
+    public:
+        using PoeApiClient::PoeApiClient;
+
+        struct Outcome
+        {
+            bool settled = false;
+            bool success = false;
+            RateLimit::FetchError::Kind kind{};
+        };
+
+        Outcome stash_list;
+        Outcome character_list;
+
+        Result<poe::StashListWrapper> listStashes(const QString &realm,
+                                                  const QString &league,
+                                                  std::stop_token token = {}) override
+        {
+            return record(PoeApiClient::listStashes(realm, league, token), stash_list);
+        }
+
+        Result<poe::CharacterListWrapper> listCharacters(const QString &realm,
+                                                         std::stop_token token = {}) override
+        {
+            return record(PoeApiClient::listCharacters(realm, token), character_list);
+        }
+
+    private:
+        template<typename T>
+        Result<T> record(Result<T> future, Outcome &slot)
+        {
+            return future.then([&slot](const std::expected<T, RateLimit::FetchError> &value) {
+                slot.settled = true;
+                slot.success = value.has_value();
+                slot.kind = value ? RateLimit::FetchError::Kind{} : value.error().kind;
+                return value;
+            });
+        }
+    };
+
     // The real worker -> real facade -> real hub chain, with a FakeScheduler and
     // a FakeNetworkManager at the edges. Every layer is a value or a unique_ptr
     // so a scenario can destroy the consumers before the hub and the fake
     // network last, matching UserSession ownership (§6 step 3).
     struct Rig
     {
-        explicit Rig(const QString &account)
+        // tap=true swaps the plain facade for the recording layer and turns on
+        // the hub's network capture, so a scenario can prove both the delivered
+        // outcome (via the tap) and that a reply landed and was recorded (via
+        // the capture file) — the two halves I-CANCEL-FLIGHT needs.
+        explicit Rig(const QString &account, bool tap = false)
             : settings(bm.tempDir.filePath("settings.ini"), QSettings::IniFormat)
             , account_name(account)
         {
@@ -188,7 +247,15 @@ namespace {
 
             network = std::make_unique<FakeNetworkManager>();
             limiter = std::make_unique<RateLimiter>(*network, &scheduler);
-            api = std::make_unique<PoeApiClient>(*limiter);
+            if (tap) {
+                auto recording = std::make_unique<RecordingApiClient>(*limiter);
+                recorder = recording.get();
+                api = std::move(recording);
+                // EnableCapture must precede the first submission (hub contract).
+                limiter->EnableCapture(capturePath());
+            } else {
+                api = std::make_unique<PoeApiClient>(*limiter);
+            }
             worker = std::make_unique<ItemsManagerWorker>(settings, *bm.manager, *api);
             WorkerTestAccess(*worker).setSweepObserver(&sweep);
 
@@ -228,6 +295,32 @@ namespace {
         WorkerTestAccess access() const { return WorkerTestAccess(*worker); }
 
         QString dataDir() const { return bm.tempDir.filePath("data"); }
+
+        QString capturePath() const { return bm.tempDir.filePath("capture.jsonl"); }
+
+        // True if the hub's capture recorded a landed reply for a URL matching
+        // `url_contains` with the given HTTP status. A reply is captured in
+        // RecordLandedReply — BEFORE the post-land cancellation checkpoint — so a
+        // record here proves the reply landed and was recorded even though its
+        // caller was later completed Canceled (the "recorded" half of §6
+        // I-CANCEL-FLIGHT). Capture is flushed per line, so it is readable while
+        // the limiter is still alive.
+        bool captureHasReply(const QString &url_contains, int status) const
+        {
+            QFile file(capturePath());
+            if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+                return false;
+            }
+            while (!file.atEnd()) {
+                const QJsonObject record = QJsonDocument::fromJson(file.readLine()).object();
+                if (record.value("kind").toString() == "reply"
+                    && record.value("url").toString().contains(url_contains)
+                    && record.value("status").toInt() == status) {
+                    return true;
+                }
+            }
+            return false;
+        }
 
         // Seed N stash tabs into the datastore so a Selected update of them needs
         // exactly the stash list — one endpoint. The Selected list-need logic
@@ -283,6 +376,9 @@ namespace {
         std::unique_ptr<FakeNetworkManager> network;
         std::unique_ptr<RateLimiter> limiter;
         std::unique_ptr<PoeApiClient> api;
+        // Non-owning alias to `api` when the recording tap is enabled (null
+        // otherwise), so a scenario can read the outcomes the worker received.
+        RecordingApiClient *recorder = nullptr;
         std::unique_ptr<ItemsManagerWorker> worker;
 
         int initial_refreshes = 0;
@@ -572,7 +668,12 @@ void WorkerIntegrationTest::i_cancel_gate()
 
 void WorkerIntegrationTest::i_cancel_flight()
 {
-    Rig rig("integration-cancel-flight");
+    // tap=true: record the outcome the worker received and turn on capture, so
+    // this pin can prove BOTH halves the worker-visible state cannot (the
+    // worker's own token gate discards a straggler regardless of what the pump
+    // delivered, so "no refresh / one failure" alone can't tell pump-Canceled
+    // from pump-success).
+    Rig rig("integration-cancel-flight", /*tap=*/true);
     rig.seedAndReachIdle();
     beginTabsOnly(rig);
 
@@ -628,6 +729,23 @@ void WorkerIntegrationTest::i_cancel_flight()
     QCOMPARE(rig.ready_transitions, ready_before + 1);
     QVERIFY(rig.last_ready_message.contains("failed"));
     QCOMPARE(rig.access().outstandingFetchTasks(), size_t(0));
+
+    // The two halves the worker-visible state cannot show, isolating the pump's
+    // post-land cancellation checkpoint (ratelimitmanager.cpp:421):
+    // (1) the pump delivered the victim Canceled — NOT a success the worker's own
+    //     token gate then discarded (that would leave the assertions above
+    //     identical). A mutation that skipped the post-land token check would make
+    //     this a successful StashListWrapper and fail here.
+    QVERIFY2(rig.recorder->stash_list.settled, "the victim lane must have completed");
+    QVERIFY2(!rig.recorder->stash_list.success,
+             "the pump must deliver a failure, not a success the worker discarded");
+    QCOMPARE(rig.recorder->stash_list.kind, RateLimit::FetchError::Kind::Canceled);
+    // (2) the reply LANDED and was RECORDED before that cancellation (checkpoint
+    //     placement — after RecordLandedReply, not before): the capture holds a
+    //     200 reply record for the victim URL even though its caller got Canceled.
+    //     A mutation moving cancellation before the record would fail this.
+    QVERIFY2(rig.captureHasReply("/stash/Standard", 200),
+             "the victim reply must be recorded as landed despite being canceled");
 }
 
 void WorkerIntegrationTest::i_leak_bound()
