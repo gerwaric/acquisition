@@ -21,8 +21,9 @@ endfunction()
 # invocation (network-redesign phase 5, verification §6): each shutdown proof
 # intentionally leaves detached QCoro frames and forbids any event-loop turn
 # after owner destruction, so exactly one destructive scenario may run per
-# process. QTEST_GUILESS_MAIN forwards the slot name to QTest::qExec, so
-# `COMMAND ${name} <scenario>` runs only that slot.
+# process. The runner's custom main() forwards the single slot-name argument to
+# QTest::qExec (and rejects any other count), so `COMMAND ${name} <scenario>`
+# runs only that slot.
 function(acq_add_scenario_test name)
     qt_add_executable(${name} ${name}.cpp)
     target_include_directories(${name} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")

@@ -664,8 +664,8 @@ no further scales.
   5 now requires the F56 concurrency shape, shared update-token identity, and
   preservation of the M1/F53/F55 boundaries under reordered completion.
   Test seams, mutation mechanics, shutdown-runner layout, and commit ordering
-  remain in the phase-local verification contract and execution plan; no
-  network-layer design changed.
+  remain in the phase-5 verification contract (the transient execution plan was
+  removed once phase 5 landed); no network-layer design changed.
 - **July 21, 2026 (phase-5 implementation reconciliation — rev. 10;
   freeze holds)** — a phase-5D review found D6's "the callback pyramid with
   its flag pairs (`m_need_*` / `m_has_*`) collapses into control flow"

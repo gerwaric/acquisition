@@ -42,8 +42,9 @@
 // destruction, so a shared Qt Test process that continued to a later method
 // would violate the premise. Each scenario is its own private slot, and CMake
 // registers ONE CTest per slot (COMMAND tst_workerintegration <slot>), so
-// exactly one destructive scenario runs per process (QTEST_GUILESS_MAIN
-// forwards the slot-name argument to QTest::qExec).
+// exactly one destructive scenario runs per process: the custom main() below
+// forwards the single slot-name argument to QTest::qExec and rejects any run
+// that passes zero or several scenarios.
 //
 // A single established endpoint reaches all three pump suspension points just by
 // how far the scheduler is advanced: the list request paces until t=100ms, then

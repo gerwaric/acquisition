@@ -1,14 +1,17 @@
 # Phase 5 Verification Contract — Network Redesign
 
-**Status: REQUIRED evidence for phase 5, July 20, 2026.** Production behavior
-is defined by `network-redesign.md` revision 11, items-pipeline M1, and findings
-F49/F53/F55/F56. This document defines how phase completion is proved. A pin
-may be changed when the replacement supplies equivalent or stronger evidence;
-record the substitution and reason in the revision note at the end. Test names,
-fake APIs, and runner layout remain implementation choices.
+**Status: RETAINED evidence registry (phase 5 complete, July 21, 2026).**
+Production behavior is defined by `network-redesign.md` revision 11,
+items-pipeline M1, and findings F49/F53/F55/F56. This document defined how phase
+completion was proved and is kept as the permanent home of its evidence IDs
+(`M-*`/`W-*`/`P-*`/`I-*`), which the F56 resolved-ledger entry cites by name. A
+pin may still be changed when the replacement supplies equivalent or stronger
+evidence; record the substitution and reason in the revision note at the end.
+Test names, fake APIs, and runner layout remain implementation choices.
 
-The execution order and package mapping live in
-`network-redesign-phase5-plan.md`.
+The transient execution plan that carried the package/session ordering
+(`network-redesign-phase5-plan.md`) was removed after phase 5 landed; git
+history retains it.
 
 ---
 

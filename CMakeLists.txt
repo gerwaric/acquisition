@@ -143,8 +143,10 @@ endif()
 # the test binaries), so the app under ASAN can conflict with the sanitizer.
 #
 # On macOS ASAN does no leak detection (LSAN is unavailable); this knob is for
-# use-after-free coverage. An LSAN Linux-CI job for I-LEAK-BOUND leak-boundedness
-# (network-redesign-phase5-verification.md §6) is a separate follow-up.
+# use-after-free coverage. Leak-boundedness (I-LEAK-BOUND,
+# network-redesign-phase5-verification.md §6) is enforced on Linux CI by
+# .github/workflows/sanitizers.yml, which builds only the integration runner
+# with this knob and runs it under LeakSanitizer.
 set(ACQ_SANITIZE "" CACHE STRING
     "Sanitizer for the test suite (test/CI only): address, undefined, or a \
 comma list. Empty (default) disables it. Never set for release builds.")

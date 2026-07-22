@@ -16,7 +16,11 @@ recorded in the phasing sketch); phase 4b complete (July 20, 2026: the
 worker's call sites moved to the facade, `tst_workerupdate` onto a typed
 facade fake, `tst_ratelimiter` off the legacy wrapper, and
 `RateLimitedReply` + the `Submit()` adapter + its synthetic reply deleted
-— F59 resolved).** Drafted July 18 and
+— F59 resolved); phase 5 complete (July 21, 2026: the worker rewritten to
+staged batch submission through coroutine pumps with a single per-update
+`std::stop_source`; the worker queue and update-generation machinery deleted;
+full-chain integration runner under CI ASan/LSan — F56 resolved).** Drafted
+July 18 and
 reviewed through six rounds in two days, plus one post-freeze errata
 batch (rev 7: eight corrections and contract completions, all
 shrinking — R7 in the review history). The review process converged
@@ -1433,9 +1437,10 @@ sleep.)
    the same pass (it does not; neither fake runs manager code).
 5. Worker rewrite: batch submission, coroutine orchestration, abort via
    cancellation; worker queue and generation machinery deleted. Resolves
-   F56. The transient execution packages and completion-evidence IDs live in
-   `network-redesign-phase5-plan.md` and
-   `network-redesign-phase5-verification.md`; neither overrides this spec.
+   F56. The completion-evidence IDs live in
+   `network-redesign-phase5-verification.md` (the transient execution plan that
+   carried the packages was removed once phase 5 landed); it does not override
+   this spec.
 
 Each phase is independently shippable; 3, 4, 5 each land with their
 tests in the same PR.
