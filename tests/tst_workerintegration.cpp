@@ -13,6 +13,7 @@
 #include <QSettings>
 
 #include <chrono>
+#include <cstdio>
 #include <expected>
 #include <memory>
 
@@ -506,10 +507,18 @@ namespace {
         QCOMPARE(rig.access().outstandingFetchTasks(), size_t(1));
         QCOMPARE(rig.update_refreshes, 0);
 
-        // The in-flight reply (flight/retry) is owned by the fake QNAM, not by
-        // the detached frame: it must be freed when the network is destroyed.
+        // The R6-1 reply evidence is asserted for FLIGHT only. There the reply is
+        // genuinely in flight — unfinished, held by the pump's ReplyGuard while it
+        // awaits reply.get() — so "outlives the hub, freed by the QNAM parent" is
+        // the real contract. RETRY is deliberately excluded: its reply is an
+        // already-finished 429 the ReplyGuard happens to hold across the retry
+        // sleep, so asserting its lifetime would pin that incidental retention
+        // (and would break a legitimate release-before-the-sleep optimization).
+        // I-SHUT-RETRY needs only suspension safety, which the checkpoint above
+        // (one frame suspended in the retry sleep) plus the ASAN no-resumption
+        // guarantee provide.
         QPointer<InFlightReply> reply;
-        if (where == Checkpoint::Flight || where == Checkpoint::Retry) {
+        if (where == Checkpoint::Flight) {
             reply = rig.network->sent(1).reply;
             QVERIFY(!reply.isNull());
         }
@@ -524,13 +533,13 @@ namespace {
         // reply is NOT aborted and NOT freed here (R6-1) — its QNAM parent frees
         // it next.
         rig.limiter.reset();
-        if (where == Checkpoint::Flight || where == Checkpoint::Retry) {
+        if (where == Checkpoint::Flight) {
             QVERIFY2(!reply.isNull(), "the in-flight reply must outlive the hub (R6-1)");
         }
 
         // Step 3: the fake network parent dies last, freeing the reply.
         rig.network.reset();
-        if (where == Checkpoint::Flight || where == Checkpoint::Retry) {
+        if (where == Checkpoint::Flight) {
             QVERIFY2(reply.isNull(), "the QNAM parent must free the in-flight reply at shutdown");
         }
     }
@@ -906,6 +915,37 @@ void WorkerIntegrationTest::i_retention()
     QVERIFY2(rig.sweep.destroyed >= 1 + kTabs, "the sweep must reclaim every completed handle");
 }
 
-QTEST_GUILESS_MAIN(WorkerIntegrationTest)
+// A custom main instead of QTEST_GUILESS_MAIN: each destructive shutdown
+// scenario MUST run in its own process (§6). It leaves detached QCoro frames and
+// forbids any event-loop turn after owner destruction, so a second scenario in
+// the same process would pump events over the first's detached frames and resume
+// them into freed memory. QTest::qExec run with no positional argument executes
+// every slot in one process, and with several arguments runs several — both
+// violate that. CTest registers exactly one scenario per invocation
+// (acq_add_scenario_test); this guard makes the executable itself reject any
+// other usage rather than silently running an unsafe multi-scenario process.
+int main(int argc, char *argv[])
+{
+    QCoreApplication app(argc, argv);
+
+    int scenarios = 0;
+    for (int i = 1; i < argc; ++i) {
+        if (argv[i][0] != '-') {
+            ++scenarios;
+        }
+    }
+    if (scenarios != 1) {
+        fprintf(stderr,
+                "tst_workerintegration: run exactly one scenario per process — each destructive "
+                "shutdown scenario must be isolated (network-redesign verification §6). Got %d "
+                "scenario argument(s); run via ctest or pass a single slot name.\n",
+                scenarios);
+        return 2;
+    }
+
+    WorkerIntegrationTest tc;
+    QTEST_SET_MAIN_SOURCE_PATH
+    return QTest::qExec(&tc, argc, argv);
+}
 
 #include "tst_workerintegration.moc"
