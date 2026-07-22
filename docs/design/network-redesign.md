@@ -1,6 +1,6 @@
 # Network Redesign: Typed Facade, Coroutine Pumps, and the Gate
 
-**Status: ACCEPTED July 20, 2026 (revision 10, July 21, 2026) — frozen for
+**Status: ACCEPTED July 20, 2026 (revision 11, July 21, 2026) — frozen for
 implementation; phase 0 complete (spike + batch-scale
 measurement); phase 1 complete (manager harness,
 `tests/tst_ratelimitmanager.cpp`, July 19, 2026); phase 2 complete
@@ -43,7 +43,13 @@ counter-driven join and the `m_has_*` list-arrival flags are irreducible
 under it; the prose is reconciled to the (already correct) implementation, and the
 ceremonial root task handle — dead weight for a root that never suspends —
 is removed (RunUpdate becomes a synchronous method; R4-3 amended). No design
-or observable-behavior change. The finding tables (ER, IR, R4-\*,
+or observable-behavior change. Rev 11 (July 21, 2026) reconciles the R5-1
+exception-policy text with the realized worker: a per-fetch throw finalizes
+through the direct, counter-independent `AbortUpdate()`, not "count the
+completion then `request_stop()`" — counting a failed fetch is functionally
+dead and drove reported progress non-monotonic (P-STATUS), so the frozen text,
+not the code, was wrong. No code or observable-behavior change. The finding
+tables (ER, IR, R4-\*,
 R5-\*, R6-\*, R7, S1, S2), the round narratives, the reversal records,
 and the revision log live in `network-redesign-reviews.md`; this
 spec records only current decisions and cites finding IDs inline
@@ -1043,10 +1049,18 @@ Therefore:
   is attempted (restart-on-throw risks a tight crash loop;
   terminal-and-loud is the containment answer — the app keeps
   running, the next session starts clean).
-- A per-fetch task's catch-all feeds the same first-failure path as
-  a `FetchError{Internal}` result: count the completion, then
-  `request_stop()` — the update aborts cleanly instead of waiting
-  forever on a counter that will never move.
+- A per-fetch task's catch-all takes the same first-failure path as a
+  `FetchError{Internal}` result: a direct, counter-independent
+  `AbortUpdate()` that requests the stop and returns the worker to idle
+  on the first failure — the update aborts cleanly instead of waiting
+  forever on a counter that will never move. It deliberately does **not**
+  count the throwing fetch as a completion (rev. 11): the terminal
+  transition is independent of the completion counters, because feeding a
+  failed fetch back through the success-equality counters drove `needed`
+  below `received` and made reported progress non-monotonic (P-STATUS).
+  The anti-wedge guarantee is stronger for the direct abort — it does not
+  depend on every straggler counting, only on the first failure reaching
+  `AbortUpdate()`, which is idempotent and guards on `WorkerState`.
 - Every dequeued or parked entry keeps its **scoped completion
   guard**: if the promise has not been completed when the guard
   unwinds — any exceptional path included — it completes
@@ -1236,8 +1250,9 @@ sleep.)
    (initialize-before-launch); a fetch that completed successfully
    just before `request_stop()` resumes its consumer afterward and
    mutates nothing (post-await identity); **R5-1 pin**: a per-fetch
-   task whose body throws counts its completion and triggers the
-   first-failure stop — the update finishes (aborted), never wedges;
+   task whose body throws triggers the first-failure abort — a direct,
+   counter-independent `AbortUpdate()` (rev. 11) — so the update finishes
+   (aborted), never wedges, without counting the throwing fetch;
    the handle sweep runs outside any completing coroutine (the last
    completion does not destroy its own frame); **R6-2 pin**: a
    context-bound `Shop` continuation does not run after `Shop` is

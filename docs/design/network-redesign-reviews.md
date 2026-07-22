@@ -169,7 +169,7 @@ deserved.
 
 | ID | Finding | Resolution |
 |---|---|---|
-| R5-1 | Owned task handles do not supervise exceptions: QCoro rethrows a stored exception only to an awaiting consumer, so an escaped drain never runs the terminal-state transition and an escaped per-fetch task never counts its completion — a wedge with the exception sitting silently in the handle. Also: rev 4's release-on-abort rule contradicted D2's stragglers-resolve-later contract, and finalization triggered by the last completion could destroy the frame it runs in. | Exception policy rewritten: no exception ever escapes a root coroutine — every root task catch-alls and finishes non-exceptionally; the drain's catch implements the terminal state; a per-fetch catch feeds the first-failure path. Handles are lifetime-only; deferred sweep outside any completing coroutine; abort never destroys live handles. Spike + pump/worker pins. |
+| R5-1 | Owned task handles do not supervise exceptions: QCoro rethrows a stored exception only to an awaiting consumer, so an escaped drain never runs the terminal-state transition and an escaped per-fetch task never counts its completion — a wedge with the exception sitting silently in the handle. Also: rev 4's release-on-abort rule contradicted D2's stragglers-resolve-later contract, and finalization triggered by the last completion could destroy the frame it runs in. | Exception policy rewritten: no exception ever escapes a root coroutine — every root task catch-alls and finishes non-exceptionally; the drain's catch implements the terminal state; a per-fetch catch feeds the first-failure path. Handles are lifetime-only; deferred sweep outside any completing coroutine; abort never destroys live handles. Spike + pump/worker pins. *(Rev. 11 later reconciled the spec text: the realized first-failure path is the counter-independent `AbortUpdate()`, which does not count the throwing fetch — counting a failure was functionally dead and drove status non-monotonic.)* |
 | R5-2 | The rev-4 shutdown required queued resumptions and a live event loop — but `Application` is destroyed after `a.exec()` returns (`src/main.cpp`) and `UserSession` destroys `Shop`/`ItemsManagerWorker` before `RateLimiter` (`src/application.h`): the hub-driven teardown was unreachable at the only moment it would run. | Teardown choreography and the hub shutdown stop_source deleted. Shutdown is destruction order — which `Application` already implements: consumers first, task handles destroyed while suspended, hub aborts replies after all awaiters are gone. Every-future-finishes is scoped to live sessions (safe: no awaiter survives to observe a broken promise). Every wait takes one token. Destroy-while-suspended becomes a load-bearing spike deliverable. *(R6-1 later deleted the shutdown abort itself — the hub aborts and tracks nothing.)* |
 | R5-3 | D5's timeout-liveness premise was false for the legacy endpoint: `Shop::UpdateStashIndex` builds its request with no transfer timeout (only the OAuth builders set one) — a stalled legacy request could hold a permit indefinitely; with a HEAD waiting under writer preference, the whole hub stops. | D5/D7: the facade establishes the timeout invariant on every request it builds (all five), test over every builder. The live pre-existing gap is recorded as F60 in the findings register. |
 | R5-4 | Raw `QNetworkReply` ownership was never assigned — `NetworkManager` does not enable auto-deletion (default false), and today's callers double-`deleteLater`: the contradictory-ownership mistake that motivated the redesign (F59), re-created one level down. | D3: after dispatch the pump (or setup path, for HEADs) solely owns the reply via RAII with a `deleteLater` deleter; body and headers consumed before any completion or retry decision; the permit observes `finished` but never owns. Leak and double-deletion pins. *(R6-1 corrected the install point: at dispatch, not at await-return — rev 5's rule left the in-flight span ownerless.)* |
@@ -691,3 +691,18 @@ no further scales.
   owned handles now). Two stale test comments and a test-only header backdoor
   were fixed in the same review; a friend accessor moved out of the production
   header.
+- **July 21, 2026 (phase-5 exception-policy reconciliation — rev. 11;
+  freeze holds)** — a phase-5 review found the frozen R5-1 exception policy
+  contradicted the shipped worker. The spec said a per-fetch task's catch-all
+  should "count the completion, then `request_stop()`"; production instead
+  finalizes a failed update through a direct, counter-independent
+  `AbortUpdate()` (the single idempotent terminal transition guarded on
+  `WorkerState`). The implementation is correct and the spec text was wrong:
+  counting a failed fetch as received is functionally dead (no path reads the
+  counter on failure) and feeding it through the success-equality counters
+  drove `needed` below `received`, making reported progress non-monotonic
+  (P-STATUS). The direct abort is the stronger anti-wedge guarantee — it does
+  not depend on every straggler counting. The exception-policy bullet and the
+  R5-1 pin in the spec are reconciled to the direct-abort path; the phase-5
+  verification contract's July 21 W-THROW revision note already recorded and
+  accepted this. No code or observable-behavior change.
