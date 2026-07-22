@@ -86,6 +86,20 @@ void Application::InitCoreServices()
 
 void Application::InitUserSession()
 {
+    // Owners (worker, hub) may only be destroyed after the event loop has
+    // stopped: the coroutine-shutdown analysis in network-redesign.md
+    // ("Shutdown and task ownership", ~lines 999-1007) is valid ONLY then,
+    // because a suspended frame detaches rather than dies and would resume
+    // into freed memory if any loop iteration ran after teardown. Replacing a
+    // live m_session here would destroy those owners mid-loop and violate that
+    // invariant. The current UI reaches this exactly once, before any session
+    // exists; this guard encodes the precondition the spec only stated in prose
+    // so a future re-login path cannot silently reintroduce the use-after-free.
+    if (m_session) {
+        FatalError("Application: refusing to replace a live user session while the "
+                   "event loop is running (network-redesign.md shutdown invariant)");
+    }
+
     m_session = std::make_unique<Application::UserSession>(core());
 
     auto item_mgr = &items_manager();
@@ -370,7 +384,17 @@ void Application::SetTheme(const QString &theme)
 
 void Application::SetUserDir(const QString &dir)
 {
-    m_session.reset();
+    // Same shutdown invariant as InitUserSession(): resetting m_session (and
+    // m_core beneath it) tears down the worker and hub, which is only safe once
+    // the event loop has stopped (network-redesign.md, "Shutdown and task
+    // ownership"). The data directory is chosen from the login dialog before any
+    // session exists; a change once a session is live would destroy owners
+    // mid-loop, so refuse it loudly rather than corrupt suspended frames.
+    if (m_session) {
+        FatalError("Application: refusing to change the data directory while a user "
+                   "session is live (network-redesign.md shutdown invariant)");
+    }
+
     m_core.reset();
     m_data_dir = QDir(dir);
 
