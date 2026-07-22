@@ -342,6 +342,15 @@ response body so the full-chain path parses real payloads. All nine `I-*` pins
 plus a full-chain sanity check are green (ten CTest invocations); the full
 `ctest` suite passes (32/32). F56 moved to the resolved ledger.
 
+`I-LEAK-BOUND` leak-boundedness is enforced on Linux CI (LeakSanitizer does
+not run on macOS) by `.github/workflows/sanitizers.yml`: it builds only the
+runner with `-DACQ_SANITIZE=address` and runs each scenario as its own
+process under ASan+LSan, with the accepted detached-QCoro-frame roots matched
+by a tight, CI-tuned `tests/lsan.supp`. The gate was mutation-verified — a
+deliberate out-of-closure leak turned the job red while every suppressed
+scenario stayed green — so 5E is now genuinely Complete with no follow-up
+outstanding.
+
 ---
 
 ## Commit and session discipline
