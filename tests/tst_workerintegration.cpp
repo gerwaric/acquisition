@@ -481,9 +481,20 @@ namespace {
 
     // The shared shutdown proof: with the chain parked at `where`, capture the
     // in-flight reply (if any), then destroy consumers before the hub and the
-    // fake network last (UserSession order, §6 step 3). Assert nothing resumed
-    // after destruction and that owners/replies outside the detached-frame
-    // closure were freed. NO processEvents() runs after destruction (§6 step 5).
+    // fake network last (UserSession order, §6 step 3), asserting that owners and
+    // the reply outside the detached-frame closure are freed. NO processEvents()
+    // runs after destruction (§6 step 5).
+    //
+    // The "no callback resumes after destruction" guarantee is NOT asserted with
+    // a counter here: the recorders are bound to the worker as their context, so
+    // they are disconnected during worker.reset() and a forbidden resumption
+    // could not increment them anyway — it would instead resume a detached frame
+    // into the freed worker/hub, which is undefined behavior, not an observable
+    // signal. That guarantee is enforced by running these scenarios under
+    // AddressSanitizer (ACQ_SANITIZE=address; see BUILD.md): a resumption is a
+    // heap-use-after-free, and it is mutation-verified — a deliberate
+    // post-destruction settle() makes ASAN report exactly that (RecordLandedReply
+    // resuming into a hub freed by ~RateLimiter).
     void proveShutdown(Rig &rig, Checkpoint where)
     {
         driveToCheckpoint(rig, where);
@@ -491,16 +502,9 @@ namespace {
         // The update is genuinely suspended mid-fetch: exactly one per-fetch
         // coroutine is live (the list request, parked at the checkpoint) and the
         // update has emitted no refresh. Without this the scenario could be
-        // "proving" a chain that already completed. (ready_transitions is not
-        // asserted absolutely here: the initial cache parse emits its own Ready
-        // status, so it is only meaningful as a delta across destruction below.)
+        // "proving" a chain that already completed.
         QCOMPARE(rig.access().outstandingFetchTasks(), size_t(1));
         QCOMPARE(rig.update_refreshes, 0);
-
-        // Baselines no post-destruction resumption may cross: a resumed
-        // coroutine would drive the worker to a terminal Ready or a refresh.
-        const int refreshes_before = rig.update_refreshes;
-        const int ready_before = rig.ready_transitions;
 
         // The in-flight reply (flight/retry) is owned by the fake QNAM, not by
         // the detached frame: it must be freed when the network is destroyed.
@@ -512,7 +516,7 @@ namespace {
 
         // Step 1: consumers die first. The worker detaches its suspended per-
         // fetch frame (S1-1); nothing resumes it, because no loop iteration runs
-        // after this point.
+        // after this point (enforced under ASAN, see above).
         rig.worker.reset();
         rig.api.reset();
 
@@ -529,12 +533,6 @@ namespace {
         if (where == Checkpoint::Flight || where == Checkpoint::Retry) {
             QVERIFY2(reply.isNull(), "the QNAM parent must free the in-flight reply at shutdown");
         }
-
-        // Nothing resumed across any destruction: no terminal transition, no
-        // refresh. (Recorders are lambdas bound to the worker, already gone; the
-        // counters captured above are the sentinel.)
-        QCOMPARE(rig.update_refreshes, refreshes_before);
-        QCOMPARE(rig.ready_transitions, ready_before);
     }
 
 } // namespace
