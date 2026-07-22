@@ -101,7 +101,7 @@ jobs:
         env:
           ASAN_OPTIONS: abort_on_error=1:detect_leaks=1
         run: |
-          ctest --test-dir build-asan -R tst_workerintegration -E 'i_shut_|i_leak_bound' -V
+          ctest --test-dir build-asan --no-tests=error -R tst_workerintegration -E 'i_shut_|i_leak_bound' -V
 
       # Shutdown scenarios (i_shut_*) and the bounded-leak proof (i_leak_bound)
       # intentionally leave detached QCoro frames at process exit (S1-1/S1-2), so
@@ -113,4 +113,4 @@ jobs:
           ASAN_OPTIONS: abort_on_error=1:detect_leaks=1
           LSAN_OPTIONS: suppressions=${{ github.workspace }}/tests/lsan.supp:print_suppressions=1
         run: |
-          ctest --test-dir build-asan -R 'tst_workerintegration\.(i_shut_|i_leak_bound)' -V
+          ctest --test-dir build-asan --no-tests=error -R 'tst_workerintegration\.(i_shut_|i_leak_bound)' -V
