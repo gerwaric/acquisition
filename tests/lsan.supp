@@ -1,0 +1,30 @@
+# CI-tuned LeakSanitizer suppressions for tst_workerintegration.
+#
+# Suppress ONLY the accepted detached-QCoro-frame roots left at shutdown
+# (network-redesign.md "Shutdown and task ownership", S1-1/S1-2: a suspended
+# frame is detached, not destroyed, and leaks a few hundred bytes). The
+# i_shut_* and i_leak_bound scenarios exercise exactly this; the non-shutdown
+# scenarios (i_cancel_*, i_retention, fullChainStashListSucceeds) run to
+# completion and must be leak-CLEAN.
+#
+# Any leak whose stack falls OUTSIDE this closure — a RateLimitManager, the
+# Gate, a QNetworkReply, an unrelated allocation — has a different stack, is NOT
+# matched here, and MUST fail the job. That failure IS the I-LEAK-BOUND
+# enforcement (docs/design/network-redesign-phase5-verification.md §6): never
+# widen this file to silence an unexplained leak, and never suppress the whole
+# runner.
+#
+# Each line is `leak:<substring matched against a frame in the leak stack>`.
+# Session B refines these against the first CI run's actual symbolized stacks.
+
+# Worker per-fetch coroutines (src/itemsmanagerworker.cpp).
+leak:ItemsManagerWorker::FetchStashList
+leak:ItemsManagerWorker::FetchCharacterList
+leak:ItemsManagerWorker::FetchStash
+leak:ItemsManagerWorker::FetchCharacter
+
+# Hub drain/setup coroutines (src/ratelimit/ratelimitmanager.cpp,
+# src/ratelimit/ratelimiter.cpp).
+leak:RateLimitManager::Drain
+leak:RateLimitManager::ProcessEntry
+leak:RateLimiter::ProbeEndpoint

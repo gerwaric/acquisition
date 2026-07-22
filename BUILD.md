@@ -102,9 +102,14 @@ links crashpad, whose signal handlers are installed only by `sentry_init()` in
 the sanitizer's own handlers. The test binaries do not run crashpad and are safe.
 
 On macOS, ASAN performs no leak detection (LSAN is unavailable there), so this
-knob covers use-after-free only. An LSAN Linux-CI job for `I-LEAK-BOUND`
-leak-boundedness (see `docs/design/network-redesign-phase5-verification.md` §6)
-is a separate follow-up.
+knob covers use-after-free only. Leak-boundedness (`I-LEAK-BOUND`, see
+`docs/design/network-redesign-phase5-verification.md` §6) is enforced on Linux CI
+by `.github/workflows/sanitizers.yml`, which builds only the `tst_workerintegration`
+runner with `-DACQ_SANITIZE=address` and runs each scenario as its own process
+under LeakSanitizer. The accepted detached-QCoro-frame leaks of the shutdown
+scenarios are matched by a tight, CI-tuned suppression in `tests/lsan.supp` that
+names only those known detached roots; any leak with a stack outside that closure
+is a real defect and fails the job.
 
 ## Code Scanning
 
