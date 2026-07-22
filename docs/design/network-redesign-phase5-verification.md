@@ -210,6 +210,25 @@ and sleep timers. Nothing outside that closure may leak—not a reply, owner, or
 unrelated object. Any LSAN annotation/suppression must identify only the known
 detached roots; never suppress the whole runner.
 
+What the CI gate actually enforces (and what it does not). `tests/lsan.supp`
+matches a substring of an *allocation-stack frame* — the per-fetch and hub
+coroutine names — not reachability from a particular detached frame. So within
+a scenario that runs with the suppression file, any leak allocated beneath one
+of those coroutines is silenced, whether or not it is part of the accepted
+frame closure. Two things keep this honest rather than a blanket amnesty:
+(1) the suppression file is applied ONLY to the shutdown scenarios (`i_shut_*`,
+`i_leak_bound`) — the ones whose whole purpose is to strand exactly those
+coroutine frames; the leak-clean scenarios (`i_cancel_*`, `i_retention`,
+`fullChainStashListSucceeds`) run in a separate CI step with no suppression file
+and must exit clean on their own, so a leak there fails the job even if it falls
+beneath a suppressed coroutine. (2) In every scenario a leak whose stack lacks
+those frames entirely — a reply, an owner, an unrelated object — is unmatched
+and fails the job. The load-bearing proof (a deliberate out-of-closure leak
+turning the job red) exercises (2); it does not, and cannot, prove that an
+in-coroutine-but-unaccepted allocation would be caught in a suppressed scenario.
+That residual is the accepted cost of stack-substring suppression; the split is
+what bounds its blast radius to the scenarios that legitimately leak frames.
+
 For retention, prefer counted payload lifetime over process RSS. Fake facade
 call metadata and recorded tokens grow for the fixture lifetime, so its RSS
 cannot isolate worker retention. The full-chain test must establish the narrow

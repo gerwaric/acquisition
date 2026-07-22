@@ -1,11 +1,20 @@
 # CI-tuned LeakSanitizer suppressions for tst_workerintegration.
 #
-# Suppress ONLY the accepted detached-QCoro-frame roots left at shutdown
-# (network-redesign.md "Shutdown and task ownership", S1-1/S1-2: a suspended
-# frame is detached, not destroyed, and leaks a few hundred bytes). The
-# i_shut_* and i_leak_bound scenarios exercise exactly this; the non-shutdown
-# scenarios (i_cancel_*, i_retention, fullChainStashListSucceeds) run to
-# completion and must be leak-CLEAN.
+# Applied ONLY to the shutdown scenarios (i_shut_*, i_leak_bound), which
+# intentionally leave detached QCoro frames at process exit (network-redesign.md
+# "Shutdown and task ownership", S1-1/S1-2: a suspended frame is detached, not
+# destroyed, and leaks a few hundred bytes). sanitizers.yml runs the
+# non-shutdown scenarios (i_cancel_*, i_retention, fullChainStashListSucceeds)
+# in a SEPARATE step with no suppression file, so they must exit leak-CLEAN on
+# their own.
+#
+# Scope caveat (why the split matters): these lines match a *substring of an
+# allocation-stack frame*, not object reachability from a specific detached
+# frame. So within a suppressed scenario, ANY leak allocated beneath one of
+# these coroutines is silenced. That is acceptable here only because these
+# scenarios are the ones whose whole point is to strand those coroutine frames;
+# it is NOT a general "this allocation is fine" statement, which is exactly why
+# this file must never be applied to the leak-clean scenarios.
 #
 # Any leak whose stack falls OUTSIDE this closure — a RateLimitManager, the
 # Gate, a QNetworkReply, an unrelated allocation — has a different stack, is NOT
@@ -15,7 +24,6 @@
 # runner.
 #
 # Each line is `leak:<substring matched against a frame in the leak stack>`.
-# Session B refines these against the first CI run's actual symbolized stacks.
 
 # Worker per-fetch coroutines (src/itemsmanagerworker.cpp).
 leak:ItemsManagerWorker::FetchStashList
