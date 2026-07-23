@@ -123,6 +123,45 @@ else()
 endif()
 
 #------------------------------------------------------
+# Sanitizers (test/CI only)
+#------------------------------------------------------
+
+# ACQ_SANITIZE builds a separate tree with a runtime sanitizer for the checked-in
+# test suite. It is a TEST/CI-ONLY knob: it is OFF by default, and release
+# packaging (build-{linux,macos,windows}.yml, installer.iss) never sets it, so
+# shipped binaries are never sanitized. Configure a throwaway tree and build only
+# test targets, e.g.:
+#
+#     cmake -S . -B build-asan -DACQ_SANITIZE=address \
+#         -DCMAKE_BUILD_TYPE=RelWithDebInfo
+#     cmake --build build-asan --target tst_workerintegration
+#     ASAN_OPTIONS=abort_on_error=1 ctest --test-dir build-asan \
+#         -R tst_workerintegration --output-on-failure
+#
+# Do NOT build/run the `acquisition` app target here: it links crashpad, whose
+# signal handlers are only installed by sentry_init() in src/main.cpp (never in
+# the test binaries), so the app under ASAN can conflict with the sanitizer.
+#
+# On macOS ASAN does no leak detection (LSAN is unavailable); this knob is for
+# use-after-free coverage. Leak-boundedness (I-LEAK-BOUND,
+# network-redesign-phase5-verification.md §6) is enforced on Linux CI by
+# .github/workflows/sanitizers.yml, which builds only the integration runner
+# with this knob and runs it under LeakSanitizer.
+set(ACQ_SANITIZE "" CACHE STRING
+    "Sanitizer for the test suite (test/CI only): address, undefined, or a \
+comma list. Empty (default) disables it. Never set for release builds.")
+
+if(ACQ_SANITIZE)
+    if(MSVC)
+        message(FATAL_ERROR "ACQ_SANITIZE is only wired for Clang/GCC toolchains.")
+    endif()
+    message(STATUS "Building the test suite with -fsanitize=${ACQ_SANITIZE} "
+        "(test/CI only; shipped binaries are never sanitized).")
+    add_compile_options(-fsanitize=${ACQ_SANITIZE} -fno-omit-frame-pointer -g)
+    add_link_options(-fsanitize=${ACQ_SANITIZE})
+endif()
+
+#------------------------------------------------------
 # External Dependencies
 #------------------------------------------------------
 

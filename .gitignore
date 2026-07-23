@@ -4,6 +4,9 @@
 /build/
 /out/
 
+# Throwaway sanitizer build tree (ACQ_SANITIZE; see BUILD.md).
+/build-asan/
+
 # Phase-0 spike build trees (spikes/qcoro/README.md).
 /build-spike/
 /build-spike-asan/

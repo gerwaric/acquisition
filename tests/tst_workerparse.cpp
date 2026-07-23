@@ -84,7 +84,7 @@ void WorkerParseTest::parsesCachedStashItems()
     PoeApiClient api(rateLimiter);
     ItemsManagerWorker worker(settings, *fixture.manager, api);
 
-    const ParseResult result = worker.ParseCachedItems(dataDir, false, false);
+    const ParseResult result = worker.ParseCachedItems(dataDir);
 
     QCOMPARE(result.tabs.size(), 1);
     QCOMPARE(result.tabs[0].id(), stash.id);
@@ -141,7 +141,7 @@ void WorkerParseTest::specialChildItemsKeyedByChildFetchId()
     PoeApiClient api(rateLimiter);
     ItemsManagerWorker worker(settings, *fixture.manager, api);
 
-    const ParseResult result = worker.ParseCachedItems(dataDir, false, false);
+    const ParseResult result = worker.ParseCachedItems(dataDir);
 
     // Only the parent is a tab; the child is not.
     QCOMPARE(result.tabs.size(), 1);

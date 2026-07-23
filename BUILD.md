@@ -77,6 +77,40 @@ ctest --test-dir build --output-on-failure
 
 GUI-dependent tests are configured by CMake to use Qt's offscreen platform.
 
+## Sanitizer Builds (test/CI only)
+
+The `ACQ_SANITIZE` CMake option builds the checked-in test suite with a runtime
+sanitizer. It is a test/CI-only knob: it is OFF by default and release packaging
+never sets it, so shipped binaries are never sanitized. Use a throwaway build
+tree so the normal `build/` results stay untouched, and build only test targets:
+
+```sh
+cmake -S . -B build-asan -DACQ_SANITIZE=address -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build-asan --target tst_workerintegration
+ASAN_OPTIONS=abort_on_error=1 ctest --test-dir build-asan \
+    -R tst_workerintegration --output-on-failure
+```
+
+This gives the phase-5 shutdown pins (`I-SHUT-*`, `I-LEAK-BOUND` in
+`tst_workerintegration.cpp`) use-after-free teeth: if any event-loop turn ran
+after owner destruction, a detached QCoro frame would resume into a freed
+worker/hub and AddressSanitizer would report heap-use-after-free.
+
+Do **not** build or run the `acquisition` app target under a sanitizer. The app
+links crashpad, whose signal handlers are installed only by `sentry_init()` in
+`src/main.cpp` (never in the test binaries), so a sanitized app can conflict with
+the sanitizer's own handlers. The test binaries do not run crashpad and are safe.
+
+On macOS, ASAN performs no leak detection (LSAN is unavailable there), so this
+knob covers use-after-free only. Leak-boundedness (`I-LEAK-BOUND`, see
+`docs/design/network-redesign-phase5-verification.md` §6) is enforced on Linux CI
+by `.github/workflows/sanitizers.yml`, which builds only the `tst_workerintegration`
+runner with `-DACQ_SANITIZE=address` and runs each scenario as its own process
+under LeakSanitizer. The accepted detached-QCoro-frame leaks of the shutdown
+scenarios are matched by a tight, CI-tuned suppression in `tests/lsan.supp` that
+names only those known detached roots; any leak with a stack outside that closure
+is a real defect and fails the job.
+
 ## Code Scanning
 
 Static analysis is run by `.github/workflows/codeql.yml` using GitHub CodeQL.

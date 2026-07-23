@@ -4,8 +4,8 @@
 Appendix B on July 19, 2026, at revision 5; the appendix's earlier
 evolution is in the spec file's git history). This file preserves the
 decision history for the network redesign: the review-round finding
-tables (ER, IR, R4-\*, R5-\*), the round narratives, and the revision
-log. The spec cites these IDs inline and records only current
+tables (ER, IR, R4-\* through R7, S1, S2), the round narratives, and the
+revision log. The spec cites these IDs inline and records only current
 decisions; new review rounds and revision-log entries append here,
 with the spec's status line updated in the same commit. Where a later
 round superseded an earlier resolution, both are recorded. Git
@@ -169,7 +169,7 @@ deserved.
 
 | ID | Finding | Resolution |
 |---|---|---|
-| R5-1 | Owned task handles do not supervise exceptions: QCoro rethrows a stored exception only to an awaiting consumer, so an escaped drain never runs the terminal-state transition and an escaped per-fetch task never counts its completion — a wedge with the exception sitting silently in the handle. Also: rev 4's release-on-abort rule contradicted D2's stragglers-resolve-later contract, and finalization triggered by the last completion could destroy the frame it runs in. | Exception policy rewritten: no exception ever escapes a root coroutine — every root task catch-alls and finishes non-exceptionally; the drain's catch implements the terminal state; a per-fetch catch feeds the first-failure path. Handles are lifetime-only; deferred sweep outside any completing coroutine; abort never destroys live handles. Spike + pump/worker pins. |
+| R5-1 | Owned task handles do not supervise exceptions: QCoro rethrows a stored exception only to an awaiting consumer, so an escaped drain never runs the terminal-state transition and an escaped per-fetch task never counts its completion — a wedge with the exception sitting silently in the handle. Also: rev 4's release-on-abort rule contradicted D2's stragglers-resolve-later contract, and finalization triggered by the last completion could destroy the frame it runs in. | Exception policy rewritten: no exception ever escapes a root coroutine — every root task catch-alls and finishes non-exceptionally; the drain's catch implements the terminal state; a per-fetch catch feeds the first-failure path. Handles are lifetime-only; deferred sweep outside any completing coroutine; abort never destroys live handles. Spike + pump/worker pins. *(Rev. 11 later reconciled the spec text: the realized first-failure path is the counter-independent `AbortUpdate()`, which does not count the throwing fetch — counting a failure was functionally dead and drove status non-monotonic.)* |
 | R5-2 | The rev-4 shutdown required queued resumptions and a live event loop — but `Application` is destroyed after `a.exec()` returns (`src/main.cpp`) and `UserSession` destroys `Shop`/`ItemsManagerWorker` before `RateLimiter` (`src/application.h`): the hub-driven teardown was unreachable at the only moment it would run. | Teardown choreography and the hub shutdown stop_source deleted. Shutdown is destruction order — which `Application` already implements: consumers first, task handles destroyed while suspended, hub aborts replies after all awaiters are gone. Every-future-finishes is scoped to live sessions (safe: no awaiter survives to observe a broken promise). Every wait takes one token. Destroy-while-suspended becomes a load-bearing spike deliverable. *(R6-1 later deleted the shutdown abort itself — the hub aborts and tracks nothing.)* |
 | R5-3 | D5's timeout-liveness premise was false for the legacy endpoint: `Shop::UpdateStashIndex` builds its request with no transfer timeout (only the OAuth builders set one) — a stalled legacy request could hold a permit indefinitely; with a HEAD waiting under writer preference, the whole hub stops. | D5/D7: the facade establishes the timeout invariant on every request it builds (all five), test over every builder. The live pre-existing gap is recorded as F60 in the findings register. |
 | R5-4 | Raw `QNetworkReply` ownership was never assigned — `NetworkManager` does not enable auto-deletion (default false), and today's callers double-`deleteLater`: the contradictory-ownership mistake that motivated the redesign (F59), re-created one level down. | D3: after dispatch the pump (or setup path, for HEADs) solely owns the reply via RAII with a `deleteLater` deleter; body and headers consumed before any completion or retry decision; the permit observes `finished` but never owns. Leak and double-deletion pins. *(R6-1 corrected the install point: at dispatch, not at await-return — rev 5's rule left the in-flight span ownerless.)* |
@@ -654,3 +654,55 @@ no further scales.
   re-measured, verdict unchanged), and the resumption-wait timeout
   path fixed to leak the update deliberately instead of sweeping
   live frames into a use-after-free.
+- **July 20, 2026 (phase-5 planning-readiness amendment — rev. 9;
+  freeze holds)** — the phase-5 planning handoff exposed an authority gap:
+  D6 required batching but the testing plan did not require a regression
+  test that would fail if worker-side serialization returned, and several
+  preservation expectations existed only as planning prose. D6 now states
+  the staged discovery/batch shape, per-policy order, active-`Update()`
+  refusal, and cancellation/status accounting explicitly. Testing-plan item
+  5 now requires the F56 concurrency shape, shared update-token identity, and
+  preservation of the M1/F53/F55 boundaries under reordered completion.
+  Test seams, mutation mechanics, shutdown-runner layout, and commit ordering
+  remain in the phase-5 verification contract (the transient execution plan was
+  removed once phase 5 landed); no network-layer design changed.
+- **July 21, 2026 (phase-5 implementation reconciliation — rev. 10;
+  freeze holds)** — a phase-5D review found D6's "the callback pyramid with
+  its flag pairs (`m_need_*` / `m_has_*`) collapses into control flow"
+  overstated the realized shape. The per-fetch pyramid did collapse into one
+  flat coroutine per fetch, but the root orchestration is a counter-driven
+  join, not a linear top-to-bottom await: D6's own concurrency requirements
+  (required lists launched without awaiting one another; each list's content
+  launched from its own handler, never held behind the sibling list; child
+  batches discovered dynamically in replies) make a static `co_await` sequence
+  over the update tree impossible, and the `m_has_*` list-arrival flags are
+  irreducible under a counter-driven join — they distinguish "list not
+  arrived" from "required list arrived empty," which `received == needed`
+  cannot, and the concurrent content-during-list-arrival window depends on the
+  same signal. D6 amended to describe the counter-driven topology and the
+  residual flags accurately; `m_need_*` reclassified as selection config. No
+  code or behavior changed — the implementation (5B's fire-and-owned per-fetch
+  tasks + counter-driven finalization) was already correct; the prose was
+  reconciled to it. The ceremonial root task handle (R4-3) is also removed:
+  RunUpdate becomes a synchronous `void` method — a root that never suspends
+  owns no asynchronous lifetime, and its catch-all works identically in an
+  ordinary function — so `m_update_task` is deleted and R4-3 / the plan's
+  cross-package invariant 3 are amended to match (only the per-fetch tasks are
+  owned handles now). Two stale test comments and a test-only header backdoor
+  were fixed in the same review; a friend accessor moved out of the production
+  header.
+- **July 21, 2026 (phase-5 exception-policy reconciliation — rev. 11;
+  freeze holds)** — a phase-5 review found the frozen R5-1 exception policy
+  contradicted the shipped worker. The spec said a per-fetch task's catch-all
+  should "count the completion, then `request_stop()`"; production instead
+  finalizes a failed update through a direct, counter-independent
+  `AbortUpdate()` (the single idempotent terminal transition guarded on
+  `WorkerState`). The implementation is correct and the spec text was wrong:
+  counting a failed fetch as received is functionally dead (no path reads the
+  counter on failure) and feeding it through the success-equality counters
+  drove `needed` below `received`, making reported progress non-monotonic
+  (P-STATUS). The direct abort is the stronger anti-wedge guarantee — it does
+  not depend on every straggler counting. The exception-policy bullet and the
+  R5-1 pin in the spec are reconciled to the direct-abort path; the phase-5
+  verification contract's July 21 W-THROW revision note already recorded and
+  accepted this. No code or observable-behavior change.

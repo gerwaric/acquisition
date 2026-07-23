@@ -3,6 +3,8 @@
 
 #include "itemsmanagerworker.h"
 
+#include <QCoroFuture>
+
 #include <QDir>
 #include <QFileInfo>
 #include <QNetworkCookie>
@@ -16,6 +18,7 @@
 
 #include <algorithm>
 #include <unordered_map>
+#include <utility>
 
 #include "buyoutmanager.h"
 #include "datastore/characterrepo.h"
@@ -32,6 +35,39 @@
 #include "util/json_readers.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
+
+namespace {
+
+    // The Internal FetchError a per-fetch task's catch-all synthesizes from an
+    // exceptional future (R5-1): it routes an unexpected throw through the same
+    // failure branch a value-level failure takes, so the update aborts cleanly
+    // instead of wedging on a completion that never counts.
+    RateLimit::FetchError MakeInternalError(const QString &message)
+    {
+        RateLimit::FetchError error;
+        error.kind = RateLimit::FetchError::Kind::Internal;
+        error.message = message;
+        return error;
+    }
+
+    // The single post-await identity gate (IR2/W-IDENTITY). Every per-fetch
+    // coroutine routes its handler through this ONE helper after its co_await, so
+    // there is one gate to get right — not four independent copies — and the
+    // W-IDENTITY mutation proof (bypassing the token check here) regression-covers
+    // all four fetch kinds at once. The update token is the update's identity: a
+    // straggler from a failed update carries that update's stopped token, so its
+    // result is discarded rather than applied to whatever update is now active.
+    // The handler runs on the completing stack, still inside the caller's
+    // catch-all, so a throw from it flows to the per-fetch terminal abort.
+    template<typename Handler>
+    void ProcessIfLive(const std::stop_token &token, Handler &&handler)
+    {
+        if (!token.stop_requested()) {
+            std::forward<Handler>(handler)();
+        }
+    }
+
+} // namespace
 
 ItemsManagerWorker::ItemsManagerWorker(QSettings &settings,
                                        BuyoutManager &buyout_manager,
@@ -88,13 +124,9 @@ void ItemsManagerWorker::StartParseThread()
     // and items.
     const QFileInfo info(m_settings.fileName());
     const QString dataDir = info.absolutePath() + "/data/";
-    // Read on the main thread: the parser thread must not touch the shared
-    // QSettings instance, which the UI writes concurrently.
-    const bool get_map_stashes = m_settings.value("get_map_stashes", false).toBool();
-    const bool get_unique_stashes = m_settings.value("get_unique_stashes", false).toBool();
     m_shutdown.store(false);
-    m_parser_thread = QThread::create([this, dataDir, get_map_stashes, get_unique_stashes]() {
-        auto result = ParseCachedItems(dataDir, get_map_stashes, get_unique_stashes);
+    m_parser_thread = QThread::create([this, dataDir]() {
+        auto result = ParseCachedItems(dataDir);
         if (m_shutdown.load()) {
             return;
         }
@@ -107,9 +139,7 @@ void ItemsManagerWorker::StartParseThread()
     m_parser_thread->start();
 }
 
-ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir,
-                                                 bool get_map_stashes,
-                                                 bool get_unique_stashes) const
+ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir) const
 {
     spdlog::trace("ItemsManagerWorker::ParseItemMods() entered");
     ParseResult result;
@@ -160,7 +190,6 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir,
     spdlog::trace("ItemsManagerWorker::ParseItemMods() getting cached items");
 
     // Get stash items.
-    std::vector<std::pair<QString, QStringList>> required_children;
     for (size_t i = 0; i < stashes.size(); ++i) {
         if (m_shutdown.load()) {
             return result;
@@ -171,22 +200,9 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir,
         const auto id = stashes[i].id;
         const auto stash = userstore.stashes().getStash(id, m_realm, m_league);
         if (!stash) {
-            // The row exists but its contents were never fetched: the tab
-            // was listed and must stay "new" so the next content update
-            // fetches it (F55).
+            // The row was listed but its contents were never fetched, so
+            // there is nothing cached to load for it here.
             continue;
-        }
-        result.contents_known.insert(id);
-        // A Map/Unique parent's saved reply records the children a fetch of
-        // it implies; collect them so completeness can be checked below.
-        const bool children_enabled = ((stash->type == "MapStash") && get_map_stashes)
-                                      || ((stash->type == "UniqueStash") && get_unique_stashes);
-        if (children_enabled && stash->children && !stash->children->empty()) {
-            QStringList child_ids;
-            for (const auto &child : *stash->children) {
-                child_ids.append(child.id);
-            }
-            required_children.emplace_back(id, child_ids);
         }
         sendStatusUpdate(ProgramState::Initializing,
                          QString("Parsing items from stash %1/%2: %3 '%4'")
@@ -216,20 +232,6 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir,
         LoadItems(*stash, location, result);
     }
 
-    // A Map/Unique parent's contents are complete only if every enabled
-    // child fetch also landed: a cached parent with a missing child row
-    // must stay "new" so the next content update refetches it and
-    // re-queues its children — they never appear in a top-level list, so
-    // nothing else would retry them (F55).
-    for (const auto &[parent_id, child_ids] : required_children) {
-        for (const auto &child_id : child_ids) {
-            if (result.contents_known.count(child_id) == 0) {
-                result.contents_known.erase(parent_id);
-                break;
-            }
-        }
-    }
-
     // Get character items.
     for (size_t i = 0; i < characters.size(); ++i) {
         if (m_shutdown.load()) {
@@ -241,10 +243,9 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir,
         const auto name = characters[i].name;
         const auto character = userstore.characters().getCharacter(name, m_realm);
         if (!character) {
-            // Listed but never fetched: stays "new" (F55).
+            // Listed but never fetched: nothing cached to load here.
             continue;
         }
-        result.contents_known.insert(characters[i].id);
         sendStatusUpdate(ProgramState::Initializing,
                          QString("Parsing items from character %1/%2: %3")
                              .arg(i)
@@ -267,7 +268,6 @@ void ItemsManagerWorker::OnParseCompleted(ParseResult result)
     m_tabs = std::move(result.tabs);
     m_items = std::move(result.items);
     m_tab_id_index = std::move(result.tab_id_index);
-    m_contents_known = std::move(result.contents_known);
     m_state = WorkerState::Idle;
     // let ItemManager know that the retrieval of cached items/tabs has been completed (calls ItemsManager::OnItemsRefreshed method)
     spdlog::trace("ItemsManagerWorker::ParseItemMods() emitting ItemsRefreshed signal");
@@ -361,24 +361,22 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
         spdlog::trace("ItemsManagerWorker: stashes = {}", stash_names.join(", "));
     }
     m_state = WorkerState::Updating;
-    ++m_update_generation;
+    // A fresh stop_source per update (D2): every facade call below takes this
+    // update's token, and a terminal failure request_stop()s it. The previous
+    // update's source (stopped or not) is dropped here, so the new update's
+    // calls carry a distinct, unstopped token — which is what makes the token
+    // the update's sole identity under the post-await check (W-IDENTITY).
+    m_stop_source = std::stop_source{};
     m_request_failures = 0;
     m_update_tab_contents = (type != TabSelection::TabsOnly);
 
-    // Reset the completion counters here so that CheckUpdateFinished() never
-    // depends on leftover values from a previous update. (FetchItems() resets
-    // them again before queueing requests, but it is not reached on every path.)
+    // Reset the completion counters here, once per update: this is their only
+    // reset. Each lane's LaunchContent() accumulates into them (never resets),
+    // so a fresh update must not inherit a previous one's totals.
     m_stashes_needed = 0;
     m_stashes_received = 0;
     m_characters_needed = 0;
     m_characters_received = 0;
-
-    // remove all pending requests
-    m_queue = {};
-    m_queue_id = 0;
-    // Counts left over from a failed update are stale: this update queues
-    // its own child fetches afresh.
-    m_pending_children.clear();
 
     // Build the content selection. Nothing is culled here: tab entries are
     // reconciled against the fresh lists as they arrive, and each tab's
@@ -440,7 +438,11 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
     m_has_stash_list = false;
     m_has_character_list = false;
 
-    Refresh();
+    // Every per-update counter and selection flag above is initialized before
+    // the root orchestration launches its first fetch: a ready/fail-fast future
+    // can run its continuation synchronously during launch (S1-6/IR2), so nothing
+    // it touches may still be uninitialized. Run the root orchestration last.
+    RunUpdate();
 }
 
 void ItemsManagerWorker::RemoveItemsFetchedBy(const QString &fetch_id)
@@ -479,46 +481,209 @@ void ItemsManagerWorker::RebaseItemLocations(ItemLocationType type)
     }
 }
 
-void ItemsManagerWorker::Refresh()
+void ItemsManagerWorker::RunUpdate()
 {
-    spdlog::trace("Items Manager Worker: starting OAuth refresh");
-    if (m_need_stash_list) {
-        SubmitStashListRequest();
-    } else if (m_need_character_list) {
-        SubmitCharacterListRequest();
+    // The root orchestration (D6, rev. 10): it launches the update's required
+    // list(s) without awaiting one another and returns; the per-fetch tasks
+    // self-drive from there and the completion that reconciles the counters
+    // finalizes the update. This is an ordinary synchronous method, not a
+    // coroutine: it never co_awaits (the fan-out is counter-driven, not a linear
+    // await), so there is no asynchronous lifetime for an owned task handle to
+    // manage — only the per-fetch tasks suspend and are owned in m_fetch_tasks.
+    //
+    // The whole body is wrapped in a catch-all (R5-1): a throw in orchestration
+    // itself aborts and finalizes the update rather than unwinding into the
+    // caller (ItemsManager / the UI). A plain function's try/catch does this
+    // exactly as a coroutine's would, since nothing here suspends.
+    try {
+        spdlog::trace("ItemsManagerWorker: starting the update");
+        // Root orchestration fault site (test-only; no-op in production).
+        FireFaultHook();
+        // Launch every required list without awaiting one another (D6): with
+        // ordinary pending futures both are concurrently outstanding, resolving
+        // F56's one-lane serialization. Each submission is made unconditionally
+        // even if the first ran a ready/fail-fast handler inline that already
+        // stopped the token — the second list simply carries that stopped token
+        // and completes through the ordinary cancellation path. Every per-update
+        // counter was initialized in Update() before this launch (IR2/S1-6).
+        if (m_need_stash_list) {
+            SubmitStashListRequest();
+        }
+        if (m_need_character_list) {
+            SubmitCharacterListRequest();
+        }
+        CheckUpdateFinished();
+    } catch (const std::exception &e) {
+        spdlog::error("ItemsManagerWorker: the update orchestration threw: {}", e.what());
+        AbortUpdate();
+    } catch (...) {
+        spdlog::error("ItemsManagerWorker: the update orchestration threw an unknown exception");
+        AbortUpdate();
     }
-    CheckUpdateFinished();
+}
+
+void ItemsManagerWorker::AbortUpdate()
+{
+    // The single, idempotent terminal transition for a failed update. Every
+    // failure — a list error, a content error, an exceptional future, a throw in
+    // orchestration or a handler — routes here. It is deliberately INDEPENDENT of
+    // the completion counters: the first terminal failure returns the worker to
+    // idle immediately (D6), abandoning in-flight siblings as stopped stragglers
+    // that resolve Canceled later. It must never rewrite the counters to force
+    // CheckUpdateFinished()'s success-equality — doing so drove `needed` backward
+    // below `received` and made the reported progress non-monotonic (P-STATUS).
+    // Success uses the counter equality in CheckUpdateFinished(); failure uses
+    // this direct path, so the two never contend.
+    if (m_state != WorkerState::Updating) {
+        // Already terminal: a later straggler or a second failure must not emit a
+        // second Ready/failure transition (P-FAILURE) or reset a live update.
+        return;
+    }
+    m_stop_source.request_stop();
+    // A failed update aborts on the first failure, so the count is at least one;
+    // a handler that recorded nothing still yields a truthful "1 failed".
+    if (m_request_failures == 0) {
+        ++m_request_failures;
+    }
+    emit StatusUpdate(ProgramState::Ready,
+                      QString("Update failed: %1 requests failed")
+                          .arg(QString::number(m_request_failures)));
+    m_state = WorkerState::Idle;
+    spdlog::debug("Update failed.");
+}
+
+void ItemsManagerWorker::StopUpdateForFailure()
+{
+    m_stop_source.request_stop();
+    FireFaultHook();
+}
+
+void ItemsManagerWorker::FireFaultHook()
+{
+    if (m_fault_hook) {
+        // One-shot: consume before invoking so a re-entrant path cannot fire it
+        // again, and so it never fires on the recovery update.
+        auto hook = std::move(m_fault_hook);
+        m_fault_hook = nullptr;
+        hook();
+    }
 }
 
 void ItemsManagerWorker::SubmitStashListRequest()
 {
     spdlog::trace("ItemsManagerWorker: requesting the stash list");
-    const int generation = m_update_generation;
-    // Context-bound: the continuation is tied to this worker, so it never
-    // runs against a destroyed one. The generation check still discards
-    // replies from a superseded update (F28).
-    m_api.listStashes(m_realm, m_league)
-        .then(this, [this, generation](const Result<poe::StashListWrapper> &result) {
-            if (!IsStale(generation)) {
-                OnStashListReceived(result);
-            }
-        });
+    m_fetch_tasks.push_back(FetchStashList(m_stop_source.get_token()));
 }
 
 void ItemsManagerWorker::SubmitCharacterListRequest()
 {
     spdlog::trace("ItemsManagerWorker: requesting the character list");
-    const int generation = m_update_generation;
-    m_api.listCharacters(m_realm).then(this,
-                                       [this, generation](
-                                           const Result<poe::CharacterListWrapper> &result) {
-                                           if (!IsStale(generation)) {
-                                               OnCharacterListReceived(result);
-                                           }
-                                       });
+    m_fetch_tasks.push_back(FetchCharacterList(m_stop_source.get_token()));
 }
 
-void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, int &count)
+// Each per-fetch task wraps its ENTIRE body in a catch-all (R5-1): nothing —
+// not an exceptional facade future, not the OnX handler, not a nested launch,
+// not a connected persistence slot — may escape into the unawaited task, where
+// it would vanish silently (S1-8) and wedge the update on a completion that
+// never counts. There are two layers:
+//   * the inner try converts an exceptional facade future into an ordinary
+//     Internal failure value, so it flows through the handler's failure branch;
+//   * the outer try contains anything the handler (or a launch it triggers)
+//     throws, and forces a terminal AbortUpdate() so the update cannot wedge.
+// The post-await identity gate is centralized in ProcessIfLive (see above): each
+// of the four fetch coroutines routes its handler through that one helper right
+// after its co_await, so there is a single gate to protect rather than four
+// copies, and one W-IDENTITY mutation regression-covers them all. A future can
+// resolve an instant before request_stop(), and its consumer must not touch
+// state that now belongs to a later update; the token IS the update's identity.
+// The sweep is scheduled unconditionally on every exit so no completed handle
+// leaks.
+QCoro::Task<> ItemsManagerWorker::FetchStashList(std::stop_token token)
+{
+    try {
+        Result<poe::StashListWrapper> result;
+        try {
+            // Move the payload out (S1-7): the worker is the single consumer.
+            auto future = m_api.listStashes(m_realm, m_league, token);
+            result = co_await qCoro(future).takeResult();
+        } catch (...) {
+            result = std::unexpected(MakeInternalError("the stash list fetch threw"));
+        }
+        ProcessIfLive(token, [&] { OnStashListReceived(result); });
+    } catch (...) {
+        spdlog::error("ItemsManagerWorker: a stash list continuation threw; aborting the update");
+        // A handler that reached this catch ran because the token was live at the
+        // post-await gate, so it belongs to the active update — even if its own
+        // failure branch stopped the token before throwing. Abort it. A resumed
+        // straggler is gated out above and never enters the handler, so it never
+        // reaches here; and AbortUpdate() guards on WorkerState and is idempotent,
+        // so an already-terminal update is left untouched.
+        AbortUpdate();
+    }
+    ScheduleSweep();
+}
+
+QCoro::Task<> ItemsManagerWorker::FetchCharacterList(std::stop_token token)
+{
+    try {
+        Result<poe::CharacterListWrapper> result;
+        try {
+            auto future = m_api.listCharacters(m_realm, token);
+            result = co_await qCoro(future).takeResult();
+        } catch (...) {
+            result = std::unexpected(MakeInternalError("the character list fetch threw"));
+        }
+        ProcessIfLive(token, [&] { OnCharacterListReceived(result); });
+    } catch (...) {
+        spdlog::error(
+            "ItemsManagerWorker: a character list continuation threw; aborting the update");
+        AbortUpdate();
+    }
+    ScheduleSweep();
+}
+
+QCoro::Task<> ItemsManagerWorker::FetchStash(ItemLocation location,
+                                             QString stash_id,
+                                             QString substash_id,
+                                             std::stop_token token)
+{
+    try {
+        Result<poe::StashWrapper> result;
+        try {
+            auto future = m_api.getStash(m_realm, m_league, stash_id, substash_id, token);
+            result = co_await qCoro(future).takeResult();
+        } catch (...) {
+            result = std::unexpected(MakeInternalError("the stash fetch threw"));
+        }
+        ProcessIfLive(token, [&] { OnStashReceived(result, location); });
+    } catch (...) {
+        spdlog::error("ItemsManagerWorker: a stash continuation threw; aborting the update");
+        AbortUpdate();
+    }
+    ScheduleSweep();
+}
+
+QCoro::Task<> ItemsManagerWorker::FetchCharacter(ItemLocation location,
+                                                 QString name,
+                                                 std::stop_token token)
+{
+    try {
+        Result<poe::CharacterWrapper> result;
+        try {
+            auto future = m_api.getCharacter(m_realm, name, token);
+            result = co_await qCoro(future).takeResult();
+        } catch (...) {
+            result = std::unexpected(MakeInternalError("the character fetch threw"));
+        }
+        ProcessIfLive(token, [&] { OnCharacterReceived(result, location); });
+    } catch (...) {
+        spdlog::error("ItemsManagerWorker: a character continuation threw; aborting the update");
+        AbortUpdate();
+    }
+    ScheduleSweep();
+}
+
+void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, std::vector<ItemsRequest> &batch)
 {
     // The modern API documents stash ids as 10 hexadecimal digits; longer
     // ids were a legacy-API artifact. Warn if one ever shows up.
@@ -537,16 +702,14 @@ void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, int &count)
     m_tabs.push_back(location);
     m_tab_id_index.insert(location.id());
 
-    // Fetch this tab's contents if it is part of the update selection, or
-    // if its contents were never successfully fetched. Keying on
-    // contents-known rather than list membership keeps a new tab "new"
-    // across a failed first fetch — list receipt alone (which persists
-    // metadata) must not consume newness (F55).
-    const bool selected = m_update_all || (m_tabs_to_update.count(location.id()) > 0)
-                          || (m_contents_known.count(location.id()) == 0);
+    // Fetch this tab's contents only if it is part of the update selection.
+    // A newly discovered tab (not in the selection) is added to the tab list
+    // above but left unfetched: a partial refresh touches only what it was
+    // asked to, so new tabs wait for a full refresh or an explicit selection
+    // rather than turning a partial refresh into a full one (F55, revised).
+    const bool selected = m_update_all || (m_tabs_to_update.count(location.id()) > 0);
     if (m_update_tab_contents && selected) {
-        ++count;
-        QueueRequest(StashFetch{location.id(), {}}, location);
+        batch.push_back(ItemsRequest{StashFetch{location.id(), {}}, location});
     }
 
     // Process any children.
@@ -555,7 +718,7 @@ void ItemsManagerWorker::ProcessTab(const poe::StashTab &tab, int &count)
         // in the original list.
         emit stashListReceived(*tab.children, m_realm, m_league);
         for (const auto &child : *tab.children) {
-            ProcessTab(child, count);
+            ProcessTab(child, batch);
         }
     }
 }
@@ -568,11 +731,13 @@ void ItemsManagerWorker::OnStashListReceived(const Result<poe::StashListWrapper>
         spdlog::warn("Aborting update because there was an error fetching the stash list ({}): {}",
                      RateLimit::ToString(result.error().kind),
                      result.error().message);
-        ++m_request_failures;
-        m_has_stash_list = true;
-        m_has_character_list = true;
-        m_queue = {};
-        CheckUpdateFinished();
+        // First-failure terminal (D2/D6): stop the token so any sibling launched
+        // concurrently — the character list or its content — resolves Canceled,
+        // then take the direct terminal path. AbortUpdate() returns the worker to
+        // idle immediately without touching the progress counters, so a six-tab
+        // batch reporting 0/6 does not lurch to 1/1 (P-STATUS).
+        StopUpdateForFailure();
+        AbortUpdate();
         return;
     }
 
@@ -602,13 +767,15 @@ void ItemsManagerWorker::OnStashListReceived(const Result<poe::StashListWrapper>
         m_tab_id_index.insert(tab.id());
     }
 
-    // Queue stash tab requests.
-    int tabs_requested = 0;
+    // Accumulate this list's whole content batch (D6): ProcessTab appends each
+    // selected tab — and, recursively, its folder children — in source
+    // traversal order.
+    std::vector<ItemsRequest> batch;
     for (const auto &tab : stashes) {
         // This will process tabs recursively.
-        ProcessTab(tab, tabs_requested);
+        ProcessTab(tab, batch);
     }
-    spdlog::debug("Requesting {} out of {} stash tabs", tabs_requested, stashes.size());
+    spdlog::debug("Requesting {} out of {} stash tabs", batch.size(), stashes.size());
 
     // Drop items belonging to stash tabs the server no longer lists.
     const size_t before = m_items.size();
@@ -624,13 +791,12 @@ void ItemsManagerWorker::OnStashListReceived(const Result<poe::StashListWrapper>
 
     m_has_stash_list = true;
 
-    // Check to see if we can start sending queued requests to fetch items yet.
-    if (m_need_character_list && !m_has_character_list) {
-        SubmitCharacterListRequest();
-    } else {
-        spdlog::trace("ItemsManagerWorker::OnOAuthStashListReceived() fetching items");
-        FetchItems();
-    }
+    // Launch this list's complete stash content batch now (D6): it is never
+    // held behind the character list, which RunUpdate already requested and
+    // whose own content launches from its handler. ProcessTab accumulated the
+    // batch above in source traversal order; LaunchContent launches it all at
+    // once.
+    LaunchContent(std::move(batch));
     CheckUpdateFinished();
 }
 
@@ -643,11 +809,11 @@ void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterList
                      "({}): {}",
                      RateLimit::ToString(result.error().kind),
                      result.error().message);
-        ++m_request_failures;
-        m_has_stash_list = true;
-        m_has_character_list = true;
-        m_queue = {};
-        CheckUpdateFinished();
+        // First-failure terminal (D2/D6): stop the token so the concurrently
+        // launched stash list or its content resolves Canceled, then take the
+        // direct terminal path — see the stash-list branch above.
+        StopUpdateForFailure();
+        AbortUpdate();
         return;
     }
 
@@ -675,7 +841,7 @@ void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterList
         m_tab_id_index.insert(tab.id());
     }
 
-    int requested_character_count = 0;
+    std::vector<ItemsRequest> batch;
 
     for (auto &character : characters) {
         const QString name = character.name;
@@ -697,17 +863,15 @@ void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterList
         m_tabs.push_back(location);
         m_tab_id_index.insert(location.id());
 
-        // Fetch this character's items if it is part of the update
-        // selection, or if its contents were never successfully fetched
-        // (same contents-known rule as ProcessTab, F55).
-        const bool selected = m_update_all || (m_tabs_to_update.count(location.id()) > 0)
-                              || (m_contents_known.count(location.id()) == 0);
+        // Fetch this character's items only if it is part of the update
+        // selection (same rule as ProcessTab): a newly discovered character
+        // waits for a full refresh or an explicit selection (F55, revised).
+        const bool selected = m_update_all || (m_tabs_to_update.count(location.id()) > 0);
         if (m_update_tab_contents && selected) {
-            ++requested_character_count;
-            QueueRequest(CharacterFetch{name}, location);
+            batch.push_back(ItemsRequest{CharacterFetch{name}, location});
         }
     }
-    spdlog::debug("There are {} characters to update in '{}'", requested_character_count, m_league);
+    spdlog::debug("There are {} characters to update in '{}'", batch.size(), m_league);
 
     // Drop items belonging to characters the server no longer lists.
     const size_t before = m_items.size();
@@ -723,11 +887,9 @@ void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterList
 
     m_has_character_list = true;
 
-    // Check to see if we can start sending queued requests to fetch items yet.
-    if (!m_need_stash_list || m_has_stash_list) {
-        spdlog::trace("ItemsManagerWorker::OnOAuthCharacterListReceived() fetching items");
-        FetchItems();
-    }
+    // Launch this list's complete character content batch now (D6): it is
+    // independent of the stash lane, so it is never held behind the stash list.
+    LaunchContent(std::move(batch));
     CheckUpdateFinished();
 }
 
@@ -744,13 +906,12 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
         } else {
             spdlog::error("ItemsManagerWorker: stash is empty");
         }
-        ++m_request_failures;
-        ++m_stashes_received;
-        m_stashes_needed = m_stashes_received;
-        m_characters_needed = m_characters_received;
-        m_queue = {};
-        SendStatusUpdate();
-        CheckUpdateFinished();
+        // First-failure terminal (D2/D6): stop the token and take the direct
+        // terminal path. The progress counters are left untouched — this failed
+        // fetch is not counted as received, and the batch's `needed` total is not
+        // snapped down, so reported progress stays monotonic (P-STATUS).
+        StopUpdateForFailure();
+        AbortUpdate();
         return;
     }
 
@@ -787,6 +948,7 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
         get_children = true;
     }
 
+    std::vector<ItemsRequest> batch;
     if (get_children && stash.children) {
         spdlog::debug("ItemsManagerWorker: getting children ({}) of {} '{}' ({})",
                       stash.children->size(),
@@ -811,39 +973,12 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
             }
             // The child's items display under the parent's location, but
             // they are fetched (and atomically replaced) by the child's id.
+            // Accumulate the whole child batch first; LaunchContent below counts
+            // it into m_stashes_needed before launching any of it, so a ready
+            // child future cannot complete against a half-tallied count.
             ItemLocation child_location = location;
             child_location.setFetchId(child.id);
-            QueueRequest(StashFetch{stash.id, child.id}, child_location);
-            ++m_stashes_needed;
-        }
-    }
-
-    // A tab's contents count as known only once everything a fetch of it
-    // implies has landed. For a Map/Unique parent that includes every
-    // enabled child fetch, so completion is deferred to the last child
-    // reply — marking the parent at its own reply would let a failed child
-    // fetch strand the children, since they never appear in a top-level
-    // list to be retried (F55).
-    if (location.fetch_id() == location.id()) {
-        const int queued_children = (get_children && stash.children) ? int(stash.children->size())
-                                                                     : 0;
-        if (queued_children > 0) {
-            // Starting a child-fetch cycle makes the parent incomplete
-            // until the last child lands — an already-known parent whose
-            // reply introduces a child that then fails must not stay
-            // known, or the child would never be retried. The cost of a
-            // mid-cycle terminal failure is one redundant refetch of the
-            // parent and its children on the next update.
-            m_contents_known.erase(location.id());
-            m_pending_children[location.id()] = queued_children;
-        } else {
-            m_contents_known.insert(location.id());
-        }
-    } else {
-        const auto pending = m_pending_children.find(location.id());
-        if ((pending != m_pending_children.end()) && (--pending->second <= 0)) {
-            m_pending_children.erase(pending);
-            m_contents_known.insert(location.id());
+            batch.push_back(ItemsRequest{StashFetch{stash.id, child.id}, child_location});
         }
     }
 
@@ -883,7 +1018,10 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
         }
     }
 
-    SubmitNextItemRequest();
+    // Launch the child batch (D6): reply-discovered Map/Unique children go out
+    // as one complete batch. An empty batch (a normal tab, or a parent whose
+    // children are disabled) makes this a no-op.
+    LaunchContent(std::move(batch));
     CheckUpdateFinished();
 }
 
@@ -901,22 +1039,16 @@ void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterWrapper>
         } else {
             spdlog::error("ItemsManagerWorker: character is empty");
         }
-        ++m_request_failures;
-        ++m_characters_received;
-        m_stashes_needed = m_stashes_received;
-        m_characters_needed = m_characters_received;
-        m_queue = {};
-        SendStatusUpdate();
-        CheckUpdateFinished();
+        // First-failure terminal (D2/D6): stop the token and take the direct
+        // terminal path, leaving the progress counters untouched (P-STATUS).
+        StopUpdateForFailure();
+        AbortUpdate();
         return;
     }
 
     const auto &character = *result->character;
 
     emit characterReceived(character, m_realm);
-
-    // The fetch landed, so this character is no longer "new" (F55).
-    m_contents_known.insert(location.id());
 
     // Atomically replace this character's items.
     RemoveItemsFetchedBy(location.fetch_id());
@@ -935,42 +1067,30 @@ void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterWrapper>
     ++m_characters_received;
     SendStatusUpdate();
 
-    SubmitNextItemRequest();
+    // No follow-up launch (D6): a character reply discovers no children, and its
+    // whole content batch went out at once when the character list arrived.
     CheckUpdateFinished();
 }
 
-void ItemsManagerWorker::QueueRequest(std::variant<StashFetch, CharacterFetch> what,
-                                      const ItemLocation &location)
+void ItemsManagerWorker::LaunchContent(std::vector<ItemsRequest> batch)
 {
-    spdlog::trace("Queued ({}) -- {}", (m_queue_id + 1), location.GetHeader());
-    ItemsRequest items_request;
-    items_request.id = m_queue_id++;
-    items_request.what = std::move(what);
-    items_request.location = location;
-    m_queue.push(items_request);
-}
-
-void ItemsManagerWorker::FetchItems()
-{
-    spdlog::trace("ItemsManagerWorker::FetchItems() entered");
-
-    if (!m_update_tab_contents) {
-        spdlog::trace("ItemsManagerWorker: not fetching items.");
-        CheckUpdateFinished();
+    // The whole batch goes out at once (D6, F56): no worker-side pacing, no
+    // one-at-a-time submission. The caller owns the batch as a local vector, so a
+    // ready fetch whose handler discovers and launches its own child batch inline
+    // builds a separate local batch — there is no shared queue for the inline
+    // re-entry to mutate mid-iteration.
+    if (batch.empty()) {
+        // A TabsOnly update (no content) or a lane with nothing to fetch.
         return;
     }
 
-    m_stashes_needed = 0;
-    m_stashes_received = 0;
-
-    m_characters_needed = 0;
-    m_characters_received = 0;
-
-    std::queue<ItemsRequest> requests = m_queue;
-    QString tab_titles;
-    while (!requests.empty()) {
-        const ItemsRequest request = requests.front();
-        requests.pop();
+    // Initialize the entire batch's needed counters BEFORE the first launch
+    // (IR2/S1-6): a ready or fail-fast future runs its completion inline in the
+    // launch loop below, and it must never observe a needed count still being
+    // tallied. These accumulate across the update's lanes — the stash list, the
+    // character list, and each parent reply's child batch each add their own
+    // and never reset a sibling lane's progress (D6).
+    for (const auto &request : batch) {
         switch (request.location.type()) {
         case ItemLocationType::STASH:
             ++m_stashes_needed;
@@ -979,68 +1099,67 @@ void ItemsManagerWorker::FetchItems()
             ++m_characters_needed;
             break;
         }
-        tab_titles += request.location.GetHeader() + " ";
     }
-
     SendStatusUpdate();
+    spdlog::debug("Launching a batch of {} item requests.", batch.size());
 
-    spdlog::debug("Requested {} stashes and {} characters.", m_stashes_needed, m_characters_needed);
-    spdlog::debug("Tab titles: {}", tab_titles);
+    const std::stop_token token = m_stop_source.get_token();
 
-    SubmitNextItemRequest();
-    CheckUpdateFinished();
+    // Each entry names the resource, not how to fetch it; launch an owned
+    // per-fetch task per entry, in the batch's source traversal order (D6's
+    // per-lane FIFO). Every handle lives in m_fetch_tasks — no fire-and-forget.
+    for (const auto &request : batch) {
+        const ItemLocation location = request.location;
+        std::visit(
+            [&](const auto &what) {
+                using What = std::decay_t<decltype(what)>;
+                if constexpr (std::is_same_v<What, StashFetch>) {
+                    m_fetch_tasks.push_back(
+                        FetchStash(location, what.stash_id, what.substash_id, token));
+                } else {
+                    m_fetch_tasks.push_back(FetchCharacter(location, what.name, token));
+                }
+            },
+            request.what);
+    }
 }
 
-void ItemsManagerWorker::SubmitNextItemRequest()
+void ItemsManagerWorker::ScheduleSweep()
 {
-    if (m_state != WorkerState::Updating || m_request_failures > 0 || m_queue.empty()) {
+    // Coalesce: many completions in one event-loop turn queue a single sweep.
+    if (m_sweep_scheduled) {
         return;
     }
-
-    ItemsRequest request = m_queue.front();
-    m_queue.pop();
-
-    const ItemLocation location = request.location;
-    const int generation = m_update_generation;
-
-    // The queue carries what to fetch, not how: each branch names the
-    // resource and the facade builds the request.
-    std::visit(
-        [&](const auto &what) {
-            using What = std::decay_t<decltype(what)>;
-            if constexpr (std::is_same_v<What, StashFetch>) {
-                m_api.getStash(m_realm, m_league, what.stash_id, what.substash_id)
-                    .then(this, [this, generation, location](const Result<poe::StashWrapper> &r) {
-                        if (!IsStale(generation)) {
-                            OnStashReceived(r, location);
-                        }
-                    });
-            } else {
-                m_api.getCharacter(m_realm, what.name)
-                    .then(this,
-                          [this, generation, location](const Result<poe::CharacterWrapper> &r) {
-                              if (!IsStale(generation)) {
-                                  OnCharacterReceived(r, location);
-                              }
-                          });
-            }
-        },
-        request.what);
+    m_sweep_scheduled = true;
+    if (m_sweep_observer) {
+        ++m_sweep_observer->scheduled;
+    }
+    // Queued, so the sweep runs on a later turn — outside the completing
+    // coroutine whose final_suspend has not yet released its own handle
+    // (D6/R5-1): finalization must never destroy the frame it is running in.
+    QMetaObject::invokeMethod(this, [this]() { SweepTasks(); }, Qt::QueuedConnection);
 }
 
-bool ItemsManagerWorker::IsStale(int generation) const
+void ItemsManagerWorker::SweepTasks()
 {
-    // A reply is stale if it belongs to an earlier update, or if no update is
-    // running at all: every request is submitted during an update, a
-    // successful finish requires all of them to have been counted, and a
-    // failed update abandons whatever is still in flight (F28).
-    if ((m_state == WorkerState::Updating) && (generation == m_update_generation)) {
+    m_sweep_scheduled = false;
+    int destroyed = 0;
+    // Destroy completed handles only. isReady() is true for a finished (or
+    // empty) coroutine; a suspended straggler is not ready and survives —
+    // destroying its handle would detach the frame, not stop it (S1-1/S1-4),
+    // and it would still resume later.
+    std::erase_if(m_fetch_tasks, [&destroyed](const QCoro::Task<> &task) {
+        if (task.isReady()) {
+            ++destroyed;
+            return true;
+        }
         return false;
+    });
+    if (m_sweep_observer) {
+        ++m_sweep_observer->executed;
+        m_sweep_observer->destroyed += destroyed;
+        m_sweep_observer->live_after = m_fetch_tasks.size();
     }
-    spdlog::debug("ItemsManagerWorker: discarding a stale reply from update {} (current is {})",
-                  generation,
-                  m_update_generation);
-    return true;
 }
 
 void ItemsManagerWorker::SendStatusUpdate()
@@ -1083,6 +1202,12 @@ void ItemsManagerWorker::ParseItems(const std::vector<poe::Item> &items,
 
 void ItemsManagerWorker::CheckUpdateFinished()
 {
+    // The SUCCESS terminal only. A failed update never reaches its counter
+    // equality — the first failure routes through AbortUpdate() and sets Idle
+    // directly (D6) — so by the time this runs while still Updating, no failure
+    // has occurred. It is called after every completion that could reconcile the
+    // counters; when they line up with both required lists received, the update
+    // succeeded.
     if (m_state != WorkerState::Updating) {
         return;
     }
@@ -1095,16 +1220,8 @@ void ItemsManagerWorker::CheckUpdateFinished()
         return;
     }
 
-    if (m_request_failures == 0) {
-        spdlog::trace("ItemsManagerWorker::CheckUpdateFinished() finishing update");
-        FinishUpdate();
-    } else {
-        emit StatusUpdate(ProgramState::Ready,
-                          QString("Update failed: %1 requests failed")
-                              .arg(QString::number(m_request_failures)));
-        m_state = WorkerState::Idle;
-        spdlog::debug("Update failed.");
-    }
+    spdlog::trace("ItemsManagerWorker::CheckUpdateFinished() finishing update");
+    FinishUpdate();
 }
 
 void ItemsManagerWorker::FinishUpdate()

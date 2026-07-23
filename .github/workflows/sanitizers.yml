@@ -1,0 +1,116 @@
+name: Sanitizers
+
+# Runs the phase-5 network-redesign full-chain integration runner
+# (tst_workerintegration) under AddressSanitizer + LeakSanitizer on Linux to
+# enforce I-LEAK-BOUND leak-boundedness
+# (docs/design/network-redesign-phase5-verification.md §6). On Linux,
+# -fsanitize=address turns on LeakSanitizer, which runs a leak check at each
+# process exit. Every scenario is its own process (acq_add_scenario_test). The
+# run is split in two: the shutdown scenarios (i_shut_*, i_leak_bound) leave
+# accepted detached-QCoro-frame leaks and run WITH tests/lsan.supp; every other
+# scenario must exit leak-clean and runs with NO suppression file, so a leak
+# there fails the job even if it falls beneath a suppressed coroutine frame. A
+# leak outside the closure in either regime fails the job — that is the
+# enforcement.
+#
+# Test/CI-only: this never builds or runs the `acquisition` app target (it links
+# crashpad, whose signal handlers can conflict with the sanitizer's). Release
+# packaging never sets ACQ_SANITIZE.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  asan-lsan:
+    name: ASan + LSan (integration runner)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.11.1'
+          modules: 'qtnetworkauth'
+          cache: true
+          cache-key-prefix: 'qt-6.11.1-linux-sanitizers'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            openssl \
+            libcurl4-openssl-dev \
+            libgl-dev \
+            libssl-dev \
+            libvulkan-dev \
+            libxcb-cursor0 \
+            libxcb-cursor-dev \
+            zlib1g-dev \
+            llvm
+
+      - name: Configure CMake (ASan)
+        run: cmake -B build-asan -S . -DACQ_SANITIZE=address -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+      # Build ONLY the integration runner. acquisition_core + sentry/crashpad
+      # compile under ASan (a heavy from-scratch build), but the `acquisition`
+      # app target must never be sanitized. Allow generous build time.
+      #
+      # Cap at --parallel 2 (matching codeql.yml / build-linux.yml): ASan cc1plus
+      # uses far more memory per translation unit than a plain build, so building
+      # the heavy C++23/Qt TUs at full runner width (4 cores) exhausts RAM and
+      # systemd-oomd kills the build cgroup with SIGTERM (exit 143). Two-wide
+      # keeps peak memory well under the runner's limit.
+      - name: Build integration runner
+        run: cmake --build build-asan --target tst_workerintegration --parallel 2
+
+      # The scenarios split into two leak regimes, and they are run as two
+      # separate steps so the suppression file only ever applies where it is
+      # justified. tests/lsan.supp matches allocation-stack frames (the per-fetch
+      # and hub coroutines), so applied globally it would silence ANY leak
+      # allocated beneath those coroutines -- including in a scenario that is
+      # supposed to be leak-clean. Splitting keeps the suppression off the
+      # scenarios that must exit clean, so a regression there fails the job
+      # instead of being masked.
+      #
+      # detect_leaks=1 is the Linux default under ASan; set it explicitly.
+      # abort_on_error=1 makes any ASan/LSan report fail the process (and the
+      # test). llvm-symbolizer (from the llvm apt package) gives symbolized leak
+      # stacks that the leak: substrings match. -V (not --output-on-failure)
+      # surfaces LSan's accounting on every run: passing scenarios would
+      # otherwise hide it.
+
+      # Non-shutdown scenarios run to completion and leave NO detached frames, so
+      # they must exit leak-clean with NO suppression file at all. If any of them
+      # leaks -- even through a coroutine frame the suppression would have matched
+      # -- LSan fails the job. That is the blind spot the global suppression used
+      # to hide.
+      - name: Run leak-clean scenarios (no suppressions)
+        env:
+          ASAN_OPTIONS: abort_on_error=1:detect_leaks=1
+        run: |
+          ctest --test-dir build-asan --no-tests=error -R tst_workerintegration -E 'i_shut_|i_leak_bound' -V
+
+      # Shutdown scenarios (i_shut_*) and the bounded-leak proof (i_leak_bound)
+      # intentionally leave detached QCoro frames at process exit (S1-1/S1-2), so
+      # they -- and only they -- run with the suppression file. print_suppressions=1
+      # prints the accounting so the tight closure stays visible; a leak whose
+      # stack falls outside the closure is unmatched and still fails the job.
+      - name: Run shutdown scenarios (detached-frame suppressions)
+        env:
+          ASAN_OPTIONS: abort_on_error=1:detect_leaks=1
+          LSAN_OPTIONS: suppressions=${{ github.workspace }}/tests/lsan.supp:print_suppressions=1
+        run: |
+          ctest --test-dir build-asan --no-tests=error -R 'tst_workerintegration\.(i_shut_|i_leak_bound)' -V

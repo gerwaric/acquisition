@@ -8,6 +8,8 @@
 #include <QNetworkRequest>
 #include <QPointer>
 
+#include <algorithm>
+#include <cstring>
 #include <vector>
 
 #include "ratelimit/ratelimitmanager.h"
@@ -30,12 +32,15 @@ public:
         setOpenMode(QIODevice::ReadOnly);
     }
 
-    // Complete the reply: install the synthetic headers, status, and error,
-    // then emit finished() so RateLimitManager::ReceiveReply runs
-    // synchronously on the caller's stack.
+    // Complete the reply: install the synthetic headers, status, and error, an
+    // optional response body (served through readData so readAll() works, for
+    // full-chain tests whose consumer parses the payload — the manager's own
+    // suite never reads a body and passes none), then emit finished() so
+    // RateLimitManager::ReceiveReply runs synchronously on the caller's stack.
     void finish(const QList<QNetworkReply::RawHeaderPair> &headers,
                 int http_status = 0,
-                QNetworkReply::NetworkError error = QNetworkReply::NoError)
+                QNetworkReply::NetworkError error = QNetworkReply::NoError,
+                const QByteArray &body = {})
     {
         if (isFinished()) {
             qFatal("InFlightReply::finish: reply for %s was already finished",
@@ -50,15 +55,33 @@ public:
         if (error != QNetworkReply::NoError) {
             setError(error, "fake network error");
         }
+        m_body = body;
         setFinished(true);
         emit finished();
     }
 
     void abort() override {}
+    bool isSequential() const override { return true; }
+    qint64 bytesAvailable() const override
+    {
+        return (m_body.size() - m_offset) + QNetworkReply::bytesAvailable();
+    }
 
 protected:
-    // The manager never reads a body, so none is served.
-    qint64 readData(char *, qint64) override { return -1; }
+    qint64 readData(char *data, qint64 maxSize) override
+    {
+        const qint64 n = std::min<qint64>(maxSize, m_body.size() - m_offset);
+        if (n <= 0) {
+            return -1;
+        }
+        std::memcpy(data, m_body.constData() + m_offset, size_t(n));
+        m_offset += n;
+        return n;
+    }
+
+private:
+    QByteArray m_body;
+    qint64 m_offset{0};
 };
 
 // The fake sender the F57 finding and the network-redesign testing plan
