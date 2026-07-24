@@ -3,10 +3,14 @@
 
 #include "item.h"
 
+#include <QMutex>
 #include <QString>
 
-#include <sstream>
 #include "utility"
+#include <set>
+#include <sstream>
+#include <string>
+#include <string_view>
 
 #include "itemcategories.h"
 #include "itemlocation.h"
@@ -57,6 +61,43 @@ static QString fixup_name(const QString &name)
     } else {
         return name;
     }
+}
+
+// True the first time this message is reported in this process.
+//
+// The callers below are probes into GGG's data: they fire per item, so a
+// single wrong assumption becomes one log line per item — tens of thousands
+// on a large account, in the UI panel (whose sink is at warn), burying
+// everything that matters. Callers warn on the first report and drop to
+// debug afterwards.
+//
+// Those follow-ups are recorded only when the logging level is debug or
+// lower — the level gates before the sinks, so the file sink being at trace
+// is not enough on its own. That is the default in QT_DEBUG builds; release
+// builds default to info, where only the first report survives unless the
+// level is raised (--log-level, the login dialog, or the Logging menu). That
+// is the intended trade: the first report says the assumption broke, and
+// anyone counting instances is already turning the level up.
+//
+// Per process, not per refresh: the question these probes answer is "does
+// this happen at all", and re-arming every refresh would only slow the flood
+// down. A restart re-arms them.
+//
+// Keyed on the message alone, which is a literal at every call site. Note
+// that the mods probes share their message text between the implicit and
+// explicit paths, so whichever reports a given combination first suppresses
+// the other's warn for it; the second path still logs at debug. Key on the
+// caller's prefix too if that ever matters.
+//
+// Item is constructed on the parser thread during the cache load and on the
+// main thread during a refresh, so the lock is not optional. It is only ever
+// reached on the anomalous path.
+static bool first_report_of(std::string_view message)
+{
+    static QMutex mutex;
+    static std::set<std::string, std::less<>> seen;
+    QMutexLocker locker(&mutex);
+    return seen.emplace(message).second;
 }
 
 Item::Item(const poe::Item &item, const ItemLocation &base_location)
@@ -118,7 +159,16 @@ Item::Item(const poe::Item &item, const ItemLocation &base_location)
     CalculateCategories();
 
     if (item.talismanTier) {
-        spdlog::warn("Item has an obsolete property: talismanTier: {}", item.name);
+        // The 3.29 docs call this removed, but it is still in the spec and the
+        // field is deliberately kept. Report once so a live refresh answers
+        // whether GGG still sends it, without one line per talisman.
+        if (first_report_of("talismanTier")) {
+            spdlog::warn("Item has an obsolete property: talismanTier: {}"
+                         " (further occurrences at debug)",
+                         item.name);
+        } else {
+            spdlog::debug("Item has an obsolete property: talismanTier: {}", item.name);
+        }
         m_talisman_tier = *item.talismanTier;
     }
     if (item.id) {
@@ -221,7 +271,18 @@ void Item::LoadModifiers(const poe::Item &item)
             const bool vestigial = mod.flags->vestigial.value_or(false);
 
             auto warn = [&item, &mod](std::string_view msg) {
-                spdlog::warn("Implicit modifier on {} is {}: {}", item.name, msg, mod.description);
+                if (first_report_of(msg)) {
+                    spdlog::warn("Implicit modifier on {} is {}: {}"
+                                 " (further occurrences at debug)",
+                                 item.name,
+                                 msg,
+                                 mod.description);
+                } else {
+                    spdlog::debug("Implicit modifier on {} is {}: {}",
+                                  item.name,
+                                  msg,
+                                  mod.description);
+                }
             };
 
             if (fractured) {
@@ -298,7 +359,18 @@ void Item::LoadModifiers(const poe::Item &item)
             const bool vestigial = mod.flags->vestigial.value_or(false);
 
             auto warn = [&item, &mod](std::string_view msg) {
-                spdlog::warn("Explicit modifier on {} is {}: {}", item.name, msg, mod.description);
+                if (first_report_of(msg)) {
+                    spdlog::warn("Explicit modifier on {} is {}: {}"
+                                 " (further occurrences at debug)",
+                                 item.name,
+                                 msg,
+                                 mod.description);
+                } else {
+                    spdlog::debug("Explicit modifier on {} is {}: {}",
+                                  item.name,
+                                  msg,
+                                  mod.description);
+                }
             };
 
             if (fractured) {
