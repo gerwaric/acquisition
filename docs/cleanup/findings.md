@@ -76,6 +76,55 @@ row, delete the hash-keyed one) inside `MigrateItem`, or have
 (dual persistence), F51 ledger entry (do not rekey `GetLegacyHash` — a
 correct future v4→v5 migration depends on it).
 
+### F62. The stash/character cache stores a lossy re-serialization, not the received JSON — Confirmed
+
+Found July 24, 2026, while designing the 3.29 cache invalidation. Target:
+resolve before final 0.18; explicitly not blocking 0.18.0-beta.1.
+
+`StashRepo::saveStash` and `CharacterRepo::saveCharacter` persist the
+output of `json::writeStash`/`json::writeCharacter` — a `glz::write_json`
+re-serialization of `poe::StashTab`/`poe::Character` — rather than the
+bytes GGG sent. Reads tolerate unknown keys (`error_on_unknown_keys =
+false` in `json_readers.cpp`) and glaze writes only declared members, so
+every API field Acquisition does not model is silently dropped before it
+reaches `json_data`. `flavourTextParsed` is a live example: commented out
+in `poe/types/item.h` because it is sometimes an object, therefore
+received and discarded on every fetch.
+
+Consequences: the cache is not a faithful record of the API, so a future
+version that models a new field cannot backfill from it — every user must
+refetch. A parse bug is not reproducible from stored data. And a wire
+format change can only be answered by invalidation, never by a blob
+upgrader; 3.28→3.29 would otherwise have been a mechanical transform
+(wrap each mod string as `{"description": ...}`, fold `craftedMods` into
+`explicitMods` with `flags.crafted`) that preserved the cache instead of
+emptying it.
+
+Mechanism, not oversight: `PoeApiClient` is the typed boundary — "above
+this line nothing sees `QNetworkRequest`, `QNetworkReply`, or bytes"
+(`poeapiclient.h`) — so the reply is parsed there and the bytes are
+dropped, and the repo slots receive parsed objects
+(`application.cpp` wires `stashReceived(const poe::StashTab&, ...)`
+straight to `StashRepo::saveStash`). The original intent was to store the
+received JSON; the network redesign landed the boundary the other way.
+
+Fix shape: either carry the raw bytes up through the worker signals or
+move the repos below the boundary. Both fight the frozen network-redesign
+spec's boundary statement, and both fight the worker test design — the
+fake facade exists so tests can return a tab instead of crafting response
+bytes (`poeapiclient.h`), and `tst_reconcile` builds `poe::StashTab`
+values and hands them to `saveStash` directly. Blobs also grow by
+whatever is currently unmodeled. Size the spec impact before the code.
+
+Interaction with the 3.29 payload versioning: the `json_version` int
+added for 0.18 versions the *struct* serialization today, which is why a
+GGG patch string would be the wrong label for it (nothing in the API
+responses carries a version either way). If raw storage lands, the same
+column versions GGG's wire format instead, and the upgrader option above
+becomes available. Related: F21 ledger entry (per-`Item` raw JSON,
+retired by the glaze migration) — this finding is the opposite direction
+and does not revive that path.
+
 ## Standing constraints and lessons
 
 Rules distilled from resolved findings that remain binding on future work.
