@@ -14,7 +14,12 @@
 #include "datastore/stashrepo.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 
-static constexpr int SCHEMA_VERSION = 1;
+// Shape of the tables. Bump when the DDL changes and add a ladder step in
+// migrate(). This is separate from json::PAYLOAD_VERSION, which versions the
+// json stored inside them: a payload change needs no schema bump, and this
+// one is compared with '<' (migrations replay forward) where the payload
+// version is compared with '!=' (a downgrade must not misparse newer blobs).
+static constexpr int SCHEMA_VERSION = 2;
 
 constexpr unsigned int QSQLITE_BUSY_TIMEOUT{5000};
 
@@ -126,19 +131,56 @@ void UserStore::migrate()
         return;
     }
 
-    if (!m_characters->resetRepo()) {
-        m_db.rollback();
-        return;
-    }
+    // Two distinct cases, and they must not be mixed.
+    //
+    // Version 0 is a database with no schema of ours at all (a fresh file, or
+    // one predating the repos). It is built directly at the current schema,
+    // because the CREATE statements always carry every column — so it must
+    // NOT then replay the ladder below, which would try to add columns the
+    // CREATE just made (ALTER ADD COLUMN fails on a duplicate).
+    //
+    // Anything else is an existing database that must replay every step it
+    // missed. Those steps test `version < N` rather than `version == N - 1`
+    // so they compose: a database several versions behind runs all of them,
+    // in order.
+    if (version < 1) {
+        if (!m_characters->resetRepo()) {
+            m_db.rollback();
+            return;
+        }
 
-    if (!m_stashes->resetRepo()) {
-        m_db.rollback();
-        return;
-    }
+        if (!m_stashes->resetRepo()) {
+            m_db.rollback();
+            return;
+        }
 
-    if (!m_buyouts->resetRepo()) {
-        m_db.rollback();
-        return;
+        if (!m_buyouts->resetRepo()) {
+            m_db.rollback();
+            return;
+        }
+
+    } else {
+        // 1 -> 2: add the payload version column. Existing rows get NULL,
+        // which never equals json::PAYLOAD_VERSION, so their cached json is
+        // treated as unfetched and refetched on the next refresh. That is the
+        // intended outcome here: 3.29 turned implicitMods/explicitMods into
+        // objects, so every blob written before this version is unreadable
+        // anyway. No bulk UPDATE is needed, and no future payload bump will
+        // need a migration at all — bumping the constant is enough to strand
+        // stale rows.
+        if (version < 2) {
+            constexpr std::array statements{
+                "ALTER TABLE stashes ADD COLUMN json_version INTEGER",
+                "ALTER TABLE characters ADD COLUMN json_version INTEGER",
+            };
+            for (const auto &sql : statements) {
+                if (!q.exec(sql)) {
+                    ds::logQueryError("UserStore::migrate", q);
+                    m_db.rollback();
+                    return;
+                }
+            }
+        }
     }
 
     // Update the user_version.

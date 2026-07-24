@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS characters (
     league          TEXT,
     listed_at       TEXT NOT NULL,
     json_fetched_at TEXT,
-    json_data       TEXT
+    json_data       TEXT,
+    json_version    INTEGER
 )
 )"};
 
@@ -46,7 +47,8 @@ SET
     realm           = :realm,
     league          = :league,
     json_fetched_at = :json_fetched_at,
-    json_data       = :json_data
+    json_data       = :json_data,
+    json_version    = :json_version
 WHERE id = :id
 )"};
 
@@ -98,6 +100,7 @@ bool CharacterRepo::saveCharacter(const poe::Character &character)
     q.bindValue(":league", ds::optionalAsNull(character.league));
     q.bindValue(":json_fetched_at", json_fetched_at);
     q.bindValue(":json_data", json);
+    q.bindValue(":json_version", json::PAYLOAD_VERSION);
 
     if (!q.exec()) {
         ds::logQueryError("CharacterRepo::saveCharacter()", q);
@@ -194,7 +197,8 @@ std::optional<poe::Character> CharacterRepo::getCharacter(const QString &name, c
 
     QSqlQuery q(m_db);
 
-    if (!q.prepare("SELECT json_data FROM characters WHERE name = :name AND realm = :realm")) {
+    if (!q.prepare("SELECT json_data, json_version"
+                   " FROM characters WHERE name = :name AND realm = :realm")) {
         ds::logQueryError("CharacterRepo::getCharacter()", q);
         return std::nullopt;
     }
@@ -221,6 +225,20 @@ std::optional<poe::Character> CharacterRepo::getCharacter(const QString &name, c
 
     if (q.isNull(0)) {
         spdlog::debug("CharacterRepo: character has not been fetched: name='{}', realm='{}'",
+                      name,
+                      realm);
+        return std::nullopt;
+    }
+
+    // A blob written by a different payload version cannot be trusted to
+    // parse, or to mean the same thing if it does, so it is treated exactly
+    // like a character that was never fetched: the caller refetches it. The
+    // comparison is deliberately '!=' rather than '<' so a blob from a newer
+    // Acquisition is refetched after a downgrade instead of being misparsed.
+    if (q.isNull(1) || (q.value(1).toInt() != json::PAYLOAD_VERSION)) {
+        spdlog::debug("CharacterRepo: character json is not payload version {}: name='{}',"
+                      " realm='{}'",
+                      json::PAYLOAD_VERSION,
                       name,
                       realm);
         return std::nullopt;
