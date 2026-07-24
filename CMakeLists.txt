@@ -176,8 +176,12 @@ if(NOT TARGET sentry-native)
     )
     FetchContent_MakeAvailable(sentry-native)
 
-    # Sentry causes some compiler warnings we want to ignore.
-    target_compile_options(sentry PRIVATE
+    # Sentry causes some compiler warnings we want to ignore. Sentry sets its own
+    # warning flags on this target (/W4 on MSVC, -Werror -Wall on gcc/clang), and
+    # target_compile_options only appends, which makes MSVC emit D9025 for every
+    # sentry translation unit. Replace the target's options instead of adding to
+    # them; everything sentry puts there is warning-related.
+    set_property(TARGET sentry PROPERTY COMPILE_OPTIONS
         $<$<C_COMPILER_ID:GNU,Clang,AppleClang>:-w>
         $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-w>
         $<$<C_COMPILER_ID:MSVC>:/w>
