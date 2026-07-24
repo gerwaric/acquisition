@@ -171,7 +171,7 @@ if(NOT TARGET sentry-native)
     FetchContent_Declare(
         sentry-native
         GIT_REPOSITORY https://github.com/getsentry/sentry-native
-        GIT_TAG        0.15.0
+        GIT_TAG        0.15.4
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(sentry-native)
@@ -193,7 +193,7 @@ if(NOT TARGET glaze)
     FetchContent_Declare(
         glaze
         GIT_REPOSITORY https://github.com/stephenberry/glaze.git
-        GIT_TAG        v7.9.0
+        GIT_TAG        v7.9.1
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(glaze)
@@ -231,6 +231,7 @@ if(NOT TARGET QCoro6::Core)
         qcoro
         GIT_REPOSITORY https://github.com/qcoro/qcoro.git
         GIT_TAG        v0.13.0
+        GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(qcoro)
 endif()
