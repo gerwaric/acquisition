@@ -556,6 +556,18 @@ add_custom_target(project_files SOURCES
     BUILD.md
     acquisition.desktop
     installer.iss
+    # Project documents
+    docs/adr/0001-qml-ui-migration-strategy.md
+    docs/adr/0002-defer-qml-migration.md
+    docs/cleanup/findings.md
+    docs/design/items-pipeline.md
+    docs/design/network-ggg-email-draft.md
+    docs/design/network-ground-truth.md
+    docs/design/network-redesign.md
+    docs/design/network-redesign-phase5-verification.md
+    docs/design/network-redesign-reviews.md
+    docs/README.md
+
 )
 
 #------------------------------------------------------
