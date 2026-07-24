@@ -13,6 +13,7 @@
 #include "poe/types/cruciblenode.h"
 #include "poe/types/frametype.h"
 #include "poe/types/gemtab.h"
+#include "poe/types/itemmod.h"
 #include "poe/types/itemproperty.h"
 #include "poe/types/itemsocket.h"
 
@@ -60,6 +61,22 @@ namespace poe {
             unsigned tier; // uint
         };
 
+        struct MercenarySkills
+        {
+            struct Supports
+            {
+                unsigned hash; // uint
+                QString name;  // string
+                unsigned tier; // uint
+            };
+
+            unsigned hash; // uint
+            QString icon;  // string
+            QString name;  // string
+            std::optional<std::vector<poe::Item::MercenarySkills::Supports>>
+                supports; // ?array of object
+        };
+
         struct IncubatingInfo
         {
             QString name;      // string
@@ -74,6 +91,13 @@ namespace poe {
             std::optional<unsigned> level;    // ? uint monster level required to progress
             std::optional<unsigned> progress; // ? uint
             std::optional<unsigned> total;    // ? uint
+        };
+
+        struct EnshroudedInfo
+        {
+            QString unique;    // ?string
+            unsigned progress; // uint
+            unsigned total;    // uint
         };
 
         struct CrucibleInfo
@@ -110,6 +134,7 @@ namespace poe {
         std::optional<int> maxStackSize;      // ? int
         std::optional<QString> stackSizeText; // ? string
         std::optional<QString> iconTierText;  // ? string; usually roman numerals
+        std::optional<QString> iconStackLevel; // ?string; describes the level of a stack of items
         std::optional<QString> league;        // ? string
         std::optional<QString> id;            // ? string a unique 64 digit hexadecimal string
         std::optional<std::vector<QString>>
@@ -121,6 +146,7 @@ namespace poe {
         std::optional<bool> tangled;                     // ? bool always true if present
         std::optional<bool> memoryItem;                  // ? bool always true if present
         std::optional<bool> mutated;                     // ? bool always true if present
+        std::optional<bool> vestigial;                   // ? bool PoE1 only; always true if present
         std::optional<QString> builtInSupport; // ? string PoE1 only; Supported by level 1 x
         std::optional<int>
             monsterLevel; // ? string PoE1 only; used for items that always display their monster level
@@ -165,7 +191,8 @@ namespace poe {
         std::optional<std::vector<poe::ItemProperty>> nextLevelRequirements; // ? array of ItemProperty
         std::optional<std::vector<poe::ItemProperty>>
             grantedSkills;               // ? array of ItemProperty; PoE2 only
-        std::optional<int> talismanTier; // ? int
+        // DOCS say talismanTier was removed in 3.29, but it's still in the spec
+        std::optional<int> talismanTier;                                // ? int
         std::optional<std::vector<poe::Item::Rewards>> rewards;         // ? array of object
         std::optional<QString> secDescrText;                            // ? string
         std::optional<std::vector<QString>> utilityMods;                // ? array of string
@@ -173,28 +200,26 @@ namespace poe {
         std::optional<std::vector<QString>> enchantMods;                // ? array of string
         std::optional<std::vector<QString>> runeMods;     // ? array of string; PoE2 only
         std::optional<std::vector<QString>> scourgeMods;  // ? array of string
-        std::optional<std::vector<QString>> implicitMods; // ? array of string
+        std::optional<std::vector<poe::ItemMod>> implicitMods;              // ? array of ItemMod
         std::optional<std::vector<poe::Item::UltimatumMods>> ultimatumMods; // ? array of object
-        std::optional<std::vector<QString>> explicitMods;                   // ? array of string
+        std::optional<std::vector<poe::ItemMod>> explicitMods;              // ? array of ItemMod
         std::optional<std::vector<QString>> bondedMods;    // ? array of string; PoE2 only
-        std::optional<std::vector<QString>> craftedMods;   // ? array of string
-        std::optional<std::vector<QString>> fracturedMods; // ? array of string
-        std::optional<std::vector<QString>>
-            mutatedMods; // ? array of string; PoE1: Foulborn Unique mods, PoE2: Vaal Unique mods
+        std::optional<std::vector<poe::Item::MercenarySkills>> mercenarySkills; // ? array of object
+        // REMOVED IN 3.29 std::optional<std::vector<QString>> craftedMods;   // ? array of string
+        // REMOVED IN 3.29 std::optional<std::vector<QString>> fracturedMods; // ? array of string
+        // REMOVED IN 3.29 std::optional<std::vector<QString>> mutatedMods; // ? array of string; PoE1: Foulborn Unique mods, PoE2: Vaal Unique mods
         std::optional<std::vector<QString>>
             crucibleMods; // ? array of string only allocated mods are included
         std::optional<std::vector<QString>> cosmeticMods; // ? array of string
         std::optional<std::vector<QString>> veiledMods; // ? array of string random video identifier
         std::optional<bool> veiled;                     // ? bool always true if present
-        std::optional<std::vector<QString>> desecratedMods; // ? array of string; PoE2 only
+        // REMOVED IN 3.29 std::optional<std::vector<QString>> desecratedMods; // ? array of string; PoE2 only
         std::optional<bool> desecrated; // ? bool; PoE2 only; always true if present
         std::optional<std::vector<poe::GemTab>> gemTabs; // ? array of GemTab; PoE2 only
         std::optional<QString> gemBackground;            // ? string; PoE2 only
         std::optional<QString> gemSkill;                 // ? string; PoE2 only
         std::optional<QString> descrText;                // ? string
         std::optional<std::vector<QString>> flavourText; // ? array of string
-        // TODO: NOTE: WARNING: flavourTextParsed might sometimes be an object
-        //std::optional<std::vector<QString>> flavourTextParsed; // ? array of string or object
         std::optional<std::vector<QString>> flavourTextNote;    // ? string user - generated text
         std::optional<std::vector<QString>> prophecyText;       // ? string
         std::optional<bool> isRelic;                            // ? bool always true if present
@@ -202,6 +227,7 @@ namespace poe {
         std::optional<bool> replica;                            // ? bool always true if present
         std::optional<bool> foreseeing;                         // ? bool always true if present
         std::optional<poe::Item::IncubatingInfo> incubatedItem; // ? object
+        std::optional<poe::Item::EnshroudedInfo> enshrouded;    // ? object
         std::optional<poe::Item::ScourgedInfo> scourged;        // ? object
         std::optional<poe::Item::CrucibleInfo> crucible;        // ? object
         std::optional<bool> ruthless;                           // ? bool always true if present

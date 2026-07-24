@@ -9,7 +9,6 @@
 #include "utility"
 
 #include "itemcategories.h"
-#include "itemconstants.h"
 #include "itemlocation.h"
 #include "modlist.h"
 #include "poe/types/displaymode.h"
@@ -97,9 +96,66 @@ Item::Item(const poe::Item &item, const ItemLocation &base_location)
         m_mutated = *item.mutated;
     }
 
-    m_crafted = (item.craftedMods && !item.craftedMods->empty());
-    m_enchanted = (item.enchantMods && !item.enchantMods->empty());
+    LoadInfluences(item);
 
+    m_w = item.w;
+    m_h = item.h;
+    if (item.frameType) {
+        m_frameType = static_cast<int>(*item.frameType);
+    }
+    m_frameTypeId = item.frameTypeId;
+    m_icon = item.icon;
+
+    LoadModifiers(item);
+
+    // Other code assumes icon is proper size so force quad=1 to quad=0 here as it's clunky
+    // to handle elsewhere
+    m_icon.replace("quad=1", "quad=0");
+
+    // quad stashes, currency stashes, etc
+    m_icon.replace("scaleIndex=", "scaleIndex=0&");
+
+    CalculateCategories();
+
+    if (item.talismanTier) {
+        spdlog::warn("Item has an obsolete property: talismanTier: {}", item.name);
+        m_talisman_tier = *item.talismanTier;
+    }
+    if (item.id) {
+        m_uid = *item.id;
+    }
+    if (item.note) {
+        m_note = *item.note;
+    }
+
+    if (item.properties) {
+        LoadProperties(*item.properties);
+    }
+
+    if (item.requirements) {
+        LoadRequirements(*item.requirements);
+    }
+
+    if (item.sockets) {
+        LoadSockets(*item.sockets);
+    }
+
+    CalculateHash(item);
+
+    m_ilvl = item.ilvl;
+}
+
+QString Item::PrettyName() const
+{
+    if (!m_name.isEmpty()) {
+        return m_name + " " + m_typeLine;
+    } else {
+        return m_typeLine;
+    }
+}
+
+void Item::LoadInfluences(const poe::Item &item)
+{
     if (item.influences) {
         if (item.influences->shaper.value_or(false)) {
             m_influenceList.push_back(SHAPER);
@@ -132,184 +188,300 @@ Item::Item(const poe::Item &item, const ItemLocation &base_location)
     if (item.tangled.value_or(false)) {
         m_influenceList.push_back(EATER_OF_WORLDS);
     }
-
-    m_w = item.w;
-    m_h = item.h;
-    if (item.frameType) {
-        m_frameType = static_cast<int>(*item.frameType);
-    }
-    m_frameTypeId = item.frameTypeId;
-    m_icon = item.icon;
-
-    using mod_set_t = std::pair<const char *, std::optional<std::vector<QString>>>;
-
-    const std::array<mod_set_t, 6> mod_sets{{
-        {"enchantMods", item.enchantMods},
-        {"implicitMods", item.implicitMods},
-        {"fracturedMods", item.fracturedMods},
-        {"explicitMods", item.explicitMods},
-        {"craftedMods", item.craftedMods},
-        {"mutatedMods", item.mutatedMods},
-    }};
-
-    for (const auto &it : mod_sets) {
-        const auto mod_type = it.first;
-        const auto mods = it.second;
-        m_text_mods[mod_type] = {};
-        if (mods) {
-            m_text_mods[mod_type].reserve(mods->size());
-            for (const auto &mod : *mods) {
-                m_text_mods[mod_type].push_back(mod);
-            }
-        }
-    }
-
-    // Other code assumes icon is proper size so force quad=1 to quad=0 here as it's clunky
-    // to handle elsewhere
-    m_icon.replace("quad=1", "quad=0");
-
-    // quad stashes, currency stashes, etc
-    m_icon.replace("scaleIndex=", "scaleIndex=0&");
-
-    CalculateCategories();
-
-    if (item.talismanTier) {
-        m_talisman_tier = *item.talismanTier;
-    }
-    if (item.id) {
-        m_uid = *item.id;
-    }
-    if (item.note) {
-        m_note = *item.note;
-    }
-
-    m_count = 1;
-
-    if (item.properties) {
-        for (const auto &prop : *item.properties) {
-            const QString name = prop.name;
-            const auto &values = prop.values;
-
-            if (name == "Elemental Damage") {
-                m_elemental_damage.reserve(values.size());
-                for (const auto &value : values) {
-                    // We use std::get to explicitly convert from std::tuple to std::pair.
-                    m_elemental_damage.emplace_back(std::get<0>(value), std::get<1>(value));
-                }
-            } else if (values.size() > 0) {
-                const auto &firstValue = values[0];
-                QString strval = std::get<0>(firstValue);
-                if (name == "Quality") {
-                    // Quality is stored like "+23%" but we want to use "23".
-                    if (strval.startsWith("+")) {
-                        strval.removeFirst();
-                    }
-                    if (strval.endsWith("%")) {
-                        strval.chop(1);
-                    }
-                } else if (name == "Level") {
-                    // Some items like gems at max level have the text "(Max)" after the
-                    // level number. This needs to be removed so the search field can be
-                    // matched.
-                    if (strval.endsWith("(Max)")) {
-                        // Remove "(Max)" and the space before it.
-                        strval.chop(6);
-                    }
-                } else if (name == "Stack Size") {
-                    const auto n = strval.indexOf("/");
-                    m_count = strval.first(n).toInt();
-                }
-                m_properties[name] = strval;
-            }
-
-            ItemProperty property;
-            property.name = name;
-            property.display_mode = static_cast<int>(
-                prop.displayMode.value_or(poe::DisplayMode::InsertedValues));
-            for (const auto &[str, type] : values) {
-                property.values.emplace_back(str, type);
-            }
-            m_text_properties.push_back(property);
-        }
-    }
-
-    if (item.requirements) {
-        for (const auto &req : *item.requirements) {
-            const auto &values = req.values;
-            if (values.size() < 1) {
-                continue;
-            }
-            const auto &name = req.name;
-            const auto &[str, type] = values[0];
-            m_requirements[name] = str.toInt();
-            m_text_requirements.push_back({name, ItemPropertyValue{str, type}});
-        }
-    }
-
-    if (item.sockets) {
-        ItemSocketGroup current_group = {0, 0, 0, 0};
-        m_sockets_cnt = static_cast<int>(item.sockets->size());
-        int counter = 0;
-        int prev_group = -1;
-        for (const auto &socket : *item.sockets) {
-            char attr = '\0';
-            if (socket.attr) {
-                attr = (*socket.attr)[0].toLatin1();
-            } else if (socket.sColour) {
-                attr = (*socket.sColour)[0].toLatin1();
-            }
-
-            if (!attr) {
-                continue;
-            }
-
-            const int group = socket.group;
-            ItemSocket current_socket = {static_cast<unsigned char>(group), attr};
-            m_text_sockets.push_back(current_socket);
-            if (prev_group != current_socket.group) {
-                counter = 0;
-                m_socket_groups.push_back(current_group);
-                current_group = {0, 0, 0, 0};
-            }
-            prev_group = current_socket.group;
-            ++counter;
-            m_links_cnt = std::max(m_links_cnt, counter);
-            switch (current_socket.attr) {
-            case 'S':
-                m_sockets.r++;
-                current_group.r++;
-                break;
-            case 'D':
-                m_sockets.g++;
-                current_group.g++;
-                break;
-            case 'I':
-                m_sockets.b++;
-                current_group.b++;
-                break;
-            case 'G':
-                m_sockets.w++;
-                current_group.w++;
-                break;
-            }
-        }
-        m_socket_groups.push_back(current_group);
-    }
-
-    CalculateHash(item);
-
-    m_ilvl = item.ilvl;
-
-    GenerateMods(item);
 }
 
-QString Item::PrettyName() const
+void Item::LoadModifiers(const poe::Item &item)
 {
-    if (!m_name.isEmpty()) {
-        return m_name + " " + m_typeLine;
-    } else {
-        return m_typeLine;
+    std::vector<QString> enchantMods;
+    std::vector<QString> implicitMods;
+    std::vector<QString> vestigialMods; // from implicitMods
+    std::vector<QString> fracturedMods; // from explicitMods
+    std::vector<QString> explicitMods;
+    std::vector<QString> craftedMods; // from explicitMods
+    std::vector<QString> mutatedMods; // from explicitMods
+
+    if (item.enchantMods) {
+        enchantMods.reserve(item.enchantMods->size());
+        for (const auto &mod : *item.enchantMods) {
+            enchantMods.push_back(mod);
+        }
     }
+
+    if (item.implicitMods) {
+        for (const auto &mod : *item.implicitMods) {
+            if (!mod.flags) {
+                implicitMods.push_back(mod.description);
+                continue;
+            }
+
+            const bool fractured = mod.flags->fractured.value_or(false);
+            const bool mutated = mod.flags->mutated.value_or(false);
+            const bool crafted = mod.flags->crafted.value_or(false);
+            const bool desecrated = mod.flags->desecrated.value_or(false);
+            const bool vestigial = mod.flags->vestigial.value_or(false);
+
+            auto warn = [&item, &mod](std::string_view msg) {
+                spdlog::warn("Implicit modifier on {} is {}: {}", item.name, msg, mod.description);
+            };
+
+            if (fractured) {
+                // Assumes implicit mods cannot be fractured.
+                warn("fractured");
+                if (mutated) {
+                    warn("both fractured and mutated");
+                }
+                if (crafted) {
+                    warn("both fractured and crafted");
+                }
+                if (desecrated) {
+                    warn("both fractured and desecrated");
+                }
+                if (vestigial) {
+                    warn("both fractured and vestigial");
+                }
+                fracturedMods.push_back(mod.description);
+
+            } else if (mutated) {
+                // Assumes implicit mods cannot be mutated.
+                warn("mutated");
+                if (crafted) {
+                    warn("mutated and crafted");
+                }
+                if (desecrated) {
+                    warn("mutated and desecrated");
+                }
+                if (vestigial) {
+                    warn("mutated and vestigial");
+                }
+                mutatedMods.push_back(mod.description);
+
+            } else if (crafted) {
+                // Assumes implicit mods cannot be crafted.
+                warn("crafted");
+                if (desecrated) {
+                    warn("crafted and desecrated");
+                }
+                if (vestigial) {
+                    warn("crafted and vestigial");
+                }
+                craftedMods.push_back(mod.description);
+
+            } else if (desecrated) {
+                // Assumes implicit mods cannot be desecrated.
+                warn("desecrated");
+                if (vestigial) {
+                    warn("desecrated and vestigial");
+                }
+
+            } else if (vestigial) {
+                // Implicit mods are allowed to be vestigial.
+                vestigialMods.push_back(mod.description);
+
+            } else {
+                warn("flagged but flags are empty");
+                implicitMods.push_back(mod.description);
+            }
+        }
+    }
+
+    if (item.explicitMods) {
+        for (const auto &mod : *item.explicitMods) {
+            if (!mod.flags) {
+                explicitMods.push_back(mod.description);
+                continue;
+            }
+
+            const bool fractured = mod.flags->fractured.value_or(false);
+            const bool mutated = mod.flags->mutated.value_or(false);
+            const bool crafted = mod.flags->crafted.value_or(false);
+            const bool desecrated = mod.flags->desecrated.value_or(false);
+            const bool vestigial = mod.flags->vestigial.value_or(false);
+
+            auto warn = [&item, &mod](std::string_view msg) {
+                spdlog::warn("Explicit modifier on {} is {}: {}", item.name, msg, mod.description);
+            };
+
+            if (fractured) {
+                if (mutated) {
+                    warn("both fractured and mutated");
+                }
+                if (crafted) {
+                    warn("both fractured and crafted");
+                }
+                if (desecrated) {
+                    warn("both fractured and desecrated");
+                }
+                if (vestigial) {
+                    warn("both fractured and vestigial");
+                }
+                fracturedMods.push_back(mod.description);
+
+            } else if (mutated) {
+                if (crafted) {
+                    warn("mutated and crafted");
+                }
+                if (desecrated) {
+                    warn("mutated and desecrated");
+                }
+                if (vestigial) {
+                    warn("mutated and vestigial");
+                }
+                mutatedMods.push_back(mod.description);
+
+            } else if (crafted) {
+                if (desecrated) {
+                    warn("crafted and desecrated");
+                }
+                if (vestigial) {
+                    warn("crafted and vestigial");
+                }
+                craftedMods.push_back(mod.description);
+
+            } else if (desecrated) {
+                if (vestigial) {
+                    warn("desecrated and vestigial");
+                }
+
+            } else if (vestigial) {
+                // Assumes explicit mods cannot be vestigial.
+                warn("vestigial");
+
+            } else {
+                warn("flagged but flags are empty");
+                explicitMods.push_back(mod.description);
+            }
+        }
+    }
+
+    m_enchanted = (item.enchantMods && !item.enchantMods->empty());
+    m_crafted = !craftedMods.empty();
+
+    m_text_mods["enchantMods"] = enchantMods;
+    m_text_mods["implicitMods"] = implicitMods;
+    m_text_mods["fracturedMods"] = fracturedMods;
+    m_text_mods["explicitMods"] = explicitMods;
+    m_text_mods["craftedMods"] = craftedMods;
+    m_text_mods["mutatedMods"] = mutatedMods;
+
+    for (const auto &[name, mods] : m_text_mods) {
+        for (const auto &mod : mods) {
+            AddModToTable(mod, m_mod_table);
+        }
+    }
+}
+
+void Item::LoadProperties(const std::vector<poe::ItemProperty> &properties)
+{
+    for (const auto &prop : properties) {
+        const QString name = prop.name;
+        const auto &values = prop.values;
+
+        if (name == "Elemental Damage") {
+            m_elemental_damage.reserve(values.size());
+            for (const auto &value : values) {
+                // We use std::get to explicitly convert from std::tuple to std::pair.
+                m_elemental_damage.emplace_back(std::get<0>(value), std::get<1>(value));
+            }
+        } else if (values.size() > 0) {
+            const auto &firstValue = values[0];
+            QString strval = std::get<0>(firstValue);
+            if (name == "Quality") {
+                // Quality is stored like "+23%" but we want to use "23".
+                if (strval.startsWith("+")) {
+                    strval.removeFirst();
+                }
+                if (strval.endsWith("%")) {
+                    strval.chop(1);
+                }
+            } else if (name == "Level") {
+                // Some items like gems at max level have the text "(Max)" after the
+                // level number. This needs to be removed so the search field can be
+                // matched.
+                if (strval.endsWith("(Max)")) {
+                    // Remove "(Max)" and the space before it.
+                    strval.chop(6);
+                }
+            } else if (name == "Stack Size") {
+                const auto n = strval.indexOf("/");
+                m_count = strval.first(n).toInt();
+            }
+            m_properties[name] = strval;
+        }
+
+        ItemProperty property;
+        property.name = name;
+        property.display_mode = static_cast<int>(
+            prop.displayMode.value_or(poe::DisplayMode::InsertedValues));
+        for (const auto &[str, type] : values) {
+            property.values.emplace_back(str, type);
+        }
+        m_text_properties.push_back(property);
+    }
+}
+
+void Item::LoadRequirements(const std::vector<poe::ItemProperty> &requirements)
+{
+    for (const auto &req : requirements) {
+        const auto &values = req.values;
+        if (values.size() < 1) {
+            continue;
+        }
+        const auto &name = req.name;
+        const auto &[str, type] = values[0];
+        m_requirements[name] = str.toInt();
+        m_text_requirements.push_back({name, ItemPropertyValue{str, type}});
+    }
+}
+
+void Item::LoadSockets(const std::vector<poe::ItemSocket> &sockets)
+{
+    ItemSocketGroup current_group = {0, 0, 0, 0};
+    m_sockets_cnt = static_cast<int>(sockets.size());
+    int counter = 0;
+    int prev_group = -1;
+    for (const auto &socket : sockets) {
+        char attr = '\0';
+        if (socket.attr) {
+            attr = (*socket.attr)[0].toLatin1();
+        } else if (socket.sColour) {
+            attr = (*socket.sColour)[0].toLatin1();
+        }
+
+        if (!attr) {
+            continue;
+        }
+
+        const int group = socket.group;
+        ItemSocket current_socket = {static_cast<unsigned char>(group), attr};
+        m_text_sockets.push_back(current_socket);
+        if (prev_group != current_socket.group) {
+            counter = 0;
+            m_socket_groups.push_back(current_group);
+            current_group = {0, 0, 0, 0};
+        }
+        prev_group = current_socket.group;
+        ++counter;
+        m_links_cnt = std::max(m_links_cnt, counter);
+        switch (current_socket.attr) {
+        case 'S':
+            m_sockets.r++;
+            current_group.r++;
+            break;
+        case 'D':
+            m_sockets.g++;
+            current_group.g++;
+            break;
+        case 'I':
+            m_sockets.b++;
+            current_group.b++;
+            break;
+        case 'G':
+            m_sockets.w++;
+            current_group.w++;
+            break;
+        }
+    }
+    m_socket_groups.push_back(current_group);
 }
 
 void Item::CalculateCategories()
@@ -385,26 +557,6 @@ double Item::cDPS() const
     return attacks * Util::AverageDamage(hit);
 }
 
-void Item::GenerateMods(const poe::Item &json)
-{
-    const std::array mod_sets = {
-        json.implicitMods,
-        json.enchantMods,
-        json.explicitMods,
-        json.craftedMods,
-        json.fracturedMods,
-        json.mutatedMods,
-    };
-
-    for (const auto &mod_set : mod_sets) {
-        if (mod_set) {
-            for (const auto &mod : *mod_set) {
-                AddModToTable(mod, m_mod_table);
-            }
-        }
-    }
-}
-
 void Item::CalculateHash(const poe::Item &json)
 {
     QString unique_new = m_name + "~" + m_typeLine + "~";
@@ -415,12 +567,12 @@ void Item::CalculateHash(const poe::Item &json)
 
     if (json.explicitMods) {
         for (const auto &mod : *json.explicitMods) {
-            unique_common += mod + "~";
+            unique_common += mod.description + "~";
         }
     }
     if (json.implicitMods) {
         for (const auto &mod : *json.implicitMods) {
-            unique_common += mod + "~";
+            unique_common += mod.description + "~";
         }
     }
 

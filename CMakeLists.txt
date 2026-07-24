@@ -385,6 +385,7 @@ set(ACQ_POE
     src/poe/types/item.h
     src/poe/types/itemfilter.h
     src/poe/types/itemjeweldata.h
+    src/poe/types/itemmod.h
     src/poe/types/itemproperty.h
     src/poe/types/itemsocket.h
     src/poe/types/ladderentry.h
