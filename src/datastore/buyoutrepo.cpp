@@ -77,12 +77,14 @@ BuyoutRepo::BuyoutRepo(QSqlDatabase &db)
 
 bool BuyoutRepo::resetRepo()
 {
-    QSqlQuery q(m_db);
-
-    if (!q.exec("DROP TABLE IF EXISTS buyouts")) {
-        ds::logQueryError("BuyoutRepo::reset", q);
-        return false;
-    }
+    // Deliberately does NOT drop its tables, unlike StashRepo and
+    // CharacterRepo. Those hold caches that a refresh rebuilds from the API;
+    // buyouts are authored by the user and cannot be recovered from anywhere,
+    // so a schema migration must never destroy them as a side effect. (This
+    // replaces a `DROP TABLE IF EXISTS buyouts` that named a table which has
+    // never existed — the real tables are item_buyouts and location_buyouts —
+    // and so had always been a no-op. Making that drop *work* would have
+    // armed exactly the footgun this comment exists to prevent.)
     return ensureSchema();
 }
 
