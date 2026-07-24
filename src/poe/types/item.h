@@ -95,9 +95,9 @@ namespace poe {
 
         struct EnshroudedInfo
         {
-            QString unique;    // ?string
-            unsigned progress; // uint
-            unsigned total;    // uint
+            std::optional<QString> unique; // ?string
+            unsigned progress;             // uint
+            unsigned total;                // uint
         };
 
         struct CrucibleInfo
