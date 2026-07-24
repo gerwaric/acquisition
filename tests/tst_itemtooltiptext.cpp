@@ -18,13 +18,13 @@ void ItemTooltipTextTest::rareWithImplicitAndExplicitMods()
 {
     const Item item = makeTestItem(R"json({
         "baseType": "Stygian Vise",
-        "craftedMods": ["+19% to Fire and Cold Resistances"],
         "explicitMods": [
-            "+8 to Strength",
-            "+26 to maximum Energy Shield",
-            "+98 to maximum Life",
-            "+26 to maximum Mana",
-            "+48% to Lightning Resistance"
+            {"description": "+8 to Strength"},
+            {"description": "+26 to maximum Energy Shield"},
+            {"description": "+98 to maximum Life"},
+            {"description": "+26 to maximum Mana"},
+            {"description": "+48% to Lightning Resistance"},
+            {"description": "+19% to Fire and Cold Resistances", "flags": {"crafted": true}}
         ],
         "frameType": 2,
         "frameTypeId": "Rare",
@@ -33,7 +33,7 @@ void ItemTooltipTextTest::rareWithImplicitAndExplicitMods()
         "id": "rare-implicit-explicit",
         "identified": true,
         "ilvl": 83,
-        "implicitMods": ["Has 1 Abyssal Socket"],
+        "implicitMods": [{"description": "Has 1 Abyssal Socket"}],
         "inventoryId": "Belt",
         "name": "Kraken Shackle",
         "properties": [
@@ -89,7 +89,7 @@ void ItemTooltipTextTest::corruptedUnidentifiedItem()
         "id": "corrupted-unidentified",
         "identified": false,
         "ilvl": 82,
-        "implicitMods": ["Properties are doubled while in a Breach"],
+        "implicitMods": [{"description": "Properties are doubled while in a Breach"}],
         "inventoryId": "Stash1",
         "name": "",
         "typeLine": "Breach Ring",
@@ -113,7 +113,7 @@ void ItemTooltipTextTest::displayMode3Property()
     const Item item = makeTestItem(R"json({
         "baseType": "Facetor's Lens",
         "descrText": "Right click this item then left click a gem to apply it.",
-        "explicitMods": ["Adds stored experience to a gem, up to its maximum level"],
+        "explicitMods": [{"description": "Adds stored experience to a gem, up to its maximum level"}],
         "frameType": 5,
         "frameTypeId": "Currency",
         "h": 1,
@@ -155,12 +155,12 @@ void ItemTooltipTextTest::talismanRequirements()
         "corrupted": true,
         "enchantMods": ["Allocates Crackling Speed"],
         "explicitMods": [
-            "Adds 18 to 28 Fire Damage to Attacks",
-            "27% increased Global Critical Strike Chance",
-            "+23 to maximum Energy Shield",
-            "+54 to maximum Life",
-            "+16% to all Elemental Resistances",
-            "+11% to Chaos Resistance"
+            {"description": "Adds 18 to 28 Fire Damage to Attacks"},
+            {"description": "27% increased Global Critical Strike Chance"},
+            {"description": "+23 to maximum Energy Shield"},
+            {"description": "+54 to maximum Life"},
+            {"description": "+16% to all Elemental Resistances"},
+            {"description": "+11% to Chaos Resistance"}
         ],
         "frameType": 2,
         "frameTypeId": "Rare",
@@ -169,7 +169,7 @@ void ItemTooltipTextTest::talismanRequirements()
         "id": "talisman",
         "identified": true,
         "ilvl": 71,
-        "implicitMods": ["28% increased Cold Damage"],
+        "implicitMods": [{"description": "28% increased Cold Damage"}],
         "inventoryId": "Stash1",
         "name": "Doom Idol",
         "requirements": [
