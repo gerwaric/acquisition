@@ -591,10 +591,12 @@ target_link_libraries(acquisition_filters
     PUBLIC
         Qt6::Core
         Qt6::Gui
-    # Item's include closure reaches ItemLocation's Qt Network/spdlog formatter.
+    # Item's include closure reaches ItemLocation's Qt Network/spdlog formatter,
+    # and poe::ItemMod's glaze reader for GGG's "flags": [] quirk.
     # These remain deliberately non-widget so the filter-core boundary stays intact.
     PRIVATE
         Qt6::Network
+        glaze::glaze
         spdlog::spdlog_header_only
 )
 

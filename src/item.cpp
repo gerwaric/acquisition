@@ -246,7 +246,7 @@ void Item::LoadModifiers(const poe::Item &item)
 
     if (item.implicitMods) {
         for (const auto &mod : *item.implicitMods) {
-            if (!mod.flags) {
+            if (!mod.flags || !mod.flags->any()) {
                 implicitMods.push_back(mod.description);
                 continue;
             }
@@ -326,7 +326,10 @@ void Item::LoadModifiers(const poe::Item &item)
                 vestigialMods.push_back(mod.description);
 
             } else {
-                warn("flagged but flags are empty");
+                // Unreachable while every flag in Flags::any() has a branch
+                // above. Kept so a flag added to the struct without a branch
+                // here announces itself instead of passing as unflagged.
+                warn("flagged with no recognized flag");
                 implicitMods.push_back(mod.description);
             }
         }
@@ -334,7 +337,7 @@ void Item::LoadModifiers(const poe::Item &item)
 
     if (item.explicitMods) {
         for (const auto &mod : *item.explicitMods) {
-            if (!mod.flags) {
+            if (!mod.flags || !mod.flags->any()) {
                 explicitMods.push_back(mod.description);
                 continue;
             }
@@ -406,7 +409,10 @@ void Item::LoadModifiers(const poe::Item &item)
                 warn("vestigial");
 
             } else {
-                warn("flagged but flags are empty");
+                // Unreachable while every flag in Flags::any() has a branch
+                // above. Kept so a flag added to the struct without a branch
+                // here announces itself instead of passing as unflagged.
+                warn("flagged with no recognized flag");
                 explicitMods.push_back(mod.description);
             }
         }
