@@ -137,7 +137,6 @@ public:
     void RebaseLocation(const ItemLocation &fresh_tab) { m_location.rebaseTabMetadata(fresh_tab); }
     const QString &note() const { return m_note; }
     const QString &category() const { return m_category; }
-    uint talisman_tier() const { return m_talisman_tier; }
     int count() const { return m_count; }
     const ModTable &mod_table() const { return m_mod_table; }
     int ilvl() const { return m_ilvl; }
@@ -194,7 +193,6 @@ private:
     QString m_note;
     ModTable m_mod_table;
     QString m_uid;
-    uint m_talisman_tier{0};
 };
 
 typedef std::vector<std::shared_ptr<Item>> Items;

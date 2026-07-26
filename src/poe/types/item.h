@@ -191,29 +191,23 @@ namespace poe {
         std::optional<std::vector<poe::ItemProperty>> nextLevelRequirements; // ? array of ItemProperty
         std::optional<std::vector<poe::ItemProperty>>
             grantedSkills;               // ? array of ItemProperty; PoE2 only
-        // DOCS say talismanTier was removed in 3.29, but it's still in the spec
-        std::optional<int> talismanTier;                                // ? int
         std::optional<std::vector<poe::Item::Rewards>> rewards;         // ? array of object
         std::optional<QString> secDescrText;                            // ? string
         std::optional<std::vector<QString>> utilityMods;                // ? array of string
         std::optional<std::vector<poe::Item::LogbookMods>> logbookMods; // ? array of object
         std::optional<std::vector<QString>> enchantMods;                // ? array of string
-        std::optional<std::vector<QString>> runeMods;     // ? array of string; PoE2 only
-        std::optional<std::vector<QString>> scourgeMods;  // ? array of string
+        std::optional<std::vector<QString>> runeMods;    // ? array of string; PoE2 only
+        std::optional<std::vector<QString>> scourgeMods; // ? array of string
         std::optional<std::vector<poe::ItemMod>> implicitMods;              // ? array of ItemMod
         std::optional<std::vector<poe::Item::UltimatumMods>> ultimatumMods; // ? array of object
         std::optional<std::vector<poe::ItemMod>> explicitMods;              // ? array of ItemMod
         std::optional<std::vector<QString>> bondedMods;    // ? array of string; PoE2 only
         std::optional<std::vector<poe::Item::MercenarySkills>> mercenarySkills; // ? array of object
-        // REMOVED IN 3.29 std::optional<std::vector<QString>> craftedMods;   // ? array of string
-        // REMOVED IN 3.29 std::optional<std::vector<QString>> fracturedMods; // ? array of string
-        // REMOVED IN 3.29 std::optional<std::vector<QString>> mutatedMods; // ? array of string; PoE1: Foulborn Unique mods, PoE2: Vaal Unique mods
         std::optional<std::vector<QString>>
             crucibleMods; // ? array of string only allocated mods are included
         std::optional<std::vector<QString>> cosmeticMods; // ? array of string
         std::optional<std::vector<QString>> veiledMods; // ? array of string random video identifier
         std::optional<bool> veiled;                     // ? bool always true if present
-        // REMOVED IN 3.29 std::optional<std::vector<QString>> desecratedMods; // ? array of string; PoE2 only
         std::optional<bool> desecrated; // ? bool; PoE2 only; always true if present
         std::optional<std::vector<poe::GemTab>> gemTabs; // ? array of GemTab; PoE2 only
         std::optional<QString> gemBackground;            // ? string; PoE2 only

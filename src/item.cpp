@@ -158,19 +158,6 @@ Item::Item(const poe::Item &item, const ItemLocation &base_location)
 
     CalculateCategories();
 
-    if (item.talismanTier) {
-        // The 3.29 docs call this removed, but it is still in the spec and the
-        // field is deliberately kept. Report once so a live refresh answers
-        // whether GGG still sends it, without one line per talisman.
-        if (first_report_of("talismanTier")) {
-            spdlog::warn("Item has an obsolete property: talismanTier: {}"
-                         " (further occurrences at debug)",
-                         item.name);
-        } else {
-            spdlog::debug("Item has an obsolete property: talismanTier: {}", item.name);
-        }
-        m_talisman_tier = *item.talismanTier;
-    }
     if (item.id) {
         m_uid = *item.id;
     }

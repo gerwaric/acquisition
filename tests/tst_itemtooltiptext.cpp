@@ -180,7 +180,6 @@ void ItemTooltipTextTest::talismanRequirements()
                 "values": [["48", 0]]
             }
         ],
-        "talismanTier": 1,
         "typeLine": "Deep One Talisman",
         "verified": false,
         "w": 1,
@@ -190,7 +189,7 @@ void ItemTooltipTextTest::talismanRequirements()
                                    makeTestStashLocation());
 
     const QString expected = "<center>"
-                             "Talisman Tier: 1<br>Requires Level <font color='#fff'>48</font>"
+                             "Requires Level <font color='#fff'>48</font>"
                              "<br><img src=':/separators/SeparatorRare.png'><br>"
                              "<font color='#b4b4ff'>Allocates Crackling Speed</font>"
                              "<br><img src=':/separators/SeparatorRare.png'><br>"
