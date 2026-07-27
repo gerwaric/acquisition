@@ -148,8 +148,9 @@ re-parallelization.)
   versioning — a `json_version` invalidation: version-mismatched rows
   keep tab metadata but yield no contents (pinned by
   `staleRowsKeepMetadataButYieldNoJson`), and the 3.29 wire-format
-  change puts every upgrader in exactly this listed-but-cold state,
-  filled in by their next full refresh. The revised rule keys purely on the
+  change puts every upgrader in exactly this listed-but-cold state;
+  contents stay cold until a full refresh or an explicit selection
+  refills them. The revised rule keys purely on the
   selection: partial refreshes never fetch outside their selection, so the
   whole `m_contents_known` apparatus (parse-time seeding, the never-consume
   failure edge, the Map/Unique deferred-completion accounting) is deleted.
@@ -200,15 +201,25 @@ favor of fetching strictly the selection.
 
 Surface per-tab progress without triggering the snapshot cascade:
 
-- A new lightweight delta signal from the worker (working name:
-  `TabRefreshed(location)`), emitted after each atomic replace.
-- `ItemsManager` applies the same delta to its copy and re-emits a light
-  signal. It must **not** run buyout migration, auto-buyouts, shop expiry,
-  or shop submission per delta — those stay on the final `ItemsRefreshed`,
-  whose contract does not change.
-- `MainWindow` applies deltas conservatively: coalesced (timer-based)
-  refiltering scoped to the current search, background captions updated
-  cheaply or deferred. The M2 spec must resolve how disruptively the
+- A new delta signal from the worker (working name: `TabRefreshed`),
+  emitted after each atomic replace, carrying the complete
+  pipeline-native `Items` replacement for one fetch source, keyed by
+  (location type, fetch-source id) — a location alone gives
+  `ItemsManager` nothing to append; see the delta-shape input below.
+  Separate from the persistence signals
+  (`stashReceived`/`characterReceived`), which carry API-domain
+  payloads and fire before the atomic replace.
+- `ItemsManager` applies the delta to its copy and re-emits a light
+  signal. It must **not** run whole-collection work per delta —
+  buyout migration, the whole-collection auto-buyout and propagation
+  passes, shop expiry, and shop submission stay on the final
+  `ItemsRefreshed`, whose contract does not change. Whether
+  item-local scoped pricing runs per delta is a spec decision (see
+  the buyout-scoping input below).
+- `MainWindow` applies deltas conservatively: coalesced refiltering
+  scoped to the current search with a stated maximum staleness (see
+  the freshness input below), background captions updated cheaply or
+  deferred. The M2 spec must resolve how disruptively the
   visible view may update — a model reset every 20 seconds with restore
   machinery is not acceptable as a steady state; scroll and selection must
   survive a background tab landing.
@@ -276,8 +287,8 @@ the M2 spec:**
   exist nowhere downstream until then. A location-only signal tells
   `ItemsManager` what to erase and gives it nothing to append. A
   streaming delta therefore carries the complete pipeline-native
-  `Items` replacement for one fetch source (possibly empty — a
-  deleted or emptied tab), keyed explicitly by (location type,
+  `Items` replacement for one fetch source (possibly empty — an
+  emptied fetch source, never a deletion), keyed explicitly by (location type,
   fetch-source id): `fetch_id()` is deliberately excluded from
   `ItemLocation` comparison, so anything keyed on location equality
   would collapse Map/Unique child replacements into one. The signal
@@ -309,7 +320,10 @@ the M2 spec:**
   renames, the location rebase) may stay final-only. "ItemsManager
   applies the same delta" is under-specified — the spec must say
   exactly which worker mutations are mirrored per delta and which
-  remain snapshot-boundary effects.
+  remain snapshot-boundary effects. In particular: whether a deleted
+  tab is expressed as a separate list/removal delta or stays a
+  snapshot-boundary effect — an empty content replacement means an
+  emptied fetch source, never a deletion.
 - **A freshness bound, not just coalescing.** A resetting trailing
   debounce can starve under steady one-reply-per-20-seconds
   arrivals. The coalescing contract needs both halves stated: no
@@ -327,8 +341,9 @@ Make Layer 3 consume deltas natively, eliminating the full reset:
   a one-bucket replace) instead of `beginResetModel()`.
 - The "By Item" view's single flat bucket needs a sorted merge per delta
   rather than an append — the one structure that fights the delta shape.
-- Buyout passes scope to the delta's items (mind
-  `PropagateTabBuyouts`'s global `ClearRefreshLocks`).
+- Pricing semantics are settled by the M2 spec (the buyout-scoping
+  input); M3 inherits them — its concern is the fine-grained model
+  operations, not pricing.
 - Success criterion: refreshing one tab leaves the expansion, selection,
   and scroll state of everything else untouched, with no restore
   machinery involved. A "full refresh" is then just N deltas — no special
