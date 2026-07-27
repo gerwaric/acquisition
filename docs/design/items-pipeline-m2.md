@@ -2,7 +2,10 @@
 
 Status: **draft for review — not frozen**. Revision 3 (July 27,
 2026), incorporating external review rounds 1 and 2; written on branch
-`items-pipeline-m2-spec`. This spec consumes the M2 inbox in
+`items-pipeline-m2-spec`. **Review round 3 (R3-1…R3-4) is recorded
+OPEN in `items-pipeline-m2-reviews.md`** — reviewed baseline
+`58d33480` — and is not yet reflected in this document; revision 4
+resolves it before the S1-M2 spike and freeze. This spec consumes the M2 inbox in
 `items-pipeline.md` ("Inputs accumulated since this sketch") and its
 four hard constraints; the traceability table at the end maps every
 input to the decision, deferral, or acceptance criterion that consumed
