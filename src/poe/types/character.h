@@ -58,15 +58,16 @@ namespace poe {
         std::optional<QString> league; // ?string
         unsigned level;                // uint
         unsigned experience;           // uint
-        std::optional<bool> ruthless;  // ?bool; always true if present; PoE1 only
-        std::optional<bool> expired;   // ?bool; always true if present
-        std::optional<bool> deleted;   // ?bool; always true if present
-        std::optional<bool> current;   // ?bool; always true if present
+        bool ruthless{false};          // ?bool; always true if present; PoE1 only
+        bool expired{false};           // ?bool; always true if present
+        bool deleted{false};           // ?bool; always true if present
+        bool current{false};           // ?bool; always true if present
         std::optional<std::vector<poe::Item>> equipment;  // ?array of Item
         std::optional<std::vector<poe::Item>> skills;     // ?array of Item; PoE2 only
         std::optional<std::vector<poe::Item>> inventory;  // ?array of Item
         std::optional<std::vector<poe::Item>> rucksack;   // ?array of Item
         std::optional<std::vector<poe::Item>> jewels;     // ?array of Item
+        std::optional<std::vector<poe::Item>> guardian;   // ?array of Item; PoE1 only
         std::optional<poe::Character::Passives> passives; // ?object
         std::optional<poe::Character::Metadata> metadata; // ?object
 

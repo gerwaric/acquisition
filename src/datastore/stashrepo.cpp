@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS stashes (
     meta_colour     TEXT,
     listed_at       TEXT,
     json_fetched_at TEXT,
-    json_data       TEXT
+    json_data       TEXT,
+    json_version    INTEGER
 )
 )"};
 
@@ -72,12 +73,12 @@ constexpr const char *UPSERT_STASH{R"(
 INSERT INTO stashes (
     id, realm, league, parent, folder, name, type, stash_index,
     meta_public, meta_folder, meta_colour,
-    json_fetched_at, json_data
+    json_fetched_at, json_data, json_version
 )
 VALUES (
     :id, :realm, :league, :parent, :folder, :name, :type, :stash_index,
     :meta_public, :meta_folder, :meta_colour,
-    :json_fetched_at, :json_data
+    :json_fetched_at, :json_data, :json_version
 )
 ON CONFLICT(id) DO UPDATE SET
     realm           = excluded.realm,
@@ -91,7 +92,8 @@ ON CONFLICT(id) DO UPDATE SET
     meta_folder     = excluded.meta_folder,
     meta_colour     = excluded.meta_colour,
     json_fetched_at = excluded.json_fetched_at,
-    json_data       = excluded.json_data
+    json_data       = excluded.json_data,
+    json_version    = excluded.json_version
 )"};
 
 StashRepo::StashRepo(QSqlDatabase &db)
@@ -159,6 +161,7 @@ bool StashRepo::saveStash(const poe::StashTab &stash, const QString &realm, cons
     q.bindValue(":meta_colour", ds::optionalAsNull(stash.metadata.colour));
     q.bindValue(":json_fetched_at", json_fetched_at);
     q.bindValue(":json_data", json);
+    q.bindValue(":json_version", json::PAYLOAD_VERSION);
 
     if (!q.exec()) {
         ds::logQueryError("StashRepo::saveStash()", q);
@@ -361,7 +364,7 @@ std::optional<poe::StashTab> StashRepo::getStash(const QString &id,
 
     QSqlQuery q(m_db);
 
-    if (!q.prepare("SELECT json_data"
+    if (!q.prepare("SELECT json_data, json_version"
                    " FROM stashes"
                    " WHERE realm = :realm AND league = :league AND id = :id")) {
         ds::logQueryError("StashRepo::getStash()", q);
@@ -387,6 +390,21 @@ std::optional<poe::StashTab> StashRepo::getStash(const QString &id,
 
     if (q.isNull(0)) {
         spdlog::debug("StashRepo: stash has not been fetched: id='{}', realm='{}', league='{}'",
+                      id,
+                      realm,
+                      league);
+        return std::nullopt;
+    }
+
+    // A blob written by a different payload version cannot be trusted to
+    // parse, or to mean the same thing if it does, so it is treated exactly
+    // like a stash that was never fetched: the caller refetches it. The
+    // comparison is deliberately '!=' rather than '<' so a blob from a newer
+    // Acquisition is refetched after a downgrade instead of being misparsed.
+    if (q.isNull(1) || (q.value(1).toInt() != json::PAYLOAD_VERSION)) {
+        spdlog::debug("StashRepo: stash json is not payload version {}: id='{}', realm='{}',"
+                      " league='{}'",
+                      json::PAYLOAD_VERSION,
                       id,
                       realm,
                       league);
@@ -474,7 +492,7 @@ std::vector<poe::StashTab> StashRepo::getStashChildren(const QString &id,
                   league,
                   id);
 
-    QString sql{"SELECT json_data"
+    QString sql{"SELECT json_data, json_version"
                 " FROM stashes"
                 " WHERE realm = :realm AND league = :league AND parent = :parent"};
 
@@ -497,6 +515,11 @@ std::vector<poe::StashTab> StashRepo::getStashChildren(const QString &id,
     std::vector<poe::StashTab> stashes;
 
     while (q.next()) {
+        // Same rule as getStash(): a row whose blob was written by another
+        // payload version is skipped so the caller refetches it.
+        if (q.isNull(0) || q.isNull(1) || (q.value(1).toInt() != json::PAYLOAD_VERSION)) {
+            continue;
+        }
         const QByteArray json = q.value(0).toByteArray();
         const auto result = json::readStash(json);
         if (result) {

@@ -22,10 +22,6 @@ when this map and a header disagree, the header wins.
   as the permanent home of the evidence IDs the F56 resolved-ledger entry cites
   by name; the transient execution plan and per-session LSan handoff notes that
   accompanied it were removed after phase 5 landed (git history retains them).
-- `../spikes/qcoro/` — phase-0 QCoro spike (standalone CMake project,
-  not part of the acquisition build): the running-code evidence behind
-  the S1 findings. Throwaway by design; kept while the network
-  redesign is in flight.
 - `design/network-ground-truth.md` — living ledger of numbered claims
   (N1, N2, …) about how the Path of Exile API actually limits requests,
   each with cited evidence. Designs are derived from these claims.
@@ -62,5 +58,7 @@ when this map and a header disagree, the header wins.
   (the F56 ledger cites them). They organize completion evidence but are not
   permanent project-wide finding IDs.
 - Retired documents (the cleanup plan, the phase-5 execution plan and its
-  per-session handoff notes, superseded spec text) live in git history, not in
-  the tree.
+  per-session handoff notes, the phase-0 QCoro spike `spikes/qcoro/` — retired
+  July 2026 once the network redesign was no longer in flight; its S1/S2
+  findings live in the review history — and superseded spec text) live in git
+  history, not in the tree.

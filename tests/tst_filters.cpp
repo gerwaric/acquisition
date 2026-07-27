@@ -366,7 +366,10 @@ void FiltersTest::booleanPredicates()
                         "Test Item",
                         false)},
         {"Influenced", makeFilterItem("influenced", R"json(, "influences": {"shaper": true})json")},
-        {"Crafted", makeFilterItem("crafted", R"json(, "craftedMods": ["Crafted modifier"])json")},
+        {"Crafted",
+         makeFilterItem(
+             "crafted",
+             R"json(, "explicitMods": [{"description": "Crafted modifier", "flags": {"crafted": true}}])json")},
         {"Enchanted",
          makeFilterItem("enchanted", R"json(, "enchantMods": ["Enchanted modifier"])json")},
         {"Corrupted", makeFilterItem("corrupted", R"json(, "corrupted": true)json")},
@@ -463,7 +466,7 @@ void FiltersTest::modsFilter()
 
     const auto item = makeFilterItem("mods",
                                      R"json(,
-        "explicitMods": ["+42 to maximum Life"]
+        "explicitMods": [{"description": "+42 to maximum Life"}]
     )json");
     BuyoutManagerFixture buyoutFixture;
     const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);

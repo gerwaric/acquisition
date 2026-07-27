@@ -76,6 +76,105 @@ row, delete the hash-keyed one) inside `MigrateItem`, or have
 (dual persistence), F51 ledger entry (do not rekey `GetLegacyHash` — a
 correct future v4→v5 migration depends on it).
 
+### F62. The stash/character cache stores a lossy re-serialization, not the received JSON — Confirmed
+
+Found July 24, 2026, while designing the 3.29 cache invalidation. Target:
+resolve before final 0.18; explicitly not blocking 0.18.0-beta.1.
+
+`StashRepo::saveStash` and `CharacterRepo::saveCharacter` persist the
+output of `json::writeStash`/`json::writeCharacter` — a `glz::write_json`
+re-serialization of `poe::StashTab`/`poe::Character` — rather than the
+bytes GGG sent. Reads tolerate unknown keys (`error_on_unknown_keys =
+false` in `json_readers.cpp`) and glaze writes only declared members, so
+every API field Acquisition does not model is silently dropped before it
+reaches `json_data`. `flavourTextParsed` is a live example: commented out
+in `poe/types/item.h` because it is sometimes an object, therefore
+received and discarded on every fetch.
+
+Consequences: the cache is not a faithful record of the API, so a future
+version that models a new field cannot backfill from it — every user must
+refetch. A parse bug is not reproducible from stored data. And a wire
+format change can only be answered by invalidation, never by a blob
+upgrader; 3.28→3.29 would otherwise have been a mechanical transform
+(wrap each mod string as `{"description": ...}`, fold `craftedMods` into
+`explicitMods` with `flags.crafted`) that preserved the cache instead of
+emptying it.
+
+Mechanism, not oversight: `PoeApiClient` is the typed boundary — "above
+this line nothing sees `QNetworkRequest`, `QNetworkReply`, or bytes"
+(`poeapiclient.h`) — so the reply is parsed there and the bytes are
+dropped, and the repo slots receive parsed objects
+(`application.cpp` wires `stashReceived(const poe::StashTab&, ...)`
+straight to `StashRepo::saveStash`). The original intent was to store the
+received JSON; the network redesign landed the boundary the other way.
+
+Fix shape — decided July 26, 2026: carry the raw bytes up through the
+worker's persistence signals, at per-reply granularity. The facade
+captures the reply's stash/character sub-object losslessly
+(`glz::raw_json`), parses the typed payload from that same substring,
+and returns both; `stashReceived`/`characterReceived` gain an opaque
+`QByteArray` the worker never interprets; `saveStash`/`saveCharacter`
+store the wire bytes instead of re-serializing. `json_data` keeps its
+shape — the tolerant reader parses old re-serialized rows and new
+wire rows alike — and `json_version` labels GGG's wire format from
+then on, which is what makes a future blob upgrader possible. The
+save trigger stays the worker's post-acceptance emit, so nothing the
+worker discards (stopped stragglers, failed parses) is ever
+persisted. Rejected alternatives: a facade/pump-level persistence tap
+(persists replies the worker discards — reintroduces the
+cache/memory divergence class M1 eliminated), and glaze
+unknown-field capture on every poe type (semantically faithful only —
+known-field parse bugs still bake in, and every nested type carries
+an `extra` map forever). Spec impact, to land with the implementation
+(doc-first): D7's boundary statement amends from "nothing above sees
+bytes" to "nothing above *interprets* bytes" — the worker couriers
+one opaque blob per reply. Test impact: `FakePoeApiClient` and
+`tst_reconcile` supply bytes via a helper that serializes the typed
+fixture — re-serialization is harmless in tests; it is the production
+cache that must be faithful. In-memory `Item` objects are untouched:
+the blob lives from facade parse to `saveStash` return (a direct
+connection, `application.cpp`), per reply, never per item. Raw wire
+blobs grow `json_data` by whatever is currently unmodeled; accepted.
+Backfill fidelity begins with the first refresh after the fix ships —
+nothing recovers fields already dropped from existing caches.
+
+Interaction with the 3.29 payload versioning: the `json_version` int
+added for 0.18 versions the *struct* serialization today, which is why a
+GGG patch string would be the wrong label for it (nothing in the API
+responses carries a version either way). If raw storage lands, the same
+column versions GGG's wire format instead, and the upgrader option above
+becomes available. Related: F21 ledger entry (per-`Item` raw JSON,
+retired by the glaze migration) — this finding is the opposite direction
+and does not revive that path.
+
+### F63. `Character::guardian` and `skills` are modeled but never ingested — Confirmed; deferred by decision
+
+Found July 27, 2026, during the 3.29 documentation reconciliation
+(external review). `poe::Character` models six item containers; both
+ingestion sites enumerate only four — `equipment`, `inventory`,
+`rucksack`, `jewels` (`itemsmanagerworker.cpp`: the cached-parse
+collection list and the live `OnCharacterReceived` list). When present,
+`guardian` (PoE1 only) and `skills` (PoE2 only) are accepted by the
+typed parser and — being modeled — persisted in `json_data` (the F62
+lossy re-serialization does not drop them), but items in them never
+become visible `Items`, in memory or in any search.
+
+Decision (Tom, July 27, 2026): deliberate deferral, not a release
+blocker. `guardian` is new in 3.29 and exposes a previously opaque
+inventory — the items equipped by a player's animate-guardian minion.
+Seeing them would be useful, but those items are unsellable once the
+guardian has equipped them, so there is no urgency; not 0.18 material.
+`skills` stays deferred with PoE2 character ingestion generally.
+
+For whoever implements this later: the unsellable nature is a design
+input, not just trivia — guardian items must stay out of the pricing
+and shop surfaces (auto-buyouts, tab-buyout propagation, forum shop
+submission), so the fix is adding the container to both collection
+lists *plus* a location/category decision for display *plus* an
+exclusion from trade features. Cached characters whose payloads
+contain either collection can backfill without a refetch because the
+containers are already persisted.
+
 ## Standing constraints and lessons
 
 Rules distilled from resolved findings that remain binding on future work.
@@ -142,7 +241,7 @@ above). "PR #161" refers to the post-Phase-6 follow-ups branch
 | F25 | `ItemsModel` minted out-of-contract indexes | Fixed, Phase 3 |
 | F26 | `MemoryDataStore` dead code | Deleted, Phase 1 |
 | F27 | Re-entrant completions could finish an update early | Resolved by the Phase 2 network rework (single request in flight) |
-| F28 | In-flight replies from an aborted update were misattributed to the next one, and updates began destructively — a terminal failure left `m_items` silently short, published by the next successful partial refresh (the likely "item missing until restart" mechanism) | Fixed, items-pipeline M1 (update generation tag + atomic per-reply replacement). Validated by the offline fake-network harness (mutation-verified stale-discard and fail-mid-update pins) and the July 16 live network-kill; the recorded missing-item repro was retired as moot once the destructive cull path was deleted. **Network-redesign phase 4b note:** the generation guard (`ItemsManagerWorker::IsStale`) is now unreachable by any black-box test — the worker submits strictly serially and only aborts an update from inside a handler, so nothing is ever in flight when one aborts, and each fetch settles exactly once (the pump completes each request once; the old duplicate-emission the stale-discard pin relied on is gone). The guard is kept as a defensive check; phase 5's batch submission puts several fetches in flight at once and makes it live again. `tst_workerupdate`'s `failedUpdateDoesNotLeakIntoTheNext` now asserts the reachable half — a terminal failure loses nothing and the next update starts clean |
+| F28 | In-flight replies from an aborted update were misattributed to the next one, and updates began destructively — a terminal failure left `m_items` silently short, published by the next successful partial refresh (the likely "item missing until restart" mechanism) | Fixed, items-pipeline M1 (update generation tag + atomic per-reply replacement). Validated by the offline fake-network harness (mutation-verified stale-discard and fail-mid-update pins) and the July 16 live network-kill; the recorded missing-item repro was retired as moot once the destructive cull path was deleted. **Superseded mechanism (network-redesign phases 4b/5, July 2026):** the generation guard was first made unreachable by the phase-4b future boundary (each fetch is completed exactly once by the pump; the old duplicate-emission path the stale-discard pin relied on is gone), then deleted outright with the generation tag in phase 5 (D6). Update identity is the per-update `std::stop_token`: batch submission puts several fetches in flight at abort, but they resolve `Canceled` as accounted stopped siblings, and a straggler that resolved successfully is discarded by the mandatory post-await check. F28's protection is structural at the future boundary; no generation machinery remains. `tst_workerupdate`'s `failedUpdateDoesNotLeakIntoTheNext` asserts the observable half — a terminal failure loses nothing and the next update starts clean |
 | F29 | `spdlog::shutdown()` raced logging threads | Fixed, Phase 2; standing lesson (above) |
 | F30 | Rate limiter never surfaced failed replies | Fixed, Phase 2; BORDERLINE note (above) |
 | F31 | Phase 3 spec forced out a load-bearing view-signal guard | Resolved after Phase 3 (coalesced resize); standing lesson (above) |
@@ -173,4 +272,4 @@ above). "PR #161" refers to the post-Phase-6 follow-ups branch
 | F56 | Single-lane item-request serialization (`m_queue` / `SubmitNextItemRequest`, at most one request in flight, stashes-first) starved the character policy: with the per-policy managers idle behind the worker's mixed FIFO, refresh time degraded from max(stash, character) to stash + character | Fixed, network-redesign phase 5 (July 21, 2026): the worker's queue and update-generation machinery are deleted. The root orchestration (`RunUpdate`, a synchronous counter-driven join) launches every required list without awaiting one another, and each list handler launches its whole content batch through `LaunchContent`, so all lanes are concurrently outstanding under the hub's per-policy coroutine pumps and the global gate (cap 2). One `std::stop_source` per update is the sole cancellation-and-identity channel — the post-await token check replaces the deleted generation guard (`IsStale`), and per-fetch coroutine handles are owned in `m_fetch_tasks` and reclaimed by a deferred, coalesced sweep. Pinned at worker level by `tst_workerupdate`'s staged-batching pins (`W-F56-*`: both lists submitted before either settles, each lane's whole content batch out before any reply lands, folder/Map/Unique child batches, lane-local source order, a stopped sibling that mutates nothing) and end-to-end by the `tst_workerintegration` full-chain runner (real worker → facade → hub with `FakeScheduler`/`FakeNetworkManager`): cross-layer cancellation at every pump checkpoint (`I-CANCEL-PACING/GATE/FLIGHT`), the post-event-loop destruction contract (`I-SHUT-PACING/GATE/FLIGHT/RETRY`), bounded detached-frame leaks (`I-LEAK-BOUND`), and non-accumulating completed-frame retention (`I-RETENTION`), each shutdown scenario in its own CTest process. `I-LEAK-BOUND` is enforced on Linux CI by `.github/workflows/sanitizers.yml`, which builds only the runner with `-DACQ_SANITIZE=address` and runs each scenario as its own process under LeakSanitizer, in two steps: the shutdown scenarios (`i_shut_*`, `i_leak_bound`) run with `tests/lsan.supp` (which matches the accepted detached-QCoro-frame coroutine names in the allocation stack), and the leak-clean scenarios (`i_cancel_*`, `i_retention`, `fullChainStashListSucceeds`) run with no suppression file at all so any leak fails the job. A leak whose stack falls outside the coroutine closure fails the job in either step (proven load-bearing: a deliberate out-of-closure leak turned the job red while every suppressed scenario stayed green). The suppression matches allocation-stack frames rather than object reachability, so within a suppressed scenario a leak allocated beneath one of those coroutines is silenced; the leak-clean/suppressed split bounds that to the scenarios that legitimately strand frames (see the verification contract's "Leak and retention interpretation") |
 | F57 | A 429 retry destroyed the caller's `RateLimitedReply`, dropped the retried completion, and wedged the update until restart (reproduced offline by the phase-1 harness) | Fixed, network-redesign phase 3 (July 20, 2026): the pump retries invisibly inside the drain loop — bounded attempts, padded deadline, permit-free sleep — and the caller sees exactly one final completion; the phase-1 wedge pin flipped to `retry429CompletesCallerExactlyOnce` |
 | F58 | The minimum-send-interval spacing was dead code (`last_send` never assigned) | Fixed, network-redesign phase 3 (July 20, 2026): the dead block deleted with `ActivateRequest`; the intent is implemented deliberately at the right scope as the gate's `MIN_SEND_SPACING` floor (250 ms across everything the hub sends, measured from dispatch stamps — spec D5), pinned exactly on the injected clock |
-| F61 | The revised-F55 always-fetch rule keyed "new" on cached contents (`m_contents_known`), so a partial refresh (refresh selected / refresh checked) fetched every tab whose contents were not cached — turning it into a full refresh whenever the contents cache was cold: a fresh install, an upgrade from an older Acquisition (whose contents live in a separate `userstore-*.db` that is never migrated from the legacy store), or a datastore that had only ever stored tab lists. Reported during PR #175 testing (July 22, 2026): "refresh selected/checked refreshes all my tabs" | Fixed, PR #175: the per-tab fetch gate in `ProcessTab`/`OnCharacterListReceived` drops its contents-known clause and keys purely on the selection (`m_update_all || m_tabs_to_update.count(id)`), so a partial refresh fetches strictly the tabs it was asked for; a newly discovered tab is still added to the tab list (metadata surfaces in the UI) but waits for a full refresh or an explicit selection. Children of a selected Map/Unique parent are unaffected — they are discovered in the parent's reply (`OnStashReceived`, gated only by `get_map_stashes`/`get_unique_stashes`) and ride the parent's fetch decision, never appearing in a top-level list. With the selection now the sole gate, the whole contents-known apparatus is dead and was deleted: `m_contents_known`/`m_pending_children`, the `ParseCachedItems` seeding and its `get_*_stashes` parameters (the parser thread no longer reads any setting), and the Map/Unique deferred-completion accounting. Deliberate policy change superseding F55's always-fetch note: a newly created tab no longer auto-fills on a partial refresh. Pinned by `partialRefreshSkipsNeverFetchedTabs` (partial skips a never-fetched tab, a full refresh fetches it) and `partialRefreshFetchesChildrenOfSelectedMapParent` (a selected special stash still reaches its children); design doc "F55, revised" section and M1 release notes updated |
+| F61 | The revised-F55 always-fetch rule keyed "new" on cached contents (`m_contents_known`), so a partial refresh (refresh selected / refresh checked) fetched every tab whose contents were not cached — turning it into a full refresh whenever the contents cache was cold: a fresh install, an upgrade from an older Acquisition (whose contents live in a separate `userstore-*.db` that is never migrated from the legacy store), or a datastore that had only ever stored tab lists. Reported during PR #175 testing (July 22, 2026): "refresh selected/checked refreshes all my tabs" | Fixed, PR #175: the per-tab fetch gate in `ProcessTab`/`OnCharacterListReceived` drops its contents-known clause and keys purely on the selection (`m_update_all || m_tabs_to_update.count(id)`), so a partial refresh fetches strictly the tabs it was asked for; a newly discovered tab is still added to the tab list (metadata surfaces in the UI) but waits for a full refresh or an explicit selection. Children of a selected Map/Unique parent are unaffected — they are discovered in the parent's reply (`OnStashReceived`, gated only by `get_map_stashes`/`get_unique_stashes`) and ride the parent's fetch decision, never appearing in a top-level list. With the selection now the sole gate, the whole contents-known apparatus is dead and was deleted: `m_contents_known`/`m_pending_children`, the `ParseCachedItems` seeding and its `get_*_stashes` parameters (the parser thread no longer reads any setting), and the Map/Unique deferred-completion accounting. Deliberate policy change superseding F55's always-fetch note: a newly created tab no longer auto-fills on a partial refresh. Pinned by `partialRefreshSkipsNeverFetchedTabs` (partial skips a never-fetched tab, a full refresh fetches it) and `partialRefreshFetchesChildrenOfSelectedMapParent` (a selected special stash still reaches its children); design doc "F55, revised" section and M1 release notes updated. **0.18 note (July 2026):** the `json_version` payload invalidation adds another concrete listed-but-cold state this policy governs — version-mismatched rows keep tab metadata but yield no contents (pinned by `staleRowsKeepMetadataButYieldNoJson`), so the 3.29 wire-format change puts every upgrader there; contents stay cold until a full refresh or an explicit selection refills them |

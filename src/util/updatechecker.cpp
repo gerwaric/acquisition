@@ -155,7 +155,9 @@ std::vector<UpdateChecker::ReleaseTag> UpdateChecker::ParseReleaseTags(const QBy
         try {
             release.version = semver::version::parse(version_string.toStdString());
         } catch (const semver::semver_exception &e) {
-            spdlog::warn("Unable to parse version from GitHub release tag: {}", version_string);
+            spdlog::warn("Unable to parse version from GitHub release tag '{}': {}",
+                         version_string,
+                         e.what());
             continue;
         }
 

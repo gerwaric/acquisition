@@ -63,6 +63,7 @@ acq_add_test(tst_timerscheduler)
 acq_add_test(tst_gate)
 acq_add_test(tst_filters)
 acq_add_test(tst_reconcile)
+acq_add_test(tst_userstoremigration)
 acq_add_test(tst_workerparse)
 acq_add_test(tst_workerupdate)
 

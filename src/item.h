@@ -13,6 +13,9 @@
 #include <vector>
 
 #include "itemlocation.h"
+#include "poe/types/item.h"
+#include "poe/types/itemproperty.h"
+#include "poe/types/itemsocket.h"
 
 namespace poe {
 
@@ -134,7 +137,6 @@ public:
     void RebaseLocation(const ItemLocation &fresh_tab) { m_location.rebaseTabMetadata(fresh_tab); }
     const QString &note() const { return m_note; }
     const QString &category() const { return m_category; }
-    uint talisman_tier() const { return m_talisman_tier; }
     int count() const { return m_count; }
     const ModTable &mod_table() const { return m_mod_table; }
     int ilvl() const { return m_ilvl; }
@@ -145,10 +147,12 @@ public:
     static const std::array<CategoryReplaceMap, k_CategoryLevels> m_replace_map;
 
 private:
+    void LoadInfluences(const poe::Item &item);
+    void LoadModifiers(const poe::Item &item);
+    void LoadProperties(const std::vector<poe::ItemProperty> &properties);
+    void LoadRequirements(const std::vector<poe::ItemProperty> &requirements);
+    void LoadSockets(const std::vector<poe::ItemSocket> &sockets);
     void CalculateCategories();
-    // The point of GenerateMods is to create combined (e.g. implicit+explicit) poe.trade-like mod map to be searched by mod filter.
-    // For now it only does that for a small chosen subset of mods (think "popular" + "pseudo" sections at poe.trade)
-    void GenerateMods(const poe::Item &json);
     void CalculateHash(const poe::Item &json);
 
     QString m_name;
@@ -180,7 +184,7 @@ private:
     ItemSocketGroup m_sockets{0, 0, 0, 0};
     std::vector<ItemSocketGroup> m_socket_groups;
     std::map<QString, int> m_requirements;
-    int m_count{0};
+    int m_count{1};
     int m_ilvl{0};
     std::vector<ItemProperty> m_text_properties;
     std::vector<ItemRequirement> m_text_requirements;
@@ -189,7 +193,6 @@ private:
     QString m_note;
     ModTable m_mod_table;
     QString m_uid;
-    uint m_talisman_tier{0};
 };
 
 typedef std::vector<std::shared_ptr<Item>> Items;

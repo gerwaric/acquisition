@@ -9,7 +9,7 @@ cmake_minimum_required(VERSION 3.24)
 # tags on github are prefixed with a 'v'.
 
 project(acquisition
-    VERSION 0.17.0
+    VERSION 0.18.0
     DESCRIPTION "Stash and forum shop management for Path of Exile (TM)"
     HOMEPAGE_URL "https://github.com/gerwaric/acquisition"
     LANGUAGES CXX
@@ -18,7 +18,7 @@ project(acquisition
 include(CTest)
 
 # Use this to define pre-releases
-set(app_version_suffix "")
+set(app_version_suffix "-alpha.1")
 
 # Variables used in version_defines.h and platforn-specific files and properties.
 set(app_name            "${CMAKE_PROJECT_NAME}")
@@ -171,13 +171,17 @@ if(NOT TARGET sentry-native)
     FetchContent_Declare(
         sentry-native
         GIT_REPOSITORY https://github.com/getsentry/sentry-native
-        GIT_TAG        0.15.0
+        GIT_TAG        0.15.4
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(sentry-native)
 
-    # Sentry causes some compiler warnings we want to ignore.
-    target_compile_options(sentry PRIVATE
+    # Sentry causes some compiler warnings we want to ignore. Sentry sets its own
+    # warning flags on this target (/W4 on MSVC, -Werror -Wall on gcc/clang), and
+    # target_compile_options only appends, which makes MSVC emit D9025 for every
+    # sentry translation unit. Replace the target's options instead of adding to
+    # them; everything sentry puts there is warning-related.
+    set_property(TARGET sentry PROPERTY COMPILE_OPTIONS
         $<$<C_COMPILER_ID:GNU,Clang,AppleClang>:-w>
         $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-w>
         $<$<C_COMPILER_ID:MSVC>:/w>
@@ -189,7 +193,7 @@ if(NOT TARGET glaze)
     FetchContent_Declare(
         glaze
         GIT_REPOSITORY https://github.com/stephenberry/glaze.git
-        GIT_TAG        v7.9.0
+        GIT_TAG        v7.9.1
         GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(glaze)
@@ -227,6 +231,7 @@ if(NOT TARGET QCoro6::Core)
         qcoro
         GIT_REPOSITORY https://github.com/qcoro/qcoro.git
         GIT_TAG        v0.13.0
+        GIT_SHALLOW    TRUE
     )
     FetchContent_MakeAvailable(qcoro)
 endif()
@@ -385,6 +390,7 @@ set(ACQ_POE
     src/poe/types/item.h
     src/poe/types/itemfilter.h
     src/poe/types/itemjeweldata.h
+    src/poe/types/itemmod.h
     src/poe/types/itemproperty.h
     src/poe/types/itemsocket.h
     src/poe/types/ladderentry.h
@@ -550,6 +556,18 @@ add_custom_target(project_files SOURCES
     BUILD.md
     acquisition.desktop
     installer.iss
+    # Project documents
+    docs/adr/0001-qml-ui-migration-strategy.md
+    docs/adr/0002-defer-qml-migration.md
+    docs/cleanup/findings.md
+    docs/design/items-pipeline.md
+    docs/design/network-ggg-email-draft.md
+    docs/design/network-ground-truth.md
+    docs/design/network-redesign.md
+    docs/design/network-redesign-phase5-verification.md
+    docs/design/network-redesign-reviews.md
+    docs/README.md
+
 )
 
 #------------------------------------------------------
@@ -573,10 +591,12 @@ target_link_libraries(acquisition_filters
     PUBLIC
         Qt6::Core
         Qt6::Gui
-    # Item's include closure reaches ItemLocation's Qt Network/spdlog formatter.
+    # Item's include closure reaches ItemLocation's Qt Network/spdlog formatter,
+    # and poe::ItemMod's glaze reader for GGG's "flags": [] quirk.
     # These remain deliberately non-widget so the filter-core boundary stays intact.
     PRIVATE
         Qt6::Network
+        glaze::glaze
         spdlog::spdlog_header_only
 )
 

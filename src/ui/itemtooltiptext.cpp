@@ -82,10 +82,6 @@ QString GenerateRequirements(const Item &item)
 {
     QString text;
     bool first = true;
-    // Talisman level is not really a requirement but it lives in the requirements section
-    if (item.talisman_tier()) {
-        text += "Talisman Tier: " + std::to_string(item.talisman_tier()) + "<br>";
-    }
     for (auto &requirement : item.text_requirements()) {
         text += first ? "Requires " : ", ";
         first = false;
