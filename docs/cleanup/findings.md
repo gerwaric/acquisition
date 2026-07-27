@@ -108,13 +108,35 @@ dropped, and the repo slots receive parsed objects
 straight to `StashRepo::saveStash`). The original intent was to store the
 received JSON; the network redesign landed the boundary the other way.
 
-Fix shape: either carry the raw bytes up through the worker signals or
-move the repos below the boundary. Both fight the frozen network-redesign
-spec's boundary statement, and both fight the worker test design — the
-fake facade exists so tests can return a tab instead of crafting response
-bytes (`poeapiclient.h`), and `tst_reconcile` builds `poe::StashTab`
-values and hands them to `saveStash` directly. Blobs also grow by
-whatever is currently unmodeled. Size the spec impact before the code.
+Fix shape — decided July 26, 2026: carry the raw bytes up through the
+worker's persistence signals, at per-reply granularity. The facade
+captures the reply's stash/character sub-object losslessly
+(`glz::raw_json`), parses the typed payload from that same substring,
+and returns both; `stashReceived`/`characterReceived` gain an opaque
+`QByteArray` the worker never interprets; `saveStash`/`saveCharacter`
+store the wire bytes instead of re-serializing. `json_data` keeps its
+shape — the tolerant reader parses old re-serialized rows and new
+wire rows alike — and `json_version` labels GGG's wire format from
+then on, which is what makes a future blob upgrader possible. The
+save trigger stays the worker's post-acceptance emit, so nothing the
+worker discards (stopped stragglers, failed parses) is ever
+persisted. Rejected alternatives: a facade/pump-level persistence tap
+(persists replies the worker discards — reintroduces the
+cache/memory divergence class M1 eliminated), and glaze
+unknown-field capture on every poe type (semantically faithful only —
+known-field parse bugs still bake in, and every nested type carries
+an `extra` map forever). Spec impact, to land with the implementation
+(doc-first): D7's boundary statement amends from "nothing above sees
+bytes" to "nothing above *interprets* bytes" — the worker couriers
+one opaque blob per reply. Test impact: `FakePoeApiClient` and
+`tst_reconcile` supply bytes via a helper that serializes the typed
+fixture — re-serialization is harmless in tests; it is the production
+cache that must be faithful. In-memory `Item` objects are untouched:
+the blob lives from facade parse to `saveStash` return (a direct
+connection, `application.cpp`), per reply, never per item. Raw wire
+blobs grow `json_data` by whatever is currently unmodeled; accepted.
+Backfill fidelity begins with the first refresh after the fix ships —
+nothing recovers fields already dropped from existing caches.
 
 Interaction with the 3.29 payload versioning: the `json_version` int
 added for 0.18 versions the *struct* serialization today, which is why a

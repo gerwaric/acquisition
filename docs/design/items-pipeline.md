@@ -68,6 +68,21 @@ begins:
 
 ### Milestone 1 — Delta-native worker (shipped July 17, 2026 — PR #162)
 
+**Post-M1 status (July 23, 2026).** The network redesign's phase 5
+(PR #175) subsequently rewrote the worker onto coroutine batch
+submission (`network-redesign.md`, D6). Commit 1's generation-tag
+mechanism was deleted along with the worker queue and
+`SubmitNextItemRequest`: update identity is now the per-update
+`std::stop_token` under the post-await invariant, and the F28
+stale-arrival hole is unreachable by construction at the future
+boundary — each fetch is completed exactly once by the pump, so the
+worker never has an unaccounted request in flight when an update
+aborts. Commit 2's semantics — atomic per-reply replacement, list
+reconciliation, selection-only fetching (F55 revised / F61),
+rebase-on-success, no emit on terminal failure — are preserved by the
+rewrite. This section remains the record of what M1 shipped; read D6
+for the worker's current shape before writing anything against it.
+
 Make `ItemsManagerWorker` know and control what changes, and make updates
 non-destructive. Two commits:
 
@@ -207,6 +222,35 @@ that would expose the mismatch), or the rebase moves earlier and the
 failed-update-mutates-published-state problem M1 solved returns and needs
 a new answer.
 
+**Inputs accumulated since this sketch was written (July 2026), for
+the M2 spec:**
+
+- **The per-tab signal surface partly exists.** The worker already
+  emits typed per-tab signals wired to the datastore repos:
+  `stashReceived`, `characterReceived`, `stashListReplaced`,
+  `characterListReplaced`, `stashChildrenReplaced`
+  (`itemsmanagerworker.h`). The M2 spec must decide whether
+  `TabRefreshed` reuses this surface or parallels it — and keep the
+  two lanes from drifting if they stay separate.
+- **Explicit M2 deferrals from the network redesign (D6):**
+  whole-update replacement/coalescing (an `Update()` during an active
+  update is refused today); reprioritization (flagged as *not* cheap
+  later — the stop token is per-update, so per-entry cancellation
+  does not exist); per-tab retry and durable progress; UI-side
+  coalescing of the batch-submit `QueueUpdated` burst.
+- **New behavioral fact from phase 5:** the first terminal failure
+  returns the worker to idle immediately, so a new update may be
+  active while the stopped update's canceled stragglers are still
+  settling. Stragglers apply nothing (post-await invariant), but the
+  delta-signal design must tolerate the overlap.
+- **F62 (fix shape decided July 26, 2026):** raw reply bytes enter
+  the datastore through the persistence lane only — the facade
+  returns the parsed payload plus the raw sub-object bytes, and
+  `stashReceived`/`characterReceived` carry the bytes opaquely to the
+  repos (full decision in the F62 entry, `docs/cleanup/findings.md`).
+  Consequence for M2: the delta signals carry locations — never item
+  payloads, never bytes; the datastore lane is already served.
+
 ### Milestone 3 — Delta-native items model (later)
 
 Make Layer 3 consume deltas natively, eliminating the full reset:
@@ -236,6 +280,9 @@ Make Layer 3 consume deltas natively, eliminating the full reset:
   `docs/design/network-redesign.md` (which preserves the F5 property
   deliberately via its gate). That spec also answers the
   where-does-scheduling-live question this plan deferred to M2.
+  **Complete July 23, 2026:** phases 0–5 merged to master (PR #175);
+  the network layer is settled ground for the M2 spec, not concurrent
+  work.
 - **Datastore schema changes.** Per-tab persistence already works.
 - **UI/UX redesign** beyond refresh behavior; no theming, packaging, or
   `Item` class rework.
