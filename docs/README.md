@@ -12,7 +12,10 @@ when this map and a header disagree, the header wins.
 - `design/items-pipeline-m2.md` — draft spec (not frozen) for Milestone
   2, the streaming refresh signal: D-numbered decisions consuming the
   plan's M2 inbox, with an input-traceability table and the open
-  spike/measurement items.
+  spike/measurement items. Revision 2 incorporates review round 1.
+- `design/items-pipeline-m2-reviews.md` — that spec's review history:
+  round-scoped finding tables (`R1-*`, …) with verdicts and
+  resolutions, round narratives, and the revision log.
 - `design/network-redesign.md` — accepted, frozen spec for the
   rate-limited networking redesign (typed facade, coroutine pumps, gate),
   revision 11. Records current decisions only; cites review finding IDs inline.

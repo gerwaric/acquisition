@@ -1,7 +1,8 @@
 # Items Pipeline Milestone 2: Streaming Refresh Signal
 
-Status: **draft for review — not frozen**. Written July 27, 2026 on
-branch `items-pipeline-m2-spec`. This spec consumes the M2 inbox in
+Status: **draft for review — not frozen**. Revision 2 (July 27,
+2026), incorporating external review round 1; written on branch
+`items-pipeline-m2-spec`. This spec consumes the M2 inbox in
 `items-pipeline.md` ("Inputs accumulated since this sketch") and its
 four hard constraints; the traceability table at the end maps every
 input to the decision, deferral, or acceptance criterion that consumed
@@ -11,7 +12,9 @@ frozen (working rule 1).
 Citation convention: bare D-numbers (D1, D2, …) in this document are
 this document's decisions. Decisions of the network redesign are always
 cited qualified ("network-redesign D6"). F-numbers are the findings
-register; pinned test names are quoted in
+register; `R1-*` (and later `R2-*`, …) are this spec's review-round
+findings, recorded with verdicts and resolutions in
+`items-pipeline-m2-reviews.md`; pinned test names are quoted in
 `camelCase`.
 
 ## Staleness preamble
@@ -166,13 +169,27 @@ A new worker signal, working name kept from the plan:
 void TabRefreshed(const ItemLocation &location, const Items &items);
 ```
 
-- **Key.** `location.fetch_id()` keys the replacement;
-  `location.id()`/`location.type()` name the display tab the UI should
-  attribute the change to. Carrying the full `ItemLocation` covers both
-  ids (they differ only for Map/Unique children) and gives empty deltas
-  a display anchor. Consumers must key application on
-  (type, fetch id) — never on location equality, which deliberately
-  ignores `fetch_id` (staleness preamble).
+- **Key (R1-3).** Replacement application is keyed by a named type
+  used identically on both sides of the signal:
+
+  ```cpp
+  struct FetchSourceKey {
+      ItemLocationType type;
+      QString fetch_id;
+  };
+  ```
+
+  The signal still carries the full `ItemLocation` — it covers both
+  ids (`fetch_id()` differs from `id()` only for Map/Unique children)
+  and gives empty deltas a display anchor — but consumers derive the
+  key as `{location.type(), location.fetch_id()}` and apply strictly
+  by it, never by location equality, which deliberately ignores
+  `fetch_id` (staleness preamble). The worker's own erase currently
+  keys by fetch id alone (`RemoveItemsFetchedBy`,
+  `itemsmanagerworker.cpp:451`); M2 adds the type to its predicate so
+  the worker's and the published copy's erases can never diverge on a
+  cross-type id collision — improbable, but the invariant in D6 is
+  only sound if both sides use one key.
 - **Payload.** The complete pipeline-native `Items` replacement for
   that fetch source — the exact set of `Item` objects the worker just
   parsed and appended, sharing the same `shared_ptr`s. An **empty
@@ -203,7 +220,7 @@ void TabRefreshed(const ItemLocation &location, const Items &items);
   other's types is a spec change, not a convenience.
 
 `ItemsManager` applies each delta to its published copy — erase items
-whose (type, fetch id) match, append the delta's items — runs the
+whose `FetchSourceKey` matches, append the delta's items — runs the
 scoped pricing pass (D7), and re-emits a light signal with the same
 shape for the UI:
 
@@ -211,32 +228,74 @@ shape for the UI:
 void TabRefreshed(const ItemLocation &location, const Items &items);
 ```
 
-No whole-collection work runs on this path (hard constraint;
-acceptance criterion below). The debug uncategorized-items scan (F46)
-stays on the final snapshot only.
+**Published storage stays the flat `Items` vector, and the erase is a
+permitted linear pass (R1-2).** Revision 1 claimed O(delta) work on
+this path while implying an O(all items) erase — an inconsistency the
+review caught. Resolved by legitimizing the erase rather than
+indexing: one predicate-only `erase_if` over the flat vector per
+delta is explicitly allowed, bounded by **worker parity** — it is the
+identical operation the worker itself performs per reply
+(`RemoveItemsFetchedBy`), shipped and accepted in M1, a
+sub-millisecond pointer-chase even at the 100k-item scale. No *other*
+whole-collection work runs on this path (hard constraint; acceptance
+criterion below). If measurement during implementation contradicts
+the bound, the named fallback is a source-keyed map
+(`FetchSourceKey → Items`) with a lazily rebuilt flat vector for
+`items()` consumers — which is also the natural M3 representation;
+M2 does not build it speculatively.
 
 ### D4. A typed terminal event, and no rollback
 
-A new worker signal, forwarded by `ItemsManager`:
+A new worker signal, forwarded by `ItemsManager`. The outcome is a
+sum type so invalid states (an error on a completion, skips on a
+failure) are unrepresentable (R1-6):
 
-```
-struct RefreshOutcome {
-    enum class Result { Completed, Failed };
-    Result result;
-    // Fetch sources skipped by D5's skip-and-continue, with the
-    // failure kind for each; empty on a clean completion. Meaningful
-    // for Completed.
-    std::vector<SkippedTab> skipped;
-    // The terminal error; meaningful for Failed.
-    RateLimit::FetchError error;
+```cpp
+struct SkippedSource {
+    FetchSourceKey source;          // same key as the deltas (D3)
+    RateLimit::FetchError error;    // the deterministic failure (D5)
 };
+struct CompletedRefresh {
+    std::vector<SkippedSource> skipped; // empty on a clean completion
+};
+struct FailedRefresh {
+    RateLimit::FetchError error;    // the FIRST terminal error
+};
+using RefreshOutcome = std::variant<CompletedRefresh, FailedRefresh>;
+
 void RefreshFinished(const RefreshOutcome &outcome);
 ```
 
-- Emitted **exactly once per accepted `Update()`**: from `FinishUpdate`
-  (after `ItemsRefreshed`, so data precedes lifecycle) and from the
-  first `AbortUpdate` (later straggler/second-failure calls already
-  return early and must not emit it twice).
+- Emitted **exactly once per accepted `Update()`**, where "accepted"
+  is defined as the worker's Idle→Updating transition (R1-6) — a
+  refused `Update()` (already updating) emits nothing, and an update
+  deferred while the worker is still initializing counts when it
+  actually starts. Emission sites: `FinishUpdate` on success, the
+  first `AbortUpdate` on failure (later straggler/second-failure calls
+  already return early and must not emit it twice).
+- **The terminal event observes an idle worker (R1-7).** Pinned
+  ordering — success: final `ItemsRefreshed` → state set to Idle →
+  `RefreshFinished`; failure: `AbortUpdate` sets Idle →
+  `RefreshFinished`. A synchronous observer may react to the terminal
+  event by starting the next update and must not be refused as "still
+  updating". (Implementation note: `FinishUpdate` today sets Idle
+  *after* its emit, `itemsmanagerworker.cpp:1279` — the terminal emit
+  goes after that assignment.)
+- **First-error preservation (R1-6).** `AbortUpdate()` currently
+  receives no error; M2 states the plumbing: every value-level failure
+  branch hands its `FetchError` to `StopUpdateForFailure`, which
+  stores the update's first terminal error; the per-fetch and
+  orchestration catch-alls store an `Internal`-kind error the same
+  way; `AbortUpdate` emits `FailedRefresh` with the stored error.
+  Later failures and settling stragglers cannot overwrite it (the
+  already-terminal guard returns early).
+- **`Canceled` mapping (R1-6, completing D5's classification).** A
+  `Canceled` result whose update token is stopped never reaches a
+  handler — the post-await check discards it (network-redesign D6).
+  A `Canceled` that arrives with an *unstopped* token (a stop driven
+  from outside the update, e.g. shutdown) takes the ordinary terminal
+  path and maps to `FailedRefresh` with kind `Canceled`; it is a
+  failure of the update without being anyone's error.
 - **Ordering invariant:** all `TabRefreshed` emits of an update precede
   its `RefreshFinished`; nothing of that update follows it. A delta
   arriving after a `RefreshFinished` belongs to a later update. This
@@ -251,14 +310,14 @@ void RefreshFinished(const RefreshOutcome &outcome);
   *settling* stragglers — but stragglers emit nothing, so consumers
   observe a clean `… deltas(N), RefreshFinished(N), deltas(N+1) …`
   sequence. Consumers must not assume the worker is quiescent after a
-  `Failed` outcome; they only get the sequence guarantee.
+  `FailedRefresh` outcome; they only get the sequence guarantee.
 - **No-rollback policy, stated explicitly:** deltas applied before a
   later terminal failure stay applied — in worker memory, in the
   published `ItemsManager` copy, in the datastore, and on screen
   (pinned: `appliedReplySurvivesLaterFailureInMemoryAndDatastore`; M2
-  extends the pin to the published copy). A `Failed` outcome means "the
-  refresh did not finish; everything you see is real but the update is
-  incomplete" — the UI may say so (status bar text via existing
+  extends the pin to the published copy). A `FailedRefresh` outcome
+  means "the refresh did not finish; everything you see is real but the
+  update is incomplete" — the UI may say so (status bar text via existing
   `StatusUpdate` plus this typed event for anything that needs to
   branch), but nothing is undone. `StatusUpdate` remains cosmetic and
   is demoted from any semantic role (it never had a contractual one;
@@ -282,10 +341,16 @@ fetches) are classified by `FetchError::Kind`:
   delta — the atomic replace never ran, so the fetch source's previous
   items remain, in memory and datastore, exactly per M1's
   non-destructive semantics. The update completes; the terminal event
-  reports `Completed` with the skipped list (D4), and the final
+  reports `CompletedRefresh` with the skipped list (D4), and the final
   `ItemsRefreshed` publishes as usual (the skipped tab's list metadata
   is still upserted; its contents are old — the same listed-but-cold
-  state F55-revised already defines).
+  state F55-revised already defines). **Skips are user-visible
+  (R1-1):** the final status message states the count ("Received N
+  tabs, M skipped") and the skipped sources are named in the log at
+  warn level; the typed event carries the details for anything that
+  needs to branch — including the shop gate (D8). A
+  completed-with-skips refresh must never be indistinguishable from a
+  clean one.
 - **Everything else — unchanged: first failure is terminal.**
   `Network`, `Http`, `RateLimited`, `Protocol`, `Internal` keep the
   M1/network-redesign semantics (stop token, `AbortUpdate`, no final
@@ -296,8 +361,9 @@ fetches) are classified by `FetchError::Kind`:
   changed under us — continuing risks violating limits); `Http` mixes
   per-tab cases (404) with systemic ones (401/403) and is deferred to
   the retry design rather than split speculatively; `Internal` is a
-  bug. List-fetch failures of any kind stay terminal — the update
-  cannot even define its batches without lists.
+  bug. `Canceled` reaches a handler only with an unstopped token and
+  maps per D4's mapping. List-fetch failures of any kind stay
+  terminal — the update cannot even define its batches without lists.
 
 The scope here is deliberately minimal: one kind, on one fetch class,
 with the proven incident behind it. Extending skip-and-continue (or
@@ -349,121 +415,201 @@ Exhaustively, by worker mutation:
   state: none; D9's refilter does not care; shop reads final-only per
   D8).
 
-### D7. Per-delta scoped pricing: yes — item-local, final pass stays authoritative
+### D7. Per-delta scoped pricing: yes — item-local, fail-safe, final pass stays authoritative
 
 Streamed items visibly unpriced for hours are a real cost at the
 hours-long-refresh scale, and pricing the delta is O(delta items) with
-no whole-collection component — so M2 prices per delta, scoped:
+no whole-collection component — so M2 prices per delta, scoped.
 
-On each applied delta, `ItemsManager` runs, **for the delta's items and
-display tab only**:
+Revision 1's scoped pass argued its safety entirely from the success
+path ("the final pass overwrites divergence"), which D4's no-rollback
+design does not guarantee: an update can end without a final pass.
+The pass is therefore restricted to steps that are safe **on both
+outcomes** (R1-4):
 
-1. Tab-name auto-buyout for the delta's display location
-   (`StringToBuyout(tab_label)` → `SetTab`), mirroring
-   `ApplyAutoTabBuyouts` for one tab.
-2. Note-based item buyouts for the delta's items, mirroring
-   `ApplyAutoItemBuyouts`'s per-item rule (including its
-   clear-when-stale branch).
-3. Tab-inheritance propagation for the delta's items, mirroring
-   `PropagateTabBuyouts`'s per-item rule.
+On each applied delta, `ItemsManager` runs, **for the delta's items
+only**:
 
-Explicitly excluded from the scoped pass, because each is
-whole-collection or global-state semantics: `MigrateBuyouts`,
-`CompressTabBuyouts`, **`ClearRefreshLocks` and all refresh-lock
-bookkeeping** (locks are recomputed by the final pass exactly as
-today), and any `Save()` scheduling beyond what `BuyoutManager`'s
-existing dirty flag already does.
+1. Note-based item buyouts, mirroring `ApplyAutoItemBuyouts`'s
+   per-item rule (including its clear-when-stale branch). Fail-safe
+   because it is re-derivable: the price comes from the item's own
+   note and the identical rule reproduces it on any later pass.
+2. Tab-inheritance propagation, mirroring `PropagateTabBuyouts`'s
+   per-item rule, reading the **currently published** tab-buyout
+   state (`GetTab` as it stands — no fresh-metadata writes to the tab
+   table). Fail-safe for the same reason: derived, re-derivable.
+3. **Monotone refresh-lock additions**: if the delta item's buyout or
+   its tab's published buyout `RequiresRefresh()` (and the tab is not
+   remove-only), `SetRefreshLocked` is called — mirroring the lock
+   *setting* half of `PropagateTabBuyouts` only. Locks are never
+   cleared per delta; `ClearRefreshLocks` remains exclusive to the
+   final pass. Monotone additions are fail-safe in the right
+   direction: after a failed update the worst case is one redundant
+   tab in the next checked refresh, never a game-priced tab silently
+   dropped from it (locks feed `GetRefreshChecked`,
+   `buyoutmanager.cpp:193`, which drives the worker's Checked
+   selection, `itemsmanagerworker.cpp:398`). Revision 1 excluded all
+   lock bookkeeping — exactly backwards for the failure case (R1-4).
 
-The safety property that makes this cheap to reason about: **the final
-whole-collection pass at `ItemsRefreshed` is unchanged and remains
-authoritative** — any divergence a scoped pass could introduce is
-overwritten within the same update on success. The scoped pass is an
-anticipation of the final pass, never a replacement. Pinned:
-`scopedPricingConvergesToFinalPass` — scoped passes followed by the
-final pass produce `BuyoutManager` state identical to the final pass
-alone, modulo `last_update` timestamps.
+**Tab-name auto-pricing (`StringToBuyout(tab_label)` → `SetTab`) is
+final-pass-only.** Revision 1 ran it per delta; R1-4 showed that
+mutates persistent, global tab-buyout state keyed by metadata whose
+publication D6 deliberately keeps snapshot-boundary — after a failed
+update the mutation would persist with no final pass to reconcile it
+and no published tab list that explains it. Cost of the restriction: a
+*renamed-to-a-price* tab's streamed items inherit the old published
+tab price (or none) until a successful final pass — the same class of
+transient as the renamed-tab note below.
+
+Also excluded, as before: `MigrateBuyouts`, `CompressTabBuyouts`, and
+any `Save()` scheduling beyond what `BuyoutManager`'s existing dirty
+flag already does.
+
+Two safety properties, both pinned:
+
+- **Success — convergence:** the final whole-collection pass at
+  `ItemsRefreshed` is unchanged and remains authoritative; any scoped
+  divergence is overwritten within the same update.
+  (`scopedPricingConvergesToFinalPass`: scoped passes followed by the
+  final pass produce `BuyoutManager` state identical to the final pass
+  alone, modulo `last_update` timestamps.)
+- **Failure — fail-safety:** after deltas followed by a terminal
+  failure, every published item whose buyout requires a refresh has
+  its tab locked, and the tab-buyout table is unchanged from its
+  pre-update state. (`scopedPricingIsFailSafeAcrossFailedUpdate`.)
 
 Known transient, accepted: a renamed tab's streamed items key their tab
 buyout lookup by fresh metadata while the published tab-buyout table
 still holds the old key (D6) — such items may show as unpriced/inherit
 until the final pass heals them.
 
-### D8. The final-emit contract is unchanged
+### D8. The final-emit contract: unchanged, with one deliberate exception — the shop gate
 
 The worker's `ItemsRefreshed(m_items, m_tabs, initial_refresh)` and
-everything downstream of it keep today's semantics and ordering:
+everything downstream of it keep today's semantics and ordering —
 `ItemsManager`'s copy + migration + three whole-collection buyout
-passes + light re-emit; `Application`'s currency snapshot, shop expiry,
-and forum submission; `MainWindow`'s full refilter of every search.
-Specifically, restating the plan's hard constraints as design:
+passes + light re-emit; `Application`'s currency snapshot and shop
+expiry; `MainWindow`'s full refilter of every search — with one
+exception:
 
-- **No per-delta forum submission** — `Shop` remains connected to the
-  final `ItemsRefreshed` only, and never to `TabRefreshed`.
+**Automatic forum submission moves from `ItemsRefreshed` to
+`RefreshFinished`, gated on clean completion (R1-1).** Today a parse
+failure aborts without posting; D5's skip-and-continue would have
+silently converted that into auto-posting a shop containing stale
+contents for tabs the user explicitly asked to refresh, and the
+terminal event — ordered after `ItemsRefreshed` — arrives too late to
+suppress a submission wired to the snapshot. So `Application`'s
+auto-submission (`application.cpp:410-413`) reconnects to
+`RefreshFinished` and fires only on `CompletedRefresh` with an
+**empty** skipped list. A completed-with-skips or failed refresh
+never auto-posts; manual submission stays available regardless. For
+calibration, not comfort: partial refreshes already post stale
+contents for *unselected* tabs today — the gate closes the new
+hazard, a selected tab going silently stale into a post. Pinned:
+`shopSubmitsOnlyOnCleanCompletion`.
+
+Restating the plan's hard constraints as design:
+
+- **No per-delta forum submission** — `Shop` connects to
+  `RefreshFinished` as above, and never to `TabRefreshed`.
 - **No per-delta whole-collection scans** — the delta path in
   `ItemsManager` (D3, D7) and `MainWindow` (D9) touches O(delta) items
-  plus, at most, one coalesced current-search refilter per freshness
+  plus D3's permitted linear erase pass (R1-2, worker-parity bound)
+  and, at most, one coalesced current-search refilter per freshness
   window (D9's explicitly budgeted exception, removed in M3).
 - **No per-delta uncoalesced model reset** — every model reset on the
   delta path goes through D9's throttle; `TabRefreshed` never reaches
   `beginResetModel()` directly.
 
-M3 renegotiates the final-emit cascade; M2 does not.
+**F46 is absorbed by M2 (R1-9):** the debug uncategorized-items scan
+in `ItemsManager::OnItemsRefreshed` (`itemsmanager.cpp:129-138`) is
+gated behind `spdlog::should_log` (or deleted outright) as part of
+M2's rework of that function, per the register entry's own request;
+the F46 entry moves to the resolved ledger when that lands. The scan
+never runs on the delta path either way.
+
+M3 renegotiates the rest of the final-emit cascade; M2 does not.
 
 ### D9. UI application: intersection-gated, throttled, with a stated freshness bound
 
-`MainWindow` consumes `ItemsManager::TabRefreshed` in two tiers:
+`MainWindow` consumes `ItemsManager::TabRefreshed` under an explicit
+five-rule state machine (R1-5 — this replaces revision 1's two-tier
+description, which under-marked dirtiness and left a pending tick
+orphanable by a tab switch):
 
-- **Background tier (delta does not intersect the current search's
-  visible result).** No model touch of any kind — scroll, selection,
-  and expansion survive trivially. Every non-current search is marked
-  **items-dirty** (a new flag beside `m_states_dirty`, using the same
-  refilter-on-next-activation mechanism, `search.h:82-85`).
-  Background tab captions are **not** recomputed per delta (each
-  caption requires that search's whole-collection refilter — exactly
-  the cascade M2 exists to avoid); they refresh when the search is
-  activated or at the final emit, as today. Accepted cost: background
-  captions may be stale during a long refresh.
-- **Foreground tier (delta intersects the current search).** The delta
-  is added to a pending set and published by a **non-resetting
-  trailing throttle with period S** (the freshness bound): when the
-  timer fires, the current search refilters, the model resets once,
-  and the existing restore machinery runs. The timer is started by the
-  first pending delta and is **not** re-armed by later arrivals — that
-  is the anti-starvation half: under steady one-reply-per-20-seconds
-  arrivals a resetting debounce would starve forever; this throttle
-  guarantees the visible view is never more than S behind the applied
-  state, and resets at most once per S. **Provisional S = 60
-  seconds**, chosen to dominate the ~20 s/tab arrival cadence by a
-  small integer factor; the exact value is a spike question (below),
-  not an argued constant.
+1. **Every delta marks every search items-dirty** — including the
+   current one, and regardless of intersection. A new flag beside
+   `m_states_dirty`, cleared per search by that search's own
+   successful refilter, consumed by the same
+   refilter-on-next-activation gate (`search.cpp:212`, extended to
+   test either flag). Rationale: every delta changes the underlying
+   `items()` for every search; intersection (rule 2) only decides
+   *urgency* for the visible one, never *whether* a search is stale.
+   A non-intersecting delta leaves the current search dirty too — its
+   next activation-refilter is wasted work if nothing visible changed,
+   accepted for the simplicity of one unconditional rule.
+2. **If the delta intersects the current search, its throttled
+   refilter is scheduled.** The timer is owned by the current search:
+   a **non-resetting trailing throttle with period S** (the freshness
+   bound). The timer is started by the first intersecting delta and is
+   **not** re-armed by later arrivals — that is the anti-starvation
+   half: under steady one-reply-per-20-seconds arrivals a resetting
+   debounce would starve forever; this throttle guarantees the
+   visible view is never more than S behind the applied state, and
+   resets at most once per S. **Provisional S = 60 seconds**, chosen
+   to dominate the ~20 s/tab arrival cadence by a small integer
+   factor; the exact value is a spike question (below), not an argued
+   constant.
+3. **When the timer fires, the current search refilters** — the model
+   resets once, the existing restore machinery runs — **and clears
+   only its own items-dirty flag.** Background searches stay dirty
+   until their own refilter.
+4. **A tab switch or search deletion cancels the old search's pending
+   timer.** Nothing is lost: rule 1 already marked the old search
+   dirty, and the dirty flag carries the update to its next
+   activation. The newly shown search refilters on arrival iff it is
+   dirty (the extended gate) — which also answers what "flushing" a
+   user-initiated refilter means: the user just paid for a refilter,
+   and the flags make it pick up every applied delta for free.
+5. **The final `ItemsRefreshed` cancels any pending timer** and runs
+   the existing full path, which refilters every search and clears
+   all items-dirty flags.
+
+Background tab captions are **not** recomputed per delta (each caption
+requires that search's whole-collection refilter — exactly the cascade
+M2 exists to avoid); they refresh when the search is activated or at
+the final emit, as today. Accepted cost: background captions may be
+stale during a long refresh.
 
 Intersection is decided on the delta alone, O(delta items): a delta
 intersects the current search iff any of its items matches the current
 filter set, **or** any item currently in the visible filtered result
-was fetched from the delta's fetch id (the removal half — an empty or
-shrunken replacement must count as a visible change). The mechanism
-for the removal test (e.g., a fetch-id set maintained per refilter) is
-implementation detail; both halves are the requirement.
+was fetched from the delta's fetch source (the removal half — an empty
+or shrunken replacement must count as a visible change). The mechanism
+for the removal test (e.g., a `FetchSourceKey` set maintained per
+refilter) is implementation detail; both halves are the requirement.
 
-The final `ItemsRefreshed` cancels any pending throttle tick and runs
-the existing full path. A user-initiated refilter (search form change,
-tab switch) also flushes the pending set — the user just paid for a
-refilter; folding pending deltas into it is free.
+**Automated acceptance tests (R1-5), against the existing fixture
+(`mainwindowfixture.h` / `tst_mainwindow.cpp`):** the five scenarios
+in the criteria list below — removal-only intersection, throttle
+non-rearming, tab switch before the tick, deletion with a pending
+timer, and final-snapshot cancellation. The state machine's
+correctness is pinned by tests; the spike below judges only feel.
 
 **Spike, not paper (S1-M2):** whether one reset-plus-restore per
 S = 60 s under the user's feet is acceptable steady-state UX cannot be
 settled by argument. Before freeze-or-implement of this D's constants:
 drive a scaled refresh (harness or live) with the throttle prototyped,
 and judge scroll/selection/expansion survival by hand. Outcomes: (a)
-acceptable → S is confirmed or tuned; (b) not acceptable → the
-foreground tier degrades to "current search updates only at final emit
-or on user action" for M2 (the freshness bound then applies only to
-intersection *detection* — e.g. a "view is behind, N tabs updated"
-affordance — and true in-place freshness waits for M3's bucket-scoped
-model ops). Either outcome ships M2; the spike only picks between two
-already-specified behaviors. The restore machinery itself (F23, F31,
-F32) is reused as-is either way and is retired by M3, not extended by
-M2.
+acceptable → S is confirmed or tuned; (b) not acceptable → rule 2
+degrades to "current search updates only at final emit or on user
+action" for M2 (the freshness bound then applies only to intersection
+*detection* — e.g. a "view is behind, N tabs updated" affordance — and
+true in-place freshness waits for M3's bucket-scoped model ops); rules
+1, 4, and 5 hold in either outcome. Either outcome ships M2; the spike
+only picks between two already-specified behaviors. The restore
+machinery itself (F23, F31, F32) is reused as-is either way and is
+retired by M3, not extended by M2.
 
 ### D10. Status-burst coalescing: measurement-gated
 
@@ -494,7 +640,7 @@ built. Recorded as measurement M1-M2 in the open-items list.
   `Update()` during an active update stays refused (network-redesign
   D6's update-state policy). Streaming actually sharpens the future
   design: once progress is visible and durable, "cancel" is just
-  request_stop with a `Failed{Canceled}`-flavored outcome and
+  request_stop with a `FailedRefresh{Canceled}`-flavored outcome and
   everything applied stays — but the semantics of *replace* (which
   selection wins, what happens to in-flight batches) expand M2
   considerably, exactly as the plan warned. Deferred; D4's outcome
@@ -514,10 +660,11 @@ built. Recorded as measurement M1-M2 in the open-items list.
 Worker-level (offline fake-network harness, extending the M1 suite):
 
 - `deltaMatchesAppliedReplacement` — every accepted content reply
-  emits exactly one `TabRefreshed` whose key is the reply's
-  (type, fetch id) and whose items are exactly the applied
-  replacement, emitted after the replace and before
-  `CheckUpdateFinished`.
+  emits exactly one **primary** replacement `TabRefreshed` whose key
+  is the reply's `FetchSourceKey` and whose items are exactly the
+  applied replacement, followed by zero or more empty reconciliation
+  deltas (a parent reply's ghost drops), in that order (R1-8) — all
+  after the replace and before `CheckUpdateFinished`.
 - `emptyDeltaEmptiesFetchSourceOnly` — an empty replacement empties
   that fetch source in the published copy and removes nothing else;
   no tab disappears from the published tab list mid-refresh.
@@ -525,40 +672,75 @@ Worker-level (offline fake-network harness, extending the M1 suite):
   listing a child yields an empty delta for the dropped child's fetch
   id, and the published parent bucket loses exactly those items.
 - `deltasNeverFollowTerminalEvent` — per update: all deltas precede
-  `RefreshFinished`; after a `Failed` outcome, settling stragglers
-  emit nothing (extends W-IDENTITY to the delta signal).
+  `RefreshFinished`; after a `FailedRefresh` outcome, settling
+  stragglers emit nothing (extends W-IDENTITY to the delta signal).
 - `terminalEventExactlyOncePerUpdate` — one `RefreshFinished` per
-  accepted `Update()`, on both success and first failure; second
-  failures and stragglers emit no second event.
+  accepted `Update()` (accepted = the Idle→Updating transition, R1-6),
+  on both success and first failure; second failures and stragglers
+  emit no second event, and `FailedRefresh` carries the **first**
+  terminal error even when later failures occurred (R1-6). The worker
+  is Idle when the event is observed, on both paths (R1-7).
 - `parseFailureSkipsTabAndUpdateCompletes` — a deterministic `Parse`
   failure on one content fetch: no delta for that source, its previous
   items survive in memory and datastore, counters reconcile, the
-  update completes, and the outcome lists the skipped source. A
-  `Network` failure on the same fixture stays terminal.
+  update completes, and the outcome lists the skipped source with its
+  error. A `Network` failure on the same fixture stays terminal.
 - `publishedStateIsSnapshotPlusAppliedDeltas` — at any point
   mid-update, `ItemsManager::items()` equals the pre-update snapshot
-  with applied replacements substituted; after a mid-update failure it
-  stays there (extends
+  with applied replacements (keyed by `FetchSourceKey`) substituted;
+  after a mid-update failure it stays there (extends
   `appliedReplySurvivesLaterFailureInMemoryAndDatastore` to the
   published copy).
 - `scopedPricingConvergesToFinalPass` — scoped per-delta pricing
   followed by the final pass yields `BuyoutManager` state identical to
   the final pass alone, modulo `last_update` timestamps; no scoped
-  pass ever calls `ClearRefreshLocks` or mutates lock state.
+  pass ever calls `ClearRefreshLocks`, and its only lock mutations are
+  additions (D7).
+- `scopedPricingIsFailSafeAcrossFailedUpdate` (R1-4) — after deltas
+  followed by a terminal failure: every published item whose buyout
+  `RequiresRefresh()` has its tab refresh-locked, and the tab-buyout
+  table equals its pre-update state (no tab-name auto-pricing leaked).
+- `shopSubmitsOnlyOnCleanCompletion` (R1-1) — with shop auto-update
+  enabled: a clean `CompletedRefresh` triggers exactly one automatic
+  submission; a completed-with-skips outcome and a `FailedRefresh`
+  trigger none.
 - `parentBucketMayMixChildGenerationsMidRefresh` — documented-behavior
   pin for D2's accepted transient, so the mixing is asserted
   deliberate rather than rediscovered as a bug.
 
+UI-level (against the existing `MainWindow` fixture,
+`mainwindowfixture.h` / `tst_mainwindow.cpp` — R1-5):
+
+- `backgroundDeltaLeavesModelUntouched` — a delta not intersecting the
+  current search performs no model operation and marks every search
+  items-dirty, including the current one.
+- `removalOnlyDeltaIntersects` — an empty delta whose fetch source has
+  items in the visible filtered result schedules the throttled
+  refilter (the removal half of the intersection test).
+- `throttleDoesNotRearm` — deltas arriving faster than S produce at
+  most one refilter per S; the first delta's deadline is not pushed
+  back by later arrivals.
+- `tabSwitchBeforeTickPreservesDirty` — switching searches with a tick
+  pending cancels the timer; the old search refilters on its next
+  activation via its items-dirty flag; nothing is lost.
+- `searchDeleteCancelsPendingTimer` — deleting the current search with
+  a tick pending fires nothing against the dead search.
+- `finalSnapshotCancelsPendingTick` — the final `ItemsRefreshed`
+  cancels a pending tick and the full path clears all items-dirty
+  flags.
+
 Design-review criteria (checked in review, not runnable):
 
 - No `TabRefreshed` connection reaches `Shop`, forum submission,
-  currency, `MigrateBuyouts`, or any whole-collection buyout pass.
-- The delta path performs O(delta) work everywhere except D9's single
+  currency, `MigrateBuyouts`, or any whole-collection buyout pass;
+  automatic submission is connected to `RefreshFinished` and gated per
+  D8.
+- The delta path performs O(delta) work everywhere except D3's
+  permitted linear erase pass (worker parity, R1-2) and D9's single
   budgeted coalesced refilter.
 - The persistence and presentation lanes share no payload types.
-- A background-tab delta performs no model operation (scroll/selection
-  /expansion survival by construction); UI-level verification is part
-  of the S1-M2 spike checklist.
+- Worker and `ItemsManager` erase by the same `FetchSourceKey`
+  predicate (R1-3).
 
 ## Open items requiring spike or measurement (not argument)
 
@@ -588,4 +770,9 @@ Design-review criteria (checked in review, not runnable):
 | Freshness bound, not just coalescing | D9 (non-resetting throttle, S, both halves stated) |
 
 Every inbox item is consumed; the emit-on-failure non-goal's "revisit
-at M2" is resolved by D4+D5.
+at M2" is resolved by D4+D5+D8's shop gate.
+
+Review round 1 (R1-1…R1-9, July 27, 2026) is incorporated throughout —
+verdicts and resolutions in `items-pipeline-m2-reviews.md`, summarized
+in its revision log. The shaping decisions D1/D2 were unchallenged and
+are unchanged.
