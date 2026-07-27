@@ -1110,9 +1110,9 @@ replaced by the drain loop.
   `BUILD_TESTING`** (that would disable acquisition's own test
   suite; QCoro maps `QCORO_BUILD_TESTING` onto a directory-scoped
   `BUILD_TESTING` of its own, so the parent's flag stays intact).
-  The spike's `spikes/qcoro/CMakeLists.txt` is the working
-  reference: it enables testing in the parent and verifies `ctest`
-  lists zero QCoro tests.
+  The flags are pinned in the root `CMakeLists.txt` (phasing step 2),
+  which is the working reference; the spike that validated them is
+  retired (July 2026) and lives in git history.
 - Qt has **no native** `QFuture` coroutine support as of 6.11; an
   upstreaming effort exists targeting 6.12 at the earliest. If it
   lands, the future-awaiting uses of QCoro can migrate; the
