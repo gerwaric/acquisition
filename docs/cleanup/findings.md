@@ -147,7 +147,7 @@ becomes available. Related: F21 ledger entry (per-`Item` raw JSON,
 retired by the glaze migration) — this finding is the opposite direction
 and does not revive that path.
 
-### F63. `Character::guardian` and `skills` are modeled but never ingested — Confirmed; policy undecided
+### F63. `Character::guardian` and `skills` are modeled but never ingested — Confirmed; deferred by decision
 
 Found July 27, 2026, during the 3.29 documentation reconciliation
 (external review). `poe::Character` models six item containers; both
@@ -159,16 +159,21 @@ typed parser and — being modeled — persisted in `json_data` (the F62
 lossy re-serialization does not drop them), but items in them never
 become visible `Items`, in memory or in any search.
 
-Open question, Tom's call: is the omission deliberate? `skills` may
-well be, if PoE2 character ingestion is out of scope; `guardian` looks
-like a plausible oversight for PoE1 users whose character payloads
-include items there.
-Decide and record before treating 3.29 support as fully reconciled. If
-either container should be ingested, the fix is adding it to both
-collection lists plus a location/category decision for how those items
-display; cached characters whose payloads contain either collection can
-backfill without a refetch because those containers are already
-persisted.
+Decision (Tom, July 27, 2026): deliberate deferral, not a release
+blocker. `guardian` is new in 3.29 and exposes a previously opaque
+inventory — the items equipped by a player's animate-guardian minion.
+Seeing them would be useful, but those items are unsellable once the
+guardian has equipped them, so there is no urgency; not 0.18 material.
+`skills` stays deferred with PoE2 character ingestion generally.
+
+For whoever implements this later: the unsellable nature is a design
+input, not just trivia — guardian items must stay out of the pricing
+and shop surfaces (auto-buyouts, tab-buyout propagation, forum shop
+submission), so the fix is adding the container to both collection
+lists *plus* a location/category decision for display *plus* an
+exclusion from trade features. Cached characters whose payloads
+contain either collection can backfill without a refetch because the
+containers are already persisted.
 
 ## Standing constraints and lessons
 
