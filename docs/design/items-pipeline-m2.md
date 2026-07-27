@@ -1,7 +1,7 @@
 # Items Pipeline Milestone 2: Streaming Refresh Signal
 
-Status: **draft for review — not frozen**. Revision 2 (July 27,
-2026), incorporating external review round 1; written on branch
+Status: **draft for review — not frozen**. Revision 3 (July 27,
+2026), incorporating external review rounds 1 and 2; written on branch
 `items-pipeline-m2-spec`. This spec consumes the M2 inbox in
 `items-pipeline.md` ("Inputs accumulated since this sketch") and its
 four hard constraints; the traceability table at the end maps every
@@ -229,20 +229,27 @@ void TabRefreshed(const ItemLocation &location, const Items &items);
 ```
 
 **Published storage stays the flat `Items` vector, and the erase is a
-permitted linear pass (R1-2).** Revision 1 claimed O(delta) work on
-this path while implying an O(all items) erase — an inconsistency the
-review caught. Resolved by legitimizing the erase rather than
-indexing: one predicate-only `erase_if` over the flat vector per
-delta is explicitly allowed, bounded by **worker parity** — it is the
-identical operation the worker itself performs per reply
-(`RemoveItemsFetchedBy`), shipped and accepted in M1, a
-sub-millisecond pointer-chase even at the 100k-item scale. No *other*
-whole-collection work runs on this path (hard constraint; acceptance
-criterion below). If measurement during implementation contradicts
-the bound, the named fallback is a source-keyed map
-(`FetchSourceKey → Items`) with a lazily rebuilt flat vector for
-`items()` consumers — which is also the natural M3 representation;
-M2 does not build it speculatively.
+permitted linear pass — gated by measurement (R1-2, R2-3).**
+Revision 1 claimed O(delta) work on this path while implying an
+O(all items) erase — an inconsistency the review caught. Resolved by
+legitimizing the erase rather than indexing: one predicate-only
+`erase_if` over the flat vector per delta is explicitly allowed. The
+precedent is **worker parity** — it is the identical operation the
+worker itself performs per reply (`RemoveItemsFetchedBy`), shipped in
+M1 — but precedent is not a bound (R2-3): the pass dereferences a
+heap object and compares type plus `QString` per entry, M2 doubles
+the per-reply scans, and the codebase itself acknowledges users at
+the "hundreds of thousands or millions of items" scale
+(`search.cpp:243`). The choice therefore carries a **blocking
+implementation measurement** (M2-M2, open-items list): the combined
+worker + manager per-delta erase cost on representative 100k and 1m
+datasets, thresholds **< 2 ms at 100k and < 16 ms (one frame) at
+1m**. Exceeding a threshold makes the fallback **required, not
+discretionary**: a source-keyed map (`FetchSourceKey → Items`) with a
+lazily rebuilt flat vector for `items()` consumers — which is also
+the natural M3 representation; M2 does not build it speculatively.
+No *other* whole-collection work runs on this path (hard constraint;
+acceptance criterion below).
 
 ### D4. A typed terminal event, and no rollback
 
@@ -281,14 +288,37 @@ void RefreshFinished(const RefreshOutcome &outcome);
   updating". (Implementation note: `FinishUpdate` today sets Idle
   *after* its emit, `itemsmanagerworker.cpp:1279` — the terminal emit
   goes after that assignment.)
-- **First-error preservation (R1-6).** `AbortUpdate()` currently
+- **Terminal fan-out is reentrancy-guarded (R2-2).** Idle-before-
+  terminal invites a synchronous observer to start N+1 — but
+  `RunUpdate` launches synchronously and a fail-fast future completes
+  inline during the launch loop (`itemsmanagerworker.cpp:502-508`), so
+  an update started mid-fan-out can emit N+1's signals — including
+  its own terminal event, e.g. on a setup-cooldown fail-fast, which
+  is production-reachable — *nested inside* N's fan-out, delivering
+  N+1 events to later observers before their `RefreshFinished(N)`.
+  That would defeat the ordering-is-identity contract above. The
+  worker therefore holds a delivering-terminal flag across the
+  `RefreshFinished` emit: an `Update()` arriving in that window is
+  **accepted-and-deferred** to the next event-loop turn (the same
+  shape as the existing deferral-while-initializing; it is "accepted"
+  per this D's definition at the moment it actually transitions); a
+  second request inside the window is refused exactly as if an update
+  were active — the deferred update occupies the pending slot.
+  Pinned: `terminalFanOutDefersReentrantUpdate`.
+- **First-error preservation (R1-6, R2-4).** `AbortUpdate()` currently
   receives no error; M2 states the plumbing: every value-level failure
   branch hands its `FetchError` to `StopUpdateForFailure`, which
-  stores the update's first terminal error; the per-fetch and
-  orchestration catch-alls store an `Internal`-kind error the same
-  way; `AbortUpdate` emits `FailedRefresh` with the stored error.
-  Later failures and settling stragglers cannot overwrite it (the
-  already-terminal guard returns early).
+  stores the update's first terminal error **before firing the
+  throwable test fault hook** — the stopped-but-still-active window
+  the catch-alls must recognize already has the error recorded; the
+  per-fetch and orchestration catch-alls store an `Internal`-kind
+  error the same way; `AbortUpdate` emits `FailedRefresh` with the
+  stored error, which **resets at the next accepted update**. Later
+  failures and settling stragglers cannot overwrite it (the
+  already-terminal guard returns early). Every terminal path has a
+  defined error: the one branch that previously held none — a 200
+  wrapper missing its stash/character payload — is reclassified at
+  the facade and leaves the terminal set entirely (D5, R2-4).
 - **`Canceled` mapping (R1-6, completing D5's classification).** A
   `Canceled` result whose update token is stopped never reaches a
   handler — the post-await check discards it (network-redesign D6).
@@ -343,8 +373,10 @@ fetches) are classified by `FetchError::Kind`:
   non-destructive semantics. The update completes; the terminal event
   reports `CompletedRefresh` with the skipped list (D4), and the final
   `ItemsRefreshed` publishes as usual (the skipped tab's list metadata
-  is still upserted; its contents are old — the same listed-but-cold
-  state F55-revised already defines). **Skips are user-visible
+  is still upserted, and a successful final rebase freshens its
+  surviving items' embedded metadata; the tab is **listed with stale
+  contents** — not F55's listed-but-cold state, since its contents
+  survive rather than being absent). **Skips are user-visible
   (R1-1):** the final status message states the count ("Received N
   tabs, M skipped") and the skipped sources are named in the log at
   warn level; the typed event carries the details for anything that
@@ -364,6 +396,19 @@ fetches) are classified by `FetchError::Kind`:
   bug. `Canceled` reaches a handler only with an unstopped token and
   maps per D4's mapping. List-fetch failures of any kind stay
   terminal — the update cannot even define its batches without lists.
+- **Missing-wrapper payloads become facade `Parse` errors (R2-4).**
+  Today a 200 whose parsed wrapper lacks its stash/character
+  sub-object aborts from worker branches that hold no `FetchError`
+  (`itemsmanagerworker.cpp:901/1033`) — undefined inputs for D4's
+  first-error plumbing. Resolved through D1 rather than by
+  synthesizing an error in the worker: the post-F62 facade extracts
+  that sub-object anyway (it must, to capture the raw bytes), so an
+  absent payload is classified at the facade as `Parse` and the
+  worker branches are deleted. Stated consequence, decided
+  deliberately: the missing-wrapper case thereby moves from terminal
+  into this D's skip set — it is deterministic per tab, retrying is
+  futile, and one such tab must not abort hour ten. Pinned:
+  `missingStashWrapperSkipsTab` / `missingCharacterWrapperSkipsTab`.
 
 The scope here is deliberately minimal: one kind, on one fetch class,
 with the proven incident behind it. Extending skip-and-continue (or
@@ -456,10 +501,10 @@ final-pass-only.** Revision 1 ran it per delta; R1-4 showed that
 mutates persistent, global tab-buyout state keyed by metadata whose
 publication D6 deliberately keeps snapshot-boundary — after a failed
 update the mutation would persist with no final pass to reconcile it
-and no published tab list that explains it. Cost of the restriction: a
-*renamed-to-a-price* tab's streamed items inherit the old published
-tab price (or none) until a successful final pass — the same class of
-transient as the renamed-tab note below.
+and no published tab list that explains it. Cost of the restriction —
+the one real rename transient: a *renamed-to-a-price* tab's streamed
+items inherit the old published tab price (or none) until a successful
+final pass runs the auto-tab step.
 
 Also excluded, as before: `MigrateBuyouts`, `CompressTabBuyouts`, and
 any `Save()` scheduling beyond what `BuyoutManager`'s existing dirty
@@ -478,10 +523,11 @@ Two safety properties, both pinned:
   its tab locked, and the tab-buyout table is unchanged from its
   pre-update state. (`scopedPricingIsFailSafeAcrossFailedUpdate`.)
 
-Known transient, accepted: a renamed tab's streamed items key their tab
-buyout lookup by fresh metadata while the published tab-buyout table
-still holds the old key (D6) — such items may show as unpriced/inherit
-until the final pass heals them.
+Inheritance itself is rename-proof: `GetTab` keys on the stable
+`location.id()`, not on label metadata (`buyoutmanager.cpp:101`), so
+a renamed tab's streamed items find their existing tab buyout per
+delta. (Revision 2 claimed a label-keyed lookup transient here; round
+2 corrected it — no such transient exists.)
 
 ### D8. The final-emit contract: unchanged, with one deliberate exception — the shop gate
 
@@ -508,10 +554,35 @@ contents for *unselected* tabs today — the gate closes the new
 hazard, a selected tab going silently stale into a post. Pinned:
 `shopSubmitsOnlyOnCleanCompletion`.
 
+**Submission input is captured by value at request time (R2-1).** The
+gate governs when submission *starts*, not what it reads:
+`SubmitShopToForum` is asynchronous — it first fetches the legacy
+stash index (`shop.cpp:175-194`) and only the continuation reads
+`ItemsManager::items()` and the buyouts (`shop.cpp:289`). Update N+1,
+legally started the moment N's terminal event lands (D4), can stream
+deltas into the published state N's "clean" submission would then
+read — a hazard that is new under M2, because today `items()`
+changes only at final snapshots. The shop therefore captures an
+immutable snapshot of its submission input — the postable items'
+identity, location, and buyout fields, **by value** — at the moment
+submission is requested, and applies the stash index to that capture
+when the index arrives. Value capture, not retained `shared_ptr`s:
+N+1's successful `FinishUpdate` rebases the shared `Item` objects in
+place, so a pointer capture would mutate under the submission.
+**Manual submission during an active refresh captures and submits the
+current published state** — deliberately accepted: deferring it to a
+terminal outcome would block manual submission for the whole of an
+hours-long refresh, and "what you see is what you post" is exactly
+D4's no-rollback framing. Pinned:
+`shopSubmissionUsesCapturedSnapshot` (staged: hold the stash-index
+future, apply an N+1 delta, resolve the future, assert the submission
+reflects N's capture).
+
 Restating the plan's hard constraints as design:
 
-- **No per-delta forum submission** — `Shop` connects to
-  `RefreshFinished` as above, and never to `TabRefreshed`.
+- **No per-delta forum submission** — `Application` invokes the shop
+  from `RefreshFinished` as above; nothing connects `Shop` to
+  `TabRefreshed`.
 - **No per-delta whole-collection scans** — the delta path in
   `ItemsManager` (D3, D7) and `MainWindow` (D9) touches O(delta) items
   plus D3's permitted linear erase pass (R1-2, worker-parity bound)
@@ -593,8 +664,11 @@ refilter) is implementation detail; both halves are the requirement.
 (`mainwindowfixture.h` / `tst_mainwindow.cpp`):** the five scenarios
 in the criteria list below — removal-only intersection, throttle
 non-rearming, tab switch before the tick, deletion with a pending
-timer, and final-snapshot cancellation. The state machine's
-correctness is pinned by tests; the spike below judges only feel.
+timer, and final-snapshot cancellation. The throttle period is
+injectable (constructor parameter or test hook) so the suite drives
+it at milliseconds — `throttleDoesNotRearm` must not wait wall-clock
+S (R2 minor). The state machine's correctness is pinned by tests; the
+spike below judges only feel.
 
 **Spike, not paper (S1-M2):** whether one reset-plus-restore per
 S = 60 s under the user's feet is acceptable steady-state UX cannot be
@@ -685,6 +759,15 @@ Worker-level (offline fake-network harness, extending the M1 suite):
   items survive in memory and datastore, counters reconcile, the
   update completes, and the outcome lists the skipped source with its
   error. A `Network` failure on the same fixture stays terminal.
+- `missingStashWrapperSkipsTab` / `missingCharacterWrapperSkipsTab`
+  (R2-4) — a 200 whose wrapper lacks its stash/character sub-object
+  surfaces as a facade `Parse` error and takes the skip path, with the
+  source and error in the outcome's skipped list.
+- `terminalFanOutDefersReentrantUpdate` (R2-2) — with two terminal
+  observers where the first starts a synchronously-failing N+1: the
+  second observer receives `RefreshFinished(N)` before any N+1
+  signal; the deferred N+1 runs on the next event-loop turn; a second
+  `Update()` requested inside the fan-out window is refused.
 - `publishedStateIsSnapshotPlusAppliedDeltas` — at any point
   mid-update, `ItemsManager::items()` equals the pre-update snapshot
   with applied replacements (keyed by `FetchSourceKey`) substituted;
@@ -700,13 +783,21 @@ Worker-level (offline fake-network harness, extending the M1 suite):
   followed by a terminal failure: every published item whose buyout
   `RequiresRefresh()` has its tab refresh-locked, and the tab-buyout
   table equals its pre-update state (no tab-name auto-pricing leaked).
+- `parentBucketMayMixChildGenerationsMidRefresh` — documented-behavior
+  pin for D2's accepted transient, so the mixing is asserted
+  deliberate rather than rediscovered as a bug.
+
+Shop-level (extending the existing `tst_shop` suite):
+
 - `shopSubmitsOnlyOnCleanCompletion` (R1-1) — with shop auto-update
   enabled: a clean `CompletedRefresh` triggers exactly one automatic
   submission; a completed-with-skips outcome and a `FailedRefresh`
   trigger none.
-- `parentBucketMayMixChildGenerationsMidRefresh` — documented-behavior
-  pin for D2's accepted transient, so the mixing is asserted
-  deliberate rather than rediscovered as a bug.
+- `shopSubmissionUsesCapturedSnapshot` (R2-1) — staged: request
+  submission for update N, hold the stash-index future, begin N+1 and
+  apply a delta (including a rebase-visible change), resolve the
+  future — the generated shop reflects N's captured input, not N+1's
+  partial state.
 
 UI-level (against the existing `MainWindow` fixture,
 `mainwindowfixture.h` / `tst_mainwindow.cpp` — R1-5):
@@ -750,6 +841,11 @@ Design-review criteria (checked in review, not runnable):
 - **M1-M2 (measurement, blocks nothing):** 2,000-entry `QueueUpdated`
   burst vs. status-widget frame time; builds the D10 coalesce only if
   it stutters.
+- **M2-M2 (measurement, blocks D3's storage choice during
+  implementation, R2-3):** combined worker + manager per-delta erase
+  cost on representative 100k and 1m item datasets; thresholds < 2 ms
+  at 100k, < 16 ms at 1m. Exceeding a threshold makes D3's
+  source-keyed fallback required, not discretionary.
 
 ## Input traceability
 
@@ -772,7 +868,11 @@ Design-review criteria (checked in review, not runnable):
 Every inbox item is consumed; the emit-on-failure non-goal's "revisit
 at M2" is resolved by D4+D5+D8's shop gate.
 
-Review round 1 (R1-1…R1-9, July 27, 2026) is incorporated throughout —
-verdicts and resolutions in `items-pipeline-m2-reviews.md`, summarized
-in its revision log. The shaping decisions D1/D2 were unchallenged and
-are unchanged.
+Review rounds 1 and 2 (R1-1…R1-9, R2-1…R2-4 plus four corrections,
+July 27, 2026) are incorporated throughout — verdicts and resolutions
+in `items-pipeline-m2-reviews.md`, summarized in its revision log. The
+shaping decisions D1/D2 survived both rounds unchanged. Round 2's
+stated freeze gate: R2-1/R2-2 designed (done, D8/D4), R2-3's
+measurement gate stated (done, M2-M2), R2-4 mapped (done, D5/D4), and
+the S1-M2 spike completed (outstanding — the one remaining gate before
+freeze).

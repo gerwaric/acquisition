@@ -58,6 +58,45 @@ milestone early. R1-5's state machine replaced a vaguer two-tier
 description outright — the reviewer's version is both simpler and
 closes two holes the draft's wording created.
 
+## Round 2 — external review (July 27, 2026)
+
+Read-only design/code review of spec revision 2 (commit `5cc6db10`),
+same external reviewer. Verdict: the revision closes the round-1
+findings well; two new blocking interactions, two material gaps, four
+minor corrections. Freeze gate stated: R2-1/R2-2 designed, R2-3 given
+a concrete measurement gate, R2-4 mapped, and the S1-M2 spike
+completed.
+
+Every code claim was re-verified before acceptance (`shop.cpp`
+submission chain, the inline fail-fast completion comment in
+`RunUpdate`, `GetTab`'s id-only key, the `search.cpp` scale comment).
+All four findings and all four corrections were accepted; none were
+modified in substance. The round's pattern, recorded for future
+rounds: both blockers were contracts that held at the signal layer
+but broke one layer up (the shop's asynchronous submission pipeline)
+or one nesting level down (synchronous reentrancy inside terminal
+fan-out).
+
+| ID | Group | Finding | Status |
+|---|---|---|---|
+| R2-1 | Shop / mid-refresh state | The clean-completion gate governs when submission *starts*, but `SubmitShopToForum` is asynchronous: it fetches the legacy stash index first (`shop.cpp:175-194`) and only the continuation reads live `ItemsManager::items()` and buyouts (`shop.cpp:289`). Update N+1, legally started after N's terminal event, can stream deltas into the state N's "clean" submission then reads — new under M2, since today `items()` changes only at final snapshots. | Resolved in D8: submission input is captured as an immutable **value** snapshot at request time (shared pointers are insufficient — N+1's successful rebase mutates shared `Item`s in place); the index is applied to the capture on arrival. Manual submission during a refresh captures and submits current published state, deliberately accepted. Pinned `shopSubmissionUsesCapturedSnapshot` (staged test). |
+| R2-2 | Terminal fan-out reentrancy | D4's Idle-before-terminal invites a synchronous observer to start N+1 — but `RunUpdate` launches synchronously and fail-fast futures complete inline (`itemsmanagerworker.cpp:502-508`), so N+1's signals (even its terminal event, e.g. on a setup-cooldown fail-fast) can fire nested inside N's fan-out, reaching later observers before their `RefreshFinished(N)`. Defeats the ordering-is-identity contract that justified omitting an update ID; composes with R2-1. | Resolved in D4: a delivering-terminal guard around the `RefreshFinished` emit — an `Update()` in the window is accepted-and-deferred to the next event-loop turn (the deferral-while-initializing shape); a second request in the window is refused as if an update were active. Pinned `terminalFanOutDefersReentrantUpdate`. |
+| R2-3 | Storage performance claim | Revision 2's "sub-millisecond pointer-chase at 100k" was asserted, not measured; the erase dereferences a heap object and compares type + `QString` per entry, M2 doubles the per-reply scans, and the code itself acknowledges users at the "hundreds of thousands or millions of items" scale (`search.cpp:243`). Worker parity establishes precedent, not a bound. | Resolved in D3: the flat-vector choice stands but now carries a **blocking implementation measurement** (M2-M2) with stated thresholds (combined erases < 2 ms at 100k, < 16 ms at 1m) on representative datasets; exceeding them makes the source-keyed fallback required, not discretionary. |
+| R2-4 | First-error coverage | The missing-wrapper branches (a 200 whose parsed wrapper lacks its stash/character sub-object, `itemsmanagerworker.cpp:901/1033`) are terminal but hold no `FetchError`, so D4's first-error plumbing had undefined inputs; hook ordering and reset were also unstated. | Resolved in D5/D4 via the facade rather than synthesis: post-F62 the facade extracts the sub-object anyway (bytes capture), so an absent payload is reclassified as a facade-level `Parse` error and the worker branches are deleted — deliberately moving the case into D5's skip set. First-error storage precedes the fault hook and resets at the next accepted update. Pinned `missingStashWrapperSkipsTab` / `missingCharacterWrapperSkipsTab`. |
+
+**Minor corrections, all adopted:** (1) revision 2's trailing D7
+"renamed tab keyed by fresh metadata" transient was wrong —
+`GetTab` keys on stable `location.id()` (`buyoutmanager.cpp:101`), so
+per-delta inheritance is rename-proof and the paragraph is deleted;
+the only real transient is the renamed-to-a-price tab awaiting the
+final auto-tab pass, already described. (2) A skipped source is
+"listed with stale contents", not F55's "listed-but-cold" — its
+contents survive, and a successful final rebase still freshens their
+embedded metadata. (3) `Application`, not `Shop`, connects to
+`RefreshFinished` (the D8 criterion said otherwise). (4) The D9
+throttle period must be injectable so `throttleDoesNotRearm` does not
+wait wall-clock S.
+
 ## Revision log
 
 - **Revision 1** (July 27, 2026, commit `aaa70f1e`): initial draft —
@@ -75,3 +114,13 @@ closes two holes the draft's wording created.
   first-error preservation and pinned Idle-before-terminal ordering,
   and F46 absorbed. The shaping decisions D1/D2 are unchanged. This
   file split out in the same commit.
+- **Revision 3** (July 27, 2026): round-2 incorporation — R2-1 through
+  R2-4 resolved as tabled above, plus the four minor corrections.
+  Substantive changes: shop submission input captured by value at
+  request time with the manual-submission policy stated (D8),
+  terminal fan-out reentrancy guard with accept-and-defer semantics
+  (D4), the linear-erase choice gated by the blocking M2-M2
+  measurement with a mandatory fallback (D3), missing-wrapper
+  payloads reclassified as facade `Parse` errors joining the skip set
+  with first-error hook ordering and reset stated (D5/D4), and the
+  incorrect renamed-tab transient deleted from D7.
