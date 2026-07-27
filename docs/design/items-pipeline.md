@@ -73,11 +73,14 @@ begins:
 submission (`network-redesign.md`, D6). Commit 1's generation-tag
 mechanism was deleted along with the worker queue and
 `SubmitNextItemRequest`: update identity is now the per-update
-`std::stop_token` under the post-await invariant, and the F28
-stale-arrival hole is unreachable by construction at the future
-boundary — each fetch is completed exactly once by the pump, so the
-worker never has an unaccounted request in flight when an update
-aborts. Commit 2's semantics — atomic per-reply replacement, list
+`std::stop_token` under the post-await invariant. Batch submission
+puts several fetches in flight at once, and an abort leaves them
+there — they resolve `Canceled` as accounted stopped siblings. F28's
+misattribution stays impossible not because nothing is outstanding,
+but because every fetch carries its update's captured stop token,
+every consumer checks it immediately after its await before touching
+worker state, and each future is completed exactly once by the pump.
+Commit 2's semantics — atomic per-reply replacement, list
 reconciliation, selection-only fetching (F55 revised / F61),
 rebase-on-success, no emit on terminal failure — are preserved by the
 rewrite. This section remains the record of what M1 shipped; read D6
@@ -140,8 +143,13 @@ re-parallelization.)
   with an existing tab whose contents were merely cold, so a partial
   refresh ballooned into a full one whenever the contents cache was cold —
   a fresh install, an upgrade from an older Acquisition (whose contents
-  live in a different datastore that is never migrated), or a datastore
-  that had only ever stored tab lists. The revised rule keys purely on the
+  live in a different datastore that is never migrated), a datastore
+  that had only ever stored tab lists, or — since 0.18's payload
+  versioning — a `json_version` invalidation: version-mismatched rows
+  keep tab metadata but yield no contents (pinned by
+  `staleRowsKeepMetadataButYieldNoJson`), and the 3.29 wire-format
+  change puts every upgrader in exactly this listed-but-cold state,
+  filled in by their next full refresh. The revised rule keys purely on the
   selection: partial refreshes never fetch outside their selection, so the
   whole `m_contents_known` apparatus (parse-time seeding, the never-consume
   failure edge, the Map/Unique deferred-completion accounting) is deleted.
@@ -229,27 +237,85 @@ the M2 spec:**
   emits typed per-tab signals wired to the datastore repos:
   `stashReceived`, `characterReceived`, `stashListReplaced`,
   `characterListReplaced`, `stashChildrenReplaced`
-  (`itemsmanagerworker.h`). The M2 spec must decide whether
-  `TabRefreshed` reuses this surface or parallels it — and keep the
-  two lanes from drifting if they stay separate.
+  (`itemsmanagerworker.h`). These are persistence signals, not
+  presentation deltas — see the delta-shape input below for why the
+  M2 signal is expected to be separate; the spec should confirm that
+  split and keep the two lanes from drifting.
 - **Explicit M2 deferrals from the network redesign (D6):**
   whole-update replacement/coalescing (an `Update()` during an active
   update is refused today); reprioritization (flagged as *not* cheap
   later — the stop token is per-update, so per-entry cancellation
   does not exist); per-tab retry and durable progress; UI-side
-  coalescing of the batch-submit `QueueUpdated` burst.
+  coalescing of the batch-submit `QueueUpdated` burst. These are
+  decisions the M2 spec must make, not scope it must implement:
+  whole-update replacement and reprioritization are not required to
+  ship streaming and could expand M2 considerably. Per-tab failure
+  policy is the most load-bearing of the set, and it must distinguish
+  deterministic failures (parse/protocol — retrying is futile; the
+  3.29 `flags: []` incident showed one deterministic parse failure
+  aborting whole updates) from transient ones.
 - **New behavioral fact from phase 5:** the first terminal failure
   returns the worker to idle immediately, so a new update may be
   active while the stopped update's canceled stragglers are still
   settling. Stragglers apply nothing (post-await invariant), but the
   delta-signal design must tolerate the overlap.
-- **F62 (fix shape decided July 26, 2026):** raw reply bytes enter
-  the datastore through the persistence lane only — the facade
-  returns the parsed payload plus the raw sub-object bytes, and
-  `stashReceived`/`characterReceived` carry the bytes opaquely to the
-  repos (full decision in the F62 entry, `docs/cleanup/findings.md`).
-  Consequence for M2: the delta signals carry locations — never item
-  payloads, never bytes; the datastore lane is already served.
+- **F62 (fix shape decided July 26, 2026 — not yet implemented):**
+  raw reply bytes will enter the datastore through the persistence
+  lane only — the facade returns the parsed payload plus the raw
+  sub-object bytes, and `stashReceived`/`characterReceived` carry the
+  bytes opaquely to the repos (full decision in the F62 entry,
+  `docs/cleanup/findings.md`). Until it lands, D7's
+  no-bytes-above-the-boundary contract is still the code's reality —
+  the M2 spec treats F62 as a decided dependency, not current state.
+  Consequence for M2: deltas never carry wire bytes or `poe::*` API
+  objects — the persistence lane owns those — but they **must** carry
+  pipeline-native items, per the next input.
+- **The delta must carry items, not just a location (second-opinion
+  review, July 2026).** `ItemsManager` copies the worker's vector
+  only at the final snapshot (`OnItemsRefreshed`); newly parsed items
+  exist nowhere downstream until then. A location-only signal tells
+  `ItemsManager` what to erase and gives it nothing to append. A
+  streaming delta therefore carries the complete pipeline-native
+  `Items` replacement for one fetch source (possibly empty — a
+  deleted or emptied tab), keyed explicitly by (location type,
+  fetch-source id): `fetch_id()` is deliberately excluded from
+  `ItemLocation` comparison, so anything keyed on location equality
+  would collapse Map/Unique child replacements into one. The signal
+  is separate from `stashReceived`/`characterReceived`, which carry
+  API-domain payloads and fire before the worker's atomic
+  replacement. The spec must also pick the user-visible atomic unit
+  for special tabs: per fetch source (finer progress, but a parent
+  bucket can transiently mix old and new child data) or per display
+  tab (coarser, publishes the parent once its enabled children
+  settle).
+- **A typed terminal event and an explicit no-rollback policy.**
+  Deltas applied before a later terminal failure stay applied in
+  memory and datastore by design (pinned:
+  `appliedReplySurvivesLaterFailureInMemoryAndDatastore`). Once
+  deltas stream, `StatusUpdate` strings are not a semantic boundary:
+  downstream consumers need an explicit completed/failed outcome
+  event, and the spec must state the no-rollback policy it implies.
+  (This is the concrete form of the emit-on-failure non-goal's
+  "revisit at M2".)
+- **Buyout scoping per delta.** The constraint is "no
+  whole-collection buyout pass per delta", not "no pricing until the
+  final emit": streamed items that sit visibly unpriced for hours
+  (auto-item and inherited tab pricing) are a real cost at the
+  hours-long-refresh scale, so item-local scoped pricing per delta is
+  a design option the spec should weigh. Mind `PropagateTabBuyouts`'s
+  global `ClearRefreshLocks` either way.
+- **State the persistence/presentation split.** Content replacements
+  stream; other worker mutations (list reconciliation's deletions and
+  renames, the location rebase) may stay final-only. "ItemsManager
+  applies the same delta" is under-specified — the spec must say
+  exactly which worker mutations are mirrored per delta and which
+  remain snapshot-boundary effects.
+- **A freshness bound, not just coalescing.** A resetting trailing
+  debounce can starve under steady one-reply-per-20-seconds
+  arrivals. The coalescing contract needs both halves stated: no
+  uncoalesced per-delta reset (already a constraint above) and a
+  maximum staleness — a throttle that guarantees the visible view is
+  never more than a stated interval behind the applied state.
 
 ### Milestone 3 — Delta-native items model (later)
 
@@ -283,7 +349,12 @@ Make Layer 3 consume deltas natively, eliminating the full reset:
   **Complete July 23, 2026:** phases 0–5 merged to master (PR #175);
   the network layer is settled ground for the M2 spec, not concurrent
   work.
-- **Datastore schema changes.** Per-tab persistence already works.
+- **Datastore redesign / delta persistence.** Per-tab persistence
+  already works and this plan does not restructure it. (The original
+  "no schema changes" wording is retired: 0.18 added the
+  `json_version` payload-versioning column, and F62 will change what
+  the persistence lane carries — both independent correctness work,
+  neither driven by this plan.)
 - **UI/UX redesign** beyond refresh behavior; no theming, packaging, or
   `Item` class rework.
 
