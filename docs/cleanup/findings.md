@@ -153,20 +153,22 @@ Found July 27, 2026, during the 3.29 documentation reconciliation
 (external review). `poe::Character` models six item containers; both
 ingestion sites enumerate only four — `equipment`, `inventory`,
 `rucksack`, `jewels` (`itemsmanagerworker.cpp`: the cached-parse
-collection list and the live `OnCharacterReceived` list). `guardian`
-(PoE1 only) and `skills` (PoE2 only) are received, parsed, and — being
-modeled — persisted in `json_data` (the F62 lossy re-serialization does
-not drop them), but items in them never become visible `Items`, in
-memory or in any search.
+collection list and the live `OnCharacterReceived` list). When present,
+`guardian` (PoE1 only) and `skills` (PoE2 only) are accepted by the
+typed parser and — being modeled — persisted in `json_data` (the F62
+lossy re-serialization does not drop them), but items in them never
+become visible `Items`, in memory or in any search.
 
 Open question, Tom's call: is the omission deliberate? `skills` may
 well be, if PoE2 character ingestion is out of scope; `guardian` looks
-like a plausible oversight for PoE1 users with items socketed there.
+like a plausible oversight for PoE1 users whose character payloads
+include items there.
 Decide and record before treating 3.29 support as fully reconciled. If
 either container should be ingested, the fix is adding it to both
 collection lists plus a location/category decision for how those items
-display; because the containers are already persisted, cached
-characters backfill without a refetch.
+display; cached characters whose payloads contain either collection can
+backfill without a refetch because those containers are already
+persisted.
 
 ## Standing constraints and lessons
 
