@@ -9,6 +9,10 @@ when this map and a header disagree, the header wins.
 - `design/items-pipeline.md` — plan for the delta-native redesign of the
   items refresh pipeline. Milestone 1 shipped July 2026; M2/M3 get their
   own specs before their code begins.
+- `design/items-pipeline-m2.md` — draft spec (not frozen) for Milestone
+  2, the streaming refresh signal: D-numbered decisions consuming the
+  plan's M2 inbox, with an input-traceability table and the open
+  spike/measurement items.
 - `design/network-redesign.md` — accepted, frozen spec for the
   rate-limited networking redesign (typed facade, coroutine pumps, gate),
   revision 11. Records current decisions only; cites review finding IDs inline.

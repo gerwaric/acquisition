@@ -197,7 +197,7 @@ above): keying "new" on cached contents made a partial refresh balloon
 into a full one on a cold contents cache, so the auto-fetch was dropped in
 favor of fetching strictly the selection.
 
-### Milestone 2 — Streaming refresh signal (next; spec pending)
+### Milestone 2 — Streaming refresh signal (next; draft spec in review: `items-pipeline-m2.md`)
 
 Surface per-tab progress without triggering the snapshot cascade:
 
