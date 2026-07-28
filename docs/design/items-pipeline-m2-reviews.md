@@ -97,39 +97,44 @@ embedded metadata. (3) `Application`, not `Shop`, connects to
 throttle period must be injectable so `throttleDoesNotRearm` does not
 wait wall-clock S.
 
-## Round 3 — external review (July 27, 2026) — OPEN, unresolved
+## Round 3 — external review (July 27, 2026) — resolved July 28
 
 Read-only design review of spec revision 3 (**reviewed baseline:
 commit `58d33480`**), same external reviewer. Verdict: revision 3
 incorporates round 2 correctly but is not ready to proceed directly
 to the spike — one new blocking shop-state issue, two material
 state-machine gaps, one process contradiction, one wording
-correction.
-
-**Recorded, not verified.** This round was recorded by the outgoing
-spec session as a handoff; per the practice of rounds 1–2, the
-incorporating session must re-verify every code claim against the
-codebase before accepting or resolving any finding, then fold the
-resolutions into spec revision 4 and complete this table's Status
-column.
-
-**Recommended resolution order** (from the outgoing session, for the
-incorporator): verify all four first; then R3-4 (a process decision
-for Tom — it shapes how the spike is planned), then R3-1 (the largest
-design work: a submission state machine), then R3-2 and R3-3
-(contained amendments to D4 and the M2-M2 contract).
+correction. Every code claim was re-verified against `d995840b`
+(unchanged beneath the docs-only spec branch) before acceptance:
+`Shop`'s busy refusal and asynchronous index continuation, every
+`m_shop_data_outdated` clear, the job-global `m_shop_data` consumption,
+the worker's synchronous launch and Idle-only admission check, and the
+absence of an existing benchmark contract. All four findings and the
+wording correction were accepted.
 
 | ID | Group | Finding | Status |
 |---|---|---|---|
-| R3-1 | Shop submission coalescing | The immutable capture (R2-1) removes an *accidental coalescing* the live read provided: `Shop` refuses a submission while one is active (`shop.cpp:146` claimed), so if clean N+1 finishes while N's capture is still submitting, N+1's auto-submit is refused and `UpdateShopData()` completing N clears `m_shop_data_outdated` (`shop.cpp:355` claimed) — N+1 is neither posted nor left pending. Related: deltas deliberately do not call `ExpireShopData`, so a forced manual mid-refresh submission can find the outdated flag false and reuse cached shop data instead of rendering its fresh capture. Reviewer proposes an explicit submission state machine: every request captures; if busy, retain one pending latest auto snapshot; a monotonic shop-input revision replaces the boolean; completing N marks only N's revision clean; drain pending after the active submission ends; manual submission renders its capture regardless of the flag; centralized completion applies one pending policy on every exit; decide whether pending drains after a *failed* submission (probably not after auth failure, while staying outdated). Staged tests: N+1-completes-during-N, latest-wins coalescing, manual-after-delta with stale flag, newer expiry not cleared by older completion. | **Open** |
-| R3-2 | Terminal-deferral reservation | The R2-2 guard protects the fan-out window only; between fan-out end and the queued turn, another `Update()` can observe an Idle worker and start first, so the promised deferred update is refused, delayed, or reordered. Reviewer proposes treating the deferred update as an active reservation until its Idle→Updating transition: later requests refused while reserved; selection arguments copied at reservation time; reservation cleared immediately before starting; worker destruction before the queued turn = "never accepted". Extend `terminalFanOutDefersReentrantUpdate` with a request arriving after fan-out but before the deferred turn. | **Open** |
-| R3-3 | M2-M2 contract precision | The combined worker+manager threshold can fail in a way the named fallback cannot fix: the fallback re-indexes only `ItemsManager` storage, so if the worker's own scan alone exceeds the budget, the combined measurement still fails. Reviewer recommends measuring worker and manager separately, gating the M2 storage choice on the manager's *marginal* cost (combined reported as context), and recording a separate worker-index finding if the worker independently blows its budget; alternatively a combined threshold with a both-sides fallback, or measuring the whole synchronous delta path if the threshold means a frame budget. Also record build mode and measurement environment. | **Open** |
-| R3-4 | Process: spike vs. freeze | The spec says implementation begins only after freeze (working rule 1) while S1-M2 needs a working throttle prototype and is the declared pre-freeze gate — a contradiction as written. Reviewer recommends a documented exception: a dedicated non-production spike branch/harness (discarded or left unmerged), result recorded in revision 4, then freeze, then production implementation; alternatively amend the working rule. | **Open** |
+| R3-1 | Shop submission coalescing | The immutable capture (R2-1) removes an *accidental coalescing* the live read provided: `Shop` refuses a submission while one is active (`shop.cpp:146` claimed), so if clean N+1 finishes while N's capture is still submitting, N+1's auto-submit is refused and `UpdateShopData()` completing N clears `m_shop_data_outdated` (`shop.cpp:355` claimed) — N+1 is neither posted nor left pending. Related: deltas deliberately do not call `ExpireShopData`, so a forced manual mid-refresh submission can find the outdated flag false and reuse cached shop data instead of rendering its fresh capture. Reviewer proposes an explicit submission state machine: every request captures; if busy, retain one pending latest auto snapshot; a monotonic shop-input revision replaces the boolean; completing N marks only N's revision clean; drain pending after the active submission ends; manual submission renders its capture regardless of the flag; centralized completion applies one pending policy on every exit; decide whether pending drains after a *failed* submission (probably not after auth failure, while staying outdated). Staged tests: N+1-completes-during-N, latest-wins coalescing, manual-after-delta with stale flag, newer expiry not cleared by older completion. | Resolved in D8 with a simpler latest-eligible desired-state contract: one immutable active job plus one replaceable newest clean automatic capture; intermediate clean generations deliberately coalesce. Every job owns its rendered data/hash/progress and always renders its capture, so the submission path never trusts the cache flag. Monotonic revisions replace the boolean for preview/cache freshness only. One completion path drains after success/unchanged-hash, never after terminal failure; failure leaves input dirty and a later request recaptures. Manual-during-refresh always renders the captured published state. Five staged tests pin coalescing, capture, revision, and failure policy. |
+| R3-2 | Terminal-deferral reservation | The R2-2 guard protects the fan-out window only; between fan-out end and the queued turn, another `Update()` can observe an Idle worker and start first, so the promised deferred update is refused, delayed, or reordered. Reviewer proposes treating the deferred update as an active reservation until its Idle→Updating transition: later requests refused while reserved; selection arguments copied at reservation time; reservation cleared immediately before starting; worker destruction before the queued turn = "never accepted". Extend `terminalFanOutDefersReentrantUpdate` with a request arriving after fan-out but before the deferred turn. | Resolved in D4 as proposed, with terminology tightened: the copied request is reserved, not accepted, until its queued Idle→Updating transition. The reservation refuses every intervening request, clears immediately before start, and a context-bound queued callback makes destruction-before-start a never-accepted request. The existing test gains the post-fan-out/pre-turn case and destruction case. |
+| R3-3 | M2-M2 contract precision | The combined worker+manager threshold can fail in a way the named fallback cannot fix: the fallback re-indexes only `ItemsManager` storage, so if the worker's own scan alone exceeds the budget, the combined measurement still fails. Reviewer recommends measuring worker and manager separately, gating the M2 storage choice on the manager's *marginal* cost (combined reported as context), and recording a separate worker-index finding if the worker independently blows its budget; alternatively a combined threshold with a both-sides fallback, or measuring the whole synchronous delta path if the threshold means a frame budget. Also record build mode and measurement environment. | Resolved in D3/M2-M2 as proposed: worker and manager measured separately, manager marginal cost gates the manager fallback, combined cost is context, and a worker-only miss creates a separate worker-index finding. Release mode, environment, dataset/removal shape, repetitions, and statistic are recorded. |
+| R3-4 | Process: spike vs. freeze | The spec says implementation begins only after freeze (working rule 1) while S1-M2 needs a working throttle prototype and is the declared pre-freeze gate — a contradiction as written. Reviewer recommends a documented exception: a dedicated non-production spike branch/harness (discarded or left unmerged), result recorded in revision 4, then freeze, then production implementation; alternatively amend the working rule. | Resolved in D9 and the parent working rule: production implementation still waits for freeze; named S1-M2 alone may use a dedicated unmerged/discarded prototype or isolated harness. Revision 4 authorizes the bounded experiment; revision 5 records its result and freezes before production work. |
 
-**Wording correction (open with the round):** D8's manual-submission
-rationale says "what you see is what you post" — inaccurate, because
-D9 deliberately lets the visible model lag the published state; the
-capture is of the *published* state, not the rendered one.
+**Wording correction, adopted:** D8 now says a manual request captures
+the current *published* state; it does not claim that state necessarily
+matches D9's deliberately lagging visible model.
+
+**Round-3 narrative.** R3-1 was the only finding whose proposed
+mechanism was materially refined. The accepted requirement is
+level-triggered rather than edge-triggered: automatic shop update
+converges to the newest clean eligible snapshot, and intermediate clean
+snapshots need not each reach the forum. Making rendered content and
+progress job-local removes the shared-state race more directly than a
+revisioned boolean could; revisions remain only for cache freshness.
+R3-2 preserves the synchronous chaining feature but names its
+pre-acceptance state accurately. R3-3 separates the decision a
+manager-only fallback can make from existing worker cost. R3-4 keeps
+doc-first intact for production and makes the one evidence-gathering
+exception explicit.
 
 ## Revision log
 
@@ -158,3 +163,14 @@ capture is of the *published* state, not the rendered one.
   payloads reclassified as facade `Parse` errors joining the skip set
   with first-error hook ordering and reset stated (D5/D4), and the
   incorrect renamed-tab transient deleted from D7.
+- **Revision 4** (July 28, 2026): round-3 incorporation — R3-1 through
+  R3-4 and the wording correction resolved as tabled above.
+  Substantive changes: shop auto-update becomes a latest-clean
+  desired-state contract with one immutable active job and one
+  replaceable eligible capture, job-local rendering/progress,
+  revisioned preview-cache freshness, and centralized completion
+  policy (D8); terminal deferral gains a reservation that survives
+  fan-out until the queued acceptance transition (D4); M2-M2 measures
+  worker and manager separately and gates only the manager's marginal
+  cost (D3); and S1-M2 receives a narrow non-production pre-freeze
+  exception, with its result and freeze deferred to revision 5 (D9).

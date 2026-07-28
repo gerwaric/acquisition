@@ -1,16 +1,16 @@
 # Items Pipeline Milestone 2: Streaming Refresh Signal
 
-Status: **draft for review — not frozen**. Revision 3 (July 27,
-2026), incorporating external review rounds 1 and 2; written on branch
-`items-pipeline-m2-spec`. **Review round 3 (R3-1…R3-4) is recorded
-OPEN in `items-pipeline-m2-reviews.md`** — reviewed baseline
-`58d33480` — and is not yet reflected in this document; revision 4
-resolves it before the S1-M2 spike and freeze. This spec consumes the M2 inbox in
+Status: **draft for review — not frozen**. Revision 4 (July 28,
+2026), incorporating external review rounds 1–3; written on branch
+`items-pipeline-m2-spec`. The one remaining pre-freeze design gate is
+the S1-M2 UX spike; revision 5 records its result and freezes the
+chosen D9 behavior and constants. This spec consumes the M2 inbox in
 `items-pipeline.md` ("Inputs accumulated since this sketch") and its
 four hard constraints; the traceability table at the end maps every
 input to the decision, deferral, or acceptance criterion that consumed
-it. Implementation does not begin until this document is reviewed and
-frozen (working rule 1).
+it. Production implementation does not begin until this document is
+reviewed and frozen (working rule 1); D9 records the narrow,
+non-production exception for S1-M2 (R3-4).
 
 Citation convention: bare D-numbers (D1, D2, …) in this document are
 this document's decisions. Decisions of the network redesign are always
@@ -232,7 +232,7 @@ void TabRefreshed(const ItemLocation &location, const Items &items);
 ```
 
 **Published storage stays the flat `Items` vector, and the erase is a
-permitted linear pass — gated by measurement (R1-2, R2-3).**
+permitted linear pass — gated by measurement (R1-2, R2-3, R3-3).**
 Revision 1 claimed O(delta) work on this path while implying an
 O(all items) erase — an inconsistency the review caught. Resolved by
 legitimizing the erase rather than indexing: one predicate-only
@@ -244,15 +244,23 @@ heap object and compares type plus `QString` per entry, M2 doubles
 the per-reply scans, and the codebase itself acknowledges users at
 the "hundreds of thousands or millions of items" scale
 (`search.cpp:243`). The choice therefore carries a **blocking
-implementation measurement** (M2-M2, open-items list): the combined
-worker + manager per-delta erase cost on representative 100k and 1m
-datasets, thresholds **< 2 ms at 100k and < 16 ms (one frame) at
-1m**. Exceeding a threshold makes the fallback **required, not
-discretionary**: a source-keyed map (`FetchSourceKey → Items`) with a
-lazily rebuilt flat vector for `items()` consumers — which is also
-the natural M3 representation; M2 does not build it speculatively.
-No *other* whole-collection work runs on this path (hard constraint;
-acceptance criterion below).
+implementation measurement** (M2-M2, open-items list; R3-3), with the
+worker and manager passes measured **separately**, not only as one
+combined number. The `ItemsManager` marginal erase cost gates its
+storage choice: thresholds **< 2 ms at 100k and < 16 ms at 1m** on
+representative datasets. Exceeding either makes the manager fallback
+**required, not discretionary**: a source-keyed map
+(`FetchSourceKey → Items`) with a lazily rebuilt flat vector for
+`items()` consumers — which is also the natural M3 representation;
+M2 does not build it speculatively. The combined worker + manager cost
+is reported as responsiveness context, but cannot by itself select a
+manager-only remedy. If the worker pass independently exceeds either
+threshold, record a separate worker-index finding rather than
+pretending the manager fallback fixes it. Record a Release build and
+the measurement environment (hardware, OS, compiler, Qt, allocator),
+representative dataset and match/removal shape, repetitions, and
+reported statistic with the result. No *other* whole-collection work
+runs on this path (hard constraint; acceptance criterion below).
 
 ### D4. A typed terminal event, and no rollback
 
@@ -291,8 +299,9 @@ void RefreshFinished(const RefreshOutcome &outcome);
   updating". (Implementation note: `FinishUpdate` today sets Idle
   *after* its emit, `itemsmanagerworker.cpp:1279` — the terminal emit
   goes after that assignment.)
-- **Terminal fan-out is reentrancy-guarded (R2-2).** Idle-before-
-  terminal invites a synchronous observer to start N+1 — but
+- **Terminal fan-out is reentrancy-guarded and the deferral is
+  reserved (R2-2, R3-2).** Idle-before-terminal invites a synchronous
+  observer to start N+1 — but
   `RunUpdate` launches synchronously and a fail-fast future completes
   inline during the launch loop (`itemsmanagerworker.cpp:502-508`), so
   an update started mid-fan-out can emit N+1's signals — including
@@ -301,12 +310,18 @@ void RefreshFinished(const RefreshOutcome &outcome);
   N+1 events to later observers before their `RefreshFinished(N)`.
   That would defeat the ordering-is-identity contract above. The
   worker therefore holds a delivering-terminal flag across the
-  `RefreshFinished` emit: an `Update()` arriving in that window is
-  **accepted-and-deferred** to the next event-loop turn (the same
-  shape as the existing deferral-while-initializing; it is "accepted"
-  per this D's definition at the moment it actually transitions); a
-  second request inside the window is refused exactly as if an update
-  were active — the deferred update occupies the pending slot.
+  `RefreshFinished` emit. The first `Update()` arriving in that window
+  copies its selection arguments into one reserved request and queues
+  it for the next event-loop turn. It is **reserved, not yet
+  accepted**: the accepted transition remains Idle→Updating. The
+  reservation survives the end of terminal fan-out, so every later
+  `Update()` — both inside the fan-out and in the gap before the queued
+  turn — is refused exactly as if an update were active. The queued
+  callback clears the reservation immediately before starting the
+  normal `Update()` path; no event-loop interleave exists between
+  those operations. The callback is context-bound to the worker, so
+  destruction before the queued turn drops the reservation and the
+  request was never accepted (therefore it gets no terminal event).
   Pinned: `terminalFanOutDefersReentrantUpdate`.
 - **First-error preservation (R1-6, R2-4).** `AbortUpdate()` currently
   receives no error; M2 states the plumbing: every value-level failure
@@ -572,14 +587,64 @@ submission is requested, and applies the stash index to that capture
 when the index arrives. Value capture, not retained `shared_ptr`s:
 N+1's successful `FinishUpdate` rebases the shared `Item` objects in
 place, so a pointer capture would mutate under the submission.
-**Manual submission during an active refresh captures and submits the
-current published state** — deliberately accepted: deferring it to a
-terminal outcome would block manual submission for the whole of an
-hours-long refresh, and "what you see is what you post" is exactly
-D4's no-rollback framing. Pinned:
-`shopSubmissionUsesCapturedSnapshot` (staged: hold the stash-index
-future, apply an N+1 delta, resolve the future, assert the submission
-reflects N's capture).
+
+**Automatic submission is a latest-eligible desired state, not one
+post per clean refresh (R3-1).** At most one immutable submission job
+is active and at most one automatic capture waits behind it. If clean
+N+1 completes while N is active, N+1 becomes the waiting eligible
+capture; if clean N+2 then completes, it replaces N+1. Intermediate
+clean snapshots are deliberately coalesced — after a successful
+active-job completion, the pipeline converges to the newest clean
+eligible snapshot rather than making the forum observe every clean
+refresh generation. A terminal submission failure deliberately halts
+that automatic convergence per the failure policy below. A completed-
+with-skips or failed item refresh never becomes eligible (the clean
+gate above still applies).
+
+Automatic-request admission therefore captures before applying the
+busy policy: the busy path replaces the waiting automatic capture
+instead of returning as today's `SubmitShopToForum` does. Manual
+admission is deliberately different — it captures and starts when no
+job is active, but may still refuse while a forum job is active.
+
+Each active job owns all of its transport state: its immutable capture
+(including every output-affecting item/buyout field, template,
+realm/league, and target thread list), force/manual bit, returned
+legacy stash index, rendered thread data and hash, request counter, and
+thread progress. The existing shared `m_shop_data`, `m_shop_hash`, and
+`m_requests_completed` must not be mutable transport state that a
+waiting job can overwrite while the active job is still reading it.
+After the legacy index arrives, **every job renders its own capture**;
+submission correctness never depends on a cached-data boolean.
+`m_shop_data_outdated` is replaced by monotonic input/cache revisions
+for the preview/clipboard cache: `ExpireShopData()` advances the input
+revision, and completing N can mark only N's revision rendered or
+clean — never a newer revision. A rendered job may publish the preview
+cache only if it is not older than the cache already there.
+
+All terminal exits converge on one completion path. Success includes
+the unchanged-hash no-post case: it releases the active job, advances
+only that job's clean revision, and drains the newest waiting
+automatic capture. Failure releases the active job but does **not**
+drain automatically and does not advance any clean revision; discard
+the waiting capture while leaving the current input revision dirty, so
+the next clean automatic request or explicit manual request recaptures
+the latest published state instead of retrying a possibly stale
+snapshot or hammering an auth/network failure. The existing
+rate-limit/security-token delayed retries remain inside one active job
+and are not terminal exits.
+
+**Manual submission during an active item refresh captures and submits
+the current published state** — deliberately accepted: deferring it to
+a terminal outcome would block manual submission for the whole of an
+hours-long refresh. The visible model may lag that state under D9, so
+the precise contract is "the current published state is what the
+manual request captures," not "what you see is what you post." A
+manual job always renders its capture regardless of preview-cache
+revision or the `force` hash-bypass flag. A manual request while a
+different forum submission job is already active may continue to be
+refused; M2 does not add a second manual queue. Pinned by the staged
+shop tests below.
 
 Restating the plan's hard constraints as design:
 
@@ -675,7 +740,7 @@ spike below judges only feel.
 
 **Spike, not paper (S1-M2):** whether one reset-plus-restore per
 S = 60 s under the user's feet is acceptable steady-state UX cannot be
-settled by argument. Before freeze-or-implement of this D's constants:
+settled by argument. Before freezing this D's constants:
 drive a scaled refresh (harness or live) with the throttle prototyped,
 and judge scroll/selection/expansion survival by hand. Outcomes: (a)
 acceptable → S is confirmed or tuned; (b) not acceptable → rule 2
@@ -687,6 +752,17 @@ true in-place freshness waits for M3's bucket-scoped model ops); rules
 only picks between two already-specified behaviors. The restore
 machinery itself (F23, F31, F32) is reused as-is either way and is
 retired by M3, not extended by M2.
+
+**Pre-freeze spike exception (R3-4).** S1-M2 is the one named
+exception to the parent plan's doc-first production rule. Its throttle
+prototype lives on a dedicated non-production branch or in an isolated
+harness, is discarded or left unmerged, and cannot become production
+M2 code before freeze. Revision 4 defines the two permitted outcomes
+above and authorizes only that experiment; revision 5 records the
+observed UX result, selects the behavior and S (if applicable), and
+freezes the spec before production implementation begins. This is a
+narrow evidence-gathering exception, not a general license to
+implement an unfrozen milestone.
 
 ### D10. Status-burst coalescing: measurement-gated
 
@@ -770,7 +846,10 @@ Worker-level (offline fake-network harness, extending the M1 suite):
   observers where the first starts a synchronously-failing N+1: the
   second observer receives `RefreshFinished(N)` before any N+1
   signal; the deferred N+1 runs on the next event-loop turn; a second
-  `Update()` requested inside the fan-out window is refused.
+  `Update()` requested inside the fan-out window is refused; and an
+  `Update()` requested after fan-out but before the deferred turn is
+  also refused by the surviving reservation (R3-2). A worker destroyed
+  before that turn never accepts N+1 and emits no outcome for it.
 - `publishedStateIsSnapshotPlusAppliedDeltas` — at any point
   mid-update, `ItemsManager::items()` equals the pre-update snapshot
   with applied replacements (keyed by `FetchSourceKey`) substituted;
@@ -801,6 +880,23 @@ Shop-level (extending the existing `tst_shop` suite):
   apply a delta (including a rebase-visible change), resolve the
   future — the generated shop reflects N's captured input, not N+1's
   partial state.
+- `newestCleanSnapshotSubmitsAfterActive` (R3-1) — hold N's active
+  submission, complete clean N+1, finish N, and assert N+1's captured
+  state is then rendered and submitted rather than refused or cleared.
+- `automaticSubmissionCoalescesLatestEligible` (R3-1) — while N is
+  active, complete clean N+1 and then clean N+2; after N succeeds,
+  exactly N+2 waits/runs and N+1 is deliberately superseded.
+- `manualSubmissionRendersCapturedPublishedState` (R3-1) — after a
+  streamed delta with a preview cache whose revision still appears
+  current, a forced manual request during the item refresh renders its
+  captured published state instead of reusing cached pre-delta text.
+- `olderSubmissionCannotCleanNewerInput` (R3-1) — expire revision N+1
+  while N is active, then finish N; N's completion advances only N's
+  revision and the cache remains dirty until N+1 renders.
+- `failedSubmissionDoesNotDrainPendingAutomatic` (R3-1) — terminally
+  fail N while a newer clean automatic capture waits; no automatic
+  forum request starts from the failure exit, no clean revision
+  advances, and a later request recaptures current published state.
 
 UI-level (against the existing `MainWindow` fixture,
 `mainwindowfixture.h` / `tst_mainwindow.cpp` — R1-5):
@@ -829,12 +925,20 @@ Design-review criteria (checked in review, not runnable):
   currency, `MigrateBuyouts`, or any whole-collection buyout pass;
   automatic submission is connected to `RefreshFinished` and gated per
   D8.
+- Shop submission transport state is job-local; no active job reads
+  live `ItemsManager`/buyout state after capture or shares mutable
+  rendered data, hash, index, or progress with a waiting job. At most
+  one newest clean automatic capture waits, and terminal failure never
+  drains it automatically (R2-1/R3-1).
 - The delta path performs O(delta) work everywhere except D3's
   permitted linear erase pass (worker parity, R1-2) and D9's single
   budgeted coalesced refilter.
 - The persistence and presentation lanes share no payload types.
 - Worker and `ItemsManager` erase by the same `FetchSourceKey`
   predicate (R1-3).
+- A terminal-deferred update remains reserved until its queued
+  Idle→Updating transition, and the M2-M2 report separates worker and
+  manager costs before selecting any manager fallback (R3-2/R3-3).
 
 ## Open items requiring spike or measurement (not argument)
 
@@ -845,10 +949,13 @@ Design-review criteria (checked in review, not runnable):
   burst vs. status-widget frame time; builds the D10 coalesce only if
   it stutters.
 - **M2-M2 (measurement, blocks D3's storage choice during
-  implementation, R2-3):** combined worker + manager per-delta erase
-  cost on representative 100k and 1m item datasets; thresholds < 2 ms
-  at 100k, < 16 ms at 1m. Exceeding a threshold makes D3's
-  source-keyed fallback required, not discretionary.
+  implementation, R2-3/R3-3):** worker and manager per-delta erase
+  costs reported separately, with their combined cost as context, on
+  representative 100k and 1m item datasets in a recorded Release
+  environment. The manager's marginal thresholds are < 2 ms at 100k
+  and < 16 ms at 1m; exceeding either makes D3's source-keyed manager
+  fallback required. A worker-only miss produces a separate
+  worker-index finding because the manager fallback cannot fix it.
 
 ## Input traceability
 
@@ -871,11 +978,11 @@ Design-review criteria (checked in review, not runnable):
 Every inbox item is consumed; the emit-on-failure non-goal's "revisit
 at M2" is resolved by D4+D5+D8's shop gate.
 
-Review rounds 1 and 2 (R1-1…R1-9, R2-1…R2-4 plus four corrections,
-July 27, 2026) are incorporated throughout — verdicts and resolutions
-in `items-pipeline-m2-reviews.md`, summarized in its revision log. The
-shaping decisions D1/D2 survived both rounds unchanged. Round 2's
-stated freeze gate: R2-1/R2-2 designed (done, D8/D4), R2-3's
-measurement gate stated (done, M2-M2), R2-4 mapped (done, D5/D4), and
-the S1-M2 spike completed (outstanding — the one remaining gate before
-freeze).
+Review rounds 1–3 (R1-1…R1-9, R2-1…R2-4 plus four corrections,
+R3-1…R3-4 plus one wording correction, July 27–28, 2026) are
+incorporated throughout — verdicts and resolutions in
+`items-pipeline-m2-reviews.md`, summarized in its revision log. The
+shaping decisions D1/D2 survived all three rounds unchanged. S1-M2 is
+outstanding — the one remaining pre-freeze design gate. M1-M2 blocks
+nothing, and M2-M2 deliberately runs during implementation before the
+published-storage choice is committed.

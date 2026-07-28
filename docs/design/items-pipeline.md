@@ -378,8 +378,13 @@ Make Layer 3 consume deltas natively, eliminating the full reset:
 Carried over from the cleanup, which they served well:
 
 1. **Doc-first.** Each milestone has an implementation-grade spec reviewed
-   before its code begins — M1's is this document; M2 and M3 get their own
-   before they start.
+   and frozen before its production code begins — M1's is this document;
+   M2 and M3 get their own before they start. A spec may name a bounded
+   pre-freeze evidence spike whose prototype lives on a dedicated
+   non-production branch or in an isolated harness and is discarded or left
+   unmerged; the spec records the result and freezes before any production
+   implementation begins. M2's S1-M2 UX spike is the first such exception
+   (`items-pipeline-m2.md`, D9/R3-4).
 2. **Every commit compiles and passes `ctest`.**
 3. **New problems go to the register** (`docs/cleanup/findings.md`), not
    inline fixes, unless required for the milestone to proceed.
