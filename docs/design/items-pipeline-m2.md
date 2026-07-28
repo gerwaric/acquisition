@@ -1,11 +1,13 @@
 # Items Pipeline Milestone 2: Streaming Refresh Signal
 
-Status: **draft for review — not frozen**. Revision 6 (July 28,
-2026), incorporating review rounds 1–5 (rounds 1–3 and 5 external,
-round 4 an in-repo audit); written on branch
-`items-pipeline-m2-spec`. The remaining pre-freeze gates are the two
-evidence spikes — S1-M2 (D9 UX feel) and M2-M2 (D3 storage and frame
-budget); revision 7 records their results and freezes. This spec consumes the M2 inbox in
+Status: **draft for review — not frozen**. Revision 7 (July 28,
+2026), incorporating review rounds 1–6 (rounds 1–3, 5, and 6
+external, round 4 an in-repo audit); written on branch
+`items-pipeline-m2-spec`. The remaining pre-freeze sequence: F62
+lands (it changes what M2-M2 measures, R6-6), then the two evidence
+spikes — S1-M2 (D9 UX feel, with the restore-fidelity prototype,
+R6-3) and M2-M2 (D3 storage and frame budget); revision 8 records
+their results and freezes. This spec consumes the M2 inbox in
 `items-pipeline.md` ("Inputs accumulated since this sketch") and its
 four hard constraints; the traceability table at the end maps every
 input to the decision, deferral, or acceptance criterion that consumed
@@ -125,6 +127,10 @@ Reasons:
   change shape would be confirming a fiction.
 - F62 is independently targeted at "before final 0.18" and is not
   blocked by anything in this spec; ordering it first costs nothing.
+- **F62 also precedes the M2-M2 measurement (R6-6),** not just M2
+  code: M2-M2's unit includes persistence cost, and F62 changes the
+  persisted payload (raw wire bytes). A pre-F62 benchmark would be
+  obsolete by construction.
 
 M2's deltas inherit F62's boundary rule as a constraint: **a delta
 never carries wire bytes or `poe::*` API objects** — the persistence
@@ -195,7 +201,14 @@ void TabRefreshed(const ItemLocation &location, const Items &items);
   `itemsmanagerworker.cpp:451`); M2 adds the type to its predicate so
   the worker's and the published copy's erases can never diverge on a
   cross-type id collision — improbable, but the invariant in D6 is
-  only sound if both sides use one key.
+  only sound if both sides use one key. Stated boundary (R6-5): the
+  typed key governs exactly the predicates M2 introduces — the
+  replacement erases and the child reconciliation. Legacy stores
+  keyed by bare id (refresh selection `m_tabs_to_update`,
+  `itemsmanagerworker.cpp:397`; refresh locks and tab buyouts;
+  `ItemLocation::operator==`) are pre-existing surfaces M2 does not
+  rekey; their cross-type collision exposure is recorded as **F64**
+  in the findings register rather than expanded into M2.
 - **Payload.** The complete pipeline-native `Items` replacement for
   that fetch source — the exact set of `Item` objects the worker just
   parsed and appended, sharing the same `shared_ptr`s. An **empty
@@ -207,34 +220,39 @@ void TabRefreshed(const ItemLocation &location, const Items &items);
   `ParseItems`) and before the counter increment and
   `CheckUpdateFinished` — so every delta of an update precedes its
   terminal event (D4) by construction.
-- **Ghost-child drops stream as one aggregate removal (R5-2).** The
-  parent-reply reconcile erases items fetched from children the
-  parent no longer lists in **one** collection scan
-  (`itemsmanagerworker.cpp:1007-1019`). Revisions 2–5 expressed this
-  as one empty `TabRefreshed` per dropped fetch id — which would
-  have turned that single pass into k full-vector manager erases
-  plus k intersection tests, an O(k × all items) synchronous burst
-  invisible to a per-delta benchmark, and was unimplementable as
-  stated: the worker keeps no prior child-id inventory, so a dropped
-  child with zero published items has no fetch id to enumerate.
-  Superseding R1-8's wording, a second signal carries the removals
-  in aggregate:
+- **Ghost-child drops stream as one aggregate child reconciliation
+  (R5-2, R6-2).** The parent-reply reconcile erases items fetched
+  from children the parent no longer lists in **one** collection
+  scan (`itemsmanagerworker.cpp:1007-1019`). Revisions 2–5 expressed
+  this as one empty `TabRefreshed` per dropped fetch id — an
+  O(k × all items) synchronous burst downstream (R5-2). Revision 6
+  sent the keys the worker actually erased — which round 6 showed
+  can miss published ghosts: worker and published state diverge
+  across a failed update (a list deletion mutates worker memory and
+  datastore at list arrival, `itemsmanagerworker.cpp:781-791`, but
+  stays snapshot-boundary downstream), so a child the worker no
+  longer holds can survive in the published copy with nothing to
+  name it. The signal therefore carries the **authoritative expected
+  set**, not the erased set:
 
   ```cpp
-  void SourcesRemoved(const ItemLocation &parent,
-                      const std::vector<FetchSourceKey> &removed);
+  void ChildrenReconciled(const ItemLocation &parent,
+                          const std::vector<FetchSourceKey> &expected);
   ```
 
-  `removed` holds the distinct keys the worker's reconcile pass
-  actually erased — every removed fetch source **with published
-  items**; zero-item drops appear in no signal and need no
-  reconciliation. `ItemsManager` applies it as **one** erase pass
-  with set lookup — exact worker parity, the same bound as the
-  primary erase — and re-emits the same shape for the UI, where it
-  takes the removal half of D9's intersection test for all keys at
-  once. An empty `TabRefreshed` still means an emptied *fetched*
-  source and nothing else; the published copy stays a pure function
-  of applied mutations (D6).
+  `expected` is the parent's own fetch source plus its currently
+  listed children — exactly what the worker's own reconcile
+  predicate uses. Every consumer applies that predicate to its
+  **own** baseline: items under the parent's stable id whose key is
+  not in `expected` are erased, in one pass with set lookup — exact
+  worker parity, the same bound as the primary erase, and correct
+  against any published baseline, however it diverged. Zero-item and
+  worker-absent ghosts need no enumeration because nothing is
+  enumerated. `ItemsManager` re-emits the same shape for the UI,
+  where it takes the removal half of D9's intersection test for all
+  keys at once. An empty `TabRefreshed` still means an emptied
+  *fetched* source and nothing else; the published copy stays a pure
+  function of applied mutations (D6).
 - **The cached initial load does not stream.** `OnParseCompleted`
   publishes one `ItemsRefreshed(..., true)` snapshot as today: it is a
   single in-memory atomic load with nothing incremental about it.
@@ -293,9 +311,14 @@ runs **pre-freeze** as the second named evidence spike (D9's
 exception paragraph): a frozen spec must not leave the central
 storage choice open. Record a Release build and
 the measurement environment (hardware, OS, compiler, Qt, allocator),
-representative dataset and match/removal shape, repetitions, and
-reported statistic with the result. No *other* whole-collection work
-runs on this path (hard constraint; acceptance criterion below).
+**fixed** representative datasets and reply-size/removal shapes —
+recorded so reruns are comparable — repetitions, and the reported
+statistic with the result. The measurement runs against a
+**post-F62 build** (D1, R6-6), and if a remedy is selected, the
+measurement is **rerun with the remedy in place** to validate it
+meets budget before freeze — naming a remedy is not evidence
+(R6-6). No *other* whole-collection work runs on this path (hard
+constraint; acceptance criterion below).
 
 ### D4. A typed terminal event, and no rollback
 
@@ -383,7 +406,7 @@ void RefreshFinished(const RefreshOutcome &outcome);
   from outside the update, e.g. shutdown) takes the ordinary terminal
   path and maps to `FailedRefresh` with kind `Canceled`; it is a
   failure of the update without being anyone's error.
-- **Ordering invariant:** all `TabRefreshed` and `SourcesRemoved`
+- **Ordering invariant:** all `TabRefreshed` and `ChildrenReconciled`
   emits of an update precede its `RefreshFinished`; nothing of that
   update follows it. A delta
   arriving after a `RefreshFinished` belongs to a later update. This
@@ -485,7 +508,7 @@ Exhaustively, by worker mutation:
 | Worker mutation | Published when |
 |---|---|
 | Content replacement (atomic replace, incl. emptied source) | **Streamed** — `TabRefreshed` (D3) |
-| Ghost-child drop on parent reply | **Streamed** — one aggregate `SourcesRemoved` (D3, R5-2) |
+| Ghost-child drop on parent reply | **Streamed** — one aggregate `ChildrenReconciled` (D3, R5-2/R6-2) |
 | List reconciliation: tab metadata upsert (renames/moves/colors, F15) | Snapshot-boundary — final `ItemsRefreshed` |
 | List reconciliation: deleted tabs dropped with their items | Snapshot-boundary — final `ItemsRefreshed` |
 | New-tab discovery (listed, unfetched) | Snapshot-boundary — final `ItemsRefreshed` |
@@ -525,16 +548,29 @@ Exhaustively, by worker mutation:
   supersedes everything). The mechanism (e.g., a canonical-location
   map maintained across refilters) is implementation detail; the
   invariant and the three failure shapes are the requirement, pinned
-  by `bucketsKeyOnStableIdDuringRefresh`. This is what the parent
-  plan's "must not render anything that would expose the mismatch"
-  constraint concretely demands of M2.
+  by `bucketsKeyOnStableIdDuringRefresh`. The inventory behind this
+  rule ingests **every** delta's location anchor, empty deltas
+  included (R6-1), and the empty-bucket source list —
+  today built from the published tab list alone when unfiltered
+  (`search.cpp:280-286`) — resolves through it, so an empty tab
+  renamed, moved, or newly discovered mid-refresh renders correctly
+  at the next refilter. This is what the parent plan's "must not
+  render anything that would expose the mismatch" constraint
+  concretely demands of M2.
 - **Tab-list publication stays final-only.** `SetStashTabLocations`,
   and thus tab-level buyout keys and shop tab indexing, update at the
   final emit as today. Consequence: a delta may arrive for a display
   tab absent from the published tab list (a newly discovered tab in a
-  full refresh). Buckets are built from item locations, so the bucket
-  appears with the delta's (fresh) location; tab-level buyouts for it
-  default to none until the final pass. Accepted.
+  full refresh). Buckets are built from item locations, so a delta
+  **with items** materializes its bucket immediately with the delta's
+  fresh location; an **empty** delta cannot (R6-1) — no item carries
+  the location, and D9 deliberately has no metadata-only intersection
+  trigger — so metadata carried only by an empty delta (a new,
+  renamed, or moved empty tab) becomes visible at the current
+  search's next refilter or the final snapshot, via the canonical
+  inventory above. Accepted cost, the same shape as background
+  captions. Tab-level buyouts for a new tab default to none until
+  the final pass. Accepted.
 - **Ordering of the published vector is unspecified mid-refresh.**
   Erase+append leaves the vector unsorted between deltas; the final
   emit restores the deterministic sorted order. No consumer may assume
@@ -725,6 +761,17 @@ cleanliness, not recency; the capture is still the newest clean
 published state, and posting it later is parity with today, where an
 aborted refresh posts nothing and the last clean state stands.
 
+One more transition (R6-4): **an output-affecting local mutation
+drops the waiting automatic capture.** `ExpireShopData()` — buyout
+edits (`mainwindow.cpp:506`), template or thread changes
+(`shop.cpp:131/115`) — while an automatic capture waits invalidates
+it: draining a pre-edit capture after the user's edit would post
+data older than their intent while telling them the shop updated.
+The edit reaches the forum through the next clean automatic capture
+or a manual submission, exactly as today. The active job is
+deliberately unaffected — its capture is immutable (R2-1) and posts
+as captured; the edit follows in a later submission.
+
 **Manual submission during an active item refresh captures and submits
 the current published state** — deliberately accepted: deferring it to
 a terminal outcome would block manual submission for the whole of an
@@ -768,8 +815,8 @@ description, which under-marked dirtiness and left a pending tick
 orphanable by a tab switch):
 
 1. **Every delta marks every search items-dirty** — aggregate
-   removals (`SourcesRemoved`) included, the current search included,
-   regardless of intersection. A new flag beside
+   reconciliations (`ChildrenReconciled`) included, the current
+   search included, regardless of intersection. A new flag beside
    `m_states_dirty`, cleared per search by that search's own
    successful refilter, consumed by the same
    refilter-on-next-activation gate (`search.cpp:212`, extended to
@@ -822,8 +869,8 @@ intersects the current search iff any of its items matches the current
 filter set, **or** any item currently in the visible filtered result
 was fetched from the delta's fetch source (the removal half — an empty
 or shrunken replacement must count as a visible change); a
-`SourcesRemoved` intersects iff any visible item was fetched by any
-of its removed keys (R5-2). The mechanism
+`ChildrenReconciled` intersects iff any visible item under its parent
+carries a key outside the expected set (R5-2/R6-2). The mechanism
 for the removal test (e.g., a `FetchSourceKey` set maintained per
 refilter) is implementation detail; both halves are the requirement.
 
@@ -839,6 +886,31 @@ it at milliseconds — `throttleDoesNotRearm` must not wait wall-clock
 S (R2 minor). The state machine's correctness is pinned by tests; the
 spike below judges only feel.
 
+**Restore fidelity is a contract, not a hope (R6-3).** The parent
+plan requires scroll and selection to survive a background tab
+landing; the existing machinery cannot deliver that under a per-S
+reset, on four verified counts: expansion is keyed by mutable header
+text (`GetHeader()`, `mainwindow.cpp:709`), so a rename orphans it;
+the refresh path restores expansion without saving it first
+(`ModelViewRefresh`, `mainwindow.cpp:736-774` — only the tab-switch
+and form-change paths save), so each reset restores stale state;
+reselection matches by `shared_ptr` identity (`search.cpp:181`), so
+every replaced item — exactly what M2 streams — loses selection; and
+no tree scroll capture exists at all. Outcome (a) therefore includes
+a fidelity contract: (1) expansion keyed by stable `(type, id)`;
+(2) selection restored by stable item identity when the item still
+exists in the view; (3) scroll preserved across a throttled reset
+(scrollbar value or an anchor — mechanism is implementation detail);
+(4) the throttled path captures expansion, selection, and scroll
+immediately before every reset. S1-M2 prototypes this contract along
+with the throttle, so the spike judges cadence with fidelity in
+place instead of measuring the old machinery's losses; the work is
+productionized only under outcome (a). Under outcome (b), resets
+remain at final emits and user actions, with today's machinery and
+today's accepted losses. The stable-identity keying is not throwaway
+either way it lands: M3's bucket-scoped operations need the same
+keys.
+
 **Spike, not paper (S1-M2):** whether one reset-plus-restore per
 S = 60 s under the user's feet is acceptable steady-state UX cannot be
 settled by argument. Before freezing this D's constants:
@@ -850,9 +922,11 @@ action" for M2 (the freshness bound then applies only to intersection
 *detection* — e.g. a "view is behind, N tabs updated" affordance — and
 true in-place freshness waits for M3's bucket-scoped model ops); rules
 1, 4, and 5 hold in either outcome. Either outcome ships M2; the spike
-only picks between two already-specified behaviors. The restore
-machinery itself (F23, F31, F32) is reused as-is either way and is
-retired by M3, not extended by M2.
+only picks between two already-specified behaviors. Under outcome
+(b) the restore machinery (F23, F31, F32) is reused as-is; outcome
+(a) requires the fidelity contract above (R6-3), whose
+stable-identity keying carries forward into M3 — M3 retires only the
+reset-based application.
 
 Stated honestly (R5-3): outcome (b) is a **renegotiation of the
 parent plan's freshness-bound input**, not a fulfillment of it —
@@ -861,7 +935,7 @@ emit, so under (b) the visible model stays stale until user action,
 unboundedly. Choosing (b) therefore updates the parent plan's inbox
 note in the same commit and replaces the timer-dependent acceptance
 criteria below (marked outcome-(a)) with affordance criteria defined
-in revision 7. Under outcome (a) no such gap exists: a pending tick
+in revision 8. Under outcome (a) no such gap exists: a pending tick
 survives a terminal failure and fires
 (`pendingTickSurvivesTerminalFailure`), so the S bound holds across
 failed updates too.
@@ -873,10 +947,12 @@ non-production branches or in isolated harnesses, are discarded or
 left unmerged, and cannot become production M2 code before freeze —
 they share dataset and harness work. Revision 4 authorized S1-M2;
 revision 6 moved M2-M2 pre-freeze and authorized it (a frozen spec
-must not leave the central storage choice open, R5-4). Revision 7
-records both results, selects D9's behavior and S (if applicable)
-and D3's storage, and freezes the spec before production
-implementation begins. These are narrow evidence-gathering
+must not leave the central storage choice open, R5-4). Both spikes
+run against a post-F62 build (R6-6), and S1-M2's prototype includes
+the restore-fidelity contract (R6-3). Revision 8 records both
+results, selects D9's behavior and S (if applicable) and D3's
+storage, and freezes the spec before production implementation
+begins. These are narrow evidence-gathering
 exceptions, not a general license to implement an unfrozen
 milestone.
 
@@ -931,21 +1007,27 @@ Worker-level (offline fake-network harness, extending the M1 suite):
 - `deltaMatchesAppliedReplacement` — every accepted content reply
   emits exactly one **primary** replacement `TabRefreshed` whose key
   is the reply's `FetchSourceKey` and whose items are exactly the
-  applied replacement, followed by at most one `SourcesRemoved`
-  naming the reply's ghost drops, in that order (R1-8, wording
-  superseded by R5-2) — all after the replace and before
+  applied replacement, followed by at most one `ChildrenReconciled`
+  carrying the reply's expected-child set, in that order (R1-8,
+  wording superseded by R5-2/R6-2) — all after the replace and before
   `CheckUpdateFinished`.
 - `emptyDeltaEmptiesFetchSourceOnly` — an empty replacement empties
   that fetch source in the published copy and removes nothing else;
   no tab disappears from the published tab list mid-refresh.
-- `ghostChildDropStreamsAsAggregateRemoval` (R5-2) — a parent reply
-  that stops listing children yields one `SourcesRemoved` naming
-  exactly the dropped fetch sources that had published items — a
-  dropped child with zero published items appears in no signal — and
-  the published parent bucket loses exactly those items in one erase
-  pass.
+- `parentReplyReconcilesChildrenAgainstExpectedSet` (R5-2, R6-2) — a
+  parent reply that stops listing children yields one
+  `ChildrenReconciled` whose expected set is the parent plus its
+  listed children; the published parent bucket loses exactly the
+  items whose keys fall outside that set, in one erase pass.
+- `reconcileErasesGhostsAcrossFailedUpdates` (R6-2) — update N's
+  list deletes parent P (worker and datastore drop P and child C);
+  N fails, so the published copy keeps both. P is listed again in
+  update N+1, whose parent reply no longer lists C: applying N+1's
+  `ChildrenReconciled` erases C's published items even though the
+  worker had nothing left to erase — the expected set reconciles the
+  published baseline, not worker memory.
 - `deltasNeverFollowTerminalEvent` — per update: all `TabRefreshed`
-  and `SourcesRemoved` emits precede `RefreshFinished`; after a
+  and `ChildrenReconciled` emits precede `RefreshFinished`; after a
   `FailedRefresh` outcome, settling stragglers emit nothing (extends
   W-IDENTITY to both delta signals).
 - `terminalEventExactlyOncePerUpdate` — one `RefreshFinished` per
@@ -972,7 +1054,8 @@ Worker-level (offline fake-network harness, extending the M1 suite):
 - `publishedStateIsSnapshotPlusAppliedDeltas` — at any point
   mid-update, `ItemsManager::items()` equals the pre-update snapshot
   with applied replacements (keyed by `FetchSourceKey`) substituted
-  and applied `SourcesRemoved` keys erased;
+  and applied `ChildrenReconciled` reconciliations replayed (keys
+  under the parent outside the expected set erased);
   after a mid-update failure it stays there (extends
   `appliedReplySurvivesLaterFailureInMemoryAndDatastore` to the
   published copy).
@@ -1027,11 +1110,19 @@ Shop-level (extending the existing `tst_shop` suite):
   clean capture waiting behind an active job, complete a later item
   refresh with skips, then finish the active job; the clean capture
   still drains and submits (keep-and-drain).
+- `expireDropsWaitingCapture` (R6-4) — a template or buyout change
+  while an automatic capture waits drops the capture; finishing the
+  active job drains nothing, and the next clean refresh recaptures
+  with the edit included.
+- `activeJobUnaffectedByLocalEdits` (R6-4) — a buyout change while a
+  job is active: the job posts its captured state unchanged; no
+  re-render occurs.
 
 UI-level (against the existing `MainWindow` fixture,
 `mainwindowfixture.h` / `tst_mainwindow.cpp` — R1-5). The
-timer-dependent criteria assume S1-M2 selects outcome (a); outcome
-(b) replaces them with affordance criteria in revision 7 (R5-3):
+timer-dependent and outcome-(a) criteria assume S1-M2 selects
+outcome (a); outcome (b) replaces them with affordance criteria in
+revision 8 (R5-3):
 
 - `backgroundDeltaLeavesModelUntouched` — a delta not intersecting the
   current search performs no model operation and marks every search
@@ -1062,6 +1153,22 @@ timer-dependent criteria assume S1-M2 selects outcome (a); outcome
   refiltered view holds exactly one bucket per stable tab id,
   rendered with the freshest metadata seen for that key, and two
   distinct tabs never merge into one bucket.
+- `emptyDeltaMetadataLandsAtNextRefilter` (R6-1) — empty deltas for
+  a renamed, a moved, and a newly discovered empty tab trigger no
+  refilter (no intersection), but the next refilter — whatever its
+  cause — renders those buckets from the canonical inventory's fresh
+  anchors.
+- `expansionSurvivesRenameByStableKey` (R6-3, outcome (a)) — expand
+  a bucket, rename its tab via a delta, let the throttled reset run;
+  the bucket is still expanded under its new header.
+- `selectionSurvivesReplacementByStableIdentity` (R6-3, outcome
+  (a)) — select an item, refresh its tab (new `Item` objects), let
+  the throttled reset run; the logically same item is reselected,
+  and a genuinely removed item clears the selection.
+- `scrollAndCaptureSurviveThrottledReset` (R6-3, outcome (a)) —
+  scroll position survives a throttled reset, and expansion changed
+  after the last explicit save survives too (capture happens
+  immediately before every reset).
 
 Design-review criteria (checked in review, not runnable):
 
@@ -1089,9 +1196,11 @@ Design-review criteria (checked in review, not runnable):
 ## Open items requiring spike or measurement (not argument)
 
 - **S1-M2 (spike, pre-freeze — blocks D9's constants):** live/harness
-  trial of the S = 60 s reset-plus-restore cadence; picks between
-  D9's two specified foreground behaviors and tunes S. Result
-  recorded in revision 7.
+  trial of the S = 60 s reset-plus-restore cadence, with D9's
+  restore-fidelity contract prototyped so cadence is judged with
+  fidelity in place (R6-3); picks between D9's two specified
+  foreground behaviors and tunes S. Runs post-F62. Result recorded
+  in revision 8.
 - **M1-M2 (measurement, blocks nothing):** 2,000-entry `QueueUpdated`
   burst vs. status-widget frame time; builds the D10 coalesce only if
   it stutters.
@@ -1104,7 +1213,9 @@ Design-review criteria (checked in review, not runnable):
   gates the manager storage choice; the whole-path budget (same
   thresholds, one frame at 1m) gates a required real remedy for the
   dominant component. Runs alongside S1-M2 on shared harness
-  datasets; results recorded in revision 7.
+  datasets, against a post-F62 build, with fixed recorded
+  reply/removal shapes; a selected remedy is validated by rerun
+  before freeze (R6-6). Results recorded in revision 8.
 
 ## Input traceability
 
@@ -1127,16 +1238,19 @@ Design-review criteria (checked in review, not runnable):
 Every inbox item is consumed; the emit-on-failure non-goal's "revisit
 at M2" is resolved by D4+D5+D8's shop gate.
 
-Review rounds 1–5 (R1-1…R1-9, R2-1…R2-4 plus four corrections,
+Review rounds 1–6 (R1-1…R1-9, R2-1…R2-4 plus four corrections,
 R3-1…R3-4 plus one wording correction, R4-1…R4-4 plus one record
-correction, R5-1…R5-7, July 27–28, 2026) are incorporated
+correction, R5-1…R5-7, R6-1…R6-6, July 27–28, 2026) are incorporated
 throughout — verdicts and resolutions in
 `items-pipeline-m2-reviews.md`, summarized in its revision log.
 Round 4 (an in-repo audit) deleted the terminal-deferral machinery
 by renegotiating the clause it served (R4-4); round 5 keyed
-mid-refresh bucket rendering on stable identity (R5-1), replaced
-per-child ghost deltas with one aggregate removal (R5-2), and moved
-M2-M2 pre-freeze (R5-4). The shaping decisions D1/D2 survived all
-five rounds unchanged. The two evidence spikes S1-M2 and M2-M2 are
-outstanding — the remaining pre-freeze gates, their results recorded
-in revision 7. M1-M2 blocks nothing.
+mid-refresh bucket rendering on stable identity (R5-1) and moved
+M2-M2 pre-freeze (R5-4); round 6 made the child reconciliation carry
+the authoritative expected set (R6-2) and added D9's restore-fidelity
+contract for outcome (a) (R6-3). The shaping decisions D1/D2
+survived all six rounds unchanged. The pre-freeze sequence is F62,
+then the two evidence spikes S1-M2 and M2-M2, then revision 8
+recording their results and freezing. M1-M2 blocks nothing. The
+legacy bare-id keying exposure is tracked as F64 in the findings
+register (R6-5), outside M2's scope.
