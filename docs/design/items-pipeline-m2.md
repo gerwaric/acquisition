@@ -1,10 +1,10 @@
 # Items Pipeline Milestone 2: Streaming Refresh Signal
 
-Status: **draft for review — not frozen**. Revision 4 (July 28,
-2026), incorporating external review rounds 1–3; written on branch
-`items-pipeline-m2-spec`. The one remaining pre-freeze design gate is
-the S1-M2 UX spike; revision 5 records its result and freezes the
-chosen D9 behavior and constants. This spec consumes the M2 inbox in
+Status: **draft for review — not frozen**. Revision 5 (July 28,
+2026), incorporating external review rounds 1–3 and the round-4
+in-repo audit; written on branch `items-pipeline-m2-spec`. The one
+remaining pre-freeze design gate is the S1-M2 UX spike; revision 6
+records its result and freezes the chosen D9 behavior and constants. This spec consumes the M2 inbox in
 `items-pipeline.md` ("Inputs accumulated since this sketch") and its
 four hard constraints; the traceability table at the end maps every
 input to the decision, deferral, or acceptance criterion that consumed
@@ -244,19 +244,22 @@ heap object and compares type plus `QString` per entry, M2 doubles
 the per-reply scans, and the codebase itself acknowledges users at
 the "hundreds of thousands or millions of items" scale
 (`search.cpp:243`). The choice therefore carries a **blocking
-implementation measurement** (M2-M2, open-items list; R3-3), with the
-worker and manager passes measured **separately**, not only as one
-combined number. The `ItemsManager` marginal erase cost gates its
-storage choice: thresholds **< 2 ms at 100k and < 16 ms at 1m** on
-representative datasets. Exceeding either makes the manager fallback
-**required, not discretionary**: a source-keyed map
-(`FetchSourceKey → Items`) with a lazily rebuilt flat vector for
-`items()` consumers — which is also the natural M3 representation;
-M2 does not build it speculatively. The combined worker + manager cost
-is reported as responsiveness context, but cannot by itself select a
-manager-only remedy. If the worker pass independently exceeds either
-threshold, record a separate worker-index finding rather than
-pretending the manager fallback fixes it. Record a Release build and
+implementation measurement** (M2-M2, open-items list; R3-3, R4-1).
+The thresholds bind the **combined** worker + manager per-delta erase
+cost — **< 2 ms at 100k and < 16 ms (one frame) at 1m** on
+representative datasets — because the user experiences the two scans
+as one stall; splitting the budget per side would silently double it
+(R4-1). The two passes are still measured **separately** (R3-3), but
+for attribution, not relaxation: on a combined miss, every side whose
+own cost exceeds half the threshold gets its remedy — arithmetically
+at least one must. The manager's remedy is **required, not
+discretionary**: a source-keyed map (`FetchSourceKey → Items`) with a
+lazily rebuilt flat vector for `items()` consumers — which is also
+the natural M3 representation; M2 does not build it speculatively.
+The worker's remedy is a mandatory worker-index finding in the
+register — the manager fallback cannot fix a worker-side miss, and
+the worker erase is shipped M1 code whose reshaping is its own work
+item. Record a Release build and
 the measurement environment (hardware, OS, compiler, Qt, allocator),
 representative dataset and match/removal shape, repetitions, and
 reported statistic with the result. No *other* whole-collection work
@@ -291,38 +294,42 @@ void RefreshFinished(const RefreshOutcome &outcome);
   actually starts. Emission sites: `FinishUpdate` on success, the
   first `AbortUpdate` on failure (later straggler/second-failure calls
   already return early and must not emit it twice).
-- **The terminal event observes an idle worker (R1-7).** Pinned
-  ordering — success: final `ItemsRefreshed` → state set to Idle →
-  `RefreshFinished`; failure: `AbortUpdate` sets Idle →
-  `RefreshFinished`. A synchronous observer may react to the terminal
-  event by starting the next update and must not be refused as "still
-  updating". (Implementation note: `FinishUpdate` today sets Idle
-  *after* its emit, `itemsmanagerworker.cpp:1279` — the terminal emit
-  goes after that assignment.)
-- **Terminal fan-out is reentrancy-guarded and the deferral is
-  reserved (R2-2, R3-2).** Idle-before-terminal invites a synchronous
-  observer to start N+1 — but
-  `RunUpdate` launches synchronously and a fail-fast future completes
-  inline during the launch loop (`itemsmanagerworker.cpp:502-508`), so
-  an update started mid-fan-out can emit N+1's signals — including
-  its own terminal event, e.g. on a setup-cooldown fail-fast, which
-  is production-reachable — *nested inside* N's fan-out, delivering
-  N+1 events to later observers before their `RefreshFinished(N)`.
-  That would defeat the ordering-is-identity contract above. The
-  worker therefore holds a delivering-terminal flag across the
-  `RefreshFinished` emit. The first `Update()` arriving in that window
-  copies its selection arguments into one reserved request and queues
-  it for the next event-loop turn. It is **reserved, not yet
-  accepted**: the accepted transition remains Idle→Updating. The
-  reservation survives the end of terminal fan-out, so every later
-  `Update()` — both inside the fan-out and in the gap before the queued
-  turn — is refused exactly as if an update were active. The queued
-  callback clears the reservation immediately before starting the
-  normal `Update()` path; no event-loop interleave exists between
-  those operations. The callback is context-bound to the worker, so
-  destruction before the queued turn drops the reservation and the
-  request was never accepted (therefore it gets no terminal event).
-  Pinned: `terminalFanOutDefersReentrantUpdate`.
+- **The terminal event observes an idle worker (R1-7, revised by
+  R4-4).** Pinned ordering — success: final `ItemsRefreshed` → state
+  set to Idle → `RefreshFinished`; failure: `AbortUpdate` sets Idle →
+  `RefreshFinished`. State queries during the terminal fan-out see
+  Idle — "refresh finished" and a busy worker are never presented
+  together — but starting the next update from *inside* the fan-out
+  is refused (next bullet); an observer that wants to chain queues
+  its restart to the next event-loop turn. (Implementation note:
+  `FinishUpdate` today sets Idle *after* its emit,
+  `itemsmanagerworker.cpp:1279` — the terminal emit goes after that
+  assignment.)
+- **Terminal fan-out refuses reentrant updates (R2-2, R3-2;
+  simplified by R4-4).** Idle-before-terminal invites a synchronous
+  observer to start N+1 — but `RunUpdate` launches synchronously and
+  a fail-fast future completes inline during the launch loop
+  (`itemsmanagerworker.cpp:502-508`), so an update started mid-fan-out
+  can emit N+1's signals — including its own terminal event, e.g. on
+  a setup-cooldown fail-fast, which is production-reachable — *nested
+  inside* N's fan-out, delivering N+1 events to later observers before
+  their `RefreshFinished(N)`. That would defeat the
+  ordering-is-identity contract above. The worker therefore holds a
+  delivering-terminal flag across the `RefreshFinished` emit, and
+  every `Update()` arriving while it is set is **refused** exactly as
+  if an update were active. Rounds 2–3 instead accepted-and-deferred
+  the first such request (a reservation, a queued start, a guard on
+  the gap before the queued turn, a destruction case); round 4
+  renegotiated the requirement that machinery served: no production
+  caller starts an update synchronously from a completion signal —
+  every `Update()` originates from a user action or the auto-refresh
+  timer (`itemsmanager.cpp:29`), both of which arrive via the event
+  loop and cannot land inside the synchronous fan-out. The contract
+  is one rule: an observer that wants to chain a restart from the
+  terminal event queues it (a queued invocation or zero-length
+  single-shot); the queued request finds a genuinely idle worker and
+  is accepted normally. Pinned:
+  `terminalFanOutRefusesReentrantUpdate`.
 - **First-error preservation (R1-6, R2-4).** `AbortUpdate()` currently
   receives no error; M2 states the plumbing: every value-level failure
   branch hands its `FetchError` to `StopUpdateForFailure`, which
@@ -622,6 +629,17 @@ revision, and completing N can mark only N's revision rendered or
 clean — never a newer revision. A rendered job may publish the preview
 cache only if it is not older than the cache already there.
 
+One accepted blind spot, stated deliberately (R4-2): deltas do not
+advance the input revision — nothing may connect `Shop` to
+`TabRefreshed` (design-review criterion below) — so mid-refresh the
+preview/clipboard cache can report current while published state has
+streamed past it. The clipboard then serves the same last-rendered
+text it serves today; what M2 changes is only that published state
+moves earlier, and the manual-submission rule below already
+guarantees any *submission* re-renders. Accepted cost: the
+`CopyToClipboard` outdated warning (`shop.cpp:627`) is
+snapshot-granular, not delta-granular.
+
 All terminal exits converge on one completion path. Success includes
 the unchanged-hash no-post case: it releases the active job, advances
 only that job's clean revision, and drains the newest waiting
@@ -632,7 +650,13 @@ the next clean automatic request or explicit manual request recaptures
 the latest published state instead of retrying a possibly stale
 snapshot or hammering an auth/network failure. The existing
 rate-limit/security-token delayed retries remain inside one active job
-and are not terminal exits.
+and are not terminal exits. The failure policy deliberately does not
+discriminate by kind (R4-3): a transient network blip and an auth
+failure both halt automatic convergence until the next clean refresh
+or a manual request. This is parity with today — a failed submission
+has never retriggered before the next refresh — and kind-aware
+draining belongs to the same future design that owns per-tab retry
+(D11).
 
 **Manual submission during an active item refresh captures and submits
 the current published state** — deliberately accepted: deferring it to
@@ -757,10 +781,11 @@ retired by M3, not extended by M2.
 exception to the parent plan's doc-first production rule. Its throttle
 prototype lives on a dedicated non-production branch or in an isolated
 harness, is discarded or left unmerged, and cannot become production
-M2 code before freeze. Revision 4 defines the two permitted outcomes
-above and authorizes only that experiment; revision 5 records the
-observed UX result, selects the behavior and S (if applicable), and
-freezes the spec before production implementation begins. This is a
+M2 code before freeze. Revision 4 defined the two permitted outcomes
+above and authorized only that experiment; revision 6 (the spike
+result moved back one slot when round 4 became revision 5) records
+the observed UX result, selects the behavior and S (if applicable),
+and freezes the spec before production implementation begins. This is a
 narrow evidence-gathering exception, not a general license to
 implement an unfrozen milestone.
 
@@ -842,14 +867,12 @@ Worker-level (offline fake-network harness, extending the M1 suite):
   (R2-4) — a 200 whose wrapper lacks its stash/character sub-object
   surfaces as a facade `Parse` error and takes the skip path, with the
   source and error in the outcome's skipped list.
-- `terminalFanOutDefersReentrantUpdate` (R2-2) — with two terminal
-  observers where the first starts a synchronously-failing N+1: the
-  second observer receives `RefreshFinished(N)` before any N+1
-  signal; the deferred N+1 runs on the next event-loop turn; a second
-  `Update()` requested inside the fan-out window is refused; and an
-  `Update()` requested after fan-out but before the deferred turn is
-  also refused by the surviving reservation (R3-2). A worker destroyed
-  before that turn never accepts N+1 and emits no outcome for it.
+- `terminalFanOutRefusesReentrantUpdate` (R2-2, R4-4) — with two
+  terminal observers where the first calls `Update()` synchronously
+  from inside `RefreshFinished(N)`: the call is refused, the second
+  observer still receives `RefreshFinished(N)` with no nested N+1
+  signal before it, and a restart the first observer queues to the
+  next event-loop turn is accepted and runs normally.
 - `publishedStateIsSnapshotPlusAppliedDeltas` — at any point
   mid-update, `ItemsManager::items()` equals the pre-update snapshot
   with applied replacements (keyed by `FetchSourceKey`) substituted;
@@ -936,9 +959,10 @@ Design-review criteria (checked in review, not runnable):
 - The persistence and presentation lanes share no payload types.
 - Worker and `ItemsManager` erase by the same `FetchSourceKey`
   predicate (R1-3).
-- A terminal-deferred update remains reserved until its queued
-  Idle→Updating transition, and the M2-M2 report separates worker and
-  manager costs before selecting any manager fallback (R3-2/R3-3).
+- No path starts an update synchronously from inside terminal
+  fan-out — chained restarts are queued (R4-4) — and the M2-M2 report
+  attributes worker and manager costs separately before selecting a
+  remedy (R3-3/R4-1).
 
 ## Open items requiring spike or measurement (not argument)
 
@@ -949,13 +973,13 @@ Design-review criteria (checked in review, not runnable):
   burst vs. status-widget frame time; builds the D10 coalesce only if
   it stutters.
 - **M2-M2 (measurement, blocks D3's storage choice during
-  implementation, R2-3/R3-3):** worker and manager per-delta erase
-  costs reported separately, with their combined cost as context, on
-  representative 100k and 1m item datasets in a recorded Release
-  environment. The manager's marginal thresholds are < 2 ms at 100k
-  and < 16 ms at 1m; exceeding either makes D3's source-keyed manager
-  fallback required. A worker-only miss produces a separate
-  worker-index finding because the manager fallback cannot fix it.
+  implementation, R2-3/R3-3/R4-1):** combined worker + manager
+  per-delta erase cost on representative 100k and 1m item datasets in
+  a recorded Release environment, with the two passes also reported
+  separately for attribution. Combined thresholds < 2 ms at 100k and
+  < 16 ms at 1m; a miss requires a remedy from every side whose own
+  cost exceeds half the threshold — D3's source-keyed manager
+  fallback, a mandatory worker-index finding, or both.
 
 ## Input traceability
 
@@ -978,11 +1002,14 @@ Design-review criteria (checked in review, not runnable):
 Every inbox item is consumed; the emit-on-failure non-goal's "revisit
 at M2" is resolved by D4+D5+D8's shop gate.
 
-Review rounds 1–3 (R1-1…R1-9, R2-1…R2-4 plus four corrections,
-R3-1…R3-4 plus one wording correction, July 27–28, 2026) are
-incorporated throughout — verdicts and resolutions in
-`items-pipeline-m2-reviews.md`, summarized in its revision log. The
-shaping decisions D1/D2 survived all three rounds unchanged. S1-M2 is
-outstanding — the one remaining pre-freeze design gate. M1-M2 blocks
-nothing, and M2-M2 deliberately runs during implementation before the
-published-storage choice is committed.
+Review rounds 1–4 (R1-1…R1-9, R2-1…R2-4 plus four corrections,
+R3-1…R3-4 plus one wording correction, R4-1…R4-4 plus one record
+correction, July 27–28, 2026) are incorporated throughout — verdicts
+and resolutions in `items-pipeline-m2-reviews.md`, summarized in its
+revision log. Round 4 (an in-repo audit) superseded the round-2/3
+terminal-deferral machinery by renegotiating the synchronous-restart
+clause it served (R4-4). The shaping decisions D1/D2 survived all
+four rounds unchanged. S1-M2 is outstanding — the one remaining
+pre-freeze design gate. M1-M2 blocks nothing, and M2-M2 deliberately
+runs during implementation before the published-storage choice is
+committed.
