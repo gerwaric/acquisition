@@ -12,9 +12,10 @@ when this map and a header disagree, the header wins.
 - `design/items-pipeline-m2.md` — draft spec (not frozen) for Milestone
   2, the streaming refresh signal: D-numbered decisions consuming the
   plan's M2 inbox, with an input-traceability table and the open
-  spike/measurement items. Revision 5 incorporates review rounds 1–4
-  (round 4 was an in-repo audit); the bounded S1-M2 UX spike and
-  revision 6's recorded result remain before freeze.
+  spike/measurement items. Revision 6 incorporates review rounds 1–5
+  (round 4 was an in-repo audit); the bounded S1-M2 and M2-M2
+  evidence spikes and revision 7's recorded results remain before
+  freeze.
 - `design/items-pipeline-m2-reviews.md` — that spec's review history:
   round-scoped finding tables (`R1-*`, …) with verdicts and
   resolutions, round narratives, and the revision log.
