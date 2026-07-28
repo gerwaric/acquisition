@@ -1,13 +1,15 @@
 # Items Pipeline Milestone 2: Streaming Refresh Signal
 
-Status: **draft for review — not frozen**. Revision 7 (July 28,
-2026), incorporating review rounds 1–6 (rounds 1–3, 5, and 6
-external, round 4 an in-repo audit); written on branch
-`items-pipeline-m2-spec`. The remaining pre-freeze sequence: F62
-lands (it changes what M2-M2 measures, R6-6), then the two evidence
-spikes — S1-M2 (D9 UX feel, with the restore-fidelity prototype,
-R6-3) and M2-M2 (D3 storage and frame budget); revision 8 records
-their results and freezes. This spec consumes the M2 inbox in
+Status: **draft for review — not frozen**. Revision 8 (July 28,
+2026), incorporating review rounds 1–7 (rounds 1–3 and 5–7
+external, round 4 an in-repo audit; round 7 closes the review
+series); written on branch `items-pipeline-m2-spec`. The remaining
+pre-freeze sequence: F62 lands, then the one remaining evidence
+spike — S1-M2 (D9 UX feel, with the restore-fidelity prototype,
+R6-3); revision 9 records its result, selects D9's behavior and S,
+and freezes. The M2-M2 frame/storage measurement moved to the first
+checkpoint of production implementation (R7-3): D3 freezes a
+determinate conditional instead. This spec consumes the M2 inbox in
 `items-pipeline.md` ("Inputs accumulated since this sketch") and its
 four hard constraints; the traceability table at the end maps every
 input to the decision, deferral, or acceptance criterion that consumed
@@ -130,7 +132,8 @@ Reasons:
 - **F62 also precedes the M2-M2 measurement (R6-6),** not just M2
   code: M2-M2's unit includes persistence cost, and F62 changes the
   persisted payload (raw wire bytes). A pre-F62 benchmark would be
-  obsolete by construction.
+  obsolete by construction. (M2-M2 is now an early implementation
+  checkpoint, R7-3; the ordering constraint is unchanged.)
 
 M2's deltas inherit F62's boundary rule as a constraint: **a delta
 never carries wire bytes or `poe::*` API objects** — the persistence
@@ -286,7 +289,7 @@ heap object and compares type plus `QString` per entry, M2 doubles
 the per-reply scans, and the codebase itself acknowledges users at
 the "hundreds of thousands or millions of items" scale
 (`search.cpp:243`). The choice therefore carries a **blocking
-pre-freeze measurement** (M2-M2, open-items list; R3-3, R4-1, R5-4),
+measurement** (M2-M2, open-items list; R3-3, R4-1, R5-4, R7-3),
 which separates two questions revision 5 conflated. The **storage
 question** — does `ItemsManager` need indexed storage? — is answered
 by the manager's marginal erase cost: **< 2 ms at 100k and < 16 ms
@@ -307,18 +310,29 @@ symmetric worker-side source-keyed store (measurement-gated, the
 same M3 shape), or a named fix for whichever component dominates —
 never a deferred paper-trail finding (revision 5's half-threshold
 arithmetic and remedy-by-finding are dropped, R5-4). The measurement
-runs **pre-freeze** as the second named evidence spike (D9's
-exception paragraph): a frozen spec must not leave the central
-storage choice open. Record a Release build and
+runs as the **first checkpoint of production implementation** — as
+soon as the post-F62 vertical reply path (worker handler →
+persistence → manager → pricing → UI fan-out) exists, and before M2
+is considered complete (R7-3, reversing revision 6's pre-freeze
+placement). R5-4's rule — a frozen spec must not leave the central
+storage choice open — is satisfied without a pre-freeze run: what
+freezes is a determinate conditional (flat vector; a budget miss
+makes the named remedy required, not discretionary), the choice is
+internal to the manager and alters no delta, terminal, or
+published-state contract, and measuring the real path replaces the
+throwaway reconstruction a pre-freeze run had grown to require —
+whose miss branch would itself have implemented a remedy before
+freeze, violating the doc-first rule the exception was meant to
+protect. Record a Release build and
 the measurement environment (hardware, OS, compiler, Qt, allocator),
 **fixed** representative datasets and reply-size/removal shapes —
 recorded so reruns are comparable — repetitions, and the reported
 statistic with the result. The measurement runs against a
 **post-F62 build** (D1, R6-6), and if a remedy is selected, the
 measurement is **rerun with the remedy in place** to validate it
-meets budget before freeze — naming a remedy is not evidence
-(R6-6). No *other* whole-collection work runs on this path (hard
-constraint; acceptance criterion below).
+meets budget before M2 is considered complete — naming a remedy is
+not evidence (R6-6). No *other* whole-collection work runs on this
+path (hard constraint; acceptance criterion below).
 
 ### D4. A typed terminal event, and no rollback
 
@@ -573,10 +587,12 @@ Exhaustively, by worker mutation:
   the final pass. Accepted.
 - **Ordering of the published vector is unspecified mid-refresh.**
   Erase+append leaves the vector unsorted between deltas; the final
-  emit restores the deterministic sorted order. No consumer may assume
-  sorted published items mid-refresh (today's consumers of mid-refresh
-  state: none; D9's refilter does not care; shop reads final-only per
-  D8).
+  emit restores the deterministic sorted order. No consumer may
+  assume sorted published items mid-refresh (R7-4): D9's refilter
+  does not care, and the one consumer that can observe mid-refresh
+  state — a manual shop submission's value capture (D8) — renders
+  from its own capture and sorts during generation (`shop.cpp:304`),
+  so published order never reaches the forum post.
 
 ### D7. Per-delta scoped pricing: yes — item-local, fail-safe, final pass stays authoritative
 
@@ -834,7 +850,15 @@ orphanable by a tab switch):
    half: under steady one-reply-per-20-seconds arrivals a resetting
    debounce would starve forever; this throttle guarantees the
    visible view is never more than S behind the applied state, and
-   resets at most once per S. **Provisional S = 60 seconds**, chosen
+   resets at most once per S. One narrow, stated exception to that
+   bound (R7-2): metadata carried only by an empty delta — a
+   renamed, moved, or newly discovered empty tab (D6) — starts no
+   timer, because no item intersects; it lands at the next refilter
+   or final snapshot, and after a terminal failure may wait for user
+   action indefinitely. Accepted: a metadata-only intersection class
+   is heavier than the artifact (R6-1), and the change is invisible
+   to any filtered search regardless (`search.cpp:277-286`).
+   **Provisional S = 60 seconds**, chosen
    to dominate the ~20 s/tab arrival cadence by a small integer
    factor; the exact value is a spike question (below), not an argued
    constant.
@@ -919,7 +943,7 @@ and judge scroll/selection/expansion survival by hand. Outcomes: (a)
 acceptable → S is confirmed or tuned; (b) not acceptable → rule 2
 degrades to "current search updates only at final emit or on user
 action" for M2 (the freshness bound then applies only to intersection
-*detection* — e.g. a "view is behind, N tabs updated" affordance — and
+*detection* — the staleness affordance contracted below — and
 true in-place freshness waits for M3's bucket-scoped model ops); rules
 1, 4, and 5 hold in either outcome. Either outcome ships M2; the spike
 only picks between two already-specified behaviors. Under outcome
@@ -934,27 +958,52 @@ after streamed deltas end in terminal failure there is no final
 emit, so under (b) the visible model stays stale until user action,
 unboundedly. Choosing (b) therefore updates the parent plan's inbox
 note in the same commit and replaces the timer-dependent acceptance
-criteria below (marked outcome-(a)) with affordance criteria defined
-in revision 8. Under outcome (a) no such gap exists: a pending tick
-survives a terminal failure and fires
-(`pendingTickSurvivesTerminalFailure`), so the S bound holds across
-failed updates too.
+criteria below (marked outcome-(a)) with the outcome-(b) affordance
+criteria below (R7-1). Under outcome (a) no such gap exists for
+item-bearing deltas: a pending tick survives a terminal failure and
+fires (`pendingTickSurvivesTerminalFailure`), so the S bound holds
+across failed updates too — metadata-only empty deltas remain the
+narrow R7-2 exception in either outcome.
 
-**Pre-freeze evidence exceptions (R3-4, R5-4).** S1-M2 and the M2-M2
-measurement are the two named exceptions to the parent plan's
-doc-first production rule. Their prototypes live on dedicated
-non-production branches or in isolated harnesses, are discarded or
-left unmerged, and cannot become production M2 code before freeze —
-they share dataset and harness work. Revision 4 authorized S1-M2;
-revision 6 moved M2-M2 pre-freeze and authorized it (a frozen spec
-must not leave the central storage choice open, R5-4). Both spikes
-run against a post-F62 build (R6-6), and S1-M2's prototype includes
-the restore-fidelity contract (R6-3). Revision 8 records both
-results, selects D9's behavior and S (if applicable) and D3's
-storage, and freezes the spec before production implementation
-begins. These are narrow evidence-gathering
-exceptions, not a general license to implement an unfrozen
-milestone.
+**Outcome (b)'s affordance contract (R7-1)** — defined now so the
+spike chooses between two fully specified behaviors rather than one
+behavior and a sketch: each search tracks, beside its items-dirty
+flag, the set of distinct display tabs (stable `(type, id)`) whose
+deltas intersected it since its last successful refilter. The
+affordance renders the current search's set. It **appears** when the
+first intersecting delta lands after that search's last successful
+refilter; it **counts** those distinct tabs ("view is behind — N
+tabs updated"); it **updates** synchronously with delta application,
+so S degrades to a trivially met detection bound and no timer exists;
+and it **clears**, per search, with the same successful refilter that
+clears that search's items-dirty flag — user action, activation,
+form edit, or the final-snapshot path. After a **terminal failure**
+it persists until a user-driven refilter clears it: that visible
+persistence *is* the renegotiated staleness outcome (b) accepts,
+surfaced instead of silent. Rules 1, 4, and 5 are unchanged; rule
+3's timer never runs. Presentation (statusbar text, a badge on the
+search tab, or similar) is implementation detail; the trigger,
+count, clear, and failure semantics above are the contract.
+
+**Pre-freeze evidence exception (R3-4, R7-3).** S1-M2 is the single
+named exception to the parent plan's doc-first production rule: it
+resolves a genuine product decision that argument cannot settle. Its
+prototype lives on a dedicated non-production branch or in an
+isolated harness, is discarded or left unmerged, and cannot become
+production M2 code before freeze. Revision 4 authorized it; revision
+6 moved M2-M2 pre-freeze beside it (R5-4); revision 8 moved M2-M2
+back out to the first implementation checkpoint (R7-3) — D3 now
+freezes a determinate conditional, so nothing stays open, and the
+pre-freeze run had grown into a throwaway vertical slice whose miss
+branch would have implemented a remedy before freeze. S1-M2 runs
+against a post-F62 build (R6-6) with the restore-fidelity contract
+prototyped (R6-3), uses a realistically large collection, and
+records reset latency alongside the subjective cadence and
+restore-fidelity judgment (R7-3). Revision 9 records its result,
+selects D9's behavior and S (if applicable), and freezes the spec
+before production implementation begins. This is a narrow
+evidence-gathering exception, not a general license to implement an
+unfrozen milestone.
 
 ### D10. Status-burst coalescing: measurement-gated
 
@@ -1121,8 +1170,8 @@ Shop-level (extending the existing `tst_shop` suite):
 UI-level (against the existing `MainWindow` fixture,
 `mainwindowfixture.h` / `tst_mainwindow.cpp` — R1-5). The
 timer-dependent and outcome-(a) criteria assume S1-M2 selects
-outcome (a); outcome (b) replaces them with affordance criteria in
-revision 8 (R5-3):
+outcome (a); outcome (b) replaces them with the outcome-(b)
+affordance criteria at the end of this list (R5-3, R7-1):
 
 - `backgroundDeltaLeavesModelUntouched` — a delta not intersecting the
   current search performs no model operation and marks every search
@@ -1155,9 +1204,11 @@ revision 8 (R5-3):
   distinct tabs never merge into one bucket.
 - `emptyDeltaMetadataLandsAtNextRefilter` (R6-1) — empty deltas for
   a renamed, a moved, and a newly discovered empty tab trigger no
-  refilter (no intersection), but the next refilter — whatever its
-  cause — renders those buckets from the canonical inventory's fresh
-  anchors.
+  refilter (no intersection), but the next refilter of an
+  **unfiltered** search — whatever its cause — renders those buckets
+  from the canonical inventory's fresh anchors. Filtered searches
+  hide empty buckets by design (`search.cpp:277-286`, R7-2); the
+  fresh anchors reach their view when the filter clears.
 - `expansionSurvivesRenameByStableKey` (R6-3, outcome (a)) — expand
   a bucket, rename its tab via a delta, let the throttled reset run;
   the bucket is still expanded under its new header.
@@ -1169,6 +1220,19 @@ revision 8 (R5-3):
   scroll position survives a throttled reset, and expansion changed
   after the last explicit save survives too (capture happens
   immediately before every reset).
+- `staleAffordanceCountsIntersectingTabs` (R7-1, outcome (b)) —
+  deltas for N distinct display tabs intersecting the current search
+  raise its indicator to N synchronously, with no model operation; a
+  delta intersecting only a background search leaves the visible
+  count unchanged (rule 1 still marks every search dirty).
+- `staleAffordanceClearsPerSearch` (R7-1, outcome (b)) — a
+  successful refilter of the current search clears its count and
+  indicator; a background search's count survives until its own
+  refilter, exactly like its items-dirty flag.
+- `staleAffordanceSurvivesTerminalFailure` (R7-1, outcome (b)) —
+  deltas followed by a terminal failure: the indicator persists with
+  its count until a user-driven refilter clears it; no timer fires
+  and no final emit rescues it.
 
 Design-review criteria (checked in review, not runnable):
 
@@ -1199,23 +1263,27 @@ Design-review criteria (checked in review, not runnable):
   trial of the S = 60 s reset-plus-restore cadence, with D9's
   restore-fidelity contract prototyped so cadence is judged with
   fidelity in place (R6-3); picks between D9's two specified
-  foreground behaviors and tunes S. Runs post-F62. Result recorded
-  in revision 8.
+  foreground behaviors and tunes S. Runs post-F62 on a realistically
+  large collection, recording reset latency alongside the subjective
+  cadence and restore-fidelity judgment (R7-3). Result recorded in
+  revision 9.
 - **M1-M2 (measurement, blocks nothing):** 2,000-entry `QueueUpdated`
   burst vs. status-widget frame time; builds the D10 coalesce only if
   it stutters.
-- **M2-M2 (measurement, pre-freeze — blocks D3's storage choice and
-  the freeze, R2-3/R3-3/R4-1/R5-4):** the complete synchronous reply
-  application on representative 100k and 1m datasets in a recorded
-  Release environment, with per-component attribution (worker erase,
-  manager erase, persistence, pricing, UI intersection/fan-out). The
-  manager's marginal erase cost (< 2 ms at 100k / < 16 ms at 1m)
-  gates the manager storage choice; the whole-path budget (same
-  thresholds, one frame at 1m) gates a required real remedy for the
-  dominant component. Runs alongside S1-M2 on shared harness
-  datasets, against a post-F62 build, with fixed recorded
-  reply/removal shapes; a selected remedy is validated by rerun
-  before freeze (R6-6). Results recorded in revision 8.
+- **M2-M2 (measurement, first implementation checkpoint — blocks M2
+  completion, R2-3/R3-3/R4-1/R5-4/R7-3):** the complete synchronous
+  reply application on representative 100k and 1m datasets in a
+  recorded Release environment, with per-component attribution
+  (worker erase, manager erase, persistence, pricing, UI
+  intersection/fan-out). The manager's marginal erase cost (< 2 ms
+  at 100k / < 16 ms at 1m) gates the required manager remedy; the
+  whole-path budget (same thresholds, one frame at 1m) gates a
+  required real remedy for the dominant component. Runs as soon as
+  the post-F62 production reply path exists — on the real code, not
+  a throwaway slice (R7-3) — reusing S1-M2's harness datasets, with
+  fixed recorded reply/removal shapes; a selected remedy is
+  validated by rerun before M2 is considered complete (R6-6).
+  Result recorded in an addendum to this spec when it runs.
 
 ## Input traceability
 
@@ -1233,24 +1301,31 @@ Design-review criteria (checked in review, not runnable):
 | Typed terminal event + explicit no-rollback policy | D4 |
 | Buyout scoping per delta; mind `ClearRefreshLocks` | D7 |
 | Persistence/presentation split; deleted-tab expression | D6 (table; deletion is snapshot-boundary; empty delta ≠ deletion) |
-| Freshness bound, not just coalescing | D9 (non-resetting throttle, S, both halves stated; outcome (b) would renegotiate this input, R5-3) |
+| Freshness bound, not just coalescing | D9 (non-resetting throttle, S, both halves stated; metadata-only empty deltas are a stated narrow exception, R7-2; outcome (b) would renegotiate this input, R5-3/R7-1) |
 
 Every inbox item is consumed; the emit-on-failure non-goal's "revisit
 at M2" is resolved by D4+D5+D8's shop gate.
 
-Review rounds 1–6 (R1-1…R1-9, R2-1…R2-4 plus four corrections,
+Review rounds 1–7 (R1-1…R1-9, R2-1…R2-4 plus four corrections,
 R3-1…R3-4 plus one wording correction, R4-1…R4-4 plus one record
-correction, R5-1…R5-7, R6-1…R6-6, July 27–28, 2026) are incorporated
-throughout — verdicts and resolutions in
+correction, R5-1…R5-7, R6-1…R6-6, R7-1…R7-4, July 27–28, 2026) are
+incorporated throughout — verdicts and resolutions in
 `items-pipeline-m2-reviews.md`, summarized in its revision log.
 Round 4 (an in-repo audit) deleted the terminal-deferral machinery
 by renegotiating the clause it served (R4-4); round 5 keyed
 mid-refresh bucket rendering on stable identity (R5-1) and moved
 M2-M2 pre-freeze (R5-4); round 6 made the child reconciliation carry
 the authoritative expected set (R6-2) and added D9's restore-fidelity
-contract for outcome (a) (R6-3). The shaping decisions D1/D2
-survived all six rounds unchanged. The pre-freeze sequence is F62,
-then the two evidence spikes S1-M2 and M2-M2, then revision 8
-recording their results and freezing. M1-M2 blocks nothing. The
-legacy bare-id keying exposure is tracked as F64 in the findings
-register (R6-5), outside M2's scope.
+contract for outcome (a) (R6-3); round 7 — the closing round —
+specified outcome (b)'s affordance contract (R7-1), carved the
+metadata-only empty-delta exception into D9's freshness bound
+(R7-2), moved M2-M2 back out to the first implementation checkpoint
+(R7-3, reversing R5-4's placement now that D3 freezes a determinate
+conditional), and corrected D6's mid-refresh consumer note (R7-4).
+The shaping decisions D1/D2 survived all seven rounds unchanged. The
+pre-freeze sequence is F62, then the S1-M2 spike, then revision 9
+recording its result and freezing. The review series is closed:
+remaining risk is retired by evidence — S1-M2 pre-freeze, M2-M2 and
+M1-M2 in implementation — not further argument. M1-M2 blocks
+nothing. The legacy bare-id keying exposure is tracked as F64 in the
+findings register (R6-5), outside M2's scope.

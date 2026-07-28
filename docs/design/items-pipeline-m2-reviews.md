@@ -274,6 +274,41 @@ re-opens the question of what must precede it. After this round the
 review series is capped by decision: remaining risk is retired by
 the two evidence spikes, not further argument.
 
+## Round 7 — external review (July 28, 2026) — closing round
+
+Read-only external review of spec revision 7 (commit `f21c9757`),
+delivered by the user with an explicit instruction to guard against
+over-reviewing and design-time scope creep, and evaluated
+claim-by-claim in-repo before acceptance. Reviewer's verdict,
+accepted: the spec is structurally sound; no further broad review
+rounds; a short targeted amendment plus evidence, then freeze. All
+four findings verified against the spec and code (including
+`search.cpp:280-286` for the filtered empty-bucket behavior and
+`shop.cpp:304` for shop-side sorting) and adopted. The reviewer also
+enumerated seven areas that should wait for implementation
+(canonical-map ownership, reselection key choice, scroll mechanism,
+timer injection, shop job structures, benchmark instrumentation
+boundaries, post-F62 line drift) — accepted as-is; no design-review
+time is spent on them.
+
+| ID | Group | Finding | Status |
+|---|---|---|---|
+| R7-1 | Outcome (b) underspecified | The spike claimed to choose between "two already-specified behaviors," but outcome (b)'s affordance was only an example and its acceptance criteria were deferred to the freeze revision — selecting (b) would invent and freeze a behavior in one step. | Resolved in D9 by defining the minimal affordance contract now (cheaper than the reviewer's alternative of a conditional extra review round): per-search intersected-tab sets beside the dirty flags, synchronous count updates, per-search clear on successful refilter, and visible persistence across terminal failure. Three outcome-(b) pins added (`staleAffordanceCountsIntersectingTabs`, `staleAffordanceClearsPerSearch`, `staleAffordanceSurvivesTerminalFailure`). Presentation stays implementation detail. |
+| R7-2 | Freshness-bound contradiction | D6 deliberately gives metadata-only empty deltas no intersection trigger, yet D9 claimed the view is never more than S behind applied state, extended across terminal failure — an empty-tab rename followed by failure starts no timer and stays invisible until user action, contradicting the stated bound. | Resolved as a documented narrow exception in D9 rule 2 (per the reviewer's own anti-scope-creep recommendation; a metadata intersection class was already declined in R6-1): the bound covers item-bearing deltas; metadata-only empty-delta changes land at next refilter or final snapshot and may wait indefinitely after failure. The outcome-(a) no-gap claim is qualified accordingly, and `emptyDeltaMetadataLandsAtNextRefilter` now specifies an unfiltered search (filtered searches hide empty buckets by design, `search.cpp:277-286`). |
+| R7-3 | M2-M2 timing | The pre-freeze M2-M2 gate had drifted into a throwaway production vertical slice: it required the complete post-F62 reply path plus remedy implementation and validation rerun before implementation officially begins — implementing before freeze in all but name, against the doc-first rule; its unpinned statistic and dataset shapes also weakened it as a binding gate. | Resolved by relocation (reversing R5-4's placement): D3 freezes a determinate conditional — flat vector, measured budgets, mandatory named remedy on a miss — satisfying R5-4's "nothing left open" rule without a pre-freeze run, and M2-M2 runs as the first checkpoint of production implementation on the real vertical path, with remedy validation by rerun before M2 is complete. The statistic/fixture looseness dies with the pre-freeze placement. S1-M2 keeps its pre-freeze exception (genuine product decision) and additionally records reset latency on a realistically large collection. |
+| R7-4 | D6/D8 consumer note | D6 said "shop reads final-only per D8," but D8 deliberately lets manual submission capture mid-refresh published state — the sentence was inaccurate (though the behavior is safe). | Resolved in D6: the note now states the actual contract — the manual job renders from its own value capture and sorts during generation (`shop.cpp:304`), so unsorted mid-refresh published order never reaches the forum post. |
+
+**Round-7 narrative.** A closing round in both senses: every finding
+was a correction to the spec's own bookkeeping rather than to a
+contract — the one relocation (R7-3) undoes a round-5 placement
+whose rationale D3's conditional decision had already absorbed, and
+resolves the quiet contradiction that the pre-freeze miss branch
+would itself have violated doc-first. The round's instruction to
+resist over-review shaped its resolutions: R7-2 became a documented
+exception instead of machinery, R7-1 a four-sentence contract
+instead of a future review round. Review is closed by decision;
+what remains is F62, the S1-M2 spike, and revision 9's freeze.
+
 ## Revision log
 
 - **Revision 1** (July 27, 2026, commit `aaa70f1e`): initial draft —
@@ -352,3 +387,17 @@ the two evidence spikes, not further argument.
   or renamed pins. The pre-freeze sequence is F62 → S1-M2 + M2-M2 →
   revision 8 records results and freezes. External review is capped
   by decision; remaining risk retires through the spikes.
+- **Revision 8** (July 28, 2026): round-7 incorporation — R7-1
+  through R7-4 resolved as tabled above; the closing round.
+  Substantive changes: outcome (b)'s affordance contract defined
+  with three outcome-(b) pins (D9); the metadata-only empty-delta
+  exception carved into D9's freshness bound, with the outcome-(a)
+  claim qualified and the empty-delta pin scoped to unfiltered
+  searches; M2-M2 moved out of pre-freeze to the first
+  implementation checkpoint, with D3 freezing a determinate
+  conditional and remedy validation moved to "before M2 is
+  complete" (parent plan's working rule 1 updated to one named
+  exception); S1-M2 gains the realistic-collection and
+  reset-latency requirements; D6's shop consumer note corrected.
+  The pre-freeze sequence is F62 → S1-M2 → revision 9 records the
+  result and freezes. The review series is closed.

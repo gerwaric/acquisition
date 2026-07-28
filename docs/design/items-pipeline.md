@@ -383,9 +383,10 @@ Carried over from the cleanup, which they served well:
    pre-freeze evidence spike whose prototype lives on a dedicated
    non-production branch or in an isolated harness and is discarded or left
    unmerged; the spec records the result and freezes before any production
-   implementation begins. M2 names two such exceptions: the S1-M2 UX spike
-   and the M2-M2 storage/frame measurement (`items-pipeline-m2.md`,
-   D9/R3-4, D3/R5-4).
+   implementation begins. M2 names one such exception: the S1-M2 UX spike
+   (`items-pipeline-m2.md`, D9/R3-4). The M2-M2 storage/frame measurement
+   runs instead as the first checkpoint of M2's production implementation
+   (R7-3; the spec freezes a determinate conditional for D3's storage).
 2. **Every commit compiles and passes `ctest`.**
 3. **New problems go to the register** (`docs/cleanup/findings.md`), not
    inline fixes, unless required for the milestone to proceed.
