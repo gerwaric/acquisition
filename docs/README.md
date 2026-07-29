@@ -20,6 +20,11 @@ when this map and a header disagree, the header wins.
 - `design/items-pipeline-m2-reviews.md` — that spec's review history:
   round-scoped finding tables (`R1-*`, …) with verdicts and
   resolutions, round narratives, and the revision log.
+- `design/items-pipeline-m2-implementation.md` — **proposed**
+  implementation sequence for the frozen M2 spec: stage boundaries,
+  gates (M2-M2 at stage 4), pin-to-stage traceability, and the
+  branch's known intermediate states. Sequencing only — no design
+  authority; the spec wins on any conflict.
 - `design/network-redesign.md` — accepted, frozen spec for the
   rate-limited networking redesign (typed facade, coroutine pumps, gate),
   revision 11. Records current decisions only; cites review finding IDs inline.
