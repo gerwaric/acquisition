@@ -104,6 +104,40 @@ exclusion from trade features. Cached characters whose payloads
 contain either collection can backfill without a refetch because the
 containers are already persisted.
 
+### F66. Legacy stores key locations by bare id, ignoring the location type — Confirmed; contained by decision
+
+(Originally registered as F64 on the M2 spec branch; renumbered at
+the July 28 master merge — master's released alpha.3 history had
+independently assigned F64 to the userstore schema repair and F65 to
+the rate-limit policy-shape fix.)
+
+Found July 28, 2026, during M2 spec review round 6 (R6-5,
+`items-pipeline-m2-reviews.md`). Several long-standing stores key
+stash/character locations by `ItemLocation::id()` alone, with no type
+qualifier: the worker's refresh selection set
+(`m_tabs_to_update.emplace(tab.id())`, `itemsmanagerworker.cpp:397`),
+refresh locks and tab buyouts (`BuyoutManager`, keyed on
+`loc.id()`), and `ItemLocation::operator==` itself
+(`itemlocation.cpp:173`, `m_unique_id` only). A cross-type id
+collision — a character whose identifying id equals a stash tab's
+uid — would conflate the two: selecting one location could fetch
+both types, and lock/buyout state would be shared between them.
+
+No collision has ever been observed; stash uids are long
+GUID-derived hex strings and character ids are player-chosen names,
+so overlap is astronomically unlikely — but it is not provable,
+since both namespaces are GGG-controlled.
+
+Decision (Tom, July 28, 2026): contained, not fixed in M2. M2
+type-qualifies the keys it *introduces* (`FetchSourceKey{type,
+fetch_id}` for the replacement erases and the child reconciliation,
+so the worker and the published copy can never diverge on a
+collision), and documents this boundary in D3. Rekeying the legacy
+stores is a migration project (persisted buyout keys included) out
+of proportion to the risk; this finding is the hook if a collision
+ever materializes or the stores are otherwise reworked (M3 is the
+natural opportunity).
+
 ## Standing constraints and lessons
 
 Rules distilled from resolved findings that remain binding on future work.

@@ -197,7 +197,7 @@ above): keying "new" on cached contents made a partial refresh balloon
 into a full one on a cold contents cache, so the auto-fetch was dropped in
 favor of fetching strictly the selection.
 
-### Milestone 2 — Streaming refresh signal (next; spec pending)
+### Milestone 2 — Streaming refresh signal (spec frozen at revision 9, July 29, 2026: `items-pipeline-m2.md`; implementation next)
 
 Surface per-tab progress without triggering the snapshot cascade:
 
@@ -350,6 +350,26 @@ Make Layer 3 consume deltas natively, eliminating the full reset:
   machinery involved. A "full refresh" is then just N deltas — no special
   destructive path left in the pipeline.
 
+Inputs accumulated for the M3 spec (from the S1-M2 spike, July 29,
+2026 — evidence in `s1-m2-spike-result.md`):
+
+- **The reset's dominant cost is the post-reset whole-model re-sort**,
+  not the filter or the model reset: ~0.4 s of a ~0.46 s reset at
+  101k items, ~5.0 s of ~5.4 s at ~976k (Release, worst-case
+  unfiltered search). Bucket-scoped ops retire this for the
+  *streaming* path by construction, but a **user-initiated full
+  refilter still rebuilds and re-sorts everything** and pays the same
+  cost at scale. Levers for M3 to weigh, all model-layer: precomputed
+  sort keys (the string/QVariant-heavy column comparators are the
+  suspected driver — the spike timed the sort as a whole, not the
+  comparators; profile before choosing), lazily sorting only
+  expanded/visible buckets, born-sorted buckets (filtering from a
+  pre-sorted master).
+- M2's R6-3 fidelity machinery — stable `(type, id)` expansion keys
+  and stable-identity reselection — is collectively negligible at
+  both scales (bounded by the few-ms residual after filter and sort;
+  not individually timed) and carries forward as M3's bucket keying.
+
 ## Non-goals
 
 - **Emit-on-failure / partial-application policy.** The worker keeps
@@ -379,8 +399,17 @@ Make Layer 3 consume deltas natively, eliminating the full reset:
 Carried over from the cleanup, which they served well:
 
 1. **Doc-first.** Each milestone has an implementation-grade spec reviewed
-   before its code begins — M1's is this document; M2 and M3 get their own
-   before they start.
+   and frozen before its production code begins — M1's is this document;
+   M2 and M3 get their own before they start. A spec may name a bounded
+   pre-freeze evidence spike whose prototype lives on a dedicated
+   non-production branch or in an isolated harness and is discarded or left
+   unmerged; the spec records the result and freezes before any production
+   implementation begins. M2 names one such exception: the S1-M2 UX spike
+   (`items-pipeline-m2.md`, D9/R3-4; ran July 29, 2026 — outcome (a),
+   S = 60 s, recorded in the M2 spec's revision 9, which froze it). The
+   M2-M2 storage/frame measurement
+   runs instead as the first checkpoint of M2's production implementation
+   (R7-3; the spec freezes a determinate conditional for D3's storage).
 2. **Every commit compiles and passes `ctest`.**
 3. **New problems go to the register** (`docs/cleanup/findings.md`), not
    inline fixes, unless required for the milestone to proceed.

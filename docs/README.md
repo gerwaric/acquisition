@@ -9,6 +9,17 @@ when this map and a header disagree, the header wins.
 - `design/items-pipeline.md` — plan for the delta-native redesign of the
   items refresh pipeline. Milestone 1 shipped July 2026; M2/M3 get their
   own specs before their code begins.
+- `design/items-pipeline-m2.md` — **frozen** spec (revision 9,
+  July 29, 2026, amended post-freeze the same day) for Milestone 2,
+  the streaming refresh signal: D-numbered decisions consuming the
+  plan's M2 inbox, with an input-traceability table. Review rounds
+  1–7 are incorporated (round 4 was an in-repo audit); the S1-M2
+  spike selected D9's outcome (a) with S = 60 s (evidence:
+  `design/s1-m2-spike-result.md`). The M1-M2 and M2-M2 measurements
+  run during implementation; M2-M2 is its first checkpoint.
+- `design/items-pipeline-m2-reviews.md` — that spec's review history:
+  round-scoped finding tables (`R1-*`, …) with verdicts and
+  resolutions, round narratives, and the revision log.
 - `design/network-redesign.md` — accepted, frozen spec for the
   rate-limited networking redesign (typed facade, coroutine pumps, gate),
   revision 11. Records current decisions only; cites review finding IDs inline.
