@@ -10,6 +10,7 @@
 #include "datastore/stashrepo.h"
 #include "datastore/userstore.h"
 #include "fakeapiclient.h"
+#include "itemsmanager.h"
 #include "itemsmanagerworker.h"
 #include "testfixtures.h"
 #include "util/json_readers.h"
@@ -102,11 +103,19 @@ private slots:
     void uniqueReplyChildrenAreFetchedAndReconciled();           // Unique reply children
     void appliedReplySurvivesLaterFailureInMemoryAndDatastore(); // P-APPLIED
 
-    // Items-pipeline M2, D3 (stage 1): the worker-observable halves of the
-    // presentation-lane delta contract. The published-copy halves of these
-    // pins complete in stage 2, when ItemsManager applies the deltas.
+    // Items-pipeline M2, D3 (stage 1): the presentation-lane delta contract,
+    // both halves — the worker's emits and the published-copy application.
     void deltaMatchesAppliedReplacement();
     void parentReplyReconcilesChildrenAgainstExpectedSet();
+
+    // Items-pipeline M2, stage 2: the published-state contract (D6), scoped
+    // per-delta pricing (D7), and the documented D2 transient.
+    void publishedStateIsSnapshotPlusAppliedDeltas();
+    void emptyDeltaEmptiesFetchSourceOnly();
+    void reconcileErasesGhostsAcrossFailedUpdates();
+    void scopedPricingConvergesToFinalPass();
+    void scopedPricingIsFailSafeAcrossFailedUpdate();
+    void parentBucketMayMixChildGenerationsMidRefresh();
 };
 
 namespace {
@@ -131,6 +140,36 @@ namespace {
             "y": 0
         })")
             .arg(id);
+    }
+
+    QString itemJsonWithNote(const QString &id, const QString &note)
+    {
+        return QString(R"({
+            "verified": true,
+            "w": 1,
+            "h": 1,
+            "icon": "https://web.poecdn.com/image/test.png",
+            "id": "%1",
+            "name": "",
+            "typeLine": "Test Item",
+            "baseType": "Test Item",
+            "identified": true,
+            "ilvl": 1,
+            "note": "%2",
+            "x": 0,
+            "y": 0
+        })")
+            .arg(id, note);
+    }
+
+    QByteArray stashJsonWithItems(const QString &id,
+                                  const QString &name,
+                                  unsigned index,
+                                  const QString &items_json)
+    {
+        return QString(R"({"id":"%1","name":"%2","type":"PremiumStash","index":%3,"items":[%4]})")
+            .arg(id, name, QString::number(index), items_json)
+            .toUtf8();
     }
 
     QString joinItems(const QStringList &item_ids)
@@ -388,6 +427,42 @@ namespace {
             worker->OnRePoEReady();
         }
 
+        // Attach an ItemsManager wired the way Application does (M2 stage 2):
+        // the final snapshot always, and — unless a test wants the
+        // final-pass-only baseline for comparison — the presentation-lane
+        // deltas too. Call right after start(), before the initial cached
+        // load emits, so the manager sees every emission of the run.
+        void attachManager(bool connect_deltas = true)
+        {
+            manager = std::make_unique<ItemsManager>(settings, *bm.manager, *bm.data);
+            QObject::connect(worker.get(),
+                             &ItemsManagerWorker::ItemsRefreshed,
+                             manager.get(),
+                             &ItemsManager::OnItemsRefreshed);
+            if (connect_deltas) {
+                QObject::connect(worker.get(),
+                                 &ItemsManagerWorker::TabRefreshed,
+                                 manager.get(),
+                                 &ItemsManager::OnTabRefreshed);
+                QObject::connect(worker.get(),
+                                 &ItemsManagerWorker::ChildrenReconciled,
+                                 manager.get(),
+                                 &ItemsManager::OnChildrenReconciled);
+            }
+            QObject::connect(manager.get(),
+                             &ItemsManager::TabRefreshed,
+                             manager.get(),
+                             [this](const ItemLocation &, const Items &) {
+                                 ++manager_delta_reemits;
+                             });
+            QObject::connect(manager.get(),
+                             &ItemsManager::ChildrenReconciled,
+                             manager.get(),
+                             [this](const ItemLocation &, const std::vector<FetchSourceKey> &) {
+                                 ++manager_reconcile_reemits;
+                             });
+        }
+
         QString dataDir() const { return bm.tempDir.filePath("data"); }
 
         // --- what the worker asked for ------------------------------------
@@ -584,6 +659,12 @@ namespace {
         std::vector<DeltaRecord> deltas;
         std::vector<ReconcileRecord> reconciles;
         int signal_seq{0};
+
+        // The optional published-copy consumer (M2 stage 2) and its light
+        // re-emit counts. Declared after `worker` so it is destroyed first.
+        std::unique_ptr<ItemsManager> manager;
+        int manager_delta_reemits{0};
+        int manager_reconcile_reemits{0};
 
         // Every NotifyUser message, in order — used to pin that a refused update
         // notifies the user (P-REFUSE).
@@ -2705,10 +2786,12 @@ void WorkerUpdateTest::deltaMatchesAppliedReplacement()
     }
 
     f.start();
+    f.attachManager();
     QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
     // The cached initial load is one snapshot emit, never deltas (D3).
     QCOMPARE(f.deltas.size(), size_t(0));
     QCOMPARE(f.reconciles.size(), size_t(0));
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"a-old", "b-old", "c-old"}));
 
     f.worker->Update(TabSelection::All);
     f.deliverStashList(
@@ -2745,12 +2828,17 @@ void WorkerUpdateTest::deltaMatchesAppliedReplacement()
         QVERIFY(reconcile.seq > f.deltas.back().seq); // primary delta first
     }
     QCOMPARE(f.stash_children_replaced_parents.size(), qsizetype(0));
+    // Published copy (stage 2): the snapshot with A's replacement applied.
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"a1", "a2", "b-old", "c-old"}));
+    QCOMPARE(f.manager_delta_reemits, 1);
+    QCOMPARE(f.manager_reconcile_reemits, 1);
 
     // An empty reply still emits its delta: an emptied fetch source.
     f.deliverStash("stashbbbb1", stashOf(stashJson("stashbbbb1", "Tab B", 1, QStringList{})));
     QCOMPARE(f.deltas.size(), size_t(2));
     QCOMPARE(f.deltas.back().location.fetch_id(), QString("stashbbbb1"));
     QVERIFY(f.deltas.back().items.empty());
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"a1", "a2", "c-old"}));
 
     // Character reply: symmetric delta, no reconciliation.
     f.deliverCharacter("TestChar",
@@ -2765,6 +2853,7 @@ void WorkerUpdateTest::deltaMatchesAppliedReplacement()
         QCOMPARE(delta.refresh_count_at_emit, 1);
     }
     QCOMPARE(f.reconciles.size(), size_t(2)); // tab B's; characters add none
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"a1", "a2", "c1"}));
 
     // The update completes after all deltas, and the delta shared the very
     // shared_ptrs the final snapshot publishes.
@@ -2774,15 +2863,20 @@ void WorkerUpdateTest::deltaMatchesAppliedReplacement()
         const auto published = std::find(f.last_items.cbegin(), f.last_items.cend(), delta_item);
         QVERIFY(published != f.last_items.cend()); // pointer identity, not equality
     }
+    // The final snapshot leaves the published copy identical to the
+    // streamed state (D6 convergence).
+    QCOMPARE(sortedItemIds(f.manager->items()), sortedItemIds(f.last_items));
+    QCOMPARE(f.manager_delta_reemits, 3);
+    QCOMPARE(f.manager_reconcile_reemits, 2);
 }
 
-// M2 D3/R5-2/R6-2 (stage 1, worker half): a top-level parent reply that stops
-// listing a child yields one ChildrenReconciled whose expected set is the
-// parent's own fetch source plus its currently listed children — the same
-// condition as the worker's own ghost erase (fetch_id == id), not the
-// narrower Map/Unique persistence condition. Child replies (fetch_id != id)
-// reconcile nothing. The published-copy erase against this set lands in
-// stage 2.
+// M2 D3/R5-2/R6-2: a top-level parent reply that stops listing a child yields
+// one ChildrenReconciled whose expected set is the parent's own fetch source
+// plus its currently listed children — the same condition as the worker's own
+// ghost erase (fetch_id == id), not the narrower Map/Unique persistence
+// condition. Child replies (fetch_id != id) reconcile nothing. The published
+// parent bucket loses exactly the items whose keys fall outside the expected
+// set, in one erase pass (stage 2).
 void WorkerUpdateTest::parentReplyReconcilesChildrenAgainstExpectedSet()
 {
     WorkerFixture f("delta-reconcile");
@@ -2801,6 +2895,7 @@ void WorkerUpdateTest::parentReplyReconcilesChildrenAgainstExpectedSet()
     }
 
     f.start();
+    f.attachManager();
     QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"m1", "p1"}));
 
@@ -2831,6 +2926,10 @@ void WorkerUpdateTest::parentReplyReconcilesChildrenAgainstExpectedSet()
         QVERIFY(reconcile.expected == expected);
         QVERIFY(reconcile.seq > f.deltas.back().seq);
     }
+    // Published copy (stage 2): the primary delta replaced p1, and the
+    // reconciliation erased the vanished child's m1 — exactly the keys
+    // outside the expected set, nothing else.
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"p1-new"}));
 
     // A child reply emits its own delta but no reconciliation: its fetch id
     // is not the display id, so it is not a top-level parent reply.
@@ -2844,9 +2943,358 @@ void WorkerUpdateTest::parentReplyReconcilesChildrenAgainstExpectedSet()
     QCOMPARE(f.reconciles.size(), size_t(1));
 
     // The worker's own erase ran against the same expected set: the vanished
-    // child's item is gone from the final snapshot.
+    // child's item is gone from the final snapshot, and the published copy
+    // converges to it.
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"m2", "p1-new"}));
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"m2", "p1-new"}));
+}
+
+// M2 D6 (stage 2): at any point mid-update, ItemsManager::items() equals the
+// pre-update snapshot with applied replacements substituted, and after a
+// mid-update failure it stays there — the published-copy extension of
+// appliedReplySurvivesLaterFailureInMemoryAndDatastore.
+void WorkerUpdateTest::publishedStateIsSnapshotPlusAppliedDeltas()
+{
+    WorkerFixture f("published-state");
+
+    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a-old"}));
+    const auto tab_b = json::readStash(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b-old"}));
+    QVERIFY(tab_a && tab_b);
+    {
+        UserStore store(QDir(f.dataDir()), "published-state");
+        QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b}, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_b, kRealm, kLeague));
+    }
+
+    f.start();
+    f.attachManager();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"a-old", "b-old"}));
+
+    const std::vector<poe::StashTab> fresh = stashList(
+        {stashJson("stashaaaa1", "Tab A", 0), stashJson("stashbbbb1", "Tab B", 1)});
+
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(fresh);
+    f.deliverCharacterList({});
+    // Lists produce no deltas: the published copy is still the snapshot.
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"a-old", "b-old"}));
+
+    // A's replacement applies; B is untouched.
+    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a-new"})));
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"a-new", "b-old"}));
+
+    // A mid-update terminal failure leaves the published copy exactly where
+    // the applied deltas put it — no rollback, no final snapshot.
+    QVERIFY(f.hasPendingStash("stashbbbb1"));
+    f.failStash("stashbbbb1");
+    QCOMPARE(f.refresh_count, 1);
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"a-new", "b-old"}));
+}
+
+// M2 D3/D6 (stage 2): an empty replacement empties that fetch source in the
+// published copy and removes nothing else; no tab disappears from the
+// published tab list mid-refresh (tab deletion is snapshot-boundary).
+void WorkerUpdateTest::emptyDeltaEmptiesFetchSourceOnly()
+{
+    WorkerFixture f("empty-delta");
+
+    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1", "a2"}));
+    const auto tab_b = json::readStash(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b1"}));
+    QVERIFY(tab_a && tab_b);
+    {
+        UserStore store(QDir(f.dataDir()), "empty-delta");
+        QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b}, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_b, kRealm, kLeague));
+    }
+
+    f.start();
+    f.attachManager();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"a1", "a2", "b1"}));
+    QCOMPARE(f.bm.manager->GetStashTabLocations().size(), size_t(2));
+
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(
+        stashList({stashJson("stashaaaa1", "Tab A", 0), stashJson("stashbbbb1", "Tab B", 1)}));
+    f.deliverCharacterList({});
+
+    // A's emptied replacement removes exactly A's items...
+    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{})));
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"b1"}));
+    // ...and the published tab list still holds both tabs mid-refresh.
+    QCOMPARE(f.bm.manager->GetStashTabLocations().size(), size_t(2));
+
+    f.deliverStash("stashbbbb1", stashOf(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b1"})));
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"b1"}));
+    QCOMPARE(f.bm.manager->GetStashTabLocations().size(), size_t(2));
+}
+
+// M2 R6-2 (stage 2): the expected set reconciles the PUBLISHED baseline, not
+// worker memory. Update N's list deletes parent P (worker memory and
+// datastore drop P and its child's items at list arrival), then N fails, so
+// the published copy keeps both. When N+1 lists P again and P's reply no
+// longer lists the child, applying N+1's ChildrenReconciled erases the
+// child's published items even though the worker had nothing left to erase.
+void WorkerUpdateTest::reconcileErasesGhostsAcrossFailedUpdates()
+{
+    WorkerFixture f("reconcile-ghosts");
+    f.settings.setValue("get_map_stashes", true);
+
+    const auto parent_tab = json::readStash(
+        stashJson("mapstash01", "Maps", 0, QStringList{"p1"}, "MapStash"));
+    const auto child_tab = json::readStash(
+        stashJson("mapchild01", "Tier 1", 0, QStringList{"m1"}, "MapStash", "mapstash01"));
+    const auto tab_b = json::readStash(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b1"}));
+    QVERIFY(parent_tab && child_tab && tab_b);
+    {
+        UserStore store(QDir(f.dataDir()), "reconcile-ghosts");
+        QVERIFY(store.stashes().saveStashList({*parent_tab, *tab_b}, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *parent_tab, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *child_tab, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_b, kRealm, kLeague));
+    }
+
+    f.start();
+    f.attachManager();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"b1", "m1", "p1"}));
+
+    // Update N: the fresh list no longer holds P — worker memory drops P's
+    // and the child's items at list arrival — and then B's fetch dies, so
+    // nothing reaches the published copy.
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(stashList({stashJson("stashbbbb1", "Tab B", 1)}));
+    f.deliverCharacterList({});
+    QVERIFY(f.hasPendingStash("stashbbbb1"));
+    f.failStash("stashbbbb1");
+    QCOMPARE(f.refresh_count, 1);
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"b1", "m1", "p1"}));
+
+    // Update N+1: P is listed again, and its reply lists no children. The
+    // reconciliation's expected set is {P}, and applying it to the published
+    // baseline erases the child ghost m1 the worker itself no longer held.
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(stashList(
+        {stashJson("mapstash01", "Maps", 0, {}, "MapStash"), stashJson("stashbbbb1", "Tab B", 1)}));
+    f.deliverCharacterList({});
+    f.deliverStash("mapstash01",
+                   stashOf(stashJson("mapstash01", "Maps", 0, QStringList{"p1-new"}, "MapStash")));
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"b1", "p1-new"}));
+
+    f.deliverStash("stashbbbb1", stashOf(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b1"})));
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"b1", "p1-new"}));
+}
+
+// M2 D7 (stage 2): scoped per-delta pricing followed by the final pass yields
+// BuyoutManager state identical to the final pass alone (modulo last_update,
+// which Buyout::operator== ignores). Two identical fixtures run the same
+// scripted update — one streaming with scoped pricing, one final-pass-only —
+// and every item buyout, tab buyout, and refresh lock must agree.
+void WorkerUpdateTest::scopedPricingConvergesToFinalPass()
+{
+    const auto runScenario = [](WorkerFixture &f, const QString &account, bool connect_deltas) {
+        const auto tab_a = json::readStash(
+            stashJson("stashaaaa1", "Tab A", 0, QStringList{"a-plain"}));
+        const auto tab_b = json::readStash(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b1"}));
+        QVERIFY(tab_a && tab_b);
+        {
+            UserStore store(QDir(f.dataDir()), account);
+            QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b}, kRealm, kLeague));
+            QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
+            QVERIFY(saveStashFixture(store.stashes(), *tab_b, kRealm, kLeague));
+        }
+
+        f.start();
+        f.attachManager(connect_deltas);
+        QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+        // A manual tab buyout for A, set before the update, that streamed
+        // items must inherit; the fresh list renames B to a price-bearing
+        // label, which only the final pass may turn into a tab buyout.
+        f.bm.manager->SetTab(ItemLocation(*tab_a), makeChaosBuyout(3));
+
+        f.worker->Update(TabSelection::All);
+        f.deliverStashList(stashList(
+            {stashJson("stashaaaa1", "Tab A", 0), stashJson("stashbbbb1", "~b/o 2 chaos", 1)}));
+        f.deliverCharacterList({});
+        f.deliverStash("stashaaaa1",
+                       stashOf(stashJsonWithItems("stashaaaa1",
+                                                  "Tab A",
+                                                  0,
+                                                  itemJsonWithNote("a-note", "~b/o 5 chaos") + ","
+                                                      + itemJson("a-plain"))));
+        f.deliverStash("stashbbbb1",
+                       stashOf(stashJson("stashbbbb1", "~b/o 2 chaos", 1, QStringList{"b1"})));
+        QCOMPARE(f.refresh_count, 2);
+    };
+
+    WorkerFixture streamed("scoped-conv-streamed");
+    runScenario(streamed, "scoped-conv-streamed", true);
+    if (QTest::currentTestFailed()) {
+        return;
+    }
+    WorkerFixture final_only("scoped-conv-final");
+    runScenario(final_only, "scoped-conv-final", false);
+    if (QTest::currentTestFailed()) {
+        return;
+    }
+
+    // Identical published items...
+    QCOMPARE(sortedItemIds(streamed.manager->items()), sortedItemIds(final_only.manager->items()));
+    // ...identical item buyouts (operator== ignores last_update)...
+    for (const auto &item : streamed.manager->items()) {
+        const auto other = std::find_if(final_only.manager->items().cbegin(),
+                                        final_only.manager->items().cend(),
+                                        [&](const std::shared_ptr<Item> &candidate) {
+                                            return candidate->id() == item->id();
+                                        });
+        QVERIFY(other != final_only.manager->items().cend());
+        QVERIFY(streamed.bm.manager->Get(*item) == final_only.bm.manager->Get(**other));
+    }
+    // ...and identical tab buyouts and refresh locks per tab.
+    for (const auto &loc : streamed.bm.manager->GetStashTabLocations()) {
+        QVERIFY(streamed.bm.manager->GetTab(loc) == final_only.bm.manager->GetTab(loc));
+        QCOMPARE(streamed.bm.manager->GetRefreshLocked(loc),
+                 final_only.bm.manager->GetRefreshLocked(loc));
+    }
+}
+
+// M2 D7/R1-4 (stage 2): after deltas followed by a terminal failure, every
+// published item whose buyout requires a refresh has its tab refresh-locked,
+// pre-existing locks survive (the scoped pass never calls ClearRefreshLocks),
+// and the tab-buyout table equals its pre-update state — the rename-to-price
+// label the update's list carried leaked nothing without a final pass.
+void WorkerUpdateTest::scopedPricingIsFailSafeAcrossFailedUpdate()
+{
+    WorkerFixture f("scoped-failsafe");
+
+    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a-plain"}));
+    const auto tab_b = json::readStash(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b1"}));
+    QVERIFY(tab_a && tab_b);
+    {
+        UserStore store(QDir(f.dataDir()), "scoped-failsafe");
+        QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b}, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_b, kRealm, kLeague));
+    }
+
+    f.start();
+    f.attachManager();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    const ItemLocation loc_a = ItemLocation(*tab_a);
+    const ItemLocation loc_b = ItemLocation(*tab_b);
+    const Buyout pre_tab_a = f.bm.manager->GetTab(loc_a);
+    const Buyout pre_tab_b = f.bm.manager->GetTab(loc_b);
+    // A pre-existing lock the scoped pass must not clear.
+    f.bm.manager->SetRefreshLocked(loc_b);
+
+    // The update's fresh list renames A to a price-bearing label; A's delta
+    // carries a note-priced item; then B dies, so no final pass ever runs.
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(stashList(
+        {stashJson("stashaaaa1", "~b/o 9 chaos", 0), stashJson("stashbbbb1", "Tab B", 1)}));
+    f.deliverCharacterList({});
+    f.deliverStash("stashaaaa1",
+                   stashOf(stashJsonWithItems("stashaaaa1",
+                                              "~b/o 9 chaos",
+                                              0,
+                                              itemJsonWithNote("a-note", "~b/o 5 chaos"))));
+    QVERIFY(f.hasPendingStash("stashbbbb1"));
+    f.failStash("stashbbbb1");
+    QCOMPARE(f.refresh_count, 1);
+
+    // Every published item whose buyout requires a refresh has its tab
+    // locked (remove-only tabs excluded per D7 rule 3 / R5-7).
+    for (const auto &item : f.manager->items()) {
+        if (f.bm.manager->Get(*item).RequiresRefresh() && !item->location().removeonly()) {
+            QVERIFY(f.bm.manager->GetRefreshLocked(item->location()));
+        }
+    }
+    // The note-priced delta item locked its tab in particular...
+    QVERIFY(f.bm.manager->GetRefreshLocked(loc_a));
+    // ...the pre-existing lock survived...
+    QVERIFY(f.bm.manager->GetRefreshLocked(loc_b));
+    // ...and the tab-buyout table is unchanged: no auto-tab leak from the
+    // rename, no other tab-level mutation.
+    QVERIFY(f.bm.manager->GetTab(loc_a) == pre_tab_a);
+    QVERIFY(f.bm.manager->GetTab(loc_b) == pre_tab_b);
+}
+
+// M2 D2 (stage 2): documented-behavior pin, not a bug tripwire — a Map
+// parent's display tab may transiently mix child-data generations while its
+// children stream in; each fetch source stays internally consistent.
+void WorkerUpdateTest::parentBucketMayMixChildGenerationsMidRefresh()
+{
+    WorkerFixture f("parent-mix");
+    f.settings.setValue("get_map_stashes", true);
+
+    const auto parent_tab = json::readStash(
+        stashJson("mapstash01", "Maps", 0, QStringList{"p1"}, "MapStash"));
+    const auto child_1 = json::readStash(
+        stashJson("mapchild01", "Tier 1", 0, QStringList{"m1"}, "MapStash", "mapstash01"));
+    const auto child_2 = json::readStash(
+        stashJson("mapchild02", "Tier 2", 0, QStringList{"m2"}, "MapStash", "mapstash01"));
+    QVERIFY(parent_tab && child_1 && child_2);
+    {
+        UserStore store(QDir(f.dataDir()), "parent-mix");
+        QVERIFY(store.stashes().saveStashList({*parent_tab}, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *parent_tab, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *child_1, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *child_2, kRealm, kLeague));
+    }
+
+    f.start();
+    f.attachManager();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"m1", "m2", "p1"}));
+
+    // The parent reply still lists both children; child 1's fresh contents
+    // arrive, child 2's have not yet.
+    f.worker->Update(TabSelection::Selected, {ItemLocation(*parent_tab)});
+    f.deliverStashList(stashList({stashJson("mapstash01", "Maps", 0, {}, "MapStash")}));
+    f.deliverStash(
+        "mapstash01",
+        stashOf(stashJson("mapstash01",
+                          "Maps",
+                          0,
+                          QStringList{"p1-new"},
+                          "MapStash",
+                          {},
+                          {stashJson("mapchild01", "Tier 1", 0, {}, "MapStash", "mapstash01"),
+                           stashJson("mapchild02", "Tier 2", 0, {}, "MapStash", "mapstash01")})));
+    f.deliverChild("mapstash01",
+                   "mapchild01",
+                   stashOf(stashJson("mapchild01",
+                                     "Tier 1",
+                                     0,
+                                     QStringList{"m1-new"},
+                                     "MapStash",
+                                     "mapstash01")));
+
+    // The published parent bucket now mixes generations: fresh parent items
+    // and child 1, stale child 2 — all displaying under mapstash01.
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"m1-new", "m2", "p1-new"}));
+    for (const auto &item : f.manager->items()) {
+        QCOMPARE(item->location().id(), QString("mapstash01"));
+    }
+
+    f.deliverChild("mapstash01",
+                   "mapchild02",
+                   stashOf(stashJson("mapchild02",
+                                     "Tier 2",
+                                     0,
+                                     QStringList{"m2-new"},
+                                     "MapStash",
+                                     "mapstash01")));
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"m1-new", "m2-new", "p1-new"}));
 }
 
 QTEST_GUILESS_MAIN(WorkerUpdateTest)

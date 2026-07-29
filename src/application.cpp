@@ -21,9 +21,9 @@
 #include "imagecache.h"
 #include "itemsmanager.h"
 #include "itemsmanagerworker.h"
+#include "poe/poeapiclient.h"
 #include "ratelimit/ratelimiter.h"
 #include "repoe/repoe.h"
-#include "poe/poeapiclient.h"
 #include "shop.h"
 #include "ui/logindialog.h"
 #include "ui/mainwindow_bridge.h"
@@ -108,6 +108,13 @@ void Application::InitUserSession()
     connect(item_mgr, &ItemsManager::UpdateSignal, worker, &ItemsManagerWorker::Update);
     connect(worker, &ItemsManagerWorker::StatusUpdate, item_mgr, &ItemsManager::OnStatusUpdate);
     connect(worker, &ItemsManagerWorker::ItemsRefreshed, item_mgr, &ItemsManager::OnItemsRefreshed);
+    // Presentation-lane deltas (items-pipeline M2, D3): the manager streams
+    // each one into its published copy and re-emits for the UI.
+    connect(worker, &ItemsManagerWorker::TabRefreshed, item_mgr, &ItemsManager::OnTabRefreshed);
+    connect(worker,
+            &ItemsManagerWorker::ChildrenReconciled,
+            item_mgr,
+            &ItemsManager::OnChildrenReconciled);
     connect(item_mgr, &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
 
     auto characters = &userstore().characters();

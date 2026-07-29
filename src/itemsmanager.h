@@ -8,6 +8,7 @@
 
 #include <vector>
 
+#include "fetchsourcekey.h"
 #include "item.h"
 #include "itemlocation.h"
 #include "itemsmanagerworker.h"
@@ -48,14 +49,31 @@ public slots:
     void OnItemsRefreshed(const Items &items,
                           const std::vector<ItemLocation> &tabs,
                           bool initial_refresh);
+    // Streaming delta application (items-pipeline M2, D3/D6): each worker
+    // delta is applied to the published copy — one predicate-only erase by
+    // FetchSourceKey (the permitted linear pass, R1-2) plus an append —
+    // priced for the delta's items only (D7), and re-emitted for the UI.
+    void OnTabRefreshed(const ItemLocation &location, const Items &items);
+    // An aggregate child reconciliation applies the authoritative expected
+    // set to OUR OWN baseline (R5-2/R6-2): items under the parent's stable
+    // id whose key is outside the set are erased — correct even where the
+    // published copy diverged from worker memory across a failed update.
+    void OnChildrenReconciled(const ItemLocation &parent,
+                              const std::vector<FetchSourceKey> &expected);
 signals:
     void UpdateSignal(Util::TabSelection type, const std::vector<ItemLocation> &tab_names = {});
     void ItemsRefreshed(bool initial_refresh);
+    void TabRefreshed(const ItemLocation &location, const Items &items);
+    void ChildrenReconciled(const ItemLocation &parent, const std::vector<FetchSourceKey> &expected);
     void StatusUpdate(ProgramState state, const QString &status);
     void UpdateModListSignal();
 
 private:
     void MigrateBuyouts();
+    // Scoped per-delta pricing (M2 D7): item-local, fail-safe on both
+    // outcomes, O(delta items). The final whole-collection pass at
+    // ItemsRefreshed stays authoritative.
+    void ApplyScopedPricing(const Items &delta_items);
 
     QSettings &m_settings;
     BuyoutManager &m_buyout_manager;

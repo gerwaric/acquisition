@@ -71,9 +71,11 @@ private slots:
     void continuationDoesNotRunAfterShopDestruction();
 
     // Items-pipeline M2, D8: the single-active-job foundation (stage 2
-    // front-load). The delta-dependent capture pins land with streaming.
+    // front-load), plus the delta-dependent capture pins.
     void olderSubmissionCannotCleanNewerInput();
     void activeJobUnaffectedByLocalEdits();
+    void shopSubmissionUsesCapturedSnapshot();
+    void manualSubmissionRendersCapturedPublishedState();
 };
 
 namespace {
@@ -328,6 +330,73 @@ void ShopTest::activeJobUnaffectedByLocalEdits()
     // The job completes without re-rendering: the posted state is unchanged.
     completeForumSubmission(fixture, 0);
     QVERIFY(fixture.shop->shop_data().first().contains(" 1 chaos"));
+}
+
+// M2 D8/R2-1 (stage 2): submission input is captured by value at request
+// time. Submission for update N is requested, the stash-index future is held,
+// N+1 streams a delta that empties the published state — and the generated
+// shop still reflects N's captured input. (Value capture also makes the
+// rebase hazard moot: no shared Item object is retained, so a later
+// FinishUpdate rebasing locations in place cannot reach the capture.)
+void ShopTest::shopSubmissionUsesCapturedSnapshot()
+{
+    ShopFixture fixture;
+    armForSubmission(fixture);
+    const auto item = publishPricedItem(fixture, "item-a", 1);
+
+    // Request submission for N: the capture happens now, the index is held.
+    fixture.shop->SubmitShopToForum();
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(1));
+
+    // N+1 streams a delta emptying item-a's fetch source: the published
+    // state no longer holds any postable item.
+    fixture.itemsManager->OnTabRefreshed(item->location(), {});
+    QVERIFY(fixture.itemsManager->items().empty());
+
+    // The index arrives; the job renders its capture, not the published
+    // state — the shop still holds the captured item.
+    fixture.rateLimiter->resolve(0, kStashIndexJson);
+    drainEvents();
+    QVERIFY(!fixture.shop->shop_data().isEmpty());
+    QVERIFY(fixture.shop->shop_data().first().contains(" 1 chaos"));
+    QVERIFY(fixture.shop->shop_data().first().contains("linkItem"));
+}
+
+// M2 D8/R3-1 (stage 2): a forced manual request during an item refresh
+// renders its captured published state even when the preview cache's
+// revision still appears current — deltas deliberately do not advance the
+// input revision (R4-2), so the old cached-data shortcut would have posted
+// pre-delta text.
+void ShopTest::manualSubmissionRendersCapturedPublishedState()
+{
+    ShopFixture fixture;
+    armForSubmission(fixture);
+    const auto item_a = publishPricedItem(fixture, "item-a", 1);
+
+    // A completed submission leaves a preview cache rendered from the
+    // current input revision — the cache "appears current".
+    fixture.shop->SubmitShopToForum();
+    fixture.rateLimiter->resolve(0, kStashIndexJson);
+    drainEvents();
+    completeForumSubmission(fixture, 0);
+    QVERIFY(!fixture.shop->shop_data_outdated());
+    QVERIFY(fixture.shop->shop_data().first().contains(" 1 chaos"));
+
+    // A streamed delta replaces the published item with a repriced one; the
+    // cache revision still appears current.
+    auto item_b = std::make_shared<Item>(makeTestItem("item-b"));
+    fixture.itemsManager->OnTabRefreshed(item_a->location(), {item_b});
+    fixture.buyoutFixture.manager->Set(*item_b, makeChaosBuyout(2));
+    QVERIFY(!fixture.shop->shop_data_outdated());
+
+    // A forced manual submission renders its own capture of the current
+    // published state instead of reusing the cached pre-delta text.
+    fixture.shop->SubmitShopToForum(true);
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(2));
+    fixture.rateLimiter->resolve(1, kStashIndexJson);
+    drainEvents();
+    QVERIFY(fixture.shop->shop_data().first().contains(" 2 chaos"));
+    QVERIFY(!fixture.shop->shop_data().first().contains(" 1 chaos"));
 }
 
 QTEST_MAIN(ShopTest)
