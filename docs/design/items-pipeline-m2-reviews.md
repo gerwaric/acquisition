@@ -402,3 +402,17 @@ what remains is F62, the S1-M2 spike, and revision 9's freeze.
   reset-latency requirements; D6's shop consumer note corrected.
   The pre-freeze sequence is F62 → S1-M2 → revision 9 records the
   result and freezes. The review series is closed.
+- **Revision 9** (July 29, 2026): **the freeze.** Not a review round
+  — records the pre-freeze evidence and changes no decisions. F62
+  merged to master (PR #183, `fdf530b5`); the S1-M2 spike ran
+  July 29 on the non-production branch `spike/s1-m2-throttle` with
+  the R6-3 fidelity contract prototyped and Tom hand-judging cadence
+  at the driving scale: **outcome (a) selected, S confirmed at
+  60 s**. Reset latency recorded (~455 ms at 101k items, ~5.4 s at
+  ~976k, the post-reset whole-model re-sort dominant in both; the
+  fidelity machinery ~0 ms) — evidence archived in
+  `s1-m2-spike-result.md`. The outcome-(b) affordance contract
+  (R7-1) is retained as record, not selected; the outcome-(a)
+  acceptance criteria bind. The ~1m sort cost is carried into the
+  parent plan as an input for the M3 spec. Production implementation
+  may begin; its first checkpoint is M2-M2 (R7-3).

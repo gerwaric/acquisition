@@ -349,6 +349,23 @@ Make Layer 3 consume deltas natively, eliminating the full reset:
   machinery involved. A "full refresh" is then just N deltas — no special
   destructive path left in the pipeline.
 
+Inputs accumulated for the M3 spec (from the S1-M2 spike, July 29,
+2026 — evidence in `s1-m2-spike-result.md`):
+
+- **The reset's dominant cost is the post-reset whole-model re-sort**,
+  not the filter or the model reset: ~0.4 s of a ~0.46 s reset at
+  101k items, ~5.0 s of ~5.4 s at ~976k (Release, worst-case
+  unfiltered search). Bucket-scoped ops retire this for the
+  *streaming* path by construction, but a **user-initiated full
+  refilter still rebuilds and re-sorts everything** and pays the same
+  cost at scale. Levers for M3 to weigh, all model-layer: precomputed
+  sort keys (the string/QVariant-heavy column comparators dominate),
+  lazily sorting only expanded/visible buckets, born-sorted buckets
+  (filtering from a pre-sorted master).
+- M2's R6-3 fidelity machinery — stable `(type, id)` expansion keys
+  and stable-identity reselection — measured ~0 ms at both scales and
+  carries forward as M3's bucket keying.
+
 ## Non-goals
 
 - **Emit-on-failure / partial-application policy.** The worker keeps
@@ -384,7 +401,9 @@ Carried over from the cleanup, which they served well:
    non-production branch or in an isolated harness and is discarded or left
    unmerged; the spec records the result and freezes before any production
    implementation begins. M2 names one such exception: the S1-M2 UX spike
-   (`items-pipeline-m2.md`, D9/R3-4). The M2-M2 storage/frame measurement
+   (`items-pipeline-m2.md`, D9/R3-4; ran July 29, 2026 — outcome (a),
+   S = 60 s, recorded in the M2 spec's revision 9, which froze it). The
+   M2-M2 storage/frame measurement
    runs instead as the first checkpoint of M2's production implementation
    (R7-3; the spec freezes a determinate conditional for D3's storage).
 2. **Every commit compiles and passes `ctest`.**

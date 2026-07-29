@@ -1,21 +1,22 @@
 # Items Pipeline Milestone 2: Streaming Refresh Signal
 
-Status: **draft for review — not frozen**. Revision 8 (July 28,
-2026), incorporating review rounds 1–7 (rounds 1–3 and 5–7
-external, round 4 an in-repo audit; round 7 closes the review
-series); written on branch `items-pipeline-m2-spec`. The remaining
-pre-freeze sequence: F62 lands, then the one remaining evidence
-spike — S1-M2 (D9 UX feel, with the restore-fidelity prototype,
-R6-3); revision 9 records its result, selects D9's behavior and S,
-and freezes. The M2-M2 frame/storage measurement moved to the first
-checkpoint of production implementation (R7-3): D3 freezes a
-determinate conditional instead. This spec consumes the M2 inbox in
+Status: **FROZEN at revision 9** (July 29, 2026). Review rounds 1–7
+are incorporated (rounds 1–3 and 5–7 external, round 4 an in-repo
+audit; round 7 closed the review series at revision 8). Revision 9
+records the pre-freeze evidence and makes no new arguments: F62 is
+merged to master (PR #183, `fdf530b5`), and the S1-M2 spike ran
+July 29, 2026 on the non-production branch `spike/s1-m2-throttle`
+with Tom judging cadence and restore fidelity by hand — **D9's
+outcome (a) is selected and S is confirmed at 60 seconds**, with the
+R6-3 restore-fidelity contract validated and reset latency recorded
+(evidence archived in `s1-m2-spike-result.md`). Production
+implementation may begin, with the M2-M2 frame/storage measurement
+as its first checkpoint (R7-3; D3 freezes a determinate
+conditional). This spec consumes the M2 inbox in
 `items-pipeline.md` ("Inputs accumulated since this sketch") and its
 four hard constraints; the traceability table at the end maps every
 input to the decision, deferral, or acceptance criterion that consumed
-it. Production implementation does not begin until this document is
-reviewed and frozen (working rule 1); D9 records the narrow,
-non-production exception for S1-M2 (R3-4).
+it.
 
 Citation convention: bare D-numbers (D1, D2, …) in this document are
 this document's decisions. Decisions of the network redesign are always
@@ -858,10 +859,10 @@ orphanable by a tab switch):
    action indefinitely. Accepted: a metadata-only intersection class
    is heavier than the artifact (R6-1), and the change is invisible
    to any filtered search regardless (`search.cpp:277-286`).
-   **Provisional S = 60 seconds**, chosen
+   **S = 60 seconds**, chosen
    to dominate the ~20 s/tab arrival cadence by a small integer
-   factor; the exact value is a spike question (below), not an argued
-   constant.
+   factor and **confirmed by the S1-M2 spike** (revision 9; the
+   value was hands-judged, not argued — see the spike result below).
 3. **When the timer fires, the current search refilters** — the model
    resets once, the existing restore machinery runs — **and clears
    only its own items-dirty flag.** Background searches stay dirty
@@ -952,6 +953,27 @@ only picks between two already-specified behaviors. Under outcome
 stable-identity keying carries forward into M3 — M3 retires only the
 reset-based application.
 
+**Result (revision 9, July 29, 2026): outcome (a); S confirmed at
+60 s.** The spike ran on branch `spike/s1-m2-throttle` (post-F62
+master) against the real `MainWindow` with the throttle and the full
+R6-3 fidelity contract prototyped; Tom drove the harness by hand at
+the driving scale (~101k items / 2,000 tabs) and judged the cadence
+and fidelity acceptable. Expansion (including across tab renames,
+via stable keys), stable-identity reselection, and scroll anchoring
+survived ticks in hand-driving and in automated scenarios (including
+rename-into/out-of an active Tab filter — both intersection halves).
+Reset latency, Release build, worst-case unfiltered search:
+~455 ms/reset at 101k, ~5.4 s at ~976k — dominated in both cases by
+the post-reset whole-model re-sort (~86% / ~94%), with the fidelity
+machinery itself costing ~0 ms. Outcome (a)'s constants are judged
+at the driving scale; the ~1m sort cost is recorded as an input for
+the M3 spec in the parent plan (bucket-scoped ops retire the
+streaming reset; the sort levers — precomputed sort keys, lazy
+sorting of visible buckets, born-sorted buckets — are model-layer
+choices M3 owns). The outcome-(b) affordance contract (R7-1) below
+is retained as record but **not selected**; the outcome-(a)
+acceptance criteria bind. Full evidence: `s1-m2-spike-result.md`.
+
 Stated honestly (R5-3): outcome (b) is a **renegotiation of the
 parent plan's freshness-bound input**, not a fulfillment of it —
 after streamed deltas end in terminal failure there is no final
@@ -1003,7 +1025,13 @@ restore-fidelity judgment (R7-3). Revision 9 records its result,
 selects D9's behavior and S (if applicable), and freezes the spec
 before production implementation begins. This is a narrow
 evidence-gathering exception, not a general license to implement an
-unfrozen milestone.
+unfrozen milestone. **Discharged:** the spike ran July 29, 2026 as
+authorized — non-production, on `spike/s1-m2-throttle`, post-F62,
+fidelity prototyped, realistic collections, latency recorded — and
+this revision records its result. The branch stays unmerged; M2-M2
+reuses its dataset generator (`tests/spikedataset.h` on that branch,
+ported fresh — deterministic seeds make the datasets reproducible
+reply/removal shapes).
 
 ### D10. Status-burst coalescing: measurement-gated
 
@@ -1168,10 +1196,11 @@ Shop-level (extending the existing `tst_shop` suite):
   re-render occurs.
 
 UI-level (against the existing `MainWindow` fixture,
-`mainwindowfixture.h` / `tst_mainwindow.cpp` — R1-5). The
-timer-dependent and outcome-(a) criteria assume S1-M2 selects
-outcome (a); outcome (b) replaces them with the outcome-(b)
-affordance criteria at the end of this list (R5-3, R7-1):
+`mainwindowfixture.h` / `tst_mainwindow.cpp` — R1-5). **S1-M2
+selected outcome (a) (revision 9), so the timer-dependent and
+outcome-(a) criteria below bind; the outcome-(b) affordance criteria
+at the end of this list are retained as record only and do not
+apply** (R5-3, R7-1):
 
 - `backgroundDeltaLeavesModelUntouched` — a delta not intersecting the
   current search performs no model operation and marks every search
@@ -1259,14 +1288,14 @@ Design-review criteria (checked in review, not runnable):
 
 ## Open items requiring spike or measurement (not argument)
 
-- **S1-M2 (spike, pre-freeze — blocks D9's constants):** live/harness
-  trial of the S = 60 s reset-plus-restore cadence, with D9's
-  restore-fidelity contract prototyped so cadence is judged with
-  fidelity in place (R6-3); picks between D9's two specified
-  foreground behaviors and tunes S. Runs post-F62 on a realistically
-  large collection, recording reset latency alongside the subjective
-  cadence and restore-fidelity judgment (R7-3). Result recorded in
-  revision 9.
+- **S1-M2 (spike, pre-freeze — RESOLVED in revision 9):** ran
+  July 29, 2026, post-F62, on `spike/s1-m2-throttle`, with the
+  restore-fidelity contract prototyped (R6-3) and realistic
+  collections (101k and ~976k items). **Outcome (a); S confirmed at
+  60 s**; fidelity held hands-on and under automated scenarios;
+  reset latency recorded (~455 ms at 101k, ~5.4 s at ~976k, the
+  post-reset whole-model re-sort dominant in both). Evidence:
+  `s1-m2-spike-result.md`; full result in D9.
 - **M1-M2 (measurement, blocks nothing):** 2,000-entry `QueueUpdated`
   burst vs. status-widget frame time; builds the D10 coalesce only if
   it stutters.
@@ -1323,10 +1352,12 @@ metadata-only empty-delta exception into D9's freshness bound
 (R7-3, reversing R5-4's placement now that D3 freezes a determinate
 conditional), and corrected D6's mid-refresh consumer note (R7-4).
 The shaping decisions D1/D2 survived all seven rounds unchanged. The
-pre-freeze sequence is F62, then the S1-M2 spike, then revision 9
-recording its result and freezing. The review series is closed:
-remaining risk is retired by evidence — S1-M2 pre-freeze, M2-M2 and
-M1-M2 in implementation — not further argument. M1-M2 blocks
+pre-freeze sequence completed as planned: F62 merged (PR #183), the
+S1-M2 spike ran July 29, 2026 (outcome (a), S = 60 s), and this
+revision — revision 9 — records that result and **freezes the
+spec**. The review series is closed: remaining risk is retired by
+evidence — S1-M2 discharged pre-freeze, M2-M2 and M1-M2 in
+implementation — not further argument. M1-M2 blocks
 nothing. The legacy bare-id keying exposure is tracked as F66 in the
 findings register (R6-5; renumbered from F64 at the July 28 master
 merge), outside M2's scope.
