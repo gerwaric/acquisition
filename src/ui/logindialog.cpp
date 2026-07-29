@@ -250,11 +250,13 @@ void LoginDialog::OnLeaguesReceived()
         }
     }
     ui->leagueComboBox->setEnabled(true);
+    // editable so private-league ids (absent from the public list) can be typed
+    ui->leagueComboBox->setEditable(true);
 
     // If we found a match for the save league use it. If we didn't, then
     // we need to clear the setting, since the list of leagues may have
     // changed since the last time acquisition was run.
-    if (use_saved_league) {
+    if (use_saved_league || !saved_league.isEmpty()) {
         spdlog::trace("LoginDialog::OnLeaguesReceived() setting league to saved value: {}",
                       saved_league);
         ui->leagueComboBox->setCurrentText(saved_league);
