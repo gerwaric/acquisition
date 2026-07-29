@@ -69,6 +69,11 @@ private slots:
     void stashIndexFailureReleasesTheSubmitLock();
     void stashIndexSuccessProceedsToShopSubmission();
     void continuationDoesNotRunAfterShopDestruction();
+
+    // Items-pipeline M2, D8: the single-active-job foundation (stage 2
+    // front-load). The delta-dependent capture pins land with streaming.
+    void olderSubmissionCannotCleanNewerInput();
+    void activeJobUnaffectedByLocalEdits();
 };
 
 namespace {
@@ -90,6 +95,47 @@ namespace {
             QCoreApplication::processEvents();
             QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
         }
+    }
+
+    // Publish one priced stash item the way a refresh does, and return the
+    // published shared_ptr so a test can edit its buyout afterwards.
+    std::shared_ptr<Item> publishPricedItem(ShopFixture &fixture, const char *id, double chaos)
+    {
+        auto item = std::make_shared<Item>(makeTestItem(id));
+        const Items items{item};
+        const std::vector<ItemLocation> tabs{item->location()};
+        fixture.itemsManager->OnItemsRefreshed(items, tabs, false);
+        fixture.buyoutFixture.manager->Set(*item, makeChaosBuyout(chaos));
+        return item;
+    }
+
+    // The legacy stash index reply for makeTestStashLocation's tab. The uid
+    // the shop keys on is the first 10 characters of the id.
+    constexpr const char *kStashIndexJson = R"({"tabs":[{"n":"Test Tab","i":0,"id":"stash00001"}]})";
+
+    // A forum edit-thread page carrying exactly the CSRF hash input and the
+    // title input Shop::OnEditPageFinished parses.
+    const QByteArray kEditThreadPage
+        = "<input type=\"hidden\" name=\"hash\" value=\"fakecsrfhash\">\n"
+          "<input type=\"text\" name=\"title\" id=\"title\" "
+          "onkeypress=\"return&#x20;event.keyCode&#x21;&#x3D;13\" value=\"My Shop\">";
+
+    // Walk the active job's forum flow to completion: finish the edit-page
+    // GET at m_sent index `get_index`, wait out the 500ms CSRF delay for the
+    // POST, and finish the POST cleanly.
+    void completeForumSubmission(ShopFixture &fixture, int get_index)
+    {
+        QCOMPARE(fixture.networkManager->sent(get_index).op, QNetworkAccessManager::GetOperation);
+        fixture.networkManager->sent(get_index).reply->finish({},
+                                                              200,
+                                                              QNetworkReply::NoError,
+                                                              kEditThreadPage);
+        QTRY_COMPARE_WITH_TIMEOUT(fixture.networkManager->count(), get_index + 2, 5000);
+        QCOMPARE(fixture.networkManager->sent(get_index + 1).op,
+                 QNetworkAccessManager::PostOperation);
+        fixture.networkManager->sent(get_index + 1)
+            .reply->finish({}, 200, QNetworkReply::NoError, QByteArray("ok"));
+        drainEvents();
     }
 
 } // namespace
@@ -209,6 +255,79 @@ void ShopTest::continuationDoesNotRunAfterShopDestruction()
     QCOMPARE(fixture.networkManager->count(), 0);
     // The promise did settle, so the test cannot pass by never completing.
     QVERIFY(fixture.rateLimiter->pendingFuture(0).promise == nullptr);
+}
+
+// M2 D8 (stage 2 foundation): monotonic input/cache revisions replace the
+// single outdated flag. Completing job N advances only N's revision — an
+// input expired to N+1 while N was active stays dirty through N's successful
+// completion, and only a job that captured N+1 renders it clean. The old
+// flag reset (shop.cpp's unconditional m_shop_data_outdated = false on
+// render) would have marked the newer input clean here.
+void ShopTest::olderSubmissionCannotCleanNewerInput()
+{
+    ShopFixture fixture;
+    armForSubmission(fixture);
+    publishPricedItem(fixture, "item-a", 1);
+
+    // Fresh shop: nothing rendered yet, so the cache is outdated.
+    QVERIFY(fixture.shop->shop_data_outdated());
+
+    // Job N captures the current input revision, then the input moves on
+    // (a local edit path calls ExpireShopData) while N is still active.
+    fixture.shop->SubmitShopToForum();
+    fixture.shop->ExpireShopData();
+
+    fixture.rateLimiter->resolve(0, kStashIndexJson);
+    drainEvents();
+
+    // N rendered and published the preview cache for its own revision; the
+    // newer input revision is still dirty.
+    QVERIFY(!fixture.shop->shop_data().isEmpty());
+    QVERIFY(fixture.shop->shop_data_outdated());
+
+    // Finishing N successfully still cannot clean the newer revision.
+    completeForumSubmission(fixture, 0);
+    QVERIFY(fixture.shop->shop_data_outdated());
+
+    // A job that captures the newer revision renders it clean. (Same items,
+    // so the unchanged-hash exit releases it without posting.)
+    fixture.shop->SubmitShopToForum();
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(2));
+    fixture.rateLimiter->resolve(1, kStashIndexJson);
+    drainEvents();
+    QVERIFY(!fixture.shop->shop_data_outdated());
+}
+
+// M2 D8/R6-4 (stage 2 foundation): the active job's capture is immutable —
+// a buyout edit made while the job is in flight does not reach its rendered
+// output; the edit follows in a later submission. Today's continuation read
+// live buyout state after the index arrived, so the edit would have leaked
+// into the post.
+void ShopTest::activeJobUnaffectedByLocalEdits()
+{
+    ShopFixture fixture;
+    armForSubmission(fixture);
+    const auto item = publishPricedItem(fixture, "item-a", 1);
+
+    // The job captures the 1-chaos buyout at request time.
+    fixture.shop->SubmitShopToForum();
+
+    // A local edit while the job is active: reprice and expire, the
+    // MainWindow buyout-edit path.
+    fixture.buyoutFixture.manager->Set(*item, makeChaosBuyout(2));
+    fixture.shop->ExpireShopData();
+
+    fixture.rateLimiter->resolve(0, kStashIndexJson);
+    drainEvents();
+
+    // The rendered output is the captured state, not the edited state.
+    QVERIFY(!fixture.shop->shop_data().isEmpty());
+    QVERIFY(fixture.shop->shop_data().first().contains(" 1 chaos"));
+    QVERIFY(!fixture.shop->shop_data().first().contains(" 2 chaos"));
+
+    // The job completes without re-rendering: the posted state is unchanged.
+    completeForumSubmission(fixture, 0);
+    QVERIFY(fixture.shop->shop_data().first().contains(" 1 chaos"));
 }
 
 QTEST_MAIN(ShopTest)
