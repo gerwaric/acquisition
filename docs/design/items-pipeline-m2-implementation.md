@@ -1,13 +1,14 @@
 # Items Pipeline M2: Implementation Sequence
 
 Status: **ACCEPTED for implementation** (July 29, 2026; externally
-reviewed the same day — three findings, all verified and
-incorporated: explicit `ChildrenReconciled` treatment in stage 3
-with its emission condition disambiguated, the R2-1 immutable
-capture front-loaded to stage 2 to close the shop hazard before
-streaming begins, and M2-M2 attribution made exhaustive. The
-stage 3 ↔ stage 5 question is resolved: early gate retained). This
-document
+reviewed the same day in two passes — round 1: explicit
+`ChildrenReconciled` treatment in stage 3 with its emission
+condition disambiguated, the R2-1 capture front-loaded to stage 2,
+M2-M2 attribution made exhaustive, and the stage 3 ↔ stage 5
+question resolved in favor of the early gate; round 2: the
+front-load widened from capture-only — which left two verified holes
+— to the complete single-active-job shop foundation, with three more
+pins moved to stage 2). This document
 sequences the production implementation of the frozen M2 spec
 (`items-pipeline-m2.md`, frozen at revision 9 plus the July 29
 post-freeze amendments). It makes **no design arguments and changes
@@ -78,7 +79,12 @@ comes after the gate. Rationale per exclusion:
   nothing to the measured unit. (D5's skip path changes only the
   failure branch; M2-M2's fixed shapes are successful replies and
   removals.)
-- **D8** hangs off D4 and touches no per-reply code.
+- **D8** hangs off D4 and touches no per-reply code — with one
+  named exception: the single-active-job shop-safety foundation
+  (full-input capture, render-from-capture, revision guard) lands
+  in stage 2 **before** streaming is enabled, because forum posting
+  is an external side effect and must never read partially streamed
+  state (see stage 2).
 
 ## Stage sequence
 
@@ -118,22 +124,43 @@ Tests (worker-observable halves): `deltaMatchesAppliedReplacement`,
 `parentReplyReconcilesChildrenAgainstExpectedSet` (emit ordering and
 payload; published-copy assertions complete in stage 2).
 
-### Stage 2 — R2-1 capture front-load, then D3 manager half + D7 scoped pricing
+### Stage 2 — Shop foundation front-load, then D3 manager half + D7 scoped pricing
 
 Ordered within the stage, and the ordering is load-bearing: forum
-posting is an external side effect, so the R2-1 capture must exist
-**before** the published copy starts streaming — "single PR" does
-not contain a stale forum post made from an intermediate build run
-against a real profile.
+posting is an external side effect, so the single-active-job shop
+foundation must exist **before** the published copy starts streaming
+— "single PR" does not contain a stale forum post made from an
+intermediate build run against a real profile.
 
-1. **First**, the R2-1 immutable capture in `Shop`: submission input
-   — the postable items' identity, location, and buyout fields —
-   captured **by value** at the moment submission is requested
-   (automatic or manual), with the legacy stash index applied to
-   that capture when it arrives. The asynchronous continuation never
-   reads live `ItemsManager::items()` after capture. Only the
-   capture core lands here; the latest-eligible queueing, job-local
-   transport state, and revision machinery remain stage 8.
+1. **First**, the complete single-active-job foundation in `Shop`
+   (external review, round 2 — capture alone left two holes):
+   - Submission input captured **by value** at request time
+     (automatic or manual): the postable items' identity, location,
+     and buyout fields, plus **every other output-affecting input**
+     — template, realm/league, and target thread list (the spec's
+     job-capture enumeration, D8). The legacy stash index is applied
+     to the capture when it arrives; the continuation never reads
+     live `ItemsManager::items()` after capture.
+   - **Every submission renders from its capture**, independent of
+     preview-cache freshness. Hole 1: today's continuation reuses
+     cached `m_shop_data` whenever `m_shop_data_outdated` is false
+     (`shop.cpp:256-258`), so a manual submission after a streamed
+     delta would post pre-delta text.
+   - **Monotonic input/cache revisions replace the single
+     `m_shop_data_outdated` flag.** Hole 2: a render resets the
+     flag unconditionally (`shop.cpp:300`, `:356`), so an older
+     captured job finishing after a local `ExpireShopData()` would
+     mark newer input clean. Completing job N advances only N's
+     revision; a rendered job publishes the preview cache only if
+     not older than the cache already there. Deltas do not advance
+     the input revision (R4-2's accepted blind spot).
+   - The active job is unaffected by local edits — its capture is
+     immutable; the edit reaches the forum through a later
+     submission (R6-4's active-job half).
+   What remains for stage 8 is strictly the multi-job machinery:
+   latest-eligible queueing, the waiting automatic capture with its
+   drop/drain transitions, and waiting-vs-active transport-state
+   isolation.
 2. **Then** streaming: `ItemsManager` applies each delta to the
    published copy — one predicate-only `erase_if` by
    `FetchSourceKey` (the permitted linear pass, R1-2) + append;
@@ -151,9 +178,12 @@ against a real profile.
    commit.
 
 Files: `shop.{h,cpp}`, `itemsmanager.{h,cpp}`, findings register.
-Tests: `shopSubmissionUsesCapturedSnapshot` (the staged R2-1 pin —
-capture lands first, but its test needs streaming to drive, so it
-lands at the end of this stage), `publishedStateIsSnapshotPlusAppliedDeltas`,
+Tests: the four foundation pins — `shopSubmissionUsesCapturedSnapshot`,
+`manualSubmissionRendersCapturedPublishedState`,
+`olderSubmissionCannotCleanNewerInput`,
+`activeJobUnaffectedByLocalEdits` (the foundation lands first, but
+the delta-dependent tests need streaming to drive, so they land at
+the end of this stage) — plus `publishedStateIsSnapshotPlusAppliedDeltas`,
 `emptyDeltaEmptiesFetchSourceOnly`,
 `reconcileErasesGhostsAcrossFailedUpdates`,
 `scopedPricingConvergesToFinalPass`,
@@ -330,19 +360,16 @@ Tests: `shopSubmitsOnlyOnCleanCompletion`,
 
 ### Stage 8 — D8 full shop machinery
 
-- The R2-1 capture core is already in place (stage 2); this stage
-  builds the machinery around it: each job owns all its transport
-  state (capture, force bit, legacy index, rendered data + hash,
-  request counter, thread progress) — nothing mutable shared with a
-  waiting job.
+- The single-active-job foundation (capture, render-from-capture,
+  revisions) is already in place from stage 2; this stage adds the
+  multi-job machinery: each job owns all its transport state
+  (capture, force bit, legacy index, rendered data + hash, request
+  counter, thread progress) — nothing mutable shared with a waiting
+  job.
 - Latest-eligible desired state (R3-1): at most one active job, at
   most one waiting automatic capture, newest clean capture wins;
   automatic admission captures before the busy policy; manual
   admission may still refuse while a job is active.
-- Monotonic input/cache revisions replace `m_shop_data_outdated`;
-  completing N can clean only N's revision; a rendered job publishes
-  the preview cache only if not older than what is there. Deltas do
-  not advance the input revision (R4-2's accepted blind spot).
 - Terminal exits: success (including unchanged-hash no-post) drains
   the newest waiting capture; failure drains nothing, advances no
   clean revision, discards the waiting capture, leaves input dirty
@@ -355,12 +382,10 @@ Tests: `shopSubmitsOnlyOnCleanCompletion`,
 Files: `shop.{h,cpp}`, `application.cpp`.
 Tests: `newestCleanSnapshotSubmitsAfterActive`,
 `automaticSubmissionCoalescesLatestEligible`,
-`manualSubmissionRendersCapturedPublishedState`,
-`olderSubmissionCannotCleanNewerInput`,
 `failedSubmissionDoesNotDrainPendingAutomatic`,
 `disablingAutoUpdateDropsWaitingCapture`,
 `skippedRefreshDoesNotInvalidateWaitingCapture`,
-`expireDropsWaitingCapture`, `activeJobUnaffectedByLocalEdits`.
+`expireDropsWaitingCapture`.
 
 ### Wrap-up
 
@@ -388,11 +413,20 @@ reach master (single end-of-branch PR):
    and then read N+1's partially streamed state; and forum posting
    is an external side effect, so a single end-of-branch PR is not
    containment for anyone running an intermediate build against a
-   real profile). Resolved by front-loading the immutable capture to
-   stage 2, ordered before streaming lands. What remains across
-   stages 2–7 is master-parity shop behavior — the auto-submit gate
-   moves in stage 7, the queueing/revision machinery in stage 8 —
-   with no new exposure relative to master.
+   real profile). Resolved by front-loading the complete
+   single-active-job foundation to stage 2, ordered before streaming
+   lands — capture alone was not enough (round 2): without
+   render-from-capture a manual submission could reuse cached
+   pre-delta `m_shop_data`, and without revisions an older job could
+   mark newer input clean. With the foundation in place, what
+   remains across stages 2–7: automatic submission still fires from
+   `ItemsRefreshed` until the gate moves (stage 7) — today's trigger
+   semantics; a busy shop still refuses rather than queueing until
+   stage 8 — today's busy policy; and every submission now renders
+   from its capture — a deliberate behavior change in the safe
+   direction (never staler than the request, never partially
+   streamed). No path remains by which a submission reads or posts
+   mid-stream state.
 2. **Stages 3–4: throttled resets run with today's restore machinery**
    (fidelity lands in stage 5), so mid-refresh ticks on the branch
    lose selection/scroll exactly as the spec's R6-3 verification
@@ -430,7 +464,10 @@ implemented, per revision 9):
 | `scopedPricingConvergesToFinalPass` | 2 |
 | `scopedPricingIsFailSafeAcrossFailedUpdate` | 2 |
 | `parentBucketMayMixChildGenerationsMidRefresh` | 2 |
-| `shopSubmissionUsesCapturedSnapshot` | 2 (capture front-loaded; was 8) |
+| `shopSubmissionUsesCapturedSnapshot` | 2 (foundation front-loaded; was 8) |
+| `manualSubmissionRendersCapturedPublishedState` | 2 (foundation; was 8) |
+| `olderSubmissionCannotCleanNewerInput` | 2 (foundation; was 8) |
+| `activeJobUnaffectedByLocalEdits` | 2 (foundation; was 8) |
 | `bucketsKeyOnStableIdDuringRefresh` | 3 |
 | `emptyDeltaMetadataLandsAtNextRefilter` | 3 |
 | `backgroundDeltaLeavesModelUntouched` | 3 |
@@ -455,12 +492,9 @@ implemented, per revision 9):
 | `missingStashWrapperSkipsTab` / `missingCharacterWrapperSkipsTab` | 7 |
 | `newestCleanSnapshotSubmitsAfterActive` | 8 |
 | `automaticSubmissionCoalescesLatestEligible` | 8 |
-| `manualSubmissionRendersCapturedPublishedState` | 8 |
-| `olderSubmissionCannotCleanNewerInput` | 8 |
 | `failedSubmissionDoesNotDrainPendingAutomatic` | 8 |
 | `disablingAutoUpdateDropsWaitingCapture` | 8 |
 | `skippedRefreshDoesNotInvalidateWaitingCapture` | 8 |
 | `expireDropsWaitingCapture` | 8 |
-| `activeJobUnaffectedByLocalEdits` | 8 |
 | Design-review criteria (6 items) | wrap-up |
 | M1-M2 measurement | wrap-up (blocks nothing) |
