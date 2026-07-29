@@ -213,7 +213,9 @@ void Search::FilterItems(const Items &items)
     // filter state changed since we last filtered. That happens when a form
     // edit writes through to this search and the debounced refresh lands on a
     // different one: the buckets and caption would otherwise stay stale.
-    if ((m_refresh_reason == RefreshReason::TabChanged) && !m_states_dirty) {
+    // The gate also tests items-dirty (M2 D9 rule 1): a streamed delta marks
+    // every search, and the flag forces a refilter on next activation.
+    if ((m_refresh_reason == RefreshReason::TabChanged) && !m_states_dirty && !m_items_dirty) {
         return;
     }
 
@@ -235,6 +237,8 @@ void Search::FilterItems(const Items &items)
     m_items.clear();
     m_filtered = false;
     m_filtered_item_count = 0;
+    m_visible_sources.clear();
+    m_visible_sources_by_tab.clear();
 
     // A single bucket with null location is used to view all items at once.
     m_bucket_by_item.clear();
@@ -282,6 +286,11 @@ void Search::FilterItems(const Items &items)
                 bucket_it = bucketed_tabs.emplace(key, Bucket(canonicalLocation(location))).first;
             }
             bucket_it->second.AddItem(item);
+
+            // Record the fetch source for the D9 intersection tests.
+            const FetchSourceKey source_key = FetchSourceKey::ForLocation(location);
+            m_visible_sources.insert(source_key);
+            m_visible_sources_by_tab[key].insert(source_key);
         }
     }
 
@@ -333,6 +342,34 @@ void Search::FilterItems(const Items &items)
     m_model.endUpdate();
 
     m_states_dirty = false;
+    m_items_dirty = false; // a successful refilter clears its own flag (D9 rule 3)
+}
+
+bool Search::MatchesActiveFilters(const Item &item) const
+{
+    for (qsizetype index = 0; index < static_cast<qsizetype>(m_filter_states.size()); ++index) {
+        const auto &state = m_filter_states.at(static_cast<size_t>(index));
+        if (IsActive(state) && !MatchesFilter(item, m_filter_catalog[index], state)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool Search::HasVisibleGhostUnder(const ItemLocation &parent,
+                                  const std::vector<FetchSourceKey> &expected) const
+{
+    const auto it = m_visible_sources_by_tab.find(LocationInventory::KeyFor(parent));
+    if (it == m_visible_sources_by_tab.end()) {
+        return false;
+    }
+    const std::set<FetchSourceKey> allowed(expected.begin(), expected.end());
+    for (const auto &key : it->second) {
+        if (allowed.count(key) == 0) {
+            return true;
+        }
+    }
+    return false;
 }
 
 const ItemLocation &Search::canonicalLocation(const ItemLocation &embedded) const

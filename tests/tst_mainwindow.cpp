@@ -37,8 +37,19 @@ private slots:
     void deleteTabDance();
     void currentViewStatePins();
 
-    // Items-pipeline M2, stage 3: D6 stable-identity bucketing.
+    // Items-pipeline M2, stage 3: D6 stable-identity bucketing and the D9
+    // five-rule streamed-delta consumer.
     void bucketsKeyOnStableIdDuringRefresh();
+    void emptyDeltaMetadataLandsAtNextRefilter();
+    void backgroundDeltaLeavesModelUntouched();
+    void removalOnlyDeltaIntersects();
+    void throttleDoesNotRearm();
+    void tabSwitchBeforeTickPreservesDirty();
+    void searchDeleteCancelsPendingTimer();
+    void finalSnapshotCancelsPendingTick();
+    void successfulRefilterCancelsPendingTick();
+    void pendingTickSurvivesTerminalFailure();
+    void childReconciliationIntersectsVisibleGhosts();
 
 private:
     std::shared_ptr<spdlog::logger> m_main_logger;
@@ -503,6 +514,354 @@ void MainWindowTest::bucketsKeyOnStableIdDuringRefresh()
     // item to a neighbor.
     QCOMPARE(visibleItemNames(*tree),
              QStringList({"BetaItem Shield", "GammaItem Axe", "DeltaItem Wand", "AlphaItem Sword"}));
+}
+
+// M2 D9/R6-1 (stage 3): metadata carried only by empty deltas — a renamed,
+// a moved, and a newly discovered empty tab — starts no timer (no item
+// intersects), and the next refilter of an unfiltered search renders those
+// buckets from the canonical inventory's fresh anchors.
+void MainWindowTest::emptyDeltaMetadataLandsAtNextRefilter()
+{
+    MainWindowFixture fixture;
+    fixture.window->SetDeltaThrottleInterval(200);
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-bbbb", "Beta", 1);
+    const ItemLocation tabC = makeTestStashLocation("stash-cccc", "Gamma", 2);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB, tabC}, false);
+
+    QSignalSpy resets(tree->model(), &QAbstractItemModel::modelReset);
+
+    // Empty deltas: B renamed, C moved, and E newly discovered (never in
+    // the published tab list).
+    fixture.itemsManager->OnTabRefreshed(makeTestStashLocation("stash-bbbb", "Beta Renamed", 1), {});
+    fixture.itemsManager->OnTabRefreshed(makeTestStashLocation("stash-cccc", "Gamma", 5), {});
+    fixture.itemsManager->OnTabRefreshed(makeTestStashLocation("stash-eeee", "Epsilon", 4), {});
+
+    // No item intersects, so no throttled refilter fires.
+    QTest::qWait(400);
+    QCOMPARE(resets.count(), 0);
+
+    // The next refilter — whatever its cause — renders the fresh anchors.
+    fixture.window->OnSearchFormChange();
+    QCOMPARE(resets.count(), 1);
+    const QAbstractItemModel *model = tree->model();
+    QStringList headers;
+    for (int row = 0; row < model->rowCount(); ++row) {
+        headers.append(model->index(row, 0).data().toString());
+    }
+    QCOMPARE(headers,
+             QStringList(
+                 {"#1, \"Alpha\"", "#2, \"Beta Renamed\"", "#5, \"Epsilon\"", "#6, \"Gamma\""}));
+}
+
+// M2 D9 rules 1-2 (stage 3): a delta not intersecting the current search
+// performs no model operation and marks every search items-dirty, including
+// the current one — observed through the extended activation gate.
+void MainWindowTest::backgroundDeltaLeavesModelUntouched()
+{
+    MainWindowFixture fixture;
+    fixture.window->SetDeltaThrottleInterval(200);
+    auto *tabs = findSearchTabs(*fixture.window);
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    auto *name = findNameFilter(*fixture.window);
+    QVERIFY(tabs && tree && name);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-bbbb", "Beta", 1);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-b", "BetaItem", "Shield", tabB));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB}, false);
+
+    // Search 2 unfiltered in the background; search 1 current, filtered to
+    // alpha so tab B contributes nothing visible.
+    tabs->setCurrentIndex(1);
+    tabs->setCurrentIndex(0);
+    name->setFocus();
+    QTest::keyClicks(name, "alphaitem");
+    // The form edit is debounced; wait for its refilter to land before
+    // observing the delta path.
+    QTRY_COMPARE_WITH_TIMEOUT(visibleItemNames(*tree), QStringList({"AlphaItem Sword"}), 2000);
+
+    QAbstractItemModel *current_model = tree->model();
+    QSignalSpy resets(current_model, &QAbstractItemModel::modelReset);
+
+    // A delta for tab B: no visible source, no filter match — no model
+    // operation on the current search within S.
+    fixture.itemsManager
+        ->OnTabRefreshed(tabB, {makeMainWindowItem("item-b2", "BetaItem Two", "Shield", tabB)});
+    QTest::qWait(400);
+    QCOMPARE(resets.count(), 0);
+
+    // But every search was marked dirty. The background search refilters on
+    // activation and shows the new item...
+    tabs->setCurrentIndex(1);
+    QVERIFY(visibleItemNames(*tree).contains("BetaItem Two Shield"));
+    // ...and the current search was marked too: switching back refilters it
+    // through the extended activation gate (a plain tab change would skip).
+    QSignalSpy current_resets(current_model, &QAbstractItemModel::modelReset);
+    tabs->setCurrentIndex(0);
+    QCOMPARE(current_resets.count(), 1);
+}
+
+// M2 D9 (stage 3): the removal half of the intersection test — an empty
+// delta whose fetch source has items in the visible filtered result
+// schedules the throttled refilter, and the tick empties the bucket.
+void MainWindowTest::removalOnlyDeltaIntersects()
+{
+    MainWindowFixture fixture;
+    fixture.window->SetDeltaThrottleInterval(200);
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+    QCOMPARE(visibleItemNames(*tree), QStringList({"AlphaItem Sword"}));
+
+    QSignalSpy resets(tree->model(), &QAbstractItemModel::modelReset);
+    fixture.itemsManager->OnTabRefreshed(tabA, {});
+
+    // The delta carries no items, but something visible was fetched from
+    // its source: the throttled refilter runs and the item leaves the view.
+    QTRY_COMPARE_WITH_TIMEOUT(resets.count(), 1, 2000);
+    QCOMPARE(visibleItemNames(*tree), QStringList());
+}
+
+// M2 D9 rule 2 (stage 3): a non-resetting trailing throttle — deltas
+// arriving faster than S produce at most one refilter per S, and the first
+// delta's deadline is not pushed back by later arrivals.
+void MainWindowTest::throttleDoesNotRearm()
+{
+    MainWindowFixture fixture;
+    fixture.window->SetDeltaThrottleInterval(500);
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+
+    QSignalSpy resets(tree->model(), &QAbstractItemModel::modelReset);
+
+    // First intersecting delta at t=0 starts the window (deadline ~500ms);
+    // a second at ~250ms must not push it to ~750ms.
+    fixture.itemsManager
+        ->OnTabRefreshed(tabA, {makeMainWindowItem("item-a2", "AlphaItem", "Sword", tabA)});
+    QTest::qWait(250);
+    fixture.itemsManager
+        ->OnTabRefreshed(tabA, {makeMainWindowItem("item-a3", "AlphaItem", "Sword", tabA)});
+    // At ~700ms the original deadline has passed and a re-armed one has
+    // not: exactly one refilter proves the deadline held.
+    QTest::qWait(450);
+    QCOMPARE(resets.count(), 1);
+    // And no second tick follows from the coalesced arrivals.
+    QTest::qWait(600);
+    QCOMPARE(resets.count(), 1);
+}
+
+// M2 D9 rule 4 (stage 3): switching searches with a tick pending cancels
+// the timer; the old search refilters on its next activation via its
+// items-dirty flag — nothing is lost.
+void MainWindowTest::tabSwitchBeforeTickPreservesDirty()
+{
+    MainWindowFixture fixture;
+    fixture.window->SetDeltaThrottleInterval(300);
+    auto *tabs = findSearchTabs(*fixture.window);
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tabs && tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+    // A second search to switch to.
+    tabs->setCurrentIndex(1);
+    tabs->setCurrentIndex(0);
+
+    QAbstractItemModel *first_model = tree->model();
+    QSignalSpy first_resets(first_model, &QAbstractItemModel::modelReset);
+
+    // Arm the tick, then switch away before it fires.
+    fixture.itemsManager
+        ->OnTabRefreshed(tabA, {makeMainWindowItem("item-a2", "AlphaItem Two", "Sword", tabA)});
+    tabs->setCurrentIndex(1);
+    const int resets_after_switch = first_resets.count();
+
+    // The canceled tick never fires against the backgrounded search.
+    QTest::qWait(600);
+    QCOMPARE(first_resets.count(), resets_after_switch);
+
+    // Its dirty flag carries the update to the next activation.
+    tabs->setCurrentIndex(0);
+    QCOMPARE(first_resets.count(), resets_after_switch + 1);
+    QVERIFY(visibleItemNames(*tree).contains("AlphaItem Two Sword"));
+}
+
+// M2 D9 rule 4 (stage 3): deleting the current search with a tick pending
+// fires nothing against the dead search.
+void MainWindowTest::searchDeleteCancelsPendingTimer()
+{
+    MainWindowFixture fixture;
+    fixture.window->SetDeltaThrottleInterval(300);
+    auto *tabs = findSearchTabs(*fixture.window);
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tabs && tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+    // Search 2 becomes current; arm its tick.
+    tabs->setCurrentIndex(1);
+    fixture.itemsManager
+        ->OnTabRefreshed(tabA, {makeMainWindowItem("item-a2", "AlphaItem", "Sword", tabA)});
+
+    // Delete the current search with the tick pending. Search 1 takes over;
+    // no tick may fire against the deleted search or spuriously reset the
+    // survivor.
+    fixture.window->OnDeleteTabClicked(1);
+    QAbstractItemModel *survivor_model = tree->model();
+    QSignalSpy survivor_resets(survivor_model, &QAbstractItemModel::modelReset);
+    QTest::qWait(600);
+    QCOMPARE(survivor_resets.count(), 0);
+}
+
+// M2 D9 rule 5 (stage 3): the final snapshot cancels a pending tick and the
+// full path clears all items-dirty flags.
+void MainWindowTest::finalSnapshotCancelsPendingTick()
+{
+    MainWindowFixture fixture;
+    fixture.window->SetDeltaThrottleInterval(300);
+    auto *tabs = findSearchTabs(*fixture.window);
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tabs && tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+
+    QSignalSpy resets(tree->model(), &QAbstractItemModel::modelReset);
+    Items refreshed = items;
+    refreshed.push_back(makeMainWindowItem("item-a2", "AlphaItem Two", "Sword", tabA));
+    fixture.itemsManager->OnTabRefreshed(tabA, refreshed);
+
+    // The final snapshot lands before the tick: one refilter from the
+    // snapshot path, and the canceled tick adds no second reset.
+    fixture.itemsManager->OnItemsRefreshed(refreshed, {tabA}, false);
+    QCOMPARE(resets.count(), 1);
+    QTest::qWait(600);
+    QCOMPARE(resets.count(), 1);
+
+    // All flags were cleared: switching away and back skips the refilter
+    // (the activation gate finds nothing dirty).
+    tabs->setCurrentIndex(1);
+    tabs->setCurrentIndex(0);
+    QCOMPARE(resets.count(), 1);
+}
+
+// M2 D9/R5-5 (stage 3): a user-initiated or form-edit refilter of the
+// current search with a tick pending cancels the timer and clears the flag;
+// no redundant reset follows.
+void MainWindowTest::successfulRefilterCancelsPendingTick()
+{
+    MainWindowFixture fixture;
+    fixture.window->SetDeltaThrottleInterval(300);
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+
+    QSignalSpy resets(tree->model(), &QAbstractItemModel::modelReset);
+    fixture.itemsManager
+        ->OnTabRefreshed(tabA, {makeMainWindowItem("item-a2", "AlphaItem Two", "Sword", tabA)});
+
+    // The user pays for a refilter before the tick: the work is done once
+    // and the pending deadline is canceled, not inherited.
+    fixture.window->OnSearchFormChange();
+    QCOMPARE(resets.count(), 1);
+    QVERIFY(visibleItemNames(*tree).contains("AlphaItem Two Sword"));
+    QTest::qWait(600);
+    QCOMPARE(resets.count(), 1);
+}
+
+// M2 D9/R5-3, outcome (a) (stage 3): deltas followed by a terminal failure
+// with a tick pending — the tick still fires and the view catches up within
+// S plus one reset-plus-restore duration despite no final snapshot ever
+// arriving. (The pin depends on the absence of a final snapshot, not on the
+// terminal event, which lands in stage 6.)
+void MainWindowTest::pendingTickSurvivesTerminalFailure()
+{
+    MainWindowFixture fixture;
+    fixture.window->SetDeltaThrottleInterval(300);
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+
+    QSignalSpy resets(tree->model(), &QAbstractItemModel::modelReset);
+    QElapsedTimer elapsed;
+    elapsed.start();
+    fixture.itemsManager
+        ->OnTabRefreshed(tabA, {makeMainWindowItem("item-a2", "AlphaItem Two", "Sword", tabA)});
+
+    // The update fails terminally: no final ItemsRefreshed ever arrives and
+    // nothing cancels the tick. It fires at ~S and the view catches up —
+    // within the amended freshness bound of S plus one reset-plus-restore.
+    QTRY_COMPARE_WITH_TIMEOUT(resets.count(), 1, 2000);
+    QVERIFY(elapsed.elapsed() < 300 + 1000); // S plus a generous reset bound
+    QCOMPARE(visibleItemNames(*tree), QStringList({"AlphaItem Two Sword"}));
+}
+
+// M2 D9/R5-2/R6-2 (stage 3, plan-level addition): a ChildrenReconciled whose
+// expected set excludes visible ghost children schedules the throttled
+// refilter, and after a terminal failure (no final snapshot) the tick still
+// fires and the ghosts leave the view.
+void MainWindowTest::childReconciliationIntersectsVisibleGhosts()
+{
+    MainWindowFixture fixture;
+    fixture.window->SetDeltaThrottleInterval(300);
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    // A parent tab whose published items include one fetched from a child
+    // source (a Map-style ghost candidate).
+    const ItemLocation parent = makeTestStashLocation("stash-pppp", "Maps", 0);
+    ItemLocation child_fetch = parent;
+    child_fetch.setFetchId("child-0001");
+    Items items;
+    items.push_back(makeMainWindowItem("item-p", "ParentItem", "Sword", parent));
+    items.push_back(makeMainWindowItem("item-m", "GhostItem", "Shield", child_fetch));
+    fixture.itemsManager->OnItemsRefreshed(items, {parent}, false);
+    QCOMPARE(visibleItemNames(*tree).size(), 2);
+
+    QSignalSpy resets(tree->model(), &QAbstractItemModel::modelReset);
+
+    // The reconciliation's expected set is the parent alone: the visible
+    // ghost intersects, so the throttled refilter is scheduled even though
+    // no primary delta touched the view.
+    fixture.itemsManager->OnChildrenReconciled(parent,
+                                               {FetchSourceKey{ItemLocationType::STASH,
+                                                               "stash-pppp"}});
+
+    // A terminal failure follows — no final snapshot. The tick still fires
+    // and the ghost leaves the view.
+    QTRY_COMPARE_WITH_TIMEOUT(resets.count(), 1, 2000);
+    QCOMPARE(visibleItemNames(*tree), QStringList({"ParentItem Sword"}));
 }
 
 QTEST_MAIN(MainWindowTest)

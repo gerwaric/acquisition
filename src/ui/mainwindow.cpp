@@ -64,6 +64,9 @@ constexpr const char *POE_WEBCDN
 
 constexpr int CURRENT_ITEM_UPDATE_DELAY_MS = 100;
 constexpr int SEARCH_UPDATE_DELAY_MS = 350;
+// The D9 throttle period S (items-pipeline M2): confirmed by the S1-M2
+// spike at 60 s, chosen to dominate the ~20 s/tab arrival cadence.
+constexpr int DELTA_THROTTLE_INTERVAL_MS = 60 * 1000;
 
 struct ImgurStatus
 {
@@ -128,6 +131,10 @@ MainWindow::MainWindow(QSettings &settings,
     m_delayed_resize_columns.setInterval(0);
     m_delayed_resize_columns.setSingleShot(true);
     connect(&m_delayed_resize_columns, &QTimer::timeout, this, &MainWindow::ResizeTreeColumns);
+
+    m_delta_throttle.setInterval(DELTA_THROTTLE_INTERVAL_MS);
+    m_delta_throttle.setSingleShot(true);
+    connect(&m_delta_throttle, &QTimer::timeout, this, &MainWindow::OnDeltaThrottleTimeout);
 
     LoadSettings();
     NewSearch();
@@ -679,6 +686,8 @@ void MainWindow::OnDeleteTabClicked(int index)
     auto &search = m_searches[index];
     m_search_form->unbind(*search);
     if (m_current_search == search.get()) {
+        // D9 rule 4: a pending tick must never fire against the dead search.
+        m_delta_throttle.stop();
         m_current_search = nullptr;
     }
     m_searches.erase(m_searches.begin() + index);
@@ -688,6 +697,83 @@ void MainWindow::OnDeleteTabClicked(int index)
     // no-op because m_current_search is null, and the view receives its new
     // model before repaint can touch the destroyed search.
     m_tab_bar->removeTab(index);
+}
+
+void MainWindow::SetDeltaThrottleInterval(int ms)
+{
+    m_delta_throttle.setInterval(ms);
+}
+
+void MainWindow::OnTabRefreshed(const ItemLocation &location, const Items &items)
+{
+    // D9 rule 1: every delta marks every search items-dirty — the current
+    // search included, regardless of intersection. Intersection decides
+    // urgency for the visible search, never whether a search is stale.
+    for (const auto &search : m_searches) {
+        search->setItemsDirty(true);
+    }
+    // D9 rule 2: an intersecting delta schedules the current search's
+    // throttled refilter.
+    if (m_current_search && DeltaIntersectsCurrentSearch(location, items)) {
+        ScheduleThrottledRefilter();
+    }
+}
+
+void MainWindow::OnChildrenReconciled(const ItemLocation &parent,
+                                      const std::vector<FetchSourceKey> &expected)
+{
+    // Aggregate reconciliations are first-class rule-1 inputs, and their
+    // intersection form is a visible item under the parent carrying a key
+    // outside the expected set (R5-2/R6-2) — without it, published ghosts
+    // erased by a reconciliation would stay visible indefinitely after a
+    // terminal failure.
+    for (const auto &search : m_searches) {
+        search->setItemsDirty(true);
+    }
+    if (m_current_search && m_current_search->HasVisibleGhostUnder(parent, expected)) {
+        ScheduleThrottledRefilter();
+    }
+}
+
+bool MainWindow::DeltaIntersectsCurrentSearch(const ItemLocation &location, const Items &items) const
+{
+    // Removal half first: an empty or shrunken replacement counts as a
+    // visible change iff anything visible was fetched from this source.
+    if (m_current_search->HasVisibleSource(FetchSourceKey::ForLocation(location))) {
+        return true;
+    }
+    // Match half: any delta item passes the current filter set. O(delta).
+    for (const auto &item : items) {
+        if (m_current_search->MatchesActiveFilters(*item)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void MainWindow::ScheduleThrottledRefilter()
+{
+    // Non-resetting trailing throttle with period S (D9 rule 2): the first
+    // intersecting delta starts the window and later arrivals never push
+    // the deadline back — under steady arrivals a resetting debounce would
+    // starve forever; this bounds visible staleness by S plus one
+    // reset-plus-restore duration and resets at most once per S.
+    if (!m_delta_throttle.isActive()) {
+        m_delta_throttle.start();
+    }
+}
+
+void MainWindow::OnDeltaThrottleTimeout()
+{
+    // D9 rule 3: the tick refilters the current search, which clears only
+    // its own items-dirty flag; background searches stay dirty until their
+    // own refilter.
+    spdlog::trace("MainWindow::OnDeltaThrottleTimeout() entered");
+    if (!m_current_search) {
+        return;
+    }
+    m_current_search->SetRefreshReason(RefreshReason::ItemsChanged);
+    ModelViewRefresh();
 }
 
 void MainWindow::OnSearchFormChange()
@@ -772,6 +858,13 @@ void MainWindow::ModelViewRefresh()
     }
 
     ReselectCurrentItem();
+
+    // D9 rules 3/R5-5: any successful refilter of the current search pays
+    // for the pending tick — cancel it so the next intersecting delta
+    // starts a fresh S window rather than inheriting a stale deadline.
+    if (!m_current_search->itemsDirty()) {
+        m_delta_throttle.stop();
+    }
 }
 
 void MainWindow::OnCurrentItemChanged(const QModelIndex &current, const QModelIndex &previous)
@@ -903,6 +996,10 @@ void MainWindow::FlushPendingSearchFormChange()
 void MainWindow::OnTabChange(int index)
 {
     FlushPendingSearchFormChange();
+    // D9 rule 4: the pending tick belongs to the outgoing search. Nothing
+    // is lost — rule 1 already marked it dirty, and the extended activation
+    // gate refilters it when it is next shown.
+    m_delta_throttle.stop();
     if (m_current_search) {
         SaveViewExpansion(*m_current_search);
         m_current_search->setCurrentItem(m_current_item);
@@ -1093,6 +1190,9 @@ void MainWindow::ResetBuyoutWidgets()
 void MainWindow::OnItemsRefreshed()
 {
     spdlog::trace("MainWindow::OnItemsRefreshed() entered");
+    // D9 rule 5: the final snapshot cancels any pending tick; the full path
+    // below refilters every search and clears all items-dirty flags.
+    m_delta_throttle.stop();
     int tab = 0;
     for (const auto &search : m_searches) {
         search->SetRefreshReason(RefreshReason::ItemsChanged);

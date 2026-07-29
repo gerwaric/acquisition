@@ -14,6 +14,7 @@
 
 #include "bucket.h"
 #include "column.h"
+#include "fetchsourcekey.h"
 #include "filters/filterstate.h"
 #include "item.h"
 #include "items_model.h"
@@ -76,6 +77,30 @@ public:
     // background still forces a refilter when it is next shown.
     void setFilterState(qsizetype index, FilterState state);
 
+    // D9 rule 1 (items-pipeline M2): every delta marks every search
+    // items-dirty; the flag is cleared only by this search's own successful
+    // refilter and is consumed by the same refilter-on-next-activation gate
+    // as m_states_dirty.
+    bool itemsDirty() const { return m_items_dirty; }
+    void setItemsDirty(bool dirty) { m_items_dirty = dirty; }
+
+    // D9 intersection, match half: does this item pass the current active
+    // filter set?
+    bool MatchesActiveFilters(const Item &item) const;
+
+    // D9 intersection, removal half: was anything in the visible filtered
+    // result fetched from this source? Rebuilt by every refilter.
+    bool HasVisibleSource(const FetchSourceKey &key) const
+    {
+        return m_visible_sources.count(key) > 0;
+    }
+
+    // D9 intersection, aggregate-reconciliation form (R5-2/R6-2): does any
+    // visible item under the parent's stable display key carry a fetch
+    // source outside the expected set?
+    bool HasVisibleGhostUnder(const ItemLocation &parent,
+                              const std::vector<FetchSourceKey> &expected) const;
+
 private:
     std::vector<Bucket> &active_buckets();
     const ItemLocation &canonicalLocation(const ItemLocation &embedded) const;
@@ -92,6 +117,15 @@ private:
     // actually filtered. A tab change alone does not need a refilter; a tab
     // change after a state change does.
     bool m_states_dirty{false};
+
+    // True when a streamed delta changed the underlying items since this
+    // search last filtered (D9 rule 1).
+    bool m_items_dirty{false};
+
+    // Fetch sources of the visible filtered result, flat and grouped by
+    // stable display key, rebuilt by every refilter (D9 intersection).
+    std::set<FetchSourceKey> m_visible_sources;
+    std::map<LocationInventory::Key, std::set<FetchSourceKey>> m_visible_sources_by_tab;
     std::vector<std::unique_ptr<Column>> m_columns;
 
     ItemsModel m_model;
