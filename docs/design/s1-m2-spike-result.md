@@ -1,8 +1,12 @@
 # S1-M2 spike result (input to items-pipeline-m2 revision 9)
 
-Status: **FINAL** — measured July 29, 2026; hands-on judgment made by
-Tom the same day. Result: **outcome (a), S confirmed at 60 s.**
-Recorded in spec revision 9, which froze the spec.
+Status: **FINAL, amended** — measured July 29, 2026; hands-on
+judgment made by Tom the same day. Result: **outcome (a), S
+confirmed at 60 s.** Recorded in spec revision 9, which froze the
+spec. Amended the same day after a post-freeze external review of
+the spike evidence (six findings — see the amendments section at the
+end); the corrections tighten evidence claims and record the
+supported envelope, and change no decision.
 
 This is the written result the spec's "Open items requiring spike or
 measurement" list asks for, produced on the throwaway branch
@@ -34,7 +38,12 @@ Both halves the spec requires judged together (D9, R6-3):
    replacement object; scroll preserved across the throttled reset by
    a stable top-row anchor (bucket key + item id) with the raw
    scrollbar value as fallback; all three captured immediately before
-   every throttled reset.
+   every throttled reset. (Amendment, finding 1: the prototype as
+   hands-judged had the scrollbar fallback dead when the anchored
+   item itself was churned away — it scrolled the bucket header to
+   the top instead. Fixed on the spike branch after the review; the
+   hands-on judgment was made with the flawed behavior, so the fix
+   only improves the felt result.)
 
 The delta producer is simulated: `ItemsManager::SpikeApplyTabDelta`
 replaces one fetch source's items in the collection and emits the
@@ -51,8 +60,9 @@ datasets** as its fixed reply/removal shapes), applies the initial
 full refresh, then streams churned per-tab deltas.
 
 Presets: `--preset smoke` (50 tabs / ~1k items), `--preset 100k`
-(2,000 tabs / ~100k items), `--preset 1m` (2,000 tabs / ~1m items);
-`--tabs/--mean/--seed` override. `--auto` runs an unattended
+(2,000 tabs / ~100k items), `--preset 1m` (2,600 tabs, 80% quad /
+~976k items — retuned from an earlier 2,000-tab shape that realistic
+per-tab caps held to ~335k); `--tabs/--mean/--seed` override. `--auto` runs an unattended
 delta-stream smoke (S = 5 s, 1 delta/s, 35 s) and exits nonzero if
 fewer than two throttled resets applied.
 
@@ -76,9 +86,12 @@ Control panel (separate window beside the main one):
 
 Every throttled reset logs and displays:
 `total_ms` (capture → scroll restored), `filter_ms`
-(filter loop + model reset inside `FilterItems`), `restore_ms`
-(everything else: expansion restore, reselection, scroll), plus
-visible item and bucket counts.
+(filter loop + model reset inside `FilterItems`), and `restore_ms` =
+total − filter — which therefore **includes the whole-model re-sort**
+(reported separately in the log line) along with expansion restore,
+reselection, scroll, and form/buyout bookkeeping; only the sort and
+the expansion restore have their own timers (amendment, finding 5).
+Visible item and bucket counts are logged per reset.
 
 ## Measured results (Release build, offscreen, July 29 2026)
 
@@ -101,9 +114,13 @@ full refresh at ~0.45 s; 1m materializes in ~2.1 s, initial refresh
 whole-model re-sort** that `setSortingEnabled(true)` triggers after
 every reset (`ItemsModel::sort` → `Search::Sort` over every bucket,
 because `FilterItems` rebuilds all buckets and sortedness is lost).
-The R6-3 fidelity machinery itself is essentially free at both scales
-(expansion restore ~0 ms; stable-key save, stable-id reselect, and the
-scroll anchor are all sub-millisecond against these totals).
+The R6-3 fidelity machinery itself is essentially free at both
+scales: expansion restore has its own timer (~0 ms), and the
+remaining fidelity work (stable-key capture, reselection, scroll
+restore) is bounded **collectively** by the few-ms residual of
+total − filter − sort. Per-operation timers were not added, so
+individual sub-millisecond claims are not established — only the
+collective bound is (amendment, finding 5).
 
 Caveats stated honestly:
 
@@ -188,10 +205,37 @@ Run: `./build-s1m2/tests/spike_s1m2_harness --preset 100k`
   2,000 tabs) is acceptable with the R6-3 fidelity contract in place.
 - Reset latency at 100k / 1m: recorded above (Release, offscreen,
   worst-case unfiltered search; re-sort dominates at ~86% / ~94%).
-- Fidelity contract verdict: **holds.** Expansion, selection, and
-  scroll survive ticks, including tab renames (stable keys) and
-  sorted-column stress; mechanically pinned by `tst_spike_s1m2` and
-  the suite passing with the stable-key/stable-id machinery in place.
+- Fidelity contract verdict: **holds**, on this evidence (wording
+  corrected by amendment, finding 3): Tom's hands-on judgment plus
+  four automated scenarios in `tst_spike_s1m2` — rename into/out of
+  an active Tab filter (both intersection halves), expansion
+  surviving a rename of the expanded tab itself, and selection
+  surviving a churn tick that replaces every Item object. Scroll
+  survival is hands-judged plus the fixed fallback code, not
+  automated. The existing 33-test suite passing demonstrates
+  compatibility of the stable-key/stable-id machinery, not throttle
+  fidelity. The full state-machine and fidelity pin list remains a
+  production acceptance obligation (R1-5), not a spike artifact.
+  Caveat: the harness's rename button picks a random tab, which
+  rarely hits one the operator expanded — the hands-on rename check
+  mostly demonstrated rename *visibility*; the automated
+  expansion-survival scenario closes that gap.
+- **Supported envelope (amendment, finding 2 — Tom's decision,
+  option (i)):** outcome (a)'s constants are supported at the
+  driving scale (~2,000 tabs / ~100k items). The accurate freshness
+  bound is **S plus one reset-plus-restore duration** (the tick
+  fires at ~S; the view is current when its reset completes). At
+  ~1m items the recurring ~5.4 s mid-refresh reset — a cost today's
+  final-only path does not pay — is **explicitly accepted for M2**,
+  because outcome (b) would not cure that scale (user-initiated
+  refilters pay the same sort) and M3 retires the streaming reset;
+  the sort levers are recorded in the parent plan's M3 inputs.
+- Known prototype narrowing (amendment, finding 4): the spike's
+  reselection is scoped to the item's previous bucket, so a
+  cross-tab move would lose selection; the harness's intra-tab churn
+  never exercises this. The spec's contract wording requires a
+  global identity lookup; production gains the
+  `reselectionSurvivesCrossTabMove` pin.
 - Hands-on observation worth carrying into implementation: a rename
   into an active Tab filter surfaces only at the next tick (bounded
   by S, verified by test) — the S-window staleness is *felt* most on
@@ -202,15 +246,52 @@ Run: `./build-s1m2/tests/spike_s1m2_harness --preset 100k`
   deliberately does not touch this — it is the reset-based
   application, whose retirement is M3's charter, and M2 builds M3's
   inputs (stable keys, per-source deltas) rather than optimizing the
-  path M3 deletes. The fidelity machinery itself costs ~0 ms at
-  either scale.
+  path M3 deletes. The fidelity machinery is collectively negligible
+  at either scale.
 - **Explicit M3-inbox note (raised by Tom, July 29):** M3's
   bucket-scoped ops fix the *streaming* cost, but a user-initiated
   full refilter at ~1m still rebuilds and re-sorts everything and
   would still cost seconds. The measured levers, all model-layer and
-  therefore M3's to weigh: precomputed sort keys (the current column
-  comparators are string/QVariant-heavy and dominate the 5 s),
-  lazily sorting only expanded/visible buckets, and born-sorted
-  buckets (filtering from a pre-sorted master). Revision 9 should
-  carry this into the parent plan's M3 inbox so the opportunity is
-  recorded, not remembered.
+  therefore M3's to weigh: precomputed sort keys (the
+  string/QVariant-heavy column comparators are the *suspected*
+  driver — the spike timed `ItemsModel::sort` as a whole and never
+  profiled inside it; profile before choosing levers — amendment,
+  finding 5), lazily sorting only expanded/visible buckets, and
+  born-sorted buckets (filtering from a pre-sorted master).
+  Revision 9 carried this into the parent plan's M3 inputs.
+
+## Post-freeze review amendments (July 29, 2026)
+
+An external review of this document and the spike branch after the
+revision 9 freeze found six issues; all are corrected above or on
+the spike branch, and none changes the recorded decision. Summary:
+
+1. **High — scroll fallback dead when the anchored item was removed**
+   (`SpikeRestoreScroll` scrolled the bucket header to top instead of
+   using the scrollbar value). Fixed on the spike branch; the
+   hands-on judgment predated the fix, so the felt result only
+   improves. The claim in "What was prototyped" is annotated.
+2. **High — global S = 60 s vs. the measured 1m result.** Resolved by
+   Tom as option (i): explicit supported envelope at the driving
+   scale, the accurate S-plus-one-reset bound, and explicit
+   acceptance of the large-collection cost for M2 (M3 retires it).
+   Recorded here, in D9's result, and in D9 rule 2 / the affected
+   acceptance criterion.
+3. **High — automated evidence overclaimed.** "Mechanically pinned by
+   `tst_spike_s1m2`" overstated two rename-intersection scenarios.
+   Two fidelity scenarios were added on the spike branch (expansion
+   survives rename of the expanded tab; selection survives a churn
+   tick) and the verdict wording now states exactly what each
+   evidence source shows.
+4. **Medium — reselection scoped to the old bucket.** Recorded as a
+   known prototype narrowing; the spec's contract wording was
+   sharpened ("global identity lookup") and production gains the
+   `reselectionSurvivesCrossTabMove` pin.
+5. **Medium — attribution overstated.** `restore_ms` includes the
+   sort; only sort and expansion have sub-timers. Fidelity cost
+   claims are now stated as a collective bound; the comparator claim
+   is downgraded to suspected-unprofiled here and in the parent
+   plan's M3 inputs.
+6. **Low — stale documentation.** `docs/README.md` and the parent
+   plan's M2 heading now reflect the freeze; the 1m preset
+   description matches the retuned 2,600-tab shape.

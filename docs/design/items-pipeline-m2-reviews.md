@@ -416,3 +416,27 @@ what remains is F62, the S1-M2 spike, and revision 9's freeze.
   acceptance criteria bind. The ~1m sort cost is carried into the
   parent plan as an input for the M3 spec. Production implementation
   may begin; its first checkpoint is M2-M2 (R7-3).
+- **Revision 9 amendments** (July 29, 2026): post-freeze external
+  review **of the spike evidence** (not a reopened design round —
+  six findings, none changing a decision, all accepted). (1) The
+  spike's scroll-anchor fallback was dead when the anchored item was
+  churned away — fixed on the spike branch; hands-on judgment
+  predated the fix, so the felt result only improves. (2) The
+  global-S-vs-1m tension resolved by Tom as an explicit supported
+  envelope at the driving scale, the accurate
+  S-plus-one-reset-duration freshness bound (D9 rule 2 and
+  `pendingTickSurvivesTerminalFailure` corrected), and explicit
+  acceptance of the ~1m recurring reset cost for M2 (M3 retires it).
+  (3) The result document's "mechanically pinned" overclaim
+  corrected; two automated fidelity scenarios added on the spike
+  branch (expansion survives rename of the expanded tab; selection
+  survives a churn tick). (4) The spike's bucket-scoped reselection
+  recorded as a prototype narrowing; R6-3's contract sharpened to a
+  global identity lookup and the `reselectionSurvivesCrossTabMove`
+  pin added. (5) Latency attribution restated as a collective bound
+  for the fidelity work; the comparator claim downgraded to
+  suspected-unprofiled here and in the parent plan. (6) Stale
+  references corrected (`docs/README.md`, the parent plan's M2
+  heading, the 1m preset description). The scroll-fallback fix and
+  new scenarios also gained an explicit fallback clause on
+  `scrollAndCaptureSurviveThrottledReset`.

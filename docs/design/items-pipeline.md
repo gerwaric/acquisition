@@ -197,7 +197,7 @@ above): keying "new" on cached contents made a partial refresh balloon
 into a full one on a cold contents cache, so the auto-fetch was dropped in
 favor of fetching strictly the selection.
 
-### Milestone 2 — Streaming refresh signal (next; draft spec in review: `items-pipeline-m2.md`)
+### Milestone 2 — Streaming refresh signal (spec frozen at revision 9, July 29, 2026: `items-pipeline-m2.md`; implementation next)
 
 Surface per-tab progress without triggering the snapshot cascade:
 
@@ -359,9 +359,11 @@ Inputs accumulated for the M3 spec (from the S1-M2 spike, July 29,
   *streaming* path by construction, but a **user-initiated full
   refilter still rebuilds and re-sorts everything** and pays the same
   cost at scale. Levers for M3 to weigh, all model-layer: precomputed
-  sort keys (the string/QVariant-heavy column comparators dominate),
-  lazily sorting only expanded/visible buckets, born-sorted buckets
-  (filtering from a pre-sorted master).
+  sort keys (the string/QVariant-heavy column comparators are the
+  suspected driver — the spike timed the sort as a whole, not the
+  comparators; profile before choosing), lazily sorting only
+  expanded/visible buckets, born-sorted buckets (filtering from a
+  pre-sorted master).
 - M2's R6-3 fidelity machinery — stable `(type, id)` expansion keys
   and stable-identity reselection — measured ~0 ms at both scales and
   carries forward as M3's bucket keying.

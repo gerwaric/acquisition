@@ -9,7 +9,13 @@ July 29, 2026 on the non-production branch `spike/s1-m2-throttle`
 with Tom judging cadence and restore fidelity by hand — **D9's
 outcome (a) is selected and S is confirmed at 60 seconds**, with the
 R6-3 restore-fidelity contract validated and reset latency recorded
-(evidence archived in `s1-m2-spike-result.md`). Production
+(evidence archived in `s1-m2-spike-result.md`). **Amended July 29,
+2026** after a post-freeze external review of the spike evidence
+(six findings, none changing a decision): the supported envelope and
+the exact freshness bound are now stated in D9's result, the spike's
+evidence claims are corrected in the archived result document, and
+R6-3 gains the cross-tab reselection pin — see the reviews file's
+amendment entry. Production
 implementation may begin, with the M2-M2 frame/storage measurement
 as its first checkpoint (R7-3; D3 freezes a determinate
 conditional). This spec consumes the M2 inbox in
@@ -850,7 +856,10 @@ orphanable by a tab switch):
    **not** re-armed by later arrivals — that is the anti-starvation
    half: under steady one-reply-per-20-seconds arrivals a resetting
    debounce would starve forever; this throttle guarantees the
-   visible view is never more than S behind the applied state, and
+   visible view is never more than **S plus one reset-plus-restore
+   duration** behind the applied state (the tick fires at ~S and the
+   view is current when its reset completes — ~0.5 s at the driving
+   scale; post-freeze amendment), and
    resets at most once per S. One narrow, stated exception to that
    bound (R7-2): metadata carried only by an empty delta — a
    renamed, moved, or newly discovered empty tab (D6) — starts no
@@ -924,7 +933,11 @@ every replaced item — exactly what M2 streams — loses selection; and
 no tree scroll capture exists at all. Outcome (a) therefore includes
 a fidelity contract: (1) expansion keyed by stable `(type, id)`;
 (2) selection restored by stable item identity when the item still
-exists in the view; (3) scroll preserved across a throttled reset
+exists in the view — a **global** identity lookup, not scoped to the
+item's previous bucket, so an item moved to another tab mid-refresh
+keeps its selection (the spike prototype fell short of this;
+post-freeze amendment, `reselectionSurvivesCrossTabMove` below);
+(3) scroll preserved across a throttled reset
 (scrollbar value or an anchor — mechanism is implementation detail);
 (4) the throttled path captures expansion, selection, and scroll
 immediately before every reset. S1-M2 prototypes this contract along
@@ -960,17 +973,29 @@ R6-3 fidelity contract prototyped; Tom drove the harness by hand at
 the driving scale (~101k items / 2,000 tabs) and judged the cadence
 and fidelity acceptable. Expansion (including across tab renames,
 via stable keys), stable-identity reselection, and scroll anchoring
-survived ticks in hand-driving and in automated scenarios (including
-rename-into/out-of an active Tab filter — both intersection halves).
+survived ticks in hand-driving and in automated scenarios (rename
+into/out of an active Tab filter — both intersection halves —
+expansion surviving a rename of the expanded tab itself, and
+selection surviving a churn tick; the full pin list stays a
+production obligation, R1-5).
 Reset latency, Release build, worst-case unfiltered search:
 ~455 ms/reset at 101k, ~5.4 s at ~976k — dominated in both cases by
 the post-reset whole-model re-sort (~86% / ~94%), with the fidelity
-machinery itself costing ~0 ms. Outcome (a)'s constants are judged
-at the driving scale; the ~1m sort cost is recorded as an input for
-the M3 spec in the parent plan (bucket-scoped ops retire the
-streaming reset; the sort levers — precomputed sort keys, lazy
-sorting of visible buckets, born-sorted buckets — are model-layer
-choices M3 owns). The outcome-(b) affordance contract (R7-1) below
+machinery collectively negligible (bounded by the few-ms residual
+after filter and sort; not individually timed). **Supported
+envelope (post-freeze amendment, Tom's decision, July 29, 2026):**
+outcome (a)'s constants are supported at the driving scale, and the
+freshness guarantee is S plus one reset-plus-restore duration. At
+~1m items each mid-refresh reset costs ~5.4 s — a recurring cost
+today's final-only path does not pay — and this is **explicitly
+accepted for M2**: outcome (b) would not cure that scale
+(user-initiated refilters pay the same sort), and M3's bucket-scoped
+application retires the streaming reset entirely. The ~1m sort cost
+is recorded as an input for the M3 spec in the parent plan
+(bucket-scoped ops retire the streaming reset; the sort levers —
+precomputed sort keys, lazy sorting of visible buckets, born-sorted
+buckets — are model-layer choices M3 owns; the sort was timed as a
+whole, so comparator cost is the suspected, unprofiled driver). The outcome-(b) affordance contract (R7-1) below
 is retained as record but **not selected**; the outcome-(a)
 acceptance criteria bind. Full evidence: `s1-m2-spike-result.md`.
 
@@ -1224,7 +1249,9 @@ apply** (R5-3, R7-1):
   cancels the timer and clears the flag; no redundant reset follows.
 - `pendingTickSurvivesTerminalFailure` (R5-3, outcome (a)) — deltas
   followed by a terminal failure with a tick pending: the tick still
-  fires and the view catches up within S despite no final snapshot.
+  fires and the view catches up within S plus one reset-plus-restore
+  duration despite no final snapshot (post-freeze amendment: the
+  bound includes the reset itself).
 - `bucketsKeyOnStableIdDuringRefresh` (R5-1) — after mid-refresh
   deltas for a moved tab, a renamed tab, and a tab whose fresh
   position collides with an unrefreshed tab's stale position: the
@@ -1248,7 +1275,17 @@ apply** (R5-3, R7-1):
 - `scrollAndCaptureSurviveThrottledReset` (R6-3, outcome (a)) —
   scroll position survives a throttled reset, and expansion changed
   after the last explicit save survives too (capture happens
-  immediately before every reset).
+  immediately before every reset). When the anchored top row was
+  removed by the delta, restoration falls back to the raw scrollbar
+  value — never to scrolling the anchor's bucket header to the top
+  (post-freeze amendment; the spike prototype initially got this
+  wrong).
+- `reselectionSurvivesCrossTabMove` (R6-3, outcome (a), post-freeze
+  amendment) — with an item selected, one delta removes it from its
+  tab and another lands it in a different tab; after the tick the
+  selection follows the item by stable identity. The lookup must be
+  global (index-backed, not a bucket-scoped or whole-model scan per
+  reselect).
 - `staleAffordanceCountsIntersectingTabs` (R7-1, outcome (b)) —
   deltas for N distinct display tabs intersecting the current search
   raise its indicator to N synchronously, with no model operation; a
