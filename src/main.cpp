@@ -6,11 +6,13 @@
 #include <QDir>
 #include <QFontDatabase>
 #include <QLocale>
+#include <QLockFile>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTimer>
 
 #include <clocale>
+#include <cstdio>
 
 #include <sentry.h>
 
@@ -76,12 +78,19 @@ int main(int argc, char *argv[])
     option_log_level.setDescription("How much to log.");
     option_log_level.setValueName("log-level");
 
+    QCommandLineOption option_headless_sync("headless-sync");
+    option_headless_sync.setDescription(
+        "Run one non-interactive sync using the stored OAuth token, then exit.");
+
     QCommandLineParser parser;
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addOption(option_data_dir);
     parser.addOption(option_log_level);
+    parser.addOption(option_headless_sync);
     parser.process(a);
+
+    const bool headless_sync = parser.isSet(option_headless_sync);
 
     // Setup the data dir, which is where the log will be written.
     const auto appDir = QDir(QCoreApplication::applicationDirPath());
@@ -150,6 +159,25 @@ int main(int argc, char *argv[])
     spdlog::trace("SSL Library Build Version: {}", QSslSocket::sslLibraryBuildVersionString());
     spdlog::trace("SSL Library Version: {}", QSslSocket::sslLibraryVersionString());
 
+    // Single-instance guard. Every run (GUI or headless) holds this lock; a
+    // headless sync refuses to start while any other instance holds it, so
+    // two writers can never sync the same data directory (and rotate each
+    // other's OAuth refresh token) at once. A second GUI instance only gets a
+    // warning to preserve existing behavior.
+    QLockFile instance_lock(appDataDir.filePath("acquisition.lock"));
+    // Staleness is pid-based only: the GUI legitimately holds the lock for
+    // hours, so the age-based staleness check must be disabled.
+    instance_lock.setStaleLockTime(0);
+    if (!instance_lock.tryLock(0)) {
+        if (headless_sync) {
+            spdlog::error("Headless sync: another instance of acquisition is running; refusing.");
+            std::fputs("HEADLESS_SYNC_RESULT status=already_running\n", stdout);
+            std::fflush(stdout);
+            return 4;
+        }
+        spdlog::warn("Another instance of acquisition appears to be running.");
+    }
+
     // Run the main application, starting with the login dialog.
     spdlog::info("Running application...");
 
@@ -162,7 +190,7 @@ int main(int argc, char *argv[])
     auto loggingShutdown = qScopeGuard([] { spdlog::shutdown(); });
 
     // Construct an instance of Application.
-    Application app(appDataDir);
+    Application app(appDataDir, headless_sync);
 
     // Start the main event loop.
     spdlog::trace("main(): starting the event loop");

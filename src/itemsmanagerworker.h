@@ -114,6 +114,10 @@ signals:
                         bool initial_refresh);
     void StatusUpdate(ProgramState state, const QString &status);
     void NotifyUser(const QString &message);
+    // Emitted by AbortUpdate(), the terminal transition of a failed update.
+    // Success has no equivalent signal because ItemsRefreshed(initial=false)
+    // already marks it; headless sync needs the failure terminal too.
+    void UpdateFailed();
 
     void characterListReceived(const std::vector<poe::Character> &characters, const QString &realm);
     void characterReceived(const poe::Character &character, const QString &realm);

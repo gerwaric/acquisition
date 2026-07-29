@@ -115,10 +115,12 @@ void OAuthManager::onRequestFailure(const QAbstractOAuth::Error error)
     for (const auto &[known_error, name] : KNOWN_OAUTH_ERRORS) {
         if (error == known_error) {
             spdlog::error("OAuth: request failed: error {} ({})", static_cast<int>(error), name);
+            emit refreshFailed();
             return;
         }
     }
     spdlog::error("OAuth: request failed: error {} (unknown error)", static_cast<int>(error));
+    emit refreshFailed();
 }
 
 void OAuthManager::onServerError(const QString &error,
@@ -129,6 +131,7 @@ void OAuthManager::onServerError(const QString &error,
                   error,
                   errorDescription,
                   uri.toDisplayString());
+    emit refreshFailed();
 }
 
 void OAuthManager::onOAuthError(const QString &error,

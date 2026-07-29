@@ -550,6 +550,7 @@ void ItemsManagerWorker::AbortUpdate()
                           .arg(QString::number(m_request_failures)));
     m_state = WorkerState::Idle;
     spdlog::debug("Update failed.");
+    emit UpdateFailed();
 }
 
 void ItemsManagerWorker::StopUpdateForFailure()

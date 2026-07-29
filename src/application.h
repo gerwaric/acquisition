@@ -40,7 +40,7 @@ class Application : public QObject
 {
     Q_OBJECT
 public:
-    explicit Application(const QDir &appDataDir);
+    explicit Application(const QDir &appDataDir, bool headless_sync = false);
     ~Application();
     Application(const Application &) = delete;
     Application &operator=(const Application &) = delete;
@@ -117,9 +117,17 @@ private:
     void InitCrashReporting();
     void SaveDataOnNewVersion();
 
+    // One-shot non-interactive sync (--headless-sync): reuse the stored OAuth
+    // token, refresh it, sync the configured league, print a summary and exit.
+    void RunHeadlessSync();
+    void StartHeadlessUpdate();
+    void FinishHeadlessSync(int exit_code, const QString &status);
+
     std::unique_ptr<CoreServices> m_core;
     std::unique_ptr<UserSession> m_session;
 
     QDir m_data_dir;
     QString m_active_theme;
+    bool m_headless{false};
+    QString m_headless_summary;
 };
