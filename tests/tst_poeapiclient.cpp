@@ -33,7 +33,8 @@ private slots:
     void successParsesPayload();
     void stashPayloadCarriesTheWireBytes();
     void characterPayloadCarriesTheWireBytes();
-    void missingSubObjectYieldsEmptyPayload();
+    void missingStashSubObjectIsAParseError();
+    void missingCharacterSubObjectIsAParseError();
     void fetchErrorsPassThroughUnchanged();
     void garbageBodyBecomesParseError();
 };
@@ -195,8 +196,7 @@ void PoeApiClientTest::stashPayloadCarriesTheWireBytes()
 
     QCOMPARE(consumer.completions, 1);
     QVERIFY(consumer.payload.has_value());
-    QVERIFY(consumer.payload->stash.has_value());
-    QCOMPARE(consumer.payload->stash->id, QString("0123456789"));
+    QCOMPARE(consumer.payload->stash.id, QString("0123456789"));
     QCOMPARE(consumer.payload->bytes, sub);
 }
 
@@ -214,16 +214,17 @@ void PoeApiClientTest::characterPayloadCarriesTheWireBytes()
 
     QCOMPARE(consumer.completions, 1);
     QVERIFY(consumer.payload.has_value());
-    QVERIFY(consumer.payload->character.has_value());
-    QCOMPARE(consumer.payload->character->name, QString("Someone"));
+    QCOMPARE(consumer.payload->character.name, QString("Someone"));
     QCOMPARE(consumer.payload->bytes, sub);
 }
 
-void PoeApiClientTest::missingSubObjectYieldsEmptyPayload()
+void PoeApiClientTest::missingStashSubObjectIsAParseError()
 {
-    // A reply with no "stash" sub-object is a successful fetch of nothing:
-    // the payload arrives with neither a parse nor bytes, and the worker
-    // treats it as "stash is empty" (its abort branch), same as before F62.
+    // A 200 whose reply lacks its "stash" sub-object is classified at the
+    // facade as a Parse error (M2 D5/R2-4): it is deterministic per tab, and
+    // it must arrive as a typed FetchError — never as a success the worker
+    // has to second-guess. The old worker-side "stash is empty" branch held
+    // no FetchError and is deleted.
     Rig rig;
 
     Consumer<poe::StashPayload> consumer;
@@ -233,9 +234,26 @@ void PoeApiClientTest::missingSubObjectYieldsEmptyPayload()
     drainEvents();
 
     QCOMPARE(consumer.completions, 1);
-    QVERIFY(consumer.payload.has_value());
-    QVERIFY(!consumer.payload->stash.has_value());
-    QVERIFY(consumer.payload->bytes.isEmpty());
+    QCOMPARE(consumer.kind(), RateLimit::FetchError::Kind::Parse);
+    QCOMPARE(consumer.error->endpoint, QString("Get Stash"));
+    QVERIFY(!consumer.payload.has_value());
+}
+
+void PoeApiClientTest::missingCharacterSubObjectIsAParseError()
+{
+    // A null sub-object fails the same way as a missing one.
+    Rig rig;
+
+    Consumer<poe::CharacterPayload> consumer;
+    consumer.attach(rig.api.getCharacter("pc", "Someone"));
+
+    rig.limiter.resolve(0, R"({"character":null})");
+    drainEvents();
+
+    QCOMPARE(consumer.completions, 1);
+    QCOMPARE(consumer.kind(), RateLimit::FetchError::Kind::Parse);
+    QCOMPARE(consumer.error->endpoint, QString("Get Character"));
+    QVERIFY(!consumer.payload.has_value());
 }
 
 void PoeApiClientTest::fetchErrorsPassThroughUnchanged()

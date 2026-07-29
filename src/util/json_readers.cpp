@@ -52,28 +52,32 @@ namespace {
 
     // Capture the reply's sub-object losslessly, then parse the typed
     // payload from that same substring, so the stored bytes and the parsed
-    // object cannot diverge. A reply whose sub-object is missing or null
-    // yields an empty payload (the caller treats it as "nothing fetched");
-    // a sub-object that fails the typed parse fails the whole read.
+    // object cannot diverge. The whole read fails — which the facade
+    // classifies as FetchError{Parse} — when the sub-object is missing or
+    // null (M2 D5/R2-4: a 200 without its payload is deterministic, and it
+    // must arrive as a typed error, not as a success the worker has to
+    // second-guess) or when the sub-object fails the typed parse.
     template<typename Payload, typename Value, typename Raw>
     std::optional<Payload> read_payload(const QByteArray &json,
+                                        const char *what,
                                         std::optional<glz::raw_json> Raw::*member,
-                                        std::optional<Value> Payload::*value)
+                                        Value Payload::*value)
     {
         const auto raw = read_json<Raw>(json);
         if (!raw) {
             return std::nullopt;
         }
-        Payload payload;
         if (!(*raw.*member)) {
-            return payload;
+            spdlog::error("The reply has no '{}' payload", what);
+            return std::nullopt;
         }
         const std::string &str = (*raw.*member)->str;
-        const auto bytes = QByteArray::fromRawData(str.data(), qsizetype(str.size()));
-        auto parsed = read_json<Value>(bytes);
+        const auto view = QByteArray::fromRawData(str.data(), qsizetype(str.size()));
+        auto parsed = read_json<Value>(view);
         if (!parsed) {
             return std::nullopt;
         }
+        Payload payload;
         payload.*value = std::move(*parsed);
         payload.bytes = QByteArray(str.data(), qsizetype(str.size()));
         return payload;
@@ -99,6 +103,7 @@ std::optional<poe::CharacterListWrapper> json::readCharacterListWrapper(const QB
 std::optional<poe::CharacterPayload> json::readCharacterPayload(const QByteArray &json)
 {
     return read_payload(json,
+                        "character",
                         &json::raw::CharacterWrapper::character,
                         &poe::CharacterPayload::character);
 }
@@ -125,7 +130,7 @@ std::optional<poe::StashListWrapper> json::readStashListWrapper(const QByteArray
 
 std::optional<poe::StashPayload> json::readStashPayload(const QByteArray &json)
 {
-    return read_payload(json, &json::raw::StashWrapper::stash, &poe::StashPayload::stash);
+    return read_payload(json, "stash", &json::raw::StashWrapper::stash, &poe::StashPayload::stash);
 }
 
 std::optional<std::vector<poe::StashTab>> json::readStashList(const QByteArray &json)

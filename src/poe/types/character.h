@@ -82,10 +82,12 @@ namespace poe {
 
     // What a character fetch returns across the typed boundary (F62): the
     // parsed payload plus the exact wire bytes of the reply's "character"
-    // sub-object it was parsed from. See poe::StashPayload for the rationale.
+    // sub-object it was parsed from. Members unconditional for the same
+    // reason as poe::StashPayload — a missing sub-object is a facade Parse
+    // error, never a success.
     struct CharacterPayload
     {
-        std::optional<poe::Character> character;
+        poe::Character character;
         QByteArray bytes;
     };
 
