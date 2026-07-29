@@ -166,13 +166,13 @@ void LoginDialog::LoadSettings()
     const bool show_advanced = m_settings.value("show_advanced_login_options").toBool();
     ui->advancedCheckBox->setChecked(show_advanced);
 
-    const bool remember_user = m_settings.value("remember_user").toBool();
+    const bool remember_user = m_settings.value("remember_user", true).toBool();
     ui->rememberMeCheckBox->setChecked(remember_user);
 
     const bool use_proxy = m_settings.value("use_system_proxy").toBool();
     ui->proxyCheckBox->setChecked(use_proxy);
 
-    const bool report_crashes = m_settings.value("report_crashes").toBool();
+    const bool report_crashes = m_settings.value("report_crashes", true).toBool();
     ui->reportCrashesCheckBox->setChecked(report_crashes);
 
     const QString login_tab = m_settings.value("login_tab").toString();

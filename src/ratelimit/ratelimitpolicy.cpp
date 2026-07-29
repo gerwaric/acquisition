@@ -265,6 +265,27 @@ RateLimitPolicy::RateLimitPolicy(const QString &name, std::vector<RateLimitRule>
     }
 }
 
+bool RateLimitPolicy::HasSameShape(const RateLimitPolicy &other) const
+{
+    if (m_name != other.m_name || m_rules.size() != other.rules().size()) {
+        return false;
+    }
+    for (size_t rule_index = 0; rule_index < m_rules.size(); ++rule_index) {
+        const auto &rule = m_rules[rule_index];
+        const auto &other_rule = other.rules()[rule_index];
+        if (rule.name() != other_rule.name() || rule.items().size() != other_rule.items().size()) {
+            return false;
+        }
+        for (size_t item_index = 0; item_index < rule.items().size(); ++item_index) {
+            if (rule.items()[item_index].limit().period()
+                != other_rule.items()[item_index].limit().period()) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 bool RateLimitPolicy::Check(const RateLimitPolicy &other) const
 {
     // Check the policy name.
@@ -399,13 +420,14 @@ QDateTime RateLimitPolicy::GetNextSafeSend(const std::deque<RateLimit::Event> &h
                 lines.append(QString("</EVENT>"));
                 // Find the latest time and use it. This helps us avoid violations due
                 // to things like clock differences and network delays.
-                const QDateTime &request_time = event.request_time.isValid() ? event.request_time : now;
-                const QDateTime &received_time = event.received_time.isValid() ? event.received_time : now;
+                const QDateTime &request_time
+                    = event.request_time.isValid() ? event.request_time : now;
+                const QDateTime &received_time
+                    = event.received_time.isValid() ? event.received_time : now;
                 const QDateTime &reply_time = event.reply_time.isValid() ? event.reply_time : now;
                 t = std::max({request_time, received_time, reply_time});
                 lines.append(QString("%1: using most recent time: %2").arg(tag, Timestamp(t)));
             }
-
             // Add the measurement period.
             t = t.addSecs(period);
             lines.append(QString("%1: send is %2 after adding %3 seconds for period")
@@ -442,4 +464,3 @@ QDateTime RateLimitPolicy::GetNextSafeSend(const std::deque<RateLimit::Event> &h
 
     return next_send;
 }
-

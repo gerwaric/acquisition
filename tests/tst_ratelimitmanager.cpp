@@ -63,6 +63,7 @@ class RateLimitManagerTest : public QObject
 private slots:
     void updateInstallsPolicyFromHeadReply();
     void updateAdoptsChangedPolicyDefinition();
+    void policyShapeChangeClearsHistory();
     void nameMismatchLeavesPolicyUntouched();
     void queueBeforePolicyInstallDrainsOnInstall();
     void okPolicySendsAfterNormalBuffer();
@@ -123,6 +124,20 @@ namespace {
             {"X-Rate-Limit-Rules", "Ip"},
             {"X-Rate-Limit-Ip", limit},
             {"X-Rate-Limit-Ip-State", state},
+            {"Date", rfcDateNow()},
+        };
+    }
+
+    QList<QNetworkReply::RawHeaderPair> accountAndIpPolicyHeaders(const QByteArray &ip_limit,
+                                                                  const QByteArray &ip_state)
+    {
+        return {
+            {"X-Rate-Limit-Policy", kPolicyName},
+            {"X-Rate-Limit-Rules", "Account,Ip"},
+            {"X-Rate-Limit-Account", "30:60:60"},
+            {"X-Rate-Limit-Account-State", "0:60:0"},
+            {"X-Rate-Limit-Ip", ip_limit},
+            {"X-Rate-Limit-Ip-State", ip_state},
             {"Date", rfcDateNow()},
         };
     }
@@ -288,6 +303,35 @@ void RateLimitManagerTest::updateAdoptsChangedPolicyDefinition()
 
     QCOMPARE(policy_updates, 2);
     QCOMPARE(rig.manager.policy().maximum_hits(), 5);
+}
+
+void RateLimitManagerTest::policyShapeChangeClearsHistory()
+{
+    Rig rig;
+    installPolicy(rig.manager, "1:60:60", "0:60:0");
+
+    Caller first;
+    first.attach(rig.manager.QueueRequest(kEndpoint, request("one"), first.token()));
+    advanceAndSettle(rig.scheduler, std::chrono::milliseconds(kNormalBufferMsec));
+    QCOMPARE(rig.sender.count(), 1);
+    rig.sender.sent(0).reply->finish(policyHeaders("1:60:60", "1:60:0"), 200);
+    drainEvents();
+    QCOMPARE(first.completions, 1);
+
+    // Authentication can change the same-named policy from Ip-only to
+    // Account+Ip. The old request event must not saturate the new Ip rule.
+    FakeNetworkReply authenticated(QNetworkRequest(QUrl("https://api.example.test/head")),
+                                   "",
+                                   QNetworkReply::NoError,
+                                   nullptr,
+                                   accountAndIpPolicyHeaders("1:60:60", "0:60:0"),
+                                   200);
+    rig.manager.Update(&authenticated);
+
+    Caller second;
+    second.attach(rig.manager.QueueRequest(kEndpoint, request("two"), second.token()));
+    advanceAndSettle(rig.scheduler, kGateSpacing);
+    QCOMPARE(rig.sender.count(), 2);
 }
 
 void RateLimitManagerTest::nameMismatchLeavesPolicyUntouched()
