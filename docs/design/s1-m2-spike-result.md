@@ -216,7 +216,8 @@ Run: `./build-s1m2/tests/spike_s1m2_harness --preset 100k`
   a same-row or same-display-name reselection cannot pass —
   strengthened in the residual review pass). Scroll
   survival is hands-judged plus the fixed fallback code, not
-  automated. The existing 33-test suite passing demonstrates
+  automated. The pre-spike suite (33 CTests; 34 on the spike branch
+  with `tst_spike_s1m2` registered) passing demonstrates
   compatibility of the stable-key/stable-id machinery, not throttle
   fidelity. The full state-machine and fidelity pin list remains a
   production acceptance obligation (R1-5), not a spike artifact.
