@@ -36,6 +36,13 @@ function(acq_add_scenario_test name)
     endforeach()
 endfunction()
 
+# M2-M2 measurement harness (items-pipeline M2, stage 4): not a test — an
+# offscreen benchmark run by hand in a Release build. It reuses the test
+# fakes and the deterministic dataset generator, so it lives here.
+qt_add_executable(m2m2_benchmark m2m2_benchmark.cpp)
+target_include_directories(m2m2_benchmark PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(m2m2_benchmark PRIVATE acquisition_core)
+
 # The filter core must stay free of the UI (Phase 5, D5). A STATIC archive has
 # no link step, so this cannot be left to target_link_libraries.
 add_test(NAME filters_boundary

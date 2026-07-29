@@ -64,6 +64,11 @@ public:
                 m_worker.m_characters_needed};
     }
 
+    // Read-only view of the worker's item collection, for the M2-M2
+    // harness's component attribution (it copies the vector outside its
+    // timed regions and measures the erase predicate on the copy).
+    const Items &items() const { return m_worker.m_items; }
+
 private:
     ItemsManagerWorker &m_worker;
 };

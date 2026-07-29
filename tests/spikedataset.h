@@ -180,6 +180,28 @@ public:
         m_tabs[static_cast<size_t>(tab_index)].stash.name = new_name;
     }
 
+    // The tab's list entry (metadata only, no items) — what a stash-list
+    // reply carries for it.
+    const poe::StashTab &stashSpec(int tab_index) const
+    {
+        return m_tabs[static_cast<size_t>(tab_index)].stash;
+    }
+
+    // A complete poe-level content reply for one tab, materialized from its
+    // current specs — the shape the M2-M2 harness feeds the fake facade.
+    poe::StashTab MakeStashReply(int tab_index) const
+    {
+        const TabSpec &tab = m_tabs[static_cast<size_t>(tab_index)];
+        poe::StashTab reply = tab.stash;
+        std::vector<poe::Item> items;
+        items.reserve(tab.items.size());
+        for (const ItemSpec &spec : tab.items) {
+            items.push_back(Materialize(spec));
+        }
+        reply.items = std::move(items);
+        return reply;
+    }
+
 private:
     ItemSpec MakeSpec(bool quad)
     {
