@@ -175,7 +175,12 @@ exclusion from trade features. Cached characters whose payloads
 contain either collection can backfill without a refetch because the
 containers are already persisted.
 
-### F64. Legacy stores key locations by bare id, ignoring the location type — Confirmed; contained by decision
+### F66. Legacy stores key locations by bare id, ignoring the location type — Confirmed; contained by decision
+
+(Originally registered as F64 on the M2 spec branch; renumbered at
+the July 28 master merge — master's released alpha.3 history had
+independently assigned F64 to the userstore schema repair and F65 to
+the rate-limit policy-shape fix.)
 
 Found July 28, 2026, during M2 spec review round 6 (R6-5,
 `items-pipeline-m2-reviews.md`). Several long-standing stores key

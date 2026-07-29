@@ -210,7 +210,7 @@ void TabRefreshed(const ItemLocation &location, const Items &items);
   keyed by bare id (refresh selection `m_tabs_to_update`,
   `itemsmanagerworker.cpp:397`; refresh locks and tab buyouts;
   `ItemLocation::operator==`) are pre-existing surfaces M2 does not
-  rekey; their cross-type collision exposure is recorded as **F64**
+  rekey; their cross-type collision exposure is recorded as **F66**
   in the findings register rather than expanded into M2.
 - **Payload.** The complete pipeline-native `Items` replacement for
   that fetch source — the exact set of `Item` objects the worker just
@@ -1327,5 +1327,6 @@ pre-freeze sequence is F62, then the S1-M2 spike, then revision 9
 recording its result and freezing. The review series is closed:
 remaining risk is retired by evidence — S1-M2 pre-freeze, M2-M2 and
 M1-M2 in implementation — not further argument. M1-M2 blocks
-nothing. The legacy bare-id keying exposure is tracked as F64 in the
-findings register (R6-5), outside M2's scope.
+nothing. The legacy bare-id keying exposure is tracked as F66 in the
+findings register (R6-5; renumbered from F64 at the July 28 master
+merge), outside M2's scope.
