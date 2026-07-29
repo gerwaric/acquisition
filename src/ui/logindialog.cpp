@@ -142,7 +142,17 @@ LoginDialog::~LoginDialog()
         if (auto lg = spdlog::default_logger(); lg) {
             lg->trace("Login: clearing settings");
         }
+        // "Remember me" governs credentials only: preserve the league and
+        // realm selections, which are not credentials, across the clear.
+        const QVariant league = m_settings.value("league");
+        const QVariant realm = m_settings.value("realm");
         m_settings.clear();
+        if (league.isValid()) {
+            m_settings.setValue("league", league);
+        }
+        if (realm.isValid()) {
+            m_settings.setValue("realm", realm);
+        }
         m_datastore.Set("oauth_token", "");
     }
     delete ui;
