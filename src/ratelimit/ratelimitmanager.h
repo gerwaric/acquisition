@@ -84,8 +84,9 @@ public:
     // Total-parse gated (D8): headers that fail the grammar update nothing,
     // and a Full set whose policy name does not match the installed
     // policy's is refused loudly — a pump's policy name never changes after
-    // creation (D4). Definition changes under the same name are adopted
-    // (logged by Check()).
+    // creation (D4). Definition changes under the same name are adopted;
+    // shape changes also clear request history because it describes a
+    // different set of counters.
     Observation Update(QNetworkReply *reply);
 
     const RateLimitPolicy &policy();

@@ -8,6 +8,7 @@
 #include <QUuid>
 #include <QtTest/QtTest>
 
+#include "datastore/buyoutrepo.h"
 #include "datastore/characterrepo.h"
 #include "datastore/stashrepo.h"
 #include "datastore/userstore.h"
@@ -15,9 +16,12 @@
 #include "poe/types/stashtab.h"
 #include "util/json_writers.h"
 
-// Pins for the schema-1 -> schema-2 migration that introduced
-// stashes.json_version / characters.json_version, and for the payload-version
-// check the column exists to serve.
+// Pins for the schema migration ladder: the 1 -> 2 step that introduced
+// stashes.json_version / characters.json_version (and the payload-version
+// check the column exists to serve), and the 2 -> 3 step that repairs
+// databases created by v0.16.0-alpha.2 through alpha.6, whose composite
+// primary keys break the ON CONFLICT(id) upserts and which predate the
+// buyout tables.
 //
 // The two versions are deliberately independent: SCHEMA_VERSION describes the
 // table shape and replays forward ('<'), json::PAYLOAD_VERSION describes the
@@ -75,6 +79,61 @@ namespace {
             db.close();
         }
         QSqlDatabase::removeDatabase(connection);
+    }
+
+    // The schema exactly as v0.16.0-alpha.2 through alpha.6 shipped it:
+    // composite primary keys that ON CONFLICT(id) cannot target, and no
+    // buyout tables at all. Those alphas stamped user_version 1, so the 1 -> 2
+    // step alone would leave the database broken while claiming it is current.
+    void createCompositeKeyDatabase(const QTemporaryDir &dir)
+    {
+        const QString connection = "v1c-seed-" + QUuid::createUuid().toString(QUuid::WithoutBraces);
+        {
+            QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connection);
+            db.setDatabaseName(dbPath(dir));
+            QVERIFY(db.open());
+
+            QSqlQuery q(db);
+            QVERIFY(q.exec("CREATE TABLE stashes ("
+                           " realm TEXT NOT NULL, league TEXT NOT NULL, id TEXT NOT NULL,"
+                           " parent TEXT, folder TEXT, name TEXT NOT NULL, type TEXT NOT NULL,"
+                           " stash_index INTEGER,"
+                           " meta_public INTEGER NOT NULL DEFAULT 0 CHECK (meta_public IN (0,1)),"
+                           " meta_folder INTEGER NOT NULL DEFAULT 0 CHECK (meta_folder IN (0,1)),"
+                           " meta_colour TEXT, listed_at TEXT,"
+                           " json_fetched_at TEXT, json_data TEXT,"
+                           " PRIMARY KEY (realm, league, id))"));
+            QVERIFY(q.exec("CREATE TABLE characters ("
+                           " realm TEXT NOT NULL, id TEXT NOT NULL, name TEXT NOT NULL,"
+                           " league TEXT, listed_at TEXT NOT NULL,"
+                           " json_fetched_at TEXT, json_data TEXT,"
+                           " PRIMARY KEY (realm, id))"));
+
+            QVERIFY(q.exec("PRAGMA user_version=1"));
+            db.close();
+        }
+        QSqlDatabase::removeDatabase(connection);
+    }
+
+    bool hasTable(const QTemporaryDir &dir, const QString &table)
+    {
+        bool found = false;
+        const QString connection = "tbl-" + QUuid::createUuid().toString(QUuid::WithoutBraces);
+        {
+            QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connection);
+            db.setDatabaseName(dbPath(dir));
+            if (db.open()) {
+                QSqlQuery q(db);
+                q.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?");
+                q.addBindValue(table);
+                if (q.exec() && q.next()) {
+                    found = true;
+                }
+                db.close();
+            }
+        }
+        QSqlDatabase::removeDatabase(connection);
+        return found;
     }
 
     int readUserVersion(const QTemporaryDir &dir)
@@ -157,14 +216,16 @@ class UserStoreMigrationTest : public QObject
     Q_OBJECT
 
 private slots:
-    void migratesVersion1ToVersion2();
+    void migratesVersion1ToCurrent();
     void staleRowsKeepMetadataButYieldNoJson();
     void freshDatabaseGetsTheColumnWithoutAnAlter();
     void savedRowsRoundTripAtTheCurrentPayloadVersion();
     void aRowFromANewerPayloadVersionIsNotRead();
+    void compositeKeyDatabaseIsRebuilt();
+    void buyoutRowsSurviveTheRepairStep();
 };
 
-void UserStoreMigrationTest::migratesVersion1ToVersion2()
+void UserStoreMigrationTest::migratesVersion1ToCurrent()
 {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
@@ -175,14 +236,20 @@ void UserStoreMigrationTest::migratesVersion1ToVersion2()
         UserStore store(QDir(dir.path()), kAccount);
     }
 
-    QCOMPARE(readUserVersion(dir), 2);
+    QCOMPARE(readUserVersion(dir), 3);
     QVERIFY(hasColumn(dir, "stashes", "json_version"));
     QVERIFY(hasColumn(dir, "characters", "json_version"));
 
-    // The ladder step must ALTER, not reset: dropping the tables here would
-    // take the tab and character metadata with it.
+    // A healthy database must ALTER, not reset: dropping the tables here
+    // would take the tab and character metadata with it. The 2 -> 3 repair
+    // step only rebuilds tables whose primary key is actually wrong.
     QCOMPARE(rowCount(dir, "stashes"), 1);
     QCOMPARE(rowCount(dir, "characters"), 1);
+
+    // The repair step also fills in the buyout tables, which version-1
+    // databases from the earliest alphas never had.
+    QVERIFY(hasTable(dir, "item_buyouts"));
+    QVERIFY(hasTable(dir, "location_buyouts"));
 }
 
 void UserStoreMigrationTest::staleRowsKeepMetadataButYieldNoJson()
@@ -219,7 +286,7 @@ void UserStoreMigrationTest::freshDatabaseGetsTheColumnWithoutAnAlter()
         UserStore store(QDir(dir.path()), kAccount);
     }
 
-    QCOMPARE(readUserVersion(dir), 2);
+    QCOMPARE(readUserVersion(dir), 3);
     QVERIFY(hasColumn(dir, "stashes", "json_version"));
     QVERIFY(hasColumn(dir, "characters", "json_version"));
 }
@@ -277,6 +344,76 @@ void UserStoreMigrationTest::aRowFromANewerPayloadVersionIsNotRead()
 
     UserStore store(QDir(dir.path()), kAccount);
     QVERIFY(!store.stashes().getStash("tab-c", kRealm, kLeague).has_value());
+}
+
+void UserStoreMigrationTest::compositeKeyDatabaseIsRebuilt()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    createCompositeKeyDatabase(dir);
+    QCOMPARE(readUserVersion(dir), 1);
+
+    UserStore store(QDir(dir.path()), kAccount);
+    QCOMPARE(readUserVersion(dir), 3);
+
+    // The rebuilt tables must accept the ON CONFLICT(id) upserts, which the
+    // composite-key schema rejected at prepare time. Saving the same id twice
+    // exercises the conflict path itself, not just the insert.
+    QVERIFY(store.stashes().saveStash(makeTab("tab-a"), kRealm, kLeague));
+    QVERIFY(store.stashes().saveStash(makeTab("tab-a"), kRealm, kLeague));
+    QCOMPARE(rowCount(dir, "stashes"), 1);
+
+    poe::Character character;
+    character.id = "char-a";
+    character.name = "Alice";
+    character.realm = kRealm;
+    character.league = kLeague;
+    QVERIFY(store.characters().saveCharacterList({character}));
+    QVERIFY(store.characters().saveCharacterList({character}));
+    QCOMPARE(rowCount(dir, "characters"), 1);
+
+    // These alphas predate BuyoutRepo entirely.
+    QVERIFY(hasTable(dir, "item_buyouts"));
+    QVERIFY(hasTable(dir, "location_buyouts"));
+}
+
+void UserStoreMigrationTest::buyoutRowsSurviveTheRepairStep()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    createVersion1Database(dir);
+
+    // A version-1 database from alpha.7 or later has the buyout tables, and
+    // they hold user-authored prices that no migration step may drop.
+    const QString connection = "buyout-seed-" + QUuid::createUuid().toString(QUuid::WithoutBraces);
+    {
+        QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", connection);
+        db.setDatabaseName(dbPath(dir));
+        QVERIFY(db.open());
+        QSqlQuery q(db);
+        QVERIFY(q.exec("CREATE TABLE item_buyouts ("
+                       " item_id TEXT PRIMARY KEY, location_id TEXT NOT NULL,"
+                       " location_type TEXT NOT NULL"
+                       "   CHECK (location_type IN ('character', 'stash')),"
+                       " currency TEXT NOT NULL,"
+                       " inherited INTEGER NOT NULL CHECK (inherited IN (0,1)),"
+                       " last_update INTEGER NOT NULL, source TEXT NOT NULL,"
+                       " type TEXT NOT NULL, value REAL NOT NULL)"));
+        QVERIFY(q.exec("INSERT INTO item_buyouts (item_id, location_id, location_type,"
+                       " currency, inherited, last_update, source, type, value)"
+                       " VALUES ('item-a', 'tab-a', 'stash', 'chaos', 0, 0, 'manual',"
+                       " 'b/o', 5.0)"));
+        db.close();
+    }
+    QSqlDatabase::removeDatabase(connection);
+
+    UserStore store(QDir(dir.path()), kAccount);
+    QCOMPARE(readUserVersion(dir), 3);
+
+    const auto buyouts = store.buyouts().getItemBuyouts();
+    QCOMPARE(buyouts.size(), size_t(1));
+    QVERIFY(buyouts.contains("item-a"));
+    QCOMPARE(buyouts.at("item-a").value, 5.0);
 }
 
 QTEST_MAIN(UserStoreMigrationTest)

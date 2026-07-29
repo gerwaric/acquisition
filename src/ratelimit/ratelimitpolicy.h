@@ -105,6 +105,10 @@ public:
     // capture.
     static std::expected<RateLimitPolicy, QString> Parse(QNetworkReply *const reply);
 
+    // Whether two definitions describe the same set of counters. A shape
+    // change makes locally-recorded request history inapplicable to the new
+    // definition, even when the policy name stays the same.
+    bool HasSameShape(const RateLimitPolicy &other) const;
     bool Check(const RateLimitPolicy &other) const;
     const QString &name() const { return m_name; }
     const std::vector<RateLimitRule> &rules() const { return m_rules; }

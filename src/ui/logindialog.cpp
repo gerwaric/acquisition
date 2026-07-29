@@ -166,13 +166,13 @@ void LoginDialog::LoadSettings()
     const bool show_advanced = m_settings.value("show_advanced_login_options").toBool();
     ui->advancedCheckBox->setChecked(show_advanced);
 
-    const bool remember_user = m_settings.value("remember_user").toBool();
+    const bool remember_user = m_settings.value("remember_user", true).toBool();
     ui->rememberMeCheckBox->setChecked(remember_user);
 
     const bool use_proxy = m_settings.value("use_system_proxy").toBool();
     ui->proxyCheckBox->setChecked(use_proxy);
 
-    const bool report_crashes = m_settings.value("report_crashes").toBool();
+    const bool report_crashes = m_settings.value("report_crashes", true).toBool();
     ui->reportCrashesCheckBox->setChecked(report_crashes);
 
     const QString login_tab = m_settings.value("login_tab").toString();
@@ -250,11 +250,13 @@ void LoginDialog::OnLeaguesReceived()
         }
     }
     ui->leagueComboBox->setEnabled(true);
+    // editable so private-league ids (absent from the public list) can be typed
+    ui->leagueComboBox->setEditable(true);
 
     // If we found a match for the save league use it. If we didn't, then
     // we need to clear the setting, since the list of leagues may have
     // changed since the last time acquisition was run.
-    if (use_saved_league) {
+    if (use_saved_league || !saved_league.isEmpty()) {
         spdlog::trace("LoginDialog::OnLeaguesReceived() setting league to saved value: {}",
                       saved_league);
         ui->leagueComboBox->setCurrentText(saved_league);

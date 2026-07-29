@@ -141,9 +141,21 @@ RateLimitManager::Observation RateLimitManager::Update(QNetworkReply *reply)
                           parsed->name());
             return Observation::NameMismatch;
         }
-        // A changed definition under the same name is adopted: dynamic
-        // limit changes must update pacing state. Check() logs the diff.
-        if (!m_policy->Check(*parsed)) {
+        // A changed shape under the same name can occur when authentication
+        // changes which counters the server applies. Adopt it, but discard
+        // history recorded against the old counter set.
+        if (!m_policy->HasSameShape(*parsed)) {
+            spdlog::info("Rate limit policy '{}' changed shape; request history was cleared",
+                         m_policy->name());
+            spdlog::debug("Rate limit policy '{}' shape transition:\nOld Policy:\n{}\nNew "
+                          "Policy:\n{}",
+                          m_policy->name(),
+                          m_policy->GetPolicyReport(),
+                          parsed->GetPolicyReport());
+            m_history.clear();
+        } else if (!m_policy->Check(*parsed)) {
+            // A changed definition with the same shape is adopted: dynamic
+            // limit changes must update pacing state. Check() logs the diff.
             spdlog::error("Rate Limit Policy: the updated policy is mismatched:\nCurrent "
                           "Policy:\n{}\nNew Policy:\n{}",
                           m_policy->GetPolicyReport(),

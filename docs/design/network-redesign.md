@@ -352,6 +352,17 @@ server counted them all, N25).
 | clean 2xx, Full headers, matching policy name | `Update(headers)`; complete success (payload) |
 | clean 2xx, headers fail to parse **or** mismatched policy name | complete `FetchError{Protocol}` (strict — D8/IR1) |
 
+A matching policy name may legitimately arrive with a different counter
+shape. The legacy stash endpoint does this when a request moves between an
+unauthenticated POESESSID response (`Ip`) and an authenticated response
+(`Account,Ip`). The pump adopts the new shape and clears its local request
+history before pacing against it: those events describe a different set of
+counters. This handled transition is logged at `info` so setting a valid
+POESESSID does not surface a warning in the UI; full old/new policy reports
+remain available at `debug`. A shape is the ordered rule names and each
+rule's ordered bucket periods; hit and restriction changes within that shape
+remain ordinary definition updates and retain history.
+
 - The retry is invisible to callers: the future completes only on a
   final outcome — success, non-retryable error, or retries exhausted.
   P-A (graceful 429 recovery is a first-class requirement) is satisfied
