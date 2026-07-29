@@ -1,6 +1,13 @@
 # Items Pipeline M2: Implementation Sequence
 
-Status: **PROPOSED — awaiting review** (July 29, 2026). This document
+Status: **ACCEPTED for implementation** (July 29, 2026; externally
+reviewed the same day — three findings, all verified and
+incorporated: explicit `ChildrenReconciled` treatment in stage 3
+with its emission condition disambiguated, the R2-1 immutable
+capture front-loaded to stage 2 to close the shop hazard before
+streaming begins, and M2-M2 attribution made exhaustive. The
+stage 3 ↔ stage 5 question is resolved: early gate retained). This
+document
 sequences the production implementation of the frozen M2 spec
 (`items-pipeline-m2.md`, frozen at revision 9 plus the July 29
 post-freeze amendments). It makes **no design arguments and changes
@@ -96,8 +103,14 @@ code changes. No other spike code crosses over.
   predicates are rekeyed; legacy bare-id stores stay as recorded in
   F66.
 - `ChildrenReconciled(parent, expected)` carrying the authoritative
-  expected set (R5-2/R6-2), emitted beside the persistence-lane
-  `stashChildrenReplaced` (the lanes stay split, D3).
+  expected set (R5-2/R6-2). Its emission condition **follows the
+  worker's own reconcile predicate** — every top-level parent reply
+  (`fetch_id == id`, `itemsmanagerworker.cpp:991`), where the
+  worker's ghost erase runs — **not** the narrower Map/Unique-only
+  condition that gates the persistence-lane `stashChildrenReplaced`
+  emit (`:1005-1007`, an F53 datastore concern). The two signals are
+  emitted from the same reconcile block but on different conditions;
+  the lanes stay split (D3).
 - The cached initial load stays one snapshot emit (no streaming).
 
 Files: `itemsmanagerworker.{h,cpp}`, key type header.
@@ -105,24 +118,42 @@ Tests (worker-observable halves): `deltaMatchesAppliedReplacement`,
 `parentReplyReconcilesChildrenAgainstExpectedSet` (emit ordering and
 payload; published-copy assertions complete in stage 2).
 
-### Stage 2 — D3 manager half + D7 scoped pricing
+### Stage 2 — R2-1 capture front-load, then D3 manager half + D7 scoped pricing
 
-- `ItemsManager` applies each delta to the published copy: one
-  predicate-only `erase_if` by `FetchSourceKey` (the permitted linear
-  pass, R1-2) + append; applies `ChildrenReconciled` by running the
-  expected-set predicate against its own baseline; re-emits both
-  signals for the UI.
-- D7 scoped pricing per delta, delta items only: note-based item
-  buyouts, tab-inheritance from published tab-buyout state, monotone
-  refresh-lock additions. Tab-name auto-pricing stays final-pass-only;
-  `ClearRefreshLocks` stays exclusive to the final pass.
-- F46 absorbed (R1-9): the debug uncategorized scan in
-  `OnItemsRefreshed` gated behind `spdlog::should_log` or deleted;
-  F46's register entry moves to the resolved ledger in the same
-  commit.
+Ordered within the stage, and the ordering is load-bearing: forum
+posting is an external side effect, so the R2-1 capture must exist
+**before** the published copy starts streaming — "single PR" does
+not contain a stale forum post made from an intermediate build run
+against a real profile.
 
-Files: `itemsmanager.{h,cpp}`, findings register.
-Tests: `publishedStateIsSnapshotPlusAppliedDeltas`,
+1. **First**, the R2-1 immutable capture in `Shop`: submission input
+   — the postable items' identity, location, and buyout fields —
+   captured **by value** at the moment submission is requested
+   (automatic or manual), with the legacy stash index applied to
+   that capture when it arrives. The asynchronous continuation never
+   reads live `ItemsManager::items()` after capture. Only the
+   capture core lands here; the latest-eligible queueing, job-local
+   transport state, and revision machinery remain stage 8.
+2. **Then** streaming: `ItemsManager` applies each delta to the
+   published copy — one predicate-only `erase_if` by
+   `FetchSourceKey` (the permitted linear pass, R1-2) + append;
+   applies `ChildrenReconciled` by running the expected-set
+   predicate against its own baseline; re-emits both signals for
+   the UI.
+3. D7 scoped pricing per delta, delta items only: note-based item
+   buyouts, tab-inheritance from published tab-buyout state, monotone
+   refresh-lock additions. Tab-name auto-pricing stays
+   final-pass-only; `ClearRefreshLocks` stays exclusive to the final
+   pass.
+4. F46 absorbed (R1-9): the debug uncategorized scan in
+   `OnItemsRefreshed` gated behind `spdlog::should_log` or deleted;
+   F46's register entry moves to the resolved ledger in the same
+   commit.
+
+Files: `shop.{h,cpp}`, `itemsmanager.{h,cpp}`, findings register.
+Tests: `shopSubmissionUsesCapturedSnapshot` (the staged R2-1 pin —
+capture lands first, but its test needs streaming to drive, so it
+lands at the end of this stage), `publishedStateIsSnapshotPlusAppliedDeltas`,
 `emptyDeltaEmptiesFetchSourceOnly`,
 `reconcileErasesGhostsAcrossFailedUpdates`,
 `scopedPricingConvergesToFinalPass`,
@@ -149,6 +180,18 @@ shapes — split, stale-header, merge).
   value 60 s); rules 3–5 (tick refilters and clears own flag;
   refilter/tab-switch/deletion cancel semantics; final snapshot
   cancels and clears all).
+- **`ChildrenReconciled` is a first-class input to the state
+  machine**, not an afterthought of the primary delta (external
+  review, finding 1): rule 1's marking covers aggregate
+  reconciliations ("every delta marks every search items-dirty —
+  aggregate reconciliations included", spec D9 rule 1), and the
+  intersection test has a third form — a `ChildrenReconciled`
+  intersects iff any **visible** item under its parent carries a key
+  outside the expected set (spec D9, R5-2/R6-2). Without this, a
+  reconciliation that erases published ghost children schedules no
+  refilter, and after a terminal failure those ghosts stay visible
+  indefinitely — exactly the R6-2 published-baseline divergence the
+  signal exists to fix.
 
 Files: `search.{h,cpp}`, `mainwindow.{h,cpp}`, `items_model` only if
 the bucketing mechanism requires it.
@@ -159,7 +202,14 @@ Tests: `bucketsKeyOnStableIdDuringRefresh`,
 `searchDeleteCancelsPendingTimer`, `finalSnapshotCancelsPendingTick`,
 `successfulRefilterCancelsPendingTick`,
 `pendingTickSurvivesTerminalFailure` — the last asserting the
-**amended freshness bound: S plus one reset-plus-restore duration**.
+**amended freshness bound: S plus one reset-plus-restore duration** —
+and `childReconciliationIntersectsVisibleGhosts`, a **plan-level
+addition** beyond the spec's pinned list (external review, finding
+1): a `ChildrenReconciled` whose expected set excludes visible ghost
+children schedules the throttled refilter; followed by a terminal
+failure, the tick still fires and the ghosts leave the view. It pins
+behavior the spec's D9 intersection sentence already requires; it
+adds no new design.
 
 ### Stage 4 — M2-M2 measurement (GATE)
 
@@ -173,9 +223,16 @@ generator:
   environment (hardware, OS, compiler, Qt, allocator); **fixed**
   recorded reply/removal shapes; repetitions and the reported
   statistic recorded.
-- **Per-component attribution**: worker erase, manager erase,
-  persistence, pricing, UI intersection/fan-out (R3-3/R4-1 — worker
-  and manager attributed separately before any remedy is selected).
+- **Per-component attribution, exhaustive** (external review,
+  finding 3): worker erase, **parse + append**, persistence, manager
+  erase, pricing, UI intersection/fan-out — parsing and append are
+  in the spec's own enumeration of the synchronous unit (D3) and get
+  a named bucket, not an implicit remainder. The buckets must sum to
+  approximately the measured total, with any residual **explicitly
+  reported as a residual**; a whole-path miss whose dominant cost
+  hid in an unattributed remainder would leave the mandatory remedy
+  unselectable. Worker and manager stay separately attributed before
+  any remedy is selected (R3-3/R4-1).
 - Budgets: manager marginal erase **< 2 ms @ 100k, < 16 ms @ 1m**
   gates the *required* manager remedy (source-keyed map with lazily
   rebuilt flat vector); whole-path budget (same thresholds, one
@@ -189,6 +246,12 @@ generator:
 **Hold point: implementation pauses here and the numbers go to Tom
 before proceeding** — a budget miss changes the shape of the
 remaining work (remedy implementation + rerun joins the sequence).
+
+The stage-4 checkpoint build is **unsuitable for UX validation or
+normal profile use** (external review, stage 3 ↔ 5 resolution): the
+R6-3 fidelity machinery has not landed, so mid-refresh throttled
+resets lose selection and scroll. It measures the synchronous reply
+path; it demonstrates nothing about feel.
 
 ### Stage 5 — R6-3 restore-fidelity contract (outcome (a))
 
@@ -267,10 +330,11 @@ Tests: `shopSubmitsOnlyOnCleanCompletion`,
 
 ### Stage 8 — D8 full shop machinery
 
-- Submission input captured **by value** at request time (R2-1);
-  each job owns all its transport state (capture, force bit, legacy
-  index, rendered data + hash, request counter, thread progress) —
-  nothing mutable shared with a waiting job.
+- The R2-1 capture core is already in place (stage 2); this stage
+  builds the machinery around it: each job owns all its transport
+  state (capture, force bit, legacy index, rendered data + hash,
+  request counter, thread progress) — nothing mutable shared with a
+  waiting job.
 - Latest-eligible desired state (R3-1): at most one active job, at
   most one waiting automatic capture, newest clean capture wins;
   automatic admission captures before the busy policy; manual
@@ -289,8 +353,7 @@ Tests: `shopSubmitsOnlyOnCleanCompletion`,
   edit drops it while the active job is unaffected (R6-4).
 
 Files: `shop.{h,cpp}`, `application.cpp`.
-Tests: `shopSubmissionUsesCapturedSnapshot`,
-`newestCleanSnapshotSubmitsAfterActive`,
+Tests: `newestCleanSnapshotSubmitsAfterActive`,
 `automaticSubmissionCoalescesLatestEligible`,
 `manualSubmissionRendersCapturedPublishedState`,
 `olderSubmissionCannotCleanNewerInput`,
@@ -318,12 +381,18 @@ Tests: `shopSubmissionUsesCapturedSnapshot`,
 Stated so the review can judge them rather than discover them. None
 reach master (single end-of-branch PR):
 
-1. **Stages 2–7: manual shop submission mid-refresh can read
-   partially streamed published state** (the R2-1 hazard — published
-   `items()` now changes between snapshots, but capture-by-value
-   lands in stage 8). Pre-existing manual submission still works; the
-   exposure is a mid-refresh manual submission reading a mix, which
-   today's code cannot experience. Closed by stage 8.
+1. **The R2-1 hazard is closed before it can open** (external
+   review, finding 2 — the original wording here understated it:
+   *automatic* submissions, not just manual ones, can start for
+   clean update N, wait asynchronously on the legacy stash index,
+   and then read N+1's partially streamed state; and forum posting
+   is an external side effect, so a single end-of-branch PR is not
+   containment for anyone running an intermediate build against a
+   real profile). Resolved by front-loading the immutable capture to
+   stage 2, ordered before streaming lands. What remains across
+   stages 2–7 is master-parity shop behavior — the auto-submit gate
+   moves in stage 7, the queueing/revision machinery in stage 8 —
+   with no new exposure relative to master.
 2. **Stages 3–4: throttled resets run with today's restore machinery**
    (fidelity lands in stage 5), so mid-refresh ticks on the branch
    lose selection/scroll exactly as the spec's R6-3 verification
@@ -335,15 +404,15 @@ reach master (single end-of-branch PR):
    depends on the absence of a final snapshot, not on
    `RefreshFinished`).
 
-## Open question for the review
+## Resolved question
 
-**Stage 3 ↔ stage 5 adjacency.** Fidelity (stage 5) is sequenced
-after M2-M2 because it is not part of the measured synchronous unit
-and the spec wants the measurement as early as the real path exists
-(R7-3). The alternative — fidelity immediately after the D9 machine,
-before M2-M2 — eliminates intermediate state 2 above at the cost of
-delaying the gate by one stage. The proposal prefers the early gate;
-the review may prefer the other trade.
+**Stage 3 ↔ stage 5 adjacency — early gate retained** (external
+review, July 29): M2-M2 runs before the fidelity stage because it
+determines the storage shape before more UI identity machinery is
+built on top of it, and that placement best matches R7-3. The cost
+is intermediate state 2 above, mitigated by labeling: the stage-4
+checkpoint build is unsuitable for UX validation or normal profile
+use (noted in stage 4).
 
 ## Pin-to-stage traceability
 
@@ -361,6 +430,7 @@ implemented, per revision 9):
 | `scopedPricingConvergesToFinalPass` | 2 |
 | `scopedPricingIsFailSafeAcrossFailedUpdate` | 2 |
 | `parentBucketMayMixChildGenerationsMidRefresh` | 2 |
+| `shopSubmissionUsesCapturedSnapshot` | 2 (capture front-loaded; was 8) |
 | `bucketsKeyOnStableIdDuringRefresh` | 3 |
 | `emptyDeltaMetadataLandsAtNextRefilter` | 3 |
 | `backgroundDeltaLeavesModelUntouched` | 3 |
@@ -371,6 +441,7 @@ implemented, per revision 9):
 | `finalSnapshotCancelsPendingTick` | 3 |
 | `successfulRefilterCancelsPendingTick` | 3 |
 | `pendingTickSurvivesTerminalFailure` | 3 |
+| `childReconciliationIntersectsVisibleGhosts` (plan-level addition) | 3 |
 | M2-M2 measurement + addendum | 4 (gate) |
 | `expansionSurvivesRenameByStableKey` | 5 |
 | `selectionSurvivesReplacementByStableIdentity` | 5 |
@@ -382,7 +453,6 @@ implemented, per revision 9):
 | `shopSubmitsOnlyOnCleanCompletion` | 7 |
 | `parseFailureSkipsTabAndUpdateCompletes` | 7 |
 | `missingStashWrapperSkipsTab` / `missingCharacterWrapperSkipsTab` | 7 |
-| `shopSubmissionUsesCapturedSnapshot` | 8 |
 | `newestCleanSnapshotSubmitsAfterActive` | 8 |
 | `automaticSubmissionCoalescesLatestEligible` | 8 |
 | `manualSubmissionRendersCapturedPublishedState` | 8 |
