@@ -15,8 +15,12 @@
 #include "util/fatalerror.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 
-Search::Search(BuyoutManager &bo_manager, const QString &caption, const FilterCatalog &catalog)
+Search::Search(BuyoutManager &bo_manager,
+               const QString &caption,
+               const FilterCatalog &catalog,
+               const LocationInventory *location_inventory)
     : m_bo_manager(bo_manager)
+    , m_location_inventory(location_inventory)
     , m_filter_catalog(catalog)
     , m_model(bo_manager, *this)
     , m_caption(caption)
@@ -236,8 +240,13 @@ void Search::FilterItems(const Items &items)
     m_bucket_by_item.clear();
     m_bucket_by_item.emplace_back(ItemLocation());
 
-    // Temporarily store items-by-tabs in a map.
-    std::map<ItemLocation, Bucket> bucketed_tabs;
+    // Temporarily store items-by-tabs in a map keyed by the STABLE display
+    // identity (M2 D6/R5-1): ItemLocation orders stash locations by
+    // position, so keying on the location itself can split a moved tab into
+    // old- and new-position buckets, file fresh items under a stale header,
+    // or merge two different tabs whose positions collide mid-refresh. Each
+    // bucket renders the freshest metadata seen for its key.
+    std::map<LocationInventory::Key, Bucket> bucketed_tabs;
 
     // Try to minimize the number of times we have to loop over each item,
     // because some players have hundreds of thousands or millions of items.
@@ -265,38 +274,70 @@ void Search::FilterItems(const Items &items)
             // Add this item to the "By Item" bucket.
             m_bucket_by_item.front().AddItem(item);
 
-            // Add this item to the associagted "By Tab" bucket.
-            const ItemLocation location = item->location();
-            if (!bucketed_tabs.count(location)) {
-                bucketed_tabs[location] = Bucket(location);
+            // Add this item to the associated "By Tab" bucket.
+            const ItemLocation &location = item->location();
+            const auto key = LocationInventory::KeyFor(location);
+            auto bucket_it = bucketed_tabs.find(key);
+            if (bucket_it == bucketed_tabs.end()) {
+                bucket_it = bucketed_tabs.emplace(key, Bucket(canonicalLocation(location))).first;
             }
-            bucketed_tabs[location].AddItem(item);
+            bucket_it->second.AddItem(item);
         }
     }
 
     // We need to add empty tabs here as there are no items to force their addition
     // But only do so if no filters are active as we want to hide empty tabs when
-    // filtering
+    // filtering. The published tab list resolves through the canonical
+    // inventory too, and tabs known only to the inventory (discovered
+    // mid-refresh by an empty delta, R6-1) are included until the final
+    // snapshot publishes them.
     if (!m_filtered) {
         for (auto &location : m_bo_manager.GetStashTabLocations()) {
-            if (!bucketed_tabs.count(location)) {
-                bucketed_tabs[location] = Bucket(location);
+            const auto key = LocationInventory::KeyFor(location);
+            if (!bucketed_tabs.count(key)) {
+                bucketed_tabs.emplace(key, Bucket(canonicalLocation(location)));
+            }
+        }
+        if (m_location_inventory) {
+            for (const auto &[key, location] : m_location_inventory->entries()) {
+                if (!bucketed_tabs.count(key)) {
+                    bucketed_tabs.emplace(key, Bucket(location));
+                }
             }
         }
     }
 
-    // Move the "By Tab" buckets into their final location.
+    // Move the "By Tab" buckets into their final location, ordered by their
+    // rendered locations — the map above is keyed for identity, not display
+    // order. Stable ids break positional ties so two tabs colliding on one
+    // position mid-refresh keep a deterministic order.
     m_bucket_by_tab.clear();
     m_bucket_by_tab.reserve(bucketed_tabs.size());
     for (auto &element : bucketed_tabs) {
         m_bucket_by_tab.emplace_back(std::move(element.second));
     }
+    std::sort(m_bucket_by_tab.begin(), m_bucket_by_tab.end(), [](const Bucket &a, const Bucket &b) {
+        const ItemLocation &la = a.location();
+        const ItemLocation &lb = b.location();
+        if (la < lb) {
+            return true;
+        }
+        if (lb < la) {
+            return false;
+        }
+        return la.id() < lb.id();
+    });
 
     // Let the model know that current sort order has been invalidated
     m_model.SetSorted(false);
     m_model.endUpdate();
 
     m_states_dirty = false;
+}
+
+const ItemLocation &Search::canonicalLocation(const ItemLocation &embedded) const
+{
+    return m_location_inventory ? m_location_inventory->Canonical(embedded) : embedded;
 }
 
 void Search::RenameCaption(const QString &newName)

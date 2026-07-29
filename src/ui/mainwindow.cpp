@@ -953,7 +953,10 @@ void MainWindow::NewSearch()
     m_tab_bar->addTab("+");
 
     spdlog::trace("MainWindow::NewSearch() setting current search: {}", caption);
-    auto search = std::make_unique<Search>(m_buyout_manager, caption, m_filter_catalog);
+    auto search = std::make_unique<Search>(m_buyout_manager,
+                                           caption,
+                                           m_filter_catalog,
+                                           &m_items_manager.locationInventory());
     m_current_search = search.get();
     m_current_item = m_current_search->currentItem();
     m_current_bucket_location = m_current_search->currentBucket();

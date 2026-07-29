@@ -17,6 +17,7 @@
 #include "filters/filterstate.h"
 #include "item.h"
 #include "items_model.h"
+#include "locationinventory.h"
 #include "util/util.h"
 
 class BuyoutManager;
@@ -31,7 +32,13 @@ public:
     enum class ViewMode : int { ByTab = 0, ByItem = 1 };
     Q_ENUM(ViewMode)
 
-    Search(BuyoutManager &bo, const QString &caption, const FilterCatalog &catalog);
+    // The inventory resolves bucket metadata to the freshest location seen
+    // per stable display key (M2 D6); null (tests without a pipeline) keeps
+    // each item's embedded location and the published tab list alone.
+    Search(BuyoutManager &bo,
+           const QString &caption,
+           const FilterCatalog &catalog,
+           const LocationInventory *location_inventory = nullptr);
     ~Search();
     void FilterItems(const Items &items);
     const QString &caption() const { return m_caption; }
@@ -71,8 +78,10 @@ public:
 
 private:
     std::vector<Bucket> &active_buckets();
+    const ItemLocation &canonicalLocation(const ItemLocation &embedded) const;
 
     BuyoutManager &m_bo_manager;
+    const LocationInventory *m_location_inventory{nullptr};
 
     // Catalog and filter states are index-aligned. MainWindow owns the catalog
     // and outlives every Search.

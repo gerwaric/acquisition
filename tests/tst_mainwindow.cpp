@@ -37,6 +37,9 @@ private slots:
     void deleteTabDance();
     void currentViewStatePins();
 
+    // Items-pipeline M2, stage 3: D6 stable-identity bucketing.
+    void bucketsKeyOnStableIdDuringRefresh();
+
 private:
     std::shared_ptr<spdlog::logger> m_main_logger;
     std::shared_ptr<spdlog::sinks::dist_sink_mt> m_sink_hub;
@@ -442,6 +445,64 @@ void MainWindowTest::currentViewStatePins()
         selectedNames.sort();
         QCOMPARE(selectedNames, initiallySelectedNames);
     }
+}
+
+// M2 D6/R5-1 (stage 3): bucket identity is the stable (type, id) and each
+// bucket renders the freshest metadata seen for that key. Mid-refresh deltas
+// for a moved tab, a renamed tab, and a tab whose fresh position collides
+// with an unrefreshed tab's stale position must produce exactly one bucket
+// per stable tab id — no split, no stale header, no merge.
+void MainWindowTest::bucketsKeyOnStableIdDuringRefresh()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-bbbb", "Beta", 1);
+    const ItemLocation tabC = makeTestStashLocation("stash-cccc", "Gamma", 2);
+    const ItemLocation tabD = makeTestStashLocation("stash-dddd", "Delta", 3);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-b", "BetaItem", "Shield", tabB));
+    items.push_back(makeMainWindowItem("item-c", "GammaItem", "Axe", tabC));
+    items.push_back(makeMainWindowItem("item-d", "DeltaItem", "Wand", tabD));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB, tabC, tabD}, false);
+
+    // Mid-refresh deltas: A moves to position 5, B is renamed in place, and
+    // C's fresh position collides with unrefreshed D's stale position 3.
+    const ItemLocation movedA = makeTestStashLocation("stash-aaaa", "Alpha", 5);
+    const ItemLocation renamedB = makeTestStashLocation("stash-bbbb", "Beta Renamed", 1);
+    const ItemLocation collidedC = makeTestStashLocation("stash-cccc", "Gamma", 3);
+    fixture.itemsManager
+        ->OnTabRefreshed(movedA, {makeMainWindowItem("item-a2", "AlphaItem", "Sword", movedA)});
+    fixture.itemsManager
+        ->OnTabRefreshed(renamedB, {makeMainWindowItem("item-b2", "BetaItem", "Shield", renamedB)});
+    fixture.itemsManager
+        ->OnTabRefreshed(collidedC, {makeMainWindowItem("item-c2", "GammaItem", "Axe", collidedC)});
+
+    // Force a refilter of the current search mid-refresh (the D9 throttle
+    // path lands separately; any refilter must bucket soundly).
+    fixture.window->OnSearchFormChange();
+
+    const QAbstractItemModel *model = tree->model();
+    QVERIFY(model);
+    // Exactly one bucket per stable tab id: four tabs, four buckets.
+    QCOMPARE(model->rowCount(), 4);
+    QStringList headers;
+    for (int row = 0; row < model->rowCount(); ++row) {
+        headers.append(model->index(row, 0).data().toString());
+    }
+    // Fresh metadata renders: B under its new name, A at its new position
+    // (after C and D, which collide on position 3 but never merge — the
+    // stable id orders them deterministically).
+    QCOMPARE(headers,
+             QStringList(
+                 {"#2, \"Beta Renamed\"", "#4, \"Gamma\"", "#4, \"Delta\"", "#6, \"Alpha\""}));
+    // Each bucket holds exactly its tab's item: no split or merge moved an
+    // item to a neighbor.
+    QCOMPARE(visibleItemNames(*tree),
+             QStringList({"BetaItem Shield", "GammaItem Axe", "DeltaItem Wand", "AlphaItem Sword"}));
 }
 
 QTEST_MAIN(MainWindowTest)

@@ -12,6 +12,7 @@
 #include "item.h"
 #include "itemlocation.h"
 #include "itemsmanagerworker.h"
+#include "locationinventory.h"
 #include "util/programstate.h"
 #include "util/util.h"
 
@@ -40,6 +41,10 @@ public:
     void SetAutoUpdateInterval(int minutes);
     void SetAutoUpdate(bool update);
     const Items &items() const { return m_items; }
+    // The freshest tab metadata seen per stable display key (M2 D6): fed by
+    // every delta's location anchor and reset by every snapshot. Search
+    // buckets render through it.
+    const LocationInventory &locationInventory() const { return m_location_inventory; }
     void ApplyAutoTabBuyouts();
     void ApplyAutoItemBuyouts();
     void PropagateTabBuyouts();
@@ -81,4 +86,5 @@ private:
 
     std::unique_ptr<QTimer> m_auto_update_timer;
     Items m_items;
+    LocationInventory m_location_inventory;
 };

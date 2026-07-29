@@ -144,6 +144,10 @@ void ItemsManager::OnItemsRefreshed(const Items &items,
         }
     }
 
+    // Snapshot boundary: the published tab list is authoritative for the
+    // canonical inventory — deletions and ordering take effect here (D6).
+    m_location_inventory.ResetTo(tabs);
+
     m_buyout_manager.SetStashTabLocations(tabs);
     MigrateBuyouts();
     ApplyAutoTabBuyouts();
@@ -170,6 +174,10 @@ void ItemsManager::OnTabRefreshed(const ItemLocation &location, const Items &ite
     });
     m_items.insert(m_items.end(), items.begin(), items.end());
 
+    // Every delta's location anchor feeds the canonical inventory, empty
+    // deltas included (D6/R6-1).
+    m_location_inventory.Ingest(location);
+
     ApplyScopedPricing(items);
 
     emit TabRefreshed(location, items);
@@ -191,6 +199,8 @@ void ItemsManager::OnChildrenReconciled(const ItemLocation &parent,
         return (loc.type() == ItemLocationType::STASH) && (loc.id() == parent.id())
                && (expected_keys.count({loc.type(), loc.fetch_id()}) == 0);
     });
+
+    m_location_inventory.Ingest(parent);
 
     emit ChildrenReconciled(parent, expected);
 }
