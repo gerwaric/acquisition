@@ -6,6 +6,7 @@
 #include <optional>
 #include <vector>
 
+#include <QByteArray>
 #include <QString>
 
 #include <glaze/glaze.hpp>
@@ -52,9 +53,20 @@ namespace poe {
         std::vector<poe::StashTab> stashes;
     };
 
-    struct StashWrapper
+    // What a stash fetch returns across the typed boundary (F62): the parsed
+    // payload plus the exact wire bytes of the reply's "stash" sub-object it
+    // was parsed from. The bytes are what the datastore persists — the cache
+    // must be a faithful record of the API, and a re-serialization of the
+    // parsed struct silently drops every field Acquisition does not model.
+    // Both members are unconditional: a reply whose sub-object is missing or
+    // null is a facade Parse error (M2 D5/R2-4), never a success, so a
+    // payload that exists always holds a stash and the bytes it was parsed
+    // from. Not a wire type and never serialized; the wire shape lives with
+    // the reader (json_readers.cpp).
+    struct StashPayload
     {
-        std::optional<poe::StashTab> stash;
+        poe::StashTab stash;
+        QByteArray bytes;
     };
 
 }; // namespace poe

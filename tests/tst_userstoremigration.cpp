@@ -14,6 +14,7 @@
 #include "datastore/userstore.h"
 #include "poe/types/character.h"
 #include "poe/types/stashtab.h"
+#include "testfixtures.h"
 #include "util/json_writers.h"
 
 // Pins for the schema migration ladder: the 1 -> 2 step that introduced
@@ -297,7 +298,7 @@ void UserStoreMigrationTest::savedRowsRoundTripAtTheCurrentPayloadVersion()
     QVERIFY(dir.isValid());
 
     UserStore store(QDir(dir.path()), kAccount);
-    QVERIFY(store.stashes().saveStash(makeTab("tab-b"), kRealm, kLeague));
+    QVERIFY(saveStashFixture(store.stashes(), makeTab("tab-b"), kRealm, kLeague));
 
     const auto stash = store.stashes().getStash("tab-b", kRealm, kLeague);
     QVERIFY(stash.has_value());
@@ -309,7 +310,7 @@ void UserStoreMigrationTest::savedRowsRoundTripAtTheCurrentPayloadVersion()
     character.realm = kRealm;
     character.league = kLeague;
     QVERIFY(store.characters().saveCharacterList({character}));
-    QVERIFY(store.characters().saveCharacter(character));
+    QVERIFY(saveCharacterFixture(store.characters(), character));
 
     const auto reloaded = store.characters().getCharacter("Bob", kRealm);
     QVERIFY(reloaded.has_value());
@@ -323,7 +324,7 @@ void UserStoreMigrationTest::aRowFromANewerPayloadVersionIsNotRead()
 
     {
         UserStore store(QDir(dir.path()), kAccount);
-        QVERIFY(store.stashes().saveStash(makeTab("tab-c"), kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), makeTab("tab-c"), kRealm, kLeague));
         QVERIFY(store.stashes().getStash("tab-c", kRealm, kLeague).has_value());
     }
 
@@ -359,8 +360,8 @@ void UserStoreMigrationTest::compositeKeyDatabaseIsRebuilt()
     // The rebuilt tables must accept the ON CONFLICT(id) upserts, which the
     // composite-key schema rejected at prepare time. Saving the same id twice
     // exercises the conflict path itself, not just the insert.
-    QVERIFY(store.stashes().saveStash(makeTab("tab-a"), kRealm, kLeague));
-    QVERIFY(store.stashes().saveStash(makeTab("tab-a"), kRealm, kLeague));
+    QVERIFY(saveStashFixture(store.stashes(), makeTab("tab-a"), kRealm, kLeague));
+    QVERIFY(saveStashFixture(store.stashes(), makeTab("tab-a"), kRealm, kLeague));
     QCOMPARE(rowCount(dir, "stashes"), 1);
 
     poe::Character character;

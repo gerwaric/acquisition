@@ -77,7 +77,7 @@ bool CharacterRepo::ensureSchema()
     return true;
 }
 
-bool CharacterRepo::saveCharacter(const poe::Character &character)
+bool CharacterRepo::saveCharacter(const poe::Character &character, const QByteArray &bytes)
 {
     spdlog::debug("CharacterRepo: saving character: name='{}', id='{}', realm='{}', league='{}'",
                   character.name,
@@ -92,14 +92,13 @@ bool CharacterRepo::saveCharacter(const poe::Character &character)
     }
 
     const QDateTime json_fetched_at = ds::timestamp();
-    const QByteArray json = json::writeCharacter(character);
 
     q.bindValue(":id", character.id);
     q.bindValue(":name", character.name);
     q.bindValue(":realm", character.realm);
     q.bindValue(":league", ds::optionalAsNull(character.league));
     q.bindValue(":json_fetched_at", json_fetched_at);
-    q.bindValue(":json_data", json);
+    q.bindValue(":json_data", bytes);
     q.bindValue(":json_version", json::PAYLOAD_VERSION);
 
     if (!q.exec()) {

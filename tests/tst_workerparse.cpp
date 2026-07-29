@@ -68,7 +68,7 @@ void WorkerParseTest::parsesCachedStashItems()
     {
         UserStore store(QDir(dataDir), account);
         QVERIFY(store.stashes().saveStashList({stash}, realm, league));
-        QVERIFY(store.stashes().saveStash(stash, realm, league));
+        QVERIFY(saveStashFixture(store.stashes(), stash, realm, league));
     }
 
     QSettings settings(fixture.tempDir.filePath("settings.ini"), QSettings::IniFormat);
@@ -125,7 +125,7 @@ void WorkerParseTest::specialChildItemsKeyedByChildFetchId()
     {
         UserStore store(QDir(dataDir), account);
         QVERIFY(store.stashes().saveStashList({parent, child}, realm, league));
-        QVERIFY(store.stashes().saveStash(child, realm, league));
+        QVERIFY(saveStashFixture(store.stashes(), child, realm, league));
     }
 
     QSettings settings(fixture.tempDir.filePath("settings.ini"), QSettings::IniFormat);

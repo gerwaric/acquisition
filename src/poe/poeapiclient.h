@@ -20,7 +20,12 @@ class RateLimiter;
 // (network-redesign spec, the facade section). Callers name what they want —
 // a realm, a league, a stash id — and get back a future carrying either the
 // parsed payload or a FetchError. Above this line nothing sees
-// QNetworkRequest, QNetworkReply, or bytes; below it nothing sees items.
+// QNetworkRequest or QNetworkReply, and nothing INTERPRETS bytes; below it
+// nothing sees items. The one thing that crosses as bytes is deliberate
+// (F62): a stash/character fetch also returns the exact wire bytes of the
+// reply's sub-object, which the worker couriers opaquely to the datastore —
+// the cache must be a faithful record of the API, and only the facade holds
+// the received bytes.
 //
 // Deliberately boring: not a QObject, no coroutines, and no state beyond a
 // reference to the limiter. Account, realm, and league are call parameters,
@@ -58,7 +63,7 @@ public:
                                                       const QString &league,
                                                       std::stop_token token = {});
 
-    virtual Result<poe::StashWrapper> getStash(const QString &realm,
+    virtual Result<poe::StashPayload> getStash(const QString &realm,
                                                const QString &league,
                                                const QString &stash_id,
                                                const QString &substash_id = {},
@@ -67,7 +72,7 @@ public:
     virtual Result<poe::CharacterListWrapper> listCharacters(const QString &realm,
                                                              std::stop_token token = {});
 
-    virtual Result<poe::CharacterWrapper> getCharacter(const QString &realm,
+    virtual Result<poe::CharacterPayload> getCharacter(const QString &realm,
                                                        const QString &name,
                                                        std::stop_token token = {});
 

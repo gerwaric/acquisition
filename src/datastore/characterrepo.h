@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <QByteArray>
 #include <QObject>
 
 #include <optional>
@@ -27,7 +28,10 @@ public:
     bool ensureSchema();
 
 public slots:
-    bool saveCharacter(const poe::Character &character);
+    // `bytes` is the exact wire JSON of the reply's character sub-object
+    // (F62): stored as-is in json_data, never a re-serialization of
+    // `character` — see StashRepo::saveStash.
+    bool saveCharacter(const poe::Character &character, const QByteArray &bytes);
     bool saveCharacterList(const std::vector<poe::Character> &characters);
     bool reconcileCharacterList(const std::vector<poe::Character> &characters, const QString &realm);
 

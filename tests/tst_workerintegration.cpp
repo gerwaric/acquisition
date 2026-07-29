@@ -346,7 +346,7 @@ namespace {
                 qFatal("seedStashTabs: failed to persist the seed list");
             }
             for (const auto &stash : stashes) {
-                if (!store.stashes().saveStash(stash, kRealm, kLeague)) {
+                if (!saveStashFixture(store.stashes(), stash, kRealm, kLeague)) {
                     qFatal("seedStashTabs: failed to persist a seed tab");
                 }
             }

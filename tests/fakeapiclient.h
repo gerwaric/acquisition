@@ -17,6 +17,7 @@
 
 #include "poe/poeapiclient.h"
 #include "ratelimit/fetcherror.h"
+#include "util/json_writers.h"
 // Only for the unused base-constructor argument the fake is handed; nothing
 // here calls into the limiter.
 #include "ratelimit/ratelimiter.h"
@@ -92,7 +93,7 @@ public:
         return record<poe::StashListWrapper>(std::move(call));
     }
 
-    PoeApiClient::Result<poe::StashWrapper> getStash(const QString &realm,
+    PoeApiClient::Result<poe::StashPayload> getStash(const QString &realm,
                                                      const QString &league,
                                                      const QString &stash_id,
                                                      const QString &substash_id = {},
@@ -104,7 +105,7 @@ public:
                   .stash_id = stash_id,
                   .substash_id = substash_id,
                   .token = token};
-        return record<poe::StashWrapper>(std::move(call));
+        return record<poe::StashPayload>(std::move(call));
     }
 
     PoeApiClient::Result<poe::CharacterListWrapper> listCharacters(
@@ -114,12 +115,12 @@ public:
         return record<poe::CharacterListWrapper>(std::move(call));
     }
 
-    PoeApiClient::Result<poe::CharacterWrapper> getCharacter(const QString &realm,
+    PoeApiClient::Result<poe::CharacterPayload> getCharacter(const QString &realm,
                                                              const QString &name,
                                                              std::stop_token token = {}) override
     {
         Call call{.kind = Call::Kind::GetCharacter, .realm = realm, .name = name, .token = token};
-        return record<poe::CharacterWrapper>(std::move(call));
+        return record<poe::CharacterPayload>(std::move(call));
     }
 
     PoeApiClient::Result<poe::WebStashListWrapper> getLegacyStashIndex(
@@ -349,10 +350,14 @@ public:
         settle<T>(i, Value<T>(std::move(value)));
     }
 
-    // Convenience for the two wrappers the worker fetches one of.
+    // Convenience for the two payloads the worker fetches one of. The real
+    // facade returns the reply's wire bytes alongside the parse (F62); the
+    // fake serializes the typed fixture instead — re-serialization is
+    // harmless in tests, it is the production cache that must be faithful.
     void resolveStash(size_t i, poe::StashTab stash)
     {
-        resolve(i, poe::StashWrapper{.stash = std::move(stash)});
+        QByteArray bytes = json::writeStash(stash);
+        resolve(i, poe::StashPayload{.stash = std::move(stash), .bytes = std::move(bytes)});
     }
 
     void resolveStashList(size_t i, std::vector<poe::StashTab> stashes)
@@ -362,7 +367,9 @@ public:
 
     void resolveCharacter(size_t i, poe::Character character)
     {
-        resolve(i, poe::CharacterWrapper{.character = std::move(character)});
+        QByteArray bytes = json::writeCharacter(character);
+        resolve(i,
+                poe::CharacterPayload{.character = std::move(character), .bytes = std::move(bytes)});
     }
 
     void resolveCharacterList(size_t i, std::vector<poe::Character> characters)
@@ -451,13 +458,15 @@ public:
     // parent bookkeeping that were set before the launch.
     void preresolveStash(poe::StashTab stash)
     {
-        armReady<poe::StashWrapper>(Call::Kind::GetStash,
-                                    poe::StashWrapper{.stash = std::move(stash)});
+        QByteArray bytes = json::writeStash(stash);
+        armReady<poe::StashPayload>(Call::Kind::GetStash,
+                                    poe::StashPayload{.stash = std::move(stash),
+                                                      .bytes = std::move(bytes)});
     }
 
     void prerejectStash(RateLimit::FetchError::Kind kind)
     {
-        armRejected<poe::StashWrapper>(Call::Kind::GetStash, kind);
+        armRejected<poe::StashPayload>(Call::Kind::GetStash, kind);
     }
 
     // Settle every stopped straggler Canceled, exactly once, and return how

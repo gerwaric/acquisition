@@ -131,7 +131,10 @@ bool StashRepo::ensureSchema()
     return true;
 }
 
-bool StashRepo::saveStash(const poe::StashTab &stash, const QString &realm, const QString &league)
+bool StashRepo::saveStash(const poe::StashTab &stash,
+                          const QByteArray &bytes,
+                          const QString &realm,
+                          const QString &league)
 {
     spdlog::debug("StashRepo: saving stash: realm='{}', league='{}', id='{}', name='{}'",
                   realm,
@@ -146,7 +149,6 @@ bool StashRepo::saveStash(const poe::StashTab &stash, const QString &realm, cons
     }
 
     const QDateTime json_fetched_at = ds::timestamp();
-    const QByteArray json = json::writeStash(stash);
 
     q.bindValue(":id", stash.id);
     q.bindValue(":realm", realm);
@@ -160,7 +162,7 @@ bool StashRepo::saveStash(const poe::StashTab &stash, const QString &realm, cons
     q.bindValue(":meta_folder", stash.metadata.folder.value_or(false));
     q.bindValue(":meta_colour", ds::optionalAsNull(stash.metadata.colour));
     q.bindValue(":json_fetched_at", json_fetched_at);
-    q.bindValue(":json_data", json);
+    q.bindValue(":json_data", bytes);
     q.bindValue(":json_version", json::PAYLOAD_VERSION);
 
     if (!q.exec()) {

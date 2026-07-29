@@ -116,11 +116,23 @@ signals:
     void NotifyUser(const QString &message);
 
     void characterListReceived(const std::vector<poe::Character> &characters, const QString &realm);
-    void characterReceived(const poe::Character &character, const QString &realm);
+    // The per-fetch persistence signals carry the reply's exact wire bytes
+    // alongside the parsed payload (F62). The worker never interprets the
+    // bytes — it couriers one opaque blob per reply from the facade to the
+    // datastore, which persists the bytes rather than a lossy
+    // re-serialization of the parsed struct. Emission stays post-acceptance:
+    // nothing the worker discards (stopped stragglers, failed parses) is
+    // ever persisted.
+    void characterReceived(const poe::Character &character,
+                           const QByteArray &bytes,
+                           const QString &realm);
     void stashListReceived(const std::vector<poe::StashTab> &stashes,
                            const QString &realm,
                            const QString &league);
-    void stashReceived(const poe::StashTab &stash, const QString &realm, const QString &league);
+    void stashReceived(const poe::StashTab &stash,
+                       const QByteArray &bytes,
+                       const QString &realm,
+                       const QString &league);
 
     // Authoritative-list signals (F53): emitted only for a fresh top-level
     // list (never for ProcessTab's folder-children re-emits of
@@ -152,9 +164,9 @@ private:
     using Result = std::expected<T, RateLimit::FetchError>;
 
     void OnStashListReceived(const Result<poe::StashListWrapper> &result);
-    void OnStashReceived(const Result<poe::StashWrapper> &result, const ItemLocation &location);
+    void OnStashReceived(const Result<poe::StashPayload> &result, const ItemLocation &location);
     void OnCharacterListReceived(const Result<poe::CharacterListWrapper> &result);
-    void OnCharacterReceived(const Result<poe::CharacterWrapper> &result,
+    void OnCharacterReceived(const Result<poe::CharacterPayload> &result,
                              const ItemLocation &location);
 
     enum class WorkerState { Initializing, Idle, Updating };

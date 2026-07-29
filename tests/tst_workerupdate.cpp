@@ -634,8 +634,8 @@ void WorkerUpdateTest::failedUpdateKeepsItemsIntact()
     {
         UserStore store(QDir(f.dataDir()), "worker-update-account-1");
         QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b}, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_b, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_b, kRealm, kLeague));
     }
 
     f.start();
@@ -714,7 +714,7 @@ void WorkerUpdateTest::failedUpdateDoesNotLeakIntoTheNext()
     {
         UserStore store(QDir(f.dataDir()), "worker-update-account-2");
         QVERIFY(store.stashes().saveStashList({*tab_a}, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
     }
 
     f.start();
@@ -767,8 +767,8 @@ void WorkerUpdateTest::partialUpdateDoesNotDuplicateCharacters()
     {
         UserStore store(QDir(f.dataDir()), "worker-update-account-3");
         QVERIFY(store.characters().saveCharacterList({*char_1, *char_2}));
-        QVERIFY(store.characters().saveCharacter(*char_1));
-        QVERIFY(store.characters().saveCharacter(*char_2));
+        QVERIFY(saveCharacterFixture(store.characters(), *char_1));
+        QVERIFY(saveCharacterFixture(store.characters(), *char_2));
     }
 
     f.start();
@@ -831,8 +831,8 @@ void WorkerUpdateTest::renamedTabMetadataRefreshesWithoutFetch()
     {
         UserStore store(QDir(f.dataDir()), "worker-update-account-4");
         QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b}, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_b, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_b, kRealm, kLeague));
     }
 
     f.start();
@@ -898,8 +898,8 @@ void WorkerUpdateTest::vanishedMapChildItemsAreRemovedOnParentRefresh()
     {
         UserStore store(QDir(f.dataDir()), "worker-update-account-5");
         QVERIFY(store.stashes().saveStashList({*parent_tab}, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*parent_tab, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*child_tab, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *parent_tab, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *child_tab, kRealm, kLeague));
     }
 
     f.start();
@@ -963,8 +963,8 @@ void WorkerUpdateTest::failedUpdateDoesNotRebasePublishedLocations()
     {
         UserStore store(QDir(f.dataDir()), "worker-update-account-6");
         QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b}, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_b, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_b, kRealm, kLeague));
     }
 
     f.start();
@@ -1022,7 +1022,7 @@ void WorkerUpdateTest::partialRefreshSkipsNeverFetchedTabs()
     {
         UserStore store(QDir(f.dataDir()), "worker-update-account-7");
         QVERIFY(store.stashes().saveStashList({*tab_a, *tab_n}, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
         // tab N: listed, never fetched.
     }
 
@@ -1080,8 +1080,8 @@ void WorkerUpdateTest::partialRefreshFetchesChildrenOfSelectedMapParent()
     {
         UserStore store(QDir(f.dataDir()), "worker-update-account-8");
         QVERIFY(store.stashes().saveStashList({*tab_a, *map_parent}, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*map_parent, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *map_parent, kRealm, kLeague));
     }
 
     f.start();
@@ -1139,10 +1139,10 @@ void WorkerUpdateTest::datastoreFollowsServerDeletions()
     {
         UserStore store(QDir(f.dataDir()), "worker-update-account-9");
         QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b, *map_parent}, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_b, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*map_parent, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*map_child, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_b, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *map_parent, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *map_child, kRealm, kLeague));
     }
 
     f.start();
@@ -1209,8 +1209,8 @@ void WorkerUpdateTest::datastoreFollowsCharacterDeletions()
     {
         UserStore store(QDir(f.dataDir()), "worker-update-account-10");
         QVERIFY(store.characters().saveCharacterList({*char_1, *char_2}));
-        QVERIFY(store.characters().saveCharacter(*char_1));
-        QVERIFY(store.characters().saveCharacter(*char_2));
+        QVERIFY(saveCharacterFixture(store.characters(), *char_1));
+        QVERIFY(saveCharacterFixture(store.characters(), *char_2));
     }
 
     f.start();
@@ -1807,8 +1807,8 @@ void WorkerUpdateTest::stoppedSiblingResumesCanceledAndMutatesNothing()
     {
         UserStore store(QDir(f.dataDir()), "wer1");
         QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b}, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_b, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_b, kRealm, kLeague));
     }
 
     f.start();
@@ -1878,7 +1878,7 @@ void WorkerUpdateTest::listFailureWithSiblingContentInFlightTerminatesCleanly()
     {
         UserStore store(QDir(f.dataDir()), "wer1-list");
         QVERIFY(store.characters().saveCharacterList({*char_1}));
-        QVERIFY(store.characters().saveCharacter(*char_1));
+        QVERIFY(saveCharacterFixture(store.characters(), *char_1));
     }
 
     f.start();
@@ -1990,7 +1990,7 @@ void WorkerUpdateTest::readyChildCompletesInlineWithoutCorruptingParentBookkeepi
     {
         UserStore store(QDir(f.dataDir()), "winit-child");
         QVERIFY(store.stashes().saveStashList({*tab_a}, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
     }
 
     f.start();
@@ -2046,7 +2046,7 @@ void WorkerUpdateTest::readyChildErrorStillLaunchesTheRestAndParentStaysRetryabl
     {
         UserStore store(QDir(f.dataDir()), "winit-child-err");
         QVERIFY(store.stashes().saveStashList({*tab_a}, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
     }
 
     f.start();
@@ -2123,9 +2123,9 @@ void WorkerUpdateTest::failureKeepsProgressMonotonicWithOneTerminalTransition()
     {
         UserStore store(QDir(f.dataDir()), "wmono");
         QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b, *tab_c}, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_b, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_c, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_b, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_c, kRealm, kLeague));
     }
 
     f.start();
@@ -2181,9 +2181,9 @@ void WorkerUpdateTest::tabsOnlyRequestsBothListsButNoContent()
     {
         UserStore store(QDir(f.dataDir()), "tabsonly");
         QVERIFY(store.stashes().saveStashList({*tab_a}, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
         QVERIFY(store.characters().saveCharacterList({*char_1}));
-        QVERIFY(store.characters().saveCharacter(*char_1));
+        QVERIFY(saveCharacterFixture(store.characters(), *char_1));
     }
 
     f.start();
@@ -2242,8 +2242,8 @@ void WorkerUpdateTest::oldSuccessfulStragglerDoesNotCorruptASubsequentUpdate()
     {
         UserStore store(QDir(f.dataDir()), "widentity");
         QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b}, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_b, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_b, kRealm, kLeague));
     }
 
     f.start();
@@ -2317,8 +2317,8 @@ void WorkerUpdateTest::oldSuccessfulCharacterStragglerDoesNotCorruptASubsequentU
     {
         UserStore store(QDir(f.dataDir()), "widentity-char");
         QVERIFY(store.characters().saveCharacterList({*char_1, *char_2}));
-        QVERIFY(store.characters().saveCharacter(*char_1));
-        QVERIFY(store.characters().saveCharacter(*char_2));
+        QVERIFY(saveCharacterFixture(store.characters(), *char_1));
+        QVERIFY(saveCharacterFixture(store.characters(), *char_2));
     }
 
     f.start();
@@ -2386,7 +2386,7 @@ void WorkerUpdateTest::updateDuringActiveUpdateRefusesWithoutDisturbingIt()
     {
         UserStore store(QDir(f.dataDir()), "prefuse");
         QVERIFY(store.stashes().saveStashList({*tab_a}, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
     }
 
     f.start();
@@ -2572,8 +2572,8 @@ void WorkerUpdateTest::appliedReplySurvivesLaterFailureInMemoryAndDatastore()
     {
         UserStore store(QDir(f.dataDir()), "papplied");
         QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b}, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_a, kRealm, kLeague));
-        QVERIFY(store.stashes().saveStash(*tab_b, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_b, kRealm, kLeague));
     }
 
     f.start();

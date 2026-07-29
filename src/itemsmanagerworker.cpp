@@ -648,7 +648,7 @@ QCoro::Task<> ItemsManagerWorker::FetchStash(ItemLocation location,
                                              std::stop_token token)
 {
     try {
-        Result<poe::StashWrapper> result;
+        Result<poe::StashPayload> result;
         try {
             auto future = m_api.getStash(m_realm, m_league, stash_id, substash_id, token);
             result = co_await qCoro(future).takeResult();
@@ -668,7 +668,7 @@ QCoro::Task<> ItemsManagerWorker::FetchCharacter(ItemLocation location,
                                                  std::stop_token token)
 {
     try {
-        Result<poe::CharacterWrapper> result;
+        Result<poe::CharacterPayload> result;
         try {
             auto future = m_api.getCharacter(m_realm, name, token);
             result = co_await qCoro(future).takeResult();
@@ -893,19 +893,18 @@ void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterList
     CheckUpdateFinished();
 }
 
-void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result,
+void ItemsManagerWorker::OnStashReceived(const Result<poe::StashPayload> &result,
                                          const ItemLocation &location)
 {
     spdlog::trace("ItemsManagerWorker::OnStashReceived() entered");
 
-    if (!result || !result->stash) {
-        if (!result) {
-            spdlog::warn("Aborting update because there was an error fetching the stash ({}): {}",
-                         RateLimit::ToString(result.error().kind),
-                         result.error().message);
-        } else {
-            spdlog::error("ItemsManagerWorker: stash is empty");
-        }
+    // Every failure arrives as one typed FetchError — including a 200 whose
+    // reply lacked its stash sub-object, which the facade classifies as
+    // Parse (F62, M2 D5): a successful payload always holds a stash.
+    if (!result) {
+        spdlog::warn("Aborting update because there was an error fetching the stash ({}): {}",
+                     RateLimit::ToString(result.error().kind),
+                     result.error().message);
         // First-failure terminal (D2/D6): stop the token and take the direct
         // terminal path. The progress counters are left untouched — this failed
         // fetch is not counted as received, and the batch's `needed` total is not
@@ -915,9 +914,11 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
         return;
     }
 
-    const auto &stash = *result->stash;
+    const auto &stash = result->stash;
 
-    emit stashReceived(*result->stash, m_realm, m_league);
+    // The bytes ride along untouched (F62): the facade parsed this stash
+    // from exactly this substring of the reply, and the datastore stores it.
+    emit stashReceived(stash, result->bytes, m_realm, m_league);
 
     // Atomically replace whatever this request fetched last time: for a
     // normal tab that is the tab's items, for a child of a special tab it
@@ -1025,20 +1026,18 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
     CheckUpdateFinished();
 }
 
-void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterWrapper> &result,
+void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterPayload> &result,
                                              const ItemLocation &location)
 {
     spdlog::trace("ItemsManagerWorker::OnCharacterReceived() entered");
 
-    if (!result || !result->character) {
-        if (!result) {
-            spdlog::warn("Aborting update because there was an error fetching the character "
-                         "({}): {}",
-                         RateLimit::ToString(result.error().kind),
-                         result.error().message);
-        } else {
-            spdlog::error("ItemsManagerWorker: character is empty");
-        }
+    // As with stashes, a reply without its character sub-object is a facade
+    // Parse error (F62, M2 D5), so one typed check covers every failure.
+    if (!result) {
+        spdlog::warn("Aborting update because there was an error fetching the character "
+                     "({}): {}",
+                     RateLimit::ToString(result.error().kind),
+                     result.error().message);
         // First-failure terminal (D2/D6): stop the token and take the direct
         // terminal path, leaving the progress counters untouched (P-STATUS).
         StopUpdateForFailure();
@@ -1046,9 +1045,9 @@ void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterWrapper>
         return;
     }
 
-    const auto &character = *result->character;
+    const auto &character = result->character;
 
-    emit characterReceived(character, m_realm);
+    emit characterReceived(character, result->bytes, m_realm);
 
     // Atomically replace this character's items.
     RemoveItemsFetchedBy(location.fetch_id());

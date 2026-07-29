@@ -76,77 +76,6 @@ row, delete the hash-keyed one) inside `MigrateItem`, or have
 (dual persistence), F51 ledger entry (do not rekey `GetLegacyHash` — a
 correct future v4→v5 migration depends on it).
 
-### F62. The stash/character cache stores a lossy re-serialization, not the received JSON — Confirmed
-
-Found July 24, 2026, while designing the 3.29 cache invalidation. Target:
-resolve before final 0.18; explicitly not blocking 0.18.0-beta.1.
-
-`StashRepo::saveStash` and `CharacterRepo::saveCharacter` persist the
-output of `json::writeStash`/`json::writeCharacter` — a `glz::write_json`
-re-serialization of `poe::StashTab`/`poe::Character` — rather than the
-bytes GGG sent. Reads tolerate unknown keys (`error_on_unknown_keys =
-false` in `json_readers.cpp`) and glaze writes only declared members, so
-every API field Acquisition does not model is silently dropped before it
-reaches `json_data`. `flavourTextParsed` is a live example: commented out
-in `poe/types/item.h` because it is sometimes an object, therefore
-received and discarded on every fetch.
-
-Consequences: the cache is not a faithful record of the API, so a future
-version that models a new field cannot backfill from it — every user must
-refetch. A parse bug is not reproducible from stored data. And a wire
-format change can only be answered by invalidation, never by a blob
-upgrader; 3.28→3.29 would otherwise have been a mechanical transform
-(wrap each mod string as `{"description": ...}`, fold `craftedMods` into
-`explicitMods` with `flags.crafted`) that preserved the cache instead of
-emptying it.
-
-Mechanism, not oversight: `PoeApiClient` is the typed boundary — "above
-this line nothing sees `QNetworkRequest`, `QNetworkReply`, or bytes"
-(`poeapiclient.h`) — so the reply is parsed there and the bytes are
-dropped, and the repo slots receive parsed objects
-(`application.cpp` wires `stashReceived(const poe::StashTab&, ...)`
-straight to `StashRepo::saveStash`). The original intent was to store the
-received JSON; the network redesign landed the boundary the other way.
-
-Fix shape — decided July 26, 2026: carry the raw bytes up through the
-worker's persistence signals, at per-reply granularity. The facade
-captures the reply's stash/character sub-object losslessly
-(`glz::raw_json`), parses the typed payload from that same substring,
-and returns both; `stashReceived`/`characterReceived` gain an opaque
-`QByteArray` the worker never interprets; `saveStash`/`saveCharacter`
-store the wire bytes instead of re-serializing. `json_data` keeps its
-shape — the tolerant reader parses old re-serialized rows and new
-wire rows alike — and `json_version` labels GGG's wire format from
-then on, which is what makes a future blob upgrader possible. The
-save trigger stays the worker's post-acceptance emit, so nothing the
-worker discards (stopped stragglers, failed parses) is ever
-persisted. Rejected alternatives: a facade/pump-level persistence tap
-(persists replies the worker discards — reintroduces the
-cache/memory divergence class M1 eliminated), and glaze
-unknown-field capture on every poe type (semantically faithful only —
-known-field parse bugs still bake in, and every nested type carries
-an `extra` map forever). Spec impact, to land with the implementation
-(doc-first): D7's boundary statement amends from "nothing above sees
-bytes" to "nothing above *interprets* bytes" — the worker couriers
-one opaque blob per reply. Test impact: `FakePoeApiClient` and
-`tst_reconcile` supply bytes via a helper that serializes the typed
-fixture — re-serialization is harmless in tests; it is the production
-cache that must be faithful. In-memory `Item` objects are untouched:
-the blob lives from facade parse to `saveStash` return (a direct
-connection, `application.cpp`), per reply, never per item. Raw wire
-blobs grow `json_data` by whatever is currently unmodeled; accepted.
-Backfill fidelity begins with the first refresh after the fix ships —
-nothing recovers fields already dropped from existing caches.
-
-Interaction with the 3.29 payload versioning: the `json_version` int
-added for 0.18 versions the *struct* serialization today, which is why a
-GGG patch string would be the wrong label for it (nothing in the API
-responses carries a version either way). If raw storage lands, the same
-column versions GGG's wire format instead, and the upgrader option above
-becomes available. Related: F21 ledger entry (per-`Item` raw JSON,
-retired by the glaze migration) — this finding is the opposite direction
-and does not revive that path.
-
 ### F63. `Character::guardian` and `skills` are modeled but never ingested — Confirmed; deferred by decision
 
 Found July 27, 2026, during the 3.29 documentation reconciliation
@@ -155,8 +84,8 @@ ingestion sites enumerate only four — `equipment`, `inventory`,
 `rucksack`, `jewels` (`itemsmanagerworker.cpp`: the cached-parse
 collection list and the live `OnCharacterReceived` list). When present,
 `guardian` (PoE1 only) and `skills` (PoE2 only) are accepted by the
-typed parser and — being modeled — persisted in `json_data` (the F62
-lossy re-serialization does not drop them), but items in them never
+typed parser and — being modeled — persisted in `json_data` (even the
+pre-F62 lossy re-serialization did not drop them), but items in them never
 become visible `Items`, in memory or in any search.
 
 Decision (Tom, July 27, 2026): deliberate deferral, not a release
@@ -275,3 +204,4 @@ above). "PR #161" refers to the post-Phase-6 follow-ups branch
 | F61 | The revised-F55 always-fetch rule keyed "new" on cached contents (`m_contents_known`), so a partial refresh (refresh selected / refresh checked) fetched every tab whose contents were not cached — turning it into a full refresh whenever the contents cache was cold: a fresh install, an upgrade from an older Acquisition (whose contents live in a separate `userstore-*.db` that is never migrated from the legacy store), or a datastore that had only ever stored tab lists. Reported during PR #175 testing (July 22, 2026): "refresh selected/checked refreshes all my tabs" | Fixed, PR #175: the per-tab fetch gate in `ProcessTab`/`OnCharacterListReceived` drops its contents-known clause and keys purely on the selection (`m_update_all || m_tabs_to_update.count(id)`), so a partial refresh fetches strictly the tabs it was asked for; a newly discovered tab is still added to the tab list (metadata surfaces in the UI) but waits for a full refresh or an explicit selection. Children of a selected Map/Unique parent are unaffected — they are discovered in the parent's reply (`OnStashReceived`, gated only by `get_map_stashes`/`get_unique_stashes`) and ride the parent's fetch decision, never appearing in a top-level list. With the selection now the sole gate, the whole contents-known apparatus is dead and was deleted: `m_contents_known`/`m_pending_children`, the `ParseCachedItems` seeding and its `get_*_stashes` parameters (the parser thread no longer reads any setting), and the Map/Unique deferred-completion accounting. Deliberate policy change superseding F55's always-fetch note: a newly created tab no longer auto-fills on a partial refresh. Pinned by `partialRefreshSkipsNeverFetchedTabs` (partial skips a never-fetched tab, a full refresh fetches it) and `partialRefreshFetchesChildrenOfSelectedMapParent` (a selected special stash still reaches its children); design doc "F55, revised" section and M1 release notes updated. **0.18 note (July 2026):** the `json_version` payload invalidation adds another concrete listed-but-cold state this policy governs — version-mismatched rows keep tab metadata but yield no contents (pinned by `staleRowsKeepMetadataButYieldNoJson`), so the 3.29 wire-format change puts every upgrader there; contents stay cold until a full refresh or an explicit selection refills them |
 | F64 | Databases created by v0.16.0-alpha.2 through alpha.6 were permanently broken by an unversioned schema change: those alphas built `stashes`/`characters` with composite primary keys — `(realm, league, id)` and `(realm, id)` — and stamped `user_version` 1; alpha.7 switched to `id`-only keys and `ON CONFLICT(id)` upserts, and added the buyout tables, without bumping `SCHEMA_VERSION`. Every later release then rejected such a database's stash/character saves at prepare time ("ON CONFLICT clause does not match any PRIMARY KEY or UNIQUE constraint") and failed every buyout operation ("no such table: item_buyouts"); 0.18.0-alpha.1's 1→2 ALTER step even succeeded on the old tables and stamped them fully current. User-reported against v0.18.0-alpha.1 ("can't fetch tabs or update the shop"), July 27, 2026 | Fixed on `fix/userstore-schema-repair`: `SCHEMA_VERSION` 3 with a repair step that rebuilds `stashes`/`characters` via `resetRepo()` only when `PRAGMA table_info` shows the primary key is not exactly `(id)` — refetchable caches, but a healthy database keeps its rows (the tab/character lists drive the UI until the next refresh, pinned by `migratesVersion1ToCurrent`) — and runs `BuyoutRepo::ensureSchema()` (`CREATE IF NOT EXISTS`; user-authored buyouts are never dropped, pinned by `buyoutRowsSurviveTheRepairStep`). The broken shape itself is pinned by `compositeKeyDatabaseIsRebuilt`, which exercises the `ON CONFLICT(id)` paths on the rebuilt tables. `migrate()` also now logs when `BEGIN IMMEDIATE` fails instead of silently skipping the migration. Standing lesson: any DDL change to repo tables must bump `SCHEMA_VERSION` in the same commit — `CREATE TABLE IF NOT EXISTS` silently keeps whatever shape an existing database has |
 | F65 | The legacy stash endpoint returned the same `backend-item-request-limit` policy name with an `Ip`-only shape for an invalid/unauthenticated POESESSID and an `Account,Ip` shape after a valid POESESSID was installed. The pump adopted the new definition but logged the expected authentication transition as a warning and error, which surfaced to the user, and retained request history recorded against a different counter set | Fixed July 28, 2026: same-name shape changes are explicitly supported. `RateLimitPolicy::HasSameShape()` compares rule names, item counts, and bucket periods; `RateLimitManager::Update()` clears history before adopting a different shape, logs one concise `info` message, and leaves the full transition at `debug`. Same-shape limit-value changes retain history. Pinned by `tst_ratelimitmanager::policyShapeChangeClearsHistory`, which transitions `Ip` to `Account,Ip` after recording a saturating event and proves the next request is delayed only by the gate floor rather than the obsolete history |
+| F62 | The stash/character cache stored a lossy re-serialization (`json::writeStash`/`writeCharacter` of the parsed structs), not the JSON GGG sent: reads tolerate unknown keys but glaze writes only declared members, so every unmodeled API field was silently dropped before it reached `json_data`. The cache could not backfill a newly modeled field, could not reproduce a parse bug, and could answer a wire-format change only by invalidation — 3.28→3.29 would otherwise have been a mechanical blob transform instead of emptying the cache (found July 24, 2026, while designing that invalidation) | Fixed July 28, 2026, per the July 26 decision (full prose in git history): raw wire bytes flow through the persistence lane at per-reply granularity. The facade captures the reply's stash/character sub-object losslessly (`glz::raw_json`), parses the typed payload from that same substring, and returns both (`poe::StashPayload`/`poe::CharacterPayload`); `stashReceived`/`characterReceived` carry the bytes as an opaque `QByteArray` the worker never interprets; `saveStash`/`saveCharacter` persist the bytes verbatim. `json_data` keeps its shape — the tolerant reader parses old re-serialized rows and new wire rows alike — and `json_version` labels GGG's wire format from then on, which is what makes a future blob upgrader possible. The save trigger stays the worker's post-acceptance emit, so nothing the worker discards (stopped stragglers, failed parses) is ever persisted. A 200 whose reply lacks its stash/character sub-object (missing or null) is classified at the facade as `FetchError{Parse}` per M2 D5/R2-4 — the payload members are non-optional, so a success cannot represent that state, and the worker's untyped "is empty" abort branches are deleted (independent review of the first implementation caught that it initially preserved them as successful empty payloads, contradicting D5). Network-redesign D7 amended in place: nothing above the boundary *interprets* bytes. Rejected alternatives: a facade/pump-level persistence tap (persists replies the worker discards — reintroduces the cache/memory divergence class M1 eliminated) and glaze unknown-field capture on every poe type (known-field parse bugs still bake in; every nested type carries an `extra` map forever). Tests serialize typed fixtures where real replies' bytes would flow (`FakePoeApiClient`, `saveStashFixture`/`saveCharacterFixture`) — re-serialization is harmless in tests; it is the production cache that must be faithful. Pinned by `tst_poeapiclient`'s byte-fidelity pins (`stashPayloadCarriesTheWireBytes`, `characterPayloadCarriesTheWireBytes`, `missingStashSubObjectIsAParseError`, `missingCharacterSubObjectIsAParseError`) and `tst_reconcile`'s verbatim-storage pins (`savedStashBytesAreStoredVerbatim`, `savedCharacterBytesAreStoredVerbatim`). Backfill fidelity begins with the first refresh after the fix ships — nothing recovers fields already dropped from existing caches |
