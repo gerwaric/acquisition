@@ -101,6 +101,12 @@ private slots:
     void folderReplyChildrenAreFetchedButNotReconciled();        // Folder reply children
     void uniqueReplyChildrenAreFetchedAndReconciled();           // Unique reply children
     void appliedReplySurvivesLaterFailureInMemoryAndDatastore(); // P-APPLIED
+
+    // Items-pipeline M2, D3 (stage 1): the worker-observable halves of the
+    // presentation-lane delta contract. The published-copy halves of these
+    // pins complete in stage 2, when ItemsManager applies the deltas.
+    void deltaMatchesAppliedReplacement();
+    void parentReplyReconcilesChildrenAgainstExpectedSet();
 };
 
 namespace {
@@ -357,6 +363,28 @@ namespace {
                                     const QString &) {
                                  stash_children_replaced_parents.append(parent_id);
                              });
+            // Presentation-lane delta capture (M2 D3): each record snapshots
+            // the progress counters and refresh count live at emission, so a
+            // test can pin "after the replace, before the counter increment,
+            // before the terminal emit" without racing the handler. A shared
+            // sequence number orders the two signals against each other.
+            QObject::connect(worker.get(),
+                             &ItemsManagerWorker::TabRefreshed,
+                             worker.get(),
+                             [this](const ItemLocation &location, const Items &items) {
+                                 deltas.push_back({location,
+                                                   items,
+                                                   refresh_count,
+                                                   access().progressCounters(),
+                                                   signal_seq++});
+                             });
+            QObject::connect(worker.get(),
+                             &ItemsManagerWorker::ChildrenReconciled,
+                             worker.get(),
+                             [this](const ItemLocation &parent,
+                                    const std::vector<FetchSourceKey> &expected) {
+                                 reconciles.push_back({parent, expected, signal_seq++});
+                             });
             worker->OnRePoEReady();
         }
 
@@ -537,6 +565,25 @@ namespace {
         std::vector<ItemLocation> last_tabs;
         bool last_initial{false};
         int refresh_count{0};
+
+        // Presentation-lane delta records (M2 D3), one per emit, in order.
+        struct DeltaRecord
+        {
+            ItemLocation location;
+            Items items;
+            int refresh_count_at_emit;
+            WorkerTestAccess::ProgressForTest counters_at_emit;
+            int seq;
+        };
+        struct ReconcileRecord
+        {
+            ItemLocation parent;
+            std::vector<FetchSourceKey> expected;
+            int seq;
+        };
+        std::vector<DeltaRecord> deltas;
+        std::vector<ReconcileRecord> reconciles;
+        int signal_seq{0};
 
         // Every NotifyUser message, in order — used to pin that a refused update
         // notifies the user (P-REFUSE).
@@ -2627,6 +2674,179 @@ void WorkerUpdateTest::appliedReplySurvivesLaterFailureInMemoryAndDatastore()
     QCOMPARE(f.callCount(), calls_before + 2); // only the two lists — no content refetch
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(sortedItemIds(f.last_items), QStringList({"a-applied", "b-old"}));
+}
+
+// M2 D3 (stage 1, worker half): every accepted content reply emits exactly one
+// primary TabRefreshed whose key is the reply's FetchSourceKey and whose items
+// are exactly the applied replacement, sharing the worker's shared_ptrs —
+// after the atomic replace, before the counter increment, and before the
+// terminal emit. A top-level stash reply is followed by exactly one
+// ChildrenReconciled, in that order; character replies emit none. The cached
+// initial load stays one snapshot with no deltas, and an empty reply still
+// emits its (empty) delta — an emptied fetch source, never a deletion.
+void WorkerUpdateTest::deltaMatchesAppliedReplacement()
+{
+    WorkerFixture f("delta-replacement");
+
+    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a-old"}));
+    const auto tab_b = json::readStash(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b-old"}));
+    QVERIFY(tab_a && tab_b);
+    {
+        UserStore store(QDir(f.dataDir()), "delta-replacement");
+        QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b}, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_b, kRealm, kLeague));
+        QVERIFY(store.characters().saveCharacterList(
+            characterList({characterJson("charaaaa01", "TestChar")})));
+        QVERIFY(saveCharacterFixture(store.characters(),
+                                     characterOf(characterJson("charaaaa01",
+                                                               "TestChar",
+                                                               QStringList{"c-old"}))));
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+    // The cached initial load is one snapshot emit, never deltas (D3).
+    QCOMPARE(f.deltas.size(), size_t(0));
+    QCOMPARE(f.reconciles.size(), size_t(0));
+
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(
+        stashList({stashJson("stashaaaa1", "Tab A", 0), stashJson("stashbbbb1", "Tab B", 1)}));
+    f.deliverCharacterList(characterList({characterJson("charaaaa01", "TestChar")}));
+    QCOMPARE(f.deltas.size(), size_t(0)); // list replies produce no deltas
+
+    // Stash reply: the delta is the applied replacement, keyed by the reply's
+    // fetch source.
+    f.deliverStash("stashaaaa1",
+                   stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1", "a2"})));
+    QCOMPARE(f.deltas.size(), size_t(1));
+    {
+        const auto &delta = f.deltas.back();
+        QCOMPARE(delta.location.type(), ItemLocationType::STASH);
+        QCOMPARE(delta.location.fetch_id(), QString("stashaaaa1"));
+        QCOMPARE(sortedItemIds(delta.items), QStringList({"a1", "a2"}));
+        // Before the counter increment (D3's emit point)...
+        QCOMPARE(delta.counters_at_emit.stashes_received, size_t(0));
+        // ...and before any terminal emit.
+        QCOMPARE(delta.refresh_count_at_emit, 1);
+    }
+    // Every top-level stash reply is followed by exactly one aggregate
+    // reconciliation carrying the authoritative expected set — for a plain
+    // tab, just its own fetch source. The persistence-lane
+    // stashChildrenReplaced stays Map/Unique-only: the lanes share an emit
+    // site but not a condition.
+    QCOMPARE(f.reconciles.size(), size_t(1));
+    {
+        const auto &reconcile = f.reconciles.back();
+        QCOMPARE(reconcile.parent.id(), QString("stashaaaa1"));
+        const std::vector<FetchSourceKey> expected{{ItemLocationType::STASH, "stashaaaa1"}};
+        QVERIFY(reconcile.expected == expected);
+        QVERIFY(reconcile.seq > f.deltas.back().seq); // primary delta first
+    }
+    QCOMPARE(f.stash_children_replaced_parents.size(), qsizetype(0));
+
+    // An empty reply still emits its delta: an emptied fetch source.
+    f.deliverStash("stashbbbb1", stashOf(stashJson("stashbbbb1", "Tab B", 1, QStringList{})));
+    QCOMPARE(f.deltas.size(), size_t(2));
+    QCOMPARE(f.deltas.back().location.fetch_id(), QString("stashbbbb1"));
+    QVERIFY(f.deltas.back().items.empty());
+
+    // Character reply: symmetric delta, no reconciliation.
+    f.deliverCharacter("TestChar",
+                       characterOf(characterJson("charaaaa01", "TestChar", QStringList{"c1"})));
+    QCOMPARE(f.deltas.size(), size_t(3));
+    {
+        const auto &delta = f.deltas.back();
+        QCOMPARE(delta.location.type(), ItemLocationType::CHARACTER);
+        QCOMPARE(delta.location.fetch_id(), QString("charaaaa01"));
+        QCOMPARE(sortedItemIds(delta.items), QStringList({"c1"}));
+        QCOMPARE(delta.counters_at_emit.characters_received, size_t(0));
+        QCOMPARE(delta.refresh_count_at_emit, 1);
+    }
+    QCOMPARE(f.reconciles.size(), size_t(2)); // tab B's; characters add none
+
+    // The update completes after all deltas, and the delta shared the very
+    // shared_ptrs the final snapshot publishes.
+    QCOMPARE(f.refresh_count, 2);
+    const auto &stash_delta = f.deltas.front();
+    for (const auto &delta_item : stash_delta.items) {
+        const auto published = std::find(f.last_items.cbegin(), f.last_items.cend(), delta_item);
+        QVERIFY(published != f.last_items.cend()); // pointer identity, not equality
+    }
+}
+
+// M2 D3/R5-2/R6-2 (stage 1, worker half): a top-level parent reply that stops
+// listing a child yields one ChildrenReconciled whose expected set is the
+// parent's own fetch source plus its currently listed children — the same
+// condition as the worker's own ghost erase (fetch_id == id), not the
+// narrower Map/Unique persistence condition. Child replies (fetch_id != id)
+// reconcile nothing. The published-copy erase against this set lands in
+// stage 2.
+void WorkerUpdateTest::parentReplyReconcilesChildrenAgainstExpectedSet()
+{
+    WorkerFixture f("delta-reconcile");
+    f.settings.setValue("get_map_stashes", true);
+
+    const auto parent_tab = json::readStash(
+        stashJson("mapstash01", "Maps", 0, QStringList{"p1"}, "MapStash"));
+    const auto child_tab = json::readStash(
+        stashJson("mapchild01", "Tier 1", 0, QStringList{"m1"}, "MapStash", "mapstash01"));
+    QVERIFY(parent_tab && child_tab);
+    {
+        UserStore store(QDir(f.dataDir()), "delta-reconcile");
+        QVERIFY(store.stashes().saveStashList({*parent_tab}, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *parent_tab, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *child_tab, kRealm, kLeague));
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"m1", "p1"}));
+
+    // The parent's reply drops mapchild01 and lists mapchild02 instead.
+    f.worker->Update(TabSelection::Selected, {ItemLocation(*parent_tab)});
+    f.deliverStashList(stashList({stashJson("mapstash01", "Maps", 0, {}, "MapStash")}));
+    f.deliverStash(
+        "mapstash01",
+        stashOf(stashJson("mapstash01",
+                          "Maps",
+                          0,
+                          QStringList{"p1-new"},
+                          "MapStash",
+                          {},
+                          {stashJson("mapchild02", "Tier 2", 0, {}, "MapStash", "mapstash01")})));
+
+    // The primary delta first, then exactly one reconciliation whose
+    // expected set is the parent plus its listed children.
+    QCOMPARE(f.deltas.size(), size_t(1));
+    QCOMPARE(f.deltas.back().location.fetch_id(), QString("mapstash01"));
+    QCOMPARE(sortedItemIds(f.deltas.back().items), QStringList({"p1-new"}));
+    QCOMPARE(f.reconciles.size(), size_t(1));
+    {
+        const auto &reconcile = f.reconciles.back();
+        QCOMPARE(reconcile.parent.id(), QString("mapstash01"));
+        const std::vector<FetchSourceKey> expected{{ItemLocationType::STASH, "mapstash01"},
+                                                   {ItemLocationType::STASH, "mapchild02"}};
+        QVERIFY(reconcile.expected == expected);
+        QVERIFY(reconcile.seq > f.deltas.back().seq);
+    }
+
+    // A child reply emits its own delta but no reconciliation: its fetch id
+    // is not the display id, so it is not a top-level parent reply.
+    f.deliverChild(
+        "mapstash01",
+        "mapchild02",
+        stashOf(stashJson("mapchild02", "Tier 2", 0, QStringList{"m2"}, "MapStash", "mapstash01")));
+    QCOMPARE(f.deltas.size(), size_t(2));
+    QCOMPARE(f.deltas.back().location.id(), QString("mapstash01"));
+    QCOMPARE(f.deltas.back().location.fetch_id(), QString("mapchild02"));
+    QCOMPARE(f.reconciles.size(), size_t(1));
+
+    // The worker's own erase ran against the same expected set: the vanished
+    // child's item is gone from the final snapshot.
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"m2", "p1-new"}));
 }
 
 QTEST_GUILESS_MAIN(WorkerUpdateTest)

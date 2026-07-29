@@ -20,6 +20,7 @@
 #include <variant>
 #include <vector>
 
+#include "fetchsourcekey.h"
 #include "item.h"
 #include "poe/types/character.h"
 #include "poe/types/stashtab.h"
@@ -115,6 +116,30 @@ signals:
     void StatusUpdate(ProgramState state, const QString &status);
     void NotifyUser(const QString &message);
 
+    // Presentation-lane delta signals (items-pipeline M2, D3). Both carry
+    // pipeline-native payloads only — never wire bytes or poe::* objects,
+    // which belong to the persistence lane below (D1); the lanes never share
+    // payload types.
+    //
+    // TabRefreshed: the complete replacement for one fetch source — the exact
+    // Item objects just parsed and appended, sharing their shared_ptrs.
+    // Consumers apply it strictly by FetchSourceKey
+    // {location.type(), location.fetch_id()}, never by location equality
+    // (which deliberately ignores fetch_id). An empty items means an emptied
+    // fetch source, never a deletion — tab deletion stays snapshot-boundary
+    // (D6). Emitted immediately after the atomic replace and before the
+    // counter increment, so every delta precedes its update's terminal event.
+    void TabRefreshed(const ItemLocation &location, const Items &items);
+    // ChildrenReconciled: one aggregate child reconciliation per top-level
+    // parent reply (fetch_id == id — the same condition as the worker's own
+    // ghost erase, NOT the Map/Unique-only condition that gates the
+    // persistence-lane stashChildrenReplaced). `expected` is authoritative:
+    // the parent's own fetch source plus its currently listed children.
+    // Consumers erase items under the parent's stable id whose key is not in
+    // the set, against their OWN baseline — correct even where published
+    // state diverged from worker memory across a failed update (R5-2/R6-2).
+    void ChildrenReconciled(const ItemLocation &parent, const std::vector<FetchSourceKey> &expected);
+
     void characterListReceived(const std::vector<poe::Character> &characters, const QString &realm);
     // The per-fetch persistence signals carry the reply's exact wire bytes
     // alongside the parsed payload (F62). The worker never interprets the
@@ -179,7 +204,7 @@ private:
                    ItemLocation location,
                    ParseResult &result) const;
     void LoadItems(const poe::StashTab &stash, ItemLocation location, ParseResult &result) const;
-    void RemoveItemsFetchedBy(const QString &fetch_id);
+    void RemoveItemsFetchedBy(const FetchSourceKey &key);
     void RebaseItemLocations(ItemLocationType type);
     void SubmitStashListRequest();
     void SubmitCharacterListRequest();

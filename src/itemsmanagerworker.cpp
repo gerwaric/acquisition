@@ -445,15 +445,16 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
     RunUpdate();
 }
 
-void ItemsManagerWorker::RemoveItemsFetchedBy(const QString &fetch_id)
+void ItemsManagerWorker::RemoveItemsFetchedBy(const FetchSourceKey &key)
 {
     const size_t before = m_items.size();
-    std::erase_if(m_items, [&fetch_id](const std::shared_ptr<Item> &item) {
-        return item->location().fetch_id() == fetch_id;
+    std::erase_if(m_items, [&key](const std::shared_ptr<Item> &item) {
+        const ItemLocation &location = item->location();
+        return (location.type() == key.type) && (location.fetch_id() == key.fetch_id);
     });
     spdlog::debug("ItemsManagerWorker: replacing {} items fetched by '{}'",
                   (before - m_items.size()),
-                  fetch_id);
+                  key.fetch_id);
 }
 
 void ItemsManagerWorker::RebaseItemLocations(ItemLocationType type)
@@ -923,8 +924,9 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashPayload> &result
     // Atomically replace whatever this request fetched last time: for a
     // normal tab that is the tab's items, for a child of a special tab it
     // is just that child's share of the parent location's items.
-    RemoveItemsFetchedBy(location.fetch_id());
+    RemoveItemsFetchedBy(FetchSourceKey::ForLocation(location));
 
+    const size_t first_appended = m_items.size();
     if (stash.items) {
         const auto &items = *stash.items;
         if (items.size() > 0) {
@@ -935,6 +937,13 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashPayload> &result
     } else {
         spdlog::debug("Stash does not have an 'items' array: {}", location.GetHeader());
     }
+
+    // Presentation delta (M2 D3): the exact replacement just applied for this
+    // fetch source, sharing its shared_ptrs, emitted after the atomic replace
+    // and before the counter increment.
+    emit TabRefreshed(location,
+                      Items(m_items.begin() + static_cast<Items::difference_type>(first_appended),
+                            m_items.end()));
 
     ++m_stashes_received;
     SendStatusUpdate();
@@ -989,11 +998,11 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashPayload> &result
     // Their fetch ids are never re-fetched, so nothing else would ever
     // replace or remove them, not even a full refresh.
     if (location.fetch_id() == location.id()) {
-        std::set<QString> expected_fetch_ids{location.id()};
+        std::vector<FetchSourceKey> expected{{location.type(), location.id()}};
         QStringList child_ids;
         if (get_children && stash.children) {
             for (const auto &child : *stash.children) {
-                expected_fetch_ids.insert(child.id);
+                expected.push_back({ItemLocationType::STASH, child.id});
                 child_ids.append(child.id);
             }
         }
@@ -1005,18 +1014,26 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashPayload> &result
         if ((stash.type == "MapStash") || (stash.type == "UniqueStash")) {
             emit stashChildrenReplaced(location.id(), child_ids, m_realm, m_league);
         }
+        const std::set<FetchSourceKey> expected_keys(expected.begin(), expected.end());
         const size_t before = m_items.size();
         std::erase_if(m_items, [&](const std::shared_ptr<Item> &item) {
             const ItemLocation &item_location = item->location();
             return (item_location.type() == ItemLocationType::STASH)
                    && (item_location.id() == location.id())
-                   && (expected_fetch_ids.count(item_location.fetch_id()) == 0);
+                   && (expected_keys.count({item_location.type(), item_location.fetch_id()}) == 0);
         });
         if (before > m_items.size()) {
             spdlog::debug("ItemsManagerWorker: dropped {} ghost child items from {}",
                           (before - m_items.size()),
                           location.GetHeader());
         }
+        // Presentation-lane aggregate reconciliation (M2 D3, R5-2/R6-2):
+        // emitted for every top-level parent reply — the same condition as
+        // the ghost erase above, deliberately wider than the Map/Unique-only
+        // condition gating the persistence-lane stashChildrenReplaced emit.
+        // The expected set is authoritative, so consumers reconcile their own
+        // baseline even where it diverged from worker memory.
+        emit ChildrenReconciled(location, expected);
     }
 
     // Launch the child batch (D6): reply-discovered Map/Unique children go out
@@ -1050,8 +1067,9 @@ void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterPayload>
     emit characterReceived(character, result->bytes, m_realm);
 
     // Atomically replace this character's items.
-    RemoveItemsFetchedBy(location.fetch_id());
+    RemoveItemsFetchedBy(FetchSourceKey::ForLocation(location));
 
+    const size_t first_appended = m_items.size();
     const auto collections = {character.equipment,
                               character.inventory,
                               character.rucksack,
@@ -1062,6 +1080,13 @@ void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterPayload>
             ParseItems(*items, location);
         }
     }
+
+    // Presentation delta (M2 D3), as in OnStashReceived: after the atomic
+    // replace, before the counter increment. A character reply discovers no
+    // children, so there is no ChildrenReconciled here.
+    emit TabRefreshed(location,
+                      Items(m_items.begin() + static_cast<Items::difference_type>(first_appended),
+                            m_items.end()));
 
     ++m_characters_received;
     SendStatusUpdate();
