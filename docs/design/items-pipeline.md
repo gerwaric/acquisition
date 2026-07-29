@@ -270,17 +270,18 @@ the M2 spec:**
   active while the stopped update's canceled stragglers are still
   settling. Stragglers apply nothing (post-await invariant), but the
   delta-signal design must tolerate the overlap.
-- **F62 (fix shape decided July 26, 2026 — not yet implemented):**
-  raw reply bytes will enter the datastore through the persistence
-  lane only — the facade returns the parsed payload plus the raw
-  sub-object bytes, and `stashReceived`/`characterReceived` carry the
-  bytes opaquely to the repos (full decision in the F62 entry,
-  `docs/cleanup/findings.md`). Until it lands, D7's
-  no-bytes-above-the-boundary contract is still the code's reality —
-  the M2 spec treats F62 as a decided dependency, not current state.
-  Consequence for M2: deltas never carry wire bytes or `poe::*` API
-  objects — the persistence lane owns those — but they **must** carry
-  pipeline-native items, per the next input.
+- **F62 (implemented July 28, 2026):** raw reply bytes enter the
+  datastore through the persistence lane only — the facade returns the
+  parsed payload plus the raw sub-object bytes
+  (`poe::StashPayload`/`poe::CharacterPayload`), and
+  `stashReceived`/`characterReceived` carry the bytes opaquely to the
+  repos (full decision in the F62 ledger entry,
+  `docs/cleanup/findings.md`). Network-redesign D7 now reads "nothing
+  above the boundary *interprets* bytes"; the M2 spec's D1 sequencing
+  precondition is satisfied. Consequence for M2: deltas never carry
+  wire bytes or `poe::*` API objects — the persistence lane owns
+  those — but they **must** carry pipeline-native items, per the next
+  input.
 - **The delta must carry items, not just a location (second-opinion
   review, July 2026).** `ItemsManager` copies the worker's vector
   only at the final snapshot (`OnItemsRefreshed`); newly parsed items
@@ -367,9 +368,9 @@ Make Layer 3 consume deltas natively, eliminating the full reset:
 - **Datastore redesign / delta persistence.** Per-tab persistence
   already works and this plan does not restructure it. (The original
   "no schema changes" wording is retired: 0.18 added the
-  `json_version` payload-versioning column, and F62 will change what
-  the persistence lane carries — both independent correctness work,
-  neither driven by this plan.)
+  `json_version` payload-versioning column, and F62 changed what the
+  persistence lane carries (raw wire bytes since July 28, 2026) — both
+  independent correctness work, neither driven by this plan.)
 - **UI/UX redesign** beyond refresh behavior; no theming, packaging, or
   `Item` class rework.
 

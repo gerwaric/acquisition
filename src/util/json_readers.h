@@ -11,11 +11,11 @@
 namespace poe {
     struct Character;
     struct CharacterListWrapper;
-    struct CharacterWrapper;
+    struct CharacterPayload;
     struct League;
     struct StashTab;
     struct StashListWrapper;
-    struct StashWrapper;
+    struct StashPayload;
     struct WebStashListWrapper;
 } // namespace poe
 
@@ -29,9 +29,12 @@ namespace json {
 
     std::optional<OAuthToken> readOAuthToken(const QByteArray &json);
 
-    std::optional<poe::CharacterWrapper> readCharacterWrapper(const QByteArray &json);
+    // The payload readers capture the reply's stash/character sub-object
+    // losslessly and parse the typed payload from that same substring, so
+    // the bytes and the parse cannot diverge (F62).
+    std::optional<poe::CharacterPayload> readCharacterPayload(const QByteArray &json);
     std::optional<poe::CharacterListWrapper> readCharacterListWrapper(const QByteArray &json);
-    std::optional<poe::StashWrapper> readStashWrapper(const QByteArray &json);
+    std::optional<poe::StashPayload> readStashPayload(const QByteArray &json);
     std::optional<poe::StashListWrapper> readStashListWrapper(const QByteArray &json);
 
     std::optional<poe::WebStashListWrapper> readWebStashListWrapper(const QByteArray &json);

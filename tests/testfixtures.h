@@ -13,11 +13,15 @@
 
 #include "buyoutmanager.h"
 #include "datastore/buyoutrepo.h"
+#include "datastore/characterrepo.h"
 #include "datastore/sqlitedatastore.h"
+#include "datastore/stashrepo.h"
 #include "item.h"
+#include "poe/types/character.h"
 #include "poe/types/item.h"
 #include "poe/types/stashtab.h"
 #include "util/glaze_qt.h" // IWYU pragma: keep
+#include "util/json_writers.h"
 
 class BuyoutManagerFixture
 {
@@ -66,6 +70,23 @@ public:
     std::unique_ptr<BuyoutRepo> repo;
     std::unique_ptr<BuyoutManager> manager;
 };
+
+// The repos store the exact wire bytes a fetch received (F62). Tests seed
+// them from typed fixtures instead, serializing the fixture where a real
+// reply's bytes would flow — re-serialization is harmless in tests; it is
+// the production cache that must be faithful.
+inline bool saveStashFixture(StashRepo &repo,
+                             const poe::StashTab &stash,
+                             const QString &realm,
+                             const QString &league)
+{
+    return repo.saveStash(stash, json::writeStash(stash), realm, league);
+}
+
+inline bool saveCharacterFixture(CharacterRepo &repo, const poe::Character &character)
+{
+    return repo.saveCharacter(character, json::writeCharacter(character));
+}
 
 inline ItemLocation makeTestStashLocation(const QString &id = "stash00001",
                                           const QString &name = "Test Tab",

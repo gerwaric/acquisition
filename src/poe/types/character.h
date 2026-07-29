@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <QByteArray>
 #include <QHashFunctions> // Needed to avoid obscure errors in std::unordered_map with QString keys.
 #include <QString>
 
@@ -79,9 +80,13 @@ namespace poe {
         std::vector<poe::Character> characters;
     };
 
-    struct CharacterWrapper
+    // What a character fetch returns across the typed boundary (F62): the
+    // parsed payload plus the exact wire bytes of the reply's "character"
+    // sub-object it was parsed from. See poe::StashPayload for the rationale.
+    struct CharacterPayload
     {
         std::optional<poe::Character> character;
+        QByteArray bytes;
     };
 
 } // namespace poe

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <QByteArray>
 #include <QObject>
 #include <QStringList>
 
@@ -35,7 +36,14 @@ public:
     bool ensureSchema();
 
 public slots:
-    bool saveStash(const poe::StashTab &stash, const QString &realm, const QString &league);
+    // `bytes` is the exact wire JSON of the reply's stash sub-object (F62):
+    // it is stored as-is in json_data, never a re-serialization of `stash`,
+    // so the cache keeps every field the poe:: types do not model. The typed
+    // `stash` fills the queryable columns.
+    bool saveStash(const poe::StashTab &stash,
+                   const QByteArray &bytes,
+                   const QString &realm,
+                   const QString &league);
     bool saveStashList(const std::vector<poe::StashTab> &stashes,
                        const QString &realm,
                        const QString &league);

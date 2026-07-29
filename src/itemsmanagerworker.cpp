@@ -648,7 +648,7 @@ QCoro::Task<> ItemsManagerWorker::FetchStash(ItemLocation location,
                                              std::stop_token token)
 {
     try {
-        Result<poe::StashWrapper> result;
+        Result<poe::StashPayload> result;
         try {
             auto future = m_api.getStash(m_realm, m_league, stash_id, substash_id, token);
             result = co_await qCoro(future).takeResult();
@@ -668,7 +668,7 @@ QCoro::Task<> ItemsManagerWorker::FetchCharacter(ItemLocation location,
                                                  std::stop_token token)
 {
     try {
-        Result<poe::CharacterWrapper> result;
+        Result<poe::CharacterPayload> result;
         try {
             auto future = m_api.getCharacter(m_realm, name, token);
             result = co_await qCoro(future).takeResult();
@@ -893,7 +893,7 @@ void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterList
     CheckUpdateFinished();
 }
 
-void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result,
+void ItemsManagerWorker::OnStashReceived(const Result<poe::StashPayload> &result,
                                          const ItemLocation &location)
 {
     spdlog::trace("ItemsManagerWorker::OnStashReceived() entered");
@@ -917,7 +917,9 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
 
     const auto &stash = *result->stash;
 
-    emit stashReceived(*result->stash, m_realm, m_league);
+    // The bytes ride along untouched (F62): the facade parsed this stash
+    // from exactly this substring of the reply, and the datastore stores it.
+    emit stashReceived(*result->stash, result->bytes, m_realm, m_league);
 
     // Atomically replace whatever this request fetched last time: for a
     // normal tab that is the tab's items, for a child of a special tab it
@@ -1025,7 +1027,7 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashWrapper> &result
     CheckUpdateFinished();
 }
 
-void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterWrapper> &result,
+void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterPayload> &result,
                                              const ItemLocation &location)
 {
     spdlog::trace("ItemsManagerWorker::OnCharacterReceived() entered");
@@ -1048,7 +1050,7 @@ void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterWrapper>
 
     const auto &character = *result->character;
 
-    emit characterReceived(character, m_realm);
+    emit characterReceived(character, result->bytes, m_realm);
 
     // Atomically replace this character's items.
     RemoveItemsFetchedBy(location.fetch_id());

@@ -91,8 +91,9 @@ namespace glz {
         }
     };
 
-    // Specialized explicitly rather than left to reflection: the cache
-    // re-serializes items through json::writeStash, and Flags carries its
+    // Specialized explicitly rather than left to reflection: items are
+    // serialized through json::writeStash (test fixtures since F62 moved
+    // the production cache to raw wire bytes), and Flags carries its
     // members in a base class.
     template<>
     struct to<JSON, poe::ItemMod::Flags>

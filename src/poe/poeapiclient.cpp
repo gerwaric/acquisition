@@ -86,17 +86,17 @@ PoeApiClient::Result<poe::StashListWrapper> PoeApiClient::listStashes(const QStr
                                             request.url());
 }
 
-PoeApiClient::Result<poe::StashWrapper> PoeApiClient::getStash(const QString &realm,
+PoeApiClient::Result<poe::StashPayload> PoeApiClient::getStash(const QString &realm,
                                                                const QString &league,
                                                                const QString &stash_id,
                                                                const QString &substash_id,
                                                                std::stop_token token)
 {
     const auto [endpoint, request] = poe::MakeStashRequest(realm, league, stash_id, substash_id);
-    return ParseInto<poe::StashWrapper>(m_rate_limiter.SubmitFuture(endpoint,
+    return ParseInto<poe::StashPayload>(m_rate_limiter.SubmitFuture(endpoint,
                                                                     request,
                                                                     std::move(token)),
-                                        &json::readStashWrapper,
+                                        &json::readStashPayload,
                                         endpoint,
                                         request.url());
 }
@@ -113,15 +113,15 @@ PoeApiClient::Result<poe::CharacterListWrapper> PoeApiClient::listCharacters(con
                                                 request.url());
 }
 
-PoeApiClient::Result<poe::CharacterWrapper> PoeApiClient::getCharacter(const QString &realm,
+PoeApiClient::Result<poe::CharacterPayload> PoeApiClient::getCharacter(const QString &realm,
                                                                        const QString &name,
                                                                        std::stop_token token)
 {
     const auto [endpoint, request] = poe::MakeCharacterRequest(realm, name);
-    return ParseInto<poe::CharacterWrapper>(m_rate_limiter.SubmitFuture(endpoint,
+    return ParseInto<poe::CharacterPayload>(m_rate_limiter.SubmitFuture(endpoint,
                                                                         request,
                                                                         std::move(token)),
-                                            &json::readCharacterWrapper,
+                                            &json::readCharacterPayload,
                                             endpoint,
                                             request.url());
 }
