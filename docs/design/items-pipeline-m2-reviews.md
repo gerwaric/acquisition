@@ -439,4 +439,11 @@ what remains is F62, the S1-M2 spike, and revision 9's freeze.
   references corrected (`docs/README.md`, the parent plan's M2
   heading, the 1m preset description). The scroll-fallback fix and
   new scenarios also gained an explicit fallback clause on
-  `scrollAndCaptureSurviveThrottledReset`.
+  `scrollAndCaptureSurviveThrottledReset`. A residual pass the same
+  day fixed three follow-ups: the spec's broad validation claims
+  scoped to the exercised intra-tab cases (cross-tab reselection
+  stays a production obligation); the parent plan's fidelity-cost
+  line reworded to the collective bound; and the selection scenario
+  strengthened into `selectionFollowsStableIdWhenRowMoves` (forced
+  row movement, GGG-id and replacement-object assertions), which a
+  same-row or same-display-name reselection cannot pass.

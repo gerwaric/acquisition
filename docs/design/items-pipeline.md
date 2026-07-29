@@ -365,8 +365,9 @@ Inputs accumulated for the M3 spec (from the S1-M2 spike, July 29,
   expanded/visible buckets, born-sorted buckets (filtering from a
   pre-sorted master).
 - M2's R6-3 fidelity machinery — stable `(type, id)` expansion keys
-  and stable-identity reselection — measured ~0 ms at both scales and
-  carries forward as M3's bucket keying.
+  and stable-identity reselection — is collectively negligible at
+  both scales (bounded by the few-ms residual after filter and sort;
+  not individually timed) and carries forward as M3's bucket keying.
 
 ## Non-goals
 

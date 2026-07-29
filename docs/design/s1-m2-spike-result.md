@@ -209,8 +209,12 @@ Run: `./build-s1m2/tests/spike_s1m2_harness --preset 100k`
   corrected by amendment, finding 3): Tom's hands-on judgment plus
   four automated scenarios in `tst_spike_s1m2` — rename into/out of
   an active Tab filter (both intersection halves), expansion
-  surviving a rename of the expanded tab itself, and selection
-  surviving a churn tick that replaces every Item object. Scroll
+  surviving a rename of the expanded tab itself, and
+  `selectionFollowsStableIdWhenRowMoves` (the delta replaces every
+  Item object and forces the selected row to move; the assertions
+  cover the GGG item id and adoption of the replacement object, so
+  a same-row or same-display-name reselection cannot pass —
+  strengthened in the residual review pass). Scroll
   survival is hands-judged plus the fixed fallback code, not
   automated. The existing 33-test suite passing demonstrates
   compatibility of the stable-key/stable-id machinery, not throttle
@@ -280,8 +284,8 @@ the spike branch, and none changes the recorded decision. Summary:
 3. **High — automated evidence overclaimed.** "Mechanically pinned by
    `tst_spike_s1m2`" overstated two rename-intersection scenarios.
    Two fidelity scenarios were added on the spike branch (expansion
-   survives rename of the expanded tab; selection survives a churn
-   tick) and the verdict wording now states exactly what each
+   survives rename of the expanded tab; selection follows the stable
+   id) and the verdict wording now states exactly what each
    evidence source shows.
 4. **Medium — reselection scoped to the old bucket.** Recorded as a
    known prototype narrowing; the spec's contract wording was
@@ -295,3 +299,16 @@ the spike branch, and none changes the recorded decision. Summary:
 6. **Low — stale documentation.** `docs/README.md` and the parent
    plan's M2 heading now reflect the freeze; the 1m preset
    description matches the retuned 2,600-tab shape.
+
+A residual pass (same day) found three follow-ups, all fixed: the
+spec's two broad "contract validated / full contract prototyped"
+claims now scope validation to the exercised intra-tab cases with
+cross-tab reselection named as the production obligation; the parent
+plan's "measured ~0 ms" line now uses the collective-bound wording;
+and the selection scenario was strengthened into
+`selectionFollowsStableIdWhenRowMoves` (forced row movement, GGG-id
+and replacement-object assertions via a `SpikeCurrentItem()` test
+accessor) so a same-row or same-name reselection cannot pass. While
+strengthening it, the model's default sort order turned out to be
+descending — the test now pins the sort direction explicitly rather
+than assuming it.

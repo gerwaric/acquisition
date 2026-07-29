@@ -8,7 +8,9 @@ merged to master (PR #183, `fdf530b5`), and the S1-M2 spike ran
 July 29, 2026 on the non-production branch `spike/s1-m2-throttle`
 with Tom judging cadence and restore fidelity by hand — **D9's
 outcome (a) is selected and S is confirmed at 60 seconds**, with the
-R6-3 restore-fidelity contract validated and reset latency recorded
+R6-3 restore-fidelity contract validated for the exercised intra-tab
+cases (global cross-tab reselection remains a production obligation
+— see the amendment) and reset latency recorded
 (evidence archived in `s1-m2-spike-result.md`). **Amended July 29,
 2026** after a post-freeze external review of the spike evidence
 (six findings, none changing a decision): the supported envelope and
@@ -968,15 +970,20 @@ reset-based application.
 
 **Result (revision 9, July 29, 2026): outcome (a); S confirmed at
 60 s.** The spike ran on branch `spike/s1-m2-throttle` (post-F62
-master) against the real `MainWindow` with the throttle and the full
-R6-3 fidelity contract prototyped; Tom drove the harness by hand at
+master) against the real `MainWindow` with the throttle and the
+R6-3 fidelity contract prototyped — all of it except the global
+cross-tab reselection, which the prototype scoped to the item's
+previous bucket (a recorded narrowing; the
+`reselectionSurvivesCrossTabMove` pin below is the production
+obligation); Tom drove the harness by hand at
 the driving scale (~101k items / 2,000 tabs) and judged the cadence
 and fidelity acceptable. Expansion (including across tab renames,
 via stable keys), stable-identity reselection, and scroll anchoring
 survived ticks in hand-driving and in automated scenarios (rename
 into/out of an active Tab filter — both intersection halves —
 expansion surviving a rename of the expanded tab itself, and
-selection surviving a churn tick; the full pin list stays a
+selection following the stable item id to a moved row with the
+replacement object adopted; the full pin list stays a
 production obligation, R1-5).
 Reset latency, Release build, worst-case unfiltered search:
 ~455 ms/reset at 101k, ~5.4 s at ~976k — dominated in both cases by
