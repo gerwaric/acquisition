@@ -1,15 +1,18 @@
 # M2-M2 measurement result (items-pipeline M2, stage 4 checkpoint)
 
-Status: **MEASURED July 29, 2026 — at the stage-4 hold point, awaiting
-Tom's review.** Both whole-path budgets missed; the manager's marginal
-erase missed at 1m. Under the spec's frozen conditional (D3) the
-manager remedy is now **required, not discretionary**, and the
-whole-path miss requires a real remedy for the dominant component —
-the four O(all-items) erase passes, split evenly between worker and
-manager (attributed separately per R3-3/R4-1). A selected remedy must
-be validated by rerun before M2 is complete (R6-6). No remedy is
-implemented in this commit: remedy selection is what the hold point
-puts in front of Tom.
+Status: **MEASURED July 29, 2026; reviewed by Tom the same day at the
+stage-4 hold point. Remedy selected: the named pair** — the required
+manager source-keyed map (`FetchSourceKey → Items`, lazily rebuilt
+flat vector) **plus the symmetric worker-side source-keyed store**
+(D3 names it, gated on exactly this measurement; the gate fired).
+Both whole-path budgets missed; the manager's marginal erase missed
+at 1m. The dominant component is four O(all-items) erase passes per
+reply, split evenly between worker and manager (attributed separately
+per R3-3/R4-1) — a manager-only remedy would leave the path at
+roughly half its measured cost, still far over budget at both scales,
+which is why the pair was selected. The remedy must be validated by
+rerunning this measurement before M2 is complete (R6-6); the rerun's
+numbers will be appended below when it happens.
 
 This is the addendum the spec's open-items entry asks for (M2-M2,
 first implementation checkpoint; D3, R2-3/R3-3/R4-1/R5-4/R6-6/R7-3):
