@@ -49,6 +49,24 @@ cites findings by number; this file is the record.
   commands batch at command scope (R2-5); three stale references
   fixed, including the nonexistent `MigrateTab` (R2-6).
 
+- **Revision 4 (July 30, 2026)** — round 3 incorporated (external
+  review of revision 3, four findings R3-1…R3-4, all verified and
+  accepted, plus two review clarifications accepted into the
+  resolutions; R2-1/R2-2/R2-5/R2-6 confirmed closed, the
+  selection-terminal and interleaved-merge contracts confirmed
+  adequate). Key changes: key residency becomes an axis independent
+  of sorted validity, with one hydration rule for the
+  sorted-but-keyless state and an eager-at-activation carve-out for
+  clean By-Item searches — activation decides dirtiness first
+  (R3-1); the invalidation contract drops revision 2's "By-Tab key
+  caches don't exist" fossil and states each cause's effect on
+  every resident key vector (R3-2); nested pass/command batches
+  coalesce and only the outermost boundary emits (R3-3); migration
+  is re-pinned to its real batch boundary and the snapshot's
+  four-pass pricing sequence is **required** to emit one model
+  batch (R3-4). The round was a consistency pass over revision 3's
+  restored cache, not a re-litigation of any settled decision.
+
 ## Round 1 (July 30, 2026 — external review of revision 1)
 
 Eight findings, all **accepted** after claim-by-claim verification
@@ -108,3 +126,37 @@ multi-source buckets, residency across searches) or overstepped
 resolution may simplify *within* a settled decision, but changing
 the settled decision itself — however defensible on the merits —
 belongs to a hold point, not a revision.
+
+## Round 3 (July 30, 2026 — external review of revision 3)
+
+Four findings, all **accepted** after verification
+(`OnBuyoutChange`'s trailing `PropagateTabBuyouts` call confirmed at
+`ui/mainwindow.cpp:578`; `MigrateBuyouts` confirmed to run from
+snapshot processing at `itemsmanager.cpp:152`, sequenced with the
+auto-buyout and propagation passes at `itemsmanager.cpp:152-155`;
+R3-1/R3-2 confirmed against the revision-3 texts). The round also
+confirmed R2-1, R2-2, and R2-6 cleanly closed, R2-5's outcome
+correct pending R3-3's nesting rule, and the selection-terminal and
+interleaved multi-source merge contracts adequate. Review of the
+proposed resolutions added two clarifications, both accepted and
+folded in below.
+
+| # | Severity | Finding | Verdict and resolution |
+|---|---|---|---|
+| R3-1 | High | Eviction creates a sorted-but-keyless state later rules don't handle: re-expanding a valid bucket builds no keys, yet a direction flip promised resident-key reuse; worse, a reactivated clean By-Item search is visible but keyless, so the first delta merge would absorb a ~368 ms key build at 1m — contradicting D4's "keys resident" premise and the ≤ 50 ms delta budget. | Accepted. Residency and sorted validity are now independent axes with sorted-but-keyless a named state. One **hydration rule**: any key-consuming operation (flip re-sort, delta merge, buyout reorder) hydrates missing keys first — By-Tab bounded by the 576 cap, lazy per bucket. **By-Item hydrates eagerly at activation** (deliberate carve-out from R2-4's lazy rule: the flat bucket is always visible and sorted, so hydration is never speculative, and the cost lands on the user action that activated the view, not on a background delta). Review clarification, accepted: **activation decides dirtiness first** — a dirty search refilters once and that rebuild supplies the keys; only a clean search hydrates, so stale keys are never hydrated and immediately rebuilt. New pins `reexpandedBucketFlipHydratesOnce`, `byItemActivationDecidesDirtinessFirst`; new budget line (clean By-Item reactivation ≤ 0.5 s at 1m); D1 rule 3, D2 rules 2/7, D4 rule 1, and two existing residency pins reworded. |
+| R3-2 | High | The invalidation contract retained revision 2's "never on By-Tab key caches, which don't exist" after revision 3 restored resident By-Tab keys — an expanded Price/Date-sorted bucket could clear its flag and then re-sort on stale resident keys. | Accepted — a straight revision-2 fossil, now load-bearing and wrong. The contract preamble covers **every resident key vector, By-Tab and By-Item alike**, and each cause states its key effect: deltas discard the replaced source's entries and add arrivals' entries via the merge; column switches discard everything; buyout batches rebuild affected entries of Price/Date-sorted materialized buckets' vectors before the reorder (other columns: keys untouched, cells still repaint). `priceKeysFollowBuyoutEdits` extended to name the expanded By-Tab bucket explicitly. |
+| R3-3 | Medium | Nested buyout batches were contradictory: a user command must emit one batch at command end, but its trailing `PropagateTabBuyouts` call is itself a pricing pass required to emit at pass end — permitting an inner propagation update plus an outer command update. | Accepted. Verified the call at `ui/mainwindow.cpp:578`. New batching rule: **nested pass/command batches coalesce; only the outermost boundary emits** — an inner boundary inside an open batch accumulates into it. `multiSelectionBuyoutEditReordersOnce` extended to include the propagation call in the exercised command. |
+| R3-4 | Low | `priceKeysFollowBuyoutEdits` grouped migration with user edits "at command end," but `MigrateItem` runs from `ItemsManager::MigrateBuyouts` during snapshot processing — no user command exists there. | Accepted. Migration re-pinned inside the snapshot's outer batch (`itemsmanager.cpp:152`) — with that batch required (below), it is always migration's containing batch. Review clarification, accepted (upgrading the draft resolution's MAY to a requirement): the snapshot's `MigrateBuyouts` → `ApplyAutoTabBuyouts` → `ApplyAutoItemBuyouts` → `PropagateTabBuyouts` sequence **must** run as one outer model-invalidation batch — nothing observes UI state between the passes, and four separate batches could mean several full By-Item reorders; persistence writes unchanged. New pin `snapshotPricingSequenceEmitsOneModelBatch`. |
+
+Round narrative: round 3 is the settling round — no new contracts,
+no renegotiations, only the reconciliation of revision 3's restored
+key cache with the rules written around its predecessor (R3-1,
+R3-2) and the closing of the batching boundaries' composition
+(R3-3, R3-4). Both High findings trace to the same root: R2-3
+restored residency, and the surrounding text was only partially
+re-derived against it. The round's two clarifications sharpen
+resolutions rather than reopen them, and the reviewers judged the
+spec at diminishing returns: revision 4 warrants a focused
+consistency check of key residency, activation ordering, and nested
+batching — not another broad exploratory round — and freezes if
+that passes.

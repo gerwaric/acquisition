@@ -1,18 +1,25 @@
 # Items Pipeline Milestone 3: Delta-Native Items Model
 
-Status: **DRAFT, revision 3** (July 30, 2026). In review, not
+Status: **DRAFT, revision 4** (July 30, 2026). In review, not
 frozen; production implementation must not begin against this
-document. Review rounds 1–2 (external; R1-1…R1-8 and R2-1…R2-6, all
-fourteen verified and accepted) are incorporated throughout. Round
-1's largest changes: D3's source-scoped replacement grain (R1-1),
-the final snapshot's row reconciliation (R1-2), the selection-intent
-contract (R1-3), the metadata half of the intersection contract
-(R1-4). Round 2 closed the boundaries round 1 opened — the intent
-window now ends at every terminal outcome (R2-1), multi-source
-buckets merge rather than merely sort arrivals (R2-2), and **key
-residency was restored to the hold point's cached-key choice**
-after round 1's transient-key resolution overstepped it (R2-3, with
-residency scoped to the active search per R2-4). Unlike M2, the pre-spec evidence is already in hand: the
+document. Review rounds 1–3 (external; R1-1…R1-8, R2-1…R2-6, and
+R3-1…R3-4, all eighteen verified and accepted) are incorporated
+throughout. Round 1's largest changes: D3's source-scoped
+replacement grain (R1-1), the final snapshot's row reconciliation
+(R1-2), the selection-intent contract (R1-3), the metadata half of
+the intersection contract (R1-4). Round 2 closed the boundaries
+round 1 opened — the intent window now ends at every terminal
+outcome (R2-1), multi-source buckets merge rather than merely sort
+arrivals (R2-2), and **key residency was restored to the hold
+point's cached-key choice** after round 1's transient-key
+resolution overstepped it (R2-3, with residency scoped to the
+active search per R2-4). Round 3 reconciled the restored cache's
+remaining inconsistencies: residency became an explicit axis with a
+single hydration rule and an eager-at-activation carve-out for
+By-Item (R3-1), invalidation now covers every resident key vector
+(R3-2), nested buyout batches emit only at the outermost boundary
+(R3-3), and migration is pinned at its true batch boundary, with
+the snapshot's pricing sequence required to emit one batch (R3-4). Unlike M2, the pre-spec evidence is already in hand: the
 parent plan's "profile before choosing levers" obligation was
 discharged by the S1-M3 sort-profiling spike (July 30, 2026, branch
 `spike/m3-sort-profile`, evidence in `m3-sort-profile-result.md`
@@ -136,36 +143,64 @@ item lives. Both facts are measured (spike section 4).
 **Residency: keys are cached for the active search's materialized
 buckets (R2-3, R2-4 — the hold point's cached-key choice, with its
 lifecycle specified).** A *materialized* bucket is an expanded
-By-Tab bucket or the By-Item flat bucket. The rules:
+By-Tab bucket or the By-Item flat bucket. **Key residency and
+sorted validity are independent axes (R3-1)**: eviction removes
+keys while order and flag persist, so *sorted-but-keyless* is a
+legitimate, explicitly handled state, not a gap. The rules:
 
 - Within the **active search**, a materialized bucket keeps its key
   vector resident from its first sort until evicted — re-sorts and
   direction flips reuse it without rebuilding (the spike's 40×
   cached path), and a bucket whose sorted flag is valid skips
   sorting entirely (D2's flags — stronger still).
+- **Hydration rule (R3-1): any operation that consumes keys — a
+  direction flip's re-sort, a delta's merge, a buyout batch's
+  reorder — hydrates missing keys first**, an O(bucket) build. For
+  a By-Tab bucket this is bounded by the 576-item cap
+  (microseconds keyed). There is no other hydration path: a
+  sorted-but-keyless bucket stays keyless until one of these
+  events actually needs its keys; nothing pre-builds
+  speculatively.
 - **Collapse evicts the bucket's keys; its order and sorted flag
   persist.** This is safe against later Price/Date staleness because
   invalidation acts on flags independently of key residency — the
   question R1-5 raised, now answered *within* the cached design.
+  Re-expanding while the flag is valid does no work (D2 rule 2),
+  leaving the bucket sorted-but-keyless; the next key-consuming
+  event hydrates it by the rule above.
 - **Residency is scoped to the active search (R2-4).** Deactivating
   a search evicts every one of its key vectors (orders and flags
-  persist); reactivation rebuilds **lazily**, at the next event that
-  actually needs keys (an invalidated sort, a merge), never eagerly.
-  At most one search holds resident keys at any time — N background
-  By-Item searches hold none, not ~250 MB each.
+  persist). **Reactivation decides dirtiness first (R3-1)**: a
+  dirty search refilters once, and that rebuild supplies its keys —
+  never a hydration of stale keys immediately before rebuilding
+  them. A clean search's By-Tab buckets rehydrate lazily,
+  per bucket, by the hydration rule; but **a clean By-Item search
+  hydrates its flat bucket's keys eagerly at activation**, before
+  any delta can need them. The eager carve-out is deliberate: the
+  flat bucket is always visible and always sorted (D4), so its
+  hydration is never speculative, and paying it at activation
+  (~368 ms at 1m, budgeted below) attributes the unavoidable
+  rebuild to the user action that made the view active — instead
+  of letting the first background delta absorb it and blow the
+  ≤ 50 ms merge budget. At most one search holds resident keys at
+  any time — N background By-Item searches hold none, not ~250 MB
+  each.
 - Build cost is O(bucket) — measured 33 ms per 100k items, 368 ms
-  per 1m, so a 576-item bucket keys in well under a millisecond, and
-  a lazy rebuild after reactivation costs only what it re-sorts.
+  per 1m, so a 576-item bucket keys in well under a millisecond.
 
-**Invalidation contract.** An order (and the By-Item key vector) is
-a cache of `(item content, active sort column, buyout state for
-Price/Date)`. Invalidation therefore acts on sorted flags and the
-By-Item keys — never on By-Tab key caches, which don't exist:
+**Invalidation contract.** An order — and every resident key
+vector, By-Tab and By-Item alike (R3-2) — is a cache of
+`(item content, active sort column, buyout state for Price/Date)`.
+Invalidation therefore acts on sorted flags **and on whichever key
+vectors are resident**; each cause states its key effect:
 
 1. A delta that changes a bucket's items clears that bucket's sorted
-   flag and discards the stale entries of its resident key vector; a
-   *visible* (D2) bucket re-establishes order as part of the delta's
-   application — still O(delta + bucket). By-Item: the merge itself
+   flag. Key effect: a *visible* (D2) bucket re-establishes order as
+   part of the delta's application — hydrating its vector first if
+   evicted (R3-1) — discarding the replaced source's entries and
+   adding the arrivals' via the merge/sort, still
+   O(delta + bucket); a collapsed bucket's keys stay absent — no
+   build for a bucket nobody sees. By-Item: the merge itself
    maintains order and keys (D4).
 2. Switching the active sort column discards every resident key
    vector and clears every sorted flag; materialized buckets rebuild
@@ -173,17 +208,25 @@ By-Item keys — never on By-Tab key caches, which don't exist:
    whole-collection worst case (By-Item, or everything expanded) is
    ~0.5 s at 1m, user-initiated, once per switch.
 3. Flipping only the direction re-sorts materialized buckets **on
-   their resident keys — no rebuild (R2-3)** — and clears collapsed
-   buckets' flags.
+   their resident keys — hydrating an evicted vector first (R3-1),
+   otherwise no rebuild (R2-3)** — and clears collapsed buckets'
+   flags.
 4. `BuyoutManager` mutations invalidate Price/Date-dependent order.
    The implementation must route every mutation path through a single
    choke point, and the inventory is exhaustive (R1-6): item
    set-and-clear, tab set-and-clear, **migration** (`MigrateItem`,
    `buyoutmanager.cpp:370` — it changes the lookup result; there is
    no tab-level migration, R2-6), and the scoped and final pricing
-   passes. A design-review criterion checks the enumeration.
+   passes. **Key effect (R3-2)**: with Price or Date active, the
+   affected items' entries in every resident key vector — an
+   expanded By-Tab bucket's as much as By-Item's — are rebuilt
+   before the batch's reorder, so a re-sort never runs on stale
+   resident keys; with any other column active, resident keys
+   encode no buyout state and are untouched (cells still repaint —
+   the batching rules below). A design-review criterion checks the
+   enumeration.
 
-**Buyout observability and batching (R1-6).** Three rules make the
+**Buyout observability and batching (R1-6).** Five rules make the
 invalidation observable and bounded:
 
 - **User commands batch at command scope (R2-5)**: a single UI
@@ -196,10 +239,31 @@ invalidation observable and bounded:
   forbidden at every batch boundary, pass or command.
 - **Pricing passes batch**: the scoped per-delta pass and the final
   passes accumulate invalidations and emit **one** batch at pass
-  end — at most one reorder/model update per pass, never one per
-  `Set` (`pricingPassYieldsSingleModelUpdate` pins it; the quadratic
+  end when the pass is outermost (the nesting and snapshot rules
+  below take over when it is not) — at most one reorder/model
+  update per pass, never one per `Set`
+  (`pricingPassYieldsSingleModelUpdate` pins it; the quadratic
   per-`Set` reorder of the flat bucket is the failure this rule
   exists to prevent).
+- **Nested batches coalesce; only the outermost boundary emits
+  (R3-3)**: the two rules above compose, because a command can
+  contain a pass — `OnBuyoutChange` ends by calling
+  `PropagateTabBuyouts` (`ui/mainwindow.cpp:578`), a pricing pass
+  in its own right. A pass or command boundary reached while an
+  enclosing batch is open emits nothing; its invalidations
+  accumulate into the enclosing batch, which emits once at its own
+  end. One user command is therefore one model update even when it
+  triggers propagation.
+- **The snapshot's pricing sequence is one batch (R3-4)**:
+  `OnItemsRefreshed` runs `MigrateBuyouts` → `ApplyAutoTabBuyouts`
+  → `ApplyAutoItemBuyouts` → `PropagateTabBuyouts` back-to-back
+  (`itemsmanager.cpp:152-155`), and nothing observes UI state
+  between them. The sequence **must** run inside one outer
+  model-invalidation batch — a single model update per snapshot,
+  never up to four, each a potential full By-Item reorder.
+  Persistence writes (`BuyoutManager::Save`) are outside batching
+  and unchanged; only model invalidation coalesces
+  (`snapshotPricingSequenceEmitsOneModelBatch`).
 - **Cell repaint is independent of the active sort column**:
   Price/Date *cells* render buyout state unconditionally
   (`PriceColumn::value` reads the manager), so affected visible rows
@@ -249,7 +313,10 @@ model), and the flag-and-order lifecycle is a complete state machine
    comparator, microseconds keyed — imperceptible against the expand
    paint itself. The same rule serves `RestoreViewExpansion`:
    restoring N expanded buckets sorts exactly those whose flags are
-   invalid. Expanding a bucket whose flag is valid does no sort work.
+   invalid. Expanding a bucket whose flag is valid does no sort
+   work — and builds no keys: the bucket is sorted-but-keyless
+   until a key-consuming event hydrates it (D1's hydration rule,
+   R3-1).
 3. **Collapsing evicts the bucket's keys and nothing else** (R1-5,
    R2-3): the sorted order and the flag persist — collapse is a view
    event, not a model event. Arrival order is never reconstructed; a
@@ -275,8 +342,9 @@ model), and the flag-and-order lifecycle is a complete state machine
 6. The By-Item flat bucket is always visible and therefore always
    sorted (D4); lever B deliberately does not apply to it.
 7. Sort-column header clicks and direction flips re-sort
-   **materialized** buckets only (D1 rules 2–3; flips reuse resident
-   keys, switches rebuild) via the existing `layoutChanged` path;
+   **materialized** buckets only (D1 rules 2–3; flips reuse
+   resident keys, hydrating evicted ones first — R3-1 — and
+   switches rebuild) via the existing `layoutChanged` path;
    collapsed buckets' flags clear and their sort defers to
    expansion.
 
@@ -457,8 +525,12 @@ The By-Item view (single flat bucket holding the whole filtered
 result) is the one structure that fights the delta shape, and lever B
 cannot help it. It gets its own contract:
 
-1. The flat bucket is always materialized: keys resident (D1), order
-   maintained.
+1. The flat bucket is always materialized: order maintained, and
+   keys resident **whenever the search is active** — activation
+   supplies them (a dirty search's refilter builds them as part of
+   its sort; a clean search hydrates eagerly at activation,
+   R3-1/D1), so no delta ever meets a keyless flat bucket and the
+   merge budget in rule 2 holds unconditionally.
 2. A delta applies as: remove the source's rows (erase by
    `FetchSourceKey`, contiguous-run `removeRows` batches), then merge
    the arriving filtered items — sort the ≤ 576 arrivals by key,
@@ -534,7 +606,7 @@ honest full rebuild affordable.
 - **Regex micro-optimization as a lever.** Bounded strictly below A
   (the toString/PrettyName floor leaves ~1.5–2.5 s at 1m) and
   unprototyped. Permitted silently as an implementation detail
-  *inside* the key build (D1 rule 3's 0.37 s column-switch rebuild is
+  *inside* the key build (D1 rule 2's 0.37 s column-switch rebuild is
   ~90% multivalue machinery), forbidden as a substitute for keys.
 - **F66 legacy-store rekeying.** The register names M3 "the natural
   opportunity" if the stores are reworked — M3 reworks the model
@@ -642,8 +714,23 @@ Sort-correctness:
 - `residentKeysScopedToActiveSearch` (R2-4) — with several searches
   including multiple By-Item ones, aggregate resident key memory
   never exceeds one search's worth; deactivating a search evicts its
-  keys, and reactivating rebuilds lazily — no eager rebuild, and no
-  refilter when the search is not dirty.
+  keys, and no refilter runs when the search is not dirty.
+  Reactivation rehydrates a clean By-Tab search lazily, per bucket
+  (a dirty one refilters, the sort supplying its keys); a clean
+  By-Item search hydrates eagerly at activation (the R3-1
+  carve-out — the one deliberate exception to lazy).
+- `reexpandedBucketFlipHydratesOnce` (R3-1) — expand (keys built),
+  collapse (keys evicted), re-expand (valid flag: no sort, no key
+  build): a direction flip then hydrates the bucket's keys exactly
+  once and re-sorts correctly; a second flip rebuilds nothing
+  (probe: key-build counter).
+- `byItemActivationDecidesDirtinessFirst` (R3-1) — deactivate a
+  **clean** By-Item search, reactivate: activation hydrates the
+  flat bucket's keys with no refilter, and the first delta merges
+  with a zero key-build count during application, inside the delta
+  budget. Deactivate a **dirty** one, reactivate: exactly one
+  refilter runs and its sort supplies the keys — no separate
+  hydration before or after (probe: one key build total).
 - `staleOrderNeverSurvivesDelta` — a delta replacing a visible
   bucket's items yields fresh keyed order as part of application;
   stale order never persists on a visible bucket (probe: sort
@@ -652,19 +739,37 @@ Sort-correctness:
   switching the active column discards resident keys, clears every
   sorted flag, and re-sorts materialized buckets only; a direction
   flip re-sorts materialized buckets **on their resident keys with
-  no rebuild**; collapsed buckets sort at their next expansion.
+  no rebuild** (an evicted vector hydrates once — R3-1,
+  `reexpandedBucketFlipHydratesOnce`); collapsed buckets sort at
+  their next expansion.
 - `priceKeysFollowBuyoutEdits` — with Price active, a user buyout
-  edit (item and tab level, set and clear, **and migration** —
-  `MigrateItem`, R1-6/R2-6) reorders affected rows at command end;
+  edit (item and tab level, set and clear) reorders affected rows
+  at command end — **in an expanded By-Tab bucket as well as
+  By-Item (R3-2: the bucket's resident key entries rebuild before
+  the reorder; no re-sort on stale keys)**. Migration
+  (`MigrateItem`, R1-6/R2-6) reorders within the snapshot's outer
+  batch, not at a command end — it runs from
+  `ItemsManager::MigrateBuyouts` during snapshot processing
+  (`itemsmanager.cpp:152`), where there is no user command and the
+  required snapshot batch (R3-4) is always the containing batch.
   Date symmetric; with Name active the same edits reorder nothing.
 - `multiSelectionBuyoutEditReordersOnce` (R2-5) — with Price active
   in By-Item, one buyout command over a many-row selection produces
   exactly one reorder / model update at command end (probe:
-  model-update count), never one per selected row.
+  model-update count), never one per selected row — **the command's
+  trailing `PropagateTabBuyouts` call included: the propagation
+  pass's batch nests inside the command batch and emits nothing of
+  its own (R3-3)**.
 - `pricingPassYieldsSingleModelUpdate` (R1-6) — a scoped or final
   pricing pass touching many items produces at most one reorder /
   model update per pass on the active search (probe: model-update
   count), never one per `Set`.
+- `snapshotPricingSequenceEmitsOneModelBatch` (R3-4) — one final
+  snapshot's `MigrateBuyouts` → `ApplyAutoTabBuyouts` →
+  `ApplyAutoItemBuyouts` → `PropagateTabBuyouts` sequence produces
+  at most one reorder / model update on the active search (probe:
+  model-update count), never one per pass; buyout persistence
+  writes still occur.
 - `priceCellsRepaintUnderAnySortColumn` (R1-6) — with Name active, a
   buyout batch emits `dataChanged` for the affected visible
   Price/Date cells and performs no reordering.
@@ -704,6 +809,11 @@ with headroom, misses gate completion the way M2-M2's did):
   collapsed): ≤ 60 ms at 100k, ≤ 500 ms at 1m end-to-end
   (filter-loop-bound; the sort share ≤ 5 ms).
 - Single-bucket expand (cold keys): ≤ 10 ms at both scales.
+- Clean By-Item search reactivation (eager key hydration, R3-1):
+  ≤ 100 ms at 100k, ≤ 0.5 s at 1m — the cold-reactivation
+  boundary; the By-Item delta budget below then holds
+  unconditionally, no By-Item delta ever paying a flat-bucket key
+  build.
 - By-Item full refilter: ≤ 250 ms at 100k, ≤ 1.5 s at 1m.
 - Broad-filter default-expanded refilter (a filter matching ~all
   items, every bucket visible — R1-8's worst case): ≤ 150 ms at
@@ -729,9 +839,11 @@ Design-review criteria (checked in review, not runnable):
   source of ordering truth; no code path defines order twice.
 - D1 rule 4's `BuyoutManager` mutation enumeration is complete —
   every mutation path, **migration included** (R1-6), flows through
-  the single choke point — and the batching rules hold: pricing
-  passes emit one batch, user edits apply immediately, cell repaint
-  is independent of the active sort column.
+  the single choke point — and the batching rules hold: passes and
+  commands emit one batch at their own end, nested boundaries emit
+  only at the outermost (R3-3), the snapshot's pricing sequence
+  emits one batch (R3-4), and cell repaint is independent of the
+  active sort column.
 - M2's intersection and background-search machinery is inherited
   with exactly two stated renegotiations, neither silent: the
   metadata half added to the intersection contract (R1-4, retiring
@@ -783,9 +895,9 @@ Design-review criteria (checked in review, not runnable):
 | Hold point (Tom, July 30, 2026): levers A+B committed; intended order; memory measured pre-freeze | D1, D2, D5; spike section 4 |
 | M2 hard constraint: no per-delta uncoalesced model reset; freshness bound | D3 (no reset at all; throttle retired, bound trivially met) |
 
-Every named input is consumed. Review rounds 1–2 (R1-1…R1-8,
-R2-1…R2-6, July 30, 2026, all fourteen accepted) are incorporated
-throughout — verdicts and resolutions in
+Every named input is consumed. Review rounds 1–3 (R1-1…R1-8,
+R2-1…R2-6, R3-1…R3-4, July 30, 2026, all eighteen accepted) are
+incorporated throughout — verdicts and resolutions in
 `items-pipeline-m3-reviews.md`, which also carries the revision
 log. The rounds' structural theme: revision 1 specified the
 single-event grain; round 1 forced the sequence grain (source vs.
@@ -794,4 +906,8 @@ rows, pricing-pass batching); round 2 closed the boundaries round
 1's own resolutions opened (intent lifetime at the failure
 terminal, merge order in multi-source buckets, residency across
 searches) and returned one of them — key residency — to the hold
-point's settled cached-key choice (R2-3).
+point's settled cached-key choice (R2-3); round 3 reconciled that
+restoration's consequences — residency as an explicit axis with a
+single hydration rule (R3-1), invalidation over every resident
+cache (R3-2), and the batch boundaries nested (R3-3) and pinned to
+their true call sites (R3-4).
