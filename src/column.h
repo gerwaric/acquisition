@@ -8,6 +8,7 @@
 #include <QVariant>
 
 #include "item.h"
+#include "sortkey.h"
 
 class BuyoutManager;
 
@@ -29,10 +30,29 @@ public:
     virtual QVariant icon(const Item &item) const = 0;
     virtual QColor color(const Item &item) const;
     virtual bool lt(const Item *lhs, const Item *rhs) const;
+    // The item's M3 sort key (items-pipeline-m3.md D1): the same tuple lt
+    // compares, materialized once. Both are built from the one multivalue
+    // computation, so no code path defines order twice.
+    virtual ItemSortKey key(const Item &item) const;
     virtual ~Column() {}
+
+protected:
+    // The D5 tie-break suffix, shared by every key implementation. Takes
+    // the already-computed PrettyName so the caller can share its buffer
+    // with the head (D1's s2/suffix sharing); uid and hash are CoW copies
+    // of the Item's own members.
+    static ItemSortKey::Suffix suffix(const Item &item, const QString &pretty);
 
 private:
     typedef std::tuple<double, QString, double, QString, const Item &> sort_tuple;
+    struct MultivalueParts
+    {
+        double d1 = 0.0;
+        QString s1;
+        double d2 = 0.0;
+        QString s2;
+    };
+    MultivalueParts parts(const Item *item, const QString &pretty) const;
     sort_tuple multivalue(const Item *item) const;
 };
 
@@ -198,6 +218,7 @@ public:
     QVariant value(const Item &item) const;
     QColor color(const Item &item) const;
     bool lt(const Item *lhs, const Item *rhs) const;
+    ItemSortKey key(const Item &item) const;
     QVariant icon(const Item &item) const
     {
         Q_UNUSED(item);
@@ -216,6 +237,7 @@ public:
     QString name() const;
     QVariant value(const Item &item) const;
     bool lt(const Item *lhs, const Item *rhs) const;
+    ItemSortKey key(const Item &item) const;
     QVariant icon(const Item &item) const
     {
         Q_UNUSED(item);

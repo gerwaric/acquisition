@@ -43,17 +43,39 @@ const std::shared_ptr<Item> &Bucket::item(int row) const
 
 void Bucket::Sort(const Column &column, Qt::SortOrder order)
 {
-    if (auto &probes = ModelProbes::instance(); probes.enabled) {
+    auto &probes = ModelProbes::instance();
+    if (probes.enabled) {
         ++probes.bucket_sorts;
         ++probes.bucket_sorts_by_location[LocationInventory::KeyFor(m_location)];
     }
-    std::sort(begin(m_items),
-              end(m_items),
-              [&](const std::shared_ptr<Item> &lhs, const std::shared_ptr<Item> &rhs) {
-                  if (order == Qt::AscendingOrder) {
-                      return column.lt(lhs.get(), rhs.get());
-                  } else {
-                      return column.lt(rhs.get(), lhs.get());
-                  }
-              });
+
+    // The M3 keyed sort (items-pipeline-m3.md D1/D5): materialize the
+    // comparator's tuple once per item, order (key, item) pairs by plain
+    // tuple comparison, adopt the item order. S1 semantics: keys are
+    // built at each sort and discarded — residency/caching lands in S3,
+    // so a key can never outlive the sort that built it.
+    std::vector<std::pair<ItemSortKey, std::shared_ptr<Item>>> keyed;
+    keyed.reserve(m_items.size());
+    for (const auto &item : m_items) {
+        keyed.emplace_back(column.key(*item), item);
+    }
+    if (probes.enabled) {
+        ++probes.key_builds;
+        ++probes.key_builds_by_location[LocationInventory::KeyFor(m_location)];
+    }
+
+    std::sort(keyed.begin(), keyed.end(), [&probes, order](const auto &lhs, const auto &rhs) {
+        if (probes.enabled) {
+            ++probes.keyed_compares;
+        }
+        if (order == Qt::AscendingOrder) {
+            return lhs.first < rhs.first;
+        } else {
+            return rhs.first < lhs.first;
+        }
+    });
+
+    for (size_t n = 0; n < keyed.size(); ++n) {
+        m_items[n] = std::move(keyed[n].second);
+    }
 }

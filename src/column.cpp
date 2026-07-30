@@ -25,36 +25,39 @@ QColor Column::color(const Item & /* item */) const
     return QApplication::palette().color(QPalette::WindowText);
 }
 
-Column::sort_tuple Column::multivalue(const Item *item) const
+Column::MultivalueParts Column::parts(const Item *item, const QString &pretty) const
 {
     // Transform values into something optimal for sorting
     // Possibilities: 12, 12.12, 10%, 10.13%, +16%, 12-14, 10/20
     static const QRegularExpression sort_double_match(SORT_DOUBLE_MATCH);
     static const QRegularExpression sort_two_values(SORT_TWO_VALUES);
 
-    double first_double = 0.0;
-    double second_double = 0.0;
-    QString first_string = "";
-    QString second_string = "";
+    MultivalueParts result;
 
     QString str = value(*item).toString();
     QRegularExpressionMatch match;
 
     if (str.contains(sort_double_match, &match)) {
-        first_double = match.captured(1).toDouble();
+        result.d1 = match.captured(1).toDouble();
     } else if (str.contains(sort_two_values, &match)) {
         if (match.captured(2).startsWith("-")) {
-            first_double = 0.5 * (match.captured(1).toDouble() + match.captured(3).toDouble());
+            result.d1 = 0.5 * (match.captured(1).toDouble() + match.captured(3).toDouble());
         } else {
-            first_string = item->PrettyName();
-            second_double = match.captured(1).toDouble();
+            result.s1 = pretty;
+            result.d2 = match.captured(1).toDouble();
         }
     } else {
-        first_string = str;
-        second_string = item->PrettyName();
+        result.s1 = str;
+        result.s2 = pretty;
     }
 
-    return std::forward_as_tuple(first_double, first_string, second_double, second_string, *item);
+    return result;
+}
+
+Column::sort_tuple Column::multivalue(const Item *item) const
+{
+    MultivalueParts p = parts(item, item->PrettyName());
+    return sort_tuple(p.d1, std::move(p.s1), p.d2, std::move(p.s2), *item);
 }
 
 bool Column::lt(const Item *lhs, const Item *rhs) const
@@ -63,6 +66,21 @@ bool Column::lt(const Item *lhs, const Item *rhs) const
         ++probes.comparator_calls;
     }
     return multivalue(lhs) < multivalue(rhs);
+}
+
+ItemSortKey::Suffix Column::suffix(const Item &item, const QString &pretty)
+{
+    return ItemSortKey::Suffix(pretty, item.id(), item.hash_v4());
+}
+
+ItemSortKey Column::key(const Item &item) const
+{
+    // pretty is computed once: the head's s1/s2 and the suffix's first
+    // element share its buffer (D1's measured s2/suffix sharing).
+    const QString pretty = item.PrettyName();
+    MultivalueParts p = parts(&item, pretty);
+    return ItemSortKey{ItemSortKey::BaseHead(p.d1, std::move(p.s1), p.d2, std::move(p.s2)),
+                       suffix(item, pretty)};
 }
 
 QString NameColumn::name() const
@@ -442,6 +460,13 @@ bool PriceColumn::lt(const Item *lhs, const Item *rhs) const
     return multivalue(lhs) < multivalue(rhs);
 }
 
+ItemSortKey PriceColumn::key(const Item &item) const
+{
+    const Buyout &bo = m_bo_manager.Get(item);
+    return ItemSortKey{ItemSortKey::PriceHead(bo.currency.AsRank(), bo.value),
+                       suffix(item, item.PrettyName())};
+}
+
 DateColumn::DateColumn(const BuyoutManager &bo_manager)
     : m_bo_manager(bo_manager)
 {}
@@ -465,6 +490,12 @@ bool DateColumn::lt(const Item *lhs, const Item *rhs) const
     const QDateTime lhs_update_time = m_bo_manager.Get(*lhs).last_update;
     const QDateTime rhs_update_time = m_bo_manager.Get(*rhs).last_update;
     return (std::tie(lhs_update_time, *lhs) < std::tie(rhs_update_time, *rhs));
+}
+
+ItemSortKey DateColumn::key(const Item &item) const
+{
+    return ItemSortKey{ItemSortKey::DateHead(m_bo_manager.Get(item).last_update),
+                       suffix(item, item.PrettyName())};
 }
 
 QString ItemlevelColumn::name() const

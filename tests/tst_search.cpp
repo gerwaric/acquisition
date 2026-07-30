@@ -1,8 +1,12 @@
 #include <QtTest/QtTest>
 
+#include <algorithm>
 #include <memory>
 #include <variant>
 
+#include "bucket.h"
+#include "buyout.h"
+#include "currency.h"
 #include "filters/filterspec.h"
 #include "locationinventory.h"
 #include "modelprobes.h"
@@ -22,6 +26,8 @@ private slots:
     void tabChangeSkipsRefilterWhenStateIsUnchanged();
     void tabChangeRefiltersAfterStateChange();
     void probeCountersTrackRefilterAndSort();
+    void keyedOrderMatchesComparatorOrder();
+    void intendedTieBreakRestored();
 };
 
 template<typename Payload>
@@ -324,11 +330,16 @@ void SearchTest::probeCountersTrackRefilterAndSort()
     QCOMPARE(probes.bucket_sorts, 0); // FilterItems never sorts
 
     // SetViewMode sorts the active buckets — here the By-Item flat
-    // bucket, which reports the null location's stable key.
+    // bucket, which reports the null location's stable key. Since S1 the
+    // sort is keyed (D1): one key-vector build per bucket, tuple compares
+    // instead of comparator calls — sorting never calls Column::lt.
     search.SetViewMode(Search::ViewMode::ByItem);
     QCOMPARE(probes.bucket_sorts, 1);
     QCOMPARE(probes.bucket_sorts_by_location[LocationInventory::KeyFor(ItemLocation())], 1);
-    QVERIFY(probes.comparator_calls > 0);
+    QCOMPARE(probes.key_builds, 1);
+    QCOMPARE(probes.key_builds_by_location[LocationInventory::KeyFor(ItemLocation())], 1);
+    QVERIFY(probes.keyed_compares > 0);
+    QCOMPARE(probes.comparator_calls, 0);
     QCOMPARE(probes.model_resets, 2);
 
     // All three comparator implementations are instrumented: the
@@ -348,14 +359,230 @@ void SearchTest::probeCountersTrackRefilterAndSort()
     QCOMPARE(probes.index_rebuilds, 1);
     QCOMPARE(probes.model_resets, 2);
 
-    // Later-stage fields have no production sites yet (keys land in S1,
-    // batched model updates in S2, resident-key bytes in S3).
-    QCOMPARE(probes.key_builds, 0);
-    QCOMPARE(probes.keyed_compares, 0);
+    // Later-stage fields have no production sites yet (batched model
+    // updates land in S2, resident-key bytes in S3).
     QCOMPARE(probes.model_updates, 0);
     QCOMPARE(probes.live_key_bytes, 0);
 
     probes.enabled = false;
+}
+
+// Mixed-path item maker for the S1 sort pins. An empty id yields an
+// id-less item (m_uid stays empty — the D5 hash tie-break's subject);
+// extraJson supplies the properties that steer Column::multivalue down
+// its double / dash-range / slash-range / string paths, and distinct
+// property values also give otherwise-identical items distinct hashes.
+static std::shared_ptr<Item> makeKeyedItem(const QString &id,
+                                           const QString &name,
+                                           const QString &typeLine,
+                                           const ItemLocation &location,
+                                           const QString &extraJson = {})
+{
+    const QString idJson = id.isEmpty() ? QString() : QString(R"json("id": "%1",)json").arg(id);
+    const QByteArray json = QString(R"json({
+        "baseType": "%3",
+        "frameType": 2,
+        "frameTypeId": "Rare",
+        "h": 1,
+        "icon": "https://web.poecdn.com/image/test.png",
+        %1
+        "identified": true,
+        "ilvl": 1,
+        "name": "%2",
+        "typeLine": "%3",
+        "verified": false,
+        "w": 1,
+        "x": 0,
+        "y": 0%4
+    })json")
+                                .arg(idJson, name, typeLine, extraJson)
+                                .toUtf8();
+    return std::make_shared<Item>(makeTestItem(json.constData(), location));
+}
+
+static QString propertyJson(const QString &name, const QString &value)
+{
+    return QString(R"json(,
+        "properties": [
+            {"displayMode": 0, "name": "%1", "type": 6, "values": [["%2", 0]]}
+        ])json")
+        .arg(name, value);
+}
+
+// The mixed dataset the S1 pins sort: double path, dash range, slash
+// range, string path, heavy ties on both column values and names, and
+// id-less items. Every item is distinct in (uid, hash), so each
+// comparator induces a total order and the expected sequence is unique.
+static Items makeMixedSortItems(const ItemLocation &tab)
+{
+    Items items;
+    // Double path (Quality is stored stripped: "+20%" -> "20").
+    items.push_back(
+        makeKeyedItem("q20", "Gloom Bite", "Vaal Axe", tab, propertyJson("Quality", "+20%")));
+    items.push_back(
+        makeKeyedItem("q7", "Iron Song", "Copper Shield", tab, propertyJson("Quality", "+7%")));
+    // Heavy tie on the Quality column value (suffix decides).
+    items.push_back(
+        makeKeyedItem("q20b", "Storm Mark", "Vaal Axe", tab, propertyJson("Quality", "+20%")));
+    // Dash range: mean of the bounds.
+    items.push_back(
+        makeKeyedItem("pd1", "Dread Roar", "Sword", tab, propertyJson("Physical Damage", "12-24")));
+    items.push_back(
+        makeKeyedItem("pd2", "Sacred Whorl", "Sword", tab, propertyJson("Physical Damage", "30-50")));
+    // Slash range: (PrettyName, first value).
+    items.push_back(
+        makeKeyedItem("st1", "Whisper Card", "Card", tab, propertyJson("Stack Size", "10/20")));
+    items.push_back(
+        makeKeyedItem("st2", "Ancient Card", "Card", tab, propertyJson("Stack Size", "5/40")));
+    // String path: a property value neither regex matches.
+    items.push_back(
+        makeKeyedItem("txt", "Hollow Grasp", "Wand", tab, propertyJson("Armour", "N/A")));
+    // Plain items (every property column empty -> string path on "").
+    items.push_back(makeKeyedItem("plain1", "Frozen Pledge", "Amulet", tab));
+    items.push_back(makeKeyedItem("plain2", "", "Belt", tab));
+    // Name ties: identical PrettyName, distinct uids.
+    items.push_back(makeKeyedItem("twin-a", "Twin Ward", "Dagger", tab));
+    items.push_back(makeKeyedItem("twin-b", "Twin Ward", "Dagger", tab));
+    items.push_back(makeKeyedItem("twin-c", "Twin Ward", "Dagger", tab));
+    // Id-less items tying on PrettyName: only the hash separates them.
+    items.push_back(
+        makeKeyedItem("", "Nameless Twin", "Claw", tab, propertyJson("Evasion Rating", "31")));
+    items.push_back(
+        makeKeyedItem("", "Nameless Twin", "Claw", tab, propertyJson("Evasion Rating", "77")));
+    return items;
+}
+
+static QStringList itemOrderSignature(const Items &items)
+{
+    QStringList result;
+    result.reserve(static_cast<qsizetype>(items.size()));
+    for (const auto &item : items) {
+        result.push_back(item->id() + "/" + item->hash_v4());
+    }
+    return result;
+}
+
+// S1 pin (items-pipeline-m3.md, sort-correctness): for every column, the
+// keyed Bucket::Sort of the mixed dataset is identical to a direct
+// Column::lt sort with the D5-fixed comparator, both directions.
+void SearchTest::keyedOrderMatchesComparatorOrder()
+{
+    BuyoutManagerFixture buyoutFixture;
+    const ItemLocation tab = makeTestStashLocation("stash-keys", "Keyed Tab", 0);
+    buyoutFixture.manager->SetStashTabLocations({tab});
+
+    const Items items = makeMixedSortItems(tab);
+
+    // Buyout variety for the Price and Date columns: distinct currencies,
+    // values, and timestamps, plus items left at the default (no buyout).
+    buyoutFixture.manager->Set(*items[0], makeChaosBuyout(9.0));
+    buyoutFixture.manager->Set(*items[1], makeChaosBuyout(2.5));
+    buyoutFixture.manager->Set(*items[3],
+                               Buyout(1.0,
+                                      Buyout::BUYOUT_TYPE_BUYOUT,
+                                      Currency::CURRENCY_EXALTED_ORB,
+                                      QDateTime::fromSecsSinceEpoch(1700000000)));
+    buyoutFixture.manager->Set(*items[5],
+                               Buyout(9.0,
+                                      Buyout::BUYOUT_TYPE_BUYOUT,
+                                      Currency::CURRENCY_CHAOS_ORB,
+                                      QDateTime::fromSecsSinceEpoch(1600000000)));
+
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    Search search(*buyoutFixture.manager, "Keyed", catalog);
+    const auto &columns = search.columns();
+    QVERIFY(columns.size() > 0);
+
+    for (size_t column_index = 0; column_index < columns.size(); ++column_index) {
+        const Column &column = *columns[column_index];
+        for (const Qt::SortOrder order : {Qt::AscendingOrder, Qt::DescendingOrder}) {
+            Bucket bucket(tab);
+            bucket.AddItems(items);
+            bucket.Sort(column, order);
+
+            Items expected = items;
+            std::sort(expected.begin(),
+                      expected.end(),
+                      [&column, order](const auto &lhs, const auto &rhs) {
+                          if (order == Qt::AscendingOrder) {
+                              return column.lt(lhs.get(), rhs.get());
+                          } else {
+                              return column.lt(rhs.get(), lhs.get());
+                          }
+                      });
+
+            const QStringList keyed = itemOrderSignature(bucket.items());
+            const QStringList comparator = itemOrderSignature(expected);
+            if (keyed != comparator) {
+                qWarning("column %zu (%s), order %d",
+                         column_index,
+                         qPrintable(column.name()),
+                         static_cast<int>(order));
+            }
+            QCOMPARE(keyed, comparator);
+        }
+    }
+}
+
+// S1 pin (items-pipeline-m3.md, sort-correctness): id-less items tying on
+// PrettyName order deterministically by hash across repeated sorts
+// (F67 resolved — the comparator's third tie-break element is now the
+// right-hand item's hash, not dead code).
+void SearchTest::intendedTieBreakRestored()
+{
+    BuyoutManagerFixture buyoutFixture;
+    const ItemLocation tab = makeTestStashLocation("stash-ties", "Tie Tab", 0);
+    buyoutFixture.manager->SetStashTabLocations({tab});
+
+    // Same PrettyName, no uid; distinct property values give distinct
+    // hashes, which are all that can separate these items.
+    Items ties;
+    ties.push_back(makeKeyedItem("", "Echo Twin", "Ring", tab, propertyJson("Armour", "10")));
+    ties.push_back(makeKeyedItem("", "Echo Twin", "Ring", tab, propertyJson("Armour", "20")));
+    ties.push_back(makeKeyedItem("", "Echo Twin", "Ring", tab, propertyJson("Armour", "30")));
+    for (const auto &item : ties) {
+        QCOMPARE(item->id(), QString());
+        QCOMPARE(item->PrettyName(), "Echo Twin Ring");
+    }
+
+    // The comparator is decisive on every tying pair: exactly one of
+    // (a < b), (b < a) holds (before the F67 fix, neither did).
+    for (size_t a = 0; a < ties.size(); ++a) {
+        for (size_t b = a + 1; b < ties.size(); ++b) {
+            QVERIFY((*ties[a] < *ties[b]) != (*ties[b] < *ties[a]));
+        }
+    }
+
+    // The intended order is by hash.
+    Items expected = ties;
+    std::sort(expected.begin(), expected.end(), [](const auto &lhs, const auto &rhs) {
+        return lhs->hash_v4() < rhs->hash_v4();
+    });
+    const QStringList ascending = itemOrderSignature(expected);
+    QStringList descending = ascending;
+    std::reverse(descending.begin(), descending.end());
+
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    Search search(*buyoutFixture.manager, "Ties", catalog);
+    const Column &name_column = *search.columns()[0];
+
+    // Every insertion order sorts to the same hash order, and repeated
+    // sorts of the same bucket never reshuffle the ties.
+    for (size_t rotation = 0; rotation < ties.size(); ++rotation) {
+        Items arrival = ties;
+        std::rotate(arrival.begin(),
+                    arrival.begin() + static_cast<std::ptrdiff_t>(rotation),
+                    arrival.end());
+
+        Bucket bucket(tab);
+        bucket.AddItems(arrival);
+        bucket.Sort(name_column, Qt::AscendingOrder);
+        QCOMPARE(itemOrderSignature(bucket.items()), ascending);
+        bucket.Sort(name_column, Qt::AscendingOrder);
+        QCOMPARE(itemOrderSignature(bucket.items()), ascending);
+        bucket.Sort(name_column, Qt::DescendingOrder);
+        QCOMPARE(itemOrderSignature(bucket.items()), descending);
+    }
 }
 
 QTEST_MAIN(SearchTest)
