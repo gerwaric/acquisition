@@ -20,19 +20,26 @@ when this map and a header disagree, the header wins.
 - `design/items-pipeline-m2-reviews.md` — that spec's review history:
   round-scoped finding tables (`R1-*`, …) with verdicts and
   resolutions, round narratives, and the revision log.
-- `design/items-pipeline-m3.md` — **draft** spec (revision 3,
-  July 30, 2026, in review; rounds 1–2's fourteen findings
-  incorporated) for Milestone 3, the delta-native items model: bucket-scoped model operations replacing the refresh-path
+- `design/items-pipeline-m3.md` — **frozen** spec (revision 4,
+  July 30, 2026; rounds 1–3's eighteen findings incorporated, review
+  series closed) for Milestone 3, the delta-native items model:
+  bucket-scoped model operations replacing the refresh-path
   reset, precomputed cached sort keys plus deferred bucket sorting
   (the July 30 lever hold point), the By-Item per-delta merge, and
   the F67 tie-break fix. Pre-spec evidence:
   `design/m3-sort-profile-result.md` (S1-M3 spike, run on the
   never-merged branch `spike/m3-sort-profile`, including the
   hold-point key-memory extension). The M1-M3 budget measurement
-  runs as an implementation checkpoint.
+  runs as an implementation checkpoint and gates M3 completion.
 - `design/items-pipeline-m3-reviews.md` — that spec's review history
-  and revision log; rounds 1–2 recorded (R1-1…R1-8, R2-1…R2-6, all
-  accepted).
+  and revision log; rounds 1–3 recorded (R1-1…R1-8, R2-1…R2-6,
+  R3-1…R3-4, all accepted) and the freeze.
+- `design/items-pipeline-m3-implementation.md` — **proposed**
+  implementation sequence for the frozen M3 spec (stages S0–S8,
+  conditional budget hold points at S3–S5, the formal M1-M3 gate at
+  S7, and the M2-pin supersession map), incorporating the four
+  external sequencing adjustments of July 30. Sequencing only — no
+  design authority; the spec wins on any conflict.
 - `design/items-pipeline-m2-implementation.md` — **accepted**
   implementation sequence for the frozen M2 spec (externally
   reviewed July 29, three findings incorporated): stage boundaries,
