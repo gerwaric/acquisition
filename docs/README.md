@@ -34,12 +34,13 @@ when this map and a header disagree, the header wins.
 - `design/items-pipeline-m3-reviews.md` — that spec's review history
   and revision log; rounds 1–3 recorded (R1-1…R1-8, R2-1…R2-6,
   R3-1…R3-4, all accepted) and the freeze.
-- `design/items-pipeline-m3-implementation.md` — **proposed**
-  implementation sequence for the frozen M3 spec (stages S0–S8,
-  conditional budget hold points at S3–S5, the formal M1-M3 gate at
-  S7, and the M2-pin supersession map), incorporating the four
-  external sequencing adjustments of July 30. Sequencing only — no
-  design authority; the spec wins on any conflict.
+- `design/items-pipeline-m3-implementation.md` — **accepted**
+  implementation sequence for the frozen M3 spec (externally
+  reviewed July 30, round 1's four adjustments incorporated):
+  stages S0–S8, conditional budget hold points at S3–S5, the formal
+  M1-M3 gate at S7, and the M2-pin supersession map with its
+  seam-reachability rule. Sequencing only — no design authority;
+  the spec wins on any conflict.
 - `design/items-pipeline-m2-implementation.md` — **accepted**
   implementation sequence for the frozen M2 spec (externally
   reviewed July 29, three findings incorporated): stage boundaries,

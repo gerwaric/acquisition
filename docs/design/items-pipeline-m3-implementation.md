@@ -1,8 +1,10 @@
 # Items Pipeline M3: Implementation Sequence
 
-Status: **PROPOSED, review round 1 incorporated** (July 30, 2026) —
-awaiting the reviewer's acceptance pass. Round 1 (external, four
-adjustments, all accepted): two pin-to-stage traceability fixes —
+Status: **ACCEPTED for implementation** (July 30, 2026; externally
+reviewed the same day — round 1's four adjustments incorporated,
+accepted on the follow-up pass). Implementation proceeds on branch
+`items-pipeline-m3`, starting at S0. Round 1's adjustments, for the
+record: two pin-to-stage traceability fixes —
 pins whose closing machinery lands later than their declared stage,
 and timer pins deleted in S4 while the By-Item fallback still
 reached the timer; the column-gating qualifier on S2's conservative
