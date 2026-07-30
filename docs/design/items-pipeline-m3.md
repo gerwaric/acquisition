@@ -1,14 +1,18 @@
 # Items Pipeline Milestone 3: Delta-Native Items Model
 
-Status: **DRAFT, revision 2** (July 30, 2026). In review, not
+Status: **DRAFT, revision 3** (July 30, 2026). In review, not
 frozen; production implementation must not begin against this
-document. Review round 1 (external, eight findings R1-1…R1-8, all
-verified and accepted; none challenging the hold-point decisions) is
-incorporated throughout — the largest changes are D3's source-scoped
-replacement grain (R1-1), the final snapshot's row reconciliation
-(R1-2), the selection-intent contract (R1-3), the metadata half of
-the intersection contract (R1-4), and D1/D2's transient-key state
-machine (R1-5). Unlike M2, the pre-spec evidence is already in hand: the
+document. Review rounds 1–2 (external; R1-1…R1-8 and R2-1…R2-6, all
+fourteen verified and accepted) are incorporated throughout. Round
+1's largest changes: D3's source-scoped replacement grain (R1-1),
+the final snapshot's row reconciliation (R1-2), the selection-intent
+contract (R1-3), the metadata half of the intersection contract
+(R1-4). Round 2 closed the boundaries round 1 opened — the intent
+window now ends at every terminal outcome (R2-1), multi-source
+buckets merge rather than merely sort arrivals (R2-2), and **key
+residency was restored to the hold point's cached-key choice**
+after round 1's transient-key resolution overstepped it (R2-3, with
+residency scoped to the active search per R2-4). Unlike M2, the pre-spec evidence is already in hand: the
 parent plan's "profile before choosing levers" obligation was
 discharged by the S1-M3 sort-profiling spike (July 30, 2026, branch
 `spike/m3-sort-profile`, evidence in `m3-sort-profile-result.md`
@@ -129,18 +133,29 @@ and the suffix's first element) share one buffer; `uid` and `hash`
 are CoW copies of the `Item`'s own members and cost nothing while the
 item lives. Both facts are measured (spike section 4).
 
-**Residency: By-Tab keys are transient, By-Item keys are resident
-(R1-5).** By-Tab bucket keys are sorting scratch: built when the
-bucket sorts, discarded when that sort completes. What persists is
-the bucket's item *order* plus a per-bucket sorted-validity flag
-(D2); no structure above bucket grain ever holds By-Tab keys. The
-By-Item flat bucket alone keeps its key vector resident while that
-view is active — D4's merge probes need it. Build cost is O(bucket)
-— measured 33 ms per 100k items, 368 ms per 1m, so a 576-item bucket
-keys in well under a millisecond. Note this is strictly stronger
-than the spike's "cached keys" 40× path for By-Tab: a bucket whose
-sorted flag is valid does not re-sort *at all*; keys are rebuilt
-only when an order must actually be (re)established.
+**Residency: keys are cached for the active search's materialized
+buckets (R2-3, R2-4 — the hold point's cached-key choice, with its
+lifecycle specified).** A *materialized* bucket is an expanded
+By-Tab bucket or the By-Item flat bucket. The rules:
+
+- Within the **active search**, a materialized bucket keeps its key
+  vector resident from its first sort until evicted — re-sorts and
+  direction flips reuse it without rebuilding (the spike's 40×
+  cached path), and a bucket whose sorted flag is valid skips
+  sorting entirely (D2's flags — stronger still).
+- **Collapse evicts the bucket's keys; its order and sorted flag
+  persist.** This is safe against later Price/Date staleness because
+  invalidation acts on flags independently of key residency — the
+  question R1-5 raised, now answered *within* the cached design.
+- **Residency is scoped to the active search (R2-4).** Deactivating
+  a search evicts every one of its key vectors (orders and flags
+  persist); reactivation rebuilds **lazily**, at the next event that
+  actually needs keys (an invalidated sort, a merge), never eagerly.
+  At most one search holds resident keys at any time — N background
+  By-Item searches hold none, not ~250 MB each.
+- Build cost is O(bucket) — measured 33 ms per 100k items, 368 ms
+  per 1m, so a 576-item bucket keys in well under a millisecond, and
+  a lazy rebuild after reactivation costs only what it re-sorts.
 
 **Invalidation contract.** An order (and the By-Item key vector) is
 a cache of `(item content, active sort column, buyout state for
@@ -148,31 +163,37 @@ Price/Date)`. Invalidation therefore acts on sorted flags and the
 By-Item keys — never on By-Tab key caches, which don't exist:
 
 1. A delta that changes a bucket's items clears that bucket's sorted
-   flag; a *visible* (D2) bucket re-establishes order as part of the
-   delta's application — still O(delta + bucket). By-Item: the merge
-   itself maintains order and keys (D4).
-2. Switching the active sort column clears every sorted flag and
-   discards the By-Item key vector; visible buckets re-sort (each a
-   transient build + sort), collapsed ones simply stay flagged
-   unsorted. The whole-collection worst case (By-Item, or everything
-   expanded) is ~0.5 s at 1m, user-initiated, once per switch.
-3. Flipping only the direction re-sorts visible buckets with the
-   flipped comparison (By-Tab rebuilds transient keys — bucket-grain,
-   trivially cheap; By-Item re-sorts on its resident keys) and clears
-   collapsed buckets' flags.
+   flag and discards the stale entries of its resident key vector; a
+   *visible* (D2) bucket re-establishes order as part of the delta's
+   application — still O(delta + bucket). By-Item: the merge itself
+   maintains order and keys (D4).
+2. Switching the active sort column discards every resident key
+   vector and clears every sorted flag; materialized buckets rebuild
+   and re-sort, collapsed ones simply stay flagged unsorted. The
+   whole-collection worst case (By-Item, or everything expanded) is
+   ~0.5 s at 1m, user-initiated, once per switch.
+3. Flipping only the direction re-sorts materialized buckets **on
+   their resident keys — no rebuild (R2-3)** — and clears collapsed
+   buckets' flags.
 4. `BuyoutManager` mutations invalidate Price/Date-dependent order.
    The implementation must route every mutation path through a single
    choke point, and the inventory is exhaustive (R1-6): item
-   set-and-clear, tab set-and-clear, **migration**
-   (`MigrateItem`/`MigrateTab`, `buyoutmanager.cpp:369` — it changes
-   the lookup result), and the scoped and final pricing passes. A
-   design-review criterion checks the enumeration.
+   set-and-clear, tab set-and-clear, **migration** (`MigrateItem`,
+   `buyoutmanager.cpp:370` — it changes the lookup result; there is
+   no tab-level migration, R2-6), and the scoped and final pricing
+   passes. A design-review criterion checks the enumeration.
 
 **Buyout observability and batching (R1-6).** Three rules make the
 invalidation observable and bounded:
 
-- **User edits apply immediately**: with Price or Date active, an
-  edit reorders the affected visible scope now.
+- **User commands batch at command scope (R2-5)**: a single UI
+  command can loop over every selected row and then trigger
+  propagation (`OnBuyoutChange`, `ui/mainwindow.cpp:541-567` —
+  `SetTab`/`Set` per selected row), so "immediate" means **one batch
+  at command end** — with Price or Date active, one reorder of the
+  affected visible scope per command, never per `Set`
+  (`multiSelectionBuyoutEditReordersOnce`). Per-`Set` reordering is
+  forbidden at every batch boundary, pass or command.
 - **Pricing passes batch**: the scoped per-delta pass and the final
   passes accumulate invalidations and emit **one** batch at pass
   end — at most one reorder/model update per pass, never one per
@@ -186,13 +207,16 @@ invalidation observable and bounded:
   sorts the view; only *reordering* is gated on the active column
   (`priceCellsRepaintUnderAnySortColumn`).
 
-**Memory.** Measured (spike section 4): ~286 B/item accounted for the
-string-heavy worst case. Under the residency rule, resident key
-memory is the By-Item flat bucket **only**: ~266 MB naive at 1m,
-~222 MB with the required `s2`/suffix sharing (D4 accepts this; the
-budget is pinned in the acceptance criteria). By-Tab's transient
-peak is a single bucket — ~0.2 MB at the 576-item cap — regardless
-of collection size or how many buckets are expanded.
+**Memory.** Measured (spike section 4): ~286 B/item accounted for
+the string-heavy worst case. Under the residency rules, resident key
+memory is proportional to the **active search's materialized set**
+and nothing else: the collapsed-default unfiltered view holds ≈ 0;
+background searches hold exactly 0 (R2-4). The worst case is a
+materialized whole-collection result — the By-Item flat bucket, or a
+broad-filter fully-expanded By-Tab result (R2-3) — at ~266 MB naive
+/ ~222 MB with the required `s2`/suffix sharing at 1m. Accepted and
+budgeted (≤ 300 MB aggregate, acceptance criteria); the user paying
+it is holding a million-item sorted view either way.
 
 Reasons:
 
@@ -219,17 +243,18 @@ model), and the flag-and-order lifecycle is a complete state machine
    or refilter changes the bucket's contents, so persistent indexes
    and model invariants hold.
 2. **Expanding** a bucket whose flag is invalid sorts it first
-   (transient keys, D1), then the expansion proceeds. Cost is bounded
+   (building its keys, which then stay resident — D1), then the
+   expansion proceeds. Cost is bounded
    by the 576-item bucket cap: ~3 ms even with the *current*
    comparator, microseconds keyed — imperceptible against the expand
    paint itself. The same rule serves `RestoreViewExpansion`:
    restoring N expanded buckets sorts exactly those whose flags are
    invalid. Expanding a bucket whose flag is valid does no sort work.
-3. **Collapsing changes nothing** (R1-5): the sorted order and the
-   flag persist — collapse is a view event, not a model event.
-   Arrival order is never reconstructed; a bucket that has sorted
-   once simply stays sorted until invalidated. There are no keys to
-   evict, because By-Tab keys are transient (D1).
+3. **Collapsing evicts the bucket's keys and nothing else** (R1-5,
+   R2-3): the sorted order and the flag persist — collapse is a view
+   event, not a model event. Arrival order is never reconstructed; a
+   bucket that has sorted once simply stays sorted until
+   invalidated.
 4. **Invalidation** (content delta, column switch, direction flip,
    buyout batch — D1's contract) clears flags; whether re-sorting
    happens *now* is decided by visibility: visible buckets (expanded,
@@ -240,16 +265,19 @@ model), and the flag-and-order lifecycle is a complete state machine
    honest worst case is a **broad filter** that matches nearly the
    whole collection while expanding every bucket (R1-8 — `m_filtered`
    is set by any single excluded item, `search.cpp:261-290`): the
-   ceiling is the transient build + sort of ~everything on top of the
-   filter loop, ~0.9 s estimated at 1m, with memory unaffected
-   (transient keys, one bucket at a time). This ceiling is accepted
-   and budgeted in M1-M3 (≤ 1.2 s at 1m); the collapsed-default win
-   applies to the unfiltered case only.
+   ceiling is the key build + sort of ~everything on top of the
+   filter loop, ~0.9 s estimated at 1m, **and the resident key
+   footprint approaches the full-collection measurement (~266 MB
+   naive at 1m) while that result stays materialized (R2-3)** — the
+   same ceiling By-Item already accepts (D1 memory rules). Accepted
+   and budgeted in M1-M3 (≤ 1.2 s, ≤ 300 MB at 1m); the
+   collapsed-default win applies to the unfiltered case only.
 6. The By-Item flat bucket is always visible and therefore always
    sorted (D4); lever B deliberately does not apply to it.
-7. Sort-column header clicks and direction flips re-sort **visible**
-   buckets only (D1 rules 2–3) via the existing `layoutChanged`
-   path; collapsed buckets' flags clear and their sort defers to
+7. Sort-column header clicks and direction flips re-sort
+   **materialized** buckets only (D1 rules 2–3; flips reuse resident
+   keys, switches rebuild) via the existing `layoutChanged` path;
+   collapsed buckets' flags clear and their sort defers to
    expansion.
 
 Reasons:
@@ -261,9 +289,9 @@ Reasons:
 - The hold point weighed B's bounded marginal value post-A (~0.13 s
   of a ~0.55 s filter-bound refilter at 1m) against its bookkeeping
   and committed it anyway, buying the collection-size-independent
-  first paint — and, under R1-5's transient keys, B's flag caching
-  is what lets an already-sorted bucket skip re-sorting entirely,
-  which is stronger than any key cache.
+  first paint — and B's flag caching composes with D1's key cache:
+  a valid flag skips the sort entirely, a resident key vector makes
+  an unavoidable re-sort cheap (R2-3).
 - The lazy machinery extends an existing pattern (`m_sorted` +
   sort-on-activation, `search.cpp:461-466`) one level down, from
   model to bucket, rather than inventing a new one.
@@ -271,15 +299,22 @@ Reasons:
 ### D3. Refresh-driven model changes are bucket-scoped operations; the reset is retired from the refresh path
 
 The delta path stops resetting the model. When a delta intersects the
-current search (the M2 D9 intersection machinery, unchanged), it is
-applied as fine-grained operations scoped to the affected bucket:
+current search (the M2 D9 intersection test — item half inherited
+as-is, metadata half added below, R2-6), it is applied as
+fine-grained operations scoped to the affected bucket:
 
 - **Content replacement** (`TabRefreshed`): a **source-scoped**
   replace within the display bucket (R1-1) — remove exactly the rows
   whose items were fetched from the delta's `FetchSourceKey`, insert
-  the arriving items that pass the active filters, sorted if the
-  bucket is visible (D2), arrival-ordered if collapsed. The
-  distinction matters because the display bucket keys on the stable
+  the arriving items that pass the active filters; arrival-ordered
+  if the bucket is collapsed. **If the bucket is visible, the
+  arrivals are sorted among themselves and then merged into the
+  retained rows' order (R2-2)** — removal as contiguous-run
+  `removeRows` batches, insertion as the merge's contiguous
+  `insertRows` runs, O(runs) model operations and O(bucket) work.
+  Sorting the arrivals alone cannot establish the bucket's global
+  order when sibling sources' rows interleave under the sort; the
+  merge is what does. The source-scoped distinction matters because the display bucket keys on the stable
   `(type, id)` and *aggregates* fetch sources: a Map/Unique child
   shares its parent's bucket with its siblings, and M2 D2's accepted
   mixed-generation behavior requires a child's delta to leave
@@ -376,15 +411,21 @@ delta — and M2 R6-3's cross-tab pin
 (`reselectionSurvivesCrossTabMove`) requires selection to survive
 that. The contract: the selection *intent* is the stable item id,
 held independently of row existence. During an active refresh
-(first delta to final reconciliation), removing the selected item's
+(first delta to the terminal outcome), removing the selected item's
 row keeps the intent alive (the visual selection may lapse); any
 later delta inserting an item with that id — any bucket, any view —
-re-adopts the selection through the global identity index. The
-intent is cleared by the final reconciliation completing without
-the id present, or by the user selecting something else. Outside an
-active refresh, a removal clears selection immediately, as today.
-Pinned by `selectionIntentSurvivesCrossTabMoveAcrossDeltas` — the
-successor of M2's pin under no-reset machinery.
+re-adopts the selection through the global identity index.
+**Every `RefreshFinished` outcome closes the intent window (R2-1)**:
+on success, the final reconciliation clears the intent if the id is
+absent; on failure — which emits no final snapshot (M2 D4) — the
+terminal event itself performs the same absence check against the
+visible result, so a stale intent can never survive one refresh and
+unexpectedly reselect an item in a later one. A user selection wins
+at any time. Outside an active refresh, a removal clears selection
+immediately, as today. Pinned by
+`selectionIntentSurvivesCrossTabMoveAcrossDeltas` — the successor of
+M2's pin under no-reset machinery — and
+`selectionIntentClearsOnTerminalFailure`.
 
 **Where resets remain legitimate**: initial population (nothing to
 preserve) and user-initiated structural changes — filter edits, view-
@@ -404,8 +445,11 @@ Reasons:
   removes a whole class of staleness/starvation reasoning (M2 D9
   spent most of its length on it).
 - Rejecting item-level diffs keeps the operation count per delta at
-  O(1) row-op batches, which is what keeps persistent-index handling
-  tractable (`modelTesterPassesUnderDeltaStorm`).
+  O(runs) row-op batches — O(1) in the common single-source-tab
+  case, the merge's run count for multi-source buckets (R2-2, the
+  same bound D4 states for the flat bucket) — which is what keeps
+  persistent-index handling tractable
+  (`modelTesterPassesUnderDeltaStorm`).
 
 ### D4. The By-Item flat bucket: per-delta sorted merge
 
@@ -523,11 +567,15 @@ Model-level (Qt Test, against the `MainWindow` fixture and a direct
   `FetchSourceKey` within the affected bucket; row accounting,
   filtered membership, and (for a visible bucket) keyed order all
   correct after application (R1-1).
-- `childDeltaPreservesSiblingSourcesInParentBucket` (R1-1) — with a
-  Map/Unique parent bucket holding parent items plus two children's
-  items, one child's delta replaces only that child's rows; the
-  sibling's and parent's rows are untouched (M2 D2's
-  mixed-generation behavior at the model layer).
+- `childDeltaPreservesSiblingSourcesInParentBucket` (R1-1, R2-2) —
+  with an expanded Map/Unique parent bucket holding parent items
+  plus two children's items whose sort keys interleave heavily, one
+  child's delta replaces only that child's rows **and the resulting
+  bucket order is globally sorted** (arrivals merged into the
+  retained rows, not appended or sorted separately); the sibling's
+  and parent's rows and their persistent indexes are untouched
+  outside the merge's moves (M2 D2's mixed-generation behavior at
+  the model layer).
 - `finalReconciliationRemovesDeletedTabs` (R1-2) — a refresh whose
   list reconciliation deleted a tab: no delta removes its bucket;
   the final snapshot's reconciliation removes the bucket and its
@@ -587,23 +635,32 @@ Sort-correctness:
 - `collapsedInvalidBucketResortsOnReexpand` (R1-5) — expand,
   collapse, replace the bucket's contents by delta, re-expand: the
   bucket re-sorts exactly once, correctly.
-- `byTabKeysAreTransient` (R1-5) — after any By-Tab sort completes,
-  no key storage remains (probe: live key-vector count returns to
-  zero); only the By-Item flat bucket holds resident keys while
-  active.
+- `keyResidencyFollowsMaterialization` (R2-3) — an expanded bucket's
+  keys persist across re-sorts and direction flips (probe: no key
+  rebuild on a flip); collapsing it evicts its keys (probe: live key
+  bytes drop) while its order and flag persist.
+- `residentKeysScopedToActiveSearch` (R2-4) — with several searches
+  including multiple By-Item ones, aggregate resident key memory
+  never exceeds one search's worth; deactivating a search evicts its
+  keys, and reactivating rebuilds lazily — no eager rebuild, and no
+  refilter when the search is not dirty.
 - `staleOrderNeverSurvivesDelta` — a delta replacing a visible
   bucket's items yields fresh keyed order as part of application;
   stale order never persists on a visible bucket (probe: sort
   counted for that bucket alone).
-- `sortColumnSwitchResortsVisibleBucketsOnly` (R1-5) — switching the
-  active column clears every sorted flag but re-sorts visible
-  buckets only; a direction flip likewise; collapsed buckets sort at
-  their next expansion.
+- `sortColumnSwitchResortsVisibleBucketsOnly` (R1-5, R2-3) —
+  switching the active column discards resident keys, clears every
+  sorted flag, and re-sorts materialized buckets only; a direction
+  flip re-sorts materialized buckets **on their resident keys with
+  no rebuild**; collapsed buckets sort at their next expansion.
 - `priceKeysFollowBuyoutEdits` — with Price active, a user buyout
   edit (item and tab level, set and clear, **and migration** —
-  `MigrateItem`/`MigrateTab`, R1-6) reorders affected rows
-  immediately; Date symmetric; with Name active the same edits
-  reorder nothing.
+  `MigrateItem`, R1-6/R2-6) reorders affected rows at command end;
+  Date symmetric; with Name active the same edits reorder nothing.
+- `multiSelectionBuyoutEditReordersOnce` (R2-5) — with Price active
+  in By-Item, one buyout command over a many-row selection produces
+  exactly one reorder / model update at command end (probe:
+  model-update count), never one per selected row.
 - `pricingPassYieldsSingleModelUpdate` (R1-6) — a scoped or final
   pricing pass touching many items produces at most one reorder /
   model update per pass on the active search (probe: model-update
@@ -634,6 +691,10 @@ Selection intent (R1-3):
   `reselectionSurvivesCrossTabMove`'s successor). If the refresh
   ends without the id reappearing, the final reconciliation clears
   the selection; a user selection made in between wins outright.
+- `selectionIntentClearsOnTerminalFailure` (R2-1) — deltas remove
+  the selected item, then the refresh fails terminally (no final
+  snapshot): the intent is cleared at the terminal event, and a
+  later refresh reinserting the same id does **not** reselect it.
 
 Performance and memory (the M1-M3 checkpoint, Release, recorded
 environment, spike presets; budgets are the spike's measured ceilings
@@ -649,9 +710,11 @@ with headroom, misses gate completion the way M2-M2's did):
   100k, ≤ 1.2 s at 1m.
 - Delta application on the current search, By-Tab visible bucket:
   ≤ 5 ms at 1m; By-Item merge: ≤ 50 ms at 1m.
-- Resident key memory, active column: By-Item at 1m ≤ 300 MB;
-  By-Tab: transient only, single-bucket peak (≤ 1 MB) at any scale
-  and any expansion state (R1-5).
+- Resident key memory, active column, **aggregate across all
+  searches** (R2-4): ≤ 300 MB at 1m in the worst materialized shape
+  (By-Item, or broad-filter fully-expanded By-Tab — R2-3);
+  collapsed-default unfiltered view ≈ 0; background searches
+  exactly 0.
 
 Design-review criteria (checked in review, not runnable):
 
@@ -704,7 +767,7 @@ Design-review criteria (checked in review, not runnable):
 
 | Input (parent plan M3 section, spike, register, hold point) | Consumed by |
 |---|---|
-| Bucket architecture matches the delta shape; tab delta → fine-grained ops or one-bucket replace | D3 (one-bucket replace chosen) |
+| Bucket architecture matches the delta shape; tab delta → fine-grained ops or one-bucket replace | D3 (source-scoped replace within the display bucket, with sorted merge — R1-1/R2-2) |
 | By-Item single flat bucket needs a sorted merge per delta | D4 |
 | Pricing semantics settled by M2 D7; M3 inherits | Scope (out), staleness preamble |
 | Success criterion: refreshing one tab leaves everything else untouched; full refresh = N deltas, no destructive path | D3, `unrelatedDeltaLeavesOtherBucketsUntouched`, `noModelResetDuringRefresh` |
@@ -720,10 +783,15 @@ Design-review criteria (checked in review, not runnable):
 | Hold point (Tom, July 30, 2026): levers A+B committed; intended order; memory measured pre-freeze | D1, D2, D5; spike section 4 |
 | M2 hard constraint: no per-delta uncoalesced model reset; freshness bound | D3 (no reset at all; throttle retired, bound trivially met) |
 
-Every named input is consumed. Review round 1 (R1-1…R1-8, July 30,
-2026, all accepted) is incorporated throughout — verdicts and
-resolutions in `items-pipeline-m3-reviews.md`, which also carries
-the revision log. The round's structural theme: revision 1
-specified the single-event grain and round 1 forced the sequence
-grain (source vs. display bucket, cross-delta selection state,
-snapshot-boundary rows, pricing-pass batching).
+Every named input is consumed. Review rounds 1–2 (R1-1…R1-8,
+R2-1…R2-6, July 30, 2026, all fourteen accepted) are incorporated
+throughout — verdicts and resolutions in
+`items-pipeline-m3-reviews.md`, which also carries the revision
+log. The rounds' structural theme: revision 1 specified the
+single-event grain; round 1 forced the sequence grain (source vs.
+display bucket, cross-delta selection state, snapshot-boundary
+rows, pricing-pass batching); round 2 closed the boundaries round
+1's own resolutions opened (intent lifetime at the failure
+terminal, merge order in multi-source buckets, residency across
+searches) and returned one of them — key residency — to the hold
+point's settled cached-key choice (R2-3).

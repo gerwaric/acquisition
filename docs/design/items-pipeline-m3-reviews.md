@@ -33,6 +33,22 @@ cites findings by number; this file is the record.
   only (R1-7); the broad-filter default-expanded worst case is
   documented and budgeted (R1-8).
 
+- **Revision 3 (July 30, 2026)** — round 2 incorporated (external
+  review of revision 2, six findings R2-1…R2-6, all verified and
+  accepted; R1-2/R1-4/R1-7/R1-8's resolutions confirmed adequate).
+  Key changes: the selection-intent window closes on **every**
+  `RefreshFinished` outcome, failure included (R2-1); visible
+  multi-source buckets get a remove-runs + sorted-merge-insert-runs
+  contract, and D3's O(1) batch claim is corrected to O(runs)
+  (R2-2); **By-Tab key residency is restored** for the active
+  search's materialized buckets — round 1's transient-key resolution
+  had silently altered the hold point's cached-key choice, and
+  revision 3 specifies eviction/invalidation *within* the settled
+  choice instead (R2-3); key residency is scoped to the active
+  search, with lazy rebuild on reactivation (R2-4); user buyout
+  commands batch at command scope (R2-5); three stale references
+  fixed, including the nonexistent `MigrateTab` (R2-6).
+
 ## Round 1 (July 30, 2026 — external review of revision 1)
 
 Eight findings, all **accepted** after claim-by-claim verification
@@ -61,4 +77,34 @@ contracts that hold at the single-event grain must be re-checked at
 the sequence grain (two deltas in flight, a pass of many mutations, a
 whole refresh). One finding (R1-5) was resolved by simplifying the
 design rather than adding state — transient keys retire the cache
-lifetime questions instead of answering them.
+lifetime questions instead of answering them. *(Round 2 note: that
+resolution overstepped — see R2-3, which reversed the transient-key
+choice for By-Tab while keeping the flag machinery it introduced.)*
+
+## Round 2 (July 30, 2026 — external review of revision 2)
+
+Six findings, all **accepted** after verification (`MigrateTab`'s
+nonexistence and the `OnBuyoutChange` multi-row loop
+(`ui/mainwindow.cpp:541-567`) confirmed in code; R2-1/R2-2 confirmed
+against the revision-2 contracts; R2-3 confirmed against the
+hold-point record). The round also confirmed R1-2, R1-4, R1-7, and
+R1-8 as adequately resolved.
+
+| # | Severity | Finding | Verdict and resolution |
+|---|---|---|---|
+| R2-1 | High | The selection-intent window ran from first delta to final reconciliation, but `FailedRefresh` emits no final snapshot (M2 D4) — after a failed refresh an absent item's intent could survive into a later refresh and unexpectedly reselect it. | Accepted. The intent window now closes on **every** `RefreshFinished` outcome: success closes it at the final reconciliation; failure performs the absence check against the visible result at the terminal event itself. New pin `selectionIntentClearsOnTerminalFailure`. |
+| R2-2 | High | Source-scoped removal preserves siblings, but sorting the arrivals alone cannot establish a visible multi-source bucket's global order — arrivals must merge into the retained sibling rows; and D3's "O(1) row-op batches" claim contradicted the O(runs) reality D4 already acknowledged. | Accepted. D3 now specifies remove-runs plus sorted-merge insert-runs for visible multi-source buckets (O(runs) model operations, O(bucket) work) and the batch-count claim is corrected to O(runs), O(1) in the common single-source case. `childDeltaPreservesSiblingSourcesInParentBucket` extended with heavily interleaved keys and persistent-index assertions. |
+| R2-3 | High | Revision 2's transient-By-Tab-keys resolution (R1-5) silently changed the hold point's **cached**-key lever: direction flips and invalidations now rebuilt keys instead of reusing them, altering a settled decision rather than specifying its lifecycle. | Accepted — the finding restores the settled choice. Key residency returns for the active search's materialized buckets (expanded By-Tab and the By-Item flat bucket): keys persist across re-sorts and direction flips; **collapse evicts keys while order and flag persist** (safe, because invalidation acts on flags independently of key residency — answering R1-5's original question within the cached design); column switches discard. The broad-filter fully-expanded memory ceiling (~a full-collection footprint) is now stated and budgeted. New pin `keyResidencyFollowsMaterialization`; `byTabKeysAreTransient` retired. |
+| R2-4 | Medium | By-Item key residency across view/search switches was unspecified: "while that view is active" never defined active, and N background By-Item searches could each hold ~222–266 MB. | Accepted, generalized to all resident keys: **residency is scoped to the active search** — deactivation evicts every key vector (orders and flags persist); reactivation rebuilds lazily at the next event that needs keys, not eagerly. At most one search holds resident keys at any time. New pin `residentKeysScopedToActiveSearch` (aggregate-memory assertion across multiple searches, By-Item included). |
+| R2-5 | Medium | "User edits apply immediately" still permitted one reorder per `Set`: `OnBuyoutChange` loops every selected row and then propagation runs, recreating in one command the quadratic behavior R1-6's pass-batching prevents. | Accepted. Verified the loop at `ui/mainwindow.cpp:541-567`. "Immediate" is redefined as **one batch at user-command end**; per-`Set` reordering is forbidden at every batch boundary (pass or command). New pin `multiSelectionBuyoutEditReordersOnce`. |
+| R2-6 | Low | Three stale references: D3 still called the intersection machinery "unchanged" despite the metadata half; traceability still said "one-bucket replace chosen" despite R1-1; and `MigrateTab` was named and pinned but does not exist (only `MigrateItem` does). | Accepted. All three corrected; the round-1 table's `MigrateTab` mentions stand as historical record, corrected here. The choke-point inventory now names `MigrateItem` alone and notes there is no tab-level migration. |
+
+Round narrative: rounds 1 and 2 form a pair — round 1 pushed the
+spec from event grain to sequence grain, and round 2 caught the
+places where round 1's own resolutions were under-specified at their
+boundaries (intent lifetime at the failure terminal, merge order in
+multi-source buckets, residency across searches) or overstepped
+(R2-3). The R2-3 lesson is a process one, worth keeping: a review
+resolution may simplify *within* a settled decision, but changing
+the settled decision itself — however defensible on the merits —
+belongs to a hold point, not a revision.
