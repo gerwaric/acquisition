@@ -332,7 +332,14 @@ the M2 spec:**
   maximum staleness — a throttle that guarantees the visible view is
   never more than a stated interval behind the applied state.
 
-### Milestone 3 — Delta-native items model (later)
+### Milestone 3 — Delta-native items model (spec drafted July 30, 2026: `items-pipeline-m3.md`, revision 1, in review)
+
+The "profile before choosing levers" obligation below was discharged
+July 30, 2026 by the S1-M3 sort-profiling spike
+(`m3-sort-profile-result.md`; throwaway branch `spike/m3-sort-profile`,
+never merged) and the same-day lever hold point, whose decisions the
+spec records. The inputs below are kept as written; the spec's
+traceability table maps each to its consuming decision.
 
 Make Layer 3 consume deltas natively, eliminating the full reset:
 
