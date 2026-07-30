@@ -441,15 +441,18 @@ QColor PriceColumn::color(const Item &item) const
                             : QApplication::palette().color(QPalette::WindowText);
 }
 
+ItemSortKey::PriceHead PriceColumn::head(const Item &item) const
+{
+    const Buyout &bo = m_bo_manager.Get(item);
+    return ItemSortKey::PriceHead(bo.currency.AsRank(), bo.value);
+}
+
 std::tuple<int, double, const Item &> PriceColumn::multivalue(const Item *item) const
 {
-    const Buyout &bo = m_bo_manager.Get(*item);
-    // forward_as_tuple used to forward item reference properly and avoid ref to temporary
-    // that will be destroyed.  We want item reference because we want to sort based on item
-    // object itself and not the pointer.  I'm not entirely sure I fully understand
-    // this mechanism, but basically want to avoid a ton of Item copies during sorting
-    // so trying to avoid pass by value (ericsium).
-    return std::forward_as_tuple(bo.currency.AsRank(), bo.value, *item);
+    const ItemSortKey::PriceHead h = head(*item);
+    // The item reference (rather than a copy or pointer) makes the tuple
+    // comparison tie-break on the item object itself (Item::operator<).
+    return std::tuple<int, double, const Item &>(std::get<0>(h), std::get<1>(h), *item);
 }
 
 bool PriceColumn::lt(const Item *lhs, const Item *rhs) const
@@ -462,9 +465,7 @@ bool PriceColumn::lt(const Item *lhs, const Item *rhs) const
 
 ItemSortKey PriceColumn::key(const Item &item) const
 {
-    const Buyout &bo = m_bo_manager.Get(item);
-    return ItemSortKey{ItemSortKey::PriceHead(bo.currency.AsRank(), bo.value),
-                       suffix(item, item.PrettyName())};
+    return ItemSortKey{head(item), suffix(item, item.PrettyName())};
 }
 
 DateColumn::DateColumn(const BuyoutManager &bo_manager)
@@ -482,20 +483,24 @@ QVariant DateColumn::value(const Item &item) const
     return bo.IsActive() ? Util::TimeAgoInWords(bo.last_update) : QVariant();
 }
 
+ItemSortKey::DateHead DateColumn::head(const Item &item) const
+{
+    return ItemSortKey::DateHead(m_bo_manager.Get(item).last_update);
+}
+
 bool DateColumn::lt(const Item *lhs, const Item *rhs) const
 {
     if (auto &probes = ModelProbes::instance(); probes.enabled) {
         ++probes.comparator_calls;
     }
-    const QDateTime lhs_update_time = m_bo_manager.Get(*lhs).last_update;
-    const QDateTime rhs_update_time = m_bo_manager.Get(*rhs).last_update;
-    return (std::tie(lhs_update_time, *lhs) < std::tie(rhs_update_time, *rhs));
+    const ItemSortKey::DateHead lhs_head = head(*lhs);
+    const ItemSortKey::DateHead rhs_head = head(*rhs);
+    return (std::tie(lhs_head, *lhs) < std::tie(rhs_head, *rhs));
 }
 
 ItemSortKey DateColumn::key(const Item &item) const
 {
-    return ItemSortKey{ItemSortKey::DateHead(m_bo_manager.Get(item).last_update),
-                       suffix(item, item.PrettyName())};
+    return ItemSortKey{head(item), suffix(item, item.PrettyName())};
 }
 
 QString ItemlevelColumn::name() const

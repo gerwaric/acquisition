@@ -226,6 +226,9 @@ public:
     }
 
 private:
+    // The comparator's head tuple, shared by lt (via multivalue) and key
+    // so Price ordering is defined once.
+    ItemSortKey::PriceHead head(const Item &item) const;
     std::tuple<int, double, const Item &> multivalue(const Item *item) const;
     const BuyoutManager &m_bo_manager;
 };
@@ -245,6 +248,9 @@ public:
     }
 
 private:
+    // The comparator's head tuple, shared by lt and key so Date ordering
+    // is defined once.
+    ItemSortKey::DateHead head(const Item &item) const;
     const BuyoutManager &m_bo_manager;
 };
 
