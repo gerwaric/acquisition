@@ -66,6 +66,16 @@ cites findings by number; this file is the record.
   four-pass pricing sequence is **required** to emit one model
   batch (R3-4). The round was a consistency pass over revision 3's
   restored cache, not a re-litigation of any settled decision.
+- **FROZEN (July 30, 2026, at revision 4)** — Tom froze the spec
+  after round 3's reviewers judged it at diminishing returns and
+  the focused consistency check they prescribed (key residency,
+  activation ordering, nested batching — run as a scoped
+  fresh-eyes pass over the full document) surfaced only
+  wording-level findings, all folded into revision 4 pre-commit.
+  The review series is closed. Post-freeze changes follow the M2
+  convention: recorded amendments with reasons, never silent
+  edits. Production implementation proceeds against revision 4,
+  with M1-M3 as the completion gate.
 
 ## Round 1 (July 30, 2026 — external review of revision 1)
 

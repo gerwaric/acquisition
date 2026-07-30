@@ -1,8 +1,15 @@
 # Items Pipeline Milestone 3: Delta-Native Items Model
 
-Status: **DRAFT, revision 4** (July 30, 2026). In review, not
-frozen; production implementation must not begin against this
-document. Review rounds 1–3 (external; R1-1…R1-8, R2-1…R2-6, and
+Status: **FROZEN at revision 4** (July 30, 2026). Production
+implementation may begin against this document; M1-M3 (the
+performance/memory checkpoint in the acceptance criteria) gates M3
+completion. Frozen on Tom's decision after the round-3 reviewers
+judged the spec at diminishing returns and the prescribed focused
+consistency check (key residency, activation ordering, nested
+batching) passed with only wording-level findings, folded into
+revision 4 before it was committed. Post-freeze changes follow the
+M2 convention: recorded amendments with reasons, never silent
+edits. Review rounds 1–3 (external; R1-1…R1-8, R2-1…R2-6, and
 R3-1…R3-4, all eighteen verified and accepted) are incorporated
 throughout. Round 1's largest changes: D3's source-scoped
 replacement grain (R1-1), the final snapshot's row reconciliation
