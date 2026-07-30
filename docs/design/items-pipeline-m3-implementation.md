@@ -1,6 +1,13 @@
 # Items Pipeline M3: Implementation Sequence
 
-Status: **PROPOSED** (July 30, 2026) — awaiting external review.
+Status: **PROPOSED, review round 1 incorporated** (July 30, 2026) —
+awaiting the reviewer's acceptance pass. Round 1 (external, four
+adjustments, all accepted): two pin-to-stage traceability fixes —
+pins whose closing machinery lands later than their declared stage,
+and timer pins deleted in S4 while the By-Item fallback still
+reached the timer; the column-gating qualifier on S2's conservative
+re-sort; and tightened S6 verification (fallback-insensitive
+revalidation, the storm's full input set, exact sub-budgets).
 This document sequences the production implementation of the frozen
 M3 spec (`items-pipeline-m3.md`, frozen at revision 4). It makes
 **no design arguments and changes no decisions**: the spec is
@@ -38,7 +45,9 @@ names in `camelCase`. "M2" decisions and pins are cited qualified.
    path (deleted in S5) and the final-snapshot reset (deleted in
    S6) are retained deliberately; each is marked at the code site
    with the stage that deletes it, and its deletion is part of that
-   stage's definition of done.
+   stage's definition of done. **While a seam is reachable it stays
+   pinned**: the M2 tests covering it survive, fallback-scoped,
+   until the seam's deleting stage (see the supersession map).
 3. **Conditional hold points (M2 vertical-slice lesson).** Stages
    S3, S4, and S5 run their applicable M1-M3 budget rows, Release
    build, spike presets, recorded environment. **A miss pauses the
@@ -96,10 +105,13 @@ Pins closed: `keyedOrderMatchesComparatorOrder`,
   around `MigrateBuyouts` → `ApplyAutoTabBuyouts` →
   `ApplyAutoItemBuyouts` → `PropagateTabBuyouts`, and
   column-independent cell repaint.
-- Model response is conservative: **one re-sort per outer batch
-  with freshly built keys** (S1 semantics). Correctness is
-  unconditional; the batching contract is exercised before cache
-  correctness depends on it.
+- Model response is conservative and column-gated: **with Price or
+  Date active, one re-sort per outer batch with freshly built
+  keys** (S1 semantics); with any other column active, the batch
+  repaints affected cells and reorders nothing — the spec gates
+  reordering on the active sort column at every batch boundary.
+  Correctness is unconditional; the batching contract is exercised
+  before cache correctness depends on it.
 
 Pins closed: `pricingPassYieldsSingleModelUpdate`,
 `multiSelectionBuyoutEditReordersOnce`,
@@ -129,18 +141,28 @@ Pins closed: `collapsedBucketsDeferSorting`,
 `restoredExpansionSortsRestoredBucketsOnly`,
 `filteredSearchSortsAllVisibleBuckets`,
 `sortedOrderSurvivesCollapse`,
-`collapsedInvalidBucketResortsOnReexpand`,
 `keyResidencyFollowsMaterialization`,
-`residentKeysScopedToActiveSearch`,
 `reexpandedBucketFlipHydratesOnce`,
 `sortColumnSwitchResortsVisibleBucketsOnly`,
 `priceKeysFollowBuyoutEdits` (complete).
 
+Two pins deliberately do **not** close here:
+`residentKeysScopedToActiveSearch` is partially established (By-Tab
+per-bucket laziness, eviction on deactivation, the aggregate-memory
+assertion) and fully closes in S5, where its clean-By-Item
+eager-hydration clause first becomes satisfiable.
+`collapsedInvalidBucketResortsOnReexpand` requires content
+replacement **by delta** and closes in S4 — S3 has no delta-grain
+replacement primitive, and building one early just to close a pin
+would be exactly the out-of-order scaffolding this sequence exists
+to avoid.
+
 **Hold-point budget rows (conditional):** worst-case unfiltered
-By-Tab refilter (≤ 60 ms @100k, ≤ 500 ms @1m); single-bucket expand
-cold (≤ 10 ms); broad-filter default-expanded refilter (≤ 150 ms
-@100k, ≤ 1.2 s @1m); collapsed-default and background resident-key
-memory (≈ 0 / exactly 0). By-Item rows wait for S5.
+By-Tab refilter (≤ 60 ms @100k, ≤ 500 ms @1m, sort share ≤ 5 ms);
+single-bucket expand cold (≤ 10 ms at both scales); broad-filter
+default-expanded refilter (≤ 150 ms @100k, ≤ 1.2 s @1m);
+collapsed-default and background resident-key memory (≈ 0 /
+exactly 0). By-Item rows wait for S5.
 
 ### S4 — By-Tab delta operations + selection intent; throttle retired for By-Tab only
 
@@ -169,13 +191,21 @@ Pins closed: `unrelatedDeltaLeavesOtherBucketsUntouched`,
 `deltaUpdatesVisibleIndexesIncrementally`,
 `bucketRepositionsByMoveOnMetadataDelta`,
 `metadataDeltaAppliesWithoutItemIntersection`,
-`appliedDeltasLeaveActiveSearchClean`,
+`collapsedInvalidBucketResortsOnReexpand` (moved from S3: its
+content replacement is delta-grain),
 `staleOrderNeverSurvivesDelta`,
 `selectionIntentSurvivesCrossTabMoveAcrossDeltas`,
 `selectionIntentClearsOnTerminalFailure`.
 
+`appliedDeltasLeaveActiveSearchClean` closes its **By-Tab half**
+here; the By-Item half completes in S5. Under this stage's
+fallback, a By-Item active search still refilters via the tick, so
+the pin's full claim is not yet true and must not be asserted.
+
 M2-pin turnover in this stage follows the supersession map below;
-each deleted pin's commit cites its map entry.
+each deleted pin's commit cites its map entry. Pins the fallback
+seams still exercise are **not** deleted here — see the map's
+seam-reachability rule.
 
 **Hold-point budget row (conditional):** delta application, By-Tab
 visible bucket (≤ 5 ms @1m).
@@ -189,12 +219,22 @@ visible bucket (≤ 5 ms @1m).
   (R3-1), completing the residency machinery S3 scaffolded.
 - **Delete the By-Item throttle fallback** — the last D9 timer
   machinery goes here, with the remaining timer-encoding M2 pins
-  (map below).
+  (map below), including the fallback-scoped
+  `tabSwitchBeforeTickPreservesDirty` and
+  `scrollAndCaptureSurviveThrottledReset` kept green through S4;
+  the latter's D6 retarget, **`scrollAndCaptureSurviveUserRefilter`**
+  (capture/restore fidelity on the user-initiated refilter reset),
+  lands here as its named replacement.
 
 Pins closed: `byItemMergeMatchesFullSort`,
 `byItemRemovalOnlyDeltaErasesInPlace`,
 `byItemSelectionSurvivesMerge`,
-`byItemActivationDecidesDirtinessFirst`.
+`byItemActivationDecidesDirtinessFirst`,
+`scrollAndCaptureSurviveUserRefilter`; and the halves deferred from
+earlier stages complete here — `residentKeysScopedToActiveSearch`
+(the clean-By-Item eager-hydration clause) and
+`appliedDeltasLeaveActiveSearchClean` (By-Item, now
+fallback-free).
 
 **Hold-point budget rows (conditional):** By-Item full refilter
 (≤ 250 ms @100k, ≤ 1.5 s @1m); By-Item merge (≤ 50 ms @1m); clean
@@ -210,8 +250,18 @@ worst-shape resident key memory (≤ 300 MB @1m aggregate).
 - **Delete the final-snapshot reset fallback.** Resets now exist
   only on D6's enumerated user-initiated paths and initial
   population.
-- Close the storm test: model tester attached through randomized
-  interleaved deltas, expansion changes, sort clicks, view-mode
+- **Revalidate the final-reconciliation clauses of
+  `selectionIntentSurvivesCrossTabMoveAcrossDeltas` and
+  `byItemSelectionSurvivesMerge` against the new path explicitly.**
+  Both clauses also pass under the temporary final-reset fallback,
+  so merely staying green proves nothing about the reconciliation —
+  the S6 assertions must show (probe: reset counter zero,
+  reconciliation entered) that the row reconciliation, not a
+  reset, performed the intent/selection clearing.
+- Close the storm test with the full input set: content deltas,
+  empty deltas, child reconciliations, metadata deltas, new-tab
+  discoveries, and final reconciliations, randomized and
+  interleaved with expansion changes, sort clicks, and view-mode
   switches.
 
 Pins closed: `noModelResetDuringRefresh`,
@@ -245,8 +295,21 @@ Result doc: `m1-m3-result.md` beside the spec.
 
 The spec requires the D9-era pins deleted "by renegotiation, not
 silent breakage — each mapped to its D3-era replacement in the
-implementation plan." All live in `tests/tst_mainwindow.cpp`. Three
-categories:
+implementation plan." All live in `tests/tst_mainwindow.cpp`.
+
+**Seam-reachability rule**: deletion stages are chosen against what
+the fallback seams keep reachable, not against when a successor
+lands. Through S4 the By-Item fallback still exercises the tick and
+the throttled reset, so the pins covering them survive S4
+fallback-scoped and die with the timer in S5. The S4 deletions were
+checked against the seams: `reselectionSurvivesCrossTabMove`'s
+successor and the S4 intent machinery cover both application paths
+(intent is defined during an active refresh regardless of
+mechanism), and `emptyDeltaMetadataLandsAtNextRefilter` has no
+By-Item surface (the flat bucket renders no per-tab metadata rows),
+so neither outlives its coverage.
+
+Three categories:
 
 **Superseded — deleted with the machinery, concern carried by a
 named M3 pin:**
@@ -254,12 +317,12 @@ named M3 pin:**
 | M2 pin | Deleted in | Concern's M3 successor |
 |---|---|---|
 | `throttleDoesNotRearm` | S5 (timer deletion) | Bounded staleness → immediacy: `staleOrderNeverSurvivesDelta` |
-| `tabSwitchBeforeTickPreservesDirty` | S4 | R1-7 renegotiation: `appliedDeltasLeaveActiveSearchClean` (background half stays covered by `backgroundDeltaLeavesModelUntouched`, which survives) |
+| `tabSwitchBeforeTickPreservesDirty` | S5 — kept green, fallback-scoped, through S4 (the By-Item tick still reaches it) | R1-7 renegotiation: `appliedDeltasLeaveActiveSearchClean` (background half stays covered by `backgroundDeltaLeavesModelUntouched`, which survives) |
 | `finalSnapshotCancelsPendingTick` | S5 (timer deletion) | `finalReconciliationRemovesDeletedTabs` / `finalReconciliationInsertsNewlyListedEmptyTabs` + the reconciliation's dirty-flag clear in `appliedDeltasLeaveActiveSearchClean` |
 | `pendingTickSurvivesTerminalFailure` | S5 (timer deletion) | Applied-state persistence after failure: `metadataDeltaAppliesWithoutItemIntersection` (final clause) + `selectionIntentClearsOnTerminalFailure` |
 | `emptyDeltaMetadataLandsAtNextRefilter` | S4 | R1-4 retired the M2 R7-2 exception it encodes: `metadataDeltaAppliesWithoutItemIntersection` |
 | `reselectionSurvivesCrossTabMove` | S4 | Named successor in the spec: `selectionIntentSurvivesCrossTabMoveAcrossDeltas` — lands in the same stage, no green-test gap |
-| `scrollAndCaptureSurviveThrottledReset` | S4 | Refresh path: `unrelatedDeltaLeavesOtherBucketsUntouched` (nothing moves, nothing to restore); the capture/restore machinery itself is retargeted to D6's user-refilter reset, where a renamed pin keeps it covered |
+| `scrollAndCaptureSurviveThrottledReset` | S5 — kept green, fallback-scoped, through S4 (the By-Item throttled reset still runs it) | Refresh path: `unrelatedDeltaLeavesOtherBucketsUntouched` (nothing moves, nothing to restore); the capture/restore machinery is retargeted to D6's user-refilter reset as `scrollAndCaptureSurviveUserRefilter`, landing in S5 with the deletion |
 
 **Deleted with the machinery, no successor needed (the hazard
 disappears with the timer; residual interleavings covered by
