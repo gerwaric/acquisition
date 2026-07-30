@@ -59,6 +59,16 @@ void ConnectMainWindow(Application &application,
                      &ItemsManager::ItemsRefreshed,
                      &main_window,
                      &MainWindow::OnItemsRefreshed);
+    // Streamed deltas (items-pipeline M2, D9): the manager's light re-emits
+    // drive the throttled, intersection-gated refilter machinery.
+    QObject::connect(&items_manager,
+                     &ItemsManager::TabRefreshed,
+                     &main_window,
+                     &MainWindow::OnTabRefreshed);
+    QObject::connect(&items_manager,
+                     &ItemsManager::ChildrenReconciled,
+                     &main_window,
+                     &MainWindow::OnChildrenReconciled);
     QObject::connect(&items_manager,
                      &ItemsManager::StatusUpdate,
                      &main_window,

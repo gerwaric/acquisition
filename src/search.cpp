@@ -15,8 +15,12 @@
 #include "util/fatalerror.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 
-Search::Search(BuyoutManager &bo_manager, const QString &caption, const FilterCatalog &catalog)
+Search::Search(BuyoutManager &bo_manager,
+               const QString &caption,
+               const FilterCatalog &catalog,
+               const LocationInventory *location_inventory)
     : m_bo_manager(bo_manager)
+    , m_location_inventory(location_inventory)
     , m_filter_catalog(catalog)
     , m_model(bo_manager, *this)
     , m_caption(caption)
@@ -101,9 +105,9 @@ void Search::setFilterState(qsizetype index, FilterState state)
     m_states_dirty = true;
 }
 
-void Search::setExpandedHeaders(std::set<QString> headers)
+void Search::setExpandedKeys(std::set<LocationInventory::Key> keys)
 {
-    m_expanded_property = std::move(headers);
+    m_expanded_keys = std::move(keys);
 }
 
 const std::vector<Bucket> &Search::buckets() const
@@ -163,15 +167,18 @@ const QModelIndex Search::index(const std::shared_ptr<Item> &item) const
         // Return an invalid index because there is no current item.
         return QModelIndex();
     }
-    // Look for a bucket that matches the item's location.
+    // Look for a bucket that matches the item's location. In ByItem mode
+    // the single bucket has a null location and holds every visible item,
+    // so it is always searched; a ByTab bucket must match the item's
+    // stable display key (M2 D6 — never mutable header text or position).
     const auto &bucket_list = buckets();
-    const auto &location_id = item->location().id();
+    const auto item_key = LocationInventory::KeyFor(item->location());
     const int bucket_count = static_cast<int>(bucket_list.size());
     for (int row = 0; row < bucket_count; ++row) {
         // Check each search bucket against the item's location.
         const auto &bucket = bucket_list[row];
-        const auto &bucket_id = bucket.location().id();
-        if (location_id == bucket_id) {
+        if ((m_current_mode == ViewMode::ByItem)
+            || (LocationInventory::KeyFor(bucket.location()) == item_key)) {
             // Check each item in the bucket.
             const QModelIndex parent = m_model.index(row);
             const auto &items = bucket.items();
@@ -209,7 +216,9 @@ void Search::FilterItems(const Items &items)
     // filter state changed since we last filtered. That happens when a form
     // edit writes through to this search and the debounced refresh lands on a
     // different one: the buckets and caption would otherwise stay stale.
-    if ((m_refresh_reason == RefreshReason::TabChanged) && !m_states_dirty) {
+    // The gate also tests items-dirty (M2 D9 rule 1): a streamed delta marks
+    // every search, and the flag forces a refilter on next activation.
+    if ((m_refresh_reason == RefreshReason::TabChanged) && !m_states_dirty && !m_items_dirty) {
         return;
     }
 
@@ -231,13 +240,21 @@ void Search::FilterItems(const Items &items)
     m_items.clear();
     m_filtered = false;
     m_filtered_item_count = 0;
+    m_visible_sources.clear();
+    m_visible_sources_by_tab.clear();
+    m_visible_by_id.clear();
 
     // A single bucket with null location is used to view all items at once.
     m_bucket_by_item.clear();
     m_bucket_by_item.emplace_back(ItemLocation());
 
-    // Temporarily store items-by-tabs in a map.
-    std::map<ItemLocation, Bucket> bucketed_tabs;
+    // Temporarily store items-by-tabs in a map keyed by the STABLE display
+    // identity (M2 D6/R5-1): ItemLocation orders stash locations by
+    // position, so keying on the location itself can split a moved tab into
+    // old- and new-position buckets, file fresh items under a stale header,
+    // or merge two different tabs whose positions collide mid-refresh. Each
+    // bucket renders the freshest metadata seen for its key.
+    std::map<LocationInventory::Key, Bucket> bucketed_tabs;
 
     // Try to minimize the number of times we have to loop over each item,
     // because some players have hundreds of thousands or millions of items.
@@ -265,38 +282,110 @@ void Search::FilterItems(const Items &items)
             // Add this item to the "By Item" bucket.
             m_bucket_by_item.front().AddItem(item);
 
-            // Add this item to the associagted "By Tab" bucket.
-            const ItemLocation location = item->location();
-            if (!bucketed_tabs.count(location)) {
-                bucketed_tabs[location] = Bucket(location);
+            // Add this item to the associated "By Tab" bucket.
+            const ItemLocation &location = item->location();
+            const auto key = LocationInventory::KeyFor(location);
+            auto bucket_it = bucketed_tabs.find(key);
+            if (bucket_it == bucketed_tabs.end()) {
+                bucket_it = bucketed_tabs.emplace(key, Bucket(canonicalLocation(location))).first;
             }
-            bucketed_tabs[location].AddItem(item);
+            bucket_it->second.AddItem(item);
+
+            // Record the fetch source for the D9 intersection tests.
+            const FetchSourceKey source_key = FetchSourceKey::ForLocation(location);
+            m_visible_sources.insert(source_key);
+            m_visible_sources_by_tab[key].insert(source_key);
+
+            // Record the stable identity for R6-3 reselection. Items
+            // without a server id cannot be identity-tracked and fall back
+            // to pointer reselection.
+            if (const QString item_id = item->id(); !item_id.isEmpty()) {
+                m_visible_by_id.emplace(item_id, item);
+            }
         }
     }
 
     // We need to add empty tabs here as there are no items to force their addition
     // But only do so if no filters are active as we want to hide empty tabs when
-    // filtering
+    // filtering. The published tab list resolves through the canonical
+    // inventory too, and tabs known only to the inventory (discovered
+    // mid-refresh by an empty delta, R6-1) are included until the final
+    // snapshot publishes them.
     if (!m_filtered) {
         for (auto &location : m_bo_manager.GetStashTabLocations()) {
-            if (!bucketed_tabs.count(location)) {
-                bucketed_tabs[location] = Bucket(location);
+            const auto key = LocationInventory::KeyFor(location);
+            if (!bucketed_tabs.count(key)) {
+                bucketed_tabs.emplace(key, Bucket(canonicalLocation(location)));
+            }
+        }
+        if (m_location_inventory) {
+            for (const auto &[key, location] : m_location_inventory->entries()) {
+                if (!bucketed_tabs.count(key)) {
+                    bucketed_tabs.emplace(key, Bucket(location));
+                }
             }
         }
     }
 
-    // Move the "By Tab" buckets into their final location.
+    // Move the "By Tab" buckets into their final location, ordered by their
+    // rendered locations — the map above is keyed for identity, not display
+    // order. Stable ids break positional ties so two tabs colliding on one
+    // position mid-refresh keep a deterministic order.
     m_bucket_by_tab.clear();
     m_bucket_by_tab.reserve(bucketed_tabs.size());
     for (auto &element : bucketed_tabs) {
         m_bucket_by_tab.emplace_back(std::move(element.second));
     }
+    std::sort(m_bucket_by_tab.begin(), m_bucket_by_tab.end(), [](const Bucket &a, const Bucket &b) {
+        const ItemLocation &la = a.location();
+        const ItemLocation &lb = b.location();
+        if (la < lb) {
+            return true;
+        }
+        if (lb < la) {
+            return false;
+        }
+        return la.id() < lb.id();
+    });
 
     // Let the model know that current sort order has been invalidated
     m_model.SetSorted(false);
     m_model.endUpdate();
 
     m_states_dirty = false;
+    m_items_dirty = false; // a successful refilter clears its own flag (D9 rule 3)
+}
+
+bool Search::MatchesActiveFilters(const Item &item) const
+{
+    for (qsizetype index = 0; index < static_cast<qsizetype>(m_filter_states.size()); ++index) {
+        const auto &state = m_filter_states.at(static_cast<size_t>(index));
+        if (IsActive(state) && !MatchesFilter(item, m_filter_catalog[index], state)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool Search::HasVisibleGhostUnder(const ItemLocation &parent,
+                                  const std::vector<FetchSourceKey> &expected) const
+{
+    const auto it = m_visible_sources_by_tab.find(LocationInventory::KeyFor(parent));
+    if (it == m_visible_sources_by_tab.end()) {
+        return false;
+    }
+    const std::set<FetchSourceKey> allowed(expected.begin(), expected.end());
+    for (const auto &key : it->second) {
+        if (allowed.count(key) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+const ItemLocation &Search::canonicalLocation(const ItemLocation &embedded) const
+{
+    return m_location_inventory ? m_location_inventory->Canonical(embedded) : embedded;
 }
 
 void Search::RenameCaption(const QString &newName)

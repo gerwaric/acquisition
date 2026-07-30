@@ -1342,21 +1342,29 @@ Design-review criteria (checked in review, not runnable):
   `s1-m2-spike-result.md`; full result in D9.
 - **M1-M2 (measurement, blocks nothing):** 2,000-entry `QueueUpdated`
   burst vs. status-widget frame time; builds the D10 coalesce only if
-  it stutters.
+  it stutters. Not run during M2 implementation (it blocks nothing);
+  recorded as a post-M2 follow-up.
 - **M2-M2 (measurement, first implementation checkpoint — blocks M2
-  completion, R2-3/R3-3/R4-1/R5-4/R7-3):** the complete synchronous
-  reply application on representative 100k and 1m datasets in a
-  recorded Release environment, with per-component attribution
-  (worker erase, manager erase, persistence, pricing, UI
-  intersection/fan-out). The manager's marginal erase cost (< 2 ms
-  at 100k / < 16 ms at 1m) gates the required manager remedy; the
-  whole-path budget (same thresholds, one frame at 1m) gates a
-  required real remedy for the dominant component. Runs as soon as
-  the post-F62 production reply path exists — on the real code, not
-  a throwaway slice (R7-3) — reusing S1-M2's harness datasets, with
-  fixed recorded reply/removal shapes; a selected remedy is
-  validated by rerun before M2 is considered complete (R6-6).
-  Result recorded in an addendum to this spec when it runs.
+  completion, R2-3/R3-3/R4-1/R5-4/R7-3) — RESOLVED July 29, 2026:**
+  the complete synchronous reply application on representative 100k
+  and 1m datasets in a recorded Release environment, with
+  per-component attribution (worker erase, manager erase,
+  persistence, pricing, UI intersection/fan-out). The manager's
+  marginal erase cost (< 2 ms at 100k / < 16 ms at 1m) gates the
+  required manager remedy; the whole-path budget (same thresholds,
+  one frame at 1m) gates a required real remedy for the dominant
+  component. Ran at the stage-4 checkpoint of production
+  implementation on the real reply path, reusing S1-M2's harness
+  datasets with fixed recorded reply/removal shapes. **Every budget
+  MISSED** (whole path 7.38 ms @100k / 74.93 ms @1m; four
+  O(all-items) erase passes were ~99% of the path, split evenly
+  worker/manager). Tom selected the named remedy PAIR at the hold
+  point — the required manager source-keyed map plus the symmetric
+  worker-side store (`SourceKeyedItems`, both sides) — and the R6-6
+  validation rerun passes every budget with more than an order of
+  magnitude of headroom (0.234 ms @100k, 1.225 ms @1m). Full
+  addendum, environment, attribution, and rerun tables:
+  `m2-m2-result.md` (beside this spec).
 
 ## Input traceability
 

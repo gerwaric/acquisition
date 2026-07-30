@@ -33,17 +33,6 @@ spec upgrade, July 2026): nothing forces storage changes here, so
 unification was dropped; a comment at the `m_refresh_checked` declaration
 documents the split. Unify only if other work touches this storage anyway.
 
-### F46. `ItemsManager::OnItemsRefreshed` runs an O(items) scan purely for logging — Confirmed
-
-Found during the July 2026 items-pipeline recon. The uncategorized-items
-loop in `ItemsManager::OnItemsRefreshed` (`itemsmanager.cpp`) walks the
-entire item vector calling `category()` on every refresh, and its only
-output is a per-item `trace` line and one `debug` count. The scan runs even
-when neither level is enabled. Cheap per item but whole-collection per
-emit; gate it behind `spdlog::should_log` or drop it. Opportunistic —
-absorb into items-pipeline M2/M3 work on this function rather than fixing
-inline (working rule 3).
-
 ### F54. The v4→v5 buyout migration never persists under the repo-backed store — Confirmed (mechanism); reachability unverified
 
 Found July 17, 2026, while validating the F52 fix's map-mirrors-repo
@@ -222,6 +211,7 @@ above). "PR #161" refers to the post-Phase-6 follow-ups branch
 | F43 | Restored bucket selection not highlighted in the tree | Fixed, PR #161 |
 | F44 | Item-path warning branches kept stale selection state | Fixed, PR #161 |
 | F45 | Shop threads could not be cleared; no-threads warning unreachable | Fixed, July 2026 (own change) |
+| F46 | `ItemsManager::OnItemsRefreshed` ran an O(items) uncategorized-items scan purely for logging, even with both log levels disabled | Fixed, items-pipeline M2 stage 2 (R1-9): gated behind `spdlog::should_log(debug)` in the same commit that reworked the function for streaming; the scan never runs on the delta path |
 | F47 | `ItemLocation::FixUid()` was dead code | Deleted, items-pipeline M1 |
 | F49 | Folder children suspected of being fetched twice via two paths | Closed by live observation, July 2026: the paths are complementary in the live API — folder children arrive only via the stash list (Standard, 16 child lists; the two individually fetched folders returned no `children` and no items), map/unique children only via the individual reply (Mirage, 73 children). The `OnStashReceived` tripwire warning stays in the code as a permanent guard should the API ever change. July 17 amendment: the warning's "fetched twice this update" claim can be false — during a partial refresh a known-but-unselected child is never queued from the stash list, so the parent path would be its only fetch. Reworded to "may be fetched twice" in the F53/F55 follow-up PR |
 | F48 | Character-list skip-check compared names against an id-keyed index (never matched), so a partial update re-added and re-fetched every character in the league, duplicating their tab entries and items | Found and fixed, items-pipeline M1 (character entries rebuilt from the fresh list, keyed by id) |

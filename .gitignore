@@ -7,6 +7,9 @@
 # Throwaway sanitizer build tree (ACQ_SANITIZE; see BUILD.md).
 /build-asan/
 
+# M2-M2 Release measurement build tree (docs/design/m2-m2-result.md).
+/build-release/
+
 # Phase-0 spike build trees (spikes/qcoro/README.md).
 /build-spike/
 /build-spike-asan/

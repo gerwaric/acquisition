@@ -16,7 +16,9 @@
 
 #include <spdlog/spdlog.h>
 
+#include "fetchsourcekey.h"
 #include "filters/filterspec.h"
+#include "item.h"
 #include "itemlocation.h"
 #include "util/programstate.h"
 
@@ -63,12 +65,26 @@ public:
     ~MainWindow();
     void LoadSettings();
 
+    // Injectable throttle period S for the D9 streamed-delta refilter
+    // (items-pipeline M2; production value 60 s). The suite drives it at
+    // milliseconds so throttle pins never wait wall-clock S.
+    void SetDeltaThrottleInterval(int ms);
+
 signals:
     void UpdateCheckRequested();
     void SetSessionId(const QString &poesessid);
     void SetTheme(const QString &theme);
     void GetImage(const QString &url);
 public slots:
+    // Streamed-delta consumers (items-pipeline M2, D9): rule 1 marks every
+    // search items-dirty; rule 2 schedules the current search's throttled
+    // refilter iff the delta intersects it. Aggregate reconciliations are
+    // first-class inputs — their intersection form is a visible item under
+    // the parent carrying a key outside the expected set (R5-2/R6-2).
+    void OnTabRefreshed(const ItemLocation &location, const Items &items);
+    void OnChildrenReconciled(const ItemLocation &parent,
+                              const std::vector<FetchSourceKey> &expected);
+
     void OnCurrentItemChanged(const QModelIndex &current, const QModelIndex &previous);
     void OnSearchFormChange();
     void OnDelayedSearchFormChange();
@@ -126,12 +142,23 @@ private slots:
     void OnUploadToImgur();
 
 private:
+    // D9 throttle internals: a non-resetting trailing throttle with period
+    // S owned by the current search.
+    bool DeltaIntersectsCurrentSearch(const ItemLocation &location, const Items &items) const;
+    void ScheduleThrottledRefilter();
+    void OnDeltaThrottleTimeout();
+
     void ModelViewRefresh();
     void ReselectCurrentItem();
     void ReselectCurrentBucket();
     void FlushPendingSearchFormChange();
     void SaveViewExpansion(Search &search);
     void RestoreViewExpansion(Search &search);
+    // R6-3 scroll preservation: a top-row anchor (bucket stable key +
+    // item stable id) with the raw scrollbar value as the fallback when
+    // the anchored row no longer exists after the reset.
+    void SaveViewScroll(Search &search);
+    void RestoreViewScroll(Search &search);
     void ClearCurrentItem();
     void UpdateCurrentBucket();
     void UpdateCurrentItem();
@@ -183,6 +210,11 @@ private:
     QTimer m_delayed_update_current_item;
     QTimer m_delayed_search_form_change;
     QTimer m_delayed_resize_columns;
+    // The current search's pending D9 tick (single-shot, period S). Started
+    // by the first intersecting delta, never re-armed by later arrivals;
+    // canceled by a successful refilter of the current search, a tab switch
+    // or deletion of the current search, and the final snapshot.
+    QTimer m_delta_throttle;
     QMetaObject::Connection m_current_item_conn;
     RateLimitDialog *m_rate_limit_dialog;
     bool m_quitting;
