@@ -423,7 +423,9 @@ void Application::OnItemsRefreshed(bool initial_refresh)
     spdlog::trace("Application::OnItemsRefreshed() initial_refresh = {}", initial_refresh);
     Q_UNUSED(initial_refresh);
     currency_manager().Update();
-    shop().ExpireShopData();
+    // Snapshot-boundary expiry (M2 D8/R5-6): dirties the preview cache but
+    // keeps any waiting clean automatic capture — only local edits drop it.
+    shop().OnPublishedSnapshot();
     // Automatic forum submission moved to the typed terminal event (M2
     // D8/R1-1): Shop::OnRefreshFinished gates it on a CLEAN CompletedRefresh,
     // which the initial cached load never emits (it is not an update).

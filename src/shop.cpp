@@ -115,6 +115,13 @@ void Shop::SetAutoUpdate(bool update)
     spdlog::debug("Shop: setting autoupdate to {}", update);
     m_auto_update = update;
     m_settings.setValue("shop_autoupdate", update);
+    // Disabling automation drops the waiting automatic capture (M2 D8/R5-6):
+    // the active job finishes normally, but no new automatic job may start
+    // after the user turned automation off.
+    if (!update && m_waiting_capture) {
+        spdlog::debug("Shop: dropping the waiting automatic capture — auto-update disabled");
+        m_waiting_capture.reset();
+    }
 }
 
 void Shop::SetShopTemplate(const QString &shop_template)
@@ -142,12 +149,50 @@ void Shop::OnRefreshFinished(const RefreshOutcome &outcome)
         return;
     }
     if (!completed->skipped.empty()) {
+        // Keep-and-drain (R5-6): the refresh was not clean, so it never
+        // becomes eligible — but an already-waiting clean capture is still
+        // the newest clean published state and survives untouched.
         spdlog::warn("Shop: no automatic submission — {} sources were skipped this refresh",
                      completed->skipped.size());
         return;
     }
     spdlog::trace("Shop::OnRefreshFinished() submitting shops");
-    SubmitShopToForum();
+    SubmitAutomaticShop();
+}
+
+void Shop::SubmitAutomaticShop()
+{
+    if (m_threads.empty()) {
+        spdlog::error("Shop: cannot submit shops because shop threads are not set.");
+        emit UserWarning("No forum threads have been set."
+                         "\n\n"
+                         "Use the Shop --> 'Forum shop thread...' menu item.");
+        return;
+    }
+    if (m_settings.value("session_id").toString().isEmpty()) {
+        spdlog::error("Shop: cannot submit a shop because the POESESSID is not set");
+        emit UserWarning("Cannot update forum shop threads because POESESSID has not been set."
+                         "\n\n"
+                         "Use the Shop --> 'Update Shop POESESSID' menu item."
+                         "\n\n"
+                         "This is required even if you have logged in with OAuth, because the "
+                         "forums do not support OAuth.");
+        return;
+    }
+
+    // Automatic admission captures BEFORE applying the busy policy (M2
+    // D8/R3-1): while a job is active, the newest clean capture becomes —
+    // or replaces — the single waiting automatic capture, so the pipeline
+    // converges to the newest clean snapshot instead of posting every
+    // clean refresh generation.
+    auto job = CaptureJob(false);
+    if (m_active_job) {
+        spdlog::debug("Shop: a submission is active; holding the newest clean capture");
+        m_waiting_capture = std::move(job);
+        return;
+    }
+    m_active_job = std::move(job);
+    UpdateStashIndex();
 }
 
 QString Shop::SpoilerBuyout(const Buyout &bo)
@@ -247,14 +292,14 @@ void Shop::OnStashIndexReceived(
                           RateLimit::ToString(result.error().kind),
                           result.error().message);
         }
-        m_active_job.reset();
+        FailActiveJob();
         return;
     }
     const poe::WebStashListWrapper *tabs_wrapper = &result.value();
 
     if (!tabs_wrapper->tabs) {
         spdlog::error("Shop: stash list result does not contains tabs list.");
-        m_active_job.reset();
+        FailActiveJob();
         return;
     }
 
@@ -275,6 +320,51 @@ void Shop::ExpireShopData()
     // only mark its own revision rendered, never this newer one.
     spdlog::trace("Shop: expiring shop data");
     ++m_input_revision;
+    // An output-affecting local edit drops the waiting automatic capture
+    // (R6-4): draining a pre-edit capture after the user's edit would post
+    // data older than their intent while telling them the shop updated. The
+    // active job's immutable capture is deliberately unaffected.
+    if (m_waiting_capture) {
+        spdlog::debug("Shop: dropping the waiting automatic capture — the shop input changed");
+        m_waiting_capture.reset();
+    }
+}
+
+void Shop::OnPublishedSnapshot()
+{
+    // The snapshot boundary dirties the preview/clipboard cache like any
+    // other input change, but a waiting CLEAN capture survives it (R5-6):
+    // a completed-with-skips or failed refresh publishing its snapshot must
+    // not invalidate the newest clean state waiting to drain.
+    spdlog::trace("Shop: expiring shop data at the published snapshot");
+    ++m_input_revision;
+}
+
+void Shop::CompleteActiveJob()
+{
+    // The success terminal exit (M2 D8): including the unchanged-hash
+    // no-post. Drain the newest waiting automatic capture, converging to
+    // the newest clean snapshot (R3-1).
+    m_active_job.reset();
+    if (m_waiting_capture) {
+        spdlog::debug("Shop: starting the waiting automatic submission");
+        m_active_job = std::move(m_waiting_capture);
+        UpdateStashIndex();
+    }
+}
+
+void Shop::FailActiveJob()
+{
+    // The failure terminal exit (M2 D8/R4-3, no kind discrimination):
+    // drain nothing and discard the waiting capture, leaving the input
+    // revision dirty — the next clean automatic request or manual request
+    // recaptures the latest published state instead of retrying a possibly
+    // stale snapshot or hammering an auth/network failure.
+    m_active_job.reset();
+    if (m_waiting_capture) {
+        spdlog::debug("Shop: discarding the waiting automatic capture after a failed submission");
+        m_waiting_capture.reset();
+    }
 }
 
 void Shop::OnStashIndexUpdated()
@@ -289,10 +379,11 @@ void Shop::OnStashIndexUpdated()
     RenderJob(job);
     PublishPreviewCache(job);
 
-    // Don't resubmit the shop if the data hasn't changed
+    // Don't resubmit the shop if the data hasn't changed. The no-post case
+    // is a SUCCESS terminal exit (M2 D8): it drains the waiting capture.
     if ((previous_hash == job.shop_hash) && !job.force) {
         spdlog::trace("Shop: skipping update because the shop hash has not changed");
-        m_active_job.reset();
+        CompleteActiveJob();
         return;
     }
 
@@ -428,14 +519,14 @@ void Shop::SubmitSingleShop()
         spdlog::debug("Shop: updated {} threads", job.threads.size());
         emit StatusUpdate(ProgramState::Ready, "Shop threads updated");
         m_datastore.Set("shop_hash", job.shop_hash);
-        m_active_job.reset();
+        CompleteActiveJob();
         return;
     }
 
     // This error should never happen.
     spdlog::error("Shop: shop thread # {} does not exist", job.requests_completed);
     emit StatusUpdate(ProgramState::Ready, "Shop threads not updated due to an error.");
-    m_active_job.reset();
+    FailActiveJob();
 }
 
 void Shop::OnEditPageFinished()
@@ -481,7 +572,7 @@ void Shop::OnEditPageFinished()
                           "thread ID may be invalid.");
             emit StatusUpdate(ProgramState::Ready, "Shop threads not updated due to an error.");
         }
-        m_active_job.reset();
+        FailActiveJob();
         return;
     }
     spdlog::trace("CSRF token found.");
@@ -496,7 +587,7 @@ void Shop::OnEditPageFinished()
                                 "\">");
     if (title.isEmpty()) {
         spdlog::error("Cannot update shop: title is empty. Check if thread ID is valid.");
-        m_active_job.reset();
+        FailActiveJob();
         reply->deleteLater();
         return;
     }
@@ -553,7 +644,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply *reply)
         if ((status < 200) || (status > 299)) {
             const QString msg = reply->errorString();
             spdlog::error("Shop: network error submitting shop: {} {}", status, msg);
-            m_active_job.reset();
+            FailActiveJob();
             return;
         }
         spdlog::debug("Shop: http reply status {} submitting shop", status);
@@ -582,7 +673,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply *reply)
             if (error_message.startsWith("Failed to find item.", Qt::CaseInsensitive)) {
                 spdlog::error(
                     "Shop: the stash index may be out of date. (Try Shop->\"Update stash index\")");
-                m_active_job.reset();
+                FailActiveJob();
                 return;
             } else if (error_message.startsWith("Security token has expired.")) {
                 // This error would occur somewhat randomly before a delay was added in OnEditPageFinished.
@@ -599,7 +690,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply *reply)
                 int ratelimit_delay = ratelimit_match.captured(1).toInt();
                 if (ratelimit_delay == 0) {
                     spdlog::error("Shop: error parsing wait time from error message.");
-                    m_active_job.reset();
+                    FailActiveJob();
                     return;
                 }
                 if (seconds < ratelimit_delay) {
@@ -609,7 +700,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply *reply)
             } else {
                 spdlog::error("Shop: unknown error fragment: {}", error_match.captured(0));
                 spdlog::debug("Shop: the query was: {}", reply->request().url().toDisplayString());
-                m_active_job.reset();
+                FailActiveJob();
                 return;
             }
         }
@@ -623,7 +714,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply *reply)
             return;
         } else {
             // Quit the update for any other error.
-            m_active_job.reset();
+            FailActiveJob();
             return;
         }
     }
@@ -633,7 +724,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply *reply)
     QString error = Util::FindTextBetween(page, "<ul class=\"errors\"><li>", "</li></ul>");
     if (!error.isEmpty()) {
         spdlog::error("Shop: (DEPRECATED) Error while submitting shop to forums: {}", error);
-        m_active_job.reset();
+        FailActiveJob();
         return;
     }
 
@@ -644,7 +735,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply *reply)
     if (!input_error.isEmpty()) {
         spdlog::error("Shop: (DEPRECATED) Input error while submitting shop to forums: {}",
                       input_error);
-        m_active_job.reset();
+        FailActiveJob();
         return;
     }
 
@@ -656,7 +747,7 @@ void Shop::OnShopSubmitted(QUrlQuery query, QNetworkReply *reply)
                           "submitting shop to forums: {}",
                           substr);
             spdlog::error(page);
-            m_active_job.reset();
+            FailActiveJob();
             return;
         }
     }

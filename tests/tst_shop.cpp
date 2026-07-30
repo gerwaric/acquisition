@@ -80,6 +80,16 @@ private slots:
     // Items-pipeline M2, D8/R1-1 (stage 7): the automatic-submission gate
     // on the typed terminal event.
     void shopSubmitsOnlyOnCleanCompletion();
+
+    // Items-pipeline M2, D8 (stage 8): the latest-eligible multi-job
+    // machinery — one active job, one waiting automatic capture, and the
+    // drop/drain transitions.
+    void newestCleanSnapshotSubmitsAfterActive();
+    void automaticSubmissionCoalescesLatestEligible();
+    void failedSubmissionDoesNotDrainPendingAutomatic();
+    void disablingAutoUpdateDropsWaitingCapture();
+    void skippedRefreshDoesNotInvalidateWaitingCapture();
+    void expireDropsWaitingCapture();
 };
 
 namespace {
@@ -446,6 +456,201 @@ void ShopTest::shopSubmitsOnlyOnCleanCompletion()
     QCOMPARE(fixture.rateLimiter->futureCount(), size_t(1));
     QCOMPARE(fixture.rateLimiter->pendingFuture(0).endpoint,
              QString("https://www.pathofexile.com/character-window/get-stash-items"));
+}
+
+// M2 D8/R3-1 (stage 8): a clean refresh completing while a job is active
+// becomes the waiting eligible capture; the active job's SUCCESS drains it,
+// and the drained submission posts the newer captured state.
+void ShopTest::newestCleanSnapshotSubmitsAfterActive()
+{
+    ShopFixture fixture;
+    armForSubmission(fixture);
+    fixture.shop->SetAutoUpdate(true);
+    const auto item = publishPricedItem(fixture, "item-a", 1);
+
+    // Clean refresh 1: the automatic job goes active (index fetch out).
+    fixture.shop->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(1));
+
+    // The published state changes; clean refresh 2 completes while the job
+    // is active: captured NOW, held as the waiting capture — no second
+    // index fetch yet.
+    fixture.buyoutFixture.manager->Set(*item, makeChaosBuyout(2));
+    fixture.shop->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(1));
+
+    // The active job runs to a successful completion on its own capture.
+    fixture.rateLimiter->resolve(0, kStashIndexJson);
+    drainEvents();
+    QVERIFY(fixture.shop->shop_data().first().contains(" 1 chaos"));
+    completeForumSubmission(fixture, 0);
+
+    // Success drains the waiting capture: a second index fetch goes out,
+    // and the drained job renders the NEWER captured state.
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(2));
+    fixture.rateLimiter->resolve(1, kStashIndexJson);
+    drainEvents();
+    QVERIFY(fixture.shop->shop_data().first().contains(" 2 chaos"));
+    completeForumSubmission(fixture, 2);
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(2)); // nothing else waits
+}
+
+// M2 D8/R3-1 (stage 8): intermediate clean snapshots coalesce — the newest
+// clean capture replaces the waiting one, and after the active job
+// completes, exactly ONE drained submission posts the newest state.
+void ShopTest::automaticSubmissionCoalescesLatestEligible()
+{
+    ShopFixture fixture;
+    armForSubmission(fixture);
+    fixture.shop->SetAutoUpdate(true);
+    const auto item = publishPricedItem(fixture, "item-a", 1);
+
+    fixture.shop->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(1));
+
+    // Two more clean refreshes while the job is active: the second replaces
+    // the first as the single waiting capture.
+    fixture.buyoutFixture.manager->Set(*item, makeChaosBuyout(2));
+    fixture.shop->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    fixture.buyoutFixture.manager->Set(*item, makeChaosBuyout(3));
+    fixture.shop->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(1));
+
+    fixture.rateLimiter->resolve(0, kStashIndexJson);
+    drainEvents();
+    completeForumSubmission(fixture, 0);
+
+    // Exactly one drained job, rendering the NEWEST capture; the
+    // intermediate clean snapshot is never posted.
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(2));
+    fixture.rateLimiter->resolve(1, kStashIndexJson);
+    drainEvents();
+    QVERIFY(fixture.shop->shop_data().first().contains(" 3 chaos"));
+    QVERIFY(!fixture.shop->shop_data().first().contains(" 2 chaos"));
+    completeForumSubmission(fixture, 2);
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(2));
+}
+
+// M2 D8/R4-3 (stage 8): a terminal submission failure drains nothing and
+// discards the waiting capture — automatic convergence halts until the
+// next clean refresh or a manual request, which recaptures fresh state.
+void ShopTest::failedSubmissionDoesNotDrainPendingAutomatic()
+{
+    ShopFixture fixture;
+    armForSubmission(fixture);
+    fixture.shop->SetAutoUpdate(true);
+    const auto item = publishPricedItem(fixture, "item-a", 1);
+
+    fixture.shop->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    fixture.buyoutFixture.manager->Set(*item, makeChaosBuyout(2));
+    fixture.shop->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(1));
+
+    // The active job fails at its index fetch: no drain, nothing sent to
+    // the forum, the waiting capture discarded.
+    fixture.rateLimiter->reject(0, RateLimit::FetchError::Kind::Http, "HTTP status 503");
+    drainEvents();
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(1));
+    QCOMPARE(fixture.networkManager->count(), 0);
+
+    // A manual request afterwards starts fresh — it recaptures the latest
+    // published state rather than draining a stale snapshot.
+    fixture.shop->SubmitShopToForum();
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(2));
+    fixture.rateLimiter->resolve(1, kStashIndexJson);
+    drainEvents();
+    QVERIFY(fixture.shop->shop_data().first().contains(" 2 chaos"));
+}
+
+// M2 D8/R5-6 (stage 8): disabling shop auto-update drops the waiting
+// automatic capture; the active job finishes normally but no new automatic
+// job may start after the user turned automation off.
+void ShopTest::disablingAutoUpdateDropsWaitingCapture()
+{
+    ShopFixture fixture;
+    armForSubmission(fixture);
+    fixture.shop->SetAutoUpdate(true);
+    const auto item = publishPricedItem(fixture, "item-a", 1);
+
+    fixture.shop->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    fixture.buyoutFixture.manager->Set(*item, makeChaosBuyout(2));
+    fixture.shop->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(1));
+
+    fixture.shop->SetAutoUpdate(false);
+
+    fixture.rateLimiter->resolve(0, kStashIndexJson);
+    drainEvents();
+    completeForumSubmission(fixture, 0);
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(1)); // no drain
+}
+
+// M2 D8/R5-6 keep-and-drain (stage 8): a completed-with-skips or failed
+// refresh arriving before the waiting clean capture drains does not
+// invalidate it — the gate's invariant is cleanliness, not recency.
+void ShopTest::skippedRefreshDoesNotInvalidateWaitingCapture()
+{
+    ShopFixture fixture;
+    armForSubmission(fixture);
+    fixture.shop->SetAutoUpdate(true);
+    const auto item = publishPricedItem(fixture, "item-a", 1);
+
+    fixture.shop->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    fixture.buyoutFixture.manager->Set(*item, makeChaosBuyout(2));
+    fixture.shop->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(1));
+
+    // A completed-with-skips refresh arrives, snapshot first (as in
+    // production: ItemsRefreshed then RefreshFinished), then a failed one.
+    // Neither invalidates the waiting clean capture.
+    fixture.shop->OnPublishedSnapshot();
+    RateLimit::FetchError parse_error;
+    parse_error.kind = RateLimit::FetchError::Kind::Parse;
+    CompletedRefresh with_skips;
+    with_skips.skipped.push_back(
+        SkippedSource{FetchSourceKey{ItemLocationType::STASH, "stash00001"}, parse_error});
+    fixture.shop->OnRefreshFinished(RefreshOutcome{with_skips});
+    RateLimit::FetchError network_error;
+    network_error.kind = RateLimit::FetchError::Kind::Network;
+    fixture.shop->OnRefreshFinished(RefreshOutcome{FailedRefresh{network_error}});
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(1));
+
+    // The active job succeeds: the kept capture drains.
+    fixture.rateLimiter->resolve(0, kStashIndexJson);
+    drainEvents();
+    completeForumSubmission(fixture, 0);
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(2));
+    fixture.rateLimiter->resolve(1, kStashIndexJson);
+    drainEvents();
+    QVERIFY(fixture.shop->shop_data().first().contains(" 2 chaos"));
+    completeForumSubmission(fixture, 2);
+}
+
+// M2 D8/R6-4 (stage 8): an output-affecting local edit (ExpireShopData)
+// drops the waiting automatic capture; the active job's immutable capture
+// is deliberately unaffected and posts as captured.
+void ShopTest::expireDropsWaitingCapture()
+{
+    ShopFixture fixture;
+    armForSubmission(fixture);
+    fixture.shop->SetAutoUpdate(true);
+    const auto item = publishPricedItem(fixture, "item-a", 1);
+
+    fixture.shop->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    fixture.buyoutFixture.manager->Set(*item, makeChaosBuyout(2));
+    fixture.shop->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(1));
+
+    // The user edits an output-affecting input: the waiting capture is
+    // dropped — draining it after the edit would post pre-edit data.
+    fixture.shop->ExpireShopData();
+
+    // The active job is unaffected: it renders and posts its own capture.
+    fixture.rateLimiter->resolve(0, kStashIndexJson);
+    drainEvents();
+    QVERIFY(fixture.shop->shop_data().first().contains(" 1 chaos"));
+    completeForumSubmission(fixture, 0);
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(1)); // no drain
 }
 
 QTEST_MAIN(ShopTest)

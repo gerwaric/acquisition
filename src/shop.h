@@ -42,7 +42,16 @@ public:
     void SetAutoUpdate(bool update);
     void SetShopTemplate(const QString &shop_template);
     void CopyToClipboard();
+    // An output-affecting LOCAL edit (buyout, template, threads): advances
+    // the input revision and drops any waiting automatic capture (M2
+    // D8/R6-4) — draining a pre-edit capture after the user's edit would
+    // post data older than their intent. The active job is deliberately
+    // unaffected: its capture is immutable and posts as captured.
     void ExpireShopData();
+    // A published SNAPSHOT boundary (final ItemsRefreshed): advances the
+    // input revision only. A waiting clean capture survives — the gate's
+    // invariant is cleanliness, not recency (M2 D8/R5-6 keep-and-drain).
+    void OnPublishedSnapshot();
     void SubmitShopToForum(bool force = false);
     bool auto_update() const { return m_auto_update; }
 
@@ -110,6 +119,21 @@ private:
     void RenderJob(ShopJob &job) const;
     void PublishPreviewCache(const ShopJob &job);
 
+    // Automatic admission (M2 D8/R3-1): captures BEFORE applying the busy
+    // policy — when a job is active, the capture becomes (or replaces) the
+    // single waiting automatic capture instead of being refused. Manual
+    // admission (SubmitShopToForum) still refuses while a job is active.
+    void SubmitAutomaticShop();
+
+    // The two terminal exits every submission converges on (M2 D8).
+    // Success — including the unchanged-hash no-post — releases the job and
+    // drains the newest waiting automatic capture; failure releases the job,
+    // drains nothing, and discards the waiting capture (R4-3: no kind
+    // discrimination), so the next clean automatic or manual request
+    // recaptures the latest published state.
+    void CompleteActiveJob();
+    void FailActiveJob();
+
     void UpdateStashIndex();
     void OnStashIndexReceived(
         const std::expected<poe::WebStashListWrapper, RateLimit::FetchError> &result);
@@ -131,10 +155,12 @@ private:
     QString m_shop_template;
     bool m_auto_update;
 
-    // The single active submission job (M2 D8): at most one. Stage 8 of the
-    // M2 sequence adds the waiting automatic capture and its drop/drain
-    // transitions; until then a busy shop refuses, as before.
+    // The submission desired state (M2 D8/R3-1): at most one active job and
+    // at most one waiting automatic capture behind it — the newest clean
+    // capture wins, so intermediate clean snapshots coalesce rather than
+    // making the forum observe every refresh generation.
     std::unique_ptr<ShopJob> m_active_job;
+    std::unique_ptr<ShopJob> m_waiting_capture;
 
     // Preview/clipboard cache, published only by rendered jobs that are not
     // older than the cache already here. Monotonic revisions replace the old
