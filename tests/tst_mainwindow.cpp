@@ -9,6 +9,7 @@
 #include <QItemSelectionModel>
 #include <QLabel>
 #include <QLineEdit>
+#include <QScrollBar>
 #include <QStandardPaths>
 #include <QTabBar>
 #include <QTreeView>
@@ -50,6 +51,13 @@ private slots:
     void successfulRefilterCancelsPendingTick();
     void pendingTickSurvivesTerminalFailure();
     void childReconciliationIntersectsVisibleGhosts();
+
+    // Items-pipeline M2, stage 5: the R6-3 restore-fidelity contract on the
+    // throttled reset path.
+    void expansionSurvivesRenameByStableKey();
+    void selectionSurvivesReplacementByStableIdentity();
+    void scrollAndCaptureSurviveThrottledReset();
+    void reselectionSurvivesCrossTabMove();
 
 private:
     std::shared_ptr<spdlog::logger> m_main_logger;
@@ -862,6 +870,223 @@ void MainWindowTest::childReconciliationIntersectsVisibleGhosts()
     // and the ghost leaves the view.
     QTRY_COMPARE_WITH_TIMEOUT(resets.count(), 1, 2000);
     QCOMPARE(visibleItemNames(*tree), QStringList({"ParentItem Sword"}));
+}
+
+// M2 R6-3 (stage 5): expansion is keyed by the stable (type, id), so a
+// delta that renames the expanded tab itself does not orphan the expansion
+// state across the throttled reset — and the bucket renders the new name.
+void MainWindowTest::expansionSurvivesRenameByStableKey()
+{
+    MainWindowFixture fixture;
+    fixture.window->SetDeltaThrottleInterval(100);
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-bbbb", "Beta", 1);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-b", "BetaItem", "Shield", tabB));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB}, false);
+
+    const QModelIndex bucket = findBucket(*tree->model(), tabA.GetHeader());
+    QVERIFY(bucket.isValid());
+    tree->expand(bucket);
+    QVERIFY(tree->isExpanded(bucket));
+
+    // The delta carries the same stable id under a new label.
+    const ItemLocation renamed = makeTestStashLocation("stash-aaaa", "AlphaPrime", 0);
+    QSignalSpy resets(tree->model(), &QAbstractItemModel::modelReset);
+    fixture.itemsManager
+        ->OnTabRefreshed(renamed, {makeMainWindowItem("item-a", "AlphaItem", "Sword", renamed)});
+    QTRY_COMPARE_WITH_TIMEOUT(resets.count(), 1, 2000);
+
+    // The bucket renders the fresh metadata and is still expanded; the old
+    // header no longer exists anywhere.
+    QVERIFY(!findBucket(*tree->model(), tabA.GetHeader()).isValid());
+    const QModelIndex renamedBucket = findBucket(*tree->model(), renamed.GetHeader());
+    QVERIFY(renamedBucket.isValid());
+    QVERIFY(tree->isExpanded(renamedBucket));
+}
+
+// M2 R6-3 (stage 5): a streamed replacement swaps the selected item's
+// object for a new one with the same stable id. The selection follows the
+// id, and the details panel adopts the replacement object rather than
+// rendering the dead one.
+void MainWindowTest::selectionSurvivesReplacementByStableIdentity()
+{
+    MainWindowFixture fixture;
+    fixture.window->SetDeltaThrottleInterval(100);
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    auto *locationLabel = fixture.window->findChild<QLabel *>("locationLabel");
+    QVERIFY(tree);
+    QVERIFY(locationLabel);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-z", "ZuluItem", "Sword", tabA));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+
+    const QModelIndex bucket = findBucket(*tree->model(), tabA.GetHeader());
+    QVERIFY(bucket.isValid());
+    tree->expand(bucket);
+    QModelIndex selected;
+    for (int row = 0; row < tree->model()->rowCount(bucket); ++row) {
+        const QModelIndex index = tree->model()->index(row, 0, bucket);
+        if (index.data().toString() == "AlphaItem Sword") {
+            selected = index;
+        }
+    }
+    QVERIFY(selected.isValid());
+    tree->selectionModel()->setCurrentIndex(selected,
+                                            QItemSelectionModel::ClearAndSelect
+                                                | QItemSelectionModel::Rows);
+
+    // The replacement delta: a NEW Item object with the same stable id and
+    // a different rendered name.
+    QSignalSpy resets(tree->model(), &QAbstractItemModel::modelReset);
+    fixture.itemsManager->OnTabRefreshed(tabA,
+                                         {makeMainWindowItem("item-a",
+                                                             "AlphaItem Two",
+                                                             "Sword",
+                                                             tabA),
+                                          makeMainWindowItem("item-z", "ZuluItem", "Sword", tabA)});
+    QTRY_COMPARE_WITH_TIMEOUT(resets.count(), 1, 2000);
+
+    // The selection followed the stable id to the replacement object.
+    const QModelIndexList selectedRows = tree->selectionModel()->selectedRows();
+    QCOMPARE(selectedRows.size(), 1);
+    QCOMPARE(selectedRows.front().data().toString(), "AlphaItem Two Sword");
+
+    // The details panel re-rendered from the adopted object (the deferred
+    // update path a user selection takes).
+    QTRY_COMPARE_WITH_TIMEOUT(locationLabel->text(), tabA.GetHeader(), 2000);
+}
+
+// M2 R6-3 (stage 5): the throttled reset captures scroll immediately before
+// resetting and restores by top-row anchor; when the anchored row was
+// removed, the raw scrollbar value is the fallback — the anchor's bucket
+// header is never scrolled to the top in its place.
+void MainWindowTest::scrollAndCaptureSurviveThrottledReset()
+{
+    MainWindowFixture fixture;
+    fixture.window->SetDeltaThrottleInterval(100);
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+    fixture.window->resize(900, 500);
+    fixture.window->show();
+
+    // Enough items that the tree scrolls.
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-bbbb", "Beta", 1);
+    Items items;
+    for (int n = 0; n < 40; ++n) {
+        items.push_back(makeMainWindowItem(QString("item-a%1").arg(n),
+                                           QString("AlphaItem %1").arg(n),
+                                           "Sword",
+                                           tabA));
+    }
+    items.push_back(makeMainWindowItem("item-b", "BetaItem", "Shield", tabB));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB}, false);
+
+    const QModelIndex bucket = findBucket(*tree->model(), tabA.GetHeader());
+    QVERIFY(bucket.isValid());
+    tree->expand(bucket);
+    // Let the offscreen window lay out so the view has a real viewport and
+    // scroll range.
+    QTRY_VERIFY_WITH_TIMEOUT(tree->verticalScrollBar()->maximum() > 0, 2000);
+
+    // Scroll so an ordinary item row is the top row, and remember it.
+    tree->verticalScrollBar()->setValue(tree->verticalScrollBar()->maximum() / 2);
+    const QModelIndex topBefore = tree->indexAt(QPoint(0, 0));
+    QVERIFY(topBefore.isValid());
+    QVERIFY(topBefore.parent().isValid());
+    const QString topName = topBefore.data().toString();
+
+    // A delta that keeps every item: after the tick the same item is back
+    // on top (anchor restore, not raw-value coincidence).
+    QSignalSpy resets(tree->model(), &QAbstractItemModel::modelReset);
+    fixture.itemsManager
+        ->OnTabRefreshed(tabB, {makeMainWindowItem("item-b", "BetaItem Two", "Shield", tabB)});
+    QTRY_COMPARE_WITH_TIMEOUT(resets.count(), 1, 2000);
+    const QModelIndex topAfter = tree->indexAt(QPoint(0, 0));
+    QVERIFY(topAfter.isValid());
+    QCOMPARE(topAfter.data().toString(), topName);
+
+    // Now remove the anchored item: the fallback is the raw scrollbar
+    // value, never the anchor's bucket header scrolled to the top.
+    const int valueBefore = tree->verticalScrollBar()->value();
+    Items shrunk;
+    for (int n = 0; n < 40; ++n) {
+        const QString name = QString("AlphaItem %1").arg(n);
+        if (name != topName.section(" Sword", 0, 0)) {
+            shrunk.push_back(makeMainWindowItem(QString("item-a%1").arg(n), name, "Sword", tabA));
+        }
+    }
+    fixture.itemsManager->OnTabRefreshed(tabA, shrunk);
+    QTRY_COMPARE_WITH_TIMEOUT(resets.count(), 2, 2000);
+    QCOMPARE(tree->verticalScrollBar()->value(), valueBefore);
+    const QModelIndex topFallback = tree->indexAt(QPoint(0, 0));
+    QVERIFY(topFallback.isValid());
+    // Not the bucket header pinned to the top.
+    QVERIFY(topFallback.parent().isValid());
+}
+
+// M2 R6-3 post-freeze amendment (stage 5): reselection is a GLOBAL
+// stable-identity lookup — an item that moved to another tab mid-refresh
+// keeps its selection under the new tab, with the replacement object
+// adopted for the details panel. (The spike prototype was bucket-scoped;
+// this pins the production behavior.)
+void MainWindowTest::reselectionSurvivesCrossTabMove()
+{
+    MainWindowFixture fixture;
+    fixture.window->SetDeltaThrottleInterval(100);
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    auto *locationLabel = fixture.window->findChild<QLabel *>("locationLabel");
+    QVERIFY(tree);
+    QVERIFY(locationLabel);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-bbbb", "Beta", 1);
+    Items items;
+    items.push_back(makeMainWindowItem("item-x", "Mover", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-b", "BetaItem", "Shield", tabB));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB}, false);
+
+    const QModelIndex bucketA = findBucket(*tree->model(), tabA.GetHeader());
+    QVERIFY(bucketA.isValid());
+    tree->expand(bucketA);
+    const QModelIndex mover = tree->model()->index(0, 0, bucketA);
+    QVERIFY(mover.isValid());
+    QCOMPARE(mover.data().toString(), "Mover Sword");
+    tree->selectionModel()->setCurrentIndex(mover,
+                                            QItemSelectionModel::ClearAndSelect
+                                                | QItemSelectionModel::Rows);
+
+    // The move streams as two deltas inside one throttle window: the item
+    // leaves tab A and arrives in tab B as a new object with the same id.
+    QSignalSpy resets(tree->model(), &QAbstractItemModel::modelReset);
+    fixture.itemsManager->OnTabRefreshed(tabA, {});
+    fixture.itemsManager->OnTabRefreshed(tabB,
+                                         {makeMainWindowItem("item-x", "Mover", "Sword", tabB),
+                                          makeMainWindowItem("item-b",
+                                                             "BetaItem",
+                                                             "Shield",
+                                                             tabB)});
+    QTRY_COMPARE_WITH_TIMEOUT(resets.count(), 1, 2000);
+
+    // The selection followed the item into tab B.
+    const QModelIndexList selectedRows = tree->selectionModel()->selectedRows();
+    QCOMPARE(selectedRows.size(), 1);
+    QCOMPARE(selectedRows.front().data().toString(), "Mover Sword");
+    const QModelIndex bucketB = findBucket(*tree->model(), tabB.GetHeader());
+    QVERIFY(bucketB.isValid());
+    QCOMPARE(selectedRows.front().parent(), bucketB);
+
+    // The details panel adopted the replacement object: it renders the NEW
+    // location.
+    QTRY_COMPARE_WITH_TIMEOUT(locationLabel->text(), tabB.GetHeader(), 2000);
 }
 
 QTEST_MAIN(MainWindowTest)

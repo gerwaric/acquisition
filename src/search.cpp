@@ -105,9 +105,9 @@ void Search::setFilterState(qsizetype index, FilterState state)
     m_states_dirty = true;
 }
 
-void Search::setExpandedHeaders(std::set<QString> headers)
+void Search::setExpandedKeys(std::set<LocationInventory::Key> keys)
 {
-    m_expanded_property = std::move(headers);
+    m_expanded_keys = std::move(keys);
 }
 
 const std::vector<Bucket> &Search::buckets() const
@@ -167,15 +167,18 @@ const QModelIndex Search::index(const std::shared_ptr<Item> &item) const
         // Return an invalid index because there is no current item.
         return QModelIndex();
     }
-    // Look for a bucket that matches the item's location.
+    // Look for a bucket that matches the item's location. In ByItem mode
+    // the single bucket has a null location and holds every visible item,
+    // so it is always searched; a ByTab bucket must match the item's
+    // stable display key (M2 D6 — never mutable header text or position).
     const auto &bucket_list = buckets();
-    const auto &location_id = item->location().id();
+    const auto item_key = LocationInventory::KeyFor(item->location());
     const int bucket_count = static_cast<int>(bucket_list.size());
     for (int row = 0; row < bucket_count; ++row) {
         // Check each search bucket against the item's location.
         const auto &bucket = bucket_list[row];
-        const auto &bucket_id = bucket.location().id();
-        if (location_id == bucket_id) {
+        if ((m_current_mode == ViewMode::ByItem)
+            || (LocationInventory::KeyFor(bucket.location()) == item_key)) {
             // Check each item in the bucket.
             const QModelIndex parent = m_model.index(row);
             const auto &items = bucket.items();
@@ -239,6 +242,7 @@ void Search::FilterItems(const Items &items)
     m_filtered_item_count = 0;
     m_visible_sources.clear();
     m_visible_sources_by_tab.clear();
+    m_visible_by_id.clear();
 
     // A single bucket with null location is used to view all items at once.
     m_bucket_by_item.clear();
@@ -291,6 +295,13 @@ void Search::FilterItems(const Items &items)
             const FetchSourceKey source_key = FetchSourceKey::ForLocation(location);
             m_visible_sources.insert(source_key);
             m_visible_sources_by_tab[key].insert(source_key);
+
+            // Record the stable identity for R6-3 reselection. Items
+            // without a server id cannot be identity-tracked and fall back
+            // to pointer reselection.
+            if (const QString item_id = item->id(); !item_id.isEmpty()) {
+                m_visible_by_id.emplace(item_id, item);
+            }
         }
     }
 

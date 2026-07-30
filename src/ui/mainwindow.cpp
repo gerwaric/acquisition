@@ -22,6 +22,7 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QSettings>
 #include <QString>
 #include <QStringList>
@@ -779,24 +780,28 @@ void MainWindow::OnDeltaThrottleTimeout()
 void MainWindow::OnSearchFormChange()
 {
     spdlog::trace("MainWindow::OnSearchFormChange() entered");
-    SaveViewExpansion(*m_current_search);
+    // ModelViewRefresh captures expansion and scroll itself now (R6-3): the
+    // view is showing this search's model on the form-change path.
     m_current_search->SetRefreshReason(RefreshReason::SearchFormChanged);
     ModelViewRefresh();
 }
 
 void MainWindow::SaveViewExpansion(Search &search)
 {
-    std::set<QString> expanded;
+    // Expansion is keyed by the stable (type, id) display key (M2 R6-3):
+    // header text mutates when a delta renames a tab, which would orphan a
+    // header-keyed save exactly when the throttled reset needs it.
+    std::set<LocationInventory::Key> expanded;
     if (!search.defaultExpanded()) {
         const int rows = search.model().rowCount();
         for (int row = 0; row < rows; ++row) {
             const QModelIndex index = search.model().index(row, 0);
             if (index.isValid() && ui->treeView->isExpanded(index) && search.has_bucket(row)) {
-                expanded.emplace(search.bucket(row).location().GetHeader());
+                expanded.emplace(LocationInventory::KeyFor(search.bucket(row).location()));
             }
         }
     }
-    search.setExpandedHeaders(std::move(expanded));
+    search.setExpandedKeys(std::move(expanded));
 }
 
 void MainWindow::RestoreViewExpansion(Search &search)
@@ -805,13 +810,13 @@ void MainWindow::RestoreViewExpansion(Search &search)
         ui->treeView->expandToDepth(0);
         return;
     }
-    const auto &headers = search.expandedHeaders();
+    const auto &keys = search.expandedKeys();
     const int rows = search.model().rowCount();
     for (int row = 0; row < rows; ++row) {
         const QModelIndex index = search.model().index(row, 0);
-        if (headers.empty()) {
+        if (keys.empty()) {
             ui->treeView->collapse(index);
-        } else if (headers.count(search.bucket(row).location().GetHeader()) > 0) {
+        } else if (keys.count(LocationInventory::KeyFor(search.bucket(row).location())) > 0) {
             ui->treeView->expand(index);
         } else {
             ui->treeView->collapse(index);
@@ -826,10 +831,21 @@ void MainWindow::ModelViewRefresh()
 
     m_buyout_manager.Save();
 
+    // Capture expansion and scroll immediately before every reset (M2
+    // R6-3) — including the refresh paths that used to restore without
+    // saving, which replayed stale state on every throttled tick. Capture
+    // only when the view is actually showing this search's model: during a
+    // tab switch it still shows the outgoing search, whose state OnTabChange
+    // already saved.
+    ItemsModel &model = m_current_search->model();
+    if (ui->treeView->model() == &model) {
+        SaveViewExpansion(*m_current_search);
+        SaveViewScroll(*m_current_search);
+    }
+
     spdlog::trace("MainWindow::ModelViewRefresh() activating current search");
     m_search_form->saveTo(*m_current_search);
     m_current_search->FilterItems(m_items_manager.items());
-    ItemsModel &model = m_current_search->model();
     ui->treeView->setSortingEnabled(false);
     if (ui->treeView->model() != &model) {
         ui->treeView->setModel(&model);
@@ -858,6 +874,7 @@ void MainWindow::ModelViewRefresh()
     }
 
     ReselectCurrentItem();
+    RestoreViewScroll(*m_current_search);
 
     // D9 rules 3/R5-5: any successful refilter of the current search pays
     // for the pending tick — cancel it so the next intersecting delta
@@ -865,6 +882,65 @@ void MainWindow::ModelViewRefresh()
     if (!m_current_search->itemsDirty()) {
         m_delta_throttle.stop();
     }
+}
+
+void MainWindow::SaveViewScroll(Search &search)
+{
+    Search::ScrollAnchor anchor;
+    anchor.scrollbar_value = ui->treeView->verticalScrollBar()->value();
+    const QModelIndex top = ui->treeView->indexAt(QPoint(0, 0));
+    if (top.isValid()) {
+        if (top.parent().isValid()) {
+            // The top row is an item: anchor on its bucket key and stable
+            // item id so the same item returns to the top after the reset.
+            if (search.has_bucket(top.parent().row())) {
+                const Bucket &bucket = search.bucket(top.parent().row());
+                anchor.bucket_key = LocationInventory::KeyFor(bucket.location());
+                if (bucket.has_item(top.row())) {
+                    anchor.item_id = bucket.item(top.row())->id();
+                }
+            }
+        } else if (search.has_bucket(top.row())) {
+            // The top row is a bucket header; an empty item_id records that.
+            anchor.bucket_key = LocationInventory::KeyFor(search.bucket(top.row()).location());
+        }
+    }
+    search.setScrollAnchor(std::move(anchor));
+}
+
+void MainWindow::RestoreViewScroll(Search &search)
+{
+    const Search::ScrollAnchor &anchor = search.scrollAnchor();
+    if (anchor.bucket_key) {
+        const auto &buckets = search.buckets();
+        for (size_t row = 0; row < buckets.size(); ++row) {
+            const Bucket &bucket = buckets[row];
+            if (LocationInventory::KeyFor(bucket.location()) != *anchor.bucket_key) {
+                continue;
+            }
+            const QModelIndex bucket_index = search.model().index(static_cast<int>(row), 0);
+            if (anchor.item_id.isEmpty()) {
+                // The anchor was the bucket header itself.
+                ui->treeView->scrollTo(bucket_index, QAbstractItemView::PositionAtTop);
+                return;
+            }
+            const auto &items = bucket.items();
+            for (size_t n = 0; n < items.size(); ++n) {
+                if (items[n]->id() == anchor.item_id) {
+                    ui->treeView->scrollTo(search.model().index(static_cast<int>(n),
+                                                                0,
+                                                                bucket_index),
+                                           QAbstractItemView::PositionAtTop);
+                    return;
+                }
+            }
+            // The anchored item was removed: fall through to the raw value —
+            // never scroll the anchor's bucket header to the top (R6-3
+            // post-freeze amendment).
+            break;
+        }
+    }
+    ui->treeView->verticalScrollBar()->setValue(anchor.scrollbar_value);
 }
 
 void MainWindow::OnCurrentItemChanged(const QModelIndex &current, const QModelIndex &previous)
@@ -935,6 +1011,21 @@ void MainWindow::ReselectCurrentItem()
             spdlog::trace("MainWindow::ReselectCurrentItem() nothing was selected");
         }
         return;
+    }
+
+    // Global stable-identity reselection (M2 R6-3): the refilter replaced
+    // this item's object if its tab streamed a delta, and may have filed it
+    // under another tab if it moved mid-refresh. Adopt the current object
+    // for the selection AND the details panel — the old pointer is exactly
+    // what a streamed replacement invalidates. Items without a server id
+    // fall back to pointer identity below.
+    if (const auto adopted = m_current_search->visibleItemById(m_current_item->id())) {
+        if (adopted != m_current_item) {
+            m_current_item = adopted;
+            // Re-render the details panel from the replacement object, the
+            // same deferred path a user selection takes.
+            m_delayed_update_current_item.start();
+        }
     }
 
     // Look for the new index of the currently selected item.

@@ -154,6 +154,11 @@ private:
     void FlushPendingSearchFormChange();
     void SaveViewExpansion(Search &search);
     void RestoreViewExpansion(Search &search);
+    // R6-3 scroll preservation: a top-row anchor (bucket stable key +
+    // item stable id) with the raw scrollbar value as the fallback when
+    // the anchored row no longer exists after the reset.
+    void SaveViewScroll(Search &search);
+    void RestoreViewScroll(Search &search);
     void ClearCurrentItem();
     void UpdateCurrentBucket();
     void UpdateCurrentItem();
