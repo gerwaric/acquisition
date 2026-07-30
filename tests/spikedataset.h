@@ -42,11 +42,12 @@ public:
         // the tests share one definition. "100k" is this struct's defaults
         // (the M2-M2 100k preset, ~101k published items); "1m" is the
         // S1-M2 retuned preset M2-M2 and the sort spike reused (~976k);
-        // "smoke" is a suite-speed shape (~1k items) for functional runs.
+        // "smoke" is the S1-M2 harness's recorded suite-speed shape
+        // (50 tabs / ~1k items, s1-m2-spike-result.md).
         static std::optional<Config> Preset(const QString &name)
         {
             if (name == "smoke") {
-                return Config{.tab_count = 40, .mean_items_per_tab = 30};
+                return Config{.tab_count = 50, .mean_items_per_tab = 20};
             }
             if (name == "100k") {
                 return Config{};

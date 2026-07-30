@@ -223,7 +223,9 @@ void Search::FilterItems(const Items &items)
         return;
     }
 
-    ++ModelProbes::instance().refilters;
+    if (auto &probes = ModelProbes::instance(); probes.enabled) {
+        ++probes.refilters;
+    }
 
     m_model.beginUpdate();
 
@@ -243,7 +245,9 @@ void Search::FilterItems(const Items &items)
     // indexes are rebuilt from scratch below — the whole-collection
     // rebuild the index-rebuild probe counts (post-M3, deltas maintain
     // them incrementally and only this path increments it).
-    ++ModelProbes::instance().index_rebuilds;
+    if (auto &probes = ModelProbes::instance(); probes.enabled) {
+        ++probes.index_rebuilds;
+    }
     m_items.clear();
     m_filtered = false;
     m_filtered_item_count = 0;

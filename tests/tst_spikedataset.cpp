@@ -114,13 +114,17 @@ void SpikeDatasetTest::namedPresetsMatchRecordedShapes()
     QCOMPARE(k1m->quad_share, 0.8);
     QCOMPARE(k1m->seed, 20260729u);
 
-    // Smoke is for functional runs: small enough for the suite, same
-    // generator machinery and seed as the recorded scales.
+    // Smoke is the S1-M2 harness's recorded shape (50 tabs / mean 20,
+    // ~1k items): same generator machinery and seed as the recorded
+    // scales, small enough for functional runs.
     const auto smoke = SpikeDataset::Config::Preset("smoke");
     QVERIFY(smoke.has_value());
+    QCOMPARE(smoke->tab_count, 50);
+    QCOMPARE(smoke->mean_items_per_tab, 20);
+    QCOMPARE(smoke->quad_share, 0.1);
     QCOMPARE(smoke->seed, 20260729u);
     SpikeDataset dataset(*smoke);
-    QCOMPARE(dataset.tabCount(), 40);
+    QCOMPARE(dataset.tabCount(), 50);
     QVERIFY(dataset.totalItems() > 500);
     QVERIFY(dataset.totalItems() < 5000);
 

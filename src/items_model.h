@@ -29,9 +29,10 @@ public:
     void SetSorted(bool val) { m_sorted = val; }
     void beginUpdate()
     {
-        auto &probes = ModelProbes::instance();
-        ++probes.model_resets;
-        ++probes.model_resets_by_model[this];
+        if (auto &probes = ModelProbes::instance(); probes.enabled) {
+            ++probes.model_resets;
+            ++probes.model_resets_by_model[this];
+        }
         beginResetModel();
     }
     void endUpdate() { endResetModel(); }

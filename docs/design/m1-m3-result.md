@@ -18,11 +18,12 @@ commit.
 **Verdict: every load-bearing claim holds. One citation was wrong at
 freeze; no code drifted.** The drift record:
 
-- **`search.cpp:461-466` does not exist** — the file was 444 lines at
-  `3549b214` and is 445 lines now, so the range was invalid when the
-  spec froze (the claim appears twice: the staleness preamble's
-  "sort actually runs on activation" and D2's "existing pattern"
-  reason). The *claim* is correct; its actual sites are:
+- **`search.cpp:461-466` does not exist** — the file is 444 lines at
+  both `3549b214` and `a2ed4d96` (451 after S0's own probe edits), so
+  the range was invalid when the spec froze (the claim appears twice:
+  the staleness preamble's "sort actually runs on activation" and D2's
+  "existing pattern" reason). The *claim* is correct; its actual sites
+  are:
   `Search::FilterItems` ends by invalidating the model's sorted flag
   (`m_model.SetSorted(false)`, `search.cpp:352`), and the sort runs on
   activation via `MainWindow::ModelViewRefresh`'s
@@ -48,23 +49,33 @@ Every other anchor verified at (or within a line of) its citation:
 | Search state: `m_bucket_by_tab`/`m_bucket_by_item`, `m_expanded_keys`, `m_visible_by_id`, `m_visible_sources`(`_by_tab`), scroll anchor | `search.h` | members present (`:155-160`, `ScrollAnchor` `:59`) |
 | `defaultExpanded()` is `m_filtered \|\| ByItem` | `search.h:86` | exact |
 | M2 signal surface: `TabRefreshed`, `ChildrenReconciled`, typed `RefreshFinished`, final `ItemsRefreshed`, `SourceKeyedItems` both sides | — | `itemsmanager.h:74-79/:98`, `itemsmanagerworker.h:115-151/:328` |
+| Scoped per-delta pricing in `ItemsManager` (M2 D7) | — | `OnTabRefreshed` `itemsmanager.cpp:160` calls `ApplyScopedPricing` `:176` (defined `:202`) |
 | Buyout mutation surface: `OnBuyoutChange` `SetTab`/`Set` per selected row, trailing `PropagateTabBuyouts`; `MigrateItem`; snapshot pricing sequence | `ui/mainwindow.cpp:541-567/:578`, `buyoutmanager.cpp:370`, `itemsmanager.cpp:152-155` | `:541-577` (`Set` `:567`) / `:578`; `:370` exact; `:152-155` exact |
-| Initial cached load publishes one snapshot (`ItemsRefreshed(..., true)`) | — | `itemsmanager.cpp:125/:157` |
+| Per-tab caps bound a display bucket at 576 items (quad tab) | — | structural, not an enforced cap in model code: a display bucket aggregates one tab, and a quad stash is 24×24 = 576 slots (`QuadStash` handling `itemlocation.cpp:102-106`; the dataset generator encodes the same cap, `tests/spikedataset.h`) |
+| Initial cached load: the parse thread publishes one snapshot (`ItemsRefreshed(..., true)`) | — | `StartParseThread` runs `ParseCachedItems` on a dedicated `QThread` (`itemsmanagerworker.cpp:119-140/:142`); completion emits `ItemsRefreshed(..., true)` `:274`; `ItemsManager` re-emits `itemsmanager.cpp:125/:157` |
 
 ## S0 — probe surface and datasets
 
-- **Probes** (`src/modelprobes.h`): comparator-call, bucket-sort (with
-  per-location attribution), model-reset (with per-model attribution),
-  refilter, index-rebuild, and capture/restore entry counters, wired at
-  their production sites; key-build, keyed-compare, model-update
-  (batch), and live-resident-key-bytes fields declared with their
-  landing stages (S1/S2/S3) so pins assert them from zero. Counters
-  only — nothing logs, nothing in production reads them. Pinned by
-  `probeCountersTrackRefilterAndSort` (tst_search) and
-  `probeCountersTrackCaptureRestore` (tst_mainwindow).
+- **Probes** (`src/modelprobes.h`): comparator-call (all three `lt`
+  implementations), bucket-sort (attributed by the stable `(type, id)`
+  display key), model-reset (attributed per model), refilter,
+  index-rebuild, and capture/restore entry counters, wired at their
+  production sites; key-build, keyed-compare, model-update (batch),
+  and live-resident-key-bytes fields declared with their landing
+  stages (S1/S2/S3) so pins assert them from zero. **Disabled by
+  default**: production takes one predicted branch per site and
+  accumulates no state, and measurement windows stay unperturbed
+  unless a row needs attribution; tests enable explicitly.
+  `reset()` clears counters but preserves the `live_key_bytes` gauge
+  (it tracks live ownership; zeroing it mid-residency would go
+  negative at the next eviction). Nothing logs, nothing in production
+  reads them. Pinned by `probeCountersTrackRefilterAndSort`
+  (tst_search) and `probeCountersTrackCaptureRestore`
+  (tst_mainwindow).
 - **Datasets** (`tests/spikedataset.h`): the recorded M2-M2/spike
-  shapes are now named presets — `smoke` (~1k items, functional runs),
-  `100k` (2000 tabs / mean 50 / quad 0.10, ~101k published), `1m`
+  shapes are now named presets — `smoke` (the S1-M2 harness's
+  recorded 50 tabs / mean 20, ~1k items, functional runs), `100k`
+  (2000 tabs / mean 50 / quad 0.10, ~101k published), `1m`
   (2600 / 400 / 0.80, ~976k published), all seed 20260729. Pinned by
   `namedPresetsMatchRecordedShapes`; `m2m2_benchmark` consumes the
   named presets. The M2-M2 caveat carries: reruns against numbers

@@ -59,7 +59,9 @@ Column::sort_tuple Column::multivalue(const Item *item) const
 
 bool Column::lt(const Item *lhs, const Item *rhs) const
 {
-    ++ModelProbes::instance().comparator_calls;
+    if (auto &probes = ModelProbes::instance(); probes.enabled) {
+        ++probes.comparator_calls;
+    }
     return multivalue(lhs) < multivalue(rhs);
 }
 
@@ -434,7 +436,9 @@ std::tuple<int, double, const Item &> PriceColumn::multivalue(const Item *item) 
 
 bool PriceColumn::lt(const Item *lhs, const Item *rhs) const
 {
-    ++ModelProbes::instance().comparator_calls;
+    if (auto &probes = ModelProbes::instance(); probes.enabled) {
+        ++probes.comparator_calls;
+    }
     return multivalue(lhs) < multivalue(rhs);
 }
 
@@ -455,7 +459,9 @@ QVariant DateColumn::value(const Item &item) const
 
 bool DateColumn::lt(const Item *lhs, const Item *rhs) const
 {
-    ++ModelProbes::instance().comparator_calls;
+    if (auto &probes = ModelProbes::instance(); probes.enabled) {
+        ++probes.comparator_calls;
+    }
     const QDateTime lhs_update_time = m_bo_manager.Get(*lhs).last_update;
     const QDateTime rhs_update_time = m_bo_manager.Get(*rhs).last_update;
     return (std::tie(lhs_update_time, *lhs) < std::tie(rhs_update_time, *rhs));

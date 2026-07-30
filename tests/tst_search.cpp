@@ -4,6 +4,7 @@
 #include <variant>
 
 #include "filters/filterspec.h"
+#include "locationinventory.h"
 #include "modelprobes.h"
 #include "search.h"
 #include "testfixtures.h"
@@ -285,9 +286,10 @@ void SearchTest::tabChangeRefiltersAfterStateChange()
 
 // The S0 probe surface (items-pipeline M3): the counters the M3 pins
 // read. This pins the sites that exist today — refilter, index rebuild,
-// model reset (with per-model attribution), bucket sort (with
-// per-location attribution), comparator calls — and that the
-// later-stage fields stay untouched until their machinery lands.
+// model reset (with per-model attribution), bucket sort (with stable
+// (type, id) attribution), all three comparator implementations — that
+// probes count nothing while disabled, and that the later-stage fields
+// stay untouched until their machinery lands.
 void SearchTest::probeCountersTrackRefilterAndSort()
 {
     BuyoutManagerFixture buyoutFixture;
@@ -303,8 +305,17 @@ void SearchTest::probeCountersTrackRefilterAndSort()
     Search search(*buyoutFixture.manager, "Probed", catalog);
 
     auto &probes = ModelProbes::instance();
-    probes.reset();
 
+    // Disabled (the production default): sites count nothing.
+    probes.reset();
+    QVERIFY(!probes.enabled);
+    search.FilterItems(items);
+    QCOMPARE(probes.refilters, 0);
+    QCOMPARE(probes.model_resets, 0);
+
+    // Enabled: the same refilter counts (the gate only short-circuits
+    // TabChanged, so this run does full work again).
+    probes.enabled = true;
     search.FilterItems(items);
     QCOMPARE(probes.refilters, 1);
     QCOMPARE(probes.index_rebuilds, 1);
@@ -313,12 +324,22 @@ void SearchTest::probeCountersTrackRefilterAndSort()
     QCOMPARE(probes.bucket_sorts, 0); // FilterItems never sorts
 
     // SetViewMode sorts the active buckets — here the By-Item flat
-    // bucket, whose null location reports an empty id.
+    // bucket, which reports the null location's stable key.
     search.SetViewMode(Search::ViewMode::ByItem);
     QCOMPARE(probes.bucket_sorts, 1);
-    QCOMPARE(probes.bucket_sorts_by_location[QString()], 1);
+    QCOMPARE(probes.bucket_sorts_by_location[LocationInventory::KeyFor(ItemLocation())], 1);
     QVERIFY(probes.comparator_calls > 0);
     QCOMPARE(probes.model_resets, 2);
+
+    // All three comparator implementations are instrumented: the
+    // Column::lt base and the PriceColumn/DateColumn overrides
+    // (search columns 0/1/2 — search.cpp's column table).
+    const auto &columns = search.columns();
+    for (const size_t column_index : {size_t(0), size_t(1), size_t(2)}) {
+        const std::int64_t before = probes.comparator_calls;
+        columns[column_index]->lt(items[0].get(), items[1].get());
+        QCOMPARE(probes.comparator_calls, before + 1);
+    }
 
     // The TabChanged gate skips clean searches: no refilter, no reset.
     search.SetRefreshReason(RefreshReason::TabChanged);
@@ -333,6 +354,8 @@ void SearchTest::probeCountersTrackRefilterAndSort()
     QCOMPARE(probes.keyed_compares, 0);
     QCOMPARE(probes.model_updates, 0);
     QCOMPARE(probes.live_key_bytes, 0);
+
+    probes.enabled = false;
 }
 
 QTEST_MAIN(SearchTest)

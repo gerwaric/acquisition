@@ -1139,6 +1139,7 @@ void MainWindowTest::probeCountersTrackCaptureRestore()
 
     auto &probes = ModelProbes::instance();
     probes.reset();
+    probes.enabled = true;
     fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
 
     QCOMPARE(probes.expansion_captures, 1);
@@ -1147,6 +1148,7 @@ void MainWindowTest::probeCountersTrackCaptureRestore()
     QCOMPARE(probes.scroll_restores, 1);
     QCOMPARE(probes.reselects, 1);
     QCOMPARE(probes.refilters, 1);
+    probes.enabled = false;
 }
 
 QTEST_MAIN(MainWindowTest)
