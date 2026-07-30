@@ -42,6 +42,7 @@
 #include "itemlocation.h"
 #include "items_model.h"
 #include "itemsmanager.h"
+#include "modelprobes.h"
 #include "ratelimit/ratelimit.h"
 #include "ratelimit/ratelimitdialog.h"
 #include "ratelimit/ratelimiter.h"
@@ -788,6 +789,7 @@ void MainWindow::OnSearchFormChange()
 
 void MainWindow::SaveViewExpansion(Search &search)
 {
+    ++ModelProbes::instance().expansion_captures;
     // Expansion is keyed by the stable (type, id) display key (M2 R6-3):
     // header text mutates when a delta renames a tab, which would orphan a
     // header-keyed save exactly when the throttled reset needs it.
@@ -806,6 +808,7 @@ void MainWindow::SaveViewExpansion(Search &search)
 
 void MainWindow::RestoreViewExpansion(Search &search)
 {
+    ++ModelProbes::instance().expansion_restores;
     if (search.defaultExpanded()) {
         ui->treeView->expandToDepth(0);
         return;
@@ -886,6 +889,7 @@ void MainWindow::ModelViewRefresh()
 
 void MainWindow::SaveViewScroll(Search &search)
 {
+    ++ModelProbes::instance().scroll_captures;
     Search::ScrollAnchor anchor;
     anchor.scrollbar_value = ui->treeView->verticalScrollBar()->value();
     const QModelIndex top = ui->treeView->indexAt(QPoint(0, 0));
@@ -910,6 +914,7 @@ void MainWindow::SaveViewScroll(Search &search)
 
 void MainWindow::RestoreViewScroll(Search &search)
 {
+    ++ModelProbes::instance().scroll_restores;
     const Search::ScrollAnchor &anchor = search.scrollAnchor();
     if (anchor.bucket_key) {
         const auto &buckets = search.buckets();
@@ -1001,6 +1006,7 @@ void MainWindow::OnCurrentItemChanged(const QModelIndex &current, const QModelIn
 
 void MainWindow::ReselectCurrentItem()
 {
+    ++ModelProbes::instance().reselects;
     spdlog::trace("MainWindow::ReselectCurrentItem() entered");
 
     // A bucket (stash tab header row) can be the current selection too (F43).

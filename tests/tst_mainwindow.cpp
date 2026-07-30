@@ -23,6 +23,7 @@
 #include "buyout.h"
 #include "currency.h"
 #include "mainwindowfixture.h"
+#include "modelprobes.h"
 
 class MainWindowTest : public QObject
 {
@@ -58,6 +59,9 @@ private slots:
     void selectionSurvivesReplacementByStableIdentity();
     void scrollAndCaptureSurviveThrottledReset();
     void reselectionSurvivesCrossTabMove();
+
+    // Items-pipeline M3, S0: the capture/restore half of the probe surface.
+    void probeCountersTrackCaptureRestore();
 
 private:
     std::shared_ptr<spdlog::logger> m_main_logger;
@@ -983,12 +987,10 @@ void MainWindowTest::selectionSurvivesReplacementByStableIdentity()
     // The replacement delta: a NEW Item object with the same stable id and
     // a different rendered name.
     QSignalSpy resets(tree->model(), &QAbstractItemModel::modelReset);
-    fixture.itemsManager->OnTabRefreshed(tabA,
-                                         {makeMainWindowItem("item-a",
-                                                             "AlphaItem Two",
-                                                             "Sword",
-                                                             tabA),
-                                          makeMainWindowItem("item-z", "ZuluItem", "Sword", tabA)});
+    fixture.itemsManager
+        ->OnTabRefreshed(tabA,
+                         {makeMainWindowItem("item-a", "AlphaItem Two", "Sword", tabA),
+                          makeMainWindowItem("item-z", "ZuluItem", "Sword", tabA)});
     QTRY_COMPARE_WITH_TIMEOUT(resets.count(), 1, 2000);
 
     // The selection followed the stable id to the replacement object.
@@ -1107,10 +1109,7 @@ void MainWindowTest::reselectionSurvivesCrossTabMove()
     fixture.itemsManager->OnTabRefreshed(tabA, {});
     fixture.itemsManager->OnTabRefreshed(tabB,
                                          {makeMainWindowItem("item-x", "Mover", "Sword", tabB),
-                                          makeMainWindowItem("item-b",
-                                                             "BetaItem",
-                                                             "Shield",
-                                                             tabB)});
+                                          makeMainWindowItem("item-b", "BetaItem", "Shield", tabB)});
     QTRY_COMPARE_WITH_TIMEOUT(resets.count(), 1, 2000);
 
     // The selection followed the item into tab B.
@@ -1124,6 +1123,30 @@ void MainWindowTest::reselectionSurvivesCrossTabMove()
     // The details panel adopted the replacement object: it renders the NEW
     // location.
     QTRY_COMPARE_WITH_TIMEOUT(locationLabel->text(), tabB.GetHeader(), 2000);
+}
+
+// The S0 probe surface, window half: one snapshot refresh on a single
+// search drives exactly one capture/restore cycle — the counters the M3
+// pins will read to prove the restore machinery does NOT run on the
+// delta path (`unrelatedDeltaLeavesOtherBucketsUntouched`).
+void MainWindowTest::probeCountersTrackCaptureRestore()
+{
+    MainWindowFixture fixture;
+
+    const ItemLocation tabA = makeTestStashLocation("stash-alpha", "Alpha Tab", 0);
+    Items items;
+    items.push_back(makeMainWindowItem("alpha-one", "Alpha One", "Sword", tabA));
+
+    auto &probes = ModelProbes::instance();
+    probes.reset();
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+
+    QCOMPARE(probes.expansion_captures, 1);
+    QCOMPARE(probes.scroll_captures, 1);
+    QCOMPARE(probes.expansion_restores, 1);
+    QCOMPARE(probes.scroll_restores, 1);
+    QCOMPARE(probes.reselects, 1);
+    QCOMPARE(probes.refilters, 1);
 }
 
 QTEST_MAIN(MainWindowTest)

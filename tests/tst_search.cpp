@@ -4,6 +4,7 @@
 #include <variant>
 
 #include "filters/filterspec.h"
+#include "modelprobes.h"
 #include "search.h"
 #include "testfixtures.h"
 
@@ -19,6 +20,7 @@ private slots:
     void backgroundMinMaxRefilterUsesOwnState();
     void tabChangeSkipsRefilterWhenStateIsUnchanged();
     void tabChangeRefiltersAfterStateChange();
+    void probeCountersTrackRefilterAndSort();
 };
 
 template<typename Payload>
@@ -279,6 +281,58 @@ void SearchTest::tabChangeRefiltersAfterStateChange()
     search.SetRefreshReason(RefreshReason::TabChanged);
     search.FilterItems(moreItems);
     QCOMPARE(search.items().size(), 1);
+}
+
+// The S0 probe surface (items-pipeline M3): the counters the M3 pins
+// read. This pins the sites that exist today — refilter, index rebuild,
+// model reset (with per-model attribution), bucket sort (with
+// per-location attribution), comparator calls — and that the
+// later-stage fields stay untouched until their machinery lands.
+void SearchTest::probeCountersTrackRefilterAndSort()
+{
+    BuyoutManagerFixture buyoutFixture;
+    const ItemLocation firstTab = makeTestStashLocation("stash-a", "Alpha Tab", 0);
+    const ItemLocation secondTab = makeTestStashLocation("stash-b", "Beta Tab", 1);
+    buyoutFixture.manager->SetStashTabLocations({firstTab, secondTab});
+
+    Items items;
+    items.push_back(makeSearchItem("alpha-item", "Alpha Bite", "Vaal Axe", firstTab));
+    items.push_back(makeSearchItem("beta-item", "Beta Guard", "Copper Shield", secondTab));
+
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    Search search(*buyoutFixture.manager, "Probed", catalog);
+
+    auto &probes = ModelProbes::instance();
+    probes.reset();
+
+    search.FilterItems(items);
+    QCOMPARE(probes.refilters, 1);
+    QCOMPARE(probes.index_rebuilds, 1);
+    QCOMPARE(probes.model_resets, 1);
+    QCOMPARE(probes.model_resets_by_model[&search.model()], 1);
+    QCOMPARE(probes.bucket_sorts, 0); // FilterItems never sorts
+
+    // SetViewMode sorts the active buckets — here the By-Item flat
+    // bucket, whose null location reports an empty id.
+    search.SetViewMode(Search::ViewMode::ByItem);
+    QCOMPARE(probes.bucket_sorts, 1);
+    QCOMPARE(probes.bucket_sorts_by_location[QString()], 1);
+    QVERIFY(probes.comparator_calls > 0);
+    QCOMPARE(probes.model_resets, 2);
+
+    // The TabChanged gate skips clean searches: no refilter, no reset.
+    search.SetRefreshReason(RefreshReason::TabChanged);
+    search.FilterItems(items);
+    QCOMPARE(probes.refilters, 1);
+    QCOMPARE(probes.index_rebuilds, 1);
+    QCOMPARE(probes.model_resets, 2);
+
+    // Later-stage fields have no production sites yet (keys land in S1,
+    // batched model updates in S2, resident-key bytes in S3).
+    QCOMPARE(probes.key_builds, 0);
+    QCOMPARE(probes.keyed_compares, 0);
+    QCOMPARE(probes.model_updates, 0);
+    QCOMPARE(probes.live_key_bytes, 0);
 }
 
 QTEST_MAIN(SearchTest)

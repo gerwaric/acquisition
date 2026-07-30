@@ -3,6 +3,7 @@
 
 #include "bucket.h"
 
+#include "modelprobes.h"
 #include "util/fatalerror.h"
 
 Bucket::Bucket(const ItemLocation &location)
@@ -41,6 +42,9 @@ const std::shared_ptr<Item> &Bucket::item(int row) const
 
 void Bucket::Sort(const Column &column, Qt::SortOrder order)
 {
+    auto &probes = ModelProbes::instance();
+    ++probes.bucket_sorts;
+    ++probes.bucket_sorts_by_location[m_location.id()];
     std::sort(begin(m_items),
               end(m_items),
               [&](const std::shared_ptr<Item> &lhs, const std::shared_ptr<Item> &rhs) {

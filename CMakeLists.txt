@@ -279,6 +279,7 @@ set(ACQ_CORE
     src/itemlocation.h
     src/items_model.cpp
     src/items_model.h
+    src/modelprobes.h
     src/itemsmanager.cpp
     src/itemsmanager.h
     src/itemsmanagerworker.cpp

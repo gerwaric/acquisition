@@ -17,6 +17,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <optional>
 #include <random>
 #include <vector>
 
@@ -36,6 +37,25 @@ public:
         // realistically quad-heavy; the default matches a typical mix.
         double quad_share = 0.1;
         uint32_t seed = 20260729;
+
+        // The recorded shapes by name (M3 S0), so the M1-M3 scenarios and
+        // the tests share one definition. "100k" is this struct's defaults
+        // (the M2-M2 100k preset, ~101k published items); "1m" is the
+        // S1-M2 retuned preset M2-M2 and the sort spike reused (~976k);
+        // "smoke" is a suite-speed shape (~1k items) for functional runs.
+        static std::optional<Config> Preset(const QString &name)
+        {
+            if (name == "smoke") {
+                return Config{.tab_count = 40, .mean_items_per_tab = 30};
+            }
+            if (name == "100k") {
+                return Config{};
+            }
+            if (name == "1m") {
+                return Config{.tab_count = 2600, .mean_items_per_tab = 400, .quad_share = 0.8};
+            }
+            return std::nullopt;
+        }
     };
 
     struct ItemSpec

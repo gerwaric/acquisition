@@ -12,6 +12,7 @@
 #include "filters/filtermatchers.h"
 #include "filters/filterspec.h"
 #include "items_model.h"
+#include "modelprobes.h"
 #include "util/fatalerror.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 
@@ -222,6 +223,8 @@ void Search::FilterItems(const Items &items)
         return;
     }
 
+    ++ModelProbes::instance().refilters;
+
     m_model.beginUpdate();
 
     // Create a temporary vector of only the filters that are
@@ -236,7 +239,11 @@ void Search::FilterItems(const Items &items)
     }
     active_filters.shrink_to_fit();
 
-    // Reset everything before starting to filter items.
+    // Reset everything before starting to filter items. The visible
+    // indexes are rebuilt from scratch below — the whole-collection
+    // rebuild the index-rebuild probe counts (post-M3, deltas maintain
+    // them incrementally and only this path increments it).
+    ++ModelProbes::instance().index_rebuilds;
     m_items.clear();
     m_filtered = false;
     m_filtered_item_count = 0;

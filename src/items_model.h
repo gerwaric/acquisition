@@ -5,6 +5,8 @@
 
 #include <QAbstractItemModel>
 
+#include "modelprobes.h"
+
 class BuyoutManager;
 class Search;
 
@@ -25,7 +27,13 @@ public:
     Qt::SortOrder GetSortOrder() const { return m_sort_order; }
     int GetSortColumn() const { return m_sort_column; }
     void SetSorted(bool val) { m_sorted = val; }
-    void beginUpdate() { beginResetModel(); }
+    void beginUpdate()
+    {
+        auto &probes = ModelProbes::instance();
+        ++probes.model_resets;
+        ++probes.model_resets_by_model[this];
+        beginResetModel();
+    }
     void endUpdate() { endResetModel(); }
     void refreshCheckStates();
 

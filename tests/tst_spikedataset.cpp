@@ -17,6 +17,7 @@ private slots:
     void initTestCase();
     void sameSeedReproducesCollectionAndChurn();
     void churnPreservesStableIdentityNotPointers();
+    void namedPresetsMatchRecordedShapes();
 };
 
 static SpikeDataset::Config smallConfig()
@@ -92,6 +93,38 @@ void SpikeDatasetTest::churnPreservesStableIdentityNotPointers()
             QVERIFY(new_item.get() != old_item.get());
         }
     }
+}
+
+// The named presets are the recorded M2-M2/spike shapes (M3 S0): the
+// M1-M3 budget rows cite "spike presets", so their definition is pinned
+// here rather than re-tuned per harness.
+void SpikeDatasetTest::namedPresetsMatchRecordedShapes()
+{
+    const auto k100 = SpikeDataset::Config::Preset("100k");
+    QVERIFY(k100.has_value());
+    QCOMPARE(k100->tab_count, 2000);
+    QCOMPARE(k100->mean_items_per_tab, 50);
+    QCOMPARE(k100->quad_share, 0.1);
+    QCOMPARE(k100->seed, 20260729u);
+
+    const auto k1m = SpikeDataset::Config::Preset("1m");
+    QVERIFY(k1m.has_value());
+    QCOMPARE(k1m->tab_count, 2600);
+    QCOMPARE(k1m->mean_items_per_tab, 400);
+    QCOMPARE(k1m->quad_share, 0.8);
+    QCOMPARE(k1m->seed, 20260729u);
+
+    // Smoke is for functional runs: small enough for the suite, same
+    // generator machinery and seed as the recorded scales.
+    const auto smoke = SpikeDataset::Config::Preset("smoke");
+    QVERIFY(smoke.has_value());
+    QCOMPARE(smoke->seed, 20260729u);
+    SpikeDataset dataset(*smoke);
+    QCOMPARE(dataset.tabCount(), 40);
+    QVERIFY(dataset.totalItems() > 500);
+    QVERIFY(dataset.totalItems() < 5000);
+
+    QVERIFY(!SpikeDataset::Config::Preset("bogus").has_value());
 }
 
 QTEST_GUILESS_MAIN(SpikeDatasetTest)
