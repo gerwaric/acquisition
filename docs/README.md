@@ -20,9 +20,9 @@ when this map and a header disagree, the header wins.
 - `design/items-pipeline-m2-reviews.md` — that spec's review history:
   round-scoped finding tables (`R1-*`, …) with verdicts and
   resolutions, round narratives, and the revision log.
-- `design/items-pipeline-m3.md` — **draft** spec (revision 1,
-  July 30, 2026, in review) for Milestone 3, the delta-native items
-  model: bucket-scoped model operations replacing the refresh-path
+- `design/items-pipeline-m3.md` — **draft** spec (revision 2,
+  July 30, 2026, in review; round 1's eight findings incorporated)
+  for Milestone 3, the delta-native items model: bucket-scoped model operations replacing the refresh-path
   reset, precomputed cached sort keys plus deferred bucket sorting
   (the July 30 lever hold point), the By-Item per-delta merge, and
   the F67 tie-break fix. Pre-spec evidence:
@@ -31,7 +31,7 @@ when this map and a header disagree, the header wins.
   hold-point key-memory extension). The M1-M3 budget measurement
   runs as an implementation checkpoint.
 - `design/items-pipeline-m3-reviews.md` — that spec's review history
-  and revision log; rounds recorded from round 1 (none yet).
+  and revision log; round 1 recorded (R1-1…R1-8, all accepted).
 - `design/items-pipeline-m2-implementation.md` — **accepted**
   implementation sequence for the frozen M2 spec (externally
   reviewed July 29, three findings incorporated): stage boundaries,
