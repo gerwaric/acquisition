@@ -940,6 +940,24 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashPayload> &result
     // reply lacked its stash sub-object, which the facade classifies as
     // Parse (F62, M2 D5): a successful payload always holds a stash.
     if (!result) {
+        // D5: a Parse failure on a content fetch is deterministic — retrying
+        // is futile, and one bad tab must not abort an hours-long update
+        // (the 3.29 flags:[] incident class). Skip and continue: record the
+        // skipped source, count the fetch as received so the counter join
+        // still reconciles (P-STATUS), emit NO delta — the atomic replace
+        // never ran, so this source's previous items survive, in memory and
+        // datastore. Everything else stays first-failure terminal.
+        if (result.error().kind == RateLimit::FetchError::Kind::Parse) {
+            spdlog::warn("Skipping stash '{}' because its payload failed to parse: {}",
+                         location.GetHeader(),
+                         result.error().message);
+            m_skipped_sources.push_back(
+                SkippedSource{FetchSourceKey::ForLocation(location), result.error()});
+            ++m_stashes_received;
+            SendStatusUpdate();
+            CheckUpdateFinished();
+            return;
+        }
         spdlog::warn("Aborting update because there was an error fetching the stash ({}): {}",
                      RateLimit::ToString(result.error().kind),
                      result.error().message);
@@ -1089,6 +1107,20 @@ void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterPayload>
     // As with stashes, a reply without its character sub-object is a facade
     // Parse error (F62, M2 D5), so one typed check covers every failure.
     if (!result) {
+        // D5 skip-and-continue for deterministic Parse failures, exactly as
+        // in OnStashReceived: no delta, previous items survive, the counter
+        // join still reconciles.
+        if (result.error().kind == RateLimit::FetchError::Kind::Parse) {
+            spdlog::warn("Skipping character '{}' because its payload failed to parse: {}",
+                         location.GetHeader(),
+                         result.error().message);
+            m_skipped_sources.push_back(
+                SkippedSource{FetchSourceKey::ForLocation(location), result.error()});
+            ++m_characters_received;
+            SendStatusUpdate();
+            CheckUpdateFinished();
+            return;
+        }
         spdlog::warn("Aborting update because there was an error fetching the character "
                      "({}): {}",
                      RateLimit::ToString(result.error().kind),
@@ -1313,6 +1345,12 @@ void ItemsManagerWorker::FinishUpdate()
         message = "Received tab lists";
     } else {
         message = "Received nothing";
+    }
+    // Skips are user-visible (D5/R1-1): a completed-with-skips refresh must
+    // never be indistinguishable from a clean one. Each skipped source was
+    // already named in the log at warn level when it was skipped.
+    if (!m_skipped_sources.empty()) {
+        message += QString(", %1 skipped").arg(QString::number(m_skipped_sources.size()));
     }
 
     emit StatusUpdate(ProgramState::Ready, message);

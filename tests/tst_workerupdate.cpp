@@ -121,6 +121,12 @@ private slots:
     void terminalEventExactlyOncePerUpdate();
     void deltasNeverFollowTerminalEvent();
     void terminalFanOutRefusesReentrantUpdate();
+
+    // Items-pipeline M2, stage 7: the D5 skip policy — Parse failures on
+    // content fetches skip and continue; everything else stays terminal.
+    void parseFailureSkipsTabAndUpdateCompletes();
+    void missingStashWrapperSkipsTab();
+    void missingCharacterWrapperSkipsTab();
 };
 
 namespace {
@@ -3458,6 +3464,117 @@ void WorkerUpdateTest::terminalFanOutRefusesReentrantUpdate()
     // settle its sibling.
     f.failStashList();
     f.settleStragglers();
+}
+
+// M2 D5 (stage 7): a Parse failure on a content fetch is deterministic —
+// skip and continue. The update completes, the terminal event reports
+// CompletedRefresh with the skipped source, the skipped tab's previous
+// items survive (no delta ran), the final status names the skip count, and
+// a Parse failure on a LIST fetch stays terminal.
+void WorkerUpdateTest::parseFailureSkipsTabAndUpdateCompletes()
+{
+    WorkerFixture f("d5-skip");
+
+    const auto tab_a = json::readStash(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a-old"}));
+    const auto tab_b = json::readStash(stashJson("stashbbbb1", "Tab B", 1, QStringList{"b-old"}));
+    QVERIFY(tab_a && tab_b);
+    {
+        UserStore store(QDir(f.dataDir()), "d5-skip");
+        QVERIFY(store.stashes().saveStashList({*tab_a, *tab_b}, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_a, kRealm, kLeague));
+        QVERIFY(saveStashFixture(store.stashes(), *tab_b, kRealm, kLeague));
+    }
+
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(
+        stashList({stashJson("stashaaaa1", "Tab A", 0), stashJson("stashbbbb1", "Tab B", 1)}));
+    f.deliverCharacterList({});
+    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a-new"})));
+
+    // Tab B's payload fails the facade parse: skipped, not terminal.
+    f.failStash("stashbbbb1", {}, RateLimit::FetchError::Kind::Parse);
+
+    // The update COMPLETED: final snapshot published, clean terminal shape
+    // with the skipped source named.
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(f.terminals.size(), size_t(1));
+    QVERIFY(std::holds_alternative<CompletedRefresh>(f.terminals[0].outcome));
+    const auto &skipped = std::get<CompletedRefresh>(f.terminals[0].outcome).skipped;
+    QCOMPARE(skipped.size(), size_t(1));
+    QCOMPARE(skipped[0].source.type, ItemLocationType::STASH);
+    QCOMPARE(skipped[0].source.fetch_id, QString("stashbbbb1"));
+    QCOMPARE(skipped[0].error.kind, RateLimit::FetchError::Kind::Parse);
+
+    // No delta ran for tab B, so its previous items survive alongside A's
+    // replacement (M1 non-destructive semantics).
+    QCOMPARE(f.deltas.size(), size_t(1));
+    QCOMPARE(sortedItemIds(f.last_items), QStringList({"a-new", "b-old"}));
+
+    // Skips are user-visible in the final status (R1-1).
+    QVERIFY(!f.status_updates.empty());
+    QVERIFY(f.status_updates.back().message.contains("1 skipped"));
+
+    // A LIST Parse failure stays terminal — the update cannot even define
+    // its batches without lists.
+    f.worker->Update(TabSelection::All);
+    f.failStashList(RateLimit::FetchError::Kind::Parse);
+    QCOMPARE(f.terminals.size(), size_t(2));
+    QVERIFY(std::holds_alternative<FailedRefresh>(f.terminals[1].outcome));
+    QCOMPARE(std::get<FailedRefresh>(f.terminals[1].outcome).error.kind,
+             RateLimit::FetchError::Kind::Parse);
+    f.settleStragglers();
+}
+
+// M2 D5/R2-4 (stage 7): a 200 whose reply lacks its stash sub-object is
+// classified Parse AT THE FACADE (F62) and takes the skip path — the
+// worker's old untyped is-empty branches are gone, so from the worker's
+// side this is exactly a Parse-classified content failure.
+void WorkerUpdateTest::missingStashWrapperSkipsTab()
+{
+    WorkerFixture f("d5-wrapper-stash");
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(stashList({stashJson("stashaaaa1", "Tab A", 0)}));
+    f.deliverCharacterList({});
+    f.failStash("stashaaaa1", {}, RateLimit::FetchError::Kind::Parse);
+
+    QCOMPARE(f.refresh_count, 2); // completed, not aborted
+    QCOMPARE(f.terminals.size(), size_t(1));
+    QVERIFY(std::holds_alternative<CompletedRefresh>(f.terminals[0].outcome));
+    const auto &skipped = std::get<CompletedRefresh>(f.terminals[0].outcome).skipped;
+    QCOMPARE(skipped.size(), size_t(1));
+    QCOMPARE(skipped[0].source.fetch_id, QString("stashaaaa1"));
+    QCOMPARE(f.deltas.size(), size_t(0)); // no delta for a skipped source
+}
+
+// M2 D5/R2-4 (stage 7): the character-lane twin of the pin above.
+void WorkerUpdateTest::missingCharacterWrapperSkipsTab()
+{
+    WorkerFixture f("d5-wrapper-char");
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList({});
+    f.deliverCharacterList(characterList({characterJson("charid0001", "CharOne")}));
+    QVERIFY(f.hasPendingCharacter("CharOne"));
+    f.api.reject(f.api.pendingCharacter("CharOne"), RateLimit::FetchError::Kind::Parse);
+    QVERIFY(WorkerFixture::drainUntilIdle());
+
+    QCOMPARE(f.refresh_count, 2); // completed, not aborted
+    QCOMPARE(f.terminals.size(), size_t(1));
+    QVERIFY(std::holds_alternative<CompletedRefresh>(f.terminals[0].outcome));
+    const auto &skipped = std::get<CompletedRefresh>(f.terminals[0].outcome).skipped;
+    QCOMPARE(skipped.size(), size_t(1));
+    QCOMPARE(skipped[0].source.type, ItemLocationType::CHARACTER);
+    QCOMPARE(skipped[0].source.fetch_id, QString("charid0001"));
+    QCOMPARE(f.deltas.size(), size_t(0));
+    QVERIFY(f.status_updates.back().message.contains("1 skipped"));
 }
 
 QTEST_GUILESS_MAIN(WorkerUpdateTest)
