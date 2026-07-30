@@ -22,6 +22,7 @@
 
 #include "fetchsourcekey.h"
 #include "item.h"
+#include "sourcekeyeditems.h"
 #include "poe/types/character.h"
 #include "poe/types/stashtab.h"
 #include "ratelimit/fetcherror.h"
@@ -204,7 +205,6 @@ private:
                    ItemLocation location,
                    ParseResult &result) const;
     void LoadItems(const poe::StashTab &stash, ItemLocation location, ParseResult &result) const;
-    void RemoveItemsFetchedBy(const FetchSourceKey &key);
     void RebaseItemLocations(ItemLocationType type);
     void SubmitStashListRequest();
     void SubmitCharacterListRequest();
@@ -286,7 +286,9 @@ private:
     void SweepTasks();
 
     void SendStatusUpdate();
-    void ParseItems(const std::vector<poe::Item> &items, const ItemLocation &base_location);
+    void ParseItems(const std::vector<poe::Item> &items,
+                    const ItemLocation &base_location,
+                    Items &out) const;
     void CheckUpdateFinished();
     void FinishUpdate();
 
@@ -302,7 +304,12 @@ private:
 
     std::vector<ItemLocation> m_tabs;
 
-    Items m_items;
+    // Source-keyed item storage (M2 D3): the M2-M2 measurement fired the
+    // spec's storage conditional, so the per-reply replace and the
+    // reconcile/list erases are bucket operations, never O(all-items)
+    // passes. Whole-collection reads (ItemsRefreshed emits, rebasing, the
+    // finish sort) go through Flat()/buckets() at snapshot boundaries only.
+    SourceKeyedItems m_items;
 
     size_t m_stashes_needed{0};
     size_t m_stashes_received{0};

@@ -13,7 +13,7 @@
 //
 // Attribution method: the live path is segmented by timing probes connected
 // around the production slots (direct connections run in connection order),
-// and the erase/parse/pricing components are additionally measured as
+// and the replace/parse/pricing components are additionally measured as
 // micro-benchmarks on identical data outside the timed windows. Live
 // segments sum to the measured total minus an explicitly reported residual
 // (event-loop dispatch, coroutine resume, and the fake's completion path).
@@ -47,6 +47,7 @@
 #include "poe/poeapiclient.h"
 #include "ratelimit/ratelimiter.h"
 #include "shop.h"
+#include "sourcekeyeditems.h"
 #include "spikedataset.h"
 #include "testfixtures.h"
 #include "ui/mainwindow.h"
@@ -93,9 +94,12 @@ namespace {
         qint64 ui_reconcile = 0;      // MainWindow ghost-intersection fan-out
         qint64 post = 0;              // LaunchContent (empty) + CheckUpdateFinished + drain-out
         qint64 residual = 0;          // whole minus the sum of the segments above
-        // Micro-benchmarks on identical data, outside the live window.
-        qint64 micro_worker_erase = 0;
-        qint64 micro_manager_erase = 0;
+        // Micro-benchmarks on identical data, outside the live window. The
+        // replace micros time the production bucket op (ReplaceSource) on
+        // store mirrors — the source-keyed successor to the flat erase the
+        // original measurement attributed (D3, post-M2-M2 remedy).
+        qint64 micro_worker_replace = 0;
+        qint64 micro_manager_replace = 0;
         qint64 micro_parse_append = 0;
         qint64 micro_pricing = 0;
         int reply_items = 0;
@@ -420,15 +424,13 @@ int main(int argc, char *argv[])
     std::vector<Sample> replacement;
     std::vector<Sample> removal;
 
-    const auto worker_key_pred = [](const Items &items, const FetchSourceKey &key) {
-        Items copy = items;
-        const qint64 t0 = g_clock.nsecsElapsed();
-        std::erase_if(copy, [&key](const std::shared_ptr<Item> &item) {
-            const ItemLocation &loc = item->location();
-            return (loc.type() == key.type) && (loc.fetch_id() == key.fetch_id);
-        });
-        return g_clock.nsecsElapsed() - t0;
-    };
+    // Store mirrors for the replace micros: seeded from each side's
+    // post-populate state and fed every measured reply's delta, so they
+    // track the live stores tab-for-tab across the measured sequence.
+    SourceKeyedItems worker_mirror;
+    SourceKeyedItems manager_mirror;
+    worker_mirror.ResetTo(access.items());
+    manager_mirror.ResetTo(manager.items());
 
     for (size_t k = 0; k < measured_tabs.size(); ++k) {
         const int t = measured_tabs[k];
@@ -450,10 +452,29 @@ int main(int argc, char *argv[])
         Sample sample;
         sample.reply_items = reply.items ? static_cast<int>(reply.items->size()) : 0;
 
-        // Micro-benchmarks on identical pre-delivery state.
-        if (!warmup) {
-            sample.micro_worker_erase = worker_key_pred(access.items(), key);
-            sample.micro_manager_erase = worker_key_pred(manager.items(), key);
+        // Micro-benchmarks on identical pre-delivery state: parse the delta
+        // (untimed — the parse cost has its own micro below) and time the
+        // production bucket op on each mirror.
+        {
+            Items micro_delta;
+            if (reply.items) {
+                const ItemLocation base_location = dataset.location(t);
+                micro_delta.reserve(reply.items->size());
+                for (const auto &poe_item : *reply.items) {
+                    micro_delta.push_back(std::make_shared<Item>(
+                        poe_item, base_location.getItemLocation(poe_item)));
+                }
+            }
+            Items manager_delta = micro_delta;
+            const qint64 t0 = g_clock.nsecsElapsed();
+            worker_mirror.ReplaceSource(key, std::move(micro_delta));
+            const qint64 t1 = g_clock.nsecsElapsed();
+            manager_mirror.ReplaceSource(key, std::move(manager_delta));
+            const qint64 t2 = g_clock.nsecsElapsed();
+            if (!warmup) {
+                sample.micro_worker_replace = t1 - t0;
+                sample.micro_manager_replace = t2 - t1;
+            }
         }
 
         // The measured window: resolve -> quiescent.
@@ -579,8 +600,8 @@ int main(int argc, char *argv[])
         printBucket("post (finish)", samples, &Sample::post);
         printBucket("residual", samples, &Sample::residual);
         std::printf("  micro-benchmarks (identical data, outside the window):\n");
-        printBucket("worker erase (micro)", samples, &Sample::micro_worker_erase);
-        printBucket("manager erase (micro)", samples, &Sample::micro_manager_erase);
+        printBucket("worker replace (micro)", samples, &Sample::micro_worker_replace);
+        printBucket("manager replace (micro)", samples, &Sample::micro_manager_replace);
         printBucket("parse+append (micro)", samples, &Sample::micro_parse_append);
         printBucket("pricing (micro)", samples, &Sample::micro_pricing);
     };

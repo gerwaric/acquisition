@@ -266,12 +266,12 @@ ParseResult ItemsManagerWorker::ParseCachedItems(const QString &dataDir) const
 void ItemsManagerWorker::OnParseCompleted(ParseResult result)
 {
     m_tabs = std::move(result.tabs);
-    m_items = std::move(result.items);
+    m_items.ResetTo(std::move(result.items));
     m_tab_id_index = std::move(result.tab_id_index);
     m_state = WorkerState::Idle;
     // let ItemManager know that the retrieval of cached items/tabs has been completed (calls ItemsManager::OnItemsRefreshed method)
     spdlog::trace("ItemsManagerWorker::ParseItemMods() emitting ItemsRefreshed signal");
-    emit ItemsRefreshed(m_items, m_tabs, true);
+    emit ItemsRefreshed(m_items.Flat(), m_tabs, true);
 
     if (m_updateRequest) {
         spdlog::trace("ItemsManagerWorker::ParseItemMods() triggering requested update");
@@ -445,39 +445,30 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
     RunUpdate();
 }
 
-void ItemsManagerWorker::RemoveItemsFetchedBy(const FetchSourceKey &key)
-{
-    const size_t before = m_items.size();
-    std::erase_if(m_items, [&key](const std::shared_ptr<Item> &item) {
-        const ItemLocation &location = item->location();
-        return (location.type() == key.type) && (location.fetch_id() == key.fetch_id);
-    });
-    spdlog::debug("ItemsManagerWorker: replacing {} items fetched by '{}'",
-                  (before - m_items.size()),
-                  key.fetch_id);
-}
-
 void ItemsManagerWorker::RebaseItemLocations(ItemLocationType type)
 {
     // After a list reconciliation m_tabs carries fresh metadata, but
     // surviving items still embed the ItemLocation they were parsed with.
     // Rebase them so a renamed or moved tab is fresh everywhere the UI
     // reads a location (search buckets, headers, forum codes), not just in
-    // the tab list.
+    // the tab list. Runs at the snapshot boundary only (FinishUpdate), so
+    // walking every bucket's items is permitted; rebasing never touches the
+    // key fields (type, id, fetch_id), so the bucket structure stays valid.
     std::unordered_map<QString, const ItemLocation *> fresh_tabs;
     for (const auto &tab : m_tabs) {
         if (tab.type() == type) {
             fresh_tabs.emplace(tab.id(), &tab);
         }
     }
-    for (auto &item : m_items) {
-        const ItemLocation &location = item->location();
-        if (location.type() != type) {
+    for (const auto &[key, bucket] : m_items.buckets()) {
+        if (key.type != type) {
             continue;
         }
-        const auto it = fresh_tabs.find(location.id());
+        const auto it = fresh_tabs.find(bucket.front()->location().id());
         if (it != fresh_tabs.end()) {
-            item->RebaseLocation(*it->second);
+            for (const auto &item : bucket) {
+                item->RebaseLocation(*it->second);
+            }
         }
     }
 }
@@ -778,16 +769,18 @@ void ItemsManagerWorker::OnStashListReceived(const Result<poe::StashListWrapper>
     }
     spdlog::debug("Requesting {} out of {} stash tabs", batch.size(), stashes.size());
 
-    // Drop items belonging to stash tabs the server no longer lists.
-    const size_t before = m_items.size();
-    std::erase_if(m_items, [this](const std::shared_ptr<Item> &item) {
-        const ItemLocation &location = item->location();
-        return (location.type() == ItemLocationType::STASH)
-               && (m_tab_id_index.count(location.id()) == 0);
-    });
-    if (before > m_items.size()) {
-        spdlog::debug("ItemsManagerWorker: dropped {} items from deleted stash tabs",
-                      (before - m_items.size()));
+    // Drop items belonging to stash tabs the server no longer lists. A
+    // bucket's representative location stands for all its items (a child
+    // bucket's stable id is its display parent's), so a deleted parent
+    // takes its children's buckets with it — the same predicate the old
+    // per-item pass applied.
+    const size_t dropped = m_items.EraseSourcesIf(
+        [this](const FetchSourceKey &key, const ItemLocation &location) {
+            return (key.type == ItemLocationType::STASH)
+                   && (m_tab_id_index.count(location.id()) == 0);
+        });
+    if (dropped > 0) {
+        spdlog::debug("ItemsManagerWorker: dropped {} items from deleted stash tabs", dropped);
     }
 
     m_has_stash_list = true;
@@ -875,15 +868,13 @@ void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterList
     spdlog::debug("There are {} characters to update in '{}'", batch.size(), m_league);
 
     // Drop items belonging to characters the server no longer lists.
-    const size_t before = m_items.size();
-    std::erase_if(m_items, [this](const std::shared_ptr<Item> &item) {
-        const ItemLocation &location = item->location();
-        return (location.type() == ItemLocationType::CHARACTER)
-               && (m_tab_id_index.count(location.id()) == 0);
-    });
-    if (before > m_items.size()) {
-        spdlog::debug("ItemsManagerWorker: dropped {} items from deleted characters",
-                      (before - m_items.size()));
+    const size_t dropped = m_items.EraseSourcesIf(
+        [this](const FetchSourceKey &key, const ItemLocation &location) {
+            return (key.type == ItemLocationType::CHARACTER)
+                   && (m_tab_id_index.count(location.id()) == 0);
+        });
+    if (dropped > 0) {
+        spdlog::debug("ItemsManagerWorker: dropped {} items from deleted characters", dropped);
     }
 
     m_has_character_list = true;
@@ -923,27 +914,29 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashPayload> &result
 
     // Atomically replace whatever this request fetched last time: for a
     // normal tab that is the tab's items, for a child of a special tab it
-    // is just that child's share of the parent location's items.
-    RemoveItemsFetchedBy(FetchSourceKey::ForLocation(location));
-
-    const size_t first_appended = m_items.size();
+    // is just that child's share of the parent location's items. One bucket
+    // swap in the source-keyed store — O(replaced + delta), never a pass
+    // over the collection (D3, post-M2-M2).
+    Items delta;
     if (stash.items) {
         const auto &items = *stash.items;
         if (items.size() > 0) {
-            ParseItems(items, location);
+            ParseItems(items, location, delta);
         } else {
             spdlog::debug("Stash 'items' does not contain any items: {}", location.GetHeader());
         }
     } else {
         spdlog::debug("Stash does not have an 'items' array: {}", location.GetHeader());
     }
+    const size_t replaced = m_items.ReplaceSource(FetchSourceKey::ForLocation(location), delta);
+    spdlog::debug("ItemsManagerWorker: replacing {} items fetched by '{}'",
+                  replaced,
+                  location.fetch_id());
 
     // Presentation delta (M2 D3): the exact replacement just applied for this
     // fetch source, sharing its shared_ptrs, emitted after the atomic replace
     // and before the counter increment.
-    emit TabRefreshed(location,
-                      Items(m_items.begin() + static_cast<Items::difference_type>(first_appended),
-                            m_items.end()));
+    emit TabRefreshed(location, delta);
 
     ++m_stashes_received;
     SendStatusUpdate();
@@ -1015,16 +1008,15 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashPayload> &result
             emit stashChildrenReplaced(location.id(), child_ids, m_realm, m_league);
         }
         const std::set<FetchSourceKey> expected_keys(expected.begin(), expected.end());
-        const size_t before = m_items.size();
-        std::erase_if(m_items, [&](const std::shared_ptr<Item> &item) {
-            const ItemLocation &item_location = item->location();
-            return (item_location.type() == ItemLocationType::STASH)
-                   && (item_location.id() == location.id())
-                   && (expected_keys.count({item_location.type(), item_location.fetch_id()}) == 0);
-        });
-        if (before > m_items.size()) {
+        const size_t dropped = m_items.EraseSourcesIf(
+            [&](const FetchSourceKey &key, const ItemLocation &item_location) {
+                return (key.type == ItemLocationType::STASH)
+                       && (item_location.id() == location.id())
+                       && (expected_keys.count(key) == 0);
+            });
+        if (dropped > 0) {
             spdlog::debug("ItemsManagerWorker: dropped {} ghost child items from {}",
-                          (before - m_items.size()),
+                          dropped,
                           location.GetHeader());
         }
         // Presentation-lane aggregate reconciliation (M2 D3, R5-2/R6-2):
@@ -1066,10 +1058,9 @@ void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterPayload>
 
     emit characterReceived(character, result->bytes, m_realm);
 
-    // Atomically replace this character's items.
-    RemoveItemsFetchedBy(FetchSourceKey::ForLocation(location));
-
-    const size_t first_appended = m_items.size();
+    // Atomically replace this character's items: one bucket swap, as in
+    // OnStashReceived.
+    Items delta;
     const auto collections = {character.equipment,
                               character.inventory,
                               character.rucksack,
@@ -1077,16 +1068,18 @@ void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterPayload>
 
     for (const auto &items : collections) {
         if (items) {
-            ParseItems(*items, location);
+            ParseItems(*items, location, delta);
         }
     }
+    const size_t replaced = m_items.ReplaceSource(FetchSourceKey::ForLocation(location), delta);
+    spdlog::debug("ItemsManagerWorker: replacing {} items fetched by '{}'",
+                  replaced,
+                  location.fetch_id());
 
     // Presentation delta (M2 D3), as in OnStashReceived: after the atomic
     // replace, before the counter increment. A character reply discovers no
     // children, so there is no ChildrenReconciled here.
-    emit TabRefreshed(location,
-                      Items(m_items.begin() + static_cast<Items::difference_type>(first_appended),
-                            m_items.end()));
+    emit TabRefreshed(location, delta);
 
     ++m_characters_received;
     SendStatusUpdate();
@@ -1213,13 +1206,14 @@ void ItemsManagerWorker::SendStatusUpdate()
 }
 
 void ItemsManagerWorker::ParseItems(const std::vector<poe::Item> &items,
-                                    const ItemLocation &base_location)
+                                    const ItemLocation &base_location,
+                                    Items &out) const
 {
     for (auto &item : items) {
         const ItemLocation location = base_location.getItemLocation(item);
-        m_items.push_back(std::make_shared<Item>(item, location));
+        out.push_back(std::make_shared<Item>(item, location));
         if (item.socketedItems) {
-            ParseItems(*item.socketedItems, location);
+            ParseItems(*item.socketedItems, location, out);
         }
     }
 }
@@ -1289,16 +1283,15 @@ void ItemsManagerWorker::FinishUpdate()
     // Sort tabs.
     std::sort(begin(m_tabs), end(m_tabs));
 
-    // Sort items.
-    std::sort(begin(m_items),
-              end(m_items),
-              [](const std::shared_ptr<Item> &a, const std::shared_ptr<Item> &b) {
-                  return *a < *b;
-              });
+    // Sort items (the snapshot's deterministic presentation order; the flat
+    // view is rebuilt here if any delta dirtied it).
+    m_items.SortFlat([](const std::shared_ptr<Item> &a, const std::shared_ptr<Item> &b) {
+        return *a < *b;
+    });
 
     // Let everyone know the update is done.
     spdlog::trace("ItemsManagerWorker::FinishUpdate() emitting ItemsRefreshed");
-    emit ItemsRefreshed(m_items, m_tabs, false);
+    emit ItemsRefreshed(m_items.Flat(), m_tabs, false);
 
     m_state = WorkerState::Idle;
     spdlog::debug("Update finished.");

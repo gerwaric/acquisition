@@ -13,6 +13,7 @@
 #include "itemlocation.h"
 #include "itemsmanagerworker.h"
 #include "locationinventory.h"
+#include "sourcekeyeditems.h"
 #include "util/programstate.h"
 #include "util/util.h"
 
@@ -40,7 +41,10 @@ public:
     void Update(TabSelection type, const std::vector<ItemLocation> &tab_names = {});
     void SetAutoUpdateInterval(int minutes);
     void SetAutoUpdate(bool update);
-    const Items &items() const { return m_items; }
+    // The published collection as a flat vector, lazily rebuilt from the
+    // source-keyed store after a delta (M2 D3, post-M2-M2): snapshot and
+    // tick consumers only — nothing on the per-reply path calls this.
+    const Items &items() const { return m_items.Flat(); }
     // The freshest tab metadata seen per stable display key (M2 D6): fed by
     // every delta's location anchor and reset by every snapshot. Search
     // buckets render through it.
@@ -85,6 +89,9 @@ private:
     DataStore &m_datastore;
 
     std::unique_ptr<QTimer> m_auto_update_timer;
-    Items m_items;
+    // Source-keyed published copy (M2 D3): the M2-M2 measurement fired the
+    // spec's storage conditional, so the per-delta replace and the child
+    // reconciliation are bucket operations, never O(all-items) passes.
+    SourceKeyedItems m_items;
     LocationInventory m_location_inventory;
 };

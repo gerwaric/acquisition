@@ -69,7 +69,7 @@ void ItemsManager::ApplyAutoItemBuyouts()
 {
     spdlog::trace("ItemsManager::ApplyAutoItemBuyouts() entered");
     // Loop over all items, check for note field with pricing and apply
-    for (auto const &item : m_items) {
+    for (auto const &item : m_items.Flat()) {
         auto const &note = item->note();
         if (!note.isEmpty()) {
             Buyout buyout = m_buyout_manager.StringToBuyout(note);
@@ -93,7 +93,7 @@ void ItemsManager::PropagateTabBuyouts()
 {
     spdlog::trace("ItemsManager::PropagateTabBuyouts() entered");
     m_buyout_manager.ClearRefreshLocks();
-    for (auto &item_ptr : m_items) {
+    for (auto &item_ptr : m_items.Flat()) {
         Item &item = *item_ptr;
         auto item_bo = m_buyout_manager.Get(item);
         auto tab_bo = m_buyout_manager.GetTab(item.location());
@@ -125,7 +125,7 @@ void ItemsManager::OnItemsRefreshed(const Items &items,
                                     bool initial_refresh)
 {
     spdlog::trace("ItemsManager::OnItemsRefreshed() entered");
-    m_items = items;
+    m_items.ResetTo(items);
 
     spdlog::debug("There are {} items and {} tabs after the refresh.", m_items.size(), tabs.size());
     // Debug-only diagnostic, gated so release users never pay a
@@ -162,17 +162,12 @@ void ItemsManager::OnTabRefreshed(const ItemLocation &location, const Items &ite
     spdlog::trace("ItemsManager::OnTabRefreshed() entered");
 
     // The published copy stays the pre-update snapshot plus applied
-    // replacements, in arrival order (D6): erase everything previously
-    // published for this fetch source — one predicate-only linear pass, the
-    // same operation the worker itself performs per reply (R1-2) — and
-    // append the replacement. An empty delta empties the fetch source and
-    // nothing else; tab deletion stays snapshot-boundary.
-    const FetchSourceKey key = FetchSourceKey::ForLocation(location);
-    std::erase_if(m_items, [&key](const std::shared_ptr<Item> &item) {
-        const ItemLocation &loc = item->location();
-        return (loc.type() == key.type) && (loc.fetch_id() == key.fetch_id);
-    });
-    m_items.insert(m_items.end(), items.begin(), items.end());
+    // replacements (D6): everything previously published for this fetch
+    // source is dropped and the delta takes its place — one bucket swap in
+    // the source-keyed store, O(replaced + delta) (D3, post-M2-M2). An
+    // empty delta empties the fetch source and nothing else; tab deletion
+    // stays snapshot-boundary.
+    m_items.ReplaceSource(FetchSourceKey::ForLocation(location), items);
 
     // Every delta's location anchor feeds the canonical inventory, empty
     // deltas included (D6/R6-1).
@@ -191,13 +186,12 @@ void ItemsManager::OnChildrenReconciled(const ItemLocation &parent,
     // Run the worker's own reconcile predicate against OUR baseline
     // (R5-2/R6-2): the expected set is authoritative, so ghosts that only
     // the published copy still holds (divergence across a failed update)
-    // are erased too. One pass with set lookup — the same bound as the
-    // primary erase.
+    // are erased too. A walk of the bucket index with set lookup — the
+    // erased items are the only ones touched (D3, post-M2-M2).
     const std::set<FetchSourceKey> expected_keys(expected.begin(), expected.end());
-    std::erase_if(m_items, [&](const std::shared_ptr<Item> &item) {
-        const ItemLocation &loc = item->location();
-        return (loc.type() == ItemLocationType::STASH) && (loc.id() == parent.id())
-               && (expected_keys.count({loc.type(), loc.fetch_id()}) == 0);
+    m_items.EraseSourcesIf([&](const FetchSourceKey &key, const ItemLocation &loc) {
+        return (key.type == ItemLocationType::STASH) && (loc.id() == parent.id())
+               && (expected_keys.count(key) == 0);
     });
 
     m_location_inventory.Ingest(parent);
@@ -296,7 +290,7 @@ void ItemsManager::MigrateBuyouts()
     // Migrate from v4 to v5.
     if (db_version == 4) {
         spdlog::debug("ItemsManager migrating from db_version {} to 5", db_version);
-        for (const auto &item : m_items) {
+        for (const auto &item : m_items.Flat()) {
             m_buyout_manager.MigrateItem(item->hash_v4(), item->id());
         }
         m_buyout_manager.Save();
@@ -312,7 +306,7 @@ void ItemsManager::MigrateBuyouts()
 
     // Migrate from older versions to v4.
     spdlog::debug("ItemsManager migrating from db_version {} to 4", db_version);
-    for (const auto &item : m_items) {
+    for (const auto &item : m_items.Flat()) {
         m_buyout_manager.MigrateItem(item->old_hash(), item->hash_v4());
     }
     m_buyout_manager.Save();
