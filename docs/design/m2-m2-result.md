@@ -10,9 +10,11 @@ at 1m. The dominant component is four O(all-items) erase passes per
 reply, split evenly between worker and manager (attributed separately
 per R3-3/R4-1) — a manager-only remedy would leave the path at
 roughly half its measured cost, still far over budget at both scales,
-which is why the pair was selected. The remedy must be validated by
-rerunning this measurement before M2 is complete (R6-6); the rerun's
-numbers will be appended below when it happens.
+which is why the pair was selected. **The pair was implemented the
+same day (`SourceKeyedItems`, both sides) and validated by the R6-6
+rerun appended at the bottom of this document: every budget now
+passes with more than an order of magnitude of headroom** (whole path
+0.234 ms @100k against 2 ms, 1.225 ms @1m against 16 ms).
 
 This is the addendum the spec's open-items entry asks for (M2-M2,
 first implementation checkpoint; D3, R2-3/R3-3/R4-1/R5-4/R6-6/R7-3):
@@ -194,8 +196,6 @@ Consequences under the spec's frozen conditional (D3, R5-4):
 
 ## Attribution notes
 
-## Attribution notes
-
 - "worker erase+parse" is the live segment between the persistence
   slot returning and the primary delta emit; the micro rows split it:
   the erase dominates and parse+append is the small remainder,
@@ -210,3 +210,104 @@ Consequences under the spec's frozen conditional (D3, R5-4):
 - "manager reconcile" is the manager's expected-set erase driven by
   `ChildrenReconciled` — emitted for every top-level stash reply, so
   each measured reply pays it.
+
+## Remedy validation rerun (R6-6) — July 29, 2026
+
+The selected pair implemented: `SourceKeyedItems`
+(`src/sourcekeyeditems.h`) replaces the flat vector on BOTH sides of
+the presentation lane. Buckets are keyed by `FetchSourceKey`; the
+per-reply replacement is one bucket swap (O(replaced + delta)); the
+reconcile and list-deletion erases walk the bucket index (O(sources)
+plus the erased items), testing one representative location per
+bucket — valid because every bucket is non-empty and homogeneous (one
+fetch source). Whole-collection consumers read a lazily rebuilt flat
+vector; nothing on the per-reply path calls it (the D9 fan-out was
+verified to touch only the delta and the searches' dirty flags).
+
+Same harness, datasets, shapes, seed, statistic, and environment as
+the original measurement above; same commit for everything except the
+remedy itself. One harness change: the erase micro-benchmarks became
+replace micro-benchmarks — they time the production bucket op
+(`ReplaceSource`) on store mirrors seeded from each side's
+post-populate state, since the flat erase they used to time no longer
+exists on the path.
+
+### Rerun — 100k
+
+Replacement replies (churn 0.3; 40 samples, median reply 48 items):
+
+| Bucket | median | max |
+|---|---|---|
+| **whole path** | **0.234 ms** | 0.400 ms |
+| pre (dispatch) | 0.013 ms | 0.026 ms |
+| persistence | 0.054 ms | 0.089 ms |
+| worker replace+parse | 0.067 ms | 0.208 ms |
+| manager apply (replace+append+pricing) | 0.002 ms | 0.005 ms |
+| UI intersection/fan-out (primary) | 0.001 ms | 0.001 ms |
+| worker between (counters, status fan-out, ghost erase) | 0.043 ms | 0.063 ms |
+| manager reconcile (expected-set erase) | 0.017 ms | 0.031 ms |
+| UI intersection/fan-out (reconcile) | 0.001 ms | 0.001 ms |
+| post (finish) | 0.021 ms | 0.026 ms |
+| residual | 0.000 ms | 0.000 ms |
+
+Micro-benchmarks (identical data, outside the windows):
+
+| Component | median | max |
+|---|---|---|
+| worker replace (bucket op) | 0.001 ms | 0.005 ms |
+| **manager replace (bucket op)** | **0.001 ms** | 0.002 ms |
+| parse+append | 0.067 ms | 0.213 ms |
+| pricing | 0.001 ms | 0.003 ms |
+
+Removal replies (emptied source; 10 samples): whole path median
+0.129 ms.
+
+### Rerun — 1m
+
+Replacement replies (churn 0.3; 12 samples, median reply 512 items):
+
+| Bucket | median | max |
+|---|---|---|
+| **whole path** | **1.225 ms** | 1.474 ms |
+| pre (dispatch) | 0.043 ms | 0.055 ms |
+| persistence | 0.164 ms | 0.188 ms |
+| worker replace+parse | 0.745 ms | 0.857 ms |
+| manager apply (replace+append+pricing) | 0.014 ms | 0.021 ms |
+| UI intersection/fan-out (primary) | 0.002 ms | 0.005 ms |
+| worker between (counters, status fan-out, ghost erase) | 0.135 ms | 0.228 ms |
+| manager reconcile (expected-set erase) | 0.060 ms | 0.076 ms |
+| UI intersection/fan-out (reconcile) | 0.001 ms | 0.001 ms |
+| post (finish) | 0.039 ms | 0.045 ms |
+| residual | 0.000 ms | 0.000 ms |
+
+Micro-benchmarks (identical data, outside the windows):
+
+| Component | median | max |
+|---|---|---|
+| worker replace (bucket op) | 0.004 ms | 0.005 ms |
+| **manager replace (bucket op)** | **0.002 ms** | 0.002 ms |
+| parse+append | 0.739 ms | 0.841 ms |
+| pricing | 0.011 ms | 0.017 ms |
+
+Removal replies (emptied source; 6 samples): whole path median
+0.209 ms.
+
+Populate, for context only (same definition as above): 0.9 s at 100k
+(was 5.9 s), 6.9 s at 1m (was 93.9 s) — the populate path paid the
+same erase passes per reply, so the remedy collapses it too.
+
+### Rerun budget verdicts
+
+| Budget (D3) | 100k (< 2 ms) | 1m (< 16 ms) |
+|---|---|---|
+| Manager marginal replace | **PASS** — 0.001 ms (was 1.828) | **PASS** — 0.002 ms (was 18.830) |
+| Whole path | **PASS** — 0.234 ms (was 7.382) | **PASS** — 1.225 ms (was 74.928) |
+
+Every budget passes with more than an order of magnitude of headroom;
+the max column stays inside budget everywhere. The dominant remaining
+component at 1m is parse+append (~0.74 ms on a 512-item reply) —
+genuine O(delta) work on the delta's own items, exactly what D3
+permits the path to cost. The four erase passes are gone from the
+attribution: worker between and manager reconcile are now bucket-index
+walks (~0.04–0.14 ms at 1m), and the primary replaces are microseconds.
+No further remedy is required; the M2-M2 conditional is discharged.
