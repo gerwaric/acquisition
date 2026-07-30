@@ -1,6 +1,16 @@
 # Items Pipeline M2: Implementation Sequence
 
-Status: **ACCEPTED for implementation** (July 29, 2026; externally
+Status: **IMPLEMENTED** (July 29, 2026) — all stages 0–8 landed on
+`items-pipeline-m2`, every commit green on the full suite. The
+stage-4 M2-M2 gate FIRED (both whole-path budgets missed); Tom
+selected the spec's named remedy pair at the hold point
+(`SourceKeyedItems` on both sides), and the R6-6 validation rerun
+passes every budget — full record in `m2-m2-result.md`. The
+wrap-up's design-review criteria were re-verified on the finished
+branch; M1-M2 stays a post-M2 follow-up (blocks nothing). The
+document below is retained as the reviewed sequencing record.
+
+Previous status: **ACCEPTED for implementation** (July 29, 2026; externally
 reviewed the same day in two passes — round 1: explicit
 `ChildrenReconciled` treatment in stage 3 with its emission
 condition disambiguated, the R2-1 capture front-loaded to stage 2,

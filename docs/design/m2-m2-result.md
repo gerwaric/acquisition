@@ -20,7 +20,9 @@ This is the addendum the spec's open-items entry asks for (M2-M2,
 first implementation checkpoint; D3, R2-3/R3-3/R4-1/R5-4/R6-6/R7-3):
 the complete synchronous reply application measured on the real
 production reply path, with per-component attribution, at the 100k and
-1m scales.
+1m scales. The spec's open-items entry (`items-pipeline-m2.md`,
+"Open items requiring spike or measurement") records the resolution
+and points here.
 
 ## What was measured
 
