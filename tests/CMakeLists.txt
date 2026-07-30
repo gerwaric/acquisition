@@ -39,7 +39,9 @@ endfunction()
 # M2-M2 measurement harness (items-pipeline M2, stage 4): not a test — an
 # offscreen benchmark run by hand in a Release build. It reuses the test
 # fakes and the deterministic dataset generator, so it lives here.
-qt_add_executable(m2m2_benchmark m2m2_benchmark.cpp)
+# Hand-run measurement harness (M2-M2), not a test: excluded from the
+# default build; build explicitly with --target m2m2_benchmark.
+qt_add_executable(m2m2_benchmark EXCLUDE_FROM_ALL m2m2_benchmark.cpp)
 target_include_directories(m2m2_benchmark PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(m2m2_benchmark PRIVATE acquisition_core)
 

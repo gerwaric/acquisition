@@ -66,7 +66,12 @@ public:
         std::lognormal_distribution<double> size_dist(0.0, 0.9);
         for (int t = 0; t < config.tab_count; ++t) {
             TabSpec tab;
-            tab.stash.id = QString("spiketab%1").arg(t, 10, 16, QChar('0'));
+            // Exactly ten characters, the modern API's documented id shape:
+            // longer ids trip the worker's legacy-id warning once per tab,
+            // flooding benchmark output. (Changed 2026-07-30, after the
+            // recorded M2-M2 runs; immaterial at the recorded margins, but
+            // reruns are not byte-identical to those runs' dataset.)
+            tab.stash.id = QString("sp%1").arg(t, 8, 16, QChar('0'));
             tab.stash.name
                 = QString("%1 %2").arg(kTabNames[static_cast<size_t>(t) % kTabNames.size()]).arg(t);
             const bool quad = (t % 100) < static_cast<int>(config.quad_share * 100.0);

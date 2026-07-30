@@ -685,10 +685,19 @@ void MainWindowTest::tabSwitchBeforeTickPreservesDirty()
     auto *tabs = findSearchTabs(*fixture.window);
     auto *tree = fixture.window->findChild<QTreeView *>("treeView");
     QVERIFY(tabs && tree);
+    fixture.window->resize(900, 500);
+    fixture.window->show();
 
+    // Enough items that the tree scrolls, so the switch-away scroll capture
+    // is observable on reactivation.
     const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
     Items items;
-    items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+    for (int n = 0; n < 40; ++n) {
+        items.push_back(makeMainWindowItem(QString("item-a%1").arg(n),
+                                           QString("AlphaItem %1").arg(n),
+                                           "Sword",
+                                           tabA));
+    }
     fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
     // A second search to switch to.
     tabs->setCurrentIndex(1);
@@ -697,9 +706,33 @@ void MainWindowTest::tabSwitchBeforeTickPreservesDirty()
     QAbstractItemModel *first_model = tree->model();
     QSignalSpy first_resets(first_model, &QAbstractItemModel::modelReset);
 
-    // Arm the tick, then switch away before it fires.
-    fixture.itemsManager
-        ->OnTabRefreshed(tabA, {makeMainWindowItem("item-a2", "AlphaItem Two", "Sword", tabA)});
+    // Scroll an ordinary item row to the top and remember it: the switch
+    // away must capture this (R6-3) — the reactivation refilter resets the
+    // model while the view still shows the OTHER search, so the capture at
+    // switch-away is the only one there is.
+    const QModelIndex bucket = findBucket(*tree->model(), tabA.GetHeader());
+    QVERIFY(bucket.isValid());
+    tree->expand(bucket);
+    QTRY_VERIFY_WITH_TIMEOUT(tree->verticalScrollBar()->maximum() > 0, 2000);
+    tree->verticalScrollBar()->setValue(tree->verticalScrollBar()->maximum() / 2);
+    const QModelIndex topBefore = tree->indexAt(QPoint(0, 0));
+    QVERIFY(topBefore.isValid());
+    QVERIFY(topBefore.parent().isValid());
+    const QString topName = topBefore.data().toString();
+
+    // Arm the tick, then switch away before it fires. The delta is the
+    // tab's complete replacement (a delta REPLACES its fetch source): all
+    // forty items, one renamed — so the anchored row survives and the
+    // anchor is restorable after the reactivation refilter.
+    Items delta;
+    delta.push_back(makeMainWindowItem("item-a0", "AlphaItem 0 Two", "Sword", tabA));
+    for (int n = 1; n < 40; ++n) {
+        delta.push_back(makeMainWindowItem(QString("item-a%1").arg(n),
+                                           QString("AlphaItem %1").arg(n),
+                                           "Sword",
+                                           tabA));
+    }
+    fixture.itemsManager->OnTabRefreshed(tabA, delta);
     tabs->setCurrentIndex(1);
     const int resets_after_switch = first_resets.count();
 
@@ -707,10 +740,14 @@ void MainWindowTest::tabSwitchBeforeTickPreservesDirty()
     QTest::qWait(600);
     QCOMPARE(first_resets.count(), resets_after_switch);
 
-    // Its dirty flag carries the update to the next activation.
+    // Its dirty flag carries the update to the next activation, and the
+    // scroll captured at switch-away survives the reactivation reset.
     tabs->setCurrentIndex(0);
     QCOMPARE(first_resets.count(), resets_after_switch + 1);
-    QVERIFY(visibleItemNames(*tree).contains("AlphaItem Two Sword"));
+    QVERIFY(visibleItemNames(*tree).contains("AlphaItem 0 Two Sword"));
+    const QModelIndex topAfter = tree->indexAt(QPoint(0, 0));
+    QVERIFY(topAfter.isValid());
+    QCOMPARE(topAfter.data().toString(), topName);
 }
 
 // M2 D9 rule 4 (stage 3): deleting the current search with a tick pending

@@ -71,7 +71,11 @@ Excluded from the measured windows, deliberately:
 
 `tests/spikedataset.h` (the deterministic generator ported from the
 S1-M2 spike; same `(config, seed)` → same collection and churn
-sequence, seed 20260729):
+sequence, seed 20260729). July 30 note: the generator's stash ids
+were shortened to the modern 10-character shape after every run
+recorded here (they previously tripped the worker's legacy-id
+warning once per tab) — reruns are therefore not byte-identical to
+these runs' dataset; immaterial at the recorded margins:
 
 | Preset | tabs | mean items/tab | quad share | published items |
 |---|---|---|---|---|

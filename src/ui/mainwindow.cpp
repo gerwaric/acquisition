@@ -1093,6 +1093,12 @@ void MainWindow::OnTabChange(int index)
     m_delta_throttle.stop();
     if (m_current_search) {
         SaveViewExpansion(*m_current_search);
+        // Scroll is captured here too (R6-3): this is the last moment the
+        // view still shows the outgoing search's model. When the dirty
+        // search is reactivated, ModelViewRefresh's capture gate correctly
+        // skips it (the view shows the other search), so THIS save is what
+        // its restore replays.
+        SaveViewScroll(*m_current_search);
         m_current_search->setCurrentItem(m_current_item);
         m_current_search->setCurrentBucket(m_current_bucket_location);
     }
