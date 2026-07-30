@@ -116,6 +116,11 @@ private slots:
     void scopedPricingConvergesToFinalPass();
     void scopedPricingIsFailSafeAcrossFailedUpdate();
     void parentBucketMayMixChildGenerationsMidRefresh();
+
+    // Items-pipeline M2, stage 6: the D4 typed terminal event.
+    void terminalEventExactlyOncePerUpdate();
+    void deltasNeverFollowTerminalEvent();
+    void terminalFanOutRefusesReentrantUpdate();
 };
 
 namespace {
@@ -424,6 +429,14 @@ namespace {
                                     const std::vector<FetchSourceKey> &expected) {
                                  reconciles.push_back({parent, expected, signal_seq++});
                              });
+            // The typed terminal event (M2 D4), recorded in the same signal
+            // sequence as the deltas so ordering pins are direct.
+            QObject::connect(worker.get(),
+                             &ItemsManagerWorker::RefreshFinished,
+                             worker.get(),
+                             [this](const RefreshOutcome &outcome) {
+                                 terminals.push_back({outcome, refresh_count, signal_seq++});
+                             });
             worker->OnRePoEReady();
         }
 
@@ -658,6 +671,14 @@ namespace {
         };
         std::vector<DeltaRecord> deltas;
         std::vector<ReconcileRecord> reconciles;
+        // Terminal events (M2 D4), in the shared signal sequence.
+        struct TerminalRecord
+        {
+            RefreshOutcome outcome;
+            int refresh_count_at_emit;
+            int seq;
+        };
+        std::vector<TerminalRecord> terminals;
         int signal_seq{0};
 
         // The optional published-copy consumer (M2 stage 2) and its light
@@ -3295,6 +3316,148 @@ void WorkerUpdateTest::parentBucketMayMixChildGenerationsMidRefresh()
                                      "mapstash01")));
     QCOMPARE(f.refresh_count, 2);
     QCOMPARE(sortedItemIds(f.manager->items()), QStringList({"m1-new", "m2-new", "p1-new"}));
+}
+
+// M2 D4 (stage 6): RefreshFinished fires exactly once per accepted Update()
+// — CompletedRefresh (empty skipped) after the final ItemsRefreshed on
+// success, FailedRefresh with the FIRST terminal error on failure; a refused
+// Update() emits nothing, and settling stragglers adds nothing.
+void WorkerUpdateTest::terminalEventExactlyOncePerUpdate()
+{
+    WorkerFixture f("d4-once");
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+    QCOMPARE(f.terminals.size(), size_t(0)); // the cached load is not an update
+
+    // Update 1 succeeds.
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(stashList({stashJson("stashaaaa1", "Tab A", 0)}));
+    f.deliverCharacterList({});
+    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    QCOMPARE(f.refresh_count, 2);
+    QCOMPARE(f.terminals.size(), size_t(1));
+    const auto &completed = f.terminals[0];
+    QVERIFY(std::holds_alternative<CompletedRefresh>(completed.outcome));
+    QVERIFY(std::get<CompletedRefresh>(completed.outcome).skipped.empty());
+    // Pinned ordering: final ItemsRefreshed precedes the terminal event.
+    QCOMPARE(completed.refresh_count_at_emit, 2);
+
+    // Update 2 fails on its stash list; the sibling character list becomes a
+    // stopped straggler whose settlement must not emit a second terminal.
+    f.worker->Update(TabSelection::All);
+    const size_t calls_during = f.callCount();
+
+    // A refused Update() (already updating) emits nothing.
+    f.worker->Update(TabSelection::All);
+    QVERIFY(WorkerFixture::drainUntilIdle());
+    QCOMPARE(f.callCount(), calls_during);
+    QCOMPARE(f.terminals.size(), size_t(1));
+
+    f.failStashList(RateLimit::FetchError::Kind::Http);
+    QCOMPARE(f.terminals.size(), size_t(2));
+    const auto &failed = f.terminals[1];
+    QVERIFY(std::holds_alternative<FailedRefresh>(failed.outcome));
+    // The FIRST terminal error is preserved, kind intact.
+    QCOMPARE(std::get<FailedRefresh>(failed.outcome).error.kind,
+             RateLimit::FetchError::Kind::Http);
+
+    QCOMPARE(f.settleStragglers(), size_t(1));
+    QCOMPARE(f.terminals.size(), size_t(2)); // stragglers add nothing
+}
+
+// M2 D4 (stage 6): the ordering guarantee IS the identity — every
+// TabRefreshed and ChildrenReconciled of an update precedes its
+// RefreshFinished, and nothing of that update follows it, even when a
+// stopped straggler later resolves with SUCCESS (extends W-IDENTITY to both
+// delta signals).
+void WorkerUpdateTest::deltasNeverFollowTerminalEvent()
+{
+    WorkerFixture f("d4-order");
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    // Three tabs: A delivers (delta + reconcile), B fails (terminal), C is
+    // abandoned in flight as the stopped straggler.
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(stashList({stashJson("stashaaaa1", "Tab A", 0),
+                                  stashJson("stashbbbb1", "Tab B", 1),
+                                  stashJson("stashcccc1", "Tab C", 2)}));
+    f.deliverCharacterList({});
+    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+    QCOMPARE(f.deltas.size(), size_t(1));
+    QCOMPARE(f.reconciles.size(), size_t(1));
+
+    f.failStash("stashbbbb1");
+    QCOMPARE(f.terminals.size(), size_t(1));
+    const int terminal_seq = f.terminals[0].seq;
+
+    // Everything the update emitted precedes its terminal event.
+    for (const auto &delta : f.deltas) {
+        QVERIFY(delta.seq < terminal_seq);
+    }
+    for (const auto &reconcile : f.reconciles) {
+        QVERIFY(reconcile.seq < terminal_seq);
+    }
+
+    // The straggler resolves with SUCCESS: the post-await gate discards it,
+    // so nothing of the failed update follows its terminal event.
+    f.resolveStragglerStash("stashcccc1",
+                            stashOf(stashJson("stashcccc1", "Tab C", 2, QStringList{"c1"})));
+    QCOMPARE(f.deltas.size(), size_t(1));
+    QCOMPARE(f.reconciles.size(), size_t(1));
+    QCOMPARE(f.terminals.size(), size_t(1));
+}
+
+// M2 D4/R4-4 (stage 6): the worker is observably Idle during the terminal
+// fan-out, but an Update() arriving inside it is refused — otherwise a
+// fail-fast N+1 could nest its own signals inside N's fan-out. A restart
+// queued to the next event-loop turn is accepted normally.
+void WorkerUpdateTest::terminalFanOutRefusesReentrantUpdate()
+{
+    WorkerFixture f("d4-reentrant");
+    f.start();
+    QTRY_COMPARE_WITH_TIMEOUT(f.refresh_count, 1, 10000);
+
+    // From inside the RefreshFinished fan-out, try to start the next update
+    // synchronously and record what happened.
+    size_t calls_inside = 0;
+    int notifies_inside = 0;
+    QObject::connect(f.worker.get(),
+                     &ItemsManagerWorker::RefreshFinished,
+                     f.worker.get(),
+                     [&](const RefreshOutcome &) {
+                         f.worker->Update(TabSelection::All);
+                         calls_inside = f.callCount();
+                         notifies_inside = int(f.notify_messages.size());
+                     });
+
+    f.worker->Update(TabSelection::All);
+    f.deliverStashList(stashList({stashJson("stashaaaa1", "Tab A", 0)}));
+    f.deliverCharacterList({});
+    const size_t calls_before_terminal = f.callCount();
+    f.deliverStash("stashaaaa1", stashOf(stashJson("stashaaaa1", "Tab A", 0, QStringList{"a1"})));
+
+    // The reentrant Update() was refused: nothing submitted, the user
+    // notified, and no nested terminal event was delivered.
+    QCOMPARE(calls_inside, calls_before_terminal);
+    QVERIFY(notifies_inside > 0);
+    QVERIFY(f.notify_messages.last().contains("in progress"));
+    QCOMPARE(f.terminals.size(), size_t(1));
+    QVERIFY(std::holds_alternative<CompletedRefresh>(f.terminals[0].outcome));
+
+    // A restart queued to the next event-loop turn finds a genuinely idle
+    // worker and is accepted normally.
+    QVERIFY(WorkerFixture::drainUntilIdle());
+    const size_t calls_after = f.callCount();
+    f.worker->Update(TabSelection::All);
+    QVERIFY(WorkerFixture::drainUntilIdle());
+    QVERIFY(f.callCount() > calls_after);
+    QVERIFY(f.hasPendingStashList());
+
+    // Leave the fixture quiescent: fail the accepted update's list and
+    // settle its sibling.
+    f.failStashList();
+    f.settleStragglers();
 }
 
 QTEST_GUILESS_MAIN(WorkerUpdateTest)

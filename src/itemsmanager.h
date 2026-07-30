@@ -74,6 +74,9 @@ signals:
     void ItemsRefreshed(bool initial_refresh);
     void TabRefreshed(const ItemLocation &location, const Items &items);
     void ChildrenReconciled(const ItemLocation &parent, const std::vector<FetchSourceKey> &expected);
+    // The worker's typed terminal event, forwarded verbatim (M2 D4):
+    // exactly once per accepted update, after every delta of that update.
+    void RefreshFinished(const RefreshOutcome &outcome);
     void StatusUpdate(ProgramState state, const QString &status);
     void UpdateModListSignal();
 

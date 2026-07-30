@@ -337,7 +337,12 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
         return;
     }
 
-    if (isUpdating()) {
+    if (isUpdating() || m_delivering_terminal) {
+        // The delivering-terminal case (D4/R4-4): the worker is observably
+        // Idle during the RefreshFinished fan-out, but accepting an update
+        // there could nest update N+1's signals — including its own
+        // terminal — inside N's fan-out. Refused exactly as if an update
+        // were active; a chained restart queues to the next loop turn.
         spdlog::warn("ItemsManagerWorker: update called while updating");
         emit NotifyUser("An update is already in progress.");
         return;
@@ -369,6 +374,13 @@ void ItemsManagerWorker::Update(TabSelection type, const std::vector<ItemLocatio
     m_stop_source = std::stop_source{};
     m_request_failures = 0;
     m_update_tab_contents = (type != TabSelection::TabsOnly);
+
+    // The terminal vocabulary resets at each accepted update (D4): the
+    // first-error slot and the deterministic skip list belong to this
+    // update alone.
+    m_first_error = RateLimit::FetchError{};
+    m_first_error_set = false;
+    m_skipped_sources.clear();
 
     // Reset the completion counters here, once per update: this is their only
     // reset. Each lane's LaunchContent() accumulates into them (never resets),
@@ -507,9 +519,12 @@ void ItemsManagerWorker::RunUpdate()
         CheckUpdateFinished();
     } catch (const std::exception &e) {
         spdlog::error("ItemsManagerWorker: the update orchestration threw: {}", e.what());
+        RecordFirstError(MakeInternalError(
+            QString("the update orchestration threw: %1").arg(e.what())));
         AbortUpdate();
     } catch (...) {
         spdlog::error("ItemsManagerWorker: the update orchestration threw an unknown exception");
+        RecordFirstError(MakeInternalError("the update orchestration threw an unknown exception"));
         AbortUpdate();
     }
 }
@@ -542,12 +557,37 @@ void ItemsManagerWorker::AbortUpdate()
                           .arg(QString::number(m_request_failures)));
     m_state = WorkerState::Idle;
     spdlog::debug("Update failed.");
+
+    // The typed terminal event (D4): after the Idle transition, exactly
+    // once — the already-terminal guard above keeps later stragglers and
+    // second failures out. Every failure path routes an error through
+    // RecordFirstError before reaching here; the fallback keeps the emit
+    // total even if a new path ever forgets (a bug, surfaced as Internal).
+    const RateLimit::FetchError error = m_first_error_set
+                                            ? m_first_error
+                                            : MakeInternalError(
+                                                  "the update failed without a recorded error");
+    m_delivering_terminal = true;
+    emit RefreshFinished(RefreshOutcome{FailedRefresh{error}});
+    m_delivering_terminal = false;
 }
 
-void ItemsManagerWorker::StopUpdateForFailure()
+void ItemsManagerWorker::StopUpdateForFailure(const RateLimit::FetchError &error)
 {
+    // The error is recorded BEFORE the throwable test fault hook (D4): the
+    // stopped-but-still-active window the catch-alls must recognize already
+    // carries the update's first terminal error.
+    RecordFirstError(error);
     m_stop_source.request_stop();
     FireFaultHook();
+}
+
+void ItemsManagerWorker::RecordFirstError(const RateLimit::FetchError &error)
+{
+    if (!m_first_error_set) {
+        m_first_error = error;
+        m_first_error_set = true;
+    }
 }
 
 void ItemsManagerWorker::FireFaultHook()
@@ -609,7 +649,10 @@ QCoro::Task<> ItemsManagerWorker::FetchStashList(std::stop_token token)
         // failure branch stopped the token before throwing. Abort it. A resumed
         // straggler is gated out above and never enters the handler, so it never
         // reaches here; and AbortUpdate() guards on WorkerState and is idempotent,
-        // so an already-terminal update is left untouched.
+        // so an already-terminal update is left untouched. RecordFirstError is
+        // first-wins, so a handler that already recorded its own error (the
+        // fault-hook window) keeps it (D4).
+        RecordFirstError(MakeInternalError("a stash list continuation threw"));
         AbortUpdate();
     }
     ScheduleSweep();
@@ -629,6 +672,7 @@ QCoro::Task<> ItemsManagerWorker::FetchCharacterList(std::stop_token token)
     } catch (...) {
         spdlog::error(
             "ItemsManagerWorker: a character list continuation threw; aborting the update");
+        RecordFirstError(MakeInternalError("a character list continuation threw"));
         AbortUpdate();
     }
     ScheduleSweep();
@@ -650,6 +694,7 @@ QCoro::Task<> ItemsManagerWorker::FetchStash(ItemLocation location,
         ProcessIfLive(token, [&] { OnStashReceived(result, location); });
     } catch (...) {
         spdlog::error("ItemsManagerWorker: a stash continuation threw; aborting the update");
+        RecordFirstError(MakeInternalError("a stash continuation threw"));
         AbortUpdate();
     }
     ScheduleSweep();
@@ -670,6 +715,7 @@ QCoro::Task<> ItemsManagerWorker::FetchCharacter(ItemLocation location,
         ProcessIfLive(token, [&] { OnCharacterReceived(result, location); });
     } catch (...) {
         spdlog::error("ItemsManagerWorker: a character continuation threw; aborting the update");
+        RecordFirstError(MakeInternalError("a character continuation threw"));
         AbortUpdate();
     }
     ScheduleSweep();
@@ -728,7 +774,7 @@ void ItemsManagerWorker::OnStashListReceived(const Result<poe::StashListWrapper>
         // then take the direct terminal path. AbortUpdate() returns the worker to
         // idle immediately without touching the progress counters, so a six-tab
         // batch reporting 0/6 does not lurch to 1/1 (P-STATUS).
-        StopUpdateForFailure();
+        StopUpdateForFailure(result.error());
         AbortUpdate();
         return;
     }
@@ -806,7 +852,7 @@ void ItemsManagerWorker::OnCharacterListReceived(const Result<poe::CharacterList
         // First-failure terminal (D2/D6): stop the token so the concurrently
         // launched stash list or its content resolves Canceled, then take the
         // direct terminal path — see the stash-list branch above.
-        StopUpdateForFailure();
+        StopUpdateForFailure(result.error());
         AbortUpdate();
         return;
     }
@@ -901,7 +947,7 @@ void ItemsManagerWorker::OnStashReceived(const Result<poe::StashPayload> &result
         // terminal path. The progress counters are left untouched — this failed
         // fetch is not counted as received, and the batch's `needed` total is not
         // snapped down, so reported progress stays monotonic (P-STATUS).
-        StopUpdateForFailure();
+        StopUpdateForFailure(result.error());
         AbortUpdate();
         return;
     }
@@ -1049,7 +1095,7 @@ void ItemsManagerWorker::OnCharacterReceived(const Result<poe::CharacterPayload>
                      result.error().message);
         // First-failure terminal (D2/D6): stop the token and take the direct
         // terminal path, leaving the progress counters untouched (P-STATUS).
-        StopUpdateForFailure();
+        StopUpdateForFailure(result.error());
         AbortUpdate();
         return;
     }
@@ -1295,4 +1341,11 @@ void ItemsManagerWorker::FinishUpdate()
 
     m_state = WorkerState::Idle;
     spdlog::debug("Update finished.");
+
+    // The typed terminal event (D4), pinned ordering: final ItemsRefreshed,
+    // then Idle, then RefreshFinished — the fan-out observes an idle worker
+    // but a reentrant Update() is refused via the delivering flag (R4-4).
+    m_delivering_terminal = true;
+    emit RefreshFinished(RefreshOutcome{CompletedRefresh{m_skipped_sources}});
+    m_delivering_terminal = false;
 }

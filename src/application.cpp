@@ -115,6 +115,9 @@ void Application::InitUserSession()
             &ItemsManagerWorker::ChildrenReconciled,
             item_mgr,
             &ItemsManager::OnChildrenReconciled);
+    // The typed terminal event (M2 D4), forwarded signal-to-signal: the
+    // manager adds nothing to it.
+    connect(worker, &ItemsManagerWorker::RefreshFinished, item_mgr, &ItemsManager::RefreshFinished);
     connect(item_mgr, &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
 
     auto characters = &userstore().characters();

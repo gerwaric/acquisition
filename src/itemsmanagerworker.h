@@ -66,6 +66,29 @@ struct ItemsRequest
     ItemLocation location;
 };
 
+// The typed terminal vocabulary (items-pipeline M2, D4): a sum type so
+// invalid states — an error on a completion, skips on a failure — are
+// unrepresentable (R1-6). Emitted exactly once per accepted Update() via
+// RefreshFinished; the ordering guarantee is the identity (every delta of
+// an update precedes its terminal event; nothing of that update follows).
+struct SkippedSource
+{
+    FetchSourceKey source;       // same key as the deltas (D3)
+    RateLimit::FetchError error; // the deterministic failure (D5)
+};
+
+struct CompletedRefresh
+{
+    std::vector<SkippedSource> skipped; // empty on a clean completion
+};
+
+struct FailedRefresh
+{
+    RateLimit::FetchError error; // the FIRST terminal error
+};
+
+using RefreshOutcome = std::variant<CompletedRefresh, FailedRefresh>;
+
 struct ParseResult
 {
     std::vector<ItemLocation> tabs;
@@ -140,6 +163,14 @@ signals:
     // the set, against their OWN baseline — correct even where published
     // state diverged from worker memory across a failed update (R5-2/R6-2).
     void ChildrenReconciled(const ItemLocation &parent, const std::vector<FetchSourceKey> &expected);
+
+    // The typed terminal event (M2 D4): exactly once per accepted Update(),
+    // after the worker is observably Idle — FinishUpdate emits
+    // CompletedRefresh after the final ItemsRefreshed and the Idle
+    // transition; the first AbortUpdate emits FailedRefresh with the
+    // update's first terminal error. Update() during this fan-out is
+    // refused (R4-4): an observer that chains a restart queues it.
+    void RefreshFinished(const RefreshOutcome &outcome);
 
     void characterListReceived(const std::vector<poe::Character> &characters, const QString &realm);
     // The per-fetch persistence signals carry the reply's exact wire bytes
@@ -265,13 +296,20 @@ private:
     // (which drove reported progress backward, P-STATUS).
     void AbortUpdate();
 
-    // First-failure stop for the value-level failure branches: stop the update
-    // token, then fire the test fault hook (a no-op in production) at the point
-    // after stopping the token but before the handler finishes its failure
-    // bookkeeping and its direct AbortUpdate() — the window in which the update
-    // is stopped but still active, which the catch-alls must still recognize as
-    // theirs to abort.
-    void StopUpdateForFailure();
+    // First-failure stop for the value-level failure branches: record the
+    // update's first terminal error (D4 — BEFORE the throwable test fault
+    // hook, so the stopped-but-still-active window already carries it),
+    // stop the update token, then fire the hook (a no-op in production) at
+    // the point after stopping the token but before the handler finishes
+    // its failure bookkeeping and its direct AbortUpdate() — the window in
+    // which the update is stopped but still active, which the catch-alls
+    // must still recognize as theirs to abort.
+    void StopUpdateForFailure(const RateLimit::FetchError &error);
+
+    // Store the update's first terminal error; later failures and settling
+    // stragglers never overwrite it (D4). The catch-alls use this directly
+    // with an Internal-kind error.
+    void RecordFirstError(const RateLimit::FetchError &error);
 
     // Invoke the test fault hook once if armed (test-only; may throw — that is
     // the point). See SetFaultHook.
@@ -327,6 +365,23 @@ private:
     TabSelection m_type;
     std::vector<ItemLocation> m_locations;
     size_t m_request_failures{0};
+
+    // The update's first terminal error (D4), reset at the next accepted
+    // update; AbortUpdate emits it in FailedRefresh. The flag distinguishes
+    // "no error recorded" without an optional's overhead in the hot path.
+    RateLimit::FetchError m_first_error;
+    bool m_first_error_set{false};
+
+    // Deterministic per-source skips (D5, filled in when the skip policy
+    // lands); FinishUpdate emits them in CompletedRefresh. Reset at the
+    // next accepted update.
+    std::vector<SkippedSource> m_skipped_sources;
+
+    // Held across the RefreshFinished emit (D4/R4-4): the worker is
+    // observably Idle during the terminal fan-out, but an Update() arriving
+    // inside it is refused exactly as if an update were active — a chained
+    // restart must queue to the next event-loop turn.
+    bool m_delivering_terminal{false};
 
     // The current update's content selection: refresh everything
     // (All/TabsOnly), or only the tabs/characters whose ids are listed. A
