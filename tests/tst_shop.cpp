@@ -76,6 +76,10 @@ private slots:
     void activeJobUnaffectedByLocalEdits();
     void shopSubmissionUsesCapturedSnapshot();
     void manualSubmissionRendersCapturedPublishedState();
+
+    // Items-pipeline M2, D8/R1-1 (stage 7): the automatic-submission gate
+    // on the typed terminal event.
+    void shopSubmitsOnlyOnCleanCompletion();
 };
 
 namespace {
@@ -397,6 +401,51 @@ void ShopTest::manualSubmissionRendersCapturedPublishedState()
     drainEvents();
     QVERIFY(fixture.shop->shop_data().first().contains(" 2 chaos"));
     QVERIFY(!fixture.shop->shop_data().first().contains(" 1 chaos"));
+}
+
+// M2 D8/R1-1 (stage 7): automatic submission fires only on a CLEAN
+// completed refresh delivered through the typed terminal event. A failed
+// refresh, a completed-with-skips refresh, or auto-update disabled all
+// submit nothing; a clean completion with auto-update on starts the
+// submission (observable as the legacy stash-index fetch).
+void ShopTest::shopSubmitsOnlyOnCleanCompletion()
+{
+    ShopFixture fixture;
+    armForSubmission(fixture);
+    fixture.shop->SetAutoUpdate(true);
+
+    // A failed refresh never auto-posts.
+    RateLimit::FetchError network_error;
+    network_error.kind = RateLimit::FetchError::Kind::Network;
+    fixture.shop->OnRefreshFinished(RefreshOutcome{FailedRefresh{network_error}});
+    drainEvents();
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(0));
+
+    // A completed-with-skips refresh never auto-posts: the skipped tabs'
+    // published contents are stale and must not reach the forum as fresh.
+    RateLimit::FetchError parse_error;
+    parse_error.kind = RateLimit::FetchError::Kind::Parse;
+    CompletedRefresh with_skips;
+    with_skips.skipped.push_back(
+        SkippedSource{FetchSourceKey{ItemLocationType::STASH, "stash00001"}, parse_error});
+    fixture.shop->OnRefreshFinished(RefreshOutcome{with_skips});
+    drainEvents();
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(0));
+
+    // Auto-update off: even a clean completion submits nothing.
+    fixture.shop->SetAutoUpdate(false);
+    fixture.shop->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    drainEvents();
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(0));
+
+    // A clean completion with auto-update on submits: the stash-index
+    // fetch goes out.
+    fixture.shop->SetAutoUpdate(true);
+    fixture.shop->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    drainEvents();
+    QCOMPARE(fixture.rateLimiter->futureCount(), size_t(1));
+    QCOMPARE(fixture.rateLimiter->pendingFuture(0).endpoint,
+             QString("https://www.pathofexile.com/character-window/get-stash-items"));
 }
 
 QTEST_MAIN(ShopTest)

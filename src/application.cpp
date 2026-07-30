@@ -119,6 +119,12 @@ void Application::InitUserSession()
     // manager adds nothing to it.
     connect(worker, &ItemsManagerWorker::RefreshFinished, item_mgr, &ItemsManager::RefreshFinished);
     connect(item_mgr, &ItemsManager::ItemsRefreshed, this, &Application::OnItemsRefreshed);
+    // Automatic forum submission rides the terminal event (M2 D8/R1-1):
+    // the shop's slot gates on a clean CompletedRefresh. Connected after
+    // the ItemsRefreshed chain above so ExpireShopData has already run when
+    // the gate evaluates (the worker emits ItemsRefreshed before
+    // RefreshFinished, so this holds by emission order regardless).
+    connect(item_mgr, &ItemsManager::RefreshFinished, &shop(), &Shop::OnRefreshFinished);
 
     auto characters = &userstore().characters();
     auto stashes = &userstore().stashes();
@@ -415,12 +421,12 @@ void Application::OnItemsRefreshed(bool initial_refresh)
 {
     spdlog::trace("Application::OnItemsRefreshed() entered");
     spdlog::trace("Application::OnItemsRefreshed() initial_refresh = {}", initial_refresh);
+    Q_UNUSED(initial_refresh);
     currency_manager().Update();
     shop().ExpireShopData();
-    if (!initial_refresh && shop().auto_update()) {
-        spdlog::trace("Application::OnItemsRefreshed() submitting shops");
-        shop().SubmitShopToForum();
-    }
+    // Automatic forum submission moved to the typed terminal event (M2
+    // D8/R1-1): Shop::OnRefreshFinished gates it on a CLEAN CompletedRefresh,
+    // which the initial cached load never emits (it is not an update).
 }
 
 void Application::SaveDataOnNewVersion()

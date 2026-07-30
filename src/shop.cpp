@@ -125,6 +125,31 @@ void Shop::SetShopTemplate(const QString &shop_template)
     ExpireShopData();
 }
 
+void Shop::OnRefreshFinished(const RefreshOutcome &outcome)
+{
+    spdlog::trace("Shop::OnRefreshFinished() entered");
+    if (!m_auto_update) {
+        return;
+    }
+    // The gate (M2 D8/R1-1): automatic submission requires a CLEAN
+    // completed refresh. A failed refresh posts nothing; a
+    // completed-with-skips refresh posts nothing either — the skipped
+    // sources' published items are stale, and auto-posting them would
+    // present them to buyers as fresh.
+    const auto *completed = std::get_if<CompletedRefresh>(&outcome);
+    if (!completed) {
+        spdlog::debug("Shop: no automatic submission — the refresh failed");
+        return;
+    }
+    if (!completed->skipped.empty()) {
+        spdlog::warn("Shop: no automatic submission — {} sources were skipped this refresh",
+                     completed->skipped.size());
+        return;
+    }
+    spdlog::trace("Shop::OnRefreshFinished() submitting shops");
+    SubmitShopToForum();
+}
+
 QString Shop::SpoilerBuyout(const Buyout &bo)
 {
     spdlog::trace("Shop: spoiler buyout called");

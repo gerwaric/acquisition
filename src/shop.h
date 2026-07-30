@@ -16,6 +16,7 @@
 #include "itemlocation.h"
 #include "poe/types/website/webstashtab.h"
 #include "ratelimit/fetcherror.h"
+#include "refreshoutcome.h"
 #include "util/programstate.h"
 
 class QSettings;
@@ -57,6 +58,11 @@ public:
 public slots:
     void OnEditPageFinished();
     void OnShopSubmitted(QUrlQuery query, QNetworkReply *reply);
+    // The automatic-submission gate (items-pipeline M2, D8/R1-1): auto
+    // update fires only on a CLEAN completed refresh. A completed-with-skips
+    // outcome must never auto-post — the skipped tabs' stale contents would
+    // reach the forum as if fresh — and a failed refresh posts nothing.
+    void OnRefreshFinished(const RefreshOutcome &outcome);
 
 signals:
     void StashesIndexed();
