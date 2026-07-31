@@ -76,6 +76,16 @@ public:
         const auto it = m_visible_by_id.find(id);
         return (it != m_visible_by_id.end()) ? it->second : nullptr;
     }
+
+    // True when the id index cannot represent every visible occurrence of
+    // this id (M3 S2): a duplicated id (the index keeps the first
+    // occurrence only — R6-3 reselection wants exactly one item) or the
+    // empty id shared by id-less items. The buyout repaint falls back to
+    // scanning every bucket for such ids; rebuilt by every refilter.
+    bool visibleIdUnindexed(const QString &id) const
+    {
+        return m_unindexed_visible_ids.count(id) > 0;
+    }
     const std::shared_ptr<Item> &currentItem() const { return m_current_item; }
     void setCurrentItem(std::shared_ptr<Item> item) { m_current_item = std::move(item); }
     const std::optional<ItemLocation> &currentBucket() const { return m_current_bucket; }
@@ -158,6 +168,10 @@ private:
     // The visible result by stable item id (R6-3 reselection), rebuilt by
     // every refilter alongside the source sets above.
     std::unordered_map<QString, std::shared_ptr<Item>> m_visible_by_id;
+
+    // Ids the index above cannot fully represent: duplicated ids and the
+    // empty id (see visibleIdUnindexed).
+    std::set<QString> m_unindexed_visible_ids;
     std::vector<std::unique_ptr<Column>> m_columns;
 
     ItemsModel m_model;

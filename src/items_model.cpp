@@ -338,11 +338,21 @@ void ItemsModel::RepaintBuyoutCells(const BuyoutChangeSet &changes)
     // pricing pass rides the delta path, which stays O(delta + affected
     // bucket) (M2 hard constraint). The flat By-Item bucket holds the
     // whole visible result and is scanned once — the same O(n) shape as
-    // D4's stated merge exception.
+    // D4's stated merge exception. An affected id the index cannot fully
+    // represent — duplicated across buckets mid-refresh, or the empty id
+    // shared by id-less items — forces the same every-bucket scan, so
+    // every visible occurrence repaints; unique indexed ids (the steady
+    // state) keep the bucket-scoped fast path.
     const bool by_item = (m_search.GetViewMode() == Search::ViewMode::ByItem);
+    bool scan_every_bucket = by_item || changes.everything;
     std::map<LocationInventory::Key, std::set<QString>> ids_by_bucket;
-    if (!by_item && !changes.everything) {
+    if (!scan_every_bucket) {
         for (const QString &id : changes.item_ids) {
+            if (m_search.visibleIdUnindexed(id)) {
+                scan_every_bucket = true;
+                ids_by_bucket.clear();
+                break;
+            }
             if (const auto item = m_search.visibleItemById(id)) {
                 ids_by_bucket[LocationInventory::KeyFor(item->location())].insert(id);
             }
@@ -367,7 +377,7 @@ void ItemsModel::RepaintBuyoutCells(const BuyoutChangeSet &changes)
         if (tab_affected) {
             first_row = 0;
             last_row = item_count - 1;
-        } else if (by_item) {
+        } else if (scan_every_bucket) {
             for (int n = 0; n < item_count; ++n) {
                 if (changes.item_ids.count(items[n]->id()) > 0) {
                     if (first_row < 0) {

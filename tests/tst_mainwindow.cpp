@@ -72,6 +72,7 @@ private slots:
     void pricingPassYieldsSingleModelUpdate();
     void snapshotPricingSequenceEmitsOneModelBatch();
     void priceCellsRepaintUnderAnySortColumn();
+    void buyoutRepaintCoversEveryVisibleOccurrence();
 
 private:
     std::shared_ptr<spdlog::logger> m_main_logger;
@@ -1545,6 +1546,74 @@ void MainWindowTest::priceCellsRepaintUnderAnySortColumn()
     // The span covers the Price (1) and Date (2) columns.
     QVERIFY(topLeft.column() <= 1);
     QVERIFY(bottomRight.column() >= 2);
+}
+
+// M3 S2, review round 1: the rule-5 repaint must reach EVERY visible
+// occurrence of an affected id. The R6-3 id index keeps only the first
+// occurrence of a duplicated id (mid-refresh divergence can show one id in
+// two tabs) and holds no entry for id-less items, so affected ids the
+// index cannot fully represent fall back to an every-bucket scan.
+void MainWindowTest::buyoutRepaintCoversEveryVisibleOccurrence()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-alpha", "Alpha Tab", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-beta", "Beta Tab", 1);
+    Items items;
+    items.push_back(makeMainWindowItem("item-x", "Mover", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-x", "MoverTwo", "Sword", tabB));
+    items.push_back(makeMainWindowItem("", "Ghost", "Sword", tabB));
+    items.push_back(makeMainWindowItem("item-d", "Delta", "Sword", tabA));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB}, false);
+
+    // Name stays the active sort column: pure repaint, no reordering.
+    auto *model = tree->model();
+    const QModelIndex bucketA = findBucket(*model, tabA.GetHeader());
+    const QModelIndex bucketB = findBucket(*model, tabB.GetHeader());
+    QVERIFY(bucketA.isValid());
+    QVERIFY(bucketB.isValid());
+    tree->expand(bucketA);
+    tree->expand(bucketB);
+
+    // Editing the duplicated id through its tab-A occurrence repaints BOTH
+    // occurrences — one span per affected bucket, each covering exactly
+    // the affected row (the unaffected Delta and Ghost rows stay outside).
+    const QModelIndex moverA = findItemRow(*model, bucketA, "Mover Sword");
+    const QModelIndex moverB = findItemRow(*model, bucketB, "MoverTwo Sword");
+    QVERIFY(moverA.isValid());
+    QVERIFY(moverB.isValid());
+    tree->selectionModel()->setCurrentIndex(moverA,
+                                            QItemSelectionModel::ClearAndSelect
+                                                | QItemSelectionModel::Rows);
+    QSignalSpy repaints(model, &QAbstractItemModel::dataChanged);
+    applyBuyoutCommand(fixture, Buyout::BUYOUT_TYPE_BUYOUT, Currency::CURRENCY_CHAOS_ORB, "7");
+    QCOMPARE(repaints.count(), 2);
+    for (int n = 0; n < repaints.count(); ++n) {
+        const QModelIndex topLeft = repaints.at(n).at(0).toModelIndex();
+        const QModelIndex bottomRight = repaints.at(n).at(1).toModelIndex();
+        const QModelIndex expected = (topLeft.parent() == bucketA) ? moverA : moverB;
+        QCOMPARE(topLeft.parent(), expected.parent());
+        QCOMPARE(topLeft.row(), expected.row());
+        QCOMPARE(bottomRight.row(), expected.row());
+    }
+
+    // Editing the id-less item repaints its row through the same fallback:
+    // the empty id has no index entry, only the scan can find it.
+    const QModelIndex ghost = findItemRow(*model, bucketB, "Ghost Sword");
+    QVERIFY(ghost.isValid());
+    tree->selectionModel()->setCurrentIndex(ghost,
+                                            QItemSelectionModel::ClearAndSelect
+                                                | QItemSelectionModel::Rows);
+    repaints.clear();
+    applyBuyoutCommand(fixture, Buyout::BUYOUT_TYPE_BUYOUT, Currency::CURRENCY_CHAOS_ORB, "3");
+    QCOMPARE(repaints.count(), 1);
+    const QModelIndex topLeft = repaints.at(0).at(0).toModelIndex();
+    const QModelIndex bottomRight = repaints.at(0).at(1).toModelIndex();
+    QCOMPARE(topLeft.parent(), bucketB);
+    QCOMPARE(topLeft.row(), ghost.row());
+    QCOMPARE(bottomRight.row(), ghost.row());
 }
 
 QTEST_MAIN(MainWindowTest)

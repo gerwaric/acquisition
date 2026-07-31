@@ -206,11 +206,16 @@ void BuyoutManager::CompressTabBuyouts()
         tmp.emplace(loc.id());
     }
 
-    for (auto it = m_tab_buyouts.begin(), ite = m_tab_buyouts.end(); it != ite;) {
+    // One compression is one batch even when no caller encloses it: the
+    // erasures coalesce into a single boundary that emits only after every
+    // mutation is complete — a consumer must never observe pre-erase state.
+    const BuyoutBatch batch(*this);
+    for (auto it = m_tab_buyouts.begin(); it != m_tab_buyouts.end();) {
         if (tmp.count(it->first) == 0) {
             m_save_needed = true;
-            RecordChange(ChangeScope::Tab, it->first);
+            const QString id = it->first;
             it = m_tab_buyouts.erase(it);
+            RecordChange(ChangeScope::Tab, id);
         } else {
             ++it;
         }
@@ -228,10 +233,13 @@ void BuyoutManager::CompressItemBuyouts(const Items &items)
         tmp.insert(item.id());
     }
 
+    // Same single-batch, record-after-erase rule as CompressTabBuyouts.
+    const BuyoutBatch batch(*this);
     for (auto it = m_buyouts.cbegin(); it != m_buyouts.cend();) {
         if (tmp.count(it->first) == 0) {
-            RecordChange(ChangeScope::Item, it->first);
-            m_buyouts.erase(it++);
+            const QString id = it->first;
+            it = m_buyouts.erase(it);
+            RecordChange(ChangeScope::Item, id);
         } else {
             ++it;
         }
@@ -444,6 +452,9 @@ void BuyoutManager::MigrateItem(const QString &old_hash, const QString &new_hash
         m_save_needed = true;
         // Migration changes the lookup result for both keys (D1 rule 4,
         // R1-6/R2-6): the old hash stops resolving and the new one starts.
+        // It is ONE mutation, so the two records share an internal batch —
+        // an unbatched migration must emit a single boundary, not two.
+        const BuyoutBatch batch(*this);
         RecordChange(ChangeScope::Item, old_hash);
         RecordChange(ChangeScope::Item, new_hash);
     }

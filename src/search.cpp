@@ -254,6 +254,7 @@ void Search::FilterItems(const Items &items)
     m_visible_sources.clear();
     m_visible_sources_by_tab.clear();
     m_visible_by_id.clear();
+    m_unindexed_visible_ids.clear();
 
     // A single bucket with null location is used to view all items at once.
     m_bucket_by_item.clear();
@@ -309,9 +310,16 @@ void Search::FilterItems(const Items &items)
 
             // Record the stable identity for R6-3 reselection. Items
             // without a server id cannot be identity-tracked and fall back
-            // to pointer reselection.
+            // to pointer reselection. Ids the index cannot fully represent
+            // — duplicates (mid-refresh divergence can show one id in two
+            // tabs) and the empty id — are recorded as unindexed so the
+            // buyout repaint still finds every occurrence.
             if (const QString item_id = item->id(); !item_id.isEmpty()) {
-                m_visible_by_id.emplace(item_id, item);
+                if (!m_visible_by_id.emplace(item_id, item).second) {
+                    m_unindexed_visible_ids.insert(item_id);
+                }
+            } else {
+                m_unindexed_visible_ids.insert(item_id);
             }
         }
     }
