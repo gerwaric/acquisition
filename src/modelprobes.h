@@ -56,6 +56,12 @@ struct ModelProbes
     // (MainWindow::OnBuyoutsChanged, once per outer batch).
     std::int64_t model_updates = 0;
 
+    // Site lives since S6 (R1-2): Search::ReconcileFinalSnapshot entries.
+    // The S6 revalidation pins assert this alongside a zero reset count to
+    // prove the row reconciliation — not a reset — performed the final
+    // snapshot's work (fallback-insensitive verification).
+    std::int64_t final_reconciliations = 0;
+
     // Gauge, not a counter; sites live since S3 (D1 residency): estimated
     // bytes of resident sort keys, adjusted at hydration, entry rebuild,
     // and eviction (ResidentKeyStore). Unlike the counters, the gauge is

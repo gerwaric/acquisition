@@ -205,6 +205,32 @@ public:
     // mode switch. Visible indexes are maintained incrementally in both.
     DeltaApplication ApplyTabDelta(const ItemLocation &location, const Items &items);
 
+    // The result of the final snapshot's reconciliation (M3 S6, R1-2).
+    struct SnapshotReconciliation
+    {
+        bool rows_changed{false};
+        // Buckets the reconciliation inserted (final display rows,
+        // ascending); the caller default-expands them in the view when the
+        // search is default-expanded, like a delta's inserted bucket.
+        std::vector<int> inserted_bucket_rows;
+    };
+
+    // The R1-2 authoritative row reconciliation on `ItemsRefreshed` (S6):
+    // one pass diffing this search's model against the post-snapshot
+    // published state per stable key — buckets and rows for deleted tabs
+    // removed, newly listed tabs inserted at their display positions
+    // (unfiltered searches; filtered ones still hide empty buckets),
+    // metadata refreshed against the rebased locations, bucket order
+    // corrected via move ops. Row operations only — never a reset;
+    // O(collection) once per refresh is accepted. The pass is
+    // authoritative at the row grain (the diff is by item identity, and
+    // the worker publishes the same Item objects the deltas delivered),
+    // so it also discharges R1-7's fail-safe dirtiness: any content a
+    // skipped delta left stale is replaced here and the items-dirty flag
+    // clears. In By-Item mode the diff runs against the flat bucket and
+    // the By-Tab side is marked stale for the next mode switch.
+    SnapshotReconciliation ReconcileFinalSnapshot(const Items &published);
+
     // Applies a ChildrenReconciled aggregate as row removals (D3):
     // visible items under the parent's stable key whose fetch source is
     // outside the expected set leave via contiguous removeRows batches —

@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <memory>
 #include <type_traits>
+#include <unordered_set>
 #include <utility>
 
 #include "bucket.h"
@@ -1084,6 +1085,240 @@ Search::DeltaApplication Search::ApplyChildReconciliation(
         }
     }
     result.processed = true;
+    return result;
+}
+
+Search::SnapshotReconciliation Search::ReconcileFinalSnapshot(const Items &published)
+{
+    SnapshotReconciliation result;
+    if (auto &probes = ModelProbes::instance(); probes.enabled) {
+        ++probes.final_reconciliations;
+    }
+
+    // The one accepted O(collection) pass per refresh (R1-2): decide
+    // target membership for every published item. Deltas already filtered
+    // their arrivals with the same states, so for a clean search the
+    // accepted set reproduces the visible result and the diffs below find
+    // only the snapshot-only mutations — deleted tabs, new listings, the
+    // rebased metadata (M2 D6).
+    std::unordered_set<const Item *> accepted;
+    std::map<LocationInventory::Key, Items> target_items;
+    const bool by_item = (m_current_mode == ViewMode::ByItem);
+    for (const auto &item : published) {
+        if (!MatchesActiveFilters(*item)) {
+            continue;
+        }
+        accepted.insert(item.get());
+        if (!by_item) {
+            target_items[LocationInventory::KeyFor(item->location())].push_back(item);
+        }
+    }
+
+    if (by_item) {
+        if (m_bucket_by_item.empty()) {
+            // No flat bucket to reconcile against (a never-populated
+            // search) — the fail-safe direction keeps the flag dirty and
+            // activation refilters (R1-7).
+            return result;
+        }
+        // D4's flat-bucket grain: one A′ replace — erase the rows the
+        // snapshot no longer publishes (or no longer accepts), merge the
+        // accepted items the bucket does not hold. A clean search's rows
+        // are the published objects, so both sides are empty and no model
+        // operation runs.
+        Bucket &flat = m_bucket_by_item.front();
+        std::unordered_set<const Item *> have;
+        have.reserve(flat.items().size());
+        for (const auto &item : flat.items()) {
+            have.insert(item.get());
+        }
+        Items missing;
+        for (const auto &item : published) {
+            if ((accepted.count(item.get()) > 0) && (have.count(item.get()) == 0)) {
+                missing.push_back(item);
+            }
+        }
+        const int column = m_model.GetSortColumn();
+        const bool sortable = (column >= 0) && (column < static_cast<int>(m_columns.size()));
+        const Column *merge_column = (sortable && flat.sorted()) ? m_columns[column].get()
+                                                                 : nullptr;
+        const Items removed_items = flat.ReplaceSourceRows(
+            [&accepted](const Item &item) { return accepted.count(&item) == 0; },
+            missing,
+            merge_column,
+            m_model.GetSortOrder(),
+            [this](int first, int last) { m_model.BeginRemoveItemRows(0, first, last); },
+            [this] { m_model.EndRemoveItemRows(); },
+            [this](int first, int last) { m_model.BeginInsertItemRows(0, first, last); },
+            [this] { m_model.EndInsertItemRows(); });
+        for (const auto &item : removed_items) {
+            IndexRemoveVisible(item);
+        }
+        for (const auto &item : missing) {
+            IndexInsertVisible(item);
+        }
+        if (!removed_items.empty() || !missing.empty()) {
+            m_items_stale = true;
+            result.rows_changed = true;
+        }
+        // The snapshot rebased every anchor and settled the tab list; the
+        // By-Tab side rebuilds against the canonical inventory at the
+        // next mode switch (S5).
+        m_tab_buckets_stale = true;
+        // Defensive: the flat bucket must never keep stale order past the
+        // reconciliation (staleOrderNeverSurvivesDelta's corner).
+        if (result.rows_changed && !flat.sorted()) {
+            m_model.ResortBucket(0);
+        }
+        m_items_dirty = false; // authoritative (R1-7)
+        return result;
+    }
+
+    // Target display buckets: keys with accepted items, plus every
+    // published tab for an unfiltered search (FilterItems' empty-bucket
+    // rule — filtered searches still hide empty buckets). emplace keeps
+    // FilterItems' precedence: item-derived canonical anchor first, then
+    // the published tab list, then the canonical inventory.
+    std::map<LocationInventory::Key, ItemLocation> target_buckets;
+    for (const auto &[key, bucket_items] : target_items) {
+        target_buckets.emplace(key, canonicalLocation(bucket_items.front()->location()));
+    }
+    if (!m_filtered) {
+        for (const auto &location : m_bo_manager.GetStashTabLocations()) {
+            target_buckets.emplace(LocationInventory::KeyFor(location),
+                                   canonicalLocation(location));
+        }
+        if (m_location_inventory) {
+            for (const auto &[key, location] : m_location_inventory->entries()) {
+                target_buckets.emplace(key, location);
+            }
+        }
+    }
+
+    // Deleted buckets leave first — rows and bucket as one top-level
+    // removal (the subtree goes with the row), indexes unwound per item.
+    for (int row = static_cast<int>(m_bucket_by_tab.size()) - 1; row >= 0; --row) {
+        const Bucket &bucket = m_bucket_by_tab[static_cast<size_t>(row)];
+        if (target_buckets.count(LocationInventory::KeyFor(bucket.location())) > 0) {
+            continue;
+        }
+        for (const auto &item : bucket.items()) {
+            IndexRemoveVisible(item);
+        }
+        RemoveBucketRow(row);
+        result.rows_changed = true;
+    }
+
+    // Metadata refreshed against the rebased locations: identity is the
+    // stable key, so only rendered attributes change here.
+    for (size_t row = 0; row < m_bucket_by_tab.size(); ++row) {
+        Bucket &bucket = m_bucket_by_tab[row];
+        const ItemLocation &canonical = target_buckets.at(
+            LocationInventory::KeyFor(bucket.location()));
+        const ItemLocation old_location = bucket.location();
+        const bool rendered_changed = (old_location.GetHeader() != canonical.GetHeader())
+                                      || (old_location.getR() != canonical.getR())
+                                      || (old_location.getG() != canonical.getG())
+                                      || (old_location.getB() != canonical.getB());
+        bucket.SetLocation(canonical);
+        if (rendered_changed) {
+            m_model.EmitBucketMetadataChanged(static_cast<int>(row));
+        }
+    }
+
+    // Bucket order corrected via move ops: a selection pass over the
+    // rebased display order — a clean refresh with unmoved tabs performs
+    // zero moves. O(tabs^2) compares once per refresh, accepted like the
+    // rest of the O(collection) pass.
+    const int bucket_count = static_cast<int>(m_bucket_by_tab.size());
+    for (int row = 0; row < bucket_count; ++row) {
+        int best = row;
+        for (int n = row + 1; n < bucket_count; ++n) {
+            if (bucketDisplayLess(m_bucket_by_tab[static_cast<size_t>(n)],
+                                  m_bucket_by_tab[static_cast<size_t>(best)])) {
+                best = n;
+            }
+        }
+        if ((best != row) && m_model.BeginMoveBucketRow(best, row)) {
+            auto first = m_bucket_by_tab.begin();
+            std::rotate(first + row, first + best, first + best + 1);
+            RebuildRowLookups();
+            m_model.EndMoveBucketRow();
+        }
+    }
+
+    // Newly listed buckets, at their display positions (the vector is
+    // display-ordered after the pass above, so InsertBucketRow's walk is
+    // exact). Rows shift as later insertions land, so track serials and
+    // resolve them to final rows at the end.
+    std::vector<std::uint64_t> inserted_serials;
+    static const Items no_items;
+    for (const auto &[key, canonical] : target_buckets) {
+        if (FindBucketRow(key) >= 0) {
+            continue;
+        }
+        const auto it = target_items.find(key);
+        const Items &bucket_items = (it != target_items.end()) ? it->second : no_items;
+        const int row = InsertBucketRow(canonical, bucket_items);
+        inserted_serials.push_back(m_bucket_by_tab[static_cast<size_t>(row)].serial());
+        if (!bucket_items.empty()) {
+            result.rows_changed = true;
+        }
+    }
+
+    // The row-level diff, by item identity against the published objects
+    // (the worker publishes the Item objects the deltas delivered, so a
+    // clean search's surviving buckets diff to nothing; content a skipped
+    // delta left stale is replaced here — which is what licenses the
+    // dirty-flag clear below).
+    for (int row = 0; row < static_cast<int>(m_bucket_by_tab.size()); ++row) {
+        bool bucket_changed = RemoveBucketRows(row, [&accepted](const Item &item) {
+            return accepted.count(&item) == 0;
+        });
+        const auto it = target_items.find(
+            LocationInventory::KeyFor(m_bucket_by_tab[static_cast<size_t>(row)].location()));
+        if (it != target_items.end()) {
+            const Bucket &bucket = m_bucket_by_tab[static_cast<size_t>(row)];
+            std::unordered_set<const Item *> have;
+            have.reserve(bucket.items().size());
+            for (const auto &item : bucket.items()) {
+                have.insert(item.get());
+            }
+            Items missing;
+            for (const auto &item : it->second) {
+                if (have.count(item.get()) == 0) {
+                    missing.push_back(item);
+                }
+            }
+            if (!missing.empty()) {
+                InsertArrivals(row, missing);
+                bucket_changed = true;
+            }
+        }
+        if (bucket_changed) {
+            result.rows_changed = true;
+            // Defensive, like the delta path: a visible bucket never keeps
+            // stale order past the reconciliation.
+            const Bucket &bucket = m_bucket_by_tab[static_cast<size_t>(row)];
+            if (bucket.expanded() && !bucket.sorted()) {
+                m_model.ResortBucket(row);
+            }
+        }
+    }
+
+    if (result.rows_changed) {
+        m_items_stale = true;
+        m_flat_bucket_stale = true;
+    }
+    m_items_dirty = false; // authoritative (R1-7)
+
+    for (const std::uint64_t serial : inserted_serials) {
+        const int row = rowForSerial(serial);
+        if (row >= 0) {
+            result.inserted_bucket_rows.push_back(row);
+        }
+    }
+    std::sort(result.inserted_bucket_rows.begin(), result.inserted_bucket_rows.end());
     return result;
 }
 
