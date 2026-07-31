@@ -420,6 +420,75 @@ across-the-board improvement over the round-1 numbers is partly the
 repaint fix and partly run-to-run environment variance; the budget
 verdicts are what is load-bearing).
 
+## S6 — final reconciliation; last reset seam deleted (July 31, 2026)
+
+No hold point (per the sequence); this entry records what landed and
+the renegotiations reviewers must see.
+
+**Landed.** `Search::ReconcileFinalSnapshot` — the R1-2 authoritative
+row reconciliation on `ItemsRefreshed`: one O(collection) filter pass
+deciding target membership, then deleted buckets/rows removed (one
+top-level removal takes the subtree), metadata refreshed against the
+rebased locations, bucket order corrected by a selection pass of move
+ops (zero moves on a clean refresh), newly listed tabs inserted at
+their display positions (unfiltered searches), and a row-level diff
+by item identity (the worker publishes the Item objects the deltas
+delivered — worker comment at `FinishUpdate` — so a clean search's
+surviving buckets diff to nothing, and a skipped delta's stale
+content is authoritatively replaced, licensing the R1-7 dirty-flag
+clear). By-Item runs the same diff as one A′ flat replace and marks
+the By-Tab side stale. The final-snapshot reset seam in
+`MainWindow::OnItemsRefreshed` is deleted: resets now exist only on
+D6's enumerated user-initiated paths and initial population
+(`initial_refresh` now reaches the slot). Background searches keep
+rule 1 at the snapshot boundary — flagged items-dirty, refiltered by
+their own next activation, never eagerly.
+
+**Pins closed.** `noModelResetDuringRefresh` (complete refresh: zero
+resets window-wide, zero refilters, exactly one reconciliation),
+`finalReconciliationRemovesDeletedTabs`,
+`finalReconciliationInsertsNewlyListedEmptyTabs`,
+`modelTesterPassesUnderDeltaStorm` (240 seeded operations over the
+full input set — content/empty/metadata deltas, child
+reconciliations, new-tab discoveries, final reconciliations with
+snapshot-only mutations — interleaved with expansion changes, sort
+clicks, and view-mode switches; probe floors prove the boundary was
+exercised and that the storm never fell back to a refilter; end-state
+membership equals a from-scratch refilter).
+
+**Fallback-insensitive revalidation (review round 1's tightened S6
+verification).** The final-reconciliation clauses of
+`selectionIntentSurvivesCrossTabMoveAcrossDeltas` and
+`byItemSelectionSurvivesMerge` now assert, at the snapshot: reset
+spy zero, `final_reconciliations == 1`, `refilters == 0` — proving
+the reconciliation, not a reset, performed the intent clearing.
+`appliedDeltasLeaveActiveSearchClean` gained its post-snapshot
+no-refilter tail; its R1-7 clause (skipped delta leaves dirty, the
+reconciliation clears it) has no reachable skip path in the
+MainWindow fixture since S5, so it closed on the direct Search
+harness as `reconciliationDischargesFailSafeDirtiness`.
+
+**Renegotiated tests (outside the M2-pin supersession map, which
+covers D9-era pins only; recorded here loudly instead).**
+
+- `itemsRefreshRefiltersBackgroundSearches` (pre-M2, F33) encoded the
+  seam's eager background refilter at the snapshot. Renamed
+  `itemsRefreshDefersBackgroundSearchesToActivation`: the background
+  caption stays last-rendered at the snapshot and activation
+  refilters — F33's freshness guarantee holds exactly where the user
+  can observe it. This is the spec's stated background contract
+  (R1-2's "flag-and-refilter-on-activation", R1-7's "rule 1
+  verbatim"), not a new decision.
+- `probeCountersTrackCaptureRestore` (S0) drove the capture/restore
+  counters through the non-initial snapshot; that path no longer runs
+  them. The driver is now initial population (the surviving reset
+  path), and the test additionally pins the S6 probe site: a
+  non-initial snapshot enters `final_reconciliations` and none of the
+  reset machinery.
+
+New probe: `final_reconciliations` (site:
+`Search::ReconcileFinalSnapshot`).
+
 ## Budget table (S7 — to be run)
 
 The acceptance-criteria table from `items-pipeline-m3.md` runs here
