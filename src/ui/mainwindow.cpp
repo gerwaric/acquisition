@@ -66,6 +66,12 @@ constexpr const char *POE_WEBCDN
 
 constexpr int CURRENT_ITEM_UPDATE_DELAY_MS = 100;
 constexpr int SEARCH_UPDATE_DELAY_MS = 350;
+// The delta-path column-resize debounce (S7 review round 1): each
+// ResizeTreeColumns pass costs ~10 ms regardless of scale, so a
+// refresh burst pays at most one per interval instead of one per
+// applied delta. Non-resetting, so a sustained burst still resizes
+// this often (bounded staleness AND bounded work).
+constexpr int DELTA_RESIZE_DEBOUNCE_MS = 250;
 
 struct ImgurStatus
 {
@@ -130,6 +136,10 @@ MainWindow::MainWindow(QSettings &settings,
     m_delayed_resize_columns.setInterval(0);
     m_delayed_resize_columns.setSingleShot(true);
     connect(&m_delayed_resize_columns, &QTimer::timeout, this, &MainWindow::ResizeTreeColumns);
+
+    m_delta_resize_debounce.setInterval(DELTA_RESIZE_DEBOUNCE_MS);
+    m_delta_resize_debounce.setSingleShot(true);
+    connect(&m_delta_resize_debounce, &QTimer::timeout, this, &MainWindow::ResizeTreeColumns);
 
     // The M3 buyout batch response (S2): one model update per outer batch
     // boundary, delivered synchronously at the emitting mutation's end.
@@ -528,6 +538,13 @@ void MainWindow::CheckSelected(bool value)
 void MainWindow::ResizeTreeColumns()
 {
     spdlog::trace("MainWindow::ResizeTreeColumns() entered");
+    // Any actual resize supersedes a pending debounced one — the widths
+    // it would have refreshed are refreshed now.
+    m_delta_resize_debounce.stop();
+    auto &probes = ModelProbes::instance();
+    if (probes.enabled) {
+        ++probes.column_resizes;
+    }
     for (int i = 0; i < ui->treeView->header()->count(); ++i) {
         ui->treeView->resizeColumnToContents(i);
     }
@@ -536,6 +553,15 @@ void MainWindow::ResizeTreeColumns()
 void MainWindow::ScheduleResizeTreeColumns()
 {
     m_delayed_resize_columns.start();
+}
+
+void MainWindow::ScheduleDeltaResizeTreeColumns()
+{
+    // Non-resetting: an armed timer keeps its deadline, so a burst
+    // arriving faster than the interval cannot starve the resize.
+    if (!m_delta_resize_debounce.isActive()) {
+        m_delta_resize_debounce.start();
+    }
 }
 
 void MainWindow::OnBuyoutChange()
@@ -854,7 +880,9 @@ void MainWindow::FinishDeltaApplication(bool processed, bool model_changed, int 
         }
     }
     if (model_changed) {
-        ScheduleResizeTreeColumns();
+        // Debounced, not immediate: per-delta width refresh is redundant
+        // for most replacements and was ~10 ms per reply (S7 record).
+        ScheduleDeltaResizeTreeColumns();
     }
     ReconcileSelectionIntent();
 }

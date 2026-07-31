@@ -107,6 +107,12 @@ public slots:
     void OnBuyoutsChanged(const BuyoutChangeSet &changes);
     void ResizeTreeColumns();
     void ScheduleResizeTreeColumns();
+    // The delta-path arming (S7 review round 1): a non-resetting
+    // single-shot debounce, so a refresh burst pays one column resize
+    // per interval instead of one per applied delta. Any immediate
+    // resize supersedes a pending debounced one (ResizeTreeColumns
+    // stops the timer).
+    void ScheduleDeltaResizeTreeColumns();
     void OnExpandAll();
     void OnCollapseAll();
     void OnCheckAll();
@@ -237,6 +243,7 @@ private:
     QTimer m_delayed_update_current_item;
     QTimer m_delayed_search_form_change;
     QTimer m_delayed_resize_columns;
+    QTimer m_delta_resize_debounce;
     QMetaObject::Connection m_current_item_conn;
     RateLimitDialog *m_rate_limit_dialog;
     bool m_quitting;

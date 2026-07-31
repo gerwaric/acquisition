@@ -163,6 +163,10 @@ private slots:
     void finalReconciliationInsertsNewlyListedEmptyTabs();
     void modelTesterPassesUnderDeltaStorm();
 
+    // Items-pipeline M3, S7 review round 1 (finding 2): the delta-path
+    // column resize is a non-resetting debounce.
+    void deltaResizeDebounceCoalescesBurst();
+
 private:
     std::shared_ptr<spdlog::logger> m_main_logger;
     std::shared_ptr<spdlog::sinks::dist_sink_mt> m_sink_hub;
@@ -3762,6 +3766,63 @@ void MainWindowTest::modelTesterPassesUnderDeltaStorm()
     QCOMPARE(probes.refilters, 1);
     probes.enabled = false;
     QCOMPARE(structuralSignature(), applied);
+}
+
+// S7 review round 1 (finding 2): every applied delta used to arm the
+// 0 ms resize coalescer, so a refresh burst paid one ~10 ms
+// ResizeTreeColumns pass per reply (S7 record, M2-M2 addendum). The
+// delta-path arming is now a non-resetting single-shot debounce. Two
+// clauses: a burst of applied deltas within the interval yields
+// exactly ONE resize pass, and an immediate resize (user action or
+// final reconciliation) supersedes a pending debounced one instead of
+// being followed by a redundant second pass.
+void MainWindowTest::deltaResizeDebounceCoalescesBurst()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-bbbb", "Beta", 1);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-b", "BetaItem", "Shield", tabB));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB}, false);
+    // The seeding reconciliation schedules an immediate resize (0 ms
+    // coalescer); let it fire before counting.
+    QTest::qWait(50);
+
+    auto &probes = ModelProbes::instance();
+    probes.reset();
+    probes.enabled = true;
+
+    // Clause 1: two model-changing deltas in SEPARATE event-loop turns
+    // (each production reply is its own turn — a same-turn pair would be
+    // coalesced even by the old 0 ms arming and prove nothing). Inside
+    // the interval neither has resized yet; then exactly one debounced
+    // pass, and no second one after another full interval.
+    fixture.itemsManager
+        ->OnTabRefreshed(tabA, {makeMainWindowItem("item-a2", "AlphaItem Two", "Sword", tabA)});
+    QTest::qWait(50);
+    fixture.itemsManager
+        ->OnTabRefreshed(tabB, {makeMainWindowItem("item-b2", "BetaItem Two", "Shield", tabB)});
+    QTest::qWait(50);
+    QCOMPARE(probes.column_resizes, 0);
+    QTRY_COMPARE_WITH_TIMEOUT(probes.column_resizes, 1, 2000);
+    QTest::qWait(400);
+    QCOMPARE(probes.column_resizes, 1);
+
+    // Clause 2: a delta arms the debounce, then a user refilter's
+    // immediate resize runs first and supersedes it — the debounce
+    // deadline passes with no third pass.
+    fixture.itemsManager
+        ->OnTabRefreshed(tabA, {makeMainWindowItem("item-a3", "AlphaItem Three", "Sword", tabA)});
+    QCOMPARE(probes.column_resizes, 1);
+    fixture.window->OnSearchFormChange();
+    QTRY_COMPARE_WITH_TIMEOUT(probes.column_resizes, 2, 2000);
+    QTest::qWait(400);
+    QCOMPARE(probes.column_resizes, 2);
+    probes.enabled = false;
 }
 
 QTEST_MAIN(MainWindowTest)

@@ -4,10 +4,12 @@ Status: **S7 GATE PASSED (July 31, 2026) — the complete budget table
 ran authoritatively on the finished model and every budgeted row passes
 at both presets.** The table and its attribution are in the "Budget
 table (S7)" section at the end; conditional hold-point rows were
-recorded per stage (S3-S5) as the sequence reached them. One
-observation surfaced for Tom's judgment at the S7 pause: the per-delta
-deferred column resize (see the M2-M2 addendum in the S7 section). S8
-(wrap-up) remains.
+recorded per stage (S3-S5) as the sequence reached them. S7 review
+round 1 (two findings, both remedied same day): the gate now fails
+loudly (non-zero exit on any miss or unavailable binding measurement),
+and the per-delta deferred column resize surfaced at the pause is now
+a non-resetting debounce (pin `deltaResizeDebounceCoalescesBurst`).
+S8 (wrap-up) remains.
 
 ## S0 — staleness-preamble anchor verification (July 30, 2026)
 
@@ -696,4 +698,38 @@ addendum above parked for Tom's judgment): decided.** Tom's call —
 the delta-path arming becomes a **non-resetting single-shot debounce**
 (the D9 pattern at presentation scale); width-relevance gating was
 considered and deliberately not added. Remedy, pin, and measured
-effect are recorded in the step-2 subsection below when it lands.
+effect below.
+
+**Step 2 (the remedy).** `MainWindow::ScheduleDeltaResizeTreeColumns`
+arms a new non-resetting 250 ms single-shot
+(`DELTA_RESIZE_DEBOUNCE_MS`); the one delta-path site is
+`FinishDeltaApplication`, where both per-reply delta forms (content
+delta and child reconciliation) funnel. Non-resetting means an armed
+timer keeps its deadline, so a sustained burst cannot starve the
+resize — it pays at most one ~10 ms pass per interval (bounded
+staleness AND bounded work) instead of one per applied delta. Every
+user-initiated site (mode switch, expand/collapse signals and
+commands, buyout command, refilter) and the once-per-refresh final
+reconciliation keep the immediate 0 ms same-turn coalescer, and —
+Tom's refinement — `ResizeTreeColumns` itself stops the pending
+debounce, so an immediate resize supersedes a queued delta resize
+rather than being followed by a redundant second pass. New probe
+`column_resizes` counts actual resize passes.
+
+Pin `deltaResizeDebounceCoalescesBurst` (tst_mainwindow, both
+clauses): deltas applied in separate event-loop turns yield exactly
+one resize pass per interval and none inside it; an immediate resize
+while a delta resize is pending supersedes it (no third pass after
+the debounce deadline). Both clauses were verified RED against their
+defect shapes before landing (clause 1 against the old per-delta
+immediate arming, clause 2 with the supersede stop removed). Pin
+lesson from the red check: the first draft applied the burst in ONE
+event-loop turn, which even the old 0 ms coalescer collapses to one
+pass — the defect quantifies over event-loop turns (one per
+production reply), so the pin must too.
+
+Measured effect (`m2m2_benchmark`, 100k, same build/environment):
+whole-path median 10.4 ms → **0.216 ms** (the `post (finish)` tail
+10.14 ms → 0.021 ms) — back at the M2-era 0.234 ms with the M3
+synchronous model application now included in the unit. Suite green,
+34/34, 57 mainwindow scenarios.

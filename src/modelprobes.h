@@ -62,6 +62,11 @@ struct ModelProbes
     // snapshot's work (fallback-insensitive verification).
     std::int64_t final_reconciliations = 0;
 
+    // Site lives since S7 review round 1: MainWindow::ResizeTreeColumns
+    // entries — every actual column-resize pass, whichever timer or call
+    // fired it. The delta-debounce pin asserts a burst yields one.
+    std::int64_t column_resizes = 0;
+
     // Gauge, not a counter; sites live since S3 (D1 residency): estimated
     // bytes of resident sort keys, adjusted at hydration, entry rebuild,
     // and eviction (ResidentKeyStore). Unlike the counters, the gauge is
