@@ -171,22 +171,12 @@ public:
     bool itemsDirty() const { return m_items_dirty; }
     void setItemsDirty(bool dirty) { m_items_dirty = dirty; }
 
-    // D9 intersection, match half: does this item pass the current active
-    // filter set?
+    // The active-filter membership test the delta path applies to every
+    // arrival (D3; formerly the M2 D9 intersection's match half — the
+    // intersection sets themselves were deleted by the spec's July 31,
+    // 2026 post-freeze amendment when S5's throttle retirement removed
+    // their final consumer).
     bool MatchesActiveFilters(const Item &item) const;
-
-    // D9 intersection, removal half: was anything in the visible filtered
-    // result fetched from this source? Rebuilt by every refilter.
-    bool HasVisibleSource(const FetchSourceKey &key) const
-    {
-        return m_visible_sources.count(key) > 0;
-    }
-
-    // D9 intersection, aggregate-reconciliation form (R5-2/R6-2): does any
-    // visible item under the parent's stable display key carry a fetch
-    // source outside the expected set?
-    bool HasVisibleGhostUnder(const ItemLocation &parent,
-                              const std::vector<FetchSourceKey> &expected) const;
 
     // The result of one delta application (M3 S4, D3). `processed` is the
     // R1-7 adjudication: true when the delta was applied or correctly
@@ -269,11 +259,9 @@ private:
     // otherwise.
     void InsertArrivals(int bucket_row, const Items &accepted);
     // The D4 flat-bucket content application (S5): source-scoped erase,
-    // then the sorted merge of the accepted arrivals; source indexes and
+    // then the sorted merge of the accepted arrivals; visible indexes and
     // staleness marks maintained. The arrivals were already filtered.
-    DeltaApplication ApplyFlatDelta(const LocationInventory::Key &delta_key,
-                                    const FetchSourceKey &source,
-                                    const Items &accepted);
+    DeltaApplication ApplyFlatDelta(const FetchSourceKey &source, const Items &accepted);
     // Rebuilds the By-Tab display buckets from the maintained flat
     // collection when leaving By-Item mode (S5): By-Item deltas mark the
     // By-Tab side stale instead of maintaining two structures per delta.
@@ -295,11 +283,6 @@ private:
     // True when a streamed delta changed the underlying items since this
     // search last filtered (D9 rule 1).
     bool m_items_dirty{false};
-
-    // Fetch sources of the visible filtered result, flat and grouped by
-    // stable display key, rebuilt by every refilter (D9 intersection).
-    std::set<FetchSourceKey> m_visible_sources;
-    std::map<LocationInventory::Key, std::set<FetchSourceKey>> m_visible_sources_by_tab;
 
     // The visible result by stable item id (R6-3 reselection), rebuilt by
     // every refilter and maintained per delta (S4). For a duplicated id

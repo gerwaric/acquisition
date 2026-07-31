@@ -285,7 +285,8 @@ Result doc: `m1-m3-result.md` beside the spec.
 - Design-review criteria pass on the finished branch (no
   refresh-path reset; O(delta + bucket) everywhere but D4's stated
   merge; keys derived from comparators only; the buyout enumeration
-  and batching rules; the two stated M2 renegotiations and no
+  and batching rules; the stated M2 renegotiations — three after the
+  spec's July 31 intersection-set amendment — and no
   others).
 - Verify the supersession map below was executed exactly — every
   listed pin deleted/retargeted in its named stage, no strays.

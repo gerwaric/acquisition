@@ -9,9 +9,12 @@ consistency check (key residency, activation ordering, nested
 batching) passed with only wording-level findings, folded into
 revision 4 before it was committed. Post-freeze changes follow the
 M2 convention: recorded amendments with reasons, never silent
-edits. One amendment is recorded (July 31, 2026, out of S4's
-implementation review round 2): the definition of a *filtered*
-search — see the markers at D2 rule 5 and in D3's metadata half. Review rounds 1–3 (external; R1-1…R1-8, R2-1…R2-6, and
+edits. Two amendments are recorded (both July 31, 2026): the
+definition of a *filtered* search (out of S4's implementation review
+round 2 — see the markers at D2 rule 5 and in D3's metadata half),
+and the deletion of the D9 intersection sets after S5's throttle
+retirement removed their final consumer (out of S5's review round 1
+— see the marker in D3). Review rounds 1–3 (external; R1-1…R1-8, R2-1…R2-6, and
 R3-1…R3-4, all eighteen verified and accepted) are incorporated
 throughout. Round 1's largest changes: D3's source-scoped
 replacement grain (R1-1), the final snapshot's row reconciliation
@@ -443,6 +446,21 @@ fine-grained operations scoped to the affected bucket:
   renegotiated and retired: metadata-only deltas are no longer
   outside any freshness statement, and the "invisible until user
   action after terminal failure" caveat disappears
+  *(Post-freeze amendment, July 31, 2026 — S5 review round 1,
+  finding 4: the D9 intersection SETS — `m_visible_sources`,
+  `m_visible_sources_by_tab`, and their query surface
+  `HasVisibleSource`/`HasVisibleGhostUnder` — are deleted. They were
+  M2 D9 gating machinery: their final consumer was the throttled
+  fallback's intersection gate, retired with the seam in S5, which
+  left them write-only state maintained per delta with no reader
+  anywhere, tests included. The intersection CONTRACT is not
+  relaxed — its semantics are executed by application itself:
+  removal is source-scoped by each item's fetch key, arrivals are
+  filter-tested, and the metadata half applies unconditionally
+  (R1-4) — so "does this delta intersect?" is no longer a question
+  any consumer asks ahead of applying.
+  `deltaUpdatesVisibleIndexesIncrementally`'s source-index wording
+  narrows to the indexes that retain consumers.)*
   (`metadataDeltaAppliesWithoutItemIntersection`). Filtered searches
   still hide empty buckets (`search.cpp:277-286`) — and the delta
   path converges to that state: a bucket a delta empties leaves a
@@ -872,10 +890,12 @@ Design-review criteria (checked in review, not runnable):
   emits one batch (R3-4), and cell repaint is independent of the
   active sort column.
 - M2's intersection and background-search machinery is inherited
-  with exactly two stated renegotiations, neither silent: the
+  with exactly three stated renegotiations, none silent: the
   metadata half added to the intersection contract (R1-4, retiring
-  M2 R7-2's exception) and rule 1 relaxed for the active search only
-  (R1-7). The persistence and presentation lanes still share no
+  M2 R7-2's exception), rule 1 relaxed for the active search only
+  (R1-7), and the intersection sets deleted once S5's throttle
+  retirement removed their final consumer (the July 31, 2026
+  post-freeze amendment in D3). The persistence and presentation lanes still share no
   payload types, and keys carry no wire or `poe::*` types.
 - The retirement of the D9 throttle deletes its machinery and its
   pinned timer tests by renegotiation, not silent breakage — the M2

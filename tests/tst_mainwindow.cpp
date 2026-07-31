@@ -2171,8 +2171,10 @@ void MainWindowTest::deltaUpdatesVisibleIndexesIncrementally()
     QCOMPARE(tree->selectionModel()->selectedRows().front().parent(), bucketB);
 
     // Second-removal adjudication: tab A's source no longer has visible
-    // rows, so its empty delta finds nothing to remove (the source index
-    // was maintained) — no row operations at all.
+    // rows, so its empty delta finds nothing to remove — no row
+    // operations at all. (Narrowed by the spec's July 31 amendment: the
+    // D9 source-index sets are deleted; source scoping is answered by
+    // the items' own fetch keys during application.)
     const int removals_before = removals.count();
     fixture.itemsManager->OnTabRefreshed(tabA, {});
     QCOMPARE(removals.count(), removals_before);

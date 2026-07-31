@@ -417,8 +417,6 @@ void Search::FilterItems(const Items &items)
     // construction (D6).
     m_filtered = !active_filters.empty();
     m_filtered_item_count = 0;
-    m_visible_sources.clear();
-    m_visible_sources_by_tab.clear();
     m_visible_by_id.clear();
     m_unindexed_visible_ids.clear();
     m_duplicate_visible_ids.clear();
@@ -468,11 +466,6 @@ void Search::FilterItems(const Items &items)
                 bucket_it = bucketed_tabs.emplace(key, Bucket(canonicalLocation(location))).first;
             }
             bucket_it->second.AddItem(item);
-
-            // Record the fetch source for the D9 intersection tests.
-            const FetchSourceKey source_key = FetchSourceKey::ForLocation(location);
-            m_visible_sources.insert(source_key);
-            m_visible_sources_by_tab[key].insert(source_key);
 
             // Record the stable identity for R6-3 reselection and the
             // count; the shared helper keeps refilter and delta
@@ -900,7 +893,7 @@ Search::DeltaApplication Search::ApplyTabDelta(const ItemLocation &location, con
         // D4 (S5): the flat bucket's per-delta contract. The flat view
         // renders no per-tab metadata; the anchor lands when the By-Tab
         // side rebuilds at the next mode switch.
-        return ApplyFlatDelta(delta_key, source, accepted);
+        return ApplyFlatDelta(source, accepted);
     }
 
     DeltaApplication result;
@@ -916,8 +909,6 @@ Search::DeltaApplication Search::ApplyTabDelta(const ItemLocation &location, con
         }
         result.inserted_bucket_row = InsertBucketRow(canonical, accepted);
         if (!accepted.empty()) {
-            m_visible_sources.insert(source);
-            m_visible_sources_by_tab[delta_key].insert(source);
             m_items_stale = true;
             m_flat_bucket_stale = true;
             result.rows_changed = true;
@@ -938,22 +929,6 @@ Search::DeltaApplication Search::ApplyTabDelta(const ItemLocation &location, con
     });
     if (!accepted.empty()) {
         InsertArrivals(bucket_row, accepted);
-    }
-
-    // Source-index maintenance at the delta's own grain: a fetch source
-    // belongs to exactly one stable tab, so replacement settles it.
-    auto by_tab = m_visible_sources_by_tab.find(delta_key);
-    if (accepted.empty()) {
-        m_visible_sources.erase(source);
-        if (by_tab != m_visible_sources_by_tab.end()) {
-            by_tab->second.erase(source);
-            if (by_tab->second.empty()) {
-                m_visible_sources_by_tab.erase(by_tab);
-            }
-        }
-    } else {
-        m_visible_sources.insert(source);
-        m_visible_sources_by_tab[delta_key].insert(source);
     }
 
     if (removed || !accepted.empty()) {
@@ -985,8 +960,7 @@ Search::DeltaApplication Search::ApplyTabDelta(const ItemLocation &location, con
     return result;
 }
 
-Search::DeltaApplication Search::ApplyFlatDelta(const LocationInventory::Key &delta_key,
-                                                const FetchSourceKey &source,
+Search::DeltaApplication Search::ApplyFlatDelta(const FetchSourceKey &source,
                                                 const Items &accepted)
 {
     DeltaApplication result;
@@ -1001,22 +975,6 @@ Search::DeltaApplication Search::ApplyFlatDelta(const LocationInventory::Key &de
     });
     if (!accepted.empty()) {
         InsertArrivals(0, accepted);
-    }
-
-    // Source-index maintenance at the delta's own grain, identical to the
-    // By-Tab path: a fetch source belongs to exactly one stable tab.
-    auto by_tab = m_visible_sources_by_tab.find(delta_key);
-    if (accepted.empty()) {
-        m_visible_sources.erase(source);
-        if (by_tab != m_visible_sources_by_tab.end()) {
-            by_tab->second.erase(source);
-            if (by_tab->second.empty()) {
-                m_visible_sources_by_tab.erase(by_tab);
-            }
-        }
-    } else {
-        m_visible_sources.insert(source);
-        m_visible_sources_by_tab[delta_key].insert(source);
     }
 
     if (removed || !accepted.empty()) {
@@ -1056,30 +1014,13 @@ Search::DeltaApplication Search::ApplyChildReconciliation(
             return result; // fail-safe dirty (R1-7)
         }
         const std::set<FetchSourceKey> allowed(expected.begin(), expected.end());
-        std::set<FetchSourceKey> erased_sources;
-        const bool removed
-            = RemoveBucketRows(0, [&parent_key, &allowed, &erased_sources](const Item &item) {
-                  if (LocationInventory::KeyFor(item.location()) != parent_key) {
-                      return false;
-                  }
-                  const auto key = FetchSourceKey::ForLocation(item.location());
-                  if (allowed.count(key) == 0) {
-                      erased_sources.insert(key);
-                      return true;
-                  }
-                  return false;
-              });
+        const bool removed = RemoveBucketRows(0, [&parent_key, &allowed](const Item &item) {
+            if (LocationInventory::KeyFor(item.location()) != parent_key) {
+                return false;
+            }
+            return allowed.count(FetchSourceKey::ForLocation(item.location())) == 0;
+        });
         if (removed) {
-            const auto by_tab = m_visible_sources_by_tab.find(parent_key);
-            for (const auto &key : erased_sources) {
-                m_visible_sources.erase(key);
-                if (by_tab != m_visible_sources_by_tab.end()) {
-                    by_tab->second.erase(key);
-                }
-            }
-            if ((by_tab != m_visible_sources_by_tab.end()) && by_tab->second.empty()) {
-                m_visible_sources_by_tab.erase(by_tab);
-            }
             m_items_stale = true;
             result.rows_changed = true;
         }
@@ -1098,26 +1039,10 @@ Search::DeltaApplication Search::ApplyChildReconciliation(
     // The erase becomes row removals scoped to the parent's bucket (D3):
     // already source-predicate-shaped — keys outside the expected set.
     const std::set<FetchSourceKey> allowed(expected.begin(), expected.end());
-    std::set<FetchSourceKey> erased_sources;
-    const bool removed = RemoveBucketRows(bucket_row, [&allowed, &erased_sources](const Item &item) {
-        const auto key = FetchSourceKey::ForLocation(item.location());
-        if (allowed.count(key) == 0) {
-            erased_sources.insert(key);
-            return true;
-        }
-        return false;
+    const bool removed = RemoveBucketRows(bucket_row, [&allowed](const Item &item) {
+        return allowed.count(FetchSourceKey::ForLocation(item.location())) == 0;
     });
     if (removed) {
-        const auto by_tab = m_visible_sources_by_tab.find(parent_key);
-        for (const auto &key : erased_sources) {
-            m_visible_sources.erase(key);
-            if (by_tab != m_visible_sources_by_tab.end()) {
-                by_tab->second.erase(key);
-            }
-        }
-        if ((by_tab != m_visible_sources_by_tab.end()) && by_tab->second.empty()) {
-            m_visible_sources_by_tab.erase(by_tab);
-        }
         m_items_stale = true;
         m_flat_bucket_stale = true;
         result.rows_changed = true;
@@ -1142,21 +1067,6 @@ bool Search::MatchesActiveFilters(const Item &item) const
     return true;
 }
 
-bool Search::HasVisibleGhostUnder(const ItemLocation &parent,
-                                  const std::vector<FetchSourceKey> &expected) const
-{
-    const auto it = m_visible_sources_by_tab.find(LocationInventory::KeyFor(parent));
-    if (it == m_visible_sources_by_tab.end()) {
-        return false;
-    }
-    const std::set<FetchSourceKey> allowed(expected.begin(), expected.end());
-    for (const auto &key : it->second) {
-        if (allowed.count(key) == 0) {
-            return true;
-        }
-    }
-    return false;
-}
 
 const ItemLocation &Search::canonicalLocation(const ItemLocation &embedded) const
 {
