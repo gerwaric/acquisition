@@ -3,8 +3,10 @@
 
 #include "search.h"
 
+#include <algorithm>
 #include <memory>
 #include <type_traits>
+#include <utility>
 
 #include "bucket.h"
 #include "buyoutmanager.h"
@@ -15,6 +17,28 @@
 #include "modelprobes.h"
 #include "util/fatalerror.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
+
+namespace {
+
+    // The By-Tab display order: rendered location order with the stable id
+    // breaking positional ties, so two tabs colliding on one position
+    // mid-refresh keep a deterministic order. Shared by the refilter's
+    // bucket sort and the delta path's insertion/reposition (S4) — one
+    // definition of display order.
+    bool bucketDisplayLess(const Bucket &a, const Bucket &b)
+    {
+        const ItemLocation &la = a.location();
+        const ItemLocation &lb = b.location();
+        if (la < lb) {
+            return true;
+        }
+        if (lb < la) {
+            return false;
+        }
+        return la.id() < lb.id();
+    }
+
+} // namespace
 
 Search::Search(BuyoutManager &bo_manager,
                const QString &caption,
@@ -377,6 +401,8 @@ void Search::FilterItems(const Items &items)
     m_visible_sources_by_tab.clear();
     m_visible_by_id.clear();
     m_unindexed_visible_ids.clear();
+    m_duplicate_visible_ids.clear();
+    m_empty_id_visible_count = 0;
 
     // A single bucket with null location is used to view all items at once.
     m_bucket_by_item.clear();
@@ -411,7 +437,6 @@ void Search::FilterItems(const Items &items)
             // This item passed through all the filters, so we can
             // add it to the list of items and total count.
             m_items.push_back(item);
-            m_filtered_item_count += item->count();
 
             // Add this item to the "By Item" bucket.
             m_bucket_by_item.front().AddItem(item);
@@ -430,19 +455,10 @@ void Search::FilterItems(const Items &items)
             m_visible_sources.insert(source_key);
             m_visible_sources_by_tab[key].insert(source_key);
 
-            // Record the stable identity for R6-3 reselection. Items
-            // without a server id cannot be identity-tracked and fall back
-            // to pointer reselection. Ids the index cannot fully represent
-            // — duplicates (mid-refresh divergence can show one id in two
-            // tabs) and the empty id — are recorded as unindexed so the
-            // buyout repaint still finds every occurrence.
-            if (const QString item_id = item->id(); !item_id.isEmpty()) {
-                if (!m_visible_by_id.emplace(item_id, item).second) {
-                    m_unindexed_visible_ids.insert(item_id);
-                }
-            } else {
-                m_unindexed_visible_ids.insert(item_id);
-            }
+            // Record the stable identity for R6-3 reselection and the
+            // count; the shared helper keeps refilter and delta
+            // bookkeeping identical (S4).
+            IndexInsertVisible(item);
         }
     }
 
@@ -477,17 +493,15 @@ void Search::FilterItems(const Items &items)
     for (auto &element : bucketed_tabs) {
         m_bucket_by_tab.emplace_back(std::move(element.second));
     }
-    std::sort(m_bucket_by_tab.begin(), m_bucket_by_tab.end(), [](const Bucket &a, const Bucket &b) {
-        const ItemLocation &la = a.location();
-        const ItemLocation &lb = b.location();
-        if (la < lb) {
-            return true;
-        }
-        if (lb < la) {
-            return false;
-        }
-        return la.id() < lb.id();
-    });
+    std::sort(m_bucket_by_tab.begin(), m_bucket_by_tab.end(), bucketDisplayLess);
+
+    // Fresh buckets get fresh identities (S4): the reset invalidates every
+    // persistent index, so serial continuity across a refilter would buy
+    // nothing.
+    AssignSerials();
+    RebuildSerialRows();
+    m_items_stale = false;
+    m_flat_bucket_stale = false;
 
     // A filtered By-Tab search is default-expanded (D2 rule 5): mark the
     // fresh buckets materialized now, so the post-refilter sort pass
@@ -507,6 +521,444 @@ void Search::FilterItems(const Items &items)
 
     m_states_dirty = false;
     m_items_dirty = false; // a successful refilter clears its own flag (D9 rule 3)
+}
+
+const Items &Search::items() const
+{
+    if (m_items_stale) {
+        // Lazily reconciled from the maintained By-Tab buckets: the delta
+        // path never pays an O(collection) pass, and only user-initiated
+        // boundaries (mode switch) and tests read this.
+        m_items.clear();
+        for (const auto &bucket : m_bucket_by_tab) {
+            m_items.insert(m_items.end(), bucket.items().begin(), bucket.items().end());
+        }
+        m_items_stale = false;
+    }
+    return m_items;
+}
+
+int Search::rowForSerial(std::uint64_t serial) const
+{
+    const auto it = m_row_by_serial.find(serial);
+    return (it != m_row_by_serial.end()) ? it->second : -1;
+}
+
+void Search::AssignSerials()
+{
+    for (auto &bucket : m_bucket_by_tab) {
+        bucket.SetSerial(m_next_bucket_serial++);
+    }
+    for (auto &bucket : m_bucket_by_item) {
+        bucket.SetSerial(m_next_bucket_serial++);
+    }
+}
+
+void Search::RebuildSerialRows()
+{
+    m_row_by_serial.clear();
+    const auto &bucket_list = buckets();
+    for (size_t row = 0; row < bucket_list.size(); ++row) {
+        m_row_by_serial[bucket_list[row].serial()] = static_cast<int>(row);
+    }
+}
+
+int Search::FindBucketRow(const LocationInventory::Key &key) const
+{
+    const auto &bucket_list = m_bucket_by_tab;
+    for (size_t row = 0; row < bucket_list.size(); ++row) {
+        if (LocationInventory::KeyFor(bucket_list[row].location()) == key) {
+            return static_cast<int>(row);
+        }
+    }
+    return -1;
+}
+
+void Search::IndexInsertVisible(const std::shared_ptr<Item> &item)
+{
+    m_filtered_item_count += item->count();
+    const QString id = item->id();
+    if (id.isEmpty()) {
+        // Id-less items cannot be identity-tracked; the unindexed mark
+        // sends consumers down the every-occurrence path.
+        ++m_empty_id_visible_count;
+        m_unindexed_visible_ids.insert(id);
+        return;
+    }
+    const auto [it, inserted] = m_visible_by_id.emplace(id, item);
+    if (!inserted) {
+        // Mid-refresh divergence: one id visible twice. Track every
+        // occurrence so a removal restores the survivor exactly.
+        auto &occurrences = m_duplicate_visible_ids[id];
+        if (occurrences.empty()) {
+            occurrences.push_back(it->second);
+        }
+        occurrences.push_back(item);
+        m_unindexed_visible_ids.insert(id);
+    }
+}
+
+void Search::IndexRemoveVisible(const std::shared_ptr<Item> &item)
+{
+    m_filtered_item_count -= item->count();
+    const QString id = item->id();
+    if (id.isEmpty()) {
+        if ((m_empty_id_visible_count > 0) && (--m_empty_id_visible_count == 0)) {
+            m_unindexed_visible_ids.erase(id);
+        }
+        return;
+    }
+    const auto dup = m_duplicate_visible_ids.find(id);
+    if (dup != m_duplicate_visible_ids.end()) {
+        auto &occurrences = dup->second;
+        const auto occurrence = std::find(occurrences.begin(), occurrences.end(), item);
+        if (occurrence != occurrences.end()) {
+            occurrences.erase(occurrence);
+        }
+        if (occurrences.size() == 1) {
+            // Unique again: the survivor is the freshly-refiltered answer.
+            m_visible_by_id[id] = occurrences.front();
+            m_duplicate_visible_ids.erase(dup);
+            m_unindexed_visible_ids.erase(id);
+        } else if (!occurrences.empty()) {
+            m_visible_by_id[id] = occurrences.front();
+        } else {
+            m_visible_by_id.erase(id);
+            m_duplicate_visible_ids.erase(dup);
+            m_unindexed_visible_ids.erase(id);
+        }
+    } else {
+        const auto it = m_visible_by_id.find(id);
+        if ((it != m_visible_by_id.end()) && (it->second == item)) {
+            m_visible_by_id.erase(it);
+        }
+    }
+}
+
+int Search::ApplyBucketMetadata(int bucket_row, const ItemLocation &canonical)
+{
+    Bucket &bucket = m_bucket_by_tab[static_cast<size_t>(bucket_row)];
+    const ItemLocation old_location = bucket.location();
+    const bool rendered_changed = (old_location.GetHeader() != canonical.GetHeader())
+                                  || (old_location.getR() != canonical.getR())
+                                  || (old_location.getG() != canonical.getG())
+                                  || (old_location.getB() != canonical.getB());
+    bucket.SetLocation(canonical);
+
+    // Reposition when display ordering changed (D3): the vector is sorted
+    // by display order except possibly this bucket, so its destination is
+    // found by walking outward from its current row.
+    int target = bucket_row;
+    while ((target > 0)
+           && bucketDisplayLess(m_bucket_by_tab[static_cast<size_t>(bucket_row)],
+                                m_bucket_by_tab[static_cast<size_t>(target - 1)])) {
+        --target;
+    }
+    if (target == bucket_row) {
+        while ((target + 1 < static_cast<int>(m_bucket_by_tab.size()))
+               && bucketDisplayLess(m_bucket_by_tab[static_cast<size_t>(target + 1)],
+                                    m_bucket_by_tab[static_cast<size_t>(bucket_row)])) {
+            ++target;
+        }
+    }
+    if ((target != bucket_row) && (m_current_mode == ViewMode::ByTab)
+        && m_model.BeginMoveBucketRow(bucket_row, target)) {
+        auto first = m_bucket_by_tab.begin();
+        if (target < bucket_row) {
+            std::rotate(first + target, first + bucket_row, first + bucket_row + 1);
+        } else {
+            std::rotate(first + bucket_row, first + bucket_row + 1, first + target + 1);
+        }
+        RebuildSerialRows();
+        m_model.EndMoveBucketRow();
+        bucket_row = target;
+    }
+    if (rendered_changed && (m_current_mode == ViewMode::ByTab)) {
+        m_model.EmitBucketMetadataChanged(bucket_row);
+    }
+    return bucket_row;
+}
+
+int Search::InsertBucketRow(const ItemLocation &canonical, const Items &accepted)
+{
+    Bucket bucket(canonical);
+    bucket.SetSerial(m_next_bucket_serial++);
+    bucket.AddItems(accepted);
+
+    int row = 0;
+    while ((row < static_cast<int>(m_bucket_by_tab.size()))
+           && bucketDisplayLess(m_bucket_by_tab[static_cast<size_t>(row)], bucket)) {
+        ++row;
+    }
+    m_model.BeginInsertBucketRow(row);
+    m_bucket_by_tab.insert(m_bucket_by_tab.begin() + row, std::move(bucket));
+    RebuildSerialRows();
+    m_model.EndInsertBucketRow();
+    for (const auto &item : accepted) {
+        IndexInsertVisible(item);
+    }
+    return row;
+}
+
+template<typename Predicate>
+bool Search::RemoveBucketRows(int bucket_row, Predicate &&predicate)
+{
+    Bucket &bucket = m_bucket_by_tab[static_cast<size_t>(bucket_row)];
+    const auto &bucket_items = bucket.items();
+    // Contiguous runs, removed back-to-front so earlier runs' rows stay
+    // valid — O(runs) model operations (D3).
+    struct Run
+    {
+        int first;
+        int last;
+    };
+    std::vector<Run> runs;
+    for (int row = 0; row < static_cast<int>(bucket_items.size()); ++row) {
+        if (predicate(*bucket_items[static_cast<size_t>(row)])) {
+            if (!runs.empty() && (runs.back().last == row - 1)) {
+                runs.back().last = row;
+            } else {
+                runs.push_back({row, row});
+            }
+        }
+    }
+    for (auto run = runs.rbegin(); run != runs.rend(); ++run) {
+        m_model.BeginRemoveItemRows(bucket_row, run->first, run->last);
+        for (int row = run->first; row <= run->last; ++row) {
+            IndexRemoveVisible(bucket_items[static_cast<size_t>(row)]);
+        }
+        bucket.RemoveRows(run->first, run->last - run->first + 1);
+        m_model.EndRemoveItemRows();
+    }
+    return !runs.empty();
+}
+
+void Search::InsertArrivals(int bucket_row, const Items &accepted)
+{
+    Bucket &bucket = m_bucket_by_tab[static_cast<size_t>(bucket_row)];
+    const int column = m_model.GetSortColumn();
+    const bool sortable = (column >= 0) && (column < static_cast<int>(m_columns.size()));
+
+    if (bucket.expanded() && bucket.sorted() && sortable) {
+        // R2-2: the visible-bucket sorted merge. Sorting the arrivals
+        // alone cannot establish the bucket's global order when sibling
+        // sources' rows interleave under the sort; merging them into the
+        // retained rows' order does.
+        const Column &col = *m_columns[column];
+        bucket.EnsureResidentKeys(col); // key-consuming op hydrates first (R3-1)
+        const Qt::SortOrder order = m_model.GetSortOrder();
+        auto &probes = ModelProbes::instance();
+        const auto less = [&probes, order](const ItemSortKey &lhs, const ItemSortKey &rhs) {
+            if (probes.enabled) {
+                ++probes.keyed_compares;
+            }
+            return (order == Qt::AscendingOrder) ? (lhs < rhs) : (rhs < lhs);
+        };
+        if (probes.enabled) {
+            // The merge is this bucket's order-refresh event: fresh keyed
+            // order as part of application (staleOrderNeverSurvivesDelta).
+            ++probes.bucket_sorts;
+            ++probes.bucket_sorts_by_location[LocationInventory::KeyFor(bucket.location())];
+        }
+
+        std::vector<std::pair<ItemSortKey, std::shared_ptr<Item>>> arrivals;
+        arrivals.reserve(accepted.size());
+        for (const auto &item : accepted) {
+            arrivals.emplace_back(col.key(*item), item);
+        }
+        std::sort(arrivals.begin(), arrivals.end(), [&less](const auto &lhs, const auto &rhs) {
+            return less(lhs.first, rhs.first);
+        });
+
+        // Insertion positions against the retained order, computed before
+        // any insertion mutates the key vector; nondecreasing because the
+        // arrivals are sorted.
+        const auto &retained = bucket.residentKeys();
+        std::vector<int> positions;
+        positions.reserve(arrivals.size());
+        for (const auto &arrival : arrivals) {
+            positions.push_back(static_cast<int>(
+                std::upper_bound(retained.begin(), retained.end(), arrival.first, less)
+                - retained.begin()));
+        }
+
+        int offset = 0;
+        size_t start = 0;
+        while (start < arrivals.size()) {
+            size_t end = start + 1;
+            while ((end < arrivals.size()) && (positions[end] == positions[start])) {
+                ++end;
+            }
+            Items run_items;
+            std::vector<ItemSortKey> run_keys;
+            run_items.reserve(end - start);
+            run_keys.reserve(end - start);
+            for (size_t n = start; n < end; ++n) {
+                run_keys.push_back(std::move(arrivals[n].first));
+                run_items.push_back(std::move(arrivals[n].second));
+            }
+            const int first = positions[start] + offset;
+            const int last = first + static_cast<int>(end - start) - 1;
+            m_model.BeginInsertItemRows(bucket_row, first, last);
+            bucket.InsertRows(first, run_items, &run_keys);
+            m_model.EndInsertItemRows();
+            for (const auto &item : run_items) {
+                IndexInsertVisible(item);
+            }
+            offset += static_cast<int>(end - start);
+            start = end;
+        }
+    } else {
+        // Collapsed (or unsortable): arrival-ordered append; the order
+        // defers to expansion (D2, collapsedInvalidBucketResortsOnReexpand).
+        const int first = static_cast<int>(bucket.items().size());
+        const int last = first + static_cast<int>(accepted.size()) - 1;
+        m_model.BeginInsertItemRows(bucket_row, first, last);
+        bucket.InsertRows(first, accepted, nullptr);
+        m_model.EndInsertItemRows();
+        for (const auto &item : accepted) {
+            IndexInsertVisible(item);
+        }
+        bucket.InvalidateOrder();
+    }
+}
+
+Search::DeltaApplication Search::ApplyTabDelta(const ItemLocation &location, const Items &items)
+{
+    DeltaApplication result;
+    if (m_current_mode != ViewMode::ByTab) {
+        return result; // the fallback seam owns other modes (S4, deleted in S5)
+    }
+
+    const FetchSourceKey source = FetchSourceKey::ForLocation(location);
+    const auto delta_key = LocationInventory::KeyFor(location);
+    const ItemLocation &canonical = canonicalLocation(location);
+
+    // Filter the arrivals once. O(delta).
+    Items accepted;
+    accepted.reserve(items.size());
+    for (const auto &item : items) {
+        if (MatchesActiveFilters(*item)) {
+            accepted.push_back(item);
+        }
+    }
+
+    int bucket_row = FindBucketRow(delta_key);
+    if (bucket_row < 0) {
+        // No bucket owns this stable key. One appears when arrivals pass
+        // the filters, or metadata-only in an unfiltered search (R1-4's
+        // new-empty-tab clause); a filtered search with nothing visible
+        // has adjudicated "no visible change".
+        if (accepted.empty() && m_filtered) {
+            result.processed = true;
+            return result;
+        }
+        result.inserted_bucket_row = InsertBucketRow(canonical, accepted);
+        if (!accepted.empty()) {
+            m_visible_sources.insert(source);
+            m_visible_sources_by_tab[delta_key].insert(source);
+            m_items_stale = true;
+            m_flat_bucket_stale = true;
+            result.rows_changed = true;
+        }
+        result.processed = true;
+        return result;
+    }
+
+    // Metadata half first (R1-4): the anchor renders now, item
+    // intersection notwithstanding; the content ops below then target the
+    // bucket's settled row.
+    bucket_row = ApplyBucketMetadata(bucket_row, canonical);
+
+    // Content half: a source-scoped replace (R1-1) — remove exactly the
+    // rows fetched from this delta's source, then insert the arrivals.
+    const bool removed = RemoveBucketRows(bucket_row, [&source](const Item &item) {
+        return FetchSourceKey::ForLocation(item.location()) == source;
+    });
+    if (!accepted.empty()) {
+        InsertArrivals(bucket_row, accepted);
+    }
+
+    // Source-index maintenance at the delta's own grain: a fetch source
+    // belongs to exactly one stable tab, so replacement settles it.
+    auto by_tab = m_visible_sources_by_tab.find(delta_key);
+    if (accepted.empty()) {
+        m_visible_sources.erase(source);
+        if (by_tab != m_visible_sources_by_tab.end()) {
+            by_tab->second.erase(source);
+            if (by_tab->second.empty()) {
+                m_visible_sources_by_tab.erase(by_tab);
+            }
+        }
+    } else {
+        m_visible_sources.insert(source);
+        m_visible_sources_by_tab[delta_key].insert(source);
+    }
+
+    if (removed || !accepted.empty()) {
+        m_items_stale = true;
+        m_flat_bucket_stale = true;
+        result.rows_changed = true;
+    }
+
+    // Defensive: a visible bucket must never keep stale order past a
+    // delta (staleOrderNeverSurvivesDelta). The merge path preserved
+    // sortedness; the append path only runs on collapsed buckets — this
+    // covers the expanded-but-invalid corner.
+    Bucket &bucket = m_bucket_by_tab[static_cast<size_t>(bucket_row)];
+    if (result.rows_changed && bucket.expanded() && !bucket.sorted()) {
+        m_model.ResortBucket(bucket_row);
+    }
+
+    result.processed = true;
+    return result;
+}
+
+Search::DeltaApplication Search::ApplyChildReconciliation(
+    const ItemLocation &parent, const std::vector<FetchSourceKey> &expected)
+{
+    DeltaApplication result;
+    if (m_current_mode != ViewMode::ByTab) {
+        return result; // the fallback seam owns other modes (S4, deleted in S5)
+    }
+
+    const auto parent_key = LocationInventory::KeyFor(parent);
+    int bucket_row = FindBucketRow(parent_key);
+    if (bucket_row < 0) {
+        result.processed = true; // nothing visible under the parent
+        return result;
+    }
+    bucket_row = ApplyBucketMetadata(bucket_row, canonicalLocation(parent));
+
+    // The erase becomes row removals scoped to the parent's bucket (D3):
+    // already source-predicate-shaped — keys outside the expected set.
+    const std::set<FetchSourceKey> allowed(expected.begin(), expected.end());
+    std::set<FetchSourceKey> erased_sources;
+    const bool removed = RemoveBucketRows(bucket_row, [&allowed, &erased_sources](const Item &item) {
+        const auto key = FetchSourceKey::ForLocation(item.location());
+        if (allowed.count(key) == 0) {
+            erased_sources.insert(key);
+            return true;
+        }
+        return false;
+    });
+    if (removed) {
+        const auto by_tab = m_visible_sources_by_tab.find(parent_key);
+        for (const auto &key : erased_sources) {
+            m_visible_sources.erase(key);
+            if (by_tab != m_visible_sources_by_tab.end()) {
+                by_tab->second.erase(key);
+            }
+        }
+        if ((by_tab != m_visible_sources_by_tab.end()) && by_tab->second.empty()) {
+            m_visible_sources_by_tab.erase(by_tab);
+        }
+        m_items_stale = true;
+        m_flat_bucket_stale = true;
+        result.rows_changed = true;
+    }
+    result.processed = true;
+    return result;
 }
 
 bool Search::MatchesActiveFilters(const Item &item) const
@@ -598,6 +1050,17 @@ void Search::SetViewMode(ViewMode mode)
     }
     m_current_mode = mode;
     if (mode == ViewMode::ByItem) {
+        // The delta path maintains the By-Tab buckets only (S4); a flat
+        // bucket gone stale rebuilds here from the maintained collection —
+        // the mode switch is one of D6's honest full-rebuild boundaries.
+        if (m_flat_bucket_stale && !m_bucket_by_item.empty()) {
+            Bucket &flat = m_bucket_by_item.front();
+            Bucket rebuilt{ItemLocation()};
+            rebuilt.SetSerial(flat.serial());
+            rebuilt.AddItems(items());
+            flat = std::move(rebuilt);
+            m_flat_bucket_stale = false;
+        }
         // The flat bucket is always materialized (D2 rule 6): establish
         // its order now if invalid — the reset leaves nothing else to
         // sort it before it paints.
@@ -607,6 +1070,7 @@ void Search::SetViewMode(ViewMode mode)
             m_bucket_by_item.front().Sort(*m_columns[column], m_model.GetSortOrder());
         }
     }
+    RebuildSerialRows();
     // Arriving By-Tab buckets start collapsed after the reset; expansion
     // restore sorts the ones whose flags are invalid (D2 rule 2).
     m_model.SetSorted(true);

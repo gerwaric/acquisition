@@ -15,7 +15,10 @@
 // expand with cold keys; broad-filter default-expanded refilter (R1-8's
 // worst case, driven by the ilvl >= 2 filter, which matches ~99% of the
 // dataset while still excluding items); collapsed-default and background
-// resident-key memory. By-Item rows wait for S5's machinery.
+// resident-key memory. S4 row: delta application on the current search,
+// By-Tab visible bucket (full source replacement of the largest expanded
+// bucket — removal runs plus a maximal merge). By-Item rows wait for
+// S5's machinery.
 //
 // Attribution follows the M2-M2 discipline: the live windows are timed
 // end-to-end, sort/key work is attributed by the model probes (counts)
@@ -34,6 +37,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <map>
 #include <memory>
 #include <vector>
 
@@ -161,6 +165,8 @@ int main(int argc, char *argv[])
     const double budget_sort_share_ms = (is_100k || is_1m) ? 5.0 : -1.0;
     const double budget_expand_ms = (is_100k || is_1m) ? 10.0 : -1.0;
     const double budget_broad_ms = is_100k ? 150.0 : is_1m ? 1200.0 : -1.0;
+    // The S4 row's budget is stated at 1m only; 100k is informational.
+    const double budget_delta_ms = is_1m ? 5.0 : -1.0;
 
     auto main_logger = std::make_shared<spdlog::logger>("main");
     main_logger->sinks().push_back(std::make_shared<spdlog::sinks::dist_sink_mt>());
@@ -355,7 +361,88 @@ int main(int argc, char *argv[])
                     probes.live_key_bytes == 0 ? "  PASS" : "  MISS");
     }
 
-    std::printf("\n=== M3 S3 hold-point result: preset %s, %d tabs, %zu items, Qt %s ===\n",
+    // --- Row 5 (S4): delta application, By-Tab visible bucket -------------
+    {
+        // Back on Search 1, clean state, largest bucket expanded: the
+        // delta lands on the current search's visible bucket.
+        tabs->setCurrentIndex(0);
+        fixture.window->OnSearchFormChange();
+        drainEvents();
+        auto *model = tree->model();
+        int best_row = 0;
+        int best_count = -1;
+        for (int row = 0; row < model->rowCount(); ++row) {
+            const int count = model->rowCount(model->index(row, 0));
+            if (count > best_count) {
+                best_count = count;
+                best_row = row;
+            }
+        }
+        tree->expand(model->index(best_row, 0));
+        drainEvents();
+
+        // The delta is a full replacement of the largest tab's fetch
+        // source — the honest worst case: removal runs for every row plus
+        // a maximal merge into the visible order.
+        std::map<LocationInventory::Key, int> counts;
+        for (const auto &item : all_items) {
+            ++counts[LocationInventory::KeyFor(item->location())];
+        }
+        int best_tab = 0;
+        int best_tab_count = -1;
+        for (int t = 0; t < dataset.tabCount(); ++t) {
+            const int count = counts[LocationInventory::KeyFor(dataset.location(t))];
+            if (count > best_tab_count) {
+                best_tab_count = count;
+                best_tab = t;
+            }
+        }
+        const ItemLocation target = dataset.location(best_tab);
+        const auto target_key = LocationInventory::KeyFor(target);
+        Items delta;
+        delta.reserve(static_cast<size_t>(best_tab_count));
+        for (const auto &item : all_items) {
+            if (LocationInventory::KeyFor(item->location()) == target_key) {
+                delta.push_back(item);
+            }
+        }
+        // Make sure the delta's bucket is the expanded one: expand it too
+        // (idempotent when best_row already covers it).
+        for (int row = 0; row < model->rowCount(); ++row) {
+            if (model->index(row, 0).data().toString().startsWith(target.GetHeader())) {
+                tree->expand(model->index(row, 0));
+                break;
+            }
+        }
+        drainEvents();
+
+        std::printf("  [shape] delta item count: %zu\n", delta.size());
+        std::vector<qint64> samples;
+        for (int rep = 0; rep < 5; ++rep) {
+            t0 = clock.nsecsElapsed();
+            fixture.window->OnTabRefreshed(target, delta);
+            samples.push_back(clock.nsecsElapsed() - t0);
+            drainEvents();
+        }
+        rows.push_back(
+            {"S4 delta application, By-Tab visible bucket", toMs(median(samples)), budget_delta_ms});
+
+        probes.reset();
+        probes.enabled = true;
+        fixture.window->OnTabRefreshed(target, delta);
+        probes.enabled = false;
+        std::printf("  [attribution] delta application: bucket_sorts=%lld key_builds=%lld "
+                    "keyed_compares=%lld index_rebuilds=%lld refilters=%lld model_resets=%lld\n",
+                    static_cast<long long>(probes.bucket_sorts),
+                    static_cast<long long>(probes.key_builds),
+                    static_cast<long long>(probes.keyed_compares),
+                    static_cast<long long>(probes.index_rebuilds),
+                    static_cast<long long>(probes.refilters),
+                    static_cast<long long>(probes.model_resets));
+        drainEvents();
+    }
+
+    std::printf("\n=== M3 S3+S4 hold-point result: preset %s, %d tabs, %zu items, Qt %s ===\n",
                 qPrintable(preset_name),
                 dataset.tabCount(),
                 all_items.size(),

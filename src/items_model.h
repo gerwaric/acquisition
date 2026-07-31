@@ -53,6 +53,24 @@ public:
     // cells — and affected bucket headers, which render tab buyouts —
     // under any active sort column.
     void RepaintBuyoutCells(const BuyoutChangeSet &changes);
+
+    // The S4 delta-operation protocol (D3): thin wrappers around the
+    // protected begin/end pairs, driven by Search while it mutates the
+    // bucket vectors — refresh-driven changes are row operations scoped
+    // to the affected bucket, never a reset (noModelResetDuringRefresh).
+    void BeginRemoveItemRows(int bucket_row, int first, int last);
+    void EndRemoveItemRows() { endRemoveRows(); }
+    void BeginInsertItemRows(int bucket_row, int first, int last);
+    void EndInsertItemRows() { endInsertRows(); }
+    void BeginInsertBucketRow(int row);
+    void EndInsertBucketRow() { endInsertRows(); }
+    // Repositions a top-level bucket row; returns false when Qt rejects
+    // the move (no-op moves included) — the caller must then not mutate.
+    bool BeginMoveBucketRow(int from, int to);
+    void EndMoveBucketRow() { endMoveRows(); }
+    // A metadata delta's header repaint: text, color, and the checkbox
+    // column all live on the bucket row (R1-4).
+    void EmitBucketMetadataChanged(int row);
     Qt::SortOrder GetSortOrder() const { return m_sort_order; }
     int GetSortColumn() const { return m_sort_column; }
     void SetSorted(bool val) { m_sorted = val; }

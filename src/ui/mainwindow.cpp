@@ -795,32 +795,149 @@ void MainWindow::SetDeltaThrottleInterval(int ms)
 
 void MainWindow::OnTabRefreshed(const ItemLocation &location, const Items &items)
 {
-    // D9 rule 1: every delta marks every search items-dirty — the current
-    // search included, regardless of intersection. Intersection decides
-    // urgency for the visible search, never whether a search is stale.
+    // Background searches keep M2 D9 rule 1 verbatim (R1-7): every delta
+    // marks them items-dirty, and their next activation refilters.
     for (const auto &search : m_searches) {
-        search->setItemsDirty(true);
+        if (search.get() != m_current_search) {
+            search->setItemsDirty(true);
+        }
     }
-    // D9 rule 2: an intersecting delta schedules the current search's
-    // throttled refilter.
-    if (m_current_search && DeltaIntersectsCurrentSearch(location, items)) {
-        ScheduleThrottledRefilter();
+    if (!m_current_search) {
+        return;
     }
+    if (m_current_search->GetViewMode() == Search::ViewMode::ByItem) {
+        // M3 S4 fallback seam (working rule 2), DELETED IN S5: a By-Item
+        // active search keeps the D9 throttled path — rules 1-2 verbatim.
+        m_current_search->setItemsDirty(true);
+        if (DeltaIntersectsCurrentSearch(location, items)) {
+            ScheduleThrottledRefilter();
+        }
+        return;
+    }
+    // D3: the active By-Tab search applies the delta now, as bucket-scoped
+    // row operations; the first delta opens the selection-intent window.
+    m_refresh_active = true;
+    m_applying_delta = true;
+    const auto result = m_current_search->ApplyTabDelta(location, items);
+    m_applying_delta = false;
+    FinishDeltaApplication(result.processed, result.rows_changed, result.inserted_bucket_row);
 }
 
 void MainWindow::OnChildrenReconciled(const ItemLocation &parent,
                                       const std::vector<FetchSourceKey> &expected)
 {
-    // Aggregate reconciliations are first-class rule-1 inputs, and their
-    // intersection form is a visible item under the parent carrying a key
-    // outside the expected set (R5-2/R6-2) — without it, published ghosts
-    // erased by a reconciliation would stay visible indefinitely after a
-    // terminal failure.
+    // Aggregate reconciliations are first-class delta inputs (R5-2/R6-2);
+    // background searches keep rule 1, and the active By-Tab search
+    // applies the erase as row removals scoped to the parent's bucket (D3).
     for (const auto &search : m_searches) {
-        search->setItemsDirty(true);
+        if (search.get() != m_current_search) {
+            search->setItemsDirty(true);
+        }
     }
-    if (m_current_search && m_current_search->HasVisibleGhostUnder(parent, expected)) {
-        ScheduleThrottledRefilter();
+    if (!m_current_search) {
+        return;
+    }
+    if (m_current_search->GetViewMode() == Search::ViewMode::ByItem) {
+        // M3 S4 fallback seam (working rule 2), DELETED IN S5.
+        m_current_search->setItemsDirty(true);
+        if (m_current_search->HasVisibleGhostUnder(parent, expected)) {
+            ScheduleThrottledRefilter();
+        }
+        return;
+    }
+    m_refresh_active = true;
+    m_applying_delta = true;
+    const auto result = m_current_search->ApplyChildReconciliation(parent, expected);
+    m_applying_delta = false;
+    FinishDeltaApplication(result.processed, result.rows_changed, result.inserted_bucket_row);
+}
+
+void MainWindow::FinishDeltaApplication(bool processed, bool rows_changed, int inserted_bucket_row)
+{
+    if (!processed) {
+        // Fail-safe direction (R1-7): a skipped application leaves the
+        // flag dirty; the next activation or the final snapshot pays.
+        m_current_search->setItemsDirty(true);
+        return;
+    }
+    if ((inserted_bucket_row >= 0) && m_current_search->defaultExpanded()) {
+        // A bucket inserted into a default-expanded search expands now;
+        // the expand signal materializes and sorts it (D2 rule 2).
+        ui->treeView->expand(m_current_search->model().index(inserted_bucket_row, 0));
+    }
+    // The caption renders the maintained count.
+    for (size_t i = 0; i < m_searches.size(); ++i) {
+        if (m_searches[i].get() == m_current_search) {
+            m_tab_bar->setTabText(static_cast<int>(i), m_current_search->GetCaption());
+            break;
+        }
+    }
+    if (rows_changed) {
+        ScheduleResizeTreeColumns();
+    }
+    ReconcileSelectionIntent();
+}
+
+void MainWindow::ReconcileSelectionIntent()
+{
+    if (!m_current_search) {
+        return;
+    }
+    if (m_current_item) {
+        const QModelIndex index = m_current_search->index(m_current_item);
+        if (index.isValid()) {
+            // The row survived (possibly moved). Qt's selection model can
+            // drop a child row's visual selection through a top-level
+            // move even though its persistent index stays valid —
+            // re-assert the selection at the surviving index.
+            if (!ui->treeView->selectionModel()->isSelected(index)) {
+                ui->treeView->selectionModel()->setCurrentIndex(index,
+                                                                QItemSelectionModel::ClearAndSelect
+                                                                    | QItemSelectionModel::Rows);
+            }
+        } else {
+            // The selected row left mid-refresh: the intent stays alive,
+            // the visual selection lapses (R1-3). The view may have moved
+            // current to a neighbor when the row was removed — clear that
+            // under the guard so it cannot overwrite the intent.
+            m_current_item = nullptr;
+            m_current_bucket_location.reset();
+            m_applying_delta = true;
+            ui->treeView->selectionModel()->clearSelection();
+            ui->treeView->selectionModel()->setCurrentIndex(QModelIndex(),
+                                                            QItemSelectionModel::NoUpdate);
+            m_applying_delta = false;
+            ClearCurrentItem();
+        }
+    }
+    if (!m_current_item && m_refresh_active && !m_selection_intent_id.isEmpty()) {
+        // Re-adoption through the global identity index: any delta
+        // inserting an item with the intent's id — any bucket — restores
+        // the selection via the normal selection path.
+        if (const auto adopted = m_current_search->visibleItemById(m_selection_intent_id)) {
+            const QModelIndex index = m_current_search->index(adopted);
+            if (index.isValid()) {
+                ui->treeView->selectionModel()->setCurrentIndex(index,
+                                                                QItemSelectionModel::ClearAndSelect
+                                                                    | QItemSelectionModel::Rows);
+            }
+        }
+    }
+}
+
+void MainWindow::OnRefreshFinished(const RefreshOutcome &outcome)
+{
+    Q_UNUSED(outcome);
+    // R2-1: every terminal outcome closes the intent window. On success
+    // the final snapshot's refilter has already reselected or cleared
+    // (S6 moves that boundary into the row reconciliation); on failure —
+    // which emits no final snapshot — the absence check runs here, so a
+    // stale intent can never survive one refresh and reselect an item in
+    // a later one.
+    m_refresh_active = false;
+    if (!m_selection_intent_id.isEmpty() && m_current_search
+        && !m_current_search->visibleItemById(m_selection_intent_id)) {
+        m_selection_intent_id.clear();
     }
 }
 
@@ -854,9 +971,10 @@ void MainWindow::ScheduleThrottledRefilter()
 
 void MainWindow::OnDeltaThrottleTimeout()
 {
-    // D9 rule 3: the tick refilters the current search, which clears only
-    // its own items-dirty flag; background searches stay dirty until their
-    // own refilter.
+    // M3 S4 fallback seam, DELETED IN S5: only the By-Item fallback arms
+    // this timer now. D9 rule 3: the tick refilters the current search,
+    // which clears only its own items-dirty flag; background searches
+    // stay dirty until their own refilter.
     spdlog::trace("MainWindow::OnDeltaThrottleTimeout() entered");
     if (!m_current_search) {
         return;
@@ -1042,6 +1160,13 @@ void MainWindow::OnCurrentItemChanged(const QModelIndex &current, const QModelIn
 {
     Q_UNUSED(previous);
     spdlog::trace("MainWindow::OnCurrentItemChange() entered");
+    // Row operations make the view shuffle its current index (removing
+    // the current row moves current to a neighbor); those shifts are not
+    // selections and must not overwrite the intent (R1-3) — the
+    // application's own reconcile pass settles selection afterward.
+    if (m_applying_delta) {
+        return;
+    }
     m_buyout_manager.Save();
 
     if (!current.isValid()) {
@@ -1059,6 +1184,9 @@ void MainWindow::OnCurrentItemChanged(const QModelIndex &current, const QModelIn
             if (bucket.has_item(item_row)) {
                 m_current_item = bucket.item(item_row);
                 m_current_bucket_location.reset();
+                // A selection wins at any time (R1-3): the intent follows
+                // the selected item's stable id.
+                m_selection_intent_id = m_current_item->id();
                 m_delayed_update_current_item.start();
             } else {
                 spdlog::warn("OnCurrentItemChanged(): parent bucket {} does not have {} rows",
@@ -1077,6 +1205,7 @@ void MainWindow::OnCurrentItemChanged(const QModelIndex &current, const QModelIn
     } else {
         // Clicked on a bucket
         m_current_item = nullptr;
+        m_selection_intent_id.clear();
         const int bucket_row = current.row();
         if (m_current_search->has_bucket(bucket_row)) {
             m_current_bucket_location = m_current_search->bucket(bucket_row).location();
@@ -1209,6 +1338,9 @@ void MainWindow::OnTabChange(int index)
         m_current_search = m_searches[index].get();
         m_current_item = m_current_search->currentItem();
         m_current_bucket_location = m_current_search->currentBucket();
+        // The intent follows the window's visible selection: it re-anchors
+        // to the incoming search's saved selection (R1-3).
+        m_selection_intent_id = m_current_item ? m_current_item->id() : QString();
         m_current_search->SetRefreshReason(RefreshReason::TabChanged);
         m_search_form->loadFrom(*m_current_search);
         ModelViewRefresh();
@@ -1254,6 +1386,7 @@ void MainWindow::NewSearch()
     m_current_search = search.get();
     m_current_item = m_current_search->currentItem();
     m_current_bucket_location = m_current_search->currentBucket();
+    m_selection_intent_id.clear();
     m_current_search->SetRefreshReason(RefreshReason::TabCreated);
 
     // this can't be done in ctor because it'll call OnSearchFormChange slot
@@ -1387,8 +1520,11 @@ void MainWindow::ResetBuyoutWidgets()
 void MainWindow::OnItemsRefreshed()
 {
     spdlog::trace("MainWindow::OnItemsRefreshed() entered");
-    // D9 rule 5: the final snapshot cancels any pending tick; the full path
-    // below refilters every search and clears all items-dirty flags.
+    // M3 S4 fallback seam, DELETED IN S6: the final snapshot keeps its
+    // existing reset path — every search refilters and all items-dirty
+    // flags clear. S6 replaces the current search's refilter with the
+    // R1-2 row reconciliation. (D9 rule 5: it also cancels any pending
+    // By-Item fallback tick.)
     m_delta_throttle.stop();
     int tab = 0;
     for (const auto &search : m_searches) {
@@ -1401,6 +1537,17 @@ void MainWindow::OnItemsRefreshed()
         tab++;
     }
     ModelViewRefresh();
+    // The success-boundary intent closure (R1-3): an intent whose id
+    // reappeared only in the final snapshot is adopted; one whose id is
+    // absent is cleared so it cannot reselect in a later refresh.
+    if (m_current_search) {
+        ReconcileSelectionIntent();
+        if (!m_selection_intent_id.isEmpty()
+            && !m_current_search->visibleItemById(m_selection_intent_id)) {
+            m_selection_intent_id.clear();
+        }
+    }
+    m_refresh_active = false;
 }
 
 void MainWindow::OnSetShopThreads()

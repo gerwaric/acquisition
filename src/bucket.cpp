@@ -183,6 +183,50 @@ void Bucket::Sort(const Column &column, Qt::SortOrder order)
     m_sorted = true;
 }
 
+void Bucket::RemoveRows(int first, int count)
+{
+    if ((first < 0) || (count <= 0) || (first + count > static_cast<int>(m_items.size()))) {
+        FatalError(QString("Bucket::RemoveRows out of bounds: first %1 count %2 size %3")
+                       .arg(QString::number(first),
+                            QString::number(count),
+                            QString::number(m_items.size())));
+    }
+    m_items.erase(m_items.begin() + first, m_items.begin() + first + count);
+    if (m_keys.resident()) {
+        std::int64_t delta = 0;
+        for (int n = first; n < first + count; ++n) {
+            delta -= keyBytes(m_keys.keys[static_cast<size_t>(n)]);
+        }
+        m_keys.keys.erase(m_keys.keys.begin() + first, m_keys.keys.begin() + first + count);
+        m_keys.bytes += delta;
+        ModelProbes::instance().live_key_bytes += delta;
+    }
+}
+
+void Bucket::InsertRows(int first, const Items &items, const std::vector<ItemSortKey> *keys)
+{
+    if ((first < 0) || (first > static_cast<int>(m_items.size()))) {
+        FatalError(QString("Bucket::InsertRows out of bounds: first %1 size %2")
+                       .arg(QString::number(first), QString::number(m_items.size())));
+    }
+    m_items.insert(m_items.begin() + first, items.begin(), items.end());
+    if (m_keys.resident()) {
+        if (keys && (keys->size() == items.size())) {
+            std::int64_t delta = 0;
+            for (const auto &key : *keys) {
+                delta += keyBytes(key);
+            }
+            m_keys.keys.insert(m_keys.keys.begin() + first, keys->begin(), keys->end());
+            m_keys.bytes += delta;
+            ModelProbes::instance().live_key_bytes += delta;
+        } else {
+            // No aligned keys for the arrivals: residency cannot be kept
+            // honest, so evict; the next key-consuming event rehydrates.
+            m_keys.Release();
+        }
+    }
+}
+
 void Bucket::RebuildKeyEntries(const Column &column, const std::set<QString> &ids, bool everything)
 {
     if (!m_keys.resident()) {

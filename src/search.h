@@ -6,6 +6,7 @@
 #include <QObject>
 #include <QString>
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <set>
@@ -45,7 +46,11 @@ public:
     ~Search();
     void FilterItems(const Items &items);
     const QString &caption() const { return m_caption; }
-    const Items &items() const { return m_items; }
+    // The visible filtered collection. After S4 the delta path maintains
+    // the buckets and indexes incrementally and this flat vector is
+    // rebuilt lazily from the By-Tab buckets on first read — no delta
+    // pays an O(collection) pass to keep it fresh.
+    const Items &items() const;
     const std::vector<std::unique_ptr<Column>> &columns() const { return m_columns; }
     ItemsModel &model() { return m_model; }
     // Expansion is keyed by the stable (type, id) display key (M2 R6-3):
@@ -174,9 +179,69 @@ public:
     bool HasVisibleGhostUnder(const ItemLocation &parent,
                               const std::vector<FetchSourceKey> &expected) const;
 
+    // The result of one delta application (M3 S4, D3). `processed` is the
+    // R1-7 adjudication: true when the delta was applied or correctly
+    // adjudicated "no visible change" — the search stays clean; false when
+    // application was skipped for any reason — the caller marks the search
+    // dirty (fail-safe direction).
+    struct DeltaApplication
+    {
+        bool processed{false};
+        bool rows_changed{false};
+        // A bucket inserted by this delta (new tab, or first filter-passing
+        // items for a hidden one); the caller default-expands it in the
+        // view when the search is default-expanded.
+        int inserted_bucket_row{-1};
+    };
+
+    // Applies a TabRefreshed delta as bucket-scoped operations (D3):
+    // metadata first (R1-4 — rename/move/color render now, item
+    // intersection notwithstanding), then a source-scoped row replacement
+    // within the display bucket — arrivals merged into the retained sorted
+    // order when the bucket is visible (R2-2), appended arrival-ordered
+    // when collapsed. Visible indexes are maintained incrementally.
+    // By-Tab mode only: any other mode returns unprocessed and the caller
+    // falls back to the throttled seam.
+    DeltaApplication ApplyTabDelta(const ItemLocation &location, const Items &items);
+
+    // Applies a ChildrenReconciled aggregate as row removals scoped to the
+    // parent's bucket (D3): visible items under the parent's stable key
+    // whose fetch source is outside the expected set leave via contiguous
+    // removeRows batches.
+    DeltaApplication ApplyChildReconciliation(const ItemLocation &parent,
+                                              const std::vector<FetchSourceKey> &expected);
+
+    // The model's child-index identity (M3 S4): child indexes carry the
+    // bucket's stable serial, so top-level insert/remove/move operations
+    // never invalidate a child's parent mapping. -1 for unknown serials.
+    int rowForSerial(std::uint64_t serial) const;
+
 private:
     std::vector<Bucket> &active_buckets();
     const ItemLocation &canonicalLocation(const ItemLocation &embedded) const;
+
+    // S4 delta internals. The index helpers keep m_visible_by_id, the
+    // duplicate-occurrence side table, the unindexed set, and the filtered
+    // item count answering as if freshly refiltered, in O(1) per item.
+    void IndexInsertVisible(const std::shared_ptr<Item> &item);
+    void IndexRemoveVisible(const std::shared_ptr<Item> &item);
+    void AssignSerials();
+    void RebuildSerialRows();
+    int FindBucketRow(const LocationInventory::Key &key) const;
+    // Renders a delta's fresh location anchor on an existing bucket:
+    // dataChanged for header text/color, beginMoveRows when the display
+    // position changes. Returns the bucket's (possibly moved) row.
+    int ApplyBucketMetadata(int bucket_row, const ItemLocation &canonical);
+    // Inserts a new display bucket at its display position; returns its row.
+    int InsertBucketRow(const ItemLocation &canonical, const Items &accepted);
+    // Removes the bucket rows matching `predicate` as contiguous
+    // removeRows runs, unwinding the visible indexes per removed item.
+    // Returns true when anything was removed.
+    template<typename Predicate>
+    bool RemoveBucketRows(int bucket_row, Predicate &&predicate);
+    // Inserts filter-accepted arrivals: sorted merge into a visible sorted
+    // bucket (R2-2), arrival-ordered append otherwise.
+    void InsertArrivals(int bucket_row, const Items &accepted);
 
     BuyoutManager &m_bo_manager;
     const LocationInventory *m_location_inventory{nullptr};
@@ -201,20 +266,45 @@ private:
     std::map<LocationInventory::Key, std::set<FetchSourceKey>> m_visible_sources_by_tab;
 
     // The visible result by stable item id (R6-3 reselection), rebuilt by
-    // every refilter alongside the source sets above.
+    // every refilter and maintained per delta (S4). For a duplicated id
+    // the entry is the first occurrence — the invariant is
+    // m_visible_by_id[id] == m_duplicate_visible_ids[id].front().
     std::unordered_map<QString, std::shared_ptr<Item>> m_visible_by_id;
 
     // Ids the index above cannot fully represent: duplicated ids and the
     // empty id (see visibleIdUnindexed).
     std::set<QString> m_unindexed_visible_ids;
+
+    // Every visible occurrence of a currently-duplicated non-empty id
+    // (mid-refresh divergence can show one id in two tabs). Kept so a
+    // delta removing one occurrence restores the survivor to the id index
+    // exactly — the indexes answer as if freshly refiltered
+    // (deltaUpdatesVisibleIndexesIncrementally). Empty except mid-refresh.
+    std::unordered_map<QString, Items> m_duplicate_visible_ids;
+    // Visible items sharing the empty id; the unindexed set carries the
+    // empty id while this is nonzero.
+    size_t m_empty_id_visible_count{0};
+
     std::vector<std::unique_ptr<Column>> m_columns;
 
     ItemsModel m_model;
     std::vector<Bucket> m_bucket_by_tab;
     std::vector<Bucket> m_bucket_by_item;
 
+    // Child-index identity (S4): the active mode's bucket row per stable
+    // bucket serial, rebuilt on refilter/mode switch and maintained by
+    // the structural delta operations.
+    std::unordered_map<std::uint64_t, int> m_row_by_serial;
+    std::uint64_t m_next_bucket_serial{1};
+
+    // S4 staleness marks: the delta path maintains the By-Tab buckets and
+    // indexes; the flat views rebuild lazily — m_items on first read, the
+    // By-Item flat bucket at the next mode switch.
+    mutable bool m_items_stale{false};
+    bool m_flat_bucket_stale{false};
+
     QString m_caption;
-    Items m_items;
+    mutable Items m_items;
     bool m_filtered;
     size_t m_filtered_item_count;
     std::set<LocationInventory::Key> m_expanded_keys;

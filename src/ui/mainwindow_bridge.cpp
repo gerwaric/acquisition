@@ -69,6 +69,12 @@ void ConnectMainWindow(Application &application,
                      &ItemsManager::ChildrenReconciled,
                      &main_window,
                      &MainWindow::OnChildrenReconciled);
+    // The typed terminal event (M3 S4): closes the selection-intent
+    // window on every outcome, terminal failure included (R1-3/R2-1).
+    QObject::connect(&items_manager,
+                     &ItemsManager::RefreshFinished,
+                     &main_window,
+                     &MainWindow::OnRefreshFinished);
     QObject::connect(&items_manager,
                      &ItemsManager::StatusUpdate,
                      &main_window,

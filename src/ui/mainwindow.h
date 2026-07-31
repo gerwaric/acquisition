@@ -20,6 +20,7 @@
 #include "filters/filterspec.h"
 #include "item.h"
 #include "itemlocation.h"
+#include "refreshoutcome.h"
 #include "util/programstate.h"
 
 class QNetworkReply;
@@ -77,14 +78,18 @@ signals:
     void SetTheme(const QString &theme);
     void GetImage(const QString &url);
 public slots:
-    // Streamed-delta consumers (items-pipeline M2, D9): rule 1 marks every
-    // search items-dirty; rule 2 schedules the current search's throttled
-    // refilter iff the delta intersects it. Aggregate reconciliations are
-    // first-class inputs — their intersection form is a visible item under
-    // the parent carrying a key outside the expected set (R5-2/R6-2).
+    // Streamed-delta consumers (items-pipeline M3, S4/D3): an active
+    // By-Tab search applies each delta immediately as bucket-scoped row
+    // operations and stays clean (R1-7); background searches keep M2 D9
+    // rule 1 verbatim. A By-Item active search keeps the D9 throttled
+    // fallback (S4 seam, deleted in S5). Aggregate reconciliations apply
+    // as row removals scoped to the parent's bucket.
     void OnTabRefreshed(const ItemLocation &location, const Items &items);
     void OnChildrenReconciled(const ItemLocation &parent,
                               const std::vector<FetchSourceKey> &expected);
+    // The typed terminal event (M2 D4): closes the selection-intent
+    // window on every outcome, terminal failure included (R1-3/R2-1).
+    void OnRefreshFinished(const RefreshOutcome &outcome);
 
     void OnCurrentItemChanged(const QModelIndex &current, const QModelIndex &previous);
     void OnSearchFormChange();
@@ -146,11 +151,22 @@ private slots:
     void OnUploadToImgur();
 
 private:
-    // D9 throttle internals: a non-resetting trailing throttle with period
-    // S owned by the current search.
+    // D9 throttle internals, kept as the By-Item fallback seam (M3 S4,
+    // deleted in S5): a non-resetting trailing throttle with period S
+    // owned by the current search.
     bool DeltaIntersectsCurrentSearch(const ItemLocation &location, const Items &items) const;
     void ScheduleThrottledRefilter();
     void OnDeltaThrottleTimeout();
+
+    // S4 delta-application tail: dirty-flag adjudication (R1-7), view-side
+    // default-expansion of an inserted bucket, caption refresh, and the
+    // selection-intent pass.
+    void FinishDeltaApplication(bool processed, bool rows_changed, int inserted_bucket_row);
+    // R1-3: reconciles the view's selection with the stable-id intent
+    // after row operations — a removed selected row lapses visually but
+    // keeps the intent; a visible item with the intent's id re-adopts the
+    // selection through the global identity index.
+    void ReconcileSelectionIntent();
 
     void ModelViewRefresh();
     void ReselectCurrentItem();
@@ -199,6 +215,17 @@ private:
 
     std::shared_ptr<Item> m_current_item;
     std::optional<ItemLocation> m_current_bucket_location;
+    // The selection intent (M3 R1-3): the selected item's stable id, held
+    // independently of row existence. During an active refresh (first
+    // delta to the terminal outcome) a removal keeps it alive and a later
+    // insertion re-adopts it; every RefreshFinished outcome closes the
+    // window (R2-1). A user selection overwrites it at any time.
+    QString m_selection_intent_id;
+    bool m_refresh_active{false};
+    // Row operations make the view shuffle its current index (Qt moves
+    // current off a removed row); while set, OnCurrentItemChanged ignores
+    // those shifts so they cannot overwrite the intent.
+    bool m_applying_delta{false};
     std::vector<std::unique_ptr<Search>> m_searches;
     Search *m_current_search;
     QTabBar *m_tab_bar;

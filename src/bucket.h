@@ -79,6 +79,33 @@ public:
     const std::shared_ptr<Item> &item(int row) const;
     const ItemLocation &location() const { return m_location; }
 
+    // Metadata refresh (M3 D3, R1-4): a delta's location anchor supersedes
+    // the bucket's rendered metadata; identity (the stable (type, id) key)
+    // never changes through this.
+    void SetLocation(const ItemLocation &location) { m_location = location; }
+
+    // The stable bucket identity the model's child indexes carry (M3 S4):
+    // assigned by Search when the bucket enters a bucket vector, unique
+    // within the search for the model's lifetime, and independent of the
+    // bucket's display row — so top-level insert/remove/move operations
+    // never invalidate a child index's parent mapping.
+    std::uint64_t serial() const { return m_serial; }
+    void SetSerial(std::uint64_t serial) { m_serial = serial; }
+
+    // Row-level content operations for the S4 delta path (D3). Both keep
+    // the resident key vector index-aligned with the items and the
+    // live-key-bytes gauge balanced. InsertRows takes the arrivals' keys
+    // when the caller merged into a key-resident bucket; passing no keys
+    // into a key-resident bucket evicts (the alignment cannot be kept).
+    void RemoveRows(int first, int count);
+    void InsertRows(int first, const Items &items, const std::vector<ItemSortKey> *keys = nullptr);
+
+    // Public hydration entry (R3-1): every key-consuming operation
+    // hydrates missing keys first. The S4 merge consumes keys outside
+    // Sort, so the entry is exposed.
+    void EnsureResidentKeys(const Column &column) { HydrateKeys(column); }
+    const std::vector<ItemSortKey> &residentKeys() const { return m_keys.keys; }
+
     // Sorts unconditionally on this column's keys — hydrating the resident
     // vector if evicted (R3-1), reusing it otherwise (R2-3) — and sets the
     // sorted flag. The D2 skip-when-valid lives in the callers (Search,
@@ -119,6 +146,7 @@ private:
     Items m_items;
     ItemLocation m_location;
     ResidentKeyStore m_keys;
+    std::uint64_t m_serial{0};
     bool m_sorted{false};
     bool m_expanded{false};
 };

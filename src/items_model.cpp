@@ -321,7 +321,7 @@ void ItemsModel::ApplySort(int column, Qt::SortOrder order, int only_bucket)
             continue;
         }
 
-        const int bucket_row = static_cast<int>(persistent_index.internalId() - 1);
+        const int bucket_row = m_search.rowForSerial(persistent_index.internalId());
         if ((only_bucket >= 0) && (bucket_row != only_bucket)) {
             continue; // a scoped sort moves rows in one bucket only
         }
@@ -481,9 +481,10 @@ QModelIndex ItemsModel::parent(const QModelIndex &index) const
     if (!index.isValid() || index.model() != this || index.internalId() == 0) {
         return QModelIndex();
     }
-    // item
-    const int bucket_row = static_cast<int>(index.internalId() - 1);
-    if (!m_search.has_bucket(bucket_row)) {
+    // item: the internalId is the bucket's stable serial (M3 S4), so the
+    // parent mapping survives top-level insert/remove/move operations.
+    const int bucket_row = m_search.rowForSerial(index.internalId());
+    if (bucket_row < 0) {
         return QModelIndex();
     }
     return createIndex(bucket_row, 0, static_cast<quintptr>(0));
@@ -497,9 +498,44 @@ QModelIndex ItemsModel::index(int row, int column, const QModelIndex &parent) co
     }
 
     if (parent.isValid()) {
-        // item, we pass parent's (bucket's) row through ID parameter
-        return createIndex(row, column, static_cast<quintptr>(parent.row()) + 1);
+        // item: carry the bucket's stable serial (nonzero by construction)
+        // so a child index never encodes a display position (M3 S4).
+        if (!m_search.has_bucket(parent.row())) {
+            return QModelIndex();
+        }
+        return createIndex(row,
+                           column,
+                           static_cast<quintptr>(m_search.bucket(parent.row()).serial()));
     } else {
         return createIndex(row, column, static_cast<quintptr>(0));
     }
+}
+
+void ItemsModel::BeginRemoveItemRows(int bucket_row, int first, int last)
+{
+    beginRemoveRows(index(bucket_row, 0), first, last);
+}
+
+void ItemsModel::BeginInsertItemRows(int bucket_row, int first, int last)
+{
+    beginInsertRows(index(bucket_row, 0), first, last);
+}
+
+void ItemsModel::BeginInsertBucketRow(int row)
+{
+    beginInsertRows(QModelIndex(), row, row);
+}
+
+bool ItemsModel::BeginMoveBucketRow(int from, int to)
+{
+    // beginMoveRows takes the destination in pre-move coordinates: moving
+    // down, the row lands before to+1.
+    const int destination = (to > from) ? (to + 1) : to;
+    return beginMoveRows(QModelIndex(), from, from, QModelIndex(), destination);
+}
+
+void ItemsModel::EmitBucketMetadataChanged(int row)
+{
+    const QModelIndex header = index(row, 0);
+    emit dataChanged(header, header);
 }

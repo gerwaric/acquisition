@@ -129,6 +129,29 @@ rerun and PASS, slightly faster: unfiltered refilter 35.3 / 374.3 ms,
 sort share 0, cold expand 0.53 / 0.55 ms, broad-filter 85.1 / 912.6 ms
 (100k / 1m), memory rows exactly 0.
 
+## S4 — conditional hold-point row (July 31, 2026): **PASS**
+
+Run at the end of S4 (D3 bucket-scoped delta operations + selection
+intent landed; By-Tab throttle retired) with the same harness, build,
+environment, and presets as the S3 rows. The sequence continues to S5 —
+no remedy decision needed.
+
+| Row | 100k | 1m | Budget (1m) | Verdict |
+|---|---|---|---|---|
+| Delta application on the current search, By-Tab visible bucket (576-item full source replacement into the expanded quad bucket — removal runs plus a maximal merge; median of 5, end-to-end `OnTabRefreshed`) | 0.344 ms | 0.352 ms | ≤ 5 ms | **PASS** (100k informational — the spec states the budget at 1m) |
+
+Attribution (probe-attributed, same run): exactly one bucket sort — the
+R2-2 merge itself, counted as the bucket's order-refresh event — zero
+key builds (the visible bucket's resident vector is reused; arrival
+keys are built per item inside the merge), ~5.9k keyed compares, zero
+index rebuilds, zero refilters, zero model resets. The cost is flat
+across presets, as D3 predicts: the operation is O(delta + affected
+bucket) and never sees collection scale.
+
+The S3 rows were incidentally rerun on the S4 code and all still pass
+(unfiltered refilter 32.1 / 361.0 ms, sort share 0, cold expand
+0.52 / 0.56 ms, broad-filter 83.3 / 878.8 ms, memory rows exactly 0).
+
 ## Budget table (S7 — to be run)
 
 The acceptance-criteria table from `items-pipeline-m3.md` runs here
