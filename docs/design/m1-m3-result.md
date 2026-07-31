@@ -489,6 +489,76 @@ covers D9-era pins only; recorded here loudly instead).**
 New probe: `final_reconciliations` (site:
 `Search::ReconcileFinalSnapshot`).
 
+### S6 review round 1 (Tom, July 31, 2026): four findings, all verified and remedied
+
+Verification notes first, then remedies (commits in Tom's approved
+order; focused tests after each, full suite once at the end).
+
+- **P2 — By-Item reconciliation over-allocated/over-scanned.**
+  Confirmed, and the By-Tab row diff shared the shape: its per-bucket
+  `have` sets summed to O(collection) hash nodes across buckets, so
+  both modes paid roughly two collection-sized set builds beyond the
+  accepted filter pass. Remedy: ONE reserved pointer→state table
+  (kAccepted from the filter pass; the removal pass marks kRetained;
+  "missing" = accepted-but-never-retained) serves both modes — the
+  second million allocations are gone.
+- **P2 — unconditional O(tabs²) selection pass.** Confirmed; the
+  in-code "accepted like the rest of the O(collection) pass" comment
+  was bad arithmetic (~3.4M `bucketDisplayLess` calls per clean
+  snapshot at the 2600-tab preset, against the 2000+-tab driving use
+  case). Remedy: `bucketDisplayLess` is a TOTAL order (stable-id
+  tiebreak), so zero-moves-needed ⇔ `std::is_sorted` — the clean
+  path is one O(tabs) scan; the selection pass survives as the rare
+  displaced-path mechanism. (Tom's O(t log t) desired-order walk
+  remains the upgrade if S7 ever shows real reorders mattering.)
+  Pinned by the `rowsMoved == 0` spy in `noModelResetDuringRefresh`.
+- **P3 — `rows_changed` conflated grains.** Confirmed both ways:
+  a deleted empty bucket marked the flat bucket stale (wasted rebuild
+  at the next mode switch); a final-only rename or new empty tab
+  scheduled no column resize. Remedy: `content_changed` (item rows
+  removed/inserted → staleness marks) vs `model_changed` (any model
+  operation → resize) in BOTH `SnapshotReconciliation` and
+  `DeltaApplication` — the S4 delta path shared the resize half of
+  the conflation and is aligned in the same commit as an explicitly
+  recorded correction discovered during this review (metadata-only
+  deltas and empty-bucket structural changes now schedule the resize
+  they visually implied; no other S4 semantics move).
+- **P3 — diff was global-by-pointer, storm couldn't see it.**
+  Confirmed, including reachability sharper than first assessed: the
+  wrong-bucket state is fabricable through the PUBLIC API —
+  `ApplyTabDelta(tabA, {itemLocatedInTabB})` parks the arrival under
+  the delta anchor's bucket (insertions target the anchor). Remedy:
+  the removal predicate is per stable key (accepted AND the item's
+  (type, id) matches the bucket's key), which re-homes a parked item
+  — removed there, inserted under its own key, never duplicated —
+  and is also what makes the kRetained mark sound. Pinned by the
+  direct-harness `reconciliationRehomesWrongBucketRow`, verified RED
+  under a deliberately weakened global-membership predicate before
+  landing green. The storm's closing check became a structural
+  signature (top-level order + bucket header text + sorted
+  per-bucket membership vs a from-scratch refilter, settled in
+  By-Tab) — the old globally sorted name list could not see wrong
+  ownership, stale headers, or misordered tabs.
+
+**New informational rows (Tom's adjustment 3 — no budget yet; the
+path runs on every refresh and the modes allocate differently).**
+Release, offscreen, recorded presets, window-direct clean snapshot,
+median of 5:
+
+| Row | 100k | 1m | Attribution |
+|---|---|---|---|
+| S6 clean final snapshot, By-Tab | 23.8 ms | 334.8 ms | 1 reconciliation, 0 refilters/resets/sorts/key builds; peak +30.9 MB @1m (the state table — the one remaining collection-scale transient) |
+| S6 clean final snapshot, By-Item | 12.6 ms | 204.8 ms | same shape; peak +0.0 MB (table already in the lifetime peak) |
+
+All budgeted S3-S5 rows re-ran PASS in the same runs (unfiltered
+refilter 29.5/255.4 ms, broad filter 81.7/834.6 ms, merge 33.3 ms
+@1m, reactivation 478.6 ms @1m). The harness's initial population is
+now `initial_refresh=true` (production-faithful: cached load takes
+the reset path; the reconciliation is measured by its own rows). S7
+carry-over note: `m2m2_benchmark` still populates through the
+non-initial path — check its setup labels before recording S7
+numbers.
+
 ## Budget table (S7 — to be run)
 
 The acceptance-criteria table from `items-pipeline-m3.md` runs here
