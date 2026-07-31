@@ -180,7 +180,7 @@ round's fixes and still pass (unfiltered refilter 36.0 / 374.6 ms,
 sort share 0, cold expand 0.53 / 0.59 ms, broad-filter
 87.1 / 917.9 ms, memory rows exactly 0).
 
-## S5 — conditional hold-point rows (July 31, 2026): **MISS — sequence PAUSED**
+## S5 — conditional hold-point rows (July 31, 2026): **MISS — sequence PAUSED** *(resolved the same day — the remedy subsection at the end of this section records the final PASS)*
 
 Run at the end of S5 (D4 By-Item merge + eager activation landed; D9
 throttle fully retired) with the same harness, build, environment, and
@@ -361,6 +361,64 @@ decides):
   term. Without it, even a 50 ms merge leaves a priced delta at ~43 s
   at 1m under a non-buyout sort. Implementation-level, no amendment
   required; folded into the remedy stage if approved.
+
+**S5 remedy (July 31, 2026): implemented, all rows PASS — the pause
+is lifted and the sequence resumes at S6.** Tom's decision on the
+round-1 options: **A′** for the merge (the mechanism stays; A″ remains
+a fallback experiment only if on-screen signal handling had missed),
+the repaint-run fix approved, and the dead source indexes deleted now
+under an explicit amendment. Three commits, in the ordered sequence
+Tom prescribed:
+
+1. `594b2b1a` — the spec's second post-freeze amendment: the D9
+   intersection sets (`m_visible_sources`, `m_visible_sources_by_tab`,
+   `HasVisibleSource`, `HasVisibleGhostUnder`) deleted; their final
+   consumer disappeared with the throttle, and the intersection
+   contract's semantics are executed by application itself.
+   `deltaUpdatesVisibleIndexesIncrementally` narrowed.
+2. `b6442903` — rule-5 repaint scoped to affected runs: O(affected
+   runs) rectangles, By-Item tab-level changes resolve to the tab's
+   rows by item location, `everything` keeps the single full
+   rectangle. New pin `buyoutRepaintScopesToAffectedRuns`.
+3. `a737ad3a` — **A′**: `Bucket::ReplaceSourceRows` — one O(n + d)
+   rebuild (removal-run scan; arrival sort + insertion runs against
+   the compacted retained keys; removals notified back-to-front on
+   the intact old vector, the final vector then built by MOVING
+   retained rows, insertions notified forward on it; final keys
+   realized in place by a backward run-replay merge — no second
+   collection-sized key buffer). D4 rule 2's stated row-op batches
+   are emitted unchanged; a row translation keeps the model's
+   observable answers consistent at every notification boundary.
+   Gate pin `byItemReplaceSatisfiesModelTester` (shrink / equal /
+   grow / empty / removal-only under `QAbstractItemModelTester`,
+   selection + persistent index surviving, end state equal to a
+   from-scratch refilter).
+
+Rerun of the full S5 hold point (same build discipline, environment,
+presets):
+
+| Row | 100k | 1m | Budget (1m) | Verdict |
+|---|---|---|---|---|
+| **By-Item merge** (child-source replacement) | 4.0 ms | **32.4 ms** | ≤ 50 ms | **PASS** (was 168.0 / 1397.9 ms — 43× at 1m) |
+| — window shown and laid out (A′ view-overhead gate) | 4.2 ms | 32.2 ms | ≤ 50 ms | **PASS** (fully on-screen variant, `QT_QPA_PLATFORM=cocoa` on the live desktop: 34.8 ms — PASS; per-batch view overhead is ~2.5 ms over the bare rebuild) |
+| — bare micro, no view attached | 4.4 ms | 32.9 ms | — | attribution: the cost IS the single-pass rebuild |
+| Manager path, unpriced arrivals, Name | 5.1 ms | 33.0 ms | — | informational (pricing pass no-ops) |
+| Manager path, priced arrivals, Name | 74.7 ms | 310.4 ms | — | informational (was 4634.7 / 43,982.3 ms); residual = 576 buyout upserts + the O(n) affected-row scan + per-run rectangles |
+| Manager path, priced arrivals, Price | 103.3 ms | 545.0 ms | — | informational; dominated by the **mandated R3-2 batch re-sort** (~2.0M keyed compares) plus a near-run-free merge — NOT closed by the repaint fix, recorded separately |
+
+Peak-memory gate (Tom's A′ definition of done): lifetime peak
+(`ru_maxrss`) across the shown-window merge reps +3.9 MB at 100k (the
+final-vector scale) and **+0.0 MB at 1m** — no key-vector-sized
+transient; the resident-key gauge and process-footprint rows are
+unchanged from the round-1 record. Attribution probes unchanged in
+shape: one bucket sort (the merge), zero key builds, zero index
+rebuilds, zero refilters, zero resets. All S3/S4/S5 budgeted rows
+rerun and PASS (unfiltered refilter 25.3 / 248.6 ms, broad-filter
+79.1 / 754.1 ms, S4 interleaved delta 0.88 / 0.86 ms, By-Item
+refilter 107.4 / 1267.0 ms, reactivation 44.8 / 455.2 ms — the
+across-the-board improvement over the round-1 numbers is partly the
+repaint fix and partly run-to-run environment variance; the budget
+verdicts are what is load-bearing).
 
 ## Budget table (S7 — to be run)
 
