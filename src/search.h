@@ -324,9 +324,10 @@ private:
 
     QString m_caption;
     mutable Items m_items;
-    // True when any filter is active (S4 review round 2 — see the
-    // FilterItems comment): stable across deltas, flips only at filter
-    // edits. Drives hidden empty buckets and default expansion.
+    // True when any filter is active (the spec's post-freeze amendment
+    // at D2 rule 5 — see the FilterItems comment): stable across
+    // deltas, flips only at filter edits. Drives hidden empty buckets
+    // and default expansion.
     bool m_filtered;
     size_t m_filtered_item_count;
     std::set<LocationInventory::Key> m_expanded_keys;

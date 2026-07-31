@@ -227,26 +227,22 @@ void MainWindow::InitializeUi()
         const auto mode = static_cast<Search::ViewMode>(n);
         if (mode != m_current_search->GetViewMode()) {
             SaveViewExpansion(*m_current_search);
+            m_current_search->SetViewMode(mode);
             if (m_current_search->itemsDirty()) {
                 // A mode switch is one of D6's user-initiated refilter
                 // boundaries (S4 review round 1): a search the By-Item
                 // fallback left items-dirty refilters NOW — otherwise the
                 // arriving mode renders un-applied state, and a pending
                 // fallback tick would later reset a By-Tab model the
-                // throttle no longer owns. The dirty flip is QUIET (S4
-                // review round 2) so the refilter's reset announces the
-                // flip and the fresh content as one structural change,
-                // and the PRE-switch capture above (plus scroll here) is
-                // what the restore replays — the refresh's own capture
-                // pass would observe the post-flip transient instead.
-                SaveViewScroll(*m_current_search);
-                m_current_search->SetViewMode(mode);
+                // throttle no longer owns. The refilter's tail cancels
+                // that tick. Two back-to-back resets (the switch's, then
+                // the refilter's) are accepted for this seam-created
+                // case (S4 review round 3): nothing observes the
+                // intermediate state within the synchronous span, and
+                // the dirty case dies with the seam in S5.
                 m_current_search->SetRefreshReason(RefreshReason::ItemsChanged);
-                m_suppress_view_capture = true;
                 ModelViewRefresh();
-                m_suppress_view_capture = false;
             } else {
-                m_current_search->SetViewMode(mode);
                 RestoreViewExpansion(*m_current_search);
             }
         }
@@ -1139,7 +1135,7 @@ void MainWindow::ModelViewRefresh()
     // tab switch it still shows the outgoing search, whose state OnTabChange
     // already saved.
     ItemsModel &model = m_current_search->model();
-    if (!m_suppress_view_capture && (ui->treeView->model() == &model)) {
+    if (ui->treeView->model() == &model) {
         SaveViewExpansion(*m_current_search);
         SaveViewScroll(*m_current_search);
     }

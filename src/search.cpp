@@ -395,13 +395,14 @@ void Search::FilterItems(const Items &items)
         ++probes.index_rebuilds;
     }
     m_items.clear();
-    // "Filtered" means ANY filter is active (S4 review round 2), not the
-    // old "at least one item was rejected" snapshot: the membership
-    // decisions hanging off this flag (hidden empty buckets, default
-    // expansion) must be stable across deltas, and the snapshot could be
-    // flipped by one delta — a whole-view change no bucket-scoped
-    // operation can express. This definition flips only at filter edits,
-    // which are full refilters by construction (D6).
+    // "Filtered" means ANY filter is active (the spec's July 31, 2026
+    // post-freeze amendment at D2 rule 5), not the old "at least one
+    // item was rejected" snapshot: the membership decisions hanging off
+    // this flag (hidden empty buckets, default expansion) must be stable
+    // across deltas, and the snapshot could be flipped by one delta — a
+    // whole-view change no bucket-scoped operation can express. This
+    // definition flips only at filter edits, which are full refilters by
+    // construction (D6).
     m_filtered = !active_filters.empty();
     m_filtered_item_count = 0;
     m_visible_sources.clear();
@@ -1086,52 +1087,50 @@ void Search::SetViewMode(ViewMode mode)
     if (mode == m_current_mode) {
         return;
     }
-    // An items-dirty search flips QUIETLY — no reset, no rebuild, no
-    // sort (S4 review round 2): its whole collection is stale (the
-    // fallback seam skipped application), so a reset here would announce
-    // nothing useful and force a second reset moments later. The only
-    // sanctioned caller of a dirty flip is MainWindow's mode-switch
-    // handler, which refilters immediately — FilterItems' own reset then
-    // announces the flip and the fresh content as ONE structural change.
-    // Nothing may read the model between the flip and that refilter.
-    const bool announce = !m_items_dirty;
-    if (announce) {
-        m_model.beginUpdate();
-    }
+    m_model.beginUpdate();
     // Leaving a mode dematerializes its buckets: keys evict, orders and
     // flags persist (D1/R2-3 — a view event, like collapse).
     for (auto &bucket : active_buckets()) {
         bucket.EvictKeys();
     }
     m_current_mode = mode;
-    if ((mode == ViewMode::ByItem) && announce) {
-        // The delta path maintains the By-Tab buckets only (S4); a flat
-        // bucket gone stale rebuilds here from the maintained collection
-        // — the mode switch is one of D6's honest full-rebuild
-        // boundaries.
-        if (m_flat_bucket_stale && !m_bucket_by_item.empty()) {
-            Bucket &flat = m_bucket_by_item.front();
-            Bucket rebuilt{ItemLocation()};
-            rebuilt.SetSerial(flat.serial());
-            rebuilt.AddItems(items());
-            flat = std::move(rebuilt);
-            m_flat_bucket_stale = false;
-        }
-        // The flat bucket is always materialized (D2 rule 6): establish
-        // its order now if invalid — the reset leaves nothing else to
-        // sort it before it paints.
-        const int column = m_model.GetSortColumn();
-        if (!m_bucket_by_item.empty() && !m_bucket_by_item.front().sorted() && (column >= 0)
-            && (column < static_cast<int>(m_columns.size()))) {
-            m_bucket_by_item.front().Sort(*m_columns[column], m_model.GetSortOrder());
+    if (mode == ViewMode::ByItem) {
+        // An items-dirty search skips the rebuild and sort (S4 review
+        // round 1): its whole collection is stale (the fallback seam
+        // skipped application), so working from it would present — and
+        // pay a full flat sort for — un-applied state. The caller's
+        // mode-switch refilter (D6 boundary, MainWindow) re-establishes
+        // both from fresh state immediately after. (S4 review round 3
+        // deliberately kept this a plain announced reset: a quiet flip
+        // saved one user-initiated reset at the price of a
+        // silent-model-mutation contract, and the dirty case dies with
+        // the seam in S5.)
+        if (!m_items_dirty) {
+            // The delta path maintains the By-Tab buckets only (S4); a
+            // flat bucket gone stale rebuilds here from the maintained
+            // collection — the mode switch is one of D6's honest
+            // full-rebuild boundaries.
+            if (m_flat_bucket_stale && !m_bucket_by_item.empty()) {
+                Bucket &flat = m_bucket_by_item.front();
+                Bucket rebuilt{ItemLocation()};
+                rebuilt.SetSerial(flat.serial());
+                rebuilt.AddItems(items());
+                flat = std::move(rebuilt);
+                m_flat_bucket_stale = false;
+            }
+            // The flat bucket is always materialized (D2 rule 6):
+            // establish its order now if invalid — the reset leaves
+            // nothing else to sort it before it paints.
+            const int column = m_model.GetSortColumn();
+            if (!m_bucket_by_item.empty() && !m_bucket_by_item.front().sorted() && (column >= 0)
+                && (column < static_cast<int>(m_columns.size()))) {
+                m_bucket_by_item.front().Sort(*m_columns[column], m_model.GetSortOrder());
+            }
         }
     }
     RebuildRowLookups();
-    if (announce) {
-        // Arriving By-Tab buckets start collapsed after the reset;
-        // expansion restore sorts the ones whose flags are invalid (D2
-        // rule 2).
-        m_model.SetSorted(true);
-        m_model.endUpdate();
-    }
+    // Arriving By-Tab buckets start collapsed after the reset; expansion
+    // restore sorts the ones whose flags are invalid (D2 rule 2).
+    m_model.SetSorted(true);
+    m_model.endUpdate();
 }

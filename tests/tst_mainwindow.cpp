@@ -3057,14 +3057,17 @@ void MainWindowTest::modeSwitchConsumesFallbackDirtiness()
             ->OnTabRefreshed(tabA, {makeMainWindowItem("item-a2", "AlphaItem Two", "Sword", tabA)});
         QVERIFY(visibleItemNames(*tree).contains("AlphaItem Sword"));
 
-        // The switch to By-Tab refilters NOW — as ONE reset (round 2):
-        // the dirty flip is quiet and the refilter's reset announces the
-        // flip and the fresh content together.
+        // The switch to By-Tab refilters NOW. Two resets — the switch's
+        // own and the dirtiness-consuming refilter's — are accepted for
+        // this seam-created case (round 3 reverted round 2's quiet-flip
+        // machinery as over-engineering; the dirty case dies in S5). The
+        // contract pinned here is content freshness and the canceled
+        // tick, not the reset count.
         auto *model = tree->model();
         QSignalSpy resets(model, &QAbstractItemModel::modelReset);
         viewCombo->setCurrentIndex(0);
         emit viewCombo->activated(0);
-        QCOMPARE(resets.count(), 1);
+        QCOMPARE(resets.count(), 2);
         QVERIFY(visibleItemNames(*tree).contains("AlphaItem Two Sword"));
         QVERIFY(!visibleItemNames(*tree).contains("AlphaItem Sword"));
 

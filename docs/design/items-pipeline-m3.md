@@ -9,7 +9,9 @@ consistency check (key residency, activation ordering, nested
 batching) passed with only wording-level findings, folded into
 revision 4 before it was committed. Post-freeze changes follow the
 M2 convention: recorded amendments with reasons, never silent
-edits. Review rounds 1–3 (external; R1-1…R1-8, R2-1…R2-6, and
+edits. One amendment is recorded (July 31, 2026, out of S4's
+implementation review round 2): the definition of a *filtered*
+search — see the markers at D2 rule 5 and in D3's metadata half. Review rounds 1–3 (external; R1-1…R1-8, R2-1…R2-6, and
 R3-1…R3-4, all eighteen verified and accepted) are incorporated
 throughout. Round 1's largest changes: D3's source-scoped
 replacement grain (R1-1), the final snapshot's row reconciliation
@@ -335,10 +337,23 @@ model), and the flag-and-order lifecycle is a complete state machine
    or By-Item) re-establish order as part of the invalidating event's
    application; collapsed buckets defer to their next expansion.
 5. **Filtered searches are default-expanded** (`search.h:86`), so
-   every visible bucket of a filtered result sorts eagerly. The
+   every visible bucket of a filtered result sorts eagerly.
+   *(Post-freeze amendment, July 31, 2026 — S4 implementation review
+   round 2: "filtered" means any filter is ACTIVE, superseding
+   R1-8's original "set by any single excluded item" refilter
+   snapshot. The snapshot definition could be flipped by a single
+   delta — the last excluded item disappearing, or a first rejected
+   arrival — and a flip is a whole-view membership change (every
+   empty bucket hides or shows, default expansion changes) that no
+   bucket-scoped operation can express, so delta-native operation
+   requires the stable definition; it flips only at filter edits,
+   which are full refilters by construction (D6). The observable
+   change is confined to the degenerate case of an active filter
+   that excludes nothing: such a search now hides empty tabs and
+   default-expands. Pinned by the round-2 clause of
+   `filteredSearchDropsEmptiedBucket`.)* The
    honest worst case is a **broad filter** that matches nearly the
-   whole collection while expanding every bucket (R1-8 — `m_filtered`
-   is set by any single excluded item, `search.cpp:261-290`): the
+   whole collection while expanding every bucket (R1-8): the
    ceiling is the key build + sort of ~everything on top of the
    filter loop, ~0.9 s estimated at 1m, **and the resident key
    footprint approaches the full-collection measurement (~266 MB
@@ -429,7 +444,12 @@ fine-grained operations scoped to the affected bucket:
   outside any freshness statement, and the "invisible until user
   action after terminal failure" caveat disappears
   (`metadataDeltaAppliesWithoutItemIntersection`). Filtered searches
-  still hide empty buckets (`search.cpp:277-286`), unchanged.
+  still hide empty buckets (`search.cpp:277-286`) — and the delta
+  path converges to that state: a bucket a delta empties leaves a
+  filtered view as a top-level row removal and reappears when
+  arrivals match again, with "filtered" following D2 rule 5's
+  amended any-filter-active definition (post-freeze amendment,
+  July 31, 2026; `filteredSearchDropsEmptiedBucket`).
 - **Search-side indexes are maintained incrementally**: the delta
   updates `m_visible_by_id`, `m_visible_sources`(`_by_tab`), and the
   bucket in O(delta); no whole-collection rebuild rides along. The

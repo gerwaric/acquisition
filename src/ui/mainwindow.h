@@ -232,11 +232,6 @@ private:
     // current off a removed row); while set, OnCurrentItemChanged ignores
     // those shifts so they cannot overwrite the intent.
     bool m_applying_delta{false};
-    // While set, ModelViewRefresh skips its capture pass (S4 review
-    // round 2): the dirty mode-switch handler captures the PRE-SWITCH
-    // view state itself, and a capture inside the refresh would observe
-    // the post-flip transient instead and overwrite it.
-    bool m_suppress_view_capture{false};
     std::vector<std::unique_ptr<Search>> m_searches;
     Search *m_current_search;
     QTabBar *m_tab_bar;
