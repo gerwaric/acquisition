@@ -427,50 +427,64 @@ void ItemsModel::RepaintBuyoutCells(const BuyoutChangeSet &changes)
     const int bucket_count = static_cast<int>(buckets.size());
     for (int bucket_row = 0; bucket_row < bucket_count; ++bucket_row) {
         const Bucket &bucket = buckets[bucket_row];
-        // A tab-level change repaints its whole bucket: the header title
-        // renders the tab buyout, and the tab's items may inherit it. The
-        // flat By-Item bucket holds every tab's items, so any tab-level
-        // change touches it.
-        const bool tab_affected = changes.everything
-                                  || (changes.tab_ids.count(bucket.location().id()) > 0)
-                                  || (by_item && !changes.tab_ids.empty());
         const auto &items = bucket.items();
         const int item_count = static_cast<int>(items.size());
-        int first_row = -1;
-        int last_row = -1;
-        if (tab_affected) {
-            first_row = 0;
-            last_row = item_count - 1;
-        } else if (scan_every_bucket) {
-            for (int n = 0; n < item_count; ++n) {
-                if (changes.item_ids.count(items[n]->id()) > 0) {
-                    if (first_row < 0) {
-                        first_row = n;
-                    }
-                    last_row = n;
-                }
+        const QModelIndex header = index(bucket_row, 0);
+
+        // Whole-bucket repaint is reserved for the shapes where it is the
+        // exact affected set: `everything`, and a tab-level change in
+        // By-Tab, where the bucket IS the tab — its header renders the
+        // tab buyout and every row can inherit it. The flat By-Item
+        // bucket aggregates every tab, so a tab-level change resolves to
+        // the affected tab's rows below (S5 review round 1 — never the
+        // whole flat bucket), and its header renders no buyout.
+        const bool whole_bucket = changes.everything
+                                  || (!by_item
+                                      && (changes.tab_ids.count(bucket.location().id()) > 0));
+        if (whole_bucket) {
+            if (!by_item) {
+                emit dataChanged(header, header);
             }
-        } else {
-            const auto it = ids_by_bucket.find(LocationInventory::KeyFor(bucket.location()));
-            if (it != ids_by_bucket.end()) {
-                for (int n = 0; n < item_count; ++n) {
-                    if (it->second.count(items[n]->id()) > 0) {
-                        if (first_row < 0) {
-                            first_row = n;
-                        }
-                        last_row = n;
-                    }
-                }
+            if (item_count > 0) {
+                emit dataChanged(index(0, first_column, header),
+                                 index(item_count - 1, last_column, header));
             }
+            continue;
         }
 
-        const QModelIndex header = index(bucket_row, 0);
-        if (tab_affected) {
-            emit dataChanged(header, header);
+        // Row-level repaint: affected rows are emitted as MAXIMAL
+        // contiguous runs — O(affected runs) rectangles, never one
+        // first-to-last span (S5 review round 1: with scattered affected
+        // ids in the flat bucket, a spanning rectangle cost O(collection)
+        // view-side work per priced delta — ~43 s at 1m).
+        const std::set<QString> *bucket_ids = nullptr;
+        if (!scan_every_bucket) {
+            const auto it = ids_by_bucket.find(LocationInventory::KeyFor(bucket.location()));
+            if (it == ids_by_bucket.end()) {
+                continue; // fast path: no affected rows in this bucket
+            }
+            bucket_ids = &it->second;
         }
-        if ((first_row >= 0) && (last_row >= first_row)) {
-            emit dataChanged(index(first_row, first_column, header),
-                             index(last_row, last_column, header));
+        const auto affected = [&](int n) {
+            const Item &item = *items[n];
+            if (bucket_ids) {
+                return bucket_ids->count(item.id()) > 0;
+            }
+            if (changes.item_ids.count(item.id()) > 0) {
+                return true;
+            }
+            return by_item && (changes.tab_ids.count(item.location().id()) > 0);
+        };
+        int run_first = -1;
+        for (int n = 0; n <= item_count; ++n) {
+            const bool hit = (n < item_count) && affected(n);
+            if (hit && (run_first < 0)) {
+                run_first = n;
+            } else if (!hit && (run_first >= 0)) {
+                emit dataChanged(index(run_first, first_column, header),
+                                 index(n - 1, last_column, header));
+                run_first = -1;
+            }
         }
     }
 }

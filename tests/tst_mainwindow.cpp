@@ -138,6 +138,8 @@ private slots:
     void byItemSelectionSurvivesMerge();
     void byItemActivationDecidesDirtinessFirst();
     void modeSwitchRendersAppliedDeltas();
+    // S5 review round 1: rule-5 repaint scoped to affected runs.
+    void buyoutRepaintScopesToAffectedRuns();
 
 private:
     std::shared_ptr<spdlog::logger> m_main_logger;
@@ -3092,6 +3094,96 @@ void MainWindowTest::modeSwitchRendersAppliedDeltas()
         QVERIFY(findBucket(*tree->model(), renamedB.GetHeader()).isValid());
         QVERIFY(!findBucket(*tree->model(), tabB.GetHeader()).isValid());
     }
+}
+
+// M3 S5 review round 1 (batching rule 5 refined): affected rows repaint
+// as MAXIMAL contiguous runs — never one first-to-last spanning
+// rectangle, which cost O(collection) view-side work per priced delta
+// once the flat bucket made the span the whole collection. In By-Item a
+// tab-level change resolves to the tab's rows by each item's location,
+// never the whole flat bucket; only `everything` repaints a full
+// bucket.
+void MainWindowTest::buyoutRepaintScopesToAffectedRuns()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    // Names interleave under the descending sort so tab A's rows scatter
+    // through tab B's: Zeta(A) Yankee(B) Golf(A) Echo(B) Alpha(A).
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-bbbb", "Beta", 1);
+    const auto a1 = makeMainWindowItem("item-a1", "Alpha One", "Sword", tabA);
+    const auto a2 = makeMainWindowItem("item-a2", "Golf One", "Sword", tabA);
+    const auto a3 = makeMainWindowItem("item-a3", "Zeta One", "Sword", tabA);
+    Items items{a1,
+                a2,
+                a3,
+                makeMainWindowItem("item-b1", "Echo One", "Shield", tabB),
+                makeMainWindowItem("item-b2", "Yankee One", "Shield", tabB)};
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB}, false);
+    switchToByItemView(fixture);
+
+    auto *model = tree->model();
+    const QModelIndex flat = model->index(0, 0);
+    QCOMPARE(bucketItemNames(*model, flat),
+             QStringList({"Zeta One Sword",
+                          "Yankee One Shield",
+                          "Golf One Sword",
+                          "Echo One Shield",
+                          "Alpha One Sword"}));
+    QSignalSpy repaints(model, &QAbstractItemModel::dataChanged);
+
+    const auto affectedRows = [&repaints, &flat]() {
+        std::set<int> rows;
+        for (int n = 0; n < repaints.count(); ++n) {
+            const QModelIndex topLeft = repaints.at(n).at(0).toModelIndex();
+            const QModelIndex bottomRight = repaints.at(n).at(1).toModelIndex();
+            if (topLeft.parent() != flat) {
+                continue;
+            }
+            for (int row = topLeft.row(); row <= bottomRight.row(); ++row) {
+                rows.insert(row);
+            }
+        }
+        return rows;
+    };
+
+    // Scattered item-level changes: one batch pricing tab A's three
+    // scattered rows emits three single-row rectangles, not one span
+    // covering the interleaved B rows.
+    {
+        const BuyoutBatch batch(*fixture.buyoutFixture.manager);
+        fixture.buyoutFixture.manager->Set(*a1, makeChaosBuyout(3));
+        fixture.buyoutFixture.manager->Set(*a2, makeChaosBuyout(4));
+        fixture.buyoutFixture.manager->Set(*a3, makeChaosBuyout(5));
+    }
+    QCOMPARE(repaints.count(), 3);
+    for (int n = 0; n < repaints.count(); ++n) {
+        QCOMPARE(repaints.at(n).at(0).toModelIndex().row(),
+                 repaints.at(n).at(1).toModelIndex().row());
+    }
+    QCOMPARE(affectedRows(), (std::set<int>{0, 2, 4}));
+
+    // A tab-level change resolves to the tab's rows by item location:
+    // exactly tab B's two scattered rows, no whole-bucket rectangle and
+    // no header emission (the flat header renders no tab buyout).
+    repaints.clear();
+    fixture.buyoutFixture.manager->SetTab(tabB, makeChaosBuyout(7));
+    QCOMPARE(repaints.count(), 2);
+    for (int n = 0; n < repaints.count(); ++n) {
+        QVERIFY(repaints.at(n).at(0).toModelIndex().parent() == flat);
+        QVERIFY(repaints.at(n).at(0).toModelIndex().column() >= 1);
+    }
+    QCOMPARE(affectedRows(), (std::set<int>{1, 3}));
+
+    // `everything` is the one shape that repaints the full bucket, as a
+    // single rectangle.
+    repaints.clear();
+    fixture.buyoutFixture.manager->Clear();
+    QCOMPARE(repaints.count(), 1);
+    QCOMPARE(repaints.at(0).at(0).toModelIndex().row(), 0);
+    QCOMPARE(repaints.at(0).at(1).toModelIndex().row(), 4);
 }
 
 QTEST_MAIN(MainWindowTest)
