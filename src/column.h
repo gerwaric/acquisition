@@ -29,6 +29,10 @@ public:
     virtual QVariant value(const Item &item) const = 0;
     virtual QVariant icon(const Item &item) const = 0;
     virtual QColor color(const Item &item) const;
+    // True for columns whose values and sort keys read BuyoutManager (M3
+    // D1 rule 4): Price and Date. The buyout batch response gates
+    // reordering on this and repaints exactly these cells.
+    virtual bool buyoutDependent() const { return false; }
     virtual bool lt(const Item *lhs, const Item *rhs) const;
     // The item's M3 sort key (items-pipeline-m3.md D1): the same tuple lt
     // compares, materialized once. Both are built from the one multivalue
@@ -217,6 +221,7 @@ public:
     QString name() const;
     QVariant value(const Item &item) const;
     QColor color(const Item &item) const;
+    bool buyoutDependent() const { return true; }
     bool lt(const Item *lhs, const Item *rhs) const;
     ItemSortKey key(const Item &item) const;
     QVariant icon(const Item &item) const
@@ -239,6 +244,7 @@ public:
     explicit DateColumn(const BuyoutManager &bo_manager);
     QString name() const;
     QVariant value(const Item &item) const;
+    bool buyoutDependent() const { return true; }
     bool lt(const Item *lhs, const Item *rhs) const;
     ItemSortKey key(const Item &item) const;
     QVariant icon(const Item &item) const

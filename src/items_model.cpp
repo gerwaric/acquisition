@@ -6,13 +6,16 @@
 #include "bucket.h"
 #include "buyoutmanager.h"
 #include "itemlocation.h"
+#include "locationinventory.h"
 #include "search.h"
 #include "util/spdlog_qt.h" // IWYU pragma: keep
 #include "util/util.h"
 
 #include <algorithm>
 #include <iterator>
+#include <map>
 #include <memory>
+#include <set>
 #include <vector>
 
 ItemsModel::ItemsModel(BuyoutManager &bo_manager, Search &search)
@@ -231,7 +234,19 @@ void ItemsModel::sort(int column, Qt::SortOrder order)
     spdlog::debug("Sorting items model by column {}", column);
     m_sort_order = order;
     m_sort_column = column;
+    ApplySort(column, order);
+}
 
+void ItemsModel::Resort()
+{
+    if ((m_sort_column < 0) || (m_sort_column >= columnCount())) {
+        return;
+    }
+    ApplySort(m_sort_column, m_sort_order);
+}
+
+void ItemsModel::ApplySort(int column, Qt::SortOrder order)
+{
     struct ItemIndexSnapshot
     {
         QModelIndex from;
@@ -294,6 +309,96 @@ void ItemsModel::sort(int column, Qt::SortOrder order)
     changePersistentIndexList(from, to);
     emit layoutChanged({}, QAbstractItemModel::VerticalSortHint);
     SetSorted(true);
+}
+
+void ItemsModel::RepaintBuyoutCells(const BuyoutChangeSet &changes)
+{
+    // Batching rule 5 (M3 R1-6): Price/Date cells render buyout state
+    // unconditionally, so the affected visible rows repaint on any buyout
+    // batch regardless of which column sorts the view. The buyout-
+    // dependent columns are a contiguous span (Price, Date), so one
+    // dataChanged rectangle per affected bucket covers them.
+    const auto &columns = m_search.columns();
+    int first_column = -1;
+    int last_column = -1;
+    for (int n = 0; n < static_cast<int>(columns.size()); ++n) {
+        if (columns[n]->buyoutDependent()) {
+            if (first_column < 0) {
+                first_column = n;
+            }
+            last_column = n;
+        }
+    }
+    if (first_column < 0) {
+        return;
+    }
+
+    // Group the affected item ids by their stable bucket key through the
+    // visible-id index so only affected buckets are scanned: the scoped
+    // pricing pass rides the delta path, which stays O(delta + affected
+    // bucket) (M2 hard constraint). The flat By-Item bucket holds the
+    // whole visible result and is scanned once — the same O(n) shape as
+    // D4's stated merge exception.
+    const bool by_item = (m_search.GetViewMode() == Search::ViewMode::ByItem);
+    std::map<LocationInventory::Key, std::set<QString>> ids_by_bucket;
+    if (!by_item && !changes.everything) {
+        for (const QString &id : changes.item_ids) {
+            if (const auto item = m_search.visibleItemById(id)) {
+                ids_by_bucket[LocationInventory::KeyFor(item->location())].insert(id);
+            }
+        }
+    }
+
+    const auto &buckets = m_search.buckets();
+    const int bucket_count = static_cast<int>(buckets.size());
+    for (int bucket_row = 0; bucket_row < bucket_count; ++bucket_row) {
+        const Bucket &bucket = buckets[bucket_row];
+        // A tab-level change repaints its whole bucket: the header title
+        // renders the tab buyout, and the tab's items may inherit it. The
+        // flat By-Item bucket holds every tab's items, so any tab-level
+        // change touches it.
+        const bool tab_affected = changes.everything
+                                  || (changes.tab_ids.count(bucket.location().id()) > 0)
+                                  || (by_item && !changes.tab_ids.empty());
+        const auto &items = bucket.items();
+        const int item_count = static_cast<int>(items.size());
+        int first_row = -1;
+        int last_row = -1;
+        if (tab_affected) {
+            first_row = 0;
+            last_row = item_count - 1;
+        } else if (by_item) {
+            for (int n = 0; n < item_count; ++n) {
+                if (changes.item_ids.count(items[n]->id()) > 0) {
+                    if (first_row < 0) {
+                        first_row = n;
+                    }
+                    last_row = n;
+                }
+            }
+        } else {
+            const auto it = ids_by_bucket.find(LocationInventory::KeyFor(bucket.location()));
+            if (it != ids_by_bucket.end()) {
+                for (int n = 0; n < item_count; ++n) {
+                    if (it->second.count(items[n]->id()) > 0) {
+                        if (first_row < 0) {
+                            first_row = n;
+                        }
+                        last_row = n;
+                    }
+                }
+            }
+        }
+
+        const QModelIndex header = index(bucket_row, 0);
+        if (tab_affected) {
+            emit dataChanged(header, header);
+        }
+        if ((first_row >= 0) && (last_row >= first_row)) {
+            emit dataChanged(index(first_row, first_column, header),
+                             index(last_row, last_column, header));
+        }
+    }
 }
 
 QModelIndex ItemsModel::parent(const QModelIndex &index) const

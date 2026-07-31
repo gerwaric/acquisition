@@ -51,8 +51,9 @@ struct ModelProbes
     std::map<LocationInventory::Key, std::int64_t> key_builds_by_location;
     std::int64_t keyed_compares = 0; // tuple comparisons inside a keyed sort
 
-    // Site lands in S2 (buyout choke point + batching): batched
-    // reorder/model-update emissions at outer batch boundaries.
+    // Site lives since S2 (buyout choke point + batching): batched
+    // reorder/model-update emissions at outer batch boundaries
+    // (MainWindow::OnBuyoutsChanged, once per outer batch).
     std::int64_t model_updates = 0;
 
     // Gauge, not a counter; sites land in S3 (D1 residency): bytes of

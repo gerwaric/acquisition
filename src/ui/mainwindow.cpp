@@ -138,6 +138,10 @@ MainWindow::MainWindow(QSettings &settings,
     m_delta_throttle.setSingleShot(true);
     connect(&m_delta_throttle, &QTimer::timeout, this, &MainWindow::OnDeltaThrottleTimeout);
 
+    // The M3 buyout batch response (S2): one model update per outer batch
+    // boundary, delivered synchronously at the emitting mutation's end.
+    connect(&m_buyout_manager, &BuyoutManager::BuyoutsChanged, this, &MainWindow::OnBuyoutsChanged);
+
     LoadSettings();
     NewSearch();
 }
@@ -539,6 +543,12 @@ void MainWindow::OnBuyoutChange()
         return;
     }
 
+    // User commands batch at command scope (M3 R2-5): the loop over the
+    // selection plus the trailing propagation pass is one outer batch —
+    // one model update at command end, never one per Set. The propagation
+    // pass's own boundary nests inside this one and emits nothing (R3-3).
+    const BuyoutBatch batch(m_buyout_manager);
+
     const auto &selected_rows = ui->treeView->selectionModel()->selectedRows();
     for (const auto &index : selected_rows) {
         const auto location = m_current_search->GetTabLocation(index);
@@ -578,6 +588,40 @@ void MainWindow::OnBuyoutChange()
     }
     m_items_manager.PropagateTabBuyouts();
     ScheduleResizeTreeColumns();
+}
+
+void MainWindow::OnBuyoutsChanged(const BuyoutChangeSet &changes)
+{
+    spdlog::trace("MainWindow::OnBuyoutsChanged() entered");
+    // The S2 conservative batch response (M3 D1 rule 4 + the R1-6
+    // batching rules), column-gated at the batch boundary: affected
+    // Price/Date cells repaint under any sort column (rule 5), and the
+    // view reorders only when a buyout-dependent column sorts it — one
+    // re-sort per outer batch on freshly built keys. S3 replaces the
+    // whole-view re-sort with the residency invalidation contract.
+    for (const auto &search : m_searches) {
+        ItemsModel &model = search->model();
+        const auto &columns = search->columns();
+        const int sort_column = model.GetSortColumn();
+        const bool buyout_ordered = (sort_column >= 0)
+                                    && (sort_column < static_cast<int>(columns.size()))
+                                    && columns[sort_column]->buyoutDependent();
+        if (search.get() == m_current_search) {
+            if (auto &probes = ModelProbes::instance(); probes.enabled) {
+                ++probes.model_updates;
+            }
+            model.RepaintBuyoutCells(changes);
+            if (buyout_ordered) {
+                model.Resort();
+            }
+        } else if (buyout_ordered) {
+            // A background search pays nothing now: clearing its sorted
+            // flag re-sorts it when its next activation re-enables view
+            // sorting. Its cells always render fresh (they read the
+            // manager), so only the order can go stale.
+            model.SetSorted(false);
+        }
+    }
 }
 
 void MainWindow::OnStatusUpdate(ProgramState state, const QString &message)

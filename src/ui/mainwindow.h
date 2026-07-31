@@ -44,6 +44,7 @@ class Shop;
 class UpdateChecker;
 
 struct Buyout;
+struct BuyoutChangeSet;
 
 namespace Ui {
     class MainWindow;
@@ -95,6 +96,9 @@ public slots:
     void OnNotifyUser(const QString &message);
     void OnShopWarning(const QString &message);
     void OnBuyoutChange();
+    // The M3 S2 buyout batch response: one per outer batch boundary
+    // (BuyoutManager::BuyoutsChanged).
+    void OnBuyoutsChanged(const BuyoutChangeSet &changes);
     void ResizeTreeColumns();
     void ScheduleResizeTreeColumns();
     void OnExpandAll();

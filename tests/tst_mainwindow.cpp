@@ -63,6 +63,16 @@ private slots:
     // Items-pipeline M3, S0: the capture/restore half of the probe surface.
     void probeCountersTrackCaptureRestore();
 
+    // Items-pipeline M3, S2: the buyout choke point and the five batching
+    // rules (D1 rule 4, R1-6/R2-5/R3-3/R3-4). priceKeysFollowBuyoutEdits
+    // closes its behavioral half here (reorder at batch end); its
+    // resident-key assertions land in S3 (R3-2).
+    void priceKeysFollowBuyoutEdits();
+    void multiSelectionBuyoutEditReordersOnce();
+    void pricingPassYieldsSingleModelUpdate();
+    void snapshotPricingSequenceEmitsOneModelBatch();
+    void priceCellsRepaintUnderAnySortColumn();
+
 private:
     std::shared_ptr<spdlog::logger> m_main_logger;
     std::shared_ptr<spdlog::sinks::dist_sink_mt> m_sink_hub;
@@ -90,6 +100,34 @@ static std::shared_ptr<Item> makeMainWindowItem(const QString &id,
         "y": 0
     })json")
                                 .arg(id, name, typeLine)
+                                .toUtf8();
+    return std::make_shared<Item>(makeTestItem(json.constData(), location));
+}
+
+static std::shared_ptr<Item> makeMainWindowItemWithNote(const QString &id,
+                                                        const QString &name,
+                                                        const QString &typeLine,
+                                                        const ItemLocation &location,
+                                                        const QString &note)
+{
+    const QByteArray json = QString(R"json({
+        "baseType": "%3",
+        "frameType": 2,
+        "frameTypeId": "Rare",
+        "h": 1,
+        "icon": "https://web.poecdn.com/image/test.png",
+        "id": "%1",
+        "identified": true,
+        "ilvl": 1,
+        "name": "%2",
+        "note": "%4",
+        "typeLine": "%3",
+        "verified": false,
+        "w": 1,
+        "x": 0,
+        "y": 0
+    })json")
+                                .arg(id, name, typeLine, note)
                                 .toUtf8();
     return std::make_shared<Item>(makeTestItem(json.constData(), location));
 }
@@ -148,6 +186,49 @@ static QModelIndex findBucket(const QAbstractItemModel &model, const QString &he
         }
     }
     return QModelIndex();
+}
+
+static QStringList bucketItemNames(const QAbstractItemModel &model, const QModelIndex &bucket)
+{
+    QStringList names;
+    for (int row = 0; row < model.rowCount(bucket); ++row) {
+        names.append(model.index(row, 0, bucket).data().toString());
+    }
+    return names;
+}
+
+static QModelIndex findItemRow(const QAbstractItemModel &model,
+                               const QModelIndex &bucket,
+                               const QString &name)
+{
+    for (int row = 0; row < model.rowCount(bucket); ++row) {
+        const QModelIndex index = model.index(row, 0, bucket);
+        if (index.data().toString() == name) {
+            return index;
+        }
+    }
+    return QModelIndex();
+}
+
+// One user buyout command (M3 R2-5): the widget states a user would leave
+// behind, then the command boundary itself. setCurrentIndex/setText emit no
+// activated/textEdited, so this drives OnBuyoutChange exactly once — the
+// command applies to whatever the tree's selection model holds.
+static void applyBuyoutCommand(MainWindowFixture &fixture,
+                               int typeIndex,
+                               int currencyIndex,
+                               const QString &value)
+{
+    auto *buyoutType = fixture.window->findChild<QComboBox *>("buyoutTypeComboBox");
+    auto *buyoutCurrency = fixture.window->findChild<QComboBox *>("buyoutCurrencyComboBox");
+    auto *buyoutValue = fixture.window->findChild<QLineEdit *>("buyoutValueLineEdit");
+    QVERIFY(buyoutType);
+    QVERIFY(buyoutCurrency);
+    QVERIFY(buyoutValue);
+    buyoutType->setCurrentIndex(typeIndex);
+    buyoutCurrency->setCurrentIndex(currencyIndex);
+    buyoutValue->setText(value);
+    fixture.window->OnBuyoutChange();
 }
 
 void MainWindowTest::initTestCase()
@@ -1149,6 +1230,321 @@ void MainWindowTest::probeCountersTrackCaptureRestore()
     QCOMPARE(probes.reselects, 1);
     QCOMPARE(probes.refilters, 1);
     probes.enabled = false;
+}
+
+// M3 S2, behavioral half of `priceKeysFollowBuyoutEdits` (D1 rule 4): with
+// Price active, user buyout edits — item and tab level, set and clear —
+// reorder affected rows at command end, one model update per command
+// (R2-5/R3-3); migration reorders within the snapshot's outer batch, not at
+// a command end (R1-6/R2-6, R3-4); Date is symmetric. The resident-key
+// assertions (R3-2: entries rebuild before the reorder) land in S3.
+void MainWindowTest::priceKeysFollowBuyoutEdits()
+{
+    {
+        MainWindowFixture fixture;
+        auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+        QVERIFY(tree);
+
+        const ItemLocation tabA = makeTestStashLocation("stash-alpha", "Alpha Tab", 0);
+        Items items;
+        items.push_back(makeMainWindowItem("item-a", "Alpha", "Sword", tabA));
+        items.push_back(makeMainWindowItem("item-b", "Bravo", "Sword", tabA));
+        items.push_back(makeMainWindowItem("item-c", "Charlie", "Sword", tabA));
+        fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+
+        // Price ascending: unpriced (currency rank 0) sorts before priced.
+        tree->header()->setSortIndicator(1, Qt::AscendingOrder);
+        auto *model = tree->model();
+        const QModelIndex bucket = findBucket(*model, tabA.GetHeader());
+        QVERIFY(bucket.isValid());
+        tree->expand(bucket);
+        QCOMPARE(bucketItemNames(*model, bucket),
+                 QStringList({"Alpha Sword", "Bravo Sword", "Charlie Sword"}));
+
+        auto &probes = ModelProbes::instance();
+        probes.reset();
+        probes.enabled = true;
+
+        // Item-level set: the affected row moves at command end.
+        tree->selectionModel()->setCurrentIndex(findItemRow(*model, bucket, "Alpha Sword"),
+                                                QItemSelectionModel::ClearAndSelect
+                                                    | QItemSelectionModel::Rows);
+        probes.reset();
+        applyBuyoutCommand(fixture, Buyout::BUYOUT_TYPE_BUYOUT, Currency::CURRENCY_CHAOS_ORB, "7");
+        QCOMPARE(probes.model_updates, 1);
+        QCOMPARE(bucketItemNames(*model, bucket),
+                 QStringList({"Bravo Sword", "Charlie Sword", "Alpha Sword"}));
+
+        // Tab-level set: the propagated inherited prices (9c on Bravo and
+        // Charlie) reorder against Alpha's manual 7c, one update for the
+        // whole command including the nested propagation pass (R3-3).
+        tree->selectionModel()->setCurrentIndex(findBucket(*model, tabA.GetHeader()),
+                                                QItemSelectionModel::ClearAndSelect
+                                                    | QItemSelectionModel::Rows);
+        probes.reset();
+        applyBuyoutCommand(fixture, Buyout::BUYOUT_TYPE_BUYOUT, Currency::CURRENCY_CHAOS_ORB, "9");
+        QCOMPARE(probes.model_updates, 1);
+        QCOMPARE(bucketItemNames(*model, bucket),
+                 QStringList({"Alpha Sword", "Bravo Sword", "Charlie Sword"}));
+
+        // Tab-level clear: the inherited prices vanish at command end.
+        tree->selectionModel()->setCurrentIndex(findBucket(*model, tabA.GetHeader()),
+                                                QItemSelectionModel::ClearAndSelect
+                                                    | QItemSelectionModel::Rows);
+        probes.reset();
+        applyBuyoutCommand(fixture, Buyout::BUYOUT_TYPE_INHERIT, Currency::CURRENCY_NONE, "");
+        QCOMPARE(probes.model_updates, 1);
+        QCOMPARE(bucketItemNames(*model, bucket),
+                 QStringList({"Bravo Sword", "Charlie Sword", "Alpha Sword"}));
+
+        // Item-level clear: back to the unpriced tie-break order.
+        tree->selectionModel()->setCurrentIndex(findItemRow(*model, bucket, "Alpha Sword"),
+                                                QItemSelectionModel::ClearAndSelect
+                                                    | QItemSelectionModel::Rows);
+        probes.reset();
+        applyBuyoutCommand(fixture, Buyout::BUYOUT_TYPE_INHERIT, Currency::CURRENCY_NONE, "");
+        QCOMPARE(probes.model_updates, 1);
+        QCOMPARE(bucketItemNames(*model, bucket),
+                 QStringList({"Alpha Sword", "Bravo Sword", "Charlie Sword"}));
+
+        // Date symmetric: descending puts the freshly priced item (the only
+        // valid last_update) first at command end.
+        tree->header()->setSortIndicator(2, Qt::DescendingOrder);
+        QCOMPARE(bucketItemNames(*model, bucket),
+                 QStringList({"Charlie Sword", "Bravo Sword", "Alpha Sword"}));
+        tree->selectionModel()->setCurrentIndex(findItemRow(*model, bucket, "Bravo Sword"),
+                                                QItemSelectionModel::ClearAndSelect
+                                                    | QItemSelectionModel::Rows);
+        probes.reset();
+        applyBuyoutCommand(fixture, Buyout::BUYOUT_TYPE_BUYOUT, Currency::CURRENCY_CHAOS_ORB, "5");
+        QCOMPARE(probes.model_updates, 1);
+        QCOMPARE(bucketItemNames(*model, bucket),
+                 QStringList({"Bravo Sword", "Charlie Sword", "Alpha Sword"}));
+        probes.enabled = false;
+    }
+
+    // Migration (MigrateItem via ItemsManager::MigrateBuyouts): reorders
+    // within the snapshot's outer batch — one model update for the whole
+    // snapshot, no command boundary involved.
+    {
+        MainWindowFixture fixture;
+        auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+        QVERIFY(tree);
+
+        const ItemLocation tabA = makeTestStashLocation("stash-alpha", "Alpha Tab", 0);
+        Items items;
+        const auto alpha = makeMainWindowItem("item-alpha", "Alpha", "Sword", tabA);
+        items.push_back(makeMainWindowItem("item-zed", "Zed", "Sword", tabA));
+        items.push_back(alpha);
+
+        // Seed a buyout under Alpha's v4 hash: the fresh datastore's
+        // db_version drives MigrateBuyouts to rekey it to the item id
+        // during the snapshot's pricing sequence.
+        fixture.buyoutFixture.manager->Set(*alpha, makeChaosBuyout(7));
+        fixture.buyoutFixture.manager->MigrateItem(alpha->id(), alpha->hash_v4());
+        QVERIFY(fixture.buyoutFixture.manager->Get(*alpha).IsNull());
+
+        tree->header()->setSortIndicator(1, Qt::AscendingOrder);
+        auto &probes = ModelProbes::instance();
+        probes.reset();
+        probes.enabled = true;
+        fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+        QCOMPARE(probes.model_updates, 1);
+        probes.enabled = false;
+
+        QVERIFY(fixture.buyoutFixture.manager->Get(*alpha) == makeChaosBuyout(7));
+        const QModelIndex bucket = findBucket(*tree->model(), tabA.GetHeader());
+        QVERIFY(bucket.isValid());
+        tree->expand(bucket);
+        // The migrated price is in the displayed order: unpriced Zed sorts
+        // before Alpha's 7c under Price ascending.
+        QCOMPARE(bucketItemNames(*tree->model(), bucket), QStringList({"Zed Sword", "Alpha Sword"}));
+    }
+}
+
+// M3 R2-5: with Price active in By-Item, one buyout command over a
+// many-row selection produces exactly one reorder / model update at
+// command end — the trailing PropagateTabBuyouts pass included (R3-3) —
+// never one per selected row.
+void MainWindowTest::multiSelectionBuyoutEditReordersOnce()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    auto *viewCombo = fixture.window->findChild<QComboBox *>("viewComboBox");
+    QVERIFY(tree);
+    QVERIFY(viewCombo);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-alpha", "Alpha Tab", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-beta", "Beta Tab", 1);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "Alpha", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-b", "Bravo", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-c", "Charlie", "Sword", tabB));
+    items.push_back(makeMainWindowItem("item-d", "Delta", "Sword", tabB));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB}, false);
+
+    tree->header()->setSortIndicator(1, Qt::AscendingOrder);
+    viewCombo->setCurrentIndex(1);
+    emit viewCombo->activated(1);
+
+    auto *model = tree->model();
+    const QModelIndex flatBucket = model->index(0, 0);
+    QVERIFY(flatBucket.isValid());
+    QCOMPARE(bucketItemNames(*model, flatBucket),
+             QStringList({"Alpha Sword", "Bravo Sword", "Charlie Sword", "Delta Sword"}));
+
+    // Select the first three rows; Delta stays unpriced.
+    tree->selectionModel()->setCurrentIndex(model->index(0, 0, flatBucket),
+                                            QItemSelectionModel::ClearAndSelect
+                                                | QItemSelectionModel::Rows);
+    tree->selectionModel()->select(model->index(1, 0, flatBucket),
+                                   QItemSelectionModel::Select | QItemSelectionModel::Rows);
+    tree->selectionModel()->select(model->index(2, 0, flatBucket),
+                                   QItemSelectionModel::Select | QItemSelectionModel::Rows);
+    QCOMPARE(tree->selectionModel()->selectedRows().size(), 3);
+
+    auto &probes = ModelProbes::instance();
+    probes.reset();
+    probes.enabled = true;
+    QSignalSpy layouts(model, &QAbstractItemModel::layoutChanged);
+    applyBuyoutCommand(fixture, Buyout::BUYOUT_TYPE_BUYOUT, Currency::CURRENCY_CHAOS_ORB, "5");
+    QCOMPARE(probes.model_updates, 1);
+    QCOMPARE(probes.bucket_sorts, 1);
+    QCOMPARE(layouts.count(), 1);
+    probes.enabled = false;
+
+    QCOMPARE(bucketItemNames(*model, flatBucket),
+             QStringList({"Delta Sword", "Alpha Sword", "Bravo Sword", "Charlie Sword"}));
+}
+
+// M3 R1-6: a scoped (per-delta) or final pricing pass touching many items
+// produces at most one reorder / model update on the active search, never
+// one per Set.
+void MainWindowTest::pricingPassYieldsSingleModelUpdate()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-alpha", "Alpha Tab", 0);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "Alpha", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-b", "Bravo", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-c", "Charlie", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-d", "Delta", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-e", "Echo", "Sword", tabA));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+    tree->header()->setSortIndicator(1, Qt::AscendingOrder);
+
+    auto &probes = ModelProbes::instance();
+    probes.reset();
+    probes.enabled = true;
+
+    // The scoped pass: a delta whose notes price three items is one batch.
+    Items delta;
+    delta.push_back(makeMainWindowItemWithNote("item-a", "Alpha", "Sword", tabA, "~b/o 5 chaos"));
+    delta.push_back(makeMainWindowItemWithNote("item-b", "Bravo", "Sword", tabA, "~b/o 3 chaos"));
+    delta.push_back(makeMainWindowItemWithNote("item-c", "Charlie", "Sword", tabA, "~b/o 9 chaos"));
+    delta.push_back(makeMainWindowItem("item-d", "Delta", "Sword", tabA));
+    delta.push_back(makeMainWindowItem("item-e", "Echo", "Sword", tabA));
+    probes.reset();
+    fixture.itemsManager->OnTabRefreshed(tabA, delta);
+    QCOMPARE(probes.model_updates, 1);
+
+    // The final propagation pass alone: two inherited prices, one batch.
+    fixture.buyoutFixture.manager->SetTab(tabA, makeChaosBuyout(2));
+    probes.reset();
+    fixture.itemsManager->PropagateTabBuyouts();
+    QCOMPARE(probes.model_updates, 1);
+    probes.enabled = false;
+}
+
+// M3 R3-4: one snapshot's MigrateBuyouts -> ApplyAutoTabBuyouts ->
+// ApplyAutoItemBuyouts -> PropagateTabBuyouts sequence produces at most
+// one reorder / model update on the active search, never one per pass;
+// buyout persistence writes still occur.
+void MainWindowTest::snapshotPricingSequenceEmitsOneModelBatch()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    // The tab's label auto-prices the tab, Alpha's note auto-prices the
+    // item, and Bravo inherits the tab price: three distinct passes mutate
+    // buyout state in this one snapshot.
+    const ItemLocation tabA = makeTestStashLocation("stash-alpha", "~b/o 10 chaos", 0);
+    Items items;
+    items.push_back(makeMainWindowItemWithNote("item-a", "Alpha", "Sword", tabA, "~b/o 5 chaos"));
+    items.push_back(makeMainWindowItem("item-b", "Bravo", "Sword", tabA));
+
+    tree->header()->setSortIndicator(1, Qt::AscendingOrder);
+    auto &probes = ModelProbes::instance();
+    probes.reset();
+    probes.enabled = true;
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+    QCOMPARE(probes.model_updates, 1);
+    probes.enabled = false;
+
+    // Persistence is outside batching and unchanged: the pricing writes
+    // reached the repo.
+    const auto itemBuyouts = fixture.buyoutFixture.repo->getItemBuyouts();
+    QVERIFY(itemBuyouts.contains("item-a"));
+    const auto tabBuyouts = fixture.buyoutFixture.repo->getLocationBuyouts();
+    QVERIFY(tabBuyouts.contains("stash-alpha"));
+}
+
+// M3 R1-6, rule 5: with Name active, a buyout batch emits dataChanged for
+// the affected visible Price/Date cells and performs no reordering — cell
+// repaint is independent of the active sort column.
+void MainWindowTest::priceCellsRepaintUnderAnySortColumn()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-alpha", "Alpha Tab", 0);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "Alpha", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-b", "Bravo", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-c", "Charlie", "Sword", tabA));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+
+    // Name (column 0) stays the active sort column.
+    auto *model = tree->model();
+    const QModelIndex bucket = findBucket(*model, tabA.GetHeader());
+    QVERIFY(bucket.isValid());
+    tree->expand(bucket);
+    const QStringList namesBefore = bucketItemNames(*model, bucket);
+    const QModelIndex target = findItemRow(*model, bucket, "Bravo Sword");
+    QVERIFY(target.isValid());
+    tree->selectionModel()->setCurrentIndex(target,
+                                            QItemSelectionModel::ClearAndSelect
+                                                | QItemSelectionModel::Rows);
+
+    auto &probes = ModelProbes::instance();
+    probes.reset();
+    probes.enabled = true;
+    QSignalSpy repaints(model, &QAbstractItemModel::dataChanged);
+    QSignalSpy layouts(model, &QAbstractItemModel::layoutChanged);
+    applyBuyoutCommand(fixture, Buyout::BUYOUT_TYPE_BUYOUT, Currency::CURRENCY_CHAOS_ORB, "7");
+
+    // The batch emitted once, repainted the affected Price/Date cells, and
+    // reordered nothing.
+    QCOMPARE(probes.model_updates, 1);
+    QCOMPARE(probes.bucket_sorts, 0);
+    QCOMPARE(layouts.count(), 0);
+    probes.enabled = false;
+    QCOMPARE(bucketItemNames(*model, bucket), namesBefore);
+
+    QCOMPARE(repaints.count(), 1);
+    const QModelIndex topLeft = repaints.at(0).at(0).toModelIndex();
+    const QModelIndex bottomRight = repaints.at(0).at(1).toModelIndex();
+    QCOMPARE(topLeft.parent(), bucket);
+    QVERIFY(topLeft.row() <= target.row());
+    QVERIFY(bottomRight.row() >= target.row());
+    // The span covers the Price (1) and Date (2) columns.
+    QVERIFY(topLeft.column() <= 1);
+    QVERIFY(bottomRight.column() >= 2);
 }
 
 QTEST_MAIN(MainWindowTest)

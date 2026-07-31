@@ -9,6 +9,7 @@
 
 class BuyoutManager;
 class Search;
+struct BuyoutChangeSet;
 
 class ItemsModel : public QAbstractItemModel
 {
@@ -24,6 +25,14 @@ public:
     Qt::ItemFlags flags(const QModelIndex &index) const;
     bool setData(const QModelIndex &index, const QVariant &value, int role = Qt::EditRole);
     void sort(int column, Qt::SortOrder order);
+    // Re-sorts on the current sort indicator unconditionally (M3 S2): a
+    // buyout batch changes Price/Date order without touching the
+    // indicator, so sort()'s already-sorted skip must not apply.
+    void Resort();
+    // Batching rule 5 (M3 R1-6): repaint the affected visible Price/Date
+    // cells — and affected bucket headers, which render tab buyouts —
+    // under any active sort column.
+    void RepaintBuyoutCells(const BuyoutChangeSet &changes);
     Qt::SortOrder GetSortOrder() const { return m_sort_order; }
     int GetSortColumn() const { return m_sort_column; }
     void SetSorted(bool val) { m_sorted = val; }
@@ -39,6 +48,10 @@ public:
     void refreshCheckStates();
 
 private:
+    // The layout-preserving sort machinery shared by sort() and Resort():
+    // snapshots persistent indexes, sorts the search's buckets, remaps.
+    void ApplySort(int column, Qt::SortOrder order);
+
     BuyoutManager &m_bo_manager;
     Search &m_search;
     Qt::SortOrder m_sort_order;

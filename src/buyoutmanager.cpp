@@ -6,6 +6,8 @@
 #include <QRegularExpression>
 #include <QVariant>
 
+#include <utility>
+
 #include "datastore/buyoutrepo.h"
 #include "datastore/datastore.h"
 #include "item.h"
@@ -43,6 +45,54 @@ BuyoutManager::~BuyoutManager()
     Save();
 }
 
+void BuyoutManager::BeginBatch()
+{
+    ++m_batch_depth;
+}
+
+void BuyoutManager::EndBatch()
+{
+    if (m_batch_depth <= 0) {
+        spdlog::error("BuyoutManager: EndBatch() without a matching BeginBatch()");
+        m_batch_depth = 0;
+        return;
+    }
+    // Only the outermost boundary emits (R3-3): an inner pass or command
+    // boundary leaves its accumulated scope for the enclosing batch.
+    if (--m_batch_depth == 0) {
+        EmitPendingChanges();
+    }
+}
+
+void BuyoutManager::RecordChange(ChangeScope scope, const QString &id)
+{
+    switch (scope) {
+    case ChangeScope::Item:
+        m_pending_changes.item_ids.insert(id);
+        break;
+    case ChangeScope::Tab:
+        m_pending_changes.tab_ids.insert(id);
+        break;
+    case ChangeScope::Everything:
+        m_pending_changes.everything = true;
+        break;
+    }
+    // A mutation with no batch open is its own outer boundary: immediacy
+    // is the default; batching is opted into by commands and passes.
+    if (m_batch_depth == 0) {
+        EmitPendingChanges();
+    }
+}
+
+void BuyoutManager::EmitPendingChanges()
+{
+    if (m_pending_changes.IsEmpty()) {
+        return;
+    }
+    const BuyoutChangeSet changes = std::exchange(m_pending_changes, {});
+    emit BuyoutsChanged(changes);
+}
+
 void BuyoutManager::Set(const Item &item, const Buyout &buyout)
 {
     if (buyout.type == Buyout::BUYOUT_TYPE_CURRENT_OFFER) {
@@ -65,6 +115,7 @@ void BuyoutManager::Set(const Item &item, const Buyout &buyout)
         // instead of leaving the row to resurrect at the next Load().
         if (m_buyouts.contains(item.id()) && m_repo.removeItemBuyout(item)) {
             m_buyouts.erase(item.id());
+            RecordChange(ChangeScope::Item, item.id());
         }
         return;
     }
@@ -74,10 +125,12 @@ void BuyoutManager::Set(const Item &item, const Buyout &buyout)
         // The item hash is not present.
         m_buyouts[item.id()] = buyout;
         emit SetItemBuyout(buyout, item);
+        RecordChange(ChangeScope::Item, item.id());
     } else if (buyout != it->second) {
         // The item hash is present and the buyout has changed.
         it->second = buyout;
         emit SetItemBuyout(buyout, item);
+        RecordChange(ChangeScope::Item, item.id());
     }
 }
 
@@ -126,6 +179,7 @@ void BuyoutManager::SetTab(const ItemLocation &location, const Buyout &buyout)
         // Same no-op-delete guard and erase-after-success ordering as Set() (F52).
         if (m_tab_buyouts.contains(location.id()) && m_repo.removeLocationBuyout(location)) {
             m_tab_buyouts.erase(location.id());
+            RecordChange(ChangeScope::Tab, location.id());
         }
         return;
     }
@@ -134,9 +188,11 @@ void BuyoutManager::SetTab(const ItemLocation &location, const Buyout &buyout)
     if (it == m_tab_buyouts.end()) {
         m_tab_buyouts[location.id()] = buyout;
         emit SetLocationBuyout(buyout, location);
+        RecordChange(ChangeScope::Tab, location.id());
     } else if (buyout != it->second) {
         it->second = buyout;
         emit SetLocationBuyout(buyout, location);
+        RecordChange(ChangeScope::Tab, location.id());
     }
 }
 
@@ -153,6 +209,7 @@ void BuyoutManager::CompressTabBuyouts()
     for (auto it = m_tab_buyouts.begin(), ite = m_tab_buyouts.end(); it != ite;) {
         if (tmp.count(it->first) == 0) {
             m_save_needed = true;
+            RecordChange(ChangeScope::Tab, it->first);
             it = m_tab_buyouts.erase(it);
         } else {
             ++it;
@@ -173,6 +230,7 @@ void BuyoutManager::CompressItemBuyouts(const Items &items)
 
     for (auto it = m_buyouts.cbegin(); it != m_buyouts.cend();) {
         if (tmp.count(it->first) == 0) {
+            RecordChange(ChangeScope::Item, it->first);
             m_buyouts.erase(it++);
         } else {
             ++it;
@@ -216,6 +274,7 @@ void BuyoutManager::Clear()
     m_refresh_locked.clear();
     m_refresh_checked.clear();
     m_tabs.clear();
+    RecordChange(ChangeScope::Everything, QString());
 }
 
 QString BuyoutManager::Serialize(const std::unordered_map<QString, Buyout> &buyouts)
@@ -383,5 +442,9 @@ void BuyoutManager::MigrateItem(const QString &old_hash, const QString &new_hash
         m_buyouts[new_hash] = buyout;
         m_buyouts.erase(old_it);
         m_save_needed = true;
+        // Migration changes the lookup result for both keys (D1 rule 4,
+        // R1-6/R2-6): the old hash stops resolving and the new one starts.
+        RecordChange(ChangeScope::Item, old_hash);
+        RecordChange(ChangeScope::Item, new_hash);
     }
 }
