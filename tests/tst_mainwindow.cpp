@@ -3381,6 +3381,7 @@ void MainWindowTest::noModelResetDuringRefresh()
     tree->expand(findBucket(*model, tabA.GetHeader()));
 
     QSignalSpy resets(model, &QAbstractItemModel::modelReset);
+    QSignalSpy moves(model, &QAbstractItemModel::rowsMoved);
     auto &probes = ModelProbes::instance();
     probes.reset();
     probes.enabled = true;
@@ -3408,7 +3409,11 @@ void MainWindowTest::noModelResetDuringRefresh()
     // Zero resets on the current search's model — and none anywhere in
     // the window (probes.model_resets counts every beginResetModel); the
     // final snapshot performed only the row reconciliation, no refilter.
+    // Zero moves too: the tabs kept their positions, so the reconciled
+    // order pass must take its is_sorted fast path (S6 review round 1),
+    // never a repositioning move.
     QCOMPARE(resets.count(), 0);
+    QCOMPARE(moves.count(), 0);
     QCOMPARE(probes.model_resets, 0);
     QCOMPARE(probes.refilters, 0);
     QCOMPARE(probes.final_reconciliations, 1);
@@ -3718,13 +3723,33 @@ void MainWindowTest::modelTesterPassesUnderDeltaStorm()
         }
     }
 
-    // Settle and check coherence: after a last snapshot, the maintained
-    // model holds exactly the membership a from-scratch refilter of the
-    // published collection produces (within-bucket order for collapsed
-    // buckets is deliberately lazy — D2 — so membership, not sequence).
+    // Settle deterministically in By-Tab — bucket ownership is the
+    // structural claim — then check coherence: after a last snapshot,
+    // the maintained model matches a from-scratch refilter of the
+    // published collection STRUCTURALLY — top-level order, bucket
+    // headers (metadata), and per-bucket membership (S6 review round 1:
+    // a globally sorted name list could not see an item parked in the
+    // wrong bucket, a stale header, or a misordered tab). Within-bucket
+    // order for collapsed buckets is deliberately lazy (D2), so each
+    // bucket compares membership, not sequence.
+    viewCombo->setCurrentIndex(0);
+    emit viewCombo->activated(0);
     fixture.itemsManager->OnItemsRefreshed(flatten(), tabList(), false);
     fixture.window->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
-    QStringList applied = visibleItemNames(*tree);
+
+    const auto structuralSignature = [&tree] {
+        const QAbstractItemModel *model = tree->model();
+        QStringList signature;
+        for (int row = 0; row < model->rowCount(); ++row) {
+            const QModelIndex bucket = model->index(row, 0);
+            QStringList members = bucketItemNames(*model, bucket);
+            members.sort();
+            signature.append(bucket.data().toString() + " | " + members.join(", "));
+        }
+        return signature;
+    };
+    const QStringList applied = structuralSignature();
+    QVERIFY(!applied.isEmpty());
 
     // The storm actually stormed (the distribution is stdlib-dependent,
     // so floors, not exact counts) — and the delta path never once fell
@@ -3736,10 +3761,7 @@ void MainWindowTest::modelTesterPassesUnderDeltaStorm()
     fixture.window->OnSearchFormChange();
     QCOMPARE(probes.refilters, 1);
     probes.enabled = false;
-    QStringList refiltered = visibleItemNames(*tree);
-    applied.sort();
-    refiltered.sort();
-    QCOMPARE(applied, refiltered);
+    QCOMPARE(structuralSignature(), applied);
 }
 
 QTEST_MAIN(MainWindowTest)
