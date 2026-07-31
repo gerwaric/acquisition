@@ -182,11 +182,19 @@ public:
     // R1-7 adjudication: true when the delta was applied or correctly
     // adjudicated "no visible change" — the search stays clean; false when
     // application was skipped for any reason — the caller marks the search
-    // dirty (fail-safe direction).
+    // dirty (fail-safe direction). The two change flags separate grains
+    // that S4/S6 originally conflated (S6 review round 1):
+    // `content_changed` means item rows were removed or inserted — it
+    // drives the staleness marks and lazy rebuilds; `model_changed` means
+    // ANY model operation ran (row ops, bucket insert/remove/move,
+    // metadata repaint) — it drives view-side presentation work such as
+    // the column resize. Metadata-only deltas and empty-bucket
+    // structural changes set only the latter.
     struct DeltaApplication
     {
         bool processed{false};
-        bool rows_changed{false};
+        bool content_changed{false};
+        bool model_changed{false};
         // A bucket inserted by this delta (new tab, or first filter-passing
         // items for a hidden one); the caller default-expands it in the
         // view when the search is default-expanded.
@@ -206,9 +214,15 @@ public:
     DeltaApplication ApplyTabDelta(const ItemLocation &location, const Items &items);
 
     // The result of the final snapshot's reconciliation (M3 S6, R1-2).
+    // The change flags carry the same grains as DeltaApplication's:
+    // `content_changed` = item rows removed/inserted (staleness marks),
+    // `model_changed` = any model operation (presentation work). A new
+    // empty tab or a deleted empty bucket is model-only — it must not
+    // mark the flat bucket stale (S6 review round 1).
     struct SnapshotReconciliation
     {
-        bool rows_changed{false};
+        bool content_changed{false};
+        bool model_changed{false};
         // Buckets the reconciliation inserted (final display rows,
         // ascending); the caller default-expands them in the view when the
         // search is default-expanded, like a delta's inserted bucket.
@@ -270,8 +284,11 @@ private:
     void RemoveBucketRow(int bucket_row);
     // Renders a delta's fresh location anchor on an existing bucket:
     // dataChanged for header text/color, beginMoveRows when the display
-    // position changes. Returns the bucket's (possibly moved) row.
-    int ApplyBucketMetadata(int bucket_row, const ItemLocation &canonical);
+    // position changes. Returns the bucket's (possibly moved) row; when
+    // `model_changed` is given, ORs in whether any model operation ran.
+    int ApplyBucketMetadata(int bucket_row,
+                            const ItemLocation &canonical,
+                            bool *model_changed = nullptr);
     // Inserts a new display bucket at its display position; returns its row.
     int InsertBucketRow(const ItemLocation &canonical, const Items &accepted);
     // Removes the bucket rows matching `predicate` as contiguous

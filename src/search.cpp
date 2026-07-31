@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <memory>
 #include <type_traits>
-#include <unordered_set>
+#include <unordered_map>
 #include <utility>
 
 #include "bucket.h"
@@ -673,7 +673,7 @@ void Search::IndexRemoveVisible(const std::shared_ptr<Item> &item)
     }
 }
 
-int Search::ApplyBucketMetadata(int bucket_row, const ItemLocation &canonical)
+int Search::ApplyBucketMetadata(int bucket_row, const ItemLocation &canonical, bool *model_changed)
 {
     Bucket &bucket = m_bucket_by_tab[static_cast<size_t>(bucket_row)];
     const ItemLocation old_location = bucket.location();
@@ -710,9 +710,15 @@ int Search::ApplyBucketMetadata(int bucket_row, const ItemLocation &canonical)
         RebuildRowLookups();
         m_model.EndMoveBucketRow();
         bucket_row = target;
+        if (model_changed) {
+            *model_changed = true;
+        }
     }
     if (rendered_changed && (m_current_mode == ViewMode::ByTab)) {
         m_model.EmitBucketMetadataChanged(bucket_row);
+        if (model_changed) {
+            *model_changed = true;
+        }
     }
     return bucket_row;
 }
@@ -909,10 +915,11 @@ Search::DeltaApplication Search::ApplyTabDelta(const ItemLocation &location, con
             return result;
         }
         result.inserted_bucket_row = InsertBucketRow(canonical, accepted);
+        result.model_changed = true;
         if (!accepted.empty()) {
             m_items_stale = true;
             m_flat_bucket_stale = true;
-            result.rows_changed = true;
+            result.content_changed = true;
         }
         result.processed = true;
         return result;
@@ -921,7 +928,7 @@ Search::DeltaApplication Search::ApplyTabDelta(const ItemLocation &location, con
     // Metadata half first (R1-4): the anchor renders now, item
     // intersection notwithstanding; the content ops below then target the
     // bucket's settled row.
-    bucket_row = ApplyBucketMetadata(bucket_row, canonical);
+    bucket_row = ApplyBucketMetadata(bucket_row, canonical, &result.model_changed);
 
     // Content half: a source-scoped replace (R1-1) — remove exactly the
     // rows fetched from this delta's source, then insert the arrivals.
@@ -935,7 +942,8 @@ Search::DeltaApplication Search::ApplyTabDelta(const ItemLocation &location, con
     if (removed || !accepted.empty()) {
         m_items_stale = true;
         m_flat_bucket_stale = true;
-        result.rows_changed = true;
+        result.content_changed = true;
+        result.model_changed = true;
     }
 
     // A filtered search hides empty buckets (S4 review round 1): a bucket
@@ -944,6 +952,7 @@ Search::DeltaApplication Search::ApplyTabDelta(const ItemLocation &location, con
     // (emptyDeltaEmptiesBucketWithoutRemovingIt).
     if (m_filtered && m_bucket_by_tab[static_cast<size_t>(bucket_row)].items().empty()) {
         RemoveBucketRow(bucket_row);
+        result.model_changed = true;
         result.processed = true;
         return result;
     }
@@ -953,7 +962,7 @@ Search::DeltaApplication Search::ApplyTabDelta(const ItemLocation &location, con
     // sortedness; the append path only runs on collapsed buckets — this
     // covers the expanded-but-invalid corner.
     Bucket &bucket = m_bucket_by_tab[static_cast<size_t>(bucket_row)];
-    if (result.rows_changed && bucket.expanded() && !bucket.sorted()) {
+    if (result.content_changed && bucket.expanded() && !bucket.sorted()) {
         m_model.ResortBucket(bucket_row);
     }
 
@@ -997,7 +1006,8 @@ Search::DeltaApplication Search::ApplyFlatDelta(const FetchSourceKey &source, co
 
     if (!removed_items.empty() || !accepted.empty()) {
         m_items_stale = true;
-        result.rows_changed = true;
+        result.content_changed = true;
+        result.model_changed = true;
     }
     // Every delta can carry a fresh location anchor or discover a tab the
     // flat view cannot render; the By-Tab side is marked stale
@@ -1010,7 +1020,7 @@ Search::DeltaApplication Search::ApplyFlatDelta(const FetchSourceKey &source, co
     // stale order past a delta (D4 rule 1, staleOrderNeverSurvivesDelta).
     // The merge path preserved sortedness; this covers the invalid corner
     // the append fallback would leave.
-    if (result.rows_changed && !flat.sorted()) {
+    if (result.content_changed && !flat.sorted()) {
         m_model.ResortBucket(0);
     }
 
@@ -1054,7 +1064,8 @@ Search::DeltaApplication Search::ApplyChildReconciliation(
         }
         if (!removed_items.empty()) {
             m_items_stale = true;
-            result.rows_changed = true;
+            result.content_changed = true;
+            result.model_changed = true;
         }
         m_tab_buckets_stale = true; // the aggregate carries a fresh anchor too
         result.processed = true;
@@ -1066,7 +1077,7 @@ Search::DeltaApplication Search::ApplyChildReconciliation(
         result.processed = true; // nothing visible under the parent
         return result;
     }
-    bucket_row = ApplyBucketMetadata(bucket_row, canonicalLocation(parent));
+    bucket_row = ApplyBucketMetadata(bucket_row, canonicalLocation(parent), &result.model_changed);
 
     // The erase becomes row removals scoped to the parent's bucket (D3):
     // already source-predicate-shaped — keys outside the expected set.
@@ -1077,7 +1088,8 @@ Search::DeltaApplication Search::ApplyChildReconciliation(
     if (removed) {
         m_items_stale = true;
         m_flat_bucket_stale = true;
-        result.rows_changed = true;
+        result.content_changed = true;
+        result.model_changed = true;
         // Same filtered-empty convergence as the content delta (S4
         // review round 1).
         if (m_filtered && m_bucket_by_tab[static_cast<size_t>(bucket_row)].items().empty()) {
@@ -1168,7 +1180,8 @@ Search::SnapshotReconciliation Search::ReconcileFinalSnapshot(const Items &publi
         }
         if (!removed_items.empty() || !missing.empty()) {
             m_items_stale = true;
-            result.rows_changed = true;
+            result.content_changed = true;
+            result.model_changed = true;
         }
         // The snapshot rebased every anchor and settled the tab list; the
         // By-Tab side rebuilds against the canonical inventory at the
@@ -1176,7 +1189,7 @@ Search::SnapshotReconciliation Search::ReconcileFinalSnapshot(const Items &publi
         m_tab_buckets_stale = true;
         // Defensive: the flat bucket must never keep stale order past the
         // reconciliation (staleOrderNeverSurvivesDelta's corner).
-        if (result.rows_changed && !flat.sorted()) {
+        if (result.content_changed && !flat.sorted()) {
             m_model.ResortBucket(0);
         }
         m_items_dirty = false; // authoritative (R1-7)
@@ -1211,11 +1224,17 @@ Search::SnapshotReconciliation Search::ReconcileFinalSnapshot(const Items &publi
         if (target_buckets.count(LocationInventory::KeyFor(bucket.location())) > 0) {
             continue;
         }
+        if (!bucket.items().empty()) {
+            // Item rows leave with the bucket; an empty deleted bucket is
+            // a model-only change (S6 review round 1 — it must not mark
+            // the flat bucket stale).
+            result.content_changed = true;
+        }
         for (const auto &item : bucket.items()) {
             IndexRemoveVisible(item);
         }
         RemoveBucketRow(row);
-        result.rows_changed = true;
+        result.model_changed = true;
     }
 
     // Metadata refreshed against the rebased locations: identity is the
@@ -1232,6 +1251,7 @@ Search::SnapshotReconciliation Search::ReconcileFinalSnapshot(const Items &publi
         bucket.SetLocation(canonical);
         if (rendered_changed) {
             m_model.EmitBucketMetadataChanged(static_cast<int>(row));
+            result.model_changed = true;
         }
     }
 
@@ -1256,6 +1276,7 @@ Search::SnapshotReconciliation Search::ReconcileFinalSnapshot(const Items &publi
                 std::rotate(first + row, first + best, first + best + 1);
                 RebuildRowLookups();
                 m_model.EndMoveBucketRow();
+                result.model_changed = true;
             }
         }
     }
@@ -1274,8 +1295,9 @@ Search::SnapshotReconciliation Search::ReconcileFinalSnapshot(const Items &publi
         const Items &bucket_items = (it != target_items.end()) ? it->second : no_items;
         const int row = InsertBucketRow(canonical, bucket_items);
         inserted_serials.push_back(m_bucket_by_tab[static_cast<size_t>(row)].serial());
+        result.model_changed = true;
         if (!bucket_items.empty()) {
-            result.rows_changed = true;
+            result.content_changed = true;
         }
     }
 
@@ -1323,7 +1345,8 @@ Search::SnapshotReconciliation Search::ReconcileFinalSnapshot(const Items &publi
             }
         }
         if (bucket_changed) {
-            result.rows_changed = true;
+            result.content_changed = true;
+            result.model_changed = true;
             // Defensive, like the delta path: a visible bucket never keeps
             // stale order past the reconciliation.
             const Bucket &bucket = m_bucket_by_tab[static_cast<size_t>(row)];
@@ -1333,7 +1356,7 @@ Search::SnapshotReconciliation Search::ReconcileFinalSnapshot(const Items &publi
         }
     }
 
-    if (result.rows_changed) {
+    if (result.content_changed) {
         m_items_stale = true;
         m_flat_bucket_stale = true;
     }

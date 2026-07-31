@@ -154,8 +154,10 @@ private slots:
 private:
     // S4 delta-application tail: dirty-flag adjudication (R1-7), view-side
     // default-expansion of an inserted bucket, caption refresh, and the
-    // selection-intent pass.
-    void FinishDeltaApplication(bool processed, bool rows_changed, int inserted_bucket_row);
+    // selection-intent pass. `model_changed` (any model operation, not
+    // just item rows — S6 review round 1) gates the column resize, so a
+    // metadata-only delta or a new empty bucket resizes too.
+    void FinishDeltaApplication(bool processed, bool model_changed, int inserted_bucket_row);
     // R1-3: reconciles the view's selection with the stable-id intent
     // after row operations — a removed selected row lapses visually but
     // keeps the intent; a visible item with the intent's id re-adopts the

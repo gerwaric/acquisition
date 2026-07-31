@@ -809,7 +809,7 @@ void MainWindow::OnTabRefreshed(const ItemLocation &location, const Items &items
     m_applying_delta = true;
     const auto result = m_current_search->ApplyTabDelta(location, items);
     m_applying_delta = false;
-    FinishDeltaApplication(result.processed, result.rows_changed, result.inserted_bucket_row);
+    FinishDeltaApplication(result.processed, result.model_changed, result.inserted_bucket_row);
 }
 
 void MainWindow::OnChildrenReconciled(const ItemLocation &parent,
@@ -830,10 +830,10 @@ void MainWindow::OnChildrenReconciled(const ItemLocation &parent,
     m_applying_delta = true;
     const auto result = m_current_search->ApplyChildReconciliation(parent, expected);
     m_applying_delta = false;
-    FinishDeltaApplication(result.processed, result.rows_changed, result.inserted_bucket_row);
+    FinishDeltaApplication(result.processed, result.model_changed, result.inserted_bucket_row);
 }
 
-void MainWindow::FinishDeltaApplication(bool processed, bool rows_changed, int inserted_bucket_row)
+void MainWindow::FinishDeltaApplication(bool processed, bool model_changed, int inserted_bucket_row)
 {
     if (!processed) {
         // Fail-safe direction (R1-7): a skipped application leaves the
@@ -853,7 +853,7 @@ void MainWindow::FinishDeltaApplication(bool processed, bool rows_changed, int i
             break;
         }
     }
-    if (rows_changed) {
+    if (model_changed) {
         ScheduleResizeTreeColumns();
     }
     ReconcileSelectionIntent();
@@ -1550,7 +1550,7 @@ void MainWindow::OnItemsRefreshed(bool initial_refresh)
             break;
         }
     }
-    if (result.rows_changed) {
+    if (result.model_changed) {
         ScheduleResizeTreeColumns();
     }
     ReconcileSelectionIntent();

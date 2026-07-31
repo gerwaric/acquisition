@@ -640,7 +640,7 @@ void SearchTest::reconciliationDischargesFailSafeDirtiness()
     // Authoritative at the row grain, via row operations only: the model
     // equals a fresh refilter of the published state, so the flag clears.
     QCOMPARE(resets.count(), 0);
-    QVERIFY(result.rows_changed);
+    QVERIFY(result.content_changed);
     QVERIFY(!search.itemsDirty());
     QCOMPARE(search.GetCaption(), "Search [1]");
     const auto &buckets = search.buckets();
@@ -695,7 +695,7 @@ void SearchTest::reconciliationRehomesWrongBucketRow()
     QSignalSpy resets(&search.model(), &QAbstractItemModel::modelReset);
     const auto result = search.ReconcileFinalSnapshot(published);
     QCOMPARE(resets.count(), 0);
-    QVERIFY(result.rows_changed);
+    QVERIFY(result.content_changed);
 
     const auto &buckets = search.buckets();
     QCOMPARE(buckets.size(), 2);
