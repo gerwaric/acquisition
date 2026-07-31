@@ -46,12 +46,12 @@ when this map and a header disagree, the header wins.
   map with its seam-reachability rule — verified executed exactly at
   S8. Sequencing only — no design authority; the spec wins on any
   conflict.
-- `design/items-pipeline-m2-implementation.md` — **accepted**
-  implementation sequence for the frozen M2 spec (externally
-  reviewed July 29, three findings incorporated): stage boundaries,
-  gates (M2-M2 at stage 4), pin-to-stage traceability, and the
-  branch's known intermediate states. Sequencing only — no design
-  authority; the spec wins on any conflict.
+- `design/items-pipeline-m2-implementation.md` — **implemented**
+  (July 29, 2026) implementation sequence for the frozen M2 spec
+  (externally reviewed July 29, three findings incorporated): stage
+  boundaries, gates (M2-M2 at stage 4), pin-to-stage traceability,
+  and the branch's known intermediate states. Sequencing only — no
+  design authority; the spec wins on any conflict.
 - `design/network-redesign.md` — accepted, frozen spec for the
   rate-limited networking redesign (typed facade, coroutine pumps, gate),
   revision 11. Records current decisions only; cites review finding IDs inline.

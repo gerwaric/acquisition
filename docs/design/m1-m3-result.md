@@ -185,6 +185,17 @@ round's fixes and still pass (unfiltered refilter 36.0 / 374.6 ms,
 sort share 0, cold expand 0.53 / 0.59 ms, broad-filter
 87.1 / 917.9 ms, memory rows exactly 0).
 
+*(Addendum, July 31, 2026, out of the S8 external review: this
+round's finding 6 — recorded at the time only in commit
+`7ddd08db`'s message and the code comment at `search.h`
+`m_row_by_key`, now recorded here so the spec's third post-freeze
+amendment has a durable citation — added the ordered stable-key map
+beside the serial map, retiring the per-delta linear bucket scan.
+The accepted consequences: an ordinary delta's bucket-row lookup is
+O(log tab-count), and structural ops (bucket insert/remove/move)
+pay an O(tab-count) row-position remap, which any row-position
+scheme would.)*
+
 ## S5 — conditional hold-point rows (July 31, 2026): **MISS — sequence PAUSED** *(resolved the same day — the remedy subsection at the end of this section records the final PASS)*
 
 Run at the end of S5 (D4 By-Item merge + eager activation landed; D9
@@ -763,14 +774,18 @@ here. Key evidence per criterion:
    of `OnItemsRefreshed`) and `Search::SetViewMode` (user mode
    switch). Both delta handlers and the non-initial snapshot route
    through row operations only.
-2. **Delta path O(delta + affected bucket).** The per-delta path
-   touches one bucket via hash lookups; the only O(n) pass is D4's
-   stated `Bucket::ReplaceSourceRows`. Two bounded terms outside the
-   criterion's original phrasing — the O(tab-count) row-lookup remap
-   on structural ops (accepted at S4 review round 1) and the By-Item
+2. **Delta path O(delta + affected bucket + log tab-count).** The
+   per-delta path touches one bucket, resolved through the ordered
+   stable-key map (`m_row_by_key`, `std::map` — O(log tabs), the
+   deliberate S4 round 1 finding-6 design; the serial map is the
+   hashed sibling); the only O(n) pass is D4's stated
+   `Bucket::ReplaceSourceRows`. The bounded terms outside the
+   criterion's original phrasing — the log-factor lookup, the
+   O(tab-count) row-lookup remap on structural ops (both accepted
+   at S4 review round 1, addendum above), and the By-Item
    buyout-repaint flat-bucket scan (accepted at S2, batch path not
-   delta path) — are now recorded as a dated clarification at the
-   criterion (no new decision; both already accepted in review).
+   delta path) — are registered as the spec's third post-freeze
+   amendment (S8 external review).
 3. **Single ordering truth.** Every column family's `lt` and `key`
    derive from one private computation (`Column::parts`,
    `PriceColumn::head`, `DateColumn::head`); the shared suffix equals
@@ -838,3 +853,22 @@ occurrences — use `-G`.
 - Findings register: F67 was moved to the resolved ledger at S1;
   F66's entry now records that M3 completed without reworking the
   legacy stores (D7's deliberate non-exercise) and the hook stands.
+
+### S8 review round 1 (external, July 31, 2026): two findings, both accepted — documentation-only remedies
+
+(1) Medium: the complexity audit above originally claimed "hash
+lookups" — the By-Tab bucket-row index is the ordered
+`std::map` `m_row_by_key` (O(log tabs), the deliberate S4 round 1
+finding-6 design), so ordinary deltas did not literally meet the
+criterion as written, and the S8 clarification cited an S4
+acceptance this document did not contain (it lived only in commit
+`7ddd08db`'s message). Tom's call: keep the reviewed ordered-map
+design (the log factor is ~11 key comparisons against a 0.86 ms
+row; a hash index would be wording-driven churn) and make the
+record honest — the bound is registered as the spec's **third
+post-freeze amendment**, the finding-6 acceptance is now durably
+recorded in §S4 review round 1 above, and criterion 2's audit text
+is corrected. (2) Low: `docs/README.md` still labeled the M2
+implementation sequence "accepted" against its own IMPLEMENTED
+header, contradicting the map's header-wins rule — fixed. No code
+changes, no benchmark reruns (reviewer concurred both).

@@ -9,12 +9,17 @@ consistency check (key residency, activation ordering, nested
 batching) passed with only wording-level findings, folded into
 revision 4 before it was committed. Post-freeze changes follow the
 M2 convention: recorded amendments with reasons, never silent
-edits. Two amendments are recorded (both July 31, 2026): the
+edits. Three amendments are recorded (all July 31, 2026): the
 definition of a *filtered* search (out of S4's implementation review
 round 2 — see the markers at D2 rule 5 and in D3's metadata half),
-and the deletion of the D9 intersection sets after S5's throttle
+the deletion of the D9 intersection sets after S5's throttle
 retirement removed their final consumer (out of S5's review round 1
-— see the marker in D3). Review rounds 1–3 (external; R1-1…R1-8, R2-1…R2-6, and
+— see the marker in D3), and the complexity criterion's stated
+bound (out of the S8 external review — see the marker at the
+design-review criteria: ordinary deltas pay an O(log tab-count)
+ordered-map bucket-row lookup and structural ops an O(tab-count)
+remap, both chosen and accepted at S4 implementation review
+round 1). Review rounds 1–3 (external; R1-1…R1-8, R2-1…R2-6, and
 R3-1…R3-4, all eighteen verified and accepted) are incorporated
 throughout. Round 1's largest changes: D3's source-scoped
 replacement grain (R1-1), the final snapshot's row reconciliation
@@ -884,15 +889,22 @@ Design-review criteria (checked in review, not runnable):
 - The delta path is O(delta + affected bucket) everywhere except
   D4's stated O(n + d) By-Item merge pass; no whole-collection scan
   or rebuild rides on any delta (M2 hard constraint, extended to the
-  model layer). *(S8 design-review clarification, July 31, 2026 —
-  recording two bounded terms already accepted in implementation
-  review, not new decisions: structural delta ops — bucket
-  insertion, removal, and metadata repositioning — additionally pay
-  an O(tab-count) row-lookup remap, accepted at S4 review round 1
-  (`m1-m3-result.md`); and a buyout batch's By-Item cell repaint
-  scans the flat bucket once, the D4-shaped exception accepted at
-  S2 (D1 rule 4's repaint path, not the delta path). Neither is
-  collection-of-items scale.)*
+  model layer). *(Post-freeze amendment, July 31, 2026 — the third,
+  out of the S8 external review; registered in the status header.
+  The implemented bound for an ordinary delta is
+  **O(delta + affected bucket + log tab-count)**: bucket-row
+  resolution goes through the ordered stable-key map
+  (`std::map`, `search.h` `m_row_by_key`), the deliberate S4 review
+  round 1 (finding 6) design that retired the per-delta linear scan
+  — acceptance recorded in `m1-m3-result.md` §S4 review round 1.
+  Structural delta ops — bucket insertion, removal, and metadata
+  repositioning — additionally pay an O(tab-count) row-position
+  remap, accepted in the same round. A buyout batch's By-Item cell
+  repaint scans the flat bucket once, the D4-shaped exception
+  accepted at S2 (D1 rule 4's repaint path, not the delta path).
+  None of these terms is collection-of-items scale; the criterion's
+  intent — no collection-scale work rides a delta — stands
+  unchanged.)*
 - Keys are derived from the comparators, which remain the single
   source of ordering truth; no code path defines order twice.
 - D1 rule 4's `BuyoutManager` mutation enumeration is complete —
