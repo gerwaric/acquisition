@@ -59,8 +59,9 @@ void ConnectMainWindow(Application &application,
                      &ItemsManager::ItemsRefreshed,
                      &main_window,
                      &MainWindow::OnItemsRefreshed);
-    // Streamed deltas (items-pipeline M2, D9): the manager's light re-emits
-    // drive the throttled, intersection-gated refilter machinery.
+    // Streamed deltas (items-pipeline M2 D3, M3 D3/D4): the manager's light
+    // re-emits apply synchronously as bucket-scoped model operations on the
+    // current search; background searches are marked items-dirty.
     QObject::connect(&items_manager,
                      &ItemsManager::TabRefreshed,
                      &main_window,

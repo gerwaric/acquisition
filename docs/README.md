@@ -7,16 +7,19 @@ when this map and a header disagree, the header wins.
 ## Active
 
 - `design/items-pipeline.md` — plan for the delta-native redesign of the
-  items refresh pipeline. Milestone 1 shipped July 2026; M2/M3 get their
-  own specs before their code begins.
+  items refresh pipeline. Milestone 1 shipped July 2026; M2 merged and
+  M3 implemented July 30–31, 2026, each against its own frozen spec.
+  Remaining follow-up: the M1-M2 status-widget burst measurement
+  (blocks nothing).
 - `design/items-pipeline-m2.md` — **frozen** spec (revision 9,
   July 29, 2026, amended post-freeze the same day) for Milestone 2,
   the streaming refresh signal: D-numbered decisions consuming the
   plan's M2 inbox, with an input-traceability table. Review rounds
   1–7 are incorporated (round 4 was an in-repo audit); the S1-M2
   spike selected D9's outcome (a) with S = 60 s (evidence:
-  `design/s1-m2-spike-result.md`). The M1-M2 and M2-M2 measurements
-  run during implementation; M2-M2 is its first checkpoint.
+  `design/s1-m2-spike-result.md`). M2-M2 ran at its stage-4
+  checkpoint (missed, remedied by the source-keyed stores, rerun
+  passed — `design/m2-m2-result.md`); M1-M2 remains a follow-up.
 - `design/items-pipeline-m2-reviews.md` — that spec's review history:
   round-scoped finding tables (`R1-*`, …) with verdicts and
   resolutions, round narratives, and the revision log.
@@ -29,18 +32,20 @@ when this map and a header disagree, the header wins.
   the F67 tie-break fix. Pre-spec evidence:
   `design/m3-sort-profile-result.md` (S1-M3 spike, run on the
   never-merged branch `spike/m3-sort-profile`, including the
-  hold-point key-memory extension). The M1-M3 budget measurement
-  runs as an implementation checkpoint and gates M3 completion.
+  hold-point key-memory extension). The M1-M3 budget gate PASSED at
+  S7 (July 31, 2026) — stage rows, the S5 miss and its A′ remedy,
+  and the complete table: `design/m1-m3-result.md`.
 - `design/items-pipeline-m3-reviews.md` — that spec's review history
   and revision log; rounds 1–3 recorded (R1-1…R1-8, R2-1…R2-6,
   R3-1…R3-4, all accepted) and the freeze.
-- `design/items-pipeline-m3-implementation.md` — **accepted**
-  implementation sequence for the frozen M3 spec (externally
-  reviewed July 30, round 1's four adjustments incorporated):
-  stages S0–S8, conditional budget hold points at S3–S5, the formal
-  M1-M3 gate at S7, and the M2-pin supersession map with its
-  seam-reachability rule. Sequencing only — no design authority;
-  the spec wins on any conflict.
+- `design/items-pipeline-m3-implementation.md` — **implemented**
+  (July 31, 2026) implementation sequence for the frozen M3 spec
+  (externally reviewed July 30, round 1's four adjustments
+  incorporated): stages S0–S8, conditional budget hold points at
+  S3–S5, the formal M1-M3 gate at S7, and the M2-pin supersession
+  map with its seam-reachability rule — verified executed exactly at
+  S8. Sequencing only — no design authority; the spec wins on any
+  conflict.
 - `design/items-pipeline-m2-implementation.md` — **accepted**
   implementation sequence for the frozen M2 spec (externally
   reviewed July 29, three findings incorporated): stage boundaries,

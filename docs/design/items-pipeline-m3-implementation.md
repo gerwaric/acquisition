@@ -1,10 +1,18 @@
 # Items Pipeline M3: Implementation Sequence
 
-Status: **ACCEPTED for implementation** (July 30, 2026; externally
-reviewed the same day — round 1's four adjustments incorporated,
-accepted on the follow-up pass). Implementation proceeds on branch
-`items-pipeline-m3`, starting at S0. Round 1's adjustments, for the
-record: two pin-to-stage traceability fixes —
+Status: **IMPLEMENTED** (July 31, 2026) — all stages S0–S8 landed on
+branch `items-pipeline-m3`, one green commit per stage plus
+per-stage review rounds, suite green throughout. The S5 hold point
+MISSED (By-Item merge ~28× over budget) and was remedied by Tom's
+A′ selection before the sequence continued; the S7 formal gate
+passed every budgeted row at both presets and carries Tom's formal
+go (July 31, after its review round hardened the gate's exit
+accounting and debounced the per-delta column resize). Measurements
+and stage records: `m1-m3-result.md`. The supersession map below was
+verified executed exactly at S8. Originally accepted July 30, 2026
+(externally reviewed the same day — round 1's four adjustments
+incorporated, accepted on the follow-up pass). Round 1's
+adjustments, for the record: two pin-to-stage traceability fixes —
 pins whose closing machinery lands later than their declared stage,
 and timer pins deleted in S4 while the By-Item fallback still
 reached the timer; the column-gating qualifier on S2's conservative

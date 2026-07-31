@@ -197,7 +197,7 @@ above): keying "new" on cached contents made a partial refresh balloon
 into a full one on a cold contents cache, so the auto-fetch was dropped in
 favor of fetching strictly the selection.
 
-### Milestone 2 — Streaming refresh signal (spec frozen at revision 9, July 29, 2026: `items-pipeline-m2.md`; implementation next)
+### Milestone 2 — Streaming refresh signal (SHIPPED July 30, 2026: spec `items-pipeline-m2.md` frozen at revision 9, implemented same-day, PR #185 merged)
 
 Surface per-tab progress without triggering the snapshot cascade:
 
@@ -332,7 +332,15 @@ the M2 spec:**
   maximum staleness — a throttle that guarantees the visible view is
   never more than a stated interval behind the applied state.
 
-### Milestone 3 — Delta-native items model (spec drafted July 30, 2026: `items-pipeline-m3.md`, revision 3, in review — rounds 1–2 incorporated)
+### Milestone 3 — Delta-native items model (IMPLEMENTED July 31, 2026 on branch `items-pipeline-m3`: spec `items-pipeline-m3.md` frozen at revision 4 July 30, stages S0–S8 landed, S7 M1-M3 gate PASSED with Tom's formal go)
+
+The refresh path no longer resets: deltas apply as bucket-scoped row
+operations (By-Tab) and a flat sorted merge (By-Item), the final
+snapshot is a row-level reconciliation, and M2's D9 throttle is
+retired with its pins superseded by the recorded map. Measurements
+(all budgets passed at 100k and ~1m; the S5 miss and its A′ remedy):
+`m1-m3-result.md`. Remaining pipeline follow-up: the M1-M2
+status-widget burst measurement below (blocks nothing).
 
 The "profile before choosing levers" obligation below was discharged
 July 30, 2026 by the S1-M3 sort-profiling spike

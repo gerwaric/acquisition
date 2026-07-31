@@ -1012,7 +1012,8 @@ void MainWindow::SaveViewExpansion(Search &search)
     ++ModelProbes::instance().expansion_captures;
     // Expansion is keyed by the stable (type, id) display key (M2 R6-3):
     // header text mutates when a delta renames a tab, which would orphan a
-    // header-keyed save exactly when the throttled reset needs it.
+    // header-keyed save exactly when a restore (D6 user refilter, mode
+    // switch) needs it.
     std::set<LocationInventory::Key> expanded;
     if (!search.defaultExpanded()) {
         const int rows = search.model().rowCount();

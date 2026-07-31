@@ -72,7 +72,6 @@ public:
     Buyout StringToBuyout(QString);
 
     void Save();
-    void Load();
 
     void MigrateItem(const QString &old_hash, const QString &new_hash);
 
@@ -93,6 +92,10 @@ private:
     // buyout lookup state and does not report.
     enum class ChangeScope { Item, Tab, Everything };
     void RecordChange(ChangeScope scope, const QString &id);
+    // Construction-time only (no model exists yet, nothing to notify);
+    // private so the D1 rule 4 enumeration has no public non-reporting
+    // mutation of the lookup state (M3 S8 design review).
+    void Load();
     void EmitPendingChanges();
 
     BuyoutType StringToBuyoutType(QString bo_str) const;

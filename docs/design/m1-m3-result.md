@@ -748,3 +748,93 @@ immediate schedule happens) and was verified RED with the
 scheduling-time stop removed. Recorded benchmarks unaffected (Tom:
 no rerun needed). **With this follow-up, S7 carries Tom's formal go
 for S8.**
+
+## S8 — wrap-up: design review, supersession-map verification, turnover (July 31, 2026)
+
+### Design-review criteria (spec, "Design-review criteria"): all six HOLD
+
+Verified on the finished branch by independent evidence sweep, judged
+here. Key evidence per criterion:
+
+1. **No refresh-driven reset.** The only reset primitive is
+   `ItemsModel::beginUpdate` with exactly two call sites:
+   `Search::FilterItems` (sole caller `ModelViewRefresh`, whose five
+   call chains are all user-initiated or the `initial_refresh` branch
+   of `OnItemsRefreshed`) and `Search::SetViewMode` (user mode
+   switch). Both delta handlers and the non-initial snapshot route
+   through row operations only.
+2. **Delta path O(delta + affected bucket).** The per-delta path
+   touches one bucket via hash lookups; the only O(n) pass is D4's
+   stated `Bucket::ReplaceSourceRows`. Two bounded terms outside the
+   criterion's original phrasing — the O(tab-count) row-lookup remap
+   on structural ops (accepted at S4 review round 1) and the By-Item
+   buyout-repaint flat-bucket scan (accepted at S2, batch path not
+   delta path) — are now recorded as a dated clarification at the
+   criterion (no new decision; both already accepted in review).
+3. **Single ordering truth.** Every column family's `lt` and `key`
+   derive from one private computation (`Column::parts`,
+   `PriceColumn::head`, `DateColumn::head`); the shared suffix equals
+   `Item::operator<`'s `(PrettyName, uid, hash)` exactly;
+   equivalence pinned by `keyedOrderMatchesComparatorOrder`.
+4. **Choke point complete; batching holds.** Every public mutation of
+   the buyout lookup state reports through `RecordChange` (Set,
+   SetTab, both Compress passes, Clear, MigrateItem — the latter
+   under its own internal batch); nested batches emit only at the
+   outermost boundary; the snapshot pricing sequence is one batch;
+   `RepaintBuyoutCells` runs unconditionally of the sort column. One
+   latent hole found and closed this stage: `BuyoutManager::Load()`
+   rewrote the lookup state wholesale, without recording, as a
+   PUBLIC method (benign — sole caller is the constructor,
+   pre-model) — now private with the constraint documented.
+5. **Lane separation.** Zero `poe::*` in `sortkey.h`, `search.h`,
+   `bucket.h`, `locationinventory.h`; the only wire types in the key
+   surface's transitive closure are `ItemLocation`'s ingestion
+   constructors, which the criterion permits.
+6. **Exactly three stated renegotiations, none silent.** R1-4
+   (metadata half, retiring M2 R7-2's exception), R1-7 (rule 1
+   relaxed for the active search), and the July 31 intersection-set
+   deletion amendment. The deleted sets have zero occurrences in
+   `src/` — the amendment was executed, not just recorded. Three
+   spec passages still described the sets as live (the amendment had
+   promised the pin-text narrowing but it had not been applied);
+   completed this stage: D3's index bullet and the
+   `deltaUpdatesVisibleIndexesIncrementally` criterion narrowed to
+   `m_visible_by_id`, the staleness-preamble mention annotated
+   as-at-freeze, and the amendment labeled as the third
+   renegotiation so the count greps true.
+
+### Supersession map: executed exactly
+
+All three categories verified against the current tree and git
+history: every category-1/2 pin ABSENT (each removed in its named
+stage — S4 deletions in `2a572e5d`, S5 deletions in `f51b7906`),
+every named successor PRESENT (including the two same-commit
+landings the no-green-gap traps required:
+`selectionIntentSurvivesCrossTabMoveAcrossDeltas` in `2a572e5d`,
+`scrollAndCaptureSurviveUserRefilter` in `f51b7906`), every
+category-3 survivor PRESENT as a live test slot. No stray throttle
+machinery: `m_delta_throttle`, `ScheduleDeltaTick`,
+`OnDeltaThrottleTimeout` have zero occurrences in `src/` and
+`tests/`; the only delta-adjacent timer is the S7 resize debounce.
+Two stale present-tense comments describing retired machinery
+(`mainwindow_bridge.cpp` "throttled, intersection-gated refilter
+machinery"; `mainwindow.cpp` "when the throttled reset needs it")
+reworded to the current design. Evidence note for future audits:
+`git log -S` misses `reselectionSurvivesCrossTabMove`'s removal
+because the S4 commit added as many comment mentions as it removed
+occurrences — use `-G`.
+
+### Turnover
+
+- Spec: M1-M3 open item marked RESOLVED with the S5 miss/remedy and
+  S7 gate summary; the three intersection-set passages completed
+  (above); the complexity criterion's dated clarification.
+- Sequencing doc: status IMPLEMENTED (July 31, 2026).
+- Parent plan: M2 heading marked SHIPPED (PR #185), M3 heading
+  marked IMPLEMENTED with a result summary; M1-M2 named as the one
+  remaining follow-up (blocks nothing).
+- `docs/README.md`: pipeline entries updated (M2-M2 resolved, M1-M3
+  passed, sequencing docs implemented, this result doc cited).
+- Findings register: F67 was moved to the resolved ledger at S1;
+  F66's entry now records that M3 completed without reworking the
+  legacy stores (D7's deliberate non-exercise) and the hook stands.

@@ -124,8 +124,10 @@ so the worker and the published copy can never diverge on a
 collision), and documents this boundary in D3. Rekeying the legacy
 stores is a migration project (persisted buyout keys included) out
 of proportion to the risk; this finding is the hook if a collision
-ever materializes or the stores are otherwise reworked (M3 is the
-natural opportunity).
+ever materializes or the stores are otherwise reworked. (M3 was
+named the natural opportunity but completed July 31, 2026 without
+reworking the stores — its spec's D7 records the deliberate
+non-exercise; the hook stands.)
 
 ## Standing constraints and lessons
 

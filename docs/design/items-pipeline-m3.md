@@ -92,8 +92,9 @@ since:
   `m_bucket_by_tab`/`m_bucket_by_item` (`ViewMode::ByTab`/`ByItem`),
   expansion keyed by stable `(type, id)` (M2 R6-3,
   `m_expanded_keys`), the reselection index `m_visible_by_id`, the
-  intersection sets `m_visible_sources`(`_by_tab`), and the scroll
-  anchor. `defaultExpanded()` is `m_filtered || ByItem`
+  intersection sets `m_visible_sources`(`_by_tab`) (as-at-freeze
+  state; deleted mid-implementation by the July 31 amendment in D3),
+  and the scroll anchor. `defaultExpanded()` is `m_filtered || ByItem`
   (`search.h:86`). Buckets hold `std::shared_ptr<Item>` vectors;
   per-tab caps bound a display bucket at 576 items (quad tab).
 - **The M2 signal surface is settled ground**: worker
@@ -460,7 +461,9 @@ fine-grained operations scoped to the affected bucket:
   (R1-4) — so "does this delta intersect?" is no longer a question
   any consumer asks ahead of applying.
   `deltaUpdatesVisibleIndexesIncrementally`'s source-index wording
-  narrows to the indexes that retain consumers.)*
+  narrows to the indexes that retain consumers. This amendment is
+  the third of the design-review criteria's three stated
+  renegotiations of inherited M2 machinery.)*
   (`metadataDeltaAppliesWithoutItemIntersection`). Filtered searches
   still hide empty buckets (`search.cpp:277-286`) — and the delta
   path converges to that state: a bucket a delta empties leaves a
@@ -469,9 +472,10 @@ fine-grained operations scoped to the affected bucket:
   amended any-filter-active definition (post-freeze amendment,
   July 31, 2026; `filteredSearchDropsEmptiedBucket`).
 - **Search-side indexes are maintained incrementally**: the delta
-  updates `m_visible_by_id`, `m_visible_sources`(`_by_tab`), and the
-  bucket in O(delta); no whole-collection rebuild rides along. The
-  full rebuild remains the refilter's job (D6).
+  updates `m_visible_by_id` and the bucket in O(delta); no
+  whole-collection rebuild rides along. (The intersection sets this
+  bullet originally also named are deleted — the July 31 amendment
+  above.) The full rebuild remains the refilter's job (D6).
 
 **The D9 throttle is retired for the current search.** Its reason to
 exist — reset-plus-restore too expensive to pay per delta — is gone:
@@ -716,9 +720,10 @@ Model-level (Qt Test, against the `MainWindow` fixture and a direct
   the model layer: an empty replacement leaves an empty bucket row
   (unfiltered search), never a bucket removal.
 - `deltaUpdatesVisibleIndexesIncrementally` — after a delta,
-  `m_visible_by_id`, `m_visible_sources`, and `HasVisibleGhostUnder`
-  answer as if freshly refiltered, with no whole-collection rebuild
-  (probe: rebuild counters).
+  `m_visible_by_id` answers as if freshly refiltered, with no
+  whole-collection rebuild (probe: rebuild counters). (Originally
+  also named the intersection sets and their query surface; narrowed
+  by the July 31 amendment in D3, which deleted them.)
 - `bucketRepositionsByMoveOnMetadataDelta` — a rename/move delta
   repositions the bucket via move operations; expansion and selection
   follow the stable `(type, id)` key (extends M2 R6-3's pins from
@@ -879,7 +884,15 @@ Design-review criteria (checked in review, not runnable):
 - The delta path is O(delta + affected bucket) everywhere except
   D4's stated O(n + d) By-Item merge pass; no whole-collection scan
   or rebuild rides on any delta (M2 hard constraint, extended to the
-  model layer).
+  model layer). *(S8 design-review clarification, July 31, 2026 —
+  recording two bounded terms already accepted in implementation
+  review, not new decisions: structural delta ops — bucket
+  insertion, removal, and metadata repositioning — additionally pay
+  an O(tab-count) row-lookup remap, accepted at S4 review round 1
+  (`m1-m3-result.md`); and a buyout batch's By-Item cell repaint
+  scans the flat bucket once, the D4-shaped exception accepted at
+  S2 (D1 rule 4's repaint path, not the delta path). Neither is
+  collection-of-items scale.)*
 - Keys are derived from the comparators, which remain the single
   source of ordering truth; no code path defines order twice.
 - D1 rule 4's `BuyoutManager` mutation enumeration is complete —
@@ -915,12 +928,26 @@ Design-review criteria (checked in review, not runnable):
   `m3-sort-profile-result.md`. Consumed by D1–D6 and the hold-point
   record.
 - **M1-M3 (measurement, implementation checkpoint — blocks M3
-  completion):** the performance/memory budget table above, run on
-  the implemented model with the spike presets and a recorded
-  environment, plus per-component attribution (filter loop, key
-  build, sort, model ops, merge) so a miss names its component
-  before a remedy is chosen — the M2-M2 discipline. Delta-application
-  scenarios use fixed recorded reply shapes as M2-M2's did.
+  completion) — RESOLVED July 31, 2026:** the performance/memory
+  budget table above, run on the implemented model with the spike
+  presets and a recorded environment, plus per-component attribution
+  (filter loop, key build, sort, model ops, merge) so a miss names
+  its component before a remedy is chosen — the M2-M2 discipline.
+  Delta-application scenarios use fixed recorded reply shapes as
+  M2-M2's did. Conditional hold-point rows ran per stage: S3 and S4
+  passed; **S5's By-Item merge row MISSED ~28×** (per-run row
+  operations on collection-sized vectors), paused the sequence, and
+  Tom selected the A′ translate-and-notify remedy (one O(n+d)
+  rebuild emitting the same O(runs) batches) plus the per-run
+  repaint-rectangle fix — rerun passed every row. The formal
+  complete-table S7 gate then **PASSED every budgeted row at both
+  presets**, with both candidate worst memory shapes judged at
+  process level (≤ 300 MB row: By-Item 223.7 MB, broad-filter
+  fully-expanded By-Tab 210.0 MB at 1m). S7 review round 1 made the
+  gate harness fail loudly and debounced the per-delta deferred
+  column resize it surfaced. Full tables, attribution, environment,
+  and the S5 miss/remedy record: `m1-m3-result.md` (beside this
+  spec).
 
 ## Input traceability
 
