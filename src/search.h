@@ -46,10 +46,10 @@ public:
     ~Search();
     void FilterItems(const Items &items);
     const QString &caption() const { return m_caption; }
-    // The visible filtered collection. After S4 the delta path maintains
-    // the buckets and indexes incrementally and this flat vector is
-    // rebuilt lazily from the By-Tab buckets on first read — no delta
-    // pays an O(collection) pass to keep it fresh.
+    // The visible filtered collection. The delta path maintains the
+    // active mode's buckets and the indexes incrementally (S4/S5) and
+    // this flat vector is rebuilt lazily from the maintained side on
+    // first read — no delta pays an O(collection) pass to keep it fresh.
     const Items &items() const;
     const std::vector<std::unique_ptr<Column>> &columns() const { return m_columns; }
     ItemsModel &model() { return m_model; }
@@ -132,6 +132,15 @@ public:
     // switch.
     void EvictResidentKeys();
 
+    // The R3-1 eager carve-out at the activation boundary (D4 rule 1, M3
+    // S5): a clean By-Item search's flat bucket holds resident keys
+    // whenever the search is active, so no delta ever meets a keyless
+    // flat bucket and the merge budget holds unconditionally. Called
+    // after activation has decided dirtiness — a dirty search refiltered
+    // instead, its sort supplying the keys. No-op in By-Tab mode and
+    // when keys are already resident.
+    void HydrateFlatBucketKeys();
+
     // D1 rules 2-3: clears every bucket's sorted flag, both view modes —
     // any (column, order) change invalidates every order at once.
     void InvalidateAllOrder();
@@ -194,20 +203,23 @@ public:
         int inserted_bucket_row{-1};
     };
 
-    // Applies a TabRefreshed delta as bucket-scoped operations (D3):
-    // metadata first (R1-4 — rename/move/color render now, item
+    // Applies a TabRefreshed delta. By-Tab: bucket-scoped operations
+    // (D3) — metadata first (R1-4 — rename/move/color render now, item
     // intersection notwithstanding), then a source-scoped row replacement
     // within the display bucket — arrivals merged into the retained sorted
     // order when the bucket is visible (R2-2), appended arrival-ordered
-    // when collapsed. Visible indexes are maintained incrementally.
-    // By-Tab mode only: any other mode returns unprocessed and the caller
-    // falls back to the throttled seam.
+    // when collapsed. By-Item (D4, S5): the flat bucket's per-delta
+    // contract — erase the source's rows as contiguous removeRows runs,
+    // then merge the filter-accepted arrivals into the resident sorted
+    // order; the By-Tab side is marked stale and rebuilds at the next
+    // mode switch. Visible indexes are maintained incrementally in both.
     DeltaApplication ApplyTabDelta(const ItemLocation &location, const Items &items);
 
-    // Applies a ChildrenReconciled aggregate as row removals scoped to the
-    // parent's bucket (D3): visible items under the parent's stable key
-    // whose fetch source is outside the expected set leave via contiguous
-    // removeRows batches.
+    // Applies a ChildrenReconciled aggregate as row removals (D3):
+    // visible items under the parent's stable key whose fetch source is
+    // outside the expected set leave via contiguous removeRows batches —
+    // scoped to the parent's bucket in By-Tab, to the parent's rows
+    // within the flat bucket in By-Item (S5).
     DeltaApplication ApplyChildReconciliation(const ItemLocation &parent,
                                               const std::vector<FetchSourceKey> &expected);
 
@@ -251,9 +263,21 @@ private:
     // Returns true when anything was removed.
     template<typename Predicate>
     bool RemoveBucketRows(int bucket_row, Predicate &&predicate);
-    // Inserts filter-accepted arrivals: sorted merge into a visible sorted
-    // bucket (R2-2), arrival-ordered append otherwise.
+    // Inserts filter-accepted arrivals: sorted merge into a materialized
+    // sorted bucket (R2-2 in By-Tab; the D4 merge in By-Item, where the
+    // flat bucket is materialized by definition), arrival-ordered append
+    // otherwise.
     void InsertArrivals(int bucket_row, const Items &accepted);
+    // The D4 flat-bucket content application (S5): source-scoped erase,
+    // then the sorted merge of the accepted arrivals; source indexes and
+    // staleness marks maintained. The arrivals were already filtered.
+    DeltaApplication ApplyFlatDelta(const LocationInventory::Key &delta_key,
+                                    const FetchSourceKey &source,
+                                    const Items &accepted);
+    // Rebuilds the By-Tab display buckets from the maintained flat
+    // collection when leaving By-Item mode (S5): By-Item deltas mark the
+    // By-Tab side stale instead of maintaining two structures per delta.
+    void RebuildTabBucketsFromFlat();
 
     BuyoutManager &m_bo_manager;
     const LocationInventory *m_location_inventory{nullptr};
@@ -316,11 +340,15 @@ private:
     std::map<LocationInventory::Key, int> m_row_by_key;
     std::uint64_t m_next_bucket_serial{1};
 
-    // S4 staleness marks: the delta path maintains the By-Tab buckets and
-    // indexes; the flat views rebuild lazily — m_items on first read, the
-    // By-Item flat bucket at the next mode switch.
+    // Staleness marks: the delta path maintains the ACTIVE mode's buckets
+    // and the indexes (S4 By-Tab, S5 By-Item); the other side rebuilds
+    // lazily — m_items on first read, the inactive mode's buckets at the
+    // next mode switch. At most one of the two mode marks is set: each
+    // mode's application stales the other side, and a refilter clears
+    // both.
     mutable bool m_items_stale{false};
     bool m_flat_bucket_stale{false};
+    bool m_tab_buckets_stale{false};
 
     QString m_caption;
     mutable Items m_items;

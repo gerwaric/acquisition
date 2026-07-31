@@ -21,7 +21,10 @@
 // source replaced inside the largest expanded bucket so removal runs
 // scatter through retained sibling-source rows and the merge interleaves
 // against them; the simple single-source full replacement is kept as an
-// informational row. By-Item rows wait for S5's machinery.
+// informational row. S5 rows: By-Item full refilter, clean By-Item
+// reactivation (the R3-1 eager hydration), the D4 flat-bucket merge
+// (same interleaved child source, By-Item active), and the worst-shape
+// resident key memory — gauge plus process-level footprint delta.
 //
 // Attribution follows the M2-M2 discipline: the live windows are timed
 // end-to-end, sort/key work is attributed by the model probes (counts)
@@ -43,6 +46,10 @@
 #include <map>
 #include <memory>
 #include <vector>
+
+#ifdef __APPLE__
+#include <mach/mach.h>
+#endif
 
 #include <spdlog/sinks/dist_sink.h>
 #include <spdlog/spdlog.h>
@@ -105,6 +112,22 @@ namespace {
         for (int n = 0; n < 8; ++n) {
             QCoreApplication::processEvents(QEventLoop::AllEvents);
         }
+    }
+
+    // Process-level memory footprint (phys_footprint on macOS — the
+    // number Activity Monitor calls "memory"). The S5/S7 resident-key
+    // budget is stated at process level; the gauge is an estimate.
+    std::int64_t processFootprintBytes()
+    {
+#ifdef __APPLE__
+        task_vm_info_data_t info;
+        mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+        if (task_info(mach_task_self(), TASK_VM_INFO, reinterpret_cast<task_info_t>(&info), &count)
+            == KERN_SUCCESS) {
+            return static_cast<std::int64_t>(info.phys_footprint);
+        }
+#endif
+        return -1;
     }
 
     struct BudgetRow
@@ -365,6 +388,9 @@ int main(int argc, char *argv[])
     }
 
     // --- Row 5 (S4): delta application, By-Tab visible bucket -------------
+    // The child source is shared with the S5 By-Item merge row below.
+    ItemLocation child_source;
+    Items child_arrivals;
     {
         // Back on Search 1, clean state: the delta lands on the current
         // search's visible bucket.
@@ -434,10 +460,10 @@ int main(int argc, char *argv[])
         // The budgeted shape: the child source, seeded once (warmup),
         // then replaced per rep. Fresh ids keep the id index on its
         // unique fast path, as real arrivals would.
-        ItemLocation child_source = target;
+        child_source = target;
         child_source.setFetchId("bench-child-0001");
         const poe::StashTab donor = dataset.MakeStashReply(donor_tab);
-        Items arrivals;
+        Items &arrivals = child_arrivals;
         if (donor.items) {
             arrivals.reserve(donor.items->size());
             int serial = 0;
@@ -478,7 +504,150 @@ int main(int argc, char *argv[])
         drainEvents();
     }
 
-    std::printf("\n=== M3 S3+S4 hold-point result: preset %s, %d tabs, %zu items, Qt %s ===\n",
+    // --- S5 rows: By-Item (D4 merge, R3-1 eager activation, memory) -------
+    {
+        const double budget_byitem_refilter_ms = is_100k ? 250.0 : is_1m ? 1500.0 : -1.0;
+        const double budget_byitem_react_ms = is_100k ? 100.0 : is_1m ? 500.0 : -1.0;
+        // The merge budget is stated at 1m only; 100k is informational.
+        const double budget_byitem_merge_ms = is_1m ? 50.0 : -1.0;
+
+        auto *viewCombo = fixture.window->findChild<QComboBox *>("viewComboBox");
+        if (!viewCombo) {
+            std::fprintf(stderr, "viewComboBox not found\n");
+            return 1;
+        }
+
+        // Enter By-Item on the current search. Informational: the mode
+        // switch itself (flat rebuild + keyed flat sort at the D6
+        // boundary).
+        const std::int64_t footprint_before = processFootprintBytes();
+        t0 = clock.nsecsElapsed();
+        viewCombo->setCurrentIndex(1);
+        emit viewCombo->activated(1);
+        const qint64 switch_ns = clock.nsecsElapsed() - t0;
+        drainEvents();
+        rows.push_back({"  mode switch into By-Item (build + sort)", toMs(switch_ns), -1.0});
+
+        // Row: By-Item full refilter (user-initiated: filter loop + keyed
+        // build + flat sort, reset and restore included).
+        {
+            std::vector<qint64> samples;
+            for (int rep = 0; rep < 3; ++rep) {
+                t0 = clock.nsecsElapsed();
+                fixture.window->OnSearchFormChange();
+                samples.push_back(clock.nsecsElapsed() - t0);
+                drainEvents();
+            }
+            rows.push_back({"By-Item full refilter (median of 3)",
+                            toMs(median(samples)),
+                            budget_byitem_refilter_ms});
+        }
+
+        // Memory row: the worst materialized shape (the whole collection
+        // resident in the flat bucket's key vector). The gauge is the
+        // estimate; the ≤ 300 MB aggregate budget is judged at process
+        // level (footprint delta across entering the shape).
+        const std::int64_t footprint_after = processFootprintBytes();
+        const double gauge_mb = static_cast<double>(probes.live_key_bytes) / (1024.0 * 1024.0);
+        if ((footprint_before >= 0) && (footprint_after >= 0)) {
+            const double delta_mb = static_cast<double>(footprint_after - footprint_before)
+                                    / (1024.0 * 1024.0);
+            const bool pass = !is_1m || (delta_mb <= 300.0);
+            std::printf("  [memory] By-Item resident keys: gauge %.1f MB; process footprint "
+                        "delta %.1f MB (budget 300 MB aggregate at 1m)%s\n",
+                        gauge_mb,
+                        delta_mb,
+                        is_1m ? (pass ? "  PASS" : "  MISS") : "  (informational)");
+        } else {
+            std::printf("  [memory] By-Item resident keys: gauge %.1f MB (no process "
+                        "footprint API on this platform)\n",
+                        gauge_mb);
+        }
+
+        // Row: clean By-Item reactivation — deactivation evicts the flat
+        // keys (R2-4); reactivation decides dirtiness first and hydrates
+        // eagerly (R3-1). Timed end-to-end through the tab switch, the
+        // user action that pays it.
+        {
+            tabs->setCurrentIndex(1);
+            drainEvents();
+            probes.reset();
+            probes.enabled = true;
+            t0 = clock.nsecsElapsed();
+            tabs->setCurrentIndex(0);
+            const qint64 react_ns = clock.nsecsElapsed() - t0;
+            probes.enabled = false;
+            drainEvents();
+            rows.push_back({"clean By-Item reactivation (eager hydration)",
+                            toMs(react_ns),
+                            budget_byitem_react_ms});
+            std::printf("  [attribution] reactivation: refilters=%lld key_builds=%lld "
+                        "model_resets=%lld (clean: no refilter, one eager build)\n",
+                        static_cast<long long>(probes.refilters),
+                        static_cast<long long>(probes.key_builds),
+                        static_cast<long long>(probes.model_resets));
+        }
+
+        // Row: the D4 flat-bucket merge — the same interleaved child
+        // source as the S4 row, replaced per rep while By-Item is active:
+        // erase runs scatter through the whole resident order and the 576
+        // arrivals merge against the collection-sized retained vector.
+        {
+            fixture.window->OnTabRefreshed(child_source, child_arrivals); // warmup
+            drainEvents();
+            std::vector<qint64> samples;
+            for (int rep = 0; rep < 5; ++rep) {
+                t0 = clock.nsecsElapsed();
+                fixture.window->OnTabRefreshed(child_source, child_arrivals);
+                samples.push_back(clock.nsecsElapsed() - t0);
+                drainEvents();
+            }
+            rows.push_back({"S5 By-Item merge (child-source replacement)",
+                            toMs(median(samples)),
+                            budget_byitem_merge_ms});
+
+            probes.reset();
+            probes.enabled = true;
+            fixture.window->OnTabRefreshed(child_source, child_arrivals);
+            probes.enabled = false;
+            std::printf("  [attribution] By-Item merge: bucket_sorts=%lld key_builds=%lld "
+                        "keyed_compares=%lld index_rebuilds=%lld refilters=%lld "
+                        "model_resets=%lld\n",
+                        static_cast<long long>(probes.bucket_sorts),
+                        static_cast<long long>(probes.key_builds),
+                        static_cast<long long>(probes.keyed_compares),
+                        static_cast<long long>(probes.index_rebuilds),
+                        static_cast<long long>(probes.refilters),
+                        static_cast<long long>(probes.model_resets));
+            drainEvents();
+
+            // Attribution micro on identical data, outside the timed
+            // window: the same flat delta against a bare Search whose
+            // model has NO view attached — splits the bucket-vector
+            // shuffle (per-run erase/insert on the collection-sized item
+            // and key vectors) from the view-side per-batch row splice
+            // (QTreeView's flat visible-row list pays its own memmove per
+            // begin/end pair).
+            {
+                const FilterCatalog catalog = BuildFilterCatalog(*fixture.buyoutFixture.manager);
+                Search bare(*fixture.buyoutFixture.manager, "micro", catalog);
+                Items with_child = all_items;
+                with_child.insert(with_child.end(), child_arrivals.begin(), child_arrivals.end());
+                bare.FilterItems(with_child);
+                // SetViewMode sorts the flat bucket and leaves its keys
+                // resident (R3-1) — the same pre-delta state as the live
+                // window's.
+                bare.SetViewMode(Search::ViewMode::ByItem);
+                t0 = clock.nsecsElapsed();
+                bare.ApplyTabDelta(child_source, child_arrivals);
+                std::printf("  [micro] bare flat delta, no view attached: %.3f ms "
+                            "(remainder of the live row is view-side batch handling)\n",
+                            toMs(clock.nsecsElapsed() - t0));
+            }
+        }
+    }
+
+    std::printf("\n=== M3 S3-S5 hold-point result: preset %s, %d tabs, %zu items, Qt %s ===\n",
                 qPrintable(preset_name),
                 dataset.tabCount(),
                 all_items.size(),

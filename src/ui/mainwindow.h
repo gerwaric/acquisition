@@ -67,23 +67,18 @@ public:
     ~MainWindow();
     void LoadSettings();
 
-    // Injectable throttle period S for the D9 streamed-delta refilter
-    // (items-pipeline M2; production value 60 s). The suite drives it at
-    // milliseconds so throttle pins never wait wall-clock S.
-    void SetDeltaThrottleInterval(int ms);
-
 signals:
     void UpdateCheckRequested();
     void SetSessionId(const QString &poesessid);
     void SetTheme(const QString &theme);
     void GetImage(const QString &url);
 public slots:
-    // Streamed-delta consumers (items-pipeline M3, S4/D3): an active
-    // By-Tab search applies each delta immediately as bucket-scoped row
-    // operations and stays clean (R1-7); background searches keep M2 D9
-    // rule 1 verbatim. A By-Item active search keeps the D9 throttled
-    // fallback (S4 seam, deleted in S5). Aggregate reconciliations apply
-    // as row removals scoped to the parent's bucket.
+    // Streamed-delta consumers (items-pipeline M3, D3/D4): the active
+    // search applies each delta immediately and stays clean (R1-7) —
+    // bucket-scoped row operations in By-Tab, the flat sorted merge in
+    // By-Item (S5); background searches keep M2 D9 rule 1 verbatim.
+    // Aggregate reconciliations apply as row removals scoped to the
+    // parent's rows.
     void OnTabRefreshed(const ItemLocation &location, const Items &items);
     void OnChildrenReconciled(const ItemLocation &parent,
                               const std::vector<FetchSourceKey> &expected);
@@ -151,13 +146,6 @@ private slots:
     void OnUploadToImgur();
 
 private:
-    // D9 throttle internals, kept as the By-Item fallback seam (M3 S4,
-    // deleted in S5): a non-resetting trailing throttle with period S
-    // owned by the current search.
-    bool DeltaIntersectsCurrentSearch(const ItemLocation &location, const Items &items) const;
-    void ScheduleThrottledRefilter();
-    void OnDeltaThrottleTimeout();
-
     // S4 delta-application tail: dirty-flag adjudication (R1-7), view-side
     // default-expansion of an inserted bucket, caption refresh, and the
     // selection-intent pass.
@@ -222,12 +210,6 @@ private:
     // window (R2-1). A user selection overwrites it at any time.
     QString m_selection_intent_id;
     bool m_refresh_active{false};
-    // R2-1 closure deferred past the fallback seam (S4 review round 1): a
-    // terminal outcome arriving while the current search is items-dirty
-    // (the By-Item fallback skipped application) cannot adjudicate the
-    // intent against that search's stale indexes; the search's next
-    // refilter is the first honest state, and the closure runs there.
-    bool m_intent_close_pending{false};
     // Row operations make the view shuffle its current index (Qt moves
     // current off a removed row); while set, OnCurrentItemChanged ignores
     // those shifts so they cannot overwrite the intent.
@@ -247,11 +229,6 @@ private:
     QTimer m_delayed_update_current_item;
     QTimer m_delayed_search_form_change;
     QTimer m_delayed_resize_columns;
-    // The current search's pending D9 tick (single-shot, period S). Started
-    // by the first intersecting delta, never re-armed by later arrivals;
-    // canceled by a successful refilter of the current search, a tab switch
-    // or deletion of the current search, and the final snapshot.
-    QTimer m_delta_throttle;
     QMetaObject::Connection m_current_item_conn;
     RateLimitDialog *m_rate_limit_dialog;
     bool m_quitting;

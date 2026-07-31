@@ -66,9 +66,6 @@ constexpr const char *POE_WEBCDN
 
 constexpr int CURRENT_ITEM_UPDATE_DELAY_MS = 100;
 constexpr int SEARCH_UPDATE_DELAY_MS = 350;
-// The D9 throttle period S (items-pipeline M2): confirmed by the S1-M2
-// spike at 60 s, chosen to dominate the ~20 s/tab arrival cadence.
-constexpr int DELTA_THROTTLE_INTERVAL_MS = 60 * 1000;
 
 struct ImgurStatus
 {
@@ -133,10 +130,6 @@ MainWindow::MainWindow(QSettings &settings,
     m_delayed_resize_columns.setInterval(0);
     m_delayed_resize_columns.setSingleShot(true);
     connect(&m_delayed_resize_columns, &QTimer::timeout, this, &MainWindow::ResizeTreeColumns);
-
-    m_delta_throttle.setInterval(DELTA_THROTTLE_INTERVAL_MS);
-    m_delta_throttle.setSingleShot(true);
-    connect(&m_delta_throttle, &QTimer::timeout, this, &MainWindow::OnDeltaThrottleTimeout);
 
     // The M3 buyout batch response (S2): one model update per outer batch
     // boundary, delivered synchronously at the emitting mutation's end.
@@ -229,17 +222,11 @@ void MainWindow::InitializeUi()
             SaveViewExpansion(*m_current_search);
             m_current_search->SetViewMode(mode);
             if (m_current_search->itemsDirty()) {
-                // A mode switch is one of D6's user-initiated refilter
-                // boundaries (S4 review round 1): a search the By-Item
-                // fallback left items-dirty refilters NOW — otherwise the
-                // arriving mode renders un-applied state, and a pending
-                // fallback tick would later reset a By-Tab model the
-                // throttle no longer owns. The refilter's tail cancels
-                // that tick. Two back-to-back resets (the switch's, then
-                // the refilter's) are accepted for this seam-created
-                // case (S4 review round 3): nothing observes the
-                // intermediate state within the synchronous span, and
-                // the dirty case dies with the seam in S5.
+                // R1-7 fail-safe at a D6 boundary: a search left
+                // items-dirty (application was skipped) refilters NOW so
+                // the arriving mode never renders un-applied state.
+                // Unreachable in normal operation since S5 — the delta
+                // path applies immediately in both view modes.
                 m_current_search->SetRefreshReason(RefreshReason::ItemsChanged);
                 ModelViewRefresh();
             } else {
@@ -791,8 +778,6 @@ void MainWindow::OnDeleteTabClicked(int index)
     auto &search = m_searches[index];
     m_search_form->unbind(*search);
     if (m_current_search == search.get()) {
-        // D9 rule 4: a pending tick must never fire against the dead search.
-        m_delta_throttle.stop();
         m_current_search = nullptr;
     }
     m_searches.erase(m_searches.begin() + index);
@@ -802,11 +787,6 @@ void MainWindow::OnDeleteTabClicked(int index)
     // no-op because m_current_search is null, and the view receives its new
     // model before repaint can touch the destroyed search.
     m_tab_bar->removeTab(index);
-}
-
-void MainWindow::SetDeltaThrottleInterval(int ms)
-{
-    m_delta_throttle.setInterval(ms);
 }
 
 void MainWindow::OnTabRefreshed(const ItemLocation &location, const Items &items)
@@ -821,26 +801,11 @@ void MainWindow::OnTabRefreshed(const ItemLocation &location, const Items &items
     if (!m_current_search) {
         return;
     }
-    // The first delta opens the selection-intent window (R1-3) —
-    // regardless of application mechanism: the fallback seam defers
-    // application, never the intent contract (S4 review round 1). A new
-    // refresh also supersedes any unresolved deferred closure (S4 review
-    // round 2): its own terminal re-adjudicates, and a stale deferral
-    // firing mid-refresh could clear the intent between a removal and a
-    // cross-tab insertion.
+    // The first delta opens the selection-intent window (R1-3).
     m_refresh_active = true;
-    m_intent_close_pending = false;
-    if (m_current_search->GetViewMode() == Search::ViewMode::ByItem) {
-        // M3 S4 fallback seam (working rule 2), DELETED IN S5: a By-Item
-        // active search keeps the D9 throttled path — rules 1-2 verbatim.
-        m_current_search->setItemsDirty(true);
-        if (DeltaIntersectsCurrentSearch(location, items)) {
-            ScheduleThrottledRefilter();
-        }
-        return;
-    }
-    // D3: the active By-Tab search applies the delta now, as bucket-scoped
-    // row operations.
+    // The active search applies the delta now: bucket-scoped row
+    // operations in By-Tab (D3), the flat sorted merge in By-Item (D4,
+    // S5 — the D9 throttled fallback is gone).
     m_applying_delta = true;
     const auto result = m_current_search->ApplyTabDelta(location, items);
     m_applying_delta = false;
@@ -861,16 +826,7 @@ void MainWindow::OnChildrenReconciled(const ItemLocation &parent,
     if (!m_current_search) {
         return;
     }
-    m_refresh_active = true;        // the intent window covers both mechanisms
-    m_intent_close_pending = false; // a new refresh supersedes an old deferral
-    if (m_current_search->GetViewMode() == Search::ViewMode::ByItem) {
-        // M3 S4 fallback seam (working rule 2), DELETED IN S5.
-        m_current_search->setItemsDirty(true);
-        if (m_current_search->HasVisibleGhostUnder(parent, expected)) {
-            ScheduleThrottledRefilter();
-        }
-        return;
-    }
+    m_refresh_active = true; // the intent window covers every delta form
     m_applying_delta = true;
     const auto result = m_current_search->ApplyChildReconciliation(parent, expected);
     m_applying_delta = false;
@@ -974,14 +930,10 @@ void MainWindow::ReconcileSelectionIntent()
             ResetBuyoutWidgets();
         }
     }
-    if (!m_current_item && (m_refresh_active || m_intent_close_pending)
-        && !m_selection_intent_id.isEmpty()) {
+    if (!m_current_item && m_refresh_active && !m_selection_intent_id.isEmpty()) {
         // Re-adoption through the global identity index: any delta
         // inserting an item with the intent's id — any bucket — restores
-        // the selection via the normal selection path. The deferred-close
-        // window counts as still-open (S4 review round 1): an insertion
-        // that arrived before the terminal event but was applied by a
-        // later fallback refilter still re-adopts.
+        // the selection via the normal selection path.
         if (const auto adopted = m_current_search->visibleItemById(m_selection_intent_id)) {
             const QModelIndex index = m_current_search->index(adopted);
             if (index.isValid()) {
@@ -1001,72 +953,17 @@ void MainWindow::OnRefreshFinished(const RefreshOutcome &outcome)
     // (S6 moves that boundary into the row reconciliation); on failure —
     // which emits no final snapshot — the absence check runs here, so a
     // stale intent can never survive one refresh and reselect an item in
-    // a later one.
+    // a later one. The immediate delta path keeps the current search's
+    // indexes fresh (S5: no fallback can leave them stale), so the check
+    // adjudicates honestly at the terminal event itself — the S4-era
+    // deferral machinery died with the seam.
     m_refresh_active = false;
     if (m_selection_intent_id.isEmpty() || !m_current_search) {
-        m_intent_close_pending = false;
         return;
     }
-    if (m_current_search->itemsDirty() && m_delta_throttle.isActive()) {
-        // The fallback seam skipped application, so this search's indexes
-        // are stale — an absence check here would happily retain an
-        // intent for an already-removed item (S4 review round 1). Defer
-        // the closure to the search's next refilter, the first honest
-        // state; the pending D9 tick guarantees one within S.
-        m_intent_close_pending = true;
-        return;
-    }
-    // Dirty with NO pending tick means every delta since this search's
-    // last refilter failed the intersection test — by that test's
-    // definition none removed or added a visible row, so the current
-    // index answers the absence check honestly despite the flag (S4
-    // review round 2: an unconditional deferral could otherwise wait
-    // forever and fire mid-way through a LATER refresh).
     if (!m_current_search->visibleItemById(m_selection_intent_id)) {
         m_selection_intent_id.clear();
     }
-}
-
-bool MainWindow::DeltaIntersectsCurrentSearch(const ItemLocation &location, const Items &items) const
-{
-    // Removal half first: an empty or shrunken replacement counts as a
-    // visible change iff anything visible was fetched from this source.
-    if (m_current_search->HasVisibleSource(FetchSourceKey::ForLocation(location))) {
-        return true;
-    }
-    // Match half: any delta item passes the current filter set. O(delta).
-    for (const auto &item : items) {
-        if (m_current_search->MatchesActiveFilters(*item)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-void MainWindow::ScheduleThrottledRefilter()
-{
-    // Non-resetting trailing throttle with period S (D9 rule 2): the first
-    // intersecting delta starts the window and later arrivals never push
-    // the deadline back — under steady arrivals a resetting debounce would
-    // starve forever; this bounds visible staleness by S plus one
-    // reset-plus-restore duration and resets at most once per S.
-    if (!m_delta_throttle.isActive()) {
-        m_delta_throttle.start();
-    }
-}
-
-void MainWindow::OnDeltaThrottleTimeout()
-{
-    // M3 S4 fallback seam, DELETED IN S5: only the By-Item fallback arms
-    // this timer now. D9 rule 3: the tick refilters the current search,
-    // which clears only its own items-dirty flag; background searches
-    // stay dirty until their own refilter.
-    spdlog::trace("MainWindow::OnDeltaThrottleTimeout() entered");
-    if (!m_current_search) {
-        return;
-    }
-    m_current_search->SetRefreshReason(RefreshReason::ItemsChanged);
-    ModelViewRefresh();
 }
 
 void MainWindow::OnSearchFormChange()
@@ -1149,6 +1046,12 @@ void MainWindow::ModelViewRefresh()
     }
     ui->treeView->header()->setSortIndicator(model.GetSortColumn(), model.GetSortOrder());
     ui->treeView->setSortingEnabled(true);
+    // The R3-1 eager carve-out (S5), with dirtiness already decided: a
+    // dirty search refiltered above and the indicator pass's sort
+    // supplied its keys; a clean By-Item activation hydrates the flat
+    // bucket's keys now, so no delta ever meets a keyless flat bucket
+    // (D4 rule 1). No-op in By-Tab mode and when keys are resident.
+    m_current_search->HydrateFlatBucketKeys();
     RestoreViewExpansion(*m_current_search);
     ScheduleResizeTreeColumns();
 
@@ -1173,31 +1076,10 @@ void MainWindow::ModelViewRefresh()
     ReselectCurrentItem();
     RestoreViewScroll(*m_current_search);
 
-    // The intent pass runs on refilter paths too (S4 review round 1):
-    // under the By-Item fallback seam, the refilter IS the application
-    // mechanism, so an id that reappeared since the last tick re-adopts
-    // here — the contract covers both mechanisms.
+    // The intent pass runs on refilter paths too (S4 review round 1): an
+    // id that reappeared only in a refilter's fresh result re-adopts
+    // here — the contract covers the delta path and the refilter alike.
     ReconcileSelectionIntent();
-
-    // R2-1 closure deferred past the seam: a terminal outcome that found
-    // this search items-dirty adjudicates against this refilter's fresh
-    // indexes instead — an id that reappeared mid-refresh was adopted
-    // just above; an absent one is dropped so it can never reselect in a
-    // later refresh.
-    if (m_intent_close_pending && !m_current_search->itemsDirty()) {
-        m_intent_close_pending = false;
-        if (!m_selection_intent_id.isEmpty()
-            && !m_current_search->visibleItemById(m_selection_intent_id)) {
-            m_selection_intent_id.clear();
-        }
-    }
-
-    // D9 rules 3/R5-5: any successful refilter of the current search pays
-    // for the pending tick — cancel it so the next intersecting delta
-    // starts a fresh S window rather than inheriting a stale deadline.
-    if (!m_current_search->itemsDirty()) {
-        m_delta_throttle.stop();
-    }
 }
 
 void MainWindow::SaveViewScroll(Search &search)
@@ -1417,10 +1299,6 @@ void MainWindow::FlushPendingSearchFormChange()
 void MainWindow::OnTabChange(int index)
 {
     FlushPendingSearchFormChange();
-    // D9 rule 4: the pending tick belongs to the outgoing search. Nothing
-    // is lost — rule 1 already marked it dirty, and the extended activation
-    // gate refilters it when it is next shown.
-    m_delta_throttle.stop();
     if (m_current_search) {
         SaveViewExpansion(*m_current_search);
         // Scroll is captured here too (R6-3): this is the last moment the
@@ -1629,12 +1507,10 @@ void MainWindow::ResetBuyoutWidgets()
 void MainWindow::OnItemsRefreshed()
 {
     spdlog::trace("MainWindow::OnItemsRefreshed() entered");
-    // M3 S4 fallback seam, DELETED IN S6: the final snapshot keeps its
-    // existing reset path — every search refilters and all items-dirty
-    // flags clear. S6 replaces the current search's refilter with the
-    // R1-2 row reconciliation. (D9 rule 5: it also cancels any pending
-    // By-Item fallback tick.)
-    m_delta_throttle.stop();
+    // M3 fallback seam (working rule 2), DELETED IN S6: the final
+    // snapshot keeps its existing reset path — every search refilters and
+    // all items-dirty flags clear. S6 replaces the current search's
+    // refilter with the R1-2 row reconciliation.
     int tab = 0;
     for (const auto &search : m_searches) {
         search->SetRefreshReason(RefreshReason::ItemsChanged);
@@ -1649,9 +1525,7 @@ void MainWindow::OnItemsRefreshed()
     // The success-boundary intent closure (R1-3): ModelViewRefresh's
     // intent pass adopted an id that reappeared only in the final
     // snapshot; one whose id is absent is cleared so it cannot reselect
-    // in a later refresh. The snapshot refiltered everything, so any
-    // seam-deferred closure is settled here too.
-    m_intent_close_pending = false;
+    // in a later refresh.
     if (m_current_search && !m_selection_intent_id.isEmpty()
         && !m_current_search->visibleItemById(m_selection_intent_id)) {
         m_selection_intent_id.clear();

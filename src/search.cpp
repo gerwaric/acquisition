@@ -282,6 +282,18 @@ void Search::EvictResidentKeys()
     }
 }
 
+void Search::HydrateFlatBucketKeys()
+{
+    if ((m_current_mode != ViewMode::ByItem) || m_bucket_by_item.empty()) {
+        return;
+    }
+    const int column = m_model.GetSortColumn();
+    if ((column < 0) || (column >= static_cast<int>(m_columns.size()))) {
+        return;
+    }
+    m_bucket_by_item.front().EnsureResidentKeys(*m_columns[column]);
+}
+
 void Search::InvalidateAllOrder()
 {
     for (auto &bucket : m_bucket_by_tab) {
@@ -509,6 +521,7 @@ void Search::FilterItems(const Items &items)
     RebuildRowLookups();
     m_items_stale = false;
     m_flat_bucket_stale = false;
+    m_tab_buckets_stale = false;
 
     // A filtered By-Tab search is default-expanded (D2 rule 5): mark the
     // fresh buckets materialized now, so the post-refilter sort pass
@@ -533,12 +546,21 @@ void Search::FilterItems(const Items &items)
 const Items &Search::items() const
 {
     if (m_items_stale) {
-        // Lazily reconciled from the maintained By-Tab buckets: the delta
-        // path never pays an O(collection) pass, and only user-initiated
-        // boundaries (mode switch) and tests read this.
+        // Lazily reconciled from the maintained side: the delta path
+        // never pays an O(collection) pass, and only user-initiated
+        // boundaries (mode switch) and tests read this. In By-Item mode
+        // the flat bucket is the maintained structure (S5) — the By-Tab
+        // side is stale until the next mode switch rebuilds it.
         m_items.clear();
-        for (const auto &bucket : m_bucket_by_tab) {
-            m_items.insert(m_items.end(), bucket.items().begin(), bucket.items().end());
+        if (m_tab_buckets_stale) {
+            if (!m_bucket_by_item.empty()) {
+                const auto &flat = m_bucket_by_item.front().items();
+                m_items.insert(m_items.end(), flat.begin(), flat.end());
+            }
+        } else {
+            for (const auto &bucket : m_bucket_by_tab) {
+                m_items.insert(m_items.end(), bucket.items().begin(), bucket.items().end());
+            }
         }
         m_items_stale = false;
     }
@@ -733,7 +755,9 @@ void Search::RemoveBucketRow(int bucket_row)
 template<typename Predicate>
 bool Search::RemoveBucketRows(int bucket_row, Predicate &&predicate)
 {
-    Bucket &bucket = m_bucket_by_tab[static_cast<size_t>(bucket_row)];
+    // The active mode's bucket (S5): the By-Tab display bucket the delta
+    // resolved, or the By-Item flat bucket at row 0.
+    Bucket &bucket = active_buckets()[static_cast<size_t>(bucket_row)];
     const auto &bucket_items = bucket.items();
     // Contiguous runs, removed back-to-front so earlier runs' rows stay
     // valid — O(runs) model operations (D3).
@@ -765,15 +789,19 @@ bool Search::RemoveBucketRows(int bucket_row, Predicate &&predicate)
 
 void Search::InsertArrivals(int bucket_row, const Items &accepted)
 {
-    Bucket &bucket = m_bucket_by_tab[static_cast<size_t>(bucket_row)];
+    Bucket &bucket = active_buckets()[static_cast<size_t>(bucket_row)];
     const int column = m_model.GetSortColumn();
     const bool sortable = (column >= 0) && (column < static_cast<int>(m_columns.size()));
+    // Materialized: an expanded By-Tab bucket, or the By-Item flat bucket
+    // by definition (D1/D2 rule 6).
+    const bool materialized = (m_current_mode == ViewMode::ByItem) || bucket.expanded();
 
-    if (bucket.expanded() && bucket.sorted() && sortable) {
-        // R2-2: the visible-bucket sorted merge. Sorting the arrivals
-        // alone cannot establish the bucket's global order when sibling
-        // sources' rows interleave under the sort; merging them into the
-        // retained rows' order does.
+    if (materialized && bucket.sorted() && sortable) {
+        // R2-2: the visible-bucket sorted merge (the same single merge
+        // pass D4 rule 2 states for the flat bucket). Sorting the
+        // arrivals alone cannot establish the bucket's global order when
+        // sibling sources' rows interleave under the sort; merging them
+        // into the retained rows' order does.
         const Column &col = *m_columns[column];
         bucket.EnsureResidentKeys(col); // key-consuming op hydrates first (R3-1)
         const Qt::SortOrder order = m_model.GetSortOrder();
@@ -855,11 +883,6 @@ void Search::InsertArrivals(int bucket_row, const Items &accepted)
 
 Search::DeltaApplication Search::ApplyTabDelta(const ItemLocation &location, const Items &items)
 {
-    DeltaApplication result;
-    if (m_current_mode != ViewMode::ByTab) {
-        return result; // the fallback seam owns other modes (S4, deleted in S5)
-    }
-
     const FetchSourceKey source = FetchSourceKey::ForLocation(location);
     const auto delta_key = LocationInventory::KeyFor(location);
     const ItemLocation &canonical = canonicalLocation(location);
@@ -873,6 +896,14 @@ Search::DeltaApplication Search::ApplyTabDelta(const ItemLocation &location, con
         }
     }
 
+    if (m_current_mode == ViewMode::ByItem) {
+        // D4 (S5): the flat bucket's per-delta contract. The flat view
+        // renders no per-tab metadata; the anchor lands when the By-Tab
+        // side rebuilds at the next mode switch.
+        return ApplyFlatDelta(delta_key, source, accepted);
+    }
+
+    DeltaApplication result;
     int bucket_row = FindBucketRow(delta_key);
     if (bucket_row < 0) {
         // No bucket owns this stable key. One appears when arrivals pass
@@ -954,15 +985,109 @@ Search::DeltaApplication Search::ApplyTabDelta(const ItemLocation &location, con
     return result;
 }
 
+Search::DeltaApplication Search::ApplyFlatDelta(const LocationInventory::Key &delta_key,
+                                                const FetchSourceKey &source,
+                                                const Items &accepted)
+{
+    DeltaApplication result;
+    if (m_bucket_by_item.empty()) {
+        return result; // no flat bucket to apply to — fail-safe dirty (R1-7)
+    }
+
+    // D4 rule 2: erase the source's rows as contiguous removeRows runs,
+    // then merge the accepted arrivals into the resident sorted order.
+    const bool removed = RemoveBucketRows(0, [&source](const Item &item) {
+        return FetchSourceKey::ForLocation(item.location()) == source;
+    });
+    if (!accepted.empty()) {
+        InsertArrivals(0, accepted);
+    }
+
+    // Source-index maintenance at the delta's own grain, identical to the
+    // By-Tab path: a fetch source belongs to exactly one stable tab.
+    auto by_tab = m_visible_sources_by_tab.find(delta_key);
+    if (accepted.empty()) {
+        m_visible_sources.erase(source);
+        if (by_tab != m_visible_sources_by_tab.end()) {
+            by_tab->second.erase(source);
+            if (by_tab->second.empty()) {
+                m_visible_sources_by_tab.erase(by_tab);
+            }
+        }
+    } else {
+        m_visible_sources.insert(source);
+        m_visible_sources_by_tab[delta_key].insert(source);
+    }
+
+    if (removed || !accepted.empty()) {
+        m_items_stale = true;
+        result.rows_changed = true;
+    }
+    // Every delta can carry a fresh location anchor or discover a tab the
+    // flat view cannot render; the By-Tab side is marked stale
+    // unconditionally and the next mode switch rebuilds it from the flat
+    // collection against the canonical inventory (fresh metadata by
+    // construction).
+    m_tab_buckets_stale = true;
+
+    // Defensive: the flat bucket is always visible and must never keep
+    // stale order past a delta (D4 rule 1, staleOrderNeverSurvivesDelta).
+    // The merge path preserved sortedness; this covers the invalid corner
+    // the append fallback would leave.
+    if (result.rows_changed && !m_bucket_by_item.front().sorted()) {
+        m_model.ResortBucket(0);
+    }
+
+    result.processed = true;
+    return result;
+}
+
 Search::DeltaApplication Search::ApplyChildReconciliation(
     const ItemLocation &parent, const std::vector<FetchSourceKey> &expected)
 {
     DeltaApplication result;
-    if (m_current_mode != ViewMode::ByTab) {
-        return result; // the fallback seam owns other modes (S4, deleted in S5)
+    const auto parent_key = LocationInventory::KeyFor(parent);
+    if (m_current_mode == ViewMode::ByItem) {
+        // D4/D3 (S5): the erase becomes row removals scoped to the
+        // parent's rows WITHIN the flat bucket — items under the parent's
+        // stable key whose fetch source is outside the expected set; other
+        // tabs' rows are untouched even though they share the bucket.
+        if (m_bucket_by_item.empty()) {
+            return result; // fail-safe dirty (R1-7)
+        }
+        const std::set<FetchSourceKey> allowed(expected.begin(), expected.end());
+        std::set<FetchSourceKey> erased_sources;
+        const bool removed
+            = RemoveBucketRows(0, [&parent_key, &allowed, &erased_sources](const Item &item) {
+                  if (LocationInventory::KeyFor(item.location()) != parent_key) {
+                      return false;
+                  }
+                  const auto key = FetchSourceKey::ForLocation(item.location());
+                  if (allowed.count(key) == 0) {
+                      erased_sources.insert(key);
+                      return true;
+                  }
+                  return false;
+              });
+        if (removed) {
+            const auto by_tab = m_visible_sources_by_tab.find(parent_key);
+            for (const auto &key : erased_sources) {
+                m_visible_sources.erase(key);
+                if (by_tab != m_visible_sources_by_tab.end()) {
+                    by_tab->second.erase(key);
+                }
+            }
+            if ((by_tab != m_visible_sources_by_tab.end()) && by_tab->second.empty()) {
+                m_visible_sources_by_tab.erase(by_tab);
+            }
+            m_items_stale = true;
+            result.rows_changed = true;
+        }
+        m_tab_buckets_stale = true; // the aggregate carries a fresh anchor too
+        result.processed = true;
+        return result;
     }
 
-    const auto parent_key = LocationInventory::KeyFor(parent);
     int bucket_row = FindBucketRow(parent_key);
     if (bucket_row < 0) {
         result.processed = true; // nothing visible under the parent
@@ -1094,22 +1219,16 @@ void Search::SetViewMode(ViewMode mode)
         bucket.EvictKeys();
     }
     m_current_mode = mode;
-    if (mode == ViewMode::ByItem) {
-        // An items-dirty search skips the rebuild and sort (S4 review
-        // round 1): its whole collection is stale (the fallback seam
-        // skipped application), so working from it would present — and
-        // pay a full flat sort for — un-applied state. The caller's
-        // mode-switch refilter (D6 boundary, MainWindow) re-establishes
-        // both from fresh state immediately after. (S4 review round 3
-        // deliberately kept this a plain announced reset: a quiet flip
-        // saved one user-initiated reset at the price of a
-        // silent-model-mutation contract, and the dirty case dies with
-        // the seam in S5.)
-        if (!m_items_dirty) {
-            // The delta path maintains the By-Tab buckets only (S4); a
-            // flat bucket gone stale rebuilds here from the maintained
-            // collection — the mode switch is one of D6's honest
-            // full-rebuild boundaries.
+    // An items-dirty search skips the rebuilds and sort: its whole
+    // collection is stale (application was skipped — the R1-7 fail-safe
+    // direction), so working from it would present un-applied state. The
+    // caller's mode-switch refilter (D6 boundary, MainWindow)
+    // re-establishes everything from fresh state immediately after.
+    if (!m_items_dirty) {
+        if (mode == ViewMode::ByItem) {
+            // A flat bucket gone stale (By-Tab deltas maintained the tab
+            // buckets) rebuilds here from the maintained collection — the
+            // mode switch is one of D6's honest full-rebuild boundaries.
             if (m_flat_bucket_stale && !m_bucket_by_item.empty()) {
                 Bucket &flat = m_bucket_by_item.front();
                 Bucket rebuilt{ItemLocation()};
@@ -1126,6 +1245,18 @@ void Search::SetViewMode(ViewMode mode)
                 && (column < static_cast<int>(m_columns.size()))) {
                 m_bucket_by_item.front().Sort(*m_columns[column], m_model.GetSortOrder());
             }
+            // D4 rule 1 / R3-1 carve-out (S5): keys resident whenever the
+            // search is active. The sort above hydrated; a valid flag
+            // skipped it, leaving sorted-but-keyless — hydrate now.
+            HydrateFlatBucketKeys();
+        } else if (m_tab_buckets_stale) {
+            // By-Item deltas maintained the flat bucket only (S5): the
+            // By-Tab side rebuilds from the maintained collection —
+            // membership is unchanged, so this is D6's honest rebuild
+            // minus the filter loop. Arriving buckets start collapsed
+            // with invalid flags; the caller's expansion restore sorts
+            // exactly the buckets it expands (D2 rule 2).
+            RebuildTabBucketsFromFlat();
         }
     }
     RebuildRowLookups();
@@ -1133,4 +1264,53 @@ void Search::SetViewMode(ViewMode mode)
     // restore sorts the ones whose flags are invalid (D2 rule 2).
     m_model.SetSorted(true);
     m_model.endUpdate();
+}
+
+void Search::RebuildTabBucketsFromFlat()
+{
+    // The same bucketing FilterItems performs, minus the filter loop:
+    // membership is exactly the flat bucket's contents, grouped by the
+    // stable display key and rendered against the canonical inventory —
+    // so metadata deltas that arrived while By-Item was active land here.
+    std::map<LocationInventory::Key, Bucket> bucketed_tabs;
+    if (!m_bucket_by_item.empty()) {
+        for (const auto &item : m_bucket_by_item.front().items()) {
+            const ItemLocation &location = item->location();
+            const auto key = LocationInventory::KeyFor(location);
+            auto bucket_it = bucketed_tabs.find(key);
+            if (bucket_it == bucketed_tabs.end()) {
+                bucket_it = bucketed_tabs.emplace(key, Bucket(canonicalLocation(location))).first;
+            }
+            bucket_it->second.AddItem(item);
+        }
+    }
+
+    // Unfiltered searches show empty tabs, published and inventory-known
+    // alike (the FilterItems rule, R6-1).
+    if (!m_filtered) {
+        for (auto &location : m_bo_manager.GetStashTabLocations()) {
+            const auto key = LocationInventory::KeyFor(location);
+            if (!bucketed_tabs.count(key)) {
+                bucketed_tabs.emplace(key, Bucket(canonicalLocation(location)));
+            }
+        }
+        if (m_location_inventory) {
+            for (const auto &[key, location] : m_location_inventory->entries()) {
+                if (!bucketed_tabs.count(key)) {
+                    bucketed_tabs.emplace(key, Bucket(location));
+                }
+            }
+        }
+    }
+
+    m_bucket_by_tab.clear();
+    m_bucket_by_tab.reserve(bucketed_tabs.size());
+    for (auto &element : bucketed_tabs) {
+        m_bucket_by_tab.emplace_back(std::move(element.second));
+    }
+    std::sort(m_bucket_by_tab.begin(), m_bucket_by_tab.end(), bucketDisplayLess);
+    for (auto &bucket : m_bucket_by_tab) {
+        bucket.SetSerial(m_next_bucket_serial++);
+    }
+    m_tab_buckets_stale = false;
 }

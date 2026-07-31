@@ -180,6 +180,86 @@ round's fixes and still pass (unfiltered refilter 36.0 / 374.6 ms,
 sort share 0, cold expand 0.53 / 0.59 ms, broad-filter
 87.1 / 917.9 ms, memory rows exactly 0).
 
+## S5 — conditional hold-point rows (July 31, 2026): **MISS — sequence PAUSED**
+
+Run at the end of S5 (D4 By-Item merge + eager activation landed; D9
+throttle fully retired) with the same harness, build, environment, and
+presets as the S3/S4 rows. Three of four budgeted rows pass; the
+By-Item merge row misses by ~28× and, per working rule 3, **the
+sequence is paused here** pending a remedy decision.
+
+| Row | 100k | 1m | Budget (100k / 1m) | Verdict |
+|---|---|---|---|---|
+| By-Item full refilter (median of 3, end-to-end `OnSearchFormChange`) | 116.7 ms | 1471.5 ms | ≤ 250 ms / ≤ 1.5 s | **PASS** |
+| Clean By-Item reactivation — eager key hydration, R3-1 (end-to-end tab switch; probe-attributed: 0 refilters, 1 key build, 0 resets) | 46.3 ms | 446.6 ms | ≤ 100 ms / ≤ 0.5 s | **PASS** |
+| Worst-shape resident key memory (process footprint delta across entering By-Item; gauge 35.7 MB / 344.2 MB is the known over-estimate) | 21.8 MB | 223.9 MB | ≤ 300 MB aggregate at 1m | **PASS** |
+| **By-Item merge** (D4 rule 2: interleaved child-source replacement, 576 retained-source rows scattered through the resident order + 576 arrivals, median of 5) | 168.0 ms | **1397.9 ms** | ≤ 50 ms at 1m | **MISS (~28×)** |
+
+Mode switch into By-Item (flat rebuild + keyed flat sort, D6 boundary,
+informational): 81.0 ms / 1059.9 ms.
+
+**Attribution (M2-M2 discipline).** Probes on the live merge: exactly
+one bucket sort (the merge itself), zero key builds (the eager-hydrated
+resident vector is reused), ~17.7k keyed compares, zero index rebuilds,
+zero refilters, zero resets — all of which is microseconds. The micro
+on identical data settles where the time goes: the same flat delta
+against a bare `Search` with **no view attached costs 1395.5 ms of the
+1397.9 ms live row**. The cost is the bucket-vector shuffle itself, not
+view-side batch handling:
+
+- The child source's ~576 rows scatter through the collection-sized
+  sorted order, so the erase is ~576 contiguous runs, and the merge's
+  arrivals land as ~360 more insert runs.
+- Qt's `begin/endRemoveRows` contract requires the model to be
+  consistent after **every** run, so each run's `vector::erase`/
+  `insert` must complete before the next begins — and each one moves
+  the tail of a ~1m-element vector, twice over (the item vector and
+  the index-aligned resident key vector, whose `ItemSortKey` elements
+  are string-heavy composites). Total work is O(runs · n), ~10⁸-scale
+  element moves per delta at 1m.
+
+**The two halves of D4 rule 2 are mutually unsatisfiable at collection
+scale.** The rule's mechanism ("contiguous-run `removeRows` batches …
+inserted as contiguous-run `insertRows` batches") forces O(runs · n);
+the rule's complexity claim and budget ("a single merge pass … O(n + d)
+per delta … at 1m that is tens of milliseconds", ≤ 50 ms) describe a
+single compaction+merge pass, which Qt permits only under **one** model
+operation per delta (the bucket-scoped layout-change protocol
+`ApplySort` already uses, with persistent-index remapping) — not under
+per-run row-op batches. R2-2 corrected the batch count from O(1) to
+O(runs) without anyone noticing that per-run consistency multiplies the
+run count into the vector length. The S4 By-Tab row never sees this
+because its buckets are capped at 576 rows; the flat bucket is the one
+structure where runs and n are both large.
+
+Remedy options (Tom decides; nothing is built on top of the miss):
+
+- **A (recommended): post-freeze amendment to D4 rule 2's mechanism.**
+  The flat bucket applies a delta under a single bucket-scoped layout
+  operation — snapshot persistent indexes, one O(n + d) erase+merge
+  pass over the item and key vectors, remap (removed rows map to
+  invalid), `layoutChanged` scoped to the flat bucket. Model ops become
+  O(1) per delta (stronger than the stated O(runs)); the complexity
+  claim, the ≤ 50 ms budget, selection/intent behavior, and
+  `byItemMergeMatchesFullSort` are unchanged.
+  `byItemRemovalOnlyDeltaErasesInPlace`'s row-op signal assertions
+  would be renegotiated to layout-op assertions (same observable
+  contract: no reset, no full re-sort, order preserved).
+- **B: keep the row-op mechanism and renegotiate the budget** to the
+  measured ~1.4 s per delta at 1m — rejected on its face by D3's
+  immediacy rationale (a delta arrives every ~20 s per tab; 1.4 s of
+  synchronous UI work per delta makes By-Item unusable during a
+  refresh at scale).
+- **C: hybrid** — row ops below a flat-bucket size threshold, layout op
+  above it. Adds a second code path and still needs A's amendment; only
+  worth it if the row-op signals carry value at small scale that the
+  layout op lacks.
+
+The S3/S4 rows were rerun on the S5 code and all still pass (unfiltered
+refilter 33.3 / 426.1 ms, sort share 0, cold expand 0.52 / 0.59 ms,
+broad-filter 88.7 / 981.7 ms, S4 interleaved delta 0.85 / 0.92 ms,
+memory rows exactly 0).
+
 ## Budget table (S7 — to be run)
 
 The acceptance-criteria table from `items-pipeline-m3.md` runs here
