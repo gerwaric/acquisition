@@ -30,6 +30,12 @@
 // lifetime-peak delta, no budget (the spec accepts O(collection) once
 // per refresh; these keep the every-refresh path measured).
 //
+// S7 runs this same accumulated set as the formal complete-table M1-M3
+// gate (the spec's acceptance-criteria budget table, authoritative on
+// the finished model); the broad-filter row additionally records a
+// process-level footprint delta so BOTH candidate worst materialized
+// shapes of the ≤ 300 MB row are judged at process level.
+//
 // Attribution follows the M2-M2 discipline: the live windows are timed
 // end-to-end, sort/key work is attributed by the model probes (counts)
 // and by micro-benchmarks on identical data outside the timed windows
@@ -326,19 +332,42 @@ int main(int argc, char *argv[])
     // --- Row 3: broad-filter default-expanded refilter (R1-8) -------------
     {
         ilvl_min->setText("2"); // matches ~85/86 of items; excludes some -> m_filtered
+        // The ≤ 300 MB worst-shape memory row names two candidate shapes
+        // (By-Item, or broad-filter fully-expanded By-Tab — R2-3); the
+        // By-Item one is measured at process level below, so this shape
+        // gets the same treatment: footprint delta across the FIRST entry
+        // into the shape (later reps rebuild keys through the allocator's
+        // recycled pages and would double-count the high-water mark).
+        const std::int64_t broad_footprint_before = processFootprintBytes();
         std::vector<qint64> samples;
+        std::int64_t broad_footprint_after = -1;
         for (int rep = 0; rep < 3; ++rep) {
             t0 = clock.nsecsElapsed();
             fixture.window->OnSearchFormChange();
             samples.push_back(clock.nsecsElapsed() - t0);
+            if (rep == 0) {
+                broad_footprint_after = processFootprintBytes();
+            }
             drainEvents();
         }
         rows.push_back({"broad-filter default-expanded refilter (median)",
                         toMs(median(samples)),
                         budget_broad_ms});
-        std::printf(
-            "  [memory] broad-filter resident key bytes: %lld (~worst materialized shape)\n",
-            static_cast<long long>(probes.live_key_bytes));
+        if ((broad_footprint_before >= 0) && (broad_footprint_after >= 0)) {
+            const double delta_mb = static_cast<double>(broad_footprint_after
+                                                        - broad_footprint_before)
+                                    / (1024.0 * 1024.0);
+            const bool pass = !is_1m || (delta_mb <= 300.0);
+            std::printf("  [memory] broad-filter resident keys: gauge %.1f MB; process "
+                        "footprint delta %.1f MB (budget 300 MB aggregate at 1m)%s\n",
+                        static_cast<double>(probes.live_key_bytes) / (1024.0 * 1024.0),
+                        delta_mb,
+                        is_1m ? (pass ? "  PASS" : "  MISS") : "  (informational)");
+        } else {
+            std::printf(
+                "  [memory] broad-filter resident key bytes: %lld (~worst materialized shape)\n",
+                static_cast<long long>(probes.live_key_bytes));
+        }
 
         // Attribution run + micros on identical data.
         probes.reset();
@@ -871,7 +900,7 @@ int main(int argc, char *argv[])
         cleanSnapshotRow("S6 clean final snapshot, By-Item (median of 5)");
     }
 
-    std::printf("\n=== M3 S3-S6 hold-point result: preset %s, %d tabs, %zu items, Qt %s ===\n",
+    std::printf("\n=== M3 hold-point result (S3-S7 rows): preset %s, %d tabs, %zu items, Qt %s ===\n",
                 qPrintable(preset_name),
                 dataset.tabCount(),
                 all_items.size(),

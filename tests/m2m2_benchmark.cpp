@@ -256,9 +256,11 @@ int main(int argc, char *argv[])
                       currency,
                       shop,
                       image_cache);
-    // Keep the throttled reset out of the measured windows: the tick is the
-    // separate coalesced-refilter path, not part of the synchronous unit.
-    window.SetDeltaThrottleInterval(3600 * 1000);
+    // M3 (S4/S5) retired the D9 throttle: a delta now applies to the
+    // current search's model synchronously inside this measured unit, so
+    // the rows below include the model's bucket-scoped application — the
+    // production path. (M2's runs excluded the then-asynchronous tick via
+    // SetDeltaThrottleInterval, deleted with the timer.)
 
     UserStore store(QDir(bm.tempDir.filePath("data")), kAccount);
     ItemsManagerWorker worker(settings, *bm.manager, api);

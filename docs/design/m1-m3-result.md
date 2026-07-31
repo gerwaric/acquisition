@@ -1,11 +1,13 @@
 # M1-M3 measurement result (items-pipeline M3, S7 gate)
 
-Status: **IN PROGRESS — created at S0 (July 30, 2026) with the anchor
-verification the implementation sequence requires there.** The budget
-table itself runs at S7 (Release, recorded environment, spike presets,
-per-component attribution), with conditional hold-point rows at S3-S5;
-those runs extend this document as they happen. Until S7 passes, M3 is
-not complete.
+Status: **S7 GATE PASSED (July 31, 2026) — the complete budget table
+ran authoritatively on the finished model and every budgeted row passes
+at both presets.** The table and its attribution are in the "Budget
+table (S7)" section at the end; conditional hold-point rows were
+recorded per stage (S3-S5) as the sequence reached them. One
+observation surfaced for Tom's judgment at the S7 pause: the per-delta
+deferred column resize (see the M2-M2 addendum in the S7 section). S8
+(wrap-up) remains.
 
 ## S0 — staleness-preamble anchor verification (July 30, 2026)
 
@@ -559,8 +561,113 @@ carry-over note: `m2m2_benchmark` still populates through the
 non-initial path — check its setup labels before recording S7
 numbers.
 
-## Budget table (S7 — to be run)
+## Budget table (S7, July 31, 2026): **PASS — every budgeted row, both presets**
 
-The acceptance-criteria table from `items-pipeline-m3.md` runs here
-when the model is complete; conditional hold-point rows are recorded
-per stage (S3, S4, S5) as the sequence reaches them.
+The formal complete-table M1-M3 gate: the acceptance-criteria table
+from `items-pipeline-m3.md`, run authoritatively on the finished model
+(S0-S6 landed, through commit `f7fdebbf` plus this stage's harness
+changes), regardless of the earlier conditional passes. Harness
+`tests/m3_holdpoint_benchmark.cpp`, Release `build-release/`,
+offscreen, spike presets, seed 20260729. Environment matches every
+prior record: Apple M4, 32 GB (macMini-class), macOS 26.6, Apple
+clang 21, Qt 6.11.1 release. Harness changes for this run: the
+broad-filter row now records a process-level footprint delta across
+the FIRST entry into the shape, so BOTH candidate worst materialized
+shapes of the ≤ 300 MB row (By-Item, and broad-filter fully-expanded
+By-Tab — R2-3) are judged at process level rather than by the
+over-estimating gauge.
+
+| Row | 100k | 1m | Budget (100k / 1m) | Verdict |
+|---|---|---|---|---|
+| Worst-case unfiltered By-Tab refilter, default collapsed (median of 5) | 23.6 ms | 282.3 ms | ≤ 60 ms / ≤ 500 ms | **PASS** |
+| — sort share of the above | 0 ms | 0 ms | ≤ 5 ms | **PASS** (probe-attributed: 0 bucket sorts, 0 key builds, 0 keyed compares) |
+| Single-bucket expand, cold keys (576-item quad, median of 5) | 0.53 ms | 0.59 ms | ≤ 10 ms | **PASS** |
+| Clean By-Item reactivation (eager hydration, R3-1; end-to-end tab switch) | 46.7 ms | 475.3 ms | ≤ 100 ms / ≤ 0.5 s | **PASS** |
+| By-Item full refilter (median of 3) | 106.6 ms | 1331.7 ms | ≤ 250 ms / ≤ 1.5 s | **PASS** |
+| Broad-filter default-expanded refilter (ilvl ≥ 2, every bucket visible — R1-8; median of 3) | 76.6 ms | 825.9 ms | ≤ 150 ms / ≤ 1.2 s | **PASS** |
+| Delta application, By-Tab visible bucket (R2-2 interleaved child-source replacement, 576 retained + 576 arrivals, median of 5) | 0.87 ms | 0.86 ms | ≤ 5 ms at 1m | **PASS** (100k informational) |
+| By-Item merge (same interleaved child source, median of 5) | 3.9 ms | 32.7 ms | ≤ 50 ms at 1m | **PASS** (100k informational) |
+| — same, window shown and laid out (A′ gate) | 4.1 ms | 32.5 ms | ≤ 50 ms at 1m | **PASS** (peak-footprint gate: ru_maxrss +3.9 MB @100k / +0.0 MB @1m across reps — no key-vector-sized transient) |
+| Resident key memory, worst materialized shape, process-level footprint delta: By-Item | 21.8 MB | 223.7 MB | ≤ 300 MB at 1m | **PASS** |
+| — broad-filter fully-expanded By-Tab (the other R2-3 candidate) | 22.4 MB | 210.0 MB | ≤ 300 MB at 1m | **PASS** |
+| Collapsed-default resident key memory | 0 B | 0 B | ≈ 0 | **PASS** (gauge exactly 0) |
+| Background-search resident key memory after deactivation | 0 B | 0 B | exactly 0 | **PASS** (gauge exactly 0; was > 0 while active) |
+
+The gauge readings for the two worst shapes are 35.3 / 340.2 MB
+(broad) and 35.7 / 344.2 MB (By-Item) at 100k / 1m — the known
+deliberate over-estimate (S3 record); the budget is judged at process
+level, where both shapes sit comfortably inside the spec's ~222-266 MB
+expectation.
+
+Per-component attribution (M2-M2 discipline — probes on the live
+windows, micros on identical data outside them):
+
+- Unfiltered refilter is filter-loop-bound as designed: bare
+  `FilterItems` micro 20.2 / 328.8 ms of the 23.6 / 282.3 end-to-end;
+  probes prove zero sort or key work.
+- Broad refilter: 2000 / 2600 bucket sorts and key builds, 717k / 9.7M
+  keyed compares, zero comparator calls; broad `FilterItems` micro
+  19.0 / 329.3 ms; one-flat-bucket build+sort of the same visible
+  result 74.2 / 1009.9 ms (upper bound the amortized per-bucket work
+  stays under).
+- By-Tab delta: exactly 1 bucket sort (the merge itself), 0 key
+  builds, ~11.5k keyed compares, 0 index rebuilds, 0 refilters,
+  0 resets — flat across presets (O(delta + bucket)).
+- By-Item merge: 1 bucket sort, 0 key builds, ~20.6k keyed compares,
+  0 rebuilds / refilters / resets; the bare no-view micro (33.4 ms
+  @1m vs the live 32.7 ms) shows the row is essentially all model-side
+  A′ work, view-side batch handling ~0.
+- Clean reactivation: 0 refilters, 1 key build (the R3-1 eager
+  hydration), 0 resets.
+- Informational rows: initial publish + refilter 54.4 ms / 621.1 ms
+  (the D6 reset path); mode switch into By-Item 82.2 / 1052.3 ms;
+  single-source simple replacement 0.36 / 0.37 ms; manager-path merge
+  (unpriced, Name) 4.2 / 33.3 ms, laid out 4.4 / 32.8 ms, priced-Name
+  73.3 / 319.8 ms, priced-Price 97.0 / 583.8 ms (the mandated R3-2
+  batch re-sort: model_updates=1, 2 bucket sorts, ~1.96M keyed
+  compares @1m); S6 clean final snapshot By-Tab 23.2 / 312.9 ms and
+  By-Item 12.3 / 212.4 ms (probes: 1 final reconciliation, 0
+  refilters, 0 resets, 0 sorts; lifetime peak +3.7 / +30.7 MB By-Tab —
+  the known state-table transient — and +0.0 MB By-Item).
+
+### M2-M2 addendum: rerun on the finished model, and one surfaced observation
+
+The S6 carry-over note asked that `m2m2_benchmark`'s setup labels be
+checked before recording S7 numbers. Checked and rerun (same build and
+environment):
+
+- The harness populates through the production non-initial path (the
+  worker's `FinishUpdate` emits `initial_refresh=false`), which since
+  S6 means its "populate update" includes the row reconciliation
+  rather than a reset — the labels are accurate, the number's meaning
+  changed. It also no longer compiled: it still called
+  `SetDeltaThrottleInterval`, deleted with the throttle in S5
+  (EXCLUDE_FROM_ALL, so no build had caught it). The call is removed;
+  the measured window now contains the synchronous per-delta model
+  application, which is exactly the production path.
+- Whole-path medians (resolve → quiescent): replacement 10.4 ms @100k
+  / 11.7 ms @1m; removal 10.2 / 10.5 ms. **~10.1-10.2 ms of every
+  sample is a flat `post (finish)` tail**; the synchronous reply
+  application proper (whole − post) is **0.26 ms @100k / 1.53 ms @1m**
+  (removal 0.14 / 0.31 ms) — still inside the long-discharged M2-M2
+  budgets (< 2 ms / < 16 ms) with the M3 model application now
+  included (ui primary 0.02 / 0.27 ms).
+- **The surfaced observation:** the flat tail was profiled (macOS
+  `sample`) to `MainWindow::ResizeTreeColumns` — the 0 ms single-shot
+  `m_delayed_resize_columns` timer, armed by the S4/S6 handlers on
+  every `model_changed` delta and firing on the next event-loop pass.
+  Its ~10 ms cost is scale-independent (Qt bounds
+  `sizeHintForColumn`'s scan) but **newly per-delta**: under M2 the
+  throttle coalesced column resizing to at most one per tick, under
+  M3 every applied delta pays it. No M3 budget row binds it (it is
+  deferred, outside every timed window in this table), and at the
+  production delta cadence (~1 per 20 s under rate limits) it is
+  invisible; a burst catch-up of ~15 replies costs ~150 ms total in
+  ≤ 10 ms event-loop slices. Recorded here for Tom's judgment at the
+  S7 pause — possible remedies if wanted: a > 0 debounce interval, or
+  arming only on bucket insertion / header-affecting changes.
+
+**Gate verdict: PASS.** Every budgeted row passes at both presets with
+headroom; both candidate worst memory shapes pass at process level.
+Per the implementation sequence, the sequence pauses here for Tom
+before S8 (wrap-up).
