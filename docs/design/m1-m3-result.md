@@ -8,8 +8,9 @@ recorded per stage (S3-S5) as the sequence reached them. S7 review
 round 1 (two findings, both remedied same day): the gate now fails
 loudly (non-zero exit on any miss or unavailable binding measurement),
 and the per-delta deferred column resize surfaced at the pause is now
-a non-resetting debounce (pin `deltaResizeDebounceCoalescesBurst`).
-S8 (wrap-up) remains.
+a non-resetting debounce (pin `deltaResizeDebounceCoalescesBurst`,
+three clauses after the queued-timeout follow-up). **Tom's formal go
+for S8 recorded July 31, 2026.** S8 (wrap-up) remains.
 
 ## S0 — staleness-preamble anchor verification (July 30, 2026)
 
@@ -733,3 +734,17 @@ whole-path median 10.4 ms → **0.216 ms** (the `post (finish)` tail
 10.14 ms → 0.021 ms) — back at the M2-era 0.234 ms with the M3
 synchronous model application now included in the unit. Suite green,
 34/34, 57 mainwindow scenarios.
+
+**Step 2 follow-up (Tom's review of the remedy, July 31).** One
+supersession race: stopping the debounce only inside
+`ResizeTreeColumns` is too late when the debounce deadline has
+already expired and its timeout sits queued ahead of the freshly
+started 0 ms timer — the queued timeout fires first, two passes.
+`ScheduleResizeTreeColumns` now stops the debounce at scheduling
+time; the stop inside `ResizeTreeColumns` is retained defensively.
+Pin clause 3 reproduces the window deterministically (`qSleep` lets
+the deadline expire unprocessed, so the timeout is queued when the
+immediate schedule happens) and was verified RED with the
+scheduling-time stop removed. Recorded benchmarks unaffected (Tom:
+no rerun needed). **With this follow-up, S7 carries Tom's formal go
+for S8.**

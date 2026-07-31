@@ -552,6 +552,10 @@ void MainWindow::ResizeTreeColumns()
 
 void MainWindow::ScheduleResizeTreeColumns()
 {
+    // Supersede at scheduling time, not only when the resize runs: an
+    // already-expired debounce timeout can be queued ahead of the 0 ms
+    // timer and would otherwise fire first — two passes.
+    m_delta_resize_debounce.stop();
     m_delayed_resize_columns.start();
 }
 

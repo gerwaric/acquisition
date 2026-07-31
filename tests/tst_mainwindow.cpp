@@ -3822,6 +3822,19 @@ void MainWindowTest::deltaResizeDebounceCoalescesBurst()
     QTRY_COMPARE_WITH_TIMEOUT(probes.column_resizes, 2, 2000);
     QTest::qWait(400);
     QCOMPARE(probes.column_resizes, 2);
+
+    // Clause 3 (the queued-timeout race): the debounce deadline expires
+    // while the event loop is blocked (qSleep processes nothing), so its
+    // timeout is queued when the immediate schedule happens. Supersession
+    // must act at scheduling time — a stop only inside ResizeTreeColumns
+    // runs after the queued timeout already fired, two passes.
+    fixture.itemsManager
+        ->OnTabRefreshed(tabA, {makeMainWindowItem("item-a4", "AlphaItem Four", "Sword", tabA)});
+    QCOMPARE(probes.column_resizes, 2);
+    QTest::qSleep(400); // deadline passes unprocessed
+    fixture.window->ScheduleResizeTreeColumns();
+    QTest::qWait(400); // both timers would fire here without the fix
+    QCOMPARE(probes.column_resizes, 3);
     probes.enabled = false;
 }
 
