@@ -629,25 +629,39 @@ void MainWindow::OnBuyoutsChanged(const BuyoutChangeSet &changes)
         const bool buyout_ordered = (sort_column >= 0)
                                     && (sort_column < static_cast<int>(columns.size()))
                                     && columns[sort_column]->buyoutDependent();
+        std::vector<int> resort_rows;
         if (buyout_ordered) {
             // Rebuild resident entries and clear affected flags — for a
             // background search this touches flags only (its keys were
-            // evicted at deactivation, R2-4).
-            search->InvalidateBuyoutOrder(changes, sort_column);
+            // evicted at deactivation, R2-4). The returned rows are the
+            // affected materialized buckets: the exact reorder scope.
+            resort_rows = search->InvalidateBuyoutOrder(changes, sort_column);
         }
         if (search.get() == m_current_search) {
             if (auto &probes = ModelProbes::instance(); probes.enabled) {
                 ++probes.model_updates;
             }
             model.RepaintBuyoutCells(changes);
-            if (buyout_ordered) {
-                model.Resort();
+            // The layout operation matches the affected scope (S3 review
+            // round 1): none — no reorder, no layout signals, no
+            // persistent-index walk (a scoped pricing pass touching only
+            // collapsed buckets rides the delta path for free); one — the
+            // whole dance scopes to that bucket; several — one view-wide
+            // pass beats per-bucket signal storms.
+            if (buyout_ordered && !resort_rows.empty()) {
+                if (resort_rows.size() == 1) {
+                    model.ResortBucket(resort_rows.front());
+                } else {
+                    model.Resort();
+                }
             }
-        } else if (buyout_ordered) {
+        } else if (buyout_ordered && !resort_rows.empty()) {
             // A background search pays nothing now: its next activation's
             // indicator pass re-sorts exactly the invalidated buckets.
             // Its cells always render fresh (they read the manager), so
-            // only the order can go stale.
+            // only the order can go stale — and only when a materialized
+            // bucket was actually affected; collapsed buckets' cleared
+            // flags already defer their sort to expansion.
             model.SetSorted(false);
         }
     }

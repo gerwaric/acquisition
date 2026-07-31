@@ -258,6 +258,14 @@ void ItemsModel::Resort()
     ApplySort(m_sort_column, m_sort_order);
 }
 
+void ItemsModel::ResortBucket(int row)
+{
+    if ((m_sort_column < 0) || (m_sort_column >= columnCount()) || !m_search.has_bucket(row)) {
+        return;
+    }
+    ApplySort(m_sort_column, m_sort_order, row);
+}
+
 void ItemsModel::OnBucketExpanded(int row)
 {
     if (!m_search.has_bucket(row)) {
@@ -296,8 +304,14 @@ void ItemsModel::ApplySort(int column, Qt::SortOrder order, int only_bucket)
 
     // Emit before snapshotting: listeners such as QItemSelectionModel create
     // persistent indexes inside their layoutAboutToBeChanged handlers, and
-    // those must be included in the remapping below.
-    emit layoutAboutToBeChanged({}, QAbstractItemModel::VerticalSortHint);
+    // those must be included in the remapping below. A scoped sort names
+    // its bucket in the parents list, so listeners save and restore state
+    // for that subtree only instead of the whole model.
+    QList<QPersistentModelIndex> parents;
+    if (only_bucket >= 0) {
+        parents.append(QPersistentModelIndex(index(only_bucket, 0)));
+    }
+    emit layoutAboutToBeChanged(parents, QAbstractItemModel::VerticalSortHint);
 
     std::vector<ItemIndexSnapshot> snapshots;
     const auto persistent_indexes = persistentIndexList();
@@ -353,7 +367,7 @@ void ItemsModel::ApplySort(int column, Qt::SortOrder order, int only_bucket)
         to.push_back(index(item_row, snapshot.column, parent_index));
     }
     changePersistentIndexList(from, to);
-    emit layoutChanged({}, QAbstractItemModel::VerticalSortHint);
+    emit layoutChanged(parents, QAbstractItemModel::VerticalSortHint);
     if (only_bucket < 0) {
         // A scoped expand-sort says nothing about the materialized set as
         // a whole; only the view-wide pass marks the model sorted.

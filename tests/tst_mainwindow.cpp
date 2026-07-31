@@ -89,6 +89,7 @@ private slots:
     void reexpandedBucketFlipHydratesOnce();
     void sortColumnSwitchResortsVisibleBucketsOnly();
     void residentKeysScopedToActiveSearch();
+    void buyoutReorderScopedToAffectedMaterializedBuckets();
 
 private:
     std::shared_ptr<spdlog::logger> m_main_logger;
@@ -2046,6 +2047,79 @@ void MainWindowTest::residentKeysScopedToActiveSearch()
     QCOMPARE(probes.key_builds_by_location[LocationInventory::KeyFor(tabA)], 1);
     probes.enabled = false;
     QVERIFY(probes.live_key_bytes > none);
+}
+
+// M3 S3, review round 1: the buyout batch's layout operation matches its
+// affected MATERIALIZED scope. A Price-active batch touching only a
+// collapsed bucket performs no reorder and emits no layout signals — the
+// invalidation is flag-only, and the deferred sort pays at expansion with
+// the fresh buyout in the order. A batch touching one expanded bucket
+// scopes the whole layout dance to that bucket and leaves other expanded
+// buckets' sorts untouched.
+void MainWindowTest::buyoutReorderScopedToAffectedMaterializedBuckets()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-alpha", "Alpha Tab", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-beta", "Beta Tab", 1);
+    const auto alpha = makeMainWindowItem("item-a", "Alpha", "Sword", tabA);
+    const auto delta = makeMainWindowItem("item-d", "Delta", "Sword", tabB);
+    Items items;
+    items.push_back(alpha);
+    items.push_back(makeMainWindowItem("item-b", "Bravo", "Sword", tabA));
+    items.push_back(delta);
+    items.push_back(makeMainWindowItem("item-e", "Echo", "Sword", tabB));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB}, false);
+
+    // Price ascending; only bucket A is materialized.
+    tree->header()->setSortIndicator(1, Qt::AscendingOrder);
+    auto *model = tree->model();
+    const QModelIndex bucketA = findBucket(*model, tabA.GetHeader());
+    QVERIFY(bucketA.isValid());
+    tree->expand(bucketA);
+    QCOMPARE(bucketItemNames(*model, bucketA), QStringList({"Alpha Sword", "Bravo Sword"}));
+
+    auto &probes = ModelProbes::instance();
+    probes.reset();
+    probes.enabled = true;
+    QSignalSpy layouts(model, &QAbstractItemModel::layoutChanged);
+
+    // A direct manager mutation (the scoped pricing pass's shape) pricing
+    // an item in collapsed B: one batch, cells repaint, but nothing
+    // materialized is affected — no layout operation at all.
+    fixture.buyoutFixture.manager->Set(*delta, makeChaosBuyout(5));
+    QCOMPARE(probes.model_updates, 1);
+    QCOMPARE(probes.bucket_sorts, 0);
+    QCOMPARE(layouts.count(), 0);
+
+    // The deferred sort pays at expansion, with the new price in the
+    // order: Echo (unpriced, rank 0) now precedes Delta's 5c under Price
+    // ascending — the tie-break order would have been Delta first.
+    const QModelIndex bucketB = findBucket(*model, tabB.GetHeader());
+    QVERIFY(bucketB.isValid());
+    tree->expand(bucketB);
+    QCOMPARE(probes.bucket_sorts, 1);
+    QCOMPARE(bucketItemNames(*model, bucketB), QStringList({"Echo Sword", "Delta Sword"}));
+
+    // Pricing an item in expanded A: the layout operation scopes to A —
+    // one layoutChanged naming A's subtree, one sort, no key build (the
+    // resident entries rebuilt, R3-2), and B's sort count is untouched.
+    probes.reset();
+    layouts.clear();
+    fixture.buyoutFixture.manager->Set(*alpha, makeChaosBuyout(7));
+    QCOMPARE(probes.model_updates, 1);
+    QCOMPARE(probes.bucket_sorts, 1);
+    QCOMPARE(probes.bucket_sorts_by_location[LocationInventory::KeyFor(tabA)], 1);
+    QCOMPARE(probes.bucket_sorts_by_location[LocationInventory::KeyFor(tabB)], 0);
+    QCOMPARE(probes.key_builds, 0);
+    QCOMPARE(layouts.count(), 1);
+    const auto layout_parents = layouts.at(0).at(0).value<QList<QPersistentModelIndex>>();
+    QCOMPARE(layout_parents.size(), 1);
+    QCOMPARE(QModelIndex(layout_parents.front()), bucketA);
+    probes.enabled = false;
+    QCOMPARE(bucketItemNames(*model, bucketA), QStringList({"Bravo Sword", "Alpha Sword"}));
 }
 
 QTEST_MAIN(MainWindowTest)

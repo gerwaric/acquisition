@@ -56,8 +56,10 @@ void ResidentKeyStore::Release()
     // must balance across probe enable/disable boundaries or a test
     // enabling probes mid-residency would drive it negative at eviction.
     ModelProbes::instance().live_key_bytes -= bytes;
-    keys.clear();
-    keys.shrink_to_fit();
+    // Swap-with-empty rather than clear()+shrink_to_fit(): shrink_to_fit
+    // is a non-binding request, and "background searches hold exactly 0"
+    // (R2-4) must not depend on the library honoring it.
+    std::vector<ItemSortKey>().swap(keys);
     column = nullptr;
     bytes = 0;
 }
@@ -151,16 +153,33 @@ void Bucket::Sort(const Column &column, Qt::SortOrder order)
                   }
               });
 
-    Items sorted_items;
-    std::vector<ItemSortKey> sorted_keys;
-    sorted_items.reserve(m_items.size());
-    sorted_keys.reserve(m_items.size());
-    for (const std::uint32_t n : perm) {
-        sorted_items.push_back(std::move(m_items[n]));
-        sorted_keys.push_back(std::move(m_keys.keys[n]));
+    // Apply the permutation in place, walking each cycle once and marking
+    // spent entries as self-loops (S3 review round 1): materializing
+    // sorted copies would transiently duplicate the key vector — ~144 B
+    // per item, ~144 MB extra at a one-million-item By-Item sort, right
+    // where the resident-key budget is tightest — and the gauge does not
+    // (and should not) count temporaries. The permutation itself is the
+    // only transient (4 B per item).
+    for (std::uint32_t start = 0; start < static_cast<std::uint32_t>(perm.size()); ++start) {
+        if (perm[start] == start) {
+            continue;
+        }
+        std::shared_ptr<Item> lifted_item = std::move(m_items[start]);
+        ItemSortKey lifted_key = std::move(m_keys.keys[start]);
+        std::uint32_t n = start;
+        while (true) {
+            const std::uint32_t from = perm[n];
+            perm[n] = n;
+            if (from == start) {
+                m_items[n] = std::move(lifted_item);
+                m_keys.keys[n] = std::move(lifted_key);
+                break;
+            }
+            m_items[n] = std::move(m_items[from]);
+            m_keys.keys[n] = std::move(m_keys.keys[from]);
+            n = from;
+        }
     }
-    m_items = std::move(sorted_items);
-    m_keys.keys = std::move(sorted_keys);
     m_sorted = true;
 }
 

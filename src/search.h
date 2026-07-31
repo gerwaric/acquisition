@@ -134,9 +134,12 @@ public:
     // The buyout key effect (D1 rule 4, R3-2): rebuilds the affected
     // items' entries in whichever key vectors are resident and clears the
     // affected buckets' sorted flags, both view modes — so the batch's
-    // re-sort (the model's Resort) never runs on stale resident keys and
-    // touches only affected buckets. `column` is the active sort column.
-    void InvalidateBuyoutOrder(const BuyoutChangeSet &changes, int column);
+    // re-sort never runs on stale resident keys. Returns the active-mode
+    // rows of the affected MATERIALIZED buckets — exactly the set the
+    // batch must reorder now; an empty return means the batch needs no
+    // layout operation at all (collapsed buckets defer to expansion).
+    // `column` is the active sort column.
+    std::vector<int> InvalidateBuyoutOrder(const BuyoutChangeSet &changes, int column);
 
     const FilterCatalog &catalog() const { return m_filter_catalog; }
     qsizetype filterStateCount() const { return static_cast<qsizetype>(m_filter_states.size()); }

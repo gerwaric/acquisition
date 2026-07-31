@@ -37,6 +37,11 @@ public:
     // caller (OnBuyoutsChanged) invalidates the affected buckets first
     // (R3-2), so the per-bucket flags make this exact.
     void Resort();
+    // The single-bucket form (S3 review round 1): a batch whose affected
+    // materialized set is one bucket scopes the whole layout operation —
+    // signals, persistent-index walk, sort — to that bucket instead of
+    // paying the view-wide dance.
+    void ResortBucket(int row);
     // The view's expand/collapse signals, per top-level row (D2 rules
     // 2-3): expanding marks the bucket materialized and sorts it under
     // the layout-change protocol iff its flag is invalid; collapsing

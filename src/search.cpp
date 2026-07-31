@@ -268,11 +268,12 @@ void Search::InvalidateAllOrder()
     }
 }
 
-void Search::InvalidateBuyoutOrder(const BuyoutChangeSet &changes, int column)
+std::vector<int> Search::InvalidateBuyoutOrder(const BuyoutChangeSet &changes, int column)
 {
+    std::vector<int> resort_rows;
     const int column_count = static_cast<int>(m_columns.size());
     if ((column < 0) || (column >= column_count)) {
-        return;
+        return resort_rows;
     }
     const Column &col = *m_columns[column];
 
@@ -300,14 +301,21 @@ void Search::InvalidateBuyoutOrder(const BuyoutChangeSet &changes, int column)
     }
 
     // Both view modes' buckets are covered: the inactive mode's flags
-    // must not claim validity a later mode switch would trust.
-    for (auto &bucket : m_bucket_by_tab) {
+    // must not claim validity a later mode switch would trust. Only the
+    // active mode's materialized affected buckets are returned — they are
+    // the ones the batch reorders now.
+    const bool by_item = (m_current_mode == ViewMode::ByItem);
+    for (size_t row = 0; row < m_bucket_by_tab.size(); ++row) {
+        Bucket &bucket = m_bucket_by_tab[row];
         const bool affected = every_bucket
                               || (affected_tabs.count(LocationInventory::KeyFor(bucket.location()))
                                   > 0);
         if (affected) {
             bucket.RebuildKeyEntries(col, changes.item_ids, every_bucket);
             bucket.InvalidateOrder();
+            if (!by_item && bucket.expanded()) {
+                resort_rows.push_back(static_cast<int>(row));
+            }
         }
     }
     const bool flat_affected = every_bucket || !affected_tabs.empty();
@@ -315,8 +323,12 @@ void Search::InvalidateBuyoutOrder(const BuyoutChangeSet &changes, int column)
         if (flat_affected) {
             bucket.RebuildKeyEntries(col, changes.item_ids, every_bucket);
             bucket.InvalidateOrder();
+            if (by_item) {
+                resort_rows.push_back(0);
+            }
         }
     }
+    return resort_rows;
 }
 
 void Search::FilterItems(const Items &items)

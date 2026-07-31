@@ -119,6 +119,16 @@ outside the timed windows):
   ≤ 300 MB aggregate row is measured at process level when By-Item
   lands (S5) and at S7.
 
+**S3 review round 1 rerun (July 30, 2026).** The round's fixes changed
+`Bucket::Sort`'s mechanics (the permutation now applies in place —
+sorting no longer transiently duplicates the ~144 B/item key vector,
+which at a one-million-item By-Item sort would have added ~144 MB of
+untracked peak on top of the resident estimate) and scoped the buyout
+batch's layout operation to the affected materialized set. All rows
+rerun and PASS, slightly faster: unfiltered refilter 35.3 / 374.3 ms,
+sort share 0, cold expand 0.53 / 0.55 ms, broad-filter 85.1 / 912.6 ms
+(100k / 1m), memory rows exactly 0.
+
 ## Budget table (S7 — to be run)
 
 The acceptance-criteria table from `items-pipeline-m3.md` runs here
