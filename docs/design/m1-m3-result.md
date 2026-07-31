@@ -152,6 +152,34 @@ The S3 rows were incidentally rerun on the S4 code and all still pass
 (unfiltered refilter 32.1 / 361.0 ms, sort share 0, cold expand
 0.52 / 0.56 ms, broad-filter 83.3 / 878.8 ms, memory rows exactly 0).
 
+**S4 review round 1 correction and rerun (July 31, 2026).** The
+review found the row above did not measure the shape it claimed: the
+harness replaced an ordinary single-source tab's entire source, so the
+retained vector was empty — one contiguous removal run and no merge
+against retained sibling-source rows. That run validated arrival
+sorting and simple replacement, not the R2-2 interleaved path. The
+harness now aggregates a synthetic child fetch source (a same-sized
+donor tab's items, fresh ids, re-homed under the largest quad tab)
+into the expanded bucket and replaces the child per delta: removal
+runs scatter through 576 retained parent rows and the merge's 576
+arrivals interleave against them. Rerun after the round's fixes,
+same build and environment:
+
+| Row | 100k | 1m | Budget (1m) | Verdict |
+|---|---|---|---|---|
+| Delta application, By-Tab visible bucket — **R2-2 interleaved child-source replacement** (576 retained + 576 arrivals, median of 5) | 0.887 ms | 1.079 ms | ≤ 5 ms | **PASS** |
+| — single-source full replacement (the previously recorded shape, kept informational) | 0.380 ms | 0.459 ms | — | informational |
+
+The interleaved shape costs ~2.3× the simple replacement — the run
+count is what scales, exactly why the review flagged the original row
+— and stays flat across presets (O(delta + bucket), never collection
+scale). Attribution: one bucket sort (the merge), ~11.5k keyed
+compares, zero key builds (resident vector reused), zero index
+rebuilds, zero refilters, zero resets. The S3 rows rerun with the
+round's fixes and still pass (unfiltered refilter 36.0 / 374.6 ms,
+sort share 0, cold expand 0.53 / 0.59 ms, broad-filter
+87.1 / 917.9 ms, memory rows exactly 0).
+
 ## Budget table (S7 — to be run)
 
 The acceptance-criteria table from `items-pipeline-m3.md` runs here

@@ -526,6 +526,11 @@ void ItemsModel::BeginInsertBucketRow(int row)
     beginInsertRows(QModelIndex(), row, row);
 }
 
+void ItemsModel::BeginRemoveBucketRow(int row)
+{
+    beginRemoveRows(QModelIndex(), row, row);
+}
+
 bool ItemsModel::BeginMoveBucketRow(int from, int to)
 {
     // beginMoveRows takes the destination in pre-move coordinates: moving

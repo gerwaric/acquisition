@@ -116,6 +116,14 @@ private slots:
     void selectionIntentClearsOnTerminalFailure();
     void appliedDeltasLeaveActiveSearchClean();
 
+    // Items-pipeline M3, S4 review round 1. The first two are
+    // fallback-scoped (the By-Item seam) and are renegotiated when the
+    // seam dies in S5; the last two are permanent.
+    void selectionIntentCoversByItemFallback();
+    void modeSwitchConsumesFallbackDirtiness();
+    void filteredSearchDropsEmptiedBucket();
+    void metadataDeltaRefreshesSelectedPresentation();
+
 private:
     std::shared_ptr<spdlog::logger> m_main_logger;
     std::shared_ptr<spdlog::sinks::dist_sink_mt> m_sink_hub;
@@ -2839,6 +2847,331 @@ void MainWindowTest::appliedDeltasLeaveActiveSearchClean()
     tabs->setCurrentIndex(0);
     QCOMPARE(first_resets.count(), resets_after_switch + 1);
     QVERIFY(visibleItemNames(*tree).contains("AlphaItem Three Sword"));
+}
+
+// M3 S4 review round 1 (R1-3/R2-1 over the fallback seam; renegotiated
+// when the seam dies in S5): the selection-intent contract covers the
+// By-Item throttled path — the seam defers application, never intent.
+void MainWindowTest::selectionIntentCoversByItemFallback()
+{
+    // Clause 1: removal tick, then insertion tick — the intent re-adopts
+    // through the refilter's refreshed index.
+    {
+        MainWindowFixture fixture;
+        fixture.window->SetDeltaThrottleInterval(100);
+        auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+        QVERIFY(tree);
+
+        const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+        const ItemLocation tabB = makeTestStashLocation("stash-bbbb", "Beta", 1);
+        Items items;
+        items.push_back(makeMainWindowItem("item-x", "Mover", "Sword", tabA));
+        items.push_back(makeMainWindowItem("item-b", "BetaItem", "Shield", tabB));
+        fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB}, false);
+        switchToByItemView(fixture);
+
+        auto *model = tree->model();
+        const QModelIndex flatBucket = model->index(0, 0);
+        QVERIFY(flatBucket.isValid());
+        const QModelIndex mover = findItemRow(*model, flatBucket, "Mover Sword");
+        QVERIFY(mover.isValid());
+        tree->selectionModel()->setCurrentIndex(mover,
+                                                QItemSelectionModel::ClearAndSelect
+                                                    | QItemSelectionModel::Rows);
+
+        QSignalSpy resets(model, &QAbstractItemModel::modelReset);
+        // The removal delta rides the throttled seam; its tick lapses the
+        // visual selection while the intent stays alive.
+        fixture.itemsManager->OnTabRefreshed(tabA, {});
+        QTRY_COMPARE_WITH_TIMEOUT(resets.count(), 1, 2000);
+        QCOMPARE(tree->selectionModel()->selectedRows().size(), 0);
+
+        // The insertion in another tab applies at the next tick: the
+        // intent re-adopts by stable id.
+        fixture.itemsManager
+            ->OnTabRefreshed(tabB,
+                             {makeMainWindowItem("item-x", "Mover", "Sword", tabB),
+                              makeMainWindowItem("item-b", "BetaItem", "Shield", tabB)});
+        QTRY_COMPARE_WITH_TIMEOUT(resets.count(), 2, 2000);
+        const QModelIndexList selectedRows = tree->selectionModel()->selectedRows();
+        QCOMPARE(selectedRows.size(), 1);
+        QCOMPARE(selectedRows.front().data().toString(), "Mover Sword");
+    }
+
+    // Clause 2: terminal failure while the index is stale — the closure
+    // defers to the tick's refilter, which finds the id absent and drops
+    // the intent; a later reinsertion must not reselect.
+    {
+        MainWindowFixture fixture;
+        fixture.window->SetDeltaThrottleInterval(100);
+        auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+        QVERIFY(tree);
+
+        const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+        Items items;
+        items.push_back(makeMainWindowItem("item-x", "Mover", "Sword", tabA));
+        items.push_back(makeMainWindowItem("item-y", "Stayer", "Sword", tabA));
+        fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+        switchToByItemView(fixture);
+
+        auto *model = tree->model();
+        const QModelIndex flatBucket = model->index(0, 0);
+        const QModelIndex mover = findItemRow(*model, flatBucket, "Mover Sword");
+        QVERIFY(mover.isValid());
+        tree->selectionModel()->setCurrentIndex(mover,
+                                                QItemSelectionModel::ClearAndSelect
+                                                    | QItemSelectionModel::Rows);
+
+        QSignalSpy resets(model, &QAbstractItemModel::modelReset);
+        // Removal delta, then the terminal failure lands BEFORE the tick:
+        // the still-stale index would claim the item is present.
+        fixture.itemsManager
+            ->OnTabRefreshed(tabA, {makeMainWindowItem("item-y", "Stayer", "Sword", tabA)});
+        fixture.window->OnRefreshFinished(RefreshOutcome{FailedRefresh{RateLimit::FetchError{}}});
+
+        // The pending tick fires; the refilter is the first honest state
+        // and the deferred closure drops the intent.
+        QTRY_COMPARE_WITH_TIMEOUT(resets.count(), 1, 2000);
+        QCOMPARE(tree->selectionModel()->selectedRows().size(), 0);
+
+        // A later refresh reinserting the id must not reselect it.
+        fixture.itemsManager->OnTabRefreshed(tabA,
+                                             {makeMainWindowItem("item-x", "Mover", "Sword", tabA),
+                                              makeMainWindowItem("item-y", "Stayer", "Sword", tabA)});
+        QTRY_COMPARE_WITH_TIMEOUT(resets.count(), 2, 2000);
+        QCOMPARE(tree->selectionModel()->selectedRows().size(), 0);
+    }
+
+    // Clause 3: the id reappears mid-refresh but its application is
+    // deferred past the terminal failure — the deferred window still
+    // adopts it at the tick.
+    {
+        MainWindowFixture fixture;
+        fixture.window->SetDeltaThrottleInterval(100);
+        auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+        QVERIFY(tree);
+
+        const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+        const ItemLocation tabB = makeTestStashLocation("stash-bbbb", "Beta", 1);
+        Items items;
+        items.push_back(makeMainWindowItem("item-x", "Mover", "Sword", tabA));
+        items.push_back(makeMainWindowItem("item-b", "BetaItem", "Shield", tabB));
+        fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB}, false);
+        switchToByItemView(fixture);
+
+        auto *model = tree->model();
+        const QModelIndex mover = findItemRow(*model, model->index(0, 0), "Mover Sword");
+        QVERIFY(mover.isValid());
+        tree->selectionModel()->setCurrentIndex(mover,
+                                                QItemSelectionModel::ClearAndSelect
+                                                    | QItemSelectionModel::Rows);
+
+        QSignalSpy resets(model, &QAbstractItemModel::modelReset);
+        fixture.itemsManager->OnTabRefreshed(tabA, {});
+        fixture.itemsManager
+            ->OnTabRefreshed(tabB,
+                             {makeMainWindowItem("item-x", "Mover", "Sword", tabB),
+                              makeMainWindowItem("item-b", "BetaItem", "Shield", tabB)});
+        fixture.window->OnRefreshFinished(RefreshOutcome{FailedRefresh{RateLimit::FetchError{}}});
+
+        QTRY_COMPARE_WITH_TIMEOUT(resets.count(), 1, 2000);
+        const QModelIndexList selectedRows = tree->selectionModel()->selectedRows();
+        QCOMPARE(selectedRows.size(), 1);
+        QCOMPARE(selectedRows.front().data().toString(), "Mover Sword");
+    }
+}
+
+// M3 S4 review round 1 (D6; renegotiated when the seam dies in S5): a
+// view-mode switch consumes fallback dirtiness — the arriving mode never
+// renders un-applied state, and the pending fallback tick is canceled
+// rather than left to reset a By-Tab model the throttle no longer owns.
+void MainWindowTest::modeSwitchConsumesFallbackDirtiness()
+{
+    // Clause 1: an intersecting delta armed the tick; the switch pays
+    // for the staleness itself and the tick never fires.
+    {
+        MainWindowFixture fixture;
+        fixture.window->SetDeltaThrottleInterval(200);
+        auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+        auto *viewCombo = fixture.window->findChild<QComboBox *>("viewComboBox");
+        QVERIFY(tree && viewCombo);
+
+        const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+        Items items;
+        items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+        fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+        switchToByItemView(fixture);
+
+        // The delta rides the seam: the flat view is stale until a tick.
+        fixture.itemsManager
+            ->OnTabRefreshed(tabA, {makeMainWindowItem("item-a2", "AlphaItem Two", "Sword", tabA)});
+        QVERIFY(visibleItemNames(*tree).contains("AlphaItem Sword"));
+
+        // The switch to By-Tab refilters NOW.
+        auto *model = tree->model();
+        QSignalSpy resets(model, &QAbstractItemModel::modelReset);
+        viewCombo->setCurrentIndex(0);
+        emit viewCombo->activated(0);
+        QVERIFY(visibleItemNames(*tree).contains("AlphaItem Two Sword"));
+        QVERIFY(!visibleItemNames(*tree).contains("AlphaItem Sword"));
+
+        // And the canceled tick adds nothing afterward.
+        const int settled = resets.count();
+        QTest::qWait(500);
+        QCOMPARE(resets.count(), settled);
+    }
+
+    // Clause 2: a metadata-only delta arms no tick; after a terminal
+    // failure the switch still renders the fresh anchor immediately.
+    {
+        MainWindowFixture fixture;
+        auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+        auto *viewCombo = fixture.window->findChild<QComboBox *>("viewComboBox");
+        QVERIFY(tree && viewCombo);
+
+        const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+        const ItemLocation tabB = makeTestStashLocation("stash-bbbb", "Beta", 1);
+        Items items;
+        items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+        fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB}, false);
+        switchToByItemView(fixture);
+
+        const ItemLocation renamedB = makeTestStashLocation("stash-bbbb", "Beta Renamed", 1);
+        fixture.itemsManager->OnTabRefreshed(renamedB, {});
+        fixture.window->OnRefreshFinished(RefreshOutcome{FailedRefresh{RateLimit::FetchError{}}});
+
+        viewCombo->setCurrentIndex(0);
+        emit viewCombo->activated(0);
+        QVERIFY(findBucket(*tree->model(), renamedB.GetHeader()).isValid());
+        QVERIFY(!findBucket(*tree->model(), tabB.GetHeader()).isValid());
+    }
+}
+
+// M3 S4 review round 1: a filtered search hides empty buckets, so a
+// bucket a delta empties leaves the view — the delta path converges to
+// the freshly-refiltered state — and reappears when a delta brings
+// matching items back. The unfiltered search keeps its empty row
+// (emptyDeltaEmptiesBucketWithoutRemovingIt, unchanged).
+void MainWindowTest::filteredSearchDropsEmptiedBucket()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    auto *name = findNameFilter(*fixture.window);
+    auto *nameLabel = fixture.window->findChild<QLabel *>("nameLabel");
+    QVERIFY(tree && name && nameLabel);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-bbbb", "Beta", 1);
+    const ItemLocation tabC = makeTestStashLocation("stash-cccc", "Gamma", 2);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-b", "BetaItem", "Sword", tabB));
+    items.push_back(makeMainWindowItem("item-c", "NomatchThing", "Sword", tabC));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB, tabC}, false);
+
+    // Filter "item": C's only item is rejected, so the search is filtered
+    // and C's empty bucket is hidden — two buckets visible.
+    name->setFocus();
+    QTest::keyClicks(name, "item");
+    fixture.window->OnSearchFormChange();
+    auto *model = tree->model();
+    QCOMPARE(model->rowCount(), 2);
+
+    // Select A's header so the drop also clears the details pane.
+    const QModelIndex bucketA = findBucket(*model, tabA.GetHeader());
+    QVERIFY(bucketA.isValid());
+    tree->selectionModel()->setCurrentIndex(bucketA,
+                                            QItemSelectionModel::ClearAndSelect
+                                                | QItemSelectionModel::Rows);
+    QCOMPARE(nameLabel->text(), tabA.GetHeader());
+
+    QSignalSpy resets(model, &QAbstractItemModel::modelReset);
+    QSignalSpy removals(model, &QAbstractItemModel::rowsRemoved);
+
+    // The empty delta empties A: its rows leave, then its bucket row.
+    fixture.itemsManager->OnTabRefreshed(tabA, {});
+    QCOMPARE(resets.count(), 0);
+    QCOMPARE(removals.count(), 2); // the child-row run, then the bucket row
+    QCOMPARE(model->rowCount(), 1);
+    QVERIFY(!findBucket(*model, tabA.GetHeader()).isValid());
+    QCOMPARE(nameLabel->text(), "Select an item");
+
+    // Matching arrivals bring the bucket back at its display position.
+    fixture.itemsManager
+        ->OnTabRefreshed(tabA, {makeMainWindowItem("item-a2", "AlphaItem Two", "Sword", tabA)});
+    QCOMPARE(resets.count(), 0);
+    QCOMPARE(model->rowCount(), 2);
+    QCOMPARE(model->index(0, 0).data().toString(), tabA.GetHeader());
+
+    // A replacement whose arrivals all fail the filter empties too.
+    fixture.itemsManager
+        ->OnTabRefreshed(tabB, {makeMainWindowItem("item-b2", "NomatchAxe", "Sword", tabB)});
+    QCOMPARE(resets.count(), 0);
+    QCOMPARE(model->rowCount(), 1);
+    QVERIFY(!findBucket(*model, tabB.GetHeader()).isValid());
+}
+
+// M3 S4 review round 1 (R1-4): a metadata delta refreshes the selected
+// presentation state the reset-reselect cycle used to refresh
+// implicitly — a selected bucket header re-renders its pane, and a
+// RETAINED item (a sibling source's rows untouched by the delta) renders
+// its tab's canonical header on the location line.
+void MainWindowTest::metadataDeltaRefreshesSelectedPresentation()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    auto *nameLabel = fixture.window->findChild<QLabel *>("nameLabel");
+    auto *locationLabel = fixture.window->findChild<QLabel *>("locationLabel");
+    QVERIFY(tree && nameLabel && locationLabel);
+
+    const ItemLocation parent = makeTestStashLocation("stash-pppp", "Maps", 0);
+    ItemLocation child = parent;
+    child.setFetchId("child-0001");
+    const ItemLocation tabB = makeTestStashLocation("stash-bbbb", "Beta", 1);
+    Items items;
+    items.push_back(makeMainWindowItem("item-p", "ParentItem", "Sword", parent));
+    items.push_back(makeMainWindowItem("item-m", "ChildItem", "Shield", child));
+    items.push_back(makeMainWindowItem("item-b", "BetaItem", "Sword", tabB));
+    fixture.itemsManager->OnItemsRefreshed(items, {parent, tabB}, false);
+
+    auto *model = tree->model();
+
+    // A selected bucket header follows a rename in place.
+    const QModelIndex bucketB = findBucket(*model, tabB.GetHeader());
+    QVERIFY(bucketB.isValid());
+    tree->selectionModel()->setCurrentIndex(bucketB,
+                                            QItemSelectionModel::ClearAndSelect
+                                                | QItemSelectionModel::Rows);
+    QCOMPARE(nameLabel->text(), tabB.GetHeader());
+    const ItemLocation renamedB = makeTestStashLocation("stash-bbbb", "Beta Renamed", 1);
+    fixture.itemsManager
+        ->OnTabRefreshed(renamedB, {makeMainWindowItem("item-b", "BetaItem", "Sword", renamedB)});
+    QCOMPARE(nameLabel->text(), renamedB.GetHeader());
+
+    // A retained item renders the canonical header: the child delta
+    // renames the parent's anchor without touching the parent-source
+    // rows, and the selected ParentItem's location line follows.
+    const QModelIndex parentBucket = findBucket(*model, parent.GetHeader());
+    QVERIFY(parentBucket.isValid());
+    tree->expand(parentBucket);
+    const QModelIndex parentItem = findItemRow(*model, parentBucket, "ParentItem Sword");
+    QVERIFY(parentItem.isValid());
+    tree->selectionModel()->setCurrentIndex(parentItem,
+                                            QItemSelectionModel::ClearAndSelect
+                                                | QItemSelectionModel::Rows);
+    QTRY_COMPARE_WITH_TIMEOUT(locationLabel->text(), parent.GetHeader(), 2000);
+
+    ItemLocation renamedChild = makeTestStashLocation("stash-pppp", "Maps Renamed", 0);
+    renamedChild.setFetchId("child-0001");
+    fixture.itemsManager
+        ->OnTabRefreshed(renamedChild,
+                         {makeMainWindowItem("item-m2", "ChildItem Two", "Shield", renamedChild)});
+    const ItemLocation renamedParent = makeTestStashLocation("stash-pppp", "Maps Renamed", 0);
+    QCOMPARE(locationLabel->text(), renamedParent.GetHeader());
+    // The selection never lapsed: the retained row was untouched.
+    const QModelIndexList selectedRows = tree->selectionModel()->selectedRows();
+    QCOMPARE(selectedRows.size(), 1);
+    QCOMPARE(selectedRows.front().data().toString(), "ParentItem Sword");
 }
 
 QTEST_MAIN(MainWindowTest)

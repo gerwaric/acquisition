@@ -228,7 +228,19 @@ void MainWindow::InitializeUi()
         if (mode != m_current_search->GetViewMode()) {
             SaveViewExpansion(*m_current_search);
             m_current_search->SetViewMode(mode);
-            RestoreViewExpansion(*m_current_search);
+            if (m_current_search->itemsDirty()) {
+                // A mode switch is one of D6's user-initiated refilter
+                // boundaries (S4 review round 1): a search the By-Item
+                // fallback left items-dirty refilters NOW — otherwise the
+                // arriving mode renders un-applied state, and a pending
+                // fallback tick would later reset a By-Tab model the
+                // throttle no longer owns. The refilter's tail cancels
+                // that tick.
+                m_current_search->SetRefreshReason(RefreshReason::ItemsChanged);
+                ModelViewRefresh();
+            } else {
+                RestoreViewExpansion(*m_current_search);
+            }
         }
         // Restoring expansion schedules a resize via the expanded/collapsed
         // signals. Also schedule one here because column contents change
@@ -805,6 +817,10 @@ void MainWindow::OnTabRefreshed(const ItemLocation &location, const Items &items
     if (!m_current_search) {
         return;
     }
+    // The first delta opens the selection-intent window (R1-3) —
+    // regardless of application mechanism: the fallback seam defers
+    // application, never the intent contract (S4 review round 1).
+    m_refresh_active = true;
     if (m_current_search->GetViewMode() == Search::ViewMode::ByItem) {
         // M3 S4 fallback seam (working rule 2), DELETED IN S5: a By-Item
         // active search keeps the D9 throttled path — rules 1-2 verbatim.
@@ -815,8 +831,7 @@ void MainWindow::OnTabRefreshed(const ItemLocation &location, const Items &items
         return;
     }
     // D3: the active By-Tab search applies the delta now, as bucket-scoped
-    // row operations; the first delta opens the selection-intent window.
-    m_refresh_active = true;
+    // row operations.
     m_applying_delta = true;
     const auto result = m_current_search->ApplyTabDelta(location, items);
     m_applying_delta = false;
@@ -837,6 +852,7 @@ void MainWindow::OnChildrenReconciled(const ItemLocation &parent,
     if (!m_current_search) {
         return;
     }
+    m_refresh_active = true; // the intent window covers both mechanisms
     if (m_current_search->GetViewMode() == Search::ViewMode::ByItem) {
         // M3 S4 fallback seam (working rule 2), DELETED IN S5.
         m_current_search->setItemsDirty(true);
@@ -845,7 +861,6 @@ void MainWindow::OnChildrenReconciled(const ItemLocation &parent,
         }
         return;
     }
-    m_refresh_active = true;
     m_applying_delta = true;
     const auto result = m_current_search->ApplyChildReconciliation(parent, expected);
     m_applying_delta = false;
@@ -895,6 +910,14 @@ void MainWindow::ReconcileSelectionIntent()
                                                                 QItemSelectionModel::ClearAndSelect
                                                                     | QItemSelectionModel::Rows);
             }
+            // The details pane's location line renders canonical
+            // metadata (S4 review round 1): a metadata delta can rename
+            // the selected item's tab without replacing the item, and
+            // the reset-reselect cycle that used to refresh the pane is
+            // gone from the delta path.
+            ui->locationLabel->setText(m_items_manager.locationInventory()
+                                           .Canonical(m_current_item->location())
+                                           .GetHeader());
         } else {
             // The selected row left mid-refresh: the intent stays alive,
             // the visual selection lapses (R1-3). The view may have moved
@@ -910,10 +933,52 @@ void MainWindow::ReconcileSelectionIntent()
             ClearCurrentItem();
         }
     }
-    if (!m_current_item && m_refresh_active && !m_selection_intent_id.isEmpty()) {
+    if (!m_current_item && m_current_bucket_location) {
+        // A selected bucket header follows its stable key (S4 review
+        // round 1): a metadata delta renames/moves/recolors it in place,
+        // so the stored location and the details pane refresh here — the
+        // reset-reselect cycle used to do this implicitly. A bucket the
+        // filtered-empty convergence removed clears the selection.
+        const auto key = LocationInventory::KeyFor(*m_current_bucket_location);
+        const auto &buckets = m_current_search->buckets();
+        int bucket_row = -1;
+        for (size_t row = 0; row < buckets.size(); ++row) {
+            if (LocationInventory::KeyFor(buckets[row].location()) == key) {
+                bucket_row = static_cast<int>(row);
+                break;
+            }
+        }
+        if (bucket_row >= 0) {
+            const ItemLocation &fresh = buckets[static_cast<size_t>(bucket_row)].location();
+            const bool rendered_changed = (fresh.GetHeader()
+                                           != m_current_bucket_location->GetHeader())
+                                          || (fresh.getR() != m_current_bucket_location->getR())
+                                          || (fresh.getG() != m_current_bucket_location->getG())
+                                          || (fresh.getB() != m_current_bucket_location->getB());
+            if (rendered_changed) {
+                m_current_bucket_location = fresh;
+                UpdateCurrentBucket();
+                UpdateCurrentBuyout();
+            }
+        } else {
+            m_current_bucket_location.reset();
+            m_applying_delta = true;
+            ui->treeView->selectionModel()->clearSelection();
+            ui->treeView->selectionModel()->setCurrentIndex(QModelIndex(),
+                                                            QItemSelectionModel::NoUpdate);
+            m_applying_delta = false;
+            ClearCurrentItem();
+            ResetBuyoutWidgets();
+        }
+    }
+    if (!m_current_item && (m_refresh_active || m_intent_close_pending)
+        && !m_selection_intent_id.isEmpty()) {
         // Re-adoption through the global identity index: any delta
         // inserting an item with the intent's id — any bucket — restores
-        // the selection via the normal selection path.
+        // the selection via the normal selection path. The deferred-close
+        // window counts as still-open (S4 review round 1): an insertion
+        // that arrived before the terminal event but was applied by a
+        // later fallback refilter still re-adopts.
         if (const auto adopted = m_current_search->visibleItemById(m_selection_intent_id)) {
             const QModelIndex index = m_current_search->index(adopted);
             if (index.isValid()) {
@@ -935,8 +1000,20 @@ void MainWindow::OnRefreshFinished(const RefreshOutcome &outcome)
     // stale intent can never survive one refresh and reselect an item in
     // a later one.
     m_refresh_active = false;
-    if (!m_selection_intent_id.isEmpty() && m_current_search
-        && !m_current_search->visibleItemById(m_selection_intent_id)) {
+    if (m_selection_intent_id.isEmpty() || !m_current_search) {
+        m_intent_close_pending = false;
+        return;
+    }
+    if (m_current_search->itemsDirty()) {
+        // The fallback seam skipped application, so this search's indexes
+        // are stale — an absence check here would happily retain an
+        // intent for an already-removed item (S4 review round 1). Defer
+        // the closure to the search's next refilter, the first honest
+        // state; the pending D9 tick guarantees one within S.
+        m_intent_close_pending = true;
+        return;
+    }
+    if (!m_current_search->visibleItemById(m_selection_intent_id)) {
         m_selection_intent_id.clear();
     }
 }
@@ -1086,6 +1163,25 @@ void MainWindow::ModelViewRefresh()
 
     ReselectCurrentItem();
     RestoreViewScroll(*m_current_search);
+
+    // The intent pass runs on refilter paths too (S4 review round 1):
+    // under the By-Item fallback seam, the refilter IS the application
+    // mechanism, so an id that reappeared since the last tick re-adopts
+    // here — the contract covers both mechanisms.
+    ReconcileSelectionIntent();
+
+    // R2-1 closure deferred past the seam: a terminal outcome that found
+    // this search items-dirty adjudicates against this refilter's fresh
+    // indexes instead — an id that reappeared mid-refresh was adopted
+    // just above; an absent one is dropped so it can never reselect in a
+    // later refresh.
+    if (m_intent_close_pending && !m_current_search->itemsDirty()) {
+        m_intent_close_pending = false;
+        if (!m_selection_intent_id.isEmpty()
+            && !m_current_search->visibleItemById(m_selection_intent_id)) {
+            m_selection_intent_id.clear();
+        }
+    }
 
     // D9 rules 3/R5-5: any successful refilter of the current search pays
     // for the pending tick — cancel it so the next intersecting delta
@@ -1454,7 +1550,11 @@ void MainWindow::UpdateCurrentItem()
     // in future should move everything tooltip-related there
     UpdateItemTooltip(*m_current_item, ui);
 
-    ui->locationLabel->setText(m_current_item->location().GetHeader());
+    // The location line renders through the canonical inventory (S4
+    // review round 1): a metadata delta renames a tab without replacing
+    // the items fetched from it, so the embedded location can be stale.
+    ui->locationLabel->setText(
+        m_items_manager.locationInventory().Canonical(m_current_item->location()).GetHeader());
     ui->pobTooltipButton->setEnabled(m_current_item->Wearable());
 
     QString icon = m_current_item->icon();
@@ -1537,15 +1637,15 @@ void MainWindow::OnItemsRefreshed()
         tab++;
     }
     ModelViewRefresh();
-    // The success-boundary intent closure (R1-3): an intent whose id
-    // reappeared only in the final snapshot is adopted; one whose id is
-    // absent is cleared so it cannot reselect in a later refresh.
-    if (m_current_search) {
-        ReconcileSelectionIntent();
-        if (!m_selection_intent_id.isEmpty()
-            && !m_current_search->visibleItemById(m_selection_intent_id)) {
-            m_selection_intent_id.clear();
-        }
+    // The success-boundary intent closure (R1-3): ModelViewRefresh's
+    // intent pass adopted an id that reappeared only in the final
+    // snapshot; one whose id is absent is cleared so it cannot reselect
+    // in a later refresh. The snapshot refiltered everything, so any
+    // seam-deferred closure is settled here too.
+    m_intent_close_pending = false;
+    if (m_current_search && !m_selection_intent_id.isEmpty()
+        && !m_current_search->visibleItemById(m_selection_intent_id)) {
+        m_selection_intent_id.clear();
     }
     m_refresh_active = false;
 }

@@ -64,6 +64,10 @@ public:
     void EndInsertItemRows() { endInsertRows(); }
     void BeginInsertBucketRow(int row);
     void EndInsertBucketRow() { endInsertRows(); }
+    // Filtered searches hide empty buckets (S4 review round 1): a bucket
+    // a delta emptied leaves as a top-level row removal.
+    void BeginRemoveBucketRow(int row);
+    void EndRemoveBucketRow() { endRemoveRows(); }
     // Repositions a top-level bucket row; returns false when Qt rejects
     // the move (no-op moves included) — the caller must then not mutate.
     bool BeginMoveBucketRow(int from, int to);

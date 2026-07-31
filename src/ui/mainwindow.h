@@ -222,6 +222,12 @@ private:
     // window (R2-1). A user selection overwrites it at any time.
     QString m_selection_intent_id;
     bool m_refresh_active{false};
+    // R2-1 closure deferred past the fallback seam (S4 review round 1): a
+    // terminal outcome arriving while the current search is items-dirty
+    // (the By-Item fallback skipped application) cannot adjudicate the
+    // intent against that search's stale indexes; the search's next
+    // refilter is the first honest state, and the closure runs there.
+    bool m_intent_close_pending{false};
     // Row operations make the view shuffle its current index (Qt moves
     // current off a removed row); while set, OnCurrentItemChanged ignores
     // those shifts so they cannot overwrite the intent.

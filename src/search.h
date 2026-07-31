@@ -226,8 +226,13 @@ private:
     void IndexInsertVisible(const std::shared_ptr<Item> &item);
     void IndexRemoveVisible(const std::shared_ptr<Item> &item);
     void AssignSerials();
-    void RebuildSerialRows();
+    void RebuildRowLookups();
     int FindBucketRow(const LocationInventory::Key &key) const;
+    // Removes an emptied bucket's top-level row (S4 review round 1): a
+    // filtered search hides empty buckets, so the delta path converges to
+    // the freshly-refiltered state. A row removal, not a tab deletion —
+    // the tab itself still dies only at the snapshot boundary.
+    void RemoveBucketRow(int bucket_row);
     // Renders a delta's fresh location anchor on an existing bucket:
     // dataChanged for header text/color, beginMoveRows when the display
     // position changes. Returns the bucket's (possibly moved) row.
@@ -293,8 +298,15 @@ private:
 
     // Child-index identity (S4): the active mode's bucket row per stable
     // bucket serial, rebuilt on refilter/mode switch and maintained by
-    // the structural delta operations.
+    // the structural delta operations. The stable-key map is its By-Tab
+    // sibling, giving the delta path O(log tabs) bucket lookup instead of
+    // a linear scan (S4 review round 1); both are remapped together.
+    // Structural ops (bucket insert/remove/move) inherently pay O(tabs)
+    // to remap row positions — accepted: they are rare (metadata
+    // reposition, tab discovery, filtered-empty drop), and any
+    // row-position scheme pays the same.
     std::unordered_map<std::uint64_t, int> m_row_by_serial;
+    std::map<LocationInventory::Key, int> m_row_by_key;
     std::uint64_t m_next_bucket_serial{1};
 
     // S4 staleness marks: the delta path maintains the By-Tab buckets and

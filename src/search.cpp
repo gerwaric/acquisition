@@ -499,7 +499,7 @@ void Search::FilterItems(const Items &items)
     // persistent index, so serial continuity across a refilter would buy
     // nothing.
     AssignSerials();
-    RebuildSerialRows();
+    RebuildRowLookups();
     m_items_stale = false;
     m_flat_bucket_stale = false;
 
@@ -554,24 +554,28 @@ void Search::AssignSerials()
     }
 }
 
-void Search::RebuildSerialRows()
+void Search::RebuildRowLookups()
 {
+    // Serial map: the ACTIVE mode's rows (the model's child-index
+    // identity). Key map: the By-Tab display buckets (the delta path's
+    // stable-key lookup) — always By-Tab, because deltas only apply
+    // there. Structural ops pay O(tabs) here by nature of row positions.
     m_row_by_serial.clear();
     const auto &bucket_list = buckets();
     for (size_t row = 0; row < bucket_list.size(); ++row) {
         m_row_by_serial[bucket_list[row].serial()] = static_cast<int>(row);
     }
+    m_row_by_key.clear();
+    for (size_t row = 0; row < m_bucket_by_tab.size(); ++row) {
+        m_row_by_key[LocationInventory::KeyFor(m_bucket_by_tab[row].location())] = static_cast<int>(
+            row);
+    }
 }
 
 int Search::FindBucketRow(const LocationInventory::Key &key) const
 {
-    const auto &bucket_list = m_bucket_by_tab;
-    for (size_t row = 0; row < bucket_list.size(); ++row) {
-        if (LocationInventory::KeyFor(bucket_list[row].location()) == key) {
-            return static_cast<int>(row);
-        }
-    }
-    return -1;
+    const auto it = m_row_by_key.find(key);
+    return (it != m_row_by_key.end()) ? it->second : -1;
 }
 
 void Search::IndexInsertVisible(const std::shared_ptr<Item> &item)
@@ -669,7 +673,7 @@ int Search::ApplyBucketMetadata(int bucket_row, const ItemLocation &canonical)
         } else {
             std::rotate(first + bucket_row, first + bucket_row + 1, first + target + 1);
         }
-        RebuildSerialRows();
+        RebuildRowLookups();
         m_model.EndMoveBucketRow();
         bucket_row = target;
     }
@@ -692,12 +696,20 @@ int Search::InsertBucketRow(const ItemLocation &canonical, const Items &accepted
     }
     m_model.BeginInsertBucketRow(row);
     m_bucket_by_tab.insert(m_bucket_by_tab.begin() + row, std::move(bucket));
-    RebuildSerialRows();
+    RebuildRowLookups();
     m_model.EndInsertBucketRow();
     for (const auto &item : accepted) {
         IndexInsertVisible(item);
     }
     return row;
+}
+
+void Search::RemoveBucketRow(int bucket_row)
+{
+    m_model.BeginRemoveBucketRow(bucket_row);
+    m_bucket_by_tab.erase(m_bucket_by_tab.begin() + bucket_row);
+    RebuildRowLookups();
+    m_model.EndRemoveBucketRow();
 }
 
 template<typename Predicate>
@@ -901,6 +913,16 @@ Search::DeltaApplication Search::ApplyTabDelta(const ItemLocation &location, con
         result.rows_changed = true;
     }
 
+    // A filtered search hides empty buckets (S4 review round 1): a bucket
+    // this delta emptied leaves the view, converging to the
+    // freshly-refiltered state. Unfiltered searches keep the empty row
+    // (emptyDeltaEmptiesBucketWithoutRemovingIt).
+    if (m_filtered && m_bucket_by_tab[static_cast<size_t>(bucket_row)].items().empty()) {
+        RemoveBucketRow(bucket_row);
+        result.processed = true;
+        return result;
+    }
+
     // Defensive: a visible bucket must never keep stale order past a
     // delta (staleOrderNeverSurvivesDelta). The merge path preserved
     // sortedness; the append path only runs on collapsed buckets — this
@@ -956,6 +978,11 @@ Search::DeltaApplication Search::ApplyChildReconciliation(
         m_items_stale = true;
         m_flat_bucket_stale = true;
         result.rows_changed = true;
+        // Same filtered-empty convergence as the content delta (S4
+        // review round 1).
+        if (m_filtered && m_bucket_by_tab[static_cast<size_t>(bucket_row)].items().empty()) {
+            RemoveBucketRow(bucket_row);
+        }
     }
     result.processed = true;
     return result;
@@ -1050,27 +1077,36 @@ void Search::SetViewMode(ViewMode mode)
     }
     m_current_mode = mode;
     if (mode == ViewMode::ByItem) {
-        // The delta path maintains the By-Tab buckets only (S4); a flat
-        // bucket gone stale rebuilds here from the maintained collection —
-        // the mode switch is one of D6's honest full-rebuild boundaries.
-        if (m_flat_bucket_stale && !m_bucket_by_item.empty()) {
-            Bucket &flat = m_bucket_by_item.front();
-            Bucket rebuilt{ItemLocation()};
-            rebuilt.SetSerial(flat.serial());
-            rebuilt.AddItems(items());
-            flat = std::move(rebuilt);
-            m_flat_bucket_stale = false;
-        }
-        // The flat bucket is always materialized (D2 rule 6): establish
-        // its order now if invalid — the reset leaves nothing else to
-        // sort it before it paints.
-        const int column = m_model.GetSortColumn();
-        if (!m_bucket_by_item.empty() && !m_bucket_by_item.front().sorted() && (column >= 0)
-            && (column < static_cast<int>(m_columns.size()))) {
-            m_bucket_by_item.front().Sort(*m_columns[column], m_model.GetSortOrder());
+        // An items-dirty search skips the rebuild and sort entirely (S4
+        // review round 1): its whole collection is stale (the fallback
+        // seam skipped application), so working from it would present —
+        // and pay a full flat sort for — un-applied state. The caller's
+        // mode-switch refilter (D6 boundary, MainWindow) re-establishes
+        // both from fresh state immediately after.
+        if (!m_items_dirty) {
+            // The delta path maintains the By-Tab buckets only (S4); a
+            // flat bucket gone stale rebuilds here from the maintained
+            // collection — the mode switch is one of D6's honest
+            // full-rebuild boundaries.
+            if (m_flat_bucket_stale && !m_bucket_by_item.empty()) {
+                Bucket &flat = m_bucket_by_item.front();
+                Bucket rebuilt{ItemLocation()};
+                rebuilt.SetSerial(flat.serial());
+                rebuilt.AddItems(items());
+                flat = std::move(rebuilt);
+                m_flat_bucket_stale = false;
+            }
+            // The flat bucket is always materialized (D2 rule 6):
+            // establish its order now if invalid — the reset leaves
+            // nothing else to sort it before it paints.
+            const int column = m_model.GetSortColumn();
+            if (!m_bucket_by_item.empty() && !m_bucket_by_item.front().sorted() && (column >= 0)
+                && (column < static_cast<int>(m_columns.size()))) {
+                m_bucket_by_item.front().Sort(*m_columns[column], m_model.GetSortOrder());
+            }
         }
     }
-    RebuildSerialRows();
+    RebuildRowLookups();
     // Arriving By-Tab buckets start collapsed after the reset; expansion
     // restore sorts the ones whose flags are invalid (D2 rule 2).
     m_model.SetSorted(true);

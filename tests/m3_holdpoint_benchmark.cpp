@@ -15,10 +15,13 @@
 // expand with cold keys; broad-filter default-expanded refilter (R1-8's
 // worst case, driven by the ilvl >= 2 filter, which matches ~99% of the
 // dataset while still excluding items); collapsed-default and background
-// resident-key memory. S4 row: delta application on the current search,
-// By-Tab visible bucket (full source replacement of the largest expanded
-// bucket — removal runs plus a maximal merge). By-Item rows wait for
-// S5's machinery.
+// resident-key memory. S4 row (reshaped in review round 1): delta
+// application on the current search, By-Tab visible bucket — the
+// budgeted shape is the R2-2 interleaved case, a synthetic child fetch
+// source replaced inside the largest expanded bucket so removal runs
+// scatter through retained sibling-source rows and the merge interleaves
+// against them; the simple single-source full replacement is kept as an
+// informational row. By-Item rows wait for S5's machinery.
 //
 // Attribution follows the M2-M2 discipline: the live windows are timed
 // end-to-end, sort/key work is attributed by the model probes (counts)
@@ -363,51 +366,42 @@ int main(int argc, char *argv[])
 
     // --- Row 5 (S4): delta application, By-Tab visible bucket -------------
     {
-        // Back on Search 1, clean state, largest bucket expanded: the
-        // delta lands on the current search's visible bucket.
+        // Back on Search 1, clean state: the delta lands on the current
+        // search's visible bucket.
         tabs->setCurrentIndex(0);
         fixture.window->OnSearchFormChange();
         drainEvents();
         auto *model = tree->model();
-        int best_row = 0;
-        int best_count = -1;
-        for (int row = 0; row < model->rowCount(); ++row) {
-            const int count = model->rowCount(model->index(row, 0));
-            if (count > best_count) {
-                best_count = count;
-                best_row = row;
-            }
-        }
-        tree->expand(model->index(best_row, 0));
-        drainEvents();
 
-        // The delta is a full replacement of the largest tab's fetch
-        // source — the honest worst case: removal runs for every row plus
-        // a maximal merge into the visible order.
+        // The largest tab is the honest bucket shape (a 576-item quad); a
+        // second donor tab of similar size supplies a synthetic CHILD
+        // fetch source drawn from the same name/base pools, so the bucket
+        // aggregates two sources and the child's replacement is the R2-2
+        // shape: removal runs scattered through retained sibling-source
+        // rows, then a merge whose arrivals interleave against them.
         std::map<LocationInventory::Key, int> counts;
         for (const auto &item : all_items) {
             ++counts[LocationInventory::KeyFor(item->location())];
         }
         int best_tab = 0;
+        int donor_tab = 0;
         int best_tab_count = -1;
+        int donor_count = -1;
         for (int t = 0; t < dataset.tabCount(); ++t) {
             const int count = counts[LocationInventory::KeyFor(dataset.location(t))];
             if (count > best_tab_count) {
-                best_tab_count = count;
+                donor_tab = best_tab;
+                donor_count = best_tab_count;
                 best_tab = t;
+                best_tab_count = count;
+            } else if (count > donor_count) {
+                donor_tab = t;
+                donor_count = count;
             }
         }
         const ItemLocation target = dataset.location(best_tab);
         const auto target_key = LocationInventory::KeyFor(target);
-        Items delta;
-        delta.reserve(static_cast<size_t>(best_tab_count));
-        for (const auto &item : all_items) {
-            if (LocationInventory::KeyFor(item->location()) == target_key) {
-                delta.push_back(item);
-            }
-        }
-        // Make sure the delta's bucket is the expanded one: expand it too
-        // (idempotent when best_row already covers it).
+        tabs->setCurrentIndex(0);
         for (int row = 0; row < model->rowCount(); ++row) {
             if (model->index(row, 0).data().toString().startsWith(target.GetHeader())) {
                 tree->expand(model->index(row, 0));
@@ -416,20 +410,62 @@ int main(int argc, char *argv[])
         }
         drainEvents();
 
-        std::printf("  [shape] delta item count: %zu\n", delta.size());
+        // Informational: the simple shape — a full replacement of the
+        // tab's own single source (empty retained vector, one removal
+        // run, arrivals merged against nothing).
+        Items own_replacement;
+        own_replacement.reserve(static_cast<size_t>(best_tab_count));
+        for (const auto &item : all_items) {
+            if (LocationInventory::KeyFor(item->location()) == target_key) {
+                own_replacement.push_back(item);
+            }
+        }
+        {
+            std::vector<qint64> samples;
+            for (int rep = 0; rep < 5; ++rep) {
+                t0 = clock.nsecsElapsed();
+                fixture.window->OnTabRefreshed(target, own_replacement);
+                samples.push_back(clock.nsecsElapsed() - t0);
+                drainEvents();
+            }
+            rows.push_back({"  single-source full replacement", toMs(median(samples)), -1.0});
+        }
+
+        // The budgeted shape: the child source, seeded once (warmup),
+        // then replaced per rep. Fresh ids keep the id index on its
+        // unique fast path, as real arrivals would.
+        ItemLocation child_source = target;
+        child_source.setFetchId("bench-child-0001");
+        const poe::StashTab donor = dataset.MakeStashReply(donor_tab);
+        Items arrivals;
+        if (donor.items) {
+            arrivals.reserve(donor.items->size());
+            int serial = 0;
+            for (poe::Item poe_item : *donor.items) {
+                poe_item.id = QString("benchchild%1").arg(serial++, 16, 16, QChar('0'));
+                arrivals.push_back(std::make_shared<Item>(poe_item, child_source));
+            }
+        }
+        fixture.window->OnTabRefreshed(child_source, arrivals); // warmup: first insertion
+        drainEvents();
+
+        std::printf("  [shape] bucket: %d retained parent rows + %zu child arrivals per delta\n",
+                    best_tab_count,
+                    arrivals.size());
         std::vector<qint64> samples;
         for (int rep = 0; rep < 5; ++rep) {
             t0 = clock.nsecsElapsed();
-            fixture.window->OnTabRefreshed(target, delta);
+            fixture.window->OnTabRefreshed(child_source, arrivals);
             samples.push_back(clock.nsecsElapsed() - t0);
             drainEvents();
         }
-        rows.push_back(
-            {"S4 delta application, By-Tab visible bucket", toMs(median(samples)), budget_delta_ms});
+        rows.push_back({"S4 delta application (interleaved child merge)",
+                        toMs(median(samples)),
+                        budget_delta_ms});
 
         probes.reset();
         probes.enabled = true;
-        fixture.window->OnTabRefreshed(target, delta);
+        fixture.window->OnTabRefreshed(child_source, arrivals);
         probes.enabled = false;
         std::printf("  [attribution] delta application: bucket_sorts=%lld key_builds=%lld "
                     "keyed_compares=%lld index_rebuilds=%lld refilters=%lld model_resets=%lld\n",
