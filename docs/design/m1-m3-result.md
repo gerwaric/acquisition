@@ -218,6 +218,11 @@ view-side batch handling:
   are string-heavy composites). Total work is O(runs · n), ~10⁸-scale
   element moves per delta at 1m.
 
+*(The analysis and remedy options below are superseded in part by the
+S5 review round 1 subsection that follows — the "mutually
+unsatisfiable" claim was too strong, and remedy A as stated violates
+Qt's model contract.)*
+
 **The two halves of D4 rule 2 are mutually unsatisfiable at collection
 scale.** The rule's mechanism ("contiguous-run `removeRows` batches …
 inserted as contiguous-run `insertRows` batches") forces O(runs · n);
@@ -259,6 +264,103 @@ The S3/S4 rows were rerun on the S5 code and all still pass (unfiltered
 refilter 33.3 / 426.1 ms, sort share 0, cold expand 0.52 / 0.59 ms,
 broad-filter 88.7 / 981.7 ms, S4 interleaved delta 0.85 / 0.92 ms,
 memory rows exactly 0).
+
+**S5 review round 1 (July 31, 2026 — Tom's review of the pause
+record, four findings, all verified and accepted).** The findings and
+what each changed:
+
+1. *S5 misses its performance contract* — accepted; this is the
+   recorded miss and the pause above. No change.
+2. *Remedy A is invalid* — accepted, verified against the Qt 6.11.1
+   docs: `VerticalSortHint` "carr[ies] the meaning that items are …
+   not filtered out or in", and rows appearing or disappearing outside
+   `begin/endInsertRows`/`begin/endRemoveRows` is outside the model
+   contract; a pure layout operation covers equal-cardinality
+   permutation only. The recommendation above is withdrawn (marker
+   added). The round also corrects this section's **"mutually
+   unsatisfiable" claim, which was too strong**: Qt's contract binds
+   the model's *observable answers* at each notification boundary, not
+   its physical representation — the O(runs · n) cost came from this
+   implementation equating per-run notification with per-run
+   `vector::erase`/`insert`. A mutate-once/notify-per-run
+   implementation (option A′ below) satisfies D4's stated mechanism
+   *and* its complexity claim; the spec is not internally
+   inconsistent, the implementation was naive.
+3. *The benchmark omits production-path pricing* — accepted; the
+   harness gained manager-path rows (`ItemsManager::OnTabRefreshed`
+   end to end: source-keyed replacement, inventory ingest, scoped
+   pricing, then the window's merge), with priced arrivals carrying a
+   fresh `~b/o N chaos` note per rep so every rep's 576 `Set`s are
+   real state changes. Measured (same build/environment):
+
+   | Shape | 100k | 1m |
+   |---|---|---|
+   | Manager path, unpriced arrivals, Name active | 167.1 ms | 1414.9 ms |
+   | — same, with the view's row list laid out first | 167.3 ms | 1410.6 ms |
+   | Manager path, priced arrivals, Name active | 4634.7 ms | **43,982.3 ms** |
+   | Manager path, priced arrivals, Price active | 98.1 ms | 532.5 ms |
+
+   Attribution: the unpriced manager path costs the same as the
+   window-direct row (the pricing pass no-ops when no buyout state
+   changes), so the recorded 1397.9 ms was the honest number for
+   unpriced deltas — but a **lower bound** overall, exactly as the
+   finding said. The priced-Name blowup is NOT the pricing writes
+   (576 sqlite upserts are milliseconds) and NOT the merge: it is the
+   **rule-5 repaint's single spanning `dataChanged` rectangle**.
+   `RepaintBuyoutCells` emits one first-to-last rectangle per bucket;
+   in By-Item under a non-buyout sort the affected ids scatter, so the
+   span approaches the whole flat bucket, and Qt's per-row handling
+   costs ~44 µs/row — a constant that reproduces across all three
+   scales (smoke ~53 ms/1.2k rows, 100k ~4.4 s, 1m ~43 s). A new
+   sub-finding, S2-era in origin: the one-rectangle strategy is
+   O(span), invisible in By-Tab where buckets cap at 576 rows.
+   Priced-Price at 532 ms is the R3-2 batch re-sort (~2.0M keyed
+   compares) plus a *narrow* repaint band and a nearly run-free merge
+   (same-price arrivals cluster under the Price order).
+4. *Retired throttle leaves source-index machinery unconsumed* —
+   accepted, and stronger than stated: `HasVisibleSource` and
+   `HasVisibleGhostUnder` now have **zero callers anywhere**, tests
+   included; `m_visible_sources`/`m_visible_sources_by_tab` are
+   write-only production state maintained per delta. S6's
+   reconciliation does not need them as specced. Disposition is Tom's
+   call with the remedy: delete under an explicit amendment (the
+   acceptance text's D9-intersection references are M2 history), or
+   carry to S8's design-review pass.
+
+**Corrected remedy options** (superseding the list above; Tom
+decides):
+
+- **A′ — mutate once, notify per run (translation shim).** Compute
+  the final item and key vectors in one O(n + d) pass; emit the same
+  contiguous-run `removeRows`/`insertRows` batches D4 rule 2 states,
+  answering row queries during the notification window through a
+  prefix-offset translation over the old/final vectors, and swap the
+  final vectors in after the last batch. Keeps the frozen mechanism
+  verbatim — no amendment — with standard signals
+  (`modelTesterPassesUnderDeltaStorm`-safe). Work
+  O(n + d + runs·log runs). Caveat: the batch count stays O(runs), so
+  any per-batch view-side cost survives; measured nil offscreen, and
+  the "laid out" probe row above was inconclusive because the harness
+  window is never shown — if chosen, an on-screen spot-check is part
+  of the remedy's definition of done.
+- **A″ — cardinality adjustment + layout remap** (the review's
+  sketch): one tail `insertRows`/`removeRows` to establish the new
+  row count, then a bucket-scoped layout operation remapping
+  persistent indexes. O(1) model operations per delta. Needs a
+  post-freeze amendment to D4 rule 2's mechanism, and it is
+  contract-gray: the layout step still replaces content in and out,
+  which the sort hints explicitly exclude and `NoLayoutChangeHint`
+  leaves undocumented; `QAbstractItemModelTester` under the S6 storm
+  would adjudicate it in practice.
+- **B — renegotiate the budget** to the measured cost: unchanged from
+  above, rejected on its face by D3's immediacy rationale.
+- **Regardless of the merge remedy, the repaint span needs its own
+  fix**: rule 5 mandates that affected cells repaint, not that one
+  rectangle cover them — emitting one rectangle per affected
+  contiguous run (O(runs), like the row ops) removes the O(span)
+  term. Without it, even a 50 ms merge leaves a priced delta at ~43 s
+  at 1m under a non-buyout sort. Implementation-level, no amendment
+  required; folded into the remedy stage if approved.
 
 ## Budget table (S7 — to be run)
 

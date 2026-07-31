@@ -388,9 +388,11 @@ int main(int argc, char *argv[])
     }
 
     // --- Row 5 (S4): delta application, By-Tab visible bucket -------------
-    // The child source is shared with the S5 By-Item merge row below.
+    // The child source and donor reply are shared with the S5 By-Item
+    // merge rows below.
     ItemLocation child_source;
     Items child_arrivals;
+    poe::StashTab donor_reply;
     {
         // Back on Search 1, clean state: the delta lands on the current
         // search's visible bucket.
@@ -462,7 +464,8 @@ int main(int argc, char *argv[])
         // unique fast path, as real arrivals would.
         child_source = target;
         child_source.setFetchId("bench-child-0001");
-        const poe::StashTab donor = dataset.MakeStashReply(donor_tab);
+        donor_reply = dataset.MakeStashReply(donor_tab);
+        const poe::StashTab &donor = donor_reply;
         Items &arrivals = child_arrivals;
         if (donor.items) {
             arrivals.reserve(donor.items->size());
@@ -643,6 +646,124 @@ int main(int argc, char *argv[])
                 std::printf("  [micro] bare flat delta, no view attached: %.3f ms "
                             "(remainder of the live row is view-side batch handling)\n",
                             toMs(clock.nsecsElapsed() - t0));
+            }
+        }
+
+        // The production path (S5 review, P2): a delta reaches the window
+        // through ItemsManager::OnTabRefreshed — source-keyed replacement,
+        // inventory ingest, and the SCOPED PRICING PASS, which emits one
+        // BuyoutsChanged batch when any buyout state changed. In By-Item
+        // the batch's repaint scans the whole flat bucket, and with
+        // Price/Date active the affected key entries rebuild and the flat
+        // bucket fully re-sorts BEFORE the merge — so the window-direct
+        // merge row above is a lower bound for pricing-carrying deltas.
+        // Three end-to-end shapes; each priced rep carries a fresh price
+        // so its 576 Sets are real state changes (Set no-ops otherwise).
+        {
+            auto pricedArrivals = [&](int rep) {
+                Items out;
+                if (donor_reply.items) {
+                    out.reserve(donor_reply.items->size());
+                    int serial = 0;
+                    for (poe::Item poe_item : *donor_reply.items) {
+                        poe_item.id = QString("benchchild%1").arg(serial++, 16, 16, QChar('0'));
+                        poe_item.note = QString("~b/o %1 chaos").arg(rep + 1);
+                        out.push_back(std::make_shared<Item>(poe_item, child_source));
+                    }
+                }
+                return out;
+            };
+
+            // Shape 1: unpriced arrivals, Name active — the pricing pass
+            // records nothing and emits no batch.
+            {
+                fixture.itemsManager->OnTabRefreshed(child_source, child_arrivals); // warmup
+                drainEvents();
+                std::vector<qint64> samples;
+                for (int rep = 0; rep < 5; ++rep) {
+                    t0 = clock.nsecsElapsed();
+                    fixture.itemsManager->OnTabRefreshed(child_source, child_arrivals);
+                    samples.push_back(clock.nsecsElapsed() - t0);
+                    drainEvents();
+                }
+                rows.push_back(
+                    {"  merge, manager path (unpriced, Name)", toMs(median(samples)), -1.0});
+            }
+
+            // Shape 2: unpriced arrivals, Name active, with the view's
+            // flat row list materialized first (indexAt forces the lazy
+            // layout) — the ON-SCREEN shape: every row-op batch splices
+            // the view's own collection-sized viewItems list, work the
+            // offscreen rows above never pay.
+            {
+                fixture.itemsManager->OnTabRefreshed(child_source, child_arrivals); // warmup
+                drainEvents();
+                std::vector<qint64> samples;
+                for (int rep = 0; rep < 5; ++rep) {
+                    tree->indexAt(QPoint(0, 0)); // materialize viewItems (untimed)
+                    t0 = clock.nsecsElapsed();
+                    fixture.itemsManager->OnTabRefreshed(child_source, child_arrivals);
+                    samples.push_back(clock.nsecsElapsed() - t0);
+                    drainEvents();
+                }
+                rows.push_back({"  merge, manager path (unpriced, Name, laid out)",
+                                toMs(median(samples)),
+                                -1.0});
+            }
+
+            // Shape 3: priced arrivals, Name active — one batch, the
+            // By-Item repaint scans the flat bucket, nothing reorders.
+            {
+                std::vector<Items> reps;
+                for (int rep = 0; rep < 5; ++rep) {
+                    reps.push_back(pricedArrivals(rep));
+                }
+                std::vector<qint64> samples;
+                for (int rep = 0; rep < 5; ++rep) {
+                    t0 = clock.nsecsElapsed();
+                    fixture.itemsManager->OnTabRefreshed(child_source, reps[rep]);
+                    samples.push_back(clock.nsecsElapsed() - t0);
+                    drainEvents();
+                }
+                rows.push_back(
+                    {"  merge, manager path (priced, Name)", toMs(median(samples)), -1.0});
+            }
+
+            // Shape 4: priced arrivals, Price active — the batch rebuilds
+            // the affected resident key entries and fully re-sorts the
+            // flat bucket (R3-2), then the merge applies.
+            {
+                tree->header()->setSortIndicator(1, Qt::AscendingOrder); // Price; re-keys + sorts
+                drainEvents();
+                std::vector<Items> reps;
+                for (int rep = 0; rep < 5; ++rep) {
+                    reps.push_back(pricedArrivals(100 + rep));
+                }
+                std::vector<qint64> samples;
+                for (int rep = 0; rep < 5; ++rep) {
+                    t0 = clock.nsecsElapsed();
+                    fixture.itemsManager->OnTabRefreshed(child_source, reps[rep]);
+                    samples.push_back(clock.nsecsElapsed() - t0);
+                    drainEvents();
+                }
+                rows.push_back(
+                    {"  merge, manager path (priced, Price)", toMs(median(samples)), -1.0});
+
+                probes.reset();
+                probes.enabled = true;
+                fixture.itemsManager->OnTabRefreshed(child_source, pricedArrivals(200));
+                probes.enabled = false;
+                std::printf("  [attribution] priced Price-active delta: model_updates=%lld "
+                            "bucket_sorts=%lld key_builds=%lld keyed_compares=%lld "
+                            "model_resets=%lld\n",
+                            static_cast<long long>(probes.model_updates),
+                            static_cast<long long>(probes.bucket_sorts),
+                            static_cast<long long>(probes.key_builds),
+                            static_cast<long long>(probes.keyed_compares),
+                            static_cast<long long>(probes.model_resets));
+                drainEvents();
+                tree->header()->setSortIndicator(0, Qt::DescendingOrder); // restore Name
+                drainEvents();
             }
         }
     }
