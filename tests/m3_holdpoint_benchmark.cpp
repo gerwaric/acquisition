@@ -34,7 +34,10 @@
 // gate (the spec's acceptance-criteria budget table, authoritative on
 // the finished model); the broad-filter row additionally records a
 // process-level footprint delta so BOTH candidate worst materialized
-// shapes of the ≤ 300 MB row are judged at process level.
+// shapes of the ≤ 300 MB row are judged at process level. The process
+// exits non-zero when any budgeted row or binding memory check misses,
+// or when a binding measurement is unavailable on the platform (S7
+// review round 1); the ru_maxrss peak observations stay informational.
 //
 // Attribution follows the M2-M2 discipline: the live windows are timed
 // end-to-end, sort/key work is attributed by the model probes (counts)
@@ -149,7 +152,7 @@ namespace {
         double budget_ms; // < 0: informational, no budget at this preset
     };
 
-    void printRows(const std::vector<BudgetRow> &rows)
+    [[nodiscard]] bool printRows(const std::vector<BudgetRow> &rows)
     {
         bool missed = false;
         for (const auto &row : rows) {
@@ -165,9 +168,7 @@ namespace {
                             pass ? "PASS" : "MISS");
             }
         }
-        if (missed) {
-            std::printf("  *** at least one row MISSED its budget ***\n");
-        }
+        return missed;
     }
 
 } // namespace
@@ -244,6 +245,10 @@ int main(int argc, char *argv[])
 
     auto &probes = ModelProbes::instance();
     std::vector<BudgetRow> rows;
+    // The formal gate's memory rows are inline checks, not BudgetRows;
+    // they accumulate here so a miss — or a required measurement that is
+    // unavailable on this platform — fails the process, not just the eye.
+    bool memory_missed = false;
 
     // --- Row 1: worst-case unfiltered By-Tab refilter (default collapsed) --
     {
@@ -275,6 +280,7 @@ int main(int argc, char *argv[])
         drainEvents();
 
         // Memory row: the collapsed-default view holds no resident keys.
+        memory_missed = memory_missed || (probes.live_key_bytes != 0);
         std::printf("  [memory] collapsed-default resident key bytes: %lld (row: == 0)%s\n",
                     static_cast<long long>(probes.live_key_bytes),
                     probes.live_key_bytes == 0 ? "  PASS" : "  MISS");
@@ -358,15 +364,21 @@ int main(int argc, char *argv[])
                                                         - broad_footprint_before)
                                     / (1024.0 * 1024.0);
             const bool pass = !is_1m || (delta_mb <= 300.0);
+            memory_missed = memory_missed || !pass;
             std::printf("  [memory] broad-filter resident keys: gauge %.1f MB; process "
                         "footprint delta %.1f MB (budget 300 MB aggregate at 1m)%s\n",
                         static_cast<double>(probes.live_key_bytes) / (1024.0 * 1024.0),
                         delta_mb,
                         is_1m ? (pass ? "  PASS" : "  MISS") : "  (informational)");
         } else {
-            std::printf(
-                "  [memory] broad-filter resident key bytes: %lld (~worst materialized shape)\n",
-                static_cast<long long>(probes.live_key_bytes));
+            // The 1m memory budget binds here; without the footprint API
+            // the required measurement is unavailable — that fails the
+            // gate rather than silently degrading to the gauge estimate.
+            memory_missed = memory_missed || is_1m;
+            std::printf("  [memory] broad-filter resident key bytes: %lld gauge only — no "
+                        "process footprint API on this platform%s\n",
+                        static_cast<long long>(probes.live_key_bytes),
+                        is_1m ? "  MISS (required measurement unavailable)" : "");
         }
 
         // Attribution run + micros on identical data.
@@ -418,6 +430,7 @@ int main(int argc, char *argv[])
         const std::int64_t while_active = probes.live_key_bytes;
         tabs->setCurrentIndex(1);
         drainEvents();
+        memory_missed = memory_missed || (probes.live_key_bytes != 0);
         std::printf("  [memory] background resident key bytes: %lld after deactivation "
                     "(was %lld active) (row: == 0)%s\n",
                     static_cast<long long>(probes.live_key_bytes),
@@ -594,15 +607,18 @@ int main(int argc, char *argv[])
             const double delta_mb = static_cast<double>(footprint_after - footprint_before)
                                     / (1024.0 * 1024.0);
             const bool pass = !is_1m || (delta_mb <= 300.0);
+            memory_missed = memory_missed || !pass;
             std::printf("  [memory] By-Item resident keys: gauge %.1f MB; process footprint "
                         "delta %.1f MB (budget 300 MB aggregate at 1m)%s\n",
                         gauge_mb,
                         delta_mb,
                         is_1m ? (pass ? "  PASS" : "  MISS") : "  (informational)");
         } else {
-            std::printf("  [memory] By-Item resident keys: gauge %.1f MB (no process "
-                        "footprint API on this platform)\n",
-                        gauge_mb);
+            memory_missed = memory_missed || is_1m;
+            std::printf("  [memory] By-Item resident keys: gauge %.1f MB — no process "
+                        "footprint API on this platform%s\n",
+                        gauge_mb,
+                        is_1m ? "  MISS (required measurement unavailable)" : "");
         }
 
         // Row: clean By-Item reactivation — deactivation evicts the flat
@@ -905,6 +921,8 @@ int main(int argc, char *argv[])
                 dataset.tabCount(),
                 all_items.size(),
                 qVersion());
-    printRows(rows);
-    return 0;
+    const bool rows_missed = printRows(rows);
+    const bool failed = rows_missed || memory_missed;
+    std::printf("  S7 gate: %s\n", failed ? "FAIL" : "PASS");
+    return failed ? 1 : 0;
 }

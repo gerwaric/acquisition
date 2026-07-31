@@ -663,11 +663,37 @@ environment):
   deferred, outside every timed window in this table), and at the
   production delta cadence (~1 per 20 s under rate limits) it is
   invisible; a burst catch-up of ~15 replies costs ~150 ms total in
-  ≤ 10 ms event-loop slices. Recorded here for Tom's judgment at the
-  S7 pause — possible remedies if wanted: a > 0 debounce interval, or
-  arming only on bucket insertion / header-affecting changes.
+  ≤ 10 ms event-loop slices. Surfaced at the S7 pause and decided in
+  S7 review round 1 (below): the delta-path arming is debounced.
 
 **Gate verdict: PASS.** Every budgeted row passes at both presets with
 headroom; both candidate worst memory shapes pass at process level.
 Per the implementation sequence, the sequence pauses here for Tom
 before S8 (wrap-up).
+
+### S7 review round 1 (Tom, July 31, 2026): two findings, both accepted
+
+**(1) The gate could not fail.** `printRows` computed and discarded its
+miss flag, `main` returned 0 unconditionally, and the memory rows were
+print-only `PASS`/`MISS` strings — on a platform without the footprint
+API the two *binding* 1m memory rows silently degraded to gauge-only
+prints with no verdict. Fixed: budget rows and the four memory checks
+(collapsed-default ≈ 0, background exactly 0, both ≤ 300 MB footprint
+rows) accumulate into one verdict, a required measurement being
+unavailable at a preset where its budget binds counts as a miss, and
+the harness prints `S7 gate: PASS`/`FAIL` and exits non-zero on any
+miss. The two `ru_maxrss` peak observations stay informational by
+Tom's decision — they are S5-remedy verification evidence, not rows of
+the frozen acceptance-criteria table, and binding them would have
+required inventing a threshold the spec never stated. Both presets
+rerun after the change: every row still passes and the process exit
+code is 0 (verified directly, not through a pipeline). The recorded
+table above is unchanged — the runs it records were adjudicated by
+inspection and every row passed.
+
+**(2) The per-delta deferred column resize (the observation the
+addendum above parked for Tom's judgment): decided.** Tom's call —
+the delta-path arming becomes a **non-resetting single-shot debounce**
+(the D9 pattern at presentation scale); width-relevance gating was
+considered and deliberately not added. Remedy, pin, and measured
+effect are recorded in the step-2 subsection below when it lands.
