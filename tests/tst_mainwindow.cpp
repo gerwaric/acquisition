@@ -149,6 +149,18 @@ private slots:
     // S5 remedy A′ gate: the flat replace under the Qt model tester.
     void byItemReplaceSatisfiesModelTester();
 
+    // Items-pipeline M3, S6: the R1-2 final row reconciliation and the
+    // deletion of the last reset seam. The revalidation clauses inside
+    // `selectionIntentSurvivesCrossTabMoveAcrossDeltas`,
+    // `byItemSelectionSurvivesMerge`, and
+    // `appliedDeltasLeaveActiveSearchClean` were re-proved
+    // fallback-insensitively here (probe: reset count zero,
+    // final_reconciliations entered) — merely staying green proved
+    // nothing while the final-reset fallback also passed them.
+    void noModelResetDuringRefresh();
+    void finalReconciliationRemovesDeletedTabs();
+    void finalReconciliationInsertsNewlyListedEmptyTabs();
+
 private:
     std::shared_ptr<spdlog::logger> m_main_logger;
     std::shared_ptr<spdlog::sinks::dist_sink_mt> m_sink_hub;
@@ -2517,11 +2529,22 @@ void MainWindowTest::selectionIntentSurvivesCrossTabMoveAcrossDeltas()
         fixture.itemsManager->OnTabRefreshed(tabA, {stayer});
         QCOMPARE(tree->selectionModel()->selectedRows().size(), 0);
 
-        // The refresh completes; the id never reappeared.
+        // The refresh completes; the id never reappeared. Revalidated
+        // fallback-insensitively in S6: the clause also passed under the
+        // temporary final-reset seam, so the probes must show the row
+        // reconciliation — not a reset — performed the intent clearing.
+        QSignalSpy final_resets(model, &QAbstractItemModel::modelReset);
+        auto &probes = ModelProbes::instance();
+        probes.reset();
+        probes.enabled = true;
         Items final_items;
         final_items.push_back(stayer);
         fixture.itemsManager->OnItemsRefreshed(final_items, {tabA}, false);
         fixture.window->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+        QCOMPARE(final_resets.count(), 0);
+        QCOMPARE(probes.final_reconciliations, 1);
+        QCOMPARE(probes.refilters, 0);
+        probes.enabled = false;
         QCOMPARE(tree->selectionModel()->selectedRows().size(), 0);
 
         // A later refresh reinserting the id must not reselect it.
@@ -2664,6 +2687,21 @@ void MainWindowTest::appliedDeltasLeaveActiveSearchClean()
         ->OnTabRefreshed(tabA, {makeMainWindowItem("item-a3", "AlphaItem Three", "Sword", tabA)});
     QCOMPARE(first_resets.count(), resets_after_switch);
     QVERIFY(visibleItemNames(*tree).contains("AlphaItem Three Sword"));
+    tabs->setCurrentIndex(1);
+    tabs->setCurrentIndex(0);
+    QCOMPARE(first_resets.count(), resets_after_switch);
+    QVERIFY(visibleItemNames(*tree).contains("AlphaItem Three Sword"));
+
+    // S6: the final reconciliation is the R1-7 clearing boundary and
+    // performs no reset itself, so the post-snapshot switch-away round
+    // trip still refilters nothing.
+    Items final_items;
+    final_items.push_back(makeMainWindowItem("item-a3", "AlphaItem Three", "Sword", tabA));
+    fixture.itemsManager
+        ->OnItemsRefreshed(final_items,
+                           {tabA, makeTestStashLocation("stash-bbbb", "Beta Renamed", 1)},
+                           false);
+    QCOMPARE(first_resets.count(), resets_after_switch);
     tabs->setCurrentIndex(1);
     tabs->setCurrentIndex(0);
     QCOMPARE(first_resets.count(), resets_after_switch);
@@ -2980,16 +3018,26 @@ void MainWindowTest::byItemSelectionSurvivesMerge()
     QCOMPARE(selectedRows.front().data().toString(), "Mover Shield");
 
     // Absent at the final reconciliation: the intent clears, and a later
-    // refresh reinserting the id does not reselect.
+    // refresh reinserting the id does not reselect. Revalidated
+    // fallback-insensitively in S6 (probe: reset count zero, the
+    // reconciliation entered) — the clause also passed under the
+    // temporary final-reset seam.
     fixture.itemsManager->OnTabRefreshed(tabB,
                                          {makeMainWindowItem("item-b", "BetaItem", "Shield", tabB),
                                           makeMainWindowItem("item-z", "Zebra", "Shield", tabB)});
     QCOMPARE(tree->selectionModel()->selectedRows().size(), 0);
+    auto &probes = ModelProbes::instance();
+    probes.reset();
+    probes.enabled = true;
     Items final_items;
     final_items.push_back(makeMainWindowItem("item-y", "Stayer", "Sword", tabA));
     final_items.push_back(makeMainWindowItem("item-b", "BetaItem", "Shield", tabB));
     final_items.push_back(makeMainWindowItem("item-z", "Zebra", "Shield", tabB));
     fixture.itemsManager->OnItemsRefreshed(final_items, {tabA, tabB}, false);
+    QCOMPARE(resets.count(), 0);
+    QCOMPARE(probes.final_reconciliations, 1);
+    QCOMPARE(probes.refilters, 0);
+    probes.enabled = false;
     fixture.itemsManager->OnTabRefreshed(tabB,
                                          {makeMainWindowItem("item-b", "BetaItem", "Shield", tabB),
                                           makeMainWindowItem("item-z", "Zebra", "Shield", tabB),
@@ -3309,6 +3357,170 @@ void MainWindowTest::byItemReplaceSatisfiesModelTester()
     const QStringList applied = visibleItemNames(*tree);
     fixture.window->OnSearchFormChange();
     QCOMPARE(visibleItemNames(*tree), applied);
+}
+
+void MainWindowTest::noModelResetDuringRefresh()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-bbbb", "Beta", 1);
+    const ItemLocation tabC = makeTestStashLocation("stash-cccc", "Gamma", 2);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-b", "BetaItem", "Shield", tabB));
+    items.push_back(makeMainWindowItem("item-c", "GammaItem", "Axe", tabC));
+    // Initial population takes the one legitimate refresh-boundary reset.
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB, tabC}, true);
+
+    auto *model = tree->model();
+    tree->expand(findBucket(*model, tabA.GetHeader()));
+
+    QSignalSpy resets(model, &QAbstractItemModel::modelReset);
+    auto &probes = ModelProbes::instance();
+    probes.reset();
+    probes.enabled = true;
+
+    // A complete refresh with the window open: content deltas, an empty
+    // delta, a metadata delta, a child reconciliation, the final
+    // snapshot (which also deletes a tab — snapshot-only work), and the
+    // terminal event. The delta and snapshot share Item objects, the way
+    // the worker publishes them.
+    const auto alpha_fresh = makeMainWindowItem("item-a2", "AlphaItem Two", "Sword", tabA);
+    const auto beta_fresh = makeMainWindowItem("item-b", "BetaItem", "Shield", tabB);
+    fixture.itemsManager->OnTabRefreshed(tabA, {alpha_fresh});
+    fixture.itemsManager->OnTabRefreshed(tabB, {beta_fresh});
+    fixture.itemsManager->OnTabRefreshed(tabC, {});
+    const ItemLocation tabB_renamed = makeTestStashLocation("stash-bbbb", "Beta Renamed", 1);
+    fixture.itemsManager->OnTabRefreshed(tabB_renamed, {});
+    fixture.itemsManager->OnChildrenReconciled(tabA,
+                                               {FetchSourceKey::ForLocation(tabA)});
+    Items final_items;
+    final_items.push_back(alpha_fresh);
+    final_items.push_back(beta_fresh);
+    fixture.itemsManager->OnItemsRefreshed(final_items, {tabA, tabB_renamed}, false);
+    fixture.window->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+
+    // Zero resets on the current search's model — and none anywhere in
+    // the window (probes.model_resets counts every beginResetModel); the
+    // final snapshot performed only the row reconciliation, no refilter.
+    QCOMPARE(resets.count(), 0);
+    QCOMPARE(probes.model_resets, 0);
+    QCOMPARE(probes.refilters, 0);
+    QCOMPARE(probes.final_reconciliations, 1);
+    probes.enabled = false;
+
+    // The refresh's whole effect landed through row operations.
+    QCOMPARE(visibleItemNames(*tree),
+             QStringList({"AlphaItem Two Sword", "BetaItem Shield"}));
+    QVERIFY(findBucket(*model, tabB_renamed.GetHeader()).isValid());
+    QVERIFY(!findBucket(*model, tabC.GetHeader()).isValid());
+}
+
+void MainWindowTest::finalReconciliationRemovesDeletedTabs()
+{
+    MainWindowFixture fixture;
+    auto *tabs = findSearchTabs(*fixture.window);
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tabs && tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-bbbb", "Beta", 1);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-b", "BetaItem", "Shield", tabB));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB}, true);
+
+    auto *model = tree->model();
+    const QModelIndex bucketB = findBucket(*model, tabB.GetHeader());
+    tree->expand(bucketB);
+    // Select the doomed tab's item, so the boundary's index answer is
+    // observable through the selection contract.
+    tree->selectionModel()->setCurrentIndex(findItemRow(*model, bucketB, "BetaItem Shield"),
+                                            QItemSelectionModel::ClearAndSelect
+                                                | QItemSelectionModel::Rows);
+
+    QSignalSpy resets(model, &QAbstractItemModel::modelReset);
+    auto &probes = ModelProbes::instance();
+    probes.reset();
+    probes.enabled = true;
+
+    // The refresh fetches tab A only; no delta ever removes tab B — its
+    // deletion is snapshot-boundary work (M2 D6).
+    const auto alpha_fresh = makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA);
+    fixture.itemsManager->OnTabRefreshed(tabA, {alpha_fresh});
+    fixture.itemsManager->OnItemsRefreshed({alpha_fresh}, {tabA}, false);
+    fixture.window->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+
+    // The reconciliation — not a reset — removed the bucket and its rows.
+    QCOMPARE(resets.count(), 0);
+    QCOMPARE(probes.final_reconciliations, 1);
+    probes.enabled = false;
+    QVERIFY(!findBucket(*model, tabB.GetHeader()).isValid());
+    QCOMPARE(model->rowCount(), 1);
+
+    // Its items left the visible indexes: the maintained count renders,
+    // and the closed selection intent cannot resurrect the id when a
+    // later refresh reinserts it.
+    QCOMPARE(tabs->tabText(0), "Search 1 [1]");
+    QCOMPARE(tree->selectionModel()->selectedRows().size(), 0);
+    fixture.itemsManager->OnTabRefreshed(tabA,
+                                         {alpha_fresh,
+                                          makeMainWindowItem("item-b", "BetaItem", "Shield", tabA)});
+    QCOMPARE(tree->selectionModel()->selectedRows().size(), 0);
+}
+
+void MainWindowTest::finalReconciliationInsertsNewlyListedEmptyTabs()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    auto *name = findNameFilter(*fixture.window);
+    QVERIFY(tree);
+    QVERIFY(name);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    const ItemLocation tabC = makeTestStashLocation("stash-cccc", "Gamma", 2);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "AlphaItem", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-c", "GammaItem", "Sword", tabC));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabC}, true);
+
+    auto *model = tree->model();
+    QCOMPARE(model->rowCount(), 2);
+
+    QSignalSpy resets(model, &QAbstractItemModel::modelReset);
+    auto &probes = ModelProbes::instance();
+    probes.reset();
+    probes.enabled = true;
+
+    // A newly discovered, never-fetched tab exists only in the final
+    // snapshot's published list: the unfiltered search shows it as an
+    // empty bucket at its display position.
+    const ItemLocation tabB = makeTestStashLocation("stash-bbbb", "Beta", 1);
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB, tabC}, false);
+    QCOMPARE(resets.count(), 0);
+    QCOMPARE(probes.final_reconciliations, 1);
+    probes.enabled = false;
+    QCOMPARE(model->rowCount(), 3);
+    QVERIFY(model->index(1, 0).data().toString().startsWith(tabB.GetHeader()));
+    QCOMPARE(model->rowCount(model->index(1, 0)), 0);
+
+    // A filtered search continues to hide empty buckets — the known
+    // empty tab and a newly listed one alike.
+    name->setFocus();
+    QTest::keyClicks(name, "sword");
+    fixture.window->OnSearchFormChange();
+    QVERIFY(!findBucket(*model, tabB.GetHeader()).isValid());
+
+    QSignalSpy filtered_resets(model, &QAbstractItemModel::modelReset);
+    const ItemLocation tabD = makeTestStashLocation("stash-dddd", "Delta", 3);
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB, tabC, tabD}, false);
+    QCOMPARE(filtered_resets.count(), 0);
+    QVERIFY(!findBucket(*model, tabB.GetHeader()).isValid());
+    QVERIFY(!findBucket(*model, tabD.GetHeader()).isValid());
+    QCOMPARE(visibleItemNames(*tree), QStringList({"AlphaItem Sword", "GammaItem Sword"}));
 }
 
 QTEST_MAIN(MainWindowTest)

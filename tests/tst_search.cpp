@@ -28,6 +28,12 @@ private slots:
     void probeCountersTrackRefilterAndSort();
     void keyedOrderMatchesComparatorOrder();
     void intendedTieBreakRestored();
+    // M3 S6 (R1-2/R1-7): the final reconciliation is authoritative at the
+    // row grain, which is what licenses clearing the fail-safe dirty flag
+    // a skipped delta left behind — the
+    // `appliedDeltasLeaveActiveSearchClean` clause the MainWindow fixture
+    // cannot reach (no reachable skip path exists there since S5).
+    void reconciliationDischargesFailSafeDirtiness();
 };
 
 template<typename Payload>
@@ -592,6 +598,57 @@ void SearchTest::intendedTieBreakRestored()
         bucket.Sort(name_column, Qt::DescendingOrder);
         QCOMPARE(itemOrderSignature(bucket.items()), descending);
     }
+}
+
+void SearchTest::reconciliationDischargesFailSafeDirtiness()
+{
+    BuyoutManagerFixture buyoutFixture;
+    const ItemLocation tabA = makeTestStashLocation("stash-a", "Alpha Tab", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-b", "Beta Tab", 1);
+    buyoutFixture.manager->SetStashTabLocations({tabA, tabB});
+    LocationInventory inventory;
+    inventory.ResetTo({tabA, tabB});
+
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    Search search(*buyoutFixture.manager, "Search", catalog, &inventory);
+
+    Items initial;
+    initial.push_back(makeSearchItem("alpha-item", "Alpha Bite", "Vaal Axe", tabA));
+    initial.push_back(makeSearchItem("beta-item", "Beta Guard", "Copper Shield", tabB));
+    search.FilterItems(initial);
+    QVERIFY(!search.itemsDirty());
+
+    // A skipped delta (the R1-7 fail-safe direction): the flag goes
+    // dirty and the published state moves on without the model — tab A's
+    // content was replaced, tab B was deleted, tab C was discovered.
+    search.setItemsDirty(true);
+    const ItemLocation tabC = makeTestStashLocation("stash-c", "Gamma Tab", 2);
+    Items published;
+    published.push_back(makeSearchItem("alpha-two", "Alpha Two", "Vaal Axe", tabA));
+    buyoutFixture.manager->SetStashTabLocations({tabA, tabC});
+    inventory.ResetTo({tabA, tabC});
+
+    QSignalSpy resets(&search.model(), &QAbstractItemModel::modelReset);
+    const auto result = search.ReconcileFinalSnapshot(published);
+
+    // Authoritative at the row grain, via row operations only: the model
+    // equals a fresh refilter of the published state, so the flag clears.
+    QCOMPARE(resets.count(), 0);
+    QVERIFY(result.rows_changed);
+    QVERIFY(!search.itemsDirty());
+    QCOMPARE(search.GetCaption(), "Search [1]");
+    const auto &buckets = search.buckets();
+    QCOMPARE(buckets.size(), 2);
+    QCOMPARE(buckets[0].location().id(), tabA.id());
+    QCOMPARE(buckets[0].items().size(), 1);
+    QCOMPARE(buckets[0].items()[0]->id(), "alpha-two");
+    QCOMPARE(buckets[1].location().id(), tabC.id());
+    QCOMPARE(buckets[1].items().size(), 0);
+
+    // Clean again: a tab change refilters nothing.
+    search.SetRefreshReason(RefreshReason::TabChanged);
+    search.FilterItems(published);
+    QCOMPARE(resets.count(), 0);
 }
 
 QTEST_MAIN(SearchTest)
