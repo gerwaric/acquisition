@@ -1100,15 +1100,22 @@ Search::SnapshotReconciliation Search::ReconcileFinalSnapshot(const Items &publi
     // their arrivals with the same states, so for a clean search the
     // accepted set reproduces the visible result and the diffs below find
     // only the snapshot-only mutations — deleted tabs, new listings, the
-    // rebased metadata (M2 D6).
-    std::unordered_set<const Item *> accepted;
+    // rebased metadata (M2 D6). One reserved pointer→state table carries
+    // the whole diff (S6 review round 1): kAccepted marks target
+    // membership, kRetained is set for rows the removal pass kept, and
+    // "missing" falls out as accepted-but-never-retained — no second
+    // collection-sized set, no per-bucket set churn.
+    constexpr std::uint8_t kAccepted = 1;
+    constexpr std::uint8_t kRetained = 2;
+    std::unordered_map<const Item *, std::uint8_t> state;
+    state.reserve(published.size());
     std::map<LocationInventory::Key, Items> target_items;
     const bool by_item = (m_current_mode == ViewMode::ByItem);
     for (const auto &item : published) {
         if (!MatchesActiveFilters(*item)) {
             continue;
         }
-        accepted.insert(item.get());
+        state.emplace(item.get(), kAccepted);
         if (!by_item) {
             target_items[LocationInventory::KeyFor(item->location())].push_back(item);
         }
@@ -1127,14 +1134,16 @@ Search::SnapshotReconciliation Search::ReconcileFinalSnapshot(const Items &publi
         // are the published objects, so both sides are empty and no model
         // operation runs.
         Bucket &flat = m_bucket_by_item.front();
-        std::unordered_set<const Item *> have;
-        have.reserve(flat.items().size());
         for (const auto &item : flat.items()) {
-            have.insert(item.get());
+            const auto it = state.find(item.get());
+            if (it != state.end()) {
+                it->second |= kRetained;
+            }
         }
         Items missing;
         for (const auto &item : published) {
-            if ((accepted.count(item.get()) > 0) && (have.count(item.get()) == 0)) {
+            const auto it = state.find(item.get());
+            if ((it != state.end()) && (it->second == kAccepted)) {
                 missing.push_back(item);
             }
         }
@@ -1143,7 +1152,7 @@ Search::SnapshotReconciliation Search::ReconcileFinalSnapshot(const Items &publi
         const Column *merge_column = (sortable && flat.sorted()) ? m_columns[column].get()
                                                                  : nullptr;
         const Items removed_items = flat.ReplaceSourceRows(
-            [&accepted](const Item &item) { return accepted.count(&item) == 0; },
+            [&state](const Item &item) { return state.find(&item) == state.end(); },
             missing,
             merge_column,
             m_model.GetSortOrder(),
@@ -1270,23 +1279,37 @@ Search::SnapshotReconciliation Search::ReconcileFinalSnapshot(const Items &publi
     // (the worker publishes the Item objects the deltas delivered, so a
     // clean search's surviving buckets diff to nothing; content a skipped
     // delta left stale is replaced here — which is what licenses the
-    // dirty-flag clear below).
+    // dirty-flag clear below). The removal predicate is per stable key,
+    // not merely global membership (S6 review round 1): a row is retained
+    // only when its item is accepted AND belongs under this bucket's key,
+    // so an object parked in the wrong bucket (reachable through
+    // ApplyTabDelta, whose insertions target the delta anchor) is removed
+    // here and re-inserted under its own key — never duplicated. That
+    // guarantee is also what makes the kRetained mark sound: retained ⇒
+    // in exactly its own key's bucket.
     for (int row = 0; row < static_cast<int>(m_bucket_by_tab.size()); ++row) {
-        bool bucket_changed = RemoveBucketRows(row, [&accepted](const Item &item) {
-            return accepted.count(&item) == 0;
+        const ItemLocation &bucket_location = m_bucket_by_tab[static_cast<size_t>(row)].location();
+        bool bucket_changed = RemoveBucketRows(row, [&state, &bucket_location](const Item &item) {
+            if (state.find(&item) == state.end()) {
+                return true;
+            }
+            const ItemLocation &location = item.location();
+            return (location.type() != bucket_location.type())
+                   || (location.id() != bucket_location.id());
         });
         const auto it = target_items.find(
             LocationInventory::KeyFor(m_bucket_by_tab[static_cast<size_t>(row)].location()));
         if (it != target_items.end()) {
             const Bucket &bucket = m_bucket_by_tab[static_cast<size_t>(row)];
-            std::unordered_set<const Item *> have;
-            have.reserve(bucket.items().size());
             for (const auto &item : bucket.items()) {
-                have.insert(item.get());
+                const auto entry = state.find(item.get());
+                if (entry != state.end()) {
+                    entry->second |= kRetained;
+                }
             }
             Items missing;
             for (const auto &item : it->second) {
-                if (have.count(item.get()) == 0) {
+                if (state.at(item.get()) == kAccepted) {
                     missing.push_back(item);
                 }
             }

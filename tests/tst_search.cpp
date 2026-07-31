@@ -34,6 +34,12 @@ private slots:
     // `appliedDeltasLeaveActiveSearchClean` clause the MainWindow fixture
     // cannot reach (no reachable skip path exists there since S5).
     void reconciliationDischargesFailSafeDirtiness();
+    // S6 review round 1: the reconciliation's diff is per stable key, not
+    // global pointer membership. ApplyTabDelta can park an item under the
+    // delta anchor's bucket even when the item's own location keys
+    // elsewhere (insertions target the anchor); the reconciliation must
+    // move it home, never retain-and-duplicate.
+    void reconciliationRehomesWrongBucketRow();
 };
 
 template<typename Payload>
@@ -649,6 +655,62 @@ void SearchTest::reconciliationDischargesFailSafeDirtiness()
     search.SetRefreshReason(RefreshReason::TabChanged);
     search.FilterItems(published);
     QCOMPARE(resets.count(), 0);
+}
+
+void SearchTest::reconciliationRehomesWrongBucketRow()
+{
+    BuyoutManagerFixture buyoutFixture;
+    const ItemLocation tabA = makeTestStashLocation("stash-a", "Alpha Tab", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-b", "Beta Tab", 1);
+    buyoutFixture.manager->SetStashTabLocations({tabA, tabB});
+    LocationInventory inventory;
+    inventory.ResetTo({tabA, tabB});
+
+    const FilterCatalog catalog = BuildFilterCatalog(*buyoutFixture.manager);
+    Search search(*buyoutFixture.manager, "Search", catalog, &inventory);
+
+    const auto alpha_item = makeSearchItem("alpha-item", "Alpha Bite", "Vaal Axe", tabA);
+    const auto beta_item = makeSearchItem("beta-item", "Beta Guard", "Copper Shield", tabB);
+    Items initial;
+    initial.push_back(alpha_item);
+    initial.push_back(beta_item);
+    search.FilterItems(initial);
+
+    // Fabricate the wrong-bucket state through the public delta API: the
+    // arrival's own location keys to tab B, but ApplyTabDelta inserts
+    // into the delta anchor's bucket — tab A.
+    const auto wanderer = makeSearchItem("wanderer", "Wanderer", "Vaal Axe", tabB);
+    const auto delta = search.ApplyTabDelta(tabA, {wanderer});
+    QVERIFY(delta.processed);
+    QCOMPARE(search.buckets()[0].location().id(), tabA.id());
+    QCOMPARE(search.buckets()[0].items().size(), 1);
+    QCOMPARE(search.buckets()[0].items()[0]->id(), "wanderer");
+
+    // The snapshot publishes that same object (plus tab B's resident):
+    // the per-key diff must re-home it — removed from A, inserted under
+    // B, exactly one occurrence — via row operations.
+    Items published;
+    published.push_back(wanderer);
+    published.push_back(beta_item);
+    QSignalSpy resets(&search.model(), &QAbstractItemModel::modelReset);
+    const auto result = search.ReconcileFinalSnapshot(published);
+    QCOMPARE(resets.count(), 0);
+    QVERIFY(result.rows_changed);
+
+    const auto &buckets = search.buckets();
+    QCOMPARE(buckets.size(), 2);
+    QCOMPARE(buckets[0].location().id(), tabA.id());
+    QCOMPARE(buckets[0].items().size(), 0); // unfiltered: empty bucket row stays
+    QCOMPARE(buckets[1].location().id(), tabB.id());
+    QCOMPARE(buckets[1].items().size(), 2);
+    int occurrences = 0;
+    for (const auto &bucket : buckets) {
+        for (const auto &item : bucket.items()) {
+            occurrences += (item->id() == "wanderer") ? 1 : 0;
+        }
+    }
+    QCOMPARE(occurrences, 1);
+    QCOMPARE(search.GetCaption(), "Search [2]");
 }
 
 QTEST_MAIN(SearchTest)
