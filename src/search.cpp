@@ -1235,24 +1235,28 @@ Search::SnapshotReconciliation Search::ReconcileFinalSnapshot(const Items &publi
         }
     }
 
-    // Bucket order corrected via move ops: a selection pass over the
-    // rebased display order — a clean refresh with unmoved tabs performs
-    // zero moves. O(tabs^2) compares once per refresh, accepted like the
-    // rest of the O(collection) pass.
-    const int bucket_count = static_cast<int>(m_bucket_by_tab.size());
-    for (int row = 0; row < bucket_count; ++row) {
-        int best = row;
-        for (int n = row + 1; n < bucket_count; ++n) {
-            if (bucketDisplayLess(m_bucket_by_tab[static_cast<size_t>(n)],
-                                  m_bucket_by_tab[static_cast<size_t>(best)])) {
-                best = n;
+    // Bucket order corrected via move ops. bucketDisplayLess is a TOTAL
+    // order (stable-id tiebreak), so "no move needed" is exactly
+    // is_sorted — the clean snapshot pays one O(tabs) scan (S6 review
+    // round 1: the unguarded selection pass was O(tabs²) on every clean
+    // snapshot, against the 2000+-tab driving use case). The selection
+    // pass survives as the rare displaced-path mechanism only.
+    if (!std::is_sorted(m_bucket_by_tab.begin(), m_bucket_by_tab.end(), bucketDisplayLess)) {
+        const int bucket_count = static_cast<int>(m_bucket_by_tab.size());
+        for (int row = 0; row < bucket_count; ++row) {
+            int best = row;
+            for (int n = row + 1; n < bucket_count; ++n) {
+                if (bucketDisplayLess(m_bucket_by_tab[static_cast<size_t>(n)],
+                                      m_bucket_by_tab[static_cast<size_t>(best)])) {
+                    best = n;
+                }
             }
-        }
-        if ((best != row) && m_model.BeginMoveBucketRow(best, row)) {
-            auto first = m_bucket_by_tab.begin();
-            std::rotate(first + row, first + best, first + best + 1);
-            RebuildRowLookups();
-            m_model.EndMoveBucketRow();
+            if ((best != row) && m_model.BeginMoveBucketRow(best, row)) {
+                auto first = m_bucket_by_tab.begin();
+                std::rotate(first + row, first + best, first + best + 1);
+                RebuildRowLookups();
+                m_model.EndMoveBucketRow();
+            }
         }
     }
 
