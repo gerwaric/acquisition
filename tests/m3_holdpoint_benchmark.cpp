@@ -25,6 +25,10 @@
 // reactivation (the R3-1 eager hydration), the D4 flat-bucket merge
 // (same interleaved child source, By-Item active), and the worst-shape
 // resident key memory — gauge plus process-level footprint delta.
+// S6 rows (informational, added in S6 review round 1): the clean final
+// snapshot's row reconciliation, By-Tab and By-Item — elapsed plus
+// lifetime-peak delta, no budget (the spec accepts O(collection) once
+// per refresh; these keep the every-refresh path measured).
 //
 // Attribution follows the M2-M2 discipline: the live windows are timed
 // end-to-end, sort/key work is attributed by the model probes (counts)
@@ -224,8 +228,11 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    // Initial population (production-faithful since S6: the cached-load
+    // snapshot is initial_refresh=true and takes the reset path; the
+    // non-initial reconciliation is measured by its own S6 rows below).
     qint64 t0 = clock.nsecsElapsed();
-    fixture.itemsManager->OnItemsRefreshed(all_items, locations, false);
+    fixture.itemsManager->OnItemsRefreshed(all_items, locations, true);
     drainEvents();
     std::printf("  initial publish + refilter: %.1f ms\n", toMs(clock.nsecsElapsed() - t0));
 
@@ -806,7 +813,65 @@ int main(int argc, char *argv[])
         }
     }
 
-    std::printf("\n=== M3 S3-S5 hold-point result: preset %s, %d tabs, %zu items, Qt %s ===\n",
+    // --- S6 rows (informational, S6 review round 1): the clean final
+    // snapshot, both modes. No budget — the spec accepts O(collection)
+    // once per refresh — but the path runs on EVERY refresh and its two
+    // modes have different allocation profiles (By-Tab: state table +
+    // per-bucket diff + order scan; By-Item: state table + flat A′
+    // replace), so S7 records both. The window-direct call isolates the
+    // reconciliation; the manager's snapshot pricing batch is measured
+    // by the S5 manager-path rows. ru_maxrss deltas report any
+    // collection-scale transient (the state table is the expected one).
+    {
+        auto *viewCombo = fixture.window->findChild<QComboBox *>("viewComboBox");
+        if (!viewCombo) {
+            std::fprintf(stderr, "viewComboBox not found\n");
+            return 1;
+        }
+        const auto cleanSnapshotRow = [&](const char *name) {
+            fixture.window->OnSearchFormChange(); // settle: model == published state
+            drainEvents();
+            struct rusage peak_before{};
+            getrusage(RUSAGE_SELF, &peak_before);
+            std::vector<qint64> samples;
+            for (int rep = 0; rep < 5; ++rep) {
+                t0 = clock.nsecsElapsed();
+                fixture.window->OnItemsRefreshed(false);
+                samples.push_back(clock.nsecsElapsed() - t0);
+                drainEvents();
+            }
+            struct rusage peak_after{};
+            getrusage(RUSAGE_SELF, &peak_after);
+            rows.push_back({name, toMs(median(samples)), -1.0});
+            probes.reset();
+            probes.enabled = true;
+            fixture.window->OnItemsRefreshed(false);
+            probes.enabled = false;
+            std::printf("  [attribution] %s: final_reconciliations=%lld refilters=%lld "
+                        "model_resets=%lld bucket_sorts=%lld key_builds=%lld; lifetime peak "
+                        "across reps +%.1f MB\n",
+                        name,
+                        static_cast<long long>(probes.final_reconciliations),
+                        static_cast<long long>(probes.refilters),
+                        static_cast<long long>(probes.model_resets),
+                        static_cast<long long>(probes.bucket_sorts),
+                        static_cast<long long>(probes.key_builds),
+                        static_cast<double>(peak_after.ru_maxrss - peak_before.ru_maxrss)
+                            / (1024.0 * 1024.0));
+        };
+
+        viewCombo->setCurrentIndex(0);
+        emit viewCombo->activated(0);
+        drainEvents();
+        cleanSnapshotRow("S6 clean final snapshot, By-Tab (median of 5)");
+
+        viewCombo->setCurrentIndex(1);
+        emit viewCombo->activated(1);
+        drainEvents();
+        cleanSnapshotRow("S6 clean final snapshot, By-Item (median of 5)");
+    }
+
+    std::printf("\n=== M3 S3-S6 hold-point result: preset %s, %d tabs, %zu items, Qt %s ===\n",
                 qPrintable(preset_name),
                 dataset.tabCount(),
                 all_items.size(),
