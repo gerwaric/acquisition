@@ -16,6 +16,7 @@
 #include <QTreeView>
 
 #include <memory>
+#include <random>
 
 #include <spdlog/logger.h>
 #include <spdlog/sinks/dist_sink.h>
@@ -160,6 +161,7 @@ private slots:
     void noModelResetDuringRefresh();
     void finalReconciliationRemovesDeletedTabs();
     void finalReconciliationInsertsNewlyListedEmptyTabs();
+    void modelTesterPassesUnderDeltaStorm();
 
 private:
     std::shared_ptr<spdlog::logger> m_main_logger;
@@ -3521,6 +3523,223 @@ void MainWindowTest::finalReconciliationInsertsNewlyListedEmptyTabs()
     QVERIFY(!findBucket(*model, tabB.GetHeader()).isValid());
     QVERIFY(!findBucket(*model, tabD.GetHeader()).isValid());
     QCOMPARE(visibleItemNames(*tree), QStringList({"AlphaItem Sword", "GammaItem Sword"}));
+}
+
+void MainWindowTest::modelTesterPassesUnderDeltaStorm()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    auto *viewCombo = fixture.window->findChild<QComboBox *>("viewComboBox");
+    QVERIFY(tree);
+    QVERIFY(viewCombo);
+
+    // The world is tracked at the fetch-source grain, the way
+    // ItemsManager publishes it (M2 D6): each tab's entry is what the
+    // last delta for that source carried, so a snapshot mid cross-tab
+    // move legitimately publishes a duplicated id — the divergence the
+    // index machinery exists for.
+    struct TabState
+    {
+        QString id;
+        QString label;
+        int position;
+        Items items;
+    };
+    std::vector<TabState> world;
+    int tab_counter = 0;
+    int item_counter = 0;
+    const auto locationFor = [](const TabState &tab) {
+        return makeTestStashLocation(tab.id, tab.label, tab.position);
+    };
+    const auto makeStormItem = [&](const QString &id, const TabState &tab) {
+        return makeMainWindowItem(id, QString("Item %1").arg(id), "Sword", locationFor(tab));
+    };
+    const auto newTab = [&] {
+        TabState tab;
+        tab.id = QString("storm-%1").arg(tab_counter);
+        tab.label = QString("Storm %1").arg(tab_counter);
+        tab.position = tab_counter;
+        ++tab_counter;
+        return tab;
+    };
+    const auto flatten = [&] {
+        Items all;
+        for (const auto &tab : world) {
+            all.insert(all.end(), tab.items.begin(), tab.items.end());
+        }
+        return all;
+    };
+    const auto tabList = [&] {
+        std::vector<ItemLocation> tabs;
+        for (const auto &tab : world) {
+            tabs.push_back(locationFor(tab));
+        }
+        return tabs;
+    };
+
+    for (int n = 0; n < 5; ++n) {
+        world.push_back(newTab());
+        for (int k = 0; k < 2; ++k) {
+            world.back().items.push_back(
+                makeStormItem(QString("it-%1").arg(item_counter++), world.back()));
+        }
+    }
+    fixture.itemsManager->OnItemsRefreshed(flatten(), tabList(), true);
+
+    // The tester rides the current search's model through the whole
+    // storm; FailureReportingMode::QtTest turns any protocol violation
+    // into a test failure at the offending operation.
+    QAbstractItemModelTester tester(tree->model(),
+                                    QAbstractItemModelTester::FailureReportingMode::QtTest);
+
+    std::mt19937 rng(20260731u);
+    const auto pick = [&rng](int n) {
+        return std::uniform_int_distribution<int>(0, n - 1)(rng);
+    };
+
+    auto &probes = ModelProbes::instance();
+    probes.reset();
+    probes.enabled = true;
+
+    for (int step = 0; step < 240; ++step) {
+        switch (pick(12)) {
+        case 0:
+        case 1:
+        case 2: {
+            // Content delta — occasionally migrating an id from another
+            // tab's source (the cross-tab divergence).
+            TabState &tab = world[static_cast<size_t>(pick(static_cast<int>(world.size())))];
+            Items fresh;
+            const int count = pick(4);
+            for (int n = 0; n < count; ++n) {
+                fresh.push_back(makeStormItem(QString("it-%1").arg(item_counter++), tab));
+            }
+            if ((count > 0) && (pick(4) == 0)) {
+                const TabState &other = world[static_cast<size_t>(
+                    pick(static_cast<int>(world.size())))];
+                if ((&other != &tab) && !other.items.empty()) {
+                    fresh.push_back(makeStormItem(other.items.front()->id(), tab));
+                }
+            }
+            tab.items = fresh;
+            fixture.itemsManager->OnTabRefreshed(locationFor(tab), fresh);
+            break;
+        }
+        case 3: {
+            // Empty delta: the fetch source empties, nothing else.
+            TabState &tab = world[static_cast<size_t>(pick(static_cast<int>(world.size())))];
+            tab.items.clear();
+            fixture.itemsManager->OnTabRefreshed(locationFor(tab), {});
+            break;
+        }
+        case 4: {
+            // Metadata delta: a fresh anchor (rename or move) carried by
+            // a re-fetch of the tab's current content (R1-4's metadata
+            // half applies before the content half).
+            TabState &tab = world[static_cast<size_t>(pick(static_cast<int>(world.size())))];
+            if (pick(2) == 0) {
+                tab.label += QStringLiteral("~");
+            } else {
+                tab.position = pick(10);
+            }
+            fixture.itemsManager->OnTabRefreshed(locationFor(tab), tab.items);
+            break;
+        }
+        case 5: {
+            // Child reconciliation: expected-set erase under the parent's
+            // stable key — the no-op form and the erase-everything form.
+            TabState &tab = world[static_cast<size_t>(pick(static_cast<int>(world.size())))];
+            if (pick(2) == 0) {
+                fixture.itemsManager
+                    ->OnChildrenReconciled(locationFor(tab),
+                                           {FetchSourceKey::ForLocation(locationFor(tab))});
+            } else {
+                tab.items.clear();
+                fixture.itemsManager->OnChildrenReconciled(locationFor(tab), {});
+            }
+            break;
+        }
+        case 6: {
+            // New-tab discovery mid-refresh (R6-1): an empty delta whose
+            // anchor no search has seen.
+            if (world.size() < 9) {
+                world.push_back(newTab());
+                fixture.itemsManager->OnTabRefreshed(locationFor(world.back()), {});
+            }
+            break;
+        }
+        case 7:
+        case 8: {
+            // Final reconciliation — sometimes with a tab deletion, a
+            // position rebase, or a newly listed unfetched tab, the
+            // snapshot-only mutations (M2 D6).
+            if ((pick(3) == 0) && (world.size() > 2)) {
+                world.erase(world.begin() + pick(static_cast<int>(world.size())));
+            }
+            if (pick(3) == 0) {
+                world[static_cast<size_t>(pick(static_cast<int>(world.size())))].position = pick(
+                    10);
+            }
+            if ((pick(4) == 0) && (world.size() < 9)) {
+                world.push_back(newTab());
+            }
+            fixture.itemsManager->OnItemsRefreshed(flatten(), tabList(), false);
+            fixture.window->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+            break;
+        }
+        case 9: {
+            // Expansion change.
+            auto *model = tree->model();
+            if (model->rowCount() > 0) {
+                const QModelIndex bucket = model->index(pick(model->rowCount()), 0);
+                if (tree->isExpanded(bucket)) {
+                    tree->collapse(bucket);
+                } else {
+                    tree->expand(bucket);
+                }
+            }
+            break;
+        }
+        case 10: {
+            // Sort click.
+            static constexpr int columns[] = {0, 1, 2, 4};
+            tree->sortByColumn(columns[pick(4)],
+                               (pick(2) == 0) ? Qt::AscendingOrder : Qt::DescendingOrder);
+            break;
+        }
+        case 11: {
+            // View-mode switch through the user entry (no-op re-selects
+            // included).
+            const int mode = pick(2);
+            viewCombo->setCurrentIndex(mode);
+            emit viewCombo->activated(mode);
+            break;
+        }
+        }
+    }
+
+    // Settle and check coherence: after a last snapshot, the maintained
+    // model holds exactly the membership a from-scratch refilter of the
+    // published collection produces (within-bucket order for collapsed
+    // buckets is deliberately lazy — D2 — so membership, not sequence).
+    fixture.itemsManager->OnItemsRefreshed(flatten(), tabList(), false);
+    fixture.window->OnRefreshFinished(RefreshOutcome{CompletedRefresh{}});
+    QStringList applied = visibleItemNames(*tree);
+
+    // The storm actually stormed (the distribution is stdlib-dependent,
+    // so floors, not exact counts) — and the delta path never once fell
+    // back to a refilter: the single refilter below is the verification
+    // pass itself.
+    QVERIFY2(probes.final_reconciliations >= 10, "snapshot boundary underexercised");
+    QCOMPARE(probes.refilters, 0);
+
+    fixture.window->OnSearchFormChange();
+    QCOMPARE(probes.refilters, 1);
+    probes.enabled = false;
+    QStringList refiltered = visibleItemNames(*tree);
+    applied.sort();
+    refiltered.sort();
+    QCOMPARE(applied, refiltered);
 }
 
 QTEST_MAIN(MainWindowTest)
