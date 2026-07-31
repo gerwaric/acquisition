@@ -227,18 +227,26 @@ void MainWindow::InitializeUi()
         const auto mode = static_cast<Search::ViewMode>(n);
         if (mode != m_current_search->GetViewMode()) {
             SaveViewExpansion(*m_current_search);
-            m_current_search->SetViewMode(mode);
             if (m_current_search->itemsDirty()) {
                 // A mode switch is one of D6's user-initiated refilter
                 // boundaries (S4 review round 1): a search the By-Item
                 // fallback left items-dirty refilters NOW — otherwise the
                 // arriving mode renders un-applied state, and a pending
                 // fallback tick would later reset a By-Tab model the
-                // throttle no longer owns. The refilter's tail cancels
-                // that tick.
+                // throttle no longer owns. The dirty flip is QUIET (S4
+                // review round 2) so the refilter's reset announces the
+                // flip and the fresh content as one structural change,
+                // and the PRE-switch capture above (plus scroll here) is
+                // what the restore replays — the refresh's own capture
+                // pass would observe the post-flip transient instead.
+                SaveViewScroll(*m_current_search);
+                m_current_search->SetViewMode(mode);
                 m_current_search->SetRefreshReason(RefreshReason::ItemsChanged);
+                m_suppress_view_capture = true;
                 ModelViewRefresh();
+                m_suppress_view_capture = false;
             } else {
+                m_current_search->SetViewMode(mode);
                 RestoreViewExpansion(*m_current_search);
             }
         }
@@ -819,8 +827,13 @@ void MainWindow::OnTabRefreshed(const ItemLocation &location, const Items &items
     }
     // The first delta opens the selection-intent window (R1-3) —
     // regardless of application mechanism: the fallback seam defers
-    // application, never the intent contract (S4 review round 1).
+    // application, never the intent contract (S4 review round 1). A new
+    // refresh also supersedes any unresolved deferred closure (S4 review
+    // round 2): its own terminal re-adjudicates, and a stale deferral
+    // firing mid-refresh could clear the intent between a removal and a
+    // cross-tab insertion.
     m_refresh_active = true;
+    m_intent_close_pending = false;
     if (m_current_search->GetViewMode() == Search::ViewMode::ByItem) {
         // M3 S4 fallback seam (working rule 2), DELETED IN S5: a By-Item
         // active search keeps the D9 throttled path — rules 1-2 verbatim.
@@ -852,7 +865,8 @@ void MainWindow::OnChildrenReconciled(const ItemLocation &parent,
     if (!m_current_search) {
         return;
     }
-    m_refresh_active = true; // the intent window covers both mechanisms
+    m_refresh_active = true;        // the intent window covers both mechanisms
+    m_intent_close_pending = false; // a new refresh supersedes an old deferral
     if (m_current_search->GetViewMode() == Search::ViewMode::ByItem) {
         // M3 S4 fallback seam (working rule 2), DELETED IN S5.
         m_current_search->setItemsDirty(true);
@@ -940,16 +954,9 @@ void MainWindow::ReconcileSelectionIntent()
         // reset-reselect cycle used to do this implicitly. A bucket the
         // filtered-empty convergence removed clears the selection.
         const auto key = LocationInventory::KeyFor(*m_current_bucket_location);
-        const auto &buckets = m_current_search->buckets();
-        int bucket_row = -1;
-        for (size_t row = 0; row < buckets.size(); ++row) {
-            if (LocationInventory::KeyFor(buckets[row].location()) == key) {
-                bucket_row = static_cast<int>(row);
-                break;
-            }
-        }
+        const int bucket_row = m_current_search->rowForKey(key);
         if (bucket_row >= 0) {
-            const ItemLocation &fresh = buckets[static_cast<size_t>(bucket_row)].location();
+            const ItemLocation &fresh = m_current_search->bucket(bucket_row).location();
             const bool rendered_changed = (fresh.GetHeader()
                                            != m_current_bucket_location->GetHeader())
                                           || (fresh.getR() != m_current_bucket_location->getR())
@@ -1004,7 +1011,7 @@ void MainWindow::OnRefreshFinished(const RefreshOutcome &outcome)
         m_intent_close_pending = false;
         return;
     }
-    if (m_current_search->itemsDirty()) {
+    if (m_current_search->itemsDirty() && m_delta_throttle.isActive()) {
         // The fallback seam skipped application, so this search's indexes
         // are stale — an absence check here would happily retain an
         // intent for an already-removed item (S4 review round 1). Defer
@@ -1013,6 +1020,12 @@ void MainWindow::OnRefreshFinished(const RefreshOutcome &outcome)
         m_intent_close_pending = true;
         return;
     }
+    // Dirty with NO pending tick means every delta since this search's
+    // last refilter failed the intersection test — by that test's
+    // definition none removed or added a visible row, so the current
+    // index answers the absence check honestly despite the flag (S4
+    // review round 2: an unconditional deferral could otherwise wait
+    // forever and fire mid-way through a LATER refresh).
     if (!m_current_search->visibleItemById(m_selection_intent_id)) {
         m_selection_intent_id.clear();
     }
@@ -1126,7 +1139,7 @@ void MainWindow::ModelViewRefresh()
     // tab switch it still shows the outgoing search, whose state OnTabChange
     // already saved.
     ItemsModel &model = m_current_search->model();
-    if (ui->treeView->model() == &model) {
+    if (!m_suppress_view_capture && (ui->treeView->model() == &model)) {
         SaveViewExpansion(*m_current_search);
         SaveViewScroll(*m_current_search);
     }

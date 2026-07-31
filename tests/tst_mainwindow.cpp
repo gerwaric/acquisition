@@ -2979,6 +2979,56 @@ void MainWindowTest::selectionIntentCoversByItemFallback()
         QCOMPARE(selectedRows.size(), 1);
         QCOMPARE(selectedRows.front().data().toString(), "Mover Sword");
     }
+
+    // Clause 4 (review round 2): a non-intersecting delta marks the
+    // search dirty WITHOUT arming the timer, so the terminal closure
+    // must adjudicate immediately — by the intersection test's
+    // definition such deltas changed nothing visible, so the index is
+    // honest despite the flag. A deferral here would stay open into the
+    // NEXT refresh, where its late firing could clear the intent between
+    // a removal and a cross-tab insertion.
+    {
+        MainWindowFixture fixture;
+        fixture.window->SetDeltaThrottleInterval(100);
+        auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+        QVERIFY(tree);
+
+        const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+        const ItemLocation tabB = makeTestStashLocation("stash-bbbb", "Beta", 1);
+        const ItemLocation tabC = makeTestStashLocation("stash-cccc", "Gamma", 2);
+        Items items;
+        items.push_back(makeMainWindowItem("item-x", "Mover", "Sword", tabA));
+        items.push_back(makeMainWindowItem("item-b", "BetaItem", "Shield", tabB));
+        fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB, tabC}, false);
+        switchToByItemView(fixture);
+
+        auto *model = tree->model();
+        const QModelIndex mover = findItemRow(*model, model->index(0, 0), "Mover Sword");
+        QVERIFY(mover.isValid());
+        tree->selectionModel()->setCurrentIndex(mover,
+                                                QItemSelectionModel::ClearAndSelect
+                                                    | QItemSelectionModel::Rows);
+
+        // Tab C has nothing visible: dirty, no timer. The terminal
+        // closure runs now and correctly retains the still-visible id.
+        fixture.itemsManager->OnTabRefreshed(tabC, {});
+        fixture.window->OnRefreshFinished(RefreshOutcome{FailedRefresh{RateLimit::FetchError{}}});
+
+        // The NEXT refresh moves the item cross-tab through two ticks; a
+        // stale deferral would have cleared the intent at the first one.
+        QSignalSpy resets(model, &QAbstractItemModel::modelReset);
+        fixture.itemsManager->OnTabRefreshed(tabA, {});
+        QTRY_COMPARE_WITH_TIMEOUT(resets.count(), 1, 2000);
+        QCOMPARE(tree->selectionModel()->selectedRows().size(), 0);
+        fixture.itemsManager
+            ->OnTabRefreshed(tabB,
+                             {makeMainWindowItem("item-x", "Mover", "Sword", tabB),
+                              makeMainWindowItem("item-b", "BetaItem", "Shield", tabB)});
+        QTRY_COMPARE_WITH_TIMEOUT(resets.count(), 2, 2000);
+        const QModelIndexList selectedRows = tree->selectionModel()->selectedRows();
+        QCOMPARE(selectedRows.size(), 1);
+        QCOMPARE(selectedRows.front().data().toString(), "Mover Sword");
+    }
 }
 
 // M3 S4 review round 1 (D6; renegotiated when the seam dies in S5): a
@@ -3007,11 +3057,14 @@ void MainWindowTest::modeSwitchConsumesFallbackDirtiness()
             ->OnTabRefreshed(tabA, {makeMainWindowItem("item-a2", "AlphaItem Two", "Sword", tabA)});
         QVERIFY(visibleItemNames(*tree).contains("AlphaItem Sword"));
 
-        // The switch to By-Tab refilters NOW.
+        // The switch to By-Tab refilters NOW — as ONE reset (round 2):
+        // the dirty flip is quiet and the refilter's reset announces the
+        // flip and the fresh content together.
         auto *model = tree->model();
         QSignalSpy resets(model, &QAbstractItemModel::modelReset);
         viewCombo->setCurrentIndex(0);
         emit viewCombo->activated(0);
+        QCOMPARE(resets.count(), 1);
         QVERIFY(visibleItemNames(*tree).contains("AlphaItem Two Sword"));
         QVERIFY(!visibleItemNames(*tree).contains("AlphaItem Sword"));
 
@@ -3109,6 +3162,40 @@ void MainWindowTest::filteredSearchDropsEmptiedBucket()
     QCOMPARE(resets.count(), 0);
     QCOMPARE(model->rowCount(), 1);
     QVERIFY(!findBucket(*model, tabB.GetHeader()).isValid());
+
+    // Round 2: "filtered" means ANY filter is active, not "something was
+    // rejected" — the old snapshot could be flipped by one delta, a
+    // whole-view change no bucket-scoped operation expresses. An active
+    // filter that happens to reject nothing still hides empty tabs, and
+    // a delta whose arrivals are rejected converges the same way.
+    {
+        MainWindowFixture fixture2;
+        auto *tree2 = fixture2.window->findChild<QTreeView *>("treeView");
+        auto *name2 = findNameFilter(*fixture2.window);
+        QVERIFY(tree2 && name2);
+
+        const ItemLocation tabD = makeTestStashLocation("stash-dddd", "Delta", 0);
+        const ItemLocation tabE = makeTestStashLocation("stash-eeee", "Echo", 1);
+        Items all_match;
+        all_match.push_back(makeMainWindowItem("item-d", "DeltaItem", "Sword", tabD));
+        fixture2.itemsManager->OnItemsRefreshed(all_match, {tabD, tabE}, false);
+
+        // The filter matches every visible item: the search is filtered
+        // regardless, so E's empty bucket is hidden.
+        name2->setFocus();
+        QTest::keyClicks(name2, "item");
+        fixture2.window->OnSearchFormChange();
+        auto *model2 = tree2->model();
+        QCOMPARE(model2->rowCount(), 1);
+
+        // A delta whose arrivals are all rejected empties D, and the
+        // emptied bucket leaves — the flag cannot be flipped by a delta.
+        QSignalSpy resets2(model2, &QAbstractItemModel::modelReset);
+        fixture2.itemsManager
+            ->OnTabRefreshed(tabD, {makeMainWindowItem("item-d2", "Nomatch", "Sword", tabD)});
+        QCOMPARE(resets2.count(), 0);
+        QCOMPARE(model2->rowCount(), 0);
+    }
 }
 
 // M3 S4 review round 1 (R1-4): a metadata delta refreshes the selected
