@@ -91,7 +91,13 @@ public slots:
     void OnDelayedSearchFormChange();
     void OnTabChange(int index);
     void OnImageFetched(const QString &url);
-    void OnItemsRefreshed();
+    // The final snapshot (M2 D8 signal, M3 S6 semantics): background
+    // searches are flagged items-dirty and refilter on their own next
+    // activation (rule 1); the active search performs the R1-2
+    // authoritative row reconciliation — row operations only, never a
+    // reset. Initial population keeps its reset (D6: nothing to
+    // preserve).
+    void OnItemsRefreshed(bool initial_refresh = false);
     void OnStatusUpdate(ProgramState state, const QString &status);
     void OnNotifyUser(const QString &message);
     void OnShopWarning(const QString &message);

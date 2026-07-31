@@ -949,8 +949,8 @@ void MainWindow::OnRefreshFinished(const RefreshOutcome &outcome)
 {
     Q_UNUSED(outcome);
     // R2-1: every terminal outcome closes the intent window. On success
-    // the final snapshot's refilter has already reselected or cleared
-    // (S6 moves that boundary into the row reconciliation); on failure —
+    // the final snapshot's row reconciliation has already reselected or
+    // cleared (R1-2, S6); on failure —
     // which emits no final snapshot — the absence check runs here, so a
     // stale intent can never survive one refresh and reselect an item in
     // a later one. The immediate delta path keeps the current search's
@@ -1504,29 +1504,60 @@ void MainWindow::ResetBuyoutWidgets()
     ui->buyoutCurrencyComboBox->setCurrentIndex(Currency::CURRENCY_NONE);
 }
 
-void MainWindow::OnItemsRefreshed()
+void MainWindow::OnItemsRefreshed(bool initial_refresh)
 {
     spdlog::trace("MainWindow::OnItemsRefreshed() entered");
-    // M3 fallback seam (working rule 2), DELETED IN S6: the final
-    // snapshot keeps its existing reset path — every search refilters and
-    // all items-dirty flags clear. S6 replaces the current search's
-    // refilter with the R1-2 row reconciliation.
-    int tab = 0;
+    // Background searches keep rule 1 at the snapshot boundary too
+    // (R1-7): the snapshot mutates published state no delta expressed
+    // (deleted tabs, new listings, the location rebase), so every
+    // background search is flagged now and its own next activation
+    // refilters — never an eager background refilter here.
     for (const auto &search : m_searches) {
-        search->SetRefreshReason(RefreshReason::ItemsChanged);
-        // Don't update current search - it will be updated in OnSearchFormChange
         if (search.get() != m_current_search) {
-            search->FilterItems(m_items_manager.items());
-            m_tab_bar->setTabText(tab, search->GetCaption());
+            search->setItemsDirty(true);
         }
-        tab++;
     }
-    ModelViewRefresh();
-    // The success-boundary intent closure (R1-3): ModelViewRefresh's
-    // intent pass adopted an id that reappeared only in the final
-    // snapshot; one whose id is absent is cleared so it cannot reselect
-    // in a later refresh.
-    if (m_current_search && !m_selection_intent_id.isEmpty()
+    if (!m_current_search) {
+        m_refresh_active = false;
+        return;
+    }
+    if (initial_refresh) {
+        // Initial population (D6): nothing to preserve — this is the one
+        // refresh boundary where the reset path stays legitimate.
+        m_current_search->SetRefreshReason(RefreshReason::ItemsChanged);
+        ModelViewRefresh();
+        m_refresh_active = false;
+        return;
+    }
+
+    // R1-2 (S6): the active search performs one authoritative row
+    // reconciliation against the post-snapshot published state — row
+    // operations only, never a reset (noModelResetDuringRefresh).
+    m_applying_delta = true;
+    const auto result = m_current_search->ReconcileFinalSnapshot(m_items_manager.items());
+    m_applying_delta = false;
+    if (m_current_search->defaultExpanded()) {
+        // Buckets the reconciliation inserted expand now; the expand
+        // signal materializes and sorts them (D2 rule 2) — the same
+        // view-side tail a delta's inserted bucket gets.
+        for (const int row : result.inserted_bucket_rows) {
+            ui->treeView->expand(m_current_search->model().index(row, 0));
+        }
+    }
+    for (size_t i = 0; i < m_searches.size(); ++i) {
+        if (m_searches[i].get() == m_current_search) {
+            m_tab_bar->setTabText(static_cast<int>(i), m_current_search->GetCaption());
+            break;
+        }
+    }
+    if (result.rows_changed) {
+        ScheduleResizeTreeColumns();
+    }
+    ReconcileSelectionIntent();
+    // The success-boundary intent closure (R1-3): the intent pass above
+    // adopted an id that reappeared only in the final snapshot; one whose
+    // id is absent is cleared so it cannot reselect in a later refresh.
+    if (!m_selection_intent_id.isEmpty()
         && !m_current_search->visibleItemById(m_selection_intent_id)) {
         m_selection_intent_id.clear();
     }

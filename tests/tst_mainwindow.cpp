@@ -35,7 +35,12 @@ private slots:
     void cleanupTestCase();
     void fixtureConstructsOffline();
     void tabChangeActivatesSelectedSearch();
-    void itemsRefreshRefiltersBackgroundSearches();
+    // Renegotiated in M3 S6 from `itemsRefreshRefiltersBackgroundSearches`
+    // (the F33-era eager background refilter rode the final-snapshot reset
+    // seam): the snapshot now flags background searches items-dirty and
+    // their own activation refilters (rule 1), so F33's freshness guarantee
+    // holds exactly where the user can observe it.
+    void itemsRefreshDefersBackgroundSearchesToActivation();
     void pendingEditFollowsOutgoingSearch();
     void deleteTabDance();
     void currentViewStatePins();
@@ -387,7 +392,7 @@ void MainWindowTest::tabChangeActivatesSelectedSearch()
     QCOMPARE(visibleItemNames(*tree), QStringList({"Beta Shield"}));
 }
 
-void MainWindowTest::itemsRefreshRefiltersBackgroundSearches()
+void MainWindowTest::itemsRefreshDefersBackgroundSearchesToActivation()
 {
     MainWindowFixture fixture;
     auto *tabs = findSearchTabs(*fixture.window);
@@ -410,10 +415,17 @@ void MainWindowTest::itemsRefreshRefiltersBackgroundSearches()
     changedItems.push_back(makeMainWindowItem("alpha-two", "Alpha Two", "Axe", alphaTab));
     fixture.itemsManager->OnItemsRefreshed(changedItems, {alphaTab, betaTab}, false);
 
-    // Search 1 is in the background, so this verifies the window-level F33
-    // path rather than merely refiltering the active form.
-    QCOMPARE(tabs->tabText(0), "Search 1 [2]");
+    // S6 (R1-2/R1-7): the snapshot no longer refilters background
+    // searches eagerly — Search 1 keeps its last-rendered caption while
+    // the active search reconciles.
+    QCOMPARE(tabs->tabText(0), "Search 1 [1]");
     QCOMPARE(tabs->tabText(1), "Search 2 [3]");
+
+    // F33's guarantee is preserved where the user can see it: activation
+    // consumes the items-dirty flag and refilters (rule 1), so the search
+    // is fresh the moment it is shown.
+    tabs->setCurrentIndex(0);
+    QCOMPARE(tabs->tabText(0), "Search 1 [2]");
 }
 
 void MainWindowTest::pendingEditFollowsOutgoingSearch()
@@ -1004,13 +1016,25 @@ void MainWindowTest::probeCountersTrackCaptureRestore()
     auto &probes = ModelProbes::instance();
     probes.reset();
     probes.enabled = true;
-    fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+    // Initial population (D6) is the refresh boundary that still runs the
+    // capture/restore reset machinery — S6 removed it from the non-initial
+    // snapshot, which reconciles instead.
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA}, true);
 
     QCOMPARE(probes.expansion_captures, 1);
     QCOMPARE(probes.scroll_captures, 1);
     QCOMPARE(probes.expansion_restores, 1);
     QCOMPARE(probes.scroll_restores, 1);
     QCOMPARE(probes.reselects, 1);
+    QCOMPARE(probes.refilters, 1);
+    QCOMPARE(probes.final_reconciliations, 0);
+
+    // The S6 site: a non-initial snapshot enters the row reconciliation
+    // and none of the reset-path machinery.
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+    QCOMPARE(probes.final_reconciliations, 1);
+    QCOMPARE(probes.expansion_captures, 1);
+    QCOMPARE(probes.scroll_captures, 1);
     QCOMPARE(probes.refilters, 1);
     probes.enabled = false;
 }
