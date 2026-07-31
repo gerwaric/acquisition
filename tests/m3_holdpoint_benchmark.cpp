@@ -38,6 +38,7 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
+#include <QScrollBar>
 #include <QTabBar>
 #include <QTreeView>
 
@@ -50,6 +51,7 @@
 #ifdef __APPLE__
 #include <mach/mach.h>
 #endif
+#include <sys/resource.h>
 
 #include <spdlog/sinks/dist_sink.h>
 #include <spdlog/spdlog.h>
@@ -765,6 +767,42 @@ int main(int argc, char *argv[])
                 tree->header()->setSortIndicator(0, Qt::DescendingOrder); // restore Name
                 drainEvents();
             }
+        }
+
+        // A′ gates (S5 remedy): the shown, laid-out spot check — the
+        // unshown rows above never materialize the view's flat row list,
+        // so they cannot adjudicate per-batch view overhead — and the
+        // peak-footprint gate: the lifetime peak must not grow by a
+        // key-vector-sized transient across the reps (the in-place key
+        // rebuild). Run with QT_QPA_PLATFORM=cocoa for the fully
+        // on-screen variant; the recorded environment stays offscreen.
+        {
+            fixture.window->resize(1200, 800);
+            fixture.window->show();
+            drainEvents();
+            for (int n = 0; (n < 200) && (tree->verticalScrollBar()->maximum() == 0); ++n) {
+                drainEvents();
+            }
+            struct rusage peak_before{};
+            getrusage(RUSAGE_SELF, &peak_before);
+            std::vector<qint64> samples;
+            for (int rep = 0; rep < 5; ++rep) {
+                t0 = clock.nsecsElapsed();
+                fixture.window->OnTabRefreshed(child_source, child_arrivals);
+                samples.push_back(clock.nsecsElapsed() - t0);
+                drainEvents();
+            }
+            struct rusage peak_after{};
+            getrusage(RUSAGE_SELF, &peak_after);
+            rows.push_back({"S5 By-Item merge (window shown, laid out)",
+                            toMs(median(samples)),
+                            budget_byitem_merge_ms});
+            std::printf("  [memory] lifetime peak (ru_maxrss, bytes on macOS) across shown-window "
+                        "merge reps: +%.1f MB (gate: no key-vector-sized transient)\n",
+                        static_cast<double>(peak_after.ru_maxrss - peak_before.ru_maxrss)
+                            / (1024.0 * 1024.0));
+            fixture.window->hide();
+            drainEvents();
         }
     }
 

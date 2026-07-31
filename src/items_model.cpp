@@ -49,11 +49,12 @@ int ItemsModel::rowCount(const QModelIndex &parent) const
     if ((parent.model() != this) || (parent.column() != 0)) {
         return 0;
     }
-    // Bucket, contains elements
+    // Bucket, contains elements. size() answers through the A′ replace
+    // translation while a flat replacement's notifications are running.
     if (!parent.parent().isValid()) {
         const int bucket_row = parent.row();
         if (m_search.has_bucket(bucket_row)) {
-            return static_cast<int>(m_search.bucket(bucket_row).items().size());
+            return m_search.bucket(bucket_row).size();
         } else {
             return 0;
         }

@@ -4,6 +4,7 @@
 #include <QtTest/QtTest>
 
 #include <QAbstractItemModel>
+#include <QAbstractItemModelTester>
 #include <QComboBox>
 #include <QHeaderView>
 #include <QItemSelectionModel>
@@ -140,6 +141,8 @@ private slots:
     void modeSwitchRendersAppliedDeltas();
     // S5 review round 1: rule-5 repaint scoped to affected runs.
     void buyoutRepaintScopesToAffectedRuns();
+    // S5 remedy A′ gate: the flat replace under the Qt model tester.
+    void byItemReplaceSatisfiesModelTester();
 
 private:
     std::shared_ptr<spdlog::logger> m_main_logger;
@@ -3184,6 +3187,104 @@ void MainWindowTest::buyoutRepaintScopesToAffectedRuns()
     QCOMPARE(repaints.count(), 1);
     QCOMPARE(repaints.at(0).at(0).toModelIndex().row(), 0);
     QCOMPARE(repaints.at(0).at(1).toModelIndex().row(), 4);
+}
+
+// M3 S5 remedy A′ gate: shrink, equal, grow, empty, and removal-only
+// replacements — every one with removal and insertion runs interleaved
+// through retained rows — run under QAbstractItemModelTester, with a
+// live selection and a persistent index surviving throughout, no reset,
+// and the end state equal to a from-scratch refilter.
+void MainWindowTest::byItemReplaceSatisfiesModelTester()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-aaaa", "Alpha", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-bbbb", "Beta", 1);
+    ItemLocation child_fetch = tabB;
+    child_fetch.setFetchId("child-0001");
+    Items items;
+    items.push_back(makeMainWindowItem("item-a1", "Alpha One", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-a2", "Golf One", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-a3", "Zeta One", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-b1", "Echo One", "Shield", tabB));
+    items.push_back(makeMainWindowItem("item-b2", "Yankee One", "Shield", tabB));
+    items.push_back(makeMainWindowItem("item-g", "Ghost One", "Shield", child_fetch));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB}, false);
+    switchToByItemView(fixture);
+
+    auto *model = tree->model();
+    QAbstractItemModelTester tester(model, QAbstractItemModelTester::FailureReportingMode::QtTest);
+    QSignalSpy resets(model, &QAbstractItemModel::modelReset);
+
+    // A surviving tab-B row keeps the selection; a persistent index on
+    // another tab-B row must track every shuffle.
+    const QModelIndex flat = model->index(0, 0);
+    const QModelIndex echo = findItemRow(*model, flat, "Echo One Shield");
+    QVERIFY(echo.isValid());
+    tree->selectionModel()->setCurrentIndex(echo,
+                                            QItemSelectionModel::ClearAndSelect
+                                                | QItemSelectionModel::Rows);
+    QPersistentModelIndex yankee(findItemRow(*model, flat, "Yankee One Shield"));
+    QVERIFY(yankee.isValid());
+
+    const auto stillCoherent = [&]() -> bool {
+        if (resets.count() != 0) {
+            return false;
+        }
+        const QModelIndexList selected = tree->selectionModel()->selectedRows();
+        if ((selected.size() != 1) || (selected.front().data().toString() != "Echo One Shield")) {
+            return false;
+        }
+        return yankee.isValid() && (yankee.data().toString() == "Yankee One Shield");
+    };
+
+    // Grow: 3 -> 5, arrivals interleaving above, between, and below the
+    // retained tab-B rows.
+    fixture.itemsManager->OnTabRefreshed(tabA,
+                                         {makeMainWindowItem("item-a1", "Alpha One", "Sword", tabA),
+                                          makeMainWindowItem("item-a4", "Bravo One", "Sword", tabA),
+                                          makeMainWindowItem("item-a5", "Hotel One", "Sword", tabA),
+                                          makeMainWindowItem("item-a6", "Xray One", "Sword", tabA),
+                                          makeMainWindowItem("item-a3", "Zeta One", "Sword", tabA)});
+    QVERIFY2(stillCoherent(), "grow");
+
+    // Equal cardinality, fully different rows.
+    fixture.itemsManager
+        ->OnTabRefreshed(tabA,
+                         {makeMainWindowItem("item-a7", "Charlie One", "Sword", tabA),
+                          makeMainWindowItem("item-a8", "Foxtrot One", "Sword", tabA),
+                          makeMainWindowItem("item-a9", "India One", "Sword", tabA),
+                          makeMainWindowItem("item-a10", "Victor One", "Sword", tabA),
+                          makeMainWindowItem("item-a11", "Whiskey One", "Sword", tabA)});
+    QVERIFY2(stillCoherent(), "equal");
+
+    // Shrink: 5 -> 2.
+    fixture.itemsManager
+        ->OnTabRefreshed(tabA,
+                         {makeMainWindowItem("item-a12", "Delta One", "Sword", tabA),
+                          makeMainWindowItem("item-a13", "Uniform One", "Sword", tabA)});
+    QVERIFY2(stillCoherent(), "shrink");
+
+    // Removal-only via the aggregate reconciliation: the ghost's child
+    // source leaves tab B's rows in place.
+    fixture.itemsManager->OnChildrenReconciled(tabB,
+                                               {FetchSourceKey{ItemLocationType::STASH,
+                                                               "stash-bbbb"}});
+    QVERIFY(!findItemRow(*model, model->index(0, 0), "Ghost One Shield").isValid());
+    QVERIFY2(stillCoherent(), "reconcile");
+
+    // Empty replacement.
+    fixture.itemsManager->OnTabRefreshed(tabA, {});
+    QVERIFY2(stillCoherent(), "empty");
+    QCOMPARE(visibleItemNames(*tree), QStringList({"Yankee One Shield", "Echo One Shield"}));
+
+    // The end state equals a from-scratch refilter of the same
+    // collection.
+    const QStringList applied = visibleItemNames(*tree);
+    fixture.window->OnSearchFormChange();
+    QCOMPARE(visibleItemNames(*tree), applied);
 }
 
 QTEST_MAIN(MainWindowTest)

@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <set>
 #include <vector>
 
@@ -74,7 +75,12 @@ public:
 
     void AddItem(const std::shared_ptr<Item> &item);
     void AddItems(const Items &items);
+    // The raw item vector. NOT valid inside a ReplaceSourceRows
+    // notification window — model-facing consumers go through size() /
+    // has_item() / item(), which answer through the replace translation
+    // while one is active.
     const Items &items() const { return m_items; }
+    int size() const;
     bool has_item(int row) const;
     const std::shared_ptr<Item> &item(int row) const;
     const ItemLocation &location() const { return m_location; }
@@ -97,8 +103,32 @@ public:
     // live-key-bytes gauge balanced. InsertRows takes the arrivals' keys
     // when the caller merged into a key-resident bucket; passing no keys
     // into a key-resident bucket evicts (the alignment cannot be kept).
+    // Per-call vector splices: fine for By-Tab buckets (capped at 576
+    // rows), never for the flat bucket — that is ReplaceSourceRows.
     void RemoveRows(int first, int count);
     void InsertRows(int first, const Items &items, const std::vector<ItemSortKey> *keys = nullptr);
+
+    // The A′ flat replace (D4 rule 2, S5 remedy): removes every row
+    // matching `predicate` and inserts `arrivals` — merged into the
+    // resident sorted order when `column` is non-null (hydrating first,
+    // R3-1), appended arrival-ordered with order invalidated and keys
+    // evicted when null. The item and key vectors are rebuilt in ONE
+    // O(n + d) pass — no per-run splice — while the same contiguous-run
+    // removeRows/insertRows batches a per-run splice would emit are
+    // driven through the callbacks; between each begin/end pair the
+    // bucket answers size()/item() through a row translation over the
+    // outgoing and final vectors, so the model is consistent at every
+    // notification boundary. Removals notify back-to-front and
+    // insertions forward, both in current logical coordinates. Returns
+    // the removed items for the caller's index maintenance.
+    Items ReplaceSourceRows(const std::function<bool(const Item &)> &predicate,
+                            const Items &arrivals,
+                            const Column *column,
+                            Qt::SortOrder order,
+                            const std::function<void(int, int)> &begin_remove,
+                            const std::function<void()> &end_remove,
+                            const std::function<void(int, int)> &begin_insert,
+                            const std::function<void()> &end_insert);
 
     // Public hydration entry (R3-1): every key-consuming operation
     // hydrates missing keys first. The S4 merge consumes keys outside
@@ -143,9 +173,15 @@ public:
 private:
     void HydrateKeys(const Column &column);
 
+    // Active ReplaceSourceRows notification window (null otherwise):
+    // size()/has_item()/item() answer through it. Defined in bucket.cpp;
+    // points at a stack object alive for the call's duration.
+    struct ReplaceWindow;
+
     Items m_items;
     ItemLocation m_location;
     ResidentKeyStore m_keys;
+    const ReplaceWindow *m_replace_window{nullptr};
     std::uint64_t m_serial{0};
     bool m_sorted{false};
     bool m_expanded{false};

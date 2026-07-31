@@ -960,24 +960,41 @@ Search::DeltaApplication Search::ApplyTabDelta(const ItemLocation &location, con
     return result;
 }
 
-Search::DeltaApplication Search::ApplyFlatDelta(const FetchSourceKey &source,
-                                                const Items &accepted)
+Search::DeltaApplication Search::ApplyFlatDelta(const FetchSourceKey &source, const Items &accepted)
 {
     DeltaApplication result;
     if (m_bucket_by_item.empty()) {
         return result; // no flat bucket to apply to — fail-safe dirty (R1-7)
     }
 
-    // D4 rule 2: erase the source's rows as contiguous removeRows runs,
-    // then merge the accepted arrivals into the resident sorted order.
-    const bool removed = RemoveBucketRows(0, [&source](const Item &item) {
-        return FetchSourceKey::ForLocation(item.location()) == source;
-    });
-    if (!accepted.empty()) {
-        InsertArrivals(0, accepted);
+    // D4 rule 2 under the A′ remedy (S5 review round 1): erase the
+    // source's rows and merge the accepted arrivals in ONE O(n + d)
+    // rebuild, notified as the same contiguous-run removeRows/insertRows
+    // batches — never a per-run vector splice against the
+    // collection-sized item and key vectors.
+    Bucket &flat = m_bucket_by_item.front();
+    const int column = m_model.GetSortColumn();
+    const bool sortable = (column >= 0) && (column < static_cast<int>(m_columns.size()));
+    const Column *merge_column = (sortable && flat.sorted()) ? m_columns[column].get() : nullptr;
+    const Items removed_items = flat.ReplaceSourceRows(
+        [&source](const Item &item) {
+            return FetchSourceKey::ForLocation(item.location()) == source;
+        },
+        accepted,
+        merge_column,
+        m_model.GetSortOrder(),
+        [this](int first, int last) { m_model.BeginRemoveItemRows(0, first, last); },
+        [this] { m_model.EndRemoveItemRows(); },
+        [this](int first, int last) { m_model.BeginInsertItemRows(0, first, last); },
+        [this] { m_model.EndInsertItemRows(); });
+    for (const auto &item : removed_items) {
+        IndexRemoveVisible(item);
+    }
+    for (const auto &item : accepted) {
+        IndexInsertVisible(item);
     }
 
-    if (removed || !accepted.empty()) {
+    if (!removed_items.empty() || !accepted.empty()) {
         m_items_stale = true;
         result.rows_changed = true;
     }
@@ -992,7 +1009,7 @@ Search::DeltaApplication Search::ApplyFlatDelta(const FetchSourceKey &source,
     // stale order past a delta (D4 rule 1, staleOrderNeverSurvivesDelta).
     // The merge path preserved sortedness; this covers the invalid corner
     // the append fallback would leave.
-    if (result.rows_changed && !m_bucket_by_item.front().sorted()) {
+    if (result.rows_changed && !flat.sorted()) {
         m_model.ResortBucket(0);
     }
 
@@ -1014,13 +1031,27 @@ Search::DeltaApplication Search::ApplyChildReconciliation(
             return result; // fail-safe dirty (R1-7)
         }
         const std::set<FetchSourceKey> allowed(expected.begin(), expected.end());
-        const bool removed = RemoveBucketRows(0, [&parent_key, &allowed](const Item &item) {
-            if (LocationInventory::KeyFor(item.location()) != parent_key) {
-                return false;
-            }
-            return allowed.count(FetchSourceKey::ForLocation(item.location())) == 0;
-        });
-        if (removed) {
+        // Removal-only A′ replace: order and resident keys survive (the
+        // compaction keeps them aligned), and the erase never splices
+        // per run.
+        const Items removed_items = m_bucket_by_item.front().ReplaceSourceRows(
+            [&parent_key, &allowed](const Item &item) {
+                if (LocationInventory::KeyFor(item.location()) != parent_key) {
+                    return false;
+                }
+                return allowed.count(FetchSourceKey::ForLocation(item.location())) == 0;
+            },
+            Items{},
+            nullptr,
+            m_model.GetSortOrder(),
+            [this](int first, int last) { m_model.BeginRemoveItemRows(0, first, last); },
+            [this] { m_model.EndRemoveItemRows(); },
+            [this](int first, int last) { m_model.BeginInsertItemRows(0, first, last); },
+            [this] { m_model.EndInsertItemRows(); });
+        for (const auto &item : removed_items) {
+            IndexRemoveVisible(item);
+        }
+        if (!removed_items.empty()) {
             m_items_stale = true;
             result.rows_changed = true;
         }
@@ -1066,7 +1097,6 @@ bool Search::MatchesActiveFilters(const Item &item) const
     }
     return true;
 }
-
 
 const ItemLocation &Search::canonicalLocation(const ItemLocation &embedded) const
 {
