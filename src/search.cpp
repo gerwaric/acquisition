@@ -201,10 +201,120 @@ const QModelIndex Search::index(const std::shared_ptr<Item> &item) const
 void Search::Sort(int column, Qt::SortOrder order)
 {
     const int column_count = static_cast<int>(m_columns.size());
-    if ((column >= 0) && (column < column_count)) {
-        auto &col = *m_columns[column];
-        for (auto &bucket : active_buckets()) {
+    if ((column < 0) || (column >= column_count)) {
+        return;
+    }
+    // D2: only visible order is paid for. The flat By-Item bucket is
+    // always materialized (rule 6); a By-Tab bucket is materialized while
+    // expanded. A materialized bucket whose flag is valid skips entirely;
+    // collapsed buckets are left as the invalidation events flagged them.
+    auto &col = *m_columns[column];
+    const bool by_item = (m_current_mode == ViewMode::ByItem);
+    for (auto &bucket : active_buckets()) {
+        if ((by_item || bucket.expanded()) && !bucket.sorted()) {
             bucket.Sort(col, order);
+        }
+    }
+}
+
+void Search::SortBucket(int row, int column, Qt::SortOrder order)
+{
+    const int column_count = static_cast<int>(m_columns.size());
+    auto &bucket_list = active_buckets();
+    if ((column < 0) || (column >= column_count) || (row < 0)
+        || (row >= static_cast<int>(bucket_list.size()))) {
+        return;
+    }
+    bucket_list[static_cast<size_t>(row)].Sort(*m_columns[column], order);
+}
+
+void Search::MarkBucketExpanded(int row)
+{
+    auto &bucket_list = active_buckets();
+    if ((row >= 0) && (row < static_cast<int>(bucket_list.size()))) {
+        bucket_list[static_cast<size_t>(row)].SetExpanded(true);
+    }
+}
+
+void Search::MarkBucketCollapsed(int row)
+{
+    auto &bucket_list = active_buckets();
+    if ((row >= 0) && (row < static_cast<int>(bucket_list.size()))) {
+        Bucket &bucket = bucket_list[static_cast<size_t>(row)];
+        bucket.SetExpanded(false);
+        // Collapse is a view event, not a model event (D2 rule 3): the
+        // keys evict, the sorted order and flag persist.
+        bucket.EvictKeys();
+    }
+}
+
+void Search::EvictResidentKeys()
+{
+    for (auto &bucket : m_bucket_by_tab) {
+        bucket.EvictKeys();
+    }
+    for (auto &bucket : m_bucket_by_item) {
+        bucket.EvictKeys();
+    }
+}
+
+void Search::InvalidateAllOrder()
+{
+    for (auto &bucket : m_bucket_by_tab) {
+        bucket.InvalidateOrder();
+    }
+    for (auto &bucket : m_bucket_by_item) {
+        bucket.InvalidateOrder();
+    }
+}
+
+void Search::InvalidateBuyoutOrder(const BuyoutChangeSet &changes, int column)
+{
+    const int column_count = static_cast<int>(m_columns.size());
+    if ((column < 0) || (column >= column_count)) {
+        return;
+    }
+    const Column &col = *m_columns[column];
+
+    // Resolve the affected buckets through the visible-id index so the
+    // scoped pricing pass stays O(delta + affected bucket); an id the
+    // index cannot fully represent (duplicated across buckets, or the
+    // empty id) forces the every-bucket path, the same fallback shape as
+    // the rule-5 repaint. Only item-level buyouts feed Price/Date keys
+    // (BuyoutManager::Get is item-keyed; tab prices reach items through
+    // propagation's item-level Sets in the same batch), so tab ids alone
+    // affect no order.
+    bool every_bucket = changes.everything;
+    std::set<LocationInventory::Key> affected_tabs;
+    if (!every_bucket) {
+        for (const QString &id : changes.item_ids) {
+            if (visibleIdUnindexed(id)) {
+                every_bucket = true;
+                affected_tabs.clear();
+                break;
+            }
+            if (const auto item = visibleItemById(id)) {
+                affected_tabs.insert(LocationInventory::KeyFor(item->location()));
+            }
+        }
+    }
+
+    // Both view modes' buckets are covered: the inactive mode's flags
+    // must not claim validity a later mode switch would trust.
+    for (auto &bucket : m_bucket_by_tab) {
+        const bool affected = every_bucket
+                              || (affected_tabs.count(LocationInventory::KeyFor(bucket.location()))
+                                  > 0);
+        if (affected) {
+            bucket.RebuildKeyEntries(col, changes.item_ids, every_bucket);
+            bucket.InvalidateOrder();
+        }
+    }
+    const bool flat_affected = every_bucket || !affected_tabs.empty();
+    for (auto &bucket : m_bucket_by_item) {
+        if (flat_affected) {
+            bucket.RebuildKeyEntries(col, changes.item_ids, every_bucket);
+            bucket.InvalidateOrder();
         }
     }
 }
@@ -367,6 +477,18 @@ void Search::FilterItems(const Items &items)
         return la.id() < lb.id();
     });
 
+    // A filtered By-Tab search is default-expanded (D2 rule 5): mark the
+    // fresh buckets materialized now, so the post-refilter sort pass
+    // establishes every visible bucket's order eagerly in one pass and the
+    // restore's expansion signals find valid flags. Unfiltered fresh
+    // buckets start collapsed; RestoreViewExpansion's expand signals sort
+    // exactly the restored ones.
+    if ((m_current_mode == ViewMode::ByTab) && m_filtered) {
+        for (auto &bucket : m_bucket_by_tab) {
+            bucket.SetExpanded(true);
+        }
+    }
+
     // Let the model know that current sort order has been invalidated
     m_model.SetSorted(false);
     m_model.endUpdate();
@@ -453,11 +575,28 @@ ItemLocation Search::GetTabLocation(const QModelIndex &index) const
 
 void Search::SetViewMode(ViewMode mode)
 {
-    if (mode != m_current_mode) {
-        m_model.beginUpdate();
-        m_current_mode = mode;
-        Sort(m_model.GetSortColumn(), m_model.GetSortOrder());
-        m_model.SetSorted(true);
-        m_model.endUpdate();
+    if (mode == m_current_mode) {
+        return;
     }
+    m_model.beginUpdate();
+    // Leaving a mode dematerializes its buckets: keys evict, orders and
+    // flags persist (D1/R2-3 — a view event, like collapse).
+    for (auto &bucket : active_buckets()) {
+        bucket.EvictKeys();
+    }
+    m_current_mode = mode;
+    if (mode == ViewMode::ByItem) {
+        // The flat bucket is always materialized (D2 rule 6): establish
+        // its order now if invalid — the reset leaves nothing else to
+        // sort it before it paints.
+        const int column = m_model.GetSortColumn();
+        if (!m_bucket_by_item.empty() && !m_bucket_by_item.front().sorted() && (column >= 0)
+            && (column < static_cast<int>(m_columns.size()))) {
+            m_bucket_by_item.front().Sort(*m_columns[column], m_model.GetSortOrder());
+        }
+    }
+    // Arriving By-Tab buckets start collapsed after the reset; expansion
+    // restore sorts the ones whose flags are invalid (D2 rule 2).
+    m_model.SetSorted(true);
+    m_model.endUpdate();
 }

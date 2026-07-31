@@ -65,14 +65,30 @@ private slots:
 
     // Items-pipeline M3, S2: the buyout choke point and the five batching
     // rules (D1 rule 4, R1-6/R2-5/R3-3/R3-4). priceKeysFollowBuyoutEdits
-    // closes its behavioral half here (reorder at batch end); its
-    // resident-key assertions land in S3 (R3-2).
+    // closed its behavioral half in S2 (reorder at batch end) and
+    // completed in S3 with its R3-2 resident-key assertions.
     void priceKeysFollowBuyoutEdits();
     void multiSelectionBuyoutEditReordersOnce();
     void pricingPassYieldsSingleModelUpdate();
     void snapshotPricingSequenceEmitsOneModelBatch();
     void priceCellsRepaintUnderAnySortColumn();
     void buyoutRepaintCoversEveryVisibleOccurrence();
+
+    // Items-pipeline M3, S3: D2 deferred sorting (per-bucket flags, the
+    // full transition table) and D1 key residency (hydration, eviction,
+    // the invalidation contract). residentKeysScopedToActiveSearch is
+    // PARTIAL here: its By-Tab laziness, deactivation-eviction, and
+    // aggregate-memory clauses are S3's; its clean-By-Item
+    // eager-hydration clause first becomes satisfiable in S5, where the
+    // pin fully closes.
+    void collapsedBucketsDeferSorting();
+    void restoredExpansionSortsRestoredBucketsOnly();
+    void filteredSearchSortsAllVisibleBuckets();
+    void sortedOrderSurvivesCollapse();
+    void keyResidencyFollowsMaterialization();
+    void reexpandedBucketFlipHydratesOnce();
+    void sortColumnSwitchResortsVisibleBucketsOnly();
+    void residentKeysScopedToActiveSearch();
 
 private:
     std::shared_ptr<spdlog::logger> m_main_logger;
@@ -1266,6 +1282,13 @@ void MainWindowTest::priceKeysFollowBuyoutEdits()
         probes.reset();
         probes.enabled = true;
 
+        // The expanded bucket's Price keys are resident (S3): the R3-2
+        // assertions below hold the whole command sequence to "entries
+        // rebuild, then one reorder on the resident vector" — zero full
+        // key builds, one bucket sort per command, never a re-sort on
+        // stale keys (the order assertions would catch one).
+        QVERIFY(probes.live_key_bytes > 0);
+
         // Item-level set: the affected row moves at command end.
         tree->selectionModel()->setCurrentIndex(findItemRow(*model, bucket, "Alpha Sword"),
                                                 QItemSelectionModel::ClearAndSelect
@@ -1273,6 +1296,8 @@ void MainWindowTest::priceKeysFollowBuyoutEdits()
         probes.reset();
         applyBuyoutCommand(fixture, Buyout::BUYOUT_TYPE_BUYOUT, Currency::CURRENCY_CHAOS_ORB, "7");
         QCOMPARE(probes.model_updates, 1);
+        QCOMPARE(probes.bucket_sorts, 1);
+        QCOMPARE(probes.key_builds, 0);
         QCOMPARE(bucketItemNames(*model, bucket),
                  QStringList({"Bravo Sword", "Charlie Sword", "Alpha Sword"}));
 
@@ -1285,6 +1310,7 @@ void MainWindowTest::priceKeysFollowBuyoutEdits()
         probes.reset();
         applyBuyoutCommand(fixture, Buyout::BUYOUT_TYPE_BUYOUT, Currency::CURRENCY_CHAOS_ORB, "9");
         QCOMPARE(probes.model_updates, 1);
+        QCOMPARE(probes.key_builds, 0);
         QCOMPARE(bucketItemNames(*model, bucket),
                  QStringList({"Alpha Sword", "Bravo Sword", "Charlie Sword"}));
 
@@ -1295,6 +1321,7 @@ void MainWindowTest::priceKeysFollowBuyoutEdits()
         probes.reset();
         applyBuyoutCommand(fixture, Buyout::BUYOUT_TYPE_INHERIT, Currency::CURRENCY_NONE, "");
         QCOMPARE(probes.model_updates, 1);
+        QCOMPARE(probes.key_builds, 0);
         QCOMPARE(bucketItemNames(*model, bucket),
                  QStringList({"Bravo Sword", "Charlie Sword", "Alpha Sword"}));
 
@@ -1305,6 +1332,7 @@ void MainWindowTest::priceKeysFollowBuyoutEdits()
         probes.reset();
         applyBuyoutCommand(fixture, Buyout::BUYOUT_TYPE_INHERIT, Currency::CURRENCY_NONE, "");
         QCOMPARE(probes.model_updates, 1);
+        QCOMPARE(probes.key_builds, 0);
         QCOMPARE(bucketItemNames(*model, bucket),
                  QStringList({"Alpha Sword", "Bravo Sword", "Charlie Sword"}));
 
@@ -1319,6 +1347,7 @@ void MainWindowTest::priceKeysFollowBuyoutEdits()
         probes.reset();
         applyBuyoutCommand(fixture, Buyout::BUYOUT_TYPE_BUYOUT, Currency::CURRENCY_CHAOS_ORB, "5");
         QCOMPARE(probes.model_updates, 1);
+        QCOMPARE(probes.key_builds, 0); // the Date keys rebuilt entries, not the vector
         QCOMPARE(bucketItemNames(*model, bucket),
                  QStringList({"Bravo Sword", "Charlie Sword", "Alpha Sword"}));
         probes.enabled = false;
@@ -1614,6 +1643,409 @@ void MainWindowTest::buyoutRepaintCoversEveryVisibleOccurrence()
     QCOMPARE(topLeft.parent(), bucketB);
     QCOMPARE(topLeft.row(), ghost.row());
     QCOMPARE(bottomRight.row(), ghost.row());
+}
+
+// M3 D2 (S3): an unfiltered By-Tab refilter sorts no collapsed bucket and
+// builds no keys for one; expanding one bucket sorts exactly that bucket,
+// correctly. Unsorted is not unstable — a collapsed bucket keeps arrival
+// order until something changes its contents.
+void MainWindowTest::collapsedBucketsDeferSorting()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-alpha", "Alpha Tab", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-beta", "Beta Tab", 1);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "Alpha", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-c", "Charlie", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-b", "Bravo", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-e", "Echo", "Sword", tabB));
+    items.push_back(makeMainWindowItem("item-d", "Delta", "Sword", tabB));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB}, false);
+
+    auto &probes = ModelProbes::instance();
+    probes.reset();
+    probes.enabled = true;
+
+    // The user refilter of the default-collapsed unfiltered view: the
+    // whole sort/key toll disappears, not merely cheapens.
+    fixture.window->OnSearchFormChange();
+    QCOMPARE(probes.refilters, 1);
+    QCOMPARE(probes.bucket_sorts, 0);
+    QCOMPARE(probes.key_builds, 0);
+    QCOMPARE(probes.keyed_compares, 0);
+
+    // Arrival order, deterministically, until expansion sorts.
+    auto *model = tree->model();
+    const QModelIndex bucketA = findBucket(*model, tabA.GetHeader());
+    QVERIFY(bucketA.isValid());
+    QCOMPARE(bucketItemNames(*model, bucketA),
+             QStringList({"Alpha Sword", "Charlie Sword", "Bravo Sword"}));
+
+    // Expanding sorts exactly the expanded bucket (default indicator:
+    // Name descending), building exactly its keys.
+    tree->expand(bucketA);
+    QCOMPARE(probes.bucket_sorts, 1);
+    QCOMPARE(probes.bucket_sorts_by_location[LocationInventory::KeyFor(tabA)], 1);
+    QCOMPARE(probes.bucket_sorts_by_location[LocationInventory::KeyFor(tabB)], 0);
+    QCOMPARE(probes.key_builds, 1);
+    QCOMPARE(probes.key_builds_by_location[LocationInventory::KeyFor(tabB)], 0);
+    probes.enabled = false;
+    QCOMPARE(bucketItemNames(*model, bucketA),
+             QStringList({"Charlie Sword", "Bravo Sword", "Alpha Sword"}));
+}
+
+// M3 D2 (S3): a user refilter with N saved expansions sorts exactly those
+// N buckets on restore — the restore's expand signals find the fresh
+// buckets' flags invalid and sort each, and nothing sorts the rest.
+void MainWindowTest::restoredExpansionSortsRestoredBucketsOnly()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-alpha", "Alpha Tab", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-beta", "Beta Tab", 1);
+    const ItemLocation tabC = makeTestStashLocation("stash-gamma", "Gamma Tab", 2);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "Alpha", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-b", "Bravo", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-d", "Delta", "Sword", tabB));
+    items.push_back(makeMainWindowItem("item-c", "Charlie", "Sword", tabB));
+    items.push_back(makeMainWindowItem("item-e", "Echo", "Sword", tabC));
+    items.push_back(makeMainWindowItem("item-f", "Foxtrot", "Sword", tabC));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB, tabC}, false);
+
+    auto *model = tree->model();
+    tree->expand(findBucket(*model, tabA.GetHeader()));
+    tree->expand(findBucket(*model, tabC.GetHeader()));
+
+    auto &probes = ModelProbes::instance();
+    probes.reset();
+    probes.enabled = true;
+    fixture.window->OnSearchFormChange();
+    QCOMPARE(probes.refilters, 1);
+    QCOMPARE(probes.bucket_sorts, 2);
+    QCOMPARE(probes.bucket_sorts_by_location[LocationInventory::KeyFor(tabA)], 1);
+    QCOMPARE(probes.bucket_sorts_by_location[LocationInventory::KeyFor(tabB)], 0);
+    QCOMPARE(probes.bucket_sorts_by_location[LocationInventory::KeyFor(tabC)], 1);
+    QCOMPARE(probes.key_builds, 2);
+    probes.enabled = false;
+
+    // The restored buckets are sorted; the collapsed one keeps arrival
+    // order.
+    QCOMPARE(bucketItemNames(*model, findBucket(*model, tabA.GetHeader())),
+             QStringList({"Bravo Sword", "Alpha Sword"}));
+    QCOMPARE(bucketItemNames(*model, findBucket(*model, tabB.GetHeader())),
+             QStringList({"Delta Sword", "Charlie Sword"}));
+}
+
+// M3 D2 rule 5 (S3): a filtered search is default-expanded, so every
+// visible bucket of the result presents sorted — established eagerly in
+// the refilter's one view-wide pass, not per expand signal.
+void MainWindowTest::filteredSearchSortsAllVisibleBuckets()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    auto *name = findNameFilter(*fixture.window);
+    QVERIFY(tree);
+    QVERIFY(name);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-alpha", "Alpha Tab", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-beta", "Beta Tab", 1);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "Alpha", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-c", "Charlie", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-z", "Zulu", "Axe", tabA));
+    items.push_back(makeMainWindowItem("item-e", "Echo", "Sword", tabB));
+    items.push_back(makeMainWindowItem("item-d", "Delta", "Sword", tabB));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB}, false);
+
+    name->setFocus();
+    QTest::keyClicks(name, "sword");
+    auto &probes = ModelProbes::instance();
+    probes.reset();
+    probes.enabled = true;
+    fixture.window->OnSearchFormChange();
+    QCOMPARE(probes.refilters, 1);
+    QCOMPARE(probes.bucket_sorts, 2);
+    QCOMPARE(probes.key_builds, 2);
+    probes.enabled = false;
+
+    auto *model = tree->model();
+    const QModelIndex bucketA = findBucket(*model, tabA.GetHeader());
+    const QModelIndex bucketB = findBucket(*model, tabB.GetHeader());
+    QVERIFY(bucketA.isValid());
+    QVERIFY(bucketB.isValid());
+    QVERIFY(tree->isExpanded(bucketA));
+    QVERIFY(tree->isExpanded(bucketB));
+    QCOMPARE(bucketItemNames(*model, bucketA), QStringList({"Charlie Sword", "Alpha Sword"}));
+    QCOMPARE(bucketItemNames(*model, bucketB), QStringList({"Echo Sword", "Delta Sword"}));
+}
+
+// M3 R1-5 (S3): expand (sort), collapse, re-expand with no intervening
+// invalidation — no key build and no sort runs the second time, and the
+// order is the sorted one. Arrival order is never reconstructed; collapse
+// is a view event, not a model event.
+void MainWindowTest::sortedOrderSurvivesCollapse()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-alpha", "Alpha Tab", 0);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "Alpha", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-c", "Charlie", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-b", "Bravo", "Sword", tabA));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+
+    auto *model = tree->model();
+    const QModelIndex bucketA = findBucket(*model, tabA.GetHeader());
+    QVERIFY(bucketA.isValid());
+    tree->expand(bucketA);
+    QCOMPARE(bucketItemNames(*model, bucketA),
+             QStringList({"Charlie Sword", "Bravo Sword", "Alpha Sword"}));
+
+    auto &probes = ModelProbes::instance();
+    probes.reset();
+    probes.enabled = true;
+    tree->collapse(bucketA);
+    tree->expand(bucketA);
+    QCOMPARE(probes.bucket_sorts, 0);
+    QCOMPARE(probes.key_builds, 0);
+    QCOMPARE(probes.keyed_compares, 0);
+    probes.enabled = false;
+    QCOMPARE(bucketItemNames(*model, bucketA),
+             QStringList({"Charlie Sword", "Bravo Sword", "Alpha Sword"}));
+}
+
+// M3 R2-3 (S3): an expanded bucket's keys persist across re-sorts and
+// direction flips (no key rebuild on a flip); collapsing evicts its keys
+// (live key bytes drop) while its order and flag persist.
+void MainWindowTest::keyResidencyFollowsMaterialization()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-alpha", "Alpha Tab", 0);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "Alpha", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-c", "Charlie", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-b", "Bravo", "Sword", tabA));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+
+    auto &probes = ModelProbes::instance();
+    const std::int64_t baseline = probes.live_key_bytes;
+
+    auto *model = tree->model();
+    const QModelIndex bucketA = findBucket(*model, tabA.GetHeader());
+    QVERIFY(bucketA.isValid());
+    tree->expand(bucketA);
+    const std::int64_t resident = probes.live_key_bytes;
+    QVERIFY(resident > baseline);
+
+    // The flip re-sorts on the resident keys: no rebuild, bytes steady.
+    probes.reset();
+    probes.enabled = true;
+    tree->header()->setSortIndicator(0, Qt::AscendingOrder);
+    QCOMPARE(probes.bucket_sorts, 1);
+    QCOMPARE(probes.key_builds, 0);
+    QCOMPARE(probes.live_key_bytes, resident);
+    QCOMPARE(bucketItemNames(*model, bucketA),
+             QStringList({"Alpha Sword", "Bravo Sword", "Charlie Sword"}));
+
+    // Collapse evicts the keys and nothing else: the sorted order and
+    // flag persist, so re-expansion does no work and shows the ascending
+    // order.
+    tree->collapse(bucketA);
+    QCOMPARE(probes.live_key_bytes, baseline);
+    tree->expand(bucketA);
+    QCOMPARE(probes.bucket_sorts, 1);
+    QCOMPARE(probes.key_builds, 0);
+    probes.enabled = false;
+    QCOMPARE(bucketItemNames(*model, bucketA),
+             QStringList({"Alpha Sword", "Bravo Sword", "Charlie Sword"}));
+}
+
+// M3 R3-1 (S3): expand (keys built), collapse (keys evicted), re-expand
+// (valid flag: no sort, no key build — sorted-but-keyless): a direction
+// flip then hydrates the bucket's keys exactly once and re-sorts
+// correctly; a second flip rebuilds nothing.
+void MainWindowTest::reexpandedBucketFlipHydratesOnce()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-alpha", "Alpha Tab", 0);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "Alpha", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-c", "Charlie", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-b", "Bravo", "Sword", tabA));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA}, false);
+
+    auto *model = tree->model();
+    const QModelIndex bucketA = findBucket(*model, tabA.GetHeader());
+    QVERIFY(bucketA.isValid());
+    tree->expand(bucketA);
+    tree->collapse(bucketA);
+
+    auto &probes = ModelProbes::instance();
+    probes.reset();
+    probes.enabled = true;
+    tree->expand(bucketA);
+    QCOMPARE(probes.bucket_sorts, 0);
+    QCOMPARE(probes.key_builds, 0);
+
+    // The flip is the key-consuming event: one hydration, one sort.
+    tree->header()->setSortIndicator(0, Qt::AscendingOrder);
+    QCOMPARE(probes.bucket_sorts, 1);
+    QCOMPARE(probes.key_builds, 1);
+    QCOMPARE(bucketItemNames(*model, bucketA),
+             QStringList({"Alpha Sword", "Bravo Sword", "Charlie Sword"}));
+
+    // The second flip reuses the now-resident keys.
+    tree->header()->setSortIndicator(0, Qt::DescendingOrder);
+    QCOMPARE(probes.bucket_sorts, 2);
+    QCOMPARE(probes.key_builds, 1);
+    probes.enabled = false;
+    QCOMPARE(bucketItemNames(*model, bucketA),
+             QStringList({"Charlie Sword", "Bravo Sword", "Alpha Sword"}));
+}
+
+// M3 R1-5/R2-3 (S3): switching the active column discards resident keys,
+// clears every sorted flag, and re-sorts materialized buckets only (their
+// keys rebuild — the old column's keys cannot order the new one); a
+// direction flip after the switch re-sorts on the resident keys with no
+// rebuild; collapsed buckets sort at their next expansion.
+void MainWindowTest::sortColumnSwitchResortsVisibleBucketsOnly()
+{
+    MainWindowFixture fixture;
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    QVERIFY(tree);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-alpha", "Alpha Tab", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-beta", "Beta Tab", 1);
+    const ItemLocation tabC = makeTestStashLocation("stash-gamma", "Gamma Tab", 2);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "Alpha", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-b", "Bravo", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-c", "Charlie", "Sword", tabB));
+    items.push_back(makeMainWindowItem("item-d", "Delta", "Sword", tabB));
+    items.push_back(makeMainWindowItem("item-f", "Foxtrot", "Sword", tabC));
+    items.push_back(makeMainWindowItem("item-e", "Echo", "Sword", tabC));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB, tabC}, false);
+
+    auto *model = tree->model();
+    tree->expand(findBucket(*model, tabA.GetHeader()));
+    tree->expand(findBucket(*model, tabB.GetHeader()));
+
+    // The switch (Name -> Quality): the materialized set rebuilds and
+    // re-sorts; the collapsed bucket is untouched.
+    auto &probes = ModelProbes::instance();
+    probes.reset();
+    probes.enabled = true;
+    tree->header()->setSortIndicator(3, Qt::AscendingOrder);
+    QCOMPARE(probes.bucket_sorts, 2);
+    QCOMPARE(probes.key_builds, 2);
+    QCOMPARE(probes.bucket_sorts_by_location[LocationInventory::KeyFor(tabC)], 0);
+    QCOMPARE(probes.key_builds_by_location[LocationInventory::KeyFor(tabC)], 0);
+
+    // The flip after the switch reuses the fresh resident keys.
+    tree->header()->setSortIndicator(3, Qt::DescendingOrder);
+    QCOMPARE(probes.bucket_sorts, 4);
+    QCOMPARE(probes.key_builds, 2);
+
+    // The collapsed bucket pays at its next expansion, under the new
+    // column, exactly once.
+    tree->expand(findBucket(*model, tabC.GetHeader()));
+    QCOMPARE(probes.bucket_sorts, 5);
+    QCOMPARE(probes.key_builds, 3);
+    QCOMPARE(probes.bucket_sorts_by_location[LocationInventory::KeyFor(tabC)], 1);
+    QCOMPARE(probes.key_builds_by_location[LocationInventory::KeyFor(tabC)], 1);
+    probes.enabled = false;
+}
+
+// M3 R2-4 (S3, PARTIAL — fully closes in S5): with several searches,
+// aggregate resident key memory never exceeds one search's worth;
+// deactivating a search evicts its keys, and no refilter runs when the
+// search is not dirty. Reactivation rehydrates a clean By-Tab search
+// lazily, per bucket. The clean-By-Item eager-hydration clause (R3-1)
+// lands with D4's eager activation in S5.
+void MainWindowTest::residentKeysScopedToActiveSearch()
+{
+    MainWindowFixture fixture;
+    auto *tabs = findSearchTabs(*fixture.window);
+    auto *tree = fixture.window->findChild<QTreeView *>("treeView");
+    auto *viewCombo = fixture.window->findChild<QComboBox *>("viewComboBox");
+    QVERIFY(tabs);
+    QVERIFY(tree);
+    QVERIFY(viewCombo);
+
+    const ItemLocation tabA = makeTestStashLocation("stash-alpha", "Alpha Tab", 0);
+    const ItemLocation tabB = makeTestStashLocation("stash-beta", "Beta Tab", 1);
+    Items items;
+    items.push_back(makeMainWindowItem("item-a", "Alpha", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-b", "Bravo", "Sword", tabA));
+    items.push_back(makeMainWindowItem("item-c", "Charlie", "Sword", tabB));
+    items.push_back(makeMainWindowItem("item-d", "Delta", "Sword", tabB));
+    fixture.itemsManager->OnItemsRefreshed(items, {tabA, tabB}, false);
+
+    auto &probes = ModelProbes::instance();
+    const std::int64_t none = probes.live_key_bytes;
+
+    // Search 1 (By-Tab): one expanded bucket holds the only resident keys.
+    tree->expand(findBucket(*tree->model(), tabA.GetHeader()));
+    QVERIFY(probes.live_key_bytes > none);
+
+    // Creating and switching to Search 2 deactivates Search 1: its keys
+    // evict (background searches hold exactly 0), while its order, flags,
+    // and expansion persist for reactivation.
+    tabs->setCurrentIndex(1);
+    QCOMPARE(probes.live_key_bytes, none);
+
+    // Search 2 goes By-Item: the flat bucket's keys are the aggregate's
+    // entire contents — one search's worth.
+    viewCombo->setCurrentIndex(1);
+    emit viewCombo->activated(1);
+    const std::int64_t one_by_item = probes.live_key_bytes;
+    QVERIFY(one_by_item > none);
+
+    // A second By-Item search: the deactivation eviction keeps the
+    // aggregate at exactly one search's worth — N background By-Item
+    // searches hold none, not one flat bucket each.
+    tabs->setCurrentIndex(2);
+    QCOMPARE(probes.live_key_bytes, none);
+    viewCombo->setCurrentIndex(1);
+    emit viewCombo->activated(1);
+    QCOMPARE(probes.live_key_bytes, one_by_item);
+
+    // Reactivating clean Search 1: no refilter (the search is not
+    // dirty), no eager hydration — the By-Tab expanded bucket stays
+    // sorted-but-keyless until a key-consuming event.
+    probes.reset();
+    probes.enabled = true;
+    tabs->setCurrentIndex(0);
+    QCOMPARE(probes.refilters, 0);
+    QCOMPARE(probes.bucket_sorts, 0);
+    QCOMPARE(probes.key_builds, 0);
+    QCOMPARE(probes.live_key_bytes, none);
+    const QModelIndex bucketA = findBucket(*tree->model(), tabA.GetHeader());
+    QVERIFY(bucketA.isValid());
+    QVERIFY(tree->isExpanded(bucketA));
+    QCOMPARE(bucketItemNames(*tree->model(), bucketA), QStringList({"Bravo Sword", "Alpha Sword"}));
+
+    // The lazy rehydration, per bucket: the flip hydrates exactly the
+    // expanded bucket.
+    tree->header()->setSortIndicator(0, Qt::AscendingOrder);
+    QCOMPARE(probes.key_builds, 1);
+    QCOMPARE(probes.key_builds_by_location[LocationInventory::KeyFor(tabA)], 1);
+    probes.enabled = false;
+    QVERIFY(probes.live_key_bytes > none);
 }
 
 QTEST_MAIN(MainWindowTest)

@@ -26,6 +26,7 @@ class BuyoutManager;
 class FilterCatalog;
 class ItemsModel;
 class QModelIndex;
+struct BuyoutChangeSet;
 
 class Search
 {
@@ -104,7 +105,38 @@ public:
     const Bucket &bucket(int row) const;
     const QModelIndex index(const std::shared_ptr<Item> &item) const;
     void SetRefreshReason(RefreshReason reason) { m_refresh_reason = reason; }
+
+    // Sorts the materialized buckets whose flags are invalid (D2): the
+    // By-Item flat bucket always, expanded By-Tab buckets by their marks.
+    // Collapsed buckets are untouched — the invalidation events cleared
+    // their flags, and their sort defers to expansion.
     void Sort(int column, Qt::SortOrder order);
+
+    // Sort-on-expand's per-bucket entry (D2 rule 2), called under the
+    // model's layout-change protocol by ItemsModel.
+    void SortBucket(int row, int column, Qt::SortOrder order);
+
+    // The view's materialization marks (D1/D2), driven by the tree's
+    // expand/collapse signals through ItemsModel. Collapse evicts the
+    // bucket's keys; its order and flag persist (D2 rule 3).
+    void MarkBucketExpanded(int row);
+    void MarkBucketCollapsed(int row);
+
+    // R2-4 / D1 rule 2: evicts every resident key vector, both view modes.
+    // Orders and flags persist. Runs on deactivation and on a sort-column
+    // switch.
+    void EvictResidentKeys();
+
+    // D1 rules 2-3: clears every bucket's sorted flag, both view modes —
+    // any (column, order) change invalidates every order at once.
+    void InvalidateAllOrder();
+
+    // The buyout key effect (D1 rule 4, R3-2): rebuilds the affected
+    // items' entries in whichever key vectors are resident and clears the
+    // affected buckets' sorted flags, both view modes — so the batch's
+    // re-sort (the model's Resort) never runs on stale resident keys and
+    // touches only affected buckets. `column` is the active sort column.
+    void InvalidateBuyoutOrder(const BuyoutChangeSet &changes, int column);
 
     const FilterCatalog &catalog() const { return m_filter_catalog; }
     qsizetype filterStateCount() const { return static_cast<qsizetype>(m_filter_states.size()); }

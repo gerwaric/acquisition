@@ -56,8 +56,13 @@ struct ModelProbes
     // (MainWindow::OnBuyoutsChanged, once per outer batch).
     std::int64_t model_updates = 0;
 
-    // Gauge, not a counter; sites land in S3 (D1 residency): bytes of
-    // resident sort keys, adjusted at hydration and eviction.
+    // Gauge, not a counter; sites live since S3 (D1 residency): estimated
+    // bytes of resident sort keys, adjusted at hydration, entry rebuild,
+    // and eviction (ResidentKeyStore). Unlike the counters, the gauge is
+    // maintained unconditionally — it must balance across enable/disable
+    // boundaries or enabling probes mid-residency would drive it negative
+    // at the next eviction. The cost is O(1) per key build, never per
+    // comparison, so measurement windows stay unperturbed.
     std::int64_t live_key_bytes = 0;
 
     static ModelProbes &instance()

@@ -297,6 +297,28 @@ void MainWindow::InitializeUi()
         emit UpdateCheckRequested();
     });
 
+    // The D2 materialization hooks (M3 S3): expanding a bucket sorts it
+    // first if its flag is invalid (keys built then resident — D1);
+    // collapsing evicts its keys while order and flag persist. Programmatic
+    // expansion (RestoreViewExpansion, expandToDepth) emits the same
+    // signals, so restored expansions sort exactly the restored buckets.
+    connect(ui->treeView, &QTreeView::expanded, this, [this](const QModelIndex &index) {
+        if (index.parent().isValid()) {
+            return;
+        }
+        if (auto *model = qobject_cast<ItemsModel *>(ui->treeView->model())) {
+            model->OnBucketExpanded(index.row());
+        }
+    });
+    connect(ui->treeView, &QTreeView::collapsed, this, [this](const QModelIndex &index) {
+        if (index.parent().isValid()) {
+            return;
+        }
+        if (auto *model = qobject_cast<ItemsModel *>(ui->treeView->model())) {
+            model->OnBucketCollapsed(index.row());
+        }
+    });
+
     // Resize columns when a tab is expanded/collapsed. Programmatic expansion
     // (e.g. RestoreViewExpansion after a model reset) emits these signals once
     // per index, so coalesce them into a single deferred resize.
@@ -593,12 +615,13 @@ void MainWindow::OnBuyoutChange()
 void MainWindow::OnBuyoutsChanged(const BuyoutChangeSet &changes)
 {
     spdlog::trace("MainWindow::OnBuyoutsChanged() entered");
-    // The S2 conservative batch response (M3 D1 rule 4 + the R1-6
-    // batching rules), column-gated at the batch boundary: affected
-    // Price/Date cells repaint under any sort column (rule 5), and the
-    // view reorders only when a buyout-dependent column sorts it — one
-    // re-sort per outer batch on freshly built keys. S3 replaces the
-    // whole-view re-sort with the residency invalidation contract.
+    // The batch response under residency (M3 D1 rule 4, R1-6/R3-2),
+    // column-gated at the batch boundary: affected Price/Date cells
+    // repaint under any sort column (rule 5); with Price or Date active,
+    // the affected items' entries in every resident key vector rebuild
+    // BEFORE the batch's one reorder, so a re-sort never runs on stale
+    // resident keys, and the per-bucket flags scope that reorder to the
+    // affected materialized buckets alone.
     for (const auto &search : m_searches) {
         ItemsModel &model = search->model();
         const auto &columns = search->columns();
@@ -606,6 +629,12 @@ void MainWindow::OnBuyoutsChanged(const BuyoutChangeSet &changes)
         const bool buyout_ordered = (sort_column >= 0)
                                     && (sort_column < static_cast<int>(columns.size()))
                                     && columns[sort_column]->buyoutDependent();
+        if (buyout_ordered) {
+            // Rebuild resident entries and clear affected flags — for a
+            // background search this touches flags only (its keys were
+            // evicted at deactivation, R2-4).
+            search->InvalidateBuyoutOrder(changes, sort_column);
+        }
         if (search.get() == m_current_search) {
             if (auto &probes = ModelProbes::instance(); probes.enabled) {
                 ++probes.model_updates;
@@ -615,10 +644,10 @@ void MainWindow::OnBuyoutsChanged(const BuyoutChangeSet &changes)
                 model.Resort();
             }
         } else if (buyout_ordered) {
-            // A background search pays nothing now: clearing its sorted
-            // flag re-sorts it when its next activation re-enables view
-            // sorting. Its cells always render fresh (they read the
-            // manager), so only the order can go stale.
+            // A background search pays nothing now: its next activation's
+            // indicator pass re-sorts exactly the invalidated buckets.
+            // Its cells always render fresh (they read the manager), so
+            // only the order can go stale.
             model.SetSorted(false);
         }
     }
@@ -861,12 +890,15 @@ void MainWindow::RestoreViewExpansion(Search &search)
     const int rows = search.model().rowCount();
     for (int row = 0; row < rows; ++row) {
         const QModelIndex index = search.model().index(row, 0);
-        if (keys.empty()) {
-            ui->treeView->collapse(index);
-        } else if (keys.count(LocationInventory::KeyFor(search.bucket(row).location())) > 0) {
+        if (!keys.empty()
+            && (keys.count(LocationInventory::KeyFor(search.bucket(row).location())) > 0)) {
             ui->treeView->expand(index);
         } else {
             ui->treeView->collapse(index);
+            // collapse() emits no signal for an already-collapsed row —
+            // the usual state after a reset — so sync the materialization
+            // mark explicitly (idempotent; evicts any stale keys).
+            search.model().OnBucketCollapsed(row);
         }
     }
 }
@@ -1151,6 +1183,10 @@ void MainWindow::OnTabChange(int index)
         SaveViewScroll(*m_current_search);
         m_current_search->setCurrentItem(m_current_item);
         m_current_search->setCurrentBucket(m_current_bucket_location);
+        // R2-4: residency is scoped to the active search. Deactivation
+        // evicts every key vector; orders and flags persist, so a clean
+        // search reactivates without a refilter and rehydrates lazily.
+        m_current_search->EvictResidentKeys();
     }
     if (static_cast<size_t>(index) == m_searches.size()) {
         // "+" clicked

@@ -232,6 +232,19 @@ void ItemsModel::sort(int column, Qt::SortOrder order)
     }
 
     spdlog::debug("Sorting items model by column {}", column);
+    // D1 rules 2-3: a column switch discards every resident key vector
+    // (keys are derived from the outgoing column); any (column, order)
+    // change invalidates every bucket's order at once. The post-refilter
+    // indicator pass arrives with neither changed and clears nothing —
+    // fresh buckets are already unsorted, and untouched valid buckets
+    // (a background search re-activating after a scoped buyout batch)
+    // keep their skip.
+    if (column != m_sort_column) {
+        m_search.EvictResidentKeys();
+    }
+    if ((column != m_sort_column) || (order != m_sort_order)) {
+        m_search.InvalidateAllOrder();
+    }
     m_sort_order = order;
     m_sort_column = column;
     ApplySort(column, order);
@@ -245,7 +258,33 @@ void ItemsModel::Resort()
     ApplySort(m_sort_column, m_sort_order);
 }
 
-void ItemsModel::ApplySort(int column, Qt::SortOrder order)
+void ItemsModel::OnBucketExpanded(int row)
+{
+    if (!m_search.has_bucket(row)) {
+        return;
+    }
+    m_search.MarkBucketExpanded(row);
+    // D2 rule 2: an invalid flag sorts the bucket first (building its
+    // keys, which stay resident — D1); a valid flag does no sort work and
+    // builds no keys — the bucket stays sorted-but-keyless until a
+    // key-consuming event hydrates it (R3-1).
+    if (!m_search.bucket(row).sorted()) {
+        ApplySort(m_sort_column, m_sort_order, row);
+    }
+}
+
+void ItemsModel::OnBucketCollapsed(int row)
+{
+    if (m_search.GetViewMode() == Search::ViewMode::ByItem) {
+        return; // the flat bucket is materialized by definition (D2 rule 6)
+    }
+    if (!m_search.has_bucket(row)) {
+        return;
+    }
+    m_search.MarkBucketCollapsed(row);
+}
+
+void ItemsModel::ApplySort(int column, Qt::SortOrder order, int only_bucket)
 {
     struct ItemIndexSnapshot
     {
@@ -269,6 +308,9 @@ void ItemsModel::ApplySort(int column, Qt::SortOrder order)
         }
 
         const int bucket_row = static_cast<int>(persistent_index.internalId() - 1);
+        if ((only_bucket >= 0) && (bucket_row != only_bucket)) {
+            continue; // a scoped sort moves rows in one bucket only
+        }
         if (!m_search.has_bucket(bucket_row)) {
             continue;
         }
@@ -283,7 +325,11 @@ void ItemsModel::ApplySort(int column, Qt::SortOrder order)
             {persistent_index, bucket_row, persistent_index.column(), bucket.item(item_row)});
     }
 
-    m_search.Sort(column, order);
+    if (only_bucket >= 0) {
+        m_search.SortBucket(only_bucket, column, order);
+    } else {
+        m_search.Sort(column, order);
+    }
 
     QModelIndexList from;
     QModelIndexList to;
@@ -308,7 +354,11 @@ void ItemsModel::ApplySort(int column, Qt::SortOrder order)
     }
     changePersistentIndexList(from, to);
     emit layoutChanged({}, QAbstractItemModel::VerticalSortHint);
-    SetSorted(true);
+    if (only_bucket < 0) {
+        // A scoped expand-sort says nothing about the materialized set as
+        // a whole; only the view-wide pass marks the model sorted.
+        SetSorted(true);
+    }
 }
 
 void ItemsModel::RepaintBuyoutCells(const BuyoutChangeSet &changes)

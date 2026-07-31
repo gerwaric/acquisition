@@ -312,9 +312,12 @@ void SearchTest::probeCountersTrackRefilterAndSort()
 
     auto &probes = ModelProbes::instance();
 
-    // Disabled (the production default): sites count nothing.
+    // Disabled (the production default): sites count nothing. The gauge is
+    // the exception (S3): it tracks live key ownership unconditionally, so
+    // this test asserts its deltas against the entry baseline.
     probes.reset();
     QVERIFY(!probes.enabled);
+    const std::int64_t baseline_key_bytes = probes.live_key_bytes;
     search.FilterItems(items);
     QCOMPARE(probes.refilters, 0);
     QCOMPARE(probes.model_resets, 0);
@@ -359,10 +362,16 @@ void SearchTest::probeCountersTrackRefilterAndSort()
     QCOMPARE(probes.index_rebuilds, 1);
     QCOMPARE(probes.model_resets, 2);
 
-    // Later-stage fields have no production sites yet (batched model
-    // updates land in S2, resident-key bytes in S3).
+    // The batched-model-update site (S2) lives in MainWindow's batch
+    // response, which this direct harness never reaches.
     QCOMPARE(probes.model_updates, 0);
-    QCOMPARE(probes.live_key_bytes, 0);
+
+    // Since S3 the SetViewMode sort left the flat bucket's keys resident
+    // (D1): the gauge rose above the baseline, and evicting returns it
+    // exactly — the store owns its share of the gauge.
+    QVERIFY(probes.live_key_bytes > baseline_key_bytes);
+    search.EvictResidentKeys();
+    QCOMPARE(probes.live_key_bytes, baseline_key_bytes);
 
     probes.enabled = false;
 }

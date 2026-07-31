@@ -82,6 +82,43 @@ Every other anchor verified at (or within a line of) its citation:
   recorded before the July 30 10-char stash-id change are not
   byte-identical in dataset.
 
+## S3 — conditional hold-point rows (July 30, 2026): **PASS, all rows**
+
+Run at the end of S3 (D2 flags + D1 residency landed; branch
+`items-pipeline-m3`) with the new `m3_holdpoint_benchmark` harness
+(`tests/m3_holdpoint_benchmark.cpp`, Release, offscreen, spike presets,
+seed 20260729). Environment matches the M2-M2 record: Apple M4, 32 GB
+(macMini-class), macOS 26.6, Apple clang 21, Qt 6.11.1 release. The
+sequence continues to S4 — no remedy decision needed.
+
+| Row | 100k | 1m | Budget (100k / 1m) | Verdict |
+|---|---|---|---|---|
+| Worst-case unfiltered By-Tab refilter, default collapsed (median of 5, end-to-end `OnSearchFormChange`) | 39.1 ms | 418.3 ms | ≤ 60 ms / ≤ 500 ms | **PASS** |
+| — sort share of the above | 0 ms | 0 ms | ≤ 5 ms | **PASS** (probe-attributed: 0 bucket sorts, 0 key builds, 0 keyed compares — the toll disappears, not merely cheapens) |
+| Single-bucket expand, cold keys (576-item quad, median of 5) | 0.55 ms | 0.59 ms | ≤ 10 ms | **PASS** |
+| Broad-filter default-expanded refilter (ilvl ≥ 2, ~99% match, every bucket visible — R1-8) | 94.9 ms | 980.8 ms | ≤ 150 ms / ≤ 1.2 s | **PASS** |
+| Collapsed-default resident key memory | 0 B | 0 B | ≈ 0 | **PASS** (gauge exactly 0) |
+| Background-search resident key memory after deactivation | 0 B | 0 B | exactly 0 | **PASS** (gauge exactly 0; was > 0 while active) |
+
+Per-component attribution (M2-M2 discipline, micros on identical data
+outside the timed windows):
+
+- Unfiltered refilter is filter-loop-bound as designed: bare
+  `FilterItems` micro 35.5 ms @100k / 464.8 ms @1m of the 39.1 / 418.3
+  end-to-end; the remainder is the model reset + restore machinery.
+- Broad refilter @1m: 471.4 ms filter loop + the eager key build/sort
+  of ~everything (982.0 ms measured as one flat-bucket build+sort micro,
+  an upper bound on the per-bucket work, which the live window's
+  980.8 ms total confirms is heavily amortized across 2600 small
+  sorts — 2600 key builds, 9.7M keyed compares, zero comparator calls).
+- Broad-filter resident key footprint by the gauge: 37.0 MB @100k,
+  356.7 MB @1m. The gauge deliberately over-estimates (fixed 24-byte
+  header per string; the `uid`/`hash` CoW copies counted although they
+  cost ~nothing while their items live), so this is not comparable to
+  the spec's ~222-266 MB process-level figure; the authoritative
+  ≤ 300 MB aggregate row is measured at process level when By-Item
+  lands (S5) and at S7.
+
 ## Budget table (S7 — to be run)
 
 The acceptance-criteria table from `items-pipeline-m3.md` runs here
