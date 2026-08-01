@@ -10,13 +10,11 @@
 
 #include <functional>
 #include <map>
-#include <memory>
 
 #include "control/controlprotocol.h"
 
 class QDir;
 class QLocalSocket;
-class QLockFile;
 
 namespace control {
 
@@ -52,7 +50,6 @@ private:
     bool Send(QLocalSocket *socket, const QJsonObject &response);
 
     QLocalServer m_server;
-    std::unique_ptr<QLockFile> m_endpoint_lock;
     std::map<QLocalSocket *, Connection> m_connections;
     Handler m_handler;
     QString m_endpoint;

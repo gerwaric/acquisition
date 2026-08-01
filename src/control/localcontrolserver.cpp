@@ -11,13 +11,16 @@
 #include <QLocalSocket>
 #include <QLocale>
 #include <QtNumeric>
-#include <QLockFile>
 #include <QTimer>
 
 #include <exception>
 
-#ifndef Q_OS_WIN
+#ifdef Q_OS_WIN
+#include <qt_windows.h>
+#else
 #include <cerrno>
+#include <fcntl.h>
+#include <sys/file.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #endif
@@ -125,11 +128,63 @@ namespace {
         return false;
     }
 
-    bool JsonFits(const QJsonObject &object, qsizetype maximum)
+    class BindLock
     {
-        qsizetype estimated = 0;
-        return EstimateJson(object, estimated, maximum);
-    }
+    public:
+        ~BindLock()
+        {
+#ifdef Q_OS_WIN
+            if (m_acquired) {
+                ReleaseMutex(m_handle);
+            }
+            if (m_handle) {
+                CloseHandle(m_handle);
+            }
+#else
+            if (m_fd >= 0) {
+                ::flock(m_fd, LOCK_UN);
+                ::close(m_fd);
+            }
+#endif
+        }
+
+        bool TryLock(const QString &path, const QString &endpoint)
+        {
+#ifdef Q_OS_WIN
+            const QString name = "Global\\acquisition-control-bind-" + endpoint;
+            m_handle = CreateMutexW(nullptr,
+                                    FALSE,
+                                    reinterpret_cast<LPCWSTR>(name.utf16()));
+            if (!m_handle) {
+                return false;
+            }
+            const DWORD result = WaitForSingleObject(m_handle, 0);
+            m_acquired = result == WAIT_OBJECT_0 || result == WAIT_ABANDONED_0;
+            return m_acquired;
+#else
+            Q_UNUSED(endpoint);
+            const QByteArray encoded = QFile::encodeName(path);
+            m_fd = ::open(encoded.constData(), O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+            if (m_fd < 0) {
+                return false;
+            }
+            if (::flock(m_fd, LOCK_EX | LOCK_NB) != 0) {
+                ::close(m_fd);
+                m_fd = -1;
+                return false;
+            }
+            return true;
+#endif
+        }
+
+    private:
+#ifdef Q_OS_WIN
+        HANDLE m_handle{nullptr};
+        bool m_acquired{false};
+#else
+        int m_fd{-1};
+#endif
+    };
 
 #ifndef Q_OS_WIN
     bool SecureControlDirectory(const QString &path)
@@ -148,6 +203,15 @@ namespace {
 #endif
 
 } // namespace
+
+std::optional<qsizetype> JsonSizeWithinLimit(const QJsonValue &value, qsizetype maximum)
+{
+    qsizetype estimated = 0;
+    if (!EstimateJson(value, estimated, maximum)) {
+        return std::nullopt;
+    }
+    return estimated;
+}
 
 LocalControlServer::LocalControlServer(QObject *parent,
                                        int request_timeout_ms,
@@ -191,14 +255,10 @@ bool LocalControlServer::Listen(const QDir &data_directory)
         m_error_string = "a writable control-lock directory is unavailable";
         return false;
     }
-    m_endpoint_lock = std::make_unique<QLockFile>(lock_path);
-    // Zero disables age-only staleness for this long-lived lock. QLockFile
-    // still removes a lock when its recorded PID/process is no longer alive.
-    m_endpoint_lock->setStaleLockTime(0);
-    if (!m_endpoint_lock->tryLock(0)) {
+    BindLock bind_lock;
+    if (!bind_lock.TryLock(lock_path + ".native", m_endpoint)) {
         m_owner_conflict = true;
-        m_error_string = "another Acquisition process owns the control endpoint";
-        m_endpoint_lock.reset();
+        m_error_string = "another Acquisition process is binding the control endpoint";
         return false;
     }
 
@@ -210,23 +270,34 @@ bool LocalControlServer::Listen(const QDir &data_directory)
         probe.abort();
         m_owner_conflict = true;
         m_error_string = "another Acquisition process owns the control endpoint";
-        m_endpoint_lock.reset();
         return false;
     }
     if (probe.error() != QLocalSocket::ServerNotFoundError
         && probe.error() != QLocalSocket::ConnectionRefusedError) {
         m_error_string = probe.errorString();
-        m_endpoint_lock.reset();
         return false;
     }
 
     if (m_server.listen(m_endpoint)) {
         return true;
     }
-    if (m_server.serverError() != QAbstractSocket::AddressInUseError
+    if (m_server.serverError() != QAbstractSocket::AddressInUseError) {
+        m_error_string = m_server.errorString();
+        return false;
+    }
+
+    QLocalSocket contender;
+    contender.connectToServer(m_endpoint);
+    if (contender.waitForConnected(250)) {
+        contender.abort();
+        m_owner_conflict = true;
+        m_error_string = "another Acquisition process owns the control endpoint";
+        return false;
+    }
+    if ((contender.error() != QLocalSocket::ServerNotFoundError
+         && contender.error() != QLocalSocket::ConnectionRefusedError)
         || !QLocalServer::removeServer(m_endpoint) || !m_server.listen(m_endpoint)) {
         m_error_string = m_server.errorString();
-        m_endpoint_lock.reset();
         return false;
     }
     return true;
@@ -242,7 +313,6 @@ void LocalControlServer::Close()
     }
     m_connections.clear();
     m_server.close();
-    m_endpoint_lock.reset();
 }
 
 void LocalControlServer::AcceptConnections()
@@ -339,7 +409,7 @@ void LocalControlServer::Drop(QLocalSocket *socket)
 bool LocalControlServer::Send(QLocalSocket *socket, const QJsonObject &response)
 {
     QByteArray frame;
-    if (JsonFits(response, MAX_RESPONSE_BYTES)) {
+    if (JsonSizeWithinLimit(response, MAX_RESPONSE_BYTES)) {
         frame = EncodeFrame(response);
     }
     if (frame.isEmpty() || frame.size() - 4 > MAX_RESPONSE_BYTES) {

@@ -5,10 +5,12 @@
 
 #include <QByteArray>
 #include <QJsonObject>
+#include <QJsonValue>
 #include <QString>
 #include <QVector>
 
 #include <expected>
+#include <optional>
 
 namespace control {
 
@@ -47,6 +49,8 @@ private:
     qsizetype m_expected_payload{-1};
 };
 
+std::optional<qsizetype> JsonSizeWithinLimit(const QJsonValue &value,
+                                              qsizetype maximum);
 QByteArray EncodeFrame(const QJsonObject &object);
 std::expected<QJsonObject, ProtocolError> DecodeObject(const QByteArray &payload);
 std::expected<Request, ProtocolError> DecodeRequest(const QByteArray &payload);

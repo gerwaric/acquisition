@@ -84,6 +84,8 @@ QString SelectUnixControlRoot(const QString &runtime, const QString &home)
 
 QDir DefaultDataDirectory()
 {
+    // writableLocation(GenericDataLocation) is the first user-specific entry
+    // (LocalAppData on Windows), not the later system-wide search locations.
     const QDir generic(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation));
     return QDir(generic.filePath("acquisition"));
 }

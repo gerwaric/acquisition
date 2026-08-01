@@ -22,6 +22,7 @@ private slots:
     void itemLookupSurvivesDestinationFirstMove();
     void paginationRejectsOldRevision();
     void filteredPagesBoundSourceScan();
+    void pagesBeforeResponseBudget();
     void rejectsMalformedCursor();
     void rejectsMalformedQueryParameters();
     void refreshJobOutlivesStartRequest();
@@ -337,6 +338,42 @@ void ControlServiceTest::filteredPagesBoundSourceScan()
                  .value("id")
                  .toString(),
              "target-item");
+}
+
+void ControlServiceTest::pagesBeforeResponseBudget()
+{
+    BuyoutManagerFixture buyouts;
+    QSettings settings(buyouts.tempDir.filePath("settings.ini"), QSettings::IniFormat);
+    ItemsManager items_manager(settings, *buyouts.manager, *buyouts.data);
+    control::ControlService service("test-version");
+    const ItemLocation location = makeTestStashLocation("large", "Large", 0);
+    Items items;
+    for (int index = 0; index < 3; ++index) {
+        const QByteArray json = QJsonDocument(
+                                    QJsonObject{{"w", 1},
+                                                {"h", 1},
+                                                {"id", QString("large-%1").arg(index)},
+                                                {"typeLine", "Orb"},
+                                                {"identified", true},
+                                                {"note", QString(1'500'000, 'x')}})
+                                    .toJson(QJsonDocument::Compact);
+        items.push_back(std::make_shared<Item>(makeTestItem(json.constData(), location)));
+    }
+    service.AttachSession(items_manager, nullptr, *buyouts.manager, "Account#1", "League");
+    items_manager.OnItemsRefreshed(std::move(items), {location}, true);
+
+    const QJsonObject first = service.Handle(
+        control::Request{"first", "items", QJsonObject{{"limit", 3}}});
+    QVERIFY(first.value("ok").toBool());
+    QCOMPARE(resultOf(first).value("items").toArray().size(), 2);
+    const QString cursor = resultOf(first).value("next_cursor").toString();
+    QVERIFY(!cursor.isEmpty());
+
+    const QJsonObject second = service.Handle(
+        control::Request{"second", "items", QJsonObject{{"cursor", cursor}}});
+    QVERIFY(second.value("ok").toBool());
+    QCOMPARE(resultOf(second).value("items").toArray().size(), 1);
+    QVERIFY(resultOf(second).value("next_cursor").isNull());
 }
 
 void ControlServiceTest::rejectsMalformedCursor()

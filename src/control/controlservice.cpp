@@ -29,6 +29,9 @@ namespace {
     constexpr int DEFAULT_PAGE_SIZE = 50;
     constexpr int MAXIMUM_PAGE_SIZE = 100;
     constexpr qsizetype MAXIMUM_PAGE_SCAN = 10'000;
+    // Request ids are capped at 128 characters by DecodeRequest; 64 KiB also
+    // covers the fixed response envelope and authenticated continuation cursor.
+    constexpr qsizetype RESPONSE_CONTENT_BUDGET = MAX_RESPONSE_BYTES - 64 * 1024;
 
     QString ErrorKindName(RateLimit::FetchError::Kind kind)
     {
@@ -497,6 +500,7 @@ QJsonObject ControlService::Tabs(const QString &request_id, const QJsonObject &p
     }
 
     QJsonArray tabs;
+    qsizetype tabs_bytes = 2;
     std::optional<LocationInventory::Key> next;
     for (; entry != entries.end(); ++entry) {
         if (tabs.size() == limit) {
@@ -504,9 +508,23 @@ QJsonObject ControlService::Tabs(const QString &request_id, const QJsonObject &p
             break;
         }
         const auto count = counts.find(entry->first);
-        tabs.append(ProjectTab(entry->second,
-                               *m_buyout_manager,
-                               count == counts.end() ? 0 : count->second));
+        const QJsonObject projected = ProjectTab(entry->second,
+                                                  *m_buyout_manager,
+                                                  count == counts.end() ? 0 : count->second);
+        const auto projected_bytes = JsonSizeWithinLimit(projected, RESPONSE_CONTENT_BUDGET);
+        if (!projected_bytes
+            || tabs_bytes + *projected_bytes + (tabs.isEmpty() ? 0 : 1)
+                   > RESPONSE_CONTENT_BUDGET) {
+            if (tabs.isEmpty()) {
+                return Error(request_id,
+                             "tab_too_large",
+                             "one location exceeds the control response limit");
+            }
+            next = entry->first;
+            break;
+        }
+        tabs_bytes += *projected_bytes + (tabs.isEmpty() ? 0 : 1);
+        tabs.append(projected);
     }
 
     QJsonObject result{{"instance_id", m_instance_id},
@@ -539,6 +557,7 @@ QJsonObject ControlService::Items(const QString &request_id, const QJsonObject &
     }
 
     QJsonArray page;
+    qsizetype page_bytes = 2;
     std::optional<FetchSourceKey> next_source;
     qsizetype next_offset = 0;
     const qsizetype published_size = qsizetype(m_items_manager->itemCount());
@@ -569,7 +588,27 @@ QJsonObject ControlService::Items(const QString &request_id, const QJsonObject &
             const auto &item = bucket->second[size_t(index)];
             if (Matches(*item, *query, inventory)) {
                 const ItemLocation &canonical = inventory.Canonical(item->location());
-                page.append(ProjectItem(*item, canonical, m_buyout_manager->Get(*item)));
+                const QJsonObject projected = ProjectItem(*item,
+                                                          canonical,
+                                                          m_buyout_manager->Get(*item));
+                const auto projected_bytes = JsonSizeWithinLimit(projected,
+                                                                 RESPONSE_CONTENT_BUDGET);
+                if (!projected_bytes
+                    || page_bytes + *projected_bytes + (page.isEmpty() ? 0 : 1)
+                           > RESPONSE_CONTENT_BUDGET) {
+                    if (page.isEmpty()) {
+                        return Error(request_id,
+                                     "item_too_large",
+                                     QString("item %1 exceeds the control response limit")
+                                         .arg(item->id()));
+                    }
+                    next_source = bucket->first;
+                    next_offset = index;
+                    stopped = true;
+                    break;
+                }
+                page_bytes += *projected_bytes + (page.isEmpty() ? 0 : 1);
+                page.append(projected);
             }
             ++examined;
         }
