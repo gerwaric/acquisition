@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <QHash>
 #include <QString>
 #include <QTimer>
 
@@ -46,6 +47,9 @@ public:
     // source-keyed store after a delta (M2 D3, post-M2-M2): snapshot and
     // tick consumers only — nothing on the per-reply path calls this.
     const Items &items() const { return m_items.Flat(); }
+    size_t itemCount() const { return m_items.size(); }
+    const std::map<FetchSourceKey, Items> &itemBuckets() const { return m_items.buckets(); }
+    std::shared_ptr<Item> findItemById(const QString &id) const;
     std::map<LocationInventory::Key, qsizetype> itemCountsByLocation() const;
     // The freshest tab metadata seen per stable display key (M2 D6): fed by
     // every delta's location anchor and reset by every snapshot. Search
@@ -83,6 +87,8 @@ signals:
     void UpdateModListSignal();
 
 private:
+    void IndexItem(const std::shared_ptr<Item> &item);
+    void UnindexItem(const std::shared_ptr<Item> &item);
     void MigrateBuyouts();
     // Scoped per-delta pricing (M2 D7): item-local, fail-safe on both
     // outcomes, O(delta items). The final whole-collection pass at
@@ -98,5 +104,7 @@ private:
     // spec's storage conditional, so the per-delta replace and the child
     // reconciliation are bucket operations, never O(all-items) passes.
     SourceKeyedItems m_items;
+    QHash<QString, std::shared_ptr<Item>> m_items_by_id;
+    QHash<QString, std::vector<std::shared_ptr<Item>>> m_duplicate_items_by_id;
     LocationInventory m_location_inventory;
 };

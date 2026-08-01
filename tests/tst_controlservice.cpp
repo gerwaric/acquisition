@@ -19,6 +19,8 @@ private slots:
     void rejectsUnknownCommand();
     void viewingRequiresReadySession();
     void viewsPublishedItemsAndEffectivePrices();
+    void itemLookupTracksPublishedDeltas();
+    void itemLookupSurvivesDestinationFirstMove();
     void paginationRejectsOldRevision();
     void filteredPagesBoundSourceScan();
     void rejectsMalformedCursor();
@@ -161,6 +163,82 @@ void ControlServiceTest::viewsPublishedItemsAndEffectivePrices()
     QVERIFY(empty_note.toString().isEmpty());
 }
 
+void ControlServiceTest::itemLookupTracksPublishedDeltas()
+{
+    ViewingFixture fixture;
+    const auto replacement = std::make_shared<Item>(makeTestItem(
+        R"({"w":1,"h":1,"id":"replacement","typeLine":"Orb","identified":true})",
+        fixture.location));
+    fixture.items.OnTabRefreshed(fixture.location, Items{replacement});
+
+    const QJsonObject removed = fixture.service.Handle(
+        control::Request{"removed", "item", QJsonObject{{"id", "item-one"}}});
+    QCOMPARE(removed.value("error").toObject().value("code").toString(), "item_not_found");
+    const QJsonObject added = fixture.service.Handle(
+        control::Request{"added", "item", QJsonObject{{"id", "replacement"}}});
+    QVERIFY(added.value("ok").toBool());
+
+    ItemLocation child = makeTestStashLocation("parent", "Parent", 2);
+    child.setFetchId("child-source");
+    const auto child_item = std::make_shared<Item>(makeTestItem(
+        R"({"w":1,"h":1,"id":"child-item","typeLine":"Orb","identified":true})",
+        child));
+    fixture.items.OnTabRefreshed(child, Items{child_item});
+    QVERIFY(fixture.service
+                .Handle(control::Request{
+                    "child", "item", QJsonObject{{"id", "child-item"}}})
+                .value("ok")
+                .toBool());
+    fixture.items.OnChildrenReconciled(child, {});
+    const QJsonObject removed_child = fixture.service.Handle(
+        control::Request{"removed-child", "item", QJsonObject{{"id", "child-item"}}});
+    QCOMPARE(removed_child.value("error").toObject().value("code").toString(),
+             "item_not_found");
+}
+
+void ControlServiceTest::itemLookupSurvivesDestinationFirstMove()
+{
+    ViewingFixture fixture;
+    ItemLocation destination = makeTestStashLocation("destination", "Destination", 5);
+    destination.setFetchId(destination.id());
+    const auto moved = std::make_shared<Item>(makeTestItem(
+        R"({"w":1,"h":1,"id":"item-one","typeLine":"Ring","identified":true})",
+        destination));
+
+    fixture.items.OnTabRefreshed(destination, Items{moved});
+    fixture.items.OnTabRefreshed(fixture.location, Items{fixture.second});
+
+    const QJsonObject response = fixture.service.Handle(
+        control::Request{"moved", "item", QJsonObject{{"id", "item-one"}}});
+    QVERIFY(response.value("ok").toBool());
+    QCOMPARE(resultOf(response)
+                 .value("item")
+                 .toObject()
+                 .value("location")
+                 .toObject()
+                 .value("id")
+                 .toString(),
+             "destination");
+
+    ViewingFixture reverse_fixture;
+    const auto reverse_moved = std::make_shared<Item>(makeTestItem(
+        R"({"w":1,"h":1,"id":"item-one","typeLine":"Ring","identified":true})",
+        destination));
+    reverse_fixture.items.OnTabRefreshed(destination, Items{reverse_moved});
+    reverse_fixture.items.OnTabRefreshed(destination, {});
+    const QJsonObject restored = reverse_fixture.service.Handle(
+        control::Request{"restored", "item", QJsonObject{{"id", "item-one"}}});
+    QVERIFY(restored.value("ok").toBool());
+    QCOMPARE(resultOf(restored)
+                 .value("item")
+                 .toObject()
+                 .value("location")
+                 .toObject()
+                 .value("id")
+                 .toString(),
+             "stash-view");
+}
+
 void ControlServiceTest::paginationRejectsOldRevision()
 {
     ViewingFixture fixture;
@@ -230,6 +308,8 @@ void ControlServiceTest::rejectsMalformedCursor()
         fixture.service.Handle(control::Request{"status", "status", {}}));
     const QJsonObject cursor_object{{"instance_id", status.value("instance_id").toString()},
                                     {"revision", status.value("inventory_revision").toString()},
+                                    {"source_kind", "stash"},
+                                    {"source_id", "stash-view"},
                                     {"offset", "0"},
                                     {"limit", 1},
                                     {"tab_id", "stash-view"},

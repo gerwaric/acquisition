@@ -5,6 +5,7 @@
 
 #include <QAbstractSocket>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QLocalSocket>
 #include <QLockFile>
@@ -12,9 +13,35 @@
 
 #include <exception>
 
+#ifndef Q_OS_WIN
+#include <cerrno>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
 #include "control/controlendpoint.h"
 
 namespace control {
+
+namespace {
+
+#ifndef Q_OS_WIN
+    bool SecureControlDirectory(const QString &path)
+    {
+        const QByteArray encoded = QFile::encodeName(path);
+        if (::mkdir(encoded.constData(), S_IRWXU) != 0 && errno != EEXIST) {
+            return false;
+        }
+        struct stat status {};
+        if (::lstat(encoded.constData(), &status) != 0 || !S_ISDIR(status.st_mode)
+            || status.st_uid != getuid()) {
+            return false;
+        }
+        return ::chmod(encoded.constData(), S_IRWXU) == 0;
+    }
+#endif
+
+} // namespace
 
 LocalControlServer::LocalControlServer(QObject *parent,
                                        int request_timeout_ms,
@@ -43,13 +70,16 @@ bool LocalControlServer::Listen(const QDir &data_directory)
         return false;
     }
 #ifndef Q_OS_WIN
-    if (!QDir().mkpath(QFileInfo(m_endpoint).absolutePath())) {
-        m_error_string = "the private control runtime directory could not be created";
+    const QString endpoint_directory = QFileInfo(m_endpoint).absolutePath();
+    if (!SecureControlDirectory(endpoint_directory)) {
+        m_error_string = "the private control directory could not be secured";
         return false;
     }
 #endif
 
     const QString lock_path = EndpointLockPath(data_directory);
+    // The lock parent is created on every platform, including Windows where
+    // it lives under the data directory rather than beside the named pipe.
     if (lock_path.isEmpty()
         || !QDir().mkpath(QFileInfo(lock_path).absolutePath())) {
         m_error_string = "a writable control-lock directory is unavailable";

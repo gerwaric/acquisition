@@ -85,6 +85,7 @@ namespace {
     struct ItemQuery
     {
         int limit{DEFAULT_PAGE_SIZE};
+        std::optional<FetchSourceKey> source;
         qsizetype offset{0};
         QString tab_id;
         std::optional<ItemLocationType> kind;
@@ -111,8 +112,11 @@ namespace {
 
     QString EncodeCursor(const QString &instance_id, quint64 revision, const ItemQuery &query)
     {
+        Q_ASSERT(query.source);
         const QJsonObject object{{"instance_id", instance_id},
                                  {"revision", QString::number(revision)},
+                                 {"source_kind", KindName(query.source->type)},
+                                 {"source_id", query.source->fetch_id},
                                  {"offset", QString::number(query.offset)},
                                  {"limit", query.limit},
                                  {"tab_id", query.tab_id},
@@ -143,13 +147,17 @@ namespace {
         bool offset_ok = false;
         const qlonglong offset = object.value("offset").toString().toLongLong(&offset_ok);
         const int limit = object.value("limit").toInt(0);
+        const QString source_id = object.value("source_id").toString();
+        const auto source_kind = ParseKind(object.value("source_kind").toString());
         if (!offset_ok || offset < 0
             || qulonglong(offset) > qulonglong(std::numeric_limits<qsizetype>::max())
-            || limit < 1 || limit > MAXIMUM_PAGE_SIZE) {
+            || limit < 1 || limit > MAXIMUM_PAGE_SIZE || source_id.isEmpty()
+            || !source_kind) {
             return std::unexpected(ProtocolError{"invalid_cursor", "the cursor is malformed"});
         }
 
         ItemQuery query;
+        query.source = FetchSourceKey{*source_kind, source_id};
         query.offset = qsizetype(offset);
         query.limit = limit;
         query.tab_id = object.value("tab_id").toString();
@@ -349,7 +357,7 @@ QJsonObject ControlService::Status() const
     if (m_items_manager) {
         result.insert("account", m_account);
         result.insert("league", m_league);
-        result.insert("item_count", int(m_items_manager->items().size()));
+        result.insert("item_count", int(m_items_manager->itemCount()));
         result.insert("location_count", int(m_items_manager->locationInventory().entries().size()));
     }
 
@@ -421,40 +429,56 @@ QJsonObject ControlService::Items(const QString &request_id, const QJsonObject &
     }
 
     QJsonArray page;
-    std::optional<qsizetype> next_offset;
-    const ::Items &published = m_items_manager->items();
-    if (query->offset > qsizetype(published.size())) {
-        return Error(request_id, "invalid_cursor", "the cursor offset is outside the result set");
+    std::optional<FetchSourceKey> next_source;
+    qsizetype next_offset = 0;
+    const qsizetype published_size = qsizetype(m_items_manager->itemCount());
+    const auto &buckets = m_items_manager->itemBuckets();
+    auto bucket = query->source ? buckets.find(*query->source) : buckets.begin();
+    if (bucket == buckets.end() && query->source) {
+        return Error(request_id, "invalid_cursor", "the cursor source is not published");
     }
+
     const auto &inventory = m_items_manager->locationInventory();
-    qsizetype index = query->offset;
     qsizetype examined = 0;
-    for (; index < qsizetype(published.size()) && examined < MAXIMUM_PAGE_SCAN;
-         ++index, ++examined) {
-        const auto &item = published[size_t(index)];
-        if (!Matches(*item, *query, inventory)) {
-            continue;
+    bool stopped = false;
+    for (; bucket != buckets.end(); ++bucket) {
+        const qsizetype bucket_size = qsizetype(bucket->second.size());
+        const qsizetype first = query->source && bucket->first == *query->source ? query->offset : 0;
+        if (first > bucket_size) {
+            return Error(request_id,
+                         "invalid_cursor",
+                         "the cursor offset is outside its source");
         }
-        if (page.size() == query->limit) {
-            next_offset = index;
+        for (qsizetype index = first; index < bucket_size; ++index) {
+            if (examined == MAXIMUM_PAGE_SCAN || page.size() == query->limit) {
+                next_source = bucket->first;
+                next_offset = index;
+                stopped = true;
+                break;
+            }
+            const auto &item = bucket->second[size_t(index)];
+            if (Matches(*item, *query, inventory)) {
+                const ItemLocation &canonical = inventory.Canonical(item->location());
+                page.append(ProjectItem(*item, canonical, m_buyout_manager->Get(*item)));
+            }
+            ++examined;
+        }
+        if (stopped) {
             break;
         }
-        const ItemLocation &canonical = inventory.Canonical(item->location());
-        page.append(ProjectItem(*item, canonical, m_buyout_manager->Get(*item)));
-    }
-    if (!next_offset && index < qsizetype(published.size())) {
-        next_offset = index;
+        query->source.reset();
     }
 
     QJsonObject result{{"instance_id", m_instance_id},
                        {"inventory_revision", QString::number(m_inventory_revision)},
                        {"items", page}};
     if (query->tab_id.isEmpty()) {
-        result.insert("total", QString::number(published.size()));
+        result.insert("total", QString::number(published_size));
     }
-    if (next_offset) {
+    if (next_source) {
         ItemQuery next = *query;
-        next.offset = *next_offset;
+        next.source = *next_source;
+        next.offset = next_offset;
         result.insert("next_cursor", EncodeCursor(m_instance_id, m_inventory_revision, next));
     } else {
         result.insert("next_cursor", QJsonValue::Null);
@@ -472,21 +496,19 @@ QJsonObject ControlService::Item(const QString &request_id, const QJsonObject &p
         return Error(request_id, "invalid_request", "id must be a non-empty string");
     }
 
-    for (const auto &item : m_items_manager->items()) {
-        if (item->id() == id.toString()) {
-            const ItemLocation &canonical = m_items_manager->locationInventory().Canonical(
-                item->location());
-            return Success(request_id,
-                           QJsonObject{{"instance_id", m_instance_id},
-                                       {"inventory_revision",
-                                        QString::number(m_inventory_revision)},
-                                       {"item",
-                                        ProjectItem(*item,
-                                                    canonical,
-                                                    m_buyout_manager->Get(*item))}});
-        }
+    const auto item = m_items_manager->findItemById(id.toString());
+    if (!item) {
+        return Error(request_id, "item_not_found", "no published item has that id");
     }
-    return Error(request_id, "item_not_found", "no published item has that id");
+    const ItemLocation &canonical = m_items_manager->locationInventory().Canonical(
+        item->location());
+    return Success(request_id,
+                   QJsonObject{{"instance_id", m_instance_id},
+                               {"inventory_revision", QString::number(m_inventory_revision)},
+                               {"item",
+                                ProjectItem(*item,
+                                            canonical,
+                                            m_buyout_manager->Get(*item))}});
 }
 
 QJsonObject ControlService::StartRefresh(const QString &request_id)

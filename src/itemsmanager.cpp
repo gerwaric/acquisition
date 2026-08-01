@@ -6,6 +6,7 @@
 #include <QNetworkCookie>
 #include <QSettings>
 
+#include <algorithm>
 #include <set>
 
 #include "buyoutmanager.h"
@@ -37,6 +38,50 @@ ItemsManager::ItemsManager(QSettings &settings, BuyoutManager &buyout_manager, D
 }
 
 ItemsManager::~ItemsManager() {}
+
+void ItemsManager::IndexItem(const std::shared_ptr<Item> &item)
+{
+    const auto existing = m_items_by_id.find(item->id());
+    if (existing != m_items_by_id.end()) {
+        m_duplicate_items_by_id[item->id()].push_back(existing.value());
+        existing.value() = item;
+    } else {
+        m_items_by_id.insert(item->id(), item);
+    }
+}
+
+void ItemsManager::UnindexItem(const std::shared_ptr<Item> &item)
+{
+    const auto indexed = m_items_by_id.find(item->id());
+    if (indexed != m_items_by_id.end() && indexed.value() == item) {
+        const auto duplicates = m_duplicate_items_by_id.find(item->id());
+        if (duplicates == m_duplicate_items_by_id.end() || duplicates->empty()) {
+            m_items_by_id.erase(indexed);
+        } else {
+            indexed.value() = duplicates->back();
+            duplicates->pop_back();
+            if (duplicates->empty()) {
+                m_duplicate_items_by_id.erase(duplicates);
+            }
+        }
+        return;
+    }
+
+    const auto duplicates = m_duplicate_items_by_id.find(item->id());
+    if (duplicates == m_duplicate_items_by_id.end()) {
+        return;
+    }
+    std::erase(*duplicates, item);
+    if (duplicates->empty()) {
+        m_duplicate_items_by_id.erase(duplicates);
+    }
+}
+
+std::shared_ptr<Item> ItemsManager::findItemById(const QString &id) const
+{
+    const auto item = m_items_by_id.constFind(id);
+    return item == m_items_by_id.cend() ? nullptr : item.value();
+}
 
 std::map<LocationInventory::Key, qsizetype> ItemsManager::itemCountsByLocation() const
 {
@@ -149,6 +194,12 @@ void ItemsManager::OnItemsRefreshed(const Items &items,
 {
     spdlog::trace("ItemsManager::OnItemsRefreshed() entered");
     m_items.ResetTo(items);
+    m_items_by_id.clear();
+    m_duplicate_items_by_id.clear();
+    m_items_by_id.reserve(items.size());
+    for (const auto &item : items) {
+        IndexItem(item);
+    }
 
     spdlog::debug("There are {} items and {} tabs after the refresh.", m_items.size(), tabs.size());
     // Debug-only diagnostic, gated so release users never pay a
@@ -196,7 +247,17 @@ void ItemsManager::OnTabRefreshed(const ItemLocation &location, const Items &ite
     // the source-keyed store, O(replaced + delta) (D3, post-M2-M2). An
     // empty delta empties the fetch source and nothing else; tab deletion
     // stays snapshot-boundary.
-    m_items.ReplaceSource(FetchSourceKey::ForLocation(location), items);
+    const FetchSourceKey key = FetchSourceKey::ForLocation(location);
+    const auto old = m_items.buckets().find(key);
+    if (old != m_items.buckets().end()) {
+        for (const auto &item : old->second) {
+            UnindexItem(item);
+        }
+    }
+    m_items.ReplaceSource(key, items);
+    for (const auto &item : items) {
+        IndexItem(item);
+    }
 
     // Every delta's location anchor feeds the canonical inventory, empty
     // deltas included (D6/R6-1).
@@ -218,10 +279,20 @@ void ItemsManager::OnChildrenReconciled(const ItemLocation &parent,
     // are erased too. A walk of the bucket index with set lookup — the
     // erased items are the only ones touched (D3, post-M2-M2).
     const std::set<FetchSourceKey> expected_keys(expected.begin(), expected.end());
-    m_items.EraseSourcesIf([&](const FetchSourceKey &key, const ItemLocation &loc) {
+    const auto should_erase = [&](const FetchSourceKey &key, const ItemLocation &loc) {
         return (key.type == ItemLocationType::STASH) && (loc.id() == parent.id())
                && (expected_keys.count(key) == 0);
-    });
+    };
+    for (const auto &[key, bucket] : m_items.buckets()) {
+        // SourceKeyedItems removes a source instead of retaining an empty bucket.
+        Q_ASSERT(!bucket.empty());
+        if (should_erase(key, bucket.front()->location())) {
+            for (const auto &item : bucket) {
+                UnindexItem(item);
+            }
+        }
+    }
+    m_items.EraseSourcesIf(should_erase);
 
     m_location_inventory.Ingest(parent);
 

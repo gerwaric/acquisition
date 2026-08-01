@@ -44,6 +44,9 @@ int main(int argc, char **argv)
     Items items = dataset.allItems();
     const qsizetype expected = items.size();
     items_manager.OnItemsRefreshed(std::move(items), dataset.locations(), true);
+    // Mark the manager's whole-collection flat cache dirty. Control paging
+    // must stay on source buckets rather than rebuilding that cache.
+    items_manager.OnTabRefreshed(dataset.location(0), dataset.tabItems(0));
 
     QString cursor;
     qsizetype received = 0;

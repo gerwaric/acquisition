@@ -1,6 +1,5 @@
 #include <QFileInfo>
 #include <QJsonDocument>
-#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -136,8 +135,24 @@ void ControlProtocolTest::endpointIsUserScoped()
     const QString lock_path = control::EndpointLockPath(QDir(first.path()));
     QVERIFY(QFileInfo(lock_path).isAbsolute());
 #ifndef Q_OS_WIN
-    QCOMPARE(QFileInfo(first_endpoint).absolutePath(),
-             QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation));
+    const QByteArray old_runtime = qgetenv("XDG_RUNTIME_DIR");
+    const QByteArray old_home = qgetenv("HOME");
+    qputenv("XDG_RUNTIME_DIR", second.path().toUtf8());
+    qputenv("HOME", second.path().toUtf8());
+    QCOMPARE(control::EndpointName(QDir(first.path())), first_endpoint);
+    if (old_runtime.isNull()) {
+        qunsetenv("XDG_RUNTIME_DIR");
+    } else {
+        qputenv("XDG_RUNTIME_DIR", old_runtime);
+    }
+    if (old_home.isNull()) {
+        qunsetenv("HOME");
+    } else {
+        qputenv("HOME", old_home);
+    }
+
+    QCOMPARE(QFileInfo(first_endpoint).absolutePath(), QFileInfo(lock_path).absolutePath());
+    QCOMPARE(QFileInfo(first_endpoint).absoluteDir().dirName(), "acquisition-control");
 #endif
 }
 
