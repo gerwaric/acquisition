@@ -25,6 +25,7 @@ namespace {
 
     constexpr int DEFAULT_PAGE_SIZE = 50;
     constexpr int MAXIMUM_PAGE_SIZE = 100;
+    constexpr qsizetype MAXIMUM_PAGE_SCAN = 10'000;
 
     QString ErrorKindName(RateLimit::FetchError::Kind kind)
     {
@@ -370,10 +371,16 @@ QJsonObject ControlService::Status() const
     } else {
         result.insert("active_refresh_id", m_active_refresh_id);
     }
-    if (!m_refresh_jobs.empty()) {
-        result.insert("latest_refresh", RefreshJobJson(m_refresh_jobs.back()));
-    } else {
+    const auto latest_terminal = std::find_if(m_refresh_jobs.rbegin(),
+                                              m_refresh_jobs.rend(),
+                                              [](const RefreshJob &job) {
+                                                  return job.state == "completed"
+                                                         || job.state == "failed";
+                                              });
+    if (latest_terminal == m_refresh_jobs.rend()) {
         result.insert("latest_refresh", QJsonValue::Null);
+    } else {
+        result.insert("latest_refresh", RefreshJobJson(*latest_terminal));
     }
 
     return result;
@@ -417,7 +424,10 @@ QJsonObject ControlService::Items(const QString &request_id, const QJsonObject &
         return Error(request_id, "invalid_cursor", "the cursor offset is outside the result set");
     }
     const auto &inventory = m_items_manager->locationInventory();
-    for (qsizetype index = query->offset; index < qsizetype(published.size()); ++index) {
+    qsizetype index = query->offset;
+    qsizetype examined = 0;
+    for (; index < qsizetype(published.size()) && examined < MAXIMUM_PAGE_SCAN;
+         ++index, ++examined) {
         const auto &item = published[size_t(index)];
         if (!Matches(*item, *query, inventory)) {
             continue;
@@ -428,6 +438,9 @@ QJsonObject ControlService::Items(const QString &request_id, const QJsonObject &
         }
         const ItemLocation &canonical = inventory.Canonical(item->location());
         page.append(ProjectItem(*item, canonical, m_buyout_manager->Get(*item)));
+    }
+    if (!next_offset && index < qsizetype(published.size())) {
+        next_offset = index;
     }
 
     QJsonObject result{{"instance_id", m_instance_id},

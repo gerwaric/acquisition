@@ -4,6 +4,7 @@
 #include <QtTest>
 
 #include "control/controlservice.h"
+#include "itemcategories.h"
 #include "itemsmanager.h"
 #include "testfixtures.h"
 
@@ -11,14 +12,17 @@ class ControlServiceTest : public QObject
 {
     Q_OBJECT
 private slots:
+    void initTestCase();
     void reportsPreLoginStatus();
     void rejectsUnknownCommand();
     void viewingRequiresReadySession();
     void viewsPublishedItemsAndEffectivePrices();
     void paginationRejectsOldRevision();
+    void filteredPagesBoundSourceScan();
     void rejectsMalformedCursor();
     void rejectsMalformedQueryParameters();
     void refreshJobOutlivesStartRequest();
+    void statusPreservesLatestTerminalRefresh();
     void queuedJobIgnoresUnrelatedSignals();
     void busyRefreshIsNotAccepted();
     void refreshOutcomesRemainTyped();
@@ -43,7 +47,7 @@ namespace {
             })";
             const QByteArray second_json = R"({
                 "w":1,"h":1,"id":"item-two","name":"",
-                "typeLine":"Chaos Orb","identified":true,"ilvl":1,"x":1,"y":2
+                "typeLine":"Chaos Orb","identified":true,"ilvl":1,"x":1,"y":2,"note":""
             })";
             first = std::make_shared<Item>(makeTestItem(first_json.constData(), location));
             second = std::make_shared<Item>(makeTestItem(second_json.constData(), location));
@@ -72,6 +76,13 @@ namespace {
     }
 
 } // namespace
+
+void ControlServiceTest::initTestCase()
+{
+    InitItemClasses(R"json({"TestClass":{"name":"Weapons"}})json");
+    InitItemBaseTypes(
+        R"json({"Metadata/Items/TestSword":{"item_class":"TestClass","name":"Test Sword","release_state":"released"}})json");
+}
 
 void ControlServiceTest::reportsPreLoginStatus()
 {
@@ -133,6 +144,13 @@ void ControlServiceTest::viewsPublishedItemsAndEffectivePrices()
     const QJsonObject price = item.value("effective_price").toObject();
     QCOMPARE(price.value("value").toDouble(), 10.0);
     QCOMPARE(price.value("currency").toString(), "chaos");
+    QVERIFY(item.value("note").isNull());
+
+    const QJsonObject second_response = fixture.service.Handle(
+        control::Request{"second", "item", QJsonObject{{"id", "item-two"}}});
+    const QJsonValue empty_note = resultOf(second_response).value("item").toObject().value("note");
+    QVERIFY(empty_note.isString());
+    QVERIFY(empty_note.toString().isEmpty());
 }
 
 void ControlServiceTest::paginationRejectsOldRevision()
@@ -150,6 +168,51 @@ void ControlServiceTest::paginationRejectsOldRevision()
         control::Request{"stale", "items", QJsonObject{{"cursor", cursor}}});
     QVERIFY(!stale.value("ok").toBool(true));
     QCOMPARE(stale.value("error").toObject().value("code").toString(), "revision_changed");
+}
+
+void ControlServiceTest::filteredPagesBoundSourceScan()
+{
+    BuyoutManagerFixture buyouts;
+    QSettings settings(buyouts.tempDir.filePath("settings.ini"), QSettings::IniFormat);
+    ItemsManager items_manager(settings, *buyouts.manager, *buyouts.data);
+    control::ControlService service("test-version");
+    const ItemLocation first_location = makeTestStashLocation("first", "First", 0);
+    const ItemLocation target_location = makeTestStashLocation("target", "Target", 1);
+    Items items;
+    items.reserve(10'001);
+    for (int index = 0; index < 10'000; ++index) {
+        const QByteArray json = QString(
+                                    R"({"w":1,"h":1,"id":"item-%1","typeLine":"Orb","identified":true})")
+                                    .arg(index)
+                                    .toUtf8();
+        items.push_back(std::make_shared<Item>(makeTestItem(json.constData(), first_location)));
+    }
+    items.push_back(std::make_shared<Item>(makeTestItem(
+        R"({"w":1,"h":1,"id":"target-item","typeLine":"Orb","identified":true})",
+        target_location)));
+    service.AttachSession(items_manager, nullptr, *buyouts.manager, "Account#1", "League");
+    items_manager.OnItemsRefreshed(std::move(items), {first_location, target_location}, true);
+
+    const QJsonObject first_page = service.Handle(control::Request{
+        "first-page",
+        "items",
+        QJsonObject{{"limit", 1}, {"tab_id", "target"}, {"kind", "stash"}}});
+    QVERIFY(first_page.value("ok").toBool());
+    QCOMPARE(resultOf(first_page).value("items").toArray().size(), 0);
+    const QString cursor = resultOf(first_page).value("next_cursor").toString();
+    QVERIFY(!cursor.isEmpty());
+
+    const QJsonObject second_page = service.Handle(
+        control::Request{"second-page", "items", QJsonObject{{"cursor", cursor}}});
+    QCOMPARE(resultOf(second_page).value("items").toArray().size(), 1);
+    QCOMPARE(resultOf(second_page)
+                 .value("items")
+                 .toArray()
+                 .at(0)
+                 .toObject()
+                 .value("id")
+                 .toString(),
+             "target-item");
 }
 
 void ControlServiceTest::rejectsMalformedCursor()
@@ -214,6 +277,28 @@ void ControlServiceTest::refreshJobOutlivesStartRequest()
     operation = resultOf(fixture.service.Handle(status_request)).value("operation").toObject();
     QCOMPARE(operation.value("state").toString(), "completed");
     QVERIFY(operation.value("outcome").toObject().value("clean").toBool());
+}
+
+void ControlServiceTest::statusPreservesLatestTerminalRefresh()
+{
+    ViewingFixture fixture;
+    const QString completed_id = resultOf(fixture.service.Handle(
+                                             control::Request{"first", "refresh.start", {}}))
+                                     .value("operation_id")
+                                     .toString();
+    QCoreApplication::processEvents();
+    fixture.items.RefreshFinished(RefreshOutcome{CompletedRefresh{}});
+
+    const QString active_id = resultOf(fixture.service.Handle(
+                                          control::Request{"second", "refresh.start", {}}))
+                                  .value("operation_id")
+                                  .toString();
+    const QJsonObject status = resultOf(
+        fixture.service.Handle(control::Request{"status", "status", {}}));
+    QCOMPARE(status.value("active_refresh_id").toString(), active_id);
+    QCOMPARE(status.value("latest_refresh").toObject().value("operation_id").toString(),
+             completed_id);
+    QCOMPARE(status.value("latest_refresh").toObject().value("state").toString(), "completed");
 }
 
 void ControlServiceTest::queuedJobIgnoresUnrelatedSignals()

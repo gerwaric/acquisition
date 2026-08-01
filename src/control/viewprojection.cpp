@@ -195,13 +195,17 @@ QJsonObject ProjectItem(const Item &item,
                                     {"synthesized", item.synthesized()},
                                     {"mutated", item.mutated()}}},
                        {"influences", ProjectInfluences(item)},
-                       {"note", item.note()},
                        {"properties", ProjectProperties(item.text_properties())},
                        {"requirements", ProjectRequirements(item.text_requirements())},
                        {"mods", ProjectMods(item.text_mods())},
                        {"sockets", ProjectSockets(item.text_sockets())},
                        {"location", ProjectLocation(item.location(), canonical_location)},
                        {"effective_price", ProjectBuyout(effective_buyout)}};
+    if (item.note().isNull()) {
+        result.insert("note", QJsonValue::Null);
+    } else {
+        result.insert("note", item.note());
+    }
     if (item.frameType() < 0) {
         result.insert("frame_type", QJsonValue::Null);
     } else {

@@ -83,11 +83,28 @@ int main(int argc, char **argv)
                      static_cast<long long>(received));
         return 1;
     }
-    std::printf("preset=%s items=%lld pages=%lld total_ms=%.3f max_page_ms=%.3f\n",
+
+    QElapsedTimer sparse_filter;
+    sparse_filter.start();
+    const QJsonObject sparse_response = service.Handle(control::Request{
+        "sparse-filter",
+        "items",
+        QJsonObject{{"limit", 1},
+                    {"tab_id", dataset.location(dataset.tabCount() - 1).id()},
+                    {"kind", "stash"}}});
+    const qint64 sparse_filter_ns = sparse_filter.nsecsElapsed();
+    if (!sparse_response.value("ok").toBool()) {
+        std::fprintf(stderr, "sparse filter request failed\n");
+        return 1;
+    }
+
+    std::printf("preset=%s items=%lld pages=%lld total_ms=%.3f max_page_ms=%.3f "
+                "sparse_filter_ms=%.3f\n",
                 qPrintable(parser.value(preset_option)),
                 static_cast<long long>(received),
                 static_cast<long long>(pages),
                 double(total.nsecsElapsed()) / 1'000'000.0,
-                double(maximum_page_ns) / 1'000'000.0);
+                double(maximum_page_ns) / 1'000'000.0,
+                double(sparse_filter_ns) / 1'000'000.0);
     return 0;
 }
