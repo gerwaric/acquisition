@@ -1,14 +1,18 @@
 # M1-M2 measurement result (items-pipeline M2, D10; post-M2 follow-up)
 
-Status: **MEASURED July 31, 2026 — the gate FIRED.** A 2,000-entry
-`QueueUpdated` burst blocks the UI thread for ~23 ms, over one 60 Hz
-frame (16.7 ms), and ~95% of that is the status widget's per-emission
-handler — which runs whether or not the dialog is visible, because
-`MainWindow::InitializeRateLimitDialog` constructs and connects it
-unconditionally at startup. Per D10 the conditional is determinate:
-the fix is the UI-side coalesce of the existing signal (D9's
-non-resetting single-shot throttle pattern, much smaller S); the
-limiter is not touched (network-redesign is frozen).
+Status: **MEASURED July 31, 2026 — the gate FIRED. The prescribed D10
+coalesce was built the same day and validated by the rerun appended
+at the bottom of this document** (2,000-entry burst 23.0 ms → 0.9 ms
+with the dialog connected; the status widget's marginal cost is now
+indistinguishable from measurement noise). A 2,000-entry
+`QueueUpdated` burst blocked the UI thread for ~23 ms, over one 60 Hz
+frame (16.7 ms), and ~95% of that was the status widget's
+per-emission handler — which runs whether or not the dialog is
+visible, because `MainWindow::InitializeRateLimitDialog` constructs
+and connects it unconditionally at startup. Per D10 the conditional
+is determinate: the fix is the UI-side coalesce of the existing
+signal (D9's non-resetting single-shot throttle pattern, much smaller
+S); the limiter is not touched (network-redesign is frozen).
 
 This is the resolution the spec's open-items entry asks for (M1-M2,
 `items-pipeline-m2.md`; deferred out of M2 implementation because it
@@ -103,7 +107,9 @@ displayed queue depth is never more than S behind the real queue, and
 steady-state arrivals (one per reply, seconds apart) each flush on
 their own expired window as before. The hub's pre-establishment
 parked-path `QueueUpdate` emissions share the same handler and are
-coalesced by the same mechanism.
+coalesced by the same mechanism. Pins: `tst_ratelimitdialog`
+(`burstCoalescesToOneApply`, `flushAppliesLatestValuePerPolicy`,
+`rowRebuildBetweenArrivalAndFlushStillLands`).
 
 ## Caveats
 
@@ -117,3 +123,25 @@ coalesced by the same mechanism.
 - The 60 Hz frame (16.7 ms) is the reference budget; on ProMotion
   displays the frame is 8.3 ms and the pre-remedy miss is
   proportionally worse.
+
+## Rerun with the coalesce in place (July 31, 2026)
+
+Same harness, same environment, same reps; the harness's end-to-end
+verification now polls for the flush instead of asserting
+synchronously (untimed either way). Burst wall time, median
+(min–max), milliseconds:
+
+| entries | no dialog (baseline) | dialog hidden (default) | dialog shown |
+|--------:|---------------------:|------------------------:|-------------:|
+| 2,000 | 1.225 (1.118–1.516) | 0.907 (0.901–0.925) | 0.919 (0.906–0.966) |
+| 8,000 | 3.517 (3.510–3.749) | 3.627 (3.620–3.705) | 3.609 (3.576–3.649) |
+
+The three configurations are now statistically indistinguishable
+(~0.45 µs/emission; the dialog medians landing slightly below the
+baseline at 2,000 is run-to-run noise). The status widget's marginal
+cost of a 2,000-entry burst went from ~22 ms to less than the
+run-to-run spread; the whole burst — hub, submission loop, and
+status widget — sits at ~0.9 ms, more than a frame of headroom at
+any refresh rate. The displayed queue depth lags the real queue by
+at most the 100 ms flush interval. The D10 conditional is
+discharged.

@@ -10,8 +10,10 @@
 // `RateLimitDialog::OnQueueUpdate` (direct connection, same thread). The
 // dialog is constructed unconditionally at startup
 // (`MainWindow::InitializeRateLimitDialog`), so the handler runs whether or
-// not the dialog is visible — a top-level row scan plus `setText` per
-// emission.
+// not the dialog is visible. Before the D10 coalesce that handler was a
+// top-level row scan plus `setText` per emission (the measured miss); with
+// the coalesce it parks the latest value per policy and a single-shot flush
+// timer applies the batch after the burst's loop turn ends.
 //
 // Not a test: run by hand, offscreen, in a Release build:
 //
@@ -192,15 +194,25 @@ namespace {
         }
         if (dialog) {
             // End-to-end delivery check with zero perturbation of the timed
-            // path: the row's queue cell must read the final queue depth
-            // (the drain holds entry 0; all burst entries are waiting).
+            // path: the row's queue cell must converge to the final queue
+            // depth (the drain holds entry 0; all burst entries are
+            // waiting). With the D10 coalesce in place the value lands on
+            // the flush timer, so this polls briefly instead of asserting
+            // synchronously.
             auto *tree = dialog->findChild<QTreeWidget *>();
             if (!tree || tree->topLevelItemCount() != 1) {
                 qFatal("the dialog does not show exactly one policy row");
             }
-            const QString cell = tree->topLevelItem(0)->text(1);
-            if (cell != QString::number(entries)) {
-                qFatal("queue cell reads '%s', expected %d", qPrintable(cell), entries);
+            const QString expected = QString::number(entries);
+            QElapsedTimer deadline;
+            deadline.start();
+            while (tree->topLevelItem(0)->text(1) != expected) {
+                if (deadline.elapsed() > 2000) {
+                    qFatal("queue cell reads '%s', expected %s",
+                           qPrintable(tree->topLevelItem(0)->text(1)),
+                           qPrintable(expected));
+                }
+                QCoreApplication::processEvents(QEventLoop::WaitForMoreEvents, 25);
             }
         }
 

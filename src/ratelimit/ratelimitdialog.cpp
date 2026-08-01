@@ -11,14 +11,28 @@
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
 
+#include <utility>
+
 #include "ratelimit/ratelimiter.h"
 #include "ratelimit/ratelimitpolicy.h"
 #include "util/util.h"
+
+namespace {
+    // Flush interval for coalesced queue updates (M1-M2/D10): small enough
+    // that the displayed queue depth is never visibly stale — steady-state
+    // arrivals are one per reply, seconds apart — while any single-loop-turn
+    // burst collapses into one apply.
+    constexpr int kQueueFlushIntervalMsec = 100;
+} // namespace
 
 RateLimitDialog::RateLimitDialog(QWidget *parent, RateLimiter *limiter)
     : QDialog(parent)
 {
     setSizeGripEnabled(true);
+
+    m_queue_flush_timer.setSingleShot(true);
+    m_queue_flush_timer.setInterval(kQueueFlushIntervalMsec);
+    connect(&m_queue_flush_timer, &QTimer::timeout, this, &RateLimitDialog::FlushQueueUpdates);
 
     // The spaces at the end of the header labels are intentional. Without them,
     // Qt was cutting off the last character or two. I could not figure out how
@@ -111,15 +125,31 @@ void RateLimitDialog::OnPolicyUpdate(const RateLimitPolicy &policy)
 
 void RateLimitDialog::OnQueueUpdate(const QString &policy_name, int queued_requests)
 {
-    for (int i = 0; i < m_treeWidget->topLevelItemCount(); ++i) {
-        QTreeWidgetItem *item = m_treeWidget->topLevelItem(i);
-        if (item->text(0) == policy_name) {
-            if (queued_requests > 0) {
-                item->setText(1, QString::number(queued_requests));
-            } else {
-                item->setText(1, "");
+    m_pending_queue_updates.insert(policy_name, queued_requests);
+    // Started only when idle (never restarted): the display is at most one
+    // interval behind no matter how the burst is shaped.
+    if (!m_queue_flush_timer.isActive()) {
+        m_queue_flush_timer.start();
+    }
+}
+
+void RateLimitDialog::FlushQueueUpdates()
+{
+    // Rows are looked up by name at flush time, not captured at arrival:
+    // OnPolicyUpdate replaces the row object wholesale, and a replacement
+    // between arrival and flush would leave a captured pointer dangling.
+    const auto pending = std::exchange(m_pending_queue_updates, {});
+    for (auto it = pending.cbegin(); it != pending.cend(); ++it) {
+        for (int i = 0; i < m_treeWidget->topLevelItemCount(); ++i) {
+            QTreeWidgetItem *item = m_treeWidget->topLevelItem(i);
+            if (item->text(0) == it.key()) {
+                if (it.value() > 0) {
+                    item->setText(1, QString::number(it.value()));
+                } else {
+                    item->setText(1, "");
+                }
+                break;
             }
-            break;
         }
     }
 }

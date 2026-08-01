@@ -1077,6 +1077,13 @@ UI-side coalesce of the existing signal (same throttle pattern as D9,
 much smaller S); the limiter is not touched either way
 (network-redesign is frozen). If it does not stutter, nothing is
 built. Recorded as measurement M1-M2 in the open-items list.
+**Discharged:** the measurement ran July 31, 2026 (post-M3, as the
+recorded follow-up) and the gate fired — ~23 ms of synchronous
+status-widget handler time per 2,000-entry burst, over one 60 Hz
+frame, dialog visible or not. The prescribed coalesce was built in
+`RateLimitDialog` (latest-value-per-policy map, non-resetting
+single-shot flush timer, S = 100 ms) and the rerun passed with the
+burst at ~0.9 ms. Evidence and rerun: `m1-m2-result.md`.
 
 ### D11. Deferrals, each with its reason
 
@@ -1340,10 +1347,16 @@ Design-review criteria (checked in review, not runnable):
   reset latency recorded (~455 ms at 101k, ~5.4 s at ~976k, the
   post-reset whole-model re-sort dominant in both). Evidence:
   `s1-m2-spike-result.md`; full result in D9.
-- **M1-M2 (measurement, blocks nothing):** 2,000-entry `QueueUpdated`
-  burst vs. status-widget frame time; builds the D10 coalesce only if
-  it stutters. Not run during M2 implementation (it blocks nothing);
-  recorded as a post-M2 follow-up.
+- **M1-M2 (measurement, blocks nothing) — RESOLVED July 31, 2026:**
+  2,000-entry `QueueUpdated` burst vs. status-widget frame time;
+  builds the D10 coalesce only if it stutters. Not run during M2
+  implementation (it blocks nothing); recorded as a post-M2
+  follow-up and run after M3. **It stuttered** — ~23 ms of
+  synchronous handler time per 2,000-entry burst (~95% the status
+  dialog's per-emission `setText`, paid even with the dialog
+  hidden) — so the prescribed coalesce was built and validated by
+  rerun (burst now ~0.9 ms). Evidence: `m1-m2-result.md`; pins in
+  `tst_ratelimitdialog`.
 - **M2-M2 (measurement, first implementation checkpoint — blocks M2
   completion, R2-3/R3-3/R4-1/R5-4/R7-3) — RESOLVED July 29, 2026:**
   the complete synchronous reply application on representative 100k

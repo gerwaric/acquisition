@@ -9,8 +9,8 @@ when this map and a header disagree, the header wins.
 - `design/items-pipeline.md` — plan for the delta-native redesign of the
   items refresh pipeline. Milestone 1 shipped July 2026; M2 merged and
   M3 implemented July 30–31, 2026, each against its own frozen spec.
-  Remaining follow-up: the M1-M2 status-widget burst measurement
-  (blocks nothing).
+  The M1-M2 status-widget burst measurement ran July 31, 2026 (gate
+  fired; coalesce built — `design/m1-m2-result.md`).
 - `design/items-pipeline-m2.md` — **frozen** spec (revision 9,
   July 29, 2026, amended post-freeze the same day) for Milestone 2,
   the streaming refresh signal: D-numbered decisions consuming the
@@ -19,7 +19,9 @@ when this map and a header disagree, the header wins.
   spike selected D9's outcome (a) with S = 60 s (evidence:
   `design/s1-m2-spike-result.md`). M2-M2 ran at its stage-4
   checkpoint (missed, remedied by the source-keyed stores, rerun
-  passed — `design/m2-m2-result.md`); M1-M2 remains a follow-up.
+  passed — `design/m2-m2-result.md`); M1-M2 ran July 31, 2026
+  (stuttered, remedied by the D10 dialog-side coalesce, rerun
+  passed — `design/m1-m2-result.md`).
 - `design/items-pipeline-m2-reviews.md` — that spec's review history:
   round-scoped finding tables (`R1-*`, …) with verdicts and
   resolutions, round narratives, and the revision log.
