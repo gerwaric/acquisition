@@ -85,6 +85,11 @@ void ControlProtocolTest::validatesRequests()
     QVERIFY(!wrong_version);
     QCOMPARE(wrong_version.error().code, "unsupported_version");
 
+    auto fractional_version = control::DecodeRequest(
+        R"({"protocol":1.5,"request_id":"request","command":"status"})");
+    QVERIFY(!fractional_version);
+    QCOMPARE(fractional_version.error().code, "unsupported_version");
+
     auto missing_id = control::DecodeRequest(R"({"protocol":1,"command":"status"})");
     QVERIFY(!missing_id);
     QCOMPARE(missing_id.error().code, "invalid_request");
@@ -111,6 +116,12 @@ void ControlProtocolTest::responseEnvelope()
     auto missing_envelope = control::DecodeResponse(R"({"ok":true})", "request");
     QVERIFY(!missing_envelope);
     QCOMPARE(missing_envelope.error().code, "unsupported_version");
+
+    auto fractional_version = control::DecodeResponse(
+        R"({"protocol":1.5,"request_id":"request","ok":true,"result":{}})",
+        "request");
+    QVERIFY(!fractional_version);
+    QCOMPARE(fractional_version.error().code, "unsupported_version");
 }
 
 void ControlProtocolTest::endpointIsUserScoped()

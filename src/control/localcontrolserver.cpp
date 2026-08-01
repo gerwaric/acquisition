@@ -144,7 +144,7 @@ void LocalControlServer::ReadFrom(QLocalSocket *socket)
         return;
     }
 
-    auto frames = connection->second.decoder.Feed(bytes);
+    auto frames = connection->second.decoder.FeedFirst(bytes);
     if (!frames) {
         Send(socket, Error("", frames.error().code, frames.error().message));
         socket->disconnectFromServer();

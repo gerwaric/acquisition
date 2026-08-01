@@ -22,6 +22,7 @@ private slots:
     void malformedClientDoesNotAffectAnother();
     void validationErrorsPreserveRequestId();
     void servesOnlyFirstPipelinedRequest();
+    void ignoresMalformedTrailingFrame();
     void ignoresTrailingPartialFrame();
     void idleConnectionTimesOut();
     void connectionLimitIsEnforced();
@@ -210,6 +211,26 @@ void LocalControlServerTest::servesOnlyFirstPipelinedRequest()
     const QJsonObject response = readResponse(socket);
     QVERIFY(response.value("ok").toBool());
     QCOMPARE(response.value("request_id").toString(), "one");
+    QCOMPARE(calls, 1);
+}
+
+void LocalControlServerTest::ignoresMalformedTrailingFrame()
+{
+    QTemporaryDir dir;
+    control::LocalControlServer server;
+    int calls = 0;
+    server.SetHandler([&](const control::Request &request) {
+        ++calls;
+        return control::Success(request.request_id);
+    });
+    QVERIFY(server.Listen(QDir(dir.path())));
+
+    QLocalSocket socket;
+    connectClient(socket, server.Endpoint());
+    socket.write(control::EncodeFrame(request()) + QByteArray("\x7f\xff\xff\xff", 4));
+    const QJsonObject response = readResponse(socket);
+    QVERIFY(response.value("ok").toBool());
+    QCOMPARE(response.value("request_id").toString(), "request");
     QCOMPARE(calls, 1);
 }
 

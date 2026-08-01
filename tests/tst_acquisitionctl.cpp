@@ -14,6 +14,7 @@ private slots:
     void rejectsOutOfRangeLimit();
     void rejectsOptionsForOtherCommands();
     void validatesRefreshArguments();
+    void invalidUsageDoesNotWriteStdout();
     void identifiesItselfInParserErrors();
     void statusRoundTrip();
     void waitTimeoutSendsOnlyStatusRequests();
@@ -25,6 +26,7 @@ namespace {
     {
         QProcess::ExitStatus status;
         int code;
+        QByteArray standard_output;
         QByteArray standard_error;
     };
 
@@ -36,7 +38,10 @@ namespace {
             process.kill();
             process.waitForFinished();
         }
-        return Result{process.exitStatus(), process.exitCode(), process.readAllStandardError()};
+        return Result{process.exitStatus(),
+                      process.exitCode(),
+                      process.readAllStandardOutput(),
+                      process.readAllStandardError()};
     }
 
 } // namespace
@@ -72,6 +77,19 @@ void AcquisitionCtlTest::validatesRefreshArguments()
     QCOMPARE(ignored_timeout.status, QProcess::NormalExit);
     QCOMPARE(ignored_timeout.code, 2);
     QVERIFY(ignored_timeout.standard_error.contains("applies only"));
+}
+
+void AcquisitionCtlTest::invalidUsageDoesNotWriteStdout()
+{
+    const Result missing_command = run({});
+    QCOMPARE(missing_command.code, 2);
+    QVERIFY(missing_command.standard_output.isEmpty());
+    QVERIFY(missing_command.standard_error.contains("command is required"));
+
+    const Result missing_id = run({"refresh", "status"});
+    QCOMPARE(missing_id.code, 2);
+    QVERIFY(missing_id.standard_output.isEmpty());
+    QVERIFY(missing_id.standard_error.contains("requires an operation id"));
 }
 
 void AcquisitionCtlTest::identifiesItselfInParserErrors()

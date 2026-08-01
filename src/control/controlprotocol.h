@@ -35,9 +35,13 @@ public:
     explicit FrameDecoder(qsizetype maximum_payload);
 
     std::expected<QVector<QByteArray>, ProtocolError> Feed(const QByteArray &bytes);
+    std::expected<QVector<QByteArray>, ProtocolError> FeedFirst(const QByteArray &bytes);
     bool HasPartialFrame() const { return !m_buffer.isEmpty() || m_expected_payload >= 0; }
 
 private:
+    std::expected<QVector<QByteArray>, ProtocolError> Feed(const QByteArray &bytes,
+                                                           bool stop_after_first);
+
     QByteArray m_buffer;
     qsizetype m_maximum_payload;
     qsizetype m_expected_payload{-1};

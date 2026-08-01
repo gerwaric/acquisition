@@ -19,6 +19,11 @@ namespace {
         return ProtocolError{"invalid_request", message};
     }
 
+    bool IsSupportedVersion(const QJsonValue &value)
+    {
+        return value.isDouble() && value.toDouble() == double(PROTOCOL_VERSION);
+    }
+
 } // namespace
 
 FrameDecoder::FrameDecoder(qsizetype maximum_payload)
@@ -26,6 +31,17 @@ FrameDecoder::FrameDecoder(qsizetype maximum_payload)
 {}
 
 std::expected<QVector<QByteArray>, ProtocolError> FrameDecoder::Feed(const QByteArray &bytes)
+{
+    return Feed(bytes, false);
+}
+
+std::expected<QVector<QByteArray>, ProtocolError> FrameDecoder::FeedFirst(const QByteArray &bytes)
+{
+    return Feed(bytes, true);
+}
+
+std::expected<QVector<QByteArray>, ProtocolError> FrameDecoder::Feed(const QByteArray &bytes,
+                                                                     bool stop_after_first)
 {
     m_buffer.append(bytes);
     QVector<QByteArray> frames;
@@ -56,6 +72,9 @@ std::expected<QVector<QByteArray>, ProtocolError> FrameDecoder::Feed(const QByte
         frames.push_back(m_buffer.first(m_expected_payload));
         m_buffer.remove(0, m_expected_payload);
         m_expected_payload = -1;
+        if (stop_after_first) {
+            break;
+        }
     }
 
     return frames;
@@ -100,7 +119,7 @@ std::expected<Request, ProtocolError> DecodeRequest(const QByteArray &payload)
     }
     const QJsonObject &object = *decoded;
     const QJsonValue protocol = object.value("protocol");
-    if (!protocol.isDouble() || protocol.toInt(-1) != PROTOCOL_VERSION) {
+    if (!IsSupportedVersion(protocol)) {
         return std::unexpected(
             ProtocolError{"unsupported_version", "the request protocol version is not supported"});
     }
@@ -135,8 +154,7 @@ std::expected<QJsonObject, ProtocolError> DecodeResponse(const QByteArray &paylo
         return std::unexpected(decoded.error());
     }
     const QJsonObject &object = *decoded;
-    if (!object.value("protocol").isDouble()
-        || object.value("protocol").toInt(-1) != PROTOCOL_VERSION) {
+    if (!IsSupportedVersion(object.value("protocol"))) {
         return std::unexpected(
             ProtocolError{"unsupported_version", "the response protocol version is not supported"});
     }

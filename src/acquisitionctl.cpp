@@ -94,8 +94,9 @@ int main(int argc, char *argv[])
 
     const QStringList positional = parser.positionalArguments();
     if (positional.isEmpty()) {
-        QTextStream(stderr) << "acquisitionctl: a command is required" << Qt::endl;
-        parser.showHelp(2);
+        QTextStream(stderr) << "acquisitionctl: a command is required; use --help for usage"
+                            << Qt::endl;
+        return 2;
     }
 
     const bool has_item_options = parser.isSet(limit_option) || parser.isSet(cursor_option)
@@ -107,7 +108,9 @@ int main(int argc, char *argv[])
 
     if (command == "status" || command == "tabs") {
         if (positional.size() != 1) {
-            parser.showHelp(2);
+            QTextStream(stderr) << "acquisitionctl: " << command << " does not accept arguments"
+                                << Qt::endl;
+            return 2;
         }
         if (has_item_options || parser.isSet(timeout_option)) {
             QTextStream(stderr) << "acquisitionctl: those options do not apply to " << command
@@ -116,7 +119,9 @@ int main(int argc, char *argv[])
         }
     } else if (command == "items") {
         if (positional.size() != 1 || parser.isSet(timeout_option)) {
-            parser.showHelp(2);
+            QTextStream(stderr) << "acquisitionctl: invalid items arguments; use --help for usage"
+                                << Qt::endl;
+            return 2;
         }
         if (parser.isSet(limit_option)) {
             bool ok = false;
@@ -162,17 +167,23 @@ int main(int argc, char *argv[])
         params.insert("id", positional.at(1));
     } else if (command == "refresh") {
         if (has_item_options || positional.size() < 2 || positional.size() > 3) {
-            parser.showHelp(2);
+            QTextStream(stderr) << "acquisitionctl: invalid refresh arguments; use --help for usage"
+                                << Qt::endl;
+            return 2;
         }
         const QString action = positional.at(1);
         if (action == "start") {
             if (positional.size() != 2 || parser.isSet(timeout_option)) {
-                parser.showHelp(2);
+                QTextStream(stderr) << "acquisitionctl: refresh start does not accept arguments"
+                                    << Qt::endl;
+                return 2;
             }
             command = "refresh.start";
         } else if (action == "status" || action == "wait") {
             if (positional.size() != 3) {
-                parser.showHelp(2);
+                QTextStream(stderr) << "acquisitionctl: refresh " << action
+                                    << " requires an operation id" << Qt::endl;
+                return 2;
             }
             command = "refresh.status";
             params.insert("operation_id", positional.at(2));
