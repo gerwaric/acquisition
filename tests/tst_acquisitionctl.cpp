@@ -2,6 +2,7 @@
 #include <QProcess>
 #include <QStringList>
 #include <QTemporaryDir>
+#include <QThread>
 #include <QtTest>
 
 #include "control/controlprotocol.h"
@@ -18,6 +19,7 @@ private slots:
     void invalidUsageDoesNotWriteStdout();
     void identifiesItselfInParserErrors();
     void statusRoundTrip();
+    void refreshStartRetriesWithSameRequestId();
     void waitTimeoutSendsOnlyStatusRequests();
 };
 
@@ -109,6 +111,11 @@ void AcquisitionCtlTest::validatesRefreshArguments()
 
 void AcquisitionCtlTest::invalidUsageDoesNotWriteStdout()
 {
+    const Result empty_data_dir = run({"--data-dir", "", "status"});
+    QCOMPARE(empty_data_dir.code, 2);
+    QVERIFY(empty_data_dir.standard_output.isEmpty());
+    QVERIFY(empty_data_dir.standard_error.contains("--data-dir must not be empty"));
+
     const Result missing_command = run({});
     QCOMPARE(missing_command.code, 2);
     QVERIFY(missing_command.standard_output.isEmpty());
@@ -159,6 +166,37 @@ void AcquisitionCtlTest::statusRoundTrip()
                  .value("service_state")
                  .toString(),
              "ready");
+}
+
+void AcquisitionCtlTest::refreshStartRetriesWithSameRequestId()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    control::LocalControlServer server;
+    QStringList request_ids;
+    server.SetHandler([&request_ids](const control::Request &request) {
+        if (request.command != "refresh.start") {
+            return control::Error(request.request_id, "wrong_command", "expected refresh start");
+        }
+        request_ids.push_back(request.request_id);
+        if (request_ids.size() == 1) {
+            QThread::msleep(2200);
+        }
+        return control::Success(request.request_id,
+                                QJsonObject{{"accepted", true},
+                                            {"state", "queued"},
+                                            {"operation_id", request.request_id}});
+    });
+    QVERIFY2(server.Listen(QDir(dir.path())), qPrintable(server.ErrorString()));
+
+    QProcess process;
+    process.start(ACQUISITIONCTL_PATH,
+                  {"--data-dir", dir.path(), "refresh", "start"});
+    QTRY_COMPARE_WITH_TIMEOUT(process.state(), QProcess::NotRunning, 7000);
+    QCOMPARE(process.exitStatus(), QProcess::NormalExit);
+    QCOMPARE(process.exitCode(), 0);
+    QCOMPARE(request_ids.size(), 2);
+    QCOMPARE(request_ids.at(0), request_ids.at(1));
 }
 
 void AcquisitionCtlTest::waitTimeoutSendsOnlyStatusRequests()

@@ -624,33 +624,66 @@ QJsonObject ControlService::Item(const QString &request_id, const QJsonObject &p
 
 QJsonObject ControlService::StartRefresh(const QString &request_id)
 {
+    const auto previous = std::find_if(m_refresh_start_responses.begin(),
+                                       m_refresh_start_responses.end(),
+                                       [&request_id](const auto &entry) {
+                                           return entry.first == request_id;
+                                       });
+    if (previous != m_refresh_start_responses.end()) {
+        return previous->second;
+    }
+    const auto remember = [this, &request_id](QJsonObject response) {
+        m_refresh_start_responses.emplace_back(request_id, response);
+        while (qsizetype(m_refresh_start_responses.size()) > MAXIMUM_REFRESH_HISTORY) {
+            m_refresh_start_responses.pop_front();
+        }
+        return response;
+    };
+
     if (m_state != ServiceState::Ready) {
-        return Error(request_id,
-                     "not_ready",
-                     QString("refresh control is unavailable while the service is %1")
-                         .arg(StateName(m_state)));
+        return remember(Error(request_id,
+                              "not_ready",
+                              QString("refresh control is unavailable while the service is %1")
+                                  .arg(StateName(m_state))));
     }
     if (!m_refresh_readiness || !m_start_refresh) {
-        return Error(request_id, "refresh_unavailable", "refresh control is not configured");
+        return remember(
+            Error(request_id, "refresh_unavailable", "refresh control is not configured"));
+    }
+    const auto existing = std::find_if(m_refresh_jobs.begin(),
+                                       m_refresh_jobs.end(),
+                                       [&request_id](const RefreshJob &job) {
+                                           return job.id == request_id;
+                                       });
+    if (existing != m_refresh_jobs.end()) {
+        return remember(Success(request_id,
+                                QJsonObject{{"accepted", true},
+                                            {"state", existing->state},
+                                            {"operation_id", existing->id}}));
     }
     if (!m_active_refresh_id.isEmpty()) {
-        return Success(request_id,
-                       QJsonObject{{"accepted", false},
-                                   {"state", "busy"},
-                                   {"active_refresh_id", m_active_refresh_id}});
+        return remember(Success(request_id,
+                                QJsonObject{{"accepted", false},
+                                            {"state", "busy"},
+                                            {"active_refresh_id", m_active_refresh_id}}));
     }
 
     switch (m_refresh_readiness()) {
     case RefreshReadiness::Initializing:
-        return Error(request_id, "not_ready", "inventory initialization is still running");
+        return remember(
+            Error(request_id, "not_ready", "inventory initialization is still running"));
     case RefreshReadiness::Busy:
-        return Success(request_id, QJsonObject{{"accepted", false}, {"state", "busy"}});
+        return remember(
+            Success(request_id, QJsonObject{{"accepted", false}, {"state", "busy"}}));
     case RefreshReadiness::Ready:
         break;
     }
 
     RefreshJob job;
-    job.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    // The request id is the idempotency key. A client can retry an ambiguous
+    // start with the same envelope and recover this operation without starting
+    // a second refresh.
+    job.id = request_id;
     job.state = "queued";
     job.started_at = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
     m_active_refresh_id = job.id;
@@ -720,10 +753,10 @@ QJsonObject ControlService::StartRefresh(const QString &request_id)
         },
         Qt::QueuedConnection);
 
-    return Success(request_id,
-                   QJsonObject{{"accepted", true},
-                               {"state", "queued"},
-                               {"operation_id", operation_id}});
+    return remember(Success(request_id,
+                            QJsonObject{{"accepted", true},
+                                        {"state", "queued"},
+                                        {"operation_id", operation_id}}));
 }
 
 QJsonObject ControlService::RefreshStatus(const QString &request_id,

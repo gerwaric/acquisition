@@ -91,6 +91,10 @@ int main(int argc, char *argv[])
     parser.addOption(timeout_option);
     parser.addOption(QCommandLineOption("json", "Emit machine-readable JSON (the default)."));
     parser.process(app);
+    if (parser.value(data_dir_option).isEmpty()) {
+        QTextStream(stderr) << "acquisitionctl: --data-dir must not be empty" << Qt::endl;
+        return 2;
+    }
 
     const QStringList positional = parser.positionalArguments();
     if (positional.isEmpty()) {
@@ -254,8 +258,11 @@ int main(int argc, char *argv[])
     const QString endpoint = control::EndpointName(QDir(parser.value(data_dir_option)));
     const auto send = [&endpoint](const QString &request_command,
                                   const QJsonObject &request_params,
-                                  int timeout_ms) {
-        const QString request_id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+                                  int timeout_ms,
+                                  QString request_id = {}) {
+        if (request_id.isEmpty()) {
+            request_id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        }
         const QJsonObject request{{"protocol", control::PROTOCOL_VERSION},
                                   {"request_id", request_id},
                                   {"command", request_command},
@@ -263,9 +270,30 @@ int main(int argc, char *argv[])
         return control::SendRequest(endpoint, request, timeout_ms);
     };
 
+    // refresh start is always in this branch; wait_for_refresh is set only by
+    // the separate `refresh wait <operation-id>` status-polling action.
     if (!wait_for_refresh) {
-        auto response = send(command, params, 2000);
+        const QString request_id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        auto response = send(command, params, 2000, request_id);
+        if (!response && command == "refresh.start"
+            && (response.error().code == "timeout"
+                || response.error().code == "transport_error")) {
+            response = send(command, params, 2000, request_id);
+        }
         if (!response) {
+            if (command == "refresh.start"
+                && (response.error().code == "timeout"
+                    || response.error().code == "transport_error")) {
+                QJsonObject unconfirmed = control::Error(
+                    request_id,
+                    "start_unconfirmed",
+                    "refresh start was not confirmed; query the operation id before retrying");
+                QJsonObject error = unconfirmed.value("error").toObject();
+                error.insert("operation_id", request_id);
+                unconfirmed.insert("error", error);
+                PrintJson(unconfirmed);
+                return 4;
+            }
             return PrintClientError(response.error());
         }
         PrintJson(*response);

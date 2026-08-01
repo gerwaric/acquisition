@@ -97,7 +97,7 @@ std::expected<QJsonObject, ClientError> SendRequest(const QString &endpoint,
         const bool absent = socket.error() == QLocalSocket::ServerNotFoundError
                             || socket.error() == QLocalSocket::ConnectionRefusedError;
         return std::unexpected(
-            ClientError{absent ? "not_running" : "transport_error", socket.errorString()});
+            ClientError{absent ? "not_running" : "connect_error", socket.errorString()});
     }
 #ifdef Q_OS_WIN
     if (!ServerBelongsToCurrentUser(socket)) {

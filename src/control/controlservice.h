@@ -12,6 +12,7 @@
 #include <deque>
 #include <functional>
 #include <optional>
+#include <utility>
 
 #include "control/controlprotocol.h"
 #include "refreshoutcome.h"
@@ -85,6 +86,7 @@ private:
     std::function<RefreshReadiness()> m_refresh_readiness;
     std::function<void()> m_start_refresh;
     std::deque<RefreshJob> m_refresh_jobs;
+    std::deque<std::pair<QString, QJsonObject>> m_refresh_start_responses;
     QString m_active_refresh_id;
     static constexpr qsizetype MAXIMUM_REFRESH_HISTORY = 32;
 };

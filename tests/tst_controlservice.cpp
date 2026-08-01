@@ -386,6 +386,13 @@ void ControlServiceTest::refreshJobOutlivesStartRequest()
     QVERIFY(start_result.value("accepted").toBool());
     const QString operation_id = start_result.value("operation_id").toString();
     QVERIFY(!operation_id.isEmpty());
+    QCOMPARE(operation_id, "start");
+    QCOMPARE(fixture.starts, 0);
+
+    const QJsonObject duplicate = fixture.service.Handle(
+        control::Request{"start", "refresh.start", {}});
+    QVERIFY(resultOf(duplicate).value("accepted").toBool());
+    QCOMPARE(resultOf(duplicate).value("operation_id").toString(), operation_id);
     QCOMPARE(fixture.starts, 0);
 
     QCoreApplication::processEvents();
@@ -458,6 +465,14 @@ void ControlServiceTest::busyRefreshIsNotAccepted()
     QVERIFY(!resultOf(response).value("accepted").toBool(true));
     QCOMPARE(resultOf(response).value("state").toString(), "busy");
     QCOMPARE(fixture.starts, 0);
+
+    fixture.readiness = control::ControlService::RefreshReadiness::Ready;
+    const QJsonObject retry = fixture.service.Handle(
+        control::Request{"start", "refresh.start", {}});
+    QVERIFY(!resultOf(retry).value("accepted").toBool(true));
+    QCOMPARE(resultOf(retry).value("state").toString(), "busy");
+    QCoreApplication::processEvents();
+    QCOMPARE(fixture.starts, 0);
 }
 
 void ControlServiceTest::refreshOutcomesRemainTyped()
@@ -503,7 +518,7 @@ void ControlServiceTest::refreshHistoryIsBounded()
     QString last_id;
     for (int index = 0; index < 33; ++index) {
         const QJsonObject start = fixture.service.Handle(
-            control::Request{"start", "refresh.start", {}});
+            control::Request{QString("start-%1").arg(index), "refresh.start", {}});
         const QString id = resultOf(start).value("operation_id").toString();
         QVERIFY(!id.isEmpty());
         if (index == 0) {
