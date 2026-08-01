@@ -75,6 +75,7 @@ int main(int argc, char **argv)
             break;
         }
     }
+    const qint64 traversal_ns = total.nsecsElapsed();
 
     if (received != expected) {
         std::fprintf(stderr,
@@ -112,7 +113,7 @@ int main(int argc, char **argv)
                 qPrintable(parser.value(preset_option)),
                 static_cast<long long>(received),
                 static_cast<long long>(pages),
-                double(total.nsecsElapsed()) / 1'000'000.0,
+                double(traversal_ns) / 1'000'000.0,
                 double(maximum_page_ns) / 1'000'000.0,
                 double(sparse_filter_ns) / 1'000'000.0,
                 double(tabs_ns) / 1'000'000.0);
